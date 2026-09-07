@@ -83,7 +83,10 @@ AIR_STATUS_RE = re.compile(
     r'(?:\s+armed=(?P<armed>\d+))?(?:\s+dirty=(?P<dirty>\d+))?'
     # Two schedules: tel=<wakes since send>/<wakes between sends>, and whether
     # THIS wake raised the radio at all.
-    r'(?:\s+tel=(?P<telnow>\d+)/(?P<televery>\d+))?(?:\s+radio=(?P<radio>\d+))?')
+    r'(?:\s+tel=(?P<telnow>\d+)/(?P<televery>\d+))?(?:\s+radio=(?P<radio>\d+))?'
+    # Automatic cadence: the batch size the AIMD controller settled on and the
+    # last full send cycle in ms. Also optional — older builds have neither.
+    r'(?:\s+bat=(?P<bat>\d+))?(?:\s+cyc=(?P<cyc>\d+)ms)?')
 PHASE_RE = re.compile(r'\[AIR\] phase=(?P<name>[A-Z]+) @(?P<ms>\d+)')
 ALARM_RE = re.compile(r'\[AIR\] alarm: (?P<h>\d+):(?P<m>\d+):(?P<s>\d+) wakeSec=(?P<sec>\d+)')
 VFY_RE = re.compile(r'VFY BOOTSEL=(?P<b>\S+) RESET=(?P<r>\S+) HB=(?P<hb>\d+)us')

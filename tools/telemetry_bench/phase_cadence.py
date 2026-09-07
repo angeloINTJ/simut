@@ -336,7 +336,8 @@ def phase_latency(dev, batch, delays, seconds, out, tls=False, interval_ms=1):
     for delay in delays:
         label = f'{"https" if tls else "http"}_b{batch}_d{delay}'
         log(f'--- {label}')
-        srv = start_server('cad_' + label, tls, port, mode=('ok' if delay == 0 else 'slow'),
+        srv = start_server('cad_' + label + (('_' + C.OUT_TAG) if getattr(C, 'OUT_TAG', '') else ''),
+                           tls, port, mode=('ok' if delay == 0 else 'slow'),
                            delay=(None if delay == 0 else delay))
         try:
             dev.tel_reset()
@@ -353,7 +354,7 @@ def phase_latency(dev, batch, delays, seconds, out, tls=False, interval_ms=1):
             srv.stop()
 
 
-def phase_wake(dev, configs, out, reset=True):
+def phase_wake(dev, configs, out, reset=True, delay=0.0):
     """One M1 wake each, timed by the probe: awake seconds per record delivered.
 
     reset=False leaves the cursor where the last drain put it, so the wake has
@@ -365,9 +366,12 @@ def phase_wake(dev, configs, out, reset=True):
         return
     for tls, batch, interval_ms in configs:
         port = PORT_HTTPS if tls else PORT_HTTP
-        label = f'wake_{"https" if tls else "http"}_b{batch}_i{interval_ms}' + ('' if reset else '_noreset')
+        label = (f'wake_{"https" if tls else "http"}_b{batch}_i{interval_ms}'
+                 + (f'_d{delay}' if delay else '') + ('' if reset else '_noreset'))
         log(f'--- {label}')
-        srv = start_server('cad_' + label + (('_' + C.OUT_TAG) if getattr(C, 'OUT_TAG', '') else ''), tls, port)
+        srv = start_server('cad_' + label + (('_' + C.OUT_TAG) if getattr(C, 'OUT_TAG', '') else ''),
+                           tls, port, mode=('slow' if delay > 0 else 'ok'),
+                           delay=(delay if delay > 0 else None))
         try:
             dev.configure(tls, batch, interval_ms=interval_ms, port=port)
             if reset:
@@ -393,7 +397,8 @@ def phase_wake(dev, configs, out, reset=True):
             after = [r for r in (st.get('req_log') or []) if started + r[0] >= wall_hib]
             recs = sum((r[1] or 0) for r in after)
             row = {'label': label, 'phase': 'wake', 'tls': tls, 'batch': batch,
-                   'interval_ms': interval_ms, 'awake_windows_s': [round(a, 2) for a in awake],
+                   'interval_ms': interval_ms, 'delay': delay,
+                   'awake_windows_s': [round(a, 2) for a in awake],
                    'srv_records': recs, 'srv_requests': len(after),
                    'pending_before': s0.get('sys', {}).get('pending')}
             if awake and recs:
@@ -422,6 +427,8 @@ def main():
                     help='bench server keeps the connection open between requests (TLS session A/B)')
     ap.add_argument('--tag', default='', help='suffix for the server result files, e.g. ka')
     ap.add_argument('--http-only', action='store_true')
+    ap.add_argument('--wake-delay', type=float, default=0.0,
+                    help='wake phase: server answers after this many seconds (mode slow)')
     ap.add_argument('--wake-no-reset', action='store_true',
                     help='wake phase: do not tel_reset before the wake (steady-state backlog)')
     ap.add_argument('--wake-configs', default='',
@@ -457,7 +464,7 @@ def main():
                 for item in args.wake_configs.split(','):
                     tr, b, ms = item.split(':')
                     cfgs.append((tr.strip().lower() == 'https', int(b), int(ms)))
-            phase_wake(dev, cfgs, out, reset=not args.wake_no_reset)
+            phase_wake(dev, cfgs, out, reset=not args.wake_no_reset, delay=args.wake_delay)
     finally:
         C.save(out_name(), out)
         if not args.no_restore:

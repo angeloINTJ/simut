@@ -15,44 +15,45 @@
 
 ## 0. Resposta curta
 
-1. **O intervalo fixo estrangulava a telemetria por 2 a 3 ordens de grandeza.** Com o piso em 1 ms
-   (o mínimo que a config aceita), HTTP puro entrega **500 registros/s** com lote 50, **780/s** com
-   lote 100 e **830/s** com lote 250 (§2.1). Com `t_int` = 10 s o mesmo aparelho entregava 5
-   registros/s; com os 300 s da configuração atual, **0,33/s** — 37 mil registros pendentes
-   levariam **31 horas** para sair, uma janela de 30 s por wake de cada vez.
-2. **Uma requisição HTTP custa `54 ms + 0,94 ms × registros`** (ajuste sobre cinco lotes, §2.1).
-   O servidor responde em 2 ms; os ~54 ms fixos são o aparelho e o seu loop (varrer o diretório,
-   abrir e decodificar, montar o JSON, conectar, voltar ao `loop( )`). Logo a vazão cresce com o
-   lote — mas com retorno decrescente: de 100 para 250 registros ganha só 6 %. **O lote útil no
-   HTTP é o teto de heap (~230 registros JSON hoje)**, e a alavanca seguinte é o custo fixo, não o
-   lote.
-3. **No HTTPS cada lote paga um handshake TLS inteiro: `1,4 s + 2,7 ms × registros`** — 10 a 20×
-   o HTTP, 7 a 87 registros/s. `attemptHttpUpload( )` fecha a sessão após toda requisição (defesa
-   medida contra a falha `drip`). Manter a sessão entre lotes consecutivos com sucesso é a maior
-   alavanca de criptografia; está implementada atrás de `TEL_TLS_KEEPALIVE_EXPERIMENT` (instância
-   persistente do `HTTPClient` — o reuso é estado dela) e medida em A/B (§2.5).
-4. **Para energia, o que importa é o wake, não o envio.** A 800 registros/s, um registro custa
-   ~1,2 ms de rádio (HTTP) ou ~12 ms (HTTPS, lote 250); a amostragem custa ~27 s por wake. Portanto:
-   enviar **raramente** (a cada N wakes de leitura, como já faz o `airTelemetryDue( )`) e, quando
-   enviar, **drenar tudo na velocidade máxima** — nunca ficar acordado esperando um intervalo.
-5. **A regra "hiberna e continua depois" já existe pela metade** (o teto `flushTimeoutMs` corta o
-   dreno e o contador de wakes retoma no próximo wake de telemetria). Falta o teto ser derivado do
-   intervalo de leitura, para o wake de telemetria nunca estourar a cadência de medição.
-6. **Retratação no caminho:** a primeira matriz (01:00) mostrava "22–35 % de reenvio" e números
-   1,5× maiores. Era a bancada — servidor contando desde antes do reboot de configuração — e não o
-   firmware (§2.6). Os números deste documento são da segunda matriz, com a janela cortada por
-   request. Um bug real apareceu na caçada e está corrigido: o cursor nunca ia ao flash durante um
-   dreno rápido.
-7. 🔴 **O wake de telemetria do Air não mandava nada com a configuração de campo** (`t_int` =
-   300 s): o primeiro envio de um boot espera `t_int` inteiro, e o wake dura 57 s. Medido: 0
-   registros em 57 s acordado com o rádio ligado (§2.4). **Corrigido e validado** nesta rodada
-   ("modo dreno" no FLUSH, F05): 18.800 registros no mesmo wake (§2.8). É o item que tem que sair
-   junto com este plano, porque sem ele as duas cadências (leitura todo minuto, telemetria a cada
-   N wakes) não entregam telemetria nenhuma.
-8. **Dois reboots silenciosos** (sem autópsia, sem marcador de hibernação) numa noite, os dois
-   colados numa falha de telemetria — na célula de 6 s e no 1º wake de validação. Não é o
-   watchdog (deixaria `[FTL]`) e nenhum caminho de reboot limpo do firmware se aplica; a hipótese
-   é perda de energia no USB, mas a coincidência pede uma serial acampada (§2.7, §6).
+**Está implementado, medido e no ferro** (§3.7 diz onde ficou cada peça; §3.10 tem a validação).
+O que muda, com a configuração que o aparelho do Ângelo tem hoje (`t_int` = 300 s, leitura a
+1 min, lote 100):
+
+| | antes | depois |
+|---|---|---|
+| dreno em M0, HTTP | 0,33 reg/s (31 h para 35 mil registros) | **1.276 reg/s** (o mesmo backlog em 27 s) |
+| dreno em M0, HTTPS | 0,33 reg/s | **140 reg/s** |
+| wake de telemetria (M1) | **0 registros**, 57 s acordado com o rádio ligado | **12.225 registros**, 48,7 s, sobrando 11 s de sono |
+| wake com coletor lento (3 s) | — | 325 registros e dorme, em vez de esperar |
+
+1. **`t_int` deixou de ser piso entre lotes e virou período entre drenos.** Era ele que fazia o
+   teto de vazão: um lote a cada cinco minutos. Agora um dreno vai até esvaziar, e o ritmo dentro
+   dele vem do servidor.
+2. **A cadência é o ciclo medido, não a configuração.** Ciclo abaixo da marca rápida do transporte
+   (400 ms puro, 2.500 ms TLS) → próximo lote na hora; acima → o gap é o próprio ciclo; e só dobra
+   quando o ciclo piora ≥ 25 % sobre a média — a versão que dobrava sempre foi medida e **piorava**
+   um coletor saudável de 0,5 s em 5,6× (§3.9).
+3. **O lote é automático dentro do teto de heap**: cresce metade a cada sucesso, cai pela metade a
+   cada falha, entre 10 e 250. Visível no fio: 50 → 75 → 100 num wake com coletor lento.
+4. **O wake do Air se dimensiona pelo intervalo de leitura** e hiberna em vez de esperar: o
+   orçamento do FLUSH é o menor entre o teto configurado e o que resta do intervalo depois da
+   cauda e do sono mínimo; se o gap pedido não cabe, dorme e continua no próximo wake. Fim do
+   `OVERRUN` com leitura a 1 min.
+5. **Onde o ganho NÃO está:** com um coletor lento (0,5 a 3,5 s) a cadência nova empata com a
+   antiga, porque `1,5 × EMA_POST` e `1 × ciclo` dão quase o mesmo número quando é o servidor que
+   manda. O ganho está no coletor rápido, na configuração de campo e no wake.
+6. **Para energia, o que importa segue sendo o wake, não o envio**: dos 48,7 s acordado, ~27 s são
+   boot e amostragem. Enviar raramente (a cada N wakes, `airTelemetryDue( )`) e drenar rápido é a
+   regra; o envio em si custa ~1,4 ms por registro no HTTP.
+7. **HTTPS**: cada lote paga um handshake, e o keep-alive de sessão medido em §2.5 vale 3,4× a
+   5,2×. Continua atrás de `TEL_TLS_KEEPALIVE_EXPERIMENT` (default 0) até a `phase_survive` rodar
+   com ele — é a decisão **D-12**.
+8. **Retratação:** a primeira matriz (01:00) mostrava "22–35 % de reenvio" e números 1,5× maiores;
+   era a bancada, não o firmware (§2.6). Dois bugs reais apareceram no caminho e estão corrigidos:
+   o cursor não ia ao flash durante um dreno rápido, e o wake de telemetria não enviava nada.
+9. **Três reboots silenciosos** (sem autópsia, sem marcador de hibernação), todos colados a uma
+   falha de envio, nenhum reproduzível sob observação. Não é watchdog nem caminho de reboot do
+   firmware; a hipótese é perda de energia no USB (§2.7).
 
 ---
 
@@ -84,7 +85,7 @@
 
 ## 2. O que a bancada mediu
 
-Bancada: LittleFS com **28 dias sintéticos** (`gen_synth_history.py`, 1 registro/min, ~35 mil
+Bancada: LittleFS com **28 dias sintéticos** (`tools/gen_synth_history.py`, 1 registro/min, ~35 mil
 registros dentro do piso de 30 dias, 58 KB em `/history`); servidor instrumentado no PC
 (`192.168.3.31`, HTTP :18080, HTTPS :18443, certificado autoassinado — o aparelho está sem
 `/cert.pem`, logo `setInsecure( )`); `t_int = 1` para o piso não mandar; `tel_reset` antes de
@@ -315,6 +316,13 @@ AP — nenhum se aplica ao instante; o sono do Air não estava armado. Um watchd
 do PC, e o rig já registrou "reboot sem causa = perda de energia". Heap 95,6 KB mínimo na célula,
 polls web todos respondidos até o instante — nada apontando para o firmware.
 
+**Terceira ocorrência, 07/09 08:59**, na célula HTTPS da validação da cadência: o log traz
+`SYS_TEL_SENT` às 08:58:53 e um boot às 08:59:45 (`up=17 s`) **sem nenhum `SYS_BOOT`** — a
+assinatura idêntica das outras duas. A mesma célula, repetida 25 minutos depois com o firmware
+final, correu inteira sem reset. Três eventos, todos silenciosos, nenhum reproduzível sob
+observação: continua não sendo o watchdog (que escreveria `[FTL] ctx=2xx`) nem qualquer caminho de
+reboot do firmware.
+
 **Repetida às 02:20 com a serial acampada** (`serial_probe.py --delay 6 --seconds 75`): quatro
 timeouts de 4 s (`read Timeout (-11)`), backoff 5 → 10 → 20 → 40 s, **nenhum reboot** em 75 s e
 nenhum banner de boot na serial. Fica classificado como **não reproduzido, provável perda de
@@ -332,8 +340,9 @@ backoff.
 
 ```
 depois de um envio com sucesso, com ciclo medido c (ms, do collectBatch ao end):
-    gap = 0                                       se c ≤ FAST_MS[transporte]   (servidor rápido: próximo lote já)
-    gap = min(max(c, 2 × gap_anterior), GAP_MAX)  se c > FAST_MS[transporte]   (servidor lento: o intervalo cresce a cada lote lento)
+    gap = 0                              se c ≤ FAST_MS[transporte]  (rápido: próximo lote já)
+    gap = c                              se c > FAST_MS              (lento e estável: dá a ele o tempo que levou)
+    gap = min(2 × gap_anterior, GAP_MAX)  se além disso c > 1,25 × EMA(c)  (PIORANDO: recua de verdade)
     gap *= penalidade_RSSI
 depois de uma falha (código ≠ 2xx, timeout, socket):
     backoff exponencial como hoje (5 s ×2 … 300 s, jitter); gap volta a 0 no próximo sucesso rápido
@@ -345,6 +354,11 @@ depois de uma falha (código ≠ 2xx, timeout, socket):
   e o valor do HTTPS cai para o ciclo sem handshake se o keep-alive entrar (§2.5). Um servidor que
   responde além disso está demorando **mais do que o aparelho leva para fazer a sua parte** — é
   esse o critério, não um número absoluto.
+- ⚠️ **`max(c, 2 × gap_anterior)` estava errado, e a bancada mostrou por quê** (§3.9). Ele dobra a
+  cada lote lento, então um servidor **estável** em 0,5 s — que é um endpoint de ingestão normal —
+  ia ao teto de 10 s e ficava lá. Dobrar é para o servidor que está **piorando**, não para o que
+  é apenas lento. A regra que ficou: `gap = ciclo`, e só dobra quando este ciclo é ≥ 25 % pior que
+  a média recente (EMA do ciclo).
 - `GAP_MAX` ≈ 10 s: acima disso o aparelho está esperando um servidor doente. No M0 (rede
   elétrica) o gap é só cortesia — não custa energia. No Air custa o rádio ligado, e por isso a
   regra lá é outra: **gap maior que o orçamento restante do wake = dormir agora** (§3.4). O dado
@@ -357,10 +371,12 @@ depois de uma falha (código ≠ 2xx, timeout, socket):
 ```
 tetoHeap  = safeBatchLimit(telBatchSize)          // já existe
 lote      = clamp(loteAtual, LOTE_MIN, tetoHeap)
-sucesso e c ≤ FAST_MS   → lote = min(lote × 3/2, tetoHeap)
-sucesso e c > FAST_MS   → lote mantido
-falha / timeout         → lote = max(lote / 2, LOTE_MIN); backoff
+sucesso (rápido ou lento) → lote = min(lote × 3/2, LOTE_MAX)   // o teto real é o heap, em collectBatch
+falha / timeout           → lote = max(lote / 2, LOTE_MIN); backoff
 ```
+
+Crescer só no sucesso **rápido** foi tentado e medido pior (§3.9): contra um coletor de 3 s o lote
+nunca saía de 50. Quem responde à lentidão é o gap; o lote responde à falha.
 
 - Justificativa medida: nos dois transportes a vazão cresce monotonicamente com o lote até o
   clamp de heap (§2.1: 137 → 827 reg/s; §2.2: 6,7 → 86,9 reg/s), sem nenhuma falha em 2.237
@@ -423,6 +439,128 @@ a cada lote:
 
 ---
 
+## 3.7 O que foi implementado (07/09, `feature/simut-air`)
+
+O desenho acima está no firmware. Onde ficou cada peça:
+
+| peça | onde | comportamento |
+|---|---|---|
+| período entre drenos | `TelemetryManager::update( )` | `telInterval` só decide **quando um dreno começa** (`_lastDrainEnd`); dentro do dreno não gateia nada |
+| gap entre lotes | idem | 0 se o ciclo ≤ `TEL_FAST_MS_PLAIN` (400 ms) / `TEL_FAST_MS_TLS` (2.500 ms); senão dobra a cada lote lento até `TEL_GAP_MAX_MS` (10 s), e um lote rápido zera. Penalidade de RSSI multiplica o gap |
+| ciclo medido | idem | `t0` antes do `collectBatch( )`, `t1` depois do transporte — em `_lastCycleMs`. O `_smoothedLatencyMs` continua sendo só o POST (é o que `metr.tl` e o painel mostram) |
+| lote automático | `collectBatch( )` + pós-envio | `_batchAuto` (nasce em 50) cresce ×3/2 no sucesso rápido, mantém no lento, cai pela metade na falha, entre `TEL_BATCH_MIN` (10) e `TEL_BATCH_MAX` (250) — **sempre** abaixo do `safeBatchLimit( )` do heap |
+| dedo na tela ganha do backlog | idem | `TouchPriority::isActive( )` adia o próximo lote em 1 s; nas imagens sem display não existe provider e o portão é sempre falso |
+| orçamento do wake | `AppManager::airFlushBudgetMs( )` | `min(flushTimeoutMs, intervalo_de_leitura − AIR_FLUSH_TAIL_MS − tempo já gasto no wake)`; só num wake de verdade (`_airWokeFromSleep`), porque um ciclo disparado por `air hibernate` de M0 não tem essa âncora |
+| hibernar e continuar | FLUSH do Air | se o gap pedido não cabe no que resta do orçamento, dorme já (`notWorthWaiting`) — o dado fica no flash e o próximo wake de telemetria continua |
+| diagnóstico | `air status` | `bat=` (lote corrente) e `cyc=` (último ciclo em ms) |
+
+Fora do escopo desta rodada, medido e anotado como alavanca: encadear vários lotes por passada do
+`loop( )` (§3.6) e cachear a lista de arquivos dentro de um dreno.
+
+## 3.8 Validação no ferro (07/09, firmware da cadência automática)
+
+**V1 — a configuração de campo deixa de estrangular.** Mesma célula da §2.1/§2.2 (lote 100, 45 s),
+mas com `t_int` = 300.000 ms, que é o que o aparelho do Ângelo tem configurado:
+
+| transporte | antes (`t_int` = 300 s) | matriz v2 (`t_int` = 1 ms) | **agora** (`t_int` = 300 s) |
+|---|---|---|---|
+| HTTP | 0,33 reg/s | 782 reg/s (127 ms/req) | **1.259 reg/s** (79 ms/req) |
+| HTTPS | 0,33 reg/s | 59 reg/s (1.685 ms/req) | **142 reg/s** (704 ms/req) |
+
+Duas leituras:
+
+- O backlog de 35.382 registros **drenou inteiro em 26,8 s** no HTTP (`pending` 35.382 → 1), com a
+  mesma configuração que antes levaria 31 horas.
+- **O piso de `1,5 × EMA` freava mesmo com `t_int` = 1 ms**, e isso não estava no §0: o ms/req caiu
+  de 127 para 79 no HTTP e de 1.685 para 704 no HTTPS só por ele ter saído. O handshake TLS custa
+  ~700 ms, não os ~1,4 s que a matriz v2 mediu — a diferença era a espera que o próprio firmware
+  se impunha.
+
+## 3.9 O que a validação pegou (dois defeitos meus, medidos antes de subir)
+
+**1. A escalada do gap punia um servidor saudável.** A regra que eu tinha escrito na §3.1 —
+`gap = max(ciclo, 2 × gap_anterior)` para todo ciclo acima da marca rápida — dobra a cada lote
+lento. Um coletor **estável** em 0,5 s (o que um endpoint de ingestão em nuvem parece num dia bom)
+tem todo ciclo acima da marca, então o gap subia 0,56 → 1,1 → 2,2 → 4,5 → 9 → teto de 10 s e
+**ficava lá**. Medido, lote 50, janelas de 45 s:
+
+| atraso do servidor | firmware antigo (piso fixo) | escalada ingênua | **regra corrigida** |
+|---|---|---|---|
+| 0,5 s | 1,34 s entre envios · 37,2 reg/s | 7,57 s · 6,6 reg/s | *(§3.10)* |
+| 1 s | 2,52 s · 19,9 reg/s | 7,77 s · 6,4 reg/s | *(§3.10)* |
+| 2 s | 4,60 s · 10,9 reg/s | 8,35 s · 6,0 reg/s | *(§3.10)* |
+| 3,5 s | 7,50 s · 6,7 reg/s | 10,30 s · 4,9 reg/s | *(§3.10)* |
+| 6 s (penhasco) | falhas + 1 reboot | 3 falhas, backoff, **0 reboots** | *(§3.10)* |
+
+Uma regressão de até 5,6× contra o firmware que eu estava substituindo. A correção separa "lento"
+de "piorando": o gap é o ciclo (o servidor ganha o mesmo tempo que levou para responder) e só
+dobra quando o ciclo fica ≥ 25 % acima da média recente — que é o sinal de que a pressão é real.
+Era exatamente a decisão **D-15** que eu havia deixado em aberto no plano; a bancada respondeu por
+ela.
+
+**2. O lote parava de crescer com um servidor lento.** A regra dizia "cresce no sucesso rápido,
+mantém no lento". Contra um coletor de 3 s, todo ciclo é lento, então o lote ficava nos 50 iniciais
+pelo wake inteiro — cada ciclo caro carregando metade do que podia. O sinal de "grande demais" é a
+**falha**, não a lentidão; a lentidão já é respondida pelo gap. Agora cresce em qualquer sucesso
+(×3/2) e cai pela metade na falha, sempre sob o teto de heap.
+
+**3. O orçamento do FLUSH cortava metade do que sobrava.** `airFlushBudgetMs( )` devolvia "o que
+falta a partir de agora" enquanto quem o consome compara com "o tempo desde o início do FLUSH".
+Com o FLUSH começando aos 25 s e o limite em 55 s, a fase terminava quando
+`t − 25 ≥ 55 − t`, ou seja aos **40 s** — metade do orçamento real. A janela acordada de 40,3 s
+medida no primeiro wake **parecia** o resultado desejado e era um erro de conta. Agora o orçamento
+é relativo ao início da fase, e a reserva inclui o sono mínimo (`AIR_FLUSH_TAIL_MS` +
+`AIR_MIN_SLEEP_SEC`): sem o termo do sono a aritmética "cabe" e o ciclo estoura assim mesmo, porque
+sobram 3 s para dormir e o piso é 5 s.
+
+## 3.10 Validação final (firmware com as três correções)
+
+**Latência injetada, HTTP, lote 50, janelas de 45 s.** As três colunas são o mesmo aparelho, a
+mesma célula, três firmwares:
+
+| atraso | firmware antigo (piso `1,5 × EMA`) | escalada ingênua | **regra corrigida** | falhas | reboots |
+|---|---|---|---|---|---|
+| 0,5 s | 1,34 s · 37,2 reg/s | 7,57 s · 6,6 reg/s | **1,39 s · 36,0 reg/s** | 0 | 0 |
+| 1 s | 2,52 s · 19,9 reg/s | 7,77 s · 6,4 reg/s | **2,67 s · 18,7 reg/s** | 0 | 0 |
+| 2 s | 4,60 s · 10,9 reg/s | 8,35 s · 6,0 reg/s | **4,78 s · 10,4 reg/s** | 0 | 0 |
+| 3,5 s | 7,50 s · 6,7 reg/s | 10,30 s · 4,8 reg/s | **8,62 s · 5,8 reg/s** | 0 | 0 |
+| 6 s (penhasco) | 16,40 s · 3,0 reg/s | 7,43 s · 5,0 reg/s | **7,40 s · 6,8 reg/s** | 3 | 0 |
+
+- Com servidor lento a regra nova **empata** com a antiga (dentro de 5–15 %), que é o resultado
+  correto: `1,5 × EMA_POST` e `1 × ciclo` são quase o mesmo número quando a latência do servidor
+  domina o ciclo. O ganho da cadência automática não está aqui — está no servidor **rápido**
+  (§3.8) e no wake do Air (§3.11), onde o piso era o gargalo.
+- No penhasco de 6 s a nova regra é melhor que a antiga (7,4 s contra 16,4 s entre envios) porque
+  o gap zera assim que um lote passa, em vez de arrastar a média da latência.
+- Nenhum reboot em nenhuma das quinze células de latência das duas rodadas.
+
+**Capacidade com a configuração de campo (`t_int` = 300 s), lote 100:**
+
+| transporte | antes | **agora** | backlog |
+|---|---|---|---|
+| HTTP | 0,33 reg/s | **1.276 reg/s** (78 ms/req) | 36.207 → 1 pendentes em 26,7 s |
+| HTTPS | 0,33 reg/s | **140 reg/s** (716 ms/req) | 6.300 registros na janela, 0 falhas |
+
+**Wakes M1 com a sonda GP16** (leitura a 1 min, `t_int` = 60 s, lote 100). Todos os números são do
+wake, cortado do log do servidor pelo instante do `air hibernate`:
+
+| firmware | servidor | acordado | FLUSH | req | registros | s/1.000 reg |
+|---|---|---|---|---|---|---|
+| original (F05 aberto) | rápido | 56,9 s | 30 s ocioso | 0 | **0** | ∞ |
+| modo dreno, sem orçamento | rápido | 57,2 s | 30,0 s | 188 | 18.800 | 3,04 |
+| + orçamento com o erro de metade | rápido | 40,3 s | 13,4 s | 83 | 8.225 | 2,82 |
+| **final** | rápido | **48,7 s** | **21,7 s** | **123** | **12.225** | **2,39** |
+| escalada ingênua | lento (3 s) | 38,4 s | ~10 s | 2 | 100 | 127,9 |
+| **final** | lento (3 s) | **48,4 s** | **19 s** | **4** | **325** | **64,6** |
+
+- O wake final **cabe no intervalo de leitura**: 48,7 s de 60 s, deixando ~11 s de sono — sem
+  `OVERRUN`, que era o achado aberto desde 06/09.
+- Com servidor lento o wake entrega **3,25× mais registros** que a escalada ingênua, e o AIMD do
+  lote aparece no log do servidor: 50 → 75 → 100 registros por requisição, com o gap estável em
+  ~3 s (o ciclo) e nenhuma falha.
+- O `notWorthWaiting` (dormir em vez de esperar) continua ativo: é ele que fecha o wake lento aos
+  48,4 s em vez de deixá-lo esperando um gap que não caberia.
+
 ## 4. Testes que fecham cada parâmetro
 
 | parâmetro | teste | aceite | resultado 07/09 |
@@ -447,10 +585,11 @@ a cada lote:
   (uma escrita por dreno bem-sucedido)?
 - **D-14** CSV: medir e oferecer como padrão para o Air? 160 B/registro de estimativa de heap
   contra 350 do JSON dobra o lote possível.
-- **D-15** Servidor **permanentemente** lento (ex.: ingestão em nuvem a 0,6–1 s): com a regra da
-  §3.1 o gap dobra a cada lote até `GAP_MAX` = 10 s e fica lá — 50 registros a cada ~11 s no M0,
-  um backlog de 35 mil leva ~2 h. Aceitar (é cortesia com o servidor) ou limitar o gap a `k ×
-  ciclo` (ex.: 4×) para o dreno não ficar refém de um servidor só moderadamente lento?
+- ~~**D-15** Servidor permanentemente lento~~ — **respondida pela bancada** (§3.9): a escalada
+  cega levava um coletor saudável de 0,5 s ao teto de 10 s (6,6 reg/s contra 37). O gap passou a
+  ser o próprio ciclo, e só dobra quando o ciclo piora ≥ 25 % sobre a média. Fica aberta só a
+  afinação: o gap poderia ser uma fração do ciclo (mais agressivo) — hoje é 1×, que é o que
+  "não afogar o coletor" quer dizer.
 - **D-16** `NET_SOCKET_TIMEOUT_MS` = 4 s é o penhasco (§2.3): um coletor que leve 5 s fica
   invisível. Subir para 8 s custa 4 s a mais acordado por tentativa falhada no Air (e o
   `WdtWindow` real é 8,388 s — o POST tem que caber com folga). Manter 4 s e documentar, ou 6 s?

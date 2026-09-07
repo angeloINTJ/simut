@@ -836,15 +836,20 @@ void AppManager::executeCommand(CliDemand cmd) {
                                       : ((uint32_t)AIR_WAKE_INTERVAL_MIN * 60000UL);
    everyN = (telMs <= hMs) ? 1UL : ((telMs + hMs - 1UL) / hMs);
   }
+  /* bat=/cyc= are the cadence controller: the batch size it settled on and the
+   * last full send cycle in ms. Together they say whether the last drain was
+   * running at the device's own speed or at the server's. */
   snprintf(buf, sizeof(buf),
            "Air: phase=%d wake=%lus hist=%lus backoff=%lus idle=%us armed=%d dirty=%u "
-           "tel=%lu/%lu radio=%d",
+           "tel=%lu/%lu radio=%d bat=%u cyc=%lums",
            (int)_airPhase, (unsigned long)wakeSec,
            (unsigned long)histSec, (unsigned long)backoffSec,
            (unsigned)(_airResumeGraceSec ? _airResumeGraceSec : _airCfg.idleTimeoutSec),
            airCycleArmed(_airCfg) ? 1 : 0, (unsigned)airDirtyBoots(_airCfg),
            (unsigned long)_airWakesSinceRadio, (unsigned long)everyN,
-           _airRadioUp ? 1 : 0);
+           _airRadioUp ? 1 : 0,
+           (unsigned)_telemetryMgr->getBatchAuto( ),
+           (unsigned long)_telemetryMgr->getLastCycleMs( ));
   _cmdMgr->printInfo(buf);
   break;
  }

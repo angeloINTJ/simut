@@ -315,6 +315,15 @@
 #ifndef AIR_FLUSH_TIMEOUT_MS
 #define AIR_FLUSH_TIMEOUT_MS 30000
 #endif
+#ifndef AIR_FLUSH_TAIL_MS
+// What the wake still needs after the FLUSH ends: cursor to flash, air.bin if
+// the crash-loop count moved, CYW43 teardown, USB detach, RTC arm. The flush
+// budget is the configured cap OR whatever is left of the reading interval
+// minus this tail, whichever is smaller — so a telemetry wake can no longer
+// outlast the interval it is supposed to fit in (measured: a 1-minute reading
+// interval with the flat 30 s cap gave a 57 s wake and an OVERRUN).
+#define AIR_FLUSH_TAIL_MS 5000
+#endif
 #ifndef AIR_SENSOR_POWER_PIN
 #define AIR_SENSOR_POWER_PIN 16 // GPIO power-gating for sensors (also the awake/sleep probe)
 #endif
@@ -347,6 +356,49 @@
 // to get in.
 #define AIR_RESUME_GRACE_SEC 10
 #endif
+#ifndef AIR_MAX_DIRTY_BOOTS
+// Consecutive resumes after an UNCLEAN reset before the device stops rushing
+// back into the cycle. Counted in air.bin (flags bits 4..7) and zeroed by the
+// first healthy sleep, so an isolated glitch costs nothing and a real crash
+// loop still parks the device where an operator can reach it.
+#define AIR_MAX_DIRTY_BOOTS 3
+#endif
+#endif /* SIMUT_AIR */
+
+// ── Automatic cadence and batch size (measured 2026-09-07, see
+// docs/analysis/SIMUT_TELEMETRIA_PLANO_CADENCIA.md) ────────────────────────
+// telInterval stopped being a floor between batches and became the period
+// between DRAINS. Inside a drain the pace comes from the server: a cycle that
+// finishes under TEL_FAST_MS earns the next batch at once, a slower one earns
+// a gap that doubles per slow batch up to TEL_GAP_MAX_MS, and any success
+// under the fast mark clears it.
+//
+// The fast mark is per transport because it is the device's own cost that
+// defines "fast": the slowest measured plain cycle was 281 ms (batch 250) and
+// the fastest with a TLS handshake was ~1.4 s. A server slower than that is
+// slower than the whole of the device's work, which is the criterion.
+#ifndef TEL_FAST_MS_PLAIN
+#define TEL_FAST_MS_PLAIN 400
+#endif
+#ifndef TEL_FAST_MS_TLS
+#define TEL_FAST_MS_TLS 2500
+#endif
+#ifndef TEL_GAP_MAX_MS
+#define TEL_GAP_MAX_MS 10000
+#endif
+// Batch AIMD, always inside safeBatchLimit( )'s heap ceiling: grow by half on
+// a fast success, hold on a slow one, halve on failure. The start is a
+// compromise — two growth steps from 50 reach the ~110 the heap allows for
+// JSON over TLS, and a device that can only do 10 gets there in two failures.
+#ifndef TEL_BATCH_START
+#define TEL_BATCH_START 50
+#endif
+#ifndef TEL_BATCH_MIN
+#define TEL_BATCH_MIN 10
+#endif
+#ifndef TEL_BATCH_MAX
+#define TEL_BATCH_MAX 250
+#endif
 #ifndef TEL_TLS_KEEPALIVE_EXPERIMENT
 // Bench experiment (2026-09-07): keep the telemetry TLS session open between
 // consecutive successful batches instead of stopping it after every one. Every
@@ -359,12 +411,4 @@
 // keeps the connection; identical to the default when the server closes it.
 #define TEL_TLS_KEEPALIVE_EXPERIMENT 0
 #endif
-#ifndef AIR_MAX_DIRTY_BOOTS
-// Consecutive resumes after an UNCLEAN reset before the device stops rushing
-// back into the cycle. Counted in air.bin (flags bits 4..7) and zeroed by the
-// first healthy sleep, so an isolated glitch costs nothing and a real crash
-// loop still parks the device where an operator can reach it.
-#define AIR_MAX_DIRTY_BOOTS 3
-#endif
-#endif /* SIMUT_AIR */
 

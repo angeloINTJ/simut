@@ -14,7 +14,10 @@ Servidores instrumentados e orquestração usados na campanha de 2026-08-02
 Fase E (cadência e lote, 2026-09-07, build Air — ver
 `docs/analysis/SIMUT_TELEMETRIA_PLANO_CADENCIA.md`):
 
-- `gen_synth_history.py` — dias sintéticos `.h5` para encher o `/history`
+- backlog para medir: os dias sintéticos saem de `tools/gen_synth_history.py`
+  (formas variadas a partir do schema de um arquivo real do aparelho) e vão
+  para o `/history` com `synth_upload.py upload`; `fetch` baixa um dia real
+  para servir de schema e `verify` recalcula os CRC de um arquivo
 - `phase_cadence.py` — `capacity` (transporte × lote), `latency` (atraso injetado),
   `wake` (um wake M1 por configuração, cronometrado pela sonda GP16 do PicoHand).
   A janela é cortada do log **por request** do servidor, por relógio de parede

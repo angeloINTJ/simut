@@ -79,6 +79,32 @@ perde a SRAM, então o boot seguinte relia o cursor antigo e reenviava um lote j
 aceito. A escrita pré-sono agora passa por cima tanto do agrupamento quanto do
 portão de prioridade de toque.
 
+**A cadência da telemetria e o tamanho do lote agora são automáticos.** O
+intervalo configurado era um piso entre lotes, e por isso virava o teto de
+vazão: nos cinco minutos que um aparelho de campo usa, um lote a cada cinco
+minutos — um backlog de 35 mil registros levaria 31 horas para sair. Agora ele
+é o período entre *drenos*. Um dreno vai até não sobrar nada, e o ritmo dentro
+dele vem do servidor: um ciclo de envio que termina abaixo da marca rápida do
+seu transporte ganha o lote seguinte na hora; um mais lento ganha um intervalo
+que dobra a cada lote lento até dez segundos, e um único lote rápido zera a
+escalada. O tamanho do lote segue o mesmo sinal, crescendo metade a cada
+sucesso rápido e caindo pela metade a cada falha, sempre abaixo do teto de heap
+que já existia. Medido na bancada com a configuração de campo: 35.382 registros
+drenados em 26,8 segundos por HTTP puro, e o HTTPS foi de 59 para 142 registros
+por segundo. O piso antigo atrapalhava mesmo no ajuste mínimo — tirá-lo levou o
+custo por requisição de 127 ms para 79 ms no HTTP puro e de 1.685 ms para
+704 ms no HTTPS. Um toque do operador adia o próximo lote em um segundo, para
+um dreno não deixar a tela parecendo morta; as imagens sem display não têm
+provider de toque e não sentem nada.
+
+**Um wake de telemetria agora se dimensiona pelo intervalo de leitura.** O
+flush tinha um teto fixo de 30 segundos que nada sabia sobre a frequência das
+leituras, então com leitura a cada minuto o wake passava da própria leitura
+seguinte. O orçamento agora é o que for menor: aquele teto, ou o que resta do
+intervalo depois da cauda do wake. E quando o enviador pede um intervalo que
+não cabe no que sobrou, o aparelho dorme em vez de esperar com o rádio ligado —
+os registros ficam no flash e o próximo wake de telemetria continua o dreno.
+
 **O cursor também chega ao flash durante um dreno rápido.** A mesma janela de
 agrupamento era reiniciada a cada atualização do cursor, então numa cadência
 colada (um lote a cada 73 a 281 ms na bancada) os cinco segundos nunca passavam

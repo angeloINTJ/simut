@@ -79,6 +79,32 @@ boot re-read the old cursor and re-sent a batch that had already been accepted.
 The pre-sleep write is now forced past both the coalescing window and the
 touch-priority gate.
 
+**The telemetry cadence and the batch size are automatic now.** The configured
+interval used to be a floor between batches, which made it the throughput
+ceiling: at the five minutes a field device is set to, one batch every five
+minutes, so a backlog of 35,000 records needed 31 hours to clear. It is now the
+period between *drains*. A drain runs until there is nothing left, and the pace
+inside it comes from the server: a send cycle that finishes under the fast mark
+for its transport earns the next batch immediately, a slower one earns a gap
+that doubles per slow batch up to ten seconds, and one fast batch clears the
+escalation. The batch size follows the same signal, growing by half on a fast
+success and halving on a failure, always under the heap ceiling that was
+already there. Measured on the bench with the field configuration: 35,382
+records drained in 26.8 seconds over plain HTTP, and HTTPS went from 59 to 142
+records per second. The old floor was slowing things down even at its minimum
+setting — dropping it took the plain cost per request from 127 ms to 79 ms and
+the HTTPS one from 1,685 ms to 704 ms. An operator's touch now defers the next
+batch by a second, so a drain cannot make the screen feel dead; headless builds
+have no touch provider and are unaffected.
+
+**A telemetry wake now sizes itself against the reading interval.** The flush
+had a flat 30-second cap that knew nothing about how often the device reads its
+sensors, so with readings every minute the wake ran past its own next reading.
+The budget is now whichever is smaller: that cap, or what is left of the
+interval after the wake's tail. And when the uploader asks for a gap the rest
+of the wake cannot cover, the device sleeps instead of waiting with the radio
+on — the records stay on flash and the next telemetry wake continues the drain.
+
 **The cursor also reaches flash during a fast drain now.** The same coalescing
 window was restarted on every cursor update, so at a back-to-back cadence (one
 batch every 73 to 281 ms on the bench) the five seconds never elapsed and

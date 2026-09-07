@@ -117,6 +117,44 @@ void AppManager::airSetLed(bool on) {
  * Rounding is up, and on purpose: 15 minutes of telemetry over a 2-minute
  * reading interval sends every 8 wakes (16 min), not every 7 (14 min). Sending
  * early would break the promise that the operator's interval is a floor. */
+/* How long the FLUSH may run on this wake, counted from the start of the phase.
+ *
+ * The configured cap (flushTimeoutMs, 30 s) knows nothing about the reading
+ * interval, so with readings every minute a telemetry wake ran 27 s of boot
+ * plus 30 s of flush and woke up late for its own next reading — the OVERRUN
+ * in the sleep log, measured at 57 s awake for a 60 s interval. The budget is
+ * whichever is smaller: the cap, or the room between the start of the FLUSH
+ * and the point where the wake has to be over.
+ *
+ * Only a real wake has that anchor: in M1 the boot IS the wake, so millis( ) —
+ * and with it _airPhaseTimer — is time-since-wake. A cycle started by
+ * `air hibernate` from M0 carries the whole M0 uptime and gets the cap, as
+ * before. */
+uint32_t AppManager::airFlushBudgetMs( ) const {
+ uint32_t budget = (uint32_t)_airCfg.flushTimeoutMs;
+ if (!_airWokeFromSleep) return budget;
+
+ uint32_t histMs = (uint32_t)_storageMgr->getHistoryIntervalMin( ) * 60000UL;
+ if (histMs == 0) return budget;
+
+ /* What has to be left after the FLUSH: the tail above, plus a sleep worth
+  * taking. Without the sleep term the arithmetic "fits" and the cycle still
+  * overruns — 25 s of boot plus a 30 s flush leaves 3 s, under AIR_MIN_SLEEP_SEC,
+  * and airEnterDormant floors it and logs OVERRUN. */
+ const uint32_t reserve = (uint32_t)AIR_FLUSH_TAIL_MS
+                        + (uint32_t)AIR_MIN_SLEEP_SEC * 1000UL;
+ const uint32_t hardStop = (histMs > reserve * 2UL) ? (histMs - reserve)
+                                                    : (histMs / 2UL);
+
+ /* Relative to the START of the FLUSH, because that is what the caller
+  * compares against (timeSince(_airPhaseTimer, budget)). Measuring "what is
+  * left from now" instead makes the deadline recede as the phase runs and
+  * cuts it in half: with the flush starting at 25 s and a 55 s stop, the
+  * phase ended at 40 s — measured on the bench 2026-09-07 before this fix. */
+ const uint32_t left = (hardStop > _airPhaseTimer) ? (hardStop - _airPhaseTimer) : 0UL;
+ return (left < budget) ? left : budget;
+}
+
 bool AppManager::airTelemetryDue( ) const {
  const uint32_t telMs = _storageMgr->getConfig( ).telInterval;
  if (telMs == 0) return false;      /* telemetry off: the radio never comes up */
@@ -322,13 +360,14 @@ void AppManager::airLoop( ) {
  }
 
  case AIR_PHASE_FLUSH: {
-  /* Persistent NON-blocking send: update() honours the backoff and sends one
-   * batch per its internal cadence (= cfg.telInterval). We keep pumping until
-   * the queue drains (done), a send fails (update() escalates the backoff ->
-   * getBackoffRemainingMs()>0), or the WiFi drops. forceSync() would block
-   * the whole loop on the HTTP upload; update() does not, so the watchdog is
-   * fed between batches and a long backlog just keeps the device awake a
-   * little longer instead of hanging it. */
+  /* Persistent NON-blocking send: update( ) sends one batch per call, at the
+   * pace the server sets (drain mode is on, so telInterval — which already had
+   * its say in airTelemetryDue( ) — does not gate anything here). We keep
+   * pumping until the queue drains (done), a send fails (update( ) escalates
+   * the backoff -> getBackoffRemainingMs()>0), the WiFi drops, or the wake runs
+   * out of budget. forceSync( ) would block the whole loop on the HTTP upload;
+   * update( ) does not, so the watchdog is fed between batches and a long
+   * backlog just keeps the device awake a little longer instead of hanging it. */
 
   /* Telemetry switched off is the factory default (telInterval == 0), and
    * TelemetryManager::update( ) returns immediately in that state — it never
@@ -349,11 +388,21 @@ void AppManager::airLoop( ) {
    * weak to carry an upload keeps isConnected( ) true, so the RSSI gate is what
    * actually ends the phase in the field. */
   const bool netLost = !_netMgr->isNetworkHealthy( );
-  /* Wall-clock cap. Everything above depends on the uploader reaching a verdict;
-   * this one does not, so no future stall in that path can hold the device
-   * awake indefinitely. flushTimeoutMs lives in /config/air.bin. */
-  const bool timedOut = timeSince(_airPhaseTimer, (uint32_t)_airCfg.flushTimeoutMs);
-  if (done || serverLost || netLost || timedOut) {
+  /* Wall-clock budget. Everything above depends on the uploader reaching a
+   * verdict; this one does not, so no future stall in that path can hold the
+   * device awake indefinitely. Derived from the reading interval, not just the
+   * configured cap — see airFlushBudgetMs( ). */
+  const uint32_t budgetMs = airFlushBudgetMs( );
+  const bool timedOut = timeSince(_airPhaseTimer, budgetMs);
+  /* Hibernate and continue later, which is the other half of the request:
+   * when the uploader wants a gap the rest of this wake cannot cover, waiting
+   * it out with the radio on costs more than sleeping. The records stay on
+   * flash — 116 days of them fit — and the next telemetry wake picks the drain
+   * up from the cursor. */
+  const uint32_t waitMs = _telemetryMgr->getNextSendDelayMs( );
+  const uint32_t usedMs = millis( ) - _airPhaseTimer;
+  const bool notWorthWaiting = (waitMs > 0) && ((usedMs + waitMs) >= budgetMs);
+  if (done || serverLost || netLost || timedOut || notWorthWaiting) {
    _telemetryMgr->setDrainMode(false);
    /* force: the send that just advanced the cursor happened milliseconds ago,
     * so the coalescing window has not elapsed and never will — the next stop

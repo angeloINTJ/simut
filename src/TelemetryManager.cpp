@@ -18,6 +18,7 @@
 #include "MetricsManager.h"
 #include "HaDiscovery.h"
 #include "AlarmPayload.h" /* formatadores da 2ª linha (header-only, testáveis) */
+#include "TouchPriority.h"
 #include "sensors/SensorChannelTable.h"
 #include <LittleFS.h>
 #include <algorithm>
@@ -90,7 +91,7 @@ TelemetryManager::TelemetryManager( )
  : _mqttClient(_mqttWifiClient),
    _alarmQueue(ALARM_QUEUE_DEFAULT)
 {
- _lastCheckTime = 0;
+ _lastDrainEnd = 0;
  _hasCert = false;
  _currentBackoff = BACKOFF_MIN_MS;
  _backoffUntil = 0;
@@ -237,12 +238,12 @@ void TelemetryManager::begin(StorageManager* storage, NetworkManager* network) {
  resetBackoff( );
 
  /*
- * Starts the timer with current millis() so that the first telemetry
- * attempt waits a full interval after boot.
- * Without this, _lastCheckTime=0 causes immediate firing on the first
- * loop iteration — the TLS handshake + POST can exceed the watchdog.
+ * Starts the period with current millis() so that the first drain waits a
+ * full interval after boot. Without this, _lastDrainEnd=0 causes immediate
+ * firing on the first loop iteration — the TLS handshake + POST can exceed
+ * the watchdog. The Air FLUSH is the deliberate exception (setDrainMode).
  */
- _lastCheckTime = millis( );
+ _lastDrainEnd = millis( );
 }
 
 /**
@@ -346,31 +347,39 @@ void TelemetryManager::update( ) {
 #endif
 
  if (_consecutiveFails > 0 && now < _backoffUntil) return;
- /* Dynamic effective interval inline.
- * Floor: cfg.telInterval. Ceiling: smoothed_latency × 1.5 (avoids queue
- * buildup when server is slow). RSSI penalty: <-85 ×2, <-75 ×1.5.
- * Final cap 60s. */
- uint32_t effectiveInt = cfg.telInterval;
- if (_smoothedLatencyMs > 0) {
- uint32_t lf = (_smoothedLatencyMs * 3) / 2;
- if (lf > effectiveInt) effectiveInt = lf;
+
+ /* Two gates, and telInterval is only in the first one.
+  *
+  * It used to be a floor between batches: `max(telInterval, 1.5 × EMA) ×
+  * RSSI`. That made the configured interval the throughput ceiling — at the
+  * 300 s of the field configuration, one batch every five minutes, so 35,000
+  * pending records needed 31 hours; and inside an Air wake, which is a boot,
+  * the first send was due after the whole interval and the wake slept having
+  * sent nothing at all (measured: 57 s awake with the radio on, 0 records).
+  *
+  * Now:
+  *   telInterval  = how often a DRAIN starts (and, on Air, which wake raises
+  *                  the radio — airTelemetryDue( ) already worked that way).
+  *   the gap      = how long to wait between batches WITHIN a drain, and that
+  *                  comes from the server, not from the configuration.
+  *
+  * So a drain keeps going until there is nothing left, at whatever pace the
+  * server can take, and then the device goes quiet for telInterval. */
+ if (!_drainActive) {
+ if (!_drainMode && (now - _lastDrainEnd) < cfg.telInterval) return;
+ _drainActive = true;
+ _gapMs = 0;
+ _nextSendAt = now;
+ } else if ((int32_t)(now - _nextSendAt) < 0) {
+ return;
  }
- int32_t rssi = _netRef ? _netRef->getRssi( ) : 0;
- if (rssi < -85 && rssi > -100) effectiveInt *= 2;
- else if (rssi < -75) effectiveInt = (effectiveInt * 3) / 2;
- if (effectiveInt > 60000) effectiveInt = 60000;
- if (effectiveInt < cfg.telInterval) effectiveInt = cfg.telInterval;
- _effectiveIntervalMs = effectiveInt;
- /* Drain mode (SIMUT Air FLUSH): the interval gates nothing, one batch per
-  * call for as long as there is something to send. begin( ) starts the timer
-  * at boot so that the first send waits a full interval, and an M1 wake IS a
-  * boot: with the 300 s of the field configuration and a 30 s flush cap, the
-  * telemetry wake brought the radio up, waited the whole cap and slept without
-  * sending a byte — measured on the bench 2026-09-07 (§2.4 of the cadence plan).
-  * Even at 1 s it was one batch per second against a cycle that costs 73–281 ms.
-  * The backoff above still holds in drain mode: a failing server ends the wake
-  * through getBackoffRemainingMs( ), as before. */
- if (!_drainMode && _consecutiveFails == 0 && (now - _lastCheckTime < effectiveInt)) return;
+
+ /* An operator's finger outranks a backlog. Back-to-back batches hold Core 0
+  * for 70 to 280 ms at a time, and the old floor hid that by sending once a
+  * minute; a drain must not make the screen feel dead. The drain is not
+  * cancelled, only paced. Always false on a headless build — no provider is
+  * registered — so the Air wake is untouched. */
+ if (TouchPriority::isActive( )) { _nextSendAt = now + 1000UL; return; }
 
 
  /* Atomic CAS: prevents race between periodic update() and forceSync() CLI */
@@ -416,12 +425,22 @@ void TelemetryManager::update( ) {
  return;
  }
 
+ /* The cycle the cadence is built on: everything this device spends to deliver
+  * one batch — directory scan, decode, payload, connect, POST, end( ). The
+  * POST alone (what _smoothedLatencyMs and metr.tl report) is 13 ms of a 73 ms
+  * plain cycle, so pacing on it would have measured the wrong thing. */
+ const uint32_t cycleStart = millis( );
+
  std::vector<BinaryHistoryRecord> batch;
  uint32_t newCursor = 0;
 
  if (!collectBatch(batch, newCursor)) {
  __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE);
  _storageRef->unlockHeavyTask( );
+ /* Nothing left: the drain is over and the period starts counting from here
+  * (resetBackoff stamps _lastDrainEnd). */
+ _drainActive = false;
+ _gapMs = 0;
  resetBackoff( );
 #if TEL_TLS_KEEPALIVE_EXPERIMENT
  /* Drain over: nothing more to send, so the session has nothing to amortise. */
@@ -476,10 +495,72 @@ void TelemetryManager::update( ) {
  _storageRef->unlockHeavyTask( );
  _pendingDirty = true; /* Recalibrate after send */
 
+ _lastCycleMs = millis( ) - cycleStart;
+
  if (success) {
  resetBackoff( );
+
+ /* Cadence. "Fast" is measured against what this device costs on this
+  * transport (TEL_FAST_MS_*): a server that answers quicker than the work
+  * around it is not the bottleneck, so the next batch goes at once.
+  *
+  * Past that mark the gap is the cycle itself — the server gets as long to
+  * breathe as it took to answer, which is the whole of "do not flood a slow
+  * collector". Doubling is for a server that is getting WORSE, not merely
+  * slow: measured 2026-09-07, doubling on every slow batch drove a perfectly
+  * healthy 0.5 s collector to the 10 s ceiling and left it there, 6.6
+  * records/s against the 37 the old fixed floor managed. A 0.5 s answer is
+  * what a cloud ingest endpoint looks like on a good day; punishing it is
+  * not backpressure, it is a bug. So the escalation needs evidence that the
+  * pressure is real: this cycle noticeably worse than the recent average. */
+ const uint32_t fastMs = cfg.telEncryption ? (uint32_t)TEL_FAST_MS_TLS
+                                           : (uint32_t)TEL_FAST_MS_PLAIN;
+ /* Increase on ANY success, not only a fast one. A slow server that keeps
+  * answering 200 is telling us it can take the payload; what it cannot take
+  * is the RATE, and the gap below is what answers that. Tying the batch to
+  * speed instead measured badly: against a 3 s collector the batch stayed at
+  * 50 for the whole wake, so every one of those expensive cycles carried
+  * half of what it could have (bench, 2026-09-07). The one signal that means
+  * "too big" is a failure, and that halves it. The heap ceiling still
+  * decides the real limit, in collectBatch, where the heap is read. */
+ const uint16_t grown = (uint16_t)_batchAuto + (uint16_t)(_batchAuto / 2);
+ _batchAuto = (uint8_t)((grown > (uint16_t)TEL_BATCH_MAX) ? (uint16_t)TEL_BATCH_MAX : grown);
+
+ if (_lastCycleMs <= fastMs) {
+ _gapMs = 0;
+ } else {
+ const bool worsening = (_cycleEmaMs > 0) &&
+                        (_lastCycleMs > _cycleEmaMs + (_cycleEmaMs / 4));
+ uint32_t g = worsening ? ((_gapMs > 0) ? (_gapMs * 2) : (_lastCycleMs * 2))
+                        : _lastCycleMs;
+ if (g < _lastCycleMs) g = _lastCycleMs;
+ if (g > (uint32_t)TEL_GAP_MAX_MS) g = (uint32_t)TEL_GAP_MAX_MS;
+ _gapMs = g;
+ }
+ /* The reference the next cycle is judged against. Updated after the test,
+  * so "worse than the recent average" means the average before this one. */
+ _cycleEmaMs = _cycleEmaMs ? ((_cycleEmaMs * 7 + _lastCycleMs * 3) / 10)
+                           : _lastCycleMs;
+
+ /* The RSSI penalty survives, applied to the gap instead of to a floor:
+  * a link this weak drops packets, and hammering it is how a retry storm
+  * starts. It never pushes past the ceiling. */
+ uint32_t gap = _gapMs;
+ const int32_t rssi = _netRef ? _netRef->getRssi( ) : 0;
+ if (rssi < -85 && rssi > -100) gap *= 2;
+ else if (rssi < -75) gap = (gap * 3) / 2;
+ if (gap > (uint32_t)TEL_GAP_MAX_MS) gap = (uint32_t)TEL_GAP_MAX_MS;
+ _effectiveIntervalMs = gap;
+ _nextSendAt = millis( ) + gap;
  } else {
  escalateBackoff( );
+ /* Multiplicative decrease: a payload the far side could not take is the
+  * one thing the heap ceiling cannot predict. The drain stays open — the
+  * backoff owns the schedule until it expires, and then it resumes. */
+ const uint8_t halved = (uint8_t)(_batchAuto / 2);
+ _batchAuto = (halved > (uint8_t)TEL_BATCH_MIN) ? halved : (uint8_t)TEL_BATCH_MIN;
+ _gapMs = 0;
+ _nextSendAt = millis( );
  }
 
  /* Signal result to the display */
@@ -640,8 +721,17 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
           timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
  }
 
+ /* Two ceilings, and the lower one wins. safeBatchLimit is physics — what the
+  * heap can hold right now, given the transport. _batchAuto is the controller
+  * (§3.2 of the cadence plan): it only ever asks for less, and it exists for
+  * the one thing the heap cannot predict — a server that chokes on a payload
+  * this device could perfectly well have built. Measured on the bench, both
+  * transports took the heap ceiling with zero failures, so on a healthy link
+  * the controller sits at the top and this line is a no-op. */
  uint8_t limit = safeBatchLimit(
  (cfg.telBatchSize > 0) ? cfg.telBatchSize : 10);
+ if (_batchAuto < limit) limit = _batchAuto;
+ if (limit < 1) limit = 1;
 
 
  /* Codec V2 (delta + anchor). Replaces the raw 28-byte read
@@ -1442,7 +1532,7 @@ void TelemetryManager::resetBackoff( ) {
  _currentBackoff = BACKOFF_MIN_MS;
  _consecutiveFails = 0;
  _backoffUntil = 0;
- _lastCheckTime = millis( ); /* interval measured from end of cycle, not start */
+ _lastDrainEnd = millis( ); /* the period counts from the end of the work, not the start */
 }
 
 uint32_t TelemetryManager::getBackoffRemainingMs( ) const {
@@ -1454,7 +1544,7 @@ void TelemetryManager::escalateBackoff( ) {
  _consecutiveFails++;
  MetricsManager::instance( ).data( ).telRetries++;
  _backoffUntil = millis( ) + jitter(_currentBackoff);
- _lastCheckTime = millis( ); /* avoids immediate re-fire when backoff expires */
+ _lastDrainEnd = millis( ); /* avoids immediate re-fire when backoff expires */
 
  if (_consecutiveFails <= BACKOFF_MAX_STREAK) {
  LOG_CODE(LOG_WARN, "TEL", SYS_TEL_RETRY, _consecutiveFails,
@@ -1493,6 +1583,12 @@ void TelemetryManager::releaseIdleResources( ) {
 
 bool TelemetryManager::forceSync( ) {
  resetBackoff( );
+ /* "Send now" means the drain starts now and update( ) carries it on at the
+  * server's pace; without this the one batch below would go out and the next
+  * would wait a whole period. */
+ _drainActive = true;
+ _gapMs = 0;
+ _nextSendAt = millis( );
 
  bool expected = false;
  if (!__atomic_compare_exchange_n(&_isSending, &expected, true,
