@@ -5,6 +5,7 @@
 > **Base:** branch `feature/simut-air`, commit `461a806` (06/09/2026), sobre `main` `6d2142c` (v2.3.9-beta).
 > **Origem:** revisão de código de 06/09/2026 (21 achados, F01–F21), sem validação no ferro.
 > **Esboço de projeto:** [`SIMUT_AIR_ESBOCO.md`](SIMUT_AIR_ESBOCO.md).
+> **Plano de energia (leitura frequente, rádio raro):** [`SIMUT_AIR_PLANO_ENERGIA.md`](SIMUT_AIR_PLANO_ENERGIA.md).
 > **Suíte que prova cada item:** `tools/air_test_suite.py` (CLI + web + PicoHand) e `tools/check_air_consistency.py` (estático).
 > **Idioma:** pt-BR (espelha os demais `docs/analysis/`).
 
