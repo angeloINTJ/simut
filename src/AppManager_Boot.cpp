@@ -397,6 +397,49 @@ void AppManager::setup( ) {
   airSensorPower(AIR_SENSOR_POWER_PIN, false);
  }
  _airLastActivityMs = millis( ); /* idle timer starts at boot */
+
+ /* An interrupted cycle gets itself back (plan F25).
+  *
+  * _airActive above is false here, so this boot is not a wake: either the
+  * device was never hibernating, or something reset it mid-cycle. The armed
+  * flag in air.bin is what separates the two, and it is the only state that
+  * survives a reset with its meaning intact — the scratch marker is cleared on
+  * every boot by design, to keep a device that dies inside the cycle reachable.
+  *
+  * Reachability is preserved by making the return conditional on health rather
+  * than unconditional: a clean reset (power cycle, 'reload', an OTA) goes back
+  * to sleeping after a short grace, while unclean resets are counted, and past
+  * AIR_MAX_DIRTY_BOOTS the device holds M0 for the full idle timeout. Before
+  * this, a watchdog inside the cycle left the device awake with the radio on
+  * until the idle timeout — and on the bench the fault always repeated first,
+  * so it never went back to sleep at all. */
+ if (!_airActive && airCycleArmed(_airCfg)) {
+  const bool clean = LogManager::instance( ).bootWasClean( );
+  uint8_t dirty = airDirtyBoots(_airCfg);
+  const uint8_t was = dirty;
+
+  if (clean) {
+   dirty = 0;
+  } else if (dirty < 15) {
+   dirty++;
+  }
+  /* Written only when it moved: normal operation never touches flash here, and
+   * a crash loop is bounded to one write per unclean boot up to the cap. */
+  if (dirty != was) {
+   airSetDirtyBoots(_airCfg, dirty);
+   airSaveConfig(_airCfg);
+  }
+
+  if (dirty >= AIR_MAX_DIRTY_BOOTS) {
+   _airResumeGraceSec = 0; /* full idle timeout: the operator needs the window */
+   LOG_CODE(LOG_WARN, "APP", APP_AIR_CYCLE_HELD, dirty,
+            String(TRL("Unclean boots in a row: ")) + dirty);
+   AIR_BOOT_MARK("cycle armed but HELD in M0 (unclean boots)");
+  } else {
+   _airResumeGraceSec = AIR_RESUME_GRACE_SEC;
+   AIR_BOOT_MARK("cycle armed, resuming after grace");
+  }
+ }
 #endif
  BLOG("[BOOT step] 6: pos _storageMgr->begin( ) fsOk="); BLOG_U(fsOk ? 1 : 0);
  BLOG(" @ "); BLOG_U(millis( )); BLOG_NL( );

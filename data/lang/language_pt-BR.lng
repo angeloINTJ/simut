@@ -171,6 +171,7 @@ Luminosidade
 408 NTP corrigindo timestamps
 409 Timestamps corrigidos
 410 Caches de gráfico invalidados
+411 Ciclo Air retido em M0
 440 Tema alterado via UI
 441 Idioma alterado via UI
 442 Limites de alarme salvos via UI
@@ -266,10 +267,12 @@ Luminosidade
 2dfd2825 Login BT admin
 2e7466d7 Histórico retomado: schema corresponde aos sensores ativos
 2f67bcd7 BME em bit-bang (pinos sem I2C de hardware) — ver docs/CONCURRENCY.md
+326af5e8 HTTPS desligado via serial (cert apagado)
 34731b0f Factory defaults ativos; reset admin para gerar senha.
 37b8c417 Schema do histórico reconstruído via web (dia descartado)
 3b8726db Config de schema antigo descartada — padrões carregados
 4053e02c Troca de senha rejeitada: entrada inválida
+44641c1c Boots sujos seguidos: 
 4922ff94 UI do display iniciada no Core 1.
 4e94b2fd Arquivo enviado.
 508b2648 Falha crítica de storage!
@@ -291,6 +294,7 @@ Luminosidade
 798468cf Vários arquivos .lng em /lang/ — carregando o primeiro em ordem alfabética
 79d951e9 Senha BT admin rejeitada
 7b990491 Senha redefinida pela CLI: 
+836dd19a Cursor de telemetria adiante dos dados — reset para 0
 88d38ff3 Falha no PIO do DS18B20 (pio0 cheio) — 1-Wire desativado neste boot
 8991624f Provisória: 
 89a28b4b OOM: WiFiClientSecure
@@ -325,7 +329,6 @@ c98bcdab Procurando SSID (backoff=
 cc0a0d40 PIN padrão detectado; forçando troca.
 d4183f73 Falha no PIO do DHT22 (pio1 cheio) — DHT22 desativado neste boot
 d62db850 Yield preso >10s, reset forçado.
-836dd19a Cursor de telemetria adiante dos dados — reset para 0
 db8ede8b Forçando sync de telemetria
 dd1b8771 Troca de senha rejeitada: senha fraca ou inválida
 dd2f5dae Usuário criado pela CLI: 
@@ -339,7 +342,6 @@ f914ca06 Sistema pronto (modo AP).
 fa87bdae Upload falhou (#
 fd0933a1 Calibração do touch resetada via web
 ff5e139d Erro HTTP: 
-326af5e8 HTTPS desligado via serial (cert apagado)
 @HELP
 ===========================================
     SIMUT - CONSOLE DE EMERGÊNCIA

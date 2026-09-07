@@ -187,6 +187,16 @@ void LogManager::captureBootSnapshot( ) {
  }
 }
 
+bool LogManager::bootWasClean( ) const {
+ /* A power-up or a RUN-pin reset never went through the watchdog at all. */
+ if (!watchdog_caused_reboot( )) return true;
+ /* It did — but every reboot this firmware performs on purpose stamps the mark
+  * first (markCleanReboot), including the Air wake's SYSRESETREQ. The REASON
+  * register cannot tell them apart on its own: its TIMER bit survives soft
+  * resets until a power cycle, which is the whole reason the mark exists. */
+ return _preBootScratch5 == 0xC1EA8007u;
+}
+
 void LogManager::begin(bool saveToFile, LogLevel minSerialLevel) {
  /* Safety net only. The real capture happens at the top of AppManager::setup( ):
  * by the time begin( ) runs, Core 1 is already up and the launch TraceScope has
@@ -1106,6 +1116,7 @@ static const char* translateCodeEn(uint16_t code) {
  case APP_NTP_CORRECTING: return "NTP correcting timestamps";
  case APP_NTP_CORRECTED: return "Timestamps corrected";
  case APP_CACHE_INVALIDATED: return "Graph caches invalidated";
+ case APP_AIR_CYCLE_HELD: return "Air cycle held in M0";
 
  /* ── App UI (440–449) ── */
  case APP_UI_THEME_CHANGED: return "Theme changed via UI";

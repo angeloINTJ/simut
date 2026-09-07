@@ -12,11 +12,11 @@
 
 ## 0. Sumário executivo
 
-A revisão de código mais a bancada de 06/09 acumularam **25 achados**. Os quatro bloqueantes da
-revisão foram fechados no mesmo dia, com medição no ferro. **Sobrou um bloqueante novo, achado
-já no fim do dia: o F25** — um watchdog durante a janela acordada devolve o aparelho a M0, e na
-bancada ele nunca voltou a hibernar (§6.7). Num produto a bateria, isso é ficar acordado para
-sempre.
+A revisão de código mais a bancada de 06/09 acumularam **25 achados**, e **nenhum bloqueante segue
+aberto**. O último a cair foi o **F25**: um watchdog durante a janela acordada devolvia o aparelho
+a M0 e na bancada ele nunca mais hibernava — num produto a bateria, ficar acordado para sempre. A
+intenção do operador passou a viver no `air.bin`, a volta ao ciclo tem graça de 10 s, e um contador
+de boots sujos preserva a alcançabilidade que o desenho original protegia (§6.7).
 
 > **O defeito que valia a saga era o tempo, e a causa era uma linha.** Com o intervalo
 > configurado em 2 minutos o aparelho acordava a cada **16 a 48 minutos**, de forma variável.
@@ -430,7 +430,7 @@ sleep, boot, sample, flush. Tabela na seção 6.
 - **D-3** `system ssid/pass` no console de emergência de todas as imagens: manter (recomendado, documentado) ou restringir ao Air?
 - **D-4** `air.bin` v3: aceitar perder a config Air existente nos aparelhos de bancada (defaults voltam)?
 - **D-5** RTC como relógio de parede (F04): aceita que registros offline fiquem "provisórios" com erro do drift do XOSC (~20 ppm ≈ 1,7 s/dia) até o próximo NTP?
-- **D-6** Volta ao ciclo após boot sujo (F25, §6.7): hoje um watchdog durante o wake devolve o aparelho a M0 acordado, e na bancada ele nunca voltou a dormir. Graça curta, intenção persistida no `air.bin`, contador de boots sujos — ou manter como está?
+- ~~**D-6** Volta ao ciclo após boot sujo (F25, §6.7)~~ — ✅ **RESOLVIDA em 06/09**: os três caminhos foram combinados (intenção no `air.bin`, graça de 10 s, contador de boots sujos com teto de 3). Ver §6.7.
 
 ---
 
@@ -759,7 +759,7 @@ tentativa começa por wake e o limite não chega a disparar (a linha `[AIR] wifi
 não apareceu em nenhum dos três wakes). Ele existe para o caso de uma janela acordada longa —
 sensores lentos, `stabTimeoutMs` grande — em que o segundo ciclo de reconexão caberia.
 
-### 6.7 F25 — um reset durante o wake tira o aparelho do ciclo, e ele pode não voltar
+### 6.7 F25 — um reset durante o wake tirava o aparelho do ciclo ✅ CORRIGIDO
 
 **Achado novo, e é o pior modo de falha visto até agora nesta build.** Descoberto às 20h30 de
 06/09, com o SSID errado ainda configurado, quando uma medição encontrou o aparelho **em M0,
@@ -783,19 +783,33 @@ exatamente o que a build Air existe para evitar.**
 CLI chama `airMarkActivity( )` e rearma o timer. O boot de 6m18s que apareceu aqui foi mantido
 acordado pelas MINHAS consultas, não pelo firmware.
 
-**Decisão para o Ângelo (D-6), porque muda comportamento de produto.** Três caminhos:
+✅ **CORRIGIDO em 06/09 ~22h**, combinando os três caminhos que a decisão D-6 listava — e nenhum
+deles sozinho bastava:
 
-1. **Graça curta após boot sujo:** se a autópsia disser watchdog e a config disser que o ciclo
-   estava ligado, voltar para M1 em ~30 s em vez de esperar o `air idle` inteiro.
-2. **Persistir a intenção no `air.bin`**, não só no scratch: o registrador passa a responder
-   apenas "acabei de acordar?", e "este aparelho é um registrador que hiberna" vira config de
-   flash. Recomendado, porque é onde a intenção do operador pertence.
-3. **Contar boots sujos consecutivos** e só cair para M0 de vez depois de N — preserva a
-   alcançabilidade sem entregar o aparelho ao consumo cheio no primeiro tropeço.
+1. **A intenção do operador virou estado de flash.** `AirConfig.flags` bit 0
+   (`AIR_FLAG_CYCLE_ARMED`) diz "o ciclo está armado", escrito por `air hibernate` e apagado por
+   `air stop`. O marcador do scratch responde outra pergunta — "acabei de acordar?" — e continua
+   sendo zerado em todo boot, de propósito. **Sem bump de versão do `air.bin`:** o campo `flags` já
+   existia como reservado, e um arquivo v2 lê 0, que significa "não armado" — o default seguro.
+2. **Graça curta para voltar.** Se o boot não é um wake mas o ciclo está armado, o timer de
+   inatividade do M0 passa a valer `AIR_RESUME_GRACE_SEC` (10 s) em vez dos 300 s configurados.
+   Dez segundos porque, enquanto ele espera, o aparelho está acordado com rádio ligado — o estado
+   que esta build existe para evitar.
+3. **Guarda de laço de crash.** `flags` bits 4..7 contam boots sujos consecutivos
+   (`LogManager::bootWasClean( )`, novo: falso só para watchdog e soft panic — reboot pedido pelo
+   próprio firmware, incluindo o wake do Air, carrega a marca de `markCleanReboot`). Um boot limpo
+   zera a conta; a partir de `AIR_MAX_DIRTY_BOOTS` (3) a graça volta a ser o `air idle` inteiro e o
+   log ganha `APP_AIR_CYCLE_HELD` (411). **A janela larga passa a ser merecida**, e não o padrão.
+   Escrita em flash só quando o número muda: a operação saudável não toca no `air.bin`, e um laço
+   de crash gasta no máximo uma escrita por boot sujo até o teto.
 
-O 2 com o 1 é a combinação que mantém as duas propriedades. O que **não** dá para deixar como
-está é o estado observado: o aparelho a bateria decide ficar acordado justamente quando a rede
-some, que é quando ele mais precisa economizar.
+`air status` passou a mostrar `armed=` e `dirty=`, porque sem eles `phase=0` fica idêntico para
+"o operador parou o ciclo" e "um watchdog derrubou o aparelho para fora dele".
+
+**Teste T12 da suíte** (`cycle_survives_reset`): arma o ciclo, confirma um wake, reseta pela
+PicoHand no meio da janela acordada e **não manda mais nenhum comando** — porque todo comando
+chama `airMarkActivity( )` e rearma o timer, ou seja, perguntar ao aparelho se ele voltou a
+dormir é exatamente o que o impede de dormir. O veredito vem da enumeração USB: ausente = dormindo.
 
 **Pendente de investigação separada:** a travada do Core 0 em si, sob varredura de SSID
 inexistente. É parente do R1 histórico ("Core 0 na varredura"), e o `ctx=455` diz que nem o canal

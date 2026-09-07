@@ -76,7 +76,11 @@ BAUD = 115200
 PROMPT_RE = re.compile(r'SIMUT(?:\([a-z0-9-]+\))?\s*[#>]\s*$')
 AIR_STATUS_RE = re.compile(
     r'Air:\s*phase=(?P<phase>\d+)\s+wake=(?P<wake>\d+)s\s+hist=(?P<hist>\d+)s'
-    r'\s+backoff=(?P<backoff>\d+)s\s+idle=(?P<idle>\d+)s(?:\s+pin=(?P<pin>\S+))?')
+    r'\s+backoff=(?P<backoff>\d+)s\s+idle=(?P<idle>\d+)s(?:\s+pin=(?P<pin>\S+))?'
+    # F25: armed says a reset would bring the cycle back, dirty how close the
+    # crash-loop guard is to holding the device in M0. Optional so the suite
+    # still parses a firmware from before they existed.
+    r'(?:\s+armed=(?P<armed>\d+))?(?:\s+dirty=(?P<dirty>\d+))?')
 PHASE_RE = re.compile(r'\[AIR\] phase=(?P<name>[A-Z]+) @(?P<ms>\d+)')
 ALARM_RE = re.compile(r'\[AIR\] alarm: (?P<h>\d+):(?P<m>\d+):(?P<s>\d+) wakeSec=(?P<sec>\d+)')
 VFY_RE = re.compile(r'VFY BOOTSEL=(?P<b>\S+) RESET=(?P<r>\S+) HB=(?P<hb>\d+)us')
@@ -94,6 +98,11 @@ TEL_FIELDS = {
     'interval_ms': 't_int', 'batch': 't_bat',
 }
 HIST_FIELD = 'h_int'
+
+# Mirrors AIR_RESUME_GRACE_SEC in src/simut_config.h: the M0 window before a
+# cycle that a reset interrupted resumes itself (plan F25). Only used to size a
+# test's patience, so drift here costs a wrong timeout, not a wrong verdict.
+AIR_RESUME_GRACE_SEC = 10
 
 
 # --------------------------------------------------------------------------
@@ -376,7 +385,10 @@ def parse_air_status(text):
     m = AIR_STATUS_RE.search(text or '')
     if not m:
         return None
-    d = {k: int(v) for k, v in m.groupdict().items() if k != 'pin'}
+    # Optional groups are None on a firmware that predates the field, and int(None)
+    # would turn "this build is older" into an instrument crash.
+    d = {k: (int(v) if v is not None else None)
+         for k, v in m.groupdict().items() if k != 'pin'}
     d['pin'] = m.group('pin')          # "16", "off" or None (firmware without F14)
     return d
 
@@ -649,6 +661,7 @@ class Suite:
             ('T09', 'probe_cycle', self.t09_probe_cycle, None, {'target', 'hand'}),
             ('T10', 'm1_services_off', self.t10_m1_services_off, 'F13', {'target', 'web'}),
             ('T11', 'history_integrity', self.t11_history_integrity, 'F23', {'target', 'web'}),
+            ('T12', 'cycle_survives_reset', self.t12_cycle_survives_reset, None, {'target', 'hand'}),
         ]
 
     def selected(self):
@@ -1172,6 +1185,48 @@ class Suite:
             raise TestFail(f'most gaps do not match the configured interval; {summary} '
                            f'(longest={max(long_) if long_ else 0}s)')
         return summary
+
+    def t12_cycle_survives_reset(self):
+        """A reset in the middle of the cycle must not leave the device awake.
+
+        The hibernation marker is cleared on every boot on purpose, so that a
+        device which dies inside the cycle stays reachable. The cost, measured
+        on 2026-09-06, was that ANY reset dropped the device into M0 with the
+        radio on, and only the idle timeout (300 s) could bring it back — which
+        on a bench whose fault repeated every 54 to 107 s never happened. That
+        is plan F25, and the fix is the armed flag in air.bin plus a short
+        resume grace.
+
+        The measurement has to be hands-off: every CLI command calls
+        airMarkActivity( ) and rearms the idle timer, so asking the device
+        whether it went back to sleep is exactly what stops it from going. USB
+        enumeration answers instead — absent means asleep.
+        """
+        if not (self.hand.available and self.hand.ping()):
+            raise TestSkip('needs the PicoHand to reset the target')
+        # Arm the cycle and let it prove it is cycling.
+        row = self.hibernate_and_observe(stop_on_wake=False)
+        if self.target.usb.wait(True, row['wake_sec'] + self.args.wake_grace) is None:
+            raise TestFail('no wake — the cycle was not running, so the reset proves nothing')
+
+        # Reset mid-wake, then do not touch the port again.
+        self.target.close()
+        self.hand.reset()
+        t_reset = time.time()
+        if self.target.usb.wait(True, 40) is None:
+            raise TestFail('no USB enumeration 40 s after the reset — target unpowered?')
+        t_boot = time.time()
+
+        # It must now go back to sleep on its own: grace + the rest of a wake.
+        # Generous cap, because the point is "does it return at all", not how fast.
+        budget = AIR_RESUME_GRACE_SEC + row['awake_before_sleep_s'] + self.args.wake_grace + 30
+        t_gone = self.target.usb.wait(False, budget)
+        if t_gone is None:
+            raise TestFail(
+                f'still awake {budget:.0f}s after a reset — the cycle did not resume (F25). '
+                f'Check `air status` for armed=1; armed=0 means air.bin never recorded the intent')
+        return (f'reset -> boot {t_boot - t_reset:.1f}s -> asleep again '
+                f'{t_gone - t_boot:.1f}s later, with no command sent')
 
     # ---- runner -----------------------------------------------------------
 

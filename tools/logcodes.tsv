@@ -60,6 +60,7 @@
 408	APP_NTP_CORRECTING	NTP correcting timestamps	NTP corrigindo timestamps	NTP corrigindo timestamps	NTP corrigiendo timestamps
 409	APP_NTP_CORRECTED	Timestamps corrected	Timestamps corrigidos	Timestamps corrigidos	Timestamps corregidos
 410	APP_CACHE_INVALIDATED	Graph caches invalidated	Caches de grafico invalidados	Caches de gráfico invalidados	Cachés de gráfico invalidadas
+411	APP_AIR_CYCLE_HELD	Air cycle held in M0	Ciclo Air retido em M0	Ciclo Air retido em M0	Ciclo Air retenido en M0
 440	APP_UI_THEME_CHANGED	Theme changed via UI	Tema alterado via UI	Tema alterado via UI	Tema cambiado por la UI
 441	APP_UI_LANG_CHANGED	Language changed via UI	Idioma alterado via UI	Idioma alterado via UI	Idioma cambiado por la UI
 442	APP_UI_ALARM_SAVED	Alarm limits saved via UI	Limites de alarme salvos via UI	Limites de alarme salvos via UI	Límites de alarma guardados por la UI

@@ -335,5 +335,24 @@
 // long instead degrades to "as fast as it can" and the log line says OVERRUN.
 #define AIR_MIN_SLEEP_SEC 5
 #endif
+#ifndef AIR_RESUME_GRACE_SEC
+// How long M0 waits before resuming a cycle that a reset interrupted (plan
+// F25). The hibernation marker is cleared on every boot on purpose, so a device
+// that crashes inside the cycle stays reachable; the armed flag in air.bin is
+// what says the operator wanted the cycle, and this is the window they get to
+// countermand it with 'air stop'. Short, because the device is awake with the
+// radio on the whole time and that is the state the Air build exists to avoid.
+// The wide window is earned instead: after AIR_MAX_DIRTY_BOOTS unclean resumes
+// the grace becomes the full idle timeout, which is when a human actually needs
+// to get in.
+#define AIR_RESUME_GRACE_SEC 10
+#endif
+#ifndef AIR_MAX_DIRTY_BOOTS
+// Consecutive resumes after an UNCLEAN reset before the device stops rushing
+// back into the cycle. Counted in air.bin (flags bits 4..7) and zeroed by the
+// first healthy sleep, so an isolated glitch costs nothing and a real crash
+// loop still parks the device where an operator can reach it.
+#define AIR_MAX_DIRTY_BOOTS 3
+#endif
 #endif /* SIMUT_AIR */
 

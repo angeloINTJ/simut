@@ -227,6 +227,10 @@ private:
   *  missing SSID cannot keep the device awake past its sensor reading. */
  bool     _airNetGaveUp = false;
  uint32_t _airLastActivityMs = 0; /* M0 idle timer */
+ /** Short M0 window before a cycle that a reset interrupted resumes itself
+  *  (plan F25). 0 = no interrupted cycle, or the crash-loop guard tripped, and
+  *  the configured idle timeout applies instead. */
+ uint16_t _airResumeGraceSec = 0;
  AirConfig _airCfg;                 /* loaded from /config/air.bin */
 
  void airLoop( );             /* M1 pump, called from loop( ) */

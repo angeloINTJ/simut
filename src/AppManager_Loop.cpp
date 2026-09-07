@@ -54,7 +54,12 @@ void AppManager::loop( ) {
  /* M0: LED on while awake (once); auto-hibernate after the idle timeout. */
  static bool airLedOn = false;
  if (!airLedOn) { airSetLed(true); airLedOn = true; }
- if (timeSince(_airLastActivityMs, (uint32_t)_airCfg.idleTimeoutSec * 1000UL)) {
+ /* A cycle that a reset interrupted comes back on the short grace instead of the
+  * operator's idle timeout (plan F25): the device is awake with the radio on the
+  * whole time, which is the state this build exists to avoid. */
+ const uint32_t idleSec = _airResumeGraceSec ? (uint32_t)_airResumeGraceSec
+                                             : (uint32_t)_airCfg.idleTimeoutSec;
+ if (timeSince(_airLastActivityMs, idleSec * 1000UL)) {
   airStartHibernate( ); /* next iteration runs airLoop( ) */
  }
 #endif

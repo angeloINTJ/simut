@@ -171,6 +171,7 @@ Luminosidad
 408 NTP corrigiendo timestamps
 409 Timestamps corregidos
 410 Cachés de gráfico invalidadas
+411 Ciclo Air retenido en M0
 440 Tema cambiado por la UI
 441 Idioma cambiado por la UI
 442 Límites de alarma guardados por la UI
@@ -266,10 +267,12 @@ Luminosidad
 2dfd2825 Inicio de sesión BT admin
 2e7466d7 Historial reanudado: el esquema corresponde a los sensores activos
 2f67bcd7 BME en bit-bang (pines sin I2C de hardware) — ver docs/CONCURRENCY.md
+326af5e8 HTTPS desactivado via serial (cert borrado)
 34731b0f Valores de fábrica activos; se requiere regenerar la contraseña.
 37b8c417 Esquema del historial reconstruido vía web (día descartado)
 3b8726db Config de esquema antiguo descartada — valores de fábrica cargados
 4053e02c Cambio de contraseña rechazado: entrada inválida
+44641c1c Arranques sucios seguidos: 
 4922ff94 UI de la pantalla iniciada en Core 1.
 4e94b2fd Archivo subido.
 508b2648 ¡Fallo crítico de almacenamiento!
@@ -291,6 +294,7 @@ Luminosidad
 798468cf Varios archivos .lng en /lang/ — cargando el primero en orden alfabético
 79d951e9 Contraseña BT admin rechazada
 7b990491 Contraseña restablecida por la CLI: 
+836dd19a Cursor de telemetría por delante de los datos — reset a 0
 88d38ff3 Fallo del PIO del DS18B20 (pio0 lleno) — 1-Wire desactivado en este arranque
 8991624f Provisional: 
 89a28b4b OOM: WiFiClientSecure
@@ -325,7 +329,6 @@ c98bcdab Buscando SSID (backoff=
 cc0a0d40 PIN predeterminado detectado; forzando cambio.
 d4183f73 Fallo del PIO del DHT22 (pio1 lleno) — DHT22 desactivado en este arranque
 d62db850 Yield colgado >10s, reset forzado.
-836dd19a Cursor de telemetría por delante de los datos — reset a 0
 db8ede8b Forzando sincronización de telemetría
 dd1b8771 Cambio de contraseña rechazado: contraseña débil o inválida
 dd2f5dae Usuario creado por la CLI: 
@@ -339,7 +342,6 @@ f914ca06 Sistema listo (modo AP).
 fa87bdae Falló la subida (#
 fd0933a1 Calibración táctil restablecida vía web
 ff5e139d Error HTTP: 
-326af5e8 HTTPS desactivado via serial (cert borrado)
 @HELP
 ===========================================
     SIMUT - CONSOLA DE EMERGENCIA

@@ -164,14 +164,19 @@ Referência completa (comandos, armadilhas, analisador lógico):
   offline. Medido com SSID errado: 26,7 / 26,4 / 26,2 s acordado, contra 26,3–29,5 s com o SSID
   certo. ⚠️ O teto é **teto**, não caso comum: uma tentativa custa até 20 s e o wake dura ~28 s,
   então só **uma** começa por wake e o limite não chega a disparar.
-- 🔴 **F25 — um watchdog durante o wake tira o aparelho do ciclo, e ele pode não voltar.** É
-  deliberado: `AppManager_Boot.cpp:132` zera o marcador de hibernação em TODO boot, para um
-  aparelho que trava em M1 não ficar inalcançável. O preço é que o boot seguinte cai em **M0,
-  acordado, com rádio ligado**, e a única volta é o `air idle` (300 s). Na bancada com SSID
-  inexistente o Core 0 travava a cada 54–107 s, antes dos 300 s — **acordado para sempre**.
-  Autópsia: `show system log`, `ctx=455` (= 200 + 0xFF, watchdog sem canal de rastreio) e
-  `ctx=209`. ⚠️ Não confunda: um boot que passa dos 300 s pode ser só a SUA CLI rearmando o
-  timer (todo comando chama `airMarkActivity( )`). Decisão D-6 no plano, §6.7.
+- ✅ **F25 — o ciclo volta sozinho depois de um reset.** O marcador do scratch é zerado em TODO
+  boot de propósito (para um aparelho que trava em M1 não ficar inalcançável), então quem carrega
+  a intenção é o **`air.bin`**: `flags` bit 0 = ciclo armado. Boot que não é wake + ciclo armado →
+  o timer de inatividade vale `AIR_RESUME_GRACE_SEC` (10 s) em vez do `air idle`. A
+  alcançabilidade é preservada por um **contador de boots sujos** (`flags` bits 4..7,
+  `LogManager::bootWasClean( )`): a partir de 3, a graça volta a ser o `air idle` inteiro e o log
+  registra `APP_AIR_CYCLE_HELD` (411). `air status` mostra `armed=` e `dirty=`.
+  ⚠️ **Para medir isso, não fale com o aparelho:** todo comando chama `airMarkActivity( )` e
+  rearma o timer, então perguntar se ele voltou a dormir é o que o impede de dormir. Use a
+  enumeração USB ou a sonda (é o que o T12 faz). O sintoma original: com o SSID inexistente o
+  Core 0 travava a cada 54–107 s, antes dos 300 s, e o aparelho ficava **acordado para sempre**;
+  autópsia em `show system log`, `ctx=455` (= 200 + 0xFF, watchdog sem canal de rastreio) e
+  `ctx=209`.
 - ⚠️ **Gravar o alvo: use o toque de 1200 bps**, não `picotool -f`. Com dois RP2040 no barramento
   o picotool pega o primeiro que acha — a PicoHand, que não tem interface de reset ("Unable to
   locate reset interface") — e `--ser` não salva, porque em BOOTSEL a placa enumera com outro

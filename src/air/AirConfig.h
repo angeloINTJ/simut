@@ -47,9 +47,44 @@ struct __attribute__((packed)) AirConfig {
   uint16_t connectTimeoutMs;  /* connect + NTP cap */
   uint16_t flushTimeoutMs;    /* telemetry flush cap */
   uint8_t  sensorPowerPin;    /* GPIO power-gating for sensors; PIN_UNUSED = off */
-  uint8_t  flags;             /* reserved (LED policy, etc.) */
+  uint8_t  flags;             /* AIR_FLAG_* below (bit 0) + dirty-resume count (bits 4..7) */
   uint32_t crc32;
 };
+
+/* ── flags ────────────────────────────────────────────────────────────────────
+ * Bit 0 — the operator ARMED the hibernation cycle, and it stays armed across
+ * resets. The watchdog scratch marker answers a different question ("did I just
+ * wake from sleep?") and is deliberately cleared on every boot, so on its own it
+ * cannot tell a device that was never hibernating from one whose cycle a reset
+ * interrupted. Without this bit the second case fell back to M0 awake, radio on,
+ * and only the full idle timeout could bring it back — which on the bench never
+ * happened, because the fault repeated first (plan F25).
+ *
+ * Bits 4..7 — how many consecutive boots resumed the cycle after an UNCLEAN
+ * reset. It is the crash-loop guard: the point of clearing the marker was to
+ * keep a device that dies inside the cycle reachable, and resuming
+ * unconditionally would throw that away. A few dirty resumes get a short grace;
+ * past AIR_MAX_DIRTY_BOOTS the device holds M0 for the full idle timeout so an
+ * operator has a window to get in. Zeroed by the first healthy sleep.
+ *
+ * A v2 file (or a missing one) reads flags = 0, which means "not armed" — the
+ * safe default, and the reason this needed no version bump. */
+#define AIR_FLAG_CYCLE_ARMED 0x01u
+#define AIR_DIRTY_SHIFT 4
+#define AIR_DIRTY_MASK  0xF0u
+
+inline bool airCycleArmed(const AirConfig& c) {
+  return (c.flags & AIR_FLAG_CYCLE_ARMED) != 0;
+}
+
+inline uint8_t airDirtyBoots(const AirConfig& c) {
+  return (uint8_t)((c.flags & AIR_DIRTY_MASK) >> AIR_DIRTY_SHIFT);
+}
+
+inline void airSetDirtyBoots(AirConfig& c, uint8_t n) {
+  if (n > 15) n = 15;
+  c.flags = (uint8_t)((c.flags & ~AIR_DIRTY_MASK) | (uint8_t)(n << AIR_DIRTY_SHIFT));
+}
 
 inline AirConfig airDefaultConfig( ) {
   AirConfig c;

@@ -172,6 +172,18 @@ public:
  * flow without going through begin( ). */
  void captureBootSnapshot( );
 
+ /** Was the boot that just happened free of a crash?
+  *
+  * True for a power-up and for any reboot this firmware asked for — safeReboot,
+  * an OTA apply, or the SIMUT Air wake, all of which leave the clean mark
+  * markCleanReboot( ) writes. False for a watchdog timeout or a soft panic.
+  *
+  * Reads the same pre-boot snapshot the autopsy uses, so it answers from
+  * captureBootSnapshot( ) onward and is not disturbed by setup( ) zeroing the
+  * live registers. Air uses it to decide whether resuming an interrupted
+  * hibernation cycle is safe or whether the device should stay reachable. */
+ bool bootWasClean( ) const;
+
  void begin(bool saveToFile = false, LogLevel minSerialLevel = LOG_INFO);
 
  /** Reset logger state after external wipe of log files

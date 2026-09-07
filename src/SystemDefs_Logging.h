@@ -151,6 +151,7 @@ enum LogCode {
  APP_NTP_CORRECTING = 408,
  APP_NTP_CORRECTED = 409,
  APP_CACHE_INVALIDATED = 410,
+ APP_AIR_CYCLE_HELD = 411, /* Air: cycle armed but held in M0 after unclean boots */
 
  /* ── Application UI events (440–469) ── */
  APP_UI_THEME_CHANGED = 440,

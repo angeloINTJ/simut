@@ -819,10 +819,16 @@ void AppManager::executeCommand(CliDemand cmd) {
   uint32_t backoffSec = _telemetryMgr->getBackoffRemainingMs( ) / 1000UL;
   uint32_t wakeSec = (backoffSec > histSec) ? backoffSec : histSec;
   if (wakeSec == 0) wakeSec = 1;
-  snprintf(buf, sizeof(buf), "Air: phase=%d wake=%lus hist=%lus backoff=%lus idle=%us",
+  /* armed/dirty say whether a reset would bring the cycle back and how close the
+   * crash-loop guard is to holding the device in M0 (plan F25). Without them,
+   * "phase=0" looks the same whether the operator stopped the cycle or a
+   * watchdog knocked the device out of it. */
+  snprintf(buf, sizeof(buf),
+           "Air: phase=%d wake=%lus hist=%lus backoff=%lus idle=%us armed=%d dirty=%u",
            (int)_airPhase, (unsigned long)wakeSec,
            (unsigned long)histSec, (unsigned long)backoffSec,
-           (unsigned)_airCfg.idleTimeoutSec);
+           (unsigned)(_airResumeGraceSec ? _airResumeGraceSec : _airCfg.idleTimeoutSec),
+           airCycleArmed(_airCfg) ? 1 : 0, (unsigned)airDirtyBoots(_airCfg));
   _cmdMgr->printInfo(buf);
   break;
  }
@@ -835,6 +841,15 @@ void AppManager::executeCommand(CliDemand cmd) {
   _airWokeFromSleep = false;
   _airPhase = AIR_PHASE_OFF;
   _airLastActivityMs = millis( );
+  /* Disarm in flash too, or the next boot would resume the cycle the operator
+   * just cancelled (plan F25). The dirty-boot count goes with it: this is a
+   * deliberate fresh start, not a recovery. */
+  if (airCycleArmed(_airCfg) || airDirtyBoots(_airCfg) != 0) {
+   _airCfg.flags &= (uint8_t)~AIR_FLAG_CYCLE_ARMED;
+   airSetDirtyBoots(_airCfg, 0);
+   airSaveConfig(_airCfg);
+  }
+  _airResumeGraceSec = 0;
   airSetLed(true);
   _cmdMgr->printInfo(_cmdMgr->isPt( )
    ? "Hibernacao cancelada. Voltando ao modo operacional (M0)..."

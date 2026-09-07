@@ -163,6 +163,18 @@ void AppManager::airStartHibernate( ) {
   * force=true, or the cursor's coalescing window swallows the write. */
  _storageMgr->flushWipV5( );
  _storageMgr->flushCursorIfDirty(true);
+
+ /* Arm the cycle in flash. This is the operator's intent, and it is what brings
+  * the device back if a reset interrupts the cycle — the watchdog marker is
+  * cleared on every boot on purpose and cannot carry it (plan F25). Written
+  * only on the transition, which happens once per M0 session, never per wake:
+  * an M1 wake re-enters the cycle from setup( ) without coming through here. */
+ if (!airCycleArmed(_airCfg)) {
+  _airCfg.flags |= AIR_FLAG_CYCLE_ARMED;
+  airSaveConfig(_airCfg);
+ }
+ _airResumeGraceSec = 0;  /* the grace did its job; back to the configured idle */
+
  _airActive = true;
  _airNetGaveUp = false;   /* fresh cycle, fresh allowance of WiFi attempts */
  _airPhase = AIR_PHASE_WARMUP;
@@ -325,6 +337,14 @@ void AppManager::airEnterDormant( ) {
   * choke point every path into sleep goes through, and after it the RAM copy
   * is gone. A no-op when nothing moved. */
  _storageMgr->flushCursorIfDirty(true);
+
+ /* Reaching here means the wake did its whole job, so the crash-loop guard's
+  * count is stale (plan F25). One flash write to clear it, and only when there
+  * is something to clear — the healthy path never touches air.bin. */
+ if (airDirtyBoots(_airCfg) != 0) {
+  airSetDirtyBoots(_airCfg, 0);
+  airSaveConfig(_airCfg);
+ }
 
  airSetLed(false);
  airSensorPower(_airCfg.sensorPowerPin, false);
