@@ -43,7 +43,21 @@
 /* LICENSE preferred from .lng (@LICENSE), unaccented
  * to ASCII for display. Without .lng or for EN: fallback /license_en.txt.
  * Loaded into RAM (_licenseBuf) when the user changes language.
- * setLanguage called only by Core 0 — LittleFS free of race conditions. */
+ * setLanguage called only by Core 0 — LittleFS free of race conditions.
+ *
+ * The whole licence-screen apparatus lives inside this guard, and the guard
+ * starts here rather than three functions further down: the only reader of
+ * _licenseBuf is the screen that draws it, so on an alphanumeric display it
+ * sat next to two functions the compiler warned were unused.
+ *
+ * This costs nothing and saves nothing in the image — checked, because the
+ * tempting claim is that it recovers 2 KB of RAM on the alpha build. It does
+ * not: -fdata-sections with --gc-sections already dropped the buffer, and
+ * arm-none-eabi-nm finds no _licenseBuf symbol in the alpha ELF either side of
+ * this change, with .bss identical at 118,524 B. What the guard buys is the
+ * warning going away and the intent being stated rather than left to the
+ * linker to infer. */
+#if !SIMUT_DISPLAY_ALPHA
 static char _licenseBuf[2048];
 
 static void loadLicenseFromFs(int langIdx) {
@@ -84,7 +98,6 @@ static int wrapLineCount(const char* text, int maxCols) {
 }
 
 
-#if !SIMUT_DISPLAY_ALPHA
 static void renderWrapped(Adafruit_ILI9341* tft, const char* text,
                            int x0, int y0, int maxCols, int lineH,
                            int skip, int maxVis) {

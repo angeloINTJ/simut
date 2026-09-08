@@ -124,7 +124,7 @@ void core1StallSample(void) {
  * inside the application, so the traffic is read-only and has no side effects.
  * `sink` is volatile so the loop cannot be optimised away. */
 void core1XipProbe(void) {
-	static volatile uint32_t sink = 0;
+	[[maybe_unused]] static volatile uint32_t sink = 0;
 	const volatile uint8_t* const p =
 		(const volatile uint8_t*)(XIP_NOCACHE_NOALLOC_BASE + 0x20000u);
 	const uint32_t t0 = timer_hw->timerawl;

@@ -95,7 +95,7 @@ void AppManager::core0Yield( ) {
   *
   * Non-nav events flush the pending navigation first, so ordering is kept. */
  int32_t navAccum = 0;
- int navId = -1;
+ [[maybe_unused]] int navId = -1;
  bool navPending = false;
  auto flushGraphNav = [&]( ) {
  if (!navPending) return;
@@ -140,7 +140,7 @@ void AppManager::core0Yield( ) {
  else if (uiEv.type == UiEvent::EVT_OPEN_GRAPH) {
  if (uiEv.param == 99) openStatsScreen(uiEv.id);
  else {
- int sensorId = uiEv.id;
+ [[maybe_unused]] int sensorId = uiEv.id;
  int range = uiEv.param;
  bool hasAnchor = (_graphAnchorEnd != 0);
 
@@ -193,7 +193,7 @@ void AppManager::core0Yield( ) {
  }
  /* ── Day selection in calendar ── */
  else if (uiEv.type == UiEvent::EVT_CALENDAR_DAY) {
- int sensorId = uiEv.id;
+ [[maybe_unused]] int sensorId = uiEv.id;
  int dayNum = uiEv.param;
 
  /* Midnight of the selected day */

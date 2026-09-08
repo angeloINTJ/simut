@@ -521,7 +521,13 @@ void AppManager::cmdHandleResetAdmin(const CliDemand& cmd, SystemConfig& cfg, bo
 
 /* Parse "NNNN-NN-NN" → 3 inteiros. Substituiu sscanf("%4d-%2d-%2d", ...)
  * porque sscanf puxa __ssvfscanf_r/__ssvfiscanf_r (~12KB de flash).
- * Returns true if 3 values successfully extracted. */
+ * Returns true if 3 values successfully extracted.
+ *
+ * Sob a mesma condição do único chamador (cmdHandleSetTime, logo abaixo): numa
+ * imagem sem o CLI completo isto era função morta que o compilador avisava e o
+ * linker depois descartava. Guardar a definição diz a intenção em vez de contar
+ * com o descarte. */
+#if SIMUT_CLI_FULL
 static bool parse_3ints(const char* s, char sep, int& a, int& b, int& c) {
  char* end;
  a = (int)strtol(s, &end, 10);
@@ -531,6 +537,7 @@ static bool parse_3ints(const char* s, char sep, int& a, int& b, int& c) {
  c = (int)strtol(end + 1, &end, 10);
  return (end > s + 1) && (*end == '\0' || *end == ' ');
 }
+#endif /* SIMUT_CLI_FULL — parse_3ints */
 
 #if SIMUT_CLI_FULL
 void AppManager::cmdHandleSetTime(const CliDemand& cmd) {

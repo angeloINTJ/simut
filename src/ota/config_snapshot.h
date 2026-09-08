@@ -21,7 +21,7 @@
  *          3840 B a config de hoje (3921 B) não caberia, e alguém alinhando o
  *          código ao comentário faria todo update virar factory reset.
  *
- *          Demais arquivos (`/calib.csv`, `/history/*`, `/web/*`, `/lang/*`)
+ *          Demais arquivos (`/calib.csv`, tudo sob `/history`, `/web` e `/lang`)
  *          NÃO entram no snapshot: o user mantém o `.bkp` baixado pelo
  *          navegador antes do apply (fallback A) e restaura manualmente
  *          via /files após o reboot.
