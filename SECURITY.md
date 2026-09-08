@@ -9,9 +9,12 @@ a review of this file**.
 
 Context: SIMUT is firmware for the Raspberry Pi Pico W (RP2040) that
 manages temperature/humidity sensors, exposes a dashboard and management
-interface via HTTP, has a USB serial CLI (a Bluetooth SPP CLI exists in
-source but is compiled out of release images), and sends telemetry to a
-remote server. It is designed to operate on a trusted local network
+interface via HTTP, has a USB serial CLI, and sends telemetry to a
+remote server. There is also a Bluetooth SPP CLI: it is compiled out of
+the `pico_w_release` image, but **it is compiled into the published
+`pico_w_alpha` and `pico_w_air` images**, so on those two it is live
+attack surface — see §2 and §8. It is designed to operate on a trusted
+local network
 (industrial LAN or home automation); it is not hardened against an
 adversarial public network.
 
@@ -23,7 +26,7 @@ reporting a vulnerability.
 
 | Version                                 | Supported          |
 | --------------------------------------- | ------------------ |
-| Latest release (currently v2.3.4)       | ✅ receives fixes  |
+| Latest published release tag            | ✅ receives fixes  |
 | All earlier versions                    | ❌ no backports    |
 
 ---
@@ -108,14 +111,22 @@ reporting a vulnerability.
   access to the display config menu. Overlay in
   `SystemConfig.reserved[26..27]`.
 
-### Bluetooth CLI (compile-time opt-in — absent from release images)
+### Bluetooth CLI (built into the alpha and Air images)
 
-- The Bluetooth SPP CLI exists in source but is **compiled out of
-  release images** (`SIMUT_BLUETOOTH 0`, the default) — it is not part
-  of the attack surface of the distributed binary. When built in
-  (`-DSIMUT_BLUETOOTH=1`): authentication via **display PIN**. BT
-  access without auth only allows `help` and `language`. After auth,
-  full CLI — same privileges as USB CLI.
+- `SIMUT_BLUETOOTH` is 0 in `pico_w_release`, and **1 in both
+  `pico_w_alpha` and `pico_w_air`** (`platformio.ini`). Those two images
+  are published, so for them the Bluetooth SPP CLI is live attack
+  surface and not a source-only feature.
+- Authentication is the **admin account's web password**, not the
+  display PIN (`BluetoothManager` calls the validator installed by
+  `AppManager`). Before auth, only `help` and `language` answer; after
+  it, the CLI has the same privileges as the USB CLI.
+- The device is discoverable and pairs without user confirmation; the
+  password prompt is the only barrier. Reaching it needs Bluetooth range
+  (≈10 m).
+- **No attempt limit until the V-01 fix**: wrong passwords could be
+  retried as fast as the link allows, and disconnecting reset nothing.
+  *(Temporary sentence — removed once the lockout ships.)*
 
 ### Viewer (read-only account)
 
@@ -385,11 +396,11 @@ Wipes 100% of flash: code, config, history, logs.
   is served at a time, and an absent or invalid pair falls back to HTTP.
 - **mDNS**: `<deviceName>.local` (default `simut.local`) — for
   discovery only; does not expose additional endpoints.
-- **Bluetooth SPP**: `SIMUT_CLI` — compile-time opt-in
-  (`SIMUT_BLUETOOTH 0` by default), **absent from release images**, so
-  it is not attack surface of the distributed binary. When built in:
-  without PIN pairing (depends on the client stack); application-layer
-  auth via display PIN.
+- **Bluetooth SPP**: `SIMUT_CLI` — `SIMUT_BLUETOOTH 0` in
+  `pico_w_release`, **1 in the published `pico_w_alpha` and
+  `pico_w_air` images**, where it is therefore real attack surface.
+  Pairing takes no user confirmation on the device; application-layer
+  auth is the **admin web password**.
 - **USB CDC**: serial always available, no auth (requires physical
   access).
 - **NTP**: outbound UDP/123 traffic.
