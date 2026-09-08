@@ -258,9 +258,12 @@ void AppManager::cmdHandleSensorField(const CliDemand& cmd, SystemConfig& cfg, b
  }
 
  if (strcmp(field, "hwid") == 0) {
-  if (!isValidCfgString(cmd.strVal2, sizeof(r.hwId) - 1)) {
-   _cmdMgr->printError(pt ? "HW ID invalido (max 15, sem ctrl chars)"
-                         : "Invalid HW ID (max 15, no ctrl chars)");
+  /* isValidHwId, not isValidCfgString: an hwId is a key, not free text — it
+   * is a JSON string in /api/status, a CSV column header and a JSON field
+   * name in the telemetry payload (O-2). */
+  if (!isValidHwId(cmd.strVal2)) {
+   _cmdMgr->printError(pt ? "HW ID invalido (1-15, apenas A-Z a-z 0-9 _ -)"
+                         : "Invalid HW ID (1-15, only A-Z a-z 0-9 _ -)");
    return;
   }
   safeCopy(r.hwId, cmd.strVal2, sizeof(r.hwId));

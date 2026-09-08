@@ -580,7 +580,14 @@ void WebManager::handleApiCommitAll( ) {
 				}
 				if (valuePos(obj, "hwId") >= 0) {
 					String hw = getStr(obj, "hwId");
-					if (!isValidCfgString(hw.c_str( ), sizeof(cfg.sensors[slot].hwId) - 1)) {
+					/* isValidHwId, not isValidCfgString (O-2). An hwId is a key,
+					 * not free text: it is a JSON string in /api/status, the
+					 * column header of the telemetry CSV and a field name in the
+					 * telemetry JSON. `X\` passed the old check and broke all
+					 * four consumers at once. An empty value is still allowed
+					 * here — the check below decides whether that is legal for
+					 * this slot. */
+					if (hw.length( ) > 0 && !isValidHwId(hw.c_str( ))) {
 						snprintf(err, sizeof(err), "slot %ld: invalid hwId", slot);
 						break;
 					}
@@ -1154,8 +1161,27 @@ void WebManager::handleApiCommitAll( ) {
 				return net.indexOf(String("\"") + key + "\":") >= 0;
 			};
 
-			if (has("ssid")) { String s = getS("ssid"); s.trim( ); if (s.length( ) > 0) safeCopy(cfg.wifiSsid, s.c_str( ), sizeof(cfg.wifiSsid)); }
-			if (has("pass")) { String p = getS("pass"); p.trim( ); if (p.length( ) > 0) safeCopy(cfg.wifiPass, p.c_str( ), sizeof(cfg.wifiPass)); }
+			/* The CLI has validated these since forever (AppManager_Commands
+			 * checks isValidCfgString on both); the web took whatever the
+			 * request carried, control bytes included, and wrote it to flash.
+			 * A rejected field is echoed in "rejected":[...] rather than
+			 * silently dropped, so the page can say which edit did not take. */
+			if (has("ssid")) {
+				String s = getS("ssid"); s.trim( );
+				if (s.length( ) > 0) {
+					if (isValidCfgString(s.c_str( ), sizeof(cfg.wifiSsid) - 1))
+						safeCopy(cfg.wifiSsid, s.c_str( ), sizeof(cfg.wifiSsid));
+					else rejectField("net.ssid");
+				}
+			}
+			if (has("pass")) {
+				String p = getS("pass"); p.trim( );
+				if (p.length( ) > 0) {
+					if (isValidCfgString(p.c_str( ), sizeof(cfg.wifiPass) - 1))
+						safeCopy(cfg.wifiPass, p.c_str( ), sizeof(cfg.wifiPass));
+					else rejectField("net.pass");
+				}
+			}
 			/* Same `!= "0"` inversion as the sys section, doubled: this copy of
 			 * the reader never learned to skip whitespace either, so a spaced
 			 * `{"use_dhcp": 0}` produced the token " 0" and forced DHCP on for
@@ -1185,9 +1211,16 @@ void WebManager::handleApiCommitAll( ) {
 				if (s.length( ) == 0 || isValidIpv4(s.c_str( ))) _storageRef->setSecondaryDns(s.c_str( ));
 			}
 			if (has("ntp_server")) {
+				/* Same reasoning as ssid/pass: this string is echoed back by
+				 * /api/network and handed to the resolver, and it was stored
+				 * with no check at all. */
 				String ntp = getS("ntp_server"); ntp.trim( );
-				safeCopy(cfg.ntpServer, ntp.c_str( ), sizeof(cfg.ntpServer));
-				cfg.ntpServer[sizeof(cfg.ntpServer) - 1] = '\0';
+				if (isValidCfgString(ntp.c_str( ), sizeof(cfg.ntpServer) - 1)) {
+					safeCopy(cfg.ntpServer, ntp.c_str( ), sizeof(cfg.ntpServer));
+					cfg.ntpServer[sizeof(cfg.ntpServer) - 1] = '\0';
+				} else {
+					rejectField("net.ntp_server");
+				}
 			}
 			if (has("web_port")) {
 				WebConfigData* w = reinterpret_cast<WebConfigData*>(cfg.reserved + WEB_CONFIG_OFFSET);

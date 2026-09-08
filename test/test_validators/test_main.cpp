@@ -1320,6 +1320,104 @@ void test_pwpolicy_rejects_weak(void) {
 
 
 /* ===========================================================================
+ *  hwId AS A KEY — isValidHwId (finding O-2)
+ *
+ *  An hwId is not free text. It is a JSON string in /api/status, the column
+ *  header of the telemetry CSV, and a field name in the telemetry JSON. The
+ *  old check was isValidCfgString, which only refuses control bytes, so `X\`
+ *  was a legal ID: the dashboard stopped parsing for every user of the device
+ *  AND the collector wrote a corrupt payload to disk, from one edit, with
+ *  nothing naming the cause.
+ * =========================================================================== */
+void test_hwid_accepts_real_ids(void) {
+    TEST_ASSERT_TRUE(isValidHwId("DHT2202"));      /* the auto-generated form */
+    TEST_ASSERT_TRUE(isValidHwId("28FF0A1B"));     /* a DS18B20 ROM prefix */
+    TEST_ASSERT_TRUE(isValidHwId("sala_2"));
+    TEST_ASSERT_TRUE(isValidHwId("probe-A"));
+    TEST_ASSERT_TRUE(isValidHwId("X"));            /* one char is enough */
+    TEST_ASSERT_TRUE(isValidHwId("123456789012345"));   /* exactly 15 */
+}
+
+void test_hwid_rejects_key_breakers(void) {
+    TEST_ASSERT_FALSE(isValidHwId(NULL));
+    TEST_ASSERT_FALSE(isValidHwId(""));                  /* empty */
+    TEST_ASSERT_FALSE(isValidHwId("1234567890123456"));  /* 16 */
+    TEST_ASSERT_FALSE(isValidHwId("a\\b"));              /* escapes the quote */
+    TEST_ASSERT_FALSE(isValidHwId("a\"b"));              /* closes the string */
+    TEST_ASSERT_FALSE(isValidHwId("a,b"));               /* splits the CSV row */
+    TEST_ASSERT_FALSE(isValidHwId("a.b"));               /* topic separator */
+    TEST_ASSERT_FALSE(isValidHwId("a b"));
+    TEST_ASSERT_FALSE(isValidHwId("a;b"));
+    TEST_ASSERT_FALSE(isValidHwId("a\nb"));
+}
+
+/* ===========================================================================
+ *  LANGUAGE-PACK IDENTITY — langIdentSanitize (V-04)
+ *
+ *  @NAME and @CODE come out of an uploaded file and land in /api/perms, the
+ *  first request every page of the UI makes. A quote there took the entire
+ *  interface down, and it survived reboots because a pack is only read at boot.
+ * =========================================================================== */
+void test_langident_strips_json_breakers(void) {
+    char out[16];
+    langIdentSanitize("Po\"rt\\ugu", 10, out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("Portugu", out);
+}
+
+void test_langident_keeps_legitimate_names(void) {
+    char out[32];
+    /* UTF-8 stays: the real pack is named "Portugues (Brasil)" with accents,
+     * and JSON carries those bytes without escaping. */
+    const char* src = "Portugu\xc3\xaas (Brasil)";
+    langIdentSanitize(src, strlen(src), out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING(src, out);
+}
+
+void test_langident_terminates_and_respects_cap(void) {
+    char out[4];
+    memset(out, 'X', sizeof(out));
+    langIdentSanitize("abcdefgh", 8, out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("abc", out);          /* truncated, terminated */
+
+    /* An all-bad input must produce an empty string, not leave the buffer as
+     * it found it — the caller prints whatever is there. */
+    char out2[8];
+    memset(out2, 'X', sizeof(out2));
+    langIdentSanitize("\"\"\"", 3, out2, sizeof(out2));
+    TEST_ASSERT_EQUAL_STRING("", out2);
+
+    /* Zero cap must not write. Nothing to assert but the absence of a crash;
+     * ASAN in the fuzz job is what actually watches this one. */
+    langIdentSanitize("abc", 3, out2, 0);
+}
+
+/* ===========================================================================
+ *  /download PER-PATH PERMISSIONS — downloadPermFor (finding O-1)
+ *
+ *  The near-misses are the point: a prefix rule that also matched
+ *  "/historyx/" or a suffix rule that matched "system.blog.bak" would gate
+ *  the wrong files, and a rule that missed "/HISTORY/" would gate none of
+ *  them on a filesystem that does not care about case.
+ * =========================================================================== */
+void test_download_perm_gates_history_and_logs(void) {
+    TEST_ASSERT_EQUAL_UINT16(PERM_HISTORY, downloadPermFor("/history/2026-09-07.h5"));
+    TEST_ASSERT_EQUAL_UINT16(PERM_HISTORY, downloadPermFor("history/2026-09-07.h5"));
+    TEST_ASSERT_EQUAL_UINT16(PERM_HISTORY, downloadPermFor("/HISTORY/day.h5"));
+    TEST_ASSERT_EQUAL_UINT16(PERM_LOGS,    downloadPermFor("/system.blog"));
+    TEST_ASSERT_EQUAL_UINT16(PERM_LOGS,    downloadPermFor("/system.old.blog"));
+    TEST_ASSERT_EQUAL_UINT16(PERM_LOGS,    downloadPermFor("/SYSTEM.BLOG"));
+}
+
+void test_download_perm_leaves_ordinary_files_alone(void) {
+    TEST_ASSERT_EQUAL_UINT16(0, downloadPermFor("/calib.csv"));
+    TEST_ASSERT_EQUAL_UINT16(0, downloadPermFor("/lang/language_pt-BR.lng"));
+    TEST_ASSERT_EQUAL_UINT16(0, downloadPermFor("/themes/dark.thm"));
+    TEST_ASSERT_EQUAL_UINT16(0, downloadPermFor("/historyx/f.h5"));   /* not history */
+    TEST_ASSERT_EQUAL_UINT16(0, downloadPermFor("/system.blog.bak")); /* not a log */
+    TEST_ASSERT_EQUAL_UINT16(0, downloadPermFor("/blog"));
+}
+
+/* ===========================================================================
  *  AUTHENTICATION LOCKOUT — authLockoutMs (SystemDefs_Network.h)
  *
  *  Shared by the web login and the Bluetooth CLI. The backoff itself is
@@ -1991,6 +2089,15 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_lockout_backoff_doubles);
     RUN_TEST(test_lockout_reaches_and_holds_the_ceiling);
     RUN_TEST(test_lockout_never_falls_below_the_ceiling);
+
+    /* hwId as a key, language-pack identity, per-path /download permissions */
+    RUN_TEST(test_hwid_accepts_real_ids);
+    RUN_TEST(test_hwid_rejects_key_breakers);
+    RUN_TEST(test_langident_strips_json_breakers);
+    RUN_TEST(test_langident_keeps_legitimate_names);
+    RUN_TEST(test_langident_terminates_and_respects_cap);
+    RUN_TEST(test_download_perm_gates_history_and_logs);
+    RUN_TEST(test_download_perm_leaves_ordinary_files_alone);
 
     /* HaDiscovery — Home Assistant MQTT Discovery formatters */
     RUN_TEST(test_ha_sanitize_id);

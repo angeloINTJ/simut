@@ -195,6 +195,44 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 			oracleFail("parseBoolStrict mapped a spelling to the wrong value", txt);
 	}
 
+	/* ---- differential: isValidHwId vs its documented alphabet -------- */
+	if (isValidHwId(txt)) {
+		const size_t n = strlen(txt);
+		if (n == 0 || n > 15)
+			oracleFail("isValidHwId accepted a length outside 1..15", txt);
+		for (size_t i = 0; i < n; i++) {
+			const char c = txt[i];
+			const bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+			                (c >= '0' && c <= '9') || c == '_' || c == '-';
+			if (!ok)
+				oracleFail("isValidHwId accepted a byte outside [A-Za-z0-9_-]", txt);
+		}
+	}
+
+	/* ---- contract: langIdentSanitize never emits a JSON breaker ------
+	 * The whole point of the function is that /api/perms can interpolate its
+	 * output between two quotes without escaping. Anything it lets through
+	 * that a JSON string cannot hold is the bug it exists to prevent — and it
+	 * must terminate inside the buffer whatever it was handed. */
+	{
+		char ident[24];
+		memset(ident, 'Z', sizeof(ident));
+		langIdentSanitize(txt, strlen(txt), ident, sizeof(ident));
+		size_t used = strnlen(ident, sizeof(ident));
+		if (used >= sizeof(ident))
+			oracleFail("langIdentSanitize left the buffer unterminated", txt);
+		for (size_t i = 0; i < used; i++) {
+			const unsigned char c = (unsigned char)ident[i];
+			if (c < 32 || c == '"' || c == '\\')
+				oracleFail("langIdentSanitize emitted a byte JSON cannot hold", txt);
+		}
+		/* A one-byte buffer has room for the terminator and nothing else. */
+		char tiny[1] = { 'Z' };
+		langIdentSanitize(txt, strlen(txt), tiny, sizeof(tiny));
+		if (tiny[0] != '\0')
+			oracleFail("langIdentSanitize overran a 1-byte buffer", txt);
+	}
+
 	/* ---- crash/UBSan coverage for the rest of the family ------------- */
 	(void)isValidName(txt);
 	(void)isValidName(txt, 8);

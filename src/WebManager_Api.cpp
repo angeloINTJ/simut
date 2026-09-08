@@ -38,7 +38,12 @@ void WebManager::handleApiPerms( ) {
 	         "{\"user\":\"%s\",\"perms\":%u,\"ntp\":%d,\"time\":%lu,\"version\":\"%s\","
 	         "\"langCode\":\"%s\",\"langName\":\"%s\"}",
 	         _currentUserName.c_str( ), perms, ntpOk ? 1 : 0, (unsigned long)now, SIMUT_VERSION,
-	         lc ? lc : "", ln ? ln : "");
+	         /* The .lng identity is attacker-supplied: it comes out of a file
+	          * anyone with PERM_FILE_UPLOAD can put on the device, and it lands
+	          * in the response every page of the UI fetches first. A quote in
+	          * @NAME took the whole interface down (V-04). LangParser now
+	          * refuses those bytes as well — this is the second layer. */
+	         jsonEscape(lc ? lc : "").c_str( ), jsonEscape(ln ? ln : "").c_str( ));
 	_server->send(200, "application/json", json);
 }
 
@@ -52,12 +57,24 @@ void WebManager::handleApiNetwork( ) {
 		cfg.reserved + WEB_CONFIG_OFFSET);
 	uint16_t currentPort = (w->port > 0) ? w->port : WEB_DEFAULT_PORT;
 
-	/* Exposes NetworkTimeData overlay flags for the UI. */
-	char json[640];
+	/* Exposes NetworkTimeData overlay flags for the UI.
+	 *
+	 * Every stored string goes through jsonEscape. isValidCfgString, which is
+	 * what guards these fields on the way in, rejects control bytes but allows
+	 * a quote and a backslash — so an SSID of a"b was a legal configuration
+	 * that made this response un-parseable, and the network page went blank
+	 * for everyone until somebody found the device console (V-04).
+	 *
+	 * The buffer grew with the escaping: each stored byte can become two, and
+	 * a control byte left over from an older config becomes six. 1024 covers
+	 * the realistic worst case, and the truncation check below covers the rest
+	 * — snprintf never overflows, but a truncated response is invalid JSON,
+	 * which is the very failure being fixed. A 500 says so out loud. */
+	char json[1024];
 	char ipBuf[16], macBuf[18];
 	_netRef->getIpAddress(ipBuf, sizeof(ipBuf));
 	_netRef->getMacAddress(macBuf, sizeof(macBuf));
-	snprintf(json, sizeof(json),
+	int wrote = snprintf(json, sizeof(json),
 	         "{\"connected\":%s,\"ip\":\"%s\",\"mask\":\"%s\",\"gw\":\"%s\","
 	         "\"dns\":\"%s\",\"mac\":\"%s\",\"ssid\":\"%s\",\"use_dhcp\":%s,"
 	         "\"static_ip\":\"%s\",\"static_mask\":\"%s\",\"static_gw\":\"%s\","
@@ -70,32 +87,53 @@ void WebManager::handleApiNetwork( ) {
 	         _netRef->getGateway( ).c_str( ),
 	         _netRef->getDns( ).c_str( ),
 	         macBuf,
-	         cfg.wifiSsid,
+	         jsonEscape(cfg.wifiSsid).c_str( ),
 	         cfg.useDhcp ? "true" : "false",
-	         cfg.staticIp, cfg.staticMask, cfg.staticGateway, cfg.staticDns,
+	         jsonEscape(cfg.staticIp).c_str( ),
+	         jsonEscape(cfg.staticMask).c_str( ),
+	         jsonEscape(cfg.staticGateway).c_str( ),
+	         jsonEscape(cfg.staticDns).c_str( ),
 	         _storageRef->isDnsAuto( ) ? "true" : "false",
-	         _storageRef->getSecondaryDns( ),
-	         cfg.ntpServer,
+	         jsonEscape(_storageRef->getSecondaryDns( )).c_str( ),
+	         jsonEscape(cfg.ntpServer).c_str( ),
 	         _storageRef->isNtpEnabled( ) ? "true" : "false",
 	         (unsigned)currentPort,
 	         _storageRef->isWebKeepAliveEnabled( ) ? "true" : "false",
 	         tlsCertFilesPresent( ) ? "true" : "false");
 
+	if (wrote < 0 || (size_t)wrote >= sizeof(json)) {
+		_server->send(500, "application/json", "{\"error\":\"Response too long\"}");
+		return;
+	}
 	_server->send(200, "application/json", json);
 }
 
 
 String WebManager::jsonEscape(const char* src) {
 	String out;
+	if (!src) return out;
 	out.reserve(strlen(src) + 16);
 	while (*src) {
-		switch (*src) {
+		unsigned char c = (unsigned char)*src;
+		switch (c) {
 			case '"': out += "\\\""; break;
 			case '\\': out += "\\\\"; break;
 			case '\n': out += "\\n"; break;
 			case '\r': out += "\\r"; break;
 			case '\t': out += "\\t"; break;
-			default: out += *src; break;
+			default:
+				/* Every other control byte, not just the three with short
+				 * forms. A raw 0x01 inside a string is invalid JSON, and the
+				 * consumer that chokes on it is the dashboard's own fetch —
+				 * one bad byte in one field blanks the whole page. */
+				if (c < 32) {
+					char u[7];
+					snprintf(u, sizeof(u), "\\u%04x", c);
+					out += u;
+				} else {
+					out += (char)c;
+				}
+				break;
 		}
 		src++;
 	}
@@ -313,8 +351,10 @@ void WebManager::handleApiAlarms( ) {
 		const char* typeName = sensorTypeName((SensorType)cfg.sensors[i].sensorType);
 
 
-		String sName = cfg.sensors[i].friendlyName;
-		sName.replace("\"", "\\\"");
+		/* jsonEscape, not a quote-for-quote replace: the hand-rolled version
+		 * missed the backslash, so a name ending in one escaped the closing
+		 * quote instead of itself, and it passed control bytes through raw. */
+		String sName = jsonEscape(cfg.sensors[i].friendlyName);
 
 		char buf[320];
 			snprintf(buf, sizeof(buf),
@@ -548,8 +588,7 @@ void WebManager::handleApiStatus( ) {
 
 	char buffer[1024];
 
-	String devName = cfg.deviceName;
-	devName.replace("\"", "\\\"");
+	String devName = jsonEscape(cfg.deviceName);
 
 	/* Refreshes heap samples before serving metrics (cost: ~16 malloc/free).
 	 * Frequency limited by the dashboard polling interval (3s). */
@@ -652,11 +691,13 @@ void WebManager::handleApiStatus( ) {
 		if (!s.config.active) continue;
 		if (!first) { if (!safeSend(",")) return; }
 
-		String sName = s.config.friendlyName;
-		sName.replace("\"", "\\\"");
+		String sName = jsonEscape(s.config.friendlyName);
 
-		String sId = s.config.hwId;
-		sId.replace("\"", "\\\"");
+		/* hwId reaches the telemetry CSV header and JSON payload too, so a
+		 * backslash here used to corrupt what the collector stored, not just
+		 * what the dashboard drew. isValidHwId now refuses it on the way in
+		 * (O-2); escaping stays for the configs already written. */
+		String sId = jsonEscape(s.config.hwId);
 
 		char valBuffer[16]; char humBuffer[32] = ""; char presBuffer[32] = "";
 		if (s.inErrorState) snprintf(valBuffer, sizeof(valBuffer), "\"Error\"");
