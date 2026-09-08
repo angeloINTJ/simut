@@ -1472,14 +1472,14 @@ class Suite:
         # How many wakes until the radio is due, when the queue starts empty.
         #
         # One wake produces one reading, so reaching a minimum batch of N takes
-        # N wakes — plus two. The decision is taken at BOOT, before this wake's
-        # own reading exists, which costs one; and the first reading after a
-        # drain is not counted until the wake after it, which costs another.
-        # Measured on 2026-09-07 with min=5: tel= read 0,0,1,2,3,4,5 across
-        # seven wakes, radio up on the seventh. An earlier version of this loop
-        # ran `every + 1` wakes and reported "radio never came up", which reads
-        # exactly like the schedule being broken.
-        budget = every + 2
+        # N wakes, and the radio is due on the Nth. It used to take N+2: the
+        # decision is taken at BOOT, before this wake's own reading exists, and
+        # the count did not include it — measured on 2026-09-07 with min=5,
+        # tel= read 0,0,1,2,3,4,5 across seven wakes with the radio up on the
+        # seventh. airTelemetryDue( ) now counts the reading this wake is about
+        # to take, so t_int means exactly what it says. One wake of margin is
+        # kept because the queue is rarely empty at the first wake observed.
+        budget = every + 1
         radio_by_wake, awake_by_wake, pending_by_wake = [], [], []
         for _ in range(budget + 2):        # two spare wakes of margin
             t_up = self.target.usb.wait(True, row['wake_sec'] + self.args.wake_grace)

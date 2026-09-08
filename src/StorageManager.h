@@ -320,6 +320,22 @@ public:
  return _h5Valid && _h5Enc.sample(i, epoch, vals);
  }
  /**
+  * @brief The same count, for the window where the open block is on flash.
+  *
+  * h5RamCount( ) answers only once recoverWipV5( ) has put the snapshot back
+  * into the encoder, and that runs late in setup( ) — after the sensors, the
+  * network and (on a SIMUT Air) after the wake has already decided whether to
+  * raise the radio. In that window the block exists, but only as
+  * /history/.wip: the day files do not have it and RAM does not have it yet,
+  * so every counter reads zero.
+  *
+  * Answers 0 once the block IS in RAM, on purpose. After a resume the
+  * snapshot is deliberately left on flash (it is the block's only copy until
+  * the next record), so adding both would count the same records twice — the
+  * encoder is the authority whenever it holds anything.
+  */
+ uint16_t h5WipPendingSince(uint32_t cursor);
+ /**
   * @brief Serialize the open block as a standalone V5 stream (§3).
   * @details A SCHEMA chunk followed by the block sealed PARTIAL — byte for
   *          byte what a one-block .h5 file looks like. That is the whole

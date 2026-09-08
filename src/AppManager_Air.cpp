@@ -188,9 +188,24 @@ bool AppManager::airOnCharger( ) const {
 #endif
 }
 
+/* The wake's version of TelemetryManager::telemetryDue( ), with one term the
+ * mains path does not need: the sample this wake has not taken yet.
+ *
+ * The decision is made in setup( ), before the cycle reaches DECIDE, so the
+ * count it reads is always one short of what the queue will hold by the time
+ * the radio would be used — and a wake never skips its reading, so that record
+ * is not a guess. Without the term, t_int is off by one wake in the direction
+ * that costs the most: t_int=1 ("send every reading") sent on every OTHER wake,
+ * because the wake right after a send saw an empty queue.
+ *
+ * Erring early rather than late is also the cheap direction. A wake that raises
+ * the radio one reading early sends a batch one short; a wake that raises it
+ * late leaves the operator's cadence quietly stretched. */
 bool AppManager::airTelemetryDue( ) const {
  if (_airSkipWakes > 0) return false;          /* still serving a failed wake's penalty */
- return _telemetryMgr->telemetryDue( );        /* pending >= minimum batch (0 = off) */
+ const uint32_t minBatch = _storageMgr->getConfig( ).telInterval;
+ if (minBatch == 0) return false;              /* telemetry off */
+ return (uint32_t)_telemetryMgr->getPendingEstimate( ) + 1UL >= minBatch;
 }
 
 /* Reset the M0 inactivity timer. Any serial/BT command or web request lands

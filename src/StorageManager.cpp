@@ -2453,6 +2453,37 @@ bool StorageManager::h5ResumeOpenBlock(const uint8_t* chunk, size_t len) {
 	return true;
 }
 
+uint16_t StorageManager::h5WipPendingSince(uint32_t cursor) {
+	if (!_isMounted) return 0;
+	/* The encoder wins whenever it holds anything: after a resume the .wip is
+	 * still on flash and carries the same records. */
+	if (h5RamCount( ) > 0) return 0;
+
+	/* Read under the read lock, decode after releasing it — ensureH5Schema( )
+	 * must not run holding _fsReadMutex (same rule the .wip seed in begin( )
+	 * follows). _h5Chunk is free to borrow here precisely because the encoder
+	 * is empty: nothing is mid-append or mid-seal. */
+	size_t len = 0;
+	{
+		ReadGuard rg(this);
+		if (LittleFS.exists(FILE_H5_WIP)) {
+			File f = LittleFS.open(FILE_H5_WIP, "r");
+			if (f) {
+				const int got = f.read(_h5Chunk, sizeof(_h5Chunk));
+				if (got > 0) len = (size_t)got;
+				f.close( );
+			}
+		}
+	}
+	if (len < sizeof(H5DataHeader)) return 0;
+
+	if (!_h5Valid) ensureH5Schema( );   /* empty encoder: cannot seal anything */
+	if (!_h5Valid) return 0;
+
+	return h5CountAfter(_h5Chunk, len, _h5Schema, _h5NCh, cursor,
+	                    h5NominalSeconds(getHistoryIntervalMin( )));
+}
+
 void StorageManager::recoverWipV5( ) {
 	if (!_isMounted) return;
 
