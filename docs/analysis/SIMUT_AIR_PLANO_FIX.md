@@ -948,3 +948,135 @@ rotacionou no meio da janela e o teste dá SKIP, porque **só valem deltas**: o
 `clear log confirm` esvazia o que ele devolve.
 
 **Custo:** +176 B de flash na imagem Air (1.023.720 → 1.023.896 B; folga 20.584 B).
+
+### 6.9 F26 — o wake nunca ligava o rádio: o contador de pendentes é cego para o `.wip`
+
+**Sintoma relatado pelo Ângelo, 08/09:** *"o simut-air nunca faz wake com telemetria. Ele só faz
+telemetria quando GP17 está em high ou nos primeiros minutos do boot limpo."*
+
+Os dois casos que funcionavam dizem qual é o caso que não funciona. GP17 em high é o carregador:
+o `setup( )` cancela o M1 e o aparelho fica em M0, com rádio permanente. Os primeiros minutos do
+boot limpo são o mesmo M0, antes de o `idle` expirar. **Fora do M0 a telemetria não existia** — ou
+seja, o ciclo M1, que é o produto.
+
+**A prova, impressa pelo próprio aparelho, antes de qualquer alteração:**
+
+```
+[AIR] wake: radio=off (pending=0 min=5 skip=0)
+...  9 s depois, no mesmo boot ...
+[STO] History snapshot written: wip_resumed (25)
+```
+
+Zero pendentes segundo o contador, **25 registros** segundo o recuperador do `.wip`, no mesmo wake.
+
+**A causa.** `refreshPendingCount( )` conta duas coisas: os registros dos arquivos `*.h5` mais
+novos que o cursor, e o bloco aberto **na RAM**. Num wake do Air não existe nem um nem outro no
+instante da decisão:
+
+* o bloco aberto só chega ao arquivo do dia quando **sela**, uma vez por hora a um registro por
+  minuto — e desde o F23 (`1620ced`, 07/09 18h26) o boot **retoma** o `.wip` em vez de selá-lo,
+  então o arquivo do dia parou de crescer a cada wake;
+* a decisão de levantar o rádio é tomada em `AppManager_Boot.cpp:523`, logo depois do
+  `_storageMgr->begin( )`, e o `recoverWipV5( )` — que devolve o bloco à RAM — roda ~630 linhas
+  depois, no mesmo `setup( )`.
+
+Entre esses dois pontos o bloco existe **só como `/history/.wip`**, e nenhum dos dois termos o
+enxerga. `pending` = 0 em todo wake, `telemetryDue( )` falso em todo wake, CYW43 desligado em todo
+wake. A fila crescia na flash e nunca saía.
+
+⚠️ **É uma regressão de um acerto.** O gatilho por quantidade (`2e04326`, 07/09 10h39) foi medido
+funcionando no mesmo dia — o comentário do T13 registra `tel=` lendo 0,0,1,2,3,4,5 em sete wakes.
+O que o quebrou foi o F23, oito horas depois, e a única coisa que ligava os dois era o arquivo do
+dia crescer por acidente. **Nenhum teste cobria a junção**, porque cada um dos dois estava certo.
+
+**A correção, em três peças:**
+
+1. `h5CountAfter( )` em `HistoryV5.h` — quantos registros de um chunk são mais novos que um cursor.
+   Função pura, ao lado do `h5SeedFromSnapshot( )` que faz a mesma leitura para outra pergunta, e
+   coberta por 4 casos no `native_history_v5`.
+2. `StorageManager::h5WipPendingSince( )` — lê o `/history/.wip` sob o read-lock e chama a função
+   acima. **Devolve 0 quando o encoder tem alguma coisa**, porque depois de um resume o `.wip`
+   continua na flash com os mesmos registros: sem essa regra os dois termos contariam em dobro.
+3. `airTelemetryDue( )` passa a contar **a leitura que este wake ainda vai tirar**. A decisão é
+   tomada antes do DECIDE e um wake nunca pula a leitura, então sem esse termo o `t_int` ficava um
+   wake atrasado — com `t_int=1` o aparelho mandava a cada **dois** wakes.
+
+**Medido no ferro, mesma bancada, mesma configuração (`hist=60s`, `t_int=5`, coletor
+`192.168.3.206:8080` respondendo):**
+
+| wake | `.wip` | `pending` | rádio |
+|---|---|---|---|
+| 00:28:15 | 2 | 0 | off |
+| 00:29:15 | 3 | 1 | off |
+| 00:30:15 | 4 | 2 | off |
+| 00:31:15 | 5 | 3 | off |
+| **00:32:15** | 6 | **4** | **on** — drenou |
+| 00:33:15 | 7 | 0 | off |
+| 00:34:15 | 8 | 1 | off |
+| 00:35:14 | 9 | 2 | off |
+| 00:36:14 | 10 | 3 | off |
+| **00:37:14** | 11 | **4** | **on** |
+
+Dez wakes, **duas** transmissões, período exato de 5 — que é o que `t_int=5` sempre quis dizer.
+Antes: dez wakes, zero transmissões, `pending=0` nas dez.
+
+**Custo:** +440 B de flash na imagem Air (1.025.440 → 1.025.880 B; folga 18.600 B).
+
+**Portão:** o T13 já reprovava isto (`radio never came up in N wakes`) — o que faltava era rodá-lo.
+O `budget` do teste caiu de `every + 2` para `every + 1`, porque um dos dois off-by-one que ele
+compensava era o do item 3 e acabou.
+
+### 6.10 Consumo medido e autonomia estimada
+
+`awake_s` por wake, dois instrumentos independentes na mesma janela de 10 minutos: o `slept=` que o
+próprio aparelho lê do RTC, e a janela de enumeração USB vista de fora.
+
+| tipo de wake | `slept=` | acordado (60 − slept) | janela USB |
+|---|---|---|---|
+| leitura (rádio off) | 34 s | **26 s** | 24 s |
+| telemetria (rádio on) | 33 s | **27 s** | 25–26 s |
+
+A telemetria custa **1 s a mais de janela**, não mais: o CONNECT roda em paralelo com o SAMPLE por
+desenho, e um lote de 5 registros sai em menos de um segundo. O que ela custa é a **corrente** do
+CYW43 durante a janela inteira.
+
+Com as correntes de bancada do Ângelo (25 mA leitura, 80 mA telemetria, 2 mA dormindo), 1 medição
+por minuto e telemetria 1:5:
+
+| estado | wakes/dia | h/dia | mA | mAh/dia | % |
+|---|---|---|---|---|---|
+| leitura (rádio off) | 1.152 | 8,32 | 25 | 208,0 | 51,0 |
+| telemetria (rádio on) | 288 | 2,16 | 80 | 172,8 | 42,4 |
+| dormindo | — | 13,52 | 2 | 27,0 | 6,6 |
+| **TOTAL** | 1.440 | 24,00 | **17,0 méd.** | **407,8** | 100 |
+
+**O sono é 6,6% da conta.** O aparelho passa **43,7% do tempo acordado**, e é aí que a bateria vai.
+
+| bateria | autonomia | útil (~80%) |
+|---|---|---|
+| LiPo 1.000 mAh | 2,5 d | 2,0 d |
+| 18650 2.600 mAh | 6,4 d | 5,1 d |
+| 18650 3.400 mAh | 8,3 d | 6,7 d |
+| 2× 18650 6.800 mAh | 16,7 d | 13,3 d |
+| powerbank 10.000 mAh | 24,5 d | 19,6 d |
+
+**A alavanca não é a telemetria, é o período.** Cortar o wake pela metade (13 s) dobra a autonomia;
+passar de 1/min para 1/5min quase quadruplica:
+
+| mudança | mAh/dia | 18650 3.400 mAh |
+|---|---|---|
+| medido (60 s, 1:5, wake 26/27 s) | 407,8 | 8,3 d |
+| wake pela metade (13 s) | 227,9 | 14,9 d |
+| período 120 s | 227,9 | 14,9 d |
+| período 300 s | 120,0 | 28,3 d |
+| período 600 s | 84,0 | 40,5 d |
+| telemetria 1:10 | 347,5 | 9,8 d |
+| telemetria a cada wake (1:1) | 890,4 | 3,8 d |
+
+⚠️ **Dos 26 s de um wake de leitura, ~11 s são boot e ~14 s são o SAMPLE esperando o sensor
+estabilizar.** É onde o F13 (boot M1 enxuto) e o `stabTimeoutMs` ainda têm o que render, e vale
+mais que qualquer economia no rádio.
+
+⚠️ As correntes são as da bancada, medidas no ponto de alimentação; um pack real ainda perde no
+rendimento do regulador, na autodescarga e na tensão de corte. As colunas "útil ~80%" existem por
+isso e continuam sendo estimativa — **corrente nunca foi medida por este agente**.
