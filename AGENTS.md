@@ -75,10 +75,15 @@ Referência completa (comandos, armadilhas, analisador lógico):
   "HW WATCHDOG: Core 0 loop stalled" espúrio. Fix: `airEnterDormant()` chama
   `LogManager::instance().markCleanReboot()` (scratch[5]=0xC1EA8007) antes de
   dormir, e o banner de boot pula o aviso quando `_airActive` (M1).
-- Comandos CLI: `air idle <10..65535>`, `air charger <0..29|off>`, `air hibernate`, `air status`,
+- Comandos CLI: `air idle <10..65535>`, `air charger <0..22|26..28|off>`, `air hibernate`, `air status`,
   `air stop`. ⚠️ O teto do `air idle` é o campo, não a frase: até 06/09 aceitava 86400 e convertia,
   e **65536 virava 0** — ocioso zero manda dormir na passada seguinte do laço, e só se volta
   pegando uma janela de wake pelo console (F09, fechado em 07/09).
+  ⚠️ **23/24/25/29 são PROIBIDOS como `air charger` ou `sensorPowerPin`**: são o barramento do
+  CYW43 no Pico W (WL_ON, dado SPI compartilhado, CS/LED, ADC3-VSYS). A regra é `airPinValid( )`,
+  usada tanto pelo handler quanto pelo `airSanitise( )` — então um `air.bin` forjado ou restaurado
+  com 25 volta ao default no load. O handler também recusa um GP já usado pela alimentação de
+  sensor ou por um sensor ativo (V-06).
   (cancelam/consultam a hibernação — funcionam na CLI de emergência).
   `air status` mostra `wake=` (max de histórico/backoff), `hist=`,
   `backoff=` e `idle=`.
@@ -185,10 +190,17 @@ Referência completa (comandos, armadilhas, analisador lógico):
   inteiro. Boot **sujo** (watchdog) = não tem ninguém → graça curta do F25, para voltar a dormir
   antes de a falha repetir. ⚠️ **A primeira versão do F25 dava 10 s para TODOS os boots** e deixou
   o aparelho inutilizável pela web: o operador não conseguia terminar o login.
-- 🔴 **Toda resposta web rearma o timer de inatividade** (`WebManager::setActivityCallback` →
-  `airMarkActivity( )`, chamado no funil `safeSendN`/`safeSend_GZ`). A CLI serial fazia isso desde
-  sempre; a web não fazia, e por isso uma sessão de navegador era hibernada por baixo de quem
-  estava usando — inclusive no meio do login. Era o F21 do plano.
+- 🔴 **Só uma requisição AUTENTICADA rearma o timer de inatividade**
+  (`WebManager::setActivityCallback` → `airMarkActivity( )`). O rearme mora em três lugares, todos
+  depois de identificar quem chamou: `getAuthPerms( )` no ramo em que o cookie casou com uma sessão
+  viva, `completeLogin( )`, e o ramo de sucesso do Basic auth do `/metrics`. **Pré-login tem
+  ORÇAMENTO**: `ensureLoginStateSlot( )` gasta no máximo `WEB_PREAUTH_MAX_EXT` (3) extensões por
+  boot, zeradas por um login bem-sucedido — com `air idle` de 300 s dá até 15 min para terminar o
+  login, e dá os mesmos 15 min, UMA vez, para quem só está batendo na porta.
+  ⚠️ **Os funis `safeSendN`/`safeSend_GZ` NÃO rearmam mais.** Servir bytes não prova que tem gente:
+  o funil respondia "tem alguém aí" até para um 403 devolvido a um estranho, e qualquer poll anônimo
+  segurava o aparelho acordado para sempre (V-03; medido em 06/09: 491 s contra 306 s esperados).
+  O F21 continua fechado — o que mudou é o critério, de "respondi" para "sei quem é".
 - ✅ **`air stop` sobe o rádio se ele estiver desligado.** Parar o ciclo num wake sem rádio
   deixaria o M0 sem web, sem NTP e sem LED, alcançável só pelo cabo serial por onde o comando
   chegou.
@@ -286,6 +298,14 @@ Armadilhas de bancada específicas do Air:
   physical reset"). ⚠️ Uma versão anterior desta nota afirmava o contrário;
   a suíte agora **mede** isso em T02 (lê `air status` antes de qualquer
   `air stop`) em vez de assumir. Confirmar na próxima bancada.
+- 🔴 **O CLI Bluetooth está COMPILADO nas imagens alpha e Air** (`SIMUT_BLUETOOTH=1` nas duas), e
+  autentica com a **senha do admin da web** — não com o PIN do display. Desde 07/09 tem lockout
+  exponencial (`authLockoutMs( )`, o mesmo da web: 2 s na 1ª falha, teto de 300 s), e o estado mora
+  na RAM do `BluetoothManager`, então **derrubar e reconectar o RFCOMM não zera nada** — é esse o
+  laço que o atacante usaria. Os quatro comandos de recuperação (`system factory`, `system format`,
+  `admin reset`, `system https off`) são **só pela USB**; `ap` continua valendo por BT de propósito
+  (é o caso de uso documentado). ⚠️ A origem viaja no `CliDemand.fromBt`, não numa flag "último
+  input", porque uma linha do BT pode ficar na fila da CLI e executar vários inputs depois (V-01a).
 - 🔴 **Um wake M1 NÃO sobe web, Bluetooth, mDNS nem o cache do painel** — só o que ele precisa
   para ler o sensor e, se for o caso, enviar. Tudo isso pertence ao M0 (boot a frio ou
   `air stop`, que continua subindo a web sozinho). O portão é `_airActive`, não `_airRadioWake`:

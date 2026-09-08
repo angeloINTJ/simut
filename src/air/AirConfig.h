@@ -166,9 +166,22 @@ inline uint32_t airComputeCrc(const AirConfig& c) {
   return airCrc32(reinterpret_cast<const uint8_t*>(&c), offsetof(AirConfig, crc32));
 }
 
-/* A GPIO number this chip has, or the "off" sentinel. */
+/* A GPIO number this chip has AND the board leaves free, or the "off"
+ * sentinel.
+ *
+ * 23, 24, 25 and 29 are not free on a Pico W: they are the CYW43 side band —
+ * WL_ON / power-save, the shared SPI data line, the chip select that doubles
+ * as the LED, and the ADC3 / VSYS sense. Driving any of them as a charger or
+ * sensor-power pin takes the radio down, and on a device that spends its life
+ * asleep the symptom is a unit that stops reporting with no console attached
+ * to say why. The bound alone (<= 29) accepted all four (V-06). */
 inline bool airPinValid(uint8_t pin) {
-  return pin == PIN_UNUSED || pin <= 29;
+  if (pin == PIN_UNUSED) return true;
+  if (pin > 29) return false;
+  switch (pin) {
+    case 23: case 24: case 25: case 29: return false;  /* CYW43 on the Pico W */
+    default: return true;
+  }
 }
 
 /* An idle timeout the uint16 field can actually hold (plan F09).

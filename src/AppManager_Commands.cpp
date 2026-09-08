@@ -954,7 +954,34 @@ void AppManager::executeCommand(CliDemand cmd) {
    * the reboot that any other configuration change would cost. */
   int v = 0;
   const bool off = (strcmp(cmd.strVal1, "off") == 0);
-  if (off || (cmd.strVal1[0] && parseIntStrict(cmd.strVal1, v) && v >= 0 && v <= 29)) {
+  /* The bound used to be `0..29`, which accepted the four GPIOs the Pico W
+   * spends on the CYW43 (23/24/25/29). Setting the charger sense to one of
+   * them reconfigures the radio's own side band, and on a device that lives
+   * asleep the result is a unit that silently stops reporting. airPinValid
+   * is the shared rule — the same one airSanitise applies on load, so a
+   * forged or restored air.bin cannot smuggle one of these in either. */
+  const bool pinOk = cmd.strVal1[0] && parseIntStrict(cmd.strVal1, v)
+                     && v >= 0 && v <= 29 && airPinValid((uint8_t)v);
+  /* And a pin that is already doing something else on this board. Sharing it
+   * would leave two owners driving one line, which reads on the console as a
+   * charger that is always present or a sensor that never answers. */
+  bool inUse = false;
+  if (pinOk && !off) {
+   if (_airCfg.sensorPowerPin != PIN_UNUSED && (uint8_t)v == _airCfg.sensorPowerPin) inUse = true;
+   for (int s = 0; !inUse && s < MAX_SENSORS; s++) {
+    if (!cfg.sensors[s].active) continue;
+    for (int p = 0; p < MAX_SENSOR_PINS; p++) {
+     if (cfg.sensors[s].pins[p] == (uint8_t)v) { inUse = true; break; }
+    }
+   }
+  }
+  if (inUse) {
+   _cmdMgr->printError(_cmdMgr->isPt( )
+    ? "GP em uso (alimentacao de sensor ou sensor ativo)"
+    : "GP already in use (sensor power or an active sensor)");
+   break;
+  }
+  if (off || pinOk) {
    _airCfg.chargerPin = off ? (uint8_t)PIN_UNUSED : (uint8_t)v;
    if (!off) {
     gpio_init((uint8_t)v);
@@ -973,7 +1000,9 @@ void AppManager::executeCommand(CliDemand cmd) {
    }
    _cmdMgr->printSuccess(buf);
   } else {
-   _cmdMgr->printError("air charger <0..29|off>");
+   /* The gaps are the CYW43 pins, spelled out so the operator does not have
+    * to guess why 25 was refused. */
+   _cmdMgr->printError("air charger <0..22|26..28|off>");
   }
   break;
  }

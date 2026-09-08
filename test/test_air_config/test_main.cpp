@@ -92,7 +92,7 @@ static void test_charger_pin_from_legacy_field(void) {
  * trusted to carry, not a second chance to override a deliberate choice. */
 static void test_charger_pin_bounds(void) {
     TEST_ASSERT_TRUE(airPinValid(0));
-    TEST_ASSERT_TRUE(airPinValid(29));
+    TEST_ASSERT_TRUE(airPinValid(22));
     TEST_ASSERT_TRUE(airPinValid(PIN_UNUSED));
     TEST_ASSERT_FALSE(airPinValid(30));
     TEST_ASSERT_FALSE(airPinValid(254));
@@ -105,6 +105,45 @@ static void test_charger_pin_bounds(void) {
     c.chargerPin = PIN_UNUSED;              /* charger sense switched off */
     airSanitise(c);
     TEST_ASSERT_EQUAL_UINT8(PIN_UNUSED, c.chargerPin);
+}
+
+/* V-06. 23/24/25/29 are the CYW43 side band on a Pico W — WL_ON, the shared
+ * SPI data line, the chip select that also drives the LED, and ADC3/VSYS.
+ * The old rule was `pin <= 29`, which accepted every one of them, so `air
+ * charger 25` was a valid command that took the radio down on a device with
+ * nobody watching the console.
+ *
+ * Written over the whole 0..255 domain rather than the four values: this is a
+ * denylist, and a denylist tested only at its own entries cannot tell you
+ * whether it also started refusing something legitimate. */
+static void test_pin_denylist_cyw43(void) {
+    TEST_ASSERT_FALSE(airPinValid(23));
+    TEST_ASSERT_FALSE(airPinValid(24));
+    TEST_ASSERT_FALSE(airPinValid(25));
+    TEST_ASSERT_FALSE(airPinValid(29));
+    for (unsigned p = 0; p <= 255; p++) {
+        bool expected = (p == PIN_UNUSED)
+                        || (p <= 29 && p != 23 && p != 24 && p != 25 && p != 29);
+        TEST_ASSERT_EQUAL_MESSAGE(expected, airPinValid((uint8_t)p),
+                                  "airPinValid disagrees with the denylist");
+    }
+}
+
+/* A denied pin must not survive a load. air.bin is a file: it can be restored
+ * from a backup written before this rule existed, or hand-forged with a valid
+ * CRC. airSanitise is the only thing standing between that file and the GPIO,
+ * and it already calls airPinValid — this test is what keeps that wiring from
+ * being quietly removed. */
+static void test_sanitise_resets_denied_pin(void) {
+    AirConfig c = airDefaultConfig( );
+    c.chargerPin = 25;                 /* CYW43 chip select / onboard LED */
+    airSanitise(c);
+    TEST_ASSERT_NOT_EQUAL(25, c.chargerPin);
+    TEST_ASSERT_TRUE(airPinValid(c.chargerPin));
+
+    c.chargerPin = 23;
+    airSanitise(c);
+    TEST_ASSERT_TRUE(airPinValid(c.chargerPin));
 }
 
 /* Plan F09. The value that matters is 65536: it used to be accepted and cast
@@ -138,6 +177,8 @@ int main(void) {
     RUN_TEST(test_crc_detects_change);
     RUN_TEST(test_charger_pin_from_legacy_field);
     RUN_TEST(test_charger_pin_bounds);
+    RUN_TEST(test_pin_denylist_cyw43);
+    RUN_TEST(test_sanitise_resets_denied_pin);
     RUN_TEST(test_idle_sec_bounds);
     return UNITY_END( );
 }
