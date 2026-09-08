@@ -128,13 +128,16 @@ bool WebManager::waitSendRoom(size_t need, const char* origin) {
  * the top), preserving the terminator rule above. Extra chunk boundaries
  * are transparent to the client. */
 bool WebManager::safeSendN(const char* data, size_t len, const char* origin) {
- /* One response served = the browser is being used. This is the funnel every
-  * text response passes through (safeSend, safeSend_P, the String overload all
-  * delegate here), so it is the cheapest honest place to say "someone is
-  * there". SIMUT Air resets its inactivity timer from this; without it the web
-  * operator was hibernated mid-login while the serial CLI, which has always
-  * called airMarkActivity( ), kept the device awake indefinitely. */
- if (_activityCb) _activityCb( );
+ /* This funnel used to call the activity callback, on the reasoning that "one
+  * response served = the browser is being used". It is not: a response is
+  * served to anyone who asks, including a 403 to a stranger, so the funnel
+  * answered "someone is there" for traffic that proved nothing (V-03).
+  *
+  * The hold now lives where the caller is actually identified — getAuthPerms
+  * on a matching session cookie, completeLogin, and the Basic-auth success
+  * branch of /metrics — with a small per-boot budget in ensureLoginStateSlot
+  * for the login page itself, which by definition cannot be authenticated
+  * yet. Every authenticated page and API answer passes through one of those. */
  if (len == 0 || data == nullptr) return !isClientGone( );
  if (isClientGone( )) { maybeLogClientDisconnect(origin); return false; }
 
@@ -324,8 +327,8 @@ void WebManager::detectGzipSupport( ) {
 }
 
 bool WebManager::safeSend_GZ(const uint8_t* gz_data, size_t gz_len) {
- /* The other response funnel — the pre-compressed pages. See safeSendN. */
- if (_activityCb) _activityCb( );
+ /* The other response funnel — the pre-compressed pages. Like safeSendN, it
+  * no longer marks activity: serving bytes is not evidence of a user. */
  /* The 512-byte copy loop this used to carry is the funnel's job now, and
   * PROGMEM needs no staging copy on the RP2040. */
  return safeSendN((const char*)gz_data, gz_len, "gz");

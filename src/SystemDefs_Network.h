@@ -174,6 +174,17 @@ inline uint32_t authLockoutMs(uint8_t failCount) {
 	return (ms > AUTH_LOCKOUT_MAX_MS) ? AUTH_LOCKOUT_MAX_MS : ms;
 }
 
+/** How many times unauthenticated traffic may extend the hibernation timer,
+ * counted per boot. Only SIMUT Air installs the activity callback, so on every
+ * other image this is inert; the constant lives here because WebManager is
+ * generic and must not know which image it is compiled into.
+ *
+ * Three at the default 300 s idle is up to 15 minutes for an operator to
+ * finish logging in after the device wakes — and the same 15 minutes, once,
+ * for an anonymous poller that would otherwise have held the radio up forever
+ * (V-03). */
+constexpr uint8_t WEB_PREAUTH_MAX_EXT = 3;
+
 /* ── Bluetooth auth ── */
 
 /** Maximum password input buffer size via Bluetooth. */

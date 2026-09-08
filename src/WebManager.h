@@ -114,6 +114,11 @@ private:
 	YieldCallback _yieldCb = nullptr;
 	LightYieldCallback _lightYieldCb = nullptr;
 	ActivityCallback _activityCb = nullptr;
+	/** Pre-login activity extensions spent since boot (V-03). Anonymous traffic
+	 * gets WEB_PREAUTH_MAX_EXT of them and no more; a successful login clears
+	 * it. Not persisted: the budget is per boot on purpose, because a device
+	 * that just booted is a device somebody is probably standing in front of. */
+	uint8_t _preAuthExt = 0;
 	/* Touch priority is now checked via TouchPriority::isActive( ). */
 
 	StorageManager* _storageRef;
