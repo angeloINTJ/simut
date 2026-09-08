@@ -416,7 +416,6 @@ void AppManager::loop( ) {
 
  /* Sensors */
  sd.activeSensors = 0;
- const auto& sensors = _sensorMgr->getRuntimeSensors( );
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (cfg.sensors[i].active) sd.activeSensors++;
  }

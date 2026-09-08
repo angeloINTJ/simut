@@ -82,10 +82,18 @@
 #endif
 
 /* Endereços hardcoded das HW peripherals — não dependem de includes ou
- * funções que possam estar em flash app slot apagada. */
+ * funções que possam estar em flash app slot apagada.
+ *
+ * O `#undef` antes de cada `#define` é deliberado, e não um `#ifndef`: três
+ * destes nomes também chegam do SDK por include transitivo, e um `#ifndef`
+ * deixaria o valor do SDK vencer — exatamente o oposto do que o parágrafo
+ * acima promete. Os valores coincidem hoje; a independência é o ponto. */
 #define WATCHDOG_BASE_ADDR     0x40058000u
+#undef  WATCHDOG_CTRL_OFFSET
 #define WATCHDOG_CTRL_OFFSET   0x00u
+#undef  WATCHDOG_LOAD_OFFSET
 #define WATCHDOG_LOAD_OFFSET   0x04u
+#undef  WATCHDOG_SCRATCH4_OFFSET
 #define WATCHDOG_SCRATCH4_OFFSET 0x1Cu   /* 0x18 é SCRATCH3 — ver nota abaixo */
 #define WATCHDOG_SET_ALIAS     0x00002000u   /* RP2040 SET alias offset */
 #define WATCHDOG_CLR_ALIAS     0x00003000u   /* RP2040 CLR alias offset */

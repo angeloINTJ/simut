@@ -87,9 +87,14 @@ static bool historyDayIsBefore(const String &fileName, const char *minDay) {
  * to survive a call that should have been bounded in the first place.
  */
 
+/* A ordem desta lista segue a ordem de DECLARAÇÃO em TelemetryManager.h
+ * (_alarmQueue na linha 137, _mqttClient na 236), que é a ordem em que o
+ * compilador realmente inicializa, independentemente do que se escreva aqui.
+ * Escrevê-la ao contrário era só um aviso hoje, mas é a forma exata de um bug
+ * futuro: basta um membro passar a depender de outro na construção. */
 TelemetryManager::TelemetryManager( )
- : _mqttClient(_mqttWifiClient),
-   _alarmQueue(ALARM_QUEUE_DEFAULT)
+ : _alarmQueue(ALARM_QUEUE_DEFAULT),
+   _mqttClient(_mqttWifiClient)
 {
  /* Both were left as indeterminate members until begin( ) ran, which is fine
   * only while nothing touches them first — and the Air boot now does: it asks
@@ -2571,9 +2576,7 @@ bool TelemetryManager::attemptAlarmHttpUpload(String& payload, std::vector<Alarm
 		http.setTimeout(NET_SOCKET_TIMEOUT_MS);
 		feedWdt( );
 
-		uint32_t postStart = millis( );
 		{ code = http.POST(payload); }
-		uint32_t postLatency = millis( ) - postStart;
 		watchdog_update( );
 
 		if (code >= 200 && code < 300) {

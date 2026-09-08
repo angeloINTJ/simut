@@ -19,24 +19,24 @@
 
 /* ═══ Bitmaps CGRAM 5×8 pixels ═══════════════════════════════════════ */
 
-const uint8_t BF_LT[8]  = { B00111, B01111, B11111, B11111, B11111, B11111, B11111, B11111 };
-const uint8_t BF_UB[8]  = { B11111, B11111, B00000, B00000, B00000, B00000, B00000, B00000 };
-const uint8_t BF_RT[8]  = { B11100, B11110, B11111, B11111, B11111, B11111, B11111, B11111 };
-const uint8_t BF_LL[8]  = { B11111, B11111, B11111, B11111, B11111, B11111, B01111, B00111 };
-const uint8_t BF_LB[8]  = { B00000, B00000, B00000, B00000, B00000, B00000, B11111, B11111 };
-const uint8_t BF_LR[8]  = { B11111, B11111, B11111, B11111, B11111, B11111, B11110, B11100 };
-const uint8_t BF_UMB[8] = { B11111, B11111, B00000, B00000, B00000, B00000, B11111, B11111 };
-const uint8_t BF_GR[8]  = { B01100, B10010, B10010, B01100, B00000, B00000, B00000, B00000 };
+const uint8_t BF_LT[8]  = { 0b00111, 0b01111, 0b11111, 0b11111, 0b11111, 0b11111, 0b11111, 0b11111 };
+const uint8_t BF_UB[8]  = { 0b11111, 0b11111, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000 };
+const uint8_t BF_RT[8]  = { 0b11100, 0b11110, 0b11111, 0b11111, 0b11111, 0b11111, 0b11111, 0b11111 };
+const uint8_t BF_LL[8]  = { 0b11111, 0b11111, 0b11111, 0b11111, 0b11111, 0b11111, 0b01111, 0b00111 };
+const uint8_t BF_LB[8]  = { 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b11111, 0b11111 };
+const uint8_t BF_LR[8]  = { 0b11111, 0b11111, 0b11111, 0b11111, 0b11111, 0b11111, 0b11110, 0b11100 };
+const uint8_t BF_UMB[8] = { 0b11111, 0b11111, 0b00000, 0b00000, 0b00000, 0b00000, 0b11111, 0b11111 };
+const uint8_t BF_GR[8]  = { 0b01100, 0b10010, 0b10010, 0b01100, 0b00000, 0b00000, 0b00000, 0b00000 };
 
 /* WiFi signal-strength icons (slot 7) — right triangle, right-angle
    at bottom-right, flipped horizontally.  2px up-shift to align with 'W'.
    Each level adds one row from bottom up.                              */
-const uint8_t BF_WIFI0[8] = { B00000, B10001, B01010, B00100, B01010, B10001, B00000, B00000 };
-const uint8_t BF_WIFI1[8] = { B00000, B00000, B00000, B00000, B00000, B11111, B00000, B00000 };
-const uint8_t BF_WIFI2[8] = { B00000, B00000, B00000, B00000, B01111, B11111, B00000, B00000 };
-const uint8_t BF_WIFI3[8] = { B00000, B00000, B00000, B00111, B01111, B11111, B00000, B00000 };
-const uint8_t BF_WIFI4[8] = { B00000, B00000, B00011, B00111, B01111, B11111, B00000, B00000 };
-const uint8_t BF_WIFI5[8] = { B00000, B00001, B00011, B00111, B01111, B11111, B00000, B00000 };
+const uint8_t BF_WIFI0[8] = { 0b00000, 0b10001, 0b01010, 0b00100, 0b01010, 0b10001, 0b00000, 0b00000 };
+const uint8_t BF_WIFI1[8] = { 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b11111, 0b00000, 0b00000 };
+const uint8_t BF_WIFI2[8] = { 0b00000, 0b00000, 0b00000, 0b00000, 0b01111, 0b11111, 0b00000, 0b00000 };
+const uint8_t BF_WIFI3[8] = { 0b00000, 0b00000, 0b00000, 0b00111, 0b01111, 0b11111, 0b00000, 0b00000 };
+const uint8_t BF_WIFI4[8] = { 0b00000, 0b00000, 0b00011, 0b00111, 0b01111, 0b11111, 0b00000, 0b00000 };
+const uint8_t BF_WIFI5[8] = { 0b00000, 0b00001, 0b00011, 0b00111, 0b01111, 0b11111, 0b00000, 0b00000 };
 
 enum BigFontSlot : uint8_t {
 	BFS_LT  = 0, BFS_UB = 1, BFS_RT = 2, BFS_LL = 3,
