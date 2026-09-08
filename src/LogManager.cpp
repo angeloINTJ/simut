@@ -1115,6 +1115,7 @@ static const char* translateCodeEn(uint16_t code) {
  case SEC_SESSION_EXPIRE: return "Session expired";
  case SEC_FILE_UPLOAD: return "File uploaded";
  case SEC_FILE_DELETE: return "File deleted";
+ case SEC_BT_LOCKOUT: return "Bluetooth lockout";
 
  /* ── App lifecycle (400–410) ── */
  case APP_DISPLAY_LAUNCHED: return "Display launched on Core 1";

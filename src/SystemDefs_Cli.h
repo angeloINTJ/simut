@@ -174,6 +174,12 @@ struct CliDemand {
  uint8_t rom[8] = {0};
  bool confirmed = false; /**< true if suffix 'confirm' present — gate for destructive commands */
  bool intVal1Valid = true; /**< false if the numeric token was not a well-formed int */
+ /** Channel the line arrived on, stamped by processInput. Recovery commands
+  * are refused over Bluetooth (V-01a), and the origin has to travel WITH the
+  * command rather than be read back from the CommandManager: a BT line can be
+  * parked in the CLI queue while the display is busy and run several inputs
+  * later, by which time a "last input" flag describes somebody else. */
+ bool fromBt = false;
 
  /* Utility setters for char[] migration. Use at sites that previously did
  * `cmd.strVal1 = <String|const char*>`. */

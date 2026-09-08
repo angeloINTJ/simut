@@ -142,6 +142,38 @@ constexpr uint8_t LOGIN_STATE_SLOTS = 8;
  * acceptable for login (infrequent). Every 50 rounds feeds the WDT. */
 constexpr uint16_t PASSWORD_HMAC_ROUNDS = 5000;
 
+/* ── Authentication lockout (web + Bluetooth) ── */
+
+/** Ceiling for the consecutive-failure counter.
+ * The counter saturates here instead of running free. Two reasons, and the
+ * second one is the bug that made this a constant: (1) beyond 9 the penalty is
+ * already at its ceiling, so counting further buys nothing; (2) the penalty is
+ * computed by shifting, and an unbounded counter walks the shift straight off
+ * the end of a 32-bit unsigned. Measured for the web path as it stood on
+ * 2026-09-07: failCount 29, 30 and 31 produce a penalty of exactly ZERO —
+ * (1U << 29) * 1000 is 536870912000, which is 125 * 2^32 — so an attacker who
+ * sits through the escalation is handed three free attempts, and from 32 on
+ * the shift itself is undefined. 12 keeps the counter meaningful in the
+ * sessions listing while staying far from either cliff. */
+constexpr uint8_t AUTH_FAIL_CAP = 12;
+
+/** Ceiling of the lockout penalty (ms). */
+constexpr uint32_t AUTH_LOCKOUT_MAX_MS = 300000;
+
+/** Exponential backoff for a failed authentication: (1 << failCount) seconds,
+ * capped at AUTH_LOCKOUT_MAX_MS. failCount is the count AFTER the failure, so
+ * the first one costs 2 s and the ninth reaches the 300 s ceiling.
+ *
+ * Pure and header-inline so the native tests can call it without a device.
+ * The shift is clamped before it happens rather than the product afterwards:
+ * clamping afterwards is what let the overflow through, because a wrapped
+ * product can land below the ceiling and read as a legitimate short penalty. */
+inline uint32_t authLockoutMs(uint8_t failCount) {
+	uint8_t n = (failCount > AUTH_FAIL_CAP) ? AUTH_FAIL_CAP : failCount;
+	uint32_t ms = 1000UL << n;
+	return (ms > AUTH_LOCKOUT_MAX_MS) ? AUTH_LOCKOUT_MAX_MS : ms;
+}
+
 /* ── Bluetooth auth ── */
 
 /** Maximum password input buffer size via Bluetooth. */

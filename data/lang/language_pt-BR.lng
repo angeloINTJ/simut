@@ -160,6 +160,7 @@ Luminosidade
 304 Sessão expirada
 305 Arquivo enviado
 306 Arquivo apagado
+307 Bloqueio Bluetooth
 400 Display iniciado no Core 1
 401 Calibração inicial do touch salva
 402 Calibração do touch necessária
@@ -295,6 +296,7 @@ Luminosidade
 798468cf Vários arquivos .lng em /lang/ — carregando o primeiro em ordem alfabética
 79d951e9 Senha BT admin rejeitada
 7b990491 Senha redefinida pela CLI: 
+80a25b25 Comando de recuperação recusado pelo Bluetooth
 836dd19a Cursor de telemetria adiante dos dados — reset para 0
 88d38ff3 Falha no PIO do DS18B20 (pio0 cheio) — 1-Wire desativado neste boot
 8991624f Provisória: 
@@ -339,6 +341,7 @@ e45e023f Divergência de hardware (Acesso Negado)
 e50c0507 MQTT conectado a 
 e5ac1216 SSID encontrado, conectando...
 f43dab3c forceUnpause: refCount=
+f7c33aba Bloqueio do Bluetooth após senhas erradas
 f914ca06 Sistema pronto (modo AP).
 fa87bdae Upload falhou (#
 fd0933a1 Calibração do touch resetada via web

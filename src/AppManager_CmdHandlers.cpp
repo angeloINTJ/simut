@@ -446,6 +446,14 @@ void AppManager::cmdHandleUserAdd(const CliDemand& cmd, SystemConfig& cfg, bool&
  _cmdMgr->printError(pt ? "Senha tem chars de controle" : "Password has control chars");
  return;
  }
+ /* Same floor as `user pass` and the web: a CLI-created account is a web
+  * account, so it does not get a weaker rule for having been typed on the
+  * serial line. */
+ if (!passwordPolicyOk(cmd.strVal2)) {
+ _cmdMgr->printError(pt ? "Senha fraca: minimo 8 caracteres, com letra e numero"
+ : "Weak password: minimum 8 characters, with a letter and a digit");
+ return;
+ }
  bool exists = false;
  int freeSlot = -1;
  for (int i = 0; i < MAX_USERS; i++) {
@@ -635,6 +643,17 @@ void AppManager::cmdHandleUserPass(const CliDemand& cmd, SystemConfig& cfg, bool
  || !isValidCfgString(cmd.strVal2, 64)) {
  _cmdMgr->printError(pt ? "Nova senha invalida (1-64, sem ctrl chars)"
  : "Invalid new password (1-64, no ctrl chars)");
+ return;
+ }
+ /* Same floor the web enforces (>=8, a letter and a digit). The CLI took the
+  * plaintext and hashed it here without ever asking, so `conf user pass
+  * admin 1` produced a valid account that the web would have refused — and
+  * that account is the one the Bluetooth CLI authenticates against. The web
+  * over plain HTTP still cannot check this: it only ever sees the SHA-256
+  * the browser computed. */
+ if (!passwordPolicyOk(cmd.strVal2)) {
+ _cmdMgr->printError(pt ? "Senha fraca: minimo 8 caracteres, com letra e numero"
+ : "Weak password: minimum 8 characters, with a letter and a digit");
  return;
  }
  bool found = false;

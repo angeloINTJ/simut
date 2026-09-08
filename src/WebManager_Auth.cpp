@@ -297,9 +297,14 @@ int WebManager::findLoginStateForIp(uint32_t clientIP) const {
 
 uint32_t WebManager::applyExponentialPenalty(int ls) {
 	if (ls < 0) return 0;
-	_loginStates[ls].failCount++;
-	uint32_t penaltyMs = (1U << _loginStates[ls].failCount) * 1000U;
-	if (penaltyMs > 300000U) penaltyMs = 300000U;
+	/* Saturating counter, and the backoff comes from the shared helper. This
+	 * used to be `(1U << ++failCount) * 1000` clamped afterwards, which held
+	 * for the first 28 failures and then handed the attacker the door: at
+	 * failCount 29, 30 and 31 the product wraps to exactly 0, so the penalty
+	 * was zero and the account was open; past 31 the shift is undefined. See
+	 * AUTH_FAIL_CAP in SystemDefs_Network.h. */
+	if (_loginStates[ls].failCount < AUTH_FAIL_CAP) _loginStates[ls].failCount++;
+	uint32_t penaltyMs = authLockoutMs(_loginStates[ls].failCount);
 	_loginStates[ls].lockoutUntil = millis( ) + penaltyMs;
 	return penaltyMs;
 }

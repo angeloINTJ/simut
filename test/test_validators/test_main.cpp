@@ -25,6 +25,7 @@
 #include "SystemDefs_Validate.h"
 #include "ParseFloat.h"
 #include "SystemDefs_Time.h"
+#include "SystemDefs_Network.h"  /* authLockoutMs — shared auth lockout backoff */
 #include <cmath>      /* isnan, NAN para floatToI16 */
 #include "SystemDefs_Logging.h"  /* tagStringToId — B1/B2 */
 #include "sensors/SensorChannelTable.h" /* channel table integrity */
@@ -1319,6 +1320,49 @@ void test_pwpolicy_rejects_weak(void) {
 
 
 /* ===========================================================================
+ *  AUTHENTICATION LOCKOUT — authLockoutMs (SystemDefs_Network.h)
+ *
+ *  Shared by the web login and the Bluetooth CLI. The backoff itself is
+ *  unremarkable; what these tests exist for is the ceiling, because the
+ *  version this replaced computed `(1U << failCount) * 1000` and clamped the
+ *  PRODUCT afterwards. That holds up to 28 and then fails open: at 29, 30 and
+ *  31 the multiplication wraps to exactly zero (2^29 * 1000 = 125 * 2^32), so
+ *  the penalty was zero milliseconds and the attacker who sat through the
+ *  escalation was handed free attempts; past 31 the shift is undefined.
+ *
+ *  test_lockout_never_falls_below_the_ceiling is that regression, and it is
+ *  written over the whole uint8_t domain rather than the three known-bad
+ *  values: an off-by-one in the cap would move the cliff, not remove it.
+ * =========================================================================== */
+void test_lockout_backoff_doubles(void) {
+    TEST_ASSERT_EQUAL_UINT32(2000u,   authLockoutMs(1));
+    TEST_ASSERT_EQUAL_UINT32(4000u,   authLockoutMs(2));
+    TEST_ASSERT_EQUAL_UINT32(8000u,   authLockoutMs(3));
+    TEST_ASSERT_EQUAL_UINT32(256000u, authLockoutMs(8));
+}
+
+void test_lockout_reaches_and_holds_the_ceiling(void) {
+    /* 1<<9 = 512 s, already past the 300 s ceiling. */
+    TEST_ASSERT_EQUAL_UINT32(AUTH_LOCKOUT_MAX_MS, authLockoutMs(9));
+    TEST_ASSERT_EQUAL_UINT32(AUTH_LOCKOUT_MAX_MS, authLockoutMs(AUTH_FAIL_CAP));
+    TEST_ASSERT_EQUAL_UINT32(AUTH_LOCKOUT_MAX_MS, authLockoutMs(AUTH_FAIL_CAP + 1));
+    TEST_ASSERT_EQUAL_UINT32(AUTH_LOCKOUT_MAX_MS, authLockoutMs(255));
+}
+
+void test_lockout_never_falls_below_the_ceiling(void) {
+    /* Zero failures is the only input allowed to produce a short delay. */
+    for (unsigned fc = 9; fc <= 255; fc++) {
+        TEST_ASSERT_EQUAL_UINT32(AUTH_LOCKOUT_MAX_MS, authLockoutMs((uint8_t)fc));
+    }
+    /* And nothing in the whole domain may produce zero, which is what the
+     * overflow did: a zero penalty reads as "not locked" at every call site. */
+    for (unsigned fc = 0; fc <= 255; fc++) {
+        TEST_ASSERT_TRUE(authLockoutMs((uint8_t)fc) > 0u);
+    }
+}
+
+
+/* ===========================================================================
  *  BOOLEANOS DO /api/commit_all — parseBoolStrict + jsonValuePos/RawToken/Flag
  *
  *  O achado: quatro campos do `sys` e dois do `net` liam booleano com
@@ -1942,6 +1986,11 @@ int main(int /*argc*/, char** /*argv*/) {
     /* passwordPolicyOk — server-side strength floor (A-5) */
     RUN_TEST(test_pwpolicy_accepts_strong);
     RUN_TEST(test_pwpolicy_rejects_weak);
+
+    /* Authentication lockout — shared by web login and the Bluetooth CLI */
+    RUN_TEST(test_lockout_backoff_doubles);
+    RUN_TEST(test_lockout_reaches_and_holds_the_ceiling);
+    RUN_TEST(test_lockout_never_falls_below_the_ceiling);
 
     /* HaDiscovery — Home Assistant MQTT Discovery formatters */
     RUN_TEST(test_ha_sanitize_id);

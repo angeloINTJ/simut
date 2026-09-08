@@ -81,6 +81,40 @@ void AppManager::executeCommand(CliDemand cmd) {
  }
 #endif /* SIMUT_CLI_FULL */
 
+#if SIMUT_BLUETOOTH
+ /* ── Recovery commands are USB-only ──
+  * These four are the escape hatches for a device nobody can reach any more:
+  * wipe the config, format the filesystem, regenerate the admin password,
+  * delete the TLS pair. Every one of them is destructive and none of them is
+  * needed over Bluetooth — whoever authenticated on that link already typed
+  * the admin password, so they have nothing left to recover. Over the radio
+  * they are only useful to somebody who got in, and `admin reset` in
+  * particular converts a foothold into a printed credential.
+  *
+  * `ap` stays reachable over Bluetooth on purpose: bringing up the setup
+  * access point from a phone, when the Wi-Fi credentials are wrong, is the
+  * documented reason the Bluetooth CLI exists at all (decision D-4).
+  *
+  * One gate before the switch rather than four inside it: a fifth recovery
+  * command added later is a line in this list, not a check somebody has to
+  * remember to copy.
+  *
+  * The origin comes from the command, not from CommandManager's "last input"
+  * flag. A line typed over Bluetooth while the display is busy is parked in
+  * the CLI queue and executed later, after other input has moved that flag —
+  * so the flag would have refused a USB recovery and waved the queued
+  * Bluetooth one straight through. */
+ if (cmd.fromBt &&
+     (cmd.type == CMD_FACTORY_RESET || cmd.type == CMD_FORMAT_FS ||
+      cmd.type == CMD_RESET_ADMIN   || cmd.type == CMD_HTTPS_OFF)) {
+  _cmdMgr->printError(pt ? "Comando so pela USB (cabo serial)."
+                         : "USB only (serial cable).");
+  LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, (int)cmd.type,
+           TRL("Recovery command refused over Bluetooth"));
+  return;
+ }
+#endif /* SIMUT_BLUETOOTH */
+
  switch (cmd.type) {
  case CMD_HELP:
 #if SIMUT_CLI_FULL
@@ -1261,6 +1295,10 @@ void AppManager::executeCommand(CliDemand cmd) {
    * Parse the inner command and dispatch it directly, bypassing
    * mode validation (we validate against PRIV mask, not current mode). */
   CliDemand inner = parseCliCommand(String(cmd.strVal1));
+  /* The inner command has the same origin as the `do` that carried it —
+   * otherwise `do system format confirm` over Bluetooth would arrive at the
+   * gate above looking like it came off the USB cable. */
+  inner.fromBt = cmd.fromBt;
   if (inner.type == CMD_UNKNOWN) {
    _cmdMgr->printError(pt ? "Comando invalido apos 'do'." : "Invalid command after 'do'.");
    break;

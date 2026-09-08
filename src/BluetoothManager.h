@@ -49,6 +49,15 @@ private:
  uint32_t _lastActivityTime;
  const uint32_t _timeoutMs = 300000;
  bool _initialized = false;
+
+ /* Failed-password lockout. Same exponential backoff as the web login
+  * (authLockoutMs), and the state lives here in RAM on purpose: dropping the
+  * RFCOMM link and reconnecting does not touch this object, which is the loop
+  * an attacker would otherwise use to make every attempt the first one.
+  * Cleared only by a correct password or by a reboot. */
+ uint8_t _failCount = 0;
+ uint32_t _lockedUntil = 0;
+ bool _lockNoticeSent = false;
 };
 
 #else /* SIMUT_BLUETOOTH=0 — stub all methods */
