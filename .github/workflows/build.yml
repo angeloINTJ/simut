@@ -93,7 +93,6 @@ jobs:
   # measured against tools/flash_budget.json.
   firmware:
     runs-on: ubuntu-latest
-    continue-on-error: ${{ matrix.known_broken == true }}
     strategy:
       # One image failing must not cancel the others — when something breaks
       # across the board, the useful information is WHICH ones broke.
@@ -105,14 +104,6 @@ jobs:
           - pico_w_asserts
           - pico_w_alpha
           - pico_w_air
-        include:
-          # Overflows FLASH by ~102 KB and has for months — an old failure, not
-          # a regression. Built anyway so the overflow stays visible and
-          # measurable in the log instead of being folklore, but allowed to
-          # fail so it does not hold the branch hostage. Delete this entry the
-          # day it links, and give it a budget in tools/flash_budget.json.
-          - env: pico_w_debug
-            known_broken: true
     name: firmware (${{ matrix.env }})
     steps:
       - uses: actions/checkout@v5
