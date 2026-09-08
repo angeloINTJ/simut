@@ -6,6 +6,91 @@ All notable changes to SIMUT firmware.
 
 ## Unreleased — branch `feature/simut-air`
 
+### Security: the 2026-09-07 audit, closed
+
+Eight findings (V-01..V-08) plus three observations, all fixed or decided.
+The full record — decisions, per-symbol flash cost, positive controls and the
+bench work still outstanding — is in
+`docs/security-audit/IMPLEMENTACAO_2026-09-07.md`.
+
+**The Bluetooth CLI had no attempt limit** (V-01a). It is compiled into both
+published images (alpha and Air) and authenticates with the admin's web
+password, so wrong guesses could be retried as fast as the RFCOMM link answers
+and dropping the link reset nothing. There is now the same exponential backoff
+the web login uses — 2 s on the first failure, ceiling 300 s — held in RAM so
+reconnecting does not clear it. Recovery commands (`system factory`,
+`system format`, `admin reset`, `system https off`) are refused over Bluetooth;
+`ap` deliberately still works, since bringing up the setup access point from a
+phone is why that CLI exists. The CLI applies the web's password policy too.
+
+**Writing that lockout exposed one in the web login.** The old form computed
+`(1 << failCount) * 1000` and clamped the product, with an unbounded counter:
+at 29, 30 and 31 consecutive failures the multiplication wraps to exactly zero
+— 2^29 x 1000 is 125 x 2^32 — so the penalty was zero and the account was open,
+and past 31 the shift was undefined. Roughly 108 unattended minutes of
+escalation bought free attempts. The shift is clamped before it happens now,
+and the counter saturates.
+
+**The device stopped advertising itself forever** (V-01b). Bluetooth discovery
+closes 5 minutes after boot instead of staying on for the whole uptime.
+Connectability is untouched, so a paired phone keeps working; rebooting reopens
+the window to pair a new one.
+
+**Only an authenticated request holds a SIMUT Air unit awake** (V-03).
+"Activity" used to mean "a response was sent", which counted a 403 handed to a
+stranger — an unauthenticated poll held a battery device awake with its radio
+up indefinitely (measured at 491 s against an expected 306 s). The hibernation
+timer is now reset by a matching session cookie, a successful login or valid
+`/metrics` credentials; the login page itself gets a budget of three extensions
+per boot, which is what an operator needs to finish logging in.
+
+**The setup access point is WPA2** (V-05). It used to be open, so anyone in
+radio range reached the captive portal of a device whose Wi-Fi had just failed.
+The key is derived from the board's unique id — 10 characters, stable per
+device — and shown on the USB console, on the display and in the reply to `ap`.
+It is not a secret (the board id is printed by `show system info`); it moves
+the bar from "in radio range" to "was told the key". `SIMUT_AP_OPEN=1` keeps
+the open AP for bench work.
+
+**Values a permitted user could store no longer break the API for everybody
+else** (V-04, O-2). An SSID of `a"b` made `/api/network` un-parseable, an hwId
+of `X\` did the same to `/api/status` *and* corrupted the telemetry payload at
+the collector, and a quote in a language pack's `@NAME` took the entire UI down
+until a different pack was uploaded — a `.lng` is only read at boot, so a
+reboot did not help. Every string in the JSON APIs is escaped now, and SSID,
+Wi-Fi password, NTP server, hwId and pack identity are validated on the way in.
+
+**`/download` respects the permissions the users page shows** (O-1). An account
+holding only "read files" could pull `/history/*.h5` and the forensic log;
+those now require `PERM_HISTORY` and `PERM_LOGS` as well.
+
+**SIMUT Air refuses the CYW43 pins** (V-06). GP23/24/25/29 are the radio's own
+side band on a Pico W, and `air charger 25` was a valid command that took the
+radio down on a device with nobody watching the console. The rule sits in
+`airPinValid`, which the config sanitiser already calls, so a forged or
+restored `air.bin` cannot smuggle one in either.
+
+**CI builds all three images** (V-08). It built only `pico_w_release` and ran
+four of six native environments, on `main` only — so the alpha and Air images,
+which is where most of the above lives, had no gate at all. It now builds
+release, alpha and Air, runs all six native environments and the Air
+consistency check, on every feature branch and every pull request.
+
+**The secret gate stopped having a blind spot** (V-02). The rig's admin
+password sat in cleartext in five tracked bench scripts while
+`tools/scan_secrets.sh` reported the tree clean: it only matched
+`name = "value"`, and the hits were positional arguments and one bare test
+vector. Two new steps catch both shapes, the second by looking for the bench's
+actual values listed in a file kept outside the repository. Bench scripts read
+their credentials from the environment now, with no defaults.
+
+**SECURITY.md said the opposite of what the images do** (V-07). It described
+the Bluetooth CLI as compiled out of release images and authenticated by the
+display PIN; it is compiled into the two published images and authenticates
+with the admin web password. Rewritten, along with the AP, Air hibernation and
+`/download` sections.
+
+
 ### SIMUT Air: headless build with a deep-sleep hibernation cycle (experimental)
 
 New PlatformIO environment `pico_w_air`: no display, no buzzer, the Alpha-like

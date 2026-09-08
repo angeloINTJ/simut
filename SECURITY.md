@@ -59,8 +59,25 @@ reporting a vulnerability.
   `\n` — SEC-005).
 - **JSON formatting in `/api/ls`** against control bytes that would break
   the listing (WEB-001 — `jsonEscapeFilename`).
+- **JSON formatting in every other API response** (V-04): `jsonEscape`
+  covers quote, backslash and every control byte (`\u00xx`) in
+  `/api/network`, `/api/status`, `/api/alarms` and `/api/perms`. Values a
+  permitted user may store used to reach those responses raw, so one edit
+  broke a page for *every* user — and, for `@NAME` in a language pack,
+  survived reboots, because a `.lng` is only read at boot.
+- **Identity strings validated as keys, not free text** (O-2): an `hwId`
+  is a JSON string, a telemetry CSV column header and a telemetry JSON
+  field name, so `isValidHwId` restricts it to `[A-Za-z0-9_-]`; SSID,
+  Wi-Fi password and NTP server go through `isValidCfgString` on the web
+  commit path as they always did on the CLI; `langIdentSanitize` strips
+  what JSON cannot hold from a pack's `@NAME`/`@CODE`.
 - **Login brute force** (rate limiting + exponential lockout per IP
-  slot).
+  slot, `authLockoutMs` — see §4 for the overflow that used to open it),
+  and the same lockout on the Bluetooth CLI (§2).
+- **Read permissions that mean what the users page says**: `/download`
+  requires `PERM_HISTORY` for `/history/...` and `PERM_LOGS` for
+  `*.blog` on top of `PERM_FILE_READ` (O-1), so those two bits are
+  controls rather than decoration.
 - **Crash autopsy** after HW watchdog (`LogManager::performCrashAutopsy` —
   F13.1) — forensic telemetry of the last freeze.
 
@@ -121,12 +138,29 @@ reporting a vulnerability.
   display PIN (`BluetoothManager` calls the validator installed by
   `AppManager`). Before auth, only `help` and `language` answer; after
   it, the CLI has the same privileges as the USB CLI.
-- The device is discoverable and pairs without user confirmation; the
-  password prompt is the only barrier. Reaching it needs Bluetooth range
-  (≈10 m).
-- **No attempt limit until the V-01 fix**: wrong passwords could be
-  retried as fast as the link allows, and disconnecting reset nothing.
-  *(Temporary sentence — removed once the lockout ships.)*
+- Pairing takes no confirmation on the device, so the password prompt is
+  the only barrier. **Discovery is closed 5 minutes after boot**
+  (`BT_DISCOVERABLE_MS`, V-01b): the unit stops appearing in scans, but a
+  phone that already paired — or anyone who noted the address — still
+  connects, because connectability is untouched. A reboot reopens the
+  window, which is how a new phone is paired.
+- **Exponential lockout on wrong passwords** (V-01a): `authLockoutMs`,
+  the same backoff as the web login (2 s on the first failure, ceiling
+  300 s). The state lives in RAM in `BluetoothManager`, so dropping the
+  RFCOMM link and reconnecting does **not** reset it — that loop is what
+  the lockout exists to close. Cleared by a correct password or a reboot.
+  Logged as `SEC_BT_LOCKOUT` with the delay in seconds as context.
+- **Recovery commands are USB-only** (V-01a): `conf system factory`,
+  `system format`, `conf system admin reset` and `system https off` are
+  refused over Bluetooth. Whoever authenticated on that link already has
+  the admin password and has nothing to recover; `admin reset` in
+  particular would convert a foothold into a printed credential. `ap`
+  stays allowed over Bluetooth — it is the documented reason this CLI
+  exists — and prints the setup AP's key to the Bluetooth session.
+- **Password policy on the CLI**: `conf user pass` and `user add` apply
+  the same floor as the web (≥ 8 characters, a letter and a digit). Over
+  plain HTTP the web cannot check this — it only ever sees the browser's
+  SHA-256 — so the CLI and HTTPS are where the policy is enforceable.
 
 ### Viewer (read-only account)
 
@@ -175,8 +209,18 @@ reporting a vulnerability.
 - State per **client IP** in `_loginStates[LOGIN_STATE_SLOTS=8]`
   (LRU evict by `lastActivity`, but **only among evictable slots** —
   see SEC-006 below).
-- **Exponential backoff**: `(1 << failCount) × 1s`, cap 300s. Resets to 0
-  after successful login.
+- **Exponential backoff**: `authLockoutMs(failCount)` — `(1 << n) × 1s`,
+  ceiling 300 s, with the failure counter saturating at
+  `AUTH_FAIL_CAP = 12`. Resets to 0 after a successful login.
+- **The counter saturates for a reason** (2026-09-07): the previous form
+  computed `(1U << failCount) * 1000` and clamped the *product*, with an
+  unbounded counter. At `failCount` 29, 30 and 31 the multiplication
+  wraps to exactly zero — `2^29 × 1000 = 125 × 2^32` — so the penalty was
+  zero milliseconds and the account was open; past 31 the shift is
+  undefined. An attacker willing to sit through ~108 minutes of
+  escalation was handed free attempts. The shift is clamped *before* it
+  happens now, because a wrapped product can land below the ceiling and
+  read as a legitimate short penalty.
 - **Expired nonce** counts as failure (same backoff).
 - **Failure log**: `LOG_WARN SEC SEC_LOGIN_FAIL` with reason (invalid
   nonce, expired nonce, invalid credential).
@@ -401,8 +445,30 @@ Wipes 100% of flash: code, config, history, logs.
 - **Bluetooth SPP**: `SIMUT_CLI` — `SIMUT_BLUETOOTH 0` in
   `pico_w_release`, **1 in the published `pico_w_alpha` and
   `pico_w_air` images**, where it is therefore real attack surface.
-  Pairing takes no user confirmation on the device; application-layer
-  auth is the **admin web password**.
+  Discoverable for 5 minutes after boot, then removed from scans
+  (connectability unchanged). Pairing takes no confirmation on the
+  device; application-layer auth is the **admin web password**, with the
+  exponential lockout and USB-only recovery commands described in §2.
+- **Setup access point** (`<deviceName>_SETUP`, 192.168.4.1, captive
+  portal on UDP/53 + the web server): **WPA2 with a per-device key**
+  since V-05. The key is derived — SHA-256 over the board's unique id
+  plus a domain string, mapped to 10 characters of `[A-HJ-NP-Z2-9]`
+  (~50 bits) — and shown on the USB console, on the display and in the
+  reply to `ap`. It is *not* a secret: `show system info` prints the
+  board id, so anyone who has that can recompute the key. It raises the
+  bar from "in radio range" to "has been told the key", which is the bar
+  a setup network should have; the admin password still guards the
+  device. `SIMUT_AP_OPEN=1` restores the open AP for bench work and is
+  never in a shipped image.
+- **SIMUT Air hibernation**: an Air unit spends most of its life asleep
+  with the radio down, so its exposed surface is the wake window. Only an
+  **authenticated** request holds it awake (V-03); unauthenticated
+  traffic gets `WEB_PREAUTH_MAX_EXT = 3` timer extensions per boot, which
+  is what an operator needs to finish logging in and is also the most an
+  anonymous poller can take. `air.bin` carries the hibernation
+  configuration outside `SystemConfig`; `airSanitise` refuses GPIO
+  23/24/25/29 on load, so a forged or restored file cannot point the
+  charger sense at the CYW43 (V-06).
 - **USB CDC**: serial always available, no auth (requires physical
   access).
 - **NTP**: outbound UDP/123 traffic.

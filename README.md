@@ -231,6 +231,14 @@ simut/
 | `native_logpolicy` | Edge-triggered log-persistence filter (18 tests) |
 | `native_air` | SIMUT Air persistent config (`air/AirConfig.h`, 7 tests) |
 
+> **Security note for `pico_w_alpha` and `pico_w_air`:** both compile the
+> Bluetooth SPP CLI in (`SIMUT_BLUETOOTH=1`), so on those two images it is
+> live attack surface — authenticated by the **admin web password**, with an
+> exponential lockout, a discovery window that closes 5 minutes after boot,
+> and recovery commands restricted to USB. The setup access point is WPA2 on
+> every image, with a per-device key shown on the console and the display.
+> See [SECURITY.md](SECURITY.md) §2 and §8.
+
 > `pico_w_debug` exists but does not link — at `-Og` the image overflows the 1020 KB app slot. Flash is tight: the release image uses ~97 % of the slot.
 
 ### Build Flags

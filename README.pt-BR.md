@@ -229,6 +229,14 @@ simut/
 | `native_logpolicy` | Filtro de persistência de logs edge-triggered (18 testes) |
 | `native_air` | Config persistente do SIMUT Air (`air/AirConfig.h`, 7 testes) |
 
+> **Nota de segurança para `pico_w_alpha` e `pico_w_air`:** as duas compilam o
+> CLI Bluetooth SPP (`SIMUT_BLUETOOTH=1`), então nessas duas imagens ele é
+> superfície de ataque real — autenticado pela **senha do admin da web**, com
+> lockout exponencial, janela de descoberta que fecha 5 minutos depois do boot
+> e comandos de recuperação restritos à USB. O AP de setup é WPA2 em todas as
+> imagens, com chave por aparelho mostrada no console e no display.
+> Ver [SECURITY.md](SECURITY.md) §2 e §8.
+
 > `pico_w_debug` existe mas não linka — em `-Og` a imagem estoura o slot de 1020 KB. A flash é apertada: a imagem release usa ~97 % do slot.
 
 ### Flags de build
