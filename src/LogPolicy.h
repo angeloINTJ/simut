@@ -61,6 +61,15 @@ enum LogHealthGroup : uint8_t {
   * latch for both would let a stuck alarm line hide the moment measurement
   * telemetry recovered — the record the whole filter exists to keep. */
  LOGGRP_TELALM = 4,
+ /** WiFi scanning, deliberately NOT part of LOGGRP_NET.
+  *
+  * A scan is not an association, and routing it with the rest of the family
+  * would let it stand in for one: a routine NET record clears the family's
+  * fault latch, so the first scan after a disconnect would be taken for the
+  * recovery and the SYS_IP_ACQUIRED that actually says the link came back
+  * would be filtered as routine. Its own family keeps the flood down without
+  * touching the disconnect/reconnect pairing that reads the fault state. */
+ LOGGRP_NETSCAN = 5,
  LOGGRP_COUNT
 };
 

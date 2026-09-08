@@ -71,6 +71,15 @@ static const uint16_t EDGE_RULES[] = {
   * time the link comes up, and a device with no SSID keeps saying so. */
  LOGPOL_RULE(NET_MDNS_FAIL,            LOGGRP_NET,  1),
  LOGPOL_RULE(NET_SSID_MISSING,         LOGGRP_NET,  1),
+
+ /* ── WiFi scanning, its own family ───────────────────────────────────── */
+ /* Unrouted, this was written every single time, and a device that cannot
+  * reconnect scans on the backoff for as long as it stays that way — the
+  * routine line carries no information after the first one. The WARN paths in
+  * NetworkManager (a scan that never finished) are unaffected: the level
+  * shortcut above runs before this table is consulted, which is the same split
+  * STO_H5_WIP relies on. See LOGGRP_NETSCAN for why this is not LOGGRP_NET. */
+ LOGPOL_RULE(SYS_WIFI_SCAN,            LOGGRP_NETSCAN, 0),
 };
 
 /* ───────────────────────────────────────────────────────────────────────────
@@ -160,6 +169,9 @@ bool LogPolicy::isBootPreamble(uint16_t code) {
  * comes close today (the highest is 999), but a future code above 4095 would
  * silently alias onto another family instead of failing to build. */
 static_assert(ERR_UNKNOWN < 0x1000, "LogCode outgrew the 12-bit field in LOGPOL_RULE");
+/* The group rides in three bits between the code and the fault flag, so the
+ * eighth family is the last one that can be added without repacking the rule. */
+static_assert(LOGGRP_COUNT <= 8, "LOGGRP outgrew the 3-bit field in LOGPOL_RULE");
 
 uint16_t LogPolicy::lookup(uint16_t code) {
  for (uint8_t i = 0; i < EDGE_RULE_COUNT; i++) {

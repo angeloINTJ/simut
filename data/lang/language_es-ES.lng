@@ -296,10 +296,12 @@ Luminosidad
 79d951e9 Contraseña BT admin rechazada
 7b990491 Contraseña restablecida por la CLI: 
 836dd19a Cursor de telemetría por delante de los datos — reset a 0
+86c72a1e El escaneo nunca terminó — se abandona
 88d38ff3 Fallo del PIO del DS18B20 (pio0 lleno) — 1-Wire desactivado en este arranque
 8991624f Provisional: 
 89a28b4b OOM: WiFiClientSecure
 8a488318 Sesión expirada: 
+8c9577ea Fin de la inactividad — vuelta a reintentos rápidos
 8dce6c6d Calibración universal actualizada.
 9090b55d RTC ajustado manualmente
 90b25998 Nuevo intento en 
@@ -328,6 +330,7 @@ c72bc4db El usuario activó el modo AP.
 c8d42c3f Inicio de sesión rechazado: límite de sesiones
 c98bcdab Buscando SSID (backoff=
 cc0a0d40 PIN predeterminado detectado; forzando cambio.
+cf2eb821 SSID ausente del escaneo — se asocia igualmente
 d4183f73 Fallo del PIO del DHT22 (pio1 lleno) — DHT22 desactivado en este arranque
 d62db850 Yield colgado >10s, reset forzado.
 db8ede8b Forzando sincronización de telemetría
