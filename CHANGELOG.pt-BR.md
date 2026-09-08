@@ -6,6 +6,42 @@ Todas as mudanças notáveis do firmware SIMUT.
 
 ## Não lançado
 
+## v2.4.1-beta (2026-09-08)
+
+**Um Wi-Fi que cai agora reconecta sozinho, em vez de esperar alguém
+reiniciar o aparelho.** Medido num aparelho em campo: o enlace caiu, uma
+varredura começou seis segundos depois, e a rede ficou fora por três horas e
+quarenta e um minutos enquanto todo o resto do aparelho seguia normal —
+leituras feitas, histórico gravado, o display respondendo ao toque de alguém.
+Só voltou quando um operador reiniciou. Quatro quedas anteriores na mesma manhã
+tinham se recuperado em cinco a onze segundos, então nada estava quebrado de
+modo geral; a quinta simplesmente estacionou.
+
+Duas coisas estavam erradas, e a segunda é a que tornou a primeira fatal. A
+varredura que o aparelho inicia depois de uma queda não tinha prazo, então uma
+varredura que nunca terminava deixava a lógica de reconexão esperando para
+sempre. E por baixo disso, o aparelho só tentava associar se o nome da rede
+tivesse aparecido naquela varredura — enquanto o mesmo aparelho, ao ligar,
+associa sem perguntar, que é exatamente por que reiniciar sempre funcionava e
+esperar nunca funcionava. Ouvir uma rede numa varredura é mais difícil do que
+entrar nela, então na borda da cobertura, e para uma rede oculta em qualquer
+sinal, a checagem barata era justamente a que falhava.
+
+A varredura agora tem prazo de quinze segundos, e um aparelho recusado por duas
+varreduras associa mesmo assim — o caminho de volta que reiniciar sempre teve.
+Se a rede sumiu de verdade, o aparelho ainda recua para esperas longas, para
+não gastar bateria perseguindo o que não está lá, mas essas esperas agora
+terminam: a escada de tentativas recomeça depois de meia hora em vez de ficar
+travada pelo resto do boot, que era o que fazia um ponto de acesso que voltava
+ser descoberto só numa grade de dez minutos, na melhor das hipóteses.
+
+A varredura também parou de inundar o registro. Um aparelho que não conseguia
+reconectar gravava um registro de varredura a cada cinco segundos enquanto
+ficasse assim; a linha de rotina agora é gravada uma vez e depois de hora em
+hora, enquanto uma varredura que nunca terminou continua sendo gravada sempre,
+porque essa nomeia a falha.
+
+
 **Uma falha é gravada no registro uma vez, não uma vez por tentativa.** O
 aparelho já entendia que repetir boa notícia não é notícia: um envio bem
 sucedido chegava ao registro na primeira vez e depois se calava até algo mudar.
@@ -41,6 +77,25 @@ operador faz depois do boot — trocar o idioma, calibrar — continua gravando.
 que fica de fora é uma lista fixa e conhecida de oito, então, ao contrário de
 uma queda suprimida, não há contagem que valha a pena relatar: num aparelho que
 reinicia a cada minuto o registro horário de contabilidade nunca venceria.
+
+### Para quem compila do código-fonte
+
+Não existe mais o ambiente `pico_w_debug`. Ele nunca linkou na história deste
+projeto — cem kilobytes acima do slot da aplicação — e um alvo de build que não
+se consegue construir ensina a coisa errada sobre os que se consegue. O
+tripwire de concorrência que ele estava documentado a carregar mora no
+`pico_w_asserts` há tempos, e esse linka.
+
+Avisos do compilador no código-fonte do próprio firmware agora são erros.
+Sessenta e um deles foram corrigidos antes, e um escondia um defeito real: um
+construtor que listava seus membros em ordem diferente da do cabeçalho, o que o
+compilador ignora em silêncio em favor da ordem declarada.
+
+A integração contínua passou de compilar uma imagem para compilar as cinco e
+rodar as seis suítes de teste, e cada imagem agora tem um orçamento de flash
+que reprova o build quando ela cresce além dele. O `tools/README.md` e o
+`docs/README.md` são novos e dizem quais scripts e quais documentos estão
+vigentes.
 
 ## v2.4.0-beta (2026-09-07)
 
