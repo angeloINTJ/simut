@@ -172,14 +172,42 @@ void NetworkManager::update( ) {
  LOG_CODE(LOG_INFO, "NET", SYS_WIFI_SCAN, 0, String(TRL("Scanning for SSID (backoff=")) + (_reconnectDelay/1000) + "s)");
  WiFi.scanNetworks(true);
  _state = NET_SCANNING_RETRY;
+ _stateTimer = millis( ); /* the scan deadline starts here */
  } else { _reconnectTimer = millis( ); }
  }
  break;
 
  case NET_SCANNING_RETRY: {
  int n = WiFi.scanComplete( );
- if (n == -1) return;
- if (n < -1) { _state = NET_OFFLINE; _reconnectTimer = millis( ); return; }
+
+ /* -1 is "still running", and it used to be returned on with nothing to bound
+  * the wait — which made this a terminal state. Measured on a field device on
+  * 2026-09-08: the link dropped at 11:54:47, one scan started at 11:54:53, and
+  * the network state machine never emitted another record for 3 h 41 min while
+  * the rest of the device stayed healthy (hourly heap reports, hourly history
+  * snapshots, someone working the display at 13:15). It came back only when
+  * the operator power-cycled it. SYS_WIFI_SCAN was unrouted in LogPolicy on the
+  * firmware that produced that log, so nothing could have filtered a repeat:
+  * the absence of a second scan line is positive evidence that the machine
+  * never left this case, and not a gap in the record. (The routine line is
+  * latched now — see LOGGRP_NETSCAN — which is why the deadline below reports
+  * at WARN, a level the latch does not touch.)
+  *
+  * The wedge is reachable from the driver: cyw43_wifi_scan( ) sets
+  * wifi_scan_state = 1 BEFORE issuing the low-level scan and does not clear it
+  * if that call fails, and nothing in the SDK ever times the state out, so
+  * scanComplete( ) keeps answering -1 for the rest of the boot. */
+ if (n == -1) {
+ if (timeSince(_stateTimer, WIFI_SCAN_TIMEOUT_MS)) {
+ LOG_CODE(LOG_WARN, "NET", SYS_WIFI_SCAN, (int)(_blindScans + 1),
+ TRL("Scan never finished — abandoning it"));
+ WiFi.scanDelete( );
+ afterFruitlessScan( );
+ }
+ return;
+ }
+
+ if (n < -1) { afterFruitlessScan( ); return; }
 
  bool found = false;
  for (int i = 0; i < n; i++) {
@@ -189,9 +217,10 @@ void NetworkManager::update( ) {
 
  if (found) {
  LOG_CODE(LOG_INFO, "NET", SYS_WIFI_CONNECT, 0, TRL("SSID found, connecting..."));
+ _blindScans = 0;
  WiFi.begin(_ssid, _pass);
  _state = NET_CONNECTING; _stateTimer = millis( );
- } else { _state = NET_OFFLINE; _reconnectTimer = millis( ); }
+ } else { afterFruitlessScan( ); }
  break;
  }
 
@@ -216,7 +245,7 @@ void NetworkManager::update( ) {
  LOG_CODE(LOG_INFO, "NET", SYS_NTP_SYNC, 0,
  TRL("NTP disabled — manual RTC mode"));
  _state = NET_READY;
- _reconnectDelay = 5000;
+ resetReconnectLadder( );
  _connectCycles = 0;
  }
  }
@@ -240,7 +269,7 @@ void NetworkManager::update( ) {
  }
 
  _state = NET_READY;
- _reconnectDelay = 5000;
+ resetReconnectLadder( );
  _connectCycles = 0; /* Full connection: reset cycles */
  resetNtpBackoff( ); /* NTP sync succeeded: reset backoff */
  }
@@ -272,7 +301,7 @@ void NetworkManager::update( ) {
 
 
  WiFi.disconnect(false);
- _reconnectDelay = 5000;
+ resetReconnectLadder( );
  resetNtpBackoff( ); /* Next reconnection starts from initial delay */
  _state = NET_DISCONNECT_PENDING;
  _stateTimer = millis( );
@@ -311,7 +340,7 @@ void NetworkManager::update( ) {
  TRL("Implausible RSSI twice — link presumed dead, reconnecting"));
  _rssiImplausible = 0;
  WiFi.disconnect(false);
- _reconnectDelay = 5000;
+ resetReconnectLadder( );
  resetNtpBackoff( );
  _state = NET_DISCONNECT_PENDING;
  _stateTimer = millis( );
@@ -349,22 +378,79 @@ void NetworkManager::resetNtpBackoff( ) {
  _ntpFailCount = 0;
 }
 
+/** @brief Put the reconnect ladder back on its first rung. */
+void NetworkManager::resetReconnectLadder( ) {
+ _reconnectDelay = WIFI_RECONNECT_BASE_MS;
+ _backoffCycles = 0;
+ _dormantWaits = 0;
+ _blindScans = 0;
+}
+
+/**
+ * @brief Leave a scan that did not hand us the SSID.
+ *
+ * "Did not hand us" covers all three ways a scan can come back useless: the
+ * SSID was absent from the results, the scan failed outright, and the scan
+ * never finished at all. They are one case here on purpose — what matters is
+ * that the cheap check did not answer, and the expensive one has not been
+ * tried. After WIFI_SCANS_BEFORE_BLIND_JOIN of them we associate without the
+ * scan's blessing, which is both the reconnect path the boot path always had
+ * and the only escape from a scanner the driver has wedged: WiFi.begin( ) goes
+ * through cyw43_arch_enable_sta_mode( ) and cyw43_wifi_join( ), neither of
+ * which reads wifi_scan_state.
+ */
+void NetworkManager::afterFruitlessScan( ) {
+ if (++_blindScans >= WIFI_SCANS_BEFORE_BLIND_JOIN) {
+ _blindScans = 0;
+ /* LOG_WARN, and not the routine INFO the scan-confirmed branch uses, for
+  * two reasons: this is the degraded path and deserves to be visible, and a
+  * routine NET record here would be taken by LogPolicy for the family's
+  * recovery transition and would eat the SYS_IP_ACQUIRED that actually says
+  * the link came back. A WARN is persisted by the level shortcut without
+  * touching the family latch. */
+ LOG_CODE(LOG_WARN, "NET", SYS_WIFI_CONNECT, 1,
+ TRL("SSID not in scan — associating anyway"));
+ WiFi.begin(_ssid, _pass);
+ _state = NET_CONNECTING;
+ _stateTimer = millis( );
+ } else {
+ _state = NET_OFFLINE;
+ _reconnectTimer = millis( );
+ }
+}
+
 /** @brief Handle WiFi connection timeout with async disconnect, backoff, and dormant mode. */
 void NetworkManager::handleConnecting( ) {
  if (WiFi.status( ) == WL_CONNECTED) {
  _state = NET_CONNECTED_WAIT_IP;
  _connectCycles = 0; /* Success: reset cycle counter */
+ resetReconnectLadder( );
  }
  else if (timeSince(_stateTimer, 20000)) {
 
  WiFi.disconnect(false);
 
- _connectCycles++;
+ /* Saturates instead of wrapping: SIMUT Air stops pumping the network for
+  * the rest of a wake once this passes AIR_MAX_CONNECT_ATTEMPTS, and a
+  * uint8_t rolling over to 0 would silently retract that. */
+ if (_connectCycles < 255) _connectCycles++;
+ _backoffCycles++;
 
- if (_connectCycles >= WIFI_MAX_CONNECT_CYCLES) {
+ if (_backoffCycles >= WIFI_MAX_CONNECT_CYCLES) {
+ if (_dormantWaits >= WIFI_DORMANT_MAX_WAITS) {
+ /* Dormancy is a rest, not a retirement. It used to be entered and never
+  * left — _connectCycles was only ever cleared by a success, so the first
+  * device to exhaust its attempts spent the rest of the boot on a
+  * ten-minute grid no matter what happened on the air in between. */
+ resetReconnectLadder( );
+ LOG_CODE(LOG_INFO, "NET", NET_DORMANT_MODE, 0,
+ TRL("Dormancy over — back to fast retries"));
+ } else {
  /* Long dormancy: avoids draining battery/CPU with futile reconnections */
+ _dormantWaits++;
  _reconnectDelay = WIFI_DORMANT_DELAY_MS;
  LOG_CODE(LOG_WARN, "NET", NET_DORMANT_MODE, _connectCycles, String(TRL("Dormant: retry in ")) + (_reconnectDelay / 1000) + "s");
+ }
  } else {
  _reconnectDelay = min(_reconnectDelay * 2, MAX_RECONNECT_DELAY);
  LOG_CODE(LOG_WARN, "NET", NET_CONNECT_TIMEOUT, _connectCycles, String(TRL("Retry in ")) + (_reconnectDelay / 1000) + "s");

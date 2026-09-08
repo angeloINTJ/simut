@@ -183,6 +183,20 @@ private:
  void syncNtp( );
  void resetNtpBackoff( ); /**< Reset backoff after success/reconnect */
 
+ /** Put the reconnect ladder back at its first rung.
+  *
+  * Called both when a connection succeeds and when one is lost: either way the
+  * episode that the ladder was measuring is over, and the next attempt should
+  * start from the short delay rather than inherit a backoff earned by a
+  * network that is no longer the one in front of us. Deliberately does NOT
+  * touch _connectCycles — that counter answers a different question (see its
+  * declaration) and SIMUT Air reads it. */
+ void resetReconnectLadder( );
+
+ /** Handle a scan that did not produce the SSID — count it, and after
+  *  WIFI_SCANS_BEFORE_BLIND_JOIN misses associate without one. */
+ void afterFruitlessScan( );
+
  /* Apply manual DNS (primary and/or secondary) via lwIP
  * after IP acquired. No-op when dnsAuto=true and useDhcp=true. */
  void applyManualDnsIfNeeded( );
@@ -190,7 +204,21 @@ private:
 #if SIMUT_MDNS
  uint32_t _lastMdnsUpdate = 0; /**< Throttle for MDNS.update( ) */
 #endif
- uint8_t _connectCycles = 0; /**< Consecutive reconnection cycles */
+ /** Consecutive failed connection attempts, saturating at 255 and cleared only
+  * by a full connection. Read by the SIMUT Air cycle to stop pumping the
+  * network within a wake, which is why it is not reset by the ladder below:
+  * the two counters answer different questions, and the increment saturates
+  * because a uint8_t rolling over to 0 would silently retract the give-up
+  * signal Air depends on after 256 attempts. */
+ uint8_t _connectCycles = 0;
+
+ /** Position on the backoff ladder. Separate from _connectCycles so dormancy
+  *  can be left without retracting Air's give-up signal. */
+ uint8_t _backoffCycles = 0;
+ /** Dormant-length waits served since dormancy began; see WIFI_DORMANT_MAX_WAITS. */
+ uint8_t _dormantWaits = 0;
+ /** Consecutive scans that did not list the SSID; see WIFI_SCANS_BEFORE_BLIND_JOIN. */
+ uint8_t _blindScans = 0;
 
  /* ── NTP retry with exponential backoff + fallback ── */
  uint32_t _ntpRetryDelay = 20000; /**< Current delay between retries (ms) */

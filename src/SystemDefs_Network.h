@@ -63,6 +63,9 @@ constexpr int32_t RSSI_IMPLAUSIBLE_LOW  = -120;
 constexpr uint32_t MDNS_UPDATE_INTERVAL_MS = 2000;
 #endif
 
+/** First delay between reconnect attempts (ms); the ladder doubles from here. */
+constexpr uint32_t WIFI_RECONNECT_BASE_MS = 5000;
+
 /**
  * Maximum consecutive WiFi reconnect cycles before entering
  * long dormancy (10-minute backoff). Reset after success.
@@ -71,6 +74,48 @@ constexpr uint8_t WIFI_MAX_CONNECT_CYCLES = 5;
 
 /** Long dormancy backoff after exhausting WiFi attempts (ms). */
 constexpr uint32_t WIFI_DORMANT_DELAY_MS = 600000;
+
+/**
+ * How many dormant-length waits are served before the ladder restarts.
+ *
+ * Dormancy exists so a network that is genuinely gone is not chased every five
+ * seconds. It must not be a one-way door, though: it used to be pinned for the
+ * rest of the boot, because the counter that opened it was never decayed, so an
+ * access point that came back was found on a ten-minute grid at best and the
+ * device looked dead to anyone watching. Three waits gives the absent-network
+ * case its half hour of quiet and then costs one fast burst to check.
+ */
+constexpr uint8_t WIFI_DORMANT_MAX_WAITS = 3;
+
+/**
+ * Failed scans tolerated before associating without one (see NetworkManager).
+ *
+ * The reconnect path used to require the SSID to appear in a scan, while the
+ * boot path called WiFi.begin( ) with no such condition. That asymmetry is the
+ * whole bug: a scan hears a probe response inside a dwell of tens of
+ * milliseconds per channel, whereas the join has the driver's own retries
+ * behind it and tolerates a far worse signal — so at the edge of a cell the
+ * device would scan every five seconds forever and never once try to
+ * associate, and only a reboot (which takes the unconditional path) brought it
+ * back. The scan is kept as an optimisation: two cheap misses are allowed to
+ * spare a futile twenty-second association attempt, and then we attempt it
+ * anyway. This is also what makes a hidden SSID reconnect at all — it never
+ * appears in a scan, at any signal strength.
+ */
+constexpr uint8_t WIFI_SCANS_BEFORE_BLIND_JOIN = 2;
+
+/**
+ * Deadline for an asynchronous scan to complete (ms).
+ *
+ * cyw43_wifi_scan( ) sets wifi_scan_state = 1 BEFORE issuing the low-level
+ * scan and never clears it if that call fails, and nothing in the SDK times the
+ * state out. So a failed start — or one lost escan-complete event — leaves
+ * WiFi.scanComplete( ) returning -1 forever. The state machine used to return
+ * on that value with nothing to bound the wait, which made NET_SCANNING_RETRY a
+ * terminal state that only a reboot left. A real scan of all channels finishes
+ * in a few seconds; this is generous by threefold and still bounded.
+ */
+constexpr uint32_t WIFI_SCAN_TIMEOUT_MS = 15000;
 
 /**
  * Ceiling for watchdog feeding in long-operation guards (ms).

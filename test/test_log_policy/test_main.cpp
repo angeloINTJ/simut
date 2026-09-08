@@ -134,6 +134,55 @@ static void test_families_do_not_leak_into_each_other(void) {
     TEST_ASSERT_FALSE(pol.shouldPersist(SYS_WIFI_CONNECT, LVL_INFO, 4000));
 }
 
+/* ============================================================================
+ *  WIFI SCANNING HAS ITS OWN FAMILY
+ * ============================================================================ */
+
+/* The routine scan line used to be unrouted, so a device that could not
+ * reconnect wrote one every five seconds for as long as it stayed that way. */
+static void test_the_routine_scan_line_is_latched(void) {
+    TEST_ASSERT_TRUE(pol.shouldPersist(SYS_WIFI_SCAN, LVL_INFO, 1000));
+    for (uint32_t t = 6000; t < 300000; t += 5000) {
+        TEST_ASSERT_FALSE(pol.shouldPersist(SYS_WIFI_SCAN, LVL_INFO, t));
+    }
+}
+
+/* A scan that never finished is reported at WARN, and the level shortcut has
+ * to keep carrying it — that record is the one that names the wedge. */
+static void test_a_warning_scan_is_still_unconditional(void) {
+    TEST_ASSERT_TRUE(pol.shouldPersist(SYS_WIFI_SCAN, LVL_INFO, 1000));
+    for (uint32_t t = 2000; t < 60000; t += 1000) {
+        TEST_ASSERT_TRUE(pol.shouldPersist(SYS_WIFI_SCAN, LVL_WARN, t));
+    }
+}
+
+/* The reason the scan is not in LOGGRP_NET.
+ *
+ * A routine record clears its family's fault latch, and the next routine one
+ * is then filtered. Had the scan shared the network family, the scan that
+ * follows a disconnect would have been taken for the recovery and the record
+ * that actually says the link came back would have been dropped as routine. */
+static void test_a_scan_does_not_stand_in_for_the_reconnection(void) {
+    TEST_ASSERT_TRUE(pol.shouldPersist(SYS_WIFI_CONNECT,    LVL_INFO, 1000));
+    TEST_ASSERT_TRUE(pol.shouldPersist(SYS_WIFI_DISCONNECT, LVL_WARN, 2000));
+
+    /* Scans while the link is down: first one lands, the rest are filtered. */
+    TEST_ASSERT_TRUE(pol.shouldPersist(SYS_WIFI_SCAN, LVL_INFO, 3000));
+    TEST_ASSERT_FALSE(pol.shouldPersist(SYS_WIFI_SCAN, LVL_INFO, 8000));
+
+    /* The network family is still failed, so the address is still a recovery. */
+    TEST_ASSERT_TRUE(pol.shouldPersist(SYS_IP_ACQUIRED, LVL_INFO, 13000));
+}
+
+/* The blind-join notice is a WARN on a routine code, on purpose: it must be
+ * visible without consuming the family's recovery slot either. */
+static void test_the_blind_join_notice_leaves_the_recovery_alone(void) {
+    TEST_ASSERT_TRUE(pol.shouldPersist(SYS_WIFI_CONNECT,    LVL_INFO, 1000));
+    TEST_ASSERT_TRUE(pol.shouldPersist(SYS_WIFI_DISCONNECT, LVL_WARN, 2000));
+    TEST_ASSERT_TRUE(pol.shouldPersist(SYS_WIFI_CONNECT,    LVL_WARN, 3000));
+    TEST_ASSERT_TRUE(pol.shouldPersist(SYS_IP_ACQUIRED,     LVL_INFO, 4000));
+}
+
 /* Every OK code in a family shares one latch — the family is the unit, not the
  * code. An MQTT publish after an MQTT disconnect is a recovery. */
 static void test_family_members_share_the_latch(void) {
@@ -523,6 +572,11 @@ int main(int, char**) {
     RUN_TEST(test_a_fatal_is_never_filtered);
     RUN_TEST(test_the_alarm_line_has_its_own_latch);
     RUN_TEST(test_unrouted_warnings_are_still_unconditional);
+
+    RUN_TEST(test_the_routine_scan_line_is_latched);
+    RUN_TEST(test_a_warning_scan_is_still_unconditional);
+    RUN_TEST(test_a_scan_does_not_stand_in_for_the_reconnection);
+    RUN_TEST(test_the_blind_join_notice_leaves_the_recovery_alone);
 
     RUN_TEST(test_the_preamble_filter_is_off_by_default);
     RUN_TEST(test_a_cold_boot_writes_the_whole_preamble);
