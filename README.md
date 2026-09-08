@@ -231,7 +231,7 @@ simut/
 | `native_logpolicy` | Edge-triggered log-persistence filter (18 tests) |
 | `native_air` | SIMUT Air persistent config (`air/AirConfig.h`, 7 tests) |
 
-> `pico_w_debug` exists but does not link — at `-Og` the image overflows the 1020 KB app slot. Flash is tight: the release image uses ~97 % of the slot.
+> There is no debug environment. `pico_w_debug` was removed in v2.4.1 after never once linking: at `-Og` the image overflowed the 1020 KB app slot by ~100 KB. Flash is tight — the release image uses ~97 % of the slot — so a GDB target has to be built by cutting features. For the concurrency tripwire on hardware, use `pico_w_asserts`.
 
 ### Build Flags
 - `-Os` — optimize for size

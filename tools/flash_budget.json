@@ -30,14 +30,5 @@
     "pico_w_asserts": { "budget": 1025500, "measured": 1020988 },
     "pico_w_alpha":   { "budget": 1023500, "measured": 1019124 },
     "pico_w_air":     { "budget": 1028500, "measured": 1023896 }
-  },
-  "unbudgeted": {
-    "_comment": [
-      "pico_w_debug has not linked for months — it overflows FLASH by ~102 KB, and",
-      "that is an old failure rather than a regression. It is built in CI so the",
-      "overflow stays visible and measurable, but its job is allowed to fail; give",
-      "it a budget here on the day it links again."
-    ],
-    "pico_w_debug": "does not link"
   }
 }

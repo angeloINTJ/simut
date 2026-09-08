@@ -231,7 +231,7 @@ simut/
 | `native_logpolicy` | Filtro de persistencia de logs edge-triggered (18 tests) |
 | `native_air` | Configuración persistente de SIMUT Air (`air/AirConfig.h`, 7 tests) |
 
-> `pico_w_debug` existe pero no enlaza — en `-Og` la imagen desborda el slot de 1020 KB. La flash va justa: la imagen release usa ~97 % del slot.
+> No hay entorno de depuración. `pico_w_debug` se eliminó en la v2.4.1 tras no enlazar nunca: en `-Og` la imagen desbordaba el slot de 1020 KB en ~100 KB. La flash va justa — la imagen release usa ~97 % del slot — así que un objetivo de GDB hay que montarlo recortando funcionalidades. Para el tripwire de concurrencia en hardware, use `pico_w_asserts`.
 
 ### Flags de compilación
 - `-Os` — optimización por tamaño
