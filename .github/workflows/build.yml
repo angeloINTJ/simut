@@ -2,9 +2,13 @@ name: SIMUT CI
 
 on:
   push:
-    branches: [main]
+    # Feature branches too. The Air work lived on feature/simut-air for weeks
+    # with no CI at all, so the alpha and Air images were never built by
+    # anything but the developer's laptop (finding V-08, 2026-09-07).
+    branches: [main, 'feature/**']
+  # Every pull request, not only the ones aimed at main: a PR from a feature
+  # branch into another feature branch was invisible to the gates below.
   pull_request:
-    branches: [main]
 
 jobs:
   build-and-test:
@@ -68,10 +72,22 @@ jobs:
           pio pkg install -e pico_w_release
           bash tools/arduino_pico_overrides/patch.sh
 
+      # Three images, because they are three different builds and not three
+      # configurations of one: pico_w_alpha adds the Bluetooth CLI and
+      # pico_w_air adds hibernation, and the security work of 2026-09-07
+      # (lockout, wake-on-auth, pin denylist) touches code the release image
+      # does not even compile. Doubling the job's wall clock is the price of
+      # having any gate at all on the two images that carry a radio.
       - name: Build firmware
-        run: pio run -e pico_w_release
+        run: pio run -e pico_w_release -e pico_w_alpha -e pico_w_air
 
-      # All five native environments. They are separate steps rather than one
+      # The Air image has invariants a compiler cannot see: every AirConfig
+      # field reachable from the CLI, the sanitiser, and the persisted struct
+      # agreeing on bounds (C1–C8).
+      - name: Air consistency gate
+        run: python3 tools/check_air_consistency.py
+
+      # All six native environments. They are separate steps rather than one
       # `pio test -e a -e b ...` so a failure names itself in the Actions UI
       # instead of hiding behind the first environment that broke.
       - name: Run unit tests (validators)
@@ -85,6 +101,12 @@ jobs:
 
       - name: Run unit tests (LogPolicy)
         run: pio test -e native_logpolicy
+
+      - name: Run unit tests (AirConfig)
+        run: pio test -e native_air
+
+      - name: Run unit tests (AlarmQueue)
+        run: pio test -e native_alarmqueue
 
   # Same reasoning as static-analysis: its own job costs no wall clock next
   # to the firmware build, and a finding names itself in the Actions UI.
