@@ -33,6 +33,7 @@
 #include "WebJsonSlice.h"               /* depth-aware JSON slicing */
 #include "WebCommitSections.h"          /* per-section authz for /api/commit_all */
 #include "FsSecretPath.h"               /* /config download guard (A-4) */
+#include "ApPsk.h"                     /* setup-AP key derivation (V-05) */
 #include "HaDiscovery.h"                /* Home Assistant MQTT Discovery formatters */
 #include "B64Decode.h"                  /* Basic-auth base64 decoder (strict) */
 #include "PromMetrics.h"                /* Prometheus text exposition formatters */
@@ -1418,6 +1419,62 @@ void test_download_perm_leaves_ordinary_files_alone(void) {
 }
 
 /* ===========================================================================
+ *  SETUP-AP KEY — apPskFromDigest (finding V-05)
+ *
+ *  The setup access point used to be open, so anyone in radio range reached
+ *  the captive portal of a device whose Wi-Fi had just failed. It is WPA2 now,
+ *  with a key derived from the board id.
+ *
+ *  The failure that matters here is not a weak key, it is a SHORT one: WPA2
+ *  refuses a passphrase under 8 characters, and beginAP falls back to an open
+ *  AP when it has no key — so a helper that quietly emitted a truncated string
+ *  would restore the exact finding while looking like the fix.
+ * =========================================================================== */
+void test_ap_psk_shape(void) {
+    uint8_t digest[32];
+    for (size_t i = 0; i < sizeof(digest); i++) digest[i] = (uint8_t)(i * 7 + 3);
+    char psk[AP_PSK_LEN + 1];
+
+    TEST_ASSERT_TRUE(apPskFromDigest(digest, sizeof(digest), psk, sizeof(psk)));
+    TEST_ASSERT_EQUAL_size_t(AP_PSK_LEN, strlen(psk));
+    TEST_ASSERT_TRUE(AP_PSK_LEN >= 8 && AP_PSK_LEN <= 63);   /* what WPA2 accepts */
+    for (size_t i = 0; i < AP_PSK_LEN; i++)
+        TEST_ASSERT_NOT_NULL(strchr(AP_PSK_ALPHABET, psk[i]));
+
+    /* Deterministic: the key is printed on a label and must survive a reboot
+     * and a factory reset, because the board id does. */
+    char again[AP_PSK_LEN + 1];
+    TEST_ASSERT_TRUE(apPskFromDigest(digest, sizeof(digest), again, sizeof(again)));
+    TEST_ASSERT_EQUAL_STRING(psk, again);
+
+    /* And it follows the digest, or every board would ship the same key. */
+    digest[0] ^= 0xFF;
+    TEST_ASSERT_TRUE(apPskFromDigest(digest, sizeof(digest), again, sizeof(again)));
+    TEST_ASSERT_TRUE(strcmp(psk, again) != 0);
+}
+
+void test_ap_psk_refuses_rather_than_truncates(void) {
+    uint8_t digest[32];
+    memset(digest, 0x5A, sizeof(digest));
+    char psk[AP_PSK_LEN + 1];
+
+    /* Buffer too small: empty string and false, never a short key. */
+    memset(psk, 'X', sizeof(psk));
+    TEST_ASSERT_FALSE(apPskFromDigest(digest, sizeof(digest), psk, AP_PSK_LEN));
+    TEST_ASSERT_EQUAL_STRING("", psk);
+
+    /* Not enough digest bytes: same answer. */
+    memset(psk, 'X', sizeof(psk));
+    TEST_ASSERT_FALSE(apPskFromDigest(digest, AP_PSK_LEN - 1, psk, sizeof(psk)));
+    TEST_ASSERT_EQUAL_STRING("", psk);
+
+    /* Null inputs must not write or crash. */
+    TEST_ASSERT_FALSE(apPskFromDigest(NULL, 32, psk, sizeof(psk)));
+    TEST_ASSERT_FALSE(apPskFromDigest(digest, sizeof(digest), NULL, 16));
+    TEST_ASSERT_FALSE(apPskFromDigest(digest, sizeof(digest), psk, 0));
+}
+
+/* ===========================================================================
  *  AUTHENTICATION LOCKOUT — authLockoutMs (SystemDefs_Network.h)
  *
  *  Shared by the web login and the Bluetooth CLI. The backoff itself is
@@ -2098,6 +2155,10 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_langident_terminates_and_respects_cap);
     RUN_TEST(test_download_perm_gates_history_and_logs);
     RUN_TEST(test_download_perm_leaves_ordinary_files_alone);
+
+    /* Setup-AP key */
+    RUN_TEST(test_ap_psk_shape);
+    RUN_TEST(test_ap_psk_refuses_rather_than_truncates);
 
     /* HaDiscovery — Home Assistant MQTT Discovery formatters */
     RUN_TEST(test_ha_sanitize_id);

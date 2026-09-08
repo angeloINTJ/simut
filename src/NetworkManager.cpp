@@ -18,6 +18,8 @@
 #include <sys/time.h> /* settimeofday for manual RTC */
 #include <lwip/dns.h> /* dns_setserver for manual DNS */
 #include <lwip/ip_addr.h>
+#include "pico/unique_id.h"           /* the setup AP key is derived from the board id */
+#include <bearssl/bearssl_hash.h>     /* br_sha256_* for that derivation (V-05) */
 
 NetworkManager::NetworkManager( ) {
  _state = NET_OFFLINE;
@@ -87,6 +89,14 @@ void NetworkManager::begin(const SystemConfig &cfg,
 /**
  * @brief Start WiFi in Access Point mode for initial configuration.
  * Creates a captive portal on 192.168.4.1 with a DNS redirect.
+ *
+ * WPA2 since finding V-05. The key is derived from the board's unique id (see
+ * ApPsk.h) rather than configured: AP mode is what an UNCONFIGURED device
+ * boots into, so a key that lives in the configuration would not exist yet on
+ * the one device that needs it. It is printed on the console next to the
+ * SYS_AP_START line and shown on the display, which is the whole distribution
+ * mechanism — whoever can see the device can read it, and whoever is merely in
+ * radio range cannot.
  */
 void NetworkManager::beginAP(const char* deviceName) {
  _state = NET_AP_CONFIG;
@@ -95,9 +105,45 @@ void NetworkManager::beginAP(const char* deviceName) {
  IPAddress apIP(192, 168, 4, 1); IPAddress gateway(192, 168, 4, 1); IPAddress subnet(255, 255, 255, 0);
  WiFi.softAPConfig(apIP, gateway, subnet);
  String apName = String(deviceName) + "_SETUP";
- WiFi.softAP(apName.c_str( ));
+
+ _apPsk[0] = '\0';
+#if !SIMUT_AP_OPEN
+ {
+  /* SHA-256(board id || domain). The domain string keeps this key from being
+   * the same derivation as anything else that hashes the board id. */
+  pico_unique_board_id_t bid;
+  pico_get_unique_board_id(&bid);
+  uint8_t digest[32];
+  br_sha256_context ctx;
+  br_sha256_init(&ctx);
+  br_sha256_update(&ctx, bid.id, sizeof(bid.id));
+  br_sha256_update(&ctx, "simut-ap-psk", 12);
+  br_sha256_out(&ctx, digest);
+  apPskFromDigest(digest, sizeof(digest), _apPsk, sizeof(_apPsk));
+ }
+#endif
+
+ if (_apPsk[0]) {
+  WiFi.softAP(apName.c_str( ), _apPsk);
+ } else {
+  /* SIMUT_AP_OPEN=1 only, or a derivation that could not produce a full key.
+   * Never silently: an open setup network is the finding, so it says so. */
+  WiFi.softAP(apName.c_str( ));
+ }
  _dnsServer.start(53, "*", apIP);
- LOG_CODE(LOG_INFO, "NET", SYS_AP_START, 0, String(TRL("Access Point: ")) + apName);
+
+ /* Console, unconditionally and not through the log: this is the only place
+  * the key is published, and a device in AP mode is a device whose operator is
+  * standing at the serial port because nothing else works. */
+ if (Serial) {
+  Serial.printf("\n[AP] SSID: %s\n", apName.c_str( ));
+  if (_apPsk[0]) Serial.printf("[AP] PSK : %s   (WPA2)\n", _apPsk);
+  else Serial.println("[AP] PSK : (none — OPEN network, SIMUT_AP_OPEN build)");
+  Serial.println("[AP] URL : http://192.168.4.1");
+  Serial.flush( );
+ }
+ LOG_CODE(LOG_INFO, "NET", SYS_AP_START, _apPsk[0] ? 1 : 0,
+          String(TRL("Access Point: ")) + apName);
 }
 
 

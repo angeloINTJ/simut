@@ -33,9 +33,23 @@ void AppManager::startApMode( ) {
  LOG_CODE(LOG_WARN, "APP", APP_AP_MODE_TRIGGERED, 0, TRL("User triggered AP mode."));
  _netMgr->beginAP(cfg.deviceName);
  _isApMode = true;
- _cmdMgr->printSuccess(_cmdMgr->isPt( )
-  ? "Modo AP iniciado — conecte-se ao AP e acesse http://192.168.4.1"
-  : "AP mode started — join the AP and open http://192.168.4.1");
+ /* The key goes to the channel the command came in on. beginAP prints it to
+  * the USB console, but `ap` is the one recovery command still allowed over
+  * Bluetooth (D-4), and over that link the USB print is not visible — an
+  * operator told to join a WPA2 network without being told the key would be
+  * worse off than before the AP was closed (V-05). */
+ const char* psk = _netMgr->getApPsk( );
+ if (psk && *psk) {
+  _cmdMgr->printSuccess(String(_cmdMgr->isPt( )
+   ? "Modo AP iniciado (WPA2). Senha: " : "AP mode started (WPA2). Key: ") + psk);
+ } else {
+  _cmdMgr->printSuccess(_cmdMgr->isPt( )
+   ? "Modo AP iniciado (rede ABERTA — build SIMUT_AP_OPEN)"
+   : "AP mode started (OPEN network — SIMUT_AP_OPEN build)");
+ }
+ _cmdMgr->printInfo(_cmdMgr->isPt( )
+  ? "Conecte-se ao AP e acesse http://192.168.4.1"
+  : "Join the AP and open http://192.168.4.1");
 }
 
 void AppManager::executeCommand(CliDemand cmd) {

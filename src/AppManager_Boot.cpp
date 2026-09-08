@@ -932,9 +932,21 @@ void AppManager::setup( ) {
  if (forceAP) {
  LOG_CODE(LOG_WARN, "APP", APP_AP_MODE_TRIGGERED, 0, TRL("User triggered AP mode."));
  _displayMgr->setBootStatusKey(TR_BOOT_START_AP);
- _displayMgr->setBootStatusKey(TR_BOOT_AP_NETWORK);
- _displayMgr->setBootStatusKey(TR_BOOT_AP_IP);
+ /* beginAP first: the network line now carries the WPA2 key, and the key
+  * does not exist until the AP has been brought up (V-05). */
  _netMgr->beginAP(cfg.deviceName);
+ {
+  /* Appended as a suffix rather than added as a new translation key. @DICT is
+   * positional and check_lang_packs demands exactly TR_KEYS_COUNT lines, so a
+   * new key rejects every .lng already in the field — and a rejected pack
+   * reverts the whole UI to English until someone uploads a new one. "PSK" is
+   * an acronym and the value is random, so there is nothing here to translate. */
+  const char* psk = _netMgr->getApPsk( );
+  char suffix[24];
+  snprintf(suffix, sizeof(suffix), "  PSK %s", (psk && *psk) ? psk : "-");
+  _displayMgr->setBootStatusKey(TR_BOOT_AP_NETWORK, suffix);
+ }
+ _displayMgr->setBootStatusKey(TR_BOOT_AP_IP);
  for (int i = 0; i < 35; i++) { delay(100); feedWdt( ); }
  }
 #if SIMUT_AIR

@@ -29,6 +29,7 @@
 #endif
 #include <DNSServer.h>
 #include "SystemDefs.h"
+#include "ApPsk.h"   /* AP_PSK_LEN — the derived setup-AP key (V-05) */
 #include "LogManager.h"
 
 
@@ -47,6 +48,11 @@ public:
  const char* dns2 = "");
  void beginAP(const char* deviceName);
  void update( );
+
+ /** The WPA2 key of the setup AP, derived from the board id (V-05).
+  * Empty before beginAP( ) has run, and empty in a SIMUT_AP_OPEN build,
+  * where the AP is deliberately open for bench work. */
+ const char* getApPsk( ) const { return _apPsk; }
 
 
  /** Seed the provisional clock from the last timestamp on flash.
@@ -135,6 +141,8 @@ public:
  }
 
 private:
+ /** Derived WPA2 key of the setup AP (V-05). AP_PSK_LEN + terminator. */
+ char _apPsk[AP_PSK_LEN + 1] = {0};
  bool _mdnsEnabled = true;
  enum NetState {
  NET_OFFLINE,
