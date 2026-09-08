@@ -190,6 +190,27 @@ constexpr uint8_t WEB_PREAUTH_MAX_EXT = 3;
 /** Maximum password input buffer size via Bluetooth. */
 constexpr uint8_t BT_AUTH_BUFFER_MAX = 64;
 
+/** How long after boot the device stays DISCOVERABLE over Bluetooth (ms).
+ *
+ * Finding V-01b, decision D-1, option (b). SerialBT::begin calls
+ * gap_discoverable_control(1) and never turns it off, so an alpha or Air unit
+ * advertised itself to every scan in range for its entire uptime — and pairing
+ * takes no confirmation on the device, so the password prompt was the only
+ * barrier between a passer-by's scan and the CLI.
+ *
+ * Closing discovery does NOT close connectability: a phone that has already
+ * paired, or anyone who noted the address, still connects. That is the
+ * deliberate limit of this option — it removes the device from casual scans,
+ * and the lockout of V-01a is what handles someone who is actually trying.
+ * Option (a), consent on pairing, needs a framework patch and is the next step
+ * if these units ever go somewhere public.
+ *
+ * Five minutes is sized against the job: pairing a phone with a device you are
+ * standing next to. Rebooting reopens the window, which is the recovery path —
+ * cheaper in flash than a CLI command, and available on a unit whose CLI is
+ * exactly what you cannot reach yet. */
+constexpr uint32_t BT_DISCOVERABLE_MS = 300000;
+
 /** Maximum line size for CLI (USB + BT post-auth).
  * Above this the buffer is discarded to prevent heap DoS from a stream
  * without line terminator. Real CLI lines (e.g. `tel dump json verbose`)

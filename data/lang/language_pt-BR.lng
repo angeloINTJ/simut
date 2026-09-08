@@ -343,6 +343,7 @@ e5ac1216 SSID encontrado, conectando...
 f43dab3c forceUnpause: refCount=
 f7c33aba Bloqueio do Bluetooth após senhas erradas
 f914ca06 Sistema pronto (modo AP).
+f99bdf81 Janela de descoberta do Bluetooth fechada
 fa87bdae Upload falhou (#
 fd0933a1 Calibração do touch resetada via web
 ff5e139d Erro HTTP: 

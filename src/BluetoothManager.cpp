@@ -14,6 +14,9 @@
 
 #include "BluetoothManager.h"
 #include "LogManager.h"
+#if SIMUT_BLUETOOTH
+#include <BluetoothLock.h>   /* the framework's own guard around BTstack calls */
+#endif
 
 #if SIMUT_BLUETOOTH
 
@@ -39,6 +42,35 @@ void BluetoothManager::begin(const char* deviceName) {
  }
  SerialBT.begin(115200);
  _initialized = true;
+ /* begin( ) has just called gap_discoverable_control(1). Start the clock that
+  * turns it back off (V-01b); update( ) does the actual call, because it must
+  * not happen before the stack has finished coming up. */
+ _discoverableUntil = millis( ) + BT_DISCOVERABLE_MS;
+ _discoverableClosed = false;
+}
+
+/**
+ * @brief Close the Bluetooth discovery window once it has elapsed.
+ *
+ * Called from update( ), which the main loop drives. gap_discoverable_control
+ * is a BTstack call, so it is made under the same lock the framework's own
+ * SerialBT uses — without it this races the CYW43 async context.
+ *
+ * Connectability is untouched on purpose: a phone that already paired keeps
+ * working, and a unit that has been noted by an attacker is still reachable.
+ * The point is to stop advertising to every scan in range for the whole
+ * uptime of the device.
+ */
+void BluetoothManager::closeDiscoveryIfDue( ) {
+ if (_discoverableClosed || _discoverableUntil == 0) return;
+ if (!timeReached(_discoverableUntil)) return;
+ {
+  BluetoothLock l;
+  gap_discoverable_control(0);
+ }
+ _discoverableClosed = true;
+ LOG_CODE(LOG_INFO, "SEC", SEC_BT_LOCKOUT, -1,
+          TRL("BT discovery window closed"));
 }
 
 void BluetoothManager::setValidator(BtAuthValidator validator) {
@@ -52,6 +84,8 @@ void BluetoothManager::setValidator(BtAuthValidator validator) {
  * Section 2: Authentication state machine — prompt, password entry, validation.
  */
 void BluetoothManager::update( ) {
+
+ closeDiscoveryIfDue( );
 
  const bool pt = (_language == LANG_PT);
 
