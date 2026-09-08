@@ -7,7 +7,11 @@ on:
     branches: [main]
 
 jobs:
-  build-and-test:
+  # Everything that does not need the Arduino framework: the tracked-content
+  # gates and the native test suites. Split out from the firmware build so a
+  # broken image does not delay the answer to "did the logic still pass", and
+  # so this job stays fast enough to be the one people watch.
+  gates:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -18,18 +22,16 @@ jobs:
       - name: Secret gate
         run: ./tools/scan_secrets.sh
 
-      - name: Cache PlatformIO packages
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.platformio
-            .pio
-          key: ${{ runner.os }}-pio-${{ hashFiles('platformio.ini') }}
-
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: '3.11'
+
+      - name: Cache PlatformIO packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.platformio
+          key: ${{ runner.os }}-pio-native-${{ hashFiles('platformio.ini') }}
 
       - name: Install PlatformIO
         run: pip install platformio
@@ -56,24 +58,14 @@ jobs:
       - name: History V5 day-merge tests
         run: python3 tools/test_h5_day_merge.py
 
-      # SIMUT builds against a patched arduino-pico (TLS handshake deadlines,
-      # the keep-alive API, the static TLS server pool — see
-      # tools/arduino_pico_overrides/). A factory framework has not compiled
-      # since v2.3.0 (enableKeepAlive), and patch.sh never ran here: the whole
-      # 2.3 line went out with build-and-test red on main. Install the platform
-      # packages first so the framework exists, then apply the overrides — the
-      # script is idempotent, so a warm cache that already carries them is fine.
-      - name: Apply framework overrides
-        run: |
-          pio pkg install -e pico_w_release
-          bash tools/arduino_pico_overrides/patch.sh
-
-      - name: Build firmware
-        run: pio run -e pico_w_release
-
-      # All five native environments. They are separate steps rather than one
+      # ALL SIX native environments. Separate steps rather than one
       # `pio test -e a -e b ...` so a failure names itself in the Actions UI
       # instead of hiding behind the first environment that broke.
+      #
+      # native_alarmqueue and native_air were missing here until 2026-09-08 —
+      # 27 cases that only ran when someone remembered to run them by hand,
+      # covering the alarm queue's invariants and the Air configuration. If you
+      # add an [env:native_*] to platformio.ini, add it here in the same change.
       - name: Run unit tests (validators)
         run: pio test -e native
 
@@ -85,6 +77,95 @@ jobs:
 
       - name: Run unit tests (LogPolicy)
         run: pio test -e native_logpolicy
+
+      - name: Run unit tests (AlarmQueue)
+        run: pio test -e native_alarmqueue
+
+      - name: Run unit tests (Air config)
+        run: pio test -e native_air
+
+  # Every image the repository claims to build, in parallel.
+  #
+  # Until 2026-09-08 this compiled pico_w_release and nothing else, so the other
+  # five existed only on the maintainer's machine. The one with the least room
+  # is SIMUT Air, which is exactly the one that was not watched: a change could
+  # eat kilobytes of its flash slot and go in green. Each image is now built and
+  # measured against tools/flash_budget.json.
+  firmware:
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.known_broken == true }}
+    strategy:
+      # One image failing must not cancel the others — when something breaks
+      # across the board, the useful information is WHICH ones broke.
+      fail-fast: false
+      matrix:
+        env:
+          - pico_w_release
+          - pico_w_test
+          - pico_w_asserts
+          - pico_w_alpha
+          - pico_w_air
+        include:
+          # Overflows FLASH by ~102 KB and has for months — an old failure, not
+          # a regression. Built anyway so the overflow stays visible and
+          # measurable in the log instead of being folklore, but allowed to
+          # fail so it does not hold the branch hostage. Delete this entry the
+          # day it links, and give it a budget in tools/flash_budget.json.
+          - env: pico_w_debug
+            known_broken: true
+    name: firmware (${{ matrix.env }})
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      # Only ~/.platformio — the toolchain and framework packages, which are
+      # large and never change between runs. Deliberately NOT .pio: a cached
+      # build directory makes the compiler skip translation units it has
+      # already built, and a skipped translation unit emits no warnings and
+      # contributes no fresh size measurement. The flash figure this job gates
+      # on has to come from a real compile, so the build starts cold every time.
+      - name: Cache PlatformIO packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.platformio
+          key: ${{ runner.os }}-pio-fw-${{ matrix.env }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: |
+            ${{ runner.os }}-pio-fw-${{ matrix.env }}-
+            ${{ runner.os }}-pio-fw-
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      # SIMUT builds against a patched arduino-pico (TLS handshake deadlines,
+      # the keep-alive API, the static TLS server pool — see
+      # tools/arduino_pico_overrides/). A factory framework has not compiled
+      # since v2.3.0 (enableKeepAlive), and patch.sh never ran here: the whole
+      # 2.3 line went out with build-and-test red on main. Install the platform
+      # packages first so the framework exists, then apply the overrides — the
+      # script is idempotent, so a warm cache that already carries them is fine.
+      - name: Apply framework overrides
+        run: |
+          pio pkg install -e ${{ matrix.env }}
+          bash tools/arduino_pico_overrides/patch.sh
+
+      # pipefail, because the default shell is `bash -e` and without it the
+      # exit status of the pipeline is tee's — which is always 0, and a failed
+      # compile would be reported as a passing step.
+      - name: Build ${{ matrix.env }}
+        run: |
+          set -o pipefail
+          pio run -e ${{ matrix.env }} 2>&1 | tee build.log
+
+      # Reads the size PlatformIO itself printed above. Skips the environments
+      # recorded as unbudgeted, and fails on one that has neither a budget nor
+      # a recorded reason — so adding an image to platformio.ini without
+      # deciding what it is allowed to weigh does not pass silently.
+      - name: Check flash budget
+        run: python3 tools/check_flash_budget.py ${{ matrix.env }} build.log
 
   # Same reasoning as static-analysis: its own job costs no wall clock next
   # to the firmware build, and a finding names itself in the Actions UI.
