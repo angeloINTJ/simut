@@ -278,7 +278,7 @@ python3 tools/history_v5.py --selftest --trials 200000
 | Document | Description |
 |----------|-------------|
 | [User Manual](docs/MANUAL.md) | Hardware setup, display/web/CLI guide, OTA, API reference, troubleshooting |
-| [Manual do Usuário (pt-BR)](docs/MANUAL.pt-BR.html) | Manual completo em português, com telas reais |
+| [Manual do Usuário (pt-BR)](docs/MANUAL.pt-BR.html) | Illustrated product manual with real screenshots — **depicts v2.1.10**; see [MANUAL.md](docs/MANUAL.md) for what the firmware does now |
 | [Wiring Guide](docs/WIRING.md) | Complete pinout and connection diagrams |
 | [Recovery Guide](docs/RECOVERY.md) | Brick recovery — BOOTSEL, picotool, 1200 bps reset |
 | [CLI Manual](docs/CLI-Manual.md) | Full command reference for the `pico_w_test` console (in Portuguese) |

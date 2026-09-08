@@ -275,7 +275,7 @@ python3 tools/history_v5.py --selftest --trials 200000
 
 | Documento | Descrição |
 |----------|-------------|
-| [Manual do Usuário (pt-BR)](docs/MANUAL.pt-BR.html) | Manual completo em português, com telas reais |
+| [Manual do Usuário (pt-BR)](docs/MANUAL.pt-BR.html) | Manual ilustrado com telas reais — **retrata a v2.1.10**; para o que o firmware faz hoje, veja o [MANUAL.pt-BR.md](docs/MANUAL.pt-BR.md) |
 | [User Manual (EN)](docs/MANUAL.md) | Montagem, display/web/CLI, OTA, referência da API, troubleshooting |
 | [Guia de Fiação](docs/WIRING.md) | Pinagem completa e diagramas de ligação |
 | [Guia de Recuperação](docs/RECOVERY.md) | Recuperação de brick — BOOTSEL, picotool, reset 1200 bps |
