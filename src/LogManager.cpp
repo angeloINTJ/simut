@@ -197,7 +197,14 @@ bool LogManager::bootWasClean( ) const {
  return _preBootScratch5 == 0xC1EA8007u;
 }
 
-void LogManager::begin(bool saveToFile, LogLevel minSerialLevel) {
+void LogManager::endBootPreamble( ) {
+ mutex_enter_blocking(&_logMutex);
+ _policy.setQuietPreamble(false);
+ mutex_exit(&_logMutex);
+}
+
+void LogManager::begin(bool saveToFile, LogLevel minSerialLevel,
+                       bool quietPreamble) {
  /* Safety net only. The real capture happens at the top of AppManager::setup( ):
  * by the time begin( ) runs, Core 1 is already up and the launch TraceScope has
  * already rewritten scratch[3]. Idempotent, so calling it here is harmless. */
@@ -210,6 +217,11 @@ void LogManager::begin(bool saveToFile, LogLevel minSerialLevel) {
   * a boot reaches flash. That record is the proof the subsystem works at all,
   * and it is the anchor the next transition is measured against. */
  _policy.reset( );
+
+ /* After reset( ), which clears it: on a hibernation wake the preamble that is
+  * about to be emitted is a rerun, and only the cold boot's copy is worth the
+  * flash. endBootPreamble( ) closes this window at the end of setup( ). */
+ _policy.setQuietPreamble(quietPreamble);
 
  if (_saveToFile) {
  requestFsLock(true);
@@ -1117,6 +1129,7 @@ static const char* translateCodeEn(uint16_t code) {
  case APP_NTP_CORRECTED: return "Timestamps corrected";
  case APP_CACHE_INVALIDATED: return "Graph caches invalidated";
  case APP_AIR_CYCLE_HELD: return "Air cycle held in M0";
+ case APP_AIR_COLD_BOOT: return "Cold boot, not a hibernation wake";
 
  /* ── App UI (440–449) ── */
  case APP_UI_THEME_CHANGED: return "Theme changed via UI";

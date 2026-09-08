@@ -412,11 +412,56 @@ Armadilhas de bancada específicas do Air:
   falha nova grava **+1 FAIL e +0 RETRY** em 5 min.
 - ⚠️ **`clear log confirm` não zera o que o `show system log` devolve** — ele costura o rotacionado
   com o corrente. Só valem DELTAS entre duas leituras, nunca contagens absolutas.
-- 🔴 **ABERTO, e maior que a telemetria neste build: o log do Air é dominado por BOOTS.** Medido:
-  900 registros, **79 boots a 11,4 registros cada**, oito códigos rotineiros repetindo idênticos
-  (`567 H5_WIP`, `404 APP_READY`, `524 PROVISIONAL_TIME`, `441 LANG`, `590 SENSOR`,
-  `407 CALIBRATED`, `549 ALARM_LINE_ON`, `540 HTTP_INIT`). A janela forense enche em ~79 min.
-  **Causa: o `LogPolicy` mora na RAM e o `begin( )` o zera a cada boot** — num Air todo wake é um
-  boot, então o filtro se re-abre uma vez por minuto. Um filtro residente em RAM não pode resolver
-  isso; exigiria estado que sobreviva ao sono, e o `scratch[1]` já está cheio. NÃO corrigido: elevar
-  o piso num wake deixaria um Air saudável sem rastro nenhum, e essa é uma decisão de projeto.
+
+## Log binário — o preâmbulo de boot num aparelho que boota o tempo todo
+
+- **O problema, medido:** o log do Air era dominado por BOOTS. 1.253 registros, **108 boots**, e a
+  assinatura de um wake era sempre a mesma, na mesma ordem: `524 441 590 407 549 540 567 404`
+  (`NET_PROVISIONAL_TIME`, `APP_UI_LANG_CHANGED`, `SENSOR_RUNTIME_LOADED`, `APP_SENSORS_CALIBRATED`,
+  `TEL_ALARM_LINE_ON`, `TEL_HTTP_INIT`, `STO_H5_WIP`, `APP_READY`). Oito códigos = **68,2% da
+  janela forense inteira**, que enchia em ~79 min.
+- ⚠️ **RETRATAÇÃO de um diagnóstico meu de 07/09.** Eu havia escrito que a causa era "o `LogPolicy`
+  mora na RAM e o `begin( )` o zera a cada boot". Está errado para **7 dos 8 códigos**: eles não
+  têm regra nenhuma na `EDGE_RULES` e caíam no default "código não roteado → grava sempre". Fazer o
+  estado do filtro sobreviver ao sono não teria mudado nada. O verificador é uma linha:
+  `python3 -c` cruzando a lista com a tabela — feito, 7 de 8.
+- **A correção (07/09):** `LogPolicy::setQuietPreamble( )`, armado em `LogManager::begin( )` **só
+  quando o boot veio da hibernação** e desarmado por `endBootPreamble( )` no fim do `setup( )`.
+  Enquanto armado, os códigos da lista `BOOT_PREAMBLE` em nível INFO são suprimidos.
+- ⚠️ **A contabilidade horária (`SYS_LOG_SUPPRESSED`) não vale nada num Air, e isso é limitação
+  conhecida, não descuido.** Os registros suprimidos são contados, mas o relatório sai a cada 1 h de
+  `millis( )` — e num Air o `millis( )` reinicia a cada wake, então ele nunca sai. Aqui isso não
+  custa: o que foi suprimido é uma lista fixa e conhecida de 8 códigos, ao contrário da supressão de
+  telemetria, onde o número **é** a informação (quanto durou a queda). Emitir o relatório antes de
+  dormir devolveria um registro por wake, que é exatamente o que se está tirando.
+- 🔑 **O discriminador já existia e não custa flash nenhum:** `_airActive`, lido do
+  `watchdog_hw->scratch[0]` como **primeiro efeito colateral do `setup( )`** (`AppManager_Boot.cpp`),
+  427 linhas antes de o log sequer existir. O `scratch[0]` **é** a "abertura/fechamento" de boot que
+  se pensaria em guardar no LittleFS: é escrito antes de dormir e **apagado fisicamente por uma
+  queda de energia**, que é justamente o caso que precisa gravar. Persistir isso em arquivo custaria
+  uma escrita de flash por ciclo e não seria mais confiável.
+- **Reforço:** o portão exige `_airActive && _airSleptSec != 0`. O `scratch[1]` só recebe os
+  segundos medidos **depois** que o WFI retorna, então um reset apertado DURANTE o sono cai como
+  boot frio e leva o preâmbulo inteiro — a direção segura, e a certa: ninguém acordou, alguém
+  interveio.
+- **`412 APP_AIR_COLD_BOOT`** é a linha que um wake nunca escreve. Quando aparece, o aparelho
+  reiniciou sem vir da hibernação: numa implantação a bateria isso é interrupção de energia.
+  `ctx=1` boot limpo (energia, RUN, `reload`, OTA), `ctx=0` watchdog chegou antes.
+- ⚠️ **Dois códigos da lista também são ação de operador** (`441` idioma pela CLI, `407` calibração
+  por `/api/calib`). É por isso que a janela fecha no fim do `setup( )` e não dura o wake inteiro —
+  e é o único teste que reprova quando o filtro fica ligado para sempre
+  (`test_closing_the_window_makes_operator_actions_visible_again`).
+- **Medido no ferro** (mesmo procedimento nos dois firmwares, telemetria desligada para nenhum wake
+  levantar o rádio, 8 despertares contados **de fora** pela enumeração do USB): **67 registros em 8
+  wakes antes (8,38/wake), 10 depois (1,25/wake) — 6,7× menos.** No log depois: um boot frio traz
+  `412 ctx=1` + o preâmbulo inteiro; um wake não traz nenhum dos oito. E o `412 ctx=0` apareceu
+  sozinho logo abaixo de um `[FTL] code=1 ctx=227` — autópsia de watchdog mais a linha dizendo que
+  aquele boot não veio da hibernação.
+- **`T16 wake_writes_no_preamble` é o portão** (`tools/air_test_suite.py`): conta só os 8 códigos
+  do preâmbulo antes e depois de um ciclo inteiro. Teto **1**, não 0 — e esse 1 é de propósito:
+  o `STO_H5_WIP` sai uma segunda vez no flush do próprio ciclo, **depois** que a janela fechou, e
+  como um registro suprimido **não** marca a família como vista, ele chega como a primeira
+  transição de `LOGGRP_HIST` e é gravado, com a contagem do bloco no `ctx`. Ou seja: o wake troca
+  oito registros por **um**, e o que sobra é o que descreve o trabalho que ele acordou para fazer.
+  ⚠️ Delta negativo = o log rotacionou no meio; o teste dá SKIP, porque só valem deltas.
+- **Custo:** +176 B de flash na imagem Air.

@@ -128,6 +128,35 @@ public:
  bool shouldPersist(uint16_t code, uint8_t level, uint32_t nowMs);
 
  /**
+  * @brief Silence the deterministic boot preamble of a hibernation wake.
+  *
+  * On SIMUT Air every wake is a full boot, so the same eight init records —
+  * measured, in this exact order: NET_PROVISIONAL_TIME, APP_UI_LANG_CHANGED,
+  * SENSOR_RUNTIME_LOADED, APP_SENSORS_CALIBRATED, TEL_ALARM_LINE_ON,
+  * TEL_HTTP_INIT, STO_H5_WIP, APP_READY — were rewritten once a minute. They
+  * were 68% of the forensic window and every copy said the same thing.
+  *
+  * A wake is left with one record rather than none: STO_H5_WIP is emitted a
+  * second time by flushWipV5( ) after the window closes, and because a
+  * suppressed record does not mark its family as seen, that copy lands as
+  * LOGGRP_HIST's first transition — the cycle proving it did the work it woke
+  * up for, with the block's record count in ctx. See the note in LogPolicy.cpp.
+  *
+  * Armed ONLY when the boot came out of hibernation, and disarmed the moment
+  * setup( ) ends. Both halves matter: a cold boot keeps the whole preamble,
+  * because that burst is the record of a power interruption; and the window
+  * closing at the end of setup( ) is what keeps two of those codes
+  * (APP_UI_LANG_CHANGED, APP_SENSORS_CALIBRATED) loggable when an operator
+  * triggers them later from the CLI or the web.
+  *
+  * @param on true while the preamble of a wake is being emitted.
+  */
+ void setQuietPreamble(bool on) { _quietPreamble = on; }
+
+ /** Whether the preamble filter is currently armed — for the CLI and tests. */
+ bool quietPreamble( ) const { return _quietPreamble; }
+
+ /**
   * @brief Hourly accounting, called from outside the log path.
   * @return Number of records suppressed since the last report, or 0 when the
   *         hour is not up yet or nothing was suppressed. Reading it clears
@@ -153,11 +182,18 @@ private:
   *  valid rule: SYS_OK is never routed). */
  static uint16_t lookup(uint16_t code);
 
+ /** @return true when `code` belongs to the fixed init sequence every boot
+  *  emits. Separate from the family table because these are not a health
+  *  signal at all — they are a script, and the only question about them is
+  *  whether this boot is the first one to run it. */
+ static bool isBootPreamble(uint16_t code);
+
  /** Count one dropped record and arm the hourly accounting on the first. */
  void countSuppressed(uint32_t nowMs);
 
  GroupState _grp[LOGGRP_COUNT];
  uint32_t _suppressed;
  uint32_t _lastReportMs;
- bool _reportArmed; /**< false until the first suppression starts the clock */
+ bool _reportArmed;    /**< false until the first suppression starts the clock */
+ bool _quietPreamble;  /**< this boot is a wake; its init records are redundant */
 };

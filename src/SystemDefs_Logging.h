@@ -152,6 +152,11 @@ enum LogCode {
  APP_NTP_CORRECTED = 409,
  APP_CACHE_INVALIDATED = 410,
  APP_AIR_CYCLE_HELD = 411, /* Air: cycle armed but held in M0 after unclean boots */
+ /* Air: this boot did NOT come from hibernation — the dormant marker in the
+  * always-on domain was gone, which only a power interruption or a reset can
+  * do. The one record that says "the device restarted" on a build where every
+  * ordinary wake is also a boot and deliberately says nothing. */
+ APP_AIR_COLD_BOOT = 412,
 
  /* ── Application UI events (440–469) ── */
  APP_UI_THEME_CHANGED = 440,

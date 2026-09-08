@@ -99,6 +99,63 @@ static const uint16_t EDGE_RULES[] = {
 
 static const uint8_t EDGE_RULE_COUNT = sizeof(EDGE_RULES) / sizeof(EDGE_RULES[0]);
 
+/* ===========================================================================
+ * THE BOOT PREAMBLE
+ *
+ * The fixed sequence setup( ) emits on its way up. On a normal device it costs
+ * eight records once; on SIMUT Air, where every wake is a full boot, it cost
+ * eight records A MINUTE. Measured on the rig over 108 boots: these eight were
+ * 68.2% of the whole 1600-record window, in this exact order every time —
+ *
+ *   524 441 590 407 549 540 567 404
+ *
+ * — which is what a script looks like, not what a system telling you something
+ * looks like.
+ *
+ * The list is the measured signature, nothing broader. Two of the codes can
+ * also be raised at runtime by an operator (APP_UI_LANG_CHANGED from the CLI
+ * or the language parser, APP_SENSORS_CALIBRATED from `calib` and from
+ * /api/calib), and those must never be silenced — which is why the filter is
+ * armed for the duration of setup( ) only. A code appearing here is NOT a
+ * statement that it is unimportant; it is a statement that its FIRST copy,
+ * written by the cold boot, already said it.
+ * =========================================================================== */
+static const uint16_t BOOT_PREAMBLE[] = {
+ NET_PROVISIONAL_TIME,     /* 524 */
+ APP_UI_LANG_CHANGED,      /* 441 — runtime-reachable; see the note above */
+ SENSOR_RUNTIME_LOADED,    /* 590 */
+ APP_SENSORS_CALIBRATED,   /* 407 — runtime-reachable; see the note above */
+ TEL_ALARM_LINE_ON,        /* 549 */
+ TEL_HTTP_INIT,            /* 540 */
+ STO_H5_WIP,               /* 567 — see the note below */
+ APP_READY,                /* 404 */
+ APP_READY_AP,             /* 405 — the same record on a device forced into AP */
+};
+
+/* STO_H5_WIP deserves its own note, because it is the reason a wake still
+ * leaves a trace and not silence.
+ *
+ * There are two INFO call sites. One is inside setup( ) — the boot adopting or
+ * resuming the open block — and it is the one this list silences. The other is
+ * flushWipV5( ), which runs during the cycle, AFTER the window has closed.
+ * Because a suppressed preamble record does not mark its family as seen, that
+ * second one arrives as LOGGRP_HIST's first transition of the boot and IS
+ * written, carrying the block's record count in ctx.
+ *
+ * So a wake writes one record instead of eight, and the one it keeps is the
+ * one describing the work it woke up to do. That is a better outcome than
+ * silence: a healthy Air still proves itself once per cycle. */
+
+static const uint8_t BOOT_PREAMBLE_COUNT =
+ sizeof(BOOT_PREAMBLE) / sizeof(BOOT_PREAMBLE[0]);
+
+bool LogPolicy::isBootPreamble(uint16_t code) {
+ for (uint8_t i = 0; i < BOOT_PREAMBLE_COUNT; i++) {
+ if (BOOT_PREAMBLE[i] == code) return true;
+ }
+ return false;
+}
+
 /* The packing assumes every routed code fits in 12 bits. Nothing in the enum
  * comes close today (the highest is 999), but a future code above 4095 would
  * silently alias onto another family instead of failing to build. */
@@ -125,6 +182,11 @@ void LogPolicy::reset( ) {
  _suppressed = 0;
  _lastReportMs = 0;
  _reportArmed = false;
+ /* Cleared here on purpose: reset( ) runs from LogManager::begin( ), and the
+  * caller arms the preamble filter right after, only when it knows this boot
+  * came out of hibernation. Defaulting to "log everything" means a build that
+  * forgets to arm it behaves exactly as before. */
+ _quietPreamble = false;
 }
 
 bool LogPolicy::shouldPersist(uint16_t code, uint8_t level, uint32_t nowMs) {
@@ -177,6 +239,18 @@ bool LogPolicy::shouldPersist(uint16_t code, uint8_t level, uint32_t nowMs) {
   * filtered, while the LOG_WARN paths around adopting a stale .wip keep
   * writing. */
  if (level >= LOGPOL_LEVEL_WARN) return true;
+
+ /* The boot preamble of a wake.
+  *
+  * Placed AFTER the WARN shortcut so that a preamble step which fails still
+  * writes: the point is to drop the copy that says the script ran, never the
+  * one that says it did not. And placed BEFORE the unrouted default below,
+  * because most of these codes have no family rule at all — that default is
+  * exactly what was letting them through, once a minute, forever. */
+ if (_quietPreamble && isBootPreamble(code)) {
+ countSuppressed(nowMs);
+ return false;
+ }
 
  /* Not a routine code we know about — persist. New codes are visible by
   * default and only go quiet by being added to the table. */
