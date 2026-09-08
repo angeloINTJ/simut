@@ -6,6 +6,40 @@ All notable changes to SIMUT firmware.
 
 ## Unreleased
 
+## v2.4.1-beta (2026-09-08)
+
+**A lost Wi-Fi link now reconnects on its own, instead of waiting for someone
+to power-cycle the device.** Measured on a device in the field: the link
+dropped, one scan started six seconds later, and the network stayed down for
+three hours and forty-one minutes while everything else on the device kept
+working normally — readings taken, history written, the display answering
+someone's touch. It came back only when an operator restarted it. Four earlier
+drops that same morning had recovered in five to eleven seconds, so nothing was
+broadly broken; the fifth one simply parked.
+
+Two things were wrong, and the second is the one that made the first fatal. The
+scan the device starts after a drop had no deadline, so a scan that never
+finished left the reconnect logic waiting forever. And underneath it, the
+device would only try to associate if the network name had appeared in that
+scan — while the same device at boot associates without asking, which is
+exactly why restarting it always worked and waiting never did. Hearing a
+network in a scan is harder than joining it, so at the edge of coverage, and
+for a hidden network at any signal, the cheap check was the one that failed.
+
+The scan now has a fifteen-second deadline, and a device that has been refused
+by two scans associates anyway — the route back that a restart always had. If
+the network is genuinely gone, the device still backs off to long waits so a
+battery is not spent chasing it, but those waits now end: the retry ladder
+restarts after half an hour instead of being pinned for the rest of the boot,
+which is what used to make an access point that came back discoverable only on
+a ten-minute grid, at best.
+
+Scanning also stopped flooding the log. A device that could not reconnect wrote
+a scan record every five seconds for as long as it stayed that way; the routine
+line is now recorded once and then hourly, while a scan that never finished is
+still recorded every time, because that one names the fault.
+
+
 **A failure is written to the log once, not once per attempt.** The device
 already understood that repeating good news is not news: a successful upload
 reached the log the first time and then went quiet until something changed. Bad
@@ -40,6 +74,24 @@ after the boot — a language change, a calibration — still writes. What is
 skipped is a fixed, known list of eight, so unlike a suppressed outage there is
 no count worth reporting: on a device that reboots every minute the hourly
 accounting record would never come due anyway.
+
+### For anyone building from source
+
+There is no `pico_w_debug` environment any more. It had never linked in this
+project's history — a hundred kilobytes over the application slot — and a build
+target that cannot be built teaches the wrong thing about the ones that can.
+The concurrency tripwire it was documented to carry has lived in
+`pico_w_asserts` for some time, and that one links.
+
+Warnings in the firmware's own sources are now errors. Sixty-one of them were
+fixed first, one of which was hiding a real defect: a constructor that listed
+its members in a different order from the header, which the compiler silently
+ignores in favour of the declared order.
+
+Continuous integration went from building one image to building all five and
+running all six test suites, and every image now has a flash budget that fails
+the build when it grows past it. `tools/README.md` and `docs/README.md` are new
+and say which scripts and which documents are current.
 
 ## v2.4.0-beta (2026-09-07)
 
