@@ -1914,7 +1914,11 @@ def selftest():
     check('gap_report classifies short/long', len(short) == 2 and len(long_) == 1 and not on_time)
     b2, ok2b, s2, l2 = gap_report([0, 120, 240, 360], 120)
     check('gap_report clean file', not b2 and len(ok2b) == 3 and not s2 and not l2)
-    check('sha256 latin-1', sha256_frontend('simutV5x') == hashlib.sha256(b'simutV5x').hexdigest())
+    # A neutral vector: this only checks that the frontend hashes latin-1 bytes
+    # the way the device does, so any ASCII string proves it. It used to be the
+    # rig's real password, which is how a live credential ended up in a tracked
+    # file that no pattern in the secret gate was looking at (V-02, 2026-09-07).
+    check('sha256 latin-1', sha256_frontend('Str1ngDeTeste') == hashlib.sha256(b'Str1ngDeTeste').hexdigest())
     check('by-id paths', by_id_path('X', True).endswith('Pico_W_X-if00') and by_id_path('Y', False).endswith('Pico_Y-if00'))
     try:
         import history_v5  # noqa: F401

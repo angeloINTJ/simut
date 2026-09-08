@@ -747,7 +747,7 @@ para de bombear pelo resto do wake, registra no console, e o DECIDE trata o wake
 mesmo que o link apareça depois — os dados já estão na flash e o próximo wake envia. Como cada
 wake é um boot novo, o contador zera sozinho e a tentativa recomeça.
 
-**Medido no ferro com o SSID errado** (`ProcrastinationPLUS2`, posto pelo Ângelo justamente para
+**Medido no ferro com o SSID errado** (`<SSID da bancada>2`, posto pelo Ângelo justamente para
 isso), três wakes seguidos:
 
 | wake | janela acordada |
