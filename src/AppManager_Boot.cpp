@@ -554,7 +554,44 @@ void AppManager::setup( ) {
  _displayMgr->setSysConfig(&_storageMgr->getConfig( ));
 
  _displayMgr->setBootStatusKey(TR_BOOT_START_LOG);
+#if SIMUT_AIR
+ /* A wake is a boot that already happened.
+  *
+  * setup( ) is about to emit the same eight init records it emits every time,
+  * and on this build that is once a minute. Measured on the rig: 68% of the
+  * whole forensic window was those eight, identical, in the same order. The
+  * filter below drops them for a boot that came out of hibernation and keeps
+  * them in full for one that did not — because there the burst IS the record
+  * of what happened.
+  *
+  * The discriminator costs nothing and cannot lie in the dangerous direction:
+  * scratch[0] carries the dormant marker in the always-on domain, so a power
+  * interruption erases it by definition, and _airSleptSec is the RTC's own
+  * measurement of the sleep that just ended, written only after the WFI
+  * returned. A reset pressed DURING the sleep therefore reads as a cold boot
+  * and gets the full preamble, which is the safe direction and the right one:
+  * nobody woke up, somebody intervened. */
+ const bool airWakePreamble = (_airActive && _airSleptSec != 0);
+ LogManager::instance( ).begin(fsOk, LOG_DEBUG, airWakePreamble);
+
+ /* The one line a wake never writes, so that when it appears it means
+  * something: this boot did not come from hibernation. On a device that is
+  * supposed to be asleep between wakes, that is a power interruption — the
+  * single most important thing a battery deployment can report — or a reset.
+  * ctx separates the two classes the autopsy can already tell apart: 1 = clean
+  * (power cycle, RUN pin, `reload`, OTA), 0 = a watchdog got there first. */
+ if (!airWakePreamble) {
+  /* The message says "not resumed" rather than "no marker" because it is also
+   * the truth in the corner case: a reset pressed during the sleep leaves the
+   * marker standing but no measured sleep behind it, and that boot is not a
+   * wake either — nobody woke up, somebody intervened. */
+  LOG_CODE(LOG_INFO, "APP", APP_AIR_COLD_BOOT,
+           LogManager::instance( ).bootWasClean( ) ? 1 : 0,
+           "boot not resumed from hibernation");
+ }
+#else
  LogManager::instance( ).begin(fsOk, LOG_DEBUG);
+#endif
 
  /* First thing the logger can usefully say. 2.0.0 accepts one config schema
   * and migrates nothing, so a device coming from 1.6.x wakes up on defaults —
@@ -1205,6 +1242,12 @@ void AppManager::setup( ) {
 	 * The 5-second grace period starts counting from here.
 	 */
  LogManager::instance( ).enableHealthCheck( );
+
+ /* The preamble window closes here. setup( ) has no early return, so this is
+  * the single exit and both the normal and the AP branch reach it. From this
+  * point on APP_UI_LANG_CHANGED and APP_SENSORS_CALIBRATED mean an operator
+  * did something, and they are logged like anything else. */
+ LogManager::instance( ).endBootPreamble( );
 
  AIR_BOOT_MARK("done");
  TRACE_MOD(0, MOD_IDLE);

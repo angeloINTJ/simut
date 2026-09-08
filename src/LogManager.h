@@ -184,7 +184,23 @@ public:
   * hibernation cycle is safe or whether the device should stay reachable. */
  bool bootWasClean( ) const;
 
- void begin(bool saveToFile = false, LogLevel minSerialLevel = LOG_INFO);
+ /**
+  * @param quietPreamble true when this boot came out of a SIMUT Air
+  *        hibernation, so the fixed init sequence setup( ) is about to emit is
+  *        a rerun of what the cold boot already recorded. Defaults to false:
+  *        every other build, and every cold boot, logs the preamble in full.
+  *        MUST be paired with endBootPreamble( ) at the end of setup( ).
+  */
+ void begin(bool saveToFile = false, LogLevel minSerialLevel = LOG_INFO,
+            bool quietPreamble = false);
+
+ /** Close the window opened by begin(..., quietPreamble = true).
+  *
+  * Called from the tail of setup( ), on every path. After it, records the
+  * preamble list also happens to contain — a language change from the CLI, a
+  * calibration from the web — are logged normally again. Idempotent and safe
+  * to call when the window was never opened. */
+ void endBootPreamble( );
 
  /** Reset logger state after external wipe of log files
  * (ex: handleApiClearLogs). Re-counts records without re-initializing

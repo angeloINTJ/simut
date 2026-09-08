@@ -460,6 +460,20 @@ web. O ciclo continua armado, então basta desconectar e deixar o idle expirar p
 O divisor de tensão que traz os 5 V ao nível lógico é da placa; nada disso mede corrente de carga,
 só a presença da fonte.
 
+Sobre o `show system log` num Air: **um wake quase não escreve nada, e isso é o desenho, não um
+defeito.** Todo despertar é um boot inteiro, e a sequência fixa que o `setup( )` emite ao subir —
+relógio provisório, idioma, sensores, calibração, linha de alarmes, transporte HTTP, snapshot do
+histórico, "pronto" — era reescrita uma vez por minuto e ocupava 68% da janela forense. Desde
+07/09/2026 essa sequência é gravada por um boot que **não** veio da hibernação e pulada por um que
+veio; sobra um registro por ciclo, o `567 STO_H5_WIP` do próprio ciclo, com a contagem do bloco no
+`ctx`. Nada mais mudou: um passo do boot que falha continua gravando, e trocar o idioma ou calibrar
+**depois** do boot continua gravando.
+
+O sinal a procurar é o **`412` (boot frio, não veio da hibernação)**: num aparelho que deveria estar
+dormindo entre os wakes, ele é o relato de uma interrupção de energia. `ctx=1` boot limpo (energia,
+RUN, `reload`, OTA); `ctx=0` um watchdog chegou antes. Ao lado dele vem a rajada de oito registros
+do preâmbulo — as duas coisas juntas são a assinatura de "o aparelho reiniciou de verdade".
+
 > Desde 07/09/2026 o `air idle` recusa o que o campo não guarda (item F09, fechado). Antes ele
 > aceitava até 86400 e convertia: 86400 virava 20864 e **65536 virava 0**, e um ocioso de zero
 > manda o aparelho dormir na passada seguinte do laço — de onde só se volta pegando uma janela de

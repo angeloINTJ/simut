@@ -829,3 +829,122 @@ dormir é exatamente o que o impede de dormir. O veredito vem da enumeração US
 **Pendente de investigação separada:** a travada do Core 0 em si, sob varredura de SSID
 inexistente. É parente do R1 histórico ("Core 0 na varredura"), e o `ctx=455` diz que nem o canal
 de rastreio de módulo sobreviveu.
+
+---
+
+### 6.8 O preâmbulo de boot — a maior fonte de ruído do log num aparelho que boota a cada minuto
+
+**Achado da bancada, 07/09.** Depois que as falhas de telemetria viraram
+por-transição, o log do Air continuou enchendo em pouco mais de uma hora. A
+contagem do próprio aparelho explicou por quê: **1.253 registros, 108 boots**, e
+a assinatura de um wake era sempre a mesma, na mesma ordem:
+
+```
+524 441 590 407 549 540 567 404
+NET_PROVISIONAL_TIME · APP_UI_LANG_CHANGED · SENSOR_RUNTIME_LOADED ·
+APP_SENSORS_CALIBRATED · TEL_ALARM_LINE_ON · TEL_HTTP_INIT · STO_H5_WIP · APP_READY
+```
+
+Oito códigos = **68,2% da janela forense inteira**. Não é um sistema contando
+alguma coisa; é um roteiro sendo reexecutado.
+
+⚠️ **Retratação de um diagnóstico meu, escrito horas antes nesta mesma sessão.**
+Eu tinha registrado que a causa era "o `LogPolicy` mora na RAM e o `begin( )` o
+zera a cada boot". Está **errado para 7 dos 8 códigos**: eles não têm regra
+nenhuma na `EDGE_RULES` e caíam no default "código não roteado → grava sempre".
+Fazer o estado do filtro sobreviver ao sono — que era o caminho que eu tinha
+descartado como impossível — **não teria mudado nada**. Só o `STO_H5_WIP` é
+roteado. Conferir isso é cruzar a lista com a tabela por programa, e leva um
+minuto; eu tinha deduzido em vez de conferir.
+
+**A correção.** `LogPolicy::setQuietPreamble( )`, armado dentro do
+`LogManager::begin( )` **somente quando o boot veio da hibernação** e desarmado
+por `endBootPreamble( )` no fim do `setup( )`. Enquanto armado, os códigos da
+lista `BOOT_PREAMBLE` em nível INFO são suprimidos.
+
+⚠️ **A contabilidade horária não vale nada aqui, e é limitação conhecida.** Os
+suprimidos são contados, mas o `SYS_LOG_SUPPRESSED` sai a cada 1 h de `millis( )`
+— e num Air o `millis( )` reinicia a cada wake, então o relatório nunca vence.
+Neste caso o custo é nenhum: o que foi calado é uma lista fixa e conhecida de
+oito códigos, ao contrário da supressão de telemetria, onde o número **é** a
+informação (quanto durou a queda). Emitir o relatório antes de dormir devolveria
+um registro por wake — exatamente o que se está tirando.
+
+**O discriminador já existia, e é melhor do que qualquer arquivo.** `_airActive`
+é lido do `watchdog_hw->scratch[0]` como **primeiro efeito colateral do
+`setup( )`**, 427 linhas antes de o log existir. Esse registrador **é** a
+"abertura e fechamento de boot" que se pensaria em guardar no LittleFS: escrito
+antes de dormir, e **apagado fisicamente pela queda de energia** — justamente o
+caso que precisa gravar. Um arquivo custaria uma escrita de flash por ciclo (o
+oposto do que o F24 acabou de conquistar) e ainda seria menos confiável, porque
+a marca de "abertura" poderia sobreviver ao evento que ela deveria detectar.
+
+**Reforço barato:** o portão exige `_airActive && _airSleptSec != 0`. O
+`scratch[1]` só recebe os segundos medidos **depois** que o WFI retorna, então um
+reset apertado *durante* o sono cai como boot frio e leva o preâmbulo inteiro —
+a direção segura, e a certa: ninguém acordou, alguém interveio.
+
+**`412 APP_AIR_COLD_BOOT`** é a linha que um wake nunca escreve. Quando aparece,
+o aparelho reiniciou sem vir da hibernação: numa implantação a bateria, isso é
+uma interrupção de energia. `ctx=1` boot limpo (energia, RUN, `reload`, OTA),
+`ctx=0` o watchdog chegou antes.
+
+**Medido no ferro** — mesmo procedimento nos dois firmwares, telemetria desligada
+para que nenhum wake levantasse o rádio, oito despertares contados **de fora**
+pela enumeração do USB:
+
+| Imagem | registros no início | no fim | delta | por wake |
+|---|---|---|---|---|
+| antes (`ba43d55`) | 1.383 | 1.450 | 67 | **8,38** |
+| depois | 1.498 | 1.508 | 10 | **1,25** |
+
+**6,7× menos.** O delta bruto inclui a cauda do M0 final (rede, web, cache), que
+é constante do procedimento e cai igual nos dois lados — por isso o número que
+vale é a diferença, e o bruto está aí para poder ser conferido.
+
+**Lido no log do próprio aparelho, depois, as duas metades aparecem inteiras:**
+
+```
+up8   412 ctx=1   <<<< BOOT      boot frio, limpo
+up9   524 441 590 407            preâmbulo INTEIRO
+up22  549 540 567 404 …          … até o "pronto"
+--------------------------------------------------
+up11  (wake)      <<<< BOOT      nenhum registro de preâmbulo
+up12  520 522 570 14 13          isto é o `air stop`, não o boot
+```
+
+E o outro `ctx` também apareceu sozinho: `[FTL] code=1 ctx=227` seguido de
+`412 ctx=0` — autópsia de watchdog e, logo abaixo, a linha dizendo que aquele
+boot não veio da hibernação. As duas juntas são a assinatura de "o aparelho
+reiniciou de verdade, e não foi de propósito".
+
+⚠️ **Uma coisa vista e NÃO explicada**, para não passar como se tivesse sido: uma
+rajada única de **sete `567` seguidos** (ctx 3→9, mesmo segundo, época
+provisória), uma vez em 1.514 registros e em nenhum outro lugar do arquivo. É
+comportamento de M0, aparece igual nos dois lados e não muda a comparação, mas
+sete gravações do bloco inteiro num segundo interessam ao desgaste de flash.
+Fica anotado como observação, sem causa atribuída.
+
+**O resultado esperado é 1 por wake, não 0, e o 1 é de propósito.** O
+`STO_H5_WIP` sai uma segunda vez no flush do próprio ciclo, **depois** que a
+janela fechou; como um registro suprimido **não** marca a família como vista,
+essa cópia chega como a primeira transição de `LOGGRP_HIST` e é gravada, com a
+contagem do bloco no `ctx`. O wake troca oito registros por um, e o que sobra é
+o que descreve o trabalho que ele acordou para fazer — um Air saudável continua
+provando isso uma vez por ciclo, que era exatamente a objeção que tinha me feito
+não mexer nisso antes.
+
+⚠️ **Dois códigos da lista também são ação de operador** (`441` troca de idioma
+pela CLI, `407` calibração por `/api/calib`). É por isso que a janela fecha no
+fim do `setup( )` e não dura o wake inteiro. É também o único teste que reprova
+quando o filtro fica ligado para sempre — o controle positivo foi rodado nos dois
+sentidos antes do commit: portão removido reprova 4 testes, arming ignorado
+reprova 2, e são esses 2 que importam, porque um filtro travado em ligado cala
+um aparelho que ninguém está olhando.
+
+**Portão:** `T16 wake_writes_no_preamble` na suíte, teto 1. Delta negativo = o log
+rotacionou no meio da janela e o teste dá SKIP, porque **só valem deltas**: o
+`show system log` costura o arquivo rotacionado com o corrente, e nem o
+`clear log confirm` esvazia o que ele devolve.
+
+**Custo:** +176 B de flash na imagem Air (1.023.720 → 1.023.896 B; folga 20.584 B).

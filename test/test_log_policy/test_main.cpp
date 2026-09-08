@@ -376,6 +376,119 @@ static void test_unrouted_warnings_are_still_unconditional(void) {
     }
 }
 
+/* ============================================================================
+ *  THE BOOT PREAMBLE — a wake is a boot that already happened
+ *
+ *  Measured on the rig over 108 boots: these eight codes, in this order, were
+ *  68.2% of the whole forensic window. On SIMUT Air every wake is a full boot,
+ *  so setup( ) reran the same script once a minute and wrote it down every
+ *  time.
+ *
+ *  Positive control, both directions, run before this file was committed:
+ *    · gate removed (nothing is ever filtered) → 4 fail: _a_wake_writes_none_
+ *      of_it, _suppressed_preamble_is_counted, _closing_the_window_..., and
+ *      _a_silenced_preamble_does_not_open_its_family.
+ *    · setter wired to ignore its argument (filter permanently on) → 2 fail:
+ *      _a_cold_boot_writes_the_whole_preamble and _closing_the_window_....
+ *  The second direction is the one that matters: a filter stuck on silences a
+ *  device nobody is watching, and only these two notice.
+ * ============================================================================ */
+
+/* The measured signature of a wake, in the order the rig emitted it. */
+static const uint16_t WAKE_PREAMBLE[] = {
+    NET_PROVISIONAL_TIME, APP_UI_LANG_CHANGED, SENSOR_RUNTIME_LOADED,
+    APP_SENSORS_CALIBRATED, TEL_ALARM_LINE_ON, TEL_HTTP_INIT,
+    STO_H5_WIP, APP_READY,
+};
+static const size_t WAKE_PREAMBLE_N =
+    sizeof(WAKE_PREAMBLE) / sizeof(WAKE_PREAMBLE[0]);
+
+static void test_the_preamble_filter_is_off_by_default(void) {
+    TEST_ASSERT_FALSE(pol.quietPreamble( ));
+}
+
+static void test_a_cold_boot_writes_the_whole_preamble(void) {
+    /* Explicitly disarmed rather than relying on the default, so this also
+     * fails if the setter is ever wired to ignore its argument. */
+    pol.setQuietPreamble(false);
+    for (size_t i = 0; i < WAKE_PREAMBLE_N; i++) {
+        TEST_ASSERT_TRUE(pol.shouldPersist(WAKE_PREAMBLE[i], LVL_INFO, 1000 + i));
+    }
+    TEST_ASSERT_EQUAL_UINT32(0, pol.suppressedPending( ));
+}
+
+static void test_a_wake_writes_none_of_it(void) {
+    pol.setQuietPreamble(true);
+    for (size_t i = 0; i < WAKE_PREAMBLE_N; i++) {
+        TEST_ASSERT_FALSE(pol.shouldPersist(WAKE_PREAMBLE[i], LVL_INFO, 1000 + i));
+    }
+}
+
+static void test_suppressed_preamble_is_counted(void) {
+    pol.setQuietPreamble(true);
+    for (size_t i = 0; i < WAKE_PREAMBLE_N; i++) {
+        pol.shouldPersist(WAKE_PREAMBLE[i], LVL_INFO, 1000 + i);
+    }
+    /* Nothing disappears silently: the hourly accounting still owns them. */
+    TEST_ASSERT_EQUAL_UINT32(WAKE_PREAMBLE_N, pol.suppressedPending( ));
+}
+
+static void test_reset_disarms_the_preamble(void) {
+    pol.setQuietPreamble(true);
+    pol.reset( );
+    TEST_ASSERT_FALSE(pol.quietPreamble( ));
+    TEST_ASSERT_TRUE(pol.shouldPersist(APP_READY, LVL_INFO, 1000));
+}
+
+static void test_closing_the_window_makes_operator_actions_visible_again(void) {
+    /* Two of the preamble codes are also raised by a person: the language
+     * change from the CLI and the calibration from /api/calib. Silencing those
+     * would be a real loss, and the only thing standing between them and the
+     * filter is endBootPreamble( ) being called at the end of setup( ). */
+    pol.setQuietPreamble(true);
+    TEST_ASSERT_FALSE(pol.shouldPersist(APP_UI_LANG_CHANGED, LVL_INFO, 1000));
+    TEST_ASSERT_FALSE(pol.shouldPersist(APP_SENSORS_CALIBRATED, LVL_INFO, 1100));
+
+    pol.setQuietPreamble(false);
+    TEST_ASSERT_TRUE(pol.shouldPersist(APP_UI_LANG_CHANGED, LVL_INFO, 60000));
+    TEST_ASSERT_TRUE(pol.shouldPersist(APP_SENSORS_CALIBRATED, LVL_INFO, 60100));
+}
+
+static void test_a_failing_preamble_step_still_writes(void) {
+    /* The point is to drop the copy that says the script ran, never the one
+     * that says it did not. */
+    pol.setQuietPreamble(true);
+    TEST_ASSERT_TRUE(pol.shouldPersist(STO_H5_WIP, LVL_WARN, 1000));
+    TEST_ASSERT_TRUE(pol.shouldPersist(APP_READY, LVL_ERROR, 1100));
+}
+
+static void test_a_silenced_preamble_does_not_open_its_family(void) {
+    /* STO_H5_WIP is both a preamble step and the HIST family's routine record.
+     * Dropping it must NOT count as "HIST already proved itself this boot",
+     * or the cycle's real work — the record it went to sleep to save — would
+     * inherit the silence. */
+    pol.setQuietPreamble(true);
+    TEST_ASSERT_FALSE(pol.shouldPersist(STO_H5_WIP, LVL_INFO, 1000));
+    pol.setQuietPreamble(false);
+    TEST_ASSERT_TRUE(pol.shouldPersist(APP_HISTORY_SAVED, LVL_INFO, 2000));
+}
+
+static void test_the_cold_boot_notice_is_never_filtered(void) {
+    /* The one line a wake never writes, so that when it appears it means the
+     * device restarted without coming from hibernation. */
+    TEST_ASSERT_TRUE(pol.shouldPersist(APP_AIR_COLD_BOOT, LVL_INFO, 1000));
+    pol.setQuietPreamble(true);
+    TEST_ASSERT_TRUE(pol.shouldPersist(APP_AIR_COLD_BOOT, LVL_INFO, 2000));
+}
+
+static void test_a_fault_during_a_quiet_preamble_still_lands(void) {
+    /* A wake whose collector is down still reports it on the first attempt —
+     * the preamble gate must not stand in front of the fault latch. */
+    pol.setQuietPreamble(true);
+    TEST_ASSERT_TRUE(pol.shouldPersist(SYS_TEL_FAIL, LVL_ERROR, 1000));
+    TEST_ASSERT_FALSE(pol.shouldPersist(SYS_TEL_FAIL, LVL_ERROR, 2000));
+}
+
 int main(int, char**) {
     UNITY_BEGIN( );
 
@@ -410,6 +523,17 @@ int main(int, char**) {
     RUN_TEST(test_a_fatal_is_never_filtered);
     RUN_TEST(test_the_alarm_line_has_its_own_latch);
     RUN_TEST(test_unrouted_warnings_are_still_unconditional);
+
+    RUN_TEST(test_the_preamble_filter_is_off_by_default);
+    RUN_TEST(test_a_cold_boot_writes_the_whole_preamble);
+    RUN_TEST(test_a_wake_writes_none_of_it);
+    RUN_TEST(test_suppressed_preamble_is_counted);
+    RUN_TEST(test_reset_disarms_the_preamble);
+    RUN_TEST(test_closing_the_window_makes_operator_actions_visible_again);
+    RUN_TEST(test_a_failing_preamble_step_still_writes);
+    RUN_TEST(test_a_silenced_preamble_does_not_open_its_family);
+    RUN_TEST(test_the_cold_boot_notice_is_never_filtered);
+    RUN_TEST(test_a_fault_during_a_quiet_preamble_still_lands);
 
     return UNITY_END( );
 }

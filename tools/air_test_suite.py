@@ -749,6 +749,7 @@ class Suite:
             ('T13', 'two_schedules', self.t13_two_schedules, None, {'target'}),
             ('T14', 'charger_holds_awake', self.t14_charger_holds_awake, None, {'target', 'hand'}),
             ('T15', 'wip_writes_per_cycle', self.t15_wip_writes_per_cycle, None, {'target'}),
+            ('T16', 'wake_writes_no_preamble', self.t16_wake_writes_no_preamble, None, {'target'}),
         ]
 
     def selected(self):
@@ -1656,6 +1657,58 @@ class Suite:
                            f'is rewriting what is already on flash')
         return (f'{n} snapshot(s) per cycle (wip {before} -> {settled} -> {after})'
                 + ('; the second is the clock-provenance upgrade' if n == 2 else ''))
+
+    # The fixed sequence setup( ) emits on its way up, in the order the rig
+    # printed it. Measured 2026-09-07 over 108 boots: eight codes, 68.2% of the
+    # whole forensic window, identical every time.
+    BOOT_PREAMBLE_CODES = (524, 441, 590, 407, 549, 540, 567, 404)
+
+    def count_preamble_records(self):
+        out = self.target.cmd('show system log', 60)
+        n = 0
+        for line in out.splitlines():
+            m = re.search(r'code=(\d+)', line)
+            if m and int(m.group(1)) in self.BOOT_PREAMBLE_CODES:
+                n += 1
+        return n
+
+    def t16_wake_writes_no_preamble(self):
+        """A wake is a boot that already happened — the log must not say so again.
+
+        Every M1 wake runs the whole setup( ), so the eight init records above
+        were rewritten once a minute and left about 79 minutes of forensic
+        window. A boot that came out of hibernation now skips them; a boot that
+        did not — a power interruption, a reset — still writes all eight,
+        because there the burst is the record of what happened.
+
+        ONE is the expected result, not zero, and the one is deliberate:
+        STO_H5_WIP is emitted a second time by the cycle's own snapshot after
+        setup( ) ends, and lands as the history family's first transition. That
+        record carries the block's count in ctx and is the cycle proving it did
+        the work it woke up for. Zero would also pass — the ceiling is what this
+        test is for — and T15 is what guards against the snapshot disappearing.
+
+        `air stop` does not re-run setup( ), so the M0 the device is left in
+        contributes nothing to the count.
+        """
+        self.ensure_m0()
+        before = self.count_preamble_records()
+        self.hibernate_and_observe(stop_on_wake=True)
+        after = self.count_preamble_records()
+        delta = after - before
+        if delta < 0:
+            # /api/logs and `show system log` stitch the rotated file with the
+            # current one, so a rotation inside the window drops ~800 records at
+            # once and the delta goes deeply negative. That is not a verdict.
+            raise TestSkip(f'the log rotated during the cycle ({before} -> {after}); '
+                           f'only deltas mean anything here, so this run has none')
+        if delta > 1:
+            raise TestFail(f'{delta} preamble records written by a single wake '
+                           f'({before} -> {after}) — the wake is rewriting the boot '
+                           f'sequence it inherited; expected at most the cycle\'s own '
+                           f'history snapshot')
+        return (f'{delta} preamble record(s) for a whole wake, was 8'
+                + ('; the one is the cycle\'s history snapshot' if delta == 1 else ''))
 
     # ---- runner -----------------------------------------------------------
 
