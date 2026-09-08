@@ -519,15 +519,33 @@ void AppManager::cmdHandleResetAdmin(const CliDemand& cmd, SystemConfig& cfg, bo
  safeCopy(cfg.users[0].password, hashed.c_str( ), sizeof(cfg.users[0].password));
  cfg.users[0].hashVersion = 1;
  cfg.users[0].mustChangePassword = true;
+
+ /* Persist HERE, before the password is announced, and do not set `changed`.
+  * The emergency console has no `write memory`: there `changed` only prints
+  * "applies to this session", so a reset that stopped in RAM was undone by
+  * the next boot -- and on SIMUT Air every wake is a boot, so the printed
+  * password expired roughly a minute after it was read. The one documented
+  * recovery for a locked-out web recovered nothing. Measured on the rig
+  * 2026-09-08: login with the printed password succeeded in the same boot
+  * and answered 401 err=2 after `reload confirm`. CMD_SET_WIFI_SSID and
+  * CMD_SET_WIFI_PASS in the same switch already save for this reason. */
+ const bool saved = _storageMgr->saveConfiguration( );
+
  _cmdMgr->printInfo(pt ? "Senha admin resetada. Nova senha (unica vez):"
  : "Admin password reset. New password (shown once):");
  _cmdMgr->printInfo(String(" ") + newPlain);
  _cmdMgr->printInfo(pt ? "Trocar no 1o login via web (forcado)."
  : "Change on 1st web login (forced).");
+ if (!saved) {
+  /* The RAM hash is already the live credential, so the operator can still
+   * use it -- but it dies at the next boot and they have to know that. */
+  _cmdMgr->printError(pt ? "NAO SALVOU: vale so ate reiniciar."
+   : "NOT SAVED: valid only until reboot.");
+ }
  /* Zero local plaintext after log. */
  volatile char* v = newPlain;
  for (size_t i = 0; i < sizeof(newPlain); i++) v[i] = 0;
- changed = true;
+ (void)changed;
 }
 
 /* Parse "NNNN-NN-NN" → 3 inteiros. Substituiu sscanf("%4d-%2d-%2d", ...)

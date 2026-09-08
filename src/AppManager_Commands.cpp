@@ -906,6 +906,10 @@ void AppManager::executeCommand(CliDemand cmd) {
   _airWokeFromSleep = false;
   _airPhase = AIR_PHASE_OFF;
   _telemetryMgr->setDrainMode(false); /* a stop inside FLUSH must not leave M0 draining */
+  /* Same reason, one phase earlier: a stop inside WARMUP or SAMPLE must not
+   * leave M0 converting back to back for the rest of the session. DECIDE is
+   * the only other place this is cleared, and a stop never reaches it. */
+  _sensorMgr->setFastSampling(false);
   _airLastActivityMs = millis( );
   /* Disarm in flash too, or the next boot would resume the cycle the operator
    * just cancelled (plan F25). The dirty-boot count goes with it: this is a
@@ -1424,10 +1428,16 @@ void AppManager::executeCommand(CliDemand cmd) {
  : "RAM updated. Run 'write memory' to persist.");
 #else
  /* `write memory` does not exist in the emergency console, so pointing at it
-  * would send the user after a command that answers "unknown". `debug` is the
-  * only survivor that sets this flag, and session-only is the behaviour you
-  * want from it anyway — nobody should leave a device streaming logs because
-  * a recovery session persisted the flag. */
+  * would send the user after a command that answers "unknown". Session-only is
+  * the behaviour you want from `debug` anyway — nobody should leave a device
+  * streaming logs because a recovery session persisted the flag.
+  *
+  * This comment used to claim `debug` was the ONLY survivor that sets the flag.
+  * It was not: `system admin reset` set it too, and the claim is what made a
+  * silent non-persisting password reset invisible to review for a day. Anything
+  * reaching this console that must outlive the boot saves for itself, next to
+  * the change — CMD_SET_WIFI_SSID, CMD_SET_WIFI_PASS and CMD_RESET_ADMIN all
+  * call saveConfiguration( ) — and does not set `changed`. */
  if (changed) _cmdMgr->printInfo(_cmdMgr->isPt( )
  ? "Vale para esta sessao; nao persiste apos reiniciar."
  : "Applies to this session; does not persist across reboot.");

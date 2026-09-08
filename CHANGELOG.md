@@ -6,6 +6,81 @@ All notable changes to SIMUT firmware.
 
 ## Unreleased — branch `feature/simut-air`
 
+### A SIMUT Air wake is 2.7x shorter
+
+A reading wake took 25.5 s, and about 23 s of that was not work. Measured on the
+rig, marker by marker, then measured again after the change:
+
+| | before | after |
+|---|---|---|
+| `setup()` to the first cycle phase | 10.73 s | **2.47 s** |
+| SAMPLE (sensor stabilisation) | 14.81 s | **6.83 s** |
+| whole wake to DECIDE | 25.55 s | **9.31 s** |
+
+**Waits for hardware this build does not have.** Three of them could never
+finish early, because what they poll is a compile-time constant: the boot's
+touch-settle gate and AP-hold window ask `isScreenTouched()`, which is
+`return false` in both the headless and the alphanumeric builds, and the
+"wait for Core 1" loop polls a flag whose only writers are two files that are
+not in those links — so it always burned its full 1500 ms in a busy spin.
+`DisplayManager::kHasTouch` and `kUsesCore1` now decide at compile time whether
+those loops exist at all. The alphanumeric build gains the same 3.7 s.
+
+**Waits for an operator who is not there.** The 1 s after `Serial.begin`, the
+800 ms boot step, the 800 ms that holds "System ready" on screen, and the 600 ms
+CYW43 power cycle now run only when the boot did not come out of hibernation.
+A wake is a reset this firmware issued itself from a state it had just
+quiesced; the reboot paths that power cycle exists for are UF2 flashes, OTA
+applies, watchdogs and resets, and it is still done for all of them.
+
+**Sampling without the idling.** `readInterval` is a rate limit for a device
+that samples continuously to keep a display current, and it does not overlap
+the conversion — `lastReadTime` is stamped when the read completes, so a
+DS18B20 costs 1000 ms of waiting plus 750 ms of converting, ten times over,
+before the wake may write its one record. During WARMUP and SAMPLE the sensors
+now read back to back. The window, the filter and the values are unchanged.
+
+The theme scan is also skipped on a wake: the palette is read by the display
+and `/api/themes`, and a wake has neither.
+
+Not changed, because it would change the recorded measurement: the size of the
+moving-average window and the DS18B20 resolution. With the idling gone, SAMPLE
+is now pure conversion time, so those two are what is left to spend: at 11 bits
+the wake would be ~6.2 s and at 10 bits ~4.4 s, against 9.31 s today — worth
+about 4.7 and 9.1 extra days on an 18650, by arithmetic on the bench currents.
+The return falls off fast: below ~4 s of wake the budget is dominated by
+`setup()` and by sleep itself, so 9 bits buys little for half a degree of step.
+
+Note for whoever takes that step: `DS18B20_CONVERSION_TIME_MS` is a fixed
+750 ms and is the only clock the driver waits on, so lowering the resolution
+today costs precision and returns no time. The wait has to follow the
+configured resolution first.
+
+### The console's password reset now survives the next boot
+
+`system admin reset confirm` is the documented way back into a device whose web
+login nobody can pass, and the 2026-09-07 audit made it USB-only for that
+reason. On the bench it turned out to announce a password the device forgot at
+the next boot: the emergency console has no `write memory`, so nothing wrote
+the new hash to flash. Login with the printed password succeeded inside the
+boot that printed it and answered 401 after a reboot. On a SIMUT Air unit,
+where every wake is a boot, that password was good for about a minute — the one
+recovery for a locked-out web recovered nothing.
+
+The reset now saves before it announces, and says so plainly if the save fails.
+Two cases up the same switch, `system ssid` and `system pass` had always saved
+for themselves; what hid this was a comment claiming `debug` was the only
+command that relied on the shared "changed" flag.
+
+Persisting the reset also persists the forced-change flag, and the serial
+"factory defaults" announcement keyed off that flag alone — which would have
+made every Air wake announce factory defaults the device does not have. The
+announcement now keys off the one-time password still being in RAM, which is
+what actually dates it to the boot that regenerated the config.
+
+Bench test T17 covers the whole loop: reset on the console, reboot, and the
+printed password must still log in.
+
 ### Security: the 2026-09-07 audit, closed
 
 Eight findings (V-01..V-08) plus three observations, all fixed or decided.

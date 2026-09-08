@@ -485,3 +485,77 @@ Armadilhas de bancada específicas do Air:
   oito registros por **um**, e o que sobra é o que descreve o trabalho que ele acordou para fazer.
   ⚠️ Delta negativo = o log rotacionou no meio; o teste dá SKIP, porque só valem deltas.
 - **Custo:** +176 B de flash na imagem Air.
+
+## Console de emergência — quem muda algo que precisa sobreviver ao boot, salva ali mesmo
+
+- **A regra:** na imagem Air e na de release (`SIMUT_CLI_FULL == 0`) **não existe `write memory`**.
+  O `changed = true` que o `switch` de comandos usa não salva nada em lugar nenhum: no perfil
+  completo ele imprime *"use `write memory`"*, e no console de emergência imprime *"vale para esta
+  sessão"*. Portanto, **todo comando desse console cuja mudança precise sobreviver ao boot tem que
+  chamar `saveConfiguration( )` na própria caixa do `switch`** — e não setar `changed`, porque a
+  frase que ele imprime passaria a ser mentira. É o que `CMD_SET_WIFI_SSID` e `CMD_SET_WIFI_PASS`
+  sempre fizeram.
+- 🔴 **O caso que provou a regra (F27, 08/09):** `system admin reset` — a recuperação documentada
+  para uma web trancada, e a única — só mexia na RAM. Ela imprimia uma senha nova e **o boot
+  seguinte trazia a velha de volta**. Medido nas duas pontas: login OK dentro do boot que imprimiu,
+  `401 err=2` depois de `reload confirm`. **Num Air todo wake é um boot**, então a senha valia
+  cerca de um minuto.
+- ⚠️ **O que escondeu por um dia:** um comentário no `#else` afirmando *"`debug` is the only
+  survivor that sets this flag"*. Era falso. **Uma afirmação errada num comentário é pior que
+  nenhum comentário** — ela dispensa a verificação em vez de convidá-la. Se um comentário enumera
+  ("o único", "sempre", "nunca"), confira a enumeração com um `grep` antes de confiar: aqui era
+  `grep -n "changed = true"` e uma olhada nos `#if`.
+- 🔑 **`saveConfiguration( )` pode ser chamada direto do handler.** Ela já cuida do que dá medo:
+  `WdtWindow(30000)`, o `BigSaveGuard` que congela o Core 1 num laço só-RAM, e o skip de no-op por
+  CRC. Não precisa de `Core1FlashPause` do lado de fora.
+- **Salve ANTES de anunciar.** A senha impressa é uma promessa; se o save falhar, o comando tem que
+  dizer (`NAO SALVOU: vale so ate reiniciar`) em vez de deixar o operador achar que guardou.
+- ⚠️ **Persistir um flag muda quem mais o lê.** `mustChangePassword` sobrevivendo em flash quebrou
+  `isFactoryDefaults( )`, que era literalmente *"admin pendente de troca"* — e o anúncio
+  `SEC-003: FACTORY DEFAULTS ATIVADO` passaria a sair **a cada wake**, sobre um aparelho sem factory
+  defaults, estourando o teto de 1 registro/wake do T16. O predicado honesto é o **texto claro de
+  uma vez só** (`_initialAdminPassword`), escrito só por `loadDefaults( )` e zerado assim que uma
+  config válida vem da flash: a presença dele data a resposta **ao boot que regenerou a config**.
+  Antes de persistir um campo que antes era volátil, **procure quem mais o lê** (`grep`), porque
+  eles vinham confiando na volatilidade sem dizer.
+- **`T17 admin_reset_persists` é o portão** (`tools/air_test_suite.py`): reseta no console,
+  reinicia, e exige que a senha impressa **ainda** logue; depois devolve a senha da bancada pela
+  web. Falhou de propósito no firmware anterior antes de existir — controle negativo medido à mão.
+- **Custo:** +16 B de flash na imagem Air.
+
+## Um laço que consulta uma constante de compilação nunca sai mais cedo
+
+- 🔑 **O padrão:** `while (!cond() && millis() - t0 < TIMEOUT)` só é uma *espera* se `cond()` puder
+  virar verdadeira. Quando ela é `return false` literal, ou lê um flag sem escritor no link daquela
+  imagem, **o timeout deixa de ser o pior caso e vira o custo fixo**. Não aparece em revisão porque
+  a linha lê como uma espera com guarda; aparece no cronômetro.
+- 🔴 **Três casos, todos no mesmo `setup( )`, achados em 08/09 e valendo 5,2 s por wake:**
+  o portão de silêncio do touch e a janela de AP consultam `isScreenTouched( )`, que é
+  `return false` em `DisplayManager_None.cpp` **e** em `DisplayManager_Alpha.cpp`; e a espera por
+  `isCore1Ready( )` lê `_core1Ready`, escrito só em `DisplayManager.cpp` e `DisplayManager_Alpha.cpp`
+  — **nenhum dos dois entra no link do `pico_w_air`**. Esse último não era nem um `delay`: era
+  `tight_loop_contents( )`, núcleo a plena corrente, 1500 ms, uma vez por minuto.
+- 🔎 **Como procurar:** para cada `while`/`for` com timeout no boot, pergunte *quem escreve a
+  condição nesta imagem* e confirme com `grep` mais a **linha de link do build**
+  (`.pio/build/<env>/src/*.o`) — não pelo `#include`, que mente: o header está lá, o `.cpp` não.
+- ✅ **Como consertar sem criar outro:** uma constante de capacidade `static constexpr` **ao lado do
+  estado que ela descreve** (`DisplayManager::kUsesCore1`, `kHasTouch`), decidida pelo
+  pré-processador e não por expressão sobre macros — assim uma ordem de include que ainda não viu
+  `simut_config.h` não transforma um define ausente num `true` silencioso. Fica junto de
+  `_core1Ready`, então dar um display ao Air move os dois no mesmo lugar.
+- ⚠️ **Espera fixa por operador é outra categoria, e o portão é outro.** `delay(1000)`,
+  `BOOT_STEP_DELAY_MS`, o `delay(800)` do splash e o ciclo de energia do CYW43 existem para gente
+  ou para caminhos de reinício reais — o portão deles é `_airActive` (veio da hibernação), não a
+  imagem. Num wake não há ninguém; em M0 há.
+- ⚠️ **`readInterval` de sensor NÃO é parte da medição, e não se sobrepõe à conversão.**
+  `lastReadTime` é carimbado no **fim** da leitura, então o período real é
+  `readInterval + tempo de conversão` — 1000 + 750 ms no DS18B20, dez vezes, antes de a fase SAMPLE
+  liberar um registro. `SensorManager::setFastSampling( )` zera só o intervalo, nas fases
+  WARMUP/SAMPLE de um wake, e o `air stop` o desliga junto com o modo dreno. **Mexer em
+  `MOVING_AVG_WINDOW` ou na resolução do DS18 é outra coisa: muda o número gravado, e é decisão do
+  Ângelo, não de implementação.**
+- **Medido no ferro, mesma bancada, 08/09:** `setup( )` 10,73 → **2,47 s**; SAMPLE 14,81 →
+  **6,83 s**; wake até DECIDE 25,55 → **9,31 s**. Flash: Air **−624 B**, alpha −568 B, release +8 B.
+  ⚠️ **Efeito colateral na bancada:** a janela de enumeração USB encolheu junto, então capturar o
+  começo de um wake ficou mais difícil — o `System ready` chega antes de a porta abrir. Mantenha a
+  porta aberta desde o M0, ou leia os carimbos `@millis` das linhas `[AIR] phase=`.

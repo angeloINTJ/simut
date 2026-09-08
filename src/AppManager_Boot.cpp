@@ -195,6 +195,16 @@ void AppManager::setup( ) {
 	 * preserve compatibility with POST_OTA_APPLY_MAGIC diagnostics. */
  {
  alpha30_write_scratch5(0); /* always clear; magic is no longer a gate */
+#if SIMUT_AIR
+ /* Every reboot path this cycle exists for leaves the radio in an unknown
+  * state: UF2 flash, OTA apply, watchdog, hand RESET, picotool. A dormant
+  * wake is none of them — it is a SYSRESETREQ this firmware issued itself,
+  * one line after arming the RTC alarm, from a state it had just quiesced.
+  * And a reading-only wake never powers the CYW43 at all. Measured 600 ms
+  * on a wake whose whole job takes 50 ms. */
+ if (!_airActive)
+#endif
+ {
  _uart_mark('#'); /* power-cycle entry marker */
  gpio_init(23);
  gpio_set_dir(23, GPIO_OUT);
@@ -204,6 +214,7 @@ void AppManager::setup( ) {
  gpio_disable_pulls(23);
  busy_wait_ms(100);
  _uart_mark('*'); /* power-cycle done */
+ }
  }
  _uart_mark('$'); /* pre Serial.begin */
 
@@ -226,6 +237,13 @@ void AppManager::setup( ) {
  }
 #endif
 
+ /* Lets USB CDC enumerate so the version banner below is not written into a
+  * closed pipe. A wake has nobody attached and does not print a banner worth
+  * waiting for; the bench keeps its port open from M0, which is the only way
+  * to read a wake anyway. */
+#if SIMUT_AIR
+ if (!_airActive)
+#endif
  delay(1000);
  AIR_BOOT_MARK("delay ok");
  _uart_mark('&'); /* post delay(1000) */
@@ -279,7 +297,10 @@ void AppManager::setup( ) {
 	 * boot continues without it (display stays off, firmware does not hang). */
  LOG_CODE(LOG_INFO, "APP", APP_DISPLAY_LAUNCHED, 0, TRL("Display UI Launched on Core 1."));
 
- delay(BOOT_STEP_DELAY_MS);
+ /* A fixed stand-in for the Core-1 readiness check that happens for real
+  * after _storageMgr->begin( ). Where Core 1 is never launched there is
+  * nothing for it to stand in for. */
+ if (DisplayManager::kUsesCore1) delay(BOOT_STEP_DELAY_MS);
 
 #if SIMUT_DISPLAY_TFT
  /* Configure XPT2046 + SPI bus pins for reliable PENIRQ detection.
@@ -320,6 +341,13 @@ void AppManager::setup( ) {
 	 * AP-by-touch is unavailable while stuck; fix is recalibrating
 	 * touch (via CLI or Settings) or a clean power cycle. */
  bool touch_settled __attribute__((unused)) = false;
+ /* Both loops below only ever ask isScreenTouched( ). On a build without a
+  * touch controller that is a compile-time `false`, so the settle gate can
+  * only time out its quiet window and the AP-hold window can only run to its
+  * end — 220 ms + 3500 ms per boot, waiting for a gesture the build cannot
+  * report. Measured 4,52 s between `boot: delay ok` and `boot: ap-detect ok`
+  * on the Air rig, 2026-09-08, which is 18% of a whole wake. */
+ if (DisplayManager::kHasTouch) {
  {
  unsigned long settle_start = millis( );
  unsigned long quiet_since = 0;
@@ -369,6 +397,7 @@ void AppManager::setup( ) {
  break;
  }
  delay(50);
+ }
  }
  }
  
@@ -538,14 +567,16 @@ void AppManager::setup( ) {
 	 * INACTIVE, i.e. without IRQ-based multicore_lockout hangs. */
  _uart_mark('C'); /* deferred startCore1 */
  _displayMgr->startCore1( );
- {
+ if (DisplayManager::kUsesCore1) {
  unsigned long wait_start = millis( );
  while (!_displayMgr->isCore1Ready( ) && millis( ) - wait_start < 1500) {
  tight_loop_contents( );
  }
  _uart_mark(_displayMgr->isCore1Ready( ) ? 'R' : 'X');
  }
+#if SIMUT_DISPLAY_TFT
  Serial.print("[TCH] c="); Serial.println(gpio_get(20));
+#endif
 
 
  /* DisplayManager needs the config pointer to render the dashboard
@@ -757,8 +788,14 @@ void AppManager::setup( ) {
 	 * requires physical USB access. Also logged via LOG_CODE for audit
 	 * trail. Plaintext is never persisted to flash. */
  if (_storageMgr->isFactoryDefaults( )) {
+ /* isFactoryDefaults( ) now requires the one-time plaintext to be in RAM, so
+	 * there is no second branch to write: a device whose forced-change flag came
+	 * back from flash (an admin reset that was never used, or a factory the
+	 * operator walked away from) is not announced here. It used to be, once per
+	 * boot forever, which on an Air is once per wake -- and the message named
+	 * factory defaults the device did not have. The recovery is unchanged and
+	 * documented in the console help: run `system admin reset confirm`. */
  const char* pw = _storageMgr->getInitialAdminPassword( );
- if (pw && pw[0] != '\0') {
  /* OTP via UART bridge removed — use Serial USB CDC to
 	 * capture the one-time password. */
  Serial.println(F("\n=============================================="));
@@ -769,13 +806,6 @@ void AppManager::setup( ) {
  Serial.println(F("=============================================="));
  LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, 0,
  TRL("Factory defaults active; initial admin pass on USB/serial."));
- } else {
- /* Rare case: factory defaults detected but plaintext is not
-	 * in RAM (loadConfiguration cleared after fallback). Warn
-	 * without leaking credentials. */
- LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, 0,
- TRL("Factory defaults active; password regen required."));
- }
  }
 
  /* The zone has to be in force BEFORE the seed runs. getLastRecordedTimestamp( )
@@ -822,11 +852,19 @@ void AppManager::setup( ) {
  SystemConfig &cfg = _storageMgr->getConfig( );
  _displayMgr->setBootStatusKey(TR_BOOT_LOAD_THEME_LANG);
  
+ /* The palette is read by the TFT, the settings screens and /api/themes.
+  * A wake has none of them: no display in this image, and the web server
+  * belongs to M0 (see the gate further down). Skipping it drops a
+  * LittleFS.openDir over /themes plus a parse of every .thm from every
+  * wake. M0 — cold boot, `air stop`, charger — still scans. */
+#if SIMUT_AIR
+ if (!_airActive)
+#endif
+ {
  scanCustomThemes( );
- 
  loadTheme(cfg.themeIndex);
- 
  _displayMgr->refreshTheme( );
+ }
  
  /* Load the .lng pack only when a non-English language is in use:
   * the EN path serves inline strings and does not need the ~15 KB of
@@ -1225,6 +1263,11 @@ void AppManager::setup( ) {
 
  _displayMgr->setBootStatusKey(TR_BOOT_ALL_INIT);
  _displayMgr->setBootStatusKey(TR_BOOT_SYS_READY);
+ /* Holds "System ready" on screen long enough to be read. A wake has no
+  * screen and no reader; M0 keeps it, which is where an operator is. */
+#if SIMUT_AIR
+ if (!_airActive)
+#endif
  delay(800);
  LOG_CODE(LOG_INFO, "APP", APP_READY, 0, TRL("System ready."));
 

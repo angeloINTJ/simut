@@ -318,14 +318,19 @@ alfabeto documentado, e o contrato de que `langIdentSanitize` nunca emite byte
 que uma string JSON não aguenta, em qualquer tamanho de buffer inclusive 1.
 14,2 M execuções, 130 unidades novas (o fuzzer explorou o código novo).
 
-### Bancada — **NÃO EXECUTADA**
+### Bancada — parcialmente executada em 08/09
 
-Nada nesta rodada foi validado no ferro. Os instrumentos estão escritos e
-compilam; falta rodá-los.
+⚠️ **A primeira coisa que o ferro disse foi que uma das correções não funcionava.**
+Ver "V-01a no ferro" logo abaixo da tabela: `system admin reset` anunciava uma senha
+que o boot seguinte esquecia. Nada nesta rodada tinha tocado o hardware, e foi
+exatamente o comando de recuperação que a auditoria adicionou que estava quebrado.
+
+Estado em 08/09 (o que foi ao ferro está marcado; o resto continua não rodado):
 
 | Achado | Instrumento | Estado |
 |---|---|---|
-| V-01a | `tools/bt_auth_test.py` | **não escrito** — precisa de adaptador BT no host, ou app de terminal serial no celular + cronômetro |
+| V-01a (lockout BT) | `tools/bt_auth_test.py` | **não escrito** — precisa de adaptador BT no host, ou app de terminal serial no celular + cronômetro |
+| V-01a (recuperação USB) | `system admin reset confirm` no cabo | ✅ **RODADO 08/09 — REPROVOU e foi corrigido**; portão novo **T17** passa |
 | V-03 | T15/T16 da `air_test_suite.py` | existem; **não rodados** contra esta imagem |
 | V-04 / O-2 | `tools/json_escape_cases.py` | **escrito nesta rodada**, não rodado |
 | V-05 | `ap` → console mostra a PSK → notebook entra; `nmcli dev wifi list` mostra WPA2 | não rodado |
@@ -333,17 +338,51 @@ compilam; falta rodá-los.
 | V-01b | scan de BT 6 min depois do boot não acha o aparelho; celular já pareado ainda conecta | não rodado |
 | O-1 | conta com FILE_READ e sem LOGS: `/download?file=/system.blog` → 403 | não rodado |
 
+### V-01a no ferro — a recuperação que não sobrevivia ao boot (F27)
+
+`system admin reset confirm` é a recuperação documentada para uma web em que
+ninguém consegue entrar, e a parte B deste achado a tornou **só pela USB**.
+Rodada no rig em 08/09, ela reprovou: o console imprimia a senha nova e o boot
+seguinte trazia a velha de volta.
+
+| momento | login com a senha impressa |
+|---|---|
+| mesmo boot em que foi impressa | **OK** |
+| depois de `reload confirm` | **401 `{"ok":false,"err":2}`** |
+
+O console de emergência não tem `write memory`; lá o `changed = true` só imprime
+*"vale para esta sessão"* e ninguém chama `saveConfiguration( )`. **Num Air todo
+wake é um boot**, então a senha impressa valia cerca de um minuto.
+
+O que escondeu isso foi um comentário que afirmava que `debug` era o único
+comando sobrevivente a setar aquele flag. Não era.
+
+Causa, conserto, o efeito colateral que o conserto abriu (`mustChangePassword`
+persistido ia fazer todo wake anunciar factory defaults e estourar o T16) e o
+portão novo **T17** estão em `docs/analysis/SIMUT_AIR_PLANO_FIX.md` §6.11.
+Custo: **+16 B** na imagem Air.
+
+**Para a próxima auditoria:** uma correção que só foi lida não foi verificada.
+Esta passou por revisão, seis ambientes nativos e três imagens compilando, e o
+defeito estava na linha que ninguém escreveu.
+
 ---
 
 ## Pendências
 
-1. 🔴 **Rotacionar a senha do rig** (só o Ângelo pode). `conf user pass admin
-   <nova>` + `write memory`, ou pela página `/users`. Guardar em
-   `~/.simut-bench.env` (já criado com placeholder, `chmod 600`) e acrescentar
-   a nova **e** a antiga ao `~/.simut-secrets-deny` (já criado com a antiga e o
-   SSID). O código já lê do ambiente; enquanto a senha não rodar, o valor
-   publicado continua abrindo o rig.
-2. 🔴 **Validar tudo no ferro** — a tabela acima é a lista.
+1. ✅ **Senha do rig rotacionada em 08/09.** Feita e verificada: sobrevive a
+   `reload confirm`. Gravada em `~/.simut-bench.env` (`chmod 600`), que até
+   então tinha o **placeholder** com que foi criado — é por isso que o primeiro
+   login da sessão respondeu `401 err=2`, e foi por esse caminho que o F27
+   apareceu. ⚠️ **Falta acrescentar a senha antiga ao `~/.simut-secrets-deny`**;
+   o valor publicado no histórico do git não abre mais o rig, mas o portão de
+   segredos deve conhecê-lo.
+   ⚠️ O caminho que a pendência mandava usar (`conf user pass admin` +
+   `write memory`) **não existe na imagem Air** — o console de emergência não
+   tem nenhum dos dois. Na Air a rotação é `system admin reset confirm` (agora
+   que persiste) ou `/api/login_chpass` pela web.
+2. 🔴 **Validar o resto no ferro** — a tabela acima é a lista; V-01a (parte USB)
+   saiu, e reprovou antes de passar.
 3. 🟡 **D-8 queimada**: `v2.4.0-beta` já é a Latest (recortada em 07/09 ~22h em
    `9e1ddc3`). Este trabalho precisa de número novo.
 4. 🟡 **Reconciliar a folga de flash** (build diz 19 040 B no Air; a memória diz

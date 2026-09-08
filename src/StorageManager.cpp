@@ -961,7 +961,17 @@ void StorageManager::generateInitialAdminPassword(char* outPlain, size_t bufSize
 bool StorageManager::isFactoryDefaults( ) const {
  if (!_currentConfig.users[0].active) return false;
  if (strcmp(_currentConfig.users[0].username, "admin") != 0) return false;
- return _currentConfig.users[0].mustChangePassword;
+ if (!_currentConfig.users[0].mustChangePassword) return false;
+ /* mustChangePassword alone used to date the state to THIS boot, because the
+  * only writer that set it was loadDefaults( ) and `system admin reset` never
+  * reached flash. Now that the reset persists, the flag outlives its boot and
+  * says nothing about where the config came from. The one-time plaintext does:
+  * it is written only by loadDefaults( ) and cleared the moment a valid config
+  * is loaded from flash (see loadConfiguration), so it is present exactly on
+  * the boot that regenerated the config. Without this the sole caller would
+  * announce factory defaults on every wake of an Air -- once a minute, about a
+  * device that has none. */
+ return _initialAdminPassword[0] != '\0';
 }
 
 void StorageManager::clearInitialAdminPassword( ) {

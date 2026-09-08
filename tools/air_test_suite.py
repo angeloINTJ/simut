@@ -76,6 +76,11 @@ sys.path.insert(0, HERE)
 
 BAUD = 115200
 PROMPT_RE = re.compile(r'SIMUT(?:\([a-z0-9-]+\))?\s*[#>]\s*$')
+# The last thing setup( ) prints. A cold boot keeps streaming log lines for
+# ~15 s after the port enumerates, and a command written into that stream gets
+# its reply buried: waiting for this marker is cheaper and surer than guessing
+# a settle time. Both spellings, because the AIR marker only exists on Air.
+BOOT_DONE_RE = re.compile(r'\[AIR\] boot: done|System ready')
 AIR_STATUS_RE = re.compile(
     r'Air:\s*phase=(?P<phase>\d+)\s+wake=(?P<wake>\d+)s\s+hist=(?P<hist>\d+)s'
     r'\s+backoff=(?P<backoff>\d+)s\s+idle=(?P<idle>\d+)s(?:\s+pin=(?P<pin>\S+))?'
@@ -344,6 +349,67 @@ class Target:
                 pass
         self.ser = None
 
+    def alive(self):
+        """True when self.ser still points at a device that is there.
+
+        A handle outliving the device it was opened on is the NORMAL case on
+        this bench, not an error path: every hibernation detaches the USB
+        device and every wake enumerates a new one, so a handle taken before a
+        sleep raises EIO on the next write. `if not self.ser` only ever caught
+        "never opened" — it says nothing about whether the fd still resolves.
+
+        This went unnoticed while a wake was 25 s long, because the bench
+        rarely crossed a sleep between opening and writing. On 2026-09-08 the
+        wake dropped to 9 s and four tests of a full run failed as
+        `serial write failed: (5, 'Input/output error')`, which reads exactly
+        like a device that crashed and was not one — the passive `--watch` in
+        the same hour showed nine clean transitions.
+        """
+        if not self.ser:
+            return False
+        try:
+            self.ser.in_waiting          # cheap ioctl; raises once the node is gone
+            return True
+        except Exception:
+            return False
+
+    def reopen(self, timeout=30):
+        """Guarantee a usable handle, replacing a stale one."""
+        if self.alive():
+            return
+        self.close()
+        if not self.usb.present() and self.usb.wait(True, timeout) is None:
+            raise TestFail(f'target absent from USB for {timeout}s — cannot reopen')
+        self.open(timeout=timeout)
+
+    def _drain_until_quiet(self, quiet_s=0.25, cap_s=4.0):
+        """Swallow whatever the device is still saying, then hand back a clean line.
+
+        reset_input_buffer( ) drops what has ARRIVED; it does nothing about the
+        bytes still in flight. Right after a boot that is most of the banner,
+        and cmd( ) returns on the first prompt it sees — which is the banner's
+        own prompt, not the reply to the line just written. The caller then gets
+        the banner as the answer: measured on 2026-09-08 as
+        `air status unparsable: "-beta\n Digite \'help\'..."`, on a device that
+        was answering perfectly well.
+
+        Waiting for a quiet line before writing makes the next prompt
+        unambiguously ours. The cap keeps a chatty device (debug on) from
+        blocking here forever.
+        """
+        self.ser.reset_input_buffer()
+        deadline = time.time() + cap_s
+        last_byte = time.time()
+        while time.time() < deadline:
+            n = self.ser.in_waiting
+            if n:
+                self.ser.read(n)
+                last_byte = time.time()
+            elif time.time() - last_byte >= quiet_s:
+                return
+            else:
+                time.sleep(0.02)
+
     def read_until(self, pattern, timeout, collect=None):
         """Read lines until `pattern` (compiled regex) matches; returns the match."""
         buf, deadline = '', time.time() + timeout
@@ -365,13 +431,21 @@ class Target:
 
     def cmd(self, text, timeout=6.0):
         """Send one line, return the transcript up to the next prompt."""
-        if not self.ser:
-            self.open()
+        if not self.alive():
+            self.reopen()
         try:
-            self.ser.reset_input_buffer()
+            self._drain_until_quiet()
             self.ser.write((text + '\r\n').encode())
-        except Exception as exc:
-            raise TestFail(f'serial write failed: {exc}')
+        except Exception:
+            # The device slept between the check above and this write, or the
+            # node was replaced under us. One reopen, one retry: past that the
+            # target really is gone and the caller should hear about it.
+            try:
+                self.reopen()
+                self._drain_until_quiet()
+                self.ser.write((text + '\r\n').encode())
+            except Exception as exc:
+                raise TestFail(f'serial write failed: {exc}')
         buf, deadline = b'', time.time() + timeout
         while time.time() < deadline:
             try:
@@ -401,7 +475,7 @@ class Target:
         """
         deadline = time.time() + retry_s
         while True:
-            out = self.cmd('air status')
+            out = self.cmd('air status', timeout=9.0)
             st = parse_air_status(out)
             if st:
                 return st
@@ -744,12 +818,13 @@ class Suite:
             ('T08', 'offline_timestamps', self.t08_offline_timestamps, 'F04', {'target', 'web'}),
             ('T09', 'probe_cycle', self.t09_probe_cycle, None, {'target', 'hand'}),
             ('T10', 'm1_services_off', self.t10_m1_services_off, None, {'target', 'web'}),
-            ('T11', 'history_integrity', self.t11_history_integrity, 'F23', {'target', 'web'}),
+            ('T11', 'history_integrity', self.t11_history_integrity, None, {'target', 'web'}),
             ('T12', 'cycle_survives_reset', self.t12_cycle_survives_reset, None, {'target', 'hand'}),
             ('T13', 'two_schedules', self.t13_two_schedules, None, {'target'}),
             ('T14', 'charger_holds_awake', self.t14_charger_holds_awake, None, {'target', 'hand'}),
             ('T15', 'wip_writes_per_cycle', self.t15_wip_writes_per_cycle, None, {'target'}),
             ('T16', 'wake_writes_no_preamble', self.t16_wake_writes_no_preamble, None, {'target'}),
+            ('T17', 'admin_reset_persists', self.t17_admin_reset_persists, None, {'target', 'web'}),
         ]
 
     def selected(self):
@@ -814,8 +889,22 @@ class Suite:
         So: poll `air status` until it actually parses, then cancel M1 if that
         is where it is, and re-check. Losing the port mid-way is not an error,
         it is the device going back to sleep — wait for the next one.
+
+        Chasing the window is a race, and on 2026-09-08 the wake went from 25 s
+        to 9 s and the race started losing: opening the port and reading one
+        `air status` no longer fits inside a window, so seven tests of a full
+        run died as `serial write failed: Input/output error` — the port going
+        away mid-command, which reads like a broken device and is not one.
+
+        The hand is the way in that does not race. RESET drives RUN, which is a
+        CLEAN boot, and since 2026-09-06 a clean boot means "somebody is
+        standing there" and keeps the whole `air idle` in M0. So: chase the
+        window for a while, and if that does not land, reset and take the long
+        window. Only if there is no hand does this stay a pure race.
         """
         deadline = time.time() + timeout
+        chase_until = time.time() + min(timeout, 110)
+        reset_used = False
         last = ''
         while time.time() < deadline:
             if not self.target.usb.present():
@@ -859,6 +948,26 @@ class Suite:
             if st and st['phase'] == 0:
                 return st
             last = f'phase={st["phase"] if st else "?"} after air stop'
+            if (not reset_used and time.time() > chase_until
+                    and self.hand.available and self.hand.ping()):
+                # Stop racing. A clean boot hands back a 300 s window instead of
+                # a 7 s one, and every test after this one gets to run.
+                print('    ensure_m0: window too short to catch — hand RESET for a clean boot')
+                reset_used = True
+                self.target.close()
+                self.hand.reset()
+                if self.target.usb.wait(True, 40) is None:
+                    last = 'no USB enumeration 40 s after the recovery reset'
+                else:
+                    # Do not start talking into the boot: wait for setup( ) to
+                    # say it is done. A cold boot brings up WiFi and NTP and
+                    # prints through all of it.
+                    try:
+                        self.target.open(timeout=30)
+                        self.target.read_until(BOOT_DONE_RE, 40)
+                    except TestFail:
+                        pass
+                    time.sleep(1.5)
         raise TestFail(f'could not reach M0 within {timeout}s (last: {last!r})')
 
     def need_web(self):
@@ -935,8 +1044,10 @@ class Suite:
         # next read only sees the port vanish. Measured on the bench 2026-09-06:
         # the first live run of this suite failed as "serial vanished before the
         # alarm line" for exactly this reason. Write, then read one stream.
-        if not self.target.ser:
-            self.target.open()
+        # Not `if not self.target.ser`: see Target.alive( ). This write is the
+        # one that must not be lost — everything the test measures comes after
+        # it — so the handle is verified rather than assumed.
+        self.target.reopen()
         self.target.ser.reset_input_buffer()
         self.target.ser.write(b'air hibernate\r\n')
         m = self.target.read_until(ALARM_RE, timeout=self.args.flush_cap, collect=lines)
@@ -971,9 +1082,19 @@ class Suite:
         if on_wake:
             on_wake(row)
         if stop_on_wake:
-            self.target.open(timeout=15)
-            self.target.cmd('air stop', 3)
-            st = self.target.air_status()
+            # Everything this used to do by hand — open the port, write
+            # `air stop`, read the status back — is what ensure_m0( ) does, and
+            # ensure_m0( ) also knows the two things this did not: that the
+            # console is still printing the boot when the port enumerates, and
+            # that a 9 s wake may close before any of it lands, in which case a
+            # hand RESET is the way in. Reusing it removed three separate
+            # failure shapes this branch produced on 2026-09-08
+            # (`air status unparsable`, then `cannot reopen`).
+            #
+            # The timing this test reports does NOT come from here: sleep_s and
+            # wake_sec are measured from USB enumeration, above. This is only
+            # about handing the bench back in M0.
+            st = self.ensure_m0()
             row['stopped'] = st['phase'] == 0
         return row
 
@@ -1349,6 +1470,14 @@ class Suite:
         this: /api/status and the log both look healthy while it happens.
         """
         self.need_web()
+        # The history lives behind the web server, and the web server belongs to
+        # M0 — a device left cycling by the test before this one answers
+        # "connection refused" on port 80, which reads like a broken endpoint
+        # and is a device that is simply asleep. Measured on 2026-09-08, when
+        # the 9 s wake started leaving T10 short of its own M0 handoff.
+        self.ensure_m0()
+        if self.web.wait_up(120) is None:
+            raise TestSkip('web did not come up in M0 — nothing to read the history through')
         cfg = self.web.config()
         hint_min = int(cfg.get('h_int') or 0)
         if hint_min <= 0:
@@ -1709,6 +1838,85 @@ class Suite:
                            f'history snapshot')
         return (f'{delta} preamble record(s) for a whole wake, was 8'
                 + ('; the one is the cycle\'s history snapshot' if delta == 1 else ''))
+
+    def t17_admin_reset_persists(self):
+        """A password reset announced on the console must survive the next boot.
+
+        `system admin reset confirm` is the documented recovery for a web nobody
+        can log into, and the 2026-09-07 audit made it USB-only for that reason
+        (V-01a, part B). What it did was print a one-time password and rewrite
+        the hash in RAM — and on the emergency console that was the whole story:
+        `changed = true` there only prints "applies to this session", and nobody
+        called saveConfiguration( ). `system ssid` and `system pass`, two cases
+        up the same switch, had always saved for themselves.
+
+        On SIMUT Air every wake is a boot, so the printed password expired about
+        a minute after it was read and the one recovery for a locked-out web
+        recovered nothing. Measured on the rig 2026-09-08, both directions:
+        login with the printed password succeeded inside the boot that printed
+        it and answered 401 err=2 after `reload confirm`.
+
+        The rotation is put back before returning, so a failure leaves the bench
+        usable either way: a reset that did NOT persist has already restored the
+        old password by failing, and one that did is changed back over the web.
+        """
+        self.need_web()
+        user = os.environ['SIMUT_WEB_USER']
+        known = os.environ['SIMUT_WEB_PASS']
+        out = self.target.cmd('system admin reset confirm', 12)
+        # The alphabet is deliberately O/0/I/1-free (generateInitialAdminPassword),
+        # so the password is the only all-caps-and-digits 8-run on its own line.
+        m = re.search(r'^\s*([A-Z2-9]{8})\s*$', out, re.M)
+        if not m:
+            raise TestFail(f'no one-time password on the console: {out.strip()[:160]!r}')
+        otp = m.group(1)
+
+        self.target.close()
+        try:
+            self.target.cmd('reload confirm', 6)
+        except TestFail:
+            pass                      # the port dropping IS the reboot
+        self.target.close()
+        time.sleep(3)
+        self.target.usb.wait(False, 20)
+        self.target.open(timeout=120)
+        self.ensure_m0()
+        if self.web.wait_up(120) is None:
+            raise TestFail('web did not come back after the reboot')
+
+        fresh = Web(self.host)
+        try:
+            fresh.login(user, otp)
+        except TestFail as exc:
+            # The old password answering again is the proof, not a side effect:
+            # confirm it so a genuinely dead login is not read as this defect.
+            back = 'no'
+            try:
+                Web(self.host).login(user, known)
+                back = 'yes'
+            except TestFail:
+                pass
+            if back == 'yes':
+                self.web.login(user, known)
+            raise TestFail(f'the reset did not survive the reboot ({exc}); '
+                           f'previous password works again: {back}. The console '
+                           f'printed a credential the device forgot on the next '
+                           f'boot — on Air that is one wake.')
+
+        # It persisted. Put the bench password back over the web, which is the
+        # path that has always saved.
+        r = fresh.get('/api/login_init')
+        nonce = r.json().get('nonce', '') if r.status_code == 200 else ''
+        r = fresh.post('/api/login_chpass',
+                       data={'user': user, 'oldpass': sha256_frontend(otp),
+                             'newpass': sha256_frontend(known), 'nonce': nonce})
+        if r.status_code != 200:
+            raise TestFail(f'reset persisted (good) but the bench password could NOT be '
+                           f'put back: login_chpass HTTP {r.status_code} {r.text[:80]}. '
+                           f'The device is on the one-time password {otp} — set it back '
+                           f'by hand before the next run.')
+        self.web.login(user, known)
+        return f'the console reset survived a reboot; bench password restored'
 
     # ---- runner -----------------------------------------------------------
 

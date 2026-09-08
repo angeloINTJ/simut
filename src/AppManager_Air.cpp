@@ -321,6 +321,12 @@ void AppManager::airLoop( ) {
  case AIR_PHASE_WARMUP: {
   airSensorPower(_airCfg.sensorPowerPin, true);
   airSetLed(true);
+  /* From here to DECIDE the sensors read back to back. The wake is not a
+   * display refreshing once a second: it has one record to take and every
+   * millisecond between conversions is the core awake doing nothing. The
+   * filter and the values are unchanged — SAMPLE still waits for the same
+   * full window, it just stops idling between the samples that fill it. */
+  _sensorMgr->setFastSampling(true);
   if (timeSince(_airPhaseTimer, 400)) {
    _airPhase = AIR_PHASE_SAMPLE;
    _airPhaseTimer = millis( );
@@ -358,6 +364,9 @@ void AppManager::airLoop( ) {
  }
 
  case AIR_PHASE_DECIDE: {
+  /* The window is full (or timed out): back to the ordinary cadence, so an
+   * `air stop` landing in this wake hands the operator a normal M0. */
+  _sensorMgr->setFastSampling(false);
   /* Always write this wake's sample into local history (the primary job of
    * the wake). The telemetry cursor is untouched; pending packets are sent in
    * CONNECT/FLUSH when the WiFi came up during SAMPLE. Only a live STA link

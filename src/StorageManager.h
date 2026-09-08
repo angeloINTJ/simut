@@ -431,8 +431,12 @@ public:
  */
  void generateInitialAdminPassword(char* outPlain, size_t bufSize);
 
- /** @return true if current config is in factory defaults —
- * i.e., admin[0] active with `mustChangePassword=true`. Calculated in real time. */
+ /** @return true when THIS boot regenerated the config from defaults: admin[0]
+ * active, `mustChangePassword=true`, and the one-time plaintext still in RAM.
+ * The plaintext is the part that dates the answer to this boot — the flag alone
+ * survives in flash (`system admin reset` sets it and saves), so on its own it
+ * would report factory defaults on every wake of an Air. Calculated in real
+ * time; the sole caller is the serial announcement in AppManager_Boot. */
  bool isFactoryDefaults( ) const;
 
  /** Size of a config file that was refused for having the wrong schema, or 0.

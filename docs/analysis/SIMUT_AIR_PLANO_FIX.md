@@ -425,7 +425,8 @@ sleep, boot, sample, flush. Tabela na seção 6.
 | T08 `offline_timestamps` | F04, F10 | XFAIL (espaçamento ~80 s com `h_int=2`) |
 | T09 `gp16_probe` | F03, F07 | SKIP sem extensão da PicoHand |
 | T10 `m1_services_off` | F13 | XFAIL (porta 80 aceita em M1) |
-| T11 `history_integrity` | F22, F23 | **XFAIL medido 06/09**: 170 registros, 21 no intervalo, 19 para trás |
+| T11 `history_integrity` | F22, F23 | ~~XFAIL~~ → **PASS medido 08/09**: 416 registros, 406 no ritmo, 3 curtos, 6 longos, **0 para trás**, 10 blocos (41,6 reg/bloco). Em 06/09 eram 170 registros com 19 para trás; em 07/09, 53 curtos e 63 longos em 350. A marca `xfail F23` era velha e saiu. |
+| T17 `admin_reset_persists` | **F27** | PASS desde `HEAD`; FAIL medido à mão no firmware anterior |
 | C1–C8 (`check_air_consistency.py`) | F15–F19 | FAIL em C1, C2, C3, C4, C5, C8 |
 
 ---
@@ -1080,3 +1081,81 @@ mais que qualquer economia no rádio.
 ⚠️ As correntes são as da bancada, medidas no ponto de alimentação; um pack real ainda perde no
 rendimento do regulador, na autodescarga e na tensão de corte. As colunas "útil ~80%" existem por
 isso e continuam sendo estimativa — **corrente nunca foi medida por este agente**.
+
+---
+
+### 6.11 F27 — o `system admin reset` anunciava uma senha que o próximo boot esquecia
+
+**Como apareci nisso:** eu ia rodar o T11 e o login da bancada respondeu `401 err=2`. Descartei
+regressão de firmware conferindo o que a auditoria tinha tocado (`verifyPasswordFor` intacto,
+caminho legado→V1 correto) e o estado do aparelho (SSID e nome preservados — o LittleFS não fora
+apagado). Era descasamento de credencial mesmo. O caminho documentado para sair disso é o comando
+que a auditoria de 07/09 adicionou (V-01a, parte B): `system admin reset confirm`, **só pela USB**.
+
+**Ele não funcionava.** O console de emergência (`SIMUT_CLI_FULL == 0`, que é a imagem Air e a de
+release) não tem `write memory`; lá o `changed = true` só imprime *"Vale para esta sessao; nao
+persiste apos reiniciar"* e **ninguém chama `saveConfiguration( )`**. O handler reescrevia o hash,
+o salt e o `hashVersion` na RAM, imprimia a senha de uma vez só — e o boot seguinte trazia a senha
+velha de volta.
+
+**Num Air todo wake é um boot.** A senha impressa valia cerca de um minuto. A única recuperação de
+uma web trancada não recuperava nada.
+
+**Medido no ferro, 08/09, nas duas pontas:**
+
+| momento | login com a senha impressa |
+|---|---|
+| mesmo boot em que foi impressa | **OK** |
+| depois de `reload confirm` | **401 `{"ok":false,"err":2}`** |
+
+**O que escondeu o defeito.** Duas caixas acima no mesmo `switch`, `CMD_SET_WIFI_SSID` e
+`CMD_SET_WIFI_PASS` chamam `saveConfiguration( )` na hora, com um comentário que enuncia a regra:
+*"Emergency console has no 'write memory' — persist right away"*. Quem escreveu aquilo sabia. O que
+apagou a regra para o leitor seguinte foi o comentário do `#else`, que afirmava:
+
+> `debug` is the only survivor that sets this flag
+
+**Era falso** — `system admin reset` também setava. Uma afirmação errada num comentário custou um
+dia de invisibilidade a uma senha que não persistia.
+
+**Conserto.** `cmdHandleResetAdmin( )` chama `saveConfiguration( )` **antes** de anunciar a senha,
+e não seta `changed` (setar imprimiria uma frase que virou mentira). Se o save falhar, o comando
+diz `NAO SALVOU: vale so ate reiniciar` — o hash na RAM já é a credencial viva, então o operador
+ainda pode usá-la, mas precisa saber que ela morre no boot.
+
+**O buraco que o conserto abriu, e como foi fechado.** Persistir o reset também persiste
+`mustChangePassword = true`, e `isFactoryDefaults( )` era exatamente *"users[0] é admin e está
+pendente de troca"*. Com a flag sobrevivendo em flash, **todo boot** passaria a anunciar
+`SEC-003: FACTORY DEFAULTS ATIVADO` e a gravar um `LOG_WARN` — num Air, uma vez por minuto, sobre
+um aparelho que não está em factory defaults. Isso estouraria o **T16** (teto de 1 registro por
+wake), que tinha acabado de ser conquistado em 07/09.
+
+O predicado honesto não é a flag, é o **texto claro de uma vez só**: ele é escrito apenas por
+`loadDefaults( )` e zerado assim que uma config válida é lida da flash, então sua presença data a
+resposta **ao boot que regenerou a config** — que é o que o único chamador quer dizer.
+`isFactoryDefaults( )` passou a exigi-lo, e o `else` do anúncio (que existia para o caso "factory
+defaults sem texto claro") deixou de ter estado que o alcance.
+
+⚠️ **O que eu NÃO reproduzi:** no firmware antigo esse mesmo `else` já era alcançável por um
+`system factory confirm` que o operador deixasse sem trocar a senha — aí ele avisava a cada boot,
+para sempre. Não fui atrás dessa via porque um factory reset custaria o rig inteiro; o que medi é
+que **com o conserto o estado não gera nem banner nem registro**:
+
+```
+### reset (persiste mustChangePassword=true) → reload
+FACTORY banner on serial: False
+factory-defaults records in the flash log: 0
+```
+
+**Portão novo: T17 `admin_reset_persists`.** Reseta a senha pelo console, reinicia, e exige que a
+senha impressa **ainda** logue; depois devolve a senha da bancada pela web (o caminho que sempre
+salvou). Uma falha deixa a bancada usável de qualquer jeito: um reset que não persistiu já
+restaurou a senha antiga ao falhar, e o teste confere isso e diz. Controle negativo: a falha acima
+foi medida à mão no firmware anterior, antes de existir o teste.
+
+**Custo:** Air 1.025.880 → **1.025.896 B (+16)**. Release e alpha compilam e rodam os mesmos 290
+casos nativos.
+
+**A regra que fica:** *num console sem `write memory`, quem muda algo que precisa sobreviver ao
+boot salva ali mesmo, ao lado da mudança — e não confia num flag compartilhado cujo significado
+depende da imagem em que o arquivo foi compilado.*

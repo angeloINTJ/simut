@@ -6,6 +6,84 @@ Todas as mudanças notáveis do firmware SIMUT.
 
 ## Não lançado — branch `feature/simut-air`
 
+### O wake do SIMUT Air ficou 2,7× mais curto
+
+Um wake de leitura levava 25,5 s, e cerca de 23 s disso não era trabalho.
+Medido no rig marcador a marcador, e medido de novo depois da mudança:
+
+| | antes | depois |
+|---|---|---|
+| `setup()` até a primeira fase do ciclo | 10,73 s | **2,47 s** |
+| SAMPLE (estabilização dos sensores) | 14,81 s | **6,83 s** |
+| wake inteiro até o DECIDE | 25,55 s | **9,31 s** |
+
+**Esperas por hardware que esta build não tem.** Três delas nunca poderiam
+terminar mais cedo, porque o que consultam é constante de compilação: o portão
+de silêncio do touch e a janela de AP perguntam por `isScreenTouched()`, que é
+`return false` tanto na build headless quanto na alfanumérica, e o laço que
+"espera o Core 1" consulta um flag cujos únicos escritores são dois arquivos
+fora desses links — então ele sempre gastava os 1500 ms inteiros num laço
+apertado. `DisplayManager::kHasTouch` e `kUsesCore1` agora decidem em tempo de
+compilação se esses laços chegam a existir. A build alfanumérica ganha os
+mesmos 3,7 s.
+
+**Esperas por um operador que não está ali.** O 1 s depois do `Serial.begin`, os
+800 ms do passo de boot, os 800 ms que seguram o "System ready" na tela e os
+600 ms do ciclo de energia do CYW43 agora só rodam quando o boot não veio da
+hibernação. Um wake é um reset que este firmware pediu a si mesmo a partir de
+um estado que ele acabara de aquietar; os caminhos de reinício para os quais
+aquele ciclo existe são gravação UF2, apply de OTA, watchdog e reset — e para
+todos eles ele continua sendo feito.
+
+**Amostrar sem ficar ocioso.** `readInterval` é um limitador de taxa para um
+aparelho que amostra continuamente para manter uma tela em dia, e ele não se
+sobrepõe à conversão: `lastReadTime` é carimbado quando a leitura termina,
+então um DS18B20 custa 1000 ms esperando mais 750 ms convertendo, dez vezes,
+antes de o wake poder gravar seu único registro. Durante WARMUP e SAMPLE os
+sensores agora leem de volta a volta. A janela, o filtro e os valores não
+mudaram.
+
+A varredura de temas também é pulada num wake: a paleta é lida pelo display e
+por `/api/themes`, e um wake não tem nenhum dos dois.
+
+Não mudou, porque mudaria a medição gravada: o tamanho da janela de média móvel
+e a resolução do DS18B20. Sem a ociosidade, a fase SAMPLE virou tempo de
+conversão puro, então são essas duas as alavancas que sobram: a 11 bits o wake
+seria de ~6,2 s e a 10 bits de ~4,4 s, contra 9,31 s hoje — cerca de 4,7 e 9,1
+dias a mais num 18650, por aritmética sobre as correntes de bancada. O retorno
+cai rápido: abaixo de ~4 s de wake a conta passa a ser dominada pelo `setup()`
+e pelo próprio sono, então 9 bits compra pouco e custa meio grau de passo.
+
+Aviso para quem for dar esse passo: `DS18B20_CONVERSION_TIME_MS` é 750 ms fixos
+e é o único relógio que o driver espera, então baixar a resolução hoje custa
+precisão e não devolve tempo nenhum. A espera precisa seguir a resolução
+configurada antes.
+
+### O reset de senha do console agora sobrevive ao próximo boot
+
+`system admin reset confirm` é o caminho documentado de volta para um aparelho
+em cuja web ninguém consegue entrar, e a auditoria de 07/09/2026 o tornou
+exclusivo da USB por isso. Na bancada ele se revelou anunciando uma senha que o
+aparelho esquecia no boot seguinte: o console de emergência não tem
+`write memory`, então nada gravava o hash novo na flash. O login com a senha
+impressa funcionava dentro do boot que a imprimiu e respondia 401 depois de
+reiniciar. Num SIMUT Air, onde todo wake é um boot, essa senha valia cerca de um
+minuto — a única recuperação de uma web trancada não recuperava nada.
+
+O reset agora salva antes de anunciar, e diz com todas as letras se o save
+falhar. Duas caixas acima no mesmo `switch`, `system ssid` e `system pass`
+sempre salvaram por conta própria; o que escondeu isto foi um comentário
+afirmando que `debug` era o único comando a depender do flag compartilhado.
+
+Persistir o reset também persiste o flag de troca obrigatória, e o anúncio de
+"factory defaults" no serial se guiava só por esse flag — o que faria todo wake
+de um Air anunciar factory defaults que o aparelho não tem. O anúncio agora se
+guia pela senha de uma vez só ainda estar na RAM, que é o que de fato data a
+resposta ao boot que regenerou a config.
+
+O teste de bancada T17 cobre o laço inteiro: reset no console, reinício, e a
+senha impressa tem que continuar logando.
+
 ### Segurança: a auditoria de 07/09/2026, fechada
 
 Oito achados (V-01..V-08) e três observações, todos corrigidos ou decididos.

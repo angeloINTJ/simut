@@ -101,6 +101,23 @@ public:
  void begin( );
  void update( );
 
+ /** Read back to back, ignoring each sensor's readInterval.
+  *
+  * readInterval is a RATE LIMIT for a device that samples continuously to keep
+  * a display and a web page current — it is not part of the measurement. It
+  * also does not overlap the conversion: lastReadTime is stamped when the read
+  * COMPLETES, so the true period is readInterval + conversion time. On a
+  * DS18B20 that is 1000 + 750 ms, and SIMUT Air's SAMPLE phase waits for a
+  * MOVING_AVG_WINDOW of ten of them before it may write its one record —
+  * measured 14,81 s of a 25,5 s wake on 2026-09-08.
+  *
+  * With this on, the same ten samples cost only their conversions. The values
+  * and the filter are untouched; what goes is the idling between them. SIMUT
+  * Air turns it on for the WARMUP/SAMPLE phases of a wake and off at DECIDE,
+  * so M0 keeps the ordinary cadence. */
+ void setFastSampling(bool on) { _fastSampling = on; }
+ bool isFastSampling( ) const { return _fastSampling; }
+
 
  void initRuntimeSensors(const SystemConfig &cfg);
 
@@ -168,8 +185,11 @@ private:
  int8_t _getOrCreateBmeDriver(TwoWire &wire, uint8_t addr);             /**< Hardware I2C (Wire/Wire1) */
 #endif
 
+ uint32_t readGap(const RuntimeSensor& s) const;   /**< 0 while fast sampling; else s.readInterval */
+
  std::vector<RuntimeSensor> _runtimeSensors;
  volatile bool _newDataAvailable = false;
+ bool _fastSampling = false;   /**< see setFastSampling( ) */
 
 
  enum ScanState {
