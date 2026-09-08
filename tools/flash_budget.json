@@ -1,0 +1,43 @@
+{
+  "_comment": [
+    "Per-environment flash budget, in bytes, checked by tools/check_flash_budget.py.",
+    "",
+    "The number compared is the one PlatformIO itself prints ('Flash: ... used N",
+    "bytes from M bytes'), not a size computed here — a gate that reimplements the",
+    "measurement is a gate that can disagree with what the developer sees.",
+    "",
+    "A budget is a HIGH-WATER MARK, not the linker ceiling. The linker already",
+    "refuses an image that does not fit; what it cannot do is make growth visible",
+    "while there is still room. Each budget sits a few KB above the measured size",
+    "at the time it was set, so ordinary work passes and a jump has to be paid for",
+    "by editing this file in the same change — which puts the number in the diff,",
+    "where a reviewer sees it.",
+    "",
+    "Raising a budget is a normal thing to do. Raising it without saying why in the",
+    "commit message is not.",
+    "",
+    "'headroom' is documentation, not enforcement: measured - budget is what the",
+    "gate allows; ceiling - measured is what the hardware allows. Note the ceiling",
+    "reported by PlatformIO is the program slot alone and says nothing about the",
+    "LittleFS partition behind it (see docs/ANALISE_FLASH_RAM.md)."
+  ],
+  "ceiling": 1044480,
+  "measured_on": "2026-09-08",
+  "measured_at_commit": "47a82aa",
+  "envs": {
+    "pico_w_release": { "budget": 1023500, "measured": 1018820 },
+    "pico_w_test":    { "budget": 1023500, "measured": 1018692 },
+    "pico_w_asserts": { "budget": 1025500, "measured": 1020988 },
+    "pico_w_alpha":   { "budget": 1023500, "measured": 1019124 },
+    "pico_w_air":     { "budget": 1028500, "measured": 1023896 }
+  },
+  "unbudgeted": {
+    "_comment": [
+      "pico_w_debug has not linked for months — it overflows FLASH by ~102 KB, and",
+      "that is an old failure rather than a regression. It is built in CI so the",
+      "overflow stays visible and measurable, but its job is allowed to fail; give",
+      "it a budget here on the day it links again."
+    ],
+    "pico_w_debug": "does not link"
+  }
+}
