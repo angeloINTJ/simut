@@ -23,6 +23,24 @@ pace of its own retries. Sensors, security events, configuration changes and
 crash diagnostics are deliberately untouched, and nothing at all can filter a
 fatal.
 
+**A wake no longer writes down that it booted.** On SIMUT Air every wake from
+hibernation is a full boot, so the eight records the firmware emits on its way
+up — provisional clock, language, sensors, calibration, alarm line, HTTP
+transport, history snapshot, ready — were rewritten once a minute, always the
+same eight in the same order. They were 68% of the entire forensic window,
+which filled in about an hour and a quarter. A boot that came out of
+hibernation now skips them; a boot that did not still writes every one, because
+there the burst is the record of what happened. Measured on the bench over
+eight wakes with the radio kept down: sixty-seven records before, ten after.
+
+A cold boot also gains one record saying so, which on a battery deployment is
+the report of a power interruption rather than an ordinary wake. Nothing else
+changes: a boot step that fails still writes, and everything an operator does
+after the boot — a language change, a calibration — still writes. What is
+skipped is a fixed, known list of eight, so unlike a suppressed outage there is
+no count worth reporting: on a device that reboots every minute the hourly
+accounting record would never come due anyway.
+
 ## v2.4.0-beta (2026-09-07)
 
 **The history block survives a wake.** A block holds sixty readings so that its

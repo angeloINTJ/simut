@@ -24,6 +24,24 @@ repetindo no ritmo das próprias tentativas. Sensores, eventos de segurança,
 mudanças de configuração e diagnósticos de travamento ficaram deliberadamente
 de fora, e nada é capaz de filtrar um erro fatal.
 
+**Um wake não anota mais que ligou.** No SIMUT Air todo despertar da hibernação
+é um boot inteiro, então os oito registros que o firmware emite ao subir —
+relógio provisório, idioma, sensores, calibração, linha de alarmes, transporte
+HTTP, snapshot do histórico, pronto — eram reescritos uma vez por minuto,
+sempre os mesmos oito na mesma ordem. Eram 68% de toda a janela forense, que
+enchia em pouco mais de uma hora. Um boot que veio da hibernação passa a
+pulá-los; um que não veio continua gravando todos, porque ali a rajada é o
+registro do que aconteceu. Medido na bancada ao longo de oito despertares com
+o rádio desligado: sessenta e sete registros antes, dez depois.
+
+Um boot frio também ganha um registro dizendo isso, que numa instalação a
+bateria é o relato de uma interrupção de energia, e não de um despertar comum.
+O resto não muda: um passo do boot que falha continua gravando, e tudo que um
+operador faz depois do boot — trocar o idioma, calibrar — continua gravando. O
+que fica de fora é uma lista fixa e conhecida de oito, então, ao contrário de
+uma queda suprimida, não há contagem que valha a pena relatar: num aparelho que
+reinicia a cada minuto o registro horário de contabilidade nunca venceria.
+
 ## v2.4.0-beta (2026-09-07)
 
 **O bloco do histórico sobrevive a um wake.** Um bloco guarda sessenta leituras
