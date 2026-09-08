@@ -246,7 +246,9 @@ reporting a vulnerability.
   (rotated), `MAX_RECORDS_PER_FILE = 800`. Each record has timestamp,
   core, level, tag, code, context.
 - Reading via web `/history` → Logs tab, CLI `show system log`, or
-  direct download `/download?file=/system.blog`.
+  direct download `/download?file=/system.blog` — which requires
+  `PERM_LOGS` on top of `PERM_FILE_READ`, like every `*.blog` path
+  (`downloadPermFor`, finding O-1).
 - Clear: `clear log confirm` (CLI) or UI — audited action
   (`LOG_CODE(LOG_WARN, "SEC", SYS_REBOOT_USER, ...)` fires in the flow).
 
@@ -525,7 +527,9 @@ requires `PERM_SYS_CONFIG`.
 1. **Config backup**: `GET /api/backup` (`PERM_FULL_ADMIN`) — the
    `.bkp` covers the whole FS, `/config/system.bin` included. Per-file
    download (`GET /download?file=`, `PERM_FILE_READ`) refuses any path
-   under `/config` (FsSecretPath), and so do the mutation routes —
+   under `/config` (FsSecretPath) and additionally requires
+   `PERM_HISTORY` for `/history/...` and `PERM_LOGS` for `*.blog`, and so
+   do the mutation routes —
    `POST /api/delete`, `POST /api/upload` and `GET /api/ls` refuse
    `/config` (findings ACH-01/02/04). The sanctioned way to move config off
    the device is `GET /api/backup`. Skip only if config-default is
