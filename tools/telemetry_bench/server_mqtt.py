@@ -376,7 +376,11 @@ def serve(conn, args, stats):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--port', type=int, required=True)
-    ap.add_argument('--bind', default='0.0.0.0')
+    # Loopback by default (finding O-3). These servers accept unauthenticated
+    # POSTs/PUBLISHes and write every payload to disk, and they were listening
+    # on every interface the moment anyone ran them. A bench that needs the
+    # device to reach it says so: bench.py passes --bind 0.0.0.0 explicitly.
+    ap.add_argument('--bind', default='127.0.0.1')
     ap.add_argument('--tls', action='store_true')
     ap.add_argument('--cert', default='certs/cert.pem')
     ap.add_argument('--key', default='certs/key.pem')

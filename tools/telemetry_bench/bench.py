@@ -300,8 +300,13 @@ class Server:
             if os.path.exists(p):
                 os.remove(p)
         script = 'server_http.py' if kind == 'http' else 'server_mqtt.py'
+        # --bind explicitly: the servers default to loopback (O-3), and the
+        # device under test reaches them across the LAN. Overridable through
+        # kw, which is how a run confined to this host asks for loopback.
         cmd = [sys.executable, os.path.join(HERE, script),
                '--stats', self.stats_path, '--records', self.records_path]
+        if 'bind' not in kw:
+            cmd += ['--bind', '0.0.0.0']
         for k, v in kw.items():
             flag = '--' + k.replace('_', '-')
             if v is True:
