@@ -95,7 +95,7 @@ Sete, triados por **consequência**, não por esforço:
 
 | achado | o quê | conserto |
 |---|---|---|
-| **F10** | alarme do RTC com hora módulo 24; `h_int=1440` arma alarme que dispara na hora ou nunca | validar a faixa de `h_int` como o F09 fez com `air idle`, + teste nativo |
+| ~~F10~~ | ✅ **corrigido 09/09** — o alarme do RTC é hora-do-dia, então 86.400 s vira "agora"; `airSleepSecBounded( )` limita a 86.399 s onde o intervalo vira alarme, com WARN (413). A faixa de `h_int` não mudou: as imagens de tomada não têm por que recusar 24 h | teste nativo `test_sleep_sec_bounded`; ⚠️ não exercitado no ferro (um wake de 24 h não cabe numa sessão) |
 | **F14** | default do pino mudou para 16 sem bump de `AIR_CONFIG_VERSION`; `air.bin` antigo mantém 255 e não há comando para trocar | bump + migração, ou comando `air pin` |
 | ~~F18~~ | ✅ **já estava feito desde 06/09** — só a tabela não tinha sido virada; `platformio.ini` diz `=0` no bloco do Air e o env usa 0 | verificado 09/09 |
 | ~~F20~~ | ✅ **idem** — `system ssid` no README ×3 e no `CLI-Manual.md`; `check_air_consistency.py` C1–C8 limpo | verificado 09/09 |

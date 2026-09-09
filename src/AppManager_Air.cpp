@@ -557,7 +557,16 @@ void AppManager::airEnterDormant( ) {
    * for a 120 s interval. Rounding centres the error and bounds it at the half
    * second the RTC's resolution costs. */
   uint32_t wakeSec = (sleepMs + 500UL) / 1000UL;
-  if (wakeSec == 0) wakeSec = 1;
+  {
+    /* Plan F10: the alarm is time-of-day, so a full day aliases to "now". A
+     * 1440-minute interval — the most h_int accepts — is the one value that
+     * reaches this; it sleeps one second short and says so. */
+    const uint32_t asked = wakeSec;
+    wakeSec = airSleepSecBounded(wakeSec);
+    if (wakeSec != asked) {
+      LOG_CODE(LOG_WARN, "AIR", APP_AIR_SLEEP_CLAMPED, (int)(asked / 60UL), "");
+    }
+  }
 
   datetime_t t;
   t.year  = 2026; t.month = 1; t.day = 1; t.dotw = 4; t.hour = 0; t.min = 0; t.sec = 0;
