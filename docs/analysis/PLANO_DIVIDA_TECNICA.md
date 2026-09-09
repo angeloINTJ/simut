@@ -72,11 +72,11 @@ Ordem deliberada — do que não derruba o aparelho para o que derruba:
 | 1.4 | **V-03** | `air_test_suite.py --only T15,T16` **contra esta imagem** | 20 min |
 | ~~1.5~~ | ✅ **V-01a** | 3/3 na v2.4.1-beta: recusa, **lockout de 8 s sobrevive à reconexão** (sonda 3,4 s depois: silêncio), 4ª falha tranca de novo (8 → 16 s). Cinco consertos no instrumento antes do veredito — ver o tool | feito |
 | ~~1.6~~ | ✅ **V-01b** | 3/3: descobrível após o boot, ausente 345 s depois, RFCOMM ainda conecta para quem sabe o endereço | feito |
-| 1.7 | **V-04 / O-2** | `json_escape_cases.py` — **por último, causa reboots** | 20 min |
+| ~~1.7~~ | ✅ **V-04 / O-2, com A/B** | pré-fix `8d043ed` × release: **caso 1** aceita nas duas, `/api/network` quebra na pré-fix e parseia na release (escape); **caso 2** pré-fix aceita, release recusa `slot 0: invalid hwId` (validação). ⚠️ A metade "resposta quebra" do caso 2 não reproduziu na pré-fix; **caso 3 não rodado**. Ferramenta precisou de 2 consertos (payload cru → `_payload`; `sensors` → `slots`) — passava em toda imagem | feito |
 
-⚠️ **O 1.7 não vale nada sem o controle.** Rodar antes contra firmware
-**anterior** ao fix, onde os casos 1 e 2 **têm** que quebrar. Um verde sem esse
-A/B é um teste que não provou saber reprovar.
+⚠️ **O 1.7 não vale nada sem o controle — e foi exatamente o controle que salvou o dia.** A ferramenta deu
+"PASS (refused)" na release **e na pré-fix**, duas vezes, por dois defeitos de forma diferentes; sem a
+imagem anterior no ferro, isso teria virado um ✅.
 
 ⚠️ **O 1.6 precisa do canal CHARGER da mão** (GP3 → alvo GP17): cinco minutos de
 observação não cabem numa janela de wake, e sem segurar o aparelho acordado o
