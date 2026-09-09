@@ -4,6 +4,7 @@
 não quando o código mudar. Marcar aqui, no commit que o fechou.
 
 Levantado em 2026-09-09 contra `main` = `7608558` = `v2.4.1-beta`.
+**Execução iniciada no mesmo dia** — item riscado traz a medição que o fechou.
 
 ---
 
@@ -42,16 +43,15 @@ Não são conselhos gerais; cada uma custou um dia neste projeto.
 
 | # | passo | por quê |
 |---|---|---|
-| 0.1 | Mergear **#98** (T11/T08 corrigidos, F04 fechado) | 9/9 verde, só teste e doc |
-| 0.2 | **Separar o #97**: tirar `tools/bt_auth_test.py` e `tools/rig_reset_admin.py` para um PR próprio e mergear | as ferramentas não tocam firmware; presas ali, bloqueiam a Fase 1 inteira |
-| 0.3 | Mergear **#97** (o 409 em `WebManager_Commit.cpp` e `WebManager_History.cpp`) | uma recusa muda é um aparelho que parece quebrado |
-| 0.4 | Dependabot **#92/#93/#94** — descobrir por que #93 e #94 estão `mergeable=UNKNOWN`, rebasar, mergear | ruído que esconde PR real |
+| ~~0.1~~ | ✅ **#98 mergeado** (`e511e75`) | 9/9 verde |
+| ~~0.2~~ | ✅ **#97 separado**: as ferramentas foram para o **#99** (`5b5d24d`), mergeado; o #97 reescrito só com firmware + índice (`29c710a`) | `bt_auth_test.py` está na `main` |
+| ~~0.3~~ | ✅ **#97 mergeado** (`d3d430f`) | 9/9 verde |
+| ~~0.4~~ | ✅ **#92/#93/#94 mergeados** | o `UNKNOWN` era o GitHub sem recalcular depois de a main andar. ⚠️ O `label` check do #92 rodou com o labeler **v5** — em `pull_request_target` o workflow vem da base — então o v7 só é exercitado pelo PRÓXIMO PR |
 
 **Alternativa ao 0.2**, se preferir velocidade a escopo: mergear o #97 inteiro.
 Custa a limpeza do histórico e ganha meia hora.
 
-**Critério de saída:** `git log --oneline main` contém os três, e
-`tools/bt_auth_test.py` existe na `main`.
+**Critério de saída:** ✅ atingido — `main` em `d3d430f`, `tools/bt_auth_test.py` presente.
 
 ---
 
@@ -66,8 +66,8 @@ Ordem deliberada — do que não derruba o aparelho para o que derruba:
 
 | # | achado | como | ~ |
 |---|---|---|---|
-| 1.1 | **O-1** | conta com `FILE_READ` e sem `LOGS`: `/download?file=/system.blog` tem que dar **403** | 5 min |
-| 1.2 | **V-06** | `air charger 25` recusado, `air charger 17` aceito | 5 min |
+| ~~1.1~~ | ✅ **O-1** | conta `o1probe` com `perms=32` (só `FILE_READ`): `/download?file=/system.blog` → **403**. **Controle:** a mesma conta baixou `/lang/language_pt-BR.lng` → 200 (33.959 B) — o 403 é o portão, não sessão quebrada. Criada e apagada pelo `commit_all` (`users.actions`); a lista voltou aos 4 originais | feito |
+| ~~1.2~~ | ✅ **V-06** | `air charger 25` → `ERROR: air charger <0..22\|26..28\|off>`; `air charger 17` → `OK: charger sense on GP17` | feito |
 | 1.3 | **V-05** | `ap` no console publica a PSK; `nmcli dev wifi list` mostra **WPA2**; notebook entra com ela | 15 min |
 | 1.4 | **V-03** | `air_test_suite.py --only T15,T16` **contra esta imagem** | 20 min |
 | 1.5 | **V-01a** | `bt_auth_test.py --only lockout` — o lockout tem que **sobreviver a derrubar o link** | 10 min |
@@ -91,14 +91,14 @@ tabela do `IMPLEMENTACAO_2026-09-07.md` sem nenhum "não rodado".
 
 Sete, triados por **consequência**, não por esforço:
 
-### 2.1 Os quatro baratos (um dia, fecham 4 de 7)
+### 2.1 Os quatro baratos (dois já estavam fechados; sobram F10 e F14)
 
 | achado | o quê | conserto |
 |---|---|---|
 | **F10** | alarme do RTC com hora módulo 24; `h_int=1440` arma alarme que dispara na hora ou nunca | validar a faixa de `h_int` como o F09 fez com `air idle`, + teste nativo |
 | **F14** | default do pino mudou para 16 sem bump de `AIR_CONFIG_VERSION`; `air.bin` antigo mantém 255 e não há comando para trocar | bump + migração, ou comando `air pin` |
-| **F18** | comentário diz `SIMUT_CLI_FULL=1`, o env usa 0 | uma linha |
-| **F20** | `system ssid/pass` entraram no console de emergência de todas as imagens sem doc | documentar em `CLI-Manual.md` e no README |
+| ~~F18~~ | ✅ **já estava feito desde 06/09** — só a tabela não tinha sido virada; `platformio.ini` diz `=0` no bloco do Air e o env usa 0 | verificado 09/09 |
+| ~~F20~~ | ✅ **idem** — `system ssid` no README ×3 e no `CLI-Manual.md`; `check_air_consistency.py` C1–C8 limpo | verificado 09/09 |
 
 ⚠️ **F14 tem armadilha conhecida** (F27, `isFactoryDefaults`): mexer em
 `AIR_CONFIG_VERSION` quebra quem lia a versão antiga. Migração com teste.
@@ -173,9 +173,9 @@ telemetria.
 | # | item | nota |
 |---|---|---|
 | 4.1 | **PCB**: re-exportar da fonte corrigida com KiCad 10.0.6 | a `main` está nos gerbers de 06/09; a re-exportação da branch air foi descartada no merge porque vinha de fonte **sem** a correção de pinout. Conferir o pinout do display **no gerber**, não no fonte |
-| 4.2 | **Folga de flash do Air**: re-derivar o número real | o teto do PIO é só o slot de programa e não diz nada sobre o LittleFS atrás. `flash_budget.json` diz 20.584 B; a nota de 07/09 diz ~4.972 B reais. Um dos dois está errado |
+| ~~4.2~~ | ✅ **Folga real do Air: 4.972 B** — os dois números eram verdadeiros e mediam coisas diferentes | `used 1.025.600` do PIO é a **soma das seções**; o `.bin` tem **1.039.508 B**. A diferença (13.908 B) é o linker alinhando a LMA do `.data` em 4 KiB (`readelf -l`: o LOAD 1 termina em 0xfc000 e o `.data` começa ali). Folga real = `1.044.480 − fim do último LOAD` = **4.972 B**, e anda em degraus de 4 KiB: os próximos ~13,9 KB de `.text/.rodata` são de graça; passado o degrau, sobram **876 B**. O portão do `flash_budget.json` lê a linha do PIO por desenho (marca d'água, não teto) |
 | 4.3 | **`rig_validate_history_clock.py`** | afirma "nenhum registro do trecho drenado foi pulado" com `expected − seen`; registro no bloco aberto não entra em `expected`, então um pulo ali não aparece. **Falso positivo por construção.** Medir se morde; corrigir com `full_history` se sim |
-| 4.4 | **Varrer `tools/`** por quem mais lê `<dia>.h5` | dois já foram pegos (T11, T08); a terceira é a 4.3 |
+| ~~4.4~~ | ✅ Varrido: 7 leitores | `history_v5.py` é o codec; `test_webui_graph_order.py` e `test_h5_day_merge.py` usam fixture; `fsguard.py` e `h5_day_merge.py` tratam o `.wip` explicitamente (15× e 5×) — é o bloco aberto, por desenho. **Sobra só a 4.3** |
 
 ---
 
