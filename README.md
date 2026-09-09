@@ -231,6 +231,14 @@ simut/
 | `native_logpolicy` | Edge-triggered log-persistence filter (18 tests) |
 | `native_air` | SIMUT Air persistent config (`air/AirConfig.h`, 7 tests) |
 
+> **Security note for `pico_w_alpha` and `pico_w_air`:** both compile the
+> Bluetooth SPP CLI in (`SIMUT_BLUETOOTH=1`), so on those two images it is
+> live attack surface — authenticated by the **admin web password**, with an
+> exponential lockout, a discovery window that closes 5 minutes after boot,
+> and recovery commands restricted to USB. The setup access point is WPA2 on
+> every image, with a per-device key shown on the console and the display.
+> See [SECURITY.md](SECURITY.md) §2 and §8.
+
 > There is no debug environment. `pico_w_debug` was removed in v2.4.1 after never once linking: at `-Og` the image overflowed the 1020 KB app slot by ~100 KB. Flash is tight — the release image uses ~97 % of the slot — so a GDB target has to be built by cutting features. For the concurrency tripwire on hardware, use `pico_w_asserts`.
 
 ### Build Flags
@@ -270,7 +278,7 @@ python3 tools/history_v5.py --selftest --trials 200000
 | Document | Description |
 |----------|-------------|
 | [User Manual](docs/MANUAL.md) | Hardware setup, display/web/CLI guide, OTA, API reference, troubleshooting |
-| [Manual do Usuário (pt-BR)](docs/MANUAL.pt-BR.html) | Manual completo em português, com telas reais |
+| [Manual do Usuário (pt-BR)](docs/MANUAL.pt-BR.html) | Illustrated product manual with real screenshots — **depicts v2.1.10**; see [MANUAL.md](docs/MANUAL.md) for what the firmware does now |
 | [Wiring Guide](docs/WIRING.md) | Complete pinout and connection diagrams |
 | [Recovery Guide](docs/RECOVERY.md) | Brick recovery — BOOTSEL, picotool, 1200 bps reset |
 | [CLI Manual](docs/CLI-Manual.md) | Full command reference for the `pico_w_test` console (in Portuguese) |

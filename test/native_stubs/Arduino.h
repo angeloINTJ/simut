@@ -224,6 +224,22 @@ inline auto min(T a, U b) -> decltype(a < b ? a : b) { return a < b ? a : b; }
 template <typename T, typename U>
 inline auto max(T a, U b) -> decltype(a > b ? a : b) { return a > b ? a : b; }
 
+/* ── Serial ──────────────────────────────────────────────────────────────
+ * The console. Discards everything by default so a host run stays quiet, and
+ * counts what it was asked to print, which is occasionally the assertion
+ * (the setup AP publishes its WPA2 key here and nowhere else). */
+class FakeSerial {
+public:
+    unsigned writes = 0;
+    explicit operator bool( ) const { return true; }
+    template <typename... A> int printf(const char*, A...) { writes++; return 0; }
+    void println(const char* = nullptr) { writes++; }
+    void print(const char* = nullptr)   { writes++; }
+    void flush( ) {}
+    void begin(unsigned long) {}
+};
+extern FakeSerial Serial;
+
 /* ── IPAddress ────────────────────────────────────────────────────────────
  * Included last, and its toString( ) defined here, because it returns a
  * String and String is defined above in this same header. */

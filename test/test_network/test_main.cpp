@@ -37,6 +37,7 @@
 /* ── the radio, and the handful of symbols NetworkManager links against ──── */
 
 FakeWiFiClass WiFi;
+FakeSerial Serial;
 
 namespace simut_native { uint32_t fake_millis_value = 0; }
 

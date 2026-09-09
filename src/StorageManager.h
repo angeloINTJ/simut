@@ -320,6 +320,22 @@ public:
  return _h5Valid && _h5Enc.sample(i, epoch, vals);
  }
  /**
+  * @brief The same count, for the window where the open block is on flash.
+  *
+  * h5RamCount( ) answers only once recoverWipV5( ) has put the snapshot back
+  * into the encoder, and that runs late in setup( ) — after the sensors, the
+  * network and (on a SIMUT Air) after the wake has already decided whether to
+  * raise the radio. In that window the block exists, but only as
+  * /history/.wip: the day files do not have it and RAM does not have it yet,
+  * so every counter reads zero.
+  *
+  * Answers 0 once the block IS in RAM, on purpose. After a resume the
+  * snapshot is deliberately left on flash (it is the block's only copy until
+  * the next record), so adding both would count the same records twice — the
+  * encoder is the authority whenever it holds anything.
+  */
+ uint16_t h5WipPendingSince(uint32_t cursor);
+ /**
   * @brief Serialize the open block as a standalone V5 stream (§3).
   * @details A SCHEMA chunk followed by the block sealed PARTIAL — byte for
   *          byte what a one-block .h5 file looks like. That is the whole
@@ -415,8 +431,12 @@ public:
  */
  void generateInitialAdminPassword(char* outPlain, size_t bufSize);
 
- /** @return true if current config is in factory defaults —
- * i.e., admin[0] active with `mustChangePassword=true`. Calculated in real time. */
+ /** @return true when THIS boot regenerated the config from defaults: admin[0]
+ * active, `mustChangePassword=true`, and the one-time plaintext still in RAM.
+ * The plaintext is the part that dates the answer to this boot — the flag alone
+ * survives in flash (`system admin reset` sets it and saves), so on its own it
+ * would report factory defaults on every wake of an Air. Calculated in real
+ * time; the sole caller is the serial announcement in AppManager_Boot. */
  bool isFactoryDefaults( ) const;
 
  /** Size of a config file that was refused for having the wrong schema, or 0.

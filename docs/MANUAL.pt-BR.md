@@ -1,6 +1,6 @@
 # SIMUT — Manual do Usuário
 
-**Firmware:** v2.3.2-beta · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **Licença:** MIT
+**Firmware:** v2.3.9-beta · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **Licença:** MIT
 **Repositório:** https://github.com/angeloINTJ/simut
 
 [English](MANUAL.md) | **Português**
@@ -9,8 +9,15 @@
 > instrumento metrológico certificado. Não faça dele o único controle de um
 > armazenamento regulado sem validá-lo contra a sua própria referência.
 
-Tudo o que está abaixo foi conferido contra um dispositivo rodando a
-v2.3.2-beta. Onde um número é citado, ele foi medido e não estimado; onde o
+**Três builds compartilham este manual.** A maior parte dele descreve o build
+*release* — o do display touch. Duas variantes diferem, e cada uma está marcada
+onde difere: o build **alpha** conduz um LCD de caracteres 16×2 no lugar, e o
+**SIMUT Air** não tem display nenhum e passa a maior parte da vida dormindo com
+bateria. A §17 é sobre o Air; as diferenças do alpha estão anotadas ao longo do
+texto.
+
+Tudo o que está abaixo foi conferido contra um dispositivo rodando. Onde um
+número é citado, ele foi medido e não estimado; onde o
 comportamento não foi testado ou é sabidamente incompleto, o texto diz isso em
 vez de se calar.
 
@@ -34,6 +41,7 @@ vez de se calar.
 14. [Recuperação](#14-recuperação)
 15. [Especificações](#15-especificações)
 16. [Referência da API HTTP](#16-referência-da-api-http)
+17. [SIMUT Air — o build a bateria](#17-simut-air--o-build-a-bateria)
 
 ---
 
@@ -52,6 +60,25 @@ nunca lhe tenham dado um.
 sensoriamento redundante e não guarda um segundo slot de firmware para o qual
 recuar. As seções abaixo são explícitas sobre cada um desses limites onde eles
 importam.
+
+### Os três builds
+
+A mesma árvore de fontes produz três imagens. Elas compartilham o modelo de
+sensores, o formato do histórico, a interface web e as permissões; o que muda é
+o que está ligado e quanto tempo o aparelho fica acordado.
+
+| Build | Display | Acordado | Para quê |
+|---|---|---|---|
+| **release** (`pico_w_release`) | TFT touch 320×240 | sempre | instalações na tomada, com alguém em frente ao aparelho |
+| **alpha** (`pico_w_alpha`) | LCD de caracteres 16×2 | sempre | o mesmo, em hardware mais barato; ganha console Bluetooth e modo AP pelo próprio aparelho |
+| **Air** (`pico_w_air`) | nenhum | ~13% do tempo | instalações a bateria que reportam e voltam a dormir — ver §17 |
+
+O build alpha alterna os slots de sensor nas duas linhas do LCD, mostra o
+progresso do boot como uma barra, e carrega um console Bluetooth porque não tem
+painel touch por onde entrar em modo AP. O Bluetooth dele fica **descobrível
+por cinco minutos após o boot** e não mais, então uma unidade sem ninguém por
+perto para de se anunciar; um celular já pareado continua conectando, e
+reiniciar reabre a janela para parear outro.
 
 ### O projeto em um parágrafo
 
@@ -734,16 +761,33 @@ interface de configuração. A configuração vive na interface web.
 | `system format` | Apaga o sistema de arquivos |
 | `system https off` | Desabilita o HTTPS (apaga o par de certificados) e cai para HTTP |
 | `system factory` | Restaura os padrões de fábrica |
+| `system ssid <nome>` | Define o nome da rede Wi-Fi — **salvo na hora** |
+| `system pass <senha>` | Define a senha do Wi-Fi — **salva na hora** |
+| `ap` | Sobe o ponto de acesso de configuração — **WPA2**, chave impressa neste console |
 | `reload` | Reinicia |
 | `help` | Lista estes |
 
-Comandos destrutivos exigem `confirm` como palavra final.
+Os dois comandos de Wi-Fi são como se move uma unidade sem display para outra
+rede: defina os dois e depois `reload confirm` para reconectar.
 
-> **As mudanças feitas aqui não persistem.** O console de emergência não tem
-> `write memory`, então tudo o que ele altera vale para a sessão em execução e
-> some no próximo reboot. O `system admin reset`, em particular, entrega uma
-> senha *só para este boot* — tempo suficiente para entrar e definir uma de
-> verdade pela interface web.
+Comandos destrutivos exigem `confirm` como palavra final, e quatro deles —
+`system factory`, `system format`, `system admin reset` e `system https off` —
+são **recusados pelo Bluetooth**. São recuperações, e uma recuperação alcançável
+pelo rádio só ajuda quem já entrou.
+
+> **A maioria das mudanças feitas aqui não persiste.** O console de emergência
+> não tem `write memory`, então o que ele altera vale para a sessão em execução
+> e some no próximo reboot. O `debug on` é o caso em que isso é de propósito.
+>
+> **Três comandos são exceção e salvam na hora:** `system ssid`, `system pass` e
+> `system admin reset`. Os de rede sempre salvaram; o reset de senha não salvava
+> até esta versão, e num SIMUT Air — onde todo wake é um boot — a senha que ele
+> imprimia expirava cerca de um minuto depois, o que fazia a única recuperação
+> de uma web trancada não recuperar nada. Agora ele grava na flash antes de
+> imprimir, e diz `NAO SALVOU: vale so ate reiniciar` se a gravação falhar.
+
+A senha impressa é aleatória, 8 caracteres de um alfabeto sem O/0 e I/1,
+mostrada **uma única vez**. O login web seguinte é forçado a trocá-la.
 
 Este console substituiu um de 56 comandos na v1.5.6-beta. Os comandos que foram
 cortados já tinham equivalentes na web, e removê-los devolveu 44,5 KB de flash.
@@ -759,8 +803,14 @@ Referência completa: [CLI-Manual.md](CLI-Manual.md) *(em português)*.
 
 ### Bluetooth
 
-Manuais anteriores documentavam um console Bluetooth. **Ele não é compilado no
-firmware de release** — o `BluetoothManager.cpp` está excluído do build.
+**Não existe no firmware de release** — o `BluetoothManager.cpp` está excluído
+daquele build. Ele **é** compilado nas imagens **alpha** e **Air**, onde não há
+painel touch por onde iniciar o modo AP, e autentica com a senha web do admin.
+
+Esse console tem o mesmo lockout exponencial do login web — 2 s depois da
+primeira senha errada, dobrando até um teto de 300 s — mantido na RAM, então
+derrubar e reabrir o enlace não zera nada. A descoberta fecha cinco minutos
+depois do boot. Dos comandos de recuperação, só o `ap` é permitido pelo enlace.
 
 ---
 
@@ -768,7 +818,7 @@ firmware de release** — o `BluetoothManager.cpp` está excluído do build.
 
 | Sintoma | O que fazer |
 |---|---|
-| Esqueci a senha de admin | `system admin reset confirm` pela serial, depois entre com a senha impressa e defina uma nova pela interface web |
+| Esqueci a senha de admin | `system admin reset confirm` pela **serial USB** (o comando é recusado pelo Bluetooth), depois entre com a senha impressa — a web obriga a trocá-la. Desde esta versão o reset sobrevive a um reboot, então não há pressa |
 | Responde na serial mas não na rede | `show net status` — sem IP, reconfigure o Wi-Fi pelo display |
 | Tela em branco depois de ajustar o offset do display | Corrigido na v1.6.2-beta. Em firmwares mais antigos, um reset de fábrica limpa o offset armazenado |
 | A atualização reportou sucesso mas a versão não mudou | O defeito do aplicador descrito na §12. Grave a v1.6.2-beta pelo USB |
@@ -895,6 +945,109 @@ Permissões entre colchetes.
 |---|---|---|
 | `/api/screenshot` | GET | BMP 320×240 de 24 bits lido do painel |
 | `/api/screenshot_chunk` | GET | Um bloco de 16 linhas com um CRC32, para transferência verificável |
+
+---
+
+## 17. SIMUT Air — o build a bateria
+
+O `pico_w_air` é o mesmo firmware com o display compilado fora e um ciclo de
+hibernação acrescentado. Ele é para um lugar sem tomada e sem ninguém por
+perto: acorda no relógio, lê os sensores, grava a leitura na flash e volta a
+dormir. Só liga o rádio quando tem leituras suficientes para valer o envio.
+
+> **Experimental.** O ciclo e os números de energia foram medidos na bancada,
+> não numa instalação de campo. Nada disso é certificado, e o consumo citado
+> abaixo é aritmética sobre medições de **tempo**, não uma medição de corrente.
+
+### Dois modos
+
+| | **M0 — operacional** | **M1 — o ciclo** |
+|---|---|---|
+| Rádio | ligado | só num wake de telemetria |
+| Servidor web | rodando | **não sobe** |
+| Bluetooth, mDNS | rodando | não sobem |
+| Console serial | completo | responde, mas a janela é de segundos |
+| Termina quando | o `air idle` expira sem atividade | você roda `air stop`, ou o carregador é detectado |
+
+Um **boot limpo** — energia aplicada, RUN, `reload`, um OTA — é lido como
+*tem gente ali* e cai em M0 com o `air idle` inteiro para trabalhar. Um boot que
+veio da hibernação volta direto para o ciclo.
+
+### Comandos
+
+| Comando | O que faz |
+|---|---|
+| `air status` | Uma linha: fase, período do wake, intervalo do histórico, ocioso, armado, telemetria pendente, rádio, carregador, bateria |
+| `air hibernate` (`air sleep`) | Arma o ciclo e entra nele agora |
+| `air stop` (`air wake`) | Cancela o ciclo, volta a M0, desarma na flash |
+| `air idle <10..65535>` | Segundos de silêncio em M0 antes de hibernar sozinho |
+| `air charger <0..29 \| off>` | GPIO que fica em nível alto quando o carregador está ligado |
+
+O `air status` se lê assim:
+
+```
+Air: phase=0 wake=60s hist=60s backoff=0s idle=300s armed=1 dirty=0
+     tel=31/5 skip=0 radio=1 chg=0 bat=50 cyc=4038ms wip=1
+```
+
+`phase=0` é M0. `armed=1` quer dizer que o ciclo está registrado na flash e vai
+retomar sozinho depois de um reset — isso é de propósito, para que uma unidade
+que reinicia em campo não fique acordada até a bateria acabar. `tel=31/5` são 31
+registros esperando contra um lote mínimo de 5.
+
+### Quanto custa um wake
+
+Medido no rig com intervalo de histórico de 60 s e um DS18B20 a 12 bits:
+
+| | |
+|---|---|
+| Wake só de leitura | **9,31 s** — dos quais 6,83 s são o tempo de conversão do próprio sensor |
+| Wake com telemetria | ~12,7 s |
+| Dormindo | ~51 s |
+| Período medido | 60,5–60,6 s contra um ajuste de 60 s |
+| Ciclo útil | ~13% |
+
+Contra as correntes de bancada (25 mA lendo, 80 mA transmitindo, 2 mA dormindo),
+uma leitura por minuto e telemetria a cada quinto wake, isso dá cerca de
+**8,2 mA médios e 17 dias num 18650 de 3400 mAh** — aritmética, não medição.
+
+**Para onde vai o tempo.** Dois terços de um wake são a janela de média de dez
+amostras enchendo do zero, e o DS18B20 leva 750 ms por conversão a 12 bits.
+Reduzir o `MOVING_AVG_WINDOW` ou a resolução do sensor é a alavanca que resta, e
+as duas mudam o número gravado, então nenhuma foi aplicada por você.
+⚠️ Note também que o driver hoje espera 750 ms fixos seja qual for a resolução
+configurada, então **baixar a resolução agora custa precisão e não devolve
+tempo** enquanto essa espera não seguir o ajuste.
+
+### Coisas que surpreendem
+
+- **Ele some do USB enquanto dorme.** O deep sleep desconecta o dispositivo. Uma
+  porta que desaparece no meio de um comando é o ciclo funcionando, não uma
+  queda.
+- **A web só existe em M0.** Um wake não sobe o listener, então
+  `http://<ip>/` recusa a conexão na maior parte de cada minuto. Rode `air stop`
+  pela serial antes, ou pegue um boot limpo.
+- **Só requisição autenticada segura o aparelho acordado.** Um poll anônimo tem
+  orçamento de três extensões por boot e nada além disso, então uma sonda de
+  monitoramento não consegue manter uma unidade a bateria de pé para sempre.
+  Estar logado rearma o ocioso a cada requisição, que é o que dá janela ao
+  operador.
+- **O carregador cancela o ciclo.** Um wake que encontra o pino configurado em
+  nível alto sobe M0 completo em vez disso. O ciclo continua armado na flash,
+  então desconectar e deixar o `air idle` expirar devolve o aparelho ao sono sem
+  nada para reativar.
+- **Um wake grava um registro de log, não oito.** Os oito registros de init do
+  boot são suprimidos num wake — eles descrevem um boot que já aconteceu — e um
+  boot frio continua gravando todos, mais o `APP_AIR_COLD_BOOT`. Se esse código
+  aparecer em campo, o aparelho perdeu energia.
+
+### Telemetria a bateria
+
+O gatilho é **quantidade**, não tempo. O `t_int` é o lote mínimo: o rádio fica
+desligado até haver essa quantidade de registros esperando. O `t_bat` limita
+quantos vão num envio. Com `t_int=5` e uma leitura por minuto, sete de cada oito
+wakes não ligam o rádio — que é o ponto, já que o rádio é a coisa mais cara que
+um wake pode fazer.
 
 ---
 

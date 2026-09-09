@@ -25,6 +25,7 @@
 #include "SystemDefs_Validate.h"
 #include "ParseFloat.h"
 #include "SystemDefs_Time.h"
+#include "SystemDefs_Network.h"  /* authLockoutMs — shared auth lockout backoff */
 #include <cmath>      /* isnan, NAN para floatToI16 */
 #include "SystemDefs_Logging.h"  /* tagStringToId — B1/B2 */
 #include "sensors/SensorChannelTable.h" /* channel table integrity */
@@ -32,6 +33,7 @@
 #include "WebJsonSlice.h"               /* depth-aware JSON slicing */
 #include "WebCommitSections.h"          /* per-section authz for /api/commit_all */
 #include "FsSecretPath.h"               /* /config download guard (A-4) */
+#include "ApPsk.h"                     /* setup-AP key derivation (V-05) */
 #include "HaDiscovery.h"                /* Home Assistant MQTT Discovery formatters */
 #include "B64Decode.h"                  /* Basic-auth base64 decoder (strict) */
 #include "PromMetrics.h"                /* Prometheus text exposition formatters */
@@ -1319,6 +1321,203 @@ void test_pwpolicy_rejects_weak(void) {
 
 
 /* ===========================================================================
+ *  hwId AS A KEY — isValidHwId (finding O-2)
+ *
+ *  An hwId is not free text. It is a JSON string in /api/status, the column
+ *  header of the telemetry CSV, and a field name in the telemetry JSON. The
+ *  old check was isValidCfgString, which only refuses control bytes, so `X\`
+ *  was a legal ID: the dashboard stopped parsing for every user of the device
+ *  AND the collector wrote a corrupt payload to disk, from one edit, with
+ *  nothing naming the cause.
+ * =========================================================================== */
+void test_hwid_accepts_real_ids(void) {
+    TEST_ASSERT_TRUE(isValidHwId("DHT2202"));      /* the auto-generated form */
+    TEST_ASSERT_TRUE(isValidHwId("28FF0A1B"));     /* a DS18B20 ROM prefix */
+    TEST_ASSERT_TRUE(isValidHwId("sala_2"));
+    TEST_ASSERT_TRUE(isValidHwId("probe-A"));
+    TEST_ASSERT_TRUE(isValidHwId("X"));            /* one char is enough */
+    TEST_ASSERT_TRUE(isValidHwId("123456789012345"));   /* exactly 15 */
+}
+
+void test_hwid_rejects_key_breakers(void) {
+    TEST_ASSERT_FALSE(isValidHwId(NULL));
+    TEST_ASSERT_FALSE(isValidHwId(""));                  /* empty */
+    TEST_ASSERT_FALSE(isValidHwId("1234567890123456"));  /* 16 */
+    TEST_ASSERT_FALSE(isValidHwId("a\\b"));              /* escapes the quote */
+    TEST_ASSERT_FALSE(isValidHwId("a\"b"));              /* closes the string */
+    TEST_ASSERT_FALSE(isValidHwId("a,b"));               /* splits the CSV row */
+    TEST_ASSERT_FALSE(isValidHwId("a.b"));               /* topic separator */
+    TEST_ASSERT_FALSE(isValidHwId("a b"));
+    TEST_ASSERT_FALSE(isValidHwId("a;b"));
+    TEST_ASSERT_FALSE(isValidHwId("a\nb"));
+}
+
+/* ===========================================================================
+ *  LANGUAGE-PACK IDENTITY — langIdentSanitize (V-04)
+ *
+ *  @NAME and @CODE come out of an uploaded file and land in /api/perms, the
+ *  first request every page of the UI makes. A quote there took the entire
+ *  interface down, and it survived reboots because a pack is only read at boot.
+ * =========================================================================== */
+void test_langident_strips_json_breakers(void) {
+    char out[16];
+    langIdentSanitize("Po\"rt\\ugu", 10, out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("Portugu", out);
+}
+
+void test_langident_keeps_legitimate_names(void) {
+    char out[32];
+    /* UTF-8 stays: the real pack is named "Portugues (Brasil)" with accents,
+     * and JSON carries those bytes without escaping. */
+    const char* src = "Portugu\xc3\xaas (Brasil)";
+    langIdentSanitize(src, strlen(src), out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING(src, out);
+}
+
+void test_langident_terminates_and_respects_cap(void) {
+    char out[4];
+    memset(out, 'X', sizeof(out));
+    langIdentSanitize("abcdefgh", 8, out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("abc", out);          /* truncated, terminated */
+
+    /* An all-bad input must produce an empty string, not leave the buffer as
+     * it found it — the caller prints whatever is there. */
+    char out2[8];
+    memset(out2, 'X', sizeof(out2));
+    langIdentSanitize("\"\"\"", 3, out2, sizeof(out2));
+    TEST_ASSERT_EQUAL_STRING("", out2);
+
+    /* Zero cap must not write. Nothing to assert but the absence of a crash;
+     * ASAN in the fuzz job is what actually watches this one. */
+    langIdentSanitize("abc", 3, out2, 0);
+}
+
+/* ===========================================================================
+ *  /download PER-PATH PERMISSIONS — downloadPermFor (finding O-1)
+ *
+ *  The near-misses are the point: a prefix rule that also matched
+ *  "/historyx/" or a suffix rule that matched "system.blog.bak" would gate
+ *  the wrong files, and a rule that missed "/HISTORY/" would gate none of
+ *  them on a filesystem that does not care about case.
+ * =========================================================================== */
+void test_download_perm_gates_history_and_logs(void) {
+    TEST_ASSERT_EQUAL_UINT16(PERM_HISTORY, downloadPermFor("/history/2026-09-07.h5"));
+    TEST_ASSERT_EQUAL_UINT16(PERM_HISTORY, downloadPermFor("history/2026-09-07.h5"));
+    TEST_ASSERT_EQUAL_UINT16(PERM_HISTORY, downloadPermFor("/HISTORY/day.h5"));
+    TEST_ASSERT_EQUAL_UINT16(PERM_LOGS,    downloadPermFor("/system.blog"));
+    TEST_ASSERT_EQUAL_UINT16(PERM_LOGS,    downloadPermFor("/system.old.blog"));
+    TEST_ASSERT_EQUAL_UINT16(PERM_LOGS,    downloadPermFor("/SYSTEM.BLOG"));
+}
+
+void test_download_perm_leaves_ordinary_files_alone(void) {
+    TEST_ASSERT_EQUAL_UINT16(0, downloadPermFor("/calib.csv"));
+    TEST_ASSERT_EQUAL_UINT16(0, downloadPermFor("/lang/language_pt-BR.lng"));
+    TEST_ASSERT_EQUAL_UINT16(0, downloadPermFor("/themes/dark.thm"));
+    TEST_ASSERT_EQUAL_UINT16(0, downloadPermFor("/historyx/f.h5"));   /* not history */
+    TEST_ASSERT_EQUAL_UINT16(0, downloadPermFor("/system.blog.bak")); /* not a log */
+    TEST_ASSERT_EQUAL_UINT16(0, downloadPermFor("/blog"));
+}
+
+/* ===========================================================================
+ *  SETUP-AP KEY — apPskFromDigest (finding V-05)
+ *
+ *  The setup access point used to be open, so anyone in radio range reached
+ *  the captive portal of a device whose Wi-Fi had just failed. It is WPA2 now,
+ *  with a key derived from the board id.
+ *
+ *  The failure that matters here is not a weak key, it is a SHORT one: WPA2
+ *  refuses a passphrase under 8 characters, and beginAP falls back to an open
+ *  AP when it has no key — so a helper that quietly emitted a truncated string
+ *  would restore the exact finding while looking like the fix.
+ * =========================================================================== */
+void test_ap_psk_shape(void) {
+    uint8_t digest[32];
+    for (size_t i = 0; i < sizeof(digest); i++) digest[i] = (uint8_t)(i * 7 + 3);
+    char psk[AP_PSK_LEN + 1];
+
+    TEST_ASSERT_TRUE(apPskFromDigest(digest, sizeof(digest), psk, sizeof(psk)));
+    TEST_ASSERT_EQUAL_size_t(AP_PSK_LEN, strlen(psk));
+    TEST_ASSERT_TRUE(AP_PSK_LEN >= 8 && AP_PSK_LEN <= 63);   /* what WPA2 accepts */
+    for (size_t i = 0; i < AP_PSK_LEN; i++)
+        TEST_ASSERT_NOT_NULL(strchr(AP_PSK_ALPHABET, psk[i]));
+
+    /* Deterministic: the key is printed on a label and must survive a reboot
+     * and a factory reset, because the board id does. */
+    char again[AP_PSK_LEN + 1];
+    TEST_ASSERT_TRUE(apPskFromDigest(digest, sizeof(digest), again, sizeof(again)));
+    TEST_ASSERT_EQUAL_STRING(psk, again);
+
+    /* And it follows the digest, or every board would ship the same key. */
+    digest[0] ^= 0xFF;
+    TEST_ASSERT_TRUE(apPskFromDigest(digest, sizeof(digest), again, sizeof(again)));
+    TEST_ASSERT_TRUE(strcmp(psk, again) != 0);
+}
+
+void test_ap_psk_refuses_rather_than_truncates(void) {
+    uint8_t digest[32];
+    memset(digest, 0x5A, sizeof(digest));
+    char psk[AP_PSK_LEN + 1];
+
+    /* Buffer too small: empty string and false, never a short key. */
+    memset(psk, 'X', sizeof(psk));
+    TEST_ASSERT_FALSE(apPskFromDigest(digest, sizeof(digest), psk, AP_PSK_LEN));
+    TEST_ASSERT_EQUAL_STRING("", psk);
+
+    /* Not enough digest bytes: same answer. */
+    memset(psk, 'X', sizeof(psk));
+    TEST_ASSERT_FALSE(apPskFromDigest(digest, AP_PSK_LEN - 1, psk, sizeof(psk)));
+    TEST_ASSERT_EQUAL_STRING("", psk);
+
+    /* Null inputs must not write or crash. */
+    TEST_ASSERT_FALSE(apPskFromDigest(NULL, 32, psk, sizeof(psk)));
+    TEST_ASSERT_FALSE(apPskFromDigest(digest, sizeof(digest), NULL, 16));
+    TEST_ASSERT_FALSE(apPskFromDigest(digest, sizeof(digest), psk, 0));
+}
+
+/* ===========================================================================
+ *  AUTHENTICATION LOCKOUT — authLockoutMs (SystemDefs_Network.h)
+ *
+ *  Shared by the web login and the Bluetooth CLI. The backoff itself is
+ *  unremarkable; what these tests exist for is the ceiling, because the
+ *  version this replaced computed `(1U << failCount) * 1000` and clamped the
+ *  PRODUCT afterwards. That holds up to 28 and then fails open: at 29, 30 and
+ *  31 the multiplication wraps to exactly zero (2^29 * 1000 = 125 * 2^32), so
+ *  the penalty was zero milliseconds and the attacker who sat through the
+ *  escalation was handed free attempts; past 31 the shift is undefined.
+ *
+ *  test_lockout_never_falls_below_the_ceiling is that regression, and it is
+ *  written over the whole uint8_t domain rather than the three known-bad
+ *  values: an off-by-one in the cap would move the cliff, not remove it.
+ * =========================================================================== */
+void test_lockout_backoff_doubles(void) {
+    TEST_ASSERT_EQUAL_UINT32(2000u,   authLockoutMs(1));
+    TEST_ASSERT_EQUAL_UINT32(4000u,   authLockoutMs(2));
+    TEST_ASSERT_EQUAL_UINT32(8000u,   authLockoutMs(3));
+    TEST_ASSERT_EQUAL_UINT32(256000u, authLockoutMs(8));
+}
+
+void test_lockout_reaches_and_holds_the_ceiling(void) {
+    /* 1<<9 = 512 s, already past the 300 s ceiling. */
+    TEST_ASSERT_EQUAL_UINT32(AUTH_LOCKOUT_MAX_MS, authLockoutMs(9));
+    TEST_ASSERT_EQUAL_UINT32(AUTH_LOCKOUT_MAX_MS, authLockoutMs(AUTH_FAIL_CAP));
+    TEST_ASSERT_EQUAL_UINT32(AUTH_LOCKOUT_MAX_MS, authLockoutMs(AUTH_FAIL_CAP + 1));
+    TEST_ASSERT_EQUAL_UINT32(AUTH_LOCKOUT_MAX_MS, authLockoutMs(255));
+}
+
+void test_lockout_never_falls_below_the_ceiling(void) {
+    /* Zero failures is the only input allowed to produce a short delay. */
+    for (unsigned fc = 9; fc <= 255; fc++) {
+        TEST_ASSERT_EQUAL_UINT32(AUTH_LOCKOUT_MAX_MS, authLockoutMs((uint8_t)fc));
+    }
+    /* And nothing in the whole domain may produce zero, which is what the
+     * overflow did: a zero penalty reads as "not locked" at every call site. */
+    for (unsigned fc = 0; fc <= 255; fc++) {
+        TEST_ASSERT_TRUE(authLockoutMs((uint8_t)fc) > 0u);
+    }
+}
+
+
+/* ===========================================================================
  *  BOOLEANOS DO /api/commit_all — parseBoolStrict + jsonValuePos/RawToken/Flag
  *
  *  O achado: quatro campos do `sys` e dois do `net` liam booleano com
@@ -1942,6 +2141,24 @@ int main(int /*argc*/, char** /*argv*/) {
     /* passwordPolicyOk — server-side strength floor (A-5) */
     RUN_TEST(test_pwpolicy_accepts_strong);
     RUN_TEST(test_pwpolicy_rejects_weak);
+
+    /* Authentication lockout — shared by web login and the Bluetooth CLI */
+    RUN_TEST(test_lockout_backoff_doubles);
+    RUN_TEST(test_lockout_reaches_and_holds_the_ceiling);
+    RUN_TEST(test_lockout_never_falls_below_the_ceiling);
+
+    /* hwId as a key, language-pack identity, per-path /download permissions */
+    RUN_TEST(test_hwid_accepts_real_ids);
+    RUN_TEST(test_hwid_rejects_key_breakers);
+    RUN_TEST(test_langident_strips_json_breakers);
+    RUN_TEST(test_langident_keeps_legitimate_names);
+    RUN_TEST(test_langident_terminates_and_respects_cap);
+    RUN_TEST(test_download_perm_gates_history_and_logs);
+    RUN_TEST(test_download_perm_leaves_ordinary_files_alone);
+
+    /* Setup-AP key */
+    RUN_TEST(test_ap_psk_shape);
+    RUN_TEST(test_ap_psk_refuses_rather_than_truncates);
 
     /* HaDiscovery — Home Assistant MQTT Discovery formatters */
     RUN_TEST(test_ha_sanitize_id);

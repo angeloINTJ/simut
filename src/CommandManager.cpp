@@ -111,6 +111,7 @@ bool CommandManager::processInput(CliDemand &demandOut) {
  _lastRawInput = _usbBuffer;
  _lastFromBt = false; /* USB origin */
  demandOut = parseCommand(_usbBuffer);
+ demandOut.fromBt = false;
  _usbBuffer = "";
  return true;
  }
@@ -134,6 +135,7 @@ bool CommandManager::processInput(CliDemand &demandOut) {
  _lastRawInput = _btBuffer;
  _lastFromBt = true; /* authenticated BT origin */
  demandOut = parseCommand(_btBuffer);
+ demandOut.fromBt = true;
  _btBuffer = "";
  return true;
  }

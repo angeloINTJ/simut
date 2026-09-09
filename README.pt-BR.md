@@ -229,6 +229,14 @@ simut/
 | `native_logpolicy` | Filtro de persistência de logs edge-triggered (18 testes) |
 | `native_air` | Config persistente do SIMUT Air (`air/AirConfig.h`, 7 testes) |
 
+> **Nota de segurança para `pico_w_alpha` e `pico_w_air`:** as duas compilam o
+> CLI Bluetooth SPP (`SIMUT_BLUETOOTH=1`), então nessas duas imagens ele é
+> superfície de ataque real — autenticado pela **senha do admin da web**, com
+> lockout exponencial, janela de descoberta que fecha 5 minutos depois do boot
+> e comandos de recuperação restritos à USB. O AP de setup é WPA2 em todas as
+> imagens, com chave por aparelho mostrada no console e no display.
+> Ver [SECURITY.md](SECURITY.md) §2 e §8.
+
 > Não há ambiente de depuração. O `pico_w_debug` foi removido na v2.4.1 depois de nunca ter linkado: em `-Og` a imagem estourava o slot de 1020 KB em ~100 KB. A flash é apertada — a imagem release usa ~97 % do slot — então um alvo de GDB precisa ser montado cortando funcionalidades. Para o tripwire de concorrência no hardware, use `pico_w_asserts`.
 
 ### Flags de build
@@ -267,7 +275,7 @@ python3 tools/history_v5.py --selftest --trials 200000
 
 | Documento | Descrição |
 |----------|-------------|
-| [Manual do Usuário (pt-BR)](docs/MANUAL.pt-BR.html) | Manual completo em português, com telas reais |
+| [Manual do Usuário (pt-BR)](docs/MANUAL.pt-BR.html) | Manual ilustrado com telas reais — **retrata a v2.1.10**; para o que o firmware faz hoje, veja o [MANUAL.pt-BR.md](docs/MANUAL.pt-BR.md) |
 | [User Manual (EN)](docs/MANUAL.md) | Montagem, display/web/CLI, OTA, referência da API, troubleshooting |
 | [Guia de Fiação](docs/WIRING.md) | Pinagem completa e diagramas de ligação |
 | [Guia de Recuperação](docs/RECOVERY.md) | Recuperação de brick — BOOTSEL, picotool, reset 1200 bps |

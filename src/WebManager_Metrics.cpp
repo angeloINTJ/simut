@@ -69,6 +69,12 @@ int WebManager::metricsAuthPerms( ) {
 		return 0;
 	}
 
+	/* Valid Basic credentials are an authenticated request like any other, so
+	 * this branch holds the device awake (V-03): a Prometheus scraper polling
+	 * /metrics is a real user of the device and must not be hibernated out
+	 * from under. The failure branch above deliberately does not. */
+	if (_activityCb) _activityCb( );
+
 	SystemConfig& cfg = _storageRef->getConfig( );
 	return (int)cfg.users[foundId].permissions;
 }

@@ -156,7 +156,18 @@
   @media print{ .tftgrid{grid-template-columns:repeat(3,1fr)} body{font-size:13px} }
 </style>
 
-<div style="background:#8a6d1a;color:#fff;padding:10px 16px;font-family:sans-serif;font-size:14px;border-radius:6px;margin:8px">📌 Este manual retrata a v2.1.10 (14/08/2026). O firmware atual é a v2.3.2-beta: as telas da interface web mudaram na linha 2.3.x (HTTPS, tema escuro sem piscada) e o teto de lote da telemetria subiu de 50 para 250. Para o estado atual, consulte o MANUAL.md (inglês).</div>
+<div style="background:#8a6d1a;color:#fff;padding:12px 18px;font-family:sans-serif;font-size:14px;line-height:1.55;border-radius:6px;margin:8px">
+<b>📌 Este manual retrata a v2.1.10 (14/08/2026), e as telas são daquela versão.</b> O firmware atual é a <b>v2.3.9-beta</b>. O que existe hoje e não está descrito aqui:
+<ul style="margin:8px 0 4px;padding-left:20px">
+<li><b>SIMUT Air</b> — build sem display, com ciclo de hibernação em deep sleep para instalações a bateria: acorda ~9 s por minuto, grava a leitura e volta a dormir (~13% de ciclo útil). Comandos <code>air status/hibernate/stop/idle/charger</code>.</li>
+<li><b>Build alpha</b> — LCD de caracteres 16×2, console Bluetooth e modo AP pelo próprio aparelho.</li>
+<li><b>Segurança</b> — AP de configuração em WPA2 com chave por dispositivo, descoberta Bluetooth fechando 5 min após o boot, lockout exponencial também no Bluetooth, recuperações (<code>system factory/format/admin reset/https off</code>) só pela USB, e <code>system admin reset</code> que agora sobrevive ao reboot.</li>
+<li><b>Interface web</b> — HTTPS ponta a ponta, keep-alive por padrão, tema escuro sem piscada, e a página abre no idioma instalado.</li>
+<li><b>Integrações</b> — <code>/metrics</code> Prometheus, Home Assistant MQTT Discovery e log em syslog RFC 5424.</li>
+<li><b>Telemetria</b> — lote de até 250 registros por envio e gatilho por quantidade de registros pendentes.</li>
+</ul>
+Para o estado atual, consulte o <a href="MANUAL.pt-BR.md" style="color:#fff;text-decoration:underline">MANUAL.pt-BR.md</a> (português) ou o <a href="MANUAL.md" style="color:#fff;text-decoration:underline">MANUAL.md</a> (inglês) — a §17 é sobre o SIMUT Air.
+</div>
 
 <div class="wrap">
 
@@ -839,7 +850,7 @@ picocom -b 115200 /dev/ttyACM0
  Dispositivo: <span class="hl">simut</span>
  Firmware: <span class="hl">2.1.10</span>
  Serial: E6642815E34C1824
- WiFi SSID: ProcrastinationPLUS
+ WiFi SSID: &lt;SSID da bancada&gt;
  Fuso: GMT-3 · NTP: pool.ntp.org · Logging: ATIVO
 
 <span class="p">SIMUT&gt;</span> show net status

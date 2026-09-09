@@ -54,6 +54,46 @@ inline bool isSecretFsPath(const String& path) {
 	return l.startsWith(DIR_CONFIG "/");
 }
 
+/* Same standalone-header trick as DIR_CONFIG above: normally these come from
+ * SystemDefs_Limits.h, which pulls the sensor headers with it. Defined here
+ * too so the host test can call downloadPermFor without them; the #ifndef
+ * keeps the firmware build's single definition authoritative. */
+#ifndef PERM_HISTORY
+#define PERM_HISTORY 0x0002
+#endif
+#ifndef PERM_LOGS
+#define PERM_LOGS 0x0004
+#endif
+
+/**
+ * @brief Extra permission bit /download must require for `path`, or 0.
+ *
+ * Finding O-1 (decision D-5). PERM_FILE_READ was the whole gate, so an account
+ * given "read files" and nothing else could pull any .h5 under /history and the forensic
+ * log — the two datasets the users page presents as separate, revocable
+ * permissions. The bit that says "may read files" must not silently mean "may
+ * read every file", or the other two bits are decoration.
+ *
+ * /config is not here on purpose: it is refused outright by isSecretFsPath,
+ * whatever bits the caller holds.
+ *
+ * Pure, so the host test can enumerate it — the interesting cases are the ones
+ * that look adjacent: "/historyx/f.h5" is not history, and "system.blog.bak"
+ * is not a log.
+ */
+inline uint16_t downloadPermFor(const String& path) {
+	String l = path;
+	l.toLowerCase( );
+	if (!l.startsWith("/")) {
+		String tmp = "/";
+		tmp += l.c_str( );
+		l = tmp;
+	}
+	if (l.startsWith("/history/")) return PERM_HISTORY;
+	if (l.endsWith(".blog")) return PERM_LOGS;
+	return 0;
+}
+
 /**
  * @brief True for the /config directory itself or any path under it.
  *

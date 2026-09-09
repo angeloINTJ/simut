@@ -188,9 +188,24 @@ bool AppManager::airOnCharger( ) const {
 #endif
 }
 
+/* The wake's version of TelemetryManager::telemetryDue( ), with one term the
+ * mains path does not need: the sample this wake has not taken yet.
+ *
+ * The decision is made in setup( ), before the cycle reaches DECIDE, so the
+ * count it reads is always one short of what the queue will hold by the time
+ * the radio would be used — and a wake never skips its reading, so that record
+ * is not a guess. Without the term, t_int is off by one wake in the direction
+ * that costs the most: t_int=1 ("send every reading") sent on every OTHER wake,
+ * because the wake right after a send saw an empty queue.
+ *
+ * Erring early rather than late is also the cheap direction. A wake that raises
+ * the radio one reading early sends a batch one short; a wake that raises it
+ * late leaves the operator's cadence quietly stretched. */
 bool AppManager::airTelemetryDue( ) const {
  if (_airSkipWakes > 0) return false;          /* still serving a failed wake's penalty */
- return _telemetryMgr->telemetryDue( );        /* pending >= minimum batch (0 = off) */
+ const uint32_t minBatch = _storageMgr->getConfig( ).telInterval;
+ if (minBatch == 0) return false;              /* telemetry off */
+ return (uint32_t)_telemetryMgr->getPendingEstimate( ) + 1UL >= minBatch;
 }
 
 /* Reset the M0 inactivity timer. Any serial/BT command or web request lands
@@ -306,6 +321,12 @@ void AppManager::airLoop( ) {
  case AIR_PHASE_WARMUP: {
   airSensorPower(_airCfg.sensorPowerPin, true);
   airSetLed(true);
+  /* From here to DECIDE the sensors read back to back. The wake is not a
+   * display refreshing once a second: it has one record to take and every
+   * millisecond between conversions is the core awake doing nothing. The
+   * filter and the values are unchanged — SAMPLE still waits for the same
+   * full window, it just stops idling between the samples that fill it. */
+  _sensorMgr->setFastSampling(true);
   if (timeSince(_airPhaseTimer, 400)) {
    _airPhase = AIR_PHASE_SAMPLE;
    _airPhaseTimer = millis( );
@@ -343,6 +364,9 @@ void AppManager::airLoop( ) {
  }
 
  case AIR_PHASE_DECIDE: {
+  /* The window is full (or timed out): back to the ordinary cadence, so an
+   * `air stop` landing in this wake hands the operator a normal M0. */
+  _sensorMgr->setFastSampling(false);
   /* Always write this wake's sample into local history (the primary job of
    * the wake). The telemetry cursor is untouched; pending packets are sent in
    * CONNECT/FLUSH when the WiFi came up during SAMPLE. Only a live STA link

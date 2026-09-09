@@ -218,6 +218,35 @@ public:
 	uint32_t getPauseStartTime( ) { return _pauseStartTime; }
 	uint32_t getLastTouchTimestamp( ) const { return _lastTouchTimestamp; }
 	bool isCore1Ready( ) { return _core1Ready; }
+
+	/** Whether this build actually launches Core 1 for rendering.
+	 *
+	 * DisplayManager_None.cpp compiles startCore1( ) to a no-op, and _core1Ready
+	 * is written only by DisplayManager.cpp and DisplayManager_Alpha.cpp —
+	 * neither of which is in the pico_w_air link. So on Air the boot's
+	 * "wait for Core 1" loop could never succeed and always burned its full
+	 * 1500 ms timeout, in a tight_loop_contents( ) spin at full core current,
+	 * once per wake. Measured 1,51 s between `boot: storage ok` and `[TCH] c=`
+	 * on 2026-09-08. This constant is the guard, and it lives next to
+	 * _core1Ready so that giving Air a display moves both together. */
+	/* kHasTouch: the touch controller is the XPT2046 on the TFT build. The
+	 * alpha's isScreenTouched( ) is a `return false` literal just like the
+	 * headless one, so the boot's touch-settle gate and AP-hold window could
+	 * only ever run out their clocks there too — 3,72 s of a boot, for a
+	 * gesture the build cannot report.
+	 * Decided by the preprocessor rather than by an expression over the
+	 * macros, so an include order that has not yet seen simut_config.h cannot
+	 * turn a missing define into a silent `true`. */
+#if SIMUT_AIR
+	static constexpr bool kUsesCore1 = false;
+	static constexpr bool kHasTouch  = false;
+#elif SIMUT_DISPLAY_TFT
+	static constexpr bool kUsesCore1 = true;
+	static constexpr bool kHasTouch  = true;
+#else
+	static constexpr bool kUsesCore1 = true;
+	static constexpr bool kHasTouch  = false;
+#endif
 	void forceUnpause( );
 	/* Core-0-owned: a Core-1 launch is outstanding. Plain bool on purpose —
 	 * every launch/reset site is Core-0 code and Core 0 is cooperative.

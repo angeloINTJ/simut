@@ -14,7 +14,8 @@ import campaign as C  # noqa: E402
 from bench import Target, Server, kill_stale  # noqa: E402
 
 os.environ.setdefault('SIMUT_WEB_USER', 'admin')
-os.environ.setdefault('SIMUT_WEB_PASS', 'simutV5x')
+if not os.environ.get('SIMUT_WEB_PASS'):
+    raise SystemExit('set SIMUT_WEB_PASS before running this: source ~/.simut-bench.env')
 
 
 def broker(name, mode, **kw):

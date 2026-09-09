@@ -112,6 +112,171 @@ depois da mudança: um bloco de 27 leituras onde antes havia 27 blocos. O
 histórico voltou a custar aproximadamente o previsto, e o aparelho volta a
 guardar meses dele em vez de semanas.
 
+### O wake do SIMUT Air ficou 2,7× mais curto
+
+Um wake de leitura levava 25,5 s, e cerca de 23 s disso não era trabalho.
+Medido no rig marcador a marcador, e medido de novo depois da mudança:
+
+| | antes | depois |
+|---|---|---|
+| `setup()` até a primeira fase do ciclo | 10,73 s | **2,47 s** |
+| SAMPLE (estabilização dos sensores) | 14,81 s | **6,83 s** |
+| wake inteiro até o DECIDE | 25,55 s | **9,31 s** |
+
+**Esperas por hardware que esta build não tem.** Três delas nunca poderiam
+terminar mais cedo, porque o que consultam é constante de compilação: o portão
+de silêncio do touch e a janela de AP perguntam por `isScreenTouched()`, que é
+`return false` tanto na build headless quanto na alfanumérica, e o laço que
+"espera o Core 1" consulta um flag cujos únicos escritores são dois arquivos
+fora desses links — então ele sempre gastava os 1500 ms inteiros num laço
+apertado. `DisplayManager::kHasTouch` e `kUsesCore1` agora decidem em tempo de
+compilação se esses laços chegam a existir. A build alfanumérica ganha os
+mesmos 3,7 s.
+
+**Esperas por um operador que não está ali.** O 1 s depois do `Serial.begin`, os
+800 ms do passo de boot, os 800 ms que seguram o "System ready" na tela e os
+600 ms do ciclo de energia do CYW43 agora só rodam quando o boot não veio da
+hibernação. Um wake é um reset que este firmware pediu a si mesmo a partir de
+um estado que ele acabara de aquietar; os caminhos de reinício para os quais
+aquele ciclo existe são gravação UF2, apply de OTA, watchdog e reset — e para
+todos eles ele continua sendo feito.
+
+**Amostrar sem ficar ocioso.** `readInterval` é um limitador de taxa para um
+aparelho que amostra continuamente para manter uma tela em dia, e ele não se
+sobrepõe à conversão: `lastReadTime` é carimbado quando a leitura termina,
+então um DS18B20 custa 1000 ms esperando mais 750 ms convertendo, dez vezes,
+antes de o wake poder gravar seu único registro. Durante WARMUP e SAMPLE os
+sensores agora leem de volta a volta. A janela, o filtro e os valores não
+mudaram.
+
+A varredura de temas também é pulada num wake: a paleta é lida pelo display e
+por `/api/themes`, e um wake não tem nenhum dos dois.
+
+Não mudou, porque mudaria a medição gravada: o tamanho da janela de média móvel
+e a resolução do DS18B20. Sem a ociosidade, a fase SAMPLE virou tempo de
+conversão puro, então são essas duas as alavancas que sobram: a 11 bits o wake
+seria de ~6,2 s e a 10 bits de ~4,4 s, contra 9,31 s hoje — cerca de 4,7 e 9,1
+dias a mais num 18650, por aritmética sobre as correntes de bancada. O retorno
+cai rápido: abaixo de ~4 s de wake a conta passa a ser dominada pelo `setup()`
+e pelo próprio sono, então 9 bits compra pouco e custa meio grau de passo.
+
+Aviso para quem for dar esse passo: `DS18B20_CONVERSION_TIME_MS` é 750 ms fixos
+e é o único relógio que o driver espera, então baixar a resolução hoje custa
+precisão e não devolve tempo nenhum. A espera precisa seguir a resolução
+configurada antes.
+
+### O reset de senha do console agora sobrevive ao próximo boot
+
+`system admin reset confirm` é o caminho documentado de volta para um aparelho
+em cuja web ninguém consegue entrar, e a auditoria de 07/09/2026 o tornou
+exclusivo da USB por isso. Na bancada ele se revelou anunciando uma senha que o
+aparelho esquecia no boot seguinte: o console de emergência não tem
+`write memory`, então nada gravava o hash novo na flash. O login com a senha
+impressa funcionava dentro do boot que a imprimiu e respondia 401 depois de
+reiniciar. Num SIMUT Air, onde todo wake é um boot, essa senha valia cerca de um
+minuto — a única recuperação de uma web trancada não recuperava nada.
+
+O reset agora salva antes de anunciar, e diz com todas as letras se o save
+falhar. Duas caixas acima no mesmo `switch`, `system ssid` e `system pass`
+sempre salvaram por conta própria; o que escondeu isto foi um comentário
+afirmando que `debug` era o único comando a depender do flag compartilhado.
+
+Persistir o reset também persiste o flag de troca obrigatória, e o anúncio de
+"factory defaults" no serial se guiava só por esse flag — o que faria todo wake
+de um Air anunciar factory defaults que o aparelho não tem. O anúncio agora se
+guia pela senha de uma vez só ainda estar na RAM, que é o que de fato data a
+resposta ao boot que regenerou a config.
+
+O teste de bancada T17 cobre o laço inteiro: reset no console, reinício, e a
+senha impressa tem que continuar logando.
+
+### Segurança: a auditoria de 07/09/2026, fechada
+
+Oito achados (V-01..V-08) e três observações, todos corrigidos ou decididos.
+O registro completo — decisões, custo de flash por símbolo, controles positivos
+e o que ainda falta validar no ferro — está em
+`docs/security-audit/IMPLEMENTACAO_2026-09-07.md`.
+
+**O CLI Bluetooth não tinha limite de tentativas** (V-01a). Ele é compilado nas
+duas imagens publicadas (alpha e Air) e autentica com a senha do admin da web,
+então dava para tentar senha errada na velocidade que o RFCOMM respondesse, e
+derrubar o link não zerava nada. Agora tem o mesmo backoff exponencial do login
+web — 2 s na primeira falha, teto de 300 s — guardado na RAM, de modo que
+reconectar não limpa. Os comandos de recuperação (`system factory`,
+`system format`, `admin reset`, `system https off`) são recusados por
+Bluetooth; `ap` continua valendo de propósito, porque subir o AP de setup pelo
+celular é a razão de aquele CLI existir. O CLI passou a aplicar também a
+política de senha da web.
+
+**Escrever esse lockout revelou um no login da web.** A forma antiga calculava
+`(1 << failCount) * 1000` e limitava o produto, com contador sem teto: em 29,
+30 e 31 falhas seguidas a multiplicação dá exatamente zero — 2^29 x 1000 é
+125 x 2^32 — então a penalidade era zero e a conta ficava aberta; passando de
+31, o deslocamento era comportamento indefinido. Cerca de 108 minutos de
+escalada, sem ninguém olhando, compravam tentativas livres. Agora o
+deslocamento é limitado antes de acontecer e o contador satura.
+
+**O aparelho parou de se anunciar para sempre** (V-01b). A descoberta Bluetooth
+fecha 5 minutos depois do boot em vez de ficar ligada o tempo todo. A
+conectabilidade não muda, então um celular já pareado continua funcionando;
+reiniciar reabre a janela para parear outro.
+
+**Só requisição autenticada segura uma unidade Air acordada** (V-03).
+"Atividade" queria dizer "uma resposta saiu", o que contava até um 403 devolvido
+a um estranho — um poll sem autenticação segurava um aparelho a bateria
+acordado, com o rádio no ar, indefinidamente (medido: 491 s contra 306 s
+esperados). O timer de hibernação agora é rearmado por cookie de sessão válido,
+login bem-sucedido ou credencial válida no `/metrics`; a própria página de login
+tem orçamento de três extensões por boot, que é o que um operador precisa para
+terminar de entrar.
+
+**O AP de setup virou WPA2** (V-05). Era aberto, então qualquer um no alcance do
+rádio chegava ao portal cativo de um aparelho cujo Wi-Fi acabara de falhar. A
+chave é derivada do id único da placa — 10 caracteres, estável por aparelho — e
+aparece no console USB, no display e na resposta do `ap`. Não é segredo (o
+`show system info` imprime o id da placa); ela sobe a barra de "está no alcance"
+para "recebeu a chave". `SIMUT_AP_OPEN=1` mantém o AP aberto para bancada.
+
+**Valores que um usuário permitido podia gravar deixaram de quebrar a API para
+todo mundo** (V-04, O-2). Um SSID `a"b` tornava o `/api/network` ilegível, um
+hwId `X\` fazia o mesmo com o `/api/status` **e** corrompia o payload de
+telemetria no coletor, e uma aspa no `@NAME` de um pacote de idioma derrubava a
+interface inteira até alguém subir outro pacote — o `.lng` só é lido no boot,
+então reiniciar não adiantava. Agora toda string das APIs JSON é escapada, e
+SSID, senha do Wi-Fi, servidor NTP, hwId e identidade do pacote são validados na
+entrada.
+
+**O `/download` respeita as permissões que a página de usuários mostra** (O-1).
+Uma conta só com "ler arquivos" puxava `/history/*.h5` e o log forense; agora
+esses caminhos exigem também `PERM_HISTORY` e `PERM_LOGS`.
+
+**O SIMUT Air recusa os pinos do CYW43** (V-06). GP23/24/25/29 são o barramento
+do próprio rádio no Pico W, e `air charger 25` era um comando válido que
+derrubava o rádio num aparelho sem ninguém no console. A regra ficou no
+`airPinValid`, que o sanitizador de config já chamava, então um `air.bin`
+forjado ou restaurado também não passa.
+
+**O CI constrói as três imagens** (V-08). Ele construía só a `pico_w_release` e
+rodava quatro dos seis ambientes nativos, apenas na `main` — ou seja, as imagens
+alpha e Air, que é onde quase tudo acima mora, não tinham portão nenhum. Agora
+constrói release, alpha e Air, roda os seis ambientes nativos e a checagem de
+consistência do Air, em toda branch de feature e todo pull request.
+
+**O portão de segredos deixou de ter ponto cego** (V-02). A senha do admin do
+rig estava em texto claro em cinco scripts de bancada rastreados enquanto o
+`tools/scan_secrets.sh` dizia que a árvore estava limpa: ele só casava
+`nome = "valor"`, e os casos eram argumentos posicionais e um vetor de teste
+solto. Dois passos novos pegam as duas formas, o segundo procurando os valores
+reais da bancada listados num arquivo mantido fora do repositório. Os scripts
+leem as credenciais do ambiente, sem default.
+
+**O SECURITY.md dizia o oposto do que as imagens fazem** (V-07). Ele descrevia o
+CLI Bluetooth como ausente das imagens de release e autenticado pelo PIN do
+display; ele está compilado nas duas imagens publicadas e autentica com a senha
+do admin da web. Reescrito, junto das seções de AP, hibernação do Air e
+`/download`.
+
+
 ### SIMUT Air: build headless com ciclo de hibernação em deep sleep (experimental)
 
 Novo ambiente PlatformIO `pico_w_air`: sem display, sem buzzer, a pilha

@@ -226,6 +226,18 @@
 #define SIMUT_MDNS 1            // mDNS hostname resolution (enabled)
 #endif
 
+/* Setup access point without a key. 0 = WPA2 with a per-device key derived
+ * from the board id and shown on the console and the display (see ApPsk.h and
+ * NetworkManager::beginAP) — finding V-05, where an open AP handed anyone in
+ * radio range the captive portal of a device whose Wi-Fi had just failed.
+ *
+ * 1 is for bench work only: it makes joining scriptable without reading a key
+ * off a console. Never in a shipped image; it is the exact configuration the
+ * finding describes. */
+#ifndef SIMUT_AP_OPEN
+#define SIMUT_AP_OPEN 0
+#endif
+
 /* =========================================================================
  * SECTION 7: THEME PACKS (TFT only)
  *

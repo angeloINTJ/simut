@@ -35,8 +35,15 @@ uint16_t WebManager::getAuthPerms( ) {
 	 * framework's own _server->send( ), not through our send funnel, so hooking
 	 * the funnel alone missed them. Measured on the bench: with only the funnel
 	 * hooked, /api/login_init every 30 s did not hold the device and it
-	 * hibernated on schedule at 300 s. */
-	if (_activityCb) _activityCb( );
+	 * hibernated on schedule at 300 s.
+	 *
+	 * The activity callback used to fire HERE, before the cookie was even read,
+	 * which meant any request at all — from anyone on the network, with no
+	 * credential of any kind — reset the Air hibernation timer. A stranger
+	 * polling an endpoint they cannot read still kept the device awake and
+	 * burning battery indefinitely; measured on 2026-09-06 at 491 s awake
+	 * against an expected 306 s. It now fires only on the branch where the
+	 * cookie matched a live session (V-03). */
 	clearStaleSessions( );
 
 	if (!_server->hasHeader("Cookie")) return 0;
@@ -48,6 +55,7 @@ uint16_t WebManager::getAuthPerms( ) {
 			_currentUserId = _activeSessions[i].userId;
 			_currentUserName = _activeSessions[i].username;
 			_currentUserPerms = _activeSessions[i].perms;
+			if (_activityCb) _activityCb( );
 			return _currentUserPerms;
 		}
 	}
@@ -198,8 +206,18 @@ int WebManager::ensureLoginStateSlot(uint32_t clientIP) {
 	/* The pre-login path: /api/login_init and /api/login both land here. This is
 	 * the window an operator is in when they cannot yet be recognised by a
 	 * session cookie, and it is exactly where the device was hibernating out
-	 * from under them. */
-	if (_activityCb) _activityCb( );
+	 * from under them.
+	 *
+	 * It is also the one place an unauthenticated caller can legitimately hold
+	 * the device awake, so the hold is a BUDGET rather than a renewal: three
+	 * extensions per boot, which at the default 300 s idle gives an operator up
+	 * to 15 minutes to finish logging in, and gives an anonymous poller the
+	 * same 15 minutes once and never again. A successful login resets the
+	 * counter (handleApiLogin), because at that point somebody real is there. */
+	if (_activityCb && _preAuthExt < WEB_PREAUTH_MAX_EXT) {
+		_preAuthExt++;
+		_activityCb( );
+	}
 	int slot = -1;
 	int oldestEvictable = -1;
 	for (int i = 0; i < LOGIN_STATE_SLOTS; i++) {
@@ -297,9 +315,14 @@ int WebManager::findLoginStateForIp(uint32_t clientIP) const {
 
 uint32_t WebManager::applyExponentialPenalty(int ls) {
 	if (ls < 0) return 0;
-	_loginStates[ls].failCount++;
-	uint32_t penaltyMs = (1U << _loginStates[ls].failCount) * 1000U;
-	if (penaltyMs > 300000U) penaltyMs = 300000U;
+	/* Saturating counter, and the backoff comes from the shared helper. This
+	 * used to be `(1U << ++failCount) * 1000` clamped afterwards, which held
+	 * for the first 28 failures and then handed the attacker the door: at
+	 * failCount 29, 30 and 31 the product wraps to exactly 0, so the penalty
+	 * was zero and the account was open; past 31 the shift is undefined. See
+	 * AUTH_FAIL_CAP in SystemDefs_Network.h. */
+	if (_loginStates[ls].failCount < AUTH_FAIL_CAP) _loginStates[ls].failCount++;
+	uint32_t penaltyMs = authLockoutMs(_loginStates[ls].failCount);
 	_loginStates[ls].lockoutUntil = millis( ) + penaltyMs;
 	return penaltyMs;
 }
@@ -420,6 +443,14 @@ void WebManager::completeLogin(int slot, int foundId, int ls, const String& u) {
 		_loginStates[ls].failCount = 0;
 		_loginStates[ls].lockoutUntil = 0;
 	}
+
+	/* Somebody real got in: give the pre-login budget back and hold the device
+	 * awake now, before the response even goes out. Without the reset, an
+	 * operator who spent the three anonymous extensions loading the login page
+	 * would log in successfully and then be hibernated on the next idle
+	 * window with no way to earn another extension until the next boot. */
+	_preAuthExt = 0;
+	if (_activityCb) _activityCb( );
 
 	SystemConfig& cfg = _storageRef->getConfig( );
 	String newToken = generateSecureToken( );

@@ -30,8 +30,13 @@ DEV = os.environ.get('SIMUT_DEV', '192.168.3.24')
 # from a healthy device unless something checks. Recreating the account needs
 # `user add`/`user perm`, and those exist only in pico_w_test. soak_a6.py is not
 # affected: it logs in as admin with SIMUT_PASS, on its own Web helper.
+#
+# No default for the password: a literal here is a credential in a public repo,
+# and it is also a trap — the pair below stopped working, so every run silently
+# fell through to the Forbidden path this module exists to avoid. Missing
+# credentials now say so at the login site instead.
 WEB_USER = os.environ.get('SIMUT_WEB_USER', 'telb')
-WEB_PASS = os.environ.get('SIMUT_WEB_PASS', 'Bench2026x')
+WEB_PASS = os.environ.get('SIMUT_WEB_PASS', '')
 PORT_HTTP, PORT_HTTPS, PORT_MQTT, PORT_MQTTS = 18080, 18443, 11883, 18883
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results')
@@ -54,6 +59,9 @@ def web_session(force=False):
     unauthenticated poll returns Forbidden and reads as 'device fine' — the
     exact instrument failure this campaign is meant to avoid."""
     if _SESS['web'] is None or force:
+        if not WEB_PASS:
+            raise SystemExit('set SIMUT_WEB_USER/SIMUT_WEB_PASS before running this: '
+                             'source ~/.simut-bench.env')
         w = Web(DEV)
         ok, why = w.login(WEB_USER, WEB_PASS)
         if not ok:
