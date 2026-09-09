@@ -53,7 +53,7 @@ docker compose run test
 | Comando | Comando PlatformIO equivalente |
 |---|---|
 | `docker compose run build` | `pio run -e pico_w_release` |
-| `docker compose run test` | `pio test -e native && pio test -e native_history_v4 && pio test -e native_history_v5 && pio test -e native_cli && pio test -e native_logpolicy` |
+| `docker compose run test` | `pio test -e native -e native_history_v5 -e native_cli -e native_logpolicy -e native_alarmqueue -e native_air -e native_network` |
 
 ---
 
@@ -116,7 +116,7 @@ A flash está criticamente apertada — ~97 % do slot de app de 1020 KB no env d
 2. Faça um fork do repositório e crie um branch (`feature/minha-funcionalidade`)
 3. Escreva seu código e teste em hardware se possível
 4. Garanta que `pio run -e pico_w_release` compila com **zero warnings**
-5. Garanta que todas as suítes passam: `pio test -e native && pio test -e native_history_v4 && pio test -e native_history_v5 && pio test -e native_cli && pio test -e native_logpolicy`
+5. Garanta que todas as suítes passam: `pio test -e native -e native_history_v5 -e native_cli -e native_logpolicy -e native_alarmqueue -e native_air -e native_network`
 6. Atualize a documentação em `docs/` se sua mudança afetar o comportamento do usuário
 7. Envie o PR com uma descrição clara, referenciando o número da issue
 8. O checklist do template de PR guiará os passos restantes
@@ -126,7 +126,6 @@ A flash está criticamente apertada — ~97 % do slot de app de 1020 KB no env d
 - Testes unitários usam o framework [Unity](http://www.throwtheswitch.org/unity)
 - Cinco ambientes de teste estão disponíveis:
   - `pio test -e native` — validadores (119 casos de teste: validação de IP, CRC8, codificação de float, etc.)
-  - `pio test -e native_history_v4` — testes do codec V4 de histórico (bit-packing, ida e volta âncora/delta)
   - `pio test -e native_history_v5` — testes de ida e volta do HistoryCodec
   - `pio test -e native_cli` — testes do parser da CLI (tokenização e roteamento de comandos)
   - `pio test -e native_logpolicy` — testes do filtro de persistência de logs edge-triggered (18 casos)

@@ -225,7 +225,7 @@ simut/
 | `pico_w_asserts` | Release + asserções de concorrência |
 | `pico_w_alpha` | Build headless (LCD 16×2, sem TFT) |
 | `pico_w_air` | **Experimental** — SIMUT Air: headless, sem buzzer, ciclo de hibernação em deep sleep (M0 operacional / M1 acorda-mede-envia-dorme); ver [`docs/analysis/SIMUT_AIR_ESBOCO.md`](docs/analysis/SIMUT_AIR_ESBOCO.md) e o plano de correção [`SIMUT_AIR_PLANO_FIX.md`](docs/analysis/SIMUT_AIR_PLANO_FIX.md) |
-| `native`, `native_history_v4/v5`, `native_cli` | Testes unitários no host |
+| the seven `native*` envs | Testes unitários no host |
 | `native_logpolicy` | Filtro de persistência de logs edge-triggered (18 testes) |
 | `native_air` | Config persistente do SIMUT Air (`air/AirConfig.h`, 7 testes) |
 

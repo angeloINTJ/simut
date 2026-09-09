@@ -58,7 +58,7 @@ jobs:
       - name: History V5 day-merge tests
         run: python3 tools/test_h5_day_merge.py
 
-      # ALL SIX native environments. Separate steps rather than one
+      # ALL SEVEN native environments. Separate steps rather than one
       # `pio test -e a -e b ...` so a failure names itself in the Actions UI
       # instead of hiding behind the first environment that broke.
       #
@@ -83,6 +83,14 @@ jobs:
 
       - name: Run unit tests (Air config)
         run: pio test -e native_air
+
+      # The reconnect state machine, against a controllable radio. Its knobs
+      # are shaped like the failures seen on real devices — a scan that never
+      # completes, an access point that is joinable but invisible — because
+      # those are the ones it has to survive. Eight of these seventeen cases
+      # fail against the code as it stood before 2026-09-08.
+      - name: Run unit tests (network state machine)
+        run: pio test -e native_network
 
   # Every image the repository claims to build, in parallel.
   #

@@ -46,8 +46,17 @@ public:
 
     void reserve(size_t) { /* no-op on host */ }
 
+    /* Numeric constructors, as the target has: the firmware writes
+     * String(millis( )) and concatenates counters into log messages. */
+    explicit String(int v)      : data_(std::to_string(v)) {}
+    explicit String(unsigned v) : data_(std::to_string(v)) {}
+    explicit String(long v)     : data_(std::to_string(v)) {}
+    explicit String(unsigned long v) : data_(std::to_string(v)) {}
+
     String& operator+=(char c) { data_ += c; return *this; }
     String& operator+=(const char* s) { if (s) data_ += s; return *this; }
+    String& operator+=(const String& o) { data_ += o.data_; return *this; }
+
 
     /* toInt/toFloat mirror the TARGET, not the host libc. On the ferro
      * (ArduinoCore-API) toInt() is atol() — newlib strtol with a 32-bit
@@ -136,6 +145,8 @@ public:
 
     bool operator==(const char* s) const { return s && data_ == s; }
     bool operator==(const String& o) const { return data_ == o.data_; }
+    bool operator!=(const char* s) const { return !(*this == s); }
+    bool operator!=(const String& o) const { return !(*this == o); }
 
 private:
     std::string data_;
@@ -187,3 +198,41 @@ private:
     size_t pos_;
     char mode_;
 };
+
+/* ── String concatenation ────────────────────────────────────────────────
+ * Arduino's String concatenates with anything printable. The firmware relies
+ * on it for log messages ("Retry in " + seconds + "s"), so the stub has to as
+ * well, or the code under test does not compile on the host. */
+inline String operator+(const String& a, const String& b) {
+    String r(a); r += b; return r;
+}
+inline String operator+(const String& a, const char* b) { String r(a); r += b; return r; }
+inline String operator+(const char* a, const String& b) { String r(a); r += b; return r; }
+inline String operator+(const String& a, char b)        { String r(a); r += b; return r; }
+inline String operator+(const String& a, int b)           { String r(a); r += String(b).c_str(); return r; }
+inline String operator+(const String& a, unsigned b)      { String r(a); r += String(b).c_str(); return r; }
+inline String operator+(const String& a, long b)          { String r(a); r += String(b).c_str(); return r; }
+inline String operator+(const String& a, unsigned long b) { String r(a); r += String(b).c_str(); return r; }
+
+/* Arduino provides min/max. NOT as macros here: a `min` macro collides with
+ * std::numeric_limits<>::min in <limits>, which any standard header may pull
+ * in. Templates give the same mixed-type call sites the firmware uses
+ * (`min(_reconnectDelay * 2, MAX_RECONNECT_DELAY)`) without poisoning the
+ * standard library. */
+template <typename T, typename U>
+inline auto min(T a, U b) -> decltype(a < b ? a : b) { return a < b ? a : b; }
+template <typename T, typename U>
+inline auto max(T a, U b) -> decltype(a > b ? a : b) { return a > b ? a : b; }
+
+/* ── IPAddress ────────────────────────────────────────────────────────────
+ * Included last, and its toString( ) defined here, because it returns a
+ * String and String is defined above in this same header. */
+#include "IPAddress.h"
+
+inline String IPAddress::toString( ) const {
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%u.%u.%u.%u",
+             (unsigned)(*this)[0], (unsigned)(*this)[1],
+             (unsigned)(*this)[2], (unsigned)(*this)[3]);
+    return String(buf);
+}

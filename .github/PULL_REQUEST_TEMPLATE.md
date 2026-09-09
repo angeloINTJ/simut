@@ -11,7 +11,7 @@ Briefly describe your changes.
 ## Testing
 Describe how you tested these changes:
 - [ ] Compiled with `pio run -e pico_w_release`
-- [ ] Ran unit tests (`pio test -e native -e native_history_v4 -e native_history_v5 -e native_cli -e native_logpolicy`)
+- [ ] Ran unit tests (`pio test -e native -e native_history_v5 -e native_cli -e native_logpolicy -e native_alarmqueue -e native_air -e native_network`)
 - [ ] Tested on hardware
 
 ## Checklist

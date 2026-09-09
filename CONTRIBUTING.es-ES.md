@@ -52,7 +52,7 @@ docker compose run test
 | Comando | Comando equivalente en PlatformIO |
 |---|---|
 | `docker compose run build` | `pio run -e pico_w_release` |
-| `docker compose run test` | `pio test -e native && pio test -e native_history_v4 && pio test -e native_history_v5 && pio test -e native_cli && pio test -e native_logpolicy` |
+| `docker compose run test` | `pio test -e native -e native_history_v5 -e native_cli -e native_logpolicy -e native_alarmqueue -e native_air -e native_network` |
 
 ---
 
@@ -115,7 +115,7 @@ El espacio en la memoria flash es críticamente ajustado — ~97 % del slot de a
 2. Haz un fork del repositorio y crea una rama (`feature/my-feature`).
 3. Escribe tu código y pruébalo en hardware si es posible.
 4. Asegúrate de que `pio run -e pico_w_release` se compile con **cero advertencias**.
-5. Asegúrate de que todas las suites pasen: `pio test -e native && pio test -e native_history_v4 && pio test -e native_history_v5 && pio test -e native_cli && pio test -e native_logpolicy`.
+5. Asegúrate de que todas las suites pasen: `pio test -e native -e native_history_v5 -e native_cli -e native_logpolicy -e native_alarmqueue -e native_air -e native_network`.
 6. Actualiza la documentación en `docs/` si tu cambio afecta el comportamiento de cara al usuario.
 7. Envía el PR con una descripción clara, haciendo referencia al número de issue.
 8. La lista de verificación de la plantilla de PR te guiará en los pasos restantes.
@@ -125,7 +125,6 @@ El espacio en la memoria flash es críticamente ajustado — ~97 % del slot de a
 - Las pruebas unitarias usan el framework [Unity](http://www.throwtheswitch.org/unity).
 - Hay cinco entornos de prueba disponibles:
   - `pio test -e native` — validadores (119 casos de prueba: validación de IP, CRC8, codificación de float, etc.)
-  - `pio test -e native_history_v4` — pruebas del códec V4 de histórico (bit-packing, ida y vuelta ancla/delta)
   - `pio test -e native_history_v5` — pruebas de ida y vuelta del HistoryCodec
   - `pio test -e native_cli` — pruebas del analizador CLI (tokenización y enrutamiento de comandos)
   - `pio test -e native_logpolicy` — pruebas del filtro de persistencia de logs edge-triggered (18 casos)
