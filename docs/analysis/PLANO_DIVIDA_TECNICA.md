@@ -70,8 +70,8 @@ Ordem deliberada — do que não derruba o aparelho para o que derruba:
 | ~~1.2~~ | ✅ **V-06** | `air charger 25` → `ERROR: air charger <0..22\|26..28\|off>`; `air charger 17` → `OK: charger sense on GP17` | feito |
 | 1.3 | **V-05** | `ap` no console publica a PSK; `nmcli dev wifi list` mostra **WPA2**; notebook entra com ela | 15 min |
 | 1.4 | **V-03** | `air_test_suite.py --only T15,T16` **contra esta imagem** | 20 min |
-| 1.5 | **V-01a** | `bt_auth_test.py --only lockout` — o lockout tem que **sobreviver a derrubar o link** | 10 min |
-| 1.6 | **V-01b** | `bt_auth_test.py --only window` — some da varredura **e** quem já conhece o endereço ainda conecta | 7 min |
+| ~~1.5~~ | ✅ **V-01a** | 3/3 na v2.4.1-beta: recusa, **lockout de 8 s sobrevive à reconexão** (sonda 3,4 s depois: silêncio), 4ª falha tranca de novo (8 → 16 s). Cinco consertos no instrumento antes do veredito — ver o tool | feito |
+| ~~1.6~~ | ✅ **V-01b** | 3/3: descobrível após o boot, ausente 345 s depois, RFCOMM ainda conecta para quem sabe o endereço | feito |
 | 1.7 | **V-04 / O-2** | `json_escape_cases.py` — **por último, causa reboots** | 20 min |
 
 ⚠️ **O 1.7 não vale nada sem o controle.** Rodar antes contra firmware
@@ -191,6 +191,15 @@ que já existe em `docs/promotion/`.
 Latest. Conserto: `gh release edit --draft=false --latest`.
 
 ---
+
+## O que apareceu executando (novo, baixo)
+
+- **BT: o gerente nunca observa a DESCONEXÃO do cliente** (`BluetoothManager.cpp` — `_promptSent`
+  só é zerado no boot, na expiração de sessão e depois de uma senha recusada). Uma sessão que termina
+  com o prompt pendente deixa o próximo cliente sem prompt: ele conecta, aperta Enter, e não vê nada
+  até digitar algo — que então vira tentativa de senha. Não é falha de segurança (a tentativa conta);
+  é usabilidade. Conserto: zerar `_promptSent` na borda conectado→desconectado. Não feito: o Air tem
+  4.972 B de folga e isso não bloqueia nada.
 
 ## O que este plano NÃO cobre
 
