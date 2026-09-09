@@ -572,6 +572,59 @@ cadência de gravação. ⚠️ **Isso é uma limitação do T11 como está escr
 sumiu: o teste julga o arquivo inteiro, então **uma sessão de bancada intensa sempre vai reprová-lo**
 — e a piora monotônica rodada após rodada (12 → 63 → 77 → 103 gaps curtos) foi o próprio indício.
 Se ele for ficar como portão, precisa julgar uma janela, não o dia.
+
+#### 09/09 — o T11 foi reescrito, e o motivo não era o que esta seção dizia
+
+A frase acima ("precisa julgar uma janela, não o dia") estava certa e **incompleta**. Ao repetir o
+teste depois de **12 minutos de silêncio deliberado**, ele devolveu **os mesmos 17 registros, byte
+por byte**, da rodada anterior. Não era o arquivo estar poluído: é que **o arquivo do dia só tem
+blocos SELADOS**. Os **15 registros que aquela janela acabara de produzir** estavam no bloco aberto,
+em `/api/history/open`, e o teste não lia esse endpoint. **O instrumento não conseguia enxergar
+justamente aquilo que estava esperando.** É a mesma armadilha já registrada no F23 (medir pelo delta
+do arquivo do dia dá +0 e engana), aparecendo agora do lado do teste.
+
+Somaram-se a isso duas coisas que o critério antigo contava contra o firmware sendo comportamento
+correto:
+
+* o firmware **grava um registro logo depois do boot sem esperar o intervalo**
+  (`_histFirstDone`, `src/AppManager_Loop.cpp`) — foi acrescentado justamente porque cada reinício
+  custava um minuto nunca amostrado. Como **no Air todo wake é um boot**, gap curto é estrutural;
+* todo reinício e toda mudança de `h_int` de outros testes (o T08 põe 2 min) ficam no arquivo do dia.
+
+**O teste agora fabrica a própria janela** e julga só ela. Arma o ciclo, **não toca no aparelho** por
+7 minutos enquanto observa a presença no USB — que diz quando o aparelho esteve realmente acordado
+sem falar com ele — e então lê o histórico completo (selado **+** aberto). São quatro perguntas:
+
+1. **monotonicidade**, sobre tudo o que o aparelho tem — arquivo corrompido é corrompido, seja de
+   quem for a culpa — e também sobre os registros nascidos dentro da janela;
+2. **todo registro carrega carimbo de um instante em que o aparelho estava comprovadamente
+   acordado.** Esta é a segunda falha do T11 dita de forma mensurável: registro carimbado no meio do
+   sono é medição que não foi tomada. **Nenhuma checagem de espaçamento pode ver isso** — uma rajada
+   retrodatada no intervalo nominal tem contagem certa e gaps de manual; a prova está no `--selftest`,
+   com um vetor em que o `gap_report` aprova e as janelas de vigília reprovam;
+3. **um registro por wake** — no Air o intervalo de wake É o intervalo de histórico
+   (`AppManager_Air.cpp`), então acordar sem gravar é medição perdida e gravar sem acordar é medição
+   inventada;
+4. **os gaps dentro da janela batem com o `h_int`**.
+
+**Medido na bancada, 09/09 — duas rodadas seguidas, uma não vale** (`--only T11`, código final):
+
+```
+01:00   6 registros / 6 wakes completos em 420 s, skew -0,9 s, 44 selados + 10 abertos
+01:08   6 registros / 6 wakes completos em 420 s, skew -0,2 s, 44 selados + 19 abertos
+        pior margem 0,0 s (folga 10 s)   ← todo registro caiu DENTRO de uma vigília observada
+        no ritmo=5  curtos=0  longos=0  para trás=0     → PASSA nas duas
+```
+
+Repare no que separa as duas rodadas: **selados parados em 44, abertos indo de 10 a 19.** Todo o
+trabalho dos oito minutos entre elas ficou no bloco aberto — que é exatamente o que o teste antigo
+não lia, e é por isso que ele devolvia números idênticos rodada após rodada.
+
+⚠️ **A folga de 10 s é generosa e a medição diz isso**: a pior margem foi **0,0 s**, ou seja a folga
+não foi necessária nenhuma vez. Ela começou em `intervalo/2` e isso era **vacuidade disfarçada de
+tolerância** — o aparelho fica acordado ~9 s a cada 60, então alargar cada vigília em 30 s dos dois
+lados faz as vigílias se encostarem e **nenhum carimbo pode cair fora**. O valor está reportado a
+cada rodada para poder ser apertado com evidência, não com gosto.
 ⚠️ **Armadilha do roteiro que quase custou a medição:** depois de 32 min ciclando o aparelho está em
 M1, e **em M1 não existe servidor web** — o download do `/history` nunca ia acontecer. É preciso
 trazer para M0 (mão ou console) ANTES de ler; os registros já gravados não são afetados por isso.

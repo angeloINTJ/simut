@@ -425,7 +425,7 @@ sleep, boot, sample, flush. Tabela na seção 6.
 | T08 `offline_timestamps` | F04, F10 | XFAIL (espaçamento ~80 s com `h_int=2`) |
 | T09 `gp16_probe` | F03, F07 | SKIP sem extensão da PicoHand |
 | T10 `m1_services_off` | F13 | XFAIL (porta 80 aceita em M1) |
-| T11 `history_integrity` | F22, F23 | ~~XFAIL~~ → **PASS medido 08/09**: 416 registros, 406 no ritmo, 3 curtos, 6 longos, **0 para trás**, 10 blocos (41,6 reg/bloco). Em 06/09 eram 170 registros com 19 para trás; em 07/09, 53 curtos e 63 longos em 350. A marca `xfail F23` era velha e saiu. |
+| T11 `history_integrity` | F22, F23 | ~~XFAIL~~ → **PASS**. ⚠️ **O teste foi REESCRITO em 09/09** e os números antigos não são comparáveis: ele lia só o arquivo do dia, que tem apenas blocos SELADOS — repetido depois de 12 min de silêncio devolveu **os mesmos 17 registros byte por byte**, porque os 15 que a janela produziu estavam no bloco aberto (`/api/history/open`). Agora fabrica a própria janela, lê selado **+** aberto, e correlaciona cada carimbo com a presença no USB — a única forma de ver "registro gravado durante o sono", que nenhum critério de espaçamento enxerga. **Medido 09/09, duas rodadas:** 6 registros / 6 wakes completos em 420 s cada, pior margem **0,0 s**, 5 gaps no ritmo, 0 para trás; selados parados em 44 e abertos indo de 10 a 19 entre elas — o trabalho todo estava no bloco que o teste antigo não lia. Detalhe e armadilhas em `SIMUT_AIR_PLANO_ENERGIA.md` §10.3. |
 | T17 `admin_reset_persists` | **F27** | PASS desde `HEAD`; FAIL medido à mão no firmware anterior |
 | C1–C8 (`check_air_consistency.py`) | F15–F19 | FAIL em C1, C2, C3, C4, C5, C8 |
 

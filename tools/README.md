@@ -64,7 +64,7 @@ step in a bench procedure. Run by hand, but with instructions somewhere.
 | script | what it does | last touched |
 |---|---|---|
 | `PicoHand/pico_hand.sh` | Bash wrapper for the "robotic hand" (pico_hand firmware). | 2026-09-06 |
-| `air_test_suite.py` | SIMUT Air — hardware-in-the-loop test suite (serial CLI + web + PicoHand). | 2026-09-07 |
+| `air_test_suite.py` | SIMUT Air — hardware-in-the-loop test suite (serial CLI + web + PicoHand). | 2026-09-09 |
 | `alarm_mqtt_test.py` | SIMUT v21 — Teste em hardware da 2ª linha de telemetria sobre MQTT com | 2026-08-23 |
 | `arduino_pico_overrides/restore.sh` | restore.sh — reverte overrides SIMUT do framework arduino-pico. | 2026-08-20 |
 | `build_lang_pack.py` | F-LANGPACK Etapa 3 — gera data/lang/language_pt-BR.lng. | 2026-08-10 |
