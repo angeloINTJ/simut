@@ -849,13 +849,22 @@ def awake_margins(epochs, spans, skew=0.0):
     return out
 
 
-def spacing_ok(epochs, expected_s, tol_s, last_n):
-    """True when the last `last_n` gaps are within expected±tol."""
-    if len(epochs) < last_n + 1:
-        return False, 'not enough records'
-    gaps = [b - a for a, b in zip(epochs[-last_n - 1:-1], epochs[-last_n:])]
+def interior_gaps_ok(epochs, expected_s, tol_s):
+    """True when EVERY gap between the given records is within expected±tol.
+
+    Replaces an earlier spacing_ok(epochs, ..., last_n) that judged the LAST
+    n gaps of whatever it was handed. That is the wrong end for F04: by the
+    time T08 can read the history the device is back online and writing at an
+    undisturbed cadence, so "the last three gaps" were three gaps the test did
+    not produce, and they passed every time. The caller now selects the records
+    it caused and every gap between them is judged — no end to pick, and
+    nothing to get backwards.
+    """
+    if len(epochs) < 2:
+        return False, 'not enough records', []
+    gaps = [b - a for a, b in zip(epochs, epochs[1:])]
     bad = [g for g in gaps if abs(g - expected_s) > tol_s]
-    return (not bad), f'gaps={gaps}'
+    return (not bad), f'gaps={gaps}', gaps
 
 
 # --------------------------------------------------------------------------
@@ -928,12 +937,35 @@ class Suite:
             self.host = self.target.ip()
         user, pw = os.environ.get('SIMUT_WEB_USER'), os.environ.get('SIMUT_WEB_PASS')
         if self.needs('web') and self.host and user and pw and requests is not None:
-            try:
-                self.web = Web(self.host)
-                self.web.login(user, pw)
-            except Exception as exc:
-                print(f'  web unavailable ({exc}) — web-dependent tests will be skipped')
-                self.web = None
+            # Retried, because one attempt is not a verdict about the web. The
+            # device can go back to sleep between ensure_m0( ) and this login,
+            # and a single 'Connection reset by peer' then silently downgrades
+            # the whole run: the tests do not fail, they SKIP, and the summary
+            # comes back green with the web-dependent half never executed.
+            # Measured 2026-09-09, when it cost T08 a 20-minute bench window.
+            last = None
+            for attempt in range(4):
+                try:
+                    self.web = Web(self.host)
+                    self.web.login(user, pw)
+                    last = None
+                    break
+                except Exception as exc:
+                    last = exc
+                    self.web = None
+                    if attempt < 3:
+                        # Bring it back to M0 so the next try meets a wake
+                        # rather than the same sleep. Guarded: failing to reach
+                        # M0 here means the web tests skip, which is what was
+                        # about to happen anyway — it must not take the run's
+                        # target-only tests down with it.
+                        try:
+                            self.ensure_m0()
+                        except Exception:
+                            pass
+            if last is not None:
+                print(f'  web unavailable after 4 tries ({last}) — '
+                      f'web-dependent tests will be skipped')
         if self.web:
             self.collector = Collector(self.args.collector_port)
             self.collector.start()
@@ -1496,6 +1528,33 @@ class Suite:
         return 'web activity kept M0 for 100 s with idle=60 s'
 
     def t08_offline_timestamps(self):
+        """Offline wakes must be stamped with the real elapsed time (F04).
+
+        WHICH RECORDS THIS JUDGES, AND WHY IT IS SPELLED OUT (2026-09-09)
+        ----------------------------------------------------------------
+        It used to download <today>.h5 and take the last `wakes` gaps in it.
+        That reads only SEALED blocks, and whether the offline wakes are in one
+        by the time this looks depends on something the test does not control:
+        the NTP correction on the way back seals the block before shifting, so
+        the records land in the file — but only if a correction actually
+        happened. With no correction the block stays open, the file still ends
+        at whatever was sealed BEFORE the test ran, and "the last three gaps"
+        are three gaps this test did not produce. A verdict that is right only
+        when an unrelated event fires is worse than one that is plainly wrong,
+        because it passes often enough to be believed.
+
+        So: mark the newest record before going offline, read sealed AND open
+        afterwards (see full_history), take the FIRST `wakes` records past the
+        mark — those are the offline ones — and judge every gap between them.
+        Fewer records than wakes is reported as such, never quietly padded out
+        with older ones. The gap from the mark to the first offline record
+        spans the reboot that broke the SSID, so it is printed and not judged.
+
+        The mark survives the clock correction: a resumed block keeps the
+        previous session's stamps and shiftHistoryTimeV5 seals rather than
+        rewrites them (_h5AdoptedT0), and the provisional clock only ever runs
+        forward, so nothing this test produced can land before the mark.
+        """
         if not self.args.long:
             raise TestSkip('long test — pass --long')
         self.need_web()
@@ -1504,7 +1563,15 @@ class Suite:
             raise TestFail('could not read the current SSID from show net status')
         hist_min = 2
         self.commit_and_reboot({HIST_FIELD: hist_min})
-        wakes = 3
+        expected = hist_min * 60
+        # Four wakes, not three: only the gaps BETWEEN offline records carry
+        # the F04 signal, and the first gap after the mark spans the reboot
+        # that broke the SSID. Three wakes leave two judged gaps; four leaves
+        # three, which is the weight this test already had before the boundary
+        # gap was excluded from the judgement.
+        wakes = 4
+        before, _, _ = self.full_history(expected)
+        t_mark = before[-1] if before else 0
         try:
             self.target.cmd(f'system ssid {good}_nope', 4)
             self.target.close()
@@ -1528,12 +1595,31 @@ class Suite:
             if self.web.wait_up(120) is None:
                 raise TestFail('web did not come back after restoring the SSID')
             self.web.login(os.environ['SIMUT_WEB_USER'], os.environ['SIMUT_WEB_PASS'])
-        day = time.strftime('%Y%m%d')
-        blob = self.web.download(f'/history/{day}.h5')
-        epochs = h5_epochs(blob, hist_min * 60)
-        ok, detail = spacing_ok(epochs, hist_min * 60, 25, wakes)
+        after, n_sealed, n_open = self.full_history(expected)
+        fresh = [e for e in after if e > t_mark]
+        where = f'{n_sealed} sealed + {n_open} open, {len(fresh)} newer than the mark'
+        if len(fresh) < wakes:
+            raise TestFail(
+                f'{wakes} offline wakes produced only {len(fresh)} record(s) after the '
+                f'mark — not enough to judge the spacing, and a wake that files '
+                f'nothing is itself the loss F04 is about ({where})')
+
+        # The FIRST records after the mark are the offline ones; the last ones
+        # were written after the SSID came back, at a cadence nothing was
+        # interfering with.
+        #
+        # Offline, exactly one record per wake: the wake interval is the
+        # history interval, and the after-boot rule (_histFirstDone) is gated
+        # on the RAW clock, which no offline boot ever sets.
+        offline = fresh[:wakes]
+        ok, gap_detail, gaps = interior_gaps_ok(offline, expected, 25)
+        boundary = offline[0] - t_mark
+        detail = (f'offline {gap_detail} (expected {expected}s), boundary gap over '
+                  f'the reboot={boundary}s, not judged; {where}')
         if not ok:
-            raise TestFail(f'offline wakes not spaced by the real sleep (F04): {detail}')
+            bad = [g for g in gaps if abs(g - expected) > 25]
+            raise TestFail(f'offline wakes not spaced by the real sleep (F04): '
+                           f'{len(bad)} of {len(gaps)} off by more than 25s; {detail}')
         return detail
 
     def t09_probe_cycle(self):
@@ -2373,9 +2459,18 @@ def selftest():
     check('count_records json list', count_records(b'[{"a":1},{"a":2}]') == 2)
     check('count_records json dict', count_records(b'{"records":[1,2,3]}') == 3)
     check('count_records csv', count_records(b'a,b\n1,2\n3,4\n') == 3)
-    ok1, _ = spacing_ok([0, 120, 241, 358], 120, 25, 3)
-    ok2, _ = spacing_ok([0, 80, 160, 240], 120, 25, 3)
-    check('spacing ok / compressed detected', ok1 and not ok2)
+    ok1, _, _ = interior_gaps_ok([0, 120, 241, 358], 120, 25)
+    # The F04 signature: every offline wake advances the history ~80 s where
+    # the real sleep was 120 s.
+    ok2, _, _ = interior_gaps_ok([0, 80, 160, 240], 120, 25)
+    check('interior gaps: clean passes, F04 compression fails', ok1 and not ok2)
+    # The regression guard for the bug this replaced: a run whose EARLY gaps
+    # are wrong and whose LAST ones are clean — offline records followed by
+    # the online ones written after the SSID came back. spacing_ok judged the
+    # tail and passed this; every gap is judged now, so it fails.
+    mixed = [0, 80, 160, 240, 360, 480, 600]
+    ok3, _, _ = interior_gaps_ok(mixed, 120, 25)
+    check('a bad head behind a clean tail is not excused', not ok3)
     # the real 2026-09-06 shape: three 60 s records, one backwards, one huge jump
     back, on_time, short, long_ = gap_report([0, 60, 120, 103, 1920], 120)
     check('gap_report finds the backwards gap', len(back) == 1 and back[0] == -17)
