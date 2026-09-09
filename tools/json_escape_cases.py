@@ -251,7 +251,14 @@ def case_hwid(dev, user, password, results):
     original = active[0]['id']
     print(f'  baseline slot {slot} hwId = {original!r}')
 
-    http, rejected = commit(dev, 'sensors', [{'idx': slot, 'hwId': HWID_PROBE}])
+    # The device parses sensor provisioning under "slots":{"s":[{"i":N,...}]}
+    # — not "sensors", which is nested inside "alarms" and "calib" and is
+    # deliberately not a top-level key (WebManager_Commit.cpp). Sent as
+    # "sensors" the write was refused with 400 "No section" before any
+    # string was looked at, on every image: a second way for this tool to
+    # pass everywhere. Found 2026-09-09 by reading the 400's body. Fields
+    # left out keep the slot's current values, so only hwId moves.
+    http, rejected = commit(dev, 'slots', {'s': [{'i': slot, 'hwId': HWID_PROBE}]})
     refused = (http is not None and http >= 400) or any('hwId' in r for r in rejected)
     print(f'  commit hwId={HWID_PROBE!r} -> HTTP {http}, rejected={rejected}')
 
@@ -266,7 +273,7 @@ def case_hwid(dev, user, password, results):
     body, ok, why = dev.raw('/api/status')
     c.accepted, c.parses, c.detail = True, ok, why
 
-    http, rejected = commit(dev, 'sensors', [{'idx': slot, 'hwId': original}])
+    http, rejected = commit(dev, 'slots', {'s': [{'i': slot, 'hwId': original}]})
     print(f'  restore hwId={original!r} -> HTTP {http}, rejected={rejected}')
     dev.wait_reboot(user, password)
     body, ok, _ = dev.raw('/api/status')
