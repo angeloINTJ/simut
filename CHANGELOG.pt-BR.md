@@ -78,40 +78,6 @@ que fica de fora é uma lista fixa e conhecida de oito, então, ao contrário de
 uma queda suprimida, não há contagem que valha a pena relatar: num aparelho que
 reinicia a cada minuto o registro horário de contabilidade nunca venceria.
 
-### Para quem compila do código-fonte
-
-Não existe mais o ambiente `pico_w_debug`. Ele nunca linkou na história deste
-projeto — cem kilobytes acima do slot da aplicação — e um alvo de build que não
-se consegue construir ensina a coisa errada sobre os que se consegue. O
-tripwire de concorrência que ele estava documentado a carregar mora no
-`pico_w_asserts` há tempos, e esse linka.
-
-Avisos do compilador no código-fonte do próprio firmware agora são erros.
-Sessenta e um deles foram corrigidos antes, e um escondia um defeito real: um
-construtor que listava seus membros em ordem diferente da do cabeçalho, o que o
-compilador ignora em silêncio em favor da ordem declarada.
-
-A integração contínua passou de compilar uma imagem para compilar as cinco e
-rodar as seis suítes de teste, e cada imagem agora tem um orçamento de flash
-que reprova o build quando ela cresce além dele. O `tools/README.md` e o
-`docs/README.md` são novos e dizem quais scripts e quais documentos estão
-vigentes.
-
-## v2.4.0-beta (2026-09-07)
-
-**O bloco do histórico sobrevive a um wake.** Um bloco guarda sessenta leituras
-para que seu cabeçalho seja pago uma vez por hora, e não uma vez por leitura. Na
-build que hiberna isso nunca acontecia: o boot encontrava o instantâneo do bloco
-aberto, fechava-o no arquivo do dia e recomeçava — o que é o certo a fazer
-quando um boot significa que algo deu errado, e ali todo wake é um boot. Medido
-num arquivo real: 448 leituras espalhadas por 316 blocos, 253 deles com uma
-única leitura, a 16 bytes cada contra os cinco que o formato foi desenhado para
-custar. Agora o boot dá continuidade ao bloco, e o arquivo de instantâneo
-permanece onde está, de modo que o bloco aberto nunca fica só na memória. Medido
-depois da mudança: um bloco de 27 leituras onde antes havia 27 blocos. O
-histórico voltou a custar aproximadamente o previsto, e o aparelho volta a
-guardar meses dele em vez de semanas.
-
 ### O wake do SIMUT Air ficou 2,7× mais curto
 
 Um wake de leitura levava 25,5 s, e cerca de 23 s disso não era trabalho.
@@ -276,6 +242,39 @@ display; ele está compilado nas duas imagens publicadas e autentica com a senha
 do admin da web. Reescrito, junto das seções de AP, hibernação do Air e
 `/download`.
 
+### Para quem compila do código-fonte
+
+Não existe mais o ambiente `pico_w_debug`. Ele nunca linkou na história deste
+projeto — cem kilobytes acima do slot da aplicação — e um alvo de build que não
+se consegue construir ensina a coisa errada sobre os que se consegue. O
+tripwire de concorrência que ele estava documentado a carregar mora no
+`pico_w_asserts` há tempos, e esse linka.
+
+Avisos do compilador no código-fonte do próprio firmware agora são erros.
+Sessenta e um deles foram corrigidos antes, e um escondia um defeito real: um
+construtor que listava seus membros em ordem diferente da do cabeçalho, o que o
+compilador ignora em silêncio em favor da ordem declarada.
+
+A integração contínua passou de compilar uma imagem para compilar as cinco e
+rodar as seis suítes de teste, e cada imagem agora tem um orçamento de flash
+que reprova o build quando ela cresce além dele. O `tools/README.md` e o
+`docs/README.md` são novos e dizem quais scripts e quais documentos estão
+vigentes.
+
+## v2.4.0-beta (2026-09-07)
+
+**O bloco do histórico sobrevive a um wake.** Um bloco guarda sessenta leituras
+para que seu cabeçalho seja pago uma vez por hora, e não uma vez por leitura. Na
+build que hiberna isso nunca acontecia: o boot encontrava o instantâneo do bloco
+aberto, fechava-o no arquivo do dia e recomeçava — o que é o certo a fazer
+quando um boot significa que algo deu errado, e ali todo wake é um boot. Medido
+num arquivo real: 448 leituras espalhadas por 316 blocos, 253 deles com uma
+única leitura, a 16 bytes cada contra os cinco que o formato foi desenhado para
+custar. Agora o boot dá continuidade ao bloco, e o arquivo de instantâneo
+permanece onde está, de modo que o bloco aberto nunca fica só na memória. Medido
+depois da mudança: um bloco de 27 leituras onde antes havia 27 blocos. O
+histórico voltou a custar aproximadamente o previsto, e o aparelho volta a
+guardar meses dele em vez de semanas.
 
 ### SIMUT Air: build headless com ciclo de hibernação em deep sleep (experimental)
 

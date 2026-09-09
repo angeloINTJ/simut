@@ -75,38 +75,6 @@ skipped is a fixed, known list of eight, so unlike a suppressed outage there is
 no count worth reporting: on a device that reboots every minute the hourly
 accounting record would never come due anyway.
 
-### For anyone building from source
-
-There is no `pico_w_debug` environment any more. It had never linked in this
-project's history — a hundred kilobytes over the application slot — and a build
-target that cannot be built teaches the wrong thing about the ones that can.
-The concurrency tripwire it was documented to carry has lived in
-`pico_w_asserts` for some time, and that one links.
-
-Warnings in the firmware's own sources are now errors. Sixty-one of them were
-fixed first, one of which was hiding a real defect: a constructor that listed
-its members in a different order from the header, which the compiler silently
-ignores in favour of the declared order.
-
-Continuous integration went from building one image to building all five and
-running all six test suites, and every image now has a flash budget that fails
-the build when it grows past it. `tools/README.md` and `docs/README.md` are new
-and say which scripts and which documents are current.
-
-## v2.4.0-beta (2026-09-07)
-
-**The history block survives a wake.** A block holds sixty readings so that its
-header is paid once an hour instead of once a reading. On the hibernating build
-it never did: the boot found the open block's snapshot, closed it into the day
-file and started over, which is the right thing to do when a boot means
-something went wrong — and every wake is a boot. Measured on a real day file:
-448 readings spread across 316 blocks, 253 of them holding a single one, at 16
-bytes each against the five the format is designed for. The boot now carries the
-block on instead, and the snapshot file stays where it is, so the open block is
-never held only in memory. Measured after the change: one block of 27 readings
-where there had been 27 blocks. History now costs roughly what it was meant to,
-and a device keeps months of it again rather than weeks.
-
 ### A SIMUT Air wake is 2.7x shorter
 
 A reading wake took 25.5 s, and about 23 s of that was not work. Measured on the
@@ -266,6 +234,37 @@ display PIN; it is compiled into the two published images and authenticates
 with the admin web password. Rewritten, along with the AP, Air hibernation and
 `/download` sections.
 
+### For anyone building from source
+
+There is no `pico_w_debug` environment any more. It had never linked in this
+project's history — a hundred kilobytes over the application slot — and a build
+target that cannot be built teaches the wrong thing about the ones that can.
+The concurrency tripwire it was documented to carry has lived in
+`pico_w_asserts` for some time, and that one links.
+
+Warnings in the firmware's own sources are now errors. Sixty-one of them were
+fixed first, one of which was hiding a real defect: a constructor that listed
+its members in a different order from the header, which the compiler silently
+ignores in favour of the declared order.
+
+Continuous integration went from building one image to building all five and
+running all six test suites, and every image now has a flash budget that fails
+the build when it grows past it. `tools/README.md` and `docs/README.md` are new
+and say which scripts and which documents are current.
+
+## v2.4.0-beta (2026-09-07)
+
+**The history block survives a wake.** A block holds sixty readings so that its
+header is paid once an hour instead of once a reading. On the hibernating build
+it never did: the boot found the open block's snapshot, closed it into the day
+file and started over, which is the right thing to do when a boot means
+something went wrong — and every wake is a boot. Measured on a real day file:
+448 readings spread across 316 blocks, 253 of them holding a single one, at 16
+bytes each against the five the format is designed for. The boot now carries the
+block on instead, and the snapshot file stays where it is, so the open block is
+never held only in memory. Measured after the change: one block of 27 readings
+where there had been 27 blocks. History now costs roughly what it was meant to,
+and a device keeps months of it again rather than weeks.
 
 ### SIMUT Air: headless build with a deep-sleep hibernation cycle (experimental)
 
