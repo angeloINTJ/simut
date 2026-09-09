@@ -1,6 +1,6 @@
 # docs/
 
-Forty documents, and until now no way to tell which ones describe the firmware
+Forty-one documents, and until now no way to tell which ones describe the firmware
 you are holding and which ones describe a moment in its past. Both kinds are
 worth keeping. Confusing them is what costs an afternoon.
 
@@ -49,6 +49,7 @@ fixed, which is exactly what makes them useful when it comes back.
 
 | document | version | about |
 |---|---|---|
+| [analysis/PLANO_DIVIDA_TECNICA.md](analysis/PLANO_DIVIDA_TECNICA.md) | **Living** | The debt still owed and the order to pay it in, with the dependencies that set that order. |
 | [analysis/SIMUT_AIR_PLANO_FIX.md](analysis/SIMUT_AIR_PLANO_FIX.md) | v2.3.9-beta | The Air fix and optimisation plan (F-numbered findings). |
 | [analysis/SIMUT_AIR_PLANO_ENERGIA.md](analysis/SIMUT_AIR_PLANO_ENERGIA.md) | 2026-09-07 | Energy budget: frequent readings, rare radio. |
 | [analysis/SIMUT_AIR_ESBOCO.md](analysis/SIMUT_AIR_ESBOCO.md) | v2.3.9-beta | The original headless-build sketch. |
