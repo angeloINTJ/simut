@@ -160,6 +160,7 @@ Luminosidad
 304 Sesión expirada
 305 Archivo subido
 306 Archivo eliminado
+307 Bloqueo Bluetooth
 400 Pantalla iniciada en Core 1
 401 Calibración táctil inicial guardada
 402 Calibración táctil requerida
@@ -295,6 +296,7 @@ Luminosidad
 798468cf Varios archivos .lng en /lang/ — cargando el primero en orden alfabético
 79d951e9 Contraseña BT admin rechazada
 7b990491 Contraseña restablecida por la CLI: 
+80a25b25 Comando de recuperación rechazado por Bluetooth
 836dd19a Cursor de telemetría por delante de los datos — reset a 0
 86c72a1e El escaneo nunca terminó — se abandona
 88d38ff3 Fallo del PIO del DS18B20 (pio0 lleno) — 1-Wire desactivado en este arranque
@@ -342,7 +344,9 @@ e45e023f Discrepancia de hardware (Acceso Denegado)
 e50c0507 MQTT conectado a 
 e5ac1216 SSID encontrado, conectando...
 f43dab3c forceUnpause: refCount=
+f7c33aba Bloqueo del Bluetooth tras contraseñas erróneas
 f914ca06 Sistema listo (modo AP).
+f99bdf81 Ventana de descubrimiento Bluetooth cerrada
 fa87bdae Falló la subida (#
 fd0933a1 Calibración táctil restablecida vía web
 ff5e139d Error HTTP: 

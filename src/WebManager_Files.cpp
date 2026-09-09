@@ -62,6 +62,17 @@ void WebManager::handleDownload( ) {
   return;
  }
 
+ /* PERM_FILE_READ is not a master key (finding O-1). History and the forensic
+  * log are their own permissions on the users page, and an account holding
+  * only "read files" was able to pull both through here — which makes
+  * PERM_HISTORY and PERM_LOGS decoration rather than controls. */
+ uint16_t extra = downloadPermFor(path);
+ if (extra && !(perms & extra)) {
+  LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, _currentUserId, String("download refused: ") + path);
+  _server->send(403, "text/plain", "Forbidden");
+  return;
+ }
+
  HeavyTaskGuard htg(_storageRef);
  if (!htg.isLocked( )) { _server->send(503, "text/plain", "System Busy"); return; }
 

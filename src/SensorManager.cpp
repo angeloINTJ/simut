@@ -517,6 +517,15 @@ void SensorManager::update( ) {
  * results collected after 750ms conversion time.
  * DHT22: Sequential one-at-a-time via PIO state machine (non-blocking).
  */
+/* The gap a sensor must sit idle before the next conversion is requested.
+ * Zero in fast-sampling mode — see SensorManager::setFastSampling( ). Written
+ * as one helper so the three driver paths cannot drift apart: the DS18B20 one
+ * is what SIMUT Air waits on, and a DHT22 or BME280 unit would have inherited
+ * the old behaviour silently. */
+uint32_t SensorManager::readGap(const RuntimeSensor& s) const {
+ return _fastSampling ? 0u : s.readInterval;
+}
+
 void SensorManager::processPeriodicReads( ) {
  uint32_t now = millis( );
 
@@ -525,7 +534,7 @@ void SensorManager::processPeriodicReads( ) {
  if (_ds18.state == DS18B20Driver::DS_IDLE) {
  bool needsRead = false;
  for (auto &s : _runtimeSensors) {
- if (s.type == TYPE_DS18B20 && (now - s.lastReadTime >= s.readInterval)) {
+ if (s.type == TYPE_DS18B20 && (now - s.lastReadTime >= readGap(s))) {
  needsRead = true; break;
  }
  }
@@ -625,7 +634,7 @@ void SensorManager::processPeriodicReads( ) {
 
  for (size_t i = 0; i < _runtimeSensors.size( ); i++) {
  auto &s = _runtimeSensors[i];
- if (s.type == TYPE_DHT22 && (now - s.lastReadTime >= s.readInterval)) {
+ if (s.type == TYPE_DHT22 && (now - s.lastReadTime >= readGap(s))) {
  _dht.reset( );
  _dht.requestReading(s.config.pins[0]);
 
@@ -687,7 +696,7 @@ void SensorManager::processPeriodicReads( ) {
    for (size_t i = 0; i < _runtimeSensors.size( ); i++) {
     auto &s = _runtimeSensors[i];
     if ((s.type == TYPE_BME280 || s.type == TYPE_BMP280) && s.bmeDriverIdx == (int8_t)di
-        && (now - s.lastReadTime >= s.readInterval)) {
+        && (now - s.lastReadTime >= readGap(s))) {
      drv->reset( );
      drv->requestReading( );
      drv->timer = millis( );

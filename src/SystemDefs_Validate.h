@@ -132,6 +132,65 @@ inline bool isValidCfgString(const char* s, size_t maxLen) {
  return true;
 }
 
+/**
+ * @brief Validate a sensor hardware ID: 1..15 chars of [A-Za-z0-9_-].
+ *
+ * Stricter than isValidCfgString on purpose (finding O-2, 2026-09-07). An hwId
+ * is not free text: it is a KEY. It goes into /api/status as a JSON string, it
+ * is the column header of the telemetry CSV, it names the field in the
+ * telemetry JSON, and it identifies the sensor to whatever stores the data at
+ * the other end. isValidCfgString only refuses control bytes, so `X\` was a
+ * legal ID that made /api/status un-parseable for every user of the device and
+ * corrupted the payload the collector wrote to disk — one field, four
+ * consumers, none of which could tell you where the damage came from.
+ *
+ * The allowed set is what every one of those consumers handles without
+ * quoting: letters, digits, underscore and hyphen. No dot (CSV and topic
+ * separators), no space, no quote, no backslash, no comma, no colon.
+ *
+ * Applied on WRITE only. Configurations already on flash are left alone and
+ * their consumers escape what they emit; this is what stops new ones.
+ */
+inline bool isValidHwId(const char* id) {
+ if (!id) return false;
+ size_t len = strlen(id);
+ if (len == 0 || len > 15) return false;
+ for (size_t i = 0; i < len; i++) {
+ const char c = id[i];
+ const bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+ (c >= '0' && c <= '9') || c == '_' || c == '-';
+ if (!ok) return false;
+ }
+ return true;
+}
+
+/**
+ * @brief Copy an identity string keeping only bytes safe to emit unquoted.
+ *
+ * For the @NAME and @CODE lines of a .lng pack, which reach /api/perms — the
+ * first thing every page of the UI fetches. The pack is a file anyone with
+ * PERM_FILE_UPLOAD can put on the device, so a quote in @NAME took the entire
+ * interface down for every user, and it survived a reboot because the pack is
+ * only read at boot (V-04).
+ *
+ * Drops rather than rejects: a pack whose name carries a stray byte is still a
+ * usable pack, and refusing to load it would trade a cosmetic problem for a
+ * device with no translations. Bytes >= 128 are kept — the names are UTF-8
+ * ("Português") and JSON carries them fine.
+ *
+ * Always NUL-terminates when cap > 0.
+ */
+inline void langIdentSanitize(const char* src, size_t srcLen, char* dst, size_t cap) {
+ if (!dst || cap == 0) return;
+ size_t o = 0;
+ for (size_t i = 0; src && i < srcLen && o + 1 < cap; i++) {
+ const unsigned char c = (unsigned char)src[i];
+ if (c < 32 || c == '"' || c == '\\') continue;
+ dst[o++] = (char)c;
+ }
+ dst[o] = '\0';
+}
+
 /** Validate names (device, username): no control chars, no quotes/backslash, 1-31 chars. */
 inline bool isValidName(const char* name, size_t maxLen = 31) {
  if (!name) return false;

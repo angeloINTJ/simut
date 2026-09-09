@@ -485,7 +485,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
       <div>
         <p class="release-line">
           <span class="tag tag-beta" data-i18n="tag.beta">Beta</span>
-          <span class="tag">v2.3.2-beta</span>
+          <span class="tag">v2.3.9-beta</span>
           <span class="tag">MIT</span>
           <span class="tag">RP2040</span>
         </p>
@@ -560,45 +560,50 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     <p class="eyebrow" data-i18n="new.eyebrow">This generation</p>
     <h2 data-i18n="new.h2">What changed recently</h2>
     <p class="lede" style="margin-bottom:2rem" data-i18n="new.lede">
-      Twenty-two releases in six days took the line from 2.2.0 to 2.3.2 — the web server learned HTTPS, the device learned to speak Prometheus, Home Assistant and syslog, and every release was verified on real hardware.
+      The line grew a second and a third shape: a build with a character LCD, and one with no display at all that sleeps on a battery between readings. A full security audit was closed in the same stretch, and every number below was measured on real hardware.
     </p>
     <div class="releases">
       <article class="release">
-        <div><div class="ver">v2.3.0–v2.3.2</div><div class="date" data-i18n="new.d1">21 Aug 2026</div></div>
+        <div><div class="ver">SIMUT Air</div><div class="date" data-i18n="new.d1">Sep 2026 · experimental</div></div>
         <div>
-          <h3 data-i18n="new.t1">HTTPS pages in a third of the time</h3>
+          <h3 data-i18n="new.t1">A build that spends its life asleep</h3>
           <p data-i18n="new.b1">
-            Keep-alive is now on by default — one TLS handshake per session instead
-            of one per request — and the accept path draws from a static pool that is
-            reserved only when HTTPS actually starts, returning the RAM it once cost
-            every configuration. The telemetry batch ceiling rose from 50 to 250
-            records per upload, and the white flash between dark-themed pages is gone.
+            Same firmware, display compiled out, and a deep-sleep cycle in its
+            place: it wakes on a clock, reads its sensors, writes the reading to
+            flash and drops off the USB bus again. A reading wake measures
+            <strong>9.31 s against 51 s asleep</strong> — about 13% of the time
+            awake — and the radio only comes up once enough readings are queued to
+            be worth sending, which on the bench is one wake in eight.
           </p>
         </div>
       </article>
       <article class="release">
-        <div><div class="ver">v2.2.16–v2.2.18</div><div class="date" data-i18n="new.d2">19–20 Aug 2026</div></div>
+        <div><div class="ver" data-i18n="new.v2">The wake</div><div class="date" data-i18n="new.d2">Sep 2026</div></div>
         <div>
-          <h3 data-i18n="new.t2">The web UI works over HTTPS, end to end</h3>
+          <h3 data-i18n="new.t2">25.5 seconds of which 23 were not work</h3>
           <p data-i18n="new.b2">
-            The receive buffer now holds a whole TLS record, so uploads stop dying at
-            the fourth kilobyte — language packs and firmware images stage over
-            HTTPS. The browser serialises its dashboard fetches to match the chip's
-            one-at-a-time TLS server, and the HTTPS-to-HTTP cookie trap is detected
-            and explained instead of failing silently.
+            Three loops in the boot polled things that were compile-time constants
+            in that image — a touch panel it does not have, a second core it never
+            launches — so each ran out its full timeout, every wake, one of them
+            spinning at full core current for 1.5 s. And the sensor sat idle
+            between conversions because its rate limit was written for a display
+            refreshing once a second. <strong>25.5 s → 9.31 s</strong>, measured
+            marker by marker and confirmed by a probe that touches nothing.
           </p>
         </div>
       </article>
       <article class="release">
-        <div><div class="ver">v2.2.13–v2.2.14</div><div class="date" data-i18n="new.d3">19 Aug 2026</div></div>
+        <div><div class="ver">v2.3.5–v2.3.9</div><div class="date" data-i18n="new.d3">Aug–Sep 2026</div></div>
         <div>
-          <h3 data-i18n="new.t3">The audit trail leaves the box</h3>
+          <h3 data-i18n="new.t3">A cheaper board, and a closed audit</h3>
           <p data-i18n="new.b3">
-            Three integrations that speak your infrastructure's language: a
-            Prometheus <code>/metrics</code> endpoint behind the same login lockout,
-            Home Assistant MQTT Discovery so sensors appear on their own, and the
-            event log shipped as RFC 5424 syslog over UDP — with a NIL timestamp
-            before NTP syncs rather than an invented one.
+            The alpha build drives a 16×2 character LCD instead of the TFT, cycling
+            slots on two lines, and carries a Bluetooth console because it has no
+            touch panel to start AP mode from. Alongside it, a security audit
+            closed: the setup access point is <strong>WPA2 with a per-device
+            key</strong>, Bluetooth stops advertising five minutes after boot, the
+            radio console got the same exponential lockout as the web login, and
+            the four recovery commands are refused over anything but a cable.
           </p>
         </div>
       </article>
@@ -661,6 +666,11 @@ footer > .shell { padding-block: 2.5rem 3rem; }
         English, Portuguese and Spanish — on the display, the web interface and the
         CLI help. All of it loads from language packs on the filesystem rather than
         being compiled in, so a translation is edited without a rebuild.</p></div>
+      <div class="cell"><h3 data-i18n="c13.t">It can run on a battery</h3><p data-i18n="c13.b">
+        The Air build has no display and sleeps between readings: 9.31 s awake, 51 s
+        asleep, the radio off unless there is a batch worth sending. The reading is
+        written to flash first, so a network that is down costs nothing but a delay.
+      </p></div>
       <div class="cell"><h3 data-i18n="c12.t">Network on your terms</h3><p data-i18n="c12.b">
         DHCP or a static address, your own DNS and NTP servers, and an mDNS name so
         you do not have to memorise an IP. That name costs 15,272 B of flash —
@@ -823,7 +833,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     <h2 data-i18n="st.h2">From parts to readings</h2>
     <div class="steps">
       <div class="step"><div><h3 data-i18n="st1.t">Build the hardware</h3><p data-i18n="st1.b">Wire the display, touch panel and sensors to the Pico W following the <a href="WIRING.html">wiring guide</a>. A breadboard is enough to start.</p></div></div>
-      <div class="step"><div><h3 data-i18n="st2.t">Download the firmware</h3><p data-i18n="st2.b">Take <code>simut_v2.3.4.uf2</code> from the <a href="https://github.com/angeloINTJ/simut/releases/latest">latest release</a>. Arduino IDE and PlatformIO source trees are published alongside it.</p></div></div>
+      <div class="step"><div><h3 data-i18n="st2.t">Download the firmware</h3><p data-i18n="st2.b">Take the image for your board from the <a href="https://github.com/angeloINTJ/simut/releases/latest">latest release</a>: <code>simut_*.uf2</code> for the touch display, <code>simut_alpha_*.uf2</code> for the 16×2 LCD, <code>simut_air_*.uf2</code> for the headless battery build. Arduino IDE and PlatformIO source trees are published alongside them.</p></div></div>
       <div class="step"><div><h3 data-i18n="st3.t">Flash over USB</h3><p data-i18n="st3.b">Hold BOOTSEL while connecting the Pico, then drop the <code>.uf2</code> onto the <code>RPI-RP2</code> drive that appears. The board reboots into SIMUT on its own.</p></div></div>
       <div class="step"><div><h3 data-i18n="st4.t">Join it to your network</h3><p data-i18n="st4.b">Configure Wi-Fi from the touch display. The admin password is printed once over USB serial on first boot — write it down, and change it at first web login.</p></div></div>
       <div class="step"><div><h3 data-i18n="st5.t">Open the interface</h3><p data-i18n="st5.b">Browse to <code>http://simut.local</code> — or <code>https://</code> once you upload a certificate — add your sensors to slots, set alarm thresholds, and calibrate against a reference if the readings matter.</p></div></div>
@@ -913,12 +923,17 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'new.eyebrow': 'Esta geração', 'new.h2': 'O que mudou recentemente',
     'new.lede': 'Vinte e duas releases em seis dias levaram a linha da 2.2.0 à 2.3.2 — o servidor web aprendeu HTTPS, o aparelho aprendeu a falar Prometheus, Home Assistant e syslog, e cada release foi verificada em hardware real.',
     'new.d1': '21 ago 2026', 'new.d2': '19–20 ago 2026', 'new.d3': '19 ago 2026',
-    'new.t1': 'Páginas HTTPS em um terço do tempo',
-    'new.b1': 'O keep-alive agora vem ligado por padrão — um handshake TLS por sessão em vez de um por requisição — e o caminho de accept usa um pool estático reservado só quando o HTTPS realmente sobe, devolvendo a RAM que antes custava a toda configuração. O teto do lote de telemetria subiu de 50 para 250 registros por envio, e a piscada branca entre páginas no tema escuro acabou.',
-    'new.t2': 'A interface web funciona por HTTPS, de ponta a ponta',
-    'new.b2': 'O buffer de recepção agora comporta um registro TLS inteiro, então os uploads param de morrer no quarto kilobyte — pacotes de idioma e imagens de firmware sobem por HTTPS. O navegador serializa as buscas do painel para casar com o servidor TLS de um cliente por vez do chip, e a armadilha do cookie HTTPS→HTTP é detectada e explicada em vez de falhar em silêncio.',
-    'new.t3': 'A trilha de auditoria sai da caixa',
-    'new.b3': 'Três integrações que falam a língua da sua infraestrutura: um endpoint Prometheus <code>/metrics</code> atrás do mesmo bloqueio do login, MQTT Discovery do Home Assistant para os sensores aparecerem sozinhos, e o log de eventos enviado como syslog RFC 5424 por UDP — com timestamp NIL antes do NTP sincronizar, em vez de um inventado.',
+    'new.lede': 'A linha ganhou uma segunda e uma terceira forma: um build com LCD de caracteres, e um sem display nenhum, que dorme com bateria entre as leituras. Uma auditoria de segurança inteira foi fechada no mesmo trecho, e cada número abaixo foi medido em hardware real.',
+    'new.d1': 'set 2026 · experimental',
+    'new.d2': 'set 2026',
+    'new.d3': 'ago–set 2026',
+    'new.v2': 'O wake',
+    'new.t1': 'Um build que passa a vida dormindo',
+    'new.b1': 'Mesmo firmware, display compilado fora, e um ciclo de deep sleep no lugar: ele acorda no relógio, lê os sensores, grava a leitura na flash e some do barramento USB de novo. Um wake de leitura mede <strong>9,31 s contra 51 s dormindo</strong> — cerca de 13% do tempo acordado — e o rádio só sobe quando há leituras suficientes na fila para valer o envio, o que na bancada é um wake em cada oito.',
+    'new.t2': '25,5 segundos, dos quais 23 não eram trabalho',
+    'new.b2': 'Três laços do boot consultavam coisas que eram constantes de compilação naquela imagem — um painel touch que ele não tem, um segundo núcleo que ele nunca lança — então cada um gastava o timeout inteiro, a cada wake, e um deles em laço apertado a plena corrente por 1,5 s. E o sensor ficava ocioso entre conversões porque o limitador de taxa dele foi escrito para um display que atualiza uma vez por segundo. <strong>25,5 s → 9,31 s</strong>, medido marcador a marcador e confirmado por uma sonda que não toca em nada.',
+    'new.t3': 'Uma placa mais barata, e uma auditoria fechada',
+    'new.b3': 'O build alpha conduz um LCD de caracteres 16×2 no lugar do TFT, alternando slots em duas linhas, e carrega um console Bluetooth porque não tem painel touch por onde iniciar o modo AP. Junto dele, uma auditoria de segurança foi fechada: o ponto de acesso de configuração é <strong>WPA2 com chave por dispositivo</strong>, o Bluetooth para de se anunciar cinco minutos depois do boot, o console pelo rádio ganhou o mesmo lockout exponencial do login web, e os quatro comandos de recuperação são recusados por qualquer coisa que não seja um cabo.',
     'new.changelog': 'Changelog completo',
     'cap.eyebrow': 'Recursos', 'cap.h2': 'O que o firmware faz',
     'cap.lede': 'Tudo abaixo roda no dispositivo. Nada liga para casa.',
@@ -939,6 +954,8 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'c10.b': 'Baixe todo o sistema de arquivos como um único <code>.bkp</code>, verificado por CRC32 e vinculado ao ID do chip, de modo que uma imagem não possa ser restaurada na placa errada.',
     'c11.t': 'Três idiomas',
     'c11.b': 'Inglês, português e espanhol — no display, na interface web e na ajuda do CLI. Tudo isso carrega de pacotes de idioma no sistema de arquivos em vez de ser compilado, então uma tradução se edita sem recompilar.',
+    'c13.t': 'Ele roda com bateria',
+    'c13.b': 'O build Air não tem display e dorme entre as leituras: 9,31 s acordado, 51 s dormindo, o rádio desligado a menos que haja um lote que valha o envio. A leitura vai para a flash primeiro, então uma rede fora do ar custa apenas um atraso.',
     'c12.t': 'Rede nos seus termos',
     'c12.b': 'DHCP ou endereço fixo, seus próprios servidores DNS e NTP, e um nome mDNS para você não ter que decorar um IP. Esse nome custa 15.272 B de flash — medidos, e removíveis num flag.',
     'eng.eyebrow': 'Por dentro', 'eng.h2': 'Os sensores não rodam no processador',
@@ -993,7 +1010,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'st1.t': 'Monte o hardware',
     'st1.b': 'Ligue o display, o painel de toque e os sensores ao Pico W seguindo o <a href="WIRING.html">guia de ligação</a>. Uma protoboard basta para começar.',
     'st2.t': 'Baixe o firmware',
-    'st2.b': 'Pegue o <code>simut_v2.3.4.uf2</code> na <a href="https://github.com/angeloINTJ/simut/releases/latest">última release</a>. As árvores de código para Arduino IDE e PlatformIO são publicadas junto.',
+    'st2.b': 'Pegue a imagem da sua placa na <a href="https://github.com/angeloINTJ/simut/releases/latest">última release</a>: <code>simut_*.uf2</code> para o display touch, <code>simut_alpha_*.uf2</code> para o LCD 16×2, <code>simut_air_*.uf2</code> para o build sem display, a bateria. As árvores de código para Arduino IDE e PlatformIO são publicadas junto.',
     'st3.t': 'Grave por USB',
     'st3.b': 'Segure o BOOTSEL enquanto conecta o Pico, depois solte o <code>.uf2</code> no drive <code>RPI-RP2</code> que aparecer. A placa reinicia no SIMUT sozinha.',
     'st4.t': 'Coloque na sua rede',
@@ -1039,12 +1056,17 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'new.eyebrow': 'Esta generación', 'new.h2': 'Qué cambió recientemente',
     'new.lede': 'Veintidós releases en seis días llevaron la línea de la 2.2.0 a la 2.3.2 — el servidor web aprendió HTTPS, el dispositivo aprendió a hablar Prometheus, Home Assistant y syslog, y cada release fue verificada en hardware real.',
     'new.d1': '21 ago 2026', 'new.d2': '19–20 ago 2026', 'new.d3': '19 ago 2026',
-    'new.t1': 'Páginas HTTPS en un tercio del tiempo',
-    'new.b1': 'El keep-alive ahora viene activado por defecto — un handshake TLS por sesión en vez de uno por petición — y la ruta de accept usa un pool estático que se reserva solo cuando el HTTPS realmente arranca, devolviendo la RAM que antes costaba a toda configuración. El techo del lote de telemetría subió de 50 a 250 registros por envío, y el destello blanco entre páginas del tema oscuro desapareció.',
-    'new.t2': 'La interfaz web funciona por HTTPS, de extremo a extremo',
-    'new.b2': 'El búfer de recepción ahora aloja un registro TLS entero, así que las subidas dejan de morir en el cuarto kilobyte — paquetes de idioma e imágenes de firmware suben por HTTPS. El navegador serializa las peticiones del panel para ajustarse al servidor TLS de un cliente a la vez del chip, y la trampa de la cookie HTTPS→HTTP se detecta y se explica en vez de fallar en silencio.',
-    'new.t3': 'El registro de auditoría sale de la caja',
-    'new.b3': 'Tres integraciones que hablan la lengua de tu infraestructura: un endpoint Prometheus <code>/metrics</code> tras el mismo bloqueo del acceso, MQTT Discovery de Home Assistant para que los sensores aparezcan solos, y el log de eventos enviado como syslog RFC 5424 por UDP — con marca de tiempo NIL antes de sincronizar NTP, en vez de una inventada.',
+    'new.lede': 'La línea ganó una segunda y una tercera forma: un build con LCD de caracteres, y uno sin pantalla alguna, que duerme con batería entre lecturas. Una auditoría de seguridad completa se cerró en el mismo tramo, y cada número de abajo fue medido en hardware real.',
+    'new.d1': 'sep 2026 · experimental',
+    'new.d2': 'sep 2026',
+    'new.d3': 'ago–sep 2026',
+    'new.v2': 'El wake',
+    'new.t1': 'Un build que pasa la vida dormido',
+    'new.b1': 'El mismo firmware, la pantalla compilada fuera, y un ciclo de deep sleep en su lugar: despierta con el reloj, lee sus sensores, escribe la lectura en flash y desaparece del bus USB otra vez. Un despertar de lectura mide <strong>9,31 s contra 51 s dormido</strong> — cerca del 13% del tiempo despierto — y la radio solo se enciende cuando hay suficientes lecturas en cola para que valga la pena enviarlas, que en el banco es uno de cada ocho despertares.',
+    'new.t2': '25,5 segundos, de los cuales 23 no eran trabajo',
+    'new.b2': 'Tres bucles del arranque consultaban cosas que eran constantes de compilación en esa imagen — un panel táctil que no tiene, un segundo núcleo que nunca lanza — así que cada uno agotaba su timeout entero, en cada despertar, y uno de ellos girando a plena corriente durante 1,5 s. Y el sensor quedaba ocioso entre conversiones porque su limitador de tasa fue escrito para una pantalla que se refresca una vez por segundo. <strong>25,5 s → 9,31 s</strong>, medido marcador a marcador y confirmado por una sonda que no toca nada.',
+    'new.t3': 'Una placa más barata, y una auditoría cerrada',
+    'new.b3': 'El build alpha maneja un LCD de caracteres 16×2 en lugar del TFT, alternando slots en dos líneas, y lleva una consola Bluetooth porque no tiene panel táctil desde donde iniciar el modo AP. Junto a él se cerró una auditoría de seguridad: el punto de acceso de configuración es <strong>WPA2 con clave por dispositivo</strong>, el Bluetooth deja de anunciarse cinco minutos después del arranque, la consola por radio recibió el mismo bloqueo exponencial que el login web, y los cuatro comandos de recuperación se rechazan por cualquier vía que no sea un cable.',
     'new.changelog': 'Changelog completo',
     'cap.eyebrow': 'Funciones', 'cap.h2': 'Qué hace el firmware',
     'cap.lede': 'Todo lo de abajo corre en el dispositivo. Nada llama a casa.',
@@ -1065,6 +1087,8 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'c10.b': 'Descarga todo el sistema de archivos como un único <code>.bkp</code>, verificado por CRC32 y ligado al ID del chip, de forma que una imagen no pueda restaurarse en la placa equivocada.',
     'c11.t': 'Tres idiomas',
     'c11.b': 'Inglés, portugués y español — en la pantalla, la interfaz web y la ayuda de la CLI. Todo ello se carga desde paquetes de idioma en el sistema de archivos en vez de compilarse, así que una traducción se edita sin recompilar.',
+    'c13.t': 'Puede funcionar con batería',
+    'c13.b': 'El build Air no tiene pantalla y duerme entre lecturas: 9,31 s despierto, 51 s dormido, la radio apagada salvo que haya un lote que valga la pena enviar. La lectura va primero a la flash, así que una red caída solo cuesta un retraso.',
     'c12.t': 'Red en tus términos',
     'c12.b': 'DHCP o dirección fija, tus propios servidores DNS y NTP, y un nombre mDNS para no tener que memorizar una IP. Ese nombre cuesta 15.272 B de flash — medidos, y eliminables con un flag.',
     'eng.eyebrow': 'Por dentro', 'eng.h2': 'Los sensores no corren en el procesador',
@@ -1119,7 +1143,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'st1.t': 'Monta el hardware',
     'st1.b': 'Conecta la pantalla, el panel táctil y los sensores a la Pico W siguiendo la <a href="WIRING.html">guía de conexión</a>. Una protoboard basta para empezar.',
     'st2.t': 'Descarga el firmware',
-    'st2.b': 'Toma <code>simut_v2.3.4.uf2</code> de la <a href="https://github.com/angeloINTJ/simut/releases/latest">última release</a>. Los árboles de código para Arduino IDE y PlatformIO se publican junto a él.',
+    'st2.b': 'Toma la imagen de tu placa de la <a href="https://github.com/angeloINTJ/simut/releases/latest">última release</a>: <code>simut_*.uf2</code> para la pantalla táctil, <code>simut_alpha_*.uf2</code> para el LCD 16×2, <code>simut_air_*.uf2</code> para el build sin pantalla, a batería. Los árboles de código para Arduino IDE y PlatformIO se publican junto a ellos.',
     'st3.t': 'Graba por USB',
     'st3.b': 'Mantén BOOTSEL mientras conectas la Pico, y suelta el <code>.uf2</code> en la unidad <code>RPI-RP2</code> que aparece. La placa arranca en SIMUT por sí sola.',
     'st4.t': 'Únela a tu red',

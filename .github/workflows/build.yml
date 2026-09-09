@@ -51,6 +51,14 @@ jobs:
       - name: Check /config filesystem guard
         run: python3 tools/check_fsguard.py
 
+      # Each check maps to a finding of the 2026-09-06 Air review (F15-F19):
+      # "[AIR]" markers escaping into the TFT release, the emergency help
+      # advertising commands the image does not carry, an Air method declared
+      # and never defined. Static — no hardware, no PlatformIO — so it belongs
+      # next to the other source gates rather than behind a build.
+      - name: Air consistency gate
+        run: python3 tools/check_air_consistency.py
+
       # OTA applies reformat the LittleFS, so benches restore /history from
       # backup — and the current-day file can only be given back by MERGING
       # with what the device wrote meanwhile. This is the tool that hole

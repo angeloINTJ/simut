@@ -24,7 +24,7 @@
 > show system info             Nome, firmware, serial, SSID do WiFi
 > show system log              Despeja o log de eventos do flash
 > debug on | off               Transmite os logs neste console ao vivo
-> system admin reset [confirm] Nova senha de admin, mostrada uma vez
+> system admin reset [confirm] Nova senha de admin aleatória, mostrada uma vez (gravada na flash)
 > system format [confirm]      Reformata o LittleFS, mantém o firmware
 > system https off [confirm]   Apaga o par de certificados e volta p/ HTTP
 > system factory [confirm]     Apaga TODA a config + reinicia
@@ -162,7 +162,7 @@ do modo User EXEC continuam disponíveis.**
 | Comando | Descrição |
 |---------|-----------|
 | `conf system factory` | Factory reset — apaga TODA a config e reinicia. Requer confirmação: `conf system factory confirm` |
-| `conf system admin reset` | Reseta a senha do admin para o padrão. Requer confirmação: `conf system admin reset confirm` |
+| `conf system admin reset` | Gera uma senha de admin **aleatória**, mostrada uma única vez neste console, e a grava na flash na hora (sobrevive ao reinício). O primeiro login pela web é forçado a trocá-la. Requer confirmação: `conf system admin reset confirm` |
 | `conf system touch reset` | Reseta a calibração do touch para valores de fábrica. Requer confirmação: `conf system touch reset confirm` |
 | `system format` | Formata o LittleFS (também disponível no console de emergência). Requer confirmação: `system format confirm` |
 

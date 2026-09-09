@@ -14,6 +14,9 @@
 
 #include "BluetoothManager.h"
 #include "LogManager.h"
+#if SIMUT_BLUETOOTH
+#include <BluetoothLock.h>   /* the framework's own guard around BTstack calls */
+#endif
 
 #if SIMUT_BLUETOOTH
 
@@ -39,6 +42,35 @@ void BluetoothManager::begin(const char* deviceName) {
  }
  SerialBT.begin(115200);
  _initialized = true;
+ /* begin( ) has just called gap_discoverable_control(1). Start the clock that
+  * turns it back off (V-01b); update( ) does the actual call, because it must
+  * not happen before the stack has finished coming up. */
+ _discoverableUntil = millis( ) + BT_DISCOVERABLE_MS;
+ _discoverableClosed = false;
+}
+
+/**
+ * @brief Close the Bluetooth discovery window once it has elapsed.
+ *
+ * Called from update( ), which the main loop drives. gap_discoverable_control
+ * is a BTstack call, so it is made under the same lock the framework's own
+ * SerialBT uses — without it this races the CYW43 async context.
+ *
+ * Connectability is untouched on purpose: a phone that already paired keeps
+ * working, and a unit that has been noted by an attacker is still reachable.
+ * The point is to stop advertising to every scan in range for the whole
+ * uptime of the device.
+ */
+void BluetoothManager::closeDiscoveryIfDue( ) {
+ if (_discoverableClosed || _discoverableUntil == 0) return;
+ if (!timeReached(_discoverableUntil)) return;
+ {
+  BluetoothLock l;
+  gap_discoverable_control(0);
+ }
+ _discoverableClosed = true;
+ LOG_CODE(LOG_INFO, "SEC", SEC_BT_LOCKOUT, -1,
+          TRL("BT discovery window closed"));
 }
 
 void BluetoothManager::setValidator(BtAuthValidator validator) {
@@ -53,6 +85,8 @@ void BluetoothManager::setValidator(BtAuthValidator validator) {
  */
 void BluetoothManager::update( ) {
 
+ closeDiscoveryIfDue( );
+
  const bool pt = (_language == LANG_PT);
 
  if (_authenticated) {
@@ -66,6 +100,21 @@ void BluetoothManager::update( ) {
  _promptSent = false;
  _authBuffer = "";
  }
+ return;
+ }
+
+ /* Locked out after failed passwords. Everything the link offers is dropped
+  * on the floor, unread, so the cost of a wrong guess is real time and not a
+  * round trip. The notice goes out once per lockout: repeating it on every
+  * byte would turn the block into an amplifier, and would also tell the
+  * attacker exactly when the window reopens. */
+ if (_lockedUntil != 0 && !timeReached(_lockedUntil)) {
+ if (!_lockNoticeSent) {
+ SerialBT.println(pt ? "\n\rBloqueado. Tente mais tarde."
+ : "\n\rLocked. Try later.");
+ _lockNoticeSent = true;
+ }
+ while (SerialBT.available( )) SerialBT.read( );
  return;
  }
 
@@ -100,6 +149,9 @@ void BluetoothManager::update( ) {
 
  if (valid) {
  _authenticated = true;
+ _failCount = 0;
+ _lockedUntil = 0;
+ _lockNoticeSent = false;
  _lastActivityTime = millis( );
  /* Banner FIRST: immediate response to the user.
  * LOG_CODE afterwards — flash write is buffered in RAM
@@ -123,7 +175,18 @@ void BluetoothManager::update( ) {
  SerialBT.println(pt ? "Acesso negado." : "Access denied.");
  LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0,
  TRL("BT admin password rejected"));
+ if (_failCount < AUTH_FAIL_CAP) _failCount++;
+ uint32_t penaltyMs = authLockoutMs(_failCount);
+ _lockedUntil = millis( ) + penaltyMs;
+ /* millis() + penalty can legitimately land on 0 once every 49.7 days;
+  * 0 is this field's "not locked" sentinel, so nudge it off. */
+ if (_lockedUntil == 0) _lockedUntil = 1;
+ _lockNoticeSent = false;
+ LOG_CODE(LOG_WARN, "SEC", SEC_BT_LOCKOUT, (int)(penaltyMs / 1000),
+ TRL("BT lockout"));
  _promptSent = false;
+ _authBuffer = "";
+ return; /* stop reading: the rest of this burst is already locked out */
  }
  _authBuffer = "";
  }

@@ -194,7 +194,7 @@ Sem estes números o resto é opinião.
 A sonda da PicoHand já marca acordado/dormindo no GP16, então o traço de corrente pode ser
 segmentado por fase sem adivinhação.
 
-### Fase 1 — encurtar o wake (independe da arquitetura nova; faça primeiro)
+### Fase 1 — encurtar o wake ✅ EXECUTADA em 08/09/2026 (menos a L4; ver §10)
 
 | id | alavanca | ganho esperado |
 |---|---|---|
@@ -312,3 +312,327 @@ servidor só existe nos wakes de telemetria — e restaurar a configuração pel
 **falhou por timeout**. Foi preciso parar o ciclo pela serial primeiro. O `air stop` que sobe o
 rádio (extra da Fase 2) é o que torna isso recuperável, mas a decisão de fundo continua aberta: um
 aparelho com web em 1 minuto de cada 3 é operável?
+
+---
+
+## 9. Re-medição de 08/09/2026 — a Fase 1 continua não feita, e a §1 errou uma atribuição
+
+⚠️ **Isto não é um achado novo.** A §1 e a Fase 1 deste documento, escritas em 06/09, já dizem que
+a janela de AP custa 4,5 s e que o anel de 10 amostras custa ~15 s. **A Fase 2 foi implementada e a
+Fase 1 não.** O que esta seção acrescenta é: (a) a medição refeita na imagem de hoje, com carimbo
+do host linha a linha; (b) **dois blocos que a tabela da §1 não lista**; (c) a **correção de uma
+atribuição errada** da §1; e (d) o mecanismo exato da fase SAMPLE, que não é o que a Fase 1 supõe.
+
+### 9.1 O wake de leitura, cronometrado no host
+
+Aparelho ciclando sozinho, porta reaberta no instante da enumeração, um carimbo por linha:
+
+| t (host) | Δ | marcador | o que roda no intervalo |
+|---|---|---|---|
+| 0,10 s | — | `[AIR] boot: serial ok` | (antes disto: ciclo de energia do CYW43 + `Serial.begin` + enumeração ≈ **1,8 s** de `millis( )`) |
+| 1,11 s | **1,01** | `[AIR] boot: delay ok` | `delay(1000)` |
+| 1,11 s | 0,00 | `[AIR] boot: display ok` | `_displayMgr->begin( )` — no-op no headless |
+| 5,63 s | **4,52** | `[AIR] boot: ap-detect ok` | `delay(800)` + *touch settle* (~220 ms) + `AP_DETECT_WINDOW_MS` (3500 ms) |
+| 5,68 s | 0,05 | `[AIR] boot: storage ok` | `_storageMgr->begin( )` + decisão do M1 |
+| 7,19 s | **1,51** | `[TCH] c=0` | **espera por `isCore1Ready( )`** |
+| 7,24 s | 0,05 | lang, sensores, telemetria | tema + `.lng` + `_sensorMgr->begin( )` + calibração + telemetria |
+| 8,94 s | **1,70** | `System ready` / `boot: done` | laço de aquecimento (~900 ms) + `delay(800)` |
+| 8,94 s | — | `[AIR] phase=WARMUP @10733` | fim do `setup( )` em **10,73 s** de `millis( )` |
+| 8,94 s | 0,40 | `[AIR] phase=SAMPLE @10733` | WARMUP fixo |
+| 23,77 s | **14,81** | `[AIR] phase=DECIDE @25546` | **fase SAMPLE** |
+
+Wake total ≈ **25,5 s** (T05 do mesmo dia: acordado 23,8 e 24,0 s pela enumeração USB; T13: fila
+quieta 23,8–24,2 s, barulhenta 29,2 s).
+
+⚠️ **Onde o carimbo do host não vale:** linhas próximas chegam em rajada, porque a CDC agrupa. Os
+Δ acima só são confiáveis quando há um `delay` garantindo separação — que é o caso de todos os
+marcados em negrito. Para o bloco de 7,19→8,94 s o discriminador é o prefixo `[BOOT+Ns]` do próprio
+firmware, que mostra `+8s` na hora e no pack de idioma e `+9s` nos sensores e na telemetria.
+
+### 9.2 Dois blocos que a §1 não listava
+
+- 🔴 **A espera pelo Core 1: 1500 ms, em *busy spin*, por um core que esta imagem nunca lança.**
+  `AppManager_Boot.cpp` roda
+  `while (!_displayMgr->isCore1Ready( ) && millis( ) - wait_start < 1500) tight_loop_contents( );`
+  logo depois de `startCore1( )`. Na imagem Air `startCore1( )` é no-op
+  (`DisplayManager_None.cpp`) e **`_core1Ready` só é escrito em `DisplayManager.cpp` e
+  `DisplayManager_Alpha.cpp`, e nenhum dos dois entra no link do `pico_w_air`** — confira a linha
+  de link do build. Logo a condição nunca vira verdadeira e o laço **sempre** gasta o timeout
+  inteiro. Não é um `delay`: é um laço apertado, com o núcleo a plena corrente.
+- **Mais 2,2 s de esperas fixas espalhadas:** `busy_wait_ms(500)+busy_wait_ms(100)` do ciclo de
+  energia do CYW43 (600 ms, existe para consertar o rádio depois de gravação UF2 / apply de OTA /
+  watchdog / RESET da mão / `picotool` — **nenhum desses é um wake**), `delay(BOOT_STEP_DELAY_MS)`
+  (800 ms) e o `delay(800)` que antecede `System ready` para dar tempo de ler um splash que não
+  existe.
+
+### 9.3 Correção de uma atribuição da §1
+
+A §1 credita **1,94 s** a `loadAndCalibrateSensors( )` + resolução do DS18. **Está errado.** A
+captura mostra tema, `.lng`, `_sensorMgr->begin( )`, calibração, resolução do DS18 e init de
+telemetria **todos dentro de 50 ms**, e o 1,51 s imediatamente anterior é a espera pelo Core 1 —
+que a §1 não tinha. A conta total da §1 fecha porque os dois erros se compensam; a conclusão
+"encurtar o boot" não muda, mas **a linha que a Fase 1 mandaria otimizar não é a que custa**.
+
+Somando o que é espera fixa sem função nesta imagem:
+
+| item | custo | por que existe | por que é morto no Air |
+|---|---|---|---|
+| ciclo de energia do CYW43 | 600 ms | rádio em estado indefinido após UF2/OTA/watchdog/RESET | um wake é um SYSRESETREQ deliberado a partir de estado bom; num wake de leitura o rádio nem sobe |
+| `delay(1000)` | 1000 ms | deixar a CDC enumerar para o banner ser lido | ninguém está plugado num wake |
+| `delay(BOOT_STEP_DELAY_MS)` | 800 ms | substituto de "espere o Core 1" | o Core 1 não é lançado |
+| *touch settle* | ~220 ms | XPT2046 reporta tocado logo após ligar | `isScreenTouched( )` é `return false` literal |
+| `AP_DETECT_WINDOW_MS` | 3500 ms | segurar a tela força modo AP | mesmo literal → o laço sempre roda a janela inteira |
+| espera por `isCore1Ready( )` | 1500 ms | esperar `victim_init` do Core 1 | `_core1Ready` nunca é escrito nesta imagem |
+| `delay(800)` pré-`System ready` | 800 ms | deixar ler o splash | não há splash |
+| **total** | **≈ 8,4 s** | | **33% do wake** |
+
+### 9.4 Trabalho sem consumidor num wake
+
+Custa pouco tempo (os 50 ms acima), mas custa flash, heap e escrita:
+
+- `scanCustomThemes( )` + `loadTheme( )` + `refreshTheme( )` — varre `/themes` e faz *parse* de cada
+  `.thm`. A paleta alimenta o TFT e a UI web; num wake não existe nem um nem outro.
+- `findAndLoadLangFile( )` quando o idioma não é inglês — o rig é pt-BR, então **todo wake carrega o
+  pack** (~13 KB residentes, ver [[lang-pack-eats-the-heap]]). Num wake ele serve só ao texto do CLI
+  que ninguém lê.
+- `loadDisplayOffset( )`, e o `Serial.print("[TCH] c=")` de `gpio_get(20)` — o pino de IRQ de um
+  touch que esta imagem não tem.
+- O laço de aquecimento de ~900 ms no fim do `setup( )` refaz o que a fase WARMUP/SAMPLE do ciclo
+  vai refazer em seguida.
+
+✅ **Já fechado pela Fase 2/F13 e confirmado nesta captura** — não mexer: `net skipped
+(reading-only wake)`, `web skipped (wake)`, Bluetooth, mDNS e `preloadMinMax` fora do wake.
+`SoundManager.cpp` sequer é compilado na imagem Air.
+
+### 9.5 A fase SAMPLE: o mecanismo não é "10 × 1 s"
+
+A Fase 1 (L4) supõe que trocar `bufferFull( )` por "N amostras válidas" resolve. Resolve em parte,
+mas o custo por amostra é maior do que a §1 diz:
+
+- `airAllStable( )` exige `buffers[CH_TEMP].full( )`, e `full( )` é `count >= MOVING_AVG_WINDOW`,
+  com **`MOVING_AVG_WINDOW = 10`**.
+- `processPeriodicReads( )` só **pede** uma conversão quando `now - lastReadTime >= readInterval`,
+  e `readInterval` do DS18B20 é **1000 ms**. A conversão então leva
+  `DS18B20_CONVERSION_TIME_MS` = **750 ms**. E **`lastReadTime` é carimbado no fim da leitura**,
+  não no pedido.
+- Logo o período por amostra é **1000 ms de ociosidade + 750 ms de conversão ≈ 1,75 s**, não 1 s.
+  Medido: **14,81 s** de SAMPLE, com uma ou duas amostras já colhidas pelo laço de aquecimento do
+  boot.
+
+**Os 1000 ms são ociosidade pura.** São um limitador de taxa para um aparelho que lê continuamente
+para mostrar um número numa tela. Dentro de um wake eles não filtram nada — só somam 10 s de núcleo
+ligado sem conversão em curso. Isso é uma alavanca **separada** da L4 e provavelmente mais barata:
+
+| alavanca | SAMPLE resultante | o que se perde |
+|---|---|---|
+| hoje | 14,8 s | — |
+| ler de volta a volta (sem os 1000 ms ociosos) | ~7,5 s | nada de medição; só o limitador de taxa |
+| + janela de 4 amostras no Air | ~3,0 s | rejeição de ruído: média de 4 em vez de 10 |
+| + DS18 em 10 bits (187,5 ms) | ~0,8 s | resolução ±0,25 °C em vez de ±0,0625 °C |
+
+As duas últimas são **decisão de produto do Ângelo**, não escolha de implementação: mexem na
+qualidade do número gravado. A primeira não.
+
+### 9.6 A conta
+
+Um wake de leitura de 25,5 s tem **≈ 8,4 s de espera fixa** por hardware ausente e **≈ 14,8 s** de
+anel enchendo. O trabalho pelo qual o aparelho acordou — ler o sensor e anexar um registro — são os
+**50 ms** da linha das 7,24 s mais o DECIDE. **Cerca de 91% do wake não é trabalho.**
+
+Projeção com as correntes de bancada do Ângelo (25 mA lendo, 80 mA transmitindo, 2 mA dormindo),
+1 leitura/min e telemetria 1:5 — **aritmética, não medição, e a corrente nunca foi medida
+(Fase 0 segue bloqueante)**:
+
+| cenário | wake | ciclo útil | média | 18650 de 3400 mAh |
+|---|---|---|---|---|
+| hoje | 25,5 s | 42,5% | 17,0 mA | ~8,3 d |
+| só as esperas fixas fora | ~17 s | 28% | ~12 mA | ~12 d |
+| + SAMPLE de volta a volta | ~10 s | 17% | ~8 mA | ~18 d |
+| + janela de 4 amostras | ~5,5 s | 9% | ~5 mA | ~28 d |
+
+### 9.7 Ordem sugerida, por risco
+
+1. **Risco nulo, ganho 5,2 s** — as três esperas provadamente mortas nesta imagem: janela de AP +
+   *touch settle* (4,52 s, `isScreenTouched( )` é constante de compilação) e a espera pelo Core 1
+   (1,51 s, `_core1Ready` não tem escritor no link). Não precisam de portão por modo: são mortas na
+   imagem Air inteira, M0 incluído.
+2. **Risco baixo, ganho 3,2 s, exige portão `_airActive`** — `delay(1000)`, `delay(800)` do
+   `BOOT_STEP_DELAY_MS`, `delay(800)` do splash e o ciclo de energia do CYW43. As imagens de
+   release e alpha continuam precisando deles; o portão é "veio da hibernação".
+3. **Risco baixo, ganho ~7 s** — tirar a ociosidade de 1000 ms entre conversões durante SAMPLE.
+4. **Decisão do Ângelo** — tamanho da janela de média e resolução do DS18.
+5. **Higiene, ganho em heap e flash** — temas, `.lng` e offset de display fora do wake.
+
+**Aceite para tudo isto:** T05 (período e janela acordada), T09 (sonda passiva, mede de fora),
+T13 (compara wake quieto × barulhento), T16 (teto de 1 registro por wake) e o `--watch` da suíte.
+O número que fecha a conta é a corrente, que continua não medida.
+
+---
+
+## 10. Fase 1 implementada e medida — 08/09/2026
+
+Feito o que a §9.7 listou nos passos 1, 2, 3 e a higiene dos temas. **O passo 4 (tamanho da janela
+de média e resolução do DS18) NÃO foi feito**: muda o número gravado, e é decisão do Ângelo.
+
+### 10.1 O A/B, mesmo rig, mesmo procedimento
+
+| | antes (`137c8e96`⁻) | depois | Δ |
+|---|---|---|---|
+| `setup( )` até a primeira fase | 10,73 s | **2,47 s** | −8,26 s |
+| fase SAMPLE | 14,81 s | **6,83 s** | −7,98 s |
+| wake até o DECIDE | 25,55 s | **9,31 s** | **−16,24 s (2,7×)** |
+
+Confirmado pela **sonda passiva** (`--watch 300`, não toca no aparelho): acordado
+**[6,0 / 7,8 / 7,5 / 8,8 / 12,8] s** (o de 12,8 s é o wake de telemetria), dormindo
+[53,0 / 52,8 / 53,0 / 51,8] s, **período 60,5–60,6 s** contra `hist=60 s` — erro de **0,6 s**,
+contra os 1,8 s de antes. Ciclo útil **~13%** contra 42,5%.
+
+A previsão da §9 acertou: −8,42 s previstos no `setup( )` contra −8,26 medidos; SAMPLE previsto
+~7,5 s contra 6,83 medidos.
+
+### 10.2 O que foi feito, e com que portão
+
+| item | portão | por quê |
+|---|---|---|
+| janela de AP + *touch settle* | `DisplayManager::kHasTouch` (compilação) | o que os laços consultam é constante de compilação; some da imagem Air **e** da alpha |
+| espera por `isCore1Ready( )` | `DisplayManager::kUsesCore1` (compilação) | `_core1Ready` não tem escritor no link |
+| `BOOT_STEP_DELAY_MS` | `kUsesCore1` | é substituto da espera acima |
+| `delay(1000)`, `delay(800)` do splash, ciclo do CYW43 | `!_airActive` (runtime) | release e alpha continuam precisando; M0 do Air também |
+| ociosidade entre conversões | `SensorManager::setFastSampling( )` | ligado em WARMUP, desligado em DECIDE **e** no `air stop` |
+| varredura de temas | `!_airActive` | a paleta só é lida pelo display e por `/api/themes` |
+
+Flash: Air **−624 B** (1.025.896 → 1.025.272), alpha **−568 B**, release +8 B. As duas primeiras
+economias são código que deixou de existir.
+
+### 10.3 ⚠️ O efeito colateral: a bancada perdeu a corrida pela janela
+
+**A primeira rodada completa depois da mudança deu 9 passou / 7 falhou** — e nenhuma das sete era
+asserção: seis eram `serial write failed: (5, 'Input/output error')` e uma era `Connection refused`
+na porta 80. **A janela de enumeração USB encolheu junto com o wake**, e `ensure_m0( )` gastava
+mais tempo abrindo a porta e lendo um `air status` do que a janela inteira tem.
+
+Como isso foi separado de "o firmware quebrou", que é o que aquele placar parece:
+
+- **112 requisições `/api/status` em M0, 4 minutos, 0 erros.**
+- **Delta de FTL na mesma janela: 0.** ⚠️ O primeiro `show system log` da medição devolveu **0**
+  num log que tem **8** — o leitor mentiu logo na primeira chamada, exatamente como
+  [[validate-the-instrument]] avisa. Os 8 registros (`ctx=219` = `MOD_WEB_POLL`, achado antigo)
+  já estavam lá antes e não cresceram.
+- **A sonda passiva da §10.1**, que não abre a porta serial nem fala com a web: 9 transições
+  limpas, nenhum wake perdido, período dentro de 0,6 s.
+- Passaram, na rodada ruim, justamente os testes que dependem de M0 e da web: T02, T06 (com
+  `awake_s=8,5` contra 25,0), T06b, T07, T09, T14, T15.
+
+**Conserto na bancada, não no firmware:** `ensure_m0( )` continua caçando a janela por 110 s, e
+então **usa a mão**. Um RESET dirige o RUN, que é boot limpo, e boot limpo mantém o `air idle`
+inteiro em M0 — uma janela de 300 s em vez de 7. Só quando não há mão o método continua sendo uma
+corrida.
+
+🔑 **A regra que fica:** *encurtar o wake encurta o instrumento junto. Um placar que desaba logo
+depois de uma otimização de tempo merece primeiro a pergunta "a bancada ainda alcança o aparelho?",
+e a resposta tem que vir de um instrumento passivo — o `--watch` mede sem tocar, e foi ele que
+separou as duas hipóteses aqui.*
+
+⚠️ **Foram QUATRO camadas de suposição de tempo na bancada, uma escondendo a outra.** Cada conserto
+revelava a próxima, e o sintoma mudava de nome sem mudar de causa — todas vinham de constantes
+calibradas para um wake de 25 s e um boot de 10 s:
+
+| # | sintoma | causa |
+|---|---|---|
+| 1 | `serial write failed: (5, EIO)` | `if not self.ser` só testa se o handle existe; **todo sono re-enumera o Pico**. → `Target.alive( )` + `reopen( )` |
+| 2 | testes seguintes em cascata | `ensure_m0( )` era pura caça de janela. → cai para **RESET da mão** após 110 s (boot limpo = janela de 300 s, não 7) |
+| 3 | `air status unparsable: '…boot: net ok'` | o `air stop` era escrito **dentro do banner de boot** e se perdia. → confirmar o console **antes** de agir |
+| 4 | `air status unparsable: '…Graph cache preload done'` | `reset_input_buffer( )` limpa o que CHEGOU, não o que está em voo; e um boot limpo **transmite log por ~15 s**. → drenar até a linha ficar quieta, e esperar `[AIR] boot: done` depois de um reset |
+
+Havia uma quinta: o `stop_on_wake` do `hibernate_and_observe( )` reimplementava à mão o que o
+`ensure_m0( )` já faz — e sem a queda para a mão. Passou a reusar.
+
+Placar por rodada, **mesma firmware**, só a bancada mudando:
+**9/7 → 13/3 → 12/4 → 12/4 → 14/2**. Os testes que passaram em todas elas são justamente os que
+medem o produto: T06 (`awake_s` 25,0 → **8,5–8,8**), T09, T12, T13 (`quiet` 23,8 → **7,4–7,6 s**,
+`loud` 29,2 → **8,5–12,9 s**), T14, T17.
+
+**Rodada final (`suite8`): 14 passou, 2 falhou, 1 xfail, 1 pulado.**
+- ✅ **T05 `awake_s=[8,8; 8,5]`** contra `[23,8; 24,0]` da manhã, `period_err` 1,8 s.
+- ✅ **T16 deu ZERO registros de preâmbulo por wake** (o teto é 1, o valor de 07/09 era 1).
+- ❌ T15 caiu na mesma corrida: a linha de alarme sai no fim do wake e a porta morre logo atrás.
+- ❌ T11 — ver abaixo.
+
+✅ **RESOLVIDO — T11 `history_integrity`: era o arquivo do dia poluído, e agora está MEDIDO.**
+Janela de **32 minutos ciclando sem ninguém tocar**, avaliando só os registros dela:
+
+```
+52 registros: 48 no ritmo (94,1%)  1 curto (2 s)  2 longos (76 s)  0 para trás  → PASSA
+o mesmo critério sobre o arquivo do dia inteiro:  680/869 = 78,3%  → REPROVA
+```
+
+**A cadência do firmware está sã; o arquivo do dia é que carrega o dia.** Ele atravessou a troca de
+firmware, ~15 reinícios forçados pela recuperação por mão nova e várias janelas de M0 com outra
+cadência de gravação. ⚠️ **Isso é uma limitação do T11 como está escrito**, não um defeito que
+sumiu: o teste julga o arquivo inteiro, então **uma sessão de bancada intensa sempre vai reprová-lo**
+— e a piora monotônica rodada após rodada (12 → 63 → 77 → 103 gaps curtos) foi o próprio indício.
+Se ele for ficar como portão, precisa julgar uma janela, não o dia.
+⚠️ **Armadilha do roteiro que quase custou a medição:** depois de 32 min ciclando o aparelho está em
+M1, e **em M1 não existe servidor web** — o download do `/history` nunca ia acontecer. É preciso
+trazer para M0 (mão ou console) ANTES de ler; os registros já gravados não são afetados por isso.
+
+O que dizia o texto anterior desta seção:
+De manhã, antes da mudança: 437 registros, 12 gaps curtos, 10 longos, 0 para trás (PASS). Depois:
+**684 registros, 63 curtos, 47 longos, 0 para trás, mais longo 131 s** (FAIL — 83,9% no ritmo
+contra o piso de 90%). **A monotonicidade continua intacta**, então o defeito histórico desta linha
+não voltou.
+⚠️ **O arquivo do dia usado nessa avaliação NÃO é medição limpa:** atravessa a troca de firmware,
+~12 reinícios forçados pela recuperação por mão nova, e várias janelas de M0, onde a gravação segue
+outra cadência. **Essa é a hipótese, e ela NÃO foi testada.** O que fecha a questão é uma janela de
+~30 min ciclando sem ninguém tocar, avaliando só os registros dela. O contra-argumento a favor do
+firmware é que o `--watch` mediu o período em **60,5–60,6 s** contra `hist=60` — que é exatamente a
+cadência que o T11 diz não estar batendo.
+
+### 10.4 O passo que sobra: resolução do DS18B20 — e por que hoje ela não economiza nada
+
+Com a ociosidade removida, **a fase SAMPLE virou tempo de conversão puro**: dez amostras, uma
+atrás da outra, cada uma custando exatamente o que o sensor leva para converter. E esse tempo é
+função direta da resolução escolhida:
+
+| resolução | passo (LSB) | conversão (datasheet) | SAMPLE = 10× | wake até DECIDE | ciclo útil a 1/min |
+|---|---|---|---|---|---|
+| 12 bits (hoje) | 0,0625 °C | 750 ms | 7,5 s (**medido 6,83**) | **9,31 s** | 15,5% |
+| 11 bits | 0,125 °C | 375 ms | 3,75 s | ~6,2 s | 10,4% |
+| 10 bits | 0,25 °C | 187,5 ms | 1,88 s | ~4,4 s | 7,3% |
+| 9 bits | 0,5 °C | 93,75 ms | 0,94 s | ~3,4 s | 5,7% |
+
+Na conta de energia (mesmas correntes de bancada — 25 mA lendo, 80 mA transmitindo, 2 mA dormindo
+— a 1 leitura/min e telemetria 1:5; **aritmética, a corrente segue não medida**):
+
+| cenário | wake | média | 18650 de 3400 mAh |
+|---|---|---|---|
+| antes de hoje | 25,5 s | 16,95 mA | ~8,4 d |
+| **hoje, 12 bits** | **9,31 s** | **8,16 mA** | **~17,4 d** |
+| 11 bits | ~6,2 s | 6,41 mA | ~22,1 d |
+| 10 bits | ~4,4 s | 5,35 mA | ~26,5 d |
+| 9 bits | ~3,4 s | 4,82 mA | ~29,4 d |
+
+**A leitura interessante é que o retorno cai rápido.** Sair de 12 para 11 bits compra **4,7 dias**
+por meio grau de passo; de 11 para 10, mais 4,4 dias; de 10 para 9, só **2,9 dias** — porque abaixo
+de ~4 s de wake o consumo já é dominado pelo `setup( )` e pelo próprio sono, não mais pelo sensor.
+**11 ou 10 bits é onde a troca compensa; 9 bits paga pouco e custa meio grau.**
+
+🔴 **MAS: hoje nenhuma dessas linhas é alcançável, e o motivo é uma constante.**
+`DS18B20_CONVERSION_TIME_MS` (`SystemDefs_Time.h`) é **750 ms fixos**, e é o único relógio que o
+driver usa:
+
+```c
+else if (_ds18.state == DS18B20Driver::DS_WAITING) {
+ if (now - _ds18.timer >= DS18B20_CONVERSION_TIME_MS) {   /* 750, sempre */
+```
+
+`setDs18Resolution( )` programa o registrador do chip, e o chip passa a converter mais rápido — mas
+o firmware **continua esperando os 750 ms**. Ou seja: **baixar a resolução hoje piora a medição e
+não devolve um milissegundo.** Antes dos números acima valerem, a espera precisa seguir a
+resolução configurada (93,75 / 187,5 / 375 / 750 ms). É uma tabela de quatro linhas, mas é uma
+mudança no caminho de leitura do sensor e **não foi feita** — junto com o tamanho da janela de
+média, é o que resta da Fase 1 e depende da decisão do Ângelo sobre a qualidade do número gravado.
+
+⚠️ **A janela de média é a outra metade da mesma conta.** `MOVING_AVG_WINDOW = 10` multiplica
+qualquer tempo de conversão. Uma janela de 4 a 12 bits daria SAMPLE de ~3,0 s sem tocar na
+resolução — e as duas alavancas se multiplicam: janela de 4 **e** 10 bits dariam SAMPLE de ~0,75 s.

@@ -187,10 +187,74 @@ constexpr uint8_t LOGIN_STATE_SLOTS = 8;
  * acceptable for login (infrequent). Every 50 rounds feeds the WDT. */
 constexpr uint16_t PASSWORD_HMAC_ROUNDS = 5000;
 
+/* ── Authentication lockout (web + Bluetooth) ── */
+
+/** Ceiling for the consecutive-failure counter.
+ * The counter saturates here instead of running free. Two reasons, and the
+ * second one is the bug that made this a constant: (1) beyond 9 the penalty is
+ * already at its ceiling, so counting further buys nothing; (2) the penalty is
+ * computed by shifting, and an unbounded counter walks the shift straight off
+ * the end of a 32-bit unsigned. Measured for the web path as it stood on
+ * 2026-09-07: failCount 29, 30 and 31 produce a penalty of exactly ZERO —
+ * (1U << 29) * 1000 is 536870912000, which is 125 * 2^32 — so an attacker who
+ * sits through the escalation is handed three free attempts, and from 32 on
+ * the shift itself is undefined. 12 keeps the counter meaningful in the
+ * sessions listing while staying far from either cliff. */
+constexpr uint8_t AUTH_FAIL_CAP = 12;
+
+/** Ceiling of the lockout penalty (ms). */
+constexpr uint32_t AUTH_LOCKOUT_MAX_MS = 300000;
+
+/** Exponential backoff for a failed authentication: (1 << failCount) seconds,
+ * capped at AUTH_LOCKOUT_MAX_MS. failCount is the count AFTER the failure, so
+ * the first one costs 2 s and the ninth reaches the 300 s ceiling.
+ *
+ * Pure and header-inline so the native tests can call it without a device.
+ * The shift is clamped before it happens rather than the product afterwards:
+ * clamping afterwards is what let the overflow through, because a wrapped
+ * product can land below the ceiling and read as a legitimate short penalty. */
+inline uint32_t authLockoutMs(uint8_t failCount) {
+	uint8_t n = (failCount > AUTH_FAIL_CAP) ? AUTH_FAIL_CAP : failCount;
+	uint32_t ms = 1000UL << n;
+	return (ms > AUTH_LOCKOUT_MAX_MS) ? AUTH_LOCKOUT_MAX_MS : ms;
+}
+
+/** How many times unauthenticated traffic may extend the hibernation timer,
+ * counted per boot. Only SIMUT Air installs the activity callback, so on every
+ * other image this is inert; the constant lives here because WebManager is
+ * generic and must not know which image it is compiled into.
+ *
+ * Three at the default 300 s idle is up to 15 minutes for an operator to
+ * finish logging in after the device wakes — and the same 15 minutes, once,
+ * for an anonymous poller that would otherwise have held the radio up forever
+ * (V-03). */
+constexpr uint8_t WEB_PREAUTH_MAX_EXT = 3;
+
 /* ── Bluetooth auth ── */
 
 /** Maximum password input buffer size via Bluetooth. */
 constexpr uint8_t BT_AUTH_BUFFER_MAX = 64;
+
+/** How long after boot the device stays DISCOVERABLE over Bluetooth (ms).
+ *
+ * Finding V-01b, decision D-1, option (b). SerialBT::begin calls
+ * gap_discoverable_control(1) and never turns it off, so an alpha or Air unit
+ * advertised itself to every scan in range for its entire uptime — and pairing
+ * takes no confirmation on the device, so the password prompt was the only
+ * barrier between a passer-by's scan and the CLI.
+ *
+ * Closing discovery does NOT close connectability: a phone that has already
+ * paired, or anyone who noted the address, still connects. That is the
+ * deliberate limit of this option — it removes the device from casual scans,
+ * and the lockout of V-01a is what handles someone who is actually trying.
+ * Option (a), consent on pairing, needs a framework patch and is the next step
+ * if these units ever go somewhere public.
+ *
+ * Five minutes is sized against the job: pairing a phone with a device you are
+ * standing next to. Rebooting reopens the window, which is the recovery path —
+ * cheaper in flash than a CLI command, and available on a unit whose CLI is
+ * exactly what you cannot reach yet. */
+constexpr uint32_t BT_DISCOVERABLE_MS = 300000;
 
 /** Maximum line size for CLI (USB + BT post-auth).
  * Above this the buffer is discarded to prevent heap DoS from a stream

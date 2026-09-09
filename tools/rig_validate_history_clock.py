@@ -28,6 +28,7 @@ import gzip
 import hashlib
 import http.server
 import json
+import os
 import re
 import socket
 import struct
@@ -42,7 +43,13 @@ import serial
 
 TZ = timezone(timedelta(hours=-3))
 PORT = "/dev/serial/by-id/usb-Raspberry_Pi_Pico_W_E6642815E34C1824-if00"
-ADMIN = ("admin", "simutV5x")
+try:
+    ADMIN = (os.environ.get("SIMUT_WEB_USER", "admin"), os.environ["SIMUT_WEB_PASS"])
+except KeyError:
+    raise SystemExit(
+        "set SIMUT_WEB_PASS (and SIMUT_WEB_USER if not admin) before running this.\n"
+        "  source ~/.simut-bench.env"
+    )
 H5_MAGIC = 0x4835
 LOG_REC = 12
 

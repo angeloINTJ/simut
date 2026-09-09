@@ -81,6 +81,65 @@ if [ -n "$hits" ]; then
   fail=1
 fi
 
+# 3b. Positional credentials. Step 3 only sees `name = "value"`, so a password
+# handed over as an argument slipped past it for a year: setdefault('X_PASS',
+# 'v'), ("admin", "v"), requests.get(..., auth=("admin", "v")). Finding V-02
+# (2026-09-07) found the rig password in four bench scripts, and step 3 above
+# reported the tree clean while three of the four were sitting in the index.
+# Same allowlist as step 3 — a bench account we publish on purpose stays
+# published, whichever side of the comma it is written on.
+hits=$(git grep -I -n -E \
+  "(PASS|PASSWD|PASSWORD|SENHA|SECRET|TOKEN|API_?KEY)[A-Za-z_]*['\"][[:space:]]*,[[:space:]]*['\"][A-Za-z0-9][^'\"]{5,}['\"]|\([[:space:]]*['\"]admin['\"][[:space:]]*,[[:space:]]*['\"][A-Za-z0-9][^'\"]{5,}['\"][[:space:]]*\)" \
+  -- . 2>/dev/null || true)
+if [ -n "$hits" ] && [ -s "$ALLOW" ]; then
+  while IFS= read -r ok; do
+    [ -z "$ok" ] && continue
+    case "$ok" in \#*) continue ;; esac
+    hits=$(printf '%s\n' "$hits" | grep -vF -- "$ok" || true)
+  done < "$ALLOW"
+fi
+if [ -n "$hits" ]; then
+  echo "SECRET GATE — positional credentials in tracked files:"
+  printf '%s\n' "$hits" | sed 's/^/    /'
+  echo "    (read from the environment instead, or allowlist in $ALLOW)"
+  fail=1
+fi
+
+# 3c. The values themselves. Steps 1-3b recognise a SHAPE; this one recognises
+# the actual secrets of this bench, which is what catches a password written
+# where no pattern expects it — V-02's fourth hit was a bare test vector,
+# sha256_frontend('<the rig password>'), matched by nothing above.
+#
+# The list lives OUTSIDE the repository, one value per line, because a file of
+# real secrets is exactly what must never be committed. On CI it does not
+# exist and this step is skipped by design: only the developer who owns the
+# bench knows those values, and shipping them to a runner to protect them
+# would be the same mistake in a new place.
+#
+#   printf '%s\n' '<rig password>' '<wifi psk>' '<home ssid>' > ~/.simut-secrets-deny
+#   chmod 600 ~/.simut-secrets-deny
+#
+# Keep the retired values in it too: a rotated password is inert on the device
+# but still names the bench in a public diff, and it is the value most likely
+# to be pasted back by muscle memory.
+DENY="${SIMUT_SECRET_DENYLIST:-$HOME/.simut-secrets-deny}"
+if [ -f "$DENY" ]; then
+  found=""
+  while IFS= read -r v; do
+    [ -z "$v" ] && continue
+    case "$v" in \#*) continue ;; esac
+    # Report path:line only. Echoing the match would print the secret into a
+    # terminal, a CI log or a screenshot — the gate must not become the leak.
+    where=$(git grep -I -n -F -- "$v" -- . 2>/dev/null | cut -d: -f1,2 || true)
+    [ -n "$where" ] && found="${found}${where}"$'\n'
+  done < "$DENY"
+  if [ -n "$found" ]; then
+    echo "SECRET GATE — a bench value from $DENY appears in these tracked lines:"
+    printf '%s' "$found" | sed 's/^/    /'
+    fail=1
+  fi
+fi
+
 if [ "$fail" -ne 0 ]; then
   echo "SECRET GATE: FAILED"
   exit 1

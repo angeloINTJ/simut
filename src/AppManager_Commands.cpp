@@ -33,9 +33,23 @@ void AppManager::startApMode( ) {
  LOG_CODE(LOG_WARN, "APP", APP_AP_MODE_TRIGGERED, 0, TRL("User triggered AP mode."));
  _netMgr->beginAP(cfg.deviceName);
  _isApMode = true;
- _cmdMgr->printSuccess(_cmdMgr->isPt( )
-  ? "Modo AP iniciado — conecte-se ao AP e acesse http://192.168.4.1"
-  : "AP mode started — join the AP and open http://192.168.4.1");
+ /* The key goes to the channel the command came in on. beginAP prints it to
+  * the USB console, but `ap` is the one recovery command still allowed over
+  * Bluetooth (D-4), and over that link the USB print is not visible — an
+  * operator told to join a WPA2 network without being told the key would be
+  * worse off than before the AP was closed (V-05). */
+ const char* psk = _netMgr->getApPsk( );
+ if (psk && *psk) {
+  _cmdMgr->printSuccess(String(_cmdMgr->isPt( )
+   ? "Modo AP iniciado (WPA2). Senha: " : "AP mode started (WPA2). Key: ") + psk);
+ } else {
+  _cmdMgr->printSuccess(_cmdMgr->isPt( )
+   ? "Modo AP iniciado (rede ABERTA — build SIMUT_AP_OPEN)"
+   : "AP mode started (OPEN network — SIMUT_AP_OPEN build)");
+ }
+ _cmdMgr->printInfo(_cmdMgr->isPt( )
+  ? "Conecte-se ao AP e acesse http://192.168.4.1"
+  : "Join the AP and open http://192.168.4.1");
 }
 
 void AppManager::executeCommand(CliDemand cmd) {
@@ -80,6 +94,40 @@ void AppManager::executeCommand(CliDemand cmd) {
   return;
  }
 #endif /* SIMUT_CLI_FULL */
+
+#if SIMUT_BLUETOOTH
+ /* ── Recovery commands are USB-only ──
+  * These four are the escape hatches for a device nobody can reach any more:
+  * wipe the config, format the filesystem, regenerate the admin password,
+  * delete the TLS pair. Every one of them is destructive and none of them is
+  * needed over Bluetooth — whoever authenticated on that link already typed
+  * the admin password, so they have nothing left to recover. Over the radio
+  * they are only useful to somebody who got in, and `admin reset` in
+  * particular converts a foothold into a printed credential.
+  *
+  * `ap` stays reachable over Bluetooth on purpose: bringing up the setup
+  * access point from a phone, when the Wi-Fi credentials are wrong, is the
+  * documented reason the Bluetooth CLI exists at all (decision D-4).
+  *
+  * One gate before the switch rather than four inside it: a fifth recovery
+  * command added later is a line in this list, not a check somebody has to
+  * remember to copy.
+  *
+  * The origin comes from the command, not from CommandManager's "last input"
+  * flag. A line typed over Bluetooth while the display is busy is parked in
+  * the CLI queue and executed later, after other input has moved that flag —
+  * so the flag would have refused a USB recovery and waved the queued
+  * Bluetooth one straight through. */
+ if (cmd.fromBt &&
+     (cmd.type == CMD_FACTORY_RESET || cmd.type == CMD_FORMAT_FS ||
+      cmd.type == CMD_RESET_ADMIN   || cmd.type == CMD_HTTPS_OFF)) {
+  _cmdMgr->printError(pt ? "Comando so pela USB (cabo serial)."
+                         : "USB only (serial cable).");
+  LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, (int)cmd.type,
+           TRL("Recovery command refused over Bluetooth"));
+  return;
+ }
+#endif /* SIMUT_BLUETOOTH */
 
  switch (cmd.type) {
  case CMD_HELP:
@@ -858,6 +906,10 @@ void AppManager::executeCommand(CliDemand cmd) {
   _airWokeFromSleep = false;
   _airPhase = AIR_PHASE_OFF;
   _telemetryMgr->setDrainMode(false); /* a stop inside FLUSH must not leave M0 draining */
+  /* Same reason, one phase earlier: a stop inside WARMUP or SAMPLE must not
+   * leave M0 converting back to back for the rest of the session. DECIDE is
+   * the only other place this is cleared, and a stop never reaches it. */
+  _sensorMgr->setFastSampling(false);
   _airLastActivityMs = millis( );
   /* Disarm in flash too, or the next boot would resume the cycle the operator
    * just cancelled (plan F25). The dirty-boot count goes with it: this is a
@@ -920,7 +972,34 @@ void AppManager::executeCommand(CliDemand cmd) {
    * the reboot that any other configuration change would cost. */
   int v = 0;
   const bool off = (strcmp(cmd.strVal1, "off") == 0);
-  if (off || (cmd.strVal1[0] && parseIntStrict(cmd.strVal1, v) && v >= 0 && v <= 29)) {
+  /* The bound used to be `0..29`, which accepted the four GPIOs the Pico W
+   * spends on the CYW43 (23/24/25/29). Setting the charger sense to one of
+   * them reconfigures the radio's own side band, and on a device that lives
+   * asleep the result is a unit that silently stops reporting. airPinValid
+   * is the shared rule — the same one airSanitise applies on load, so a
+   * forged or restored air.bin cannot smuggle one of these in either. */
+  const bool pinOk = cmd.strVal1[0] && parseIntStrict(cmd.strVal1, v)
+                     && v >= 0 && v <= 29 && airPinValid((uint8_t)v);
+  /* And a pin that is already doing something else on this board. Sharing it
+   * would leave two owners driving one line, which reads on the console as a
+   * charger that is always present or a sensor that never answers. */
+  bool inUse = false;
+  if (pinOk && !off) {
+   if (_airCfg.sensorPowerPin != PIN_UNUSED && (uint8_t)v == _airCfg.sensorPowerPin) inUse = true;
+   for (int s = 0; !inUse && s < MAX_SENSORS; s++) {
+    if (!cfg.sensors[s].active) continue;
+    for (int p = 0; p < MAX_SENSOR_PINS; p++) {
+     if (cfg.sensors[s].pins[p] == (uint8_t)v) { inUse = true; break; }
+    }
+   }
+  }
+  if (inUse) {
+   _cmdMgr->printError(_cmdMgr->isPt( )
+    ? "GP em uso (alimentacao de sensor ou sensor ativo)"
+    : "GP already in use (sensor power or an active sensor)");
+   break;
+  }
+  if (off || pinOk) {
    _airCfg.chargerPin = off ? (uint8_t)PIN_UNUSED : (uint8_t)v;
    if (!off) {
     gpio_init((uint8_t)v);
@@ -939,7 +1018,9 @@ void AppManager::executeCommand(CliDemand cmd) {
    }
    _cmdMgr->printSuccess(buf);
   } else {
-   _cmdMgr->printError("air charger <0..29|off>");
+   /* The gaps are the CYW43 pins, spelled out so the operator does not have
+    * to guess why 25 was refused. */
+   _cmdMgr->printError("air charger <0..22|26..28|off>");
   }
   break;
  }
@@ -1261,6 +1342,10 @@ void AppManager::executeCommand(CliDemand cmd) {
    * Parse the inner command and dispatch it directly, bypassing
    * mode validation (we validate against PRIV mask, not current mode). */
   CliDemand inner = parseCliCommand(String(cmd.strVal1));
+  /* The inner command has the same origin as the `do` that carried it —
+   * otherwise `do system format confirm` over Bluetooth would arrive at the
+   * gate above looking like it came off the USB cable. */
+  inner.fromBt = cmd.fromBt;
   if (inner.type == CMD_UNKNOWN) {
    _cmdMgr->printError(pt ? "Comando invalido apos 'do'." : "Invalid command after 'do'.");
    break;
@@ -1343,10 +1428,16 @@ void AppManager::executeCommand(CliDemand cmd) {
  : "RAM updated. Run 'write memory' to persist.");
 #else
  /* `write memory` does not exist in the emergency console, so pointing at it
-  * would send the user after a command that answers "unknown". `debug` is the
-  * only survivor that sets this flag, and session-only is the behaviour you
-  * want from it anyway — nobody should leave a device streaming logs because
-  * a recovery session persisted the flag. */
+  * would send the user after a command that answers "unknown". Session-only is
+  * the behaviour you want from `debug` anyway — nobody should leave a device
+  * streaming logs because a recovery session persisted the flag.
+  *
+  * This comment used to claim `debug` was the ONLY survivor that sets the flag.
+  * It was not: `system admin reset` set it too, and the claim is what made a
+  * silent non-persisting password reset invisible to review for a day. Anything
+  * reaching this console that must outlive the boot saves for itself, next to
+  * the change — CMD_SET_WIFI_SSID, CMD_SET_WIFI_PASS and CMD_RESET_ADMIN all
+  * call saveConfiguration( ) — and does not set `changed`. */
  if (changed) _cmdMgr->printInfo(_cmdMgr->isPt( )
  ? "Vale para esta sessao; nao persiste apos reiniciar."
  : "Applies to this session; does not persist across reboot.");

@@ -49,6 +49,7 @@
 304	SEC_SESSION_EXPIRE	Session expired	Sessao expirada	Sessão expirada	Sesión expirada
 305	SEC_FILE_UPLOAD	File uploaded	Arquivo enviado	Arquivo enviado	Archivo subido
 306	SEC_FILE_DELETE	File deleted	Arquivo apagado	Arquivo apagado	Archivo eliminado
+307	SEC_BT_LOCKOUT	Bluetooth lockout	Bloqueio Bluetooth	Bloqueio Bluetooth	Bloqueo Bluetooth
 400	APP_DISPLAY_LAUNCHED	Display launched on Core 1	Display iniciado no Core 1	Display iniciado no Core 1	Pantalla iniciada en Core 1
 401	APP_TOUCH_CAL_INITIAL	Initial touch cal saved	Calibracao inicial do touch salva	Calibração inicial do touch salva	Calibración táctil inicial guardada
 402	APP_TOUCH_CAL_REQUIRED	Touch calibration required	Calibracao do touch necessaria	Calibração do touch necessária	Calibración táctil requerida

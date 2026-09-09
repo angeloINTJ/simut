@@ -2258,8 +2258,20 @@ void TelemetryManager::refreshPendingCount( ) {
  feedWdt( );
  }
 
- /* The hour still open in RAM counts too — collectBatch sends it now, so
-  * leaving it out would report zero pending while data is waiting. */
+ /* The hour still open counts too — collectBatch sends it now, so leaving it
+  * out would report zero pending while data is waiting.
+  *
+  * WHERE that block is depends on when the question is asked. Normally it is
+  * in the encoder. On a SIMUT Air wake it is not: the decision to raise the
+  * radio is taken right after _storageMgr->begin( ), and recoverWipV5( ) —
+  * which puts the snapshot back into the encoder — runs several hundred lines
+  * later in setup( ). Between those two points the block exists only as
+  * /history/.wip, so counting RAM alone answered zero on every wake and the
+  * radio never came up: the whole telemetry schedule of the Air, silently off
+  * since the boot stopped sealing the snapshot into the day file (F23).
+  *
+  * h5WipPendingSince( ) covers exactly that window and returns 0 once the
+  * encoder holds the block, so the two terms can never count it twice. */
  {
  const uint8_t ramCount = _storageRef->h5RamCount( );
  int16_t vals[H5_MAX_CHANNELS];
@@ -2268,6 +2280,7 @@ void TelemetryManager::refreshPendingCount( ) {
  if (!_storageRef->h5RamRecord(i, epoch, vals)) break;
  if (epoch > lastCursor) total++;
  }
+ if (ramCount == 0) total += _storageRef->h5WipPendingSince(lastCursor);
  }
 
  _pendingEstimate = (total > 0xFFFFu) ? (uint16_t)0xFFFFu : (uint16_t)total;

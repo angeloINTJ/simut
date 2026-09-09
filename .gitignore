@@ -28,6 +28,18 @@ build/
 # with git filter-repo and the exposed credentials rotated. The rule stays.
 *.bkp
 
+# Key material and environment files. Step 1 of tools/scan_secrets.sh already
+# refuses to let these be tracked; this is the layer that keeps them from being
+# staged by accident in the first place, so the gate never has to fire.
+# ~/.simut-bench.env holds the bench credentials and lives outside the repo.
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+.env
+*.env
+
 # OS files
 .DS_Store
 Thumbs.db

@@ -206,10 +206,12 @@ bool DisplayManager::loadLangFile(const char* path) {
  size_t vEnd = lineEnd;
  while (vEnd > v && (buf[vEnd-1] == '\r' || buf[vEnd-1] == ' ' ||
  buf[vEnd-1] == '\t')) vEnd--;
- size_t copy = vEnd - v;
- if (copy >= sizeof(_activeLang.name)) copy = sizeof(_activeLang.name) - 1;
- memcpy(_activeLang.name, buf + v, copy);
- _activeLang.name[copy] = '\0';
+ /* Sanitised, not copied raw: this string is served by /api/perms, which
+  * is the first request every page of the UI makes, and the pack is a file
+  * anyone with PERM_FILE_UPLOAD can put here. A quote in @NAME broke that
+  * response and took the whole interface down until the next boot with a
+  * different pack (V-04). Dropping the byte keeps the pack usable. */
+ langIdentSanitize(buf + v, vEnd - v, _activeLang.name, sizeof(_activeLang.name));
  } else if (dirLen == 4 && memcmp(buf + dirStart, "CODE", 4) == 0) {
  curSec = -1;
  size_t v = dirEnd;
@@ -217,10 +219,7 @@ bool DisplayManager::loadLangFile(const char* path) {
  size_t vEnd = lineEnd;
  while (vEnd > v && (buf[vEnd-1] == '\r' || buf[vEnd-1] == ' ' ||
  buf[vEnd-1] == '\t')) vEnd--;
- size_t copy = vEnd - v;
- if (copy >= sizeof(_activeLang.code)) copy = sizeof(_activeLang.code) - 1;
- memcpy(_activeLang.code, buf + v, copy);
- _activeLang.code[copy] = '\0';
+ langIdentSanitize(buf + v, vEnd - v, _activeLang.code, sizeof(_activeLang.code));
  } else if (dirLen == 4 && memcmp(buf + dirStart, "DICT", 4) == 0) {
  curSec = S_DICT;
  secStart[S_DICT] = bodyAfter;

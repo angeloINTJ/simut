@@ -137,6 +137,7 @@ enum LogCode {
  SEC_SESSION_EXPIRE = 304,
  SEC_FILE_UPLOAD = 305,
  SEC_FILE_DELETE = 306,
+ SEC_BT_LOCKOUT = 307,
 
 
  /* ── Application lifecycle (400–439) ── */

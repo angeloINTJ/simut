@@ -258,9 +258,12 @@ void AppManager::cmdHandleSensorField(const CliDemand& cmd, SystemConfig& cfg, b
  }
 
  if (strcmp(field, "hwid") == 0) {
-  if (!isValidCfgString(cmd.strVal2, sizeof(r.hwId) - 1)) {
-   _cmdMgr->printError(pt ? "HW ID invalido (max 15, sem ctrl chars)"
-                         : "Invalid HW ID (max 15, no ctrl chars)");
+  /* isValidHwId, not isValidCfgString: an hwId is a key, not free text — it
+   * is a JSON string in /api/status, a CSV column header and a JSON field
+   * name in the telemetry payload (O-2). */
+  if (!isValidHwId(cmd.strVal2)) {
+   _cmdMgr->printError(pt ? "HW ID invalido (1-15, apenas A-Z a-z 0-9 _ -)"
+                         : "Invalid HW ID (1-15, only A-Z a-z 0-9 _ -)");
    return;
   }
   safeCopy(r.hwId, cmd.strVal2, sizeof(r.hwId));
@@ -446,6 +449,14 @@ void AppManager::cmdHandleUserAdd(const CliDemand& cmd, SystemConfig& cfg, bool&
  _cmdMgr->printError(pt ? "Senha tem chars de controle" : "Password has control chars");
  return;
  }
+ /* Same floor as `user pass` and the web: a CLI-created account is a web
+  * account, so it does not get a weaker rule for having been typed on the
+  * serial line. */
+ if (!passwordPolicyOk(cmd.strVal2)) {
+ _cmdMgr->printError(pt ? "Senha fraca: minimo 8 caracteres, com letra e numero"
+ : "Weak password: minimum 8 characters, with a letter and a digit");
+ return;
+ }
  bool exists = false;
  int freeSlot = -1;
  for (int i = 0; i < MAX_USERS; i++) {
@@ -508,15 +519,33 @@ void AppManager::cmdHandleResetAdmin(const CliDemand& cmd, SystemConfig& cfg, bo
  safeCopy(cfg.users[0].password, hashed.c_str( ), sizeof(cfg.users[0].password));
  cfg.users[0].hashVersion = 1;
  cfg.users[0].mustChangePassword = true;
+
+ /* Persist HERE, before the password is announced, and do not set `changed`.
+  * The emergency console has no `write memory`: there `changed` only prints
+  * "applies to this session", so a reset that stopped in RAM was undone by
+  * the next boot -- and on SIMUT Air every wake is a boot, so the printed
+  * password expired roughly a minute after it was read. The one documented
+  * recovery for a locked-out web recovered nothing. Measured on the rig
+  * 2026-09-08: login with the printed password succeeded in the same boot
+  * and answered 401 err=2 after `reload confirm`. CMD_SET_WIFI_SSID and
+  * CMD_SET_WIFI_PASS in the same switch already save for this reason. */
+ const bool saved = _storageMgr->saveConfiguration( );
+
  _cmdMgr->printInfo(pt ? "Senha admin resetada. Nova senha (unica vez):"
  : "Admin password reset. New password (shown once):");
  _cmdMgr->printInfo(String(" ") + newPlain);
  _cmdMgr->printInfo(pt ? "Trocar no 1o login via web (forcado)."
  : "Change on 1st web login (forced).");
+ if (!saved) {
+  /* The RAM hash is already the live credential, so the operator can still
+   * use it -- but it dies at the next boot and they have to know that. */
+  _cmdMgr->printError(pt ? "NAO SALVOU: vale so ate reiniciar."
+   : "NOT SAVED: valid only until reboot.");
+ }
  /* Zero local plaintext after log. */
  volatile char* v = newPlain;
  for (size_t i = 0; i < sizeof(newPlain); i++) v[i] = 0;
- changed = true;
+ (void)changed;
 }
 
 /* Parse "NNNN-NN-NN" → 3 inteiros. Substituiu sscanf("%4d-%2d-%2d", ...)
@@ -642,6 +671,17 @@ void AppManager::cmdHandleUserPass(const CliDemand& cmd, SystemConfig& cfg, bool
  || !isValidCfgString(cmd.strVal2, 64)) {
  _cmdMgr->printError(pt ? "Nova senha invalida (1-64, sem ctrl chars)"
  : "Invalid new password (1-64, no ctrl chars)");
+ return;
+ }
+ /* Same floor the web enforces (>=8, a letter and a digit). The CLI took the
+  * plaintext and hashed it here without ever asking, so `conf user pass
+  * admin 1` produced a valid account that the web would have refused — and
+  * that account is the one the Bluetooth CLI authenticates against. The web
+  * over plain HTTP still cannot check this: it only ever sees the SHA-256
+  * the browser computed. */
+ if (!passwordPolicyOk(cmd.strVal2)) {
+ _cmdMgr->printError(pt ? "Senha fraca: minimo 8 caracteres, com letra e numero"
+ : "Weak password: minimum 8 characters, with a letter and a digit");
  return;
  }
  bool found = false;
