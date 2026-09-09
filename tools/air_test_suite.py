@@ -30,12 +30,18 @@ Three instruments, all optional except the target's USB CDC:
 Known defects are marked `xfail=` on the test: a failing xfail test counts as
 XFAIL (expected), a passing one as XPASS (remove the mark, the bug is fixed).
 
+Tests that judge history read the SEALED day file plus /api/history/open. The
+day file alone is the past with a hole at the near end — everything since the
+last seal is still in the RAM encoder — and the hole is exactly where a test
+that has just waited looks for its answer (2026-09-09).
+
 Usage:
     python3 tools/air_test_suite.py --list
     python3 tools/air_test_suite.py --selftest            # no hardware
     python3 tools/air_test_suite.py [--host IP] [--only T05,T06] [--cycles 3]
                                     [--hist-interval 1] [--long] [--baseline]
                                     [--report out.json] [--collector-port 8010]
+                                    [--t11-window 420]
     python3 tools/air_test_suite.py --flash .pio/build/pico_w_air/firmware.uf2
 
 Environment:
@@ -636,6 +642,28 @@ class Web:
             raise TestFail(f'download {path} HTTP {r.status_code}')
         return r.content
 
+    def open_block(self):
+        """The block still open in RAM, as a V5 stream. b'' when there is none.
+
+        The day file only ever holds SEALED blocks. Whatever the device has
+        measured since the last seal lives in the encoder (mirrored to
+        /history/.wip as a crash bound) and appears in <day>.h5 no earlier than
+        the seal that files it. Reading only the day file therefore reads the
+        past with a hole at the near end, and the hole is exactly the part a
+        test just spent its time producing: on 2026-09-09 a T11 re-run after a
+        deliberate 12-minute quiet window came back with byte-identical numbers
+        to the run before it, because all fifteen records that window produced
+        were in the open block and none of them were in the file.
+
+        204 is the normal answer in the minute after a seal, not an error.
+        """
+        r = self.get('/api/history/open')
+        if r.status_code == 204:
+            return b''
+        if r.status_code != 200:
+            raise TestFail(f'/api/history/open HTTP {r.status_code}')
+        return r.content
+
     def wait_up(self, timeout=120):
         t0 = time.time()
         while time.time() - t0 < timeout:
@@ -778,13 +806,65 @@ def gap_report(epochs, expected_s, tol_frac=0.25):
     return backwards, on_time, short, long_
 
 
-def spacing_ok(epochs, expected_s, tol_s, last_n):
-    """True when the last `last_n` gaps are within expected±tol."""
-    if len(epochs) < last_n + 1:
-        return False, 'not enough records'
-    gaps = [b - a for a, b in zip(epochs[-last_n - 1:-1], epochs[-last_n:])]
+def records_outside_awake(epochs, spans, skew=0.0, grace=0.0):
+    """Records timestamped while the device was not observably awake.
+
+    `epochs` come from the device's clock, `spans` are (t_on, t_off) pairs on
+    the host's, and `skew` is device minus host. This is the 2026-09-06 failure
+    stated as something measurable: a device that is asleep is not measuring,
+    so a record bearing a mid-sleep timestamp was filed at a time it was not
+    taken. Counting records or checking their spacing cannot see it — a burst
+    backdated at exactly the nominal interval has the right count and the right
+    gaps — which is why the awake windows have to come from somewhere other
+    than the history file.
+
+    `grace` widens both edges: USB enumerates a moment after a boot that has
+    already begun sampling, and the port goes away a moment before the device
+    really is down.
+    """
+    out = []
+    for e in epochs:
+        h = e - skew
+        if not any(a - grace <= h <= b + grace for a, b in spans):
+            out.append(e)
+    return out
+
+
+def awake_margins(epochs, spans, skew=0.0):
+    """Seconds each record sits outside the nearest awake span (0 when inside).
+
+    The number that tells whether `grace` is honest. Set it from what this
+    reports on a healthy device — the lag between a boot that has already begun
+    sampling and the USB node appearing — rather than from a fraction of the
+    interval, which on a 60 s cycle would widen every span until they meet and
+    the check could never fire.
+    """
+    if not spans:
+        return []
+    out = []
+    for e in epochs:
+        h = e - skew
+        out.append(min(0.0 if a <= h <= b else min(abs(h - a), abs(h - b))
+                       for a, b in spans))
+    return out
+
+
+def interior_gaps_ok(epochs, expected_s, tol_s):
+    """True when EVERY gap between the given records is within expected±tol.
+
+    Replaces an earlier spacing_ok(epochs, ..., last_n) that judged the LAST
+    n gaps of whatever it was handed. That is the wrong end for F04: by the
+    time T08 can read the history the device is back online and writing at an
+    undisturbed cadence, so "the last three gaps" were three gaps the test did
+    not produce, and they passed every time. The caller now selects the records
+    it caused and every gap between them is judged — no end to pick, and
+    nothing to get backwards.
+    """
+    if len(epochs) < 2:
+        return False, 'not enough records', []
+    gaps = [b - a for a, b in zip(epochs, epochs[1:])]
     bad = [g for g in gaps if abs(g - expected_s) > tol_s]
-    return (not bad), f'gaps={gaps}'
+    return (not bad), f'gaps={gaps}', gaps
 
 
 # --------------------------------------------------------------------------
@@ -815,7 +895,10 @@ class Suite:
             ('T06', 'telemetry_drain', self.t06_telemetry_drain, None, {'target', 'web'}),
             ('T06b', 'telemetry_off_sleeps', self.t06b_telemetry_off_sleeps, None, {'target', 'web'}),
             ('T07', 'web_activity_resets_idle', self.t07_web_activity_resets_idle, None, {'target', 'web'}),
-            ('T08', 'offline_timestamps', self.t08_offline_timestamps, 'F04', {'target', 'web'}),
+            # xfail F04 removed 2026-09-09: it does not reproduce, measured twice
+            # on the records this test actually produces (see the docstring for
+            # why the earlier verdicts were not about those records).
+            ('T08', 'offline_timestamps', self.t08_offline_timestamps, None, {'target', 'web'}),
             ('T09', 'probe_cycle', self.t09_probe_cycle, None, {'target', 'hand'}),
             ('T10', 'm1_services_off', self.t10_m1_services_off, None, {'target', 'web'}),
             ('T11', 'history_integrity', self.t11_history_integrity, None, {'target', 'web'}),
@@ -857,12 +940,35 @@ class Suite:
             self.host = self.target.ip()
         user, pw = os.environ.get('SIMUT_WEB_USER'), os.environ.get('SIMUT_WEB_PASS')
         if self.needs('web') and self.host and user and pw and requests is not None:
-            try:
-                self.web = Web(self.host)
-                self.web.login(user, pw)
-            except Exception as exc:
-                print(f'  web unavailable ({exc}) — web-dependent tests will be skipped')
-                self.web = None
+            # Retried, because one attempt is not a verdict about the web. The
+            # device can go back to sleep between ensure_m0( ) and this login,
+            # and a single 'Connection reset by peer' then silently downgrades
+            # the whole run: the tests do not fail, they SKIP, and the summary
+            # comes back green with the web-dependent half never executed.
+            # Measured 2026-09-09, when it cost T08 a 20-minute bench window.
+            last = None
+            for attempt in range(4):
+                try:
+                    self.web = Web(self.host)
+                    self.web.login(user, pw)
+                    last = None
+                    break
+                except Exception as exc:
+                    last = exc
+                    self.web = None
+                    if attempt < 3:
+                        # Bring it back to M0 so the next try meets a wake
+                        # rather than the same sleep. Guarded: failing to reach
+                        # M0 here means the web tests skip, which is what was
+                        # about to happen anyway — it must not take the run's
+                        # target-only tests down with it.
+                        try:
+                            self.ensure_m0()
+                        except Exception:
+                            pass
+            if last is not None:
+                print(f'  web unavailable after 4 tries ({last}) — '
+                      f'web-dependent tests will be skipped')
         if self.web:
             self.collector = Collector(self.args.collector_port)
             self.collector.start()
@@ -973,6 +1079,72 @@ class Suite:
     def need_web(self):
         if not self.web:
             raise TestSkip('web not available (SIMUT_WEB_USER/PASS, host)')
+
+    def full_history(self, expected):
+        """Every record the device holds for today, sealed AND still open.
+
+        The day file is the sealed past; the encoder holds everything since the
+        last seal. A reader that takes only the file is blind at the near end,
+        which is precisely where a test that just waited looks for its answer.
+        Returns (epochs, n_sealed, n_open).
+        """
+        day = time.strftime('%Y%m%d')
+        sealed = h5_epochs(self.web.download(f'/history/{day}.h5'), expected)
+        raw = self.web.open_block()
+        opened = h5_epochs(raw, expected) if raw else []
+        # A seal can land between the two GETs, so the open block may repeat
+        # what the file already has. Splice on the timeline rather than
+        # concatenate: a duplicated record would read as a 0 s gap and be
+        # reported as a firmware fault that is really a race in this reader.
+        cut = sealed[-1] if sealed else None
+        merged = sealed + [e for e in opened if cut is None or e > cut]
+        return merged, len(sealed), len(opened)
+
+    def clock_skew(self):
+        """device epoch − host epoch, in seconds.
+
+        Record timestamps come from the device's clock and USB presence is
+        stamped by the host's. Comparing them without this compares two clocks
+        that agree only by luck; the round trip that measures it is worth well
+        under a second against a 60 s interval.
+        """
+        t0 = time.time()
+        dev = int(self.web.status()['sys']['time'])
+        return dev - (t0 + time.time()) / 2.0
+
+    def watch_awake(self, seconds, poll=0.5):
+        """USB presence through a window, as [(t_on, t_off), ...] host clock.
+
+        Nothing is written to the port and the port is never opened: every CLI
+        command calls airMarkActivity( ) and rearms the idle timer, so asking
+        the device whether it is cycling is what stops it from cycling. That is
+        the T12 lesson, and it applies with more force here because this window
+        is minutes long. os.path.exists on the by-id node is the whole
+        instrument.
+
+        Returns (spans, head_cut, tail_cut). The two flags say whether the
+        first and last spans were already open when the watch began or ended:
+        those wakes are only partly observed, so a record belonging to one of
+        them may sit outside the watch entirely, and judging them would fail a
+        healthy device for the test's own timing.
+        """
+        spans = []
+        t0 = time.time()
+        was = self.target.usb.present()
+        head_cut = was
+        start = t0 if was else None
+        while time.time() - t0 < seconds:
+            time.sleep(poll)
+            now = self.target.usb.present()
+            if now and not was:
+                start = time.time()
+            elif was and not now:
+                spans.append((start if start is not None else t0, time.time()))
+                start = None
+            was = now
+        if was:
+            spans.append((start if start is not None else t0, time.time()))
+        return spans, head_cut, was
 
     def snapshot_config(self):
         if self.web and not self.saved:
@@ -1359,6 +1531,33 @@ class Suite:
         return 'web activity kept M0 for 100 s with idle=60 s'
 
     def t08_offline_timestamps(self):
+        """Offline wakes must be stamped with the real elapsed time (F04).
+
+        WHICH RECORDS THIS JUDGES, AND WHY IT IS SPELLED OUT (2026-09-09)
+        ----------------------------------------------------------------
+        It used to download <today>.h5 and take the last `wakes` gaps in it.
+        That reads only SEALED blocks, and whether the offline wakes are in one
+        by the time this looks depends on something the test does not control:
+        the NTP correction on the way back seals the block before shifting, so
+        the records land in the file — but only if a correction actually
+        happened. With no correction the block stays open, the file still ends
+        at whatever was sealed BEFORE the test ran, and "the last three gaps"
+        are three gaps this test did not produce. A verdict that is right only
+        when an unrelated event fires is worse than one that is plainly wrong,
+        because it passes often enough to be believed.
+
+        So: mark the newest record before going offline, read sealed AND open
+        afterwards (see full_history), take the FIRST `wakes` records past the
+        mark — those are the offline ones — and judge every gap between them.
+        Fewer records than wakes is reported as such, never quietly padded out
+        with older ones. The gap from the mark to the first offline record
+        spans the reboot that broke the SSID, so it is printed and not judged.
+
+        The mark survives the clock correction: a resumed block keeps the
+        previous session's stamps and shiftHistoryTimeV5 seals rather than
+        rewrites them (_h5AdoptedT0), and the provisional clock only ever runs
+        forward, so nothing this test produced can land before the mark.
+        """
         if not self.args.long:
             raise TestSkip('long test — pass --long')
         self.need_web()
@@ -1367,7 +1566,15 @@ class Suite:
             raise TestFail('could not read the current SSID from show net status')
         hist_min = 2
         self.commit_and_reboot({HIST_FIELD: hist_min})
-        wakes = 3
+        expected = hist_min * 60
+        # Four wakes, not three: only the gaps BETWEEN offline records carry
+        # the F04 signal, and the first gap after the mark spans the reboot
+        # that broke the SSID. Three wakes leave two judged gaps; four leaves
+        # three, which is the weight this test already had before the boundary
+        # gap was excluded from the judgement.
+        wakes = 4
+        before, _, _ = self.full_history(expected)
+        t_mark = before[-1] if before else 0
         try:
             self.target.cmd(f'system ssid {good}_nope', 4)
             self.target.close()
@@ -1391,12 +1598,31 @@ class Suite:
             if self.web.wait_up(120) is None:
                 raise TestFail('web did not come back after restoring the SSID')
             self.web.login(os.environ['SIMUT_WEB_USER'], os.environ['SIMUT_WEB_PASS'])
-        day = time.strftime('%Y%m%d')
-        blob = self.web.download(f'/history/{day}.h5')
-        epochs = h5_epochs(blob, hist_min * 60)
-        ok, detail = spacing_ok(epochs, hist_min * 60, 25, wakes)
+        after, n_sealed, n_open = self.full_history(expected)
+        fresh = [e for e in after if e > t_mark]
+        where = f'{n_sealed} sealed + {n_open} open, {len(fresh)} newer than the mark'
+        if len(fresh) < wakes:
+            raise TestFail(
+                f'{wakes} offline wakes produced only {len(fresh)} record(s) after the '
+                f'mark — not enough to judge the spacing, and a wake that files '
+                f'nothing is itself the loss F04 is about ({where})')
+
+        # The FIRST records after the mark are the offline ones; the last ones
+        # were written after the SSID came back, at a cadence nothing was
+        # interfering with.
+        #
+        # Offline, exactly one record per wake: the wake interval is the
+        # history interval, and the after-boot rule (_histFirstDone) is gated
+        # on the RAW clock, which no offline boot ever sets.
+        offline = fresh[:wakes]
+        ok, gap_detail, gaps = interior_gaps_ok(offline, expected, 25)
+        boundary = offline[0] - t_mark
+        detail = (f'offline {gap_detail} (expected {expected}s), boundary gap over '
+                  f'the reboot={boundary}s, not judged; {where}')
         if not ok:
-            raise TestFail(f'offline wakes not spaced by the real sleep (F04): {detail}')
+            bad = [g for g in gaps if abs(g - expected) > 25]
+            raise TestFail(f'offline wakes not spaced by the real sleep (F04): '
+                           f'{len(bad)} of {len(gaps)} off by more than 25s; {detail}')
         return detail
 
     def t09_probe_cycle(self):
@@ -1466,8 +1692,47 @@ class Suite:
           * bursts spaced at a fixed nominal interval covering stretches the
             device spent asleep, so measurements are filed at times they were
             not taken.
-        Downloading the day file and decoding it is the only view that shows
-        this: /api/status and the log both look healthy while it happens.
+
+        WHY THIS IS NOT THE DAY FILE ANY MORE (2026-09-09)
+        -------------------------------------------------
+        The first version downloaded <today>.h5, classified every gap in it
+        against h_int and demanded that 90% land within ±25%. Two things made
+        that unable to reach a verdict about the firmware at all.
+
+        It read the sealed past only. Whatever the device has measured since
+        the last seal lives in the RAM encoder, and appears in the day file no
+        earlier than the seal that files it. Re-running the test after a
+        deliberate 12-minute quiet window returned byte-identical numbers to
+        the run before it — 17 records either way — while /api/history/open
+        held the fifteen records that window had just produced. The instrument
+        could not see the thing it was waiting for.
+
+        And it judged a whole day of somebody else's work. Every reboot the
+        suite causes, and every test that moves h_int (T08 sets 2 min), leaves
+        gaps in that file which are correct behaviour and which the test then
+        counted against the firmware. Worse, the firmware deliberately files a
+        record right after a boot without waiting out the interval
+        (_histFirstDone, AppManager_Loop.cpp) — added because a reboot
+        otherwise cost a whole unmeasured minute — and on Air EVERY wake is a
+        boot, so short gaps are structural, not faults.
+
+        So the test now makes its own window and judges only that. It arms the
+        cycle, then does not touch the device for several intervals while
+        watching USB presence, which says when the device was actually awake
+        without talking to it. Then it reads back the complete history and asks
+        four things, none of which needs a tolerance invented for the occasion:
+
+          1. the whole history is monotonic — corrupt is corrupt, whoever
+             caused it, so this one is judged over everything on the device;
+          2. every record in the window carries a timestamp from a moment the
+             device was observably awake. This IS the second failure above,
+             stated as something measurable: a record filed mid-sleep is a
+             measurement that was not taken;
+          3. one record per wake. On Air the wake interval IS the history
+             interval (AppManager_Air.cpp: "Wake interval = history save
+             interval"), so waking without filing is a lost measurement and
+             filing without waking is an invented one;
+          4. the gaps inside the window match h_int.
         """
         self.need_web()
         # The history lives behind the web server, and the web server belongs to
@@ -1483,27 +1748,111 @@ class Suite:
         if hint_min <= 0:
             raise TestSkip('h_int not readable from /api/config')
         expected = hint_min * 60
-        day = time.strftime('%Y%m%d')
-        blob = self.web.download(f'/history/{day}.h5')
-        eps = h5_epochs(blob, expected)
-        if len(eps) < 6:
-            raise TestSkip(f'only {len(eps)} records in {day}.h5 — not enough to judge')
-        back, ok, short, long_ = gap_report(eps, expected)
-        # Block anchors are absolute, so they date the wakes even when the
-        # interior reconstruction is off: report them alongside the records.
-        anchors = [t0 for t0, _n in h5_block_anchors(blob)]
-        wake_gaps = [b - a for a, b in zip(anchors, anchors[1:])]
-        late = [g for g in wake_gaps if g > expected * 2]
-        summary = (f'{len(eps)} records, interval={expected}s: on-time={len(ok)} '
-                   f'short={len(short)} long={len(long_)} backwards={len(back)}; '
-                   f'{len(anchors)} blocks, {len(late)} wake gaps > {2 * expected}s')
+
+        eps0, n_sealed, n_open = self.full_history(expected)
+        if len(eps0) < 6:
+            raise TestSkip(f'only {len(eps0)} records on the device — not enough to judge')
+
+        # ── 1. monotonic, over everything the device holds ──────────────────
+        back, _, _, _ = gap_report(eps0, expected)
         if back:
             raise TestFail(f'history is not monotonic — {len(back)} backwards gap(s) '
-                           f'(e.g. {back[0]}s); {summary}')
-        if len(ok) < 0.9 * (len(eps) - 1):
-            raise TestFail(f'most gaps do not match the configured interval; {summary} '
-                           f'(longest={max(long_) if long_ else 0}s)')
-        return summary
+                           f'(e.g. {back[0]}s) across {len(eps0)} records '
+                           f'({n_sealed} sealed + {n_open} open)')
+
+        # ── 2. a window this test owns ──────────────────────────────────────
+        # The charger line suppresses hibernation by design (T14). Left on by
+        # an earlier test or a stray tool, it would turn this into a
+        # measurement of a device that never sleeps.
+        if self.hand.available and self.hand.charger_supported():
+            self.hand.charger(False)
+        skew = self.clock_skew()
+
+        # Prove the cycle is running before starting to measure it: a window
+        # spent watching a device that never armed would report "no records"
+        # and blame the history for it.
+        row = self.hibernate_and_observe(stop_on_wake=False)
+        if not row.get('woke'):
+            raise TestFail('the cycle did not come back — nothing to measure')
+
+        window = max(4 * expected, int(self.args.t11_window))
+        wall0 = time.time()
+        spans, head_cut, tail_cut = self.watch_awake(window)
+        elapsed = time.time() - wall0
+
+        # Judge whole wakes only. The wake in progress when the watch opened
+        # may have filed its record before wall0 — during the cycle armed just
+        # above, which this test did not watch — and the wake still running
+        # when it closed may file after the last poll. Counting either against
+        # the firmware would be marking the test's own timing as a fault.
+        full = spans[1 if head_cut else 0: len(spans) - (1 if tail_cut else 0)]
+
+        self.ensure_m0()
+        if self.web.wait_up(180) is None:
+            raise TestSkip('web did not come back after the window')
+        eps1, n_sealed1, n_open1 = self.full_history(expected)
+
+        if not spans:
+            raise TestFail(f'the device never appeared on USB in {elapsed:.0f}s — the cycle '
+                           f'stopped, so the history proves nothing '
+                           f'({len(eps1)} records on the device)')
+        if len(full) < 3:
+            raise TestSkip(f'only {len(full)} complete wake(s) observed in {elapsed:.0f}s '
+                           f'({len(spans)} spans, head_cut={head_cut} tail_cut={tail_cut}) — '
+                           f'too few to judge')
+
+        t_lo, t_hi = full[0][0], full[-1][1]
+        win = [e for e in eps1 if t_lo <= e - skew <= t_hi]
+        summary = (f'{len(win)} records across {len(full)} complete wakes in a '
+                   f'{elapsed:.0f}s window, interval={expected}s, skew={skew:+.1f}s '
+                   f'({n_sealed1} sealed + {n_open1} open on the device)')
+        if not win:
+            raise TestFail(f'{len(full)} complete wake(s) and not one record filed; {summary}')
+
+        # ── 3. every record inside an observed awake window ─────────────────
+        # Grace on both edges, because USB enumerates a moment after the boot
+        # that has already begun sampling, and the port goes away a moment
+        # before the device is really down.
+        #
+        # A quarter of the interval, capped at 10 s. Half an interval was the
+        # first choice and it is vacuous here: the device is awake ~9 s of
+        # every 60, so widening each span by 30 s on both sides makes the spans
+        # meet and no timestamp can ever fall outside one. The margins below
+        # say what the lag really is, so the cap can be tightened on evidence
+        # instead of moved on taste.
+        grace = min(expected / 4.0, 10.0)
+        margins = awake_margins(win, full, skew)
+        worst = max(margins) if margins else 0.0
+        summary += f', worst margin {worst:.1f}s (grace {grace:.0f}s)'
+        stray = records_outside_awake(win, full, skew, grace=grace)
+        if stray:
+            when = ', '.join(time.strftime('%H:%M:%S', time.localtime(e)) for e in stray[:4])
+            raise TestFail(f'{len(stray)} record(s) timestamped while the device was '
+                           f'asleep ({when}) — filed at times they were not taken; {summary}')
+
+        # ── 4. one record per wake ──────────────────────────────────────────
+        # ±1 because the firmware files a record right after a boot without
+        # waiting out the interval (_histFirstDone), so a wake can legitimately
+        # carry two when the previous one ran long.
+        if abs(len(win) - len(full)) > 1:
+            raise TestFail(f'{len(win)} records for {len(full)} complete wakes — '
+                           f'{"records without a wake to take them" if len(win) > len(full) else "wakes that filed nothing"}'
+                           f'; {summary}')
+
+        # ── 5. cadence inside the window ────────────────────────────────────
+        wback, ok, short, long_ = gap_report(win, expected)
+        gaps = len(win) - 1
+        detail = f'on-time={len(ok)} short={len(short)} long={len(long_)}'
+        # Check 1 judged the history as it stood BEFORE the window, so a
+        # backwards gap written during the window would pass it untouched.
+        if wback:
+            raise TestFail(f'records written during the window go backwards — '
+                           f'{len(wback)} backwards gap(s) (e.g. {wback[0]}s); {summary}')
+        if gaps and len(ok) < 0.9 * gaps:
+            raise TestFail(f'gaps in an undisturbed window do not match h_int: {detail} '
+                           f'(longest={max(long_) if long_ else 0}s, '
+                           f'shortest={min(short) if short else 0}s); {summary}')
+        return f'{summary}; {detail}'
 
     def t12_cycle_survives_reset(self):
         """A reset in the middle of the cycle must not leave the device awake.
@@ -2113,15 +2462,63 @@ def selftest():
     check('count_records json list', count_records(b'[{"a":1},{"a":2}]') == 2)
     check('count_records json dict', count_records(b'{"records":[1,2,3]}') == 3)
     check('count_records csv', count_records(b'a,b\n1,2\n3,4\n') == 3)
-    ok1, _ = spacing_ok([0, 120, 241, 358], 120, 25, 3)
-    ok2, _ = spacing_ok([0, 80, 160, 240], 120, 25, 3)
-    check('spacing ok / compressed detected', ok1 and not ok2)
+    ok1, _, _ = interior_gaps_ok([0, 120, 241, 358], 120, 25)
+    # The F04 signature: every offline wake advances the history ~80 s where
+    # the real sleep was 120 s.
+    ok2, _, _ = interior_gaps_ok([0, 80, 160, 240], 120, 25)
+    check('interior gaps: clean passes, F04 compression fails', ok1 and not ok2)
+    # The regression guard for the bug this replaced: a run whose EARLY gaps
+    # are wrong and whose LAST ones are clean — offline records followed by
+    # the online ones written after the SSID came back. spacing_ok judged the
+    # tail and passed this; every gap is judged now, so it fails.
+    mixed = [0, 80, 160, 240, 360, 480, 600]
+    ok3, _, _ = interior_gaps_ok(mixed, 120, 25)
+    check('a bad head behind a clean tail is not excused', not ok3)
     # the real 2026-09-06 shape: three 60 s records, one backwards, one huge jump
     back, on_time, short, long_ = gap_report([0, 60, 120, 103, 1920], 120)
     check('gap_report finds the backwards gap', len(back) == 1 and back[0] == -17)
     check('gap_report classifies short/long', len(short) == 2 and len(long_) == 1 and not on_time)
     b2, ok2b, s2, l2 = gap_report([0, 120, 240, 360], 120)
     check('gap_report clean file', not b2 and len(ok2b) == 3 and not s2 and not l2)
+
+    # The check T11 leans on, and the one that has to be shown to fail: a
+    # burst backdated across a sleep has a plausible count and textbook gaps,
+    # so nothing in gap_report can see it. Awake windows can.
+    #
+    # A device cycling every 60 s, awake ~15 s of each: five wakes, five
+    # records, each filed while the port was there.
+    spans5 = [(1000.0 + 60 * i, 1015.0 + 60 * i) for i in range(5)]
+    honest = [1005 + 60 * i for i in range(5)]
+    check('awake windows accept honest records',
+          not records_outside_awake(honest, spans5, skew=0.0, grace=30.0))
+    # Now the failure itself: the device sleeps five minutes, wakes twice in
+    # all, and files six records spaced at exactly the nominal 60 s so that
+    # they cover the sleep. Six records for two wakes, and every gap textbook.
+    slept = [(1000.0, 1015.0), (1300.0, 1315.0)]
+    faked = [1005, 1065, 1125, 1185, 1245, 1305]
+    bf, ok_f, sf, lf = gap_report(faked, 60)
+    check('gap spacing cannot see a burst at the nominal interval',
+          not bf and not sf and not lf and len(ok_f) == len(faked) - 1)
+    # The awake windows can: four of the six were filed mid-sleep.
+    check('awake windows catch a burst at the nominal interval',
+          len(records_outside_awake(faked, slept, skew=0.0, grace=5.0)) == 4)
+    # And the same data survives the half-interval grace T11 actually uses,
+    # so the grace is not what makes the check pass.
+    check('the grace T11 uses does not hide the burst',
+          len(records_outside_awake(faked, slept, skew=0.0, grace=30.0)) == 4)
+    # Skew is applied, not ignored: a device 40 s ahead of the host still
+    # lands inside the same windows once the offset is taken out.
+    # The grace is a measurement, not a preference, so the thing that measures
+    # it is checked too: zero for a record inside a span, and the real distance
+    # for one outside.
+    check('awake margins are zero inside a span',
+          awake_margins(honest, spans5) == [0.0] * len(honest))
+    check('awake margins measure the distance outside',
+          awake_margins([1035], spans5) == [20.0])
+    check('awake windows apply the clock skew',
+          not records_outside_awake([e + 40 for e in honest], spans5, skew=40.0, grace=30.0)
+          and len(records_outside_awake([e + 40 for e in honest], spans5,
+                                        skew=0.0, grace=5.0)) == 5)
     # A neutral vector: this only checks that the frontend hashes latin-1 bytes
     # the way the device does, so any ASCII string proves it. It used to be the
     # rig's real password, which is how a live credential ended up in a tracked
@@ -2151,6 +2548,8 @@ def main():
     ap.add_argument('--wake-grace', type=int, default=120, help='seconds beyond wakeSec before declaring no wake')
     ap.add_argument('--period-tol', type=float, default=45.0, help='tolerated |sleep_s - wakeSec| (s)')
     ap.add_argument('--collector-port', type=int, default=8010)
+    ap.add_argument('--t11-window', type=int, default=420,
+                    help='seconds T11 leaves the device alone before judging (default 420)')
     ap.add_argument('--long', action='store_true', help='include long tests (T08)')
     ap.add_argument('--baseline', action='store_true', help='exit 0 even with FAIL (record the state)')
     ap.add_argument('--report', help='write a JSON report here')
