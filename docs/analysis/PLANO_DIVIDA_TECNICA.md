@@ -68,7 +68,7 @@ Ordem deliberada — do que não derruba o aparelho para o que derruba:
 |---|---|---|---|
 | ~~1.1~~ | ✅ **O-1** | conta `o1probe` com `perms=32` (só `FILE_READ`): `/download?file=/system.blog` → **403**. **Controle:** a mesma conta baixou `/lang/language_pt-BR.lng` → 200 (33.959 B) — o 403 é o portão, não sessão quebrada. Criada e apagada pelo `commit_all` (`users.actions`); a lista voltou aos 4 originais | feito |
 | ~~1.2~~ | ✅ **V-06** | `air charger 25` → `ERROR: air charger <0..22\|26..28\|off>`; `air charger 17` → `OK: charger sense on GP17` | feito |
-| 1.3 | **V-05** | `ap` no console publica a PSK; `nmcli dev wifi list` mostra **WPA2**; notebook entra com ela | 15 min |
+| ~~1.3~~ ½ | ⚠️ **V-05 pela metade** | console: `simuttft_SETUP` com PSK de 10 caracteres `(WPA2)`, sem linha de rede aberta; volta à STA confirmada. **Falta a metade pelo ar** — o host não tem Wi-Fi; precisa de um celular ou notebook ver WPA2 na varredura e entrar | metade |
 | 1.4 | **V-03** | `air_test_suite.py --only T15,T16` **contra esta imagem** | 20 min |
 | ~~1.5~~ | ✅ **V-01a** | 3/3 na v2.4.1-beta: recusa, **lockout de 8 s sobrevive à reconexão** (sonda 3,4 s depois: silêncio), 4ª falha tranca de novo (8 → 16 s). Cinco consertos no instrumento antes do veredito — ver o tool | feito |
 | ~~1.6~~ | ✅ **V-01b** | 3/3: descobrível após o boot, ausente 345 s depois, RFCOMM ainda conecta para quem sabe o endereço | feito |
