@@ -1,0 +1,87 @@
+# Pre-commit hooks — closes issue #36.
+#
+# Install once:
+#     pip install pre-commit && pre-commit install
+#
+# The hooks the issue proposed are here, with exclusions the issue did not
+# have. Two of them matter, and both were measured rather than assumed:
+#
+#   tools/arduino_pico_overrides/patches/*.patch — six of the eight carry
+#   context lines that are a single space, which is what a unified diff writes
+#   for an empty source line. trailing-whitespace strips them. Whether that
+#   actually breaks the patch could not be shown: `git apply --stat` parses
+#   both forms and GNU patch tolerates an empty context line. It is excluded
+#   anyway, because reformatting a vendored diff has no upside and the
+#   downside — patch.sh silently failing after a framework bump, against code
+#   nobody re-read — is expensive and quiet.
+#
+#   check-added-large-files runs at 2048 KB, not the 500 KB the issue
+#   suggested. docs/MANUAL.pt-BR.html is 1541 KB and PCB_test/simut PCB.kicad_pcb
+#   is 794 KB; both are tracked on purpose, and a limit that fires on editing
+#   the manual is a limit people learn to pass with --no-verify.
+#
+# The language packs were suspected of the same fragility — they end without a
+# newline, and the @DICT section is partitioned positionally, so a hook that
+# appends one looked like it could push every key off by a line. Tested: adding
+# the newline and running tools/check_lang_packs.py, the gate still passes. So
+# they are NOT excluded. The suspicion was wrong and this note is here so
+# nobody re-derives it from the shape of the file.
+
+exclude: |
+  (?x)^(
+    tools/arduino_pico_overrides/patches/.*\.patch|
+    src/WebUI_GZ\.h|
+    PCB_test/.*|
+    docs/MANUAL\.pt-BR\.html|
+    release/.*
+  )$
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+      - id: detect-private-key
+      - id: check-added-large-files
+        args: ["--maxkb=2048"]
+
+  # The repository's own gates, the fast ones. These already run in CI; having
+  # them here means a contributor meets them in the second it takes to commit
+  # rather than in the four minutes it takes a workflow to answer.
+  #
+  # Deliberately NOT here: the firmware build, cppcheck and the fuzz run. A
+  # pre-commit hook that takes minutes is a hook people disable.
+  - repo: local
+    hooks:
+      - id: simut-secret-gate
+        name: no tracked secrets
+        entry: tools/scan_secrets.sh
+        language: script
+        pass_filenames: false
+        always_run: true
+
+      - id: simut-logcodes
+        name: log-code tables agree
+        entry: python3 tools/gen_logcodes.py --check
+        language: system
+        pass_filenames: false
+        files: ^(tools/logcodes\.tsv|src/.*LogCode.*)
+
+      - id: simut-authz
+        name: every route has an authorization gate
+        entry: python3 tools/check_authz.py
+        language: system
+        pass_filenames: false
+        files: ^src/WebManager.*\.cpp$
+
+      - id: simut-fsguard
+        name: /config filesystem guard intact
+        entry: python3 tools/check_fsguard.py
+        language: system
+        pass_filenames: false
+        files: ^src/(WebManager|ota/).*\.(cpp|h)$

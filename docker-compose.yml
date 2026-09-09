@@ -8,11 +8,11 @@ services:
       - ".:/workspace"
     command: pio run -e pico_w_release
 
-  # Runs all five native unit test suites
+  # Runs all seven native unit test suites
   test:
     build: .
     user: "${UID:-1000}:${GID:-1000}"
     volumes:
       - ".:/workspace"
     command: >
-      sh -c "pio test -e native && pio test -e native_history_v4 && pio test -e native_history_v5 && pio test -e native_cli && pio test -e native_logpolicy"
+      sh -c "pio test -e native -e native_history_v5 -e native_cli -e native_logpolicy -e native_alarmqueue -e native_air -e native_network"

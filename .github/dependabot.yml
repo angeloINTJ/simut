@@ -1,0 +1,22 @@
+# Dependabot — GitHub Actions only.
+#
+# The firmware's own dependencies are deliberately out of scope. Every library
+# in platformio.ini is pinned to an exact version or a commit sha, and the
+# framework pin is load-bearing in a way a bot cannot reason about: the eight
+# diffs in tools/arduino_pico_overrides/ are written against specific upstream
+# sources, so a bumped framework does not fail loudly — it fails as a patch
+# that no longer applies to code nobody re-read. See the header of
+# [pico_base] in platformio.ini.
+#
+# Actions are different: they are infrastructure, they move on their own
+# schedule, and a stale one is a security surface rather than a measurement
+# risk. Those get watched.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "ci"

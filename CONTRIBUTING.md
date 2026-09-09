@@ -52,9 +52,18 @@ docker compose run test
 | Command | Equivalent PlatformIO command |
 |---|---|
 | `docker compose run build` | `pio run -e pico_w_release` |
-| `docker compose run test` | `pio test -e native && pio test -e native_history_v4 && pio test -e native_history_v5 && pio test -e native_cli && pio test -e native_logpolicy` |
+| `docker compose run test` | `pio test -e native -e native_history_v5 -e native_cli -e native_logpolicy -e native_alarmqueue -e native_air -e native_network` |
 
 ---
+
+### Pre-commit hooks
+
+```bash
+pip install pre-commit
+pre-commit install
+```
+
+Runs the whitespace and YAML/JSON checks, plus the repository's own fast gates — the secret scan, the log-code tables, the authorization matrix and the `/config` filesystem guard — so you meet them in the second it takes to commit rather than in the four minutes it takes CI to answer. The build, cppcheck and the fuzz run are deliberately *not* hooked: a pre-commit that takes minutes is one people disable.
 
 ### Option B — Local PlatformIO
 
@@ -103,34 +112,48 @@ Adding a new sensor driver? Follow the step-by-step guide in [docs/adding-a-new-
 
 ## Flash Budget
 
-Flash is critically tight — ~97 % of the 1020 KB app slot in the release env (the `pico_w_test` env runs ~99 %). Before adding features, consider:
+Flash is critically tight — ~97.6 % of the 1020 KB app slot in the release env, and ~98 % in `pico_w_air`, which has the least room of the five images. Before adding features, consider:
 
 1. Can it be optimized to use less space?
 2. Can it replace something of lower value?
 3. Can it live in LittleFS instead of the firmware binary?
+
+Every image has a budget in `tools/flash_budget.json`, checked by CI. The budget is a high-water mark, not the linker ceiling: the linker already refuses an image that does not fit, and what it cannot do is make growth visible while there is still room. Growing past a budget is allowed — raising it in the same change, so the number lands in the diff, is the requirement.
 
 ## Pull Request Process
 
 1. Open an issue describing the change you want to make
 2. Fork the repository and create a branch (`feature/my-feature`)
 3. Write your code and test on hardware if possible
-4. Ensure `pio run -e pico_w_release` builds with **zero warnings**
-5. Ensure all tests pass: `pio test -e native && pio test -e native_history_v4 && pio test -e native_history_v5 && pio test -e native_cli && pio test -e native_logpolicy`
+4. Ensure the firmware builds. Warnings in `src/` are errors, so a build that succeeds already has none
+5. Ensure all seven native suites pass (see Testing below)
 6. Update documentation in `docs/` if your change affects user-facing behavior
 7. Submit the PR with a clear description, referencing the issue number
 8. The PR template checklist will guide you through remaining steps
 
 ## Testing
 
-- Unit tests use the [Unity](http://www.throwtheswitch.org/unity) framework
-- Five test environments are available:
-  - `pio test -e native` — validators (119 test cases: IP validation, CRC8, float encoding, etc.)
-  - `pio test -e native_history_v4` — V4 history codec tests (bit-packing, anchor/delta roundtrip)
-  - `pio test -e native_history_v5` — HistoryCodec roundtrip tests
-  - `pio test -e native_cli` — CLI parser tests (command tokenizing and routing)
-  - `pio test -e native_logpolicy` — edge-triggered log-persistence filter tests (18 cases)
-- Add tests for new validation logic, encoding/decoding, parser changes, and security-critical paths
-- Hardware testing is required for display, sensor, WiFi, and OTA changes
+Unit tests use the [Unity](http://www.throwtheswitch.org/unity) framework. Seven native environments, all of them run by CI:
+
+| environment | what it covers |
+|---|---|
+| `native` | validators — IP validation, CRC8, float encoding |
+| `native_history_v5` | HistoryCodec roundtrip |
+| `native_cli` | CLI parser — tokenizing and routing |
+| `native_logpolicy` | the edge-triggered log-persistence filter |
+| `native_alarmqueue` | the alarm queue's invariants |
+| `native_air` | SIMUT Air configuration and bounds |
+| `native_network` | the WiFi reconnect state machine, against a controllable radio |
+
+Add tests for new validation logic, encoding/decoding, parser changes, and security-critical paths. Hardware testing is still required for display, sensor and OTA changes.
+
+### A test is what makes a fix a fix
+
+`native_network` exists because a device in the field could not reconnect for three and a half hours and the cause was found by reading its log — there was no test that could have found it. Its stub is not a simulation of the radio; it is a set of knobs shaped like failures that actually happened, and eight of its seventeen cases fail against the code as it stood before the fix.
+
+That is the bar for a test accompanying a bug fix: **run it against the unfixed code and watch it fail.** A regression test that passes either way is worse than none, because it is claimed as cover.
+
+The two largest modules, `TelemetryManager.cpp` and `StorageManager.cpp`, have thin coverage for their size. Rather than a campaign to write tests for them, the standing rule is incremental: **a bug fixed in either of them ships with a native case that reproduces it.** In a year the coverage exists without there ever having been a project to create it.
 
 ## Community
 
