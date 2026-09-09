@@ -331,12 +331,12 @@ Estado em 08/09 (o que foi ao ferro está marcado; o resto continua não rodado)
 |---|---|---|
 | V-01a (lockout BT) | `tools/bt_auth_test.py` | **não escrito** — precisa de adaptador BT no host, ou app de terminal serial no celular + cronômetro |
 | V-01a (recuperação USB) | `system admin reset confirm` no cabo | ✅ **RODADO 08/09 — REPROVOU e foi corrigido**; portão novo **T17** passa |
-| V-03 | T15/T16 da `air_test_suite.py` | existem; **não rodados** contra esta imagem |
+| V-03 | T15/T16 da `air_test_suite.py` | ✅ **RODADOS 09/09 contra a v2.4.1-beta** (uf2 md5 `59780203`): T15 PASS (1 snapshot/ciclo, wip 1→1→2), T16 PASS (1 registro de preâmbulo por wake, era 8) |
 | V-04 / O-2 | `tools/json_escape_cases.py` | **escrito nesta rodada**, não rodado |
 | V-05 | `ap` → console mostra a PSK → notebook entra; `nmcli dev wifi list` mostra WPA2 | não rodado |
-| V-06 | `air charger 25` recusado, `air charger 17` aceito | não rodado |
+| V-06 | `air charger 25` recusado, `air charger 17` aceito | ✅ **RODADO 09/09 (v2.4.1-beta)**: `25` → `ERROR: air charger <0..22\|26..28\|off>`; `17` → `OK: charger sense on GP17` |
 | V-01b | scan de BT 6 min depois do boot não acha o aparelho; celular já pareado ainda conecta | não rodado |
-| O-1 | conta com FILE_READ e sem LOGS: `/download?file=/system.blog` → 403 | não rodado |
+| O-1 | conta com FILE_READ e sem LOGS: `/download?file=/system.blog` → 403 | ✅ **RODADO 09/09 (v2.4.1-beta)**: conta `perms=32` → **403** no `.blog`; **controle** — a mesma conta baixou `/lang/language_pt-BR.lng` → 200 (33.959 B), logo o 403 é o portão e não sessão quebrada. Conta criada e apagada via `commit_all users.actions` |
 
 ### V-01a no ferro — a recuperação que não sobrevivia ao boot (F27)
 

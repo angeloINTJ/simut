@@ -107,22 +107,67 @@ def adapter_ok():
         return False
 
 
+def _hci_adapter():
+    """First adapter hcitool knows about, or None when it knows none.
+
+    Hard-coding hci0 cost the first run of this tool on 2026-09-09: hcitool
+    answered 'Invalid device' and the empty result read exactly like a device
+    with its discovery window closed — a false pass waiting to happen for
+    V-01b. Ask, do not assume.
+    """
+    try:
+        out = subprocess.run(['hcitool', 'dev'], capture_output=True, text=True, timeout=5).stdout
+    except Exception:
+        return None
+    m = re.search(r'\b(hci\d+)\b', out)
+    return m.group(1) if m else None
+
+
 def inquiry(seconds=12):
-    """One inquiry scan. Returns {address: name} for what answered.
+    """One inquiry scan. Returns {address: name} for what answered NOW.
 
     hcitool's `scan` is a classic inquiry, which is what BT_DISCOVERABLE_MS
     controls — not an LE scan, which would answer a different question and
     find nothing either way on this device.
+
+    When hcitool has no adapter (the BlueZ build here exposes one to
+    bluetoothctl only), fall back to bluetoothctl — with the cache CLEARED
+    first. `bluetoothctl devices` lists everything it has ever seen, and a
+    device remembered from a scan five minutes ago would make the window look
+    open forever. Forgetting it before each scan makes the answer about now.
     """
+    adapter = _hci_adapter()
+    if adapter:
+        try:
+            out = subprocess.run(['hcitool', '-i', adapter, 'scan', '--flush'],
+                                 capture_output=True, text=True,
+                                 timeout=seconds + 10).stdout
+        except Exception as e:
+            return {'__error__': str(e)}
+        found = {}
+        for line in out.splitlines():
+            m = re.match(r'\s*((?:[0-9A-F]{2}:){5}[0-9A-F]{2})\s+(.*)', line, re.I)
+            if m:
+                found[m.group(1).upper()] = m.group(2).strip()
+        return found
+
     try:
-        out = subprocess.run(['hcitool', '-i', 'hci0', 'scan', '--flush'],
-                             capture_output=True, text=True,
-                             timeout=seconds + 10).stdout
+        known = subprocess.run(['bluetoothctl', 'devices'], capture_output=True,
+                               text=True, timeout=10).stdout
+        for line in known.splitlines():
+            m = re.match(r'Device\s+((?:[0-9A-F]{2}:){5}[0-9A-F]{2})', line, re.I)
+            if m:
+                subprocess.run(['bluetoothctl', 'remove', m.group(1)],
+                               capture_output=True, text=True, timeout=10)
+        subprocess.run(['bluetoothctl', '--timeout', str(seconds), 'scan', 'on'],
+                       capture_output=True, text=True, timeout=seconds + 10)
+        out = subprocess.run(['bluetoothctl', 'devices'], capture_output=True,
+                             text=True, timeout=10).stdout
     except Exception as e:
         return {'__error__': str(e)}
     found = {}
     for line in out.splitlines():
-        m = re.match(r'\s*((?:[0-9A-F]{2}:){5}[0-9A-F]{2})\s+(.*)', line, re.I)
+        m = re.match(r'Device\s+((?:[0-9A-F]{2}:){5}[0-9A-F]{2})\s+(.*)', line, re.I)
         if m:
             found[m.group(1).upper()] = m.group(2).strip()
     return found
@@ -309,6 +354,19 @@ def main():
 
     try:
         addr, name = find_device()
+        if not addr and args.only != 'window' and hand('PING').startswith('PONG'):
+            # Two honest reasons for silence on an Air, neither a failure: the
+            # discovery window closed five minutes after the last boot, or the
+            # device was ASLEEP when the inquiry ran — CHARGER keeps it from
+            # going to sleep, it does not wake it. A reset with the charger held
+            # answers both: a fresh boot, a fresh window, and it stays up.
+            # Measured 2026-09-09: the first run of this tool against the bench
+            # died here with the device mid-cycle.
+            print('  sem resposta à varredura — RESET pela mão para abrir uma '
+                  'janela nova (o CHARGER segura o aparelho acordado)')
+            hand('RESET')
+            time.sleep(25)                       # boot + pilha Bluetooth de pé
+            addr, name = find_device()
         if not addr and args.only != 'window':
             print('ERRO: o aparelho não respondeu a uma varredura. Se a janela '
                   'de descoberta já fechou, reinicie-o e rode de novo — é o '
