@@ -93,7 +93,8 @@ campaign that gets edited afterwards stops being evidence.
 | beta sweep | 2026-08-10 | [DEFEITOS](beta-sweep-2026-08-10/DEFEITOS.md) — promotion-to-beta sweep. |
 | network storm | 2026-08-10 | [RELATORIO](netstorm-campaign-2026-08-10/RELATORIO.md) · [DEFEITOS](netstorm-campaign-2026-08-10/DEFEITOS.md) |
 | telemetry | 2026-08-02 | [RELATORIO](telemetry-campaign-2026-08-02/RELATORIO.md) · [METODOLOGIA](telemetry-campaign-2026-08-02/METODOLOGIA.md) · [DEFEITOS](telemetry-campaign-2026-08-02/DEFEITOS.md) |
-| security audit | 2026-08-29 | [IMPLEMENTACAO](security-audit/IMPLEMENTACAO.md) — how each finding was closed. |
+| security audit (externa) | 2026-08-29 | [IMPLEMENTACAO](security-audit/IMPLEMENTACAO.md) — ACH-01..08, como cada achado foi fechado. ⚠️ ACH-05 e ACH-08 constam como "adiado"/"sem ação" e foram feitos depois, na linha de setembro. |
+| security audit 2026-09-07 | 2026-09-07 | [PLANO_CORRECAO](security-audit/PLANO_CORRECAO_2026-09-07.md) · [IMPLEMENTACAO](security-audit/IMPLEMENTACAO_2026-09-07.md) — V-01..V-08 e O-1..O-3, com a tabela do que foi e do que não foi ao ferro. |
 
 ---
 

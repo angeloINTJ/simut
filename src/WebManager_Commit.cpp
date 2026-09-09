@@ -231,7 +231,22 @@ void WebManager::handleApiCommitAll( ) {
 		_server->send(403, "application/json", "{\"error\":\"Forbidden\"}");
 		return;
 	}
-	if (isPasswordChangeRequired( )) return;
+	/* A refusal has to say so. Every other early return on this route answers
+	 * with a status and a JSON body; this one used to `return` bare, which the
+	 * framework turns into a closed socket with no response at all — the client
+	 * waits out its timeout and reports a dropped connection.
+	 *
+	 * Found on the bench 2026-09-08, and the way it was found is the argument:
+	 * `system admin reset confirm` arms mustChangePassword, so a device recovered
+	 * through the documented console path answers nothing to Save, forever, with
+	 * no clue anywhere. 409 rather than 403: the request is well formed and the
+	 * caller is authorised — the resource is in the wrong state, and the body
+	 * names the route that fixes it. */
+	if (isPasswordChangeRequired( )) {
+		_server->send(409, "application/json",
+		              "{\"error\":\"Password change required\",\"next\":\"/api/force_chpass\"}");
+		return;
+	}
 	if (rejectIfTouchPriority( )) return;
 
 	if (!_server->hasArg("_payload")) {

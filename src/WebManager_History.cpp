@@ -1514,7 +1514,15 @@ void WebManager::handleApiLogs( ) {
 void WebManager::handleApiClearLogs( ) {
  uint16_t perms = getAuthPerms( );
  if (!(perms & PERM_LOGS) || !(perms & PERM_SYS_CONFIG)) { _server->send(403, "text/plain", "Forbidden"); return; }
- if (isPasswordChangeRequired( )) return;
+ /* Answers instead of closing the socket, for the same reason the identical
+  * guard in handleApiCommitAll does — see the note there. Found by grepping
+  * the pattern rather than by hitting it: the bench only exercised the commit
+  * route, and a fix applied to just that one would have left this one silent. */
+ if (isPasswordChangeRequired( )) {
+  _server->send(409, "application/json",
+                "{\"error\":\"Password change required\",\"next\":\"/api/force_chpass\"}");
+  return;
+ }
  if (rejectIfTouchPriority( )) return;
 
  {
