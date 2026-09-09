@@ -14,7 +14,7 @@ jobs:
   gates:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # First, and before anything is fetched or built: a tracked secret is
       # not a build failure to be discovered at the end. Same gate the
@@ -114,7 +114,7 @@ jobs:
           - pico_w_air
     name: firmware (${{ matrix.env }})
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -176,7 +176,7 @@ jobs:
   fuzz:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Fuzz web-API validators (60 s, contract oracles)
         run: ./tools/run_fuzz.sh
@@ -187,7 +187,7 @@ jobs:
   static-analysis:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Cache cppcheck
         uses: actions/cache@v5
