@@ -28,7 +28,7 @@ jobs:
           python-version: '3.11'
 
       - name: Cache PlatformIO packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.platformio
           key: ${{ runner.os }}-pio-native-${{ hashFiles('platformio.ini') }}
@@ -136,7 +136,7 @@ jobs:
       # contributes no fresh size measurement. The flash figure this job gates
       # on has to come from a real compile, so the build starts cold every time.
       - name: Cache PlatformIO packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.platformio
           key: ${{ runner.os }}-pio-fw-${{ matrix.env }}-${{ hashFiles('platformio.ini') }}
@@ -198,7 +198,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Cache cppcheck
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.platformio/packages/tool-cppcheck
           key: ${{ runner.os }}-cppcheck-${{ hashFiles('tools/run_cppcheck.sh') }}
