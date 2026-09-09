@@ -91,12 +91,12 @@ tabela do `IMPLEMENTACAO_2026-09-07.md` sem nenhum "não rodado".
 
 Sete, triados por **consequência**, não por esforço:
 
-### 2.1 Os quatro baratos (dois já estavam fechados; sobram F10 e F14)
+### 2.1 Os quatro baratos — ✅ todos fechados (F10 corrigido; F14, F18 e F20 já estavam feitos)
 
 | achado | o quê | conserto |
 |---|---|---|
 | ~~F10~~ | ✅ **corrigido 09/09** — o alarme do RTC é hora-do-dia, então 86.400 s vira "agora"; `airSleepSecBounded( )` limita a 86.399 s onde o intervalo vira alarme, com WARN (413). A faixa de `h_int` não mudou: as imagens de tomada não têm por que recusar 24 h | teste nativo `test_sleep_sec_bounded`; ⚠️ não exercitado no ferro (um wake de 24 h não cabe numa sessão) |
-| **F14** | default do pino mudou para 16 sem bump de `AIR_CONFIG_VERSION`; `air.bin` antigo mantém 255 e não há comando para trocar | bump + migração, ou comando `air pin` |
+| ~~F14~~ | ✅ **já resolvido por desenho** — o campo tomou um slot morto; todo v2 real carrega 160 ali (byte baixo de 4000), inválido como GPIO, e o `airSanitise()` o vira no default. Versão não bumpada de propósito; `air charger` existe | `test_charger_pin_from_legacy_field`; premissa da linha estava velha |
 | ~~F18~~ | ✅ **já estava feito desde 06/09** — só a tabela não tinha sido virada; `platformio.ini` diz `=0` no bloco do Air e o env usa 0 | verificado 09/09 |
 | ~~F20~~ | ✅ **idem** — `system ssid` no README ×3 e no `CLI-Manual.md`; `check_air_consistency.py` C1–C8 limpo | verificado 09/09 |
 
