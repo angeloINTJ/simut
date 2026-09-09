@@ -895,7 +895,10 @@ class Suite:
             ('T06', 'telemetry_drain', self.t06_telemetry_drain, None, {'target', 'web'}),
             ('T06b', 'telemetry_off_sleeps', self.t06b_telemetry_off_sleeps, None, {'target', 'web'}),
             ('T07', 'web_activity_resets_idle', self.t07_web_activity_resets_idle, None, {'target', 'web'}),
-            ('T08', 'offline_timestamps', self.t08_offline_timestamps, 'F04', {'target', 'web'}),
+            # xfail F04 removed 2026-09-09: it does not reproduce, measured twice
+            # on the records this test actually produces (see the docstring for
+            # why the earlier verdicts were not about those records).
+            ('T08', 'offline_timestamps', self.t08_offline_timestamps, None, {'target', 'web'}),
             ('T09', 'probe_cycle', self.t09_probe_cycle, None, {'target', 'hand'}),
             ('T10', 'm1_services_off', self.t10_m1_services_off, None, {'target', 'web'}),
             ('T11', 'history_integrity', self.t11_history_integrity, None, {'target', 'web'}),
