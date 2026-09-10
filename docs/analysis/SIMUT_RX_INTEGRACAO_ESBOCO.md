@@ -14,9 +14,10 @@
 > de leitura, superfície de escrita, OTA/backup/restore) com citação `arquivo:linha` para cada afirmação,
 > mais leitura direta de `AGENTS.md`, `NetworkManager`, `platformio.ini`, `WebUI.h`, das ferramentas de
 > bancada e do `simut-rx` (`README`, `ESBOCO`, `PLANO`, `CLAUDE.md`, `scripts/simut-api.py`). As áreas de
-> descoberta, Air, segurança e arquitetura do app foram cobertas por leitura direta, sem a segunda
-> passada de verificação adversarial que as quatro primeiras tiveram — estão marcadas **[a confirmar]**
-> onde a confiança é menor.
+> descoberta, Air, segurança e arquitetura do app foram cobertas por leitura direta. Depois de escrito, o
+> documento inteiro passou por uma **segunda leitura adversarial** (três verificadores por fatia, 172
+> afirmações conferidas no código, 23 corrigidas) e por um crítico de completude (12 lacunas
+> incorporadas). O que ainda depende de medição está marcado **[a confirmar]**.
 
 ---
 
@@ -28,7 +29,7 @@
 | D2 | **Fase 1 sem mudança de firmware.** Tudo que a F1–F3 precisa já existe na API de v2.4.2-beta. | As mudanças de firmware (§7) entram em paralelo, cada uma com medição de flash, e o app **degrada** quando o aparelho não as tem. |
 | D3 | **Identidade do aparelho = `serial`** (id único do RP2040, 16 hex, `/api/config` → `serial`), com `mac` (`/api/network`) como reserva; IP e nome são atributos mutáveis. | Tabela `devices` chaveada por `uid`; renomear ou trocar de IP não duplica o aparelho. Ver §5.3. |
 | D4 | **Duas credenciais por aparelho**, guardadas em `expo-secure-store`: uma conta operadora (≤ `PERM_ALL_BITS`) para status/config e o **admin do slot 0 só quando o operador for atualizar**. | OTA/backup/restore exigem `perms == PERM_FULL_ADMIN` (0xFFFF), que nenhuma conta criada pela web pode ter (`docs/AUTHORIZATION.md:30-53`). Ver §5.5. |
-| D5 | **HTTP na fase 1** (com `network_security_config` liberando texto claro no release — hoje só o manifesto de debug libera, ver §4); **HTTPS com pin por impressão digital (TOFU) na fase 4**, via módulo Kotlin local. Nunca "aceitar qualquer certificado". | O `fetch` do RN rejeita autoassinado; o Air e o alpha são sempre HTTP; o manual já recomenda HTTP para OTA (`docs/MANUAL.md:373`). |
+| D5 | **Transporte do gestor = módulo Kotlin local (`modules/simut-http`, OkHttp) desde a F1**, não o `fetch` do RN: `retryOnConnectionFailure(false)`, `Connection: close` em todo POST, progresso de upload, timeouts por classe; na F4 ganha o `TrustManager` **TOFU** por aparelho. **HTTP na F1** (texto claro liberado por config plugin que sobrevive ao `expo prebuild`, ver §4); HTTPS na F4. Nunca "aceitar qualquer certificado". | O `fetch` do RN roda sobre OkHttp com retentativa automática: um POST com corpo repetível (`_payload`, `FormData`) é **reenviado sozinho** depois de um RST — para o stage isso é um segundo reformat do FS. O Air e o alpha são sempre HTTP; o manual já recomenda HTTP para OTA (`docs/MANUAL.md:373`). Plano B avaliado: cliente HTTP/1.1 sobre `react-native-tcp-socket` (resolve texto claro e retentativa sem Kotlin, mas não expõe o certificado do par para o TOFU). |
 | D6 | **Nada em massa que mova o aparelho.** Seção `net` (SSID, senha, IP estático, porta) é sempre por aparelho, com confirmação individual, commitada **por último e sozinha**. | Um template com `net` errado tira N aparelhos do alcance do app de uma vez. Ver §6.4. |
 | D7 | **OTA um aparelho por vez**, com backup verificado antes, e sucesso provado **só** pela versão lida de `/api/perms` depois do boot. | Cada tentativa de stage reformata o LittleFS do alvo (§3.5); o 202 do apply não prova nada. |
 | D8 | **Cadência de leitura ≥ 30 s** por aparelho; **Air é oportunista** (tenta, e "sem resposta" = "dormindo"). | Toda requisição autenticada rearma o timer de hibernação do Air (`WebManager_Auth.cpp:58`); o poll de 3 s do navegador mataria a bateria. |
@@ -97,11 +98,11 @@ condensa tudo em uma tabela por rota.
 | mDNS anuncia **só o hostname** `<deviceName>.local` (`MDNS.begin(_deviceName)`), sem serviço nem TXT. Não há como "listar SIMUTs" por mDNS; só resolver um nome que já se conhece. | `src/NetworkManager.cpp:282`; nenhum `addService` em `src/` |
 | O nome padrão é o mesmo em todo aparelho novo — dois aparelhos sem renomear **colidem** em `.local`. `sys.name` do `commit_all` é copiado verbatim para o mDNS. | `src/NetworkManager.cpp:38`, `docs/MANUAL.md:122` |
 | **`pico_w_alpha` compila sem mDNS** (`-DSIMUT_MDNS=0`); `pico_w_release` e `pico_w_air` com. O Air só o sobe em M0. Custo medido do mDNS: **15.376 B** de flash. | `platformio.ini:367`, `:208`, `:418` |
-| **Não há endpoint público de identidade.** Antes do login só existem `/api/login_init` (nonce), `/api/lang`, `/lang.js`, `/style.css`, `/favicon.ico`, `/apple-touch-icon.png` (204 sem corpo). | `docs/AUTHORIZATION.md` "Unauthenticated by design"; `tools/check_authz.py:67-68` |
+| **Não há endpoint público de identidade.** As 10 rotas públicas são `GET /login`, `GET /logout`, `GET /api/login_init` (nonce), `POST /api/login`, `POST /api/login_chpass` (troca de senha **sem sessão**: `user`, `oldpass`, `newpass`, `nonce`; mesmo nonce/lockout do login; zera `mustChangePassword`; não cria sessão), `/api/lang`, `/lang.js`, `/style.css`, `/favicon.ico`, `/apple-touch-icon.png` (204 sem corpo). Nenhuma diz quem é o aparelho. | `tools/check_authz.py:59-70`; `src/WebManager_Auth.cpp:670-753` |
 | A **identidade estável** é o id único do RP2040 (16 hex maiúsculos): `serial` em `GET /api/config` (exige `PERM_SYS_CONFIG`) e `picoUID` em `GET /api/calib` (`PERM_CALIB`). O MAC só em `GET /api/network` (`PERM_NET_CONFIG`). `/api/status` **não** traz nenhum dos três. | `src/StorageManager.cpp:1595-1599`; `src/WebManager_Api.cpp:609-622` (chaves de `sys`) |
 | A **versão do firmware** só sai em `GET /api/perms` (`"version"`) e em `/metrics` (`simut_build_info{version=…}`). **`/api/status` não tem versão** — `docs/OTA_USAGE.md:42` manda ler de lá e está errado. | `src/WebManager_Api.cpp:37-43`; `src/WebManager_Metrics.cpp:150-155` |
 | A única pista de **variante de build** na rede é `sys.cap` em `/api/status` (`== SIMUT_DISPLAY_TFT`): 1 = TFT; 0 = alpha **ou** Air, indistinguíveis. | `src/WebManager_Api.cpp:612-622`; `platformio.ini:361`, `:407-418` |
-| Modo AP (credenciais Wi-Fi erradas ou aparelho novo): portal cativo em **192.168.4.1**, **HTTP só**, WPA2 com chave **derivada** do id da placa (V-05), impressa por `show system info`. | `src/NetworkManager.cpp:91-142`; `src/ApPsk.h`; `src/WebManager_Core.cpp:286-289` |
+| Modo AP **só por gesto ou comando**: tela tocada e segurada durante o boot (**TFT apenas** — no alpha `isScreenTouched()` é `return false`) ou comando `ap` na CLI serial/BT (o caso de uso documentado do BT). Credenciais erradas ou SSID vazio **não** levam ao AP: o aparelho fica em STA na escada de reconexão / `NET_OFFLINE`. No AP: SSID `<nome>_SETUP`, portal cativo em **192.168.4.1**, **HTTP só**, WPA2 com chave **derivada** do id da placa (V-05), impressa no console USB quando o AP sobe, na linha de status do display e na resposta do `ap` — **não** no `show system info`, que mostra só o serial. Expira em **15 min** (`AP_MODE_TIMEOUT_MS`) e reinicia para STA se houver SSID gravado. | `src/AppManager_Boot.cpp:396`, `:975-985`; `src/AppManager_Commands.cpp:34-44`; `src/NetworkManager.cpp:78-86`, `:105`, `:134-139`, `:192-195`; `src/SystemDefs_Network.h:326`; `src/ApPsk.h`; `src/WebManager_Core.cpp:286-289` |
 
 **Consequência para o desenho:** na F1 a descoberta é (a) IP/host digitado, (b) **passiva, pelo próprio
 fluxo de recepção** — todo SIMUT que empurra telemetria já aparece como origem no app, e "promover esta
@@ -121,10 +122,10 @@ descoberta por serviço mDNS é mudança de firmware (R2) e módulo nativo no ap
 | **Lockout por IP** (8 slots), compartilhado por todos os usuários e pelo Basic de `/metrics`: cada falha custa `(1 << falhas)` s — 2 s na 1.ª, **300 s a partir da 9.ª**, contador satura em 12. Conta como falha: senha errada, entrada fora do tamanho, nonce **expirado** mas correto, credencial Basic errada. Nonce inválido/ausente **não** penaliza. Sob lockout, `login_init` ainda responde (com `locked:true`), `/api/login` dá 403 `err:2`, `/metrics` 429; com os 8 slots bloqueados, `login_init` dá 429 + `Retry-After`. | `src/SystemDefs_Network.h:182`, `:203-220`; `src/WebManager_Auth.cpp:199-204`, `:249-268`, `:355-371`, `:492-493` |
 | Verificar senha custa **~0,4–0,7 s** de CPU do aparelho (HMAC-SHA256, 5000 rodadas, pepper = id da placa). Basic em `/metrics` paga isso **a cada requisição**. | `src/SystemDefs_Network.h:184-188`; `src/StorageManager.cpp:1888-1895` |
 | Sem sessão, `/api/perms` responde **401**; quase todas as outras rotas respondem **403** — o mesmo código de "sem permissão". O cliente não distingue "sessão morreu" de "conta sem o bit" pelo status. | `src/WebManager_Api.cpp:27` vs `:52` e demais handlers |
-| **Troca de senha obrigatória**: admin de fábrica (slot 0) e toda conta criada/resetada pela web nascem com `mustChangePassword`. O login responde `{"ok":true,"redirect":"/force_chpass"}`; `commit_all` e `clear_logs` dão **409** até `POST /api/force_chpass` (`p1`,`p2`: sha256 hex sobre HTTP, texto puro + política sobre HTTPS). As outras rotas JSON funcionam; `/api/perms` **não** expõe a pendência. | `src/WebManager_Auth.cpp:82-86`, `:623-668`; `src/WebManager_Commit.cpp:245-249` |
+| **Troca de senha obrigatória**: admin de fábrica (slot 0) e toda conta criada/resetada pela web nascem com `mustChangePassword`. O login responde `{"ok":true,"redirect":"/force_chpass"}`; `commit_all` e `clear_logs` dão **409** até `POST /api/force_chpass` (`p1`,`p2`: sha256 hex sobre HTTP, texto puro + política sobre HTTPS). As outras rotas JSON funcionam; `/api/perms` **não** expõe a pendência. Alternativa sem sessão: `POST /api/login_chpass` (`user`, `oldpass`, `newpass`, `nonce`), que troca a senha e obriga um login novo. | `src/WebManager_Auth.cpp:82-86`, `:623-668`, `:670-753`; `src/WebManager_Commit.cpp:245-249` |
 | **Fronteira de privilégio**: contas criadas pela web têm no máximo `PERM_ALL_BITS` (0x03FF). `GET /api/backup`, `POST /api/restore?op=stage\|apply` e `POST /api/ota/apply` exigem `perms == PERM_FULL_ADMIN` (0xFFFF) **exatamente** — só o admin do slot 0 ou uma conta promovida pela CLI serial (`user perm <nome> admin`). Deliberado; não afrouxar. | `docs/AUTHORIZATION.md:30-53`; `src/WebManager_Ota.cpp:56`, `:166-171`, `:189-191`; `src/WebManager_Commit.cpp:1106-1108` |
 | `GET /logout` zera o slot e expira o cookie. Uma sessão por operação + logout no fim é o que libera o slot para o humano. | `src/WebManager_Auth.cpp:539-561` |
-| **No Air**, só requisição **autenticada** rearma o timer de hibernação (`getAuthPerms` com cookie casado, `completeLogin`, Basic bem-sucedido). Pré-login tem **orçamento de 3 extensões por boot** (`WEB_PREAUTH_MAX_EXT`), gasto por `GET /api/login_init` e por Basic falhado. Os funis `safeSend` **não** rearmam (V-03). | `src/AppManager_Boot.cpp:1145-1150`; `src/WebManager_Auth.cpp:58`, `:217-220`; `AGENTS.md` "Só uma requisição AUTENTICADA rearma" |
+| **No Air**, só requisição **autenticada** rearma o timer de hibernação (`getAuthPerms` com cookie casado, `completeLogin`, Basic bem-sucedido). Pré-login tem **orçamento de 3 extensões por boot** (`WEB_PREAUTH_MAX_EXT`), gasto por **cada** `GET /api/login_init` e por um Basic falhado **só quando o IP ainda não tem slot de login** (as falhas seguintes penalizam sem gastar orçamento). Os funis `safeSend` **não** rearmam (V-03); `/favicon.ico` e `/apple-touch-icon.png` não tocam em slot, orçamento nem callback. | `src/AppManager_Boot.cpp:1145-1150`; `src/WebManager_Auth.cpp:58`, `:217-220`, `:233`; `src/WebManager_Metrics.cpp:64-70`; `src/WebManager_Core.cpp:181`; `src/WebManager_Util.cpp:93-99` |
 
 ### 3.3 Superfície de leitura
 
@@ -134,7 +135,7 @@ descoberta por serviço mDNS é mudança de firmware (R2) e módulo nativo no ap
 {"sys":{"name","uptime"(ms!),"rssi"(dBm, -100 sem Wi-Fi),"ip","theme","heap_f","heap_t","heap_lb",
         "fs_u"(cache 10 s),"fs_t","time"(epoch s),"ntp"(0|1),"pending"(registros, -1 sem telemetria),
         "tel"(0|1),"hi"(minutos),"cap"(0|1 = TFT)},
- "metr":{29 contadores desde o boot: lb,lbm,hm,wf,mq,rmn,rmx,ts,tf,tr,tb,tl(ms),so,se,cs,fo,fom(ms),fot(ms),f50,fx,ad,c1a(ms),…},
+ "metr":{30 contadores desde o boot: lb,lbm,hm,wf,mq,rmn,rmx,ts,tf,tr,tb,tl(ms),so,se,cs,fo,fom(ms),fot(ms),f50,fx,ad,c1a(ms),c1n,c1kl,c1kh,c1kq,c1s,cgd,cgg,cgx},
  "sensors":[{"val": número | "Error" | "--", "hum"?, "press"?, …}]}
 ```
 
@@ -142,7 +143,8 @@ descoberta por serviço mDNS é mudança de firmware (R2) e módulo nativo no ap
   num aparelho com 84 s de vida"). `val` pode ser **string**. `hum`/`press` só existem quando o canal
   existe e o valor é finito.
 - Cada chamada custa uma sondagem de heap (~16 malloc/free), um ioctl de RSSI e, no Air, o rearme do
-  timer (`:589-596`; `MetricsManager.h:157-159`). Tamanho estimado: ~0,8 KB com 2 sensores, ~3 KB com 16.
+  timer (`src/WebManager_Api.cpp:593-601`; `src/MetricsManager.h:77-80`). Tamanho estimado: ~0,8 KB
+  com 2 sensores, ~3 KB com 16 (aritmética sobre os formatos; não medido).
 - O navegador faz poll a cada **3 s** (`WebUI.h:690`) com `fetchSafe` (timeout 15 s, 2 retentativas,
   1 s/2 s, 5xx ≠ 503 retentável — `WebUI.h:6990`). **Não copiar a cadência** (D8).
 
@@ -157,9 +159,12 @@ catálogo de drivers, não leituras** — `docs/MANUAL.md:857` está errado), `/
 
 Servidor: **um cliente por vez** (`_currentClient` único), até 4 requisições por tick de 50 ms, deadline
 de 6 s por handler (15 s nas pesadas); keep-alive **ligado** desde v2.3.0; JSON em fatias de 512 B com
-4 s de tolerância por fatia (leitor mais lento que ~132 B/s é derrubado); resposta abortada é fechada com
-RST → **JSON truncado é possível** e `/api/config` **sabidamente** vem truncado logo após o boot
-(`tools/air_test_suite.py:573-577`). Nada JSON tem ETag ou gzip. Sobre TLS, uma **segunda conexão
+4 s de tolerância por fatia (leitor mais lento que ~132 B/s é derrubado); resposta abortada por prazo ou
+guarda é fechada com RST **só quando o socket não tem espaço** — com o leitor drenando, o firmware deixa
+sair o terminador chunked e o cliente recebe um corpo **bem enquadrado com JSON cortado**: o `fetch`
+resolve e o `JSON.parse` falha (`src/WebManager_Send.cpp:300-321`). A retentativa de GET tem de ser
+disparada por falha de parse, não só por erro de transporte. `/api/config` **sabidamente** vem truncado
+logo após o boot (`tools/air_test_suite.py:573-577`). Nada JSON tem ETag ou gzip. Sobre TLS, uma **segunda conexão
 simultânea é descartada** (`src/WebManager_Core.cpp:376-395`, `src/SystemDefs_Network.h:289-300`,
 `src/WebManager.h:93-97`).
 
@@ -178,7 +183,10 @@ simultânea é descartada** (`src/WebManager_Core.cpp:376-395`, `src/SystemDefs_
   [,"rejected":[…]][,"creds":[{"u","p"}]]}`** → fecha o socket → **reboot** (`safeReboot`). Em TFT há
   ~3 s de telas de status **antes** da resposta. **Não existe commit sem reboot nem modo de ensaio.**
 - Campo **ausente mantém o valor gravado** (guardas `has()`/`jsonValuePos`). Booleano aceita só `1`/`0`
-  e `true`/`false` (com ou sem aspas). Inteiro estrito. Fora de faixa **não é erro**: vai para `rejected`
+  e `true`/`false` (com ou sem aspas). Inteiro estrito (`parseIntStrict`) **só nos escalares de `sys`**:
+  `users.perms`/`users.id`, `alarms.idx`, `alarms.sounds.*` e `net.web_port` usam `toInt()` — lixo vira
+  0 (`"perms":"abc"` cria uma conta com perms 0 sob 200; `Commit.cpp:944`, `:1055-1058`, `:1095-1096`,
+  `:1127-1128`, `:1239`). Fora de faixa **não é erro**: vai para `rejected`
   e o aparelho reinicia mesmo assim. Só `slots` inválido e limite de alarme fora do canal dão 400 sem
   tocar em nada.
 - A cicatriz do "espaço depois dos dois-pontos" (`scripts/simut-api.py:24-27`) **está corrigida** em
@@ -187,9 +195,11 @@ simultânea é descartada** (`src/WebManager_Core.cpp:376-395`, `src/SystemDefs_
   antigos ainda existem.
 - **Armadilha viva:** valor **não-string** (`null`, número) sob chave string de `sys`/`net` satisfaz
   `has()`, `jsonExtractStringValue` devolve `""` e o campo é **apagado sob 200** (`t_srv`, `t_path`,
-  `t_glob`, `t_line`, `t_sep`, `m_topic`, `m_cid`, `m_user`, `a_*`, `ntp_server`, `t_key` sem `***`).
-  Exceções guardadas: `name` (obrigatório não-vazio), `m_pass`, `ssid`, `pass` (vazio = mantém). O
-  montador de payload do app **tem** de remover `undefined`/`null` e tipar cada campo (§5.1).
+  `t_glob`, `t_line`, `t_sep`, `m_topic`, `m_cid`, `m_user`, `a_*`, `ntp_server`, `t_key` sem `***`,
+  **`slog_srv`** — vazio zera o servidor de syslog — e **`net.dns2`** — vazio limpa o DNS secundário).
+  Exceções guardadas: `name` (vazio vai para `rejected`), `m_pass`, `ssid`, `pass` (vazio = mantém). O
+  montador de payload do app **tem** de remover `undefined`/`null` e tipar cada campo (§5.1)
+  (`WebManager_Commit.cpp:44`, `:745-749`, `:867-872`, `:1218-1222`).
 - `net`: `ip/mask/gw/dns` inválidos são **ignorados em silêncio** (não entram em `rejected`) e só valem
   com `use_dhcp=false`; `web_port` usa `toInt()` não-estrito. **HTTPS não é campo de config**:
   `cfg.useHttps` é morto; TLS existe se `/config/web_cert.pem`+`web_key.pem` existirem no boot, e com
@@ -218,10 +228,10 @@ PERM_FULL_ADMIN`:
 | Passo | Rota | O que acontece | Medido |
 |---|---|---|---|
 | 1 | `GET /api/backup` | Despeja o LittleFS inteiro: cabeçalho de 40 B (`BKP1`, chip id, versão, `payload_size`, `payload_crc32`) + TLV por arquivo. Headers `X-Backup-Files/-Schema/-PSize/-PCrc`. Inclui `/config/system.bin` (**todos os segredos e hashes**) e os PEM de TLS. **Preso ao chip id**: não se restaura em outro aparelho (st=6). | ~794 KB numa unidade de bancada; 3 downloads seguidos já causaram reboot por watchdog antes do dreno (`WebManager_Ota.cpp:141-143`) |
-| 2 | `POST /api/restore?op=stage&commit=1` (multipart, campo `file`, o **`.bin` cru**, não `.uf2`) | No **primeiro byte**: snapshot da config em RAM, Core 1 congelado, `LittleFS.end()`. O upload vai direto para a partição de staging (**que é a partição do LittleFS**). No fim: snapshot gravado nos 2 últimos setores, validação (100 KiB ≤ tamanho ≤ 1020 KiB + CRC do boot2), e com `commit=1`+válido grava metadata `COMMITTED` **sem remontar** o FS. Resposta 200 `{"st":5,"v":0,"committed":1,"dsize","dcrc",…}` ou 422. | ~29–31 s por ~1 MB (32 KiB/s); leitor multipart tolera 3 s de silêncio por byte; roteadores domésticos matam fluxos na porta 80 aos ~13 s (`CHANGELOG.md:2059-2073`) |
-| 3 | `POST /api/ota/apply` | 202 `{"accepted":true}` **antes** do teardown; 409 se não há `COMMITTED`; 503 `Display in use` (+`Retry-After: 5`) se alguém toca o TFT. Depois: `WiFi.end()`, applier em SRAM, reset por watchdog. `?test=1` existe e **nunca** deve ser enviado. | 202 em 0,1 s; applier 25,1 s; boot até "image verified" 9,4 s; **48,4 s** sem web (21/21 ciclos) |
+| 2 | `POST /api/restore?op=stage&commit=1` (multipart, campo `file`, o **`.bin` cru**, não `.uf2`) | No **primeiro byte**: snapshot da config em RAM, Core 1 congelado, `LittleFS.end()`. O upload vai direto para a partição de staging (**que é a partição do LittleFS**). No fim: snapshot gravado nos 2 últimos setores, validação (100 KiB ≤ tamanho ≤ 1020 KiB + CRC do boot2), e com `commit=1`+válido grava metadata `COMMITTED` **sem remontar** o FS. Resposta 200 `{"st":5,"v":0,"committed":1,"dsize","dcrc",…}` ou 422. | ~29–31 s por ~1 MB (32 KiB/s, `docs/MANUAL.md:696-709`); leitor multipart tolera 3 s de silêncio por byte (`CHANGELOG.md:2059-2064` — o valor **não está em `src/`**, vive no framework arduino-pico fixado em `platformio.ini:33`; **[a confirmar]**); roteadores domésticos matam fluxos na porta 80 aos ~13 s (`CHANGELOG.md:2069-2073`) |
+| 3 | `POST /api/ota/apply` | 202 `{"accepted":true,"mode":"apply"}` **antes** do teardown (`"mode":"test"` só com `?test=1` — o gestor **exige** `mode == "apply"`); 409 se não há `COMMITTED`; 503 `Display in use` (+`Retry-After: 5`) se alguém toca o TFT. Depois: `WiFi.end()`, applier em SRAM, reset por watchdog. `?test=1` existe e **nunca** deve ser enviado. | 202 em 0,1 s; applier 25,1 s; boot até "image verified" 9,4 s; **48,4 s** sem web (21/21 ciclos) |
 | 4 | prova | O boot seguinte confere o CRC do slot e loga `SEC_CONFIG_CHANGED` (303) em INFO ("image verified") ou ERROR. **A única prova é a versão em `GET /api/perms`.** | `src/AppManager_Boot.cpp:653-721` |
-| 5 | `POST /api/restore?op=validate` → `?op=apply` | Só `/config/system.bin` sobrevive ao apply (via snapshot de 8 KiB). **Perde-se:** `/history`, packs de idioma, temas, `calib.csv`, log de eventos, **PEM de TLS**. `validate` primeiro é obrigatório: `apply` grava cada arquivo no caminho final enquanto recebe (sem rename), e um CRC ruim no fim não desfaz sobrescritas. Sucesso → o aparelho **reinicia de novo**. | `src/ota/restore.cpp:224-231`; `src/WebManager_Ota.cpp:433-444` |
+| 5 | `POST /api/restore?op=validate` → `?op=apply` | Só `/config/system.bin` sobrevive ao apply (via snapshot de 8 KiB; `src/ota/config_snapshot.cpp:178`). **Perde-se:** `/history`, packs de idioma, temas, `calib.csv`, log de eventos, **PEM de TLS** (o aparelho volta em **HTTP na porta configurada**, 80, não 443 — `WebManager_Core.cpp:beginServer`) **e `/config/air.bin`** (num Air, o ciclo volta **desarmado** e `air idle`/`air charger`/`sensorPowerPin` voltam ao padrão; re-armar é só por cabo/BT). `validate` primeiro é obrigatório: `apply` grava cada arquivo no caminho final enquanto recebe (sem rename), e um CRC ruim no fim não desfaz sobrescritas; **sobrescreve `system.bin`** e custa um **terceiro reboot**. `/config` não é alcançável por `POST /api/upload` (`isProtectedFsPath`), então os PEM só voltam pelo restore integral. | `src/ota/restore.cpp:105-112`, `:227-233`; `src/WebManager_Ota.cpp:185`, `:433-444`; `src/WebManager_Files.cpp:305`, `:323-345` |
 
 Armadilhas que o gestor tem de codificar, não documentar:
 
@@ -239,7 +249,12 @@ Armadilhas que o gestor tem de codificar, não documentar:
 - **Abaixo de v1.6.2-beta o applier era defeituoso**: relatava sucesso, apagava o FS e não instalava
   nada (`docs/MANUAL.md:620-632`). O gestor **recusa** OTA em `version < 1.6.2`.
 - **Teto prático de imagem: 1016 KiB** (o snapshot ocupa os setores 254–255 do staging;
-  `src/ota/ota_layout.h:448-458`). A release atual tem ~1004 KiB.
+  `src/ota/ota_layout.h:53-70`). O firmware só rejeita acima de **1020 KiB** (`OTA_APP_MAX_SIZE`,
+  `validation.cpp:74`) e o `stage_session_end` grava o snapshot sobre o setor 254 **mesmo que a imagem
+  o tenha ocupado** (`firmware_stage.cpp:171-177`). Medido em 2026-09-09 (`tools/flash_budget.json`):
+  release 1.018.820 B de seções (~995 KiB; o `.bin` é até 4 KiB maior); **Air 1.039.508 B de `.bin` =
+  1015,1 KiB — 876 B abaixo do teto**. O pré-voo do §6.6 é a única barreira, e o Air é o env que encosta
+  nela; o R5 pode apertar `OTA_APP_MAX_SIZE` para 1016 KiB a custo ~0.
 - **Air:** um wake M1 **não sobe o servidor web** — OTA só em M0 (boot frio, `air stop`, ou carregador
   em GP17, que cancela o M1 daquele boot). Cada requisição autenticada estende a janela. Não chamar
   `cyw43_arch_deinit()` (Fix #2 revertido) é problema do firmware, não do app, mas explica por que a
@@ -259,6 +274,8 @@ Armadilhas que o gestor tem de codificar, não documentar:
 | `/api/status` **não expõe** fase, `armed`, `wake` nem `idle` — só `cap:0` (igual ao alpha). `air status` na CLI mostra `wake= hist= backoff= idle= armed= dirty= chg= wip=`. | `src/WebManager_Api.cpp:609-622`; `AGENTS.md` |
 | Air é sempre **HTTP** (`SIMUT_WEB_HTTPS` não definido no env), com mDNS em M0, BT CLI ligado, CLI serial reduzida (`SIMUT_CLI_FULL=0`). Flash a **~97 %**: folga real ~4,9 KB (`tools/flash_budget.json`, nota de 2026-09-09). | `platformio.ini:407-418`; `tools/flash_budget.json` |
 | **Nenhuma medida de idle vale com sessão aberta** — o próprio gestor, fazendo poll, é o que impede o Air de dormir (`ss -tn \| grep <ip>` é o diagnóstico). | `AGENTS.md` "Nenhuma medida do `air idle` vale com uma aba do painel aberta" |
+| Dois sinais diferentes: **timeout de conexão** = dormindo (M1 profundo, rádio desligado); **"connection refused"** = acordado num wake **sem web** (rádio subiu para enviar), a segundos de dormir de novo. Os dois mapeiam para `sleeping`, mas o segundo diz que há um wake em curso. | `tools/air_test_suite.py:1765-1770` |
+| **Um OTA apaga `/config/air.bin`** (só `system.bin` vai no snapshot): o Air volta com o ciclo **desarmado**, idle 300 s e pinos padrão. Depois do apply o operador precisa re-armar por cabo/BT (`air idle`, `air charger`, `air hibernate`). O gestor avisa isso **antes** do stage. | `src/ota/config_snapshot.cpp:178`; `src/AppManager.h:203`; `src/ota/config_snapshot.h:24-27` |
 
 **Regra do gestor para Air:** perfil "bateria" por aparelho (marcado pelo operador; `cap:0` sozinho
 não basta). Nada de poll periódico: tenta **quando o usuário abre** o aparelho ou quando um trabalho
@@ -296,7 +313,8 @@ reiniciar e agir dentro do `air idle`.
 | Tela **Rede** com a "receita" e botão de compartilhar; tela **Acesso** com origens observadas | `src/screens/NetworkScreen.tsx:52-89`; `AccessScreen` | Receita → `commit_all` (§6.5); origem → "promover a aparelho gerido" (§6.2). |
 | i18n: chave nova entra em `pt.ts` primeiro, `tsc` acusa en/es; **nenhum texto ao usuário fora do dicionário**, evento vai ao banco como código + dado | `CLAUDE.md` "Convenções" | Todo estado/erro do gestor é código (`t.fl_*`), traduzido na hora de mostrar. |
 | Restrições de runtime: **Hermes sem digest**, `fetch` do RN sobre OkHttp (cookies automáticos via `CookieManager` — evitar: mandar `Cookie:` à mão e `credentials:'omit'`), `AbortController` para timeout, `FormData` com `{uri,name,type}` de `expo-file-system`, `XMLHttpRequest.upload.onprogress` para progresso | `package.json`; `CLAUDE.md` "Restrições" | Ver §5.1. |
-| **Texto claro de saída está bloqueado no release.** Só `android/app/src/debug/AndroidManifest.xml:6` declara `usesCleartextTraffic="true"`; o manifesto principal não, e o Android 9+ recusa `http://` de saída por padrão. Os **servidores** do app não sofrem disso (socket cru não passa pela política), mas um `fetch("http://192.168.…")` do gestor falha no APK de release. | `android/app/src/main/AndroidManifest.xml`; `android/app/src/debug/AndroidManifest.xml:6` | Duas saídas: (a) `res/xml/network_security_config.xml` com `cleartextTrafficPermitted="true"` no `base-config` (não há `domain-config` por faixa de IP) e a nota correspondente em `play/play-console.md`; (b) cliente HTTP/1.1 sobre `react-native-tcp-socket`, que a política não alcança e casa com o estilo "escrito do formato de fio" do app. **Recomendação:** (a) na F1 — o Air e o alpha só falam HTTP, e (b) é o caminho natural da F4 se o módulo TLS nativo não compensar. |
+| **Texto claro de saída está bloqueado no release.** Só `android/app/src/debug/AndroidManifest.xml:6` declara `usesCleartextTraffic="true"`; o manifesto principal não, e o Android 9+ recusa `http://` de saída por padrão. Os **servidores** do app não sofrem disso (socket cru não passa pela política), mas qualquer cliente sobre OkHttp — `fetch`, `FileSystem.uploadAsync/downloadAsync` e o módulo Kotlin da D5 — falha no APK de release com "Network request failed", **enquanto o debug passa** (é o manifesto de debug que mascara o defeito). | `android/app/src/main/AndroidManifest.xml`; `android/app/src/debug/AndroidManifest.xml:6` | O texto claro entra pelo caminho que **sobrevive ao `expo prebuild`** (o `CLAUDE.md` já registra que o prebuild reescreve `build.gradle` e `MainApplication.kt`): plugin `expo-build-properties` em `app.json` com `android.usesCleartextTraffic: true`, ou config plugin próprio que gere o `network_security_config.xml` — nunca edição solta em `android/app/src/main/`. Não há `domain-config` por faixa de IP, então é o `base-config`; a nota correspondente vai para `play/play-console.md`. **Aceite da F1 inclui um POST HTTP no APK de release** (`:app:assembleRelease`). |
+| **O `fetch` do RN retenta POST sozinho.** Ele roda sobre OkHttp com `retryOnConnectionFailure=true`: um POST com corpo repetível (`_payload` em form, `FormData` do stage) é reenviado depois de um RST recuperável — exatamente o RST aos ~13 s que o §3.5 cita. "POST nunca retenta" (§5.1) **não é imposto pelo JS**. | comportamento do OkHttp (`RetryAndFollowUpInterceptor.recover`); `CHANGELOG.md:2069-2073` | Transporte que o app controla (D5): módulo Kotlin `modules/simut-http` com `retryOnConnectionFailure(false)` e `Connection: close` em todo POST (o firmware descarta cliente keep-alive ocioso; uma conexão reaproveitada morta é outro gatilho de retentativa). Aceite da F3: derrubar o socket aos 13 s do stage e provar, **pelo log do aparelho**, que houve **um** stage, não dois. |
 
 Regras herdadas, sem exceção: código em inglês, comentários e commits em pt-BR (**atenção:** no repo do
 firmware commits são em inglês — `simut/CLAUDE.md`); imports relativos; estilos por token de paleta;
@@ -334,10 +352,11 @@ firmware; no app entra só a nota do `PLANO.md` §8 e a seção do `CLAUDE.md` q
 |---|---|---|---|
 | `sha256.ts` | sim | SHA-256 síncrono, entrada `Uint8Array`. `passwordDigest(senha)` codifica **latin-1** (um byte por code unit) e **lança** se houver code point > 0xFF — melhor recusar na entrada do que gastar lockout no aparelho. | Vetores FIPS 180-4 (`abc`, vazio, 448 bits, 1 M × `a`) + `"senha_ç"` conferido contra `tools/web_test_suite.py:sha256_frontend`. |
 | `protocol.ts` | sim | Tudo que vira bytes ou lê bytes: `buildLoginForm(user, digest, nonce)`, `parseLoginInit`, `parseLoginResponse` (`ok`, `redirect`, `err`, `lockSec`), `decodeStatus` (converte **unidades na fronteira**: `uptime` ms→s, `val: number \| 'Error' \| '--'`, `rssi -100 → null`), `decodePerms` (`version` → `{major,minor,patch,tag}`), `buildCommitPayload(sections)` (**remove `null`/`undefined`, tipa por tabela do Apêndice C, `JSON.stringify` compacto, recusa payload > 6144 B**), `parseCommitResponse` (`rejected`, `creds`, `newPort`), `parseStageResponse`, `parseBackupHeader` (40 B, magic `BKP1`, CRC), `parseRestoreResponse`, `decodeLogRecord` (12 B LE, `WebUI.h:2580-2596`), `compareVersion`. | Um teste por função; o do `buildCommitPayload` confere a saída contra a lista de agulhas de `WebCommitSections.h` (nenhum `"net"` acidental) e contra os casos de `tools/commit_bool_cases.py`. |
-| `client.ts` | não | Um `DeviceClient` por aparelho: **fila com concorrência 1**, `fetch` com `AbortController`, timeouts por classe (GET 15 s · POST commit 25 s · backup 120 s · stage 180 s · apply 10 s), `Cookie:` manual, `credentials:'omit'`, keep-alive. GET: até 3 retentativas em falha de rede/JSON truncado (1,5 · 3 · 4,5 s). **POST nunca retenta.** Em 403: sonda `/api/perms`; 401 lá ⇒ relogin uma vez e repete **só se for GET**; 200 lá ⇒ erro de permissão real. | Verificado no aparelho (`scripts/`), como os servidores. |
+| `client.ts` | não | Um `DeviceClient` por aparelho sobre o módulo nativo `modules/simut-http` (D5): **fila com concorrência 1**, timeouts por classe (GET 15 s · POST commit 25 s · backup 120 s · stage 180 s · apply 10 s), `Cookie:` manual (sem cookie jar do OkHttp), keep-alive nos GET e `Connection: close` nos POST. GET: até 3 retentativas em falha de rede **ou de `JSON.parse`** (1,5 · 3 · 4,5 s). **POST nunca retenta — garantido pelo módulo (`retryOnConnectionFailure(false)`), não por convenção.** Em 403: sonda `/api/perms`; 401 lá ⇒ relogin uma vez e repete **só se for GET**; 200 lá ⇒ erro de permissão real. | Verificado no aparelho (`scripts/`), como os servidores. |
+| `modules/simut-http/` (Kotlin) | não | Módulo Expo local no molde de `modules/foreground-service` (autolinkado, sobrevive ao prebuild — `CLAUDE.md:1137`): `request({url, method, headers, body\|fileUri, timeoutMs, onProgress})` sobre um `OkHttpClient` com `retryOnConnectionFailure(false)`, sem cookie jar, sem cache, progresso de upload por `RequestBody` próprio; F4 acrescenta `TrustManager` TOFU por host com impressão digital SHA-256 gravada em `devices.tls_fingerprint`. | Verificado no aparelho. |
 | `session.ts` | não | `login()` lê `locked/lockSec` de `login_init` **antes** de postar; nunca retenta `err:2`; guarda `needsPasswordChange` do `redirect`; `logout()` no fim de cada trabalho; cache da sessão com validade < 15 min. | idem |
 | `liveness.ts` | não | Sonda de vida **sem custo**: `GET /apple-touch-icon.png` (204, pública, não toca slot de login nem orçamento pré-auth do Air). É o que o `waitReboot` usa, não `login_init` como os scripts de bancada. | — |
-| `jobs.ts` | sim (máquinas) + não (executor) | `commitJob`, `otaJob`, `setTimeJob`, `probeJob` como **máquinas de estado puras** (`next(state, event) → state`), executadas por um runner que fala com `client.ts`. Estado persistido em `fleet_jobs` para retomar por aparelho (Air acorda depois). | Máquinas testadas com respostas sintéticas: 200/422/409/503/RST/timeout, uptime que diminuiu, versão que não mudou. |
+| `jobs.ts` | sim (máquinas) + não (executor) | `commitJob`, `otaJob`, `onboardJob`, `setTimeJob`, `probeJob` como **máquinas de estado puras** (`next(state, event) → state`), executadas por um runner que fala com `client.ts`. Estado persistido em `fleet_jobs` para retomar por aparelho (Air acorda depois). **Regra de retomada:** trabalho encontrado em `STAGE`/`APPLY` ao reabrir o app vai direto para "restaure o backup" / "verifique a versão" — **nunca** volta a estagear; só `commit`, `onboard` e `probe` são retomáveis. Todo trabalho com POST longo roda com a tela acesa (`expo-keep-awake`, dependência nova — passar pelo `npx expo-doctor`, dado o crash de peer dependency já pago) e com o serviço em primeiro plano ligado (o mesmo `dataSync`; a justificativa em `play/` passa a citar atualização de aparelhos). | Máquinas testadas com respostas sintéticas: 200/422/409/503/RST/timeout, uptime que diminuiu, versão que não mudou, app reaberto em `STAGE`. |
 | `discovery.ts` | parcial | Manual (host:porta, esquema), passiva (origens do receptor com IP que responde 204 em `/apple-touch-icon.png`), varredura `/24` opcional (§6.2). `parseCidr`/`hostsOf` puros. | puros com teste |
 | `store.ts` | não | Snapshot da frota para as telas (`useSyncExternalStore`), com o mesmo par `revision`/`slowRevision`, **independente** do store da recepção. | — |
 | `db.ts` | não | DDL de `devices`, `fleet_jobs`, `fleet_events` (§5.2). Sem migração numerada. | — |
@@ -370,6 +389,11 @@ fleet_events (id INTEGER PRIMARY KEY, ts INTEGER, uid TEXT, code TEXT, data TEXT
   restauração confirmada ou por pedido.
 - **Nada disso entra em `messages`/`records`**. Correlação origem ↔ aparelho é feita **na hora de
   mostrar** (mapa `ip → uid` em memória), como o `useSourceNames()` da E3.
+- **Eventos do gestor seguem a convenção do app:** código + dado, chave nova primeiro em `pt.ts` dentro
+  de `t.ev` (prefixo `FLEET_`; o tipo acusa en/es), traduzidos na tela como `LogsScreen.tsx:49` faz
+  (`fmt >= 1`), e `fleet_events.uid` no lugar de `addr`. Decisão: eles **não** entram na aba Logs (que é
+  da recepção) — aparecem na tela do aparelho e na trilha exportável da F6; se um dia forem à aba Logs,
+  entram por `LEFT JOIN`, nunca copiados para `events`.
 
 ### 5.3 Identidade e correlação com o papel receptor
 
@@ -382,6 +406,17 @@ fleet_events (id INTEGER PRIMARY KEY, ts INTEGER, uid TEXT, code TEXT, data TEXT
    template custom `{DEV}`/`{MAC}` — todos casáveis com `sensors[].hwid`/`name`/`mac` lidos do aparelho.
    (b) sobrevive à troca de IP; (a) é o atalho.
 3. Dois aparelhos com o mesmo `name` são **avisados** antes de qualquer commit (colidem no mDNS).
+4. **Re-localização** (em `discovery.ts`), porque o DHCP renumera e `nome.local` não resolve no Android
+   antes da F5: quando `host` não responde, o app (a) procura entre as origens do receptor uma cujas
+   chaves `hwId` casem com `sensors[].hwid` do aparelho e propõe "mudou para <IP>?"; (b) na varredura
+   `/24`, faz login e compara `serial` antes de atualizar `host`. Login em `host` que devolve **outro**
+   `serial` nunca sobrescreve: é outro aparelho, e o operador decide.
+5. **O IP do celular é tão mutável quanto o do aparelho.** "Apontar para mim" (§6.5) grava o IP atual do
+   celular em `sys.t_srv` de N aparelhos; o app guarda em `devices` o `t_srv` que cada um aponta, compara
+   com `Network.getIpAddressAsync()` ao focar a tela Frota e oferece **"meu IP mudou — reapontar N
+   aparelhos"** (template só com `sys.t_srv`, sequencial, com wait/verify). A tela avisa que o conserto
+   de verdade é reserva DHCP para o celular. O observador de troca de rede do `ESBOCO.md` §8 (nunca
+   implementado) vira pré-requisito da F2.
 
 ### 5.4 Política de rede
 
@@ -392,7 +427,8 @@ fleet_events (id INTEGER PRIMARY KEY, ts INTEGER, uid TEXT, code TEXT, data TEXT
 | Cadência de status (release/alpha) | ≥ 30 s, só com a tela Frota em foco (`useIsFocused`) | Custo por chamada no aparelho (§3.3); compete com o navegador do humano. |
 | Cadência de status (Air) | **nenhuma**; sob demanda | Rearma o timer de hibernação (§3.6). |
 | Sonda de vida | `GET /apple-touch-icon.png` → 204 | Pública, sem corpo, sem slot de login, sem orçamento pré-auth. |
-| Espera de reboot pós-commit | 3 s · sonda a cada 2 s · até 90 s · +2 s ("responder não é estar pronto") | `tools/commit_bool_cases.py:70-71,159-171` |
+| Espera de reboot pós-commit | 3 s · sonda a cada **1 s** (timeout 4 s por sonda) · até 90 s · +2 s ("responder não é estar pronto") | `tools/commit_bool_cases.py:70-71,159-171` |
+| Ciclo de vida Android | Trabalhos longos (backup, stage, apply, commit) só com tela acesa + serviço em primeiro plano; app reaberto em `STAGE`/`APPLY` **não** re-estageia | Doze/tela apagada suspendem o JS no meio de um upload que reformata o FS (§5.1, `jobs.ts`) |
 | Espera pós-apply | 20 s · sonda a cada 3 s · até 120 s · depois login + `/api/perms` | 48,4 s medidos sem web (§3.5) |
 | Timeouts | GET 15 s · commit 25 s · backup 120 s · stage 180 s · restore 180 s · apply 10 s | Stage ~30 s/MB + tolerância de rede; backup ~800 KB |
 | Login | 1 por trabalho; `logout` no fim; **nunca** dois logins com o mesmo usuário em paralelo no mesmo aparelho | 3 slots; mesmo usuário derruba o outro |
@@ -404,14 +440,21 @@ fleet_events (id INTEGER PRIMARY KEY, ts INTEGER, uid TEXT, code TEXT, data TEXT
   compartilhamento; logs; relatório de falha. Regras: credenciais só em `SecureStore` (Keystore
   Android), **fora** de `messages`, do perfil exportado, do relatório de campanha e do `fleet_events`;
   UI mostra `MASK`; opção "não guardar a senha do admin" (pedir a cada OTA) **ligada por padrão**.
-- **Duas contas por aparelho (D4):** o app cria, no onboarding, uma conta `rx` via `users.add` com
-  `perms = PERM_DASHBOARD|PERM_SYS_CONFIG|PERM_NET_CONFIG|PERM_LOGS` (ou o que o operador marcar, ≤
-  0x03FF), recebe a senha temporária em `creds`, faz login como `rx` e completa o `force_chpass` com
-  uma senha gerada — tudo em um fluxo. O **admin do slot 0** só é pedido na tela de OTA/backup. Custo
-  aceito: a conta `rx` ocupa um dos 3 slots enquanto logada (por isso `logout` no fim).
-- **TLS:** F1 = HTTP (Air/alpha só têm isso; release com PEM é caso do operador). F4 = módulo Kotlin com
-  OkHttp e `TrustManager` **TOFU por host**: primeira conexão grava a impressão digital SHA-256 do
-  certificado; mudança ⇒ bloqueia e avisa. Jamais `rejectUnauthorized:false` global, jamais "confiar em
+- **Duas contas por aparelho (D4):** o onboarding é uma máquina em `jobs.ts` (`onboardJob`), não uma
+  cadeia de requisições, porque tem um reboot e uma troca de senha no meio: login admin → se `redirect ==
+  /force_chpass`, o **operador** escolhe a nova senha do admin (o app não a inventa nem a guarda por
+  padrão) → `commit_all users.add{name, perms}` com `perms = PERM_DASHBOARD|PERM_SYS_CONFIG|
+  PERM_NET_CONFIG|PERM_LOGS|PERM_USER_MGR` (ou o que o operador marcar, ≤ 0x03FF; o bit `USER_MGR` é o
+  que permite ler `/api/sec_status`) → **reboot** (`waitReboot`; a sessão admin morre) → login
+  `rx-<4 hex do uid>` com a senha de `creds` → `force_chpass` com senha gerada (ou `login_chpass` sem
+  sessão) → logout. Limites do firmware: `MAX_USERS = 5` (4 contas web), nome ≤ 15 chars, ≠ `admin`,
+  único por aparelho — dois celulares precisam de nomes distintos. O **admin do slot 0** só é pedido na
+  tela de OTA/backup. Custo aceito: a conta `rx` ocupa um dos 3 slots enquanto logada (por isso `logout`
+  no fim).
+- **TLS:** F1 = HTTP (Air/alpha só têm isso; release com PEM é caso do operador). F4 = o mesmo módulo
+  Kotlin da D5 ganha um `TrustManager` **TOFU por host**: primeira conexão grava a impressão digital
+  SHA-256 do certificado; mudança ⇒ bloqueia e avisa (exceto a troca de esquema esperada depois de um
+  OTA, §6.6). Jamais `rejectUnauthorized:false` global, jamais "confiar em
   todos". O firmware não expõe a impressão digital (§3.7): confirmação fora de banda fica como R13.
 - **Em massa, nunca:** `net.*`, `users.del/reset`, `reset_touch_cal`, `tel_reset` (reenvia o histórico
   inteiro), `sensor_wipe/accept`, `history_rebind`, `clear_logs`. Só na tela do aparelho, com
@@ -434,7 +477,7 @@ host[:porta] digitado (ou origem promovida)
   → GET /api/login_init  → se locked: mostrar lockSec e parar
   → POST /api/login (rx ou admin, digest latin-1, nonce)
       redirect == "/force_chpass" ⇒ fluxo de troca de senha antes de qualquer outra coisa
-  → GET /api/perms  (version, perms)  → gate: version ≥ 2.x para os recursos que o app usa
+  → GET /api/perms  (version, perms)  → gate: FEATURE_MIN (§12; core = 2.4.2-beta, mais velhos "melhor esforço")
   → GET /api/config (uid, name, sensors)  → GET /api/network (mac, web_port, web_tls) se PERM_NET_CONFIG
   → INSERT devices; SecureStore(uid) ← credencial
   → GET /logout
@@ -459,9 +502,14 @@ bloco, FS usado, NTP, telemetria (`tel`, `pending`), sensores (`val` numérico o
 "visto pela última vez". Estados: `online` · `dormindo` (perfil Air + sem resposta) · `sem resposta` ·
 `credencial recusada` · `bloqueado até` · `senha a trocar`. Detalhe do aparelho: `/api/network`,
 `/api/alarms`, `/api/sensors`, últimos eventos via `/api/export/logs.bin?from=<último>&to=<agora>`
-(incremental; tabela código→texto gerada de `tools/logcodes.tsv` no build do app — não depender de
-`/api/lang`). `/api/logs` inteiro e `history_multi` só por ação explícita, um aparelho por vez (trancam a
-tela do TFT com "web busy").
+(incremental — mas **também tranca a tela do TFT com "web busy"** enquanto transmite
+(`WebManager_History.cpp:1329-1338`), então só com a tela de detalhe aberta e nunca em poll).
+`/api/logs` inteiro e `history_multi` só por ação explícita, um aparelho por vez (idem). A tabela
+código→texto entra como arquivo **gerado e versionado no simut-rx** (`src/i18n/logcodes.generated.ts`,
+com `en/pt/es` das colunas de `tools/logcodes.tsv` e um cabeçalho `// gerado de simut@<commit>
+v<versão>`), por um script em `simut/tools/` (`gen_logcodes.py --ts`) que o maintainer roda quando um
+código novo entra — o `.tsv` continua a única fonte; código desconhecido é mostrado cru (`SEC 303`),
+nunca omitido; não depender de `/api/lang`.
 
 ### 6.4 Configuração
 
@@ -492,7 +540,8 @@ A receita da tela Rede (`t_srv` = IP do celular, `t_port`, `t_path`, `t_mode`, `
 `m_*` do MQTT) vira um commit de template com pré-visualização. Como `t_key` volta mascarado, o app
 **não consegue verificar** a chave depois — só o cabeçalho chegando na porta do receptor prova. O fluxo
 termina esperando **a primeira mensagem** desse aparelho no Fluxo (correlação §5.3), que é a prova
-ponta a ponta.
+ponta a ponta. É a única escrita em massa que o esboço permite, e o que ela grava é o IP do celular —
+por isso o fluxo "meu IP mudou — reapontar" do §5.3 nasce junto com ela.
 
 ### 6.6 OTA de um aparelho
 
@@ -503,10 +552,11 @@ Pré-voo (tudo antes de tocar no aparelho):
    (`cap:1` ⇒ imagem TFT; `cap:0` ⇒ alpha ou air — perguntar). A imagem vem com env no manifesto (R14)
    ou é escolhida à mão com aviso.
 3. Tamanho da imagem 100 KiB ≤ n ≤ **1016 KiB**; CRC do boot2 calculado localmente (mesma rotina de
-   `src/ota/validation.cpp:129-136`) para recusar `.uf2`/`.gz` **antes** do upload.
+   `src/ota/validation.cpp:36-45`, aplicada em `:79-86`: CRC-32/MPEG-2 dos primeiros 252 B comparado com
+   os 4 B seguintes, little-endian) para recusar `.uf2`/`.gz` **antes** do upload.
 4. Versão alvo > versão atual, senão pedir confirmação explícita de downgrade.
-5. Air: aparelho respondendo **e** aviso "coloque no carregador / acabou de reiniciar"; TFT: aviso "não
-   toque na tela".
+5. Air: aparelho respondendo **e** aviso "coloque no carregador / acabou de reiniciar" **e** aviso de que
+   o `air.bin` se perde (o ciclo volta desarmado; re-armar é por cabo/BT); TFT: aviso "não toque na tela".
 6. Credencial **admin** (slot 0) pedida agora.
 
 Execução (uma máquina de estados, cada transição registrada em `fleet_jobs`):
@@ -518,16 +568,28 @@ STAGE      POST /api/restore?op=stage&commit=1  (multipart 'file', 180 s, progre
            → exigir 200 && st==5 && v==0 && committed==1; guardar dsize/dcrc
            → qualquer outra coisa: "FS do aparelho foi reformatado; restaure o backup" (não retentar)
 CHECK      GET /api/status → sys.uptime NÃO diminuiu desde o STAGE (senão: NÃO aplicar; reiniciar e re-stagear)
-APPLY      POST /api/ota/apply (10 s) → 202 ok; 503 ⇒ esperar Retry-After (5 s) e repetir ≤ 6×; 409 ⇒ falha
-WAIT       20 s + sonda 204 a cada 3 s até 120 s
+APPLY      POST /api/ota/apply (10 s) → 202 com mode=="apply"; 503 ⇒ esperar Retry-After (5 s) e
+           repetir ≤ 6×; 409 ⇒ falha
+WAIT       20 s + sonda 204 a cada 3 s até 120 s, nos DOIS esquemas (http://host:web_port e
+           https://host:443): os PEM se perdem no apply e um aparelho HTTPS volta em HTTP:80;
+           devices.scheme/port recebem o que respondeu (mudança de esquema é evento esperado do job,
+           não violação do pin; na F4 o pin é apagado e rearmado na conexão seguinte, com aviso)
 VERIFY     login admin → GET /api/perms.version == versão da imagem  ⇒ SUCESSO
            ≠ ou timeout ⇒ "desconhecido — inspecione fisicamente" + link para docs/RECOVERY.md
-RESTORE    decisão: config sobreviveu pelo snapshot; histórico/idiomas/temas/calib/TLS não.
-           F3: oferecer restore integral (validate → apply → reboot) SÓ se o aparelho subiu de fábrica
-               (nome/usuários padrão) — senão avisar que o restore integral sobrescreve o que foi
-               gravado desde o backup.
-           F6: restore seletivo (porta de tools/fsguard.py: só arquivos ausentes + merge de dia
-               via porte de tools/h5_day_merge.py; nunca README/system.bin/system.blog/*.pem).
+RESTORE    config sobreviveu pelo snapshot (nome, usuários, Wi-Fi, slots, telemetria, alarmes);
+           histórico, idiomas, temas, calib.csv, log, PEM e air.bin não.
+           F3, caminho normal — restore POR ARQUIVO: o job percorre o TLV do .bkp e reenvia por
+               POST /api/upload (PERM_FILE_UPLOAD, dir= + campo file, profundidade ≤ 2) só
+               lang/*.lng, themes/* e calib.csv — nunca system.bin, system.blog nem /history
+               (fica para o merge da F6). /config é recusado pelo upload, então os PEM só voltam
+               pelo restore integral (opt-in, com aviso de que o aparelho volta a HTTPS:443 e o
+               pin muda).
+           F3, caminho de falha (aparelho subiu de fábrica = snapshot ausente) — restore INTEGRAL
+               (validate → apply → reboot), com o aviso de que sobrescreve system.bin, apaga o que
+               foi gravado desde o backup e custa o terceiro reboot.
+           F6: restore seletivo do histórico (porta de tools/fsguard.py: só arquivos ausentes +
+               merge de dia via porte de tools/h5_day_merge.py).
+           Air: lembrar o operador de re-armar o ciclo por cabo/BT (air.bin perdido).
 LOGOUT     fleet_events(uid, 'ota', {from, to, result})
 ```
 
@@ -539,8 +601,28 @@ em paralelo dobram a chance do RST aos 13 s.
 - `POST /api/set_time {"epoch":<agora do celular>}` para aparelhos com `ntp:0` — não reinicia, é seguro
   em massa, e é a única ação de frota "de graça".
 - `tel_sync` é seguro em massa (força o envio). `tel_reset` **não** (reenvia tudo).
-- Tabela de lockout (`/api/sec_status`, `PERM_USER_MGR`) mostra ao operador se **o próprio celular**
-  está bloqueado no aparelho.
+- Tabela de lockout (`/api/sec_status`, `PERM_USER_MGR` — por isso o bit entra nas perms padrão da
+  conta `rx`, §5.5; sem ele, só com a sessão admin) mostra ao operador se **o próprio celular** está
+  bloqueado no aparelho.
+
+### 6.8 Provisionar um aparelho novo (fora da LAN)
+
+O §6.1 assume o aparelho já na rede. O primeiro aparelho saído da caixa não está, e hoje o operador cai
+no formulário web que este esboço quer substituir. Fluxo (F2, ou explicitamente fora da F1):
+
+1. O aparelho entra em AP **só por gesto ou comando** (§3.1): TFT = segurar a tela no boot; alpha/Air =
+   `ap` pela CLI serial ou **Bluetooth** (o caso de uso documentado do BT). O app mostra a instrução
+   certa para o perfil.
+2. O operador liga o celular ao AP `<nome>_SETUP` (chave derivada, lida no display ou na resposta do
+   `ap`). O app avisa que a **recepção fica indisponível** enquanto isso e que o AP expira em 15 min.
+3. Login admin em `http://192.168.4.1` → `force_chpass` (senha do operador) → commit **só de `net`**
+   (SSID/senha; IP estático se o operador quiser) → o aparelho reinicia na LAN.
+4. O celular volta à rede do operador; o app localiza o aparelho por varredura `/24` + `serial` (§5.3)
+   e completa o onboarding do §5.5.
+
+**[a confirmar]** O Android trata o AP sem internet como rede secundária e pode rotear o tráfego pelos
+dados móveis; se a requisição falhar no AP, o módulo Kotlin precisa de
+`ConnectivityManager.bindProcessToNetwork` (mais um motivo para o transporte nativo da D5).
 
 ---
 
@@ -556,7 +638,7 @@ e edita `tools/flash_budget.json` na mesma PR quando crescer.
 | R2 | `MDNS.addService("simut","tcp",porta)` + TXT `uid`, `ver`, `tls`, `env` (`NetworkManager.cpp:280-283`) **[a confirmar a API `addServiceTxt` no LEAmDNS do arduino-pico instalado]** | Descoberta por browse sem tocar no servidor web nem no timer do Air; é passiva | algumas centenas de B (lib já linkada); **medir no Air** | flash budget; nenhuma rota nova | **recomendada** (não alcança o alpha) |
 | R3 | 401 quando `getAuthPerms()==0`, 403 só com sessão sem o bit — helper `requirePerm(bit)` | Cliente distingue "relogar" de "sem permissão" sem sonda extra | ~0 (troca de código) | `check_authz` continua verde; `AUTHORIZATION.md` nota | recomendada |
 | R4 | `"mc":0\|1` em `/api/perms` | Sessão reaproveitada descobre a troca de senha pendente antes do 409 | ~20 B | — | recomendada |
-| R5 | `"env":"release\|alpha\|air"` em `/api/perms` + string etiquetada em `.rodata` (`"SIMUT-ENV:pico_w_air;v=2.4.2-beta"`) que o app procura no `.bin` antes de subir; opcionalmente `ota_validate_staging` compara com o env em execução | Fecha o único modo de bricar por imagem errada que o firmware hoje aceita e "verifica" | ~60 B + ~200 B se validar no staging | `docs/MANUAL.md` §12 | **recomendada** |
+| R5 | `"env":"release\|alpha\|air"` em `/api/perms` + string etiquetada em `.rodata` (`"SIMUT-ENV:pico_w_air;v=2.4.2-beta"`) que o app procura no `.bin` antes de subir; opcionalmente `ota_validate_staging` compara com o env em execução e **aperta `OTA_APP_MAX_SIZE` de 1020 para 1016 KiB** (o snapshot ocupa o setor 254; hoje uma imagem entre os dois passa e é corrompida em silêncio) | Fecha o único modo de bricar por imagem errada que o firmware hoje aceita e "verifica" | ~60 B + ~200 B se validar no staging; o aperto de tamanho custa ~0 | `docs/MANUAL.md` §12 | **recomendada** |
 | R6 | (a) no boot, tratar `STATE_COMMITTED` como `APPLYING`/`POST_BOOT` (limpar metadata + log); (b) `GET /api/ota/state` `{meta,attempts,size,crc,stage,lfs}`; (c) `POST /api/ota/abort` | (a) desarma a mina "COMMITTED sem staging" **hoje**, sem app; (b)/(c) dão ao gestor leitura idempotente e cancelamento | (a) ~100–200 B; (b)+(c) ~700 B | `AUTHORIZATION.md` (== FULL_ADMIN), `logcodes.tsv` para o código novo | (a) **recomendada**; (b)/(c) opcionais |
 | R7 | `commit_all` com `_dry=1`: roda portão + parsers em cópia de `cfg`, devolve `{"status":"dry","rejected":[…]}` sem gravar nem reiniciar (`WebManager_Commit.cpp:1316-1373`) | Um template é validado em N aparelhos **antes** de N reboots | ~300 B + cópia de `SystemConfig` na pilha (conferir tamanho) | — | opcional |
 | R8 | `setStr` recusa valor não-string (`rejectField`) e `net.ip/mask/gw/dns/web_port` entram em `rejected` | Elimina o apagamento silencioso (§3.4) e o "reiniciou com o IP velho" sem aviso | ~150 B | — | recomendada |
@@ -579,10 +661,10 @@ Toda rota nova = linha no `docs/AUTHORIZATION.md` com o bit ou entrada na allowl
 | Fase | Entrega | Aceite | No ferro |
 |---|---|---|---|
 | **F0** | `sha256.ts` + `protocol.ts` puros com testes; DDL das três tabelas; `fleet/store.ts`; tela **Frota** em Mais com lista vazia; chaves i18n pt/en/es; nota em `PLANO.md` §8 | `npm run check` e `npm test` verdes; digest de `"senha_ç"` igual ao de `web_test_suite.py`; payload de exemplo idêntico byte a byte ao que o `WebUI.h` mandaria | — |
-| **F1** | Adicionar aparelho (manual + origem promovida), login/logout, cartão de status, detalhe, perfil Air com estado "dormindo", lockout visível, troca de senha forçada | 3 aparelhos (TFT, alpha, Air) lado a lado; RSSI/uptime batem com o display; Air dorme com o app aberto na lista (medido pela sonda da PicoHand, `ss -tn` limpo) | bancada: release + Air; `air idle 40` |
+| **F1** | Módulo `modules/simut-http` (Kotlin) + texto claro por config plugin; adicionar aparelho (manual + origem promovida), onboarding da conta `rx`, login/logout, cartão de status, detalhe, perfil Air com estado "dormindo", lockout visível, troca de senha forçada | 3 aparelhos (TFT, alpha, Air) lado a lado; RSSI/uptime batem com o display; Air dorme com o app aberto na lista (medido pela sonda da PicoHand, `ss -tn` limpo); **um POST HTTP bem-sucedido no APK de release** (`:app:assembleRelease`, não o debug) | bancada: release + Air; `air idle 40` |
 | **F2** | Configuração: leitura, diff, template, revisão, commit, wait/verify, `rejected` legível, "apontar para mim", `set_time` em massa | Mesmo template em 3 aparelhos: 3 reboots, 3 verificações verdes; campo fora de faixa aparece em `rejected` e na tela; `null` nunca sai do montador (teste) | `tools/commit_bool_cases.py` como controle |
-| **F3** | OTA de um aparelho: manifesto de release (R14) → download + SHA-256 → pré-voo → backup → stage (progresso) → apply → verify → restore integral condicional; `docs/RECOVERY.md` linkado na falha | 5 ciclos seguidos num TFT de bancada com versão provada por `/api/perms`; um ciclo com imagem `.uf2` recusada **antes** do upload; um ciclo com o socket derrubado no stage terminando em "restaure o backup", sem retentativa | bancada com `fsguard.py` como controle; **nunca** o Air sem carregador |
-| **F4** | HTTPS com pin TOFU (módulo Kotlin), esquema/porta por aparelho, sonda :443 | Aparelho release com PEM: primeira conexão grava a impressão; trocar o cert bloqueia com aviso; OTA sobre HTTPS medido (lento, mas termina) | release com `web_cert.pem` |
+| **F3** | OTA de um aparelho: manifesto de release (R14) → download + SHA-256 → pré-voo → backup → stage (progresso, tela acesa, serviço em primeiro plano) → apply → wait nos dois esquemas → verify → restore por arquivo (idiomas, temas, calib) e integral só na falha; `docs/RECOVERY.md` linkado na falha | 5 ciclos seguidos num TFT de bancada com versão provada por `/api/perms` **e o pack de idioma de volta**; um ciclo com imagem `.uf2` recusada **antes** do upload; um ciclo com o socket derrubado aos 13 s do stage terminando em "restaure o backup" **com um único stage no log do aparelho**; um ciclo com o app fechado durante o stage e reaberto sem re-estagear | bancada com `fsguard.py` como controle; **nunca** o Air sem carregador |
+| **F4** | HTTPS com pin TOFU (no mesmo módulo Kotlin da F1), esquema/porta por aparelho, sonda :443, pin rearmado após OTA/restore | Aparelho release com PEM: primeira conexão grava a impressão; trocar o cert bloqueia com aviso; OTA sobre HTTPS medido (lento, mas termina) | release com `web_cert.pem` |
 | **F5** | Descoberta: varredura /24 explícita; mDNS `_simut._tcp` (R2 no firmware + módulo NsdManager) | Aparelho novo na rede aparece sem digitar IP; alpha aparece só pela varredura (documentado na tela) | release + Air em M0 |
 | **F6** | Restore seletivo (porte de `fsguard.py`/`h5_day_merge.py`), logs incrementais com tabela de códigos, trilha de auditoria exportável | Histórico do dia sobrevive a um OTA (blocos selados conferidos com `h5_block_anchors`) | bancada |
 
@@ -638,7 +720,7 @@ app (R14).
 | Q2 | Guardar a senha do admin? | (a) nunca (pedir a cada OTA); (b) por aparelho, opt-in; (c) sempre | (b), padrão desligado |
 | Q3 | Conta `rx` automática no onboarding? | (a) sim, com perms escolhidas; (b) usar a conta que o operador digitar | (a) — evita derrubar o navegador do maintainer |
 | Q4 | Imagem de OTA de onde? | (a) manifesto em GitHub Releases (R14); (b) "abrir com" (intent) ; (c) seletor de documentos (dep nova) | (a); (b) depois |
-| Q5 | HTTPS na F1? | (a) não (D5); (b) sim com `network_security_config` por CA do usuário | (a) |
+| Q5 | Transporte do gestor | (a) módulo Kotlin OkHttp desde a F1 (D5); (b) cliente HTTP/1.1 sobre `react-native-tcp-socket` (sem Kotlin; sem TOFU); (c) `fetch` do RN (retenta POST sozinho) | (a); (b) é o plano B se o módulo travar a F1; (c) nunca para POST |
 | Q6 | mDNS: firmware primeiro ou app primeiro? | (a) R2 e módulo NsdManager juntos na F5; (b) só varredura | (a), medido no Air |
 | Q7 | Restore após OTA na F3 | (a) integral condicional; (b) seletivo desde já; (c) nenhum (só aviso) | (a); (b) na F6 |
 | Q8 | R6(a) (limpar `COMMITTED` no boot) entra já, sem app? | sim/não | **sim** — é correção de segurança independente deste esboço |
@@ -653,13 +735,17 @@ app (R14).
 Commits em **inglês**.
 
 **simut-rx:** `PLANO.md` §8 ganha o parágrafo da reversão (§2); `CLAUDE.md` ganha a seção "Gestor de
-frota" quando a F1 fechar (o que custou tempo, medidas); `README.md` só quando houver release; a
-política de privacidade em `play/` passa a mencionar credenciais de aparelhos guardadas no Keystore.
-Comentários e commits em **pt-BR**.
+frota" quando a F1 fechar (o que custou tempo, medidas); `README.md` só quando houver release. O gestor
+entra na **1.2.0** (`versionCode` ≥ 8 — hoje `app.json` diz 5 e `build.gradle` diz 7, e o prebuild
+reescreve o gradle a partir do `app.json`; a loja segue na 1.0.0, então os primeiros usuários são os do
+APK do GitHub). `play/` atualiza o formulário **Segurança dos Dados** (credenciais de aparelhos no
+Keystore) além da política de privacidade, e a justificativa do serviço em primeiro plano passa a citar
+atualização de aparelhos. Comentários e commits em **pt-BR**.
 
-**Acoplamento:** tabela `FEATURE_MIN` no app — `status/config/commit: ≥ 2.4.2-beta` (referência deste
-esboço; aparelhos mais velhos "melhor esforço"), `ota: ≥ 1.6.2-beta`, `R1..R12: ≥ versão que os
-trouxer`. O app mostra por aparelho o que está desabilitado e por quê.
+**Acoplamento:** tabela `FEATURE_MIN` no app — `core (status/config/commit): 2.4.2-beta` (referência
+deste esboço, usada em **todo** portão do app; aparelhos mais velhos "melhor esforço"), `ota: 1.6.2-beta`,
+`logcodes: <versão da tabela gerada>`, `R1..R12: ≥ versão que os trouxer`. `compareVersion` ignora o
+sufixo (`2.4.2-beta == 2.4.2`). O app mostra por aparelho o que está desabilitado e por quê.
 
 ---
 
@@ -668,7 +754,8 @@ trouxer`. O app mostra por aparelho o que está desabilitado e por quê.
 | Rota | Perm | Requisição | Resposta / efeitos |
 |---|---|---|---|
 | `GET /apple-touch-icon.png` | pública | — | 204 sem corpo. **Sonda de vida.** Sem slot, sem orçamento pré-auth. |
-| `GET /api/login_init` | pública | — | 200 `{"nonce","locked","lockSec"}`; 429 + `Retry-After` com 8 slots bloqueados. **Gasta** 1 extensão pré-auth no Air. Nonce 60 s. |
+| `GET /api/login_init` | pública | — | 200 `{"nonce","locked","lockSec"}`; 429 + `Retry-After` com 8 slots bloqueados. **Gasta** 1 extensão pré-auth no Air a cada chamada. Nonce 60 s. |
+| `POST /api/login_chpass` | pública | form `user`,`oldpass`,`newpass`,`nonce` | 200 `{"ok":true}` sem cookie (logar de novo); 400 `err:5` (nova == antiga); 401/403 como o login; zera `mustChangePassword` |
 | `POST /api/login` | pública | form `user`,`pass`(sha256 latin-1),`nonce` | 200 `{"ok":true,"redirect":"/"\|"/force_chpass"}` + `Set-Cookie: SIMUTSESS=`; 400/401 `err:1`; 401/403 `err:2,lockSec`; 403 `err:3` (3 sessões ocupadas). Consome o nonce. |
 | `POST /api/force_chpass` | autenticado + pendente | form `p1`,`p2` (HTTP: sha256 hex; HTTPS: texto + política) | 200 `{"status":"ok"}`; 400; 403 |
 | `GET /api/perms` | autenticado | cookie | 200 `{"user","perms","ntp","time","version","langCode","langName"}`; **401** sem sessão. **Oráculo da versão.** |
@@ -676,17 +763,18 @@ trouxer`. O app mostra por aparelho o que está desabilitado e por quê.
 | `GET /api/config` | `SYS_CONFIG` | cookie | chunked; todos os `t_*/m_*/a_*/slog_*`, `h_int`, `serial`, `sensors[16]`; `t_key` mascarado. Pode vir truncado pós-boot. |
 | `GET /api/network` | `NET_CONFIG` | cookie | `{connected,ip,mask,gw,dns,mac,ssid,use_dhcp,static_*,dns_auto,dns2,ntp_server,ntp_enabled,web_port,web_ka,web_tls}` (1024 B) |
 | `GET /api/alarms` · `/api/sensors` · `/api/users` · `/api/sec_status` · `/api/themes` | ver `AUTHORIZATION.md` | cookie | Apêndice A do mapa de leitura; `/api/sensors` = slots + drivers, não leituras |
-| `GET /api/export/logs.bin?from&to[&level]` | `LOGS` | cookie | SIMX(24 B) + N×12 B + CRC32; ≤ 31 dias; 503 concorrente; trava o TFT |
+| `GET /api/export/logs.bin?from&to[&level]` | `LOGS` | cookie | SIMX(**32 B**, `WebManager_History.cpp:1002-1016`) + N×12 B + CRC32; ≤ 31 dias; 503 concorrente; trava o TFT |
 | `GET /metrics` | `DASHBOARD` | cookie **ou** `Authorization: Basic` (senha crua) | Prometheus; falha Basic alimenta o lockout; ~0,5 s de CPU por chamada Basic |
 | `POST /api/commit_all` | entrada `SYS\|NET\|USER_MGR` + por seção | form `_payload`=JSON ≤ 6144 B | 200 `{"status":"ok"[,newPort][,rejected][,creds]}` → **reboot**; 400 (`No section`, slots, limites); 403 `{"section"}`; 409 senha pendente; 503 toque |
 | `POST /api/action` | `SYS_CONFIG` | `op=` + `slot=` (query ou form) | `tel_sync` `{"ok"}`; `tel_reset`; `sensor_scan` 202; `scan_results`; `sensor_wipe`; `sensor_accept`. Sem reboot. |
 | `POST /api/set_time` | `SYS_CONFIG` | JSON cru `{"epoch":N}` (> 1600000000) | 200 `{"ok":true,"now"}`; sem reboot |
 | `POST /api/calib` | `CALIB` | JSON cru ≤ 8192 B | 200 `{"ok","version"}`; 429 (5 s); 503 sem NTP |
 | `GET /api/backup` | `== FULL_ADMIN` | cookie | `.bkp` (40 B + TLV), headers `X-Backup-*`; 503 ocupado/toque |
-| `POST /api/restore?op=validate` | `FILE_READ` | multipart `bkp` | `{"st","chip","fwv","psz","fc","fsm":0}`; 422 por `st` |
+| `POST /api/restore?op=validate` | `FILE_READ` | multipart `bkp` | `{"st","chip","fwv","psz","fc","fsm":0}` quando o cabeçalho tem magic válido, senão só `{"st","fsm"}`; 200 com `st=0`, **500 com `st=9`** (I/O), 422 nos demais `st` (`WebManager_Ota.cpp:273-292`) |
 | `POST /api/restore?op=apply` | `== FULL_ADMIN` | multipart `bkp` | idem `fsm:1` → **reboot**; grava direto no destino |
 | `POST /api/restore?op=stage&commit=1` | `== FULL_ADMIN` | multipart `file` (`.bin` cru) | 200 `{"st":5,"bytes","crc32","v":0,"dsize","dcrc","committed":1}`; 422; **reformata o FS sempre** |
-| `POST /api/ota/apply` | `== FULL_ADMIN` | — (**nunca** `?test=1`) | 202 → ~48 s sem web; 409 nada commitado; 503 toque + `Retry-After: 5` |
+| `POST /api/ota/apply` | `== FULL_ADMIN` | — (**nunca** `?test=1`) | 202 `{"accepted":true,"mode":"apply"}` (exigir `mode`) → ~48 s sem web, e o aparelho volta em **HTTP:web_port** se tinha PEM; 409 nada commitado; 503 toque + `Retry-After: 5` |
+| `POST /api/upload?dir=<pasta>` | `FILE_UPLOAD` | multipart `file`; profundidade ≤ 2 | 200; 400 caminho inválido; **403 para `/config`** (`isProtectedFsPath`) — restore por arquivo de `lang/`, `themes/`, `calib.csv` (`WebManager_Files.cpp:305`, `:323-345`) |
 | `GET /logout` | — | cookie | 302 + cookie expirado; libera o slot |
 
 ## Apêndice B — Decodificador de `/api/status` (unidades na fronteira)
@@ -709,6 +797,8 @@ trouxer`. O app mostra por aparelho o que está desabilitado e por quê.
 ## Apêndice C — Contrato dos campos do `commit_all` que o app pode emitir
 
 Tudo em `sys` salvo indicação. Faixas de `src/WebManager_Commit.cpp:700-1250` e `SystemDefs_Validate.h`.
+Inteiro **estrito** só nos escalares de `sys`; `users.perms/id`, `alarms.idx`, `alarms.sounds.*` e
+`net.web_port` usam `toInt()` (lixo vira 0) — o montador tipa e valida **antes**, não confia na recusa.
 
 | Campo | Tipo/faixa | Template? | Observação |
 |---|---|---|---|
@@ -738,14 +828,18 @@ Tudo em `sys` salvo indicação. Faixas de `src/WebManager_Commit.cpp:700-1250` 
 |---|---|---|
 | `docs/OTA_USAGE.md:42` | ler a versão de `/api/status` | não existe; está em `/api/perms` (`WebManager_Api.cpp:37-43`) |
 | `docs/MANUAL.md:857` | `/api/sensors` = leituras ao vivo | é o mapa de slots + drivers (`WebManager_Calib.cpp:95-181`) |
-| `docs/MANUAL.md:819-822` | snapshot de 4 KB no setor de metadata | 8 KiB em `0x1FD000`, nos 2 últimos setores do staging (`ota_layout.h:459-461`) |
+| `docs/MANUAL.md:819-822` | snapshot de 4 KB no setor de metadata | 8 KiB em `0x1FD000`, nos 2 últimos setores do staging (`ota_layout.h:68-70`) |
 | `docs/AUTHORIZATION.md:32` | `commit_all` refuses perms "when creating or **editing** users" | não há ação de editar (`Commit.cpp:1087`, `:1126`) |
 | `src/WebManager.h:6-7` | "HMAC nonces" | nonce comparado verbatim (`Auth.cpp:353`) |
 | `src/WebManager.h:167-169` | nonce de 64 hex | 32 hex (`WebManager_Util.cpp:41-47`) |
 | `src/WebManager_Auth.cpp:206` | `/api/login` passa por `ensureLoginStateSlot` | usa `findLoginStateForIp` (`:490`) |
 | `src/simut_config.h:217` | hostname `SIMUT.local` | é `<deviceName>.local` |
-| `src/MetricsManager.h:84-85` | "future web exposure" | já exposto em `/api/status.metr` e `/metrics` |
+| `src/MetricsManager.h:5` | "future web exposure" | já exposto em `/api/status.metr` e `/metrics` |
+| `src/WebManager_Ota.cpp:3` | o arquivo é "GET /api/backup" | contém backup, restore, stage e apply |
+| `src/WebManager_Ota.cpp:457`, `:506` | portão "PERM_FILE_UPLOAD" | `== PERM_FULL_ADMIN` (`:462`, `:523`) |
+| `src/WebManager_Ota.cpp:519` | "Retry guard: rejects if another apply was triggered in last 10s" | não existe implementação em `handleApiOtaApply` |
+| `docs/README.md:38` | "55-route authorization matrix" | `check_authz.py --list` conta 56 |
 | `src/WebManager_History.cpp:59-68` | `id=-1` ambiente, chave `h` | rejeita `id<0`, arrays por canal |
 | `tools/commit_bool_cases.py:95-97` | "ONE session slot" | 3 slots (`WebManager.h:155`) |
-| `AGENTS.md` (nota do Air) | CI não constrói `pico_w_air` | `build.yml:118-122` constrói |
+| `AGENTS.md:409-410` | "CI não cobre o Air (sem `pico_w_air` nem `native_air`)" | `build.yml:93` roda `native_air` e `:117-122` constrói os cinco envs, `pico_w_air` incluído |
 | `simut-rx/scripts/simut-api.py:24-27` | espaço após `:` apaga config | corrigido em 2.4.2-beta (`Commit.cpp:37-45`); `null` ainda apaga |
