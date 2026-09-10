@@ -115,7 +115,21 @@ depende da condição que pode falhar para sempre. Prazo + tentativa às cegas.
 **Teste:** bloquear NTP no roteador (ou apontar para um servidor morto) e provar
 que a telemetria ainda sai.
 
-### 2.3 F11 — a partição que nunca é limpa
+### 2.3 F11 — a partição que nunca é limpa — ⚠️ EM CURSO (a 1ª tentativa reprovou o controle de wake)
+
+**09/09:** o conserto do armazenamento funciona (imagem segurou o FS no limite de 86% por 6 wakes,
++0 B, contra a release que cresceu acima sem limpar; `STO_ENFORCE_BUDGET ctx=1` disparou), **mas na
+posição errada.** Pus o dreno em `airEnterDormant`, a poucas linhas do desligamento de clock e do WFI.
+Afirmei que não afetaria o wake — **errado, e o controle pegou:** release 2 wakes / 240 s × a imagem
+F11 **0 wakes / 240 s**, lado a lado na mesma bancada saudável. Uma amostra cada, com o intermitente
+do sono ativo, então "quebra determinística" não está provado (a imagem acordou 6× antes) — mas a
+assimetria é real e o lugar é exatamente onde a saga do F22 disse que a entrada de sono é delicada.
+**Não sobe.** Branch `fix/f11-storage-limit-in-m1` (commit `e22ee9b`) guarda o trabalho como registro.
+**Redesenho:** mover o dreno para a janela ACORDADA (depois do `processHistoryLogging` no DECIDE, onde
+uma gravação de flash já acontece em segurança), fora do caminho de sono — e revalidar com o controle
+de wake quando a bancada estiver estável.
+
+### ~~2.3-orig~~ F11 — a partição que nunca é limpa
 
 O M1 pula `StorageManager::update()` (limpeza de orçamento do FS) e nunca chama
 `flushPendingIfAny()`. **Em uso só-M1 — que é o uso do produto — a partição
