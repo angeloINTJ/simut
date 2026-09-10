@@ -89,6 +89,29 @@ void BluetoothManager::update( ) {
 
  const bool pt = (_language == LANG_PT);
 
+ /* A dropped BT link must drop the session with it. SPP hands BluetoothManager
+  * no disconnect callback, and _authenticated is otherwise cleared only on
+  * boot, on the idle timeout, and after a rejected password — so without this
+  * a second client that connects inside the 5-minute idle window inherits the
+  * admin session with no password at all. Measured over the air 2026-09-10:
+  * authenticate, drop the RFCOMM link, reconnect, and `air status` answered
+  * unprompted.
+  *
+  * availableForWrite( ) is the only PUBLIC view of the RFCOMM channel state:
+  * SerialBT returns `_connected ? 1 : 0` there (SerialBT.cpp). operator bool( )
+  * is NOT this — it returns `_running`, true for the whole session while the
+  * stack is up. The framework is pinned; a bump must re-verify this line, and
+  * tools/bt_reconnect_probe.py is the regression. The lockout state
+  * (_lockedUntil, _failCount) is deliberately left alone: a wrong guess must
+  * still cost time across a reconnect (V-01a). */
+ const bool btConnected = (SerialBT.availableForWrite( ) > 0);
+ if (_wasConnected && !btConnected) {
+  _authenticated = false;
+  _promptSent = false;
+  _authBuffer = "";
+ }
+ _wasConnected = btConnected;
+
  if (_authenticated) {
  if (timeSince(_lastActivityTime, _timeoutMs)) {
  SerialBT.println(pt
