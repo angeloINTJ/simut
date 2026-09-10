@@ -115,7 +115,21 @@ depende da condição que pode falhar para sempre. Prazo + tentativa às cegas.
 **Teste:** bloquear NTP no roteador (ou apontar para um servidor morto) e provar
 que a telemetria ainda sai.
 
-### 2.3 F11 — a partição que nunca é limpa
+### 2.3 F11 — a partição que nunca é limpa — ⚠️ EM CURSO (a 1ª tentativa reprovou o controle de wake)
+
+**09/09:** o conserto do armazenamento funciona (imagem segurou o FS no limite de 86% por 6 wakes,
++0 B, contra a release que cresceu acima sem limpar; `STO_ENFORCE_BUDGET ctx=1` disparou), **mas na
+posição errada.** Pus o dreno em `airEnterDormant`, a poucas linhas do desligamento de clock e do WFI.
+Afirmei que não afetaria o wake — **errado, e o controle pegou:** release 2 wakes / 240 s × a imagem
+F11 **0 wakes / 240 s**, lado a lado na mesma bancada saudável. Uma amostra cada, com o intermitente
+do sono ativo, então "quebra determinística" não está provado (a imagem acordou 6× antes) — mas a
+assimetria é real e o lugar é exatamente onde a saga do F22 disse que a entrada de sono é delicada.
+**Não sobe.** Branch `fix/f11-storage-limit-in-m1` (commit `e22ee9b`) guarda o trabalho como registro.
+**Redesenho:** mover o dreno para a janela ACORDADA (depois do `processHistoryLogging` no DECIDE, onde
+uma gravação de flash já acontece em segurança), fora do caminho de sono — e revalidar com o controle
+de wake quando a bancada estiver estável.
+
+### ~~2.3-orig~~ F11 — a partição que nunca é limpa
 
 O M1 pula `StorageManager::update()` (limpeza de orçamento do FS) e nunca chama
 `flushPendingIfAny()`. **Em uso só-M1 — que é o uso do produto — a partição
@@ -129,10 +143,12 @@ negativo (a mesma corrida com a limpeza desativada tem que ENCHER).
 ⚠️ **Medir `fs_u` pelo delta do arquivo do dia dá +0 e engana** — bloco aberto.
 Ver `full_history( )` em `tools/air_test_suite.py` e a linha do F23 no `SIMUT_AIR_PLANO_FIX.md`.
 
-### 2.4 F12 — `air stop` por Bluetooth não funciona em M1
+### ~~2.4~~ ✅ F12 — `air stop` por Bluetooth não funciona em M1 — DOCUMENTADO (09/09)
 
-O laço M1 só chama `processInput` (USB). Funcionalidade ausente, não risco.
-Fechar por último ou aceitar como limitação documentada.
+O laço M1 só chama `processInput` (USB). Funcionalidade ausente, não risco. **Decisão do Ângelo
+(09/09): não corrigir — a folga de flash do Air é apertada (4.972 B) e não é risco de segurança.**
+Documentado como limitação no `CLI-Manual.md` (nota sobre `air stop` por BT em M1) e a linha do
+`SIMUT_AIR_PLANO_FIX.md` virou. Fecha o achado.
 
 **Critério de saída:** cada achado com um teste que o cobre na suíte, e a tabela
 do `SIMUT_AIR_PLANO_FIX.md` sem `F` na coluna de estado.
@@ -196,7 +212,7 @@ telemetria.
 
 | # | item | nota |
 |---|---|---|
-| 4.1 | **PCB**: re-exportar da fonte corrigida com KiCad 10.0.6 | a `main` está nos gerbers de 06/09; a re-exportação da branch air foi descartada no merge porque vinha de fonte **sem** a correção de pinout. Conferir o pinout do display **no gerber**, não no fonte |
+| ~~4.1~~ | ✅ **PCB: nada a fazer — a `main` já está correta, verificado 09/09** | re-exportei os gerbers da fonte de `main` (`simut PCB.kicad_pcb`, corrigida em `d64bacd`) com o `kicad-cli` 10.0.6 e comparei com os commitados: **geometria idêntica como conjunto** — 213 flashes no F_Cu, 173 no B_Cu, mesmas aperturas; a diferença linha-a-linha era só renumeração de aperturas. O "falta re-exportar" era da cópia da branch air, descartada no merge; a `main` nunca teve o problema |
 | ~~4.2~~ | ✅ **Folga real do Air: 4.972 B** — os dois números eram verdadeiros e mediam coisas diferentes | `used 1.025.600` do PIO é a **soma das seções**; o `.bin` tem **1.039.508 B**. A diferença (13.908 B) é o linker alinhando a LMA do `.data` em 4 KiB (`readelf -l`: o LOAD 1 termina em 0xfc000 e o `.data` começa ali). Folga real = `1.044.480 − fim do último LOAD` = **4.972 B**, e anda em degraus de 4 KiB: os próximos ~13,9 KB de `.text/.rodata` são de graça; passado o degrau, sobram **876 B**. O portão do `flash_budget.json` lê a linha do PIO por desenho (marca d'água, não teto) |
 | 4.3 | **`rig_validate_history_clock.py`** | afirma "nenhum registro do trecho drenado foi pulado" com `expected − seen`; registro no bloco aberto não entra em `expected`, então um pulo ali não aparece. **Falso positivo por construção.** Medir se morde; corrigir com `full_history` se sim |
 | ~~4.4~~ | ✅ Varrido: 7 leitores | `history_v5.py` é o codec; `test_webui_graph_order.py` e `test_h5_day_merge.py` usam fixture; `fsguard.py` e `h5_day_merge.py` tratam o `.wip` explicitamente (15× e 5×) — é o bloco aberto, por desenho. **Sobra só a 4.3** |
