@@ -103,17 +103,29 @@ Sete, triados por **consequência**, não por esforço:
 ⚠️ **F14 tem armadilha conhecida** (F27, `isFactoryDefaults`): mexer em
 `AIR_CONFIG_VERSION` quebra quem lia a versão antiga. Migração com teste.
 
-### 2.2 F08 — o aparelho que fica offline para sempre
+### 2.2 F08 — o aparelho que fica offline para sempre — ⚠️ FIX ESCRITO, repro bloqueado (PR #103, DRAFT)
 
-`DECIDE` só vai a `CONNECT` quando já está `NET_READY`, que exige NTP **sem
-fallback**. Um pacote NTP perdido e o wake nunca transmite.
+`DECIDE` só ia a `CONNECT` com `NET_READY`, que exige NTP e **não tem timeout**
+para sair do `NET_CONNECTED_WAIT_NTP`. Rede sem fonte de tempo = o wake dormia
+sem tentar (perda silenciosa). Eram **três** portões, não um (DECIDE, CONNECT e
+o `netLost` do FLUSH via `isNetworkHealthy`), todos exigindo NET_READY.
 
-É o irmão exato do defeito de Wi-Fi que abriu esta sessão — *a reconexão exigia
-uma varredura e o boot não* — e o conserto tem a mesma forma: um caminho que não
-depende da condição que pode falhar para sempre. Prazo + tentativa às cegas.
+✅ **Fix escrito (10/09):** os três passaram a `isLinkUp()`/`isLinkHealthy()`
+(associado + IP, sem NTP); o timestamp vem do relógio provisório até o NTP
+corrigir. Branch `fix/f08-send-on-link-not-ntp`, commit `84de35b`.
 
-**Teste:** bloquear NTP no roteador (ou apontar para um servidor morto) e provar
-que a telemetria ainda sai.
+✅ **Caminho saudável VALIDADO no ferro:** imagem F08, LAN real, NTP sincronizado
+→ 52 registros drenados a um coletor em 6 wakes; o refactor não quebra o envio normal.
+
+🔴 **O fix em si (enviar em WAIT_NTP) NÃO foi validado no ferro.** O repro exige
+NTP falhando com o link de pé, e a bancada desta noite não produz isso: o hotspot
+do NetworkManager NATeia para a internet do host (NTP sincroniza), sem sudo não dá
+para bloquear NTP, e a config static-IP + DNS-morto associou instável (e estrandou
+a bancada 2×). **Precisa de um AP realmente offline ou regra de firewall (udp/123)**
+— infra do Ângelo. Teste pronto em `scratchpad/f08_test.py`.
+
+⚠️ `/api/status` "ntp" = `isTimeSynced()` = relógio provisório, VERDADEIRO mesmo
+offline — não indica sincronização real.
 
 ### 2.3 F11 — a partição que nunca é limpa — ⚠️ EM CURSO (a 1ª tentativa reprovou o controle de wake)
 
