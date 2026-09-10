@@ -158,6 +158,7 @@ enum LogCode {
   * do. The one record that says "the device restarted" on a build where every
   * ordinary wake is also a boot and deliberately says nothing. */
  APP_AIR_COLD_BOOT = 412,
+ APP_AIR_SLEEP_CLAMPED = 413, /**< plan F10: a day-long sleep aliases the time-of-day alarm */
 
  /* ── Application UI events (440–469) ── */
  APP_UI_THEME_CHANGED = 440,

@@ -107,22 +107,67 @@ def adapter_ok():
         return False
 
 
+def _hci_adapter():
+    """First adapter hcitool knows about, or None when it knows none.
+
+    Hard-coding hci0 cost the first run of this tool on 2026-09-09: hcitool
+    answered 'Invalid device' and the empty result read exactly like a device
+    with its discovery window closed — a false pass waiting to happen for
+    V-01b. Ask, do not assume.
+    """
+    try:
+        out = subprocess.run(['hcitool', 'dev'], capture_output=True, text=True, timeout=5).stdout
+    except Exception:
+        return None
+    m = re.search(r'\b(hci\d+)\b', out)
+    return m.group(1) if m else None
+
+
 def inquiry(seconds=12):
-    """One inquiry scan. Returns {address: name} for what answered.
+    """One inquiry scan. Returns {address: name} for what answered NOW.
 
     hcitool's `scan` is a classic inquiry, which is what BT_DISCOVERABLE_MS
     controls — not an LE scan, which would answer a different question and
     find nothing either way on this device.
+
+    When hcitool has no adapter (the BlueZ build here exposes one to
+    bluetoothctl only), fall back to bluetoothctl — with the cache CLEARED
+    first. `bluetoothctl devices` lists everything it has ever seen, and a
+    device remembered from a scan five minutes ago would make the window look
+    open forever. Forgetting it before each scan makes the answer about now.
     """
+    adapter = _hci_adapter()
+    if adapter:
+        try:
+            out = subprocess.run(['hcitool', '-i', adapter, 'scan', '--flush'],
+                                 capture_output=True, text=True,
+                                 timeout=seconds + 10).stdout
+        except Exception as e:
+            return {'__error__': str(e)}
+        found = {}
+        for line in out.splitlines():
+            m = re.match(r'\s*((?:[0-9A-F]{2}:){5}[0-9A-F]{2})\s+(.*)', line, re.I)
+            if m:
+                found[m.group(1).upper()] = m.group(2).strip()
+        return found
+
     try:
-        out = subprocess.run(['hcitool', '-i', 'hci0', 'scan', '--flush'],
-                             capture_output=True, text=True,
-                             timeout=seconds + 10).stdout
+        known = subprocess.run(['bluetoothctl', 'devices'], capture_output=True,
+                               text=True, timeout=10).stdout
+        for line in known.splitlines():
+            m = re.match(r'Device\s+((?:[0-9A-F]{2}:){5}[0-9A-F]{2})', line, re.I)
+            if m:
+                subprocess.run(['bluetoothctl', 'remove', m.group(1)],
+                               capture_output=True, text=True, timeout=10)
+        subprocess.run(['bluetoothctl', '--timeout', str(seconds), 'scan', 'on'],
+                       capture_output=True, text=True, timeout=seconds + 10)
+        out = subprocess.run(['bluetoothctl', 'devices'], capture_output=True,
+                             text=True, timeout=10).stdout
     except Exception as e:
         return {'__error__': str(e)}
     found = {}
     for line in out.splitlines():
-        m = re.match(r'\s*((?:[0-9A-F]{2}:){5}[0-9A-F]{2})\s+(.*)', line, re.I)
+        m = re.match(r'Device\s+((?:[0-9A-F]{2}:){5}[0-9A-F]{2})\s+(.*)', line, re.I)
         if m:
             found[m.group(1).upper()] = m.group(2).strip()
     return found
@@ -139,19 +184,28 @@ def find_device(name_hint='simut', tries=2):
     return None, None
 
 
-def rfcomm_connect(addr, channel=1, timeout=12):
-    """RFCOMM socket to the device, or None. No pybluez: the kernel does it."""
-    s = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
-    s.settimeout(timeout)
-    try:
-        s.connect((addr, channel))
-        return s
-    except Exception:
+def rfcomm_connect(addr, channel=1, timeout=12, retry_s=0.0):
+    """RFCOMM socket to the device, or None. No pybluez: the kernel does it.
+
+    `retry_s` keeps trying for that long: a connect refused in the second
+    after a close is the link being torn down, not the device saying no, and
+    on 2026-09-09 reading it as "no" cost this check its verdict.
+    """
+    deadline = time.time() + retry_s
+    while True:
+        s = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
+        s.settimeout(timeout)
         try:
-            s.close()
+            s.connect((addr, channel))
+            return s
         except Exception:
-            pass
-        return None
+            try:
+                s.close()
+            except Exception:
+                pass
+            if time.time() >= deadline:
+                return None
+            time.sleep(0.3)
 
 
 def read_for(sock, seconds):
@@ -175,72 +229,117 @@ def read_for(sock, seconds):
 # ── the checks ──────────────────────────────────────────────────────────────
 
 def check_lockout(addr):
-    """V-01a. Three wrong passwords, with a disconnect in the middle."""
+    """V-01a. Wrong passwords, a dropped link, and the lockout still there.
+
+    The ladder is authLockoutMs(n) = 1000 << n ms after the n-th failure, so
+    the first rung is 2 s — shorter than a close-and-reconnect on this stack,
+    which refuses a new RFCOMM link for about a second after the old one
+    goes. Measured 2026-09-09: with a 1 s pause the rung had expired (a fresh
+    prompt read as "reconnect cleared the lockout"), without it the connect
+    was refused. So the link is dropped on the THIRD failure, whose 8 s rung
+    leaves room to reconnect and read the notice; the fourth proves the rung
+    grew. The device is reset first so the count starts at zero: the count
+    lives in RAM and survives everything but a boot, including this tool's
+    previous run.
+    """
     print('\n── V-01a — lockout do CLI Bluetooth ──')
     results = []
+    prompts = ('Admin password', 'Senha do admin')
+    locked_words = ('Bloqueado', 'Locked', 'locked')
 
-    s = rfcomm_connect(addr)
+    if hand('PING').startswith('PONG'):
+        print('  RESET para zerar o contador de falhas (vive na RAM)')
+        hand('RESET')
+        time.sleep(25)
+
+    s = rfcomm_connect(addr, retry_s=5.0)
     if not s:
         return [('V-01a', 'SKIP', 'RFCOMM recusou a conexão')]
 
-    banner = read_for(s, 4)
-    prompts = ('Admin password', 'Senha do admin')
-    if not any(p in banner for p in prompts):
-        s.close()
-        return [('V-01a', 'SKIP',
-                 f'sem prompt de senha; recebido: {banner.strip()[:70]!r}')]
-    print('  prompt de senha recebido')
+    s.sendall(b'\r\n')
+    banner = read_for(s, 6)
+    if any(p in banner for p in prompts):
+        print('  prompt de senha recebido')
+    else:
+        # The firmware never watches for a client DISCONNECT, so a session
+        # that ended with a prompt outstanding leaves _promptSent true and the
+        # next client's CR/LF is the empty-buffer no-op. A non-empty line is
+        # still answered — the only way to tell "prompt spent" from "nobody
+        # home". Minor finding, recorded 2026-09-09.
+        print('  sem prompt — testando se a sessão está viva com uma senha errada')
 
-    # First wrong guess: must be denied, and must start the clock.
-    s.sendall(b'senha-errada-1\r\n')
-    r1 = read_for(s, 4)
-    denied = any(k in r1 for k in ('negado', 'denied', 'Denied'))
+    def fail(n):
+        s.sendall(f'senha-errada-{n}\r\n'.encode())
+        r = read_for(s, 4)
+        return any(k in r for k in ('negado', 'denied', 'Denied')), r
+
+    denied, r1 = fail(1)
+    if not denied and not any(p in banner for p in prompts):
+        s.close()
+        return [('V-01a', 'SKIP', f'sem prompt e sem recusa — ninguém em casa; '
+                                  f'recebido: {(banner + r1).strip()[:70]!r}')]
     results.append(('V-01a.1', 'PASS' if denied else 'FAIL',
                     'primeira senha errada foi recusada' if denied
                     else f'esperava recusa, veio {r1.strip()[:60]!r}'))
 
-    # Drop the link. THIS is the finding: reconnecting used to clear the count.
-    s.close()
-    time.sleep(1.0)
-    s = rfcomm_connect(addr)
-    if not s:
-        results.append(('V-01a.2', 'SKIP', 'reconexão recusada — não dá para julgar'))
-        return results
+    # Climb to the 8 s rung on the same link: bytes are dropped while locked,
+    # so each next guess waits its predecessor out.
+    for n in (2, 3):
+        time.sleep(lockout_ms(n - 1) / 1000.0 + 0.8)
+        s.sendall(b'\r\n'); read_for(s, 2)          # re-prompt after the denial
+        ok, r = fail(n)
+        if not ok:
+            results.append(('V-01a.1', 'FAIL', f'{n}ª senha errada não foi recusada: {r.strip()[:60]!r}'))
+            s.close()
+            return results
 
-    r2 = read_for(s, 4)
-    locked = any(k in r2 for k in ('Bloqueado', 'Locked', 'locked'))
+    # Drop the link inside the 8 s rung. THIS is the finding: reconnecting
+    # used to clear the count.
+    t_locked = time.time()
+    s.close()
+    s = rfcomm_connect(addr, retry_s=4.0)
+    if not s:
+        results.append(('V-01a.2', 'SKIP', 'reconexão recusada por 4 s — não dá para julgar'))
+        return results
+    # What "locked" looks like from a NEW link: silence. The notice goes out
+    # once per lockout, to whichever link was up when it started — repeating
+    # it on every byte would make the block an amplifier (BluetoothManager.cpp)
+    # — and every byte after it is dropped unread. So the probe is a real
+    # password line: unlocked, it is answered ("Acesso negado", or a prompt
+    # first); locked, nothing comes back at all. Reading "no Bloqueado" as
+    # "not locked" was this check's own mistake on 2026-09-09.
+    s.sendall(b'\r\nsenha-sonda\r\n')
+    r2 = read_for(s, 3)
+    answered = any(p in r2 for p in prompts) or any(k in r2 for k in ('negado', 'denied', 'Denied'))
+    locked = any(k in r2 for k in locked_words) or not answered
     results.append(('V-01a.2', 'PASS' if locked else 'FAIL',
-                    'o lockout sobreviveu à reconexão'
-                    if locked else
+                    f'o lockout de {lockout_ms(3)/1000:.0f} s sobreviveu à reconexão '
+                    f'({time.time() - t_locked:.1f} s depois da 3ª falha)' if locked else
                     'reconectar limpou o lockout — este É o achado V-01a; '
                     f'recebido: {r2.strip()[:70]!r}'))
 
-    # The penalty must grow. Wait out the first one, fail again, and the second
-    # wait has to be longer than the first.
+    # The penalty must grow: wait the 8 s out, fail a fourth time, and the
+    # next reconnect must still find the door shut — 16 s now.
     if locked:
-        time.sleep(lockout_ms(1) / 1000.0 + 1.0)
-        s.close()
-        s = rfcomm_connect(addr)
-        if s:
-            r3 = read_for(s, 4)
-            if any(p in r3 for p in prompts):
-                s.sendall(b'senha-errada-2\r\n')
-                read_for(s, 3)
-                s.close()
-                time.sleep(1.0)
-                s = rfcomm_connect(addr)
-                if s:
-                    r4 = read_for(s, 4)
-                    still = any(k in r4 for k in ('Bloqueado', 'Locked', 'locked'))
-                    results.append(('V-01a.3', 'PASS' if still else 'FAIL',
-                                    f'a segunda falha bloqueou de novo '
-                                    f'(escada: {lockout_ms(1)/1000:.0f}s → '
-                                    f'{lockout_ms(2)/1000:.0f}s)'
-                                    if still else
-                                    'a segunda falha não bloqueou'))
-            else:
-                results.append(('V-01a.3', 'SKIP',
-                                'o lockout não expirou quando a escada previa'))
+        time.sleep(max(0.0, lockout_ms(3) / 1000.0 - (time.time() - t_locked)) + 1.0)
+        s.sendall(b'\r\n')
+        r3 = read_for(s, 4)
+        if any(p in r3 for p in prompts):
+            ok, _ = fail(4)
+            s.close()
+            s = rfcomm_connect(addr, retry_s=4.0)
+            if s:
+                s.sendall(b'\r\nsenha-sonda\r\n')
+                r4 = read_for(s, 3)
+                answered4 = any(p in r4 for p in prompts) or any(k in r4 for k in ('negado', 'denied', 'Denied'))
+                still = any(k in r4 for k in locked_words) or not answered4
+                results.append(('V-01a.3', 'PASS' if still else 'FAIL',
+                                f'a 4ª falha bloqueou de novo (escada: {lockout_ms(3)/1000:.0f}s → '
+                                f'{lockout_ms(4)/1000:.0f}s)' if still else
+                                f'a 4ª falha não bloqueou: {r4.strip()[:60]!r}'))
+        else:
+            results.append(('V-01a.3', 'SKIP',
+                            f'o lockout não expirou quando a escada previa: {r3.strip()[:60]!r}'))
     if s:
         s.close()
     return results
@@ -309,6 +408,19 @@ def main():
 
     try:
         addr, name = find_device()
+        if not addr and args.only != 'window' and hand('PING').startswith('PONG'):
+            # Two honest reasons for silence on an Air, neither a failure: the
+            # discovery window closed five minutes after the last boot, or the
+            # device was ASLEEP when the inquiry ran — CHARGER keeps it from
+            # going to sleep, it does not wake it. A reset with the charger held
+            # answers both: a fresh boot, a fresh window, and it stays up.
+            # Measured 2026-09-09: the first run of this tool against the bench
+            # died here with the device mid-cycle.
+            print('  sem resposta à varredura — RESET pela mão para abrir uma '
+                  'janela nova (o CHARGER segura o aparelho acordado)')
+            hand('RESET')
+            time.sleep(25)                       # boot + pilha Bluetooth de pé
+            addr, name = find_device()
         if not addr and args.only != 'window':
             print('ERRO: o aparelho não respondeu a uma varredura. Se a janela '
                   'de descoberta já fechou, reinicie-o e rode de novo — é o '

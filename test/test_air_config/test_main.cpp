@@ -166,6 +166,25 @@ static void test_idle_sec_bounds(void) {
     }
 }
 
+/* Plan F10. The number is the easy half; the property is the point: for every
+ * sleep the alarm can name, (now + sleep) must never share now's time of day,
+ * or the RTC comparison decides between "at once" and "tomorrow" on its own. */
+static void test_sleep_sec_bounded(void) {
+    TEST_ASSERT_EQUAL_UINT32(1, airSleepSecBounded(0));
+    TEST_ASSERT_EQUAL_UINT32(120, airSleepSecBounded(120));
+    TEST_ASSERT_EQUAL_UINT32(86399, airSleepSecBounded(86399));
+    TEST_ASSERT_EQUAL_UINT32(86399, airSleepSecBounded(86400));   /* h_int = 1440 */
+    TEST_ASSERT_EQUAL_UINT32(86399, airSleepSecBounded(100000));
+    TEST_ASSERT_EQUAL_UINT32(86399, airSleepSecBounded(0xFFFFFFFFu));
+    /* The alias itself, and its absence after the bound, over every base
+     * second of a day at the values that matter. */
+    for (uint32_t base = 0; base < 86400; base += 613) {
+        TEST_ASSERT_EQUAL_UINT32(base % 86400, (base + 86400) % 86400);             /* the F10 alias */
+        TEST_ASSERT_NOT_EQUAL(base % 86400, (base + airSleepSecBounded(86400)) % 86400);
+        TEST_ASSERT_NOT_EQUAL(base % 86400, (base + airSleepSecBounded(1)) % 86400);
+    }
+}
+
 int main(void) {
     UNITY_BEGIN( );
     RUN_TEST(test_default_config);
@@ -180,5 +199,6 @@ int main(void) {
     RUN_TEST(test_pin_denylist_cyw43);
     RUN_TEST(test_sanitise_resets_denied_pin);
     RUN_TEST(test_idle_sec_bounds);
+    RUN_TEST(test_sleep_sec_bounded);
     return UNITY_END( );
 }

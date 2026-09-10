@@ -15,7 +15,12 @@ and that each broke a different JSON response for EVERY user of the device:
 
 WHY IT IS AN A/B AND NOT A CHECKLIST
     Run this against firmware from before the fix and cases 1 and 2 must show
-    `broke=yes` -- that failure IS the positive control. A tool that reports
+    `broke=yes` -- that failure IS the positive control. On a bench whose host
+    reaches the device only over the LAN, case 1 can be judged on the WRITE
+    alone: pre-fix firmware answers 200 and then leaves the network with the
+    probe as its SSID (the response half is unobservable from here); fixed
+    firmware refuses the write and stays. Case 2 shows both halves on any
+    bench, which is why it runs first. A tool that reports
     "all good" on both images measured nothing, and this project has lost whole
     sessions to instruments that only looked like they worked
     (docs: validate-the-instrument).
@@ -153,9 +158,15 @@ class Device:
 def commit(dev, section, fields):
     """POST /api/commit_all with one section. Returns (http, rejected list)."""
     payload = {section: fields}
+    # The device reads the JSON out of a FORM FIELD named _payload — the way
+    # the page posts it (WebManager_Commit.cpp: "Missing _payload" is its 400).
+    # This function used to post a raw JSON body, which that check refuses
+    # before any string is looked at; the tool then reported PASS (refused)
+    # on every image, INCLUDING the one from before the fix. Found on
+    # 2026-09-09 by the A/B this file's own docstring insists on: the
+    # positive control did not fire, so the instrument was measuring nothing.
     try:
-        r = dev.post('/api/commit_all', data=json.dumps(payload),
-                     headers={'Content-Type': 'application/json'})
+        r = dev.post('/api/commit_all', data={'_payload': json.dumps(payload)})
     except requests.RequestException as e:
         return None, [f'transport: {type(e).__name__}']
     rejected = []
@@ -240,7 +251,14 @@ def case_hwid(dev, user, password, results):
     original = active[0]['id']
     print(f'  baseline slot {slot} hwId = {original!r}')
 
-    http, rejected = commit(dev, 'sensors', [{'idx': slot, 'hwId': HWID_PROBE}])
+    # The device parses sensor provisioning under "slots":{"s":[{"i":N,...}]}
+    # — not "sensors", which is nested inside "alarms" and "calib" and is
+    # deliberately not a top-level key (WebManager_Commit.cpp). Sent as
+    # "sensors" the write was refused with 400 "No section" before any
+    # string was looked at, on every image: a second way for this tool to
+    # pass everywhere. Found 2026-09-09 by reading the 400's body. Fields
+    # left out keep the slot's current values, so only hwId moves.
+    http, rejected = commit(dev, 'slots', {'s': [{'i': slot, 'hwId': HWID_PROBE}]})
     refused = (http is not None and http >= 400) or any('hwId' in r for r in rejected)
     print(f'  commit hwId={HWID_PROBE!r} -> HTTP {http}, rejected={rejected}')
 
@@ -255,7 +273,7 @@ def case_hwid(dev, user, password, results):
     body, ok, why = dev.raw('/api/status')
     c.accepted, c.parses, c.detail = True, ok, why
 
-    http, rejected = commit(dev, 'sensors', [{'idx': slot, 'hwId': original}])
+    http, rejected = commit(dev, 'slots', {'s': [{'i': slot, 'hwId': original}]})
     print(f'  restore hwId={original!r} -> HTTP {http}, rejected={rejected}')
     dev.wait_reboot(user, password)
     body, ok, _ = dev.raw('/api/status')
@@ -338,6 +356,10 @@ def main():
     ap.add_argument('--lang-pack', default='data/lang/language_pt-BR.lng',
                     help='the ORIGINAL pack, used to restore (must exist)')
     ap.add_argument('--json', help='write the results here')
+    ap.add_argument('--cases', default='hwid,ssid',
+                    help='which cases, in order (default hwid,ssid). ssid goes LAST on '
+                         'purpose: once the device stores the probe SSID it leaves the '
+                         'network, and nothing after it can be observed from this host')
     args = ap.parse_args()
 
     if not args.host:
@@ -355,10 +377,26 @@ def main():
         return 2
 
     results = []
-    print('case 1 — net.ssid in /api/network')
-    case_ssid(dev, args.user, args.password, results)
-    print('case 2 — sensor hwId in /api/status')
-    case_hwid(dev, args.user, args.password, results)
+    # hwId first, ssid last. Storing the probe SSID is exactly what case 1 is
+    # about, and on firmware that accepts it the device reboots into a network
+    # that does not exist and is gone from this host's point of view — so
+    # nothing that runs after it can be observed, and the tool's own restore
+    # cannot reach it either. Measured 2026-09-09 on the pre-fix image: HTTP
+    # 200, then "device did not come back", then case 2 with no baseline. The
+    # way back is the console: `system ssid <the real one>` + `reload confirm`.
+    for name in [c.strip().lower() for c in args.cases.split(',') if c.strip()]:
+        if name == 'hwid':
+            print('case 2 — sensor hwId in /api/status')
+            case_hwid(dev, args.user, args.password, results)
+        elif name == 'ssid':
+            print('case 1 — net.ssid in /api/network')
+            case_ssid(dev, args.user, args.password, results)
+            if any(r.name == 'net.ssid' and r.accepted for r in results):
+                print('  NOTE: the device now holds the probe SSID and has left the network. '
+                      'Recover over the console: `system ssid <real ssid>` then `reload confirm`.')
+        else:
+            print(f'unknown case {name!r} (hwid, ssid)', file=sys.stderr)
+            return 2
     if args.with_lang:
         print('case 3 — .lng @NAME in /api/perms')
         case_lang(dev, args.user, args.password, args.lang_pack, results)

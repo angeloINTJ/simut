@@ -195,6 +195,28 @@ inline bool airIdleSecValid(long sec) {
   return sec >= 10 && sec <= 65535;
 }
 
+/* The longest sleep the wake alarm can express (plan F10).
+ *
+ * The RP2040 RTC alarm used for the wake matches on TIME OF DAY: hour, minute
+ * and second, with the date left as don't-care (AppManager_Air.cpp,
+ * `t.hour = (alarmSec / 3600) % 24`). A sleep of exactly 86400 s therefore
+ * asks for an alarm at the very h:m:s the RTC already reads, and the device
+ * either wakes at once or a day late, depending on which side of the tick the
+ * comparison lands. `h_int` accepts up to 1440 min — the mains builds have no
+ * reason to refuse a 24 h cadence — so the bound lives here, on the only path
+ * that turns the interval into an alarm. One second short of a day is the
+ * longest value the alarm can name unambiguously. */
+#define AIR_MAX_SLEEP_SEC 86399UL
+
+/* Sleep seconds the alarm can actually represent: at least one, at most a
+ * second under a day. Same shape as airIdleSecValid( ) and tested the same
+ * way, because the property that matters is not the number itself but that
+ * (now + sleep) never lands on now's own time of day. */
+inline uint32_t airSleepSecBounded(uint32_t sec) {
+  if (sec == 0) return 1;
+  return (sec > AIR_MAX_SLEEP_SEC) ? (uint32_t)AIR_MAX_SLEEP_SEC : sec;
+}
+
 /* Fix up what a file cannot be trusted to carry: a field whose meaning changed
  * under it (chargerPin, see the struct) reads as whatever the old field held. */
 inline void airSanitise(AirConfig& c) {
