@@ -83,6 +83,23 @@ public:
  bool isConnected( );
  bool isApConfig( ) const { return _state == NET_AP_CONFIG; } /**< True while serving the setup Access Point — forces HTTP so a bad TLS cert cannot lock the recovery UI. */
  bool isTimeSynced( );
+
+ /**
+  * @brief The STA link carries traffic — associated with an IP — regardless of NTP.
+  *
+  * isConnected( ) is NET_READY, which is only reached AFTER NTP returns a time,
+  * and nothing times the NTP wait out. So on a network without internet (or a
+  * lost NTP packet) isConnected( ) stays false forever and any send path gated
+  * on it never runs — the SIMUT Air telemetry wake slept without ever trying
+  * (plan F08). DHCP is already done by NET_CONNECTED_WAIT_NTP, so from that
+  * state on the link can carry an upload; the timestamps in the payload come
+  * from the history records (provisional clock until NTP corrects it), which
+  * is the accepted trade — an approximate stamp beats losing the measurement.
+  */
+ bool isLinkUp( ) const { return _state == NET_READY || _state == NET_CONNECTED_WAIT_NTP; }
+
+ /** isLinkUp( ) with the same RSSI floor isNetworkHealthy( ) applies (F08). */
+ bool isLinkHealthy( );
  int32_t getRssi( );
 
  /**
