@@ -115,7 +115,7 @@ depende da condição que pode falhar para sempre. Prazo + tentativa às cegas.
 **Teste:** bloquear NTP no roteador (ou apontar para um servidor morto) e provar
 que a telemetria ainda sai.
 
-### 2.3 F11 — a partição que nunca é limpa — ⚠️ EM CURSO (a 1ª tentativa reprovou o controle de wake)
+### ~~2.3~~ ✅ F11 — a partição que nunca é limpa — CORRIGIDO (redesenho, PR #102)
 
 **09/09:** o conserto do armazenamento funciona (imagem segurou o FS no limite de 86% por 6 wakes,
 +0 B, contra a release que cresceu acima sem limpar; `STO_ENFORCE_BUDGET ctx=1` disparou), **mas na
@@ -128,6 +128,16 @@ assimetria é real e o lugar é exatamente onde a saga do F22 disse que a entrad
 **Redesenho:** mover o dreno para a janela ACORDADA (depois do `processHistoryLogging` no DECIDE, onde
 uma gravação de flash já acontece em segurança), fora do caminho de sono — e revalidar com o controle
 de wake quando a bancada estiver estável.
+
+✅ **09/09 noite — FEITO e MEDIDO.** O dreno foi para o `AIR_PHASE_DECIDE`, ao lado da gravação de
+histórico que já roda ali. **Wake limpo: 2 wakes/240 s idênticos à release + 11 wakes limpos numa
+janela de 600 s sem toque** (a regressão da 1ª tentativa sumiu). **Dreno funciona:**
+`STO_ENFORCE_BUDGET ctx=1` e `ctx=2` (arquivos apagados) e o FS **fixo em 86%** — o limite — em vez de
+crescer acima como a release. Em uso só-M1 o laço M0 não roda, então um dreno disparando com o aparelho
+ciclando sem toque é o caminho do DECIDE por construção. Código de enforcement idêntico ao da 1ª
+tentativa; só o sítio da chamada mudou. `check_air_consistency` C1–C8 limpo, `native_logpolicy` 39/39,
+teto de flash 2.516 B de folga. Branch `fix/f11-storage-limit-in-m1` (`e22ee9b`) fica como registro do
+porquê o sítio de sono reprova; **não mergear**.
 
 ### ~~2.3-orig~~ F11 — a partição que nunca é limpa
 
