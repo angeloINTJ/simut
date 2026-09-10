@@ -448,10 +448,21 @@ void StorageManager::update( ) {
   * cleanup one file at a time, at least 15 s apart, instead of the old
   * 4 s deletion burst. Runs from the Core-0 loop; enforceStorageLimit
   * caps itself at 2 deletions and re-arms _cleanupPending as needed. */
- if (_cleanupPending && _isMounted && !TouchPriority::isActive( )) {
+ /* Plan F11: the slice used to run only while _cleanupPending was set, and
+  * the only thing that sets it is enforceStorageLimit( ) itself, which only
+  * ran when a day file was created. So between rollovers nothing looked at
+  * the usage at all — and the flag is RAM, so a reboot above the limit left
+  * the device there until the next day. Measured 2026-09-09: 87.5% used,
+  * 15.7 KB over, no cleanup logged since the rollover. Now the slice also
+  * looks once a minute; enforceStorageLimit( ) answers in one info( ) call
+  * when there is nothing to do. */
+ if (_isMounted && !TouchPriority::isActive( )) {
   static uint32_t _lastCleanupSlice = 0;
-  if (timeSince(_lastCleanupSlice, 15000)) {
-   _lastCleanupSlice = millis( );
+  static uint32_t _lastBudgetLook = 0;
+  const bool due = _cleanupPending ? timeSince(_lastCleanupSlice, 15000)
+                                   : timeSince(_lastBudgetLook, 60000);
+  if (due) {
+   _lastCleanupSlice = _lastBudgetLook = millis( );
    Core1FlashPause _c1(this); /* file deletion = erase burst */
    FLASH_OP(enforceStorageLimit( ));
   }
@@ -460,6 +471,23 @@ void StorageManager::update( ) {
  /* V5: the open block is snapshotted to /history/.wip once per record, from
   * writeHistoryEntryV5 itself. What used to be here — the age-out drain of
   * the V4 RAM batch — has no batch to drain. */
+}
+
+uint8_t StorageManager::drainStorageLimit(uint8_t maxFiles) {
+ if (!_isMounted) return 0;
+ uint8_t deleted = 0;
+ /* Every pass frees at most two files; the loop ends when the limit is
+  * satisfied (enforceStorageLimit clears _cleanupPending) or the cap is
+  * reached. feedWdt( ) is harmless with the watchdog disarmed, and keeps
+  * this correct if it is ever called with it armed. */
+ for (uint8_t pass = 0; pass < maxFiles; pass++) {
+  feedWdt( );
+  Core1FlashPause _c1(this);
+  FLASH_OP(enforceStorageLimit( ));
+  deleted += _enforceDeleted;
+  if (!_cleanupPending || _enforceDeleted == 0 || deleted >= maxFiles) break;
+ }
+ return deleted;
 }
 
 void StorageManager::loadDefaults( ) {
@@ -1219,6 +1247,7 @@ void StorageManager::enforceStorageLimit( ) {
   * slice by update( ) (>= 15 s apart). Same total work over time,
   * ~100x lower duty cycle of IRQ-off windows. */
  int deletionsLeft = 2;
+ _enforceDeleted = 0;
  while (deletionsLeft > 0 && ((info.usedBytes * 100) / info.totalBytes) > 86) {
  feedWdt( );
 
@@ -1248,6 +1277,7 @@ void StorageManager::enforceStorageLimit( ) {
  }
  LittleFS.remove(fullPath);
  deletionsLeft--;
+ _enforceDeleted++;
  _cachedOldestFile = "";
  LittleFS.info(info);
  } else break;

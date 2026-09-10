@@ -485,6 +485,22 @@ void AppManager::airEnterDormant( ) {
   * committed to hibernating, so there is nothing left for the watchdog to guard. */
  hw_clear_bits(&watchdog_hw->ctrl, WATCHDOG_CTRL_ENABLE_BITS);
 
+ /* Plan F11. Nothing on the M1 path ever ran the storage-limit cleanup or
+  * drained the logs deferred by a flash gate: both live in the M0 loop, and
+  * a wake is not the M0 loop. The cleanup's "deferred remainder" flag is RAM
+  * as well, so the two deletions a day-file creation allows itself were all
+  * a device in M1-only use ever got — and the rest was forgotten by the next
+  * wake's boot. Here, on the way down, with the watchdog already off and the
+  * radio's work done: finish the cleanup (bounded, so a wake cannot balloon)
+  * and put the deferred log records on flash before the cursor.
+  * Measured before the change, 2026-09-09: 87.5% used and no cleanup logged
+  * across the day rollover. */
+ {
+  const uint8_t freed = _storageMgr->drainStorageLimit(8);
+  if (freed) LOG_CODE(LOG_INFO, "STO", STO_ENFORCE_BUDGET, (int)freed, "m1");
+ }
+ LogManager::instance( ).flushPendingIfAny( );
+
  /* Last chance to put the telemetry cursor on flash: this function is the one
   * choke point every path into sleep goes through, and after it the RAM copy
   * is gone. A no-op when nothing moved. */
