@@ -245,13 +245,14 @@ telemetria.
 
 ---
 
-## Fase 5 — Recortar a release
+## ~~Fase 5 — Recortar a release~~ — ✅ **v2.4.2-beta recortada em 10/09, Latest** (tag `49086b5`)
 
-Só depois das Fases 1 e 2.
-
-`v2.4.2-beta` com: o 409, T11/T08 corrigidos, F04 fechado, os achados da Fase 2
-e as sete verificações de segurança registradas. Usar o protocolo de promoção
-que já existe em `docs/promotion/`.
+`https://github.com/angeloINTJ/simut/releases/tag/v2.4.2-beta` — 11 assets. Carrega F10, F11, F27, T11/T08/F04
+e a auditoria de setembro verificada no ferro; **não carrega o F08** (fix no #103, draft). Revalidada antes do
+recorte: suíte completa via USB no `8377423` (T01–T11, T13/T14/T16/T17), **OTA fim-a-fim** na imagem bumpada
+(`/api/perms` → `2.4.2-beta`, config preservada pelo snapshot) e ciclo medido por presença crua do USB (3/3 na
+hora). Firmware publicado = o validado, md5 conferido 6/6 após o upload (air bin `86885c69`).
+⚠️ O recorte foi barrado pelo `scan_secrets.sh` — ver "SSID no histórico" abaixo — e só saiu depois do #107.
 
 ⚠️ **`git push origin :refs/tags/<tag>` REBAIXA o release a draft** e derruba o
 Latest. Conserto: `gh release edit --draft=false --latest`.
@@ -260,19 +261,35 @@ Latest. Conserto: `gh release edit --draft=false --latest`.
 
 ## O que apareceu executando (novo, baixo)
 
-- **BT: o gerente nunca observa a DESCONEXÃO do cliente** (`BluetoothManager.cpp` — `_promptSent`
-  só é zerado no boot, na expiração de sessão e depois de uma senha recusada). Uma sessão que termina
-  com o prompt pendente deixa o próximo cliente sem prompt: ele conecta, aperta Enter, e não vê nada
-  até digitar algo — que então vira tentativa de senha. Não é falha de segurança (a tentativa conta);
-  é usabilidade. Conserto: zerar `_promptSent` na borda conectado→desconectado. Não feito: o Air tem
-  4.972 B de folga e isso não bloqueia nada.
-- ⚠️ **Reexame 10/09 — o `_authenticated` é mais sério que o `_promptSent`.** Ele também só zera no
-  boot, na expiração e após senha recusada — **nunca na desconexão**. Se o SPP aceitar um segundo
-  cliente dentro da janela de 5 min de inatividade sem que o estado seja resetado, esse cliente
-  **herda a sessão autenticada** — isso é bypass, não usabilidade. Se morde depende de o BTstack
-  resetar (ou não) o canal no disconnect, o que **exige um cliente BT na bancada para confirmar**
-  (não dá para deduzir do código). Conserto, se confirmar: zerar `_authenticated` **e** `_promptSent`
-  na borda conectado→desconectado — um só ponto trata os dois.
+- 🔴 **SSID da bancada no histórico público** (`tools/wifi_outage_test.py:88`, desde `c1a876b`/PR #100): o nome
+  do Wi-Fi de casa estava hardcoded como default de `SIMUT_REAL_SSID`. **Só o SSID — a senha nunca teve literal.**
+  O `scan_secrets.sh` pegou no recorte (o gate funcionou). Removido da árvore no PR #107; o valor **continua no
+  histórico do git**. Severidade baixa (SSID é transmitido pelo AP, não é credencial), mas identifica a rede de
+  casa num repo público. **Decisão do mantenedor:** aceitar como baixo risco, rotacionar o SSID, ou reescrever o
+  histórico (`filter-repo` — ver as armadilhas já documentadas). O teste agora exige `SIMUT_REAL_SSID` no env.
+- ⚠️ **Corrida do read-path na suíte — T05/T10/T12/T15 acusam "no alarm line"/"serial vanished"/"stuck awake"
+  com o device ciclando certo.** Causa raiz: a linha `[AIR] alarm` sai em `Serial.printf` (`AppManager_Air.cpp:648`)
+  e logo em seguida (661–675) o firmware solta o pull-up do D+ e dorme — o host raramente drena a linha antes do
+  SE0. Provado em 10/09: T05 falhou 2× enquanto a presença crua do USB mostrou 3 ciclos na hora. **O firmware
+  JÁ faz `Serial.flush()` + `delay(100)` antes de soltar o D+ (667–669)** — não é flush faltando. **Conserto
+  parcial no instrumento (PR #109, mergeado):** `read_until` lia por linha e no disconnect retornava sem drenar;
+  agora lê em blocos e drena o buffer no close — T05 foi de falha→**3/3**, mas o T10 ainda erra às vezes (a corrida
+  é intrínseca). **Cura completa (follow-up, decisão do mantenedor):** a suíte não julgar por essa linha de
+  diagnóstico — detectar sono pela ausência no USB (100% confiável, medido) — ou um settle pré-disconnect no
+  firmware, ao custo de bateria em todo wake. ⚠️ O `delay(100)` PÓS-disconnect é load-bearing (sem ele o cdc_acm
+  trava e o ttyACM não reenumera): NÃO reduzir. Enquanto isso, qualquer "no wake" da suíte se confere com
+  `os.path.exists` no nó by-id antes de acusar o firmware.
+
+- ✅ **BT: `_authenticated` não zerava na desconexão — bypass CONFIRMADO no ferro e CORRIGIDO (PR #110, mergeado).**
+  Em 10/09, com o adaptador BT do host (`tools/bt_reconnect_probe.py`): autenticar → derrubar o link RFCOMM →
+  reconectar → `air status` respondeu **sem senha** — o 2º cliente herdava a sessão de admin (`BluetoothManager`
+  não tem onDisconnect; `_authenticated` só zerava em boot, expiração e senha recusada). Bypass real, não
+  usabilidade. **Conserto:** `update()` pega a borda conectado→desconectado via `SerialBT.availableForWrite()` —
+  a ÚNICA visão pública do `_connected` (o `operator bool()` devolve `_running`, não serve) — e zera
+  `_authenticated`, `_promptSent` (o problema de usabilidade original cai junto) e `_authBuffer`; o lockout fica
+  intacto de propósito (V-01a). **Validado:** a reconexão agora devolve "Senha do admin:"; `bt_auth_test.py
+  --only lockout` = V-01a **3/3** (lockout de 8 s sobrevive à reconexão, escada 8→16). +56 B no air. Ship no
+  próximo release. ⚠️ Framework pinado: um bump precisa reconferir o `availableForWrite()`; a sonda é a regressão.
 
 ## O que este plano NÃO cobre
 
