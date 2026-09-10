@@ -154,6 +154,30 @@ medição.
 ⚠️ **Enquanto isso não existir, nenhuma afirmação de autonomia pode ir para o
 manual nem para a página do produto.**
 
+### ~~3.0~~ ✅ O fix de reconexão do Wi-Fi, VALIDADO no ferro (09/09, v2.4.1-beta)
+
+O fix que abriu esta linha de trabalho (varredura com prazo + join às cegas + dormência com saída)
+saiu na v2.4.1-beta **sem nunca ter visto um AP sumir e voltar**. Com um adaptador Wi-Fi USB no
+host isso virou testável: o adaptador vira o AP (`SIMUT-BENCH`, hotspot do NetworkManager), o
+aparelho é apontado para ele e **segurado em M0** (todo wake do Air é um boot — a pergunta é
+"volta *sem* reboot"), e o AP é derrubado e levantado. Três fases: apagão curto (60 s, escada
+rápida), apagão longo (4 min, entra em **dormência** — o estado terminal do firmware antigo),
+e **SSID oculto** a partir de um boot (o caminho cego). Observado dos dois lados: ping pelo hotspot
+e `show net status` no console, **e o log do próprio aparelho**, que é a prova. Script: `tools/wifi_outage_test.py`.
+
+```
+curto    reconectou 45 s depois de o AP voltar (8 s no run anterior)
+longo    NET_DORMANT_MODE às ~20:52:40, depois de 5 joins às cegas (backoff 42 → 62 → 102 → 181 s);
+         AP de volta 20:54:50; reconectou 21:03:13 — 499 s depois, quando a espera de 10 min expirou.
+         É o estado de onde o firmware antigo nunca saía.
+oculto   reconectou 13 s depois de o AP oculto voltar: 2 joins às cegas, 0 por varredura
+```
+
+⚠️ Três mentiras do instrumento antes do veredito: varredura só até `.39` (o console dizia `.235`); 4 min
+de apagão não chegam à dormência; "SSID oculto do boot" mede o `begin()` do boot, não o caminho cego.
+⚠️ **`$` em env sem aspas** mangou a senha do Wi-Fi e deixou a bancada sem rede duas vezes — a linha agora tem
+aspas simples.
+
 ### 3.2 OTA no Air
 
 A `:8080` não estava escutando. **Descobrir o porquê antes de testar**: é config
