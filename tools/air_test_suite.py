@@ -417,17 +417,42 @@ class Target:
                 time.sleep(0.02)
 
     def read_until(self, pattern, timeout, collect=None):
-        """Read lines until `pattern` (compiled regex) matches; returns the match."""
-        buf, deadline = '', time.time() + timeout
-        while time.time() < deadline:
+        """Read until `pattern` (compiled regex) matches; return the match, or None.
+
+        Reads in chunks, not by line. The device's last line before sleep — the
+        `[AIR] alarm` line — is printed right before the D+ pull-up is released,
+        and the disconnect event races that already-delivered line to the
+        reading process: measured 2026-09-10, a 10 ms readline reader caught it
+        on one wake and missed it on the next, same firmware, which already
+        flushes and waits 100 ms. readline() also throws its own partial buffer
+        away when it raises. Chunked reads take whatever the OS delivered right
+        up to the disconnect, and on the exception we drain the buffer once more
+        before giving up. The alarm line is bench-only diagnostics, so closing
+        this race belongs in the reader, not in a firmware delay that would cost
+        battery on every wake.
+        """
+        acc, deadline, gone = b'', time.time() + timeout, False
+        while time.time() < deadline and not gone:
             try:
-                raw = self.ser.readline()
+                chunk = self.ser.read(256)
             except Exception:
-                return None      # port vanished: the device went to sleep
-            if not raw:
-                continue
-            line = raw.decode('utf-8', 'replace')
-            buf += line
+                gone = True                 # port vanished — drain what we have
+                chunk = b''
+            if chunk:
+                acc += chunk
+            elif not gone:
+                continue                    # read timeout, nothing yet
+            while b'\n' in acc:
+                raw, acc = acc.split(b'\n', 1)
+                line = raw.decode('utf-8', 'replace')
+                if collect is not None:
+                    collect.append(line.rstrip())
+                m = pattern.search(line)
+                if m:
+                    return m
+        # A disconnect can cut the final line before its newline; scan it too.
+        if acc:
+            line = acc.decode('utf-8', 'replace')
             if collect is not None:
                 collect.append(line.rstrip())
             m = pattern.search(line)
