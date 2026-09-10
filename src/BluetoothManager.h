@@ -59,6 +59,9 @@ private:
  uint8_t _failCount = 0;
  uint32_t _lockedUntil = 0;
  bool _lockNoticeSent = false;
+ /* Previous RFCOMM connection state, to catch the connected->disconnected
+  * edge and drop the session with the link (see update()). */
+ bool _wasConnected = false;
 
  /* Discovery window (V-01b). SerialBT::begin turns discoverability on and
   * never turns it off; this closes it BT_DISCOVERABLE_MS after begin( ).
