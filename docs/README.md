@@ -1,6 +1,6 @@
 # docs/
 
-Forty-one documents, and until now no way to tell which ones describe the firmware
+Forty-two documents, and until now no way to tell which ones describe the firmware
 you are holding and which ones describe a moment in its past. Both kinds are
 worth keeping. Confusing them is what costs an afternoon.
 
@@ -53,6 +53,7 @@ fixed, which is exactly what makes them useful when it comes back.
 | [analysis/SIMUT_AIR_PLANO_FIX.md](analysis/SIMUT_AIR_PLANO_FIX.md) | v2.3.9-beta | The Air fix and optimisation plan (F-numbered findings). |
 | [analysis/SIMUT_AIR_PLANO_ENERGIA.md](analysis/SIMUT_AIR_PLANO_ENERGIA.md) | 2026-09-07 | Energy budget: frequent readings, rare radio. |
 | [analysis/SIMUT_AIR_ESBOCO.md](analysis/SIMUT_AIR_ESBOCO.md) | v2.3.9-beta | The original headless-build sketch. |
+| [analysis/SIMUT_RX_INTEGRACAO_ESBOCO.md](analysis/SIMUT_RX_INTEGRACAO_ESBOCO.md) | v2.4.2-beta · simut-rx 1.1.0 | The fleet-management integration sketch: simut-rx reading status, configuring and OTA-updating many SIMUTs over the native API. |
 | [analysis/SIMUT_TELEMETRIA_PLANO_CADENCIA.md](analysis/SIMUT_TELEMETRIA_PLANO_CADENCIA.md) | 2026-09-07 | Automatic telemetry cadence and batching, with measurements. |
 | [analysis/ANALISE_TELEMETRIA_ALARMES.md](analysis/ANALISE_TELEMETRIA_ALARMES.md) | v2.3.2-stable | The second telemetry line (alarms). |
 | [analysis/ANALISE_BURACO_HISTORICO_BANCADA_OTA.md](analysis/ANALISE_BURACO_HISTORICO_BANCADA_OTA.md) | v2.3.2-beta | The 00:00–00:22 history hole, and the `.wip` merge that prevents it. |
