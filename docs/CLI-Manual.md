@@ -440,7 +440,7 @@ nem `configure terminal`, com este conjunto:
 |---|---|
 | `air status` | `Air: phase=<n> wake=<s>s hist=<s>s backoff=<s>s idle=<s>s armed=<0\|1> dirty=<n> tel=<pendentes>/<lote mínimo> skip=<n> radio=<0\|1> chg=<0\|1> bat=<n> cyc=<ms> wip=<n>` |
 | `air hibernate` (ou `air sleep`) | entra no ciclo M1 agora; o USB some quando o aparelho dorme |
-| `air stop` (ou `air wake`) | cancela o ciclo e volta ao modo operacional M0 — só funciona na janela em que o aparelho está acordado |
+| `air stop` (ou `air wake`) | cancela o ciclo e volta ao modo operacional M0 — só funciona na janela em que o aparelho está acordado, **e só pelo console USB** (ver a nota sobre M1 abaixo) |
 | `air idle <10..65535>` | segundos de inatividade da CLI antes de hibernar sozinho (persistido em `/config/air.bin`) |
 | `air charger <0..29\|off>` | GPIO que lê nível alto enquanto o aparelho carrega (padrão GP17); `off` desliga a leitura. Persistido em `/config/air.bin` |
 
@@ -453,6 +453,13 @@ flash, porque a `.wip` é reescrita POR COMPLETO a cada vez. Num SIMUT Air todo 
 então o número se lê direto como "por wake", e o valor esperado é **1**. A linha `[AIR] alarm:`
 também o traz, e é onde ele serve: o console responde cedo no wake, antes mesmo de o registro ser
 gravado, então o `air status` de dentro de um wake devolve 0.
+
+Sobre `air stop` por Bluetooth (limitação, plano F12): dentro de um wake do ciclo
+(M1) o laço só lê o console **USB** — o canal Bluetooth não é atendido, então `air stop`
+digitado pela conexão BT durante um wake não tem efeito. É ausência de funcionalidade, não risco:
+a sessão BT continua exigindo senha e o lockout vale normalmente. Para cancelar o ciclo pelo BT,
+segure o aparelho acordado (carregador, `chg=1`) — aí ele sobe como M0 completo e o console BT
+responde. Pelo USB, `air stop` funciona em qualquer janela de wake.
 
 Sobre `chg=`: com o carregador ligado o aparelho **não hiberna** — o `air idle` deixa de valer e um
 wake que encontre o carregador cancela o ciclo daquele boot e sobe como M0 completo, com servidor

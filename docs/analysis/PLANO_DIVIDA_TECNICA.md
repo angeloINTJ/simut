@@ -129,10 +129,12 @@ negativo (a mesma corrida com a limpeza desativada tem que ENCHER).
 ⚠️ **Medir `fs_u` pelo delta do arquivo do dia dá +0 e engana** — bloco aberto.
 Ver `full_history( )` em `tools/air_test_suite.py` e a linha do F23 no `SIMUT_AIR_PLANO_FIX.md`.
 
-### 2.4 F12 — `air stop` por Bluetooth não funciona em M1
+### ~~2.4~~ ✅ F12 — `air stop` por Bluetooth não funciona em M1 — DOCUMENTADO (09/09)
 
-O laço M1 só chama `processInput` (USB). Funcionalidade ausente, não risco.
-Fechar por último ou aceitar como limitação documentada.
+O laço M1 só chama `processInput` (USB). Funcionalidade ausente, não risco. **Decisão do Ângelo
+(09/09): não corrigir — a folga de flash do Air é apertada (4.972 B) e não é risco de segurança.**
+Documentado como limitação no `CLI-Manual.md` (nota sobre `air stop` por BT em M1) e a linha do
+`SIMUT_AIR_PLANO_FIX.md` virou. Fecha o achado.
 
 **Critério de saída:** cada achado com um teste que o cobre na suíte, e a tabela
 do `SIMUT_AIR_PLANO_FIX.md` sem `F` na coluna de estado.
