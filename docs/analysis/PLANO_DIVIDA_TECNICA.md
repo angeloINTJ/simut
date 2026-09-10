@@ -68,7 +68,7 @@ Ordem deliberada — do que não derruba o aparelho para o que derruba:
 |---|---|---|---|
 | ~~1.1~~ | ✅ **O-1** | conta `o1probe` com `perms=32` (só `FILE_READ`): `/download?file=/system.blog` → **403**. **Controle:** a mesma conta baixou `/lang/language_pt-BR.lng` → 200 (33.959 B) — o 403 é o portão, não sessão quebrada. Criada e apagada pelo `commit_all` (`users.actions`); a lista voltou aos 4 originais | feito |
 | ~~1.2~~ | ✅ **V-06** | `air charger 25` → `ERROR: air charger <0..22\|26..28\|off>`; `air charger 17` → `OK: charger sense on GP17` | feito |
-| ~~1.3~~ | ✅ **V-05 inteiro** | console + **pelo ar** (adaptador USB no host): varredura mostra `WPA1 WPA2`, host entrou com a PSK, web em `192.168.4.1` (302 → `/login`). ⚠️ resíduo baixo: mixed mode WPA1/WPA2 em vez de WPA2-only | feito |
+| ~~1.3~~ | ✅ **V-05 inteiro** | console + **pelo ar** (adaptador USB no host): varredura mostra `WPA1 WPA2`, host entrou com a PSK, web em `192.168.4.1` (302 → `/login`). ⚠️ resíduo baixo, **reenquadrado 10/09**: o firmware **pede `CYW43_AUTH_WPA2_AES_PSK`** (AES-only — constante distinta de `..._WPA2_MIXED_PSK`; verificado em `CYW43shim.cpp:126`), ou seja **não escolhe modo misto**. O `WPA1 WPA2` que a varredura mostrou é IE do beacon do chip CYW43 ou rótulo do scanner; separar exige dump dos IEs (monitor mode), que o adaptador só-NetworkManager não faz. Não é escolha do firmware | feito |
 | 1.4 | **V-03** | `air_test_suite.py --only T15,T16` **contra esta imagem** | 20 min |
 | ~~1.5~~ | ✅ **V-01a** | 3/3 na v2.4.1-beta: recusa, **lockout de 8 s sobrevive à reconexão** (sonda 3,4 s depois: silêncio), 4ª falha tranca de novo (8 → 16 s). Cinco consertos no instrumento antes do veredito — ver o tool | feito |
 | ~~1.6~~ | ✅ **V-01b** | 3/3: descobrível após o boot, ausente 345 s depois, RFCOMM ainda conecta para quem sabe o endereço | feito |
@@ -216,11 +216,15 @@ de apagão não chegam à dormência; "SSID oculto do boot" mede o `begin()` do 
 ⚠️ **`$` em env sem aspas** mangou a senha do Wi-Fi e deixou a bancada sem rede duas vezes — a linha agora tem
 aspas simples.
 
-### 3.2 OTA no Air
+### ~~3.2 OTA no Air~~ — ✅ respondido 10/09: não é bug, é o desenho
 
-A `:8080` não estava escutando. **Descobrir o porquê antes de testar**: é config
-da bancada ou o build Air não sobe o servidor? A resposta muda o que se testa.
-Depois, ciclos de OTA com o protocolo já validado (24 ciclos na v2.2.12).
+A `:8080` não escutava porque **um wake M1 não sobe o servidor web** — o portão é
+`_airActive` (o wake de telemetria também não sobe listener; enviar não precisa de
+ninguém escutando). Web/OTA pertencem ao **M0**: boot a frio, `air stop`, ou
+**carregador presente no GP17**, que impede a hibernação — a PicoHand segura o M0
+por GP3→GP17. Não é config da bancada e não há correção de firmware: para dar OTA
+num Air, mantenha-o em M0. Documentado no `AGENTS.md`. O protocolo de OTA em si já
+tem 24 ciclos validados (v2.2.12), então não sobra o que revalidar.
 
 ### 3.3 Soak longo
 
@@ -236,7 +240,7 @@ telemetria.
 |---|---|---|
 | ~~4.1~~ | ✅ **PCB: nada a fazer — a `main` já está correta, verificado 09/09** | re-exportei os gerbers da fonte de `main` (`simut PCB.kicad_pcb`, corrigida em `d64bacd`) com o `kicad-cli` 10.0.6 e comparei com os commitados: **geometria idêntica como conjunto** — 213 flashes no F_Cu, 173 no B_Cu, mesmas aperturas; a diferença linha-a-linha era só renumeração de aperturas. O "falta re-exportar" era da cópia da branch air, descartada no merge; a `main` nunca teve o problema |
 | ~~4.2~~ | ✅ **Folga real do Air: 4.972 B** — os dois números eram verdadeiros e mediam coisas diferentes | `used 1.025.600` do PIO é a **soma das seções**; o `.bin` tem **1.039.508 B**. A diferença (13.908 B) é o linker alinhando a LMA do `.data` em 4 KiB (`readelf -l`: o LOAD 1 termina em 0xfc000 e o `.data` começa ali). Folga real = `1.044.480 − fim do último LOAD` = **4.972 B**, e anda em degraus de 4 KiB: os próximos ~13,9 KB de `.text/.rodata` são de graça; passado o degrau, sobram **876 B**. O portão do `flash_budget.json` lê a linha do PIO por desenho (marca d'água, não teto) |
-| 4.3 | **`rig_validate_history_clock.py`** | afirma "nenhum registro do trecho drenado foi pulado" com `expected − seen`; registro no bloco aberto não entra em `expected`, então um pulo ali não aparece. **Falso positivo por construção.** Medir se morde; corrigir com `full_history` se sim |
+| ~~4.3~~ | ✅ **corrigido 10/09** | `rig_validate_history_clock.py` afirmava "nenhum registro do trecho drenado foi pulado" com `expected − seen`, e `expected` só vinha dos `.h5` **selados** — um pulo no bloco aberto nunca entrava e passava calado. Agora dobra o `/api/history/open` no `expected` (204 = nada aberto). Seguro por construção: o filtro `lo ≤ e ≤ hi` derruba o bloco aberto quando a drenagem é curta demais para chegar ao dia de hoje, então a mudança **só remove um ponto cego, nunca cria falso positivo**. Mesma lição do T11 |
 | ~~4.4~~ | ✅ Varrido: 7 leitores | `history_v5.py` é o codec; `test_webui_graph_order.py` e `test_h5_day_merge.py` usam fixture; `fsguard.py` e `h5_day_merge.py` tratam o `.wip` explicitamente (15× e 5×) — é o bloco aberto, por desenho. **Sobra só a 4.3** |
 
 ---
@@ -262,6 +266,13 @@ Latest. Conserto: `gh release edit --draft=false --latest`.
   até digitar algo — que então vira tentativa de senha. Não é falha de segurança (a tentativa conta);
   é usabilidade. Conserto: zerar `_promptSent` na borda conectado→desconectado. Não feito: o Air tem
   4.972 B de folga e isso não bloqueia nada.
+- ⚠️ **Reexame 10/09 — o `_authenticated` é mais sério que o `_promptSent`.** Ele também só zera no
+  boot, na expiração e após senha recusada — **nunca na desconexão**. Se o SPP aceitar um segundo
+  cliente dentro da janela de 5 min de inatividade sem que o estado seja resetado, esse cliente
+  **herda a sessão autenticada** — isso é bypass, não usabilidade. Se morde depende de o BTstack
+  resetar (ou não) o canal no disconnect, o que **exige um cliente BT na bancada para confirmar**
+  (não dá para deduzir do código). Conserto, se confirmar: zerar `_authenticated` **e** `_promptSent`
+  na borda conectado→desconectado — um só ponto trata os dois.
 
 ## O que este plano NÃO cobre
 

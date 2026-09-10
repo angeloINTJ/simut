@@ -310,7 +310,9 @@ Armadilhas de bancada específicas do Air:
   para ler o sensor e, se for o caso, enviar. Tudo isso pertence ao M0 (boot a frio ou
   `air stop`, que continua subindo a web sozinho). O portão é `_airActive`, não `_airRadioWake`:
   nem o wake de telemetria sobe listener, porque enviar não precisa de ninguém escutando. T10 da
-  suíte mede isso (porta 80 fechada durante o wake).
+  suíte mede isso (porta 80 fechada durante o wake). ⚠️ **Consequência para OTA:** um Air
+  dormente não tem `:8080` — para dar OTA nele, mantenha-o em M0 (carregador no GP17, que a
+  PicoHand segura por GP3→GP17, ou logo após um boot a frio, antes de ele hibernar).
 - 🔋 **Carregador no GP17 (`AIR_CHARGER_PIN`, configurável em `air.bin`).** Nível alto por um
   divisor do trilho de 5 V = carregando. Enquanto carrega: o `air idle` não se aplica (fica
   acordado) e um wake que encontra o carregador **cancela o M1 daquele boot** e sobe como M0

@@ -468,11 +468,22 @@ def test_telemetry(rig, cli):
             if blob:
                 expected |= decode_epochs(blob)
             day += timedelta(days=1)
+        # The day file holds only SEALED blocks; whatever the device has
+        # measured since the last seal is in the open block (RAM, mirrored to
+        # /history/.wip) and served by /api/history/open — 204 when empty. A
+        # reader of <day>.h5 alone is blind at the near end, which is exactly
+        # where a drain that reaches today lands: a record skipped there would
+        # never enter `expected`, so the skip would pass unseen. Fold it in;
+        # the window filter below drops it whenever the run is too short to
+        # reach today, so this only ever removes a blind spot (item 4.3).
+        r = rig.get("/api/history/open")
+        if r.status_code == 200 and r.content:
+            expected |= decode_epochs(r.content)
         window = {e for e in expected if lo <= e <= hi}
         missing = window - Collector.seen
         record("no record inside the drained span was skipped",
                not missing,
-               f"{len(window)} no flash, {len(missing)} nao entregues"
+               f"{len(window)} no aparelho, {len(missing)} nao entregues"
                + (f" (ex.: {ts(min(missing))})" if missing else ""))
 
         future = {e for e in Collector.seen if e > int(time.time())}
