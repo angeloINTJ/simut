@@ -85,7 +85,7 @@ from air_test_suite import Suite, parse_air_status  # noqa: E402
 
 W = os.environ.get('SIMUT_WIFI_IFACE', 'wlx001a3fa1e19e')
 HOT_SSID, HOT_CON = 'SIMUT-BENCH', 'simut-bench'
-REAL_SSID = os.environ.get('SIMUT_REAL_SSID', 'ProcrastinationPLUS')
+REAL_SSID = os.environ.get('SIMUT_REAL_SSID', '')
 REAL_PASS = os.environ.get('SIMUT_WIFI_PASS', '')
 HOT_PASS = os.environ.get('SIMUT_HOTSPOT_PASS', '')
 DEV_IP_RE = re.compile(r'(10\.42\.0\.\d+)')
