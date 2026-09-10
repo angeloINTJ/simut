@@ -83,6 +83,17 @@ public:
  bool begin( );
  void update( );
 
+ /** Run the storage-limit enforcement to completion, bounded (plan F11).
+  *
+  * enforceStorageLimit( ) deletes at most two files per call and leaves the
+  * rest to update( )'s 15 s slices — a duty-cycle choice made for a device
+  * that stays up with the radio on. An Air wake is neither: it is seconds
+  * long, and the flag that remembers the deferred remainder lives in RAM,
+  * which the wake's own boot clears. Called on the way into sleep, this
+  * finishes the job that a wake would otherwise never come back to. Returns
+  * the number of files deleted; `maxFiles` bounds the wake's length. */
+ uint8_t drainStorageLimit(uint8_t maxFiles);
+
  void setLockCallback(FlashLockCallback cb) { _lockCb = cb; }
  /**
   * @brief Asks whether the clock stamping records is real time or the seed.
@@ -687,6 +698,7 @@ public:
  bool loadMigrateV20Blob(File& f, SystemConfig& outCfg);
 
  void enforceStorageLimit( );
+ uint8_t _enforceDeleted = 0;   /**< files removed by the last enforceStorageLimit( ) */
  /** T1.4: set when enforceStorageLimit( ) hits its per-call deletion cap
   * with usage still above the limit; drained by update( ) in slices. */
  bool _cleanupPending = false;

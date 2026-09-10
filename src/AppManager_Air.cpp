@@ -374,6 +374,23 @@ void AppManager::airLoop( ) {
    * from flash), so it must NOT gate the send path. */
   processHistoryLogging( );
   _storageMgr->flushWipV5( );
+
+  /* Plan F11. M1 never runs StorageManager::update( ) (the M0 loop's job) nor
+   * the deferred-log flush, so in M1-only use the FS budget is never enforced
+   * and logs deferred by a flash gate never land — the partition fills. Do
+   * both here, in the awake window, with the watchdog armed and fed
+   * (drainStorageLimit feeds it per pass). Deliberately NOT at sleep entry:
+   * a first cut put the drain in airEnterDormant, next to the clock teardown,
+   * and it went 0 wakes / 240 s against the release's 2 / 240 s back-to-back
+   * (2026-09-09) — the wake path does not tolerate flash work beside it. Here
+   * a history write already happens two lines up, so this is the same safe
+   * context. Bounded to 4 files a wake; a bigger backlog drains over wakes. */
+  {
+   const uint8_t freed = _storageMgr->drainStorageLimit(4);
+   if (freed) LOG_CODE(LOG_INFO, "STO", STO_ENFORCE_BUDGET, (int)freed, "m1");
+  }
+  LogManager::instance( ).flushPendingIfAny( );
+
   /* A reading-only wake is done here: the radio was never started, so there is
    * nothing to connect and nothing to flush. Giving up on the WiFi is likewise
    * final for this wake — even if the link came up in the meantime, chasing it
