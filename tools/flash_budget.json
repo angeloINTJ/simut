@@ -25,31 +25,36 @@
   "linker aligns .data's load address to 4 KiB, so the .bin (what the slot",
   "actually holds) is larger by the padding: pico_w_air 1,025,600 used vs a",
   "1,039,508 B .bin, 4,972 B of real slack. Real slack moves in 4 KiB steps -",
-  "readelf -l firmware.elf, end of the last LOAD in flash, is the number."
+  "readelf -l firmware.elf, end of the last LOAD in flash, is the number.",
+  "2026-09-11 (feat/fleet-api): the OTA-safe ceiling is 1,040,384 B of .bin (1016 KiB,",
+  "OTA_APP_SAFE_MAX_SIZE), not the 1,044,480 program slot: the last 4 KiB sector of",
+  "the slot is where the config snapshot lands at stage time. pico_w_air's .bin is",
+  "1,039,508 B on main AND on this branch - 876 B of real OTA slack, not 4,972.",
+  "The Air budget margin is 1,000 B for that reason; every future byte there is a trade."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-09-09",
- "measured_at_commit": "d3d430f",
+ "measured_on": "2026-09-11",
+ "measured_at_commit": "feat/fleet-api",
  "envs": {
   "pico_w_release": {
-   "budget": 1023500,
-   "measured": 1018820
+   "budget": 1027340,
+   "measured": 1024340
   },
   "pico_w_test": {
-   "budget": 1023500,
-   "measured": 1018692
+   "budget": 1026356,
+   "measured": 1023356
   },
   "pico_w_asserts": {
-   "budget": 1025500,
-   "measured": 1020988
+   "budget": 1029508,
+   "measured": 1026508
   },
   "pico_w_alpha": {
-   "budget": 1023500,
-   "measured": 1019124
+   "budget": 1025284,
+   "measured": 1022284
   },
   "pico_w_air": {
-   "budget": 1028500,
-   "measured": 1025600
+   "budget": 1028424,
+   "measured": 1027424
   }
  }
 }
