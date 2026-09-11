@@ -110,8 +110,19 @@ bool ota_validate_staging(const StageSession& s, ValidationReport& report) {
             off += 4096;
             watchdog_update();
         }
-        (void)SIMUT_ENV_TAG; /* the running image's own tag — the reference that keeps it linked */
-        if (found && strcmp(report.image_env, simut_env_name()) != 0) {
+        /* A variante EM EXECUÇÃO sai da etiqueta desta própria imagem, não do
+         * macro. Duas razões, e as duas importam: é a leitura que impede o
+         * linker de descartar a string (sem ela o .bin saía sem etiqueta), e
+         * comparar etiqueta contra etiqueta é o que garante que o formato que
+         * gravamos é o mesmo que sabemos ler. Se a nossa própria etiqueta não
+         * for legível, cai no macro — recusar toda atualização por causa de
+         * uma conferência interna seria pior que o problema. */
+        char mine[sizeof(report.image_env)];
+        const bool mineOk = simut_env_tag_scan(
+            reinterpret_cast<const unsigned char*>(SIMUT_ENV_TAG),
+            (unsigned)strlen(SIMUT_ENV_TAG), mine, sizeof(mine));
+        const char* running = mineOk ? mine : simut_env_name();
+        if (found && strcmp(report.image_env, running) != 0) {
             report.status = ValidationStatus::ENV_MISMATCH;
             return false;
         }

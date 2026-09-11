@@ -7,10 +7,23 @@
 #include "BuildIdentity.h"
 #include <string.h>
 
-/* `used` keeps the compiler from dropping it; the reference from
- * ota_validate_staging( ) keeps the linker from garbage-collecting the
- * section. Both are needed: a tag that exists only in the source is exactly
- * the kind of promise a .bin cannot keep. */
+/* `used` não basta, e descobrir isso custou um .bin.
+ *
+ * `used` impede o COMPILADOR de descartar o símbolo; quem apaga a seção
+ * depois é o LINKER, com --gc-sections, e para ele um `(void)SIMUT_ENV_TAG;`
+ * não é referência. Medido: a primeira versão compilou, linkou e produziu um
+ * .bin **sem a etiqueta** — a funcionalidade inteira de recusar a variante
+ * errada dependia de uma string que não estava na imagem. `retain`
+ * (SHF_GNU_RETAIN) resolveria, mas este toolchain a ignora e o projeto compila
+ * com -Werror=attributes.
+ *
+ * O que segura a string é uma **leitura de verdade**, em outra unidade de
+ * compilação: `ota_validate_staging` lê esta etiqueta para saber qual é a
+ * variante em execução. Sem LTO o compilador não pode dobrar a chamada nem
+ * provar que ninguém a usa, então o endereço é materializado e o linker
+ * mantém. A conferência que pega uma regressão disto não é de compilação: é
+ * procurar a etiqueta no .bin, e é o que tools/release_manifest.py faz antes
+ * de publicar qualquer imagem. */
 const char SIMUT_ENV_TAG[] __attribute__((used)) =
     SIMUT_ENV_TAG_PREFIX SIMUT_ENV_NAME ";v=" SIMUT_VERSION ";";
 
