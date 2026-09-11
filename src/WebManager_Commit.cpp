@@ -14,6 +14,7 @@
 #include "LogManager.h"
 #include "Themes.h"
 #include "TouchPriority.h"
+#include <memory>
 #include <LittleFS.h>
 #include <time.h>
 #include <hardware/watchdog.h>
@@ -28,6 +29,23 @@
  * Fix: walks char by char from the opening "; consumes \" \\ \/ \n \t \r \b \f
  * correctly; stops at the FIRST unescaped quote. Unknown escapes (\x) are
  * preserved leniently. */
+/* Is the value under `key` a JSON string at all? `{"t_srv":null}` and
+ * `{"t_srv":42}` satisfy has( ) and make jsonExtractStringValue return "",
+ * which setStr then stored — the telemetry server erased under a 200 by a
+ * client that sent the wrong type (the fleet bench found it with a form
+ * that serialised an empty field as null). The type is checked before the
+ * value is read; a non-string lands in "rejected", not in flash. */
+static bool jsonValueIsString(const String& src, const char* key) {
+	String pat = String("\"") + key + "\":";
+	int p = src.indexOf(pat);
+	if (p < 0) return false;
+	int i = p + pat.length( );
+	const int n = src.length( );
+	while (i < n && (src.charAt(i) == ' ' || src.charAt(i) == '\t' ||
+	                 src.charAt(i) == '\r' || src.charAt(i) == '\n')) i++;
+	return i < n && src.charAt(i) == '"';
+}
+
 static String jsonExtractStringValue(const String& src, const char* key) {
 	String pat = String("\"") + key + "\":";
 	int p = src.indexOf(pat);
@@ -218,7 +236,9 @@ bool WebManager::authorizeCommitSections(const String& body, uint16_t perms,
  * _payload={"sys":{"name":"SIMUT","tz":"-3","log":"1",...}}
  */
 void WebManager::handleApiCommitAll( ) {
-	uint16_t perms = getAuthPerms( );
+	/* 401 without a session, 403 without the entry bits — requirePerm. */
+	uint16_t perms = requirePerm(0);
+	if (!perms) return;
 	/* Entry only proves there is a session holding at least one of the bits
 	 * this route can act on. WHAT the payload may change is decided per
 	 * section in authorizeCommitSections, below — checking PERM_SYS_CONFIG
@@ -263,7 +283,32 @@ void WebManager::handleApiCommitAll( ) {
 	int secStart[SEC_COUNT];
 	if (!authorizeCommitSections(body, perms, secStart)) return;
 
-	SystemConfig& cfg = _storageRef->getConfig( );
+	/* _dry=1: every parser and every range check runs on a COPY of the
+	 * configuration, the answer is {"status":"dry","rejected":[...]} and
+	 * nothing changes — no save, no reboot. A template a fleet manager is
+	 * about to push to forty devices gets validated forty times before the
+	 * first reboot, instead of costing forty reboots to find the one field
+	 * that was out of range on one of them. Only sys and net are dry-runnable:
+	 * users mint passwords, slots and calib touch files, alarms mutate runtime
+	 * state — none of that has a copy to run on. */
+	const bool dry = _server->hasArg("_dry") && _server->arg("_dry") == "1";
+	std::unique_ptr<SystemConfig> dryCopy;
+#if SIMUT_AIR
+	/* The Air image is at its flash ceiling (tools/flash_budget.json). A dry
+	 * run there is refused explicitly rather than silently applied. */
+	if (dry) { _server->send(400, "application/json", "{\"error\":\"dry run not available on this build\"}"); return; }
+#endif
+	if (dry) {
+		for (int i = 0; i < SEC_COUNT; i++) {
+			if (i != SEC_SYS && i != SEC_NET && secStart[i] >= 0) {
+				_server->send(400, "application/json", "{\"error\":\"dry run accepts sys and net only\"}");
+				return;
+			}
+		}
+		dryCopy.reset(new (std::nothrow) SystemConfig(_storageRef->getConfig( )));
+		if (!dryCopy) { _server->send(503, "application/json", "{\"error\":\"no memory\"}"); return; }
+	}
+	SystemConfig& cfg = dry ? *dryCopy : _storageRef->getConfig( );
 	bool themeChanged = false;
 
 	/* Fields the sys section DISCARDS — out-of-range or unparsable values
@@ -743,6 +788,7 @@ void WebManager::handleApiCommitAll( ) {
 			 * stays legal, because clearing a template or a server is a real
 			 * edit; the fields where empty means "keep" say so themselves. */
 			auto setStr = [&](const char* k, char* dst, size_t dstSize) {
+				if (!jsonValueIsString(sys, k)) { rejectField(k); return; }
 				String v = getStr(k);
 				if (isValidCfgString(v.c_str( ), dstSize - 1)) safeCopy(dst, v.c_str( ), dstSize);
 				else rejectField(k);
@@ -842,7 +888,7 @@ void WebManager::handleApiCommitAll( ) {
 			 * commit_all reboots, and the MQTT connect after the reboot
 			 * reconciles — publish when freshly on, clear when freshly off
 			 * (FLAG_HA_PUBLISHED remembers there is something to clear). */
-			fl = readFlag("m_had"); if (fl >= 0) _storageRef->setHaDiscoveryEnabled(fl == 1);
+			fl = readFlag("m_had"); if (fl >= 0 && !dry) _storageRef->setHaDiscoveryEnabled(fl == 1);
 			if (has("t_glob")) setStr("t_glob", cfg.telGlobalTemplate, sizeof(cfg.telGlobalTemplate));
 			if (has("t_line")) setStr("t_line", cfg.telLineTemplate, sizeof(cfg.telLineTemplate));
 			if (has("t_sep")) setStr("t_sep", cfg.telLineSeparator, sizeof(cfg.telLineSeparator));
@@ -856,8 +902,8 @@ void WebManager::handleApiCommitAll( ) {
 			if (has("a_line")) setStr("a_line", cfg.alarmTel.lineTemplate, sizeof(cfg.alarmTel.lineTemplate));
 			if (has("a_sep")) setStr("a_sep", cfg.alarmTel.lineSeparator, sizeof(cfg.alarmTel.lineSeparator));
 			/* NTP enable/disable flag (overlay NetworkTimeData). */
-			fl = readFlag("ntp_enabled"); if (fl >= 0) _storageRef->setNtpEnabled(fl == 1);
-			if (has("h_int")) { int v; if (parseIntStrict(getNum("h_int"), v) && isInRange(v, 1, 1440)) _storageRef->setHistoryIntervalMin((uint16_t)v); else rejectField("h_int"); }
+			fl = readFlag("ntp_enabled"); if (fl >= 0 && !dry) _storageRef->setNtpEnabled(fl == 1);
+			if (has("h_int")) { int v; if (parseIntStrict(getNum("h_int"), v) && isInRange(v, 1, 1440)) { if (!dry) _storageRef->setHistoryIntervalMin((uint16_t)v); } else rejectField("h_int"); }
 
 			/* Syslog forwarder (overlay SyslogConfigData). The four fields read
 			 * together so setSyslogConfig writes the overlay once; any absent
@@ -883,7 +929,7 @@ void WebManager::handleApiCommitAll( ) {
 				}
 				if (has("slog_port")) { int v; if (parseIntStrict(getNum("slog_port"), v) && isInRange(v, 1, 65535)) { slPort = (uint16_t)v; touched = true; } else rejectField("slog_port"); }
 				if (has("slog_lvl")) { int v; if (parseIntStrict(getNum("slog_lvl"), v) && isInRange(v, 0, 4)) { slLvl = (uint8_t)v; touched = true; } else rejectField("slog_lvl"); }
-				if (touched) _storageRef->setSyslogConfig(slEn, slIp, slPort, slLvl);
+				if (touched && !dry) _storageRef->setSyslogConfig(slEn, slIp, slPort, slLvl);
 			}
 			(void)getInt; /* lambda kept for future fields, suppress -Wunused */
 		}
@@ -1209,21 +1255,31 @@ void WebManager::handleApiCommitAll( ) {
 			};
 			int nf;
 			nf = readFlagN("use_dhcp"); if (nf >= 0) cfg.useDhcp = (nf == 1);
+			/* An address that does not parse used to be dropped in silence: the
+			 * device rebooted with the old IP and the page said "saved". Now it
+			 * is named in "rejected", like every other refused field. */
+			auto setIp = [&](const char* k, const char* tag, char* dst, size_t dstSize) {
+				if (!has(k)) return;
+				String s = getS(k);
+				if (isValidIpv4(s.c_str( ))) safeCopy(dst, s.c_str( ), dstSize);
+				else rejectField(tag);
+			};
 			if (!cfg.useDhcp) {
-				if (has("ip")) { String s = getS("ip"); if (isValidIpv4(s.c_str( ))) safeCopy(cfg.staticIp, s.c_str( ), sizeof(cfg.staticIp)); }
-				if (has("mask")) { String s = getS("mask"); if (isValidIpv4(s.c_str( ))) safeCopy(cfg.staticMask, s.c_str( ), sizeof(cfg.staticMask)); }
-				if (has("gw")) { String s = getS("gw"); if (isValidIpv4(s.c_str( ))) safeCopy(cfg.staticGateway, s.c_str( ), sizeof(cfg.staticGateway)); }
-				if (has("dns")) { String s = getS("dns"); if (isValidIpv4(s.c_str( ))) safeCopy(cfg.staticDns, s.c_str( ), sizeof(cfg.staticDns)); }
+				setIp("ip",   "net.ip",   cfg.staticIp,      sizeof(cfg.staticIp));
+				setIp("mask", "net.mask", cfg.staticMask,    sizeof(cfg.staticMask));
+				setIp("gw",   "net.gw",   cfg.staticGateway, sizeof(cfg.staticGateway));
+				setIp("dns",  "net.dns",  cfg.staticDns,     sizeof(cfg.staticDns));
 			}
 			/* dns_auto + dns2 (primary manual reuses cfg.staticDns).
 			 * Also accepts dns1 as shortcut for staticDns when user is in
 			 * manual mode with DHCP=true (without the other staticIp/mask/gw fields). */
-			nf = readFlagN("dns_auto"); if (nf >= 0) _storageRef->setDnsAuto(nf == 1);
+			nf = readFlagN("dns_auto"); if (nf >= 0 && !dry) _storageRef->setDnsAuto(nf == 1);
 			if (has("dns1")) { String s = getS("dns1"); if (isValidIpv4(s.c_str( ))) safeCopy(cfg.staticDns, s.c_str( ), sizeof(cfg.staticDns)); }
 			if (has("dns2")) {
 				String s = getS("dns2"); s.trim( );
 				/* Empty is valid (clears secondary). Any other value must be IPv4. */
-				if (s.length( ) == 0 || isValidIpv4(s.c_str( ))) _storageRef->setSecondaryDns(s.c_str( ));
+				if (s.length( ) == 0 || isValidIpv4(s.c_str( ))) { if (!dry) _storageRef->setSecondaryDns(s.c_str( )); }
+				else rejectField("net.dns2");
 			}
 			if (has("ntp_server")) {
 				/* Same reasoning as ssid/pass: this string is echoed back by
@@ -1239,15 +1295,15 @@ void WebManager::handleApiCommitAll( ) {
 			}
 			if (has("web_port")) {
 				WebConfigData* w = reinterpret_cast<WebConfigData*>(cfg.reserved + WEB_CONFIG_OFFSET);
-				int p = getN("web_port").toInt( );
-				if (p >= 1 && p <= 65535) {
+				int p;
+				if (parseIntStrict(getN("web_port"), p) && p >= 1 && p <= 65535) {
 					if (w->port != (uint16_t)p) commitNewPort = (uint16_t)p;
 					w->port = (uint16_t)p;
-				}
+				} else rejectField("net.web_port");
 			}
 			/* Keep-alive opt-out (SetupFlagsData overlay). No live hook:
 			 * commit_all reboots and beginServer( ) reads the flag at boot. */
-			nf = readFlagN("web_ka"); if (nf >= 0) _storageRef->setWebKeepAliveEnabled(nf == 1);
+			nf = readFlagN("web_ka"); if (nf >= 0 && !dry) _storageRef->setWebKeepAliveEnabled(nf == 1);
 		}
 	}
 
@@ -1312,6 +1368,17 @@ void WebManager::handleApiCommitAll( ) {
    }
   }
  }
+
+ if (dry) {
+		/* Same shape as the real answer, status "dry": the caller reads the
+		 * same "rejected" it would read after a reboot — without one. */
+		String resp = "{\"status\":\"dry\"";
+		if (commitNewPort != 0) { resp += ",\"newPort\":"; resp += (unsigned)commitNewPort; }
+		if (rejectedList[0])    { resp += ",\"rejected\":["; resp += rejectedList; resp += "]"; }
+		resp += "}";
+		_server->send(200, "application/json", resp);
+		return;
+	}
 
  if (themeChanged && _displayRef) _displayRef->refreshTheme( );
 
@@ -1393,8 +1460,7 @@ void WebManager::handleApiCommitAll( ) {
  * Permission: PERM_SYS_CONFIG.
  */
 void WebManager::handleApiSetTime( ) {
-	uint16_t perms = getAuthPerms( );
-	if (!(perms & PERM_SYS_CONFIG)) { _server->send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
+	if (!requirePerm(PERM_SYS_CONFIG)) return;
 
 	String body = _server->arg("plain");
 	int p = body.indexOf("\"epoch\"");
