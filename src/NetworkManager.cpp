@@ -207,6 +207,12 @@ void NetworkManager::update( ) {
  if (now - _lastMdnsUpdate >= MDNS_UPDATE_INTERVAL_MS) {
  _lastMdnsUpdate = now;
  MDNS.update( );
+#if !SIMUT_AIR
+	 /* Depois do update, não antes: o serviço registrado enquanto a sondagem
+	  * do hostname ainda corria ficava mudo (bancada, 11/09). Idempotente —
+	  * a partir do primeiro sucesso isto é um teste de bool. */
+ announceService( );
+#endif
  }
  }
 #endif
@@ -281,30 +287,10 @@ void NetworkManager::update( ) {
 #if SIMUT_MDNS
  if (_mdnsEnabled) {
  if (!MDNS.begin(_deviceName)) LOG_CODE(LOG_ERROR, "NET", NET_MDNS_FAIL, 0, TRL("mDNS failed to start"));
+ }
 #if !SIMUT_AIR
- /* Not on the Air: a wake turns mDNS off before the link is up
-  * (setMdnsEnabled(false)), so the service would never be announced, and
-  * the Air image has no room for code that never runs. */
- else if (_advPort) {
-  /* _simut._tcp with uid/ver/env/tls in TXT: discovery by browse, passive,
-   * without a route and without touching the web server or the Air timer
-   * (nothing here rearms anything). The uid is the board id, the same
-   * value /api/status and /api/config report as the device identity. */
-  auto h = MDNS.addService(nullptr, "simut", "tcp", _advPort);
-  if (h) {
-   pico_unique_board_id_t bid;
-   pico_get_unique_board_id(&bid);
-   char uid[17];
-   snprintf(uid, sizeof(uid), "%02X%02X%02X%02X%02X%02X%02X%02X",
-            bid.id[0], bid.id[1], bid.id[2], bid.id[3], bid.id[4], bid.id[5], bid.id[6], bid.id[7]);
-   MDNS.addServiceTxt(h, "uid", uid);
-   MDNS.addServiceTxt(h, "ver", SIMUT_VERSION);
-   MDNS.addServiceTxt(h, "env", simut_env_name( ));
-   MDNS.addServiceTxt(h, "tls", _advTls ? "1" : "0");
-  }
- }
-#endif /* !SIMUT_AIR */
- }
+ announceService( );
+#endif
 #endif
  if (_ntpEnabled) {
  syncNtp( );
@@ -624,6 +610,43 @@ void NetworkManager::getIpAddress(char* buf, size_t len) {
  snprintf(buf, len, "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
 }
 String NetworkManager::getMacAddress( ) { return WiFi.macAddress( ); }
+#if SIMUT_MDNS && !SIMUT_AIR
+/**
+ * Registra `_simut._tcp` com uid/ver/env/tls no TXT — descoberta por browse,
+ * passiva, sem rota nova e sem tocar no servidor web.
+ *
+ * **Por que não fica junto do MDNS.begin( ).** Na bancada, registrar o serviço
+ * na mesma passagem do `begin( )` deixou o responder de pé — `simuttft.local`
+ * resolvia — e o serviço mudo: nenhuma resposta a um PTR de `_simut._tcp`, e
+ * nenhum erro em lugar nenhum. O LEAmDNS sondeia o hostname de forma assíncrona
+ * pelo `update( )`, e um serviço acrescentado antes disso terminar não é
+ * anunciado. Aqui a chamada é idempotente e roda também quando a rede chega em
+ * NET_READY, que é depois de a sondagem ter tido tempo.
+ *
+ * O `LOG_CODE` na falha carrega a porta no ctx de propósito: sem ele, "não
+ * apareceu no browse" tem dois significados indistinguíveis — não chegamos
+ * aqui, ou chegamos e o handle voltou nulo.
+ */
+void NetworkManager::announceService( ) {
+ if (_advertised || !_mdnsEnabled || !_advPort) return;
+ auto h = MDNS.addService(nullptr, "simut", "tcp", _advPort);
+ if (!h) {
+  LOG_CODE(LOG_WARN, "NET", NET_MDNS_FAIL, (int)_advPort, TRL("mDNS failed to start"));
+  return;
+ }
+ pico_unique_board_id_t bid;
+ pico_get_unique_board_id(&bid);
+ char uid[17];
+ snprintf(uid, sizeof(uid), "%02X%02X%02X%02X%02X%02X%02X%02X",
+          bid.id[0], bid.id[1], bid.id[2], bid.id[3], bid.id[4], bid.id[5], bid.id[6], bid.id[7]);
+ MDNS.addServiceTxt(h, "uid", uid);
+ MDNS.addServiceTxt(h, "ver", SIMUT_VERSION);
+ MDNS.addServiceTxt(h, "env", simut_env_name( ));
+ MDNS.addServiceTxt(h, "tls", _advTls ? "1" : "0");
+ _advertised = true;
+}
+#endif
+
 void NetworkManager::getMacAddress(char* buf, size_t len) {
  String mac = WiFi.macAddress( );
  strncpy(buf, mac.c_str( ), len - 1);

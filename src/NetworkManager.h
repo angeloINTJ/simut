@@ -77,6 +77,11 @@ public:
   * the service learns who the device is without opening a session. */
  void setServiceAdvert(uint16_t port, bool tls) { _advPort = port; _advTls = tls; }
 
+#if SIMUT_MDNS && !SIMUT_AIR
+ /** Idempotente: anuncia `_simut._tcp` quando der, e uma vez só. */
+ void announceService( );
+#endif
+
  void setProvisionalTime(uint32_t lastTs, uint32_t elapsedSec = 60);
  void setTimeSyncCallback(TimeSyncCallback cb);
 
@@ -152,6 +157,7 @@ private:
  bool _mdnsEnabled = true;
  uint16_t _advPort = 0;
  bool _advTls = false;
+ bool _advertised = false;
  enum NetState {
  NET_OFFLINE,
  NET_CONNECTING,
