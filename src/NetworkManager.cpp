@@ -19,6 +19,7 @@
 #include <lwip/dns.h> /* dns_setserver for manual DNS */
 #include <lwip/ip_addr.h>
 #include "pico/unique_id.h"           /* the setup AP key is derived from the board id */
+#include "BuildIdentity.h"            /* SIMUT_VERSION / env for the mDNS TXT record */
 #include <bearssl/bearssl_hash.h>     /* br_sha256_* for that derivation (V-05) */
 
 NetworkManager::NetworkManager( ) {
@@ -280,6 +281,29 @@ void NetworkManager::update( ) {
 #if SIMUT_MDNS
  if (_mdnsEnabled) {
  if (!MDNS.begin(_deviceName)) LOG_CODE(LOG_ERROR, "NET", NET_MDNS_FAIL, 0, TRL("mDNS failed to start"));
+#if !SIMUT_AIR
+ /* Not on the Air: a wake turns mDNS off before the link is up
+  * (setMdnsEnabled(false)), so the service would never be announced, and
+  * the Air image has no room for code that never runs. */
+ else if (_advPort) {
+  /* _simut._tcp with uid/ver/env/tls in TXT: discovery by browse, passive,
+   * without a route and without touching the web server or the Air timer
+   * (nothing here rearms anything). The uid is the board id, the same
+   * value /api/status and /api/config report as the device identity. */
+  auto h = MDNS.addService(nullptr, "simut", "tcp", _advPort);
+  if (h) {
+   pico_unique_board_id_t bid;
+   pico_get_unique_board_id(&bid);
+   char uid[17];
+   snprintf(uid, sizeof(uid), "%02X%02X%02X%02X%02X%02X%02X%02X",
+            bid.id[0], bid.id[1], bid.id[2], bid.id[3], bid.id[4], bid.id[5], bid.id[6], bid.id[7]);
+   MDNS.addServiceTxt(h, "uid", uid);
+   MDNS.addServiceTxt(h, "ver", SIMUT_VERSION);
+   MDNS.addServiceTxt(h, "env", simut_env_name( ));
+   MDNS.addServiceTxt(h, "tls", _advTls ? "1" : "0");
+  }
+ }
+#endif /* !SIMUT_AIR */
  }
 #endif
  if (_ntpEnabled) {

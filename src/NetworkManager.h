@@ -71,6 +71,12 @@ public:
   * radio time and a multicast burst on the battery. */
  void setMdnsEnabled(bool on) { _mdnsEnabled = on; }
 
+ /** What to announce as `_simut._tcp` when mDNS starts: the web port and
+  * whether it speaks TLS. Set by WebManager::begin( ) before the link is up;
+  * 0 = announce nothing. The TXT record carries uid/ver/env so a browser of
+  * the service learns who the device is without opening a session. */
+ void setServiceAdvert(uint16_t port, bool tls) { _advPort = port; _advTls = tls; }
+
  void setProvisionalTime(uint32_t lastTs, uint32_t elapsedSec = 60);
  void setTimeSyncCallback(TimeSyncCallback cb);
 
@@ -144,6 +150,8 @@ private:
  /** Derived WPA2 key of the setup AP (V-05). AP_PSK_LEN + terminator. */
  char _apPsk[AP_PSK_LEN + 1] = {0};
  bool _mdnsEnabled = true;
+ uint16_t _advPort = 0;
+ bool _advTls = false;
  enum NetState {
  NET_OFFLINE,
  NET_CONNECTING,
