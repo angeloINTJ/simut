@@ -255,6 +255,8 @@ Luminosidade
 600 Forçar despausar
 999 Erro desconhecido
 @TRL
+98d1b5c0 Atualização preparada descartada: o aparelho reiniciou antes de aplicar
+eb144bf6 Reboot solicitado pela web
 016eef1e DS18B20 pareado ao seu número de série
 018a9730 Factory defaults ativos; senha admin via USB/serial.
 08676d6a Falha de MQTT: 

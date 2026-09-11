@@ -897,11 +897,7 @@ void WebManager::handleApiCalibPost( ) {
  * consume the results first; that is a test-image race with no user impact.)
  * ───────────────────────────────────────────────────────────────── */
 void WebManager::handleApiAction( ) {
-	uint16_t perms = getAuthPerms( );
-	if (!(perms & PERM_SYS_CONFIG)) {
-		_server->send(403, "application/json", "{\"error\":\"Forbidden\"}");
-		return;
-	}
+	if (!requirePerm(PERM_SYS_CONFIG)) return;
 	String op = _server->arg("op");
 
 	/* ── Telemetry ── */
@@ -917,6 +913,27 @@ void WebManager::handleApiAction( ) {
 		LOG_CODE(LOG_WARN, "WEB", SEC_CONFIG_CHANGED, _currentUserId,
 		         TRL("Telemetry cursor reset via web"));
 		_server->send(200, "application/json", "{\"ok\":true}");
+		return;
+	}
+
+	/* ── Reboot ──
+	 * The only way to restart a device from the web used to be a commit_all
+	 * with something in it — a config write invented to get a reboot. Same
+	 * guards as the commit: a pending password change answers 409 and a
+	 * touch calibration in progress answers 503, because the reboot would
+	 * cut both short. The response goes out and the socket is closed before
+	 * the watchdog is armed, so the caller sees the 200, not a reset. */
+	if (op == "reboot") {
+		if (isPasswordChangeRequired( )) {
+			_server->send(409, "application/json",
+			              "{\"error\":\"Password change required\",\"next\":\"/api/force_chpass\"}");
+			return;
+		}
+		if (rejectIfTouchPriority( )) return;
+		LOG_CODE(LOG_WARN, "WEB", SYS_REBOOT_USER, _currentUserId, TRL("Reboot requested via web"));
+		_server->send(200, "application/json", "{\"ok\":true}");
+		_server->client( ).stop( );
+		LogManager::instance( ).safeReboot( );
 		return;
 	}
 

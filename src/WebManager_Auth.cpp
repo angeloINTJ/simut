@@ -46,20 +46,44 @@ uint16_t WebManager::getAuthPerms( ) {
 	 * cookie matched a live session (V-03). */
 	clearStaleSessions( );
 
-	if (!_server->hasHeader("Cookie")) return 0;
-	String cookie = _server->header("Cookie");
+	/* The session token travels as the SIMUTSESS cookie or, for a client
+	 * without a cookie jar (a fleet manager over a bare HTTP library), as
+	 * `Authorization: Bearer <token>`. Same token, same slots, same idle
+	 * timeout — a second transport for the session, not a second kind of
+	 * session. `Basic` stays with /metrics, which has its own reader. */
+	String bearer;
+	if (_server->hasHeader("Cookie")) {
+		bearer = _server->header("Cookie");
+	} else if (_server->hasHeader("Authorization")) {
+		String a = _server->header("Authorization");
+		if (a.startsWith("Bearer ")) bearer = "SIMUTSESS=" + a.substring(7);
+	}
+	if (bearer.length( ) == 0) return 0;
 
 	for (int i = 0; i < 3; i++) {
-		if (_activeSessions[i].token != "" && cookie.indexOf("SIMUTSESS=" + _activeSessions[i].token) != -1) {
+		if (_activeSessions[i].token != "" && bearer.indexOf("SIMUTSESS=" + _activeSessions[i].token) != -1) {
 			_activeSessions[i].lastActivity = millis( );
 			_currentUserId = _activeSessions[i].userId;
 			_currentUserName = _activeSessions[i].username;
 			_currentUserPerms = _activeSessions[i].perms;
-			if (_activityCb) _activityCb( );
+			if (_activityCb && !_quietRequest) _activityCb( );
 			return _currentUserPerms;
 		}
 	}
 	return 0;
+}
+
+uint16_t WebManager::requirePerm(uint16_t bits) {
+	uint16_t perms = getAuthPerms( );
+	if (perms == 0) {
+		_server->send(401, "application/json", "{\"error\":\"Unauthorized\"}");
+		return 0;
+	}
+	if (bits != 0 && (perms & bits) != bits) {
+		_server->send(403, "application/json", "{\"error\":\"Forbidden\"}");
+		return 0;
+	}
+	return perms;
 }
 
 bool WebManager::isPasswordChangeRequired( ) {
@@ -203,7 +227,8 @@ void WebManager::handleForceChpass( ) {
  * by cycling through 8 new IPs). Shared by login_init and the /metrics
  * Basic auth so both fail-paths feed the same exponential lockout. */
 int WebManager::ensureLoginStateSlot(uint32_t clientIP) {
-	/* The pre-login path: /api/login_init and /api/login both land here. This is
+	/* The pre-login path: /api/login_init lands here; /api/login goes through
+	 * findLoginStateForIp( ) and never allocates a slot of its own. This is
 	 * the window an operator is in when they cannot yet be recognised by a
 	 * session cookie, and it is exactly where the device was hibernating out
 	 * from under them.
@@ -561,10 +586,7 @@ void WebManager::handleLogout( ) {
 }
 
 void WebManager::handleApiSecStatus( ) {
-	if (!(getAuthPerms( ) & PERM_USER_MGR)) {
-		_server->send(403, "application/json", "{\"error\":\"Forbidden\"}");
-		return;
-	}
+	if (!requirePerm(PERM_USER_MGR)) return;
 
 	uint32_t now = millis( );
 	char buf[512];

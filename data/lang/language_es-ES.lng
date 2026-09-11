@@ -255,6 +255,8 @@ Luminosidad
 600 Forzar reanudación
 999 Error desconocido
 @TRL
+98d1b5c0 Actualización preparada descartada: el equipo se reinició antes de aplicar
+eb144bf6 Reinicio solicitado por la web
 016eef1e DS18B20 emparejado a su número de serie
 018a9730 Valores de fábrica activos; contraseña admin por USB/serial.
 08676d6a Fallo de MQTT: 
