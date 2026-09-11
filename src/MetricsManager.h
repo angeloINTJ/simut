@@ -2,7 +2,7 @@
  * @file MetricsManager.h
  * @brief Operational metrics singleton — counters and observational stats.
  * @details Centralizes system operational health counters for
- * visualization via CLI (`show metrics`) and future web exposure.
+ * visualization via CLI (`show metrics`), `/api/status.metr` and `/metrics`.
  * Zeroed on boot; totals aggregated since last reboot.
  *
  * @project SIMUT — Integrated Universal Monitoring and Telemetry System

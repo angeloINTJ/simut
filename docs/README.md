@@ -35,7 +35,7 @@ Consulted while changing the code, and enforced by CI where a gate exists.
 
 | document | state | about |
 |---|---|---|
-| [AUTHORIZATION.md](AUTHORIZATION.md) | Living | The 55-route authorization matrix. Gated by `tools/check_authz.py`. |
+| [AUTHORIZATION.md](AUTHORIZATION.md) | Living | The authorization matrix (`check_authz.py --list` counts the routes; 56 at v2.4.2-beta). Gated by `tools/check_authz.py`. |
 | [CONCURRENCY.md](CONCURRENCY.md) | Living | The concurrency invariants, including invariant 3 (`pico_w_asserts` arms its tripwire). |
 | [GLOSSARY.md](GLOSSARY.md) · [pt-BR](GLOSSARY.pt-BR.md) · [es-ES](GLOSSARY.es-ES.md) | Living | Tag glossary. |
 | [diretrizes_seguranca_vibecoding.md](diretrizes_seguranca_vibecoding.md) | Living | The six failure classes every new code path is audited against. |

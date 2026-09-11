@@ -815,12 +815,13 @@ Of the recovery commands only `ap` is allowed over the link.
 |---|---|---|
 | Application | `0x000000` | 1020 KB |
 | Staging / LittleFS | `0x0FF000` | 1024 KB |
-| Config snapshot | last 4 KB of staging | 4 KB |
+| Config snapshot | `0x1FD000` — the last 8 KB of staging (sectors 254–255) | 8 KB |
 | OTA metadata | `0x1FF000` | 4 KB |
 
 The staging area and the filesystem are the same physical region. That is why
-an update reformats the filesystem, and why the configuration snapshot lives in
-the metadata sector instead.
+an update reformats the filesystem. The configuration snapshot sits in the last
+two sectors of that region, which is also why an image is only accepted up to
+1016 KiB: anything larger would have its tail where the snapshot is written.
 
 ### Build
 
@@ -852,9 +853,9 @@ brackets.
 
 | Route | Method | Notes |
 |---|---|---|
-| `/api/status` | GET | Uptime, heap, flash usage, RSSI |
+| `/api/status` | GET | Uptime, heap, flash usage, RSSI; `sys.ver`, `sys.env`, `sys.uid`, `sys.mac`, `sys.cfg` identify the device (§ Fleet hooks). `?quiet=1` reads without rearming the Air timer |
 | `/metrics` | GET | Prometheus text exposition [DASHBOARD]. Session cookie **or** HTTP Basic (username + raw password) — see §10 |
-| `/api/sensors` | GET | Live readings per slot |
+| `/api/sensors` | GET | Slot map and drivers (not readings — those are in `/api/status`) |
 | `/api/config` | GET | Device configuration |
 | `/api/network` | GET | Network configuration |
 | `/api/alarms` | GET | Thresholds |
@@ -892,10 +893,10 @@ brackets.
 | Route | Method | Notes |
 |---|---|---|
 | `/api/save_sys` | POST | Save system configuration [SYS_CONFIG] |
-| `/api/commit_all` | POST | Apply a batch of changes |
+| `/api/commit_all` | POST | Apply a batch of changes. `_dry=1` validates `sys`/`net` on a copy and answers `{"status":"dry","rejected":[…]}` without saving or rebooting |
 | `/api/set_time` | POST | Set the clock |
 | `/api/calib` | GET/POST | Calibration offsets [CALIB] |
-| `/api/action` | POST | Multiplexed actions — `tel_sync`, `tel_reset`, `sensor_scan`, `scan_results`, `sensor_accept`, `sensor_wipe` |
+| `/api/action` | POST | Multiplexed actions — `tel_sync`, `tel_reset`, `sensor_scan`, `scan_results`, `sensor_accept`, `sensor_wipe`, `reboot` |
 | `/api/reset_touch_cal` | POST | Clear touch calibration |
 
 ### Firmware and backup
@@ -905,6 +906,20 @@ brackets.
 | `/api/backup` | GET | Download the filesystem as `.bkp` — **admin only** |
 | `/api/restore` | POST | `op=validate` \| `op=apply` \| `op=stage&commit=1` — **stage is admin only** |
 | `/api/ota/apply` | POST | Apply a staged update — **admin only**, answers 202 |
+
+### Fleet hooks
+
+What a manager of many devices (the SIMUT-RX app, or any client) relies on:
+
+| Where | What | Why |
+|---|---|---|
+| `/api/perms` | `env` (`release`/`alpha`/`air`), `mc` (password change pending) | pick the right OTA image; learn about a pending 409 before the first write |
+| `/api/status` → `sys` | `ver`, `env`, `uid` (board serial), `mac`, `cfg` (CRC-32 of the configuration in RAM) | one `PERM_DASHBOARD` read identifies, versions and fingerprints the device; two devices with the same `cfg` have the same configuration |
+| Telemetry POST headers | `X-SIMUT-Uid`, `X-SIMUT-Ver`, `X-SIMUT-Env`, `X-SIMUT-Cfg` | a receiver correlates the source address with the device without opening a session; the payload is unchanged |
+| mDNS | `_simut._tcp` with TXT `uid`, `ver`, `env`, `tls` | discovery by browse, passive, without touching the web server |
+| `.bin` | the string `SIMUT-ENV:<env>;v=<version>;` in `.rodata` | a client checks the file before uploading; the device checks the staged image (`v=7`, `ENV_MISMATCH`) before accepting it; images up to **1016 KiB** |
+| `commit_all` | `_dry=1`; non-string values and bad addresses land in `rejected` | validate a template on N devices before N reboots; nothing is erased under a 200 |
+| `Authorization: Bearer <SIMUTSESS>` | the session without a cookie jar | see `AUTHORIZATION.md` |
 
 ### Display
 

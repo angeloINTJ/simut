@@ -92,9 +92,10 @@ class Device:
         return self.s.post(self.base + path, timeout=self.timeout, **kw)
 
     def login(self, user, password, tries=6):
-        """Fresh cookie jar every time: the device keeps ONE session slot, so a
-        stale cookie from before a reboot is not merely useless, it is the
-        session the next login would have to evict.
+        """Fresh cookie jar every time: the device keeps three session slots
+        (WebManager.h), and a login for a user already holding one evicts it —
+        so a stale cookie from before a reboot is not merely useless, it is
+        the session the next login would have to evict.
 
         Retried, because /api/login_init starts answering before the boot is
         finished: the first run of this tool took a RST on the POST that
