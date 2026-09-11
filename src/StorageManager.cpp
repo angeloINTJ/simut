@@ -1592,6 +1592,10 @@ uint32_t StorageManager::getHistoryDaysMask(int year, int month) {
 /* =========================================================================== */
 /* PROVISIONAL TIMESTAMP CORRECTION (NTP SYNC) */
 /* =========================================================================== */
+uint32_t StorageManager::getConfigCrc( ) {
+ return calculateCRC32(reinterpret_cast<const uint8_t*>(&_currentConfig), sizeof(SystemConfig));
+}
+
 String StorageManager::getBoardSerialNumber( ) {
  pico_unique_board_id_t board_id; pico_get_unique_board_id(&board_id);
  char hex[17]; snprintf(hex, sizeof(hex), "%02X%02X%02X%02X%02X%02X%02X%02X", board_id.id[0], board_id.id[1], board_id.id[2], board_id.id[3], board_id.id[4], board_id.id[5], board_id.id[6], board_id.id[7]);

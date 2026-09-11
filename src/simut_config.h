@@ -214,7 +214,7 @@
  * SIMUT_BLUETOOTH — Bluetooth Serial CLI (BLE UART).
  *                   Costs ~22 KB flash. Disabled by default.
  *
- * SIMUT_MDNS      — mDNS responder (SIMUT.local hostname).
+ * SIMUT_MDNS      — mDNS responder (<deviceName>.local hostname, `_simut._tcp` service).
  *                   Enabled by default. Negligible flash cost.
  * ========================================================================= */
 
@@ -306,6 +306,29 @@
 
 #ifndef SIMUT_AIR
 #define SIMUT_AIR 0              // 1 = SIMUT Air (headless hibernating build)
+#endif
+
+/* -------------------------------------------------------------------------
+ * SIMUT_ENV_NAME — the hardware variant this image was built for, as a
+ * string the image itself carries: "release" (TFT), "alpha" (16x2 LCD) or
+ * "air" (headless, hibernating).
+ *
+ * Until now nothing in a .bin said which variant it was. /api/status
+ * exposed `cap` (1 = TFT, 0 = anything else), so a fleet manager could not
+ * tell an alpha from an Air — and staging the wrong one formats the file
+ * system and leaves the device with an image for hardware it does not have.
+ * The name is exposed in /api/perms ("env"), /api/status ("env"), the mDNS
+ * TXT record, and the .rodata tag in BuildIdentity.cpp that
+ * ota_validate_staging( ) compares against before a stage is accepted.
+ * ---------------------------------------------------------------------- */
+#if SIMUT_AIR
+#define SIMUT_ENV_NAME "air"
+#elif SIMUT_DISPLAY_ALPHA
+#define SIMUT_ENV_NAME "alpha"
+#elif SIMUT_DISPLAY_TFT
+#define SIMUT_ENV_NAME "release"
+#else
+#define SIMUT_ENV_NAME "headless"
 #endif
 
 #if SIMUT_AIR
