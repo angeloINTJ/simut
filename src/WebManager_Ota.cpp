@@ -1,6 +1,6 @@
 /**
  * @file WebManager_Ota.cpp
- * @brief OTA endpoints — GET /api/backup (download .bkp).
+ * @brief OTA endpoints — backup, restore (validate/apply/stage) and apply.
  *
  * @details Pipeline: auth → HeavyTaskGuard → scan (CRC32 + size) →
  * headers (Content-Length, Content-Disposition with chip_id+timestamp)
@@ -357,16 +357,18 @@ void WebManager::handleApiRestoreFinish( ) {
 
  char buf[256];
  if (ok_staged) {
+ /* "env": what the staged image says it is — "" for an image without the
+  * tag. v=7 (ENV_MISMATCH) is the refusal a wrong variant now gets. */
  snprintf(buf, sizeof(buf),
  "{\"st\":%u,\"bytes\":%lu,\"crc32\":\"%08lX\","
- "\"v\":%u,\"dsize\":%lu,\"dcrc\":\"%08lX\",\"committed\":%u}",
+ "\"v\":%u,\"dsize\":%lu,\"dcrc\":\"%08lX\",\"committed\":%u,\"env\":\"%s\"}",
  (unsigned)_stageSession.status,
  (unsigned long)_stageSession.bytes_written,
  (unsigned long)_stageSession.crc32_running,
  (unsigned)vr.status,
  (unsigned long)vr.decompressed_size,
  (unsigned long)vr.decompressed_crc,
- committed ? 1u : 0u);
+ committed ? 1u : 0u, vr.image_env);
  } else {
  snprintf(buf, sizeof(buf),
  "{\"st\":%u,\"bytes\":%lu,\"crc32\":\"%08lX\"}",
@@ -454,7 +456,7 @@ void WebManager::handleApiRestoreFinish( ) {
  * (write/read/erase 1 4KB sector) → session_end (LittleFS reformatted).
  *
  * Client MUST call /api/backup BEFORE and /api/restore?op=apply AFTER
- * to preserve data. Without auth we get 403; without PERM_FILE_UPLOAD too.
+ * to preserve data. Without auth we get 403; anything but == PERM_FULL_ADMIN too.
  * Admin only.
  * ========================================================================= */
 void WebManager::handleApiOtaStagingTest( ) {
@@ -503,7 +505,7 @@ void WebManager::handleApiOtaStagingTest( ) {
  * Apply orchestrator endpoint
  * ===========================================================================
  *
- * POST /api/ota/apply (admin / PERM_FILE_UPLOAD)
+ * POST /api/ota/apply (== PERM_FULL_ADMIN)
  *
  * Fires the destructive update path. In no-op mode, accepts `?test=1`
  * which injects a stub metadata (state=COMMITTED) and exercises the infra (tear down
@@ -515,8 +517,9 @@ void WebManager::handleApiOtaStagingTest( ) {
  *
  * Without ?test=1: requires legitimate metadata.state==COMMITTED (set after
  * stage+validate OK).
- * Anti-loop via OTA_MAX_APPLY_ATTEMPTS (already in orchestrator).
- * Retry guard: rejects if another apply was triggered in last 10s.
+ * Anti-loop via OTA_MAX_APPLY_ATTEMPTS (already in orchestrator). There is
+ * no time-based retry guard: a second apply within seconds is refused by the
+ * metadata state, not by a clock.
  * ========================================================================= */
 void WebManager::handleApiOtaApply( ) {
  /* OTA apply: DESTRUCTIVE IRREVERSIBLE — ADMIN-ONLY. */

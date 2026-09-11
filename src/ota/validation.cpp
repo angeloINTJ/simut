@@ -11,6 +11,7 @@
 #include "staging.h"
 #include "ota_layout.h"
 #include "backup.h"      /* crc32_update / OTA_CRC32_INIT */
+#include "../BuildIdentity.h"  /* SIMUT_ENV_TAG, simut_env_tag_scan */
 
 #include <Arduino.h>
 #include <hardware/watchdog.h>
@@ -71,7 +72,7 @@ bool ota_validate_staging(const StageSession& s, ValidationReport& report) {
         report.status = ValidationStatus::SIZE_TOO_SMALL;
         return false;
     }
-    if (s.bytes_written > OTA_APP_MAX_SIZE) {
+    if (s.bytes_written > OTA_APP_SAFE_MAX_SIZE) {
         report.status = ValidationStatus::SIZE_TOO_LARGE;
         return false;
     }
@@ -86,6 +87,34 @@ bool ota_validate_staging(const StageSession& s, ValidationReport& report) {
     if (expected != stored) {
         report.status = ValidationStatus::BOOT2_BAD;
         return false;
+    }
+
+    /* Variant check. Size and boot2 CRC prove the file is *a* Pico image;
+     * nothing proved it was an image for THIS hardware, and staging the
+     * wrong variant formats the file system on the way in. The staged
+     * image is scanned for the SIMUT-ENV tag (BuildIdentity.cpp) in 4 KiB
+     * windows with an overlap of one tag length, so a tag straddling two
+     * windows is still found. ~1 MiB of XIP-speed reads, once per stage.
+     * No tag = an image older than the tag: accepted, reported as "". */
+    {
+        static uint8_t win[4096 + SIMUT_ENV_TAG_MAX];
+        const uint32_t total = s.bytes_written;
+        uint32_t off = 0;
+        bool found = false;
+        while (off < total && !found) {
+            uint32_t n = total - off;
+            if (n > sizeof(win)) n = sizeof(win);
+            staging_read(off, win, n);
+            found = simut_env_tag_scan(win, n, report.image_env, sizeof(report.image_env));
+            if (n < sizeof(win)) break;
+            off += 4096;
+            watchdog_update();
+        }
+        (void)SIMUT_ENV_TAG; /* the running image's own tag — the reference that keeps it linked */
+        if (found && strcmp(report.image_env, simut_env_name()) != 0) {
+            report.status = ValidationStatus::ENV_MISMATCH;
+            return false;
+        }
     }
     report.status = ValidationStatus::OK;
     return true;

@@ -44,6 +44,15 @@
 #define OTA_APP_MAX_SIZE         (OTA_FLASH_TOTAL - OTA_EEPROM_RESERVED - OTA_FILESYSTEM_SIZE)
                                                                 /* 0x000000 - 0x0FEFFF (1020 KB) */
 
+/* The largest image the apply can copy WITHOUT touching the config snapshot
+ * (sectors 254..255 of the staging area, OTA_SNAPSHOT_OFFSET below). The
+ * physical slot is 1020 KiB, but an image between 1016 and 1020 KiB has its
+ * tail in the same sectors the snapshot is written to at stage time: the
+ * validator saw a good CRC over bytes the snapshot then overwrote, and the
+ * device booted a corrupted image with every layer reporting success. This
+ * is the ceiling ota_validate_staging( ) and the applier enforce. */
+#define OTA_APP_SAFE_MAX_SIZE    (OTA_APP_MAX_SIZE - OTA_FLASH_SECTOR_SIZE)  /* 1016 KiB */
+
 #define OTA_STAGING_OFFSET       (OTA_APP_MAX_SIZE)             /* 0x0FF000 */
 #define OTA_STAGING_MAX_SIZE     (OTA_FILESYSTEM_SIZE)          /* 0x100000 (1024 KB) */
 

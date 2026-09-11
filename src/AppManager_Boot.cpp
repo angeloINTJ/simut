@@ -718,6 +718,19 @@ void AppManager::setup( ) {
  _storageMgr->enterFlashSafeMode( );
  ota::ota_metadata_clear( );
  _storageMgr->exitFlashSafeMode( );
+ } else if (ota::ota_metadata_read(m) && m.state == ota::STATE_COMMITTED) {
+ /* A stage was committed and the device rebooted before /api/ota/apply
+  * — power cut, watchdog, someone pulled the cable. The staging area is
+  * the file system: whatever LittleFS wrote since then has been going
+  * over the image, so the metadata now vouches for bytes that are not
+  * there any more. Left alone, the next apply would flash that. Cleared
+  * here, with a log line, so the update has to be staged again. */
+ BLOG("[BOOT] OTA: orphan COMMITTED metadata cleared"); BLOG_NL( );
+ LOG_CODE(LOG_WARN, "OTA", SEC_CONFIG_CHANGED, 0,
+ TRL("Staged update discarded: device rebooted before apply"));
+ _storageMgr->enterFlashSafeMode( );
+ ota::ota_metadata_clear( );
+ _storageMgr->exitFlashSafeMode( );
  }
  }
 
