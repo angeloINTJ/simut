@@ -1,0 +1,23 @@
+{
+ "ts": 1789158062.3545694,
+ "local": "2026-09-11 17:21:02",
+ "version": "2.4.2-beta",
+ "fs_u": 98304,
+ "heap_f": 90288,
+ "heap_lb": 48649,
+ "pending": 4,
+ "hi": 1,
+ "tel": 1,
+ "uptime": 20621,
+ "records_today": 0,
+ "records_yday": 248,
+ "records_open": 1,
+ "last_epoch": 1789158059,
+ "log_entries": 990,
+ "tel_cfg": {
+  "t_transport": 0,
+  "t_port": 8010,
+  "t_int": 5,
+  "t_bat": 100
+ }
+}
