@@ -20,6 +20,13 @@
 extern "C" {
 #endif
 
+/** Watchdog window armed across the wake path, in ms.
+ *
+ * Covers from the moment the WFI returns to the caller's SYSRESETREQ. The
+ * healthy path is microseconds, so this is enormous by comparison; it exists
+ * only so that a stall there cannot be silent and permanent (finding F28). */
+#define AIR_WAKE_GUARD_MS 3000u
+
 typedef void (*dormant_wake_source_callback_t)(void);
 
 /** Sleep (deep sleep) until the given RTC alarm fires.
