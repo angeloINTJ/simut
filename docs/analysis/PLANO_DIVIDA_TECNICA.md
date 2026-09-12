@@ -226,7 +226,16 @@ por GP3→GP17. Não é config da bancada e não há correção de firmware: par
 num Air, mantenha-o em M0. Documentado no `AGENTS.md`. O protocolo de OTA em si já
 tem 24 ciclos validados (v2.2.12), então não sobra o que revalidar.
 
-### 3.3 Soak longo
+### ~~3.3 Soak longo~~ — ✅ **FEITO 10–11/09, e REPROVOU o firmware (achado F28)**
+
+12 h hands-off, instrumento passivo (`tools/air_soak.py`: presença crua do USB + console só-leitura + coletor
+HTTP). **119 ciclos impecáveis em 1,99 h** — 0 atrasados, 0 OVERRUN, 0 FATAL, 160 registros entregues — e então,
+às **13:51:24, um sleep ordinário nunca acordou** (esperados 720, entregues 119). O histórico em flash confirma
+ao segundo. O checkpoint de 24 h passou em branco; responde a RESET. **É o "intermitente do sono" reproduzido
+sob observação, no código que a v2.4.2-beta lançada carrega.** Detalhes, suspeitas e conserto proposto:
+[`SIMUT_AIR_PLANO_FIX.md`](SIMUT_AIR_PLANO_FIX.md) **F28**; evidências em `evidence/2026-09-10-soak/`.
+
+### ~~3.3 (redação original)~~
 
 ≥12 h ciclando sem ninguém tocar. Contar: reboots, deriva de heap, registros
 perdidos (agora mensurável — `full_history` + presença no USB), e falhas de

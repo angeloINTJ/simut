@@ -458,7 +458,8 @@ para o `VERIFY`, então a sonda pega carona nesse mesmo laço e guarda só as
 | Comando | Resposta |
 |---|---|
 | `PROBE STATUS` | `PROBE pin=GP2 level=HIGH edges=2/64 dropped=0 armed=YES` |
-| `PROBE START` | `OK PROBE START` — limpa o anel e arma |
+| `PROBE START` | `OK PROBE START` — engata o pull-down, limpa o anel e arma |
+| `PROBE STOP` | `OK PROBE STOP` — desarma e devolve o GP2 à alta impedância |
 | `PROBE READ` | uma linha `EDGE <i> <H\|L> <us>` por borda, terminando em `DONE PROBE edges=<n> dropped=<n>` |
 
 **Por que ele vale mais que o USB.** A enumeração USB atrasa cerca de um segundo
@@ -474,6 +475,11 @@ volta.
 ⚠️ **GP4/GP5 continuam sendo a ponte serial.** A sonda foi para GP2 justamente
 para não desativá-la.
 
+⚠️ **O GP2 nasce em alta impedância (desde 12/09/2026, §13).** O pull-down só
+é engatado por `PROBE START`; `PROBE STOP` o solta de volta. No ocioso a mão não
+carrega a linha — o que importa quando o GP16 do alvo é o MISO do TFT, não a
+sonda do Air.
+
 ⚠️ **Regravar a mão reinicia o alvo.** Foi observado em 06/09: depois de copiar
 o `.uf2` para o volume `RPI-RP2`, o alvo apareceu com uptime zerado, em boot
 frio (M0). Contar com isso ao planejar uma bateria.
@@ -487,22 +493,27 @@ nível baixo significa bateria, e o ciclo normal acontece.
 
 | Comando | Resposta |
 |---|---|
-| `CHARGER STATUS` | `CHARGER STATUS: OFF (GP3 level=L)` |
+| `CHARGER STATUS` | `CHARGER STATUS: HIZ (GP3 level=H)` — ocioso desde 12/09 |
 | `CHARGER ON` | `OK CHARGER ON` — o alvo tem que parar de hibernar |
 | `CHARGER OFF` | `OK CHARGER OFF` — o alvo volta a hibernar |
+| `CHARGER HIZ` | `OK CHARGER HIZ` — solta o GP3 (alta impedância, estado ocioso) |
 
 **Esse é acionado nos dois sentidos.** BOOTSEL e RESET emulam botões em dreno
 aberto e nunca fornecem corrente; o GP3 substitui um divisor de tensão
 pendurado no trilho de 5 V, que é uma fonte, então é saída push-pull comum.
-Ele nasce em nível baixo, de modo que um alvo deixado ligado à mão se comporta
-exatamente como se estivesse na bateria.
+Desde 12/09/2026 ele **nasce em alta impedância** (§13): um alvo deixado ligado
+à mão se comporta como se estivesse na bateria de qualquer forma, porque o
+próprio GP17 do alvo tem pull-down — e a mão deixa de sujar o barramento em
+bancadas onde esse pino não é o sense do carregador. `CHARGER ON/OFF` reassume a
+saída push-pull; `CHARGER HIZ` devolve à ociosidade.
 
 ⚠️ **Nada de divisor neste fio.** O divisor da placa real existe para trazer os
 5 V a um nível lógico seguro. O GP3 já entrega 3,3 V: vai direto no GP17, com
 o GND em comum (o pino 3 fica bem ao lado dos dois).
 
-⚠️ **Mão em reset ou BOOTSEL deixa o GP3 flutuando.** O alvo puxa o GP17 para
-baixo internamente, então a linha lê "na bateria" — que é a falha segura.
+⚠️ **A mão ociosa, em reset ou em BOOTSEL, deixa o GP3 flutuando.** O alvo puxa
+o GP17 para baixo internamente, então a linha lê "na bateria" — a falha segura.
+Desde 12/09/2026 esse "flutuando" é também o estado de boot (§13).
 
 ⚠️ **O estímulo é o nível lógico, não a corrente.** A bancada prova a *decisão*
 do firmware, nunca que a bateria está de fato carregando.
@@ -519,3 +530,38 @@ picotool load -x tools/PicoHand/build/pico_hand.ino.uf2
 Sem botão físico e sem montar o volume `RPI-RP2`: a §7.5 explica por que o
 `picotool` acerta a placa, e a única condição que precisa valer. Em 06/09 isso
 foi feito à mão porque a receita acima ainda não existia.
+
+## 13. Idle em alta impedância — GP2/GP3 (12/09/2026)
+
+A mão passou a **nascer com GP2 (PROBE) e GP3 (CHARGER) em alta impedância**, e
+só sai disso por comando explícito (`PROBE START`, `CHARGER ON/OFF`). `PROBE
+STOP` e `CHARGER HIZ` devolvem cada linha à ociosidade. O `setup()` antigo
+deixava o GP2 com pull-down e o GP3 dirigido em LOW já no boot.
+
+**Por que mudou — o defeito que só a bancada TFT mostrou.** GP2/GP3 estão
+fisicamente ligados ao GP16/GP17 do alvo. No SIMUT Air esses são GPIOs livres
+(indicador de acordado e sense do carregador). No **build TFT** eles são o
+**SPI0 MISO (GP16)** e o **chip-select do touch (GP17)**. Com o firmware antigo,
+a mão dirigia/puxava essas duas linhas mesmo parada: o pull-down no MISO e,
+sobretudo, o GP17 em LOW mantinham o controlador de touch **selecionado** no
+barramento SPI. Na hora do `readRow` (leitura de GRAM que o `/api/screenshot`
+faz), dois escravos disputavam o MISO → todo pixel voltava **zero**. A tela do
+equipamento no app (e no navegador) saía **preta**, embora o TFT mostrasse a
+imagem certa (a escrita vai pelo MOSI/GP19, que a mão não toca).
+
+**A correção é a mão ficar fora do caminho quando não está em uso** — exatamente
+o princípio de dreno-aberto do BOOTSEL/RESET, agora estendido aos dois canais
+auxiliares. O Air não quebra: o suíte engata `PROBE START`/`CHARGER ON/OFF`
+explicitamente, e a hibernação continua igual porque o pull-down do próprio GP17
+do alvo lê "bateria" com a linha em Hi-Z.
+
+**Validação em hardware (12/09/2026), alvo `simuttft` (E6642815) em 10.42.0.235:**
+
+| exercitado | resultado |
+|---|---|
+| firmware novo rodando | `CHARGER STATUS: HIZ (GP3 level=H)` — o antigo nunca reportaria HIZ |
+| GP2 ocioso | `PROBE STATUS: level=LOW edges=0/64 armed=NO` — sem captura de ruído |
+| `GET /api/screenshot` (mesmo endpoint do app) | HTTP 200, 230454 B, **96,5% dos pixels não-zero** (antes: 0,0%), extrema RGB (0,248)(0,252)(0,248) |
+| imagem | dashboard real do SIMUT (SALA 2 T5 21,9 °C, SALA 22,3 °C/73 %) |
+
+Antes desta correção, o mesmo endpoint devolvia `min=0 max=0` em 100% dos bytes.
