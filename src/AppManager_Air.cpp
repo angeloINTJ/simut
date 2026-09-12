@@ -369,9 +369,13 @@ void AppManager::airLoop( ) {
   _sensorMgr->setFastSampling(false);
   /* Always write this wake's sample into local history (the primary job of
    * the wake). The telemetry cursor is untouched; pending packets are sent in
-   * CONNECT/FLUSH when the WiFi came up during SAMPLE. Only a live STA link
-   * means "online" — isTimeSynced() is true even offline (provisional clock
-   * from flash), so it must NOT gate the send path. */
+   * CONNECT/FLUSH when the WiFi came up during SAMPLE. "Online" is a live STA
+   * link with an IP — isLinkUp( ), NOT isConnected( ) (plan F08): isConnected( )
+   * is NET_READY, reached only after NTP returns, and nothing times that wait
+   * out, so on a network without internet the send path gated on it never ran
+   * and the wake slept without trying. isTimeSynced( ) must not gate it either
+   * — the provisional clock stamps the records well enough, and a late stamp
+   * beats a lost measurement. */
   processHistoryLogging( );
   _storageMgr->flushWipV5( );
 
@@ -396,7 +400,7 @@ void AppManager::airLoop( ) {
    * final for this wake — even if the link came up in the meantime, chasing it
    * now would spend awake time the reading no longer needs. The data is on
    * flash and the next telemetry wake will send it. */
-  const bool online = _airRadioWake && !_airNetGaveUp && _netMgr->isConnected( );
+  const bool online = _airRadioWake && !_airNetGaveUp && _netMgr->isLinkUp( );
   _airPhase = online ? AIR_PHASE_CONNECT : AIR_PHASE_SLEEP;
   _airPhaseTimer = millis( );
   break;
@@ -410,7 +414,11 @@ void AppManager::airLoop( ) {
 
  case AIR_PHASE_CONNECT: {
   _netMgr->update( );
-  const bool ok = _netMgr->isConnected( );
+  /* isLinkUp( ), not isConnected( ): the link carries the upload as soon as
+   * DHCP is done (NET_CONNECTED_WAIT_NTP), and waiting for NTP here is exactly
+   * the F08 stall — connectTimeoutMs already bounds this, but the wait is for
+   * the link, not the clock. */
+  const bool ok = _netMgr->isLinkUp( );
   if (ok || timeSince(_airPhaseTimer, (uint32_t)_airCfg.connectTimeoutMs)) {
    _airPhase = ok ? AIR_PHASE_FLUSH : AIR_PHASE_SLEEP;
    _airPhaseTimer = millis( );
@@ -448,10 +456,12 @@ void AppManager::airLoop( ) {
   _telemetryMgr->refreshPendingCount( );
   const bool done = (_telemetryMgr->getPendingEstimate( ) == 0);
   const bool serverLost = (_telemetryMgr->getBackoffRemainingMs( ) > 0);
-  /* isNetworkHealthy( ), not isConnected( ): a link that is associated but too
-   * weak to carry an upload keeps isConnected( ) true, so the RSSI gate is what
-   * actually ends the phase in the field. */
-  const bool netLost = !_netMgr->isNetworkHealthy( );
+  /* isLinkHealthy( ), not isNetworkHealthy( ): both apply the RSSI floor, but
+   * the healthy check is built on isConnected( ) (NET_READY), so without NTP it
+   * would read "unhealthy" the instant the link came up and end the phase
+   * before a single batch went out — the F08 stall, one layer down. The link
+   * plus the RSSI floor is what actually gates an upload. */
+  const bool netLost = !_netMgr->isLinkHealthy( );
   /* Wall-clock budget. Everything above depends on the uploader reaching a
    * verdict; this one does not, so no future stall in that path can hold the
    * device awake indefinitely. Derived from the reading interval, not just the

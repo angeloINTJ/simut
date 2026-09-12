@@ -594,6 +594,10 @@ bool NetworkManager::isNetworkHealthy( ) {
  return isConnected( ) && getRssi( ) > RSSI_MIN_THRESHOLD;
 }
 
+bool NetworkManager::isLinkHealthy( ) {
+ return isLinkUp( ) && getRssi( ) > RSSI_MIN_THRESHOLD;
+}
+
 String NetworkManager::getIpAddress( ) { return (_state == NET_AP_CONFIG) ? WiFi.softAPIP( ).toString( ) : WiFi.localIP( ).toString( ); }
 void NetworkManager::getIpAddress(char* buf, size_t len) {
  IPAddress ip = (_state == NET_AP_CONFIG) ? WiFi.softAPIP( ) : WiFi.localIP( );
