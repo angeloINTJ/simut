@@ -25,10 +25,14 @@ jobs:
       - name: Install PlatformIO
         run: pip install platformio
       - name: Apply framework overrides
+        # O framework arduino-pico é corrigido por tools/arduino_pico_overrides/
+        # (o mesmo do build.yml): sem o patch, enableKeepAlive não existe e a
+        # build falha. Instala o framework primeiro, depois aplica os overrides.
         run: |
-          if [ -d tools/arduino_pico_overrides ]; then
-            python3 tools/apply_framework_overrides.py || true
-          fi
+          pio pkg install -e pico_w_release
+          pio pkg install -e pico_w_alpha
+          pio pkg install -e pico_w_air
+          bash tools/arduino_pico_overrides/patch.sh
       - name: Build the three hardware variants
         run: |
           pio run -e pico_w_release
