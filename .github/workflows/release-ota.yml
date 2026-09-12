@@ -34,12 +34,22 @@ jobs:
           pio pkg install -e pico_w_air
           bash tools/arduino_pico_overrides/patch.sh
       - name: Build the three hardware variants
+        # Harvest each image the moment it is built, before the next variant
+        # runs. Observed locally: by the time a single manifest pass runs at
+        # the end, only the last-built env still has firmware.bin under
+        # .pio/build — building a later variant leaves the earlier ones' images
+        # absent, so the release went out with one variant instead of three.
+        # Copying each .bin out as soon as it exists sidesteps that, whatever
+        # the later builds do to the tree.
         run: |
-          pio run -e pico_w_release
-          pio run -e pico_w_alpha
-          pio run -e pico_w_air
+          set -euo pipefail
+          for env in pico_w_release pico_w_alpha pico_w_air; do
+            pio run -e "$env"
+            mkdir -p "release/build/$env"
+            cp ".pio/build/$env/firmware.bin" "release/build/$env/firmware.bin"
+          done
       - name: Manifest
-        run: python3 tools/release_manifest.py --out release/ota
+        run: python3 tools/release_manifest.py --out release/ota --build-dir release/build
       - name: Attach to the release
         uses: softprops/action-gh-release@v2
         with:
