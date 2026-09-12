@@ -281,6 +281,14 @@ either, both or neither:
 > So on that bench GP16 measures the cycle rather than switching anything, and
 > the power-gating path below is documented but not exercised.
 
+> ⚠️ **On a TFT build these pins are NOT free.** GP16 is SPI0 MISO and GP17 the
+> touch chip-select. A PicoHand left wired here must idle in high impedance, or
+> its pull/drive keeps the touch controller on the SPI bus and the
+> `/api/screenshot` GRAM read-back comes back all-black (the panel still shows
+> the image — writes go out on MOSI/GP19, which the hand does not touch). The
+> hand firmware idles GP2/GP3 high-Z since 2026-09-12 (tools/PicoHand MANUAL
+> §13); older hand firmware drove GP17 LOW at boot and corrupted the shot.
+
 ```
    GP16 ──┬──► gate of a P-channel MOSFET (or the EN pin of a 3V3 LDO)
           │    that switches the sensors' VCC (DS18B20 / DHT22 / BMx280)

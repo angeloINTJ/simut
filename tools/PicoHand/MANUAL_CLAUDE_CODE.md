@@ -467,7 +467,8 @@ for `VERIFY`, so the probe rides that same loop and stores only the
 | Command | Reply |
 |---|---|
 | `PROBE STATUS` | `PROBE pin=GP2 level=HIGH edges=2/64 dropped=0 armed=YES` |
-| `PROBE START` | `OK PROBE START` — clears the ring and arms it |
+| `PROBE START` | `OK PROBE START` — engages the pull-down, clears the ring, arms |
+| `PROBE STOP` | `OK PROBE STOP` — disarms and returns GP2 to high impedance |
 | `PROBE READ` | one `EDGE <i> <H\|L> <us>` line per edge, ending in `DONE PROBE edges=<n> dropped=<n>` |
 
 **Why it beats USB.** Enumeration lags the boot by about a second, and that
@@ -482,6 +483,10 @@ absolutes, and keep a measurement well inside that. The suite handles the wrap.
 ⚠️ **GP4/GP5 are still the serial bridge.** The probe went to GP2 precisely so
 the bridge keeps working.
 
+⚠️ **GP2 boots high-Z (since 2026-09-12, §13).** The pull-down is engaged only
+by `PROBE START` and released by `PROBE STOP`, so idle the hand does not load
+the line — which matters when the target's GP16 is the TFT MISO, not the Air probe.
+
 ⚠️ **Reflashing the hand resets the target.** Observed on 2026-09-06: after
 copying the `.uf2` to the `RPI-RP2` volume, the target came back with its uptime
 zeroed, in a cold boot (M0). Plan a bench run around that.
@@ -495,21 +500,25 @@ hibernation entirely; LOW means battery, and the normal cycle runs.
 
 | Command | Reply |
 |---|---|
-| `CHARGER STATUS` | `CHARGER STATUS: OFF (GP3 level=L)` |
+| `CHARGER STATUS` | `CHARGER STATUS: HIZ (GP3 level=H)` — idle since 2026-09-12 |
 | `CHARGER ON` | `OK CHARGER ON` — the target must stop hibernating |
 | `CHARGER OFF` | `OK CHARGER OFF` — the target hibernates again |
+| `CHARGER HIZ` | `OK CHARGER HIZ` — releases GP3 (high impedance, the idle state) |
 
 **This one is driven both ways.** BOOTSEL and RESET emulate open-drain buttons
 and never source current; GP3 replaces a voltage divider hanging off the 5 V
-rail, which is a source, so it is a plain push-pull output. It boots LOW, so a
-target left wired to the hand behaves exactly as it does on battery.
+rail, which is a source, so it is a plain push-pull output. Since 2026-09-12 it **boots high-Z** (§13): a target left wired to the hand
+still reads as battery, because the target's own GP17 pull-down wins, and the
+hand stops disturbing a bus that pin belongs to on other builds. `CHARGER
+ON/OFF` reclaim the push-pull output; `CHARGER HIZ` returns it to idle.
 
 ⚠️ **No divider on this wire.** The divider on the real board exists to bring
 5 V down to a safe logic level. GP3 already sits at 3.3 V: run it straight to
 GP17, and share GND (pin 3 is right beside both).
 
-⚠️ **A hand in reset or BOOTSEL floats GP3.** The target pulls GP17 down
-internally, so the line reads "on battery" — which is the safe failure.
+⚠️ **An idle hand, or one in reset or BOOTSEL, floats GP3.** The target pulls
+GP17 down internally, so the line reads "on battery" — the safe failure. Since
+2026-09-12 that float is also the boot state (§13).
 
 ⚠️ **The stimulus is the logic level, not the current.** The bench proves the
 firmware's *decision*, never that the battery is actually charging.
@@ -525,3 +534,37 @@ picotool load -x tools/PicoHand/build/pico_hand.ino.uf2
 
 No physical button and no mounted `RPI-RP2` volume: see §7.5 for why `picotool`
 picks the right board, and the one condition that has to hold.
+
+## 13. Idle high impedance — GP2/GP3 (2026-09-12)
+
+The hand now **boots with GP2 (PROBE) and GP3 (CHARGER) in high impedance** and
+leaves that state only on an explicit command (`PROBE START`, `CHARGER ON/OFF`);
+`PROBE STOP` and `CHARGER HIZ` return each line to idle. The old `setup()` left
+GP2 pulled down and GP3 driven LOW from boot.
+
+**Why — the defect only the TFT bench showed.** GP2/GP3 are wired to the
+target's GP16/GP17. On SIMUT Air those are free GPIOs; on the **TFT build** they
+are **SPI0 MISO (GP16)** and the **touch chip-select (GP17)**. With the old
+firmware the hand pulled/drove both even while idle: the MISO pull-down and,
+above all, GP17 held LOW kept the touch controller **selected** on the shared
+SPI bus. During `readRow` (the GRAM read-back behind `/api/screenshot`) two
+slaves fought over MISO → every pixel read back **zero**. The device screen in
+the app (and in the browser) came out **black**, even though the TFT displayed
+the image correctly (writes go out on MOSI/GP19, which the hand never touches).
+
+**The fix is for the hand to stay out of the way when unused** — the same
+open-drain principle as BOOTSEL/RESET, now extended to both auxiliary channels.
+Air is unaffected: its suite engages `PROBE START`/`CHARGER ON/OFF` explicitly,
+and hibernation still reads "battery" because the target's own GP17 pull-down
+wins while the line is high-Z.
+
+**Hardware validation (2026-09-12), target `simuttft` (E6642815) at 10.42.0.235:**
+
+| exercised | result |
+|---|---|
+| new firmware running | `CHARGER STATUS: HIZ (GP3 level=H)` — the old build could never report HIZ |
+| GP2 idle | `PROBE STATUS: level=LOW edges=0/64 armed=NO` — no noise capture |
+| `GET /api/screenshot` (the app's own endpoint) | HTTP 200, 230454 B, **96.5% non-zero pixels** (was 0.0%), RGB extrema (0,248)(0,252)(0,248) |
+| image | the real SIMUT dashboard (SALA 2 T5 21.9 °C, SALA 22.3 °C/73 %) |
+
+Before this fix the same endpoint returned `min=0 max=0` for 100% of the bytes.

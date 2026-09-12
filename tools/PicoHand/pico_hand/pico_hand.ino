@@ -40,7 +40,12 @@
  *
  *  Neither button line is ever driven HIGH — safe to stay wired while someone
  *  presses the physical buttons on the target. PIN_CHARGER is the exception:
- *  it replaces a voltage divider, not a button, so it is driven both ways.
+ *  it replaces a voltage divider, not a button, so it is driven both ways — but
+ *  it and PIN_PROBE both idle in HIGH IMPEDANCE, so an unused auxiliary channel
+ *  never loads the target pin it is wired to. This is critical on the TFT bench,
+ *  where those target pins (GP16/GP17) carry the display SPI bus: a driven or
+ *  pulled line there corrupts the screenshot GRAM read-back. Engage the channels
+ *  with CHARGER ON/OFF and PROBE START; release them with CHARGER HIZ / PROBE STOP.
  *
  *  Expected wiring
  *  ---------------
@@ -60,6 +65,15 @@
 #include <Arduino.h>
 #include <ctype.h>
 #include <string.h>
+
+/** State of PIN_CHARGER.
+ *  HIZ = high impedance (idle default: the pin is an input and does not load or
+ *  drive the target line, so the hand never disturbs a bus it is not testing);
+ *  OFF = driven LOW ("on battery"); ON = driven HIGH ("charger plugged").
+ *
+ *  Declared here, above the sketch's auto-generated prototypes, because
+ *  charger_state_str() takes this type as a parameter. */
+typedef enum { CHG_HIZ = 0, CHG_OFF = 1, CHG_ON = 2 } charger_state_t;
 
 /* =============================================================================
  *  Hardware configuration (adjust to match your wiring)
@@ -86,9 +100,11 @@ static const uint8_t PIN_BOOTSEL = 1;
  *  GP2 (physical pin 4) is deliberately NOT GP4/GP5: those are the UART1
  *  transparent serial bridge, and the bridge stays available.
  *
- *  Input with a pull-down, so a target that is off, in reset or in BOOTSEL —
- *  all of which leave the line high-impedance — reads as "asleep" rather than
- *  floating. */
+ *  Idle is plain INPUT (high impedance): the hand does not load the line, which
+ *  matters on the TFT bench where the target's GP16 is the SPI0 MISO. PROBE
+ *  START engages an internal pull-down, so a target that is off, in reset or in
+ *  BOOTSEL — all of which leave the line high-Z — reads "asleep" not floating;
+ *  PROBE STOP returns it to idle high impedance. */
 static const uint8_t PIN_PROBE   = 2;
 
 /** Charger-presence stimulus: an output that drives the target's charger
@@ -100,10 +116,10 @@ static const uint8_t PIN_PROBE   = 2;
  *  3.3 V — safe for the target's GPIO and enough to override its pull-down.
  *
  *  GP3 (physical pin 5) sits next to PIN_PROBE (pin 4) with a GND on pin 3,
- *  and stays clear of GP4/GP5 (the UART1 bridge). It boots LOW so a target
- *  that is wired up but not under test behaves exactly as if on battery, and
- *  a hand in reset or BOOTSEL leaves the line high-Z for the target's own
- *  pull-down to win. */
+ *  and stays clear of GP4/GP5 (the UART1 bridge). It idles HIGH-Z (input) —
+ *  including in reset or BOOTSEL — so it never loads the target's GP17, which on
+ *  the TFT bench is the touch chip-select. The target's own pull-down then reads
+ *  "on battery"; CHARGER ON/OFF drive it push-pull, CHARGER HIZ releases it. */
 static const uint8_t PIN_CHARGER = 3;
 
 /** On-board LED, used as heartbeat to indicate firmware is alive.
@@ -370,8 +386,19 @@ static void pin_release(uint8_t gpio)
 static bool g_bootsel_pressed = false;
 static bool g_reset_pressed   = false;
 
-/** Level currently driven on PIN_CHARGER (true = HIGH = "charger plugged"). */
-static bool g_charger_on      = false;
+/** Current state of PIN_CHARGER (see charger_state_t near the top). Idle
+ *  default is CHG_HIZ so the hand does not load the target line when unused. */
+static charger_state_t g_charger = CHG_HIZ;
+
+/** Human-readable name for a charger state (never NULL). */
+static const char *charger_state_str(charger_state_t s)
+{
+    switch (s) {
+        case CHG_ON:  return "ON";
+        case CHG_OFF: return "OFF";
+        default:      return "HIZ";
+    }
+}
 
 /* =============================================================================
  *  Verifier health check — Core 0
@@ -594,8 +621,8 @@ static const command_t COMMANDS[] = {
     { "DEBUG",        "DEBUG <ON|OFF|STATUS>: toggle verbose logs",           cmd_debug        },
     { "PULSE_TEST",   "PULSE_TEST <BOOTSEL|RESET> <ms> <count>: timed pulses",cmd_pulse_test   },
     { "VERIFY",       "VERIFY [CLEAR]: shows/resets logic analyzer status",   cmd_verify       },
-    { "PROBE",        "PROBE <STATUS|START|READ>: timestamps edges on GP2",   cmd_probe        },
-    { "CHARGER",      "CHARGER <ON|OFF|STATUS>: drives charger sense on GP3", cmd_charger      },
+    { "PROBE",        "PROBE <STATUS|START|STOP|READ>: edges on GP2 (idle Hi-Z)", cmd_probe    },
+    { "CHARGER",      "CHARGER <ON|OFF|HIZ|STATUS>: charger sense GP3 (idle Hi-Z)", cmd_charger },
     { "HELP",         "lists all available commands",                         cmd_help         },
 };
 
@@ -776,7 +803,7 @@ static void cmd_status(const char *args)
                   g_reset_pressed   ? "PRESSED" : "RELEASED",
                   g_vs.bootsel_actual_low ? "LOW" : "HIGH",
                   g_vs.reset_actual_low   ? "LOW" : "HIGH",
-                  g_charger_on ? "ON" : "OFF");
+                  charger_state_str(g_charger));
 }
 
 static void cmd_pinout(const char *args)
@@ -992,6 +1019,11 @@ static void cmd_probe(const char *args)
     str_upper(buf);
 
     if (strcmp(buf, "START") == 0) {
+        /* Engage the pull-down before arming, so the line reads a defined LOW
+         * when the target leaves GP16 high-Z (off/reset/BOOTSEL/asleep). The
+         * idle default is plain INPUT (high-Z) — see setup() — so the hand does
+         * not load a bus it is not measuring; START is what opts in to the pull. */
+        pinMode(PIN_PROBE, INPUT_PULLDOWN);
         /* Arming is a request, not a write: Core 1 owns the buffer and clears
          * it on the next sample, so no field ends up with two writers. */
         const uint32_t want = g_vs.probe_arm_seq + 1;
@@ -1004,6 +1036,21 @@ static void cmd_probe(const char *args)
             return;
         }
         Serial.println("OK PROBE START");
+        return;
+    }
+
+    if (strcmp(buf, "STOP") == 0) {
+        /* Disarm and release the probe to high impedance (the idle default), so
+         * a hand left wired to a shared bus — e.g. the TFT SPI0 MISO on the
+         * target's GP16 — stops loading it. Rolling probe_arm_seq back to 0 is a
+         * Core-0-only write; Core 1 sees want==0, re-syncs its ack and stops
+         * capturing (see loop1). */
+        g_vs.probe_arm_seq = 0;
+        for (int i = 0; i < 200 && g_vs.probe_ack_seq != 0; ++i) {
+            delay(1);
+        }
+        pinMode(PIN_PROBE, INPUT);
+        Serial.println("OK PROBE STOP");
         return;
     }
 
@@ -1049,7 +1096,7 @@ static void cmd_charger(const char *args)
     char buf[ARG_BUFFER_SIZE];
     if (args == NULL || *args == '\0') {
         Serial.printf("CHARGER STATUS: %s (GP%u)\n",
-                      g_charger_on ? "ON" : "OFF", (unsigned)PIN_CHARGER);
+                      charger_state_str(g_charger), (unsigned)PIN_CHARGER);
         return;
     }
     strncpy(buf, args, sizeof(buf) - 1);
@@ -1058,8 +1105,13 @@ static void cmd_charger(const char *args)
 
     if (strcmp(buf, "ON") == 0 || strcmp(buf, "OFF") == 0) {
         const bool on = (buf[1] == 'N');
+        /* Idle default is high-Z, so claim the pin as an output before driving.
+         * Set the level, enable output, set it again — the same glitch-free
+         * order setup() used, so the line never passes through the wrong level. */
         digitalWrite(PIN_CHARGER, on ? HIGH : LOW);
-        g_charger_on = on;
+        pinMode(PIN_CHARGER, OUTPUT);
+        digitalWrite(PIN_CHARGER, on ? HIGH : LOW);
+        g_charger = on ? CHG_ON : CHG_OFF;
         /* Read back: catches a wire shorted to the other rail, which would
          * otherwise look like a target bug rather than a bench fault. */
         const int rb = digitalRead(PIN_CHARGER);
@@ -1072,15 +1124,28 @@ static void cmd_charger(const char *args)
         return;
     }
 
+    if (strcmp(buf, "HIZ") == 0) {
+        /* Release the line to high impedance — the safe idle state. On the TFT
+         * bench the target's GP17 is the touch chip-select on the SPI bus shared
+         * with the display; a driven level there keeps the touch controller on
+         * the bus and corrupts the screenshot GRAM read-back. Hi-Z hands GP17
+         * back to the target firmware, and the target's own pull keeps its
+         * charger sense at "battery" on the Air bench. */
+        pinMode(PIN_CHARGER, INPUT);
+        g_charger = CHG_HIZ;
+        Serial.println("OK CHARGER HIZ");
+        return;
+    }
+
     if (strcmp(buf, "STATUS") == 0) {
         Serial.printf("CHARGER STATUS: %s (GP%u level=%c)\n",
-                      g_charger_on ? "ON" : "OFF",
+                      charger_state_str(g_charger),
                       (unsigned)PIN_CHARGER,
                       digitalRead(PIN_CHARGER) ? 'H' : 'L');
         return;
     }
 
-    Serial.printf("ERR: CHARGER expects ON, OFF or STATUS (received '%s')\n", buf);
+    Serial.printf("ERR: CHARGER expects ON, OFF, HIZ or STATUS (received '%s')\n", buf);
 }
 
 static void cmd_help(const char *args)
@@ -1196,16 +1261,20 @@ void setup(void)
     pin_init_released(PIN_BOOTSEL);
     pin_init_released(PIN_RESET);
 
-    /* Probe input. Pull-down so an absent, reset or BOOTSEL target — all of
-     * which leave the line high-Z — reads LOW ("asleep") instead of floating. */
-    pinMode(PIN_PROBE, INPUT_PULLDOWN);
-
-    /* Charger stimulus starts LOW ("on battery") so a wired-up target that is
-     * not being tested hibernates exactly as it does in the field. */
-    digitalWrite(PIN_CHARGER, LOW);
-    pinMode(PIN_CHARGER, OUTPUT);
-    digitalWrite(PIN_CHARGER, LOW);
-    g_charger_on = false;
+    /* Auxiliary lines (PROBE on GP2, CHARGER on GP3) start in HIGH IMPEDANCE.
+     *
+     * These two pins are wired to the target only on the SIMUT Air bench, where
+     * the target's GP16/GP17 are free GPIOs. On the TFT bench those same target
+     * pins are SPI0 MISO (GP16) and the touch chip-select (GP17): a hand that
+     * pulls or drives them corrupts the display GRAM read-back and the screenshot
+     * comes out all black. So the safe idle is to touch nothing — the Air suite
+     * engages each channel explicitly (PROBE START, CHARGER ON/OFF) when it needs
+     * it, and PROBE STOP / CHARGER HIZ release them again. Hibernation on the Air
+     * bench is unaffected: the target's own pull-down on its charger-sense input
+     * reads "battery" while this line is high-Z, exactly as CHARGER OFF would. */
+    pinMode(PIN_PROBE, INPUT);       /* pull-down is armed by PROBE START     */
+    pinMode(PIN_CHARGER, INPUT);     /* driven only by CHARGER ON/OFF         */
+    g_charger = CHG_HIZ;
 
     /* Core 1 launches automatically via the arduino-pico framework.
      * setup1() and loop1() are defined below — the framework detects them
@@ -1326,7 +1395,10 @@ void loop1(void)
             g_vs.probe_dropped    = 0;
             g_vs.probe_level_high = (digitalRead(PIN_PROBE) == HIGH);
             g_vs.probe_ack_seq    = want;
-        } else {
+        } else if (want != 0) {
+            /* Only capture while armed. Idle (want == 0, after boot or PROBE
+             * STOP) leaves PIN_PROBE high-Z; sampling a floating line would
+             * fill the buffer with noise edges. */
             const bool level_high = (digitalRead(PIN_PROBE) == HIGH);
             if (level_high != g_vs.probe_level_high) {
                 g_vs.probe_level_high = level_high;
