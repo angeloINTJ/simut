@@ -1132,6 +1132,7 @@ static const char* translateCodeEn(uint16_t code) {
  case APP_AIR_CYCLE_HELD: return "Air cycle held in M0";
  case APP_AIR_COLD_BOOT: return "Cold boot, not a hibernation wake";
  case APP_AIR_SLEEP_CLAMPED: return "Sleep clamped to under 24 h (alarm is time-of-day)";
+ case APP_AIR_WAKE_INCOMPLETE: return "Previous Air wake did not complete";
 
  /* ── App UI (440–449) ── */
  case APP_UI_THEME_CHANGED: return "Theme changed via UI";

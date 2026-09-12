@@ -31,6 +31,8 @@
 #include "hardware/structs/clocks.h"
 #include "hardware/structs/rosc.h"
 #include "hardware/structs/scb.h"
+#include "hardware/structs/watchdog.h"
+#include "hardware/watchdog.h"
 
 /* Run the system from the crystal and power down the PLLs. clk_rtc must
  * already be running from the XOSC (configured by the caller). */
@@ -110,6 +112,39 @@ void sleep_goto_sleep_until(datetime_t *t, dormant_wake_source_callback_t callba
     /* SLEEP until the RTC alarm fires. Execution resumes here on wake. */
     __asm volatile("wfi");
 
+    /* Everything from here to the caller's SYSRESETREQ runs with every
+     * interrupt but the RTC masked and — until this line existed — with no
+     * watchdog at all, because the caller disables it before the sleep. A
+     * stall anywhere below was therefore silent AND permanent: the USB pull-up
+     * is already released and the radio is down, so nothing could report it.
+     *
+     * Measured on 2026-09-10 (finding F28): 119 clean cycles, then one
+     * ordinary sleep that never came back — 27.5 h, no wake, recovered only by
+     * a physical reset. The wait for ROSC_STATUS.STABLE just below is the only
+     * unbounded loop on this path and the leading suspect.
+     *
+     * Arming the guard BEFORE that wait turns any stall here into a reset the
+     * device recovers from on its own, and one the next boot can name: the
+     * wake never reaches the caller's scratch[1] write, which is exactly what
+     * AppManager_Boot reads as an incomplete wake (APP_AIR_WAKE_INCOMPLETE).
+     * The caller disarms it again just before its reset — the boot that
+     * follows runs for tens of seconds before loop( ) arms the real watchdog.
+     *
+     * watchdog_start_tick is re-applied because sleep_run_from_xosc moved
+     * clk_ref onto the XOSC, so the divisor for a 1 MHz tick is 12. */
+    /* ORDER MATTERS, and a fault-injection run proved it on 2026-09-11: arming
+     * the guard here — BEFORE the ROSC is switched back on — rescues nothing.
+     * The reset it triggers lands in a boot ROM that spins waiting for the
+     * glitchless mux to see a ROSC edge, and the ROSC is still off, so the
+     * device never comes back. That is finding F22 all over again. Measured:
+     * with a stall injected at this point the target stayed dark for 180 s.
+     *
+     * So the ROSC goes back on FIRST (a plain register write, no loop), and the
+     * guard is armed immediately after, covering the one unbounded wait on this
+     * path — the STABLE poll below — and everything up to the caller's reset.
+     * A reset from that point finds a ROSC that is at least enabled, which is
+     * what the boot ROM needs. */
+
     /* Bring the ring oscillator back BEFORE the caller resets the chip.
      *
      * sleep_run_from_xosc() stopped it to save its quiescent current, and the
@@ -128,6 +163,14 @@ void sleep_goto_sleep_until(datetime_t *t, dormant_wake_source_callback_t callba
     hw_write_masked(&rosc_hw->ctrl,
                     ROSC_CTRL_ENABLE_VALUE_ENABLE << ROSC_CTRL_ENABLE_LSB,
                     ROSC_CTRL_ENABLE_BITS);
+
+    /* Guard from here: the ROSC is enabled, so a reset can boot. The tick is
+     * re-applied because sleep_run_from_xosc moved clk_ref onto the XOSC, so
+     * the divisor for a 1 MHz tick is 12. The healthy wait below is
+     * microseconds; the window is enormous by comparison. */
+    watchdog_start_tick(12);
+    watchdog_enable(AIR_WAKE_GUARD_MS, 1);
+
     while (!(rosc_hw->status & ROSC_STATUS_STABLE_BITS)) {
         tight_loop_contents();
     }

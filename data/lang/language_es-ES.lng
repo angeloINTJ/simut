@@ -175,6 +175,7 @@ Luminosidad
 411 Ciclo Air retenido en M0
 412 Arranque en frío, no vino de la hibernación
 413 Sueño limitado a menos de 24 h (la alarma es por hora del día)
+414 El despertar anterior del Air no se completó
 440 Tema cambiado por la UI
 441 Idioma cambiado por la UI
 442 Límites de alarma guardados por la UI

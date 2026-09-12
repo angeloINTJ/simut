@@ -723,6 +723,12 @@ void AppManager::airEnterDormant( ) {
  /* Woke from DORMANT. Soft-reset so the boot ROM re-initialises the clocks
   * and the firmware boots back into M1 (watchdog scratch[0] still carries the
   * Air marker; it is only cleared on a power cycle). */
+ /* Disarm the wake guard that pico_sleep.c armed after the WFI. The boot this
+  * reset starts runs for tens of seconds before loop( ) arms the real
+  * watchdog, so a 3 s guard left running would fire in the middle of setup( )
+  * — and again on the boot after that. setup( ) clears it defensively too;
+  * this is the ordinary path cleaning up after itself. */
+ hw_clear_bits(&watchdog_hw->ctrl, WATCHDOG_CTRL_ENABLE_BITS);
  scb_hw->aircr = 0x05FA0004u; /* VECTKEY | SYSRESETREQ (NVIC system reset) */
  while (true) { tight_loop_contents( ); } /* reset is immediate; not reached */
 }
