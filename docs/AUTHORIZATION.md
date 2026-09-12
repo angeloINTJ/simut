@@ -7,6 +7,24 @@ in `src/WebManager_Core.cpp`, follows each route to its handler, and fails CI if
 a route is neither gated nor on its allowlist. Run `python3 tools/check_authz.py
 --list` to print the live matrix straight from the source.
 
+## How a refusal is answered
+
+Every JSON route gates through `requirePerm(bits)` (`WebManager_Auth.cpp`):
+
+- **401** `{"error":"Unauthorized"}` — no live session at all. The token was
+  never issued, expired (15 min idle), or died with a reboot. The fix is to
+  log in again.
+- **403** `{"error":"Forbidden"}` — a live session whose account lacks the
+  bits. Logging in again changes nothing; the account does.
+
+Before this branch every route but `/api/perms` answered 403 for both, and a
+client could not tell "log in again" from "this account cannot" without a
+second request. HTML pages keep redirecting to `/login`.
+
+The session token travels as the `SIMUTSESS` cookie **or** as
+`Authorization: Bearer <token>` — the same token, the same three slots, the
+same idle timeout. `Basic` remains the credential of `/metrics` only.
+
 ## Permission bits
 
 A session carries a 16-bit permission mask (`SystemDefs_Limits.h`). A handler
@@ -30,7 +48,7 @@ gates by testing the bits it needs against `getAuthPerms()`.
 ### The two privilege tiers — this is the load-bearing invariant
 
 `/api/commit_all` refuses any `perms` value above `PERM_ALL_BITS` (0x03FF) when
-creating or editing users (`WebManager_Commit.cpp`). So a web administrator can
+creating users (there is no edit action — a role change is `del` + `add`) (`WebManager_Commit.cpp`). So a web administrator can
 hand out at most all ten named bits. `PERM_FULL_ADMIN` (0xFFFF) is reachable
 only two ways: the factory seed sets it on user slot 0 (`StorageManager.cpp`),
 and the serial CLI `user perm <name> admin|0xFFFF` can assign it
@@ -101,10 +119,10 @@ handler checks.
 | `POST /api/force_chpass` | authenticated (`perms != 0`) **and** password-change-required (`isPasswordChangeRequired`) — completes the forced password change |
 | `POST /api/calib` | `PERM_CALIB` |
 | `POST /api/save_sys` | `PERM_SYS_CONFIG` |
-| `POST /api/commit_all` | `PERM_SYS_CONFIG` **plus per-section authz** (`WebCommitSections.h`) |
+| `POST /api/commit_all` | `PERM_SYS_CONFIG` **plus per-section authz** (`WebCommitSections.h`). `_dry=1` runs the same gates and parsers on a copy and writes nothing — it needs the same bits as the real thing |
 | `POST /api/reset_touch_cal`, `/api/history_rebind`, `/api/set_time` | `PERM_SYS_CONFIG` |
 | `POST /api/clear_logs` | `PERM_LOGS` **and** `PERM_SYS_CONFIG` (both) |
-| `POST /api/action` | `PERM_SYS_CONFIG` (per-`op` selector inside) |
+| `POST /api/action` | `PERM_SYS_CONFIG` (per-`op` selector inside; `op=reboot` also answers 409 with a pending password change and 503 during touch calibration, like `commit_all`) |
 | `POST /api/delete` | `PERM_FILE_DELETE` |
 | `POST /api/mkdir` | `PERM_FILE_UPLOAD` |
 | `POST /api/upload` | `PERM_FILE_UPLOAD` (enforced in the data callback **and** the completion handler) |

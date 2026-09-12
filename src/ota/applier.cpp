@@ -267,7 +267,7 @@ bool __not_in_flash_func(ota_applier_run)(const UpdateMetadata* meta) {
     const uint32_t raw_size  = meta->compressed_size;
     const uint32_t want_crc  = meta->uncompressed_crc32;
 
-    if (raw_size == 0 || raw_size > OTA_APP_MAX_SIZE) {
+    if (raw_size == 0 || raw_size > OTA_APP_SAFE_MAX_SIZE) {
         applier_reboot();
     }
 

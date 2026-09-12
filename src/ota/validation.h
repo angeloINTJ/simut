@@ -35,8 +35,9 @@ enum class ValidationStatus : uint8_t {
     NOT_GZIP        = 2,    /**< [reservado, não setado em raw-only] */
     DECOMPRESS_FAIL = 3,    /**< [reservado, não setado em raw-only] */
     SIZE_TOO_SMALL  = 4,    /**< descomprimido < 100 KiB (sketch demais pequeno) */
-    SIZE_TOO_LARGE  = 5,    /**< descomprimido > app slot (1020 KiB) */
+    SIZE_TOO_LARGE  = 5,    /**< imagem > OTA_APP_SAFE_MAX_SIZE (1016 KiB — o teto que não toca o snapshot) */
     BOOT2_BAD       = 6,    /**< CRC-32/MPEG-2 dos primeiros 256 B inválido */
+    ENV_MISMATCH    = 7,    /**< a imagem traz uma etiqueta SIMUT-ENV de OUTRA variante (release/alpha/air) */
 };
 
 struct ValidationReport {
@@ -45,6 +46,9 @@ struct ValidationReport {
     uint32_t        compressed_crc;     /**< Vem do StageSession (CRC32 EDB88320 dos bytes recebidos). */
     uint32_t        decompressed_size;  /**< == compressed_size em raw-only. */
     uint32_t        decompressed_crc;   /**< == compressed_crc em raw-only. */
+    /** Variante que a imagem declara (etiqueta SIMUT-ENV), ou "" quando a
+     *  imagem não traz etiqueta — build anterior a esta, aceita como antes. */
+    char            image_env[12];
 };
 
 /**

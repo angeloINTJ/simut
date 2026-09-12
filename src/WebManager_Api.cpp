@@ -19,6 +19,7 @@
 #define HPOS(v) do { watchdog_hw->scratch[7] = (uint32_t)(v); } while (0)
 #include <LittleFS.h>
 #include <time.h>
+#include "BuildIdentity.h"
 
 using ReadGuard = StorageManager::ReadGuard;
 
@@ -33,11 +34,17 @@ void WebManager::handleApiPerms( ) {
 	 * returns empty strings. Web JS falls back to "PT" when code is empty. */
 	const char* lc = DisplayManager::getActiveLangCode( );
 	const char* ln = DisplayManager::getActiveLangName( );
-	char json[336];
+	/* env: the hardware variant (BuildIdentity.h) — the only way a client can
+	 * pick the right image before an update. mc: the pending forced password
+	 * change; without it a client that reuses a session only learns about it
+	 * from the 409 of its first write. */
+	char json[384];
 	snprintf(json, sizeof(json),
 	         "{\"user\":\"%s\",\"perms\":%u,\"ntp\":%d,\"time\":%lu,\"version\":\"%s\","
+	         "\"env\":\"%s\",\"mc\":%d,"
 	         "\"langCode\":\"%s\",\"langName\":\"%s\"}",
 	         _currentUserName.c_str( ), perms, ntpOk ? 1 : 0, (unsigned long)now, SIMUT_VERSION,
+	         simut_env_name( ), isPasswordChangeRequired( ) ? 1 : 0,
 	         /* The .lng identity is attacker-supplied: it comes out of a file
 	          * anyone with PERM_FILE_UPLOAD can put on the device, and it lands
 	          * in the response every page of the UI fetches first. A quote in
@@ -48,8 +55,7 @@ void WebManager::handleApiPerms( ) {
 }
 
 void WebManager::handleApiNetwork( ) {
-	uint16_t perms = getAuthPerms( );
-	if (!(perms & PERM_NET_CONFIG)) { _server->send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
+	if (!requirePerm(PERM_NET_CONFIG)) return;
 
 	SystemConfig& cfg = _storageRef->getConfig( );
 
@@ -140,8 +146,7 @@ String WebManager::jsonEscape(const char* src) {
 	return out;
 }
 void WebManager::handleApiConfig( ) {
-	uint16_t perms = getAuthPerms( );
-	if (!(perms & PERM_SYS_CONFIG)) { _server->send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
+	if (!requirePerm(PERM_SYS_CONFIG)) return;
 
 	SystemConfig& cfg = _storageRef->getConfig( );
 
@@ -262,8 +267,8 @@ void WebManager::handleApiConfig( ) {
 }
 
 void WebManager::handleApiUsers( ) {
-	uint16_t perms = getAuthPerms( );
-	if (!(perms & PERM_USER_MGR)) { _server->send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
+	uint16_t perms = requirePerm(PERM_USER_MGR);
+	if (!perms) return;
 
 	SystemConfig& cfg = _storageRef->getConfig( );
 
@@ -287,11 +292,7 @@ void WebManager::handleApiUsers( ) {
 }
 
 void WebManager::handleApiThemes( ) {
-	uint16_t perms = getAuthPerms( );
-	if (!(perms & PERM_DASHBOARD)) {
-		_server->send(403, "application/json", "{\"error\":\"Forbidden\"}");
-		return;
-	}
+	if (!requirePerm(PERM_DASHBOARD)) return;
 
 	_server->sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
 	_server->setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
@@ -323,11 +324,7 @@ void WebManager::handleApiThemes( ) {
 
 
 void WebManager::handleApiAlarms( ) {
-	uint16_t perms = getAuthPerms( );
-	if (!(perms & PERM_SYS_CONFIG)) {
-		_server->send(403, "application/json", "{\"error\":\"Forbidden\"}");
-		return;
-	}
+	if (!requirePerm(PERM_SYS_CONFIG)) return;
 
 	SystemConfig& cfg = _storageRef->getConfig( );
 
@@ -552,8 +549,14 @@ void WebManager::handleApiLang( ) {
 }
 
 void WebManager::handleApiStatus( ) {
-	uint16_t perms = getAuthPerms( );
-	if (!(perms & PERM_DASHBOARD)) { _server->send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
+	/* ?quiet=1: read without touching the Air hibernation timer. A fleet
+	 * manager polling twenty devices must not hold each one awake by doing
+	 * so — the authenticated branch of getAuthPerms( ) fires the activity
+	 * callback on every other request, and only this one opts out. */
+	_quietRequest = _server->hasArg("quiet") && _server->arg("quiet") == "1";
+	const bool allowed = requirePerm(PERM_DASHBOARD);
+	_quietRequest = false;
+	if (!allowed) return;
 
 	_server->sendHeader("Cache-Control", "no-cache");
 
@@ -609,8 +612,20 @@ void WebManager::handleApiStatus( ) {
 	 * Without it the dashboard cannot tell "nothing left to send" from "nothing
 	 * is ever sent", and pending==0 means both. */
 	int telOn = (cfg.telInterval > 0) ? 1 : 0;
-	snprintf(buffer, sizeof(buffer), "{\"sys\":{\"name\":\"%s\",\"uptime\":%lu,\"rssi\":%d,\"ip\":\"%s\",\"theme\":%d,\"heap_f\":%lu,\"heap_t\":%lu,\"heap_lb\":%lu,\"fs_u\":%lu,\"fs_t\":%lu,\"time\":%lu,\"ntp\":%d,\"pending\":%d,\"tel\":%d,\"hi\":%u,\"cap\":%d},",
-	         devName.c_str( ), millis( ), liveRssi, ipStr.c_str( ), cfg.themeIndex,
+	/* ver/env/uid/mac/cfg: identity in the one route every account can read.
+	 * Before this, the version lived only in /api/perms, the serial only in
+	 * /api/config (PERM_SYS_CONFIG), and the variant nowhere — a manager
+	 * needed three routes and still could not tell alpha from Air. `cfg` is
+	 * the CRC-32 of the configuration in RAM: two devices with the same
+	 * value have the same configuration, and a device whose value changed
+	 * since the last read was edited by someone (§ fleet, R1/R5). */
+	char macBuf[20];
+	_netRef->getMacAddress(macBuf, sizeof(macBuf));
+	snprintf(buffer, sizeof(buffer), "{\"sys\":{\"name\":\"%s\",\"ver\":\"%s\",\"env\":\"%s\",\"uid\":\"%s\",\"mac\":\"%s\",\"cfg\":\"%08lX\",\"uptime\":%lu,\"rssi\":%d,\"ip\":\"%s\",\"theme\":%d,\"heap_f\":%lu,\"heap_t\":%lu,\"heap_lb\":%lu,\"fs_u\":%lu,\"fs_t\":%lu,\"time\":%lu,\"ntp\":%d,\"pending\":%d,\"tel\":%d,\"hi\":%u,\"cap\":%d},",
+	         devName.c_str( ), SIMUT_VERSION, simut_env_name( ),
+	         StorageManager::getBoardSerialNumber( ).c_str( ), macBuf,
+	         (unsigned long)_storageRef->getConfigCrc( ),
+	         millis( ), liveRssi, ipStr.c_str( ), cfg.themeIndex,
 	         (unsigned long)heapFree, (unsigned long)heapTot, (unsigned long)heapLargest,
 	         (unsigned long)_cachedFsUsedBytes, (unsigned long)_cachedFsTotalBytes,
 	         (unsigned long)now, ntp ? 1 : 0, pending, telOn,

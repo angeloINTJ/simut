@@ -19,12 +19,16 @@
 #include "HaDiscovery.h"
 #include "AlarmPayload.h" /* formatadores da 2ª linha (header-only, testáveis) */
 #include "TouchPriority.h"
+#include "BuildIdentity.h"
 #include "sensors/SensorChannelTable.h"
 #include <LittleFS.h>
 #include <algorithm>
 #include <string.h>
 #include <hardware/watchdog.h>
 #include <pico/time.h>
+#include <memory>
+
+static void addIdentityHeaders(HTTPClient& http, StorageManager* storage);
 
 /* The ~5.9 KB of V4 decode scratch that lived here is gone: collectBatch and
  * refreshPendingCount now read through StorageManager's V5 reader, which owns
@@ -990,6 +994,7 @@ bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
  http.addHeader("Authorization", "Bearer " + tokenStr);
  }
  }
+ addIdentityHeaders(http, _storageRef);
 
  http.setTimeout(NET_SOCKET_TIMEOUT_MS);
  feedWdt( );
@@ -2343,6 +2348,24 @@ TelemetryManager* TelemetryManager::s_alarmInstance = nullptr;
 
 /** Header de auth do HTTP — mesma semântica da linha convencional
  * (attemptHttpUpload), extraído para reuso sem tocar no caminho original. */
+/* Who is sending, on every POST, in headers — the payload does not change.
+ * The JSON batch is a bare array and the CSV a table; putting identity in
+ * the body would break every receiver that parses them today. A receiver
+ * that keeps the request headers (simut-rx does) correlates the source
+ * address with the board id, the version, the variant and the config
+ * fingerprint for free, and notices a config change or an update without
+ * ever opening a session. Four short headers, ~90 B per request. */
+static void addIdentityHeaders(HTTPClient& http, StorageManager* storage) {
+	http.addHeader("X-SIMUT-Uid", StorageManager::getBoardSerialNumber( ));
+	http.addHeader("X-SIMUT-Ver", SIMUT_VERSION);
+	http.addHeader("X-SIMUT-Env", simut_env_name( ));
+	if (storage) {
+		char crc[9];
+		snprintf(crc, sizeof(crc), "%08lX", (unsigned long)storage->getConfigCrc( ));
+		http.addHeader("X-SIMUT-Cfg", crc);
+	}
+}
+
 static void addTelemetryAuthHeader(HTTPClient& http, const SystemConfig& cfg) {
 	String tokenStr = String(cfg.telApiKey);
 	tokenStr.trim( );
@@ -2585,6 +2608,7 @@ bool TelemetryManager::attemptAlarmHttpUpload(String& payload, std::vector<Alarm
 		else if (cfg.alarmTel.mode == TEL_MODE_CSV) http.addHeader("Content-Type", "text/csv");
 		else http.addHeader("Content-Type", "text/plain");
 		addTelemetryAuthHeader(http, cfg);
+		addIdentityHeaders(http, _storageRef);
 
 		http.setTimeout(NET_SOCKET_TIMEOUT_MS);
 		feedWdt( );

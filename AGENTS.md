@@ -406,8 +406,8 @@ Armadilhas de bancada específicas do Air:
 - **"Verified on bench" no commit vale para o commit, não para o seguinte**:
   o ROSC-off entrou no último commit, sem registro de validação. Conferir
   a data do `AGENTS.md`/log de bancada contra a do commit antes de confiar.
-- **CI não cobre o Air** (`build.yml` roda só em `main`, sem `pico_w_air` nem
-  `native_air`). Rodar local antes de cada push: `pio run -e pico_w_air`,
+- **CI cobre o Air desde `build.yml:93/117`** (`native_air` e os cinco envs,
+  `pico_w_air` incluído) — mas só em `main`. Rodar local antes de cada push: `pio run -e pico_w_air`,
   `pio test -e native_air`, `python3 tools/check_air_consistency.py`, e
   `pio run -e pico_w_release -e pico_w_alpha` (o Air toca arquivos comuns).
 - **Para medir o período, use `--watch`, não a CLI.** Todo comando de CLI reseta o timer de

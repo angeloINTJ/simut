@@ -39,7 +39,7 @@ Answers **202** and the device reboots. If it answers **503 "Display in use"**, 
 
 ### 4. Verify
 
-Read the firmware version back from `/api/status` or from the display. **Never infer success from timing or HTTP codes alone** — the only proof of an installed update is the new version reporting itself.
+Read the firmware version back from `/api/perms` (`version`) — or, from this branch on, from `/api/status` (`sys.ver`, with `sys.env` naming the variant) — or from the display. **Never infer success from timing or HTTP codes alone** — the only proof of an installed update is the new version reporting itself.
 
 ## What survives, what doesn't
 

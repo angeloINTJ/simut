@@ -1,0 +1,44 @@
+# Publishes the per-variant OTA images and their manifest on a version tag.
+#
+# The fleet manager (simut-rx) downloads manifest.json from the release,
+# picks the image whose `env` matches what the device reports in /api/perms,
+# verifies the SHA-256, scans the file for the SIMUT-ENV tag, and only then
+# stages it. Every one of those checks needs this job to have run: without a
+# manifest the app has nothing to compare against, and it refuses to update.
+name: OTA release assets
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install PlatformIO
+        run: pip install platformio
+      - name: Apply framework overrides
+        run: |
+          if [ -d tools/arduino_pico_overrides ]; then
+            python3 tools/apply_framework_overrides.py || true
+          fi
+      - name: Build the three hardware variants
+        run: |
+          pio run -e pico_w_release
+          pio run -e pico_w_alpha
+          pio run -e pico_w_air
+      - name: Manifest
+        run: python3 tools/release_manifest.py --out release/ota
+      - name: Attach to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/ota/*.bin
+            release/ota/manifest.json

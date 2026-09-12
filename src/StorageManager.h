@@ -141,6 +141,12 @@ public:
  * redundant audit logs after bursts of "Save" clicks with no change. */
  bool lastSaveWasNoOp( ) const { return _lastSaveWasNoOp; }
 
+ /** CRC-32 of the configuration as it is in RAM right now — the fingerprint
+  * /api/status and the telemetry headers expose. Computed on demand (a few
+  * KB, microseconds) rather than cached, so an edit that has not been saved
+  * yet still shows: a fleet manager compares fingerprints, not timestamps. */
+ uint32_t getConfigCrc( );
+
  /** @return true if enough time has passed since the last real save
  * to allow another. Server-side rate-limit against save bursts
  * that overload LittleFS GC. Handlers should reject with 429 if

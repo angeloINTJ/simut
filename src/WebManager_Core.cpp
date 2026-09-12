@@ -72,6 +72,15 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
  storage->getConfig( ).reserved + WEB_CONFIG_OFFSET);
  uint16_t webPort = (w->port > 0) ? w->port : WEB_DEFAULT_PORT;
  beginServer(webPort);
+ /* Tell mDNS what to announce. The HTTPS listener defaults to 443 when the
+  * configured port is the plain default (beginServer), so the advertised
+  * port follows the same rule. */
+#ifdef SIMUT_WEB_HTTPS
+ if (_serverHttps) _netRef->setServiceAdvert(webPort == WEB_DEFAULT_PORT ? 443 : webPort, true);
+ else _netRef->setServiceAdvert(webPort, false);
+#else
+ _netRef->setServiceAdvert(webPort, false);
+#endif
 
  /* Authorization: /metrics Basic auth — a Prometheus scraper cannot run
   * the login flow, so its credentials arrive as a header. */

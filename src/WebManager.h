@@ -4,7 +4,7 @@
  * @details Provides a full web interface on the Pico W using the Arduino WebServer
  * library. Features multi-session authentication (3 simultaneous users),
  * role-based access control via permission bitmasks, challenge-response
- * login with HMAC nonces, per-IP rate limiting, SendGuard (hardware
+ * login with single-use nonces, per-IP rate limiting, SendGuard (hardware
  * timer for WDT during long sends), RAII guards for rendering and
  * flash access, and gzip-compressed asset delivery.
  *
@@ -164,8 +164,8 @@ private:
 		uint32_t ip = 0;
 		/* Fixed-size nonce char array instead of String — avoids heap
 		 * allocation on each login_init (a latency-sensitive path) and
-		 * zero fragmentation in the slot array. Size 65 = 64 hex chars
-		 * from SHA-256 of generateSecureToken + terminator. */
+		 * zero fragmentation in the slot array. Sized for 64 hex + NUL;
+		 * generateSecureToken( ) fills 32 hex (WebManager_Util.cpp). */
 		char nonce[65] = {0};
 		uint32_t nonceCreatedAt = 0;
 		/* One-deep history of the nonce. A browser opening the login page fires
@@ -293,6 +293,20 @@ private:
 
 	uint16_t getAuthPerms( );
 	bool isPasswordChangeRequired( );
+
+	/**
+	 * The one gate every JSON route should use. No session at all answers
+	 * **401**; a session without the bits answers **403**. Before this, only
+	 * /api/perms told the two apart and every other route said 403 for both,
+	 * so a client whose session had died by a reboot could not tell "log in
+	 * again" from "this account cannot" without a second request. `bits == 0`
+	 * means any authenticated session. Returns the session's permissions, or
+	 * 0 after the refusal has been sent.
+	 */
+	uint16_t requirePerm(uint16_t bits);
+	/** Set by /api/status?quiet=1 around its gate: authenticate without
+	 * rearming the Air hibernation timer. Read and cleared in getAuthPerms. */
+	bool _quietRequest = false;
 
 
 	bool checkPageAccess(uint16_t requiredPerm);
