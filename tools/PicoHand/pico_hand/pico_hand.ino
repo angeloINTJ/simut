@@ -65,6 +65,8 @@
 #include <Arduino.h>
 #include <ctype.h>
 #include <string.h>
+#include <Wire.h>
+#include <hardware/gpio.h>
 
 /** State of PIN_CHARGER.
  *  HIZ = high impedance (idle default: the pin is an input and does not load or
@@ -97,8 +99,8 @@ static const uint8_t PIN_BOOTSEL = 1;
  *  enumeration, which lags the boot by a second or so, and of the serial
  *  console, whose every command resets the target's idle timer.
  *
- *  GP2 (physical pin 4) is deliberately NOT GP4/GP5: those are the UART1
- *  transparent serial bridge, and the bridge stays available.
+ *  GP2 (physical pin 4) is deliberately NOT GP4/GP5: those now carry the INA219
+ *  I2C0 bus (and formerly the UART1 bridge, since moved to GP8/GP9).
  *
  *  Idle is plain INPUT (high impedance): the hand does not load the line, which
  *  matters on the TFT bench where the target's GP16 is the SPI0 MISO. PROBE
@@ -116,7 +118,7 @@ static const uint8_t PIN_PROBE   = 2;
  *  3.3 V — safe for the target's GPIO and enough to override its pull-down.
  *
  *  GP3 (physical pin 5) sits next to PIN_PROBE (pin 4) with a GND on pin 3,
- *  and stays clear of GP4/GP5 (the UART1 bridge). It idles HIGH-Z (input) —
+ *  and stays clear of GP4/GP5 (the INA219 I2C0 bus). It idles HIGH-Z (input) —
  *  including in reset or BOOTSEL — so it never loads the target's GP17, which on
  *  the TFT bench is the touch chip-select. The target's own pull-down then reads
  *  "on battery"; CHARGER ON/OFF drive it push-pull, CHARGER HIZ releases it. */
@@ -128,6 +130,36 @@ static const uint8_t PIN_CHARGER = 3;
  *  arduino-pico core (which would turn the variable into `(25u) = LED_BUILTIN`
  *  after preprocessing). */
 static const uint8_t LED_GPIO    = 25;
+
+/* =============================================================================
+ *  INA219 voltage/current monitor — I2C0 on GP4 (SDA) / GP5 (SCL)
+ *
+ *  For the SIMUT Air consumption bench: it measures the target's rail voltage
+ *  and the current through an external shunt, so a sleep/awake cycle can be
+ *  weighed in real milliamps instead of guessed. It hangs off I2C0 and lives
+ *  entirely on Core 0 (the pin verifier on Core 1 never touches GP4/GP5). When
+ *  no INA219 is wired the reads simply NAK and `INA` answers `ERR INA
+ *  no_device` — nothing else is affected.
+ *
+ *  GP4/GP5 used to carry the UART1 SIMUT-log bridge; that bridge moved to
+ *  GP8/GP9 (see setup) so the INA219 can own I2C0 here. GP4=SDA and GP5=SCL are
+ *  the only I2C0 assignment for these two pins.
+ *
+ *  Current is derived from the shunt voltage (I = Vshunt / Rshunt), NOT from the
+ *  INA219 current register, so there is no calibration register to get wrong:
+ *  the reading is exact for whatever shunt INA219_SHUNT_MOHM declares.
+ * ============================================================================= */
+
+/** I2C0 pins for the INA219 (GP4 = SDA, GP5 = SCL). */
+static const uint8_t PIN_INA_SDA = 4;
+static const uint8_t PIN_INA_SCL = 5;
+
+/** INA219 I2C address (A0=A1=GND on the common breakout). */
+static const uint8_t INA219_ADDR = 0x40;
+
+/** Shunt resistance in milliohms. The usual INA219 breakout carries R100 =
+ *  0.1 ohm (100 mohm); set this to match the board actually wired. */
+static const uint32_t INA219_SHUNT_MOHM = 100;
 
 /* =============================================================================
  *  Sequence timing (milliseconds)
@@ -606,6 +638,7 @@ static void cmd_pulse_test(const char *args);
 static void cmd_verify(const char *args);
 static void cmd_probe(const char *args);
 static void cmd_charger(const char *args);
+static void cmd_ina(const char *args);
 static void cmd_help(const char *args);
 
 /* Dispatch table --------------------------------------------------------- */
@@ -623,6 +656,7 @@ static const command_t COMMANDS[] = {
     { "VERIFY",       "VERIFY [CLEAR]: shows/resets logic analyzer status",   cmd_verify       },
     { "PROBE",        "PROBE <STATUS|START|STOP|READ>: edges on GP2 (idle Hi-Z)", cmd_probe    },
     { "CHARGER",      "CHARGER <ON|OFF|HIZ|STATUS>: charger sense GP3 (idle Hi-Z)", cmd_charger },
+    { "INA",          "INA [STATUS]: INA219 volts/amps on GP6/GP7 (I2C1)",    cmd_ina          },
     { "HELP",         "lists all available commands",                         cmd_help         },
 };
 
@@ -809,12 +843,14 @@ static void cmd_status(const char *args)
 static void cmd_pinout(const char *args)
 {
     (void)args;
-    Serial.printf("PINOUT BOOTSEL=GP%u RESET=GP%u LED=GP%u PROBE=GP%u CHARGER=GP%u\n",
+    Serial.printf("PINOUT BOOTSEL=GP%u RESET=GP%u LED=GP%u PROBE=GP%u CHARGER=GP%u INA=GP%u/GP%u BRIDGE=GP8/GP9\n",
                   (unsigned)PIN_BOOTSEL,
                   (unsigned)PIN_RESET,
                   (unsigned)LED_GPIO,
                   (unsigned)PIN_PROBE,
-                  (unsigned)PIN_CHARGER);
+                  (unsigned)PIN_CHARGER,
+                  (unsigned)PIN_INA_SDA,
+                  (unsigned)PIN_INA_SCL);
 }
 
 static void cmd_self_bootsel(const char *args)
@@ -1148,6 +1184,118 @@ static void cmd_charger(const char *args)
     Serial.printf("ERR: CHARGER expects ON, OFF, HIZ or STATUS (received '%s')\n", buf);
 }
 
+/* =============================================================================
+ *  INA219 driver (raw registers over Wire, I2C0) + `INA` command
+ * ============================================================================= */
+
+/** INA219 registers (subset used here). */
+static const uint8_t INA_REG_CONFIG = 0x00;
+static const uint8_t INA_REG_SHUNT  = 0x01;
+static const uint8_t INA_REG_BUS    = 0x02;
+
+/** Reset-default config: 32 V bus range, PGA/8 (+/-320 mV), 12-bit ADCs,
+ *  shunt+bus continuous. Written explicitly so the part is in a known mode. */
+static const uint16_t INA_CONFIG_DEFAULT = 0x399F;
+
+static bool ina_write16(uint8_t reg, uint16_t val)
+{
+    Wire.beginTransmission(INA219_ADDR);
+    Wire.write(reg);
+    Wire.write((uint8_t)(val >> 8));
+    Wire.write((uint8_t)(val & 0xFF));
+    return Wire.endTransmission() == 0;
+}
+
+static bool ina_read16(uint8_t reg, uint16_t *out)
+{
+    Wire.beginTransmission(INA219_ADDR);
+    Wire.write(reg);
+    if (Wire.endTransmission(false) != 0) {   /* repeated start — keep the bus */
+        return false;
+    }
+    if (Wire.requestFrom((uint8_t)INA219_ADDR, (uint8_t)2) != 2) {
+        return false;
+    }
+    uint16_t hi = (uint16_t)Wire.read();
+    uint16_t lo = (uint16_t)Wire.read();
+    *out = (uint16_t)((hi << 8) | lo);
+    return true;
+}
+
+/** Put the INA219 into a known measuring mode. Harmless with no device wired. */
+static bool ina_init(void)
+{
+    return ina_write16(INA_REG_CONFIG, INA_CONFIG_DEFAULT);
+}
+
+/**
+ * INA219 voltage/current read.
+ *
+ *   `INA`         -> OK INA bus_mV=<v> shunt_uV=<v> I_uA=<v> P_uW=<v>
+ *   `INA STATUS`  -> OK INA addr=.. sda=.. scl=.. shunt_mohm=.. present=.. cfg=..
+ *
+ * Values are integers (mV/uV/uA/uW) so the host-side parser never meets a float
+ * or a decimal separator. Current is derived from the shunt drop
+ * (I = Vshunt / Rshunt), so it is exact for whatever INA219_SHUNT_MOHM declares
+ * — no calibration register in play. A missing or NAKing part answers
+ * `ERR INA no_device`.
+ */
+static void cmd_ina(const char *args)
+{
+    char sub[12];
+    size_t n = 0;
+    for (; args[n] != '\0' && n < sizeof(sub) - 1; ++n) {
+        sub[n] = (char)toupper((unsigned char)args[n]);
+    }
+    sub[n] = '\0';
+
+    if (strcmp(sub, "SCAN") == 0) {
+        /* Diagnostic: probe every 7-bit address and list who ACKs. Tells a
+         * wrong-address apart from a wiring/pull-up fault. */
+        Serial.print("OK INA SCAN");
+        int found = 0;
+        for (uint8_t a = 0x08; a <= 0x77; ++a) {
+            Wire.beginTransmission(a);
+            if (Wire.endTransmission() == 0) {
+                Serial.printf(" 0x%02X", (unsigned)a);
+                ++found;
+            }
+        }
+        if (found == 0) {
+            Serial.print(" none");
+        }
+        Serial.println();
+        return;
+    }
+
+    if (strcmp(sub, "STATUS") == 0) {
+        uint16_t cfg = 0;
+        bool present = ina_read16(INA_REG_CONFIG, &cfg);
+        Serial.printf("OK INA addr=0x%02X sda=GP%u scl=GP%u shunt_mohm=%lu present=%s cfg=0x%04X\n",
+                      (unsigned)INA219_ADDR, (unsigned)PIN_INA_SDA, (unsigned)PIN_INA_SCL,
+                      (unsigned long)INA219_SHUNT_MOHM, present ? "yes" : "no", (unsigned)cfg);
+        return;
+    }
+
+    uint16_t rawShunt = 0, rawBus = 0;
+    if (!ina_read16(INA_REG_SHUNT, &rawShunt) || !ina_read16(INA_REG_BUS, &rawBus)) {
+        Serial.println("ERR INA no_device");
+        return;
+    }
+
+    /* Shunt register: signed, 10 uV/LSB. Bus register: value in bits [15:3],
+     * 4 mV/LSB (the low 3 bits are the CNVR/OVF flags). */
+    int32_t shunt_uV = (int32_t)((int16_t)rawShunt) * 10;
+    int32_t bus_mV   = (int32_t)(rawBus >> 3) * 4;
+    /* I = Vshunt / Rshunt  ->  I_uA = shunt_uV * 1000 / Rshunt_mohm. */
+    int32_t i_uA = (int32_t)((int64_t)shunt_uV * 1000 / (int64_t)INA219_SHUNT_MOHM);
+    /* P = V * I  ->  P_uW = bus_mV * I_uA / 1000. */
+    int32_t p_uW = (int32_t)((int64_t)bus_mV * (int64_t)i_uA / 1000);
+
+    Serial.printf("OK INA bus_mV=%ld shunt_uV=%ld I_uA=%ld P_uW=%ld\n",
+                  (long)bus_mV, (long)shunt_uV, (long)i_uA, (long)p_uW);
+}
+
 static void cmd_help(const char *args)
 {
     (void)args;
@@ -1244,14 +1392,32 @@ void setup(void)
     /* USB CDC. Baud rate is ignored on CDC but kept by convention. */
     Serial.begin(115200);
 
-    /* v2: Serial2 = UART1 default GP4(TX)/GP5(RX) — transparent serial bridge
-     * for SIMUT target debug (capturing post-OTA boot when the SIMUT USB CDC
-     * goes mute due to F-USB-CDC-DEAD). Crossover wiring:
-     *   PicoHand GP4 (TX) -- SIMUT GP5 (RX)
-     *   PicoHand GP5 (RX) -- SIMUT GP4 (TX)
+    /* Serial2 = UART1 transparent bridge for SIMUT target debug (capturing the
+     * post-OTA boot when the SIMUT USB CDC goes mute, F-USB-CDC-DEAD). It used
+     * to sit on GP4(TX)/GP5(RX), but those pins now carry the INA219 I2C0 bus,
+     * so the bridge moved to GP8(TX)/GP9(RX). Crossover wiring (rewire the
+     * bridge here if you use it):
+     *   PicoHand GP8 (TX) -- SIMUT GP5 (RX)
+     *   PicoHand GP9 (RX) -- SIMUT GP4 (TX)
      *   GND -- GND (mandatory)
      * Bytes from SIMUT arrive here and are forwarded to the USB CDC Serial. */
+    Serial2.setTX(8);
+    Serial2.setRX(9);
     Serial2.begin(115200);
+
+    /* INA219 on I2C0 (GP4 SDA / GP5 SCL) for the Air consumption bench. The
+     * pins are set explicitly so the bus lands on GP4/GP5 regardless of the
+     * core's default, and ina_init() puts the part in a known mode. With no
+     * INA219 wired this is inert — the bus simply has no one to talk to. */
+    Wire.setSDA(PIN_INA_SDA);
+    Wire.setSCL(PIN_INA_SCL);
+    Wire.begin();
+    /* Weak internal pull-ups as a safety net — harmless in parallel with a
+     * breakout's own pull-ups, and enough to bring the bus up on a bare module
+     * that has none. Set after begin() so the I2C function select keeps them. */
+    gpio_pull_up(PIN_INA_SDA);
+    gpio_pull_up(PIN_INA_SCL);
+    ina_init();
 
     /* Heartbeat LED — pin init only. Core 1 drives the blink pattern. */
     pinMode(LED_GPIO, OUTPUT);
