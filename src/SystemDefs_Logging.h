@@ -159,6 +159,7 @@ enum LogCode {
   * ordinary wake is also a boot and deliberately says nothing. */
  APP_AIR_COLD_BOOT = 412,
  APP_AIR_SLEEP_CLAMPED = 413, /**< plan F10: a day-long sleep aliases the time-of-day alarm */
+ APP_AIR_WAKE_INCOMPLETE = 414, /**< F28: the sleep->wake path did not reach its end */
 
  /* ── Application UI events (440–469) ── */
  APP_UI_THEME_CHANGED = 440,

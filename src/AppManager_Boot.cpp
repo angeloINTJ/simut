@@ -619,6 +619,25 @@ void AppManager::setup( ) {
   LOG_CODE(LOG_INFO, "APP", APP_AIR_COLD_BOOT,
            LogManager::instance( ).bootWasClean( ) ? 1 : 0,
            "boot not resumed from hibernation");
+  /* Split the corner case the line above deliberately conflates. The marker
+   * still standing means the device DID go to sleep and something reset it
+   * between the WFI and the scratch[1] write — the wake path did not reach its
+   * end. That is finding F28, and until the guard in air/pico_sleep.c existed
+   * it could not be reported at all: the device simply never came back.
+   *
+   * ctx is NOT bootWasClean( ) here, and the first draft of this line had it
+   * wrong. The sleep path calls markCleanReboot( ) before it sleeps — the
+   * ordinary wake IS a deliberate SYSRESETREQ — so the clean mark is still
+   * standing when the guard's watchdog reset arrives, and bootWasClean( )
+   * answers "clean" for both causes. Fault injection on 2026-09-11 measured
+   * exactly that: three guard rescues, three ctx=1. What actually separates the
+   * causes is whether this line fires at all — a RUN reset clears scratch[0],
+   * so a human pressing the button during a sleep reads as a cold boot and
+   * never reaches here. */
+  if (_airActive) {
+   LOG_CODE(LOG_WARN, "APP", APP_AIR_WAKE_INCOMPLETE, 0,
+            "reset between the WFI and the sleep measurement");
+  }
  }
 #else
  LogManager::instance( ).begin(fsOk, LOG_DEBUG);

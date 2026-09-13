@@ -18,12 +18,22 @@
 #include "SystemDefs.h"
 #include "LogManager.h"
 #include <hardware/watchdog.h>
+#include <hardware/structs/watchdog.h>
 
 /** Global application manager instance — orchestrates all subsystems. */
 AppManager app;
 
 /** @brief Arduino setup — initializes all subsystems. Watchdog starts in loop( ). */
 void setup( ) {
+#ifndef SIMUT_WDT_DISABLED
+ /* setup( ) runs for tens of seconds and only loop( ) arms the watchdog, so a
+  * watchdog left enabled by whatever reset brought us here would fire in the
+  * middle of the boot — and do it again on the next one. SIMUT Air arms a
+  * short guard across its wake path (air/pico_sleep.c) and disarms it on the
+  * ordinary path; this is the backstop for the path where the guard itself
+  * fired. Free otherwise: the watchdog is off during setup( ) by design. */
+ hw_clear_bits(&watchdog_hw->ctrl, WATCHDOG_CTRL_ENABLE_BITS);
+#endif
  app.setup( );
 }
 
