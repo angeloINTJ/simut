@@ -9,7 +9,8 @@ one carries the SIMUT-ENV tag for the variant it claims to be, and writes
       "version": "2.4.2-beta",
       "min_from": "1.6.2",
       "images": {
-        "release": {"file": "simut_v2.4.2-beta_release.bin", "size": N, "sha256": "…"},
+        "release": {"file": "simut_v2.4.2-beta_release.bin", "size": N, "sha256": "…",
+                    "uf2": {"file": "simut_v2.4.2-beta_release.uf2", "size": M, "sha256": "…"}},
         "alpha":   {...},
         "air":     {...}
       }
@@ -28,11 +29,31 @@ Usage:
 Exit 1 if an image is missing its tag or tagged for another variant: a
 manifest that lies is worse than no manifest.
 """
-import argparse, hashlib, json, os, re, shutil, sys
+import argparse, hashlib, json, os, re, shutil, struct, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ENVS = {"release": "pico_w_release", "alpha": "pico_w_alpha", "air": "pico_w_air"}
 TAG = re.compile(rb"SIMUT-ENV:([a-z]+);v=([^;]+);")
+
+# UF2 do RP2040 (R16): embrulha o .bin de flash inteira (base 0x10000000) no
+# .uf2 que a F10 grava num Pico virgem pelo BOOTSEL. Mesma saida do picotool e
+# do firmware.uf2 do arduino-pico — provado byte a byte contra o .uf2 que o
+# build antigo publicava —, entao o .uf2 sempre casa com o .bin do manifesto.
+UF2_M0, UF2_M1, UF2_MEND = 0x0A324655, 0x9E5D5157, 0x0AB16F30
+UF2_FAMILY_RP2040, UF2_FLAG_FAMILY = 0xE48BFF56, 0x2000
+UF2_BASE, UF2_PAYLOAD = 0x10000000, 256
+
+
+def bin_to_uf2(data):
+    n = (len(data) + UF2_PAYLOAD - 1) // UF2_PAYLOAD
+    out = bytearray()
+    for i in range(n):
+        chunk = data[i * UF2_PAYLOAD:(i + 1) * UF2_PAYLOAD]
+        payload = chunk + b"\x00" * (476 - len(chunk))
+        out += struct.pack("<IIIIIIII", UF2_M0, UF2_M1, UF2_FLAG_FAMILY,
+                           UF2_BASE + i * UF2_PAYLOAD, UF2_PAYLOAD, i, n,
+                           UF2_FAMILY_RP2040) + payload + struct.pack("<I", UF2_MEND)
+    return bytes(out)
 
 
 def version_from_source():
@@ -75,6 +96,13 @@ def main():
         shutil.copyfile(src, os.path.join(args.out, name))
         images[env] = {"file": name, "size": len(data), "sha256": hashlib.sha256(data).hexdigest()}
         print(f"[manifest] {env}: {name} {len(data)} B")
+        # .uf2 da mesma imagem (R16): a F10 grava um Pico virgem com ele.
+        uf2 = bin_to_uf2(data)
+        uf2name = f"simut_v{version}_{env}.uf2"
+        with open(os.path.join(args.out, uf2name), "wb") as f:
+            f.write(uf2)
+        images[env]["uf2"] = {"file": uf2name, "size": len(uf2), "sha256": hashlib.sha256(uf2).hexdigest()}
+        print(f"[manifest] {env}: {uf2name} {len(uf2)} B")
 
     if bad:
         sys.exit(1)

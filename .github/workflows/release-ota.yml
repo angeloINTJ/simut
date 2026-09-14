@@ -55,4 +55,5 @@ jobs:
         with:
           files: |
             release/ota/*.bin
+            release/ota/*.uf2
             release/ota/manifest.json
