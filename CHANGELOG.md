@@ -6,6 +6,25 @@ All notable changes to SIMUT firmware.
 
 ## Unreleased
 
+## v2.4.5-beta (2026-09-16)
+
+**And the origin can be set over the network, so a fleet is not a day of
+cabling.** `system cors` on the serial console configures one device, with a
+cable, in front of it; an install with dozens of them is an afternoon. The `sys`
+section of `commit_all` gained a `cors` field, so the phone app can do the fleet
+— and the app is the right tool for it because it is not a browser: it has no
+origin policy to obey, and its session comes from the cookie. That asymmetry is
+also the rescue path for anyone who points the origin at the wrong address and
+locks the page out.
+
+The obvious route was a file upload, and it stays closed: `/api/upload` refuses
+any destination under `/config`, the credential store, because of two security
+findings. `commit_all` costs nothing to reuse — per-section authorisation, the
+`_dry=1` rehearsal, and the reboot the origin needs anyway — and the field is
+diverted to the same file and the same whitelist the console writes. Nothing is
+written under `_dry`: a rehearsal that leaves a side effect on disk is a
+half-truth. 232 B of flash.
+
 **A page on the operator's PC can now manage the fleet from a browser, and the
 device is what makes it possible.** Nothing is installed on that PC: it opens a
 URL. What stood between the two was not the network — that part was already

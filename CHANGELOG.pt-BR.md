@@ -6,6 +6,25 @@ Todas as mudanças notáveis do firmware SIMUT.
 
 ## Não lançado
 
+## v2.4.5-beta (2026-09-16)
+
+**E a origem passa a ser configurável pela rede, para uma frota não custar um
+dia de cabo.** O `system cors` na console serial resolve um aparelho, com cabo,
+na frente dele; numa instalação com dezenas isso é uma tarde. A seção `sys` do
+`commit_all` ganhou o campo `cors`, e assim o app do celular resolve a frota — e
+o app é a ferramenta certa porque ele não é um navegador: não tem política de
+origem para obedecer, e a sessão dele vem do cookie. É a mesma assimetria que
+serve de resgate para quem apontar a origem para o endereço errado e trancar a
+página para fora.
+
+O caminho óbvio era enviar um arquivo, e ele continua fechado: o `/api/upload`
+recusa qualquer destino sob `/config`, a loja de credenciais, por causa de dois
+achados de segurança. O `commit_all` não custa nada para reaproveitar —
+autorização por seção, o ensaio `_dry=1`, e o reinício que a origem precisa de
+qualquer forma —, e o campo é desviado para o mesmo arquivo e a mesma lista
+branca que a console escreve. Nada é gravado sob `_dry`: um ensaio que deixa
+efeito colateral em disco é meia-verdade. 232 B de flash.
+
 **Uma página no PC do operador agora gerencia a frota pelo navegador, e é o
 aparelho que torna isso possível.** Nada é instalado nesse PC: ele abre uma URL.
 O que estava no meio não era a rede — essa parte já estava resolvida pelo
