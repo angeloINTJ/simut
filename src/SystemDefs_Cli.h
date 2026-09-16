@@ -54,6 +54,7 @@ enum DemandType {
  CMD_SET_SYS_NAME,
  CMD_SET_WIFI_SSID,
  CMD_SET_WIFI_PASS,
+ CMD_SET_CORS_ORIGIN, /**< 'system cors <origem>|off' — libera o gerenciador web */
  CMD_SET_TIMEZONE,
  CMD_SET_NTP,
  CMD_SET_TEL_SERVER,

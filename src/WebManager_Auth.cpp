@@ -505,8 +505,35 @@ void WebManager::completeLogin(int slot, int foundId, int ls, const String& u) {
 	_server->sendHeader("Set-Cookie", cookieFlags);
 
 	const char* redirect = cfg.users[foundId].mustChangePassword ? "/force_chpass" : "/";
-	char resp[64];
-	snprintf(resp, sizeof(resp), "{\"ok\":true,\"redirect\":\"%s\"}", redirect);
+
+	/* The session token in the BODY, for the web fleet manager — and only for
+	 * it. A browser can never read Set-Cookie from JavaScript: the Fetch
+	 * Standard puts it on the forbidden response-header list, so not even
+	 * Access-Control-Expose-Headers reaches it. Nor can the page ride the cookie
+	 * itself, because it goes out SameSite=Strict and a cross-site request drops
+	 * it. So a page hosted anywhere but on this device has exactly one way to
+	 * hold a session: be handed the token and send it back as
+	 * Authorization: Bearer (WebManager_Auth.cpp:57).
+	 *
+	 * Gated on the request's Origin matching the configured one, rather than on
+	 * CORS merely being enabled. The device's own pages POST this same route,
+	 * and a browser puts an Origin on any POST — so their Origin is this device
+	 * and they do not match, and the token stays where it is today: in an
+	 * HttpOnly cookie a cross-site script cannot exfiltrate. What the manager
+	 * origin gets is not a weaker session, it is the only session it can have.
+	 *
+	 * A device with no CORS origin configured answers exactly as before. */
+	const bool fromManager = _corsOrigin.length( ) &&
+	                         _server->hasHeader("Origin") &&
+	                         _server->header("Origin") == _corsOrigin;
+
+	char resp[128];
+	if (fromManager) {
+		snprintf(resp, sizeof(resp), "{\"ok\":true,\"redirect\":\"%s\",\"token\":\"%s\"}",
+		         redirect, newToken.c_str( ));
+	} else {
+		snprintf(resp, sizeof(resp), "{\"ok\":true,\"redirect\":\"%s\"}", redirect);
+	}
 	_server->send(200, "application/json", resp);
 }
 

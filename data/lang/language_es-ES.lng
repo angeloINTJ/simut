@@ -249,6 +249,8 @@ Luminosidad
 574 Archivo subido
 575 Cliente desconectado (conexión cerrada)
 576 Certificado web inválido (HTTP)
+577 CORS activado para el origen
+578 Origen CORS inválido (CORS desactivado)
 580 Tema aplicado
 581 Tema no encontrado
 585 Comando desconocido
@@ -389,6 +391,10 @@ system ssid <nombre>
   Nombre de la red Wi-Fi (SSID)
 system pass <clave>
   Clave del Wi-Fi
+system cors <origen|off>
+  Permite que el gestor web de flota hable
+  con este equipo desde el navegador, ej.:
+  system cors http://192.168.1.10:8080
 reload [confirm]
   Reinicia ahora
 ap

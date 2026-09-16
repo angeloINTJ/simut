@@ -763,6 +763,7 @@ interface de configuração. A configuração vive na interface web.
 | `system factory` | Restaura os padrões de fábrica |
 | `system ssid <nome>` | Define o nome da rede Wi-Fi — **salvo na hora** |
 | `system pass <senha>` | Define a senha do Wi-Fi — **salva na hora** |
+| `system cors <origem>` / `off` | Libera a página do gerenciador web naquela origem a falar com este aparelho pelo navegador — **gravado na hora**, vale no próximo boot |
 | `ap` | Sobe o ponto de acesso de configuração — **WPA2**, chave impressa neste console |
 | `reload` | Reinicia |
 | `help` | Lista estes |

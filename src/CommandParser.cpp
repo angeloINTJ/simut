@@ -267,6 +267,12 @@ CliDemand parseCliCommand(String input) {
 		 * a missing network). */
 		if (t1 == "ssid")     { cmd.type = CMD_SET_WIFI_SSID; cmd.setStrVal1(r2.c_str( )); return cmd; }
 		if (t1 == "pass")     { cmd.type = CMD_SET_WIFI_PASS; cmd.setStrVal1(r2.c_str( )); return cmd; }
+		/* 'system cors' lives outside SIMUT_CLI_FULL for the same reason ssid
+		 * and pass do, and for one more: it is the only way in. The origin has
+		 * to be set BEFORE the manager page can reach the device at all, so a
+		 * path through that page would be a circle. This console, or a file
+		 * upload from the phone app, are the two doors. */
+		if (t1 == "cors")     { cmd.type = CMD_SET_CORS_ORIGIN; cmd.setStrVal1(r2.c_str( )); return cmd; }
 #if SIMUT_CLI_FULL
 		if (t1 == "theme")    { cmd.type = CMD_SET_THEME;     cmd.setStrVal1(t2.c_str( )); return cmd; }
 		if (t1 == "name")     { cmd.type = CMD_SET_SYS_NAME;  cmd.setStrVal1(r2.c_str( )); return cmd; }

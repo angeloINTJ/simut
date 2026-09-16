@@ -72,6 +72,11 @@ EMERGENCY_EXPECTED = {
     'CMD_SHOW_NET', 'CMD_DEBUG', 'CMD_RESET_ADMIN', 'CMD_FACTORY_RESET',
     'CMD_FORMAT_FS', 'CMD_HTTPS_OFF', 'CMD_AP', 'CMD_UNKNOWN',
     'CMD_SET_WIFI_SSID', 'CMD_SET_WIFI_PASS',
+    # 'system cors' is emergency-surface for a reason that is not recovery: the
+    # release image builds with SIMUT_CLI_FULL=0, so gating it would mean the
+    # published firmware has NO way to set the origin — and the manager page
+    # cannot set it either, because without it the page cannot reach the device.
+    'CMD_SET_CORS_ORIGIN',
 }
 
 # The `air` family exists only where SIMUT_AIR is set: both the parser block

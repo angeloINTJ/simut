@@ -33,6 +33,7 @@
 #include "WebJsonSlice.h"               /* depth-aware JSON slicing */
 #include "WebCommitSections.h"          /* per-section authz for /api/commit_all */
 #include "FsSecretPath.h"               /* /config download guard (A-4) */
+#include "CorsOrigin.h"                 /* what may go into Allow-Origin */
 #include "ApPsk.h"                     /* setup-AP key derivation (V-05) */
 #include "HaDiscovery.h"                /* Home Assistant MQTT Discovery formatters */
 #include "B64Decode.h"                  /* Basic-auth base64 decoder (strict) */
@@ -1213,6 +1214,68 @@ void test_secret_path_no_sibling_overmatch(void) {
     TEST_ASSERT_FALSE(isSecretFsPath(""));
 }
 
+
+/* ===========================================================================
+ * isValidCorsOrigin — what may be written into Access-Control-Allow-Origin
+ * ===========================================================================
+ * The value reaches a response header verbatim, so the test that matters is
+ * the injection one: a CR or LF inside it would end the header and let whoever
+ * wrote /config/cors.txt append headers of their own to every response the
+ * device sends. The rest of the cases are the ones that would otherwise be
+ * debugged as "CORS is broken" — a trailing slash makes the browser compare
+ * "http://x/" against its own "http://x", find them different, and block.
+ */
+void test_cors_origin_accepts_real_ones(void) {
+    TEST_ASSERT_TRUE(isValidCorsOrigin("http://192.168.1.10:8080"));
+    TEST_ASSERT_TRUE(isValidCorsOrigin("https://gerenciador.hospital.local"));
+    TEST_ASSERT_TRUE(isValidCorsOrigin("https://frota.local:8443"));
+    TEST_ASSERT_TRUE(isValidCorsOrigin("http://localhost:3000"));
+    TEST_ASSERT_TRUE(isValidCorsOrigin("http://[2001:db8::1]:8080"));  /* IPv6 literal */
+}
+
+void test_cors_origin_rejects_header_injection(void) {
+    /* The whole reason this function exists. */
+    TEST_ASSERT_FALSE(isValidCorsOrigin("http://x\r\nSet-Cookie: a=b"));
+    TEST_ASSERT_FALSE(isValidCorsOrigin("http://x\nAccess-Control-Allow-Origin: *"));
+    TEST_ASSERT_FALSE(isValidCorsOrigin("http://x\r"));
+    TEST_ASSERT_FALSE(isValidCorsOrigin("http://x\n"));
+    TEST_ASSERT_FALSE(isValidCorsOrigin("http://x y"));      /* a space ends a header value too */
+    TEST_ASSERT_FALSE(isValidCorsOrigin("http://x\tz"));
+}
+
+void test_cors_origin_rejects_wildcard_and_schemes(void) {
+    /* "*" is the thing this mechanism exists to avoid, and file:// is the
+     * origin an operator gets by double-clicking the page instead of serving
+     * it — "null" in the browser, and it must never be what the device trusts. */
+    TEST_ASSERT_FALSE(isValidCorsOrigin("*"));
+    TEST_ASSERT_FALSE(isValidCorsOrigin("http://*"));
+    TEST_ASSERT_FALSE(isValidCorsOrigin("null"));
+    TEST_ASSERT_FALSE(isValidCorsOrigin("file:///home/op/frota.html"));
+    TEST_ASSERT_FALSE(isValidCorsOrigin("ftp://192.168.1.10"));
+    TEST_ASSERT_FALSE(isValidCorsOrigin("192.168.1.10:8080"));   /* no scheme */
+    TEST_ASSERT_FALSE(isValidCorsOrigin("http://"));             /* scheme only */
+    TEST_ASSERT_FALSE(isValidCorsOrigin("https://"));
+}
+
+void test_cors_origin_rejects_path_and_size(void) {
+    /* A path is not part of an origin: the browser would compare its own
+     * "http://x" against a sent "http://x/" and block. */
+    TEST_ASSERT_FALSE(isValidCorsOrigin("http://192.168.1.10:8080/"));
+    TEST_ASSERT_FALSE(isValidCorsOrigin("http://192.168.1.10/frota.html"));
+    TEST_ASSERT_FALSE(isValidCorsOrigin(""));
+    TEST_ASSERT_TRUE (isValidCorsOrigin("http://x"));            /* 8 chars: the floor, and valid */
+    TEST_ASSERT_FALSE(isValidCorsOrigin("http:/x"));             /* 7: one slash short */
+
+    /* The ceiling, checked from both sides. An off-by-one here rejects a
+     * legitimate hostname, and the operator reads that as "CORS is broken on
+     * this site" — the failure this whole page exists to stop producing. */
+    String noLimite = "http://";
+    while ((int)noLimite.length( ) < CORS_ORIGIN_MAX_LEN) noLimite += "a";
+    TEST_ASSERT_EQUAL(CORS_ORIGIN_MAX_LEN, (int)noLimite.length( ));
+    TEST_ASSERT_TRUE (isValidCorsOrigin(noLimite));
+    TEST_ASSERT_FALSE(isValidCorsOrigin(noLimite + "a"));
+}
+
 void test_secret_path_traversal_is_callers_job(void) {
     /* isSecretFsPath does NOT resolve "..": a "/history/../config/system.bin"
      * does not start with "/config/" and returns false here. The caller
@@ -2126,6 +2189,10 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_secret_path_normalises_spelling);
     RUN_TEST(test_secret_path_allows_legit_downloads);
     RUN_TEST(test_secret_path_no_sibling_overmatch);
+    RUN_TEST(test_cors_origin_accepts_real_ones);
+    RUN_TEST(test_cors_origin_rejects_header_injection);
+    RUN_TEST(test_cors_origin_rejects_wildcard_and_schemes);
+    RUN_TEST(test_cors_origin_rejects_path_and_size);
     RUN_TEST(test_secret_path_traversal_is_callers_job);
 
     /* isSecretFsDir — /api/ls directory guard (ACH-04) */

@@ -6,6 +6,55 @@ Todas as mudanças notáveis do firmware SIMUT.
 
 ## Não lançado
 
+**Uma página no PC do operador agora gerencia a frota pelo navegador, e é o
+aparelho que torna isso possível.** Nada é instalado nesse PC: ele abre uma URL.
+O que estava no meio não era a rede — essa parte já estava resolvida pelo
+roteamento entre VLANs —, era a regra do próprio navegador: uma página servida
+de uma origem não pode ler a resposta de outra, a menos que o servidor diga que
+pode. Toda chamada da página era bloqueada, e não há trabalho nenhum do lado do
+PC que mude isso. Quem libera é o servidor.
+
+`system cors <origem>` na console serial grava a única origem que este aparelho
+atende, e `system cors off` apaga. Ausente, que é como todo aparelho sai de
+fábrica e como todo aparelho já instalado continua, o firmware se comporta
+exatamente como antes — byte por byte, e sem custo: o cabeçalho só existe quando
+o arquivo existe.
+
+Três detalhes são o recurso inteiro, e cada um deles é uma falha que sem isso
+seria depurada em campo:
+
+**O cabeçalho vai em toda resposta, inclusive nos erros.** Um 401 sem ele não é
+lido pelo navegador como "senha errada" — é descartado, e a página vê falha de
+rede. Alguém iria caçar firewall onde só faltava a senha certa.
+
+**O `OPTIONS` é respondido antes de qualquer outra coisa.** O navegador manda um
+preflight antes de toda requisição autenticada, e este aparelho respondia a ele
+com um redirecionamento para a página de configuração — que o navegador lê como
+preflight falhado, e aí a requisição de verdade nunca sai. O preflight não leva
+credencial, por especificação, então é respondido sem nenhuma: o que ele promete
+é só quais métodos e cabeçalhos a requisição real pode carregar, e a requisição
+real ainda precisa se autenticar.
+
+**O login devolve o token da sessão no corpo — mas só para aquela origem.** Um
+navegador nunca consegue ler `Set-Cookie` pelo JavaScript, e o cookie de sessão
+sai `SameSite=Strict`, que é exatamente o que impede que ele seja mandado de
+outra origem. Ou seja, uma página hospedada em qualquer lugar que não fosse o
+próprio aparelho não tinha forma alguma de manter sessão. A entrega é
+condicionada ao `Origin` da requisição casar com o configurado, então as páginas
+do próprio aparelho não mudam em nada e o token delas continua onde está hoje:
+num cookie `HttpOnly` que script de outro site não consegue exfiltrar.
+
+A origem é validada por lista branca na entrada e na saída, porque ela termina
+literalmente dentro de um cabeçalho de resposta: um CR ou LF no meio dela
+encerraria o cabeçalho e deixaria quem escreveu o arquivo acrescentar cabeçalhos
+próprios a toda resposta que o aparelho manda. O coringa `*` é recusado — é
+justamente o que este mecanismo existe para evitar — e a barra no fim também,
+que o navegador compararia com a própria origem, acharia diferente, e
+bloquearia.
+
+Custo: 2.232 B de flash, 0 de RAM, e nada num aparelho que nunca configura
+origem.
+
 ## v2.4.1-beta (2026-09-08)
 
 **Um Wi-Fi que cai agora reconecta sozinho, em vez de esperar alguém

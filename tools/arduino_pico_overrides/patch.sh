@@ -300,6 +300,42 @@ else
     patch -p1 -d "$FW" < "$POOL_PATCH"
 fi
 
+# 2i. CORS restrito a UMA origem (HTTPServer.h + HTTPServer.cpp)
+#     — o que destrava o gerenciador de frota em pagina web.
+#
+#   A pagina de gestao roda no navegador do PC, numa origem fixa, e fala com
+#   cada aparelho da frota por fetch( ). Sem cabecalho CORS o navegador bloqueia
+#   TODAS essas chamadas, e nao ha nada a instalar no PC que contorne isso: quem
+#   libera e o servidor.
+#
+#   O enableCORS( ) de fabrica existe e NAO serve, por dois motivos
+#   independentes. (1) Ele responde "*", e "*" libera qualquer pagina da
+#   internet a falar com o aparelho pelo navegador de quem a abrir. (2) O
+#   coringa de Access-Control-Allow-Headers nao cobre Authorization (Fetch
+#   Standard, 4.10.2) — com "*" o preflight de toda requisicao autenticada
+#   falha, que e justamente o caso de uso.
+#
+#   Este patch acrescenta setCorsOrigin(<origem>): uma origem so, emitida em
+#   TODA resposta a partir de _prepareHeader. Tem de ser ali, e nao num
+#   addHook: o hook roda antes do parse dos cabecalhos e o que ele empilhar em
+#   _responseHeaders sobrevive a uma requisicao que morre sem resposta, saindo
+#   DUPLICADO na seguinte — e dois Allow-Origin fazem o navegador bloquear.
+#   Toda resposta inclui os erros: sem o cabecalho num 401, o JavaScript ve
+#   "falha de rede" e nao "credencial recusada".
+#
+#   Origem vazia (o padrao) = desligado, byte a byte identico ao upstream. Quem
+#   nao usa o gerenciador web nao paga nada; quem usa paga ~58 B por resposta.
+WSRV_DIR="$FW/libraries/WebServer/src"
+CORS_PATCH="$OVR/patches/webserver_cors_origin.patch"
+save_original "$WSRV_DIR/HTTPServer.h"   "HTTPServer.h"
+save_original "$WSRV_DIR/HTTPServer.cpp" "HTTPServer.cpp"
+if grep -q "SIMUT override — CORS restrito a UMA origem" "$WSRV_DIR/HTTPServer.h"; then
+    echo "[patch] WebServer já tem CORS por origem — nada a fazer"
+else
+    echo "[patch] aplicando CORS restrito a uma origem no WebServer"
+    patch -p1 -d "$FW" < "$CORS_PATCH"
+fi
+
 # 3. Invalida cache PIO (lwip src + lib WiFi)
 #    A lib WiFi tem cache próprio em lib*/WiFi/ — sem apagá-lo o .cpp patchado
 #    não recompila e o build "passa" ainda com o handshake sem prazo.

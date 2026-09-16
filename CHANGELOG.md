@@ -6,6 +6,54 @@ All notable changes to SIMUT firmware.
 
 ## Unreleased
 
+**A page on the operator's PC can now manage the fleet from a browser, and the
+device is what makes it possible.** Nothing is installed on that PC: it opens a
+URL. What stood between the two was not the network — that part was already
+solved by routing between VLANs — but the browser's own rule: a page served from
+one origin cannot read a response from another unless the server says it may.
+Every call the page made was blocked, and no amount of work on the PC side can
+change that. The server is what grants it.
+
+`system cors <origin>` on the serial console writes the one origin this device
+answers to, and `system cors off` clears it. Absent, which is how every device
+ships and how every existing device stays, the firmware behaves exactly as
+before — byte for byte, and at no cost: the header only exists when the file
+does.
+
+Three details are the whole feature, and each one is a failure that would
+otherwise be debugged in the field:
+
+**The header goes on every response, including the errors.** A 401 without it is
+not read by the browser as "wrong password" — it is discarded, and the page sees
+a network failure. Someone would go looking for a firewall when a password was
+all that was wrong.
+
+**`OPTIONS` is answered before anything else.** A browser sends a preflight
+before any authenticated request, and this device used to answer it with a
+redirect to the setup page — which a browser reads as a failed preflight, so the
+real request is never sent. The preflight carries no credentials, by
+specification, so it is answered without any: what it promises is only which
+methods and headers the real request may carry, and the real request still has
+to log in.
+
+**The login returns the session token in the body — but only to that origin.** A
+browser can never read `Set-Cookie` from JavaScript, and the session cookie goes
+out `SameSite=Strict`, which is exactly what stops it from being sent from
+another origin. So a page hosted anywhere but on this device had no way at all to
+hold a session. It is gated on the request's `Origin` matching the configured
+one, so the device's own pages are unaffected and their token stays where it is
+today: in an `HttpOnly` cookie a cross-site script cannot exfiltrate.
+
+The origin is validated as a whitelist on the way in and on the way out, because
+it ends up verbatim inside a response header: a CR or LF in the middle of it
+would end the header and let whoever wrote the file append headers of their own
+to every response the device sends. A wildcard `*` is refused — that is the thing
+this mechanism exists to avoid — and so is a trailing slash, which a browser
+would compare against its own origin, find different, and block.
+
+Cost: 2.232 B of flash, 0 of RAM, and nothing at all on a device that never sets
+an origin.
+
 ## v2.4.1-beta (2026-09-08)
 
 **A lost Wi-Fi link now reconnects on its own, instead of waiting for someone

@@ -1227,6 +1227,8 @@ static const char* translateCodeEn(uint16_t code) {
   * in every language — not just in the browser table. */
  case WEB_CLIENT_DISCONNECT: return "Client disconnected (broken pipe)";
  case WEB_CERT_INVALID: return "Web cert invalid (HTTP fallback)";
+ case WEB_CORS_ORIGIN: return "CORS enabled for origin";
+ case WEB_CORS_INVALID: return "CORS origin file invalid (CORS off)";
 
  /* ── Config (580–581) ── */
  case CFG_THEME_APPLIED: return "Theme applied";

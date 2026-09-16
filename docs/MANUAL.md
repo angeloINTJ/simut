@@ -728,6 +728,7 @@ Configuration lives in the web UI.
 | `system factory` | Restore factory defaults |
 | `system ssid <name>` | Set the Wi-Fi network name — **saved immediately** |
 | `system pass <secret>` | Set the Wi-Fi password — **saved immediately** |
+| `system cors <origin>` / `off` | Allow the web fleet manager page at that origin to reach this device from a browser — **written immediately**, takes effect on the next boot |
 | `ap` | Start the setup access point — **WPA2**, key printed on this console |
 | `reload` | Reboot |
 | `help` | List these |
