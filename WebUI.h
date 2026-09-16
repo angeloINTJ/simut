@@ -44,62 +44,55 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>SIMUT - Login</title>
-    <script>if(localStorage.getItem('simut_ui_theme')==='light')document.documentElement.classList.add('light')</script>
+    <script>(function(){var t=null;try{t=localStorage.getItem('simut_ui_theme');}catch(e){}if(!t)t=(window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';document.documentElement.setAttribute('data-theme',t==='light'?'claro':'escuro');})()</script>
     <style>
-        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; color-scheme: dark; }
-        /* Tema claro: pre-sessao nao carrega o lang.js, entao a classe vem do
-           script acima (mesma chave simut_ui_theme) e as regras moram aqui. */
-        html.light { --bg: #f2f5f8; --card: #ffffff; --txt: #1b2733; --sub: #526172; --acc: #0072cd; --dang: #c93838; --border: #d9e1e8; color-scheme: light; }
-        html.light input[type="text"], html.light input[type="password"] { background: #fff; border-color: var(--border); color: var(--txt); }
-        html.light .box { box-shadow: 0 10px 30px rgba(27,39,51,0.12); }
-        html.light button[type="submit"] { color: #fff; }
-        html.light button[type="submit"]:disabled { background: #cbd5e1; color: #94a3b8; }
-        html.light .lang-box select { background: #fff; color: var(--sub); }
-        html.light .bar-bg { background: #e3eaf0; }
-        html.light .req-list span.ok, html.light .ok-msg { color: #15803d; }
+        /* Angulo (ANGULO.md do simut-rx). Pre-sessao nao carrega o lang.js, entao os
+           tokens dos dois temas moram aqui — copia do bloco do lang.js; mudou la, mude aqui.
+           O tema vem do script acima, pela mesma chave simut_ui_theme. */
+        :root{color-scheme:dark;--fundo:#161513;--superficie:#201e1b;--superficie-2:#2a2723;--tinta:#ebe7df;--tinta-2:#a39c90;--linha:#383430;--linha-forte:#78716a;--acento:#5fb39a;--acento-forte:#7cc7b2;--acento-tinta:#0e211b;--positivo:#6fbe8e;--positivo-suave:#24352b;--alerta:#d9a84e;--alerta-suave:#38301c;--perigo:#e07862;--perigo-suave:#382220;--perigo-tinta:#2b100c;--veu:rgba(0,0,0,.6);--sombra-flutuante:0 16px 40px rgba(0,0,0,.5)}:root[data-theme=claro]{color-scheme:light;--fundo:#f6f6f4;--superficie:#fff;--superficie-2:#ecebe6;--tinta:#201e1a;--tinta-2:#5f5b54;--linha:#dcdad3;--linha-forte:#827e76;--acento:#1f6355;--acento-forte:#174d42;--acento-tinta:#f1faf6;--positivo:#20784e;--positivo-suave:#e1f0e7;--alerta:#8a6116;--alerta-suave:#f3ead2;--perigo:#b3382e;--perigo-suave:#f7e3e0;--perigo-tinta:#fff5f3;--veu:rgba(0,0,0,.4);--sombra-flutuante:0 12px 32px rgba(23,22,20,.16)}
         /* margin:auto no lugar de align-items:center — com conteudo mais alto que a
            viewport, centralizar por flex joga o topo fora do alcance da rolagem. */
-        body { background: var(--bg); color: var(--txt); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; min-height: 100vh; min-height: 100dvh; margin: 0; padding: 16px; box-sizing: border-box; }
-        .box { background: var(--card); margin: auto; padding: clamp(20px, 5vw, 40px); border-radius: 12px; border: 1px solid var(--border); width: min(340px, 100%); box-sizing: border-box; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        /* .box ja e text-align:center, entao marca e legenda centralizam sozinhas.
-           line-height:1 evita a folga que 3.6rem abriria acima do texto. */
-        /* A marca e vetor, nao texto: a pilha de fontes do sistema entrega uma
-           fonte diferente em cada SO (SF, Segoe, Roboto...) e a marca mudava de
-           desenho conforme o navegador. Traçado do Liberation Sans Bold, que e
-           metricamente Arial — o mais proximo do que a maioria ja renderizava.
-           210px reproduz a largura que o texto tinha a 4.4rem. fill=currentColor,
-           entao a cor vem daqui e acompanha --acc. */
-        .brand { width: min(210px, 100%); margin: 0 auto 6px; color: var(--acc); }
-        .brand svg { width: 100%; height: auto; display: block; }
-        /* text-wrap:balance — a legenda cabe numa linha por ~2px a 360px; numa
-           metrica de fonte um pouco diferente ela quebra, e sem isto sobraria
-           uma palavra orfa na 2a linha. Navegador antigo ignora e quebra normal. */
-        .tagline { font-size: 0.78rem; color: var(--sub); line-height: 1.45; margin-bottom: 28px; text-wrap: balance; }
-        input[type="text"], input[type="password"] { width: 100%; padding: 14px; margin: 10px 0; background: #000; border: 1px solid #3f3f46; color: white; border-radius: 8px; box-sizing: border-box; font-size: 1rem; transition: 0.2s; }
-        input:focus { border-color: var(--acc); outline: none; }
-        :focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+        body { background: var(--fundo); color: var(--tinta); font: 400 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; display: flex; min-height: 100vh; min-height: 100dvh; margin: 0; padding: 16px; box-sizing: border-box; }
+        /* Cartao: linha, nunca sombra. */
+        .box { background: var(--superficie); margin: auto; padding: clamp(20px, 5vw, 40px); border-radius: 12px; border: 1px solid var(--linha); width: min(360px, 100%); box-sizing: border-box; text-align: center; }
+        h2, h3 { font-family: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 8px; }
+        h2 { font-size: 24px; line-height: 30px; }
+        h3 { font-size: 18px; line-height: 24px; }
+        input[type="text"], input[type="password"] { width: 100%; padding: 10px 12px; min-height: 44px; margin: 8px 0; background: var(--superficie); border: 1px solid var(--linha-forte); color: var(--tinta); border-radius: 6px; box-sizing: border-box; font: inherit; }
+        input::placeholder { color: var(--tinta-2); opacity: 0.8; }
+        input:focus { border-color: var(--acento); outline: none; }
+        :focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
         @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; } }
-        button[type="submit"] { width: 100%; padding: 14px; background: var(--acc); color: #000; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; margin-top: 15px; font-size: 1.05rem; transition: 0.2s; }
-        button[type="submit"]:hover { opacity: 0.9; transform: translateY(-1px); }
-        button[type="submit"]:disabled { background: #3f3f46; color: #a1a1aa; cursor: not-allowed; }
-        .err { color: var(--dang); font-size: 0.9rem; margin-top: 12px; min-height: 1.2em; }
-        .chk-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; justify-content: flex-start; }
-        .chk-row input { width: 16px; height: 16px; accent-color: var(--acc); cursor: pointer; margin: 0;}
-        .chk-row label { color: var(--sub); font-size: 0.85rem; cursor: pointer; }
-        .lang-box { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 25px; padding-top: 20px; border-top: 1px solid var(--border); }
+        button[type="submit"] { width: 100%; padding: 12px 16px; min-height: 44px; background: var(--acento); color: var(--acento-tinta); font: inherit; font-weight: 600; border: 1px solid transparent; border-radius: 6px; cursor: pointer; margin-top: 12px; transition: background 0.15s; }
+        button[type="submit"]:hover { background: var(--acento-forte); }
+        button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; }
+        .chk-row { display: flex; align-items: center; gap: 8px; margin: 8px 0; justify-content: flex-start; }
+        .chk-row input { width: 18px; height: 18px; accent-color: var(--acento); cursor: pointer; margin: 0; }
+        .chk-row label { color: var(--tinta-2); font-size: 14px; cursor: pointer; }
+        .bar-bg { width: 100%; height: 6px; background: var(--superficie-2); border-radius: 999px; margin-top: 6px; overflow: hidden; }
+        .bar-fg { height: 100%; width: 0; transition: 0.3s; background: var(--perigo); border-radius: 999px; }
+        /* A marca e vetor, nao texto: a pilha do sistema entrega uma fonte diferente
+           em cada SO e a marca mudava de desenho. Tracado do Liberation Sans Bold;
+           fill=currentColor, entao a cor acompanha o acento. */
+        .brand { width: min(210px, 100%); margin: 0 auto 8px; color: var(--acento); }
+        .brand svg { width: 100%; height: auto; display: block; }
+        /* text-wrap:balance — sem isto sobraria uma palavra orfa na 2a linha a 360px. */
+        .tagline { font-size: 13px; line-height: 18px; color: var(--tinta-2); margin-bottom: 28px; text-wrap: balance; }
+        .err { color: var(--perigo); font-size: 14px; margin-top: 12px; min-height: 1.2em; }
+        .ok-msg { color: var(--positivo); font-size: 14px; margin-top: 12px; min-height: 1.2em; }
+        .loop-msg { display: none; margin-top: 10px; padding: 10px 12px; border-radius: 6px; background: var(--alerta-suave); color: var(--alerta); border: 1px solid var(--alerta); font-size: 13px; line-height: 1.4; text-align: left; }
+        .lang-box { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--linha); color: var(--tinta-2); }
+        .lang-box svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
         /* 16px: abaixo disso o iOS da zoom no foco e nao volta. */
-        .lang-box select { background: #000; color: var(--sub); border: 1px solid var(--border); padding: 6px 10px; border-radius: 6px; outline: none; cursor: pointer; font-size: 16px;}
-        .lang-box select:focus { border-color: var(--acc); color: var(--txt); }
-        .toggle-link { color: var(--acc); text-decoration: none; font-size: 0.85rem; margin-top: 14px; display: inline-block; cursor: pointer; }
+        .lang-box select { background: var(--superficie); color: var(--tinta-2); border: 1px solid var(--linha-forte); padding: 6px 10px; border-radius: 6px; outline: none; cursor: pointer; font: inherit; font-size: 16px; }
+        .lang-box select:focus { border-color: var(--acento); color: var(--tinta); }
+        .toggle-link { color: var(--acento); text-decoration: none; font-size: 14px; margin-top: 14px; display: inline-block; cursor: pointer; }
         .toggle-link:hover { text-decoration: underline; }
-        .bar-bg { width: 100%; height: 6px; background: #3f3f46; border-radius: 4px; margin-top: 6px; overflow: hidden; }
-        .bar-fg { height: 100%; width: 0%; transition: 0.3s; background: #ef4444; }
-        .req-list { text-align: left; font-size: 0.78rem; color: var(--sub); margin-top: 6px; line-height: 1.5; }
+        .req-list { text-align: left; font-size: 13px; color: var(--tinta-2); margin-top: 6px; line-height: 1.5; }
         .req-list span { display: block; }
-        .req-list span.ok { color: #22c55e; }
-        .req-list span.ok::before { content: "\2713 "; }
-        .req-list span:not(.ok)::before { content: "\2715 "; color: var(--dang); }
-        .ok-msg { color: #22c55e; font-size: 0.9rem; margin-top: 12px; min-height: 1.2em; }
+        .req-list span.ok { color: var(--positivo); }
+        .req-list span.ok::before { content: "¹3 "; }
+        .req-list span:not(.ok)::before { content: "¹5 "; color: var(--perigo); }
     </style>
     <script>
     /* F-LANGPACK β: dict.pt vem de GET /api/lang (servido do .lng). */
@@ -181,7 +174,7 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         let len = p.length >= 8, letter = /[A-Za-z]/.test(p), digit = /[0-9]/.test(p), symbol = /[^A-Za-z0-9]/.test(p);
         let score = (len?1:0) + (letter?1:0) + (digit?1:0) + (symbol?1:0);
         let bar = document.getElementById('chBar'); bar.style.width = (score*25) + '%';
-        bar.style.background = score <= 1 ? '#ef4444' : score === 2 ? '#f59e0b' : score === 3 ? '#3b82f6' : '#22c55e';
+        bar.style.background = score <= 1 ? 'var(--perigo)' : score <= 3 ? 'var(--alerta)' : 'var(--positivo)';
         document.getElementById('rqLen').classList.toggle('ok', len);
         document.getElementById('rqLet').classList.toggle('ok', letter);
         document.getElementById('rqDig').classList.toggle('ok', digit);
@@ -255,11 +248,11 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <div class="chk-row"><input type="checkbox" id="chkPass" onchange="togglePass()"><label for="chkPass" data-i18n="log_show">Show password</label></div>
             <button type="submit" id="btnLogin" data-i18n="log_btn">Sign In</button>
             <div class="err" id="errMsg"></div>
-            <div id="loopMsg" data-i18n="log_cookie_loop" style="display:none;margin-top:10px;padding:10px 12px;border-radius:6px;background:#3a2d0a;color:#fde68a;border:1px solid #a16207;font-size:0.82rem;line-height:1.4;text-align:left">Signed in, but the browser is holding a secure session from an earlier HTTPS visit. Open a private window or clear this site&#39;s cookies, then sign in again.</div>
+            <div id="loopMsg" class="loop-msg" data-i18n="log_cookie_loop">Signed in, but the browser is holding a secure session from an earlier HTTPS visit. Open a private window or clear this site&#39;s cookies, then sign in again.</div>
             <a class="toggle-link" id="lnkChpass" onclick="setMode('chpass')" data-i18n="log_chpass_link">Change password</a>
         </form>
         <form id="chpassForm" style="display:none;" onsubmit="doChpass(event)">
-            <h3 style="margin:0 0 10px 0; font-size:1.1rem;" data-i18n="log_chpass_title">Change Password</h3>
+            <h3 data-i18n="log_chpass_title">Change Password</h3>
             <input type="text" name="user2" placeholder="Username" data-i18n="log_usr" required autocomplete="off">
             <input type="password" id="opInput" placeholder="Current Password" data-i18n="log_oldpass" required>
             <input type="password" id="np1" placeholder="New Password" data-i18n="log_newpass" required onkeyup="chpassStrength()">
@@ -278,10 +271,10 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <a class="toggle-link" onclick="setMode('login')" data-i18n="log_chpass_back">← Back to Login</a>
         </form>
         <div class="lang-box">
-            <span style="font-size:1.2rem;">🌐</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
             <select class="lang-select" onchange="setLang(this.value)">
-                <option value="en">🇺🇸 English</option>
-                <option value="pt">🇧🇷 Português</option>
+                <option value="en">English</option>
+                <option value="pt">Português</option>
             </select>
         </div>
     </div>
@@ -297,41 +290,41 @@ static const char FORCE_CHPASS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>SIMUT - Setup</title>
-    <script>if(localStorage.getItem('simut_ui_theme')==='light')document.documentElement.classList.add('light')</script>
+    <script>(function(){var t=null;try{t=localStorage.getItem('simut_ui_theme');}catch(e){}if(!t)t=(window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';document.documentElement.setAttribute('data-theme',t==='light'?'claro':'escuro');})()</script>
     <style>
-        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; color-scheme: dark; }
-        /* Tema claro: espelha o bloco do login (sem lang.js aqui). */
-        html.light { --bg: #f2f5f8; --card: #ffffff; --txt: #1b2733; --sub: #526172; --acc: #0072cd; --dang: #c93838; --border: #d9e1e8; color-scheme: light; }
-        html.light input[type="text"], html.light input[type="password"] { background: #fff; border-color: var(--border); color: var(--txt); }
-        html.light .box { box-shadow: 0 10px 30px rgba(27,39,51,0.12); }
-        html.light button[type="submit"] { color: #fff; }
-        html.light button[type="submit"]:disabled { background: #cbd5e1; color: #94a3b8; }
-        html.light .lang-box select { background: #fff; color: var(--sub); }
-        html.light .bar-bg { background: #e3eaf0; }
-        html.light .req-list span.ok, html.light .ok-msg { color: #15803d; }
-        /* margin:auto no lugar de align-items:center — este formulario passa de 700px
-           de altura e centralizar por flex deixa o topo inalcancavel no celular. */
-        body { background: var(--bg); color: var(--txt); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; min-height: 100vh; min-height: 100dvh; margin: 0; padding: 16px; box-sizing: border-box; }
-        .box { background: var(--card); margin: auto; padding: clamp(20px, 5vw, 40px); border-radius: 12px; border: 1px solid var(--border); width: min(350px, 100%); box-sizing: border-box; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        h2 { margin-top: 0; font-size: 1.4rem; }
-        p { color: var(--sub); font-size: 0.9rem; margin-bottom: 20px; }
-        input[type="password"], input[type="text"] { width: 100%; padding: 14px; margin: 10px 0; background: #000; border: 1px solid #3f3f46; color: #fff; border-radius: 8px; box-sizing: border-box; font-size: 1rem; transition: 0.2s; }
-        input:focus { border-color: var(--acc); outline: none; }
-        :focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+        /* Angulo (ANGULO.md do simut-rx). Pre-sessao nao carrega o lang.js, entao os
+           tokens dos dois temas moram aqui — copia do bloco do lang.js; mudou la, mude aqui.
+           O tema vem do script acima, pela mesma chave simut_ui_theme. */
+        :root{color-scheme:dark;--fundo:#161513;--superficie:#201e1b;--superficie-2:#2a2723;--tinta:#ebe7df;--tinta-2:#a39c90;--linha:#383430;--linha-forte:#78716a;--acento:#5fb39a;--acento-forte:#7cc7b2;--acento-tinta:#0e211b;--positivo:#6fbe8e;--positivo-suave:#24352b;--alerta:#d9a84e;--alerta-suave:#38301c;--perigo:#e07862;--perigo-suave:#382220;--perigo-tinta:#2b100c;--veu:rgba(0,0,0,.6);--sombra-flutuante:0 16px 40px rgba(0,0,0,.5)}:root[data-theme=claro]{color-scheme:light;--fundo:#f6f6f4;--superficie:#fff;--superficie-2:#ecebe6;--tinta:#201e1a;--tinta-2:#5f5b54;--linha:#dcdad3;--linha-forte:#827e76;--acento:#1f6355;--acento-forte:#174d42;--acento-tinta:#f1faf6;--positivo:#20784e;--positivo-suave:#e1f0e7;--alerta:#8a6116;--alerta-suave:#f3ead2;--perigo:#b3382e;--perigo-suave:#f7e3e0;--perigo-tinta:#fff5f3;--veu:rgba(0,0,0,.4);--sombra-flutuante:0 12px 32px rgba(23,22,20,.16)}
+        /* margin:auto no lugar de align-items:center — com conteudo mais alto que a
+           viewport, centralizar por flex joga o topo fora do alcance da rolagem. */
+        body { background: var(--fundo); color: var(--tinta); font: 400 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; display: flex; min-height: 100vh; min-height: 100dvh; margin: 0; padding: 16px; box-sizing: border-box; }
+        /* Cartao: linha, nunca sombra. */
+        .box { background: var(--superficie); margin: auto; padding: clamp(20px, 5vw, 40px); border-radius: 12px; border: 1px solid var(--linha); width: min(360px, 100%); box-sizing: border-box; text-align: center; }
+        h2, h3 { font-family: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 8px; }
+        h2 { font-size: 24px; line-height: 30px; }
+        h3 { font-size: 18px; line-height: 24px; }
+        input[type="text"], input[type="password"] { width: 100%; padding: 10px 12px; min-height: 44px; margin: 8px 0; background: var(--superficie); border: 1px solid var(--linha-forte); color: var(--tinta); border-radius: 6px; box-sizing: border-box; font: inherit; }
+        input::placeholder { color: var(--tinta-2); opacity: 0.8; }
+        input:focus { border-color: var(--acento); outline: none; }
+        :focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
         @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; } }
-        button[type="submit"] { width: 100%; padding: 14px; background: var(--acc); color: #000; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; margin-top: 20px; font-size: 1.05rem; transition: 0.2s; }
-        button:disabled { background: #3f3f46; color: #a1a1aa; cursor: not-allowed; }
-        .bar-bg { width: 100%; height: 8px; background: #3f3f46; border-radius: 4px; margin-top: 10px; overflow: hidden; }
-        .bar-fg { height: 100%; width: 0%; transition: 0.3s; background: red; }
-        .req { text-align: left; font-size: 0.8rem; color: var(--sub); margin-top: 10px; }
-        .chk-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; justify-content: flex-start; }
-        .chk-row input { width: 16px; height: 16px; accent-color: var(--acc); cursor: pointer; margin: 0;}
-        .chk-row label { color: var(--sub); font-size: 0.85rem; cursor: pointer; }
-        #net-toast { position:fixed;top:0;left:0;right:0;z-index:9999;text-align:center;padding:10px 20px;font-size:0.85rem;font-weight:600;transform:translateY(-100%);transition:transform .3s,opacity .3s;opacity:0;pointer-events:none; }
-        #net-toast.show { transform:translateY(0);opacity:1; }
-        #net-toast.warn { background:linear-gradient(135deg,#92400e,#b45309);color:#fef3c7;border-bottom:2px solid #f59e0b; }
-        #net-toast.err { background:linear-gradient(135deg,#7f1d1d,#991b1b);color:#fecaca;border-bottom:2px solid #ef4444; }
-        #net-toast.ok { background:linear-gradient(135deg,#064e3b,#065f46);color:#a7f3d0;border-bottom:2px solid #10b981; }
+        button[type="submit"] { width: 100%; padding: 12px 16px; min-height: 44px; background: var(--acento); color: var(--acento-tinta); font: inherit; font-weight: 600; border: 1px solid transparent; border-radius: 6px; cursor: pointer; margin-top: 12px; transition: background 0.15s; }
+        button[type="submit"]:hover { background: var(--acento-forte); }
+        button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; }
+        .chk-row { display: flex; align-items: center; gap: 8px; margin: 8px 0; justify-content: flex-start; }
+        .chk-row input { width: 18px; height: 18px; accent-color: var(--acento); cursor: pointer; margin: 0; }
+        .chk-row label { color: var(--tinta-2); font-size: 14px; cursor: pointer; }
+        .bar-bg { width: 100%; height: 6px; background: var(--superficie-2); border-radius: 999px; margin-top: 6px; overflow: hidden; }
+        .bar-fg { height: 100%; width: 0; transition: 0.3s; background: var(--perigo); border-radius: 999px; }
+        p { color: var(--tinta-2); font-size: 14px; line-height: 20px; margin: 0 0 20px; }
+        .req { text-align: left; font-size: 13px; line-height: 18px; color: var(--tinta-2); margin-top: 8px; }
+        /* Toast: copia da folha comum, que esta pagina nao carrega; top:16px porque nao ha barra. */
+        #net-toast { position: fixed; top: 16px; left: 50%; transform: translate(-50%, -24px); max-width: min(560px, calc(100% - 32px)); z-index: 9999; padding: 12px 16px; border-radius: 6px; border: 1px solid; font-size: 14px; font-weight: 600; box-shadow: var(--sombra-flutuante); opacity: 0; pointer-events: none; transition: transform 0.25s, opacity 0.25s; }
+        #net-toast.show { transform: translate(-50%, 0); opacity: 1; }
+        #net-toast.warn { background: var(--alerta-suave); color: var(--alerta); border-color: var(--alerta); }
+        #net-toast.err { background: var(--perigo-suave); color: var(--perigo); border-color: var(--perigo); }
+        #net-toast.ok { background: var(--positivo-suave); color: var(--positivo); border-color: var(--positivo); }
     </style>
     <script>
     /* F-LANGPACK β: dict.pt vem de GET /api/lang (servido do .lng).
@@ -411,7 +404,7 @@ static const char FORCE_CHPASS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     let p1 = document.getElementById('p1').value; let p2 = document.getElementById('p2').value; let s = 0;
                     if(p1.length >= 8) s += 25; if(/[A-Za-z]/.test(p1)) s += 25; if(/[0-9]/.test(p1)) s += 25; if(/[^A-Za-z0-9]/.test(p1)) s += 25;
                     let b = document.getElementById('bar'); b.style.width = s + '%';
-                    if(s <= 25) b.style.background = '#ef4444'; else if(s <= 50) b.style.background = '#f59e0b'; else if(s <= 75) b.style.background = '#3b82f6'; else b.style.background = '#22c55e';
+                    b.style.background = s <= 25 ? 'var(--perigo)' : s <= 75 ? 'var(--alerta)' : 'var(--positivo)';
                     document.getElementById('btn').disabled = !(s === 100 && p1 === p2);
                 }
             </script>
@@ -431,52 +424,40 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <title>SIMUT - Dashboard</title>
     <script src="/lang.js"></script>
     <style>
-        /* M1 anti-piscada (fix da piscada branca): o 1o paint usava o branco
-           default do navegador porque TODOS os tokens moram no /style.css, que
-           chega por fetch pos-paint (ver o loader no LANG_JS). Copia dos tokens
-           DARK — fonte: o bloco :root do STYLE_CSS neste mesmo arquivo; mudou
-           la, mude aqui (grep "M1 anti-piscada"). O tema claro NAO precisa de
-           copia: lang.js e sincrono no head e injeta :root.theme-light com
-           especificidade maior antes do paint. */
-        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; --ok: #22c55e; --warn: #f59e0b; --track: #262e39; color-scheme: dark; }
-        html { background: var(--bg); }
-        body { background: var(--bg); color: var(--txt); }
 
 
         /* Dashboard Styles */
-        .layout-grid { display: grid; grid-template-columns: 1fr 360px; gap: 25px; align-items: start; }
+        .layout-grid { display: grid; grid-template-columns: 1fr 360px; gap: 24px; align-items: start; }
         @media(max-width: 900px) { .layout-grid { grid-template-columns: 1fr; } }
-        .compact-info { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        .compact-info { background: var(--superficie); border: 1px solid var(--linha); border-radius: 12px; padding: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
         .c-item { display: flex; flex-direction: column; }
-        .c-lbl { color: var(--sub); font-size: 0.75rem; text-transform: uppercase; font-weight: 700; margin-bottom: 2px; }
-        .c-val { font-size: 1rem; font-weight: 600; color: var(--txt); }
-        .c-sub { font-size: 0.75rem; color: var(--sub); margin-top: 2px; }
+        .c-lbl { color: var(--tinta-2); font-size: 13px; line-height: 16px; font-weight: 600; margin-bottom: 2px; }
+        .c-val { font-size: 16px; font-weight: 600; color: var(--tinta); }
+        .c-sub { margin-top: 2px; }
         /* No celular o piso de 180px do auto-fit nunca cabe duas vezes (precisa de
            375px e o aparelho mais largo oferece 358), entao o grid caia sempre em
            1 coluna e virava uma pilha de ~900px. Duas colunas fixas: RAM e Flash
            sao vizinhos no DOM e caem lado a lado sozinhos. */
         @media(max-width: 640px) {
             .compact-info { grid-template-columns: repeat(2, 1fr); gap: 10px 12px; padding: 12px; margin-bottom: 14px; }
-            .c-lbl { font-size: 0.64rem; letter-spacing: 0.02em; }
-            .c-val { font-size: 0.92rem; }
-            .c-sub { font-size: 0.66rem; }
+            .c-val { font-size: 15px; }
             .bar-bg { height: 4px; }
             /* a tabela de sensores rola de lado (o card ja tem overflow-x): manter
                a leitura em uma linha por celula em vez de empilhar caracteres */
             #tab td, thead th { white-space: nowrap; }
         }
-        .bar-bg { background: var(--track); height: 6px; border-radius: 3px; overflow: hidden; margin-top: 4px; width: 100%; }
-        .bar-fg { background: var(--acc); height: 100%; border-radius: 3px; transition: width 0.5s ease; }
-        .bar-fg.warn { background: #f59e0b; } .bar-fg.crit { background: var(--dang); }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 14px; text-align: left; border-bottom: 1px solid var(--border); }
-        th { color: var(--sub); font-size: 0.85rem; text-transform: uppercase; }
-        .dot { height: 10px; width: 10px; background: var(--acc); border-radius: 50%; display: inline-block; }
-        .err { background: var(--dang); }
-        .display-box { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; }
-        button, select { background: var(--bg); color: var(--txt); border: 1px solid var(--border); padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: 0.2s;}
-        button:hover { background: var(--acc); color: black; border-color: var(--acc); }
-        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .bar-bg { margin-top: 4px; }
+        .dot { height: 10px; width: 10px; background: var(--positivo); border-radius: 999px; display: inline-block; }
+        .err { background: var(--perigo); }
+        .display-box { background: var(--superficie); border: 1px solid var(--linha); padding: 20px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; }
+        .display-box h2 { align-self: flex-start; font-size: 18px; line-height: 24px; margin: 0 0 12px; }
+        .shot { width: 100%; aspect-ratio: 4/3; border-radius: 6px; background: var(--superficie-2); border: 1px solid var(--linha); box-sizing: border-box; }
+        #placeholder-box { display: flex; align-items: center; justify-content: center; color: var(--tinta-2); font-size: 14px; border-style: dashed; }
+        #theme-preview-img { object-fit: contain; display: none; }
+        /* Sem veu escuro: uma superficie quase opaca le nos dois temas. */
+        #loading-overlay { display: none; position: absolute; inset: 0; align-items: center; justify-content: center; border-radius: 6px; background: var(--superficie); opacity: 0.92; color: var(--tinta-2); font-size: 14px; }
+        #themeSel { width: auto; margin: 0; }
+        .tools { margin-top: 16px; display: flex; gap: 8px; width: 100%; justify-content: center; flex-wrap: wrap; }
     </style>
     <script>
         /* window.t/applyLang/setLang/showToast/fetchSafe vem de /lang.js */
@@ -520,7 +501,7 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         <thead>
                             <tr>
                                 <th style="width: 40px; text-align: center;" data-i18n="dash_stat">Status</th>
-                                <th style="width: 60px;" data-i18n="dash_gpio">SLOT</th>
+                                <th style="width: 60px;" data-i18n="dash_gpio">Slot</th>
                                 <th style="width: 70px;" data-i18n="dash_type">Type</th>
                                 <th data-i18n="dash_id">ID Sensor</th>
                                 <th data-i18n="dash_read">Reading</th>
@@ -535,19 +516,19 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             </div>
             <div class="side-content">
                 <div class="display-box">
-                    <h2 style="align-self: flex-start; margin-top:0; font-size:1.2rem;" data-i18n="dash_disp">Display Capture</h2>
+                    <h2 data-i18n="dash_disp">Display Capture</h2>
                     <div id="theme-preview-container" style="position: relative; display: inline-block; width:100%;">
-                        <div id="placeholder-box" style="width: 100%; aspect-ratio: 4/3; border: 2px dashed #3f3f46; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: var(--sub); background: #000; font-size: 0.9rem;" data-i18n="dash_disp_msg">
+                        <div id="placeholder-box" class="shot" data-i18n="dash_disp_msg">
                             Click Capture to view screen
                         </div>
-                        <img id="theme-preview-img" src="" alt="Screen Capture" style="width: 100%; aspect-ratio: 4/3; object-fit: contain; background: #000; border: 4px solid #3f3f46; border-radius: 6px; display: none;">
-                        <div id="loading-overlay" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.75); border-radius: 6px; flex-direction: column; justify-content: center; align-items: center; color: #fff;">
+                        <img id="theme-preview-img" class="shot" src="" alt="Screen Capture">
+                        <div id="loading-overlay">
                             <span data-i18n="dash_disp_cap">Capturing Display...</span>
                         </div>
                     </div>
-                    <div style="margin-top:15px; display: flex; gap: 10px; width: 100%; justify-content: center;">
+                    <div class="tools">
                         <select id="themeSel" onchange="saveTheme()"><option value="0">Loading...</option></select>
-                        <button id="capBtn" onclick="captureScreen()" data-i18n="dash_disp_btn">📷 Capture Screen</button>
+                        <button id="capBtn" class="sxb" onclick="captureScreen()"><svg class="ic"><use href="#i-cam"/></svg><span data-i18n="dash_disp_btn">Capture screen</span></button>
                     </div>
                 </div>
             </div>
@@ -575,10 +556,10 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 if (d.ntp === 1) {
                     let dt = new Date(d.time * 1000);
                     document.getElementById('sys-time').innerText = fmt(dt.getDate()) + "/" + fmt(dt.getMonth()+1) + "/" + dt.getFullYear() + " " + fmt(dt.getHours()) + ":" + fmt(dt.getMinutes()) + ":" + fmt(dt.getSeconds());
-                    st.innerText = window.t('dash_ntp_ok', "NTP Synced"); st.style.color = "var(--acc)";
+                    st.innerText = window.t('dash_ntp_ok', "NTP Synced"); st.style.color = "var(--positivo)";
                 } else {
                     document.getElementById('sys-time').innerText = window.t('dash_ntp_fail', "Not Synced");
-                    st.innerText = window.t('dash_ntp_conn', "Waiting connection..."); st.style.color = "var(--dang)";
+                    st.innerText = window.t('dash_ntp_conn', "Waiting connection..."); st.style.color = "var(--perigo)";
                 }
 
                 document.getElementById('rssi').innerText = d.rssi + ' dBm';
@@ -638,13 +619,12 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         if(sn.hum) v += ' | ' + parseFloat(sn.hum).toFixed(1) + '%';
                         if(sn.press) v += ' | ' + parseFloat(sn.press).toFixed(1) + ' hPa';
                         const typeLabel = sn.type || '?';
-                        const typeCls = sn.type === 'DHT22' ? 'color:var(--warn)' : 'color:var(--ok)';
-                        const pinInfo = (sn.pc && sn.pr) ? `<span style="font-size:0.7rem;color:var(--sub)"> ⚡${sn.pc}p ${sn.pr}</span>` : '';
-                        tabHtml += `<tr><td style="text-align:center;"><span class="dot ${sn.val === 'Error' ? 'err' : ''}"></span></td><td style="color:var(--sub)">${sn.slot}</td><td style="${typeCls}; font-size:0.85rem; font-weight:600;">${typeLabel}${pinInfo}</td><td style="font-family:monospace; color:var(--acc); font-weight:600;">${escHtml(sn.id)}</td><td style="color:var(--txt); font-weight:600;">${escHtml(v)}</td><td style="font-weight:600; color:var(--txt)">${escHtml(sn.name)}</td></tr>`;
+                                                const pinInfo = (sn.pc && sn.pr) ? `<span class="c-sub" style="display:block"> ${sn.pc}p · ${sn.pr}</span>` : '';
+                        tabHtml += `<tr><td style="text-align:center;"><span class="dot ${sn.val === 'Error' ? 'err' : ''}"></span></td><td style="color:var(--tinta-2)">${sn.slot}</td><td style="font-size:14px; font-weight:600;">${typeLabel}${pinInfo}</td><td class="dado">${escHtml(sn.id)}</td><td style="color:var(--tinta); font-weight:600;">${escHtml(v)}</td><td style="font-weight:600; color:var(--tinta)">${escHtml(sn.name)}</td></tr>`;
                     });
                     document.getElementById('tab').innerHTML = tabHtml;
-                } else { document.getElementById('tab').innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--sub)">No active sensors.</td></tr>`; }
-            } catch(e) { document.getElementById('tab').innerHTML = `<tr><td colspan="6" style="color:var(--dang);text-align:center;font-weight:bold;padding:20px;">Connection Error</td></tr>`; }
+                } else { document.getElementById('tab').innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--tinta-2)">No active sensors.</td></tr>`; }
+            } catch(e) { document.getElementById('tab').innerHTML = `<tr><td colspan="6" style="color:var(--perigo);text-align:center;font-weight:bold;padding:20px;">Connection Error</td></tr>`; }
         }
 
         async function loadThemes() {
@@ -669,15 +649,15 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
         function captureScreen() {
             let btn = document.getElementById('capBtn'); if(!btn) return;
-            let origText = btn.innerText; btn.innerText = "⏳..."; btn.disabled = true;
+            let orig = btn.innerHTML; btn.textContent = "..."; btn.disabled = true;
             document.getElementById('placeholder-box').style.display = 'none';
             let img = document.getElementById('theme-preview-img');
             img.src = '';
             img.style.display = 'block';
             document.getElementById('loading-overlay').style.display = 'flex';
             document.getElementById('loading-overlay').innerHTML = '<span data-i18n="dash_disp_cap">Capturing Display...</span>';
-            img.onload = () => { document.getElementById('loading-overlay').style.display = 'none'; btn.innerText = origText; btn.disabled = false; };
-            img.onerror = () => { document.getElementById('loading-overlay').innerHTML = "<span style='color:#f87171'>Read Failed</span>"; setTimeout(() => { document.getElementById('loading-overlay').style.display = 'none'; }, 2000); btn.innerText = origText; btn.disabled = false; };
+            img.onload = () => { document.getElementById('loading-overlay').style.display = 'none'; btn.innerHTML = orig; btn.disabled = false; };
+            img.onerror = () => { document.getElementById('loading-overlay').innerHTML = "<span style='color:var(--perigo)'>Read Failed</span>"; setTimeout(() => { document.getElementById('loading-overlay').style.display = 'none'; }, 2000); btn.innerHTML = orig; btn.disabled = false; };
             img.src = '/api/screenshot?t=' + new Date().getTime();
         }
 
@@ -1496,16 +1476,6 @@ global.H5G = H5G;
 })(window);
     </script>
     <style>
-        /* M1 anti-piscada (fix da piscada branca): o 1o paint usava o branco
-           default do navegador porque TODOS os tokens moram no /style.css, que
-           chega por fetch pos-paint (ver o loader no LANG_JS). Copia dos tokens
-           DARK — fonte: o bloco :root do STYLE_CSS neste mesmo arquivo; mudou
-           la, mude aqui (grep "M1 anti-piscada"). O tema claro NAO precisa de
-           copia: lang.js e sincrono no head e injeta :root.theme-light com
-           especificidade maior antes do paint. */
-        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; --ok: #22c55e; --warn: #f59e0b; --track: #262e39; color-scheme: dark; }
-        html { background: var(--bg); }
-        body { background: var(--bg); color: var(--txt); }
 
         /* History Styles */
         .hist-layout { display: grid; grid-template-columns: 260px 1fr; gap: 20px; align-items: start; margin-bottom: 25px; }
@@ -1513,22 +1483,20 @@ global.H5G = H5G;
            primeiro: em coluna unica o calendario empurrava o grafico — o conteudo
            da pagina — para ~470px abaixo, fora da primeira tela. */
         @media(max-width: 900px) { .hist-layout { grid-template-columns: 1fr; } .hist-layout > :first-child { order: 2; } }
-        .grp label { display: block; color: var(--sub); margin-bottom: 6px; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; }
-        .grp select { width: 100%; padding: 8px 12px; background: var(--bg); border: 1px solid var(--border); color: var(--txt); border-radius: 6px; margin-bottom: 15px; font-size: 0.9rem; outline: none; }
-        .grp select:focus { border-color: var(--acc); }
+        .grp select { margin-bottom: 16px; }
         .cal-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        .cal-header-row button { background: var(--bg); padding: 4px 10px; border-radius: 4px; color: var(--txt); border: 1px solid var(--border); cursor: pointer; font-size: 0.8rem;}
+        .cal-header-row button { padding: 4px 8px; min-height: 32px; }
         .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; font-size: 0.85rem; }
-        .cal-dow { color: var(--sub); font-weight: 700; padding-bottom: 4px; font-size: 0.75rem; text-transform: uppercase;}
-        .cal-cell { padding: 6px 0; border-radius: 4px; color: #52525b; cursor: default; border: 1px solid transparent; }
-        .cal-cell.has-data { background: rgba(6, 182, 212, 0.1); color: var(--acc); cursor: pointer; border: 1px solid rgba(6, 182, 212, 0.3); font-weight: 700; }
-        .cal-cell.selected { background: var(--acc); color: #000; font-weight: 800; border-color: #fff; }
-        .stats-inline { display: flex; flex-wrap: wrap; gap: 20px; background: var(--bg); border: 1px solid var(--border); padding: 10px 20px; border-radius: 8px; margin-bottom: 15px; justify-content: center; }
+        .cal-dow { color: var(--tinta-2); font-weight: 600; padding-bottom: 4px; font-size: 12px; }
+        .cal-cell { padding: 6px 0; border-radius: 6px; color: var(--linha-forte); cursor: default; border: 1px solid transparent; }
+        .cal-cell.has-data { background: var(--superficie-2); color: var(--acento); cursor: pointer; border-color: var(--linha); font-weight: 600; }
+        .cal-cell.selected { background: var(--acento); color: var(--acento-tinta); font-weight: 600; border-color: var(--acento); }
+        .stats-inline { display: flex; flex-wrap: wrap; gap: 20px; padding: 10px 20px; margin-bottom: 16px; justify-content: center; }
         .stat-badge { font-size: 1.1rem; font-weight: 800; display: flex; align-items: center; gap: 8px; }
-        .stat-badge span { color: var(--sub); font-weight: 600; font-size: 0.75rem; }
-        .hot { color: #ef4444; } .cold { color: #3b82f6; }
-        .chart-box { position: relative; height: 45vh; min-height: 280px; width: 100%; resize: vertical; overflow: hidden; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
-        .chart-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(12,15,19,0.85); z-index: 5; transition: opacity 0.3s; pointer-events: none; }
+        .stat-badge span { color: var(--tinta-2); font-weight: 600; font-size: 0.75rem; }
+        .hot, .cold { color: var(--tinta); }
+        .chart-box { position: relative; height: 45vh; min-height: 280px; width: 100%; resize: vertical; overflow: hidden; }
+        .chart-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--fundo); color: var(--tinta-2); z-index: 5; transition: opacity 0.3s; pointer-events: none; }
         .chart-overlay.hidden { opacity: 0; }
         .bottom-controls { display: flex; justify-content: center; gap: 8px; margin-top: 20px; flex-wrap: wrap; align-items: center; }
         /* Padronizado: todos os 5 controles tem mesma largura (72px) e altura (38px),
@@ -1538,49 +1506,41 @@ global.H5G = H5G;
            sozinho numa 2a linha por 8px. Largura flexivel resolve e ainda da
            alvos maiores. */
         @media(max-width: 640px) { .bottom-controls > button, .bottom-controls > .csel { width: auto; flex: 1 1 0; min-width: 0; height: 44px; } }
-        .bottom-controls > button { background: var(--bg); color: var(--txt); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
-        .bottom-controls > button.active { background: var(--acc); color: #000; border-color: var(--acc); }
+        .bottom-controls > button { padding: 0; }
         .bottom-controls > .csel .csel-btn { width: 100%; height: 100%; text-align: center; padding: 0; font-weight: 600; font-size: 0.85rem; display: inline-flex; align-items: center; justify-content: center; }
         .bottom-controls > .csel .csel-arr { display: none; }
         .log-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
         /* #logSearch, nao `.log-header input`: o seletor de elemento pegava tambem os
            checkboxes INF/WRN/ERR e a media query abaixo os esticava a 100% de largura.
            font-size 16px impede o zoom automatico do iOS no foco. */
-        #logSearch { padding: 8px 12px; background: var(--bg); color: var(--txt); border: 1px solid var(--border); border-radius: 6px; min-width: 200px; outline: none; font-size: 16px;}
-        .log-header input:focus { border-color: var(--acc); }
-        .log-header button { padding: 8px 12px; background: var(--bg); color: var(--txt); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-weight: 600; }
+        #logSearch { min-width: 200px; width: auto; margin: 0; }
         /* Celular: filtros INF/WRN/ERR continuam em LINHA (3 labels cabem em 360px);
            so a busca e os botoes viram largura cheia. Antes o `> div` inteiro virava
            coluna e cada checkbox ocupava uma linha. */
         @media(max-width: 600px) { .log-header { flex-direction: column; align-items: stretch; } .log-header h2 { text-align: center; } #logSearch { min-width: unset; width: 100%; box-sizing: border-box; } .log-header button { width: 100%; } }
-        .log-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; max-height: 400px; overflow-y: auto; }
-        .log-table { width: 100%; border-collapse: collapse; font-family: monospace; font-size: 0.85rem; }
-        .log-table th, .log-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; }
-        .log-table th { color: var(--sub); position: sticky; top: 0; background: var(--card); }
-        .log-err { color: var(--dang); font-weight: bold;} .log-wrn { color: var(--warn); font-weight: bold;} .log-inf { color: var(--acc); }
+        .log-box { max-height: 400px; overflow-y: auto; }
+        .log-table { font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace; font-size: 13px; }
+        .log-table th, .log-table td { padding: 10px 12px; }
+        .log-table th { position: sticky; top: 0; background: var(--fundo); }
+        .log-err { color: var(--perigo); font-weight: 600; } .log-wrn { color: var(--alerta); font-weight: 600; } .log-inf { color: var(--tinta-2); }
         .progress-wrapper { margin: 15px 0; padding: 0 5px; }
-        .progress-label { display:flex; justify-content:space-between; margin-bottom:6px; font-size:0.8rem; color:var(--sub); font-weight:700; text-transform:uppercase;}
-        .progress-track { width:100%; height:8px; background:var(--bg); border:1px solid var(--border); border-radius:4px; overflow:hidden; }
-        .progress-fill { height:100%; width:0%; background: linear-gradient(90deg, var(--acc), #22d3ee); transition: width 0.3s; }
+        .progress-label { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px; color: var(--tinta-2); font-weight: 600; }
         @keyframes pulse-bg { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
         .pulse { animation: pulse-bg 1.5s infinite; }
         /* F-GRAPH.3: progress overlay do export chunked */
-        .exp-overlay { position: fixed; inset: 0; background: rgba(12,15,19,0.85); z-index: 9000; display: flex; align-items: center; justify-content: center; }
-        .exp-overlay-box { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px 32px; min-width: 320px; max-width: 90vw; box-shadow: 0 8px 24px rgba(0,0,0,0.6); }
-        .exp-overlay-title { color: var(--txt); font-size: 1.05rem; font-weight: 700; margin-bottom: 14px; }
-        .exp-overlay-bar { width: 100%; height: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 8px; }
-        .exp-overlay-fill { height: 100%; background: linear-gradient(90deg, var(--acc), #22d3ee); width: 0%; transition: width 0.25s; }
-        .exp-overlay-stat { color: var(--sub); font-size: 0.82rem; font-weight: 600; display: flex; justify-content: space-between; }
-        .exp-overlay-stat .ok { color: var(--ok); }
-        .exp-overlay-stat .fail { color: var(--dang); }
+        .exp-overlay-box { padding: 24px 32px; min-width: 320px; max-width: 90vw; }
+        .exp-overlay-title { color: var(--tinta); font-size: 1.05rem; font-weight: 700; margin-bottom: 14px; }
+        .exp-overlay-stat { color: var(--tinta-2); font-size: 0.82rem; font-weight: 600; display: flex; justify-content: space-between; }
+        .exp-overlay-stat .ok { color: var(--positivo); }
+        .exp-overlay-stat .fail { color: var(--perigo); }
         /* F-GRAPH-REVAMP: multi-select dropdown */
         .msel { position: relative; }
-        .msel-btn { width: 100%; padding: 8px 12px; background: var(--bg); color: var(--txt); border: 1px solid var(--border); border-radius: 6px; text-align: left; cursor: pointer; font-size: 0.9rem; outline: none; }
-        .msel-btn:hover { border-color: var(--acc); }
-        .msel-menu { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--card); border: 1px solid var(--border); border-radius: 6px; max-height: 280px; overflow-y: auto; z-index: 100; padding: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
-        .msel-menu label { display: flex; align-items: center; gap: 8px; padding: 6px 8px; cursor: pointer; color: var(--txt); font-size: 0.85rem; text-transform: none; font-weight: 500; margin: 0; border-radius: 4px; }
-        .msel-menu label:hover { background: var(--bg); }
-        .msel-menu input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--acc); margin: 0; }
+        .msel-btn { width: 100%; padding: 10px 12px; min-height: 44px; background: var(--superficie); color: var(--tinta); border: 1px solid var(--linha-forte); border-radius: 6px; text-align: left; cursor: pointer; font-size: 15px; outline: none; }
+        .msel-btn:hover { border-color: var(--acento); }
+        .msel-menu { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--superficie); border: 1px solid var(--linha); border-radius: 6px; max-height: 280px; overflow-y: auto; z-index: 100; padding: 6px; box-shadow: var(--sombra-flutuante); }
+        .msel-menu label { display: flex; align-items: center; gap: 8px; padding: 6px 8px; cursor: pointer; color: var(--tinta); font-size: 14px; font-weight: 500; margin: 0; border-radius: 6px; }
+        .msel-menu label:hover { background: var(--fundo); }
+        .msel-menu input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--acento); margin: 0; }
         .msel-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
     </style>
     <script>
@@ -1605,9 +1565,9 @@ global.H5G = H5G;
                 <div class="grp" style="margin-bottom:0;">
                     <label data-i18n="hist_cal">Monthly Calendar</label>
                     <div class="cal-header-row">
-                        <button onclick="changeMonth(-1)" aria-label="Previous month">&#9664;</button>
-                        <span id="calMonthYear" style="font-weight:bold; color:var(--txt); font-size: 0.9rem;"></span>
-                        <button onclick="changeMonth(1)" aria-label="Next month">&#9654;</button>
+                        <button onclick="changeMonth(-1)" aria-label="Previous month"><svg class="ic"><use href="#i-left"/></svg></button>
+                        <span id="calMonthYear" style="font-weight:bold; color:var(--tinta); font-size: 0.9rem;"></span>
+                        <button onclick="changeMonth(1)" aria-label="Next month"><svg class="ic"><use href="#i-right"/></svg></button>
                     </div>
                     <div class="cal-grid">
                         <div class="cal-dow" data-i18n="cal_su">Su</div><div class="cal-dow" data-i18n="cal_mo">Mo</div><div class="cal-dow" data-i18n="cal_tu">Tu</div>
@@ -1626,14 +1586,14 @@ global.H5G = H5G;
                 </div>
 
                 <div id="chartContainer">
-                    <div style="font-weight:bold; color:var(--acc); margin-bottom:10px;" id="chartTitle">--</div>
+                    <div style="font-weight:bold; color:var(--acento); margin-bottom:10px;" id="chartTitle">--</div>
                     <div class="chart-box" id="chartBox">
                         <div id="chartOverlay" class="chart-overlay">
-                            <span id="overlayMsg" style="color:var(--sub);" data-i18n="hist_loading">Loading...</span>
+                            <span id="overlayMsg" style="color:var(--tinta-2);" data-i18n="hist_loading">Loading...</span>
                             <div class="progress-wrapper" id="progressWrap" style="display:none; width:80%; margin-top:10px;">
                                 <div class="progress-label">
                                     <span id="progStatus" data-i18n="hist_loading">Loading...</span>
-                                    <span class="prog-detail" id="progDetail" style="color:var(--acc); font-family:monospace;">0 KB</span>
+                                    <span class="prog-detail" id="progDetail" style="color:var(--acento); font-family:monospace;">0 KB</span>
                                 </div>
                                 <div class="progress-track"><div class="progress-fill pulse" id="progFill"></div></div>
                             </div>
@@ -1641,7 +1601,7 @@ global.H5G = H5G;
                         <canvas id="myChart"></canvas>
                     </div>
                     <div class="bottom-controls">
-                        <button onclick="navGraph(-1)" id="btnPrev" title="Anterior" aria-label="Previous period">◀</button>
+                        <button onclick="navGraph(-1)" id="btnPrev" title="Anterior" aria-label="Previous period"><svg class="ic"><use href="#i-left"/></svg></button>
                         <select id="rangeSel" title="Intervalo" onchange="loadGraphRange(parseInt(this.value,10))">
                             <option value="0">1h</option>
                             <option value="1">6h</option>
@@ -1651,7 +1611,7 @@ global.H5G = H5G;
                             <option value="5">1A</option>
                             <option value="6">MAX</option>
                         </select>
-                        <button onclick="navGraph(+1)" id="btnNext" title="Próximo" aria-label="Next period">▶</button>
+                        <button onclick="navGraph(+1)" id="btnNext" title="Próximo" aria-label="Next period"><svg class="ic"><use href="#i-right"/></svg></button>
                         <button onclick="exportHistoryCsv()" id="btnExpHist" title="Export CSV">⤓ CSV</button>
                     </div>
                 </div>
@@ -1662,20 +1622,20 @@ global.H5G = H5G;
             <div class="log-header">
                 <h2 class="page-title" data-i18n="hist_logs" style="margin:0;">System Event Logs</h2>
                 <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-                    <label style="display:flex;align-items:center;gap:4px;font-size:0.8rem;color:var(--acc);cursor:pointer;"><input type="checkbox" id="chkInf" onchange="filterLogs()"> INF</label>
-                    <label style="display:flex;align-items:center;gap:4px;font-size:0.8rem;color:var(--warn);cursor:pointer;"><input type="checkbox" id="chkWrn" onchange="filterLogs()"> WRN</label>
-                    <label style="display:flex;align-items:center;gap:4px;font-size:0.8rem;color:var(--dang);cursor:pointer;"><input type="checkbox" id="chkErr" onchange="filterLogs()" checked> ERR</label>
+                    <label style="display:flex;align-items:center;gap:4px;font-size:0.8rem;color:var(--acento);cursor:pointer;"><input type="checkbox" id="chkInf" onchange="filterLogs()"> INF</label>
+                    <label style="display:flex;align-items:center;gap:4px;font-size:0.8rem;color:var(--alerta);cursor:pointer;"><input type="checkbox" id="chkWrn" onchange="filterLogs()"> WRN</label>
+                    <label style="display:flex;align-items:center;gap:4px;font-size:0.8rem;color:var(--perigo);cursor:pointer;"><input type="checkbox" id="chkErr" onchange="filterLogs()" checked> ERR</label>
                     <input type="text" id="logSearch" placeholder="Filter events..." data-i18n="hist_filt" onkeyup="filterLogs()">
-                    <button id="btnLoadLogs" onclick="loadLogs()" data-i18n="hist_load_btn" style="color:var(--acc); border-color:var(--acc);">Load</button>
+                    <button id="btnLoadLogs" onclick="loadLogs()" data-i18n="hist_load_btn" style="color:var(--acento); border-color:var(--acento);">Load</button>
                     <button id="btnExpLogs" onclick="exportLogsCsv()" title="Export CSV" data-i18n="exp_btn">⤓ CSV</button>
-                    <button onclick="clearLogs()" style="border-color:var(--dang); color:var(--dang); background:transparent;" data-i18n="hist_clear">Clear</button>
+                    <button onclick="clearLogs()" style="border-color:var(--perigo); color:var(--perigo); background:transparent;" data-i18n="hist_clear">Clear</button>
                 </div>
             </div>
 
             <div class="progress-wrapper" id="logProgressWrap" style="display:none; margin-top: 0; margin-bottom: 15px; padding: 0;">
                 <div class="progress-label">
                     <span id="logProgStatus" data-i18n="hist_loading">Loading...</span>
-                    <span class="prog-detail" id="logProgDetail" style="color:var(--acc); font-family:monospace;">0 KB</span>
+                    <span class="prog-detail" id="logProgDetail" style="color:var(--acento); font-family:monospace;">0 KB</span>
                 </div>
                 <div class="progress-track"><div class="progress-fill" id="logProgFill"></div></div>
             </div>
@@ -1683,7 +1643,7 @@ global.H5G = H5G;
             <div class="log-box">
                 <table class="log-table">
                     <thead><tr><th style="width:155px" data-i18n="hist_dtlog">Date & Time</th><th style="width:95px" data-i18n="hist_uptime">Uptime</th><th style="width:50px" data-i18n="hist_lvl">Level</th><th style="width:70px" data-i18n="hist_module">Module</th><th data-i18n="hist_desc">Event Description</th></tr></thead>
-                    <tbody id="logBody"><tr><td colspan="5" style="padding:20px; text-align:center; color:var(--sub);" data-i18n="hist_prompt">Click 'Load' to view system logs.</td></tr></tbody>
+                    <tbody id="logBody"><tr><td colspan="5" style="padding:20px; text-align:center; color:var(--tinta-2);" data-i18n="hist_prompt">Click 'Load' to view system logs.</td></tr></tbody>
                 </table>
             </div>
         </div>
@@ -1706,8 +1666,8 @@ global.H5G = H5G;
         /* Grade e ticks acompanham o tema: mesmos tokens das bordas/texto-sub.
          * Lidos a cada render — trocar o tema vale a partir do proximo grafico. */
         function _themeVar(name, fb) { const v = getComputedStyle(document.documentElement).getPropertyValue(name); return (v || fb).trim(); }
-        function _gridColor() { return _themeVar('--border', '#2a3340'); }
-        function _tickColor() { return _themeVar('--sub', '#98a6b3'); }
+        function _gridColor() { return _themeVar('--linha', '#2a3340'); }
+        function _tickColor() { return _themeVar('--tinta-2', '#98a6b3'); }
         function _seriesColor(serieIdx, isHum) { return isHum ? _humColor : _hotColors[serieIdx % _hotColors.length]; }
 
         async function loadAvailableDays() { try { const res = await fetchSafe('/api/history_days'); availDates = await res.json(); renderCalendar(); } catch(e) {} }
@@ -1892,7 +1852,7 @@ global.H5G = H5G;
                 b.textContent = window.t('hist_cancel', 'Cancel');
                 b.style.cssText = 'position:relative;z-index:6;pointer-events:auto;'
                     + 'touch-action:manipulation;margin-top:8px;padding:8px 14px;'
-                    + 'background:transparent;color:var(--dang);border:1px solid var(--dang);'
+                    + 'background:transparent;color:var(--perigo);border:1px solid var(--perigo);'
                     + 'border-radius:6px;cursor:pointer;font-weight:600;font-size:.8rem';
                 b.onclick = () => {
                     _gchCancelled = true;
@@ -2362,9 +2322,9 @@ global.H5G = H5G;
                 const tone = (key === 'temp') ? 'hot' : 'cold';
                 const name = esc(window.t(e.label || ('ch_' + key), key.toUpperCase()));
                 const unit = esc(e.unit || '');
-                html += '<div class="stat-badge"><span>MAX ' + name + ':</span> <div class="' + tone + '">'
+                html += '<div class="stat-badge"><span>Max ' + name + ':</span> <div class="' + tone + '">'
                      +  e.max.toFixed(1) + ' ' + unit + '</div></div>'
-                     +  '<div class="stat-badge"><span>MIN ' + name + ':</span> <div class="' + tone + '">'
+                     +  '<div class="stat-badge"><span>Min ' + name + ':</span> <div class="' + tone + '">'
                      +  e.min.toFixed(1) + ' ' + unit + '</div></div>';
             });
             box.innerHTML = html || '<div class="stat-badge"><span>--</span></div>';
@@ -2476,7 +2436,7 @@ global.H5G = H5G;
                     animation: false, responsive: true, maintainAspectRatio: false,
                     interaction: { mode: 'nearest', axis: 'x', intersect: false },
                     plugins: {
-                        legend: { display: datasets.length > 1, position: 'top', labels: { color: '#a1a1aa', font: { size: 11 } } },
+                        legend: { display: datasets.length > 1, position: 'top', labels: { color: _tickColor(), font: { size: 11 } } },
                         tooltip: {
                             callbacks: {
                                 /* X e epoch ms - formata como data/hora local. */
@@ -2613,7 +2573,7 @@ global.H5G = H5G;
                     let lvlLabel = LVL_LABELS[lvl] || 'UNK';
                     let lvlCls = LVL_CLASS[lvl] || '';
                     let tag = TAG_NAMES[tagId] || '?';
-                    let desc = evtName(code) + (ctx !== 0 ? ' <span style="color:var(--sub)">[ctx: ' + ctx + ']</span>' : '');
+                    let desc = evtName(code) + (ctx !== 0 ? ' <span style="color:var(--tinta-2)">[ctx: ' + ctx + ']</span>' : '');
 
                     parsedLogRows.push({ epoch, upSec, code, ctx, lvl, dateStr, upStr, lvlLabel, lvlCls, tag, desc });
                 }
@@ -2624,8 +2584,8 @@ global.H5G = H5G;
                     logsLoadedOnce = true;
                     btn.setAttribute('data-i18n', 'hist_ref');
                     btn.innerText = window.t('hist_ref', 'Refresh');
-                    btn.style.color = "var(--txt)";
-                    btn.style.borderColor = "var(--border)";
+                    btn.style.color = "var(--tinta)";
+                    btn.style.borderColor = "var(--linha)";
                 }
             } catch(e) {
                 pWrap.style.display = 'none';
@@ -2639,7 +2599,7 @@ global.H5G = H5G;
             let html = '';
             for (let i = parsedLogRows.length - 1; i >= 0; i--) {
                 const r = parsedLogRows[i];
-                html += `<tr class="log-row" data-lvl="${r.lvl}"><td>${r.dateStr}</td><td style="color:var(--sub)">${r.upStr}</td><td class="${r.lvlCls}">${r.lvlLabel}</td><td style="color:var(--acc)">${r.tag}</td><td style="color:var(--txt)">${r.desc}</td></tr>`;
+                html += `<tr class="log-row" data-lvl="${r.lvl}"><td>${r.dateStr}</td><td style="color:var(--tinta-2)">${r.upStr}</td><td class="${r.lvlCls}">${r.lvlLabel}</td><td style="color:var(--acento)">${r.tag}</td><td style="color:var(--tinta)">${r.desc}</td></tr>`;
             }
             tbody.innerHTML = html || `<tr><td colspan="5" style="text-align:center">${window.t('hist_none', 'No events.')}</td></tr>`;
             filterLogs();
@@ -3017,9 +2977,9 @@ global.H5G = H5G;
                 ov.innerHTML = '<div class="exp-overlay-box">'
                     + '<div class="exp-overlay-title">Exporting...</div>'
                     + '<div class="exp-overlay-bar"><div class="exp-overlay-fill" id="expF"></div></div>'
-                    + '<div class="exp-overlay-stat"><span id="expP">0%</span><span id="expE" style="color:var(--acc)">...</span></div>'
+                    + '<div class="exp-overlay-stat"><span id="expP">0%</span><span id="expE" style="color:var(--acento)">...</span></div>'
                     + '<div class="exp-overlay-stat" style="margin-top:4px"><span class="ok" id="expK">0 OK</span><span id="expC" style="opacity:.7">--</span><span class="fail" id="expN">0</span></div>'
-                    + '<button type="button" id="expX" style="margin-top:14px;padding:8px;background:transparent;color:var(--dang);border:1px solid var(--dang);border-radius:6px;cursor:pointer;font-weight:600;width:100%">Cancelar</button>'
+                    + '<button type="button" id="expX" style="margin-top:14px;padding:8px;background:transparent;color:var(--perigo);border:1px solid var(--perigo);border-radius:6px;cursor:pointer;font-weight:600;width:100%">Cancelar</button>'
                     + '</div>';
                 document.body.appendChild(ov);
                 document.getElementById('expX').onclick = () => {
@@ -3268,7 +3228,7 @@ global.H5G = H5G;
             document.body.appendChild(a); a.click();
             setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 100);
 
-            const tag = _expCancelled ? '⚠ cancelado: ' : (failChunks > 0 ? '⚠ ' : '');
+            const tag = _expCancelled ? 'cancelado: ' : (failChunks > 0 ? 'com falha: ' : '');
             const stat = (_expCancelled || failChunks > 0) ? 'warn' : 'ok';
             const summ = tag + allLines.length + ' linhas' + (failChunks > 0 ? ' (' + failChunks + ' chunks falhos)' : '');
             showToast(summ, stat);
@@ -3340,30 +3300,14 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <title>SIMUT - Config</title>
     <script src="/lang.js"></script>
     <style>
-        /* M1 anti-piscada (fix da piscada branca): o 1o paint usava o branco
-           default do navegador porque TODOS os tokens moram no /style.css, que
-           chega por fetch pos-paint (ver o loader no LANG_JS). Copia dos tokens
-           DARK — fonte: o bloco :root do STYLE_CSS neste mesmo arquivo; mudou
-           la, mude aqui (grep "M1 anti-piscada"). O tema claro NAO precisa de
-           copia: lang.js e sincrono no head e injeta :root.theme-light com
-           especificidade maior antes do paint. */
-        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; --ok: #22c55e; --warn: #f59e0b; --track: #262e39; color-scheme: dark; }
-        html { background: var(--bg); }
-        body { background: var(--bg); color: var(--txt); }
 
 
         /* Config Styles */
-        h3 { color: var(--txt); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-top: 30px; font-size: 1.1rem; }
-        .grp { background: rgba(255,255,255,0.02); padding: 20px; border-radius: 8px; margin-bottom: 15px; border: 1px solid var(--border); }
-        label { display: block; color: var(--sub); margin-bottom: 6px; font-size: 0.9rem; font-weight: 600; }
-        .card input[type=text], .card input[type=password], .card input[type=number], .card input[type=date], .card input[type=time], .card select { width: 100%; padding: 12px; background: var(--bg); border: 1px solid var(--border); color: var(--txt); border-radius: 6px; box-sizing: border-box; margin-bottom: 15px; font-size: 1rem; transition: 0.2s; }
-        .card input:focus, .card select:focus { border-color: var(--acc); outline: none; }
-        .card button[type=submit] { width: 100%; padding: 14px; background: var(--acc); color: black; border: none; font-weight: bold; border-radius: 6px; cursor: pointer; font-size: 1rem; margin-top: 20px; transition: 0.2s; }
-        .card button[type=submit]:hover { opacity: 0.9; transform: translateY(-1px); }
+        .card button[type=submit] { width: 100%; margin-top: 16px; }
         .row { display: flex; gap: 20px; }
         .col { flex: 1; }
         @media(max-width: 600px) { .row { flex-direction: column; gap: 0; } }
-        .builder-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 15px; margin-top: 15px; }
+        .builder-box { padding: 16px; margin-top: 16px; }
         /* Sensor slot editor. Declared once here instead of as inline style
            strings inside the JS that builds the rows, and deliberately reusing
            the conventions already set elsewhere in the interface: the table
@@ -3385,51 +3329,45 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             .tbl-scroll { margin-left: -20px; margin-right: -20px; }
             .tbl-scroll > table { min-width: max-content; }
         }
-        #sens_tbl { width: 100%; border-collapse: collapse; }
-        #sens_tbl th, #sens_tbl td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--border); }
-        #sens_tbl th { color: var(--sub); font-size: 0.85rem; text-transform: uppercase; font-weight: 600; }
-        .sxm { font-family: monospace; }
+        .sxm { font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace; font-size: 13px; }
         /* Mini grafico de correcao por canal: a linha tracejada e o padrao do
            sensor (delta zero), a curva e a correcao com suas ancoras. Cores em
            classes, nunca em atributos fill/stroke — var() nao resolve la. */
-        .spk { display: block; width: 100%; height: 74px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; margin: 6px 0 2px; }
-        .spk .l0 { stroke: #71717a; stroke-width: 1; stroke-dasharray: 4 4; }
-        .spk .lc { stroke: var(--acc); stroke-width: 2; fill: none; }
-        .spk .pa { fill: var(--acc); stroke: var(--card); stroke-width: 1.5; }
-        .spk .hz { fill: rgba(255,255,255,0.05); }
-        .spk .tk { stroke: var(--warn); stroke-width: 1.2; }
+        .spk { display: block; width: 100%; height: 74px; background: var(--superficie-2); border: 1px solid var(--linha); border-radius: 6px; margin: 6px 0 2px; }
+        .spk .l0 { stroke: var(--linha-forte); stroke-width: 1; stroke-dasharray: 4 4; }
+        .spk .lc { stroke: var(--acento); stroke-width: 2; fill: none; }
+        .spk .pa { fill: var(--acento); stroke: var(--superficie); stroke-width: 1.5; }
+        .spk .hz { fill: var(--linha); }
+        .spk .tk { stroke: var(--alerta); stroke-width: 1.2; }
         /* Grade em vez de flex-wrap: com flex cada pilula tinha a largura do seu
            texto (GP1 vs GP12 2) e as linhas saiam desencontradas. Colunas iguais
            alinham tudo — 4 colunas a 360px, mais no desktop. */
         .sxg-map { display: grid; grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)); gap: 4px; margin-bottom: 14px; }
-        .sxg { font-size: 0.8rem; font-family: monospace; color: var(--sub); background: rgba(255,255,255,0.05); padding: 4px 6px; border-radius: 12px; text-align: center; }
-        .sxg.on { background: var(--acc); color: #000; }
+        .sxg { font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace; padding: 4px 6px; text-align: center; }
         .sxg i { font-style: normal; font-weight: 700; margin-left: 5px; opacity: 0.75; }
-        .sxh { display: block; color: var(--sub); margin-bottom: 4px; font-size: 0.82rem; font-weight: 600; }
+        .sxh { display: block; color: var(--tinta-2); margin-bottom: 4px; font-size: 13px; line-height: 16px; font-weight: 600; }
         /* Prose note, as opposed to .sxh which labels a field. Same size, normal
            weight — a paragraph set in label weight reads as a heading. */
-        .sxn { display: block; color: var(--sub); margin-top: 4px; font-size: 0.82rem; font-weight: 400; line-height: 1.45; }
+        .sxn { display: block; margin-top: 4px; }
         label.sxsec { margin-top: 18px; }
-        .sx-slot { font-weight: 700; font-size: 1.05rem; color: var(--acc); }
-        .sx-warn { display: none; margin-top: 12px; padding: 10px 14px; background: rgba(239,68,68,0.12); border-left: 3px solid var(--dang); border-radius: 3px; font-size: 0.85rem; }
+        .sx-slot { font-weight: 600; font-size: 16px; color: var(--tinta); }
+        .sx-warn { display: none; margin-top: 12px; padding: 10px 14px; background: var(--perigo-suave); color: var(--perigo); border: 1px solid var(--perigo); border-radius: 6px; font-size: 14px; }
         /* One calibration point: raw + reference inputs, capture and remove.
            A grid, not flex — equal columns keep the rows of a 5-point table
            aligned regardless of how wide each typed number is. */
         .sxpt { display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 6px; margin-bottom: 6px; align-items: center; }
-        .sxpt .sxb { padding: 6px 10px; }
+        .sxpt .sxb { padding: 6px 10px; } .sxpt input { margin: 0; }
         /* Slot dialog. Mirrors .exp-overlay from the history page, plus a
            scroll cap: the editor is taller than the export progress box it is
            modelled on. It stays inside .card on purpose — position:fixed takes
            it out of the layout anyway, and living there keeps the .card input
            and .card select rules applying to its fields. */
-        .sx-ov { position: fixed; inset: 0; background: rgba(12,15,19,0.85); z-index: 9000; display: flex; align-items: center; justify-content: center; padding: 20px; }
-        .sx-ov-box { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; min-width: 320px; width: 640px; max-width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,0.6); }
+        .sx-ov-box { min-width: 320px; width: 640px; max-height: 90vh; overflow-y: auto; }
         #sens_tbl tbody tr { cursor: pointer; transition: background 0.15s; }
-        #sens_tbl tbody tr:hover { background: rgba(255,255,255,0.04); }
-        .sx-empty { color: var(--sub); text-align: center; padding: 28px 0; font-size: 0.9rem; }
+        #sens_tbl tbody tr:hover { background: var(--superficie-2); }
+        .sx-empty { color: var(--tinta-2); text-align: center; padding: 28px 0; font-size: 0.9rem; }
         .card #sens_ed input, .card #sens_ed select { margin-bottom: 0; }
-        #preview { background: #18181b; color: #a1a1aa; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 0.85rem; overflow-x: auto; border: 1px dashed #3f3f46; white-space: pre-wrap; word-break: break-all; }
-        .highlight { color: var(--ok); font-weight: bold; }
+        .highlight { color: var(--positivo); font-weight: 600; }
     </style>
     <script>
         /* window.t/applyLang/setLang/showToast/fetchSafe vem de /lang.js */
@@ -3448,7 +3386,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                  say why: loadConfig( ) wires its input listeners on its last
                  line, so any earlier failure silently produced a page that
                  looked editable and discarded every keystroke. -->
-            <div id="cfg_load_err" style="display:none;margin-bottom:14px;padding:10px 14px;background:rgba(239,68,68,0.12);border-left:3px solid #ef4444;border-radius:3px;font-size:0.92em">
+            <div id="cfg_load_err" class="faixa faixa-perigo" style="display:none">
                 <span id="cfg_load_err_msg" data-i18n="cfg_load_fail">Could not load the current settings. The fields are disabled to avoid saving blank values over your configuration.</span>
                 <button type="button" class="b-pri" id="cfg_retry" onclick="loadConfig()" style="margin-left:10px;padding:4px 12px;font-size:0.85rem" data-i18n="cfg_retry">Retry</button>
             </div>
@@ -3489,7 +3427,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             </div>
                         </div>
                         <button type="button" class="b-pri" onclick="applyManualTime()" style="margin-top:12px" data-i18n="cfg_apply_now">Apply Now</button>
-                        <div class="c-sub" style="margin-top:8px;font-size:0.8em;color:var(--sub)" data-i18n="cfg_manual_hint">Uses device timezone (offset above). Save &amp; Reboot to persist the NTP toggle.</div>
+                        <div class="c-sub" style="margin-top:8px;font-size:0.8em;color:var(--tinta-2)" data-i18n="cfg_manual_hint">Uses device timezone (offset above). Save &amp; Reboot to persist the NTP toggle.</div>
                         <div id="time_result" style="margin-top:8px;font-size:0.9em"></div>
                     </div>
                 </div>
@@ -3515,7 +3453,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         <div class="col">
                             <label data-i18n="cfg_hint">History Recording Interval (min)</label>
                             <input type="number" id="h_int" name="h_int" min="1" max="1440" required>
-                            <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--sub)" data-i18n="cfg_hint_hint">1 to 1440 min (24h). Default: 1.</div>
+                            <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--tinta-2)" data-i18n="cfg_hint_hint">1 to 1440 min (24h). Default: 1.</div>
                         </div>
                     </div>
                 </div>
@@ -3547,10 +3485,10 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     </div>
                 </div>
 
-                <div class="row" style="margin-top: 15px; border-top:1px solid #3f3f46; padding-top:15px;">
+                <div class="row" style="margin-top: 16px; border-top:1px solid var(--linha); padding-top:16px;">
                     <div style="width:100%">
                         <h3 data-i18n="cfg_slog" style="margin-top:0;">Remote Syslog (Audit Trail)</h3>
-                        <div class="c-sub" style="margin-bottom:10px;font-size:0.8em;color:var(--sub)" data-i18n="cfg_slog_hint">Forwards log events to a syslog collector (RFC 5424 over UDP) so the audit trail survives outside this device. The server is a LAN IPv4 address — not a hostname. Fire-and-forget: no delivery guarantee.</div>
+                        <div class="c-sub" style="margin-bottom:10px;font-size:0.8em;color:var(--tinta-2)" data-i18n="cfg_slog_hint">Forwards log events to a syslog collector (RFC 5424 over UDP) so the audit trail survives outside this device. The server is a LAN IPv4 address — not a hostname. Fire-and-forget: no delivery guarantee.</div>
                         <label class="cfg-tg">
                             <span class="toggle"><input type="checkbox" id="slog_en" name="slog_en" value="1"><span class="slider"></span></span>
                             <span data-i18n="cfg_slog_en">Enable syslog forwarding</span>
@@ -3584,10 +3522,10 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 <!-- U24: save button removido. Use "Salvar e Reiniciar" no topbar. -->
             </form>
 
-            <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--brd)">
+            <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--linha)">
                 <h3 data-i18n="cfg_touch_title">Touch Calibration</h3>
-                <button type="button" onclick="resetTouchCal()" style="background:var(--dang);color:#fff;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-size:0.95em" data-i18n="cfg_touch_reset">Reset Touch Calibration</button>
-                <div class="c-sub" style="margin-top:6px;font-size:0.8em;color:var(--sub)" data-i18n="cfg_touch_hint">Clears the stored calibration and starts the wizard on the display — follow the on-screen steps there.</div>
+                <button type="button" class="sxb sxb-dang" onclick="resetTouchCal()" data-i18n="cfg_touch_reset">Reset Touch Calibration</button>
+                <div class="c-sub" style="margin-top:6px;font-size:0.8em;color:var(--tinta-2)" data-i18n="cfg_touch_hint">Clears the stored calibration and starts the wizard on the display — follow the on-screen steps there.</div>
             </div>
         </div>
     </div>
@@ -3609,7 +3547,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
              * já rejeita anteriores — esta checagem cobre apenas "campo vazio". */
             if (!dateStr || !timeStr) {
                 result.textContent = window.t('cfg_time_need', 'Fill date and time.');
-                result.style.color = 'var(--dang)';
+                result.style.color = 'var(--perigo)';
                 return;
             }
             const tz = parseInt(document.getElementById('tz').value) || 0;
@@ -3628,17 +3566,17 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 const resp = await r.json();
                 if (resp.ok) {
                     result.textContent = window.t('cfg_time_ok', 'Time applied.');
-                    result.style.color = 'var(--acc)';
+                    result.style.color = 'var(--acento)';
                 } else {
                     /* Erros de validação do back-end (epoch baixo demais, formato ruim)
                      * não devem ocorrer com min=2026-01-01 no input. Se aparecerem,
                      * mensagem genérica traduzida em vez do string cru em inglês. */
                     result.textContent = window.t('cfg_time_fail', 'Failed to apply.');
-                    result.style.color = 'var(--dang)';
+                    result.style.color = 'var(--perigo)';
                 }
             } catch (e) {
                 result.textContent = window.t('cfg_time_fail', 'Failed to apply.');
-                result.style.color = 'var(--dang)';
+                result.style.color = 'var(--perigo)';
             }
         }
 
@@ -3856,7 +3794,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 const pins = (s.p || []).filter(x => x <= SENS.gmax);
                 const d = sensStaged().some(x => x.i === i);
                 h += '<tr onclick="sensEdit(' + i + ')"' + (d ? ' style="background:rgba(6,182,212,.10)"' : '') + '>' +
-                     '<td class="sxm">' + i + (s.a ? ' <span style="color:var(--ok)" title="' + window.t('sens_active', 'Active') + '">&#9679;</span>' : '') + '</td>' +
+                     '<td class="sxm">' + i + (s.a ? ' <span style="color:var(--positivo)" title="' + window.t('sens_active', 'Active') + '">&#9679;</span>' : '') + '</td>' +
                      '<td>' + (ty ? ty.n : '&mdash;') + '</td>' +
                      '<td class="sxm">' + (pins.length ? pins.map(x => 'GP' + x).join(' ') : '&mdash;') + '</td>' +
                      '<td class="sxm">' + (s.hwId ? escHtml(s.hwId) : '&mdash;') + '</td>' +
@@ -3931,7 +3869,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 for (let k = 0; k < nP; k++) {
                     const cur = (s.p && s.p[k] !== undefined) ? s.p[k] : 255;
                     h += '<div class="col"><div class="sxh">' + window.t('sens_pin', 'Pin') + ' ' + k +
-                         ' &mdash; <strong style="color:var(--acc)">' + escHtml(ty.pins[k]) + '</strong></div>' +
+                         ' &mdash; <strong style="color:var(--acento)">' + escHtml(ty.pins[k]) + '</strong></div>' +
                          '<select id="se_p' + k + '" onchange="sensStage(1)"><option value="255"' + (cur > SENS.gmax ? ' selected' : '') + '>&mdash;</option>';
                     for (let gp = 0; gp <= SENS.gmax; gp++) {
                         const tk = own[gp] !== undefined && own[gp] !== i;
@@ -4031,7 +3969,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 });
                 h += '<div id="se_calwarn" class="sx-warn"></div>' +
                      '<div class="sxn">' + window.t('cal_save_hint', 'Corrections are written on Save and Restart. Needs NTP synced.') +
-                     (CAL && CAL.ntp === false ? ' <span style="color:var(--dang)">' + window.t('sens_ntp_no', 'NTP not synced.') + '</span>' : '') + '</div>';
+                     (CAL && CAL.ntp === false ? ' <span style="color:var(--perigo)">' + window.t('sens_ntp_no', 'NTP not synced.') + '</span>' : '') + '</div>';
             }
 
             /* History rebind. Device-wide, not slot-scoped — hence its own
@@ -4539,23 +4477,13 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <title>SIMUT - Telemetry</title>
     <script src="/lang.js"></script>
     <style>
-        /* M1 anti-piscada: cópia dos tokens DARK (ver CFG_PAGE). */
-        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; --ok: #22c55e; --warn: #f59e0b; --track: #262e39; color-scheme: dark; }
-        html { background: var(--bg); }
-        body { background: var(--bg); color: var(--txt); }
-        h3 { color: var(--txt); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin: 22px 0 12px; }
-        .grp { background: rgba(255,255,255,0.02); padding: 20px; border-radius: 8px; margin-bottom: 15px; border: 1px solid var(--border); }
-        label { display: block; color: var(--sub); margin-bottom: 6px; font-size: 0.9rem; font-weight: 500; }
-        .card input[type=text], .card input[type=password], .card input[type=number], .card select { width: 100%; padding: 12px; background: var(--bg); border: 1px solid var(--border); color: var(--txt); border-radius: 6px; box-sizing: border-box; margin-bottom: 15px; font-size: 1rem; transition: 0.2s; }
-        .card input:focus, .card select:focus { border-color: var(--acc); outline: none; }
         .row { display: flex; gap: 20px; }
         .col { flex: 1; }
         @media(max-width: 600px) { .row { flex-direction: column; gap: 0; } }
-        .builder-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 15px; margin-top: 14px; }
-        .highlight { background: rgba(6,182,212,0.15); color: var(--acc); padding: 1px 6px; border-radius: 4px; font-family: ui-monospace, monospace; font-size: 0.85em; }
-        .c-sub { color: var(--sub); font-size: 0.85em; line-height: 1.45; }
+        .builder-box { padding: 16px; margin-top: 14px; }
+        .highlight { background: var(--superficie-2); color: var(--tinta); padding: 1px 6px; border-radius: 6px; font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace; font-size: 13px; }
         .page-title { margin: 0 0 8px; border: none; }
-        #preview, #apreview { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-family: ui-monospace, monospace; font-size: 0.8rem; white-space: pre-wrap; word-break: break-all; color: var(--txt); }
+        #preview, #apreview { word-break: break-all; }
     </style>
     <script>
         /* window.t/applyLang/setLang/showToast/fetchSafe/Pending/commitAll vem de /lang.js */
@@ -4568,7 +4496,7 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         <div class="card">
             <h2 class="page-title" data-i18n="tel_title">Telemetry</h2>
             <div class="c-sub" style="margin-bottom:14px" data-i18n="tel_desc">Transport, payload formats and the second line (alarms). Save &amp; Restart applies staged changes; Send now / Reset cursor act on the running device.</div>
-            <div id="cfg_load_err" style="display:none;margin-bottom:14px;padding:10px 14px;background:rgba(239,68,68,0.12);border-left:3px solid #ef4444;border-radius:3px;font-size:0.92em">
+            <div id="cfg_load_err" class="faixa faixa-perigo" style="display:none">
                 <span id="cfg_load_err_msg" data-i18n="cfg_load_fail">Could not load the current settings. The fields are disabled to avoid saving blank values over your configuration.</span>
                 <button type="button" class="b-pri" id="cfg_retry" onclick="loadConfig()" style="margin-left:10px;padding:4px 12px;font-size:0.85rem" data-i18n="cfg_retry">Retry</button>
             </div>
@@ -4602,12 +4530,12 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     </label>
                     <!-- M-8: TLS on without /cert.pem = encrypted but NOT
                          authenticated (setInsecure). Seal shown from t_sec+t_cert. -->
-                    <div id="tls_noverify_warn" style="display:none;margin:6px 0 0;padding:8px 10px;border-radius:6px;background:rgba(245,158,11,.12);border:1px solid var(--warn);color:var(--warn);font-size:.82rem">
-                        <span data-i18n="cfg_tls_noverify">⚠ TLS without certificate validation — the connection is encrypted but not authenticated (MITM possible). Upload /cert.pem via Files to validate the server.</span>
+                    <div id="tls_noverify_warn" style="display:none;margin:6px 0 0;padding:8px 10px;border-radius:6px;background:rgba(245,158,11,.12);border:1px solid var(--alerta);color:var(--alerta);font-size:.82rem">
+                        <span data-i18n="cfg_tls_noverify">TLS without certificate validation — the connection is encrypted but not authenticated (MITM possible). Upload /cert.pem via Files to validate the server.</span>
                     </div>
 
                     <!-- Campos exclusivos do transporte HTTP -->
-                    <div id="http_fields" style="border-top:1px dashed #3f3f46; padding-top:15px; margin-top:5px;">
+                    <div id="http_fields" style="border-top:1px solid var(--linha); padding-top:15px; margin-top:5px;">
                         <div class="row">
                             <div class="col">
                                 <label data-i18n="cfg_path">Endpoint Path (URL)</label>
@@ -4621,7 +4549,7 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     </div>
 
                     <!-- Campos exclusivos do transporte MQTT -->
-                    <div id="mqtt_fields" style="display:none; border-top:1px dashed #3f3f46; padding-top:15px; margin-top:5px;">
+                    <div id="mqtt_fields" style="display:none; border-top:1px solid var(--linha); padding-top:15px; margin-top:5px;">
                         <div class="row">
                             <div class="col">
                                 <label data-i18n="cfg_mq_topic">MQTT Topic</label>
@@ -4662,31 +4590,31 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             <span class="toggle"><input type="checkbox" id="m_had" name="m_had" value="1"><span class="slider"></span></span>
                             <span data-i18n="cfg_mq_had">Home Assistant Discovery</span>
                         </label>
-                        <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--sub)" data-i18n="cfg_mq_had_hint">Publishes retained config messages so Home Assistant auto-creates this device and its sensors. Requires JSON payload mode; entities appear at the next upload.</div>
+                        <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--tinta-2)" data-i18n="cfg_mq_had_hint">Publishes retained config messages so Home Assistant auto-creates this device and its sensors. Requires JSON payload mode; entities appear at the next upload.</div>
                     </div>
 
-                    <div class="row" style="margin-top: 15px; border-top:1px solid #3f3f46; padding-top:15px;">
+                    <div class="row" style="margin-top: 15px; border-top:1px solid var(--linha); padding-top:15px;">
                         <div class="col">
                             <label data-i18n="cfg_tint">Minimum batch (records)</label>
                             <input type="number" id="t_int" name="t_int" min="0" max="20000">
-                            <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--sub)" data-i18n="cfg_tint_hint">Transmit once this many records are waiting. 0 disables telemetry.</div>
+                            <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--tinta-2)" data-i18n="cfg_tint_hint">Transmit once this many records are waiting. 0 disables telemetry.</div>
                         </div>
                         <div class="col">
                             <label data-i18n="cfg_bat">Maximum batch (records)</label>
                             <input type="number" id="t_bat" name="t_bat" min="1" max="250">
-                            <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--sub)" data-i18n="cfg_bat_hint">Most records per upload. A bigger queue goes out in batches of this size until it is empty.</div>
+                            <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--tinta-2)" data-i18n="cfg_bat_hint">Most records per upload. A bigger queue goes out in batches of this size until it is empty.</div>
                         </div>
                     </div>
-                    <div id="tel_disabled_warn" style="display:none;margin-top:10px;padding:8px 12px;background:rgba(255,180,0,0.12);border-left:3px solid #f59e0b;border-radius:3px;font-size:0.9em" data-i18n="cfg_tel_disabled">⚠ Telemetry disabled (minimum batch = 0). Set a value to enable.</div>
+                    <div id="tel_disabled_warn" class="faixa faixa-alerta" style="display:none;margin:10px 0 0" data-i18n="cfg_tel_disabled">Telemetry disabled (minimum batch = 0). Set a value to enable.</div>
                     <!-- Act on the running device, not on the staged form: both
                          answer "is the endpoint reachable right now", which is
                          the question you ask while editing these fields. -->
-                    <div style="margin-top:16px;border-top:1px solid #3f3f46;padding-top:14px">
+                    <div style="margin-top:16px;border-top:1px solid var(--linha);padding-top:14px">
                       <div style="display:flex;gap:8px;flex-wrap:wrap">
                         <button type="button" class="b-pri" id="tel_sync_btn" onclick="telSync()" data-i18n="tel_sync">Send now</button>
                         <button type="button" class="sxb sxb-dang" id="tel_reset_btn" onclick="telReset()" data-i18n="tel_reset">Reset send cursor</button>
                       </div>
-                      <div class="c-sub" style="margin-top:8px;font-size:0.8em;color:var(--sub)" data-i18n="tel_hint">Send now flushes whatever is pending without waiting for the minimum batch. Reset send cursor makes the device re-send up to 30 days back — use it after a long server outage.</div>
+                      <div class="c-sub" style="margin-top:8px;font-size:0.8em;color:var(--tinta-2)" data-i18n="tel_hint">Send now flushes whatever is pending without waiting for the minimum batch. Reset send cursor makes the device re-send up to 30 days back — use it after a long server outage.</div>
                     </div>
                 </div>
 
@@ -4700,16 +4628,16 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     </select>
 
                     <div id="custom_tools" class="builder-box">
-                        <div style="font-size:0.85rem; color:var(--sub); margin-bottom:15px;" data-i18n="cfg_leg">Payload Tag Reference:</div>
-                        <div class="row tag-ref" style="margin-bottom:15px; font-size:0.8rem; padding:10px; border-radius:6px; border:1px solid var(--border);">
+                        <div style="font-size:0.85rem; color:var(--tinta-2); margin-bottom:15px;" data-i18n="cfg_leg">Payload Tag Reference:</div>
+                        <div class="row tag-ref" style="margin-bottom:15px; font-size:0.8rem; padding:10px; border-radius:6px; border:1px solid var(--linha);">
                             <div class="col">
-                                <b style="color:var(--txt);" data-i18n="cfg_leg1">Global Tags:</b><br>
+                                <b style="color:var(--tinta);" data-i18n="cfg_leg1">Global Tags:</b><br>
                                 <span class="highlight">{DEV}</span> - Device Name<br>
                                 <span class="highlight">{MAC}</span> - MAC Address<br>
                                 <span class="highlight">{DATA}</span> - Where the records go
                             </div>
                             <div class="col">
-                                <b style="color:var(--txt);" data-i18n="cfg_leg2">Data Row Tags:</b><br>
+                                <b style="color:var(--tinta);" data-i18n="cfg_leg2">Data Row Tags:</b><br>
                                 <span class="highlight">{TS}</span> - Unix Epoch<br>
                                 <span class="highlight">{DHT_ID}</span> - Board Serial<br>
                                 <span class="highlight">{t0}</span> to <span class="highlight">{t15}</span> - Temperature<br>
@@ -4717,7 +4645,7 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                                 <span class="highlight">{p0}</span> to <span class="highlight">{p15}</span> - Pressure<br>
                             </div>
                         </div>
-                        <div style="font-size:0.8rem; color:var(--txt); margin-bottom:15px; border-left:3px solid var(--acc); padding-left:10px;">
+                        <div style="font-size:0.8rem; color:var(--tinta); margin-bottom:15px; border-left:3px solid var(--acento); padding-left:10px;">
                             <b data-i18n="cfg_leg3">Smart Keys:</b> <span data-i18n="cfg_leg4">Use exact formats to inject ID and omit off sensors:</span><br>
                             <span class="highlight">"t0_ID":{t0}</span> &rarr; <span class="highlight">"t28FF31...":24.5</span><br>
                             <span class="highlight">"u0_ID":{u0}</span> &rarr; <span class="highlight">"u28FF31...":55.2</span>
@@ -4741,7 +4669,7 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
                 <h3 data-i18n="al_title">Alarm Payload — 2nd Telemetry Line</h3>
                 <div class="grp">
-                    <div class="c-sub" style="margin-bottom:10px;font-size:0.8em;color:var(--sub)">
+                    <div class="c-sub" style="margin-bottom:10px;font-size:0.8em;color:var(--tinta-2)">
                         <span data-i18n="al_hint">Separate stream for sensor alarms. Records queue in RAM and are removed only after the server confirms receipt (HTTP 2xx, or MQTT ack on &lt;data topic&gt;/alarm/ack). Transport, server, credentials and TLS follow the main telemetry settings.</span> <span data-i18n="al_pending">Pending:</span> <span id="a_pending_span">0</span>
                     </div>
                     <label class="cfg-tg">
@@ -4767,8 +4695,8 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         </div>
                     </div>
                     <div id="alarm_custom_tools" class="builder-box">
-                        <div style="font-size:0.85rem; color:var(--sub); margin-bottom:15px;" data-i18n="al_leg">Alarm row tags (one record per limit/error edge):</div>
-                        <div class="row tag-ref" style="margin-bottom:15px; font-size:0.8rem; padding:10px; border-radius:6px; border:1px solid var(--border);">
+                        <div style="font-size:0.85rem; color:var(--tinta-2); margin-bottom:15px;" data-i18n="al_leg">Alarm row tags (one record per limit/error edge):</div>
+                        <div class="row tag-ref" style="margin-bottom:15px; font-size:0.8rem; padding:10px; border-radius:6px; border:1px solid var(--linha);">
                             <div class="col">
                                 <span class="highlight">{TS}</span> - Unix Epoch<br>
                                 <span class="highlight">{ID}</span> - Full id (t/u/p/l + hwid)<br>
@@ -4783,7 +4711,7 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                                 <span class="highlight">{SEQ}</span> - Sequence (receipt-ack key)<br>
                             </div>
                         </div>
-                        <div style="font-size:0.8rem; color:var(--txt); margin-bottom:15px; border-left:3px solid var(--acc); padding-left:10px;">
+                        <div style="font-size:0.8rem; color:var(--tinta); margin-bottom:15px; border-left:3px solid var(--acento); padding-left:10px;">
                             <b data-i18n="al_smart">Smart keys</b> <span data-i18n="al_smart2">(key name = token, lowercase or uppercase):</span><br>
                             <span class="highlight">"val":{val}</span> &rarr; <span data-i18n="al_smart_val">number, or the whole key is removed on failure</span><br>
                             <span class="highlight">"alarm":{alarm}</span> &amp; <span class="highlight">"err":{err}</span> &rarr; <span data-i18n="al_smart_err">code, or the whole key is removed when the other domain is active</span>
@@ -5184,38 +5112,21 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <title>SIMUT - Network</title>
     <script src="/lang.js"></script>
     <style>
-        /* M1 anti-piscada (fix da piscada branca): o 1o paint usava o branco
-           default do navegador porque TODOS os tokens moram no /style.css, que
-           chega por fetch pos-paint (ver o loader no LANG_JS). Copia dos tokens
-           DARK — fonte: o bloco :root do STYLE_CSS neste mesmo arquivo; mudou
-           la, mude aqui (grep "M1 anti-piscada"). O tema claro NAO precisa de
-           copia: lang.js e sincrono no head e injeta :root.theme-light com
-           especificidade maior antes do paint. */
-        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; --ok: #22c55e; --warn: #f59e0b; --track: #262e39; color-scheme: dark; }
-        html { background: var(--bg); }
-        body { background: var(--bg); color: var(--txt); }
 
 
         /* Network Styles */
         .layout-grid { display: grid; grid-template-columns: 320px 1fr; gap: 25px; align-items: start; }
         @media(max-width: 900px) { .layout-grid { grid-template-columns: 1fr; } }
-        h3 { color: var(--txt); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-top: 0; font-size: 1.1rem; }
-        .grp { background: rgba(255,255,255,0.02); padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid var(--border); }
-        label { display: block; color: var(--sub); margin-bottom: 6px; font-size: 0.9rem; font-weight: 600; }
-        .card input[type=text], .card input[type=password] { width: 100%; padding: 12px; background: var(--bg); border: 1px solid var(--border); color: var(--txt); border-radius: 6px; box-sizing: border-box; margin-bottom: 15px; font-size: 1rem; transition: 0.2s; }
-        .card input:focus { border-color: var(--acc); outline: none; }
-        .card button[type=submit] { width: 100%; padding: 14px; background: var(--acc); color: black; border: none; font-weight: bold; border-radius: 6px; cursor: pointer; font-size: 1rem; margin-top: 10px; transition: 0.2s; }
-        .card button[type=submit]:hover { opacity: 0.9; transform: translateY(-1px); }
+        .card button[type=submit] { width: 100%; margin-top: 16px; }
         /* Esconde campos estáticos quando DHCP/DNS auto está ON */
         .grp:has(#dhcp:checked) #static_fields { display: none; }
         .grp:has(#dns_auto:checked) #dns_fields { display: none; }
         .row { display: flex; gap: 20px; }
         .col { flex: 1; }
         @media(max-width: 600px) { .row { flex-direction: column; gap: 0; } }
-        .net-stat { margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px dashed var(--border); }
+        .net-stat { margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--linha); }
         .net-stat:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
-        .net-stat .lbl { font-size: 0.8rem; color: var(--sub); text-transform: uppercase; font-weight: bold; }
-        .net-stat .val { font-size: 1.1rem; color: var(--txt); font-family: monospace; margin-top: 4px; }
+        .net-stat .val { font-size: 15px; color: var(--tinta); font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace; margin-top: 4px; }
     </style>
     <script>
         /* window.t/applyLang/setLang/showToast/fetchSafe vem de /lang.js */
@@ -5231,7 +5142,7 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <div class="side-content">
                 <div class="card">
                     <h3 data-i18n="net_curr">Current Connection Status</h3>
-                    <div class="net-stat"><div class="lbl" data-i18n="net_stat">Status</div><div class="val" id="lbl_stat" style="color:var(--acc);">--</div></div>
+                    <div class="net-stat"><div class="lbl" data-i18n="net_stat">Status</div><div class="val" id="lbl_stat" style="color:var(--acento);">--</div></div>
                     <div class="net-stat"><div class="lbl" data-i18n="net_ip">IP Address</div><div class="val" id="lbl_ip">--</div></div>
                     <div class="net-stat"><div class="lbl" data-i18n="net_mask">Subnet Mask</div><div class="val" id="lbl_mask">--</div></div>
                     <div class="net-stat"><div class="lbl" data-i18n="net_gw">Gateway</div><div class="val" id="lbl_gw">--</div></div>
@@ -5304,20 +5215,20 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
                         <h3 data-i18n="net_ntp_title">NTP Time Server</h3>
                         <div class="grp">
-                            <div id="ntp_disabled_hint" style="display:none;margin-bottom:8px;padding:8px;background:rgba(255,180,0,0.12);border-left:3px solid #f59e0b;border-radius:3px;font-size:0.9em">
+                            <div id="ntp_disabled_hint" class="faixa faixa-alerta" style="display:none;margin-bottom:8px">
                                 <span data-i18n="net_ntp_disabled">NTP is disabled.</span>
-                                <a href="/config" style="color:var(--acc);text-decoration:underline" data-i18n="net_ntp_goto_cfg">Enable in System Config &rarr;</a>
+                                <a href="/config" style="color:var(--acento);text-decoration:underline" data-i18n="net_ntp_goto_cfg">Enable in System Config &rarr;</a>
                             </div>
                             <label data-i18n="net_ntp_lbl">Server Address</label>
                             <input type="text" id="ntp_server" name="ntp_server" maxlength="31" placeholder="pool.ntp.org">
-                            <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--sub)" data-i18n="net_ntp_hint">Leave empty to use default (pool.ntp.org)</div>
+                            <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--tinta-2)" data-i18n="net_ntp_hint">Leave empty to use default (pool.ntp.org)</div>
                         </div>
 
                         <h3 data-i18n="net_web_title">Web Server</h3>
                         <div class="grp">
                             <label data-i18n="net_web_port">HTTP Port</label>
                             <input type="text" id="web_port" name="web_port" maxlength="5" inputmode="numeric" placeholder="80">
-                            <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--sub)" data-i18n="net_web_port_hint">Default: 80. After saving, browser auto-redirects to new port.</div>
+                            <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--tinta-2)" data-i18n="net_web_port_hint">Default: 80. After saving, browser auto-redirects to new port.</div>
                             <!-- Only rendered when the TLS cert pair exists (web_tls from /api/network);
                                  keep-alive itself defaults ON on every transport. -->
                             <div id="web_ka_row" style="display:none;margin-top:10px">
@@ -5325,7 +5236,7 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                                     <span class="toggle"><input type="checkbox" id="web_ka" name="web_ka" value="1"><span class="slider"></span></span>
                                     <span data-i18n="net_web_ka">Persistent connections (keep-alive)</span>
                                 </label>
-                                <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--sub)" data-i18n="net_web_ka_hint">Reuses the TLS connection between requests — pages load ~60% faster over HTTPS. Disable only if a proxy or client misbehaves with persistent connections.</div>
+                                <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--tinta-2)" data-i18n="net_web_ka_hint">Reuses the TLS connection between requests — pages load ~60% faster over HTTPS. Disable only if a proxy or client misbehaves with persistent connections.</div>
                             </div>
                         </div>
 
@@ -5363,8 +5274,8 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 document.getElementById('lbl_mac').innerText = data.mac;
 
                 let s = document.getElementById('lbl_stat');
-                if(data.connected) { s.innerText = window.t('net_conn', 'Connected'); s.style.color = "var(--acc)"; }
-                else { s.innerText = window.t('net_off', 'Disconnected'); s.style.color = "var(--dang)"; }
+                if(data.connected) { s.innerText = window.t('net_conn', 'Connected'); s.style.color = "var(--acento)"; }
+                else { s.innerText = window.t('net_off', 'Disconnected'); s.style.color = "var(--perigo)"; }
 
                 /* U24 Phase C: aplica valores do flash; sobrepõe pendentes. */
                 const p = Pending.getSection('net');
@@ -5426,43 +5337,18 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <title>SIMUT - Users</title>
     <script src="/lang.js"></script>
     <style>
-        /* M1 anti-piscada (fix da piscada branca): o 1o paint usava o branco
-           default do navegador porque TODOS os tokens moram no /style.css, que
-           chega por fetch pos-paint (ver o loader no LANG_JS). Copia dos tokens
-           DARK — fonte: o bloco :root do STYLE_CSS neste mesmo arquivo; mudou
-           la, mude aqui (grep "M1 anti-piscada"). O tema claro NAO precisa de
-           copia: lang.js e sincrono no head e injeta :root.theme-light com
-           especificidade maior antes do paint. */
-        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; --ok: #22c55e; --warn: #f59e0b; --track: #262e39; color-scheme: dark; }
-        html { background: var(--bg); }
-        body { background: var(--bg); color: var(--txt); }
 
 
         /* User Styles */
-        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
-        th, td { padding: 14px; text-align: left; border-bottom: 1px solid var(--border); }
-        th { color: var(--sub); font-size: 0.85rem; text-transform: uppercase; }
-        .badge { background: #3f3f46; color: white; padding: 4px 8px; border-radius: 6px; font-size: 0.75rem; margin-right: 4px; display: inline-block; margin-bottom: 4px; }
-        .badge.full { background: var(--acc); color: black; font-weight: bold; }
-        .btn-action { background: #3f3f46; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; transition: 0.2s; font-size: 0.85rem; font-weight:600;}
-        .btn-action:hover { background: #52525b; }
-        .btn-dang { background: transparent; border: 1px solid var(--dang); color: var(--dang); padding: 5px 12px; border-radius: 4px; cursor: pointer; transition: 0.2s; font-size: 0.85rem; font-weight:600;}
-        .btn-dang:hover { background: var(--dang); color: white; }
-        .frm-box { background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 20px; border-radius: 8px; }
+        table { margin-bottom: 24px; }
         .chk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; margin-bottom: 15px; }
         @media(max-width: 600px) { .chk-grid { grid-template-columns: 1fr; } }
-        .frm-box input[type=text] { width: 100%; padding: 12px; background: var(--bg); border: 1px solid var(--border); color: var(--txt); border-radius: 6px; box-sizing: border-box; font-size:1rem; outline:none; transition:0.2s;}
-        .frm-box input:focus { border-color:var(--acc); }
-        .chk-lbl { display: flex; align-items: center; gap: 8px; color: var(--txt); cursor: pointer; font-size: 0.9rem; }
+        .chk-lbl { display: flex; align-items: center; gap: 8px; color: var(--tinta); cursor: pointer; font-size: 15px; margin: 0; }
         /* 22px: 16px era metade do minimo confortavel de toque, e sao 10 destes
            empilhados numa coluna so no celular. */
-        .chk-lbl input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--acc); cursor: pointer; }
+        .chk-lbl input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--acento); cursor: pointer; }
         @media(max-width: 640px) { .chk-lbl { padding: 8px 0; } }
-        .frm-box button[type=submit] { width: 100%; padding: 14px; background: var(--acc); color: black; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; font-size:1rem; transition:0.2s;}
-        .frm-box button[type=submit]:hover { opacity:0.9; }
-        #commit-btn { background: #16a34a; color: #fff; border: none; padding: 7px 14px; border-radius: 6px; font-weight: 700; font-size: 0.82rem; cursor: pointer; display: none; }
-        #commit-btn:hover { background: #15803d; }
-        #commit-btn:disabled { opacity: 0.6; cursor: wait; }
+        .frm-box button[type=submit] { width: 100%; margin-top: 8px; }
     </style>
     <script>
         /* window.t/applyLang/setLang/showToast/fetchSafe vem de /lang.js */
@@ -5487,12 +5373,12 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         </tr>
                     </thead>
                     <tbody id="usrBody">
-                        <tr><td colspan="4" style="text-align:center; color:var(--sub);">Loading...</td></tr>
+                        <tr><td colspan="4" style="text-align:center; color:var(--tinta-2);">Loading...</td></tr>
                     </tbody>
                 </table>
             </div>
 
-            <h3 style="color:var(--txt); border-bottom: 1px solid var(--border); padding-bottom:10px; margin-top:20px;" data-i18n="usr_add">Add New User</h3>
+            <h3 style="color:var(--tinta); border-bottom: 1px solid var(--linha); padding-bottom:10px; margin-top:20px;" data-i18n="usr_add">Add New User</h3>
             <form class="frm-box" onsubmit="addUser(event)">
                 <input type="text" id="u_name" name="u_name" placeholder="Username" data-i18n="usr_name" required maxlength="15">
                 <div class="chk-grid">
@@ -5508,7 +5394,7 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <label class="chk-lbl"><input type="checkbox" name="p_calib" value="1"> <span data-i18n="usr_pcal">Sensor Calibration</span></label>
                 </div>
                 <button type="submit" id="btnUser" data-i18n="usr_btn">Create User</button>
-                <p style="font-size:0.8rem; color:var(--sub); margin-top:15px; text-align:center;" data-i18n="usr_warn">
+                <p style="font-size:0.8rem; color:var(--tinta-2); margin-top:15px; text-align:center;" data-i18n="usr_warn">
                     * A one-time password is shown after Save &amp; Restart. Copy it — it is displayed only once, and the user must change it on first login.
                 </p>
             </form>
@@ -5555,13 +5441,13 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             : `<button class="btn-action" onclick="rstUsr(${u.id})" data-i18n="usr_rst">${window.t('usr_rst','Reset')}</button>`;
                         actions = `${rstBtn} <button class="btn-dang" onclick="delUsr(${u.id})" data-i18n="usr_del">${window.t('usr_del','Del')}</button>`;
                     }
-                    html += `<tr class="${rowCls}"><td>${u.id}</td><td style="font-weight:bold;color:var(--txt)">${escHtml(u.name)}</td><td>${renderPermsBadges(u.perms, isSuper)}</td><td style="text-align:center; white-space:nowrap;">${actions}</td></tr>`;
+                    html += `<tr class="${rowCls}"><td>${u.id}</td><td style="font-weight:bold;color:var(--tinta)">${escHtml(u.name)}</td><td>${renderPermsBadges(u.perms, isSuper)}</td><td style="text-align:center; white-space:nowrap;">${actions}</td></tr>`;
                 });
                 /* Usuários pendentes de criação. a.name é digitado pelo próprio
                    admin, mas ainda vai para innerHTML — escapa por profundidade
                    (M-7); o servidor já restringe o charset do username. */
                 pendingAdds.forEach((a, i) => {
-                    html += `<tr class="pending-add"><td>—</td><td style="font-weight:bold;color:var(--txt)">${escHtml(a.name)} <span class="badge pending">${window.t('usr_pend_add','Pending: New')}</span></td><td>${renderPermsBadges(a.perms, false)}</td><td style="text-align:center; white-space:nowrap;"><button class="btn-dang" onclick="undoLastAdd()">↶</button></td></tr>`;
+                    html += `<tr class="pending-add"><td>—</td><td style="font-weight:bold;color:var(--tinta)">${escHtml(a.name)} <span class="badge pending">${window.t('usr_pend_add','Pending: New')}</span></td><td>${renderPermsBadges(a.perms, false)}</td><td style="text-align:center; white-space:nowrap;"><button class="btn-dang" onclick="undoLastAdd()">↶</button></td></tr>`;
                 });
                 tbody.innerHTML = html;
                 applyLang();
@@ -5619,16 +5505,6 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <title>SIMUT - Files</title>
     <script src="/lang.js"></script>
     <style>
-        /* M1 anti-piscada (fix da piscada branca): o 1o paint usava o branco
-           default do navegador porque TODOS os tokens moram no /style.css, que
-           chega por fetch pos-paint (ver o loader no LANG_JS). Copia dos tokens
-           DARK — fonte: o bloco :root do STYLE_CSS neste mesmo arquivo; mudou
-           la, mude aqui (grep "M1 anti-piscada"). O tema claro NAO precisa de
-           copia: lang.js e sincrono no head e injeta :root.theme-light com
-           especificidade maior antes do paint. */
-        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; --ok: #22c55e; --warn: #f59e0b; --track: #262e39; color-scheme: dark; }
-        html { background: var(--bg); }
-        body { background: var(--bg); color: var(--txt); }
         h2.page-title { margin-bottom: 0; }
 
 
@@ -5644,9 +5520,7 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
            markup to separate the emoji from the label. Safe against the four
            buttons that start hidden: the JS reveals them with display = '',
            which clears the inline value instead of writing one. */
-        .btn-fm { padding: 7px 14px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: 0.2s; line-height: 1.2;
-                  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-                  min-width: 140px; white-space: nowrap; }
+        .btn-fm { min-width: 140px; white-space: nowrap; }
         /* Below 640px a 140px floor plus the toolbar padding leaves room for two
            per row; letting them share the width evenly beats a ragged wrap with
            one orphan button on the last line. */
@@ -5654,31 +5528,22 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
           .fm-actions { width: 100%; }
           .btn-fm { flex: 1 1 calc(50% - 4px); min-width: 0; }
         }
-        .btn-fm-pri { background: var(--acc); color: #000; border: 1px solid var(--acc); }
-        .btn-fm-pri:hover { opacity: 0.9; transform: translateY(-1px); }
-        .btn-fm-out { background: transparent; border: 1px solid var(--acc); color: var(--acc); }
-        .btn-fm-out:hover { background: var(--acc); color: #000; }
-        .btn-fm-dang { background: transparent; border: 1px solid var(--dang); color: var(--dang); }
-        .btn-fm-dang:hover { background: var(--dang); color: #fff; }
-        .f-chk { width: 18px; height: 18px; accent-color: var(--acc); cursor:pointer; }
-        .breadcrumb { display:flex; align-items:center; gap:4px; margin-bottom:16px; padding:10px 14px; background:var(--bg); border:1px solid var(--border); border-radius:6px; font-size:0.9rem; flex-wrap:wrap; }
-        .breadcrumb a { color:var(--acc); text-decoration:none; font-weight:600; cursor:pointer; transition:0.15s; }
+        .f-chk { width: 18px; height: 18px; accent-color: var(--acento); cursor:pointer; }
+        .breadcrumb { display: flex; align-items: center; gap: 4px; margin-bottom: 16px; padding: 10px 14px; font-size: 14px; flex-wrap: wrap; }
+        .breadcrumb a { color:var(--acento); text-decoration:none; font-weight:600; cursor:pointer; transition:0.15s; }
         .breadcrumb a:hover { text-decoration:underline; }
-        .breadcrumb span.sep { color:var(--sub); margin:0 2px; user-select:none; }
-        .breadcrumb span.current { color:var(--txt); font-weight:700; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--border); }
-        th { color: var(--sub); font-size: 0.8rem; text-transform: uppercase; letter-spacing:0.5px; }
+        .breadcrumb span.sep { color:var(--tinta-2); margin:0 2px; user-select:none; }
+        .breadcrumb span.current { color:var(--tinta); font-weight:700; }
         .fm-row { cursor:default; transition:background 0.15s; }
-        .fm-row:hover { background: rgba(255,255,255,0.02); }
+        .fm-row:hover { background: var(--superficie-2); }
         .fm-row-dir { cursor:pointer; }
-        .fm-row-dir:hover { background: rgba(6,182,212,0.06); }
-        .fm-icon { margin-right:8px; font-size:1.1rem; vertical-align:middle; }
-        .fm-name { color:var(--txt); font-weight:500; text-decoration:none; }
+        .fm-row-dir:hover { background: var(--superficie-2); }
+        .fm-icon { margin-right: 8px; color: var(--tinta-2); }
+        .fm-name { color:var(--tinta); font-weight:500; text-decoration:none; }
         .fm-name:hover { text-decoration:underline; }
-        .fm-name-dir { color:var(--acc); font-weight:700; }
-        .fm-size { font-family:monospace; color:var(--sub); font-size:0.85rem; }
-        .fm-empty, .fm-loading { text-align:center; padding:30px; color:var(--sub); }
+        .fm-name-dir { color:var(--acento); font-weight:700; }
+        .fm-size { font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace; color: var(--tinta-2); font-size: 13px; }
+        .fm-empty, .fm-loading { text-align:center; padding:30px; color:var(--tinta-2); }
     </style>
     <script>
         /* window.t/applyLang/setLang/showToast/fetchSafe vem de /lang.js */
@@ -5692,14 +5557,14 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <div class="fm-toolbar">
                 <h2 class="page-title" data-i18n="fil_title">Flash Filesystem</h2>
                 <div class="fm-actions">
-                    <button class="btn-fm btn-fm-out" onclick="fmDownload()">&#x2B07;&#xFE0F; <span data-i18n="fil_down">Download</span></button>
-                    <button class="btn-fm btn-fm-out" onclick="fmBackup()" title="Download all files as a single .bkp" id="btnBackup" style="display:none">&#x1F4BE; <span data-i18n="fil_backup">Backup</span></button>
-                    <button class="btn-fm btn-fm-out" onclick="fmRestore()" title="Upload a .bkp to restore" id="btnRestore" style="display:none">&#x267B;&#xFE0F; <span data-i18n="fil_restore">Restore</span></button>
+                    <button class="btn-fm btn-fm-out" onclick="fmDownload()"><svg class="ic"><use href="#i-down"/></svg><span data-i18n="fil_down">Download</span></button>
+                    <button class="btn-fm btn-fm-out" onclick="fmBackup()" title="Download all files as a single .bkp" id="btnBackup" style="display:none"><svg class="ic"><use href="#i-archive"/></svg><span data-i18n="fil_backup">Backup</span></button>
+                    <button class="btn-fm btn-fm-out" onclick="fmRestore()" title="Upload a .bkp to restore" id="btnRestore" style="display:none"><svg class="ic"><use href="#i-restore"/></svg><span data-i18n="fil_restore">Restore</span></button>
                     <input type="file" id="restoreFile" accept=".bkp,application/octet-stream" style="position:absolute;left:-9999px;top:0;width:1px;height:1px;opacity:0" onchange="doRestore()">
-                    <button class="btn-fm btn-fm-out" onclick="fmFirmware()" title="Send new firmware (.bin) — OTA update" id="btnFw" style="display:none">&#x1F4BB; <span data-i18n="fil_fw">Firmware</span></button>
+                    <button class="btn-fm btn-fm-out" onclick="fmFirmware()" title="Send new firmware (.bin) — OTA update" id="btnFw" style="display:none"><svg class="ic"><use href="#i-chip"/></svg><span data-i18n="fil_fw">Firmware</span></button>
                     <input type="file" id="fwFile" accept=".bin" style="display:none" onchange="doFirmware()">
-                    <button class="btn-fm btn-fm-dang" id="btnDel" style="display:none" onclick="fmDelete()">&#x1F5D1;&#xFE0F; <span data-i18n="fil_del">Delete</span></button>
-                    <button class="btn-fm btn-fm-pri" id="btnUpload" style="display:none" onclick="fmUploadClick()">&#x1F4E4; <span data-i18n="fil_uphere">Upload Here</span></button>
+                    <button class="btn-fm btn-fm-dang" id="btnDel" style="display:none" onclick="fmDelete()"><svg class="ic"><use href="#i-trash"/></svg><span data-i18n="fil_del">Delete</span></button>
+                    <button class="btn-fm btn-fm-pri" id="btnUpload" style="display:none" onclick="fmUploadClick()"><svg class="ic"><use href="#i-up"/></svg><span data-i18n="fil_uphere">Upload Here</span></button>
                     <form id="upForm" method="POST" action="/api/upload" enctype="multipart/form-data" style="display:none;">
                         <input type="hidden" name="uploadDir" id="uploadDir" value="/">
                         <input type="file" name="uploadFile" id="uploadFile" multiple onchange="doUpload()">
@@ -5752,7 +5617,7 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                interpolated into a JS string — a quote in a folder name broke
                out (M-7). The href/data-nav navigation runs through the same
                delegated [data-nav] handler as the file rows. */
-            let bc = document.getElementById('breadcrumb'); let parts = path.split('/').filter(p => p.length > 0); let html = '<a data-nav="/">&#x1F4BE;</a>'; let accum = '';
+            let bc = document.getElementById('breadcrumb'); let parts = path.split('/').filter(p => p.length > 0); let html = '<a data-nav="/" aria-label="root"><svg class="ic"><use href="#i-file"/></svg></a>'; let accum = '';
             for (let i = 0; i < parts.length; i++) {
                 accum += '/' + parts[i]; html += '<span class="sep">/</span>';
                 if (i === parts.length - 1) html += '<span class="current">' + escHtml(parts[i]) + '</span>'; else html += '<a data-nav="' + escAttr(accum) + '">' + escHtml(parts[i]) + '</a>';
@@ -5765,33 +5630,33 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             let tbody = document.getElementById('fileBody'); tbody.innerHTML = `<tr><td colspan="3" class="fm-loading">${window.t('fil_loading','Loading...')}</td></tr>`;
             try {
                 let res = await fetchSafe('/api/ls?dir=' + encodeURIComponent(dir)); let data = await res.json();
-                if (data.error) { tbody.innerHTML = `<tr><td colspan="3" class="fm-empty" style="color:var(--dang)">${data.error}</td></tr>`; return; }
+                if (data.error) { tbody.innerHTML = `<tr><td colspan="3" class="fm-empty" style="color:var(--perigo)">${data.error}</td></tr>`; return; }
                 let entries = data.entries || [];
                 entries.sort((a, b) => { if (a.t !== b.t) return a.t === 'd' ? -1 : 1; return a.n.localeCompare(b.n); });
                 let html = '';
-                if (dir !== '/') { let parent = dir.substring(0, dir.lastIndexOf('/')); if (parent === '') parent = '/'; html += `<tr class="fm-row fm-row-dir" data-nav="${escAttr(parent)}"><td></td><td><span class="fm-icon">&#x2B06;&#xFE0F;</span><span class="fm-name-dir">..</span></td><td class="fm-size">${window.t('fil_parent','Parent')}</td></tr>`; }
+                if (dir !== '/') { let parent = dir.substring(0, dir.lastIndexOf('/')); if (parent === '') parent = '/'; html += `<tr class="fm-row fm-row-dir" data-nav="${escAttr(parent)}"><td></td><td><span class="fm-icon"><svg class="ic"><use href="#i-up"/></svg></span><span class="fm-name-dir">..</span></td><td class="fm-size">${window.t('fil_parent','Parent')}</td></tr>`; }
                 if (entries.length === 0 && dir === '/') { html += `<tr><td colspan="3" class="fm-empty">${window.t('fil_empty','Empty filesystem')}</td></tr>`; }
                 else {
                     for (let e of entries) {
-                        if (e.t === 'd') { let fullPath = (dir === '/' ? '/' : dir + '/') + e.n; html += `<tr class="fm-row fm-row-dir" data-nav="${escAttr(fullPath)}"><td></td><td><span class="fm-icon">&#x1F4C1;</span><span class="fm-name-dir">${escHtml(e.n)}/</span></td><td class="fm-size">${window.t('fil_folder','Folder')}</td></tr>`; }
+                        if (e.t === 'd') { let fullPath = (dir === '/' ? '/' : dir + '/') + e.n; html += `<tr class="fm-row fm-row-dir" data-nav="${escAttr(fullPath)}"><td></td><td><span class="fm-icon"><svg class="ic"><use href="#i-file"/></svg></span><span class="fm-name-dir">${escHtml(e.n)}/</span></td><td class="fm-size">${window.t('fil_folder','Folder')}</td></tr>`; }
                         else {
                             let fullPath = (dir === '/' ? '/' : dir + '/') + e.n;
                             /* e.p = protected by the firmware. No checkbox at all, so it
                                cannot be selected and fmDelete never sees it. The server
                                refuses it too — this is the visible half. */
-                            let cell = e.p ? `<span class="fm-icon" title="${window.t('fil_protected','Protected file')}">&#x1F512;</span>`
+                            let cell = e.p ? `<span class="fm-icon" title="${window.t('fil_protected','Protected file')}"><svg class="ic"><use href="#i-lock"/></svg></span>`
                                            : `<input type="checkbox" class="f-chk item-chk" value="${escAttr(fullPath)}">`;
                             /* The name is a download link for EVERY file. Reading used to
                                require ticking the box and pressing Download, which left a
                                protected file — the one with no box — impossible to open at
                                all. Folders were already clickable; files now match. */
                             let href = '/download?file=' + encodeURIComponent(fullPath);
-                            html += `<tr class="fm-row"><td>${cell}</td><td><span class="fm-icon">&#x1F4C4;</span><a class="fm-name" href="${href}">${escHtml(e.n)}</a></td><td class="fm-size">${fmFormatSize(e.s)}</td></tr>`;
+                            html += `<tr class="fm-row"><td>${cell}</td><td><span class="fm-icon"><svg class="ic"><use href="#i-doc"/></svg></span><a class="fm-name" href="${href}">${escHtml(e.n)}</a></td><td class="fm-size">${fmFormatSize(e.s)}</td></tr>`;
                         }
                     }
                 }
                 tbody.innerHTML = html;
-            } catch (err) { tbody.innerHTML = `<tr><td colspan="3" class="fm-empty" style="color:var(--dang)">Error: ${err.message}</td></tr>`; }
+            } catch (err) { tbody.innerHTML = `<tr><td colspan="3" class="fm-empty" style="color:var(--perigo)">Error: ${err.message}</td></tr>`; }
         }
 
         function fmToggleAll(src) { document.querySelectorAll('.item-chk').forEach(c => c.checked = src.checked); }
@@ -5938,55 +5803,40 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <title>SIMUT - Alarms & Sounds</title>
     <script src="/lang.js"></script>
     <style>
-        /* M1 anti-piscada (fix da piscada branca): o 1o paint usava o branco
-           default do navegador porque TODOS os tokens moram no /style.css, que
-           chega por fetch pos-paint (ver o loader no LANG_JS). Copia dos tokens
-           DARK — fonte: o bloco :root do STYLE_CSS neste mesmo arquivo; mudou
-           la, mude aqui (grep "M1 anti-piscada"). O tema claro NAO precisa de
-           copia: lang.js e sincrono no head e injeta :root.theme-light com
-           especificidade maior antes do paint. */
-        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; --ok: #22c55e; --warn: #f59e0b; --track: #262e39; color-scheme: dark; }
-        html { background: var(--bg); }
-        body { background: var(--bg); color: var(--txt); }
         .card { margin-bottom: 24px; }
-        h3 { color: var(--txt); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-top: 30px; font-size: 1.1rem; }
 
 
         /* ── Sensor cards ───────────────────────────────────────────── */
-        .sensor-card { background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+        .sensor-card { padding: 20px; margin-bottom: 16px; }
         .sensor-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
-        .sensor-header .sensor-name { flex: 1; font-weight: 700; font-size: 1.05rem; color: var(--txt); }
-        .sensor-name { font-weight: 700; font-size: 1.05rem; color: var(--txt); }
+        .sensor-header .sensor-name { flex: 1; font-weight: 700; font-size: 1.05rem; color: var(--tinta); }
+        .sensor-name { font-weight: 700; font-size: 1.05rem; color: var(--tinta); }
         /* Limites de alarme só aparecem quando o toggle do card está ON */
         .sensor-card:has(.alm-active:not(:checked)) .limit-grid { display: none; }
         .sensor-card:has(.alm-active:not(:checked)) { opacity: 0.7; }
-        .sensor-type { font-size: 0.8rem; color: var(--sub); background: rgba(255,255,255,0.05); padding: 3px 10px; border-radius: 12px; }
         .limit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         @media(max-width: 500px) { .limit-grid { grid-template-columns: 1fr; } }
-        .limit-field label { display: block; color: var(--sub); margin-bottom: 4px; font-size: 0.82rem; font-weight: 600; }
         /* 16px: era 0.95rem = 15.2px, o ultimo campo do app que ainda disparava o
            zoom automatico do iOS no foco (e o iOS nao desfaz o zoom no blur). */
-        .limit-field input { width: 100%; padding: 10px; background: var(--bg); border: 1px solid var(--border); color: var(--txt); border-radius: 6px; box-sizing: border-box; font-size: 16px; transition: border-color 0.2s; }
-        .limit-field input:focus { border-color: var(--acc); outline: none; }
+        .limit-field input { margin: 0; }
         /* .alm-tg removida — toggle agora vive no .sensor-header */
         /* Spinners de number removidos globalmente via LANG_JS */
 
         /* ── Sounds card ────────────────────────────────────────────── */
         .sound-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 24px; }
         @media(max-width: 500px) { .sound-grid { grid-template-columns: 1fr; } }
-        .sound-item { display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; }
+        .sound-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; }
         .sound-item > .sound-label { flex: 1; min-width: 0; }   /* label cresce — mel-group e toggle ficam alinhados a' direita */
         .sound-item > .mel-group { flex-shrink: 0; }
         .sound-label { font-weight: 600; font-size: 0.9rem; }
         /* .toggle / .slider movido p/ LANG_JS (global em todas as paginas) */
-        .vol-row { display: flex; align-items: center; gap: 14px; margin-top: 16px; padding: 14px 16px; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; }
+        .vol-row { display: flex; align-items: center; gap: 14px; margin-top: 16px; padding: 14px 16px; }
         .vol-row .sound-label { min-width: 70px; }
-        .vol-row input[type=range] { flex: 1; accent-color: var(--acc); cursor: pointer; }
-        .vol-val { font-weight: 700; color: var(--acc); min-width: 42px; text-align: right; }
+        .vol-row input[type=range] { flex: 1; accent-color: var(--acento); cursor: pointer; }
+        .vol-val { font-weight: 600; color: var(--tinta); min-width: 42px; text-align: right; font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace; }
         /* Largura padronizada dos selects de som via wrapper .csel-mel */
         .csel-mel { min-width: 140px; }
-        .btn-test { background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--sub); cursor: pointer; font-size: 0.9rem; padding: 4px 8px; transition: 0.2s; line-height: 1; }
-        .btn-test:hover { border-color: var(--acc); color: var(--acc); }
+        .btn-test { padding: 6px 10px; }
         .btn-test:active { transform: scale(0.92); }
         /* A linha somava 278px inegociaveis (csel-mel 140 + teste + toggle 44 +
            gaps + padding) num espaco de 272px, e sem flex-wrap nada descia de
@@ -6007,10 +5857,8 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .mel-group { display: flex; align-items: center; gap: 6px; }
 
         /* ── Botão salvar ───────────────────────────────────────────── */
-        .btn-save { width: 100%; padding: 14px; background: var(--acc); color: #000; border: none; font-weight: bold; border-radius: 8px; cursor: pointer; font-size: 1rem; margin-top: 8px; transition: 0.2s; }
-        .btn-save:hover { opacity: 0.9; transform: translateY(-1px); }
-        .btn-save:disabled { background: #3f3f46; color: #a1a1aa; cursor: not-allowed; transform: none; }
-        .empty-msg { text-align: center; color: var(--sub); padding: 40px 0; font-size: 1rem; }
+        .btn-save { width: 100%; margin-top: 8px; }
+        .empty-msg { text-align: center; color: var(--tinta-2); padding: 40px 0; font-size: 1rem; }
     </style>
     <script>
         /* window.t/applyLang/setLang/showToast/fetchSafe vem de /lang.js */
@@ -6047,7 +5895,7 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             <option value="4">Drop</option>
                             <option value="5">Chirp</option>
                         </select>
-                        <button type="button" class="btn-test" aria-label="Test sound" onclick="testSound('touch')">&#9835;</button>
+                        <button type="button" class="btn-test" aria-label="Test sound" onclick="testSound('touch')"><svg class="ic"><use href="#i-sound"/></svg></button>
                     </div>
                     <label class="toggle"><input type="checkbox" id="snd_touch"><span class="slider"></span></label>
                 </div>
@@ -6062,7 +5910,7 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             <option value="4">Sparkle</option>
                             <option value="5">Resolve</option>
                         </select>
-                        <button type="button" class="btn-test" aria-label="Test sound" onclick="testSound('confirm')">&#9835;</button>
+                        <button type="button" class="btn-test" aria-label="Test sound" onclick="testSound('confirm')"><svg class="ic"><use href="#i-sound"/></svg></button>
                     </div>
                     <label class="toggle"><input type="checkbox" id="snd_confirm"><span class="slider"></span></label>
                 </div>
@@ -6077,7 +5925,7 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             <option value="4">Decline</option>
                             <option value="5">Blip</option>
                         </select>
-                        <button type="button" class="btn-test" aria-label="Test sound" onclick="testSound('error')">&#9835;</button>
+                        <button type="button" class="btn-test" aria-label="Test sound" onclick="testSound('error')"><svg class="ic"><use href="#i-sound"/></svg></button>
                     </div>
                     <label class="toggle"><input type="checkbox" id="snd_error"><span class="slider"></span></label>
                 </div>
@@ -6092,7 +5940,7 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             <option value="4">Escalate</option>
                             <option value="5">Staccato</option>
                         </select>
-                        <button type="button" class="btn-test" aria-label="Test sound" onclick="testSound('alarm')">&#9835;</button>
+                        <button type="button" class="btn-test" aria-label="Test sound" onclick="testSound('alarm')"><svg class="ic"><use href="#i-sound"/></svg></button>
                     </div>
                     <label class="toggle"><input type="checkbox" id="snd_alarm"><span class="slider"></span></label>
                 </div>
@@ -6111,7 +5959,7 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             <option value="4">Rise</option>
                             <option value="5">Soft Ding</option>
                         </select>
-                        <button type="button" class="btn-test" aria-label="Test sound" onclick="testSound('attention')">&#9835;</button>
+                        <button type="button" class="btn-test" aria-label="Test sound" onclick="testSound('attention')"><svg class="ic"><use href="#i-sound"/></svg></button>
                     </div>
                     <label class="toggle"><input type="checkbox" id="snd_attention"><span class="slider"></span></label>
                 </div>
@@ -6175,7 +6023,7 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     html += '  <div class="sensor-header">';
                     html += '    <label class="toggle" title="Alarm"><input type="checkbox" class="alm-active"' + (s.active ? ' checked' : '') + '><span class="slider"></span></label>';
                     html += '    <div class="sensor-name">' + nameLabel + '</div>';
-                    html += '    <div class="sensor-type">' + escHtml(s.type) + ' &middot; SLOT ' + s.idx + '</div>';
+                    html += '    <div class="sensor-type">' + escHtml(s.type) + ' &middot; slot ' + s.idx + '</div>';
                     html += '  </div>';
                     html += '  <div class="limit-grid">';
                     /* Two fields per quantity the part reports, from s.lim.
@@ -6499,20 +6347,8 @@ static const char LICENSE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <title>SIMUT - License</title>
     <script src="/lang.js"></script>
     <style>
-        /* M1 anti-piscada (fix da piscada branca): o 1o paint usava o branco
-           default do navegador porque TODOS os tokens moram no /style.css, que
-           chega por fetch pos-paint (ver o loader no LANG_JS). Copia dos tokens
-           DARK — fonte: o bloco :root do STYLE_CSS neste mesmo arquivo; mudou
-           la, mude aqui (grep "M1 anti-piscada"). O tema claro NAO precisa de
-           copia: lang.js e sincrono no head e injeta :root.theme-light com
-           especificidade maior antes do paint. */
-        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; --ok: #22c55e; --warn: #f59e0b; --track: #262e39; color-scheme: dark; }
-        html { background: var(--bg); }
-        body { background: var(--bg); color: var(--txt); }
-        .container { margin: 20px auto; padding: 0 20px 40px; }
         .card { margin-bottom: 20px; }
-        h3 { color: var(--acc); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-top: 0; font-size: 1.05rem; }
-        pre { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; color: var(--sub); font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", monospace; font-size: 0.78rem; line-height: 1.6; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; }
+        pre { line-height: 1.6; word-wrap: break-word; }
     </style>
     <script>
         /* window.t/applyLang/setLang/showToast/fetchSafe vem de /lang.js */
@@ -6524,20 +6360,20 @@ static const char LICENSE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <div class="container">
         <div class="card">
             <h2 class="page-title" data-i18n="lic_title">Software License</h2>
-            <p class="lic-sub" style="margin:0;color:var(--sub)" data-i18n="lic_sub">Free software. Below, what that means in practice.</p>
+            <p class="lic-sub" style="margin:0;color:var(--tinta-2)" data-i18n="lic_sub">Free software. Below, what that means in practice.</p>
         </div>
         <div class="card">
             <h3 data-i18n="lic_summary_title">In short</h3>
-            <div class="lic-summary" style="white-space:pre-line;color:var(--txt);line-height:1.55" data-i18n="lic_summary">You may use, copy, modify, merge, publish, distribute, sublicense and sell copies of this software, free of charge and without restriction.
+            <div class="lic-summary" style="white-space:pre-line;color:var(--tinta);line-height:1.55" data-i18n="lic_summary">You may use, copy, modify, merge, publish, distribute, sublicense and sell copies of this software, free of charge and without restriction.
 
 The only obligation is to keep the copyright notice and the permission notice in every copy.
 
 The software is provided &quot;as is&quot;, without warranty of any kind. The author is not liable for any damage arising from its use.</div>
-            <p class="lic-note" style="margin:10px 0 0;color:var(--sub);font-style:italic" data-i18n="lic_summary_note">A plain-language summary, written to be understood. It does not replace the licence text.</p>
+            <p class="lic-note" style="margin:10px 0 0;color:var(--tinta-2);font-style:italic" data-i18n="lic_summary_note">A plain-language summary, written to be understood. It does not replace the licence text.</p>
         </div>
         <div class="card">
             <h3 data-i18n="lic_mit">MIT License</h3>
-            <p class="lic-note" style="margin:0 0 10px;color:var(--sub);font-style:italic" data-i18n="lic_legal_note">The text below stays in English because it is the original — that is the version with legal force.</p>
+            <p class="lic-note" style="margin:0 0 10px;color:var(--tinta-2);font-style:italic" data-i18n="lic_legal_note">The text below stays in English because it is the original — that is the version with legal force.</p>
             <pre>MIT License
 
 Copyright (c) 2025 Ângelo Moisés Alves
@@ -6769,134 +6605,162 @@ END OF THIRD-PARTY NOTICES</pre>
 
 /* v3.34.0: F-WEB-DEDUP — CSS comum extraído. Servido em /style.css
  * com Cache-Control max-age=86400 (browser cacheia entre páginas). */
-static const char STYLE_CSS[] PROGMEM = R"raw(/* Paleta e as tres caixas que toda pagina autenticada usa. Moravam no
-   <style> de cada uma das oito, que gzipam separado — a mesma regra era
-   paga oito vezes. Aqui sao pagas uma, e o navegador as guarda por sete
-   dias (Cache-Control em WebManager_Util.cpp) em vez de rebaixa-las a
-   cada navegacao. Quem diverge (license, alarms, files) mantem so a
-   propriedade que muda no proprio <style>, que vem DEPOIS deste arquivo
-   no <head> e por isso ainda ganha. */
-/* Os tokens :root abaixo tem COPIA inline no <style> das 8 paginas (M1
-   anti-piscada — este arquivo chega por fetch pos-paint, e sem tokens o 1o
-   paint era branco). Mudou um valor aqui, atualize as copias:
-   grep "M1 anti-piscada". As copias vem depois no <head> e por isso ganham
-   — manter identicas ou a mudanca daqui nem aparece. */
-:root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; --ok: #22c55e; --warn: #f59e0b; --track: #262e39; color-scheme: dark; }
-.container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
-.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-h2.page-title { margin-top: 0; font-weight: 600; color: var(--txt); font-size: 1.4rem; margin-bottom: 20px; }
-:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
-/* Movimento vira preferencia do sistema: gaveta, toast e barras ficam
-   instantaneos sem mudar nenhum estado final — so a viagem some. */
+static const char STYLE_CSS[] PROGMEM = R"raw(/* Ângulo — a folha comum de toda página autenticada. O guia é o ANGULO.md
+   do repo simut-rx: dezessete papéis de cor, dois temas, grade de 4px, três
+   raios (6, 12 e o círculo), uma cor de destaque, linha antes de sombra.
+   Os TOKENS nao moram aqui: este arquivo chega por fetch depois da primeira
+   pintura, entao os papeis de cor dos dois temas sao injetados pelo /lang.js,
+   que e sincrono no <head> — uma copia so, no lugar das nove que cada pagina
+   carregava. O tema e o atributo data-theme do <html>; nenhuma regra abaixo
+   sabe qual esta ativo, so os tokens mudam.
+   Valores em px, nao var(--espaco-N): a grade e a mesma, e cada var() custa
+   bytes numa imagem com 1,1 kB de folga. Quem diverge mantem so a
+   propriedade que muda no proprio <style>, que vem DEPOIS deste arquivo no
+   <head> e por isso ganha. */
+html { background: var(--fundo); }
+body { margin: 0; background: var(--fundo); color: var(--tinta); font: 400 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+/* Display: a fonte do padrao nao vai embutida — 13 kB nao cabem na imagem —
+   entao a pilha cai para a do sistema, a 600 e com o espacamento do guia. */
+h1, h2, h3, h4 { font-family: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif; font-weight: 600; color: var(--tinta); margin: 0 0 12px; }
+h2 { font-size: 24px; line-height: 30px; letter-spacing: -0.01em; margin-bottom: 20px; }
+h3 { font-size: 18px; line-height: 24px; letter-spacing: -0.005em; padding-bottom: 8px; border-bottom: 1px solid var(--linha); margin: 24px 0 16px; }
+h3:first-child { margin-top: 0; }
+a { color: var(--acento); }
+p { margin: 0 0 12px; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; } }
-/* Botao primario padrao: solido no accent, texto escuro no tema escuro
-   (cyan claro pede tinta escura); o claro troca para branco via lang.js. */
-.b-pri { background: var(--acc); color: #001318; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 0.95em; font-weight: 700; transition: 0.2s; }
-.b-pri:hover { opacity: 0.9; }
-/* Botões secundários/pequenos (.sxb) e o toggle de linha (.cfg-tg): antes
-   moravam só no <style> da Config — por isso a Telemetry usava .sxb sem estilo.
-   Aqui viram compartilhados, como .b-pri. */
-.sxb { background: var(--track); color: var(--txt); border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: 0.2s; }
-.sxb:hover { background: #52525b; }
-.sxb-dang { background: transparent; border: 1px solid var(--dang); color: var(--dang); padding: 5px 12px; }
-.sxb-dang:hover { background: var(--dang); color: #fff; }
-.sxb-on { background: var(--acc); color: #000; }
-.sxb-on:hover { background: var(--acc); }
-.cfg-tg { display: flex; align-items: center; gap: 12px; padding: 8px 0; cursor: pointer; }
-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--txt); margin: 0; padding: 0; }
-/* ── Hamburger Nav ──────────────────────────────────────── */
-.topbar { background: #10151c; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; min-height: 48px; }
-.hamburger { background: none; border: none; color: var(--sub); cursor: pointer; padding: 6px; display: flex; align-items: center; font-size: 1.4rem; }
-.brand { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.5px; color: var(--txt); }
-.brand span { color: var(--acc); }
-.status-pill { display: flex; align-items: center; gap: 6px; font-size: 0.7rem; color: var(--sub); min-width: 0; }
-        /* The address is the one thing someone reads off this bar to type on
-           another device, so it truncates rather than pushing the bar wide. */
-        .status-pill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.status-pill .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-.drawer-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 80; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
-.drawer-bg.open { opacity: 1; pointer-events: auto; }
-.drawer { position: fixed; top: 0; left: 0; width: 270px; max-width: 80vw; height: 100%; background: #10151c; border-right: 1px solid var(--border); z-index: 90; transform: translateX(-100%); transition: transform 0.25s ease; display: flex; flex-direction: column; overflow-y: auto; }
-.drawer.open { transform: translateX(0); }
-.drawer-head { padding: 16px 18px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
-.drawer-head .brand { font-size: 1.1rem; }
-.drawer nav { padding: 10px 10px; flex: 1; }
-.drawer nav a { display: flex; align-items: center; gap: 10px; padding: 11px 14px; color: var(--sub); text-decoration: none; font-weight: 600; font-size: 0.88rem; border-radius: 8px; margin-bottom: 2px; transition: background 0.15s, color 0.15s; }
-.drawer nav a:hover { color: var(--txt); background: rgba(255,255,255,0.04); }
-.drawer nav a.active { color: var(--acc); background: var(--card); }
-.drawer nav a .ico { width: 18px; text-align: center; font-size: 1rem; flex-shrink: 0; }
-.drawer-bottom { border-top: 1px solid var(--border); padding: 12px 18px; }
-.drawer-bottom .lic-link { display: block; padding: 8px 14px; color: var(--sub); text-decoration: none; font-weight: 600; font-size: 0.82rem; border-radius: 8px; margin: -4px -14px 8px; transition: 0.15s; }
-.drawer-bottom .lic-link:hover { color: var(--txt); background: rgba(255,255,255,0.04); }
-.drawer-bottom .lic-link.active { color: var(--acc); background: var(--card); }
-.drawer-footer { display: flex; justify-content: space-between; align-items: center; }
-.drawer-footer select { background: transparent; color: var(--sub); border: none; outline: none; font-size: 0.82rem; cursor: pointer; }
-.bc { padding: 10px 20px 0; display: flex; align-items: center; gap: 5px; font-size: 0.72rem; }
-.bc-root { color: #3f3f46; }
-.bc-page { color: var(--sub); font-weight: 600; }
-/* top:48px, nao 0: em erro persistente (.warn e .err ficam na tela) o toast
-   cobria a topbar inteira — inclusive o hamburguer, unica navegacao no celular.
-   A copia inline do force_chpass fica em top:0 de proposito: la nao ha topbar. */
-#net-toast { position:fixed;top:48px;left:0;right:0;z-index:9999;text-align:center;padding:10px 20px;font-size:0.85rem;font-weight:600;transform:translateY(-100%);transition:transform .3s,opacity .3s;opacity:0;pointer-events:none; }
-#net-toast.show { transform:translateY(0);opacity:1; }
-#net-toast.warn { background:linear-gradient(135deg,#92400e,#b45309);color:#fef3c7;border-bottom:2px solid #f59e0b; }
-#net-toast.err { background:linear-gradient(135deg,#7f1d1d,#991b1b);color:#fecaca;border-bottom:2px solid #ef4444; }
-#net-toast.ok { background:linear-gradient(135deg,#064e3b,#065f46);color:#a7f3d0;border-bottom:2px solid #10b981; }
-/* A gaveta media 100% da viewport GRANDE (barra do navegador escondida): com ela
-   visivel, o rodape — licenca, idioma, sair — ficava embaixo da barra, e como o
-   nav tem flex:1 o overflow-y da gaveta nunca gerava rolagem para alcanca-lo.
-   `dvh` e ignorado por navegador antigo, que fica com o height:100% de cima. */
-.drawer { height: 100dvh; }
-.drawer nav { min-height: 0; overflow-y: auto; }
-/* o lang.js posiciona este menu com `left` inline, entao nao da para prende-lo
-   por CSS — mas ao menos impede que fique mais largo que a tela. */
-.csel-menu { max-width: calc(100vw - 24px); }
-/* Item de grid tem min-width:auto por padrao e NAO encolhe abaixo do min-content
-   do que carrega — por isso a tabela do painel esticava a coluna inteira (824px
-   numa tela de 360) e arrastava a pagina, apesar de o card dela ter overflow-x.
-   Com min-width:0 o item cede e o overflow fica contido no card, que rola. */
+.container { max-width: 1200px; margin: 24px auto; padding: 0 24px 48px; }
+/* Item de grid nao encolhe abaixo do min-content do que carrega: sem isto a
+   tabela do painel esticava a coluna e arrastava a pagina no celular. */
 .layout-grid > * { min-width: 0; }
+/* Cartao: linha, nunca sombra. Sombra e de quem flutua — menu, modal, toast. */
+.card { background: var(--superficie); border: 1px solid var(--linha); border-radius: 12px; padding: 24px; }
+/* Grupo dentro do cartao: um degrau abaixo (o fundo), raio de controle. */
+.grp, .frm-box, .builder-box, .sensor-card, .sound-item, .vol-row, .stats-inline, .log-box, .chart-box, .breadcrumb { background: var(--fundo); border: 1px solid var(--linha); border-radius: 6px; }
+.grp, .frm-box { padding: 20px; margin-bottom: 16px; }
+/* Rotulo: 13/16 semi-negrito em tinta-2, sem caixa alta. */
+label, .lbl { display: block; font-size: 13px; line-height: 16px; font-weight: 600; color: var(--tinta-2); margin-bottom: 6px; }
+.c-sub, .sxn, small { font-size: 13px; line-height: 18px; color: var(--tinta-2); }
+.dado, .mono { font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace; font-size: 13px; }
+/* Campo: superficie com linha-forte; o foco troca a linha pelo acento. */
+input[type=text], input[type=password], input[type=number], input[type=date], input[type=time], input[type=search], input[type=url], input:not([type]), select, textarea { width: 100%; padding: 10px 12px; min-height: 44px; background: var(--superficie); color: var(--tinta); border: 1px solid var(--linha-forte); border-radius: 6px; box-sizing: border-box; font-size: 16px; line-height: 24px; margin: 0 0 16px; }
+input:focus, select:focus, textarea:focus { border-color: var(--acento); outline: none; }
+input::placeholder, textarea::placeholder { color: var(--tinta-2); opacity: 0.8; }
+input[type=checkbox], input[type=radio] { accent-color: var(--acento); width: 18px; height: 18px; margin: 0; }
+input[type=range] { accent-color: var(--acento); }
+.cfg-tg { display: flex; align-items: center; gap: 12px; padding: 8px 0; margin: 0; cursor: pointer; color: var(--tinta); font-size: 15px; line-height: 20px; }
+/* Botoes: primario (acento), secundario (linha-forte), destrutivo (perigo). */
+.b-pri, button[type=submit], .btn-save, .btn-fm-pri, #commit-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--acento); color: var(--acento-tinta); border: 1px solid transparent; padding: 10px 16px; border-radius: 6px; font-size: 15px; line-height: 20px; font-weight: 600; transition: background 0.15s; }
+.b-pri:hover, button[type=submit]:hover, .btn-save:hover, .btn-fm-pri:hover, #commit-btn:hover { background: var(--acento-forte); }
+.sxb, .btn-action, .btn-fm, .btn-test, .cal-header-row button, .log-header button, .bottom-controls > button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--superficie); color: var(--tinta); border: 1px solid var(--linha-forte); padding: 8px 12px; border-radius: 6px; font-size: 14px; line-height: 20px; font-weight: 600; transition: background 0.15s; }
+.sxb:hover, .btn-action:hover, .btn-fm:hover, .btn-test:hover, .cal-header-row button:hover, .log-header button:hover, .bottom-controls > button:hover { background: var(--superficie-2); }
+.sxb-dang, .btn-dang, .btn-fm-dang { background: transparent; color: var(--perigo); border-color: var(--perigo); }
+.sxb-dang:hover, .btn-dang:hover, .btn-fm-dang:hover { background: var(--perigo); color: var(--perigo-tinta); }
+.btn-fm-out { background: transparent; color: var(--acento); border-color: var(--acento); }
+.btn-fm-out:hover { background: var(--acento); color: var(--acento-tinta); }
+.sxb-on, .bottom-controls > button.active { background: var(--acento); color: var(--acento-tinta); border-color: var(--acento); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+/* Tabela */
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--linha); vertical-align: middle; }
+th { font-size: 13px; line-height: 16px; font-weight: 600; color: var(--tinta-2); }
+/* Selo: fundo suave, texto firme. Acento so no que esta selecionado. */
+.badge, .sensor-type, .sxg { display: inline-block; background: var(--superficie-2); color: var(--tinta-2); padding: 2px 10px; border-radius: 999px; font-size: 13px; line-height: 20px; font-weight: 600; }
+.badge.full, .sxg.on { background: var(--acento); color: var(--acento-tinta); }
+.badge.pending { background: var(--alerta-suave); color: var(--alerta); }
+tr.pending-del { opacity: 0.5; text-decoration: line-through; }
+tr.pending-add { background: var(--positivo-suave); }
+/* Faixa de aviso: fundo suave, texto firme, linha da mesma cor. */
+.faixa { padding: 10px 14px; border-radius: 6px; border: 1px solid; font-size: 14px; line-height: 20px; margin-bottom: 14px; }
+.faixa-perigo { background: var(--perigo-suave); color: var(--perigo); border-color: var(--perigo); }
+.faixa-alerta { background: var(--alerta-suave); color: var(--alerta); border-color: var(--alerta); }
+/* Barra de progresso */
+.bar-bg, .progress-track, .exp-overlay-bar { background: var(--superficie-2); border-radius: 999px; overflow: hidden; height: 6px; width: 100%; }
+.bar-fg, .progress-fill, .exp-overlay-fill { height: 100%; width: 0; background: var(--acento); border-radius: 999px; transition: width 0.3s; }
+.bar-fg.warn { background: var(--alerta); } .bar-fg.crit { background: var(--perigo); }
+/* Codigo */
+pre, #preview, #apreview { background: var(--superficie-2); color: var(--tinta); border: 1px solid var(--linha); border-radius: 6px; padding: 12px 16px; font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace; font-size: 13px; line-height: 20px; overflow-x: auto; white-space: pre-wrap; }
+/* Veu e caixa flutuante (modal): uma das tres sombras da interface. */
+.ov, .exp-overlay, .sx-ov { position: fixed; inset: 0; background: var(--veu); z-index: 9000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.ov-box, .exp-overlay-box, .sx-ov-box { background: var(--superficie); border: 1px solid var(--linha); border-radius: 12px; padding: 24px; box-shadow: var(--sombra-flutuante); max-width: 100%; box-sizing: border-box; }
+/* Toast: flutua abaixo da barra e nunca a cobre — no celular o hamburguer e
+   a unica navegacao, e um erro persistente o escondia. */
+#net-toast { position: fixed; top: 64px; left: 50%; transform: translate(-50%, -24px); max-width: min(560px, calc(100% - 32px)); z-index: 9999; padding: 12px 16px; border-radius: 6px; border: 1px solid; font-size: 14px; font-weight: 600; box-shadow: var(--sombra-flutuante); opacity: 0; pointer-events: none; transition: transform 0.25s, opacity 0.25s; }
+#net-toast.show { transform: translate(-50%, 0); opacity: 1; }
+#net-toast.warn { background: var(--alerta-suave); color: var(--alerta); border-color: var(--alerta); }
+#net-toast.err { background: var(--perigo-suave); color: var(--perigo); border-color: var(--perigo); }
+#net-toast.ok { background: var(--positivo-suave); color: var(--positivo); border-color: var(--positivo); }
+/* Icone de traco: um conjunto so (o sprite vem com a barra), herda a cor. */
+.ic { width: 20px; height: 20px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; vertical-align: -5px; }
+/* ── Barra de topo e gaveta ─────────────────────────────── */
+.topbar { background: var(--superficie); border-bottom: 1px solid var(--linha); position: sticky; top: 0; z-index: 50; padding: 0 24px; display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 56px; }
+.topbar > div { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.hamburger { background: none; border: 0; color: var(--tinta-2); padding: 8px; display: inline-flex; border-radius: 6px; }
+.hamburger:hover { color: var(--tinta); background: var(--superficie-2); }
+.brand { font-family: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; color: var(--tinta); white-space: nowrap; }
+.brand > span { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 13px; font-weight: 500; letter-spacing: 0; color: var(--tinta-2); margin-left: 6px; }
+.status-pill { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--tinta-2); min-width: 0; }
+/* O endereco e o que alguem le nesta barra para digitar em outro aparelho:
+   trunca em vez de alargar a barra. */
+.status-pill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace; }
+.status-pill .dot { width: 8px; height: 8px; border-radius: 999px; flex-shrink: 0; }
+#theme-toggle { background: none; border: 1px solid var(--linha-forte); color: var(--tinta-2); width: 36px; height: 36px; padding: 0; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; }
+#theme-toggle:hover { color: var(--tinta); border-color: var(--acento); }
+#commit-btn { display: none; padding: 8px 14px; font-size: 14px; }
+.drawer-bg { position: fixed; inset: 0; background: var(--veu); z-index: 80; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+.drawer-bg.open { opacity: 1; pointer-events: auto; }
+/* 100dvh, nao 100%: com a barra do navegador visivel o rodape (licenca,
+   idioma, sair) ficava embaixo dela. Navegador antigo ignora dvh e fica com
+   o height de cima. */
+.drawer { position: fixed; top: 0; left: 0; width: 280px; max-width: 84vw; height: 100%; height: 100dvh; background: var(--superficie); border-right: 1px solid var(--linha); z-index: 90; transform: translateX(-100%); transition: transform 0.25s ease; display: flex; flex-direction: column; }
+.drawer.open { transform: none; box-shadow: var(--sombra-flutuante); }
+.drawer-head { padding: 0 12px 0 20px; min-height: 56px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--linha); }
+.drawer nav { padding: 12px; flex: 1; min-height: 0; overflow-y: auto; }
+.drawer nav a, .drawer-bottom .lic-link { display: flex; align-items: center; gap: 12px; padding: 10px 12px; color: var(--tinta-2); text-decoration: none; font-weight: 600; font-size: 15px; border-radius: 6px; margin-bottom: 2px; transition: background 0.15s, color 0.15s; }
+.drawer nav a:hover, .drawer-bottom .lic-link:hover { color: var(--tinta); background: var(--superficie-2); }
+.drawer nav a.active, .drawer-bottom .lic-link.active { color: var(--acento); background: var(--superficie-2); }
+.drawer-bottom { border-top: 1px solid var(--linha); padding: 12px 12px 16px; }
+.drawer-footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 12px 0; }
+#greeting { display: block; font-size: 13px; color: var(--tinta-2); margin-bottom: 4px; }
+.drawer-footer select { width: auto; min-height: 36px; padding: 6px 8px; margin: 0; font-size: 14px; color: var(--tinta-2); }
+.drawer-footer .out { color: var(--perigo); font-size: 14px; font-weight: 600; text-decoration: none; }
+.bc { padding: 16px 24px 0; display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--tinta-2); }
+.bc-page { color: var(--tinta); font-weight: 600; }
+/* o lang.js posiciona este menu com `left` inline; ao menos nao passa da tela */
+.csel-menu { max-width: calc(100vw - 24px); }
 /* ── Celular ────────────────────────────────────────────── */
 @media (max-width: 640px) {
-  .topbar { padding: 0 10px; gap: 8px; }
-  .topbar .brand { font-size: 1rem; }
-  .hamburger { padding: 10px 12px; }
-  /* Was `display: none`. That is not fitting the header to the width — it is
-     deleting the IP, which is exactly what a phone user opened the page for.
-     It stays, and truncates with an ellipsis if the bar runs out of room. */
-  .topbar { overflow: hidden; }
-  .brand { white-space: nowrap; }
-  .bc { padding: 8px 12px 0; }
-  /* .container e .card sao redefinidos nas 10 paginas, e o <style> da pagina vem
-     DEPOIS deste arquivo no <head> — dai o `body`, para ganhar por especificidade
-     em vez de por ordem. padding-left/right em vez do atalho: a /license depende
-     do padding-bottom de 40px que o atalho zeraria. */
-  body .container { padding-left: 12px; padding-right: 12px; margin: 16px auto; }
+  .topbar { padding: 0 12px; overflow: hidden; }
+  .bc { padding: 12px 16px 0; }
+  /* `body` para ganhar por especificidade das paginas que redefinem .container */
+  body .container { padding-left: 16px; padding-right: 16px; margin: 16px auto; }
   body .card { padding: 16px; }
-  /* alvos de toque: a gaveta tinha 39px, o link de licenca 32px, botoes ate 22px */
+  .grp, .frm-box { padding: 16px; }
+  /* alvo de toque: 44px em todo controle, mesmo que o desenho pareca menor */
   button { min-height: 44px; }
-  /* excecao: o botao de tema e redondo com height fixo de 30px, e min-height
-     vence height — sem isto ele virava uma elipse de 30x44. `body` porque o CSS
-     dele e injetado pelo lang.js depois deste arquivo. */
   body #theme-toggle { width: 40px; height: 40px; min-height: 0; }
-  .drawer nav a { padding: 14px; }
-  .drawer-bottom .lic-link { padding: 12px 14px; }
-  /* NAO usar overflow-wrap em celula de tabela: toda tabela do app ja vive num
-     contentor com overflow-x, e a tabela tem width:100%. Quebrar em qualquer
-     ponto derruba a largura minima da celula para ~1 caractere, entao a tabela
-     "cabe" nos 100% e empilha o texto em coluna em vez de deixar o contentor
-     rolar. Preferimos o deslize horizontal. So vale onde NAO ha rolagem: */
+  .drawer nav a, .drawer-bottom .lic-link { padding: 12px; }
+  /* NAO usar overflow-wrap em celula de tabela: toda tabela vive num contentor
+     com overflow-x e prefere o deslize. So vale onde NAO ha rolagem: */
   .net-stat .val { overflow-wrap: anywhere; }
-  /* "Salvar e Reiniciar" e a unica forma de gravar em /config, /network e /users
-     (o botao do formulario foi removido em favor dele). No topbar ele e o primeiro
-     item a sair da tela — aqui vira barra fixa no rodape. O seletor precisa de
-     `body` porque o lang.js injeta #commit-btn depois deste arquivo no <head>. */
-  body #commit-btn { position: fixed; left: 10px; right: 10px; bottom: 10px; z-index: 60; min-height: 46px; font-size: 0.95rem; box-shadow: 0 6px 20px rgba(0,0,0,0.55); }
-  body.pend { padding-bottom: 68px; }
+  /* "Salvar e reiniciar" e a unica forma de gravar: no topo seria o primeiro
+     item a sair da tela — aqui vira barra fixa no rodape. */
+  body #commit-btn { position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 60; min-height: 48px; font-size: 15px; box-shadow: var(--sombra-flutuante); }
+  body.pend { padding-bottom: 72px; }
 }
 )raw";
 
 static const char LANG_JS[] PROGMEM = R"raw(
+    /* Angulo: os dezessete papeis de cor dos dois temas, e o tema escolhido,
+       ANTES de qualquer pintura — este arquivo e sincrono no <head>. Uma copia
+       so: as nove que cada pagina carregava ("M1 anti-piscada") sairam. Sem
+       escolha guardada vale a preferencia do sistema; o botao da barra grava a
+       escolha em simut_ui_theme, a mesma chave de sempre. Os valores sao os do
+       design/tokens.cor.json do simut-rx — mudou la, muda aqui (e nas copias
+       do login e do force_chpass, que nao carregam este arquivo). */
+    (function(){var d=document.documentElement,t=null;try{t=localStorage.getItem('simut_ui_theme');}catch(e){}if(!t)t=(window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';d.setAttribute('data-theme',t==='light'?'claro':'escuro');var s=document.createElement('style');s.textContent=':root{color-scheme:dark;--fundo:#161513;--superficie:#201e1b;--superficie-2:#2a2723;--tinta:#ebe7df;--tinta-2:#a39c90;--linha:#383430;--linha-forte:#78716a;--acento:#5fb39a;--acento-forte:#7cc7b2;--acento-tinta:#0e211b;--positivo:#6fbe8e;--positivo-suave:#24352b;--alerta:#d9a84e;--alerta-suave:#38301c;--perigo:#e07862;--perigo-suave:#382220;--perigo-tinta:#2b100c;--veu:rgba(0,0,0,.6);--sombra-flutuante:0 16px 40px rgba(0,0,0,.5)}:root[data-theme=claro]{color-scheme:light;--fundo:#f6f6f4;--superficie:#fff;--superficie-2:#ecebe6;--tinta:#201e1a;--tinta-2:#5f5b54;--linha:#dcdad3;--linha-forte:#827e76;--acento:#1f6355;--acento-forte:#174d42;--acento-tinta:#f1faf6;--positivo:#20784e;--positivo-suave:#e1f0e7;--alerta:#8a6116;--alerta-suave:#f3ead2;--perigo:#b3382e;--perigo-suave:#f7e3e0;--perigo-tinta:#fff5f3;--veu:rgba(0,0,0,.4);--sombra-flutuante:0 12px 32px rgba(23,22,20,.16)}';document.head.appendChild(s);})();
     /* Queue treatment for the single TLS slot: the server serves ONE TLS
        connection at a time, so a browser firing its dashboard fetches in
        parallel saturates it and the losers abort. Over HTTPS every fetch()
@@ -7032,21 +6896,20 @@ static const char LANG_JS[] PROGMEM = R"raw(
      * username is operator-controlled and the value goes into innerHTML. */
     window.showCredsModal = function(creds, onClose) {
         var rows = creds.map(function(c){
-            return '<tr><td style="padding:6px 12px 6px 0;color:var(--sub)">' + escHtml(c.u) +
-                   '</td><td style="padding:6px 0;font-family:monospace;font-weight:700;font-size:1.05rem;' +
-                   'color:var(--acc);user-select:all">' + escHtml(c.p) + '</td></tr>';
+            return '<tr><td style="padding:6px 12px 6px 0;color:var(--tinta-2)">' + escHtml(c.u) +
+                   '</td><td class="dado" style="padding:6px 0;font-weight:700;font-size:15px;' +
+                   'color:var(--acento);user-select:all">' + escHtml(c.p) + '</td></tr>';
         }).join('');
         var ov = document.createElement('div');
-        ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);' +
-            'display:flex;align-items:center;justify-content:center;padding:16px';
+        ov.className = 'ov';
+        ov.style.zIndex = '9999';
         ov.innerHTML =
-            '<div role="dialog" aria-modal="true" aria-labelledby="creds-title" style="background:var(--card,#1b2330);border:1px solid var(--border,#334);' +
-            'border-radius:10px;max-width:440px;width:100%;padding:20px;box-shadow:0 8px 40px rgba(0,0,0,.5)">' +
-            '<h3 id="creds-title" style="margin:0 0 4px">' + escHtml(window.t ? window.t('creds_title','Temporary password') : 'Temporary password') + '</h3>' +
-            '<p style="margin:0 0 14px;color:var(--warn);font-size:.9rem">' +
+            '<div role="dialog" aria-modal="true" aria-labelledby="creds-title" class="ov-box" style="width:440px">' +
+            '<h3 id="creds-title" style="margin:0 0 4px;padding:0;border:0">' + escHtml(window.t ? window.t('creds_title','Temporary password') : 'Temporary password') + '</h3>' +
+            '<p style="margin:0 0 14px;color:var(--alerta);font-size:14px">' +
             escHtml(window.t ? window.t('creds_warn','Copy it now — it is shown only once. The user must change it on first login.') : 'Copy it now — shown only once. The user must change it on first login.') + '</p>' +
             '<table style="margin:0 0 16px">' + rows + '</table>' +
-            '<button id="creds-ok" class="btn" style="width:100%">' +
+            '<button id="creds-ok" class="b-pri" style="width:100%">' +
             escHtml(window.t ? window.t('creds_ok','I saved it — reload') : 'I saved it — reload') + '</button></div>';
         document.body.appendChild(ov);
         /* Dialogo de verdade para o teclado: foco entra no unico botao, TAB
@@ -7081,25 +6944,23 @@ static const char LANG_JS[] PROGMEM = R"raw(
     if(open){var f=d.querySelector('nav a');if(f)f.focus();}else if(h&&d&&d.contains(document.activeElement)){h.focus();}};
     var DRAWER_HTML = '<div class="drawer-bg" id="drawer-bg" onclick="toggleDrawer()"></div>'
         +'<div class="drawer" id="drawer">'
-        +'<div class="drawer-head"><div class="brand">SIMUT<span> IoT</span></div><button class="hamburger" onclick="toggleDrawer()" aria-label="Close">✕</button></div>'
+        +'<div class="drawer-head"><div class="brand">SIMUT<span> IoT</span></div><button class="hamburger" onclick="toggleDrawer()" aria-label="Close"><svg class="ic"><use href="#i-close"/></svg></button></div>'
         +'<nav aria-label="Main">'
-        +'<a href="/" ><span class="ico">📊</span><span data-i18n="nav_dash">Dashboard</span></a>'
-        +'<a href="/history" ><span class="ico">📈</span><span data-i18n="nav_hist">History &amp; Logs</span></a>'
-        +'<a href="/alarms" ><span class="ico">🔔</span><span data-i18n="nav_alm">Alarms &amp; Sounds</span></a>'
-        +'<a href="/telemetry" ><span class="ico">📡</span><span data-i18n="nav_tel">Telemetry</span></a>'
-        +'<a href="/config" ><span class="ico">⚙️</span><span data-i18n="nav_cfg">System Config</span></a>'
-        +'<a href="/network" ><span class="ico">🌐</span><span data-i18n="nav_net">Network</span></a>'
-        +'<a href="/users" ><span class="ico">👤</span><span data-i18n="nav_usr">Users</span></a>'
-        +'<a href="/files" ><span class="ico">📁</span><span data-i18n="nav_file">Files</span></a>'
+        +'<a href="/"><svg class="ic"><use href="#i-dash"/></svg><span data-i18n="nav_dash">Dashboard</span></a>'
+        +'<a href="/history"><svg class="ic"><use href="#i-hist"/></svg><span data-i18n="nav_hist">History &amp; Logs</span></a>'
+        +'<a href="/alarms"><svg class="ic"><use href="#i-alm"/></svg><span data-i18n="nav_alm">Alarms &amp; Sounds</span></a>'
+        +'<a href="/telemetry"><svg class="ic"><use href="#i-tel"/></svg><span data-i18n="nav_tel">Telemetry</span></a>'
+        +'<a href="/config"><svg class="ic"><use href="#i-cfg"/></svg><span data-i18n="nav_cfg">System Config</span></a>'
+        +'<a href="/network"><svg class="ic"><use href="#i-net"/></svg><span data-i18n="nav_net">Network</span></a>'
+        +'<a href="/users"><svg class="ic"><use href="#i-usr"/></svg><span data-i18n="nav_usr">Users</span></a>'
+        +'<a href="/files"><svg class="ic"><use href="#i-file"/></svg><span data-i18n="nav_file">Files</span></a>'
         +'</nav>'
         +'<div class="drawer-bottom">'
-        +'<a href="/license" class="lic-link" data-i18n="nav_lic">📜 License</a>'
-        +'<div class="drawer-footer"><div><span id="greeting" style="color:var(--sub);font-size:0.78rem"></span><div style="margin-top:4px"><select class="lang-select" onchange="setLang(this.value)"><option value="en">🇺🇸 EN</option><option value="pt">🇧🇷 PT</option></select></div></div>'
-        +'<a href="/logout" onclick="if(window.Pending)Pending.clear()" style="color:var(--dang);font-size:0.78rem;text-decoration:none;font-weight:600" data-i18n="greet_logout">Logout</a>'
+        +'<a href="/license" class="lic-link"><svg class="ic"><use href="#i-lic"/></svg><span data-i18n="nav_lic">License</span></a>'
+        +'<div class="drawer-footer"><div><span id="greeting"></span><select class="lang-select" onchange="setLang(this.value)"><option value="en">EN</option><option value="pt">PT</option></select></div>'
+        +'<a href="/logout" class="out" onclick="if(window.Pending)Pending.clear()" data-i18n="greet_logout">Logout</a>'
         +'</div></div></div>';
-    /* v3.34.1: mapeamento code → emoji bandeira pra seletor dinâmico. */
-    var LANG_FLAGS = {pt:'🇧🇷','pt-BR':'🇧🇷','pt-PT':'🇵🇹',es:'🇪🇸','es-ES':'🇪🇸','es-MX':'🇲🇽',en:'🇺🇸','en-US':'🇺🇸','en-GB':'🇬🇧',fr:'🇫🇷',de:'🇩🇪',it:'🇮🇹',ru:'🇷🇺',zh:'🇨🇳',ja:'🇯🇵',ko:'🇰🇷',nl:'🇳🇱',pl:'🇵🇱',sv:'🇸🇪',tr:'🇹🇷',ar:'🇸🇦'};
-    function langFlag(code){var c=(code||'').toLowerCase();return LANG_FLAGS[c]||LANG_FLAGS[c.split('-')[0]]||'🌐';}
+    /* O seletor mostra o codigo curto do pack ativo (PT, ES…): bandeira e emoji, e emoji nao e icone. */
     function langShort(code){var c=(code||'').split('-')[0].toUpperCase();return c||'??';}
     window.installDrawer = function(){var h=document.getElementById('drawer-host');if(!h)return;h.outerHTML=DRAWER_HTML;var p=window.location.pathname;document.querySelectorAll('.drawer nav a, .drawer .lic-link').forEach(function(a){if(a.getAttribute('href')===p)a.classList.add('active');});
         /* v3.34.1: atualiza seletor de idioma com base no .lng ativo (langCode/langName de /api/perms).
@@ -7109,7 +6970,7 @@ static const char LANG_JS[] PROGMEM = R"raw(
             var sel=document.querySelector('.drawer .lang-select');if(!sel)return;
             var opts=sel.querySelectorAll('option');
             if(!d||!d.langCode){if(opts.length>=2)opts[1].remove();if(localStorage.getItem('simut_lang')==='pt'){localStorage.setItem('simut_lang','en');if(typeof applyLang==='function')applyLang();}sel.value='en';return;}
-            if(opts.length>=2)opts[1].textContent=langFlag(d.langCode)+' '+langShort(d.langCode);
+            if(opts.length>=2)opts[1].textContent=langShort(d.langCode);
         }).catch(function(){});};
     document.addEventListener('DOMContentLoaded',function(){if(typeof window.installDrawer==='function')window.installDrawer();});
 
@@ -7122,13 +6983,16 @@ static const char LANG_JS[] PROGMEM = R"raw(
        defer) e o markup entra antes de qualquer pintura. O drawer pode esperar o
        evento porque nasce fechado. insertAdjacentHTML e não document.write:
        escreve no mesmo ponto sem reentrar no analisador. */
-    var TOPBAR_HTML = '<div id="net-toast" role="status" aria-live="polite"></div>'
+    /* O sprite dos icones vem junto com a barra: e o primeiro markup do <body>
+       em toda pagina, entao qualquer <use href="#i-…"> depois dele resolve. */
+    var TOPBAR_HTML = '<svg style="display:none" xmlns="http://www.w3.org/2000/svg"><symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol><symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol><symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol><symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol><symbol id="i-dash" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol><symbol id="i-hist" viewBox="0 0 24 24"><path d="M3 20h18M4 16l5-6 4 4 4-7 3 3"/></symbol><symbol id="i-alm" viewBox="0 0 24 24"><path d="M6 17V11a6 6 0 0 1 12 0v6l2 2H4zM10 21h4"/></symbol><symbol id="i-tel" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 7.8a6 6 0 0 0 0 8.4M19.1 4.9a10 10 0 0 1 0 14.2M4.9 4.9a10 10 0 0 0 0 14.2"/></symbol><symbol id="i-cfg" viewBox="0 0 24 24"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></symbol><symbol id="i-net" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol><symbol id="i-usr" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol><symbol id="i-file" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol><symbol id="i-lic" viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6zM14 3v5h5M9 13h6M9 17h6"/></symbol><symbol id="i-cam" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></symbol><symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3l10 18H2zM12 10v4M12 17.5v.01"/></symbol><symbol id="i-left" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol><symbol id="i-right" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol><symbol id="i-sound" viewBox="0 0 24 24"><path d="M4 10v4h3l5 4V6L7 10zM16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></symbol><symbol id="i-doc" viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6zM14 3v5h5"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol><symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol><symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></symbol><symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></symbol><symbol id="i-chip" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M4 10h3M4 14h3M17 10h3M17 14h3M10 4v3M14 4v3M10 17v3M14 17v3"/></symbol><symbol id="i-archive" viewBox="0 0 24 24"><path d="M3 5h18v4H3zM5 9v10h14V9M10 13h4"/></symbol><symbol id="i-restore" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/></symbol></svg>'
+        +'<div id="net-toast" role="status" aria-live="polite"></div>'
         +'<div class="topbar">'
-        +'<div style="display:flex;align-items:center;gap:12px">'
-        +'<button class="hamburger" onclick="toggleDrawer()" aria-label="Menu" aria-expanded="false" aria-controls="drawer">☰</button>'
+        +'<div>'
+        +'<button class="hamburger" onclick="toggleDrawer()" aria-label="Menu" aria-expanded="false" aria-controls="drawer"><svg class="ic"><use href="#i-menu"/></svg></button>'
         +'<div class="brand">SIMUT<span> IoT</span></div></div>'
         +'<div class="status-pill">'
-        +'<div class="dot" id="conn-dot" style="background:var(--track)"></div>'
+        +'<div class="dot" id="conn-dot" style="background:var(--linha-forte)"></div>'
         +'<span id="status-ip">--</span></div></div>'
         +'<div id="drawer-host"></div>';
     /* key/label são a chave i18n e o texto inglês da trilha — o mesmo par que
@@ -7137,7 +7001,7 @@ static const char LANG_JS[] PROGMEM = R"raw(
     window.installTopbar = function(key, label) {
         var html = TOPBAR_HTML
             + '<div class="bc"><span class="bc-root">SIMUT</span>'
-            + '<span style="color:#3f3f46">›</span>'
+            + '<span>›</span>'
             + '<span class="bc-page" data-i18n="' + key + '">' + label + '</span></div>';
         var s = document.currentScript;
         if (s) s.insertAdjacentHTML('beforebegin', html);
@@ -7181,9 +7045,9 @@ static const char LANG_JS[] PROGMEM = R"raw(
             }
             let dot = document.getElementById('conn-dot');
             let ipEl = document.getElementById('status-ip');
-            if (dot) dot.style.background = 'var(--ok)';
+            if (dot) dot.style.background = 'var(--positivo)';
             if (ipEl) { try { let sr = await fetch('/api/status'); let sd = await sr.json(); if(sd.sys) ipEl.textContent = sd.sys.ip || '--'; } catch(e){} }
-        } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = 'var(--dang)'; }
+        } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = 'var(--perigo)'; }
     };
     document.addEventListener('DOMContentLoaded',function(){window.initSession();});
 
@@ -7249,7 +7113,7 @@ static const char LANG_JS[] PROGMEM = R"raw(
     window.commitAll = async function() {
         const msg = (window.t ? window.t('commit_confirm',
             'This will save every change and restart the system.\n\n' +
-            '⚠️ The device goes offline for ~10 seconds.\n' +
+            'The device goes offline for ~10 seconds.\n' +
             'Any history/log write in progress is interrupted.\n\n' +
             'Continue?') : 'Save and restart?');
         if (!confirm(msg)) return;
@@ -7268,12 +7132,12 @@ static const char LANG_JS[] PROGMEM = R"raw(
                 } else {
                     const j = await cr.json().catch(()=>({}));
                     showToast((window.t ? window.t('calib_err','Calibration error: ')+(j.error||cr.status) : 'Calib error: '+(j.error||cr.status)), 'err');
-                    if (btn) { btn.disabled = false; btn.innerText = (window.t ? window.t('commit_btn','💾 Save & Restart') : '💾 Save & Restart'); }
+                    if (btn) { btn.disabled = false; btn.innerText = (window.t ? window.t('commit_btn','Save & restart') : 'Save & restart'); }
                     return;
                 }
             } catch(e) {
                 showToast((window.t ? window.t('calib_timeout','Calibration timed out. Try again.') : 'Calib timeout. Try again.'), 'err');
-                if (btn) { btn.disabled = false; btn.innerText = (window.t ? window.t('commit_btn','💾 Save & Restart') : '💾 Save & Restart'); }
+                if (btn) { btn.disabled = false; btn.innerText = (window.t ? window.t('commit_btn','Save & restart') : 'Save & restart'); }
                 return;
             }
             /* Wait for rate limit cooldown before commit_all */
@@ -7324,7 +7188,7 @@ static const char LANG_JS[] PROGMEM = R"raw(
                 let detail = ''; try { const j = await r.json(); detail = (j.error || '') + (j.section ? ' (' + j.section + ')' : ''); } catch(e) {}
                 showToast((window.t ? window.t('commit_err', 'Save failed.') : 'Save failed.') +
                           (detail ? ' — ' + detail : ''), 'err', 9000);
-                if (btn) { btn.disabled = false; btn.innerText = (window.t ? window.t('commit_btn', '💾 Save & Restart') : '💾 Save & Restart'); }
+                if (btn) { btn.disabled = false; btn.innerText = (window.t ? window.t('commit_btn', 'Save & restart') : 'Save & restart'); }
             }
         } catch(e) {
             /* Conexão caiu — assume que reboot começou, limpa e redireciona/reload */
@@ -7338,99 +7202,6 @@ static const char LANG_JS[] PROGMEM = R"raw(
 
     /* Injeta CSS e botão na topbar. Idempotente; chamado por cada página. */
     window.installCommitInfra = function() {
-        if (!document.getElementById('commit-btn-css')) {
-            const s = document.createElement('style');
-            s.id = 'commit-btn-css';
-            s.textContent =
-                '#commit-btn{background:#16a34a;color:#fff;border:none;padding:7px 14px;border-radius:6px;font-weight:700;font-size:0.82rem;cursor:pointer;display:none}' +
-                '#commit-btn:hover{background:#15803d}' +
-                '#commit-btn:disabled{opacity:0.6;cursor:wait}' +
-                'tr.pending-del{opacity:0.5;text-decoration:line-through}' +
-                'tr.pending-add{background:rgba(22,163,74,0.1)}' +
-                '.badge.pending{background:#f59e0b;color:#000;font-weight:bold}' +
-                '#theme-toggle{background:transparent;border:1px solid var(--border,#27272a);color:var(--sub,#a1a1aa);width:30px;height:30px;border-radius:50%;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:0.95rem;line-height:1;padding:0;transition:all 0.18s}' +
-                '#theme-toggle:hover{color:var(--txt,#f4f4f5);border-color:var(--acc,#06b6d4);transform:scale(1.05)}' +
-                /* Version label (span dentro de .brand): fonte menor, peso leve */
-                '.brand > span{font-size:0.7rem;font-weight:500;letter-spacing:0.02em;opacity:0.7;margin-left:4px}' +
-                /* Tag reference panel em /config — usa var em vez de #18181b */
-                '.tag-ref{background:var(--card)}' +
-                /* ── Light theme — papel frio de fundo + cartao BRANCO nitido.
-                 *    Accent #0072CD (mesmo matiz SIMUT, 4,9:1 = passa AA em texto
-                 *    e em botao). --ok/--warn em tons -700 legiveis sobre claro. ── */
-                ':root.theme-light{--bg:#f2f5f8;--card:#ffffff;--txt:#1b2733;--sub:#526172;--border:#d9e1e8;--acc:#0072cd;--dang:#c93838;--ok:#15803d;--warn:#b45309;--track:#e3eaf0;color-scheme:light}' +
-                'html.theme-light{background:#f2f5f8}' +
-                'html.theme-light body{background:var(--bg);color:var(--txt)}' +
-                'html.theme-light .topbar{background:#ffffff;border-bottom-color:var(--border)}' +
-                'html.theme-light .drawer{background:#ffffff;border-right-color:var(--border)}' +
-                'html.theme-light .drawer nav a{color:var(--sub)}' +
-                'html.theme-light .drawer nav a:hover{background:rgba(0,150,255,0.08);color:var(--txt)}' +
-                'html.theme-light .drawer nav a.active{background:rgba(0,150,255,0.14);color:var(--acc)}' +
-                'html.theme-light .drawer-bottom .lic-link{color:var(--sub)}' +
-                'html.theme-light .drawer-bottom .lic-link:hover{background:rgba(0,150,255,0.08);color:var(--txt)}' +
-                'html.theme-light .drawer-bottom .lic-link.active{background:rgba(0,150,255,0.14);color:var(--acc)}' +
-                'html.theme-light .brand{color:var(--txt)}' +
-                'html.theme-light .brand span{color:var(--acc)}' +
-                'html.theme-light .hamburger{color:var(--sub)}' +
-                'html.theme-light .status-pill{color:var(--sub)}' +
-                'html.theme-light .card{background:var(--card);color:var(--txt);box-shadow:0 1px 3px rgba(26,37,51,0.06)}' +
-                'html.theme-light h2.page-title,html.theme-light h3,html.theme-light label{color:var(--txt)}' +
-                'html.theme-light .bc-root{color:#94a3b8}' +
-                'html.theme-light .bc-page{color:var(--sub)}' +
-                /* Inputs, selects, textareas — mais claros que cards p/ destacar */
-                'html.theme-light input[type=text],html.theme-light input[type=password],html.theme-light input[type=number],html.theme-light input[type=search],html.theme-light input[type=date],html.theme-light input[type=time],html.theme-light select,html.theme-light textarea{background:#ffffff;color:var(--txt);border-color:var(--border)}' +
-                'html.theme-light #logSearch{background:#ffffff;color:var(--txt)}' +
-                'html.theme-light input:focus,html.theme-light select:focus,html.theme-light textarea:focus{border-color:var(--acc);outline:none}' +
-                'html.theme-light input::placeholder{color:#94a3b8}' +
-                /* Containers de form/grp/cards — tom intermediário p/ separar do card */
-                'html.theme-light .frm-box,html.theme-light .grp,html.theme-light .sensor-card,html.theme-light .builder-box,html.theme-light .stats-inline,html.theme-light .sound-item,html.theme-light .vol-row{background:#f4f7fa;border-color:var(--border)}' +
-                /* Code / pre / preview — tom mais escuro p/ destacar como bloco */
-                'html.theme-light pre,html.theme-light #preview{background:#e8eef4;color:#334155;border-color:var(--border)}' +
-                'html.theme-light .highlight{color:var(--acc)}' +
-                /* Logs / tabelas */
-                'html.theme-light .log-box{background:#f4f7fa;border-color:var(--border)}' +
-                'html.theme-light .log-table th{background:#e8eef4;color:var(--sub);border-bottom-color:var(--border)}' +
-                'html.theme-light .log-table td{border-bottom-color:var(--border);color:var(--txt)}' +
-                'html.theme-light table th,html.theme-light table td{border-bottom-color:var(--border)}' +
-                'html.theme-light .log-inf{color:var(--acc)}' +
-                /* Chart */
-                'html.theme-light .chart-box{background:#ffffff;border-color:var(--border)}' +
-                'html.theme-light .chart-overlay{background:rgba(255,255,255,0.92);color:var(--sub)}' +
-                /* Buttons / badges */
-                'html.theme-light .btn-action{background:#dde4eb;color:var(--txt)}' +
-                'html.theme-light .btn-action:hover{background:#c8d2dc}' +
-                'html.theme-light .btn-dang{background:transparent;color:var(--dang);border-color:var(--dang)}' +
-                'html.theme-light .btn-dang:hover{background:var(--dang);color:#ffffff}' +
-                'html.theme-light .bottom-controls button{background:#f4f7fa;color:var(--txt);border-color:var(--border)}' +
-                'html.theme-light .bottom-controls button.active{background:var(--acc);color:#ffffff;border-color:var(--acc)}' +
-                'html.theme-light .cal-header-row button{background:#f4f7fa;color:var(--txt);border-color:var(--border)}' +
-                'html.theme-light .badge{background:#dde4eb;color:var(--txt)}' +
-                'html.theme-light .badge.full{background:var(--acc);color:#ffffff}' +
-                /* Form submit primário */
-                'html.theme-light button[type=submit],html.theme-light .frm-box button[type=submit]{background:var(--acc);color:#ffffff}' +
-                'html.theme-light button[type=submit]:disabled{background:#cbd5e1;color:#94a3b8}' +
-                /* Calendar */
-                'html.theme-light .cal-cell{color:#94a3b8}' +
-                'html.theme-light .cal-cell.has-data{background:rgba(0,150,255,0.10);color:var(--acc);border-color:rgba(0,150,255,0.30)}' +
-                'html.theme-light .cal-cell.selected{background:var(--acc);color:#ffffff;border-color:var(--acc)}' +
-                'html.theme-light .cal-dow{color:var(--sub)}' +
-                /* Sound toggle */
-                /* O trilho apagado so vale DESLIGADO — a regra generica vencia o
-                 * :checked por especificidade e o toggle ligado perdia o accent. */
-                'html.theme-light .toggle .slider{background:#c8d2dc}' +
-                'html.theme-light .toggle input:checked+.slider{background:var(--acc)}' +
-                'html.theme-light .b-pri{color:#fff}' +
-                'html.theme-light .btn-test{background:transparent;color:var(--sub);border-color:var(--border)}' +
-                'html.theme-light .btn-test:hover{color:var(--acc);border-color:var(--acc)}' +
-                /* Progress bars */
-                'html.theme-light .progress-track{background:#f4f7fa;border-color:var(--border)}' +
-                /* Theme toggle button no light mode */
-                'html.theme-light #theme-toggle{color:var(--sub);border-color:var(--border)}' +
-                'html.theme-light #theme-toggle:hover{color:var(--acc);border-color:var(--acc)}' +
-                /* License page pre com scroll */
-                'html.theme-light .lic-link{color:var(--sub)}';
-            document.head.appendChild(s);
-        }
-
         const pill = document.querySelector('.topbar .status-pill');
         if (!pill) return;
 
@@ -7449,9 +7220,10 @@ static const char LANG_JS[] PROGMEM = R"raw(
         if (!document.getElementById('commit-btn')) {
             const btn = document.createElement('button');
             btn.id = 'commit-btn';
+            btn.className = 'b-pri';
             btn.type = 'button';
             btn.onclick = commitAll;
-            btn.innerText = (window.t ? window.t('commit_btn', '💾 Save & Restart') : '💾 Save & Restart');
+            btn.innerText = (window.t ? window.t('commit_btn', 'Save & restart') : 'Save & restart');
             btn.setAttribute('data-i18n', 'commit_btn');
             wrap.insertBefore(btn, pill);
         }
@@ -7478,24 +7250,21 @@ static const char LANG_JS[] PROGMEM = R"raw(
     function _refreshThemeIcon() {
         const btn = document.getElementById('theme-toggle');
         if (!btn) return;
-        const isLight = document.documentElement.classList.contains('theme-light');
-        /* Mostra o ícone do DESTINO (clique alterna pra este). */
-        btn.innerText = isLight ? '🌙' : '☀';
+        const isLight = document.documentElement.getAttribute('data-theme') === 'claro';
+        /* Mostra o icone do DESTINO (o clique alterna para este). */
+        btn.innerHTML = '<svg class="ic"><use href="#i-' + (isLight ? 'moon' : 'sun') + '"/></svg>';
     }
     window.applyTheme = function(t) {
-        const root = document.documentElement;
-        if (t === 'light') root.classList.add('theme-light');
-        else root.classList.remove('theme-light');
+        document.documentElement.setAttribute('data-theme', t === 'light' ? 'claro' : 'escuro');
         _refreshThemeIcon();
     };
+    /* O tema corrente vem do atributo, nao do localStorage: sem escolha
+       guardada ele e o do sistema, e "alternar" tem que partir do que se ve. */
     window.toggleTheme = function() {
-        const cur = localStorage.getItem('simut_ui_theme') || 'dark';
-        const next = (cur === 'dark') ? 'light' : 'dark';
-        localStorage.setItem('simut_ui_theme', next);
+        const next = document.documentElement.getAttribute('data-theme') === 'claro' ? 'dark' : 'light';
+        try { localStorage.setItem('simut_ui_theme', next); } catch(e) {}
         applyTheme(next);
     };
-    /* Apply saved theme ASAP (antes de DOMContentLoaded) */
-    applyTheme(localStorage.getItem('simut_ui_theme') || 'dark');
 
     /* Versão: lê do /api/perms e coloca ao lado de "SIMUT" na topbar.
      * Rola sempre que a página carrega; se endpoint falhar, mantém " IoT". */
@@ -7507,8 +7276,8 @@ static const char LANG_JS[] PROGMEM = R"raw(
     };
 
     /* CSS global: dropdown custom + toggle switch + sem spinners em number */
-    (function(){const c='.csel{position:relative;display:inline-block;vertical-align:middle}.csel-btn{background:var(--bg);color:var(--txt);border:1px solid var(--border);padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.9rem;outline:none;width:100%;text-align:left;box-sizing:border-box;font-weight:500}.csel-btn:hover{border-color:var(--acc)}.csel-btn .csel-arr{float:right;opacity:0.7}.csel-menu{position:fixed;background:var(--card);border:1px solid var(--border);border-radius:6px;max-height:260px;overflow-y:auto;z-index:9999;padding:4px;box-shadow:0 6px 16px rgba(0,0,0,0.5)}.csel-item{padding:8px 12px;color:var(--txt);cursor:pointer;font-size:0.85rem;border-radius:4px}.csel-item:hover{background:var(--bg)}.csel-item.active{background:var(--acc);color:#000;font-weight:700}'
-      + '.toggle{position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0}.toggle input{opacity:0;width:0;height:0}.toggle .slider{position:absolute;cursor:pointer;inset:0;background:#3f3f46;border-radius:24px;transition:.3s}.toggle .slider:before{content:"";position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.3s}.toggle input:checked+.slider{background:var(--acc)}.toggle input:checked+.slider:before{transform:translateX(20px)}'
+    (function(){const c='.csel{position:relative;display:inline-block;vertical-align:middle}.csel-btn{display:inline-flex;align-items:center;justify-content:space-between;background:var(--superficie);color:var(--tinta);border:1px solid var(--linha-forte);padding:10px 12px;min-height:44px;border-radius:6px;cursor:pointer;font-size:15px;font-weight:500;outline:none;width:100%;text-align:left;box-sizing:border-box}.csel-btn:hover{border-color:var(--acento)}.csel-btn .csel-arr{opacity:.7;margin-left:8px}.csel-menu{position:fixed;background:var(--superficie);border:1px solid var(--linha);border-radius:6px;max-height:260px;overflow-y:auto;z-index:9999;padding:4px;box-shadow:var(--sombra-flutuante)}.csel-item{padding:8px 12px;color:var(--tinta);cursor:pointer;font-size:14px;border-radius:6px}.csel-item:hover{background:var(--superficie-2)}.csel-item.active{background:var(--superficie-2);color:var(--acento);font-weight:600}'
+      + '.toggle{position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0}.toggle input{opacity:0;width:0;height:0;margin:0}.toggle .slider{position:absolute;cursor:pointer;inset:0;background:var(--linha-forte);border-radius:999px;transition:.2s}.toggle .slider:before{content:"";position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:var(--superficie);border-radius:999px;transition:.2s}.toggle input:checked+.slider{background:var(--acento)}.toggle input:checked+.slider:before{transform:translateX(20px);background:var(--acento-tinta)}.toggle input:focus-visible+.slider{outline:2px solid var(--acento);outline-offset:2px}'
       + 'input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type=number]{-moz-appearance:textfield;appearance:textfield}';const s=document.createElement('style');s.textContent=c;document.head.appendChild(s);})();
     window._cselCloseAll=function(ex){document.querySelectorAll('.csel-menu').forEach(function(m){if(m!==ex){m.style.display='none';var bb=m.parentNode.querySelector('.csel-btn');if(bb)bb.setAttribute('aria-expanded','false');}});};
     document.addEventListener('click',e=>{if(!e.target.closest('.csel'))_cselCloseAll();});

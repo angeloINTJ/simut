@@ -1,21 +1,25 @@
 #!/usr/bin/env python3
 """
-inline_tokens_check.py — v2.3.2 white-flash fix gate (PLANO-VALIDACAO §5.7).
+inline_tokens_check.py — portão das cópias dos tokens de cor (Ângulo).
 
-Every page embeds the theme tokens inline in a <style> block so the first
-paint is dark before /style.css arrives (commit 1356df2). This tool asserts
-the inline blocks carry the SAME VALUES as the canonical sources served by
-the device:
+Os dezessete papéis de cor dos dois temas vivem numa cópia só, injetada pelo
+/lang.js antes da primeira pintura. Duas páginas não carregam o /lang.js —
+/login e /force_chpass, que vêm antes da sessão — e por isso levam a mesma
+tabela inline. "Mudou lá, mude aqui" é a regra que este portão faz valer: ele
+compara, declaração a declaração, o bloco servido no /lang.js com o bloco
+inline de cada página pré-sessão.
 
-  * dark  : :root            of /style.css
-  * light : :root.theme-light of /lang.js (injected sync in head)
+O segundo invariante é o contrário: nenhuma página AUTENTICADA pode carregar
+um bloco `:root{` inline. Até a 2.4.5 cada uma trazia uma cópia dos tokens
+escuros ("M1 anti-piscada"), nove cópias que divergiam em silêncio; a
+reforma as retirou, e uma que volte é regressão.
 
 Usage:
-    python3 tools/inline_tokens_check.py [--host IP] [--https]
+    python3 tools/inline_tokens_check.py [--host IP[:porta]]
 
 Credentials: SIMUT_WEB_USER / SIMUT_WEB_PASS env, or scratchpad/rig_secrets.py.
 
-Exit code: 0 = 0 diff em todas as páginas; 1 = divergência.
+Exit code: 0 = tudo idêntico; 1 = divergência ou cópia onde não devia.
 """
 import argparse
 import hashlib
@@ -25,30 +29,19 @@ import sys
 
 import requests
 
-PAGES = ['/', '/history', '/alarms', '/config', '/network', '/users',
-         '/files', '/license', '/login']
+PRE_SESSION = ['/login', '/force_chpass']
+AUTHENTICATED = ['/', '/history', '/alarms', '/telemetry', '/config',
+                 '/network', '/users', '/files', '/license']
 
-ROOT_BLOCK = re.compile(r':root\s*\{([^}]*)\}', re.S)
-THEMELIGHT_BLOCK = re.compile(r':root\.theme-light\s*\{([^}]*)\}', re.S)
-LIGHT_BLOCK = re.compile(r'html\.light\s*\{([^}]*)\}', re.S)
+# ':root{...}' e ':root[data-theme=claro]{...}' — o bloco escuro e o claro.
+DARK_BLOCK = re.compile(r':root\s*\{([^}]*)\}', re.S)
+LIGHT_BLOCK = re.compile(r':root\[data-theme=claro\]\s*\{([^}]*)\}', re.S)
 STYLE_TAGS = re.compile(r'<style[^>]*>(.*?)</style>', re.S | re.I)
-# decl termina em ';', no fecho do bloco (lang.js: 'color-scheme:light}') ou
-# no fim do grupo capturado (mesmo caso, com o '}' já fora do grupo)
 DECL = re.compile(r'([\w-]+)\s*:\s*([^;]+?)\s*(?:;|(?=\})|$)', re.M)
 
 
 def parse_decls(block):
-    out = {}
-    for m in DECL.finditer(block):
-        out[m.group(1).strip()] = m.group(2).strip()
-    return out
-
-
-def parse_decls(block):
-    out = {}
-    for m in DECL.finditer(block):
-        out[m.group(1).strip()] = m.group(2).strip()
-    return out
+    return {m.group(1).strip(): m.group(2).strip() for m in DECL.finditer(block)}
 
 
 def login(s, base):
@@ -69,12 +62,26 @@ def login(s, base):
 
 def cmp_tokens(name, got, ref):
     diffs = []
-    for k, v in sorted(got.items()):
-        if k not in ref:
-            diffs.append(f'{name} {k}: só na página ({v})')
-        elif ref[k] != v:
-            diffs.append(f'{name} {k}: página={v} ref={ref[k]}')
+    for k, v in sorted(ref.items()):
+        if k not in got:
+            diffs.append(f'{name} {k}: falta na página (lang.js={v})')
+        elif got[k] != v:
+            diffs.append(f'{name} {k}: página={got[k]} lang.js={v}')
+    for k in sorted(set(got) - set(ref)):
+        diffs.append(f'{name} {k}: só na página ({got[k]})')
     return diffs
+
+
+def blocks_in(html):
+    dark, light = {}, {}
+    for tag in STYLE_TAGS.findall(html):
+        m = DARK_BLOCK.search(tag)
+        if m:
+            dark.update(parse_decls(m.group(1)))
+        m = LIGHT_BLOCK.search(tag)
+        if m:
+            light.update(parse_decls(m.group(1)))
+    return dark, light
 
 
 def main():
@@ -82,64 +89,48 @@ def main():
     ap.add_argument('--host', default='192.168.3.24')
     ap.add_argument('--https', action='store_true')
     args = ap.parse_args()
-
-    scheme = 'https' if args.https else 'http'
-    base = f'{scheme}://{args.host}'
+    base = ('https' if args.https else 'http') + '://' + args.host
 
     s = requests.Session()
-    login(s, base)
-
-    css = s.get(base + '/style.css', timeout=15)
-    css.raise_for_status()
     js = s.get(base + '/lang.js', timeout=15)
     js.raise_for_status()
-
-    m = ROOT_BLOCK.search(css.text)
-    lm = THEMELIGHT_BLOCK.search(js.text)
-    if not m:
-        sys.exit('style.css sem :root — não consigo comparar')
-    if not lm:
-        sys.exit('lang.js sem :root.theme-light — não consigo comparar')
-    ref_root = parse_decls(m.group(1))
-    ref_light = parse_decls(lm.group(1))
-    print(f'ref style.css :root = {len(ref_root)} tokens')
-    print(f'ref lang.js theme-light = {len(ref_light)} tokens')
+    dm, lm = DARK_BLOCK.search(js.text), LIGHT_BLOCK.search(js.text)
+    if not dm or not lm:
+        sys.exit('lang.js sem o bloco de tokens dos dois temas — não consigo comparar')
+    ref_dark, ref_light = parse_decls(dm.group(1)), parse_decls(lm.group(1))
+    print(f'ref lang.js: escuro {len(ref_dark)} · claro {len(ref_light)} declarações')
 
     fails = 0
-    for page in PAGES:
-        r = s.get(base + page, timeout=15)
-        r.raise_for_status()
-        tags = STYLE_TAGS.findall(r.text)
-        page_root = {}
-        page_light = {}
-        for tag in tags:
-            mm = ROOT_BLOCK.search(tag)
-            if mm:
-                page_root.update(parse_decls(mm.group(1)))
-            ll = LIGHT_BLOCK.search(tag)
-            if ll:
-                page_light.update(parse_decls(ll.group(1)))
+    for page in PRE_SESSION:
+        r = s.get(base + page, timeout=15, allow_redirects=False)
+        if r.status_code != 200:
+            print(f'[SKIP] {page} — HTTP {r.status_code} (só é servida quando a conta pede senha nova)')
+            continue
+        dark, light = blocks_in(r.text)
         diffs = []
-        if not page_root:
-            diffs.append('nenhum bloco :root inline encontrado')
-        diffs += cmp_tokens('dark', page_root, ref_root)
-        if page_light:
-            # claro inline existe só em páginas públicas (/login); nas
-            # autenticadas o tema claro vem do lang.js (por design).
-            diffs += cmp_tokens('light', page_light, ref_light)
-            light_note = (f'light inline {len(page_light)}/{len(ref_light)} '
-                          'tokens idênticos ao lang.js')
-        else:
-            light_note = 'light via lang.js (por design)'
+        if not dark or not light:
+            diffs.append('sem a tabela inline dos dois temas')
+        diffs += cmp_tokens('escuro', dark, ref_dark) + cmp_tokens('claro', light, ref_light)
         if diffs:
             fails += 1
             print(f'[FAIL] {page}')
             for d in diffs:
                 print(f'       {d}')
         else:
-            print(f'[PASS] {page} — dark {len(page_root)}/'
-                  f'{len(ref_root)} tokens idênticos ao style.css; {light_note}')
-    print(f'-- {len(PAGES)} páginas, {fails} com divergência --')
+            print(f'[PASS] {page} — {len(dark)} + {len(light)} declarações idênticas ao lang.js')
+
+    login(s, base)
+    for page in AUTHENTICATED:
+        r = s.get(base + page, timeout=15)
+        r.raise_for_status()
+        dark, light = blocks_in(r.text)
+        if dark or light:
+            fails += 1
+            print(f'[FAIL] {page} — carrega tokens inline ({len(dark)} + {len(light)}); '
+                  'a cópia é do lang.js, não da página')
+        else:
+            print(f'[PASS] {page} — sem cópia inline (tokens do lang.js)')
+    print(f'-- {fails} falhas --')
     return 1 if fails else 0
 
 
