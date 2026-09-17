@@ -880,7 +880,7 @@ Permissões entre colchetes.
 | `/api/login` | POST | `user`, `pass` (sha256, latin-1), `nonce` |
 | `/api/login_chpass` | POST | Troca a senha na tela de login |
 | `/api/force_chpass` | POST | Conclui uma troca de senha forçada |
-| `/logout` | GET | Encerra a sessão |
+| `/logout` | GET | Encerra a sessão. Lê o cookie `SIMUTSESS` **ou** `Authorization: Bearer` — uma página de navegador em outra origem só consegue mandar o segundo. Responde 204 a quem veio por Bearer e 302 para `/login` a quem veio por cookie |
 
 ### Leitura de estado
 

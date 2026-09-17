@@ -314,6 +314,11 @@ private:
 
 	void clearStaleSessions( );
 
+	/** The session token as it arrived, normalised to `SIMUTSESS=<token>`:
+	 *  the cookie, or `Authorization: Bearer`. Empty when neither is there.
+	 *  One reader for getAuthPerms and handleLogout — see the comment there. */
+	String sessionTokenHeader( );
+
 	uint16_t getAuthPerms( );
 	bool isPasswordChangeRequired( );
 

@@ -848,7 +848,7 @@ brackets.
 | `/api/login` | POST | `user`, `pass` (sha256, latin-1), `nonce` |
 | `/api/login_chpass` | POST | Change password at login |
 | `/api/force_chpass` | POST | Complete a forced password change |
-| `/logout` | GET | End the session |
+| `/logout` | GET | End the session. Reads the `SIMUTSESS` cookie **or** `Authorization: Bearer` — a browser page on another origin can only send the latter. Answers 204 to the Bearer caller, 302 to `/login` to the cookie one |
 
 ### Reading state
 
