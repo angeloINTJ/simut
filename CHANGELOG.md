@@ -6,6 +6,17 @@ All notable changes to SIMUT firmware.
 
 ## Unreleased
 
+**Logout works for a page in a browser, which until now it only appeared to.**
+`/logout` read the `SIMUTSESS` cookie and nothing else, and a page on another
+origin cannot send that cookie: `Cookie` is a forbidden header name in the Fetch
+Standard, and the one this device sets is `SameSite=Strict`. So the fleet
+manager asked to end its session, got a 302, and held one of the three session
+slots for the full 15-minute idle timeout — with no way to tell. It now reads
+the session the way `getAuthPerms` already did, through one shared reader, so
+the two cannot disagree about what a session is; a caller that came by
+`Authorization: Bearer` gets a 204 instead of a redirect to an HTML login page
+it is not going to read. 96 B of flash.
+
 ## v2.4.5-beta (2026-09-16)
 
 **And the origin can be set over the network, so a fleet is not a day of

@@ -511,6 +511,57 @@ def t_logout(web, res):
         res.add('login', 'sessao invalidada apos logout', False, str(e)[:100])
 
 
+def t_logout_bearer(web, res, user, password):
+    """O /logout alcancado por `Authorization: Bearer` — o caminho do gerenciador web.
+
+    Uma pagina de navegador NAO pode mandar o cookie: `Cookie` e nome de header
+    proibido no Fetch Standard, e o que este aparelho emite sai SameSite=Strict,
+    que nao viaja de outra origem. Enquanto o handler lia so o cookie, a pagina
+    pedia para sair, recebia 302 e segurava o slot pelos 15 min inteiros de
+    ociosidade — sem um sinal de que nada tinha acontecido.
+
+    Por isso o que se prova aqui e o EFEITO (a sessao morreu), e nao o codigo
+    devolvido: um 204 com a sessao viva seria a mesma mentira de antes, com
+    outro numero.
+    """
+    print('\n[8b] Logout por Bearer (gerenciador web)')
+    token = web.s.cookies.get_dict().get('SIMUTSESS', '')
+    if not token:
+        res.add('login', 'logout por Bearer', False, 'sem cookie de sessao para reusar')
+        return
+    try:
+        # Requisicao crua, fora da Session: com o pote de cookies junto nao se
+        # saberia qual dos dois cabecalhos o aparelho leu — que e a pergunta.
+        r = requests.get(web.base + '/logout', timeout=web.timeout,
+                         allow_redirects=False,
+                         headers={'Authorization': f'Bearer {token}'})
+        res.add('login', 'logout por Bearer responde 204', r.status_code == 204,
+                f'HTTP {r.status_code}')
+        res.add('login', 'logout por Bearer nao emite Set-Cookie',
+                'Set-Cookie' not in r.headers,
+                r.headers.get('Set-Cookie', '(ausente)')[:60])
+
+        r2 = requests.get(web.base + '/api/perms', timeout=web.timeout,
+                          headers={'Authorization': f'Bearer {token}'})
+        res.add('login', 'sessao invalidada apos logout por Bearer',
+                r2.status_code == 401, f'HTTP {r2.status_code}')
+
+        # Token que nao existe: mesma resposta. Logout nao e oraculo de sessao.
+        r3 = requests.get(web.base + '/logout', timeout=web.timeout,
+                          allow_redirects=False,
+                          headers={'Authorization': 'Bearer ' + '0' * 32})
+        res.add('login', 'logout por Bearer desconhecido tambem da 204',
+                r3.status_code == 204, f'HTTP {r3.status_code}')
+    except Exception as e:
+        res.add('login', 'logout por Bearer', False, str(e)[:100])
+    finally:
+        # A sessao acabou de ser encerrada de verdade: os testes seguintes
+        # precisam de uma nova, e o cookie velho aponta para um slot vazio.
+        web.s.cookies.clear()
+        ok, detail = web.login(user, password)
+        res.add('login', 'relogin apos logout por Bearer', ok, detail)
+
+
 def t_calib_shape(web, res):
     """GET /api/calib: every channel entry must carry the point-editor fields.
 
@@ -755,6 +806,7 @@ def main():
             else:
                 t_config_regression(web, res, is_admin)
 
+            t_logout_bearer(web, res, user, password)
             t_logout(web, res)
         else:
             print('\n!! login falhou — testes autenticados nao rodaram')

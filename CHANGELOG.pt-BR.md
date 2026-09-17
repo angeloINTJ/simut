@@ -6,6 +6,17 @@ Todas as mudanças notáveis do firmware SIMUT.
 
 ## Não lançado
 
+**O logout passa a funcionar para uma página de navegador — até aqui ele só
+parecia funcionar.** O `/logout` lia o cookie `SIMUTSESS` e mais nada, e uma
+página em outra origem não consegue mandar esse cookie: `Cookie` é nome de
+header proibido no Fetch Standard, e o que este aparelho emite sai
+`SameSite=Strict`. O gerenciador de frota pedia para encerrar a sessão, recebia
+302 e segurava um dos três slots pelos 15 min inteiros de ociosidade — sem
+nenhum jeito de saber. Agora ele lê a sessão como o `getAuthPerms` já lia, por
+um leitor só, para os dois não discordarem sobre o que é uma sessão; quem veio
+por `Authorization: Bearer` recebe 204 em vez de um redirecionamento para uma
+página HTML de login que não vai ler. 96 B de flash.
+
 ## v2.4.5-beta (2026-09-16)
 
 **E a origem passa a ser configurável pela rede, para uma frota não custar um

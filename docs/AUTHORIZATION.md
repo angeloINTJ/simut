@@ -144,7 +144,7 @@ These answer without a session. Each is on the `PUBLIC_ALLOWLIST` in
 
 | Route | Why it is safe open |
 |-------|---------------------|
-| `GET /login`, `GET /logout` | the login page and session teardown |
+| `GET /login`, `GET /logout` | the login page and session teardown — `/logout` ends **only the session whose own token it carries** (cookie or `Authorization: Bearer`), which is why presenting the token is authentication enough |
 | `GET /api/login_init` | issues the login nonce — the pre-auth step |
 | `POST /api/login` | the credential check itself; gated by the per-IP exponential lockout, not a prior session |
 | `POST /api/login_chpass` | forced first-login password change; gated by lockout + must-change |
