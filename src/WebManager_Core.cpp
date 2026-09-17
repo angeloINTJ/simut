@@ -8,6 +8,7 @@
  */
 
 #include "WebManager.h"
+#include "CorsOrigin.h"   /* isValidCorsOrigin — a mesma regra que o CLI usa */
 #include "WebUI_GZ.h"
 #include "LogManager.h"
 #include "TouchPriority.h"
@@ -23,6 +24,18 @@
  * comfortably than RSA-2048. */
 #define FILE_WEB_CERT "/config/web_cert.pem"
 #define FILE_WEB_KEY  "/config/web_key.pem"
+
+/* Origin allowed to talk to this device from a browser page served elsewhere —
+ * the fleet manager that runs as a single HTML page on the operator's PC. One
+ * line, e.g. "http://192.168.1.10:8080". Absent or empty = CORS off, which is
+ * the default and the behaviour of every build before this one.
+ *
+ * A file and not a config field on purpose: SystemConfig is a versioned binary
+ * struct with a checksum and a migration path, and this is one string the
+ * operator sets once per site. Under /config for the same three reasons the TLS
+ * material is — isSecretFsPath keeps /download away from it, `system format`
+ * clears it, and the OTA backup carries it. */
+#define FILE_CORS_ORIGIN "/config/cors.txt"
 
 using ReadGuard = StorageManager::ReadGuard;
 
@@ -82,9 +95,24 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
  _netRef->setServiceAdvert(webPort, false);
 #endif
 
+ /* CORS for the web fleet manager (framework override 2i). Read once, here,
+  * because the origin is only ever changed by a write that reboots the device
+  * (the serial CLI, or a file upload followed by a restart) — re-reading it per
+  * request would be a LittleFS open on the hot path for a string that cannot
+  * change under us. Empty = off, and off costs nothing. */
+ loadCorsOrigin( );
+ if (_corsOrigin.length( )) {
+  _server->setCorsOrigin(_corsOrigin);
+  LOG_CODE(LOG_INFO, "WEB", WEB_CORS_ORIGIN, (int)_corsOrigin.length( ), _corsOrigin);
+ }
+
  /* Authorization: /metrics Basic auth — a Prometheus scraper cannot run
-  * the login flow, so its credentials arrive as a header. */
- const char * headerkeys[] = {"Cookie", "Accept-Encoding", "Authorization"};
+  * the login flow, so its credentials arrive as a header.
+  * Origin: the login answers with the session token in the BODY only when the
+  * request came from the manager origin — see completeLogin( ). Collected
+  * unconditionally because collectHeaders takes the whole list at once and the
+  * cost is one empty String per request when CORS is off. */
+ const char * headerkeys[] = {"Cookie", "Accept-Encoding", "Authorization", "Origin"};
  size_t headerkeyssize = sizeof(headerkeys)/sizeof(char*);
  _server->collectHeaders(headerkeys, headerkeyssize);
 
@@ -272,6 +300,70 @@ void WebManager::pumpServer( ) {
  if (_serverIsHttps) { _serverHttps->handleClient( ); return; }
 #endif
  _serverHttp->handleClient( );
+}
+
+/* Reads /config/cors.txt into _corsOrigin, or leaves it empty.
+ *
+ * A file that fails validation logs and leaves CORS OFF. The alternative —
+ * falling back to something permissive — would turn a typo into "any page on
+ * the internet may drive this device through the browser of whoever opens it".
+ * Off is the safe failure here, and the log line is what keeps it from being a
+ * silent one. */
+void WebManager::loadCorsOrigin( ) {
+ String line;
+ {
+  ReadGuard rg(_storageRef);
+  if (!LittleFS.exists(FILE_CORS_ORIGIN)) return;
+  File f = LittleFS.open(FILE_CORS_ORIGIN, "r");
+  if (!f) return;
+  if (f.size( ) > 0 && f.size( ) <= 128) line = f.readStringUntil('\n');
+  f.close( );
+ }
+ line.trim( );          /* a trailing CR/LF from any editor is not an error */
+ if (line.length( ) == 0) return;
+
+ if (!isValidCorsOrigin(line)) {
+  LOG_CODE(LOG_WARN, "WEB", WEB_CORS_INVALID, (int)line.length( ),
+           "cors.txt: expected scheme://host[:port]");
+  return;
+ }
+ _corsOrigin = line;
+}
+
+/* Writes (or clears, on an empty string) /config/cors.txt. The serial console
+ * calls this: it is the door that does not need the manager page to already
+ * work, which is what makes it the door.
+ *
+ * Does NOT touch _corsOrigin or the running server. Half a change is worse than
+ * none here — the header the server emits is fixed when the listener is built,
+ * so a live device whose file said one thing and whose responses said another
+ * would be a page that works until the next reboot, or the reverse. The caller
+ * tells the operator to reload; the next boot reads the file. */
+bool WebManager::writeCorsOriginFile(const String& origin) {
+ if (origin.length( ) && !isValidCorsOrigin(origin)) return false;
+
+ /* ReadGuard numa ESCRITA, e nao por engano: apesar do nome, ele e o mutex do
+  * sistema de arquivos, e o que ele serializa e o acesso ao LittleFS entre os
+  * dois nucleos — o Core 1 grava historico sem avisar ninguem. Ha escritas no
+  * firmware que nao o tomam (o /api/calib e uma), e elas sao o caso mais
+  * arriscado, nao o modelo a seguir. Seguro aqui porque o unico chamador e o
+  * comando da console serial, que roda no Core 0 e nao segura o lock: uma
+  * aquisicao recursiva do mesmo nucleo cairia no caminho de "dono morto" do
+  * enterFlashReadLock e custaria 10 s de espera. */
+ ReadGuard rg(_storageRef);
+ if (origin.length( ) == 0) {
+  /* Absent, not empty: loadCorsOrigin( ) treats both as off, but a file that
+   * is not there is the honest way to say "never configured", and it is one
+   * less thing in a backup. Removing something that was never there is a
+   * success, not a failure — 'system cors off' twice must not read as broken. */
+  if (LittleFS.exists(FILE_CORS_ORIGIN)) LittleFS.remove(FILE_CORS_ORIGIN);
+  return true;
+ }
+ File f = LittleFS.open(FILE_CORS_ORIGIN, "w");
+ if (!f) return false;
+ const size_t written = f.print(origin);
+ f.close( );
+ return written == origin.length( );
 }
 
 bool WebManager::tlsCertFilesPresent( ) {
@@ -536,6 +628,42 @@ bool WebManager::handleCaptiveProbe( ) {
 }
 
 void WebManager::handleNotFound( ) {
+ /* CORS preflight, and it lands here by design rather than by accident: no
+  * route is registered for OPTIONS, so every OPTIONS falls through to the
+  * not-found handler, which makes this the one place that answers all of them.
+  *
+  * It has to be the FIRST thing in the function. Below, an unknown Host is
+  * answered with a 302 to /network (the captive-portal path), and a browser
+  * reading a redirect where it asked for a preflight treats the preflight as
+  * failed — every request the page makes would die before being sent.
+  *
+  * No authentication, and that is the spec, not a hole: a browser strips
+  * credentials from the preflight, so requiring them would make the preflight
+  * fail for everyone, always. The reply promises nothing — it says which
+  * methods and headers the real request may carry, and the real request still
+  * has to authenticate.
+  *
+  * Allow-Origin is not sent here: _prepareHeader already puts it on every
+  * response (framework override 2i), and a second copy makes the browser
+  * refuse. Authorization must be listed by name — the "*" wildcard famously
+  * does not cover it (Fetch Standard, 4.10.2). Max-Age spares this device one
+  * preflight per request per 10 minutes, which on a box that serves one client
+  * at a time is the difference between a fleet page that reads and one that
+  * queues. */
+ if (_server->method( ) == HTTP_OPTIONS) {
+  if (_corsOrigin.length( )) {
+   _server->sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+   _server->sendHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
+   _server->sendHeader("Access-Control-Max-Age", "600");
+   _server->send(204, "text/plain", "");
+  } else {
+   /* CORS off: say so with a status instead of a 404, so the page can tell
+    * "this device has not been enabled for the manager" from "wrong path". */
+   _server->send(405, "text/plain", "CORS disabled");
+  }
+  return;
+ }
+
  if (handleCaptiveProbe( )) return;
 
  String host = _server->hostHeader( );

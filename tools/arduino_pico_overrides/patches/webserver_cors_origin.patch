@@ -1,0 +1,70 @@
+--- a/libraries/WebServer/src/HTTPServer.h
++++ b/libraries/WebServer/src/HTTPServer.h
+@@ -177,6 +177,24 @@
+     void enableCORS(bool value = true);
+     void enableCrossOrigin(bool value = true);
+ 
++    /* SIMUT override — CORS restrito a UMA origem.
++     * O enableCORS( ) de fábrica responde "*" nos tres cabecalhos, e "*" nao
++     * serve a este projeto por dois motivos independentes: o operador quer a
++     * pagina de gestao liberada e mais ninguem, e o coringa de
++     * Access-Control-Allow-Headers NAO cobre Authorization (Fetch Standard,
++     * 4.10.2) — ou seja, com "*" o preflight de toda requisicao autenticada
++     * falha. Com uma origem so, a resposta nao varia por requisicao e nao
++     * precisa de Vary: Origin; o cabecalho vai igual para todo mundo e quem
++     * compara e o navegador.
++     * Origem vazia (o padrao) = desligado: comportamento identico ao upstream,
++     * e nenhum byte a mais por resposta. */
++    void setCorsOrigin(const String& origin) {
++        _corsOrigin = origin;
++    }
++    const String& corsOrigin( ) const {
++        return _corsOrigin;
++    }
++
+     /* SIMUT override — opt-in HTTP keep-alive.
+      * Upstream sends "Connection: close" on every response, so each request
+      * tears the connection down — over TLS that is a full ~510 ms handshake
+@@ -282,6 +300,7 @@
+     };
+ 
+     bool        _corsEnabled;
++    String      _corsOrigin;   /* SIMUT override — vazia = CORS desligado */
+ 
+     /* SIMUT override — keep-alive state (see enableKeepAlive above). */
+     bool        _keepAliveEnabled = false;
+--- a/libraries/WebServer/src/HTTPServer.cpp
++++ b/libraries/WebServer/src/HTTPServer.cpp
+@@ -366,7 +366,31 @@
+         sendHeader(String(F("Accept-Ranges")), String(F("none")));
+         sendHeader(String(F("Transfer-Encoding")), String(F("chunked")));
+     }
+-    if (_corsEnabled) {
++    /* SIMUT override — CORS restrito a UMA origem (setCorsOrigin).
++     *
++     * Sai daqui, e nao de um hook por requisicao, porque _prepareHeader e o
++     * UNICO ponto por onde toda resposta passa — inclusive os 401, 403 e 404.
++     * Isso nao e detalhe: sem o cabecalho numa resposta de erro, o navegador
++     * recusa a resposta inteira e o JavaScript ve "falha de rede", nao "401".
++     * Uma pagina que nao distingue credencial recusada de aparelho fora do ar
++     * manda cacar firewall onde so falta relogar.
++     *
++     * Um hook (addHook) tambem nao serviria: ele roda ANTES do parse dos
++     * cabecalhos, e o que ele empilhasse em _responseHeaders ficaria pendurado
++     * quando a requisicao morre sem resposta (metodo desconhecido, corpo
++     * malformado) — a requisicao seguinte sairia com Allow-Origin DUPLICADO, e
++     * duas copias do cabecalho fazem o navegador bloquear. _responseHeaders so
++     * e zerado aqui embaixo, no fim deste metodo.
++     *
++     * So o Allow-Origin vai em toda resposta. A triade de preflight
++     * (Allow-Methods, Allow-Headers, Max-Age) o navegador so le na resposta ao
++     * OPTIONS, e Expose-Headers so interessa a quem emite cabecalho proprio:
++     * os dois sao emitidos pelo handler que precisa deles, para nao cobrar
++     * ~150 B de todas as outras respostas de um aparelho cujo record TLS tem
++     * 4 KB. */
++    if (_corsOrigin.length()) {
++        sendHeader(String(FPSTR("Access-Control-Allow-Origin")), _corsOrigin);
++    } else if (_corsEnabled) {
+         sendHeader(String(FPSTR("Access-Control-Allow-Origin")), String("*"));
+         sendHeader(String(FPSTR("Access-Control-Allow-Methods")), String("*"));
+         sendHeader(String(FPSTR("Access-Control-Allow-Headers")), String("*"));

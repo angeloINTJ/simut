@@ -77,6 +77,18 @@ public:
 	uint32_t getCachedFlashTotal( ) const { return _cachedFsTotalBytes; }
 
 
+
+	/** Writes /config/cors.txt, or removes it when given an empty string.
+	 * False when the origin is malformed or the write fails. Takes effect at
+	 * the next boot — the running listener keeps the header it was built with,
+	 * so the caller must tell the operator to reload. */
+	bool writeCorsOriginFile(const String& origin);
+
+	/** The origin CORS is currently serving, or empty when off. What the
+	 * RUNNING server is doing, which after a write is not yet what the file
+	 * says. */
+	const String& corsOrigin( ) const { return _corsOrigin; }
+
 	 /* Touch priority is now checked via TouchPriority::isActive( ). */
 
 private:
@@ -89,6 +101,7 @@ private:
 	 * to show the keep-alive switch. Presence only; validity is beginServer's
 	 * concern. */
 	bool tlsCertFilesPresent( );
+
 
 	/* The active server, used through its HTTPServer base for every request
 	 * handler (send/arg/on/sendHeader/...). It is one of the two concrete
@@ -111,6 +124,16 @@ private:
 	void pumpServer( );
 	/** Loads the web server cert+key from /config; false if absent/invalid. */
 	bool loadServerCert( );
+	/** Reads /config/cors.txt into _corsOrigin, or leaves it empty (CORS off).
+	 *  A malformed file logs WEB_CORS_INVALID and leaves CORS off — it never
+	 *  falls back to something permissive. */
+	void loadCorsOrigin( );
+	/** Origin allowed to drive this device from a browser page served
+	 *  elsewhere — the web fleet manager. Empty = CORS off, the default and
+	 *  the behaviour of every build before 2.4.5. Read once in begin( ):
+	 *  only a write that reboots the device changes it, so re-reading it per
+	 *  request would be a flash open on the hot path. */
+	String _corsOrigin;
 	YieldCallback _yieldCb = nullptr;
 	LightYieldCallback _lightYieldCb = nullptr;
 	ActivityCallback _activityCb = nullptr;
@@ -290,6 +313,11 @@ private:
 	};
 
 	void clearStaleSessions( );
+
+	/** The session token as it arrived, normalised to `SIMUTSESS=<token>`:
+	 *  the cookie, or `Authorization: Bearer`. Empty when neither is there.
+	 *  One reader for getAuthPerms and handleLogout — see the comment there. */
+	String sessionTokenHeader( );
 
 	uint16_t getAuthPerms( );
 	bool isPasswordChangeRequired( );

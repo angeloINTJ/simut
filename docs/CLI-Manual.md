@@ -430,6 +430,7 @@ nem `configure terminal`, com este conjunto:
 | `system https off [confirm]` | apaga o par TLS e volta para HTTP |
 | `system ssid <nome>` | grava o SSID **na hora** (sem `write memory`); `reload confirm` para reconectar |
 | `system pass <senha>` | grava a senha do Wi-Fi na hora; idem |
+| `system cors <origem>` \| `off` | grava em `/config/cors.txt` a origem da página do gerenciador web (ex.: `http://192.168.1.10:8080`); vale no próximo boot, então `reload confirm` |
 | `reload [confirm]` | reinicia |
 | `ap` | sobe o ponto de acesso de configuração |
 | `help` | esta lista, no idioma do pack instalado |

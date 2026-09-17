@@ -29,6 +29,26 @@ void WebManager::clearStaleSessions( ) {
 	}
 }
 
+/* The session token travels as the SIMUTSESS cookie or, for a client without a
+ * cookie jar (a fleet manager over a bare HTTP library, or a browser page on
+ * another origin), as `Authorization: Bearer <token>`. Same token, same slots,
+ * same idle timeout — a second transport for the session, not a second kind of
+ * session. `Basic` stays with /metrics, which has its own reader.
+ *
+ * It lives in one function because getAuthPerms and handleLogout have to agree
+ * on what a session is. They did not: logout read only the cookie, so a page
+ * that authenticates by Bearer asked to end its session, got a 302, and kept
+ * the slot for the whole 15 min idle timeout while believing it had given it
+ * back. Two readers, one of them half-blind, is the shape of that defect. */
+String WebManager::sessionTokenHeader( ) {
+	if (_server->hasHeader("Cookie")) return _server->header("Cookie");
+	if (_server->hasHeader("Authorization")) {
+		String a = _server->header("Authorization");
+		if (a.startsWith("Bearer ")) return "SIMUTSESS=" + a.substring(7);
+	}
+	return "";
+}
+
 uint16_t WebManager::getAuthPerms( ) {
 	/* Every authenticated request passes here, whatever it answers with — and
 	 * "whatever it answers with" is the point: most handlers reply through the
@@ -46,18 +66,7 @@ uint16_t WebManager::getAuthPerms( ) {
 	 * cookie matched a live session (V-03). */
 	clearStaleSessions( );
 
-	/* The session token travels as the SIMUTSESS cookie or, for a client
-	 * without a cookie jar (a fleet manager over a bare HTTP library), as
-	 * `Authorization: Bearer <token>`. Same token, same slots, same idle
-	 * timeout — a second transport for the session, not a second kind of
-	 * session. `Basic` stays with /metrics, which has its own reader. */
-	String bearer;
-	if (_server->hasHeader("Cookie")) {
-		bearer = _server->header("Cookie");
-	} else if (_server->hasHeader("Authorization")) {
-		String a = _server->header("Authorization");
-		if (a.startsWith("Bearer ")) bearer = "SIMUTSESS=" + a.substring(7);
-	}
+	String bearer = sessionTokenHeader( );
 	if (bearer.length( ) == 0) return 0;
 
 	for (int i = 0; i < 3; i++) {
@@ -505,8 +514,35 @@ void WebManager::completeLogin(int slot, int foundId, int ls, const String& u) {
 	_server->sendHeader("Set-Cookie", cookieFlags);
 
 	const char* redirect = cfg.users[foundId].mustChangePassword ? "/force_chpass" : "/";
-	char resp[64];
-	snprintf(resp, sizeof(resp), "{\"ok\":true,\"redirect\":\"%s\"}", redirect);
+
+	/* The session token in the BODY, for the web fleet manager — and only for
+	 * it. A browser can never read Set-Cookie from JavaScript: the Fetch
+	 * Standard puts it on the forbidden response-header list, so not even
+	 * Access-Control-Expose-Headers reaches it. Nor can the page ride the cookie
+	 * itself, because it goes out SameSite=Strict and a cross-site request drops
+	 * it. So a page hosted anywhere but on this device has exactly one way to
+	 * hold a session: be handed the token and send it back as
+	 * Authorization: Bearer (WebManager_Auth.cpp:57).
+	 *
+	 * Gated on the request's Origin matching the configured one, rather than on
+	 * CORS merely being enabled. The device's own pages POST this same route,
+	 * and a browser puts an Origin on any POST — so their Origin is this device
+	 * and they do not match, and the token stays where it is today: in an
+	 * HttpOnly cookie a cross-site script cannot exfiltrate. What the manager
+	 * origin gets is not a weaker session, it is the only session it can have.
+	 *
+	 * A device with no CORS origin configured answers exactly as before. */
+	const bool fromManager = _corsOrigin.length( ) &&
+	                         _server->hasHeader("Origin") &&
+	                         _server->header("Origin") == _corsOrigin;
+
+	char resp[128];
+	if (fromManager) {
+		snprintf(resp, sizeof(resp), "{\"ok\":true,\"redirect\":\"%s\",\"token\":\"%s\"}",
+		         redirect, newToken.c_str( ));
+	} else {
+		snprintf(resp, sizeof(resp), "{\"ok\":true,\"redirect\":\"%s\"}", redirect);
+	}
 	_server->send(200, "application/json", resp);
 }
 
@@ -562,10 +598,21 @@ void WebManager::handleApiLogin( ) {
 }
 
 void WebManager::handleLogout( ) {
-	if (_server->hasHeader("Cookie")) {
-		String cookie = _server->header("Cookie");
+	/* Reads the session the same way every authenticated route does, and that
+	 * is the whole change: a browser page on another origin CANNOT send this
+	 * as a cookie. `Cookie` is a forbidden header name in the Fetch Standard,
+	 * and the cookie this device sets is SameSite=Strict, so it never rides
+	 * along from another origin either. Before this, the fleet manager's
+	 * logout freed nothing and said nothing — the worst pair.
+	 *
+	 * No authentication gate here, and there never was one: presenting a live
+	 * token is the authentication, and the only thing it buys is ending that
+	 * very session. */
+	const bool byBearer = !_server->hasHeader("Cookie") && _server->hasHeader("Authorization");
+	String session = sessionTokenHeader( );
+	if (session.length( )) {
 		for (int i = 0; i < 3; i++) {
-			if (_activeSessions[i].token != "" && cookie.indexOf("SIMUTSESS=" + _activeSessions[i].token) != -1) {
+			if (_activeSessions[i].token != "" && session.indexOf("SIMUTSESS=" + _activeSessions[i].token) != -1) {
 				LOG_CODE(LOG_INFO, "SEC", SEC_LOGIN_SUCCESS, 0, String(TRL("Logout: ")) + _activeSessions[i].username);
 
 				memset((void*)_activeSessions[i].token.begin( ), 0, _activeSessions[i].token.length( ));
@@ -578,6 +625,18 @@ void WebManager::handleLogout( ) {
 	_currentUserId = -1;
 	_currentUserName = "";
 	_currentUserPerms = 0;
+
+	if (byBearer) {
+		/* A 302 to the HTML login page is for a browser that is navigating.
+		 * An API client is not navigating: following the redirect costs this
+		 * device a second request — and it serves one client at a time — to
+		 * fetch a page nobody will look at. There is no cookie to expire on
+		 * this path either, so the Set-Cookie would be a header about a thing
+		 * that never existed. 204 says done, and stops. */
+		_server->sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+		_server->send(204, "text/plain", "");
+		return;
+	}
 
 	_server->sendHeader("Set-Cookie", "SIMUTSESS=0; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict");
 	_server->sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");

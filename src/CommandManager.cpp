@@ -359,6 +359,7 @@ uint8_t getCommandModeMask(DemandType t) {
  case CMD_SET_SYS_NAME:      return CLI_VALID_CONFIG;
  case CMD_SET_WIFI_SSID:     return CLI_VALID_CONFIG;
  case CMD_SET_WIFI_PASS:     return CLI_VALID_CONFIG;
+ case CMD_SET_CORS_ORIGIN:   return CLI_VALID_CONFIG;
  case CMD_SET_TIMEZONE:      return CLI_VALID_CONFIG;
  case CMD_SET_NTP:           return CLI_VALID_CONFIG;
  case CMD_SET_TEL_SERVER:    return CLI_VALID_CONFIG;
@@ -533,6 +534,7 @@ void CommandManager::printModeHelp( ) {
   showIf(CMD_SET_DNS_CFG,       "  dns <auto|manual> [ip1] [ip2]");
   showIf(CMD_SET_NTP_ENABLED,   "  ntp <on|off>");
   showIf(CMD_SET_WEB_PORT,      "  web port <1..65535>");
+  showIf(CMD_SET_CORS_ORIGIN,   "  system cors <http://host[:porta]|off>");
   consolePrintln(pt ? "  --- Telemetria ---" : "  --- Telemetry ---");
   showIf(CMD_SET_TEL_SERVER,    "  tel server <url>");
   showIf(CMD_SET_TEL_PORT,      "  tel port <n>");

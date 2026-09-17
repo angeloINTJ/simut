@@ -91,6 +91,18 @@ fi
 hits=$(git grep -I -n -E \
   "(PASS|PASSWD|PASSWORD|SENHA|SECRET|TOKEN|API_?KEY)[A-Za-z_]*['\"][[:space:]]*,[[:space:]]*['\"][A-Za-z0-9][^'\"]{5,}['\"]|\([[:space:]]*['\"]admin['\"][[:space:]]*,[[:space:]]*['\"][A-Za-z0-9][^'\"]{5,}['\"][[:space:]]*\)" \
   -- . 2>/dev/null || true)
+# A MIME type is never a password, and this rule used to think one could be.
+# `"/force_chpass": ("FORCE_CHPASS_PAGE", "text/html")` in tools/webui_preview.py
+# matched on both halves at once: the keyword is allowed to sit anywhere inside
+# the name (CHPASS, then _PAGE), and any six-character value counts. The fix is
+# on the value side and it is deliberately narrow — only the seven registered
+# top-level types, not "anything with a slash", because a rule that drops every
+# a/b value is a rule an attacker can name their way past. A credential that
+# happens to equal `application/json` is not a credible loss; one that equals
+# `prod/db-key` still fails the gate, as it should.
+hits=$(printf '%s\n' "$hits" | grep -vE \
+  "['\"][[:space:]]*,[[:space:]]*['\"](text|application|image|audio|video|font|multipart)/[A-Za-z0-9.+-]+['\"]" \
+  || true)
 if [ -n "$hits" ] && [ -s "$ALLOW" ]; then
   while IFS= read -r ok; do
     [ -z "$ok" ] && continue

@@ -11,6 +11,7 @@
 #include "AppManager.h"
 #include "CommandManager.h"
 #include "CommandParser.h"
+#include "CorsOrigin.h" /* isValidCorsOrigin — a mesma regra que o WebManager usa */
 #include "DisplayManager.h"
 #include "LogManager.h"
 #include "NetworkManager.h"
@@ -521,6 +522,51 @@ void AppManager::executeCommand(CliDemand cmd) {
   : "Pass saved. Run 'reload confirm' to reconnect.");
  break;
  }
+
+ /* 'system cors <origem>' / 'system cors off' — libera a pagina do gerenciador
+  * de frota a falar com este aparelho pelo navegador. Sem isso o navegador
+  * bloqueia cada chamada dela, e nao ha nada a instalar no PC que resolva:
+  * quem libera e o servidor. Vai para um arquivo e nao para a SystemConfig
+  * porque a config e struct binaria versionada, e isto e uma string que o
+  * operador escreve uma vez por instalacao. */
+ case CMD_SET_CORS_ORIGIN: {
+ const bool pt = _cmdMgr->isPt( );
+ if (!_webMgr) {
+ _cmdMgr->printError(pt ? "Servidor web nao iniciado" : "Web server not started");
+ break;
+ }
+ String origin(cmd.strVal1);
+ origin.trim( );
+ /* 'off' e a palavra, e nao um argumento vazio: 'system cors' sem argumento e
+  * quase sempre alguem que esqueceu de colar a origem, e apagar a
+  * configuracao de quem so digitou pela metade seria o contrario do pedido. */
+ const bool clearing = origin.equalsIgnoreCase("off");
+ if (origin.length( ) == 0) {
+ _cmdMgr->printError(pt
+  ? "Uso: system cors http://host[:porta]  |  system cors off"
+  : "Usage: system cors http://host[:port]  |  system cors off");
+ break;
+ }
+ if (clearing) origin = "";
+ else if (!isValidCorsOrigin(origin)) {
+ _cmdMgr->printError(pt
+  ? "Origem invalida. Esperado scheme://host[:porta], sem barra no fim (max 64)"
+  : "Invalid origin. Expected scheme://host[:port], no trailing slash (max 64)");
+ break;
+ }
+ if (!_webMgr->writeCorsOriginFile(origin)) {
+ _cmdMgr->printError(pt ? "Falha ao gravar /config/cors.txt"
+  : "Failed to write /config/cors.txt");
+ break;
+ }
+ _cmdMgr->printSuccess(clearing
+  ? (pt ? "CORS desligado. Use 'reload confirm' para aplicar."
+        : "CORS disabled. Run 'reload confirm' to apply.")
+  : (pt ? "Origem salva. Use 'reload confirm' para aplicar."
+        : "Origin saved. Run 'reload confirm' to apply."));
+ break;
+ }
+
  case CMD_RESET_ADMIN:
  cmdHandleResetAdmin(cmd, cfg, changed); break;
 

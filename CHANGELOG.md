@@ -6,6 +6,104 @@ All notable changes to SIMUT firmware.
 
 ## Unreleased
 
+## v2.4.6-beta (2026-09-16)
+
+**The embedded web interface follows the Ângulo, and it fits: 2.5 kB less
+flash.** The seventeen colour roles by function in both themes, a 4px grid,
+three radii, one accent, a line before a shadow, labels without uppercasing,
+stroke icons in an SVG sprite instead of emoji, and the theme through
+`data-theme` with the system preference as the default. What paid for the
+rework on an image with 1.1 kB to spare: the tokens left the nine per-page
+"anti-flash" copies and now travel in `/lang.js`, which is synchronous in the
+`<head>` — one copy, plus two inline in the login and first-password pages,
+which do not load it. The 57 light-theme override rules are gone: the tokens do
+that work. Shared rules (card, field, button, table, badge, banner, bar, modal,
+toast) live in the common sheet and each page keeps only what is its own. The
+13 gzipped blocks went from 98,458 to 95,985 B; the linker from 1,027,220 to
+1,024,748 B; the `.bin` from 1,039,252 to 1,036,780 B — 3,604 B under the OTA
+ceiling. Deviations from the standard are written down in §12 of `ANGULO.md`.
+Proven on the bench (192.168.3.24, 2.4.3-beta → 2.4.5-beta by OTA on port
+8081): `web_test_suite` 62 passed, 0 failed; `inline_tokens_check` with no
+divergence; the pt-BR pack loaded and every served page captured in both themes.
+
+**Logout works for a page in a browser, which until now it only appeared to.**
+`/logout` read the `SIMUTSESS` cookie and nothing else, and a page on another
+origin cannot send that cookie: `Cookie` is a forbidden header name in the Fetch
+Standard, and the one this device sets is `SameSite=Strict`. So the fleet
+manager asked to end its session, got a 302, and held one of the three session
+slots for the full 15-minute idle timeout — with no way to tell. It now reads
+the session the way `getAuthPerms` already did, through one shared reader, so
+the two cannot disagree about what a session is; a caller that came by
+`Authorization: Bearer` gets a 204 instead of a redirect to an HTML login page
+it is not going to read. 96 B of flash.
+
+## v2.4.5-beta (2026-09-16)
+
+**And the origin can be set over the network, so a fleet is not a day of
+cabling.** `system cors` on the serial console configures one device, with a
+cable, in front of it; an install with dozens of them is an afternoon. The `sys`
+section of `commit_all` gained a `cors` field, so the phone app can do the fleet
+— and the app is the right tool for it because it is not a browser: it has no
+origin policy to obey, and its session comes from the cookie. That asymmetry is
+also the rescue path for anyone who points the origin at the wrong address and
+locks the page out.
+
+The obvious route was a file upload, and it stays closed: `/api/upload` refuses
+any destination under `/config`, the credential store, because of two security
+findings. `commit_all` costs nothing to reuse — per-section authorisation, the
+`_dry=1` rehearsal, and the reboot the origin needs anyway — and the field is
+diverted to the same file and the same whitelist the console writes. Nothing is
+written under `_dry`: a rehearsal that leaves a side effect on disk is a
+half-truth. 232 B of flash.
+
+**A page on the operator's PC can now manage the fleet from a browser, and the
+device is what makes it possible.** Nothing is installed on that PC: it opens a
+URL. What stood between the two was not the network — that part was already
+solved by routing between VLANs — but the browser's own rule: a page served from
+one origin cannot read a response from another unless the server says it may.
+Every call the page made was blocked, and no amount of work on the PC side can
+change that. The server is what grants it.
+
+`system cors <origin>` on the serial console writes the one origin this device
+answers to, and `system cors off` clears it. Absent, which is how every device
+ships and how every existing device stays, the firmware behaves exactly as
+before — byte for byte, and at no cost: the header only exists when the file
+does.
+
+Three details are the whole feature, and each one is a failure that would
+otherwise be debugged in the field:
+
+**The header goes on every response, including the errors.** A 401 without it is
+not read by the browser as "wrong password" — it is discarded, and the page sees
+a network failure. Someone would go looking for a firewall when a password was
+all that was wrong.
+
+**`OPTIONS` is answered before anything else.** A browser sends a preflight
+before any authenticated request, and this device used to answer it with a
+redirect to the setup page — which a browser reads as a failed preflight, so the
+real request is never sent. The preflight carries no credentials, by
+specification, so it is answered without any: what it promises is only which
+methods and headers the real request may carry, and the real request still has
+to log in.
+
+**The login returns the session token in the body — but only to that origin.** A
+browser can never read `Set-Cookie` from JavaScript, and the session cookie goes
+out `SameSite=Strict`, which is exactly what stops it from being sent from
+another origin. So a page hosted anywhere but on this device had no way at all to
+hold a session. It is gated on the request's `Origin` matching the configured
+one, so the device's own pages are unaffected and their token stays where it is
+today: in an `HttpOnly` cookie a cross-site script cannot exfiltrate.
+
+The origin is validated as a whitelist on the way in and on the way out, because
+it ends up verbatim inside a response header: a CR or LF in the middle of it
+would end the header and let whoever wrote the file append headers of their own
+to every response the device sends. A wildcard `*` is refused — that is the thing
+this mechanism exists to avoid — and so is a trailing slash, which a browser
+would compare against its own origin, find different, and block.
+
+Cost: 2.232 B of flash, 0 of RAM, and nothing at all on a device that never sets
+an origin.
+
 ## v2.4.1-beta (2026-09-08)
 
 **A lost Wi-Fi link now reconnects on its own, instead of waiting for someone

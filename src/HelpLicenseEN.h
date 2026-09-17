@@ -54,6 +54,10 @@ system ssid <name>
  WiFi network name (SSID)
 system pass <pass>
  WiFi password
+system cors <origin|off>
+ Let the web fleet manager reach this
+ device from a browser, e.g.
+ system cors http://192.168.1.10:8080
 reload [confirm]
  Reboot now
 ap

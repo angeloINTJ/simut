@@ -7,6 +7,7 @@
  * @license MIT License
  */
 #include "WebManager.h"
+#include "CorsOrigin.h"   /* isValidCorsOrigin — a mesma regra do CLI e do boot */
 #include "ParseFloat.h"
 #include "WebJsonSlice.h"
 #include "WebCommitSections.h"
@@ -793,6 +794,36 @@ void WebManager::handleApiCommitAll( ) {
 				if (isValidCfgString(v.c_str( ), dstSize - 1)) safeCopy(dst, v.c_str( ), dstSize);
 				else rejectField(k);
 			};
+
+			/* `cors`: a origem que o gerenciador web usa para falar com este
+			 * aparelho. Entra pela seção `sys` como os outros campos de
+			 * configuração — e não pela SystemConfig, que é struct binária
+			 * versionada com checksum: isto é uma string que o operador
+			 * escreve uma vez por instalação, e o destino dela é
+			 * /config/cors.txt, o mesmo arquivo que a console serial grava.
+			 *
+			 * **É o único caminho de rede para configurar o CORS, e existe por
+			 * isso.** O `/api/upload` recusa qualquer destino sob /config (é a
+			 * loja de credenciais — achados A-4 e ACH-04), e abrir aquela porta
+			 * para escrever uma linha de texto seria trocar um guard de
+			 * segurança por uma conveniência. A console serial resolve um
+			 * aparelho; este campo resolve uma frota, pelo app, que não sofre
+			 * política de origem.
+			 *
+			 * "off" ou string vazia apagam o arquivo. E **nada é escrito sob
+			 * `_dry`**: o ensaio promete não gravar, e um efeito colateral em
+			 * disco faria dessa promessa uma meia-verdade. */
+			if (has("cors")) {
+				if (!jsonValueIsString(sys, "cors")) {
+					rejectField("cors");
+				} else {
+					String o = getStr("cors");
+					o.trim( );
+					const bool limpar = (o.length( ) == 0 || o.equalsIgnoreCase("off"));
+					if (!limpar && !isValidCorsOrigin(o)) rejectField("cors");
+					else if (!dry && !writeCorsOriginFile(limpar ? String("") : o)) rejectField("cors");
+				}
+			}
 
 			/* Applies each field. */
 			if (has("name")) {

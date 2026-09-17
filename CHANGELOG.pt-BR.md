@@ -6,6 +6,105 @@ Todas as mudanças notáveis do firmware SIMUT.
 
 ## Não lançado
 
+## v2.4.6-beta (2026-09-16)
+
+**A interface web embarcada passa a seguir o Ângulo, e ela cabe: 2,5 kB a menos
+de flash.** Os dezessete papéis de cor por função nos dois temas, grade de 4px,
+três raios, uma cor de destaque, linha antes de sombra, rótulos sem caixa alta,
+ícones de traço num sprite SVG no lugar dos emoji, e o tema por `data-theme` com
+a preferência do sistema como padrão. O que pagou a reforma numa imagem com
+1,1 kB de folga: os tokens saíram das nove cópias "anti-piscada" por página e
+passaram a viajar no `/lang.js`, que é síncrono no `<head>` — uma cópia só, mais
+duas inline no login e na primeira senha, que não o carregam. As 57 regras de
+override do tema claro morrem: os tokens fazem o trabalho. As regras
+compartilhadas (cartão, campo, botão, tabela, selo, faixa, barra, modal, toast)
+moram na folha comum e cada página guarda só o que é dela. Os 13 blocos
+gzipados foram de 98.458 para 95.985 B; o linker de 1.027.220 para 1.024.748 B;
+o `.bin` de 1.039.252 para 1.036.780 B, 3.604 B sob o teto do OTA. Os desvios do
+padrão estão registrados no §12 do `ANGULO.md`. Provado na bancada
+(192.168.3.24, 2.4.3-beta → 2.4.5-beta por OTA na porta 8081): `web_test_suite`
+62 passaram, 0 falharam; `inline_tokens_check` sem divergência; pack pt-BR
+carregado e as páginas servidas pelo aparelho capturadas nos dois temas.
+
+**O logout passa a funcionar para uma página de navegador — até aqui ele só
+parecia funcionar.** O `/logout` lia o cookie `SIMUTSESS` e mais nada, e uma
+página em outra origem não consegue mandar esse cookie: `Cookie` é nome de
+header proibido no Fetch Standard, e o que este aparelho emite sai
+`SameSite=Strict`. O gerenciador de frota pedia para encerrar a sessão, recebia
+302 e segurava um dos três slots pelos 15 min inteiros de ociosidade — sem
+nenhum jeito de saber. Agora ele lê a sessão como o `getAuthPerms` já lia, por
+um leitor só, para os dois não discordarem sobre o que é uma sessão; quem veio
+por `Authorization: Bearer` recebe 204 em vez de um redirecionamento para uma
+página HTML de login que não vai ler. 96 B de flash.
+
+## v2.4.5-beta (2026-09-16)
+
+**E a origem passa a ser configurável pela rede, para uma frota não custar um
+dia de cabo.** O `system cors` na console serial resolve um aparelho, com cabo,
+na frente dele; numa instalação com dezenas isso é uma tarde. A seção `sys` do
+`commit_all` ganhou o campo `cors`, e assim o app do celular resolve a frota — e
+o app é a ferramenta certa porque ele não é um navegador: não tem política de
+origem para obedecer, e a sessão dele vem do cookie. É a mesma assimetria que
+serve de resgate para quem apontar a origem para o endereço errado e trancar a
+página para fora.
+
+O caminho óbvio era enviar um arquivo, e ele continua fechado: o `/api/upload`
+recusa qualquer destino sob `/config`, a loja de credenciais, por causa de dois
+achados de segurança. O `commit_all` não custa nada para reaproveitar —
+autorização por seção, o ensaio `_dry=1`, e o reinício que a origem precisa de
+qualquer forma —, e o campo é desviado para o mesmo arquivo e a mesma lista
+branca que a console escreve. Nada é gravado sob `_dry`: um ensaio que deixa
+efeito colateral em disco é meia-verdade. 232 B de flash.
+
+**Uma página no PC do operador agora gerencia a frota pelo navegador, e é o
+aparelho que torna isso possível.** Nada é instalado nesse PC: ele abre uma URL.
+O que estava no meio não era a rede — essa parte já estava resolvida pelo
+roteamento entre VLANs —, era a regra do próprio navegador: uma página servida
+de uma origem não pode ler a resposta de outra, a menos que o servidor diga que
+pode. Toda chamada da página era bloqueada, e não há trabalho nenhum do lado do
+PC que mude isso. Quem libera é o servidor.
+
+`system cors <origem>` na console serial grava a única origem que este aparelho
+atende, e `system cors off` apaga. Ausente, que é como todo aparelho sai de
+fábrica e como todo aparelho já instalado continua, o firmware se comporta
+exatamente como antes — byte por byte, e sem custo: o cabeçalho só existe quando
+o arquivo existe.
+
+Três detalhes são o recurso inteiro, e cada um deles é uma falha que sem isso
+seria depurada em campo:
+
+**O cabeçalho vai em toda resposta, inclusive nos erros.** Um 401 sem ele não é
+lido pelo navegador como "senha errada" — é descartado, e a página vê falha de
+rede. Alguém iria caçar firewall onde só faltava a senha certa.
+
+**O `OPTIONS` é respondido antes de qualquer outra coisa.** O navegador manda um
+preflight antes de toda requisição autenticada, e este aparelho respondia a ele
+com um redirecionamento para a página de configuração — que o navegador lê como
+preflight falhado, e aí a requisição de verdade nunca sai. O preflight não leva
+credencial, por especificação, então é respondido sem nenhuma: o que ele promete
+é só quais métodos e cabeçalhos a requisição real pode carregar, e a requisição
+real ainda precisa se autenticar.
+
+**O login devolve o token da sessão no corpo — mas só para aquela origem.** Um
+navegador nunca consegue ler `Set-Cookie` pelo JavaScript, e o cookie de sessão
+sai `SameSite=Strict`, que é exatamente o que impede que ele seja mandado de
+outra origem. Ou seja, uma página hospedada em qualquer lugar que não fosse o
+próprio aparelho não tinha forma alguma de manter sessão. A entrega é
+condicionada ao `Origin` da requisição casar com o configurado, então as páginas
+do próprio aparelho não mudam em nada e o token delas continua onde está hoje:
+num cookie `HttpOnly` que script de outro site não consegue exfiltrar.
+
+A origem é validada por lista branca na entrada e na saída, porque ela termina
+literalmente dentro de um cabeçalho de resposta: um CR ou LF no meio dela
+encerraria o cabeçalho e deixaria quem escreveu o arquivo acrescentar cabeçalhos
+próprios a toda resposta que o aparelho manda. O coringa `*` é recusado — é
+justamente o que este mecanismo existe para evitar — e a barra no fim também,
+que o navegador compararia com a própria origem, acharia diferente, e
+bloquearia.
+
+Custo: 2.232 B de flash, 0 de RAM, e nada num aparelho que nunca configura
+origem.
+
 ## v2.4.1-beta (2026-09-08)
 
 **Um Wi-Fi que cai agora reconecta sozinho, em vez de esperar alguém

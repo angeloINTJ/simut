@@ -728,6 +728,7 @@ Configuration lives in the web UI.
 | `system factory` | Restore factory defaults |
 | `system ssid <name>` | Set the Wi-Fi network name — **saved immediately** |
 | `system pass <secret>` | Set the Wi-Fi password — **saved immediately** |
+| `system cors <origin>` / `off` | Allow the web fleet manager page at that origin to reach this device from a browser — **written immediately**, takes effect on the next boot |
 | `ap` | Start the setup access point — **WPA2**, key printed on this console |
 | `reload` | Reboot |
 | `help` | List these |
@@ -847,7 +848,7 @@ brackets.
 | `/api/login` | POST | `user`, `pass` (sha256, latin-1), `nonce` |
 | `/api/login_chpass` | POST | Change password at login |
 | `/api/force_chpass` | POST | Complete a forced password change |
-| `/logout` | GET | End the session |
+| `/logout` | GET | End the session. Reads the `SIMUTSESS` cookie **or** `Authorization: Bearer` — a browser page on another origin can only send the latter. Answers 204 to the Bearer caller, 302 to `/login` to the cookie one |
 
 ### Reading state
 

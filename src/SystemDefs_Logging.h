@@ -251,6 +251,8 @@ enum LogCode {
  WEB_UPLOAD = 574,
  WEB_CLIENT_DISCONNECT = 575, /* client closed connection during safeSend — silent broken pipe now visible */
  WEB_CERT_INVALID = 576, /* /config/web_cert.pem present but did not parse — HTTPS skipped, HTTP fallback (M-6) */
+ WEB_CORS_ORIGIN = 577,  /* CORS on for the origin in /config/cors.txt — the web fleet manager */
+ WEB_CORS_INVALID = 578, /* /config/cors.txt present but not "scheme://host[:port]" — CORS left OFF */
 
  /* ── Config (580–584) ── */
  CFG_THEME_APPLIED = 580,

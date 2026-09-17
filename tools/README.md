@@ -141,6 +141,7 @@ from a document. Anything genuinely dead should leave the tree, as
 | `alarm_hw_test.py` | SIMUT v21 — Suíte de testes em hardware da 2ª linha de telemetria (alarmes). | 2026-08-23 |
 | `build_lang_pack_es.py` | F-LANGPACK — gera data/lang/language_es-ES.lng a partir do PT-BR. | 2026-08-16 |
 | `capture_web_shots.py` | capture_web_shots.py — recapture the web UI screenshots used by the README | 2026-08-22 |
+| `webui_preview.py` | Pré-visualiza a interface web do `WebUI.h` sem gravar o firmware: serve as páginas, o `/lang.js` e o `/style.css` do arquivo em edição (relido a cada requisição) e encaminha a API para um SIMUT real, com a sessão feita pelo próprio proxy. `?theme=light&lang=pt&run=toggleDrawer()` na URL semeiam o que a captura precisa. Uma instância só: cada login ocupa um dos três slots de sessão do aparelho. | 2026-09-16 |
 | `export_csv_bench.py` | r"""§5.19 Performance — export CSV de 3 dias (PLANO-VALIDACAO-v2.3.2-stable.md). | 2026-08-23 |
 | `factory_reset.py` | Factory reset Pico and configure WiFi. | 2026-07-23 |
 | `factory_reset_manual_wifi.py` | r"""§5.6 E2E — Config de fábrica → WiFi com reconfiguração manual | 2026-08-23 |
@@ -149,7 +150,7 @@ from a document. Anything genuinely dead should leave the tree, as
 | `history_reset_cycles.py` | r"""Abrupt-reset cycles against the V5 history, driven by the PicoHand. | 2026-08-10 |
 | `history_watch.py` | r"""Watch the V5 history cadence over serial, using only the release CLI. | 2026-08-10 |
 | `history_web_cases.py` | r"""The two history-loss cases that need a web session, not just serial. | 2026-08-10 |
-| `inline_tokens_check.py` | inline_tokens_check.py — v2.3.2 white-flash fix gate (PLANO-VALIDACAO §5.7). | 2026-08-22 |
+| `inline_tokens_check.py` | Portão das cópias dos tokens de cor: o bloco dos dois temas servido no `/lang.js` tem que ser idêntico às cópias inline de `/login` e `/force_chpass` (que não carregam o lang.js), e nenhuma página autenticada pode voltar a carregar uma cópia. | 2026-09-16 |
 | `repro_lockout.py` | repro_lockout.py — §5.9: lockout de login — backoff exponencial + teto. | 2026-08-22 |
 | `repro_restore_gate.py` | repro_restore_gate.py — §5.9/§5.21: restore sem auth → 100 recusas, 0 arquivo. | 2026-08-22 |
 | `rig_validate_history_clock.py` | Hardware validation for the provisional-clock and out-of-order fixes. | 2026-08-15 |

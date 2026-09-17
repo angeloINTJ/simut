@@ -763,6 +763,7 @@ interface de configuração. A configuração vive na interface web.
 | `system factory` | Restaura os padrões de fábrica |
 | `system ssid <nome>` | Define o nome da rede Wi-Fi — **salvo na hora** |
 | `system pass <senha>` | Define a senha do Wi-Fi — **salva na hora** |
+| `system cors <origem>` / `off` | Libera a página do gerenciador web naquela origem a falar com este aparelho pelo navegador — **gravado na hora**, vale no próximo boot |
 | `ap` | Sobe o ponto de acesso de configuração — **WPA2**, chave impressa neste console |
 | `reload` | Reinicia |
 | `help` | Lista estes |
@@ -879,7 +880,7 @@ Permissões entre colchetes.
 | `/api/login` | POST | `user`, `pass` (sha256, latin-1), `nonce` |
 | `/api/login_chpass` | POST | Troca a senha na tela de login |
 | `/api/force_chpass` | POST | Conclui uma troca de senha forçada |
-| `/logout` | GET | Encerra a sessão |
+| `/logout` | GET | Encerra a sessão. Lê o cookie `SIMUTSESS` **ou** `Authorization: Bearer` — uma página de navegador em outra origem só consegue mandar o segundo. Responde 204 a quem veio por Bearer e 302 para `/login` a quem veio por cookie |
 
 ### Leitura de estado
 
