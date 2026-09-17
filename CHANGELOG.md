@@ -6,6 +6,26 @@ All notable changes to SIMUT firmware.
 
 ## Unreleased
 
+## v2.4.6-beta (2026-09-16)
+
+**The embedded web interface follows the Ângulo, and it fits: 2.5 kB less
+flash.** The seventeen colour roles by function in both themes, a 4px grid,
+three radii, one accent, a line before a shadow, labels without uppercasing,
+stroke icons in an SVG sprite instead of emoji, and the theme through
+`data-theme` with the system preference as the default. What paid for the
+rework on an image with 1.1 kB to spare: the tokens left the nine per-page
+"anti-flash" copies and now travel in `/lang.js`, which is synchronous in the
+`<head>` — one copy, plus two inline in the login and first-password pages,
+which do not load it. The 57 light-theme override rules are gone: the tokens do
+that work. Shared rules (card, field, button, table, badge, banner, bar, modal,
+toast) live in the common sheet and each page keeps only what is its own. The
+13 gzipped blocks went from 98,458 to 95,985 B; the linker from 1,027,220 to
+1,024,748 B; the `.bin` from 1,039,252 to 1,036,780 B — 3,604 B under the OTA
+ceiling. Deviations from the standard are written down in §12 of `ANGULO.md`.
+Proven on the bench (192.168.3.24, 2.4.3-beta → 2.4.5-beta by OTA on port
+8081): `web_test_suite` 62 passed, 0 failed; `inline_tokens_check` with no
+divergence; the pt-BR pack loaded and every served page captured in both themes.
+
 **Logout works for a page in a browser, which until now it only appeared to.**
 `/logout` read the `SIMUTSESS` cookie and nothing else, and a page on another
 origin cannot send that cookie: `Cookie` is a forbidden header name in the Fetch

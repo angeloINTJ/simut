@@ -6,6 +6,26 @@ Todas as mudanças notáveis do firmware SIMUT.
 
 ## Não lançado
 
+## v2.4.6-beta (2026-09-16)
+
+**A interface web embarcada passa a seguir o Ângulo, e ela cabe: 2,5 kB a menos
+de flash.** Os dezessete papéis de cor por função nos dois temas, grade de 4px,
+três raios, uma cor de destaque, linha antes de sombra, rótulos sem caixa alta,
+ícones de traço num sprite SVG no lugar dos emoji, e o tema por `data-theme` com
+a preferência do sistema como padrão. O que pagou a reforma numa imagem com
+1,1 kB de folga: os tokens saíram das nove cópias "anti-piscada" por página e
+passaram a viajar no `/lang.js`, que é síncrono no `<head>` — uma cópia só, mais
+duas inline no login e na primeira senha, que não o carregam. As 57 regras de
+override do tema claro morrem: os tokens fazem o trabalho. As regras
+compartilhadas (cartão, campo, botão, tabela, selo, faixa, barra, modal, toast)
+moram na folha comum e cada página guarda só o que é dela. Os 13 blocos
+gzipados foram de 98.458 para 95.985 B; o linker de 1.027.220 para 1.024.748 B;
+o `.bin` de 1.039.252 para 1.036.780 B, 3.604 B sob o teto do OTA. Os desvios do
+padrão estão registrados no §12 do `ANGULO.md`. Provado na bancada
+(192.168.3.24, 2.4.3-beta → 2.4.5-beta por OTA na porta 8081): `web_test_suite`
+62 passaram, 0 falharam; `inline_tokens_check` sem divergência; pack pt-BR
+carregado e as páginas servidas pelo aparelho capturadas nos dois temas.
+
 **O logout passa a funcionar para uma página de navegador — até aqui ele só
 parecia funcionar.** O `/logout` lia o cookie `SIMUTSESS` e mais nada, e uma
 página em outra origem não consegue mandar esse cookie: `Cookie` é nome de
