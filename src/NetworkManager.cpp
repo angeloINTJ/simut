@@ -14,6 +14,7 @@
 
 #include "NetworkManager.h"
 #include "MetricsManager.h"
+#include "SimutTime.h"   /* simutTimeSetOffset — the zone this applies */
 #include <stdlib.h>
 #include <sys/time.h> /* settimeofday for manual RTC */
 #include <lwip/dns.h> /* dns_setserver for manual DNS */
@@ -521,8 +522,8 @@ void NetworkManager::handleConnecting( ) {
  * @brief Configure NTP with customizable server and system timezone.
  *
  * The internal RTC stays in UTC (configTime with offset 0).
- * The timezone is applied via setenv("TZ")/tzset( ) so that
- * localtime_r( ) returns local time throughout the system.
+ * The timezone is applied via applyTimezone( ) so that localtime_r( ) returns
+ * local time throughout the system.
  */
 void NetworkManager::syncNtp( ) {
  applyTimezone(_tzOffset);
@@ -567,17 +568,19 @@ void NetworkManager::applyManualDnsIfNeeded( ) {
 /**
  * @brief Apply timezone globally via POSIX environment variable.
  *
- * POSIX notation: inverted sign — UTC3 = GMT-3 (Brazil).
+ * The sign here is the natural one — -3 for Brazil — and no longer the
+ * inverted POSIX TZ notation, because no TZ string is built any more.
  * After calling, every localtime_r( ) returns local time correctly.
  *
  * @param offset Offset in hours (ex: -3 for Brazil, +9 for Japan).
  */
 void NetworkManager::applyTimezone(int8_t offset) {
- char tzStr[16];
- /* POSIX TZ: inverted sign. offset=-3 → "UTC3" (3h west) */
- snprintf(tzStr, sizeof(tzStr), "UTC%d", (int)(-offset));
- setenv("TZ", tzStr, 1);
- tzset( );
+ /* This used to write a POSIX TZ string ("UTC3" for -03, sign inverted) into
+  * the environment and call tzset( ). newlib then parsed that string back with
+  * siscanf( ) on every zone change, which is how the integer scanf engine, the
+  * TZ state machine and newlib's localtime/mktime — 13,188 B — ended up in an
+  * image that only ever needed one whole-hour number. See SimutTime.h. */
+ simutTimeSetOffset(offset);
 }
 
 /**

@@ -41,28 +41,28 @@
  ],
  "ceiling": 1044480,
  "measured_on": "2026-09-18",
- "measured_at_commit": "perf/dieta-flash lever 3 (SdkPrintf)",
+ "measured_at_commit": "perf/dieta-flash lever 4 (SimutTime)",
 
  "envs": {
   "pico_w_release": {
-   "budget": 1011312,
-   "measured": 1008312
+   "budget": 998164,
+   "measured": 995164
   },
   "pico_w_test": {
-   "budget": 1017064,
-   "measured": 1014064
+   "budget": 1003908,
+   "measured": 1000908
   },
   "pico_w_asserts": {
-   "budget": 1013480,
-   "measured": 1010480
+   "budget": 1000332,
+   "measured": 997332
   },
   "pico_w_alpha": {
-   "budget": 1007124,
-   "measured": 1004124
+   "budget": 994964,
+   "measured": 991964
   },
   "pico_w_air": {
-   "budget": 1001896,
-   "measured": 1000896
+   "budget": 989736,
+   "measured": 988736
   }
  }
 }

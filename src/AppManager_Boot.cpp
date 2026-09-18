@@ -851,7 +851,9 @@ void AppManager::setup( ) {
 	 * clock started the boot 4 h 20 min behind. NTP then corrected +15546 s and the
 	 * shift carried the just-adopted midnight block into the future with it — 46
 	 * measurements filed as 04:19-05:04, a hole from 00:00 to 00:46 on the graph.
-	 * A tzset( ) here is the whole fix; _netMgr->begin( ) still applies it, harmlessly. */
+	 * Applying the zone HERE is the whole fix; _netMgr->begin( ) still applies it,
+	 * harmlessly. (It was a tzset( ) until 2026-09-18; the zone now lives in
+	 * SimutTime, and the ordering this comment is about did not change.) */
  NetworkManager::applyTimezone(_storageMgr->getConfig( ).timezoneOffset);
 
  uint32_t lastTs = _storageMgr->getLastRecordedTimestamp( );

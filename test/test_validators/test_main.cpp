@@ -31,6 +31,7 @@
 #include "sensors/SensorChannelTable.h" /* channel table integrity */
 #include "sensors/CalibCurve.h"         /* calibration curve engine */
 #include "WebJsonSlice.h"               /* depth-aware JSON slicing */
+#include "SimutTime.h"                 /* fixed-offset localtime/mktime */
 #include "WebCommitSections.h"          /* per-section authz for /api/commit_all */
 #include "FsSecretPath.h"               /* /config download guard (A-4) */
 #include "CorsOrigin.h"                 /* what may go into Allow-Origin */
@@ -2215,6 +2216,152 @@ void test_screenrle_rejects_empty_and_null(void) {
     TEST_ASSERT_EQUAL_UINT32(0, screenrle::encodeStrip(px, 4, out, 3));
 }
 
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * SimutTime — the fixed-offset replacement for newlib's TZ machinery.
+ *
+ * The reference is the host's own libc: timegm( ) and gmtime_r( ) do what the
+ * firmware's localtime_r( )/mktime( ) must do once the offset is folded in, and
+ * comparing against them is the only way to test this that does not restate
+ * the implementation. The cases after the sweeps are the three things this
+ * codebase actually asks mktime( ) for and would not notice losing: tm_wday on
+ * a struct whose return value is discarded, tm_mday = 0 meaning "last day of
+ * the previous month", and tm_mday += 1 rolling the month and the year.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+static struct tm mkTm(int y, int mon, int mday, int h = 0, int mi = 0, int se = 0) {
+    struct tm t;
+    memset(&t, 0, sizeof t);
+    t.tm_year = y - 1900;
+    t.tm_mon  = mon - 1;
+    t.tm_mday = mday;
+    t.tm_hour = h;
+    t.tm_min  = mi;
+    t.tm_sec  = se;
+    t.tm_isdst = -1;
+    return t;
+}
+
+void test_simuttime_localtime_matches_host(void) {
+    const long offs[] = { 0, -3 * 3600L, 9 * 3600L, -11 * 3600L, 14 * 3600L };
+    /* 2020-01-01 .. 2030-01-01, every 7 h 13 min — crosses every month, both
+     * leap rules in range, and never lands on a round hour. */
+    for (size_t k = 0; k < sizeof offs / sizeof offs[0]; k++) {
+        for (time_t t = 1577836800; t < 1893456000; t += 26000) {
+            struct tm mine, ref;
+            simutLocalTimeTz(t, &mine, offs[k]);
+            const time_t shifted = t + offs[k];
+            gmtime_r(&shifted, &ref);
+            TEST_ASSERT_EQUAL_INT(ref.tm_year, mine.tm_year);
+            TEST_ASSERT_EQUAL_INT(ref.tm_mon,  mine.tm_mon);
+            TEST_ASSERT_EQUAL_INT(ref.tm_mday, mine.tm_mday);
+            TEST_ASSERT_EQUAL_INT(ref.tm_hour, mine.tm_hour);
+            TEST_ASSERT_EQUAL_INT(ref.tm_min,  mine.tm_min);
+            TEST_ASSERT_EQUAL_INT(ref.tm_sec,  mine.tm_sec);
+            TEST_ASSERT_EQUAL_INT(ref.tm_wday, mine.tm_wday);
+            TEST_ASSERT_EQUAL_INT(ref.tm_yday, mine.tm_yday);
+            TEST_ASSERT_EQUAL_INT(0, mine.tm_isdst);
+        }
+    }
+}
+
+void test_simuttime_mktime_matches_host_timegm(void) {
+    const long offs[] = { 0, -3 * 3600L, 5 * 3600L };
+    for (size_t k = 0; k < sizeof offs / sizeof offs[0]; k++) {
+        for (time_t t = 1577836800; t < 1893456000; t += 26000) {
+            struct tm broken;
+            simutLocalTimeTz(t, &broken, offs[k]);
+            struct tm ref = broken;               /* timegm normalises in place too */
+            const time_t got = simutMkTimeTz(&broken, offs[k]);
+            TEST_ASSERT_EQUAL_INT64((long long)t, (long long)got);
+            TEST_ASSERT_EQUAL_INT64((long long)(t + offs[k]), (long long)timegm(&ref));
+        }
+    }
+}
+
+void test_simuttime_wday_is_filled_for_a_discarded_return(void) {
+    /* DisplayManager_Calendar: {year, month, mday=1}, ignore the epoch, read
+     * tm_wday to know which column the 1st goes in. */
+    struct tm t = mkTm(2026, 9, 1);
+    simutMkTimeTz(&t, -3 * 3600L);
+    TEST_ASSERT_EQUAL_INT(2, t.tm_wday);          /* 2026-09-01 is a Tuesday */
+
+    struct tm u = mkTm(2024, 2, 29);              /* leap day, a Thursday */
+    simutMkTimeTz(&u, 0);
+    TEST_ASSERT_EQUAL_INT(4, u.tm_wday);
+    TEST_ASSERT_EQUAL_INT(29, u.tm_mday);
+    TEST_ASSERT_EQUAL_INT(1, u.tm_mon);
+}
+
+void test_simuttime_mday_zero_is_last_day_of_previous_month(void) {
+    /* DisplayManager_Calendar again: day 0 of the NEXT month is how it asks
+     * how many days the current one has. */
+    struct tm sep = mkTm(2026, 10, 0);            /* mon = October, mday = 0 */
+    simutMkTimeTz(&sep, -3 * 3600L);
+    TEST_ASSERT_EQUAL_INT(30, sep.tm_mday);       /* September has 30 */
+    TEST_ASSERT_EQUAL_INT(8, sep.tm_mon);         /* and we landed in it */
+
+    struct tm feb = mkTm(2024, 3, 0);
+    simutMkTimeTz(&feb, 0);
+    TEST_ASSERT_EQUAL_INT(29, feb.tm_mday);       /* 2024 is a leap year */
+    struct tm feb25 = mkTm(2025, 3, 0);
+    simutMkTimeTz(&feb25, 0);
+    TEST_ASSERT_EQUAL_INT(28, feb25.tm_mday);
+    struct tm feb2100 = mkTm(2100, 3, 0);
+    simutMkTimeTz(&feb2100, 0);
+    TEST_ASSERT_EQUAL_INT(28, feb2100.tm_mday);   /* 2100 is not */
+}
+
+void test_simuttime_month_index_twelve_rolls_the_year(void) {
+    /* The "next month" idiom sets tm_mon = 12 when the current month is
+     * December, which is a month index one past the end of the year. */
+    struct tm t = mkTm(2026, 13, 1);              /* mon - 1 == 12 */
+    simutMkTimeTz(&t, -3 * 3600L);
+    TEST_ASSERT_EQUAL_INT(2027 - 1900, t.tm_year);
+    TEST_ASSERT_EQUAL_INT(0, t.tm_mon);
+    TEST_ASSERT_EQUAL_INT(1, t.tm_mday);
+}
+
+void test_simuttime_day_walk_crosses_month_and_year(void) {
+    /* WebManager_History walks a window with tm_mday += 1 and expects the
+     * rest of the struct to follow. */
+    struct tm t = mkTm(2026, 1, 31);
+    t.tm_mday += 1;
+    simutMkTimeTz(&t, -3 * 3600L);
+    TEST_ASSERT_EQUAL_INT(1, t.tm_mday);
+    TEST_ASSERT_EQUAL_INT(1, t.tm_mon);           /* February */
+
+    struct tm y = mkTm(2026, 12, 31, 0, 0, 0);
+    y.tm_mday += 1;
+    simutMkTimeTz(&y, -3 * 3600L);
+    TEST_ASSERT_EQUAL_INT(1, y.tm_mday);
+    TEST_ASSERT_EQUAL_INT(0, y.tm_mon);
+    TEST_ASSERT_EQUAL_INT(2027 - 1900, y.tm_year);
+}
+
+void test_simuttime_midnight_is_offset_from_utc(void) {
+    /* h5DayWindowFromName: a file name becomes local midnight, and the whole
+     * history gating depends on that being the LOCAL one. At -03, local
+     * midnight is 03:00 UTC. */
+    struct tm t = mkTm(2026, 9, 18);
+    const time_t local = simutMkTimeTz(&t, -3 * 3600L);
+    struct tm u = mkTm(2026, 9, 18);
+    const time_t utc = simutMkTimeTz(&u, 0);
+    TEST_ASSERT_EQUAL_INT64((long long)utc + 3 * 3600LL, (long long)local);
+    TEST_ASSERT_EQUAL_INT64((long long)local + 86400LL,
+                            (long long)(local + 86400));   /* the window's width */
+}
+
+void test_simuttime_days_from_civil_anchors(void) {
+    TEST_ASSERT_EQUAL_INT64(0,     (long long)simutDaysFromCivil(1970, 1, 1));
+    TEST_ASSERT_EQUAL_INT64(-1,    (long long)simutDaysFromCivil(1969, 12, 31));
+    TEST_ASSERT_EQUAL_INT64(19601, (long long)simutDaysFromCivil(2023, 9, 1));  /* 1693526400 / 86400 */
+    /* day 0 and day 32 are legal inputs here: that is what makes normalisation
+     * fall out of the arithmetic instead of needing a month table. */
+    TEST_ASSERT_EQUAL_INT64((long long)simutDaysFromCivil(2026, 8, 31),
+                            (long long)simutDaysFromCivil(2026, 9, 0));
+}
+
 int main(int /*argc*/, char** /*argv*/) {
     UNITY_BEGIN();
 
@@ -2411,6 +2558,16 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_screenrle_refuses_over_256_colours);
     RUN_TEST(test_screenrle_palette_interns_repeated_colours);
     RUN_TEST(test_screenrle_rejects_empty_and_null);
+
+    /* SimutTime — fixed-offset localtime/mktime (lever 4 of the flash diet) */
+    RUN_TEST(test_simuttime_localtime_matches_host);
+    RUN_TEST(test_simuttime_mktime_matches_host_timegm);
+    RUN_TEST(test_simuttime_wday_is_filled_for_a_discarded_return);
+    RUN_TEST(test_simuttime_mday_zero_is_last_day_of_previous_month);
+    RUN_TEST(test_simuttime_month_index_twelve_rolls_the_year);
+    RUN_TEST(test_simuttime_day_walk_crosses_month_and_year);
+    RUN_TEST(test_simuttime_midnight_is_offset_from_utc);
+    RUN_TEST(test_simuttime_days_from_civil_anchors);
 
     return UNITY_END();
 }
