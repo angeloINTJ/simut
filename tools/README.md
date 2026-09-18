@@ -1,6 +1,6 @@
 # tools/
 
-123 scripts. This file exists because until 2026-09-08 there was no way
+124 scripts. This file exists because until 2026-09-08 there was no way
 to tell a live bench tool from a leftover, and one of them —
 `compressor.py` — had been superseded for three months while still looking
 usable: it regenerated `WebUI_GZ.h` into the repository root, where nothing
@@ -116,7 +116,7 @@ step in a bench procedure. Run by hand, but with instructions somewhere.
 | `theme-editor/server.py` | SIMUT Theme Editor — launcher. | 2026-06-03 |
 | `validate_top_pin_alarm.py` | SIMUT v21 — Validação visual da correção do painel superior fixado (pin). | 2026-08-23 |
 
-## Standalone (49)
+## Standalone (50)
 
 Nothing in the repository names these. That is a statement about
 discoverability, **not** a verdict: several are ordinary bench and recovery
@@ -136,6 +136,7 @@ from a document. Anything genuinely dead should leave the tree, as
 | `air_soak.py` | Hands-off soak of the Air hibernation cycle, passive by construction: raw USB presence for every wake/sleep edge, read-only console for the `[AIR]` lines, and an HTTP collector counting what the device uploads. Never writes to the device. Found F28 (a sleep that never wakes) on 2026-09-10. | 2026-09-11 |
 | `air_soak_snapshot.py` | Snapshot of the Air bench in M0 — status, today's full history (sealed + open block), log count, telemetry target — as JSON. Run at the start and end of a soak and diff the two. Read-only. | 2026-09-11 |
 | `air_soak_recover.py` | Recovers a stalled Air bench in the right order: RESET, read the flash log (which survives it), snapshot the deltas against the baseline, restore the telemetry target. Use AFTER any in-situ measurement — the reset destroys the stuck state. | 2026-09-11 |
+| `install_tls_cert.py` | Installs the HTTPS pair on a device in service through `POST /api/tls`: logs in, sends the two PEM blocks, prints what the device answered, and with `--reboot` restarts it so the next boot picks it up. The device refuses a pair whose key does not belong to the certificate, so a mistake is a 400 here instead of an HTTPS that does not come up later. Before this route there was no way at all (#133). | 2026-09-18 |
 | `ota_test.py` | Drives one OTA on the bench: login, stage (`/api/restore?op=stage&commit=1`), apply. Does NOT verify the version — the caller reads it back, because the only proof of an installed update is the new version reporting itself. ⚠️ Stage the image on an alternate port: the router kills long port-80 flows, and any stage borrows the whole LittleFS region. | 2026-09-11 |
 | `wifi_outage_test.py` | The access point that vanishes, on the bench: the host's USB Wi-Fi adapter is the AP, the device is held in M0 and pointed at it, and the AP goes away for 60 s, then 9 min (into dormancy), then hidden. Judged from the device's own log (blind joins, NET_DORMANT_MODE), not only from pings. | 2026-09-09 |
 | `json_escape_cases.py` | Three strings a permitted user could store that each broke a different JSON response for everyone (V-04). An A/B, not a checklist: against firmware from before the fix, cases 1 and 2 must break. | 2026-09-08 |

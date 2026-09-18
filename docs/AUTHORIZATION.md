@@ -130,6 +130,7 @@ handler checks.
 | `POST /api/upload` | `PERM_FILE_UPLOAD` (enforced in the data callback **and** the completion handler) |
 | `POST /api/restore` | validate `PERM_FILE_READ` · apply **`== PERM_FULL_ADMIN`** · stage `== PERM_FULL_ADMIN` — checked at the **first byte** of the multipart feed, not only at finish |
 | `POST /api/ota/apply` | **`== PERM_FULL_ADMIN`** |
+| `POST /api/tls` | **`== PERM_FULL_ADMIN`** — the only route that writes into `/config`, and the reason it may is in `WebManager_Tls.cpp`: two fixed paths, no filename from the request, and the pair must parse and belong to each other before either file is written. Compiled only where HTTPS is (`pico_w_release`). |
 
 The `/api/restore` first-byte check is the fix for a real hole: the gate once
 lived only in the finish handler, which the framework calls *after* the whole

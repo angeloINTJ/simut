@@ -253,6 +253,7 @@ enum LogCode {
  WEB_CERT_INVALID = 576, /* /config/web_cert.pem present but did not parse — HTTPS skipped, HTTP fallback (M-6) */
  WEB_CORS_ORIGIN = 577,  /* CORS on for the origin in /config/cors.txt — the web fleet manager */
  WEB_CORS_INVALID = 578, /* /config/cors.txt present but not "scheme://host[:port]" — CORS left OFF */
+ WEB_CERT_INSTALLED = 579, /* pair installed through POST /api/tls — takes effect at the next boot (#133) */
 
  /* ── Config (580–584) ── */
  CFG_THEME_APPLIED = 580,

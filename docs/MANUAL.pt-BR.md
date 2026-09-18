@@ -380,15 +380,41 @@ openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
   -keyout web_key.pem -out web_cert.pem -days 3650 -nodes -subj "/CN=simut"
 ```
 
-O par mora em `/config/web_cert.pem` e `/config/web_key.pem`. **Não há como
-colocá-lo lá num dispositivo já em serviço**: a página Files recusa qualquer
-envio para `/config` — de propósito, desde a auditoria de 29/08/2026, porque um
-par forjado no cofre de credenciais é um homem-no-meio na sessão do admin depois
-do próximo reboot — e ainda não existe outra rota
-([#133](https://github.com/angeloINTJ/simut/issues/133)). O que funciona é
-provisionar na primeira gravação: coloque os dois arquivos em `data/config/` e
-envie a imagem do sistema de arquivos com `pio run -t uploadfs`, que reformata
-a partição e por isso só serve para uma unidade nova. Com a porta web no padrão
+O par mora em `/config/web_cert.pem` e `/config/web_key.pem`, e há dois jeitos
+de colocá-lo lá.
+
+**Num dispositivo em serviço — `POST /api/tls`.** Só admin, o mesmo portão de
+um apply de OTA, porque um certificado decide em quem o navegador confia a
+partir do próximo boot. Mande os dois blocos PEM concatenados, em qualquer
+ordem:
+
+```bash
+python3 tools/install_tls_cert.py --host 192.168.1.50 \
+  --cert web_cert.pem --key web_key.pem --reboot
+# ou na mão, já autenticado:
+cat web_cert.pem web_key.pem | curl -X POST --data-binary @- \
+  -H 'Content-Type: application/x-pem-file' http://192.168.1.50/api/tls
+```
+
+O dispositivo recusa o par a menos que ele decodifique **e a chave pertença ao
+certificado** — ele deriva a chave pública da privada e compara com a do
+certificado, então um par trocado vira um `400` agora, em vez de um HTTPS que
+simplesmente não sobe no próximo boot com o par que funcionava já apagado. Uma
+chave cifrada por senha é identificada como tal, não chamada de inválida. A
+resposta diz o que o próximo boot vai servir; o servidor em execução não é
+trocado por baixo de você, então reinicie quando lhe convier.
+
+Essa é a única rota que escreve em `/config`, e é estreita de propósito: dois
+caminhos fixos, nenhum nome de arquivo vindo da requisição. A página Files
+continua recusando `/config` por inteiro — desde a auditoria de 29/08/2026,
+porque um par forjado no cofre de credenciais é um homem-no-meio na sessão do
+admin depois do próximo reboot — e o manual apontou para ela mesmo assim por um
+mês ([#133](https://github.com/angeloINTJ/simut/issues/133)).
+
+**Numa unidade nova — na primeira gravação.** Coloque os dois arquivos em
+`data/config/` e envie a imagem do sistema de arquivos com `pio run -t
+uploadfs`, que reformata a partição e por isso só serve para uma unidade que
+não tem nada a perder. Com a porta web no padrão
 80, o listener HTTPS se move para a 443, então `https://<ip-do-dispositivo>`
 funciona; uma porta configurada explicitamente é honrada como está. A chave
 privada nunca é servida pelo `/download`, e o `system format` a apaga junto com
