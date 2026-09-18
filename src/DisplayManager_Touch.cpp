@@ -33,14 +33,16 @@ void DisplayManager::handleTouch( ) {
   * Not during the tail of a long press — see DASH_HOLD_LOCK_MS. */
  if (_topPanel.holdStart != 0 && !_topPanel.holdFired && _lastTouchRegion == 0 &&
  timeReached(_topPanel.lockUntil)) {
- if (!_topPanel.fixed) {
- /* Interactive mode: short tap exits to fixed */
- _topPanel.fixed = true;
- _topPanel.fixedIdx = _sharedState.selectedSlotIdx;
- } else {
- /* Fixed mode: toggle min/max */
+ /* A short tap is min/max. The WHOLE panel, and from either mode.
+  *
+  * It used to depend on which mode the panel was in: interactive, and the
+  * tap pinned it instead. Two gestures meaning two different things from
+  * the same finger movement is what kept producing "I tapped and it went
+  * into selection" — the user is not tracking which of the two states the
+  * panel is in before deciding what a tap will do. Pinning is the long
+  * press now, and only the long press (2026-09-18, at the maintainer's
+  * request). The bottom panel has always worked this way. */
  _topPanel.showMinMax = !_topPanel.showMinMax;
- }
  redrawTopPanel( );
  }
  
@@ -388,28 +390,21 @@ void DisplayManager::handleTouch( ) {
  }
  bool firstTouch = acceptTouch(0);
 
- /* Mode indicator tap [Amb]/[Sx] (right corner, x > 280): immediate toggle.
+ /* There WAS a shortcut here: a touch-down anywhere past x = 280 toggled
+  * pinned/interactive immediately, because that corner draws the [Amb]/[Sx]
+  * indicator. It is gone (2026-09-18).
   *
-  * Not in min/max, where that corner belongs to the graph button below and
-  * this branch was eating the right third of it. The button is drawn from
-  * CARD_X + minMaxBtnX(CARD_W) = 245 to 302, so a tap between 281 and 302
-  * landed on something the user can see and press, and
-  * got the mode toggle instead: the panel jumped into selection mode from a
-  * short tap, with no [Amb]/[Sx] indicator drawn there to explain it — the
-  * min/max blits do not paint one. The graph branch that follows already
-  * guards on showMinMax; it simply never ran, because this one returns first.
+  * It had already been narrowed once — it was eating the right third of the
+  * min/max graph button — and the narrowing did not fix what people actually
+  * hit: outside min/max the same quick tap on the right still jumped the
+  * panel into selection mode, while the identical tap two centimetres to the
+  * left opened min/max. A 40-pixel strip that answers a different gesture
+  * than the rest of the panel it is drawn on is not a shortcut, it is a trap,
+  * and this is the second report of it.
   *
-  * The other side of the same button had the mirror-image defect and is
-  * fixed with it: see the zone below, which now covers what is drawn. */
- if (firstTouch && x > 280 && !_topPanel.showMinMax) {
- _topPanel.fixed = !_topPanel.fixed;
- if (_topPanel.fixed)
- _topPanel.fixedIdx = _sharedState.selectedSlotIdx;
- else
- _topPanel.showMinMax = false;
- redrawTopPanel( );
- return;
- }
+  * The indicator is still drawn and still means what it meant; it is now
+  * read-only, like the rest of the panel's decoration. Pinning is the long
+  * press, over the whole panel. */
 
  /* The min/max graph button, on touch-down, over the whole rectangle it is
   * painted on and not a hand-written slice of it. It used to read `x > 266`
@@ -470,11 +465,18 @@ void DisplayManager::handleTouch( ) {
  }
  _topPanel.holdSeen = nowMs;
 
- /* Long-press toggles fixed <-> interactive, but not while the panel is
-  * showing min/max: there the gesture would swap the mode out from under
-  * the numbers the user is reading. A press there falls through to the
-  * release path, which leaves min/max — the same as a tap. */
- if (!_topPanel.holdFired && _lastTouchRegion == 0 && !_topPanel.showMinMax &&
+ /* Long press toggles pinned <-> interactive, from ANY state including
+  * min/max — the gesture is the whole contract now, so refusing it while
+  * min/max is up would leave the user holding a finger on a panel that does
+  * nothing, with no way to tell why. Entering the selection also drops
+  * min/max, because the numbers it was showing belong to the sensor the
+  * panel is about to stop following.
+  *
+  * The guard that used to exclude min/max here existed so the mode would not
+  * swap out from under the numbers being read. That risk is now the point of
+  * the gesture: three seconds of deliberate hold is not a gesture anyone
+  * performs while reading. */
+ if (!_topPanel.holdFired && _lastTouchRegion == 0 &&
  _topPanel.holdStart != 0 &&
  nowMs - _topPanel.holdStart >= DASH_HOLD_MS) {
  _topPanel.holdFired = true;
@@ -482,6 +484,7 @@ void DisplayManager::handleTouch( ) {
   * discarded. Survives the release reset on purpose: it is a deadline. */
  _topPanel.lockUntil = nowMs + DASH_HOLD_LOCK_MS;
  _touchSoundPending = true;
+ _topPanel.showMinMax = false;
  _topPanel.fixed = !_topPanel.fixed;
  if (_topPanel.fixed)
  _topPanel.fixedIdx = _sharedState.selectedSlotIdx;

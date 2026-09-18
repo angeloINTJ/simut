@@ -6,6 +6,29 @@ Todas as mudanças notáveis do firmware SIMUT.
 
 ## Não lançado
 
+**O painel de cima passa a ter um gesto para cada coisa.** Toque curto em
+qualquer ponto dele abre o min/max; toque de três segundos em qualquer ponto
+alterna entre fixado e interativo. Havia uma terceira regra: um toque passando de
+`x = 280` alternava fixado/interativo na hora, porque aquele canto desenha o
+indicador `[Amb]/[Sx]`. A v2.4.7-beta estreitou essa faixa para ela parar de
+comer o botão de gráfico do min/max, e o estreitamento consertou a metade errada
+— fora do min/max, o mesmo toque rápido na direita continuava jogando o painel
+para o modo de seleção, enquanto o toque idêntico dois centímetros à esquerda
+abria o min/max. Uma faixa de 40 pixels que responde a um gesto diferente do
+painel em que está desenhada é uma armadilha, não um atalho, e esta foi a segunda
+vez que ela foi reportada. O indicador continua desenhado e continua significando
+o que significava; agora é só leitura.
+
+Duas consequências menores, as duas de propósito: um toque curto não fixa mais um
+painel interativo (isso é o toque longo, e só ele), e o toque longo passa a valer
+com o min/max aberto em vez de ser ignorado ali — entrar na seleção fecha o
+min/max, porque aqueles números são do sensor que o painel está prestes a deixar
+de seguir.
+
+Bancada: no rig, um toque em (300, 70) — exatamente a região reportada — abre o
+min/max, e o toque idêntico em (60, 70) faz o mesmo. O toque de três segundos não
+é alcançável pelo `POST /api/touch`, que injeta toques e não sustentação.
+
 ## v2.4.8-beta (2026-09-18)
 
 **A zona de toque do botão de gráfico do min/máx é o retângulo em que ele é
