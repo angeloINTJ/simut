@@ -274,8 +274,15 @@ void DisplayManager::handleTouch( ) {
 	 * _rawTouchState and mapTouchPoint bypasses the ADC mapping, but the
 	 * pressure check between them was never taught about the bypass — so
 	 * `touch sim` answered "injected" and moved nothing. */
- if (!__atomic_load_n(&_simTouchActive, __ATOMIC_ACQUIRE) &&
-     p.z < _sensZThreshold) return;
+ const bool simNow = __atomic_load_n(&_simTouchActive, __ATOMIC_ACQUIRE);
+ if (!simNow && p.z < _sensZThreshold) return;
+
+ /* Provenance of the touch that is about to open the 5 s priority window,
+	 * recorded here because this is the one place that already has to tell a
+	 * finger from an injection. POST /api/touch reads it back: the window is
+	 * right to arm for both kinds (flash and telemetry should still back off),
+	 * but it must not blind the mirror that sent the tap. */
+ _lastTouchInjected = simNow;
 
 
  if (_uiMode == MODE_SETTINGS_TOUCH_CAL) {
@@ -380,8 +387,23 @@ void DisplayManager::handleTouch( ) {
  }
  bool firstTouch = acceptTouch(0);
 
- /* Mode indicator tap [Amb]/[Sx] (right corner, x > 280): immediate toggle */
- if (firstTouch && x > 280) {
+ /* Mode indicator tap [Amb]/[Sx] (right corner, x > 280): immediate toggle.
+  *
+  * Not in min/max, where that corner belongs to the graph button below and
+  * this branch was eating the right third of it. The button is drawn from
+  * x=245 to x=302 (measured off a captured frame on the rig), so a tap
+  * between 281 and 302 landed on something the user can see and press, and
+  * got the mode toggle instead: the panel jumped into selection mode from a
+  * short tap, with no [Amb]/[Sx] indicator drawn there to explain it — the
+  * min/max blits do not paint one. The graph branch that follows already
+  * guards on showMinMax; it simply never ran, because this one returns first.
+  *
+  * The hot zones still do not match the drawing on the other side: the graph
+  * branch starts at x > 266 while the button starts at 245, so its left third
+  * toggles min/max off instead of opening the graph. That is the same class
+  * of defect and is left alone here on purpose — it changes an interaction
+  * nobody reported, and it should be its own decision. */
+ if (firstTouch && x > 280 && !_topPanel.showMinMax) {
  _topPanel.fixed = !_topPanel.fixed;
  if (_topPanel.fixed)
  _topPanel.fixedIdx = _sharedState.selectedSlotIdx;

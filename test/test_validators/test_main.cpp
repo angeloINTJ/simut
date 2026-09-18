@@ -39,6 +39,7 @@
 #include "B64Decode.h"                  /* Basic-auth base64 decoder (strict) */
 #include "PromMetrics.h"                /* Prometheus text exposition formatters */
 #include "Syslog5424.h"                 /* RFC 5424 syslog line formatter */
+#include "ScreenRle.h"                  /* palette RLE for the TFT mirror */
 
 /* ----- Define obrigatório de simut_native::fake_millis_value ----- */
 namespace simut_native {
@@ -2063,6 +2064,157 @@ void test_syslog_msg_control_bytes_become_space(void) {
     TEST_ASSERT_NOT_NULL(strstr(out, "line1 line2 tab"));
 }
 
+/* ===================================================================
+ * ScreenRle — the wire format of /api/screen_stream
+ *
+ * The decoder below is written FROM THE FORMAT COMMENT in ScreenRle.h, not
+ * from the encoder, and deliberately so: a round trip through two halves of
+ * the same mistake proves nothing. It is the third implementation of the
+ * format (the firmware encoder, this, and the JS in WebUI.h), and the one
+ * that fails loudly when the other two drift.
+ * =================================================================== */
+
+/* Returns pixels decoded, or -1 on a malformed payload. */
+static int rleDecode(const uint8_t* in, size_t len, uint16_t* out, size_t outCap) {
+    if (len < 1) return -1;
+    size_t o = 0, i = 0;
+    const size_t ncol = (size_t)in[i++] + 1;
+    if (len < 1 + ncol * 2) return -1;
+    uint16_t pal[256];
+    for (size_t k = 0; k < ncol; k++) {
+        pal[k] = (uint16_t)(in[i] | (in[i + 1] << 8));
+        i += 2;
+    }
+    while (i + 1 < len) {
+        const size_t idx = in[i];
+        const size_t run = (size_t)in[i + 1] + 1;
+        i += 2;
+        if (idx >= ncol) return -1;
+        if (o + run > outCap) return -1;
+        for (size_t r = 0; r < run; r++) out[o++] = pal[idx];
+    }
+    if (i != len) return -1;
+    return (int)o;
+}
+
+void test_screenrle_uniform_strip(void) {
+    /* One colour over a full 8-row strip. A strip is 320*8 = 2,560 PIXELS
+     * (5,120 bytes raw), so it is one palette entry and 2560/256 = 10 pairs,
+     * because the count byte carries at most 256 pixels. */
+    const size_t N = 320 * 8;
+    static uint16_t px[320 * 8];
+    for (size_t i = 0; i < N; i++) px[i] = 0x1234;
+    static uint8_t out[320 * 8 * 2];
+
+    const size_t n = screenrle::encodeStrip(px, N, out, sizeof(out));
+    TEST_ASSERT_EQUAL_UINT32(1 + 2 + 10 * 2, n);
+    TEST_ASSERT_EQUAL_UINT8(0, out[0]);          /* ncol-1 */
+    TEST_ASSERT_EQUAL_UINT8(0x34, out[1]);       /* little-endian palette */
+    TEST_ASSERT_EQUAL_UINT8(0x12, out[2]);
+    TEST_ASSERT_EQUAL_UINT8(255, out[4]);        /* follow = 255 -> 256 px */
+
+    static uint16_t back[320 * 8];
+    TEST_ASSERT_EQUAL_INT((int)N, rleDecode(out, n, back, N));
+    TEST_ASSERT_EQUAL_UINT16_ARRAY(px, back, N);
+}
+
+void test_screenrle_round_trip_screen_like(void) {
+    /* Bands, a border and text-sized specks — the shape a settings screen
+     * actually has: few colours, long horizontal runs, short breaks. */
+    const size_t W = 320, ROWS = 8, N = W * ROWS;
+    static uint16_t px[320 * 8];
+    for (size_t y = 0; y < ROWS; y++) {
+        for (size_t x = 0; x < W; x++) {
+            uint16_t c = (y < 2) ? 0x0000 : 0xFFFF;
+            if (x < 4 || x >= W - 4) c = 0x07E0;
+            if (y >= 4 && (x / 3) % 7 == 0) c = 0xF800;
+            px[y * W + x] = c;
+        }
+    }
+    static uint8_t out[320 * 8 * 2];
+    const size_t n = screenrle::encodeStrip(px, N, out, sizeof(out));
+    TEST_ASSERT_TRUE(n > 0);
+    TEST_ASSERT_TRUE(n < N * 2);                 /* it earned its place */
+    TEST_ASSERT_EQUAL_UINT8(4, (uint8_t)(out[0] + 1)); /* bg, text, border, speck */
+
+    static uint16_t back[320 * 8];
+    TEST_ASSERT_EQUAL_INT((int)N, rleDecode(out, n, back, N));
+    TEST_ASSERT_EQUAL_UINT16_ARRAY(px, back, N);
+}
+
+void test_screenrle_run_longer_than_256_splits(void) {
+    /* 300 of one colour then 1 of another: 256 + 44, then the single. */
+    const size_t N = 301;
+    uint16_t px[301];
+    for (size_t i = 0; i < 300; i++) px[i] = 0xAAAA;
+    px[300] = 0x5555;
+    uint8_t out[301 * 2];
+
+    const size_t n = screenrle::encodeStrip(px, N, out, sizeof(out));
+    TEST_ASSERT_EQUAL_UINT32(1 + 4 + 3 * 2, n);
+    TEST_ASSERT_EQUAL_UINT8(255, out[6]);        /* 256 pixels */
+    TEST_ASSERT_EQUAL_UINT8(43,  out[8]);        /* the remaining 44 */
+    TEST_ASSERT_EQUAL_UINT8(0,   out[10]);       /* the lone pixel */
+
+    uint16_t back[301];
+    TEST_ASSERT_EQUAL_INT((int)N, rleDecode(out, n, back, N));
+    TEST_ASSERT_EQUAL_UINT16_ARRAY(px, back, N);
+}
+
+void test_screenrle_refuses_when_not_smaller_than_raw(void) {
+    /* The pathological case the cap exists for: no two neighbours alike, so
+     * every pixel is its own pair and the encoding would be exactly twice the
+     * raw size. The caller gets 0 and ships the strip raw. */
+    const size_t N = 1024;
+    uint16_t px[1024];
+    for (size_t i = 0; i < N; i++) px[i] = (uint16_t)((i & 1) ? 0x0000 : 0xFFFF);
+    uint8_t out[1024 * 2];
+
+    TEST_ASSERT_EQUAL_UINT32(0, screenrle::encodeStrip(px, N, out, N * 2));
+}
+
+void test_screenrle_refuses_over_256_colours(void) {
+    /* 257 distinct colours: the index byte cannot name the last one. */
+    const size_t N = 257;
+    uint16_t px[257];
+    for (size_t i = 0; i < N; i++) px[i] = (uint16_t)(i * 7 + 1);
+    uint8_t out[257 * 4];
+
+    TEST_ASSERT_EQUAL_UINT32(0, screenrle::encodeStrip(px, N, out, sizeof(out)));
+
+    /* One fewer colour and it encodes — so the refusal above is the ceiling
+     * and not some other defect. */
+    TEST_ASSERT_TRUE(screenrle::encodeStrip(px, N - 1, out, sizeof(out)) > 0);
+}
+
+void test_screenrle_palette_interns_repeated_colours(void) {
+    /* A colour that comes back after an interruption must not take a second
+     * palette slot — the whole saving depends on it. */
+    const size_t N = 600;
+    uint16_t px[600];
+    for (size_t i = 0; i < N; i++) px[i] = (uint16_t)(((i / 100) % 2) ? 0x1111 : 0x2222);
+    uint8_t out[600 * 2];
+
+    const size_t n = screenrle::encodeStrip(px, N, out, sizeof(out));
+    TEST_ASSERT_EQUAL_UINT8(2, (uint8_t)(out[0] + 1));  /* two colours */
+    TEST_ASSERT_EQUAL_UINT32(1 + 2 * 2 + 6 * 2, n);     /* six runs */
+
+    uint16_t back[600];
+    TEST_ASSERT_EQUAL_INT((int)N, rleDecode(out, n, back, N));
+    TEST_ASSERT_EQUAL_UINT16_ARRAY(px, back, N);
+}
+
+void test_screenrle_rejects_empty_and_null(void) {
+    uint16_t px[4] = {1, 2, 3, 4};
+    uint8_t out[32];
+    TEST_ASSERT_EQUAL_UINT32(0, screenrle::encodeStrip(px, 0, out, sizeof(out)));
+    TEST_ASSERT_EQUAL_UINT32(0, screenrle::encodeStrip(nullptr, 4, out, sizeof(out)));
+    TEST_ASSERT_EQUAL_UINT32(0, screenrle::encodeStrip(px, 4, nullptr, 32));
+    /* A cap that cannot even hold the palette header is a refusal, not a
+     * buffer overrun. */
+    TEST_ASSERT_EQUAL_UINT32(0, screenrle::encodeStrip(px, 4, out, 3));
+}
+
 int main(int /*argc*/, char** /*argv*/) {
     UNITY_BEGIN();
 
@@ -2250,6 +2402,15 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_syslog_hostname_space_is_sheared);
     RUN_TEST(test_syslog_empty_hostname_is_nilvalue);
     RUN_TEST(test_syslog_msg_control_bytes_become_space);
+
+    /* ScreenRle — the TFT mirror's wire format */
+    RUN_TEST(test_screenrle_uniform_strip);
+    RUN_TEST(test_screenrle_round_trip_screen_like);
+    RUN_TEST(test_screenrle_run_longer_than_256_splits);
+    RUN_TEST(test_screenrle_refuses_when_not_smaller_than_raw);
+    RUN_TEST(test_screenrle_refuses_over_256_colours);
+    RUN_TEST(test_screenrle_palette_interns_repeated_colours);
+    RUN_TEST(test_screenrle_rejects_empty_and_null);
 
     return UNITY_END();
 }

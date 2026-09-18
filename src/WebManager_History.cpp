@@ -12,6 +12,7 @@
 #include "TouchPriority.h"
 #include "FlashIrqProbe.h"
 #include "ota/backup.h" /* ota::crc32_update for screenshot_chunk */
+#include "ScreenRle.h" /* palette RLE for /api/screen_stream */
 #include <LittleFS.h>
 #include <time.h>
 
@@ -1732,6 +1733,205 @@ void WebManager::handleApiScreenshotChunk( ) {
  free(payload);
  _handlerDeadline = savedDeadline;
 }
+/* GET /api/screen_stream — one frame of the panel, palette-RLE, chunked.
+ *
+ * WHY a second capture route instead of a flag on /api/screenshot: the two
+ * want opposite things. /api/screenshot is the FORENSIC read — it votes three
+ * reads per row because the ILI9341 read protocol is fragile, and it is what
+ * simut_config.h points at to prove the wiring carries 62.5 MHz. This one is
+ * the MIRROR: one read per row, because the other two passes are most of the
+ * frame and a mirror that shows a stray pixel is still a mirror.
+ *
+ * MEASURED ON THE RIG (2026-09-18, pico_w_test, 192.168.3.24, six screens):
+ *
+ *   /api/screenshot   4.33 s/frame   0.23 fps   230,454 B
+ *   this route        1.53 s/frame   0.65 fps   3.4..13.3 kB  (2.8x faster)
+ *
+ * The frame splits 91% panel read / 7% Core 1 pauses / 3% network, so the
+ * codec and the strip geometry are both noise next to the SPI read. A row
+ * costs 5.79 ms against 3.84 ms of pure 2 MHz clock — the extra 2 us per byte
+ * is the per-call cost of readRow's byte-at-a-time SPI.transfer, and it is
+ * the only lever left worth pulling.
+ *
+ * And the read noise the three-vote read exists for did NOT show up: on the
+ * four screens that hold still (set, lic, gra, thm), two independent
+ * single-pass reads came back with ZERO differing pixels, and zero against
+ * the three-vote BMP as well. The pixels that differ on dash and sts are the
+ * live readings changing between captures, not the wire.
+ *
+ * Strips are 8 rows: the two buffers are 5,120 B each, LESS than the 15,360 B
+ * /api/screenshot already mallocs, and a frame costs only 2% more bytes than
+ * with 16-row strips (9,454 vs 9,267 B measured) because a palette header is
+ * 17 B and pays for itself twice over. 16 rows was tried on the rig and
+ * bought 3.6% (1.488 s against 1.530 s) for twice the RAM — the pause it
+ * saves is 3.7 ms, not the 13.8 ms a two-unknown fit against the BMP path
+ * had claimed.
+ *
+ * Core 1 is paused per strip, not per frame, and that is deliberate: a frame
+ * held under a single pause would freeze the renderer for the whole second
+ * the frame takes, and the mirror would faithfully show a panel that stopped
+ * moving because we stopped it. The cost is tearing — see ScreenRle.h. */
+void WebManager::handleApiScreenStream( ) {
+ /* requirePerm and not the hand-rolled getAuthPerms check its neighbours use:
+  * it answers 401 for "no session" and 403 for "this account cannot", which is
+  * the distinction docs/AUTHORIZATION.md documents and which a mirror that
+  * loops needs — 401 means log in again, 403 means stop asking. */
+ if (!requirePerm(PERM_SYS_CONFIG)) return;
+
+ /* A finger on the glass still gets the panel to itself. An INJECTED tap does
+  * not: it came from this very mirror, and the client that tapped is the one
+  * waiting to see what the tap did — see handleApiTouch. */
+ if (TouchPriority::isActive( ) && !_displayRef->lastTouchWasInjected( )) {
+ _server->sendHeader("Retry-After", "3");
+ _server->send(503, "application/json", "{\"error\":\"Display in use. Retry shortly.\"}");
+ return;
+ }
+
+ /* Same single-flight latch as /api/screenshot — two readers interleaving
+  * address windows on the SPI bus both get garbage. The mirror loops, so it
+  * reads the 409 as "skip this frame", not as an error. */
+ if (__atomic_exchange_n(&_isProcessingScreenshot, true, __ATOMIC_ACQ_REL)) {
+ _cancelScreenshot = true;
+ _server->send(409, "application/json", "{\"error\":\"Screenshot in progress, cancelling.\"}");
+ return;
+ }
+ _cancelScreenshot = false;
+
+ if (!_displayRef) {
+ __atomic_store_n(&_isProcessingScreenshot, false, __ATOMIC_RELEASE);
+ _server->send(500, "text/plain", "Display offline");
+ return;
+ }
+
+ constexpr int W = 320;
+ constexpr int H = 240;
+ constexpr int STRIP_ROWS = 8;
+ constexpr int STRIPS = H / STRIP_ROWS; /* 30 */
+ constexpr size_t STRIP_PX = (size_t)W * STRIP_ROWS; /* 2560 */
+ constexpr size_t STRIP_RAW = STRIP_PX * 2; /* 5120 */
+
+ /* Heap on demand, like screenshot_chunk: this route is opened by a page that
+  * is not always up, and 10 KB of permanent BSS for it would come out of the
+  * same heap TLS needs. */
+ uint16_t* raw = (uint16_t*)malloc(STRIP_RAW);
+ uint8_t* enc = (uint8_t*)malloc(STRIP_RAW);
+ if (!raw || !enc) {
+ free(raw); free(enc);
+ __atomic_store_n(&_isProcessingScreenshot, false, __ATOMIC_RELEASE);
+ _server->send(503, "text/plain", "Out of memory");
+ return;
+ }
+
+ uint32_t savedDeadline = _handlerDeadline;
+ _handlerDeadline = millis( ) + WEB_LONG_HANDLER_DEADLINE_MS;
+
+ _server->setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
+ _server->send(200, "application/octet-stream", "");
+
+ const uint8_t fhdr[screenrle::FRAME_HEADER] = {
+ 'S', 'R', '1',
+ (uint8_t)(W & 0xFF), (uint8_t)(W >> 8),
+ (uint8_t)(H & 0xFF), (uint8_t)(H >> 8),
+ (uint8_t)STRIP_ROWS, (uint8_t)STRIPS
+ };
+ bool ok = safeSend((const char*)fhdr, sizeof(fhdr));
+
+ for (int s = 0; ok && s < STRIPS; s++) {
+ if (!_server->client( ).connected( ) || isHandlerOvertime( ) || _cancelScreenshot) {
+ ok = false;
+ break;
+ }
+
+ _displayRef->pauseRendering(true);
+ for (int i = 0; i < STRIP_ROWS; i++) {
+ _displayRef->readRow((int16_t)(s * STRIP_ROWS + i), raw + (size_t)i * W, W);
+ }
+ _displayRef->pauseRendering(false);
+ watchdog_update( );
+
+ /* cap = the raw size, so a 0 here means exactly "the RLE did not earn its
+  * place" and the fallback below is the whole of the decision. */
+ const size_t rleLen = screenrle::encodeStrip(raw, STRIP_PX, enc, STRIP_RAW);
+ const uint8_t* body = rleLen ? enc : (const uint8_t*)raw;
+ const size_t bodyLen = rleLen ? rleLen : STRIP_RAW;
+
+ const uint8_t shdr[screenrle::STRIP_HEADER] = {
+ rleLen ? screenrle::ENC_PAL_RLE : screenrle::ENC_RAW565,
+ (uint8_t)(bodyLen & 0xFF), (uint8_t)(bodyLen >> 8)
+ };
+ ok = safeSend((const char*)shdr, sizeof(shdr)) &&
+      safeSend((const char*)body, bodyLen);
+
+ if (_lightYieldCb) _lightYieldCb( );
+ }
+
+ free(raw);
+ free(enc);
+ __atomic_store_n(&_isProcessingScreenshot, false, __ATOMIC_RELEASE);
+ _handlerDeadline = savedDeadline;
+ if (!ok) LOG_CODE(LOG_WARN, "WEB", WEB_SCREENSHOT_ABORTED, 0, "");
+}
+
+/* POST /api/touch — a tap on the panel, sent from the mirror in the browser.
+ *
+ * x and y are PANEL coordinates (0..319, 0..239), never browser pixels: the
+ * page maps the click through the canvas rect before sending, so the device
+ * never has to know how large the canvas happens to be drawn. Anything
+ * outside the panel is a 400 rather than a clamp — a click that landed off
+ * the image is a bug in the caller's mapping, and clamping it would press a
+ * button on the edge of the screen instead of saying so.
+ *
+ * WHY the mirror is let through the priority window this opens. An accepted
+ * touch arms TOUCH_PRIORITY_MS (5 s) so that background work — flash writes,
+ * telemetry, the GRAM readback — backs off while someone is using the panel.
+ * With a finger on the glass that is exactly right. With a web click it is
+ * half right: flash and telemetry should still back off, but blinding the
+ * mirror for five seconds serves nobody, because the client that tapped is
+ * the one waiting to see the result. So the window stays armed for everyone
+ * else and only the capture is let through, on the provenance flag that
+ * handleTouch records at the pressure gate.
+ *
+ * WHY THIS HANDLER DOES NOT WAIT for the panel to repaint before answering,
+ * which is the obvious thing to want: a tap on the dashboard becomes a UiEvent
+ * that CORE 0 consumes, in AppManager_Events.cpp, inside its loop. A web
+ * handler runs on that same core, so any wait in here — this handler or the
+ * capture — parks the very pump that makes the tap take effect. Measured
+ * twice on the rig: a 600 ms wait inside the capture handler left the screen
+ * unchanged (37 pixels differ, the clock), while the same 600 ms of quiet
+ * between two requests completed the transition (49,226 pixels). The wait
+ * belongs to the CALLER, and the page does it — see mirTick in WebUI.h. A
+ * client driving this route by hand has to do the same.
+ *
+ * The permission is PERM_SYS_CONFIG, the same bit that already reads the
+ * screen. It grants nothing new: an account with that bit can change the
+ * system from the web pages directly, so reaching the same settings by
+ * pressing buttons on the panel is a slower road to somewhere it could
+ * already go. What it must NOT become is a cheaper road for an account
+ * WITHOUT the bit — which is why it is gated at all, and why the display PIN
+ * keypad still stands in front of the settings screens exactly as it does
+ * for a finger. */
+void WebManager::handleApiTouch( ) {
+ if (!requirePerm(PERM_SYS_CONFIG)) return;
+ if (!_displayRef) { _server->send(500, "text/plain", "Display offline"); return; }
+
+ int x = 0, y = 0;
+ String sx = _server->arg("x"), sy = _server->arg("y");
+ if (!parseIntStrict(sx, x) || !parseIntStrict(sy, y) ||
+     x < 0 || x > 319 || y < 0 || y > 239) {
+ _server->send(400, "application/json",
+               "{\"error\":\"x 0..319, y 0..239\"}");
+ return;
+ }
+
+ _displayRef->injectTouch((int16_t)x, (int16_t)y);
+ _displayRef->resetTouchIdle( );
+
+
+ char json[48];
+ snprintf(json, sizeof(json), "{\"ok\":true,\"x\":%d,\"y\":%d}", x, y);
+ _server->send(200, "application/json", json);
+}
+
 #endif /* SIMUT_DISPLAY_TFT */
 
 void WebManager::handleApiHistoryDays( ) {

@@ -217,6 +217,13 @@ public:
 	uint32_t getHeartbeat( );
 	uint32_t getPauseStartTime( ) { return _pauseStartTime; }
 	uint32_t getLastTouchTimestamp( ) const { return _lastTouchTimestamp; }
+
+	/** Whether the touch that armed the priority window was INJECTED
+	 *  (`touch sim`, POST /api/touch) instead of a finger on the glass.
+	 *  Written by handleTouch at the pressure gate — the one place that
+	 *  already has to tell the two apart. See handleApiTouch for why the
+	 *  mirror needs to know. */
+	bool lastTouchWasInjected( ) const { return _lastTouchInjected; }
 	bool isCore1Ready( ) { return _core1Ready; }
 
 	/** Whether this build actually launches Core 1 for rendering.
@@ -571,6 +578,7 @@ private:
 	volatile bool _rawTouchState = false;
 	volatile bool _skipPressed = false;
 	volatile uint32_t _lastTouchTimestamp = 0;
+	volatile bool     _lastTouchInjected = false;
 
 	/* Simulated touch injection via CLI 'touch sim X Y'.
 	 * Enables automated screenshot capture for all screens via

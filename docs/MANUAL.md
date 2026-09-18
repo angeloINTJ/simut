@@ -388,6 +388,27 @@ What to expect:
 framebuffer over SPI. It is the real screen rather than a re-rendering, and it
 is what the screen map in §5 is built from.
 
+The **Live view** button next to it uses `GET /api/screen_stream`: the same
+panel, one frame per request, in 8-row strips that are either palette-RLE
+(one colour byte, one count byte) or raw, whichever is smaller. An average
+frame is 9.5 kB instead of the BMP's 230 kB, and the mirror runs near one
+frame per second because it reads each row once — the BMP capture reads three
+times and votes, which is what makes it the forensic reference and what makes
+it slow. An occasional wrong pixel is the price of the mirror; to check
+colours, use the capture.
+
+With the mirror running, **clicking it taps the panel**: the page converts the
+click into panel coordinates and calls `POST /api/touch` with `x` and `y`. It is
+the same injection the console's `touch sim` performs, and it faces the same PIN
+keypad — reaching Settings asks for the display password exactly as it would for
+a finger.
+
+⚠️ A caller using `/api/touch` outside the page must **wait ~600 ms before
+asking for the next frame**. A tap becomes an event Core 0 consumes in its loop,
+and a capture occupies that same core, so a frame requested immediately
+photographs the screen before the transition. The wait cannot live in the device
+precisely because the device is what the request blocks.
+
 ---
 
 ## 7. Alarms
@@ -928,6 +949,8 @@ What a manager of many devices (the SIMUT-RX app, or any client) relies on:
 |---|---|---|
 | `/api/screenshot` | GET | 320×240 24-bit BMP off the panel |
 | `/api/screenshot_chunk` | GET | One 16-row chunk with a CRC32, for verifiable transfer |
+| `/api/screen_stream` | GET | One frame of the panel in palette-RLE strips (live mirror) |
+| `/api/touch` | POST | Taps the panel at `x` (0..319), `y` (0..239) — panel coordinates |
 
 ---
 

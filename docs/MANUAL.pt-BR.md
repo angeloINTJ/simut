@@ -410,6 +410,26 @@ O que esperar:
 framebuffer do painel pelo SPI. É a tela real, e não uma re-renderização, e é a
 partir dela que o mapa de telas da §5 é construído.
 
+O botão **Ao vivo**, ao lado da captura, usa `GET /api/screen_stream`: o mesmo
+painel, mas um quadro por requisição em faixas de 8 linhas, cada uma comprimida
+por RLE de paleta (1 byte de cor, 1 byte de contagem) ou enviada crua, o que for
+menor. Um quadro médio sai em 9,5 kB no lugar dos 230 kB do BMP, e o espelho
+anda perto de 1 quadro por segundo porque lê cada linha uma vez — a captura BMP
+lê três vezes e vota, que é o que a torna a referência forense e a torna lenta.
+Um pixel ocasional errado é o preço do espelho; para conferir cores, use a
+captura.
+
+Com o espelho ligado, **clicar nele toca o painel**: a página converte o clique
+para coordenada de painel e chama `POST /api/touch` com `x` e `y`. É o mesmo
+`touch sim` do console, e obedece ao mesmo teclado de PIN — tocar em Ajustes
+pede a senha do display como pediria para um dedo.
+
+⚠️ Quem chamar `/api/touch` por fora da página precisa **esperar ~600 ms antes
+de pedir o próximo quadro**. Um toque vira um evento que o Core 0 consome no
+laço dele, e uma captura ocupa esse mesmo core: pedir o quadro logo em seguida
+fotografa a tela antes da transição. A espera não pode morar no aparelho
+justamente porque é o aparelho que fica bloqueado durante a requisição.
+
 ---
 
 ## 7. Alarmes
@@ -946,6 +966,8 @@ Permissões entre colchetes.
 |---|---|---|
 | `/api/screenshot` | GET | BMP 320×240 de 24 bits lido do painel |
 | `/api/screenshot_chunk` | GET | Um bloco de 16 linhas com um CRC32, para transferência verificável |
+| `/api/screen_stream` | GET | Um quadro do painel em faixas com RLE de paleta (espelho ao vivo) |
+| `/api/touch` | POST | Toca o painel em `x` (0..319) e `y` (0..239) — coordenadas do painel |
 
 ---
 

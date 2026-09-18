@@ -454,6 +454,12 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .shot { width: 100%; aspect-ratio: 4/3; border-radius: 6px; background: var(--superficie-2); border: 1px solid var(--linha); box-sizing: border-box; }
         #placeholder-box { display: flex; align-items: center; justify-content: center; color: var(--tinta-2); font-size: 14px; border-style: dashed; }
         #theme-preview-img { object-fit: contain; display: none; }
+        /* pixelated: o painel tem 320x240 e a caixa e maior — interpolar
+           inventaria cores que o TFT nao mostra, e a captura existe para
+           conferir o que ele mostra. */
+        #mirror { object-fit: contain; display: none; image-rendering: pixelated; }
+        #mirror.live { cursor: crosshair; }
+        #mirStat { margin-top: 8px; font-size: 12px; color: var(--tinta-2); min-height: 16px; }
         /* Sem veu escuro: uma superficie quase opaca le nos dois temas. */
         #loading-overlay { display: none; position: absolute; inset: 0; align-items: center; justify-content: center; border-radius: 6px; background: var(--superficie); opacity: 0.92; color: var(--tinta-2); font-size: 14px; }
         #themeSel { width: auto; margin: 0; }
@@ -522,13 +528,16 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             Click Capture to view screen
                         </div>
                         <img id="theme-preview-img" class="shot" src="" alt="Screen Capture">
+                        <canvas id="mirror" class="shot" width="320" height="240"></canvas>
                         <div id="loading-overlay">
                             <span data-i18n="dash_disp_cap">Capturing Display...</span>
                         </div>
                     </div>
+                    <div id="mirStat"></div>
                     <div class="tools">
                         <select id="themeSel" onchange="saveTheme()"><option value="0">Loading...</option></select>
                         <button id="capBtn" class="sxb" onclick="captureScreen()"><svg class="ic"><use href="#i-cam"/></svg><span data-i18n="dash_disp_btn">Capture screen</span></button>
+                        <button id="mirBtn" class="sxb" onclick="mirrorToggle()"><svg class="ic"><use href="#i-cam"/></svg><span id="mirLbl" data-i18n="dash_disp_live">Live view</span></button>
                     </div>
                 </div>
             </div>
@@ -647,8 +656,195 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             await fetchSafe('/api/save_sys', { method:'POST', body: params });
         }
 
+        /* ── Espelho do painel ──────────────────────────────────────────
+         * GET /api/screen_stream devolve UM quadro por requisicao, em 30
+         * faixas de 8 linhas; cada faixa vem crua (RGB565) ou em RLE por
+         * paleta, o que for menor. O formato esta documentado em
+         * src/ScreenRle.h e fixado pelos testes de test_validators — este
+         * decodificador e a terceira implementacao dele, e tem que andar
+         * junto com as outras duas.
+         *
+         * Um quadro por requisicao e nao um fluxo continuo porque o servidor
+         * atende uma requisicao por vez: segurar a conexao por minutos
+         * deixaria o resto da pagina (inclusive o fetchLoop de 3 s) sem
+         * resposta. */
+        let mirOn = false, mirTimer = null, mirTapPend = false;
+
+        /* RGB565 -> RGBA, sem replicar bits baixos: e exatamente a conta que
+         * o /api/screenshot faz ao montar o BMP, e as duas imagens precisam
+         * sair iguais para o editor de temas poder compara-las. */
+        function mirPut(px, o, c) {
+            px[o] = (c >> 8) & 0xF8; px[o + 1] = (c >> 3) & 0xFC;
+            px[o + 2] = (c << 3) & 0xF8; px[o + 3] = 255;
+            return o + 4;
+        }
+
+        function mirDraw(buf) {
+            const dv = new DataView(buf);
+            if (buf.byteLength < 9 || dv.getUint8(0) !== 83 || dv.getUint8(1) !== 82 || dv.getUint8(2) !== 49) throw new Error('fmt');
+            const w = dv.getUint16(3, true), h = dv.getUint16(5, true);
+            const rows = dv.getUint8(7), strips = dv.getUint8(8);
+            const cv = document.getElementById('mirror');
+            if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+            mirTapPend = true;
+
+            const ctx = cv.getContext('2d');
+            const img = ctx.createImageData(w, h);
+            const px = img.data;
+            let p = 9;
+            for (let st = 0; st < strips; st++) {
+                if (p + 3 > buf.byteLength) throw new Error('trunc');
+                const enc = dv.getUint8(p), len = dv.getUint16(p + 1, true);
+                p += 3;
+                if (p + len > buf.byteLength) throw new Error('trunc');
+                let o = st * rows * w * 4;
+                if (enc === 0) {
+                    const n = rows * w;
+                    for (let i = 0; i < n; i++) o = mirPut(px, o, dv.getUint16(p + i * 2, true));
+                } else {
+                    const ncol = dv.getUint8(p) + 1;
+                    const pal = new Uint16Array(ncol);
+                    for (let k = 0; k < ncol; k++) pal[k] = dv.getUint16(p + 1 + k * 2, true);
+                    let q = p + 1 + ncol * 2;
+                    const end = p + len;
+                    while (q + 1 < end) {
+                        const c = pal[dv.getUint8(q)], run = dv.getUint8(q + 1) + 1;
+                        q += 2;
+                        for (let r = 0; r < run; r++) o = mirPut(px, o, c);
+                    }
+                }
+                p += len;
+            }
+            ctx.putImageData(img, 0, 0);
+        }
+
+        /* Clique no espelho = toque no painel. O canvas tem 320x240 de bitmap e
+         * um tamanho em tela maior; o mapeamento e a razao entre os dois, lida
+         * do rect no momento do clique — nao de um fator guardado, que ficaria
+         * errado assim que a janela mudasse de tamanho. A caixa .shot forca
+         * 4:3, a mesma proporcao do painel, entao nao ha borda para descontar.
+         * O aparelho recebe coordenada de PAINEL e nunca precisa saber o
+         * tamanho do canvas. */
+        async function mirTap(ev) {
+            if (!mirOn) return;
+            const cv = document.getElementById('mirror');
+            const r = cv.getBoundingClientRect();
+            if (!r.width || !r.height) return;
+            const x = Math.floor((ev.clientX - r.left) * cv.width / r.width);
+            const y = Math.floor((ev.clientY - r.top) * cv.height / r.height);
+            if (x < 0 || y < 0 || x >= cv.width || y >= cv.height) return;
+
+            /* Marca o ponto na hora: o proximo quadro so chega em ~1,5 s e sem
+             * isso o clique parece nao ter acontecido. O quadro seguinte
+             * apaga a marca por cima. */
+            mirTapPend = true;
+
+            const ctx = cv.getContext('2d');
+            ctx.strokeStyle = '#ff2d2d'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(x, y, 9, 0, 6.2832); ctx.stroke();
+
+            try {
+                const body = new URLSearchParams({ x: String(x), y: String(y) });
+                const r2 = await fetchSafe('/api/touch', {
+                    method: 'POST', retries: 0, body,
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+                });
+                if (!r2.ok) {
+                    document.getElementById('mirStat').textContent =
+                        window.t('dash_disp_taperr', 'Touch refused') + ' (' + r2.status + ')';
+                }
+            } catch (e) {
+                document.getElementById('mirStat').textContent =
+                    window.t('dash_disp_taperr', 'Touch refused');
+            }
+        }
+
+        async function mirTick() {
+            if (!mirOn) return;
+            /* Aba escondida nao desenha nada, e o aparelho atende uma
+             * requisicao por vez: continuar puxando quadros para ninguem
+             * roubaria o servidor de quem esta olhando outra coisa. */
+            if (document.hidden) { mirTimer = setTimeout(mirTick, 1000); return; }
+
+            /* Silencio obrigatorio depois de um toque, e ele tem de estar AQUI,
+             * entre duas requisicoes. Um toque no painel vira um UiEvent que o
+             * CORE 0 consome dentro do laco dele, e um handler web roda nesse
+             * mesmo core: qualquer espera dentro do aparelho — no /api/touch ou
+             * na captura — para a bomba que faz o toque valer. Medido no ferro
+             * duas vezes: 600 ms esperando dentro do handler deixaram a tela
+             * intacta (37 pixels, o relogio), os mesmos 600 ms entre duas
+             * requisicoes completaram a transicao (49.226 pixels).
+             *
+             * O numero e a curva do pior caso (toque logo apos uma captura, com
+             * o Core 1 ainda devendo o repaint que nao pode fazer enquanto
+             * faminto): 150 ms o toque nao aparece, 250-400 ms a tela nova sai
+             * rasgada pela metade, 550 ms sai inteira. 600 ms e isso com folga.
+             *
+             * E um SINALIZADOR e nao um prazo: se um quadro ja estava em voo
+             * quando o clique saiu, um prazo contado do toque vence durante ele
+             * e nao compra silencio nenhum. Esse erro foi cometido duas vezes
+             * aqui antes de virar comentario. */
+            if (mirTapPend) {
+                mirTapPend = false;
+                mirTimer = setTimeout(mirTick, 600);
+                return;
+            }
+
+            const t0 = performance.now();
+            try {
+                const r = await fetchSafe('/api/screen_stream', { retries: 0, timeout: 20000 });
+                if (r.status === 503 || r.status === 409) {
+                    /* Toque no painel, ou outra captura em curso. Nao e erro:
+                     * o proximo quadro tenta de novo. */
+                    document.getElementById('mirStat').textContent = window.t('display_busy', 'Display in use. Try again shortly.');
+                    mirTimer = setTimeout(mirTick, 1500);
+                    return;
+                }
+                if (!r.ok) { mirStop(window.t('dash_disp_err', 'Read Failed')); return; }
+                const buf = await r.arrayBuffer();
+                mirDraw(buf);
+                const dt = (performance.now() - t0) / 1000;
+                document.getElementById('mirStat').textContent =
+                    (1 / dt).toFixed(2) + ' fps · ' + (buf.byteLength / 1024).toFixed(1) + ' kB · ' + dt.toFixed(2) + ' s';
+            } catch (e) {
+                mirStop(window.t('dash_disp_err', 'Read Failed'));
+                return;
+            }
+            mirTimer = setTimeout(mirTick, 0);
+        }
+
+        function mirStop(msg) {
+            mirOn = false;
+            if (mirTimer) { clearTimeout(mirTimer); mirTimer = null; }
+            const cv = document.getElementById('mirror');
+            cv.classList.remove('live');
+            cv.removeEventListener('click', mirTap);
+            document.getElementById('mirLbl').textContent = window.t('dash_disp_live', 'Live view');
+            if (msg) document.getElementById('mirStat').textContent = msg;
+        }
+
+        function mirrorToggle() {
+            if (mirOn) { mirStop(''); return; }
+            mirOn = true;
+            document.getElementById('placeholder-box').style.display = 'none';
+            document.getElementById('theme-preview-img').style.display = 'none';
+            const cv = document.getElementById('mirror');
+            cv.style.display = 'block';
+            cv.classList.add('live');
+            cv.addEventListener('click', mirTap);
+            document.getElementById('mirLbl').textContent = window.t('dash_disp_stop', 'Stop');
+            document.getElementById('mirStat').textContent = window.t('dash_disp_tap', 'Click the mirror to touch the panel');
+            mirTick();
+        }
+
+        window.addEventListener('beforeunload', () => { mirOn = false; });
+
         function captureScreen() {
             let btn = document.getElementById('capBtn'); if(!btn) return;
+            /* As duas rotas disputam o mesmo barramento SPI e o mesmo trinco
+             * de captura: deixar o espelho correndo daria 409 na foto. */
+            mirStop('');
+            document.getElementById('mirror').style.display = 'none';
             let orig = btn.innerHTML; btn.textContent = "..."; btn.disabled = true;
             document.getElementById('placeholder-box').style.display = 'none';
             let img = document.getElementById('theme-preview-img');
@@ -657,7 +853,7 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             document.getElementById('loading-overlay').style.display = 'flex';
             document.getElementById('loading-overlay').innerHTML = '<span data-i18n="dash_disp_cap">Capturing Display...</span>';
             img.onload = () => { document.getElementById('loading-overlay').style.display = 'none'; btn.innerHTML = orig; btn.disabled = false; };
-            img.onerror = () => { document.getElementById('loading-overlay').innerHTML = "<span style='color:var(--perigo)'>Read Failed</span>"; setTimeout(() => { document.getElementById('loading-overlay').style.display = 'none'; }, 2000); btn.innerHTML = orig; btn.disabled = false; };
+            img.onerror = () => { document.getElementById('loading-overlay').innerHTML = "<span style='color:var(--perigo)'>" + escHtml(window.t('dash_disp_err', 'Read Failed')) + "</span>"; setTimeout(() => { document.getElementById('loading-overlay').style.display = 'none'; }, 2000); btn.innerHTML = orig; btn.disabled = false; };
             img.src = '/api/screenshot?t=' + new Date().getTime();
         }
 

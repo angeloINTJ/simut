@@ -51,6 +51,66 @@ BUDGET_FILE = os.path.join(ROOT, "tools", "flash_budget.json")
 FLASH_RE = re.compile(r"used\s+(\d+)\s+bytes\s+from\s+(\d+)\s+bytes")
 
 
+def ota_safe_max():
+    """OTA_APP_SAFE_MAX_SIZE, read out of src/ota/ota_layout.h.
+
+    Recomputed from the same #defines the firmware compiles, and not copied
+    here, for the reason check_lang_packs gives about the pack limits: a gate
+    holding its own copy of a number is a gate that can disagree with the code
+    it guards. Returns None if the header stops looking like this, and the
+    caller then says so instead of pretending to check."""
+    with open(os.path.join(ROOT, "src", "ota", "ota_layout.h"),
+              encoding="utf-8") as fh:
+        src = fh.read()
+
+    def define(name):
+        m = re.search(rf"#define\s+{name}\s+(.+)", src)
+        return m.group(1) if m else None
+
+    try:
+        total = eval(re.sub(r"[u]\b", "", define("OTA_FLASH_TOTAL").split("/*")[0]))
+        eeprom = eval(re.sub(r"[u]\b", "", define("OTA_EEPROM_RESERVED").split("/*")[0]))
+        fs = eval(re.sub(r"[u]\b", "", define("OTA_FILESYSTEM_SIZE").split("/*")[0]))
+        sector = int(re.sub(r"[u]\b", "", define("OTA_FLASH_SECTOR_SIZE").split("/*")[0]).strip())
+    except Exception:
+        return None
+    return total - eeprom - fs - sector
+
+
+def check_ota_bin(env, safe_max, exempt=None):
+    """The budget above measures what PlatformIO prints, which is the SUM OF
+    SECTIONS. What OTA refuses is the .bin, and the two differ by the padding
+    the linker puts before .data's load address — so the .bin moves in 4 KiB
+    steps and can cross the OTA ceiling while `used` still looks comfortable.
+    This is the check that catches it, and it is the failure the budget number
+    cannot see: an image over OTA_APP_SAFE_MAX_SIZE stages, validates, and then
+    has its tail overwritten by the config snapshot."""
+    if exempt:
+        print(f"[flash-budget] SKIP {env}: not held to the OTA ceiling on "
+              f"purpose — {exempt}")
+        return
+    path = os.path.join(ROOT, ".pio", "build", env, "firmware.bin")
+    if not os.path.exists(path):
+        print(f"[flash-budget] NOTE {env}: no firmware.bin next to the log, "
+              f"so the OTA ceiling was not checked.")
+        return
+    size = os.path.getsize(path)
+    slack = safe_max - size
+    if slack < 0:
+        fail(f"{env}: firmware.bin is {size} B, OTA_APP_SAFE_MAX_SIZE is "
+             f"{safe_max} B — over by {-slack} B. An image this large stages "
+             f"and validates, then the config snapshot overwrites its tail.")
+    band = 4096
+    if slack < band:
+        print(f"[flash-budget] WARN {env}: firmware.bin is {size} B, only "
+              f"{slack} B under the OTA ceiling of {safe_max} B — less than one "
+              f"flash sector. The next addition may make this image refuse to "
+              f"update over the air while every other number still looks fine.")
+    else:
+        print(f"[flash-budget] OK {env}: firmware.bin {size} B, "
+              f"{slack} B under the OTA ceiling.")
+
+
 def fail(msg):
     print(f"[flash-budget] FAIL {msg}")
     sys.exit(1)
@@ -113,6 +173,14 @@ def main():
 
     print(f"[flash-budget] OK {env}: {used} B used, {-delta} B under budget "
           f"({pct:.1f}% of slot, {ceiling - used} B to the ceiling)")
+
+    safe_max = ota_safe_max()
+    if safe_max is None:
+        print(f"[flash-budget] NOTE {env}: could not read OTA_APP_SAFE_MAX_SIZE "
+              f"out of src/ota/ota_layout.h — the OTA ceiling was not checked.")
+    else:
+        check_ota_bin(env, safe_max,
+                      cfg.get("ota_exempt", {}).get(env))
 
 
 if __name__ == "__main__":

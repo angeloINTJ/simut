@@ -30,23 +30,34 @@
   "OTA_APP_SAFE_MAX_SIZE), not the 1,044,480 program slot: the last 4 KiB sector of",
   "the slot is where the config snapshot lands at stage time. pico_w_air's .bin is",
   "1,039,508 B on main AND on this branch - 876 B of real OTA slack, not 4,972.",
-  "The Air budget margin is 1,000 B for that reason; every future byte there is a trade."
+  "The Air budget margin is 1,000 B for that reason; every future byte there is a trade.",
+  "",
+  "2026-09-18 (feat/screen-mirror): the three TFT budgets go up because the panel",
+  "mirror landed - /api/screen_stream, its palette-RLE codec, POST /api/touch and the",
+  "dashboard canvas that drives them. release 1,024,340 -> 1,027,852, test +3,408,",
+  "asserts +3,528; the margin stays the 3,000 B this file has always used. alpha and",
+  "air keep their old budgets: neither has a panel, so both carry only the ~1.5 kB of",
+  "gzipped page, and both still fit."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-09-11",
- "measured_at_commit": "feat/fleet-api",
+ "measured_on": "2026-09-18",
+ "measured_at_commit": "feat/screen-mirror",
+ "ota_exempt": {
+  "pico_w_asserts": "A bench soak image, flashed over USB to chase an invariant-3 regression (see the env comment in platformio.ini). It carries the concurrency tripwire on top of release and, since the panel mirror landed on 2026-09-18, its .bin is ~1.7 kB past OTA_APP_SAFE_MAX_SIZE. Nothing ships it to a device in the field, and the fix would be to cut a feature out of a debug image to make it updatable in a way nobody updates it."
+ },
+
  "envs": {
   "pico_w_release": {
-   "budget": 1027340,
-   "measured": 1024340
+   "budget": 1030900,
+   "measured": 1027900
   },
   "pico_w_test": {
-   "budget": 1026356,
-   "measured": 1023356
+   "budget": 1029788,
+   "measured": 1026788
   },
   "pico_w_asserts": {
-   "budget": 1029508,
-   "measured": 1026508
+   "budget": 1033036,
+   "measured": 1030036
   },
   "pico_w_alpha": {
    "budget": 1025284,

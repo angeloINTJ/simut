@@ -107,6 +107,8 @@ handler checks.
 | `GET /api/history_multi`, `/api/history_days`, `/api/export/history.bin`, `/api/history/open` | `PERM_HISTORY` |
 | `GET /api/export/logs.bin`, `/api/logs` | `PERM_LOGS` |
 | `GET /api/screenshot`, `/api/screenshot_chunk` | `PERM_SYS_CONFIG` |
+| `GET /api/screen_stream` | `PERM_SYS_CONFIG` |
+| `POST /api/touch` | `PERM_SYS_CONFIG` — drives the panel UI; the display PIN keypad still guards the settings screens |
 | `GET /api/sec_status` | `PERM_USER_MGR` |
 | `GET /api/ls` | `PERM_FILE_READ` |
 | `GET /download` | `PERM_FILE_READ`, **plus** `PERM_HISTORY` for `/history/...` and `PERM_LOGS` for `*.blog` (`downloadPermFor`) |

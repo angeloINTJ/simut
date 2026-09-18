@@ -6,6 +6,58 @@ Todas as mudanças notáveis do firmware SIMUT.
 
 ## Não lançado
 
+## v2.4.7-beta (2026-09-18)
+
+**O painel, ao vivo no navegador, e clicável.** `GET /api/screen_stream` manda
+um quadro por requisição em 30 faixas de 8 linhas, cada faixa em RLE de paleta
+— um índice de cor, um byte contando os pixels que seguem — ou crua em RGB565,
+o que for menor, decidido faixa a faixa: o pior caso vira o tamanho cru mais 3
+bytes de cabeçalho, em vez do dobro que um RLE sem guarda custa em ruído.
+Medido no ferro em seis telas: **1,53 s por quadro contra os 4,33 s do BMP, e
+3,4-13,3 kB contra 230.454 B** — 2,8× mais rápido, 24× menor. A velocidade vem
+de ler cada linha uma vez; a leitura com voto triplo continua no
+`/api/screenshot`, que é a captura forense que prova que a fiação aguenta 62,5
+MHz. E o ruído contra o qual esse voto faz seguro não apareceu: nas quatro
+telas que ficam paradas, duas leituras independentes de uma passada diferem em
+**zero** pixels de 76.800, e em zero contra o BMP votado. Um quadro é 91%
+leitura do painel, 7% pausas do Core 1 e 3% rede — o codec devolveu o fio, e o
+que sobra é a leitura.
+
+`POST /api/touch` transforma o espelho em controle: um clique no canvas vira um
+toque no painel, convertido pelo retângulo do canvas para que o aparelho só
+receba coordenada de painel. É a mesma injeção do `touch sim` do console, com o
+mesmo teclado de PIN na frente dos Ajustes, atrás de `PERM_SYS_CONFIG`. Duas
+coisas a bancada resolveu. Um toque arma a janela de prioridade de 5 s, e cegar
+o espelho que mandou o toque não serviria a ninguém — então o `handleTouch`
+passa a registrar, no portão de pressão que ele já tinha, se o toque foi
+injetado, e a captura é liberada numa janela aberta por injeção, enquanto flash
+e telemetria seguem recuando. E o painel precisa de ~600 ms sozinho depois para
+repintar (medido: 150 ms e o toque não aparece, 250-400 ms e a tela nova sai
+rasgada, 550 ms e sai inteira). Essa espera não pode morar no firmware: um
+toque vira um UiEvent que o Core 0 consome no laço dele, e um handler web roda
+nesse mesmo core, então esperar dentro do aparelho para justamente a bomba que
+faz o toque valer. A página espera; quem chamar a rota na mão precisa esperar
+também.
+
+**O botão de gráfico do min/máx para de cair no modo seleção.** Em min/máx o
+painel superior desenha um botão de gráfico de x=245 a x=302, e a zona do
+indicador de modo em `x > 280` era testada antes — o terço direito respondia a
+um toque rápido com a troca de modo, jogando o painel na seleção, sem nenhum
+indicador desenhado ali para explicar. A/B no ferro, instrumentado pelo modo de
+UI que o `show metrics` informa, e não pela minha leitura de uma captura: sem o
+conserto o toque deixa o modo 0 (dashboard); com ele, modo 3 (gráfico). Fora do
+min/máx aquele canto continua alternando o modo, sem mudança.
+
+**O portão de flash passa a medir o `.bin` contra o teto de OTA.** O orçamento
+que ele conferia é soma de seções e anda em degraus de 4 KiB, então uma imagem
+pode passar do `OTA_APP_SAFE_MAX_SIZE` — além do qual o snapshot de config
+sobrescreve a cauda dela — com todos os números ainda parecendo confortáveis.
+Lendo o teto do `ota_layout.h` em vez de copiá-lo, a checagem achou na hora que
+a imagem de release tem **476 B de folga de OTA**, que a alpha já estava em 780
+B antes de tudo isso, e que a `pico_w_asserts` passou do teto — registrada como
+isenção, por ser imagem de bancada gravada por USB.
+
+
 ## v2.4.6-beta (2026-09-16)
 
 **A interface web embarcada passa a seguir o Ângulo, e ela cabe: 2,5 kB a menos
