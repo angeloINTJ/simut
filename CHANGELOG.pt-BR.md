@@ -53,7 +53,7 @@ que ele conferia é soma de seções e anda em degraus de 4 KiB, então uma imag
 pode passar do `OTA_APP_SAFE_MAX_SIZE` — além do qual o snapshot de config
 sobrescreve a cauda dela — com todos os números ainda parecendo confortáveis.
 Lendo o teto do `ota_layout.h` em vez de copiá-lo, a checagem achou na hora que
-a imagem de release tem **476 B de folga de OTA**, que a alpha já estava em 780
+a imagem de release tem **452 B de folga de OTA**, que a alpha já estava em 780
 B antes de tudo isso, e que a `pico_w_asserts` passou do teto — registrada como
 isenção, por ser imagem de bancada gravada por USB.
 
