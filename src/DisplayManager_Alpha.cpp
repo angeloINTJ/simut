@@ -443,6 +443,7 @@ void DisplayManager::showSettingsDisplayOffset( ){}
 const char* DisplayManager::tr(LangKey){return "";}
 const char* DisplayManager::channelLabel(uint8_t){return "";}
 void DisplayManager::readRow(int16_t,uint16_t*,int16_t){}
+void DisplayManager::readRect(int16_t,int16_t,int16_t,int16_t,uint16_t*){}
 void DisplayManager::unaccent(const char* utf8, char* out, size_t outSize) {
 	if (!out || outSize == 0) return;
 	if (!utf8) { out[0] = '\0'; return; }

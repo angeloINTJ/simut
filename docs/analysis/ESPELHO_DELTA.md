@@ -10,7 +10,14 @@ hoje não cabe na imagem. As duas coisas estão medidas abaixo.
 
 ## 1. Onde o tempo vai hoje
 
-Um quadro do `/api/screen_stream` custa **1,53 s** no ferro. A conta, medida em
+> **Atualizado em 18/09, depois que o estudo virou conserto.** A seção 9 mede de
+> novo o que este documento chamava de teto: o clock de leitura era 2 MHz por
+> convenção e não por exigência do painel, e a "transferência em bloco" do
+> framework é um laço byte a byte. Corrigidas as duas, o quadro caiu de 1,53 s
+> para 0,57 s e a leitura deixou de ser 91% da conta. As proporções abaixo são as
+> de antes disso; as conclusões sobre o delta continuam valendo, com margem menor.
+
+Um quadro do `/api/screen_stream` custava **1,53 s** no ferro. A conta, medida em
 quatro caminhos independentes e fechando dentro de 7%:
 
 | parcela | por quadro | fração |
@@ -21,8 +28,7 @@ quatro caminhos independentes e fechando dentro de 7%:
 
 **O payload já é 3% do problema.** Mandar menos bytes — que é o que "só os
 blocos que mudaram" parece prometer — mexe nesses 3%. Se a leitura continuar
-sendo do quadro inteiro, comprimir melhor ou mandar menos não compra nada:
-o teto continua sendo 1,4 s de SPI a 2 MHz.
+sendo do quadro inteiro, comprimir melhor ou mandar menos não compra nada.
 
 O ganho real de um sistema de blocos é outro: **não LER o que não mudou.**
 
@@ -202,10 +208,85 @@ ou se corta de dentro do firmware.
   aguenta 62,5 MHz. Uma sombra parcial do framebuffer também não cabe: 153.600 B
   contra ~63 kB de heap livre.
 
-## 8. A alavanca independente, que continua valendo
+## 8. A alavanca independente — FEITA, e valeu 2,5×
 
-A leitura custa **5,79 ms por linha contra 3,84 ms de clock puro a 2 MHz** — 51%
-de sobrecarga, ~2 µs por byte, que é o custo da chamada `SPI.transfer` byte a
-byte do `readRow`. Trocar o laço por transferência em bloco ataca os mesmos 91%
-e é ortogonal a este estudo: melhora o espelho, o delta e a captura forense ao
-mesmo tempo. Deve vir antes, porque é menor e não depende de folga de flash.
+Era a recomendação deste estudo e foi executada no mesmo dia. Está na seção 9.
+
+---
+
+## 9. O que a leitura realmente custava (18/09)
+
+O documento dizia "5,79 ms por linha" como se fosse física. Não era: eram duas
+escolhas de software, e as duas estavam erradas.
+
+### 9.1 O clock de leitura era 2 MHz por convenção
+
+O `readRow` abria a transação com `SPISettings(2000000, ...)` e nada, em lugar
+nenhum, dizia por quê. Medido no ferro numa tela **provadamente parada** (o
+controle é dois quadros a 2 MHz devolvendo 0 pixels diferentes — sem esse
+controle o teste mede o relógio do painel, e mediu, duas vezes, antes de eu
+perceber):
+
+| clock | quadro | µs/px | pixels errados |
+|---|---:|---:|---:|
+| 2 MHz | 1,303 s | 15,0 | 0 |
+| 4 MHz | 0,742 s | 7,7 | 0 |
+| **6 MHz** | **0,550 s** | **5,2** | **0** |
+| 8 MHz | 0,476 s | 4,2 | 0 |
+| 12 MHz | 0,369 s | 2,8 | 0 |
+| 16 MHz | 0,368 s | 2,8 | 0 |
+
+Mais um soak de 30 quadros a 6 MHz e 30 a 12 MHz: **zero pixels errados nos
+dois**. O default ficou em 6 MHz porque o ciclo de leitura serial do ILI9341 dá
+~6,6 MHz e isso fica dentro dele; 12 MHz mediu igualmente limpo **neste módulo e
+nesta fiação** e está a uma constante de distância (`SIMUT_TFT_READ_HZ`), com o
+mesmo trato que o clock de escrita de 62,5 MHz já documenta.
+
+### 9.2 A "transferência em bloco" do framework não é em bloco
+
+`SPIClassRP2040::transfer(void* buf, size_t count)` é um laço que chama a
+versão de **um byte**. Trocar o `readRow` por ele comprou 5,5% — e foi isso que
+denunciou o problema, porque deveria ter comprado muito mais.
+
+O caminho rápido é a sobrecarga de dois buffers com `tx = nullptr`, que cai em
+`spi_read_blocking` do SDK. A diferença, medida: **~4,3 µs por pixel de puro
+software**, que a 6 MHz é mais que o próprio fio.
+
+### 9.3 Ler janela estreita funciona — e é o que o delta precisa
+
+Quatro janelas de 80×8 por faixa, em vez de uma de 320×8: **0 pixels diferentes**
+do caminho forense, e o custo de abrir 4× mais janelas foi ~0,2 ms cada. Ou
+seja, **o custo da leitura é por pixel lido, não por janela aberta**. É a
+premissa que faltava para a seção 2: ler só os blocos sujos custa proporcional à
+área deles, e não à linha inteira que os contém.
+
+### 9.4 O resultado
+
+| | antes | agora |
+|---|---:|---:|
+| espelho, tela parada | 1,530 s | **0,571 s** |
+| espelho, dashboard vivo | 1,530 s | **0,622 s** |
+| `/api/screenshot` (3 leituras + voto) | 4,26 s | **1,93 s** |
+| pixels diferentes entre os dois caminhos | 0 | **0** |
+
+O orçamento do quadro mudou de dono:
+
+| parcela | tela parada | dashboard vivo |
+|---|---:|---:|
+| leitura (399 ms) | 70% | 64% |
+| pausas do Core 1 | 23% (129 ms) | 29% (180 ms) |
+| rede | 7% | 7% |
+
+As pausas ficaram **mais caras em tempo absoluto** (111 → 129-180 ms) justamente
+porque a leitura ficou rápida: o Core 1 recebe mais tempo entre capturas, tem
+mais o que pintar, e demora mais para estacionar quando o handshake pede.
+
+### 9.5 O que isso faz com o resto do estudo
+
+O delta por blocos continua valendo e **fica mais barato de justificar**: com a
+leitura a 5,2 µs/px, os 6 blocos de 8×8 do caso típico custam **2 ms** de
+leitura, não 93. O gargalo do espelho passa a ser a pausa do Core 1, que é
+justamente o que menos blocos sujos também reduzem — menos leitura, menos pausa.
+
+O que NÃO mudou é o impedimento: a folga de OTA da imagem de release, que este
+próprio conserto consumiu um pouco mais (484 → **412 B**).

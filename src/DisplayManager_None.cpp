@@ -95,6 +95,7 @@ void DisplayManager::refreshTheme( ) { }
 
 uint16_t DisplayManager::readPixel(int16_t x, int16_t y) { (void)x; (void)y; return 0; }
 void DisplayManager::readRow(int16_t y, uint16_t* buffer, int16_t w) { (void)y; (void)buffer; (void)w; }
+void DisplayManager::readRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t* out) { (void)x; (void)y; (void)w; (void)h; (void)out; }
 
 void DisplayManager::showSettingsThemes(int currentThemeIdx) { (void)currentThemeIdx; }
 void DisplayManager::showAuthScreen(String expectedPin) { (void)expectedPin; }

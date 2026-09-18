@@ -1843,9 +1843,10 @@ void WebManager::handleApiScreenStream( ) {
  }
 
  _displayRef->pauseRendering(true);
- for (int i = 0; i < STRIP_ROWS; i++) {
- _displayRef->readRow((int16_t)(s * STRIP_ROWS + i), raw + (size_t)i * W, W);
- }
+ /* One window and one block transfer for the whole strip — see readRect. The
+  * eight readRow calls this replaces opened eight address windows and made
+  * 7,680 one-byte SPI calls. */
+ _displayRef->readRect(0, (int16_t)(s * STRIP_ROWS), W, STRIP_ROWS, raw);
  _displayRef->pauseRendering(false);
  watchdog_update( );
 
