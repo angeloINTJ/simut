@@ -183,6 +183,27 @@ inline void drawMinMaxTempRow(GFXcanvas16* cv,
     drawUnitDegC_Mini(cv, endX, baseY, txtSub, font9);
 }
 
+/* Geometry of the min/max graph button, in CARD coordinates.
+ *
+ * It lived three times, once in each driver that draws a min/max panel, and a
+ * fourth number — the touch zone that opens the graph — was written by hand in
+ * DisplayManager_Touch.cpp and did not agree with any of them. That is what
+ * made the right third of the button toggle the panel mode and the left third
+ * turn min/max off: two hot zones, neither matching what is painted. The
+ * drawing and the touch now read the same three values.
+ *
+ * The content of every min/max panel ends at ANCHOR; the button is centred in
+ * what is left of the card. */
+constexpr int16_t MINMAX_BTN_ANCHOR = 230;
+constexpr int16_t MINMAX_BTN_W      = 58;
+constexpr int16_t MINMAX_BTN_Y      = 2;
+constexpr int16_t MINMAX_BTN_H      = 40;
+
+constexpr int16_t minMaxBtnX(int16_t cardW) {
+	return MINMAX_BTN_ANCHOR +
+	       ((int16_t)(cardW - 1) - MINMAX_BTN_ANCHOR - MINMAX_BTN_W) / 2;
+}
+
 /** Renders the graph history button icon. */
 inline void drawMinMaxGraphBtn(GFXcanvas16* cv, int16_t x, int16_t y,
                                 int16_t w, int16_t h, uint16_t fill, uint16_t fg) {

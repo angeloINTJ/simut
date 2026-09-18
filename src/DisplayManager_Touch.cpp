@@ -18,6 +18,7 @@
 #include "DisplayManager_FmtFloat.h"
 #include "LogManager.h"
 #include "PasswordKeyboard.h"
+#include "sensors/SensorDrawing.h" /* min/max graph button geometry */
 
 void DisplayManager::handleTouch( ) {
  /* Use _rawTouchState (already OR'd with sim flag in
@@ -391,18 +392,15 @@ void DisplayManager::handleTouch( ) {
   *
   * Not in min/max, where that corner belongs to the graph button below and
   * this branch was eating the right third of it. The button is drawn from
-  * x=245 to x=302 (measured off a captured frame on the rig), so a tap
-  * between 281 and 302 landed on something the user can see and press, and
+  * CARD_X + minMaxBtnX(CARD_W) = 245 to 302, so a tap between 281 and 302
+  * landed on something the user can see and press, and
   * got the mode toggle instead: the panel jumped into selection mode from a
   * short tap, with no [Amb]/[Sx] indicator drawn there to explain it — the
   * min/max blits do not paint one. The graph branch that follows already
   * guards on showMinMax; it simply never ran, because this one returns first.
   *
-  * The hot zones still do not match the drawing on the other side: the graph
-  * branch starts at x > 266 while the button starts at 245, so its left third
-  * toggles min/max off instead of opening the graph. That is the same class
-  * of defect and is left alone here on purpose — it changes an interaction
-  * nobody reported, and it should be its own decision. */
+  * The other side of the same button had the mirror-image defect and is
+  * fixed with it: see the zone below, which now covers what is drawn. */
  if (firstTouch && x > 280 && !_topPanel.showMinMax) {
  _topPanel.fixed = !_topPanel.fixed;
  if (_topPanel.fixed)
@@ -413,8 +411,15 @@ void DisplayManager::handleTouch( ) {
  return;
  }
 
- /* Right corner: graph button (priority over alarm) — touch-down immediate */
- if (_topPanel.showMinMax && x > 266 && firstTouch) {
+ /* The min/max graph button, on touch-down, over the whole rectangle it is
+  * painted on and not a hand-written slice of it. It used to read `x > 266`
+  * while the button is drawn from CARD_X + minMaxBtnX(CARD_W) = 245 to 302, so
+  * its left third fell through to the short-tap path and turned min/max OFF —
+  * the mirror image of the mode-indicator bug above, on the same button. Both
+  * zones now come from the same three numbers the drivers draw with. */
+ constexpr int16_t MM_BTN_X0 = CARD_X + minMaxBtnX(CARD_W);
+ constexpr int16_t MM_BTN_X1 = MM_BTN_X0 + MINMAX_BTN_W;   /* exclusive */
+ if (_topPanel.showMinMax && firstTouch && x >= MM_BTN_X0 && x < MM_BTN_X1) {
  _topPanel.showMinMax = false;
  /* topSlotIdx, not -1. The hardcoded -1 was the sentinel from when this panel
   * was always the ambient sensor; it now follows _topPanel.fixedIdx or mirrors
