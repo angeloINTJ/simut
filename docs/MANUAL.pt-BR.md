@@ -810,6 +810,7 @@ perfis, e qual deles você tem depende do build do firmware:
 |---|---|
 | `pico_w_release`, `pico_w_alpha` | o console de emergência, catorze comandos |
 | `pico_w_test` | o console completo, 56 comandos e quatro modos |
+| `pico_w_test_https` | o console completo, mais o servidor TLS — a imagem de bancada para qualquer coisa de HTTPS |
 | `pico_w_air` | o console completo, desde 18/09/2026 — veja abaixo |
 
 ### Firmware de release — catorze comandos

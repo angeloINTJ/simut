@@ -52,6 +52,10 @@
    "budget": 979732,
    "measured": 976732
   },
+  "pico_w_test_https": {
+   "budget": 1004300,
+   "measured": 1001300
+  },
   "pico_w_asserts": {
    "budget": 979884,
    "measured": 976884

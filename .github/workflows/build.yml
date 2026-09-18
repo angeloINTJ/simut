@@ -121,6 +121,7 @@ jobs:
         env:
           - pico_w_release
           - pico_w_test
+          - pico_w_test_https
           - pico_w_asserts
           - pico_w_alpha
           - pico_w_air
