@@ -66,6 +66,7 @@ inline bool parseFloatStrict(const String& s, float& out) {
  }
  bool seenDot = false;
  bool seenDigit = false;
+ int digits = 0;
  for (size_t i = start; i < s.length( ); i++) {
  char c = s[i];
  if (c == '.') {
@@ -73,6 +74,12 @@ inline bool parseFloatStrict(const String& s, float& out) {
  seenDot = true;
  } else if (c >= '0' && c <= '9') {
  seenDigit = true;
+ /* Past this many digits parseFloat( ) is no longer bit-exact against
+  * (float)strtod — the proof is at the constant — and "exact or refuse" is
+  * this function's contract; the fuzz oracle holds it to that, and on
+  * 2026-09-18 it caught a 27-digit input one ulp off. A calibration point
+  * never needs more: a float carries seven significant digits. */
+ if (++digits > PARSE_FLOAT_EXACT_DIGITS) return false;
  } else {
  return false;
  }
