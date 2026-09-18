@@ -41,31 +41,28 @@
  ],
  "ceiling": 1044480,
  "measured_on": "2026-09-18",
- "measured_at_commit": "feat/screen-mirror",
- "ota_exempt": {
-  "pico_w_asserts": "A bench soak image, flashed over USB to chase an invariant-3 regression (see the env comment in platformio.ini). It carries the concurrency tripwire on top of release and, since the panel mirror landed on 2026-09-18, its .bin is ~1.7 kB past OTA_APP_SAFE_MAX_SIZE. Nothing ships it to a device in the field, and the fix would be to cut a feature out of a debug image to make it updatable in a way nobody updates it."
- },
+ "measured_at_commit": "perf/dieta-flash lever 1 (zopfli)",
 
  "envs": {
   "pico_w_release": {
-   "budget": 1030900,
-   "measured": 1027900
+   "budget": 1027980,
+   "measured": 1024980
   },
   "pico_w_test": {
-   "budget": 1029788,
-   "measured": 1026788
+   "budget": 1026892,
+   "measured": 1023892
   },
   "pico_w_asserts": {
-   "budget": 1033036,
-   "measured": 1030036
+   "budget": 1030140,
+   "measured": 1027140
   },
   "pico_w_alpha": {
-   "budget": 1025284,
-   "measured": 1022284
+   "budget": 1023092,
+   "measured": 1020092
   },
   "pico_w_air": {
-   "budget": 1028424,
-   "measured": 1027424
+   "budget": 1011168,
+   "measured": 1010168
   }
  }
 }

@@ -1,9 +1,9 @@
 """
 PlatformIO pre-build script — regenerates WebUI_GZ.h from WebUI.h.
 
-Compresses PROGMEM blocks with gzip level 9 and writes the header consumed
-by WebManager_Core.cpp, plus the <PAGE>_SERVE macro that binds each route to
-the partition its asset landed on.
+Compresses PROGMEM blocks and writes the header consumed by
+WebManager_Core.cpp, plus the <PAGE>_SERVE macro that binds each route to the
+partition its asset landed on.
 
 The output depends on three things — the source, this script, and the env's
 page layout — and the stamp on line 2 carries all three, so the "already up to
@@ -16,8 +16,9 @@ portoes protegem o resultado, do mais exato ao mais grosseiro:
 `_syntax_check_scripts` (ainda compila) e `_assert_not_gutted` (nao encolheu
 demais). Os testes do escaner estao em tools/test_webui_minify.py.
 
-Sem dependencia externa de proposito: quem compila a partir do zip da release
-precisa que isto funcione com o Python da maquina e mais nada.
+Sem dependencia externa OBRIGATORIA de proposito: quem compila a partir do zip
+da release precisa que isto funcione com o Python da maquina e mais nada. O
+zopfli e a unica excecao, e e opcional — ver _compress( ).
 
 Project: SIMUT
 License: MIT
@@ -27,6 +28,61 @@ import os
 import re
 import gzip
 import hashlib
+
+# Zopfli emits a stream that any gzip reader accepts — it just spends far more
+# time looking for a better one. Measured over the 13 blocks on 2026-09-18:
+# 97,499 B with gzip -9, 94,611 B with 15 iterations (-2,888 B, -3.0%), and
+# 50 iterations buys 18 B more for 3x the time. 15 it. costs 2.4 s for the
+# whole set, paid only when the source hash changes.
+#
+# It stays OPTIONAL because of the rule above: a release-zip build with a bare
+# Python still produces a correct image, 2,888 B larger. That fits inside the
+# 3,000 B margin every flash budget carries, so the gate passes either way —
+# and if a future change eats that margin, the WARN below is printed right
+# above the gate's number.
+try:
+    import zopfli.gzip as _zopfli
+except ImportError:  # pragma: no cover - depends on the machine, not the code
+    _zopfli = None
+
+ZOPFLI_ITERATIONS = 15
+_warned_no_zopfli = [False]
+
+
+def _compress(payload: bytes) -> bytes:
+    """Gzip `payload` as small as this machine can, and prove it round-trips.
+
+    mtime=0, or the gzip header carries the build clock and firmware.bin
+    differs on every build from identical sources. That makes a released image
+    impossible to reproduce, and makes "is this the binary we tested?"
+    unanswerable by hash — which is exactly the question a firmware release has
+    to answer. Zopfli writes a zero mtime already; the assert below pins that,
+    because a header field nobody checks is a field that can change under us.
+    """
+    if _zopfli is not None:
+        out = _zopfli.compress(payload, numiterations=ZOPFLI_ITERATIONS)
+        if out[4:8] != b"\x00\x00\x00\x00":
+            raise SystemExit(
+                "build_webui_gz: zopfli wrote a non-zero mtime — the image "
+                "would stop being reproducible. Refusing."
+            )
+    else:
+        if not _warned_no_zopfli[0]:
+            _warned_no_zopfli[0] = True
+            print(
+                "build_webui_gz: WARN zopfli not installed — falling back to "
+                "gzip -9. The image lands ~2,888 B larger than the flash "
+                "budget was measured at. `pip install zopfli` to close it."
+            )
+        out = gzip.compress(payload, compresslevel=9, mtime=0)
+
+    # The compressor is the one step here with no gate of its own: the three
+    # minifier asserts run on text, and nothing downstream reads the bytes
+    # until the device does. A decompress-and-compare costs microseconds and
+    # turns "the page is corrupt on the device" into a build failure.
+    if gzip.decompress(out) != payload:
+        raise SystemExit("build_webui_gz: compressed block does not round-trip")
+    return out
 
 try:
     Import("env")
@@ -918,12 +974,7 @@ def generate() -> None:
         _assert_only_whitespace_removed(name, stamped, minified, kind)
         _syntax_check_scripts(name, minified, kind)
         _assert_not_gutted(name, original_len, len(minified))
-        # mtime=0, or the gzip header carries the build clock and firmware.bin
-        # differs on every build from identical sources. That makes a released
-        # image impossible to reproduce, and makes "is this the binary we
-        # tested?" unanswerable by hash — which is exactly the question a
-        # firmware release has to answer.
-        compressed = gzip.compress(minified.encode("utf-8"), compresslevel=9, mtime=0)
+        compressed = _compress(minified.encode("utf-8"))
         hex_parts = [f"0x{b:02x}" for b in compressed]
 
         array_lines = []
@@ -982,7 +1033,8 @@ def generate() -> None:
     print(
         f"build_webui_gz: {len(matches)} arrays | layout={LAYOUT_TAG} | "
         f"input {total_in} -> minified {total_min} ({100*total_min/max(total_in,1):.1f}%) "
-        f"-> gzipped {total_gz} ({100*total_gz/max(total_in,1):.1f}%)"
+        f"-> gzipped {total_gz} ({100*total_gz/max(total_in,1):.1f}%) "
+        f"[{'zopfli x%d' % ZOPFLI_ITERATIONS if _zopfli else 'gzip -9'}]"
     )
 
 
