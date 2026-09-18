@@ -45,24 +45,24 @@
 
  "envs": {
   "pico_w_release": {
-   "budget": 973836,
-   "measured": 970836
+   "budget": 973900,
+   "measured": 970900
   },
   "pico_w_test": {
-   "budget": 979756,
-   "measured": 976756
+   "budget": 979820,
+   "measured": 976820
   },
   "pico_w_asserts": {
-   "budget": 976004,
-   "measured": 973004
+   "budget": 976068,
+   "measured": 973068
   },
   "pico_w_alpha": {
-   "budget": 967956,
-   "measured": 964956
+   "budget": 968020,
+   "measured": 965020
   },
   "pico_w_air": {
-   "budget": 966832,
-   "measured": 965832
+   "budget": 966896,
+   "measured": 965896
   }
  }
 }
