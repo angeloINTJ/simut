@@ -466,6 +466,7 @@ private:
 #if SIMUT_DISPLAY_TFT
 	void handleApiScreenshot( );
 	void handleApiScreenshotChunk( ); /**< /chunked with CRC32 */
+	void handleApiScreenStream( );   /**< palette-RLE mirror, one frame per call */
 #endif
 	/* getDynamicExpectedHash removed with the *PENDING* scheme — see
 	 * assignTempPassword and the note in verifyPasswordFor. */

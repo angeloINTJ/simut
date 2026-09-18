@@ -410,6 +410,15 @@ O que esperar:
 framebuffer do painel pelo SPI. É a tela real, e não uma re-renderização, e é a
 partir dela que o mapa de telas da §5 é construído.
 
+O botão **Ao vivo**, ao lado da captura, usa `GET /api/screen_stream`: o mesmo
+painel, mas um quadro por requisição em faixas de 8 linhas, cada uma comprimida
+por RLE de paleta (1 byte de cor, 1 byte de contagem) ou enviada crua, o que for
+menor. Um quadro médio sai em 9,5 kB no lugar dos 230 kB do BMP, e o espelho
+anda perto de 1 quadro por segundo porque lê cada linha uma vez — a captura BMP
+lê três vezes e vota, que é o que a torna a referência forense e a torna lenta.
+Um pixel ocasional errado é o preço do espelho; para conferir cores, use a
+captura.
+
 ---
 
 ## 7. Alarmes
@@ -946,6 +955,7 @@ Permissões entre colchetes.
 |---|---|---|
 | `/api/screenshot` | GET | BMP 320×240 de 24 bits lido do painel |
 | `/api/screenshot_chunk` | GET | Um bloco de 16 linhas com um CRC32, para transferência verificável |
+| `/api/screen_stream` | GET | Um quadro do painel em faixas com RLE de paleta (espelho ao vivo) |
 
 ---
 

@@ -12,6 +12,7 @@
 #include "TouchPriority.h"
 #include "FlashIrqProbe.h"
 #include "ota/backup.h" /* ota::crc32_update for screenshot_chunk */
+#include "ScreenRle.h" /* palette RLE for /api/screen_stream */
 #include <LittleFS.h>
 #include <time.h>
 
@@ -1732,6 +1733,130 @@ void WebManager::handleApiScreenshotChunk( ) {
  free(payload);
  _handlerDeadline = savedDeadline;
 }
+/* GET /api/screen_stream — one frame of the panel, palette-RLE, chunked.
+ *
+ * WHY a second capture route instead of a flag on /api/screenshot: the two
+ * want opposite things. /api/screenshot is the FORENSIC read — it votes three
+ * reads per row because the ILI9341 read protocol is fragile, and it is what
+ * simut_config.h points at to prove the wiring carries 62.5 MHz. This one is
+ * the MIRROR: one read per row, because the extra two cost 1,843 ms of a
+ * 2,825 ms frame and a mirror that shows a stray pixel is still a mirror.
+ * Arithmetic from the constants in readRow (2 MHz, 3 bytes/pixel) and the
+ * 221 KB/s download measured in the netstorm campaign:
+ *
+ *   /api/screenshot   2,765 ms read (3x) + 1,018 ms send   ~0.26 fps
+ *   this route          922 ms read (1x) +    41 ms send   ~1.0  fps
+ *
+ * NOT MEASURED ON HARDWARE YET: how much read noise one pass actually shows
+ * on this module — that is what the three-vote read exists for. The cost of
+ * noise is bounded and known (0.1% of pixels flipped costs 3% of the packet,
+ * 1% costs 30%, measured over the bench captures), so it degrades the frame
+ * rate rather than the picture; the picture is a bench question.
+ *
+ * Strips are 8 rows: the two buffers are 5,120 B each, LESS than the 15,360 B
+ * /api/screenshot already mallocs, and a frame costs only 2% more bytes than
+ * with 16-row strips (9,454 vs 9,267 B measured) because a palette header is
+ * 17 B and pays for itself twice over.
+ *
+ * Core 1 is paused per strip, not per frame, and that is deliberate: a frame
+ * held under a single pause would freeze the renderer for the whole second
+ * the frame takes, and the mirror would faithfully show a panel that stopped
+ * moving because we stopped it. The cost is tearing — see ScreenRle.h. */
+void WebManager::handleApiScreenStream( ) {
+ uint16_t perms = getAuthPerms( );
+ if (!(perms & PERM_SYS_CONFIG)) { _server->send(403, "text/plain", "Forbidden"); return; }
+
+ if (TouchPriority::isActive( )) {
+ _server->sendHeader("Retry-After", "3");
+ _server->send(503, "application/json", "{\"error\":\"Display in use. Retry shortly.\"}");
+ return;
+ }
+
+ /* Same single-flight latch as /api/screenshot — two readers interleaving
+  * address windows on the SPI bus both get garbage. The mirror loops, so it
+  * reads the 409 as "skip this frame", not as an error. */
+ if (__atomic_exchange_n(&_isProcessingScreenshot, true, __ATOMIC_ACQ_REL)) {
+ _cancelScreenshot = true;
+ _server->send(409, "application/json", "{\"error\":\"Screenshot in progress, cancelling.\"}");
+ return;
+ }
+ _cancelScreenshot = false;
+
+ if (!_displayRef) {
+ __atomic_store_n(&_isProcessingScreenshot, false, __ATOMIC_RELEASE);
+ _server->send(500, "text/plain", "Display offline");
+ return;
+ }
+
+ constexpr int W = 320;
+ constexpr int H = 240;
+ constexpr int STRIP_ROWS = 8;
+ constexpr int STRIPS = H / STRIP_ROWS; /* 30 */
+ constexpr size_t STRIP_PX = (size_t)W * STRIP_ROWS; /* 2560 */
+ constexpr size_t STRIP_RAW = STRIP_PX * 2; /* 5120 */
+
+ /* Heap on demand, like screenshot_chunk: this route is opened by a page that
+  * is not always up, and 10 KB of permanent BSS for it would come out of the
+  * same heap TLS needs. */
+ uint16_t* raw = (uint16_t*)malloc(STRIP_RAW);
+ uint8_t* enc = (uint8_t*)malloc(STRIP_RAW);
+ if (!raw || !enc) {
+ free(raw); free(enc);
+ __atomic_store_n(&_isProcessingScreenshot, false, __ATOMIC_RELEASE);
+ _server->send(503, "text/plain", "Out of memory");
+ return;
+ }
+
+ uint32_t savedDeadline = _handlerDeadline;
+ _handlerDeadline = millis( ) + WEB_LONG_HANDLER_DEADLINE_MS;
+
+ _server->setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
+ _server->send(200, "application/octet-stream", "");
+
+ const uint8_t fhdr[screenrle::FRAME_HEADER] = {
+ 'S', 'R', '1',
+ (uint8_t)(W & 0xFF), (uint8_t)(W >> 8),
+ (uint8_t)(H & 0xFF), (uint8_t)(H >> 8),
+ (uint8_t)STRIP_ROWS, (uint8_t)STRIPS
+ };
+ bool ok = safeSend((const char*)fhdr, sizeof(fhdr));
+
+ for (int s = 0; ok && s < STRIPS; s++) {
+ if (!_server->client( ).connected( ) || isHandlerOvertime( ) || _cancelScreenshot) {
+ ok = false;
+ break;
+ }
+
+ _displayRef->pauseRendering(true);
+ for (int i = 0; i < STRIP_ROWS; i++) {
+ _displayRef->readRow((int16_t)(s * STRIP_ROWS + i), raw + (size_t)i * W, W);
+ }
+ _displayRef->pauseRendering(false);
+ watchdog_update( );
+
+ /* cap = the raw size, so a 0 here means exactly "the RLE did not earn its
+  * place" and the fallback below is the whole of the decision. */
+ const size_t rleLen = screenrle::encodeStrip(raw, STRIP_PX, enc, STRIP_RAW);
+ const uint8_t* body = rleLen ? enc : (const uint8_t*)raw;
+ const size_t bodyLen = rleLen ? rleLen : STRIP_RAW;
+
+ const uint8_t shdr[screenrle::STRIP_HEADER] = {
+ rleLen ? screenrle::ENC_PAL_RLE : screenrle::ENC_RAW565,
+ (uint8_t)(bodyLen & 0xFF), (uint8_t)(bodyLen >> 8)
+ };
+ ok = safeSend((const char*)shdr, sizeof(shdr)) &&
+      safeSend((const char*)body, bodyLen);
+
+ if (_lightYieldCb) _lightYieldCb( );
+ }
+
+ free(raw);
+ free(enc);
+ __atomic_store_n(&_isProcessingScreenshot, false, __ATOMIC_RELEASE);
+ _handlerDeadline = savedDeadline;
+ if (!ok) LOG_CODE(LOG_WARN, "WEB", WEB_SCREENSHOT_ABORTED, 0, "");
+}
+
 #endif /* SIMUT_DISPLAY_TFT */
 
 void WebManager::handleApiHistoryDays( ) {

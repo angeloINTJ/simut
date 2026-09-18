@@ -171,6 +171,7 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
 #if SIMUT_DISPLAY_TFT
  _server->on("/api/screenshot", HTTP_GET, std::bind(&WebManager::handleApiScreenshot, this));
  _server->on("/api/screenshot_chunk", HTTP_GET, std::bind(&WebManager::handleApiScreenshotChunk, this));
+ _server->on("/api/screen_stream", HTTP_GET, std::bind(&WebManager::handleApiScreenStream, this));
 #endif
  _server->on("/api/sec_status", HTTP_GET, std::bind(&WebManager::handleApiSecStatus, this));
  _server->on("/api/set_time", HTTP_POST, std::bind(&WebManager::handleApiSetTime, this));
