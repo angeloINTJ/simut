@@ -85,9 +85,9 @@ O SIMUT é um firmware IoT de nível profissional para o **Raspberry Pi Pico W**
 |:---:|:---:|:---:|:---:|
 | ![Dashboard TFT](docs/images/screens/dashboard.png) | ![Gráfico TFT](docs/images/screens/graph.png) | ![Dashboard web](docs/images/web-dashboard.png) | [![Vídeo do alpha](https://img.youtube.com/vi/wLjghqId8nE/hqdefault.jpg)](https://youtu.be/wLjghqId8nE) |
 
-> 📸 Todas as telas do display, capturadas do framebuffer do painel real: [docs/images/screens/screens.md](docs/images/screens/screens.md).
+> Todas as telas do display, capturadas do framebuffer do painel real: [docs/images/screens/screens.md](docs/images/screens/screens.md).
 >
-> 🎥 O vídeo do **alpha inicial** mostra o primeiro protótipo TFT + touch — a interface foi redesenhada desde então.
+> O vídeo do **alpha inicial** mostra o primeiro protótipo TFT + touch — a interface foi redesenhada desde então.
 
 ## Hardware
 
@@ -102,7 +102,7 @@ O SIMUT é um firmware IoT de nível profissional para o **Raspberry Pi Pico W**
 
 Veja o **[Guia de Fiação](docs/WIRING.md)** para a pinagem completa e os diagramas de ligação.
 
-> 🛠️ **PCB do SIMUT — layout disponível para download** — o projeto da placa no KiCad (`.kicad_pcb`, `.kicad_sch`) está em [`PCB_test/`](PCB_test/), e o pacote de fabricação pronto para enviar à fábrica (Gerbers + furação PTH/NPTH, sem camadas de pasta) está publicado como release público: **[simut-pcb-v1.0 — `simut_pcb_fabrication.zip`](https://github.com/angeloINTJ/simut/releases/tag/simut-pcb-v1.0)**.
+> **PCB do SIMUT — layout disponível para download** — o projeto da placa no KiCad (`.kicad_pcb`, `.kicad_sch`) está em [`PCB_test/`](PCB_test/), e o pacote de fabricação pronto para enviar à fábrica (Gerbers + furação PTH/NPTH, sem camadas de pasta) está publicado como release público: **[simut-pcb-v1.0 — `simut_pcb_fabrication.zip`](https://github.com/angeloINTJ/simut/releases/tag/simut-pcb-v1.0)**.
 
 ## Recursos principais
 
@@ -156,6 +156,7 @@ Veja o **[Guia de Fiação](docs/WIRING.md)** para a pinagem completa e os diagr
 
 ### Pré-requisitos
 - [PlatformIO](https://platformio.org/) (Core 6.x ou superior)
+- `pip install zopfli` — opcional; as páginas web comprimem 2.888 B a menos com ele, e os orçamentos de flash são medidos com ele
 - Raspberry Pi Pico W
 - Sem toolchain local? `docker compose run build` compila num container — o caminho que o [CONTRIBUTING.pt-BR.md](CONTRIBUTING.pt-BR.md) recomenda para novos contribuidores
 
@@ -237,7 +238,7 @@ simut/
 > imagens, com chave por aparelho mostrada no console e no display.
 > Ver [SECURITY.md](SECURITY.md) §2 e §8.
 
-> Não há ambiente de depuração. O `pico_w_debug` foi removido na v2.4.1 depois de nunca ter linkado: em `-Og` a imagem estourava o slot de 1020 KB em ~100 KB. A flash é apertada — a imagem release usa ~97 % do slot — então um alvo de GDB precisa ser montado cortando funcionalidades. Para o tripwire de concorrência no hardware, use `pico_w_asserts`.
+> Não há ambiente de depuração. O `pico_w_debug` foi removido na v2.4.1 depois de nunca ter linkado: em `-Og` a imagem estourava o slot de 1020 KB em ~100 KB. A flash é apertada — a imagem release usava ~97 % do slot quando essa decisão foi tomada, ~93 % desde a dieta da v2.4.9-beta — então um alvo de GDB precisa ser montado cortando funcionalidades. Para o tripwire de concorrência no hardware, use `pico_w_asserts`.
 
 ### Flags de build
 - `-Os` — otimização por tamanho

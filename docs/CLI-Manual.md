@@ -2,11 +2,11 @@
 
 > **Leia isto antes do resto.** Desde a v1.5.6-beta existem **dois perfis de
 > CLI**, e esta referência cobre o perfil completo gravado pelo ambiente
-> `pico_w_test`; a imagem release traz só o console de emergência de 10 comandos.
+> `pico_w_test`; a imagem release traz só o console de emergência de 14 comandos.
 >
 > | Perfil | Como obter | O que tem |
 > |---|---|---|
-> | **Emergência** (padrão) | `pico_w_release` — é o que vem nos zips de release | 10 comandos, prompt único `SIMUT>` |
+> | **Emergência** (padrão) | `pico_w_release` — é o que vem nos zips de release | 14 comandos, prompt único `SIMUT>` |
 > | **Completo** | `pico_w_test` — compilar da fonte | os 56 comandos e os 4 modos descritos abaixo |
 >
 > Toda configuração vive na **interface web**. O console serial da imagem de
@@ -28,6 +28,10 @@
 > system format [confirm]      Reformata o LittleFS, mantém o firmware
 > system https off [confirm]   Apaga o par de certificados e volta p/ HTTP
 > system factory [confirm]     Apaga TODA a config + reinicia
+> system ssid <nome>           Grava o SSID na hora (sem write memory); reload confirm p/ reconectar
+> system pass <senha>          Grava a senha do Wi-Fi na hora; idem
+> system cors <origem>|off     Origem da página do gerenciador web; grava na hora, vale no próximo boot
+> ap                           Sobe o ponto de acesso de configuração (WPA2, chave neste console)
 > reload [confirm]             Reinicia agora
 > help                         Esta lista
 > ```

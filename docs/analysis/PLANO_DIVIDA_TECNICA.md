@@ -6,6 +6,14 @@ não quando o código mudar. Marcar aqui, no commit que o fechou.
 Levantado em 2026-09-09 contra `main` = `7608558` = `v2.4.1-beta`.
 **Execução iniciada no mesmo dia** — item riscado traz a medição que o fechou.
 
+> **Estado em 18/09/2026 (v2.4.9-beta, Latest).** O que este plano ainda deve: **F08**
+> (fix escrito, repro bloqueado, PR #103 em draft) e **3.1, a corrente real**, que segue
+> sem medição. Tudo o mais abaixo está riscado com o seu número. Uma premissa mudou por
+> fora do plano: a folga de flash que aparece aqui como "apertada (4.972 B)" e "876 B"
+> foi resolvida pela dieta de `DIETA_FLASH.md` — **o Air tem 62.420 B de folga de OTA
+> desde a v2.4.9-beta**, então a decisão de não corrigir o F12 por falta de flash pode
+> ser revista, se ainda valer a pena.
+
 ---
 
 ## A ordem não é arbitrária
@@ -168,7 +176,7 @@ Ver `full_history( )` em `tools/air_test_suite.py` e a linha do F23 no `SIMUT_AI
 ### ~~2.4~~ ✅ F12 — `air stop` por Bluetooth não funciona em M1 — DOCUMENTADO (09/09)
 
 O laço M1 só chama `processInput` (USB). Funcionalidade ausente, não risco. **Decisão do Ângelo
-(09/09): não corrigir — a folga de flash do Air é apertada (4.972 B) e não é risco de segurança.**
+(09/09): não corrigir — a folga de flash do Air é apertada (4.972 B) e não é risco de segurança.** *(A premissa da folga caiu em 18/09 — ver o estado no topo.)*
 Documentado como limitação no `CLI-Manual.md` (nota sobre `air stop` por BT em M1) e a linha do
 `SIMUT_AIR_PLANO_FIX.md` virou. Fecha o achado.
 

@@ -62,6 +62,7 @@ docker compose run test
 ### Pré-requisitos
 
 - [PlatformIO Core](https://platformio.org/install/cli) 6.x ou superior
+- `pip install zopfli` — opcional; sem ele as páginas web caem para `gzip -9` e a imagem fica 2.888 B acima dos números do `tools/flash_budget.json` (ainda dentro da margem)
 - Raspberry Pi Pico W
 - Para testes em hardware: display TFT ILI9341 + touch XPT2046 + sensor DS18B20
 

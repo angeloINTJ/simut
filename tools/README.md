@@ -1,6 +1,6 @@
 # tools/
 
-109 scripts. This file exists because until 2026-09-08 there was no way
+123 scripts. This file exists because until 2026-09-08 there was no way
 to tell a live bench tool from a leftover, and one of them —
 `compressor.py` — had been superseded for three months while still looking
 usable: it regenerated `WebUI_GZ.h` into the repository root, where nothing
@@ -16,16 +16,18 @@ wrong, the description is the bug.
 
 ---
 
-## Called by CI (12)
+## Called by CI (13)
 
-Invoked from `.github/workflows/build.yml`. Breaking one of these fails a pull
-request.
+Invoked from `.github/workflows/build.yml` — or, for the release manifest, from
+`release-ota.yml` when a tag is pushed. Breaking one of these fails a pull request
+or a release.
 
 | script | what it does | last touched |
 |---|---|---|
 | `arduino_pico_overrides/patch.sh` | patch.sh — aplica overrides SIMUT no framework arduino-pico do PlatformIO. | 2026-08-20 |
 | `build_release.sh` | build_release.sh — Generate Arduino IDE-compatible release zips for simut_tft and simut_alpha. | 2026-08-16 |
 | `check_authz.py` | check_authz.py — the authorization matrix, pinned so it cannot silently rot. | 2026-08-19 |
+| `release_manifest.py` | The manifest a fleet manager downloads before an OTA: version, per-image size and sha256. Written by `release-ota.yml` next to the assets. | 2026-09-13 |
 | `check_flash_budget.py` | Fails the build when a firmware image grows past its budget in tools/flash_budget.json. | 2026-09-08 |
 | `check_fsguard.py` | check_fsguard.py — the /config filesystem guards, pinned so they cannot silently rot. | 2026-08-29 |
 | `fsguard.py` | LittleFS guard for OTA benches: backup and restore with day-file merging. | 2026-08-21 |
@@ -114,7 +116,7 @@ step in a bench procedure. Run by hand, but with instructions somewhere.
 | `theme-editor/server.py` | SIMUT Theme Editor — launcher. | 2026-06-03 |
 | `validate_top_pin_alarm.py` | SIMUT v21 — Validação visual da correção do painel superior fixado (pin). | 2026-08-23 |
 
-## Standalone (36)
+## Standalone (49)
 
 Nothing in the repository names these. That is a statement about
 discoverability, **not** a verdict: several are ordinary bench and recovery
@@ -143,6 +145,13 @@ from a document. Anything genuinely dead should leave the tree, as
 | `capture_web_shots.py` | capture_web_shots.py — recapture the web UI screenshots used by the README | 2026-08-22 |
 | `webui_preview.py` | Pré-visualiza a interface web do `WebUI.h` sem gravar o firmware: serve as páginas, o `/lang.js` e o `/style.css` do arquivo em edição (relido a cada requisição) e encaminha a API para um SIMUT real, com a sessão feita pelo próprio proxy. `?theme=light&lang=pt&run=toggleDrawer()` na URL semeiam o que a captura precisa. Uma instância só: cada login ocupa um dos três slots de sessão do aparelho. | 2026-09-16 |
 | `export_csv_bench.py` | r"""§5.19 Performance — export CSV de 3 dias (PLANO-VALIDACAO-v2.3.2-stable.md). | 2026-08-23 |
+| `a11y_keyboard_tests.js` | §5.16 of PLANO-VALIDACAO v2.3.2: the web UI driven by keyboard only, in a real browser (Playwright). | 2026-08-23 |
+| `browser_tests.js` | §5.5/§5.7 of PLANO-VALIDACAO v2.3.2: the web UI in a real browser — login, every page, the history graph. | 2026-08-22 |
+| `https_tests.js` | The same browser checks over HTTPS, against a release image that serves one TLS client at a time. | 2026-08-22 |
+| `offline_dns_tests.js` | §5.17: the web UI renders with DNS cut — proof that no page depends on anything outside the device. | 2026-08-23 |
+| `soak_nav.js` | §5.7: an open-read-click soak of at least 30 min over HTTPS, watching for a page that stops answering. | 2026-08-22 |
+| `test_config_page.js` | Exercises the shipped /config loader against its three failure paths (no session, truncated JSON, device gone). | 2026-07-23 |
+| `theme-editor/index.html` | Browser app for authoring `.thm` theme files — `index.html` + `app.js` + `presets.js` + `sha256.js`; open the file, no server needed. | 2026-06-03 |
 | `factory_reset.py` | Factory reset Pico and configure WiFi. | 2026-07-23 |
 | `factory_reset_manual_wifi.py` | r"""§5.6 E2E — Config de fábrica → WiFi com reconfiguração manual | 2026-08-23 |
 | `flash_compose.py` | Where the flash goes, from a linker map: attributes every section to its archive or object and computes the merged string pool once instead of trusting the map (docs/analysis/DIETA_FLASH.md). | 2026-09-18 |

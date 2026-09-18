@@ -1,6 +1,6 @@
 # SIMUT — User Manual
 
-**Firmware:** v2.3.9-beta · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **License:** MIT
+**Firmware:** v2.4.9-beta · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **License:** MIT
 **Repository:** https://github.com/angeloINTJ/simut
 
 > **This is beta software.** It is tested on real hardware, but it is not a
@@ -255,7 +255,13 @@ Two sensor cards — an upper panel and a lower panel — above a footer of up t
 five buttons. Footer buttons select slots, page through them when more than
 four are active, and open settings (**CFG**).
 
-- **Tap a sensor card** to toggle its min/max view.
+- **Tap a sensor card** to toggle its min/max view — anywhere on the card,
+  on either panel.
+- **Hold the upper card for three seconds** to pin it to the sensor it is
+  showing, or to unpin it. Unpinned, the upper panel follows the slot selected
+  in the footer; pinned, it stays on one sensor while the footer moves the
+  lower panel. Pinning also leaves min/max. (Until v2.4.9-beta a quick tap on
+  the right edge of the upper card did this too — it does not any more.)
 - **Tap the graph icon** in the min/max view to open that sensor's history.
 - **Tap CFG** to reach settings — this asks for the display PIN if one is set.
 
@@ -353,11 +359,18 @@ openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
   -keyout web_key.pem -out web_cert.pem -days 3650 -nodes -subj "/CN=simut"
 ```
 
-Upload both through the Files page as `/config/web_cert.pem` and
-`/config/web_key.pem`, then reboot. With the web port at its default 80 the
-HTTPS listener moves to 443, so `https://<device-ip>` works; an explicitly
-configured port is honoured as-is. The private key can be uploaded but never
-downloaded, and `system format` clears it with the rest of `/config`.
+The pair lives at `/config/web_cert.pem` and `/config/web_key.pem`. **There
+is no way to put it there on a device already in service**: the Files page
+refuses any upload into `/config` — deliberately, since the 2026-08-29 audit,
+because a forged pair in the credential store is a man-in-the-middle on the
+admin session after the next reboot — and no other route exists yet
+([#133](https://github.com/angeloINTJ/simut/issues/133)). What works is
+provisioning at first flash: place the two files under `data/config/` and
+upload the filesystem image with `pio run -t uploadfs`, which reformats the
+partition and is therefore only for a fresh unit. With the web port at its
+default 80 the HTTPS listener moves to 443, so `https://<device-ip>` works; an
+explicitly configured port is honoured as-is. The private key is never served
+by `/download`, and `system format` clears it with the rest of `/config`.
 
 What to expect:
 
@@ -367,9 +380,10 @@ What to expect:
   handshake costs about 0.5–0.7 s on this chip, and **one TLS client is
   served at a time** — a second simultaneous connection is dropped.
 - A missing or unparseable pair can never lock you out: the device falls
-  back to plain HTTP on the configured port. That is also how HTTPS is
-  turned off — overwrite `/config/web_key.pem` with any invalid file and
-  reboot.
+  back to plain HTTP on the configured port. To turn HTTPS off, run
+  `system https off confirm` on the USB console (§13) — it deletes the pair
+  and reboots. Overwriting the key through the Files page is refused by the
+  same guard that blocks uploading one.
 - Firmware updates are still best performed over plain HTTP (§12): staging
   a ~1 MB image through TLS is slow on this chip and the documented
   recovery paths assume HTTP.
@@ -732,7 +746,7 @@ the verdict read back as the version string — never inferred from timing.
 USB CDC at **115200 baud, 8N1**, DTR asserted. The console exists in two
 profiles, and which one you have depends on the firmware build.
 
-### Release firmware — ten commands
+### Release firmware — fourteen commands
 
 The image users run ships a recovery console, not a configuration interface.
 Configuration lives in the web UI.
