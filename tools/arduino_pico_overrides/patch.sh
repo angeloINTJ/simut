@@ -118,6 +118,32 @@ else
     patch -p1 -d "$FW" < "$BEARSSL_PATCH"
 fi
 
+# 2b-bis. Poda das suites TLS (WiFiClientSecureBearSSL.cpp)
+#
+#   O upstream anuncia 41 suites de TLS 1.0 a 1.2 e instala implementacao para
+#   todas: CBC, CCM, 3DES, ChaCha20-Poly1305, MD5, SHA-1, ECDH estatico e troca
+#   de chave RSA pura. Medido em 18/09/2026: 16.564 B da imagem de release, para
+#   cifras que todo par com que este aparelho fala oferece junto com ECDHE-GCM
+#   ha uma decada.
+#
+#   Fica: ECDHE_ECDSA e ECDHE_RSA com AES-128/256-GCM, SHA-256/384; a P-256 do
+#   certificado do proprio aparelho; VERIFICACAO de assinatura RSA. TLS 1.2 so.
+#
+#   Custa: um par que so ofereca CBC, CCM, ChaCha20, TLS <= 1.1 ou troca de
+#   chave RSA estatica deixa de conectar — dos DOIS lados, porque as listas
+#   deste arquivo servem o cliente de telemetria E o servidor HTTPS do aparelho.
+#   Cadeia assinada com MD5/SHA-1 deixa de verificar (so importa com CA cert
+#   carregado; setInsecure( ) nao verifica nada).
+#
+#   Validado na bancada em 18/09/2026 — ver docs/analysis/DIETA_FLASH.md.
+BEARSSL_TRIM_PATCH="$OVR/patches/bearssl_suite_trim.patch"
+if grep -q "SIMUT override — offer only the ECDHE + AES-GCM suites" "$BEARSSL"; then
+    echo "[patch] suites TLS ja podadas — nada a fazer"
+else
+    echo "[patch] podando as suites TLS (so ECDHE + AES-GCM, TLS 1.2)"
+    patch -p1 -d "$FW" < "$BEARSSL_TRIM_PATCH"
+fi
+
 # 2c. Prazos nos laços de leitura do HTTPClient (HTTPClient.cpp)
 #
 #   Dois laços do upstream não têm limite superior nenhum:

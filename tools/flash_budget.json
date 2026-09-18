@@ -41,28 +41,28 @@
  ],
  "ceiling": 1044480,
  "measured_on": "2026-09-18",
- "measured_at_commit": "perf/dieta-flash lever 5 (no atof)",
+ "measured_at_commit": "perf/dieta-flash lever 6 (BearSSL suite trim)",
 
  "envs": {
   "pico_w_release": {
-   "budget": 990524,
-   "measured": 987524
+   "budget": 973836,
+   "measured": 970836
   },
   "pico_w_test": {
-   "budget": 996276,
-   "measured": 993276
+   "budget": 979756,
+   "measured": 976756
   },
   "pico_w_asserts": {
-   "budget": 992692,
-   "measured": 989692
+   "budget": 976004,
+   "measured": 973004
   },
   "pico_w_alpha": {
-   "budget": 987844,
-   "measured": 984844
+   "budget": 967956,
+   "measured": 964956
   },
   "pico_w_air": {
-   "budget": 982624,
-   "measured": 981624
+   "budget": 966832,
+   "measured": 965832
   }
  }
 }
