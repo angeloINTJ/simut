@@ -209,9 +209,8 @@ inline void DHT22_renderMinMax(GFXcanvas16* cv,
     const int LABEL_X = 18;
     const int THERM_X = LABEL_X + biggestLbl + 8;
     const int DOT_X  = THERM_X + 36;
-    const int HUM_END = 230;
-    const int BTN_W = 58;
-    const int BTN_X = HUM_END + ((cardW - 1) - HUM_END - BTN_W) / 2;
+    const int HUM_END = MINMAX_BTN_ANCHOR;   /* content ends here */
+    const int BTN_X = minMaxBtnX(cardW);
 
     /* Fixed drop position (worst-case "100" + suffix) */
     uint16_t numMaxW;
@@ -264,7 +263,8 @@ inline void DHT22_renderMinMax(GFXcanvas16* cv,
     drawDropMini(cv, DROP_FIX, 28, dropCol, shine);
 
     /* Graph button */
-    drawMinMaxGraphBtn(cv, BTN_X, 2, BTN_W, 40, accentHigh, btnTextActive);
+    drawMinMaxGraphBtn(cv, BTN_X, MINMAX_BTN_Y, MINMAX_BTN_W, MINMAX_BTN_H,
+                       accentHigh, btnTextActive);
 }
 #endif /* SIMUT_SENSOR_DHT22 */
 #endif // SIMUT_DISPLAY_TFT

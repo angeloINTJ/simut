@@ -167,9 +167,7 @@ inline void DS18B20_renderMinMax(GFXcanvas16* cv,
     const int LABEL_X = 18;
     const int THERM_X = LABEL_X + biggestLbl + 8;
     const int DOT_X  = THERM_X + 36;
-    const int CONTENT_RIGHT = 230;
-    const int BTN_W = 58;
-    const int BTN_X = CONTENT_RIGHT + ((cardW - 1) - CONTENT_RIGHT - BTN_W) / 2;
+    const int BTN_X = minMaxBtnX(cardW);
 
     drawMinMaxTempRow(cv, minLabel, LABEL_X, THERM_X, DOT_X,
         0, minT, isRedPhase,
@@ -179,7 +177,8 @@ inline void DS18B20_renderMinMax(GFXcanvas16* cv,
         22, maxT, isRedPhase,
         txtSub, icCol, mercCol, tempOk, panelBg, alarmText, font9);
 
-    drawMinMaxGraphBtn(cv, BTN_X, 2, BTN_W, 40, accentHigh, btnTextActive);
+    drawMinMaxGraphBtn(cv, BTN_X, MINMAX_BTN_Y, MINMAX_BTN_W, MINMAX_BTN_H,
+                       accentHigh, btnTextActive);
 }
 #endif /* SIMUT_SENSOR_DS18B20 */
 #endif // SIMUT_DISPLAY_TFT

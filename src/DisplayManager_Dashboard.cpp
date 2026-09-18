@@ -35,15 +35,16 @@
  *
  * Coverage, for reference: rows 0-28 top bar, 35-109 top card, 115-189 bottom
  * card, 195-235 button bar; cards span x 4-315. */
+/* CARD_X/CARD_W/CARD_TOP_Y/CARD_H are in DisplayManager.h and not here,
+ * because handleTouch has to place its hot zones on the same rectangles this
+ * file paints. It used to carry its own copies of these numbers written out by
+ * hand, and the min/max graph button is what that cost: two zones on one
+ * button, neither matching where it was drawn. */
 namespace {
 constexpr int16_t DASH_W        = 320;
 constexpr int16_t DASH_H        = 240;
 constexpr int16_t TOPBAR_H      = 29;   /* rows 0 .. 28 */
-constexpr int16_t CARD_X        = 4;
-constexpr int16_t CARD_W        = 312;  /* x 4 .. 315 */
-constexpr int16_t CARD_H        = 75;
 constexpr int16_t CARD_R        = 12;
-constexpr int16_t CARD_TOP_Y    = 35;   /* rows 35 .. 109 */
 constexpr int16_t CARD_BOTTOM_Y = 115;  /* rows 115 .. 189 */
 constexpr int16_t BTNBAR_Y      = 195;  /* rows 195 .. 235 */
 constexpr int16_t BTNBAR_H      = 41;

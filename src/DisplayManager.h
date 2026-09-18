@@ -804,6 +804,15 @@ private:
 	 * - No fallback needed */
 	static constexpr int16_t RENDER_STRIP_H = 40;
 
+	/* Dashboard card rectangle, shared with handleTouch so a hot zone cannot
+	 * drift away from the widget it is supposed to cover. The layout invariant
+	 * that ties these to the rest of the screen is at the top of
+	 * DisplayManager_Dashboard.cpp. */
+	static constexpr int16_t CARD_X     = 4;
+	static constexpr int16_t CARD_W     = 312;  /* x 4 .. 315 */
+	static constexpr int16_t CARD_H     = 75;
+	static constexpr int16_t CARD_TOP_Y = 35;   /* rows 35 .. 109 */
+
 	SystemState _lastRenderedState;
 	int _currentPage = 0;
 	uint32_t _lastTouchTime = 0;
