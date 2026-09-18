@@ -6,6 +6,31 @@ Todas as mudanças notáveis do firmware SIMUT.
 
 ## Não lançado
 
+## v2.4.8-beta (2026-09-18)
+
+**A zona de toque do botão de gráfico do min/máx é o retângulo em que ele é
+desenhado.** É a outra metade do defeito que a v2.4.7-beta consertou, no mesmo
+botão: o ramo do gráfico testava `x > 266` enquanto o botão é pintado de 245 a
+302, então o terço esquerdo caía no caminho do toque curto e **desligava** o
+min/máx — e a zona ainda ia até 319, dezessete pixels além do botão e do próprio
+card, abrindo o gráfico a partir da margem. Nenhum dos dois números errou por
+acaso: a geometria morava em quatro lugares, uma cópia em cada um dos três
+drivers que desenham painel min/máx e uma quarta escrita à mão no handler de
+toque, que não batia com nenhuma. Agora é uma definição só no `SensorDrawing.h`,
+ao lado da função que pinta o botão, e tanto o desenho quanto a zona leem dela.
+`CARD_X`, `CARD_W`, `CARD_H` e `CARD_TOP_Y` foram para o `DisplayManager.h` pelo
+mesmo motivo.
+
+A/B no ferro contra a imagem publicada da v2.4.7-beta, com a tela lida de volta
+por um classificador validado antes contra telas conhecidas: antes, um toque em
+x=250 (dentro do botão desenhado) desligava o min/máx; depois, de x=245 a 302
+todos abrem o gráfico, e x=310 — fora do botão — deixou de abrir.
+
+A mudança paga o próprio custo: três cópias da geometria viraram uma, a imagem
+de release foi de 1.027.900 para 1.027.868 B e o `.bin` ganhou 32 B, levando a
+folga de OTA de 452 para 484 B.
+
+
 ## v2.4.7-beta (2026-09-18)
 
 **O painel, ao vivo no navegador, e clicável.** `GET /api/screen_stream` manda
