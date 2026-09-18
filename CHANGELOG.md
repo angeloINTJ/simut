@@ -6,6 +6,28 @@ All notable changes to SIMUT firmware.
 
 ## Unreleased
 
+**The top panel answers one gesture per meaning.** A short tap anywhere on it
+opens min/max; a press of three seconds anywhere on it switches between pinned
+and interactive. There used to be a third rule: a touch-down past `x = 280`
+toggled pinned/interactive immediately, because that corner draws the
+`[Amb]/[Sx]` indicator. v2.4.7-beta narrowed that strip so it would stop eating
+the min/max graph button, and the narrowing fixed the wrong half — outside
+min/max, the same quick tap on the right still jumped the panel into selection
+mode, while the identical tap two centimetres to the left opened min/max. A
+40-pixel strip that answers a different gesture than the panel it is drawn on is
+a trap, not a shortcut, and this was the second report of it. The indicator is
+still drawn and still means what it meant; it is read-only now.
+
+Two smaller consequences, both deliberate: a short tap no longer pins an
+interactive panel (that is the long press, and only the long press), and the
+long press now works while min/max is showing instead of being ignored there —
+entering the selection drops min/max, because those numbers belong to the sensor
+the panel is about to stop following.
+
+Bench: on the rig, a tap at (300, 70) — the exact region reported — opens
+min/max, and so does the identical tap at (60, 70). The three-second press is
+not reachable through `POST /api/touch`, which injects taps and not holds.
+
 ## v2.4.8-beta (2026-09-18)
 
 **The min/max graph button's touch zone is the rectangle it is drawn on.** The
