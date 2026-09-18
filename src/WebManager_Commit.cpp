@@ -1371,8 +1371,13 @@ void WebManager::handleApiCommitAll( ) {
        float slotF = -1; int slot = -1;
        int slotPos = obj.indexOf("\"slot\":");
        if (slotPos >= 0) {
-        slotF = obj.substring(slotPos + 7).toFloat();
-        slot = (int)slotF;
+        /* parseFloat( ), not toFloat( ): the last atof( ) in the image. The
+         * substring is "3,\"hwId\":..." — a number followed by the rest of the
+         * object — and both functions read the prefix and stop. The isfinite
+         * guard is new: toFloat( ) answered 0 for junk, which is slot 0, and
+         * -1 is the value the check below already rejects. */
+        slotF = parseFloat(obj.substring(slotPos + 7).c_str());
+        slot = isfinite(slotF) ? (int)slotF : -1;
        }
        if (slot < 0 || slot >= MAX_SENSORS || !cfg.sensors[slot].active) continue;
        /* Extract hwId */

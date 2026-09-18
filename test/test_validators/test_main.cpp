@@ -2217,6 +2217,40 @@ void test_screenrle_rejects_empty_and_null(void) {
 }
 
 
+/* parseFloat( ) took over from atof( ) on 2026-09-18 (lever 5 of the flash
+ * diet). These pin the two behaviours it had to grow to do that, and the one
+ * it deliberately did not: no exponent. */
+void test_parsefloat_accepts_what_atof_accepted(void) {
+    TEST_ASSERT_FLOAT_WITHIN(0.0001f, 100.0f,  parseFloat("+100"));
+    TEST_ASSERT_FLOAT_WITHIN(0.0001f, 1.5f,    parseFloat("+1.5"));
+    TEST_ASSERT_FLOAT_WITHIN(0.0001f, 3.0f,    parseFloat(" 3"));
+    TEST_ASSERT_FLOAT_WITHIN(0.0001f, -2.25f,  parseFloat("\t-2.25"));
+    /* the JSON slot case: a number, then the rest of the object */
+    TEST_ASSERT_FLOAT_WITHIN(0.0001f, 3.0f,    parseFloat("3,\"hwId\":\"28ff\""));
+    TEST_ASSERT_FLOAT_WITHIN(0.0001f, 0.5f,    parseFloat(".5"));
+    TEST_ASSERT_TRUE(isnan(parseFloat("")));
+    TEST_ASSERT_TRUE(isnan(parseFloat("   ")));
+    TEST_ASSERT_TRUE(isnan(parseFloat(nullptr)));
+    /* no exponent, by design: reads the mantissa and stops at 'e' */
+    TEST_ASSERT_FLOAT_WITHIN(0.0001f, 1.5f,    parseFloat("1.5e3"));
+}
+
+void test_parsefloat_strict_agrees_with_it(void) {
+    float out = -1;
+    TEST_ASSERT_TRUE(parseFloatStrict(String("+100"), out));
+    TEST_ASSERT_FLOAT_WITHIN(0.0001f, 100.0f, out);
+    TEST_ASSERT_TRUE(parseFloatStrict(String("-0.05"), out));
+    TEST_ASSERT_FLOAT_WITHIN(0.00001f, -0.05f, out);
+    TEST_ASSERT_TRUE(parseFloatStrict(String("0.123456"), out));
+    TEST_ASSERT_FLOAT_WITHIN(0.000001f, 0.123456f, out);
+    /* the strict layer still rejects everything the parser would shrug at */
+    TEST_ASSERT_FALSE(parseFloatStrict(String("1.5e3"), out));
+    TEST_ASSERT_FALSE(parseFloatStrict(String(" 3"), out));
+    TEST_ASSERT_FALSE(parseFloatStrict(String("0x1p3"), out));
+    TEST_ASSERT_FALSE(parseFloatStrict(String("nan"), out));
+    TEST_ASSERT_FALSE(parseFloatStrict(String("inf"), out));
+}
+
 /* ─────────────────────────────────────────────────────────────────────────
  * SimutTime — the fixed-offset replacement for newlib's TZ machinery.
  *
@@ -2558,6 +2592,10 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_screenrle_refuses_over_256_colours);
     RUN_TEST(test_screenrle_palette_interns_repeated_colours);
     RUN_TEST(test_screenrle_rejects_empty_and_null);
+
+    /* parseFloat — the atof replacement (lever 5 of the flash diet) */
+    RUN_TEST(test_parsefloat_accepts_what_atof_accepted);
+    RUN_TEST(test_parsefloat_strict_agrees_with_it);
 
     /* SimutTime — fixed-offset localtime/mktime (lever 4 of the flash diet) */
     RUN_TEST(test_simuttime_localtime_matches_host);

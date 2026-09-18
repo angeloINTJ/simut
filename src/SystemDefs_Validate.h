@@ -13,6 +13,7 @@
  */
 
 #pragma once
+#include "ParseFloat.h"   /* parseFloat — see parseFloatStrict below */
 #include <Arduino.h>
 #include <string.h>
 #include <stdint.h>
@@ -77,7 +78,12 @@ inline bool parseFloatStrict(const String& s, float& out) {
  }
  }
  if (!seenDigit) return false;
- const float v = s.toFloat( );
+ /* parseFloat( ), not String::toFloat( ): toFloat( ) is atof( ), and atof( )
+  * pulls newlib's strtod — 7,296 B of hex floats, NaN spellings and
+  * correctly-rounded doubles for a value that is about to become a float.
+  * The loop above has already proved the string is [+-]?digits[.digits], which
+  * is exactly the subset parseFloat( ) reads. */
+ const float v = parseFloat(s.c_str( ));
  if (!isfinite(v)) return false;
  out = v;
  return true;
