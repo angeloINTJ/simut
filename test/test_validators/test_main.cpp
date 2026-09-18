@@ -22,6 +22,7 @@
  */
 
 #include <unity.h>
+#include <stdlib.h>
 #include "SystemDefs_Validate.h"
 #include "ParseFloat.h"
 #include "SystemDefs_Time.h"
@@ -305,6 +306,26 @@ void test_parseFloatStrict_valid(void) {
     TEST_ASSERT_TRUE(parseFloatStrict(String("-0.0"), out));    TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.0f, out);
 }
 
+/* 2026-09-18: the fuzz gate caught parseFloatStrict( ) one ulp off (float)strtod
+ * on a 27-digit input — past 2^53 the double accumulator in parseFloat( )
+ * rounds at every step. The validator now refuses past PARSE_FLOAT_EXACT_DIGITS.
+ * These vectors pin the ceiling from both sides and compare with ==, not
+ * "within 0.001": a tolerance is exactly what would have let this through. */
+void test_parseFloatStrict_digit_ceiling(void) {
+    float out = 0.0f;
+    TEST_ASSERT_FALSE(parseFloatStrict(String("33333333.0000000000030033000"), out)); /* the fuzz input, 27 digits */
+    TEST_ASSERT_FALSE(parseFloatStrict(String("1234567890123456"), out));             /* 16 digits */
+    TEST_ASSERT_FALSE(parseFloatStrict(String("0.000000000000001"), out));            /* 16 digits: leading zeros count */
+    TEST_ASSERT_TRUE(parseFloatStrict(String("123456789012345"), out));               /* 15 digits */
+    TEST_ASSERT_TRUE(out == (float)strtod("123456789012345", nullptr));
+    TEST_ASSERT_TRUE(parseFloatStrict(String("33333333.0000003"), out));              /* 15 digits, the fuzz shape */
+    TEST_ASSERT_TRUE(out == (float)strtod("33333333.0000003", nullptr));
+    TEST_ASSERT_TRUE(parseFloatStrict(String("-0.00000000000001"), out));             /* 15 digits, 14 fractional */
+    TEST_ASSERT_TRUE(out == (float)strtod("-0.00000000000001", nullptr));
+    TEST_ASSERT_TRUE(parseFloatStrict(String("1013.25"), out));                       /* what a calibration point looks like */
+    TEST_ASSERT_TRUE(out == (float)strtod("1013.25", nullptr));
+}
+
 void test_parseFloatStrict_invalid(void) {
     float out;
     TEST_ASSERT_FALSE(parseFloatStrict(String(""), out));       /* vazio */
@@ -349,7 +370,9 @@ void test_parseIntStrict_overflow_rejected(void) {
 
 void test_parseFloatStrict_overflow_rejected(void) {
     float out = 1.5f;
-    /* 39 noves ≈ 1e39 > FLT_MAX (3.40e38) → toFloat satura em ±inf */
+    /* 39 noves ≈ 1e39 > FLT_MAX (3.40e38) → toFloat satura em ±inf. Desde o teto
+     * de 15 dígitos (2026-09-18) são recusados antes de o valor existir; os
+     * vetores ficam porque o contrato que fixam — false, out intocado — é o mesmo. */
     TEST_ASSERT_FALSE(parseFloatStrict(String("999999999999999999999999999999999999999"), out));
     TEST_ASSERT_FALSE(parseFloatStrict(String("-999999999999999999999999999999999999999"), out));
     TEST_ASSERT_EQUAL_FLOAT(1.5f, out); /* contrato: out intocado no false */
@@ -357,9 +380,13 @@ void test_parseFloatStrict_overflow_rejected(void) {
 
 void test_parseFloatStrict_large_finite_ok(void) {
     float out;
-    /* 38 noves ≈ 1e38 < FLT_MAX → finito, aceita */
-    TEST_ASSERT_TRUE(parseFloatStrict(String("99999999999999999999999999999999999999"), out));
+    /* O maior valor que o teto de 15 dígitos admite, ≈1e15 ≪ FLT_MAX → finito,
+     * aceita. (Até 2026-09-18 o vetor era 38 noves ≈ 1e38: finito também, mas 38
+     * dígitos passa de onde parseFloat( ) é exato, e o validador agora recusa
+     * por isso — ver test_parseFloatStrict_digit_ceiling.) */
+    TEST_ASSERT_TRUE(parseFloatStrict(String("999999999999999"), out));
     TEST_ASSERT_TRUE(isfinite(out));
+    TEST_ASSERT_TRUE(out == (float)strtod("999999999999999", nullptr));
 }
 
 /* Contrato do stub (native_stubs/Arduino.h): toInt/toFloat têm de se comportar
@@ -2422,7 +2449,8 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_parseIntStrict_valid);
     RUN_TEST(test_parseIntStrict_invalid);
     RUN_TEST(test_parseFloatStrict_valid);    /* v3.36.3 (M7) */
-    RUN_TEST(test_parseFloatStrict_invalid);  /* v3.36.3 (M7) */
+    RUN_TEST(test_parseFloatStrict_invalid);
+    RUN_TEST(test_parseFloatStrict_digit_ceiling);  /* v3.36.3 (M7) */
     RUN_TEST(test_parseIntStrict_int32_boundaries);        /* issue #44 */
     RUN_TEST(test_parseIntStrict_overflow_rejected);       /* issue #44 */
     RUN_TEST(test_parseFloatStrict_overflow_rejected);     /* issue #44 */
