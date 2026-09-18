@@ -1,6 +1,6 @@
 # tools/
 
-108 scripts. This file exists because until 2026-09-08 there was no way
+109 scripts. This file exists because until 2026-09-08 there was no way
 to tell a live bench tool from a leftover, and one of them —
 `compressor.py` — had been superseded for three months while still looking
 usable: it regenerated `WebUI_GZ.h` into the repository root, where nothing
@@ -114,7 +114,7 @@ step in a bench procedure. Run by hand, but with instructions somewhere.
 | `theme-editor/server.py` | SIMUT Theme Editor — launcher. | 2026-06-03 |
 | `validate_top_pin_alarm.py` | SIMUT v21 — Validação visual da correção do painel superior fixado (pin). | 2026-08-23 |
 
-## Standalone (35)
+## Standalone (36)
 
 Nothing in the repository names these. That is a statement about
 discoverability, **not** a verdict: several are ordinary bench and recovery
@@ -145,6 +145,7 @@ from a document. Anything genuinely dead should leave the tree, as
 | `export_csv_bench.py` | r"""§5.19 Performance — export CSV de 3 dias (PLANO-VALIDACAO-v2.3.2-stable.md). | 2026-08-23 |
 | `factory_reset.py` | Factory reset Pico and configure WiFi. | 2026-07-23 |
 | `factory_reset_manual_wifi.py` | r"""§5.6 E2E — Config de fábrica → WiFi com reconfiguração manual | 2026-08-23 |
+| `flash_compose.py` | Where the flash goes, from a linker map: attributes every section to its archive or object and computes the merged string pool once instead of trusting the map (docs/analysis/DIETA_FLASH.md). | 2026-09-18 |
 | `fix_lockout.py` | Fix DisplayManager.cpp - reduce lockout timeout and add Core 1 restart. | 2026-07-23 |
 | `gen_gfx_font.py` | Porte fiel do fontconvert.c (Adafruit GFX) para Python/freetype-py. | 2026-08-12 |
 | `history_reset_cycles.py` | r"""Abrupt-reset cycles against the V5 history, driven by the PicoHand. | 2026-08-10 |
