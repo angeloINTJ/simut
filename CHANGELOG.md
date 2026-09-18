@@ -4,6 +4,132 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.4.10-beta (2026-09-18)
+
+**The panel mirror is 2.6x faster, the SIMUT Air gets its full console back, and
+the HTTPS certificate can finally be installed on a device already in service.**
+Three changes that had been waiting on each other: the first was found by a
+study that asked a different question, the second by the flash the previous
+release freed, and the third by discovering that the manual had been describing
+a shut door for a month.
+
+### The panel read was 2 MHz because someone wrote 2 MHz
+
+Reading pixels back from the ILI9341 was the whole cost of a capture, and it was
+slow for two reasons, neither of them the panel:
+
+- the read clock was 2 MHz, spelled inline, with nothing saying why. Measured
+  against a screen proven static — two frames at 2 MHz differing by zero pixels
+  is the control — 6 MHz returns the same pixels, and so did 12 and 16 MHz over
+  a 30-frame soak. 6 MHz is the default because the ILI9341's serial read cycle
+  works out to ~6.6 MHz and this stays inside it; the value is one constant
+  (`SIMUT_TFT_READ_HZ`), documented with the table it came from.
+- the framework's `SPI.transfer(void*, size_t)` is a loop calling the one-byte
+  transfer. The fast path is the two-buffer overload with a null transmit
+  buffer, which lands in the SDK's `spi_read_blocking` and keeps the PL022 FIFO
+  fed: the byte loop was costing ~4.3 us per pixel of pure software, more than
+  the wire itself at 6 MHz.
+
+`readRect( )` replaces `readRow( )`: one address window for a whole rectangle
+instead of one per row, and one block transfer per chunk. On the rig:
+
+| | before | after |
+|---|---:|---:|
+| mirror (`/api/screen_stream`) | 1.530 s | **0.59 s** |
+| forensic capture (`/api/screenshot`) | 4.33 s | **1.69 s** |
+| mirror against forensic | — | **0 differing pixels of 76,800**, nine pairs of nine |
+
+The zero matters only because of how it was measured: two captures of the *same*
+path five seconds apart differ by ~1,200 pixels, because the panel's content
+moves. Only captures taken back to back compare the read paths rather than the
+clock on the wall — a first attempt that ignored this reported 1,132 differing
+pixels and was measuring the time between them.
+
+Reading is no longer where a mirror frame goes: it was 91% and is now 64-70%,
+and the Core 1 pause it waits on grew in absolute time (111 -> 129..180 ms)
+precisely because the read got fast. That pause is the next thing to look at.
+The study that found all of this is `docs/analysis/ESPELHO_DELTA.md`.
+
+### SIMUT Air: the full CLI is back
+
+The headless build shipped the fourteen-command emergency console and answered
+"the settings live in the web interface" to anyone holding a serial cable —
+which is the answer that helps least, since the web is exactly what cannot be
+reached when someone reaches for the cable. That was never a judgement about
+what the build should offer: on 2026-09-06 the image had 876 B of headroom and
+the full CLI costs 45,056 B.
+
+The v2.4.9-beta diet freed 62,420 B on that image, so it fits: **977,964 ->
+1,023,020 B, 17,364 B still under the OTA ceiling**, so the Air stays
+field-updatable. RAM went the other way by 1,904 B — the emergency profile's own
+strings cost more than the full parser's statics. The four Cisco modes,
+`write memory`, `gpio`, `show metrics` and the rest answer over USB and over
+Bluetooth; the five `air` commands are where they were.
+
+### POST /api/tls installs the certificate pair, in service
+
+Two correct decisions had closed the only documented door. The manual said since
+2026-08-19 that the pair goes in through the Files page; the 2026-08-29 audit
+made every upload that resolves under `/config` a `400`, because a forged pair
+in the credential store is a man-in-the-middle on the admin session after the
+next reboot. Nobody noticed the second closed the first, and for a month the
+manual described a route that refuses.
+
+The new route is admin-only — the gate an OTA apply carries, because a
+certificate decides who the browser trusts from the next boot onwards — takes
+the two PEM blocks concatenated in either order, and **refuses the pair unless
+it parses and the key belongs to the certificate**. That is the second gap this
+closes: a pair that parses but does not match used to be discovered at the next
+boot, as HTTPS quietly not coming up, with the working pair already deleted.
+Both files are written to temporaries and renamed, so a failed write cannot cost
+a working pair. `tools/install_tls_cert.py` drives the whole thing.
+
+It is the only route that writes into `/config`, and it is narrow on purpose:
+two fixed paths, no filename taken from the request. The Files page still
+refuses `/config` outright.
+
+On the rig the device then served HTTPS with the certificate installed over the
+API, negotiating `ECDHE-ECDSA-AES256-GCM-SHA384` with an EC pair and
+`ECDHE-RSA-AES256-GCM-SHA384` with an RSA one — the first validation of the
+**server** half of the cipher-suite list v2.4.9-beta trimmed, which until now
+could only be tested as a client, for exactly this reason.
+
+### One behaviour change worth knowing
+
+A calibration point with more than fifteen digits is now refused. `parseFloat( )`
+is exact only while the running value fits 2^53, `parseFloatStrict( )` promises
+the result is what the text says, and the fuzz gate found the sixteenth digit
+where those two meet. Fifteen digits is eight more than a float carries.
+
+### Housekeeping
+
+- The manuals stop describing the certificate route that does not work, and gain
+  the one that does. Three counts that were wrong are right: the emergency
+  console has fourteen commands, `docs/` has thirty-three documents,
+  `tools/` has 124 scripts.
+- `AGENTS.md` went from a 45 kB chronological diary to a 21 kB manual in the
+  present tense — same rules, each with its measurement, minus the narration of
+  how each was found.
+- Three dead language-pack entries the gate had warned about on every build are
+  gone; `ota/applier.cpp` no longer cites fixes by a version scheme that appears
+  in no tag.
+- `pico_w_test_https` is a sixth build environment: the full CLI and the TLS
+  server in one image, which is what validating anything about HTTPS needs and
+  what no shipping image is. CI builds it; it is not published.
+- The secret gate stopped reporting code that merely names a PEM marker, and
+  still catches a key pasted into a source file.
+
+### Flash
+
+| image | v2.4.9-beta | this release |
+|---|---:|---:|
+| `pico_w_release` | 982,844 B | **986,748 B** (+3,904) |
+| `pico_w_alpha` | 978,060 B | **978,060 B** (+8 of code, inside the alignment) |
+| `pico_w_air` | 977,964 B | **1,023,020 B** (+45,056 — the CLI) |
+
+The release image's growth is the TLS route (+3,872, only where HTTPS is
+compiled) and the panel read (+72).
+
 ## v2.4.9-beta (2026-09-18)
 
 **The release image gives back 57 kB and gives up nothing.** 1,039,900 -> 982,844
