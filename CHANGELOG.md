@@ -51,7 +51,7 @@ checked is a sum of sections and moves in 4 KiB steps, so an image can cross
 `OTA_APP_SAFE_MAX_SIZE` — past which the config snapshot overwrites its tail —
 while every number still looks comfortable. Reading the ceiling out of
 `ota_layout.h` rather than copying it, the check immediately found that the
-release image has **476 B of OTA headroom**, that alpha was already at 780 B
+release image has **452 B of OTA headroom**, that alpha was already at 780 B
 before any of this, and that `pico_w_asserts` is now over it, recorded as an
 exemption because it is a bench soak image flashed over USB.
 
