@@ -1,13 +1,18 @@
-# Manual do CLI — SIMUT (perfil `pico_w_test`)
+# Manual do CLI — SIMUT (perfil completo)
 
 > **Leia isto antes do resto.** Desde a v1.5.6-beta existem **dois perfis de
-> CLI**, e esta referência cobre o perfil completo gravado pelo ambiente
-> `pico_w_test`; a imagem release traz só o console de emergência de 14 comandos.
+> CLI**, e esta referência cobre o **completo**; a imagem release traz só o
+> console de emergência de 14 comandos.
 >
 > | Perfil | Como obter | O que tem |
 > |---|---|---|
-> | **Emergência** (padrão) | `pico_w_release` — é o que vem nos zips de release | 14 comandos, prompt único `SIMUT>` |
-> | **Completo** | `pico_w_test` — compilar da fonte | os 56 comandos e os 4 modos descritos abaixo |
+> | **Emergência** (padrão) | `pico_w_release` e `pico_w_alpha` — é o que vem nos zips de release | 14 comandos, prompt único `SIMUT>` |
+> | **Completo** | `pico_w_test` (compilar da fonte) e **`pico_w_air`**, desde 18/09/2026 | os 56 comandos e os 4 modos descritos abaixo |
+>
+> O Air ficou no console de emergência enquanto a CLI completa (+45.056 B) não
+> cabia na imagem; a dieta da v2.4.9-beta abriu espaço. Ele é justamente o build
+> que mais precisa dela: sem display, o console serial/BT é a única interface
+> local que existe.
 >
 > Toda configuração vive na **interface web**. O console serial da imagem de
 > release existe para o caso em que a web não pode ser alcançada: descobrir o
@@ -36,12 +41,13 @@
 > help                         Esta lista
 > ```
 >
-> O restante deste documento vale para o perfil **completo** (`pico_w_test`).
+> O restante deste documento vale para o perfil **completo** (`pico_w_test` e
+> `pico_w_air`; no Air, some a `air status|hibernate|stop|idle|charger`).
 
 ## Visão geral
 
 > Aplica-se ao perfil completo. Na imagem de release não há modos: o prompt é
-> sempre `SIMUT>` e os 10 comandos acima valem nele.
+> sempre `SIMUT>` e os 14 comandos acima valem nele.
 
 O SIMUT adota o modelo **Cisco IOS** com 4 modos hierárquicos. Cada modo tem seu
 próprio prompt e conjunto de comandos. O caractere `?` mostra os comandos

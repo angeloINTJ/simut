@@ -778,7 +778,13 @@ tempo.
 ## 13. O console serial
 
 USB CDC a **115200 baud, 8N1**, com DTR asserted. O console existe em dois
-perfis, e qual deles você tem depende do build do firmware.
+perfis, e qual deles você tem depende do build do firmware:
+
+| build | console |
+|---|---|
+| `pico_w_release`, `pico_w_alpha` | o console de emergência, catorze comandos |
+| `pico_w_test` | o console completo, 56 comandos e quatro modos |
+| `pico_w_air` | o console completo, desde 18/09/2026 — veja abaixo |
 
 ### Firmware de release — catorze comandos
 
@@ -833,6 +839,15 @@ Os builds `pico_w_test` trazem os 56 comandos com modos estilo Cisco
 (`enable` → `configure terminal` → `write memory`), mais `touch sim` e `screen`
 para dirigir o display por script. É o build que as suítes automatizadas em
 `tools/` exigem. Não é o que deve estar num dispositivo que alguém usa.
+
+**O SIMUT Air também traz, desde 18/09/2026.** Aquele build é headless: o
+console serial e o Bluetooth são a única interface local que ele tem, e
+responder "a configuração vive na interface web" para quem está com o cabo na
+mão não ajuda ninguém justamente quando a web é o que não se alcança. Ele ficou
+no console de emergência por um motivo só — a CLI completa custa 45.056 B e a
+imagem tinha 876 B de folga quando a decisão foi tomada. A dieta da v2.4.9-beta
+liberou 62.420 B ali; `write memory` e os quatro modos funcionam como no
+`pico_w_test`, e os cinco comandos `air` continuam onde estavam.
 
 Referência completa: [CLI-Manual.md](CLI-Manual.md) *(em português)*.
 

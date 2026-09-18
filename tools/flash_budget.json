@@ -41,7 +41,7 @@
  ],
  "ceiling": 1044480,
  "measured_on": "2026-09-18",
- "measured_at_commit": "v2.4.9-beta",
+ "measured_at_commit": "v2.4.9-beta (Air re-measured 2026-09-18 with SIMUT_CLI_FULL=1)",
 
  "envs": {
   "pico_w_release": {
@@ -61,8 +61,8 @@
    "measured": 965020
   },
   "pico_w_air": {
-   "budget": 966896,
-   "measured": 965896
+   "budget": 1010312,
+   "measured": 1009312
   }
  }
 }

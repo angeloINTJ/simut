@@ -744,7 +744,13 @@ the verdict read back as the version string — never inferred from timing.
 ## 13. The serial console
 
 USB CDC at **115200 baud, 8N1**, DTR asserted. The console exists in two
-profiles, and which one you have depends on the firmware build.
+profiles, and which one you have depends on the firmware build:
+
+| build | console |
+|---|---|
+| `pico_w_release`, `pico_w_alpha` | the emergency console, fourteen commands |
+| `pico_w_test` | the full console, 56 commands and four modes |
+| `pico_w_air` | the full console, since 2026-09-18 — see below |
 
 ### Release firmware — fourteen commands
 
@@ -800,6 +806,15 @@ cut had web equivalents already, and removing them returned 44.5 KB of flash.
 (`enable` → `configure terminal` → `write memory`), plus `touch sim` and
 `screen` for driving the display from a script. It is the build the automated
 suites under `tools/` require. It is not what belongs on a device someone uses.
+
+**The SIMUT Air ships it too, since 2026-09-18.** That build is headless: the
+serial and Bluetooth console is the only local interface it has, and answering
+"the settings live in the web UI" to someone holding a cable is an answer that
+helps nobody when the web is exactly what cannot be reached. It was on the
+emergency console until now for one reason — the full CLI costs 45,056 B and
+the image had 876 B to spare when the decision was taken. The v2.4.9-beta diet
+freed 62,420 B on it; `write memory` and the four modes work there as they do
+on `pico_w_test`, and the five `air` commands stay where they were.
 
 Full reference: [CLI-Manual.md](CLI-Manual.md) *(in Portuguese)*.
 
