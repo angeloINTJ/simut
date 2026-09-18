@@ -4,7 +4,50 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
-## Não lançado
+## v2.4.9-beta (2026-09-18)
+
+**A imagem de release devolve 57 kB e não abre mão de nada.** 1.039.900 ->
+982.844 bytes, o que leva o espaço livre para uma atualização pelo ar de 484 B
+para 57.540 B. Seis mudanças, cada uma medida sozinha, nenhuma tirando função:
+
+| alavanca | Δ `.bin` |
+|---|---:|
+| zopfli no lugar do `gzip -9` nas 13 páginas web embutidas | −2.888 |
+| `-DNDEBUG` na release e na alpha — a test e a air já tinham | −6.832 |
+| `printf`/`puts`/`putchar` do SDK passando por `vsnprintf` | −9.836 |
+| o fuso horário guardado como número, não como string POSIX `TZ` | −13.148 |
+| os dois últimos `atof( )` migrados para o parser inline | −7.640 |
+| BearSSL oferecendo só ECDHE + AES-GCM, TLS 1.2 | −16.688 |
+
+Onde esses bytes estavam é a parte interessante, e não era no código deste
+projeto: o newlib reinterpretava a string do fuso com `scanf` a cada mudança; o
+`vfprintf` e a pilha de objetos do stdio entravam por causa do banner de pânico
+do pico-sdk e das linhas de erro do driver do rádio, enquanto o mesmo
+formatador já estava linkado pelo nosso `vsnprintf`; o `atof` arrastava
+interpretação de float hexadecimal e de NaN para valores que viram float; e a
+pilha TLS anunciava 41 suítes de cifra de TLS 1.0 a 1.2 quando quatro bastam.
+
+Três coisas mudam de forma observável. **Um par TLS que ofereça só CBC, só CCM,
+só ChaCha20-Poly1305, só TLS 1.1 ou anterior, ou só troca de chave RSA estática
+deixa de conectar** — dos dois lados, porque as mesmas listas servem o cliente
+de telemetria e o servidor HTTPS do próprio aparelho; uma cadeia de certificado
+assinada com MD5 ou SHA-1 deixa de verificar, o que só importa quando há um
+certificado de CA carregado. Nada mais lê a variável de ambiente `TZ`. Um banner
+de pânico com mais de 160 bytes é truncado.
+
+O `-DNDEBUG` também tirou da imagem publicada um caminho absoluto de 116 bytes
+apontando para o diretório pessoal da máquina de build, carregado por um assert
+embutido na camada de DMA do SDK.
+
+Medido na bancada, rig em 192.168.3.24: a suíte web passa em 95 verificações,
+com cada página descomprimindo e o JavaScript servido compilando; uma volta
+completa de calibração grava `21,75 -> 22,25` e lê de volta `bruto 21,77 /
+leitura 22,27`; a mesma janela de epoch resolve para 2, 1 e 2 arquivos-dia em
+−03, UTC e +09 como a aritmética prevê, sem tocar no relógio; e a telemetria por
+HTTPS entrega 6 requisições e 924 bytes ao coletor da bancada com a lista de
+cifras podada. O estudo por trás dos números está em
+`docs/analysis/DIETA_FLASH.md`, e o `tools/flash_compose.py` reproduz a
+atribuição a partir de um mapa do linker.
 
 **O painel de cima passa a ter um gesto para cada coisa.** Toque curto em
 qualquer ponto dele abre o min/max; toque de três segundos em qualquer ponto
