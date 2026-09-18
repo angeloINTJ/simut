@@ -75,7 +75,8 @@ hand_release_all
 O CI cobre tudo isto, mas só em pull request — meça antes:
 
 ```bash
-pio run -e pico_w_release -e pico_w_test -e pico_w_asserts -e pico_w_alpha -e pico_w_air
+pio run -e pico_w_release -e pico_w_test -e pico_w_test_https \
+        -e pico_w_asserts -e pico_w_alpha -e pico_w_air
 pio test -e native -e native_history_v5 -e native_cli -e native_logpolicy \
          -e native_alarmqueue -e native_network -e native_air
 ./tools/run_fuzz.sh                       # 60 s; NÃO está no pio test e já pegou defeito real
@@ -83,6 +84,11 @@ python3 tools/check_air_consistency.py
 python3 tools/check_flash_budget.py <env> build.log   # o CI roda assim; local, leia a linha "used"
 ```
 
+- **`pico_w_test_https` é a imagem de bancada para HTTPS**, e a única com CLI
+  completa e servidor TLS juntos: o servidor só é compilado no `pico_w_release`,
+  cujo console de emergência não cria o usuário descartável que as suítes web
+  usam para entrar — e resetar a senha do admin do rig para conseguir um não é
+  caminho. Não é imagem de campo e a `release-ota.yml` não a publica.
 - O `pio run` já roda os portões de fonte como *extra scripts*: `-Werror` em
   `src/`, códigos de log, packs de idioma, matriz de autorização, ajuda da CLI,
   sondas de flash em SRAM.

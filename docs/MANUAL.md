@@ -774,6 +774,7 @@ profiles, and which one you have depends on the firmware build:
 |---|---|
 | `pico_w_release`, `pico_w_alpha` | the emergency console, fourteen commands |
 | `pico_w_test` | the full console, 56 commands and four modes |
+| `pico_w_test_https` | the full console, plus the TLS server — the bench image for anything HTTPS |
 | `pico_w_air` | the full console, since 2026-09-18 — see below |
 
 ### Release firmware — fourteen commands
