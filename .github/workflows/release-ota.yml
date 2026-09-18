@@ -23,7 +23,14 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install PlatformIO
-        run: pip install platformio
+        # zopfli, same as build.yml: tools/build_webui_gz.py compresses the 13
+        # web pages with it and falls back to gzip -9 without it — by design, so
+        # a release-zip build with a bare Python still works. The fallback is
+        # silent enough that v2.4.9-beta shipped assets 2,888 B larger than the
+        # tree measures, because this file was not updated alongside build.yml
+        # when the dependency was added. The images were correct, just bigger
+        # than the number in their own release notes.
+        run: pip install platformio zopfli
       - name: Apply framework overrides
         # O framework arduino-pico é corrigido por tools/arduino_pico_overrides/
         # (o mesmo do build.yml): sem o patch, enableKeepAlive não existe e a
