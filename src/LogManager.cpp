@@ -1229,6 +1229,7 @@ static const char* translateCodeEn(uint16_t code) {
  case WEB_CERT_INVALID: return "Web cert invalid (HTTP fallback)";
  case WEB_CORS_ORIGIN: return "CORS enabled for origin";
  case WEB_CORS_INVALID: return "CORS origin file invalid (CORS off)";
+ case WEB_CERT_INSTALLED: return "Web cert pair installed";
 
  /* ── Config (580–581) ── */
  case CFG_THEME_APPLIED: return "Theme applied";

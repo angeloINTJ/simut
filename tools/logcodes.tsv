@@ -140,6 +140,7 @@
 576	WEB_CERT_INVALID	Web cert invalid (HTTP fallback)	Cert web invalido (HTTP)	Certificado web inválido (HTTP)	Certificado web inválido (HTTP)
 577	WEB_CORS_ORIGIN	CORS enabled for origin	CORS ligado para a origem	CORS ligado para a origem	CORS activado para el origen
 578	WEB_CORS_INVALID	CORS origin file invalid (CORS off)	Origem CORS invalida (CORS desligado)	Origem CORS inválida (CORS desligado)	Origen CORS inválido (CORS desactivado)
+579	WEB_CERT_INSTALLED	Web cert pair installed	Par de certificados web instalado	Par de certificados web instalado	Par de certificados web instalado
 580	CFG_THEME_APPLIED	Theme applied	Tema aplicado	Tema aplicado	Tema aplicado
 581	CFG_THEME_NOT_FOUND	Theme not found	Tema nao encontrado	Tema não encontrado	Tema no encontrado
 585	CLI_UNKNOWN_CMD	Unknown command	Comando desconhecido	Comando desconhecido	Comando desconocido

@@ -41,20 +41,20 @@
  ],
  "ceiling": 1044480,
  "measured_on": "2026-09-18",
- "measured_at_commit": "v2.4.9-beta (Air re-measured 2026-09-18 with SIMUT_CLI_FULL=1)",
+ "measured_at_commit": "v2.4.9-beta (Air: full CLI; release and asserts: +3,872 B for POST /api/tls)",
 
  "envs": {
   "pico_w_release": {
-   "budget": 973812,
-   "measured": 970812
+   "budget": 977716,
+   "measured": 974716
   },
   "pico_w_test": {
    "budget": 979732,
    "measured": 976732
   },
   "pico_w_asserts": {
-   "budget": 975980,
-   "measured": 972980
+   "budget": 979884,
+   "measured": 976884
   },
   "pico_w_alpha": {
    "budget": 968020,

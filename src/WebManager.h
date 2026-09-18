@@ -493,6 +493,19 @@ private:
 	 * what each additional _server->on( ) costs in flash. */
 	void handleApiAction( );
 
+#ifdef SIMUT_WEB_HTTPS
+	/** POST /api/tls — installs the HTTPS certificate pair in service.
+	 *
+	 * The only route that writes into /config, and it exists because
+	 * isSecretFsPath( ) correctly refuses every other one: an upload that
+	 * lands in the credential store could plant a forged pair and sit in the
+	 * middle of the admin's session after the next reboot (issue #133). This
+	 * route buys back the one legitimate write by being narrow — two files,
+	 * admin only, and the pair has to parse AND belong to each other before
+	 * anything is written. Compiled only where HTTPS is (pico_w_release). */
+	void handleApiTls( );
+#endif
+
 	/* OTA: full backup of LittleFS tied to chip_id (.bkp).
 	 * Implementation in WebManager_Ota.cpp; format in src/ota/backup_format.h. */
 	void handleApiBackup( );

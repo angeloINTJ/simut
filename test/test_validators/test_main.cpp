@@ -33,6 +33,7 @@
 #include "sensors/CalibCurve.h"         /* calibration curve engine */
 #include "WebJsonSlice.h"               /* depth-aware JSON slicing */
 #include "SimutTime.h"                 /* fixed-offset localtime/mktime */
+#include "PemBlocks.h"                 /* the PEM splitting POST /api/tls does */
 #include "WebCommitSections.h"          /* per-section authz for /api/commit_all */
 #include "FsSecretPath.h"               /* /config download guard (A-4) */
 #include "CorsOrigin.h"                 /* what may go into Allow-Origin */
@@ -311,6 +312,77 @@ void test_parseFloatStrict_valid(void) {
  * rounds at every step. The validator now refuses past PARSE_FLOAT_EXACT_DIGITS.
  * These vectors pin the ceiling from both sides and compare with ==, not
  * "within 0.001": a tolerance is exactly what would have let this through. */
+/* ---- PemBlocks.h: what POST /api/tls pulls out of one body ----------------
+ * The route takes both PEM blocks concatenated, in either order (issue #133).
+ * These are the cases that are awkward to produce against a device and trivial
+ * to write down: reversed order, a chain, a block that is never closed, and the
+ * encrypted key that has to be named rather than called invalid. */
+static const char* CERT_A =
+    "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n";
+static const char* CERT_B =
+    "-----BEGIN CERTIFICATE-----\nBBBB\n-----END CERTIFICATE-----\n";
+static const char* KEY_PKCS8 =
+    "-----BEGIN PRIVATE KEY-----\nKKKK\n-----END PRIVATE KEY-----\n";
+static const char* KEY_EC =
+    "-----BEGIN EC PRIVATE KEY-----\nEEEE\n-----END EC PRIVATE KEY-----\n";
+static const char* KEY_RSA =
+    "-----BEGIN RSA PRIVATE KEY-----\nRRRR\n-----END RSA PRIVATE KEY-----\n";
+static const char* KEY_ENC =
+    "-----BEGIN ENCRYPTED PRIVATE KEY-----\nZZZZ\n-----END ENCRYPTED PRIVATE KEY-----\n";
+
+void test_pem_cert_then_key(void) {
+    String body = String(CERT_A) + KEY_PKCS8;
+    TEST_ASSERT_TRUE(pemCertChain(body).indexOf("AAAA") > 0);
+    TEST_ASSERT_TRUE(pemCertChain(body).indexOf("KKKK") < 0);   /* the key does not ride along */
+    TEST_ASSERT_TRUE(pemPrivateKey(body).indexOf("KKKK") > 0);
+}
+
+void test_pem_key_then_cert(void) {
+    /* `cat web_key.pem web_cert.pem` is as valid as the other order. */
+    String body = String(KEY_PKCS8) + CERT_A;
+    TEST_ASSERT_TRUE(pemCertChain(body).indexOf("AAAA") > 0);
+    TEST_ASSERT_TRUE(pemPrivateKey(body).indexOf("KKKK") > 0);
+}
+
+void test_pem_chain_is_kept_whole(void) {
+    /* First BEGIN to LAST END: an intermediate must not be dropped, or the
+     * device serves a chain no browser can complete. */
+    String body = String(CERT_A) + CERT_B + KEY_EC;
+    String chain = pemCertChain(body);
+    TEST_ASSERT_TRUE(chain.indexOf("AAAA") > 0);
+    TEST_ASSERT_TRUE(chain.indexOf("BBBB") > 0);
+    TEST_ASSERT_TRUE(chain.indexOf("KKKK") < 0);
+    TEST_ASSERT_TRUE(chain.endsWith("-----END CERTIFICATE-----"));
+}
+
+void test_pem_three_key_spellings(void) {
+    TEST_ASSERT_TRUE(pemPrivateKey(String(CERT_A) + KEY_PKCS8).indexOf("KKKK") > 0);
+    TEST_ASSERT_TRUE(pemPrivateKey(String(CERT_A) + KEY_EC).indexOf("EEEE") > 0);
+    TEST_ASSERT_TRUE(pemPrivateKey(String(CERT_A) + KEY_RSA).indexOf("RRRR") > 0);
+}
+
+void test_pem_encrypted_key_is_named_not_parsed(void) {
+    bool enc = false;
+    String k = pemPrivateKey(String(CERT_A) + KEY_ENC, &enc);
+    TEST_ASSERT_EQUAL_INT(0, k.length( ));   /* BearSSL cannot open it */
+    TEST_ASSERT_TRUE(enc);                   /* and the operator is told why */
+}
+
+void test_pem_unterminated_block_is_not_a_block(void) {
+    /* A truncated upload must read as absent, never as a block running to the
+     * end of the body — that is what would reach BearSSL as garbage. */
+    String cut = "-----BEGIN CERTIFICATE-----\nAAAA\n";
+    TEST_ASSERT_EQUAL_INT(0, pemCertChain(cut).length( ));
+    String cutKey = String(CERT_A) + "-----BEGIN PRIVATE KEY-----\nKKKK\n";
+    TEST_ASSERT_EQUAL_INT(0, pemPrivateKey(cutKey).length( ));
+}
+
+void test_pem_absent_blocks(void) {
+    TEST_ASSERT_EQUAL_INT(0, pemCertChain(String("")).length( ));
+    TEST_ASSERT_EQUAL_INT(0, pemPrivateKey(String("nothing here")).length( ));
+    TEST_ASSERT_EQUAL_INT(0, pemCertChain(String(KEY_PKCS8)).length( ));
+}
+
 void test_parseFloatStrict_digit_ceiling(void) {
     float out = 0.0f;
     TEST_ASSERT_FALSE(parseFloatStrict(String("33333333.0000000000030033000"), out)); /* the fuzz input, 27 digits */
@@ -2450,7 +2522,14 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_parseIntStrict_invalid);
     RUN_TEST(test_parseFloatStrict_valid);    /* v3.36.3 (M7) */
     RUN_TEST(test_parseFloatStrict_invalid);
-    RUN_TEST(test_parseFloatStrict_digit_ceiling);  /* v3.36.3 (M7) */
+    RUN_TEST(test_parseFloatStrict_digit_ceiling);
+    RUN_TEST(test_pem_cert_then_key);
+    RUN_TEST(test_pem_key_then_cert);
+    RUN_TEST(test_pem_chain_is_kept_whole);
+    RUN_TEST(test_pem_three_key_spellings);
+    RUN_TEST(test_pem_encrypted_key_is_named_not_parsed);
+    RUN_TEST(test_pem_unterminated_block_is_not_a_block);
+    RUN_TEST(test_pem_absent_blocks);  /* v3.36.3 (M7) */
     RUN_TEST(test_parseIntStrict_int32_boundaries);        /* issue #44 */
     RUN_TEST(test_parseIntStrict_overflow_rejected);       /* issue #44 */
     RUN_TEST(test_parseFloatStrict_overflow_rejected);     /* issue #44 */

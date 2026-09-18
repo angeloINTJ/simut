@@ -359,15 +359,39 @@ openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
   -keyout web_key.pem -out web_cert.pem -days 3650 -nodes -subj "/CN=simut"
 ```
 
-The pair lives at `/config/web_cert.pem` and `/config/web_key.pem`. **There
-is no way to put it there on a device already in service**: the Files page
-refuses any upload into `/config` — deliberately, since the 2026-08-29 audit,
-because a forged pair in the credential store is a man-in-the-middle on the
-admin session after the next reboot — and no other route exists yet
-([#133](https://github.com/angeloINTJ/simut/issues/133)). What works is
-provisioning at first flash: place the two files under `data/config/` and
-upload the filesystem image with `pio run -t uploadfs`, which reformats the
-partition and is therefore only for a fresh unit. With the web port at its
+The pair lives at `/config/web_cert.pem` and `/config/web_key.pem`, and there
+are two ways to put it there.
+
+**On a device in service — `POST /api/tls`.** Admin only, the same gate an OTA
+apply carries, because a certificate decides who the browser trusts from the
+next boot onwards. Send the two PEM blocks concatenated, in either order:
+
+```bash
+python3 tools/install_tls_cert.py --host 192.168.1.50 \
+  --cert web_cert.pem --key web_key.pem --reboot
+# or, by hand, once authenticated:
+cat web_cert.pem web_key.pem | curl -X POST --data-binary @- \
+  -H 'Content-Type: application/x-pem-file' http://192.168.1.50/api/tls
+```
+
+The device refuses the pair unless it parses **and the key belongs to the
+certificate** — it derives the public key from the private one and compares it
+with the certificate's, so a mismatched pair is a `400` now instead of HTTPS
+quietly not coming up at the next boot, with the working pair already deleted.
+A passphrase-encrypted key is named as such rather than called invalid. The
+answer says what the next boot will serve; the running server is not switched
+under you, so restart when it suits you.
+
+This is the only route that writes into `/config`, and it is narrow on purpose:
+two fixed paths, no filename taken from the request. The Files page still
+refuses `/config` outright — since the 2026-08-29 audit, because a forged pair
+in the credential store is a man-in-the-middle on the admin session after the
+next reboot — and the manual pointed at it anyway for a month
+([#133](https://github.com/angeloINTJ/simut/issues/133)).
+
+**On a fresh unit — at first flash.** Place the two files under `data/config/`
+and upload the filesystem image with `pio run -t uploadfs`, which reformats the
+partition and is therefore only for a unit with nothing to lose. With the web port at its
 default 80 the HTTPS listener moves to 443, so `https://<device-ip>` works; an
 explicitly configured port is honoured as-is. The private key is never served
 by `/download`, and `system format` clears it with the rest of `/config`.

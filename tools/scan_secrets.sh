@@ -53,12 +53,29 @@ fi
 
 # 2. Private keys by content, whatever the file is called. The [E] keeps this
 # pattern from matching the line that defines it once this file is tracked.
-bad=$(git grep -I -l -e '-----BEGIN .*PRIVAT[E] KEY-----' -- . 2>/dev/null || true)
-if [ -n "$bad" ]; then
-  echo "SECRET GATE — private key material inside tracked files:"
-  printf '%s\n' "$bad" | sed 's/^/    /'
-  fail=1
-fi
+#
+# The marker alone is not the secret. Since 2026-09-18 the firmware has code
+# that must name these markers to find them in an upload (src/PemBlocks.h,
+# POST /api/tls) and tests that build fake blocks out of them, and this step
+# reported all of it as key material. What makes a key a key is the BODY: PEM
+# wraps base64 at 64 columns, so real material carries runs far longer than
+# anything source code puts on a line, while "-----BEGIN PRIVATE KEY-----\n"
+# "KKKK\n" in a test does not. A file is only reported when it has both.
+#
+# The threshold is 40 rather than 64 so that a key pasted INTO a string
+# literal, where the wrapping is broken up by escapes, is still caught. It is
+# deliberately not "the marker is enough": a gate that cries wolf at every
+# mention of PEM is a gate someone allowlists a whole directory out of.
+for f in $(git grep -I -l -e '-----BEGIN .*PRIVAT[E] KEY-----' -- . 2>/dev/null || true); do
+  if git grep -I -q -E '[A-Za-z0-9+/]{40,}={0,2}' -- "$f" 2>/dev/null; then
+    if [ "$fail" -eq 0 ] || [ -z "${pemhdr:-}" ]; then
+      echo "SECRET GATE — private key material inside tracked files:"
+      pemhdr=1
+    fi
+    echo "    $f"
+    fail=1
+  fi
+done
 
 # 3. Literal credentials, minus the ones we knowingly publish.
 # A literal is a value that starts with an alphanumeric: that skips the

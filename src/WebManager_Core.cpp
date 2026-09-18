@@ -15,15 +15,12 @@
 #include <LittleFS.h>
 #include <hardware/watchdog.h>
 
-/* Server TLS material (M-6). Under /config so A-4's isSecretFsPath refuses to
- * serve the private key over /download, and so `system format` clears it with
- * the rest of the config. PEM, provisioned by the operator via the Files page:
- *   openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
- *     -keyout web_key.pem -out web_cert.pem -days 3650 -nodes -subj "/CN=simut"
- * EC (P-256) over RSA on purpose — a P-256 handshake fits this heap far more
- * comfortably than RSA-2048. */
-#define FILE_WEB_CERT "/config/web_cert.pem"
-#define FILE_WEB_KEY  "/config/web_key.pem"
+/* Server TLS material (M-6): paths in WebTlsFiles.h, which says why they are
+ * under /config. Provisioned at first flash via data/config/, or in service
+ * through POST /api/tls (WebManager_Tls.cpp) — NOT through the Files page,
+ * which has refused writes into /config since the 2026-08-29 audit. The
+ * manual said the Files page for a month after that; issue #133. */
+#include "WebTlsFiles.h"
 
 /* Origin allowed to talk to this device from a browser page served elsewhere —
  * the fleet manager that runs as a single HTML page on the operator's PC. One
@@ -173,6 +170,11 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
  _server->on("/api/screenshot_chunk", HTTP_GET, std::bind(&WebManager::handleApiScreenshotChunk, this));
  _server->on("/api/screen_stream", HTTP_GET, std::bind(&WebManager::handleApiScreenStream, this));
  _server->on("/api/touch", HTTP_POST, std::bind(&WebManager::handleApiTouch, this));
+#endif
+#ifdef SIMUT_WEB_HTTPS
+ /* The one route that writes into /config, and the reason it may: see
+  * WebManager_Tls.cpp. Registered only where the HTTPS server exists. */
+ _server->on("/api/tls", HTTP_POST, std::bind(&WebManager::handleApiTls, this));
 #endif
  _server->on("/api/sec_status", HTTP_GET, std::bind(&WebManager::handleApiSecStatus, this));
  _server->on("/api/set_time", HTTP_POST, std::bind(&WebManager::handleApiSetTime, this));
