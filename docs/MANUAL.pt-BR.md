@@ -1,6 +1,6 @@
 # SIMUT — Manual do Usuário
 
-**Firmware:** v2.4.9-beta · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **Licença:** MIT
+**Firmware:** v2.4.10-beta · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **Licença:** MIT
 **Repositório:** https://github.com/angeloINTJ/simut
 
 [English](MANUAL.md) | **Português**

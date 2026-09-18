@@ -4,6 +4,135 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.4.10-beta (2026-09-18)
+
+**O espelho do painel ficou 2,6x mais rápido, o SIMUT Air recupera o console
+completo e o certificado HTTPS finalmente pode ser instalado num dispositivo já
+em serviço.** Três mudanças que estavam esperando umas pelas outras: a primeira
+foi achada por um estudo que perguntava outra coisa, a segunda pela flash que a
+release anterior liberou, e a terceira ao descobrir que o manual vinha
+descrevendo uma porta fechada havia um mês.
+
+### A leitura do painel era 2 MHz porque alguém escreveu 2 MHz
+
+Ler os pixels de volta do ILI9341 era o custo inteiro de uma captura, e era
+lento por dois motivos — nenhum deles o painel:
+
+- o clock de leitura era 2 MHz, escrito inline, sem nada dizendo por quê.
+  Medido contra uma tela *provadamente* parada — o controle é dois quadros a
+  2 MHz com zero pixels de diferença —, 6 MHz devolve os mesmos pixels, e 12 e
+  16 MHz também, num soak de 30 quadros. 6 MHz é o padrão porque o ciclo de
+  leitura serial do ILI9341 dá ~6,6 MHz e isto fica dentro dele; o valor é uma
+  constante (`SIMUT_TFT_READ_HZ`), documentada com a tabela de onde saiu.
+- o `SPI.transfer(void*, size_t)` do framework é um laço chamando a
+  transferência de um byte. O caminho rápido é a sobrecarga de dois buffers com
+  o de transmissão nulo, que cai no `spi_read_blocking` do SDK e mantém a FIFO
+  do PL022 alimentada: o laço custava ~4,3 us por pixel de software puro, mais
+  que o próprio fio a 6 MHz.
+
+O `readRect( )` substitui o `readRow( )`: uma janela de endereço para o
+retângulo inteiro em vez de uma por linha, e uma transferência em bloco por
+pedaço. No ferro:
+
+| | antes | depois |
+|---|---:|---:|
+| espelho (`/api/screen_stream`) | 1,530 s | **0,59 s** |
+| captura forense (`/api/screenshot`) | 4,33 s | **1,69 s** |
+| espelho contra forense | — | **0 pixels diferentes de 76.800**, em 9 pares de 9 |
+
+O zero só significa alguma coisa por causa de como foi medido: duas capturas da
+*mesma* via, com 5 s de intervalo, diferem em ~1.200 pixels, porque o conteúdo
+do painel muda. Só capturas coladas no tempo comparam as vias de leitura em vez
+do relógio da parede — a primeira tentativa, que ignorou isso, relatou 1.132
+pixels diferentes e estava medindo o intervalo entre elas.
+
+A leitura deixou de ser onde o quadro do espelho vai: era 91% e hoje é 64-70%, e
+a pausa do Core 1 pela qual ele espera ficou MAIOR em tempo absoluto (111 ->
+129..180 ms) justamente porque a leitura encurtou. Essa pausa é a próxima coisa
+a olhar. O estudo que achou tudo isso é o `docs/analysis/ESPELHO_DELTA.md`.
+
+### SIMUT Air: a CLI completa está de volta
+
+O build headless trazia o console de emergência de catorze comandos e respondia
+"as configurações ficam na interface web" para quem estivesse com o cabo serial
+na mão — que é a resposta que menos ajuda, já que a web é exatamente o que não
+se alcança quando alguém pega o cabo. Isso nunca foi um juízo sobre o que o
+build devia oferecer: em 06/09/2026 a imagem tinha 876 B de folga e a CLI
+completa custa 45.056 B.
+
+A dieta da v2.4.9-beta liberou 62.420 B nessa imagem, então cabe: **977.964 ->
+1.023.020 B, ainda 17.364 B abaixo do teto de OTA**, então o Air continua
+atualizável em campo. A RAM foi para o outro lado em 1.904 B — as strings do
+próprio perfil de emergência custam mais que os estáticos do parser completo. Os
+quatro modos Cisco, o `write memory`, o `gpio`, o `show metrics` e o resto
+respondem pelo USB e pelo Bluetooth; os cinco comandos `air` estão onde estavam.
+
+### POST /api/tls instala o par de certificados, em serviço
+
+Duas decisões certas tinham fechado a única porta documentada. O manual dizia
+desde 19/08/2026 que o par entra pela página Files; a auditoria de 29/08/2026
+transformou em `400` todo envio que caísse em `/config`, porque um par forjado
+no cofre de credenciais é um homem-no-meio na sessão do admin depois do próximo
+reboot. Ninguém notou que a segunda fechava a primeira, e por um mês o manual
+descreveu uma rota que recusa.
+
+A rota nova é só de admin — o portão que um apply de OTA carrega, porque um
+certificado decide em quem o navegador confia a partir do próximo boot —, recebe
+os dois blocos PEM concatenados em qualquer ordem e **recusa o par a menos que
+ele decodifique e a chave pertença ao certificado**. Essa é a segunda lacuna que
+isto fecha: um par que decodifica mas não casa era descoberto só no boot
+seguinte, como um HTTPS que simplesmente não sobe, com o par que funcionava já
+apagado. Os dois arquivos são escritos em temporários e renomeados, então uma
+escrita que falha não custa um par bom. O `tools/install_tls_cert.py` conduz
+tudo.
+
+É a única rota que escreve em `/config`, e é estreita de propósito: dois
+caminhos fixos, nenhum nome de arquivo vindo da requisição. A página Files
+continua recusando `/config` por inteiro.
+
+No ferro o dispositivo passou então a servir HTTPS com o certificado instalado
+pela API, negociando `ECDHE-ECDSA-AES256-GCM-SHA384` com um par EC e
+`ECDHE-RSA-AES256-GCM-SHA384` com um RSA — a primeira validação do lado
+**servidor** da lista de suítes que a v2.4.9-beta podou, que até agora só podia
+ser testada como cliente, exatamente por este motivo.
+
+### Uma mudança de comportamento que vale saber
+
+Um ponto de calibração com mais de quinze dígitos passa a ser recusado. O
+`parseFloat( )` só é exato enquanto o valor corrente cabe em 2^53, o
+`parseFloatStrict( )` promete que o resultado é o que o texto diz, e o portão de
+fuzz achou o décimo sexto dígito, onde os dois se encontram. Quinze dígitos são
+oito a mais do que um float carrega.
+
+### Arrumação
+
+- Os manuais deixam de descrever a rota de certificado que não funciona e ganham
+  a que funciona. Três contagens erradas ficaram certas: o console de emergência
+  tem catorze comandos, o `docs/` tem trinta e três documentos e o `tools/` tem
+  124 scripts.
+- O `AGENTS.md` saiu de um diário cronológico de 45 kB para um manual de 21 kB
+  em tempo presente — as mesmas regras, cada uma com sua medição, menos a
+  narrativa de como cada uma foi achada.
+- Três entradas mortas dos packs de idioma, que o portão avisava em toda build,
+  sumiram; o `ota/applier.cpp` não cita mais correções por um esquema de versão
+  que não existe em tag nenhuma.
+- O `pico_w_test_https` é um sexto ambiente de build: a CLI completa e o servidor
+  TLS na mesma imagem, que é o que validar qualquer coisa de HTTPS exige e o que
+  nenhuma imagem de campo é. O CI o compila; ele não é publicado.
+- O portão de segredos parou de acusar código que apenas nomeia um marcador PEM,
+  e continua pegando uma chave colada dentro de um arquivo-fonte.
+
+### Flash
+
+| imagem | v2.4.9-beta | esta release |
+|---|---:|---:|
+| `pico_w_release` | 982.844 B | **986.748 B** (+3.904) |
+| `pico_w_alpha` | 978.060 B | **978.060 B** (+8 de código, dentro do alinhamento) |
+| `pico_w_air` | 977.964 B | **1.023.020 B** (+45.056 — a CLI) |
+
+O crescimento da imagem de release é a rota TLS (+3.872, só onde o HTTPS é
+compilado) e a leitura do painel (+72).
+
 ## v2.4.9-beta (2026-09-18)
 
 **A imagem de release devolve 57 kB e não abre mão de nada.** 1.039.900 ->
