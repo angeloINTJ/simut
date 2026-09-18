@@ -144,10 +144,12 @@ public:
  time_t getEpoch( );
 
  /**
- * @brief Apply timezone globally via setenv("TZ", ...).
+ * @brief Apply the timezone globally (see SimutTime.h).
  *
  * After calling, all localtime_r( ) returns local time automatically.
- * Must be called on boot and whenever timezone is changed.
+ * Must be called on boot and whenever timezone is changed — the ordering
+ * matters and has burned this project once: whatever turns a day name into a
+ * window must run after this, not before (AppManager_Boot.cpp has the story).
  *
  * @param offset Offset in hours relative to UTC (ex: -3 for Brazil).
  */

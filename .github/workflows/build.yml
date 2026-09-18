@@ -34,7 +34,11 @@ jobs:
           key: ${{ runner.os }}-pio-native-${{ hashFiles('platformio.ini') }}
 
       - name: Install PlatformIO
-        run: pip install platformio
+        # zopfli is what tools/build_webui_gz.py compresses the 13 web pages
+        # with (-2,888 B against gzip -9, measured 2026-09-18). It is optional
+        # by design — without it the script falls back to gzip -9 and prints a
+        # WARN — but the flash budgets are measured WITH it, so CI installs it.
+        run: pip install platformio zopfli
 
       - name: Check log-code tables in sync
         run: python3 tools/gen_logcodes.py --check
@@ -145,7 +149,11 @@ jobs:
             ${{ runner.os }}-pio-fw-
 
       - name: Install PlatformIO
-        run: pip install platformio
+        # zopfli is what tools/build_webui_gz.py compresses the 13 web pages
+        # with (-2,888 B against gzip -9, measured 2026-09-18). It is optional
+        # by design — without it the script falls back to gzip -9 and prints a
+        # WARN — but the flash budgets are measured WITH it, so CI installs it.
+        run: pip install platformio zopfli
 
       # SIMUT builds against a patched arduino-pico (TLS handshake deadlines,
       # the keep-alive API, the static TLS server pool — see
@@ -211,7 +219,11 @@ jobs:
       # PlatformIO is how the pinned cppcheck is fetched — see the header of
       # tools/run_cppcheck.sh for why the version is pinned at all.
       - name: Install PlatformIO
-        run: pip install platformio
+        # zopfli is what tools/build_webui_gz.py compresses the 13 web pages
+        # with (-2,888 B against gzip -9, measured 2026-09-18). It is optional
+        # by design — without it the script falls back to gzip -9 and prints a
+        # WARN — but the flash budgets are measured WITH it, so CI installs it.
+        run: pip install platformio zopfli
 
       - name: Static analysis (cppcheck)
         run: ./tools/run_cppcheck.sh

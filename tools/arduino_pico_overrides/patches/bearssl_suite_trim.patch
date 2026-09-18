@@ -1,0 +1,207 @@
+--- a/libraries/WiFi/src/WiFiClientSecureBearSSL.cpp
++++ b/libraries/WiFi/src/WiFiClientSecureBearSSL.cpp
+@@ -869,113 +869,44 @@
+         -- AES-128 is preferred over AES-256 (AES-128 is already
+           strong enough, and AES-256 is 40% more expensive).
+     */
++    /* SIMUT override — offer only the ECDHE + AES-GCM suites, TLS 1.2 only.
++     *
++     * Upstream advertises 41 suites spanning TLS 1.0 to 1.2 and installs an
++     * implementation for each: CBC, CCM, 3DES, ChaCha20-Poly1305, MD5 and
++     * SHA-1, static ECDH and plain-RSA key exchange. That is 16,564 B of this
++     * image (measured 2026-09-18, lever 6 of docs/analysis/DIETA_FLASH.md) for
++     * ciphers that every peer this device talks to has offered ECDHE-GCM
++     * alongside for a decade — and several of which are the ones a reviewer
++     * would ask why we still offer.
++     *
++     * KEPT: ECDHE_ECDSA and ECDHE_RSA with AES-128/256-GCM, SHA-256/384; the
++     * P-256 the device's own certificate uses; RSA signature VERIFICATION, so
++     * an RSA server certificate still validates. TLS 1.2 only.
++     *
++     * DROPPED, and what it costs: a peer that offers only CBC, only CCM, only
++     * ChaCha20-Poly1305, only TLS <= 1.1, or only a static-RSA key exchange no
++     * longer connects — as either side, since this file's lists serve the
++     * telemetry client AND the device's own HTTPS server. A certificate chain
++     * signed with MD5 or SHA-1 no longer verifies, which matters only when a
++     * CA certificate is loaded (setInsecure( ) skips verification entirely).
++     */
+     static const uint16_t suites_P[] PROGMEM = {
+-#ifndef BEARSSL_SSL_BASIC
+-        BR_TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+-        BR_TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+         BR_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+         BR_TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+         BR_TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+-        BR_TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+-        BR_TLS_ECDHE_ECDSA_WITH_AES_128_CCM,
+-        BR_TLS_ECDHE_ECDSA_WITH_AES_256_CCM,
+-        BR_TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8,
+-        BR_TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8,
+-        BR_TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,
+-        BR_TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
+-        BR_TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384,
+-        BR_TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,
+-        BR_TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+-        BR_TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+-        BR_TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
+-        BR_TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+-        BR_TLS_ECDH_ECDSA_WITH_AES_128_GCM_SHA256,
+-        BR_TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256,
+-        BR_TLS_ECDH_ECDSA_WITH_AES_256_GCM_SHA384,
+-        BR_TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384,
+-        BR_TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA256,
+-        BR_TLS_ECDH_RSA_WITH_AES_128_CBC_SHA256,
+-        BR_TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA384,
+-        BR_TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384,
+-        BR_TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA,
+-        BR_TLS_ECDH_RSA_WITH_AES_128_CBC_SHA,
+-        BR_TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA,
+-        BR_TLS_ECDH_RSA_WITH_AES_256_CBC_SHA,
+-        BR_TLS_RSA_WITH_AES_128_GCM_SHA256,
+-        BR_TLS_RSA_WITH_AES_256_GCM_SHA384,
+-        BR_TLS_RSA_WITH_AES_128_CCM,
+-        BR_TLS_RSA_WITH_AES_256_CCM,
+-        BR_TLS_RSA_WITH_AES_128_CCM_8,
+-        BR_TLS_RSA_WITH_AES_256_CCM_8,
+-#endif
+-        BR_TLS_RSA_WITH_AES_128_CBC_SHA256,
+-        BR_TLS_RSA_WITH_AES_256_CBC_SHA256,
+-        BR_TLS_RSA_WITH_AES_128_CBC_SHA,
+-        BR_TLS_RSA_WITH_AES_256_CBC_SHA,
+-#ifndef BEARSSL_SSL_BASIC
+-        BR_TLS_ECDHE_ECDSA_WITH_3DES_EDE_CBC_SHA,
+-        BR_TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA,
+-        BR_TLS_ECDH_ECDSA_WITH_3DES_EDE_CBC_SHA,
+-        BR_TLS_ECDH_RSA_WITH_3DES_EDE_CBC_SHA,
+-        BR_TLS_RSA_WITH_3DES_EDE_CBC_SHA
+-#endif
++        BR_TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+     };
+ #ifndef BEARSSL_SSL_BASIC
+     // Server w/EC has one set, not possible with basic SSL config
+     static const uint16_t suites_server_ec_P [] PROGMEM = {
+-        BR_TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+         BR_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+-        BR_TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+-        BR_TLS_ECDHE_ECDSA_WITH_AES_128_CCM,
+-        BR_TLS_ECDHE_ECDSA_WITH_AES_256_CCM,
+-        BR_TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8,
+-        BR_TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8,
+-        BR_TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,
+-        BR_TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384,
+-        BR_TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+-        BR_TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
+-        BR_TLS_ECDH_ECDSA_WITH_AES_128_GCM_SHA256,
+-        BR_TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256,
+-        BR_TLS_ECDH_ECDSA_WITH_AES_256_GCM_SHA384,
+-        BR_TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384,
+-        BR_TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA256,
+-        BR_TLS_ECDH_RSA_WITH_AES_128_CBC_SHA256,
+-        BR_TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA384,
+-        BR_TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384,
+-        BR_TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA,
+-        BR_TLS_ECDH_RSA_WITH_AES_128_CBC_SHA,
+-        BR_TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA,
+-        BR_TLS_ECDH_RSA_WITH_AES_256_CBC_SHA,
+-        BR_TLS_ECDHE_ECDSA_WITH_3DES_EDE_CBC_SHA,
+-        BR_TLS_ECDH_ECDSA_WITH_3DES_EDE_CBC_SHA,
+-        BR_TLS_ECDH_RSA_WITH_3DES_EDE_CBC_SHA
++        BR_TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+     };
+ #endif
+ 
+     static const uint16_t suites_server_rsa_P[] PROGMEM = {
+-#ifndef BEARSSL_SSL_BASIC
+-        BR_TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+         BR_TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+-        BR_TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+-        BR_TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
+-        BR_TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,
+-        BR_TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+-        BR_TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+-        BR_TLS_RSA_WITH_AES_128_GCM_SHA256,
+-        BR_TLS_RSA_WITH_AES_256_GCM_SHA384,
+-        BR_TLS_RSA_WITH_AES_128_CCM,
+-        BR_TLS_RSA_WITH_AES_256_CCM,
+-        BR_TLS_RSA_WITH_AES_128_CCM_8,
+-        BR_TLS_RSA_WITH_AES_256_CCM_8,
+-#endif
+-        BR_TLS_RSA_WITH_AES_128_CBC_SHA256,
+-        BR_TLS_RSA_WITH_AES_256_CBC_SHA256,
+-        BR_TLS_RSA_WITH_AES_128_CBC_SHA,
+-        BR_TLS_RSA_WITH_AES_256_CBC_SHA,
+-#ifndef BEARSSL_SSL_BASIC
+-        BR_TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA,
+-        BR_TLS_RSA_WITH_3DES_EDE_CBC_SHA
+-#endif
++        BR_TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+     };
+ 
+ 
+@@ -989,8 +920,6 @@
+ 
+     // Install hashes into the SSL engine
+     static void br_ssl_client_install_hashes(br_ssl_engine_context *eng) {
+-        br_ssl_engine_set_hash(eng, br_md5_ID, &br_md5_vtable);
+-        br_ssl_engine_set_hash(eng, br_sha1_ID, &br_sha1_vtable);
+         br_ssl_engine_set_hash(eng, br_sha224_ID, &br_sha224_vtable);
+         br_ssl_engine_set_hash(eng, br_sha256_ID, &br_sha256_vtable);
+         br_ssl_engine_set_hash(eng, br_sha384_ID, &br_sha384_vtable);
+@@ -998,8 +927,6 @@
+     }
+ 
+     static void br_x509_minimal_install_hashes(br_x509_minimal_context *x509) {
+-        br_x509_minimal_set_hash(x509, br_md5_ID, &br_md5_vtable);
+-        br_x509_minimal_set_hash(x509, br_sha1_ID, &br_sha1_vtable);
+         br_x509_minimal_set_hash(x509, br_sha224_ID, &br_sha224_vtable);
+         br_x509_minimal_set_hash(x509, br_sha256_ID, &br_sha256_vtable);
+         br_x509_minimal_set_hash(x509, br_sha384_ID, &br_sha384_vtable);
+@@ -1012,23 +939,17 @@
+         memcpy_P(suites, cipher_list, cipher_cnt * sizeof(cipher_list[0]));
+         br_ssl_client_zero(cc);
+         br_ssl_engine_add_flags(&cc->eng, BR_OPT_NO_RENEGOTIATION);  // forbid SSL renegotiation, as we free the Private Key after handshake
+-        br_ssl_engine_set_versions(&cc->eng, BR_TLS10, BR_TLS12);
++        br_ssl_engine_set_versions(&cc->eng, BR_TLS12, BR_TLS12);  /* SIMUT override: TLS 1.2 only */
+         br_ssl_engine_set_suites(&cc->eng, suites, (sizeof suites) / (sizeof suites[0]));
+-        br_ssl_client_set_default_rsapub(cc);
+         br_ssl_engine_set_default_rsavrfy(&cc->eng);
+ #ifndef BEARSSL_SSL_BASIC
+         br_ssl_engine_set_default_ecdsa(&cc->eng);
+ #endif
+         br_ssl_client_install_hashes(&cc->eng);
+-        br_ssl_engine_set_prf10(&cc->eng, &br_tls10_prf);
+         br_ssl_engine_set_prf_sha256(&cc->eng, &br_tls12_sha256_prf);
+         br_ssl_engine_set_prf_sha384(&cc->eng, &br_tls12_sha384_prf);
+-        br_ssl_engine_set_default_aes_cbc(&cc->eng);
+ #ifndef BEARSSL_SSL_BASIC
+         br_ssl_engine_set_default_aes_gcm(&cc->eng);
+-        br_ssl_engine_set_default_aes_ccm(&cc->eng);
+-        br_ssl_engine_set_default_des_cbc(&cc->eng);
+-        br_ssl_engine_set_default_chapol(&cc->eng);
+ #endif
+     }
+ 
+@@ -1038,22 +959,17 @@
+         memcpy_P(suites, cipher_list, cipher_cnt * sizeof(cipher_list[0]));
+         br_ssl_server_zero(cc);
+         br_ssl_engine_add_flags(&cc->eng, BR_OPT_NO_RENEGOTIATION);  // forbid SSL renegotiation, as we free the Private Key after handshake
+-        br_ssl_engine_set_versions(&cc->eng, BR_TLS10, BR_TLS12);
++        br_ssl_engine_set_versions(&cc->eng, BR_TLS12, BR_TLS12);  /* SIMUT override: TLS 1.2 only */
+         br_ssl_engine_set_suites(&cc->eng, suites, (sizeof suites) / (sizeof suites[0]));
+ #ifndef BEARSSL_SSL_BASIC
+         br_ssl_engine_set_default_ec(&cc->eng);
+ #endif
+ 
+         br_ssl_client_install_hashes(&cc->eng);
+-        br_ssl_engine_set_prf10(&cc->eng, &br_tls10_prf);
+         br_ssl_engine_set_prf_sha256(&cc->eng, &br_tls12_sha256_prf);
+         br_ssl_engine_set_prf_sha384(&cc->eng, &br_tls12_sha384_prf);
+-        br_ssl_engine_set_default_aes_cbc(&cc->eng);
+ #ifndef BEARSSL_SSL_BASIC
+-        br_ssl_engine_set_default_aes_ccm(&cc->eng);
+         br_ssl_engine_set_default_aes_gcm(&cc->eng);
+-        br_ssl_engine_set_default_des_cbc(&cc->eng);
+-        br_ssl_engine_set_default_chapol(&cc->eng);
+ #endif
+     }
+ 
