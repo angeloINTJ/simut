@@ -87,9 +87,9 @@ SIMUT is a professional-grade IoT firmware for the **Raspberry Pi Pico W** that 
 |:---:|:---:|:---:|:---:|
 | ![TFT dashboard](docs/images/screens/dashboard.png) | ![TFT graph](docs/images/screens/graph.png) | ![Web dashboard](docs/images/web-dashboard.png) | [![Alpha video](https://img.youtube.com/vi/wLjghqId8nE/hqdefault.jpg)](https://youtu.be/wLjghqId8nE) |
 
-> 📸 Every display screen, captured off the real panel framebuffer: [docs/images/screens/screens.md](docs/images/screens/screens.md).
+> Every display screen, captured off the real panel framebuffer: [docs/images/screens/screens.md](docs/images/screens/screens.md).
 >
-> 🎥 The **Early Alpha** video shows the first TFT + touch prototype — the UI has been redesigned since.
+> The **Early Alpha** video shows the first TFT + touch prototype — the UI has been redesigned since.
 
 ## Hardware
 
@@ -104,7 +104,7 @@ SIMUT is a professional-grade IoT firmware for the **Raspberry Pi Pico W** that 
 
 See the **[Wiring Guide](docs/WIRING.md)** for the complete pinout and connection diagrams.
 
-> 🛠️ **SIMUT PCB — layout now available for download** — the KiCad board design (`.kicad_pcb`, `.kicad_sch`) lives in [`PCB_test/`](PCB_test/), and the ready-to-fab package (Gerbers + PTH/NPTH drills, no paste layers) is published as a public release: **[simut-pcb-v1.0 — `simut_pcb_fabrication.zip`](https://github.com/angeloINTJ/simut/releases/tag/simut-pcb-v1.0)**.
+> **SIMUT PCB — layout now available for download** — the KiCad board design (`.kicad_pcb`, `.kicad_sch`) lives in [`PCB_test/`](PCB_test/), and the ready-to-fab package (Gerbers + PTH/NPTH drills, no paste layers) is published as a public release: **[simut-pcb-v1.0 — `simut_pcb_fabrication.zip`](https://github.com/angeloINTJ/simut/releases/tag/simut-pcb-v1.0)**.
 
 ## Key Features
 
@@ -158,6 +158,7 @@ See the **[Wiring Guide](docs/WIRING.md)** for the complete pinout and connectio
 
 ### Prerequisites
 - [PlatformIO](https://platformio.org/) (Core 6.x or later)
+- `pip install zopfli` — optional; the web pages compress 2,888 B smaller with it, and the flash budgets are measured with it
 - Raspberry Pi Pico W
 - No local toolchain? `docker compose run build` builds in a container — the path [CONTRIBUTING.md](CONTRIBUTING.md) recommends for new contributors
 
@@ -239,7 +240,7 @@ simut/
 > every image, with a per-device key shown on the console and the display.
 > See [SECURITY.md](SECURITY.md) §2 and §8.
 
-> There is no debug environment. `pico_w_debug` was removed in v2.4.1 after never once linking: at `-Og` the image overflowed the 1020 KB app slot by ~100 KB. Flash is tight — the release image uses ~97 % of the slot — so a GDB target has to be built by cutting features. For the concurrency tripwire on hardware, use `pico_w_asserts`.
+> There is no debug environment. `pico_w_debug` was removed in v2.4.1 after never once linking: at `-Og` the image overflowed the 1020 KB app slot by ~100 KB. Flash is tight — the release image used ~97 % of the slot when that decision was made, ~93 % since the v2.4.9-beta diet — so a GDB target has to be built by cutting features. For the concurrency tripwire on hardware, use `pico_w_asserts`.
 
 ### Build Flags
 - `-Os` — optimize for size

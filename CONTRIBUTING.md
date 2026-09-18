@@ -70,6 +70,7 @@ Runs the whitespace and YAML/JSON checks, plus the repository's own fast gates �
 ### Prerequisites
 
 - [PlatformIO Core](https://platformio.org/install/cli) 6.x or later
+- `pip install zopfli` — optional; without it the web pages fall back to `gzip -9` and the image lands 2,888 B above the numbers in `tools/flash_budget.json` (still inside its margin)
 - Raspberry Pi Pico W
 - For hardware testing: ILI9341 TFT display + XPT2046 touch + DS18B20 sensor
 
@@ -144,6 +145,8 @@ Unit tests use the [Unity](http://www.throwtheswitch.org/unity) framework. Seven
 | `native_alarmqueue` | the alarm queue's invariants |
 | `native_air` | SIMUT Air configuration and bounds |
 | `native_network` | the WiFi reconnect state machine, against a controllable radio |
+
+The web-API validators also have a fuzz target — `./tools/run_fuzz.sh`, 60 s under libFuzzer with contract oracles — that CI runs on every pull request and `pio test` does not. Run it whenever you touch a validator or a parser: it found a one-ulp defect in `parseFloat( )` within a minute of the change that introduced it.
 
 Add tests for new validation logic, encoding/decoding, parser changes, and security-critical paths. Hardware testing is still required for display, sensor and OTA changes.
 

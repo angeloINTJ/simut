@@ -1,68 +1,50 @@
 /**
  * @file    src/ota/applier.cpp
- * @brief   Aplicador SRAM-resident — Fase 7b real (modo RAW). VALIDADO.
+ * @brief   The SRAM-resident applier: copies the staged image over the app
+ *          slot and reboots. Raw mode. Validated on hardware 2026-05-06.
  *
- * @details ✅ STATUS: Validado em HW (2026-05-06). v3.43.9 sector-0-fix +
- *          v3.43.5 wdt-bit-fix juntos completam o caminho destrutivo.
- *          Apply ciclo completo testado: stage upload → commit metadata →
- *          /api/ota/apply → applier SRAM → reboot → boot OK em ~60s.
- *          Resultado pós-apply: 236/237 sectors do app slot byte-perfect
- *          (1 partial em sector 233 do __bluetooth_tlv, NÃO afeta boot).
+ * @details The full cycle — stage upload, commit metadata, /api/ota/apply,
+ *          applier in SRAM, reboot — was exercised end to end; the post-apply
+ *          image was 236/237 sectors byte-perfect, the odd one out being the
+ *          partial sector 233 that belongs to __bluetooth_tlv and is not code.
+ *          Boot after an apply takes ~60 s and that is not a fault: LittleFS
+ *          auto-formats (~13 s, the stage upload overwrote its region), the
+ *          Core 1 lockout recovers from a pending multicore_lockout (~10 s),
+ *          and the factory path regenerates the password and touch defaults.
+ *          Captured on the serial console for 120 s to prove it: "[BOOT] AP
+ *          detect" → "[DSP] Lockout stuck >10s" → "[OTA post-apply detected]".
  *
- *          BUGS RESOLVIDOS:
+ *          Three things this file got wrong before it was right, kept here
+ *          because each one looks like something a reviewer would simplify
+ *          back in:
  *
- *          Bug 1 (v3.43.3 → fix v3.43.4 → fix completo v3.43.5):
- *           Apply abortava no meio. Diagnóstico via picotool save mostrou
- *           que erase loop morria após ~86 ou ~196 iterações.
- *           Causa: pico-sdk watchdog_update()/watchdog_reboot() vivem em
- *           flash app slot (não __not_in_flash_func). Quando erase apaga
- *           a região onde residem, próxima chamada faulta → BOOTSEL.
- *           Fix v3.43.4: substituí por inlines MMIO puros (applier_wdt_feed
- *           + applier_reboot). Fix v3.43.5: corrigido bit do TRIGGER de
- *           (1u<<30 ENABLE — errado) pra (1u<<31 TRIGGER — correto), que
- *           fazia HW WDT firar aos 8 s default em vez de alimentar.
+ *          - The erase loop died after ~86 or ~196 iterations. The pico-sdk's
+ *            watchdog_update( ) and watchdog_reboot( ) live in the app slot,
+ *            not in __not_in_flash_func, so once the erase reached the sector
+ *            holding them the next call faulted into BOOTSEL. They are MMIO
+ *            inlines here (applier_wdt_feed, applier_reboot), and the reboot
+ *            asserts the TRIGGER bit (1u<<31), not ENABLE (1u<<30) — the
+ *            wrong bit let the hardware watchdog fire at its 8 s default.
+ *          - Sector 0 stayed 0xFF after flash_range_program(0, ...) when it
+ *            was programmed after the bulk erase of sectors 1..N-1 — a race
+ *            with the boot2/QSPI ROM function's cache, found empirically.
+ *            Sector 0 is now erased and programmed on its own, BEFORE the
+ *            bulk erase. Byte-perfect since.
+ *          - "Intermittent boot" was a false positive: it was the 60 s above.
  *
- *          Bug "boot2 não programado" (v3.43.6 → 7 → 8 → fix v3.43.9):
- *           Sector 0 ficava 0xFF mesmo após flash_range_program(0, ...).
- *           Empiricamente: programar sector 0 APÓS bulk erase de 1..N-1
- *           tem race interna com cache do boot2/QSPI ROM function.
- *           Fix v3.43.9: programar sector 0 ISOLADO (erase + program 4 KiB)
- *           ANTES do bulk erase. Validado: byte-perfect em sector 0.
+ *          Known limitations:
+ *          - LittleFS is reformatted, because the staging area shares its
+ *            partition. Wi-Fi, the admin password, users, telemetry and the
+ *            sensor map SURVIVE — config_snapshot captures /config/system.bin
+ *            before the apply and restores it after (verified on hardware
+ *            2026-07-26). Everything else on the filesystem is lost: /history,
+ *            /lang, /themes, /calib, /web and the event log.
+ *          - Sector 233 (offset 0xE9000) is left alone: it is the 8 KiB
+ *            __bluetooth_tlv region and BTstack re-initialises it.
  *
- *          Bug "boot intermitente" (mal-diagnosticado v3.43.4):
- *           Era falso positivo — boot pós-apply realmente leva ~60 s
- *           porque combina: (a) LFS auto-format ~13 s (LFS region
- *           sobrescrita pelo stage upload, mountFS detecta superblock
- *           inválido → format → begin), (b) Core 1 lockout stuck recovery
- *           ~10 s (timeout do multicore_lockout pendente após reset),
- *           (c) factory init: SEC-003 password regen + touch cal default
- *           + WiFi disconnected (LFS perdeu config). CLI fica silencioso
- *           durante o format mas booting normalmente. Validado capturando
- *           Serial continuamente durante 120 s pós-apply: sequência
- *           "[BOOT] AP detect" → "[DSP] Lockout stuck >10s" →
- *           "[OTA post-apply detected]" → "SIMUT IoT CLI v3.43.9".
- *
- *          LIMITAÇÕES CONHECIDAS:
- *           - LFS é reformatada (user data perdido) porque staging area
- *             COMPARTILHA partição com LittleFS. Fase 8 vai integrar
- *             backup automático pré-stage + restore pós-apply.
- *           - Sector 233 (offset 0xE9000) preservado com BTstack runtime
- *             TLV. É região reservada __bluetooth_tlv (8 KiB), não código.
- *             BTstack init re-inicializa transparente.
- *           - WiFi config + admin password + sensor mapping SOBREVIVEM desde
- *             que config_snapshot passou a capturar /config/system.bin antes
- *             do apply e restaurá-lo depois. Esta linha dizia o contrário e
- *             ficou para trás quando o snapshot entrou; verificado no ferro
- *             em 2026-07-26 (usuários, telemetria e Wi-Fi intactos após um
- *             apply real). O que de fato se perde é todo o resto da LFS:
- *             /history, /lang, /themes, /calib, /web e o log de eventos.
- *
- *          Pré-condições do applier (caller orchestrator garante):
- *           - WiFi/CYW43 desligado.
- *           - LittleFS desmontada.
- *           - Core 1 pausado via multicore_lockout.
- *           - IRQs globais desabilitadas.
- *           - Metadata.state == APPLYING e persistida em flash.
+ *          Preconditions, guaranteed by the orchestrator: Wi-Fi/CYW43 off,
+ *          LittleFS unmounted, Core 1 paused through multicore_lockout, IRQs
+ *          disabled, Metadata.state == APPLYING persisted in flash.
  *
  * @project SIMUT
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
@@ -97,7 +79,7 @@
 #define WATCHDOG_SCRATCH4_OFFSET 0x1Cu   /* 0x18 é SCRATCH3 — ver nota abaixo */
 #define WATCHDOG_SET_ALIAS     0x00002000u   /* RP2040 SET alias offset */
 #define WATCHDOG_CLR_ALIAS     0x00003000u   /* RP2040 CLR alias offset */
-#define WATCHDOG_CTRL_TRIG     (1u << 31)    /* TRIGGER bit (1u<<30 é ENABLE — bug v3.43.4) */
+#define WATCHDOG_CTRL_TRIG     (1u << 31)    /* TRIGGER bit — 1u<<30 é ENABLE, e os dois já foram trocados aqui */
 #define WATCHDOG_CTRL_ENABLE   (1u << 30)    /* ENABLE bit */
 
 /* PSM (Power Supply Monitor) — controla quais peripherals o watchdog reset
@@ -111,7 +93,7 @@
  * pode ficar com state inválido — sintoma observado: USB CDC enumera mas
  * host não recebe dados pós-watchdog reboot.
  *
- * F-OTA-BOOTLOOP fix v3.43.17: alinhar com SDK em vez de 0xFFFFFFFF. */
+ * Correção do boot loop: alinhar com o valor do SDK em vez de 0xFFFFFFFF. */
 #define PSM_BASE_ADDR          0x40010000u
 #define PSM_WDSEL_OFFSET       0x08u
 #define PSM_WDSEL_ROSC_BIT     (1u << 0)
@@ -121,7 +103,8 @@
                                             /* = 0x0001FFFC (todos exceto ROSC/XOSC) */
 
 /* SCB SYSRESETREQ (não usado mais — incompleto, deixa SIO stale).
- * Mantido pra referência histórica do bug v3.43.4-9. */
+ * Mantido como referência: é a causa do travamento intermitente do Core 1
+ * descrito em applier_reboot( ). */
 #define SCB_AIRCR_ADDR         0xE000ED0Cu
 #define SCB_AIRCR_KEY          (0x05FAu << 16)
 #define SCB_AIRCR_SYSRESET     (1u << 2)
@@ -193,7 +176,7 @@ static inline void __not_in_flash_func(applier_copy)(void* dst, const void* src,
 }
 
 /* Reboot inline via watchdog reset (PSM full reset). Substitui SCB
- * SYSRESETREQ (v3.43.4-10) que era incompleto — só resetava M0+ cores,
+ * SYSRESETREQ, que era incompleto — só resetava os cores M0+,
  * deixava SIO/multicore mailbox/RESETS em estado stale, fazendo
  * arduino-pico Core 1 launch hangar intermitentemente no próximo boot
  * (Bug 2 reproduzido em ~30% dos applies). Watchdog reset via PSM
@@ -208,7 +191,7 @@ static inline void __not_in_flash_func(applier_copy)(void* dst, const void* src,
  *   5. Set ENABLE | TRIGGER pra disparar imediato.
  *   6. Spin esperando reset. */
 static inline void __not_in_flash_func(applier_reboot)() {
-    /* F-OTA-BOOTLOOP fix #3 (v3.43.21): SDK pico-sdk hardware_watchdog/
+    /* Correção do boot loop: o pico-sdk, em hardware_watchdog/
      * watchdog.c::_watchdog_enable usa apenas TRIGGER quando delay_ms=0
      * (reset imediato). Antes nós usávamos ENABLE|TRIGGER simultâneo,
      * que após o reset deixava o watchdog ARMADO com LOAD pequeno
@@ -271,8 +254,8 @@ bool __not_in_flash_func(ota_applier_run)(const UpdateMetadata* meta) {
         applier_reboot();
     }
 
-    /* (1a) Programa sector 0 (boot2) ANTES do bulk erase. Diagnóstico
-     * v3.43.7+v3.43.8: flash_range_program(0,...) silenciosamente NÃO
+    /* (1a) Programa sector 0 (boot2) ANTES do bulk erase. Diagnóstico de
+     * 2026-05: flash_range_program(0,...) silenciosamente NÃO
      * persistia QUANDO chamado APÓS um bulk erase de 255 sectors —
      * sector 0 ficava 0xFF mesmo com retry e page-by-page. Hipótese:
      * estado interno do chip QSPI ou ROM function tem race quando o
@@ -299,18 +282,12 @@ bool __not_in_flash_func(ota_applier_run)(const UpdateMetadata* meta) {
         applier_wdt_feed();
     }
 
-    /* (2) Programa setores válidos do staging via XIP read + flash program.
-     *
-     * IMPORTANTE: programamos sector 0 (boot2) POR ÚLTIMO. Diagnóstico
-     * via picotool save após brick v3.43.5 mostrou que com loop forward
-     * começando em 0, o sector 0 ficava erased mesmo com programa
-     * aparente — provavelmente a SDK flash_range_program tem alguma
-     * race interna no PRIMEIRO write após bulk erase, e/ou o
-     * flash_init_boot2_copyout (que reusa cache) interage mal quando o
-     * próprio boot2 está sendo gravado. Reverter a ordem (programa
-     * 1..N-1 forward, depois 0 por último) deixa o cache de boot2
-     * estabilizar primeiro. + Após programa de sector 0, leitura via
-     * XIP confirma; se ainda 0xFF, retry até 3x. */
+    /* (2) Programa os sectors 1..N-1 a partir do staging (leitura XIP +
+     * flash_range_program). O sector 0 não entra neste laço: já foi
+     * gravado isolado em (1a), antes do bulk erase — a ordem que resolveu
+     * o sector 0 vazio. Uma versão anterior gravava o sector 0 por último,
+     * com retry; o comentário dela ficou aqui por um tempo depois de o
+     * código mudar, e é por isso que este diz o que o laço FAZ. */
     const uint32_t n_data_sectors = (raw_size + OTA_FLASH_SECTOR_SIZE - 1u)
                                   / OTA_FLASH_SECTOR_SIZE;
     for (uint32_t i = 1; i < n_data_sectors; i++) {

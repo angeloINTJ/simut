@@ -18,6 +18,12 @@ uma sexta, só de ferramenta, dá −2.888 B por cima.
 > previu e o que a aplicação mediu — três alavancas renderam mais do que o
 > estudo dizia e uma rendeu menos. A seção 10 é nova: o que a aplicação
 > descobriu que este documento não sabia.
+>
+> **Publicado na v2.4.9-beta (18/09).** A imagem de release da tag mede 982.844 B
+> na árvore; o binário anexado ao release saiu com **985.732 B**, porque o
+> `release-ota.yml` não instalava o `zopfli` quando a tag foi cortada (corrigido
+> no #132, e as notas do release dizem os dois números). Folga de OTA do binário
+> publicado: 54.652 B.
 
 ---
 

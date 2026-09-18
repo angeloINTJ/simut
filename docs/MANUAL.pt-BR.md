@@ -1,6 +1,6 @@
 # SIMUT — Manual do Usuário
 
-**Firmware:** v2.3.9-beta · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **Licença:** MIT
+**Firmware:** v2.4.9-beta · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **Licença:** MIT
 **Repositório:** https://github.com/angeloINTJ/simut
 
 [English](MANUAL.md) | **Português**
@@ -269,7 +269,13 @@ Dois cards de sensor — um painel superior e um inferior — acima de um rodap�
 até cinco botões. Os botões do rodapé selecionam slots, paginam entre eles
 quando há mais de quatro ativos e abrem as configurações (**CFG**).
 
-- **Toque em um card de sensor** para alternar a visão de mín/máx.
+- **Toque em um card de sensor** para alternar a visão de mín/máx — em
+  qualquer ponto do card, nos dois painéis.
+- **Segure o card superior por três segundos** para fixá-lo no sensor que ele
+  mostra, ou para soltá-lo. Solto, o painel superior segue o slot selecionado
+  no rodapé; fixado, fica num sensor só enquanto o rodapé move o painel
+  inferior. Fixar também sai do mín/máx. (Até a v2.4.9-beta um toque rápido na
+  borda direita do card superior fazia isso também — não faz mais.)
 - **Toque no ícone de gráfico** na visão de mín/máx para abrir o histórico
   daquele sensor.
 - **Toque em CFG** para chegar às configurações — isso pede o PIN do display,
@@ -374,12 +380,19 @@ openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
   -keyout web_key.pem -out web_cert.pem -days 3650 -nodes -subj "/CN=simut"
 ```
 
-Envie os dois pela página Files como `/config/web_cert.pem` e
-`/config/web_key.pem` e reinicie. Com a porta web no padrão 80, o listener
-HTTPS se move para a 443, então `https://<ip-do-dispositivo>` funciona; uma
-porta configurada explicitamente é honrada como está. A chave privada pode ser
-enviada mas nunca baixada, e o `system format` a apaga junto com o resto de
-`/config`.
+O par mora em `/config/web_cert.pem` e `/config/web_key.pem`. **Não há como
+colocá-lo lá num dispositivo já em serviço**: a página Files recusa qualquer
+envio para `/config` — de propósito, desde a auditoria de 29/08/2026, porque um
+par forjado no cofre de credenciais é um homem-no-meio na sessão do admin depois
+do próximo reboot — e ainda não existe outra rota
+([#133](https://github.com/angeloINTJ/simut/issues/133)). O que funciona é
+provisionar na primeira gravação: coloque os dois arquivos em `data/config/` e
+envie a imagem do sistema de arquivos com `pio run -t uploadfs`, que reformata
+a partição e por isso só serve para uma unidade nova. Com a porta web no padrão
+80, o listener HTTPS se move para a 443, então `https://<ip-do-dispositivo>`
+funciona; uma porta configurada explicitamente é honrada como está. A chave
+privada nunca é servida pelo `/download`, e o `system format` a apaga junto com
+o resto de `/config`.
 
 O que esperar:
 
@@ -389,9 +402,10 @@ O que esperar:
   handshake custa cerca de 0,5–0,7 s neste chip, e **um cliente TLS é atendido
   por vez** — uma segunda conexão simultânea é descartada.
 - Um par ausente ou impossível de interpretar nunca consegue trancar você do
-  lado de fora: o dispositivo cai para HTTP puro na porta configurada. É assim
-  também que o HTTPS é desligado — sobrescreva o `/config/web_key.pem` com
-  qualquer arquivo inválido e reinicie.
+  lado de fora: o dispositivo cai para HTTP puro na porta configurada. Para
+  desligar o HTTPS, rode `system https off confirm` no console USB (§13) — ele
+  apaga o par e reinicia. Sobrescrever a chave pela página Files é recusado
+  pelo mesmo guarda que bloqueia enviar uma.
 - As atualizações de firmware ainda são melhor feitas por HTTP puro (§12):
   passar uma imagem de ~1 MB pelo TLS é lento neste chip e os caminhos de
   recuperação documentados pressupõem HTTP.
@@ -766,7 +780,7 @@ tempo.
 USB CDC a **115200 baud, 8N1**, com DTR asserted. O console existe em dois
 perfis, e qual deles você tem depende do build do firmware.
 
-### Firmware de release — dez comandos
+### Firmware de release — catorze comandos
 
 A imagem que os usuários rodam traz um console de recuperação, não uma
 interface de configuração. A configuração vive na interface web.
