@@ -6,6 +6,56 @@ All notable changes to SIMUT firmware.
 
 ## Unreleased
 
+## v2.4.7-beta (2026-09-18)
+
+**The panel, live in a browser, and clickable.** `GET /api/screen_stream` sends
+one frame per request in 30 strips of 8 rows, each strip either palette RLE —
+one colour index, one byte counting the pixels that follow — or raw RGB565,
+whichever is smaller, decided per strip so the worst case is the raw size plus
+a 3-byte header rather than the 2x an unguarded RLE costs on noise. Measured on
+the rig across six screens: **1.53 s a frame against the BMP's 4.33 s, and
+3.4-13.3 kB against 230,454 B** — 2.8x faster, 24x smaller. The speed comes
+from reading each row once; the three-vote read stays in `/api/screenshot`,
+which is the forensic capture that proves the wiring carries 62.5 MHz. The
+noise that vote insures against did not appear: on the four screens that hold
+still, two independent single-pass reads differ by **zero** pixels of 76,800,
+and by zero from the voted BMP. A frame is 91% panel read, 7% Core 1 pauses and
+3% network, so the codec bought back the wire and the read is what is left.
+
+`POST /api/touch` makes the mirror a control: a click on the canvas becomes a
+tap on the panel, mapped through the canvas rect so the device only ever sees
+panel coordinates. Same injection the console's `touch sim` performs, same PIN
+keypad in front of Settings, gated on `PERM_SYS_CONFIG`. Two things the bench
+settled. A tap arms the 5 s touch-priority window, and blinding the mirror that
+sent it would serve nobody — so `handleTouch` now records at its pressure gate
+whether a touch was injected, and the stream is let through a window an
+injection opened, while flash and telemetry keep backing off. And the panel
+needs ~600 ms alone afterwards to repaint (measured: 150 ms and the tap does
+not appear, 250-400 ms and the new screen arrives torn, 550 ms and it is
+complete). That wait cannot live in the firmware: a tap becomes a UiEvent that
+Core 0 consumes in its loop, and a web handler runs on that same core, so
+waiting inside the device parks the very pump that makes the tap take effect.
+The page waits; a caller driving the route by hand has to do the same.
+
+**The min/max graph button stops dropping into selection mode.** In min/max the
+top panel draws a graph button from x=245 to x=302, and the mode-indicator hot
+zone at `x > 280` was tested first, so its right third answered a short tap
+with a mode toggle — the panel jumped into selection, with no indicator drawn
+there to explain it. A/B on the rig, instrumented with the UI mode `show
+metrics` reports rather than a reading of a screenshot: without the fix the tap
+leaves UI mode 0 (dashboard), with it UI mode 3 (graph view). Outside min/max
+the same corner still toggles the mode, unchanged.
+
+**The flash gate now measures the .bin against the OTA ceiling.** The budget it
+checked is a sum of sections and moves in 4 KiB steps, so an image can cross
+`OTA_APP_SAFE_MAX_SIZE` — past which the config snapshot overwrites its tail —
+while every number still looks comfortable. Reading the ceiling out of
+`ota_layout.h` rather than copying it, the check immediately found that the
+release image has **476 B of OTA headroom**, that alpha was already at 780 B
+before any of this, and that `pico_w_asserts` is now over it, recorded as an
+exemption because it is a bench soak image flashed over USB.
+
+
 ## v2.4.6-beta (2026-09-16)
 
 **The embedded web interface follows the Ângulo, and it fits: 2.5 kB less
