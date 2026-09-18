@@ -1,6 +1,6 @@
 # docs/
 
-Thirty-two documents, and until now no way to tell which ones describe the firmware
+Thirty-three documents, and until now no way to tell which ones describe the firmware
 you are holding and which ones describe a moment in its past. Both kinds are
 worth keeping. Confusing them is what costs an afternoon.
 
@@ -51,6 +51,7 @@ fixed, which is exactly what makes them useful when it comes back.
 |---|---|---|
 | [analysis/PLANO_DIVIDA_TECNICA.md](analysis/PLANO_DIVIDA_TECNICA.md) | **Living** | The debt still owed and the order to pay it in, with the dependencies that set that order. |
 | [analysis/DIETA_FLASH.md](analysis/DIETA_FLASH.md) | **Living** | Where the 1 MB release image goes and what gives bytes back without dropping a feature: attributed from the linker map, six levers measured by A/B builds, −53,848 B in one image (pt-BR). |
+| [analysis/ESPELHO_DELTA.md](analysis/ESPELHO_DELTA.md) | **Living** | Sending only the blocks that changed in the panel mirror: measured on the rig, and what stands in the way (pt-BR). |
 | [analysis/ANALISE_GESTOR_FROTA.md](analysis/ANALISE_GESTOR_FROTA.md) | 2026-09-11 | What the firmware would need to give a fleet manager watching hundreds of units — the design behind the unmerged `feat/fleet-api` branch (pt-BR). |
 | [analysis/SIMUT_AIR_PLANO_FIX.md](analysis/SIMUT_AIR_PLANO_FIX.md) | v2.3.9-beta | The Air fix and optimisation plan (F-numbered findings). |
 | [analysis/SIMUT_AIR_PLANO_ENERGIA.md](analysis/SIMUT_AIR_PLANO_ENERGIA.md) | 2026-09-07 | Energy budget: frequent readings, rare radio. |
