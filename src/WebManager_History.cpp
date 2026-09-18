@@ -1775,7 +1775,10 @@ void WebManager::handleApiScreenStream( ) {
  uint16_t perms = getAuthPerms( );
  if (!(perms & PERM_SYS_CONFIG)) { _server->send(403, "text/plain", "Forbidden"); return; }
 
- if (TouchPriority::isActive( )) {
+ /* A finger on the glass still gets the panel to itself. An INJECTED tap does
+  * not: it came from this very mirror, and the client that tapped is the one
+  * waiting to see what the tap did — see handleApiTouch. */
+ if (TouchPriority::isActive( ) && !_displayRef->lastTouchWasInjected( )) {
  _server->sendHeader("Retry-After", "3");
  _server->send(503, "application/json", "{\"error\":\"Display in use. Retry shortly.\"}");
  return;
@@ -1864,6 +1867,66 @@ void WebManager::handleApiScreenStream( ) {
  __atomic_store_n(&_isProcessingScreenshot, false, __ATOMIC_RELEASE);
  _handlerDeadline = savedDeadline;
  if (!ok) LOG_CODE(LOG_WARN, "WEB", WEB_SCREENSHOT_ABORTED, 0, "");
+}
+
+/* POST /api/touch — a tap on the panel, sent from the mirror in the browser.
+ *
+ * x and y are PANEL coordinates (0..319, 0..239), never browser pixels: the
+ * page maps the click through the canvas rect before sending, so the device
+ * never has to know how large the canvas happens to be drawn. Anything
+ * outside the panel is a 400 rather than a clamp — a click that landed off
+ * the image is a bug in the caller's mapping, and clamping it would press a
+ * button on the edge of the screen instead of saying so.
+ *
+ * WHY the mirror is let through the priority window this opens. An accepted
+ * touch arms TOUCH_PRIORITY_MS (5 s) so that background work — flash writes,
+ * telemetry, the GRAM readback — backs off while someone is using the panel.
+ * With a finger on the glass that is exactly right. With a web click it is
+ * half right: flash and telemetry should still back off, but blinding the
+ * mirror for five seconds serves nobody, because the client that tapped is
+ * the one waiting to see the result. So the window stays armed for everyone
+ * else and only the capture is let through, on the provenance flag that
+ * handleTouch records at the pressure gate.
+ *
+ * WHY THIS HANDLER DOES NOT WAIT for the panel to repaint before answering,
+ * which is the obvious thing to want: a tap on the dashboard becomes a UiEvent
+ * that CORE 0 consumes, in AppManager_Events.cpp, inside its loop. A web
+ * handler runs on that same core, so any wait in here — this handler or the
+ * capture — parks the very pump that makes the tap take effect. Measured
+ * twice on the rig: a 600 ms wait inside the capture handler left the screen
+ * unchanged (37 pixels differ, the clock), while the same 600 ms of quiet
+ * between two requests completed the transition (49,226 pixels). The wait
+ * belongs to the CALLER, and the page does it — see mirTick in WebUI.h. A
+ * client driving this route by hand has to do the same.
+ *
+ * The permission is PERM_SYS_CONFIG, the same bit that already reads the
+ * screen. It grants nothing new: an account with that bit can change the
+ * system from the web pages directly, so reaching the same settings by
+ * pressing buttons on the panel is a slower road to somewhere it could
+ * already go. What it must NOT become is a cheaper road for an account
+ * WITHOUT the bit — which is why it is gated at all, and why the display PIN
+ * keypad still stands in front of the settings screens exactly as it does
+ * for a finger. */
+void WebManager::handleApiTouch( ) {
+ if (!requirePerm(PERM_SYS_CONFIG)) return;
+ if (!_displayRef) { _server->send(500, "text/plain", "Display offline"); return; }
+
+ int x = 0, y = 0;
+ String sx = _server->arg("x"), sy = _server->arg("y");
+ if (!parseIntStrict(sx, x) || !parseIntStrict(sy, y) ||
+     x < 0 || x > 319 || y < 0 || y > 239) {
+ _server->send(400, "application/json",
+               "{\"error\":\"x 0..319, y 0..239\"}");
+ return;
+ }
+
+ _displayRef->injectTouch((int16_t)x, (int16_t)y);
+ _displayRef->resetTouchIdle( );
+
+
+ char json[48];
+ snprintf(json, sizeof(json), "{\"ok\":true,\"x\":%d,\"y\":%d}", x, y);
+ _server->send(200, "application/json", json);
 }
 
 #endif /* SIMUT_DISPLAY_TFT */

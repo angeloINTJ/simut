@@ -274,8 +274,15 @@ void DisplayManager::handleTouch( ) {
 	 * _rawTouchState and mapTouchPoint bypasses the ADC mapping, but the
 	 * pressure check between them was never taught about the bypass — so
 	 * `touch sim` answered "injected" and moved nothing. */
- if (!__atomic_load_n(&_simTouchActive, __ATOMIC_ACQUIRE) &&
-     p.z < _sensZThreshold) return;
+ const bool simNow = __atomic_load_n(&_simTouchActive, __ATOMIC_ACQUIRE);
+ if (!simNow && p.z < _sensZThreshold) return;
+
+ /* Provenance of the touch that is about to open the 5 s priority window,
+	 * recorded here because this is the one place that already has to tell a
+	 * finger from an injection. POST /api/touch reads it back: the window is
+	 * right to arm for both kinds (flash and telemetry should still back off),
+	 * but it must not blind the mirror that sent the tap. */
+ _lastTouchInjected = simNow;
 
 
  if (_uiMode == MODE_SETTINGS_TOUCH_CAL) {
