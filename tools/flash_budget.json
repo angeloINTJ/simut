@@ -48,8 +48,8 @@
 
  "envs": {
   "pico_w_release": {
-   "budget": 1030908,
-   "measured": 1027908
+   "budget": 1030900,
+   "measured": 1027900
   },
   "pico_w_test": {
    "budget": 1029788,

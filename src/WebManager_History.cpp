@@ -1772,8 +1772,11 @@ void WebManager::handleApiScreenshotChunk( ) {
  * the frame takes, and the mirror would faithfully show a panel that stopped
  * moving because we stopped it. The cost is tearing — see ScreenRle.h. */
 void WebManager::handleApiScreenStream( ) {
- uint16_t perms = getAuthPerms( );
- if (!(perms & PERM_SYS_CONFIG)) { _server->send(403, "text/plain", "Forbidden"); return; }
+ /* requirePerm and not the hand-rolled getAuthPerms check its neighbours use:
+  * it answers 401 for "no session" and 403 for "this account cannot", which is
+  * the distinction docs/AUTHORIZATION.md documents and which a mirror that
+  * loops needs — 401 means log in again, 403 means stop asking. */
+ if (!requirePerm(PERM_SYS_CONFIG)) return;
 
  /* A finger on the glass still gets the panel to itself. An INJECTED tap does
   * not: it came from this very mirror, and the client that tapped is the one
