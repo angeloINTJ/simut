@@ -96,11 +96,14 @@ python3 tools/check_flash_budget.py <env> build.log   # o CI roda assim; local, 
 
 ## 3. SIMUT Air — o build que hiberna
 
-`pio run -e pico_w_air`. Em 18/09/2026 (v2.4.9-beta): 977.964 B, 92,5% do slot,
-**62.420 B de folga de OTA** — a dieta de `docs/analysis/DIETA_FLASH.md` tirou
-49 kB. A conta de 06/09 que dizia "CLI completa + web + BT + mDNS não cabem
-juntos (estourou ~35 KB)" foi feita com 876 B de folga; pode ser refeita, mas
-`SIMUT_CLI_FULL=0` no Air é decisão do mantenedor, não deste manual.
+`pio run -e pico_w_air`. Em 18/09/2026, com a CLI completa ligada:
+**1.023.020 B, 96,6% do slot, 17.364 B de folga de OTA**. A dieta da
+v2.4.9-beta (`docs/analysis/DIETA_FLASH.md`) tinha deixado a imagem em
+977.964 B com 62.420 B de folga; `SIMUT_CLI_FULL=1` gastou 45.056 B disso. A
+conta de 06/09 que dizia "CLI completa + web + BT + mDNS não cabem juntos
+(estourou ~35 KB)" estava certa quando foi feita — a folga era de 876 B. O que
+mudou foi a folga, não a aritmética. Este é o build que mais precisa da CLI:
+sem display, serial e BT são a única interface local.
 
 ### O ciclo
 
@@ -217,8 +220,9 @@ ficar na fila e executar vários inputs depois.
 
 - CLI: `air idle <10..65535>`, `air charger <0..22|26..28|off>`, `air hibernate`,
   `air stop`, `air status` (`wake=`, `hist=`, `backoff=`, `idle=`, `armed=`,
-  `dirty=`, `tel=<pendentes>/<lote>`, `skip=`, `chg=`, `wip=`). Funcionam no
-  console de emergência.
+  `dirty=`, `tel=<pendentes>/<lote>`, `skip=`, `chg=`, `wip=`). Ficam fora do
+  `#if SIMUT_CLI_FULL`, então funcionam nos dois perfis — no console de
+  emergência de antes de 18/09/2026 e na CLI completa que o Air traz hoje.
 - `tools/air_test_suite.py`: `--list`, `--selftest` (sem hardware),
   `--only T05 --cycles 3`, `--long`, `--baseline`, `--report x.json`,
   `--flash fw.uf2`, `--watch <s>`. Exige `SIMUT_WEB_USER`/`SIMUT_WEB_PASS` para
@@ -288,11 +292,15 @@ ficar na fila e executar vários inputs depois.
 
 ## 5. Console de emergência — quem muda algo que precisa sobreviver ao boot salva ali mesmo
 
-- **A regra:** nas imagens de release, alpha e Air (`SIMUT_CLI_FULL == 0`) **não
-  existe `write memory`**. O `changed = true` do `switch` não salva nada: no
-  perfil completo imprime *"use write memory"*, no de emergência imprime *"vale
-  para esta sessão"*. Todo comando desse console cuja mudança precise sobreviver
-  ao boot **chama `saveConfiguration( )` na própria caixa do `switch`** — e não
+- **Quem ainda tem este console:** release e alpha (`SIMUT_CLI_FULL == 0`). O
+  Air saiu do grupo em 18/09/2026 e hoje traz a CLI completa, com `write
+  memory`; a regra abaixo continua valendo para quem editar o console de
+  emergência ou portar um comando para ele.
+- **A regra:** onde `SIMUT_CLI_FULL == 0` **não existe `write memory`**, e o
+  `changed = true` do `switch` não salva nada: no perfil completo imprime *"use
+  write memory"*, no de emergência imprime *"vale para esta sessão"*. Todo
+  comando desse console cuja mudança precise sobreviver ao boot **chama
+  `saveConfiguration( )` na própria caixa do `switch`** — e não
   seta `changed`, porque a frase impressa passaria a mentir. É o que `system
   ssid`, `system pass` e, desde 08/09, `system admin reset` fazem.
 - `saveConfiguration( )` pode ser chamada direto do handler: ela já traz
