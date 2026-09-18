@@ -4,7 +4,50 @@
 
 All notable changes to SIMUT firmware.
 
-## Unreleased
+## v2.4.9-beta (2026-09-18)
+
+**The release image gives back 57 kB and gives up nothing.** 1,039,900 -> 982,844
+bytes, which takes the room left for an over-the-air update from 484 B to
+57,540 B. Six changes, each measured on its own, none of them removing a
+feature:
+
+| lever | Δ `.bin` |
+|---|---:|
+| zopfli instead of `gzip -9` on the 13 embedded web pages | −2,888 |
+| `-DNDEBUG` on release and alpha — test and air already had it | −6,832 |
+| the SDK's `printf`/`puts`/`putchar` routed through `vsnprintf` | −9,836 |
+| the timezone held as a number instead of a POSIX `TZ` string | −13,148 |
+| the last two `atof( )` callers moved to the inline parser | −7,640 |
+| BearSSL offering only ECDHE + AES-GCM, TLS 1.2 | −16,688 |
+
+Where those bytes were is the interesting part, and it was not in this
+project's own code: newlib parsed the timezone string back with `scanf` on
+every change; `vfprintf` and the stdio object stack were linked for the
+pico-sdk's panic banner and the radio driver's error lines, while the same
+formatter was already linked for our `vsnprintf`; `atof` dragged in hex-float
+and NaN parsing for values that become floats; and the TLS stack advertised 41
+cipher suites spanning TLS 1.0 to 1.2 when four suffice.
+
+Three things change that can be observed. **A TLS peer that offers only CBC,
+only CCM, only ChaCha20-Poly1305, only TLS 1.1 or older, or only a static-RSA
+key exchange no longer connects** — as either side, since the same lists serve
+the telemetry client and the device's own HTTPS server; a certificate chain
+signed with MD5 or SHA-1 no longer verifies, which matters only when a CA
+certificate is loaded. Nothing reads the `TZ` environment variable any more. A
+panic banner longer than 160 bytes is truncated.
+
+`-DNDEBUG` also removed a 116-byte absolute path from the build machine's home
+directory that was going out inside the published image, carried by an inlined
+assert in the SDK's DMA layer.
+
+Measured on the bench, rig at 192.168.3.24: the web suite passes 95 checks with
+every page gunzipping and its JavaScript parsing; a calibration round-trip
+writes `21.75 -> 22.25` and reads back `raw 21.77 / read 22.27`; the same epoch
+window resolves to 2, 1 and 2 day files at −03, UTC and +09 as the arithmetic
+predicts, with the clock untouched; and telemetry over HTTPS delivers 6
+requests and 924 bytes to the bench sink with the trimmed cipher list. The
+study behind the numbers is `docs/analysis/DIETA_FLASH.md`, and
+`tools/flash_compose.py` reproduces the attribution from a linker map.
 
 **The top panel answers one gesture per meaning.** A short tap anywhere on it
 opens min/max; a press of three seconds anywhere on it switches between pinned
