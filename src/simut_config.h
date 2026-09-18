@@ -116,6 +116,35 @@
 #define SIMUT_TFT_SPI_HZ 62500000u
 #endif
 
+/* TFT SPI READ clock, in Hz — the GRAM read-back, which is a different and much
+ * slower bus transaction than the write above.
+ *
+ * It was 2 MHz, written inline in readRow, and nothing said why. Measured on
+ * the rig (2026-09-18, static screen, every frame compared pixel by pixel
+ * against a 2 MHz reference of the same screen, 320x240 frame through
+ * /api/screen_stream):
+ *
+ *     2 MHz   1.303 s/frame   15.0 us/px    0 wrong pixels
+ *     4 MHz   0.742 s          7.7 us/px    0
+ *     6 MHz   0.550 s          5.2 us/px    0   <- this default
+ *     8 MHz   0.476 s          4.2 us/px    0
+ *    12 MHz   0.369 s          2.8 us/px    0
+ *    16 MHz   0.368 s          2.8 us/px    0   (the PL022 ladder stops paying)
+ *
+ * Plus a soak of 30 frames each at 6 and 12 MHz: zero wrong pixels at both.
+ *
+ * 6 MHz is the default because the ILI9341's serial read cycle works out to
+ * ~6.6 MHz and this stays inside it, while still being 2.4x the old figure.
+ * 12 MHz measured just as clean on THIS module and THIS wiring, and is one
+ * constant away for anyone who validates their own — the same deal the write
+ * clock above documents, and the same way to check it: capture a static screen
+ * twice and diff the pixels. A wrong clock here does not corrupt the panel; it
+ * corrupts what the mirror and /api/screenshot report, which is worse, because
+ * it looks like a display fault. */
+#ifndef SIMUT_TFT_READ_HZ
+#define SIMUT_TFT_READ_HZ 6000000u
+#endif
+
 /* =========================================================================
  * SECTION 3: ALPHA DISPLAY — HD44780 16x2
  *

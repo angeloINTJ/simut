@@ -27,8 +27,10 @@
  *
  * On the rig (2026-09-18) a frame came out between 3.4 and 13.3 kB across six
  * screens and the raw fallback never fired once — but the wire turned out not
- * to be the thing that matters: the panel read is 91% of a mirror frame and
- * the whole payload is 3%. The codec buys the network back; nothing more.
+ * to be the thing that matters: the panel read was 91% of a mirror frame then,
+ * and 64-70% of a 2.6x shorter one since readRect (same day; see
+ * handleApiScreenStream). The payload's share roughly doubled by standing
+ * still. The codec buys the network back; nothing more.
  *
  * WHY a palette rather than the colour itself. The TFT UI draws from a theme,
  * not from photographs: across those 17 screens a whole frame holds 5..12
