@@ -1739,19 +1739,24 @@ void WebManager::handleApiScreenshotChunk( ) {
  * want opposite things. /api/screenshot is the FORENSIC read — it votes three
  * reads per row because the ILI9341 read protocol is fragile, and it is what
  * simut_config.h points at to prove the wiring carries 62.5 MHz. This one is
- * the MIRROR: one read per row, because the other two passes are most of the
- * frame and a mirror that shows a stray pixel is still a mirror.
+ * the MIRROR: one pass over the pixels instead of three, because the other two
+ * are most of the frame and a mirror that shows a stray pixel is still a
+ * mirror.
  *
- * MEASURED ON THE RIG (2026-09-18, pico_w_test, 192.168.3.24, six screens):
+ * MEASURED ON THE RIG (pico_w_test, 192.168.3.24), before and after readRect
+ * took this read off the 2 MHz byte loop — same rig, same day, 2026-09-18:
  *
- *   /api/screenshot   4.33 s/frame   0.23 fps   230,454 B
- *   this route        1.53 s/frame   0.65 fps   3.4..13.3 kB  (2.8x faster)
+ *                       before        after
+ *   /api/screenshot     4.33 s        1.69 s     230,454 B
+ *   this route          1.53 s        0.59 s     3.4..13.3 kB
  *
- * The frame splits 91% panel read / 7% Core 1 pauses / 3% network, so the
- * codec and the strip geometry are both noise next to the SPI read. A row
- * costs 5.79 ms against 3.84 ms of pure 2 MHz clock — the extra 2 us per byte
- * is the per-call cost of readRow's byte-at-a-time SPI.transfer, and it is
- * the only lever left worth pulling.
+ * The frame used to split 91% panel read / 7% Core 1 pauses / 3% network, and
+ * that is why the codec and the strip geometry were both noise beside the SPI
+ * read. It now splits 64-70% read / 23-29% pauses
+ * (docs/analysis/ESPELHO_DELTA.md §8). The pauses grew in ABSOLUTE time,
+ * 111 -> 129..180 ms, precisely because the read got fast: Core 1 gets more
+ * time between captures, has more to paint, and takes longer to park when the
+ * handshake asks. The next lever is that pause, not the wire.
  *
  * And the read noise the three-vote read exists for did NOT show up: on the
  * four screens that hold still (set, lic, gra, thm), two independent
@@ -1765,7 +1770,8 @@ void WebManager::handleApiScreenshotChunk( ) {
  * 17 B and pays for itself twice over. 16 rows was tried on the rig and
  * bought 3.6% (1.488 s against 1.530 s) for twice the RAM — the pause it
  * saves is 3.7 ms, not the 13.8 ms a two-unknown fit against the BMP path
- * had claimed.
+ * had claimed. That trial predates readRect, when a row still cost 5.79 ms;
+ * what it settled — strip geometry is not where the time is — outlived it.
  *
  * Core 1 is paused per strip, not per frame, and that is deliberate: a frame
  * held under a single pause would freeze the renderer for the whole second

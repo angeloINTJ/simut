@@ -23,10 +23,14 @@ namespace {
 	volatile bool g_keypadDirty = true;
 }
 
+/* No caller today — readRect( ) covers every capture path. It keeps the same
+ * read clock as readRect( ) rather than the 2 MHz it used to spell out inline,
+ * so that whoever does call it gets the clock this panel was measured at
+ * (SIMUT_TFT_READ_HZ) and not a second convention nobody checked. */
 uint16_t DisplayManager::readPixel(int16_t x, int16_t y) {
 	if (!_driver.tft) return 0;
 	_driver.tft->startWrite( ); _driver.tft->setAddrWindow(x, y, 1, 1); _driver.tft->endWrite( );
-	SPI.beginTransaction(SPISettings(2000000, MSBFIRST, SPI_MODE0));
+	SPI.beginTransaction(SPISettings(SIMUT_TFT_READ_HZ, MSBFIRST, SPI_MODE0));
 	digitalWrite(TFT_CS, LOW);
 	digitalWrite(TFT_DC, LOW); SPI.transfer(0x2E);
 	digitalWrite(TFT_DC, HIGH); SPI.transfer(0x00);
@@ -52,10 +56,10 @@ uint16_t DisplayManager::readPixel(int16_t x, int16_t y) {
  * cost of SPI.transfer(uint8_t), and the PL022 FIFO does not get a chance to
  * stay fed. The block form hands the whole chunk to the driver at once.
  *
- * The transfer is in-place, which is safe here: the panel ignores MOSI while
- * RAMRD streams, so whatever the buffer happens to hold goes out as don't-care
- * and comes back overwritten with pixel data. That saves a second 960 B buffer
- * of zeros.
+ * There is no transmit buffer at all: the two-buffer overload with a null tx
+ * is the framework's receive-only case, and the SDK clocks out a constant 0xFF
+ * while it reads. The panel ignores MOSI while RAMRD streams, so the byte on
+ * the wire is don't-care and no second 960 B buffer has to exist to hold it.
  *
  * The chunk is one row wide so the stack cost stays at 960 B; the window is NOT
  * reopened between chunks, CS simply stays low. */
