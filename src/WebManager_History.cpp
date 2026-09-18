@@ -1739,24 +1739,33 @@ void WebManager::handleApiScreenshotChunk( ) {
  * want opposite things. /api/screenshot is the FORENSIC read — it votes three
  * reads per row because the ILI9341 read protocol is fragile, and it is what
  * simut_config.h points at to prove the wiring carries 62.5 MHz. This one is
- * the MIRROR: one read per row, because the extra two cost 1,843 ms of a
- * 2,825 ms frame and a mirror that shows a stray pixel is still a mirror.
- * Arithmetic from the constants in readRow (2 MHz, 3 bytes/pixel) and the
- * 221 KB/s download measured in the netstorm campaign:
+ * the MIRROR: one read per row, because the other two passes are most of the
+ * frame and a mirror that shows a stray pixel is still a mirror.
  *
- *   /api/screenshot   2,765 ms read (3x) + 1,018 ms send   ~0.26 fps
- *   this route          922 ms read (1x) +    41 ms send   ~1.0  fps
+ * MEASURED ON THE RIG (2026-09-18, pico_w_test, 192.168.3.24, six screens):
  *
- * NOT MEASURED ON HARDWARE YET: how much read noise one pass actually shows
- * on this module — that is what the three-vote read exists for. The cost of
- * noise is bounded and known (0.1% of pixels flipped costs 3% of the packet,
- * 1% costs 30%, measured over the bench captures), so it degrades the frame
- * rate rather than the picture; the picture is a bench question.
+ *   /api/screenshot   4.33 s/frame   0.23 fps   230,454 B
+ *   this route        1.53 s/frame   0.65 fps   3.4..13.3 kB  (2.8x faster)
+ *
+ * The frame splits 91% panel read / 7% Core 1 pauses / 3% network, so the
+ * codec and the strip geometry are both noise next to the SPI read. A row
+ * costs 5.79 ms against 3.84 ms of pure 2 MHz clock — the extra 2 us per byte
+ * is the per-call cost of readRow's byte-at-a-time SPI.transfer, and it is
+ * the only lever left worth pulling.
+ *
+ * And the read noise the three-vote read exists for did NOT show up: on the
+ * four screens that hold still (set, lic, gra, thm), two independent
+ * single-pass reads came back with ZERO differing pixels, and zero against
+ * the three-vote BMP as well. The pixels that differ on dash and sts are the
+ * live readings changing between captures, not the wire.
  *
  * Strips are 8 rows: the two buffers are 5,120 B each, LESS than the 15,360 B
  * /api/screenshot already mallocs, and a frame costs only 2% more bytes than
  * with 16-row strips (9,454 vs 9,267 B measured) because a palette header is
- * 17 B and pays for itself twice over.
+ * 17 B and pays for itself twice over. 16 rows was tried on the rig and
+ * bought 3.6% (1.488 s against 1.530 s) for twice the RAM — the pause it
+ * saves is 3.7 ms, not the 13.8 ms a two-unknown fit against the BMP path
+ * had claimed.
  *
  * Core 1 is paused per strip, not per frame, and that is deliberate: a frame
  * held under a single pause would freeze the renderer for the whole second

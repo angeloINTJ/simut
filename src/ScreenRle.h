@@ -25,6 +25,11 @@
  *   this codec, average frame                  9,454 B      41 ms
  *   this codec, worst frame measured           18,139 B      79 ms
  *
+ * On the rig (2026-09-18) a frame came out between 3.4 and 13.3 kB across six
+ * screens and the raw fallback never fired once — but the wire turned out not
+ * to be the thing that matters: the panel read is 91% of a mirror frame and
+ * the whole payload is 3%. The codec buys the network back; nothing more.
+ *
  * WHY a palette rather than the colour itself. The TFT UI draws from a theme,
  * not from photographs: across those 17 screens a whole frame holds 5..12
  * distinct colours and an 8-row strip holds at most 8. One index byte per run
