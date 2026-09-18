@@ -8,8 +8,16 @@ que devolve bytes sem tirar função?
 A resposta curta: a imagem de release tem **1.039.972 B** contra um teto de OTA
 de 1.040.384 B — **412 B de folga**. Cinco alavancas que não mudam nenhuma
 função, medidas uma a uma e depois **juntas numa imagem só, dão −53.848 B**;
-uma sexta, só de ferramenta, dá −2.888 B por cima. Nada disso foi para a main:
-este documento é a medição e a ordem sugerida, não a mudança.
+uma sexta, só de ferramenta, dá −2.888 B por cima.
+
+> **APLICADO em 18/09/2026, no PR #129** — seis commits, um por alavanca, cada
+> um com a sua medição e os seus testes, a partir da main `50d3d2a` (que não
+> tem o PR #127, por isso a linha de base lá é 1.039.900 e não 1.039.972).
+> Resultado real: **release 1.039.900 → 982.868 B (−57.032)**, folga de OTA de
+> 484 B para 57.516 B. A seção 4 abaixo traz, lado a lado, o que este estudo
+> previu e o que a aplicação mediu — três alavancas renderam mais do que o
+> estudo dizia e uma rendeu menos. A seção 10 é nova: o que a aplicação
+> descobriu que este documento não sabia.
 
 ---
 
@@ -184,16 +192,20 @@ o texto do TFT (`HelpLicenseEN.h:236`), não a página web.
 
 Cada linha é uma build contra 1.039.972 B, sozinha. A penúltima é a soma real.
 
-| alavanca | Δ `.bin` | o que é | risco / como validar |
-|---|---:|---|---|
-| **Poda TLS** | **−16.696** | patch em `WiFiClientSecureBearSSL.cpp` pelo mecanismo de `tools/arduino_pico_overrides` (que já carrega dois patches nesse arquivo): 4 suítes ECDHE-GCM no cliente, 2 no servidor EC, só TLS 1.2, sem MD5/SHA-1 nas listas de hash, sem `rsapub`, CBC, CCM, 3DES e ChaPol | servidor que só ofereça CBC, TLS ≤ 1.1 ou troca de chave RSA pura para de fechar; cadeia assinada com SHA-1 deixa de verificar (só importa com certificado carregado). Validar: bancada dos 4 transportes, login HTTPS em Chrome/Firefox, OTA por HTTPS |
-| **Fuso fixo** | **−13.188** | o fuso é `int8` de horas, sem DST. Guardar o offset numa global; `localtime_r(t) = gmtime_r(t + off)`; `mktime = timegm − off`; fim de `setenv("TZ")`/`tzset( )`. Definir `localtime_r`/`mktime` no `src/` basta — os membros da libc deixam de ser puxados; as ≈44 menções em 13 arquivos não mudam | a saga do buraco da meia-noite era **ordem** de aplicação do fuso, e uma global tem a mesma ordem — manter o `applyTimezone` onde está. Teste nativo para `timegm` (bissextos, virada de ano) e a fronteira de dia do histórico na bancada |
-| **`printf` do SDK** | **−9.836** | 20 linhas: `printf`/`vprintf`/`puts`/`putchar` por `vsnprintf` + `Serial.write`. Só o `panic( )` e o driver CYW43 chegam ao `vfprintf` de FILE | baixo. Forçar um `panic( )` na bancada e ver a mensagem sair pela serial |
-| **`strtod` próprio** | **−7.296** | parser decimal (sinal, inteiro, fração, expoente); sem hex, `inf`, `nan`, sem arredondamento correto | os valores viram `float` (24 bits de mantissa) — 1 ulp de `double` some no cast. `parseFloatStrict` continua rejeitando `0x1p3`/`inf`/`nan` por construção. Validar: ida e volta JSON → float → JSON dos coeficientes de calibração, e a suíte nativa dos validadores |
-| **`NDEBUG` na release** | **−6.792** | o mesmo flag que `pico_w_test` e `pico_w_air` já usam — toda soak de bancada roda assim. Leva junto os `__FILE__` dos asserts, entre eles um caminho absoluto de 116 B do diretório pessoal do mantenedor (assert inline do `hardware_dma`) que hoje **vai na imagem publicada** | um invariante que falhe passa calado em vez de reiniciar. `-DLFS_NO_ASSERT` sozinho dá −4.528 e está contido neste |
-| **zopfli nas páginas** | **−2.888** | `build_webui_gz.py` comprime com zopfli em vez de `gzip -9`; 2,4 s por regeneração completa, cache por hash da fonte para não pagar em toda build | nenhum em runtime: é gzip padrão. CI precisa de `pip install zopfli` |
-| **as cinco primeiras, juntas** | **−53.848** | uma imagem só: `NDEBUG` + poda TLS + os três shims → **986.124 B, folga de OTA de 54.260 B** | a soma das cinco individuais é 53.808 — são disjuntas. O zopfli entra por fora (o gerador reescreve o header na build) |
-| mDNS desligado | −16.608 | `SIMUT_MDNS=0`, como test/Air/alpha já fazem — a bancada nunca exercita o responder | **decisão de produto**: some o `SIMUT.local` |
+Os números desta coluna são os do estudo (árvore `study/espelho-delta`). A
+coluna seguinte, **aplicado**, é o que cada commit do PR #129 mediu sobre a
+main — árvores diferentes, e é por isso que diferem.
+
+| alavanca | Δ `.bin` (estudo) | aplicado | o que é | risco / como validar |
+|---|---:|---:|---|---|
+| **Poda TLS** | **−16.696** | **−16.688** | patch em `WiFiClientSecureBearSSL.cpp` pelo mecanismo de `tools/arduino_pico_overrides` (que já carrega dois patches nesse arquivo): 4 suítes ECDHE-GCM no cliente, 2 no servidor EC, só TLS 1.2, sem MD5/SHA-1 nas listas de hash, sem `rsapub`, CBC, CCM, 3DES e ChaPol | servidor que só ofereça CBC, TLS ≤ 1.1 ou troca de chave RSA pura para de fechar; cadeia assinada com SHA-1 deixa de verificar (só importa com certificado carregado). Validar: bancada dos 4 transportes, login HTTPS em Chrome/Firefox, OTA por HTTPS |
+| **Fuso fixo** | **−13.188** | **−13.148** | o fuso é `int8` de horas, sem DST. Guardar o offset numa global; `localtime_r(t) = gmtime_r(t + off)`; `mktime = timegm − off`; fim de `setenv("TZ")`/`tzset( )`. Definir `localtime_r`/`mktime` no `src/` basta — os membros da libc deixam de ser puxados; as ≈44 menções em 13 arquivos não mudam | a saga do buraco da meia-noite era **ordem** de aplicação do fuso, e uma global tem a mesma ordem — manter o `applyTimezone` onde está. Teste nativo para `timegm` (bissextos, virada de ano) e a fronteira de dia do histórico na bancada |
+| **`printf` do SDK** | **−9.836** | **−9.836** | 20 linhas: `printf`/`vprintf`/`puts`/`putchar` por `vsnprintf` + `Serial.write`. Só o `panic( )` e o driver CYW43 chegam ao `vfprintf` de FILE | baixo. Forçar um `panic( )` na bancada e ver a mensagem sair pela serial |
+| **`strtod` próprio** | **−7.296** | **−7.640** | parser decimal (sinal, inteiro, fração, expoente); sem hex, `inf`, `nan`, sem arredondamento correto | os valores viram `float` (24 bits de mantissa) — 1 ulp de `double` some no cast. `parseFloatStrict` continua rejeitando `0x1p3`/`inf`/`nan` por construção. Validar: ida e volta JSON → float → JSON dos coeficientes de calibração, e a suíte nativa dos validadores |
+| **`NDEBUG` na release** | **−6.792** | **−6.832** | o mesmo flag que `pico_w_test` e `pico_w_air` já usam — toda soak de bancada roda assim. Leva junto os `__FILE__` dos asserts, entre eles um caminho absoluto de 116 B do diretório pessoal do mantenedor (assert inline do `hardware_dma`) que hoje **vai na imagem publicada** | um invariante que falhe passa calado em vez de reiniciar. `-DLFS_NO_ASSERT` sozinho dá −4.528 e está contido neste |
+| **zopfli nas páginas** | **−2.888** | **−2.888** | `build_webui_gz.py` comprime com zopfli em vez de `gzip -9`; 2,4 s por regeneração completa, cache por hash da fonte para não pagar em toda build | nenhum em runtime: é gzip padrão. CI precisa de `pip install zopfli` |
+| **as cinco primeiras, juntas** | **−53.848** | **as SEIS: −57.032** | uma imagem só: `NDEBUG` + poda TLS + os três shims → **986.124 B, folga de OTA de 54.260 B** | a soma das cinco individuais é 53.808 — são disjuntas. O zopfli entra por fora (o gerador reescreve o header na build) |
+| mDNS desligado | −16.608 | não aplicado (decisão de produto) | `SIMUT_MDNS=0`, como test/Air/alpha já fazem — a bancada nunca exercita o responder | **decisão de produto**: some o `SIMUT.local` |
 
 Com as seis primeiras a folga de OTA da release iria de **412 B para ≈57 kB**
 (54.260 + 2.888); com o mDNS, ≈73 kB. É o que separa "não cabe mais um byte"
@@ -239,7 +251,7 @@ reestruturar código é imprevisível, e uma alavanca sem número não é alavan
 
 ---
 
-## 7. Ordem sugerida
+## 7. Ordem sugerida — EXECUTADA
 
 1. **zopfli** — só ferramenta, −2.888. Uma tarde.
 2. **`NDEBUG` na release** — um flag, −6.792, e tira o caminho pessoal da imagem.
@@ -257,6 +269,21 @@ fora da fila: cada uma é uma escolha do mantenedor, não uma otimização.
 Cada passo entra com o número medido no commit e o orçamento
 (`tools/flash_budget.json`) **abaixado** na mesma mudança — um orçamento que
 não desce depois de uma dieta deixa de ser marca d'água.
+
+Foi essa a ordem executada no PR #129, um commit por alavanca. O que a bancada
+validou, no rig 192.168.3.24 com a `pico_w_test` desta branch:
+
+| o quê | como |
+|---|---|
+| páginas (zopfli) | `web_test_suite.py`: 95 passaram / 0 falharam; cada página descomprime e o JS servido passa no `node --check` |
+| `parseFloat` | round-trip de calibração `[[21,75, 22,25]]` → leitura corrigida de 21,77 para 22,27 |
+| fuso | a mesma janela de epoch atravessa a meia-noite local em −03 e não em +09: `filesTried` deu (2,1), (1,1), (1,2) para −3/0/+9, sem tocar no relógio; o relógio do painel marcou 09:03:39 contra 12:03 UTC |
+| TLS | telemetria contra o sink HTTPS da bancada (cert RSA): 6 requisições, 6 registros, 924 B aceitos; `SYS_TEL_SENT ctx=200` no log do aparelho |
+| toda a imagem | 7/7 suítes nativas e as 5 imagens no portão de orçamento a cada passo |
+
+**Não validado no ferro:** o servidor HTTPS do próprio aparelho com as suítes
+podadas — provisionar o certificado exige gravar em `/config`, e o upload web
+recusa isso de propósito (ver seção 10).
 
 ---
 
@@ -301,3 +328,44 @@ edição temporária de `libraries/WiFi/src/WiFiClientSecureBearSSL.cpp` no
 pacote do framework, restaurada por cópia e conferida por md5. Nenhuma imagem
 deste estudo foi ao ferro: são números de link, e a validação de cada alavanca
 está na coluna de risco da seção 4.
+
+---
+
+## 10. O que a aplicação descobriu, e este estudo não sabia
+
+**O manual manda provisionar o certificado por um caminho que não existe mais.**
+`docs/MANUAL.md` (e a versão pt-BR) dizem para subir `web_cert.pem` e
+`web_key.pem` pela página Files. `handleUploadData( )` recusa qualquer upload
+que caia em `/config` — e com razão, um cert forjado ali é um MITM no tráfego
+do admin. As duas coisas estão certas separadamente; juntas, não há como
+instalar um certificado num aparelho de campo. **Não foi consertado aqui** — é
+anterior a esta dieta e merece a sua própria mudança, que precisa decidir qual
+é a porta (um comando de console, um endpoint dedicado com gate próprio, ou o
+manual passar a dizer a verdade).
+
+**A troca `toFloat` → `parseFloat` rendeu MAIS do que o previsto** (−7.640
+contra −7.296) porque tirou também o `atof` do `String`, que o estudo contava
+como já descontado.
+
+**O `NDEBUG` rendeu mais** (−6.832 contra −6.792) e a **poda TLS menos**
+(−16.688 contra −16.696): árvores diferentes, `--gc-sections` diferente. A
+lição é a de sempre — um delta medido numa árvore não é o delta na outra, e o
+número que vale é o do commit que o aplica.
+
+**Três instrumentos mentiram durante a validação**, todos do mesmo jeito: não
+mediam o que eu achava que mediam.
+
+- A primeira prova do fuso pediu uma janela **no futuro**, e o handler corta a
+  janela em "agora" — deu 1 arquivo onde eu esperava 2 e parecia defeito do
+  firmware. A janela no passado deu exatamente o previsto.
+- O sink de telemetria **não registra requisição nenhuma** em `--mode ok`; o
+  `(nada)` que ele imprimia não significava "não chegou". O `--stats` conta, e
+  contou 6.
+- `pkill -f "server_http.py"` **matou o próprio shell** que rodava o comando —
+  a armadilha já está registrada neste projeto e eu caí nela de novo.
+
+**Um teste nativo pegou um defeito real do meu código antes do ferro:** a
+`native_network` compila o `NetworkManager` no host, e definir `localtime_r`
+ali teria sombreado a glibc do binário de teste inteiro. Os overrides ficaram
+atrás de `#if defined(ARDUINO_ARCH_RP2040)`, e a aritmética — que é o que
+importa — é testada no host contra a libc do próprio host.
