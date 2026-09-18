@@ -6,6 +6,30 @@ All notable changes to SIMUT firmware.
 
 ## Unreleased
 
+## v2.4.8-beta (2026-09-18)
+
+**The min/max graph button's touch zone is the rectangle it is drawn on.** The
+other half of the defect v2.4.7-beta fixed, on the same button: the graph branch
+tested `x > 266` while the button is painted from 245 to 302, so its left third
+fell through to the short-tap path and turned min/max **off**, and its zone also
+ran to 319 — seventeen pixels past the button and past the card itself, opening
+the graph from the margin. Neither number was wrong by accident: the geometry
+lived in four places, one copy in each of the three drivers that draw a min/max
+panel and a fourth written by hand in the touch handler, matching none of them.
+It is now one definition in `SensorDrawing.h`, beside the function that paints
+the button, and both the drawing and the hot zone read it. `CARD_X`, `CARD_W`,
+`CARD_H` and `CARD_TOP_Y` moved to `DisplayManager.h` for the same reason.
+
+A/B on the rig against the published v2.4.7-beta image, with the screen read
+back through a classifier validated against known screens first: before, a tap
+at x=250 (inside the drawn button) turned min/max off; after, x=245 through 302
+all open the graph and x=310 — outside the button — no longer does.
+
+The change pays for itself: three copies of the geometry became one, the release
+image went from 1,027,900 to 1,027,868 B, and the `.bin` gained 32 B, taking the
+OTA headroom from 452 to 484 B.
+
+
 ## v2.4.7-beta (2026-09-18)
 
 **The panel, live in a browser, and clickable.** `GET /api/screen_stream` sends
