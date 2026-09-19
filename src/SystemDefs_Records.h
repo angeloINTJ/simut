@@ -94,7 +94,15 @@ enum UiMode {
  MODE_SETTINGS_DISPLAY_OFFSET, /**< LCD position adjustment (±4H/±4V) */
  MODE_ALARM_ACTION,
  MODE_CALENDAR, /**< History calendar */
- MODE_CONFIRM_MUTE_ALL /**< Confirms Global Mute activation */
+ MODE_CONFIRM_MUTE_ALL, /**< Confirms Global Mute activation */
+ /* v24 — identity at the panel (DisplayManager_Users.cpp). Appended, so that
+  * isMenuActive( )'s ">= MODE_AUTH" keeps covering the whole settings tree. */
+ MODE_SETTINGS_ALARM_SENSOR,     /**< one sensor: limits / block / maintenance */
+ MODE_SETTINGS_MAINT,            /**< maintenance window: hours and minutes */
+ MODE_SETTINGS_USERS,            /**< account list */
+ MODE_SETTINGS_USER_EDIT,        /**< one account: bits, PIN, delete — or a new one */
+ MODE_SETTINGS_USER_CONFIRM_DEL, /**< "delete this user?" */
+ MODE_PANEL_MESSAGE              /**< Core 0's verdict on the last action */
 };
 
 /** Time range selection for graph rendering. */
@@ -150,8 +158,16 @@ struct __attribute__((packed)) UserAccount {
  bool mustChangePassword;
  uint8_t salt[8]; /**< Per-user random salt. {0} = legacy mode. */
  uint8_t hashVersion; /**< 0=legacy (2500r/120b/username-salt), 1=v1 (PASSWORD_HMAC_ROUNDS/128b/random-salt). */
+ /* v24: HMAC digest of the panel PIN, keyed by SystemConfig::pinAuth.pinSalt.
+  * Device-wide salt and not this account's, because a PIN IDENTIFIES the
+  * user — the panel has no username field, so the one digest computed per
+  * attempt has to be comparable against every account. All-zero = no PIN. */
+ uint8_t pinHash[PIN_HASH_LEN];
 };
-static_assert(sizeof(UserAccount) == 62, "UserAccount v15 must be 62 bytes (packed)");
+/* The 62 bytes before pinHash are the whole v15..v23 account, in the same
+ * order: the migration copies them as one block. ConfigMigrate.h pins that. */
+static_assert(sizeof(UserAccount) == 70,
+ "UserAccount v24 must be 70 bytes (packed) — a change needs a CONFIG_VERSION bump and a new row in ConfigMigrate.h");
 
 
 /**
@@ -257,6 +273,22 @@ struct __attribute__((packed)) MaintConfig {
 static_assert(sizeof(MaintConfig) == 4 * MAX_SENSORS,
               "MaintConfig v23 must be 4 bytes per slot (packed)");
 
+/* ────────────────────────────────────────────────────────────────────────
+ * Autenticação no painel (v24)
+ * ──────────────────────────────────────────────────────────────────────── */
+
+/** Salt device-wide dos digests de PIN (UserAccount::pinHash).
+ *
+ * @details Mora na config, e não é derivado do serial da placa, para que um
+ * backup restaurado numa placa de reposição leve os PINs junto. É PRÓPRIO, e
+ * não users[0].salt, porque `system admin reset` regenera aquele — e com ele
+ * invalidaria em silêncio o PIN de todo mundo. Todo-zero = ainda não gerado;
+ * StorageManager gera no load de um blob antigo e grava. */
+struct __attribute__((packed)) DisplayAuthConfig {
+	uint8_t pinSalt[8];
+};
+static_assert(sizeof(DisplayAuthConfig) == 8, "DisplayAuthConfig v24 must be 8 bytes (packed)");
+
 /** A janela deste slot ainda está aberta em `now`? Free function e não método
  *  para ficar testável no env native junto com o resto de AlarmPayload.h. */
 inline bool maintActive(const MaintConfig& m, uint8_t slot, uint32_t now) {
@@ -277,6 +309,11 @@ inline void maintClamp(MaintConfig& m, uint32_t now) {
 		if (m.until[i] - now > MAINT_MAX_SEC) m.until[i] = now + MAINT_MAX_SEC;
 	}
 }
+
+/** First four bytes of every config file since the format was born. Lives
+ *  here and not in StorageManager.cpp because ConfigMigrate.h checks it on a
+ *  raw blob, before there is a struct — and the native test needs it. */
+constexpr uint32_t CONFIG_MAGIC = 0xCAFEBABE;
 
 /**
  * Master system configuration — persisted to Flash as a binary blob
@@ -328,6 +365,9 @@ struct __attribute__((packed)) SystemConfig {
  SensorRecord sensors[MAX_SENSORS]; /**< Universal slots GPIO0–GPIO15 */
 
  int8_t themeIndex;
+ /* v24: LEGACY, kept only so nothing after it moves. The panel PIN became
+  * per-user (users[].pinHash); the migration turns this plaintext into the
+  * admin's digest and zeroes it, and nothing reads it since. */
  char displayPin[8];
  uint8_t displayLang;
 
@@ -364,6 +404,12 @@ struct __attribute__((packed)) SystemConfig {
   * por isso que NÃO está lá: SensorRecord vive no meio de SystemConfig e
   * crescê-lo desloca cada byte depois dele. */
  MaintConfig maint;
+
+ /* v24 — salt dos PINs do painel. TAIL-ONLY como os dois acima. A v24 NÃO é
+  * só cauda: users[] cresceu no MEIO do struct (5 -> 32 contas, 62 -> 70 B),
+  * então a migração deixou de ser "ler o blob na cabeça" e passou a copiar
+  * por segmentos com tamanhos congelados em literais — ver ConfigMigrate.h. */
+ DisplayAuthConfig pinAuth;
 };
 /* Locks SystemConfig layout. Adding a field without
  * CONFIG_VERSION bump + migration = corrupts existing flash; the assert forces
@@ -379,8 +425,10 @@ static_assert(offsetof(SystemConfig, reserved) < offsetof(SystemConfig, alarmTel
  * offsetof(SystemConfig, maint) bytes, e é assim que attemptLoad o reconhece. */
 static_assert(offsetof(SystemConfig, alarmTel) < offsetof(SystemConfig, maint),
  "maint must stay AFTER alarmTel — the v22 migration depends on tail-append");
-static_assert(offsetof(SystemConfig, maint) + sizeof(MaintConfig) == sizeof(SystemConfig),
- "maint must be the LAST field — a field after it breaks the v22 migration");
+static_assert(offsetof(SystemConfig, maint) + sizeof(MaintConfig) == offsetof(SystemConfig, pinAuth),
+ "pinAuth must follow maint directly — a v23 blob's tail is copied as one block");
+static_assert(offsetof(SystemConfig, pinAuth) + sizeof(DisplayAuthConfig) == sizeof(SystemConfig),
+ "pinAuth must be the LAST field — a field after it breaks the v23 migration");
 
 /** Overlay in reserved[24..25]: web server configuration. */
 struct __attribute__((packed)) WebConfigData {
@@ -577,7 +625,6 @@ struct UiEvent {
  EVT_OPEN_STATS,
  EVT_OPEN_SETTINGS,
  EVT_APPLY_THEME,
- EVT_AUTH_SUCCESS,
  EVT_MENU_SELECT,
  EVT_APPLY_LANG,
  EVT_SAVE_ALARMS,
@@ -592,7 +639,17 @@ struct UiEvent {
  EVT_OPEN_CALENDAR, /**< Requests calendar open */
  EVT_GRAPH_NAV, /**< Navigate graph: param = -1 (◀) or +1 (▶) */
  EVT_CALENDAR_DAY, /**< Selected day: param = day (1-31) */
- EVT_CALENDAR_MONTH /**< Month change: param = -1 or +1 */
+ EVT_CALENDAR_MONTH, /**< Month change: param = -1 or +1 */
+ /* v24 — the panel hands Core 0 an identified action. Core 0 owns the
+  * permission check, the config write, the log line and the alarm record;
+  * the panel only shows what Core 0 answers (showPanelMessage). */
+ EVT_AUTH_PIN,      /**< a PIN was typed (getEnteredPin) — identify it */
+ EVT_ALARM_BLOCK,   /**< id = slot, param = 1 enable / 0 block */
+ EVT_MAINT_SET,     /**< id = slot, param = seconds from now (0 closes) */
+ EVT_USER_ADD,      /**< name via getNewName, PIN via getEnteredPin, param = panel bits */
+ EVT_USER_DEL,      /**< id = slot */
+ EVT_USER_PERMS,    /**< id = slot, param = panel bits */
+ EVT_USER_PIN       /**< id = slot whose new PIN is in getEnteredPin */
  };
  EventType type;
  int id;

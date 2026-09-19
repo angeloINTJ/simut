@@ -19,7 +19,16 @@
 #ifndef MAX_SENSORS
 #define MAX_SENSORS 16 /* Maximum number of configurable sensor slots (GPIO0–GPIO15) */
 #endif
-#define MAX_USERS 5 /* Maximum user accounts (Flash/RAM budget) */
+/* v24 (2026-09-19): 5 -> 32. An account is 70 B of config (62 + the 8-byte
+ * panel-PIN digest), so the table costs 2,240 B in the config file, in the
+ * heap copy of SystemConfig and in every transient copy a commit makes. The
+ * old count survives as CFG_LEGACY_MAX_USERS in ConfigMigrate.h, because the
+ * migration has to walk files that were written with it. */
+#define MAX_USERS 32 /* Maximum user accounts (v24; 5 until v23) */
+/* Panel PIN digest (v24), bytes per account. 64 bits: the PIN space is
+ * 10^4..10^8, so the digest is not where its strength lives. The length rule
+ * (4..8 digits) is isValidPanelPin in SystemDefs_Validate.h. */
+#define PIN_HASH_LEN 8
 #define MOVING_AVG_WINDOW 10 /* Samples in the trimmed-mean sliding window */
 #ifndef MAX_SENSOR_PINS
 #define MAX_SENSOR_PINS 4 /* Maximum GPIO pins per sensor (fits SPI: MOSI,MISO,SCK,CS) */
@@ -84,11 +93,21 @@ enum MinMaxSlot {
 #define PERM_FILE_DELETE 0x0080
 #define PERM_USER_MGR 0x0100
 #define PERM_CALIB 0x0200 /* Sensor calibration via /dashboard */
+/* v24 — what a user may do at the panel itself, one bit per action so that an
+ * account can be handed exactly one of them. The panel tests THE BIT of the
+ * user its PIN identified; the alarms section of /api/commit_all accepts the
+ * matching bit as an alternative to PERM_SYS_CONFIG for the same field, so the
+ * two surfaces agree on what an "alarm operator" is. */
+#define PERM_ALARM_LIMITS 0x0400 /* edit a sensor's alarm limits */
+#define PERM_ALARM_BLOCK  0x0800 /* enable / disable a sensor's alarms */
+#define PERM_MAINT        0x1000 /* open / close a maintenance window */
+/* Any of the three opens the Alarms item on the panel. */
+#define PERM_PANEL_ALARM_ANY (PERM_ALARM_LIMITS | PERM_ALARM_BLOCK | PERM_MAINT)
 
 /* Every bit the users page can actually set — its checkbox map is exactly the
- * ten above. A grant carrying anything else is not a preference the device can
- * honour partially, so /api/commit_all refuses the action instead of masking
- * it down to something the operator never asked for. */
-#define PERM_ALL_BITS 0x03FF
+ * thirteen above. A grant carrying anything else is not a preference the device
+ * can honour partially, so /api/commit_all refuses the action instead of
+ * masking it down to something the operator never asked for. */
+#define PERM_ALL_BITS 0x1FFF
 
 #define PERM_FULL_ADMIN 0xFFFF

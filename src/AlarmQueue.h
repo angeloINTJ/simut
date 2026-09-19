@@ -35,6 +35,15 @@
 /** bit0: o sensor estava em falha quando o alarme foi gerado (valor = sentinela). */
 #define ALARM_FLAG_ERR 0x01
 
+/** AlarmRecord::actor — quem causou o registro. 0 = ninguém (borda automática
+ *  ou vencimento de prazo); senão slot do usuário + 1. Um a mais de propósito:
+ *  todo registro nasce zerado (memset, agregado, push antigo), e "zero" tem de
+ *  ler como "ninguém", não como o admin. */
+#define ALARM_ACTOR_NONE 0
+static inline uint8_t alarmActorFromSlot(int userSlot) {
+	return (userSlot >= 0 && userSlot < MAX_USERS) ? (uint8_t)(userSlot + 1) : ALARM_ACTOR_NONE;
+}
+
 /** Código de status do registro — dois domínios (ver alarmCodeAlarmField /
  * alarmCodeErrField em AlarmPayload.h):
  *   campo "alarm" (domínio de LIMITE): "alarm" (disparado), "alarm_sil",
@@ -50,24 +59,37 @@ enum AlarmErrCode : uint8_t {
 	ALARM_ERR_ERROR,     /* "err" — falha de hardware */
 	ALARM_ERR_ERR_SIL,   /* "err_sil" — erro silenciado */
 	ALARM_ERR_ERR_OFF,   /* "err_off" — erro desativado */
-	/* Terceiro domínio, campo "maint" (v23). Um slot em manutenção não gera
-	 * registro de limite nem de falha — gera EXATAMENTE estes dois, nas bordas
-	 * de entrada e de saída da janela. É o que diz ao servidor "o que vier
-	 * deste sensor até segunda ordem não é alarme". */
-	ALARM_ERR_MAINT,     /* "maint" — entrou em manutenção */
-	ALARM_ERR_MAINT_END  /* "maint_end" — saiu, por comando ou por prazo */
+	/* Terceiro domínio, campo "maint" (v23, nomes da v24). Um slot em
+	 * manutenção não gera registro de limite nem de falha — gera EXATAMENTE
+	 * estes dois, nas bordas de entrada e de saída da janela. É o que diz ao
+	 * servidor "o que vier deste sensor até segunda ordem não é alarme". O
+	 * registro de entrada carrega o fim previsto ({until}) e quem abriu. */
+	ALARM_ERR_MAINT_ON,  /* "maint_on" — entrou em manutenção */
+	ALARM_ERR_MAINT_OFF, /* "maint_off" — saiu, por comando ou por prazo */
+	/* v24: as duas ações do painel que faltavam no domínio de LIMITE. Sem
+	 * elas um servidor via o alarme sumir (alarm_off) e nunca voltar, e via
+	 * um limite mudar só pelo próximo disparo em outro valor. */
+	ALARM_ERR_ALARM_ON,  /* "alarm_on" — limite reativado */
+	ALARM_ERR_ALARM_LIM  /* "alarm_lim" — limites alterados; carrega lo/hi */
 };
 
 /** Um registro da fila de alarmes. Layout em ordem natural (sem pack):
- * epoch alinhado a 4 — 13 B por registro na prática. */
+ * epoch alinhado a 4 — 16 B por registro (12 até a v23; +actor, +value2 na
+ * v24, APPENDED para que todo inicializador posicional existente siga
+ * válido e deixe os dois novos em zero = "ninguém", "sem segundo valor"). */
 struct AlarmRecord {
 	uint32_t epoch;   /**< timestamp do disparo (time(nullptr)) */
 	uint16_t seq;     /**< sequência do boot — chave da confirmação; 0 = inválido */
-	int16_t  value;   /**< valor ×escala do canal; HIST_NAN_SENTINEL quando err */
+	int16_t  value;   /**< valor ×escala do canal; HIST_NAN_SENTINEL quando err.
+	                   *   alarm_lim: o limite INFERIOR ×escala. */
 	uint8_t  slot;    /**< 0..15 */
 	uint8_t  channel; /**< CH_TEMP/CH_HUM/CH_PRESS/CH_LUX */
 	uint8_t  flags;   /**< bitmask ALARM_FLAG_* */
 	uint8_t  errCode; /**< AlarmErrCode — status do {err} */
+	uint8_t  actor;   /**< v24: ALARM_ACTOR_NONE ou slot do usuário + 1 ({user}) */
+	int16_t  value2;  /**< v24: alarm_lim = limite SUPERIOR ×escala; maint_on =
+	                   *   minutos até o fim previsto, lidos como uint16
+	                   *   (30 dias = 43.200 > INT16_MAX); 0 nos demais. */
 };
 
 class AlarmQueue {
@@ -85,8 +107,10 @@ public:
 	/** Enfileira um alarme. Atribui o seq e o retorna; 0 quando recusado
 	 * (fila cheia — drop-newest, dropped( ) incrementa).
 	 * errCode = AlarmErrCode (ALARM_ERR_ERROR/ERR_SIL/ERR_OFF ⇒ flag de
-	 * falha + valor sentinela; demais códigos não marcam falha). */
-	uint16_t push(uint32_t epoch, uint8_t slot, uint8_t channel, int16_t value, uint8_t errCode);
+	 * falha + valor sentinela; demais códigos não marcam falha).
+	 * actor/value2: ver AlarmRecord — zero é o valor neutro dos dois. */
+	uint16_t push(uint32_t epoch, uint8_t slot, uint8_t channel, int16_t value, uint8_t errCode,
+	              uint8_t actor = ALARM_ACTOR_NONE, int16_t value2 = 0);
 
 	/** Copia até maxN registros em ordem de chegada para dst (sem remover).
 	 * @return quantidade copiada. */
@@ -138,7 +162,8 @@ inline bool AlarmQueue::seqInList(uint16_t seq, const uint16_t* seqs, uint8_t n)
 }
 
 inline uint16_t AlarmQueue::push(uint32_t epoch, uint8_t slot, uint8_t channel,
-                                 int16_t value, uint8_t errCode) {
+                                 int16_t value, uint8_t errCode,
+                                 uint8_t actor, int16_t value2) {
 	if (_count >= _cap) {
 		/* drop-newest: recusa o registro novo. Ver doc do header. */
 		_dropped++;
@@ -148,9 +173,9 @@ inline uint16_t AlarmQueue::push(uint32_t epoch, uint8_t slot, uint8_t channel,
 	_nextSeq++;
 	if (_nextSeq == 0) _nextSeq = 1; /* 0 é reservado como inválido */
 
-	/* Único código com valor de leitura: ALARM (borda de limite). Todo o
-	 * resto (ações e falhas) é marcador sem valor. */
-	const bool hasValue = (errCode == ALARM_ERR_ALARM);
+	/* Códigos com valor: ALARM (a leitura na borda de limite) e ALARM_LIM (o
+	 * par de limites). Todo o resto (ações, falhas, manutenção) é marcador. */
+	const bool hasValue = (errCode == ALARM_ERR_ALARM || errCode == ALARM_ERR_ALARM_LIM);
 	uint8_t idx = (uint8_t)((_head + _count) % _cap);
 	_buf[idx].epoch = epoch;
 	_buf[idx].seq = seq;
@@ -159,6 +184,8 @@ inline uint16_t AlarmQueue::push(uint32_t epoch, uint8_t slot, uint8_t channel,
 	_buf[idx].channel = channel;
 	_buf[idx].flags = hasValue ? 0 : ALARM_FLAG_ERR;
 	_buf[idx].errCode = errCode;
+	_buf[idx].actor = actor;
+	_buf[idx].value2 = value2;
 	_count++;
 	return seq;
 }
@@ -201,7 +228,7 @@ inline void AlarmQueue::clear( ) {
 	_head = 0;
 }
 
-static_assert(sizeof(AlarmRecord) <= 16, "AlarmRecord must stay small — RAM queue");
+static_assert(sizeof(AlarmRecord) <= 16, "AlarmRecord must stay small — RAM queue (64 x 16 B static + a stack copy in ack)");
 
 /** Extrai até maxN seqs de um payload de ACK por aplicação, no formato
  * {"seq":[1,2,3]} (chaves extras e espaços são tolerados). Para no

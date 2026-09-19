@@ -278,17 +278,68 @@ quando há mais de quatro ativos e abrem as configurações (**CFG**).
   borda direita do card superior fazia isso também — não faz mais.)
 - **Toque no ícone de gráfico** na visão de mín/máx para abrir o histórico
   daquele sensor.
-- **Toque em CFG** para chegar às configurações — isso pede o PIN do display,
-  se houver um definido.
+- **Toque em CFG** para chegar às configurações — isso pede o **seu PIN**.
+
+### O PIN identifica quem está no painel
+
+Desde a config v24 o painel não tem mais um PIN do aparelho: cada conta tem o
+seu, de 4 a 8 dígitos, digitado num teclado numérico. O PIN é a identidade —
+não há campo de usuário — e por isso é **único** entre as contas. O admin de
+fábrica começa com `1234` e é obrigado a trocá-lo no primeiro acesso ao menu
+(um aparelho atualizado herda o PIN do display que tinha, se era numérico).
+Duas tentativas erradas são grátis; a terceira espera 5 s, depois 15 s, 60 s, e
+a sexta bloqueia até o próximo reboot.
+
+![PIN](images/screens/panel-pin-keypad.png) ![PIN inválido](images/screens/panel-pin-invalid.png)
+
+Quem define PINs: o próprio usuário (item **Alterar Senha**), um administrador
+no item **Usuários** do painel, a página `/users` da web ou `user pin` no CLI.
 
 ### Configurações
 
-Alcançadas pelo CFG. Cobrem temas visuais, limites de alarme, sons de alarme,
-idioma da interface, o PIN do display, calibração do touch, sensibilidade do
-touch, alinhamento do display, status do sistema e o texto da licença. Desde a
-v2.1.9 a tela de PIN/senha é um teclado para a ponta do dedo: oito teclas
-grandes de grupo abrem um popup com as duas caixas ao mesmo tempo, de modo que
-qualquer um dos 91 caracteres aceitos custa exatamente dois toques.
+Alcançadas pelo CFG, depois do PIN. O menu lista **só o que a conta pode**:
+temas, sons, idioma, calibração e alinhamento pedem `SYS_CONFIG`; **Alarmes**
+pede qualquer um dos três bits do painel; **Usuários** pede `USER_MGR`; PIN,
+licença e status são de todos. Um operador com os bits de alarme vê quatro
+itens; o admin vê os dez.
+
+![menu do operador](images/screens/panel-menu-operator.png)
+
+### Alarmes, por sensor e por bit
+
+A lista de sensores abre, para o sensor selecionado, um menu com três linhas —
+cada uma atrás do seu próprio bit, e uma linha sem o bit aparece apagada com
+um cadeado:
+
+| Linha | Bit | O que faz |
+|---|---|---|
+| **Limites de alarme** | `0x0400` | o editor de limites de sempre; SALVAR grava e manda `alarm_lim` com `lo`/`hi` |
+| **Alarmes SIM/NÃO** | `0x0800` | liga/desliga os alarmes do sensor; manda `alarm_on`/`alarm_off` |
+| **Manutenção** | `0x1000` | abre uma janela em **horas e minutos** (teto 30 dias); dentro dela o sensor não gera limite nem falha e o painel/cigarra ficam calados; mostra o tempo restante e FECHAR encerra antes da hora |
+
+![menu do sensor](images/screens/panel-sensor-menu.png) ![manutenção](images/screens/panel-maint-entry.png) ![restante](images/screens/panel-maint-remaining.png) ![só manutenção](images/screens/panel-sensor-menu-maint-only.png)
+
+Toda ação é do usuário identificado: vai para o log de eventos com
+`ctx = conta×100 + slot` e para a 2ª linha de telemetria com `"user"` (ver
+§10 e `docs/API_POST.md`). O **Desativar** do pop-up de alarme também pede o PIN
+e o bit de bloqueio.
+
+### Usuários
+
+Item do menu para quem tem `USER_MGR`. Lista as contas (ADM para o admin; as
+letras **L B M** dizem quais dos três bits do painel a conta tem; um ponto
+depois do nome diz que ela tem PIN). **NOVO** cria uma conta em três telas:
+nome (teclado), os três bits, PIN duas vezes. Uma conta criada aqui é **só do
+painel** — não entra na web até um administrador lhe dar um bit de página e
+resetar a senha. Selecionar uma conta abre o editor: os bits, **Definir PIN**
+e **Excluir usuário** (com confirmação). O admin não é excluível e seus bits
+são fixos. Um PIN que já é de outra conta é recusado na hora.
+
+![usuários](images/screens/panel-users-list.png) ![novo usuário](images/screens/panel-new-user-keyboard.png) ![bits](images/screens/panel-new-user-bits.png) ![PIN em uso](images/screens/panel-pin-in-use.png) ![excluir](images/screens/panel-delete-confirm.png)
+
+Desde a v2.1.9 o teclado de texto (hoje usado para o nome) é para a ponta do
+dedo: oito teclas grandes de grupo abrem um popup com as duas caixas ao mesmo
+tempo, de modo que qualquer um dos 91 caracteres aceitos custa dois toques.
 
 O **System status** é a tela que vale conhecer: nome do dispositivo, versão do
 firmware, serial da placa, uptime, heap livre, uso da flash e temperatura da
@@ -538,10 +589,12 @@ evento existe apenas na saída serial ao vivo no momento em que ele acontece.
 
 ## 9. Usuários e permissões
 
-Cinco contas no máximo. Três sessões podem estar ativas ao mesmo tempo. As
-senhas são hasheadas com um salt aleatório por usuário.
+Trinta e duas contas no máximo (config v24; eram cinco). Três sessões web
+podem estar ativas ao mesmo tempo. As senhas são hasheadas com um salt
+aleatório por usuário; o PIN do painel, com um salt do aparelho, porque o
+painel identifica pelo PIN e compara um digest só contra todas as contas.
 
-Dez bits de permissão, concedidos de forma independente:
+Treze bits de permissão, concedidos de forma independente:
 
 | Bit | Permissão | Concede |
 |---|---|---|
@@ -555,6 +608,12 @@ Dez bits de permissão, concedidos de forma independente:
 | `0x0080` | FILE_DELETE | Excluir arquivos |
 | `0x0100` | USER_MGR | Gerenciar contas |
 | `0x0200` | CALIB | Calibrar sensores |
+| `0x0400` | ALARM_LIMITS | **Painel:** editar limites de alarme |
+| `0x0800` | ALARM_BLOCK | **Painel:** ligar/desligar os alarmes de um sensor |
+| `0x1000` | MAINT | **Painel:** abrir/encerrar manutenção |
+
+Os três últimos valem no painel (§5); na web a seção de alarmes segue com
+`SYS_CONFIG`. Cada conta pode ter um **PIN do painel** (4–8 dígitos, único).
 
 **Admin é todos os bits ligados.** Três operações exigem admin completo em vez
 de um único bit: colocar uma imagem de firmware em staging

@@ -717,8 +717,13 @@ void AppManager::handleAlarmTelemetryEdges( ) {
 			for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
 				if (sensorHasChannel((SensorType)cfg.sensors[i].sensorType, c)) { firstCh = c; break; }
 			}
+			/* Quem abriu ou fechou a janela ficou anotado por quem a escreveu
+			 * (painel ou web); um vencimento por prazo não tem ninguém. O fim
+			 * previsto viaja no registro de entrada. */
 			_telemetryMgr->pushAlarm((uint8_t)i, firstCh, NAN,
-			                         maintNow ? ALARM_ERR_MAINT : ALARM_ERR_MAINT_END);
+			                         maintNow ? ALARM_ERR_MAINT_ON : ALARM_ERR_MAINT_OFF,
+			                         _telemetryMgr->takeMaintActor((uint8_t)i), NAN,
+			                         maintNow ? cfg.maint.until[i] : 0u);
 			if (maintNow) _alarmMaintBits |= (uint16_t)(1u << i);
 			else          _alarmMaintBits &= (uint16_t)~(1u << i);
 		}

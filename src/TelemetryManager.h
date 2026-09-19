@@ -107,8 +107,29 @@ public:
  /** Enfileira um alarme (borda detectada pelo AppManager). Escala o valor
   * pelo canal e atribui o seq. err=true grava HIST_NAN_SENTINEL no valor.
   * Arma o envio imediato (updateAlarms não espera o intervalo).
+  * v24: `actor` (ALARM_ACTOR_NONE ou slot do usuário + 1) nomeia quem causou
+  * a ação; `value2` é o limite superior num alarm_lim (value = inferior) e
+  * `untilEpoch` o fim previsto num maint_on. Os defaults são o registro de
+  * antes: sem ator, sem segundo valor.
   * @return seq atribuído, ou 0 quando recusado (estouro) / linha desligada. */
- uint16_t pushAlarm(uint8_t slot, uint8_t channel, float value, uint8_t errCode);
+ uint16_t pushAlarm(uint8_t slot, uint8_t channel, float value, uint8_t errCode,
+                    uint8_t actor = ALARM_ACTOR_NONE, float value2 = NAN,
+                    uint32_t untilEpoch = 0);
+
+ /** v24: quem abriu/fechou a janela de manutenção de um slot, para a borda
+  * que handleAlarmTelemetryEdges vai emitir na próxima passada. Guardado
+  * aqui, e não no AppManager, porque a web e o painel escrevem a janela por
+  * caminhos diferentes e este é o objeto que os dois já seguram. Consumido
+  * (zerado) ao ser lido; um vencimento por prazo lê ALARM_ACTOR_NONE. */
+ void noteMaintActor(uint8_t slot, uint8_t actor) {
+  if (slot < MAX_SENSORS) _maintActor[slot] = actor;
+ }
+ uint8_t takeMaintActor(uint8_t slot) {
+  if (slot >= MAX_SENSORS) return ALARM_ACTOR_NONE;
+  const uint8_t a = _maintActor[slot];
+  _maintActor[slot] = ALARM_ACTOR_NONE;
+  return a;
+ }
 
  uint8_t alarmQueueSize( ) const { return _alarmQueue.size( ); }
  uint16_t alarmDropped( ) const { return _alarmQueue.dropped( ); }
@@ -135,6 +156,7 @@ public:
 private:
  /* ── estado da 2ª linha ───────────────────────────────────────────────── */
  AlarmQueue _alarmQueue;
+ uint8_t _maintActor[MAX_SENSORS] = {0}; /**< v24: ator pendente por slot (ver noteMaintActor) */
  bool _alarmEnabled = false;            /**< cfg.alarmTel.enabled no boot */
  volatile bool _alarmSendPending = false; /**< gatilho imediato após push */
  uint32_t _lastAlarmAttempt = 0;        /**< millis() do último ciclo de envio */

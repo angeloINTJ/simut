@@ -202,6 +202,24 @@ void WebManager::assignTempPassword(int slot, String& outCreds) {
 	for (size_t i = 0; i < sizeof(temp); i++) v[i] = 0;
 }
 
+/* v24: a panel PIN on a config that may be the dry-run copy, so it cannot go
+ * through StorageManager::setUserPin (which writes the live config). Same
+ * rules: digits 4..8, unique across the active accounts of THIS config; ""
+ * removes it. */
+static bool cfgSetUserPin(SystemConfig& cfg, int slot, const char* pin) {
+	if (slot < 0 || slot >= MAX_USERS) return false;
+	if (!pin || pin[0] == '\0') { memset(cfg.users[slot].pinHash, 0, PIN_HASH_LEN); return true; }
+	if (!isValidPanelPin(pin)) return false;
+	uint8_t d[PIN_HASH_LEN];
+	StorageManager::pinDigestWith(cfg.pinAuth.pinSalt, pin, d);
+	for (int i = 0; i < MAX_USERS; i++) {
+		if (i == slot || !cfg.users[i].active) continue;
+		if (memcmp(cfg.users[i].pinHash, d, PIN_HASH_LEN) == 0) return false;
+	}
+	memcpy(cfg.users[slot].pinHash, d, PIN_HASH_LEN);
+	return true;
+}
+
 /* Answers the client for the two refusal paths of commitScanSections and
  * returns false; on true, outStart[] is the parsers' map of the payload.
  * The decision itself is pure and lives in WebCommitSections.h, where
@@ -1138,6 +1156,11 @@ void WebManager::handleApiCommitAll( ) {
 							const uint32_t now = (uint32_t)time(nullptr);
 							cfg.maint.until[idx] = now + secs;
 						}
+						/* v24: the maint_on / maint_off record names who did it. The
+						 * edge itself is AppManager's, on its next pass. */
+						if (!dry && _telemetryRef && maintF >= 0) {
+							_telemetryRef->noteMaintActor((uint8_t)idx, alarmActorFromSlot(_currentUserId));
+						}
 					}
 					/* Reativar o alarme deste slot pelo web limpa o MUTE DE ERRO
 					 * do mesmo slot — erro e limite são independentes. */
@@ -1207,9 +1230,10 @@ void WebManager::handleApiCommitAll( ) {
 	}
 
 	/* ── users.actions section: processes add/del/reset in order ───────────
-	 * Format: {"users":{"actions":[{"type":"add","name":"x","perms":511},
+	 * Format: {"users":{"actions":[{"type":"add","name":"x","perms":511,"pin":"1234"},
 	 * {"type":"del","id":3},
-	 * {"type":"reset","id":5}]}}
+	 * {"type":"reset","id":5},
+	 * {"type":"pin","id":5,"pin":"123456"}]}}   (v24: pin optional on add; "" clears)
 	 *
 	 * Each add/reset mints a random one-time password (assignTempPassword) and
 	 * appends it here; the response returns them ONCE so the admin can hand
@@ -1275,6 +1299,23 @@ void WebManager::handleApiCommitAll( ) {
 					 * hashes over it. Sets password + salt + hashVersion +
 					 * mustChangePassword and records the plaintext for the reply. */
 					assignTempPassword(slot, tempCreds);
+					/* v24: an optional panel PIN in the same action, so the account
+					 * can act at the panel from its first boot. A malformed or
+					 * duplicate PIN rejects the field, not the account. */
+					String pinS = jsonExtractStringValue(obj, "pin");
+					if (pinS.length( ) && !cfgSetUserPin(cfg, slot, pinS.c_str( ))) rejectField("users.pin");
+				}
+				else if (type == "pin") {
+					/* v24: {"type":"pin","id":N,"pin":"123456"} — "" removes it. Slot 0
+					 * is allowed: this is how the admin's panel PIN is set from the web. */
+					int ip = obj.indexOf("\"id\":");
+					int id = (ip >= 0) ? obj.substring(ip + 5).toInt( ) : -1;
+					if (!(id >= 0 && id < MAX_USERS && cfg.users[id].active)) {
+						rejectField("users.id"); objStart = objEnd + 1; continue;
+					}
+					String pinS = jsonExtractStringValue(obj, "pin");
+					if (!cfgSetUserPin(cfg, id, pinS.c_str( ))) rejectField("users.pin");
+					else if (id == 0 && pinS.length( ) && pinS != "1234" && !dry) _storageRef->clearMustChangePin( );
 				}
 				else if (type == "del" || type == "reset") {
 					int ip = obj.indexOf("\"id\":");

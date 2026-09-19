@@ -166,12 +166,16 @@ inline const CfgSpan* cfgSpans(size_t& n) {
 		CFG_FIELD(ds18Resolution,    CFG_SENSING),
 		/* sensors[] não entra aqui — ver cfgSensorSpans. */
 		CFG_FIELD(themeIndex,        CFG_DISPLAY),
-		CFG_FIELD(displayPin,        CFG_PIN),
+		CFG_FIELD(displayPin,        CFG_PIN), /* v24: dead field, still a span */
 		CFG_FIELD(displayLang,       CFG_DISPLAY),
 		CFG_FIELD(ntpServer,         CFG_TIME),
 		CFG_FIELD(reserved,          CFG_RESERVED),
 		CFG_FIELD(alarmTel,          CFG_ALARMTEL),
 		CFG_FIELD(maint,             CFG_MAINT),
+		/* v24: o salt dos PINs nunca muda por commit; classificado junto das
+		 * contas para que, se um dia mudar, reinicie em vez de cair no balde
+		 * do CFG_UNKNOWN sem ninguém saber por quê. */
+		CFG_FIELD(pinAuth,           CFG_USERS),
 	};
 	n = sizeof(T) / sizeof(T[0]);
 	return T;

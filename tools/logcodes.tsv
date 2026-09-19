@@ -50,6 +50,9 @@
 305	SEC_FILE_UPLOAD	File uploaded	Arquivo enviado	Arquivo enviado	Archivo subido
 306	SEC_FILE_DELETE	File deleted	Arquivo apagado	Arquivo apagado	Archivo eliminado
 307	SEC_BT_LOCKOUT	Bluetooth lockout	Bloqueio Bluetooth	Bloqueio Bluetooth	Bloqueo Bluetooth
+308	SEC_PIN_OK	Panel PIN accepted	PIN do painel aceito	PIN do painel aceito	PIN del panel aceptado
+309	SEC_PIN_FAIL	Panel PIN rejected	PIN do painel recusado	PIN do painel recusado	PIN del panel rechazado
+310	SEC_PIN_LOCKOUT	Panel PIN lockout	Bloqueio do PIN do painel	Bloqueio do PIN do painel	Bloqueo del PIN del panel
 400	APP_DISPLAY_LAUNCHED	Display launched on Core 1	Display iniciado no Core 1	Display iniciado no Core 1	Pantalla iniciada en Core 1
 401	APP_TOUCH_CAL_INITIAL	Initial touch cal saved	Calibracao inicial do touch salva	Calibração inicial do touch salva	Calibración táctil inicial guardada
 402	APP_TOUCH_CAL_REQUIRED	Touch calibration required	Calibracao do touch necessaria	Calibração do touch necessária	Calibración táctil requerida
@@ -75,6 +78,15 @@
 447	APP_UI_ALARM_SILENCED	Alarm silenced via UI	Alarme silenciado via UI	Alarme silenciado via UI	Alarma silenciada por la UI
 448	APP_UI_ALARM_SILENCE_EXP	Alarm silence expired	Silenciamento de alarme expirou	Silenciamento de alarme expirou	Silencio de alarma expirado
 449	APP_UI_ALARM_DEACTIVATED	All alarms deactivated (RAM)	Todos alarmes desativados (RAM)	Todos alarmes desativados (RAM)	Todas las alarmas desactivadas (RAM)
+450	APP_UI_USER_ADDED	User created via panel	Usuario criado pelo painel	Usuário criado pelo painel	Usuario creado en el panel
+451	APP_UI_USER_DELETED	User deleted via panel	Usuario removido pelo painel	Usuário removido pelo painel	Usuario eliminado en el panel
+452	APP_UI_USER_PIN_SET	Panel PIN set for user	PIN do painel definido	PIN do painel definido	PIN del panel definido
+453	APP_UI_USER_PERMS	User permissions changed via panel	Permissoes alteradas pelo painel	Permissões alteradas pelo painel	Permisos cambiados en el panel
+454	APP_UI_MAINT_ON	Maintenance opened via panel	Manutencao aberta pelo painel	Manutenção aberta pelo painel	Mantenimiento abierto en el panel
+455	APP_UI_MAINT_OFF	Maintenance closed via panel	Manutencao encerrada pelo painel	Manutenção encerrada pelo painel	Mantenimiento cerrado en el panel
+456	APP_UI_ALARM_BLOCKED	Sensor alarms blocked via panel	Alarmes do sensor bloqueados pelo painel	Alarmes do sensor bloqueados pelo painel	Alarmas del sensor bloqueadas en el panel
+457	APP_UI_ALARM_UNBLOCKED	Sensor alarms unblocked via panel	Alarmes do sensor desbloqueados pelo painel	Alarmes do sensor desbloqueados pelo painel	Alarmas del sensor desbloqueadas en el panel
+458	APP_UI_PERM_DENIED	Panel action refused: no permission	Acao do painel recusada: sem permissao	Ação do painel recusada: sem permissão	Acción del panel rechazada: sin permiso
 470	APP_ALARM_TRIGGERED	Alarm triggered	Alarme disparado	Alarme disparado	Alarma disparada
 471	APP_ALARM_CLEARED	Alarm cleared	Alarme zerado	Alarme zerado	Alarma restablecida
 472	APP_ALARM_SILENCE_CANCEL	Alarm silence cancelled	Silenciamento cancelado	Silenciamento cancelado	Silencio de alarma cancelado

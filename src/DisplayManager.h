@@ -96,6 +96,44 @@ enum LangKey {
 	 * shifts every string after it. tools/check_lang_packs.py enforces this. */
 	TR_CH_PRESSURE, TR_CH_LUMINOSITY,
 
+	/* v24 — identity at the panel: users, PIN keypad, per-sensor actions,
+	 * maintenance. APPENDED, one key per @DICT line, same rule as above. */
+	TR_MENU_USERS,
+	TR_USERS_TITLE,
+	TR_NEW_LBL,
+	TR_USER_NAME,
+	TR_PERM_LIMITS,
+	TR_PERM_BLOCK,
+	TR_PERM_MAINT,
+	TR_SET_PIN,
+	TR_DELETE_USER,
+	TR_CONFIRM_DELETE,
+	TR_DELETE_LBL,
+	TR_CONTINUE_LBL,
+	TR_ENTER_PIN,
+	TR_NEW_PIN,
+	TR_CONFIRM_PIN,
+	TR_PIN_TOO_SHORT,
+	TR_PIN_MISMATCH,
+	TR_PIN_IN_USE,
+	TR_PIN_SAVED,
+	TR_USER_SAVED,
+	TR_USER_DELETED,
+	TR_NO_PERMISSION,
+	TR_NAME_INVALID,
+	TR_USERS_FULL,
+	TR_ROW_LIMITS,
+	TR_ROW_ALARMS,
+	TR_ROW_MAINT,
+	TR_MAINT_TITLE,
+	TR_HOURS,
+	TR_MINUTES,
+	TR_START_LBL,
+	TR_END_MAINT,
+	TR_REMAINING,
+	TR_LOCKED_LBL,
+	TR_INVALID_PIN,
+
 	TR_KEYS_COUNT
 };
 
@@ -452,12 +490,42 @@ public:
 	static void convert3to565(const uint8_t* src, uint16_t* out, size_t n);
 
 	void showSettingsThemes(int currentThemeIdx);
-	void showAuthScreen(String expectedPin);
-	/** Forces repaint of the MODE_AUTH keypad on the next
-	 * drawAuthScreen. Needed when another screen (e.g. license) covered
-	 * the keypad and the user returned to Auth — without this, only the chrome+dots
-	 * are redrawn and the keypad stays blank. */
+
+	/* ── v24: identity at the panel (DisplayManager_Users.cpp) ──────────────
+	 * The PIN identifies the user; Core 0 verifies it (EVT_AUTH_PIN) and
+	 * answers through authResult( ) and setPanelSession( ). Every screen below
+	 * only produces UiEvents — nothing here writes the configuration. */
+	enum PinPurpose : uint8_t {
+		PIN_FOR_AUTH = 0,     /**< identify: the PIN goes to Core 0 as typed */
+		PIN_FOR_OWN,          /**< the session user sets a new PIN (typed twice) */
+		PIN_FOR_USER,         /**< an admin sets another account's PIN */
+		PIN_FOR_NEW_ACCOUNT   /**< last step of creating an account */
+	};
+	void showPinEntry(uint8_t purpose, int8_t targetUser = -1);
+	/** Forces repaint of the keypad after another screen (the license)
+	 * covered it. State (typed digits, lockout) is untouched. */
 	void requestAuthKeypadRedraw( );
+	/** Core 0's verdict on the PIN of the last EVT_AUTH_PIN. Runs the lockout
+	 * ladder on failure. @return failures so far (0 on success). */
+	int authResult(bool ok);
+	void getEnteredPin(char* out, size_t cap) const;
+	void clearEnteredPin( );
+	/** Who the session is, and what its bits allow — the menus filter on it. */
+	void setPanelSession(int8_t user, uint16_t perms);
+	int8_t panelUser( ) const { return _panelUser; }
+	uint16_t panelPerms( ) const { return _panelPerms; }
+	void showAlarmSensorMenu(int sensorIdx);
+	int8_t alarmSensorMenuSlot( ) const { return _sensorMenuIdx; }
+	void showMaintEntry(int sensorIdx);
+	void showSettingsUsers( );
+	void showUserEdit(int slot, bool isNew);
+	/** The result screen: tick or cross, a message, and where OK returns to. */
+	void showPanelMessage(bool ok, LangKey msg, UiMode returnTo);
+	/** Name typed for a new account (MODE_SETTINGS_PASSWORD, purpose 1). */
+	void getNewName(char* out, size_t cap) const;
+	/** The limit editor's working copy — Core 0 diffs it against the config
+	 * on EVT_SAVE_ALARMS; Core 1 never writes the config itself any more. */
+	const SensorRecord& editedAlarmRecord( ) const { return _tempAlarmConfig; }
 	void showSettingsMain( );
 	void showSettingsAlarms(SystemConfig* cfg);
 
@@ -468,7 +536,9 @@ public:
 	void refreshAlarmStatus( );
 	void showAlarmEdit(int sensorIdx);
 	void showSettingsLang(int currentLang);
-	void showSettingsPassword( );
+	/** purpose 0 = the legacy PIN keyboard (reachable only from the CLI);
+	 *  1 = the name of a new account, plain text up to 15 chars. */
+	void showSettingsPassword(uint8_t purpose = 0);
 	void getNewPassword(char* out, size_t maxLen) const;
 	void showTouchCalibration( );
 	void showTouchSensitivity( );
@@ -906,6 +976,9 @@ private:
 	 * is only accepted after the finger is removed.
 	 */
 	bool _touchReleased = true;
+	/** The press in progress and the screen it began on (see handleTouch). */
+	bool _pressActive = false;
+	UiMode _pressMode = MODE_DASHBOARD;
 
 	/** Cooldown for buttons with hold-repeat (increment/decrement). */
 	uint32_t _holdRepeatLastFire = 0;
@@ -922,22 +995,67 @@ private:
 	int _lastPreviewThemeIdx = -1;
 	bool _forceSettingsRedraw = true;
 
-	void drawAuthScreen( );
 	void drawSettingsMain( );
 	void drawSettingsLang( );
 	int _langPage = 0;
 	int _lastLangPage = -1;
 	int _lastPreviewLangIdx = -1;
-	void scrambleKeys( );
 
-	char _keypadChars[4][5];
-	String _expectedPin;
-	int _authStep = 0;
+	/* PIN keypad + lockout (v24: DisplayManager_Users.cpp) */
+	void drawPinScreen( );
+	void pinCancel( );
+	void pinSubmit( );
 	bool _authFailed = false;
-	bool _isCurrentAttemptValid = true;
 	int _failedAttempts = 0;
 	uint32_t _lockoutUntil = 0;
 	bool _permanentLockout = false;
+	char _pinBuf[PIN_MAX_LEN + 1] = {0};
+	uint8_t _pinLen = 0;
+	char _pinFirst[PIN_MAX_LEN + 1] = {0};
+	uint8_t _pinPhase = 0;          /**< 0 typing, 1 confirming (new PIN) */
+	uint8_t _pinPurpose = 0;        /**< PinPurpose */
+	int8_t _pinTarget = -1;         /**< PIN_FOR_USER: whose */
+	LangKey _pinMsg = TR_KEYS_COUNT;/**< transient line under the dots */
+	volatile bool _pinWaiting = false; /**< handed to Core 0, no verdict yet */
+	int8_t _panelUser = -1;
+	uint16_t _panelPerms = 0;
+
+	/* the settings menu, filtered by the session's bits */
+	uint8_t _menuItems[10];
+	uint8_t _menuCount = 0;
+
+	/* per-sensor actions, maintenance entry */
+	void drawAlarmSensorMenu( );
+	void drawMaintEntry( );
+	int8_t _sensorMenuIdx = -1;
+	int _sensorMenuSel = 0;
+	int8_t _maintSlot = -1;
+	int _maintHours = 1, _maintMinutes = 0, _maintFocus = 0;
+	uint32_t _maintLastDraw = 0;
+
+	/* users */
+	void drawSettingsUsers( );
+	void drawUserEdit( );
+	void drawUserConfirmDel( );
+	int userEditRowCount( ) const;
+	int _usersSel = 0, _usersPage = 0, _lastUsersPage = -1, _lastUsersSel = -1;
+	int _usersMap[MAX_USERS];
+	int _usersCount = 0;
+	int8_t _userEditSlot = -1;
+	bool _userEditNew = false;
+	uint16_t _userEditPerms = 0;
+	int _userEditSel = 0, _userEditPage = 0, _lastUserEditPage = -1, _lastUserEditSel = -1;
+	char _newUserName[16] = {0};
+
+	/* the result screen */
+	void drawPanelMessage( );
+	void leavePanelMessage( );
+	bool _msgOk = true;
+	LangKey _msgKey = TR_KEYS_COUNT;
+	UiMode _msgReturn = MODE_DASHBOARD;
+
+	/** Touch for every mode above; false when the mode is not one of them. */
+	bool handleTouchPanelV24(int16_t x, int16_t y);
 
 	uint32_t _rngState = 123456789;
 	uint32_t fastRandom(uint32_t maxVal);
@@ -956,8 +1074,10 @@ private:
 
 	void drawSettingsPassword( );
 	void drawPasswordMessage( );
-	char _kbBuffer[9];
-	char _kbConfirmBuf[9];
+	char _kbBuffer[16];       /**< 7 for a PIN (legacy), 15 for a user name */
+	char _kbConfirmBuf[16];
+	uint8_t _kbPurpose = 0;   /**< 0 legacy PIN, 1 user name (v24) */
+	int kbMaxLen( ) const { return _kbPurpose == 1 ? 15 : 7; }
 	int _kbCursor = 0;
 	bool _kbShowRaw = false;
 	int _kbPhase = 0;

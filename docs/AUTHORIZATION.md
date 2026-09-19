@@ -42,14 +42,17 @@ gates by testing the bits it needs against `getAuthPerms()`.
 | `PERM_FILE_DELETE`| `0x0080` | file delete |
 | `PERM_USER_MGR`   | `0x0100` | user management, security status |
 | `PERM_CALIB`      | `0x0200` | sensor calibration |
-| `PERM_ALL_BITS`   | `0x03FF` | all ten named bits — **the ceiling any web-created account can hold** |
+| `PERM_ALARM_LIMITS` | `0x0400` | **panel**: edit a sensor's alarm limits (config v24) |
+| `PERM_ALARM_BLOCK`  | `0x0800` | **panel**: enable/disable a sensor's alarms, and "Deactivate" on the alarm pop-up |
+| `PERM_MAINT`        | `0x1000` | **panel**: open/close a sensor's maintenance window |
+| `PERM_ALL_BITS`   | `0x1FFF` | all thirteen named bits — **the ceiling any web-created account can hold** |
 | `PERM_FULL_ADMIN` | `0xFFFF` | the built-in admin (config slot 0) or a CLI-granted mask |
 
 ### The two privilege tiers — this is the load-bearing invariant
 
-`/api/commit_all` refuses any `perms` value above `PERM_ALL_BITS` (0x03FF) when
+`/api/commit_all` refuses any `perms` value above `PERM_ALL_BITS` (0x1FFF) when
 creating users (there is no edit action — a role change is `del` + `add`) (`WebManager_Commit.cpp`). So a web administrator can
-hand out at most all ten named bits. `PERM_FULL_ADMIN` (0xFFFF) is reachable
+hand out at most all thirteen named bits. `PERM_FULL_ADMIN` (0xFFFF) is reachable
 only two ways: the factory seed sets it on user slot 0 (`StorageManager.cpp`),
 and the serial CLI `user perm <name> admin|0xFFFF` can assign it
 (`AppManager_CmdHandlers.cpp`).
@@ -108,7 +111,7 @@ handler checks.
 | `GET /api/export/logs.bin`, `/api/logs` | `PERM_LOGS` |
 | `GET /api/screenshot`, `/api/screenshot_chunk` | `PERM_SYS_CONFIG` |
 | `GET /api/screen_stream` | `PERM_SYS_CONFIG` |
-| `POST /api/touch` | `PERM_SYS_CONFIG` — drives the panel UI; the display PIN keypad still guards the settings screens |
+| `POST /api/touch` | `PERM_SYS_CONFIG` — drives the panel UI; the panel's PIN keypad still guards the settings screens, and every panel action tests the bit of the account the PIN identified (below) |
 | `GET /api/sec_status` | `PERM_USER_MGR` |
 | `GET /api/ls` | `PERM_FILE_READ` |
 | `GET /download` | `PERM_FILE_READ`, **plus** `PERM_HISTORY` for `/history/...` and `PERM_LOGS` for `*.blog` (`downloadPermFor`) |
@@ -139,6 +142,34 @@ entry straight to its final path, so `/config`, `/calib.csv` and `/history` were
 already overwritten by the time the 403 was sent. Any new upload-callback route
 must gate on the **first** `UPLOAD_FILE_START`, the way `handleUploadData` and
 both restore branches now do.
+
+## The panel (config v24)
+
+The panel is a fourth surface, next to the web, the CLI and Bluetooth, and it
+has its own identity: a **PIN** of 4 to 8 digits per account, unique across
+accounts because the keypad has no username field — the PIN *is* the lookup.
+CFG on the dashboard opens the keypad; the account it identifies is the panel
+session until the settings tree is left. `EVT_AUTH_PIN` hands the digits to
+Core 0, which compares one HMAC digest (device-wide salt, `pinAuth.pinSalt`)
+against every account, so an attempt costs the same whether or not a PIN
+exists. The keypad lockout ladder is the one the device PIN always had: two
+free tries, 5 s, 15 s, 60 s, then a lockout only a reboot clears
+(`SEC_PIN_FAIL`/`SEC_PIN_LOCKOUT`, 309/310; `SEC_PIN_OK` 308 with the account).
+
+| Panel action | Requires |
+|---|---|
+| Settings menu items Themes, Sounds, Language, Touch calibration, Display alignment | `PERM_SYS_CONFIG` (the menu lists only what the session's bits reach) |
+| Alarms → a sensor → Alarm limits | `PERM_ALARM_LIMITS` |
+| Alarms → a sensor → Alarms ON/OFF · "Deactivate" on the alarm pop-up | `PERM_ALARM_BLOCK` |
+| Alarms → a sensor → Maintenance (open / close) | `PERM_MAINT` |
+| Users (list, new account, bits, another account's PIN, delete) | `PERM_USER_MGR` |
+| One's own PIN, License, System status | any identified account |
+
+Core 0 checks the bit again on every event (`AppManager_Panel.cpp`,
+`panelAllowed`) and logs a refusal as `APP_UI_PERM_DENIED` (458); Core 1 only
+decides what to draw. A user created at the panel holds panel bits only — no
+web page opens for it until an administrator grants a page bit and resets its
+password.
 
 ## Unauthenticated by design
 

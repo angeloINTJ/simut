@@ -263,12 +263,27 @@ four are active, and open settings (**CFG**).
   lower panel. Pinning also leaves min/max. (Until v2.4.9-beta a quick tap on
   the right edge of the upper card did this too — it does not any more.)
 - **Tap the graph icon** in the min/max view to open that sensor's history.
-- **Tap CFG** to reach settings — this asks for the display PIN if one is set.
+- **Tap CFG** to reach settings — this asks for **your PIN**.
+
+### The PIN identifies who is at the panel
+
+Since config v24 there is no device PIN: every account has its own, 4 to 8
+digits on a numeric keypad. The PIN is the identity — there is no username
+field — so it is **unique** across accounts. The factory admin starts with
+`1234` and must change it on its first visit to the menu (an upgraded device
+inherits the display PIN it had, when it was numeric). Two wrong tries are
+free; the third waits 5 s, then 15 s, 60 s, and the sixth locks the keypad
+until the next reboot.
+
+![PIN](images/screens/panel-pin-keypad.png) ![invalid](images/screens/panel-pin-invalid.png)
+
+PINs are set by the user (**Change Password** item), by an administrator in the
+panel's **Users** item, on the `/users` web page, or with `user pin` on the CLI.
 
 ### Settings
 
 Reached through CFG. Covers visual themes, alarm limits, alarm sounds,
-interface language, the display PIN, touch calibration, touch sensitivity,
+interface language, one's own PIN, touch calibration, touch sensitivity,
 display alignment, system status and the license text. Since v2.1.9 the
 PIN/password screen is a fingertip keyboard: eight large group keys open a
 popup with both cases at once, so any of the 91 accepted characters costs
@@ -420,6 +435,40 @@ What to expect:
   site's cookies (the session cookie is per-session, so simply closing and
   reopening the browser also clears it).
 
+### Alarms, per sensor and per bit
+
+The sensor list opens, for the selected sensor, a three-line menu — each line
+behind its own bit, and a line the account lacks is drawn dimmed with a
+padlock:
+
+| Line | Bit | What it does |
+|---|---|---|
+| **Alarm limits** | `0x0400` | the limit editor; SAVE stores and sends `alarm_lim` with `lo`/`hi` |
+| **Alarms ON/OFF** | `0x0800` | enables/disables the sensor's alarms; sends `alarm_on`/`alarm_off` |
+| **Maintenance** | `0x1000` | opens a window in **hours and minutes** (30-day cap); inside it the sensor raises neither limit nor fault and the panel/buzzer stay quiet; shows the time left, END closes early |
+
+![sensor menu](images/screens/panel-sensor-menu.png) ![maintenance](images/screens/panel-maint-entry.png) ![remaining](images/screens/panel-maint-remaining.png) ![maintenance only](images/screens/panel-sensor-menu-maint-only.png)
+
+Every action belongs to the identified user: it goes to the event log with
+`ctx = account×100 + slot` and to the second telemetry line with `"user"`
+(§10 and `docs/API_POST.md`). **Deactivate** on the alarm pop-up asks for the
+PIN and the block bit too. The settings menu itself lists only what the
+account's bits reach: an alarm operator sees four items, the admin ten.
+
+### Users
+
+A menu item for accounts holding `USER_MGR`. It lists the accounts (ADM for the
+admin; the letters **L B M** say which of the three panel bits an account has;
+a dot after the name says it has a PIN). **NEW** creates an account in three
+screens: name (keyboard), the three bits, PIN twice. An account created here is
+**panel-only** — it cannot enter the web until an administrator grants it a page
+bit and resets its password. Selecting an account opens the editor: the bits,
+**Set PIN** and **Delete user** (with confirmation). The admin cannot be
+deleted and its bits are fixed. A PIN that belongs to another account is
+refused on the spot.
+
+![users](images/screens/panel-users-list.png) ![new user](images/screens/panel-new-user-keyboard.png) ![bits](images/screens/panel-new-user-bits.png) ![PIN in use](images/screens/panel-pin-in-use.png) ![delete](images/screens/panel-delete-confirm.png)
+
 ### Display capture
 
 `GET /api/screenshot` returns a 320×240 24-bit BMP read back from the panel's
@@ -513,10 +562,14 @@ event exists only in the live serial output at the moment it happens.
 
 ## 9. Users and permissions
 
-Five accounts maximum. Three sessions may be active at once. Passwords are
+Thirty-two accounts maximum (config v24; it was five). Three web sessions
+may be active at once. Each account may hold a **panel PIN** (4–8 digits,
+unique), hashed with a device-wide salt because the panel looks accounts up
+BY the PIN. Passwords are
 hashed with a per-user random salt.
 
-Ten permission bits, granted independently:
+Thirteen permission bits, granted independently (the last three are the
+panel's, §5; the web's alarms section keeps requiring `SYS_CONFIG`):
 
 | Bit | Permission | Grants |
 |---|---|---|
@@ -530,6 +583,9 @@ Ten permission bits, granted independently:
 | `0x0080` | FILE_DELETE | Delete files |
 | `0x0100` | USER_MGR | Manage accounts |
 | `0x0200` | CALIB | Calibrate sensors |
+| `0x0400` | ALARM_LIMITS | **Panel:** edit alarm limits |
+| `0x0800` | ALARM_BLOCK | **Panel:** enable/disable a sensor's alarms |
+| `0x1000` | MAINT | **Panel:** open/close maintenance |
 
 **Admin is all bits set.** Three operations demand full admin rather than a
 single bit: staging a firmware image (`/api/restore?op=stage`), applying it

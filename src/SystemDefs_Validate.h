@@ -204,6 +204,24 @@ inline void langIdentSanitize(const char* src, size_t srcLen, char* dst, size_t 
  dst[o] = '\0';
 }
 
+/* Panel PIN (v24): digits only, because the panel keypad is numeric, and this
+ * range is the one that keypad enforces — a PIN set from the web or the CLI is
+ * always one the panel can type. The digest length lives in SystemDefs_Limits.h
+ * next to the account layout; the RULE lives here with the other validators. */
+#define PIN_MIN_LEN 4
+#define PIN_MAX_LEN 8
+
+/** Panel PIN (v24): PIN_MIN_LEN..PIN_MAX_LEN ASCII digits and nothing else.
+ *  Bounded scan — a missing terminator cannot run past PIN_MAX_LEN + 1. */
+inline bool isValidPanelPin(const char* pin) {
+ if (!pin) return false;
+ size_t n = 0;
+ for (; n <= PIN_MAX_LEN && pin[n]; n++) {
+ if (pin[n] < '0' || pin[n] > '9') return false;
+ }
+ return n >= PIN_MIN_LEN && n <= PIN_MAX_LEN;
+}
+
 /** Validate names (device, username): no control chars, no quotes/backslash, 1-31 chars. */
 inline bool isValidName(const char* name, size_t maxLen = 31) {
  if (!name) return false;

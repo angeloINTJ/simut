@@ -2619,6 +2619,21 @@ void test_simuttime_days_from_civil_anchors(void) {
                             (long long)simutDaysFromCivil(2026, 9, 0));
 }
 
+
+void test_panel_pin_validator(void) {
+    TEST_ASSERT_TRUE(isValidPanelPin("1234"));
+    TEST_ASSERT_TRUE(isValidPanelPin("12345678"));
+    TEST_ASSERT_TRUE(isValidPanelPin("0000"));
+    TEST_ASSERT_FALSE(isValidPanelPin("123"));
+    TEST_ASSERT_FALSE(isValidPanelPin("123456789"));
+    TEST_ASSERT_FALSE(isValidPanelPin("12a4"));
+    TEST_ASSERT_FALSE(isValidPanelPin("1234 "));
+    TEST_ASSERT_FALSE(isValidPanelPin(""));
+    TEST_ASSERT_FALSE(isValidPanelPin(nullptr));
+    /* the bounded scan: a long run of digits is refused without walking it */
+    TEST_ASSERT_FALSE(isValidPanelPin("1111111111111111"));
+}
+
 int main(int /*argc*/, char** /*argv*/) {
     UNITY_BEGIN();
 
@@ -2842,6 +2857,7 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_simuttime_day_walk_crosses_month_and_year);
     RUN_TEST(test_simuttime_midnight_is_offset_from_utc);
     RUN_TEST(test_simuttime_days_from_civil_anchors);
+    RUN_TEST(test_panel_pin_validator);
 
     return UNITY_END();
 }

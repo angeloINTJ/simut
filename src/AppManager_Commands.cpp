@@ -1269,6 +1269,9 @@ void AppManager::executeCommand(CliDemand cmd) {
  case CMD_USER_PERM:
  cmdHandleUserPerm(cmd, cfg, changed); break;
 
+ case CMD_USER_PIN:
+ cmdHandleUserPin(cmd, cfg, changed); break;
+
  case CMD_SET_WEB_PORT: {
  const bool pt = _cmdMgr->isPt( );
  if (!cmd.intVal1Valid || cmd.intVal1 < 1 || cmd.intVal1 > 65535) {
@@ -1301,6 +1304,14 @@ void AppManager::executeCommand(CliDemand cmd) {
  * /api/screenshot completes (chunked ~5s, full ~4s).
  * resetTouchIdle( ) gives a 30s window for capture. */
  const char* n = cmd.strVal1;
+ /* v24: the settings tree is filtered by the panel session's bits, and a
+  * screen forced from here has no session. The serial console already
+  * outranks every account (it resets the admin), so it looks in as the
+  * admin — without that, `screen set` would show a three-item menu. */
+ if (strcmp(n, "dash") != 0 && strcmp(n, "gra") != 0 && strcmp(n, "pin") != 0) {
+ _panelUser = 0; _panelPerms = PERM_FULL_ADMIN; _panelAuthFor = PAUTH_SETTINGS;
+ _displayMgr->setPanelSession(0, PERM_FULL_ADMIN);
+ }
  if (!strcmp(n, "dash")) _displayMgr->forceDashboard( );
  else if (!strcmp(n, "set")) _displayMgr->showSettingsMain( );
  else if (!strcmp(n, "thm")) _displayMgr->showSettingsThemes(cfg.themeIndex);
@@ -1313,6 +1324,8 @@ void AppManager::executeCommand(CliDemand cmd) {
  else if (!strcmp(n, "touchcal")) _displayMgr->showTouchCalibration( );
  else if (!strcmp(n, "touchsens")) _displayMgr->showTouchSensitivity( );
  else if (!strcmp(n, "offset")) _displayMgr->showSettingsDisplayOffset( );
+ else if (!strcmp(n, "usr")) _displayMgr->showSettingsUsers( );
+ else if (!strcmp(n, "pin")) _displayMgr->showPinEntry(DisplayManager::PIN_FOR_AUTH);
  else { _cmdMgr->printError("?screen"); break; }
  _displayMgr->resetTouchIdle( );
  _cmdMgr->printSuccess(n);

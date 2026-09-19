@@ -142,6 +142,8 @@ from a document. Anything genuinely dead should leave the tree, as
 | `json_escape_cases.py` | Three strings a permitted user could store that each broke a different JSON response for everyone (V-04). An A/B, not a checklist: against firmware from before the fix, cases 1 and 2 must break. | 2026-09-08 |
 | `air_telemetry_server.py` | SIMUT Air telemetry test server. | 2026-09-05 |
 | `alarm_hw_test.py` | SIMUT v21 — Suíte de testes em hardware da 2ª linha de telemetria (alarmes). | 2026-08-23 |
+| `alarm_collector.py` | Coletor da linha de alarmes como processo próprio: cada POST vira uma linha JSON no `--log`. Fica no ar entre rodadas — o registro postado sem ninguém ouvindo é um retry que a bancada nunca vê. | 2026-09-19 |
+| `panel_users_hw_test.py` | v24 — identidade no painel no rig: dirige as telas por `/api/touch`, captura cada uma, lê o log binário e o coletor. Prep/joao/admin/maria/web/cleanup; 27 checks. ⚠️ `touch sim` pela CLI perde toques (fila de 2 na janela de prioridade do toque). | 2026-09-19 |
 | `build_lang_pack_es.py` | F-LANGPACK — gera data/lang/language_es-ES.lng a partir do PT-BR. | 2026-08-16 |
 | `capture_web_shots.py` | capture_web_shots.py — recapture the web UI screenshots used by the README | 2026-08-22 |
 | `webui_preview.py` | Pré-visualiza a interface web do `WebUI.h` sem gravar o firmware: serve as páginas, o `/lang.js` e o `/style.css` do arquivo em edição (relido a cada requisição) e encaminha a API para um SIMUT real, com a sessão feita pelo próprio proxy. `?theme=light&lang=pt&run=toggleDrawer()` na URL semeiam o que a captura precisa. Uma instância só: cada login ocupa um dos três slots de sessão do aparelho. | 2026-09-16 |

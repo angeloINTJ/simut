@@ -272,21 +272,24 @@ void WebManager::handleApiUsers( ) {
 
 	SystemConfig& cfg = _storageRef->getConfig( );
 
-	char json[512];
-	int pos = 0;
-	json[pos++] = '[';
-
+	/* v24: 32 accounts at ~60 B each outgrow the 512-byte stack buffer this
+	 * used; a String on the heap is ~2 kB transient and sized to the table.
+	 * "pin" says whether the account can act at the panel — never the PIN. */
+	String json;
+	json.reserve(64 * MAX_USERS);
+	json = "[";
 	bool first = true;
+	char row[96];
 	for (int i = 0; i < MAX_USERS; i++) {
 		if (!cfg.users[i].active) continue;
-		if (!first) json[pos++] = ',';
+		if (!first) json += ',';
 		first = false;
-		pos += snprintf(json + pos, sizeof(json) - pos,
-		                "{\"id\":%d,\"name\":\"%s\",\"perms\":%u}",
-		                i, cfg.users[i].username, cfg.users[i].permissions);
+		snprintf(row, sizeof(row), "{\"id\":%d,\"name\":\"%s\",\"perms\":%u,\"pin\":%s}",
+		         i, cfg.users[i].username, cfg.users[i].permissions,
+		         StorageManager::userHasPin(cfg.users[i]) ? "true" : "false");
+		json += row;
 	}
-	json[pos++] = ']';
-	json[pos] = '\0';
+	json += ']';
 
 	_server->send(200, "application/json", json);
 }

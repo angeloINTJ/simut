@@ -653,6 +653,14 @@ void AppManager::setup( ) {
  LOG_CODE(LOG_WARN, "STO", SYS_STORAGE_MIGRATED, (int)rejected,
           TRL("Config from an older schema discarded — defaults loaded"));
  }
+ /* v24: a migration that WORKED is worth the same one line — it is the only
+  * record that the accounts came through a schema change, and the bench
+  * reads it to prove the upgrade path. ctx = the version it came from. */
+ const uint16_t fromVer = _storageMgr->takeMigratedFromVersion( );
+ if (fromVer != 0) {
+ LOG_CODE(LOG_INFO, "STO", SYS_STORAGE_MIGRATED, (int)fromVer,
+          TRL("Config migrated to the current schema"));
+ }
  }
 
  /* Autopsy has already read scratch[4]. Now we can set MOD_BOOT to

@@ -60,36 +60,52 @@
   "needs it. ConfigApply started as thirty hand-written compare/copy functions and",
   "cost 4,488 B; rewritten as one span table walked by one loop it costs 2,896 and",
   "the two halves can no longer drift apart. Budgets go to measured + 3,000 (air",
-  "keeps its 1,000); the air .bin is 1,027,116 B, 13,268 under the OTA ceiling."
+  "keeps its 1,000); the air .bin is 1,027,116 B, 13,268 under the OTA ceiling.",
+  "2026-09-19 (feat/alarms-live-config, identity at the panel):",
+  "+15,792 B on release, +16,912 test, +16,936 test_https,",
+  "+15,800 asserts, +1,728 alpha, +6,848 air. CONFIG_VERSION 24: 32",
+  "accounts (five until v23), a per-account panel PIN (HMAC-SHA256 chain, 200 rounds,",
+  "device-wide salt, looked up BY the PIN), per-sensor alarm actions behind three new",
+  "permission bits, a Users item on the panel, five payload codes that carry the acting",
+  "user, twelve log codes. The screens (DisplayManager_Users.cpp) and their Core-0 side",
+  "(AppManager_Panel.cpp) are TFT-only: the first cut of AppManager_Panel.cpp compiled",
+  "into every environment and cost the Air 10,304 B; behind SIMUT_DISPLAY_TFT it costs",
+  "6,848 - the migration, the PIN hashing, the CLI and web PIN paths and the wider",
+  "account table, all of which every build carries. 72 B of the release delta are the",
+  "two follow-ups the rig asked for: Core 1 consuming _repaintSettings before a draw",
+  "instead of after it (a Core-0 screen change during a draw was lost, 7 of 7 logins),",
+  "and the sensor menu opening on the first row the account may use. Budgets go to",
+  "measured + 3,000 (air keeps 1,000); the air .bin is 1,031,212 B, 9,172 under the",
+  "OTA ceiling, the release .bin 1,008,300 B, 32,084 under it."
  ],
  "ceiling": 1044480,
  "measured_on": "2026-09-19",
- "measured_at_commit": "feat/alarms-live-config (+2,896 B release: maintenance windows, live config apply, CONFIG_VERSION 23)",
+ "measured_at_commit": "feat/alarms-live-config (+15,792 B release: identity at the panel, CONFIG_VERSION 24, 32 accounts, panel PIN)",
 
  "envs": {
   "pico_w_release": {
-   "budget": 983476,
-   "measured": 980476
+   "budget": 999268,
+   "measured": 996268
   },
   "pico_w_test": {
-   "budget": 985652,
-   "measured": 982652
+   "budget": 1002564,
+   "measured": 999564
   },
   "pico_w_test_https": {
-   "budget": 1010044,
-   "measured": 1007044
+   "budget": 1026980,
+   "measured": 1023980
   },
   "pico_w_asserts": {
-   "budget": 985644,
-   "measured": 982644
+   "budget": 1001444,
+   "measured": 998444
   },
   "pico_w_alpha": {
-   "budget": 974444,
-   "measured": 971444
+   "budget": 976172,
+   "measured": 973172
   },
   "pico_w_air": {
-   "budget": 1012536,
-   "measured": 1011536
+   "budget": 1019384,
+   "measured": 1018384
   }
  }
 }

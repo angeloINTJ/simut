@@ -58,10 +58,26 @@ conseguir abrir o painel.
 | `PERM_FILE_READ` | `0x0020` | listar arquivos · `restore?op=validate` |
 | `PERM_FILE_UPLOAD` | `0x0040` | `upload` · `mkdir` |
 | `PERM_FILE_DELETE` | `0x0080` | `delete` |
-| `PERM_USER_MGR` | `0x0100` | seção `users` · estado de segurança |
+| `PERM_USER_MGR` | `0x0100` | seção `users` · estado de segurança · **item Usuários do painel** |
 | `PERM_CALIB` | `0x0200` | `calib` |
+| 🆕 `PERM_ALARM_LIMITS` | `0x0400` | **painel**: editar limites de alarme de um sensor |
+| 🆕 `PERM_ALARM_BLOCK` | `0x0800` | **painel**: ligar/desligar os alarmes de um sensor (e o "Desativar" do pop-up de alarme) |
+| 🆕 `PERM_MAINT` | `0x1000` | **painel**: abrir/encerrar a janela de manutenção de um sensor |
 
-`PERM_ALL_BITS` = `0x03FF` (os dez) · `PERM_FULL_ADMIN` = `0xFFFF`.
+`PERM_ALL_BITS` = `0x1FFF` (os treze) · `PERM_FULL_ADMIN` = `0xFFFF`.
+
+🆕 **Os três bits novos são do painel.** O painel identifica quem está na
+frente dele pelo **PIN** (4–8 dígitos, único por conta) e testa o bit daquela
+conta antes de cada ação. Na web nada mudou: a seção `alarms` continua exigindo
+`PERM_SYS_CONFIG`, porque é o que a página `/alarms` precisa para renderizar. Um
+usuário criado pelo painel nasce só com bits do painel — não entra na web até um
+admin lhe dar um bit de página e resetar a senha.
+
+Medido no rig (19/09, `pico_w_test`): `pjoao` com `0x1C00` e PIN edita limites,
+bloqueia e abre manutenção; `pmaria` com `0x1000` vê a linha "Limites" apagada
+com cadeado e só consegue manutenção; nenhum dos dois aparece no menu Usuários,
+que exige `PERM_USER_MGR`. Cada ação sai no log com `ctx = usuário×100 + slot`
+(`pjoao` = conta 4, sensor 0 → `400`) e na 2ª linha de telemetria com `"user"`.
 
 ### 🔴 O teto que separa os dois
 
@@ -100,7 +116,16 @@ A conta passa em toda seção do `commit_all` e ainda assim não chega nas duas.
 
 **Padrões de criação:** `user add` pelo CLI dá `0x0203` (painel + histórico +
 calibração). Pela web, `perms` é explícito e **ausente = 0** — uma conta criada
-sem marcar caixa nenhuma não entra em lugar nenhum.
+sem marcar caixa nenhuma não entra em lugar nenhum. 🆕 Pelo **painel**
+(Usuários → NOVO) a conta nasce só com os bits do painel escolhidos nas três
+linhas, uma senha web aleatória que ninguém vê e `mustChangePassword` — é uma
+conta do painel até um admin dar bits de página e resetar a senha.
+
+🆕 **PIN do painel:** `user pin <nome> <4-8 dígitos|off>` no CLI; `"pin"` na
+seção `users` da web (abaixo); ou o próprio usuário no painel (item "Alterar
+Senha", que hoje é o PIN). Único por conta — o painel identifica **pelo** PIN
+(não há campo de usuário): `user pin pmaria 5678` respondeu
+`ERRO: PIN ja pertence a pjoao`. Teto de contas: **32** (era 5 até a config v23).
 
 ### O que cada bit destrava, rota a rota
 
@@ -233,11 +258,24 @@ Mande só os slots editados.
 
 #### `users` — contas
 ```json
-{"users":{"actions":[{"type":"add","name":"op","perms":511},
+{"users":{"actions":[{"type":"add","name":"op","perms":511,"pin":"2222"},
                      {"type":"del","id":3},
-                     {"type":"reset","id":5}]}}
+                     {"type":"reset","id":5},
+                     {"type":"pin","id":5,"pin":"123456"}]}}
 ```
 `add` e `reset` devolvem a senha em `creds` — entregue **só nessa resposta**.
+
+🆕 `pin` é opcional no `add` e existe como ação própria (`""` remove; `id` 0 = o
+admin, é assim que se define o PIN do admin pela web). Um PIN malformado ou
+repetido **rejeita o campo, não a conta**: medido,
+`{"type":"pin","id":0,"pin":"12"}` → `200`
+`{"status":"ok","reboot":false,"applied":[],"rejected":["users.pin"]}`; e
+`{"type":"add","name":"web1","perms":4096,"pin":"2222"}` → `200`
+`{"status":"ok","reboot":true,"reboot_for":["users"],"creds":[{"u":"web1","p":"…"}]}`
+— a conta `web1` entrou no painel com `2222` depois do reboot (log `308 ctx=6`).
+
+`GET /api/users` agora diz `"pin":true|false` por conta (nunca o PIN):
+`[{"id":0,"name":"admin","perms":65535,"pin":true},…]`.
 
 ---
 
@@ -295,18 +333,35 @@ curl -b j -X POST http://IP/api/commit_all \
 #### No payload da 2ª linha
 
 Terceiro domínio, separado de `alarm` e `err`, para um servidor que casa por
-campo nunca confundir manutenção com falha:
+campo nunca confundir manutenção com falha. 🆕 Desde a config v24 os códigos são
+`maint_on`/`maint_off`, o registro de entrada diz **até quando** (`until`, epoch,
+resolução de 1 min) e todo registro causado por alguém diz **quem** (`user`) —
+recebidos do rig em 19/09, pelo painel, conta `pjoao`:
 
 ```json
-{"ts":1789797592,"id":"tSTM0009","maint":"maint","seq":9}
-{"ts":1789797606,"id":"tSTM0009","maint":"maint_end","seq":10}
+{"ts":1789834707,"id":"tSTM0009","alarm":"alarm_lim","lo":2.70,"hi":24.00,"user":"pjoao","seq":1}
+{"ts":1789834722,"id":"tSTM0009","alarm":"alarm_off","user":"pjoao","seq":2}
+{"ts":1789834737,"id":"tSTM0009","alarm":"alarm_on","user":"pjoao","seq":3}
+{"ts":1789834751,"id":"tSTM0009","maint":"maint_on","until":1789835051,"user":"pjoao","seq":4}
+{"ts":1789834767,"id":"tSTM0009","maint":"maint_off","user":"pjoao","seq":5}
 ```
 
-Token `{MAINT}` (alias `{maint}`), forma composta `"maint":{maint}` — a chave
-some sozinha quando o registro é de outro domínio. Já está no template default.
+| código | domínio | quando | campos extras |
+|---|---|---|---|
+| `alarm_lim` | `alarm` | limites editados | `lo`, `hi` (decimais do canal), `user` |
+| `alarm_off` / `alarm_on` | `alarm` | alarmes do sensor desligados / religados | `user` |
+| `maint_on` | `maint` | janela aberta (painel ou web) | `until`, `user` |
+| `maint_off` | `maint` | janela fechada por comando ou por prazo | `user` (vazio no prazo) |
 
-⚠️ **Um template custom escrito antes da v23 não tem `{MAINT}`** e emitirá os dois
-registros sem marcador. Acrescente o token, ou pergunte por `GET /api/alarms`.
+Tokens novos: `{LO}` `{HI}` `{UNTIL}` `{USER}` (aliases minúsculos), todos na
+forma composta — a chave some quando não se aplica. Já estão no template
+default; um template que ainda era **exatamente** o default antigo (v21 ou v23)
+foi trocado pelo novo na migração; um template editado é do operador e fica
+como está. No modo CSV a linha ganhou quatro colunas no fim:
+`seq;ts;id;v;user;lo;hi;until` (vazias quando não se aplicam).
+
+⚠️ **Um template custom escrito antes da v23/v24** não tem `{MAINT}` nem os
+tokens novos. Acrescente-os, ou pergunte por `GET /api/alarms`.
 
 ---
 

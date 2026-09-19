@@ -1505,7 +1505,7 @@ void DisplayManager::loopCore1( ) {
 				if (!timeReached(_lockoutUntil)) _repaintSettings = true;
 				else { _lockoutUntil = 0; _forceSettingsRedraw = true; _repaintSettings = true; }
 			}
-			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawAuthScreen( ); _repaintSettings = false; }
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawPinScreen( ); _repaintSettings = false; }
 		}
 		else if (_uiMode == MODE_SETTINGS_MAIN) {
 			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawSettingsMain( ); _repaintSettings = false; }
@@ -1554,6 +1554,28 @@ void DisplayManager::loopCore1( ) {
 		else if (_uiMode == MODE_ALARM_ACTION) {
 
 			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawAlarmAction( ); _repaintSettings = false; }
+		}
+		/* v24 — identity at the panel (DisplayManager_Users.cpp) */
+		else if (_uiMode == MODE_SETTINGS_ALARM_SENSOR) {
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawAlarmSensorMenu( ); _repaintSettings = false; }
+		}
+		else if (_uiMode == MODE_SETTINGS_MAINT) {
+			/* an open window counts down on screen: once a second, like the status screen */
+			if (_repaintSettings || timeSince(_maintLastDraw, 1000)) {
+				C1_PHASE(C1P_UI_SETTINGS); drawMaintEntry( ); _maintLastDraw = millis( ); _repaintSettings = false;
+			}
+		}
+		else if (_uiMode == MODE_SETTINGS_USERS) {
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawSettingsUsers( ); _repaintSettings = false; }
+		}
+		else if (_uiMode == MODE_SETTINGS_USER_EDIT) {
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawUserEdit( ); _repaintSettings = false; }
+		}
+		else if (_uiMode == MODE_SETTINGS_USER_CONFIRM_DEL) {
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawUserConfirmDel( ); _repaintSettings = false; }
+		}
+		else if (_uiMode == MODE_PANEL_MESSAGE) {
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawPanelMessage( ); _repaintSettings = false; }
 		}
 		else if (_uiMode == MODE_CONFIRM_MUTE_ALL) {
 

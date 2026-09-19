@@ -56,6 +56,35 @@ hand_release_all
   Air) e restaura os clocks. Serve para recuperar; **não serve de prova** de que
   o caminho do sono funciona (ver §3).
 
+### Dirigir o painel de fora
+
+- **Sequências de toque vão por `POST /api/touch`, não por `touch sim`.** Um
+  toque arma 5 s de prioridade do painel, e nessa janela a CLI enfileira no
+  máximo **dois** comandos e descarta o resto (`CLI ocupada (display em uso)`).
+  Um PIN de quatro dígitos digitado pela CLI perdeu dígitos em 19/09; pela web
+  não há fila. `screen <tag>` continua servindo para saltar de tela — e desde a
+  v24 abre a árvore de configuração como admin, porque a lista é filtrada pelos
+  bits da sessão e um `screen set` sem sessão mostrava três itens.
+- **`/api/screenshot` responde 503 nos 5 s após um toque**, inclusive para
+  a sessão web que injetou o toque (medido em 19/09: 503 até ~3 s depois; a
+  exceção vale só para o fluxo do espelho, `/api/screen_stream`). Capture
+  6 s depois do último toque. Log binário e linha de alarmes também esperam a
+  janela: registros de log pendentes só vão à flash no release do toque, e a
+  telemetria não roda enquanto o painel está "em uso" — um registro chega ao
+  coletor até ~30 s depois da ação (retry da linha = 15 s). Esperar isso entre
+  toques bate no guarda de 30 s ociosos, que devolve o painel ao dashboard:
+  faça as ações, depois confira (`tools/panel_users_hw_test.py`).
+- **Captura que mostra a tela ANTERIOR com o modo já trocado não é o
+  instrumento mentindo** — era o Core 1 perdendo o pedido de repintura que
+  chegava durante um desenho (7 de 7 logins em 19/09 deixavam o teclado no
+  vidro com `show metrics` já em `UI mode: 6`). Corrigido no despacho de
+  `DisplayManager.cpp`; se voltar, compare o modo do `show metrics` com a
+  captura antes de acusar o fluxo.
+- **O coletor da linha de alarmes é um processo à parte**
+  (`tools/alarm_collector.py`): dentro do script de teste ele não estava no ar
+  no boot do aparelho, e a primeira tentativa falhada empurrava o retry para
+  depois da espera.
+
 ### Quem mais está na porta
 
 - **O monitor serial do Arduino IDE rouba a porta da mão** e, com ela, a sonda e

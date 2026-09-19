@@ -28,6 +28,7 @@ void DisplayManager::handleTouch( ) {
  if (!_rawTouchState) {
  /* Finger released — enables next single touch */
  _touchReleased = true;
+ _pressActive = false;
 
  /* Short tap on top panel (release before 1s): toggle min/max.
   * Not during the tail of a long press — see DASH_HOLD_LOCK_MS. */
@@ -358,6 +359,16 @@ void DisplayManager::handleTouch( ) {
 
  _lastTouchTime = millis( );
 
+ /* A press belongs to the screen it started on. Core 0 changes _uiMode
+  * between two samples of the same press — the keypad's OK becomes the
+  * settings menu while the finger is still down — and the next sample used
+  * to reach the NEW screen's handler: the OK key sits where the menu's
+  * fourth row is, and acceptSlideTouch( ) selected that row before the
+  * finger ever left the glass. Measured on the rig with /api/touch on
+  * 2026-09-19: every login landed on "System Status". A press that started
+  * elsewhere is ignored until it is released. */
+ if (!_pressActive) { _pressActive = true; _pressMode = _uiMode; }
+ else if (_pressMode != _uiMode) return;
 
  /* Fallback to _lastWebBusy instead of false when
  * mutex_try_enter fails — avoids processing the touch as if there were no
@@ -820,35 +831,12 @@ void DisplayManager::handleTouch( ) {
  if (y < 80) clickedIndex = 0; else if (y < 118) clickedIndex = 1; else if (y < 156) clickedIndex = 2; else clickedIndex = 3;
  int mapIdx = (_alarmPage * 4) + clickedIndex;
  if (mapIdx < _activeSensorCount) {
- /*
- * ON/OFF touch zone: right side of the item.
- * Items rendered at x=10..295, ON/OFF stays in the ~60 final px.
- * Toggle zone: x >= 230 (screen).
- */
- bool touchOnStatus = (x >= 230);
-
- if (touchOnStatus && mapIdx == _alarmSelection) {
- /* Tap on ON/OFF of the selected item: toggle or edit */
+ if (mapIdx == _alarmSelection) {
+ /* v24: the selected row opens the sensor's action menu — limits, block
+  * and maintenance live there, each behind the session's own bit, each
+  * applied and recorded by Core 0. The ON/OFF word is a status now. */
  if (!acceptTouch(clickedIndex + 4)) return;
- int actualSensorId = _activeSensorsMap[_alarmSelection];
- SensorRecord* rec = &_sysConfigPtr->sensors[actualSensorId];
-
- if (rec->alarmsActive) {
- /* ON -> OFF: deactivate and save immediately. param=1 tells the save
-  * handler the flag flipped in place, so it repaints the word instead
-  * of re-entering the screen (which would also drop the cursor back to
-  * the first sensor). param was never assigned on this event before —
-  * it was uninitialised stack, harmless only because nobody read it. */
- rec->alarmsActive = false;
- UiEvent ev; ev.type = UiEvent::EVT_SAVE_ALARMS;
- ev.id = actualSensorId;
- ev.param = 1;
- pushUiEvent(ev);
- _repaintSettings = true;
- } else {
- /* OFF -> enter limit editing screen */
- showAlarmEdit(actualSensorId);
- }
+ showAlarmSensorMenu(_activeSensorsMap[_alarmSelection]);
  } else if (mapIdx != _alarmSelection) {
  /* Tap on name/bar: select the item */
  if (!acceptSlideTouch(clickedIndex)) return;
@@ -968,63 +956,35 @@ void DisplayManager::handleTouch( ) {
  _repaintSettings = true;
  }
  else if (x < 219) {
- /* BACK: deactivate alarm and save */
+ /* BACK: discard. Until v24 this ALSO switched the alarm off and saved —
+  * the editor was only reachable from an OFF row, so leaving meant "keep
+  * it off". Enable/disable is its own action now (EVT_ALARM_BLOCK), with
+  * its own bit and its own record on the alarm line. */
  if (!acceptTouch(12)) return;
  _lastPressedBtn = -1;
- _tempAlarmConfig.alarmsActive = false;
- _sysConfigPtr->sensors[_editSensorIdx] = _tempAlarmConfig;
- UiEvent ev; ev.type = UiEvent::EVT_SAVE_ALARMS;
- ev.id = _editSensorIdx; ev.param = 0; pushUiEvent(ev);
- showSettingsAlarms(_sysConfigPtr);
+ showAlarmSensorMenu(_editSensorIdx);
  }
  else {
- /* SAVE: activate alarm and save */
+ /* SAVE: the working copy stays here for Core 0 to diff against the
+  * config (editedAlarmRecord) — it decides, saves, logs and emits the
+  * alarm_lim record, then brings the sensor menu back. */
  if (!acceptTouch(13)) return;
  _lastPressedBtn = -1;
- _tempAlarmConfig.alarmsActive = true;
- _sysConfigPtr->sensors[_editSensorIdx] = _tempAlarmConfig;
  UiEvent ev; ev.type = UiEvent::EVT_SAVE_ALARMS;
  ev.id = _editSensorIdx; ev.param = 0; pushUiEvent(ev);
- showSettingsAlarms(_sysConfigPtr);
  }
  }
  }
- else if (_uiMode == MODE_AUTH) {
- if (y > 200 && x < 120) { if (!acceptTouch(0)) return; forceDashboard( ); return; }
- /* License button — accessible even during lockout */
- if (y > 200 && x > 195) { if (!acceptTouch(5)) return; _licenseFromAuth = true; showSettingsLicense( ); return; }
- if (_permanentLockout || !timeReached(_lockoutUntil)) return;
- if (y >= 80 && y <= 185) {
- int row = (y < 135) ? 0 : 1; int col = (x > 160) ? 1 : 0; int btnIdx = (row * 2) + col;
- if (!acceptTouch(1 + btnIdx)) return;
- /* T1.2: strchr on the fixed keypad table — the String wrapper was a
-  * per-tap heap allocation on the Core-1 touch path. */
- const char* clickedChars = _keypadChars[btnIdx]; char expected = _expectedPin[_authStep];
- if (strchr(clickedChars, expected) == nullptr) _isCurrentAttemptValid = false;
- _authStep++; _authFailed = false;
- if ((size_t)_authStep >= _expectedPin.length( )) {
- if (_isCurrentAttemptValid) {
- _failedAttempts = 0; UiEvent ev; ev.type = UiEvent::EVT_AUTH_SUCCESS; pushUiEvent(ev); return;
- } else {
- _authFailed = true; _failedAttempts++; _authStep = 0; _isCurrentAttemptValid = true;
- _errorSoundPending = true;
- if (_failedAttempts <= 2) _lockoutUntil = 0;
- else if (_failedAttempts == 3) _lockoutUntil = millis( ) + 5000;
- else if (_failedAttempts == 4) _lockoutUntil = millis( ) + 15000;
- else if (_failedAttempts == 5) _lockoutUntil = millis( ) + 60000;
- else { _permanentLockout = true; _lockoutUntil = millis( ) + 10000; }
- _forceSettingsRedraw = true;
- }
- }
- scrambleKeys( ); _repaintSettings = true;
- }
+ else if (handleTouchPanelV24(x, y)) {
+ /* v24: PIN keypad, per-sensor actions, maintenance, users, result screen —
+  * DisplayManager_Users.cpp. */
  }
  else if (_uiMode == MODE_SETTINGS_MAIN) {
  if (y >= 40 && y <= 185) {
  int clickedIndex = 0;
  if (y < 80) clickedIndex = 0; else if (y < 118) clickedIndex = 1; else if (y < 156) clickedIndex = 2; else clickedIndex = 3;
  int mapIdx = (_mainMenuPage * 4) + clickedIndex;
- if (mapIdx < 9 && mapIdx != _menuSelection) {
+ if (mapIdx < _menuCount && mapIdx != _menuSelection) {
  if (!acceptSlideTouch(clickedIndex)) return;
  _menuSelection = mapIdx; _mainMenuPage = _menuSelection / 4; _repaintSettings = true;
  }
@@ -1032,12 +992,12 @@ void DisplayManager::handleTouch( ) {
  else if (y > 185) {
  if (x < 70) {
  if (!acceptHoldTouch(10)) return;
- if (_menuSelection > 0) _menuSelection--; else _menuSelection = 8;
+ if (_menuSelection > 0) _menuSelection--; else _menuSelection = (_menuCount > 0) ? _menuCount - 1 : 0;
  _mainMenuPage = _menuSelection / 4; _repaintSettings = true;
  }
  else if (x < 138) {
  if (!acceptHoldTouch(11)) return;
- if (_menuSelection < 8) _menuSelection++; else _menuSelection = 0;
+ if (_menuSelection < _menuCount - 1) _menuSelection++; else _menuSelection = 0;
  _mainMenuPage = _menuSelection / 4; _repaintSettings = true;
  }
  else if (x < 219) {
@@ -1046,7 +1006,11 @@ void DisplayManager::handleTouch( ) {
  }
  else {
  if (!acceptTouch(13)) return;
- UiEvent ev; ev.type = UiEvent::EVT_MENU_SELECT; ev.id = _menuSelection; pushUiEvent(ev);
+ /* v24: the id is the ITEM (table order), not the row — the list is
+ * filtered by the session's bits, so row 1 may be any item. */
+ if (_menuSelection < _menuCount) {
+ UiEvent ev; ev.type = UiEvent::EVT_MENU_SELECT; ev.id = _menuItems[_menuSelection]; pushUiEvent(ev);
+ }
  }
  }
  }
@@ -1193,7 +1157,7 @@ void DisplayManager::handleTouch( ) {
  int hit = popupHit(_kbPopup, x, y);
  if (hit == -1) return;
  if (!acceptTouch((uint8_t)(hit >= 0 ? 0x60 + hit : 0x5F))) return;
- if (hit >= 0 && _kbCursor < 7) {
+ if (hit >= 0 && _kbCursor < kbMaxLen( )) {
  activeBuf[_kbCursor++] = popupChar(_kbPopup, hit);
  activeBuf[_kbCursor] = '\0';
  }
@@ -1205,13 +1169,23 @@ void DisplayManager::handleTouch( ) {
  /* X on the title bar: leave the screen. */
  if (y < 28 && x > 280) {
  if (!acceptTouch(1)) return;
- showSettingsMain( );
+ if (_kbPurpose == 1) showSettingsUsers( ); else showSettingsMain( );
  return;
  }
 
  /* OK — finger button beside the boxes. */
  if (x >= OK_X && y >= OK_Y && y < OK_Y + OK_H + 4) {
  if (!acceptTouch(54)) return;
+ if (_kbPurpose == 1) {
+ /* v24: the name of a new account. One character satisfies the
+  * keyboard; Core 0 applies the real rule (isValidName, no duplicate,
+  * not "admin") and answers on the result screen. */
+ if (_kbCursor < 1) { _errorSoundPending = true; return; }
+ strncpy(_newUserName, _kbBuffer, sizeof(_newUserName) - 1);
+ _newUserName[sizeof(_newUserName) - 1] = '\0';
+ showUserEdit(-1, true);
+ return;
+ }
  if (_kbPhase == 0) {
  if (_kbCursor < 4) {
  _kbPhase = 2;
@@ -1278,7 +1252,7 @@ void DisplayManager::handleTouch( ) {
  else if (col == 0) _kbPopup = POPUP_DIGITS;
  else if (col == 1) _kbPopup = POPUP_SYMBOLS;
  else if (col == 2) {
- if (_kbCursor < 7) {
+ if (_kbCursor < kbMaxLen( )) {
  activeBuf[_kbCursor++] = ' ';
  activeBuf[_kbCursor] = '\0';
  }

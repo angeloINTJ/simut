@@ -81,7 +81,7 @@ void uiUnit(Adafruit_GFX* g, int16_t x, int16_t baselineY, const char* unit,
 int16_t uiUnitWidth(Adafruit_GFX* g, const char* unit);
 
 /** 16x16 icons for the settings menu: 0 palette, 1 bell, 2 note, 3 globe,
- *  4 lock, 5 crosshair, 6 document, 7 pulse, 8 move. */
+ *  4 lock, 5 crosshair, 6 document, 7 pulse, 8 move, 9 users. */
 void uiMenuIcon(Adafruit_GFX* g, int16_t x, int16_t y, uint8_t id,
 	uint16_t color);
 
