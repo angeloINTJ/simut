@@ -35,6 +35,7 @@ Consulted while changing the code, and enforced by CI where a gate exists.
 
 | document | state | about |
 |---|---|---|
+| [API_POST.md](API_POST.md) | Living | As 18 rotas POST, o que cada uma recebe e devolve — referência compacta para quem escreve o lado servidor. Os códigos e corpos citados foram obtidos de chamadas reais ao aparelho, não de leitura de código; as permissões são as de AUTHORIZATION.md, que é a fonte normativa. |
 | [AUTHORIZATION.md](AUTHORIZATION.md) | Living | The authorization matrix (`check_authz.py --list` counts the routes; 58 at v2.4.7-beta). Gated by `tools/check_authz.py`. |
 | [CONCURRENCY.md](CONCURRENCY.md) | Living | The concurrency invariants, including invariant 3 (`pico_w_asserts` arms its tripwire). |
 | [GLOSSARY.md](GLOSSARY.md) · [pt-BR](GLOSSARY.pt-BR.md) · [es-ES](GLOSSARY.es-ES.md) | Living | Tag glossary. |
