@@ -2,7 +2,8 @@
 
 **Estado:** Living · **Base:** `bc31410` · **Conferido em 2026-09-19** contra a
 fonte E contra o aparelho (rig 192.168.3.24): cada código e corpo de resposta
-citado aqui foi obtido de uma chamada real, não de leitura de código.
+citado aqui foi obtido de uma chamada real, não de leitura de código — incluindo
+a matriz de permissões, exercida com quatro contas de máscaras diferentes.
 
 Todas as 18 rotas `POST` do firmware, o que cada uma recebe e o que devolve.
 As permissões são as de [`AUTHORIZATION.md`](AUTHORIZATION.md), que é a fonte
@@ -38,6 +39,107 @@ devolve `locked`/`lockSec` — consulte antes de insistir.
 responderem **409** com `{"next":"/api/force_chpass"}`.
 
 ⚠️ **Calibração de toque em curso** faz as rotas que mexem em config responderem **503**.
+
+---
+
+## Quem pode o quê
+
+Dez bits, e o aparelho testa **o bit**, não um "nível" — não há hierarquia
+implícita: um usuário com `PERM_FILE_DELETE` e nada mais apaga arquivos sem
+conseguir abrir o painel.
+
+| bit | valor | abre |
+|---|---|---|
+| `PERM_DASHBOARD` | `0x0001` | painel e status |
+| `PERM_HISTORY` | `0x0002` | histórico e exportação |
+| `PERM_LOGS` | `0x0004` | leitura do log · metade de `clear_logs` |
+| `PERM_SYS_CONFIG` | `0x0008` | **a maior parte da configuração** (ver tabela) |
+| `PERM_NET_CONFIG` | `0x0010` | seção `net` do `commit_all` |
+| `PERM_FILE_READ` | `0x0020` | listar arquivos · `restore?op=validate` |
+| `PERM_FILE_UPLOAD` | `0x0040` | `upload` · `mkdir` |
+| `PERM_FILE_DELETE` | `0x0080` | `delete` |
+| `PERM_USER_MGR` | `0x0100` | seção `users` · estado de segurança |
+| `PERM_CALIB` | `0x0200` | `calib` |
+
+`PERM_ALL_BITS` = `0x03FF` (os dez) · `PERM_FULL_ADMIN` = `0xFFFF`.
+
+### 🔴 O teto que separa os dois
+
+Quatro rotas exigem **igualdade exata** com `PERM_FULL_ADMIN` (`0xFFFF`), e a
+página de usuários **não consegue conceder mais que `0x03FF`**. Logo:
+
+> **Nenhuma conta criada pela web — nem marcando todas as caixas — baixa um
+> backup completo nem grava firmware.** Isso fica com o `users[0]`, o admin de
+> fábrica. É fronteira deliberada, não acidente de atribuição de bits.
+
+As quatro: `GET /api/backup` · `POST /api/restore?op=apply` ·
+`POST /api/restore?op=stage` · `POST /api/ota/apply`. (`POST /api/tls` também.)
+
+O motivo de `restore?op=apply` estar aqui: um `.bkp` forjado pode nomear
+`/config/system.bin` como destino — o `.bkp` é o dump do FS inteiro.
+
+**Medido no aparelho** (conta `0x03FF`, todas as dez caixas marcadas):
+
+```
+commit_all alarms  200      GET  /api/backup     403
+commit_all net     200      POST /api/ota/apply  403
+commit_all users   200
+```
+
+A conta passa em toda seção do `commit_all` e ainda assim não chega nas duas.
+
+### Perfis nomeados (CLI `user perm <nome> <papel>`)
+
+| papel | máscara | o que alcança |
+|---|---|---|
+| `admin` / `full` | `0xFFFF` | tudo, inclusive backup, OTA e TLS |
+| `operator` / `operador` | `0x0207` | painel, histórico, log, calibração |
+| `viewer` / `leitor` | `0x0003` | painel e histórico, só leitura |
+| `none` / `nenhum` | `0x0000` | nada — a conta existe e não entra |
+| `0xMASCARA` | livre | qualquer combinação dos dez bits |
+
+**Padrões de criação:** `user add` pelo CLI dá `0x0203` (painel + histórico +
+calibração). Pela web, `perms` é explícito e **ausente = 0** — uma conta criada
+sem marcar caixa nenhuma não entra em lugar nenhum.
+
+### O que cada bit destrava, rota a rota
+
+| rota POST | bit(s) |
+|---|---|
+| `/api/login` `/api/login_chpass` | — (pré-auth, sob lockout por IP) |
+| `/api/force_chpass` | autenticado **e** com troca pendente |
+| `/api/commit_all` — entrada | qualquer bit que alguma seção use |
+| ↳ seção `sys` `slots` `calib` `alarms` | `SYS_CONFIG` |
+| ↳ seção `net` | `NET_CONFIG` |
+| ↳ seção `users` | `USER_MGR` |
+| `/api/action` (todos os `op`) | `SYS_CONFIG` — medido: `0x0008` → 200, `viewer` → 403 |
+| `/api/save_sys` `/api/set_time` `/api/reset_touch_cal` `/api/history_rebind` `/api/touch` | `SYS_CONFIG` |
+| `/api/clear_logs` | `LOGS` **e** `SYS_CONFIG` — os dois; `SYS_CONFIG` sozinho leva 403 |
+| `/api/calib` | `CALIB` |
+| `/api/mkdir` `/api/upload` | `FILE_UPLOAD` |
+| `/api/delete` | `FILE_DELETE` |
+| `/api/restore?op=validate` | `FILE_READ` |
+| `/api/restore?op=apply` `?op=stage` · `/api/ota/apply` · `/api/tls` | **`== 0xFFFF`** |
+
+⚠️ **`commit_all` é autorizado por seção, não só na entrada.** A entrada só prova
+que há sessão com *algum* bit que a rota usa; cada seção é conferida depois. E a
+recusa vale para o payload **inteiro** — nada é aplicado pela metade. Medido:
+
+```
+conta 0x0100 (só USER_MGR)      {"users":…}              200
+                                {"users":…,"net":…}      403   ← o payload todo
+                                {"alarms":…}             403
+conta 0x0008 (só SYS_CONFIG)    {"alarms":…}             200
+                                {"net":…}                403
+                                {"net":…} com _dry=1     403
+conta 0x0003 (viewer)           {"alarms":…}             403
+```
+
+⚠️ **`_dry=1` exige os mesmos bits** que a gravação de verdade. Validar não é
+mais barato em permissão do que aplicar.
+
+⚠️ O `commit_all` recusa qualquer `perms` acima de `0x03FF` na seção `users` —
+escalonar para `0xFFFF` por payload não funciona.
 
 ---
 
