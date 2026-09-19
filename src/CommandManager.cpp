@@ -1052,6 +1052,11 @@ void CommandManager::renderMetrics( ) {
   (unsigned long)g_capReadUs, (unsigned long)g_capEncUs,
   (unsigned long)g_capSendUs, (unsigned long)g_capYieldUs,
   (unsigned)g_capPauses, (unsigned)g_capParkMiss, (unsigned)g_capC1Iters);
+  consolePrintf(" MIR wire=%lu conv=%lu win=%lu sendcalls=%u readhz=%lu\n",
+  (unsigned long)g_capWireUs, (unsigned long)g_capConvUs,
+  (unsigned long)g_capWinUs, (unsigned)g_capSendCalls,
+  (unsigned long)g_capReadHz);
+  consolePrintf(" MIR touchyields=%u\n", (unsigned)g_capTouchYields);
 #endif
  }
  printDivider( );

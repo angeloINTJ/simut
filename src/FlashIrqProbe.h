@@ -320,6 +320,18 @@ extern volatile uint16_t g_capC1Iters;      /**< Core-1 iterations completed dur
 extern volatile uint8_t  g_capMode;         /**< pause strategy that ran (see handleApiScreenStream) */
 extern volatile uint8_t  g_capGroup;        /**< strips held under one pause */
 
+/* readRect and the send funnel, taken apart. The frame-level numbers said the
+ * read was 64% of a frame but not WHY: at 6 MHz a pixel is 24 bits = 4.0 us of
+ * wire, and the read measures 5.5 us/px, so a quarter of it is software. These
+ * separate the two, and count the send calls, because 60 small writes and one
+ * big one move the same bytes for very different money. */
+extern volatile uint32_t g_capWireUs;       /**< sum of spi_read_blocking */
+extern volatile uint32_t g_capConvUs;       /**< sum of the 3-byte -> RGB565 loop */
+extern volatile uint32_t g_capWinUs;        /**< sum of address-window + RAMRD setup */
+extern volatile uint16_t g_capSendCalls;    /**< safeSend calls in the frame */
+extern volatile uint32_t g_capReadHz;       /**< read clock the frame actually used */
+extern volatile uint16_t g_capTouchYields;  /**< strips where a finger took the panel back */
+
 #ifdef __cplusplus
 }
 #endif

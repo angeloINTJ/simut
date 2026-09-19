@@ -1,7 +1,7 @@
 # Espelho do painel por delta — estudo
 
-**Estado:** Living · **Medido em:** 2026-09-18 (§1–§9) e 2026-09-19 (§10), rig
-192.168.3.24, `pico_w_test` · **Pergunta:** vale mandar só os blocos que
+**Estado:** Living · **Medido em:** 2026-09-18 (§1–§9) e 2026-09-19 (§10, §11),
+rig 192.168.3.24, `pico_w_test` · **Pergunta:** vale mandar só os blocos que
 mudaram?
 
 > **§10 mede o que este documento vinha estimando.** A §9.4 dizia que as pausas
@@ -10,6 +10,11 @@ mudaram?
 > quadro menos uma leitura modelada. A alavanca que a §9.4 apontou existe mesmo,
 > mas é menor do que ela prometia — e foi puxada: **643,5 → 565,0 ms**, com as
 > duas distribuições disjuntas em 20 quadros por braço.
+>
+> **§11 varreu o resto do caminho** (clock de leitura, rede, conversão, codec) e
+> chegou a **613,2 → 212,8 ms, −65,3%**, com o payload 40% menor. O quadro agora
+> é limitado pelo **barramento SPI**, e a partir daqui só encurta lendo menos
+> pixels.
 
 A resposta curta é que vale, mas **não pelo motivo que a pergunta sugere**, e
 hoje não cabe na imagem. As duas coisas estão medidas abaixo.
@@ -521,3 +526,171 @@ alavancas que restam, em ordem de tamanho:
 2. **Ler só os blocos sujos** (§3 a §5), que continua barrado pelo mesmo motivo
    da §6 e agora vale menos: com a pausa resolvida, o que o delta economiza é
    leitura, e a leitura já é o alvo do item 1.
+
+---
+
+## 11. A varredura do caminho inteiro (19/09)
+
+A §10 resolveu a pausa e deixou a leitura em 65% do quadro. Isto mede as outras
+parcelas — clock, rede, conversão, codec — com o mesmo instrumento e a mesma
+disciplina: **um binário só, braços intercalados, pixel a pixel contra referência
+e contra um leitor independente**.
+
+### 11.1 A leitura, aberta em três
+
+O que a §10 chamava de "leitura" são três coisas, e a proporção decide tudo:
+
+| parcela | 6 MHz | o que é |
+|---|---:|---|
+| **fio** (`spi_read_blocking`) | 382,0 ms | 93% |
+| conversão 6-6-6 → RGB565 | 12,0 ms | 3% |
+| janela de endereço + RAMRD | 14,3 ms | 3,5% |
+
+O teórico do fio a 6 MHz é 307 ms (76.800 px × 24 bits). **O fio é a leitura** — a
+conversão, que eu esperava que fosse cara, é 3%. Otimizá-la (troca de indexação
+por caminhada de ponteiro) não aparece na conta.
+
+### 11.2 O clock: os degraus do PL022, e onde parar
+
+Varredura com cada quadro comparado pixel a pixel contra a referência de 6 MHz,
+em tela parada e reafirmada a cada captura:
+
+| pedido | fio | quadro | pixels errados |
+|---|---:|---:|---:|
+| 6 MHz | 387,9 ms | 574,7 ms | **0** |
+| 8 MHz | 293,7 ms | 479,2 ms | **0** |
+| 10 MHz | 292,9 ms | 482,6 ms | **0** |
+| **12 MHz** | **201,5 ms** | **386,8 ms** | **0** |
+| 16 MHz | 204,6 ms | 392,3 ms | **0** |
+| 20 MHz | 201,3 ms | 388,5 ms | **0** |
+
+O divisor do PL022 só alcança degraus: **10 cai no degrau de 8, e 16 e 20 caem no
+de 12**. Ou seja, pedir 20 MHz não compra nada sobre 12 — só gasta margem num
+componente cujo ciclo de leitura serial dá ~6,6 MHz no papel. **12 MHz é o último
+degrau que paga**, e é onde isto para. A §9.1 já tinha medido 12 como limpo; o que
+faltava era saber que 16 e 20 são o mesmo degrau.
+
+### 11.3 A rede: 61 escritas viram 7
+
+Cada `safeSend` paga um `setTimeout` no cliente, um `feedWatchdog` e um
+`waitSendRoom` antes do primeiro byte. O quadro fazia **duas chamadas por faixa,
+61 no total**, de ~230 B cada. Um buffer que acumula antes de entregar:
+
+| buffer | quadro | envio | chamadas |
+|---|---:|---:|---:|
+| 0 (como era) | 393,6 ms | 117,6 ms | 61 |
+| 1 kB | 327,4 ms | 71,2 ms | 23 |
+| 4 kB | 313,3 ms | 72,2 ms | 5 |
+| 16 kB | 311,6 ms | 74,9 ms | 2 |
+
+⚠️ **E depois do DMA isso INVERTE** (§11.4): com a leitura sobreposta, um buffer
+grande deixa o Core 0 ocioso na maior parte das faixas e depois trava o
+barramento num flush longo. Medido no dashboard com DMA: 0 → 222,2 ms, 512 →
+208,3, 1024 → 210,7, 2048 → 211,7, **4096 → 232,3**. O default ficou em **1 kB**,
+no platô, com um terço das chamadas de 512. É o caso de manual de uma otimização
+que muda de sinal quando outra entra.
+
+### 11.4 O DMA: ler a próxima faixa enquanto esta é enviada
+
+`spi_read_blocking` custava 184 ms onde o fio puro a 12 MHz é 154 — os outros 20%
+são o *polling* de FIFO byte a byte, CPU que o Core 0 gasta olhando uma
+transferência que podia delegar. Delegando, ele ganha esses 20% **e** fica livre
+para os ~95 ms de conversão, codec e rede que estavam serializados atrás.
+
+Duas canais, porque SPI é síncrono: o de TX empurra um `0xFF` constante (o painel
+ignora MOSI durante o RAMRD) e o de RX captura. Buffer duplo: enquanto o DMA
+enche um, o Core 0 converte, codifica e envia o outro.
+
+| | quadro | fio (espera) | park |
+|---|---:|---:|---:|
+| bloqueante, 12 MHz, 4 kB | 314,0 ms | 187,5 ms | 7,7 ms |
+| **DMA** | **242,5 ms** | 122,9 ms | 0,2 ms |
+
+⚠️ **O DMA obriga o Core 1 a ficar parado o quadro inteiro**, porque o barramento
+está em uso do primeiro Start ao último Finish. Isso levaria o pior `PARK` de
+7 ms para **238 ms** — um quarto de segundo em que o painel não percebe um dedo,
+a cada quadro de um espelho em laço. O conserto é um único ponto de escape: entre
+o Finish de uma faixa e o Start da seguinte o barramento está ocioso, e é aí que
+o PENIRQ é lido (um `gpio_get`, sem SPI) e o park é solto se houver dedo. Custo
+medido com ninguém encostando: **`touchyields=0` e `park` de 0,2 ms**.
+
+### 11.5 O codec: −42% de bytes, e nenhum milissegundo
+
+Simulei quatro candidatos **offline**, sobre sete quadros reais capturados do
+aparelho, com round-trip verificado. Sem risco de firmware para responder uma
+pergunta de formato:
+
+| quadro | cru RGB565 | atual (enc 1) | **nibble (enc 2)** | enc1+deflate | deflate(cru) | paleta por QUADRO |
+|---|---:|---:|---:|---:|---:|---:|
+| alarmes | 153.600 | 8.861 | **5.165** | 3.673 | 4.175 | 8.464 |
+| dashboard | 153.600 | 10.295 | **6.200** | 4.656 | 5.225 | 9.862 |
+| gráfico | 153.600 | 4.285 | **2.865** | 1.939 | 2.416 | 4.014 |
+| licença | 153.600 | 18.149 | **9.758** | 5.466 | 5.738 | 17.830 |
+| config | 153.600 | 10.621 | **6.152** | 4.190 | 4.699 | 10.214 |
+| status | 153.600 | 13.313 | **7.335** | 4.376 | 4.827 | 12.934 |
+| temas | 153.600 | 5.737 | **3.645** | 2.347 | 2.944 | 5.396 |
+
+- **Nibble (`ENC_PAL_RLE4`): −42% na média.** Índice e tamanho dividem um byte;
+  15 é escape e o byte seguinte leva `tamanho−16`. Nenhuma tela deste projeto
+  passou de 11 cores num quadro, quanto mais de 16 numa faixa. **Adotado.**
+- **Deflate cortaria mais**, mas custa CPU justamente onde hoje sobra folga —
+  e transformaria um quadro limitado pelo barramento num limitado por CPU.
+  Recusado.
+- **Paleta por quadro em vez de por faixa: 4%.** Não paga a complexidade.
+
+🔴 **E o ponto que importa: o codec NÃO encurta o quadro.** Depois do DMA o
+gargalo é o barramento, e o Core 0 já termina antes da próxima faixa chegar.
+Isso não é dedução — é medida: **encarecer o envio de propósito** (`?sb=0`, 61
+escritas em vez de 7) mexeu no quadro **14 ms, não 70**. O que o codec compra é
+banda: 40% a menos no fio, que vale para um cliente remoto, não para o relógio.
+
+### 11.6 O que ficou, e o que foi recusado
+
+| alavanca | ganho | veredito |
+|---|---:|---|
+| clock 6 → 12 MHz | −188 ms | ✅ adotado |
+| pipeline por DMA | −72 ms | ✅ adotado |
+| coalescer envio (1 kB) | −66 ms | ✅ adotado |
+| `ENC_PAL_RLE4` | −40% de bytes | ✅ adotado (banda, não tempo) |
+| conversão por ponteiro | ~0 | ⬜ inócuo, ficou |
+| agrupar faixas (`g=2`) | −12,8 ms | ❌ 5 kB de heap |
+| clock 16/20 MHz | 0 | ❌ mesmo degrau do PL022 |
+| deflate no aparelho | bytes | ❌ CPU vira o gargalo |
+| paleta por quadro | 4% de bytes | ❌ não paga |
+
+### 11.7 O resultado
+
+Dashboard vivo, 16 quadros por braço intercalados, **na mesma imagem** (o codec
+antigo é reproduzível por `?pm=16`, senão o "antes" não seria comparável):
+
+| | antes | depois |
+|---|---:|---:|
+| quadro (aparelho) | 613,2 ms | **212,8 ms** (−65,3%) |
+| quadro (relógio do cliente) | 634,1 ms | **235,1 ms** (−62,9%) |
+| taxa sustentável | 1,58 quadro/s | **4,25 quadro/s** |
+| payload | 10.453 B | **6.271 B** (−40,0%) |
+
+As faixas não se tocam (599..638 ms contra 200..234) e o par a par dá **100%**.
+
+**Validação além do cronômetro:**
+- **30 quadros seguidos em tela parada: 0 pixels diferentes, tamanho idêntico
+  (9.758 B) nos 30.**
+- **0 de 76.800 pixels de diferença contra `/api/screenshot`**, que é outro
+  leitor (`read_chunk_bgr` → `readRow` → caminho bloqueante, três leituras e
+  voto), 3 de 3. É o cruzamento que o controle A-contra-A **não** consegue dar.
+- 5 de 5 toques chegam ao painel com o espelho em laço; controle sem toque mexe
+  ≤66 px.
+- Core 1 intacto: 0 kills de lockout, 0 travados, 0 por saúde. Heap livre
+  60,8 kB (mínimo 60,5) com as cinco alocações do quadro em pé.
+- `ENC_PAL_RLE4` tem cinco testes nativos novos, com um **decodificador escrito
+  contra a especificação** e não derivado do codificador — que é a única forma de
+  um round-trip provar algo sobre o formato.
+
+### 11.8 O que sobra
+
+O quadro é **limitado pelo barramento**: 125 ms de espera de DMA contra ~95 ms de
+trabalho do Core 0. Daqui só encurta **lendo menos pixels**, que é exatamente o
+projeto de blocos sujos das §3–§5 — e que agora vale mais do que quando foi
+desenhado, porque não há mais nada grande ao lado dele. O impedimento da §6
+mudou de forma: não é mais folga de OTA (há 66,9 kB até o teto), é a margem de
+3.000 B do orçamento, que esta mudança já consumiu e repôs uma vez.

@@ -90,6 +90,12 @@ volatile uint16_t g_capParkMiss           = 0;
 volatile uint16_t g_capC1Iters            = 0;
 volatile uint8_t  g_capMode               = 0;
 volatile uint8_t  g_capGroup              = 1;
+volatile uint32_t g_capWireUs             = 0;
+volatile uint32_t g_capConvUs             = 0;
+volatile uint32_t g_capWinUs              = 0;
+volatile uint16_t g_capSendCalls          = 0;
+volatile uint32_t g_capReadHz             = 0;
+volatile uint16_t g_capTouchYields        = 0;
 
 volatile uint32_t g_core1PhaseUs          = 0;
 volatile uint32_t g_core1PhaseSeq         = 0;

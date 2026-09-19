@@ -55,6 +55,24 @@
  *       pair = index:u8, follow:u8. The run covers follow+1 pixels, so one
  *       pair carries up to 256 and a longer run simply opens another pair.
  *
+ *   enc 2 — ENC_PAL_RLE4 (only when the strip holds 16 colours or fewer):
+ *       ncol-1:u8 | palette[ncol]:u16 | tokens...
+ *       token = index:4 | len:4. len 0..14 means a run of len+1 pixels; len 15
+ *       is an escape and the NEXT byte carries follow, for a run of follow+16.
+ *       One byte per run instead of two, and the escape keeps the long flat
+ *       runs — which are most of the pixels — as cheap as they were.
+ *
+ *       MEASURED on seven real screens captured from the rig (2026-09-19,
+ *       tools have the frames): 8,861 -> 5,165 B on the alarm screen,
+ *       18,149 -> 9,758 on the licence text, 10,295 -> 6,200 on the dashboard.
+ *       42% off the wire on average, and no screen this project draws has ever
+ *       needed more than 11 colours in a frame, let alone 16 in a strip.
+ *
+ *       It does NOT make a frame faster, and that is the honest reason it is
+ *       not sold as a speed-up: with the DMA read pipeline the frame is bound
+ *       by the SPI bus, and Core 0 already finishes its work with time to
+ *       spare (ESPELHO_DELTA.md §11). What it buys is bandwidth.
+ *
  * A frame can tear: strips are read under separate Core 1 pauses, so two of
  * them can straddle a repaint. That is what any capture without vsync does,
  * and the alternative — one pause for the whole frame — freezes the renderer
@@ -65,6 +83,7 @@ namespace screenrle {
 
 constexpr uint8_t ENC_RAW565  = 0;
 constexpr uint8_t ENC_PAL_RLE = 1;
+constexpr uint8_t ENC_PAL_RLE4 = 2;  /* index and run share one byte — see encodeStrip4 */
 
 constexpr size_t MAX_PALETTE  = 256;  /* the index byte */
 constexpr size_t MAX_RUN      = 256;  /* the count byte: follow+1 */
@@ -137,6 +156,79 @@ inline size_t encodeStrip(const uint16_t* px, size_t n, uint8_t* out, size_t cap
 			out[o++] = (uint8_t)k;
 			out[o++] = (uint8_t)(take - 1);
 			run -= take;
+		}
+
+		if (end) break;
+		cur = px[i];
+		run = 1;
+	}
+
+	return o;
+}
+
+/**
+ * Encodes `n` RGB565 pixels as ENC_PAL_RLE4, or returns 0 if it cannot.
+ *
+ * Returns 0 for a strip with more than 16 colours as well as for one that would
+ * not fit in `cap` — in both cases the caller falls back exactly as it does for
+ * encodeStrip, so a strip that outgrows the nibble simply travels the old way.
+ */
+inline size_t encodeStrip4(const uint16_t* px, size_t n, uint8_t* out, size_t cap) {
+	if (!px || !out || n == 0) return 0;
+
+	uint16_t pal[16];
+	size_t   ncol = 0;
+	{
+		uint16_t cur = px[0];
+		for (size_t i = 1; ; i++) {
+			const bool end = (i == n);
+			if (end || px[i] != cur) {
+				size_t k = 0;
+				while (k < ncol && pal[k] != cur) k++;
+				if (k == ncol) {
+					if (ncol == 16) return 0;
+					pal[ncol++] = cur;
+				}
+				if (end) break;
+				cur = px[i];
+			}
+		}
+	}
+
+	const size_t head = 1 + ncol * 2;
+	if (head >= cap) return 0;
+
+	size_t o = 0;
+	out[o++] = (uint8_t)(ncol - 1);
+	for (size_t k = 0; k < ncol; k++) {
+		out[o++] = (uint8_t)(pal[k] & 0xFF);
+		out[o++] = (uint8_t)(pal[k] >> 8);
+	}
+
+	uint16_t cur = px[0];
+	size_t   run = 1;
+	for (size_t i = 1; ; i++) {
+		const bool end = (i == n);
+		if (!end && px[i] == cur) { run++; continue; }
+
+		size_t k = 0;
+		while (k < ncol && pal[k] != cur) k++;
+		if (k == ncol) return 0; /* unreachable: the pass above interned every run */
+
+		while (run > 0) {
+			if (run <= 15) {
+				if (o + 1 > cap) return 0;
+				out[o++] = (uint8_t)((k << 4) | (run - 1));
+				run = 0;
+			} else {
+				/* The escape carries follow in a whole byte, so one token covers
+				 * up to 270 pixels — more than a 320-wide strip row. */
+				const size_t take = (run > 270) ? 270 : run;
+				if (o + 2 > cap) return 0;
+				out[o++] = (uint8_t)((k << 4) | 0x0F);
+				out[o++] = (uint8_t)(take - 16);
+				run -= take;
+			}
 		}
 
 		if (end) break;

@@ -237,6 +237,14 @@ public:
 	 * would see refcount 0 -> 1 and behave correctly — but a nested flash write
 	 * that skipped the pause entirely would run with Core 1 loose in XIP. The
 	 * capture loop keeps the light yield outside the park for that reason. */
+	/** The GRAM read clock, in Hz. Defaults to SIMUT_TFT_READ_HZ and is a
+	 *  runtime field only so the bench can sweep it in ONE image with a pixel
+	 *  comparison per step — the ILI9341's serial read cycle is the limit and
+	 *  it is a property of the module and the wiring, not of the code, so it
+	 *  cannot be settled by reasoning. */
+	void setReadHz(uint32_t hz) { if (hz >= 1000000u && hz <= 32000000u) _readHz = hz; }
+	uint32_t readHz( ) const { return _readHz; }
+
 	void requestCore1Park( );
 	bool awaitCore1Park(uint32_t timeoutMs);
 	void releaseCore1Park( );
@@ -433,6 +441,16 @@ public:
 	void readRow(int16_t y, uint16_t* buffer, int16_t w = 320);
 	void readRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t* out);
 
+	/* Same read, delegated to DMA so the caller can work while it runs. Start
+	 * leaves the bus OPEN and returns false if no channel was free; Finish must
+	 * be called for every Start that returned true, and nothing may touch spi0
+	 * in between. dst3 holds w*h*3 bytes of raw 6-6-6; convert3to565 turns it
+	 * into the RGB565 the wire format wants, and is separate precisely so it can
+	 * run on the previous strip. See the definition for the measurement. */
+	bool readRectDmaStart(int16_t x, int16_t y, int16_t w, int16_t h, uint8_t* dst3);
+	void readRectDmaFinish( );
+	static void convert3to565(const uint8_t* src, uint16_t* out, size_t n);
+
 	void showSettingsThemes(int currentThemeIdx);
 	void showAuthScreen(String expectedPin);
 	/** Forces repaint of the MODE_AUTH keypad on the next
@@ -605,6 +623,7 @@ private:
 	volatile bool _core1Parked = false;
 	volatile uint32_t _quietSince = 0;
 	volatile bool _captureActive = false;     /**< see setCaptureActive( ) */
+	uint32_t _readHz = SIMUT_TFT_READ_HZ;     /**< see setReadHz( ) */
 	volatile uint32_t _captureUntil = 0;      /**< millis( ) past which Core 1 ignores it */
 
 	/** Core-1-only event push into the SPSC lock-free ring (invariant 2,

@@ -658,8 +658,9 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
         /* ── Espelho do painel ──────────────────────────────────────────
          * GET /api/screen_stream devolve UM quadro por requisicao, em 30
-         * faixas de 8 linhas; cada faixa vem crua (RGB565) ou em RLE por
-         * paleta, o que for menor. O formato esta documentado em
+         * faixas de 8 linhas; cada faixa vem crua (RGB565, enc 0), em RLE por
+         * paleta de 2 bytes por corrida (enc 1) ou de 1 byte (enc 2), o que
+         * for menor. O formato esta documentado em
          * src/ScreenRle.h e fixado pelos testes de test_validators — este
          * decodificador e a terceira implementacao dele, e tem que andar
          * junto com as outras duas.
@@ -707,10 +708,22 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     for (let k = 0; k < ncol; k++) pal[k] = dv.getUint16(p + 1 + k * 2, true);
                     let q = p + 1 + ncol * 2;
                     const end = p + len;
-                    while (q + 1 < end) {
-                        const c = pal[dv.getUint8(q)], run = dv.getUint8(q + 1) + 1;
-                        q += 2;
-                        for (let r = 0; r < run; r++) o = mirPut(px, o, c);
+                    if (enc === 2) {
+                        /* Um byte por corrida: indice nos 4 bits altos, tamanho-1
+                         * nos baixos; 15 e escape e o proximo byte traz
+                         * tamanho-16. Metade dos bytes do enc 1 nas telas reais. */
+                        while (q < end) {
+                            const t = dv.getUint8(q++);
+                            const c = pal[t >> 4], lo = t & 0x0F;
+                            const run = (lo === 15) ? (dv.getUint8(q++) + 16) : (lo + 1);
+                            for (let r = 0; r < run; r++) o = mirPut(px, o, c);
+                        }
+                    } else {
+                        while (q + 1 < end) {
+                            const c = pal[dv.getUint8(q)], run = dv.getUint8(q + 1) + 1;
+                            q += 2;
+                            for (let r = 0; r < run; r++) o = mirPut(px, o, c);
+                        }
                     }
                 }
                 p += len;

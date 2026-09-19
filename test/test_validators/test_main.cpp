@@ -2197,6 +2197,130 @@ static int rleDecode(const uint8_t* in, size_t len, uint16_t* out, size_t outCap
     return (int)o;
 }
 
+/* Decoder for ENC_PAL_RLE4 — the third implementation of that format, next to
+ * screenrle::encodeStrip4 and the JS in WebUI.h. Written against the spec in
+ * ScreenRle.h rather than derived from the encoder, which is the only way a
+ * round-trip test proves anything about the FORMAT and not just about one
+ * function agreeing with itself. */
+static int rle4Decode(const uint8_t* in, size_t len, uint16_t* out, size_t cap) {
+    if (len < 3) return -1;
+    const size_t ncol = (size_t)in[0] + 1;
+    if (1 + ncol * 2 > len) return -1;
+    uint16_t pal[16];
+    for (size_t k = 0; k < ncol; k++)
+        pal[k] = (uint16_t)(in[1 + k * 2] | (in[2 + k * 2] << 8));
+    size_t i = 1 + ncol * 2, o = 0;
+    while (i < len) {
+        const uint8_t t = in[i++];
+        const size_t k = t >> 4;
+        size_t run;
+        if ((t & 0x0F) == 0x0F) {
+            if (i >= len) return -1;
+            run = (size_t)in[i++] + 16;
+        } else {
+            run = (size_t)(t & 0x0F) + 1;
+        }
+        if (k >= ncol || o + run > cap) return -1;
+        for (size_t r = 0; r < run; r++) out[o++] = pal[k];
+    }
+    return (int)o;
+}
+
+void test_screenrle4_uniform_strip(void) {
+    /* 2,560 identical pixels. One palette entry, and the escape carries 270 at
+     * a time, so ceil(2560/270) = 10 tokens of two bytes. */
+    const size_t N = 320 * 8;
+    static uint16_t px[320 * 8];
+    for (size_t i = 0; i < N; i++) px[i] = 0x1234;
+    static uint8_t out[320 * 8 * 2];
+
+    const size_t n = screenrle::encodeStrip4(px, N, out, sizeof(out));
+    TEST_ASSERT_TRUE(n > 0);
+    TEST_ASSERT_EQUAL_UINT8(0, out[0]);
+    TEST_ASSERT_EQUAL_UINT8(0x34, out[1]);
+    TEST_ASSERT_EQUAL_UINT8(0x12, out[2]);
+
+    static uint16_t back[320 * 8];
+    TEST_ASSERT_EQUAL_INT((int)N, rle4Decode(out, n, back, N));
+    TEST_ASSERT_EQUAL_UINT16_ARRAY(px, back, N);
+}
+
+void test_screenrle4_beats_the_byte_form_on_screen_like_content(void) {
+    /* Same shape as the enc-1 round-trip test: bands, border, text specks. The
+     * point of the format is that this case gets smaller, so the test asserts
+     * it rather than trusting the measurement in the header. */
+    const size_t W = 320, ROWS = 8, N = W * ROWS;
+    static uint16_t px[320 * 8];
+    for (size_t y = 0; y < ROWS; y++) {
+        for (size_t x = 0; x < W; x++) {
+            uint16_t c = (y < 2) ? 0x0000 : 0xFFFF;
+            if (x < 4 || x >= W - 4) c = 0x07E0;
+            if (y >= 4 && (x / 3) % 7 == 0) c = 0xF800;
+            px[y * W + x] = c;
+        }
+    }
+    static uint8_t out4[320 * 8 * 2], out1[320 * 8 * 2];
+    const size_t n4 = screenrle::encodeStrip4(px, N, out4, sizeof(out4));
+    const size_t n1 = screenrle::encodeStrip(px, N, out1, sizeof(out1));
+    TEST_ASSERT_TRUE(n4 > 0);
+    TEST_ASSERT_TRUE(n4 < n1);
+
+    static uint16_t back[320 * 8];
+    TEST_ASSERT_EQUAL_INT((int)N, rle4Decode(out4, n4, back, N));
+    TEST_ASSERT_EQUAL_UINT16_ARRAY(px, back, N);
+}
+
+void test_screenrle4_escape_boundary_runs(void) {
+    /* The seam between the short form and the escape: 15 must stay one byte,
+     * 16 must become the escape, and both must come back exactly. */
+    for (size_t run = 1; run <= 40; run++) {
+        static uint16_t px[64];
+        for (size_t i = 0; i < run; i++) px[i] = 0xBEEF;
+        px[run] = 0x0001;
+        const size_t N = run + 1;
+        uint8_t out[160];
+        const size_t n = screenrle::encodeStrip4(px, N, out, sizeof(out));
+        TEST_ASSERT_TRUE(n > 0);
+        uint16_t back[64];
+        TEST_ASSERT_EQUAL_INT((int)N, rle4Decode(out, n, back, N));
+        TEST_ASSERT_EQUAL_UINT16_ARRAY(px, back, N);
+    }
+}
+
+void test_screenrle4_refuses_over_16_colours(void) {
+    /* 17 distinct colours: the 4-bit index cannot name the last one, and the
+     * caller must fall back to the byte form rather than get a wrong strip. */
+    const size_t N = 17;
+    uint16_t px[17];
+    for (size_t i = 0; i < N; i++) px[i] = (uint16_t)(i * 7 + 1);
+    /* 17*8 and not 17*4: the byte form needs 1 + 17*2 palette + 17*2 pairs = 69 B
+     * for this input, and a 68 B buffer made it refuse for the RIGHT reason and
+     * the wrong test. The cap is part of the contract, so the buffer has to be
+     * big enough to leave only the colour ceiling under test. */
+    uint8_t out[17 * 8];
+    TEST_ASSERT_EQUAL_UINT32(0, screenrle::encodeStrip4(px, N, out, sizeof(out)));
+    TEST_ASSERT_TRUE(screenrle::encodeStrip4(px, N - 1, out, sizeof(out)) > 0);
+    /* and the byte form, whose index is a whole byte, still takes all 17 */
+    TEST_ASSERT_TRUE(screenrle::encodeStrip(px, N, out, sizeof(out)) > 0);
+}
+
+void test_screenrle4_takes_alternating_pixels_that_enc1_refuses(void) {
+    /* The pathological input for enc 1 is comfortable for enc 4: alternating
+     * pixels cost one token each, so N bytes against 2N raw, where the byte form
+     * would need 2N and refuse. Named for what it asserts — the earlier name
+     * said "refuses" while the body asserts the opposite. */
+    const size_t N = 1024;
+    uint16_t px[1024];
+    for (size_t i = 0; i < N; i++) px[i] = (uint16_t)((i & 1) ? 0x0000 : 0xFFFF);
+    uint8_t out[1024 * 2];
+    const size_t n = screenrle::encodeStrip4(px, N, out, N * 2);
+    TEST_ASSERT_TRUE(n > 0);
+    TEST_ASSERT_TRUE(n < N * 2);
+    uint16_t back[1024];
+    TEST_ASSERT_EQUAL_INT((int)N, rle4Decode(out, n, back, N));
+    TEST_ASSERT_EQUAL_UINT16_ARRAY(px, back, N);
+}
+
 void test_screenrle_uniform_strip(void) {
     /* One colour over a full 8-row strip. A strip is 320*8 = 2,560 PIXELS
      * (5,120 bytes raw), so it is one palette entry and 2560/256 = 10 pairs,
@@ -2692,6 +2816,11 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_syslog_msg_control_bytes_become_space);
 
     /* ScreenRle — the TFT mirror's wire format */
+    RUN_TEST(test_screenrle4_uniform_strip);
+    RUN_TEST(test_screenrle4_beats_the_byte_form_on_screen_like_content);
+    RUN_TEST(test_screenrle4_escape_boundary_runs);
+    RUN_TEST(test_screenrle4_refuses_over_16_colours);
+    RUN_TEST(test_screenrle4_takes_alternating_pixels_that_enc1_refuses);
     RUN_TEST(test_screenrle_uniform_strip);
     RUN_TEST(test_screenrle_round_trip_screen_like);
     RUN_TEST(test_screenrle_run_longer_than_256_splits);
