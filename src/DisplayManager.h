@@ -214,6 +214,61 @@ public:
 	void begin( );
 	void startCore1( );
 	void pauseRendering(bool pause);
+
+	/* SPI-bus exclusion without the IRQ lockout — the pause a GRAM READ needs.
+	 *
+	 * pauseRendering( ) exists for flash program/erase, and there the IRQ
+	 * lockout is the whole point: Core 1 fetching from XIP during an erase
+	 * wedges the QSPI arbiter (the reboot class of e035791). A panel read needs
+	 * something strictly weaker — that Core 1 not be inside an SPI transaction
+	 * and not start one — and the T1.1 park already guarantees exactly that:
+	 * the park point is the top of loopCore1, past every startWrite/endWrite
+	 * and past dma_channel_wait_for_finish_blocking, and the only two IRQs
+	 * Core 1 owns are core1AlarmIsr (acks a timer) and the XPT2046 isrPin (sets
+	 * one bool). Neither touches SPI, so a confirmed park is sufficient
+	 * exclusion and the two SDK handshakes per strip are pure overhead.
+	 *
+	 * Split into request and await on purpose: the request costs one store, so
+	 * a caller with work to do can raise it first and let Core 1 park DURING
+	 * that work instead of after it.
+	 *
+	 * NOTHING THAT TOUCHES FLASH MAY RUN INSIDE THIS PARK. It does not take the
+	 * lockout and does not move _pauseRefCount, so a nested Core1FlashPause
+	 * would see refcount 0 -> 1 and behave correctly — but a nested flash write
+	 * that skipped the pause entirely would run with Core 1 loose in XIP. The
+	 * capture loop keeps the light yield outside the park for that reason. */
+	void requestCore1Park( );
+	bool awaitCore1Park(uint32_t timeoutMs);
+	void releaseCore1Park( );
+
+	/** While set, loopCore1 skips the touch read and the render dispatch and
+	 *  only answers the park handshake. A capture freezes the panel for most of
+	 *  its duration anyway (ESPELHO_DELTA.md §2 measured zero changed pixels
+	 *  between back-to-back frames), so the render this drops is one the mirror
+	 *  was not showing — and dropping it makes the park land in ~1 ms instead of
+	 *  waiting out a whole iteration.
+	 *
+	 *  It carries its own DEADLINE, and that is the important part: this is a
+	 *  flag whose stuck state is a permanently dead display, which is the same
+	 *  failure forceUnpause( ) exists to undo for the pause refcount. Core 1
+	 *  stops honouring it once the deadline passes, so the worst a leak can cost
+	 *  is one window and not the session. The window is the web handler's own
+	 *  ceiling (WEB_LONG_HANDLER_DEADLINE_MS) and not a frame time, because a
+	 *  frame that is merely slow must not lose its renderer mid-capture. */
+	void setCaptureActive(bool a) {
+		if (a) __atomic_store_n(&_captureUntil, millis( ) + 15000u, __ATOMIC_RELEASE);
+		__atomic_store_n(&_captureActive, a, __ATOMIC_RELEASE);
+	}
+
+	/** RAII for the above: the capture handler leaves by several paths and a
+	 *  missed clear is a dead panel, so no path gets to forget. */
+	struct CaptureGuard {
+		DisplayManager* d;
+		explicit CaptureGuard(DisplayManager* dm) : d(dm) { if (d) d->setCaptureActive(true); }
+		~CaptureGuard( ) { if (d) d->setCaptureActive(false); }
+		CaptureGuard(const CaptureGuard&) = delete;
+		CaptureGuard& operator=(const CaptureGuard&) = delete;
+	};
 	uint32_t getHeartbeat( );
 	uint32_t getPauseStartTime( ) { return _pauseStartTime; }
 	uint32_t getLastTouchTimestamp( ) const { return _lastTouchTimestamp; }
@@ -549,6 +604,8 @@ private:
 	volatile bool _quiescePlease = false;
 	volatile bool _core1Parked = false;
 	volatile uint32_t _quietSince = 0;
+	volatile bool _captureActive = false;     /**< see setCaptureActive( ) */
+	volatile uint32_t _captureUntil = 0;      /**< millis( ) past which Core 1 ignores it */
 
 	/** Core-1-only event push into the SPSC lock-free ring (invariant 2,
 	 * docs/CONCURRENCY.md). The former queue_t was frozen-mid-spinlock

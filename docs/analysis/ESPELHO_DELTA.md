@@ -1,7 +1,15 @@
 # Espelho do painel por delta — estudo
 
-**Estado:** Living · **Medido em:** 2026-09-18, rig 192.168.3.24, `pico_w_test`
-da v2.4.8-beta · **Pergunta:** vale mandar só os blocos que mudaram?
+**Estado:** Living · **Medido em:** 2026-09-18 (§1–§9) e 2026-09-19 (§10), rig
+192.168.3.24, `pico_w_test` · **Pergunta:** vale mandar só os blocos que
+mudaram?
+
+> **§10 mede o que este documento vinha estimando.** A §9.4 dizia que as pausas
+> do Core 1 eram 23–29% do quadro; medidas diretamente no aparelho, são 14%, e a
+> rede é 14% e não 7%. As duas contas antigas eram aritmética sobre um total de
+> quadro menos uma leitura modelada. A alavanca que a §9.4 apontou existe mesmo,
+> mas é menor do que ela prometia — e foi puxada: **643,5 → 565,0 ms**, com as
+> duas distribuições disjuntas em 20 quadros por braço.
 
 A resposta curta é que vale, mas **não pelo motivo que a pergunta sugere**, e
 hoje não cabe na imagem. As duas coisas estão medidas abaixo.
@@ -290,3 +298,226 @@ justamente o que menos blocos sujos também reduzem — menos leitura, menos pau
 
 O que NÃO mudou é o impedimento: a folga de OTA da imagem de release, que este
 próprio conserto consumiu um pouco mais (484 → **412 B**).
+
+---
+
+## 10. A pausa do Core 1, medida e encurtada (19/09)
+
+A §9.4 encerrou dizendo "a próxima alavanca é a pausa do Core 1, não o fio".
+Isto é a execução dessa frase. Três coisas saíram dela: a conta da §9.4 estava
+errada, a pausa é quase toda **espera do park** e não handshake do SDK, e o
+quadro caiu 11%.
+
+### 10.1 O instrumento, antes de qualquer número
+
+Nada aqui foi deduzido de `total − modelo`. O próprio aparelho cronometra cada
+parcela com `timer_hw->timerawl` e as publica em `show metrics`
+(`SIMUT_MIRROR_PROBE=1`, default 0 — ver `src/simut_config.h`):
+
+- **Um único binário para todos os braços.** `?pm=<máscara>&g=<n>` escolhe a
+  estratégia por requisição. Comparar duas *builds* seria medir a build — foi
+  isso que a §2 já tinha aprendido, e o custo da instrumentação se cancela
+  quando ela está nos dois lados.
+- **Braços intercalados**, um por rodada, e não em blocos: o dashboard muda
+  sozinho (relógio, dígitos) e o custo do render muda com ele, então um layout
+  em blocos cobra a deriva de quem calhou de rodar durante ela.
+- **Coluna de resíduo** = quadro − soma das parcelas. Fechou em 1,7% a 2,7%. Uma
+  decomposição que não fecha está avisando que falta algo.
+- **Controle A-contra-A em capturas adjacentes** e comparação pixel a pixel
+  contra ele.
+
+⚠️ **Duas vezes o instrumento mentiu antes do firmware, e as duas foram pegas:**
+
+1. `PLATFORMIO_BUILD_FLAGS` apaga `.pio/build`: o primeiro `-t upload` rodou
+   **sem** a variável, recompilou sem a sonda e gravou a imagem errada. A string
+   de versão não discrimina — quem discriminou foi a ausência das linhas `MIR`, e
+   o harness se recusou a produzir número.
+2. **A tela volta ao dashboard 30 s depois do último toque** (guarda de ociosidade
+   do `DisplayManager_Touch.cpp`). Uma comparação de pixels de vários minutos na
+   tela `lic` passou a comparar **duas telas diferentes** e acusou 66.310 px
+   errados de 76.800. O conserto é reemitir `screen <n>` antes de cada captura —
+   e o sintoma é exatamente o que um defeito de leitura pareceria.
+
+### 10.2 Onde o tempo vai de verdade
+
+Dashboard vivo, 20 quadros intercalados, mediana:
+
+| parcela | por quadro | fração | a §9.4 dizia |
+|---|---:|---:|---:|
+| ler o painel (30 × `readRect`) | 410,2 ms | 64% | 64–70% ✅ |
+| **espera do park** | 107,0 ms | 17% | — |
+| rede (30 escritas chunked) | 88,1 ms | 14% | 7% ❌ |
+| RLE de paleta | 23,0 ms | 4% | — |
+| **handshake de lockout do SDK** | 4,4 ms | 0,7% | — |
+| resíduo | 9,9 ms | 2% | — |
+
+**A pausa é 111,4 ms, não 129–180.** E dentro dela, **96% é o park** — Core 0
+esperando Core 1 chegar ao topo do seu laço — contra 4% dos dois handshakes do
+SDK. Isso decidiu tudo: otimizar o handshake renderia no máximo 3,6 ms.
+
+Numa tela **parada** (`lic`) a mesma pausa custa 22,5 ms de 554,5 (4%), porque o
+render que o park espera é quase nada. A pausa só é cara quando o painel tem o
+que pintar — e é por isso que qualquer medição dela feita na tela de licença
+subestima o problema por 4×.
+
+### 10.3 Os braços, medidos
+
+Máscara: `1` = park sem o lockout do SDK, `2` = pedir o park **antes** do envio
+do quadrado anterior, `4` = Core 1 para de pintar durante a captura.
+Dashboard vivo, 7 quadros por braço, intercalados:
+
+| pm | estratégia | quadro | park | lock+unlk | leitura | renders do Core 1 |
+|---:|---|---:|---:|---:|---:|---:|
+| 0 | como estava | 655,6 ms | 123,6 | 4,2 | 411,6 | 64 |
+| 1 | SOFT | 608,6 ms | 83,8 | 0,1 | 412,1 | 65 |
+| 2 | PREPARK | 624,4 ms | 79,9 | 4,2 | 423,1 | **30** |
+| 4 | C1IDLE | 559,1 ms | 19,4 | 3,9 | 418,4 | **0** |
+| 3 | SOFT+PREPARK | 611,3 ms | 74,0 | 0,1 | 427,2 | **30** |
+| 5 | **SOFT+C1IDLE** | 585,1 ms | 51,9 | 0,0 | 418,9 | **0** |
+| 6 | PREPARK+C1IDLE | 558,4 ms | 16,6 | 4,2 | 428,5 | **0** |
+| 7 | as três | 557,1 ms | 28,2 | 0,0 | 430,6 | **0** |
+
+A coluna que decide não é o quadro, é a última: **o que cada braço cobra em
+repintura**. PREPARK corta pela metade os renders que o Core 1 completa durante
+um quadro, e C1IDLE os zera. Não é um preço abstrato — é a coisa que o espelho
+existe para mostrar.
+
+O que torna C1IDLE aceitável é o que a §2 já tinha medido: capturando quadro
+atrás de quadro, o painel repinta **0 pixels** de qualquer jeito, porque o
+espelho já mata o Core 1 de fome. O render que C1IDLE descarta é um que o
+espelho não estava mostrando. Entre dois quadros o Core 1 pinta normalmente.
+
+**O default ficou em `pm=5`, não em `pm=7`** — e a razão honesta não é que o
+PREPARK custe repintura: **sobre o C1IDLE ele não custa nenhuma**, porque o
+C1IDLE já não repinta nada. É que o ganho dele nunca se firmou. Em quatro
+rodadas o `pm=7` ganhou do `pm=5` por algo entre **0 e 28 ms**, com as faixas
+muito sobrepostas, e o `pm=7` é justamente o braço que mais se apoia na inflação
+de leitura inexplicada da §10.4 (431 ms contra 423). Somando a isso um pedido de
+park que sobrevive à pausa que o levantou — superfície de concorrência nova —
+não há número que pague.
+
+A coluna de repintura acima **importa para o PREPARK sozinho** (`pm=2`): ali ele
+corta os renders de 64 para 30 sem zerá-los, e é a única configuração em que esse
+custo é visível.
+
+### 10.4 ⚠️ A leitura fica mais lenta quando a pausa encurta — e eu não sei por quê
+
+Em **todo** braço que encurta a pausa, `readRect` demora mais: 411,9 → 419,2 ms
+no default (+7,3), e até 431,6 ms no `pm=7` (+19,7). A geometria é idêntica, o
+clock é o mesmo e os bytes saem iguais. Devolve-se assim cerca de 10% do ganho.
+
+Uma hipótese foi **implementada, medida e REVERTIDA**, e vale registrar porque
+era a mais convincente das duas que eu tinha:
+
+> *O laço do park roda de XIP (uma carga atômica, uma chamada a `millis( )` e o
+> retorno, por volta) durante todo o tempo em que o Core 0 está lendo, e
+> `readRect` também é XIP — então o park disputaria banda de flash com a leitura
+> que ele existe para proteger.* Sob o default novo isso pesaria mais, não menos:
+> o Core 1 passa a ficar no laço ~420 ms por quadro em vez de 3 ms por faixa.
+
+Levei o laço para SRAM (`__no_inline_not_in_flash_func`) e passei a ler o timer
+uma vez a cada 512 voltas em vez de chamar `millis( )` sempre. Depois medi de
+verdade, com o laço antigo **alcançável por máscara na mesma imagem** (`pm|8`),
+12 quadros por braço:
+
+| par | quadro, laço em SRAM | quadro, laço antigo | SRAM ganha |
+|---|---:|---:|---:|
+| `pm=5` | 576,2 ms (549..592) | 563,7 ms (549..602) | 49,3% dos pares |
+| `pm=1` | 635,5 ms (617..664) | 624,8 ms (606..655) | 29,2% dos pares |
+
+**Não compra nada, e no braço SOFT o laço antigo ganha mais vezes do que perde.**
+A leitura melhora 4 ms no par `pm=5` (417,7 contra 421,7, SRAM ganhando 80,6% dos
+pares), o que é pequeno e não sobrevive à faixa. Revertido: é um laço no caminho
+crítico de concorrência, e uma mudança ali sem número é risco sem retorno.
+
+⚠️ Antes de medir, eu já tinha escrito num comentário de código que a mudança
+recuperava 18 ms — número que eu tirei de ler errado a minha própria tabela (o
+429 ms era do braço `pm=7`, não do SOFT; o SOFT mediu 411,5 antes e 412,0
+depois). O comentário foi apagado junto com o código. **A regra da casa pegou:
+quem afirma ganho carrega a medição.**
+
+O que também foi descartado: o laço lendo `timer_hw` a cada volta disputando a
+ponte APB com a spi0 — o gate de 512 voltas não mudou nada.
+
+A inflação, aliás, **é anterior** a qualquer mexida minha no laço: já estava lá
+na primeira rodada factorial, e acompanha PREPARK e C1IDLE, não o laço.
+
+O que sobra e não foi medido: `read + send` é praticamente constante entre os
+braços (~503 ms contra 499 no baseline), o que é a forma de um **acoplamento via
+lwIP** — se a leitura demora mais, a fila de envio drena nesse meio-tempo e o
+`safeSend` seguinte bloqueia menos. Isso explicaria a gangorra sem que a leitura
+esteja de fato mais lenta no fio; explicaria também por que a soma não se move.
+**Não está provado.** Quem for medir: cronometre dentro do `readRect` separando
+`spi_read_blocking` da conversão RGB565, e rode uma vez com a rede fora do laço.
+
+### 10.5 O que foi verificado além do cronômetro
+
+- **Pixels idênticos.** Em tela parada, `pm=0`, `1`, `5` e `7` devolvem **0 px
+  diferentes de 76.800** contra uma captura baseline adjacente, e o quadro tem
+  exatamente os mesmos **5.323 B** nos quatro. O controle A-contra-A deu 0.
+- **O toque continua chegando ao painel.** Com `pm=5` e um laço de capturas, 5
+  de 5 toques por `POST /api/touch` mudaram o painel (~4.800 px), igual ao
+  `pm=0`; o controle sem toque mexe no máximo 118 px. O C1IDLE tem escape por
+  **PENIRQ** (`isScreenTouched( )`, um `gpio_get`, sem SPI) porque o portão que
+  faz o painel ganhar do espelho só arma depois que um toque é *detectado*, e a
+  detecção mora justamente na leitura que o C1IDLE pula. ⚠️ O escape por dedo
+  real **não foi testado no ferro** — a PicoHand não está ligada ao GP20. A prova
+  indireta de que o PENIRQ lê ALTO sem ninguém é que o C1IDLE encurta o park:
+  se disparasse à toa, o ramo nunca seria tomado.
+- **Saúde do Core 1 intacta** depois de ~300 capturas: 0 kills por lockout, 0
+  lockout travado, 0 kills por saúde, nenhum FTL fora dos falsos de boot que o
+  flash por toque sempre deixa.
+- **`_captureActive` tem prazo próprio** (15 s, o teto do handler) e um RAII na
+  única chamada. Um flag desses, se vazar, é um display morto para sempre — a
+  mesma falha que o `forceUnpause( )` existe para desfazer no refcount.
+
+### 10.6 Grupo de faixas: medido e recusado
+
+Uma pausa segurando N faixas troca handshakes por congelamento e por heap
+(N × 5.120 B). Dashboard vivo:
+
+| braço | quadro | park | pausas | heap extra |
+|---|---:|---:|---:|---:|
+| `pm=0 g=1` | 634,9 ms | 107,8 | 30 | — |
+| `pm=0 g=2` | 596,7 ms | 65,9 | 15 | 5 kB |
+| `pm=0 g=5` | 576,6 ms | 54,1 | 6 | 20 kB |
+| `pm=5 g=1` | 557,0 ms | 19,5 | 30 | — |
+| `pm=5 g=5` | 548,2 ms | 16,8 | 6 | 20 kB |
+
+Agrupar **sozinho** vale 58 ms, mas sobre o default vale **8,8 ms por 20 kB de
+heap** num aparelho cuja mínima histórica passa perto de 40 kB. Recusado, e o
+`g=` fica só na sonda.
+
+### 10.7 O resultado
+
+Dashboard vivo, 20 quadros intercalados por braço, **o binário que ficaria**:
+
+| | antes | depois |
+|---|---:|---:|
+| quadro (device) | 643,5 ms | **565,0 ms** (−12,2%) |
+| quadro (relógio do cliente) | 666,2 ms | **583,0 ms** (−12,5%) |
+| espera do park | 107,0 ms | **30,2 ms** |
+| handshake de lockout | 4,4 ms | **0,0 ms** |
+| taxa sustentável | 1,50 quadro/s | **1,72 quadro/s** |
+
+A separação é **total**: as faixas não se tocam (620..665 ms contra 549..598) e
+na comparação par a par o `pm=5` ganha **400 de 400**. Na tela parada, onde a
+pausa já era pequena, o ganho é o esperado e pequeno: 556,2 → 543,3 ms, com os
+mesmos 5.323 B e 0 px de diferença.
+
+Custo em flash: **+896 B** no release, +1.064 B no test, +56 B no alpha e +8 B no
+Air (os dois sem painel só levam os carimbos de microssegundo). Todos os seis
+ambientes seguem dentro do orçamento.
+
+### 10.8 O que sobra
+
+A leitura voltou a ser 74% do quadro, e agora sem nada grande ao lado. As duas
+alavancas que restam, em ordem de tamanho:
+
+1. **Ler por DMA.** `readRect` bloqueia o Core 0 em `spi_read_blocking` por
+   412 ms. Um DMA de recepção libera esse tempo para a rede e para o codec, o que
+   também atacaria os 88,5 ms de envio, que hoje são serializados atrás da
+   leitura. É a única mudança grande que sobrou.
+2. **Ler só os blocos sujos** (§3 a §5), que continua barrado pelo mesmo motivo
+   da §6 e agora vale menos: com a pausa resolvida, o que o delta economiza é
+   leitura, e a leitura já é o alvo do item 1.

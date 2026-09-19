@@ -290,6 +290,36 @@ extern volatile uint32_t g_core1LockWaitMaxMs;  /**< Worst wait for a granted lo
 extern volatile uint32_t g_webHistScanMaxMs;
 extern volatile uint32_t g_core1LockWaitLastMs; /**< Wait of the most recent granted lockout */
 
+/* Where a panel-mirror frame's time goes, in microseconds, for the LAST frame
+ * captured. ESPELHO_DELTA.md §9.4 had to infer the split from a frame total
+ * minus a modelled read; these measure it directly, because the question the
+ * study left open ("the next lever is the pause, not the wire") cannot be
+ * answered by a number nobody took apart. Written by the capture handler on
+ * Core 0 only, so no atomics are needed; read by `show metrics`. */
+/* The two halves of the LAST pauseRendering(true), and of the last release, in
+ * microseconds. g_core1LockWait*Ms already existed and is in milliseconds —
+ * which reads as 0 or 1 for a pause that is 4 ms end to end, and so cannot say
+ * which half of it is the cost. Written on the 0 -> 1 and 1 -> 0 transitions
+ * only, by whichever core holds the pause. */
+extern volatile uint32_t g_pauseParkLastUs;   /**< park wait: request -> ACK */
+extern volatile uint32_t g_pauseLockLastUs;   /**< SDK lockout start handshake */
+extern volatile uint32_t g_pauseUnlockLastUs; /**< SDK lockout end handshake */
+
+extern volatile uint32_t g_capFrameUs;      /**< whole handler, first byte to last */
+extern volatile uint32_t g_capParkUs;       /**< sum of the park waits (request -> ACK) */
+extern volatile uint32_t g_capParkMaxUs;    /**< worst single park wait */
+extern volatile uint32_t g_capLockUs;       /**< sum of the SDK lockout start handshakes */
+extern volatile uint32_t g_capUnlockUs;     /**< sum of the SDK lockout end handshakes */
+extern volatile uint32_t g_capReadUs;       /**< sum of readRect( ) */
+extern volatile uint32_t g_capEncUs;        /**< sum of encodeStrip( ) */
+extern volatile uint32_t g_capSendUs;       /**< sum of safeSend( ) */
+extern volatile uint32_t g_capYieldUs;      /**< sum of the light yield */
+extern volatile uint16_t g_capPauses;       /**< pauses taken (strips, or groups) */
+extern volatile uint16_t g_capParkMiss;     /**< parks that timed out and fell back */
+extern volatile uint16_t g_capC1Iters;      /**< Core-1 iterations completed during the frame */
+extern volatile uint8_t  g_capMode;         /**< pause strategy that ran (see handleApiScreenStream) */
+extern volatile uint8_t  g_capGroup;        /**< strips held under one pause */
+
 #ifdef __cplusplus
 }
 #endif

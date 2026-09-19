@@ -37,36 +37,43 @@
   "dashboard canvas that drives them. release 1,024,340 -> 1,027,852, test +3,408,",
   "asserts +3,528; the margin stays the 3,000 B this file has always used. alpha and",
   "air keep their old budgets: neither has a panel, so both carry only the ~1.5 kB of",
-  "gzipped page, and both still fit."
+  "gzipped page, and both still fit.",
+  "2026-09-19 (study/core1-pause-mirror): 'measured' moves up and the budgets do",
+  "NOT. The panel mirror's Core-1 pause became a park without the SDK lockout, and",
+  "Core 1 idles for the length of a capture: +816 B on release, +968 on test,",
+  "+56 on alpha and +8 on air - the two imageless builds carry only the microsecond",
+  "stamps. Every environment is still inside the 3,000 B margin this file has",
+  "always used, so nothing here had to be raised; what would have been dishonest is",
+  "leaving 'measured' describing an image that no longer exists."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-09-18",
- "measured_at_commit": "v2.4.9-beta (Air: full CLI; release and asserts: +3,872 B for POST /api/tls)",
+ "measured_on": "2026-09-19",
+ "measured_at_commit": "study/core1-pause-mirror (+816 B release, +968 test, +56 alpha, +8 air: the mirror's Core-1 pause)",
 
  "envs": {
   "pico_w_release": {
    "budget": 977716,
-   "measured": 974716
+   "measured": 975532
   },
   "pico_w_test": {
    "budget": 979732,
-   "measured": 976732
+   "measured": 977700
   },
   "pico_w_test_https": {
    "budget": 1004300,
-   "measured": 1001300
+   "measured": 1002124
   },
   "pico_w_asserts": {
    "budget": 979884,
-   "measured": 976884
+   "measured": 977700
   },
   "pico_w_alpha": {
    "budget": 968020,
-   "measured": 965020
+   "measured": 965076
   },
   "pico_w_air": {
    "budget": 1010312,
-   "measured": 1009312
+   "measured": 1009320
   }
  }
 }

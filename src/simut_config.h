@@ -145,6 +145,22 @@
 #define SIMUT_TFT_READ_HZ 6000000u
 #endif
 
+/* Bench instrument for the panel mirror: lets /api/screen_stream take its Core-1
+ * pause a different way per request (?pm=, ?g=) and prints the frame's
+ * decomposition in `show metrics`.
+ *
+ * OFF in every shipped environment. It exists so that an A/B of pause
+ * strategies runs in ONE image — this project has been burned before by
+ * comparing two builds and measuring the build (ESPELHO_DELTA.md §2, and
+ * validate-the-instrument). Build the bench image with
+ *
+ *     PLATFORMIO_BUILD_FLAGS=-DSIMUT_MIRROR_PROBE=1 pio run -e pico_w_test
+ *
+ * and note that this variable wipes .pio/build for every environment. */
+#ifndef SIMUT_MIRROR_PROBE
+#define SIMUT_MIRROR_PROBE 0
+#endif
+
 /* =========================================================================
  * SECTION 3: ALPHA DISPLAY — HD44780 16x2
  *

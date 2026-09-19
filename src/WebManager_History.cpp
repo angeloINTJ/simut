@@ -1752,11 +1752,22 @@ void WebManager::handleApiScreenshotChunk( ) {
  *
  * The frame used to split 91% panel read / 7% Core 1 pauses / 3% network, and
  * that is why the codec and the strip geometry were both noise beside the SPI
- * read. It now splits 64-70% read / 23-29% pauses
- * (docs/analysis/ESPELHO_DELTA.md §8). The pauses grew in ABSOLUTE time,
- * 111 -> 129..180 ms, precisely because the read got fast: Core 1 gets more
- * time between captures, has more to paint, and takes longer to park when the
- * handshake asks. The next lever is that pause, not the wire.
+ * read.
+ *
+ * WHERE IT GOES NOW, measured on the device instead of inferred from a frame
+ * total (2026-09-19, live dashboard, 20 interleaved frames; §10 of the study):
+ *
+ *   read   410.2 ms  64%      the 30 readRect calls
+ *   park   107.0 ms  17%      waiting for Core 1 to reach its loop top
+ *   send    88.1 ms  14%      30 chunked writes
+ *   enc     23.0 ms   4%      the palette RLE
+ *   lock     4.4 ms   1%      the two SDK lockout handshakes per strip
+ *
+ * §9 of the study had put the pauses at 23-29% and the network at 7%. Both were
+ * arithmetic on a frame total against a modelled read, and both were wrong in
+ * the same direction: the network is twice what it was credited with and the
+ * pause about half. The pause is also almost entirely the PARK, not the SDK
+ * handshake — which decided which lever was worth pulling.
  *
  * And the read noise the three-vote read exists for did NOT show up: on the
  * four screens that hold still (set, lic, gra, thm), two independent
@@ -1776,7 +1787,27 @@ void WebManager::handleApiScreenshotChunk( ) {
  * Core 1 is paused per strip, not per frame, and that is deliberate: a frame
  * held under a single pause would freeze the renderer for the whole second
  * the frame takes, and the mirror would faithfully show a panel that stopped
- * moving because we stopped it. The cost is tearing — see ScreenRle.h. */
+ * moving because we stopped it. The cost is tearing — see ScreenRle.h.
+ * Holding one pause across 5 strips was measured and is in §10: it buys 8.8 ms
+ * over the default for 25 kB of heap, which is why group stayed at 1.
+ *
+ * THE PAUSE THIS TAKES is the park alone (PM_SOFT) and Core 1 idles for the
+ * length of the capture (PM_C1IDLE): 643.5 -> 565.0 ms, and the mode table
+ * below says what the other arms cost. The read got ~13 ms SLOWER doing it,
+ * consistently across every arm that shortens the pause, and that is an open
+ * question — §10.4. The lever the previous paragraph pointed at is pulled;
+ * what is left is the read, and the next thing to try on it is DMA. */
+/* How long a strip waits for Core 1 to park before giving up and taking the
+ * full pauseRendering( ) path instead.
+ *
+ * Deliberately far below the 1,200 ms CORE1_QUIESCE_MS that the flash pause
+ * uses. That budget has to cover a whole render because the alternative there
+ * is hard-resetting Core 1 mid-lock; here the alternative is the ordinary
+ * pause, which costs a handshake and always works. So this number is not a
+ * safety margin, it is a bet: if Core 1 cannot park in this long, waiting
+ * longer is worse than paying the lockout. */
+static constexpr uint32_t CORE1_PARK_WAIT_MS = 40u;
+
 void WebManager::handleApiScreenStream( ) {
  /* requirePerm and not the hand-rolled getAuthPerms check its neighbours use:
   * it answers 401 for "no session" and 403 for "this account cannot", which is
@@ -1816,10 +1847,60 @@ void WebManager::handleApiScreenStream( ) {
  constexpr size_t STRIP_PX = (size_t)W * STRIP_ROWS; /* 2560 */
  constexpr size_t STRIP_RAW = STRIP_PX * 2; /* 5120 */
 
+ /* Which pause the capture takes, as a bit mask. The bench overrides it per
+  * request with ?pm=, so every arm of an A/B runs in ONE image and the
+  * instrumentation cost cancels instead of becoming the difference measured —
+  * this project has compared two builds and measured the build before.
+  *
+  *   1 SOFT    park Core 1 without the IRQ lockout (see requestCore1Park)
+  *   2 PREPARK raise the park request BEFORE the previous strip's encode and
+  *             send, so Core 1 parks during work Core 0 owed anyway
+  *   4 C1IDLE  Core 1 skips touch and render for the whole capture, so a park
+  *             costs its tail wait instead of a whole iteration
+  *
+  * ?g=N holds one pause across N strips, which needs N raw buffers — the
+  * variable being isolated is the NUMBER of handshakes, so the encode and the
+  * send stay outside the pause where they are today. */
+ enum { PM_SOFT = 1, PM_PREPARK = 2, PM_C1IDLE = 4 };
+
+ /* MEASURED ON THE RIG (2026-09-19, pico_w_test, 192.168.3.24, live dashboard,
+  * arms interleaved one frame at a time). Frame time, what the pause cost, and
+  * how many iterations Core 1 finished inside the frame:
+  *
+  *                        frame      park   lock+unlock   Core 1 renders
+  *   0  as it shipped     643 ms    107.0 ms    4.4 ms         65
+  *   1  SOFT              635 ms    106.2 ms    0.1 ms         64
+  *   2  PREPARK           624 ms     79.9 ms    4.2 ms         30
+  *   5  SOFT|C1IDLE       565 ms     30.2 ms    0.0 ms          0   <- this default
+  *   7  all three         557 ms     28.2 ms    0.0 ms          0
+  *
+  * PREPARK is left OUT of the default, and the honest reason is not that it
+  * costs renders — on top of C1IDLE it costs none, because C1IDLE already
+  * renders nothing. It is that its gain never established itself: across four
+  * runs 7 beat 5 by between 0 and 28 ms, the two overlap heavily, and 7 leans
+  * hardest of all the arms on the unexplained read inflation (431 ms against
+  * 423). It also adds a park request that outlives the pause that raised it,
+  * which is concurrency surface bought with a number that is not there.
+  *
+  * Every arm was verified pixel-exact against an adjacent baseline capture on a
+  * screen held still: 0 of 76,800 pixels differ and the frames are byte-identical.
+  * Reproduce any of it with SIMUT_MIRROR_PROBE=1. */
+ uint8_t mode = PM_SOFT | PM_C1IDLE;
+ int group = 1;
+#if SIMUT_MIRROR_PROBE
+ { int v = 0;
+   if (parseIntStrict(_server->arg("pm"), v) && v >= 0 && v <= 7) mode = (uint8_t)v;
+   if (parseIntStrict(_server->arg("g"), v) && v >= 1 && v <= 6 && STRIPS % v == 0) group = v; }
+#endif
+
  /* Heap on demand, like screenshot_chunk: this route is opened by a page that
   * is not always up, and 10 KB of permanent BSS for it would come out of the
-  * same heap TLS needs. */
- uint16_t* raw = (uint16_t*)malloc(STRIP_RAW);
+  * same heap TLS needs. A group larger than one asks for that much again per
+  * strip; if the heap will not carry it the group silently becomes 1 and
+  * g_capGroup reports what actually ran, because an arm that quietly measured
+  * a different geometry than the one requested is worse than no arm. */
+ uint16_t* raw = (uint16_t*)malloc(STRIP_RAW * (size_t)group);
+ if (!raw && group > 1) { group = 1; raw = (uint16_t*)malloc(STRIP_RAW); }
  uint8_t* enc = (uint8_t*)malloc(STRIP_RAW);
  if (!raw || !enc) {
  free(raw); free(enc);
@@ -1830,6 +1911,18 @@ void WebManager::handleApiScreenStream( ) {
 
  uint32_t savedDeadline = _handlerDeadline;
  _handlerDeadline = millis( ) + WEB_LONG_HANDLER_DEADLINE_MS;
+
+ /* Frame accounting: zeroed here so `show metrics` always describes the LAST
+  * frame and never a sum of two. */
+ g_capFrameUs = g_capParkUs = g_capParkMaxUs = g_capLockUs = g_capUnlockUs = 0;
+ g_capReadUs = g_capEncUs = g_capSendUs = g_capYieldUs = 0;
+ g_capPauses = g_capParkMiss = g_capC1Iters = 0;
+ g_capMode = mode; g_capGroup = (uint8_t)group;
+ const uint32_t frameUs0 = timer_hw->timerawl;
+ const uint32_t c1Iters0 = g_core1Iters;
+
+ /* Scoped, so the handler's several exits cannot leave the panel frozen. */
+ DisplayManager::CaptureGuard capGuard((mode & PM_C1IDLE) ? _displayRef : nullptr);
 
  _server->setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
  _server->send(200, "application/octet-stream", "");
@@ -1842,35 +1935,99 @@ void WebManager::handleApiScreenStream( ) {
  };
  bool ok = safeSend((const char*)fhdr, sizeof(fhdr));
 
- for (int s = 0; ok && s < STRIPS; s++) {
+ /* PREPARK only pays off from the SECOND group onward — the first has no
+  * previous send to hide behind — but raising it here costs one store and
+  * keeps the loop body identical for every group.
+  *
+  * It helps the FULL path too, not just the soft one: pauseRendering( ) raises
+  * the same flag and then spins on the same ACK, so finding Core 1 already
+  * parked makes its internal wait return at once. Keeping the two independent
+  * is what makes the arms a factorial instead of a pair of bundles. */
+ if (mode & PM_PREPARK) _displayRef->requestCore1Park( );
+
+ for (int s = 0; ok && s < STRIPS; s += group) {
  if (!_server->client( ).connected( ) || isHandlerOvertime( ) || _cancelScreenshot) {
  ok = false;
  break;
  }
 
+ /* ── the pause, and the reads it protects ─────────────────────────────── */
+ uint32_t t0 = timer_hw->timerawl;
+ bool soft = false;
+ if (mode & PM_SOFT) {
+ _displayRef->requestCore1Park( );
+ soft = _displayRef->awaitCore1Park(CORE1_PARK_WAIT_MS);
+ const uint32_t parked = timer_hw->timerawl - t0;
+ g_capParkUs += parked;
+ if (parked > g_capParkMaxUs) g_capParkMaxUs = parked;
+ if (!soft) {
+ /* No ACK: Core 1 may be mid-SPI and nothing here has stopped it. The
+  * full path is the only safe answer, and the miss is counted rather
+  * than smoothed away — an arm that falls back on most strips is
+  * measuring the fallback, not the idea. */
+ g_capParkMiss++;
+ _displayRef->releaseCore1Park( );
+ }
+ }
+ if (!soft) {
  _displayRef->pauseRendering(true);
+ g_capParkUs += g_pauseParkLastUs;
+ if (g_pauseParkLastUs > g_capParkMaxUs) g_capParkMaxUs = g_pauseParkLastUs;
+ g_capLockUs += g_pauseLockLastUs;
+ }
+ g_capPauses++;
+
+ const int nStrips = (s + group <= STRIPS) ? group : (STRIPS - s);
+ t0 = timer_hw->timerawl;
  /* One window and one block transfer for the whole strip — see readRect. The
   * eight readRow calls this replaces opened eight address windows and made
   * 7,680 one-byte SPI calls. */
- _displayRef->readRect(0, (int16_t)(s * STRIP_ROWS), W, STRIP_ROWS, raw);
- _displayRef->pauseRendering(false);
+ _displayRef->readRect(0, (int16_t)(s * STRIP_ROWS), W,
+                       (int16_t)(STRIP_ROWS * nStrips), raw);
+ g_capReadUs += timer_hw->timerawl - t0;
+
+ t0 = timer_hw->timerawl;
+ if (soft) _displayRef->releaseCore1Park( );
+ else { _displayRef->pauseRendering(false); g_capUnlockUs += g_pauseUnlockLastUs; }
+ (void)t0;
  watchdog_update( );
 
+ /* ── encode and send, with Core 1 free to paint ───────────────────────── */
+ for (int k = 0; ok && k < nStrips; k++) {
+ uint16_t* sraw = raw + (size_t)k * STRIP_PX;
+ t0 = timer_hw->timerawl;
  /* cap = the raw size, so a 0 here means exactly "the RLE did not earn its
   * place" and the fallback below is the whole of the decision. */
- const size_t rleLen = screenrle::encodeStrip(raw, STRIP_PX, enc, STRIP_RAW);
- const uint8_t* body = rleLen ? enc : (const uint8_t*)raw;
+ const size_t rleLen = screenrle::encodeStrip(sraw, STRIP_PX, enc, STRIP_RAW);
+ g_capEncUs += timer_hw->timerawl - t0;
+ const uint8_t* body = rleLen ? enc : (const uint8_t*)sraw;
  const size_t bodyLen = rleLen ? rleLen : STRIP_RAW;
 
  const uint8_t shdr[screenrle::STRIP_HEADER] = {
  rleLen ? screenrle::ENC_PAL_RLE : screenrle::ENC_RAW565,
  (uint8_t)(bodyLen & 0xFF), (uint8_t)(bodyLen >> 8)
  };
+ /* The park request goes up BEFORE the send, not after it: the send is the
+  * longest thing Core 0 does between two reads, and it is the only window
+  * in which Core 1 can reach its loop top for free. */
+ if ((mode & PM_PREPARK) && k == nStrips - 1)
+ _displayRef->requestCore1Park( );
+ t0 = timer_hw->timerawl;
  ok = safeSend((const char*)shdr, sizeof(shdr)) &&
       safeSend((const char*)body, bodyLen);
-
- if (_lightYieldCb) _lightYieldCb( );
+ g_capSendUs += timer_hw->timerawl - t0;
  }
+
+ /* Outside the pause, deliberately: the light yield can reach
+  * saveConfiguration( ), and a flash write inside a lockout-less park would
+  * be the e035791 reboot with Core 1 loose in XIP. */
+ if (_lightYieldCb) { t0 = timer_hw->timerawl; _lightYieldCb( ); g_capYieldUs += timer_hw->timerawl - t0; }
+ }
+
+ if (mode & PM_PREPARK) _displayRef->releaseCore1Park( );
+
+ g_capFrameUs = timer_hw->timerawl - frameUs0;
+ g_capC1Iters = (uint16_t)(g_core1Iters - c1Iters0);
 
  free(raw);
  free(enc);

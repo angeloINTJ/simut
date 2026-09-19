@@ -1039,6 +1039,20 @@ void CommandManager::renderMetrics( ) {
   (unsigned long)g_core1PauseMaxMs,
   (unsigned)g_core1PauseMaxMod0,
   (unsigned)g_core1PauseLastMod0);
+#if SIMUT_MIRROR_PROBE
+  /* Bench only — the decomposition of the LAST /api/screen_stream frame, in us.
+   * English only and unguarded by TRL on purpose: it never ships, so giving it
+   * two language-pack entries would put bench scaffolding in both .lng files. */
+  consolePrintf(" MIR mode=%u g=%u frame=%lu park=%lu(max %lu) lock=%lu unlock=%lu\n",
+  (unsigned)g_capMode, (unsigned)g_capGroup,
+  (unsigned long)g_capFrameUs, (unsigned long)g_capParkUs,
+  (unsigned long)g_capParkMaxUs, (unsigned long)g_capLockUs,
+  (unsigned long)g_capUnlockUs);
+  consolePrintf(" MIR read=%lu enc=%lu send=%lu yield=%lu pauses=%u miss=%u c1iters=%u\n",
+  (unsigned long)g_capReadUs, (unsigned long)g_capEncUs,
+  (unsigned long)g_capSendUs, (unsigned long)g_capYieldUs,
+  (unsigned)g_capPauses, (unsigned)g_capParkMiss, (unsigned)g_capC1Iters);
+#endif
  }
  printDivider( );
 }
