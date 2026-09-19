@@ -76,36 +76,47 @@
   "instead of after it (a Core-0 screen change during a draw was lost, 7 of 7 logins),",
   "and the sensor menu opening on the first row the account may use. Budgets go to",
   "measured + 3,000 (air keeps 1,000); the air .bin is 1,031,212 B, 9,172 under the",
-  "OTA ceiling, the release .bin 1,008,300 B, 32,084 under it."
+  "OTA ceiling, the release .bin 1,008,300 B, 32,084 under it.",
+  "2026-09-19 (feat/alarms-live-config, third commit - the scrambled PIN keypad):",
+  "+1,752 B on release, +2,184 test, +2,184 test_https,",
+  "+1,744 asserts, +200 alpha, +368 air, measured against the",
+  "plain numeric pad the previous commit shipped. Identifying, the ten digits and",
+  "two decoys are dealt over four cards, a whole card is one tap and the deal is",
+  "rolled again after every tap, so each tap carries its own three glyphs and",
+  "Core 0 resolves the tree of strings they can spell (PinKeypad.h,",
+  "scramblePinKeys, findUserByPinSet). Setting a PIN keeps an ordered pad, a",
+  "second small renderer. Most of the delta is the search and the chained digest",
+  "that makes it affordable; the imageless builds pay for the chain, for clearing",
+  "an account record whole on delete, and for `show display keypad`."
  ],
  "ceiling": 1044480,
  "measured_on": "2026-09-19",
- "measured_at_commit": "feat/alarms-live-config (+15,792 B release: identity at the panel, CONFIG_VERSION 24, 32 accounts, panel PIN)",
+ "measured_at_commit": "feat/alarms-live-config (+1,752 B release: the scrambled PIN keypad, re-dealt every tap)",
 
  "envs": {
   "pico_w_release": {
-   "budget": 999268,
-   "measured": 996268
+   "budget": 1001020,
+   "measured": 998020
   },
   "pico_w_test": {
-   "budget": 1002564,
-   "measured": 999564
+   "budget": 1004748,
+   "measured": 1001748
   },
   "pico_w_test_https": {
-   "budget": 1026980,
-   "measured": 1023980
+   "budget": 1029164,
+   "measured": 1026164
   },
   "pico_w_asserts": {
-   "budget": 1001444,
-   "measured": 998444
+   "budget": 1003188,
+   "measured": 1000188
   },
   "pico_w_alpha": {
-   "budget": 976172,
-   "measured": 973172
+   "budget": 976372,
+   "measured": 973372
   },
   "pico_w_air": {
-   "budget": 1019384,
-   "measured": 1018384
+   "budget": 1019752,
+   "measured": 1018752
   }
  }
 }

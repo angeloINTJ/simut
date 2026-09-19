@@ -2626,12 +2626,92 @@ void test_panel_pin_validator(void) {
     TEST_ASSERT_TRUE(isValidPanelPin("0000"));
     TEST_ASSERT_FALSE(isValidPanelPin("123"));
     TEST_ASSERT_FALSE(isValidPanelPin("123456789"));
-    TEST_ASSERT_FALSE(isValidPanelPin("12a4"));
-    TEST_ASSERT_FALSE(isValidPanelPin("1234 "));
     TEST_ASSERT_FALSE(isValidPanelPin(""));
     TEST_ASSERT_FALSE(isValidPanelPin(nullptr));
-    /* the bounded scan: a long run of digits is refused without walking it */
+    /* the bounded scan: a long run is refused without walking it */
     TEST_ASSERT_FALSE(isValidPanelPin("1111111111111111"));
+
+    /* Digits only. The keypad covered the whole printable set for a few hours
+     * on 2026-09-19 and the cards were unreadable; both went back together. */
+    TEST_ASSERT_FALSE(isValidPanelPin("abcd"));
+    TEST_ASSERT_FALSE(isValidPanelPin("A1b2!@#$"));
+    TEST_ASSERT_FALSE(isValidPanelPin("12a4"));
+    TEST_ASSERT_FALSE(isValidPanelPin("1234 "));
+    TEST_ASSERT_FALSE(isValidPanelPin("ab cd"));
+    TEST_ASSERT_FALSE(isValidPanelPin("12\t4"));
+    TEST_ASSERT_FALSE(isValidPanelPin("12\xC3\xA9" "4"));  /* UTF-8 'é' — high bytes out */
+    /* A decoy is on the glass but is not a PIN character: tapping one types
+     * nothing, and nothing may set one through the web or the CLI either. */
+    for (int i = 0; i < PinKb::DECOY_POOL_N; i++) {
+        char pin[5] = { '1', '2', '3', PinKb::DECOY_POOL[i] };
+        pin[4] = '\0';
+        TEST_ASSERT_FALSE(isValidPanelPin(pin));
+        TEST_ASSERT_FALSE(PinKb::isDigitChar(PinKb::DECOY_POOL[i]));
+    }
+
+    /* Every character the keypad can produce must pass on its own, so that
+     * the four cards and this validator cannot disagree about one glyph. */
+    for (char c = PinKb::FIRST; c <= PinKb::LAST; c++) {
+        char pin[5] = { '1', '2', '3', c };
+        pin[4] = '\0';
+        TEST_ASSERT_TRUE(isValidPanelPin(pin));
+        TEST_ASSERT_TRUE(PinKb::isDigitChar(c));
+    }
+}
+
+/* The deal: ten digits and two decoys fill four cards of three slots exactly,
+ * so every card always shows three glyphs and none of them is empty. */
+void test_pin_keypad_deals_the_whole_set(void) {
+    TEST_ASSERT_EQUAL_INT(10, PinKb::CHARS);
+    TEST_ASSERT_EQUAL_INT(2, PinKb::DECOYS);
+    TEST_ASSERT_EQUAL_INT(PinKb::KEYS * PinKb::SLOTS, PinKb::CHARS + PinKb::DECOYS);
+    TEST_ASSERT_TRUE(PinKb::DECOYS >= 0);
+    /* The decoy pool must not contain a digit, or a deal could hide one. */
+    for (int i = 0; i < PinKb::DECOY_POOL_N; i++)
+        TEST_ASSERT_FALSE(PinKb::isDigitChar(PinKb::DECOY_POOL[i]));
+    /* Two distinct decoys have to be drawable from it. */
+    TEST_ASSERT_TRUE(PinKb::DECOY_POOL_N >= PinKb::DECOYS);
+
+    /* Geometry: no card overlaps another, and none crosses into the dots
+     * row above or the footer below. */
+    for (int a = 0; a < PinKb::KEYS; a++) {
+        TEST_ASSERT_TRUE(PinKb::KEY_Y[a] >= PinKb::DOTS_Y + PinKb::DOTS_H);
+        TEST_ASSERT_TRUE(PinKb::KEY_Y[a] + PinKb::KEY_H <= PinKb::FOOT_Y);
+        TEST_ASSERT_TRUE(PinKb::KEY_X[a] + PinKb::KEY_W <= 316);
+        for (int b = a + 1; b < PinKb::KEYS; b++) {
+            const bool sepX = PinKb::KEY_X[a] + PinKb::KEY_W <= PinKb::KEY_X[b] ||
+                              PinKb::KEY_X[b] + PinKb::KEY_W <= PinKb::KEY_X[a];
+            const bool sepY = PinKb::KEY_Y[a] + PinKb::KEY_H <= PinKb::KEY_Y[b] ||
+                              PinKb::KEY_Y[b] + PinKb::KEY_H <= PinKb::KEY_Y[a];
+            TEST_ASSERT_TRUE(sepX || sepY);
+        }
+    }
+    /* Each card answers for its own centre and for no other. */
+    for (int k = 0; k < PinKb::KEYS; k++) {
+        const int16_t cx = (int16_t)(PinKb::KEY_X[k] + PinKb::KEY_W / 2);
+        const int16_t cy = (int16_t)(PinKb::KEY_Y[k] + PinKb::KEY_H / 2);
+        TEST_ASSERT_EQUAL_INT(k, PinKb::keyAt(cx, cy));
+    }
+    /* Every slot maps back to itself from its own centre, and the three of a
+     * card together cover the whole card: a tap anywhere on a card types
+     * something, which is what lets the slots be the only targets. */
+    for (int k = 0; k < PinKb::KEYS; k++) {
+        for (int s = 0; s < PinKb::SLOTS; s++) {
+            const int16_t x = (int16_t)(PinKb::slotX(k, s) + PinKb::SLOT_W / 2);
+            TEST_ASSERT_EQUAL_INT(s, PinKb::slotAt(k, x));
+        }
+        for (int16_t x = PinKb::KEY_X[k]; x < PinKb::KEY_X[k] + PinKb::KEY_W; x++) {
+            const int s = PinKb::slotAt(k, x);
+            TEST_ASSERT_TRUE(s >= 0 && s < PinKb::SLOTS);
+        }
+        /* The three slots fit inside the card they belong to. */
+        TEST_ASSERT_TRUE(PinKb::slotX(k, 0) >= PinKb::KEY_X[k]);
+        TEST_ASSERT_TRUE(PinKb::slotX(k, PinKb::SLOTS - 1) + PinKb::SLOT_W
+                         <= PinKb::KEY_X[k] + PinKb::KEY_W);
+    }
+    /* The footer strip is nobody's card, so its buttons stay live. */
+    TEST_ASSERT_EQUAL_INT(-1, PinKb::keyAt(10, (int16_t)(PinKb::FOOT_Y + 2)));
+    TEST_ASSERT_EQUAL_INT(-1, PinKb::keyAt(10, (int16_t)(PinKb::DOTS_Y + 2)));
 }
 
 int main(int /*argc*/, char** /*argv*/) {
@@ -2858,6 +2938,7 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_simuttime_midnight_is_offset_from_utc);
     RUN_TEST(test_simuttime_days_from_civil_anchors);
     RUN_TEST(test_panel_pin_validator);
+    RUN_TEST(test_pin_keypad_deals_the_whole_set);
 
     return UNITY_END();
 }

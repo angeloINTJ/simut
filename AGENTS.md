@@ -74,6 +74,24 @@ hand_release_all
   coletor até ~30 s depois da ação (retry da linha = 15 s). Esperar isso entre
   toques bate no guarda de 30 s ociosos, que devolve o painel ao dashboard:
   faça as ações, depois confira (`tools/panel_users_hw_test.py`).
+- **O teclado do PIN é embaralhado: descubra o sorteio antes de tocar.** Os dez
+  dígitos e dois símbolos de enchimento são distribuídos em 4 cartões de 3
+  posições a cada abertura da tela (e de novo após um PIN recusado e entre as
+  duas digitações de um PIN novo), então nenhuma coordenada é estável.
+  `show display keypad` imprime os quatro cartões em ordem de sorteio — só
+  responde com o teclado na tela. ⚠️ **São DUAS telas**: ao IDENTIFICAR, os cartões
+  sorteados, e o cartão inteiro é um botão (`Rig.pin( )` toca no centro do
+  cartão que contém o dígito); ao DEFINIR um PIN, um teclado numérico COMUM de
+  posições fixas (`Rig.pin_exact( )`, que não lê sorteio nenhum). Trocar os
+  dois faz a entrada virar outro PIN sem erro nenhum. ⚠️ O rodapé mudou em
+  19/09: ⌫ / SAIR / ENTRAR nos rects padrão (y=195, h=40) e sem o botão da
+  licença — as coordenadas antigas caem no lugar errado. ⚠️ **O sorteio muda a cada TOQUE**, então é uma leitura
+  por dígito: ler custa a janela de 5 s da prioridade do toque, o que dá ~6 s
+  por dígito (um PIN de 4 leva ~25 s). Não bate nos 30 s de ociosidade porque
+  cada toque rearma o contador.
+  ⚠️ Identificar com 8 toques bloqueia o Core 0 por ~360 ms (medido 19/09:
+  449 ms de pior resposta HTTP contra 91 ms ocioso) — uma requisição web que
+  caia nessa janela simplesmente espera.
 - **Captura que mostra a tela ANTERIOR com o modo já trocado não é o
   instrumento mentindo** — era o Core 1 perdendo o pedido de repintura que
   chegava durante um desenho (7 de 7 logins em 19/09 deixavam o teclado no

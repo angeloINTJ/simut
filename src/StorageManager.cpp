@@ -2055,12 +2055,100 @@ String StorageManager::hashPasswordV1(const String& username, const String& plai
 
 /* ── Panel PIN (v24) ─────────────────────────────────────────────────────── */
 
-void StorageManager::pinDigestWith(const uint8_t* salt, const char* pin, uint8_t* out) {
- unsigned char full[32];
- /* Domain-separated from the password chain: a PIN that happens to equal a
-  * password must not yield a digest comparable with that password's. */
- hmacChain(String("pin:") + pin, salt, 8, PIN_HMAC_ROUNDS, full);
+/* ── The PIN chain ───────────────────────────────────────────────────────────
+ * state0 = SHA-256("pin:" || salt || board serial)
+ * state_i = SHA-256(state_{i-1} || c_i)
+ * digest  = SHA-256(state_n || 0x00 || n)[0 .. PIN_HASH_LEN)
+ *
+ * One block per step — a 32-byte state plus one byte still fits a single
+ * SHA-256 block — which is what makes the scrambled keypad's tree affordable:
+ * every prefix is hashed once no matter how many candidates share it.
+ *
+ * "pin:" keeps it domain-separated from the password chain, so a PIN that
+ * happens to equal a password cannot yield a comparable digest. The length
+ * goes into the final block so that a PIN is not a prefix of a longer one. */
+void StorageManager::pinChainInit(const uint8_t* salt, uint8_t out[32]) {
+ const String pepper = StorageManager::getBoardSerialNumber( );
+ br_sha256_context ctx;
+ br_sha256_init(&ctx);
+ br_sha256_update(&ctx, "pin:", 4);
+ br_sha256_update(&ctx, salt, 8);
+ br_sha256_update(&ctx, pepper.c_str( ), pepper.length( ));
+ br_sha256_out(&ctx, out);
+}
+
+void StorageManager::pinChainStep(const uint8_t in[32], char c, uint8_t out[32]) {
+ br_sha256_context ctx;
+ br_sha256_init(&ctx);
+ br_sha256_update(&ctx, in, 32);
+ br_sha256_update(&ctx, &c, 1);
+ br_sha256_out(&ctx, out);
+}
+
+void StorageManager::pinChainFinal(const uint8_t in[32], uint8_t len, uint8_t* out) {
+ const uint8_t tail[2] = { 0x00, len };
+ uint8_t full[32];
+ br_sha256_context ctx;
+ br_sha256_init(&ctx);
+ br_sha256_update(&ctx, in, 32);
+ br_sha256_update(&ctx, tail, sizeof(tail));
+ br_sha256_out(&ctx, full);
  memcpy(out, full, PIN_HASH_LEN);
+}
+
+void StorageManager::pinDigestWith(const uint8_t* salt, const char* pin, uint8_t* out) {
+ uint8_t state[32];
+ pinChainInit(salt, state);
+ uint8_t n = 0;
+ for (const char* p = pin; *p && n < 255; p++, n++) pinChainStep(state, *p, state);
+ pinChainFinal(state, n, out);
+}
+
+/* The scrambled keypad's entry: n taps, each naming one card of three glyphs.
+ * Depth-first over the tree of strings those taps can spell, one hash per
+ * node, finalising only at depth n. A glyph that is not a PIN character (the
+ * decoys that keep every card three glyphs wide) has no branch, so a card with
+ * two digits costs two.
+ *
+ * It scans the WHOLE tree even after a match, because two accounts whose PINs
+ * are both consistent with the same taps must not let either of them in: the
+ * panel cannot ask which. That costs nothing — the tree was going to be walked
+ * anyway — and it is the only place the ambiguity can be seen. */
+int StorageManager::findUserByPinSet(const char taps[][PinKb::SLOTS + 1],
+                                     uint8_t n, bool* ambiguous) const {
+ if (ambiguous) *ambiguous = false;
+ if (!taps || n < PIN_MIN_LEN || n > PIN_MAX_LEN) return -1;
+
+ uint8_t state[PIN_MAX_LEN + 1][32];
+ int8_t idx[PIN_MAX_LEN];
+ pinChainInit(_currentConfig.pinAuth.pinSalt, state[0]);
+
+ int found = -1;
+ uint32_t visited = 0;
+ int d = 0;
+ idx[0] = -1;
+ while (d >= 0) {
+  if (++idx[d] >= (int8_t)PinKb::SLOTS) { d--; continue; }
+  const char c = taps[d][idx[d]];
+  if (!PinKb::isDigitChar(c)) continue;      /* a decoy is not a branch */
+  pinChainStep(state[d], c, state[d + 1]);
+  /* Every 64 nodes: an 8-tap entry is ~16,000 of them, and the hardware
+   * watchdog does not care that the core is busy on purpose. */
+  if ((++visited & 0x3F) == 0) watchdog_update( );
+  if (d + 1 == (int)n) {
+   uint8_t digest[PIN_HASH_LEN];
+   pinChainFinal(state[d + 1], n, digest);
+   const int owner = pinDigestOwner(digest);
+   if (owner >= 0) {
+    if (found >= 0 && found != owner) { if (ambiguous) *ambiguous = true; return -1; }
+    found = owner;
+   }
+  } else {
+   d++;
+   idx[d] = -1;
+  }
+ }
+ return found;
 }
 
 int StorageManager::pinDigestOwner(const uint8_t* digest, int exceptSlot) const {

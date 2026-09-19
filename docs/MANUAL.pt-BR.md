@@ -283,21 +283,60 @@ quando há mais de quatro ativos e abrem as configurações (**CFG**).
 ### O PIN identifica quem está no painel
 
 Desde a config v24 o painel não tem mais um PIN do aparelho: cada conta tem o
-seu, de 4 a 8 dígitos, digitado num teclado numérico. O PIN é a identidade —
-não há campo de usuário — e por isso é **único** entre as contas. O admin de
-fábrica começa com `1234` e é obrigado a trocá-lo no primeiro acesso ao menu
-(um aparelho atualizado herda o PIN do display que tinha, se era numérico).
-Duas tentativas erradas são grátis; a terceira espera 5 s, depois 15 s, 60 s, e
-a sexta bloqueia até o próximo reboot.
+seu, de **4 a 8 dígitos**. O PIN é a identidade — não há
+campo de usuário — e por isso é **único** entre as contas. O admin de fábrica
+começa com `1234` e é obrigado a trocá-lo no primeiro acesso ao menu (um
+aparelho atualizado herda o PIN do display que tinha, se era numérico). Duas
+tentativas erradas são grátis; a terceira espera 5 s, depois 15 s, 60 s, e a
+sexta bloqueia até o próximo reboot.
+
+### O teclado embaralhado
+
+Um teclado numérico fixo entrega o PIN a quem olha por cima do ombro: as
+posições dos dedos são sempre as mesmas. Então o painel distribui os dez
+dígitos em **quatro cartões de três glifos** e **sorteia de novo a cada
+toque** — quem observa não consegue nem dizer se dois dígitos do PIN são
+iguais, porque dois toques no mesmo lugar não são os mesmos três dígitos.
+
+**Ao entrar, o cartão inteiro é um botão.** Um toque por dígito, e o toque diz
+apenas *"é um destes três"* — nem o aparelho fica sabendo qual. Quem observa
+vê quatro toques que, num PIN de 4 dígitos, cabem em até 81 senhas diferentes.
+No OK, o Core 0 percorre todas as senhas que a sequência pode soletrar e
+procura a que pertence a alguma conta; é assim que ele descobre **quem** está
+no painel. Se duas contas casarem com a mesma sequência, nenhuma entra — o
+painel não tem como perguntar qual era.
+
+Dez dígitos em doze posições deixariam dois cartões visivelmente mais curtos,
+o que já diria algo a quem observa. As duas posições que sobram recebem um
+**símbolo**, sorteado junto: todo cartão mostra três glifos, na mesma cor dos
+dígitos. O símbolo é enchimento — o PIN é só de dígitos, e um cartão que tem
+um deles simplesmente vale por dois dígitos na hora da busca.
 
 ![PIN](images/screens/panel-pin-keypad.png) ![PIN inválido](images/screens/panel-pin-invalid.png)
 
+> **Ao DEFINIR um PIN a tela é outra**: um teclado numérico comum, com os
+> dígitos onde um teclado numérico os põe. Embaralhar serve para esconder um
+> PIN que alguém já tem de quem está olhando; escolher um é o problema
+> oposto, e caçar o dígito num sorteio só custa toques.
+
+> ⚠️ **O preço disso.** Quatro toques quaisquer cobrem 81 dos 10.000 PINs de 4
+> dígitos — contra 32 contas, um palpite tem ~26 % de chance de acertar alguma.
+> Com 6 dígitos cai para ~2 % e com 8 para ~0,2 %. A escada de bloqueio (2
+> livres, 5 s, 15 s, 60 s, e o 6º erro tranca até reiniciar) é o que segura o
+> resto. Para um aparelho com muitas contas, PINs de 6 ou mais dígitos.
+
 Quem define PINs: o próprio usuário (item **Alterar Senha**), um administrador
 no item **Usuários** do painel, a página `/users` da web ou `user pin` no CLI.
+O rodapé é o mesmo das outras telas do painel: ⌫, **SAIR** e **ENTRAR**. SAIR
+responde até durante um bloqueio, porque é a saída da tela. (A licença tinha um
+botão aqui e não tem mais — ela é um item do menu.)
 
 ### Configurações
 
-Alcançadas pelo CFG, depois do PIN. O menu lista **só o que a conta pode**:
+Alcançadas pelo CFG, depois do PIN. O título diz **quem entrou** —
+"Configurações > *nome*" — porque a sessão do painel dura até sair da árvore e
+tudo o que for feito nela sai assinado com esse nome. O menu lista **só o que a
+conta pode**:
 temas, sons, idioma, calibração e alinhamento pedem `SYS_CONFIG`; **Alarmes**
 pede qualquer um dos três bits do painel; **Usuários** pede `USER_MGR`; PIN,
 licença e status são de todos. Um operador com os bits de alarme vê quatro
@@ -326,14 +365,16 @@ e o bit de bloqueio.
 
 ### Usuários
 
-Item do menu para quem tem `USER_MGR`. Lista as contas (ADM para o admin; as
+Item do menu para quem tem `USER_MGR`. Lista as contas — **menos o admin**,
+que não tem nada aqui que se possa mudar: os bits dele são todos, ele não é
+excluível, e o PIN dele é o item **Alterar Senha** do próprio menu dele. As
 letras **L B M** dizem quais dos três bits do painel a conta tem; um ponto
-depois do nome diz que ela tem PIN). **NOVO** cria uma conta em três telas:
+depois do nome diz que ela tem PIN. **NOVO** cria uma conta em três telas:
 nome (teclado), os três bits, PIN duas vezes. Uma conta criada aqui é **só do
 painel** — não entra na web até um administrador lhe dar um bit de página e
 resetar a senha. Selecionar uma conta abre o editor: os bits, **Definir PIN**
-e **Excluir usuário** (com confirmação). O admin não é excluível e seus bits
-são fixos. Um PIN que já é de outra conta é recusado na hora.
+e **Excluir usuário** (com confirmação). Um PIN que já é de outra conta é
+recusado na hora.
 
 ![usuários](images/screens/panel-users-list.png) ![novo usuário](images/screens/panel-new-user-keyboard.png) ![bits](images/screens/panel-new-user-bits.png) ![PIN em uso](images/screens/panel-pin-in-use.png) ![excluir](images/screens/panel-delete-confirm.png)
 
@@ -613,7 +654,8 @@ Treze bits de permissão, concedidos de forma independente:
 | `0x1000` | MAINT | **Painel:** abrir/encerrar manutenção |
 
 Os três últimos valem no painel (§5); na web a seção de alarmes segue com
-`SYS_CONFIG`. Cada conta pode ter um **PIN do painel** (4–8 dígitos, único).
+`SYS_CONFIG`. Cada conta pode ter um **PIN do painel** (4–8 dígitos, único
+entre as contas).
 
 **Admin é todos os bits ligados.** Três operações exigem admin completo em vez
 de um único bit: colocar uma imagem de firmware em staging

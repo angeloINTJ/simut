@@ -267,27 +267,72 @@ four are active, and open settings (**CFG**).
 
 ### The PIN identifies who is at the panel
 
-Since config v24 there is no device PIN: every account has its own, 4 to 8
-digits on a numeric keypad. The PIN is the identity — there is no username
-field — so it is **unique** across accounts. The factory admin starts with
-`1234` and must change it on its first visit to the menu (an upgraded device
-inherits the display PIN it had, when it was numeric). Two wrong tries are
-free; the third waits 5 s, then 15 s, 60 s, and the sixth locks the keypad
-until the next reboot.
+Since config v24 there is no device PIN: every account has its own, **4 to 8
+digits**. The PIN is the identity — there is no username field — so it is
+**unique** across accounts. The factory admin starts with `1234` and must
+change it on its first visit to the menu (an upgraded device inherits the
+display PIN it had, when it was numeric). Two wrong tries are free; the third
+waits 5 s, then 15 s, 60 s, and the sixth locks the keypad until the next
+reboot.
+
+### The scrambled keypad
+
+A fixed numeric pad hands the PIN to whoever is watching over your shoulder:
+the finger positions are always the same ones. So the panel deals the ten
+digits over **four cards of three glyphs** and **re-deals after every tap** —
+a watcher cannot even tell whether two digits of the PIN are equal, because two
+taps on the same spot are not the same three digits.
+
+**When identifying, the whole card is one button.** One tap per digit, and the
+tap says only *"one of these three"* — not even the device learns which. A
+watcher sees four taps that, for a 4-digit PIN, stand for up to 81 different
+PINs. On OK, Core 0 walks every string the sequence can spell and looks for the
+one that belongs to an account; that is how it learns **who** is at the panel.
+If two accounts match the same sequence, neither gets in — the panel has no way
+to ask which was meant.
+
+Ten digits in twelve slots would leave two cards visibly shorter, which is
+itself something to read off the glass. The two spare slots take a **symbol**,
+dealt with them: every card shows three glyphs, in the same ink as the digits.
+A symbol is filler — the PIN is digits only, so a card holding one simply
+counts for two digits when the search runs.
 
 ![PIN](images/screens/panel-pin-keypad.png) ![invalid](images/screens/panel-pin-invalid.png)
+
+> **Setting a PIN is another screen**: an ordinary numeric pad, digits where a
+> numeric pad puts them. Scrambling hides a PIN someone already has from
+> someone watching; choosing one is the opposite problem, and hunting a digit
+> through a shuffled deal only costs taps.
+
+> ⚠️ **What it costs.** Any four taps cover 81 of the 10,000 four-digit PINs —
+> against 32 accounts a blind guess has a ~26% chance of hitting one. Six
+> digits bring that to ~2%, eight to ~0.2%. The lockout ladder (two free, 5 s,
+> 15 s, 60 s, and the sixth failure locks until reboot) carries the rest. On a
+> device with many accounts, use six digits or more.
+
+> The pre-v24 keypad worked this way too, with one difference that mattered:
+> it held the PIN in plaintext and planted the expected character in a random
+> key among three decoys, so it only ever had to check one string. v24 stores a
+> digest and identifies BY the PIN, so there is no expected character — which
+> is why the device now walks the whole set of candidates instead.
 
 PINs are set by the user (**Change Password** item), by an administrator in the
 panel's **Users** item, on the `/users` web page, or with `user pin` on the CLI.
 
 ### Settings
 
-Reached through CFG. Covers visual themes, alarm limits, alarm sounds,
-interface language, one's own PIN, touch calibration, touch sensitivity,
-display alignment, system status and the license text. Since v2.1.9 the
-PIN/password screen is a fingertip keyboard: eight large group keys open a
-popup with both cases at once, so any of the 91 accepted characters costs
-exactly two taps.
+Reached through CFG, after the PIN. The title says **who is in** — "Settings >
+*name*" — because the panel session lasts until the tree is left and everything
+done in it is signed with that name. The menu lists **only what the account's
+bits reach**: themes, sounds, language, calibration and alignment want
+`SYS_CONFIG`; **Alarms** wants any one of the three panel bits; **Users** wants
+`USER_MGR`; one's own PIN, the license and the status screen are everyone's. An
+alarm operator sees four items, the admin ten.
+
+The fingertip keyboard of v2.1.9 — eight large group keys opening a popup with
+both cases at once, any of 91 characters in two taps — is still how text is
+typed here, which today means the name of a new account; the PIN has the keypad
+above.
 
 **System status** is the screen worth knowing: device name, firmware version,
 board serial, uptime, free heap, flash usage and board temperature — the
@@ -457,15 +502,16 @@ account's bits reach: an alarm operator sees four items, the admin ten.
 
 ### Users
 
-A menu item for accounts holding `USER_MGR`. It lists the accounts (ADM for the
-admin; the letters **L B M** say which of the three panel bits an account has;
-a dot after the name says it has a PIN). **NEW** creates an account in three
+A menu item for accounts holding `USER_MGR`. It lists the accounts — **except
+the admin**, which has nothing here that can be changed: its bits are all of
+them, it cannot be deleted, and its own PIN is the **Change Password** item of
+its own menu. The letters **L B M** say which of the three panel bits an
+account has; a dot after the name says it has a PIN. **NEW** creates an account in three
 screens: name (keyboard), the three bits, PIN twice. An account created here is
 **panel-only** — it cannot enter the web until an administrator grants it a page
 bit and resets its password. Selecting an account opens the editor: the bits,
-**Set PIN** and **Delete user** (with confirmation). The admin cannot be
-deleted and its bits are fixed. A PIN that belongs to another account is
-refused on the spot.
+**Set PIN** and **Delete user** (with confirmation). A PIN that belongs to
+another account is refused on the spot.
 
 ![users](images/screens/panel-users-list.png) ![new user](images/screens/panel-new-user-keyboard.png) ![bits](images/screens/panel-new-user-bits.png) ![PIN in use](images/screens/panel-pin-in-use.png) ![delete](images/screens/panel-delete-confirm.png)
 

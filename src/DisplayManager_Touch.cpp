@@ -1528,17 +1528,10 @@ void DisplayManager::handleTouch( ) {
  }
  else {
  if (!acceptTouch(12)) return;
- if (_licenseFromAuth) {
- _licenseFromAuth = false;
- _uiMode = MODE_AUTH;
- _forceSettingsRedraw = true;
- _repaintSettings = true;
- /* License covered the keypad with fillScreen — force
- * repaint without resetting partial PIN or auth state. */
- requestAuthKeypadRedraw( );
- } else {
+ /* Always back to the menu: the license is a menu item and nothing else
+  * reaches it. The keypad used to carry a button for it and had to come
+  * back to a half-typed PIN; that button is gone (2026-09-19). */
  showSettingsMain( );
- }
  }
  }
  }

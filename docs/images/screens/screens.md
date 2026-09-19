@@ -31,15 +31,16 @@ drives the panel through `POST /api/touch` (see the script for why not
 
 | Screen | UiMode | How to reach it | What it is |
 |---|---|---|---|
-| ![panel-pin-keypad](panel-pin-keypad.png)<br>`panel-pin-keypad` | `MODE_AUTH` | `screen dash -> tap(286,215)` | The numeric PIN keypad that replaced the device PIN; the PIN identifies the account |
-| ![panel-pin-invalid](panel-pin-invalid.png)<br>`panel-pin-invalid` | `MODE_AUTH` | wrong PIN + OK | Refused; the lockout ladder runs behind it |
+| ![panel-pin-keypad](panel-pin-keypad.png)<br>`panel-pin-keypad` | `MODE_AUTH` | `screen dash -> tap(286,215)` | The scrambled PIN keypad: ten digits and two decoy symbols dealt over four cards, re-dealt on every entry. Identifying, a whole card is one tap; setting a PIN, each slot is. `show display keypad` prints the deal — nothing else can find a digit |
+| ![panel-pin-new](panel-pin-new.png)<br>`panel-pin-new` | `MODE_AUTH` | menu -> Change Password | Setting a PIN is an ORDERED pad: choosing digits is not the problem scrambling solves |
+| ![panel-pin-invalid](panel-pin-invalid.png)<br>`panel-pin-invalid` | `MODE_AUTH` | wrong PIN + OK | Refused; the deal is rolled again and the lockout ladder runs behind it |
 | ![panel-menu-operator](panel-menu-operator.png)<br>`panel-menu-operator` | `MODE_SETTINGS_MAIN` | PIN of an account with panel bits only | The menu lists what the account's bits reach |
 | ![panel-sensor-menu](panel-sensor-menu.png)<br>`panel-sensor-menu` | `MODE_SETTINGS_ALARM_SENSOR` | `screen alm -> tap(160,57)` | Per-sensor actions: limits, alarms on/off, maintenance |
 | ![panel-sensor-menu-maint-only](panel-sensor-menu-maint-only.png)<br>`panel-sensor-menu-maint-only` | `MODE_SETTINGS_ALARM_SENSOR` | same, account with `PERM_MAINT` only | Lines without the bit are dimmed with a padlock (kept when selected); the menu opens on the first line the account may use |
 | ![panel-limit-editor](panel-limit-editor.png)<br>`panel-limit-editor` | `MODE_SETTINGS_ALARM_EDIT` | sensor menu -> Alarm limits | The limit editor; SAVE stores and sends `alarm_lim` with `lo`/`hi` |
 | ![panel-maint-entry](panel-maint-entry.png)<br>`panel-maint-entry` | `MODE_SETTINGS_MAINT` | sensor menu -> Maintenance | Hours and minutes of the window |
 | ![panel-maint-remaining](panel-maint-remaining.png)<br>`panel-maint-remaining` | `MODE_SETTINGS_MAINT` | same, window open | Time left; END closes early |
-| ![panel-users-list](panel-users-list.png)<br>`panel-users-list` | `MODE_SETTINGS_USERS` | `screen usr` | Accounts, their panel bits (L B M) and whether they hold a PIN |
+| ![panel-users-list](panel-users-list.png)<br>`panel-users-list` | `MODE_SETTINGS_USERS` | `screen usr` | Accounts except the admin, their panel bits (L B M) and whether they hold a PIN |
 | ![panel-new-user-keyboard](panel-new-user-keyboard.png)<br>`panel-new-user-keyboard` | `MODE_SETTINGS_PASSWORD` | users -> NEW | The name of a new account |
 | ![panel-new-user-bits](panel-new-user-bits.png)<br>`panel-new-user-bits` | `MODE_SETTINGS_USER_EDIT` | name -> OK | The three panel bits; NEXT asks for the PIN twice |
 | ![panel-new-user-pin](panel-new-user-pin.png)<br>`panel-new-user-pin` | `MODE_AUTH` | bits -> NEXT | New PIN, typed twice |

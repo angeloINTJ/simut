@@ -31,6 +31,7 @@ class Adafruit_GFX;
 #include "pico/multicore.h"
 #include "pico/util/queue.h"
 #include "SystemDefs.h"
+#include "PinKeypad.h"   /* PinKb:: — geometry of the scrambled PIN keypad */
 #include "Themes.h"
 #include "SoundManager.h"
 
@@ -504,12 +505,21 @@ public:
 	void showPinEntry(uint8_t purpose, int8_t targetUser = -1);
 	/** Forces repaint of the keypad after another screen (the license)
 	 * covered it. State (typed digits, lockout) is untouched. */
-	void requestAuthKeypadRedraw( );
 	/** Core 0's verdict on the PIN of the last EVT_AUTH_PIN. Runs the lockout
 	 * ladder on failure. @return failures so far (0 on success). */
 	int authResult(bool ok);
 	void getEnteredPin(char* out, size_t cap) const;
 	void clearEnteredPin( );
+	/** One card of the scrambled PIN keypad, for `show display keypad`.
+	 *  Returns the glyph count, 0 when the keypad is not on screen. */
+	uint8_t pinKeyFace(int key, char* out, size_t cap) const;
+	/** The card taps of an identification attempt — for each one, the glyphs
+	 *  that were on the card at the moment it was tapped. Returns the count;
+	 *  meaningless unless the purpose is PIN_FOR_AUTH. */
+	uint8_t getEnteredPinTaps(char out[][PinKb::SLOTS + 1], size_t cap) const;
+	/** True while the keypad is identifying (card taps) rather than setting
+	 *  a PIN (slot taps). */
+	bool pinIsIdentifying( ) const { return _pinPurpose == PIN_FOR_AUTH; }
 	/** Who the session is, and what its bits allow — the menus filter on it. */
 	void setPanelSession(int8_t user, uint16_t perms);
 	int8_t panelUser( ) const { return _panelUser; }
@@ -1003,8 +1013,16 @@ private:
 
 	/* PIN keypad + lockout (v24: DisplayManager_Users.cpp) */
 	void drawPinScreen( );
+	void drawPinCardInto(GFXcanvas16* cv, int key, int16_t ox, int16_t oy);
+	void blitPinCards( );
+	void drawPinPadInto(GFXcanvas16* cv, int16_t oy);
+	/** Username of the account this panel session belongs to, "" when there is
+	 *  none. Core 1 reads the config directly, as the users list already does. */
+	const char* panelUserName( ) const;
+	void drawPinDotsInto(GFXcanvas16* cv, int16_t oy);
 	void pinCancel( );
 	void pinSubmit( );
+	void scramblePinKeys( );
 	bool _authFailed = false;
 	int _failedAttempts = 0;
 	uint32_t _lockoutUntil = 0;
@@ -1016,6 +1034,23 @@ private:
 	uint8_t _pinPurpose = 0;        /**< PinPurpose */
 	int8_t _pinTarget = -1;         /**< PIN_FOR_USER: whose */
 	LangKey _pinMsg = TR_KEYS_COUNT;/**< transient line under the dots */
+	/* The scrambled keypad (PinKeypad.h): ten digits and two decoy symbols
+	 * dealt over four cards of three slots, re-dealt on every entry, on every
+	 * refusal and between the two halves of a new PIN — so that tap positions
+	 * never repeat for a watcher. Core 1 owns these; the CLI reads them through
+	 * pinKeyFace( ) for the bench, which cannot find a digit it is not told the
+	 * position of. Every card always holds SLOTS glyphs, so there is no length
+	 * to read off a card. */
+	char _pinKeyChars[PinKb::KEYS][PinKb::SLOTS + 1] = {{0}};
+	/* Identification taps: each one keeps THE GLYPHS THAT WERE ON THE CARD when
+	 * it was tapped, not the card's index. The deal is rolled again after every
+	 * tap, so an index would name a card that no longer holds the same digits —
+	 * and the point of re-dealing is that two taps on the same spot mean two
+	 * different things. Core 0 walks the strings these spell
+	 * (StorageManager::findUserByPinSet). Setting a PIN cannot work that way —
+	 * it needs the exact digits — so that path uses the ordered pad and _pinBuf. */
+	char _pinTaps[PIN_MAX_LEN][PinKb::SLOTS + 1] = {{0}};
+	bool _pinCardsDirty = false;    /**< the deal moved; the cards owe a blit */
 	volatile bool _pinWaiting = false; /**< handed to Core 0, no verdict yet */
 	int8_t _panelUser = -1;
 	uint16_t _panelPerms = 0;
@@ -1149,7 +1184,6 @@ private:
 	void drawSettingsLicense( );
 	int _licensePage = 0;
 	int _licenseTotalPages = 1;
-	bool _licenseFromAuth = false; /* return to auth instead of settings */
 
 	bool _calValid = false;
 	bool _calSwapXY = false;

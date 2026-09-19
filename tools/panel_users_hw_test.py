@@ -47,11 +47,19 @@ ROW_Y = [57, 95, 133, 171]                 # 4-row lists: 40 + i*38, centred
 FOOT = {'up': (39, 215), 'down': (105, 215), 'exit': (170, 215), 'enter': (250, 215)}
 ALARMS_EXIT = (228, 215)                   # the alarms list's wide BACK
 CFG_BTN = (286, 215)                       # dashboard footer, 5th slot
-PIN_COL = [65, 155, 245]                   # PinPad X0=25 + c*90, centred
-PIN_ROW = [83, 115, 147, 179]              # PinPad Y0=68 + r*32, centred
-PIN_KEYS = {'1': (0, 0), '2': (0, 1), '3': (0, 2), '4': (1, 0), '5': (1, 1), '6': (1, 2),
-            '7': (2, 0), '8': (2, 1), '9': (2, 2), '<': (3, 0), '0': (3, 1), 'K': (3, 2)}
-PIN_CANCEL = (60, 218)
+# PIN keypad (src/PinKeypad.h): four cards of three slots, the ten digits and
+# two decoy symbols dealt over them at random. The script cannot guess where a
+# digit is — `show display keypad` is what tells it. One tap per digit.
+PIN_KEY_X = [6, 162, 6, 162]               # PinKb::KEY_X
+PIN_KEY_Y = [72, 72, 122, 122]             # PinKb::KEY_Y
+PIN_SLOT_W, PIN_SLOT_X0, PIN_KEY_W, PIN_KEY_H = 50, 1, 152, 44
+PIN_BACK = (70, 215)                       # backspace, FOOT_BACK_X + W/2
+PIN_CANCEL = (178, 215)                    # TR_BACK, FOOT_EXIT_X + W/2
+PIN_OK = (268, 215)                        # TR_ENTER, FOOT_OK_X + W/2
+# The ordered pad, for SETTING a PIN (PinKb::NUM_*): fixed positions, so
+# pin_exact( ) needs no reading of the deal.
+NUM_COL = [65, 155, 245]
+NUM_ROW = [84, 115, 146, 177]
 MSG_OK = (160, 205)
 MAINT_ROW = [77, 125]                      # bars at 60 and 108, 34 high
 MAINT_DEC, MAINT_INC, MAINT_MID = 30, 280, 160
@@ -258,13 +266,54 @@ class Rig:
             time.sleep(2)
         return False
 
-    def pin(self, digits, ok=True):
-        for d in digits:
-            r, c = PIN_KEYS[d]
-            self.tap(PIN_COL[c], PIN_ROW[r], 0.6)
+    def keypad_faces(self):
+        """The four cards, in deal order (three glyphs each, decoys included).
+        ⚠️ Since the deal is rolled after EVERY tap, this has to be read again
+        before each one — and a read costs the 5 s touch-priority window, which
+        is why typing a PIN here takes ~6 s per digit. The idle guard is not a
+        problem: 6 s is well inside the 30 s that would send the panel home."""
+        out = self.cmd('show display keypad', quiet_for=0.8, timeout=12)
+        faces = {}
+        for line in out.splitlines():
+            m = re.match(r'^([0-3]):\s(.+?)\s*$', line)
+            if m:
+                faces[int(m.group(1))] = m.group(2)
+        if len(faces) != 4:
+            raise SystemExit(f'keypad not on screen (got {len(faces)} faces): {out.strip()[:120]}')
+        return [faces[i] for i in range(4)]
+
+    def _card_of(self, faces, ch):
+        k = next((i for i in range(4) if ch in faces[i]), None)
+        if k is None:
+            raise SystemExit(f'{ch!r} is on no card: {faces}')
+        return k, faces[k].index(ch)
+
+    def pin(self, digits, ok=True, faces=None):
+        """Identify: ONE tap per digit, anywhere on the card that holds it.
+        The device never learns which of the card's three glyphs was meant —
+        it resolves the whole sequence against every account's digest.
+
+        The deal is re-rolled after every tap, so the cards are read again
+        before each one. `faces` seeds only the first read."""
+        f = faces if faces is not None else self.keypad_faces()
+        for i, ch in enumerate(digits):
+            if i:
+                f = self.keypad_faces()
+            k, _ = self._card_of(f, ch)
+            self.tap(PIN_KEY_X[k] + PIN_KEY_W // 2, PIN_KEY_Y[k] + PIN_KEY_H // 2, 0.6)
         if ok:
-            r, c = PIN_KEYS['K']
-            self.tap(PIN_COL[c], PIN_ROW[r], 1.6)
+            self.tap(*PIN_OK, 1.6)
+
+    def pin_exact(self, digits, ok=True):
+        """Set a PIN: the screen is the ORDERED pad, not the scrambled cards —
+        choosing a PIN is not the problem scrambling solves. Fixed positions,
+        so there is nothing to read first."""
+        for ch in digits:
+            i = '123456789'.find(ch)
+            r, c = (3, 1) if ch == '0' else (i // 3, i % 3)
+            self.tap(NUM_COL[c], NUM_ROW[r], 0.6)
+        if ok:
+            self.tap(*PIN_OK, 1.6)
 
     def kb_type(self, text):
         """Type lower-case letters on the group keyboard: group, then popup key."""
@@ -318,8 +367,10 @@ def check(results, name, cond, detail=''):
 
 
 def find_perm_free_slot_row(users_list, name):
-    """Row index (0-based, in the panel's list order = ascending slot) of a user."""
-    ordered = sorted(users_list, key=lambda u: u['id'])
+    """Row index (0-based) in the panel's Users list: ascending slot, and
+    WITHOUT the admin — slot 0 is not listed there (nothing on that screen
+    applies to it), so every row is one lower than the API's order."""
+    ordered = sorted((u for u in users_list if u['id'] != 0), key=lambda u: u['id'])
     for i, u in enumerate(ordered):
         if u['name'] == name:
             return i
@@ -328,6 +379,11 @@ def find_perm_free_slot_row(users_list, name):
 
 # ── steps ──────────────────────────────────────────────────────────────────
 def step_prep(rig, col, results, state):
+    """⚠️ prep points the telemetry at the bench collector and only `cleanup`
+    puts the device's own server back, from the backup prep took. Running prep
+    WITHOUT cleanup therefore leaves the rig talking to the collector — and the
+    next run's prep then backs THAT up as if it were the real setting, which is
+    how a real server address gets lost (2026-09-19). Always run cleanup."""
     print('== prep ==')
     cfgj = rig.get('/api/config').json()
     state['tel_backup'] = {k: cfgj.get(k) for k in ('t_srv', 't_port', 't_path', 't_sec', 'a_en', 'a_mode', 'a_qmax', 'a_path')}
@@ -335,13 +391,21 @@ def step_prep(rig, col, results, state):
     check(results, 'alarm line template is the v24 default after migration',
           isinstance(cfgj.get('a_line'), str) and '{user}' in cfgj['a_line'] and '{until}' in cfgj['a_line'],
           cfgj.get('a_line'))
+    # The migration record is written once, on the first boot after it, and the
+    # binary log is a ring: on a rig that has booted a few hundred times since,
+    # it has aged out. Assert what is still true — the device is RUNNING v24 —
+    # and report the record when it is still there.
     ctxs = rig.log_ctx(25)
-    check(results, 'boot log has SYS_STORAGE_MIGRATED (25) with ctx=23', 23 in ctxs, f'ctx values: {ctxs[-4:]}')
+    v24 = all('pin' in u for u in rig.users())
+    check(results, 'the device is running the v24 schema (/api/users carries "pin")',
+          v24, f'SYS_STORAGE_MIGRATED ctx in the log window: {ctxs[-4:] or "aged out"}')
     us = rig.users()
     state['users_before'] = us
     check(results, 'accounts survived the migration', any(u['name'] == 'admin' for u in us), json.dumps(us))
-    check(results, 'admin has a PIN after migration, nobody else', any(u['name'] == 'admin' and u['pin'] for u in us) and
-          all(u['pin'] is False for u in us if u['name'] not in ('admin', 'smap')), '')
+    # "and nobody else" held only on the first boot after the migration; this
+    # rig has carried demo accounts with PINs for days.
+    check(results, 'admin holds a PIN', any(u['name'] == 'admin' and u['pin'] for u in us),
+          json.dumps([(u['name'], u['pin']) for u in us]))
     ip = host_ip()
     rig.cfg(f'tel server {ip}', f'tel port {COLLECTOR_PORT}', 'tel path /tel', 'tel crypto off',
             'alarm set on', 'alarm set mode json', 'alarm set qmax 32', 'alarm set path /tel/alarm',
@@ -468,7 +532,7 @@ def step_admin(rig, col, results, state):
         forced = rig.log_count(302) > n_302      # "Default PIN detected; forcing change."
         check(results, 'admin identified with the inherited factory PIN', True, f'forced change={forced}')
         if forced:
-            rig.pin('2468'); rig.shot('21-admin-new-pin-confirm'); rig.pin('2468')
+            rig.pin_exact('2468'); rig.shot('21-admin-new-pin-confirm'); rig.pin_exact('2468')
             rig.shot('22-admin-pin-saved')
             rig.tap(*MSG_OK, 1.2)
             admin_pin = '2468'
@@ -504,7 +568,7 @@ def step_admin(rig, col, results, state):
     rig.shot('30-new-user-bits-set')
     rig.tap(*FOOT['enter'], 1.2)                 # CONTINUE -> PIN
     rig.shot('31-new-user-pin')
-    rig.pin('1111'); rig.pin('1111')
+    rig.pin_exact('1111'); rig.pin_exact('1111')
     rig.shot('32-new-user-saved')
     rig.tap(*MSG_OK, 1.5)
     rig.shot('33-users-list-with-ana')
@@ -518,7 +582,7 @@ def step_admin(rig, col, results, state):
     rig.activate_row(row)
     rig.shot('34-user-edit-pjoao')
     rig.activate_row(3)                          # Set PIN
-    rig.pin('8765'); rig.pin('8765')
+    rig.pin_exact('8765'); rig.pin_exact('8765')
     rig.shot('35-pin-in-use')
     rig.tap(*MSG_OK, 1.2)                        # back to the editor
     rig.tap(*FOOT['exit'], 1.0)                  # back to the list

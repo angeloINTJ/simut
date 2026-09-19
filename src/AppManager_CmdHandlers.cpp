@@ -474,6 +474,10 @@ void AppManager::cmdHandleUserAdd(const CliDemand& cmd, SystemConfig& cfg, bool&
  _cmdMgr->printError(pt ? "Sem slot livre (max usuarios)" : "No free slot (max users)");
  return;
  }
+ /* A config written before deletion cleared the record can still carry a
+  * PIN digest in an inactive slot, so the allocation clears it too — the
+  * account being created never asked for a PIN. */
+ memset(cfg.users[freeSlot].pinHash, 0, PIN_HASH_LEN);
  safeCopy(cfg.users[freeSlot].username, cmd.strVal1, sizeof(cfg.users[freeSlot].username));
  {
  /* SEC-007/009 (F15): salt random + hashVersion=1 — mesmo esquema de

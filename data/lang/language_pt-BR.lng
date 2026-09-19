@@ -307,6 +307,7 @@ PIN inválido!
 999 Erro desconhecido
 @TRL
 9598a022 CLI definiu PIN do painel: 
+461b2d8f Duas contas casam com a mesma entrada do teclado.
 68c547be CLI removeu PIN do painel: 
 b52b332c Config migrada para o schema atual
 c58f1416 Admin aplicou alterações sem reiniciar

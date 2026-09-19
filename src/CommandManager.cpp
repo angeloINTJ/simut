@@ -311,6 +311,7 @@ uint8_t getCommandModeMask(DemandType t) {
  case CMD_SHOW_SYSINFO:      return CLI_VALID_READONLY;
  case CMD_SHOW_NET:          return CLI_VALID_READONLY;
  case CMD_SHOW_METRICS:      return CLI_VALID_READONLY;
+ case CMD_SHOW_KEYPAD:       return CLI_VALID_READONLY;
  case CMD_SHOW_SENSOR_TYPES: return CLI_VALID_READONLY;
  case CMD_SHOW_GPIO:         return CLI_VALID_READONLY;
  /* Session — exec modes */
@@ -464,6 +465,7 @@ void CommandManager::printModeHelp( ) {
   showIf(CMD_SHOW_SYSINFO,    pt ? "  show system info      Info do sistema"        : "  show system info      System info");
   showIf(CMD_SHOW_NET,        pt ? "  show net status       Status da rede"         : "  show net status       Network status");
   showIf(CMD_SHOW_METRICS,    pt ? "  show metrics          Metricas operacionais"   : "  show metrics          Operational metrics");
+  showIf(CMD_SHOW_KEYPAD,     pt ? "  show display keypad   Teclas do PIN no painel"  : "  show display keypad   Panel PIN key faces");
   showIf(CMD_SHOW_STORAGE,    pt ? "  show storage stats    Estatisticas flash"     : "  show storage stats    Flash statistics");
   showIf(CMD_SHOW_THEMES,     pt ? "  show themes           Listar temas"           : "  show themes           List themes");
   showIf(CMD_SHOW_GPIO,       pt ? "  show gpio             Mapa de GPIOs"          : "  show gpio             GPIO map");

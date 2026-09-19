@@ -1292,6 +1292,11 @@ void WebManager::handleApiCommitAll( ) {
 					}
 					if (slot < 0) { rejectField("users.full"); objStart = objEnd + 1; continue; }
 
+					/* A config written before deletion cleared the record can
+					 * still carry a PIN digest in an inactive slot, so the
+					 * allocation clears it: the "pin" field below is the only
+					 * thing that may give this account one. */
+					memset(cfg.users[slot].pinHash, 0, PIN_HASH_LEN);
 					safeCopy(cfg.users[slot].username, name.c_str( ), sizeof(cfg.users[slot].username));
 					cfg.users[slot].permissions = (uint16_t)perms;
 					cfg.users[slot].active = true;
@@ -1326,10 +1331,10 @@ void WebManager::handleApiCommitAll( ) {
 						rejectField("users.id"); objStart = objEnd + 1; continue;
 					}
 					if (type == "del") {
-						cfg.users[id].active = false;
-						memset(cfg.users[id].username, 0, sizeof(cfg.users[id].username));
-						memset(cfg.users[id].password, 0, sizeof(cfg.users[id].password));
-						cfg.users[id].permissions = 0;
+						/* The WHOLE record: v24's panel PIN digest lives in it,
+						 * and a slot that keeps one lets the next account that
+						 * lands there be opened with the deleted account's PIN. */
+						memset(&cfg.users[id], 0, sizeof(cfg.users[id]));
 					} else { /* reset */
 						assignTempPassword(id, tempCreds);
 					}

@@ -269,6 +269,24 @@ void AppManager::executeCommand(CliDemand cmd) {
   break;
  }
  case CMD_SHOW_METRICS: _cmdMgr->renderMetrics( ); break;
+ case CMD_SHOW_KEYPAD: {
+ /* The four faces of the scrambled PIN keypad, in deal order. It exists for
+  * automation: a script driving the panel through POST /api/touch cannot find
+  * a character whose position it was never told, and the faces are already on
+  * the glass for anyone standing at the device. Prints nothing when the keypad
+  * is not the screen, so it can never describe a layout that is not live. */
+ char face[40];
+ bool any = false;
+ for (int k = 0; k < PinKb::KEYS; k++) {
+ const uint8_t n = _displayMgr->pinKeyFace(k, face, sizeof(face));
+ if (!n) continue;
+ any = true;
+ _cmdMgr->consolePrintf("%d: %s\r\n", k, face);
+ }
+ if (!any) _cmdMgr->printError(_cmdMgr->isPt( ) ? "O teclado do PIN nao esta na tela."
+                                                : "The PIN keypad is not on screen.");
+ break;
+ }
  case CMD_SHOW_STORAGE: {
  String rep = _storageMgr->getStatsReport( );
  LOG_CODE(LOG_INFO, "STO", STO_STATS_REPORT, 0, rep);
@@ -1249,8 +1267,12 @@ void AppManager::executeCommand(CliDemand cmd) {
  bool found = false;
  for (int i = 1; i < MAX_USERS; i++) {
  if (cfg.users[i].active && strcmp(cmd.strVal1, cfg.users[i].username) == 0) {
- cfg.users[i].active = false;
- memset(cfg.users[i].password, 0, sizeof(cfg.users[i].password));
+ /* The WHOLE record, not the flag and the password. v24 put a panel PIN
+  * digest in here, and a slot that keeps it hands the next account that
+  * lands on it someone else's way in — found on the rig 2026-09-19: a
+  * freshly created account already answered "has a PIN". The panel's own
+  * delete has always memset the record; these two had not caught up. */
+ memset(&cfg.users[i], 0, sizeof(cfg.users[i]));
  _cmdMgr->printSuccess(String(pt ? "Usuario removido: " : "User deleted: ") + cmd.strVal1);
  LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, i,
  String(TRL("CLI deleted user: ")) + cmd.strVal1);

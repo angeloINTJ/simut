@@ -341,6 +341,8 @@ void DisplayManager::setTopSlotData(float,float,float,SensorType,bool,int,String
 void DisplayManager::showPinEntry(uint8_t, int8_t){}
 int DisplayManager::authResult(bool){return 0;}
 void DisplayManager::getEnteredPin(char* out, size_t cap) const { if (out && cap) out[0] = '\0'; }
+uint8_t DisplayManager::pinKeyFace(int, char* out, size_t cap) const { if (out && cap) out[0] = '\0'; return 0; }
+uint8_t DisplayManager::getEnteredPinTaps(char[][PinKb::SLOTS + 1], size_t) const { return 0; }
 void DisplayManager::clearEnteredPin( ){}
 void DisplayManager::setPanelSession(int8_t, uint16_t){}
 void DisplayManager::showAlarmSensorMenu(int){}

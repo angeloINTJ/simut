@@ -425,16 +425,40 @@ public:
 
  /* ── Panel PIN (v24) ────────────────────────────────────────────────────
   * One digest per attempt, keyed by the device-wide salt, compared against
-  * every account: the PIN is the identity. PIN_HMAC_ROUNDS is small on
-  * purpose — the space is 10^4..10^8, rounds cannot rescue it, and the panel
-  * has to answer a keypad within a blink; the online defence is the keypad's
-  * lockout, the offline one is that the config file needs full admin. */
- static constexpr uint16_t PIN_HMAC_ROUNDS = 200;
+  * every account: the PIN is the identity.
+  *
+  * The digest is a CHAIN, one SHA-256 per character, and that shape is load
+  * bearing. The scrambled keypad names a card of three glyphs per tap, so an
+  * attempt is not one PIN but up to 3^n of them, and they share prefixes: a
+  * depth-first walk pays one hash per NODE of the tree instead of one per
+  * leaf. An 8-tap entry is 9,840 nodes and 6,561 finals against 6,561 x 201
+  * HMACs for the keyed construction this replaced — seconds against minutes.
+  *
+  * Rounds are gone with it, and they were not buying much: the space is
+  * 10^4..10^8, which a PC walks in under two minutes even at 200 rounds.
+  * The online defence is the keypad lockout; the offline one is that the
+  * config file needs full admin. */
+ /** First state: the device salt, the board serial and the domain tag. */
+ static void pinChainInit(const uint8_t* salt, uint8_t out[32]);
+ /** One character of the PIN: state' = SHA-256(state || c). */
+ static void pinChainStep(const uint8_t in[32], char c, uint8_t out[32]);
+ /** Close the chain over its length and keep PIN_HASH_LEN bytes. */
+ static void pinChainFinal(const uint8_t in[32], uint8_t len, uint8_t* out);
  /** Digest of `pin` under `salt` (DisplayAuthConfig::pinSalt), PIN_HASH_LEN bytes. */
  static void pinDigestWith(const uint8_t* salt, const char* pin, uint8_t* out);
  void pinDigest(const char* pin, uint8_t* out) const {
   pinDigestWith(_currentConfig.pinAuth.pinSalt, pin, out);
  }
+ /** Identify by a sequence of CARD taps. `taps[i]` is the glyphs that were on
+  *  the card tapped at step i — the deal is rolled after every tap, so each
+  *  one carries its own — and the entry therefore stands for every string one
+  *  glyph per tap can spell. Walks that tree, hashing prefixes once, and
+  *  returns the slot of the one active account a candidate matches. -1 when
+  *  none does; -1 with `*ambiguous` when two different accounts both match,
+  *  which nobody may be logged in for. A glyph that is not a PIN character —
+  *  the decoys that keep every card three glyphs wide — has no branch. */
+ int findUserByPinSet(const char taps[][PinKb::SLOTS + 1], uint8_t n,
+                      bool* ambiguous) const;
  /** Slot of the active account whose PIN this is, or -1. A PIN that is not
   *  even well-formed answers -1 without hashing. */
  int findUserByPin(const char* pin) const;

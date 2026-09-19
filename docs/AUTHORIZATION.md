@@ -146,13 +146,34 @@ both restore branches now do.
 ## The panel (config v24)
 
 The panel is a fourth surface, next to the web, the CLI and Bluetooth, and it
-has its own identity: a **PIN** of 4 to 8 digits per account, unique across
-accounts because the keypad has no username field — the PIN *is* the lookup.
+has its own identity: a **PIN** of 4 to 8 digits (`PinKb::FIRST`..`LAST`) per
+account, unique across accounts because the keypad has no username field — the
+PIN *is* the lookup.
 CFG on the dashboard opens the keypad; the account it identifies is the panel
-session until the settings tree is left. `EVT_AUTH_PIN` hands the digits to
-Core 0, which compares one HMAC digest (device-wide salt, `pinAuth.pinSalt`)
-against every account, so an attempt costs the same whether or not a PIN
-exists. The keypad lockout ladder is the one the device PIN always had: two
+session until the settings tree is left. `EVT_AUTH_PIN` hands Core 0 the taps of the
+attempt, and each one carries THE THREE GLYPHS THAT WERE ON THE CARD when it
+was made — the deal is rolled again after every tap, so a card index would name
+something else by the time it is read. The keypad never asks which of the three
+was meant, so an entry stands for up to 3^n strings.
+`StorageManager::findUserByPinSet( )` walks that tree depth-first against the
+device-wide salt (`pinAuth.pinSalt`), one hash per node because the digest is a
+per-character chain, and returns the account a candidate belongs to. It walks
+the WHOLE tree: if two accounts both match, neither is let in, because the
+panel cannot ask which was meant. An attempt costs the same whether or not a
+PIN exists, and 8 taps cost ~360 ms of Core 0 (measured on the rig,
+2026-09-19; 4 taps are lost in the noise).
+
+Account records are cleared whole on delete, and a PIN digest is cleared when a
+slot is allocated. Until 2026-09-19 deletion only lowered the `active` flag, so
+the next account to land on that slot inherited the previous holder's PIN and
+could be opened with it — found on the rig, where a freshly created account
+already reported holding a PIN.
+
+The consequence is worth stating plainly: a blind four-tap entry covers 81 of
+the 10,000 four-digit PINs, so against 32 accounts it has roughly a 26% chance
+of matching one. Six digits bring it to ~2%, eight to ~0.2%. What bounds the
+online attack is the lockout ladder below, and the deployment answer is longer
+PINs. The keypad lockout ladder is the one the device PIN always had: two
 free tries, 5 s, 15 s, 60 s, then a lockout only a reboot clears
 (`SEC_PIN_FAIL`/`SEC_PIN_LOCKOUT`, 309/310; `SEC_PIN_OK` 308 with the account).
 

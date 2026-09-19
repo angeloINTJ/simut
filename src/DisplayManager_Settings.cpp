@@ -379,7 +379,32 @@ void DisplayManager::drawSettingsMain( ) {
 
  if (fullRedraw) {
  fastClearScreen(C_BG_MAIN);
- blitTitleBar(tr(TR_CONFIG_MAIN));
+ /* "Configurações > <quem entrou>". The breadcrumb's own translation
+  * supplies everything up to the "> ", so the eight packs keep working and
+  * no string was added; the tail is the account the PIN identified. */
+ char title[48];
+ const char* base = tr(TR_CONFIG_MAIN);
+ const char* name = panelUserName( );
+ const char* sep = (name && name[0]) ? strstr(base, "> ") : nullptr;
+ const size_t keep = sep ? (size_t)(sep - base) + 2 : 0;
+ if (keep && keep < sizeof(title) - 1) {
+ memcpy(title, base, keep);
+ title[keep] = '\0';
+ /* The title card is 312 px wide and its text starts at x=18, and this
+  * bar does not clip — so the name gets whatever the breadcrumb leaves.
+  * The prefix is MEASURED and not counted in bytes: "Configurações > "
+  * is 18 bytes and 16 glyphs, and the same line is 8 shorter in English. */
+ int16_t bx, by; uint16_t pw, ph;
+ _driver.canvas->setFont(&simutFont9pt);
+ _driver.canvas->getTextBounds(title, 0, 0, &bx, &by, &pw, &ph);
+ char fitted[32];
+ truncateText(_driver.canvas, name, fitted, sizeof(fitted),
+ (int16_t)(294 - (int16_t)pw));
+ safeCopy(title + keep, fitted, sizeof(title) - keep);
+ } else {
+ safeCopy(title, base, sizeof(title));
+ }
+ blitTitleBar(title);
  blitFooterMenu(tr(TR_BACK), tr(TR_ENTER)); /* T1.2: no heap */
  }
 

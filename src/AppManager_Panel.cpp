@@ -71,26 +71,43 @@ const char* AppManager::panelUserName( ) const {
  * account's bits and continues to whatever the keypad was opened for. */
 void AppManager::panelIdentify( ) {
  SystemConfig &cfg = _storageMgr->getConfig( );
- char pin[PIN_MAX_LEN + 1];
- _displayMgr->getEnteredPin(pin, sizeof(pin));
- _displayMgr->clearEnteredPin( );
- const int u = _storageMgr->findUserByPin(pin);
- wipe(pin, sizeof(pin));
+
+ /* The keypad hands over, per tap, the three glyphs that were on the card and
+  * never which of them was meant. The deal is rolled after every tap, so the
+  * three change each time. Core 0 walks every string those taps can spell —
+  * the chained digest makes the shared prefixes cheap — and the account one of
+  * them belongs to is who is standing at the panel.
+  *
+  * Nothing in this path ever holds the PIN: the candidate that matched is not
+  * kept, and there is nothing to wipe. */
+ char taps[PIN_MAX_LEN][PinKb::SLOTS + 1];
+ const uint8_t n = _displayMgr->getEnteredPinTaps(taps, PIN_MAX_LEN);
+ bool ambiguous = false;
+ const uint32_t t0 = millis( );
+ const int u = _storageMgr->findUserByPinSet(taps, n, &ambiguous);
+ const uint32_t took = millis( ) - t0;
 
  if (u < 0) {
  const int fails = _displayMgr->authResult(false);
+ /* Two accounts whose PINs both fit the same taps: the panel cannot ask
+  * which, so neither gets in. It is worth its own line — it means two PINs
+  * are close enough that the keypad cannot separate them. */
+ if (ambiguous) LOG_CODE(LOG_WARN, "SEC", SEC_PIN_FAIL, fails,
+                         TRL("Two accounts match the same keypad entry."));
  /* The sixth failure is the permanent lockout (DisplayManager::authResult);
   * it gets its own code so a burst of guesses reads as one event. */
- LOG_CODE(LOG_WARN, "SEC", (fails >= 6) ? SEC_PIN_LOCKOUT : SEC_PIN_FAIL, fails, "");
+ else LOG_CODE(LOG_WARN, "SEC", (fails >= 6) ? SEC_PIN_LOCKOUT : SEC_PIN_FAIL, fails, "");
  return;
  }
+ /* ctx is the account; the search time goes in the text, because it is the
+  * one number that grows with the PIN length and nobody would guess it. */
+ LOG_CODE(LOG_INFO, "SEC", SEC_PIN_OK, u, String((unsigned)took) + " ms");
 
  _panelUser = (int8_t)u;
  _panelPerms = cfg.users[u].permissions;
  _displayMgr->setPanelSession(_panelUser, _panelPerms);
  _displayMgr->authResult(true);
  _soundMgr->play(SND_CONFIRM);
- LOG_CODE(LOG_INFO, "SEC", SEC_PIN_OK, u, cfg.users[u].username);
 
  if (_panelAuthFor == PAUTH_DEACTIVATE) {
  _panelAuthFor = PAUTH_SETTINGS;

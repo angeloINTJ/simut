@@ -32,26 +32,69 @@
 #include "StorageManager.h"          /* userHasPin */
 #include "sensors/SensorChannelTable.h"
 
-/* ── PIN keypad geometry ─────────────────────────────────────────────────────
- * Title bar 4..36, dots 42..66, four key rows of 30 px from y=68 (ends 194),
- * footer buttons at 202..234 exactly where the old keypad's Cancel/License
- * were — the touch zones of those two never moved. Keys are 80 x 30 px
- * (≈14 x 5.4 mm) in three columns; the 4-px safe margin is kept on every
- * side so the display alignment offset can never cut a key. */
-namespace PinPad {
-constexpr int16_t KEY_W = 80, KEY_H = 30, ROW_PITCH = 32, COL_PITCH = 90;
-constexpr int16_t X0 = 25;            /* 25..105, 115..195, 205..285 */
-constexpr int16_t Y0 = 68;            /* 68, 100, 132, 164 */
-constexpr int16_t ROWS = 4, COLS = 3;
-constexpr int16_t DOTS_Y = 42, DOTS_H = 24;
-constexpr int16_t FOOT_Y = 202, FOOT_H = 32;
-/* key legend: row-major, '<' = backspace, 'K' = OK */
-static const char KEYS[ROWS][COLS] = { {'1','2','3'}, {'4','5','6'}, {'7','8','9'}, {'<','0','K'} };
-}
+/* Geometry and character set: PinKeypad.h, shared with the CLI readout. */
 
 /* ────────────────────────────────────────────────────────────────────────── */
 /* PIN entry                                                                  */
 /* ────────────────────────────────────────────────────────────────────────── */
+
+/* Deals the ten digits and two decoy symbols over the four cards.
+ *
+ * Fisher-Yates over the twelve slots, so a digit is as likely to land in any
+ * slot of any card. The two decoys exist to make every card show three glyphs:
+ * ten digits over four cards is 3+3+2+2, and a card visibly shorter than its
+ * neighbours would tell a watcher which cards carry more of the alphabet. They
+ * are symbols because the PIN is digits only — a letter there would read as a
+ * character someone might be expected to type.
+ *
+ * fastRandom( ) is the xorshift the pre-v24 scrambled keypad used, seeded from
+ * micros( ). It is not a CSPRNG and does not need to be: what it hides is the
+ * MEANING OF A TAP POSITION from someone watching the glass, and the PIN's
+ * strength is its length, not this shuffle. Called with _stateMutex held. */
+void DisplayManager::scramblePinKeys( ) {
+	char all[PinKb::KEYS * PinKb::SLOTS];
+	for (int i = 0; i < PinKb::CHARS; i++) all[i] = (char)(PinKb::FIRST + i);
+	/* two distinct decoys, so a repeated symbol cannot be read as a pattern */
+	for (int d = 0; d < PinKb::DECOYS; d++) {
+		char c;
+		bool dup;
+		do {
+			c = PinKb::DECOY_POOL[fastRandom(PinKb::DECOY_POOL_N)];
+			dup = false;
+			for (int p = 0; p < d; p++) if (all[PinKb::CHARS + p] == c) dup = true;
+		} while (dup);
+		all[PinKb::CHARS + d] = c;
+	}
+	for (int i = (int)sizeof(all) - 1; i > 0; i--) {
+		const int j = (int)fastRandom((uint32_t)(i + 1));
+		const char tmp = all[i]; all[i] = all[j]; all[j] = tmp;
+	}
+	for (int k = 0; k < PinKb::KEYS; k++) {
+		for (int s = 0; s < PinKb::SLOTS; s++) _pinKeyChars[k][s] = all[k * PinKb::SLOTS + s];
+		_pinKeyChars[k][PinKb::SLOTS] = '\0';
+	}
+}
+
+/* The four cards, for `show display keypad`. The bench drives the panel from
+ * outside and cannot find a digit whose position it was never told; the cards
+ * are on the glass for anyone standing there, so printing them to a privileged
+ * CLI gives an attacker nothing it does not already have. */
+uint8_t DisplayManager::getEnteredPinTaps(char out[][PinKb::SLOTS + 1], size_t cap) const {
+	if (!out || cap == 0) return 0;
+	const uint8_t n = (_pinLen > (uint8_t)cap) ? (uint8_t)cap : _pinLen;
+	for (uint8_t i = 0; i < n; i++) memcpy(out[i], _pinTaps[i], PinKb::SLOTS + 1);
+	return n;
+}
+
+uint8_t DisplayManager::pinKeyFace(int key, char* out, size_t cap) const {
+	if (!out || cap == 0) return 0;
+	out[0] = '\0';
+	if (key < 0 || key >= PinKb::KEYS || _uiMode != MODE_AUTH || !pinIsIdentifying( )) return 0;
+	if ((size_t)PinKb::SLOTS + 1 > cap) return 0;
+	memcpy(out, _pinKeyChars[key], PinKb::SLOTS);
+	out[PinKb::SLOTS] = '\0';
+	return (uint8_t)PinKb::SLOTS;
+}
 
 void DisplayManager::showPinEntry(uint8_t purpose, int8_t targetUser) {
 	mutex_enter_blocking(&_stateMutex);
@@ -59,19 +102,18 @@ void DisplayManager::showPinEntry(uint8_t purpose, int8_t targetUser) {
 	_pinPurpose = purpose;
 	_pinTarget = targetUser;
 	_pinLen = 0; _pinBuf[0] = '\0';
+	memset(_pinTaps, 0, sizeof(_pinTaps));
 	_pinPhase = 0; _pinFirst[0] = '\0';
 	_pinMsg = TR_KEYS_COUNT;
 	_pinWaiting = false;
 	_authFailed = false;
+	_rngState = micros( ) ^ 0xA5A5A5A5; if (_rngState == 0) _rngState = 1;
+	scramblePinKeys( );
 	if (_permanentLockout) _lockoutUntil = millis( ) + 10000;
 	_forceSettingsRedraw = true; _repaintSettings = true;
 	mutex_exit(&_stateMutex);
 }
 
-void DisplayManager::requestAuthKeypadRedraw( ) {
-	_forceSettingsRedraw = true;
-	_repaintSettings = true;
-}
 
 void DisplayManager::getEnteredPin(char* out, size_t cap) const {
 	if (!out || cap == 0) return;
@@ -95,6 +137,7 @@ int DisplayManager::authResult(bool ok) {
 	mutex_enter_blocking(&_stateMutex);
 	_pinWaiting = false;
 	_pinLen = 0; _pinBuf[0] = '\0';
+	memset(_pinTaps, 0, sizeof(_pinTaps));
 	int failures = 0;
 	if (ok) {
 		_failedAttempts = 0;
@@ -110,11 +153,20 @@ int DisplayManager::authResult(bool ok) {
 		else if (_failedAttempts == 5) _lockoutUntil = millis( ) + 60000;
 		else { _permanentLockout = true; _lockoutUntil = millis( ) + 10000; }
 		_pinMsg = TR_INVALID_PIN;
+		/* A refusal is exactly when someone is most likely to have been
+		 * watching the taps that produced it. */
+		scramblePinKeys( );
 		_forceSettingsRedraw = true;
 	}
 	_repaintSettings = true;
 	mutex_exit(&_stateMutex);
 	return failures;
+}
+
+const char* DisplayManager::panelUserName( ) const {
+	if (_panelUser < 0 || _panelUser >= MAX_USERS || !_sysConfigPtr) return "";
+	const UserAccount& u = _sysConfigPtr->users[_panelUser];
+	return u.active ? u.username : "";
 }
 
 void DisplayManager::setPanelSession(int8_t user, uint16_t perms) {
@@ -145,9 +197,11 @@ void DisplayManager::pinSubmit( ) {
 		return;
 	}
 	if (_pinPurpose == PIN_FOR_AUTH) {
+		/* _pinTaps holds, per tap, the glyphs that were on the card; Core 0
+		 * reads them with getEnteredPinTaps( ). Nothing here knows the PIN. */
 		_pinWaiting = true;
 		_pinMsg = TR_KEYS_COUNT;
-		UiEvent ev; ev.type = UiEvent::EVT_AUTH_PIN; ev.id = 0; ev.param = 0;
+		UiEvent ev; ev.type = UiEvent::EVT_AUTH_PIN; ev.id = (int)_pinLen; ev.param = 0;
 		pushUiEvent(ev);
 		_repaintSettings = true;
 		return;
@@ -158,6 +212,9 @@ void DisplayManager::pinSubmit( ) {
 		_pinPhase = 1;
 		_pinLen = 0; _pinBuf[0] = '\0';
 		_pinMsg = TR_KEYS_COUNT;
+		/* Confirming on the same layout would let a watcher check the second
+		 * run against the first; on a fresh deal the two look nothing alike. */
+		scramblePinKeys( );
 		_forceSettingsRedraw = true; _repaintSettings = true;
 		return;
 	}
@@ -166,6 +223,7 @@ void DisplayManager::pinSubmit( ) {
 		_pinLen = 0; _pinBuf[0] = '\0'; _pinFirst[0] = '\0';
 		_pinMsg = TR_PIN_MISMATCH;
 		_errorSoundPending = true;
+		scramblePinKeys( );
 		_forceSettingsRedraw = true; _repaintSettings = true;
 		return;
 	}
@@ -184,78 +242,171 @@ void DisplayManager::pinSubmit( ) {
 	_repaintSettings = true;
 }
 
-/* Chrome (title, footer) is drawn once per full redraw; the dots row and
- * the message repaint on every change; the keys only on a full redraw. */
+/* One card, into `cv` at its screen position shifted by `oy` (the canvas is a
+ * 40-px strip of the screen, so everything outside clips away). */
+void DisplayManager::drawPinCardInto(GFXcanvas16* cv, int key, int16_t ox, int16_t oy) {
+	using namespace PinKb;
+	if (!cv || key < 0 || key >= KEYS) return;
+	int16_t bx, by; uint16_t bw, bh;
+	const int16_t x = (int16_t)(KEY_X[key] + ox), y = (int16_t)(KEY_Y[key] + oy);
+
+	cv->fillRoundRect(x, y, KEY_W, KEY_H, 8, C_CARD_BG);
+	cv->drawRoundRect(x, y, KEY_W, KEY_H, 8, C_TEXT_SUB);
+	cv->setFont(&simutFont12pt);
+	/* One ink for everything on the card. A decoy drawn dimmer would tell a
+	 * watcher which glyphs can be part of a PIN, and on the identification
+	 * keypad that is exactly the thing the card is hiding. */
+	cv->setTextColor(C_TEXT_MAIN);
+	for (int s = 0; s < SLOTS; s++) {
+		const char c = _pinKeyChars[key][s];
+		if (!c) continue;
+		const char str[2] = { c, '\0' };
+		cv->getTextBounds(str, 0, 0, &bx, &by, &bw, &bh);
+		cv->setCursor((int16_t)(x + SLOT_X0 + s * SLOT_W + (SLOT_W - (int16_t)bw) / 2 - bx),
+		              (int16_t)(y + (KEY_H - (int16_t)bh) / 2 - by));
+		cv->print(str);
+	}
+}
+
+/* The four cards alone, one canvas blit each. This is the per-tap path: the
+ * deal is rolled after every tap, and repainting the whole screen for that
+ * would be six blits where four will do — and each card is written in one
+ * blit, so there is no moment where a card is half old and half new. */
+void DisplayManager::blitPinCards( ) {
+	using namespace PinKb;
+	if (!_driver.canvas) return;
+	for (int k = 0; k < KEYS; k++) {
+		_driver.canvas->fillScreen(C_BG_MAIN);
+		drawPinCardInto(_driver.canvas, k, (int16_t)(-KEY_X[k]), (int16_t)(-KEY_Y[k]));
+		blitCanvas(_driver.canvas, KEY_X[k], KEY_Y[k], KEY_W, KEY_H);
+	}
+}
+
+/* The ordered pad: digits where a numeric pad puts them. Setting a PIN needs
+ * the exact digits, so there is nothing to scramble and nothing to hide — the
+ * operator is choosing, not proving. */
+void DisplayManager::drawPinPadInto(GFXcanvas16* cv, int16_t oy) {
+	using namespace PinKb;
+	if (!cv) return;
+	int16_t bx, by; uint16_t bw, bh;
+	cv->setFont(&simutFont12pt);
+	for (int r = 0; r < NUM_ROWS; r++) {
+		for (int c = 0; c < NUM_COLS; c++) {
+			const char k = numKeyAt((int16_t)(NUM_X0 + c * NUM_COL_PITCH + 2),
+			                        (int16_t)(NUM_Y0 + r * NUM_ROW_PITCH + 2));
+			if (!k) continue;
+			const int16_t x = (int16_t)(NUM_X0 + c * NUM_COL_PITCH);
+			const int16_t y = (int16_t)(NUM_Y0 + r * NUM_ROW_PITCH + oy);
+			cv->fillRoundRect(x, y, NUM_KEY_W, NUM_KEY_H, 8, C_CARD_BG);
+			cv->drawRoundRect(x, y, NUM_KEY_W, NUM_KEY_H, 8, C_TEXT_SUB);
+			cv->setTextColor(C_TEXT_MAIN);
+			const char str[2] = { k, '\0' };
+			cv->getTextBounds(str, 0, 0, &bx, &by, &bw, &bh);
+			cv->setCursor((int16_t)(x + (NUM_KEY_W - (int16_t)bw) / 2 - bx),
+			              (int16_t)(y + (NUM_KEY_H - (int16_t)bh) / 2 - by));
+			cv->print(str);
+		}
+	}
+}
+
+/* The dots row, or the message that replaced it. Same offset convention. */
+void DisplayManager::drawPinDotsInto(GFXcanvas16* cv, int16_t oy) {
+	using namespace PinKb;
+	if (!cv) return;
+	int16_t bx, by; uint16_t bw, bh;
+	const int16_t y = (int16_t)(DOTS_Y + oy);
+
+	if (_pinMsg != TR_KEYS_COUNT || _pinWaiting) {
+		const bool err = (_pinMsg != TR_KEYS_COUNT);
+		cv->setFont(&simutFont9pt);
+		cv->setTextColor(err ? C_TEMP_HOT : C_TEXT_SUB);
+		String m = tr(err ? _pinMsg : TR_LOADING);
+		cv->getTextBounds(m, 0, 0, &bx, &by, &bw, &bh);
+		cv->setCursor((320 - bw) / 2, (int16_t)(y + 19));
+		cv->print(m);
+		return;
+	}
+	const int n = (_pinLen > PIN_MIN_LEN) ? _pinLen : PIN_MIN_LEN;
+	const int spacing = 20;
+	const int x0 = (320 - n * spacing) / 2 + spacing / 2;
+	for (int i = 0; i < n; i++) {
+		const int cx = x0 + i * spacing;
+		if (i < _pinLen) cv->fillCircle(cx, (int16_t)(y + DOTS_H / 2), 6, C_ACCENT);
+		else cv->drawCircle(cx, (int16_t)(y + DOTS_H / 2), 6, C_TEXT_SUB);
+	}
+}
+
+/* A full redraw paints the whole screen in six 40-px strips, top to bottom,
+ * one DMA blit each. It used to clear the screen and then blit the title, the
+ * footer and the four cards one at a time, and the panel was visibly dark
+ * between the clear and the last blit — the maintainer saw it flicker on every
+ * entry (2026-09-19). A strip sweep never shows a hole: each row is written
+ * once, already composed.
+ *
+ * Afterwards only the dots row repaints, once per tap, and it is its own
+ * 320x28 blit that no card overlaps. */
 void DisplayManager::drawPinScreen( ) {
-	using namespace PinPad;
+	using namespace PinKb;
 	if (!_driver.canvas) return;
 	int16_t bx, by; uint16_t bw, bh;
 
 	const bool locked = _permanentLockout || (_lockoutUntil > 0 && !timeReached(_lockoutUntil));
 
 	if (_forceSettingsRedraw) {
-		fastClearScreen(_permanentLockout ? C_TEMP_HOT : C_BG_MAIN);
+		GFXcanvas16* cv = beginScreenRender( );
+		if (!cv) return;
+		const uint16_t bg = _permanentLockout ? C_TEMP_HOT : C_BG_MAIN;
 		LangKey titleKey = TR_AUTH_TITLE;
 		if (_pinPurpose != PIN_FOR_AUTH) titleKey = (_pinPhase == 0) ? TR_NEW_PIN : TR_CONFIRM_PIN;
-		blitTitleBar(tr(titleKey));
-		/* footer: Cancel left, License right — same rects as the device PIN
-		 * always had, so the license stays reachable during a lockout. */
-		_driver.canvas->fillScreen(_permanentLockout ? C_TEMP_HOT : C_BG_MAIN);
-		uiButton(_driver.canvas, 10, 0, 110, FOOT_H, tr(TR_CANCEL), UI_BTN_SECONDARY);
-		uiButton(_driver.canvas, 200, 0, 110, FOOT_H, tr(TR_LICENSE_TITLE), UI_BTN_SECONDARY);
-		blitCanvas(_driver.canvas, 0, FOOT_Y, 320, FOOT_H);
 
-		if (_permanentLockout) {
-			/* the whole middle is the message; no keys to draw */
-			_driver.canvas->fillScreen(C_TEMP_HOT);
-			_driver.canvas->setFont(&simutFont12pt); _driver.canvas->setTextColor(C_BG_MAIN);
-			String m1 = tr(TR_ACCESS_BLOCKED);
-			_driver.canvas->getTextBounds(m1, 0, 0, &bx, &by, &bw, &bh);
-			_driver.canvas->setCursor((320 - bw) / 2, 30); _driver.canvas->print(m1);
-			blitCanvas(_driver.canvas, 0, 80, 320, 45);
-			_driver.canvas->fillScreen(C_TEMP_HOT);
-			_driver.canvas->setFont(&simutFont9pt);
-			String m2 = tr(TR_REBOOT_REQ);
-			_driver.canvas->getTextBounds(m2, 0, 0, &bx, &by, &bw, &bh);
-			_driver.canvas->setCursor((320 - bw) / 2, 20); _driver.canvas->print(m2);
-			blitCanvas(_driver.canvas, 0, 125, 320, 45);
-			_forceSettingsRedraw = false;
-			return;
-		}
+		for (int strip = 0; strip < 6; strip++) {
+			const int16_t oy = (int16_t)(-strip * 40);
+			cv->fillScreen(bg);
+			if (strip == 0) uiTitleBar(cv, 4, tr(titleKey));
 
-		if (!locked) {
-			/* the twelve keys, one canvas row at a time */
-			for (int r = 0; r < ROWS; r++) {
-				_driver.canvas->fillScreen(C_BG_MAIN);
-				_driver.canvas->setFont(&simutFont12pt);
-				for (int c = 0; c < COLS; c++) {
-					const int16_t kx = (int16_t)(X0 + c * COL_PITCH);
-					const char k = KEYS[r][c];
-					const bool action = (k == '<' || k == 'K');
-					const uint16_t fill = (k == 'K') ? C_ACCENT : (action ? C_BAR_BG : C_CARD_BG);
-					_driver.canvas->fillRoundRect(kx, 0, KEY_W, KEY_H, 8, fill);
-					if (k != 'K') _driver.canvas->drawRoundRect(kx, 0, KEY_W, KEY_H, 8, C_TEXT_SUB);
-					if (k == '<') {
-						/* backspace glyph */
-						const int16_t cx = kx + KEY_W / 2, cy = KEY_H / 2;
-						_driver.canvas->fillTriangle(cx - 10, cy, cx - 3, cy - 6, cx - 3, cy + 6, C_TEXT_MAIN);
-						_driver.canvas->fillRect(cx - 3, cy - 4, 12, 8, C_TEXT_MAIN);
+			if (_permanentLockout) {
+				cv->setFont(&simutFont12pt); cv->setTextColor(C_BG_MAIN);
+				String m1 = tr(TR_ACCESS_BLOCKED);
+				cv->getTextBounds(m1, 0, 0, &bx, &by, &bw, &bh);
+				cv->setCursor((320 - bw) / 2, (int16_t)(110 + oy)); cv->print(m1);
+				cv->setFont(&simutFont9pt);
+				String m2 = tr(TR_REBOOT_REQ);
+				cv->getTextBounds(m2, 0, 0, &bx, &by, &bw, &bh);
+				cv->setCursor((320 - bw) / 2, (int16_t)(145 + oy)); cv->print(m2);
+			} else {
+				drawPinDotsInto(cv, oy);
+				if (!locked) {
+					if (pinIsIdentifying( )) {
+						for (int k = 0; k < KEYS; k++) drawPinCardInto(cv, k, 0, oy);
 					} else {
-						char s[3] = { k, '\0', '\0' };
-						if (k == 'K') { s[0] = 'O'; s[1] = 'K'; }
-						_driver.canvas->setTextColor(k == 'K' ? C_BG_MAIN : C_TEXT_MAIN);
-						_driver.canvas->getTextBounds(s, 0, 0, &bx, &by, &bw, &bh);
-						_driver.canvas->setCursor(kx + (KEY_W - (int16_t)bw) / 2 - bx, (KEY_H - (int16_t)bh) / 2 - by);
-						_driver.canvas->print(s);
+						drawPinPadInto(cv, oy);
 					}
 				}
-				blitCanvas(_driver.canvas, 0, (int16_t)(Y0 + r * ROW_PITCH), 320, KEY_H);
 			}
-		} else {
-			/* lockout: blank the key area; the countdown is drawn below */
-			_driver.tft->fillRect(0, Y0, 320, ROWS * ROW_PITCH, C_BG_MAIN);
+
+			/* The footer of every other screen: backspace over the two
+			 * nav-arrow slots, then BACK and ENTER where they always are.
+			 * BACK answers under a lockout — it is the way out of the screen. */
+			if (!locked) {
+				const int16_t fy = (int16_t)(FOOT_Y + oy);
+				cv->fillRoundRect(FOOT_BACK_X, fy, FOOT_BACK_W, FOOT_H, 10, C_BAR_BG);
+				cv->drawRoundRect(FOOT_BACK_X, fy, FOOT_BACK_W, FOOT_H, 10, C_TEXT_SUB);
+				const int16_t cx = (int16_t)(FOOT_BACK_X + FOOT_BACK_W / 2);
+				const int16_t cy = (int16_t)(fy + FOOT_H / 2);
+				cv->fillTriangle((int16_t)(cx - 12), cy, (int16_t)(cx - 4), (int16_t)(cy - 8),
+				                 (int16_t)(cx - 4), (int16_t)(cy + 8), C_TEXT_MAIN);
+				cv->fillRect((int16_t)(cx - 4), (int16_t)(cy - 5), 15, 10, C_TEXT_MAIN);
+			}
+			uiButton(cv, FOOT_EXIT_X, (int16_t)(FOOT_Y + oy), FOOT_EXIT_W, FOOT_H,
+			         tr(TR_BACK), UI_BTN_SECONDARY);
+			if (!locked)
+				uiButton(cv, FOOT_OK_X, (int16_t)(FOOT_Y + oy), FOOT_OK_W, FOOT_H,
+				         tr(TR_ENTER), UI_BTN_PRIMARY);
+			commitScreenStrip((int16_t)strip);
 		}
+		endScreenRender( );
 		_forceSettingsRedraw = false;
+		if (_permanentLockout) return;
 	}
 
 	/* Timed lockout countdown, repainted once a second (the render loop sets
@@ -282,34 +433,14 @@ void DisplayManager::drawPinScreen( ) {
 		return;
 	}
 
-	/* Dots row: one filled dot per digit typed, hollow up to the minimum,
-	 * or the message that replaced them (wrong PIN, too short, mismatch). */
+	if (_permanentLockout) return;
+
+	/* The dots row alone: one blit, and no card is inside it. */
 	_driver.canvas->fillScreen(C_BG_MAIN);
-	if (_pinMsg != TR_KEYS_COUNT) {
-		_driver.canvas->setFont(&simutFont9pt);
-		_driver.canvas->setTextColor(C_TEMP_HOT);
-		String m = tr(_pinMsg);
-		_driver.canvas->getTextBounds(m, 0, 0, &bx, &by, &bw, &bh);
-		_driver.canvas->setCursor((320 - bw) / 2, 17);
-		_driver.canvas->print(m);
-	} else if (_pinWaiting) {
-		_driver.canvas->setFont(&simutFont9pt);
-		_driver.canvas->setTextColor(C_TEXT_SUB);
-		String m = tr(TR_LOADING);
-		_driver.canvas->getTextBounds(m, 0, 0, &bx, &by, &bw, &bh);
-		_driver.canvas->setCursor((320 - bw) / 2, 17);
-		_driver.canvas->print(m);
-	} else {
-		const int n = (_pinLen > PIN_MIN_LEN) ? _pinLen : PIN_MIN_LEN;
-		const int spacing = 20;
-		const int x0 = (320 - n * spacing) / 2 + spacing / 2;
-		for (int i = 0; i < n; i++) {
-			const int cx = x0 + i * spacing;
-			if (i < _pinLen) _driver.canvas->fillCircle(cx, DOTS_H / 2, 6, C_ACCENT);
-			else _driver.canvas->drawCircle(cx, DOTS_H / 2, 6, C_TEXT_SUB);
-		}
-	}
+	drawPinDotsInto(_driver.canvas, (int16_t)(-DOTS_Y));
 	blitCanvas(_driver.canvas, 0, DOTS_Y, 320, DOTS_H);
+
+	if (_pinCardsDirty) { _pinCardsDirty = false; if (pinIsIdentifying( )) blitPinCards( ); }
 }
 
 /* ────────────────────────────────────────────────────────────────────────── */
@@ -517,7 +648,11 @@ void DisplayManager::showSettingsUsers( ) {
 	_uiMode = MODE_SETTINGS_USERS;
 	_usersCount = 0;
 	if (_sysConfigPtr) {
-		for (int i = 0; i < MAX_USERS; i++) {
+		/* Slot 0, the admin, is not listed. Nothing here applies to it: its
+		 * bits are every bit, it cannot be deleted, and its own PIN is the
+		 * "change PIN" item of its own menu. A row that can only refuse is
+		 * not a row. */
+		for (int i = 1; i < MAX_USERS; i++) {
 			if (_sysConfigPtr->users[i].active) _usersMap[_usersCount++] = i;
 		}
 	}
@@ -588,13 +723,7 @@ void DisplayManager::drawSettingsUsers( ) {
 				_driver.canvas->getTextBounds(nameBuf, 0, 0, &bx, &by, &bw, &bh);
 				_driver.canvas->fillCircle(10 + (int)bw + 8, 19, 3, sel ? C_BG_MAIN : C_ACCENT);
 			}
-			if (slot == 0) {
-				_driver.canvas->setTextColor(txt);
-				_driver.canvas->setCursor(itemW - 10 - 34, 24);
-				_driver.canvas->print("ADM");
-			} else {
-				drawPermLetters(_driver.canvas, itemW - 10, 24, u.permissions, sel);
-			}
+			drawPermLetters(_driver.canvas, itemW - 10, 24, u.permissions, sel);
 		}
 		blitCanvas(_driver.canvas, 10, y, itemW, 34);
 	}
@@ -783,29 +912,65 @@ void DisplayManager::leavePanelMessage( ) {
 /* ────────────────────────────────────────────────────────────────────────── */
 
 bool DisplayManager::handleTouchPanelV24(int16_t x, int16_t y) {
-	using namespace PinPad;
+	using namespace PinKb;
 
 	if (_uiMode == MODE_AUTH) {
-		if (y >= FOOT_Y && x < 120) { if (!acceptTouch(0)) return true; pinCancel( ); return true; }
-		if (y >= FOOT_Y && x > 195) { if (!acceptTouch(5)) return true; _licenseFromAuth = true; showSettingsLicense( ); return true; }
-		if (_permanentLockout || !timeReached(_lockoutUntil) || _pinWaiting) return true;
-		if (y < Y0 || y >= Y0 + ROWS * ROW_PITCH) return true;
-		const int r = (y - Y0) / ROW_PITCH;
-		int c = -1;
-		for (int i = 0; i < COLS; i++) {
-			const int kx = X0 + i * COL_PITCH;
-			if (x >= kx - 5 && x < kx + KEY_W + 5) { c = i; break; }
+		/* Footer first: BACK answers even under a lockout — it is the way out
+		 * of the screen, and the only control that has to work there. */
+		if (y >= FOOT_Y) {
+			if (x >= FOOT_EXIT_X && x < FOOT_EXIT_X + FOOT_EXIT_W) {
+				if (!acceptTouch(0)) return true;
+				pinCancel( ); return true;
+			}
+			if (_permanentLockout || !timeReached(_lockoutUntil) || _pinWaiting) return true;
+			if (x < FOOT_BACK_X + FOOT_BACK_W) {
+				if (!acceptTouch(1)) return true;
+				if (_pinLen > 0) {
+					_pinLen--;
+					if (pinIsIdentifying( )) { _pinTaps[_pinLen][0] = '\0'; scramblePinKeys( ); _pinCardsDirty = true; }
+					else _pinBuf[_pinLen] = '\0';
+				}
+				_pinMsg = TR_KEYS_COUNT;
+				_repaintSettings = true; return true;
+			}
+			if (x >= FOOT_OK_X) {
+				if (!acceptTouch(2)) return true;
+				pinSubmit( );
+				_repaintSettings = true; return true;
+			}
+			return true;
 		}
-		if (c < 0 || r < 0 || r >= ROWS) return true;
-		if (!acceptTouch((uint8_t)(10 + r * COLS + c))) return true;
-		const char k = KEYS[r][c];
-		if (k == '<') {
-			if (_pinLen > 0) _pinBuf[--_pinLen] = '\0';
-			_pinMsg = TR_KEYS_COUNT;
-		} else if (k == 'K') {
-			pinSubmit( );
-		} else if (_pinLen < PIN_MAX_LEN) {
-			_pinBuf[_pinLen++] = k; _pinBuf[_pinLen] = '\0';
+		if (_permanentLockout || !timeReached(_lockoutUntil) || _pinWaiting) return true;
+
+		if (pinIsIdentifying( )) {
+			/* The whole card is one target: the tap says "one of these three",
+			 * and which one is never asked. What the tap keeps is the three
+			 * glyphs themselves, because the deal is rolled right after and
+			 * the card index would stop meaning anything. Core 0 resolves the
+			 * sequence (StorageManager::findUserByPinSet). */
+			const int k = keyAt(x, y);
+			if (k < 0) return true;
+			if (!acceptTouch((uint8_t)(10 + k))) return true;
+			if (_pinLen < PIN_MAX_LEN) {
+				memcpy(_pinTaps[_pinLen], _pinKeyChars[k], SLOTS + 1);
+				_pinLen++;
+				_pinMsg = TR_KEYS_COUNT;
+			}
+			/* Every tap gets its own deal: two taps on the same card are not
+			 * the same three digits, so a watcher cannot even tell whether two
+			 * digits of the PIN are equal. */
+			scramblePinKeys( );
+			_pinCardsDirty = true;
+			_repaintSettings = true;
+			return true;
+		}
+
+		/* Choosing a PIN: the ordered pad, one key one digit. */
+		const char c = numKeyAt(x, y);
+		if (!c) return true;
+		if (!acceptTouch((uint8_t)(20 + (c - '0')))) return true;
+		if (_pinLen < PIN_MAX_LEN) {
+			_pinBuf[_pinLen++] = c; _pinBuf[_pinLen] = '\0';
 			_pinMsg = TR_KEYS_COUNT;
 		}
 		_repaintSettings = true;

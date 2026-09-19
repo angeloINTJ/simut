@@ -98,7 +98,8 @@ void DisplayManager::readRow(int16_t y, uint16_t* buffer, int16_t w) { (void)y; 
 void DisplayManager::readRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t* out) { (void)x; (void)y; (void)w; (void)h; (void)out; }
 
 void DisplayManager::showSettingsThemes(int currentThemeIdx) { (void)currentThemeIdx; }
-void DisplayManager::requestAuthKeypadRedraw( ) { }
+uint8_t DisplayManager::pinKeyFace(int, char* out, size_t cap) const { if (out && cap) out[0] = '\0'; return 0; }
+uint8_t DisplayManager::getEnteredPinTaps(char[][PinKb::SLOTS + 1], size_t) const { return 0; }
 /* v24 — identity at the panel: no panel, no keypad. */
 void DisplayManager::showPinEntry(uint8_t purpose, int8_t targetUser) { (void)purpose; (void)targetUser; }
 int DisplayManager::authResult(bool ok) { (void)ok; return 0; }

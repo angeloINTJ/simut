@@ -307,6 +307,7 @@ bloqueado
 999 Error desconocido
 @TRL
 9598a022 CLI definió PIN del panel: 
+461b2d8f Dos cuentas coinciden con la misma entrada del teclado.
 68c547be CLI quitó PIN del panel: 
 b52b332c Config migrada al esquema actual
 c58f1416 Admin aplicó cambios sin reiniciar
