@@ -95,7 +95,7 @@ struct Core1FlashPause {
  * Tail-append only: every byte a v20 blob held keeps its offset, so the
  * v20→v21 reader (attemptLoad) migrates without translating anything and
  * without the 2.0.0-style schema break. See SystemDefs_Records.h. */
-const uint16_t CONFIG_VERSION = 22;
+const uint16_t CONFIG_VERSION = 23;
 
 /* -------------------------------------------------------------------------- */
 /* Legacy UserAccount layout (v14 and earlier) — used ONLY by the */
@@ -563,6 +563,9 @@ void StorageManager::loadDefaults( ) {
   * por padrão: enviar para <telPath>/alarm num servidor que não conhece o
   * endpoint só produziria 404s e estouro de fila. */
  applyAlarmTelDefaults(_currentConfig.alarmTel);
+ /* v23: nenhum slot nasce em manutenção. O único default seguro — o contrário
+  * silenciaria alarmes que ninguém pediu para silenciar. */
+ memset(&_currentConfig.maint, 0, sizeof(_currentConfig.maint));
 
  _currentConfig.telTransport = TEL_TRANSPORT_HTTP;
  safeCopy(_currentConfig.mqttTopic, "simut/data", sizeof(_currentConfig.mqttTopic));
@@ -637,7 +640,11 @@ void StorageManager::applyAlarmTelDefaults(AlarmTelConfig& a) {
   * A forma composta "<chave>":{<token>} remove a chave inteira quando o
   * token está ausente — {val} some no registro de erro, {err} some no
   * registro normal — ver TelemetryManager::formatLineAlarmBuf. */
- safeCopy(a.lineTemplate, "{\"ts\":{TS},\"id\":\"{ID}\",\"val\":{val},\"alarm\":{alarm},\"err\":{err},\"seq\":{seq}}", sizeof(a.lineTemplate));
+ /* v23: "maint":{maint} entra no default. Um template custom escrito antes
+  * disso não tem o token e emitirá os registros de manutenção sem marcador —
+  * está dito em AlarmPayload.h e em GET /api/alarms, que reporta a janela
+  * independentemente do template. */
+ safeCopy(a.lineTemplate, "{\"ts\":{TS},\"id\":\"{ID}\",\"val\":{val},\"alarm\":{alarm},\"err\":{err},\"maint\":{maint},\"seq\":{seq}}", sizeof(a.lineTemplate));
  safeCopy(a.lineSeparator, ",", sizeof(a.lineSeparator));
 }
 
@@ -663,20 +670,17 @@ bool StorageManager::loadCurrentBlob(File& f, SystemConfig& outCfg, bool* migrat
  size_t crcRead = f.read((uint8_t*)&readCrc, sizeof(readCrc));
  if (bytesRead != sizeof(SystemConfig)) return false;
  if (outCfg.magic != CONFIG_MAGIC) return false;
- /* v21 has the same layout as v22 and is accepted here, because the schema did
-  * not change — one field changed MEANING (see migrateV21Semantics). Every
-  * other version is rejected; v20 and older go by file size in attemptLoad. */
- if (outCfg.version != CONFIG_VERSION && outCfg.version != 21) return false;
+ /* v23 is the only layout this size can be: v21 and v22 are shorter by
+  * sizeof(MaintConfig) and are recognised by size in attemptLoad, the same way
+  * v20 always was. */
+ if (outCfg.version != CONFIG_VERSION) return false;
  if (crcRead == sizeof(readCrc)) {
  uint32_t calcCrc = calculateCRC32((uint8_t*)&outCfg, sizeof(SystemConfig));
  if (calcCrc != readCrc) return false;
  }
  /* v16 always writes with sensitive fields obfuscated (XOR keystream). */
  obfuscateSensitiveFields(outCfg);
- if (outCfg.version == 21) {
- migrateV21Semantics(outCfg);
- if (migratedV21) *migratedV21 = true;
- }
+ (void)migratedV21; /* v21 no longer reaches this reader — see the size check */
  return true;
 }
 
@@ -731,8 +735,38 @@ bool StorageManager::loadMigrateV20Blob(File& f, SystemConfig& outCfg) {
  }
  obfuscateSensitiveFields(outCfg);
  applyAlarmTelDefaults(outCfg.alarmTel);
+ memset(&outCfg.maint, 0, sizeof(outCfg.maint)); /* v23: nenhum slot em manutenção */
  outCfg.version = CONFIG_VERSION;
  _migratedFromV20 = true;
+ return true;
+}
+
+/* v21/v22 → v23: mesma migração por tail-append que trouxe alarmTel na v21.
+ *
+ * Um blob v21 ou v22 termina exatamente onde `maint` começa — os dois têm o
+ * mesmo layout, e a v22 só mudou o SIGNIFICADO de telInterval. Então lê-se o
+ * corpo inteiro na cabeça do struct, zera-se a cauda nova e nenhum offset
+ * anterior se move. Nenhum slot nasce em manutenção, que é o único default
+ * seguro: o contrário silenciaria alarmes que ninguém pediu para silenciar. */
+bool StorageManager::loadMigrateV22Blob(File& f, SystemConfig& outCfg) {
+ memset(&outCfg, 0, sizeof(outCfg));
+ const size_t v22Struct = offsetof(SystemConfig, maint);
+ if (f.read((uint8_t*)&outCfg, v22Struct) != v22Struct) return false;
+ uint32_t readCrc = 0;
+ size_t crcRead = f.read((uint8_t*)&readCrc, sizeof(readCrc));
+ if (outCfg.magic != CONFIG_MAGIC) return false;
+ if (outCfg.version != 21 && outCfg.version != 22) return false;
+ if (crcRead == sizeof(readCrc)) {
+ uint32_t calcCrc = calculateCRC32((uint8_t*)&outCfg, v22Struct);
+ if (calcCrc != readCrc) return false;
+ }
+ obfuscateSensitiveFields(outCfg);
+ /* A semântica v21→v22 continua valendo e roda ANTES de carimbar a versão:
+  * um blob v21 chega aqui pelo mesmo tamanho que um v22. */
+ if (outCfg.version == 21) { migrateV21Semantics(outCfg); _migratedFromV21 = true; }
+ memset(&outCfg.maint, 0, sizeof(outCfg.maint));
+ outCfg.version = CONFIG_VERSION;
+ _migratedFromV22 = true;
  return true;
 }
 
@@ -764,7 +798,16 @@ bool StorageManager::attemptLoad(const char* path, SystemConfig& outCfg) {
  return ok;
  }
 
- /* v20→v21: tail-append migration. Only this ONE previous schema has a
+ /* v21/v22→v23: the newest tail-append. Checked before the v20 branch only
+  * because it is the one a device in the field will actually hit. */
+ const size_t v22File = offsetof(SystemConfig, maint) + sizeof(uint32_t);
+ if (fileSize == v22File) {
+ bool ok = loadMigrateV22Blob(f, outCfg);
+ f.close( );
+ return ok;
+ }
+
+ /* v20→v21: tail-append migration. Only these previous schemas have a
   * path; anything else (older or newer) is rejected exactly as before —
   * the size mismatch is reported via takeRejectedConfigSize( ). */
  const size_t v20File = offsetof(SystemConfig, alarmTel) + sizeof(uint32_t);
@@ -799,6 +842,16 @@ bool StorageManager::loadConfiguration( ) {
  delete tempConfig;
  }
  exitFlashReadLock( );
+
+ /* Teto das janelas de manutenção, no load (v23).
+  *
+  * ⚠️ O relógio aqui é PROVISÓRIO — getEpoch( ) nunca devolve 0 e cai para o
+  * epoch de build, e o NTP ainda não rodou. Isso significa que este corte pode
+  * encurtar ou fechar uma janela legítima. É aceitável porque erra sempre na
+  * mesma direção: o pior caso é o aparelho voltar a alarmar cedo demais, nunca
+  * ficar mudo além do que alguém pediu. Para um aparelho de monitoramento essa
+  * é a assimetria certa. */
+ if (loaded) maintClamp(_currentConfig.maint, (uint32_t)time(nullptr));
 
  if (!loaded) {
  /* The rejection is NOT logged here. loadConfiguration( ) runs inside

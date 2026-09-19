@@ -380,7 +380,22 @@ void WebManager::handleApiAlarms( ) {
 				if (!safeSend(lb)) return;
 				firstLim = false;
 			}
-			if (!safeSend("}}")) return;
+			/* A janela de manutenção, em SEGUNDOS que ainda faltam (0 = fora).
+			 * Em segundos restantes e não no epoch guardado porque é isso que o
+			 * servidor precisa saber e é o que não depende de os dois relógios
+			 * concordarem — a mesma razão pela qual o commit recebe segundos.
+			 * Reportado aqui, e não só no payload de alarmes, para que um
+			 * gestor com template custom (que pode não ter {MAINT}) consiga
+			 * perguntar em vez de inferir. */
+			{
+				const uint32_t now = (uint32_t)time(nullptr);
+				const uint32_t until = cfg.maint.until[i];
+				const uint32_t left = (until > now) ? (until - now) : 0u;
+				char mb[48];
+				snprintf(mb, sizeof(mb), "},\"maint\":%lu", (unsigned long)left);
+				if (!safeSend(mb)) return;
+			}
+			if (!safeSend("}")) return;
 			first = false;
 	}
 

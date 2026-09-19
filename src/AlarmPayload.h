@@ -20,6 +20,9 @@
  *           "alarm_off" — VAZIO em registros de falha (alias {alarm})
  *   {ERR}   código do domínio FALHA de hardware com aspas JSON: "err",
  *           "err_sil", "err_off" — VAZIO em registros de limite (alias {err})
+ *   {MAINT} código do domínio MANUTENÇÃO com aspas JSON: "maint" ao entrar na
+ *           janela, "maint_end" ao sair (por comando ou por prazo) — VAZIO em
+ *           todo o resto (alias {maint})
  *   {SEQ}   sequência do boot (chave da confirmação de recebimento)
  *
  * Formas compostas: quando a chave tem o MESMO nome do token e o token está
@@ -30,6 +33,13 @@
  *   lim. sil:    {"ts":...,"id":"tX","alarm":"alarm_sil","seq":2}
  *   falha:       {"ts":...,"id":"tX","err":"err","seq":3}
  *   err. desat:  {"ts":...,"id":"tX","err":"err_off","seq":4}
+ *   manutenção:  {"ts":...,"id":"tX","maint":"maint","seq":5}
+ *   fim da man.: {"ts":...,"id":"tX","maint":"maint_end","seq":6}
+ *
+ * ⚠️ Um template CUSTOM escrito antes da v23 não tem {MAINT} e vai emitir os
+ * dois registros acima sem marcador nenhum. O default ganhou o token; quem
+ * mantém template próprio precisa acrescentá-lo. GET /api/alarms também
+ * reporta a janela, para um servidor que prefira perguntar a interpretar.
  *
  * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
@@ -81,6 +91,19 @@ inline const char* alarmCodeErrField(uint8_t errCode) {
 	}
 }
 
+/** Código do campo "maint" (domínio de MANUTENÇÃO, v23) — "" quando o registro
+ * é de limite ou de falha. Domínio próprio e não um valor a mais em "err":
+ * manutenção é o oposto de uma falha — é o aparelho dizendo que NÃO há nada a
+ * tratar — e um servidor que casa por campo não deve precisar saber distinguir
+ * "err":"maint" de um erro de verdade. */
+inline const char* alarmCodeMaintField(uint8_t errCode) {
+	switch (errCode) {
+		case ALARM_ERR_MAINT:     return "maint";
+		case ALARM_ERR_MAINT_END: return "maint_end";
+		default:                  return "";
+	}
+}
+
 /** Único código que carrega valor de leitura: a borda de limite ("alarm").
  * Ações (sil/off) e falhas (err*) são marcadores sem valor. */
 inline bool alarmCodeHasValue(uint8_t errCode) {
@@ -103,6 +126,7 @@ inline int alarmFormatCsvLine(const AlarmRecord& rec, const SystemConfig& cfg, c
 	/* marcador: o código do domínio (alarm* ou err*) no lugar do valor */
 	const char* marker = alarmCodeAlarmField(rec.errCode);
 	if (marker[0] == '\0') marker = alarmCodeErrField(rec.errCode);
+	if (marker[0] == '\0') marker = alarmCodeMaintField(rec.errCode);
 	return snprintf(dest, cap, "%u;%lu;%s;%s", (unsigned)rec.seq,
 	                (unsigned long)rec.epoch, idBuf, marker);
 }
@@ -129,17 +153,22 @@ inline int alarmFormatLine(const AlarmRecord& rec, const SystemConfig& cfg,
 	char chBuf[2];
 	chBuf[0] = ci.letter; chBuf[1] = '\0';
 
-	/* Dois domínios: "alarm" (limite) e "err" (falha de hardware). Os
-	 * tokens emitem o valor COM ASPAS (JSON válido) — a forma composta
-	 * "chave":{token} sem aspas remove a chave quando o domínio está
-	 * ausente. O valor de leitura só existe na borda de limite. */
+	/* Três domínios: "alarm" (limite), "err" (falha de hardware) e "maint"
+	 * (janela de manutenção). Os tokens emitem o valor COM ASPAS (JSON
+	 * válido) — a forma composta "chave":{token} sem aspas remove a chave
+	 * quando o domínio está ausente, e cada registro pertence a UM domínio,
+	 * então as outras duas chaves somem sozinhas. O valor de leitura só
+	 * existe na borda de limite. */
 	char valBuf[16] = "";
 	char alarmTok[16] = "";
 	char errTok[16] = "";
+	char maintTok[16] = "";
 	const char* af = alarmCodeAlarmField(rec.errCode);
 	const char* ef = alarmCodeErrField(rec.errCode);
+	const char* mf = alarmCodeMaintField(rec.errCode);
 	if (af[0] != '\0') snprintf(alarmTok, sizeof(alarmTok), "\"%s\"", af);
 	if (ef[0] != '\0') snprintf(errTok, sizeof(errTok), "\"%s\"", ef);
+	if (mf[0] != '\0') snprintf(maintTok, sizeof(maintTok), "\"%s\"", mf);
 	if (alarmCodeHasValue(rec.errCode) && rec.value != HIST_NAN_SENTINEL) {
 		snprintf(valBuf, sizeof(valBuf), "%.*f",
 		         alarmChannelDecimals(rec.channel), (double)((float)rec.value / ci.scale));
@@ -196,6 +225,14 @@ inline int alarmFormatLine(const AlarmRecord& rec, const SystemConfig& cfg,
 			val = errTok;
 			compKeyLen = 3; memcpy(compKey, "err", 4);
 			tokenChars = 5;
+		} else if (remaining >= 7 && memcmp(tpl + ti, "{MAINT}", 7) == 0) {
+			val = maintTok;
+			compKeyLen = 5; memcpy(compKey, "MAINT", 6);
+			tokenChars = 7;
+		} else if (remaining >= 7 && memcmp(tpl + ti, "{maint}", 7) == 0) {
+			val = maintTok;
+			compKeyLen = 5; memcpy(compKey, "maint", 6);
+			tokenChars = 7;
 		} else if (remaining >= 5 && memcmp(tpl + ti, "{SEQ}", 5) == 0) {
 			val = seqBuf;
 			compKeyLen = 3; memcpy(compKey, "SEQ", 4);

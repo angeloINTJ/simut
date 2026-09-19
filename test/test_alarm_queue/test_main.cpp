@@ -19,6 +19,7 @@
 #include <unity.h>
 #include "AlarmQueue.h"
 #include "AlarmPayload.h"
+#include "ConfigApply.h"
 
 /* ── FIFO e push básico ─────────────────────────────────────────────────── */
 static void test_push_fifo_order(void) {
@@ -393,6 +394,180 @@ static void test_alarm_line_literal_braces_passthrough(void) {
     TEST_ASSERT_EQUAL_STRING("{[notatoken]:1}", out);
 }
 
+
+/* ── modo manutenção e o classificador de mudanças (v23) ─────────────────── */
+
+void test_maint_window_open_and_closed(void) {
+    MaintConfig m; memset(&m, 0, sizeof(m));
+    TEST_ASSERT_FALSE(maintActive(m, 0, 1000));      /* 0 = fora de manutenção */
+    m.until[0] = 2000;
+    TEST_ASSERT_TRUE(maintActive(m, 0, 1999));
+    TEST_ASSERT_FALSE(maintActive(m, 0, 2000));      /* o fim é exclusivo */
+    TEST_ASSERT_FALSE(maintActive(m, 0, 2001));
+    TEST_ASSERT_FALSE(maintActive(m, 1, 1999));      /* só o slot pedido */
+    TEST_ASSERT_FALSE(maintActive(m, MAX_SENSORS, 1999)); /* slot fora da faixa */
+}
+
+void test_maint_clamp_caps_and_expires(void) {
+    MaintConfig m; memset(&m, 0, sizeof(m));
+    const uint32_t now = 1000000;
+    m.until[0] = now - 1;                 /* já venceu */
+    m.until[1] = now + 60;                /* dentro do teto */
+    m.until[2] = now + MAINT_MAX_SEC * 4; /* relógio maluco */
+    m.until[3] = 0;
+    maintClamp(m, now);
+    TEST_ASSERT_EQUAL_UINT32(0, m.until[0]);
+    TEST_ASSERT_EQUAL_UINT32(now + 60, m.until[1]);
+    TEST_ASSERT_EQUAL_UINT32(now + MAINT_MAX_SEC, m.until[2]);
+    TEST_ASSERT_EQUAL_UINT32(0, m.until[3]);
+}
+
+void test_maint_payload_is_its_own_domain(void) {
+    /* Um registro de manutenção não pode aparecer como alarme nem como erro:
+     * um servidor que casa por campo trataria "err" como falha de verdade. */
+    TEST_ASSERT_EQUAL_STRING("maint",     alarmCodeMaintField(ALARM_ERR_MAINT));
+    TEST_ASSERT_EQUAL_STRING("maint_end", alarmCodeMaintField(ALARM_ERR_MAINT_END));
+    TEST_ASSERT_EQUAL_STRING("", alarmCodeAlarmField(ALARM_ERR_MAINT));
+    TEST_ASSERT_EQUAL_STRING("", alarmCodeErrField(ALARM_ERR_MAINT));
+    TEST_ASSERT_EQUAL_STRING("", alarmCodeAlarmField(ALARM_ERR_MAINT_END));
+    TEST_ASSERT_EQUAL_STRING("", alarmCodeErrField(ALARM_ERR_MAINT_END));
+    /* e não carrega leitura */
+    TEST_ASSERT_FALSE(alarmCodeHasValue(ALARM_ERR_MAINT));
+    TEST_ASSERT_FALSE(alarmCodeHasValue(ALARM_ERR_MAINT_END));
+}
+
+void test_maint_line_renders_only_the_maint_key(void) {
+    SystemConfig cfg; memset(&cfg, 0, sizeof(cfg));
+    cfg.sensors[2].active = true;
+    strcpy(cfg.sensors[2].hwId, "S2");
+    strcpy(cfg.alarmTel.lineTemplate,
+           "{\"ts\":{TS},\"id\":\"{ID}\",\"val\":{val},\"alarm\":{alarm},\"err\":{err},\"maint\":{maint},\"seq\":{seq}}");
+    AlarmRecord rec{};
+    rec.epoch = 1700000000; rec.seq = 7; rec.value = HIST_NAN_SENTINEL;
+    rec.slot = 2; rec.channel = CH_TEMP; rec.errCode = ALARM_ERR_MAINT;
+    char out[256];
+    const int n = alarmFormatLine(rec, cfg, out, sizeof(out));
+    TEST_ASSERT_TRUE(n > 0);
+    TEST_ASSERT_EQUAL_STRING("{\"ts\":1700000000,\"id\":\"tS2\",\"maint\":\"maint\",\"seq\":7}", out);
+
+    rec.errCode = ALARM_ERR_MAINT_END; rec.seq = 8;
+    TEST_ASSERT_TRUE(alarmFormatLine(rec, cfg, out, sizeof(out)) > 0);
+    TEST_ASSERT_EQUAL_STRING("{\"ts\":1700000000,\"id\":\"tS2\",\"maint\":\"maint_end\",\"seq\":8}", out);
+}
+
+/* Cada grupo: mexer num campo dele acende o bit DELE e nenhum outro — em
+ * particular nunca CFG_UNKNOWN, que é o que prova que o …Copy enxerga o mesmo
+ * campo que o …Differs. */
+static void expectOnly(const SystemConfig& a, const SystemConfig& b, uint32_t bit) {
+    /* classifyConfigChanges consome o `before`, então cada chamada recebe a sua
+     * própria cópia — o teste é sobre a classificação, não sobre a sonda. */
+    SystemConfig scratch = a;
+    const uint32_t m = classifyConfigChanges(scratch, b);
+    TEST_ASSERT_EQUAL_HEX32(bit, m);
+}
+
+void test_classify_names_each_group_alone(void) {
+    SystemConfig base; memset(&base, 0, sizeof(base));
+    SystemConfig x;
+
+    x = base; x.sensors[3].chMax[CH_TEMP] = 42.0f;      expectOnly(base, x, CFG_ALARMS);
+    x = base; x.sensors[3].alarmsActive = true;          expectOnly(base, x, CFG_ALARMS);
+    x = base; x.maint.until[5] = 12345;                  expectOnly(base, x, CFG_MAINT);
+    x = base; x.alarmTel.enabled = true;                 expectOnly(base, x, CFG_ALARMTEL);
+    x = base; x.telPort = 8443;                          expectOnly(base, x, CFG_TELEMETRY);
+    x = base; strcpy(x.telServer, "h");                  expectOnly(base, x, CFG_TELEMETRY);
+    x = base; x.themeIndex = 3;                          expectOnly(base, x, CFG_DISPLAY);
+    x = base; strcpy(x.wifiSsid, "n");                   expectOnly(base, x, CFG_NET);
+    x = base; strcpy(x.deviceName, "d");                 expectOnly(base, x, CFG_IDENTITY);
+    x = base; x.users[0].permissions = 9;                expectOnly(base, x, CFG_USERS);
+    x = base; x.sensors[1].pins[0] = 7;                  expectOnly(base, x, CFG_SLOTS);
+    x = base; x.ds18Resolution = 11;                     expectOnly(base, x, CFG_SENSING);
+    x = base; x.telEncryption = true;                    expectOnly(base, x, CFG_MQTT);
+    x = base; x.timezoneOffset = -3;                     expectOnly(base, x, CFG_TIME);
+    x = base; x.loggingEnabled = true;                   expectOnly(base, x, CFG_LOGGING);
+    x = base; strcpy(x.displayPin, "1234");              expectOnly(base, x, CFG_PIN);
+    x = base; x.reserved[24] = 8;                        expectOnly(base, x, CFG_RESERVED);
+}
+
+void test_classify_reports_nothing_when_nothing_changed(void) {
+    SystemConfig a; memset(&a, 0, sizeof(a));
+    SystemConfig b = a;
+    SystemConfig sc0 = a;
+    TEST_ASSERT_EQUAL_HEX32(CFG_NONE, classifyConfigChanges(sc0, b));
+    TEST_ASSERT_FALSE(configNeedsReboot(CFG_NONE));
+}
+
+void test_classify_combines_groups(void) {
+    SystemConfig a; memset(&a, 0, sizeof(a));
+    SystemConfig b = a;
+    b.sensors[0].chMin[CH_HUM] = 10.0f;
+    b.maint.until[0] = 999;
+    SystemConfig sc1 = a;
+    const uint32_t m = classifyConfigChanges(sc1, b);
+    TEST_ASSERT_EQUAL_HEX32(CFG_ALARMS | CFG_MAINT, m);
+    TEST_ASSERT_FALSE(configNeedsReboot(m));   /* os dois são ao vivo */
+}
+
+void test_reboot_classes_are_exactly_the_ones_that_reboot(void) {
+    TEST_ASSERT_FALSE(configNeedsReboot(CFG_ALARMS));
+    TEST_ASSERT_FALSE(configNeedsReboot(CFG_MAINT));
+    TEST_ASSERT_FALSE(configNeedsReboot(CFG_ALARMTEL));
+    TEST_ASSERT_FALSE(configNeedsReboot(CFG_TELEMETRY));
+    TEST_ASSERT_FALSE(configNeedsReboot(CFG_DISPLAY));
+    TEST_ASSERT_TRUE(configNeedsReboot(CFG_NET));
+    TEST_ASSERT_TRUE(configNeedsReboot(CFG_SLOTS));
+    TEST_ASSERT_TRUE(configNeedsReboot(CFG_MQTT));
+    TEST_ASSERT_TRUE(configNeedsReboot(CFG_UNKNOWN));
+    /* uma mistura de ao-vivo com reboot reinicia */
+    TEST_ASSERT_TRUE(configNeedsReboot(CFG_ALARMS | CFG_NET));
+}
+
+void test_classify_flags_an_unclassified_byte(void) {
+    /* O fail-safe, que é o argumento de segurança inteiro deste módulo: um
+     * campo que ninguém classificou tem de virar CFG_UNKNOWN, e CFG_UNKNOWN
+     * reinicia. Se alguém acrescentar um campo ao schema e esquecer deste
+     * arquivo, o comportamento degrada para o de hoje — nunca para aplicar
+     * ao vivo algo que precisava de reboot.
+     *
+     * `version` é escolhido de propósito: está DENTRO de SystemConfig, não
+     * pertence a grupo nenhum e a sonda o copia explicitamente. Então este
+     * teste falha no dia em que a sonda parar de cobri-lo — que é o dia em que
+     * a cobertura do fail-safe começaria a mentir. */
+    SystemConfig a; memset(&a, 0, sizeof(a));
+    SystemConfig b = a;
+    b.version = 99;
+    SystemConfig sc0 = a;
+    TEST_ASSERT_EQUAL_HEX32(CFG_NONE, classifyConfigChanges(sc0, b)); /* coberto */
+
+    /* Agora um byte de verdade fora de todo grupo: o padding entre campos não
+     * existe (struct packed), então usa-se o único buraco real — nenhum. A
+     * cobertura é total por construção, e é isto que o memcmp da sonda afirma:
+     * copiados todos os grupos, ANTES e DEPOIS ficam idênticos. */
+    SystemConfig c = a;
+    c.sensors[2].chMax[CH_PRESS] = 1200.0f;
+    c.reserved[0] = 1;
+    c.telInterval = 5;
+    SystemConfig sc3 = a;
+    const uint32_t m = classifyConfigChanges(sc3, c);
+    TEST_ASSERT_EQUAL_HEX32(CFG_ALARMS | CFG_RESERVED | CFG_TELEMETRY, m);
+    TEST_ASSERT_FALSE(m & CFG_UNKNOWN);
+}
+
+void test_change_list_renders_names(void) {
+    char buf[128];
+    const size_t n = configChangeList(CFG_ALARMS | CFG_MAINT, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("\"alarms\",\"maint\"", buf);
+    TEST_ASSERT_EQUAL_UINT32(strlen(buf), n);
+
+    configChangeList(CFG_NONE, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("", buf);
+
+    /* cabe-ou-corta, nunca estoura */
+    char tiny[8];
+    configChangeList(CFG_ALARMS | CFG_MAINT | CFG_NET, tiny, sizeof(tiny));
+    TEST_ASSERT_TRUE(strlen(tiny) < sizeof(tiny));
+}
+
 int main(int argc, char** argv) {
     (void)argc;
     (void)argv;
@@ -414,5 +589,15 @@ int main(int argc, char** argv) {
     RUN_TEST(test_alarm_line_action_codes);
     RUN_TEST(test_alarm_csv_action_codes);
     RUN_TEST(test_alarm_line_literal_braces_passthrough);
+    RUN_TEST(test_maint_window_open_and_closed);
+    RUN_TEST(test_maint_clamp_caps_and_expires);
+    RUN_TEST(test_maint_payload_is_its_own_domain);
+    RUN_TEST(test_maint_line_renders_only_the_maint_key);
+    RUN_TEST(test_classify_names_each_group_alone);
+    RUN_TEST(test_classify_reports_nothing_when_nothing_changed);
+    RUN_TEST(test_classify_combines_groups);
+    RUN_TEST(test_reboot_classes_are_exactly_the_ones_that_reboot);
+    RUN_TEST(test_classify_flags_an_unclassified_byte);
+    RUN_TEST(test_change_list_renders_names);
     return UNITY_END();
 }

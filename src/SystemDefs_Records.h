@@ -226,6 +226,58 @@ struct __attribute__((packed)) AlarmTelConfig {
 };
 static_assert(sizeof(AlarmTelConfig) == 811, "AlarmTelConfig v21 must be 811 bytes (packed)");
 
+/* ────────────────────────────────────────────────────────────────────────
+ * Modo manutenção por slot (v23)
+ * ──────────────────────────────────────────────────────────────────────── */
+
+/** Teto de uma janela de manutenção. Não é burocracia: um slot em manutenção
+ *  não alarma, nem no painel nem no servidor, e um flag esquecido é um sensor
+ *  mudo que ninguém nota. 30 dias cobre qualquer serviço real e garante que o
+ *  aparelho volta a falar sozinho. */
+constexpr uint32_t MAINT_MAX_SEC = 30u * 24u * 3600u;
+
+/**
+ * Janela de manutenção por slot — epoch em que ela termina; 0 = não está em
+ * manutenção.
+ *
+ * @details Guarda o FIM e não "ligado/desligado" de propósito: um booleano
+ * persistido é um estado que alguém precisa lembrar de desfazer, e o pedido
+ * que criou esta feature é justamente o de não receber alarme de um sensor em
+ * serviço. Com um prazo, o pior caso de um esquecimento é a janela inteira, e
+ * não "para sempre".
+ *
+ * O relógio pode estar provisório quando isto é gravado (getEpoch( ) nunca
+ * devolve 0 — cai para o epoch de build). maintClamp( ) corta qualquer valor
+ * absurdamente no futuro no load, para que um relógio errado não transforme
+ * uma janela de uma hora numa de anos.
+ */
+struct __attribute__((packed)) MaintConfig {
+	uint32_t until[MAX_SENSORS];
+};
+static_assert(sizeof(MaintConfig) == 4 * MAX_SENSORS,
+              "MaintConfig v23 must be 4 bytes per slot (packed)");
+
+/** A janela deste slot ainda está aberta em `now`? Free function e não método
+ *  para ficar testável no env native junto com o resto de AlarmPayload.h. */
+inline bool maintActive(const MaintConfig& m, uint8_t slot, uint32_t now) {
+	if (slot >= MAX_SENSORS) return false;
+	return m.until[slot] != 0 && now < m.until[slot];
+}
+
+/** Corta uma janela impossível para o teto.
+ *
+ * Um relógio provisório (getEpoch( ) cai para o epoch de build) pode gravar um
+ * `until` que, depois do NTP chegar, está anos no futuro — e um sensor mudo por
+ * anos é exatamente o que o teto existe para impedir. Roda no load e em cada
+ * gravação, e trata `until` no passado como janela fechada. */
+inline void maintClamp(MaintConfig& m, uint32_t now) {
+	for (uint8_t i = 0; i < MAX_SENSORS; i++) {
+		if (m.until[i] == 0) continue;
+		if (m.until[i] <= now) { m.until[i] = 0; continue; }
+		if (m.until[i] - now > MAINT_MAX_SEC) m.until[i] = now + MAINT_MAX_SEC;
+	}
+}
+
 /**
  * Master system configuration — persisted to Flash as a binary blob
  * with CRC32 integrity check and dual-bank backup.
@@ -305,6 +357,13 @@ struct __attribute__((packed)) SystemConfig {
   * byte anterior mantém o offset que tinha, então um blob v20 lido direto
   * para a cabeça deste struct migra sem traduzir nada. */
  AlarmTelConfig alarmTel;
+
+ /* v23 — modo manutenção por slot. TAIL-ONLY pelo mesmo motivo que alarmTel:
+  * um blob v21/v22 termina exatamente onde este campo começa, então migra sem
+  * traduzir nada. Ficaria mais natural dentro de SensorRecord, e é exatamente
+  * por isso que NÃO está lá: SensorRecord vive no meio de SystemConfig e
+  * crescê-lo desloca cada byte depois dele. */
+ MaintConfig maint;
 };
 /* Locks SystemConfig layout. Adding a field without
  * CONFIG_VERSION bump + migration = corrupts existing flash; the assert forces
@@ -316,6 +375,12 @@ static_assert(sizeof(SystemConfig) > 0,
  * com offsets errados em silêncio. */
 static_assert(offsetof(SystemConfig, reserved) < offsetof(SystemConfig, alarmTel),
  "alarmTel must stay AFTER reserved[] — the v20 migration depends on tail-append");
+/* Mesma invariante para a v23: um blob v21/v22 tem exatamente
+ * offsetof(SystemConfig, maint) bytes, e é assim que attemptLoad o reconhece. */
+static_assert(offsetof(SystemConfig, alarmTel) < offsetof(SystemConfig, maint),
+ "maint must stay AFTER alarmTel — the v22 migration depends on tail-append");
+static_assert(offsetof(SystemConfig, maint) + sizeof(MaintConfig) == sizeof(SystemConfig),
+ "maint must be the LAST field — a field after it breaks the v22 migration");
 
 /** Overlay in reserved[24..25]: web server configuration. */
 struct __attribute__((packed)) WebConfigData {

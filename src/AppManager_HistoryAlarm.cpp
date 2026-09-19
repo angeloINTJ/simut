@@ -538,8 +538,14 @@ void AppManager::checkAlarmConditions( ) {
  uint16_t mask = 0;
  int8_t firstSlot = -1;
 
+ const uint32_t nowEpoch = (uint32_t)time(nullptr);
+
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (!cfg.sensors[i].active || !cfg.sensors[i].alarmsActive) continue;
+ /* Manutenção silencia o painel e a cigarra para este slot (v23). Quem está
+  * com a chave de fenda na mão não quer a cigarra, e o servidor já foi
+  * avisado pela borda "maint". */
+ if (maintActive(cfg.maint, (uint8_t)i, nowEpoch)) continue;
  uint8_t targetGpio = cfg.sensors[i].pins[0];
 
  for (const auto &s : sensors) {
@@ -578,6 +584,10 @@ void AppManager::checkAlarmConditions( ) {
  int8_t firstErrSlot = -1;
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (!cfg.sensors[i].active) continue;
+ /* Manutenção cobre a FALHA também, e é o ponto do pedido: desconectar o
+  * sensor é o que se faz para dar manutenção nele. Sem isto, tirar o cabo
+  * dispararia o alarme de erro justamente durante o serviço. */
+ if (maintActive(cfg.maint, (uint8_t)i, nowEpoch)) continue;
 
  /* Restabelecimento (v21): sensor voltou do erro → REGENERA o alarme de
  * erro do slot (limpa o mute). Se ele falhar de novo, o alarme de erro
@@ -670,13 +680,52 @@ void AppManager::handleAlarmTelemetryEdges( ) {
 		memset(_alarmTripBits, 0, sizeof(_alarmTripBits));
 		memset(_alarmCandBits, 0, sizeof(_alarmCandBits));
 		_alarmErrBits = 0;
+		_alarmMaintBits = 0;
 		return;
 	}
 
 	const auto& sensors = _sensorMgr->getRuntimeSensors( );
+	const uint32_t nowEpoch = (uint32_t)time(nullptr);
 
 	for (int i = 0; i < MAX_SENSORS; i++) {
 		if (!cfg.sensors[i].active) {
+			_alarmTripBits[i] = 0;
+			_alarmCandBits[i] = 0;
+			_alarmErrBits &= (uint16_t)~(1u << i);
+			_alarmMaintBits &= (uint16_t)~(1u << i);
+			continue;
+		}
+
+		/* ── Janela de manutenção (v23): um domínio próprio, com bordas ────
+		 *
+		 * Enquanto está aberta, este slot não gera registro de limite nem de
+		 * falha — é literalmente o pedido: "um alarme não é necessário com a
+		 * desconexão ou qualquer coisa que aconteça com o valor do sensor".
+		 * O servidor recebe exatamente dois registros, um ao entrar e um ao
+		 * sair, e entre eles sabe que o silêncio é intencional.
+		 *
+		 * A saída por PRAZO passa por aqui do mesmo jeito que a saída por
+		 * comando: o bit de estado está na RAM e a janela está na flash, então
+		 * o vencimento é detectado na primeira passada depois da hora. Um
+		 * aparelho que reinicia dentro da janela não emite "maint" de novo (o
+		 * bit nasce zerado e a janela segue aberta) — e isso é deliberado: o
+		 * registro marca a TRANSIÇÃO, e não houve nenhuma. */
+		const bool maintNow = maintActive(cfg.maint, (uint8_t)i, nowEpoch);
+		const bool maintWas = (_alarmMaintBits & (1u << i)) != 0;
+		if (maintNow != maintWas) {
+			uint8_t firstCh = CH_TEMP;
+			for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+				if (sensorHasChannel((SensorType)cfg.sensors[i].sensorType, c)) { firstCh = c; break; }
+			}
+			_telemetryMgr->pushAlarm((uint8_t)i, firstCh, NAN,
+			                         maintNow ? ALARM_ERR_MAINT : ALARM_ERR_MAINT_END);
+			if (maintNow) _alarmMaintBits |= (uint16_t)(1u << i);
+			else          _alarmMaintBits &= (uint16_t)~(1u << i);
+		}
+		if (maintNow) {
+			/* Estado de limite/erro zerado ao entrar: sair da manutenção com um
+			 * sensor já fora de faixa tem de RELATCHAR e alarmar de novo, e não
+			 * herdar o bit de antes e ficar calado. */
 			_alarmTripBits[i] = 0;
 			_alarmCandBits[i] = 0;
 			_alarmErrBits &= (uint16_t)~(1u << i);

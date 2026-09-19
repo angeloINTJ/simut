@@ -683,6 +683,7 @@ public:
   * loadConfiguration( ) saves it back once to persist the new schema. */
  bool _migratedFromV20 = false;
  bool _migratedFromV21 = false;   /**< v21 blob read: telInterval converted from ms to a count. */
+ bool _migratedFromV22 = false;   /**< v21/v22 blob read: maintenance tail appended. */
 
  File _currentLogFile;
  String _currentLogFileName = "";
@@ -702,6 +703,7 @@ public:
   * cauda alarmTel com defaults. A cauda só pode ser anexada — travado por
   * static_assert em SystemDefs_Records.h. */
  bool loadMigrateV20Blob(File& f, SystemConfig& outCfg);
+ bool loadMigrateV22Blob(File& f, SystemConfig& outCfg);
 
  void enforceStorageLimit( );
  uint8_t _enforceDeleted = 0;   /**< files removed by the last enforceStorageLimit( ) */

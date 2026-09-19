@@ -52,36 +52,44 @@
   "pico_w_test it went 32 B negative, which is the gate doing its job. Budgets are",
   "reset to measured + 3,000 so the next ordinary change is not blocked by a margin",
   "that quietly ran out. alpha and air move by 16 and 8 B (a constexpr and a header",
-  "they barely touch) and keep their own margins, 2,928 and 1,000."
+  "they barely touch) and keep their own margins, 2,928 and 1,000.",
+  "2026-09-19 (feat/alarms-live-config): +2,896 B on release, +6,352 on alpha,",
+  "+2,208 on air. Three things: a per-slot maintenance window (CONFIG_VERSION 23,",
+  "tail-append), a third payload domain in the alarm line, and ConfigApply.h -",
+  "which classifies what a commit changed so the handler reboots only for what",
+  "needs it. ConfigApply started as thirty hand-written compare/copy functions and",
+  "cost 4,488 B; rewritten as one span table walked by one loop it costs 2,896 and",
+  "the two halves can no longer drift apart. Budgets go to measured + 3,000 (air",
+  "keeps its 1,000); the air .bin is 1,027,116 B, 13,268 under the OTA ceiling."
  ],
  "ceiling": 1044480,
  "measured_on": "2026-09-19",
- "measured_at_commit": "study/core1-pause-mirror (+2,048 B release: DMA read pipeline, send coalescing, ENC_PAL_RLE4)",
+ "measured_at_commit": "feat/alarms-live-config (+2,896 B release: maintenance windows, live config apply, CONFIG_VERSION 23)",
 
  "envs": {
   "pico_w_release": {
-   "budget": 980580,
-   "measured": 977580
+   "budget": 983476,
+   "measured": 980476
   },
   "pico_w_test": {
-   "budget": 982764,
-   "measured": 979764
+   "budget": 985652,
+   "measured": 982652
   },
   "pico_w_test_https": {
-   "budget": 1007172,
-   "measured": 1004172
+   "budget": 1010044,
+   "measured": 1007044
   },
   "pico_w_asserts": {
-   "budget": 982748,
-   "measured": 979748
+   "budget": 985644,
+   "measured": 982644
   },
   "pico_w_alpha": {
-   "budget": 968092,
-   "measured": 965092
+   "budget": 974444,
+   "measured": 971444
   },
   "pico_w_air": {
-   "budget": 1010328,
-   "measured": 1009328
+   "budget": 1012536,
+   "measured": 1011536
   }
  }
 }

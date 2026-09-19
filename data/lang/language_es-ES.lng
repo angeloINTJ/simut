@@ -259,6 +259,7 @@ Luminosidad
 600 Forzar reanudación
 999 Error desconocido
 @TRL
+c58f1416 Admin aplicó cambios sin reiniciar
 98d1b5c0 Actualización preparada descartada: el equipo se reinició antes de aplicar
 eb144bf6 Reinicio solicitado por la web
 016eef1e DS18B20 emparejado a su número de serie

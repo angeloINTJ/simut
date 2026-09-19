@@ -49,7 +49,13 @@ enum AlarmErrCode : uint8_t {
 	ALARM_ERR_ALARM_OFF, /* "alarm_off" — limite desativado */
 	ALARM_ERR_ERROR,     /* "err" — falha de hardware */
 	ALARM_ERR_ERR_SIL,   /* "err_sil" — erro silenciado */
-	ALARM_ERR_ERR_OFF    /* "err_off" — erro desativado */
+	ALARM_ERR_ERR_OFF,   /* "err_off" — erro desativado */
+	/* Terceiro domínio, campo "maint" (v23). Um slot em manutenção não gera
+	 * registro de limite nem de falha — gera EXATAMENTE estes dois, nas bordas
+	 * de entrada e de saída da janela. É o que diz ao servidor "o que vier
+	 * deste sensor até segunda ordem não é alarme". */
+	ALARM_ERR_MAINT,     /* "maint" — entrou em manutenção */
+	ALARM_ERR_MAINT_END  /* "maint_end" — saiu, por comando ou por prazo */
 };
 
 /** Um registro da fila de alarmes. Layout em ordem natural (sem pack):

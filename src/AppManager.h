@@ -155,6 +155,11 @@ private:
  uint8_t _alarmTripBits[MAX_SENSORS] = {0};
  uint8_t _alarmCandBits[MAX_SENSORS] = {0};
  uint16_t _alarmErrBits = 0;
+ /** Bit por slot: a janela de manutenção estava aberta na última passada.
+  *  Vive na RAM de propósito — a JANELA está na flash, este bit só existe para
+  *  detectar a TRANSIÇÃO, e um reboot dentro da janela não deve reemitir
+  *  "maint" (ver handleAlarmTelemetryEdges). */
+ uint16_t _alarmMaintBits = 0;
  /** Borda confirmada → enfileira em _telemetryMgr->pushAlarm( ). */
  void handleAlarmTelemetryEdges( );
  /** Registro de AÇÃO (silenciar/desativar) na 2ª linha de telemetria — o
