@@ -1311,6 +1311,9 @@ void DisplayManager::loopCore1( ) {
 		/* Process touch BEFORE rendering for same-frame response */
 		C1_PHASE(C1P_TOUCH_HANDLE);
 		handleTouch( );
+		/* The mode this iteration is about to paint. Core 0 may replace it
+		 * while a draw below is in progress — see the check after the chain. */
+		const UiMode modeBeforeDraw = _uiMode;
 
 		if (_themeChanged) {
 			C1_PHASE(C1P_THEME_MUTEX);
@@ -1481,21 +1484,21 @@ void DisplayManager::loopCore1( ) {
 			drawGraphHeaderBar( );
 		}
 		else if (_uiMode == MODE_SETTINGS_THEMES) {
-			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawSettingsThemes( ); _repaintSettings = false; }
+			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawSettingsThemes( ); }
 		}
 		else if (_uiMode == MODE_SETTINGS_ALARMS) {
 			if (_repaintSettings) {
+				_repaintSettings = false;
 				C1_PHASE(C1P_UI_SETTINGS);
 				/* A flag that flipped in place repaints its own word; anything
 				 * else goes through the full path. */
 				if (_alarmStatusDirty && !_forceSettingsRedraw) drawAlarmStatusOnly( );
 				else drawSettingsAlarms( );
 				_alarmStatusDirty = false;
-				_repaintSettings = false;
 			}
 		}
 		else if (_uiMode == MODE_SETTINGS_ALARM_EDIT) {
-			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawAlarmEdit( ); _repaintSettings = false; }
+			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawAlarmEdit( ); }
 		}
 		else if (_uiMode == MODE_AUTH) {
 			if (_permanentLockout) {
@@ -1505,22 +1508,22 @@ void DisplayManager::loopCore1( ) {
 				if (!timeReached(_lockoutUntil)) _repaintSettings = true;
 				else { _lockoutUntil = 0; _forceSettingsRedraw = true; _repaintSettings = true; }
 			}
-			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawPinScreen( ); _repaintSettings = false; }
+			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawPinScreen( ); }
 		}
 		else if (_uiMode == MODE_SETTINGS_MAIN) {
-			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawSettingsMain( ); _repaintSettings = false; }
+			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawSettingsMain( ); }
 		}
 		else if (_uiMode == MODE_SETTINGS_LANG) {
-			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawSettingsLang( ); _repaintSettings = false; }
+			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawSettingsLang( ); }
 		}
 		else if (_uiMode == MODE_SETTINGS_PASSWORD) {
-			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawSettingsPassword( ); _repaintSettings = false; }
+			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawSettingsPassword( ); }
 		}
 		else if (_uiMode == MODE_SETTINGS_TOUCH_CAL) {
-			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawTouchCalibration( ); _repaintSettings = false; }
+			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawTouchCalibration( ); }
 		}
 		else if (_uiMode == MODE_SETTINGS_TOUCH_SENS) {
-			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawTouchSensitivity( ); _repaintSettings = false; }
+			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawTouchSensitivity( ); }
 			/* After 1.5s from completion, advance to position calibration */
 			if (_sensDone && timeSince(_sensDoneTime, 1500)) {
 				_uiMode = MODE_SETTINGS_TOUCH_CAL;
@@ -1533,54 +1536,70 @@ void DisplayManager::loopCore1( ) {
 		else if (_uiMode == MODE_SETTINGS_SOUNDS) {
 
 			if (_repaintSettings) {
+				_repaintSettings = false;
 				if (_inMelodySelect) drawMelodySelect( );
 				else drawSettingsSounds( );
-				_repaintSettings = false;
 			}
 		}
 		else if (_uiMode == MODE_SETTINGS_STATUS) {
 			/* Renders every 1 second or when forced */
 			if (_repaintSettings || timeSince(_statusLastDraw, 1000)) {
-				drawSystemStatus( );
 				_repaintSettings = false;
+				drawSystemStatus( );
 			}
 		}
 		else if (_uiMode == MODE_SETTINGS_LICENSE) {
-			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawSettingsLicense( ); _repaintSettings = false; }
+			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawSettingsLicense( ); }
 		}
 		else if (_uiMode == MODE_SETTINGS_DISPLAY_OFFSET) {
-			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawSettingsDisplayOffset( ); _repaintSettings = false; }
+			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawSettingsDisplayOffset( ); }
 		}
 		else if (_uiMode == MODE_ALARM_ACTION) {
 
-			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawAlarmAction( ); _repaintSettings = false; }
+			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawAlarmAction( ); }
 		}
 		/* v24 — identity at the panel (DisplayManager_Users.cpp) */
 		else if (_uiMode == MODE_SETTINGS_ALARM_SENSOR) {
-			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawAlarmSensorMenu( ); _repaintSettings = false; }
+			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawAlarmSensorMenu( ); }
 		}
 		else if (_uiMode == MODE_SETTINGS_MAINT) {
 			/* an open window counts down on screen: once a second, like the status screen */
 			if (_repaintSettings || timeSince(_maintLastDraw, 1000)) {
-				C1_PHASE(C1P_UI_SETTINGS); drawMaintEntry( ); _maintLastDraw = millis( ); _repaintSettings = false;
+				_repaintSettings = false;
+				C1_PHASE(C1P_UI_SETTINGS); drawMaintEntry( ); _maintLastDraw = millis( );
 			}
 		}
 		else if (_uiMode == MODE_SETTINGS_USERS) {
-			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawSettingsUsers( ); _repaintSettings = false; }
+			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawSettingsUsers( ); }
 		}
 		else if (_uiMode == MODE_SETTINGS_USER_EDIT) {
-			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawUserEdit( ); _repaintSettings = false; }
+			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawUserEdit( ); }
 		}
 		else if (_uiMode == MODE_SETTINGS_USER_CONFIRM_DEL) {
-			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawUserConfirmDel( ); _repaintSettings = false; }
+			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawUserConfirmDel( ); }
 		}
 		else if (_uiMode == MODE_PANEL_MESSAGE) {
-			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawPanelMessage( ); _repaintSettings = false; }
+			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawPanelMessage( ); }
 		}
 		else if (_uiMode == MODE_CONFIRM_MUTE_ALL) {
 
-			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawMuteConfirm( ); _repaintSettings = false; }
+			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawMuteConfirm( ); }
 		}
+
+		/* A request that lands WHILE a draw is running must survive that draw.
+		 * Every branch above used to clear _repaintSettings after painting, and
+		 * each draw function clears _forceSettingsRedraw when it is done: a
+		 * screen change Core 0 made in between was wiped with the flags of the
+		 * draw it interrupted. The keypad made it reproducible — the OK key
+		 * repaints its own "waiting" line in the same iteration that hands the
+		 * PIN to Core 0, and Core 0 answers (authResult + showSettingsMain)
+		 * before that partial blit is over. Measured on the rig on 2026-09-19
+		 * through /api/touch: 7 of 7 accepted PINs (SEC_PIN_OK in the log,
+		 * `show metrics` reporting UI mode 6) left the keypad on the glass until
+		 * the next touch. The branches now take the flag before painting, and
+		 * this line restores a full repaint for a mode that changed underneath
+		 * the draw, whichever flags that draw consumed on its way out. */
+		if (_uiMode != modeBeforeDraw) { _forceSettingsRedraw = true; _repaintSettings = true; }
 
 		/*
 		 * Adaptive pause: minimum during interaction, larger when idle.
