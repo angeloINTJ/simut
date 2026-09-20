@@ -4,6 +4,144 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.5.0-beta (2026-09-20)
+
+**The panel knows who is standing at it.** Until now the display had one PIN for
+everybody and the event log could only say that *somebody* changed a limit. An
+account is now something the panel understands: each of 32 accounts can hold its
+own PIN, three new permission bits say what it may do at the glass, and every
+action carries that account's name into the event log and out on the alarm line.
+Config schema 22 -> 24, migrated in place.
+
+Along the way the panel mirror got 2.9x faster, alarms became something a server
+can edit without a reboot, and two log records that had been silently dropped
+for as long as they existed were found by a test that filled the account table.
+
+### Identity at the panel (config v24)
+
+- **32 accounts**, up from five, each with an optional panel PIN. The PIN is
+  stored as a salted SHA-256 chain, never in clear, and the panel is unlocked by
+  *finding* the account the PIN belongs to rather than by asking who you are
+  first.
+- **Three new permission bits**, all panel-side: `PERM_ALARM_LIMITS` (edit a
+  sensor's alarm limits), `PERM_ALARM_BLOCK` (enable/disable its alarms, and
+  "Deactivate" on the alarm pop-up) and `PERM_MAINT` (open and close a
+  maintenance window). An account with none of them is offered no Alarms item at
+  all; the sensor menu opens on the first row that account may actually use.
+- **A Users item on the panel**: create an account, set its bits and its PIN,
+  delete it — without a browser. The built-in `admin` is not listed there,
+  because it cannot be edited from the glass.
+- **The settings breadcrumb names whoever authenticated** — `Settings > maria`,
+  not `Settings > Main`.
+- **Five payload codes carry the acting user**, so the alarm line says who moved
+  a limit, who blocked a sensor and who opened a maintenance window.
+- Silencing an alarm stays unsigned and needs no PIN: it is the one action whose
+  value is that anyone nearby can do it immediately.
+
+### The scrambled keypad
+
+The PIN is entered on a keypad that gives an onlooker almost nothing. Ten digits
+and two decoy glyphs are dealt across four cards of three; **a whole card is one
+tap**, and the deal is **re-rolled after every tap**. The device never learns
+which of a card's three glyphs was meant — it resolves the whole tree of
+sequences those taps can spell against every account's digest at the end.
+
+This has a real cost, and it was measured rather than assumed. An entry of n
+taps stands for up to 3^n PINs, so two accounts can fall inside the same
+sequence; the panel cannot ask which was meant, so neither gets in. On a full
+table of 32 accounts, `tools/panel_fulltable_test.py`:
+
+| PIN length | logins at first try | retries | ambiguity events | predicted | measured |
+|---|---|---|---|---|---|
+| 4 digits | 22/25 (88%) | 4 | 4 | 18% | **15%** |
+| 6 digits | 24/25 (96%) | 1 | 1 | 2% | **4%** |
+
+Retries and logged ambiguity events match exactly in both passes. **Six digits
+is the mitigation and it is worth roughly four times** — the prediction is
+`1 - (1 - 3^n/10^n)^(accounts-1)`.
+
+Making this affordable meant changing the digest: it is now a per-character
+SHA-256 chain closed over the length, so walking the candidate tree costs one
+hash per *node* rather than one full digest per leaf. Eight taps block Core 0 for
+about 360 ms (449 ms worst HTTP response against 91 ms idle); four taps are lost
+in the noise.
+
+### Alarms a server can edit live, and maintenance windows
+
+- `POST /api/commit_all` now classifies what a commit actually changed and
+  **reboots only for what needs it**, by comparison rather than by a hand-kept
+  list. The fail-safe is still a reboot.
+- **A maintenance window per sensor**, with a deadline: the sensor stays in the
+  history and on the screen, but its alarms are suppressed until the window
+  closes. It is a third domain in the alarm payload, so a server can tell
+  "suppressed on purpose" from "not alarming".
+- The window is set in **seconds from now**, not as an absolute epoch, because
+  the caller is a server and the two clocks need not agree.
+
+### The panel mirror, end to end
+
+613 ms -> **213 ms** per frame and 40% fewer bytes on the wire, from four
+changes that each had to be measured separately: a 12 MHz read clock, a DMA read
+pipeline, send coalescing, and a nibble codec. The Core 1 pause became a park
+without the SDK lockout, so Core 1 idles only for the length of a capture.
+The frame is now bus-bound: further codec work buys bandwidth, not time.
+
+### Fixed
+
+- **A deleted account's PIN digest stayed in its slot** and opened the panel as
+  whoever took that slot next. Deleting an account only cleared its `active`
+  flag; the record is now zeroed whole, on both allocation paths.
+- **The two records that say who got in and who moved a limit were the two the
+  log could drop.** `SEC_PIN_OK` (308) and `APP_UI_ALARM_SAVED` (442) were
+  `LOG_INFO`, and the log's per-family latch drops a repeated INFO: on a run of
+  logins, **3 of 25 identifications left no trace at all**. Both are `LOG_WARN`
+  now, which the policy never filters. The other four panel actions — block,
+  unblock, maintenance on and off — had always been WARN.
+- **Core 1 dropped repaint requests that arrived while it was painting.** The
+  flag was cleared *after* the draw, so a screen change Core 0 asked for during
+  a blit was lost: 7 of 7 logins left the keypad on the glass with the PIN
+  already accepted. Every branch of the dispatch now takes the flag before
+  drawing.
+- `user pin <name> <pin>` stored the lowercased token, which was harmless for
+  digits and silently wrong for anything else.
+
+### Added
+
+- **`GET /api/keypad`** returns the four scrambled cards as they are dealt right
+  now, gated at `PERM_SYS_CONFIG` — the same bit that already reads
+  `/api/screenshot`, which returns a picture of the identical cards. It never
+  says which slot of a card is the digit, and answers `"up": false` with empty
+  faces when the keypad is not the live screen. Behind `SIMUT_DISPLAY_TFT`.
+- **Log code 311 `SEC_PIN_AMBIGUOUS`**: "two accounts fit the same keypad entry"
+  was being filed as a wrong PIN. It is not one, and the answer to it is a
+  longer PIN rather than a retry.
+- **`docs/API_POST.md`**: every POST route on one page, with what each
+  permission mask can actually reach — checked against a running device rather
+  than against the source.
+- **`tools/panel_fulltable_test.py`**: fills every free account slot and drives
+  the panel with all of them, then measures the ambiguity rate against its own
+  prediction.
+
+### Flash
+
+Both columns are PlatformIO's `Flash: used`, and v2.4.10-beta's were taken by
+building that tag in a clean worktree rather than by trusting a recorded number.
+
+| image | v2.4.10-beta | v2.5.0-beta | Δ | `.bin` | under the OTA ceiling |
+|---|---:|---:|---:|---:|---:|
+| `pico_w_release` | 974,716 B | **998,468 B** | +23,752 | 1,010,500 B | 29,884 B |
+| `pico_w_alpha` | 965,028 B | **973,372 B** | +8,344 | 986,252 B | 54,132 B |
+| `pico_w_air` | 1,009,312 B | **1,018,752 B** | +9,440 | 1,031,212 B | 9,172 B |
+
+The two imageless builds pay only for the migration, the digest, the wider
+account table and the CLI and web PIN paths: the panel screens and their Core-0
+side are behind `SIMUT_DISPLAY_TFT`, which took the Air's share from 10,304 B
+down to 6,848. No budget ceiling was raised and every environment is inside its
+margin. The ceiling that matters is the OTA-safe one, 1,040,384 B of `.bin`, not
+the 1,044,480 program slot: the last 4 KiB sector holds the config snapshot at
+stage time. **The Air has 9,172 B left, and every future byte there is a
+trade.**
+
 ## v2.4.10-beta (2026-09-18)
 
 **The panel mirror is 2.6x faster, the SIMUT Air gets its full console back, and
