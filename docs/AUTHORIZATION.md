@@ -42,14 +42,17 @@ gates by testing the bits it needs against `getAuthPerms()`.
 | `PERM_FILE_DELETE`| `0x0080` | file delete |
 | `PERM_USER_MGR`   | `0x0100` | user management, security status |
 | `PERM_CALIB`      | `0x0200` | sensor calibration |
-| `PERM_ALL_BITS`   | `0x03FF` | all ten named bits — **the ceiling any web-created account can hold** |
+| `PERM_ALARM_LIMITS` | `0x0400` | **panel**: edit a sensor's alarm limits (config v24) |
+| `PERM_ALARM_BLOCK`  | `0x0800` | **panel**: enable/disable a sensor's alarms, and "Deactivate" on the alarm pop-up |
+| `PERM_MAINT`        | `0x1000` | **panel**: open/close a sensor's maintenance window |
+| `PERM_ALL_BITS`   | `0x1FFF` | all thirteen named bits — **the ceiling any web-created account can hold** |
 | `PERM_FULL_ADMIN` | `0xFFFF` | the built-in admin (config slot 0) or a CLI-granted mask |
 
 ### The two privilege tiers — this is the load-bearing invariant
 
-`/api/commit_all` refuses any `perms` value above `PERM_ALL_BITS` (0x03FF) when
+`/api/commit_all` refuses any `perms` value above `PERM_ALL_BITS` (0x1FFF) when
 creating users (there is no edit action — a role change is `del` + `add`) (`WebManager_Commit.cpp`). So a web administrator can
-hand out at most all ten named bits. `PERM_FULL_ADMIN` (0xFFFF) is reachable
+hand out at most all thirteen named bits. `PERM_FULL_ADMIN` (0xFFFF) is reachable
 only two ways: the factory seed sets it on user slot 0 (`StorageManager.cpp`),
 and the serial CLI `user perm <name> admin|0xFFFF` can assign it
 (`AppManager_CmdHandlers.cpp`).
@@ -108,7 +111,8 @@ handler checks.
 | `GET /api/export/logs.bin`, `/api/logs` | `PERM_LOGS` |
 | `GET /api/screenshot`, `/api/screenshot_chunk` | `PERM_SYS_CONFIG` |
 | `GET /api/screen_stream` | `PERM_SYS_CONFIG` |
-| `POST /api/touch` | `PERM_SYS_CONFIG` — drives the panel UI; the display PIN keypad still guards the settings screens |
+| `POST /api/touch` | `PERM_SYS_CONFIG` — drives the panel UI; the panel's PIN keypad still guards the settings screens, and every panel action tests the bit of the account the PIN identified (below) |
+| `GET /api/keypad` | `PERM_SYS_CONFIG` — the four scrambled card faces, the same ones `show display keypad` prints. It describes the glass, not the secret: an account that may read `/api/screenshot` already has a picture of the identical cards, and neither says which slot of a card is the digit. Empty faces when the keypad is not the live screen |
 | `GET /api/sec_status` | `PERM_USER_MGR` |
 | `GET /api/ls` | `PERM_FILE_READ` |
 | `GET /download` | `PERM_FILE_READ`, **plus** `PERM_HISTORY` for `/history/...` and `PERM_LOGS` for `*.blog` (`downloadPermFor`) |
@@ -139,6 +143,59 @@ entry straight to its final path, so `/config`, `/calib.csv` and `/history` were
 already overwritten by the time the 403 was sent. Any new upload-callback route
 must gate on the **first** `UPLOAD_FILE_START`, the way `handleUploadData` and
 both restore branches now do.
+
+## The panel (config v24)
+
+The panel is a fourth surface, next to the web, the CLI and Bluetooth, and it
+has its own identity: a **PIN** of 4 to 8 digits (`PinKb::FIRST`..`LAST`) per
+account, unique across accounts because the keypad has no username field — the
+PIN *is* the lookup.
+CFG on the dashboard opens the keypad; the account it identifies is the panel
+session until the settings tree is left. `EVT_AUTH_PIN` hands Core 0 the taps of the
+attempt, and each one carries THE THREE GLYPHS THAT WERE ON THE CARD when it
+was made — the deal is rolled again after every tap, so a card index would name
+something else by the time it is read. The keypad never asks which of the three
+was meant, so an entry stands for up to 3^n strings.
+`StorageManager::findUserByPinSet( )` walks that tree depth-first against the
+device-wide salt (`pinAuth.pinSalt`), one hash per node because the digest is a
+per-character chain, and returns the account a candidate belongs to. It walks
+the WHOLE tree: if two accounts both match, neither is let in, because the
+panel cannot ask which was meant. An attempt costs the same whether or not a
+PIN exists, and 8 taps cost ~360 ms of Core 0 (measured on the rig,
+2026-09-19; 4 taps are lost in the noise).
+
+Account records are cleared whole on delete, and a PIN digest is cleared when a
+slot is allocated. Until 2026-09-19 deletion only lowered the `active` flag, so
+the next account to land on that slot inherited the previous holder's PIN and
+could be opened with it — found on the rig, where a freshly created account
+already reported holding a PIN.
+
+The consequence is worth stating plainly: a blind four-tap entry covers 81 of
+the 10,000 four-digit PINs, so against 32 accounts it has roughly a 26% chance
+of matching one. Six digits bring it to ~2%, eight to ~0.2%. What bounds the
+online attack is the lockout ladder below, and the deployment answer is longer
+PINs. The keypad lockout ladder is the one the device PIN always had: two
+free tries, 5 s, 15 s, 60 s, then a lockout only a reboot clears
+(`SEC_PIN_FAIL`/`SEC_PIN_LOCKOUT`, 309/310; `SEC_PIN_OK` 308 with the account).
+An entry that fits two accounts is `SEC_PIN_AMBIGUOUS` (311) and not a wrong
+PIN: it is the failure a full account table produces, and the answer to it is
+longer PINs, not another try — although another try usually works, because the
+deal is different.
+
+| Panel action | Requires |
+|---|---|
+| Settings menu items Themes, Sounds, Language, Touch calibration, Display alignment | `PERM_SYS_CONFIG` (the menu lists only what the session's bits reach) |
+| Alarms → a sensor → Alarm limits | `PERM_ALARM_LIMITS` |
+| Alarms → a sensor → Alarms ON/OFF · "Deactivate" on the alarm pop-up | `PERM_ALARM_BLOCK` |
+| Alarms → a sensor → Maintenance (open / close) | `PERM_MAINT` |
+| Users (list, new account, bits, another account's PIN, delete) | `PERM_USER_MGR` |
+| One's own PIN, License, System status | any identified account |
+
+Core 0 checks the bit again on every event (`AppManager_Panel.cpp`,
+`panelAllowed`) and logs a refusal as `APP_UI_PERM_DENIED` (458); Core 1 only
+decides what to draw. A user created at the panel holds panel bits only — no
+web page opens for it until an administrator grants a page bit and resets its
+password.
 
 ## Unauthenticated by design
 

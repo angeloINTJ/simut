@@ -98,15 +98,27 @@ void DisplayManager::readRow(int16_t y, uint16_t* buffer, int16_t w) { (void)y; 
 void DisplayManager::readRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t* out) { (void)x; (void)y; (void)w; (void)h; (void)out; }
 
 void DisplayManager::showSettingsThemes(int currentThemeIdx) { (void)currentThemeIdx; }
-void DisplayManager::showAuthScreen(String expectedPin) { (void)expectedPin; }
-void DisplayManager::requestAuthKeypadRedraw( ) { }
+uint8_t DisplayManager::pinKeyFace(int, char* out, size_t cap) const { if (out && cap) out[0] = '\0'; return 0; }
+uint8_t DisplayManager::getEnteredPinTaps(char[][PinKb::SLOTS + 1], size_t) const { return 0; }
+/* v24 — identity at the panel: no panel, no keypad. */
+void DisplayManager::showPinEntry(uint8_t purpose, int8_t targetUser) { (void)purpose; (void)targetUser; }
+int DisplayManager::authResult(bool ok) { (void)ok; return 0; }
+void DisplayManager::getEnteredPin(char* out, size_t cap) const { if (out && cap) out[0] = '\0'; }
+void DisplayManager::clearEnteredPin( ) { }
+void DisplayManager::setPanelSession(int8_t user, uint16_t perms) { (void)user; (void)perms; }
+void DisplayManager::showAlarmSensorMenu(int sensorIdx) { (void)sensorIdx; }
+void DisplayManager::showMaintEntry(int sensorIdx) { (void)sensorIdx; }
+void DisplayManager::showSettingsUsers( ) { }
+void DisplayManager::showUserEdit(int slot, bool isNew) { (void)slot; (void)isNew; }
+void DisplayManager::showPanelMessage(bool ok, LangKey msg, UiMode returnTo) { (void)ok; (void)msg; (void)returnTo; }
+void DisplayManager::getNewName(char* out, size_t cap) const { if (out && cap) out[0] = '\0'; }
 void DisplayManager::showSettingsMain( ) { }
 void DisplayManager::showSettingsAlarms(SystemConfig* cfg) { (void)cfg; }
 void DisplayManager::refreshAlarmStatus( ) { }
 void DisplayManager::showAlarmEdit(int sensorIdx) { (void)sensorIdx; }
 void DisplayManager::showSettingsLang(int currentLang) { (void)currentLang; }
 void DisplayManager::drawSettingsLang( ) { }
-void DisplayManager::showSettingsPassword( ) { }
+void DisplayManager::showSettingsPassword(uint8_t purpose) { (void)purpose; }
 void DisplayManager::getNewPassword(char* out, size_t maxLen) const { if (out && maxLen) out[0] = '\0'; }
 void DisplayManager::showTouchCalibration( ) { }
 void DisplayManager::showTouchSensitivity( ) { }

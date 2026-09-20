@@ -1116,6 +1116,10 @@ static const char* translateCodeEn(uint16_t code) {
  case SEC_FILE_UPLOAD: return "File uploaded";
  case SEC_FILE_DELETE: return "File deleted";
  case SEC_BT_LOCKOUT: return "Bluetooth lockout";
+ case SEC_PIN_OK: return "Panel PIN accepted";
+ case SEC_PIN_FAIL: return "Panel PIN rejected";
+ case SEC_PIN_LOCKOUT: return "Panel PIN lockout";
+ case SEC_PIN_AMBIGUOUS: return "Keypad entry fits two accounts";
 
  /* ── App lifecycle (400–410) ── */
  case APP_DISPLAY_LAUNCHED: return "Display launched on Core 1";
@@ -1145,6 +1149,15 @@ static const char* translateCodeEn(uint16_t code) {
  case APP_UI_ALARM_SILENCED: return "Alarm silenced via UI";
  case APP_UI_ALARM_SILENCE_EXP:return "Alarm silence expired";
  case APP_UI_ALARM_DEACTIVATED:return "All alarms deactivated (RAM)";
+ case APP_UI_USER_ADDED: return "User created via panel";
+ case APP_UI_USER_DELETED: return "User deleted via panel";
+ case APP_UI_USER_PIN_SET: return "Panel PIN set for user";
+ case APP_UI_USER_PERMS: return "User permissions changed via panel";
+ case APP_UI_MAINT_ON: return "Maintenance opened via panel";
+ case APP_UI_MAINT_OFF: return "Maintenance closed via panel";
+ case APP_UI_ALARM_BLOCKED: return "Sensor alarms blocked via panel";
+ case APP_UI_ALARM_UNBLOCKED: return "Sensor alarms unblocked via panel";
+ case APP_UI_PERM_DENIED: return "Panel action refused: no permission";
 
  /* ── Alarm state (470–472) ── */
  case APP_ALARM_TRIGGERED: return "Alarm triggered";

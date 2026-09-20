@@ -181,6 +181,7 @@ CliDemand parseCliCommand(String input) {
 		if (t1 == "gpio")                      { cmd.type = CMD_SHOW_GPIO;         return cmd; }
 		if (t1 == "storage" && t2 == "stats")  { cmd.type = CMD_SHOW_STORAGE;      return cmd; }
 		if (t1 == "metrics")                   { cmd.type = CMD_SHOW_METRICS;      return cmd; }
+		if (t1 == "display" && t2 == "keypad") { cmd.type = CMD_SHOW_KEYPAD;       return cmd; }
 #endif
 	}
 
@@ -246,6 +247,17 @@ CliDemand parseCliCommand(String input) {
 			cmd.type = CMD_USER_PERM;
 			cmd.setStrVal1(r2.c_str( ));
 			cmd.setStrVal2(t3.c_str( )); /* role/mask — matching is case-insensitive */
+			return cmd;
+		}
+		if (t1 == "pin" && t2.length( ) > 0 && t3.length( ) > 0) {
+			cmd.type = CMD_USER_PIN;
+			cmd.setStrVal1(r2.c_str( ));
+			/* r3, not t3: t3 is the LOWERCASED token. Harmless while a PIN is
+			 * digits, which it is again since 2026-09-19 — but this line spent
+			 * a few hours storing downcased letters, and the raw token is what
+			 * the field actually means. "off" is matched on t3 below so that
+			 * OFF and Off still remove it. */
+			cmd.setStrVal2(r3.c_str( ));
 			return cmd;
 		}
 	}

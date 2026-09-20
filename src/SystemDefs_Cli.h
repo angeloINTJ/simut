@@ -48,6 +48,7 @@ enum DemandType {
  CMD_SHOW_SYSINFO,
  CMD_SHOW_NET,
  CMD_SHOW_METRICS,
+ CMD_SHOW_KEYPAD,   /* v24: the scrambled PIN keypad, for automation */
  CMD_SHOW_SENSOR_TYPES, /**< List compiled-in sensor drivers with channel/pin info */
  CMD_SHOW_GPIO, /**< GPIO resource map — 16 pins, free/used by slot */
  CMD_SET_DS_RES,
@@ -98,6 +99,7 @@ enum DemandType {
  CMD_USER_DEL, /**< strVal1 = username (protects admin) */
  CMD_USER_PASS, /**< strVal1 = username; strVal2 = new password */
  CMD_USER_PERM, /**< strVal1 = username; strVal2 = role name or 0xHEX mask */
+ CMD_USER_PIN, /**< v24: strVal1 = username; strVal2 = 4-8 digits, or "off" */
  CMD_SET_WEB_PORT, /**< intVal1 = port (1..65535) */
 
  /* 'touch sim X Y' — injects touch (x,y) screen-space.

@@ -288,6 +288,26 @@ constexpr uint32_t WEB_LONG_HANDLER_DEADLINE_MS = 15000;
  *   lwIP drain the PBUF pool and hands the heap/SPI arbiter to Core 1. */
 constexpr size_t   WEB_STREAM_CHUNK_SOFT      = 512;
 
+/* Bytes of one /api/screen_stream frame buffered before it is handed to
+ * safeSend, or 0 for the per-strip writes the route shipped with.
+ *
+ * A frame is 30 strips and the old code made two safeSend calls per strip, each
+ * paying a client setTimeout, a feedWatchdog and a waitSendRoom before the first
+ * byte moves. The payload is 3-13 kB, so one buffer swallows almost any frame
+ * whole. Sized to the measurement, not to the worst case: a strip that falls
+ * back to raw is 5,123 B and goes out on its own rather than dictating a buffer
+ * every frame would carry.
+ *
+ * 1 kB and not more, and that is the counter-intuitive part. With the blocking
+ * read the frame got monotonically better with a bigger buffer (61 writes to 5
+ * was worth 80 ms). With the DMA pipeline it inverts: the transfer of the next
+ * strip runs while Core 0 sends this one, so a big buffer means Core 0 sits
+ * idle for most strips and then blocks the bus for one long flush. Measured on
+ * the dashboard (rig, 2026-09-19): 0 -> 222.2 ms, 512 -> 208.3, 1024 -> 210.7,
+ * 2048 -> 211.7, 4096 -> 232.3. 512..2048 is a plateau and 1024 sits on it with
+ * a third of the write calls of 512. See ESPELHO_DELTA.md §11. */
+constexpr size_t   SCREEN_SEND_COALESCE     = 1024;
+
 /* WEB_SEND_STALL_MS — how long safeSend waits for the socket's send buffer
  * to absorb one slice before dropping the client. The wait loop feeds the
  * watchdog, so this is a POLICY bound on slow readers, not a survival bound:

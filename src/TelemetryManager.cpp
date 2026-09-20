@@ -2389,27 +2389,39 @@ static String alarmHttpPath(const SystemConfig& cfg) {
 	return String(cfg.telPath) + "/alarm";
 }
 
-uint16_t TelemetryManager::pushAlarm(uint8_t slot, uint8_t channel, float value, uint8_t errCode) {
+uint16_t TelemetryManager::pushAlarm(uint8_t slot, uint8_t channel, float value, uint8_t errCode,
+                                     uint8_t actor, float value2, uint32_t untilEpoch) {
 	if (!_alarmEnabled || slot >= MAX_SENSORS) return 0;
 
-	/* Valor de leitura só na borda de limite ("alarm"); ações (sil/off) e
-	 * falhas (err*) são marcadores sem valor — o {val} fica ausente. */
+	/* Valor de leitura só na borda de limite ("alarm"); ações (sil/off/on) e
+	 * falhas (err*) são marcadores sem valor — o {val} fica ausente. Um
+	 * "alarm_lim" carrega o PAR de limites, pela mesma escala do canal. */
 	const bool isErr = (errCode == ALARM_ERR_ERROR ||
 	                    errCode == ALARM_ERR_ERR_SIL ||
 	                    errCode == ALARM_ERR_ERR_OFF);
-	const bool hasValue = (errCode == ALARM_ERR_ALARM);
-	int16_t scaled;
-	if (!hasValue || !isfinite(value)) {
-		scaled = HIST_NAN_SENTINEL;
-	} else {
-		const ChannelInfo& ci = channelInfo(channel);
-		float s = value * ci.scale;
+	const bool hasValue = (errCode == ALARM_ERR_ALARM || errCode == ALARM_ERR_ALARM_LIM);
+	const ChannelInfo& ci = channelInfo(channel);
+	auto scale = [&](float v) -> int16_t {
+		if (!isfinite(v)) return HIST_NAN_SENTINEL;
+		float s = v * ci.scale;
 		if (s > 32767.0f) s = 32767.0f;
 		if (s < -32767.0f) s = -32767.0f;
-		scaled = (int16_t)lroundf(s);
+		return (int16_t)lroundf(s);
+	};
+	const uint32_t now = (uint32_t)time(nullptr);
+	const int16_t scaled = hasValue ? scale(value) : HIST_NAN_SENTINEL;
+	int16_t second = 0;
+	if (errCode == ALARM_ERR_ALARM_LIM) {
+		second = scale(value2);
+	} else if (errCode == ALARM_ERR_MAINT_ON && untilEpoch > now) {
+		/* Minutos até o fim previsto, arredondados; 30 dias = 43.200 cabe num
+		 * uint16, que é como AlarmPayload lê o campo de volta. */
+		uint32_t mins = (untilEpoch - now + 30u) / 60u;
+		if (mins > 65535u) mins = 65535u;
+		second = (int16_t)(uint16_t)mins;
 	}
 
-	uint16_t seq = _alarmQueue.push((uint32_t)time(nullptr), slot, channel, scaled, errCode);
+	uint16_t seq = _alarmQueue.push(now, slot, channel, scaled, errCode, actor, second);
 	auto& m = MetricsManager::instance( ).data( );
 	if (seq != 0) {
 		m.alarmQueued++;
@@ -2517,9 +2529,9 @@ String TelemetryManager::buildAlarmPayload(std::vector<AlarmRecord>& batch) {
 		}
 		s.concat(']');
 	} else if (mode == TEL_MODE_CSV) {
-		s = "seq;ts;id;v";
+		s = "seq;ts;id;v;user;lo;hi;until";
 		s.concat('\n');
-		char csvBuf[64];
+		char csvBuf[96];
 		for (size_t i = 0; i < batch.size( ); i++) {
 			int len = alarmFormatCsvLine(batch[i], cfg, csvBuf, sizeof(csvBuf));
 			if (len > 0) s.concat(csvBuf, len);

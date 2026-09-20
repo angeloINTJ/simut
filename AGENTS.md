@@ -56,6 +56,58 @@ hand_release_all
   Air) e restaura os clocks. Serve para recuperar; **não serve de prova** de que
   o caminho do sono funciona (ver §3).
 
+### Dirigir o painel de fora
+
+- **Sequências de toque vão por `POST /api/touch`, não por `touch sim`.** Um
+  toque arma 5 s de prioridade do painel, e nessa janela a CLI enfileira no
+  máximo **dois** comandos e descarta o resto (`CLI ocupada (display em uso)`).
+  Um PIN de quatro dígitos digitado pela CLI perdeu dígitos em 19/09; pela web
+  não há fila. `screen <tag>` continua servindo para saltar de tela — e desde a
+  v24 abre a árvore de configuração como admin, porque a lista é filtrada pelos
+  bits da sessão e um `screen set` sem sessão mostrava três itens.
+- **`/api/screenshot` responde 503 nos 5 s após um toque**, inclusive para
+  a sessão web que injetou o toque (medido em 19/09: 503 até ~3 s depois; a
+  exceção vale só para o fluxo do espelho, `/api/screen_stream`). Capture
+  6 s depois do último toque. Log binário e linha de alarmes também esperam a
+  janela: registros de log pendentes só vão à flash no release do toque, e a
+  telemetria não roda enquanto o painel está "em uso" — um registro chega ao
+  coletor até ~30 s depois da ação (retry da linha = 15 s). Esperar isso entre
+  toques bate no guarda de 30 s ociosos, que devolve o painel ao dashboard:
+  faça as ações, depois confira (`tools/panel_users_hw_test.py`).
+- **O teclado do PIN é embaralhado: descubra o sorteio antes de tocar.** Os dez
+  dígitos e dois símbolos de enchimento são distribuídos em 4 cartões de 3
+  posições a cada abertura da tela (e de novo após um PIN recusado e entre as
+  duas digitações de um PIN novo), então nenhuma coordenada é estável.
+  `show display keypad` imprime os quatro cartões em ordem de sorteio — só
+  responde com o teclado na tela. ⚠️ **São DUAS telas**: ao IDENTIFICAR, os cartões
+  sorteados, e o cartão inteiro é um botão (`Rig.pin( )` toca no centro do
+  cartão que contém o dígito); ao DEFINIR um PIN, um teclado numérico COMUM de
+  posições fixas (`Rig.pin_exact( )`, que não lê sorteio nenhum). Trocar os
+  dois faz a entrada virar outro PIN sem erro nenhum. ⚠️ O rodapé mudou em
+  19/09: ⌫ / SAIR / ENTRAR nos rects padrão (y=195, h=40) e sem o botão da
+  licença — as coordenadas antigas caem no lugar errado. ⚠️ **O sorteio muda a cada TOQUE**, então é uma leitura
+  por dígito. **Leia por `GET /api/keypad`, não pela serial.** O mesmo sorteio
+  sai em 0,01 s contra 1,2 s do `show display keypad`, que ainda espera a
+  janela de 5 s da prioridade do toque; um PIN de 4 dígitos leva 4,6 s contra
+  31,1 s (medido 19/09, 32 contas). Pela serial um PIN de 8 toques passa dos
+  30 s de ociosidade e o painel volta ao dashboard no meio da digitação — foi
+  o que matou as duas primeiras rodadas de tabela cheia, nas contas 18 e 21
+  de 25. `Rig.keypad_faces( )` usa o HTTP; `keypad_faces_cli( )` guarda o
+  caminho serial para imagem sem servidor web.
+  ⚠️ Identificar com 8 toques bloqueia o Core 0 por ~360 ms (medido 19/09:
+  449 ms de pior resposta HTTP contra 91 ms ocioso) — uma requisição web que
+  caia nessa janela simplesmente espera.
+- **Captura que mostra a tela ANTERIOR com o modo já trocado não é o
+  instrumento mentindo** — era o Core 1 perdendo o pedido de repintura que
+  chegava durante um desenho (7 de 7 logins em 19/09 deixavam o teclado no
+  vidro com `show metrics` já em `UI mode: 6`). Corrigido no despacho de
+  `DisplayManager.cpp`; se voltar, compare o modo do `show metrics` com a
+  captura antes de acusar o fluxo.
+- **O coletor da linha de alarmes é um processo à parte**
+  (`tools/alarm_collector.py`): dentro do script de teste ele não estava no ar
+  no boot do aparelho, e a primeira tentativa falhada empurrava o retry para
+  depois da espera.
+
 ### Quem mais está na porta
 
 - **O monitor serial do Arduino IDE rouba a porta da mão** e, com ela, a sonda e
@@ -294,7 +346,16 @@ ficar na fila e executar vários inputs depois.
   conhecida, e barata — a lista suprimida é fixa.
 - Como ler o log de verdade: `/api/logs` são registros binários de 12 B; o
   `ctx` satura em int16; um código novo exige `tools/logcodes.tsv` +
-  `gen_logcodes.py`, nunca o `.h`.
+  `gen_logcodes.py`, nunca o `.h`. A rota é ~12× mais rápida que o console
+  (0,15 s contra 1,76 s para 1.189 registros, medido 19/09), e é ela que
+  `Rig.log_records( )` usa.
+  ⚠️ **`/api/logs` RECUSA**: 429 para duas leituras dentro de 200 ms e 503
+  dentro da janela de toque. Um leitor que devolva lista vazia nessas duas
+  respostas transforma "não consegui olhar" em "o registro não existe" — foi
+  exatamente o que a primeira versão de `log_records( )` fez, dizendo 0
+  registros do código 308 enquanto o console via 88. Quem consome essa rota
+  tem que distinguir recusa de ausência: hoje ela repete e, esgotadas as
+  tentativas, levanta exceção.
 
 ## 5. Console de emergência — quem muda algo que precisa sobreviver ao boot salva ali mesmo
 

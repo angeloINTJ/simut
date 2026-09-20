@@ -138,6 +138,12 @@ enum LogCode {
  SEC_FILE_UPLOAD = 305,
  SEC_FILE_DELETE = 306,
  SEC_BT_LOCKOUT = 307,
+ /* v24 — the panel keypad. ctx: PIN_OK = user slot; PIN_FAIL = failures so
+  * far this lockout window; LOCKOUT = the count that tripped it. */
+ SEC_PIN_OK = 308,
+ SEC_PIN_FAIL = 309,
+ SEC_PIN_LOCKOUT = 310,
+ SEC_PIN_AMBIGUOUS = 311,
 
 
  /* ── Application lifecycle (400–439) ── */
@@ -172,6 +178,19 @@ enum LogCode {
  APP_UI_ALARM_SILENCED = 447,
  APP_UI_ALARM_SILENCE_EXP= 448,
  APP_UI_ALARM_DEACTIVATED= 449,
+ /* v24 — identified panel actions. The binary record keeps only a 16-bit
+  * context, so a slot-bound action packs ctx = user*100 + slot (user 3 on
+  * slot 12 reads 312); user-bound ones carry the user slot alone. The serial
+  * line prints the username in full. */
+ APP_UI_USER_ADDED = 450,
+ APP_UI_USER_DELETED = 451,
+ APP_UI_USER_PIN_SET = 452,
+ APP_UI_USER_PERMS = 453,
+ APP_UI_MAINT_ON = 454,
+ APP_UI_MAINT_OFF = 455,
+ APP_UI_ALARM_BLOCKED = 456,
+ APP_UI_ALARM_UNBLOCKED = 457,
+ APP_UI_PERM_DENIED = 458,
 
  /* ── Alarm state (470–479) ── */
  APP_ALARM_TRIGGERED = 470,

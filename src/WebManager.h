@@ -391,7 +391,17 @@ private:
 	void _flushUploadBatch( ); /**< Flush batch buffer to LittleFS. */
 
 	void handleSaveSystem( ); /**< Minimal save — used by dashboard theme switch. */
-	void handleApiCommitAll( ); /**< save-all + reboot */
+	void handleApiCommitAll( ); /**< save-all; reboots only for what needs it */
+
+	/** Empurra para cada subsistema o que acabou de mudar na configuração.
+	 *
+	 *  Só é chamada para as classes que ConfigApply.h declara aplicáveis ao
+	 *  vivo — e é o outro lado daquela declaração: um grupo só pode estar na
+	 *  lista de "ao vivo" se alguém leu o consumidor e ou ele relê a
+	 *  configuração a cada ciclo, ou existe uma linha aqui que empurra o valor.
+	 *  Manter as duas metades juntas é o que impede a lista de crescer no
+	 *  papel sem crescer no efeito. */
+	void applyConfigLive(uint32_t changeMask);
 	/** Per-section authorization for /api/commit_all — the route multiplexes
 	 *  six sections under three different permission bits, so one gate on the
 	 *  route cannot express who may change what. Locates each section and
@@ -468,6 +478,7 @@ private:
 	void handleApiScreenshotChunk( ); /**< /chunked with CRC32 */
 	void handleApiScreenStream( );   /**< palette-RLE mirror, one frame per call */
 	void handleApiTouch( );          /**< tap the panel from the mirror */
+	void handleApiKeypad( );         /**< the four scrambled PIN cards */
 #endif
 	/* getDynamicExpectedHash removed with the *PENDING* scheme — see
 	 * assignTempPassword and the note in verifyPasswordFor. */

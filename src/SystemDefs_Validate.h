@@ -14,6 +14,7 @@
 
 #pragma once
 #include "ParseFloat.h"   /* parseFloat — see parseFloatStrict below */
+#include "PinKeypad.h"    /* PinKb::FIRST/LAST — the set the panel can type */
 #include <Arduino.h>
 #include <string.h>
 #include <stdint.h>
@@ -202,6 +203,27 @@ inline void langIdentSanitize(const char* src, size_t srcLen, char* dst, size_t 
  dst[o++] = (char)c;
  }
  dst[o] = '\0';
+}
+
+/* Panel PIN (v24): the character rule is PinKb::FIRST..LAST, and it is written
+ * there, next to the keypad that deals exactly that range, so that what the
+ * panel can type and what the web and the CLI accept cannot drift apart. The
+ * range is the ten digits: it briefly covered the whole printable set on
+ * 2026-09-19, and the cards were unreadable with 94 glyphs on them. The digest
+ * length lives in SystemDefs_Limits.h next to the account layout; the RULE
+ * lives here with the other validators. */
+#define PIN_MIN_LEN 4
+#define PIN_MAX_LEN 8
+
+/** Panel PIN (v24): PIN_MIN_LEN..PIN_MAX_LEN ASCII digits and nothing else.
+ *  Bounded scan — a missing terminator cannot run past PIN_MAX_LEN + 1. */
+inline bool isValidPanelPin(const char* pin) {
+ if (!pin) return false;
+ size_t n = 0;
+ for (; n <= PIN_MAX_LEN && pin[n]; n++) {
+ if (pin[n] < PinKb::FIRST || pin[n] > PinKb::LAST) return false;
+ }
+ return n >= PIN_MIN_LEN && n <= PIN_MAX_LEN;
 }
 
 /** Validate names (device, username): no control chars, no quotes/backslash, 1-31 chars. */

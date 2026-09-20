@@ -4,6 +4,150 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.5.0-beta (2026-09-20)
+
+**O painel sabe quem está diante dele.** Até agora o display tinha um PIN só
+para todo mundo e o log de eventos só conseguia dizer que *alguém* mudou um
+limite. Uma conta passa a ser algo que o painel entende: cada uma das 32 contas
+pode ter o próprio PIN, três bits de permissão novos dizem o que ela pode fazer
+no vidro, e toda ação leva o nome dessa conta para o log de eventos e para fora
+na linha de alarme. Schema de config 22 -> 24, migrado no lugar.
+
+No caminho o espelho do painel ficou 2,9x mais rápido, os alarmes viraram algo
+que um servidor edita sem reiniciar, e dois registros de log que vinham sendo
+descartados em silêncio desde que existem foram achados por um teste que encheu
+a tabela de contas.
+
+### Identidade no painel (config v24)
+
+- **32 contas**, contra cinco, cada uma com um PIN de painel opcional. O PIN é
+  guardado como cadeia SHA-256 com sal, nunca em claro, e o painel é destrancado
+  *encontrando* a conta a quem o PIN pertence, e não perguntando antes quem você
+  é.
+- **Três bits de permissão novos**, todos do lado do painel:
+  `PERM_ALARM_LIMITS` (editar os limites de alarme de um sensor),
+  `PERM_ALARM_BLOCK` (ligar/desligar os alarmes dele, e "Desativar" no pop-up de
+  alarme) e `PERM_MAINT` (abrir e fechar uma janela de manutenção). Uma conta
+  sem nenhum deles não recebe item Alarmes nenhum; o menu do sensor abre na
+  primeira linha que aquela conta realmente pode usar.
+- **Um item Usuários no painel**: criar conta, definir os bits e o PIN, excluir —
+  sem navegador. O `admin` embutido não é listado ali, porque não pode ser
+  editado pelo vidro.
+- **A trilha das configurações nomeia quem se autenticou** — `Configurações >
+  maria`, e não `Configurações > Principal`.
+- **Cinco códigos de payload carregam o usuário que agiu**, então a linha de
+  alarme diz quem moveu um limite, quem bloqueou um sensor e quem abriu uma
+  janela de manutenção.
+- Silenciar um alarme continua sem assinatura e sem PIN: é a única ação cujo
+  valor é qualquer um por perto poder fazer na hora.
+
+### O teclado embaralhado
+
+O PIN é digitado num teclado que dá quase nada a quem olha por cima do ombro.
+Dez dígitos e dois símbolos de enchimento são distribuídos em quatro cartões de
+três; **o cartão inteiro é um toque**, e o sorteio é **refeito a cada toque**. O
+aparelho nunca fica sabendo qual dos três símbolos do cartão era o pretendido —
+ele resolve no fim a árvore inteira de sequências que aqueles toques podem
+soletrar contra o digest de todas as contas.
+
+Isso tem um custo real, e ele foi medido em vez de suposto. Uma entrada de n
+toques vale até 3^n PINs, então duas contas podem cair dentro da mesma
+sequência; o painel não tem como perguntar qual era, então nenhuma das duas
+entra. Com a tabela cheia de 32 contas, `tools/panel_fulltable_test.py`:
+
+| PIN | 1ª tentativa | retentativas | eventos de ambiguidade | previsto | medido |
+|---|---|---|---|---|---|
+| 4 dígitos | 22/25 (88%) | 4 | 4 | 18% | **15%** |
+| 6 dígitos | 24/25 (96%) | 1 | 1 | 2% | **4%** |
+
+Retentativas e eventos de ambiguidade registrados batem exatamente nas duas
+passagens. **Seis dígitos é a mitigação e vale cerca de quatro vezes** — a
+previsão é `1 - (1 - 3^n/10^n)^(contas-1)`.
+
+Tornar isso viável exigiu mudar o digest: hoje é uma cadeia SHA-256 por
+caractere, fechada pelo comprimento, de modo que percorrer a árvore de
+candidatos custa um hash por *nó* e não um digest inteiro por folha. Oito toques
+bloqueiam o Core 0 por cerca de 360 ms (449 ms de pior resposta HTTP contra
+91 ms ocioso); quatro toques somem no ruído.
+
+### Alarmes que um servidor edita ao vivo, e janelas de manutenção
+
+- O `POST /api/commit_all` agora classifica o que o commit mudou de verdade e
+  **só reinicia pelo que precisa**, por comparação e não por uma lista mantida à
+  mão. O fail-safe continua sendo reiniciar.
+- **Uma janela de manutenção por sensor**, com prazo: o sensor continua no
+  histórico e na tela, mas os alarmes dele ficam suprimidos até a janela fechar.
+  É um terceiro domínio no payload de alarme, então um servidor distingue
+  "suprimido de propósito" de "não está alarmando".
+- A janela é definida em **segundos a partir de agora**, não em epoch absoluto,
+  porque quem chama é um servidor e os dois relógios não precisam concordar.
+
+### O espelho do painel, de ponta a ponta
+
+613 ms -> **213 ms** por quadro e 40% menos bytes no fio, de quatro mudanças que
+tiveram de ser medidas separadamente: clock de leitura de 12 MHz, um pipeline de
+leitura por DMA, coalescência de envio e um codec de nibble. A pausa do Core 1
+virou um estacionamento sem o lockout do SDK, então o Core 1 fica ocioso apenas
+pelo tempo de uma captura. O quadro agora é limitado pelo barramento: mais
+trabalho no codec compra banda, não tempo.
+
+### Corrigido
+
+- **O digest de uma conta excluída continuava no slot dela** e abria o painel
+  como quem tomasse aquele slot em seguida. Excluir uma conta só zerava o
+  `active`; hoje o registro é zerado inteiro, nos dois caminhos de alocação.
+- **Os dois registros que dizem quem entrou e quem moveu um limite eram os dois
+  que o log podia descartar.** `SEC_PIN_OK` (308) e `APP_UI_ALARM_SAVED` (442)
+  eram `LOG_INFO`, e o latch por família do log descarta um INFO repetido: numa
+  sequência de logins, **3 de 25 identificações não deixaram rastro nenhum**. Os
+  dois são `LOG_WARN` agora, que a política nunca filtra. As outras quatro ações
+  do painel — bloquear, desbloquear, manutenção aberta e fechada — sempre foram
+  WARN.
+- **O Core 1 perdia pedidos de repintura que chegavam enquanto ele desenhava.**
+  A flag era zerada *depois* do desenho, então uma troca de tela pedida pelo
+  Core 0 durante um blit sumia: 7 de 7 logins deixavam o teclado no vidro com o
+  PIN já aceito. Todo ramo do despacho agora consome a flag antes de desenhar.
+- O `user pin <nome> <pin>` guardava o token em minúsculas, o que era inofensivo
+  para dígitos e silenciosamente errado para qualquer outra coisa.
+
+### Adicionado
+
+- **`GET /api/keypad`** devolve os quatro cartões embaralhados como estão
+  sorteados agora, com `PERM_SYS_CONFIG` — o mesmo bit que já lê o
+  `/api/screenshot`, que devolve foto dos mesmos cartões. Nunca diz qual casa do
+  cartão é o dígito, e responde `"up": false` com faces vazias quando o teclado
+  não é a tela viva. Atrás de `SIMUT_DISPLAY_TFT`.
+- **Código de log 311 `SEC_PIN_AMBIGUOUS`**: "duas contas casam com a mesma
+  entrada do teclado" vinha sendo arquivado como PIN errado. Não é, e a resposta
+  a ele é um PIN mais longo, não uma retentativa.
+- **`docs/API_POST.md`**: toda rota POST numa página, com o que cada máscara de
+  permissão realmente alcança — conferido contra um aparelho ligado, e não
+  contra o código.
+- **`tools/panel_fulltable_test.py`**: enche todos os slots de conta livres e
+  dirige o painel com todas, depois mede a taxa de ambiguidade contra a própria
+  previsão.
+
+### Flash
+
+As duas colunas são o `Flash: used` do PlatformIO, e as da v2.4.10-beta saíram
+de compilar aquela tag numa worktree limpa, não de acreditar num número
+anotado.
+
+| imagem | v2.4.10-beta | v2.5.0-beta | Δ | `.bin` | abaixo do teto de OTA |
+|---|---:|---:|---:|---:|---:|
+| `pico_w_release` | 974.716 B | **998.468 B** | +23.752 | 1.010.500 B | 29.884 B |
+| `pico_w_alpha` | 965.028 B | **973.372 B** | +8.344 | 986.252 B | 54.132 B |
+| `pico_w_air` | 1.009.312 B | **1.018.752 B** | +9.440 | 1.031.212 B | 9.172 B |
+
+Os dois builds sem imagem pagam só pela migração, pelo digest, pela tabela de
+contas mais larga e pelos caminhos de PIN da CLI e da web: as telas do painel e
+o lado Core 0 delas estão atrás do `SIMUT_DISPLAY_TFT`, o que levou a parte do
+Air de 10.304 B para 6.848. Nenhum teto de orçamento subiu e todo ambiente está
+dentro da margem. O teto que importa é o seguro para OTA, 1.040.384 B de `.bin`,
+e não o slot de programa de 1.044.480: o último setor de 4 KiB guarda o snapshot
+de config na hora do stage. **O Air tem 9.172 B de sobra, e cada byte futuro ali
+é uma troca.**
+
 ## v2.4.10-beta (2026-09-18)
 
 **O espelho do painel ficou 2,6x mais rápido, o SIMUT Air recupera o console

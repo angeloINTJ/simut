@@ -31,6 +31,7 @@ class Adafruit_GFX;
 #include "pico/multicore.h"
 #include "pico/util/queue.h"
 #include "SystemDefs.h"
+#include "PinKeypad.h"   /* PinKb:: — geometry of the scrambled PIN keypad */
 #include "Themes.h"
 #include "SoundManager.h"
 
@@ -95,6 +96,44 @@ enum LangKey {
 	 * positional and one line per key, so inserting in the middle silently
 	 * shifts every string after it. tools/check_lang_packs.py enforces this. */
 	TR_CH_PRESSURE, TR_CH_LUMINOSITY,
+
+	/* v24 — identity at the panel: users, PIN keypad, per-sensor actions,
+	 * maintenance. APPENDED, one key per @DICT line, same rule as above. */
+	TR_MENU_USERS,
+	TR_USERS_TITLE,
+	TR_NEW_LBL,
+	TR_USER_NAME,
+	TR_PERM_LIMITS,
+	TR_PERM_BLOCK,
+	TR_PERM_MAINT,
+	TR_SET_PIN,
+	TR_DELETE_USER,
+	TR_CONFIRM_DELETE,
+	TR_DELETE_LBL,
+	TR_CONTINUE_LBL,
+	TR_ENTER_PIN,
+	TR_NEW_PIN,
+	TR_CONFIRM_PIN,
+	TR_PIN_TOO_SHORT,
+	TR_PIN_MISMATCH,
+	TR_PIN_IN_USE,
+	TR_PIN_SAVED,
+	TR_USER_SAVED,
+	TR_USER_DELETED,
+	TR_NO_PERMISSION,
+	TR_NAME_INVALID,
+	TR_USERS_FULL,
+	TR_ROW_LIMITS,
+	TR_ROW_ALARMS,
+	TR_ROW_MAINT,
+	TR_MAINT_TITLE,
+	TR_HOURS,
+	TR_MINUTES,
+	TR_START_LBL,
+	TR_END_MAINT,
+	TR_REMAINING,
+	TR_LOCKED_LBL,
+	TR_INVALID_PIN,
 
 	TR_KEYS_COUNT
 };
@@ -214,6 +253,69 @@ public:
 	void begin( );
 	void startCore1( );
 	void pauseRendering(bool pause);
+
+	/* SPI-bus exclusion without the IRQ lockout — the pause a GRAM READ needs.
+	 *
+	 * pauseRendering( ) exists for flash program/erase, and there the IRQ
+	 * lockout is the whole point: Core 1 fetching from XIP during an erase
+	 * wedges the QSPI arbiter (the reboot class of e035791). A panel read needs
+	 * something strictly weaker — that Core 1 not be inside an SPI transaction
+	 * and not start one — and the T1.1 park already guarantees exactly that:
+	 * the park point is the top of loopCore1, past every startWrite/endWrite
+	 * and past dma_channel_wait_for_finish_blocking, and the only two IRQs
+	 * Core 1 owns are core1AlarmIsr (acks a timer) and the XPT2046 isrPin (sets
+	 * one bool). Neither touches SPI, so a confirmed park is sufficient
+	 * exclusion and the two SDK handshakes per strip are pure overhead.
+	 *
+	 * Split into request and await on purpose: the request costs one store, so
+	 * a caller with work to do can raise it first and let Core 1 park DURING
+	 * that work instead of after it.
+	 *
+	 * NOTHING THAT TOUCHES FLASH MAY RUN INSIDE THIS PARK. It does not take the
+	 * lockout and does not move _pauseRefCount, so a nested Core1FlashPause
+	 * would see refcount 0 -> 1 and behave correctly — but a nested flash write
+	 * that skipped the pause entirely would run with Core 1 loose in XIP. The
+	 * capture loop keeps the light yield outside the park for that reason. */
+	/** The GRAM read clock, in Hz. Defaults to SIMUT_TFT_READ_HZ and is a
+	 *  runtime field only so the bench can sweep it in ONE image with a pixel
+	 *  comparison per step — the ILI9341's serial read cycle is the limit and
+	 *  it is a property of the module and the wiring, not of the code, so it
+	 *  cannot be settled by reasoning. */
+	void setReadHz(uint32_t hz) { if (hz >= 1000000u && hz <= 32000000u) _readHz = hz; }
+	uint32_t readHz( ) const { return _readHz; }
+
+	void requestCore1Park( );
+	bool awaitCore1Park(uint32_t timeoutMs);
+	void releaseCore1Park( );
+
+	/** While set, loopCore1 skips the touch read and the render dispatch and
+	 *  only answers the park handshake. A capture freezes the panel for most of
+	 *  its duration anyway (ESPELHO_DELTA.md §2 measured zero changed pixels
+	 *  between back-to-back frames), so the render this drops is one the mirror
+	 *  was not showing — and dropping it makes the park land in ~1 ms instead of
+	 *  waiting out a whole iteration.
+	 *
+	 *  It carries its own DEADLINE, and that is the important part: this is a
+	 *  flag whose stuck state is a permanently dead display, which is the same
+	 *  failure forceUnpause( ) exists to undo for the pause refcount. Core 1
+	 *  stops honouring it once the deadline passes, so the worst a leak can cost
+	 *  is one window and not the session. The window is the web handler's own
+	 *  ceiling (WEB_LONG_HANDLER_DEADLINE_MS) and not a frame time, because a
+	 *  frame that is merely slow must not lose its renderer mid-capture. */
+	void setCaptureActive(bool a) {
+		if (a) __atomic_store_n(&_captureUntil, millis( ) + 15000u, __ATOMIC_RELEASE);
+		__atomic_store_n(&_captureActive, a, __ATOMIC_RELEASE);
+	}
+
+	/** RAII for the above: the capture handler leaves by several paths and a
+	 *  missed clear is a dead panel, so no path gets to forget. */
+	struct CaptureGuard {
+		DisplayManager* d;
+		explicit CaptureGuard(DisplayManager* dm) : d(dm) { if (d) d->setCaptureActive(true); }
+		~CaptureGuard( ) { if (d) d->setCaptureActive(false); }
+		CaptureGuard(const CaptureGuard&) = delete;
+		CaptureGuard& operator=(const CaptureGuard&) = delete;
+	};
 	uint32_t getHeartbeat( );
 	uint32_t getPauseStartTime( ) { return _pauseStartTime; }
 	uint32_t getLastTouchTimestamp( ) const { return _lastTouchTimestamp; }
@@ -378,13 +480,62 @@ public:
 	void readRow(int16_t y, uint16_t* buffer, int16_t w = 320);
 	void readRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t* out);
 
+	/* Same read, delegated to DMA so the caller can work while it runs. Start
+	 * leaves the bus OPEN and returns false if no channel was free; Finish must
+	 * be called for every Start that returned true, and nothing may touch spi0
+	 * in between. dst3 holds w*h*3 bytes of raw 6-6-6; convert3to565 turns it
+	 * into the RGB565 the wire format wants, and is separate precisely so it can
+	 * run on the previous strip. See the definition for the measurement. */
+	bool readRectDmaStart(int16_t x, int16_t y, int16_t w, int16_t h, uint8_t* dst3);
+	void readRectDmaFinish( );
+	static void convert3to565(const uint8_t* src, uint16_t* out, size_t n);
+
 	void showSettingsThemes(int currentThemeIdx);
-	void showAuthScreen(String expectedPin);
-	/** Forces repaint of the MODE_AUTH keypad on the next
-	 * drawAuthScreen. Needed when another screen (e.g. license) covered
-	 * the keypad and the user returned to Auth — without this, only the chrome+dots
-	 * are redrawn and the keypad stays blank. */
-	void requestAuthKeypadRedraw( );
+
+	/* ── v24: identity at the panel (DisplayManager_Users.cpp) ──────────────
+	 * The PIN identifies the user; Core 0 verifies it (EVT_AUTH_PIN) and
+	 * answers through authResult( ) and setPanelSession( ). Every screen below
+	 * only produces UiEvents — nothing here writes the configuration. */
+	enum PinPurpose : uint8_t {
+		PIN_FOR_AUTH = 0,     /**< identify: the PIN goes to Core 0 as typed */
+		PIN_FOR_OWN,          /**< the session user sets a new PIN (typed twice) */
+		PIN_FOR_USER,         /**< an admin sets another account's PIN */
+		PIN_FOR_NEW_ACCOUNT   /**< last step of creating an account */
+	};
+	void showPinEntry(uint8_t purpose, int8_t targetUser = -1);
+	/** Forces repaint of the keypad after another screen (the license)
+	 * covered it. State (typed digits, lockout) is untouched. */
+	/** Core 0's verdict on the PIN of the last EVT_AUTH_PIN. Runs the lockout
+	 * ladder on failure. @return failures so far (0 on success). */
+	int authResult(bool ok);
+	void getEnteredPin(char* out, size_t cap) const;
+	void clearEnteredPin( );
+	/** One card of the scrambled PIN keypad, for `show display keypad`.
+	 *  Returns the glyph count, 0 when the keypad is not on screen. */
+	uint8_t pinKeyFace(int key, char* out, size_t cap) const;
+	/** The card taps of an identification attempt — for each one, the glyphs
+	 *  that were on the card at the moment it was tapped. Returns the count;
+	 *  meaningless unless the purpose is PIN_FOR_AUTH. */
+	uint8_t getEnteredPinTaps(char out[][PinKb::SLOTS + 1], size_t cap) const;
+	/** True while the keypad is identifying (card taps) rather than setting
+	 *  a PIN (slot taps). */
+	bool pinIsIdentifying( ) const { return _pinPurpose == PIN_FOR_AUTH; }
+	/** Who the session is, and what its bits allow — the menus filter on it. */
+	void setPanelSession(int8_t user, uint16_t perms);
+	int8_t panelUser( ) const { return _panelUser; }
+	uint16_t panelPerms( ) const { return _panelPerms; }
+	void showAlarmSensorMenu(int sensorIdx);
+	int8_t alarmSensorMenuSlot( ) const { return _sensorMenuIdx; }
+	void showMaintEntry(int sensorIdx);
+	void showSettingsUsers( );
+	void showUserEdit(int slot, bool isNew);
+	/** The result screen: tick or cross, a message, and where OK returns to. */
+	void showPanelMessage(bool ok, LangKey msg, UiMode returnTo);
+	/** Name typed for a new account (MODE_SETTINGS_PASSWORD, purpose 1). */
+	void getNewName(char* out, size_t cap) const;
+	/** The limit editor's working copy — Core 0 diffs it against the config
+	 * on EVT_SAVE_ALARMS; Core 1 never writes the config itself any more. */
+	const SensorRecord& editedAlarmRecord( ) const { return _tempAlarmConfig; }
 	void showSettingsMain( );
 	void showSettingsAlarms(SystemConfig* cfg);
 
@@ -395,7 +546,9 @@ public:
 	void refreshAlarmStatus( );
 	void showAlarmEdit(int sensorIdx);
 	void showSettingsLang(int currentLang);
-	void showSettingsPassword( );
+	/** purpose 0 = the legacy PIN keyboard (reachable only from the CLI);
+	 *  1 = the name of a new account, plain text up to 15 chars. */
+	void showSettingsPassword(uint8_t purpose = 0);
 	void getNewPassword(char* out, size_t maxLen) const;
 	void showTouchCalibration( );
 	void showTouchSensitivity( );
@@ -549,6 +702,9 @@ private:
 	volatile bool _quiescePlease = false;
 	volatile bool _core1Parked = false;
 	volatile uint32_t _quietSince = 0;
+	volatile bool _captureActive = false;     /**< see setCaptureActive( ) */
+	uint32_t _readHz = SIMUT_TFT_READ_HZ;     /**< see setReadHz( ) */
+	volatile uint32_t _captureUntil = 0;      /**< millis( ) past which Core 1 ignores it */
 
 	/** Core-1-only event push into the SPSC lock-free ring (invariant 2,
 	 * docs/CONCURRENCY.md). The former queue_t was frozen-mid-spinlock
@@ -830,6 +986,9 @@ private:
 	 * is only accepted after the finger is removed.
 	 */
 	bool _touchReleased = true;
+	/** The press in progress and the screen it began on (see handleTouch). */
+	bool _pressActive = false;
+	UiMode _pressMode = MODE_DASHBOARD;
 
 	/** Cooldown for buttons with hold-repeat (increment/decrement). */
 	uint32_t _holdRepeatLastFire = 0;
@@ -846,22 +1005,92 @@ private:
 	int _lastPreviewThemeIdx = -1;
 	bool _forceSettingsRedraw = true;
 
-	void drawAuthScreen( );
 	void drawSettingsMain( );
 	void drawSettingsLang( );
 	int _langPage = 0;
 	int _lastLangPage = -1;
 	int _lastPreviewLangIdx = -1;
-	void scrambleKeys( );
 
-	char _keypadChars[4][5];
-	String _expectedPin;
-	int _authStep = 0;
+	/* PIN keypad + lockout (v24: DisplayManager_Users.cpp) */
+	void drawPinScreen( );
+	void drawPinCardInto(GFXcanvas16* cv, int key, int16_t ox, int16_t oy);
+	void blitPinCards( );
+	void drawPinPadInto(GFXcanvas16* cv, int16_t oy);
+	/** Username of the account this panel session belongs to, "" when there is
+	 *  none. Core 1 reads the config directly, as the users list already does. */
+	const char* panelUserName( ) const;
+	void drawPinDotsInto(GFXcanvas16* cv, int16_t oy);
+	void pinCancel( );
+	void pinSubmit( );
+	void scramblePinKeys( );
 	bool _authFailed = false;
-	bool _isCurrentAttemptValid = true;
 	int _failedAttempts = 0;
 	uint32_t _lockoutUntil = 0;
 	bool _permanentLockout = false;
+	char _pinBuf[PIN_MAX_LEN + 1] = {0};
+	uint8_t _pinLen = 0;
+	char _pinFirst[PIN_MAX_LEN + 1] = {0};
+	uint8_t _pinPhase = 0;          /**< 0 typing, 1 confirming (new PIN) */
+	uint8_t _pinPurpose = 0;        /**< PinPurpose */
+	int8_t _pinTarget = -1;         /**< PIN_FOR_USER: whose */
+	LangKey _pinMsg = TR_KEYS_COUNT;/**< transient line under the dots */
+	/* The scrambled keypad (PinKeypad.h): ten digits and two decoy symbols
+	 * dealt over four cards of three slots, re-dealt on every entry, on every
+	 * refusal and between the two halves of a new PIN — so that tap positions
+	 * never repeat for a watcher. Core 1 owns these; the CLI reads them through
+	 * pinKeyFace( ) for the bench, which cannot find a digit it is not told the
+	 * position of. Every card always holds SLOTS glyphs, so there is no length
+	 * to read off a card. */
+	char _pinKeyChars[PinKb::KEYS][PinKb::SLOTS + 1] = {{0}};
+	/* Identification taps: each one keeps THE GLYPHS THAT WERE ON THE CARD when
+	 * it was tapped, not the card's index. The deal is rolled again after every
+	 * tap, so an index would name a card that no longer holds the same digits —
+	 * and the point of re-dealing is that two taps on the same spot mean two
+	 * different things. Core 0 walks the strings these spell
+	 * (StorageManager::findUserByPinSet). Setting a PIN cannot work that way —
+	 * it needs the exact digits — so that path uses the ordered pad and _pinBuf. */
+	char _pinTaps[PIN_MAX_LEN][PinKb::SLOTS + 1] = {{0}};
+	bool _pinCardsDirty = false;    /**< the deal moved; the cards owe a blit */
+	volatile bool _pinWaiting = false; /**< handed to Core 0, no verdict yet */
+	int8_t _panelUser = -1;
+	uint16_t _panelPerms = 0;
+
+	/* the settings menu, filtered by the session's bits */
+	uint8_t _menuItems[10];
+	uint8_t _menuCount = 0;
+
+	/* per-sensor actions, maintenance entry */
+	void drawAlarmSensorMenu( );
+	void drawMaintEntry( );
+	int8_t _sensorMenuIdx = -1;
+	int _sensorMenuSel = 0;
+	int8_t _maintSlot = -1;
+	int _maintHours = 1, _maintMinutes = 0, _maintFocus = 0;
+	uint32_t _maintLastDraw = 0;
+
+	/* users */
+	void drawSettingsUsers( );
+	void drawUserEdit( );
+	void drawUserConfirmDel( );
+	int userEditRowCount( ) const;
+	int _usersSel = 0, _usersPage = 0, _lastUsersPage = -1, _lastUsersSel = -1;
+	int _usersMap[MAX_USERS];
+	int _usersCount = 0;
+	int8_t _userEditSlot = -1;
+	bool _userEditNew = false;
+	uint16_t _userEditPerms = 0;
+	int _userEditSel = 0, _userEditPage = 0, _lastUserEditPage = -1, _lastUserEditSel = -1;
+	char _newUserName[16] = {0};
+
+	/* the result screen */
+	void drawPanelMessage( );
+	void leavePanelMessage( );
+	bool _msgOk = true;
+	LangKey _msgKey = TR_KEYS_COUNT;
+	UiMode _msgReturn = MODE_DASHBOARD;
+
+	/** Touch for every mode above; false when the mode is not one of them. */
+	bool handleTouchPanelV24(int16_t x, int16_t y);
 
 	uint32_t _rngState = 123456789;
 	uint32_t fastRandom(uint32_t maxVal);
@@ -880,8 +1109,10 @@ private:
 
 	void drawSettingsPassword( );
 	void drawPasswordMessage( );
-	char _kbBuffer[9];
-	char _kbConfirmBuf[9];
+	char _kbBuffer[16];       /**< 7 for a PIN (legacy), 15 for a user name */
+	char _kbConfirmBuf[16];
+	uint8_t _kbPurpose = 0;   /**< 0 legacy PIN, 1 user name (v24) */
+	int kbMaxLen( ) const { return _kbPurpose == 1 ? 15 : 7; }
 	int _kbCursor = 0;
 	bool _kbShowRaw = false;
 	int _kbPhase = 0;
@@ -953,7 +1184,6 @@ private:
 	void drawSettingsLicense( );
 	int _licensePage = 0;
 	int _licenseTotalPages = 1;
-	bool _licenseFromAuth = false; /* return to auth instead of settings */
 
 	bool _calValid = false;
 	bool _calSwapXY = false;

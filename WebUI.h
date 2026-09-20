@@ -658,8 +658,9 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
         /* ── Espelho do painel ──────────────────────────────────────────
          * GET /api/screen_stream devolve UM quadro por requisicao, em 30
-         * faixas de 8 linhas; cada faixa vem crua (RGB565) ou em RLE por
-         * paleta, o que for menor. O formato esta documentado em
+         * faixas de 8 linhas; cada faixa vem crua (RGB565, enc 0), em RLE por
+         * paleta de 2 bytes por corrida (enc 1) ou de 1 byte (enc 2), o que
+         * for menor. O formato esta documentado em
          * src/ScreenRle.h e fixado pelos testes de test_validators — este
          * decodificador e a terceira implementacao dele, e tem que andar
          * junto com as outras duas.
@@ -707,10 +708,22 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     for (let k = 0; k < ncol; k++) pal[k] = dv.getUint16(p + 1 + k * 2, true);
                     let q = p + 1 + ncol * 2;
                     const end = p + len;
-                    while (q + 1 < end) {
-                        const c = pal[dv.getUint8(q)], run = dv.getUint8(q + 1) + 1;
-                        q += 2;
-                        for (let r = 0; r < run; r++) o = mirPut(px, o, c);
+                    if (enc === 2) {
+                        /* Um byte por corrida: indice nos 4 bits altos, tamanho-1
+                         * nos baixos; 15 e escape e o proximo byte traz
+                         * tamanho-16. Metade dos bytes do enc 1 nas telas reais. */
+                        while (q < end) {
+                            const t = dv.getUint8(q++);
+                            const c = pal[t >> 4], lo = t & 0x0F;
+                            const run = (lo === 15) ? (dv.getUint8(q++) + 16) : (lo + 1);
+                            for (let r = 0; r < run; r++) o = mirPut(px, o, c);
+                        }
+                    } else {
+                        while (q + 1 < end) {
+                            const c = pal[dv.getUint8(q)], run = dv.getUint8(q + 1) + 1;
+                            q += 2;
+                            for (let r = 0; r < run; r++) o = mirPut(px, o, c);
+                        }
                     }
                 }
                 p += len;
@@ -2681,9 +2694,8 @@ global.H5G = H5G;
         }
 
         // Logs — binary parsing in browser. Tabelas sincronizadas com LogManager::translateCode (LogManager.cpp).
-                const EVT_NAMES_EN = { '0':'OK', '1':'System boot', '2':'User-requested reboot', '3':'Heap memory low', '4':'Uptime milestone', '5':'Routine log records suppressed', '10':'WiFi connecting', '11':'WiFi disconnected', '12':'WiFi scanning', '13':'NTP synced', '14':'IP acquired', '15':'AP mode started', '20':'Storage failure', '21':'Config saved', '22':'Storage rotated', '23':'Flash formatting', '24':'Storage recovered', '25':'Config migrated', '30':'Telemetry sent', '31':'Telemetry failed', '32':'Telemetry retry', '33':'Telemetry queued', '34':'SSL cert loaded', '35':'MQTT connected', '36':'MQTT disconnected', '37':'MQTT published', '100':'Sensor recovered', '101':'Sensor timeout', '102':'Sensor checksum error', '103':'Sensor CRC error', '104':'Sensor out of range', '105':'Hardware mismatch', '106':'Sensor missing', '200':'Touch event', '201':'Display restarted', '202':'Graph rendered', '300':'Login success', '301':'Login failed', '302':'Unauthorized access', '303':'Config changed', '304':'Session expired', '305':'File uploaded', '306':'File deleted', '307':'Bluetooth lockout', '400':'Display launched on Core 1', '401':'Initial touch cal saved', '402':'Touch calibration required', '403':'AP mode triggered by user', '404':'System ready', '405':'System ready (AP mode)', '406':'Storage critical failure', '407':'Sensors calibrated', '408':'NTP correcting timestamps', '409':'Timestamps corrected', '410':'Graph caches invalidated', '411':'Air cycle held in M0', '412':'Cold boot, not a hibernation wake', '413':'Sleep clamped to under 24 h (alarm is time-of-day)', '414':'Previous Air wake did not complete', '440':'Theme changed via UI', '441':'Language changed via UI', '442':'Alarm limits saved via UI', '443':'Touch cal saved to flash', '444':'Touch sensitivity saved', '445':'Display PIN changed', '446':'Sound settings saved', '447':'Alarm silenced via UI', '448':'Alarm silence expired', '449':'All alarms deactivated (RAM)', '470':'Alarm triggered', '471':'Alarm cleared', '472':'Alarm silence cancelled', '480':'Min/Max cache loaded', '481':'Min/Max cache partial', '482':'Graph cache refresh started', '483':'Graph cache refresh done', '484':'Graph cache: ambient', '485':'Graph cache: board temp', '486':'Graph cache preload done', '487':'Graph loading', '488':'Graph render budget exceeded', '489':'Preload budget exceeded', '500':'Display pause stuck >5s', '501':'Yield stuck >10s', '502':'Core 1 dead >10s, restarting', '503':'Flash busy collision', '510':'History record saved', '511':'Heap status report', '512':'History skip: no time reference', '513':'History resumed: time reference acquired', '514':'History skip: V4 schema is empty', '515':'History skip: schema covers no active sensor', '520':'DHCP mode enabled', '521':'Static IP mode enabled', '522':'WiFi manager starting', '523':'WiFi SSID not configured', '524':'Provisional time set from flash', '525':'WiFi connect timeout', '526':'WiFi dormant mode', '527':'Show IP', '528':'mDNS start failed', '540':'HTTP transport initialized', '541':'MQTT transport initialized', '542':'MQTT connecting', '543':'cert.pem empty, insecure mode', '544':'cert.pem read error', '545':'No cert.pem, insecure mode', '546':'Forcing telemetry sync', '547':'Retry logs suppressed', '548':'HA discovery refreshed', '549':'Alarm telemetry line enabled', '550':'Alarm payload sent', '551':'Alarm send failed', '552':'Alarm receipt confirmed', '553':'Alarm queue overflow', '560':'History write failed', '561':'Timestamp correction budget exceeded', '562':'Storage limit budget exceeded', '563':'Skipping active log file', '564':'Storage stats report', '565':'Config report', '566':'History block sealed', '567':'History snapshot written', '568':'History schema mismatch', '569':'Legacy history purged', '570':'Web server started', '571':'Client disconnected (file)', '572':'Client disconnected (history)', '573':'Screenshot aborted by client', '574':'File uploaded', '575':'Client disconnected (broken pipe)', '576':'Web cert invalid (HTTP fallback)', '577':'CORS enabled for origin', '578':'CORS origin file invalid (CORS off)', '579':'Web cert pair installed', '580':'Theme applied', '581':'Theme not found', '585':'Unknown command', '590':'Runtime sensors loaded', '600':'Force unpause', '999':'Unknown error' };
-
-                const EVT_NAMES_PT = { '0':'OK', '1':'Boot do sistema', '2':'Reboot solicitado pelo usuario', '3':'Heap baixa', '4':'Marco de uptime', '5':'Registros de rotina suprimidos', '10':'Conectando WiFi', '11':'WiFi desconectado', '12':'Varredura WiFi', '13':'NTP sincronizado', '14':'IP obtido', '15':'AP iniciado', '20':'Falha no storage', '21':'Config salva', '22':'Storage rotacionado', '23':'Formatando flash', '24':'Storage recuperado', '25':'Config migrada', '30':'Telemetria enviada', '31':'Falha de telemetria', '32':'Retry de telemetria', '33':'Telemetria enfileirada', '34':'Cert SSL carregado', '35':'MQTT conectado', '36':'MQTT desconectado', '37':'MQTT publicado', '100':'Sensor recuperado', '101':'Timeout de sensor', '102':'Erro de checksum', '103':'Erro de CRC', '104':'Sensor fora de range', '105':'Divergencia de hardware', '106':'Sensor ausente', '200':'Evento de toque', '201':'Display reiniciado', '202':'Grafico renderizado', '300':'Login bem-sucedido', '301':'Falha de login', '302':'Acesso nao autorizado', '303':'Config alterada', '304':'Sessao expirada', '305':'Arquivo enviado', '306':'Arquivo apagado', '307':'Bloqueio Bluetooth', '400':'Display iniciado no Core 1', '401':'Calibracao inicial do touch salva', '402':'Calibracao do touch necessaria', '403':'AP ativado pelo usuario', '404':'Sistema pronto', '405':'Sistema pronto (modo AP)', '406':'Falha critica de storage', '407':'Sensores calibrados', '408':'NTP corrigindo timestamps', '409':'Timestamps corrigidos', '410':'Caches de grafico invalidados', '411':'Ciclo Air retido em M0', '412':'Boot frio, nao veio da hibernacao', '413':'Sono limitado a menos de 24 h (alarme e por hora do dia)', '414':'Wake anterior do Air nao completou', '440':'Tema alterado via UI', '441':'Idioma alterado via UI', '442':'Limites de alarme salvos via UI', '443':'Calibracao do touch salva', '444':'Sensibilidade do touch salva', '445':'PIN do display alterado', '446':'Config de som salva', '447':'Alarme silenciado via UI', '448':'Silenciamento de alarme expirou', '449':'Todos alarmes desativados (RAM)', '470':'Alarme disparado', '471':'Alarme zerado', '472':'Silenciamento cancelado', '480':'Cache Min/Max carregado', '481':'Cache Min/Max parcial', '482':'Refresh de cache iniciado', '483':'Refresh de cache concluido', '484':'Cache de grafico: ambiente', '485':'Cache de grafico: placa', '486':'Pre-carga de cache concluida', '487':'Carregando grafico', '488':'Budget de render excedido', '489':'Budget de pre-carga excedido', '500':'Pause do display preso >5s', '501':'Yield preso >10s', '502':'Core 1 travado >10s, reiniciando', '503':'Colisao por flash ocupado', '510':'Registro de historico salvo', '511':'Relatorio de heap', '512':'Historico pulado: sem referencia de hora', '513':'Historico retomado: referencia de hora obtida', '514':'Historico pulado: schema V4 vazio', '515':'Historico pulado: schema nao cobre sensor ativo', '520':'Modo DHCP ativado', '521':'Modo IP estatico ativado', '522':'Gerenciador WiFi iniciando', '523':'SSID WiFi nao configurado', '524':'Hora provisoria do flash', '525':'Timeout na conexao WiFi', '526':'WiFi em modo dormente', '527':'Mostrar IP', '528':'Falha ao iniciar mDNS', '540':'Transporte HTTP inicializado', '541':'Transporte MQTT inicializado', '542':'MQTT conectando', '543':'cert.pem vazio, modo inseguro', '544':'Erro de leitura de cert.pem', '545':'Sem cert.pem, modo inseguro', '546':'Forcando sync de telemetria', '547':'Logs de retry suprimidos', '548':'Discovery HA atualizado', '549':'Linha de alarmes ligada', '550':'Payload de alarmes enviado', '551':'Falha no envio de alarmes', '552':'Recebimento de alarmes confirmado', '553':'Estouro da fila de alarmes', '560':'Falha em escrever historico', '561':'Budget de correcao de ts excedido', '562':'Budget de limite de storage excedido', '563':'Pulando arquivo de log ativo', '564':'Relatorio de estatisticas', '565':'Relatorio de config', '566':'Bloco de historico selado', '567':'Snapshot de historico gravado', '568':'Schema de historico divergente', '569':'Historico legado apagado', '570':'Servidor web iniciado', '571':'Cliente desconectado (arquivo)', '572':'Cliente desconectado (historico)', '573':'Screenshot abortado pelo cliente', '574':'Arquivo enviado', '575':'Cliente desconectado (conexao encerrada)', '576':'Cert web invalido (HTTP)', '577':'CORS ligado para a origem', '578':'Origem CORS invalida (CORS desligado)', '579':'Par de certificados web instalado', '580':'Tema aplicado', '581':'Tema nao encontrado', '585':'Comando desconhecido', '590':'Sensores em runtime carregados', '600':'Forcar despausar', '999':'Erro desconhecido' };
+        const EVT_NAMES_EN = { '0':'OK', '1':'System boot', '2':'User-requested reboot', '3':'Heap memory low', '4':'Uptime milestone', '5':'Routine log records suppressed', '10':'WiFi connecting', '11':'WiFi disconnected', '12':'WiFi scanning', '13':'NTP synced', '14':'IP acquired', '15':'AP mode started', '20':'Storage failure', '21':'Config saved', '22':'Storage rotated', '23':'Flash formatting', '24':'Storage recovered', '25':'Config migrated', '30':'Telemetry sent', '31':'Telemetry failed', '32':'Telemetry retry', '33':'Telemetry queued', '34':'SSL cert loaded', '35':'MQTT connected', '36':'MQTT disconnected', '37':'MQTT published', '100':'Sensor recovered', '101':'Sensor timeout', '102':'Sensor checksum error', '103':'Sensor CRC error', '104':'Sensor out of range', '105':'Hardware mismatch', '106':'Sensor missing', '200':'Touch event', '201':'Display restarted', '202':'Graph rendered', '300':'Login success', '301':'Login failed', '302':'Unauthorized access', '303':'Config changed', '304':'Session expired', '305':'File uploaded', '306':'File deleted', '307':'Bluetooth lockout', '308':'Panel PIN accepted', '309':'Panel PIN rejected', '310':'Panel PIN lockout', '311':'Keypad entry fits two accounts', '400':'Display launched on Core 1', '401':'Initial touch cal saved', '402':'Touch calibration required', '403':'AP mode triggered by user', '404':'System ready', '405':'System ready (AP mode)', '406':'Storage critical failure', '407':'Sensors calibrated', '408':'NTP correcting timestamps', '409':'Timestamps corrected', '410':'Graph caches invalidated', '411':'Air cycle held in M0', '412':'Cold boot, not a hibernation wake', '413':'Sleep clamped to under 24 h (alarm is time-of-day)', '414':'Previous Air wake did not complete', '440':'Theme changed via UI', '441':'Language changed via UI', '442':'Alarm limits saved via UI', '443':'Touch cal saved to flash', '444':'Touch sensitivity saved', '445':'Display PIN changed', '446':'Sound settings saved', '447':'Alarm silenced via UI', '448':'Alarm silence expired', '449':'All alarms deactivated (RAM)', '450':'User created via panel', '451':'User deleted via panel', '452':'Panel PIN set for user', '453':'User permissions changed via panel', '454':'Maintenance opened via panel', '455':'Maintenance closed via panel', '456':'Sensor alarms blocked via panel', '457':'Sensor alarms unblocked via panel', '458':'Panel action refused: no permission', '470':'Alarm triggered', '471':'Alarm cleared', '472':'Alarm silence cancelled', '480':'Min/Max cache loaded', '481':'Min/Max cache partial', '482':'Graph cache refresh started', '483':'Graph cache refresh done', '484':'Graph cache: ambient', '485':'Graph cache: board temp', '486':'Graph cache preload done', '487':'Graph loading', '488':'Graph render budget exceeded', '489':'Preload budget exceeded', '500':'Display pause stuck >5s', '501':'Yield stuck >10s', '502':'Core 1 dead >10s, restarting', '503':'Flash busy collision', '510':'History record saved', '511':'Heap status report', '512':'History skip: no time reference', '513':'History resumed: time reference acquired', '514':'History skip: V4 schema is empty', '515':'History skip: schema covers no active sensor', '520':'DHCP mode enabled', '521':'Static IP mode enabled', '522':'WiFi manager starting', '523':'WiFi SSID not configured', '524':'Provisional time set from flash', '525':'WiFi connect timeout', '526':'WiFi dormant mode', '527':'Show IP', '528':'mDNS start failed', '540':'HTTP transport initialized', '541':'MQTT transport initialized', '542':'MQTT connecting', '543':'cert.pem empty, insecure mode', '544':'cert.pem read error', '545':'No cert.pem, insecure mode', '546':'Forcing telemetry sync', '547':'Retry logs suppressed', '548':'HA discovery refreshed', '549':'Alarm telemetry line enabled', '550':'Alarm payload sent', '551':'Alarm send failed', '552':'Alarm receipt confirmed', '553':'Alarm queue overflow', '560':'History write failed', '561':'Timestamp correction budget exceeded', '562':'Storage limit budget exceeded', '563':'Skipping active log file', '564':'Storage stats report', '565':'Config report', '566':'History block sealed', '567':'History snapshot written', '568':'History schema mismatch', '569':'Legacy history purged', '570':'Web server started', '571':'Client disconnected (file)', '572':'Client disconnected (history)', '573':'Screenshot aborted by client', '574':'File uploaded', '575':'Client disconnected (broken pipe)', '576':'Web cert invalid (HTTP fallback)', '577':'CORS enabled for origin', '578':'CORS origin file invalid (CORS off)', '579':'Web cert pair installed', '580':'Theme applied', '581':'Theme not found', '585':'Unknown command', '590':'Runtime sensors loaded', '600':'Force unpause', '999':'Unknown error' };
+        const EVT_NAMES_PT = { '0':'OK', '1':'Boot do sistema', '2':'Reboot solicitado pelo usuario', '3':'Heap baixa', '4':'Marco de uptime', '5':'Registros de rotina suprimidos', '10':'Conectando WiFi', '11':'WiFi desconectado', '12':'Varredura WiFi', '13':'NTP sincronizado', '14':'IP obtido', '15':'AP iniciado', '20':'Falha no storage', '21':'Config salva', '22':'Storage rotacionado', '23':'Formatando flash', '24':'Storage recuperado', '25':'Config migrada', '30':'Telemetria enviada', '31':'Falha de telemetria', '32':'Retry de telemetria', '33':'Telemetria enfileirada', '34':'Cert SSL carregado', '35':'MQTT conectado', '36':'MQTT desconectado', '37':'MQTT publicado', '100':'Sensor recuperado', '101':'Timeout de sensor', '102':'Erro de checksum', '103':'Erro de CRC', '104':'Sensor fora de range', '105':'Divergencia de hardware', '106':'Sensor ausente', '200':'Evento de toque', '201':'Display reiniciado', '202':'Grafico renderizado', '300':'Login bem-sucedido', '301':'Falha de login', '302':'Acesso nao autorizado', '303':'Config alterada', '304':'Sessao expirada', '305':'Arquivo enviado', '306':'Arquivo apagado', '307':'Bloqueio Bluetooth', '308':'PIN do painel aceito', '309':'PIN do painel recusado', '310':'Bloqueio do PIN do painel', '311':'Entrada do teclado casa com duas contas', '400':'Display iniciado no Core 1', '401':'Calibracao inicial do touch salva', '402':'Calibracao do touch necessaria', '403':'AP ativado pelo usuario', '404':'Sistema pronto', '405':'Sistema pronto (modo AP)', '406':'Falha critica de storage', '407':'Sensores calibrados', '408':'NTP corrigindo timestamps', '409':'Timestamps corrigidos', '410':'Caches de grafico invalidados', '411':'Ciclo Air retido em M0', '412':'Boot frio, nao veio da hibernacao', '413':'Sono limitado a menos de 24 h (alarme e por hora do dia)', '414':'Wake anterior do Air nao completou', '440':'Tema alterado via UI', '441':'Idioma alterado via UI', '442':'Limites de alarme salvos via UI', '443':'Calibracao do touch salva', '444':'Sensibilidade do touch salva', '445':'PIN do display alterado', '446':'Config de som salva', '447':'Alarme silenciado via UI', '448':'Silenciamento de alarme expirou', '449':'Todos alarmes desativados (RAM)', '450':'Usuario criado pelo painel', '451':'Usuario removido pelo painel', '452':'PIN do painel definido', '453':'Permissoes alteradas pelo painel', '454':'Manutencao aberta pelo painel', '455':'Manutencao encerrada pelo painel', '456':'Alarmes do sensor bloqueados pelo painel', '457':'Alarmes do sensor desbloqueados pelo painel', '458':'Acao do painel recusada: sem permissao', '470':'Alarme disparado', '471':'Alarme zerado', '472':'Silenciamento cancelado', '480':'Cache Min/Max carregado', '481':'Cache Min/Max parcial', '482':'Refresh de cache iniciado', '483':'Refresh de cache concluido', '484':'Cache de grafico: ambiente', '485':'Cache de grafico: placa', '486':'Pre-carga de cache concluida', '487':'Carregando grafico', '488':'Budget de render excedido', '489':'Budget de pre-carga excedido', '500':'Pause do display preso >5s', '501':'Yield preso >10s', '502':'Core 1 travado >10s, reiniciando', '503':'Colisao por flash ocupado', '510':'Registro de historico salvo', '511':'Relatorio de heap', '512':'Historico pulado: sem referencia de hora', '513':'Historico retomado: referencia de hora obtida', '514':'Historico pulado: schema V4 vazio', '515':'Historico pulado: schema nao cobre sensor ativo', '520':'Modo DHCP ativado', '521':'Modo IP estatico ativado', '522':'Gerenciador WiFi iniciando', '523':'SSID WiFi nao configurado', '524':'Hora provisoria do flash', '525':'Timeout na conexao WiFi', '526':'WiFi em modo dormente', '527':'Mostrar IP', '528':'Falha ao iniciar mDNS', '540':'Transporte HTTP inicializado', '541':'Transporte MQTT inicializado', '542':'MQTT conectando', '543':'cert.pem vazio, modo inseguro', '544':'Erro de leitura de cert.pem', '545':'Sem cert.pem, modo inseguro', '546':'Forcando sync de telemetria', '547':'Logs de retry suprimidos', '548':'Discovery HA atualizado', '549':'Linha de alarmes ligada', '550':'Payload de alarmes enviado', '551':'Falha no envio de alarmes', '552':'Recebimento de alarmes confirmado', '553':'Estouro da fila de alarmes', '560':'Falha em escrever historico', '561':'Budget de correcao de ts excedido', '562':'Budget de limite de storage excedido', '563':'Pulando arquivo de log ativo', '564':'Relatorio de estatisticas', '565':'Relatorio de config', '566':'Bloco de historico selado', '567':'Snapshot de historico gravado', '568':'Schema de historico divergente', '569':'Historico legado apagado', '570':'Servidor web iniciado', '571':'Cliente desconectado (arquivo)', '572':'Cliente desconectado (historico)', '573':'Screenshot abortado pelo cliente', '574':'Arquivo enviado', '575':'Cliente desconectado (conexao encerrada)', '576':'Cert web invalido (HTTP)', '577':'CORS ligado para a origem', '578':'Origem CORS invalida (CORS desligado)', '579':'Par de certificados web instalado', '580':'Tema aplicado', '581':'Tema nao encontrado', '585':'Comando desconhecido', '590':'Sensores em runtime carregados', '600':'Forcar despausar', '999':'Erro desconhecido' };
 
         function evtName(code) { let l = localStorage.getItem('simut_lang') || 'en'; let dict = (l === 'pt') ? EVT_NAMES_PT : EVT_NAMES_EN; let lbl = dict[code.toString()]; if (lbl) return lbl; return (l === 'pt' ? 'Evento #' : 'Event #') + code; }
         const TAG_NAMES = ['APP','NET','TEL','STO','WEB','CFG','CLI','SENSOR','HIST','SYS','DSP','SEC','OTA','?','?','?'];
@@ -5588,7 +5600,11 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <label class="chk-lbl"><input type="checkbox" name="p_fdel" value="1"> <span data-i18n="usr_pfd">Files (Delete)</span></label>
                     <label class="chk-lbl"><input type="checkbox" name="p_usr" value="1"> <span data-i18n="usr_pusr">User Management</span></label>
                     <label class="chk-lbl"><input type="checkbox" name="p_calib" value="1"> <span data-i18n="usr_pcal">Sensor Calibration</span></label>
+                    <label class="chk-lbl"><input type="checkbox" name="p_lim" value="1"> <span data-i18n="usr_plim">Limits (panel)</span></label>
+                    <label class="chk-lbl"><input type="checkbox" name="p_blk" value="1"> <span data-i18n="usr_pblk">Block (panel)</span></label>
+                    <label class="chk-lbl"><input type="checkbox" name="p_mnt" value="1"> <span data-i18n="usr_pmnt">Maint (panel)</span></label>
                 </div>
+                <input type="text" id="u_pin" name="u_pin" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="Panel PIN (4-8 digits, optional)" data-i18n="usr_pin">
                 <button type="submit" id="btnUser" data-i18n="usr_btn">Create User</button>
                 <p style="font-size:0.8rem; color:var(--tinta-2); margin-top:15px; text-align:center;" data-i18n="usr_warn">
                     * A one-time password is shown after Save &amp; Restart. Copy it — it is displayed only once, and the user must change it on first login.
@@ -5604,7 +5620,7 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         function renderPermsBadges(perms, isSuper) {
             if (isSuper) return `<span class="badge full" data-i18n="usr_sup">${window.t('usr_sup','Super Admin')}</span>`;
             let arr = [];
-            const map = [[1,'usr_pdash','Dashboard'],[2,'usr_phist','History'],[4,'usr_plog','Logs'],[8,'usr_psys','Sys Config'],[16,'usr_pnet','Net Config'],[32,'usr_pfr','Files Read'],[64,'usr_pfu','Files Up'],[128,'usr_pfd','Files Del'],[256,'usr_pusr','Users'],[512,'usr_pcal','Calib']];
+            const map = [[1,'usr_pdash','Dashboard'],[2,'usr_phist','History'],[4,'usr_plog','Logs'],[8,'usr_psys','Sys Config'],[16,'usr_pnet','Net Config'],[32,'usr_pfr','Files Read'],[64,'usr_pfu','Files Up'],[128,'usr_pfd','Files Del'],[256,'usr_pusr','Users'],[512,'usr_pcal','Calib'],[1024,'usr_plim','Limits (panel)'],[2048,'usr_pblk','Block (panel)'],[4096,'usr_pmnt','Maint (panel)']];
             map.forEach(([bit, key, def]) => { if (perms & bit) arr.push(`<span class="badge full" data-i18n="${key}">${window.t(key, def)}</span>`); });
             return arr.join('');
         }
@@ -5616,6 +5632,7 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 const pending = (Pending.getSection('users') || {}).actions || [];
                 const pendingDels = new Set(pending.filter(a => a.type === 'del').map(a => a.id));
                 const pendingRsts = new Set(pending.filter(a => a.type === 'reset').map(a => a.id));
+                const pendingPins = new Set(pending.filter(a => a.type === 'pin').map(a => a.id));
                 const pendingAdds = pending.filter(a => a.type === 'add');
 
                 let tbody = document.getElementById('usrBody');
@@ -5627,17 +5644,25 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     const isRst = pendingRsts.has(u.id);
                     const rowCls = isDel ? 'pending-del' : '';
                     let actions;
+                    /* v24: the panel PIN. Every account can hold one, the admin
+                       included; the button stages a 'pin' action, the badge says
+                       one is set (never what it is). */
+                    const isPin = pendingPins.has(u.id);
+                    const pinBtn = isPin
+                        ? `<span class="badge pending">${window.t('usr_pend_pin','Pending: PIN')}</span>`
+                        : `<button class="btn-action" onclick="setPin(${u.id})">${window.t('usr_pin_btn','PIN')}</button>`;
                     if (isSuper) {
-                        actions = `<span class="badge" data-i18n="usr_prot">${window.t('usr_prot','Protected')}</span>`;
+                        actions = `${pinBtn} <span class="badge" data-i18n="usr_prot">${window.t('usr_prot','Protected')}</span>`;
                     } else if (isDel) {
                         actions = `<span class="badge pending">${window.t('usr_pend_del','Pending: Delete')}</span>`;
                     } else {
                         let rstBtn = isRst
                             ? `<span class="badge pending">${window.t('usr_pend_rst','Pending: Reset')}</span>`
                             : `<button class="btn-action" onclick="rstUsr(${u.id})" data-i18n="usr_rst">${window.t('usr_rst','Reset')}</button>`;
-                        actions = `${rstBtn} <button class="btn-dang" onclick="delUsr(${u.id})" data-i18n="usr_del">${window.t('usr_del','Del')}</button>`;
+                        actions = `${pinBtn} ${rstBtn} <button class="btn-dang" onclick="delUsr(${u.id})" data-i18n="usr_del">${window.t('usr_del','Del')}</button>`;
                     }
-                    html += `<tr class="${rowCls}"><td>${u.id}</td><td style="font-weight:bold;color:var(--tinta)">${escHtml(u.name)}</td><td>${renderPermsBadges(u.perms, isSuper)}</td><td style="text-align:center; white-space:nowrap;">${actions}</td></tr>`;
+                    const pinBadge = u.pin ? ` <span class="badge">${window.t('usr_haspin','PIN')}</span>` : '';
+                    html += `<tr class="${rowCls}"><td>${u.id}</td><td style="font-weight:bold;color:var(--tinta)">${escHtml(u.name)}${pinBadge}</td><td>${renderPermsBadges(u.perms, isSuper)}</td><td style="text-align:center; white-space:nowrap;">${actions}</td></tr>`;
                 });
                 /* Usuários pendentes de criação. a.name é digitado pelo próprio
                    admin, mas ainda vai para innerHTML — escapa por profundidade
@@ -5655,11 +5680,15 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             const name = document.getElementById('u_name').value.trim();
             if (!name) return;
             let perms = 0;
-            const bits = {p_dash:1, p_hist:2, p_logs:4, p_sys:8, p_net:16, p_fread:32, p_fupl:64, p_fdel:128, p_usr:256, p_calib:512};
-            document.querySelectorAll('#u_name').forEach(() => {});
+            const bits = {p_dash:1, p_hist:2, p_logs:4, p_sys:8, p_net:16, p_fread:32, p_fupl:64, p_fdel:128, p_usr:256, p_calib:512, p_lim:1024, p_blk:2048, p_mnt:4096};
             Object.keys(bits).forEach(k => { const el = document.querySelector(`input[name="${k}"]`); if (el && el.checked) perms |= bits[k]; });
-            Pending.pushUserAction({ type: 'add', name: name, perms: perms });
+            const pin = (document.getElementById('u_pin').value || '').trim();
+            if (pin !== '' && !/^[0-9]{4,8}$/.test(pin)) { showToast(window.t('usr_pin_bad', 'PIN must be 4 to 8 digits.'), 'error'); return; }
+            const act = { type: 'add', name: name, perms: perms };
+            if (pin !== '') act.pin = pin;
+            Pending.pushUserAction(act);
             document.getElementById('u_name').value = '';
+            document.getElementById('u_pin').value = '';
             document.querySelectorAll('.chk-grid input[type=checkbox]').forEach(c => c.checked = false);
             loadUsers();
         }
@@ -5667,6 +5696,15 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         function delUsr(id) {
             if (!confirm(window.t('usr_del_msg', 'Delete this user? It will be applied when you click Save & Restart.'))) return;
             Pending.pushUserAction({ type: 'del', id: id });
+            loadUsers();
+        }
+
+        function setPin(id) {
+            const v = prompt(window.t('usr_pin_msg', 'Panel PIN for this account: 4 to 8 digits, or empty to remove it.'));
+            if (v === null) return;
+            const pin = v.trim();
+            if (pin !== '' && !/^[0-9]{4,8}$/.test(pin)) { showToast(window.t('usr_pin_bad', 'PIN must be 4 to 8 digits.'), 'error'); return; }
+            Pending.pushUserAction({ type: 'pin', id: id, pin: pin });
             loadUsers();
         }
 
@@ -7001,6 +7039,11 @@ static const char LANG_JS[] PROGMEM = R"raw(
             "sens_rebind_unsure": "Sem resposta do dispositivo. Recarregue a página e confira o log antes de tentar de novo.",
             /* v3.34.0: F-CALIB-UI integrado no /dashboard (~10 chaves usadas inline) */
             "usr_pcal": "Calibração",
+            "usr_plim": "Limites de alarme (painel)", "usr_pblk": "Bloquear alarmes (painel)", "usr_pmnt": "Manutenção (painel)",
+            "usr_pin": "PIN do painel (4-8 dígitos, opcional)", "usr_pin_btn": "PIN", "usr_haspin": "PIN",
+            "usr_pend_pin": "Pendente: PIN",
+            "usr_pin_msg": "PIN do painel desta conta: 4 a 8 dígitos, ou vazio para remover.",
+            "usr_pin_bad": "O PIN deve ter 4 a 8 dígitos.",
             "cal_mode": "Modo Calibração",
             "cal_id": "ID",
             "cal_name": "Nome",

@@ -252,7 +252,8 @@ executar qualquer comando do modo privilegiado sem sair do config.
 | `user add <nome> <senha>` | Criar novo usuário para a interface web |
 | `user del <nome>` | Remover usuário (admin não pode ser removido) |
 | `user pass <nome> <nova_senha>` | Alterar senha de um usuário |
-| `user perm <nome> <viewer\|operator\|admin\|0xHEX>` | Ajusta a máscara de permissões do usuário. É o **único** caminho (além do admin de fábrica) para conceder `PERM_FULL_ADMIN` (`0xFFFF`) — a interface web recusa esse valor por design |
+| `user perm <nome> <viewer\|operator\|admin\|0xHEX>` | Ajusta a máscara de permissões do usuário. É o **único** caminho (além do admin de fábrica) para conceder `PERM_FULL_ADMIN` (`0xFFFF`) — a interface web recusa esse valor por design. Bits do painel: `0x0400` limites, `0x0800` bloqueio, `0x1000` manutenção |
+| `user pin <nome> <4-8 dígitos\|off>` | PIN do painel da conta (config v24). Único entre as contas — o painel identifica **pelo** PIN; um PIN de outra conta é recusado com o nome do dono. `off` remove. Para o `admin`, um PIN diferente de `1234` desarma a troca forçada |
 
 ### Sensor
 

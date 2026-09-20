@@ -474,6 +474,10 @@ void AppManager::cmdHandleUserAdd(const CliDemand& cmd, SystemConfig& cfg, bool&
  _cmdMgr->printError(pt ? "Sem slot livre (max usuarios)" : "No free slot (max users)");
  return;
  }
+ /* A config written before deletion cleared the record can still carry a
+  * PIN digest in an inactive slot, so the allocation clears it too — the
+  * account being created never asked for a PIN. */
+ memset(cfg.users[freeSlot].pinHash, 0, PIN_HASH_LEN);
  safeCopy(cfg.users[freeSlot].username, cmd.strVal1, sizeof(cfg.users[freeSlot].username));
  {
  /* SEC-007/009 (F15): salt random + hashVersion=1 — mesmo esquema de
@@ -761,6 +765,48 @@ void AppManager::cmdHandleUserPerm(const CliDemand& cmd, SystemConfig& cfg, bool
   return;
  }
  _cmdMgr->printError(pt ? "Usuario nao encontrado" : "User not found");
+}
+
+/**
+ * @brief `user pin <name> <4-8 digits|off>` — the account's panel PIN (v24).
+ *
+ * The one way to give a web-created account a PIN without the web page, and
+ * the way a bench script does it. Unique across accounts, because the panel
+ * identifies BY the PIN; a duplicate is refused and the owner named. `off`
+ * removes it. Config mode only, like the rest of `user`.
+ */
+void AppManager::cmdHandleUserPin(const CliDemand& cmd, SystemConfig& cfg, bool& changed) {
+ const bool pt = _cmdMgr->isPt( );
+ int slot = -1;
+ for (int i = 0; i < MAX_USERS; i++) {
+ if (cfg.users[i].active && strcasecmp(cmd.strVal1, cfg.users[i].username) == 0) { slot = i; break; }
+ }
+ if (slot < 0) { _cmdMgr->printError(pt ? "Usuario nao encontrado" : "User not found"); return; }
+ String v(cmd.strVal2);
+ v.toLowerCase( );
+ if (v == "off" || v == "none") {
+ _storageMgr->setUserPin(slot, "");
+ _cmdMgr->printSuccess(String(pt ? "PIN removido: " : "PIN removed: ") + cfg.users[slot].username);
+ LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, slot,
+ String(TRL("CLI cleared panel PIN: ")) + cfg.users[slot].username);
+ changed = true;
+ return;
+ }
+ if (!isValidPanelPin(cmd.strVal2)) {
+ _cmdMgr->printError(pt ? "PIN invalido: 4 a 8 digitos" : "Invalid PIN: 4 to 8 digits");
+ return;
+ }
+ int conflict = -1;
+ if (!_storageMgr->setUserPin(slot, cmd.strVal2, &conflict)) {
+ _cmdMgr->consolePrintf(pt ? "ERRO: PIN ja pertence a %s\n" : "ERROR: PIN already belongs to %s\n",
+ (conflict >= 0) ? cfg.users[conflict].username : "?");
+ return;
+ }
+ if (slot == 0 && strcmp(cmd.strVal2, "1234") != 0) _storageMgr->clearMustChangePin( );
+ _cmdMgr->printSuccess(String(pt ? "PIN definido: " : "PIN set: ") + cfg.users[slot].username);
+ LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, slot,
+ String(TRL("CLI set panel PIN: ")) + cfg.users[slot].username);
+ changed = true;
 }
 
 /* cmdHandleDbgSensorHistoryAll removido (debug TEST-ONLY

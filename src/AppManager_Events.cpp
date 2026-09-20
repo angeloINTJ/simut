@@ -21,7 +21,7 @@
 #include <time.h>
 
 
-void AppManager::pushAlarmAction(int8_t slot, uint8_t errCodeErr, uint8_t errCodeLim) {
+void AppManager::pushAlarmAction(int8_t slot, uint8_t errCodeErr, uint8_t errCodeLim, uint8_t actor) {
 	if (slot < 0 || slot >= MAX_SENSORS) return;
 	SystemConfig &cfg = _storageMgr->getConfig( );
 	if (!cfg.sensors[slot].active) return;
@@ -33,7 +33,7 @@ void AppManager::pushAlarmAction(int8_t slot, uint8_t errCodeErr, uint8_t errCod
 	/* erro de sensor tem prioridade sobre limite (mesma regra do display) */
 	const bool errState = _displayMgr->isSlotErrAlarming(slot);
 	_telemetryMgr->pushAlarm((uint8_t)slot, firstCh, NAN,
-	                         errState ? errCodeErr : errCodeLim);
+	                         errState ? errCodeErr : errCodeLim, actor);
 }
 
 
@@ -136,6 +136,8 @@ void AppManager::core0Yield( ) {
  continue;
  }
  flushGraphNav( );
+ /* v24: the identified actions — AppManager_Panel.cpp */
+ if (handlePanelEvent(uiEv)) continue;
  if (uiEv.type == UiEvent::EVT_SLOT_SELECT) { _currentSensorIdx = uiEv.id; _lastSlotChangeTime = millis( ); refreshSelectedSlot( ); }
  else if (uiEv.type == UiEvent::EVT_OPEN_GRAPH) {
  if (uiEv.param == 99) openStatsScreen(uiEv.id);
@@ -252,59 +254,11 @@ void AppManager::core0Yield( ) {
  _displayMgr->showCalendar(newYear, newMonth, mask);
  }
  else if (uiEv.type == UiEvent::EVT_OPEN_SETTINGS) {
- SystemConfig &cfg = _storageMgr->getConfig( );
- String authPin = String(cfg.displayPin);
- if (authPin.length( ) == 0) authPin = "1234";
- _displayMgr->showAuthScreen(authPin);
- }
- else if (uiEv.type == UiEvent::EVT_AUTH_SUCCESS) {
- _soundMgr->play(SND_CONFIRM);
-
-
- if (_pendingAlarmDeactivate) {
- _pendingAlarmDeactivate = false;
-
- SystemConfig &cfg = _storageMgr->getConfig( );
- /* Desativação POR SLOT E POR DOMÍNIO (RAM only): o domínio ATIVO do slot
- * da tela de ação é que é desligado — se o sensor está em ERRO, muta só o
- * erro (o LIMITE permanece armado e dispara se o valor sair da faixa após
- * o sensor se reestabelecer); se está em LIMITE, desliga só o limite (o
- * erro continua reportando). Um domínio é independente do outro. */
- if (_alarmDeactivateSlot >= 0 && _alarmDeactivateSlot < MAX_SENSORS) {
- const bool errNow = _displayMgr->isSlotErrAlarming(_alarmDeactivateSlot);
- if (errNow) {
- _displayMgr->setAlarmErrMuted(_alarmDeactivateSlot, true);
- LOG_CODE(LOG_WARN, "APP", APP_UI_ALARM_DEACTIVATED, _alarmDeactivateSlot,
- "erro mutado (limite permanece)");
- } else {
- cfg.sensors[_alarmDeactivateSlot].alarmsActive = false;
- LOG_CODE(LOG_WARN, "APP", APP_UI_ALARM_DEACTIVATED, _alarmDeactivateSlot,
- "limite desligado (erro permanece)");
- }
- }
-
- _soundMgr->stopAlarm( );
- _displayMgr->setAlarmState(0, -1);
- /* limpa também o mask de ERRO: sem isso o âmbar ficava preso — o stopAlarm
- * derruba isAlarming() e o else do checkAlarmConditions (que limparia o
- * display) só roda com o som ativo ou silenciado. */
- _displayMgr->setAlarmErrState(0);
- _displayMgr->setAlarmSilenced(false, 0);
- /* 2ª linha de telemetria: registra a AÇÃO de desativar — o {err} do
- * registro carrega "err_off" (erro) ou "off" (limite). */
- pushAlarmAction(_alarmDeactivateSlot, ALARM_ERR_ERR_OFF, ALARM_ERR_ALARM_OFF);
- _alarmDeactivateSlot = -1;
- _displayMgr->forceDashboard( );
- LOG_CODE(LOG_WARN, "APP", APP_UI_ALARM_DEACTIVATED, 0, "");
- } else if (_storageMgr->mustChangePin( )) {
- /* PIN is still the default factory "1234";
- * force the change screen before allowing the main menu. */
- _displayMgr->showSettingsPassword( );
- LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, 0,
- TRL("Default PIN detected; forcing change."));
- } else {
- _displayMgr->showSettingsMain( );
- }
+ /* v24: CFG asks for a PIN, and the PIN says who this is. The previous
+  * session, if any, ends here — whoever is at the panel now identifies. */
+ _panelUser = -1; _panelPerms = 0; _panelAuthFor = PAUTH_SETTINGS;
+ _displayMgr->setPanelSession(-1, 0);
+ _displayMgr->showPinEntry(DisplayManager::PIN_FOR_AUTH);
  }
  else if (uiEv.type == UiEvent::EVT_MENU_SELECT) {
  if (uiEv.id == 0) {
@@ -321,7 +275,8 @@ void AppManager::core0Yield( ) {
  _displayMgr->showSettingsLang(_storageMgr->getConfig( ).displayLang);
  }
  else if (uiEv.id == 4) {
- _displayMgr->showSettingsPassword( );
+ /* one's own PIN, on the numeric keypad, typed twice */
+ _displayMgr->showPinEntry(DisplayManager::PIN_FOR_OWN);
  }
  else if (uiEv.id == 5) {
  _displayMgr->showTouchCalibration( );
@@ -334,6 +289,9 @@ void AppManager::core0Yield( ) {
  }
  else if (uiEv.id == 8) {
  _displayMgr->showSettingsDisplayOffset( );
+ }
+ else if (uiEv.id == 9) {
+ if (panelAllowed(PERM_USER_MGR, -1)) _displayMgr->showSettingsUsers( );
  }
  }
  else if (uiEv.type == UiEvent::EVT_APPLY_THEME) {
@@ -355,19 +313,11 @@ void AppManager::core0Yield( ) {
  LOG_CODE(LOG_INFO, "APP", APP_UI_LANG_CHANGED, 0, "");
  }
  else if (uiEv.type == UiEvent::EVT_SAVE_ALARMS) {
- _storageMgr->saveConfiguration( );
-
- _sensorMgr->syncAlarmLimits(_storageMgr->getConfig( ));
-
- checkAlarmConditions( );
- _soundMgr->play(SND_CONFIRM);
- /* param=1 means the ON/OFF flag was toggled from the list and the screen
-  * is already the right one. Re-entering it would repaint all of it and
-  * send the cursor back to the first sensor — the "unpleasant effect".
-  * param=0 comes from the limit editor, which does need the list back. */
- if (uiEv.param == 1) _displayMgr->refreshAlarmStatus( );
- else _displayMgr->showSettingsAlarms(&_storageMgr->getConfig( ));
- LOG_CODE(LOG_INFO, "APP", APP_UI_ALARM_SAVED, 0, "");
+ /* v24: the limit editor's SAVE. Core 1 no longer writes the config; the
+  * diff, the save, the log and the alarm_lim records are Core 0's, behind
+  * PERM_ALARM_LIMITS. The list's ON/OFF toggle (param=1) is gone — that
+  * is EVT_ALARM_BLOCK now, with its own bit. */
+ panelSaveAlarmLimits(uiEv.id);
  }
 
  else if (uiEv.type == UiEvent::EVT_APPLY_TOUCH_CAL) {
@@ -426,26 +376,12 @@ void AppManager::core0Yield( ) {
  }
 
  else if (uiEv.type == UiEvent::EVT_SAVE_PASSWORD) {
- SystemConfig &cfg = _storageMgr->getConfig( );
- char newPwd[9];
+ /* The legacy text keyboard (reachable through `screen pwd` only, since
+  * v24): what it typed is the session user's new PIN, under the same
+  * rule as the numeric keypad — digits, 4 to 8, unique. */
+ char newPwd[16];
  _displayMgr->getNewPassword(newPwd, sizeof(newPwd));
- if (strlen(newPwd) >= 4 && strlen(newPwd) <= 7) {
- /* Only clear mustChangePin if the user chose a PIN != default
- * "1234". If they set "1234" again, keep the flag active —
- * swapping to the same value doesn't solve anything.
- * Note: "1234" is still accepted as a value; the policy only
- * prevents it from counting as a "real change". */
- safeCopy(cfg.displayPin, newPwd, sizeof(cfg.displayPin));
- cfg.displayPin[7] = '\0';
- if (strcmp(newPwd, "1234") != 0) {
- _storageMgr->clearMustChangePin( );
- }
- _storageMgr->saveConfiguration( );
- _soundMgr->play(SND_CONFIRM);
- LOG_CODE(LOG_INFO, "APP", APP_UI_PIN_CHANGED, 0, "");
- } else {
- _soundMgr->play(SND_ERROR);
- }
+ panelSetUserPin(_panelUser, newPwd, MODE_SETTINGS_MAIN);
  }
 
  else if (uiEv.type == UiEvent::EVT_SAVE_SOUNDS) {
@@ -477,11 +413,12 @@ void AppManager::core0Yield( ) {
 
 
  else if (uiEv.type == UiEvent::EVT_ALARM_DEACTIVATE) {
-
+ /* v24: a PIN, then PERM_ALARM_BLOCK — panelDeactivateAlarm( ) */
  _pendingAlarmDeactivate = true;
  _alarmDeactivateSlot = (int8_t)uiEv.id;
- SystemConfig &cfg = _storageMgr->getConfig( );
- _displayMgr->showAuthScreen(String(cfg.displayPin));
+ _panelUser = -1; _panelPerms = 0; _panelAuthFor = PAUTH_DEACTIVATE;
+ _displayMgr->setPanelSession(-1, 0);
+ _displayMgr->showPinEntry(DisplayManager::PIN_FOR_AUTH);
  }
  }
 

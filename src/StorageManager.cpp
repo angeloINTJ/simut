@@ -29,8 +29,11 @@
 #include <new>
 #include <bearssl/bearssl_hash.h>
 #include <bearssl/bearssl_hmac.h>
+#include "ConfigMigrate.h"      /* v24: legacy schemas by segment, sizes frozen */
+#include "SystemDefs_Validate.h" /* isValidPanelPin */
 
-const uint32_t CONFIG_MAGIC = 0xCAFEBABE;
+/* CONFIG_MAGIC moved to SystemDefs_Records.h (v24): ConfigMigrate.h checks it
+ * on a raw blob before the struct exists, and the native test needs it too. */
 
 /* Chunked flash operation wrapper.
  * Acquires the FS mutex with timeout + watchdog feed to prevent
@@ -86,7 +89,11 @@ struct Core1FlashPause {
  ~Core1FlashPause( ) { _s->exitFlashSafeMode( ); }
 };
 
-/* 20, not 18: the jump is a marker. 17 was the last schema with a migration
+/* 24 (2026-09-19): users[] 5 -> 32 accounts of 70 B (panel-PIN digest) and a
+ * device-wide PIN salt appended. The first change since v20 that is NOT a
+ * tail-append, which is why the legacy readers became ConfigMigrate.h.
+ *
+ * 20, not 18: the jump is a marker. 17 was the last schema with a migration
  * path into it, and 2.0.0 accepts nothing older than itself, so a version in
  * 18..19 would look like a routine step that some future reader might try to
  * migrate from. There is no such path and there is not meant to be one.
@@ -95,7 +102,7 @@ struct Core1FlashPause {
  * Tail-append only: every byte a v20 blob held keeps its offset, so the
  * v20→v21 reader (attemptLoad) migrates without translating anything and
  * without the 2.0.0-style schema break. See SystemDefs_Records.h. */
-const uint16_t CONFIG_VERSION = 22;
+const uint16_t CONFIG_VERSION = 24;
 
 /* -------------------------------------------------------------------------- */
 /* Legacy UserAccount layout (v14 and earlier) — used ONLY by the */
@@ -563,6 +570,9 @@ void StorageManager::loadDefaults( ) {
   * por padrão: enviar para <telPath>/alarm num servidor que não conhece o
   * endpoint só produziria 404s e estouro de fila. */
  applyAlarmTelDefaults(_currentConfig.alarmTel);
+ /* v23: nenhum slot nasce em manutenção. O único default seguro — o contrário
+  * silenciaria alarmes que ninguém pediu para silenciar. */
+ memset(&_currentConfig.maint, 0, sizeof(_currentConfig.maint));
 
  _currentConfig.telTransport = TEL_TRANSPORT_HTTP;
  safeCopy(_currentConfig.mqttTopic, "simut/data", sizeof(_currentConfig.mqttTopic));
@@ -581,10 +591,13 @@ void StorageManager::loadDefaults( ) {
 #endif
  _currentConfig.themeIndex = 0;
 
- safeCopy(_currentConfig.displayPin, "1234", sizeof(_currentConfig.displayPin));
- /* Force change of default PIN "1234" on first access to the
- * config menu. Overlay in reserved[26..27] — cleared when user
- * saves a PIN != "1234". Set here (loadDefaults = factory reset). */
+ /* v24: the panel PIN is per account. Factory admin gets "1234" (as the
+  * device PIN always did) and the forced change on first access to the menu,
+  * via the overlay in reserved[26..27]. displayPin itself is dead — zeroed so
+  * no plaintext ever sits in the file again. */
+ memset(_currentConfig.displayPin, 0, sizeof(_currentConfig.displayPin));
+ generateSalt(_currentConfig.pinAuth.pinSalt);
+ pinDigestWith(_currentConfig.pinAuth.pinSalt, "1234", _currentConfig.users[0].pinHash);
  setMustChangePin( );
  _currentConfig.displayLang = LANG_PT;
 
@@ -626,6 +639,10 @@ void StorageManager::loadDefaults( ) {
  * loadDefaults( ) e pela migração v20→v21 para que os dois caminhos nunca
  * discordem. Desligada por padrão: um servidor que não conhece o endpoint de
  * alarmes só geraria 404 e estouro de fila. */
+const char* const StorageManager::ALARM_LINE_TEMPLATE_DEFAULT =
+ "{\"ts\":{TS},\"id\":\"{ID}\",\"val\":{val},\"alarm\":{alarm},\"err\":{err},\"maint\":{maint},"
+ "\"lo\":{lo},\"hi\":{hi},\"until\":{until},\"user\":{user},\"seq\":{seq}}";
+
 void StorageManager::applyAlarmTelDefaults(AlarmTelConfig& a) {
  memset(&a, 0, sizeof(a));
  a.enabled = false;
@@ -637,8 +654,31 @@ void StorageManager::applyAlarmTelDefaults(AlarmTelConfig& a) {
   * A forma composta "<chave>":{<token>} remove a chave inteira quando o
   * token está ausente — {val} some no registro de erro, {err} some no
   * registro normal — ver TelemetryManager::formatLineAlarmBuf. */
- safeCopy(a.lineTemplate, "{\"ts\":{TS},\"id\":\"{ID}\",\"val\":{val},\"alarm\":{alarm},\"err\":{err},\"seq\":{seq}}", sizeof(a.lineTemplate));
+ /* v23: "maint":{maint} entrou no default; v24: "lo"/"hi"/"until"/"user".
+  * Um template custom escrito antes não tem os tokens e emite esses registros
+  * sem os campos — está dito em AlarmPayload.h e em GET /api/alarms, que
+  * reporta a janela independentemente do template. O default de fábrica vive
+  * em ALARM_LINE_TEMPLATE_DEFAULT para que upgradeDefaultAlarmTemplate( )
+  * reconheça um default antigo e o troque. */
+ safeCopy(a.lineTemplate, ALARM_LINE_TEMPLATE_DEFAULT, sizeof(a.lineTemplate));
  safeCopy(a.lineSeparator, ",", sizeof(a.lineSeparator));
+}
+
+/* A stored template that is still EXACTLY one of the earlier defaults was
+ * never edited by anyone, so it can follow the default forward; anything else
+ * is the operator's and is left alone. Called from the legacy-blob migration,
+ * which is the only place a pre-v24 default can arrive from. */
+void StorageManager::upgradeDefaultAlarmTemplate(AlarmTelConfig& a) {
+ static const char* const OLD_DEFAULTS[] = {
+ /* v21..v22 */ "{\"ts\":{TS},\"id\":\"{ID}\",\"val\":{val},\"alarm\":{alarm},\"err\":{err},\"seq\":{seq}}",
+ /* v23 */      "{\"ts\":{TS},\"id\":\"{ID}\",\"val\":{val},\"alarm\":{alarm},\"err\":{err},\"maint\":{maint},\"seq\":{seq}}",
+ };
+ for (const char* old : OLD_DEFAULTS) {
+ if (strncmp(a.lineTemplate, old, sizeof(a.lineTemplate)) == 0) {
+ safeCopy(a.lineTemplate, ALARM_LINE_TEMPLATE_DEFAULT, sizeof(a.lineTemplate));
+ return;
+ }
+ }
 }
 
 uint32_t StorageManager::calculateCRC32(const uint8_t *data, size_t length) {
@@ -663,20 +703,17 @@ bool StorageManager::loadCurrentBlob(File& f, SystemConfig& outCfg, bool* migrat
  size_t crcRead = f.read((uint8_t*)&readCrc, sizeof(readCrc));
  if (bytesRead != sizeof(SystemConfig)) return false;
  if (outCfg.magic != CONFIG_MAGIC) return false;
- /* v21 has the same layout as v22 and is accepted here, because the schema did
-  * not change — one field changed MEANING (see migrateV21Semantics). Every
-  * other version is rejected; v20 and older go by file size in attemptLoad. */
- if (outCfg.version != CONFIG_VERSION && outCfg.version != 21) return false;
+ /* v23 is the only layout this size can be: v21 and v22 are shorter by
+  * sizeof(MaintConfig) and are recognised by size in attemptLoad, the same way
+  * v20 always was. */
+ if (outCfg.version != CONFIG_VERSION) return false;
  if (crcRead == sizeof(readCrc)) {
  uint32_t calcCrc = calculateCRC32((uint8_t*)&outCfg, sizeof(SystemConfig));
  if (calcCrc != readCrc) return false;
  }
  /* v16 always writes with sensitive fields obfuscated (XOR keystream). */
  obfuscateSensitiveFields(outCfg);
- if (outCfg.version == 21) {
- migrateV21Semantics(outCfg);
- if (migratedV21) *migratedV21 = true;
- }
+ (void)migratedV21; /* v21 no longer reaches this reader — see the size check */
  return true;
 }
 
@@ -711,29 +748,86 @@ void StorageManager::migrateV21Semantics(SystemConfig& cfg) {
  cfg.version = CONFIG_VERSION;
 }
 
-/* v20→v21. O blob v20 termina exatamente onde começa alarmTel — todo byte
- * anterior mantém o offset que tinha na v20 (tail-append travado por
- * static_assert), então ler o blob para a cabeça deste struct e preencher a
- * cauda com defaults É a migração inteira. Nada é traduzido, nada é inferido;
- * o CRC cobre só os bytes que existiam. Os campos sensíveis usam os mesmos
- * offsets nas duas versões, então a mesma deofuscação serve. */
-bool StorageManager::loadMigrateV20Blob(File& f, SystemConfig& outCfg) {
- memset(&outCfg, 0, sizeof(outCfg));
- const size_t v20Struct = offsetof(SystemConfig, alarmTel);
- if (f.read((uint8_t*)&outCfg, v20Struct) != v20Struct) return false;
+/* ── Legacy schemas (v20, v21/v22, v23) → v24 ─────────────────────────────
+ *
+ * Until v23 every migration read the old blob straight into the head of the
+ * current struct, because every change had been a tail-append. v24 widened
+ * users[] in the MIDDLE of the struct, so the read became a copy by segments
+ * with the historical sizes frozen as literals — all of that lives in
+ * ConfigMigrate.h, where the native test reaches it. What stays here is the
+ * I/O, the CRC, and the defaults each version is missing. */
+bool StorageManager::loadMigrateLegacyBlob(File& f, size_t fileSize, uint8_t kind, SystemConfig& outCfg) {
+ const CfgLegacyKind k = (CfgLegacyKind)kind;
+ const size_t blobLen = fileSize - sizeof(uint32_t);
+ if (blobLen != configLegacyBlobLen(k)) return false;
+
+ /* Transient, on the heap: 4,792 B at most, freed before this returns. outCfg
+  * is already a heap object (loadConfiguration's tempConfig); the boot path's
+  * stack is not where a second copy of the config belongs. */
+ uint8_t* blob = new (std::nothrow) uint8_t[blobLen];
+ if (!blob) return false;
+ bool ok = ((size_t)f.read(blob, blobLen) == blobLen);
  uint32_t readCrc = 0;
- size_t crcRead = f.read((uint8_t*)&readCrc, sizeof(readCrc));
- if (outCfg.magic != CONFIG_MAGIC) return false;
- if (outCfg.version != 20) return false;
- if (crcRead == sizeof(readCrc)) {
- uint32_t calcCrc = calculateCRC32((uint8_t*)&outCfg, v20Struct);
- if (calcCrc != readCrc) return false;
- }
+ size_t crcRead = 0;
+ if (ok) crcRead = f.read((uint8_t*)&readCrc, sizeof(readCrc));
+ /* The CRC covers the file as written: the raw, still-obfuscated bytes. */
+ if (ok && crcRead == sizeof(readCrc) && calculateCRC32(blob, blobLen) != readCrc) ok = false;
+ if (ok) ok = configMigrateLegacy(blob, blobLen, k, outCfg);
+ const uint16_t fromVersion = ok ? configBlobVersion(blob) : 0;
+ delete[] blob;
+ if (!ok) return false;
+
+ /* Field-wise XOR, so the accounts having moved does not matter. */
  obfuscateSensitiveFields(outCfg);
+
+ switch (k) {
+ case CFG_LEGACY_V20:
  applyAlarmTelDefaults(outCfg.alarmTel);
- outCfg.version = CONFIG_VERSION;
+ /* maint is already zero: no slot is born in maintenance, the only safe
+  * default — the opposite would silence alarms nobody asked to silence. */
  _migratedFromV20 = true;
+ break;
+ case CFG_LEGACY_V22:
+ /* A v21 blob arrives by the same size as a v22 one. Its telInterval still
+  * means milliseconds and is converted BEFORE the version is stamped. */
+ if (fromVersion == 21) { migrateV21Semantics(outCfg); _migratedFromV21 = true; }
+ _migratedFromV22 = true;
+ break;
+ case CFG_LEGACY_V23:
+ _migratedFromV23 = true;
+ break;
+ default:
+ return false;
+ }
+ finishMigrationV24(outCfg);
+ outCfg.version = CONFIG_VERSION;
+ _migratedFromVersion = fromVersion;
  return true;
+}
+
+void StorageManager::finishMigrationV24(SystemConfig& cfg) {
+ generateSalt(cfg.pinAuth.pinSalt);
+ /* The panel PIN used to be one plaintext string for the whole device, up to
+  * seven characters off a 91-symbol keypad. It becomes the admin's PIN when
+  * the numeric keypad can type it; otherwise the admin gets the factory
+  * "1234" with the forced change armed — the first-access contract the old
+  * PIN always had, and the one outcome that does not lock the operator out
+  * of the menu on the first boot after the upgrade. */
+ char old[sizeof(cfg.displayPin) + 1];
+ memcpy(old, cfg.displayPin, sizeof(cfg.displayPin));
+ old[sizeof(cfg.displayPin)] = '\0';
+ if (isValidPanelPin(old)) {
+ pinDigestWith(cfg.pinAuth.pinSalt, old, cfg.users[0].pinHash);
+ } else {
+ pinDigestWith(cfg.pinAuth.pinSalt, "1234", cfg.users[0].pinHash);
+ setMustChangePinIn(cfg);
+ }
+ memset(cfg.displayPin, 0, sizeof(cfg.displayPin));
+ volatile char* v = old;
+ for (size_t i = 0; i < sizeof(old); i++) v[i] = 0;
+ /* The v24 line template carries the identified actions; a default that
+  * was never edited follows it. */
+ upgradeDefaultAlarmTemplate(cfg.alarmTel);
 }
 
 bool StorageManager::attemptLoad(const char* path, SystemConfig& outCfg) {
@@ -741,22 +835,14 @@ bool StorageManager::attemptLoad(const char* path, SystemConfig& outCfg) {
  if (!f) return false;
  size_t fileSize = f.size( );
 
- /* One accepted format, by deliberate decision for 2.0.0-alpha.
-  *
-  * Every migration path this function used to carry (v12, v13/v14, v15, v16)
-  * described the old layout in terms of the CURRENT struct: sizeof(SensorRecord)
-  * as the record stride, offsetof(SystemConfig, sensors) as the head size. That
-  * holds only while the record keeps its size, and 2.0.0 changes it — per-channel
-  * alarm limits and eight channel slots take SensorRecord from 87 B to 139 B.
-  * Every derived "historical" size would move with it, so those readers would
-  * have walked old files at the wrong stride. Silently: a wrong stride still
-  * produces bytes, and the CRC covers the file as written, not as interpreted.
-  *
-  * Rather than freeze four historical layouts to keep paths off a version nobody
-  * is being asked to stay on, the schema breaks here. A config written by 1.6.x
-  * is not recognised, and the device comes up on defaults. The rejection is
-  * recorded so the caller can say so — a user whose settings vanished is owed
-  * the reason. */
+ /* The current schema, by size. Anything older is recognised by size too, as
+  * it always was — but since v24 the sizes are literals (ConfigMigrate.h),
+  * not derived from this struct. The derivation is what would have made a
+  * field grow in the middle of the struct discard every config in the field:
+  * the "historical" sizes would have moved with it, no file would match, and
+  * the device would come up on defaults with nothing failing at compile time.
+  * Schemas older than v20 (1.6.x) are still rejected, as decided for 2.0.0;
+  * the size is kept for the boot log (takeRejectedConfigSize). */
  const size_t expected = sizeof(SystemConfig) + sizeof(uint32_t);
  if (fileSize == expected) {
  bool ok = loadCurrentBlob(f, outCfg, &_migratedFromV21);
@@ -764,12 +850,9 @@ bool StorageManager::attemptLoad(const char* path, SystemConfig& outCfg) {
  return ok;
  }
 
- /* v20→v21: tail-append migration. Only this ONE previous schema has a
-  * path; anything else (older or newer) is rejected exactly as before —
-  * the size mismatch is reported via takeRejectedConfigSize( ). */
- const size_t v20File = offsetof(SystemConfig, alarmTel) + sizeof(uint32_t);
- if (fileSize == v20File) {
- bool ok = loadMigrateV20Blob(f, outCfg);
+ const CfgLegacyKind kind = configLegacyKind(fileSize);
+ if (kind != CFG_LEGACY_NONE) {
+ bool ok = loadMigrateLegacyBlob(f, fileSize, (uint8_t)kind, outCfg);
  f.close( );
  return ok;
  }
@@ -799,6 +882,28 @@ bool StorageManager::loadConfiguration( ) {
  delete tempConfig;
  }
  exitFlashReadLock( );
+
+ /* Teto das janelas de manutenção, no load (v23).
+  *
+  * ⚠️ O relógio aqui é PROVISÓRIO — getEpoch( ) nunca devolve 0 e cai para o
+  * epoch de build, e o NTP ainda não rodou. Isso significa que este corte pode
+  * encurtar ou fechar uma janela legítima. É aceitável porque erra sempre na
+  * mesma direção: o pior caso é o aparelho voltar a alarmar cedo demais, nunca
+  * ficar mudo além do que alguém pediu. Para um aparelho de monitoramento essa
+  * é a assimetria certa. */
+ if (loaded) maintClamp(_currentConfig.maint, (uint32_t)time(nullptr));
+
+ /* v24: a config with no PIN salt cannot verify or set any PIN. Every writer
+  * generates one, so this is belt and braces for a hand-edited or truncated
+  * restore — and it is saved below, like a migration. */
+ bool saltWasMissing = false;
+ if (loaded) {
+ bool zero = true;
+ for (size_t i = 0; i < sizeof(_currentConfig.pinAuth.pinSalt); i++) {
+ if (_currentConfig.pinAuth.pinSalt[i]) { zero = false; break; }
+ }
+ if (zero) { generateSalt(_currentConfig.pinAuth.pinSalt); saltWasMissing = true; }
+ }
 
  if (!loaded) {
  /* The rejection is NOT logged here. loadConfiguration( ) runs inside
@@ -832,9 +937,17 @@ bool StorageManager::loadConfiguration( ) {
  /* v20→v21: grava o schema novo (com os defaults de alarmTel) uma única vez,
   * para que o próximo boot leia no formato atual. Mesma janela do fromBackup:
   * o logger ainda não existe, então a razão fica para o caller reportar. */
- if (fromBackup || _migratedFromV20 || _migratedFromV21) {
+ /* v22 and v23 were missing from this list, so a v21/v22 blob was migrated
+  * again on every boot until something else saved. Harmless then; not now —
+  * the v24 finish draws a random PIN salt, and a salt that is not persisted
+  * would be a different salt on the next boot, silently orphaning any PIN set
+  * in between. */
+ if (fromBackup || _migratedFromV20 || _migratedFromV21 || _migratedFromV22 ||
+     _migratedFromV23 || saltWasMissing) {
  _migratedFromV20 = false;
  _migratedFromV21 = false;
+ _migratedFromV22 = false;
+ _migratedFromV23 = false;
  saveConfiguration( );
  }
  return true;
@@ -1030,11 +1143,15 @@ void StorageManager::clearMustChangePin( ) {
  }
 }
 
-void StorageManager::setMustChangePin( ) {
+void StorageManager::setMustChangePinIn(SystemConfig& cfg) {
  SetupFlagsData* sf = reinterpret_cast<SetupFlagsData*>(
- _currentConfig.reserved + SETUP_FLAGS_OFFSET);
+ cfg.reserved + SETUP_FLAGS_OFFSET);
  sf->magic = SETUP_FLAGS_MAGIC;
  sf->flags |= FLAG_MUST_CHANGE_PIN;
+}
+
+void StorageManager::setMustChangePin( ) {
+ setMustChangePinIn(_currentConfig);
 }
 
 /* Web keep-alive opt-out in reserved[26..27] (SetupFlagsData). The stored bit
@@ -1886,19 +2003,29 @@ String StorageManager::sha256Hex(const String& input) {
  * @param outputBytes Hash bytes to emit in hex (15 → 30 chars, 16 → 32 chars).
  * @return Hex hash string (outputBytes*2 chars).
  */
+/* HMAC-SHA256 chain shared by the password hashes and the panel-PIN digest:
+ * key = secret + board serial (the pepper the password scheme always had),
+ * out = HMAC^rounds(salt). Binary, so the PIN digest keeps 8 raw bytes where
+ * a password keeps 16 hex characters. */
+static void hmacChain(const String& secret, const uint8_t* salt, size_t saltLen,
+ uint16_t rounds, unsigned char out[32]) {
+ String pepper = StorageManager::getBoardSerialNumber( );
+ String keyData = secret + pepper;
+ br_hmac_key_context kc; br_hmac_context ctx;
+ br_hmac_key_init(&kc, &br_sha256_vtable, keyData.c_str( ), keyData.length( ));
+ br_hmac_init(&ctx, &kc, 0); br_hmac_update(&ctx, salt, saltLen); br_hmac_out(&ctx, out);
+ for (int r = 0; r < rounds; r++) {
+ if (r % 50 == 0) watchdog_update( );
+ br_hmac_init(&ctx, &kc, 0); br_hmac_update(&ctx, out, 32); br_hmac_out(&ctx, out);
+ }
+}
+
 static String hashPasswordCore(const String& username, const String& plainPassword,
  const uint8_t* salt, size_t saltLen,
  uint16_t rounds, int outputBytes) {
- String pepper = StorageManager::getBoardSerialNumber( );
- String keyData = plainPassword + pepper;
- br_hmac_key_context kc; br_hmac_context ctx;
- br_hmac_key_init(&kc, &br_sha256_vtable, keyData.c_str( ), keyData.length( ));
+ (void)username; /* the salt is the caller's; the name was never mixed in */
  unsigned char currentHash[32];
- br_hmac_init(&ctx, &kc, 0); br_hmac_update(&ctx, salt, saltLen); br_hmac_out(&ctx, currentHash);
- for (int r = 0; r < rounds; r++) {
- if (r % 50 == 0) watchdog_update( );
- br_hmac_init(&ctx, &kc, 0); br_hmac_update(&ctx, currentHash, 32); br_hmac_out(&ctx, currentHash);
- }
+ hmacChain(plainPassword, salt, saltLen, rounds, currentHash);
 
  char hashHex[65];
  for (int i = 0; i < outputBytes; i++) snprintf(hashHex + (i * 2), 3, "%02x", currentHash[i]);
@@ -1924,6 +2051,136 @@ String StorageManager::hashPasswordV1(const String& username, const String& plai
  const uint8_t* userSalt) {
  return hashPasswordCore(username, plainPassword,
  userSalt, 8, PASSWORD_HMAC_ROUNDS, 16);
+}
+
+/* ── Panel PIN (v24) ─────────────────────────────────────────────────────── */
+
+/* ── The PIN chain ───────────────────────────────────────────────────────────
+ * state0 = SHA-256("pin:" || salt || board serial)
+ * state_i = SHA-256(state_{i-1} || c_i)
+ * digest  = SHA-256(state_n || 0x00 || n)[0 .. PIN_HASH_LEN)
+ *
+ * One block per step — a 32-byte state plus one byte still fits a single
+ * SHA-256 block — which is what makes the scrambled keypad's tree affordable:
+ * every prefix is hashed once no matter how many candidates share it.
+ *
+ * "pin:" keeps it domain-separated from the password chain, so a PIN that
+ * happens to equal a password cannot yield a comparable digest. The length
+ * goes into the final block so that a PIN is not a prefix of a longer one. */
+void StorageManager::pinChainInit(const uint8_t* salt, uint8_t out[32]) {
+ const String pepper = StorageManager::getBoardSerialNumber( );
+ br_sha256_context ctx;
+ br_sha256_init(&ctx);
+ br_sha256_update(&ctx, "pin:", 4);
+ br_sha256_update(&ctx, salt, 8);
+ br_sha256_update(&ctx, pepper.c_str( ), pepper.length( ));
+ br_sha256_out(&ctx, out);
+}
+
+void StorageManager::pinChainStep(const uint8_t in[32], char c, uint8_t out[32]) {
+ br_sha256_context ctx;
+ br_sha256_init(&ctx);
+ br_sha256_update(&ctx, in, 32);
+ br_sha256_update(&ctx, &c, 1);
+ br_sha256_out(&ctx, out);
+}
+
+void StorageManager::pinChainFinal(const uint8_t in[32], uint8_t len, uint8_t* out) {
+ const uint8_t tail[2] = { 0x00, len };
+ uint8_t full[32];
+ br_sha256_context ctx;
+ br_sha256_init(&ctx);
+ br_sha256_update(&ctx, in, 32);
+ br_sha256_update(&ctx, tail, sizeof(tail));
+ br_sha256_out(&ctx, full);
+ memcpy(out, full, PIN_HASH_LEN);
+}
+
+void StorageManager::pinDigestWith(const uint8_t* salt, const char* pin, uint8_t* out) {
+ uint8_t state[32];
+ pinChainInit(salt, state);
+ uint8_t n = 0;
+ for (const char* p = pin; *p && n < 255; p++, n++) pinChainStep(state, *p, state);
+ pinChainFinal(state, n, out);
+}
+
+/* The scrambled keypad's entry: n taps, each naming one card of three glyphs.
+ * Depth-first over the tree of strings those taps can spell, one hash per
+ * node, finalising only at depth n. A glyph that is not a PIN character (the
+ * decoys that keep every card three glyphs wide) has no branch, so a card with
+ * two digits costs two.
+ *
+ * It scans the WHOLE tree even after a match, because two accounts whose PINs
+ * are both consistent with the same taps must not let either of them in: the
+ * panel cannot ask which. That costs nothing — the tree was going to be walked
+ * anyway — and it is the only place the ambiguity can be seen. */
+int StorageManager::findUserByPinSet(const char taps[][PinKb::SLOTS + 1],
+                                     uint8_t n, bool* ambiguous) const {
+ if (ambiguous) *ambiguous = false;
+ if (!taps || n < PIN_MIN_LEN || n > PIN_MAX_LEN) return -1;
+
+ uint8_t state[PIN_MAX_LEN + 1][32];
+ int8_t idx[PIN_MAX_LEN];
+ pinChainInit(_currentConfig.pinAuth.pinSalt, state[0]);
+
+ int found = -1;
+ uint32_t visited = 0;
+ int d = 0;
+ idx[0] = -1;
+ while (d >= 0) {
+  if (++idx[d] >= (int8_t)PinKb::SLOTS) { d--; continue; }
+  const char c = taps[d][idx[d]];
+  if (!PinKb::isDigitChar(c)) continue;      /* a decoy is not a branch */
+  pinChainStep(state[d], c, state[d + 1]);
+  /* Every 64 nodes: an 8-tap entry is ~16,000 of them, and the hardware
+   * watchdog does not care that the core is busy on purpose. */
+  if ((++visited & 0x3F) == 0) watchdog_update( );
+  if (d + 1 == (int)n) {
+   uint8_t digest[PIN_HASH_LEN];
+   pinChainFinal(state[d + 1], n, digest);
+   const int owner = pinDigestOwner(digest);
+   if (owner >= 0) {
+    if (found >= 0 && found != owner) { if (ambiguous) *ambiguous = true; return -1; }
+    found = owner;
+   }
+  } else {
+   d++;
+   idx[d] = -1;
+  }
+ }
+ return found;
+}
+
+int StorageManager::pinDigestOwner(const uint8_t* digest, int exceptSlot) const {
+ for (int i = 0; i < MAX_USERS; i++) {
+ if (i == exceptSlot || !_currentConfig.users[i].active) continue;
+ if (!userHasPin(_currentConfig.users[i])) continue;
+ if (memcmp(_currentConfig.users[i].pinHash, digest, PIN_HASH_LEN) == 0) return i;
+ }
+ return -1;
+}
+
+int StorageManager::findUserByPin(const char* pin) const {
+ if (!isValidPanelPin(pin)) return -1;
+ uint8_t d[PIN_HASH_LEN];
+ pinDigest(pin, d);
+ return pinDigestOwner(d);
+}
+
+bool StorageManager::setUserPin(int slot, const char* pin, int* conflict) {
+ if (conflict) *conflict = -1;
+ if (slot < 0 || slot >= MAX_USERS) return false;
+ if (!pin || pin[0] == '\0') {
+ memset(_currentConfig.users[slot].pinHash, 0, PIN_HASH_LEN);
+ return true;
+ }
+ if (!isValidPanelPin(pin)) return false;
+ uint8_t d[PIN_HASH_LEN];
+ pinDigest(pin, d);
+ const int owner = pinDigestOwner(d, slot);
+ if (owner >= 0) { if (conflict) *conflict = owner; return false; }
+ memcpy(_currentConfig.users[slot].pinHash, d, PIN_HASH_LEN);
+ return true;
 }
 
 void StorageManager::generateSalt(uint8_t* buf) {

@@ -56,7 +56,44 @@ static const char* const DICTIONARY_EN[TR_KEYS_COUNT] = {
  "All subsystems initialized.", "System Ready! Entering Dashboard.",
  "Applying settings...", "Rebooting system...",
  /* Channel names — appended, matching the tail of enum LangKey. */
- "Pressure", "Luminosity"
+ "Pressure", "Luminosity",
+ /* v24 — panel users / PIN / per-sensor actions / maintenance, in the
+  * order of the enum tail. One @DICT line each in both packs. */
+ "10. Users",
+ "Users",
+ "NEW",
+ "User name",
+ "Edit limits",
+ "Block alarms",
+ "Maintenance",
+ "Set PIN",
+ "Delete user",
+ "Delete this user?",
+ "DELETE",
+ "NEXT",
+ "Enter your PIN",
+ "New PIN",
+ "Confirm PIN",
+ "PIN too short (min 4)",
+ "PINs don't match!",
+ "PIN already in use!",
+ "PIN saved!",
+ "User saved!",
+ "User deleted",
+ "No permission",
+ "Invalid or duplicate name",
+ "No free account slot",
+ "Alarm limits",
+ "Alarms",
+ "Maintenance",
+ "Maintenance",
+ "Hours",
+ "Minutes",
+ "START",
+ "END",
+ "remaining",
+ "locked",
+ "Invalid PIN!"
 };
 
 /* Channel -> label key. The table in SensorChannelTable.h carries an i18nKey

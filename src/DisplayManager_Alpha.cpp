@@ -337,7 +337,20 @@ void DisplayManager::setSlotData(float t, float h, float p, SensorType type, boo
 void DisplayManager::showCalendar(int,int,uint32_t){}
 void DisplayManager::setSlotMinMax(float,float,float,float){}
 void DisplayManager::setTopSlotData(float,float,float,SensorType,bool,int,String){}
-void DisplayManager::showAuthScreen(String){}
+/* v24 — identity at the panel: no panel, no keypad. */
+void DisplayManager::showPinEntry(uint8_t, int8_t){}
+int DisplayManager::authResult(bool){return 0;}
+void DisplayManager::getEnteredPin(char* out, size_t cap) const { if (out && cap) out[0] = '\0'; }
+uint8_t DisplayManager::pinKeyFace(int, char* out, size_t cap) const { if (out && cap) out[0] = '\0'; return 0; }
+uint8_t DisplayManager::getEnteredPinTaps(char[][PinKb::SLOTS + 1], size_t) const { return 0; }
+void DisplayManager::clearEnteredPin( ){}
+void DisplayManager::setPanelSession(int8_t, uint16_t){}
+void DisplayManager::showAlarmSensorMenu(int){}
+void DisplayManager::showMaintEntry(int){}
+void DisplayManager::showSettingsUsers( ){}
+void DisplayManager::showUserEdit(int, bool){}
+void DisplayManager::showPanelMessage(bool, LangKey, UiMode){}
+void DisplayManager::getNewName(char* out, size_t cap) const { if (out && cap) out[0] = '\0'; }
 bool DisplayManager::isScreenTouched( ){return false;}
 void DisplayManager::setSystemStatus(int rssi, bool bt, String timeStr) {
 	mutex_enter_blocking(&_stateMutex);
@@ -429,7 +442,7 @@ void DisplayManager::showSettingsLicense( ){}
 const char* DisplayManager::getActiveLicenseText( ){return "";}
 void DisplayManager::loadTouchCalibration(const TouchCalData*){}
 void DisplayManager::requestLoadingScreen( ){}
-void DisplayManager::showSettingsPassword( ){}
+void DisplayManager::showSettingsPassword(uint8_t){}
 void DisplayManager::showTouchCalibration( ){}
 /* Arrived with the touch-sensitivity screen and never got its stub here, so
  * pico_w_alpha stopped linking the moment `screen touchsens` was wired into

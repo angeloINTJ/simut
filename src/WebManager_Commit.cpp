@@ -7,6 +7,7 @@
  * @license MIT License
  */
 #include "WebManager.h"
+#include "ConfigApply.h"
 #include "CorsOrigin.h"   /* isValidCorsOrigin — a mesma regra do CLI e do boot */
 #include "ParseFloat.h"
 #include "WebJsonSlice.h"
@@ -201,6 +202,24 @@ void WebManager::assignTempPassword(int slot, String& outCreds) {
 	for (size_t i = 0; i < sizeof(temp); i++) v[i] = 0;
 }
 
+/* v24: a panel PIN on a config that may be the dry-run copy, so it cannot go
+ * through StorageManager::setUserPin (which writes the live config). Same
+ * rules: digits 4..8, unique across the active accounts of THIS config; ""
+ * removes it. */
+static bool cfgSetUserPin(SystemConfig& cfg, int slot, const char* pin) {
+	if (slot < 0 || slot >= MAX_USERS) return false;
+	if (!pin || pin[0] == '\0') { memset(cfg.users[slot].pinHash, 0, PIN_HASH_LEN); return true; }
+	if (!isValidPanelPin(pin)) return false;
+	uint8_t d[PIN_HASH_LEN];
+	StorageManager::pinDigestWith(cfg.pinAuth.pinSalt, pin, d);
+	for (int i = 0; i < MAX_USERS; i++) {
+		if (i == slot || !cfg.users[i].active) continue;
+		if (memcmp(cfg.users[i].pinHash, d, PIN_HASH_LEN) == 0) return false;
+	}
+	memcpy(cfg.users[slot].pinHash, d, PIN_HASH_LEN);
+	return true;
+}
+
 /* Answers the client for the two refusal paths of commitScanSections and
  * returns false; on true, outStart[] is the parsers' map of the payload.
  * The decision itself is pure and lives in WebCommitSections.h, where
@@ -236,6 +255,37 @@ bool WebManager::authorizeCommitSections(const String& body, uint16_t perms,
  * Client sends _payload urlencoded. Example:
  * _payload={"sys":{"name":"SIMUT","tz":"-3","log":"1",...}}
  */
+/* O outro lado de ConfigApply.h: o que cada classe "ao vivo" precisa que
+ * alguém empurre para valer sem reiniciar.
+ *
+ * A maioria não precisa de nada, e isso é um resultado e não um descuido:
+ * AppManager::checkAlarmConditions( ) e handleAlarmTelemetryEdges( ) abrem
+ * `_storageMgr->getConfig( )` em CADA passada, e TelemetryManager faz o mesmo
+ * em cada ciclo de envio — então limite, manutenção e o lado HTTP da telemetria
+ * já leem o valor novo no ciclo seguinte ao save. Os que aparecem aqui são
+ * exatamente os que travam algo no begin( ).
+ *
+ * O que NÃO está aqui está em CFG_REBOOT_CLASSES, e continua reiniciando:
+ * certificado TLS e PubSubClient::setServer são lidos uma vez no begin( ), o
+ * servidor web fixa porta e HTTPS ao subir, e provisionamento de sensor
+ * reconstrói o pipeline inteiro. */
+void WebManager::applyConfigLive(uint32_t changeMask) {
+	if ((changeMask & CFG_ALARMTEL) && _telemetryRef) {
+		/* enabled e queueMax são estado do TelemetryManager, não leitura de
+		 * cfg — a mesma função que o `alarm set` da CLI já usava para não
+		 * precisar de reboot. */
+		_telemetryRef->applyAlarmRuntimeConfig(_storageRef->getConfig( ));
+	}
+	if ((changeMask & CFG_DISPLAY) && _displayRef) {
+		SystemConfig& c = _storageRef->getConfig( );
+		_displayRef->setLanguage(c.displayLang);
+		_displayRef->refreshTheme( );
+	}
+	/* CFG_ALARMS, CFG_MAINT e CFG_TELEMETRY: nada a fazer — ver o cabeçalho.
+	 * A ausência de código aqui é a afirmação de que os consumidores releem, e
+	 * os testes de bancada deste commit são o que a sustenta. */
+}
+
 void WebManager::handleApiCommitAll( ) {
 	/* 401 without a session, 403 without the entry bits — requirePerm. */
 	uint16_t perms = requirePerm(0);
@@ -311,6 +361,22 @@ void WebManager::handleApiCommitAll( ) {
 	}
 	SystemConfig& cfg = dry ? *dryCopy : _storageRef->getConfig( );
 	bool themeChanged = false;
+
+	/* ── o retrato de ANTES, que é o que decide se há reboot ────────────────
+	 *
+	 * Esta rota sempre reiniciou, e o motivo nunca foi que a configuração
+	 * exigisse: é que ninguém sabia dizer QUAL campo tinha mudado. Guardando
+	 * uma cópia aqui, `classifyConfigChanges` responde isso por comparação
+	 * depois do parser, e o reboot passa a ser consequência do que mudou em
+	 * vez de ser o preço de mexer em qualquer coisa (ConfigApply.h).
+	 *
+	 * SEM MEMÓRIA PARA A CÓPIA, REINICIA. É a única degradação honesta: sem o
+	 * antes não há classificação, e adivinhar "nada precisa de reboot" é
+	 * exatamente o erro que deixa o aparelho num estado que ninguém reproduz. */
+	std::unique_ptr<SystemConfig> beforeCfg;
+	if (!dry) {
+		beforeCfg.reset(new (std::nothrow) SystemConfig(cfg));
+	}
 
 	/* Fields the sys section DISCARDS — out-of-range or unparsable values
 	 * keep the stored setting, which is the right conservatism, but doing
@@ -1063,6 +1129,39 @@ void WebManager::handleApiCommitAll( ) {
 						}
 					}
 					rec->alarmsActive = jsonBoolValue(obj, "active", rec->alarmsActive);
+
+					/* ── janela de manutenção (v23) ──────────────────────────
+					 *
+					 * "maint":<segundos a partir de agora>, 0 fecha a janela.
+					 * Em segundos e não em epoch absoluto porque quem chama é um
+					 * servidor: "este sensor sai por duas horas" não depende de o
+					 * relógio dos dois lados concordar, e um epoch absoluto
+					 * mandado para um aparelho com relógio provisório vira uma
+					 * janela de duração arbitrária.
+					 *
+					 * O teto (MAINT_MAX_SEC) é aplicado AQUI e não só no load:
+					 * um valor recusado em silêncio é a armadilha que o resto
+					 * desta rota passou o ano fechando, então um pedido acima do
+					 * teto é cortado e o campo entra em "rejected" para o
+					 * chamador saber que não recebeu o que pediu. */
+					const float maintF = extractFloat("\"maint\"");
+					if (!isnan(maintF)) {
+						if (maintF < 0) {
+							rejectField("maint");
+						} else if (maintF == 0.0f) {
+							cfg.maint.until[idx] = 0;
+						} else {
+							uint32_t secs = (uint32_t)maintF;
+							if (secs > MAINT_MAX_SEC) { secs = MAINT_MAX_SEC; rejectField("maint"); }
+							const uint32_t now = (uint32_t)time(nullptr);
+							cfg.maint.until[idx] = now + secs;
+						}
+						/* v24: the maint_on / maint_off record names who did it. The
+						 * edge itself is AppManager's, on its next pass. */
+						if (!dry && _telemetryRef && maintF >= 0) {
+							_telemetryRef->noteMaintActor((uint8_t)idx, alarmActorFromSlot(_currentUserId));
+						}
+					}
 					/* Reativar o alarme deste slot pelo web limpa o MUTE DE ERRO
 					 * do mesmo slot — erro e limite são independentes. */
 					if (rec->alarmsActive && _displayRef) {
@@ -1131,9 +1230,10 @@ void WebManager::handleApiCommitAll( ) {
 	}
 
 	/* ── users.actions section: processes add/del/reset in order ───────────
-	 * Format: {"users":{"actions":[{"type":"add","name":"x","perms":511},
+	 * Format: {"users":{"actions":[{"type":"add","name":"x","perms":511,"pin":"1234"},
 	 * {"type":"del","id":3},
-	 * {"type":"reset","id":5}]}}
+	 * {"type":"reset","id":5},
+	 * {"type":"pin","id":5,"pin":"123456"}]}}   (v24: pin optional on add; "" clears)
 	 *
 	 * Each add/reset mints a random one-time password (assignTempPassword) and
 	 * appends it here; the response returns them ONCE so the admin can hand
@@ -1192,6 +1292,11 @@ void WebManager::handleApiCommitAll( ) {
 					}
 					if (slot < 0) { rejectField("users.full"); objStart = objEnd + 1; continue; }
 
+					/* A config written before deletion cleared the record can
+					 * still carry a PIN digest in an inactive slot, so the
+					 * allocation clears it: the "pin" field below is the only
+					 * thing that may give this account one. */
+					memset(cfg.users[slot].pinHash, 0, PIN_HASH_LEN);
 					safeCopy(cfg.users[slot].username, name.c_str( ), sizeof(cfg.users[slot].username));
 					cfg.users[slot].permissions = (uint16_t)perms;
 					cfg.users[slot].active = true;
@@ -1199,6 +1304,23 @@ void WebManager::handleApiCommitAll( ) {
 					 * hashes over it. Sets password + salt + hashVersion +
 					 * mustChangePassword and records the plaintext for the reply. */
 					assignTempPassword(slot, tempCreds);
+					/* v24: an optional panel PIN in the same action, so the account
+					 * can act at the panel from its first boot. A malformed or
+					 * duplicate PIN rejects the field, not the account. */
+					String pinS = jsonExtractStringValue(obj, "pin");
+					if (pinS.length( ) && !cfgSetUserPin(cfg, slot, pinS.c_str( ))) rejectField("users.pin");
+				}
+				else if (type == "pin") {
+					/* v24: {"type":"pin","id":N,"pin":"123456"} — "" removes it. Slot 0
+					 * is allowed: this is how the admin's panel PIN is set from the web. */
+					int ip = obj.indexOf("\"id\":");
+					int id = (ip >= 0) ? obj.substring(ip + 5).toInt( ) : -1;
+					if (!(id >= 0 && id < MAX_USERS && cfg.users[id].active)) {
+						rejectField("users.id"); objStart = objEnd + 1; continue;
+					}
+					String pinS = jsonExtractStringValue(obj, "pin");
+					if (!cfgSetUserPin(cfg, id, pinS.c_str( ))) rejectField("users.pin");
+					else if (id == 0 && pinS.length( ) && pinS != "1234" && !dry) _storageRef->clearMustChangePin( );
 				}
 				else if (type == "del" || type == "reset") {
 					int ip = obj.indexOf("\"id\":");
@@ -1209,10 +1331,10 @@ void WebManager::handleApiCommitAll( ) {
 						rejectField("users.id"); objStart = objEnd + 1; continue;
 					}
 					if (type == "del") {
-						cfg.users[id].active = false;
-						memset(cfg.users[id].username, 0, sizeof(cfg.users[id].username));
-						memset(cfg.users[id].password, 0, sizeof(cfg.users[id].password));
-						cfg.users[id].permissions = 0;
+						/* The WHOLE record: v24's panel PIN digest lives in it,
+						 * and a slot that keeps one lets the next account that
+						 * lands there be opened with the deleted account's PIN. */
+						memset(&cfg.users[id], 0, sizeof(cfg.users[id]));
 					} else { /* reset */
 						assignTempPassword(id, tempCreds);
 					}
@@ -1418,6 +1540,47 @@ void WebManager::handleApiCommitAll( ) {
 
  if (themeChanged && _displayRef) _displayRef->refreshTheme( );
 
+	/* ── o que mudou, e se isso exige reiniciar ─────────────────────────────
+	 *
+	 * Classificado por comparação com o retrato de antes (ConfigApply.h), e não
+	 * por instrumentar o parser: um parser instrumentado esquece um campo no
+	 * dia em que alguém acrescenta um `cfg.x = ...`; a comparação não tem como.
+	 * O que não cair em grupo conhecido vira CFG_UNKNOWN e reinicia. */
+	const uint32_t changeMask = beforeCfg ? classifyConfigChanges(*beforeCfg, cfg)
+	                                      : (uint32_t)CFG_UNKNOWN;
+	const bool mustReboot = configNeedsReboot(changeMask);
+
+	if (!mustReboot) {
+		/* ── caminho novo: grava e aplica, sem reiniciar ────────────────────
+		 *
+		 * Nada de tela de boot e nada de safeReboot. O save é o mesmo; o que
+		 * muda é o que vem depois dele — cada subsistema recebe o valor novo
+		 * pela sua própria função de aplicação, e a sessão do cliente
+		 * sobrevive. É o que um gestor de frota precisava para mexer num
+		 * limite de alarme sem derrubar o aparelho. */
+		_storageRef->lockHeavyTask( );
+		LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId,
+		         TRL("Admin committed changes — applied live"));
+		_storageRef->unlockHeavyTask( );
+
+		if (!_storageRef->saveConfiguration( )) {
+			_server->send(500, "application/json", "{\"error\":\"save failed\"}");
+			return;
+		}
+		applyConfigLive(changeMask);
+
+		char applied[160];
+		configChangeList(changeMask, applied, sizeof(applied));
+		String resp = "{\"status\":\"ok\",\"reboot\":false,\"applied\":[";
+		resp += applied; resp += "]";
+		if (rejectedList[0]) { resp += ",\"rejected\":["; resp += rejectedList; resp += "]"; }
+		if (tempCreds.length( )) { resp += ",\"creds\":["; resp += tempCreds; resp += "]"; }
+		resp += "}";
+		_server->send(200, "application/json", resp);
+		tempCreds = "";
+		return;
+	}
+
 	/* Show status message on the display BEFORE any flash I/O.
 	 * Core 1 goes to boot screen and renders, giving visual feedback
 	 * to the user that the restart is imminent.
@@ -1456,7 +1619,15 @@ void WebManager::handleApiCommitAll( ) {
 	 * else because the reboot is seconds away and the hash is all that survives
 	 * it. Built as a String: the creds array alone can reach ~5×30 B and would
 	 * not fit the old 224-byte buffer alongside the other fields. */
-	String resp = "{\"status\":\"ok\"";
+	String resp = "{\"status\":\"ok\",\"reboot\":true";
+	{
+		/* Por QUE vai reiniciar. Sem isto, um gestor que mandou dez campos e
+		 * levou um reboot não tem como saber qual deles o causou — e o objetivo
+		 * desta mudança é justamente que ele possa evitar o próximo. */
+		char why[160];
+		configChangeList(changeMask & CFG_REBOOT_CLASSES, why, sizeof(why));
+		if (why[0]) { resp += ",\"reboot_for\":["; resp += why; resp += "]"; }
+	}
 	if (commitNewPort != 0) { resp += ",\"newPort\":"; resp += (unsigned)commitNewPort; }
 	if (rejectedList[0])    { resp += ",\"rejected\":["; resp += rejectedList; resp += "]"; }
 	if (tempCreds.length( )) { resp += ",\"creds\":["; resp += tempCreds; resp += "]"; }

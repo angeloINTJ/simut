@@ -311,6 +311,7 @@ uint8_t getCommandModeMask(DemandType t) {
  case CMD_SHOW_SYSINFO:      return CLI_VALID_READONLY;
  case CMD_SHOW_NET:          return CLI_VALID_READONLY;
  case CMD_SHOW_METRICS:      return CLI_VALID_READONLY;
+ case CMD_SHOW_KEYPAD:       return CLI_VALID_READONLY;
  case CMD_SHOW_SENSOR_TYPES: return CLI_VALID_READONLY;
  case CMD_SHOW_GPIO:         return CLI_VALID_READONLY;
  /* Session — exec modes */
@@ -377,6 +378,7 @@ uint8_t getCommandModeMask(DemandType t) {
  case CMD_USER_DEL:          return CLI_VALID_CONFIG;
  case CMD_USER_PASS:         return CLI_VALID_CONFIG;
  case CMD_USER_PERM:         return CLI_VALID_CONFIG;
+ case CMD_USER_PIN:          return CLI_VALID_CONFIG;
  case CMD_SET_WEB_PORT:      return CLI_VALID_CONFIG;
  /* Sensor sub-commands — privileged + sensor config mode */
  case CMD_SENSOR_FIELD:      return CLI_VALID_PRIV | CLI_VALID_SENSOR;
@@ -463,6 +465,7 @@ void CommandManager::printModeHelp( ) {
   showIf(CMD_SHOW_SYSINFO,    pt ? "  show system info      Info do sistema"        : "  show system info      System info");
   showIf(CMD_SHOW_NET,        pt ? "  show net status       Status da rede"         : "  show net status       Network status");
   showIf(CMD_SHOW_METRICS,    pt ? "  show metrics          Metricas operacionais"   : "  show metrics          Operational metrics");
+  showIf(CMD_SHOW_KEYPAD,     pt ? "  show display keypad   Teclas do PIN no painel"  : "  show display keypad   Panel PIN key faces");
   showIf(CMD_SHOW_STORAGE,    pt ? "  show storage stats    Estatisticas flash"     : "  show storage stats    Flash statistics");
   showIf(CMD_SHOW_THEMES,     pt ? "  show themes           Listar temas"           : "  show themes           List themes");
   showIf(CMD_SHOW_GPIO,       pt ? "  show gpio             Mapa de GPIOs"          : "  show gpio             GPIO map");
@@ -549,6 +552,7 @@ void CommandManager::printModeHelp( ) {
   showIf(CMD_USER_DEL,          "  user del <nome>");
   showIf(CMD_USER_PASS,         "  user pass <nome> <senha>");
   showIf(CMD_USER_PERM,         "  user perm <nome> <papel|0xMASCARA>");
+  showIf(CMD_USER_PIN,          "  user pin <nome> <4-8 digitos|off>   PIN do painel");
   consolePrintln(pt ? "  --- Manutencao ---" : "  --- Maintenance ---");
   showIf(CMD_RESET_TOUCH_CAL,  pt ? "  system touch reset [confirm]  Resetar calib. do touch"
                                   : "  system touch reset [confirm]  Reset touch calibration");
@@ -1039,6 +1043,25 @@ void CommandManager::renderMetrics( ) {
   (unsigned long)g_core1PauseMaxMs,
   (unsigned)g_core1PauseMaxMod0,
   (unsigned)g_core1PauseLastMod0);
+#if SIMUT_MIRROR_PROBE
+  /* Bench only — the decomposition of the LAST /api/screen_stream frame, in us.
+   * English only and unguarded by TRL on purpose: it never ships, so giving it
+   * two language-pack entries would put bench scaffolding in both .lng files. */
+  consolePrintf(" MIR mode=%u g=%u frame=%lu park=%lu(max %lu) lock=%lu unlock=%lu\n",
+  (unsigned)g_capMode, (unsigned)g_capGroup,
+  (unsigned long)g_capFrameUs, (unsigned long)g_capParkUs,
+  (unsigned long)g_capParkMaxUs, (unsigned long)g_capLockUs,
+  (unsigned long)g_capUnlockUs);
+  consolePrintf(" MIR read=%lu enc=%lu send=%lu yield=%lu pauses=%u miss=%u c1iters=%u\n",
+  (unsigned long)g_capReadUs, (unsigned long)g_capEncUs,
+  (unsigned long)g_capSendUs, (unsigned long)g_capYieldUs,
+  (unsigned)g_capPauses, (unsigned)g_capParkMiss, (unsigned)g_capC1Iters);
+  consolePrintf(" MIR wire=%lu conv=%lu win=%lu sendcalls=%u readhz=%lu\n",
+  (unsigned long)g_capWireUs, (unsigned long)g_capConvUs,
+  (unsigned long)g_capWinUs, (unsigned)g_capSendCalls,
+  (unsigned long)g_capReadHz);
+  consolePrintf(" MIR touchyields=%u\n", (unsigned)g_capTouchYields);
+#endif
  }
  printDivider( );
 }

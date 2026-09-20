@@ -72,6 +72,31 @@ volatile uint32_t g_core1LockWaitMaxMs    = 0;
 volatile uint32_t g_webHistScanMaxMs      = 0;
 volatile uint32_t g_core1LockWaitLastMs   = 0;
 
+volatile uint32_t g_pauseParkLastUs       = 0;
+volatile uint32_t g_pauseLockLastUs       = 0;
+volatile uint32_t g_pauseUnlockLastUs     = 0;
+
+volatile uint32_t g_capFrameUs            = 0;
+volatile uint32_t g_capParkUs             = 0;
+volatile uint32_t g_capParkMaxUs          = 0;
+volatile uint32_t g_capLockUs             = 0;
+volatile uint32_t g_capUnlockUs           = 0;
+volatile uint32_t g_capReadUs             = 0;
+volatile uint32_t g_capEncUs              = 0;
+volatile uint32_t g_capSendUs             = 0;
+volatile uint32_t g_capYieldUs            = 0;
+volatile uint16_t g_capPauses             = 0;
+volatile uint16_t g_capParkMiss           = 0;
+volatile uint16_t g_capC1Iters            = 0;
+volatile uint8_t  g_capMode               = 0;
+volatile uint8_t  g_capGroup              = 1;
+volatile uint32_t g_capWireUs             = 0;
+volatile uint32_t g_capConvUs             = 0;
+volatile uint32_t g_capWinUs              = 0;
+volatile uint16_t g_capSendCalls          = 0;
+volatile uint32_t g_capReadHz             = 0;
+volatile uint16_t g_capTouchYields        = 0;
+
 volatile uint32_t g_core1PhaseUs          = 0;
 volatile uint32_t g_core1PhaseSeq         = 0;
 volatile uint32_t g_core1StallMaxUs       = 0;

@@ -2197,6 +2197,130 @@ static int rleDecode(const uint8_t* in, size_t len, uint16_t* out, size_t outCap
     return (int)o;
 }
 
+/* Decoder for ENC_PAL_RLE4 — the third implementation of that format, next to
+ * screenrle::encodeStrip4 and the JS in WebUI.h. Written against the spec in
+ * ScreenRle.h rather than derived from the encoder, which is the only way a
+ * round-trip test proves anything about the FORMAT and not just about one
+ * function agreeing with itself. */
+static int rle4Decode(const uint8_t* in, size_t len, uint16_t* out, size_t cap) {
+    if (len < 3) return -1;
+    const size_t ncol = (size_t)in[0] + 1;
+    if (1 + ncol * 2 > len) return -1;
+    uint16_t pal[16];
+    for (size_t k = 0; k < ncol; k++)
+        pal[k] = (uint16_t)(in[1 + k * 2] | (in[2 + k * 2] << 8));
+    size_t i = 1 + ncol * 2, o = 0;
+    while (i < len) {
+        const uint8_t t = in[i++];
+        const size_t k = t >> 4;
+        size_t run;
+        if ((t & 0x0F) == 0x0F) {
+            if (i >= len) return -1;
+            run = (size_t)in[i++] + 16;
+        } else {
+            run = (size_t)(t & 0x0F) + 1;
+        }
+        if (k >= ncol || o + run > cap) return -1;
+        for (size_t r = 0; r < run; r++) out[o++] = pal[k];
+    }
+    return (int)o;
+}
+
+void test_screenrle4_uniform_strip(void) {
+    /* 2,560 identical pixels. One palette entry, and the escape carries 270 at
+     * a time, so ceil(2560/270) = 10 tokens of two bytes. */
+    const size_t N = 320 * 8;
+    static uint16_t px[320 * 8];
+    for (size_t i = 0; i < N; i++) px[i] = 0x1234;
+    static uint8_t out[320 * 8 * 2];
+
+    const size_t n = screenrle::encodeStrip4(px, N, out, sizeof(out));
+    TEST_ASSERT_TRUE(n > 0);
+    TEST_ASSERT_EQUAL_UINT8(0, out[0]);
+    TEST_ASSERT_EQUAL_UINT8(0x34, out[1]);
+    TEST_ASSERT_EQUAL_UINT8(0x12, out[2]);
+
+    static uint16_t back[320 * 8];
+    TEST_ASSERT_EQUAL_INT((int)N, rle4Decode(out, n, back, N));
+    TEST_ASSERT_EQUAL_UINT16_ARRAY(px, back, N);
+}
+
+void test_screenrle4_beats_the_byte_form_on_screen_like_content(void) {
+    /* Same shape as the enc-1 round-trip test: bands, border, text specks. The
+     * point of the format is that this case gets smaller, so the test asserts
+     * it rather than trusting the measurement in the header. */
+    const size_t W = 320, ROWS = 8, N = W * ROWS;
+    static uint16_t px[320 * 8];
+    for (size_t y = 0; y < ROWS; y++) {
+        for (size_t x = 0; x < W; x++) {
+            uint16_t c = (y < 2) ? 0x0000 : 0xFFFF;
+            if (x < 4 || x >= W - 4) c = 0x07E0;
+            if (y >= 4 && (x / 3) % 7 == 0) c = 0xF800;
+            px[y * W + x] = c;
+        }
+    }
+    static uint8_t out4[320 * 8 * 2], out1[320 * 8 * 2];
+    const size_t n4 = screenrle::encodeStrip4(px, N, out4, sizeof(out4));
+    const size_t n1 = screenrle::encodeStrip(px, N, out1, sizeof(out1));
+    TEST_ASSERT_TRUE(n4 > 0);
+    TEST_ASSERT_TRUE(n4 < n1);
+
+    static uint16_t back[320 * 8];
+    TEST_ASSERT_EQUAL_INT((int)N, rle4Decode(out4, n4, back, N));
+    TEST_ASSERT_EQUAL_UINT16_ARRAY(px, back, N);
+}
+
+void test_screenrle4_escape_boundary_runs(void) {
+    /* The seam between the short form and the escape: 15 must stay one byte,
+     * 16 must become the escape, and both must come back exactly. */
+    for (size_t run = 1; run <= 40; run++) {
+        static uint16_t px[64];
+        for (size_t i = 0; i < run; i++) px[i] = 0xBEEF;
+        px[run] = 0x0001;
+        const size_t N = run + 1;
+        uint8_t out[160];
+        const size_t n = screenrle::encodeStrip4(px, N, out, sizeof(out));
+        TEST_ASSERT_TRUE(n > 0);
+        uint16_t back[64];
+        TEST_ASSERT_EQUAL_INT((int)N, rle4Decode(out, n, back, N));
+        TEST_ASSERT_EQUAL_UINT16_ARRAY(px, back, N);
+    }
+}
+
+void test_screenrle4_refuses_over_16_colours(void) {
+    /* 17 distinct colours: the 4-bit index cannot name the last one, and the
+     * caller must fall back to the byte form rather than get a wrong strip. */
+    const size_t N = 17;
+    uint16_t px[17];
+    for (size_t i = 0; i < N; i++) px[i] = (uint16_t)(i * 7 + 1);
+    /* 17*8 and not 17*4: the byte form needs 1 + 17*2 palette + 17*2 pairs = 69 B
+     * for this input, and a 68 B buffer made it refuse for the RIGHT reason and
+     * the wrong test. The cap is part of the contract, so the buffer has to be
+     * big enough to leave only the colour ceiling under test. */
+    uint8_t out[17 * 8];
+    TEST_ASSERT_EQUAL_UINT32(0, screenrle::encodeStrip4(px, N, out, sizeof(out)));
+    TEST_ASSERT_TRUE(screenrle::encodeStrip4(px, N - 1, out, sizeof(out)) > 0);
+    /* and the byte form, whose index is a whole byte, still takes all 17 */
+    TEST_ASSERT_TRUE(screenrle::encodeStrip(px, N, out, sizeof(out)) > 0);
+}
+
+void test_screenrle4_takes_alternating_pixels_that_enc1_refuses(void) {
+    /* The pathological input for enc 1 is comfortable for enc 4: alternating
+     * pixels cost one token each, so N bytes against 2N raw, where the byte form
+     * would need 2N and refuse. Named for what it asserts — the earlier name
+     * said "refuses" while the body asserts the opposite. */
+    const size_t N = 1024;
+    uint16_t px[1024];
+    for (size_t i = 0; i < N; i++) px[i] = (uint16_t)((i & 1) ? 0x0000 : 0xFFFF);
+    uint8_t out[1024 * 2];
+    const size_t n = screenrle::encodeStrip4(px, N, out, N * 2);
+    TEST_ASSERT_TRUE(n > 0);
+    TEST_ASSERT_TRUE(n < N * 2);
+    uint16_t back[1024];
+    TEST_ASSERT_EQUAL_INT((int)N, rle4Decode(out, n, back, N));
+    TEST_ASSERT_EQUAL_UINT16_ARRAY(px, back, N);
+}
+
 void test_screenrle_uniform_strip(void) {
     /* One colour over a full 8-row strip. A strip is 320*8 = 2,560 PIXELS
      * (5,120 bytes raw), so it is one palette entry and 2560/256 = 10 pairs,
@@ -2495,6 +2619,101 @@ void test_simuttime_days_from_civil_anchors(void) {
                             (long long)simutDaysFromCivil(2026, 9, 0));
 }
 
+
+void test_panel_pin_validator(void) {
+    TEST_ASSERT_TRUE(isValidPanelPin("1234"));
+    TEST_ASSERT_TRUE(isValidPanelPin("12345678"));
+    TEST_ASSERT_TRUE(isValidPanelPin("0000"));
+    TEST_ASSERT_FALSE(isValidPanelPin("123"));
+    TEST_ASSERT_FALSE(isValidPanelPin("123456789"));
+    TEST_ASSERT_FALSE(isValidPanelPin(""));
+    TEST_ASSERT_FALSE(isValidPanelPin(nullptr));
+    /* the bounded scan: a long run is refused without walking it */
+    TEST_ASSERT_FALSE(isValidPanelPin("1111111111111111"));
+
+    /* Digits only. The keypad covered the whole printable set for a few hours
+     * on 2026-09-19 and the cards were unreadable; both went back together. */
+    TEST_ASSERT_FALSE(isValidPanelPin("abcd"));
+    TEST_ASSERT_FALSE(isValidPanelPin("A1b2!@#$"));
+    TEST_ASSERT_FALSE(isValidPanelPin("12a4"));
+    TEST_ASSERT_FALSE(isValidPanelPin("1234 "));
+    TEST_ASSERT_FALSE(isValidPanelPin("ab cd"));
+    TEST_ASSERT_FALSE(isValidPanelPin("12\t4"));
+    TEST_ASSERT_FALSE(isValidPanelPin("12\xC3\xA9" "4"));  /* UTF-8 'é' — high bytes out */
+    /* A decoy is on the glass but is not a PIN character: tapping one types
+     * nothing, and nothing may set one through the web or the CLI either. */
+    for (int i = 0; i < PinKb::DECOY_POOL_N; i++) {
+        char pin[5] = { '1', '2', '3', PinKb::DECOY_POOL[i] };
+        pin[4] = '\0';
+        TEST_ASSERT_FALSE(isValidPanelPin(pin));
+        TEST_ASSERT_FALSE(PinKb::isDigitChar(PinKb::DECOY_POOL[i]));
+    }
+
+    /* Every character the keypad can produce must pass on its own, so that
+     * the four cards and this validator cannot disagree about one glyph. */
+    for (char c = PinKb::FIRST; c <= PinKb::LAST; c++) {
+        char pin[5] = { '1', '2', '3', c };
+        pin[4] = '\0';
+        TEST_ASSERT_TRUE(isValidPanelPin(pin));
+        TEST_ASSERT_TRUE(PinKb::isDigitChar(c));
+    }
+}
+
+/* The deal: ten digits and two decoys fill four cards of three slots exactly,
+ * so every card always shows three glyphs and none of them is empty. */
+void test_pin_keypad_deals_the_whole_set(void) {
+    TEST_ASSERT_EQUAL_INT(10, PinKb::CHARS);
+    TEST_ASSERT_EQUAL_INT(2, PinKb::DECOYS);
+    TEST_ASSERT_EQUAL_INT(PinKb::KEYS * PinKb::SLOTS, PinKb::CHARS + PinKb::DECOYS);
+    TEST_ASSERT_TRUE(PinKb::DECOYS >= 0);
+    /* The decoy pool must not contain a digit, or a deal could hide one. */
+    for (int i = 0; i < PinKb::DECOY_POOL_N; i++)
+        TEST_ASSERT_FALSE(PinKb::isDigitChar(PinKb::DECOY_POOL[i]));
+    /* Two distinct decoys have to be drawable from it. */
+    TEST_ASSERT_TRUE(PinKb::DECOY_POOL_N >= PinKb::DECOYS);
+
+    /* Geometry: no card overlaps another, and none crosses into the dots
+     * row above or the footer below. */
+    for (int a = 0; a < PinKb::KEYS; a++) {
+        TEST_ASSERT_TRUE(PinKb::KEY_Y[a] >= PinKb::DOTS_Y + PinKb::DOTS_H);
+        TEST_ASSERT_TRUE(PinKb::KEY_Y[a] + PinKb::KEY_H <= PinKb::FOOT_Y);
+        TEST_ASSERT_TRUE(PinKb::KEY_X[a] + PinKb::KEY_W <= 316);
+        for (int b = a + 1; b < PinKb::KEYS; b++) {
+            const bool sepX = PinKb::KEY_X[a] + PinKb::KEY_W <= PinKb::KEY_X[b] ||
+                              PinKb::KEY_X[b] + PinKb::KEY_W <= PinKb::KEY_X[a];
+            const bool sepY = PinKb::KEY_Y[a] + PinKb::KEY_H <= PinKb::KEY_Y[b] ||
+                              PinKb::KEY_Y[b] + PinKb::KEY_H <= PinKb::KEY_Y[a];
+            TEST_ASSERT_TRUE(sepX || sepY);
+        }
+    }
+    /* Each card answers for its own centre and for no other. */
+    for (int k = 0; k < PinKb::KEYS; k++) {
+        const int16_t cx = (int16_t)(PinKb::KEY_X[k] + PinKb::KEY_W / 2);
+        const int16_t cy = (int16_t)(PinKb::KEY_Y[k] + PinKb::KEY_H / 2);
+        TEST_ASSERT_EQUAL_INT(k, PinKb::keyAt(cx, cy));
+    }
+    /* Every slot maps back to itself from its own centre, and the three of a
+     * card together cover the whole card: a tap anywhere on a card types
+     * something, which is what lets the slots be the only targets. */
+    for (int k = 0; k < PinKb::KEYS; k++) {
+        for (int s = 0; s < PinKb::SLOTS; s++) {
+            const int16_t x = (int16_t)(PinKb::slotX(k, s) + PinKb::SLOT_W / 2);
+            TEST_ASSERT_EQUAL_INT(s, PinKb::slotAt(k, x));
+        }
+        for (int16_t x = PinKb::KEY_X[k]; x < PinKb::KEY_X[k] + PinKb::KEY_W; x++) {
+            const int s = PinKb::slotAt(k, x);
+            TEST_ASSERT_TRUE(s >= 0 && s < PinKb::SLOTS);
+        }
+        /* The three slots fit inside the card they belong to. */
+        TEST_ASSERT_TRUE(PinKb::slotX(k, 0) >= PinKb::KEY_X[k]);
+        TEST_ASSERT_TRUE(PinKb::slotX(k, PinKb::SLOTS - 1) + PinKb::SLOT_W
+                         <= PinKb::KEY_X[k] + PinKb::KEY_W);
+    }
+    /* The footer strip is nobody's card, so its buttons stay live. */
+    TEST_ASSERT_EQUAL_INT(-1, PinKb::keyAt(10, (int16_t)(PinKb::FOOT_Y + 2)));
+    TEST_ASSERT_EQUAL_INT(-1, PinKb::keyAt(10, (int16_t)(PinKb::DOTS_Y + 2)));
+}
+
 int main(int /*argc*/, char** /*argv*/) {
     UNITY_BEGIN();
 
@@ -2692,6 +2911,11 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_syslog_msg_control_bytes_become_space);
 
     /* ScreenRle — the TFT mirror's wire format */
+    RUN_TEST(test_screenrle4_uniform_strip);
+    RUN_TEST(test_screenrle4_beats_the_byte_form_on_screen_like_content);
+    RUN_TEST(test_screenrle4_escape_boundary_runs);
+    RUN_TEST(test_screenrle4_refuses_over_16_colours);
+    RUN_TEST(test_screenrle4_takes_alternating_pixels_that_enc1_refuses);
     RUN_TEST(test_screenrle_uniform_strip);
     RUN_TEST(test_screenrle_round_trip_screen_like);
     RUN_TEST(test_screenrle_run_longer_than_256_splits);
@@ -2713,6 +2937,8 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_simuttime_day_walk_crosses_month_and_year);
     RUN_TEST(test_simuttime_midnight_is_offset_from_utc);
     RUN_TEST(test_simuttime_days_from_civil_anchors);
+    RUN_TEST(test_panel_pin_validator);
+    RUN_TEST(test_pin_keypad_deals_the_whole_set);
 
     return UNITY_END();
 }

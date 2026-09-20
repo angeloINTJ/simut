@@ -335,21 +335,76 @@ void DisplayManager::drawAlarmEdit( ) {
 void DisplayManager::showSettingsMain( ) {
  mutex_enter_blocking(&_stateMutex);
  _uiMode = MODE_SETTINGS_MAIN; _menuSelection = 0; _mainMenuPage = 0; _lastMainMenuPage = -1;
+ /* v24: the menu lists what this session's bits can do. Item ids keep the
+  * historical table order (icon id = item id = EVT_MENU_SELECT id); only the
+  * VISIBLE list changes per account. Items with no bit are for everyone:
+  * the PIN (one's own), the license and the status screen. */
+ static const uint16_t NEED[10] = {
+ PERM_SYS_CONFIG,      /* 0 themes */
+ PERM_PANEL_ALARM_ANY, /* 1 alarms */
+ PERM_SYS_CONFIG,      /* 2 sounds */
+ PERM_SYS_CONFIG,      /* 3 language */
+ 0,                    /* 4 own PIN */
+ PERM_SYS_CONFIG,      /* 5 touch calibration */
+ 0,                    /* 6 license */
+ 0,                    /* 7 status */
+ PERM_SYS_CONFIG,      /* 8 display offset */
+ PERM_USER_MGR         /* 9 users */
+ };
+ _menuCount = 0;
+ for (uint8_t i = 0; i < 10; i++) {
+ if (NEED[i] == 0 || (_panelPerms & NEED[i])) _menuItems[_menuCount++] = i;
+ }
  _forceSettingsRedraw = true; _repaintSettings = true;
  mutex_exit(&_stateMutex);
+}
+
+/* "3. Alarm Sounds" -> "Alarm Sounds": the numbers in the menu labels are
+ * table positions, and a filtered menu would show "2." on its first row. */
+static const char* menuLabelNoNumber(const char* s) {
+ const char* p = s;
+ while (*p >= '0' && *p <= '9') p++;
+ if (p != s && p[0] == '.' && p[1] == ' ') return p + 2;
+ return s;
 }
 
 void DisplayManager::drawSettingsMain( ) {
  if(!_driver.canvas) return;
  bool fullRedraw = _forceSettingsRedraw; bool pageChanged = (_mainMenuPage != _lastMainMenuPage);
- const int TOTAL_ITEMS = 9; LangKey menuItems[] = {TR_MENU_THEMES, TR_MENU_ALARMS, TR_MENU_SOUNDS, TR_MENU_LANG, TR_MENU_PASSWORD, TR_MENU_TOUCH_CAL, TR_MENU_LICENSE, TR_MENU_STATUS, TR_MENU_DISPLAY_OFFSET};
+ const int TOTAL_ITEMS = _menuCount;
+ static const LangKey menuItems[10] = {TR_MENU_THEMES, TR_MENU_ALARMS, TR_MENU_SOUNDS, TR_MENU_LANG, TR_MENU_PASSWORD, TR_MENU_TOUCH_CAL, TR_MENU_LICENSE, TR_MENU_STATUS, TR_MENU_DISPLAY_OFFSET, TR_MENU_USERS};
  int totalPages = (TOTAL_ITEMS + 3) / 4; if (totalPages == 0) totalPages = 1;
  if (_mainMenuPage >= totalPages) _mainMenuPage = totalPages - 1;
  if (_mainMenuPage < 0) _mainMenuPage = 0;
 
  if (fullRedraw) {
  fastClearScreen(C_BG_MAIN);
- blitTitleBar(tr(TR_CONFIG_MAIN));
+ /* "Configurações > <quem entrou>". The breadcrumb's own translation
+  * supplies everything up to the "> ", so the eight packs keep working and
+  * no string was added; the tail is the account the PIN identified. */
+ char title[48];
+ const char* base = tr(TR_CONFIG_MAIN);
+ const char* name = panelUserName( );
+ const char* sep = (name && name[0]) ? strstr(base, "> ") : nullptr;
+ const size_t keep = sep ? (size_t)(sep - base) + 2 : 0;
+ if (keep && keep < sizeof(title) - 1) {
+ memcpy(title, base, keep);
+ title[keep] = '\0';
+ /* The title card is 312 px wide and its text starts at x=18, and this
+  * bar does not clip — so the name gets whatever the breadcrumb leaves.
+  * The prefix is MEASURED and not counted in bytes: "Configurações > "
+  * is 18 bytes and 16 glyphs, and the same line is 8 shorter in English. */
+ int16_t bx, by; uint16_t pw, ph;
+ _driver.canvas->setFont(&simutFont9pt);
+ _driver.canvas->getTextBounds(title, 0, 0, &bx, &by, &pw, &ph);
+ char fitted[32];
+ truncateText(_driver.canvas, name, fitted, sizeof(fitted),
+ (int16_t)(294 - (int16_t)pw));
+ safeCopy(title + keep, fitted, sizeof(title) - keep);
+ } else {
+ safeCopy(title, base, sizeof(title));
+ }
+ blitTitleBar(title);
  blitFooterMenu(tr(TR_BACK), tr(TR_ENTER)); /* T1.2: no heap */
  }
 
@@ -368,18 +423,21 @@ void DisplayManager::drawSettingsMain( ) {
  _driver.canvas->fillScreen(C_BG_MAIN);
  _driver.canvas->setTextSize(1); /* Ensures reset after status screen */
  if (mapIdx < TOTAL_ITEMS) {
+ const uint8_t item = _menuItems[mapIdx];
  bool isSelected = (mapIdx == _menuSelection);
  uint16_t bg = isSelected ? C_ACCENT : C_CARD_BG;
  uint16_t txt = isSelected ? C_BG_MAIN : C_TEXT_MAIN;
  _driver.canvas->fillRoundRect(0, 0, itemW, 34, 8, bg);
  if (!isSelected) _driver.canvas->drawRoundRect(0, 0, itemW, 34, 8, C_TEXT_SUB);
- /* Menu items keep their table order, so the icon id IS the index:
-  * 0 themes, 1 alarms, 2 sounds, 3 lang, 4 password, 5 touch-cal,
-  * 6 license, 7 status, 8 display-offset. */
- uiMenuIcon(_driver.canvas, 10, 9, (uint8_t)mapIdx,
+ /* Items keep their table order, so the icon id IS the item id:
+  * 0 themes, 1 alarms, 2 sounds, 3 lang, 4 PIN, 5 touch-cal,
+  * 6 license, 7 status, 8 display-offset, 9 users. */
+ uiMenuIcon(_driver.canvas, 10, 9, item,
  isSelected ? C_BG_MAIN : C_ACCENT);
  _driver.canvas->setFont(&simutFont9pt); _driver.canvas->setTextColor(txt);
- _driver.canvas->setCursor(34, 24); _driver.canvas->print(tr(menuItems[mapIdx]));
+ const char* label = tr(menuItems[item]);
+ if (_menuCount < 10) label = menuLabelNoNumber(label);
+ _driver.canvas->setCursor(34, 24); _driver.canvas->print(label);
  _driver.canvas->fillTriangle(itemW - 20, 11, itemW - 20, 23, itemW - 10, 17, isSelected ? C_BG_MAIN : C_TEXT_SUB);
  }
  blitCanvas(_driver.canvas, 10, y, itemW, 34);
@@ -391,9 +449,10 @@ void DisplayManager::drawSettingsMain( ) {
 
 
 
-void DisplayManager::showSettingsPassword( ) {
+void DisplayManager::showSettingsPassword(uint8_t purpose) {
  mutex_enter_blocking(&_stateMutex);
  _uiMode = MODE_SETTINGS_PASSWORD;
+ _kbPurpose = purpose;
  _kbCursor = 0;
  _kbShowRaw = false;
  _kbPhase = 0;
@@ -557,8 +616,9 @@ void DisplayManager::drawSettingsPassword( ) {
  using namespace PwdKb;
 
  const char* activeBuf = (_kbPhase == 0) ? _kbBuffer : _kbConfirmBuf;
- const String title = (_kbPhase == 0) ? tr(TR_NEW_PASSWORD)
- : tr(TR_CONFIRM_PASSWORD);
+ const bool nameMode = (_kbPurpose == 1);
+ const String title = nameMode ? String(tr(TR_USER_NAME))
+ : ((_kbPhase == 0) ? tr(TR_NEW_PASSWORD) : tr(TR_CONFIRM_PASSWORD));
 
  /*
  * Number of visible boxes: in phase 0 (typing), the max between 4 and
@@ -584,8 +644,20 @@ void DisplayManager::drawSettingsPassword( ) {
  uiTitleBar(cv, (int16_t)(4 + yOff), title.c_str( ), -1, 0, 26);
  uiCloseX(cv, 284, (int16_t)(5 + yOff), 32, 24);
 
- /* Password boxes + counter + OK beside them */
- for (int i = 0; i < visibleBoxes; i++) {
+ /* v24, name mode: one text field instead of the boxes — a name is
+  * up to 15 characters, and it is not a secret. */
+ if (nameMode) {
+ cv->fillRoundRect(BOX_X0, (int16_t)(BOX_Y + yOff), (int16_t)(OK_X - BOX_X0 - 6), BOX_H, 4, C_CARD_BG);
+ cv->drawRoundRect(BOX_X0, (int16_t)(BOX_Y + yOff), (int16_t)(OK_X - BOX_X0 - 6), BOX_H, 4, C_ACCENT);
+ cv->setFont(&simutFont9pt); cv->setTextSize(1); cv->setTextColor(C_TEXT_MAIN);
+ cv->setCursor(BOX_X0 + 8, (int16_t)(BOX_Y + 19 + yOff));
+ cv->print(_kbBuffer);
+ int16_t tbx, tby; uint16_t tbw, tbh;
+ cv->getTextBounds(_kbBuffer[0] ? _kbBuffer : " ", 0, 0, &tbx, &tby, &tbw, &tbh);
+ const int16_t caretX = (int16_t)(BOX_X0 + 8 + (_kbBuffer[0] ? (int16_t)tbw : 0) + 2);
+ cv->drawFastVLine(caretX, (int16_t)(BOX_Y + 6 + yOff), BOX_H - 12, C_ACCENT);
+ }
+ for (int i = 0; !nameMode && i < visibleBoxes; i++) {
  const int16_t bx = (int16_t)(BOX_X0 + i * (BOX_W + BOX_GAP));
  const int16_t by = (int16_t)(BOX_Y + yOff);
 
@@ -605,7 +677,7 @@ void DisplayManager::drawSettingsPassword( ) {
  }
  }
 
- {
+ if (!nameMode) {
  char countBuf[8];
  snprintf(countBuf, sizeof(countBuf), "%d/%d", _kbCursor, visibleBoxes);
  cv->setFont(NULL); cv->setTextSize(1);

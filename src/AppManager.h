@@ -123,6 +123,7 @@ private:
  void cmdHandleAcceptSensor(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
  void cmdHandleUserAdd(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
  void cmdHandleUserPerm(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
+ void cmdHandleUserPin(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
  void cmdHandleSetTime(const CliDemand& cmd);
  void cmdHandleIpCfg(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
  void cmdHandleDnsCfg(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
@@ -155,12 +156,33 @@ private:
  uint8_t _alarmTripBits[MAX_SENSORS] = {0};
  uint8_t _alarmCandBits[MAX_SENSORS] = {0};
  uint16_t _alarmErrBits = 0;
+ /** Bit por slot: a janela de manutenção estava aberta na última passada.
+  *  Vive na RAM de propósito — a JANELA está na flash, este bit só existe para
+  *  detectar a TRANSIÇÃO, e um reboot dentro da janela não deve reemitir
+  *  "maint" (ver handleAlarmTelemetryEdges). */
+ uint16_t _alarmMaintBits = 0;
  /** Borda confirmada → enfileira em _telemetryMgr->pushAlarm( ). */
  void handleAlarmTelemetryEdges( );
  /** Registro de AÇÃO (silenciar/desativar) na 2ª linha de telemetria — o
  * o registro carrega o código do domínio (alarm* ou err*) com sufixo
- * escolhido entre os dois códigos pelo estado de erro do slot. */
- void pushAlarmAction(int8_t slot, uint8_t errCodeErr, uint8_t errCodeLim);
+ * escolhido entre os dois códigos pelo estado de erro do slot.
+ * v24: `actor` nomeia quem agiu (AlarmRecord::actor); ninguém por default. */
+ void pushAlarmAction(int8_t slot, uint8_t errCodeErr, uint8_t errCodeLim, uint8_t actor = 0);
+
+ /* ── v24: identity at the panel (AppManager_Panel.cpp) ──────────────────
+  * The keypad identifies an account by PIN; the session lasts while the
+  * settings tree is open, and every action checks the session's bits. */
+ enum PanelAuthFor : uint8_t { PAUTH_SETTINGS = 0, PAUTH_DEACTIVATE };
+ int8_t _panelUser = -1;      /**< account the last accepted PIN identified, -1 none */
+ uint16_t _panelPerms = 0;
+ uint8_t _panelAuthFor = PAUTH_SETTINGS;
+ bool handlePanelEvent(const UiEvent& ev);
+ bool panelAllowed(uint16_t bit, int8_t slot);
+ const char* panelUserName( ) const;
+ void panelIdentify( );
+ void panelDeactivateAlarm( );
+ void panelSaveAlarmLimits(int slot);
+ void panelSetUserPin(int slot, const char* pin, UiMode returnTo);
 
  /* Warn-once when processHistoryLogging skips saving due to missing
 	 * time reference (no NTP and no provisional). Resets automatically

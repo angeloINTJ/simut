@@ -117,32 +117,49 @@
 #endif
 
 /* TFT SPI READ clock, in Hz — the GRAM read-back, which is a different and much
- * slower bus transaction than the write above.
+ * slower bus transaction than the write above. It was 2 MHz written inline in
+ * readRow with nothing saying why; 2026-09-18 measured the ladder and made it a
+ * constant at 6 MHz, and the sweep below moved it again.
  *
- * It was 2 MHz, written inline in readRow, and nothing said why. Measured on
- * the rig (2026-09-18, static screen, every frame compared pixel by pixel
- * against a 2 MHz reference of the same screen, 320x240 frame through
- * /api/screen_stream):
+ * 2026-09-19: 6 MHz -> 12 MHz, after sweeping the ladder on the rig with every
+ * frame compared pixel by pixel against a 6 MHz reference of a screen held
+ * still, AND against /api/screenshot, which is a different reader:
  *
- *     2 MHz   1.303 s/frame   15.0 us/px    0 wrong pixels
- *     4 MHz   0.742 s          7.7 us/px    0
- *     6 MHz   0.550 s          5.2 us/px    0   <- this default
- *     8 MHz   0.476 s          4.2 us/px    0
- *    12 MHz   0.369 s          2.8 us/px    0
- *    16 MHz   0.368 s          2.8 us/px    0   (the PL022 ladder stops paying)
+ *      6 MHz   wire 387.9 ms   0 wrong pixels
+ *      8 MHz   wire 293.7 ms   0
+ *     10 MHz   wire 292.9 ms   0   <- same PL022 rung as 8
+ *     12 MHz   wire 201.5 ms   0   <- this default
+ *     16 MHz   wire 204.6 ms   0   <- same rung as 12
+ *     20 MHz   wire 201.3 ms   0   <- same rung as 12
  *
- * Plus a soak of 30 frames each at 6 and 12 MHz: zero wrong pixels at both.
+ * The rungs are what the PL022 divider can reach, so 16 and 20 buy NOTHING over
+ * 12 and only spend margin on a part whose datasheet read cycle works out near
+ * 6.6 MHz. 12 is the last rung that pays, and it is where this stops.
  *
- * 6 MHz is the default because the ILI9341's serial read cycle works out to
- * ~6.6 MHz and this stays inside it, while still being 2.4x the old figure.
- * 12 MHz measured just as clean on THIS module and THIS wiring, and is one
- * constant away for anyone who validates their own — the same deal the write
- * clock above documents, and the same way to check it: capture a static screen
- * twice and diff the pixels. A wrong clock here does not corrupt the panel; it
- * corrupts what the mirror and /api/screenshot report, which is worse, because
- * it looks like a display fault. */
+ * Plus a 32-frame soak at 12 MHz with DMA: every frame identical, 0 differing
+ * pixels, and 3 of 3 frames equal to the three-vote forensic BMP. If a
+ * different module or longer wiring shows stray pixels, drop to 6000000u — and
+ * check it the same way, two captures of a STILL screen diffed pixel by pixel.
+ * A wrong clock here does not corrupt the panel; it corrupts what the mirror
+ * reports, which looks like a display fault. */
 #ifndef SIMUT_TFT_READ_HZ
-#define SIMUT_TFT_READ_HZ 6000000u
+#define SIMUT_TFT_READ_HZ 12000000u
+#endif
+
+/* Bench instrument for the panel mirror: lets /api/screen_stream take its Core-1
+ * pause a different way per request (?pm=, ?g=) and prints the frame's
+ * decomposition in `show metrics`.
+ *
+ * OFF in every shipped environment. It exists so that an A/B of pause
+ * strategies runs in ONE image — this project has been burned before by
+ * comparing two builds and measuring the build (ESPELHO_DELTA.md §2, and
+ * validate-the-instrument). Build the bench image with
+ *
+ *     PLATFORMIO_BUILD_FLAGS=-DSIMUT_MIRROR_PROBE=1 pio run -e pico_w_test
+ *
+ * and note that this variable wipes .pio/build for every environment. */
+#ifndef SIMUT_MIRROR_PROBE
+#define SIMUT_MIRROR_PROBE 0
 #endif
 
 /* =========================================================================

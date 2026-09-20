@@ -1,6 +1,6 @@
 # SIMUT — Manual do Usuário
 
-**Firmware:** v2.4.10-beta · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **Licença:** MIT
+**Firmware:** v2.5.0-beta · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **Licença:** MIT
 **Repositório:** https://github.com/angeloINTJ/simut
 
 [English](MANUAL.md) | **Português**
@@ -278,17 +278,109 @@ quando há mais de quatro ativos e abrem as configurações (**CFG**).
   borda direita do card superior fazia isso também — não faz mais.)
 - **Toque no ícone de gráfico** na visão de mín/máx para abrir o histórico
   daquele sensor.
-- **Toque em CFG** para chegar às configurações — isso pede o PIN do display,
-  se houver um definido.
+- **Toque em CFG** para chegar às configurações — isso pede o **seu PIN**.
+
+### O PIN identifica quem está no painel
+
+Desde a config v24 o painel não tem mais um PIN do aparelho: cada conta tem o
+seu, de **4 a 8 dígitos**. O PIN é a identidade — não há
+campo de usuário — e por isso é **único** entre as contas. O admin de fábrica
+começa com `1234` e é obrigado a trocá-lo no primeiro acesso ao menu (um
+aparelho atualizado herda o PIN do display que tinha, se era numérico). Duas
+tentativas erradas são grátis; a terceira espera 5 s, depois 15 s, 60 s, e a
+sexta bloqueia até o próximo reboot.
+
+### O teclado embaralhado
+
+Um teclado numérico fixo entrega o PIN a quem olha por cima do ombro: as
+posições dos dedos são sempre as mesmas. Então o painel distribui os dez
+dígitos em **quatro cartões de três glifos** e **sorteia de novo a cada
+toque** — quem observa não consegue nem dizer se dois dígitos do PIN são
+iguais, porque dois toques no mesmo lugar não são os mesmos três dígitos.
+
+**Ao entrar, o cartão inteiro é um botão.** Um toque por dígito, e o toque diz
+apenas *"é um destes três"* — nem o aparelho fica sabendo qual. Quem observa
+vê quatro toques que, num PIN de 4 dígitos, cabem em até 81 senhas diferentes.
+No OK, o Core 0 percorre todas as senhas que a sequência pode soletrar e
+procura a que pertence a alguma conta; é assim que ele descobre **quem** está
+no painel. Se duas contas casarem com a mesma sequência, nenhuma entra — o
+painel não tem como perguntar qual era.
+
+Dez dígitos em doze posições deixariam dois cartões visivelmente mais curtos,
+o que já diria algo a quem observa. As duas posições que sobram recebem um
+**símbolo**, sorteado junto: todo cartão mostra três glifos, na mesma cor dos
+dígitos. O símbolo é enchimento — o PIN é só de dígitos, e um cartão que tem
+um deles simplesmente vale por dois dígitos na hora da busca.
+
+![PIN](images/screens/panel-pin-keypad.png) ![PIN inválido](images/screens/panel-pin-invalid.png)
+
+> **Ao DEFINIR um PIN a tela é outra**: um teclado numérico comum, com os
+> dígitos onde um teclado numérico os põe. Embaralhar serve para esconder um
+> PIN que alguém já tem de quem está olhando; escolher um é o problema
+> oposto, e caçar o dígito num sorteio só custa toques.
+
+> ⚠️ **O preço disso.** Quatro toques quaisquer cobrem 81 dos 10.000 PINs de 4
+> dígitos — contra 32 contas, um palpite tem ~26 % de chance de acertar alguma.
+> Com 6 dígitos cai para ~2 % e com 8 para ~0,2 %. A escada de bloqueio (2
+> livres, 5 s, 15 s, 60 s, e o 6º erro tranca até reiniciar) é o que segura o
+> resto. Para um aparelho com muitas contas, PINs de 6 ou mais dígitos.
+
+Quem define PINs: o próprio usuário (item **Alterar Senha**), um administrador
+no item **Usuários** do painel, a página `/users` da web ou `user pin` no CLI.
+O rodapé é o mesmo das outras telas do painel: ⌫, **SAIR** e **ENTRAR**. SAIR
+responde até durante um bloqueio, porque é a saída da tela. (A licença tinha um
+botão aqui e não tem mais — ela é um item do menu.)
 
 ### Configurações
 
-Alcançadas pelo CFG. Cobrem temas visuais, limites de alarme, sons de alarme,
-idioma da interface, o PIN do display, calibração do touch, sensibilidade do
-touch, alinhamento do display, status do sistema e o texto da licença. Desde a
-v2.1.9 a tela de PIN/senha é um teclado para a ponta do dedo: oito teclas
-grandes de grupo abrem um popup com as duas caixas ao mesmo tempo, de modo que
-qualquer um dos 91 caracteres aceitos custa exatamente dois toques.
+Alcançadas pelo CFG, depois do PIN. O título diz **quem entrou** —
+"Configurações > *nome*" — porque a sessão do painel dura até sair da árvore e
+tudo o que for feito nela sai assinado com esse nome. O menu lista **só o que a
+conta pode**:
+temas, sons, idioma, calibração e alinhamento pedem `SYS_CONFIG`; **Alarmes**
+pede qualquer um dos três bits do painel; **Usuários** pede `USER_MGR`; PIN,
+licença e status são de todos. Um operador com os bits de alarme vê quatro
+itens; o admin vê os dez.
+
+![menu do operador](images/screens/panel-menu-operator.png)
+
+### Alarmes, por sensor e por bit
+
+A lista de sensores abre, para o sensor selecionado, um menu com três linhas —
+cada uma atrás do seu próprio bit, e uma linha sem o bit aparece apagada com
+um cadeado:
+
+| Linha | Bit | O que faz |
+|---|---|---|
+| **Limites de alarme** | `0x0400` | o editor de limites de sempre; SALVAR grava e manda `alarm_lim` com `lo`/`hi` |
+| **Alarmes SIM/NÃO** | `0x0800` | liga/desliga os alarmes do sensor; manda `alarm_on`/`alarm_off` |
+| **Manutenção** | `0x1000` | abre uma janela em **horas e minutos** (teto 30 dias); dentro dela o sensor não gera limite nem falha e o painel/cigarra ficam calados; mostra o tempo restante e FECHAR encerra antes da hora |
+
+![menu do sensor](images/screens/panel-sensor-menu.png) ![manutenção](images/screens/panel-maint-entry.png) ![restante](images/screens/panel-maint-remaining.png) ![só manutenção](images/screens/panel-sensor-menu-maint-only.png)
+
+Toda ação é do usuário identificado: vai para o log de eventos com
+`ctx = conta×100 + slot` e para a 2ª linha de telemetria com `"user"` (ver
+§10 e `docs/API_POST.md`). O **Desativar** do pop-up de alarme também pede o PIN
+e o bit de bloqueio.
+
+### Usuários
+
+Item do menu para quem tem `USER_MGR`. Lista as contas — **menos o admin**,
+que não tem nada aqui que se possa mudar: os bits dele são todos, ele não é
+excluível, e o PIN dele é o item **Alterar Senha** do próprio menu dele. As
+letras **L B M** dizem quais dos três bits do painel a conta tem; um ponto
+depois do nome diz que ela tem PIN. **NOVO** cria uma conta em três telas:
+nome (teclado), os três bits, PIN duas vezes. Uma conta criada aqui é **só do
+painel** — não entra na web até um administrador lhe dar um bit de página e
+resetar a senha. Selecionar uma conta abre o editor: os bits, **Definir PIN**
+e **Excluir usuário** (com confirmação). Um PIN que já é de outra conta é
+recusado na hora.
+
+![usuários](images/screens/panel-users-list.png) ![novo usuário](images/screens/panel-new-user-keyboard.png) ![bits](images/screens/panel-new-user-bits.png) ![PIN em uso](images/screens/panel-pin-in-use.png) ![excluir](images/screens/panel-delete-confirm.png)
+
+Desde a v2.1.9 o teclado de texto (hoje usado para o nome) é para a ponta do
+dedo: oito teclas grandes de grupo abrem um popup com as duas caixas ao mesmo
+tempo, de modo que qualquer um dos 91 caracteres aceitos custa dois toques.
 
 O **System status** é a tela que vale conhecer: nome do dispositivo, versão do
 firmware, serial da placa, uptime, heap livre, uso da flash e temperatura da
@@ -538,10 +630,12 @@ evento existe apenas na saída serial ao vivo no momento em que ele acontece.
 
 ## 9. Usuários e permissões
 
-Cinco contas no máximo. Três sessões podem estar ativas ao mesmo tempo. As
-senhas são hasheadas com um salt aleatório por usuário.
+Trinta e duas contas no máximo (config v24; eram cinco). Três sessões web
+podem estar ativas ao mesmo tempo. As senhas são hasheadas com um salt
+aleatório por usuário; o PIN do painel, com um salt do aparelho, porque o
+painel identifica pelo PIN e compara um digest só contra todas as contas.
 
-Dez bits de permissão, concedidos de forma independente:
+Treze bits de permissão, concedidos de forma independente:
 
 | Bit | Permissão | Concede |
 |---|---|---|
@@ -555,6 +649,13 @@ Dez bits de permissão, concedidos de forma independente:
 | `0x0080` | FILE_DELETE | Excluir arquivos |
 | `0x0100` | USER_MGR | Gerenciar contas |
 | `0x0200` | CALIB | Calibrar sensores |
+| `0x0400` | ALARM_LIMITS | **Painel:** editar limites de alarme |
+| `0x0800` | ALARM_BLOCK | **Painel:** ligar/desligar os alarmes de um sensor |
+| `0x1000` | MAINT | **Painel:** abrir/encerrar manutenção |
+
+Os três últimos valem no painel (§5); na web a seção de alarmes segue com
+`SYS_CONFIG`. Cada conta pode ter um **PIN do painel** (4–8 dígitos, único
+entre as contas).
 
 **Admin é todos os bits ligados.** Três operações exigem admin completo em vez
 de um único bit: colocar uma imagem de firmware em staging
@@ -1024,6 +1125,7 @@ Permissões entre colchetes.
 | `/api/screenshot_chunk` | GET | Um bloco de 16 linhas com um CRC32, para transferência verificável |
 | `/api/screen_stream` | GET | Um quadro do painel em faixas com RLE de paleta (espelho ao vivo) |
 | `/api/touch` | POST | Toca o painel em `x` (0..319) e `y` (0..239) — coordenadas do painel |
+| `/api/keypad` | GET | Os quatro cartões embaralhados do PIN como estão sorteados agora, p.ex. `{"faces":["93@","$12","764","580"],"up":true}`. Faces vazias e `"up":false` quando o teclado não é a tela viva. Descreve o vidro, não o segredo: nunca diz qual casa do cartão é o dígito |
 
 ---
 
