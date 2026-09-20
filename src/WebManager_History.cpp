@@ -2288,6 +2288,42 @@ void WebManager::handleApiTouch( ) {
  _server->send(200, "application/json", json);
 }
 
+/* GET /api/keypad -> {"up":true,"faces":["123","45!","678","90@"]}
+ *
+ * The same four card faces `show display keypad` prints, over HTTP. It is not
+ * a convenience: reading them over the serial CLI costs ~7 s per digit on a
+ * loaded device (measured 19/09 with 32 accounts), and the panel's 30 s idle
+ * guard takes the screen back in the middle of an eight-tap entry — the
+ * full-table test could not finish a run without it.
+ *
+ * It tells an observer nothing the glass does not: the cards ARE the screen,
+ * and /api/screenshot behind the same PERM_SYS_CONFIG bit already returns a
+ * picture of them. What it does not do is say which slot of a card is the
+ * digit — that is the whole point of the scramble, and this route is as blind
+ * to it as a finger is. Empty faces when the keypad is not up, so it can
+ * never describe a layout that is not live.
+ *
+ * Deliberately NOT gated by the post-touch 503 window that /api/screenshot
+ * uses: that window exists to keep a screenshot from catching a half-painted
+ * frame, and _pinKeyChars is plain state, not the canvas. Waiting 5 s per tap
+ * here would put back the cost the route exists to remove. */
+void WebManager::handleApiKeypad( ) {
+ if (!requirePerm(PERM_SYS_CONFIG)) return;
+ if (!_displayRef) { _server->send(500, "text/plain", "Display offline"); return; }
+
+ char json[96];
+ int n = snprintf(json, sizeof(json), "{\"faces\":[");
+ char face[PinKb::SLOTS + 1];
+ bool up = false;
+ for (int k = 0; k < PinKb::KEYS; k++) {
+ if (_displayRef->pinKeyFace(k, face, sizeof(face))) up = true;
+ else face[0] = '\0';
+ n += snprintf(json + n, sizeof(json) - (size_t)n, "%s\"%s\"", k ? "," : "", face);
+ }
+ snprintf(json + n, sizeof(json) - (size_t)n, "],\"up\":%s}", up ? "true" : "false");
+ _server->send(200, "application/json", json);
+}
+
 #endif /* SIMUT_DISPLAY_TFT */
 
 void WebManager::handleApiHistoryDays( ) {

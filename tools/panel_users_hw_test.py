@@ -136,6 +136,12 @@ class Collector:
 
 
 # ── the rig: serial CLI + throwaway web admin ──────────────────────────────
+class KeypadGone(RuntimeError):
+    """`show display keypad` found no keypad. On a device whose log has grown,
+    a CLI read can take long enough for the 30 s idle guard to send the panel
+    home mid-entry — the caller reopens it and types again."""
+
+
 class Rig:
     def __init__(self, out):
         self.out = out
@@ -195,7 +201,28 @@ class Rig:
         self.session = self._login()
 
     def get(self, path, **kw):
-        return self.session.get(f'http://{self.ip}{path}', timeout=kw.pop('timeout', 20), **kw)
+        """GET with one reconnect. The device drops the socket now and then on
+        a long pass (the session also expires after 15 min idle), and a raw
+        requests ConnectionError ends the run with a stack trace three screens
+        long instead of a result. One relogin and one retry; a second failure
+        is real and propagates."""
+        timeout = kw.pop('timeout', 20)
+        try:
+            r = self.session.get(f'http://{self.ip}{path}', timeout=timeout, **kw)
+        except requests.exceptions.RequestException:
+            time.sleep(2)
+            self.relogin()
+            return self.session.get(f'http://{self.ip}{path}', timeout=timeout, **kw)
+        if r.status_code == 401:
+            self.relogin()
+            return self.session.get(f'http://{self.ip}{path}', timeout=timeout, **kw)
+        return r
+
+    def get_json(self, path, **kw):
+        r = self.get(path, **kw)
+        if r.status_code != 200:
+            raise RuntimeError(f'GET {path}: HTTP {r.status_code} {r.text[:80]}')
+        return r.json()
 
     def commit(self, payload):
         return self.session.post(f'http://{self.ip}/api/commit_all',
@@ -269,17 +296,37 @@ class Rig:
     def keypad_faces(self):
         """The four cards, in deal order (three glyphs each, decoys included).
         ⚠️ Since the deal is rolled after EVERY tap, this has to be read again
-        before each one — and a read costs the 5 s touch-priority window, which
-        is why typing a PIN here takes ~6 s per digit. The idle guard is not a
-        problem: 6 s is well inside the 30 s that would send the panel home."""
+        before each one.
+
+        Over HTTP (GET /api/keypad), because the serial route was the thing
+        that broke the full-table test: `show display keypad` costs the 5 s
+        touch-priority window plus the CLI round trip, ~7 s per digit on a
+        device with 32 accounts, and an eight-tap entry then runs past the
+        panel's 30 s idle guard, which sends the screen home mid-PIN. Measured
+        19/09 on the rig, one 4-digit entry: serial 27.9 s, HTTP 1.7 s.
+        `keypad_faces_cli()` keeps the old path for the emergency console."""
+        try:
+            j = self.get_json('/api/keypad', timeout=10)
+        except Exception as e:
+            raise KeypadGone(f'/api/keypad failed: {e}')
+        faces = [f for f in (j.get('faces') or []) if f]
+        if not j.get('up') or len(faces) != 4:
+            raise KeypadGone(f'keypad not on screen (got {len(faces)} faces)')
+        return faces
+
+    def keypad_faces_cli(self):
+        """The same four cards over the serial CLI. Slow (see keypad_faces),
+        kept for images without the web server up."""
         out = self.cmd('show display keypad', quiet_for=0.8, timeout=12)
         faces = {}
         for line in out.splitlines():
-            m = re.match(r'^([0-3]):\s(.+?)\s*$', line)
+            # `SIMUT# 0: 521` — the echo of the prompt shares the line with
+            # the first face, so the match is not anchored at the start.
+            m = re.search(r'(?:^|#\s)([0-3]):\s(\S+)\s*$', line)
             if m:
                 faces[int(m.group(1))] = m.group(2)
         if len(faces) != 4:
-            raise SystemExit(f'keypad not on screen (got {len(faces)} faces): {out.strip()[:120]}')
+            raise KeypadGone(f'keypad not on screen (got {len(faces)} faces)')
         return [faces[i] for i in range(4)]
 
     def _card_of(self, faces, ch):
@@ -288,19 +335,58 @@ class Rig:
             raise SystemExit(f'{ch!r} is on no card: {faces}')
         return k, faces[k].index(ch)
 
+    def fresh_faces(self, previous, tries=25):
+        """The deal AFTER the tap that has just been sent.
+
+        ⚠️ This is the race the HTTP reader created. Core 1 re-deals when it
+        consumes the tap, and /api/keypad answers in 0.01 s — faster than
+        Core 1 gets to it. The serial reader took 1.2 s and hid the problem
+        by accident; with the fast one, a read 0.6 s after the tap could
+        still return the deal that tap was aimed at, and the next tap then
+        hit the wrong card. It does not fail loudly: the entry is simply a
+        different PIN, which the device rightly refuses.
+
+        It cost a whole 25-account pass before it was spotted. The first-try
+        rate fell from 23/25 to 15/25 while the AMBIGUITY events fell from 4
+        to 1 — retries going up while the thing that causes retries went down
+        is the shape of a broken instrument, not of a worse device.
+
+        Waiting for the faces to differ is the signal, because the re-deal IS
+        the acknowledgement. A fresh Fisher-Yates over twelve slots repeating
+        all four faces exactly is too unlikely to plan around."""
+        deadline = time.time() + 6.0
+        for _ in range(tries):
+            f = self.keypad_faces()
+            if f != previous:
+                return f
+            if time.time() > deadline:
+                raise SystemExit('keypad did not re-deal within 6 s: Core 1 stuck?')
+            time.sleep(0.15)
+        return self.keypad_faces()
+
     def pin(self, digits, ok=True, faces=None):
         """Identify: ONE tap per digit, anywhere on the card that holds it.
         The device never learns which of the card's three glyphs was meant —
         it resolves the whole sequence against every account's digest.
 
         The deal is re-rolled after every tap, so the cards are read again
-        before each one. `faces` seeds only the first read."""
-        f = faces if faces is not None else self.keypad_faces()
-        for i, ch in enumerate(digits):
-            if i:
-                f = self.keypad_faces()
-            k, _ = self._card_of(f, ch)
-            self.tap(PIN_KEY_X[k] + PIN_KEY_W // 2, PIN_KEY_Y[k] + PIN_KEY_H // 2, 0.6)
+        before each one, and the read WAITS for the re-deal (fresh_faces).
+        `faces` seeds only the first read."""
+        for attempt in (1, 2, 3):
+            try:
+                f = faces if (faces is not None and attempt == 1) else self.keypad_faces()
+                for i, ch in enumerate(digits):
+                    if i:
+                        f = self.fresh_faces(f)
+                    k, _ = self._card_of(f, ch)
+                    self.tap(PIN_KEY_X[k] + PIN_KEY_W // 2, PIN_KEY_Y[k] + PIN_KEY_H // 2, 0.35)
+                break
+            except KeypadGone:
+                if attempt == 3:
+                    raise
+                # the idle guard took the screen: open it again and start over
+                self.goto('dash')
+                self.tap(*CFG_BTN, 1.2)
         if ok:
             self.tap(*PIN_OK, 1.6)
 
@@ -342,18 +428,92 @@ class Rig:
         print(f'  [shot] {name}: FAILED')
         return None
 
+    def log_records(self, codes=None):
+        """The binary log over HTTP: /api/logs streams 12-byte records
+        (CompactLogRecord: epoch u32, uptimeLo u16, code u16, ctx i16, flags
+        u8, uptimeHi u8). Measured on the rig 19/09 with 1189 records in the
+        log: 0.15 s against 1.76 s for the same query over the serial console,
+        which has to wait out the 5 s touch-priority window and then print the
+        ring as text at 115200 baud.
+
+        ⚠️ It RAISES on a refusal and never returns an empty list to mean
+        one. The first version answered `[]` for any non-200, and /api/logs
+        refuses two reads inside 200 ms with 429 and any read inside the
+        touch window with 503 — so a perfectly healthy device that had just
+        been tapped reported "no such record", which reads as "the action did
+        not happen". It cost a verification pass before it was caught by
+        comparing against the CLI: HTTP said 0 records of code 308, the CLI
+        said 88, and the log itself had 88. Same family as the sealed-block
+        blindness in the history reader: an instrument that answers "nothing"
+        for "I could not look" will end an investigation early."""
+        import struct
+        want = set(codes) if codes else None
+        buf = None
+        for attempt in range(6):
+            r = self.get('/api/logs', timeout=40)
+            if r.status_code == 200:
+                buf = r.content
+                break
+            if r.status_code in (429, 503):
+                time.sleep(0.4 * (attempt + 1))
+                continue
+            raise RuntimeError(f'GET /api/logs: HTTP {r.status_code} {r.text[:80]}')
+        if buf is None:
+            raise RuntimeError('GET /api/logs: still 429/503 after 6 tries')
+        if len(buf) % 12:
+            raise RuntimeError(f'/api/logs returned {len(buf)} bytes, not a multiple of 12')
+        out = []
+        for off in range(0, len(buf) - 11, 12):
+            epoch, uplo, code, ctx, flags, uphi = struct.unpack('<IHHhBB', buf[off:off + 12])
+            if want is None or code in want:
+                out.append({'epoch': epoch, 'code': code, 'ctx': ctx,
+                            'level': (flags >> 5) & 7, 'core': (flags >> 4) & 1,
+                            'up': uplo | (uphi << 16)})
+        return out
+
+    def wait_for_log(self, code, ctx, since=0, timeout=25.0):
+        """Wait for a record with this code and ctx to appear at or after
+        index `since`, and return the whole window. Returns (fresh, found).
+
+        ⚠️ A single read right after the action is a RACE, and it is the one
+        the HTTP reader introduced. `show system log` prints the RAM ring, so
+        the console saw a record the instant it was written; /api/logs streams
+        the FILES, and the write lands a few seconds later. The read that used
+        to be safe is not, and it fails intermittently — in one 5-account pass
+        the limits and block records were missed, in the next it was the
+        maintenance one. Measured 19/09: the record was on the wire 6.5 s
+        after the save, while the test read at ~2 s.
+
+        Same shape as the sealed-history-block trap: the fast reader is blind
+        at the most recent end, which is exactly the end a test asks about."""
+        deadline = time.time() + timeout
+        fresh = []
+        while True:
+            recs = self.log_records()
+            fresh = recs[since:] if len(recs) >= since else recs
+            if any(r['code'] == code and r['ctx'] == ctx for r in fresh):
+                return fresh, True
+            if time.time() > deadline:
+                return fresh, False
+            time.sleep(1.0)
+
     def log_lines(self, codes):
         """Lines of `show system log` whose code is one of `codes` (the CLI
-        prints the binary log as `code=NNN ctx=N`)."""
+        prints the binary log as `code=NNN ctx=N`). Prefer log_records( )."""
         out = self.cmd('show system log', quiet_for=1.2, timeout=20)
         want = {f'code={c} ' for c in codes}
         return [ln.strip() for ln in out.splitlines() if any(w in ln for w in want)]
 
     def log_count(self, code):
-        return len(self.log_lines([code]))
+        return len(self.log_records([code]))
 
     def log_ctx(self, code):
-        """ctx values of every line with this code, oldest first."""
+        """ctx values of every record with this code, oldest first."""
+        return [r['ctx'] for r in self.log_records([code])]
+
+    def log_ctx_cli(self, code):
+        """The same, read over the serial console. Kept for the emergency
+        image, which has no web server."""
         return [int(m.group(1)) for ln in self.log_lines([code]) for m in [re.search(r'ctx=(-?\d+)', ln)] if m]
 
     def users(self):

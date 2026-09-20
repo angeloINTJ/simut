@@ -143,6 +143,7 @@ enum LogCode {
  SEC_PIN_OK = 308,
  SEC_PIN_FAIL = 309,
  SEC_PIN_LOCKOUT = 310,
+ SEC_PIN_AMBIGUOUS = 311,
 
 
  /* ── Application lifecycle (400–439) ── */

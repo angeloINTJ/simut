@@ -112,6 +112,7 @@ handler checks.
 | `GET /api/screenshot`, `/api/screenshot_chunk` | `PERM_SYS_CONFIG` |
 | `GET /api/screen_stream` | `PERM_SYS_CONFIG` |
 | `POST /api/touch` | `PERM_SYS_CONFIG` — drives the panel UI; the panel's PIN keypad still guards the settings screens, and every panel action tests the bit of the account the PIN identified (below) |
+| `GET /api/keypad` | `PERM_SYS_CONFIG` — the four scrambled card faces, the same ones `show display keypad` prints. It describes the glass, not the secret: an account that may read `/api/screenshot` already has a picture of the identical cards, and neither says which slot of a card is the digit. Empty faces when the keypad is not the live screen |
 | `GET /api/sec_status` | `PERM_USER_MGR` |
 | `GET /api/ls` | `PERM_FILE_READ` |
 | `GET /download` | `PERM_FILE_READ`, **plus** `PERM_HISTORY` for `/history/...` and `PERM_LOGS` for `*.blog` (`downloadPermFor`) |
@@ -176,6 +177,10 @@ online attack is the lockout ladder below, and the deployment answer is longer
 PINs. The keypad lockout ladder is the one the device PIN always had: two
 free tries, 5 s, 15 s, 60 s, then a lockout only a reboot clears
 (`SEC_PIN_FAIL`/`SEC_PIN_LOCKOUT`, 309/310; `SEC_PIN_OK` 308 with the account).
+An entry that fits two accounts is `SEC_PIN_AMBIGUOUS` (311) and not a wrong
+PIN: it is the failure a full account table produces, and the answer to it is
+longer PINs, not another try — although another try usually works, because the
+deal is different.
 
 | Panel action | Requires |
 |---|---|

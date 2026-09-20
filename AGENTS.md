@@ -86,9 +86,14 @@ hand_release_all
   dois faz a entrada virar outro PIN sem erro nenhum. ⚠️ O rodapé mudou em
   19/09: ⌫ / SAIR / ENTRAR nos rects padrão (y=195, h=40) e sem o botão da
   licença — as coordenadas antigas caem no lugar errado. ⚠️ **O sorteio muda a cada TOQUE**, então é uma leitura
-  por dígito: ler custa a janela de 5 s da prioridade do toque, o que dá ~6 s
-  por dígito (um PIN de 4 leva ~25 s). Não bate nos 30 s de ociosidade porque
-  cada toque rearma o contador.
+  por dígito. **Leia por `GET /api/keypad`, não pela serial.** O mesmo sorteio
+  sai em 0,01 s contra 1,2 s do `show display keypad`, que ainda espera a
+  janela de 5 s da prioridade do toque; um PIN de 4 dígitos leva 4,6 s contra
+  31,1 s (medido 19/09, 32 contas). Pela serial um PIN de 8 toques passa dos
+  30 s de ociosidade e o painel volta ao dashboard no meio da digitação — foi
+  o que matou as duas primeiras rodadas de tabela cheia, nas contas 18 e 21
+  de 25. `Rig.keypad_faces( )` usa o HTTP; `keypad_faces_cli( )` guarda o
+  caminho serial para imagem sem servidor web.
   ⚠️ Identificar com 8 toques bloqueia o Core 0 por ~360 ms (medido 19/09:
   449 ms de pior resposta HTTP contra 91 ms ocioso) — uma requisição web que
   caia nessa janela simplesmente espera.
@@ -341,7 +346,16 @@ ficar na fila e executar vários inputs depois.
   conhecida, e barata — a lista suprimida é fixa.
 - Como ler o log de verdade: `/api/logs` são registros binários de 12 B; o
   `ctx` satura em int16; um código novo exige `tools/logcodes.tsv` +
-  `gen_logcodes.py`, nunca o `.h`.
+  `gen_logcodes.py`, nunca o `.h`. A rota é ~12× mais rápida que o console
+  (0,15 s contra 1,76 s para 1.189 registros, medido 19/09), e é ela que
+  `Rig.log_records( )` usa.
+  ⚠️ **`/api/logs` RECUSA**: 429 para duas leituras dentro de 200 ms e 503
+  dentro da janela de toque. Um leitor que devolva lista vazia nessas duas
+  respostas transforma "não consegui olhar" em "o registro não existe" — foi
+  exatamente o que a primeira versão de `log_records( )` fez, dizendo 0
+  registros do código 308 enquanto o console via 88. Quem consome essa rota
+  tem que distinguir recusa de ausência: hoje ela repete e, esgotadas as
+  tentativas, levanta exceção.
 
 ## 5. Console de emergência — quem muda algo que precisa sobreviver ao boot salva ali mesmo
 

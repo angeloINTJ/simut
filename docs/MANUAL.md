@@ -1107,6 +1107,7 @@ What a manager of many devices (the SIMUT-RX app, or any client) relies on:
 | `/api/screenshot_chunk` | GET | One 16-row chunk with a CRC32, for verifiable transfer |
 | `/api/screen_stream` | GET | One frame of the panel in palette-RLE strips (live mirror) |
 | `/api/touch` | POST | Taps the panel at `x` (0..319), `y` (0..239) — panel coordinates |
+| `/api/keypad` | GET | The four scrambled PIN cards as they are dealt right now, e.g. `{"faces":["93@","$12","764","580"],"up":true}`. Empty faces and `"up":false` when the keypad is not the live screen. It describes the glass, not the secret: it never says which slot of a card is the digit |
 
 ---
 

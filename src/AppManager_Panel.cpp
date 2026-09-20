@@ -90,9 +90,11 @@ void AppManager::panelIdentify( ) {
  if (u < 0) {
  const int fails = _displayMgr->authResult(false);
  /* Two accounts whose PINs both fit the same taps: the panel cannot ask
-  * which, so neither gets in. It is worth its own line — it means two PINs
-  * are close enough that the keypad cannot separate them. */
- if (ambiguous) LOG_CODE(LOG_WARN, "SEC", SEC_PIN_FAIL, fails,
+  * which, so neither gets in. Its own code, because it is not a wrong PIN
+  * and the operator who reads the log has to tell them apart — on a full
+  * account table with four-digit PINs it is the failure that actually
+  * happens, and the answer to it is longer PINs, not a retry. */
+ if (ambiguous) LOG_CODE(LOG_WARN, "SEC", SEC_PIN_AMBIGUOUS, fails,
                          TRL("Two accounts match the same keypad entry."));
  /* The sixth failure is the permanent lockout (DisplayManager::authResult);
   * it gets its own code so a burst of guesses reads as one event. */
@@ -101,7 +103,12 @@ void AppManager::panelIdentify( ) {
  }
  /* ctx is the account; the search time goes in the text, because it is the
   * one number that grows with the PIN length and nobody would guess it. */
- LOG_CODE(LOG_INFO, "SEC", SEC_PIN_OK, u, String((unsigned)took) + " ms");
+ /* WARN, not INFO: LogPolicy never filters a WARN, and this is the line that
+  * says WHO is at the panel. At INFO the family latch dropped it after the
+  * first of a run of logins — measured on the rig with a full account table
+  * on 2026-09-19, where 3 of 25 identifications left no trace at all. The
+  * web's own "config changed" is WARN for the same reason. */
+ LOG_CODE(LOG_WARN, "SEC", SEC_PIN_OK, u, String((unsigned)took) + " ms");
 
  _panelUser = (int8_t)u;
  _panelPerms = cfg.users[u].permissions;
@@ -187,7 +194,10 @@ void AppManager::panelSaveAlarmLimits(int slot) {
  _storageMgr->saveConfiguration( );
  _sensorMgr->syncAlarmLimits(cfg);
  checkAlarmConditions( );
- LOG_CODE(LOG_INFO, "APP", APP_UI_ALARM_SAVED, panelCtx(_panelUser, slot), panelUserName( ));
+ /* WARN for the same reason as SEC_PIN_OK: this is the record that says who
+  * moved a limit, and a run of edits must not latch it away. Its siblings —
+  * block, unblock, maintenance on and off — have always been WARN. */
+ LOG_CODE(LOG_WARN, "APP", APP_UI_ALARM_SAVED, panelCtx(_panelUser, slot), panelUserName( ));
  }
  _soundMgr->play(SND_CONFIRM);
  _displayMgr->showAlarmSensorMenu(slot);

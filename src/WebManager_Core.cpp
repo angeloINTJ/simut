@@ -170,6 +170,7 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
  _server->on("/api/screenshot_chunk", HTTP_GET, std::bind(&WebManager::handleApiScreenshotChunk, this));
  _server->on("/api/screen_stream", HTTP_GET, std::bind(&WebManager::handleApiScreenStream, this));
  _server->on("/api/touch", HTTP_POST, std::bind(&WebManager::handleApiTouch, this));
+ _server->on("/api/keypad", HTTP_GET, std::bind(&WebManager::handleApiKeypad, this));
 #endif
 #ifdef SIMUT_WEB_HTTPS
  /* The one route that writes into /config, and the reason it may: see

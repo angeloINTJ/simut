@@ -478,6 +478,7 @@ private:
 	void handleApiScreenshotChunk( ); /**< /chunked with CRC32 */
 	void handleApiScreenStream( );   /**< palette-RLE mirror, one frame per call */
 	void handleApiTouch( );          /**< tap the panel from the mirror */
+	void handleApiKeypad( );         /**< the four scrambled PIN cards */
 #endif
 	/* getDynamicExpectedHash removed with the *PENDING* scheme — see
 	 * assignTempPassword and the note in verifyPasswordFor. */

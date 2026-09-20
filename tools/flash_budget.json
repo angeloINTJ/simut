@@ -87,28 +87,42 @@
   "scramblePinKeys, findUserByPinSet). Setting a PIN keeps an ordered pad, a",
   "second small renderer. Most of the delta is the search and the chained digest",
   "that makes it affordable; the imageless builds pay for the chain, for clearing",
-  "an account record whole on delete, and for `show display keypad`."
+  "an account record whole on delete, and for `show display keypad`.",
+  "2026-09-19 (feat/alarms-live-config, fourth commit - GET /api/keypad and the",
+  "two records that were being filtered): +448 B on release, +368 test, +368",
+  "test_https, +456 asserts, 0 alpha, 0 air. No budget is raised; every",
+  "environment still sits inside its margin, and the two imageless builds do not",
+  "move at all because the route is behind SIMUT_DISPLAY_TFT.",
+  "Of the release delta, 368 B are the route itself, measured by building the",
+  "same tree with the handler and its registration removed (998,100 vs 998,468);",
+  "the other 80 B are log code 311 SEC_PIN_AMBIGUOUS and raising SEC_PIN_OK and",
+  "APP_UI_ALARM_SAVED from LOG_INFO to LOG_WARN.",
+  "The route earns its bytes on the bench, not on the product: reading the four",
+  "scrambled cards over the serial CLI costs 1.2 s per digit against 0.01 s over",
+  "HTTP, a 4-digit panel entry 31.1 s against 4.6 s, and an 8-tap entry ran past",
+  "the panel's 30 s idle guard - which is what killed the first two full-table",
+  "runs, at accounts 18 and 21 of 25. Same measurement for the log: 1.76 s over",
+  "the console against 0.15 s for /api/logs, on a log holding 1,189 records."
  ],
  "ceiling": 1044480,
  "measured_on": "2026-09-19",
- "measured_at_commit": "feat/alarms-live-config (+1,752 B release: the scrambled PIN keypad, re-dealt every tap)",
-
+ "measured_at_commit": "feat/alarms-live-config (+448 B release: GET /api/keypad, log code 311, two records raised to WARN)",
  "envs": {
   "pico_w_release": {
    "budget": 1001020,
-   "measured": 998020
+   "measured": 998468
   },
   "pico_w_test": {
    "budget": 1004748,
-   "measured": 1001748
+   "measured": 1002116
   },
   "pico_w_test_https": {
    "budget": 1029164,
-   "measured": 1026164
+   "measured": 1026532
   },
   "pico_w_asserts": {
    "budget": 1003188,
-   "measured": 1000188
+   "measured": 1000644
   },
   "pico_w_alpha": {
    "budget": 976372,

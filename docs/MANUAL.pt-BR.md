@@ -1125,6 +1125,7 @@ Permissões entre colchetes.
 | `/api/screenshot_chunk` | GET | Um bloco de 16 linhas com um CRC32, para transferência verificável |
 | `/api/screen_stream` | GET | Um quadro do painel em faixas com RLE de paleta (espelho ao vivo) |
 | `/api/touch` | POST | Toca o painel em `x` (0..319) e `y` (0..239) — coordenadas do painel |
+| `/api/keypad` | GET | Os quatro cartões embaralhados do PIN como estão sorteados agora, p.ex. `{"faces":["93@","$12","764","580"],"up":true}`. Faces vazias e `"up":false` quando o teclado não é a tela viva. Descreve o vidro, não o segredo: nunca diz qual casa do cartão é o dígito |
 
 ---
 
