@@ -184,8 +184,25 @@ class Rig:
         return m.group(1) if m else None
 
     def _login(self):
+        """Mint this run's own web session account.
+
+        The password is drawn fresh every run and never written down. It used
+        to be the literal `Mapper26x`, in this file, in the repository — so
+        every bench run put a FULL-ADMIN account on the device whose password
+        anyone with the repo already had. That is only survivable while the
+        cleanup always runs, and on 20/09 it did not: a `user del smap` was
+        removed from a suite's cleanup on the reasoning that smap "predates the
+        test", and the account sat there with admin bits until it was noticed.
+        A random password makes a leftover far less useful; deleting it in
+        cleanup is still the actual fix, and both suites do.
+
+        The account name stays fixed so a leftover is recognisable and any
+        cleanup can name it."""
         import hashlib
-        user, pw = 'smap', 'Mapper26x'
+        import secrets
+        user = 'smap'
+        pw = 'B' + secrets.token_urlsafe(12).replace('-', 'x').replace('_', 'y') + '2z'
+        self._web_pw = pw
         self.cfg(f'user del {user}', f'user add {user} {pw}', f'user perm {user} admin')
         s = requests.Session()
         nonce = s.get(f'http://{self.ip}/api/login_init', timeout=10).json()['nonce']

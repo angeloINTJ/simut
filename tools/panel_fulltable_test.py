@@ -443,11 +443,11 @@ def main():
         check(results, 'the alarm line carried a record for every account that acted',
               expect <= signers, f'missing: {sorted(expect - signers)[:8]} of {len(expect)}')
         # Every account ON THE DEVICE, not only the ones this run created: the
-        # rig carries accounts from before the test, and a record signed by one
-        # of them is correct. The first version allowed {created} | {'admin'}
-        # and failed on `smap`, an account this test has no business knowing
-        # about -- which an earlier cleanup had been papering over by DELETING
-        # it.
+        # rig legitimately carries accounts from before the test, and a record
+        # signed by one of them is correct. The first version allowed
+        # {created} | {'admin'} and failed on `smap` -- which is the suite's own
+        # web-session account (Rig._login), so it belongs here too, and is read
+        # from the device rather than named.
         on_device = {u['name'] for u in rig.users()} | {a['name'] for a in made}
         check(results, 'every record names an account that exists',
               signers <= on_device,
@@ -498,9 +498,15 @@ def main():
                     f"alarm set {'on' if b.get('a_en') else 'off'}",
                     f"alarm set path {b['a_path']}", f"alarm set qmax {b.get('a_qmax') or 32}")
         rig.cmd('write memory')
-        # `user del smap` used to live here. smap is not this test's account —
-        # it predates the run, and a cleanup that deletes accounts it did not
-        # create is a cleanup that destroys the bench.
+        # smap IS this suite's account: Rig.__init__ -> _login( ) creates it on
+        # every connection, with admin bits, to hold the web session. Deleting
+        # it here is not optional — leaving it behind leaves a full-admin
+        # account on the device whose password is written in the tool. This
+        # line was briefly removed on 20/09 on the reasoning that smap
+        # "predates the test"; it only looked that way because an earlier run
+        # had already left it behind, which is the failure, not the evidence.
+        rig.cfg('user del smap')
+        rig.cmd('write memory')
         rig.goto('dash')
 
     passed = sum(1 for r in results if r['ok'])
