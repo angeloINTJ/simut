@@ -7267,6 +7267,7 @@ pre, #preview, #apreview { background: var(--superficie-2); color: var(--tinta);
 .drawer nav a:hover, .drawer-bottom .lic-link:hover { color: var(--tinta); background: var(--superficie-2); }
 .drawer nav a.active, .drawer-bottom .lic-link.active { color: var(--acento); background: var(--superficie-2); }
 .drawer-bottom { border-top: 1px solid var(--linha); padding: 12px 12px 16px; }
+.drawer-ver { padding: 4px 12px 8px; font-size: 12px; color: var(--tinta-2); font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
 .drawer-footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 12px 0; }
 #greeting { display: block; font-size: 13px; color: var(--tinta-2); margin-bottom: 4px; }
 .drawer-footer select { width: auto; min-height: 36px; padding: 6px 8px; margin: 0; font-size: 14px; color: var(--tinta-2); }
@@ -7278,6 +7279,13 @@ pre, #preview, #apreview { background: var(--superficie-2); color: var(--tinta);
 /* ── Celular ────────────────────────────────────────────── */
 @media (max-width: 640px) {
   .topbar { padding: 0 12px; overflow: hidden; }
+  /* O endereco era o UNICO item da topbar que encolhia — a marca e a versao
+     nao cedem —, entao num telefone de 360px ele virava "192.168.3…". E a
+     unica informacao util dali: qual aparelho e este. Agora a faixa de status
+     nao encolhe e o sufixo da marca (" IoT", ou a versao quando /api/perms
+     responde) sai de cena; a versao passa a aparecer no drawer. */
+  .topbar .status-pill { flex-shrink: 0; }
+  .topbar .brand > span { display: none; }
   .bc { padding: 12px 16px 0; }
   /* `body` para ganhar por especificidade das paginas que redefinem .container */
   body .container { padding-left: 16px; padding-right: 16px; margin: 16px auto; }
@@ -7548,6 +7556,7 @@ static const char LANG_JS[] PROGMEM = R"raw(
         +'<a href="/files"><svg class="ic"><use href="#i-file"/></svg><span data-i18n="nav_file">Files</span></a>'
         +'</nav>'
         +'<div class="drawer-bottom">'
+        +'<div class="drawer-ver" id="drawer-ver"></div>'
         +'<a href="/license" class="lic-link"><svg class="ic"><use href="#i-lic"/></svg><span data-i18n="nav_lic">License</span></a>'
         +'<div class="drawer-footer"><div><span id="greeting"></span><select class="lang-select" onchange="setLang(this.value)"><option value="en">EN</option><option value="pt">PT</option></select></div>'
         +'<a href="/logout" class="out" onclick="if(window.Pending)Pending.clear()" data-i18n="greet_logout">Logout</a>'
@@ -8083,6 +8092,11 @@ static const char LANG_JS[] PROGMEM = R"raw(
         document.querySelectorAll('.brand > span').forEach(s => {
             s.textContent = ' ' + v;
         });
+        /* O sufixo da marca e escondido no celular para o IP caber inteiro
+           (ver a media query de 640px), entao a versao tem de existir em
+           algum lugar que o telefone alcance: o drawer. */
+        const dv = document.getElementById('drawer-ver');
+        if (dv) dv.textContent = 'SIMUT ' + v;
     };
 
     /* CSS global: dropdown custom + toggle switch + sem spinners em number */

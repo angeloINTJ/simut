@@ -275,7 +275,14 @@
   "did not see it: it asked whether a block's function was called from OUTSIDE,",
   "never whether it was called at all. It asks both now, and it counts",
   "references in CODE - the first attempt was defeated by the comment naming",
-  "loadThemes( ), the same way --espaco-N defeated the CSS-token gate."
+  "loadThemes( ), the same way --espaco-N defeated the CSS-token gate.",
+  "Same branch, the topbar on a phone: +72 B on the four panel builds, 0 on the",
+  "two without one (their .rodata padding swallowed it - they have a whole page",
+  "of slack now). The IP in the top-right corner was the ONLY item in that bar",
+  "that could shrink, so on a 360 px screen it rendered as '192.168.3…'. It is",
+  "also the only information there - which device am I on. The status pill no",
+  "longer shrinks, the brand's suffix is hidden below 640 px, and the version",
+  "it used to carry moved into the drawer, where a phone can still reach it."
  ],
  "ceiling": 1044480,
  "measured_on": "2026-09-20",
@@ -283,19 +290,19 @@
  "envs": {
   "pico_w_release": {
    "budget": 1015564,
-   "measured": 1012588
+   "measured": 1012660
   },
   "pico_w_test": {
    "budget": 1020420,
-   "measured": 1017444
+   "measured": 1017516
   },
   "pico_w_test_https": {
    "budget": 1028044,
-   "measured": 1025068
+   "measured": 1025140
   },
   "pico_w_asserts": {
    "budget": 1017740,
-   "measured": 1014764
+   "measured": 1014836
   },
   "pico_w_alpha": {
    "budget": 978396,
