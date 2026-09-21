@@ -241,7 +241,15 @@ static const char LICENSE_TEXT_EN[] PROGMEM =
 "MIT License - full text ships in the release image\n"
 "and in the LICENSE file of the source repository.\n";
 #else
-/* ASCII only, deliberately: this string is drawn on the TFT with the classic
+/* This acknowledgment list is SHORTER than the one on the /license web page,
+ * and deliberately so. The page also credits Liberation Sans Bold, whose
+ * outlines were traced into the SIMUT wordmark — no font file is embedded,
+ * only five glyphs as SVG paths. That page ships in the same image as this
+ * string, so the attribution travels with every copy either way, and paying
+ * ~120 B of flash in all six images to say it twice is a bad trade on a slot
+ * where pico_w_test_https has 3.3 kB left. Checked by tools/check_license.py.
+ *
+ * ASCII only, deliberately: this string is drawn on the TFT with the classic
  * CP437 GFX font, where the Latin-1 bytes of "Ângelo Moisés" are unrelated
  * symbols (0xE7 is a math glyph, not c-cedilla). Every other copyright line in
  * the tree carries the accents; this one cannot until the license screen moves

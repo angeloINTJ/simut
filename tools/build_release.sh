@@ -53,6 +53,11 @@ for VARIANT in simut_tft simut_alpha; do
   # Copy WebUI_GZ.h (both variants — Alpha still serves web pages)
   cp src/WebUI_GZ.h "${DST}/WebUI_GZ.h"
 
+  # A MIT pede que o aviso acompanhe "todas as copias ou partes substanciais
+  # do Software", e este zip e uma copia do codigo inteiro. Saiu sem ele de
+  # v1.x ate 2026-09-21; o build_release_pio.sh sempre copiou.
+  cp LICENSE "${DST}/LICENSE"
+
   # Restore Arduino-specific files
   if [ -f "/tmp/simut_arduino_config_${VARIANT}.h" ]; then
     cp "/tmp/simut_arduino_config_${VARIANT}.h" "${DST}/simut_arduino_config.h"

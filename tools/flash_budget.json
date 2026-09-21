@@ -282,7 +282,14 @@
   "that could shrink, so on a 360 px screen it rendered as '192.168.3…'. It is",
   "also the only information there - which device am I on. The status pill no",
   "longer shrinks, the brand's suffix is hidden below 640 px, and the version",
-  "it used to carry moved into the drawer, where a phone can still reach it."
+  "it used to carry moved into the drawer, where a phone can still reach it.",
+  "2026-09-21 (fix/license-consistency): +8 B on the four panel builds, 0 on",
+  "the two without one. The /license page said Copyright 2025 while the LICENSE",
+  "file, the firmware string and both language packs said 2026; the page is the",
+  "copy a user reads. tools/check_license.py keeps the five copies agreeing and",
+  "checks that both release scripts ship the file - build_release.sh packaged",
+  "the whole source tree into the Arduino IDE zips without it, which is the one",
+  "artefact the MIT text's own 'all copies' clause was not being honoured in."
  ],
  "ceiling": 1044480,
  "measured_on": "2026-09-20",
@@ -290,19 +297,19 @@
  "envs": {
   "pico_w_release": {
    "budget": 1015564,
-   "measured": 1012660
+   "measured": 1012668
   },
   "pico_w_test": {
    "budget": 1020420,
-   "measured": 1017516
+   "measured": 1017524
   },
   "pico_w_test_https": {
    "budget": 1028044,
-   "measured": 1025140
+   "measured": 1025148
   },
   "pico_w_asserts": {
    "budget": 1017740,
-   "measured": 1014836
+   "measured": 1014844
   },
   "pico_w_alpha": {
    "budget": 978396,
