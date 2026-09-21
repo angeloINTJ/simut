@@ -283,8 +283,24 @@ jar*.
 | calibração de toque em curso | **503** | tente de novo em alguns segundos |
 | requisições rápidas demais | `{"error":"Too Fast"}` | espaçar. O aparelho é um RP2040, não um cluster |
 
-⚠️ **Três slots de sessão.** Não abra uma sessão por requisição: reaproveite o
-cookie e relogue só no 401.
+⚠️ **Três slots de sessão, e a regra de quem fica é medida, não suposta**
+(`WebManager_Auth.cpp:462`):
+
+- **um login novo da MESMA conta toma o slot dela e invalida o token anterior.**
+  Uma conta = uma sessão viva. Dois processos do seu servidor logando com a
+  mesma conta vão se derrubar em looping;
+- se os três slots estiverem ocupados por contas **diferentes**, o login é
+  recusado com **403** `{"ok":false,"err":3}` — ninguém é despejado;
+- a sessão ociosa morre em **15 minutos** (`900000` ms), e qualquer requisição
+  reinicia essa contagem.
+
+Na prática: **uma sessão, reaproveitada**, e relogin só no 401. Não abra sessão
+por requisição, e não faça dois workers compartilharem a mesma conta — dê uma
+conta a cada um, respeitando o teto de três.
+
+Medido em 21/09/2026 sem querer: um teste que abria sessão nova a cada rodada
+derrubou a própria sessão que mantinha aberta, e eu quase registrei isso como
+"a sessão expirou em 5 minutos".
 
 ### 5.2 A conta que o servidor deve usar
 
