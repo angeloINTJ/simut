@@ -35,7 +35,7 @@ Isto não é para tranquilizar; é para não refazer o que já foi feito.
 | Reconexão de Wi-Fi com AP sumindo e voltando | `wifi_outage_test.py`, 3 fases, log do próprio aparelho | 09/09, v2.4.1-beta |
 | Varredura de redes, STA e **de dentro do AP** | `wifi_scan_hw_test.py --ap`, 18/18 | 21/09 |
 | Painel: 32 contas, PIN, política | `panel_users_hw_test.py` 32/32 + `panel_fulltable_test.py` | 20/09 |
-| Alarmes 2ª linha (HTTP/MQTT) | `alarm_hw_test.py`, `alarm_mqtt_test.py` | 23/08 |
+| Alarmes 2ª linha (HTTP/MQTT) | `alarm_hw_test.py`, `alarm_mqtt_test.py` — ⚠️ em 21/09 a suíte deu **11/14**, e as 3 falhas são o B12 (corte de 63 chars da CLI), não a linha | 23/08 |
 | OTA | 24 ciclos, 3/3 na v2.2.12 | 19/08 |
 | Soak 5 h sob coletor morto | 0 reboots, heap +114 B | — |
 | Telemetria nos 4 transportes | dreno 204 reg/s, soak HTTPS 30 min 0 FTL | — |
@@ -47,7 +47,7 @@ Isto não é para tranquilizar; é para não refazer o que já foi feito.
 
 | # | item | bloqueia? | por quê |
 |---|---|:---:|---|
-| B1 | **`ctx=209`/`ctx=455` do D-C1**: watchdog do Core 0 com trace vazio, reproduzido 2×2 em 20/09 por `panel_fulltable_test.py`, **não determinístico** | 🔴 **sim** | Fere o item 1 da definição. Um reset sem causa numa stable é o defeito que volta como "o aparelho reiniciou sozinho" sem nada para investigar |
+| B1 | **`ctx=209`/`ctx=455` do D-C1**: watchdog do Core 0 com trace vazio, reproduzido 2×2 em 20/09 por `panel_fulltable_test.py`, **não determinístico** | 🔴 **sim** | Fere o item 1 da definição. Um reset sem causa numa stable é o defeito que volta como "o aparelho reiniciou sozinho" sem nada para investigar. ⚠️ **21/09 acrescenta uma dificuldade ao instrumento**: uma gravação de firmware escreve `SYS_BOOT` na MESMA faixa (`200+módulo`), provado nesta bancada — então varrer o anel só vale sabendo a hora das gravações. E o reprodutor precisa da `pico_w_test` (B11), que não é a imagem publicada |
 | B2 | **Sem soak na imagem desta versão** | 🔴 **sim** | Os soaks que existem são de versões anteriores. Um release que ninguém deixou ligado por horas não é stable |
 | B3 | ~~OTA nunca exercitada nesta imagem~~ — **feito em 21/09: 6/6 applies** nos dois sentidos, na `pico_w_release` publicada. Fica o teto: o Air a **5.076 B**, medido hoje | 🟡 **metade fechada** | A parte "nunca exercitada" caiu com número (T4, §6). A parte do teto não é coisa que teste feche: é margem. E ela **já tem portão** — `check_flash_budget.py::check_ota_bin` compara o `.bin` com `OTA_APP_SAFE_MAX_SIZE` (1.040.384 B) em todo build, que é justamente o que o `used` do linker não vê. Folgas medidas em 21/09 sobre a build de `main`: release 15.684, air **5.076**, alpha 50.036, test 10.828, asserts 13.508, test_https 3.204 |
 | B4 | **`ctx=205`** — reboot sob telemetria morta, aberto e **não reproduz** | ⚠️ não | As blindagens existem; fica onde está até reproduzir. Registrado, não esquecido |
@@ -55,11 +55,19 @@ Isto não é para tranquilizar; é para não refazer o que já foi feito.
 | B6 | `pico_w_test_https` a **3.204 B** do teto de OTA (medido 21/09; o 3.308 anterior era de build anterior) | ⚠️ não | Ambiente de bancada, não é imagem de produto. Vira bloqueio se alguém precisar dele no campo |
 | B7 | Issue #118 — mDNS do Air | ⚠️ não | Backlog |
 | B10 | **Cursor de telemetria pula registro em bloco fora de ordem** — medido em 21/09: **6 de 75.778** registros (0,0079%) em 55 arquivos de dia | ⚠️ não | Fere o item 2 *em silêncio*, e é por isso que não é ruído. Mas o registro **não se perde**: está na flash e sai pelo `/download` e pelo CSV — só a telemetria não o leva. A causa está escrita no firmware (`src/TelemetryManager.cpp:286`): um cursor escalar em tempo não alcança um registro atrás da marca-d'água. Fechá-lo é mudança de formato (cursor vira posição de varredura), não de rótulo. Vira bloqueio se o aparelho continuar **sem dizer** que pulou |
-| B12 | **A CLI corta template em 63 caracteres, em silêncio, e responde OK** — medido em 21/09: 70 chars entram, 63 ficam; 63 ficam 63; 62 ficam 62 | ⚠️ não, **mas é da família do item 2** | `alarm set line/glob/path` passa pelo `strVal2[64]` do `CommandParser.cpp:392`; o destino é `lineTemplate[512]`. O valor chega ao `safeCopy` **já cortado**, então o portão `isValidCfgString` — que na web **recusa** o que não cabe inteiro — vê algo que cabe e aceita. O template real deste aparelho tem 141 chars (veio da web) e **não pode ser reescrito pela CLI**. Efeito medido: o template de 75 chars do `alarm_hw_test.py` virou 63, o payload saiu com vírgula pendurada, o coletor não conseguiu parsear e **3 das 14 verificações falharam por isso**. O comentário em `CommandParser.cpp:388` diz que a limitação é *valor com espaço*; não menciona o corte por comprimento |
 | B11 | **A bancada roda `pico_w_test`, não a imagem que a versão publica** | 🔴 **muda o B2 e o B3** | As suítes do ferro exigem `user`/`tel` da CLI, e a `pico_w_release` tem `SIMUT_CLI_FULL=0`. Provado em 21/09: `user policy` e `tel server` só aparecem no `.bin` de teste, e o aparelho responde os dois. Logo o T1 de 21/09 certifica a `pico_w_test`. O soak (T3) e a OTA (T4) **têm de ir na `pico_w_release`** — nenhum dos dois precisa de CLI, e `telemetry_bench/soak_a6.py` foi escrito exatamente para isso |
+| B12 | **A CLI corta template em 63 caracteres, em silêncio, e responde OK** — medido em 21/09: 70 chars entram, 63 ficam; 63 ficam 63; 62 ficam 62 | ⚠️ não, **mas é da família do item 2** | `alarm set line/glob/path` passa pelo `strVal2[64]` do `CommandParser.cpp:392`; o destino é `lineTemplate[512]`. O valor chega ao `safeCopy` **já cortado**, então o portão `isValidCfgString` — que na web **recusa** o que não cabe inteiro — vê algo que cabe e aceita. O template real deste aparelho tem 141 chars (veio da web) e **não pode ser reescrito pela CLI**. Efeito medido: o template de 75 chars do `alarm_hw_test.py` virou 63, o payload saiu com vírgula pendurada, o coletor não conseguiu parsear e **3 das 14 verificações falharam por isso**. O comentário em `CommandParser.cpp:388` diz que a limitação é *valor com espaço*; não menciona o corte por comprimento |
 
-**Três bloqueios: B1, B2, B3**, com o B11 dizendo em qual imagem o B2 e o B3
-se fecham. Os outros cinco ficam registrados e não impedem a promoção.
+**Onde estão os três bloqueios em 21/09, fim do dia de bancada:**
+
+| | |
+|---|---|
+| **B1** | aberto — é o último. O T2 ainda não rodou, e o achado de hoje sobre `ctx=227` muda como se lê o resultado dele (ver nota da autópsia) |
+| **B2** | em curso — T3 rodando desde 06:46 na `pico_w_release` |
+| **B3** | metade fechada com número (6/6 applies, 75.831/75.831 registros); a outra metade é margem com portão em CI |
+
+O B11 diz em qual imagem o B2 e o B3 se fecham. Os outros seis — B4, B5, B6,
+B7, B10 e B12 — ficam registrados e não impedem a promoção.
 
 ---
 
