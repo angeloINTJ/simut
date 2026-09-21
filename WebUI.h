@@ -885,6 +885,12 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             img.onerror = () => { document.getElementById('loading-overlay').innerHTML = "<span style='color:var(--perigo)'>" + escHtml(window.t('dash_disp_err', 'Read Failed')) + "</span>"; setTimeout(() => { document.getElementById('loading-overlay').style.display = 'none'; }, 2000); btn.innerHTML = orig; btn.disabled = false; };
             img.src = '/api/screenshot?t=' + new Date().getTime();
         }
+
+        /* A lista de temas se preenche aqui, e nao no DOMContentLoaded la de
+           baixo: aquele e comum as duas imagens, e uma chamada a loadThemes( )
+           nele ficaria pendurada quando este bloco e recortado. Um segundo
+           listener custa nada e some junto com o resto. */
+        document.addEventListener('DOMContentLoaded', loadThemes);
         /* @ENDIF */
 
         window.onLangChange = function() { fetchLoop(); };

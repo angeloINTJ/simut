@@ -287,6 +287,7 @@ def _strip_web_features(content: str) -> str:
             raise SystemExit(f"build_webui_gz: @IF {feature} contem outro @IF; nao aninhe.")
         by_feature.setdefault(feature, []).append((m.start(), m.end(), body))
 
+    strip = lambda t: re.sub(r"/\*.*?\*/", " ", t, flags=re.S)
     problems = []
     for feature, spans in by_feature.items():
         outside, prev = [], 0
@@ -297,10 +298,25 @@ def _strip_web_features(content: str) -> str:
         outside = "".join(outside)
         body = "\n".join(b for _, _, b in spans)
 
-        defs = set(re.findall(r"\b(?:async\s+)?function\s+(\w+)\s*\(", body))
+        # Comentarios fora das DUAS contas. Prosa que cita o nome da funcao
+        # conta como chamada e desarma a conferencia — foi assim que a versao
+        # de 21/09 deixou passar exatamente o defeito que ela existe para pegar.
+        code_in, code_out = strip(body), strip(outside)
+        defs = set(re.findall(r"\b(?:async\s+)?function\s+(\w+)\s*\(", code_in))
         for name in sorted(defs):
-            if re.search(r"\b" + re.escape(name) + r"\s*\(", outside):
+            if re.search(r"\b" + re.escape(name) + r"\s*\(", code_out):
                 problems.append(f"  {name}( ) e definida dentro de @IF {feature} e chamada fora")
+            # E o contrario: funcao que o bloco define e NINGUEM usa. Marcar uma
+            # regiao e facil; tirar dela a unica chamada e o que aconteceu em
+            # 21/09 com loadThemes( ) — a chamada morava no DOMContentLoaded
+            # comum as duas imagens, saiu de la para nao ficar pendurada e nao
+            # voltou para dentro. O seletor de temas ficou em "Loading..." para
+            # sempre, na imagem COM painel, e foi o Angelo quem viu no aparelho.
+            # Conta >= 2 porque a propria definicao e uma ocorrencia; `\bnome\b`
+            # e nao `nome(` para que `addEventListener('load', nome)` conte.
+            elif len(re.findall(r"\b" + re.escape(name) + r"\b", code_in)) < 2:
+                problems.append(
+                    f"  {name}( ) e definida dentro de @IF {feature} e nunca usada")
         ids = set(re.findall(r'\bid="([\w-]+)"', body))
         for el in sorted(ids):
             if re.search(r"getElementById\(\s*['\"]" + re.escape(el) + r"['\"]", outside):
