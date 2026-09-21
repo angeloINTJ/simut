@@ -34,10 +34,15 @@ device on the hotspot subnet, and the console's `show net status` says what
 the state machine thinks. Nothing is written to the device between the outage
 and the reconnect except that read.
 
-The device runs the Air build. Every wake there is a boot, which would make
-"reconnect without a reboot" meaningless — so it is held in M0 for the whole
-run: `air idle` raised to an hour and the hand's CHARGER line held, both put
-back at the end.
+On the Air build every wake is a boot, which would make "reconnect without a
+reboot" meaningless — so the device is held in M0 for the whole run: `air idle`
+raised to an hour and the hand's CHARGER line held, both put back at the end.
+On a TFT build (release/test/alpha) there is no M0 and nothing to hold: the
+device is awake all the time, which is the state the hold exists to create. The
+build is detected once, up front, with `air status` — `ensure_m0()` must never
+be called on an image that cannot answer it, because it polls for 420 s and
+then reaches for the hand's RESET, turning "this is a TFT" into seven minutes
+and a reboot.
 
 RESTORE. The device's real Wi-Fi password is overwritten by `system pass`
 and cannot be read back from anything (the firmware does not expose it and
@@ -98,6 +103,22 @@ def sh(*a, t=40):
 
 def log(msg):
     print(f'{time.strftime("%H:%M:%S")}  {msg}', flush=True)
+
+
+def is_air(s):
+    """Is the target an Air build? The M0 hold below only means anything there.
+
+    A TFT image has no `air` command at all, so `air status` answers "unknown
+    command" and parse_air_status returns None. This has to be asked ONCE and
+    up front: `ensure_m0()` polls for `air status` to parse for 420 s and then
+    reaches for the hand's RESET, so calling it on a build that can never
+    answer turns "this is a TFT" into seven minutes and a reboot. On a TFT the
+    device is awake all the time, which is the state the hold exists to create.
+    """
+    try:
+        return parse_air_status(s.target.cmd('air status', 2)) is not None
+    except Exception:
+        return False
 
 
 def hotspot(up, hidden=False):
@@ -256,13 +277,18 @@ def main():
     s = Suite(ns)
     results = []
     idle_before = None
+    air = False        # o finally lê isto; se o try morrer antes, é um TFT até prova
     try:
         # ── hold the device up: an Air wake is a boot, and this is about NOT rebooting ──
-        st = s.ensure_m0()
-        idle_before = st.get('idle')
-        s.target.cmd('air idle 3600', 4)
-        s.hand.charger(True)
-        log(f'M0 held: air idle {idle_before} -> 3600, CHARGER on')
+        air = is_air(s)
+        if air:
+            st = s.ensure_m0()
+            idle_before = st.get('idle')
+            s.target.cmd('air idle 3600', 4)
+            s.hand.charger(True)
+            log(f'M0 held: air idle {idle_before} -> 3600, CHARGER on')
+        else:
+            log('build sem hibernação (TFT): nada a segurar — o aparelho já fica acordado')
 
         # ── point the device at the hotspot ─────────────────────────────────
         hotspot(True)
@@ -271,7 +297,8 @@ def main():
         s.target.close()
         s.target.cmd('reload confirm', 2)
         s.target.usb.wait(False, 20); s.target.usb.wait(True, 60)
-        s.ensure_m0(); s.target.cmd('air idle 3600', 4)
+        if air:
+            s.ensure_m0(); s.target.cmd('air idle 3600', 4)
         secs, ip = wait_online(180, console=lambda: net_status(s))
         log(f'join do hotspot: {(fmt_secs(secs) + ", ip " + ip) if ip else "NÃO ENTROU em 180 s"}')
         log('console: ' + net_status(s))
@@ -342,21 +369,26 @@ def main():
         return 0 if all(r[1].startswith('PASS') for r in results) else 1
     finally:
         # ── put everything back, whatever happened ──────────────────────────
-        log('restaurando: hotspot off, credenciais reais, air idle, CHARGER')
+        log('restaurando: hotspot off, credenciais reais'
+            + (', air idle, CHARGER' if air else ''))
         hotspot(False)
         sh('nmcli', 'con', 'modify', HOT_CON, '802-11-wireless.hidden', 'no')
         try:
-            s.ensure_m0()
+            if air:
+                s.ensure_m0()
             s.target.cmd(f'system ssid {REAL_SSID}', 4)
             s.target.cmd(f'system pass {REAL_PASS}', 4)
-            if idle_before:
+            if air and idle_before:
                 s.target.cmd(f'air idle {idle_before}', 4)
             s.target.close(); s.target.cmd('reload confirm', 2)
             s.target.usb.wait(False, 20); s.target.usb.wait(True, 60)
-            s.ensure_m0(); s.target.close()
+            if air:
+                s.ensure_m0()
+            s.target.close()
         except Exception as e:
             log(f'RESTORE INCOMPLETO: {type(e).__name__}: {str(e)[:80]}')
-        s.hand.charger(False)
+        if air:
+            s.hand.charger(False)
         back = None
         for i in range(24):
             rc, _ = sh('ping', '-c', '1', '-W', '2', '192.168.3.24', t=6)
