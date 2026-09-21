@@ -425,15 +425,26 @@ def host_ip(target):
 def test_telemetry(rig, cli):
     print("\nC. TELEMETRY CURSOR — drain history into a local collector")
     ip = host_ip(rig.ip)
-    srv = http.server.ThreadingHTTPServer(("0.0.0.0", 8099), Collector)
+    # A porta era 8099 fixa, e 8099 e uma porta popular: em 21/09 um servidor
+    # node do proprio bancada ja estava nela e a suite morreu com "Address
+    # already in use" NO MEIO da corrida, depois de ter mexido na config de
+    # telemetria do aparelho. Configuravel, e a escolha vai para o `tel port`.
+    port = int(os.environ.get("SIMUT_TEL_COLLECTOR_PORT", "8099"))
+    try:
+        srv = http.server.ThreadingHTTPServer(("0.0.0.0", port), Collector)
+    except OSError as e:
+        raise SystemExit(
+            f"   porta {port} ocupada ({e}). Outra coisa ja escuta nela — veja com\n"
+            f"   `ss -ltnp | grep :{port}` e, se nao for sua, rode com\n"
+            f"   SIMUT_TEL_COLLECTOR_PORT=<outra> python3 {p}")
     threading.Thread(target=srv.serve_forever, daemon=True).start()
-    print(f"   coletor em http://{ip}:8099/ingest")
+    print(f"   coletor em http://{ip}:{port}/ingest")
 
     saved = rig.get("/api/config").json()
     try:
         cli.cmd("configure terminal")
         cli.cmd(f"tel server {ip}")
-        cli.cmd("tel port 8099")
+        cli.cmd(f"tel port {port}")
         cli.cmd("tel path /ingest")
         cli.cmd("tel mode json")
         cli.cmd("tel crypto off")
