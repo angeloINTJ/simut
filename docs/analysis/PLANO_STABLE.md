@@ -74,9 +74,9 @@ nunca "rodou e pareceu bem".
 |---|---|---|---:|---|
 | T1 | Regressão funcional da imagem | `panel_users_hw_test.py`, `panel_fulltable_test.py`, `alarm_hw_test.py`, `wifi_scan_hw_test.py --ap`, `web_test_suite.py` | ~2 h | tudo verde na imagem **desta** versão |
 | T2 | Caça ao B1 | `panel_fulltable_test.py` em repetição, com o log binário preservado entre corridas | 3–4 h | ou reproduz com `ctx` e trace utilizáveis, ou N corridas limpas dão a taxa |
-| T3 | Soak | `telemetry_bench/soak_a6.py`, ≥ 8 h, coletor vivo e coletor morto, **na `pico_w_release`** | 8 h+ | 0 reboots sem causa; deriva de heap medida e declarada |
+| T3 | Soak ⏳ **começou 21/09 06:46** | `telemetry_bench/soak_a6.py`, ≥ 8 h, coletor vivo e coletor morto, **na `pico_w_release`** | 8 h+ | 0 reboots sem causa; deriva de heap medida e declarada |
 | T4 | OTA nesta imagem ✅ **21/09** | ciclo de stage+apply, ida e volta entre v2.6.0-beta e v2.6.1-beta, pela `:8080` | ~1 h | 3/3 nos dois sentidos, `/history` íntegro pelo `fsguard` — **feito: 6/6 e 75.831/75.831** |
-| T5 | Queda de rede | `wifi_outage_test.py` nesta imagem | ~40 min | as 3 fases, com o log do aparelho como prova |
+| T5 | Queda de rede ⚠️ **precisa de conserto antes** | `wifi_outage_test.py` — hoje ele é do **Air**: segura o aparelho em M0 (`air idle 3600` + linha CHARGER da mão) e aponta o Wi-Fi por `system ssid`/`system pass` pela CLI. Num TFT não há M0; na `pico_w_release` a CLI é o console de emergência, que **tem** `system ssid/pass` mas não o resto | ~40 min + conserto | as 3 fases, com o log do aparelho como prova |
 | T6 | Telemetria | `telemetry_bench` nos 4 transportes + dreno | ~1 h | 0 FTL; vazão registrada |
 | T7 | Relógio e histórico | `rig_validate_history_clock.py` | ~20 min | 3/3 |
 
@@ -93,6 +93,13 @@ nunca "rodou e pareceu bem".
 T1 → T4 → T5 → T7 (um dia de bancada, tudo curto e conclusivo) → T2 e T3 em
 paralelo (T3 é tempo de relógio; T2 é repetição). T6 por último, porque o que
 ele mede já tem histórico bom e é o menos provável de mudar o veredito.
+
+⚠️ **T2 e T3 não rodam em paralelo** — o B11 impede. O T3 exige a
+`pico_w_release`; o T2 usa o `panel_fulltable_test.py`, que precisa do `user
+pin` da CLI completa, isto é, da `pico_w_test`. São duas imagens no mesmo
+aparelho, então são dois turnos de bancada, não um. Ordem que isto respeita, e
+que foi a de 21/09: tudo que precisa de CLI na `pico_w_test` → grava a
+`pico_w_release` → T4 e T3 nela → volta para a `pico_w_test` para o T2.
 
 ---
 
