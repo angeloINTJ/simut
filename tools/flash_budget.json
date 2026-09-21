@@ -206,7 +206,13 @@
   "pico_w_test_https now trips the gate's WARN at 3,804 B - under one flash",
   "sector. It is the env with the least room (pico_w_test plus BearSSL) and the",
   "next thing added to it has to take a fourth page out to LittleFS, the way",
-  "ALARMS_PAGE, FILE_PAGE and TEL_PAGE already went."
+  "ALARMS_PAGE, FILE_PAGE and TEL_PAGE already went.",
+  "2026-09-20 (feat/wifi-scan, follow-up): -16 B on every image and no budget",
+  "moves. GET /api/wifi/scan now answers 503 to ANY refusal, instead of falling",
+  "back to the finished sweep still sitting in the buffer: `again` asks for a",
+  "NEW list, and serving the old one shows networks from minutes ago with",
+  "nothing saying so. 'measured' is updated because it has to describe an image",
+  "that exists."
  ],
  "ceiling": 1044480,
  "measured_on": "2026-09-20",
@@ -214,27 +220,27 @@
  "envs": {
   "pico_w_release": {
    "budget": 1015052,
-   "measured": 1012052
+   "measured": 1012036
   },
   "pico_w_test": {
    "budget": 1019916,
-   "measured": 1016916
+   "measured": 1016900
   },
   "pico_w_test_https": {
    "budget": 1027548,
-   "measured": 1024548
+   "measured": 1024524
   },
   "pico_w_asserts": {
    "budget": 1017228,
-   "measured": 1014228
+   "measured": 1014212
   },
   "pico_w_alpha": {
    "budget": 982500,
-   "measured": 979500
+   "measured": 979484
   },
   "pico_w_air": {
    "budget": 1022200,
-   "measured": 1019200
+   "measured": 1019184
   }
  }
 }

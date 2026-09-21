@@ -561,6 +561,40 @@ static void test_the_reconnect_scanner_keeps_the_radio(void) {
     TEST_ASSERT_EQUAL_UINT(before, WiFi.scanStarts);
 }
 
+static void test_a_refusal_leaves_the_previous_list_in_the_buffer(void) {
+    NetworkManager net;
+    bringUp(net);
+
+    WiFi.nets = { {"earlier", -50, 4, 6} };
+    TEST_ASSERT_TRUE(net.startScan( ));
+    pumpScan(net, 2000);
+    TEST_ASSERT_EQUAL_UINT(NetworkManager::SCAN_DONE, net.scanState( ));
+
+    /* Now the reconnect scanner takes the radio. startScan( ) refuses, and the
+     * state stays SCAN_DONE because the earlier sweep's result is still in the
+     * buffer — which is the trap the web handler has to know about: answering
+     * a `again` request with THAT list shows minutes-old networks with nothing
+     * saying so. handleApiWifiScan( ) sends 503 on any refusal for this
+     * reason; this test is what says the precondition is real. */
+    const unsigned mine = WiFi.scanStarts;
+    WiFi.scanNeverCompletes = true;
+    WiFi.disconnect( );
+    const uint32_t end = millis( ) + 60000;
+    while (WiFi.scanStarts == mine && (int32_t)(millis( ) - end) < 0) {
+        set_native_millis(millis( ) + 50);
+        net.update( );
+    }
+    TEST_ASSERT_GREATER_THAN_UINT_MESSAGE(mine, WiFi.scanStarts,
+        "setup: the reconnect scanner never took the radio");
+
+    TEST_ASSERT_FALSE(net.startScan( ));
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(NetworkManager::SCAN_DONE, net.scanState( ),
+        "a refusal cleared the buffer; then the handler's 503 would be the only answer");
+    WifiNet out[WIFI_SCAN_MAX_NETS];
+    TEST_ASSERT_EQUAL_UINT(1, net.scanResults(out, WIFI_SCAN_MAX_NETS));
+    TEST_ASSERT_EQUAL_STRING("earlier", out[0].ssid);
+}
+
 static void test_a_scan_from_ap_mode_brings_the_sta_interface_up_first(void) {
     NetworkManager net;
     net.beginAP("simut-test");
@@ -631,6 +665,7 @@ int main(int, char**) {
     RUN_TEST(test_a_scan_that_never_finishes_is_abandoned);
     RUN_TEST(test_a_refused_scan_says_so_without_waiting);
     RUN_TEST(test_the_reconnect_scanner_keeps_the_radio);
+    RUN_TEST(test_a_refusal_leaves_the_previous_list_in_the_buffer);
     RUN_TEST(test_a_scan_from_ap_mode_brings_the_sta_interface_up_first);
     RUN_TEST(test_ap_mode_enables_the_sta_interface_once);
 

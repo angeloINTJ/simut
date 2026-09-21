@@ -76,10 +76,16 @@ void WebManager::handleApiWifiScan( ) {
 	const uint8_t st = _netRef->scanState( );
 	if (st != NetworkManager::SCAN_RUNNING &&
 	    (st != NetworkManager::SCAN_DONE || _server->hasArg("again"))) {
-		if (!_netRef->startScan( ) && _netRef->scanState( ) != NetworkManager::SCAN_DONE) {
+		if (!_netRef->startScan( )) {
 			/* Refused: the reconnect state machine holds the radio, or the
 			 * driver would not start. Both are "come back in a moment", and
-			 * saying which is what keeps this from looking like a hang. */
+			 * saying which is what keeps this from looking like a hang.
+			 *
+			 * 503 even when a finished sweep is still in the buffer. `again`
+			 * asks for a NEW list, and answering it with the old one is the
+			 * list going stale in silence — the page would show networks from
+			 * minutes ago with nothing to say so. The poll path (no `again`)
+			 * never reaches here: it is reading back the sweep it started. */
 			_server->send(503, "application/json",
 			              "{\"scanning\":false,\"error\":\"busy\"}");
 			return;
