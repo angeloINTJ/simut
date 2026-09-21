@@ -212,35 +212,63 @@
   "back to the finished sweep still sitting in the buffer: `again` asks for a",
   "NEW list, and serving the old one shows networks from minutes ago with",
   "nothing saying so. 'measured' is updated because it has to describe an image",
-  "that exists."
+  "that exists.",
+  "2026-09-20 (feat/wifi-scan, the UI pass): +624 B on release, +632 test, +616",
+  "test_https, +608 asserts, +8 alpha, +4,096 air. The CONTENT is 601 B and",
+  "every image carries the same 601: the NET_PAGE blob goes 3,831 -> 4,339",
+  "(+508) and LANG_JS 11,838 -> 11,931 (+93, the two eye symbols in the shared",
+  "sprite). Three things: the lock beside a secured SSID and the signal bars",
+  "are DRAWN now (sprite icon, CSS bars) instead of written with emoji and",
+  "box-drawing characters, which is the rule v2.1.5 set; the scan button is the",
+  "height of the field beside it (every input carries `margin: 0 0 16px`, which",
+  "sits OUTSIDE its border box, so a flex `stretch` made the button 16 px",
+  "taller); and the Wi-Fi password has a reveal button.",
+  "The per-environment numbers disagree with the 601 because .rodata is padded",
+  "up to a 4 KiB multiple - the linker aligns .data's LOAD address, as the note",
+  "at the top of this file says. alpha had slack and shows +8; the Air did not",
+  "and its .rodata went 462,848 -> 466,944, a whole page for 601 B of content.",
+  "🔴 THE AIR IS NOW 980 B UNDER THE OTA CEILING (1,039,404 B of .bin against",
+  "1,040,384). It was 9,172 before this branch and 5,076 after the scan itself.",
+  "Two 4 KiB steps in one branch. The next thing added to the Air - any image,",
+  "any page, since the web blobs are shared - makes it refuse to update over",
+  "the air while `used` still looks 21 kB from the slot ceiling. Giving ~601 B",
+  "back anywhere in the Air drops it a whole page and returns 4,096.",
+  "pico_w_test_https is 3,212 B under the same ceiling and still warns.",
+  "Same day, the same pass, after the gate below found it: two of the tokens",
+  "that CSS used did not exist. `--fundo-sutil` and `--tinta-fraca` are not in",
+  "either palette (the names are `--superficie-2` and `--tinta-2`), and a",
+  "`var( )` with no definition makes the browser drop the whole declaration, so",
+  "the scan button had no background and the dBm no secondary colour, in both",
+  "themes. Nothing failed: not the compile, not the minifier, not the helper",
+  "gate. build_webui_gz.py now refuses the build on it. -16 B, budgets unmoved."
  ],
  "ceiling": 1044480,
  "measured_on": "2026-09-20",
- "measured_at_commit": "feat/wifi-scan (GET /api/wifi/scan + the picker on the network page)",
+ "measured_at_commit": "feat/wifi-scan (drawn lock and signal bars, aligned row, password reveal)",
  "envs": {
   "pico_w_release": {
-   "budget": 1015052,
-   "measured": 1012036
+   "budget": 1015660,
+   "measured": 1012644
   },
   "pico_w_test": {
-   "budget": 1019916,
-   "measured": 1016900
+   "budget": 1020516,
+   "measured": 1017500
   },
   "pico_w_test_https": {
-   "budget": 1027548,
-   "measured": 1024524
+   "budget": 1028140,
+   "measured": 1025116
   },
   "pico_w_asserts": {
-   "budget": 1017228,
-   "measured": 1014212
+   "budget": 1017836,
+   "measured": 1014820
   },
   "pico_w_alpha": {
-   "budget": 982500,
-   "measured": 979484
+   "budget": 982492,
+   "measured": 979492
   },
   "pico_w_air": {
-   "budget": 1022200,
-   "measured": 1019184
+   "budget": 1026280,
+   "measured": 1023280
   }
  }
 }
