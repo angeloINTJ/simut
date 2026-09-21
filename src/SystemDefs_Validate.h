@@ -14,7 +14,7 @@
 
 #pragma once
 #include "ParseFloat.h"   /* parseFloat — see parseFloatStrict below */
-#include "PinKeypad.h"    /* PinKb::FIRST/LAST — the set the panel can type */
+#include "PinKeypad.h"    /* PinKb — the alphabets, the layouts and the length ceilings */
 #include <Arduino.h>
 #include <string.h>
 #include <stdint.h>
@@ -212,19 +212,66 @@ inline void langIdentSanitize(const char* src, size_t srcLen, char* dst, size_t 
  * 2026-09-19, and the cards were unreadable with 94 glyphs on them. The digest
  * length lives in SystemDefs_Limits.h next to the account layout; the RULE
  * lives here with the other validators. */
-#define PIN_MIN_LEN 4
-#define PIN_MAX_LEN 8
+#if SIMUT_PANEL_PIN
+#define PIN_MIN_LEN 4    /**< absolute floor; the policy may raise it        */
+#define PIN_MAX_LEN 16   /**< buffer ceiling; the KEYPAD may lower it        */
 
-/** Panel PIN (v24): PIN_MIN_LEN..PIN_MAX_LEN ASCII digits and nothing else.
- *  Bounded scan — a missing terminator cannot run past PIN_MAX_LEN + 1. */
-inline bool isValidPanelPin(const char* pin) {
- if (!pin) return false;
- size_t n = 0;
- for (; n <= PIN_MAX_LEN && pin[n]; n++) {
- if (pin[n] < PinKb::FIRST || pin[n] > PinKb::LAST) return false;
- }
- return n >= PIN_MIN_LEN && n <= PIN_MAX_LEN;
+/* v25: the length ceiling is per keypad and lives in PinKeypad.h, because it
+ * is a CPU budget and not a taste — see maxLenFor( ). PIN_MAX_LEN is what the
+ * buffers are cut to, so it must cover the largest of them. */
+static_assert(PIN_MAX_LEN == PinKb::PIN_LEN_CEILING,
+              "PIN_MAX_LEN sizes the buffers; PinKb::PIN_LEN_CEILING is the policy ceiling — keep them equal");
+static_assert(PIN_MIN_LEN == PinKb::PIN_LEN_MIN,
+              "the floor is stated twice; keep SystemDefs_Validate.h and PinKeypad.h agreeing");
+
+/**
+ * @brief Is this a policy the panel can actually offer?
+ * @details Two rules, both of them physical. The pair must have a layout
+ *          (PinKb::comboSupported — every pair has one since KB_PLAIN became
+ *          the ORDERED keyboards; before that, 36 characters one per key was
+ *          a 19-px target and ALPHA_ALNUM + KB_PLAIN had none), and the
+ *          minimum must fit under the keypad's length ceiling, which is the
+ *          ~400 ms of Core 0 that resolving S^n candidates costs — KB_PLAIN
+ *          resolves one candidate, so its ceiling is the buffer instead.
+ */
+inline bool isValidPinPolicy(uint8_t minLen, uint8_t keypad, uint8_t alphabet) {
+ if (!PinKb::comboSupported(alphabet, keypad)) return false;
+ return minLen >= PinKb::PIN_LEN_MIN && minLen <= PinKb::maxLenFor(keypad);
 }
+
+/** Nearest valid policy to the one asked for — what a config load applies to a
+ *  blob that predates the policy, or to one a hand-edit left impossible. The
+ *  fallback pair is the v24 behaviour, so an upgrade changes nothing. */
+inline void clampPinPolicy(uint8_t& minLen, uint8_t& keypad, uint8_t& alphabet) {
+ if (!PinKb::comboSupported(alphabet, keypad)) {
+ keypad = PinKb::KB_SET3;
+ alphabet = PinKb::ALPHA_DIGITS;
+ }
+ const uint8_t hi = PinKb::maxLenFor(keypad);
+ if (minLen < PinKb::PIN_LEN_MIN) minLen = PinKb::PIN_LEN_MIN;
+ if (minLen > hi) minLen = hi;
+}
+
+/** Panel PIN against a policy: minLen..maxLenFor(keypad) characters, all of
+ *  them inside the alphabet. Bounded scan — a missing terminator cannot run
+ *  past PIN_MAX_LEN + 1. */
+inline bool isValidPanelPin(const char* pin, uint8_t minLen, uint8_t keypad, uint8_t alphabet) {
+ if (!pin) return false;
+ const size_t hi = PinKb::maxLenFor(keypad);
+ size_t n = 0;
+ for (; n <= hi && pin[n]; n++) {
+ if (!PinKb::inAlphabet(pin[n], alphabet)) return false;
+ }
+ return n >= minLen && n <= hi;
+}
+
+/** The v24 rule — four to eight digits — for the callers that have no config
+ *  in hand (the fuzz harness, the native validator suite). */
+inline bool isValidPanelPin(const char* pin) {
+ return isValidPanelPin(pin, PIN_MIN_LEN, PinKb::KB_SET3, PinKb::ALPHA_DIGITS);
+}
+
+#endif /* SIMUT_PANEL_PIN — no panel, no PIN to validate */
 
 /** Validate names (device, username): no control chars, no quotes/backslash, 1-31 chars. */
 inline bool isValidName(const char* name, size_t maxLen = 31) {

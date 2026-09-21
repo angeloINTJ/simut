@@ -66,6 +66,10 @@ constexpr size_t CFG_V20_BLOB = 3917;  /**< v20: ends with reserved[64]        *
 constexpr size_t CFG_V22_BLOB = 4728;  /**< v21 and v22: + AlarmTelConfig (811) */
 constexpr size_t CFG_V23_BLOB = 4792;  /**< v23: + MaintConfig (64)             */
 constexpr size_t CFG_V24_BLOB = 6730;  /**< v24: 32 x 70 B accounts + pinSalt  */
+/** v25: + the PIN policy and the must-change map, appended to DisplayAuthConfig.
+ *  A v24 blob is this one truncated — every byte before pinMinLen keeps its
+ *  offset — so its migration is a straight copy and not a segment walk. */
+constexpr size_t CFG_V25_BLOB = 6738;
 
 /** Tail lengths, i.e. how much of a legacy blob follows its five accounts. */
 constexpr size_t CFG_V20_TAIL_LEN = CFG_V20_BLOB - CFG_LEGACY_TAIL_OFF;  /* 3439 */
@@ -90,15 +94,21 @@ static_assert(offsetof(SystemConfig, maint) - offsetof(SystemConfig, telServer) 
 	"alarmTel changed size or moved — the v21/v22 tail copy no longer lines up");
 static_assert(offsetof(SystemConfig, pinAuth) - offsetof(SystemConfig, telServer) == CFG_V23_TAIL_LEN,
 	"maint changed size or moved — the v23 tail copy no longer lines up");
-static_assert(sizeof(SystemConfig) == CFG_V24_BLOB,
-	"SystemConfig is not the v24 layout — bump CONFIG_VERSION, add a literal here and a case to configMigrateLegacy( )");
+static_assert(sizeof(SystemConfig) == CFG_V25_BLOB,
+	"SystemConfig is not the v25 layout — bump CONFIG_VERSION, add a literal here and a case to configMigrateLegacy( )");
+/* The v24 blob is the v25 struct truncated at the policy: the assert makes
+ * the straight copy in configMigrateLegacy( ) legal, and breaks the build if
+ * anyone inserts a field before pinMinLen instead of appending after it. */
+static_assert(offsetof(SystemConfig, pinAuth) + offsetof(DisplayAuthConfig, pinMinLen) == CFG_V24_BLOB,
+	"a field was inserted before DisplayAuthConfig::pinMinLen — the v24 copy no longer lines up");
 
 /** Which legacy schema a file of this size holds. */
 enum CfgLegacyKind : uint8_t {
 	CFG_LEGACY_NONE = 0,
 	CFG_LEGACY_V20,   /**< version 20 */
 	CFG_LEGACY_V22,   /**< version 21 or 22 — same layout, v22 changed a meaning */
-	CFG_LEGACY_V23    /**< version 23 */
+	CFG_LEGACY_V23,   /**< version 23 */
+	CFG_LEGACY_V24    /**< version 24 — same layout, four fields shorter */
 };
 
 /** By FILE size (blob + CRC), because that is what attemptLoad( ) has before
@@ -108,6 +118,7 @@ inline CfgLegacyKind configLegacyKind(size_t fileSize) {
 	if (fileSize == CFG_V20_BLOB + crc) return CFG_LEGACY_V20;
 	if (fileSize == CFG_V22_BLOB + crc) return CFG_LEGACY_V22;
 	if (fileSize == CFG_V23_BLOB + crc) return CFG_LEGACY_V23;
+	if (fileSize == CFG_V24_BLOB + crc) return CFG_LEGACY_V24;
 	return CFG_LEGACY_NONE;
 }
 
@@ -117,6 +128,7 @@ inline size_t configLegacyBlobLen(CfgLegacyKind kind) {
 		case CFG_LEGACY_V20: return CFG_V20_BLOB;
 		case CFG_LEGACY_V22: return CFG_V22_BLOB;
 		case CFG_LEGACY_V23: return CFG_V23_BLOB;
+		case CFG_LEGACY_V24: return CFG_V24_BLOB;
 		default:             return 0;
 	}
 }
@@ -156,11 +168,21 @@ inline bool configMigrateLegacy(const uint8_t* blob, size_t blobLen,
 		case CFG_LEGACY_V20: if (ver != 20) return false; break;
 		case CFG_LEGACY_V22: if (ver != 21 && ver != 22) return false; break;
 		case CFG_LEGACY_V23: if (ver != 23) return false; break;
+		case CFG_LEGACY_V24: if (ver != 24) return false; break;
 		default: return false;
 	}
 
 	memset(&out, 0, sizeof(out));
 	uint8_t* dst = (uint8_t*)&out;
+
+	/* v24 is not a legacy LAYOUT, only a shorter one: accounts are already 32
+	 * slots of 70 bytes and every field before the policy is where it is now.
+	 * The four policy bytes and the must-change map stay zero, which is not a
+	 * valid policy — the caller's per-version defaults fill it in. */
+	if (kind == CFG_LEGACY_V24) {
+		memcpy(dst, blob, CFG_V24_BLOB);
+		return true;
+	}
 
 	/* 1. head: identical in both layouts */
 	memcpy(dst, blob, CFG_LEGACY_HEAD_LEN);

@@ -767,13 +767,74 @@ void AppManager::cmdHandleUserPerm(const CliDemand& cmd, SystemConfig& cfg, bool
  _cmdMgr->printError(pt ? "Usuario nao encontrado" : "User not found");
 }
 
+#if SIMUT_PANEL_PIN
+/* v25 — `user pin` and `user policy` exist only where a panel does. An image
+ * with no touch screen has nobody to prove anything to it, and these two cost
+ * it 1,252 B (measured on pico_w_air, 2026-09-20). The PARSER refuses the two
+ * verbs there as well, so the console answers "unknown command" instead of
+ * taking one that would do nothing. */
 /**
- * @brief `user pin <name> <4-8 digits|off>` — the account's panel PIN (v24).
+ * @brief `user policy <minLen> <keypad> <alphabet>` — the panel PIN policy (v25).
+ *
+ * keypad: 1 plain, 2 scrambled pairs, 3 scrambled triples — the value is also
+ * the glyphs per card, which is what caps the length: resolving a tap tree of
+ * S^n candidates costs Core 0 one SHA-256 per node, 360 ms at S=3 and eight
+ * taps. alphabet: 0 digits, 1 digits + capitals.
+ *
+ * The three are validated together and refused together, because each one
+ * constrains the others. Tightening marks every account holding a PIN as
+ * "choose a new one", which is what stops a raised minimum from locking
+ * everybody — including this device's admin — out of the panel.
+ */
+void AppManager::cmdHandleUserPolicy(const CliDemand& cmd, SystemConfig& cfg, bool& changed) {
+ const bool pt = _cmdMgr->isPt( );
+ /* strtol and not sscanf: the comment on parse_3ints above says why, and
+  * this line was where that rule got broken once — sscanf pulls
+  * __ssvfscanf_r and it cost the Air 12 kB it does not have (measured
+  * 2026-09-20: the Air overflowed FLASH by 15,404 B with it in). */
+ int vMin = 0, vKb = 0, vAlpha = 0;
+ /* Two separators, or a missing argument reads as a zero: `user policy 4 3`
+  * would parse as alphabet 0 — a valid policy the operator never asked for. */
+ /* A TRAILING separator counts too, so `user policy 4 3` (which reaches here
+  * as "4 3 ", the parser having joined an empty r4) still has two of them —
+  * and parse_3ints reads the missing third as 0, which is a valid alphabet.
+  * Reject an empty last field explicitly. */
+ int seps = 0;
+ for (const char* q = cmd.strVal1; *q; q++) if (*q == ' ') seps++;
+ const size_t argLen = strlen(cmd.strVal1);
+ if (seps != 2 || argLen == 0 || cmd.strVal1[argLen - 1] == ' ' ||
+     !parse_3ints(cmd.strVal1, ' ', vMin, vKb, vAlpha)) {
+ _cmdMgr->printError(pt ? "Uso: user policy <min> <teclado 1|2|3> <alfabeto 0|1>"
+                        : "Usage: user policy <min> <keypad 1|2|3> <alphabet 0|1>");
+ return;
+ }
+ if (vMin < 0 || vMin > 255 || vKb < 0 || vAlpha < 0 ||
+     !isValidPinPolicy((uint8_t)vMin, (uint8_t)vKb, (uint8_t)vAlpha)) {
+ _cmdMgr->printError(pt ? "Politica invalida: min 4..16/12/8 por teclado 1/2/3; alfabeto 1 nao usa teclado 1"
+                        : "Invalid policy: min 4..16/12/8 for keypad 1/2/3; alphabet 1 has no keypad 1");
+ return;
+ }
+ const uint8_t oMin = cfg.pinAuth.pinMinLen, oKb = cfg.pinAuth.pinKeypad,
+               oAlpha = cfg.pinAuth.pinAlphabet;
+ cfg.pinAuth.pinMinLen   = (uint8_t)vMin;
+ cfg.pinAuth.pinKeypad   = (uint8_t)vKb;
+ cfg.pinAuth.pinAlphabet = (uint8_t)vAlpha;
+ const uint8_t marked = _storageMgr->markPinsBelowPolicy(oMin, oKb, oAlpha);
+ changed = true;
+ _cmdMgr->printSuccess(String(pt ? "Politica: " : "Policy: ") + vMin + "/" + vKb + "/" +
+                       vAlpha + (pt ? " - renovar: " : " - to renew: ") + marked);
+ LOG_CODE(LOG_WARN, "APP", APP_UI_PIN_POLICY, vMin * 100 + vKb * 10 + vAlpha,
+          String(TRL("PIN policy changed")) + " [CLI]");
+}
+
+/**
+ * @brief `user pin <name> <pin|off>` — the account's panel PIN.
  *
  * The one way to give a web-created account a PIN without the web page, and
- * the way a bench script does it. Unique across accounts, because the panel
- * identifies BY the PIN; a duplicate is refused and the owner named. `off`
- * removes it. Config mode only, like the rest of `user`.
+ * the way a bench script does it. The LENGTH and the ALPHABET are the stored
+ * policy's since v25, so this verb and the panel cannot disagree; unique
+ * across accounts; `off` removes it. Config mode only, like the rest of
+ * `user`.
  */
 void AppManager::cmdHandleUserPin(const CliDemand& cmd, SystemConfig& cfg, bool& changed) {
  const bool pt = _cmdMgr->isPt( );
@@ -792,8 +853,13 @@ void AppManager::cmdHandleUserPin(const CliDemand& cmd, SystemConfig& cfg, bool&
  changed = true;
  return;
  }
- if (!isValidPanelPin(cmd.strVal2)) {
- _cmdMgr->printError(pt ? "PIN invalido: 4 a 8 digitos" : "Invalid PIN: 4 to 8 digits");
+ uint8_t pMin = cfg.pinAuth.pinMinLen, pKb = cfg.pinAuth.pinKeypad,
+         pAlpha = cfg.pinAuth.pinAlphabet;
+ clampPinPolicy(pMin, pKb, pAlpha);
+ if (!isValidPanelPin(cmd.strVal2, pMin, pKb, pAlpha)) {
+ _cmdMgr->printError(String(pt ? "PIN invalido: " : "Invalid PIN: ") + pMin + ".." +
+                     PinKb::maxLenFor(pKb) +
+                     (pAlpha == PinKb::ALPHA_ALNUM ? " [0-9A-Z]" : " [0-9]"));
  return;
  }
  int conflict = -1;
@@ -808,6 +874,7 @@ void AppManager::cmdHandleUserPin(const CliDemand& cmd, SystemConfig& cfg, bool&
  String(TRL("CLI set panel PIN: ")) + cfg.users[slot].username);
  changed = true;
 }
+#endif /* SIMUT_PANEL_PIN */
 
 /* cmdHandleDbgSensorHistoryAll removido (debug TEST-ONLY
  * de v3.24.12 — recovery de provisionEpoch via BT). Liberou ~1-2 KB.

@@ -74,11 +74,71 @@ hand_release_all
   coletor até ~30 s depois da ação (retry da linha = 15 s). Esperar isso entre
   toques bate no guarda de 30 s ociosos, que devolve o painel ao dashboard:
   faça as ações, depois confira (`tools/panel_users_hw_test.py`).
-- **O teclado do PIN é embaralhado: descubra o sorteio antes de tocar.** Os dez
-  dígitos e dois símbolos de enchimento são distribuídos em 4 cartões de 3
-  posições a cada abertura da tela (e de novo após um PIN recusado e entre as
-  duas digitações de um PIN novo), então nenhuma coordenada é estável.
-  `show display keypad` imprime os quatro cartões em ordem de sorteio — só
+- **Desde a v25, Configurações abre o SELETOR DE CONTA, não o teclado**
+  (`MODE_AUTH_USER`, UI mode 27). O fluxo é dashboard → CFG → escolher a conta
+  → teclado (UI mode 5). Três armadilhas medidas em 20/09: escolher a conta
+  por ÍNDICE erra num rig que tem contas que o script não criou (use o NOME —
+  `Rig.pick_user('nome')`); um PIN RECUSADO deixa o teclado na tela e SAIR dele
+  volta ao dashboard, não ao seletor (`Rig.reopen_picker( )`); e com mais de
+  oito contas as setas saltam PÁGINA, então a linha alvo não é a selecionada e
+  precisa de DOIS toques — um só deixa o seletor no vidro e o teclado nunca
+  abre ("keypad not on screen (got 0 faces)").
+- ⚠️ **Nem todo comando roda dentro de `configure terminal`.** `tel …` e
+  `alarm set …` são de CONFIGURAÇÃO; **`sensor <slot> <campo> <valor>` é EXEC
+  privilegiado** e, dentro do `configure terminal`, responde "Comando requer
+  modo privilegiado" e **não muda nada**. Como ninguém lê a resposta, a falha é
+  silenciosa: em 20/09 um `sensor 0 alarm on` por `Rig.cfg( )` devolveu OK e
+  deixou o alarme desligado, e só apareceu ao conferir o `/api/alarms` depois.
+  **Confira o efeito pela API, não pelo retorno do comando.**
+- 🔴 **`active` do `/api/alarms` é o bit de ALARME LIGADO** (`alarmsActive`,
+  `WebManager_Api.cpp:393`), **não** "o sensor existe". A lista de alarmes do
+  painel é montada de `sensors[i].active` (sensor CONFIGURADO,
+  `DisplayManager_Settings.cpp:86`). Como o `/api/alarms` só emite os
+  configurados, **em ordem de índice, a resposta JÁ É a lista do painel: o
+  elemento `k` é a linha `k`** — não filtre nada. Filtrar por `active` deixou
+  as duas bancadas apontando para o sensor 4 enquanto tocavam a linha 0 (sensor
+  0), e o `ctx=500` correto do log foi lido como defeito por uma tarde.
+- 🔴 **O teto de falhas do painel só o BOOT limpa.** `PinKb::PANEL_FAIL_CEILING`
+  (20) falhas ligam `_permanentLockout`, e daí toda visita às Configurações
+  repinta "Tentativas Excedidas" em vez de abrir o seletor. Um login
+  bem-sucedido zera `_failedAttempts` e `_failBySlot`, mas **nunca**
+  `_permanentLockout` nem `_slotLocked` — é de propósito. Uma suíte inteira
+  gasta ~3 PINs errados, mas **re-execuções parciais acumulam**: em 20/09 sete
+  verificações falharam sem NENHUM registro no log porque todo toque caía na
+  tela de bloqueio. `step_prep` começa por `Rig.reboot( )` desde então.
+- **O menu do sensor abre na primeira linha que a conta PODE usar**, então
+  `activate_row(1)` só acerta "bloquear" para quem tem mais de um bit. Uma
+  conta com um bit só já abre nessa linha.
+- **O teclado do PIN é embaralhado: descubra o sorteio antes de tocar.** O
+  alfabeto é distribuído em cartões a cada abertura da tela (e de novo após um
+  PIN recusado e entre as duas digitações de um PIN novo), então nenhuma
+  coordenada é estável — **quando o teclado é sorteado**. ⚠️ **Desde a v25 o
+  NÚMERO de cartões depende da política**: dígitos com 3 glifos dá 4 cartões
+  (10 dígitos + 2 de enchimento), e as outras dão 6, 12 ou 18 (`PinKb::GRIDS`).
+  Um script que assume quatro só funciona sob uma política — em 20/09 o
+  `_card_of` procurava em `range(4)` e anunciou "'5' is on no card" imprimindo
+  uma lista cujo último cartão era `'56'`. **Leia a grade e a política de
+  `GET /api/keypad`** (`grid` = keys, slots, cols, rows, x, y, w, h, pitchX,
+  pitchY; `policy` = minLen, maxLen, teclado, alfabeto), nunca de constantes.
+- 🔑 **Com 1 glifo por tecla NÃO há sorteio**: o teclado é ORDENADO, porque um
+  conjunto de um não esconde nada de quem lê o vidro e embaralhar só custa a
+  memória muscular do operador. O campo **`kb`** do `/api/keypad` diz qual
+  está no vidro e **a interação de cada um é diferente**:
+  | `kb` | o que é | toques por caractere |
+  |---|---|---|
+  | `cards` | cartões sorteados, **re-sorteados a cada toque** | 1 (o cartão) |
+  | `num` | pad numérico 1..9/0, duas células VAZIAS | 1 |
+  | `groups` | 9 grupos (`0-9 ABC … WXYZ`) + popup | **2** (grupo, caractere) |
+  ⚠️ Num teclado ordenado **não espere re-sorteio** (`fresh_faces` esperaria
+  para sempre) e **não descarte faces vazias** — elas são posicionais, e o pad
+  numérico tem duas. A geometria do popup vem em **`pop`** = keyW, keyH, gap,
+  y(1 linha), y(linha 0), y(linha 1); uma linha de `m` teclas começa em
+  `(320 - (m*keyW + (m-1)*gap)) / 2`.
+- **A tela de ESCOLHER um PIN é sempre ordenada**, qualquer que seja a
+  política — escolher não é o problema que o embaralhamento resolve. Ela também
+  responde ao `/api/keypad` agora, então `pin_exact( )` lê a geometria como
+  todo o resto em vez de carregar a sua cópia do pad numérico.
+  `show display keypad` imprime os cartões em ordem de sorteio — só
   responde com o teclado na tela. ⚠️ **São DUAS telas**: ao IDENTIFICAR, os cartões
   sorteados, e o cartão inteiro é um botão (`Rig.pin( )` toca no centro do
   cartão que contém o dígito); ao DEFINIR um PIN, um teclado numérico COMUM de

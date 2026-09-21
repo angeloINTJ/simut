@@ -339,7 +339,7 @@ void DisplayManager::showSettingsMain( ) {
   * historical table order (icon id = item id = EVT_MENU_SELECT id); only the
   * VISIBLE list changes per account. Items with no bit are for everyone:
   * the PIN (one's own), the license and the status screen. */
- static const uint16_t NEED[10] = {
+ static const uint16_t NEED[11] = {
  PERM_SYS_CONFIG,      /* 0 themes */
  PERM_PANEL_ALARM_ANY, /* 1 alarms */
  PERM_SYS_CONFIG,      /* 2 sounds */
@@ -349,10 +349,11 @@ void DisplayManager::showSettingsMain( ) {
  0,                    /* 6 license */
  0,                    /* 7 status */
  PERM_SYS_CONFIG,      /* 8 display offset */
- PERM_USER_MGR         /* 9 users */
+ PERM_USER_MGR,        /* 9 users */
+ PERM_USER_MGR         /* 10 PIN policy (v25) */
  };
  _menuCount = 0;
- for (uint8_t i = 0; i < 10; i++) {
+ for (uint8_t i = 0; i < 11; i++) {
  if (NEED[i] == 0 || (_panelPerms & NEED[i])) _menuItems[_menuCount++] = i;
  }
  _forceSettingsRedraw = true; _repaintSettings = true;
@@ -361,7 +362,12 @@ void DisplayManager::showSettingsMain( ) {
 
 /* "3. Alarm Sounds" -> "Alarm Sounds": the numbers in the menu labels are
  * table positions, and a filtered menu would show "2." on its first row. */
-static const char* menuLabelNoNumber(const char* s) {
+/* "11. PIN security" is one string doing two jobs: the menu row keeps its
+ * number and the screen title drops it, which is the rule this menu already
+ * had for a filtered list. One string instead of two matters here — the
+ * es-ES pack is 87 B from its 16 KB resident ceiling, and a pack that
+ * overflows is rejected whole and silently reverts the UI to English. */
+const char* DisplayManager::menuLabelNoNumber(const char* s) {
  const char* p = s;
  while (*p >= '0' && *p <= '9') p++;
  if (p != s && p[0] == '.' && p[1] == ' ') return p + 2;
@@ -372,7 +378,7 @@ void DisplayManager::drawSettingsMain( ) {
  if(!_driver.canvas) return;
  bool fullRedraw = _forceSettingsRedraw; bool pageChanged = (_mainMenuPage != _lastMainMenuPage);
  const int TOTAL_ITEMS = _menuCount;
- static const LangKey menuItems[10] = {TR_MENU_THEMES, TR_MENU_ALARMS, TR_MENU_SOUNDS, TR_MENU_LANG, TR_MENU_PASSWORD, TR_MENU_TOUCH_CAL, TR_MENU_LICENSE, TR_MENU_STATUS, TR_MENU_DISPLAY_OFFSET, TR_MENU_USERS};
+ static const LangKey menuItems[11] = {TR_MENU_THEMES, TR_MENU_ALARMS, TR_MENU_SOUNDS, TR_MENU_LANG, TR_MENU_PASSWORD, TR_MENU_TOUCH_CAL, TR_MENU_LICENSE, TR_MENU_STATUS, TR_MENU_DISPLAY_OFFSET, TR_MENU_USERS, TR_PIN_POLICY};
  int totalPages = (TOTAL_ITEMS + 3) / 4; if (totalPages == 0) totalPages = 1;
  if (_mainMenuPage >= totalPages) _mainMenuPage = totalPages - 1;
  if (_mainMenuPage < 0) _mainMenuPage = 0;
@@ -431,12 +437,14 @@ void DisplayManager::drawSettingsMain( ) {
  if (!isSelected) _driver.canvas->drawRoundRect(0, 0, itemW, 34, 8, C_TEXT_SUB);
  /* Items keep their table order, so the icon id IS the item id:
   * 0 themes, 1 alarms, 2 sounds, 3 lang, 4 PIN, 5 touch-cal,
-  * 6 license, 7 status, 8 display-offset, 9 users. */
- uiMenuIcon(_driver.canvas, 10, 9, item,
+  * 6 license, 7 status, 8 display-offset, 9 users. The v25 item 10 (PIN
+  * policy) borrows the PIN icon: it is the same subject, and a new glyph is
+  * flash for a picture nobody would read differently. */
+ uiMenuIcon(_driver.canvas, 10, 9, (item == 10) ? 4 : item,
  isSelected ? C_BG_MAIN : C_ACCENT);
  _driver.canvas->setFont(&simutFont9pt); _driver.canvas->setTextColor(txt);
  const char* label = tr(menuItems[item]);
- if (_menuCount < 10) label = menuLabelNoNumber(label);
+ if (_menuCount < 11) label = menuLabelNoNumber(label);
  _driver.canvas->setCursor(34, 24); _driver.canvas->print(label);
  _driver.canvas->fillTriangle(itemW - 20, 11, itemW - 20, 23, itemW - 10, 17, isSelected ? C_BG_MAIN : C_TEXT_SUB);
  }

@@ -123,7 +123,10 @@ private:
  void cmdHandleAcceptSensor(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
  void cmdHandleUserAdd(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
  void cmdHandleUserPerm(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
+#if SIMUT_PANEL_PIN
  void cmdHandleUserPin(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
+ void cmdHandleUserPolicy(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
+#endif
  void cmdHandleSetTime(const CliDemand& cmd);
  void cmdHandleIpCfg(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
  void cmdHandleDnsCfg(const CliDemand& cmd, SystemConfig& cfg, bool& changed);

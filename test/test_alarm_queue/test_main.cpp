@@ -21,6 +21,7 @@
 #include "AlarmPayload.h"
 #include "ConfigApply.h"
 #include "ConfigMigrate.h" /* v24: legacy config blobs by segment, sizes frozen */
+#include "SystemDefs_Validate.h" /* v25: clampPinPolicy — a migrated v24 blob carries no policy */
 
 /* ── FIFO e push básico ─────────────────────────────────────────────────── */
 static void test_push_fifo_order(void) {
@@ -522,6 +523,84 @@ void test_v24_alarm_lim_carries_both_limits(void) {
     TEST_ASSERT_EQUAL_STRING("{\"ts\":1700000100,\"id\":\"tS2\",\"alarm\":\"alarm_on\",\"user\":\"admin\",\"seq\":12}", out);
 }
 
+/* v25 — a assinatura de um registro pendente sobrevive ao apagamento da conta.
+ *
+ * Até a v24 o nome era resolvido na hora de montar o payload, lendo
+ * cfg.users[actor-1]. A fila espera o servidor confirmar, o slot é
+ * reutilizável, e apagar uma conta nesse intervalo fazia o registro sair
+ * assinado por quem tomasse o slot depois — num registro de AUDITORIA. */
+/* Espelho de StorageManager::wipeUserAccount — a função real vive num .cpp que
+ * o env native nao compila (Arduino/LittleFS). O que se testa aqui e o
+ * CONTRATO: depois do wipe nao sobra byte nenhum do dono anterior. */
+static void StorageManagerStub_wipe(UserAccount& u) {
+    volatile uint8_t* p = (volatile uint8_t*)&u;
+    for (size_t i = 0; i < sizeof(UserAccount); i++) p[i] = 0;
+}
+
+void test_v25_wipe_leaves_nothing_of_the_previous_owner(void) {
+    UserAccount u;
+    memset(&u, 0xAB, sizeof(u));
+    u.active = true;
+    snprintf(u.username, sizeof(u.username), "%s", "fulano");
+    u.permissions = 0xFFFF;
+    StorageManagerStub_wipe(u);
+    const uint8_t* p = (const uint8_t*)&u;
+    for (size_t i = 0; i < sizeof(UserAccount); i++)
+        TEST_ASSERT_EQUAL_UINT8_MESSAGE(0, p[i], "byte do dono anterior sobreviveu ao wipe");
+    TEST_ASSERT_FALSE(u.active);
+    TEST_ASSERT_EQUAL_STRING("", u.username);
+    TEST_ASSERT_EQUAL_UINT16(0, u.permissions);
+    /* e um registro apagado nao "tem PIN" */
+    bool any = false;
+    for (size_t i = 0; i < PIN_HASH_LEN; i++) if (u.pinHash[i]) any = true;
+    TEST_ASSERT_FALSE(any);
+}
+
+void test_v25_actor_name_is_frozen_at_push(void) {
+    SystemConfig cfg; fillV24Cfg(cfg);
+    const int SLOT = 3;
+    TEST_ASSERT_TRUE(cfg.users[SLOT].active);
+    char whoActed[16];
+    snprintf(whoActed, sizeof(whoActed), "%s", cfg.users[SLOT].username);
+
+    AlarmQueue q(4);
+    q.push(1700000300u, 2, CH_TEMP, 2500, ALARM_ERR_ALARM_ON,
+           alarmActorFromSlot(SLOT), 0, cfg.users[SLOT].username);
+    AlarmRecord got[1];
+    TEST_ASSERT_EQUAL_UINT8(1, q.snapshot(got, 1));
+    TEST_ASSERT_EQUAL_STRING(whoActed, got[0].user);
+    TEST_ASSERT_EQUAL_STRING(whoActed, alarmActorName(got[0], cfg));
+
+    /* a conta é apagada e o slot é tomado por outra pessoa */
+    StorageManagerStub_wipe(cfg.users[SLOT]);
+    snprintf(cfg.users[SLOT].username, sizeof(cfg.users[SLOT].username), "%s", "outra");
+    cfg.users[SLOT].active = true;
+    /* o registro continua nomeando quem agiu */
+    TEST_ASSERT_EQUAL_STRING(whoActed, alarmActorName(got[0], cfg));
+    char out[256];
+    TEST_ASSERT_TRUE(alarmFormatLine(got[0], cfg, out, sizeof(out)) > 0);
+    TEST_ASSERT_NOT_NULL(strstr(out, whoActed));
+    TEST_ASSERT_NULL(strstr(out, "outra"));
+
+    /* nome longo demais é truncado, nunca estoura o campo */
+    AlarmQueue q2(2);
+    q2.push(1, 0, CH_TEMP, 0, ALARM_ERR_ALARM_ON, alarmActorFromSlot(1), 0,
+            "nome-muito-comprido-demais");
+    AlarmRecord g2[1];
+    TEST_ASSERT_EQUAL_UINT8(1, q2.snapshot(g2, 1));
+    TEST_ASSERT_EQUAL_UINT(15, strlen(g2[0].user));
+    TEST_ASSERT_EQUAL_STRING("nome-muito-comp", g2[0].user);
+
+    /* sem nome, cai no comportamento da v24 (registro que já estava na fila
+     * num upgrade a quente) */
+    AlarmQueue q3(2);
+    q3.push(1, 0, CH_TEMP, 0, ALARM_ERR_ALARM_ON, alarmActorFromSlot(0), 0);
+    AlarmRecord g3[1];
+    q3.snapshot(g3, 1);
+    TEST_ASSERT_EQUAL_STRING("", g3[0].user);
+    TEST_ASSERT_EQUAL_STRING(cfg.users[0].username, alarmActorName(g3[0], cfg));
+}
+
 void test_v24_actor_zero_is_nobody_and_old_records_are_unchanged(void) {
     SystemConfig cfg; fillV24Cfg(cfg);
     /* um registro da forma antiga (7 campos) deixa actor e value2 em zero */
@@ -579,6 +658,31 @@ static void expectOnly(const SystemConfig& a, const SystemConfig& b, uint32_t bi
     SystemConfig scratch = a;
     const uint32_t m = classifyConfigChanges(scratch, b);
     TEST_ASSERT_EQUAL_HEX32(bit, m);
+}
+
+/* The `before` argument is CONSUMED — it becomes the fail-safe probe in place.
+ * That is deliberate (a 6.7 kB local would blow the web handler's stack) and
+ * the declaration says so in capitals, but a caller that hands it the LIVE
+ * configuration copies the staged values straight into the running device.
+ * That is exactly what happened on 2026-09-20: `_dry=1` — the flag whose whole
+ * promise is "nothing changes" — changed the timezone, the sampling interval
+ * and an alarm limit for real, and a later save carried them to flash.
+ * Asserting the mutation here makes the contract a fact the suite checks,
+ * instead of a sentence somebody has to read. */
+void test_classify_consumes_its_before(void) {
+    SystemConfig before; memset(&before, 0, sizeof(before));
+    SystemConfig after;  memset(&after, 0, sizeof(after));
+    before.timezoneOffset = -3;
+    after.timezoneOffset  = -5;
+    TEST_ASSERT_EQUAL_INT(-3, before.timezoneOffset);
+
+    const uint32_t m = classifyConfigChanges(before, after);
+    TEST_ASSERT_EQUAL_HEX32(CFG_TIME, m);
+    /* The probe now holds `after`: the caller's snapshot is gone. */
+    TEST_ASSERT_EQUAL_INT(-5, before.timezoneOffset);
+    /* And a second pass over the same pair therefore reports nothing — which
+     * is the symptom a caller sees when it reused the buffer by mistake. */
+    TEST_ASSERT_EQUAL_HEX32(CFG_NONE, classifyConfigChanges(before, after));
 }
 
 void test_classify_names_each_group_alone(void) {
@@ -731,6 +835,7 @@ static void test_cfgmig_sizes_are_literals_and_current_is_not_legacy(void) {
     TEST_ASSERT_EQUAL_INT(CFG_LEGACY_V20, configLegacyKind(3921));
     TEST_ASSERT_EQUAL_INT(CFG_LEGACY_V22, configLegacyKind(4732));
     TEST_ASSERT_EQUAL_INT(CFG_LEGACY_V23, configLegacyKind(4796));
+    TEST_ASSERT_EQUAL_INT(CFG_LEGACY_V24, configLegacyKind(6734));
     TEST_ASSERT_EQUAL_INT(CFG_LEGACY_NONE, configLegacyKind(sizeof(SystemConfig) + 4));
     TEST_ASSERT_EQUAL_INT(CFG_LEGACY_NONE, configLegacyKind(4795));
     TEST_ASSERT_EQUAL_INT(CFG_LEGACY_NONE, configLegacyKind(0));
@@ -738,9 +843,67 @@ static void test_cfgmig_sizes_are_literals_and_current_is_not_legacy(void) {
     TEST_ASSERT_EQUAL_UINT(3917, CFG_V20_BLOB);
     TEST_ASSERT_EQUAL_UINT(4728, CFG_V22_BLOB);
     TEST_ASSERT_EQUAL_UINT(4792, CFG_V23_BLOB);
-    TEST_ASSERT_EQUAL_UINT(6730, sizeof(SystemConfig));
+    TEST_ASSERT_EQUAL_UINT(6730, CFG_V24_BLOB);
+    TEST_ASSERT_EQUAL_UINT(6738, sizeof(SystemConfig));
     TEST_ASSERT_EQUAL_UINT(70, sizeof(UserAccount));
     TEST_ASSERT_EQUAL_UINT(32, MAX_USERS);
+}
+
+/* v24 -> v25: the layout did not change, it grew. Everything a v24 blob holds
+ * has to land at the same offset, and the four policy bytes plus the
+ * must-change map have to arrive ZERO — which is not a valid policy, and is
+ * exactly why the loader clamps them to the v24 behaviour instead of trusting
+ * them. A v24 device that upgrades must behave identically until somebody
+ * opens the policy screen. */
+static void test_cfgmig_v24_grows_without_moving_anything(void) {
+    static uint8_t blob[CFG_V24_BLOB];
+    memset(blob, 0, sizeof(blob));
+    fillLegacyHead(blob, 24);
+    /* v24 already has 32 accounts of 70 bytes, so the head is this struct's
+     * own layout: write through a same-shaped struct and truncate. */
+    static SystemConfig src;
+    memset(&src, 0, sizeof(src));
+    memcpy(&src, blob, CFG_LEGACY_HEAD_LEN);
+    src.users[31].active = true;
+    strcpy(src.users[31].username, "last");
+    src.users[31].pinHash[0] = 0x5A;
+    src.maint.until[15] = 0x12345678;
+    src.pinAuth.pinSalt[7] = 0xC3;
+    /* the bytes a v24 file does NOT have */
+    src.pinAuth.pinMinLen = 9; src.pinAuth.pinKeypad = 2;
+    src.pinAuth.pinAlphabet = 1; src.pinAuth.pinMustChange = 0xFFFFFFFF;
+    memcpy(blob, &src, CFG_V24_BLOB);   /* truncates exactly at pinMinLen */
+
+    static SystemConfig out;
+    memset(&out, 0xEE, sizeof(out));
+    TEST_ASSERT_TRUE(configMigrateLegacy(blob, sizeof(blob), CFG_LEGACY_V24, out));
+
+    TEST_ASSERT_EQUAL_UINT32(CONFIG_MAGIC, out.magic);
+    TEST_ASSERT_EQUAL_UINT16(24, out.version);      /* the caller stamps 25 */
+    TEST_ASSERT_TRUE(out.users[31].active);
+    TEST_ASSERT_EQUAL_STRING("last", out.users[31].username);
+    TEST_ASSERT_EQUAL_UINT8(0x5A, out.users[31].pinHash[0]);
+    TEST_ASSERT_EQUAL_UINT32(0x12345678u, out.maint.until[15]);
+    TEST_ASSERT_EQUAL_UINT8(0xC3, out.pinAuth.pinSalt[7]);
+    /* the tail the old file did not carry */
+    TEST_ASSERT_EQUAL_UINT8(0, out.pinAuth.pinMinLen);
+    TEST_ASSERT_EQUAL_UINT8(0, out.pinAuth.pinKeypad);
+    TEST_ASSERT_EQUAL_UINT8(0, out.pinAuth.pinAlphabet);
+    TEST_ASSERT_EQUAL_UINT32(0u, out.pinAuth.pinMustChange);
+    /* and what the loader makes of it: the v24 behaviour, exactly */
+    uint8_t mn = out.pinAuth.pinMinLen, kb = out.pinAuth.pinKeypad,
+            al = out.pinAuth.pinAlphabet;
+    clampPinPolicy(mn, kb, al);
+    TEST_ASSERT_EQUAL_INT(4, mn);
+    TEST_ASSERT_EQUAL_INT(PinKb::KB_SET3, kb);
+    TEST_ASSERT_EQUAL_INT(PinKb::ALPHA_DIGITS, al);
+
+    /* wrong version stamp, wrong length, wrong kind: all refused */
+    blob[4] = 23;
+    TEST_ASSERT_FALSE(configMigrateLegacy(blob, sizeof(blob), CFG_LEGACY_V24, out));
+    blob[4] = 24;
+    TEST_ASSERT_FALSE(configMigrateLegacy(blob, sizeof(blob) - 1, CFG_LEGACY_V24, out));
+    TEST_ASSERT_FALSE(configMigrateLegacy(blob, sizeof(blob), CFG_LEGACY_V23, out));
 }
 
 static void test_cfgmig_v23_every_segment_lands(void) {
@@ -863,13 +1026,17 @@ int main(int argc, char** argv) {
     RUN_TEST(test_maint_line_renders_only_the_maint_key);
     RUN_TEST(test_v24_maint_on_carries_until_and_user);
     RUN_TEST(test_v24_alarm_lim_carries_both_limits);
+    RUN_TEST(test_v25_wipe_leaves_nothing_of_the_previous_owner);
+    RUN_TEST(test_v25_actor_name_is_frozen_at_push);
     RUN_TEST(test_v24_actor_zero_is_nobody_and_old_records_are_unchanged);
     RUN_TEST(test_v24_csv_appends_four_columns);
+    RUN_TEST(test_classify_consumes_its_before);
     RUN_TEST(test_classify_names_each_group_alone);
     RUN_TEST(test_classify_reports_nothing_when_nothing_changed);
     RUN_TEST(test_classify_combines_groups);
     RUN_TEST(test_reboot_classes_are_exactly_the_ones_that_reboot);
     RUN_TEST(test_cfgmig_sizes_are_literals_and_current_is_not_legacy);
+    RUN_TEST(test_cfgmig_v24_grows_without_moving_anything);
     RUN_TEST(test_cfgmig_v23_every_segment_lands);
     RUN_TEST(test_cfgmig_v22_and_v20_stop_where_their_tails_stop);
     RUN_TEST(test_cfgmig_refuses_wrong_magic_version_or_length);

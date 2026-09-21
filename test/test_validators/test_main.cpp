@@ -2646,72 +2646,273 @@ void test_panel_pin_validator(void) {
         char pin[5] = { '1', '2', '3', PinKb::DECOY_POOL[i] };
         pin[4] = '\0';
         TEST_ASSERT_FALSE(isValidPanelPin(pin));
-        TEST_ASSERT_FALSE(PinKb::isDigitChar(PinKb::DECOY_POOL[i]));
+        TEST_ASSERT_FALSE(PinKb::isPinChar(PinKb::DECOY_POOL[i]));
     }
 
-    /* Every character the keypad can produce must pass on its own, so that
-     * the four cards and this validator cannot disagree about one glyph. */
-    for (char c = PinKb::FIRST; c <= PinKb::LAST; c++) {
-        char pin[5] = { '1', '2', '3', c };
-        pin[4] = '\0';
-        TEST_ASSERT_TRUE(isValidPanelPin(pin));
-        TEST_ASSERT_TRUE(PinKb::isDigitChar(c));
+    /* Every character each alphabet can produce must pass on its own, so that
+     * the cards and this validator cannot disagree about one glyph. */
+    for (uint8_t a = 0; a < PinKb::ALPHA_COUNT; a++) {
+        const char* set = PinKb::alphaChars(a);
+        for (int i = 0; i < PinKb::alphaCount(a); i++) {
+            char pin[5] = { '1', '2', '3', set[i] };
+            pin[4] = '\0';
+            TEST_ASSERT_TRUE(PinKb::isPinChar(set[i]));
+            TEST_ASSERT_TRUE(PinKb::inAlphabet(set[i], a));
+            TEST_ASSERT_TRUE(isValidPanelPin(pin, 4, PinKb::KB_SET3, a));
+        }
+    }
+    /* A letter is in one alphabet and not the other — that asymmetry is the
+     * whole reason the alphabet cannot shrink without marking PINs. */
+    TEST_ASSERT_TRUE(PinKb::inAlphabet('Z', PinKb::ALPHA_ALNUM));
+    TEST_ASSERT_FALSE(PinKb::inAlphabet('Z', PinKb::ALPHA_DIGITS));
+    TEST_ASSERT_FALSE(PinKb::inAlphabet('z', PinKb::ALPHA_ALNUM));  /* upper only */
+}
+
+/* v25 — the policy. The two rules are physical and both are enforced here:
+ * a pair must have a layout, and the minimum must fit under the keypad's
+ * length ceiling (which is a CPU budget, see PinKeypad.h). */
+void test_pin_policy_rules(void) {
+    /* The ceilings are the ones the CPU note justifies, in order. */
+    TEST_ASSERT_EQUAL_INT(16, PinKb::maxLenFor(PinKb::KB_PLAIN));
+    TEST_ASSERT_EQUAL_INT(12, PinKb::maxLenFor(PinKb::KB_SET2));
+    TEST_ASSERT_EQUAL_INT(8,  PinKb::maxLenFor(PinKb::KB_SET3));
+    /* A longer PIN on a wider card is the combination that costs Core 0 the
+     * budget: S^n nodes at ~36.6 us each. Every allowed pair stays under
+     * 16,384 nodes; the first refused one is over it. */
+    for (uint8_t kb = PinKb::KB_MIN; kb <= PinKb::KB_MAX; kb++) {
+        long nodes = 0, pow = 1;
+        for (int n = 1; n <= PinKb::maxLenFor(kb); n++) { pow *= kb; nodes += pow; }
+        TEST_ASSERT_TRUE_MESSAGE(nodes <= 16384, "a keypad ceiling grew past its CPU budget");
+    }
+
+    TEST_ASSERT_TRUE(isValidPinPolicy(4, PinKb::KB_SET3, PinKb::ALPHA_DIGITS));
+    TEST_ASSERT_TRUE(isValidPinPolicy(8, PinKb::KB_SET3, PinKb::ALPHA_DIGITS));
+    TEST_ASSERT_FALSE(isValidPinPolicy(9, PinKb::KB_SET3, PinKb::ALPHA_DIGITS));
+    TEST_ASSERT_TRUE(isValidPinPolicy(12, PinKb::KB_SET2, PinKb::ALPHA_ALNUM));
+    TEST_ASSERT_FALSE(isValidPinPolicy(13, PinKb::KB_SET2, PinKb::ALPHA_ALNUM));
+    TEST_ASSERT_TRUE(isValidPinPolicy(16, PinKb::KB_PLAIN, PinKb::ALPHA_DIGITS));
+    TEST_ASSERT_FALSE(isValidPinPolicy(17, PinKb::KB_PLAIN, PinKb::ALPHA_DIGITS));
+    TEST_ASSERT_FALSE(isValidPinPolicy(3, PinKb::KB_SET3, PinKb::ALPHA_DIGITS));
+    /* 36 characters one per key had no finger-sized layout while KB_PLAIN was
+     * a shuffled grid of 36 keys. It is the two-tap GROUP keyboard now — nine
+     * keys and a popup — so the pair is allowed, with the same 16 the other
+     * ordered keyboard gets (a set of one searches nothing, so the ceiling is
+     * the buffer, not the clock). */
+    TEST_ASSERT_TRUE(isValidPinPolicy(4, PinKb::KB_PLAIN, PinKb::ALPHA_ALNUM));
+    TEST_ASSERT_TRUE(isValidPinPolicy(16, PinKb::KB_PLAIN, PinKb::ALPHA_ALNUM));
+    TEST_ASSERT_FALSE(isValidPinPolicy(17, PinKb::KB_PLAIN, PinKb::ALPHA_ALNUM));
+    /* Out-of-range values are refused, not wrapped. */
+    TEST_ASSERT_FALSE(isValidPinPolicy(4, 0, PinKb::ALPHA_DIGITS));
+    TEST_ASSERT_FALSE(isValidPinPolicy(4, 4, PinKb::ALPHA_DIGITS));
+    TEST_ASSERT_FALSE(isValidPinPolicy(4, PinKb::KB_SET3, 2));
+
+    /* The clamp is what a v24 blob (all zeros here) lands on: the v24
+     * behaviour, so an upgrade changes nothing until somebody edits it. */
+    uint8_t mn = 0, kb = 0, al = 0;
+    clampPinPolicy(mn, kb, al);
+    TEST_ASSERT_EQUAL_INT(4, mn);
+    TEST_ASSERT_EQUAL_INT(PinKb::KB_SET3, kb);
+    TEST_ASSERT_EQUAL_INT(PinKb::ALPHA_DIGITS, al);
+    TEST_ASSERT_TRUE(isValidPinPolicy(mn, kb, al));
+    /* An out-of-range length clamps to a possible one instead of a blank grid. */
+    mn = 200; kb = PinKb::KB_PLAIN; al = PinKb::ALPHA_ALNUM;
+    clampPinPolicy(mn, kb, al);
+    TEST_ASSERT_TRUE(isValidPinPolicy(mn, kb, al));
+    /* Whatever comes in, the clamp's output is always valid. */
+    for (int m = 0; m < 20; m++)
+        for (uint8_t k = 0; k < 5; k++)
+            for (uint8_t a = 0; a < 4; a++) {
+                uint8_t vm = (uint8_t)m, vk = k, va = a;
+                clampPinPolicy(vm, vk, va);
+                TEST_ASSERT_TRUE(isValidPinPolicy(vm, vk, va));
+            }
+
+    /* The length rule follows the policy, both ends. */
+    TEST_ASSERT_TRUE(isValidPanelPin("123456", 6, PinKb::KB_SET3, PinKb::ALPHA_DIGITS));
+    TEST_ASSERT_FALSE(isValidPanelPin("12345", 6, PinKb::KB_SET3, PinKb::ALPHA_DIGITS));
+    TEST_ASSERT_TRUE(isValidPanelPin("ABC123", 4, PinKb::KB_SET3, PinKb::ALPHA_ALNUM));
+    TEST_ASSERT_FALSE(isValidPanelPin("ABC123", 4, PinKb::KB_SET3, PinKb::ALPHA_DIGITS));
+    TEST_ASSERT_TRUE(isValidPanelPin("1234567890AB", 4, PinKb::KB_SET2, PinKb::ALPHA_ALNUM));
+    TEST_ASSERT_FALSE(isValidPanelPin("1234567890ABC", 4, PinKb::KB_SET2, PinKb::ALPHA_ALNUM));
+}
+
+/* KB_PLAIN is not dealt: one glyph per key means the tap names the character,
+ * so shuffling hides nothing from anyone who can read the glass and only costs
+ * the operator their muscle memory. What it gets instead is an ORDERED
+ * keyboard per alphabet — the numeric pad, or nine groups and a popup. */
+void test_pin_plain_keypad_is_ordered_and_complete(void) {
+    TEST_ASSERT_TRUE(PinKb::isOrdered(PinKb::KB_PLAIN));
+    TEST_ASSERT_FALSE(PinKb::isOrdered(PinKb::KB_SET2));
+    TEST_ASSERT_FALSE(PinKb::isOrdered(PinKb::KB_SET3));
+
+    char face[PinKb::FACE_MAX + 1];
+    for (uint8_t a = 0; a < PinKb::ALPHA_COUNT; a++) {
+        const PinKb::Grid g = PinKb::orderedGrid(a);
+        TEST_ASSERT_EQUAL_INT(g.keys, PinKb::gridFor(a, PinKb::KB_PLAIN).keys);
+        /* Every character of the alphabet is reachable, EXACTLY once: twice
+         * and two keys would type the same PIN, which the bench would read as
+         * a layout it cannot trust; never and it cannot be typed at all. */
+        int seen[128] = {0};
+        int total = 0;
+        for (int k = 0; k < (int)g.keys; k++) {
+            const uint8_t n = PinKb::orderedFace(a, k, face, sizeof(face));
+            TEST_ASSERT_EQUAL_INT((int)strlen(face), (int)n);
+            TEST_ASSERT_TRUE(n <= PinKb::FACE_MAX);
+            for (uint8_t i = 0; i < n; i++) {
+                TEST_ASSERT_TRUE_MESSAGE(PinKb::inAlphabet(face[i], a),
+                                         "an ordered key carries a character its alphabet has not");
+                seen[(int)(unsigned char)face[i]]++;
+                total++;
+            }
+        }
+        TEST_ASSERT_EQUAL_INT(PinKb::alphaCount(a), total);
+        const char* set = PinKb::alphaChars(a);
+        for (int i = 0; i < PinKb::alphaCount(a); i++)
+            TEST_ASSERT_EQUAL_INT(1, seen[(int)(unsigned char)set[i]]);
+
+        /* The label is what gets PRINTED, and it must fit the key it is
+         * printed on — the ten-digit group is why it exists at all. */
+        for (int k = 0; k < (int)g.keys; k++) {
+            PinKb::orderedLabel(a, k, face, sizeof(face));
+            TEST_ASSERT_TRUE((int)strlen(face) * 10 <= (int)g.w);
+        }
+    }
+
+    /* The numeric pad's two empty cells answer with nothing, and nothing is
+     * what the renderer and the touch handler both skip. */
+    TEST_ASSERT_EQUAL_INT(0, PinKb::orderedFace(PinKb::ALPHA_DIGITS, 9, face, sizeof(face)));
+    TEST_ASSERT_EQUAL_INT(0, PinKb::orderedFace(PinKb::ALPHA_DIGITS, 11, face, sizeof(face)));
+    TEST_ASSERT_EQUAL_STRING("0", (PinKb::orderedFace(PinKb::ALPHA_DIGITS, 10, face,
+                                                      sizeof(face)), face));
+}
+
+/* The second tap of the alphanumeric keyboard. Its card sits between the dot
+ * strip and the footer, every key is a finger target, and a tap that hits no
+ * key reads as "cancel" rather than as key 0. */
+void test_pin_group_popup_geometry(void) {
+    for (int gi = 0; gi < PinKb::GROUP_COUNT; gi++) {
+        const int n = (int)strlen(PinKb::GROUP_CHARS[gi]);
+        TEST_ASSERT_TRUE(n > 0 && n <= PinKb::FACE_MAX);
+        TEST_ASSERT_EQUAL_INT(n > 5 ? 2 : 1, PinKb::popupRows(n));
+
+        const int16_t cy = PinKb::popupCardY(n), ch = PinKb::popupCardH(n);
+        TEST_ASSERT_TRUE(cy >= PinKb::DOTS_Y + PinKb::DOTS_H);
+        TEST_ASSERT_TRUE(cy + ch <= PinKb::FOOT_Y);
+        TEST_ASSERT_TRUE(PinKb::POP_CARD_X >= 4);
+        TEST_ASSERT_TRUE(PinKb::POP_CARD_X + PinKb::POP_CARD_W <= 316);
+
+        int counted = 0, idx = 0;
+        for (int r = 0; r < PinKb::popupRows(n); r++) {
+            const int m = PinKb::popupRowKeys(n, r);
+            counted += m;
+            const int16_t ry = PinKb::popupRowY(n, r), rx = PinKb::popupRowX0(m);
+            /* Inside the card, both ways. */
+            TEST_ASSERT_TRUE(ry >= cy);
+            TEST_ASSERT_TRUE(ry + PinKb::POP_KEY_H <= cy + ch);
+            TEST_ASSERT_TRUE(rx >= PinKb::POP_CARD_X);
+            TEST_ASSERT_TRUE(rx + m * PinKb::POP_KEY_W + (m - 1) * PinKb::POP_GAP
+                             <= PinKb::POP_CARD_X + PinKb::POP_CARD_W);
+            for (int i = 0; i < m; i++, idx++) {
+                const int16_t kx = (int16_t)(rx + i * (PinKb::POP_KEY_W + PinKb::POP_GAP));
+                /* Its own centre answers for it, and for no other key. */
+                TEST_ASSERT_EQUAL_INT(idx, PinKb::popupKeyAt(n,
+                                      (int16_t)(kx + PinKb::POP_KEY_W / 2),
+                                      (int16_t)(ry + PinKb::POP_KEY_H / 2)));
+            }
+        }
+        TEST_ASSERT_EQUAL_INT(n, counted);
+        /* Off the keys is cancel, not key 0 — including the footer, which has
+         * to keep answering while a popup is up. */
+        TEST_ASSERT_EQUAL_INT(-1, PinKb::popupKeyAt(n, 2, (int16_t)(cy + 2)));
+        TEST_ASSERT_EQUAL_INT(-1, PinKb::popupKeyAt(n, 160, (int16_t)(PinKb::FOOT_Y + 2)));
+        TEST_ASSERT_EQUAL_INT(-1, PinKb::popupKeyAt(n, 160, (int16_t)(PinKb::DOTS_Y + 2)));
     }
 }
 
-/* The deal: ten digits and two decoys fill four cards of three slots exactly,
- * so every card always shows three glyphs and none of them is empty. */
+/* The deal: every layout's grid holds the whole alphabet, and what is left
+ * over is dealt as decoys — so every card shows the same number of glyphs and
+ * the SHAPE of a card says nothing about how much of the alphabet it carries. */
 void test_pin_keypad_deals_the_whole_set(void) {
-    TEST_ASSERT_EQUAL_INT(10, PinKb::CHARS);
-    TEST_ASSERT_EQUAL_INT(2, PinKb::DECOYS);
-    TEST_ASSERT_EQUAL_INT(PinKb::KEYS * PinKb::SLOTS, PinKb::CHARS + PinKb::DECOYS);
-    TEST_ASSERT_TRUE(PinKb::DECOYS >= 0);
-    /* The decoy pool must not contain a digit, or a deal could hide one. */
+    /* The decoy pool must not contain an alphabet character, or a deal could
+     * hide one where nothing can type it. */
     for (int i = 0; i < PinKb::DECOY_POOL_N; i++)
-        TEST_ASSERT_FALSE(PinKb::isDigitChar(PinKb::DECOY_POOL[i]));
-    /* Two distinct decoys have to be drawable from it. */
-    TEST_ASSERT_TRUE(PinKb::DECOY_POOL_N >= PinKb::DECOYS);
+        TEST_ASSERT_FALSE(PinKb::isPinChar(PinKb::DECOY_POOL[i]));
 
-    /* Geometry: no card overlaps another, and none crosses into the dots
-     * row above or the footer below. */
-    for (int a = 0; a < PinKb::KEYS; a++) {
-        TEST_ASSERT_TRUE(PinKb::KEY_Y[a] >= PinKb::DOTS_Y + PinKb::DOTS_H);
-        TEST_ASSERT_TRUE(PinKb::KEY_Y[a] + PinKb::KEY_H <= PinKb::FOOT_Y);
-        TEST_ASSERT_TRUE(PinKb::KEY_X[a] + PinKb::KEY_W <= 316);
-        for (int b = a + 1; b < PinKb::KEYS; b++) {
-            const bool sepX = PinKb::KEY_X[a] + PinKb::KEY_W <= PinKb::KEY_X[b] ||
-                              PinKb::KEY_X[b] + PinKb::KEY_W <= PinKb::KEY_X[a];
-            const bool sepY = PinKb::KEY_Y[a] + PinKb::KEY_H <= PinKb::KEY_Y[b] ||
-                              PinKb::KEY_Y[b] + PinKb::KEY_H <= PinKb::KEY_Y[a];
-            TEST_ASSERT_TRUE(sepX || sepY);
+    for (uint8_t a = 0; a < PinKb::ALPHA_COUNT; a++) {
+        for (uint8_t kb = PinKb::KB_MIN; kb <= PinKb::KB_MAX; kb++) {
+            if (!PinKb::comboSupported(a, kb)) continue;
+            const PinKb::Grid g = PinKb::gridFor(a, kb);
+            const bool ordered = PinKb::isOrdered(kb);
+            TEST_ASSERT_EQUAL_INT((int)g.keys, (int)g.cols * (int)g.rows);
+            TEST_ASSERT_TRUE(g.keys <= PinKb::KEYS_MAX);
+            if (!ordered) {
+                /* The grid holds the alphabet, and the keypad value IS the
+                 * card width in glyphs — that identity is what lets one number
+                 * be both the watcher's uncertainty and the search's branching
+                 * factor. An ORDERED keyboard has no such identity: a group
+                 * key carries ten characters and names one. */
+                TEST_ASSERT_EQUAL_INT(kb, g.slots);
+                TEST_ASSERT_TRUE((int)g.keys * (int)g.slots >= PinKb::alphaCount(a));
+                TEST_ASSERT_TRUE(g.slots <= PinKb::SLOTS_MAX);
+                TEST_ASSERT_TRUE((int)g.keys * (int)g.slots <= PinKb::DEAL_MAX);
+            }
+            /* Decoys have to be drawable, and distinct. Ordered keyboards deal
+             * none, because they do not deal. */
+            const int dec = PinKb::decoyCount(a, kb);
+            TEST_ASSERT_TRUE(dec >= 0);
+            TEST_ASSERT_TRUE(dec <= PinKb::DECOY_POOL_N);
+            if (ordered) TEST_ASSERT_EQUAL_INT(0, dec);
+
+            /* Geometry: inside the safe area, clear of the dots row above and
+             * the footer below, and no card overlapping another. */
+            for (int k = 0; k < (int)g.keys; k++) {
+                const int16_t kx = PinKb::keyX(g, k), ky = PinKb::keyY(g, k);
+                TEST_ASSERT_TRUE(kx >= 4);
+                TEST_ASSERT_TRUE(kx + g.w <= 316);
+                TEST_ASSERT_TRUE(ky >= PinKb::DOTS_Y + PinKb::DOTS_H);
+                TEST_ASSERT_TRUE(ky + g.h <= PinKb::FOOT_Y);
+                /* Its own centre answers for it, and for no other card. */
+                TEST_ASSERT_EQUAL_INT(k, PinKb::keyAt(g, (int16_t)(kx + g.w / 2),
+                                                         (int16_t)(ky + g.h / 2)));
+                for (int b = k + 1; b < (int)g.keys; b++) {
+                    const int16_t bx = PinKb::keyX(g, b), by = PinKb::keyY(g, b);
+                    const bool sepX = kx + g.w <= bx || bx + g.w <= kx;
+                    const bool sepY = ky + g.h <= by || by + g.h <= ky;
+                    TEST_ASSERT_TRUE(sepX || sepY);
+                }
+                /* The glyph slots fit inside the card they belong to. */
+                TEST_ASSERT_TRUE(PinKb::slotX(g, k, 0) >= kx);
+                TEST_ASSERT_TRUE(PinKb::slotX(g, k, g.slots - 1) + PinKb::slotW(g)
+                                 <= kx + g.w);
+                /* A glyph needs room to be read: 24 px was the narrowest the
+                 * maintainer accepted after refusing 94 glyphs over four
+                 * cards on 2026-09-19. */
+                TEST_ASSERT_TRUE(PinKb::slotW(g) >= 24);
+                /* An ordered key is a finger target in its own right, not a
+                 * strip shared by glyphs: it gets the whole 24 px both ways. */
+                if (ordered) TEST_ASSERT_TRUE(g.h >= 24);
+            }
+            /* The footer strip and the dots row are nobody's card, so their
+             * buttons stay live in every layout. */
+            TEST_ASSERT_EQUAL_INT(-1, PinKb::keyAt(g, 10, (int16_t)(PinKb::FOOT_Y + 2)));
+            TEST_ASSERT_EQUAL_INT(-1, PinKb::keyAt(g, 10, (int16_t)(PinKb::DOTS_Y + 2)));
         }
     }
-    /* Each card answers for its own centre and for no other. */
-    for (int k = 0; k < PinKb::KEYS; k++) {
-        const int16_t cx = (int16_t)(PinKb::KEY_X[k] + PinKb::KEY_W / 2);
-        const int16_t cy = (int16_t)(PinKb::KEY_Y[k] + PinKb::KEY_H / 2);
-        TEST_ASSERT_EQUAL_INT(k, PinKb::keyAt(cx, cy));
+    /* Every pair has a layout since the ordered keyboards arrived, and
+     * gridFor( ) still has to answer something a renderer can draw. */
+    for (uint8_t a = 0; a < PinKb::ALPHA_COUNT; a++) {
+        TEST_ASSERT_TRUE(PinKb::comboSupported(a, PinKb::KB_PLAIN));
+        TEST_ASSERT_TRUE(PinKb::gridFor(a, PinKb::KB_PLAIN).keys > 0);
     }
-    /* Every slot maps back to itself from its own centre, and the three of a
-     * card together cover the whole card: a tap anywhere on a card types
-     * something, which is what lets the slots be the only targets. */
-    for (int k = 0; k < PinKb::KEYS; k++) {
-        for (int s = 0; s < PinKb::SLOTS; s++) {
-            const int16_t x = (int16_t)(PinKb::slotX(k, s) + PinKb::SLOT_W / 2);
-            TEST_ASSERT_EQUAL_INT(s, PinKb::slotAt(k, x));
-        }
-        for (int16_t x = PinKb::KEY_X[k]; x < PinKb::KEY_X[k] + PinKb::KEY_W; x++) {
-            const int s = PinKb::slotAt(k, x);
-            TEST_ASSERT_TRUE(s >= 0 && s < PinKb::SLOTS);
-        }
-        /* The three slots fit inside the card they belong to. */
-        TEST_ASSERT_TRUE(PinKb::slotX(k, 0) >= PinKb::KEY_X[k]);
-        TEST_ASSERT_TRUE(PinKb::slotX(k, PinKb::SLOTS - 1) + PinKb::SLOT_W
-                         <= PinKb::KEY_X[k] + PinKb::KEY_W);
+
+    /* The dot row fits the longest PIN the policy can ask for: sixteen at the
+     * old 20-px pitch was 320 px, one past the safe area (2026-09-20). */
+    for (int n = PinKb::PIN_LEN_MIN; n <= PinKb::PIN_LEN_CEILING; n++) {
+        const int sp = PinKb::dotSpacing(n), r = PinKb::dotRadius(n);
+        const int x0 = (320 - n * sp) / 2 + sp / 2;
+        TEST_ASSERT_TRUE(x0 - r >= 4);
+        TEST_ASSERT_TRUE(x0 + (n - 1) * sp + r <= 315);
     }
-    /* The footer strip is nobody's card, so its buttons stay live. */
-    TEST_ASSERT_EQUAL_INT(-1, PinKb::keyAt(10, (int16_t)(PinKb::FOOT_Y + 2)));
-    TEST_ASSERT_EQUAL_INT(-1, PinKb::keyAt(10, (int16_t)(PinKb::DOTS_Y + 2)));
 }
 
 int main(int /*argc*/, char** /*argv*/) {
@@ -2938,7 +3139,10 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_simuttime_midnight_is_offset_from_utc);
     RUN_TEST(test_simuttime_days_from_civil_anchors);
     RUN_TEST(test_panel_pin_validator);
+    RUN_TEST(test_pin_policy_rules);
     RUN_TEST(test_pin_keypad_deals_the_whole_set);
+    RUN_TEST(test_pin_plain_keypad_is_ordered_and_complete);
+    RUN_TEST(test_pin_group_popup_geometry);
 
     return UNITY_END();
 }

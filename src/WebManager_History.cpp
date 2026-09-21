@@ -2311,16 +2311,55 @@ void WebManager::handleApiKeypad( ) {
  if (!requirePerm(PERM_SYS_CONFIG)) return;
  if (!_displayRef) { _server->send(500, "text/plain", "Display offline"); return; }
 
- char json[96];
+ /* v25: the layout is a policy setting, so the geometry goes on the wire with
+  * the faces. Before this the bench carried PIN_KEY_X/Y/W/H as constants and
+  * a policy change would have moved the cards out from under the two hardware
+  * suites without any of them failing in a way that pointed here. */
+ const PinKb::Grid g = _displayRef->pinGrid( );
+ /* v25.1: the faces are no longer at most SLOTS_MAX wide. An ordered
+  * ALPHA_ALNUM key carries a whole GROUP, and the digits group is ten
+  * characters — so the buffer is FACE_MAX. */
+ char json[448];
  int n = snprintf(json, sizeof(json), "{\"faces\":[");
- char face[PinKb::SLOTS + 1];
+ char face[PinKb::FACE_MAX + 1];
  bool up = false;
- for (int k = 0; k < PinKb::KEYS; k++) {
+ for (int k = 0; k < (int)g.keys; k++) {
  if (_displayRef->pinKeyFace(k, face, sizeof(face))) up = true;
  else face[0] = '\0';
  n += snprintf(json + n, sizeof(json) - (size_t)n, "%s\"%s\"", k ? "," : "", face);
  }
- snprintf(json + n, sizeof(json) - (size_t)n, "],\"up\":%s}", up ? "true" : "false");
+ /* Which keyboard is on the glass, because the bench cannot tell from the
+  * grid alone and the interaction differs: "cards" is one tap per CARD,
+  * "num" is one tap per key, and "groups" is TWO taps — the group key, then
+  * a key inside the popup whose geometry follows in "pop". */
+ const bool ordered = _displayRef->pinOrderedNow( );
+ const bool groups = ordered && _displayRef->pinAlphabet( ) == PinKb::ALPHA_ALNUM;
+ const char* kb = !ordered ? "cards" : (groups ? "groups" : "num");
+ n += snprintf(json + n, sizeof(json) - (size_t)n,
+               /* grid = keys, slots, cols, rows, x, y, w, h, pitchX, pitchY;
+                * policy = minLen, maxLen, keypad, alphabet. Positional because
+                * the only consumers are this repo's two bench scripts, and ten
+                * named keys cost more format string than the panel has to
+                * spare. */
+               "],\"up\":%s,\"kb\":\"%s\",\"grid\":[%u,%u,%u,%u,%d,%d,%d,%d,%d,%d],"
+               "\"policy\":[%u,%u,%u,%u]",
+               up ? "true" : "false", kb,
+               (unsigned)g.keys, (unsigned)g.slots, (unsigned)g.cols, (unsigned)g.rows,
+               (int)g.x0, (int)g.y0, (int)g.w, (int)g.h, (int)g.px, (int)g.py,
+               (unsigned)_displayRef->pinMinLen( ),
+               (unsigned)PinKb::maxLenFor(_displayRef->pinKeypadMode( )),
+               (unsigned)_displayRef->pinKeypadMode( ),
+               (unsigned)_displayRef->pinAlphabet( ));
+ if (groups) {
+ /* pop = keyW, keyH, gap, rowY(1 row), rowY(row 0), rowY(row 1). A row of
+  * m keys starts at (320 - (m*keyW + (m-1)*gap)) / 2, which the bench can
+  * compute; the y values it cannot. */
+ n += snprintf(json + n, sizeof(json) - (size_t)n,
+               ",\"pop\":[%d,%d,%d,%d,%d,%d]",
+               (int)PinKb::POP_KEY_W, (int)PinKb::POP_KEY_H, (int)PinKb::POP_GAP,
+               (int)PinKb::POP_ONE_Y, (int)PinKb::POP_ROW0_Y, (int)PinKb::POP_ROW1_Y);
+ }
+ snprintf(json + n, sizeof(json) - (size_t)n, "}");
  _server->send(200, "application/json", json);
 }
 

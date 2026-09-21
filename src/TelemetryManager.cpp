@@ -2421,7 +2421,16 @@ uint16_t TelemetryManager::pushAlarm(uint8_t slot, uint8_t channel, float value,
 		second = (int16_t)(uint16_t)mins;
 	}
 
-	uint16_t seq = _alarmQueue.push(now, slot, channel, scaled, errCode, actor, second);
+	/* v25 — o nome de quem agiu é resolvido AGORA, com a conta ainda no ar, e
+	 * viaja dentro do registro. Antes o payload o resolvia na hora do envio,
+	 * lendo cfg.users[actor-1]: uma conta apagada no intervalo deixava o
+	 * registro assinado por quem tomasse o slot depois. */
+	const char* actorName = "";
+	if (actor != ALARM_ACTOR_NONE && actor <= MAX_USERS && _storageRef) {
+		const UserAccount& ua = _storageRef->getConfig( ).users[actor - 1];
+		if (ua.active) actorName = ua.username;
+	}
+	uint16_t seq = _alarmQueue.push(now, slot, channel, scaled, errCode, actor, second, actorName);
 	auto& m = MetricsManager::instance( ).data( );
 	if (seq != 0) {
 		m.alarmQueued++;
@@ -2471,13 +2480,14 @@ void TelemetryManager::updateAlarms( ) {
 		return; /* fila fica; retry no próximo intervalo */
 	}
 
-	std::vector<AlarmRecord> batch;
-	{
-		AlarmRecord tmp[ALARM_QUEUE_MAX];
-		uint8_t n = _alarmQueue.snapshot(tmp, ALARM_BATCH_MAX);
-		batch.reserve(n);
-		for (uint8_t i = 0; i < n; i++) batch.push_back(tmp[i]);
-	}
+	/* Direto no vetor, sem o array intermediário de ALARM_QUEUE_MAX que ficava
+	 * na PILHA: eram 1.024 B de stack (64 x 16) copiados para um heap que ia
+	 * receber os mesmos dados de qualquer jeito. Some a cópia e some o custo
+	 * de pilha — o que também é o que permite o registro crescer para 32 B na
+	 * v25 sem dobrar a pilha deste caminho (AlarmQueue.h explica o porquê do
+	 * nome congelado). Medido 2026-09-20. */
+	std::vector<AlarmRecord> batch(ALARM_BATCH_MAX);
+	batch.resize(_alarmQueue.snapshot(batch.data( ), ALARM_BATCH_MAX));
 	if (batch.empty( )) {
 		__atomic_store_n(&_alarmSending, false, __ATOMIC_RELEASE);
 		_storageRef->unlockHeavyTask( );

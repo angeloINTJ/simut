@@ -172,9 +172,11 @@ inline const CfgSpan* cfgSpans(size_t& n) {
 		CFG_FIELD(reserved,          CFG_RESERVED),
 		CFG_FIELD(alarmTel,          CFG_ALARMTEL),
 		CFG_FIELD(maint,             CFG_MAINT),
-		/* v24: o salt dos PINs nunca muda por commit; classificado junto das
-		 * contas para que, se um dia mudar, reinicie em vez de cair no balde
-		 * do CFG_UNKNOWN sem ninguém saber por quê. */
+		/* v25: o salt continua imutável, mas a POLÍTICA de PIN mora aqui e
+		 * MUDA por commit. CFG_USERS não está em CFG_REBOOT_CLASSES, e é o
+		 * certo: quem valida PIN lê a política a cada uso, então um teclado
+		 * novo vale na próxima tela desenhada. Reiniciar aqui derrubaria o
+		 * aparelho por uma configuração que não exige nada disso. */
 		CFG_FIELD(pinAuth,           CFG_USERS),
 	};
 	n = sizeof(T) / sizeof(T[0]);
@@ -211,7 +213,7 @@ inline const CfgSpan* cfgSensorSpans(size_t& n) {
  *
  * ⚠️ `before` é CONSUMIDO: vira a sonda do fail-safe no lugar, e sai desta
  * função sem valor. Assinatura assim, e não com uma cópia local, porque
- * SystemConfig tem 4.792 bytes e isto roda dentro de um handler web — a versão
+ * SystemConfig tem 6.738 bytes (era 4.792 quando isto foi escrito) e isto roda dentro de um handler web — a versão
  * com `SystemConfig probe = before;` na pilha compilava, passava nos testes
  * nativos (onde a pilha é do host) e teria estourado no ferro. O chamador já
  * tem a cópia no heap; ela é o rascunho.

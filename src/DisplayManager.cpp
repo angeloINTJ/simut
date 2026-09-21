@@ -1510,6 +1510,12 @@ void DisplayManager::loopCore1( ) {
 			}
 			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawPinScreen( ); }
 		}
+		else if (_uiMode == MODE_AUTH_USER) {
+			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawAuthUser( ); }
+		}
+		else if (_uiMode == MODE_SETTINGS_PIN_POLICY) {
+			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawPinPolicy( ); }
+		}
 		else if (_uiMode == MODE_SETTINGS_MAIN) {
 			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawSettingsMain( ); }
 		}

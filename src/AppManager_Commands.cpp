@@ -269,15 +269,20 @@ void AppManager::executeCommand(CliDemand cmd) {
   break;
  }
  case CMD_SHOW_METRICS: _cmdMgr->renderMetrics( ); break;
+#if SIMUT_PANEL_PIN
  case CMD_SHOW_KEYPAD: {
- /* The four faces of the scrambled PIN keypad, in deal order. It exists for
+ /* The faces of the scrambled PIN keypad, in deal order. It exists for
   * automation: a script driving the panel through POST /api/touch cannot find
   * a character whose position it was never told, and the faces are already on
   * the glass for anyone standing at the device. Prints nothing when the keypad
   * is not the screen, so it can never describe a layout that is not live. */
  char face[40];
  bool any = false;
- for (int k = 0; k < PinKb::KEYS; k++) {
+ /* v25: how many cards there are is a policy setting, so the count comes
+  * from the live grid — a hardcoded four would have silently stopped after
+  * the fourth of twelve. */
+ const int keys = (int)_displayMgr->pinGrid( ).keys;
+ for (int k = 0; k < keys; k++) {
  const uint8_t n = _displayMgr->pinKeyFace(k, face, sizeof(face));
  if (!n) continue;
  any = true;
@@ -287,6 +292,8 @@ void AppManager::executeCommand(CliDemand cmd) {
                                                 : "The PIN keypad is not on screen.");
  break;
  }
+#endif /* SIMUT_PANEL_PIN */
+
  case CMD_SHOW_STORAGE: {
  String rep = _storageMgr->getStatsReport( );
  LOG_CODE(LOG_INFO, "STO", STO_STATS_REPORT, 0, rep);
@@ -1272,7 +1279,7 @@ void AppManager::executeCommand(CliDemand cmd) {
   * lands on it someone else's way in — found on the rig 2026-09-19: a
   * freshly created account already answered "has a PIN". The panel's own
   * delete has always memset the record; these two had not caught up. */
- memset(&cfg.users[i], 0, sizeof(cfg.users[i]));
+ StorageManager::wipeUserAccount(cfg.users[i]);
  _cmdMgr->printSuccess(String(pt ? "Usuario removido: " : "User deleted: ") + cmd.strVal1);
  LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, i,
  String(TRL("CLI deleted user: ")) + cmd.strVal1);
@@ -1291,8 +1298,13 @@ void AppManager::executeCommand(CliDemand cmd) {
  case CMD_USER_PERM:
  cmdHandleUserPerm(cmd, cfg, changed); break;
 
+#if SIMUT_PANEL_PIN
  case CMD_USER_PIN:
  cmdHandleUserPin(cmd, cfg, changed); break;
+
+ case CMD_USER_POLICY:
+ cmdHandleUserPolicy(cmd, cfg, changed); break;
+#endif
 
  case CMD_SET_WEB_PORT: {
  const bool pt = _cmdMgr->isPt( );
@@ -1347,7 +1359,9 @@ void AppManager::executeCommand(CliDemand cmd) {
  else if (!strcmp(n, "touchsens")) _displayMgr->showTouchSensitivity( );
  else if (!strcmp(n, "offset")) _displayMgr->showSettingsDisplayOffset( );
  else if (!strcmp(n, "usr")) _displayMgr->showSettingsUsers( );
- else if (!strcmp(n, "pin")) _displayMgr->showPinEntry(DisplayManager::PIN_FOR_AUTH);
+#if SIMUT_PANEL_PIN
+ else if (!strcmp(n, "pin")) _displayMgr->showAuthUser( );
+#endif
  else { _cmdMgr->printError("?screen"); break; }
  _displayMgr->resetTouchIdle( );
  _cmdMgr->printSuccess(n);

@@ -204,9 +204,24 @@ curl -b j -X POST http://IP/api/commit_all \
 | `net` | `PERM_NET_CONFIG` | Wi-Fi, IP, porta web |
 | `users` | `PERM_USER_MGR` | contas |
 
-**`_dry=1`** roda todo portão e parser sobre uma **cópia** e não grava nada —
-valide um modelo em N aparelhos antes de aplicar. Só `sys` e `net`; as outras
-respondem **400** `{"error":"dry run accepts sys and net only"}`. Indisponível no Air.
+#### 🆕 Três modos, além do commit normal
+
+| campo | o que faz |
+|---|---|
+| — | grava e aplica; **reinicia só pelo que precisa** |
+| `_dry=1` | roda todo portão e parser sobre uma **cópia**, **não muda nada** e devolve a classificação |
+| `_nosave=1` | aplica na **RAM** e **não grava**: um reinício desfaz. Recusa com **409** se a mudança exigir reinício — e recusa sem ter tocado em nada |
+| `_reboot=1` | grava e **reinicia mesmo sem precisar** (`reboot_for:["requested"]`) |
+
+`_dry` e `_nosave` aceitam `sys`, `net` e `alarms` — as três seções cujos
+parsers escrevem **só** em `cfg`, portanto ensaiáveis numa cópia. As outras
+respondem **400** `{"error":"accepts sys, net and alarms only"}`: `users` gera
+senhas, `slots` e `calib` mexem em arquivos. Ambos indisponíveis no Air.
+
+⚠️ **Quem decide se precisa reiniciar é o aparelho**, por comparação com a
+configuração corrente (`src/ConfigApply.h`) — um campo reenviado igual ao valor
+atual **não é mudança**. Um cliente que reimplemente essa regra vai discordar do
+aparelho no dia em que um campo mudar de classe.
 
 #### 🆕 A resposta diz se reiniciou, e por quê
 
@@ -214,12 +229,16 @@ respondem **400** `{"error":"dry run accepts sys and net only"}`. Indisponível 
 {"status":"ok","reboot":false,"applied":["alarms","maint"]}
 {"status":"ok","reboot":true,"reboot_for":["identity"],"newPort":8080}
 {"status":"ok","reboot":false,"applied":[],"rejected":["t_port"]}
-{"status":"dry","rejected":[]}
+{"status":"ok","reboot":false,"saved":false,"applied":["alarms"]}
+{"status":"dry","reboot":false,"applied":["alarms"]}
+{"status":"dry","reboot":true,"applied":["time"],"reboot_for":["time"]}
 ```
 
 - `applied` — as classes aplicadas **ao vivo**, sem reiniciar.
 - `reboot_for` — as classes que **forçaram** o reinício, para o próximo pedido evitá-las.
+  Com `_reboot=1` sobre uma mudança que não exigia, vem `["requested"]`.
 - `rejected` — campos recusados (fora de faixa, inválidos) que **mantiveram o valor anterior**.
+- `saved` — só aparece com `_nosave=1`, e vale sempre `false`: está na RAM, não na flash.
 - `creds` — senhas de uso único, quando a seção `users` criou ou resetou conta. Só aqui.
 
 **O que aplica ao vivo** — alarmes · manutenção · 2ª linha de alarmes ·
@@ -227,13 +246,14 @@ telemetria pelo lado HTTP · tema e idioma.
 
 **O que ainda reinicia** — rede · nome do aparelho · contas · provisionamento de
 slot · cadência/resolução de sensor · MQTT e TLS da telemetria · fuso/NTP · log ·
-PIN do display · porta web e overlays.
+PIN do display · **política de PIN** · porta web e overlays.
 
 ⚠️ Um campo que ninguém classificou força reinício por segurança (`unclassified`).
 
 #### Chaves de `sys`
 
 `name` `tz` `log` `res` `s_int` `h_int` `cors` `ntp_enabled`
+· **política de PIN do painel (v25)** `pin_min` `pin_kb` `pin_alpha`
 · **telemetria** `t_srv` `t_port` `t_path` `t_key` `t_int` `t_bat` `t_mode`
 `t_glob` `t_line` `t_sep` `t_sec` `t_transport`
 · **MQTT** `m_topic` `m_user` `m_pass` `m_qos` `m_retain` `m_cid` `m_ka` `m_had`
@@ -243,6 +263,13 @@ PIN do display · porta web e overlays.
 ⚠️ `a_line`/`a_glob`/`a_sep` ficam em **`sys`**, não em `alarms`.
 ⚠️ `t_int` é **lote mínimo em registros**, não milissegundos (config v22+). 0 desliga.
 ⚠️ `m_qos` só aceita 0 — o transporte não entrega QoS 1/2.
+⚠️ `pin_min`/`pin_kb`/`pin_alpha` viajam como **conjunto**: os três se
+restringem (o teclado limita o comprimento, o alfabeto exclui um teclado), então
+uma combinação impossível recusa o campo `pin_min` inteiro em vez de aplicar
+metade. `pin_kb` é 1/2/3 **glifos por tecla** e `pin_alpha` 0 (`0-9`) ou 1
+(`0-9A-Z`); comprimento máximo 16/12/8 conforme o teclado. Apertar a política
+marca **toda** conta com PIN para trocá-lo — o aparelho guarda só o digest e não
+tem como saber se um PIN antigo ainda cabe.
 
 #### Chaves de `net`
 `ssid` `pass` `use_dhcp` `ip` `mask` `gw` `dns` `dns1` `dns2` `dns_auto`

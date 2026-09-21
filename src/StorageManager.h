@@ -438,6 +438,13 @@ public:
   * 10^4..10^8, which a PC walks in under two minutes even at 200 rounds.
   * The online defence is the keypad lockout; the offline one is that the
   * config file needs full admin. */
+ /* ── The digest chain: NOT behind SIMUT_PANEL_PIN ─────────────────────
+  * These five write the stored form of a PIN, and the stored form is schema,
+  * not feature. A board flashed with the Air and then back to a panel image
+  * has to come back with its PINs: the Air still has to seed the salt on a
+  * fresh config and still has to convert a v23 displayPin on migration, or
+  * that round trip silently leaves the admin with no way into the panel.
+  * Cost of keeping them: 252 B on an imageless build, measured 2026-09-20. */
  /** First state: the device salt, the board serial and the domain tag. */
  static void pinChainInit(const uint8_t* salt, uint8_t out[32]);
  /** One character of the PIN: state' = SHA-256(state || c). */
@@ -449,16 +456,43 @@ public:
  void pinDigest(const char* pin, uint8_t* out) const {
   pinDigestWith(_currentConfig.pinAuth.pinSalt, pin, out);
  }
- /** Identify by a sequence of CARD taps. `taps[i]` is the glyphs that were on
-  *  the card tapped at step i — the deal is rolled after every tap, so each
-  *  one carries its own — and the entry therefore stands for every string one
-  *  glyph per tap can spell. Walks that tree, hashing prefixes once, and
-  *  returns the slot of the one active account a candidate matches. -1 when
-  *  none does; -1 with `*ambiguous` when two different accounts both match,
-  *  which nobody may be logged in for. A glyph that is not a PIN character —
-  *  the decoys that keep every card three glyphs wide — has no branch. */
- int findUserByPinSet(const char taps[][PinKb::SLOTS + 1], uint8_t n,
-                      bool* ambiguous) const;
+
+ /** Sobrescreve um registro de conta INTEIRO, byte a byte, por escrita
+  *  volátil — nome, hash de senha, salt, bits e digest do PIN.
+  *
+  *  Existe como função única porque o apagamento tem três caminhos (painel,
+  *  web, CLI) e um deles já esqueceu de limpar o digest: na v24 o PIN de uma
+  *  conta apagada continuava no slot e abria o painel para quem tomasse o
+  *  slot depois. Volátil porque isto é apagamento de credencial e um memset
+  *  sobre memória que o compilador julga morta pode simplesmente sumir.
+  *
+  *  O que NÃO precisa ser preservado aqui são os registros de alarme já na
+  *  fila: desde a v25 eles carregam o NOME copiado (AlarmQueue.h), então
+  *  sobrescrever a conta não apaga a assinatura do que ela já fez. */
+ static void wipeUserAccount(UserAccount& u) {
+  volatile uint8_t* p = (volatile uint8_t*)&u;
+  for (size_t i = 0; i < sizeof(UserAccount); i++) p[i] = 0;
+ }
+#if SIMUT_PANEL_PIN
+ /** Does a sequence of CARD taps prove `slot`? `taps[i]` is the glyphs that
+  *  were on the card tapped at step i — the deal is rolled after every tap, so
+  *  each one carries its own — and the entry therefore stands for every string
+  *  one glyph per tap can spell. Walks that tree, hashing prefixes once, and
+  *  stops at the first candidate whose digest is this account's.
+  *
+  *  v25: it verifies ONE account instead of searching the table. That is the
+  *  account picker's whole point — the tree is the same size, but a blind
+  *  entry can no longer land on whoever happens to be inside it, and two
+  *  accounts sharing an entry is no longer a refusal for both. A glyph that is
+  *  not a PIN character — a decoy — has no branch. */
+ bool pinSetMatches(int slot, const char taps[][PinKb::SLOTS_MAX + 1], uint8_t n) const;
+ /** Marks every account holding a PIN when the policy got stricter on any
+  *  axis; returns how many. See the definition for why compliance is decided
+  *  here and not at login. */
+ uint8_t markPinsBelowPolicy(uint8_t oldMin, uint8_t oldKeypad, uint8_t oldAlphabet);
+ /** Is this account's PIN one the current policy no longer accepts? */
+ bool pinMustChange(int slot) const;
+ void clearPinMustChange(int slot);
  /** Slot of the active account whose PIN this is, or -1. A PIN that is not
   *  even well-formed answers -1 without hashing. */
  int findUserByPin(const char* pin) const;
@@ -473,6 +507,8 @@ public:
   for (size_t i = 0; i < PIN_HASH_LEN; i++) if (u.pinHash[i]) return true;
   return false;
  }
+
+#endif /* SIMUT_PANEL_PIN */
 
  String sha256Hex(const String& input);
  /** Write the telemetry cursor to flash if it moved.
@@ -744,6 +780,10 @@ public:
  bool _migratedFromV21 = false;   /**< v21 blob read: telInterval converted from ms to a count. */
  bool _migratedFromV22 = false;   /**< v21/v22 blob read: maintenance tail appended. */
  bool _migratedFromV23 = false;   /**< v23 blob read: accounts widened to 32, PIN salt appended (v24). */
+ bool _migratedFromV24 = false;   /**< v24 blob read: the PIN policy tail appended (v25). */
+ /** ANY legacy blob was read and migrated — the one flag loadConfiguration( )
+  *  tests before persisting the result. Per-version flags are for the log. */
+ bool _migratedLegacy = false;
  uint16_t _migratedFromVersion = 0; /**< the legacy version, for the one boot log line */
 
  File _currentLogFile;

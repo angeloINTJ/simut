@@ -4,6 +4,136 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.6.0-beta (2026-09-20)
+
+**Choosing the account before typing the PIN, and a keypad that stops
+scrambling when scrambling buys nothing.** v24 made the PIN the identity: the
+panel searched the whole account table for whoever the taps could belong to.
+That cost two things it should not have. A blind guess counted against *every*
+account at once — with the table full and four digits, **20.2%** per attempt —
+and when two accounts matched one sequence **neither** got in, which was **15%
+of logins** on a full table, measured. The account is picked first now, the
+device verifies one digest, and both problems are gone: **0.81%** per attempt,
+and no ambiguity by construction. Config schema 24 -> 25, migrated in place.
+
+The same pass made the PIN policy an administrator's choice, gave the web a
+banner that says what a change actually costs, and took the whole PIN mechanism
+out of the two builds that have no touch panel.
+
+### Identity at the panel (config v25)
+
+- **The account comes first.** CFG opens the account list; a locked account
+  says so *there*, before the PIN, which is the difference between "you typed
+  it wrong" and "this account is out of tries".
+- **A configurable PIN policy** — minimum length, glyphs per key and alphabet —
+  from the CLI (`user policy`), the panel, or the web. The alphabet is the only
+  axis that is not a trade: `0-9A-Z` costs a blind guess **168x** more at four
+  characters and the search nothing. The keypad is zero-sum, because the set
+  that hides a character from a watcher is the set the search has to walk.
+- **The length ceiling is CPU, not taste**: 16/12/8 characters for 1/2/3 glyphs
+  per key. The tap tree is `S+S^2+...+S^n` SHA-256 at **36.6 us** each, measured
+  on the rig; at three glyphs, ten taps would stop Core 0 for 3.2 s.
+- **One glyph per key is no longer scrambled.** A set of one hides nothing from
+  anybody who can read the glass, so it is the **ordered** keypad instead: the
+  numeric pad for digits, or a **two-tap alphanumeric** keyboard (nine groups
+  and a popup) for `0-9A-Z`. That also made `0-9A-Z` at one glyph per key
+  possible at all — it used to be 36 keys of 19 px — and fixed a gap nobody had
+  noticed: the panel could never type a PIN containing a letter, because the
+  PIN-setting screen was hard-wired to the numeric pad while the policy
+  advertised 36 characters.
+- **The lockout ladder is per account** (six failures lock it until reboot) with
+  a **panel ceiling** above it (twenty failures lock the panel). Only per-panel
+  was v24's behaviour, and it meant six wrong taps from anybody shut the panel
+  for everyone.
+
+### Audit records survive slot reuse
+
+- **The acting account's NAME is frozen into the alarm record at push time**
+  (16 -> 32 B), instead of being resolved from the slot when the payload is
+  built minutes later. The queue waits for the server and a slot is reusable:
+  deleting an account in that window made an *audit* record go out signed by
+  whoever took the slot next. Proven on the rig, and now a permanent bench step.
+- **Deleting an account overwrites the whole record**, on all four paths
+  (panel, web delete, web slot allocation, CLI). v24 cleared only the PIN hash
+  on one of them and left the name, password hash, salt and permission bits for
+  the next occupant to inherit.
+- The send path's 1,024 B stack array was removed, which is what paid for the
+  wider record.
+
+### The web says what a change costs
+
+- **Three actions instead of one.** "Save & restart" now restarts even when the
+  change did not require it — it used to take the live path and the page
+  announced a reboot that never happened. "Apply now" saves and applies without
+  restarting. "Test" applies **without saving**, so a restart undoes it.
+- The last two appear only when the **device** says the staged set can be
+  applied live. The page asks with a dry run instead of mirroring the rule,
+  because the classification compares the staged configuration against the
+  current one and a field typed back to its current value is not a change at
+  all — something no client can know.
+- `/api/commit_all` gained `_nosave=1` and `_reboot=1`; `_dry=1` now returns the
+  classification (`reboot`, `applied`, `reboot_for`) and accepts the `alarms`
+  section alongside `sys` and `net`.
+- Permission tags in the users table are **collapsed to their count** and open
+  on a tap; thirteen badges in a cell pushed the action buttons off the row on a
+  phone. The delete button had never picked up the shared button geometry and
+  was the one square-cornered control in the row.
+
+### The panel stopped flickering, twice
+
+- The account list is painted in **six 40-px strips**, one DMA blit each,
+  instead of clearing the screen and then blitting the title, the footer, the
+  scrollbar and four rows one at a time — which left the panel visibly dark in
+  between. The PIN screen had the same fix in v2.5.0-beta.
+
+### Fixed
+
+- **`user policy` had never once worked.** The parser forwarded two of the three
+  tokens, so `user policy 4 3 0` arrived as `"4 3"` and the handler's own
+  two-separator guard rejected every well-formed call. Two cases in
+  `native_cli`, which compiles the production parser, now pin it.
+- **A PIN policy changed from the web left no audit record.** The panel and the
+  CLI both write `APP_UI_PIN_POLICY`; the one surface most people use wrote
+  nothing, and it can weaken the keypad or send every account to "choose a new
+  PIN".
+- **`_dry=1` was not dry.** Making it classify handed `classifyConfigChanges`
+  the live configuration as its `before`, and that argument is *consumed* — it
+  is the scratch buffer. A dry run therefore wrote the staged values into the
+  running device, where a later save carried them to flash. Caught on the rig
+  before release; `test_classify_consumes_its_before` now asserts the contract
+  the header only described.
+
+### The PIN costs nothing where there is no panel
+
+`SIMUT_PANEL_PIN` (1 when `SIMUT_DISPLAY_TFT` is 1 *or undefined*, so the native
+suites still test the rules) removes the validator, the digest search, `user
+pin`, `user policy`, the web fields and seven display stubs from the Air and
+alpha images. What stays is the **digest chain** (252 B) and the config layout:
+the stored form of a PIN is schema, not feature, so a board flashed with the Air
+and back with the release comes back with its PINs.
+
+### Flash
+
+Both columns are PlatformIO's `Flash: used`.
+
+| image | v2.5.0-beta | v2.6.0-beta | Δ | `.bin` | under the OTA ceiling |
+|---|---:|---:|---:|---:|---:|
+| `pico_w_release` | 998,468 B | **1,008,892 B** | +10,424 | 1,020,924 B | 19,460 B |
+| `pico_w_alpha` | 973,372 B | **978,036 B** | +4,664 | 990,348 B | 50,036 B |
+| `pico_w_air` | 1,018,752 B | **1,017,728 B** | **-1,024** | 1,031,212 B | 9,172 B |
+
+The Air got *smaller* while gaining the live-apply flags: the PIN machinery it
+was carrying for a panel it does not have is worth more than the new code. Four
+budgets were raised in this change; the Air's was not.
+
+### Upgrading
+
+The language packs in `/lang` are **not** part of the firmware image, so an OTA
+leaves the old ones in place and the new labels stay English until they are
+replaced. They ship as release assets from this version on — upload them on the
+Files page or with `POST /api/upload`, never `uploadfs`, and reboot: a pack is
+read at boot.
+
 ## v2.5.0-beta (2026-09-20)
 
 **The panel knows who is standing at it.** Until now the display had one PIN for

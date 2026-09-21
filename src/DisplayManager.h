@@ -135,6 +135,16 @@ enum LangKey {
 	TR_LOCKED_LBL,
 	TR_INVALID_PIN,
 
+	/* v25 — the account picker and the PIN policy editor */
+	TR_WHO_LBL,
+	TR_NO_PIN_ACCOUNTS,
+	TR_ACCOUNT_LOCKED,
+	TR_PIN_POLICY,
+	TR_PIN_MIN_LEN,
+	TR_PIN_KEYPAD,
+	TR_PIN_ALPHABET,
+	TR_PIN_RENEW,
+
 	TR_KEYS_COUNT
 };
 
@@ -492,6 +502,7 @@ public:
 
 	void showSettingsThemes(int currentThemeIdx);
 
+#if SIMUT_PANEL_PIN
 	/* ── v24: identity at the panel (DisplayManager_Users.cpp) ──────────────
 	 * The PIN identifies the user; Core 0 verifies it (EVT_AUTH_PIN) and
 	 * answers through authResult( ) and setPanelSession( ). Every screen below
@@ -513,13 +524,38 @@ public:
 	/** One card of the scrambled PIN keypad, for `show display keypad`.
 	 *  Returns the glyph count, 0 when the keypad is not on screen. */
 	uint8_t pinKeyFace(int key, char* out, size_t cap) const;
+	bool pinOrderedNow( ) const;
 	/** The card taps of an identification attempt — for each one, the glyphs
 	 *  that were on the card at the moment it was tapped. Returns the count;
 	 *  meaningless unless the purpose is PIN_FOR_AUTH. */
-	uint8_t getEnteredPinTaps(char out[][PinKb::SLOTS + 1], size_t cap) const;
+	uint8_t getEnteredPinTaps(char out[][PinKb::SLOTS_MAX + 1], size_t cap) const;
 	/** True while the keypad is identifying (card taps) rather than setting
 	 *  a PIN (slot taps). */
 	bool pinIsIdentifying( ) const { return _pinPurpose == PIN_FOR_AUTH; }
+
+	/* ── v25: the account is chosen BEFORE the PIN ─────────────────────────
+	 * Identifying BY the PIN made one entry a search over the whole table, so
+	 * the 3^n strings a tap sequence can spell were fishing for all 32
+	 * accounts at once: with four digits and a full table a blind entry landed
+	 * on somebody 20.2% of the time, and two accounts inside the same entry
+	 * refused both (13.5% of honest logins, measured 15% on the rig
+	 * 2026-09-19). Choosing the account first divides the first number by the
+	 * table size and takes the second to zero — the search still walks S^n
+	 * candidates, but it compares them against ONE digest. */
+	void showAuthUser( );
+	/** Which account the picker chose; -1 before it has. */
+	int8_t pinTargetUser( ) const { return _pinTarget; }
+	/** The layout the stored policy asks for. The renderer, the touch mapper
+	 *  and GET /api/keypad all take it from here, so they cannot disagree
+	 *  about how many cards are on the glass. */
+	PinKb::Grid pinGrid( ) const;
+	uint8_t pinKeypadMode( ) const;
+	uint8_t pinAlphabet( ) const;
+	uint8_t pinMinLen( ) const;
+	/** The policy editor (PERM_USER_MGR): length, keypad, alphabet. */
+	void showPinPolicy( );
+#endif /* SIMUT_PANEL_PIN — an image with no touch panel proves nobody */
+
 	/** Who the session is, and what its bits allow — the menus filter on it. */
 	void setPanelSession(int8_t user, uint16_t perms);
 	int8_t panelUser( ) const { return _panelUser; }
@@ -1016,10 +1052,32 @@ private:
 	void drawPinCardInto(GFXcanvas16* cv, int key, int16_t ox, int16_t oy);
 	void blitPinCards( );
 	void drawPinPadInto(GFXcanvas16* cv, int16_t oy);
+	void drawPinPopupInto(GFXcanvas16* cv, int16_t oy);
+	/** Append one character to whichever buffer this screen is filling. The
+	 *  ordered keyboards produce a character, not a card, so both purposes
+	 *  land here — identification stores it as a one-glyph tap. */
+	void pinAppendChar(char c);
 	/** Username of the account this panel session belongs to, "" when there is
 	 *  none. Core 1 reads the config directly, as the users list already does. */
 	const char* panelUserName( ) const;
+#if SIMUT_PANEL_PIN
 	void drawPinDotsInto(GFXcanvas16* cv, int16_t oy);
+	/** The stored policy, clamped to something the panel can draw. A v24 blob
+	 *  migrates with zeros here, which is not a policy; clamping in ONE place
+	 *  is what keeps the renderer, the touch mapper and the validator from
+	 *  each inventing their own fallback. */
+	void pinPolicy(uint8_t& minLen, uint8_t& keypad, uint8_t& alphabet) const;
+	/** Strips a leading "N. " from a menu label; see the definition. */
+	static const char* menuLabelNoNumber(const char* s);
+	/** Both account lists; `picking` is the v25 auth picker. */
+	void drawUserRowInto(GFXcanvas16* cv, bool picking, int mapIdx,
+	                     int16_t x, int16_t y, int16_t itemW);
+	void drawUserList(bool picking);
+	void drawAuthUser( );
+	void enterPinFor(int slot);
+	void drawPinPolicy( );
+	/** The ladder, applied to `slot` (or globally when it is -1). */
+	int pinFailLadder(int8_t slot);
 	void pinCancel( );
 	void pinSubmit( );
 	void scramblePinKeys( );
@@ -1027,6 +1085,17 @@ private:
 	int _failedAttempts = 0;
 	uint32_t _lockoutUntil = 0;
 	bool _permanentLockout = false;
+	/* v25 — the ladder is per account now, because the account is known
+	 * before the PIN is. The global count stays as the ceiling: a ladder that
+	 * is ONLY per account hands an attacker MAX_USERS x 6 tries, which is the
+	 * table-size factor coming back through the other door (32 accounts x 6 =
+	 * 79% of entering somebody with four digits). So: six failures lock the
+	 * ACCOUNT, PANEL_FAIL_CEILING failures lock the PANEL, and until v25 the
+	 * second number was six for everyone — six wrong taps from anybody shut
+	 * the panel for the whole shift. */
+	uint8_t _failBySlot[MAX_USERS] = {0};
+	uint32_t _slotLocked = 0;       /**< bit i: slot i is out until reboot */
+	int _policySel = 0, _lastPolicySel = -1;
 	char _pinBuf[PIN_MAX_LEN + 1] = {0};
 	uint8_t _pinLen = 0;
 	char _pinFirst[PIN_MAX_LEN + 1] = {0};
@@ -1034,24 +1103,39 @@ private:
 	uint8_t _pinPurpose = 0;        /**< PinPurpose */
 	int8_t _pinTarget = -1;         /**< PIN_FOR_USER: whose */
 	LangKey _pinMsg = TR_KEYS_COUNT;/**< transient line under the dots */
-	/* The scrambled keypad (PinKeypad.h): ten digits and two decoy symbols
-	 * dealt over four cards of three slots, re-dealt on every entry, on every
-	 * refusal and between the two halves of a new PIN — so that tap positions
-	 * never repeat for a watcher. Core 1 owns these; the CLI reads them through
-	 * pinKeyFace( ) for the bench, which cannot find a digit it is not told the
-	 * position of. Every card always holds SLOTS glyphs, so there is no length
-	 * to read off a card. */
-	char _pinKeyChars[PinKb::KEYS][PinKb::SLOTS + 1] = {{0}};
-	/* Identification taps: each one keeps THE GLYPHS THAT WERE ON THE CARD when
-	 * it was tapped, not the card's index. The deal is rolled again after every
-	 * tap, so an index would name a card that no longer holds the same digits —
-	 * and the point of re-dealing is that two taps on the same spot mean two
-	 * different things. Core 0 walks the strings these spell
-	 * (StorageManager::findUserByPinSet). Setting a PIN cannot work that way —
-	 * it needs the exact digits — so that path uses the ordered pad and _pinBuf. */
-	char _pinTaps[PIN_MAX_LEN][PinKb::SLOTS + 1] = {{0}};
+	/* What each key on screen carries. Under KB_SET2/KB_SET3 it is a DEAL:
+	 * the alphabet plus decoys over cards of S slots, re-dealt on every entry,
+	 * every refusal, every tap and between the two halves of a new PIN — so
+	 * that tap positions never repeat for a watcher, and every card always
+	 * holds S glyphs so there is no length to read off one. Under KB_PLAIN
+	 * and on every PIN-CHOOSING screen it is the ORDERED keyboard instead:
+	 * the digits where a numeric pad puts them, or the nine ALPHA_ALNUM
+	 * groups. Core 1 owns these; the CLI and /api/keypad read them through
+	 * pinKeyFace( ) for the bench, which cannot find a character it was never
+	 * told the position of.
+	 * FACE_MAX and not SLOTS_MAX: the widest face is the ten-digit group of
+	 * the alphanumeric keyboard, not a three-glyph card. 18x11 B against
+	 * 18x4 — 126 B of RAM for the wider alphabet's ordered layout. */
+	char _pinKeyChars[PinKb::KEYS_MAX][PinKb::FACE_MAX + 1] = {{0}};
+	/* Which group's popup is open on the ALPHA_ALNUM ordered keyboard, or -1.
+	 * Two taps per character: the group, then the character inside it. */
+	int8_t _pinPopup = -1;
+	/* Identification taps. On a DEALT keypad each one keeps THE GLYPHS THAT
+	 * WERE ON THE CARD when it was tapped, not the card's index: the deal is
+	 * rolled again after every tap, so an index would name a card that no
+	 * longer holds the same digits — and the point of re-dealing is that two
+	 * taps on the same spot mean two different things. On the ORDERED keyboard
+	 * a tap keeps the ONE character it named, which is the same structure with
+	 * a set of one, so Core 0 walks a straight line instead of a tree. Either
+	 * way it is StorageManager::pinSetMatches that walks it. Setting a PIN
+	 * cannot work that way — it needs the exact characters — so that path
+	 * fills _pinBuf, and its screen is the ordered keyboard whatever the
+	 * policy says. */
+	char _pinTaps[PIN_MAX_LEN][PinKb::SLOTS_MAX + 1] = {{0}};
 	bool _pinCardsDirty = false;    /**< the deal moved; the cards owe a blit */
 	volatile bool _pinWaiting = false; /**< handed to Core 0, no verdict yet */
+#endif /* SIMUT_PANEL_PIN */
+
 	int8_t _panelUser = -1;
 	uint16_t _panelPerms = 0;
 

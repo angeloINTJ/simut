@@ -93,7 +93,18 @@ static const char* const DICTIONARY_EN[TR_KEYS_COUNT] = {
  "END",
  "remaining",
  "locked",
- "Invalid PIN!"
+ "Invalid PIN!",
+
+ /* v25 — the account picker and the PIN policy editor. Short on purpose:
+  * these sit in 74-px rows and on a 152-px value column. */
+ "Who is using the panel?",
+ "No account has a PIN",
+ "Account locked",
+ "11. PIN security",
+ "Minimum length",
+ "Keypad",
+ "Characters",
+ "Choose a new PIN"
 };
 
 /* Channel -> label key. The table in SensorChannelTable.h carries an i18nKey

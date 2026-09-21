@@ -102,7 +102,12 @@ enum UiMode {
  MODE_SETTINGS_USERS,            /**< account list */
  MODE_SETTINGS_USER_EDIT,        /**< one account: bits, PIN, delete — or a new one */
  MODE_SETTINGS_USER_CONFIRM_DEL, /**< "delete this user?" */
- MODE_PANEL_MESSAGE              /**< Core 0's verdict on the last action */
+ MODE_PANEL_MESSAGE,             /**< Core 0's verdict on the last action */
+ /* v25 — the account is chosen BEFORE the PIN (DisplayManager_Users.cpp).
+  * Appended for the same reason the v24 block was: isMenuActive( )'s
+  * ">= MODE_AUTH" has to keep covering the whole settings tree. */
+ MODE_AUTH_USER,                 /**< who is at the panel: pick an account */
+ MODE_SETTINGS_PIN_POLICY        /**< PIN length, keypad and alphabet */
 };
 
 /** Time range selection for graph rendering. */
@@ -286,8 +291,25 @@ static_assert(sizeof(MaintConfig) == 4 * MAX_SENSORS,
  * StorageManager gera no load de um blob antigo e grava. */
 struct __attribute__((packed)) DisplayAuthConfig {
 	uint8_t pinSalt[8];
+
+	/* v25 — the PIN policy the administrator sets (PinKeypad.h holds what each
+	 * value means and what it costs). Zero in a migrated v24 blob, which is
+	 * not a valid policy: StorageManager fills the v24 behaviour in, so an
+	 * upgrade changes nothing until somebody opens the screen. */
+	uint8_t pinMinLen;    /**< 4..PinKb::maxLenFor(pinKeypad)              */
+	uint8_t pinKeypad;    /**< PinKb::Keypad — also the glyphs per card    */
+	uint8_t pinAlphabet;  /**< PinKb::Alphabet                             */
+	uint8_t pinFlags;     /**< reserved, zero                              */
+
+	/* v25 — "this account's PIN no longer meets the policy, choose another
+	 * before doing anything else", one bit per slot. It lives HERE and not in
+	 * UserAccount because that record is frozen at 70 bytes by the v15..v23
+	 * migration; a bitmap in the tail costs four bytes and no migration. Bit
+	 * i is slot i, so it is bounded by MAX_USERS == 32 by construction. */
+	uint32_t pinMustChange;
 };
-static_assert(sizeof(DisplayAuthConfig) == 8, "DisplayAuthConfig v24 must be 8 bytes (packed)");
+static_assert(sizeof(DisplayAuthConfig) == 16, "DisplayAuthConfig v25 must be 16 bytes (packed)");
+static_assert(MAX_USERS <= 32, "pinMustChange is a 32-bit map — one bit per account slot");
 
 /** A janela deste slot ainda está aberta em `now`? Free function e não método
  *  para ficar testável no env native junto com o resto de AlarmPayload.h. */
@@ -649,7 +671,11 @@ struct UiEvent {
  EVT_USER_ADD,      /**< name via getNewName, PIN via getEnteredPin, param = panel bits */
  EVT_USER_DEL,      /**< id = slot */
  EVT_USER_PERMS,    /**< id = slot, param = panel bits */
- EVT_USER_PIN       /**< id = slot whose new PIN is in getEnteredPin */
+ EVT_USER_PIN,      /**< id = slot whose new PIN is in getEnteredPin */
+ /* v25 — id = minLen, param = keypad * 16 + alphabet. Packed into the two
+  * fields the event already has rather than growing UiEvent, which every
+  * queue entry pays for. */
+ EVT_PIN_POLICY
  };
  EventType type;
  int id;
