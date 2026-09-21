@@ -427,8 +427,12 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
 
         /* Dashboard Styles */
-        .layout-grid { display: grid; grid-template-columns: 1fr 360px; gap: 24px; align-items: start; }
-        @media(max-width: 900px) { .layout-grid { grid-template-columns: 1fr; } }
+        /* Uma coluna e a base: numa imagem sem painel o bloco de captura nao
+           e compilado, e uma grade de duas colunas reservaria 360px vazios. */
+        .layout-grid { display: grid; grid-template-columns: 1fr; gap: 24px; align-items: start; }
+        /* @IF tft */
+        @media(min-width: 901px) { .layout-grid { grid-template-columns: 1fr 360px; } }
+        /* @ENDIF */
         .compact-info { background: var(--superficie); border: 1px solid var(--linha); border-radius: 12px; padding: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
         .c-item { display: flex; flex-direction: column; }
         .c-lbl { color: var(--tinta-2); font-size: 13px; line-height: 16px; font-weight: 600; margin-bottom: 2px; }
@@ -449,6 +453,7 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .bar-bg { margin-top: 4px; }
         .dot { height: 10px; width: 10px; background: var(--positivo); border-radius: 999px; display: inline-block; }
         .err { background: var(--perigo); }
+        /* @IF tft */
         .display-box { background: var(--superficie); border: 1px solid var(--linha); padding: 20px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; }
         .display-box h2 { align-self: flex-start; font-size: 18px; line-height: 24px; margin: 0 0 12px; }
         .shot { width: 100%; aspect-ratio: 4/3; border-radius: 6px; background: var(--superficie-2); border: 1px solid var(--linha); box-sizing: border-box; }
@@ -464,6 +469,7 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         #loading-overlay { display: none; position: absolute; inset: 0; align-items: center; justify-content: center; border-radius: 6px; background: var(--superficie); opacity: 0.92; color: var(--tinta-2); font-size: 14px; }
         #themeSel { width: auto; margin: 0; }
         .tools { margin-top: 16px; display: flex; gap: 8px; width: 100%; justify-content: center; flex-wrap: wrap; }
+        /* @ENDIF */
     </style>
     <script>
         /* window.t/applyLang/setLang/showToast/fetchSafe vem de /lang.js */
@@ -520,6 +526,7 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     </table>
                 </div>
             </div>
+            /* @IF tft */
             <div class="side-content">
                 <div class="display-box">
                     <h2 data-i18n="dash_disp">Display Capture</h2>
@@ -541,6 +548,7 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     </div>
                 </div>
             </div>
+            /* @ENDIF */
         </div>
     </div>
 
@@ -553,9 +561,16 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 if (!res.ok) throw new Error("HTTP " + res.status);
                 const text = await res.text();
                 sysData = JSON.parse(text); const d = sysData.sys;
-                if (d.cap === 0) { const sc = document.querySelector('.side-content'); if (sc) sc.style.display = 'none'; const lg = document.querySelector('.layout-grid'); if (lg) lg.style.gridTemplateColumns = '1fr'; }
+                /* Aqui havia um `if (d.cap === 0)` que escondia .side-content e
+                   colapsava a grade. Era o substituto em tempo de execucao do
+                   que hoje e um corte de compilacao (@IF tft), e estava morto
+                   nos dois lados: `cap` e preenchido com SIMUT_DISPLAY_TFT, uma
+                   constante, entao numa imagem COM painel nunca era 0, e numa
+                   SEM painel os elementos que ele procurava ja nao existem. */
 
+                /* @IF tft */
                 if (d.theme !== undefined && document.activeElement.id !== "themeSel") document.getElementById('themeSel').value = d.theme;
+                /* @ENDIF */
 
                 let s = Math.floor(d.uptime / 1000); let days = Math.floor(s / 86400); s %= 86400; let hrs = Math.floor(s / 3600); s %= 3600; let mins = Math.floor(s / 60); let secs = s % 60;
                 let upStr = (days > 0 ? days + "d " : "") + (hrs > 0 || days > 0 ? fmt(hrs) + "h " : "") + fmt(mins) + "m " + fmt(secs) + "s";
@@ -636,6 +651,7 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             } catch(e) { document.getElementById('tab').innerHTML = `<tr><td colspan="6" style="color:var(--perigo);text-align:center;font-weight:bold;padding:20px;">Connection Error</td></tr>`; }
         }
 
+        /* @IF tft */
         async function loadThemes() {
             try {
                 let res = await fetchSafe('/api/themes');
@@ -869,6 +885,7 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             img.onerror = () => { document.getElementById('loading-overlay').innerHTML = "<span style='color:var(--perigo)'>" + escHtml(window.t('dash_disp_err', 'Read Failed')) + "</span>"; setTimeout(() => { document.getElementById('loading-overlay').style.display = 'none'; }, 2000); btn.innerHTML = orig; btn.disabled = false; };
             img.src = '/api/screenshot?t=' + new Date().getTime();
         }
+        /* @ENDIF */
 
         window.onLangChange = function() { fetchLoop(); };
 
@@ -876,7 +893,7 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         /* Sensor provisioning and calibration moved to /config (slot editor).
          * The dashboard is status-only. */
 
-        document.addEventListener('DOMContentLoaded', () => { loadThemes(); fetchLoop(); setInterval(fetchLoop, 3000); });
+        document.addEventListener('DOMContentLoaded', () => { fetchLoop(); setInterval(fetchLoop, 3000); });
     </script>
 </body>
 </html>
