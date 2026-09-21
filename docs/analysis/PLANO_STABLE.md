@@ -111,4 +111,34 @@ número ou o log neste documento. Não antes, e não por prazo.
 
 | data | o que rodou | resultado |
 |---|---|---|
-| 21/09 | T1 parcial: `wifi_scan_hw_test.py --ap` | 18/18 |
+| 21/09 | T1: `wifi_scan_hw_test.py --ap` na imagem v2.6.1-beta | **18/18** |
+| 21/09 | T1: `panel_users_hw_test.py` (sem `admin` — ver nota) | **26/26**, 19 telas, 13 registros de alarme |
+| 21/09 | T7 partes A e B: relógio/histórico e leitor de gráficos | ✅ (parte C bloqueada, ver B8) |
+| 21/09 | Varredura de boots no anel de log após T1+T7 | **0** boots com ctx de watchdog; 4 `REBOOT_USER` dos próprios testes e 4 `SYS_BOOT ctx=227` das gravações |
+
+### Notas destas corridas
+
+⚠️ **O passo `admin` do `panel_users_hw_test.py` não foi rodado.** Ele executa
+`user pin admin 2468` + `write memory` — **sobrescreve o PIN de admin do
+mantenedor e grava na flash**. Rodar isso precisa de autorização explícita, e
+nenhum outro passo depende dele (`state['admin_pin']` não é lido em lugar
+nenhum).
+
+🔴 **Dois processos órfãos de sessões antigas falsificaram uma corrida
+inteira.** Um `alarm_collector.py` de **1 dia e 12 h** antes segurava a porta
+18081 e gravava no scratchpad de *outra* sessão. O coletor novo não conseguiu
+ligar, a suíte leu o arquivo vazio e reportou **5 falhas** — inclusive
+"registro não assinado por quem agiu", que seria um defeito de auditoria. O
+aparelho dizia o tempo todo *"Enfileirados 6, Enviados 6, Confirmados 6,
+Falhas 0"*, e os registros estavam lá, no arquivo do órfão, com o `user`
+correto. **Antes de qualquer corrida:** `ss -ltnp | grep python3`.
+
+🔴 **B8 (novo, não bloqueia): `SIMUT_WEB_USER`/`SIMUT_WEB_PASS` do
+`~/.simut-bench.env` não abrem mais a sessão web** — 401 `err:2`. É a senha do
+mantenedor e não foi tocada; as corridas usaram conta descartável criada e
+apagada pela CLI. Corrigir o arquivo de ambiente é o suficiente.
+
+🔴 **B9 (novo, não bloqueia): o `rig_validate_history_clock.py` fixava a porta
+8099**, que já estava ocupada por um servidor `node` da própria bancada — e
+morria **no meio**, depois de ter mexido na config de telemetria do aparelho.
+Agora a porta é `SIMUT_TEL_COLLECTOR_PORT` e a recusa diz o que fazer.
