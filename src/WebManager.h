@@ -450,6 +450,7 @@ private:
 
 	void handleApiPerms( );
 	void handleApiNetwork( );
+	void handleApiWifiScan( );  /**< the networks in range, for the picker */
 	void handleApiConfig( );
 	void handleApiUsers( );
 	void handleApiThemes( );

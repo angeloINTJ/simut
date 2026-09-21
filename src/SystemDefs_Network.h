@@ -118,6 +118,23 @@ constexpr uint8_t WIFI_SCANS_BEFORE_BLIND_JOIN = 2;
 constexpr uint32_t WIFI_SCAN_TIMEOUT_MS = 15000;
 
 /**
+ * One access point, as the "pick a network" list needs it.
+ *
+ * Copied OUT of the driver's results, because WiFi.scanDelete( ) frees those
+ * and the web reads the list one request later. Twelve of them is 432 B of
+ * RAM held for the life of the device — enough for any room somebody is
+ * standing in with a Pico W, and the cheapest bound that is not a guess.
+ */
+constexpr uint8_t WIFI_SCAN_MAX_NETS = 12;
+
+struct WifiNet {
+	char    ssid[33];   /**< 32 + terminator; a hidden AP reports ""       */
+	int16_t rssi;       /**< dBm, negative                                 */
+	uint8_t enc;        /**< the driver's auth mode, 0 = open              */
+	uint8_t channel;
+};
+
+/**
  * Ceiling for watchdog feeding in long-operation guards (ms).
  *
  * Applies to the repeating timers SendGuard (WebManager) and

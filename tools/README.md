@@ -47,7 +47,7 @@ local build before CI ever sees it.
 | script | what it does | last touched |
 |---|---|---|
 | `build_favicon_header.py` | PlatformIO pre-build script — regenerates src/Favicon.{h,cpp} from data/favicon.ico. | 2026-07-27 |
-| `build_webui_gz.py` | PlatformIO pre-build script — regenerates WebUI_GZ.h from WebUI.h. | 2026-08-23 |
+| `build_webui_gz.py` | PlatformIO pre-build script — regenerates WebUI_GZ.h from WebUI.h. Running it **by hand** needs the interpreter that has zopfli, which is PlatformIO's pipx venv (`~/.local/share/pipx/venvs/platformio/bin/python`) — not the system `python3` and not `~/.platformio/penv/bin/python`. Either of those falls back to gzip -9 and every page grows ~2,888 B in total, with no error. | 2026-09-20 |
 | `check_channels.py` | Build guard: keep channel knowledge inside the channel table. | 2026-07-30 |
 | `check_cli_help.py` | PlatformIO pre-build guard — every usable CLI command must be documented. | 2026-09-07 |
 | `check_flash_probe.py` | PlatformIO post-build guard — FlashIrqProbe wrappers must live in SRAM. | 2026-07-23 |

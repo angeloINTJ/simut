@@ -5415,6 +5415,24 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .row { display: flex; gap: 20px; }
         .col { flex: 1; }
         @media(max-width: 600px) { .row { flex-direction: column; gap: 0; } }
+        /* Busca de redes. O botao fica na MESMA linha do SSID: no celular a
+           caixa encolhe, mas 108px de botao continuam legiveis em 320px. */
+        .ssid-row { display: flex; gap: 8px; align-items: stretch; }
+        .ssid-row input { flex: 1; min-width: 0; }
+        .btn-scan { flex: 0 0 auto; padding: 0 14px; background: var(--fundo-sutil); color: var(--tinta);
+                    border: 1px solid var(--linha); border-radius: 6px; cursor: pointer; font-size: 14px;
+                    font-weight: 600; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+        .btn-scan:hover:not(:disabled) { border-color: var(--acento); color: var(--acento); }
+        .btn-scan:disabled { opacity: 0.55; cursor: default; }
+        .scan-box { margin-top: 10px; border: 1px solid var(--linha); border-radius: 6px; overflow: hidden; }
+        .scan-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 12px;
+                     background: none; border: none; border-bottom: 1px solid var(--linha); cursor: pointer;
+                     color: var(--tinta); font-size: 14px; text-align: left; }
+        .scan-item:last-child { border-bottom: none; }
+        .scan-item:hover { background: var(--fundo-sutil); }
+        .scan-item .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .scan-item .sig { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; color: var(--tinta-fraca); }
+        .scan-note { padding: 11px 12px; font-size: 14px; color: var(--tinta-fraca); }
         .net-stat { margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--linha); }
         .net-stat:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
         .net-stat .val { font-size: 15px; color: var(--tinta); font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace; margin-top: 4px; }
@@ -5450,7 +5468,11 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         <h3 data-i18n="net_wifi">Wireless Network (Wi-Fi)</h3>
                         <div class="grp">
                             <label data-i18n="net_ssid">SSID (Network Name)</label>
-                            <input type="text" id="ssid" name="ssid" maxlength="31" required>
+                            <div class="ssid-row">
+                                <input type="text" id="ssid" name="ssid" maxlength="31" required>
+                                <button type="button" class="btn-scan" id="btnScan" onclick="wifiScan()"><svg class="ic"><use href="#i-net"/></svg><span id="btnScanTxt" data-i18n="net_scan">Scan</span></button>
+                            </div>
+                            <div id="scanBox" class="scan-box" style="display:none"></div>
 
                             <label data-i18n="net_pass">Password (Leave empty to keep current)</label>
                             <input type="password" id="pass" name="pass" maxlength="31">
@@ -5552,6 +5574,84 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         }
         function toggleIpFields()  { _toggleGroup('static_fields', document.getElementById('dhcp').checked); }
         function toggleDnsFields() { _toggleGroup('dns_fields',    document.getElementById('dns_auto').checked); }
+
+        /* Busca de redes. Em modo AP o radio passa a AP_STA durante a varredura,
+         * e a associacao do celular engasga por instantes: o poll tolera ate
+         * SCAN_MISS falhas seguidas de rede em vez de desistir na primeira —
+         * desistir ali daria "falhou" numa varredura que terminou bem. */
+        const SCAN_TRIES = 20, SCAN_MISS = 6;
+        let scanBusy = false, scanNets = [];
+
+        function scanNote(txt) {
+            document.getElementById('scanBox').innerHTML =
+                '<div class="scan-note">' + escHtml(txt) + '</div>';
+        }
+
+        async function wifiScan() {
+            if (scanBusy) return;
+            scanBusy = true;
+            const btn = document.getElementById('btnScan'), txt = document.getElementById('btnScanTxt');
+            btn.disabled = true;
+            txt.innerText = window.t('net_scanning', 'Scanning...');
+            document.getElementById('scanBox').style.display = '';
+            scanNote(window.t('net_scanning', 'Scanning...'));
+            let miss = 0;
+            try {
+                for (let i = 0; i < SCAN_TRIES; i++) {
+                    let d = null;
+                    try {
+                        /* again=1 so a stale result from a previous visit is not
+                           what comes back; the later polls read that same run. */
+                        const res = await fetchSafe('/api/wifi/scan' + (i ? '' : '?again=1'));
+                        if (res.status === 503) { scanNote(window.t('net_scan_busy', 'Radio busy — try again in a moment')); return; }
+                        d = await res.json();
+                        miss = 0;
+                    } catch (e) { if (++miss > SCAN_MISS) throw e; }
+                    if (d && !d.scanning) {
+                        if (d.error) scanNote(window.t('net_scan_fail', 'The scan failed'));
+                        else renderNets(d.nets || []);
+                        return;
+                    }
+                    await new Promise(r => setTimeout(r, 900));
+                }
+                scanNote(window.t('net_scan_fail', 'The scan failed'));
+            } catch (e) {
+                scanNote(window.t('net_scan_fail', 'The scan failed'));
+            } finally {
+                scanBusy = false; btn.disabled = false;
+                txt.innerText = window.t('net_scan', 'Scan');
+            }
+        }
+
+        function renderNets(nets) {
+            scanNets = nets;
+            if (!nets.length) { scanNote(window.t('net_scan_none', 'No networks found')); return; }
+            let h = '';
+            for (let i = 0; i < nets.length; i++) {
+                const n = nets[i];
+                const bars = n.rssi >= -55 ? 4 : n.rssi >= -67 ? 3 : n.rssi >= -78 ? 2 : 1;
+                /* Indice, nunca a SSID, no onclick: escHtml nao escapa aspas e a
+                   SSID sao 32 bytes arbitrarios que nao sao deste aparelho. */
+                h += '<button type="button" class="scan-item" onclick="pickNet(' + i + ')">' +
+                     '<span>' + (n.enc ? '\u{1F512}' : '\u{1F513}') + '</span>' +
+                     '<span class="nm">' + escHtml(n.ssid) + '</span>' +
+                     '<span class="sig">' + '\u25AE'.repeat(bars) + '\u25AF'.repeat(4 - bars) +
+                     ' ' + escHtml(n.rssi) + '</span></button>';
+            }
+            document.getElementById('scanBox').innerHTML = h;
+        }
+
+        function pickNet(i) {
+            const n = scanNets[i];
+            if (!n) return;
+            const f = document.getElementById('ssid');
+            f.value = n.ssid;
+            /* O pending de U24 escuta o form: sem este evento a escolha some
+               ao trocar de pagina antes de salvar. */
+            f.dispatchEvent(new Event('input', { bubbles: true }));
+            document.getElementById('scanBox').style.display = 'none';
+            document.getElementById('pass').focus();
+        }
 
         async function loadNet() {
             try {

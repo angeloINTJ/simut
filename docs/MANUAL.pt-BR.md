@@ -472,12 +472,33 @@ dispositivo.
 |---|---|
 | `/` | Dashboard: estatísticas do sistema, uso de memória e de flash, tabela de sensores ao vivo e um painel de captura do display que lê a tela física |
 | `/config` | Identidade do dispositivo, data e hora, hardware e amostragem, o mapa de GPIO e os slots de sensores, telemetria |
-| `/network` | Wi-Fi, endereçamento estático, mDNS, NTP |
+| `/network` | Wi-Fi (com busca das redes ao alcance), endereçamento estático, mDNS, NTP |
 | `/alarms` | Limites e ações por sensor |
 | `/users` | Contas e permissões |
 | `/files` | Navegador do sistema de arquivos: upload, download, exclusão, criação de diretórios — mais backup completo, restauração e atualização de firmware (OTA) |
 | `/history` | Gráficos de histórico, exportação CSV e o visualizador do log de eventos do sistema |
 | `/license` | Texto da licença |
+
+### Escolher a rede Wi-Fi em vez de digitá-la
+
+**Buscar**, ao lado do campo SSID em `/network`, lista o que o rádio ouve:
+nome, se é protegida e o sinal. Tocar numa linha preenche o SSID e põe o cursor
+na senha. A lista guarda doze redes em ordem de sinal; uma rede que responde
+por vários rádios (malha) aparece **uma vez**, no mais forte, e redes ocultas
+não aparecem — não há o que tocar, e o SSID delas continua sendo digitado.
+
+Funciona **no modo AP**, que é o caso para o qual isso foi feito: um aparelho
+nunca configurado serve a página de configuração pelo próprio ponto de acesso,
+e esse é justamente o momento em que ele com certeza **não** está na rede cujo
+nome está pedindo. A varredura precisa da interface estação, que o modo AP
+deixa desligada, então o aparelho a levanta **ao lado** do ponto de acesso — a
+página que você está lendo continua de pé. Espere a conexão engasgar por um ou
+dois segundos enquanto o rádio sai do canal; a página continua consultando
+através disso.
+
+Se voltar **Rádio ocupado**, quem está com o rádio é a reconexão — o aparelho
+está procurando a própria rede — e a busca é recusada em vez de enfileirada.
+Tente de novo em instantes.
 
 ### As alterações ficam pendentes até você mandar aplicar
 

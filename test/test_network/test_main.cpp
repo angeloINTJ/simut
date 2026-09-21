@@ -39,6 +39,10 @@
 FakeWiFiClass WiFi;
 FakeSerial Serial;
 
+/* Counted by the pico/cyw43_arch.h stub: a scan from AP mode has to bring the
+ * STA interface up BEFORE the sweep, and the ordering is the point. */
+unsigned g_cyw43StaModeEnables = 0;
+
 namespace simut_native { uint32_t fake_millis_value = 0; }
 
 /* The log is not under test here; these keep the linker happy and record
@@ -107,6 +111,7 @@ static void bringUp(NetworkManager& net) {
 void setUp(void) {
     set_native_millis(100000);   /* away from 0, so wrap arithmetic is exercised */
     WiFi.reset( );
+    g_cyw43StaModeEnables = 0;
 }
 void tearDown(void) {}
 
@@ -401,6 +406,199 @@ static void test_an_impossible_signal_reading_is_not_reported_as_health(void) {
     TEST_ASSERT_FALSE(net.isNetworkHealthy( ));
 }
 
+
+/* ══ the scan the web page asks for ══════════════════════════════════════
+ *
+ * This is a SECOND scanner, beside the reconnect one, and the two must not
+ * fight over the radio. It exists because of AP mode: a device that has never
+ * been configured shows a setup page over its own access point, and until now
+ * the SSID had to be typed from memory there — the one place the device is
+ * guaranteed not to be on the network whose name is being asked for.
+ */
+
+/** Drive only the scan poller, which is what the web request does. */
+static void pumpScan(NetworkManager& net, uint32_t ms, uint32_t stepMs = 50) {
+    const uint32_t end = millis( ) + ms;
+    while ((int32_t)(millis( ) - end) < 0) {
+        set_native_millis(millis( ) + stepMs);
+        net.update( );
+    }
+}
+
+static void test_a_scan_lists_what_the_air_carries(void) {
+    NetworkManager net;
+    bringUp(net);
+
+    WiFi.nets = { {"far",   -80, 4, 1},
+                  {"near",  -40, 4, 6},
+                  {"middle",-60, 0, 11} };
+
+    TEST_ASSERT_TRUE(net.startScan( ));
+    TEST_ASSERT_EQUAL_UINT(NetworkManager::SCAN_RUNNING, net.scanState( ));
+    pumpScan(net, 2000);
+    TEST_ASSERT_EQUAL_UINT(NetworkManager::SCAN_DONE, net.scanState( ));
+
+    WifiNet out[WIFI_SCAN_MAX_NETS];
+    TEST_ASSERT_EQUAL_UINT(3, net.scanResults(out, WIFI_SCAN_MAX_NETS));
+
+    /* Descending signal, because that is the order someone picking a network
+     * on a phone reads it in. */
+    TEST_ASSERT_EQUAL_STRING("near",   out[0].ssid);
+    TEST_ASSERT_EQUAL_STRING("middle", out[1].ssid);
+    TEST_ASSERT_EQUAL_STRING("far",    out[2].ssid);
+    TEST_ASSERT_EQUAL_INT(-40, out[0].rssi);
+    TEST_ASSERT_EQUAL_UINT(0,  out[1].enc);   /* open, and it stays open */
+    TEST_ASSERT_EQUAL_UINT(11, out[1].channel);
+}
+
+static void test_a_mesh_does_not_fill_the_list_with_itself(void) {
+    NetworkManager net;
+    bringUp(net);
+
+    /* One SSID on three radios is one network to whoever is choosing. */
+    WiFi.nets = { {"home", -70, 4, 1},
+                  {"home", -45, 4, 6},
+                  {"other",-65, 4, 11},
+                  {"home", -85, 4, 13} };
+
+    TEST_ASSERT_TRUE(net.startScan( ));
+    pumpScan(net, 2000);
+
+    WifiNet out[WIFI_SCAN_MAX_NETS];
+    TEST_ASSERT_EQUAL_UINT(2, net.scanResults(out, WIFI_SCAN_MAX_NETS));
+    TEST_ASSERT_EQUAL_STRING("home", out[0].ssid);
+    TEST_ASSERT_EQUAL_INT_MESSAGE(-45, out[0].rssi,
+        "kept a weaker radio of the same SSID than the one it saw");
+    TEST_ASSERT_EQUAL_STRING("other", out[1].ssid);
+}
+
+static void test_a_hidden_network_is_not_offered(void) {
+    NetworkManager net;
+    bringUp(net);
+
+    /* A hidden SSID scans as an empty name: there is nothing to tap, and a
+     * blank row in the list reads as a bug. */
+    WiFi.nets = { {"", -35, 4, 1}, {"visible", -70, 4, 6} };
+
+    TEST_ASSERT_TRUE(net.startScan( ));
+    pumpScan(net, 2000);
+
+    WifiNet out[WIFI_SCAN_MAX_NETS];
+    TEST_ASSERT_EQUAL_UINT(1, net.scanResults(out, WIFI_SCAN_MAX_NETS));
+    TEST_ASSERT_EQUAL_STRING("visible", out[0].ssid);
+}
+
+static void test_a_crowded_band_keeps_the_strongest(void) {
+    NetworkManager net;
+    bringUp(net);
+
+    /* More networks than the list holds. The weakest are the ones to drop —
+     * the buffer is fixed because it is copied out of the driver's map before
+     * scanDelete( ) frees it. */
+    char names[WIFI_SCAN_MAX_NETS + 6][8];
+    for (int i = 0; i < WIFI_SCAN_MAX_NETS + 6; i++) {
+        snprintf(names[i], sizeof(names[i]), "n%02d", i);
+        WiFi.nets.push_back({ names[i], -30 - i, 4, (uint8_t)(1 + i % 11) });
+    }
+
+    TEST_ASSERT_TRUE(net.startScan( ));
+    pumpScan(net, 2000);
+
+    WifiNet out[WIFI_SCAN_MAX_NETS];
+    TEST_ASSERT_EQUAL_UINT(WIFI_SCAN_MAX_NETS, net.scanResults(out, WIFI_SCAN_MAX_NETS));
+    TEST_ASSERT_EQUAL_STRING("n00", out[0].ssid);
+    TEST_ASSERT_EQUAL_STRING("n11", out[WIFI_SCAN_MAX_NETS - 1].ssid);
+}
+
+static void test_a_scan_that_never_finishes_is_abandoned(void) {
+    NetworkManager net;
+    bringUp(net);
+
+    WiFi.scanNeverCompletes = true;
+    TEST_ASSERT_TRUE(net.startScan( ));
+
+    /* Still running just before the deadline — a poller that gave up early
+     * would report a failure on every slow scan. */
+    pumpScan(net, WIFI_SCAN_TIMEOUT_MS - 1000);
+    TEST_ASSERT_EQUAL_UINT(NetworkManager::SCAN_RUNNING, net.scanState( ));
+
+    pumpScan(net, 2000);
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(NetworkManager::SCAN_FAILED, net.scanState( ),
+        "nothing in the SDK times a scan out; without this the page polls forever");
+}
+
+static void test_a_refused_scan_says_so_without_waiting(void) {
+    NetworkManager net;
+    bringUp(net);
+
+    /* cyw43_wifi_scan( ) refusing is the call whose failure leaves
+     * wifi_scan_state at 1 for the rest of the boot. Reporting it at once
+     * beats fifteen seconds of polling a sweep that never started. */
+    WiFi.scanRefusesToStart = true;
+    TEST_ASSERT_FALSE(net.startScan( ));
+    TEST_ASSERT_EQUAL_UINT(NetworkManager::SCAN_FAILED, net.scanState( ));
+}
+
+static void test_the_reconnect_scanner_keeps_the_radio(void) {
+    NetworkManager net;
+    bringUp(net);
+
+    /* Drop the link and let the machine start its own scan; while that one
+     * owns the radio, the web's scan must be refused rather than starting a
+     * second sweep on top of it. */
+    WiFi.scanNeverCompletes = true;
+    WiFi.disconnect( );
+    const uint32_t end = millis( ) + 60000;
+    while (WiFi.scanStarts == 0 && (int32_t)(millis( ) - end) < 0) {
+        set_native_millis(millis( ) + 50);
+        net.update( );
+    }
+    TEST_ASSERT_GREATER_THAN_UINT_MESSAGE(0, WiFi.scanStarts,
+        "setup: the reconnect scanner never took the radio");
+
+    const unsigned before = WiFi.scanStarts;
+    TEST_ASSERT_FALSE(net.startScan( ));
+    TEST_ASSERT_EQUAL_UINT(before, WiFi.scanStarts);
+}
+
+static void test_a_scan_from_ap_mode_brings_the_sta_interface_up_first(void) {
+    NetworkManager net;
+    net.beginAP("simut-test");
+    TEST_ASSERT_TRUE(net.isApConfig( ));
+
+    WiFi.nets = { {"neighbour", -55, 4, 6} };
+    TEST_ASSERT_TRUE(net.startScan( ));
+
+    /* The sweep runs on the STA interface, which AP mode leaves down. Asking
+     * anyway is the documented way to wedge wifi_scan_state. */
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(1, g_cyw43StaModeEnables,
+        "scanned from AP mode without bringing the STA interface up");
+    TEST_ASSERT_EQUAL_MESSAGE(WIFI_AP_STA, WiFi.lastMode,
+        "dropped the access point to scan — that is the page the user is on");
+
+    /* And it is still collected: pollScan( ) runs at the TOP of update( ),
+     * before the AP-mode branch returns. */
+    pumpScan(net, 2000);
+    TEST_ASSERT_EQUAL_UINT(NetworkManager::SCAN_DONE, net.scanState( ));
+    WifiNet out[WIFI_SCAN_MAX_NETS];
+    TEST_ASSERT_EQUAL_UINT(1, net.scanResults(out, WIFI_SCAN_MAX_NETS));
+    TEST_ASSERT_EQUAL_STRING("neighbour", out[0].ssid);
+}
+
+static void test_ap_mode_enables_the_sta_interface_once(void) {
+    NetworkManager net;
+    net.beginAP("simut-test");
+
+    WiFi.nets = { {"neighbour", -55, 4, 6} };
+    TEST_ASSERT_TRUE(net.startScan( ));
+    pumpScan(net, 2000);
+    TEST_ASSERT_TRUE(net.startScan( ));
+    pumpScan(net, 2000);
+
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(1, g_cyw43StaModeEnables,
+        "re-enabled the STA interface on every scan; it is already up");
+}
+
 int main(int, char**) {
     UNITY_BEGIN( );
 
@@ -425,6 +623,16 @@ int main(int, char**) {
     RUN_TEST(test_a_second_outage_recovers_as_fast_as_the_first);
 
     RUN_TEST(test_an_impossible_signal_reading_is_not_reported_as_health);
+
+    RUN_TEST(test_a_scan_lists_what_the_air_carries);
+    RUN_TEST(test_a_mesh_does_not_fill_the_list_with_itself);
+    RUN_TEST(test_a_hidden_network_is_not_offered);
+    RUN_TEST(test_a_crowded_band_keeps_the_strongest);
+    RUN_TEST(test_a_scan_that_never_finishes_is_abandoned);
+    RUN_TEST(test_a_refused_scan_says_so_without_waiting);
+    RUN_TEST(test_the_reconnect_scanner_keeps_the_radio);
+    RUN_TEST(test_a_scan_from_ap_mode_brings_the_sta_interface_up_first);
+    RUN_TEST(test_ap_mode_enables_the_sta_interface_once);
 
     return UNITY_END( );
 }

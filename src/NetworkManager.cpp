@@ -22,6 +22,7 @@
 #include "pico/unique_id.h"           /* the setup AP key is derived from the board id */
 #include "BuildIdentity.h"            /* SIMUT_VERSION / env for the mDNS TXT record */
 #include <bearssl/bearssl_hash.h>     /* br_sha256_* for that derivation (V-05) */
+#include "pico/cyw43_arch.h"           /* enable_sta_mode: scanning needs the STA itf */
 
 NetworkManager::NetworkManager( ) {
  _state = NET_OFFLINE;
@@ -183,11 +184,117 @@ void NetworkManager::setManualTime(time_t epoch) {
  TRL("RTC set manually"));
 }
 
+
+/* ── On-demand scan ────────────────────────────────────────────────────────
+ *
+ * The radio has ONE scanner, and the reconnect path already uses it
+ * (NET_SCANNING_RETRY). Whoever asks second is REFUSED rather than queued: a
+ * refusal is something the page can show, and a queue is just a second scan
+ * waiting to collide. Two in flight is the documented way to wedge this chip.
+ */
+bool NetworkManager::startScan( ) {
+ if (_scanState == SCAN_RUNNING) return false;
+ if (_state == NET_SCANNING_RETRY) return false;   /* the other scanner owns it */
+
+ /* cyw43_wifi_scan( ) sweeps on the STA interface. In AP mode that interface
+  * is DOWN, and asking anyway is the documented way to leave wifi_scan_state
+  * stuck at 1 for the rest of the boot. Bring it up first; the AP stays up
+  * beside it, because the browser asking for this list is connected to it. */
+ if (_state == NET_AP_CONFIG && !_scanStaForced) {
+  cyw43_arch_enable_sta_mode( );
+  WiFi.mode(WIFI_AP_STA);
+  _scanStaForced = true;
+ }
+
+ WiFi.scanDelete( );             /* an older result set is not this one */
+ _scanCount = 0;
+ /* -1 means the sweep started; 0 means cyw43_wifi_scan( ) refused, and THAT
+  * is the call whose failure leaves the state stuck. Reporting it now beats
+  * a 15 s wait for a scan that was never running. */
+ if (WiFi.scanNetworks(true) != -1) {
+  _scanState = SCAN_FAILED;
+  /* One TRL( ) for both scan records, the distinguishing part as an
+   * untranslated marker: the es-ES pack's resident sections have ~110 B of
+   * headroom and two strings would be most of it. */
+  LOG_CODE(LOG_WARN, "NET", SYS_WIFI_SCAN, -1, String(TRL("Network scan")) + " [refused]");
+  return false;
+ }
+ _scanState = SCAN_RUNNING;
+ _scanStarted = millis( );
+ return true;
+}
+
+/* Called from update( ), every pass, in every state. */
+void NetworkManager::pollScan( ) {
+ if (_scanState != SCAN_RUNNING) return;
+
+ const int n = WiFi.scanComplete( );
+ if (n == -1) {
+  /* Same deadline as the reconnect scan, and for the same reason: nothing in
+   * the SDK times this out, so without a bound this is a terminal state. */
+  if (timeSince(_scanStarted, WIFI_SCAN_TIMEOUT_MS)) {
+   WiFi.scanDelete( );
+   _scanState = SCAN_FAILED;
+   LOG_CODE(LOG_WARN, "NET", SYS_WIFI_SCAN, -2, TRL("Scan never finished — abandoning it"));
+  }
+  return;
+ }
+
+ /* Copy OUT: scanDelete( ) frees the driver's map, and the web reads this one
+  * request later. Hidden SSIDs are dropped — there is nothing to tap — and a
+  * mesh answering on three radios collapses to its strongest, or one network
+  * takes all WIFI_SCAN_MAX_NETS slots and hides the rest. */
+ _scanCount = 0;
+ for (int i = 0; i < n; i++) {
+  const char* ss = WiFi.SSID((uint8_t)i);
+  if (!ss || !ss[0]) continue;
+  WifiNet w;
+  safeCopy(w.ssid, ss, sizeof(w.ssid));
+  w.rssi    = (int16_t)WiFi.RSSI((uint8_t)i);
+  w.enc     = (uint8_t)WiFi.encryptionType((uint8_t)i);
+  w.channel = (uint8_t)WiFi.channel((uint8_t)i);
+
+  int8_t at = -1;
+  for (uint8_t j = 0; j < _scanCount; j++)
+   if (strcmp(_scanNets[j].ssid, w.ssid) == 0) { at = (int8_t)j; break; }
+  if (at >= 0) {
+   if (w.rssi <= _scanNets[at].rssi) continue;   /* the one we kept is stronger */
+   for (uint8_t j = (uint8_t)at; j + 1 < _scanCount; j++) _scanNets[j] = _scanNets[j + 1];
+   _scanCount--;
+  } else if (_scanCount == WIFI_SCAN_MAX_NETS) {
+   if (w.rssi <= _scanNets[_scanCount - 1].rssi) continue;   /* weaker than the weakest kept */
+   _scanCount--;
+  }
+
+  /* Insert by descending RSSI: 12 entries at most, and signal is what someone
+   * picking a network on a phone actually sorts by. */
+  uint8_t k = _scanCount;
+  while (k > 0 && _scanNets[k - 1].rssi < w.rssi) { _scanNets[k] = _scanNets[k - 1]; k--; }
+  _scanNets[k] = w;
+  _scanCount++;
+ }
+ WiFi.scanDelete( );
+ _scanState = SCAN_DONE;
+ LOG_CODE(LOG_INFO, "NET", SYS_WIFI_SCAN, (int)_scanCount, String(TRL("Network scan")) + " [ready]");
+}
+
+uint8_t NetworkManager::scanResults(WifiNet* out, uint8_t cap) const {
+ if (!out || !cap) return 0;
+ const uint8_t n = (_scanCount < cap) ? _scanCount : cap;
+ for (uint8_t i = 0; i < n; i++) out[i] = _scanNets[i];
+ return n;
+}
+
 /**
  * @brief Network state machine — handles all connection states.
  * Must be called frequently from the main loop.
  */
 void NetworkManager::update( ) {
+ /* BEFORE the AP branch, which returns. Scanning from the setup portal is
+  * the case this exists for, and a poll placed after that return would run
+  * in every mode except the one that needs it. */
+ pollScan( );
+
  if (_state == NET_AP_CONFIG) {
  _dnsServer.processNextRequest( );
  /* AP mode timeout — reboot to STA if SSID configured */

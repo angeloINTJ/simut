@@ -92,6 +92,20 @@ public:
 
 
  bool isConnected( );
+
+ /* ── On-demand network scan ───────────────────────────────────────────
+  *
+  * Asynchronous by construction: a scan takes seconds and this runs on the
+  * core that also serves HTTP. startScan( ) asks, scanState( ) says where it
+  * got to, scanResults( ) copies what it found. The web polls.
+  */
+ enum ScanState : uint8_t { SCAN_IDLE, SCAN_RUNNING, SCAN_DONE, SCAN_FAILED };
+ /** @return false when one is already running, or when the reconnect state
+  *  machine is holding the radio — never starts a second concurrent scan. */
+ bool startScan( );
+ uint8_t scanState( ) const { return _scanState; }
+ /** Copies up to `cap` results out; @return how many were written. */
+ uint8_t scanResults(WifiNet* out, uint8_t cap) const;
  bool isApConfig( ) const { return _state == NET_AP_CONFIG; } /**< True while serving the setup Access Point — forces HTTP so a bad TLS cert cannot lock the recovery UI. */
  bool isTimeSynced( );
 
@@ -268,4 +282,21 @@ private:
 
  /* ── AP mode timeout ── */
  uint32_t _apStartTime = 0; /**< millis( ) when entering AP mode */
+
+ /* ── On-demand scan, for the web's "pick a network" list ──────────────
+  *
+  * Owned HERE and not by WebManager, for one reason: the reconnect state
+  * machine scans too (NET_SCANNING_RETRY), and two scans in flight is the
+  * documented way to wedge this radio — cyw43_wifi_scan( ) sets
+  * wifi_scan_state before issuing the scan and never clears it if the call
+  * fails, so the second one loses and scanComplete( ) answers -1 until the
+  * next boot. With both in one object the collision is a branch, not a race.
+  */
+ uint8_t  _scanState = 0;        /**< ScanState                            */
+ uint32_t _scanStarted = 0;      /**< deadline base, same 15 s as the other */
+ uint8_t  _scanCount = 0;
+ bool     _scanStaForced = false; /**< STA was enabled just to scan (AP mode) */
+ WifiNet  _scanNets[WIFI_SCAN_MAX_NETS];
+
+ void pollScan( );
 };

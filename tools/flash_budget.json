@@ -181,35 +181,60 @@
   "build_webui_gz.py now FAILS the build on that class of defect (a window.foo( )",
   "used in a page that neither defines it nor loads a lang.js that does), which",
   "was verified by removing the definition again and watching the gate name",
-  "CFG_PAGE."
+  "CFG_PAGE.",
+  "2026-09-20 (feat/wifi-scan): +2,776 B on release, +2,784 test, +2,800",
+  "test_https, +2,776 asserts, +1,464 alpha, +1,464 air. A scan the network page",
+  "can run, including from AP mode, where the SSID has to be typed from memory",
+  "today because the radio is serving the page instead of listening to the air.",
+  "Of the release delta, 1,103 B are the page itself, measured: the gzipped",
+  "NET_PAGE blob goes 2,728 -> 3,831 B, and that same blob is in every image.",
+  "The rest is the device side - a scan state machine on NetworkManager that",
+  "polls from the TOP of update( ), before the AP-mode early return, so a scan",
+  "started while the AP is up is still collected.",
+  "The two imageless builds carry 1,312 B LESS of the firmware side than the",
+  "panel builds do, which is not explained here: both link the same page blob",
+  "and the same NetworkManager. What is measured is the delta; the split is",
+  "reported as found, not as understood.",
+  "Budgets go to measured + 3,000 across the board, which is the margin every",
+  "env in this file is already carrying (the 1,000 the Air notes above asked",
+  "for was widened to ~2,992 by the v25 passes and is not narrowed back here).",
+  "Real .bin slack under the 1,040,384 B OTA ceiling: release 16,300, test",
+  "11,436, test_https 3,804, asserts 14,124, alpha 45,940, air 5,076. Both the",
+  "Air and the alpha grew 4,096 B of .bin for 1,464 B of code: their images",
+  "crossed one of the 4 KiB .data alignment steps this file describes at the",
+  "top, which is why the .bin delta and the 'used' delta disagree here.",
+  "pico_w_test_https now trips the gate's WARN at 3,804 B - under one flash",
+  "sector. It is the env with the least room (pico_w_test plus BearSSL) and the",
+  "next thing added to it has to take a fourth page out to LittleFS, the way",
+  "ALARMS_PAGE, FILE_PAGE and TEL_PAGE already went."
  ],
  "ceiling": 1044480,
  "measured_on": "2026-09-20",
- "measured_at_commit": "feat/alarms-live-config (v25 ordered keypads; live-apply banner: dry-run classification, _nosave, _reboot; user-picker strip sweep)",
+ "measured_at_commit": "feat/wifi-scan (GET /api/wifi/scan + the picker on the network page)",
  "envs": {
   "pico_w_release": {
-   "budget": 1011948,
-   "measured": 1009276
+   "budget": 1015052,
+   "measured": 1012052
   },
   "pico_w_test": {
-   "budget": 1016804,
-   "measured": 1014132
+   "budget": 1019916,
+   "measured": 1016916
   },
   "pico_w_test_https": {
-   "budget": 1024428,
-   "measured": 1021748
+   "budget": 1027548,
+   "measured": 1024548
   },
   "pico_w_asserts": {
-   "budget": 1014068,
-   "measured": 1011452
+   "budget": 1017228,
+   "measured": 1014228
   },
   "pico_w_alpha": {
-   "budget": 981028,
-   "measured": 978036
+   "budget": 982500,
+   "measured": 979500
   },
   "pico_w_air": {
-   "budget": 1020728,
-   "measured": 1017736
+   "budget": 1022200,
+   "measured": 1019200
   }
  }
 }
