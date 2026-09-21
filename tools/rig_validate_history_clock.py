@@ -440,6 +440,13 @@ def test_telemetry(rig, cli):
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     print(f"   coletor em http://{ip}:{port}/ingest")
 
+    # /api/config names these t_srv/t_port/t_path/t_bat/t_mode/t_sec. The
+    # cleanup below used to read `telServer`/`telPort` — names this device has
+    # never emitted — so .get() fell through to its defaults and the "restore"
+    # wrote `tel server ' '` and `tel port 80` over the real collector
+    # (192.168.3.206:8080 /telemetry) while path, batch and mode kept the
+    # test's own values. Read what the device actually sends, put back every
+    # field this test writes, and check the result instead of trusting it.
     saved = rig.get("/api/config").json()
     try:
         cli.cmd("configure terminal")
@@ -502,11 +509,26 @@ def test_telemetry(rig, cli):
                f"{len(future)} registros" if future else "")
     finally:
         srv.shutdown()
+        modes = {0: "json", 1: "csv", 2: "custom"}
         cli.cmd("configure terminal")
-        cli.cmd(f"tel server {saved.get('telServer', '') or ' '}")
-        cli.cmd(f"tel port {saved.get('telPort', 80)}")
+        cli.cmd(f"tel server {saved.get('t_srv', '') or ' '}")
+        cli.cmd(f"tel port {saved.get('t_port', 80)}")
+        cli.cmd(f"tel path {saved.get('t_path', '') or ' '}")
+        cli.cmd(f"tel batch {saved.get('t_bat', 250)}")
+        cli.cmd(f"tel mode {modes.get(saved.get('t_mode', 0), 'json')}")
+        cli.cmd(f"tel crypto {'on' if saved.get('t_sec') else 'off'}")
         cli.cmd("end", 2)
         cli.cmd("tel reset", 3)
+        fields = ("t_srv", "t_port", "t_path", "t_bat", "t_mode", "t_sec")
+        try:
+            back = rig.get("/api/config").json()
+        except Exception as e:
+            record("telemetry config came back as it was", False, str(e)[:80])
+        else:
+            drift = {k: f"{saved.get(k)!r} -> {back.get(k)!r}"
+                     for k in fields if saved.get(k) != back.get(k)}
+            record("telemetry config came back as it was", not drift,
+                   "; ".join(f"{k}: {v}" for k, v in drift.items()))
         print("   limpeza: config de telemetria restaurada, cursor resetado")
 
 

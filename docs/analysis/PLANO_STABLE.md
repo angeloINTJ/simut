@@ -54,9 +54,11 @@ Isto não é para tranquilizar; é para não refazer o que já foi feito.
 | B5 | **Corrente real nunca medida** (os 407,8 mAh/dia são cálculo) | ⚠️ não | O manual **já diz** "aritmética, não medição". Não bloqueia porque nada é afirmado sem marcação — mas nenhuma afirmação de autonomia pode perder a marcação numa stable |
 | B6 | `pico_w_test_https` a **3.308 B** do teto de OTA | ⚠️ não | Ambiente de bancada, não é imagem de produto. Vira bloqueio se alguém precisar dele no campo |
 | B7 | Issue #118 — mDNS do Air | ⚠️ não | Backlog |
+| B10 | **Cursor de telemetria pula registro em bloco fora de ordem** — medido em 21/09: **6 de 75.778** registros (0,0079%) em 55 arquivos de dia | ⚠️ não | Fere o item 2 *em silêncio*, e é por isso que não é ruído. Mas o registro **não se perde**: está na flash e sai pelo `/download` e pelo CSV — só a telemetria não o leva. A causa está escrita no firmware (`src/TelemetryManager.cpp:286`): um cursor escalar em tempo não alcança um registro atrás da marca-d'água. Fechá-lo é mudança de formato (cursor vira posição de varredura), não de rótulo. Vira bloqueio se o aparelho continuar **sem dizer** que pulou |
+| B11 | **A bancada roda `pico_w_test`, não a imagem que a versão publica** | 🔴 **muda o B2 e o B3** | As suítes do ferro exigem `user`/`tel` da CLI, e a `pico_w_release` tem `SIMUT_CLI_FULL=0`. Provado em 21/09: `user policy` e `tel server` só aparecem no `.bin` de teste, e o aparelho responde os dois. Logo o T1 de 21/09 certifica a `pico_w_test`. O soak (T3) e a OTA (T4) **têm de ir na `pico_w_release`** — nenhum dos dois precisa de CLI, e `telemetry_bench/soak_a6.py` foi escrito exatamente para isso |
 
-**Três bloqueios: B1, B2, B3.** Os outros quatro ficam registrados e não
-impedem a promoção.
+**Três bloqueios: B1, B2, B3**, com o B11 dizendo em qual imagem o B2 e o B3
+se fecham. Os outros cinco ficam registrados e não impedem a promoção.
 
 ---
 
@@ -71,7 +73,7 @@ nunca "rodou e pareceu bem".
 |---|---|---|---:|---|
 | T1 | Regressão funcional da imagem | `panel_users_hw_test.py`, `panel_fulltable_test.py`, `alarm_hw_test.py`, `wifi_scan_hw_test.py --ap`, `web_test_suite.py` | ~2 h | tudo verde na imagem **desta** versão |
 | T2 | Caça ao B1 | `panel_fulltable_test.py` em repetição, com o log binário preservado entre corridas | 3–4 h | ou reproduz com `ctx` e trace utilizáveis, ou N corridas limpas dão a taxa |
-| T3 | Soak | `soak_monitor.py`, ≥ 8 h, coletor vivo e coletor morto | 8 h+ | 0 reboots sem causa; deriva de heap medida e declarada |
+| T3 | Soak | `telemetry_bench/soak_a6.py`, ≥ 8 h, coletor vivo e coletor morto, **na `pico_w_release`** | 8 h+ | 0 reboots sem causa; deriva de heap medida e declarada |
 | T4 | OTA nesta imagem | ciclo de stage+apply, ida e volta entre v2.6.0-beta e v2.6.1-beta, pela `:8080` | ~1 h | 3/3 nos dois sentidos, `/history` íntegro pelo `fsguard` |
 | T5 | Queda de rede | `wifi_outage_test.py` nesta imagem | ~40 min | as 3 fases, com o log do aparelho como prova |
 | T6 | Telemetria | `telemetry_bench` nos 4 transportes + dreno | ~1 h | 0 FTL; vazão registrada |
@@ -114,7 +116,10 @@ número ou o log neste documento. Não antes, e não por prazo.
 | 21/09 | T1: `wifi_scan_hw_test.py --ap` na imagem v2.6.1-beta | **18/18** |
 | 21/09 | T1: `panel_users_hw_test.py` (sem `admin` — ver nota) | **26/26**, 19 telas, 13 registros de alarme |
 | 21/09 | T7 partes A e B: relógio/histórico e leitor de gráficos | ✅ (parte C bloqueada, ver B8) |
-| 21/09 | Varredura de boots no anel de log após T1+T7 | **0** boots com ctx de watchdog; 4 `REBOOT_USER` dos próprios testes e 4 `SYS_BOOT ctx=227` das gravações |
+| 21/09 | Varredura de boots no anel de log após T1+T7 | **0** boots com ctx de watchdog; 4 `REBOOT_USER` dos próprios testes e 4 `SYS_BOOT ctx=227` das gravações — **ver a nota: `ctx=227` não é a faixa do upload** |
+| 21/09 | T7 parte C: dreno do histórico para coletor local | **6/7** — 16 syncs, 275 POSTs, 13.750 instantes, trecho 22/08 05:53 → 21/09 05:53; **1 registro não entregue** (19/09 03:40:36) |
+| 21/09 | Varredura dos 55 arquivos de dia atrás do cursor escalar | **6 de 75.778** registros (0,0079%), em 3 blocos parciais fora de ordem → B10 |
+| 21/09 | Qual imagem está no ferro | `pico_w_test` (a CLI responde `user policy`/`tel server`, que só existem nela) → B11 |
 
 ### Notas destas corridas
 
@@ -133,12 +138,46 @@ aparelho dizia o tempo todo *"Enfileirados 6, Enviados 6, Confirmados 6,
 Falhas 0"*, e os registros estavam lá, no arquivo do órfão, com o `user`
 correto. **Antes de qualquer corrida:** `ss -ltnp | grep python3`.
 
-🔴 **B8 (novo, não bloqueia): `SIMUT_WEB_USER`/`SIMUT_WEB_PASS` do
-`~/.simut-bench.env` não abrem mais a sessão web** — 401 `err:2`. É a senha do
-mantenedor e não foi tocada; as corridas usaram conta descartável criada e
-apagada pela CLI. Corrigir o arquivo de ambiente é o suficiente.
+✅ **B8 FECHADO em 21/09.** O mantenedor deu a senha provisória de `admin`,
+o `~/.simut-bench.env` foi corrigido e o login confere: `/api/login` 200 e
+`/api/status` 200 na mesma sessão. O arquivo continua fora do repositório,
+`chmod 600`.
+
+🔴 **A limpeza do T7-C restaurava chaves que não existem.** Ela lia
+`telServer`/`telPort` de um `/api/config` que emite `t_srv`/`t_port` — então o
+`.get()` caía no default e o "restore" escrevia `tel server ' '` e `tel port
+80` **por cima do coletor real** (192.168.3.206:8080 `/telemetry`), enquanto
+`path`, `batch` e `mode` ficavam com os valores do teste. Corrigido: lê o que o
+aparelho manda, devolve os seis campos e **confere lendo de volta** — a corrida
+desta manhã terminou com a config idêntica à de antes, só o relógio adiantado.
+Uma restauração que não se confere é como o coletor real fica apagado.
+
+🔴 **`alarm_hw_test.py` não tem limpeza nenhuma.** Ele aponta a telemetria para
+a bancada, troca `alarm set path`, os dois templates e deixa o modo em CSV — e
+termina assim. Enquanto ele não ganhar um teardown, quem roda tem de restaurar
+depois (nesta sessão, por snapshot do `/api/config` + conferência).
 
 🔴 **B9 (novo, não bloqueia): o `rig_validate_history_clock.py` fixava a porta
 8099**, que já estava ocupada por um servidor `node` da própria bancada — e
 morria **no meio**, depois de ter mexido na config de telemetria do aparelho.
 Agora a porta é `SIMUT_TEL_COLLECTOR_PORT` e a recusa diz o que fazer.
+
+⚠️ **A leitura de "4 `SYS_BOOT ctx=227` são as gravações" ainda não está
+provada, e o código diz outra coisa.** Em `src/LogManager.cpp:1022` a faixa
+`200 + módulo` é a do **estouro do watchdog** (`HW WATCHDOG: Core 0 loop
+stalled`), e módulo 27 é `HIST_SAMPLE`; o ramo do upload por picotool loga
+`ctx=0` em nível INFO (`LogManager.cpp:1033`). É a mesma faixa do B1:
+`ctx=209` é módulo 9 (`CLI`) e `ctx=455` é `200+255`, trace vazio. Ou o
+`picotool` reinicia pelo temporizador do watchdog — e aí cai no ramo do estouro
+com o módulo que o Core 0 estava rodando — ou aquelas quatro linhas eram
+travamentos de verdade. **Os registros já rotacionaram** (o anel guarda ~1.600
+entradas ≈ 5 h sob carga de teste, e `system.old.blog` só tem as 800
+anteriores), então isso se resolve por experimento: gravar a imagem de propósito
+e ler a autópsia do boot seguinte.
+
+ℹ️ **`SYS_BOOT` só é gravado quando houve algo a dizer** (`LogManager.cpp`
+955–1035): panic de software, estouro do watchdog, ou reset forçado externo.
+Boot limpo e **queda de energia são silenciosos por desenho** — e o alvo vive
+no USB do PC, que reiniciou às 05:35 desta manhã e levou o aparelho junto.
+Ausência de `SYS_BOOT` é, portanto, o sinal saudável; não é o instrumento
+falhando.
