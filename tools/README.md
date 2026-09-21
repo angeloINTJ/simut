@@ -1,6 +1,6 @@
 # tools/
 
-129 scripts. This file exists because until 2026-09-08 there was no way
+130 scripts. This file exists because until 2026-09-08 there was no way
 to tell a live bench tool from a leftover, and one of them —
 `compressor.py` — had been superseded for three months while still looking
 usable: it regenerated `WebUI_GZ.h` into the repository root, where nothing
@@ -16,7 +16,7 @@ wrong, the description is the bug.
 
 ---
 
-## Called by CI (13)
+## Called by CI (14)
 
 Invoked from `.github/workflows/build.yml` — or, for the release manifest, from
 `release-ota.yml` when a tag is pushed. Breaking one of these fails a pull request
@@ -27,6 +27,7 @@ or a release.
 | `arduino_pico_overrides/patch.sh` | patch.sh — aplica overrides SIMUT no framework arduino-pico do PlatformIO. | 2026-08-20 |
 | `build_release.sh` | build_release.sh — Generate Arduino IDE-compatible release zips for simut_tft and simut_alpha. | 2026-08-16 |
 | `check_authz.py` | check_authz.py — the authorization matrix, pinned so it cannot silently rot. | 2026-08-19 |
+| `check_license.py` | A licença diz a mesma coisa nas **cinco** cópias (LICENSE, página `/license`, string do firmware, um `@LICENSE` por pacote de idioma) e os **dois** scripts de release levam o arquivo. Nasceu de dois achados de 21/09: a página web dizia 2025 e o zip do Arduino IDE saía sem `LICENSE`. | 2026-09-21 |
 | `release_manifest.py` | The manifest a fleet manager downloads before an OTA: version, per-image size and sha256. Written by `release-ota.yml` next to the assets. | 2026-09-13 |
 | `check_flash_budget.py` | Fails the build when a firmware image grows past its budget in tools/flash_budget.json. | 2026-09-08 |
 | `check_fsguard.py` | check_fsguard.py — the /config filesystem guards, pinned so they cannot silently rot. | 2026-08-29 |

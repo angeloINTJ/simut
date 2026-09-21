@@ -49,6 +49,14 @@ jobs:
       - name: Check authorization matrix
         run: python3 tools/check_authz.py
 
+      # The MIT text lives in five places (LICENSE, the /license page, the
+      # firmware string, and one @LICENSE per language pack) and two release
+      # scripts are supposed to ship the file with the source. The web page
+      # said 2025 while everything else said 2026, and the Arduino zip went
+      # out with no LICENSE at all — neither is a compile error.
+      - name: Check licence consistency
+        run: python3 tools/check_license.py
+
       # Every filesystem-mutating handler (delete/upload/ls) and the restore
       # validator must refuse the /config credential store. This is what blocks
       # a guard removal from shipping (findings ACH-01..04).

@@ -6899,7 +6899,7 @@ The software is provided &quot;as is&quot;, without warranty of any kind. The au
             <p class="lic-note" style="margin:0 0 10px;color:var(--tinta-2);font-style:italic" data-i18n="lic_legal_note">The text below stays in English because it is the original — that is the version with legal force.</p>
             <pre>MIT License
 
-Copyright (c) 2025 Ângelo Moisés Alves
+Copyright (c) 2026 Ângelo Moisés Alves
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the &quot;Software&quot;), to deal
