@@ -522,7 +522,7 @@ ponta recente: o que foi medido desde o último selo está em
 
 ```bash
 IP=192.168.3.24
-PASS='senha-da-conta-do-servidor'
+PASS="$SIMUT_SERVER_PASS"   # exporte no ambiente; senha em script é senha vazada
 
 # 1. sessão
 NONCE=$(curl -c j -s http://$IP/api/login_init | sed 's/.*"nonce":"\([^"]*\)".*/\1/')
@@ -542,6 +542,15 @@ curl -b j -s -X POST http://$IP/api/commit_all --data-urlencode \
 # 4. conferir (depois do reboot, com sessão nova)
 curl -b j -s http://$IP/api/users
 ```
+
+---
+
+⚠️ **A senha vem do ambiente, não do script.** A primeira versão desta receita
+atribuía a senha direto na variável, e o portão de segredos deste repositório a
+reprovou — corretamente: um exemplo com senha no corpo é o exemplo que alguém
+copia trocando só o valor. Exporte `SIMUT_SERVER_PASS` e mantenha a senha fora
+de todo arquivo versionado. (O mesmo portão, aliás, reprovou a primeira versão
+desta própria nota, porque ela citava a linha reprovada.)
 
 ---
 
