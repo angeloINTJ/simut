@@ -4,6 +4,125 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.6.1-beta (2026-09-21)
+
+**Um botão de busca para a rede Wi-Fi, e a interface web deixa de ir inteira
+para toda imagem.** O SSID tinha de ser digitado de memória, e o momento mais
+difícil é justamente o que o aparelho impõe: uma unidade nunca configurada
+serve a página de configuração pelo próprio ponto de acesso, ou seja, ela com
+certeza **não** está na rede cujo nome está pedindo. Agora ela varre de lá. A
+mesma passagem descobriu que o Air e o alpha carregavam o espelho do painel, a
+captura de tela e o seletor de tema — **2.363 B de página gzipada** falando com
+quatro rotas que essas imagens nem registram — e os recortou, o que levou o Air
+de **980 B** de folga de OTA de volta para **5.076 B**.
+
+### Escolher a rede em vez de digitá-la
+
+- **`Buscar`, ao lado do campo SSID em `/network`.** Nome, se é protegida,
+  sinal. Tocar numa linha preenche o SSID e leva o cursor para a senha. Doze
+  redes em ordem de sinal; uma malha que responde por vários rádios aparece
+  **uma vez**, no mais forte, e redes ocultas não entram — não há o que tocar.
+- **Funciona no modo AP**, que é o caso para o qual foi feito. O
+  `cyw43_wifi_scan( )` varre pela interface estação, que o modo AP deixa
+  desligada, e pedir assim mesmo é a maneira documentada de deixar o
+  `wifi_scan_state` travado em 1 pelo resto do boot — a falha de campo de
+  08/09, 3h41 no escuro. O aparelho levanta essa interface **ao lado** do ponto
+  de acesso, uma vez por boot, e a página que você está lendo continua de pé.
+- **Recusa é reportada na hora.** `scanNetworks(true)` devolvendo qualquer
+  coisa diferente de `-1` é falha; o `0` é o driver recusando, e esperar os 15 s
+  de prazo por uma varredura que nunca começou parece travamento. Lista velha
+  também não é servida como nova: um `again=1` que não pode começar dá 503.
+- **Medido no ferro, 18/18**, em STA e **de dentro do ponto de acesso do
+  próprio aparelho**, com um segundo rádio associado a ele: **0,94 s** por
+  varredura, **zero consultas perdidas**, duas vezes, e a segunda varredura no
+  mesmo boot ainda devolve lista.
+
+### Só o que a imagem pode usar é compilado
+
+- **Blocos `/* @IF tft */` no `WebUI.h`**, recortados por ambiente com
+  `custom_web_omit` no `platformio.ini`. O padrão **não omite nada**, então um
+  ambiente que esqueça a opção sai gordo — o lado seguro de errar.
+- **O que o Air e o alpha deixam de carregar**: espelho do painel, captura de
+  tela, seletor de tema. Quatro rotas os sustentam (`/api/screen_stream`,
+  `/api/touch`, `/api/screenshot`, `/api/keypad`) e o `#if SIMUT_DISPLAY_TFT`
+  não registra nenhuma delas ali. Eram botões que respondiam 404. Os dois
+  pontos de entrada de tema do alpha são stubs vazios.
+- **Não é** a dieta do `custom_fs_pages`, e a regra de que imagem de produção
+  carrega a interface inteira continua valendo para aquela: lá a página existe e
+  mora no sistema de arquivos, e arquivo faltando vira erro em execução. Aqui
+  não falta nada — o controle e a rota somem juntos.
+
+### Três consertos no vidro
+
+- **O cadeado e o sinal são desenhados.** Eram um emoji e caracteres de
+  desenho de caixa; a v2.1.5 tirou exatamente isso desta interface quando pôs
+  ícones de traço num sprite SVG. Rede aberta não ganha ícone e mantém o vão,
+  que é a convenção do celular e o que mantém os nomes alinhados.
+- **O botão de busca tem a altura da caixa ao lado.** Todo input carrega
+  `margin: 0 0 16px`, e margem fica fora da caixa de borda: num flex com
+  `align-items: stretch` o botão esticava pela linha inteira e saía 16 px mais
+  alto.
+- **A senha do Wi-Fi ganhou botão para revelar**, e **o IP no canto superior
+  direito parou de ser cortado no celular**. Saía `192.168.3…` porque era o
+  único item encolhível da topbar — e a única informação dela. A versão que
+  ficava ao lado da marca passou para o drawer.
+
+### A licença diz a mesma coisa em todo lugar
+
+- A página `/license` carregava **`Copyright (c) 2025`** enquanto o arquivo
+  `LICENSE`, a string do firmware e os dois pacotes de idioma diziam 2026. A
+  página é a cópia que o usuário abre.
+- O `tools/build_release.sh` empacotava os zips do Arduino IDE — uma cópia da
+  árvore de código inteira — **sem o `LICENSE` dentro**, que era justamente o
+  artefato que não honrava a cláusula de "todas as cópias" que ele contém.
+- O `tools/check_license.py` mantém as cinco cópias de acordo e confere que os
+  dois scripts de release levam o arquivo.
+
+### Portões novos
+
+Três, e todos nasceram de um defeito achado lendo ou olhando a página, não por
+teste nenhum:
+
+- **token de cor inexistente.** `var(--x)` sem `--x:` não é erro de sintaxe — o
+  navegador descarta a declaração inteira. Dois nomes inventados publicaram um
+  botão sem fundo e um rótulo sem cor, nos dois temas.
+- **bloco de página do qual algo de fora depende.** Função definida dentro de um
+  `@IF` e chamada fora, função dentro que ninguém chama, id de elemento buscado
+  de fora. O do meio existe porque o seletor de tema quebrou exatamente assim —
+  o `loadThemes( )` perdeu a única chamada quando o bloco se moveu, e ficou em
+  "Loading..." para sempre.
+- **consistência da licença**, acima.
+
+Os três rodam **mesmo quando nada é omitido**, senão quem compila só a release
+nunca descobre que quebrou o Air.
+
+### Flash
+
+As duas colunas são o `Flash: used` do PlatformIO.
+
+| imagem | v2.6.0-beta | v2.6.1-beta | Δ | `.bin` | abaixo do teto de OTA |
+|---|---:|---:|---:|---:|---:|
+| `pico_w_release` | 1.009.276 B | **1.012.668 B** | +3.392 | 1.024.700 B | 15.684 B |
+| `pico_w_alpha` | 978.036 B | **975.396 B** | **-2.640** | 990.348 B | 50.036 B |
+| `pico_w_air` | 1.017.736 B | **1.019.184 B** | +1.448 | 1.035.308 B | 5.076 B |
+
+O `used` do Air sobe 1.448 e o `.bin` dele fica **idêntico** ao da v2.6.0-beta:
+a busca custou um degrau de 4 KiB, e o recorte da UI do painel devolveu o mesmo
+degrau. Sem esse recorte ele teria saído com **980 B** abaixo do teto de OTA, a
+um acréscimo de recusar atualização enquanto o `used` ainda marcava 21 kB de
+folga.
+
+O `pico_w_test_https` está a **3.308 B** do mesmo teto e dispara o aviso do
+portão. Ele é o `pico_w_test` mais o BearSSL; o próximo acréscimo ali tem de
+mandar uma 4ª página para o LittleFS.
+
+### Atualizando
+
+Nada a migrar: o schema de config continua em 25. Os pacotes de idioma ganharam
+nove chaves web e uma string de log — eles **não** fazem parte da imagem, então
+suba os novos pela página Arquivos e reinicie, ou os rótulos novos ficam em
+inglês.
+
 ## v2.6.0-beta (2026-09-20)
 
 **Escolher a conta antes de digitar o PIN, e um teclado que para de embaralhar
