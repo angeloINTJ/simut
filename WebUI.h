@@ -5575,10 +5575,13 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         function toggleIpFields()  { _toggleGroup('static_fields', document.getElementById('dhcp').checked); }
         function toggleDnsFields() { _toggleGroup('dns_fields',    document.getElementById('dns_auto').checked); }
 
-        /* Busca de redes. Em modo AP o radio passa a AP_STA durante a varredura,
-         * e a associacao do celular engasga por instantes: o poll tolera ate
-         * SCAN_MISS falhas seguidas de rede em vez de desistir na primeira —
-         * desistir ali daria "falhou" numa varredura que terminou bem. */
+        /* Busca de redes. Em modo AP o radio passa a AP_STA durante a
+         * varredura, entao o poll tolera ate SCAN_MISS falhas seguidas de
+         * rede em vez de desistir na primeira: desistir ali daria "falhou"
+         * numa varredura que terminou bem. Medido na bancada em 20/09, de
+         * dentro do AP de configuracao: 2 varreduras, 0,93 s cada, ZERO
+         * consultas perdidas. A tolerancia fica como seguro — o radio sai do
+         * canal para varrer, e nada garante que a associacao aguente. */
         const SCAN_TRIES = 20, SCAN_MISS = 6;
         let scanBusy = false, scanNets = [];
 

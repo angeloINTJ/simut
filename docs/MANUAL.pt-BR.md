@@ -492,9 +492,15 @@ nunca configurado serve a página de configuração pelo próprio ponto de acess
 e esse é justamente o momento em que ele com certeza **não** está na rede cujo
 nome está pedindo. A varredura precisa da interface estação, que o modo AP
 deixa desligada, então o aparelho a levanta **ao lado** do ponto de acesso — a
-página que você está lendo continua de pé. Espere a conexão engasgar por um ou
-dois segundos enquanto o rádio sai do canal; a página continua consultando
-através disso.
+página que você está lendo continua de pé. Na bancada, duas varreduras de
+dentro do AP levaram 0,93 s cada e não perderam **nenhuma** consulta; a página
+ainda tolera perder algumas, porque um rádio fora do canal é um rádio que não
+está servindo a página.
+
+O sucesso rotineiro da busca não vai para o log de eventos: `SYS_WIFI_SCAN` é
+filtrado por transição dentro da família, e a varredura de reconexão já disparou
+esse código antes de alguém abrir a página. Uma busca **recusada** pelo driver,
+ou que nunca termina, é WARN e sempre fica registrada.
 
 Se voltar **Rádio ocupado**, quem está com o rádio é a reconexão — o aparelho
 está procurando a própria rede — e a busca é recusada em vez de enfileirada.

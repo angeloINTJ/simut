@@ -1,6 +1,6 @@
 # tools/
 
-127 scripts. This file exists because until 2026-09-08 there was no way
+129 scripts. This file exists because until 2026-09-08 there was no way
 to tell a live bench tool from a leftover, and one of them —
 `compressor.py` — had been superseded for three months while still looking
 usable: it regenerated `WebUI_GZ.h` into the repository root, where nothing
@@ -116,7 +116,7 @@ step in a bench procedure. Run by hand, but with instructions somewhere.
 | `theme-editor/server.py` | SIMUT Theme Editor — launcher. | 2026-06-03 |
 | `validate_top_pin_alarm.py` | SIMUT v21 — Validação visual da correção do painel superior fixado (pin). | 2026-08-23 |
 
-## Standalone (53)
+## Standalone (55)
 
 Nothing in the repository names these. That is a statement about
 discoverability, **not** a verdict: several are ordinary bench and recovery
@@ -184,3 +184,4 @@ from a document. Anything genuinely dead should leave the tree, as
 | `test_stability.py` | Stability test - check if lockout and WDT fixes work. | 2026-08-16 |
 | `test_webui_graph_order.py` | Regression test for the graph reader's handling of out-of-order blocks. | 2026-08-15 |
 | `theme_audit.py` | Coherence audit for SIMUT themes. | 2026-08-15 |
+| `wifi_scan_hw_test.py` | `GET /api/wifi/scan` no ferro, em STA e **de dentro do AP de configuração** (`--ap`, exige um segundo rádio). O cabeçalho lista as 5 armadilhas que custaram as primeiras tentativas — entre elas `user perm <u> dashboard` ser RECUSADO, o que faz uma conta admin passar por restrita e inventar um buraco de autorização. 18/18 em 20/09. | 2026-09-20 |
