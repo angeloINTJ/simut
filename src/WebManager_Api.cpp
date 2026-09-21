@@ -54,6 +54,69 @@ void WebManager::handleApiPerms( ) {
 	_server->send(200, "application/json", json);
 }
 
+/* GET /api/wifi/scan -> the networks in radio range, for the "pick one" list.
+ *
+ * Asks once and POLLS: a sweep takes seconds and this runs on the core that
+ * also serves the page, so blocking here would stall the request that is
+ * asking. The first call starts it and answers {"scanning":true}; the page
+ * comes back until `scanning` is false.
+ *
+ * PERM_NET_CONFIG, the same bit that lets an account SET the SSID — this only
+ * tells it which ones exist, which is less than the field it is filling in.
+ *
+ * It works in AP mode, which is the whole point: the operator standing in
+ * front of a device that never joined anything is exactly who needs to see
+ * what is in range. NetworkManager brings the STA interface up for the sweep
+ * and leaves the AP running beside it.
+ */
+void WebManager::handleApiWifiScan( ) {
+	if (!requirePerm(PERM_NET_CONFIG)) return;
+	if (!_netRef) { _server->send(500, "application/json", "{\"error\":\"no network\"}"); return; }
+
+	const uint8_t st = _netRef->scanState( );
+	if (st != NetworkManager::SCAN_RUNNING &&
+	    (st != NetworkManager::SCAN_DONE || _server->hasArg("again"))) {
+		if (!_netRef->startScan( )) {
+			/* Refused: the reconnect state machine holds the radio, or the
+			 * driver would not start. Both are "come back in a moment", and
+			 * saying which is what keeps this from looking like a hang.
+			 *
+			 * 503 even when a finished sweep is still in the buffer. `again`
+			 * asks for a NEW list, and answering it with the old one is the
+			 * list going stale in silence — the page would show networks from
+			 * minutes ago with nothing to say so. The poll path (no `again`)
+			 * never reaches here: it is reading back the sweep it started. */
+			_server->send(503, "application/json",
+			              "{\"scanning\":false,\"error\":\"busy\"}");
+			return;
+		}
+	}
+	if (_netRef->scanState( ) == NetworkManager::SCAN_RUNNING) {
+		_server->send(200, "application/json", "{\"scanning\":true}");
+		return;
+	}
+	if (_netRef->scanState( ) == NetworkManager::SCAN_FAILED) {
+		_server->send(200, "application/json",
+		              "{\"scanning\":false,\"error\":\"failed\",\"nets\":[]}");
+		return;
+	}
+
+	WifiNet nets[WIFI_SCAN_MAX_NETS];
+	const uint8_t n = _netRef->scanResults(nets, WIFI_SCAN_MAX_NETS);
+	String out = "{\"scanning\":false,\"nets\":[";
+	for (uint8_t i = 0; i < n; i++) {
+		if (i) out += ",";
+		char buf[96];
+		/* jsonEscape: an SSID is 32 arbitrary bytes, none of them this device's. */
+		snprintf(buf, sizeof(buf), "{\"ssid\":\"%s\",\"rssi\":%d,\"enc\":%u,\"ch\":%u}",
+		         jsonEscape(nets[i].ssid).c_str( ), (int)nets[i].rssi,
+		         (unsigned)nets[i].enc, (unsigned)nets[i].channel);
+		out += buf;
+	}
+	out += "]}";
+	_server->send(200, "application/json", out);
+}
+
 void WebManager::handleApiNetwork( ) {
 	if (!requirePerm(PERM_NET_CONFIG)) return;
 

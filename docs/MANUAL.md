@@ -415,12 +415,39 @@ Served from the device itself. Log in at `http://simut.local` or the device IP.
 |---|---|
 | `/` | Dashboard: system statistics, memory and flash usage, live sensor table, and a display capture panel that reads the physical screen |
 | `/config` | Device identity, date and time, hardware and sampling, the GPIO map and sensor slots, telemetry |
-| `/network` | Wi-Fi, static addressing, mDNS, NTP |
+| `/network` | Wi-Fi (with a scan that lists the networks in range), static addressing, mDNS, NTP |
 | `/alarms` | Per-sensor thresholds and actions |
 | `/users` | Accounts and permissions |
 | `/files` | Filesystem browser: upload, download, delete, create directories — plus full backup, restore and firmware update (OTA) |
 | `/history` | History graphs, CSV export, and the system event log viewer |
 | `/license` | License text |
+
+### Picking the Wi-Fi network instead of typing it
+
+**Scan**, next to the SSID field on `/network`, lists what the radio can hear:
+name, whether it is secured, and signal. Tapping a row fills the SSID in and
+puts the cursor in the password field. The list holds twelve networks, sorted
+by signal; a network answering on several radios (a mesh) appears once, as its
+strongest, and hidden networks are not listed — there is nothing to tap, and
+their SSID still has to be typed.
+
+It works **in AP mode**, which is the case it was built for: a device that has
+never been configured serves its setup page over its own access point, and that
+is the one moment it is guaranteed not to be on the network whose name it is
+asking for. The sweep needs the station interface, which AP mode leaves down,
+so the device brings it up beside the access point — the page you are reading
+stays up. On the bench, two sweeps from inside the setup AP took 0.93 s each
+and did not drop a single poll; the page still tolerates losing a few, because
+a radio off channel is a radio that is not serving the page.
+
+The scan's routine success is not written to the event log: `SYS_WIFI_SCAN` is
+transition-filtered per family, and the reconnect scanner has already fired
+that code by the time anyone opens the page. A scan the driver **refuses**, or
+one that never finishes, is a WARN and is always recorded.
+
+If **Radio busy** comes back, the reconnect logic has the radio — the device is
+looking for its own network — and the scan is refused rather than queued.
+Try again in a moment.
 
 ### Changes stay pending until you say what to do with them
 

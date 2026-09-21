@@ -5415,6 +5415,44 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .row { display: flex; gap: 20px; }
         .col { flex: 1; }
         @media(max-width: 600px) { .row { flex-direction: column; gap: 0; } }
+        /* Busca de redes. O botao fica na MESMA linha do SSID: no celular a
+           caixa encolhe, mas 108px de botao continuam legiveis em 320px. */
+        /* A caixa e o botao na mesma linha. O `margin: 0 0 16px` que todo input
+           carrega fica FORA da caixa de borda, entao num flex `stretch` o
+           botao esticava pela linha inteira e saia 16px mais alto que a caixa
+           — era esse o desalinhamento. A margem passa para a linha. */
+        .ssid-row { display: flex; gap: 8px; align-items: stretch; margin: 0 0 16px; }
+        .ssid-row input { flex: 1; min-width: 0; margin: 0; }
+        .btn-inline { flex: 0 0 auto; min-height: 44px; padding: 0 14px; background: var(--superficie-2);
+                    color: var(--tinta); border: 1px solid var(--linha-forte); border-radius: 6px;
+                    cursor: pointer; font-size: 14px; font-weight: 600; display: inline-flex;
+                    align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
+        .btn-inline:hover:not(:disabled) { border-color: var(--acento); color: var(--acento); }
+        .btn-inline:disabled { opacity: 0.55; cursor: default; }
+        /* So o olho: quadrado, porque nao tem rotulo para dar largura. */
+        .btn-eye { padding: 0; width: 44px; }
+        .scan-box { margin: -8px 0 16px; border: 1px solid var(--linha); border-radius: 6px; overflow: hidden; }
+        .scan-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 12px;
+                     background: none; border: none; border-bottom: 1px solid var(--linha); cursor: pointer;
+                     color: var(--tinta); font-size: 14px; text-align: left; }
+        .scan-item:last-child { border-bottom: none; }
+        .scan-item:hover { background: var(--superficie-2); }
+        .scan-item .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        /* O cadeado e o sinal sao DESENHADOS, nao escritos: a interface trocou
+           emoji por icones de traco na v2.1.5, e barras feitas de ▮▯ sao a
+           mesma coisa por outro caminho. Rede aberta nao ganha icone — e a
+           convencao do celular, e o vao de 20px mantem os nomes alinhados. */
+        .scan-item .sec { width: 20px; flex: 0 0 auto; color: var(--tinta-2); }
+        .scan-item .dbm { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px;
+                          color: var(--tinta-2); }
+        .sig { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; flex: 0 0 auto; }
+        .sig span { width: 3px; border-radius: 1px; background: var(--linha-forte); }
+        .sig span:nth-child(1) { height: 4px; }
+        .sig span:nth-child(2) { height: 7px; }
+        .sig span:nth-child(3) { height: 10px; }
+        .sig span:nth-child(4) { height: 14px; }
+        .sig span.on { background: var(--acento); }
+        .scan-note { padding: 11px 12px; font-size: 14px; color: var(--tinta-2); }
         .net-stat { margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--linha); }
         .net-stat:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
         .net-stat .val { font-size: 15px; color: var(--tinta); font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace; margin-top: 4px; }
@@ -5450,10 +5488,17 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         <h3 data-i18n="net_wifi">Wireless Network (Wi-Fi)</h3>
                         <div class="grp">
                             <label data-i18n="net_ssid">SSID (Network Name)</label>
-                            <input type="text" id="ssid" name="ssid" maxlength="31" required>
+                            <div class="ssid-row">
+                                <input type="text" id="ssid" name="ssid" maxlength="31" required>
+                                <button type="button" class="btn-inline" id="btnScan" onclick="wifiScan()"><svg class="ic"><use href="#i-net"/></svg><span id="btnScanTxt" data-i18n="net_scan">Scan</span></button>
+                            </div>
+                            <div id="scanBox" class="scan-box" style="display:none"></div>
 
                             <label data-i18n="net_pass">Password (Leave empty to keep current)</label>
-                            <input type="password" id="pass" name="pass" maxlength="31">
+                            <div class="ssid-row">
+                                <input type="password" id="pass" name="pass" maxlength="31">
+                                <button type="button" class="btn-inline btn-eye" id="btnPass" onclick="toggleNetPass()" aria-pressed="false"><svg class="ic"><use id="eyeUse" href="#i-eye"/></svg></button>
+                            </div>
                         </div>
 
                         <h3 data-i18n="net_ipv4">IPv4 Configuration</h3>
@@ -5553,6 +5598,122 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         function toggleIpFields()  { _toggleGroup('static_fields', document.getElementById('dhcp').checked); }
         function toggleDnsFields() { _toggleGroup('dns_fields',    document.getElementById('dns_auto').checked); }
 
+        /* Busca de redes. Em modo AP o radio passa a AP_STA durante a
+         * varredura, entao o poll tolera ate SCAN_MISS falhas seguidas de
+         * rede em vez de desistir na primeira: desistir ali daria "falhou"
+         * numa varredura que terminou bem. Medido na bancada em 20/09, de
+         * dentro do AP de configuracao: 2 varreduras, 0,93 s cada, ZERO
+         * consultas perdidas. A tolerancia fica como seguro — o radio sai do
+         * canal para varrer, e nada garante que a associacao aguente. */
+        const SCAN_TRIES = 20, SCAN_MISS = 6;
+        let scanBusy = false, scanNets = [];
+
+        /* escHtml NAO escapa aspas, e este texto vai para dentro de um atributo:
+           uma SSID com " fecharia o title e abriria markup. */
+        function escAttr(v) { return escHtml(v).replace(/"/g, '&quot;'); }
+
+        function scanNote(txt) {
+            document.getElementById('scanBox').innerHTML =
+                '<div class="scan-note">' + escHtml(txt) + '</div>';
+        }
+
+        async function wifiScan() {
+            if (scanBusy) return;
+            scanBusy = true;
+            const btn = document.getElementById('btnScan'), txt = document.getElementById('btnScanTxt');
+            btn.disabled = true;
+            txt.innerText = window.t('net_scanning', 'Scanning...');
+            document.getElementById('scanBox').style.display = '';
+            scanNote(window.t('net_scanning', 'Scanning...'));
+            let miss = 0;
+            try {
+                for (let i = 0; i < SCAN_TRIES; i++) {
+                    let d = null;
+                    try {
+                        /* again=1 so a stale result from a previous visit is not
+                           what comes back; the later polls read that same run. */
+                        const res = await fetchSafe('/api/wifi/scan' + (i ? '' : '?again=1'));
+                        if (res.status === 503) { scanNote(window.t('net_scan_busy', 'Radio busy — try again in a moment')); return; }
+                        d = await res.json();
+                        miss = 0;
+                    } catch (e) { if (++miss > SCAN_MISS) throw e; }
+                    if (d && !d.scanning) {
+                        if (d.error) scanNote(window.t('net_scan_fail', 'The scan failed'));
+                        else renderNets(d.nets || []);
+                        return;
+                    }
+                    await new Promise(r => setTimeout(r, 900));
+                }
+                scanNote(window.t('net_scan_fail', 'The scan failed'));
+            } catch (e) {
+                scanNote(window.t('net_scan_fail', 'The scan failed'));
+            } finally {
+                scanBusy = false; btn.disabled = false;
+                txt.innerText = window.t('net_scan', 'Scan');
+            }
+        }
+
+        function renderNets(nets) {
+            scanNets = nets;
+            if (!nets.length) { scanNote(window.t('net_scan_none', 'No networks found')); return; }
+            let h = '';
+            for (let i = 0; i < nets.length; i++) {
+                const n = nets[i];
+                const bars = n.rssi >= -55 ? 4 : n.rssi >= -67 ? 3 : n.rssi >= -78 ? 2 : 1;
+                let sig = '';
+                for (let b = 1; b <= 4; b++) sig += '<span' + (b <= bars ? ' class="on"' : '') + '></span>';
+                /* Rede protegida leva o cadeado do sprite; aberta leva o vao
+                   vazio, que e a convencao e mantem os nomes alinhados. O que
+                   distingue as duas para quem nao ve o icone e o title. */
+                const sec = n.enc
+                    ? '<svg class="ic sec"><use href="#i-lock"/></svg>'
+                    : '<span class="sec"></span>';
+                const lbl = n.enc ? window.t('net_secured', 'Secured network')
+                                  : window.t('net_open', 'Open network');
+                /* Indice, nunca a SSID, no onclick: escHtml nao escapa aspas e a
+                   SSID sao 32 bytes arbitrarios que nao sao deste aparelho. */
+                h += '<button type="button" class="scan-item" onclick="pickNet(' + i + ')"' +
+                     ' title="' + escAttr(lbl + ' \u2014 ' + n.rssi + ' dBm') + '">' +
+                     sec + '<span class="nm">' + escHtml(n.ssid) + '</span>' +
+                     '<span class="sig" aria-hidden="true">' + sig + '</span>' +
+                     '<span class="dbm">' + escHtml(n.rssi) + '</span></button>';
+            }
+            document.getElementById('scanBox').innerHTML = h;
+        }
+
+        /* O rotulo do olho e title+aria-label, nao texto visivel, e applyLang( )
+           so traduz data-i18n. Entao vem daqui, e a mesma funcao serve para o
+           estado inicial e para cada toque. */
+        function setEyeLabel() {
+            const shown = document.getElementById('pass').type === 'text';
+            const txt = shown ? window.t('net_pass_hide', 'Hide password')
+                              : window.t('net_pass_show', 'Show password');
+            const b = document.getElementById('btnPass');
+            b.title = txt;
+            b.setAttribute('aria-label', txt);
+            b.setAttribute('aria-pressed', shown ? 'true' : 'false');
+            document.getElementById('eyeUse').setAttribute('href', shown ? '#i-eye-off' : '#i-eye');
+        }
+
+        function toggleNetPass() {
+            const f = document.getElementById('pass');
+            f.type = (f.type === 'password') ? 'text' : 'password';
+            setEyeLabel();
+            f.focus();
+        }
+
+        function pickNet(i) {
+            const n = scanNets[i];
+            if (!n) return;
+            const f = document.getElementById('ssid');
+            f.value = n.ssid;
+            /* O pending de U24 escuta o form: sem este evento a escolha some
+               ao trocar de pagina antes de salvar. */
+            f.dispatchEvent(new Event('input', { bubbles: true }));
+            document.getElementById('scanBox').style.display = 'none';
+            document.getElementById('pass').focus();
+        }
+
         async function loadNet() {
             try {
                 let res = await fetchSafe('/api/network'); let data = await res.json();
@@ -5612,7 +5773,10 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             form.addEventListener('change', handler);
         }
 
-        document.addEventListener('DOMContentLoaded', () => { setTimeout(applyLang, 50); loadNet(); });
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => { applyLang(); setEyeLabel(); }, 50);
+            loadNet();
+        });
     </script>
 </body>
 </html>
@@ -7390,7 +7554,7 @@ static const char LANG_JS[] PROGMEM = R"raw(
        escreve no mesmo ponto sem reentrar no analisador. */
     /* O sprite dos icones vem junto com a barra: e o primeiro markup do <body>
        em toda pagina, entao qualquer <use href="#i-…"> depois dele resolve. */
-    var TOPBAR_HTML = '<svg style="display:none" xmlns="http://www.w3.org/2000/svg"><symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol><symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol><symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol><symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol><symbol id="i-dash" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol><symbol id="i-hist" viewBox="0 0 24 24"><path d="M3 20h18M4 16l5-6 4 4 4-7 3 3"/></symbol><symbol id="i-alm" viewBox="0 0 24 24"><path d="M6 17V11a6 6 0 0 1 12 0v6l2 2H4zM10 21h4"/></symbol><symbol id="i-tel" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 7.8a6 6 0 0 0 0 8.4M19.1 4.9a10 10 0 0 1 0 14.2M4.9 4.9a10 10 0 0 0 0 14.2"/></symbol><symbol id="i-cfg" viewBox="0 0 24 24"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></symbol><symbol id="i-net" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol><symbol id="i-usr" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol><symbol id="i-file" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol><symbol id="i-lic" viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6zM14 3v5h5M9 13h6M9 17h6"/></symbol><symbol id="i-cam" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></symbol><symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3l10 18H2zM12 10v4M12 17.5v.01"/></symbol><symbol id="i-left" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol><symbol id="i-right" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol><symbol id="i-sound" viewBox="0 0 24 24"><path d="M4 10v4h3l5 4V6L7 10zM16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></symbol><symbol id="i-doc" viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6zM14 3v5h5"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol><symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol><symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></symbol><symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></symbol><symbol id="i-chip" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M4 10h3M4 14h3M17 10h3M17 14h3M10 4v3M14 4v3M10 17v3M14 17v3"/></symbol><symbol id="i-archive" viewBox="0 0 24 24"><path d="M3 5h18v4H3zM5 9v10h14V9M10 13h4"/></symbol><symbol id="i-restore" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/></symbol></svg>'
+    var TOPBAR_HTML = '<svg style="display:none" xmlns="http://www.w3.org/2000/svg"><symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol><symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol><symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol><symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol><symbol id="i-dash" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol><symbol id="i-hist" viewBox="0 0 24 24"><path d="M3 20h18M4 16l5-6 4 4 4-7 3 3"/></symbol><symbol id="i-alm" viewBox="0 0 24 24"><path d="M6 17V11a6 6 0 0 1 12 0v6l2 2H4zM10 21h4"/></symbol><symbol id="i-tel" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 7.8a6 6 0 0 0 0 8.4M19.1 4.9a10 10 0 0 1 0 14.2M4.9 4.9a10 10 0 0 0 0 14.2"/></symbol><symbol id="i-cfg" viewBox="0 0 24 24"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></symbol><symbol id="i-net" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol><symbol id="i-usr" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol><symbol id="i-file" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol><symbol id="i-lic" viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6zM14 3v5h5M9 13h6M9 17h6"/></symbol><symbol id="i-cam" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></symbol><symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3l10 18H2zM12 10v4M12 17.5v.01"/></symbol><symbol id="i-left" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol><symbol id="i-right" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol><symbol id="i-sound" viewBox="0 0 24 24"><path d="M4 10v4h3l5 4V6L7 10zM16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></symbol><symbol id="i-doc" viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6zM14 3v5h5"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol><symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol><symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></symbol><symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></symbol><symbol id="i-chip" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M4 10h3M4 14h3M17 10h3M17 14h3M10 4v3M14 4v3M10 17v3M14 17v3"/></symbol><symbol id="i-archive" viewBox="0 0 24 24"><path d="M3 5h18v4H3zM5 9v10h14V9M10 13h4"/></symbol><symbol id="i-restore" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/></symbol><symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></symbol><symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 5.2A9.9 9.9 0 0 1 12 5c6.5 0 10 7 10 7a18 18 0 0 1-3.4 4.3M6.6 6.7A18 18 0 0 0 2 12s3.5 7 10 7a9.8 9.8 0 0 0 4.2-.9"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol></svg>'
         +'<div id="net-toast" role="status" aria-live="polite"></div>'
         +'<div class="topbar">'
         +'<div>'

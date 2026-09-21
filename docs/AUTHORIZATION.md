@@ -101,6 +101,7 @@ handler checks.
 | `GET /metrics` | `PERM_DASHBOARD` (cookie **or** HTTP Basic; shares the login lockout) |
 | `GET /api/perms` | authenticated (`perms != 0`) |
 | `GET /api/network` | `PERM_NET_CONFIG` |
+| `GET /api/wifi/scan` | `PERM_NET_CONFIG` — same gate as the page that consumes it. It lists the neighbourhood's SSIDs, which is exactly what someone configuring the radio needs and nothing an unauthenticated caller should be able to survey. |
 | `GET /api/config` | `PERM_SYS_CONFIG` |
 | `GET /api/users` | `PERM_USER_MGR` |
 | `GET /api/themes` | `PERM_DASHBOARD` |

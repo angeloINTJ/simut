@@ -29,6 +29,7 @@
 #pragma once
 #include <Arduino.h>
 #include <string.h>
+#include <vector>
 
 typedef enum {
     WL_IDLE_STATUS = 0,
@@ -48,7 +49,23 @@ enum { SCAN_RUNNING = -1, SCAN_FAILED = -2 };
 
 class FakeWiFiClass {
 public:
+    /** One entry of a scan result set, for the tests that care what a sweep
+     *  FOUND rather than whether it finished. */
+    struct FakeNet {
+        const char* ssid;
+        int32_t     rssi;
+        uint8_t     enc;
+        uint8_t     ch;
+    };
+
     /* ── knobs ─────────────────────────────────────────────────────────── */
+    /** Non-empty replaces the single `apSsid` AP: scanComplete( ) answers
+     *  nets.size( ) and the per-index accessors read from here. Empty keeps
+     *  the one-AP behaviour the reconnect tests were written against. */
+    std::vector<FakeNet> nets;
+    bool     scanRefusesToStart = false;/**< scanNetworks( ) answers 0 — the
+                                             cyw43_wifi_scan( ) refusal that
+                                             leaves wifi_scan_state stuck */
     bool     visible          = true;   /**< AP appears in a scan */
     bool     joinable         = true;   /**< association would succeed */
     bool     scanNeverCompletes = false;/**< the wedge: scanComplete( ) stays -1 */
@@ -72,6 +89,7 @@ public:
         scanNeverCompletes = scanFailsToStart = false;
         scanDurationMs = 1000; joinDurationMs = 500;
         rssi = -60; apSsid = "bench-ap";
+        nets.clear( ); scanRefusesToStart = false;
         joinAttempts = scanStarts = disconnects = scanDeletes = 0;
         lastMode = WIFI_OFF; lastSsid = String("");
         _joining = false; _associated = false;
@@ -113,6 +131,9 @@ public:
 
     int8_t scanNetworks(bool /*async*/ = false) {
         scanStarts++;
+        /* 0, not an error code: this is the shape of the refusal that matters,
+         * and the caller that reads it as "started" waits out the deadline. */
+        if (scanRefusesToStart) return 0;
         _scanning = true;
         _scanStartedAt = millis( );
         return SCAN_RUNNING;
@@ -123,14 +144,27 @@ public:
         if (scanNeverCompletes) return SCAN_RUNNING;      /* the wedge */
         if ((uint32_t)(millis( ) - _scanStartedAt) < scanDurationMs) return SCAN_RUNNING;
         if (scanFailsToStart) return SCAN_FAILED;
+        if (!nets.empty( )) return (int8_t)nets.size( );
         return visible ? 1 : 0;
     }
 
     void scanDelete( ) { scanDeletes++; _scanning = false; }
 
-    const char* SSID(uint8_t i) { return i == 0 && visible ? apSsid : ""; }
+    const char* SSID(uint8_t i) {
+        if (!nets.empty( )) return i < nets.size( ) ? nets[i].ssid : "";
+        return i == 0 && visible ? apSsid : "";
+    }
 
     int32_t RSSI( ) { return rssi; }
+    int32_t RSSI(uint8_t i) {
+        return (!nets.empty( ) && i < nets.size( )) ? nets[i].rssi : rssi;
+    }
+    uint8_t encryptionType(uint8_t i) {
+        return (!nets.empty( ) && i < nets.size( )) ? nets[i].enc : 4;
+    }
+    int32_t channel(uint8_t i) {
+        return (!nets.empty( ) && i < nets.size( )) ? nets[i].ch : 6;
+    }
 
     IPAddress localIP( )    { return _associated ? IPAddress(192,168,1,50) : IPAddress( ); }
     IPAddress subnetMask( ) { return IPAddress(255,255,255,0); }

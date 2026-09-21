@@ -181,35 +181,94 @@
   "build_webui_gz.py now FAILS the build on that class of defect (a window.foo( )",
   "used in a page that neither defines it nor loads a lang.js that does), which",
   "was verified by removing the definition again and watching the gate name",
-  "CFG_PAGE."
+  "CFG_PAGE.",
+  "2026-09-20 (feat/wifi-scan): +2,776 B on release, +2,784 test, +2,800",
+  "test_https, +2,776 asserts, +1,464 alpha, +1,464 air. A scan the network page",
+  "can run, including from AP mode, where the SSID has to be typed from memory",
+  "today because the radio is serving the page instead of listening to the air.",
+  "Of the release delta, 1,103 B are the page itself, measured: the gzipped",
+  "NET_PAGE blob goes 2,728 -> 3,831 B, and that same blob is in every image.",
+  "The rest is the device side - a scan state machine on NetworkManager that",
+  "polls from the TOP of update( ), before the AP-mode early return, so a scan",
+  "started while the AP is up is still collected.",
+  "The two imageless builds carry 1,312 B LESS of the firmware side than the",
+  "panel builds do, which is not explained here: both link the same page blob",
+  "and the same NetworkManager. What is measured is the delta; the split is",
+  "reported as found, not as understood.",
+  "Budgets go to measured + 3,000 across the board, which is the margin every",
+  "env in this file is already carrying (the 1,000 the Air notes above asked",
+  "for was widened to ~2,992 by the v25 passes and is not narrowed back here).",
+  "Real .bin slack under the 1,040,384 B OTA ceiling: release 16,300, test",
+  "11,436, test_https 3,804, asserts 14,124, alpha 45,940, air 5,076. Both the",
+  "Air and the alpha grew 4,096 B of .bin for 1,464 B of code: their images",
+  "crossed one of the 4 KiB .data alignment steps this file describes at the",
+  "top, which is why the .bin delta and the 'used' delta disagree here.",
+  "pico_w_test_https now trips the gate's WARN at 3,804 B - under one flash",
+  "sector. It is the env with the least room (pico_w_test plus BearSSL) and the",
+  "next thing added to it has to take a fourth page out to LittleFS, the way",
+  "ALARMS_PAGE, FILE_PAGE and TEL_PAGE already went.",
+  "2026-09-20 (feat/wifi-scan, follow-up): -16 B on every image and no budget",
+  "moves. GET /api/wifi/scan now answers 503 to ANY refusal, instead of falling",
+  "back to the finished sweep still sitting in the buffer: `again` asks for a",
+  "NEW list, and serving the old one shows networks from minutes ago with",
+  "nothing saying so. 'measured' is updated because it has to describe an image",
+  "that exists.",
+  "2026-09-20 (feat/wifi-scan, the UI pass): +624 B on release, +632 test, +616",
+  "test_https, +608 asserts, +8 alpha, +4,096 air. The CONTENT is 601 B and",
+  "every image carries the same 601: the NET_PAGE blob goes 3,831 -> 4,339",
+  "(+508) and LANG_JS 11,838 -> 11,931 (+93, the two eye symbols in the shared",
+  "sprite). Three things: the lock beside a secured SSID and the signal bars",
+  "are DRAWN now (sprite icon, CSS bars) instead of written with emoji and",
+  "box-drawing characters, which is the rule v2.1.5 set; the scan button is the",
+  "height of the field beside it (every input carries `margin: 0 0 16px`, which",
+  "sits OUTSIDE its border box, so a flex `stretch` made the button 16 px",
+  "taller); and the Wi-Fi password has a reveal button.",
+  "The per-environment numbers disagree with the 601 because .rodata is padded",
+  "up to a 4 KiB multiple - the linker aligns .data's LOAD address, as the note",
+  "at the top of this file says. alpha had slack and shows +8; the Air did not",
+  "and its .rodata went 462,848 -> 466,944, a whole page for 601 B of content.",
+  "🔴 THE AIR IS NOW 980 B UNDER THE OTA CEILING (1,039,404 B of .bin against",
+  "1,040,384). It was 9,172 before this branch and 5,076 after the scan itself.",
+  "Two 4 KiB steps in one branch. The next thing added to the Air - any image,",
+  "any page, since the web blobs are shared - makes it refuse to update over",
+  "the air while `used` still looks 21 kB from the slot ceiling. Giving ~601 B",
+  "back anywhere in the Air drops it a whole page and returns 4,096.",
+  "pico_w_test_https is 3,212 B under the same ceiling and still warns.",
+  "Same day, the same pass, after the gate below found it: two of the tokens",
+  "that CSS used did not exist. `--fundo-sutil` and `--tinta-fraca` are not in",
+  "either palette (the names are `--superficie-2` and `--tinta-2`), and a",
+  "`var( )` with no definition makes the browser drop the whole declaration, so",
+  "the scan button had no background and the dBm no secondary colour, in both",
+  "themes. Nothing failed: not the compile, not the minifier, not the helper",
+  "gate. build_webui_gz.py now refuses the build on it. -16 B, budgets unmoved."
  ],
  "ceiling": 1044480,
  "measured_on": "2026-09-20",
- "measured_at_commit": "feat/alarms-live-config (v25 ordered keypads; live-apply banner: dry-run classification, _nosave, _reboot; user-picker strip sweep)",
+ "measured_at_commit": "feat/wifi-scan (drawn lock and signal bars, aligned row, password reveal)",
  "envs": {
   "pico_w_release": {
-   "budget": 1011948,
-   "measured": 1009276
+   "budget": 1015660,
+   "measured": 1012644
   },
   "pico_w_test": {
-   "budget": 1016804,
-   "measured": 1014132
+   "budget": 1020516,
+   "measured": 1017500
   },
   "pico_w_test_https": {
-   "budget": 1024428,
-   "measured": 1021748
+   "budget": 1028140,
+   "measured": 1025116
   },
   "pico_w_asserts": {
-   "budget": 1014068,
-   "measured": 1011452
+   "budget": 1017836,
+   "measured": 1014820
   },
   "pico_w_alpha": {
-   "budget": 981028,
-   "measured": 978036
+   "budget": 982492,
+   "measured": 979492
   },
   "pico_w_air": {
-   "budget": 1020728,
-   "measured": 1017736
+   "budget": 1026280,
+   "measured": 1023280
   }
  }
 }
