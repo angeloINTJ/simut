@@ -1,6 +1,6 @@
 # SIMUT — Manual do Usuário
 
-**Firmware:** v2.5.0-beta · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **Licença:** MIT
+**Firmware:** v2.6.0-beta · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **Licença:** MIT
 **Repositório:** https://github.com/angeloINTJ/simut
 
 [English](MANUAL.md) | **Português**
@@ -280,50 +280,82 @@ quando há mais de quatro ativos e abrem as configurações (**CFG**).
   daquele sensor.
 - **Toque em CFG** para chegar às configurações — isso pede o **seu PIN**.
 
-### O PIN identifica quem está no painel
+### Primeiro a conta, depois o PIN
 
-Desde a config v24 o painel não tem mais um PIN do aparelho: cada conta tem o
-seu, de **4 a 8 dígitos**. O PIN é a identidade — não há
-campo de usuário — e por isso é **único** entre as contas. O admin de fábrica
-começa com `1234` e é obrigado a trocá-lo no primeiro acesso ao menu (um
-aparelho atualizado herda o PIN do display que tinha, se era numérico). Duas
-tentativas erradas são grátis; a terceira espera 5 s, depois 15 s, 60 s, e a
-sexta bloqueia até o próximo reboot.
+O CFG abre a **lista de contas**: escolha a sua e só então digite o PIN. Cada
+conta tem o seu PIN; o admin de fábrica começa com `1234` e é obrigado a
+trocá-lo no primeiro acesso (um aparelho atualizado herda o PIN do display que
+tinha, se era numérico).
 
-### O teclado embaralhado
+> **Por que a conta vem antes (config v25).** Até a v24 o PIN *era* a
+> identidade: o painel percorria a tabela inteira procurando a conta a que a
+> sequência pertencia. Duas consequências ruins vinham daí. Um palpite cego
+> valia contra **todas** as contas de uma vez — com a tabela cheia e 4 dígitos,
+> **20,2 %** por tentativa. E quando duas contas casavam com a mesma sequência,
+> **nenhuma** entrava, porque o painel não tinha como perguntar qual era: 15 %
+> dos logins, medidos na bancada. Escolhendo a conta antes, o aparelho verifica
+> **um** digest: o palpite cai para **0,81 %** e a ambiguidade deixa de existir
+> por construção.
 
-Um teclado numérico fixo entrega o PIN a quem olha por cima do ombro: as
-posições dos dedos são sempre as mesmas. Então o painel distribui os dez
-dígitos em **quatro cartões de três glifos** e **sorteia de novo a cada
-toque** — quem observa não consegue nem dizer se dois dígitos do PIN são
-iguais, porque dois toques no mesmo lugar não são os mesmos três dígitos.
+Uma conta bloqueada aparece marcada **na lista**, antes do PIN — a diferença
+entre "você digitou errado" e "esta conta acabou as tentativas".
 
-**Ao entrar, o cartão inteiro é um botão.** Um toque por dígito, e o toque diz
-apenas *"é um destes três"* — nem o aparelho fica sabendo qual. Quem observa
-vê quatro toques que, num PIN de 4 dígitos, cabem em até 81 senhas diferentes.
-No OK, o Core 0 percorre todas as senhas que a sequência pode soletrar e
-procura a que pertence a alguma conta; é assim que ele descobre **quem** está
-no painel. Se duas contas casarem com a mesma sequência, nenhuma entra — o
-painel não tem como perguntar qual era.
+**A escada de bloqueio é por conta**, com um teto de painel por cima: a 3ª
+falha espera 5 s, a 4ª 15 s, a 5ª 60 s, e a **6ª tranca aquela conta** até o
+próximo reboot. Vinte falhas somadas trancam **o painel inteiro**, também até
+reiniciar. As duas coisas são necessárias: só por painel (o que a v24 tinha),
+seis toques errados de qualquer um fechavam o painel de todo mundo; só por
+conta, um atacante ganharia 32 × 6 tentativas.
 
-Dez dígitos em doze posições deixariam dois cartões visivelmente mais curtos,
-o que já diria algo a quem observa. As duas posições que sobram recebem um
-**símbolo**, sorteado junto: todo cartão mostra três glifos, na mesma cor dos
-dígitos. O símbolo é enchimento — o PIN é só de dígitos, e um cartão que tem
-um deles simplesmente vale por dois dígitos na hora da busca.
+### O teclado: embaralhado ou ordenado, conforme a política
+
+Um teclado fixo entrega o PIN a quem olha por cima do ombro — as posições dos
+dedos são sempre as mesmas. Então o painel pode distribuir o alfabeto em
+**cartões de 2 ou 3 glifos** e **sortear de novo a cada toque**: o cartão
+inteiro é um botão, o toque diz apenas *"é um destes"*, e nem o aparelho fica
+sabendo qual. Dois toques no mesmo lugar não são os mesmos glifos, então quem
+observa não consegue nem dizer se dois caracteres do PIN são iguais.
+
+Com **dígitos e 3 glifos** (o padrão, e o que a v24 fazia) são quatro cartões;
+as duas posições que sobram levam um **símbolo** de enchimento, para que todo
+cartão mostre três glifos e a largura não diga nada.
+
+**Com 1 glifo por tecla não há sorteio.** Um conjunto de um não esconde nada de
+quem lê a tela — o caractere está escrito na tecla pressionada —, então
+embaralhar só custaria a memória muscular do operador. Nesse modo o teclado é
+**ordenado**: o pad numérico de sempre para `0-9`, ou um **alfanumérico de dois
+toques** (nove grupos, `0-9 ABC … WXYZ`, e o caractere no popup) para `0-9A-Z`.
 
 ![PIN](images/screens/panel-pin-keypad.png) ![PIN inválido](images/screens/panel-pin-invalid.png)
 
-> **Ao DEFINIR um PIN a tela é outra**: um teclado numérico comum, com os
-> dígitos onde um teclado numérico os põe. Embaralhar serve para esconder um
-> PIN que alguém já tem de quem está olhando; escolher um é o problema
-> oposto, e caçar o dígito num sorteio só custa toques.
+> **Ao DEFINIR um PIN o teclado é sempre o ordenado**, qualquer que seja a
+> política. Embaralhar serve para esconder um PIN que alguém já tem de quem
+> está olhando; escolher um é o problema oposto, e caçar o caractere num
+> sorteio só custa toques.
 
-> ⚠️ **O preço disso.** Quatro toques quaisquer cobrem 81 dos 10.000 PINs de 4
-> dígitos — contra 32 contas, um palpite tem ~26 % de chance de acertar alguma.
-> Com 6 dígitos cai para ~2 % e com 8 para ~0,2 %. A escada de bloqueio (2
-> livres, 5 s, 15 s, 60 s, e o 6º erro tranca até reiniciar) é o que segura o
-> resto. Para um aparelho com muitas contas, PINs de 6 ou mais dígitos.
+#### A política, e o que cada eixo compra
+
+`user policy <min> <teclado> <alfabeto>` no CLI, o item **Política de PIN** no
+painel, ou a página de configuração na web.
+
+| eixo | efeito | preço |
+|---|---|---|
+| **alfabeto** `0-9` → `0-9A-Z` | palpite cego 168× mais caro com 4 caracteres | nenhum: a busca não fica mais cara |
+| **teclado** 3 → 2 → 1 glifo | menos candidatos por toque ⇒ palpite mais caro | quem observa passa a ver mais |
+| **comprimento** | cada caractere multiplica | toques, e **CPU** |
+
+⚠️ O teclado é **soma zero**: o conjunto que esconde o caractere de quem observa
+é o mesmo que a busca tem de percorrer. O **alfabeto** é o único eixo que não é
+troca.
+
+⚠️ **O teto de comprimento é de CPU, não de gosto.** A árvore de toques custa
+`S+S²+…+Sⁿ` SHA-256, medidos em **36,6 µs** cada no ferro, e o Core 0 fica
+parado nisso — o servidor web espera atrás. Daí **16/12/8** caracteres para 1/2/3
+glifos por tecla. Com 3 glifos, 10 toques seriam 3,2 s e 16 seriam 39 minutos.
+
+⚠️ **Apertar a política marca toda conta que tem PIN para trocá-lo** no próximo
+acesso. É inevitável: o aparelho guarda apenas o *digest* e não tem como saber
+se um PIN antigo ainda cabe na regra nova.
 
 Quem define PINs: o próprio usuário (item **Alterar Senha**), um administrador
 no item **Usuários** do painel, a página `/users` da web ou `user pin` no CLI.
@@ -446,6 +478,33 @@ dispositivo.
 | `/files` | Navegador do sistema de arquivos: upload, download, exclusão, criação de diretórios — mais backup completo, restauração e atualização de firmware (OTA) |
 | `/history` | Gráficos de histórico, exportação CSV e o visualizador do log de eventos do sistema |
 | `/license` | Texto da licença |
+
+### As alterações ficam pendentes até você mandar aplicar
+
+Editar um campo não muda nada no aparelho: a página **encena** a alteração e
+uma barra no topo diz o que fazer com ela. Quantos botões aparecem depende da
+resposta do **aparelho**, não da página.
+
+| botão | o que faz |
+|---|---|
+| **Salvar e reiniciar** | grava e reinicia — sempre, mesmo que a mudança não exigisse |
+| **Aplicar agora** | grava e aplica **sem reiniciar** |
+| **Testar** | aplica **sem gravar**: um reinício desfaz, e o pendente continua lá para você salvar ou descartar |
+
+Os dois últimos só aparecem quando a mudança **pode** ser aplicada ao vivo —
+limites de alarme, manutenção, 2ª linha de alarmes, telemetria pelo lado HTTP,
+tema e idioma. Rede, contas, provisionamento de sensor, fuso e a própria
+política de PIN continuam exigindo reinício, e nesse caso a barra mostra só
+"Salvar e reiniciar" e diz **por quê**.
+
+> A página **pergunta ao aparelho** (um ensaio que não muda nada) em vez de
+> decidir sozinha. A regra é comparar a configuração encenada com a corrente,
+> e só o aparelho sabe fazer isso: um campo digitado de volta ao valor atual
+> não é mudança nenhuma.
+
+⚠️ **Testar** não sobrevive a uma queda de energia — é para experimentar um
+limite, não para configurar. Enquanto o pendente estiver lá, a barra continua
+visível.
 
 ### Autenticação
 
@@ -1125,7 +1184,7 @@ Permissões entre colchetes.
 | `/api/screenshot_chunk` | GET | Um bloco de 16 linhas com um CRC32, para transferência verificável |
 | `/api/screen_stream` | GET | Um quadro do painel em faixas com RLE de paleta (espelho ao vivo) |
 | `/api/touch` | POST | Toca o painel em `x` (0..319) e `y` (0..239) — coordenadas do painel |
-| `/api/keypad` | GET | Os quatro cartões embaralhados do PIN como estão sorteados agora, p.ex. `{"faces":["93@","$12","764","580"],"up":true}`. Faces vazias e `"up":false` quando o teclado não é a tela viva. Descreve o vidro, não o segredo: nunca diz qual casa do cartão é o dígito |
+| `/api/keypad` | GET | O teclado do PIN **como está no vidro agora**: `faces` (uma por tecla, POSICIONAL — o pad numérico ordenado tem duas VAZIAS), `kb` (`cards`, `num` ou `groups`), `grid`, `policy` e `pop` para o popup do alfanumérico de dois toques. Descreve o vidro, não o segredo: num teclado sorteado nunca diz qual casa do cartão é o caractere |
 
 ---
 

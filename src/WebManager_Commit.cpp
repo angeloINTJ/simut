@@ -202,6 +202,7 @@ void WebManager::assignTempPassword(int slot, String& outCreds) {
 	for (size_t i = 0; i < sizeof(temp); i++) v[i] = 0;
 }
 
+#if SIMUT_PANEL_PIN
 /* v24: a panel PIN on a config that may be the dry-run copy, so it cannot go
  * through StorageManager::setUserPin (which writes the live config). Same
  * rules: digits 4..8, unique across the active accounts of THIS config; ""
@@ -219,6 +220,7 @@ static bool cfgSetUserPin(SystemConfig& cfg, int slot, const char* pin) {
 	memcpy(cfg.users[slot].pinHash, d, PIN_HASH_LEN);
 	return true;
 }
+#endif /* SIMUT_PANEL_PIN */
 
 /* Answers the client for the two refusal paths of commitScanSections and
  * returns false; on true, outStart[] is the parsers' map of the payload.
@@ -343,23 +345,43 @@ void WebManager::handleApiCommitAll( ) {
 	 * users mint passwords, slots and calib touch files, alarms mutate runtime
 	 * state — none of that has a copy to run on. */
 	const bool dry = _server->hasArg("_dry") && _server->arg("_dry") == "1";
+	/* _nosave=1: apply to the RUNNING configuration and skip the flash write,
+	 * so a reboot puts the old value back. It is the "try a limit" button, and
+	 * it runs on the same COPY the dry run uses — which is what lets it refuse
+	 * a reboot-class change without having touched anything. Committing the
+	 * copy afterwards is the whole difference between the two. */
+	const bool noSave = _server->hasArg("_nosave") && _server->arg("_nosave") == "1";
+	/* _reboot=1: restart even when nothing required it. The button labelled
+	 * "save and restart" did NOT restart once the live path existed, and the
+	 * page still said "Restarting system..." — so the one control that
+	 * promises a restart was the one that might not do it. This makes the
+	 * promise true; the page's other two buttons are the ones for not
+	 * restarting. */
+	const bool forceReboot = _server->hasArg("_reboot") && _server->arg("_reboot") == "1";
+	const bool onCopy = dry || noSave;
 	std::unique_ptr<SystemConfig> dryCopy;
 #if SIMUT_AIR
-	/* The Air image is at its flash ceiling (tools/flash_budget.json). A dry
-	 * run there is refused explicitly rather than silently applied. */
-	if (dry) { _server->send(400, "application/json", "{\"error\":\"dry run not available on this build\"}"); return; }
+	/* The Air image is at its flash ceiling (tools/flash_budget.json). Both
+	 * copy-based paths are refused explicitly rather than silently applied. */
+	if (onCopy) { _server->send(400, "application/json", "{\"error\":\"dry run not available on this build\"}"); return; }
 #endif
-	if (dry) {
+	if (onCopy) {
+		/* sys, net and alarms are the sections whose parsers write ONLY into
+		 * `cfg` — so a copy is a faithful rehearsal. users mints passwords,
+		 * slots and calib touch files: those have nothing to run on a copy.
+		 * alarms joined the list on 2026-09-20; its two side effects outside
+		 * cfg (the maintenance actor note and the error-mute clear) are
+		 * suppressed under `onCopy`, one of which was already guarded. */
 		for (int i = 0; i < SEC_COUNT; i++) {
-			if (i != SEC_SYS && i != SEC_NET && secStart[i] >= 0) {
-				_server->send(400, "application/json", "{\"error\":\"dry run accepts sys and net only\"}");
+			if (i != SEC_SYS && i != SEC_NET && i != SEC_ALARMS && secStart[i] >= 0) {
+				_server->send(400, "application/json", "{\"error\":\"accepts sys, net and alarms only\"}");
 				return;
 			}
 		}
 		dryCopy.reset(new (std::nothrow) SystemConfig(_storageRef->getConfig( )));
 		if (!dryCopy) { _server->send(503, "application/json", "{\"error\":\"no memory\"}"); return; }
 	}
-	SystemConfig& cfg = dry ? *dryCopy : _storageRef->getConfig( );
+	SystemConfig& cfg = onCopy ? *dryCopy : _storageRef->getConfig( );
 	bool themeChanged = false;
 
 	/* ── o retrato de ANTES, que é o que decide se há reboot ────────────────
@@ -374,9 +396,14 @@ void WebManager::handleApiCommitAll( ) {
 	 * antes não há classificação, e adivinhar "nada precisa de reboot" é
 	 * exatamente o erro que deixa o aparelho num estado que ninguém reproduz. */
 	std::unique_ptr<SystemConfig> beforeCfg;
-	if (!dry) {
-		beforeCfg.reset(new (std::nothrow) SystemConfig(cfg));
-	}
+	beforeCfg.reset(new (std::nothrow) SystemConfig(onCopy ? _storageRef->getConfig( ) : cfg));
+	/* The copy paths need this snapshot too, and they need it to be a
+	 * SNAPSHOT — classifyConfigChanges CONSUMES its first argument (it uses it
+	 * as the scratch buffer, see the ⚠️ on its declaration). Handing it the
+	 * live configuration copies the staged values straight into the running
+	 * config: on 2026-09-20 that made `_dry=1` change tz, s_int and an alarm
+	 * limit for real, and a later save carried them to flash. The header said
+	 * so in capitals; the call site is where it had to be read. */
 
 	/* Fields the sys section DISCARDS — out-of-range or unparsable values
 	 * keep the stored setting, which is the right conservatism, but doing
@@ -944,6 +971,50 @@ void WebManager::handleApiCommitAll( ) {
 			 * value like that, stored via API, jams the page's own form: the
 			 * HTML input marks it invalid and refuses to resubmit. */
 			if (has("s_int")) { int v; if (parseIntStrict(getNum("s_int"), v) && v >= 1000 && v <= 60000) cfg.sampleIntervalMs = (uint32_t)v; else rejectField("s_int"); }
+#if SIMUT_PANEL_PIN
+			/* v25 — the PIN policy travels as a SET, because the three values
+			 * constrain each other: the keypad caps the length (a 3-glyph card
+			 * cannot resolve more than 8 taps inside the CPU budget) and the
+			 * alphabet rules out a keypad (36 characters one per key is a
+			 * 19-px target). Validating them one at a time would let a POST
+			 * that changes two of them land on an impossible pair depending on
+			 * the order they were applied. */
+			if (has("pin_min") || has("pin_kb") || has("pin_alpha")) {
+				uint8_t oMin = cfg.pinAuth.pinMinLen, oKb = cfg.pinAuth.pinKeypad,
+				        oAlpha = cfg.pinAuth.pinAlphabet;
+				clampPinPolicy(oMin, oKb, oAlpha);
+				int vMin = oMin, vKb = oKb, vAlpha = oAlpha;
+				bool bad = false;
+				if (has("pin_min")   && !parseIntStrict(getNum("pin_min"), vMin))     bad = true;
+				if (has("pin_kb")    && !parseIntStrict(getNum("pin_kb"), vKb))       bad = true;
+				if (has("pin_alpha") && !parseIntStrict(getNum("pin_alpha"), vAlpha)) bad = true;
+				if (bad || vMin < 0 || vKb < 0 || vAlpha < 0 || vMin > 255 ||
+				    !isValidPinPolicy((uint8_t)vMin, (uint8_t)vKb, (uint8_t)vAlpha)) {
+					rejectField("pin_min");
+				} else {
+					cfg.pinAuth.pinMinLen   = (uint8_t)vMin;
+					cfg.pinAuth.pinKeypad   = (uint8_t)vKb;
+					cfg.pinAuth.pinAlphabet = (uint8_t)vAlpha;
+					const uint8_t renew = _storageRef->markPinsBelowPolicy(oMin, oKb, oAlpha);
+					/* The panel and `user policy` both write this record; the web
+					 * did not, so the ONE surface most people use could weaken the
+					 * keypad — or send every account to "choose a new PIN" — and
+					 * leave nothing behind. Found on the rig 2026-09-20, when the
+					 * policy had drifted and the log could not say who moved it.
+					 * Same ctx encoding as the other two (min*100 + kb*10 + alpha)
+					 * so one query answers for all three. */
+					if (vMin != oMin || vKb != oKb || vAlpha != oAlpha) {
+						/* ONE translated string for both sources; which surface
+						 * did it is an untranslated marker. Two strings cost
+						 * the es-ES pack ~70 resident bytes it does not have. */
+						LOG_CODE(LOG_WARN, "APP", APP_UI_PIN_POLICY,
+						         vMin * 100 + vKb * 10 + vAlpha,
+						         String(TRL("PIN policy changed")) + " [web] (" +
+						         String((unsigned)renew) + ")");
+					}
+				}
+			}
+#endif
 			if (has("t_srv")) setStr("t_srv", cfg.telServer, sizeof(cfg.telServer));
 			if (has("t_port")) { int v; if (parseIntStrict(getNum("t_port"), v) && isInRange(v, 1, 65535)) cfg.telPort = (uint16_t)v; else rejectField("t_port"); }
 			if (has("t_path")) setStr("t_path", cfg.telPath, sizeof(cfg.telPath));
@@ -1158,13 +1229,16 @@ void WebManager::handleApiCommitAll( ) {
 						}
 						/* v24: the maint_on / maint_off record names who did it. The
 						 * edge itself is AppManager's, on its next pass. */
-						if (!dry && _telemetryRef && maintF >= 0) {
+						if (!onCopy && _telemetryRef && maintF >= 0) {
 							_telemetryRef->noteMaintActor((uint8_t)idx, alarmActorFromSlot(_currentUserId));
 						}
 					}
 					/* Reativar o alarme deste slot pelo web limpa o MUTE DE ERRO
 					 * do mesmo slot — erro e limite são independentes. */
-					if (rec->alarmsActive && _displayRef) {
+					/* Not on a copy: this is DisplayManager state, not config, so
+					 * a rehearsal must not touch it — and a run that is only
+					 * being tried should not clear a mute it may not keep. */
+					if (rec->alarmsActive && _displayRef && !onCopy) {
 						_displayRef->setAlarmErrMuted(idx, false);
 					}
 				}
@@ -1292,11 +1366,14 @@ void WebManager::handleApiCommitAll( ) {
 					}
 					if (slot < 0) { rejectField("users.full"); objStart = objEnd + 1; continue; }
 
-					/* A config written before deletion cleared the record can
-					 * still carry a PIN digest in an inactive slot, so the
-					 * allocation clears it: the "pin" field below is the only
-					 * thing that may give this account one. */
-					memset(cfg.users[slot].pinHash, 0, PIN_HASH_LEN);
+					/* The WHOLE record, not just the PIN digest: a config
+					 * written before deletion cleared the record can still
+					 * carry a name, a password hash, a salt and permission
+					 * bits in an inactive slot, and an account taking that
+					 * slot would inherit every one of them. v24 cleared only
+					 * pinHash here, which fixed the symptom that had been
+					 * found and left the rest. */
+					StorageManager::wipeUserAccount(cfg.users[slot]);
 					safeCopy(cfg.users[slot].username, name.c_str( ), sizeof(cfg.users[slot].username));
 					cfg.users[slot].permissions = (uint16_t)perms;
 					cfg.users[slot].active = true;
@@ -1308,9 +1385,18 @@ void WebManager::handleApiCommitAll( ) {
 					 * can act at the panel from its first boot. A malformed or
 					 * duplicate PIN rejects the field, not the account. */
 					String pinS = jsonExtractStringValue(obj, "pin");
+#if SIMUT_PANEL_PIN
 					if (pinS.length( ) && !cfgSetUserPin(cfg, slot, pinS.c_str( ))) rejectField("users.pin");
+#else
+					/* No panel here: the ACCOUNT is still created, and only the
+					 * PIN is refused — rejecting the whole object would make an
+					 * imageless device unable to take a user list written for a
+					 * panel one. */
+					if (pinS.length( )) rejectField("users.pin");
+#endif
 				}
 				else if (type == "pin") {
+#if SIMUT_PANEL_PIN
 					/* v24: {"type":"pin","id":N,"pin":"123456"} — "" removes it. Slot 0
 					 * is allowed: this is how the admin's panel PIN is set from the web. */
 					int ip = obj.indexOf("\"id\":");
@@ -1321,6 +1407,12 @@ void WebManager::handleApiCommitAll( ) {
 					String pinS = jsonExtractStringValue(obj, "pin");
 					if (!cfgSetUserPin(cfg, id, pinS.c_str( ))) rejectField("users.pin");
 					else if (id == 0 && pinS.length( ) && pinS != "1234" && !dry) _storageRef->clearMustChangePin( );
+#else
+					/* No panel to prove it to. Refused rather than ignored: a
+					 * payload that asks for something this image cannot do
+					 * should say so, not look like it worked. */
+					rejectField("users.pin");
+#endif
 				}
 				else if (type == "del" || type == "reset") {
 					int ip = obj.indexOf("\"id\":");
@@ -1334,7 +1426,7 @@ void WebManager::handleApiCommitAll( ) {
 						/* The WHOLE record: v24's panel PIN digest lives in it,
 						 * and a slot that keeps one lets the next account that
 						 * lands there be opened with the deleted account's PIN. */
-						memset(&cfg.users[id], 0, sizeof(cfg.users[id]));
+						StorageManager::wipeUserAccount(cfg.users[id]);
 					} else { /* reset */
 						assignTempPassword(id, tempCreds);
 					}
@@ -1527,18 +1619,10 @@ void WebManager::handleApiCommitAll( ) {
   }
  }
 
- if (dry) {
-		/* Same shape as the real answer, status "dry": the caller reads the
-		 * same "rejected" it would read after a reboot — without one. */
-		String resp = "{\"status\":\"dry\"";
-		if (commitNewPort != 0) { resp += ",\"newPort\":"; resp += (unsigned)commitNewPort; }
-		if (rejectedList[0])    { resp += ",\"rejected\":["; resp += rejectedList; resp += "]"; }
-		resp += "}";
-		_server->send(200, "application/json", resp);
-		return;
-	}
 
- if (themeChanged && _displayRef) _displayRef->refreshTheme( );
+ /* Not on a copy: refreshing the panel's theme is a live side effect, and a
+  * rehearsal must not have one. */
+ if (themeChanged && _displayRef && !onCopy) _displayRef->refreshTheme( );
 
 	/* ── o que mudou, e se isso exige reiniciar ─────────────────────────────
 	 *
@@ -1550,7 +1634,65 @@ void WebManager::handleApiCommitAll( ) {
 	                                      : (uint32_t)CFG_UNKNOWN;
 	const bool mustReboot = configNeedsReboot(changeMask);
 
-	if (!mustReboot) {
+ if (onCopy) {
+		/* The copy paths answer with the SAME changeMask the real commit acts
+		 * on, computed once above — the page must not carry a second copy of
+		 * the rule, and one call site is what keeps the two from drifting.
+		 * Without the snapshot there is no classification, and a dry answer
+		 * that guessed would be worse than no answer. */
+		if (!beforeCfg) { _server->send(503, "application/json", "{\"error\":\"no memory\"}"); return; }
+		char applied[160], why[160];
+		configChangeList(changeMask, applied, sizeof(applied));
+		configChangeList(changeMask & CFG_REBOOT_CLASSES, why, sizeof(why));
+
+		if (noSave) {
+			/* "Try it": only a change that can be applied live can be tried.
+			 * Refusing HERE is what makes the refusal free — the parse ran on
+			 * the copy, so the running configuration is exactly as it was. */
+			if (mustReboot) {
+				String r = "{\"error\":\"needs a restart; cannot be applied without saving\"";
+				if (why[0]) { r += ",\"reboot_for\":["; r += why; r += "]"; }
+				r += "}";
+				_server->send(409, "application/json", r);
+				return;
+			}
+			/* RAM only. The flash keeps the old value, so a reboot undoes this
+			 * — which is the point. CFG_ALARMS needs nothing from
+			 * applyConfigLive( ) (its consumers re-read the config), but the
+			 * call is made for every class so the two paths cannot drift. */
+			_storageRef->getConfig( ) = cfg;
+			applyConfigLive(changeMask);
+			_storageRef->lockHeavyTask( );
+			/* Reuses the live-path string with an untranslated marker instead
+			 * of a TRL( ) of its own: the es-ES pack's RESIDENT sections were
+			 * 8 bytes from their 16 KB ceiling, and a pack that overruns is
+			 * rejected whole — the whole UI drops to English. A four-byte tag
+			 * says the same thing for free. */
+			LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId,
+			         String(TRL("Admin committed changes — applied live")) + " [nosave]");
+			_storageRef->unlockHeavyTask( );
+			String r = "{\"status\":\"ok\",\"reboot\":false,\"saved\":false,\"applied\":[";
+			r += applied; r += "]";
+			if (rejectedList[0]) { r += ",\"rejected\":["; r += rejectedList; r += "]"; }
+			r += "}";
+			_server->send(200, "application/json", r);
+			return;
+		}
+
+		/* Same shape as the real answer, status "dry": the caller reads the
+		 * same "rejected" it would read after a reboot — without one. */
+		String resp = "{\"status\":\"dry\",\"reboot\":";
+		resp += mustReboot ? "true" : "false";
+		resp += ",\"applied\":["; resp += applied; resp += "]";
+		if (why[0])             { resp += ",\"reboot_for\":["; resp += why; resp += "]"; }
+		if (commitNewPort != 0) { resp += ",\"newPort\":"; resp += (unsigned)commitNewPort; }
+		if (rejectedList[0])    { resp += ",\"rejected\":["; resp += rejectedList; resp += "]"; }
+		resp += "}";
+		_server->send(200, "application/json", resp);
+		return;
+	}
+
+	if (!mustReboot && !forceReboot) {
 		/* ── caminho novo: grava e aplica, sem reiniciar ────────────────────
 		 *
 		 * Nada de tela de boot e nada de safeReboot. O save é o mesmo; o que
@@ -1627,6 +1769,10 @@ void WebManager::handleApiCommitAll( ) {
 		char why[160];
 		configChangeList(changeMask & CFG_REBOOT_CLASSES, why, sizeof(why));
 		if (why[0]) { resp += ",\"reboot_for\":["; resp += why; resp += "]"; }
+		/* Asked for, not required: the caller pressed the restart button on a
+		 * change the device would have applied live. Saying so is what keeps
+		 * "reboot_for" meaning "these classes forced it". */
+		else if (forceReboot) { resp += ",\"reboot_for\":[\"requested\"]"; }
 	}
 	if (commitNewPort != 0) { resp += ",\"newPort\":"; resp += (unsigned)commitNewPort; }
 	if (rejectedList[0])    { resp += ",\"rejected\":["; resp += rejectedList; resp += "]"; }

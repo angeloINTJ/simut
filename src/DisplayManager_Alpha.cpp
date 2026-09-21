@@ -338,12 +338,8 @@ void DisplayManager::showCalendar(int,int,uint32_t){}
 void DisplayManager::setSlotMinMax(float,float,float,float){}
 void DisplayManager::setTopSlotData(float,float,float,SensorType,bool,int,String){}
 /* v24 — identity at the panel: no panel, no keypad. */
-void DisplayManager::showPinEntry(uint8_t, int8_t){}
-int DisplayManager::authResult(bool){return 0;}
-void DisplayManager::getEnteredPin(char* out, size_t cap) const { if (out && cap) out[0] = '\0'; }
-uint8_t DisplayManager::pinKeyFace(int, char* out, size_t cap) const { if (out && cap) out[0] = '\0'; return 0; }
-uint8_t DisplayManager::getEnteredPinTaps(char[][PinKb::SLOTS + 1], size_t) const { return 0; }
-void DisplayManager::clearEnteredPin( ){}
+/* v25 — see DisplayManager_None.cpp: the alphanumeric display has no touch
+ * panel either, so the PIN stubs went with the feature. */
 void DisplayManager::setPanelSession(int8_t, uint16_t){}
 void DisplayManager::showAlarmSensorMenu(int){}
 void DisplayManager::showMaintEntry(int){}
@@ -582,3 +578,5 @@ bool DisplayManager::findAndLoadLangFile( ) {
 }
 bool DisplayManager::consumeVolumePreview(uint8_t&){return false;}
 bool DisplayManager::consumeAlarmVolumePreview(uint8_t&){return false;}
+
+

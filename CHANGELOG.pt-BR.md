@@ -4,6 +4,138 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.6.0-beta (2026-09-20)
+
+**Escolher a conta antes de digitar o PIN, e um teclado que para de embaralhar
+quando embaralhar não compra nada.** A v24 fazia do PIN a identidade: o painel
+varria a tabela inteira atrás de quem os toques pudessem ser. Isso custava duas
+coisas que não devia. Um palpite cego valia contra *todas* as contas de uma vez
+— com a tabela cheia e quatro dígitos, **20,2%** por tentativa — e quando duas
+contas casavam com uma sequência **nenhuma** entrava, o que dava **15% dos
+logins** numa tabela cheia, medidos. Agora a conta vem primeiro, o aparelho
+verifica um digest, e os dois problemas somem: **0,81%** por tentativa, e a
+ambiguidade deixa de existir por construção. Schema de config 24 -> 25, migrado
+no lugar.
+
+A mesma passagem tornou a política de PIN uma escolha do administrador, deu à
+web uma barra que diz o que uma alteração custa de verdade, e tirou o mecanismo
+de PIN inteiro das duas imagens que não têm tela de toque.
+
+### Identidade no painel (config v25)
+
+- **A conta vem primeiro.** O CFG abre a lista de contas; uma conta bloqueada
+  diz isso *ali*, antes do PIN — a diferença entre "você digitou errado" e
+  "esta conta acabou as tentativas".
+- **Política de PIN configurável** — comprimento mínimo, glifos por tecla e
+  alfabeto — pelo CLI (`user policy`), pelo painel ou pela web. O alfabeto é o
+  único eixo que não é troca: `0-9A-Z` encarece o palpite cego em **168x** com
+  quatro caracteres e não encarece a busca. O teclado é soma zero, porque o
+  conjunto que esconde o caractere de quem observa é o que a busca percorre.
+- **O teto de comprimento é de CPU, não de gosto**: 16/12/8 caracteres para
+  1/2/3 glifos por tecla. A árvore de toques é `S+S^2+...+S^n` SHA-256 a **36,6
+  us** cada, medidos no ferro; com três glifos, dez toques parariam o Core 0
+  por 3,2 s.
+- **Um glifo por tecla não embaralha mais.** Um conjunto de um não esconde nada
+  de quem lê a tela, então ali o teclado é **ordenado**: o pad numérico para
+  dígitos, ou um **alfanumérico de dois toques** (nove grupos e um popup) para
+  `0-9A-Z`. Isso também tornou `0-9A-Z` com um glifo por tecla possível — antes
+  eram 36 teclas de 19 px — e consertou uma lacuna que ninguém tinha notado: o
+  painel nunca conseguiu digitar um PIN com letra, porque a tela de DEFINIR PIN
+  estava presa ao pad numérico enquanto a política anunciava 36 caracteres.
+- **A escada de bloqueio é por conta** (seis falhas trancam até reiniciar) com
+  um **teto de painel** por cima (vinte falhas trancam o painel). Só por painel
+  era o comportamento da v24, e significava que seis toques errados de qualquer
+  um fechavam o painel de todo mundo.
+
+### Registros de auditoria sobrevivem à reutilização do slot
+
+- **O NOME da conta é congelado no registro de alarme no momento do push**
+  (16 -> 32 B), em vez de ser resolvido pelo slot quando o payload é montado
+  minutos depois. A fila espera o servidor e o slot é reutilizável: apagar uma
+  conta nesse intervalo fazia um registro de *auditoria* sair assinado por quem
+  tomasse o slot em seguida. Provado no ferro, e agora um passo permanente da
+  bancada.
+- **Apagar uma conta sobrescreve o registro inteiro**, nos quatro caminhos
+  (painel, delete web, alocação de slot na web, CLI). A v24 limpava só o hash do
+  PIN num deles e deixava nome, hash de senha, salt e bits para o próximo
+  ocupante herdar.
+- O array de 1.024 B na pilha do caminho de envio foi removido, e é o que pagou
+  pelo registro mais largo.
+
+### A web diz o que uma alteração custa
+
+- **Três ações em vez de uma.** "Salvar e reiniciar" agora reinicia mesmo quando
+  a mudança não exigia — antes ele tomava o caminho ao vivo e a página anunciava
+  um reboot que não acontecia. "Aplicar agora" grava e aplica sem reiniciar.
+  "Testar" aplica **sem gravar**, então um reinício desfaz.
+- Os dois últimos só aparecem quando o **aparelho** diz que o conjunto encenado
+  pode ser aplicado ao vivo. A página pergunta com um ensaio em vez de espelhar
+  a regra, porque a classificação compara a configuração encenada com a corrente
+  e um campo digitado de volta ao valor atual não é mudança nenhuma — coisa que
+  nenhum cliente tem como saber.
+- `/api/commit_all` ganhou `_nosave=1` e `_reboot=1`; `_dry=1` passou a devolver
+  a classificação (`reboot`, `applied`, `reboot_for`) e a aceitar a seção
+  `alarms` ao lado de `sys` e `net`.
+- As tags de permissão da tabela de usuários ficam **recolhidas na contagem** e
+  abrem no toque; treze etiquetas numa célula empurravam os botões de ação para
+  fora da linha no celular. O botão de excluir nunca tinha pegado a geometria
+  comum e era o único de cantos quadrados da linha.
+
+### O painel parou de piscar, duas vezes
+
+- A lista de contas é pintada em **seis faixas de 40 px**, um DMA cada, em vez
+  de limpar a tela e depois blitar título, rodapé, barra e quatro linhas um a um
+  — o que deixava o painel visivelmente escuro no meio. A tela de PIN levou a
+  mesma correção na v2.5.0-beta.
+
+### Corrigido
+
+- **`user policy` nunca funcionou uma vez sequer.** O parser encaminhava dois
+  dos três tokens, então `user policy 4 3 0` chegava como `"4 3"` e a própria
+  guarda de dois separadores do handler rejeitava toda chamada bem formada. Dois
+  casos no `native_cli`, que compila o parser de produção, fixam isso agora.
+- **Política de PIN alterada pela web não deixava rastro.** O painel e a CLI
+  escrevem `APP_UI_PIN_POLICY`; a superfície que mais gente usa não escrevia
+  nada, e ela pode enfraquecer o teclado ou mandar todas as contas trocarem de
+  PIN.
+- **`_dry=1` não era seco.** Ao fazê-lo classificar, passei a configuração viva
+  como `before` do `classifyConfigChanges` — e esse argumento é *consumido*, ele
+  é o rascunho. O ensaio passou a escrever os valores encenados no aparelho em
+  execução, e uma gravação posterior os levava à flash. Pego no ferro antes do
+  release; `test_classify_consumes_its_before` agora assevera o contrato que o
+  cabeçalho só descrevia.
+
+### O PIN não custa nada onde não há painel
+
+`SIMUT_PANEL_PIN` (1 quando `SIMUT_DISPLAY_TFT` é 1 *ou não está definido*, para
+as suítes nativas continuarem testando as regras) tira das imagens Air e alpha o
+validador, a busca por digest, `user pin`, `user policy`, os campos web e sete
+stubs de display. Fica a **cadeia de digest** (252 B) e o layout da config: a
+forma armazenada do PIN é schema, não recurso, então uma placa gravada com o Air
+e de volta com o release volta com os PINs.
+
+### Flash
+
+As duas colunas são o `Flash: used` do PlatformIO.
+
+| imagem | v2.5.0-beta | v2.6.0-beta | Δ | `.bin` | abaixo do teto de OTA |
+|---|---:|---:|---:|---:|---:|
+| `pico_w_release` | 998.468 B | **1.009.276 B** | +10.808 | 1.021.308 B | 19.076 B |
+| `pico_w_alpha` | 973.372 B | **978.036 B** | +4.664 | 990.348 B | 50.036 B |
+| `pico_w_air` | 1.018.752 B | **1.017.736 B** | **-1.016** | 1.031.212 B | 9.172 B |
+
+O Air ficou *menor* ganhando os flags de aplicação ao vivo: o maquinário de PIN
+que ele carregava para um painel que não tem vale mais que o código novo. Quatro
+tetos subiram nesta mudança; o do Air não.
+
+### Ao atualizar
+
+Os pacotes de idioma em `/lang` **não** fazem parte da imagem de firmware, então
+um OTA deixa os antigos no lugar e os rótulos novos ficam em inglês até serem
+substituídos. Deste release em diante eles saem como assets — suba pela página
+de Arquivos ou por `POST /api/upload`, nunca `uploadfs`, e reinicie: um pack é
+lido no boot.
+
 ## v2.5.0-beta (2026-09-20)
 
 **O painel sabe quem está diante dele.** Até agora o display tinha um PIN só

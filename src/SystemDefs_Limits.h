@@ -25,6 +25,27 @@
  * old count survives as CFG_LEGACY_MAX_USERS in ConfigMigrate.h, because the
  * migration has to walk files that were written with it. */
 #define MAX_USERS 32 /* Maximum user accounts (v24; 5 until v23) */
+
+/* ── Does this image have a panel PIN at all? (v25) ──────────────────────
+ * The PIN exists to prove who is standing at the TOUCH PANEL. An image with
+ * no panel has nobody standing at it: the scrambled keypad, the policy, the
+ * digest chain, the CLI verbs and the web fields are all dead weight there —
+ * 2,750 B on the Air and 972 B on the alpha, measured 2026-09-20.
+ *
+ * What does NOT depend on this flag is the CONFIG LAYOUT. UserAccount::pinHash
+ * and DisplayAuthConfig keep their bytes in every image, because
+ * sizeof(SystemConfig) is the schema and a blob written by one image is read
+ * by another — flash an Air over a panel unit and back, and the PINs have to
+ * still be there. The fields travel; only the code that means anything by
+ * them is conditional.
+ *
+ * Undefined (the native test builds) means YES: the rules in
+ * SystemDefs_Validate.h are pure and the suite exists to hold them. */
+#if !defined(SIMUT_DISPLAY_TFT) || SIMUT_DISPLAY_TFT
+  #define SIMUT_PANEL_PIN 1
+#else
+  #define SIMUT_PANEL_PIN 0
+#endif
 /* Panel PIN digest (v24), bytes per account. 64 bits: the PIN space is
  * 10^4..10^8, so the digest is not where its strength lives. The length rule
  * (4..8 digits) is isValidPanelPin in SystemDefs_Validate.h. */
@@ -44,7 +65,7 @@
  * Doing that once with room to spare beats doing it per new quantity. */
 #define MAX_SENSOR_CHANNELS 8
 #endif
-#define SIMUT_VERSION "2.5.0-beta"
+#define SIMUT_VERSION "2.6.0-beta"
 
 /* Fallback epoch for provisional time when NTP is unavailable and no
  * history records exist to seed the virtual RTC. Override via

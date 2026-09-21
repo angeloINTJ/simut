@@ -258,7 +258,9 @@ void AppManager::core0Yield( ) {
   * session, if any, ends here — whoever is at the panel now identifies. */
  _panelUser = -1; _panelPerms = 0; _panelAuthFor = PAUTH_SETTINGS;
  _displayMgr->setPanelSession(-1, 0);
- _displayMgr->showPinEntry(DisplayManager::PIN_FOR_AUTH);
+#if SIMUT_PANEL_PIN
+ _displayMgr->showAuthUser( );
+#endif
  }
  else if (uiEv.type == UiEvent::EVT_MENU_SELECT) {
  if (uiEv.id == 0) {
@@ -275,8 +277,10 @@ void AppManager::core0Yield( ) {
  _displayMgr->showSettingsLang(_storageMgr->getConfig( ).displayLang);
  }
  else if (uiEv.id == 4) {
+#if SIMUT_PANEL_PIN
  /* one's own PIN, on the numeric keypad, typed twice */
  _displayMgr->showPinEntry(DisplayManager::PIN_FOR_OWN);
+#endif
  }
  else if (uiEv.id == 5) {
  _displayMgr->showTouchCalibration( );
@@ -292,6 +296,11 @@ void AppManager::core0Yield( ) {
  }
  else if (uiEv.id == 9) {
  if (panelAllowed(PERM_USER_MGR, -1)) _displayMgr->showSettingsUsers( );
+ }
+ else if (uiEv.id == 10) {
+#if SIMUT_PANEL_PIN
+ if (panelAllowed(PERM_USER_MGR, -1)) _displayMgr->showPinPolicy( );
+#endif
  }
  }
  else if (uiEv.type == UiEvent::EVT_APPLY_THEME) {
@@ -418,7 +427,9 @@ void AppManager::core0Yield( ) {
  _alarmDeactivateSlot = (int8_t)uiEv.id;
  _panelUser = -1; _panelPerms = 0; _panelAuthFor = PAUTH_DEACTIVATE;
  _displayMgr->setPanelSession(-1, 0);
- _displayMgr->showPinEntry(DisplayManager::PIN_FOR_AUTH);
+#if SIMUT_PANEL_PIN
+ _displayMgr->showAuthUser( );
+#endif
  }
  }
 

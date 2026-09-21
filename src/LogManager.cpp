@@ -1158,6 +1158,7 @@ static const char* translateCodeEn(uint16_t code) {
  case APP_UI_ALARM_BLOCKED: return "Sensor alarms blocked via panel";
  case APP_UI_ALARM_UNBLOCKED: return "Sensor alarms unblocked via panel";
  case APP_UI_PERM_DENIED: return "Panel action refused: no permission";
+ case APP_UI_PIN_POLICY: return "PIN policy changed via panel";
 
  /* ── Alarm state (470–472) ── */
  case APP_ALARM_TRIGGERED: return "Alarm triggered";

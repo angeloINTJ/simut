@@ -185,6 +185,22 @@ void WebManager::handleApiConfig( ) {
 	} else {
 		snprintf(keyMask, sizeof(keyMask), "%.4s***", cfg.telApiKey);
 	}
+#if SIMUT_PANEL_PIN
+	/* v25: the PIN policy. The page validates its own PIN field against these
+	 * instead of the hardcoded /^[0-9]{4,8}$/ it carried — a form that accepts
+	 * what the device will refuse is a bug report the user writes for us. */
+	{
+		uint8_t pMin = cfg.pinAuth.pinMinLen, pKb = cfg.pinAuth.pinKeypad,
+		        pAlpha = cfg.pinAuth.pinAlphabet;
+		clampPinPolicy(pMin, pKb, pAlpha);
+		snprintf(buf, sizeof(buf),
+		         "\"pin_min\":%u,\"pin_max\":%u,\"pin_kb\":%u,\"pin_alpha\":%u,",
+		         (unsigned)pMin, (unsigned)PinKb::maxLenFor(pKb),
+		         (unsigned)pKb, (unsigned)pAlpha);
+		if (!safeSend(buf)) return;
+	}
+#endif
+
 	snprintf(buf, sizeof(buf),
 	         "\"t_srv\":\"%s\",\"t_port\":%u,\"t_path\":\"%s\",\"t_key\":\"%s\",",
 	         jsonEscape(cfg.telServer).c_str( ), cfg.telPort,
@@ -284,9 +300,17 @@ void WebManager::handleApiUsers( ) {
 		if (!cfg.users[i].active) continue;
 		if (!first) json += ',';
 		first = false;
+#if SIMUT_PANEL_PIN
 		snprintf(row, sizeof(row), "{\"id\":%d,\"name\":\"%s\",\"perms\":%u,\"pin\":%s}",
 		         i, cfg.users[i].username, cfg.users[i].permissions,
 		         StorageManager::userHasPin(cfg.users[i]) ? "true" : "false");
+#else
+		/* No panel: the key is OMITTED rather than sent as false. The page
+		 * reads its absence as "this device has no panel PIN" and drops the
+		 * column; a hard false would have claimed every account lacks one. */
+		snprintf(row, sizeof(row), "{\"id\":%d,\"name\":\"%s\",\"perms\":%u}",
+		         i, cfg.users[i].username, cfg.users[i].permissions);
+#endif
 		json += row;
 	}
 	json += ']';

@@ -253,7 +253,8 @@ executar qualquer comando do modo privilegiado sem sair do config.
 | `user del <nome>` | Remover usuário (admin não pode ser removido) |
 | `user pass <nome> <nova_senha>` | Alterar senha de um usuário |
 | `user perm <nome> <viewer\|operator\|admin\|0xHEX>` | Ajusta a máscara de permissões do usuário. É o **único** caminho (além do admin de fábrica) para conceder `PERM_FULL_ADMIN` (`0xFFFF`) — a interface web recusa esse valor por design. Bits do painel: `0x0400` limites, `0x0800` bloqueio, `0x1000` manutenção |
-| `user pin <nome> <4-8 dígitos\|off>` | PIN do painel da conta (config v24). Único entre as contas — o painel identifica **pelo** PIN; um PIN de outra conta é recusado com o nome do dono. `off` remove. Para o `admin`, um PIN diferente de `1234` desarma a troca forçada |
+| `user pin <nome> <pin\|off>` | PIN do painel da conta. **O comprimento e o alfabeto são os da política** (`user policy`), não uma constante: 4..16 caracteres de `0-9` ou `0-9A-Z`. Único entre as contas; um PIN já usado é recusado com o nome do dono. `off` remove. Para o `admin`, um PIN diferente de `1234` desarma a troca forçada |
+| `user policy <min> <teclado 1\|2\|3> <alfabeto 0\|1>` | Política de PIN do painel (config v25). `teclado` é **glifos por tecla**: 1 = teclado ORDENADO (numérico, ou alfanumérico de dois toques), 2 e 3 = cartões embaralhados. `alfabeto` 0 = `0-9`, 1 = `0-9A-Z`. `min` vai de 4 ao teto do teclado — **16/12/8** — que é de CPU: resolver a árvore de toques custa `S+S²+…+Sⁿ` SHA-256. **Apertar a política marca toda conta com PIN para trocá-lo**, e a resposta diz quantas |
 
 ### Sensor
 

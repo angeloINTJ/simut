@@ -1,6 +1,6 @@
 # SIMUT — User Manual
 
-**Firmware:** v2.5.0-beta · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **License:** MIT
+**Firmware:** v2.6.0-beta · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **License:** MIT
 **Repository:** https://github.com/angeloINTJ/simut
 
 > **This is beta software.** It is tested on real hardware, but it is not a
@@ -265,56 +265,83 @@ four are active, and open settings (**CFG**).
 - **Tap the graph icon** in the min/max view to open that sensor's history.
 - **Tap CFG** to reach settings — this asks for **your PIN**.
 
-### The PIN identifies who is at the panel
+### The account first, then the PIN
 
-Since config v24 there is no device PIN: every account has its own, **4 to 8
-digits**. The PIN is the identity — there is no username field — so it is
-**unique** across accounts. The factory admin starts with `1234` and must
-change it on its first visit to the menu (an upgraded device inherits the
-display PIN it had, when it was numeric). Two wrong tries are free; the third
-waits 5 s, then 15 s, 60 s, and the sixth locks the keypad until the next
-reboot.
+CFG opens the **account list**: pick yours, and only then type the PIN. Every
+account has its own; the factory admin starts with `1234` and must change it on
+its first visit (an upgraded device inherits the display PIN it had, when it
+was numeric).
 
-### The scrambled keypad
+> **Why the account comes first (config v25).** Up to v24 the PIN *was* the
+> identity: the panel walked the whole table looking for the account the
+> sequence belonged to. Two bad things followed. A blind guess counted against
+> **every** account at once — with the table full and four digits, **20.2%**
+> per attempt. And when two accounts matched one sequence, **neither** got in,
+> because the panel had no way to ask which was meant: 15% of logins, measured
+> on the bench. Choosing the account first means the device verifies **one**
+> digest: the guess drops to **0.81%** and the ambiguity is gone by
+> construction.
 
-A fixed numeric pad hands the PIN to whoever is watching over your shoulder:
-the finger positions are always the same ones. So the panel deals the ten
-digits over **four cards of three glyphs** and **re-deals after every tap** —
-a watcher cannot even tell whether two digits of the PIN are equal, because two
-taps on the same spot are not the same three digits.
+A locked account says so **in the list**, before the PIN — the difference
+between "you typed it wrong" and "this account is out of tries".
 
-**When identifying, the whole card is one button.** One tap per digit, and the
-tap says only *"one of these three"* — not even the device learns which. A
-watcher sees four taps that, for a 4-digit PIN, stand for up to 81 different
-PINs. On OK, Core 0 walks every string the sequence can spell and looks for the
-one that belongs to an account; that is how it learns **who** is at the panel.
-If two accounts match the same sequence, neither gets in — the panel has no way
-to ask which was meant.
+**The lockout ladder is per account**, with a panel ceiling above it: the 3rd
+failure waits 5 s, the 4th 15 s, the 5th 60 s, and the **6th locks that
+account** until the next reboot. Twenty failures across all accounts lock **the
+whole panel**, also until reboot. Both are needed: per-panel only (what v24
+had) meant six wrong taps from anybody shut the panel for everyone;
+per-account only would hand an attacker 32 × 6 attempts.
 
-Ten digits in twelve slots would leave two cards visibly shorter, which is
-itself something to read off the glass. The two spare slots take a **symbol**,
-dealt with them: every card shows three glyphs, in the same ink as the digits.
-A symbol is filler — the PIN is digits only, so a card holding one simply
-counts for two digits when the search runs.
+### The keypad: dealt or ordered, as the policy says
+
+A fixed pad hands the PIN to whoever is watching — the finger positions are
+always the same ones. So the panel can deal the alphabet over **cards of 2 or 3
+glyphs** and **re-deal after every tap**: the whole card is one button, the tap
+says only *"one of these"*, and not even the device learns which. Two taps on
+the same spot are not the same glyphs, so a watcher cannot even tell whether
+two characters of the PIN are equal.
+
+With **digits and 3 glyphs** (the default, and what v24 did) there are four
+cards; the two spare slots take a filler **symbol**, so that every card shows
+three glyphs and the width says nothing.
+
+**At one glyph per key there is no deal.** A set of one hides nothing from
+anybody who can read the glass — the character is printed on the key that was
+pressed — so shuffling would only cost the operator their muscle memory. In
+that mode the keypad is **ordered**: the usual numeric pad for `0-9`, or a
+**two-tap alphanumeric** one (nine groups, `0-9 ABC … WXYZ`, the character in a
+popup) for `0-9A-Z`.
 
 ![PIN](images/screens/panel-pin-keypad.png) ![invalid](images/screens/panel-pin-invalid.png)
 
-> **Setting a PIN is another screen**: an ordinary numeric pad, digits where a
-> numeric pad puts them. Scrambling hides a PIN someone already has from
-> someone watching; choosing one is the opposite problem, and hunting a digit
-> through a shuffled deal only costs taps.
+> **Setting a PIN always uses the ordered keypad**, whatever the policy says.
+> Scrambling hides a PIN someone already has from someone watching; choosing
+> one is the opposite problem, and hunting a character through a shuffled deal
+> only costs taps.
 
-> ⚠️ **What it costs.** Any four taps cover 81 of the 10,000 four-digit PINs —
-> against 32 accounts a blind guess has a ~26% chance of hitting one. Six
-> digits bring that to ~2%, eight to ~0.2%. The lockout ladder (two free, 5 s,
-> 15 s, 60 s, and the sixth failure locks until reboot) carries the rest. On a
-> device with many accounts, use six digits or more.
+#### The policy, and what each axis buys
 
-> The pre-v24 keypad worked this way too, with one difference that mattered:
-> it held the PIN in plaintext and planted the expected character in a random
-> key among three decoys, so it only ever had to check one string. v24 stores a
-> digest and identifies BY the PIN, so there is no expected character — which
-> is why the device now walks the whole set of candidates instead.
+`user policy <min> <keypad> <alphabet>` on the CLI, the **PIN policy** item on
+the panel, or the configuration page on the web.
+
+| axis | effect | price |
+|---|---|---|
+| **alphabet** `0-9` → `0-9A-Z` | a blind guess costs 168× more at four characters | none: the search does not get dearer |
+| **keypad** 3 → 2 → 1 glyph | fewer candidates per tap ⇒ a dearer guess | a watcher sees more |
+| **length** | every character multiplies | taps, and **CPU** |
+
+⚠️ The keypad is **zero-sum**: the set that hides the character from a watcher
+is the set the search has to walk. The **alphabet** is the one axis that is not
+a trade.
+
+⚠️ **The length ceiling is CPU, not taste.** The tap tree costs `S+S²+…+Sⁿ`
+SHA-256, measured at **36.6 µs** each on the rig, and Core 0 is stopped for it —
+the web server waits behind. Hence **16/12/8** characters for 1/2/3 glyphs per
+key. At 3 glyphs, 10 taps would be 3.2 s and 16 would be 39 minutes.
+
+⚠️ **Tightening the policy marks every account holding a PIN to change it** at
+its next visit. That is unavoidable: the device keeps only the *digest* and has
+no way to know whether an old PIN still fits the new rule.
 
 PINs are set by the user (**Change Password** item), by an administrator in the
 panel's **Users** item, on the `/users` web page, or with `user pin` on the CLI.
@@ -394,6 +421,32 @@ Served from the device itself. Log in at `http://simut.local` or the device IP.
 | `/files` | Filesystem browser: upload, download, delete, create directories — plus full backup, restore and firmware update (OTA) |
 | `/history` | History graphs, CSV export, and the system event log viewer |
 | `/license` | License text |
+
+### Changes stay pending until you say what to do with them
+
+Editing a field changes nothing on the device: the page **stages** it and a bar
+at the top says what can be done with it. How many buttons appear is the
+**device's** answer, not the page's guess.
+
+| button | what it does |
+|---|---|
+| **Save & restart** | saves and restarts — always, even when the change did not require it |
+| **Apply now** | saves and applies **without restarting** |
+| **Test** | applies **without saving**: a restart undoes it, and the staged set stays so you can still save or discard it |
+
+The last two appear only when the change **can** be applied live — alarm
+limits, maintenance, the alarm line, telemetry over HTTP, theme and language.
+Network, accounts, sensor provisioning, timezone and the PIN policy itself
+still need a restart, and then the bar shows only "Save & restart" and says
+**why**.
+
+> The page **asks the device** (a rehearsal that changes nothing) instead of
+> deciding for itself. The rule is to compare the staged configuration against
+> the current one, and only the device can do that: a field typed back to its
+> current value is not a change at all.
+
+⚠️ **Test** does not survive a power cut — it is for trying a limit, not for
+configuring. While the staged set is there, the bar stays visible.
 
 ### Authentication
 
@@ -1107,7 +1160,7 @@ What a manager of many devices (the SIMUT-RX app, or any client) relies on:
 | `/api/screenshot_chunk` | GET | One 16-row chunk with a CRC32, for verifiable transfer |
 | `/api/screen_stream` | GET | One frame of the panel in palette-RLE strips (live mirror) |
 | `/api/touch` | POST | Taps the panel at `x` (0..319), `y` (0..239) — panel coordinates |
-| `/api/keypad` | GET | The four scrambled PIN cards as they are dealt right now, e.g. `{"faces":["93@","$12","764","580"],"up":true}`. Empty faces and `"up":false` when the keypad is not the live screen. It describes the glass, not the secret: it never says which slot of a card is the digit |
+| `/api/keypad` | GET | The PIN keypad **as it is on the glass right now**: `faces` (one per key, positional — the ordered numeric pad has two EMPTY ones), `kb` (`cards`, `num` or `groups`), `grid`, `policy`, and `pop` for the two-tap alphanumeric popup. It describes the glass, not the secret: on a dealt keypad it never says which slot of a card is the character |
 
 ---
 

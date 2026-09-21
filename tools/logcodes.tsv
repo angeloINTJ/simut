@@ -88,6 +88,7 @@
 456	APP_UI_ALARM_BLOCKED	Sensor alarms blocked via panel	Alarmes do sensor bloqueados pelo painel	Alarmes do sensor bloqueados pelo painel	Alarmas del sensor bloqueadas en el panel
 457	APP_UI_ALARM_UNBLOCKED	Sensor alarms unblocked via panel	Alarmes do sensor desbloqueados pelo painel	Alarmes do sensor desbloqueados pelo painel	Alarmas del sensor desbloqueadas en el panel
 458	APP_UI_PERM_DENIED	Panel action refused: no permission	Acao do painel recusada: sem permissao	Ação do painel recusada: sem permissão	Acción del panel rechazada: sin permiso
+459	APP_UI_PIN_POLICY	PIN policy changed via panel	Politica de PIN alterada pelo painel	Política de PIN alterada pelo painel	Política de PIN cambiada en el panel
 470	APP_ALARM_TRIGGERED	Alarm triggered	Alarme disparado	Alarme disparado	Alarma disparada
 471	APP_ALARM_CLEARED	Alarm cleared	Alarme zerado	Alarme zerado	Alarma restablecida
 472	APP_ALARM_SILENCE_CANCEL	Alarm silence cancelled	Silenciamento cancelado	Silenciamento cancelado	Silencio de alarma cancelado

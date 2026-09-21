@@ -191,6 +191,7 @@ enum LogCode {
  APP_UI_ALARM_BLOCKED = 456,
  APP_UI_ALARM_UNBLOCKED = 457,
  APP_UI_PERM_DENIED = 458,
+ APP_UI_PIN_POLICY = 459,   /**< v25: PIN length/keypad/alphabet changed */
 
  /* ── Alarm state (470–479) ── */
  APP_ALARM_TRIGGERED = 470,

@@ -98,13 +98,11 @@ void DisplayManager::readRow(int16_t y, uint16_t* buffer, int16_t w) { (void)y; 
 void DisplayManager::readRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t* out) { (void)x; (void)y; (void)w; (void)h; (void)out; }
 
 void DisplayManager::showSettingsThemes(int currentThemeIdx) { (void)currentThemeIdx; }
-uint8_t DisplayManager::pinKeyFace(int, char* out, size_t cap) const { if (out && cap) out[0] = '\0'; return 0; }
-uint8_t DisplayManager::getEnteredPinTaps(char[][PinKb::SLOTS + 1], size_t) const { return 0; }
-/* v24 — identity at the panel: no panel, no keypad. */
-void DisplayManager::showPinEntry(uint8_t purpose, int8_t targetUser) { (void)purpose; (void)targetUser; }
-int DisplayManager::authResult(bool ok) { (void)ok; return 0; }
-void DisplayManager::getEnteredPin(char* out, size_t cap) const { if (out && cap) out[0] = '\0'; }
-void DisplayManager::clearEnteredPin( ) { }
+/* v25 — identity at the panel: no panel, no keypad, and now not even the
+ * stubs. Until v25 this file carried seven empty bodies so that callers
+ * everywhere could stay unconditional; the callers are conditional now
+ * (SIMUT_PANEL_PIN), which is cheaper and says the truth: this image has no
+ * PIN to take, no cards to deal and nobody standing at a screen. */
 void DisplayManager::setPanelSession(int8_t user, uint16_t perms) { (void)user; (void)perms; }
 void DisplayManager::showAlarmSensorMenu(int sensorIdx) { (void)sensorIdx; }
 void DisplayManager::showMaintEntry(int sensorIdx) { (void)sensorIdx; }
@@ -154,5 +152,6 @@ void DisplayManager::setTelemetrySendStatus(bool success) { (void)success; }
 GFXcanvas16* DisplayManager::beginScreenRender( ) { return nullptr; }
 void DisplayManager::commitScreenStrip(int16_t stripIdx) { (void)stripIdx; }
 void DisplayManager::endScreenRender( ) { }
+
 
 #endif /* SIMUT_AIR */

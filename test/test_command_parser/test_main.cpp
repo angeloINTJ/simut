@@ -95,6 +95,27 @@ void test_user_perm_without_value_is_not_perm(void) {
     TEST_ASSERT_NOT_EQUAL(CMD_USER_PERM, d.type);
 }
 
+/* v25: `user policy <min> <keypad> <alphabet>`. The three values travel as ONE
+ * string because they are only valid together, so the parser has to carry all
+ * THREE tokens. It carried two, `user policy 4 3 0` arrived as "4 3", and the
+ * handler's two-separator guard then rejected every well-formed call — the
+ * verb had never once run when the rig found it on 2026-09-20. This asserts
+ * the string the handler is given, which is the whole contract between them. */
+void test_user_policy_carries_all_three_values(void) {
+    CliDemand d = parse("user policy 4 3 0");
+    TEST_ASSERT_EQUAL(CMD_USER_POLICY, d.type);
+    assertStr1(d, "4 3 0");
+}
+
+void test_user_policy_missing_alphabet_leaves_the_field_empty(void) {
+    /* Not an error HERE — the handler owns the usage message — but the third
+     * field must arrive EMPTY and not absent, or a missing argument reads as
+     * alphabet 0, a policy the operator never asked for. */
+    CliDemand d = parse("user policy 4 3");
+    TEST_ASSERT_EQUAL(CMD_USER_POLICY, d.type);
+    assertStr1(d, "4 3 ");
+}
+
 void test_conf_user_add(void) {
     CliDemand d = parse("conf user add fieldtech s3cret");
     TEST_ASSERT_EQUAL(CMD_USER_ADD, d.type);
@@ -241,6 +262,8 @@ int main(int argc, char** argv) {
     RUN_TEST(test_user_perm_role);
     RUN_TEST(test_user_perm_hex_mask);
     RUN_TEST(test_user_perm_without_value_is_not_perm);
+    RUN_TEST(test_user_policy_carries_all_three_values);
+    RUN_TEST(test_user_policy_missing_alphabet_leaves_the_field_empty);
     RUN_TEST(test_conf_user_add);
     RUN_TEST(test_conf_user_add_missing_pass_still_parses);
     RUN_TEST(test_conf_user_del);

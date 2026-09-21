@@ -72,33 +72,33 @@ const char* AppManager::panelUserName( ) const {
 void AppManager::panelIdentify( ) {
  SystemConfig &cfg = _storageMgr->getConfig( );
 
- /* The keypad hands over, per tap, the three glyphs that were on the card and
-  * never which of them was meant. The deal is rolled after every tap, so the
-  * three change each time. Core 0 walks every string those taps can spell —
-  * the chained digest makes the shared prefixes cheap — and the account one of
-  * them belongs to is who is standing at the panel.
+ /* The keypad hands over, per tap, the glyphs that were on the card and never
+  * which of them was meant. The deal is rolled after every tap, so they change
+  * each time. Core 0 walks every string those taps can spell — the chained
+  * digest makes the shared prefixes cheap — and asks whether any of them is
+  * the digest of THE ACCOUNT THE OPERATOR PICKED.
+  *
+  * v25 asks about one account. v24 asked the table, and that is what made a
+  * blind entry worth 20.2% with four digits and 32 accounts, and what made
+  * two accounts inside one entry refuse both. Neither failure has anywhere to
+  * happen now: the tree is the same, its answer is yes or no.
   *
   * Nothing in this path ever holds the PIN: the candidate that matched is not
   * kept, and there is nothing to wipe. */
- char taps[PIN_MAX_LEN][PinKb::SLOTS + 1];
+ const int8_t slot = _displayMgr->pinTargetUser( );
+ char taps[PIN_MAX_LEN][PinKb::SLOTS_MAX + 1];
  const uint8_t n = _displayMgr->getEnteredPinTaps(taps, PIN_MAX_LEN);
- bool ambiguous = false;
  const uint32_t t0 = millis( );
- const int u = _storageMgr->findUserByPinSet(taps, n, &ambiguous);
+ const bool ok = (slot >= 0) && _storageMgr->pinSetMatches(slot, taps, n);
  const uint32_t took = millis( ) - t0;
 
- if (u < 0) {
+ if (!ok) {
  const int fails = _displayMgr->authResult(false);
- /* Two accounts whose PINs both fit the same taps: the panel cannot ask
-  * which, so neither gets in. Its own code, because it is not a wrong PIN
-  * and the operator who reads the log has to tell them apart — on a full
-  * account table with four-digit PINs it is the failure that actually
-  * happens, and the answer to it is longer PINs, not a retry. */
- if (ambiguous) LOG_CODE(LOG_WARN, "SEC", SEC_PIN_AMBIGUOUS, fails,
-                         TRL("Two accounts match the same keypad entry."));
- /* The sixth failure is the permanent lockout (DisplayManager::authResult);
-  * it gets its own code so a burst of guesses reads as one event. */
- else LOG_CODE(LOG_WARN, "SEC", (fails >= 6) ? SEC_PIN_LOCKOUT : SEC_PIN_FAIL, fails, "");
+ /* The sixth failure takes the ACCOUNT out until reboot, and
+  * PinKb::PANEL_FAIL_CEILING failures take the panel out; both rungs get
+  * the lockout code so a burst of guesses reads as one event. */
+ LOG_CODE(LOG_WARN, "SEC", (fails >= (int)PinKb::SLOT_FAIL_MAX) ? SEC_PIN_LOCKOUT : SEC_PIN_FAIL,
+          panelCtx((int)slot, fails), (slot >= 0) ? cfg.users[slot].username : "");
  return;
  }
  /* ctx is the account; the search time goes in the text, because it is the
@@ -108,10 +108,14 @@ void AppManager::panelIdentify( ) {
   * first of a run of logins — measured on the rig with a full account table
   * on 2026-09-19, where 3 of 25 identifications left no trace at all. The
   * web's own "config changed" is WARN for the same reason. */
- LOG_CODE(LOG_WARN, "SEC", SEC_PIN_OK, u, String((unsigned)took) + " ms");
+ /* O NOME, não só o slot. ctx é um inteiro e o slot é reutilizável: um
+  * leitor do log histórico atribuiria a ação de uma conta apagada a quem
+  * tomasse o slot depois. O nome no texto é o que dura. */
+ LOG_CODE(LOG_WARN, "SEC", SEC_PIN_OK, (int)slot,
+          String(cfg.users[slot].username) + " (" + String((unsigned)took) + " ms)");
 
- _panelUser = (int8_t)u;
- _panelPerms = cfg.users[u].permissions;
+ _panelUser = slot;
+ _panelPerms = cfg.users[slot].permissions;
  _displayMgr->setPanelSession(_panelUser, _panelPerms);
  _displayMgr->authResult(true);
  _soundMgr->play(SND_CONFIRM);
@@ -121,9 +125,18 @@ void AppManager::panelIdentify( ) {
  panelDeactivateAlarm( );
  return;
  }
- if (u == 0 && _storageMgr->mustChangePin( )) {
- /* The admin still holds the factory "1234": the first thing it does is
-  * choose another, exactly as the device PIN always demanded. */
+ /* The PIN no longer meets the policy the administrator set — either it is
+  * shorter than the new minimum or it uses characters the new alphabet does
+  * not have. The account still identifies (its digest did not change), and
+  * the first thing it does is choose a PIN that complies. The admin's factory
+  * "1234" arrives here the same way. */
+ if (_storageMgr->pinMustChange(slot)) {
+ _displayMgr->showPinEntry(DisplayManager::PIN_FOR_OWN);
+ LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, (int)slot,
+ TRL("PIN does not meet the policy; forcing change."));
+ return;
+ }
+ if (slot == 0 && _storageMgr->mustChangePin( )) {
  _displayMgr->showPinEntry(DisplayManager::PIN_FOR_OWN);
  LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, 0,
  TRL("Default PIN detected; forcing change."));
@@ -213,7 +226,11 @@ void AppManager::panelSetUserPin(int slot, const char* pin, UiMode returnTo) {
  _displayMgr->showPanelMessage(false, TR_NO_PERMISSION, returnTo);
  return;
  }
- if (slot < 0 || slot >= MAX_USERS || !cfg.users[slot].active || !isValidPanelPin(pin)) {
+ uint8_t minLen = cfg.pinAuth.pinMinLen, keypad = cfg.pinAuth.pinKeypad,
+         alphabet = cfg.pinAuth.pinAlphabet;
+ clampPinPolicy(minLen, keypad, alphabet);
+ if (slot < 0 || slot >= MAX_USERS || !cfg.users[slot].active ||
+     !isValidPanelPin(pin, minLen, keypad, alphabet)) {
  _displayMgr->showPanelMessage(false, TR_INVALID_PIN, returnTo);
  return;
  }
@@ -241,6 +258,39 @@ bool AppManager::handlePanelEvent(const UiEvent& ev) {
  case UiEvent::EVT_AUTH_PIN:
  panelIdentify( );
  return true;
+
+ case UiEvent::EVT_PIN_POLICY: {
+ /* id < 0 is "I left without saving": put back what is stored, because the
+  * editor edits the live struct so it can show the clamping as it happens. */
+ if (ev.id < 0) { _storageMgr->loadConfiguration( ); return true; }
+ if (!panelAllowed(PERM_USER_MGR, -1)) {
+ _displayMgr->showPanelMessage(false, TR_NO_PERMISSION, MODE_SETTINGS_MAIN);
+ return true;
+ }
+ const uint8_t oldMin = cfg.pinAuth.pinMinLen, oldKb = cfg.pinAuth.pinKeypad,
+               oldAlpha = cfg.pinAuth.pinAlphabet;
+ uint8_t minLen = (uint8_t)ev.id;
+ uint8_t keypad = (uint8_t)(ev.param / 16), alphabet = (uint8_t)(ev.param % 16);
+ clampPinPolicy(minLen, keypad, alphabet);
+ cfg.pinAuth.pinMinLen = minLen;
+ cfg.pinAuth.pinKeypad = keypad;
+ cfg.pinAuth.pinAlphabet = alphabet;
+ /* Whoever no longer complies is marked here, ONCE, instead of being
+  * checked at every login: the digest cannot be tested against an alphabet
+  * (that is the point of a digest), so what is marked is every account
+  * whose PIN was set under a policy this one does not cover. The account
+  * still gets in — it just has to choose a new PIN first, which is why
+  * raising the minimum cannot lock the panel. */
+ const uint8_t marked = _storageMgr->markPinsBelowPolicy(oldMin, oldKb, oldAlpha);
+ _storageMgr->saveConfiguration( );
+ _soundMgr->play(SND_CONFIRM);
+ LOG_CODE(LOG_WARN, "APP", APP_UI_PIN_POLICY,
+          panelCtx(_panelUser, (int)minLen),
+          String((unsigned)keypad) + "/" + String((unsigned)alphabet) +
+          ", " + String((unsigned)marked) + " to renew");
+ _displayMgr->showPanelMessage(true, TR_PIN_SAVED, MODE_SETTINGS_MAIN);
+ return true;
+ }
 
  case UiEvent::EVT_ALARM_BLOCK: {
  const int slot = ev.id;
@@ -321,7 +371,7 @@ bool AppManager::handlePanelEvent(const UiEvent& ev) {
  _displayMgr->clearEnteredPin( );
 
  UserAccount& u = cfg.users[slot];
- memset(&u, 0, sizeof(u));
+ StorageManager::wipeUserAccount(u);
  safeCopy(u.username, name, sizeof(u.username));
  /* the panel grants the three panel bits and nothing else: this account
   * has no web page until an administrator gives it one */
@@ -344,7 +394,7 @@ bool AppManager::handlePanelEvent(const UiEvent& ev) {
  const bool pinOk = _storageMgr->setUserPin(slot, pin, &conflict);
  wipe(pin, sizeof(pin));
  if (!pinOk) {
- memset(&u, 0, sizeof(u)); /* the slot goes back to free, whole */
+ StorageManager::wipeUserAccount(u); /* the slot goes back to free, whole */
  _soundMgr->play(SND_ERROR);
  _displayMgr->showPanelMessage(false, TR_PIN_IN_USE, MODE_SETTINGS_USER_EDIT);
  return true;
@@ -371,7 +421,7 @@ bool AppManager::handlePanelEvent(const UiEvent& ev) {
  return true;
  }
  String gone = cfg.users[slot].username;
- memset(&cfg.users[slot], 0, sizeof(cfg.users[slot]));
+ StorageManager::wipeUserAccount(cfg.users[slot]);
  _storageMgr->saveConfiguration( );
  _soundMgr->play(SND_CONFIRM);
  LOG_CODE(LOG_WARN, "APP", APP_UI_USER_DELETED, slot, String(panelUserName( )) + " -> " + gone);

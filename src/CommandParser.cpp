@@ -181,7 +181,9 @@ CliDemand parseCliCommand(String input) {
 		if (t1 == "gpio")                      { cmd.type = CMD_SHOW_GPIO;         return cmd; }
 		if (t1 == "storage" && t2 == "stats")  { cmd.type = CMD_SHOW_STORAGE;      return cmd; }
 		if (t1 == "metrics")                   { cmd.type = CMD_SHOW_METRICS;      return cmd; }
+#if SIMUT_PANEL_PIN
 		if (t1 == "display" && t2 == "keypad") { cmd.type = CMD_SHOW_KEYPAD;       return cmd; }
+#endif
 #endif
 	}
 
@@ -249,6 +251,22 @@ CliDemand parseCliCommand(String input) {
 			cmd.setStrVal2(t3.c_str( )); /* role/mask — matching is case-insensitive */
 			return cmd;
 		}
+#if SIMUT_PANEL_PIN
+		/* v25: `user policy <minLen> <keypad 1|2|3> <alphabet 0|1>`. The three
+		 * arrive as one string and are parsed in the handler because they are
+		 * validated together — the keypad caps the length and the alphabet
+		 * rules out a keypad, so a per-token parse would accept an impossible
+		 * pair one token at a time. */
+		if (t1 == "policy" && t2.length( ) > 0) {
+			cmd.type = CMD_USER_POLICY;
+			/* r4 as well. Joining only r2 and r3 made `user policy 4 3 0`
+			 * arrive as "4 3" — ONE separator — so the handler's own
+			 * two-separator guard rejected every well-formed call and the
+			 * verb printed its usage line and nothing else. Measured on the
+			 * rig 2026-09-20; it had never run once. */
+			cmd.setStrVal1((r2 + " " + r3 + " " + r4).c_str( ));
+			return cmd;
+		}
 		if (t1 == "pin" && t2.length( ) > 0 && t3.length( ) > 0) {
 			cmd.type = CMD_USER_PIN;
 			cmd.setStrVal1(r2.c_str( ));
@@ -260,6 +278,7 @@ CliDemand parseCliCommand(String input) {
 			cmd.setStrVal2(r3.c_str( ));
 			return cmd;
 		}
+#endif /* SIMUT_PANEL_PIN — an imageless build answers "unknown command" */
 	}
 
 #endif /* SIMUT_CLI_FULL */

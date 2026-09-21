@@ -10,8 +10,14 @@ actually happens, and how often is arithmetic nobody should have to trust:
 
     P(some other account is in the set) ~= 1 - (1 - 3^n/10^n)^(accounts-1)
 
-which for 32 accounts on 4-digit PINs is about a fifth of all logins, and for
-6-digit PINs about one in fifty. This script measures it instead.
+which for 32 accounts on 4-digit PINs was about a fifth of all logins, and for
+6-digit PINs about one in fifty. This script measured 15% and 4% on 19/09.
+
+v25 removed the cause rather than the symptom: the account is picked BEFORE
+the PIN, so the tap tree is resolved against ONE digest and no entry can fit
+two accounts. The same run now asserts the opposite — 311 SEC_PIN_AMBIGUOUS
+must stay at ZERO with the table full and four-digit PINs, which is also the
+only way to tell the fix from a bench that stopped exercising the case.
 
 It also checks the ordinary things at scale: that 32 accounts can be created,
 that each one identifies as ITSELF (log 308 with its own slot), that each can
@@ -43,7 +49,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from panel_users_hw_test import (  # noqa: E402
     Rig, Collector, check, host_ip, COLLECTOR_PORT, COLLECTOR_LOG,
     CFG_BTN, ROW_Y, FOOT, ALARMS_EXIT, MSG_OK,
-    PIN_KEY_X, PIN_KEY_Y, PIN_KEY_W, PIN_KEY_H, PIN_OK, PIN_CANCEL,
+    PIN_GRID_FALLBACK, PIN_OK, PIN_CANCEL,
     MAINT_ROW, MAINT_DEC, MAINT_INC, MAINT_MID,
 )
 
@@ -143,21 +149,32 @@ def ui_mode(rig):
     return int(m.group(1)) if m else -1
 
 
-def login(rig, pin, tries=3):
-    """Identify at the panel. Returns (outcome, attempts) where outcome is
-    'ok', 'ambiguous' or 'rejected'. An ambiguous entry is RETRIED because the
-    deal is random: the same PIN usually resolves on the next attempt."""
+def login(rig, pin, who, tries=3):
+    """Identify at the panel. Returns (outcome, attempts).
+
+    `who` is the account NAME (Rig.pick_user resolves it against the picker's
+    list). Never an index: the rig carries accounts this script did not
+    create, and a hardcoded one picks somebody else — which on 2026-09-20 sent
+    the taps to a keypad that was never opened.
+
+    v25 changed what this function is measuring. Until v24 the PIN WAS the
+    identity, so one entry stood for up to 3^n strings searched against every
+    account, and the failure this whole script exists to provoke was two
+    accounts falling inside the same entry — 4 retries and 4 log-311 events in
+    25 logins on 19/09, 15% against 13.5% expected. Since v25 the account is
+    chosen first (`idx` is its position among the accounts holding a PIN, in
+    slot order — admin is 0, u01 is 1) and the tap tree is resolved against
+    ONE digest, so an ambiguous entry has nowhere to happen. A retry here now
+    means a lost tap, not a collision, and the run asserts 311 stays at zero.
+    """
     for attempt in range(1, tries + 1):
         rig.goto('dash')
         rig.tap(*CFG_BTN, 1.2)
+        rig.pick_user(who)
         rig.pin(pin)
         time.sleep(1.2)
         if ui_mode(rig) == UI_MODE_SETTINGS_MAIN:
             return 'ok', attempt
-        # A refusal is either "fits two accounts" or a wrong PIN, and only the
-        # log tells them apart — but reading it costs the touch window, so it
-        # is read once per ACCOUNT here and the ambiguity total is taken from
-        # the device's own counter at the end.
     return 'refused', tries
 
 
@@ -341,22 +358,37 @@ def main():
 
         al = rig.get('/api/alarms').json()
         sensors = al.get('sensors', al) if isinstance(al, dict) else al
-        first = next(s for s in sensors if s.get('active', True))
+        # The list IS the panel's list, so element k is row k: /api/alarms emits the
+        # CONFIGURED sensors in index order (WebManager_Api.cpp:368) and so does
+        # _activeSensorsMap (DisplayManager_Settings.cpp:86). Do NOT filter on
+        # "active" here — in this JSON that key is alarmsActive, the alarm ENABLE
+        # bit (WebManager_Api.cpp:393), not "the sensor exists". On 2026-09-20 the
+        # filter left only sensor 4 (the one rig sensor with alarms on) while the
+        # run tapped row 0, which is sensor 0, and the firmware's correct ctx=500
+        # was read as a row-vs-index defect.
+        slot_row = 0
+        first = sensors[slot_row]
         slot = int(first['idx'])
         lim_before = first.get('tmin')
-        slot_row = 0
+        # The PIN policy the numbers below were measured under. v25 makes it
+        # configurable, so "15% ambiguity at four digits" means nothing without
+        # it, and a rig left on another policy silently measures something
+        # else. /api/keypad reports it as [minLen, maxLen, keypad, alphabet].
+        policy = rig.get('/api/keypad').json().get('policy')
+        print(f'  PIN policy [min,max,keypad,alphabet]: {policy}')
         print(f'  sensor slot under test: {slot}')
 
         # ── access, one account at a time ────────────────────────────────────
         print('== access ==')
         stats = {'ok': 0, 'refused': 0}
         amb_start = rig.log_count(311)
+        rot_start = rig.log_count(22)   # ver a nota no check de identificação
         retries = 0
         first_try = 0
         log_rows = []
         for i, a in enumerate(made):
             slot_of = by_name[a['name']]['id']
-            outcome, attempts = login(rig, a['pin'])
+            outcome, attempts = login(rig, a['pin'], a['name'])
             stats[outcome] = stats.get(outcome, 0) + 1
             retries += attempts - 1
             if outcome == 'ok' and attempts == 1:
@@ -394,9 +426,21 @@ def main():
             rig.goto('dash')
 
         total = len(made)
+        # A ROTAÇÃO DO LOG é a explicação que custou uma investigação em
+        # 20/09: uma rodada de 25 contas escreve o bastante para o log girar,
+        # e um 308 que foi para o arquivo girado some do leitor enquanto a
+        # AÇÃO da mesma conta (código 442, posterior) continua lá com o ctx
+        # certo. Isso não é a identificação falhando — é o instrumento cego na
+        # ponta antiga. A contagem vai no detalhe para que o próximo a ler não
+        # tenha de descobrir de novo; o check continua EXIGINDO o 308, porque
+        # afrouxá-lo transformaria um teste numa opinião.
+        rotations = rig.log_count(22) - rot_start
+        missing = [r for r in log_rows if r['outcome'] == 'ok' and not r['ctx_ok']]
         check(results, 'every account identified as itself (308 with its own slot)',
-              all(r['ctx_ok'] for r in log_rows if r['outcome'] == 'ok'),
-              json.dumps([r for r in log_rows if r['outcome'] == 'ok' and not r['ctx_ok']]))
+              not missing,
+              json.dumps(missing) + (f'  [ATENCAO: {rotations} rotacoes de log nesta rodada '
+                                     f'(codigo 22) — um 308 no arquivo girado nao e lido, '
+                                     f'confira o ctx da ACAO da mesma conta]' if rotations else ''))
         check(results, 'every account got in within three attempts',
               stats['ok'] == total, json.dumps(stats))
         acted = [r for r in log_rows if r.get('action_code')]
@@ -457,16 +501,21 @@ def main():
         amb_events = rig.log_count(311) - amb_start
         print('\n== the measurement ==')
         print(f'  accounts            : {total} (table of {MAX_USERS})')
-        print(f'  PIN length          : {args.pin_len} digits')
+        print(f'  PIN length          : {args.pin_len} characters')
         print(f'  logins at first try : {first_try}/{total} = {100.0*first_try/total:.0f}%')
         print(f'  extra attempts      : {retries}')
         print(f'  ambiguity events    : {amb_events} (log code 311)')
         exp = 1 - (1 - 3 ** args.pin_len / 10 ** args.pin_len) ** (total - 1)
-        print(f'  predicted per login : {100*exp:.0f}%  (1 - (1 - 3^n/10^n)^(accounts-1))')
-        print(f'  measured per login  : {100.0*retries/max(1, first_try + retries):.0f}%')
+        print(f'  v24 would have seen : {100*exp:.0f}%  (1 - (1 - 3^n/10^n)^(accounts-1))')
+        # The v25 assertion. A zero here only counts alongside the first-try
+        # rate: a bench that stopped reaching the keypad would also report
+        # zero collisions, and that is the failure this pairing rules out.
+        check(results, 'no entry fits two accounts any more (311 == 0 with the table full)',
+              amb_events == 0, f'{amb_events} events, {first_try}/{total} logins at first try')
 
         json.dump({'plan': plan, 'rows': log_rows, 'stats': stats,
                    'ambiguity_events': amb_events, 'pin_len': args.pin_len,
+                   'policy': policy,
                    'records': recs, 'results': results},
                   open(os.path.join(args.out, f'fulltable_{args.pin_len}.json'), 'w'), indent=1)
     finally:

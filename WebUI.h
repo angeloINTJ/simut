@@ -2694,8 +2694,8 @@ global.H5G = H5G;
         }
 
         // Logs — binary parsing in browser. Tabelas sincronizadas com LogManager::translateCode (LogManager.cpp).
-        const EVT_NAMES_EN = { '0':'OK', '1':'System boot', '2':'User-requested reboot', '3':'Heap memory low', '4':'Uptime milestone', '5':'Routine log records suppressed', '10':'WiFi connecting', '11':'WiFi disconnected', '12':'WiFi scanning', '13':'NTP synced', '14':'IP acquired', '15':'AP mode started', '20':'Storage failure', '21':'Config saved', '22':'Storage rotated', '23':'Flash formatting', '24':'Storage recovered', '25':'Config migrated', '30':'Telemetry sent', '31':'Telemetry failed', '32':'Telemetry retry', '33':'Telemetry queued', '34':'SSL cert loaded', '35':'MQTT connected', '36':'MQTT disconnected', '37':'MQTT published', '100':'Sensor recovered', '101':'Sensor timeout', '102':'Sensor checksum error', '103':'Sensor CRC error', '104':'Sensor out of range', '105':'Hardware mismatch', '106':'Sensor missing', '200':'Touch event', '201':'Display restarted', '202':'Graph rendered', '300':'Login success', '301':'Login failed', '302':'Unauthorized access', '303':'Config changed', '304':'Session expired', '305':'File uploaded', '306':'File deleted', '307':'Bluetooth lockout', '308':'Panel PIN accepted', '309':'Panel PIN rejected', '310':'Panel PIN lockout', '311':'Keypad entry fits two accounts', '400':'Display launched on Core 1', '401':'Initial touch cal saved', '402':'Touch calibration required', '403':'AP mode triggered by user', '404':'System ready', '405':'System ready (AP mode)', '406':'Storage critical failure', '407':'Sensors calibrated', '408':'NTP correcting timestamps', '409':'Timestamps corrected', '410':'Graph caches invalidated', '411':'Air cycle held in M0', '412':'Cold boot, not a hibernation wake', '413':'Sleep clamped to under 24 h (alarm is time-of-day)', '414':'Previous Air wake did not complete', '440':'Theme changed via UI', '441':'Language changed via UI', '442':'Alarm limits saved via UI', '443':'Touch cal saved to flash', '444':'Touch sensitivity saved', '445':'Display PIN changed', '446':'Sound settings saved', '447':'Alarm silenced via UI', '448':'Alarm silence expired', '449':'All alarms deactivated (RAM)', '450':'User created via panel', '451':'User deleted via panel', '452':'Panel PIN set for user', '453':'User permissions changed via panel', '454':'Maintenance opened via panel', '455':'Maintenance closed via panel', '456':'Sensor alarms blocked via panel', '457':'Sensor alarms unblocked via panel', '458':'Panel action refused: no permission', '470':'Alarm triggered', '471':'Alarm cleared', '472':'Alarm silence cancelled', '480':'Min/Max cache loaded', '481':'Min/Max cache partial', '482':'Graph cache refresh started', '483':'Graph cache refresh done', '484':'Graph cache: ambient', '485':'Graph cache: board temp', '486':'Graph cache preload done', '487':'Graph loading', '488':'Graph render budget exceeded', '489':'Preload budget exceeded', '500':'Display pause stuck >5s', '501':'Yield stuck >10s', '502':'Core 1 dead >10s, restarting', '503':'Flash busy collision', '510':'History record saved', '511':'Heap status report', '512':'History skip: no time reference', '513':'History resumed: time reference acquired', '514':'History skip: V4 schema is empty', '515':'History skip: schema covers no active sensor', '520':'DHCP mode enabled', '521':'Static IP mode enabled', '522':'WiFi manager starting', '523':'WiFi SSID not configured', '524':'Provisional time set from flash', '525':'WiFi connect timeout', '526':'WiFi dormant mode', '527':'Show IP', '528':'mDNS start failed', '540':'HTTP transport initialized', '541':'MQTT transport initialized', '542':'MQTT connecting', '543':'cert.pem empty, insecure mode', '544':'cert.pem read error', '545':'No cert.pem, insecure mode', '546':'Forcing telemetry sync', '547':'Retry logs suppressed', '548':'HA discovery refreshed', '549':'Alarm telemetry line enabled', '550':'Alarm payload sent', '551':'Alarm send failed', '552':'Alarm receipt confirmed', '553':'Alarm queue overflow', '560':'History write failed', '561':'Timestamp correction budget exceeded', '562':'Storage limit budget exceeded', '563':'Skipping active log file', '564':'Storage stats report', '565':'Config report', '566':'History block sealed', '567':'History snapshot written', '568':'History schema mismatch', '569':'Legacy history purged', '570':'Web server started', '571':'Client disconnected (file)', '572':'Client disconnected (history)', '573':'Screenshot aborted by client', '574':'File uploaded', '575':'Client disconnected (broken pipe)', '576':'Web cert invalid (HTTP fallback)', '577':'CORS enabled for origin', '578':'CORS origin file invalid (CORS off)', '579':'Web cert pair installed', '580':'Theme applied', '581':'Theme not found', '585':'Unknown command', '590':'Runtime sensors loaded', '600':'Force unpause', '999':'Unknown error' };
-        const EVT_NAMES_PT = { '0':'OK', '1':'Boot do sistema', '2':'Reboot solicitado pelo usuario', '3':'Heap baixa', '4':'Marco de uptime', '5':'Registros de rotina suprimidos', '10':'Conectando WiFi', '11':'WiFi desconectado', '12':'Varredura WiFi', '13':'NTP sincronizado', '14':'IP obtido', '15':'AP iniciado', '20':'Falha no storage', '21':'Config salva', '22':'Storage rotacionado', '23':'Formatando flash', '24':'Storage recuperado', '25':'Config migrada', '30':'Telemetria enviada', '31':'Falha de telemetria', '32':'Retry de telemetria', '33':'Telemetria enfileirada', '34':'Cert SSL carregado', '35':'MQTT conectado', '36':'MQTT desconectado', '37':'MQTT publicado', '100':'Sensor recuperado', '101':'Timeout de sensor', '102':'Erro de checksum', '103':'Erro de CRC', '104':'Sensor fora de range', '105':'Divergencia de hardware', '106':'Sensor ausente', '200':'Evento de toque', '201':'Display reiniciado', '202':'Grafico renderizado', '300':'Login bem-sucedido', '301':'Falha de login', '302':'Acesso nao autorizado', '303':'Config alterada', '304':'Sessao expirada', '305':'Arquivo enviado', '306':'Arquivo apagado', '307':'Bloqueio Bluetooth', '308':'PIN do painel aceito', '309':'PIN do painel recusado', '310':'Bloqueio do PIN do painel', '311':'Entrada do teclado casa com duas contas', '400':'Display iniciado no Core 1', '401':'Calibracao inicial do touch salva', '402':'Calibracao do touch necessaria', '403':'AP ativado pelo usuario', '404':'Sistema pronto', '405':'Sistema pronto (modo AP)', '406':'Falha critica de storage', '407':'Sensores calibrados', '408':'NTP corrigindo timestamps', '409':'Timestamps corrigidos', '410':'Caches de grafico invalidados', '411':'Ciclo Air retido em M0', '412':'Boot frio, nao veio da hibernacao', '413':'Sono limitado a menos de 24 h (alarme e por hora do dia)', '414':'Wake anterior do Air nao completou', '440':'Tema alterado via UI', '441':'Idioma alterado via UI', '442':'Limites de alarme salvos via UI', '443':'Calibracao do touch salva', '444':'Sensibilidade do touch salva', '445':'PIN do display alterado', '446':'Config de som salva', '447':'Alarme silenciado via UI', '448':'Silenciamento de alarme expirou', '449':'Todos alarmes desativados (RAM)', '450':'Usuario criado pelo painel', '451':'Usuario removido pelo painel', '452':'PIN do painel definido', '453':'Permissoes alteradas pelo painel', '454':'Manutencao aberta pelo painel', '455':'Manutencao encerrada pelo painel', '456':'Alarmes do sensor bloqueados pelo painel', '457':'Alarmes do sensor desbloqueados pelo painel', '458':'Acao do painel recusada: sem permissao', '470':'Alarme disparado', '471':'Alarme zerado', '472':'Silenciamento cancelado', '480':'Cache Min/Max carregado', '481':'Cache Min/Max parcial', '482':'Refresh de cache iniciado', '483':'Refresh de cache concluido', '484':'Cache de grafico: ambiente', '485':'Cache de grafico: placa', '486':'Pre-carga de cache concluida', '487':'Carregando grafico', '488':'Budget de render excedido', '489':'Budget de pre-carga excedido', '500':'Pause do display preso >5s', '501':'Yield preso >10s', '502':'Core 1 travado >10s, reiniciando', '503':'Colisao por flash ocupado', '510':'Registro de historico salvo', '511':'Relatorio de heap', '512':'Historico pulado: sem referencia de hora', '513':'Historico retomado: referencia de hora obtida', '514':'Historico pulado: schema V4 vazio', '515':'Historico pulado: schema nao cobre sensor ativo', '520':'Modo DHCP ativado', '521':'Modo IP estatico ativado', '522':'Gerenciador WiFi iniciando', '523':'SSID WiFi nao configurado', '524':'Hora provisoria do flash', '525':'Timeout na conexao WiFi', '526':'WiFi em modo dormente', '527':'Mostrar IP', '528':'Falha ao iniciar mDNS', '540':'Transporte HTTP inicializado', '541':'Transporte MQTT inicializado', '542':'MQTT conectando', '543':'cert.pem vazio, modo inseguro', '544':'Erro de leitura de cert.pem', '545':'Sem cert.pem, modo inseguro', '546':'Forcando sync de telemetria', '547':'Logs de retry suprimidos', '548':'Discovery HA atualizado', '549':'Linha de alarmes ligada', '550':'Payload de alarmes enviado', '551':'Falha no envio de alarmes', '552':'Recebimento de alarmes confirmado', '553':'Estouro da fila de alarmes', '560':'Falha em escrever historico', '561':'Budget de correcao de ts excedido', '562':'Budget de limite de storage excedido', '563':'Pulando arquivo de log ativo', '564':'Relatorio de estatisticas', '565':'Relatorio de config', '566':'Bloco de historico selado', '567':'Snapshot de historico gravado', '568':'Schema de historico divergente', '569':'Historico legado apagado', '570':'Servidor web iniciado', '571':'Cliente desconectado (arquivo)', '572':'Cliente desconectado (historico)', '573':'Screenshot abortado pelo cliente', '574':'Arquivo enviado', '575':'Cliente desconectado (conexao encerrada)', '576':'Cert web invalido (HTTP)', '577':'CORS ligado para a origem', '578':'Origem CORS invalida (CORS desligado)', '579':'Par de certificados web instalado', '580':'Tema aplicado', '581':'Tema nao encontrado', '585':'Comando desconhecido', '590':'Sensores em runtime carregados', '600':'Forcar despausar', '999':'Erro desconhecido' };
+        const EVT_NAMES_EN = { '0':'OK', '1':'System boot', '2':'User-requested reboot', '3':'Heap memory low', '4':'Uptime milestone', '5':'Routine log records suppressed', '10':'WiFi connecting', '11':'WiFi disconnected', '12':'WiFi scanning', '13':'NTP synced', '14':'IP acquired', '15':'AP mode started', '20':'Storage failure', '21':'Config saved', '22':'Storage rotated', '23':'Flash formatting', '24':'Storage recovered', '25':'Config migrated', '30':'Telemetry sent', '31':'Telemetry failed', '32':'Telemetry retry', '33':'Telemetry queued', '34':'SSL cert loaded', '35':'MQTT connected', '36':'MQTT disconnected', '37':'MQTT published', '100':'Sensor recovered', '101':'Sensor timeout', '102':'Sensor checksum error', '103':'Sensor CRC error', '104':'Sensor out of range', '105':'Hardware mismatch', '106':'Sensor missing', '200':'Touch event', '201':'Display restarted', '202':'Graph rendered', '300':'Login success', '301':'Login failed', '302':'Unauthorized access', '303':'Config changed', '304':'Session expired', '305':'File uploaded', '306':'File deleted', '307':'Bluetooth lockout', '308':'Panel PIN accepted', '309':'Panel PIN rejected', '310':'Panel PIN lockout', '311':'Keypad entry fits two accounts', '400':'Display launched on Core 1', '401':'Initial touch cal saved', '402':'Touch calibration required', '403':'AP mode triggered by user', '404':'System ready', '405':'System ready (AP mode)', '406':'Storage critical failure', '407':'Sensors calibrated', '408':'NTP correcting timestamps', '409':'Timestamps corrected', '410':'Graph caches invalidated', '411':'Air cycle held in M0', '412':'Cold boot, not a hibernation wake', '413':'Sleep clamped to under 24 h (alarm is time-of-day)', '414':'Previous Air wake did not complete', '440':'Theme changed via UI', '441':'Language changed via UI', '442':'Alarm limits saved via UI', '443':'Touch cal saved to flash', '444':'Touch sensitivity saved', '445':'Display PIN changed', '446':'Sound settings saved', '447':'Alarm silenced via UI', '448':'Alarm silence expired', '449':'All alarms deactivated (RAM)', '450':'User created via panel', '451':'User deleted via panel', '452':'Panel PIN set for user', '453':'User permissions changed via panel', '454':'Maintenance opened via panel', '455':'Maintenance closed via panel', '456':'Sensor alarms blocked via panel', '457':'Sensor alarms unblocked via panel', '458':'Panel action refused: no permission', '459':'PIN policy changed via panel', '470':'Alarm triggered', '471':'Alarm cleared', '472':'Alarm silence cancelled', '480':'Min/Max cache loaded', '481':'Min/Max cache partial', '482':'Graph cache refresh started', '483':'Graph cache refresh done', '484':'Graph cache: ambient', '485':'Graph cache: board temp', '486':'Graph cache preload done', '487':'Graph loading', '488':'Graph render budget exceeded', '489':'Preload budget exceeded', '500':'Display pause stuck >5s', '501':'Yield stuck >10s', '502':'Core 1 dead >10s, restarting', '503':'Flash busy collision', '510':'History record saved', '511':'Heap status report', '512':'History skip: no time reference', '513':'History resumed: time reference acquired', '514':'History skip: V4 schema is empty', '515':'History skip: schema covers no active sensor', '520':'DHCP mode enabled', '521':'Static IP mode enabled', '522':'WiFi manager starting', '523':'WiFi SSID not configured', '524':'Provisional time set from flash', '525':'WiFi connect timeout', '526':'WiFi dormant mode', '527':'Show IP', '528':'mDNS start failed', '540':'HTTP transport initialized', '541':'MQTT transport initialized', '542':'MQTT connecting', '543':'cert.pem empty, insecure mode', '544':'cert.pem read error', '545':'No cert.pem, insecure mode', '546':'Forcing telemetry sync', '547':'Retry logs suppressed', '548':'HA discovery refreshed', '549':'Alarm telemetry line enabled', '550':'Alarm payload sent', '551':'Alarm send failed', '552':'Alarm receipt confirmed', '553':'Alarm queue overflow', '560':'History write failed', '561':'Timestamp correction budget exceeded', '562':'Storage limit budget exceeded', '563':'Skipping active log file', '564':'Storage stats report', '565':'Config report', '566':'History block sealed', '567':'History snapshot written', '568':'History schema mismatch', '569':'Legacy history purged', '570':'Web server started', '571':'Client disconnected (file)', '572':'Client disconnected (history)', '573':'Screenshot aborted by client', '574':'File uploaded', '575':'Client disconnected (broken pipe)', '576':'Web cert invalid (HTTP fallback)', '577':'CORS enabled for origin', '578':'CORS origin file invalid (CORS off)', '579':'Web cert pair installed', '580':'Theme applied', '581':'Theme not found', '585':'Unknown command', '590':'Runtime sensors loaded', '600':'Force unpause', '999':'Unknown error' };
+        const EVT_NAMES_PT = { '0':'OK', '1':'Boot do sistema', '2':'Reboot solicitado pelo usuario', '3':'Heap baixa', '4':'Marco de uptime', '5':'Registros de rotina suprimidos', '10':'Conectando WiFi', '11':'WiFi desconectado', '12':'Varredura WiFi', '13':'NTP sincronizado', '14':'IP obtido', '15':'AP iniciado', '20':'Falha no storage', '21':'Config salva', '22':'Storage rotacionado', '23':'Formatando flash', '24':'Storage recuperado', '25':'Config migrada', '30':'Telemetria enviada', '31':'Falha de telemetria', '32':'Retry de telemetria', '33':'Telemetria enfileirada', '34':'Cert SSL carregado', '35':'MQTT conectado', '36':'MQTT desconectado', '37':'MQTT publicado', '100':'Sensor recuperado', '101':'Timeout de sensor', '102':'Erro de checksum', '103':'Erro de CRC', '104':'Sensor fora de range', '105':'Divergencia de hardware', '106':'Sensor ausente', '200':'Evento de toque', '201':'Display reiniciado', '202':'Grafico renderizado', '300':'Login bem-sucedido', '301':'Falha de login', '302':'Acesso nao autorizado', '303':'Config alterada', '304':'Sessao expirada', '305':'Arquivo enviado', '306':'Arquivo apagado', '307':'Bloqueio Bluetooth', '308':'PIN do painel aceito', '309':'PIN do painel recusado', '310':'Bloqueio do PIN do painel', '311':'Entrada do teclado casa com duas contas', '400':'Display iniciado no Core 1', '401':'Calibracao inicial do touch salva', '402':'Calibracao do touch necessaria', '403':'AP ativado pelo usuario', '404':'Sistema pronto', '405':'Sistema pronto (modo AP)', '406':'Falha critica de storage', '407':'Sensores calibrados', '408':'NTP corrigindo timestamps', '409':'Timestamps corrigidos', '410':'Caches de grafico invalidados', '411':'Ciclo Air retido em M0', '412':'Boot frio, nao veio da hibernacao', '413':'Sono limitado a menos de 24 h (alarme e por hora do dia)', '414':'Wake anterior do Air nao completou', '440':'Tema alterado via UI', '441':'Idioma alterado via UI', '442':'Limites de alarme salvos via UI', '443':'Calibracao do touch salva', '444':'Sensibilidade do touch salva', '445':'PIN do display alterado', '446':'Config de som salva', '447':'Alarme silenciado via UI', '448':'Silenciamento de alarme expirou', '449':'Todos alarmes desativados (RAM)', '450':'Usuario criado pelo painel', '451':'Usuario removido pelo painel', '452':'PIN do painel definido', '453':'Permissoes alteradas pelo painel', '454':'Manutencao aberta pelo painel', '455':'Manutencao encerrada pelo painel', '456':'Alarmes do sensor bloqueados pelo painel', '457':'Alarmes do sensor desbloqueados pelo painel', '458':'Acao do painel recusada: sem permissao', '459':'Politica de PIN alterada pelo painel', '470':'Alarme disparado', '471':'Alarme zerado', '472':'Silenciamento cancelado', '480':'Cache Min/Max carregado', '481':'Cache Min/Max parcial', '482':'Refresh de cache iniciado', '483':'Refresh de cache concluido', '484':'Cache de grafico: ambiente', '485':'Cache de grafico: placa', '486':'Pre-carga de cache concluida', '487':'Carregando grafico', '488':'Budget de render excedido', '489':'Budget de pre-carga excedido', '500':'Pause do display preso >5s', '501':'Yield preso >10s', '502':'Core 1 travado >10s, reiniciando', '503':'Colisao por flash ocupado', '510':'Registro de historico salvo', '511':'Relatorio de heap', '512':'Historico pulado: sem referencia de hora', '513':'Historico retomado: referencia de hora obtida', '514':'Historico pulado: schema V4 vazio', '515':'Historico pulado: schema nao cobre sensor ativo', '520':'Modo DHCP ativado', '521':'Modo IP estatico ativado', '522':'Gerenciador WiFi iniciando', '523':'SSID WiFi nao configurado', '524':'Hora provisoria do flash', '525':'Timeout na conexao WiFi', '526':'WiFi em modo dormente', '527':'Mostrar IP', '528':'Falha ao iniciar mDNS', '540':'Transporte HTTP inicializado', '541':'Transporte MQTT inicializado', '542':'MQTT conectando', '543':'cert.pem vazio, modo inseguro', '544':'Erro de leitura de cert.pem', '545':'Sem cert.pem, modo inseguro', '546':'Forcando sync de telemetria', '547':'Logs de retry suprimidos', '548':'Discovery HA atualizado', '549':'Linha de alarmes ligada', '550':'Payload de alarmes enviado', '551':'Falha no envio de alarmes', '552':'Recebimento de alarmes confirmado', '553':'Estouro da fila de alarmes', '560':'Falha em escrever historico', '561':'Budget de correcao de ts excedido', '562':'Budget de limite de storage excedido', '563':'Pulando arquivo de log ativo', '564':'Relatorio de estatisticas', '565':'Relatorio de config', '566':'Bloco de historico selado', '567':'Snapshot de historico gravado', '568':'Schema de historico divergente', '569':'Historico legado apagado', '570':'Servidor web iniciado', '571':'Cliente desconectado (arquivo)', '572':'Cliente desconectado (historico)', '573':'Screenshot abortado pelo cliente', '574':'Arquivo enviado', '575':'Cliente desconectado (conexao encerrada)', '576':'Cert web invalido (HTTP)', '577':'CORS ligado para a origem', '578':'Origem CORS invalida (CORS desligado)', '579':'Par de certificados web instalado', '580':'Tema aplicado', '581':'Tema nao encontrado', '585':'Comando desconhecido', '590':'Sensores em runtime carregados', '600':'Forcar despausar', '999':'Erro desconhecido' };
 
         function evtName(code) { let l = localStorage.getItem('simut_lang') || 'en'; let dict = (l === 'pt') ? EVT_NAMES_PT : EVT_NAMES_EN; let lbl = dict[code.toString()]; if (lbl) return lbl; return (l === 'pt' ? 'Evento #' : 'Event #') + code; }
         const TAG_NAMES = ['APP','NET','TEL','STO','WEB','CFG','CLI','SENSOR','HIST','SYS','DSP','SEC','OTA','?','?','?'];
@@ -3664,6 +3664,33 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--tinta-2)" data-i18n="cfg_hint_hint">1 to 1440 min (24h). Default: 1.</div>
                         </div>
                     </div>
+                    <!-- v25: the panel PIN policy. Three knobs that constrain each
+                         other, so the length ceiling is rebuilt whenever the keypad
+                         changes. 1 glyph per key is the ORDERED keyboard — the
+                         characters where the operator expects them, because a set
+                         of one hides nothing from anybody who can read the glass. -->
+                    <div class="row" style="margin-top:15px;">
+                        <div class="col">
+                            <label data-i18n="cfg_pinkb">Panel keypad: glyphs per key</label>
+                            <select id="pin_kb" name="pin_kb">
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                            </select>
+                        </div>
+                        <div class="col">
+                            <label data-i18n="cfg_pinalpha">PIN characters</label>
+                            <select id="pin_alpha" name="pin_alpha">
+                                <option value="0">0-9</option>
+                                <option value="1">0-9 A-Z</option>
+                            </select>
+                        </div>
+                        <div class="col">
+                            <label data-i18n="cfg_pinmin">Minimum PIN length</label>
+                            <input type="number" id="pin_min" name="pin_min" min="4" max="16" required>
+                            <div class="c-sub" id="pin_hint" style="margin-top:4px;font-size:0.8em;color:var(--tinta-2)"></div>
+                        </div>
+                    </div>
                 </div>
 
                 <h3 data-i18n="sens_title">Sensors &amp; GPIO</h3>
@@ -3824,6 +3851,14 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 if (attempt > 0) await new Promise(r => setTimeout(r, 700 * attempt));
                 try {
                     const r = await fetchSafe('/api/config');
+                    /* Kept whatever this caller does with the rest: every page
+                     * that validates a PIN reads window.PINPOL. */
+                    try {
+                        const pc = r && r.ok ? await r.clone().json() : null;
+                        if (pc) window.PINPOL = pc.pin_min
+                            ? { min: pc.pin_min, max: pc.pin_max, kb: pc.pin_kb, alpha: pc.pin_alpha }
+                            : null;
+                    } catch (e) { /* the caller reports its own failure */ }
                     if (r.status === 403) {
                         showLoadError('cfg_load_forbidden',
                             'Your user lacks permission to read the system settings.');
@@ -3874,6 +3909,46 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 toggleManualTime();
                 document.getElementById('res').value = val('res', 9);
                 document.getElementById('s_int').value = val('s_int', 5000);
+                /* The policy, and the rule that ties the three together. The
+                 * ceiling is the keypad's because resolving S^n candidates is
+                 * what costs Core 0 its 400 ms — except at one glyph per key,
+                 * where there is nothing to resolve and the ceiling is the
+                 * 16-character buffer. Every pair has a layout now: one glyph
+                 * per key is the ORDERED keyboard, the numeric pad for digits
+                 * and a two-tap group keyboard for the 36. */
+                (function () {
+                    const kb = document.getElementById('pin_kb'),
+                          al = document.getElementById('pin_alpha'),
+                          mn = document.getElementById('pin_min'),
+                          hint = document.getElementById('pin_hint');
+                    if (!kb || !al || !mn) return;
+                    const row = kb.closest('.row');
+                    if (!window.hasPanelPin()) {
+                        /* No panel on this image: hide the row AND clear the
+                         * ids, so the generic form binder does not stage
+                         * pin_* into Pending.sys and commit fields the device
+                         * would reject. */
+                        if (row) row.style.display = 'none';
+                        kb.id = al.id = mn.id = '';
+                        return;
+                    }
+                    const CAP = { 1: 16, 2: 12, 3: 8 };
+                    kb.value = String(val('pin_kb', 3));
+                    al.value = String(val('pin_alpha', 0));
+                    mn.value = String(val('pin_min', 4));
+                    const sync = () => {
+                        const cap = CAP[kb.value] || 8;
+                        mn.max = String(cap);
+                        if (parseInt(mn.value, 10) > cap) mn.value = String(cap);
+                        /* A number and a range, not a sentence: nothing to
+                         * translate, and nothing spent against the 16 KB
+                         * resident ceiling the es-ES pack is 83 B away from. */
+                        if (hint) hint.textContent = '4 \u2013 ' + cap;
+                    };
+                    kb.addEventListener('change', sync);
+                    al.addEventListener('change', sync);
+                    sync();
+                })();
                 document.getElementById('h_int').value = val('h_int', 1);
                 /* Syslog forwarder: refletir o estado REAL da config — sem isso
                  * o checkbox ficava sempre desmarcado (default HTML) e o usuário
@@ -5228,6 +5303,14 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 if (attempt > 0) await new Promise(r => setTimeout(r, 700 * attempt));
                 try {
                     const r = await fetchSafe('/api/config');
+                    /* Kept whatever this caller does with the rest: every page
+                     * that validates a PIN reads window.PINPOL. */
+                    try {
+                        const pc = r && r.ok ? await r.clone().json() : null;
+                        if (pc) window.PINPOL = pc.pin_min
+                            ? { min: pc.pin_min, max: pc.pin_max, kb: pc.pin_kb, alpha: pc.pin_alpha }
+                            : null;
+                    } catch (e) { /* the caller reports its own failure */ }
                     if (r.status === 403) { showLoadError('cfg_load_forbidden', 'Your user lacks permission to read the system settings.'); return; }
                     if (r.status === 503) continue;
                     if (!r.ok) continue;
@@ -5604,7 +5687,7 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <label class="chk-lbl"><input type="checkbox" name="p_blk" value="1"> <span data-i18n="usr_pblk">Block (panel)</span></label>
                     <label class="chk-lbl"><input type="checkbox" name="p_mnt" value="1"> <span data-i18n="usr_pmnt">Maint (panel)</span></label>
                 </div>
-                <input type="text" id="u_pin" name="u_pin" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="Panel PIN (4-8 digits, optional)" data-i18n="usr_pin">
+                <input type="text" id="u_pin" name="u_pin" maxlength="16" autocomplete="off" placeholder="Panel PIN (optional)" data-i18n="usr_pin">
                 <button type="submit" id="btnUser" data-i18n="usr_btn">Create User</button>
                 <p style="font-size:0.8rem; color:var(--tinta-2); margin-top:15px; text-align:center;" data-i18n="usr_warn">
                     * A one-time password is shown after Save &amp; Restart. Copy it — it is displayed only once, and the user must change it on first login.
@@ -5619,10 +5702,21 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
          * linhas novas (add), strikethrough (del) ou badge (reset). */
         function renderPermsBadges(perms, isSuper) {
             if (isSuper) return `<span class="badge full" data-i18n="usr_sup">${window.t('usr_sup','Super Admin')}</span>`;
-            let arr = [];
             const map = [[1,'usr_pdash','Dashboard'],[2,'usr_phist','History'],[4,'usr_plog','Logs'],[8,'usr_psys','Sys Config'],[16,'usr_pnet','Net Config'],[32,'usr_pfr','Files Read'],[64,'usr_pfu','Files Up'],[128,'usr_pfd','Files Del'],[256,'usr_pusr','Users'],[512,'usr_pcal','Calib'],[1024,'usr_plim','Limits (panel)'],[2048,'usr_pblk','Block (panel)'],[4096,'usr_pmnt','Maint (panel)']];
-            map.forEach(([bit, key, def]) => { if (perms & bit) arr.push(`<span class="badge full" data-i18n="${key}">${window.t(key, def)}</span>`); });
-            return arr.join('');
+            const on = map.filter(([bit]) => perms & bit);
+            if (!on.length) return '';
+            const badges = on.map(([bit, key, def]) =>
+                `<span class="badge full" data-i18n="${key}">${window.t(key, def)}</span>`).join('');
+            /* COLLAPSED by default. Thirteen badges in a table cell wrap into a
+               wall on a phone and push the action buttons off the row; the
+               count is what a reader scans for, and the names are one tap away.
+               <details> because it is the native disclosure: no script, no
+               state to keep in sync with a re-render, and it keeps working if
+               the row is rebuilt under it. The column header already says
+               "Permissions", so the summary is just the number — no new
+               dictionary key for something the heading states. */
+            return `<details class="perms"><summary class="badge">${on.length}</summary>`
+                 + `<div class="permlist">${badges}</div></details>`;
         }
 
         async function loadUsers() {
@@ -5633,6 +5727,13 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 const pendingDels = new Set(pending.filter(a => a.type === 'del').map(a => a.id));
                 const pendingRsts = new Set(pending.filter(a => a.type === 'reset').map(a => a.id));
                 const pendingPins = new Set(pending.filter(a => a.type === 'pin').map(a => a.id));
+                /* No panel on this image: /api/users omits the `pin` key entirely
+                 * (SIMUT_PANEL_PIN), so its absence — not a false — is the signal.
+                 * This page never fetches /api/config, so window.PINPOL would still
+                 * be holding its optimistic default here. */
+                const hasPin = Array.isArray(data) && data.length > 0 && data[0].pin !== undefined;
+                if (!hasPin) { const f = document.getElementById('u_pin');
+                               if (f) { f.style.display = 'none'; f.value = ''; } }
                 const pendingAdds = pending.filter(a => a.type === 'add');
 
                 let tbody = document.getElementById('usrBody');
@@ -5648,7 +5749,8 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                        included; the button stages a 'pin' action, the badge says
                        one is set (never what it is). */
                     const isPin = pendingPins.has(u.id);
-                    const pinBtn = isPin
+                    const pinBtn = !hasPin ? ''
+                        : isPin
                         ? `<span class="badge pending">${window.t('usr_pend_pin','Pending: PIN')}</span>`
                         : `<button class="btn-action" onclick="setPin(${u.id})">${window.t('usr_pin_btn','PIN')}</button>`;
                     if (isSuper) {
@@ -5661,7 +5763,7 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             : `<button class="btn-action" onclick="rstUsr(${u.id})" data-i18n="usr_rst">${window.t('usr_rst','Reset')}</button>`;
                         actions = `${pinBtn} ${rstBtn} <button class="btn-dang" onclick="delUsr(${u.id})" data-i18n="usr_del">${window.t('usr_del','Del')}</button>`;
                     }
-                    const pinBadge = u.pin ? ` <span class="badge">${window.t('usr_haspin','PIN')}</span>` : '';
+                    const pinBadge = u.pin ? ` <span class="badge">${window.t('usr_haspin','PIN')}</span>` : '';   /* u.pin is absent without a panel */
                     html += `<tr class="${rowCls}"><td>${u.id}</td><td style="font-weight:bold;color:var(--tinta)">${escHtml(u.name)}${pinBadge}</td><td>${renderPermsBadges(u.perms, isSuper)}</td><td style="text-align:center; white-space:nowrap;">${actions}</td></tr>`;
                 });
                 /* Usuários pendentes de criação. a.name é digitado pelo próprio
@@ -5683,7 +5785,7 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             const bits = {p_dash:1, p_hist:2, p_logs:4, p_sys:8, p_net:16, p_fread:32, p_fupl:64, p_fdel:128, p_usr:256, p_calib:512, p_lim:1024, p_blk:2048, p_mnt:4096};
             Object.keys(bits).forEach(k => { const el = document.querySelector(`input[name="${k}"]`); if (el && el.checked) perms |= bits[k]; });
             const pin = (document.getElementById('u_pin').value || '').trim();
-            if (pin !== '' && !/^[0-9]{4,8}$/.test(pin)) { showToast(window.t('usr_pin_bad', 'PIN must be 4 to 8 digits.'), 'error'); return; }
+            if (pin !== '' && !window.pinRe().test(pin.toUpperCase())) { showToast(window.pinHint(), 'error'); return; }
             const act = { type: 'add', name: name, perms: perms };
             if (pin !== '') act.pin = pin;
             Pending.pushUserAction(act);
@@ -5700,10 +5802,10 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         }
 
         function setPin(id) {
-            const v = prompt(window.t('usr_pin_msg', 'Panel PIN for this account: 4 to 8 digits, or empty to remove it.'));
+            const v = prompt(window.pinHint() + ' ' + window.t('usr_pin_msg', 'Empty removes it.'));
             if (v === null) return;
             const pin = v.trim();
-            if (pin !== '' && !/^[0-9]{4,8}$/.test(pin)) { showToast(window.t('usr_pin_bad', 'PIN must be 4 to 8 digits.'), 'error'); return; }
+            if (pin !== '' && !window.pinRe().test(pin.toUpperCase())) { showToast(window.pinHint(), 'error'); return; }
             Pending.pushUserAction({ type: 'pin', id: id, pin: pin });
             loadUsers();
         }
@@ -6888,8 +6990,14 @@ input[type=range] { accent-color: var(--acento); }
 /* Botoes: primario (acento), secundario (linha-forte), destrutivo (perigo). */
 .b-pri, button[type=submit], .btn-save, .btn-fm-pri, #commit-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--acento); color: var(--acento-tinta); border: 1px solid transparent; padding: 10px 16px; border-radius: 6px; font-size: 15px; line-height: 20px; font-weight: 600; transition: background 0.15s; }
 .b-pri:hover, button[type=submit]:hover, .btn-save:hover, .btn-fm-pri:hover, #commit-btn:hover { background: var(--acento-forte); }
-.sxb, .btn-action, .btn-fm, .btn-test, .cal-header-row button, .log-header button, .bottom-controls > button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--superficie); color: var(--tinta); border: 1px solid var(--linha-forte); padding: 8px 12px; border-radius: 6px; font-size: 14px; line-height: 20px; font-weight: 600; transition: background 0.15s; }
+.sxb, .btn-action, .btn-dang, .btn-fm, .btn-test, .cal-header-row button, .log-header button, .bottom-controls > button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--superficie); color: var(--tinta); border: 1px solid var(--linha-forte); padding: 8px 12px; border-radius: 6px; font-size: 14px; line-height: 20px; font-weight: 600; transition: background 0.15s; }
 .sxb:hover, .btn-action:hover, .btn-fm:hover, .btn-test:hover, .cal-header-row button:hover, .log-header button:hover, .bottom-controls > button:hover { background: var(--superficie-2); }
+/* The -dang rules carry COLOUR only; the geometry comes from the base rule
+   above. .sxb-dang and .btn-fm-dang are modifiers and always ride on .sxb /
+   .btn-fm, but .btn-dang is used ALONE (the users table's Del and the undo
+   arrow), so it was falling back to the browser's default button box — square
+   corners beside the rounded Reset and PIN next to it. Hence .btn-dang in the
+   base list; this rule still wins the three colours, being later. */
 .sxb-dang, .btn-dang, .btn-fm-dang { background: transparent; color: var(--perigo); border-color: var(--perigo); }
 .sxb-dang:hover, .btn-dang:hover, .btn-fm-dang:hover { background: var(--perigo); color: var(--perigo-tinta); }
 .btn-fm-out { background: transparent; color: var(--acento); border-color: var(--acento); }
@@ -6904,6 +7012,14 @@ th { font-size: 13px; line-height: 16px; font-weight: 600; color: var(--tinta-2)
 .badge, .sensor-type, .sxg { display: inline-block; background: var(--superficie-2); color: var(--tinta-2); padding: 2px 10px; border-radius: 999px; font-size: 13px; line-height: 20px; font-weight: 600; }
 .badge.full, .sxg.on { background: var(--acento); color: var(--acento-tinta); }
 .badge.pending { background: var(--alerta-suave); color: var(--alerta); }
+/* Collapsed permission list (users table). The native marker is replaced by a
+   caret INSIDE the badge so the chip is the whole hit target — a 13 px marker
+   beside it is not a finger target on the screens this exists for. */
+.perms > summary { cursor: pointer; list-style: none; }
+.perms > summary::-webkit-details-marker { display: none; }
+.perms > summary::after { content: ' \25BE'; }
+.perms[open] > summary::after { content: ' \25B4'; }
+.perms > .permlist { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px; }
 tr.pending-del { opacity: 0.5; text-decoration: line-through; }
 tr.pending-add { background: var(--positivo-suave); }
 /* Faixa de aviso: fundo suave, texto firme, linha da mesma cor. */
@@ -6942,7 +7058,15 @@ pre, #preview, #apreview { background: var(--superficie-2); color: var(--tinta);
 .status-pill .dot { width: 8px; height: 8px; border-radius: 999px; flex-shrink: 0; }
 #theme-toggle { background: none; border: 1px solid var(--linha-forte); color: var(--tinta-2); width: 36px; height: 36px; padding: 0; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; }
 #theme-toggle:hover { color: var(--tinta); border-color: var(--acento); }
-#commit-btn { display: none; padding: 8px 14px; font-size: 14px; }
+#commit-actions { display: flex; align-items: center; gap: 10px; }
+/* nowrap on the WIDE layout only: "Salvar e reiniciar" beside "Aplicar agora"
+   wrapped to two lines and grew the top bar by a row. On a phone the buttons
+   share the width instead, and there nowrap is what pushed the label out of
+   its own border — so the narrow rule below puts it back. */
+#commit-btn, #apply-btn, #try-btn { display: none; padding: 8px 14px; font-size: 14px; white-space: nowrap; }
+/* The note reads as a label, not as a control: no pointer, and it wraps out
+   of the way before the buttons do. */
+#commit-note { display: none; max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .drawer-bg { position: fixed; inset: 0; background: var(--veu); z-index: 80; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
 .drawer-bg.open { opacity: 1; pointer-events: auto; }
 /* 100dvh, nao 100%: com a barra do navegador visivel o rodape (licenca,
@@ -6979,10 +7103,29 @@ pre, #preview, #apreview { background: var(--superficie-2); color: var(--tinta);
   /* NAO usar overflow-wrap em celula de tabela: toda tabela vive num contentor
      com overflow-x e prefere o deslize. So vale onde NAO ha rolagem: */
   .net-stat .val { overflow-wrap: anywhere; }
-  /* "Salvar e reiniciar" e a unica forma de gravar: no topo seria o primeiro
-     item a sair da tela — aqui vira barra fixa no rodape. */
-  body #commit-btn { position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 60; min-height: 48px; font-size: 15px; box-shadow: var(--sombra-flutuante); }
+  /* Gravar e a acao que nao pode sumir: no topo seria o primeiro item a sair
+     da tela, entao no celular as acoes pendentes viram uma barra fixa no
+     rodape. O contentor e quem e fixo; os botoes so DIVIDEM a largura dele,
+     com flex — nada de calc( ) em porcentagem, que nao sabe o tamanho do
+     rotulo e foi o que deixou "Salvar e reiniciar" fora do proprio contorno. */
+  #commit-actions.on {
+    position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 60;
+    display: flex; gap: 8px; }
+  #commit-actions.on > button {
+    flex: 1 1 0; min-width: 0; min-height: 48px; font-size: 14px; padding: 6px 8px;
+    box-shadow: var(--sombra-flutuante); }
+  /* Gravar e a unica que persiste, entao fica com o dobro da largura. */
+  #commit-actions.live > #commit-btn { flex: 2 1 0; }
+  /* E pode quebrar em duas linhas: a tela e estreita e o rotulo e o que e, e
+     48 px de altura acomodam duas linhas de 14 px sem crescer a barra. */
+  #commit-actions.on > button { white-space: normal; line-height: 1.15; }
+  /* O aviso nao cabe ao lado de tres botoes num celular. */
+  #commit-note { display: none !important; }
   body.pend { padding-bottom: 72px; }
+  /* Enquanto se digita: espaco para o campo SUBIR. Sem isto, um campo no fim
+     do documento nao tem para onde rolar e fica atras do teclado por mais
+     correta que seja a conta de quem manda rolar. Sai no focusout. */
+  body.typing { padding-bottom: 60vh; }
 }
 )raw";
 
@@ -7086,6 +7229,29 @@ static const char LANG_JS[] PROGMEM = R"raw(
     fetch('/api/lang').then(r=>r.json()).then(d=>{Object.assign(dict.pt,d);if(Object.keys(d).length>0&&!localStorage.getItem('simut_lang'))localStorage.setItem('simut_lang','pt');if(typeof applyLang==='function')applyLang();}).catch(()=>{});
 
     /* Infra compartilhada (movida das paginas autenticadas individuais p/ ca'). */
+    /* ── v25: a política de PIN do aparelho ──────────────────────────────
+     * Mora AQUI, e não numa página, porque três páginas a usam e cada página
+     * do WebUI é um blob gz independente: definir isto ao lado do dicionário
+     * de eventos (HIST_PAGE) deixou window.hasPanelPin indefinido na CFG_PAGE,
+     * e a página de configuração parou de carregar inteira — um TypeError no
+     * meio do preenchimento do formulário derruba o resto dele (20/09).
+     *
+     * null = este aparelho não tem tela de toque, logo não tem PIN de painel:
+     * as imagens Air e alfanumérica omitem pin_min de /api/config e a chave
+     * `pin` de /api/users (SIMUT_PANEL_PIN). A página derruba os controles
+     * pela AUSÊNCIA, em vez de oferecer uma configuração que o aparelho
+     * recusaria. O default é o comportamento v24, para os segundos antes de
+     * /api/config responder. */
+    window.PINPOL = { min: 4, max: 8, kb: 3, alpha: 0 };
+    window.hasPanelPin = () => window.PINPOL !== null;
+    window.pinRe = () => new RegExp('^[' + (window.PINPOL.alpha === 1 ? '0-9A-Z' : '0-9') +
+                                    ']{' + window.PINPOL.min + ',' + window.PINPOL.max + '}$');
+    /* Uma mensagem para os dois alfabetos: o conjunto entra como literal
+     * (0-9 / 0-9A-Z), então não é preciso uma segunda string traduzida. */
+    window.pinHint = () => window.t('usr_pin_bad', 'PIN: %M to %X of %S.')
+        .replace('%M', window.PINPOL.min).replace('%X', window.PINPOL.max)
+        .replace('%S', window.PINPOL.alpha === 1 ? '0-9 A-Z' : '0-9');
+
     window.t = function(key, def) { let lang = localStorage.getItem('simut_lang') || 'en'; if (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) return def; return dict[lang][key]; };
     window.applyLang = function() { let lang = localStorage.getItem('simut_lang') || 'en'; document.querySelectorAll('.lang-select').forEach(s => s.value = lang); document.querySelectorAll('[data-i18n]').forEach(el => { let key = el.getAttribute('data-i18n'); if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.getAttribute('placeholder')); } else { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.innerHTML); } let fromDict = (lang !== 'en' && typeof dict !== 'undefined' && dict[lang] && dict[lang][key]); let text = fromDict ? dict[lang][key] : el.getAttribute('data-en'); if (text !== null && text !== undefined) { if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) el.setAttribute('placeholder', text); else el.innerHTML = fromDict ? escHtml(text) : text; } }); };
     window.setLang = function(lang) { localStorage.setItem('simut_lang', lang); applyLang(); if(typeof window.onLangChange === 'function') window.onLangChange(); };
@@ -7290,6 +7456,58 @@ static const char LANG_JS[] PROGMEM = R"raw(
     };
     document.addEventListener('DOMContentLoaded',function(){window.initSession();});
 
+    /* Keep the field you are typing in above the on-screen keyboard.
+     *
+     * A phone keyboard shrinks the VISUAL viewport without touching the layout
+     * one, so a field in the lower half ends up behind it. The browser's own
+     * "scroll the focused element into view" is not enough: it runs on focus,
+     * which is BEFORE the keyboard is up, so it aims at a rectangle that is
+     * about to stop existing. visualViewport is what reports the real one —
+     * this re-aims once it has settled, and again whenever it changes (the
+     * keyboard opening, closing, or an autocomplete bar appearing).
+     *
+     * The fixed action bar counts as keyboard too: when it is up it covers the
+     * bottom of the page, and a field behind it is just as unreadable.
+     *
+     * Deliberately NOT bound to visualViewport's `scroll`: the operator
+     * scrolling away from the field on purpose is not a problem to correct. */
+    (function () {
+        const vv = window.visualViewport;
+        if (!vv) return;                       /* desktop, and older browsers */
+        let field = null;
+        const keep = () => {
+            if (!field || !document.contains(field)) return;
+            const r = field.getBoundingClientRect();
+            const bar = document.getElementById('commit-actions');
+            const barH = (bar && getComputedStyle(bar).position === 'fixed')
+                       ? bar.getBoundingClientRect().height + 12 : 0;
+            const floor = vv.height - barH - 8;
+            const over = r.bottom - floor;
+            if (over > 0) window.scrollBy({ top: over, behavior: 'smooth' });
+            else if (r.top < 8) window.scrollBy({ top: r.top - 8, behavior: 'smooth' });
+        };
+        document.addEventListener('focusin', e => {
+            const t = e.target;
+            if (!t || !t.matches || !t.matches('input, select, textarea')) return;
+            field = t;
+            /* Room to scroll INTO. A field near the end of the document has
+               nothing below it, so scrollBy( ) has nowhere to go and the field
+               stays behind the keyboard however correct the arithmetic was.
+               The padding is what creates the headroom; it is scoped to the
+               narrow layout and removed the moment the field is left. */
+            document.body.classList.add('typing');
+            /* Two passes: one for the layout that is already there, one after
+               the keyboard's animation, which no event reports the end of. */
+            setTimeout(keep, 60);
+            setTimeout(keep, 400);
+        });
+        document.addEventListener('focusout', () => {
+            field = null;
+            document.body.classList.remove('typing');
+        });
+        vv.addEventListener('resize', keep);
+    })();
+
     /* =========================================================================
      * U24 Phase D — Pending Changes Manager + commit-all (shared across pages)
      * =========================================================================
@@ -7302,8 +7520,53 @@ static const char LANG_JS[] PROGMEM = R"raw(
         init() {
             try { this.data = JSON.parse(sessionStorage.getItem('simut_pending') || '{}'); } catch(e) { this.data = {}; }
             this.refreshUI();
+            /* A staged set SURVIVES a page load (it lives in sessionStorage),
+               so the verdict has to be asked for again here. Probing only from
+               _persist( ) meant the two extra buttons appeared while editing
+               and then vanished on the next page — the operator would stage an
+               alarm limit on /alarms, walk to another page and find only
+               "save and restart" for a change that needs neither. Caught on
+               the glass, not in review. */
+            this._probeSoon();
         },
-        _persist() { sessionStorage.setItem('simut_pending', JSON.stringify(this.data)); this.refreshUI(); this._maybeNotify(); },
+        _persist() { sessionStorage.setItem('simut_pending', JSON.stringify(this.data)); this.refreshUI(); this._maybeNotify(); this._probeSoon(); },
+        /* What the DEVICE says about the staged set: null until it has
+           answered, true when it would apply without restarting. */
+        live: null, applied: [], rebootFor: [], _probeTimer: 0,
+        _probeSoon() {
+            clearTimeout(this._probeTimer);
+            /* Unknown again the moment anything changes: the extra buttons
+               must never survive a staging change that made a restart
+               necessary. Fail-safe is "restart", in both directions. */
+            this.live = null;
+            this.refreshUI();
+            if (!this.hasAny()) return;
+            /* Debounced: every keystroke in a form stages a field, and the
+               probe copies the whole configuration on the device. */
+            this._probeTimer = setTimeout(() => this.probe(), 600);
+        },
+        async probe() {
+            /* THE DEVICE decides. It classifies by comparing the staged
+               configuration against the running one (ConfigApply.h), so a
+               field typed back to its current value is not a change at all —
+               something this page has no way to know. Mirroring that rule in
+               JavaScript would be a second copy of it, and the copies would
+               drift. Anything but a clear "reboot":false leaves the
+               restart-only banner up: a dry run is refused outright for
+               sections that cannot be rehearsed (users, slots, calib), and
+               that refusal is the right answer here. */
+            try {
+                const fd = new URLSearchParams();
+                fd.set('_payload', JSON.stringify(this.data));
+                fd.set('_dry', '1');
+                const r = await fetch('/api/commit_all', { method: 'POST', body: fd });
+                const j = r.ok ? await r.json() : {};
+                this.live = (j.reboot === false);
+                this.applied = j.applied || [];
+                this.rebootFor = j.reboot_for || [];
+            } catch (e) { this.live = false; this.applied = []; this.rebootFor = []; }
+            this.refreshUI();
+        },
         setField(section, field, value) {
             if (!this.data[section]) this.data[section] = {};
             this.data[section][field] = value;
@@ -7341,12 +7604,101 @@ static const char LANG_JS[] PROGMEM = R"raw(
         },
         hasAny() { return Object.keys(this.data).some(k => { const s = this.data[k]; return s && (Array.isArray(s) ? s.length > 0 : Object.keys(s).length > 0); }); },
         refreshUI() {
-            const btn = document.getElementById('commit-btn');
             const any = this.hasAny();
-            if (btn) btn.style.display = any ? 'inline-block' : 'none';
+            /* The two extra buttons appear ONLY on a device-confirmed live
+               set. While the probe is in flight (live === null) the banner is
+               the plain restart one, which is the honest state: we do not yet
+               know that anything can be applied without restarting. */
+            const live = any && this.live === true;
+            const show = (id, on) => { const e = document.getElementById(id);
+                                       if (e) e.style.display = on ? 'inline-flex' : 'none'; };
+            /* The class is what the phone layout reads. Selecting on the
+               inline style string worked until a browser normalised it. */
+            const box = document.getElementById('commit-actions');
+            if (box) { box.classList.toggle('on', any); box.classList.toggle('live', live); }
+            show('commit-btn', any);
+            show('apply-btn', live);
+            show('try-btn', live);
+            const note = document.getElementById('commit-note');
+            if (note) {
+                note.style.display = any ? 'inline-block' : 'none';
+                if (live) {
+                    note.className = 'badge';
+                    /* The state only. The class names the device answers with
+                       ("alarms", "sensing") are its own vocabulary and they do
+                       not survive the width of a top bar — they go in the
+                       toast after the action, where there is room for them. */
+                    note.textContent = window.t('commit_live', 'No restart needed');
+                    note.title = this.applied.join(', ');
+                } else if (any && this.rebootFor.length) {
+                    note.className = 'badge pending';
+                    note.textContent = window.t('commit_why', 'Restarts for') + ': ' +
+                                       this.rebootFor.join(', ');
+                    note.title = note.textContent;
+                } else {
+                    note.className = 'badge pending';
+                    note.textContent = window.t('commit_pend', 'Unsaved changes');
+                }
+            }
             /* .pend reserva o espaco da barra fixa de rodape no celular */
             document.body.classList.toggle('pend', any);
         }
+    };
+
+    /* ── the two buttons that do NOT restart ─────────────────────────────
+     * Both only ever appear on a set the device itself classified as live
+     * (Pending.probe), so neither has to decide anything: the firmware
+     * refuses either way, and a refusal here is a bug report, not a fallback.
+     *
+     *   applyNow  saves AND applies — the change survives a restart.
+     *   tryNow    applies WITHOUT saving — a restart puts the old value back,
+     *             so the staged set is deliberately KEPT afterwards: the
+     *             operator still has to save it or lose it, and clearing the
+     *             banner would be telling them it was done. */
+    async function _commitLive(extra, okMsg, keepPending) {
+        const btns = ['commit-btn', 'apply-btn', 'try-btn']
+                        .map(i => document.getElementById(i)).filter(Boolean);
+        btns.forEach(b => b.disabled = true);
+        try {
+            const fd = new URLSearchParams();
+            fd.set('_payload', JSON.stringify(Pending.data));
+            Object.keys(extra).forEach(k => fd.set(k, extra[k]));
+            const r = await fetchSafe('/api/commit_all', { method: 'POST', body: fd, retries: 0, timeout: 20000 });
+            let j = {}; try { j = await r.json(); } catch(e) {}
+            if (!r.ok) {
+                showToast((window.t('commit_err', 'Save failed.')) +
+                          (j.error ? ' — ' + j.error : ''), 'err', 9000);
+                return;
+            }
+            /* The device answers whether it restarted. Believing the BUTTON
+               instead of the answer is what made the old one say "Restarting
+               system..." over a commit that never restarted. */
+            if (j.reboot) {
+                showToast(window.t('commit_saved', 'Saved! Restarting system...'), 'ok', 20000);
+                setTimeout(() => { window.location.reload(); }, 12000);
+                return;
+            }
+            if (!keepPending) Pending.clear(); else Pending.refreshUI();
+            showToast(okMsg + ((j.applied && j.applied.length) ? ': ' + j.applied.join(', ') : ''), 'ok', 6000);
+            if (j.rejected && j.rejected.length)
+                showToast(window.t('commit_rej', 'Fields not applied') + ': ' + j.rejected.join(', '), 'warn', 9000);
+        } catch(e) {
+            showToast(window.t('commit_err', 'Save failed.'), 'err', 9000);
+        } finally {
+            btns.forEach(b => b.disabled = false);
+        }
+    }
+
+    /* The key is spelled at the call site, not passed as a variable: the
+       language gate finds a consumer by matching t('key' in the source, and a
+       key it cannot see is reported as dead weight against the pack ceiling. */
+    window.applyNow = function() {
+        return _commitLive({}, window.t('commit_applied', 'Applied and saved'), false);
+    };
+    window.tryNow = function() {
+        return _commitLive({ _nosave: '1' },
+                           window.t('commit_tried', 'Applied WITHOUT saving — a restart undoes it'),
+                           true);
     };
 
     window.commitAll = async function() {
@@ -7399,6 +7751,11 @@ static const char LANG_JS[] PROGMEM = R"raw(
         try {
             const fd = new URLSearchParams();
             fd.set('_payload', JSON.stringify(Pending.data));
+            /* This button says "restart", so it restarts — even for a change
+               the device would have applied live. Without the flag it took
+               the live path and the page announced a reboot that never
+               happened. */
+            fd.set('_reboot', '1');
             const r = await fetchSafe('/api/commit_all', { method: 'POST', body: fd, retries: 0, timeout: 20000 });
             if (r.ok) {
                 let j = {}; try { j = await r.json(); } catch(e) {}
@@ -7455,16 +7812,43 @@ static const char LANG_JS[] PROGMEM = R"raw(
             wrap = w;
         }
 
-        /* Commit button (só cria uma vez) */
+        /* The pending-changes controls (created once). THREE actions, because
+           they are three different things and the device tells them apart:
+             try     apply without saving — a restart undoes it
+             apply   save and apply, no restart
+             commit  save and restart, always
+           The last two only appear once the device has confirmed the staged
+           set can be applied live (Pending.probe), so the default banner is
+           still the single restart button it always was. The note beside them
+           says which it is, in the device's own words. */
         if (!document.getElementById('commit-btn')) {
-            const btn = document.createElement('button');
-            btn.id = 'commit-btn';
-            btn.className = 'b-pri';
-            btn.type = 'button';
-            btn.onclick = commitAll;
-            btn.innerText = (window.t ? window.t('commit_btn', 'Save & restart') : 'Save & restart');
-            btn.setAttribute('data-i18n', 'commit_btn');
-            wrap.insertBefore(btn, pill);
+            const mk = (id, cls, fn, key, label) => {
+                const b = document.createElement('button');
+                b.id = id; b.className = cls; b.type = 'button'; b.onclick = fn;
+                b.innerText = label;
+                b.setAttribute('data-i18n', key);
+                b.style.display = 'none';
+                box.appendChild(b);
+                return b;
+            };
+            /* One container, so the phone layout is a flex ROW and not three
+               elements positioned by percentage arithmetic. The first draft
+               pinned each button with `left`/`width: calc(25% - 15px)` and
+               picked them by `:not([style*="display: none"])` — matching the
+               inline style as a STRING. Both were wrong on a phone: the widths
+               did not account for the label and "Salvar e reiniciar" ran out
+               of its own border. */
+            const box = document.createElement('div');
+            box.id = 'commit-actions';
+            wrap.insertBefore(box, pill);
+            const note = document.createElement('span');
+            note.id = 'commit-note';
+            note.className = 'badge pending';
+            note.style.display = 'none';
+            box.appendChild(note);
+            mk('try-btn',    'btn-action', tryNow,    'commit_try',   window.t('commit_try',   'Test'));
+            mk('apply-btn',  'btn-action', applyNow,  'commit_apply', window.t('commit_apply', 'Apply now'));
+            mk('commit-btn', 'b-pri',      commitAll, 'commit_btn',   window.t('commit_btn',   'Save & restart'));
         }
 
         /* Theme toggle (só cria uma vez) */

@@ -24,8 +24,12 @@ pio run -e pico_w_air          # the hibernating build; least flash headroom
 pio test -e native_logpolicy   # one suite; six exist
 ```
 
-Five firmware environments and six native suites, all of them built and run by
-CI. There is no debug environment — see the note in `platformio.ini` for why.
+**Six** firmware environments and seven native suites, all of them built and
+run by CI — `pico_w_asserts` is the one that is easy to forget, because it is
+not in the table above and nothing local reminds you of it. This line said
+"five" until 2026-09-20, and a change that raised the other five budgets went
+to CI with that one over its own. `pio run` with no `-e` builds them all.
+There is no debug environment — see the note in `platformio.ini` for why.
 
 ## What will fail your build before CI does
 

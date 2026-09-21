@@ -57,10 +57,23 @@ jobs:
           done
       - name: Manifest
         run: python3 tools/release_manifest.py --out release/ota --build-dir release/build
+      - name: Language packs
+        # The .lng packs live in the device's LittleFS, NOT in the firmware
+        # image — so an OTA leaves the old ones in place and any label added in
+        # this release stays English until somebody replaces them. Shipping
+        # them here is the only way an operator can get the matching pair
+        # without a checkout. Copied rather than globbed straight from data/ so
+        # the asset list stays explicit.
+        run: |
+          set -euo pipefail
+          mkdir -p release/ota
+          cp data/lang/*.lng release/ota/
+          ls -l release/ota/*.lng
       - name: Attach to the release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             release/ota/*.bin
             release/ota/*.uf2
+            release/ota/*.lng
             release/ota/manifest.json

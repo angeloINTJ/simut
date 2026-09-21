@@ -74,9 +74,24 @@ enum AlarmErrCode : uint8_t {
 };
 
 /** Um registro da fila de alarmes. Layout em ordem natural (sem pack):
- * epoch alinhado a 4 — 16 B por registro (12 até a v23; +actor, +value2 na
- * v24, APPENDED para que todo inicializador posicional existente siga
- * válido e deixe os dois novos em zero = "ninguém", "sem segundo valor"). */
+ * epoch alinhado a 4 — 32 B por registro (12 até a v23; +actor, +value2 na
+ * v24; +user na v25, APPENDED para que todo inicializador posicional
+ * existente siga válido e deixe os novos em zero = "ninguém", "sem segundo
+ * valor", "sem nome").
+ *
+ * ── Por que o NOME vai no registro, e não só o slot (v25) ────────────────
+ * `actor` é o slot + 1, e slot é reutilizável. O nome era resolvido na hora
+ * de montar o payload, lendo cfg.users[actor-1] — ou seja, MINUTOS depois da
+ * ação, e potencialmente depois de a conta ter sido apagada e o slot ter sido
+ * tomado por outra pessoa. O registro de auditoria era então assinado com o
+ * nome de quem não fez nada, sem nada indicando a troca. A fila vive na RAM e
+ * espera o servidor confirmar: uma fila que não drena pode segurar registros
+ * por horas.
+ *
+ * Congelar o nome no instante do push custa 16 B por registro — 1.024 B no
+ * teto de 64 — e torna a identidade imune ao que acontecer com a conta
+ * depois. É também o que faz "apagar a conta" poder sobrescrever tudo sem
+ * perder quem assinou o que já estava na fila. */
 struct AlarmRecord {
 	uint32_t epoch;   /**< timestamp do disparo (time(nullptr)) */
 	uint16_t seq;     /**< sequência do boot — chave da confirmação; 0 = inválido */
@@ -90,7 +105,10 @@ struct AlarmRecord {
 	int16_t  value2;  /**< v24: alarm_lim = limite SUPERIOR ×escala; maint_on =
 	                   *   minutos até o fim previsto, lidos como uint16
 	                   *   (30 dias = 43.200 > INT16_MAX); 0 nos demais. */
+	char     user[16];/**< v25: nome de quem agiu, COPIADO no push ({user}).
+	                   *   "" = o aparelho. Ver a nota no topo do struct. */
 };
+
 
 class AlarmQueue {
 public:
@@ -110,7 +128,8 @@ public:
 	 * falha + valor sentinela; demais códigos não marcam falha).
 	 * actor/value2: ver AlarmRecord — zero é o valor neutro dos dois. */
 	uint16_t push(uint32_t epoch, uint8_t slot, uint8_t channel, int16_t value, uint8_t errCode,
-	              uint8_t actor = ALARM_ACTOR_NONE, int16_t value2 = 0);
+	              uint8_t actor = ALARM_ACTOR_NONE, int16_t value2 = 0,
+	              const char* user = nullptr);
 
 	/** Copia até maxN registros em ordem de chegada para dst (sem remover).
 	 * @return quantidade copiada. */
@@ -163,7 +182,8 @@ inline bool AlarmQueue::seqInList(uint16_t seq, const uint16_t* seqs, uint8_t n)
 
 inline uint16_t AlarmQueue::push(uint32_t epoch, uint8_t slot, uint8_t channel,
                                  int16_t value, uint8_t errCode,
-                                 uint8_t actor, int16_t value2) {
+                                 uint8_t actor, int16_t value2,
+                                 const char* user) {
 	if (_count >= _cap) {
 		/* drop-newest: recusa o registro novo. Ver doc do header. */
 		_dropped++;
@@ -186,6 +206,14 @@ inline uint16_t AlarmQueue::push(uint32_t epoch, uint8_t slot, uint8_t channel,
 	_buf[idx].errCode = errCode;
 	_buf[idx].actor = actor;
 	_buf[idx].value2 = value2;
+	/* O nome é COPIADO aqui e nunca mais consultado na config: é isto que faz
+	 * o registro sobreviver ao apagamento da conta e à reocupação do slot. */
+	_buf[idx].user[0] = '\0';
+	if (user && user[0]) {
+		size_t n = 0;
+		while (n + 1 < sizeof(_buf[idx].user) && user[n]) { _buf[idx].user[n] = user[n]; n++; }
+		_buf[idx].user[n] = '\0';
+	}
 	_count++;
 	return seq;
 }
@@ -228,7 +256,11 @@ inline void AlarmQueue::clear( ) {
 	_head = 0;
 }
 
-static_assert(sizeof(AlarmRecord) <= 16, "AlarmRecord must stay small — RAM queue (64 x 16 B static + a stack copy in ack)");
+/* 32 B desde a v25 (era 16): +user[16], o nome congelado. O teto vale o que
+ * custa — 64 x 32 = 2.048 B de fila — e a cópia de pilha que este comentário
+ * citava foi embora junto: TelemetryManager tira o snapshot direto para o
+ * vetor do heap, o que devolveu 1.024 B de stack no caminho de envio. */
+static_assert(sizeof(AlarmRecord) <= 32, "AlarmRecord must stay small — RAM queue is 64 x this");
 
 /** Extrai até maxN seqs de um payload de ACK por aplicação, no formato
  * {"seq":[1,2,3]} (chaves extras e espaços são tolerados). Para no

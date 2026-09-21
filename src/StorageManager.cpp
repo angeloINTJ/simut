@@ -102,7 +102,7 @@ struct Core1FlashPause {
  * Tail-append only: every byte a v20 blob held keeps its offset, so the
  * v20→v21 reader (attemptLoad) migrates without translating anything and
  * without the 2.0.0-style schema break. See SystemDefs_Records.h. */
-const uint16_t CONFIG_VERSION = 24;
+const uint16_t CONFIG_VERSION = 25;
 
 /* -------------------------------------------------------------------------- */
 /* Legacy UserAccount layout (v14 and earlier) — used ONLY by the */
@@ -780,27 +780,59 @@ bool StorageManager::loadMigrateLegacyBlob(File& f, size_t fileSize, uint8_t kin
  /* Field-wise XOR, so the accounts having moved does not matter. */
  obfuscateSensitiveFields(outCfg);
 
+ /* NO `default:` HERE, ON PURPOSE.
+  *
+  * This switch had one, and on 2026-09-20 it silently threw away every v24
+  * config on the bench: CFG_LEGACY_V24 was added to the enum, to
+  * configLegacyKind( ), to configLegacyBlobLen( ) and to
+  * configMigrateLegacy( ) — and not here, so the blob migrated correctly and
+  * was then discarded by `default: return false`, two lines later. The rig
+  * came up on defaults with no Wi-Fi and no accounts, and nothing had failed.
+  * The native suite could not catch it: it covers configMigrateLegacy( ),
+  * which is pure, while this function needs LittleFS.
+  *
+  * Without a default, -Wswitch (in -Wall, and -Werror over src/) makes the
+  * NEXT unhandled CfgLegacyKind a build failure instead of a field wipe. */
+ /* Initialised to the SAFE answer: finishMigrationV24( ) regenerates the PIN
+  * salt, so "do not run it" is the value that cannot destroy anything. The
+  * compiler needs the initialiser anyway (k is an enum and a cast could carry
+  * any value), and -Wswitch still fails the build for a kind nobody handled. */
+ bool preV24 = false;
  switch (k) {
+ case CFG_LEGACY_NONE:
+ return false;
  case CFG_LEGACY_V20:
  applyAlarmTelDefaults(outCfg.alarmTel);
  /* maint is already zero: no slot is born in maintenance, the only safe
   * default — the opposite would silence alarms nobody asked to silence. */
  _migratedFromV20 = true;
+ preV24 = true;
  break;
  case CFG_LEGACY_V22:
  /* A v21 blob arrives by the same size as a v22 one. Its telInterval still
   * means milliseconds and is converted BEFORE the version is stamped. */
  if (fromVersion == 21) { migrateV21Semantics(outCfg); _migratedFromV21 = true; }
  _migratedFromV22 = true;
+ preV24 = true;
  break;
  case CFG_LEGACY_V23:
  _migratedFromV23 = true;
+ preV24 = true;
  break;
- default:
- return false;
+ case CFG_LEGACY_V24:
+ /* Already a v24 file: it HAS a salt and it HAS PIN digests. Running
+  * finishMigrationV24( ) over it would regenerate the salt — invalidating
+  * every stored PIN at once — and overwrite the admin's with the factory
+  * "1234". The only thing a v24 blob is missing is the policy tail, and
+  * that arrives zero and is clamped to the v24 behaviour on use. */
+ _migratedFromV24 = true;
+ preV24 = false;
+ break;
  }
- finishMigrationV24(outCfg);
+ if (preV24) finishMigrationV24(outCfg);
  outCfg.version = CONFIG_VERSION;
+ /* Set for EVERY kind: the "save what was migrated" test reads this one. */
+ _migratedLegacy = true;
  _migratedFromVersion = fromVersion;
  return true;
 }
@@ -816,7 +848,15 @@ void StorageManager::finishMigrationV24(SystemConfig& cfg) {
  char old[sizeof(cfg.displayPin) + 1];
  memcpy(old, cfg.displayPin, sizeof(cfg.displayPin));
  old[sizeof(cfg.displayPin)] = '\0';
- if (isValidPanelPin(old)) {
+ /* The v23 rule, written out rather than borrowed from isValidPanelPin( ):
+  * that function is the CURRENT policy and it is not compiled into an
+  * imageless build, while this conversion has to run in every image. What a
+  * v23 file could hold is four to eight digits, and nothing else ever. */
+ size_t oldLen = strlen(old);
+ bool oldOk = (oldLen >= 4 && oldLen <= 8);
+ for (size_t i = 0; oldOk && i < oldLen; i++)
+  if (old[i] < '0' || old[i] > '9') oldOk = false;
+ if (oldOk) {
  pinDigestWith(cfg.pinAuth.pinSalt, old, cfg.users[0].pinHash);
  } else {
  pinDigestWith(cfg.pinAuth.pinSalt, "1234", cfg.users[0].pinHash);
@@ -937,17 +977,26 @@ bool StorageManager::loadConfiguration( ) {
  /* v20→v21: grava o schema novo (com os defaults de alarmTel) uma única vez,
   * para que o próximo boot leia no formato atual. Mesma janela do fromBackup:
   * o logger ainda não existe, então a razão fica para o caller reportar. */
- /* v22 and v23 were missing from this list, so a v21/v22 blob was migrated
-  * again on every boot until something else saved. Harmless then; not now —
-  * the v24 finish draws a random PIN salt, and a salt that is not persisted
-  * would be a different salt on the next boot, silently orphaning any PIN set
-  * in between. */
- if (fromBackup || _migratedFromV20 || _migratedFromV21 || _migratedFromV22 ||
-     _migratedFromV23 || saltWasMissing) {
+ /* ONE flag for "a legacy blob was read", set by loadMigrateLegacyBlob( )
+  * whatever the kind, instead of a list that has to be extended by hand.
+  *
+  * The list was the bug, twice. v22 and v23 were missing from it, so a
+  * v21/v22 blob was migrated again on every boot until something else saved
+  * — harmless then, but not once the v24 finish began drawing a random PIN
+  * salt, because a salt that is not persisted is a different salt next boot
+  * and silently orphans every PIN set in between. Adding v24 to the same
+  * list would have been the third time; a flag the loader sets for every
+  * kind cannot be forgotten for the next one.
+  *
+  * The per-version flags below survive for the boot log, which names WHICH
+  * schema was read. */
+ if (fromBackup || _migratedLegacy || _migratedFromV21 || saltWasMissing) {
+ _migratedLegacy = false;
  _migratedFromV20 = false;
  _migratedFromV21 = false;
  _migratedFromV22 = false;
  _migratedFromV23 = false;
+ _migratedFromV24 = false;
  saveConfiguration( );
  }
  return true;
@@ -2104,6 +2153,8 @@ void StorageManager::pinDigestWith(const uint8_t* salt, const char* pin, uint8_t
  pinChainFinal(state, n, out);
 }
 
+#if SIMUT_PANEL_PIN
+
 /* The scrambled keypad's entry: n taps, each naming one card of three glyphs.
  * Depth-first over the tree of strings those taps can spell, one hash per
  * node, finalising only at depth n. A glyph that is not a PIN character (the
@@ -2114,41 +2165,39 @@ void StorageManager::pinDigestWith(const uint8_t* salt, const char* pin, uint8_t
  * are both consistent with the same taps must not let either of them in: the
  * panel cannot ask which. That costs nothing — the tree was going to be walked
  * anyway — and it is the only place the ambiguity can be seen. */
-int StorageManager::findUserByPinSet(const char taps[][PinKb::SLOTS + 1],
-                                     uint8_t n, bool* ambiguous) const {
- if (ambiguous) *ambiguous = false;
- if (!taps || n < PIN_MIN_LEN || n > PIN_MAX_LEN) return -1;
+bool StorageManager::pinSetMatches(int slot, const char taps[][PinKb::SLOTS_MAX + 1],
+                                   uint8_t n) const {
+ if (!taps || slot < 0 || slot >= MAX_USERS) return false;
+ if (n < PIN_MIN_LEN || n > PIN_MAX_LEN) return false;
+ const UserAccount& u = _currentConfig.users[slot];
+ if (!u.active || !userHasPin(u)) return false;
 
  uint8_t state[PIN_MAX_LEN + 1][32];
  int8_t idx[PIN_MAX_LEN];
  pinChainInit(_currentConfig.pinAuth.pinSalt, state[0]);
 
- int found = -1;
  uint32_t visited = 0;
  int d = 0;
  idx[0] = -1;
  while (d >= 0) {
-  if (++idx[d] >= (int8_t)PinKb::SLOTS) { d--; continue; }
+  if (++idx[d] >= (int8_t)PinKb::SLOTS_MAX || taps[d][idx[d]] == '\0') { d--; continue; }
   const char c = taps[d][idx[d]];
-  if (!PinKb::isDigitChar(c)) continue;      /* a decoy is not a branch */
+  if (!PinKb::isPinChar(c)) continue;         /* a decoy is not a branch */
   pinChainStep(state[d], c, state[d + 1]);
-  /* Every 64 nodes: an 8-tap entry is ~16,000 of them, and the hardware
-   * watchdog does not care that the core is busy on purpose. */
+  /* Every 64 nodes: the widest tree the policy allows is 8,190 nodes
+   * (KB_SET2 at twelve characters) and the hardware watchdog does not care
+   * that the core is busy on purpose. */
   if ((++visited & 0x3F) == 0) watchdog_update( );
   if (d + 1 == (int)n) {
    uint8_t digest[PIN_HASH_LEN];
    pinChainFinal(state[d + 1], n, digest);
-   const int owner = pinDigestOwner(digest);
-   if (owner >= 0) {
-    if (found >= 0 && found != owner) { if (ambiguous) *ambiguous = true; return -1; }
-    found = owner;
-   }
+   if (memcmp(u.pinHash, digest, PIN_HASH_LEN) == 0) return true;
   } else {
    d++;
    idx[d] = -1;
   }
  }
- return found;
+ return false;
 }
 
 int StorageManager::pinDigestOwner(const uint8_t* digest, int exceptSlot) const {
@@ -2172,16 +2221,72 @@ bool StorageManager::setUserPin(int slot, const char* pin, int* conflict) {
  if (slot < 0 || slot >= MAX_USERS) return false;
  if (!pin || pin[0] == '\0') {
  memset(_currentConfig.users[slot].pinHash, 0, PIN_HASH_LEN);
+ clearPinMustChange(slot);
  return true;
  }
- if (!isValidPanelPin(pin)) return false;
+ /* v25: the stored policy, not a constant. Every surface that sets a PIN —
+  * the panel, the web form, `user pin` — lands here, so the rule is applied
+  * once and cannot drift between them. */
+ uint8_t minLen = _currentConfig.pinAuth.pinMinLen,
+         keypad = _currentConfig.pinAuth.pinKeypad,
+         alphabet = _currentConfig.pinAuth.pinAlphabet;
+ clampPinPolicy(minLen, keypad, alphabet);
+ if (!isValidPanelPin(pin, minLen, keypad, alphabet)) return false;
  uint8_t d[PIN_HASH_LEN];
  pinDigest(pin, d);
  const int owner = pinDigestOwner(d, slot);
  if (owner >= 0) { if (conflict) *conflict = owner; return false; }
  memcpy(_currentConfig.users[slot].pinHash, d, PIN_HASH_LEN);
+ /* It was just chosen under the current policy, so whatever it was marked
+  * for is settled. */
+ clearPinMustChange(slot);
  return true;
 }
+
+/* ── v25: "this PIN predates the policy" ─────────────────────────────────
+ * A digest cannot be tested against an alphabet or a length — that is what a
+ * digest is for — so compliance is decided when the POLICY changes, not when
+ * a PIN is used. Every account holding a PIN is marked whenever the policy
+ * gets stricter on any axis:
+ *   - the minimum went up            (a shorter PIN no longer qualifies)
+ *   - the alphabet shrank            (a PIN with letters is now untypable)
+ *   - the keypad's length ceiling fell (a 12-character PIN cannot be entered
+ *                                       on a keypad that stops at 8)
+ * Relaxing marks nobody. A marked account still identifies normally and is
+ * sent straight to "choose a new PIN", which is what keeps a raised minimum
+ * from locking the panel — including for the admin.
+ * @return how many accounts were marked, for the log line. */
+uint8_t StorageManager::markPinsBelowPolicy(uint8_t oldMin, uint8_t oldKeypad,
+                                            uint8_t oldAlphabet) {
+ uint8_t nMin = _currentConfig.pinAuth.pinMinLen,
+         nKb = _currentConfig.pinAuth.pinKeypad,
+         nAlpha = _currentConfig.pinAuth.pinAlphabet;
+ clampPinPolicy(nMin, nKb, nAlpha);
+ clampPinPolicy(oldMin, oldKeypad, oldAlphabet);
+ const bool stricter = (nMin > oldMin) || (nAlpha < oldAlphabet) ||
+                       (PinKb::maxLenFor(nKb) < PinKb::maxLenFor(oldKeypad));
+ if (!stricter) return 0;
+ uint8_t n = 0;
+ for (int i = 0; i < MAX_USERS; i++) {
+  if (_currentConfig.users[i].active && userHasPin(_currentConfig.users[i])) {
+   _currentConfig.pinAuth.pinMustChange |= (1u << (unsigned)i);
+   n++;
+  }
+ }
+ return n;
+}
+
+bool StorageManager::pinMustChange(int slot) const {
+ if (slot < 0 || slot >= MAX_USERS) return false;
+ return (_currentConfig.pinAuth.pinMustChange & (1u << (unsigned)slot)) != 0;
+}
+
+void StorageManager::clearPinMustChange(int slot) {
+ if (slot < 0 || slot >= MAX_USERS) return;
+ _currentConfig.pinAuth.pinMustChange &= ~(1u << (unsigned)slot);
+}
+
+#endif /* SIMUT_PANEL_PIN */
 
 void StorageManager::generateSalt(uint8_t* buf) {
  for (int i = 0; i < 8; i += 4) {

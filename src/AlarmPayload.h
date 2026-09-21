@@ -124,8 +124,16 @@ inline bool alarmCodeHasValue(uint8_t errCode) {
 	return errCode == ALARM_ERR_ALARM;
 }
 
-/** Nome do usuário por trás do registro, "" quando foi o aparelho. */
+/** Nome do usuário por trás do registro, "" quando foi o aparelho.
+ *
+ * v25: vem do PRÓPRIO registro, congelado no push, e não mais de
+ * cfg.users[actor-1]. O slot é reutilizável e a fila espera o servidor
+ * confirmar: resolver aqui assinava o registro com quem estivesse ocupando o
+ * slot na hora do ENVIO, que pode não ser quem agiu. `cfg` continua no
+ * parâmetro para os registros da v24 que já estejam na fila num upgrade a
+ * quente — e como fallback quando o nome vier vazio. */
 inline const char* alarmActorName(const AlarmRecord& rec, const SystemConfig& cfg) {
+	if (rec.user[0]) return rec.user;
 	if (rec.actor == ALARM_ACTOR_NONE || rec.actor > MAX_USERS) return "";
 	const UserAccount& u = cfg.users[rec.actor - 1];
 	return u.active ? u.username : "";

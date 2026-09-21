@@ -45,6 +45,13 @@ Read the firmware version back from `/api/perms` (`version`) — or, from this b
 
 A config snapshot carries **Wi-Fi credentials, users and sensor slots** across the apply. The LittleFS filesystem — **history, language packs, calibration** — is **REFORMATTED** by the apply. Take a backup first (web file manager → **Backup**).
 
+Without a pack in `/lang` the interface falls back to English, which is a real
+outcome of a normal upgrade and not a fault. Since v2.6.0-beta the `.lng` files
+ship as **release assets** beside the images, so the pair always matches the
+firmware: upload one on the Files page or with `POST /api/upload` (never
+`uploadfs` — it wipes `/lang` and `/history` with it) and reboot. A pack is read
+at boot and nowhere else.
+
 ## Network note
 
 If uploads on port 80 stall on your network, some routers kill long port-80 flows; using an alternate HTTP port works around it.

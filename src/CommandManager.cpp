@@ -311,7 +311,9 @@ uint8_t getCommandModeMask(DemandType t) {
  case CMD_SHOW_SYSINFO:      return CLI_VALID_READONLY;
  case CMD_SHOW_NET:          return CLI_VALID_READONLY;
  case CMD_SHOW_METRICS:      return CLI_VALID_READONLY;
+#if SIMUT_PANEL_PIN
  case CMD_SHOW_KEYPAD:       return CLI_VALID_READONLY;
+#endif
  case CMD_SHOW_SENSOR_TYPES: return CLI_VALID_READONLY;
  case CMD_SHOW_GPIO:         return CLI_VALID_READONLY;
  /* Session — exec modes */
@@ -378,7 +380,10 @@ uint8_t getCommandModeMask(DemandType t) {
  case CMD_USER_DEL:          return CLI_VALID_CONFIG;
  case CMD_USER_PASS:         return CLI_VALID_CONFIG;
  case CMD_USER_PERM:         return CLI_VALID_CONFIG;
+#if SIMUT_PANEL_PIN
  case CMD_USER_PIN:          return CLI_VALID_CONFIG;
+ case CMD_USER_POLICY:       return CLI_VALID_CONFIG;
+#endif
  case CMD_SET_WEB_PORT:      return CLI_VALID_CONFIG;
  /* Sensor sub-commands — privileged + sensor config mode */
  case CMD_SENSOR_FIELD:      return CLI_VALID_PRIV | CLI_VALID_SENSOR;
@@ -465,7 +470,9 @@ void CommandManager::printModeHelp( ) {
   showIf(CMD_SHOW_SYSINFO,    pt ? "  show system info      Info do sistema"        : "  show system info      System info");
   showIf(CMD_SHOW_NET,        pt ? "  show net status       Status da rede"         : "  show net status       Network status");
   showIf(CMD_SHOW_METRICS,    pt ? "  show metrics          Metricas operacionais"   : "  show metrics          Operational metrics");
+#if SIMUT_PANEL_PIN
   showIf(CMD_SHOW_KEYPAD,     pt ? "  show display keypad   Teclas do PIN no painel"  : "  show display keypad   Panel PIN key faces");
+#endif
   showIf(CMD_SHOW_STORAGE,    pt ? "  show storage stats    Estatisticas flash"     : "  show storage stats    Flash statistics");
   showIf(CMD_SHOW_THEMES,     pt ? "  show themes           Listar temas"           : "  show themes           List themes");
   showIf(CMD_SHOW_GPIO,       pt ? "  show gpio             Mapa de GPIOs"          : "  show gpio             GPIO map");
@@ -552,7 +559,10 @@ void CommandManager::printModeHelp( ) {
   showIf(CMD_USER_DEL,          "  user del <nome>");
   showIf(CMD_USER_PASS,         "  user pass <nome> <senha>");
   showIf(CMD_USER_PERM,         "  user perm <nome> <papel|0xMASCARA>");
-  showIf(CMD_USER_PIN,          "  user pin <nome> <4-8 digitos|off>   PIN do painel");
+#if SIMUT_PANEL_PIN
+  showIf(CMD_USER_PIN,          "  user pin <nome> <pin|off>           PIN do painel");
+  showIf(CMD_USER_POLICY,       "  user policy <min> <tecl> <alfab>    politica do PIN");
+#endif
   consolePrintln(pt ? "  --- Manutencao ---" : "  --- Maintenance ---");
   showIf(CMD_RESET_TOUCH_CAL,  pt ? "  system touch reset [confirm]  Resetar calib. do touch"
                                   : "  system touch reset [confirm]  Reset touch calibration");

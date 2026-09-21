@@ -50,16 +50,20 @@ CFG_BTN = (286, 215)                       # dashboard footer, 5th slot
 # PIN keypad (src/PinKeypad.h): four cards of three slots, the ten digits and
 # two decoy symbols dealt over them at random. The script cannot guess where a
 # digit is — `show display keypad` is what tells it. One tap per digit.
-PIN_KEY_X = [6, 162, 6, 162]               # PinKb::KEY_X
-PIN_KEY_Y = [72, 72, 122, 122]             # PinKb::KEY_Y
-PIN_SLOT_W, PIN_SLOT_X0, PIN_KEY_W, PIN_KEY_H = 50, 1, 152, 44
+# v25: the card layout is a POLICY setting (PinKeypad.h::GRIDS) — four cards of
+# three glyphs is only one of five, and ALPHA_ALNUM puts twelve or eighteen on
+# the glass. These are the v24 numbers and they survive as the fallback for a
+# device that predates the geometry in /api/keypad; Rig.keypad_faces( ) reads
+# the live grid and Rig.pin( ) taps what it says. Hardcoding them was the trap
+# this file was about to walk into: the cards would have moved out from under
+# every tap with nothing failing in a way that pointed here.
+PIN_GRID_FALLBACK = dict(keys=4, slots=3, cols=2, rows=2,
+                         x=6, y=72, w=152, h=44, px=156, py=50)
 PIN_BACK = (70, 215)                       # backspace, FOOT_BACK_X + W/2
 PIN_CANCEL = (178, 215)                    # TR_BACK, FOOT_EXIT_X + W/2
 PIN_OK = (268, 215)                        # TR_ENTER, FOOT_OK_X + W/2
 # The ordered pad, for SETTING a PIN (PinKb::NUM_*): fixed positions, so
 # pin_exact( ) needs no reading of the deal.
-NUM_COL = [65, 155, 245]
-NUM_ROW = [84, 115, 146, 177]
 MSG_OK = (160, 205)
 MAINT_ROW = [77, 125]                      # bars at 60 and 108, 34 high
 MAINT_DEC, MAINT_INC, MAINT_MID = 30, 280, 160
@@ -153,6 +157,8 @@ class Rig:
         time.sleep(0.4)
         self.ser.reset_input_buffer()
         self.cmd('enable')
+        self.kb = 'cards'
+        self.pop = {'w': 56, 'h': 52, 'gap': 6, 'one_y': 104, 'row0_y': 76, 'row1_y': 132}
         self.ip = self._ip()
         if not self.ip:
             raise SystemExit('device reports no IP')
@@ -160,22 +166,61 @@ class Rig:
         self.shots = []
 
     def cmd(self, text, quiet_for=0.5, timeout=6.0):
-        self.quiet()
-        self.ser.write((text + '\r\n').encode())
-        self.ser.flush()
-        buf, deadline, last = b'', time.time() + timeout, time.time()
-        while time.time() < deadline:
-            chunk = self.ser.read(2048)
-            if chunk:
-                buf += chunk
-                last = time.time()
-            elif buf and time.time() - last >= quiet_for:
-                break
-        return buf.decode('utf-8', 'replace')
+        """⚠️ A device REBOOT reaches this as OSError/SerialException errno 5
+        on the USB CDC port, from write( ) or read( ). Letting it escape kills
+        the run with a stack trace that says nothing about the device — on
+        2026-09-20 a watchdog stall (SYS_BOOT ctx=209, C0=[CLI]) ended a
+        full-table run that way, and the reboot had to be reconstructed from
+        the uptime afterwards. So it is caught, NAMED, and the port is
+        reopened. It is not swallowed: reboot_count goes up and the panel
+        session is gone, so whatever the caller was doing is already invalid
+        and the run must say so."""
+        try:
+            self.quiet()
+            self.ser.write((text + '\r\n').encode())
+            self.ser.flush()
+            buf, deadline, last = b'', time.time() + timeout, time.time()
+            while time.time() < deadline:
+                chunk = self.ser.read(2048)
+                if chunk:
+                    buf += chunk
+                    last = time.time()
+                elif buf and time.time() - last >= quiet_for:
+                    break
+            return buf.decode('utf-8', 'replace')
+        except (OSError, serial.SerialException) as e:
+            # The port went away. That is USUALLY a reboot, but not always: on
+            # 2026-09-20 one of these came back with uptime 00:21:49, i.e. the
+            # CDC link hiccuped and the device never reset. So do not ASSERT a
+            # reboot — print the uptime and let it say.
+            self.serial_drops = getattr(self, 'serial_drops', 0) + 1
+            print(f'  [serial] {e} — port lost (#{self.serial_drops}); reopening')
+            time.sleep(12.0)
+            if not self.reconnect():
+                raise
+            self._lost_mode = True          # see cfg( )
+            up = re.search(r'Uptime:\s*(\S+)',
+                           self.cmd('show metrics', quiet_for=1.0, timeout=15))
+            up = up.group(1) if up else '?'
+            print(f'  [serial] back, uptime {up} — any panel session and CLI mode are gone')
+            return ''
 
     def cfg(self, *cmds):
+        """⚠️ A dropped port mid-batch leaves the CLI back at EXEC, and the
+        commands after it then run OUTSIDE `configure terminal` and are
+        refused — silently, because nobody reads the replies. That is exactly
+        how the 2026-09-20 cleanup restored `tel server/port/path` and then
+        failed to restore `alarm set path` and `qmax`, leaving the rig pointed
+        half at the bench. Re-enter config mode whenever cmd( ) reconnected."""
+        self._lost_mode = False
         self.cmd('configure terminal')
-        outs = [self.cmd(c) for c in cmds]
+        outs = []
+        for c in cmds:
+            if self._lost_mode:
+                self._lost_mode = False
+                self.cmd('enable')
+                self.cmd('configure terminal')
+            outs.append(self.cmd(c))
         self.cmd('end')
         return outs
 
@@ -257,12 +302,24 @@ class Rig:
         window, during which the CLI queues at most two commands and drops
         the rest — a PIN typed over the CLI lost its digits. The web route
         has no queue, and the capture is let through the window it opens."""
-        try:
-            r = self.session.post(f'http://{self.ip}/api/touch', data={'x': x, 'y': y}, timeout=10)
-            if r.status_code != 200:
-                print(f'  [tap] {x},{y}: HTTP {r.status_code} {r.text[:60]}')
-        except Exception as e:
-            print(f'  [tap] {x},{y}: {e}')
+        # 20 s and one retry, not 10 s and none. A tap is answered after Core 0
+        # has taken it, and Core 0 is also what writes flash: with the table
+        # full this timed out on 2026-09-20 and the run died three screens
+        # later, on a keypad that had simply never been opened. A LOST tap is
+        # worse than a slow one — it desynchronises every step after it — so
+        # the retry is here and the failure still prints.
+        for attempt in (1, 2):
+            try:
+                r = self.session.post(f'http://{self.ip}/api/touch',
+                                      data={'x': x, 'y': y}, timeout=20)
+                if r.status_code != 200:
+                    print(f'  [tap] {x},{y}: HTTP {r.status_code} {r.text[:60]}')
+                break
+            except Exception as e:
+                print(f'  [tap] {x},{y}: {e}{" — retry" if attempt == 1 else " — GAVE UP"}')
+                if attempt == 2:
+                    break
+                time.sleep(2.0)
         self._last_tap = time.time()
         time.sleep(settle)
 
@@ -289,6 +346,34 @@ class Rig:
         """A tap on the title bar: ignored by every list, resets the 30 s idle."""
         self.cmd('touch sim 300 20', quiet_for=0.2, timeout=3)
 
+    def reboot(self, settle=25.0):
+        """`reload confirm`, then wait for the console and the web back.
+
+        The panel's failure ladder lives in RAM and the top rung is cleared
+        ONLY by a boot: PinKb::PANEL_FAIL_CEILING failures set
+        _permanentLockout (DisplayManager_Users.cpp:190) and every visit to
+        Settings then repaints "Tentativas Excedidas" instead of opening the
+        picker. One full suite spends ~3 deliberate wrong PINs, so it never
+        reached 20 — but partial re-runs accumulate, and on 2026-09-20 they
+        did: seven checks failed with no log records at all, because every
+        tap after the first was landing on the lockout screen. A run that
+        starts from an unknown rung is not a repeatable test."""
+        try:
+            self.cmd('reload confirm', quiet_for=0.5, timeout=8)
+        except Exception:
+            pass          # the USB CDC port goes away mid-read: that IS the reboot
+        time.sleep(settle)
+        if not self.reconnect():
+            raise RuntimeError('device did not come back after reload')
+        for _ in range(30):
+            try:
+                if self.get('/api/config', timeout=10).status_code == 200:
+                    return True
+            except Exception:
+                pass
+            time.sleep(2)
+        raise RuntimeError('web server did not come back after reload')
+
     def reconnect(self):
         try:
             self.ser.close()
@@ -311,7 +396,8 @@ class Rig:
         return False
 
     def keypad_faces(self):
-        """The four cards, in deal order (three glyphs each, decoys included).
+        """The cards, in deal order (`slots` glyphs each, decoys included).
+        Also refreshes self.grid and self.policy from the same answer.
         ⚠️ Since the deal is rolled after EVERY tap, this has to be read again
         before each one.
 
@@ -326,28 +412,80 @@ class Rig:
             j = self.get_json('/api/keypad', timeout=10)
         except Exception as e:
             raise KeypadGone(f'/api/keypad failed: {e}')
-        faces = [f for f in (j.get('faces') or []) if f]
-        if not j.get('up') or len(faces) != 4:
-            raise KeypadGone(f'keypad not on screen (got {len(faces)} faces)')
+        # NOT filtered for emptiness: a face is POSITIONAL, and the ordered
+        # numeric pad has two blank cells (1..9, then 0 alone). Dropping them
+        # used to be harmless because a dealt card is never empty; with the
+        # ordered keyboards it would shift every key after the ninth.
+        faces = list(j.get('faces') or [])
+        # Which keyboard is on the glass: "cards" (one tap per card, re-dealt
+        # after every tap), "num" (ordered, one tap per key) or "groups"
+        # (ordered, TWO taps — the group then the character in its popup).
+        self.kb = j.get('kb') or 'cards'
+        pop = j.get('pop')
+        if isinstance(pop, list) and len(pop) == 6:
+            self.pop = dict(zip(('w', 'h', 'gap', 'one_y', 'row0_y', 'row1_y'), pop))
+        # v25: grid = keys, slots, cols, rows, x, y, w, h, pitchX, pitchY
+        g = j.get('grid')
+        if isinstance(g, list) and len(g) == 10:
+            self.grid = dict(zip(('keys', 'slots', 'cols', 'rows',
+                                  'x', 'y', 'w', 'h', 'px', 'py'), g))
+        else:
+            self.grid = dict(PIN_GRID_FALLBACK)
+        # policy = minLen, maxLen, keypad, alphabet
+        pol = j.get('policy')
+        if isinstance(pol, list) and len(pol) == 4:
+            self.policy = dict(zip(('min', 'max', 'keypad', 'alphabet'), pol))
+        if not j.get('up') or len(faces) != self.grid['keys']:
+            raise KeypadGone(f'keypad not on screen '
+                             f'(got {len(faces)} faces, grid says {self.grid["keys"]})')
         return faces
 
+    def tap_key(self, k, settle=0.35):
+        """Centre of key `k` of whatever layout is up."""
+        g = self.grid
+        self.tap(g['x'] + (k % g['cols']) * g['px'] + g['w'] // 2,
+                 g['y'] + (k // g['cols']) * g['py'] + g['h'] // 2, settle)
+
+    def tap_popup(self, i, n, settle=0.5):
+        """Second tap of the alphanumeric keyboard: character `i` of a group
+        of `n`. Up to five keys per row, two rows at most, every row centred —
+        the same rule PinKeypad.h draws with, and the y values come from the
+        device (`pop`) because the bench must not carry geometry of its own."""
+        p = self.pop
+        first = (n + 1) // 2 if n > 5 else n
+        if i < first:
+            m, row, idx = first, 0, i
+        else:
+            m, row, idx = n - first, 1, i - first
+        y = p['one_y'] if n <= 5 else (p['row0_y'] if row == 0 else p['row1_y'])
+        x0 = (320 - (m * p['w'] + (m - 1) * p['gap'])) // 2
+        self.tap(x0 + idx * (p['w'] + p['gap']) + p['w'] // 2, y + p['h'] // 2, settle)
+
     def keypad_faces_cli(self):
-        """The same four cards over the serial CLI. Slow (see keypad_faces),
+        """The same cards over the serial CLI. Slow (see keypad_faces),
         kept for images without the web server up."""
         out = self.cmd('show display keypad', quiet_for=0.8, timeout=12)
         faces = {}
         for line in out.splitlines():
             # `SIMUT# 0: 521` — the echo of the prompt shares the line with
             # the first face, so the match is not anchored at the start.
-            m = re.search(r'(?:^|#\s)([0-3]):\s(\S+)\s*$', line)
+            m = re.search(r'(?:^|#\s)(\d+):\s(\S+)\s*$', line)
             if m:
                 faces[int(m.group(1))] = m.group(2)
-        if len(faces) != 4:
+        # However many the policy deals: 4, 6, 12 or 18 (PinKb::GRIDS).
+        if not faces or sorted(faces) != list(range(len(faces))):
             raise KeypadGone(f'keypad not on screen (got {len(faces)} faces)')
-        return [faces[i] for i in range(4)]
+        return [faces[i] for i in range(len(faces))]
 
     def _card_of(self, faces, ch):
-        k = next((i for i in range(4) if ch in faces[i]), None)
+        # len(faces), NOT 4. Four cards is the digits+3-glyph layout alone
+        # (PinKb::GRIDS: 10 digits + 2 decoys over 4 cards); the other layouts
+        # deal 6, 12 or 18. On 2026-09-20 the rig was left on 0-9A-Z with two
+        # glyphs per card — 18 cards — and this looked at the first four, then
+        # reported "'5' is on no card" while printing a list whose last card
+        # was '56'. A bench that only works under one policy cannot test a
+        # configurable one.
+        k = next((i for i in range(len(faces)) if ch in faces[i]), None)
         if k is None:
             raise SystemExit(f'{ch!r} is on no card: {faces}')
         return k, faces[k].index(ch)
@@ -381,22 +519,98 @@ class Rig:
             time.sleep(0.15)
         return self.keypad_faces()
 
-    def pin(self, digits, ok=True, faces=None):
-        """Identify: ONE tap per digit, anywhere on the card that holds it.
-        The device never learns which of the card's three glyphs was meant —
-        it resolves the whole sequence against every account's digest.
+    def reopen_picker(self):
+        """Back to MODE_AUTH_USER from wherever we are.
 
-        The deal is re-rolled after every tap, so the cards are read again
-        before each one, and the read WAITS for the re-deal (fresh_faces).
-        `faces` seeds only the first read."""
+        v25 flow detail the hard way: a REFUSED PIN leaves the KEYPAD on the
+        glass, and SAIR from the keypad goes to the dashboard, not back to the
+        picker (DisplayManager::pinCancel, PIN_FOR_AUTH -> forceDashboard).
+        So a second account needs dashboard -> CFG, not another pick_user( )
+        on top of the keypad — doing that fed the picker's taps to the keypad
+        as card taps and the run reported a login as slot 0."""
+        self.goto('dash')
+        self.tap(*CFG_BTN, 1.2)
+
+    def pick_user(self, who):
+        """v25 — MODE_AUTH_USER: choose the account, THEN prove it.
+
+        The list holds every active account that has a PIN, in slot order, so
+        the caller knows the index without reading the glass. The right arrow
+        moves the SELECTION and the page follows it, so walking `idx` steps
+        lands on the right row of the right page; tapping a row that is
+        already selected is what confirms it.
+
+        Why this screen exists: identifying BY the PIN made one entry a search
+        over the whole table, and with 32 accounts and four digits a blind
+        entry landed on somebody 20.2% of the time — measured on this rig on
+        19/09 as its mirror image, 15% of honest logins refused because two
+        accounts fell inside the same tap sequence."""
+        # The arrow steps one row while the list fits two pages and one PAGE
+        # (4 rows) beyond that — DisplayManager_Users.cpp, same rule for both
+        # lists. So: walk the arrow to the right PAGE, then tap the row. The
+        # count decides the step, and it is asked for rather than assumed,
+        # because guessing it wrong lands the tap on the wrong account and
+        # the run then fails somewhere else entirely.
+        listed = [u for u in self.users() if u.get('pin')]
+        if isinstance(who, str):
+            idx = next((i for i, u in enumerate(listed) if u['name'] == who), None)
+            if idx is None:
+                raise SystemExit(f"pick_user: '{who}' nao esta no picker "
+                                 f"(lista: {[u['name'] for u in listed]})")
+        else:
+            idx = who
+        # The arrow steps one ROW while the list fits two pages and one PAGE
+        # (4 rows) beyond that — DisplayManager_Users.cpp, same rule for both
+        # lists. So the arrow gets us to the right page and the row tap picks
+        # inside it.
+        step = 4 if len(listed) > 8 else 1
+        sel = 0
+        for _ in range(idx // step if step == 4 else idx):
+            self.tap(*FOOT['down'], 0.35)
+            sel += step
+        # A tap on a row that is NOT the selected one only MOVES the selection;
+        # confirming takes a second tap on the same row (drawUserList/
+        # handleTouchPanelV24). With step=4 the selection lands on the first
+        # row of the page, so any other row needs both taps — one tap left the
+        # picker on screen and the keypad never opened, which is what
+        # "keypad not on screen (got 0 faces)" was on 2026-09-20.
+        row = idx % 4
+        if sel != idx:
+            self.tap(260, ROW_Y[row], 0.7)
+        self.tap(260, ROW_Y[row], 1.2)
+
+    def pin(self, digits, ok=True, faces=None):
+        """Prove the PIN, on whichever of the three keyboards is up. The
+        device reports which in /api/keypad's `kb`, and they do not cost the
+        same number of taps:
+
+            cards   one tap per CHARACTER, anywhere on the card holding it —
+                    the device never learns which of the card's glyphs was
+                    meant. RE-DEALT after every tap, so the cards are read
+                    again before each one and the read WAITS for the new deal
+                    (fresh_faces). `faces` seeds only the first read.
+            num     one tap per character on the ordered numeric pad.
+            groups  TWO taps: the group key, then the character in its popup.
+
+        Only `cards` re-deals. On an ordered keyboard fresh_faces would wait
+        for a change that never comes.
+
+        v25: the account is chosen on MODE_AUTH_USER BEFORE this runs, so the
+        sequence is resolved against ONE digest instead of the whole table —
+        see Rig.pick_user( )."""
         for attempt in (1, 2, 3):
             try:
                 f = faces if (faces is not None and attempt == 1) else self.keypad_faces()
                 for i, ch in enumerate(digits):
-                    if i:
+                    # Only a DEALT keypad re-deals. An ordered one is the same
+                    # keyboard on every tap, so waiting for it to change would
+                    # wait for ever.
+                    if i and self.kb == 'cards':
                         f = self.fresh_faces(f)
-                    k, _ = self._card_of(f, ch)
-                    self.tap(PIN_KEY_X[k] + PIN_KEY_W // 2, PIN_KEY_Y[k] + PIN_KEY_H // 2, 0.35)
+                    k, sl = self._card_of(f, ch)
+                    self.tap_key(k)
+                    if self.kb == 'groups':
+                        self.tap_popup(sl, len(f[k]))
                 break
             except KeypadGone:
                 if attempt == 3:
@@ -408,13 +622,18 @@ class Rig:
             self.tap(*PIN_OK, 1.6)
 
     def pin_exact(self, digits, ok=True):
-        """Set a PIN: the screen is the ORDERED pad, not the scrambled cards —
-        choosing a PIN is not the problem scrambling solves. Fixed positions,
-        so there is nothing to read first."""
+        """Set a PIN: the screen is the ORDERED keyboard, not the dealt cards —
+        choosing a PIN is not the problem scrambling solves. The positions are
+        fixed but they are still READ, from /api/keypad like everything else:
+        this used to carry its own NUM_COL/NUM_ROW copy of the numeric pad,
+        which is one more thing to keep in step with the firmware, and it could
+        not type a letter at all once the alphanumeric alphabet allowed one."""
+        f = self.keypad_faces()
         for ch in digits:
-            i = '123456789'.find(ch)
-            r, c = (3, 1) if ch == '0' else (i // 3, i % 3)
-            self.tap(NUM_COL[c], NUM_ROW[r], 0.6)
+            k, sl = self._card_of(f, ch)
+            self.tap_key(k, 0.5)
+            if self.kb == 'groups':
+                self.tap_popup(sl, len(f[k]))
         if ok:
             self.tap(*PIN_OK, 1.6)
 
@@ -429,7 +648,17 @@ class Rig:
             self.tap(x0 + idx * (LP_KEY_W + LP_GAP) + LP_KEY_W // 2, LP_ROW0_Y + LP_KEY_H // 2, 0.8)
 
     def shot(self, name, retries=3):
+        """A capture is ~1.7 s, but a retry is not: the timeout alone is 45 s
+        and the panel's idle guard is 30 s. A capture that had to retry
+        therefore lands the panel on the DASHBOARD, and every tap after it
+        goes somewhere else — on 2026-09-20 one broken transfer
+        (IncompleteRead on /api/screenshot) silently cost the four actions
+        that followed it, and the run read them as missing log records. So
+        the idle timer is reset whenever a shot took long enough to matter,
+        whether or not it finally succeeded."""
         path = os.path.join(self.out, name + '.png')
+        t0 = time.time()
+        out = None
         for _ in range(retries):
             try:
                 time.sleep(0.8)
@@ -438,12 +667,18 @@ class Rig:
                     Image.open(BytesIO(r.content)).convert('RGB').save(path)
                     self.shots.append(name)
                     print(f'  [shot] {name}')
-                    return path
+                    out = path
+                    break
             except Exception as e:
                 print(f'  [shot] {name}: {e}')
             time.sleep(2.0)
-        print(f'  [shot] {name}: FAILED')
-        return None
+        if out is None:
+            print(f'  [shot] {name}: FAILED')
+        # 8 s, not 30: the guard counts from the last TAP, and the taps around
+        # a shot have their own settle times on top of this.
+        if time.time() - t0 > 8.0:
+            self.nudge()
+        return out
 
     def log_records(self, codes=None):
         """The binary log over HTTP: /api/logs streams 12-byte records
@@ -554,6 +789,17 @@ def find_perm_free_slot_row(users_list, name):
     return -1
 
 
+def restore_telemetry(rig, b):
+    """Put the real alarm line back. ⚠️ `tel …` and `alarm set …` are
+    CONFIGURATION commands; running them outside `configure terminal` answers
+    OK and changes nothing, which is how a restore silently half-applies."""
+    rig.cfg(f"tel server {b['t_srv']}", f"tel port {b['t_port']}",
+            f"tel path {b['t_path']}", f"tel crypto {'on' if b.get('t_sec') else 'off'}",
+            f"alarm set {'on' if b.get('a_en') else 'off'}",
+            f"alarm set path {b['a_path']}", f"alarm set qmax {b.get('a_qmax') or 32}")
+    rig.cmd('write memory')
+
+
 # ── steps ──────────────────────────────────────────────────────────────────
 def step_prep(rig, col, results, state):
     """⚠️ prep points the telemetry at the bench collector and only `cleanup`
@@ -562,8 +808,42 @@ def step_prep(rig, col, results, state):
     next run's prep then backs THAT up as if it were the real setting, which is
     how a real server address gets lost (2026-09-19). Always run cleanup."""
     print('== prep ==')
+    # First, from a known rung: see Rig.reboot( ).
+    rig.reboot()
     cfgj = rig.get('/api/config').json()
-    state['tel_backup'] = {k: cfgj.get(k) for k in ('t_srv', 't_port', 't_path', 't_sec', 'a_en', 'a_mode', 'a_qmax', 'a_path')}
+    backup = {k: cfgj.get(k) for k in ('t_srv', 't_port', 't_path', 't_sec', 'a_en', 'a_mode', 'a_qmax', 'a_path')}
+    # The guard panel_fulltable_test.py has had since 2026-09-19, and which
+    # this file was missing: a prep that runs while the device is ALREADY
+    # pointed here backs the bench collector up as if it were the real
+    # setting, and the next cleanup then "restores" it. On 2026-09-20 five
+    # partial runs did exactly that and the real address (192.168.3.206:8080
+    # /telemetry) survived only in the FIRST run's state.json. Stop before
+    # writing, not after.
+    if backup.get('t_srv') == host_ip():
+        # A previous run pointed it here and never ran cleanup — which is what
+        # `--step prep --step joao` does every time. The saved backup is the
+        # real address, so PUT IT BACK and carry on instead of refusing: it is
+        # the bench's own recording, not a guess. Only refuse when there is
+        # nothing to restore from.
+        saved = (state.get('tel_backup') or {}) if isinstance(state.get('tel_backup'), dict) else {}
+        if saved.get('t_srv') and saved['t_srv'] != host_ip():
+            print(f"  [prep] device still pointed at this host; restoring "
+                  f"{saved['t_srv']}:{saved['t_port']} from the saved backup")
+            restore_telemetry(rig, saved)
+            backup = dict(saved)
+        else:
+            raise SystemExit('the device is already pointed at this host and no saved '
+                             'backup has the real address: restore the telemetry target '
+                             'by hand first (the oldest state.json of the day has it). '
+                             'A run without `--step cleanup` leaves it like this.')
+    state['tel_backup'] = backup
+    # Persisted BEFORE the first write to the device, not after the step. main( )
+    # dumps the state when a step RETURNS, so a prep that died between pointing
+    # the telemetry here and returning took the only copy of the real address
+    # with it — which is how this run lost it on 2026-09-20, minutes after the
+    # guard above was added to stop exactly that.
+    if state.get('_statepath'):
+        json.dump(state, open(state['_statepath'], 'w'), indent=1)
     state['a_line_before'] = cfgj.get('a_line')
     check(results, 'alarm line template is the v24 default after migration',
           isinstance(cfgj.get('a_line'), str) and '{user}' in cfgj['a_line'] and '{until}' in cfgj['a_line'],
@@ -600,16 +880,28 @@ def step_prep(rig, col, results, state):
     check(results, 'alarm line points at the collector', cfgj.get('t_srv') == ip and int(cfgj.get('t_port', 0)) == COLLECTOR_PORT, f"{cfgj.get('t_srv')}:{cfgj.get('t_port')}")
     al = rig.get('/api/alarms').json()
     sensors = al.get('sensors', al) if isinstance(al, dict) else al
-    active = [s for s in sensors if s.get('active', True)]
-    state['slot'] = int(active[0]['idx']) if active else 0
+    # The list IS the panel's list, so element k is row k: /api/alarms emits the
+    # CONFIGURED sensors in index order (WebManager_Api.cpp:368) and so does
+    # _activeSensorsMap (DisplayManager_Settings.cpp:86). Do NOT filter on
+    # "active" here — in this JSON that key is alarmsActive, the alarm ENABLE
+    # bit (WebManager_Api.cpp:393), not "the sensor exists". On 2026-09-20 the
+    # filter left only sensor 4 (the one rig sensor with alarms on) while the
+    # run tapped row 0, which is sensor 0, and the firmware's correct ctx=500
+    # was read as a row-vs-index defect.
     state['slot_row'] = 0
+    state['slot'] = int(sensors[state['slot_row']]['idx']) if sensors else 0
     state['alarms_before'] = al
     print(f"  sensor slot under test: {state['slot']}")
 
 
-def login_panel(rig, pin, shot_prefix, results, expect_ok=True):
+def login_panel(rig, pin, shot_prefix, results, expect_ok=True, user='admin'):
+    """v25: Settings now opens the account picker, not the keypad. `user` is
+    the account NAME (see Rig.pick_user) — never an index, because a rig
+    carries accounts this script did not create."""
     rig.goto('dash')
     rig.tap(*CFG_BTN, 1.2)
+    rig.shot(f'{shot_prefix}-picker')
+    rig.pick_user(user)
     rig.shot(f'{shot_prefix}-keypad')
     rig.pin(pin)
     time.sleep(0.8)
@@ -629,13 +921,19 @@ def step_joao(rig, col, results, state):
     rig.tap(*CFG_BTN, 1.2)
     rig.shot('01-pin-keypad')
     n_fail, n_ok = rig.log_count(309), rig.log_count(308)
-    rig.pin('0000')
+    rig.pick_user('admin'); rig.pin('0000')
     rig.shot('02-pin-invalid')
-    rig.pin('5678')
+    rig.reopen_picker()                      # a refused PIN stays on the keypad
+    rig.pick_user('pjoao'); rig.pin('5678')
     rig.shot('03-menu-operator')
+    # The slot is READ, not assumed: a rig carries accounts this script did
+    # not create, so pjoao is not slot 4 just because it would be on a fresh
+    # table. Assuming it cost a whole run on 2026-09-20.
+    pj_slot = next(u['id'] for u in rig.users() if u['name'] == 'pjoao')
     okctx = rig.log_ctx(308)
     check(results, 'wrong PIN logged as SEC_PIN_FAIL (309), right one as SEC_PIN_OK (308) with ctx = user slot',
-          rig.log_count(309) == n_fail + 1 and len(okctx) > n_ok and okctx[-1] == 4, f'308 ctx now {okctx[-1:]}')
+          rig.log_count(309) == n_fail + 1 and len(okctx) > n_ok and okctx[-1] == pj_slot,
+          f'308 ctx now {okctx[-1:]}, pjoao slot {pj_slot}')
     n_saved, n_blk, n_unblk, n_mon, n_moff = (rig.log_count(c) for c in (442, 456, 457, 454, 455))
     # Alarms is the first visible item for this account
     rig.tap(*FOOT['enter'], 1.2)
@@ -650,8 +948,11 @@ def step_joao(rig, col, results, state):
     rig.tap(*FOOT['enter'], 1.5)                 # SAVE
     rig.shot('07-sensor-menu-after-save')
     sctx = rig.log_ctx(442)
-    check(results, 'APP_UI_ALARM_SAVED (442) carries ctx=user*100+slot', len(sctx) > n_saved and sctx[-1] == 400 + slot,
-          f'ctx={sctx[-1:]} (pjoao slot 4 x100 + sensor {slot})')
+    # 400 was pjoao's slot (4) x100 on a fresh table, written as a literal. The
+    # slot is read now, like everywhere else in this file.
+    check(results, 'APP_UI_ALARM_SAVED (442) carries ctx=user*100+slot',
+          len(sctx) > n_saved and sctx[-1] == pj_slot * 100 + slot,
+          f'ctx={sctx[-1:]} (pjoao slot {pj_slot} x100 + sensor {slot})')
     # block / unblock: row 1 (the menu re-opens on row 0 after every action)
     rig.activate_row(1, 1.5)
     rig.shot('08-sensor-menu-toggled')
@@ -701,7 +1002,7 @@ def step_admin(rig, col, results, state):
     rig.goto('dash')
     rig.tap(*CFG_BTN, 1.2)
     n_ok, n_302, n_445 = rig.log_count(308), rig.log_count(302), rig.log_count(445)
-    rig.pin('1234')                              # the factory PIN, if the rig never changed it
+    rig.pick_user('admin'); rig.pin('1234')      # admin, the factory PIN if the rig never changed it
     rig.shot('20-admin-after-1234')
     accepted = rig.log_count(308) > n_ok
     admin_pin = '1234'
@@ -718,7 +1019,7 @@ def step_admin(rig, col, results, state):
     else:
         rig.tap(*PIN_CANCEL, 1.0)
         rig.cfg('user pin admin 2468'); rig.cmd('write memory')
-        rig.goto('dash'); rig.tap(*CFG_BTN, 1.2); rig.pin('2468')
+        rig.goto('dash'); rig.tap(*CFG_BTN, 1.2); rig.pick_user('admin'); rig.pin('2468')
         admin_pin = '2468'
         check(results, 'admin PIN was not the factory one; set over the CLI and accepted',
               rig.log_count(308) > n_ok, '')
@@ -784,7 +1085,7 @@ def step_maria(rig, col, results, state):
     print('== pmaria: maintenance only ==')
     rig.goto('dash')
     rig.tap(*CFG_BTN, 1.2)
-    rig.pin('8765')
+    rig.pick_user('pmaria'); rig.pin('8765')
     rig.shot('40-menu-maint-only')
     rig.tap(*FOOT['enter'], 1.2)
     rig.tap(160, ROW_Y[state['slot_row']], 1.2)
@@ -813,11 +1114,76 @@ def step_web(rig, col, results, state):
     r = rig.commit({'users': {'actions': [{'type': 'pin', 'id': 0, 'pin': '12'}]}})
     check(results, 'a malformed PIN is rejected by field, not by request', r.status_code in (200, 400) and 'users.pin' in r.text, r.text[:160])
     n_ok = rig.log_count(308)
-    rig.goto('dash'); rig.tap(*CFG_BTN, 1.2); rig.pin('2222')
+    rig.goto('dash'); rig.tap(*CFG_BTN, 1.2); rig.pick_user('web1'); rig.pin('2222')
     rig.shot('50-web1-logged-in')
-    check(results, 'the web-created account identifies at the panel by its PIN (308 with its slot)',
-          rig.log_count(308) > n_ok, f'ctx={rig.log_ctx(308)[-1:]}')
+    # v25: the ctx has to be web1's OWN slot. Before the account picker this
+    # check only asked whether SOMEBODY got in, which is exactly the property
+    # that made a blind entry worth 20% with a full table.
+    ok_ctx = rig.log_ctx(308)[-1:]
+    check(results, 'the web-created account identifies at the panel by its PIN (308 with ITS slot)',
+          rig.log_count(308) > n_ok and ok_ctx == [w['id']],
+          f'ctx={ok_ctx}, web1 slot={w["id"] if w else None}')
     rig.tap(*FOOT['exit'], 1.0)
+
+
+def step_identity(rig, col, results, state):
+    """v25 — a assinatura de um registro pendente sobrevive ao apagamento.
+
+    Até a v24 o registro de alarme guardava o SLOT de quem agiu e o nome era
+    resolvido ao montar o payload, minutos depois. A fila espera o servidor
+    confirmar e o slot é reutilizável: apagar a conta nesse intervalo fazia um
+    registro de AUDITORIA sair assinado por quem tomasse o slot em seguida.
+
+    Este passo provoca exatamente isso — age, apaga, põe outra pessoa no MESMO
+    slot, e só então deixa a linha drenar — e exige que o que chega ao coletor
+    ainda nomeie quem agiu. É a única prova que distingue o nome congelado no
+    push de um nome lido tarde demais."""
+    print('== identity: a assinatura sobrevive ao apagamento da conta ==')
+    rig.cfg('user del zeca', 'user add zeca Zeca2026xx',
+            'user perm zeca 0x1C00', 'user pin zeca 4747')
+    rig.cmd('write memory')
+    time.sleep(1.0)
+    slot = next((u['id'] for u in rig.users() if u['name'] == 'zeca'), None)
+    check(results, 'conta de teste criada com PIN', slot is not None, f'slot {slot}')
+    if slot is None:
+        return
+    col._pull()
+    n0 = len(col.records)
+
+    rig.goto('dash'); rig.tap(*CFG_BTN, 1.5)
+    rig.pick_user('zeca'); rig.pin('4747')
+    time.sleep(1.2)
+    rig.tap(*FOOT['enter'], 1.2)            # Alarmes
+    rig.tap(160, ROW_Y[0], 1.2)             # primeiro sensor
+    rig.activate_row(1, 1.8)                # bloquear
+    time.sleep(1.0)
+    rig.activate_row(1, 1.8)                # desbloquear
+    time.sleep(1.0)
+    rig.goto('dash')
+
+    # apaga e poe OUTRA pessoa no mesmo slot, antes de a linha drenar
+    rig.cfg('user del zeca', 'user del outro', 'user add outro Outro2026xx',
+            'user perm outro 0x1C00')
+    rig.cmd('write memory')
+    novo = next((u['id'] for u in rig.users() if u['name'] == 'outro'), None)
+    check(results, 'o slot da conta apagada foi reocupado (e a prova vale)',
+          novo == slot, f'zeca era {slot}, outro ficou {novo}')
+
+    rig.cmd('tel sync', quiet_for=0.8, timeout=20)
+    time.sleep(12)
+    col._pull()
+    sig = [r.get('user') for r in col.records[n0:] if r.get('user')]
+    check(results, 'o registro pendente continua assinado por quem AGIU',
+          'zeca' in sig, f'assinaturas: {sig}')
+    check(results, 'e NUNCA por quem tomou o slot depois',
+          'outro' not in sig, f'assinaturas: {sig}')
+    # a conta apagada nao deixa resto: sem PIN, sem nome, sem bits
+    gone = [u for u in rig.users() if u['name'] == 'zeca']
+    check(results, 'a conta apagada nao aparece mais em /api/users', not gone, f'{gone}')
+    fresh = next((u for u in rig.users() if u['name'] == 'outro'), None)
+    check(results, 'a conta que tomou o slot nao herdou o PIN do anterior',
+          fresh is not None and fresh.get('pin') is False, json.dumps(fresh))
+    rig.cfg('user del outro'); rig.cmd('write memory')
 
 
 def step_cleanup(rig, col, results, state):
@@ -848,7 +1214,7 @@ def main():
     ap.add_argument('--purge', action='store_true', help='cleanup also deletes the demo accounts')
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
-    steps = a.step or ['prep', 'joao', 'admin', 'maria', 'web', 'cleanup']
+    steps = a.step or ['prep', 'joao', 'admin', 'maria', 'web', 'identity', 'cleanup']
     col = Collector(a.collector_log)
     rig = Rig(a.out)
     results, state = [], {}
@@ -857,7 +1223,9 @@ def main():
     if os.path.exists(sp):
         state = json.load(open(sp))
     state['purge'] = a.purge
-    fns = {'prep': step_prep, 'joao': step_joao, 'admin': step_admin, 'maria': step_maria, 'web': step_web, 'cleanup': step_cleanup}
+    state['_statepath'] = sp
+    fns = {'prep': step_prep, 'joao': step_joao, 'admin': step_admin, 'maria': step_maria,
+           'web': step_web, 'identity': step_identity, 'cleanup': step_cleanup}
     try:
         for s in steps:
             fns[s](rig, col, results, state)
