@@ -147,6 +147,7 @@ número ou o log neste documento. Não antes, e não por prazo.
 | 21/09 | O que os 6 applies fizeram com o LittleFS | zerou: `/history` só com `.wip`, `/lang` **vazio**, `/themes` só com o README; `fs_u` 876.544 → 61.440 B |
 | 21/09 | T4: histórico depois do `fsguard restore`, conferido por **registros** | **75.831 no backup, 75.831 no aparelho, 0 faltando**, 57 arquivos, 0 falhas na restauração |
 | 21/09 | T4: config através de 6 OTAs | **nenhum campo diferente** do snapshot de antes da gravação — o `config_snapshot` do applier segura o que promete |
+| 21/09 08:42 | T3: primeira "anomalia" do soak — `CORE1_KILL_quiet 0→1`, `CORE1_RELAUNCH 1→2` | **Era o instrumento.** `c1kq` não é morte: conta o `requestQuietMode` que o Core 0 pede em volta de uma escrita de flash (`AppManager_Boot.cpp:428`, `setBigSaveQuietCallback`). Neste boot houve **1** `SYS_STORAGE_SAVE` (08:39:10, logo depois de um alarme disparar) e **1** incremento, com `c1a` de volta a 20 ms, `c1s`=0, `fx`=0 e 0 reboots. Regra corrigida e testada sobre o domínio: 6 casos sintéticos, pega relançamento sem pausa, kill por lockout, por health e batimento congelado |
 | 21/09 06:53 | O coletor real (192.168.3.206) saiu da rede sozinho, no meio do soak | Vira, sem querer, a metade "coletor morto" do T3 — e o registro mostra o comportamento inteiro: `ts` parou em 7, `tf`/`tr` sobem **1 por amostra de 5 min**, `pending` cresce **+5 por amostra** (h_int=1 min), heap e batimento do Core 1 parados. Nada perdido: os registros estão na flash |
 
 ### Notas destas corridas

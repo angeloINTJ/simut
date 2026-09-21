@@ -13,8 +13,11 @@ What counts as a finding, and why each one:
                 with no [FTL] in the boot log is a power loss, not a watchdog —
                 the target lives on the PC's USB, so the two are distinguished
                 by the log, never by the counter.
-  core1 death   c1kl/c1kh/c1kq rising, or c1n above its starting value. This is
-                the R1 class. It is silent from every other angle.
+  core1 death   c1kl/c1kh rising, or a relaunch (c1n) that no flash pause
+                explains. This is the R1 class, and it is silent from every
+                other angle. c1kq is NOT in this list: it counts the quiet
+                mode Core 0 asks for around a flash write, which is the
+                designed path — see judge().
   frozen beat   c1a above the threshold. Tens of ms is healthy; seconds means
                 Core 1 is frozen, killed or parked.
   exposure      fx above 0. Any value names a flash write missing its
@@ -92,15 +95,40 @@ def sample(w):
 
 
 def judge(prev, cur, base):
-    """Returns a list of anomaly strings. Empty means the sample is clean."""
+    """Returns a list of anomaly strings. Empty means the sample is clean.
+
+    `c1kq` is NOT a kill, and counting it as one cost this soak its first
+    finding on 2026-09-21: 1.9 h in, it reported CORE1_KILL_quiet 0 -> 1 with
+    CORE1_RELAUNCH 1 -> 2 on the published release image, which reads like the
+    R1 class and is not. `requestQuietMode()` is the DESIGNED path — Core 0
+    hard-resets Core 1 and relaunches it around a flash write, wired at
+    AppManager_Boot.cpp:428 through setBigSaveQuietCallback, so every
+    saveConfiguration with the display alive bumps c1kq and then c1n. On the
+    bench that morning the counter moved exactly once, in the window holding
+    the run's single SYS_STORAGE_SAVE (08:39:10, right after an alarm
+    triggered), with c1a back to 20 ms, c1s=0 and fx=0.
+
+    So: the lockout and health kills stay findings — those are failures. A
+    quiet kill is reported as a FLASH_PAUSE note, and a relaunch is a finding
+    only when it is NOT explained by one, which is what a Core 1 that died on
+    its own actually looks like. Relaxing this any further would hide R1; not
+    relaxing it at all makes any soak that saves config report a death.
+    """
     out = []
     if prev and cur['uptime'] < prev['uptime']:
         out.append(f'REBOOT uptime {prev["uptime"]} -> {cur["uptime"]}')
-    for k, label in (('c1kl', 'lockout'), ('c1kh', 'health'), ('c1kq', 'quiet')):
+    for k, label in (('c1kl', 'lockout'), ('c1kh', 'health')):
         if base.get(k) is not None and cur.get(k, 0) > base[k]:
             out.append(f'CORE1_KILL_{label} {base[k]} -> {cur[k]}')
-    if base.get('c1n') is not None and cur.get('c1n', 0) > base['c1n']:
-        out.append(f'CORE1_RELAUNCH {base["c1n"]} -> {cur["c1n"]}')
+    quiet = (cur.get('c1kq', 0) - base['c1kq']) if base.get('c1kq') is not None else 0
+    if prev and cur.get('c1kq', 0) > prev.get('c1kq', 0):
+        out.append(f'note FLASH_PAUSE c1kq {prev.get("c1kq")} -> {cur.get("c1kq")} '
+                   f'(save de config com o display vivo — caminho projetado)')
+    if base.get('c1n') is not None:
+        extra = cur.get('c1n', 0) - base['c1n'] - quiet
+        if extra > 0:
+            out.append(f'CORE1_RELAUNCH {base["c1n"]} -> {cur["c1n"]} '
+                       f'({extra} sem pausa de flash que explique)')
     if cur.get('c1a') is not None and cur['c1a'] > BEAT_FROZEN_MS:
         out.append(f'CORE1_BEAT_FROZEN {cur["c1a"]} ms')
     if cur.get('fx', 0):
