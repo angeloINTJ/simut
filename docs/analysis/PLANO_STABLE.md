@@ -55,6 +55,7 @@ Isto não é para tranquilizar; é para não refazer o que já foi feito.
 | B6 | `pico_w_test_https` a **3.308 B** do teto de OTA | ⚠️ não | Ambiente de bancada, não é imagem de produto. Vira bloqueio se alguém precisar dele no campo |
 | B7 | Issue #118 — mDNS do Air | ⚠️ não | Backlog |
 | B10 | **Cursor de telemetria pula registro em bloco fora de ordem** — medido em 21/09: **6 de 75.778** registros (0,0079%) em 55 arquivos de dia | ⚠️ não | Fere o item 2 *em silêncio*, e é por isso que não é ruído. Mas o registro **não se perde**: está na flash e sai pelo `/download` e pelo CSV — só a telemetria não o leva. A causa está escrita no firmware (`src/TelemetryManager.cpp:286`): um cursor escalar em tempo não alcança um registro atrás da marca-d'água. Fechá-lo é mudança de formato (cursor vira posição de varredura), não de rótulo. Vira bloqueio se o aparelho continuar **sem dizer** que pulou |
+| B12 | **A CLI corta template em 63 caracteres, em silêncio, e responde OK** — medido em 21/09: 70 chars entram, 63 ficam; 63 ficam 63; 62 ficam 62 | ⚠️ não, **mas é da família do item 2** | `alarm set line/glob/path` passa pelo `strVal2[64]` do `CommandParser.cpp:392`; o destino é `lineTemplate[512]`. O valor chega ao `safeCopy` **já cortado**, então o portão `isValidCfgString` — que na web **recusa** o que não cabe inteiro — vê algo que cabe e aceita. O template real deste aparelho tem 141 chars (veio da web) e **não pode ser reescrito pela CLI**. Efeito medido: o template de 75 chars do `alarm_hw_test.py` virou 63, o payload saiu com vírgula pendurada, o coletor não conseguiu parsear e **3 das 14 verificações falharam por isso**. O comentário em `CommandParser.cpp:388` diz que a limitação é *valor com espaço*; não menciona o corte por comprimento |
 | B11 | **A bancada roda `pico_w_test`, não a imagem que a versão publica** | 🔴 **muda o B2 e o B3** | As suítes do ferro exigem `user`/`tel` da CLI, e a `pico_w_release` tem `SIMUT_CLI_FULL=0`. Provado em 21/09: `user policy` e `tel server` só aparecem no `.bin` de teste, e o aparelho responde os dois. Logo o T1 de 21/09 certifica a `pico_w_test`. O soak (T3) e a OTA (T4) **têm de ir na `pico_w_release`** — nenhum dos dois precisa de CLI, e `telemetry_bench/soak_a6.py` foi escrito exatamente para isso |
 
 **Três bloqueios: B1, B2, B3**, com o B11 dizendo em qual imagem o B2 e o B3
@@ -120,6 +121,11 @@ número ou o log neste documento. Não antes, e não por prazo.
 | 21/09 | T7 parte C: dreno do histórico para coletor local | **6/7** — 16 syncs, 275 POSTs, 13.750 instantes, trecho 22/08 05:53 → 21/09 05:53; **1 registro não entregue** (19/09 03:40:36) |
 | 21/09 | Varredura dos 55 arquivos de dia atrás do cursor escalar | **6 de 75.778** registros (0,0079%), em 3 blocos parciais fora de ordem → B10 |
 | 21/09 | Qual imagem está no ferro | `pico_w_test` (a CLI responde `user policy`/`tel server`, que só existem nela) → B11 |
+| 21/09 | T1: `web_test_suite.py` como admin | **67/67**, 1 pulado (a sessão *é* admin, então o teste de fronteira de permissão não tem o que provar) |
+| 21/09 | T1: `web_test_suite.py` com conta comum criada e apagada pela CLI | **87/87**, 5 pulados (rotas de admin). As duas passagens juntas cobrem o que cada uma sozinha pula |
+| 21/09 | T1: `alarm_hw_test.py` | **11/14** — as 3 falhas são o corte de 63 chars da CLI (B12), não a linha de alarmes |
+| 21/09 | Onde a CLI corta um template | 70 → **63**; 63 → 63; 62 → 62, sempre respondendo OK → B12 |
+| 21/09 | Assets publicados × build local (v2.6.1-beta release) | md5 **idêntico** — `447c0099…`. O que o usuário instala é o que está no `.pio/build` |
 
 ### Notas destas corridas
 
@@ -151,6 +157,17 @@ o `~/.simut-bench.env` foi corrigido e o login confere: `/api/login` 200 e
 aparelho manda, devolve os seis campos e **confere lendo de volta** — a corrida
 desta manhã terminou com a config idêntica à de antes, só o relógio adiantado.
 Uma restauração que não se confere é como o coletor real fica apagado.
+
+🔴 **As 3 falhas do `alarm_hw_test.py` são do instrumento, não da linha de
+alarmes — e a prova está no próprio resultado dele.** A seção [06], que usa um
+template de **29** caracteres, passou; as seções [02] e [03], que usam um de
+**75**, falharam com o payload cortado depois de `"alarm":"alarm",`. Entre as
+duas não há nada além do comprimento. A medição direta (70 → 63, 63 → 63,
+62 → 62) fecha: é o `strVal2[64]`. A fila esvaziou, as métricas bateram
+(`Enfileirados 2 = Confirmados 2`, 0 descartados) e os modos custom e CSV
+passaram — a segunda linha está sã. ⚠️ O `alarm show` também **mostra** o
+template cortado, em ~113 chars, o que esconde o defeito de quem o procura
+pela CLI.
 
 🔴 **`alarm_hw_test.py` não tem limpeza nenhuma.** Ele aponta a telemetria para
 a bancada, troca `alarm set path`, os dois templates e deixa o modo em CSV — e
