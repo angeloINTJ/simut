@@ -49,10 +49,10 @@ Isto não é para tranquilizar; é para não refazer o que já foi feito.
 |---|---|:---:|---|
 | B1 | **`ctx=209`/`ctx=455` do D-C1**: watchdog do Core 0 com trace vazio, reproduzido 2×2 em 20/09 por `panel_fulltable_test.py`, **não determinístico** | 🔴 **sim** | Fere o item 1 da definição. Um reset sem causa numa stable é o defeito que volta como "o aparelho reiniciou sozinho" sem nada para investigar |
 | B2 | **Sem soak na imagem desta versão** | 🔴 **sim** | Os soaks que existem são de versões anteriores. Um release que ninguém deixou ligado por horas não é stable |
-| B3 | **OTA nunca exercitada nesta imagem**, e o Air está a **5.076 B** do teto | 🔴 **sim** | Uma linha stable recebe correções; cada uma arrisca cruzar o degrau de 4 KiB e a imagem passa a **recusar atualização pelo ar** com o `used` ainda dizendo 21 kB de folga |
+| B3 | ~~OTA nunca exercitada nesta imagem~~ — **feito em 21/09: 6/6 applies** nos dois sentidos, na `pico_w_release` publicada. Fica o teto: o Air a **5.076 B**, medido hoje | 🟡 **metade fechada** | A parte "nunca exercitada" caiu com número (T4, §6). A parte do teto não é coisa que teste feche: é margem. E ela **já tem portão** — `check_flash_budget.py::check_ota_bin` compara o `.bin` com `OTA_APP_SAFE_MAX_SIZE` (1.040.384 B) em todo build, que é justamente o que o `used` do linker não vê. Folgas medidas em 21/09 sobre a build de `main`: release 15.684, air **5.076**, alpha 50.036, test 10.828, asserts 13.508, test_https 3.204 |
 | B4 | **`ctx=205`** — reboot sob telemetria morta, aberto e **não reproduz** | ⚠️ não | As blindagens existem; fica onde está até reproduzir. Registrado, não esquecido |
 | B5 | **Corrente real nunca medida** (os 407,8 mAh/dia são cálculo) | ⚠️ não | O manual **já diz** "aritmética, não medição". Não bloqueia porque nada é afirmado sem marcação — mas nenhuma afirmação de autonomia pode perder a marcação numa stable |
-| B6 | `pico_w_test_https` a **3.308 B** do teto de OTA | ⚠️ não | Ambiente de bancada, não é imagem de produto. Vira bloqueio se alguém precisar dele no campo |
+| B6 | `pico_w_test_https` a **3.204 B** do teto de OTA (medido 21/09; o 3.308 anterior era de build anterior) | ⚠️ não | Ambiente de bancada, não é imagem de produto. Vira bloqueio se alguém precisar dele no campo |
 | B7 | Issue #118 — mDNS do Air | ⚠️ não | Backlog |
 | B10 | **Cursor de telemetria pula registro em bloco fora de ordem** — medido em 21/09: **6 de 75.778** registros (0,0079%) em 55 arquivos de dia | ⚠️ não | Fere o item 2 *em silêncio*, e é por isso que não é ruído. Mas o registro **não se perde**: está na flash e sai pelo `/download` e pelo CSV — só a telemetria não o leva. A causa está escrita no firmware (`src/TelemetryManager.cpp:286`): um cursor escalar em tempo não alcança um registro atrás da marca-d'água. Fechá-lo é mudança de formato (cursor vira posição de varredura), não de rótulo. Vira bloqueio se o aparelho continuar **sem dizer** que pulou |
 | B12 | **A CLI corta template em 63 caracteres, em silêncio, e responde OK** — medido em 21/09: 70 chars entram, 63 ficam; 63 ficam 63; 62 ficam 62 | ⚠️ não, **mas é da família do item 2** | `alarm set line/glob/path` passa pelo `strVal2[64]` do `CommandParser.cpp:392`; o destino é `lineTemplate[512]`. O valor chega ao `safeCopy` **já cortado**, então o portão `isValidCfgString` — que na web **recusa** o que não cabe inteiro — vê algo que cabe e aceita. O template real deste aparelho tem 141 chars (veio da web) e **não pode ser reescrito pela CLI**. Efeito medido: o template de 75 chars do `alarm_hw_test.py` virou 63, o payload saiu com vírgula pendurada, o coletor não conseguiu parsear e **3 das 14 verificações falharam por isso**. O comentário em `CommandParser.cpp:388` diz que a limitação é *valor com espaço*; não menciona o corte por comprimento |
@@ -75,7 +75,7 @@ nunca "rodou e pareceu bem".
 | T1 | Regressão funcional da imagem | `panel_users_hw_test.py`, `panel_fulltable_test.py`, `alarm_hw_test.py`, `wifi_scan_hw_test.py --ap`, `web_test_suite.py` | ~2 h | tudo verde na imagem **desta** versão |
 | T2 | Caça ao B1 | `panel_fulltable_test.py` em repetição, com o log binário preservado entre corridas | 3–4 h | ou reproduz com `ctx` e trace utilizáveis, ou N corridas limpas dão a taxa |
 | T3 | Soak | `telemetry_bench/soak_a6.py`, ≥ 8 h, coletor vivo e coletor morto, **na `pico_w_release`** | 8 h+ | 0 reboots sem causa; deriva de heap medida e declarada |
-| T4 | OTA nesta imagem | ciclo de stage+apply, ida e volta entre v2.6.0-beta e v2.6.1-beta, pela `:8080` | ~1 h | 3/3 nos dois sentidos, `/history` íntegro pelo `fsguard` |
+| T4 | OTA nesta imagem ✅ **21/09** | ciclo de stage+apply, ida e volta entre v2.6.0-beta e v2.6.1-beta, pela `:8080` | ~1 h | 3/3 nos dois sentidos, `/history` íntegro pelo `fsguard` — **feito: 6/6 e 75.831/75.831** |
 | T5 | Queda de rede | `wifi_outage_test.py` nesta imagem | ~40 min | as 3 fases, com o log do aparelho como prova |
 | T6 | Telemetria | `telemetry_bench` nos 4 transportes + dreno | ~1 h | 0 FTL; vazão registrada |
 | T7 | Relógio e histórico | `rig_validate_history_clock.py` | ~20 min | 3/3 |
@@ -128,6 +128,10 @@ número ou o log neste documento. Não antes, e não por prazo.
 | 21/09 | Assets publicados × build local (v2.6.1-beta release) | md5 **idêntico** — `447c0099…`. O que o usuário instala é o que está no `.pio/build` |
 | 21/09 | O que uma gravação escreve na autópsia | `SYS_BOOT ctx=227 lvl=4` + `HW WATCHDOG: Core 0 loop stalled, C0=[HIST_SAMPLE]` — **igual a um travamento**; ver nota |
 | 21/09 | `pico_w_release` publicada gravada no ferro | config atravessou inteira (nenhum campo diferente do snapshot); CLI virou console de emergência |
+| 21/09 | **T4: OTA na imagem publicada, 3 idas e voltas** (v2.6.0-beta ↔ v2.6.1-beta, assets do release, pela `:8080`) | **6/6 applies**, cada um confirmado pela versão que o aparelho relê; stage 34,5 s, volta em 48–51 s |
+| 21/09 | O que os 6 applies fizeram com o LittleFS | zerou: `/history` só com `.wip`, `/lang` **vazio**, `/themes` só com o README; `fs_u` 876.544 → 61.440 B |
+| 21/09 | T4: histórico depois do `fsguard restore`, conferido por **registros** | **75.831 no backup, 75.831 no aparelho, 0 faltando**, 57 arquivos, 0 falhas na restauração |
+| 21/09 | T4: config através de 6 OTAs | **nenhum campo diferente** do snapshot de antes da gravação — o `config_snapshot` do applier segura o que promete |
 
 ### Notas destas corridas
 
