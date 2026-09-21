@@ -279,9 +279,17 @@ Endereço inválido vai para `rejected`, não é descartado em silêncio.
 #### `slots` — provisionamento
 ```json
 {"slots":{"s":[{"i":0,"a":true,"t":2,"p":[2,255,255,255],
-                "hwId":"DHT0","name":"Sala","tmin":-10,"tmax":50,"al":true}]}}
+                "hwId":"DHT0","name":"Sala",
+                "lim":{"temp":[-10,50],"hum":[0,100]},"al":true}]}}
 ```
-Mande só os slots editados.
+Mande só os slots editados — e **só os campos editados**: o parser escreve
+apenas o que veio, então `{"i":0,"name":"Sala"}` não apaga tipo, pinos nem
+limites.
+
+🔴 **`tmin`/`tmax`/`hmin`/`hmax` não valem aqui** (21/09/2026). Este exemplo os
+trazia e o parser da seção `slots` nunca os leu: o commit responde **200 com
+`applied` e `rejected` vazios** e nada muda. Limites vão em `lim`, por canal, ou
+pela seção `alarms`.
 
 #### `users` — contas
 ```json

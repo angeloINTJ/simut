@@ -35,6 +35,7 @@ Consulted while changing the code, and enforced by CI where a gate exists.
 
 | document | state | about |
 |---|---|---|
+| [INTEGRACAO_SERVIDOR.md](INTEGRACAO_SERVIDOR.md) | Living | Manual de integração para quem escreve o servidor da empresa: os dois sentidos de tráfego (o aparelho empurra telemetria e alarmes; o servidor comanda contas, nomes, limites e manutenção), com os formatos exatos, o contrato de confirmação, as armadilhas medidas e o que HTTP puro custa nesta primeira fase (pt-BR). |
 | [API_POST.md](API_POST.md) | Living | As 18 rotas POST, o que cada uma recebe e devolve — referência compacta para quem escreve o lado servidor. Os códigos e corpos citados foram obtidos de chamadas reais ao aparelho, não de leitura de código; as permissões são as de AUTHORIZATION.md, que é a fonte normativa. |
 | [AUTHORIZATION.md](AUTHORIZATION.md) | Living | The authorization matrix (`check_authz.py --list` counts the routes; 61 after `GET /api/wifi/scan`). Gated by `tools/check_authz.py`. |
 | [CONCURRENCY.md](CONCURRENCY.md) | Living | The concurrency invariants, including invariant 3 (`pico_w_asserts` arms its tripwire). |
