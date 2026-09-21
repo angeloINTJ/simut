@@ -89,6 +89,7 @@ try:
     PROJECT_DIR = env.subst("$PROJECT_DIR")
     PIOENV      = env["PIOENV"]
     DIET_RAW    = env.GetProjectOption("custom_fs_pages", "")
+    OMIT_RAW    = env.GetProjectOption("custom_web_omit", "")
 except NameError:
     # Running standalone (not inside PlatformIO) — use CWD. No env means no
     # diet: the standalone path is what build_release_pio.sh calls, and a
@@ -98,6 +99,7 @@ except NameError:
     PROJECT_DIR = os.getcwd()
     PIOENV      = ""
     DIET_RAW    = ""
+    OMIT_RAW    = ""
 INPUT_FILE  = os.path.join(PROJECT_DIR, "WebUI.h")
 OUTPUT_FILE = os.path.join(PROJECT_DIR, "src", "WebUI_GZ.h")
 
@@ -206,6 +208,132 @@ def _resolve_diet() -> dict:
 
 
 FS_PAGES = _resolve_diet()
+
+# ── Recortar do WebUI.h o que esta imagem não tem hardware para usar ────────
+#
+# Até 2026-09-20 a interface inteira ia para TODA imagem. O Air e o alpha não
+# têm painel de toque, e carregavam mesmo assim o espelho do painel, a captura
+# de tela e o seletor de tema do dashboard — 2.363 B de página gzipada, medidos
+# por A/B, falando com rotas (`/api/screen_stream`, `/api/touch`,
+# `/api/screenshot`, `/api/keypad`) que o `#if SIMUT_DISPLAY_TFT` do
+# WebManager_Core.cpp nem registra nessas imagens. Botões que respondem 404.
+#
+# Isto NÃO é a dieta do custom_fs_pages, e a regra de 2026-08-17 ("imagem de
+# produção carrega a interface INTEIRA") continua valendo para aquilo: lá a
+# página existe e mora noutro lugar, e falta de arquivo vira erro em tempo de
+# execução. Aqui não falta nada — some o controle E some a rota, juntos.
+#
+# A lista é por ambiente (`custom_web_omit` no platformio.ini) e o padrão é
+# NÃO omitir nada: um ambiente novo que esqueça a opção sai gordo, que é o
+# lado seguro de errar.
+WEB_FEATURES = {
+    "tft": "painel de toque: espelho, captura, temas e teclado do painel",
+}
+
+
+def _resolve_web_omit() -> set:
+    names = {n for n in re.split(r"[,\s]+", OMIT_RAW) if n}
+    unknown = sorted(names - set(WEB_FEATURES))
+    if unknown:
+        raise SystemExit(
+            f"build_webui_gz: custom_web_omit nomeia {', '.join(unknown)}, que "
+            f"nao existe.\nConhecidos: "
+            + "; ".join(f"{k} ({v})" for k, v in sorted(WEB_FEATURES.items()))
+        )
+    return names
+
+
+WEB_OMIT = _resolve_web_omit()
+OMIT_TAG = ",".join(sorted(WEB_OMIT)) or "nothing"
+
+_IF_RE = re.compile(
+    r"[ \t]*/\*\s*@IF\s+(\w+)\s*\*/[^\n]*\n(.*?)[ \t]*/\*\s*@ENDIF\s*\*/[^\n]*\n",
+    re.S,
+)
+
+
+def _strip_web_features(content: str) -> str:
+    """Remove os blocos @IF de features omitidas — e recusa o build quando
+    alguma coisa de FORA do bloco depende do que está DENTRO dele.
+
+    Essa segunda metade é o ponto. Cortar markup e deixar um
+    `getElementById('themeSel').value = …` para trás não falha na build, não
+    falha no minificador e não falha na página que você testou: falha só na
+    imagem sem painel, com um TypeError no meio do laço de atualização, que é
+    exatamente a forma do defeito de 2026-09-20 no `window.hasPanelPin`. A
+    conferência roda SEMPRE, inclusive quando nada é omitido, senão quem
+    compila só a release nunca descobre que quebrou o Air.
+    """
+    n_if, n_end = len(re.findall(r"/\*\s*@IF\s", content)), len(re.findall(r"/\*\s*@ENDIF\s*\*/", content))
+    if n_if != n_end:
+        raise SystemExit(
+            f"build_webui_gz: {n_if} marcador(es) @IF para {n_end} @ENDIF. "
+            f"Blocos nao aninham; cada @IF fecha no proprio @ENDIF."
+        )
+
+    # Agrupa por feature: os blocos de uma mesma feature somem JUNTOS, entao
+    # um deles pode chamar o outro. "Fora" e o conteudo sem todos os blocos
+    # daquela feature — nao sem um bloco so, que foi como esta conferencia
+    # nasceu errada e acusou o proprio markup que ela protege.
+    by_feature = {}
+    for m in _IF_RE.finditer(content):
+        feature, body = m.group(1), m.group(2)
+        if feature not in WEB_FEATURES:
+            raise SystemExit(
+                f"build_webui_gz: @IF {feature} nao e uma feature conhecida.\n"
+                "Conhecidas: " + ", ".join(sorted(WEB_FEATURES))
+            )
+        if "@IF" in body:
+            raise SystemExit(f"build_webui_gz: @IF {feature} contem outro @IF; nao aninhe.")
+        by_feature.setdefault(feature, []).append((m.start(), m.end(), body))
+
+    strip = lambda t: re.sub(r"/\*.*?\*/", " ", t, flags=re.S)
+    problems = []
+    for feature, spans in by_feature.items():
+        outside, prev = [], 0
+        for a, b, _ in spans:
+            outside.append(content[prev:a])
+            prev = b
+        outside.append(content[prev:])
+        outside = "".join(outside)
+        body = "\n".join(b for _, _, b in spans)
+
+        # Comentarios fora das DUAS contas. Prosa que cita o nome da funcao
+        # conta como chamada e desarma a conferencia — foi assim que a versao
+        # de 21/09 deixou passar exatamente o defeito que ela existe para pegar.
+        code_in, code_out = strip(body), strip(outside)
+        defs = set(re.findall(r"\b(?:async\s+)?function\s+(\w+)\s*\(", code_in))
+        for name in sorted(defs):
+            if re.search(r"\b" + re.escape(name) + r"\s*\(", code_out):
+                problems.append(f"  {name}( ) e definida dentro de @IF {feature} e chamada fora")
+            # E o contrario: funcao que o bloco define e NINGUEM usa. Marcar uma
+            # regiao e facil; tirar dela a unica chamada e o que aconteceu em
+            # 21/09 com loadThemes( ) — a chamada morava no DOMContentLoaded
+            # comum as duas imagens, saiu de la para nao ficar pendurada e nao
+            # voltou para dentro. O seletor de temas ficou em "Loading..." para
+            # sempre, na imagem COM painel, e foi o Angelo quem viu no aparelho.
+            # Conta >= 2 porque a propria definicao e uma ocorrencia; `\bnome\b`
+            # e nao `nome(` para que `addEventListener('load', nome)` conte.
+            elif len(re.findall(r"\b" + re.escape(name) + r"\b", code_in)) < 2:
+                problems.append(
+                    f"  {name}( ) e definida dentro de @IF {feature} e nunca usada")
+        ids = set(re.findall(r'\bid="([\w-]+)"', body))
+        for el in sorted(ids):
+            if re.search(r"getElementById\(\s*['\"]" + re.escape(el) + r"['\"]", outside):
+                problems.append(f"  #{el} so existe dentro de @IF {feature} e e buscado fora")
+    if problems:
+        raise SystemExit(
+            "build_webui_gz: a interface depende de um bloco que pode ser "
+            "recortado.\nNuma imagem sem essa feature isto vira TypeError no "
+            "navegador, nao erro de build.\n" + "\n".join(sorted(set(problems)))
+        )
+
+    if WEB_OMIT:
+        content = _IF_RE.sub(lambda m: "" if m.group(1) in WEB_OMIT else m.group(2), content)
+    else:
+        content = _IF_RE.sub(lambda m: m.group(2), content)
+    return content
+
 
 # The layout is part of the build identity, not just the source hash: two envs
 # generate different headers from the same WebUI.h, and without this the
@@ -998,7 +1126,7 @@ def generate() -> None:
     # and getting yesterday's pages.
     input_hash = _hash_file(INPUT_FILE)
     gen_hash = _hash_file(os.path.join(PROJECT_DIR, "tools", "build_webui_gz.py"))
-    stamp = f"{input_hash} gen={gen_hash[:12]} layout={LAYOUT_TAG}"
+    stamp = f"{input_hash} gen={gen_hash[:12]} layout={LAYOUT_TAG} omit={OMIT_TAG}"
     if os.path.isfile(OUTPUT_FILE):
         # The generated .h carries the input hash AND the layout in the first
         # comment line. The layout half is not cosmetic: `pio run -e pico_w_test
@@ -1017,7 +1145,7 @@ def generate() -> None:
         )
         if stamp in head and fs_ok:
             print(
-                f"build_webui_gz: WebUI_GZ.h is up to date (layout={LAYOUT_TAG}) "
+                f"build_webui_gz: WebUI_GZ.h is up to date (layout={LAYOUT_TAG}, omit={OMIT_TAG}) "
                 f"— skipping."
             )
             return
@@ -1026,6 +1154,7 @@ def generate() -> None:
         content = f.read()
 
     content = _strip_disabled_langs(content)
+    content = _strip_web_features(content)
     matches = _PROGMEM_RE.findall(content)
     _check_page_globals(matches)
     _check_css_tokens(content, matches)
@@ -1118,7 +1247,7 @@ def generate() -> None:
     _prune_stale_fs_pages()
 
     print(
-        f"build_webui_gz: {len(matches)} arrays | layout={LAYOUT_TAG} | "
+        f"build_webui_gz: {len(matches)} arrays | layout={LAYOUT_TAG} | omit={OMIT_TAG} | "
         f"input {total_in} -> minified {total_min} ({100*total_min/max(total_in,1):.1f}%) "
         f"-> gzipped {total_gz} ({100*total_gz/max(total_in,1):.1f}%) "
         f"[{'zopfli x%d' % ZOPFLI_ITERATIONS if _zopfli else 'gzip -9'}]"

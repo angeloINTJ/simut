@@ -253,6 +253,7 @@ reestruturar código é imprevisível, e uma alavanca sem número não é alavan
 | LTO | — | o toolchain foi compilado com `--disable-lto` (nota no `platformio.ini`) |
 | `-specs=nano.specs` | 0 | não há `libc_nano.a` no toolchain (§2.2) |
 | páginas no LittleFS (`custom_fs_pages`) | −28 k a −70 k | existe, e o gerador **recusa** nos ambientes que embarcam: o apply do OTA formata a partição e a página sumiria a cada atualização |
+| UI de hardware ausente (`custom_web_omit`) | **−4.096** no Air e no alpha | 21/09: o espelho do painel, a captura de tela e o seletor de tema iam para TODA imagem, inclusive as que não têm painel — 2.363 B de página gzipada falando com quatro rotas que o `#if SIMUT_DISPLAY_TFT` nem registra ali. Blocos `@IF tft` no `WebUI.h`, recortados por ambiente; o Air voltou de **980 B** para 5.076 B de folga de OTA |
 | blob do rádio, `.ota`, `.partition` | — | 237 kB de plataforma que nenhuma dieta toca |
 
 ---

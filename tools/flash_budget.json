@@ -240,35 +240,77 @@
   "`var( )` with no definition makes the browser drop the whole declaration, so",
   "the scan button had no background and the dBm no secondary colour, in both",
   "themes. Nothing failed: not the compile, not the minifier, not the helper",
-  "gate. build_webui_gz.py now refuses the build on it. -16 B, budgets unmoved."
+  "gate. build_webui_gz.py now refuses the build on it. -16 B, budgets unmoved.",
+  "2026-09-21 (feat/web-ui-per-build): -48 B on the four panel builds and",
+  "-4,096 on the two without one. The whole web UI was going into every image:",
+  "the Air and the alpha carried the panel mirror, the screen capture and the",
+  "theme selector - 2,363 B of gzipped page, measured by A/B - talking to four",
+  "routes (/api/screen_stream, /api/touch, /api/screenshot, /api/keypad) that",
+  "the `#if SIMUT_DISPLAY_TFT` in WebManager_Core.cpp does not even register",
+  "there. Buttons that answer 404.",
+  "WebUI.h now has `/* @IF tft */ ... /* @ENDIF */` blocks and build_webui_gz.py",
+  "cuts them where platformio.ini says `custom_web_omit = tft`. The default is",
+  "to omit NOTHING, so an env that forgets the option ships fat, which is the",
+  "safe way to be wrong. The cut is in the stamp, beside the layout, or the",
+  "second env would be handed the first one's header.",
+  "This is NOT the custom_fs_pages diet and the 2026-08-17 rule above still",
+  "holds for that one: there the page exists and lives elsewhere, and a missing",
+  "file is a runtime error. Here nothing is missing - the control and the route",
+  "go together.",
+  "Two gates come with it, and both run even when nothing is omitted, or",
+  "whoever only builds the release never learns they broke the Air: a function",
+  "defined inside a block and called outside it, and an element id that only",
+  "exists inside a block and is fetched outside it. Verified by breaking each",
+  "one and watching it name the symbol. The second is the one that matters -",
+  "`getElementById('themeSel').value =` on a stripped element is a TypeError in",
+  "the middle of the refresh loop, which is the shape of the 2026-09-20",
+  "hasPanelPin defect.",
+  "Real .bin slack under the 1,040,384 B OTA ceiling: air 5,076 (it was 980",
+  "before this, one 4 KiB step from refusing an update), alpha 50,036.",
+  "Same branch, the fix the maintainer found on the device: +24 B on the four",
+  "panel builds, 0 on the two without one. Moving the panel UI behind @IF took",
+  "loadThemes( ) out of the DOMContentLoaded that both images share - it would",
+  "have dangled there - and it was never put back INSIDE the block. The theme",
+  "selector sat on 'Loading...' forever, in the image WITH a panel. The gate",
+  "did not see it: it asked whether a block's function was called from OUTSIDE,",
+  "never whether it was called at all. It asks both now, and it counts",
+  "references in CODE - the first attempt was defeated by the comment naming",
+  "loadThemes( ), the same way --espaco-N defeated the CSS-token gate.",
+  "Same branch, the topbar on a phone: +72 B on the four panel builds, 0 on the",
+  "two without one (their .rodata padding swallowed it - they have a whole page",
+  "of slack now). The IP in the top-right corner was the ONLY item in that bar",
+  "that could shrink, so on a 360 px screen it rendered as '192.168.3…'. It is",
+  "also the only information there - which device am I on. The status pill no",
+  "longer shrinks, the brand's suffix is hidden below 640 px, and the version",
+  "it used to carry moved into the drawer, where a phone can still reach it."
  ],
  "ceiling": 1044480,
  "measured_on": "2026-09-20",
- "measured_at_commit": "feat/wifi-scan (drawn lock and signal bars, aligned row, password reveal)",
+ "measured_at_commit": "feat/web-ui-per-build (@IF tft: the panel UI is not compiled into images with no panel)",
  "envs": {
   "pico_w_release": {
-   "budget": 1015660,
-   "measured": 1012644
+   "budget": 1015564,
+   "measured": 1012660
   },
   "pico_w_test": {
-   "budget": 1020516,
-   "measured": 1017500
+   "budget": 1020420,
+   "measured": 1017516
   },
   "pico_w_test_https": {
-   "budget": 1028140,
-   "measured": 1025116
+   "budget": 1028044,
+   "measured": 1025140
   },
   "pico_w_asserts": {
-   "budget": 1017836,
-   "measured": 1014820
+   "budget": 1017740,
+   "measured": 1014836
   },
   "pico_w_alpha": {
-   "budget": 982492,
-   "measured": 979492
+   "budget": 978396,
+   "measured": 975396
   },
   "pico_w_air": {
-   "budget": 1026280,
-   "measured": 1023280
+   "budget": 1022184,
+   "measured": 1019184
   }
  }
 }
