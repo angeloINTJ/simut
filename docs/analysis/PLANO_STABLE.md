@@ -126,6 +126,8 @@ número ou o log neste documento. Não antes, e não por prazo.
 | 21/09 | T1: `alarm_hw_test.py` | **11/14** — as 3 falhas são o corte de 63 chars da CLI (B12), não a linha de alarmes |
 | 21/09 | Onde a CLI corta um template | 70 → **63**; 63 → 63; 62 → 62, sempre respondendo OK → B12 |
 | 21/09 | Assets publicados × build local (v2.6.1-beta release) | md5 **idêntico** — `447c0099…`. O que o usuário instala é o que está no `.pio/build` |
+| 21/09 | O que uma gravação escreve na autópsia | `SYS_BOOT ctx=227 lvl=4` + `HW WATCHDOG: Core 0 loop stalled, C0=[HIST_SAMPLE]` — **igual a um travamento**; ver nota |
+| 21/09 | `pico_w_release` publicada gravada no ferro | config atravessou inteira (nenhum campo diferente do snapshot); CLI virou console de emergência |
 
 ### Notas destas corridas
 
@@ -179,18 +181,36 @@ depois (nesta sessão, por snapshot do `/api/config` + conferência).
 morria **no meio**, depois de ter mexido na config de telemetria do aparelho.
 Agora a porta é `SIMUT_TEL_COLLECTOR_PORT` e a recusa diz o que fazer.
 
-⚠️ **A leitura de "4 `SYS_BOOT ctx=227` são as gravações" ainda não está
-provada, e o código diz outra coisa.** Em `src/LogManager.cpp:1022` a faixa
-`200 + módulo` é a do **estouro do watchdog** (`HW WATCHDOG: Core 0 loop
-stalled`), e módulo 27 é `HIST_SAMPLE`; o ramo do upload por picotool loga
-`ctx=0` em nível INFO (`LogManager.cpp:1033`). É a mesma faixa do B1:
-`ctx=209` é módulo 9 (`CLI`) e `ctx=455` é `200+255`, trace vazio. Ou o
-`picotool` reinicia pelo temporizador do watchdog — e aí cai no ramo do estouro
-com o módulo que o Core 0 estava rodando — ou aquelas quatro linhas eram
-travamentos de verdade. **Os registros já rotacionaram** (o anel guarda ~1.600
-entradas ≈ 5 h sob carga de teste, e `system.old.blog` só tem as 800
-anteriores), então isso se resolve por experimento: gravar a imagem de propósito
-e ler a autópsia do boot seguinte.
+🔴 **PROVADO em 21/09, e é pior do que a dúvida: uma gravação é
+indistinguível de um travamento no log.** A leitura de 21/09 ("as quatro
+`ctx=227` são as gravações") estava certa na conclusão, mas ninguém tinha
+provado. O experimento: gravar de propósito a `pico_w_release` publicada, pelo
+caminho normal (toque de 1200 bps + `picotool load -x`), acampando na serial. O
+boot seguinte imprimiu
+
+```
+[BOOT] WATCHDOG_REBOOT detected
+[C0][FTL][SYS] System boot: HW WATCHDOG: Core 0 loop stalled (no feed in WDT
+window). C0=[HIST_SAMPLE] C1=[DISPLAY] at up=537141248ms sc3=0x8008801b
+hp=7049 (227)
+```
+
+e o anel guardou `SYS_BOOT ctx=227 lvl=4`. O `picotool` reinicia **pelo
+temporizador do watchdog**, então a autópsia cai no ramo do estouro
+(`LogManager.cpp:1022`) e carimba o módulo em que o Core 0 estava — `HIST_SAMPLE`,
+que é onde o laço passa a maior parte do tempo. O comentário do ramo vizinho
+(`:1033`, `ctx=0` INFO, "likely picotool upload") descreve um caminho que **este**
+upload não toma.
+
+**Consequência para o B1 e para a definição de stable:** o registro persistido
+tem 12 bytes e guarda só código + `ctx`, então *"o aparelho travou no
+HIST_SAMPLE"* e *"alguém gravou firmware"* produzem a MESMA linha. O único
+sinal que os separa está no texto serial — o `up=537141248ms` (6,2 dias, resíduo
+de scratch; o aparelho tinha 16 min) — e esse texto não sobrevive ao boot.
+Enquanto isso valer, "todo reboot tem causa conhecida e registrada" tem um furo:
+qualquer varredura de anel precisa saber a hora das gravações para não chamar
+upload de travamento — ou o contrário. O `ctx=209` (módulo `CLI`) e o `ctx=455`
+(trace vazio) do B1 **não** são desta família, e continuam de pé.
 
 ℹ️ **`SYS_BOOT` só é gravado quando houve algo a dizer** (`LogManager.cpp`
 955–1035): panic de software, estouro do watchdog, ou reset forçado externo.
