@@ -7058,8 +7058,11 @@ pre, #preview, #apreview { background: var(--superficie-2); color: var(--tinta);
 .status-pill .dot { width: 8px; height: 8px; border-radius: 999px; flex-shrink: 0; }
 #theme-toggle { background: none; border: 1px solid var(--linha-forte); color: var(--tinta-2); width: 36px; height: 36px; padding: 0; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; }
 #theme-toggle:hover { color: var(--tinta); border-color: var(--acento); }
-/* nowrap: "Salvar e reiniciar" beside "Aplicar agora" wrapped to two lines and
-   grew the top bar by a row. The bar is the one thing on every page. */
+#commit-actions { display: flex; align-items: center; gap: 10px; }
+/* nowrap on the WIDE layout only: "Salvar e reiniciar" beside "Aplicar agora"
+   wrapped to two lines and grew the top bar by a row. On a phone the buttons
+   share the width instead, and there nowrap is what pushed the label out of
+   its own border — so the narrow rule below puts it back. */
 #commit-btn, #apply-btn, #try-btn { display: none; padding: 8px 14px; font-size: 14px; white-space: nowrap; }
 /* The note reads as a label, not as a control: no pointer, and it wraps out
    of the way before the buttons do. */
@@ -7102,21 +7105,27 @@ pre, #preview, #apreview { background: var(--superficie-2); color: var(--tinta);
   .net-stat .val { overflow-wrap: anywhere; }
   /* Gravar e a acao que nao pode sumir: no topo seria o primeiro item a sair
      da tela, entao no celular as acoes pendentes viram uma barra fixa no
-     rodape. Sao ate TRES agora, lado a lado, e a de gravar fica com o dobro
-     da largura — e a unica que persiste e a unica que nao se desfaz. */
-  body #commit-btn, body #apply-btn, body #try-btn {
-    position: fixed; bottom: 12px; z-index: 60; min-height: 48px; font-size: 15px;
+     rodape. O contentor e quem e fixo; os botoes so DIVIDEM a largura dele,
+     com flex — nada de calc( ) em porcentagem, que nao sabe o tamanho do
+     rotulo e foi o que deixou "Salvar e reiniciar" fora do proprio contorno. */
+  #commit-actions.on {
+    position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 60;
+    display: flex; gap: 8px; }
+  #commit-actions.on > button {
+    flex: 1 1 0; min-width: 0; min-height: 48px; font-size: 14px; padding: 6px 8px;
     box-shadow: var(--sombra-flutuante); }
-  body #commit-btn { left: 12px; right: 12px; }
-  /* Com as tres visiveis: testar | aplicar | salvar(2x). As regras abaixo so
-     valem quando o aparelho confirmou que da para aplicar ao vivo, que e
-     exatamente quando #try-btn deixa de estar display:none. */
-  body #try-btn:not([style*="display: none"]) ~ #commit-btn { left: auto; right: 12px; width: calc(50% - 18px); }
-  body #try-btn { left: 12px; width: calc(25% - 15px); }
-  body #apply-btn { left: calc(25% + 3px); width: calc(25% - 15px); }
+  /* Gravar e a unica que persiste, entao fica com o dobro da largura. */
+  #commit-actions.live > #commit-btn { flex: 2 1 0; }
+  /* E pode quebrar em duas linhas: a tela e estreita e o rotulo e o que e, e
+     48 px de altura acomodam duas linhas de 14 px sem crescer a barra. */
+  #commit-actions.on > button { white-space: normal; line-height: 1.15; }
   /* O aviso nao cabe ao lado de tres botoes num celular. */
   #commit-note { display: none !important; }
   body.pend { padding-bottom: 72px; }
+  /* Enquanto se digita: espaco para o campo SUBIR. Sem isto, um campo no fim
+     do documento nao tem para onde rolar e fica atras do teclado por mais
+     correta que seja a conta de quem manda rolar. Sai no focusout. */
+  body.typing { padding-bottom: 60vh; }
 }
 )raw";
 
@@ -7447,6 +7456,58 @@ static const char LANG_JS[] PROGMEM = R"raw(
     };
     document.addEventListener('DOMContentLoaded',function(){window.initSession();});
 
+    /* Keep the field you are typing in above the on-screen keyboard.
+     *
+     * A phone keyboard shrinks the VISUAL viewport without touching the layout
+     * one, so a field in the lower half ends up behind it. The browser's own
+     * "scroll the focused element into view" is not enough: it runs on focus,
+     * which is BEFORE the keyboard is up, so it aims at a rectangle that is
+     * about to stop existing. visualViewport is what reports the real one —
+     * this re-aims once it has settled, and again whenever it changes (the
+     * keyboard opening, closing, or an autocomplete bar appearing).
+     *
+     * The fixed action bar counts as keyboard too: when it is up it covers the
+     * bottom of the page, and a field behind it is just as unreadable.
+     *
+     * Deliberately NOT bound to visualViewport's `scroll`: the operator
+     * scrolling away from the field on purpose is not a problem to correct. */
+    (function () {
+        const vv = window.visualViewport;
+        if (!vv) return;                       /* desktop, and older browsers */
+        let field = null;
+        const keep = () => {
+            if (!field || !document.contains(field)) return;
+            const r = field.getBoundingClientRect();
+            const bar = document.getElementById('commit-actions');
+            const barH = (bar && getComputedStyle(bar).position === 'fixed')
+                       ? bar.getBoundingClientRect().height + 12 : 0;
+            const floor = vv.height - barH - 8;
+            const over = r.bottom - floor;
+            if (over > 0) window.scrollBy({ top: over, behavior: 'smooth' });
+            else if (r.top < 8) window.scrollBy({ top: r.top - 8, behavior: 'smooth' });
+        };
+        document.addEventListener('focusin', e => {
+            const t = e.target;
+            if (!t || !t.matches || !t.matches('input, select, textarea')) return;
+            field = t;
+            /* Room to scroll INTO. A field near the end of the document has
+               nothing below it, so scrollBy( ) has nowhere to go and the field
+               stays behind the keyboard however correct the arithmetic was.
+               The padding is what creates the headroom; it is scoped to the
+               narrow layout and removed the moment the field is left. */
+            document.body.classList.add('typing');
+            /* Two passes: one for the layout that is already there, one after
+               the keyboard's animation, which no event reports the end of. */
+            setTimeout(keep, 60);
+            setTimeout(keep, 400);
+        });
+        document.addEventListener('focusout', () => {
+            field = null;
+            document.body.classList.remove('typing');
+        });
+        vv.addEventListener('resize', keep);
+    })();
+
     /* =========================================================================
      * U24 Phase D — Pending Changes Manager + commit-all (shared across pages)
      * =========================================================================
@@ -7551,6 +7612,10 @@ static const char LANG_JS[] PROGMEM = R"raw(
             const live = any && this.live === true;
             const show = (id, on) => { const e = document.getElementById(id);
                                        if (e) e.style.display = on ? 'inline-flex' : 'none'; };
+            /* The class is what the phone layout reads. Selecting on the
+               inline style string worked until a browser normalised it. */
+            const box = document.getElementById('commit-actions');
+            if (box) { box.classList.toggle('on', any); box.classList.toggle('live', live); }
             show('commit-btn', any);
             show('apply-btn', live);
             show('try-btn', live);
@@ -7763,14 +7828,24 @@ static const char LANG_JS[] PROGMEM = R"raw(
                 b.innerText = label;
                 b.setAttribute('data-i18n', key);
                 b.style.display = 'none';
-                wrap.insertBefore(b, pill);
+                box.appendChild(b);
                 return b;
             };
+            /* One container, so the phone layout is a flex ROW and not three
+               elements positioned by percentage arithmetic. The first draft
+               pinned each button with `left`/`width: calc(25% - 15px)` and
+               picked them by `:not([style*="display: none"])` — matching the
+               inline style as a STRING. Both were wrong on a phone: the widths
+               did not account for the label and "Salvar e reiniciar" ran out
+               of its own border. */
+            const box = document.createElement('div');
+            box.id = 'commit-actions';
+            wrap.insertBefore(box, pill);
             const note = document.createElement('span');
             note.id = 'commit-note';
             note.className = 'badge pending';
             note.style.display = 'none';
-            wrap.insertBefore(note, pill);
+            box.appendChild(note);
             mk('try-btn',    'btn-action', tryNow,    'commit_try',   window.t('commit_try',   'Test'));
             mk('apply-btn',  'btn-action', applyNow,  'commit_apply', window.t('commit_apply', 'Apply now'));
             mk('commit-btn', 'b-pri',      commitAll, 'commit_btn',   window.t('commit_btn',   'Save & restart'));

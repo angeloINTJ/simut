@@ -118,9 +118,9 @@ Both columns are PlatformIO's `Flash: used`.
 
 | image | v2.5.0-beta | v2.6.0-beta | Δ | `.bin` | under the OTA ceiling |
 |---|---:|---:|---:|---:|---:|
-| `pico_w_release` | 998,468 B | **1,008,892 B** | +10,424 | 1,020,924 B | 19,460 B |
+| `pico_w_release` | 998,468 B | **1,009,276 B** | +10,808 | 1,021,308 B | 19,076 B |
 | `pico_w_alpha` | 973,372 B | **978,036 B** | +4,664 | 990,348 B | 50,036 B |
-| `pico_w_air` | 1,018,752 B | **1,017,728 B** | **-1,024** | 1,031,212 B | 9,172 B |
+| `pico_w_air` | 1,018,752 B | **1,017,736 B** | **-1,016** | 1,031,212 B | 9,172 B |
 
 The Air got *smaller* while gaining the live-apply flags: the PIN machinery it
 was carrying for a panel it does not have is worth more than the new code. Four

@@ -189,19 +189,19 @@
  "envs": {
   "pico_w_release": {
    "budget": 1011948,
-   "measured": 1008892
+   "measured": 1009276
   },
   "pico_w_test": {
    "budget": 1016804,
-   "measured": 1013740
+   "measured": 1014132
   },
   "pico_w_test_https": {
    "budget": 1024428,
-   "measured": 1021372
+   "measured": 1021748
   },
   "pico_w_asserts": {
-   "budget": 1010228,
-   "measured": 1007228
+   "budget": 1014068,
+   "measured": 1011452
   },
   "pico_w_alpha": {
    "budget": 981028,
@@ -209,7 +209,7 @@
   },
   "pico_w_air": {
    "budget": 1020728,
-   "measured": 1017728
+   "measured": 1017736
   }
  }
 }
