@@ -40,6 +40,7 @@ Consulted while changing the code, and enforced by CI where a gate exists.
 | [AUTHORIZATION.md](AUTHORIZATION.md) | Living | The authorization matrix (`check_authz.py --list` counts the routes; 61 after `GET /api/wifi/scan`). Gated by `tools/check_authz.py`. |
 | [CONCURRENCY.md](CONCURRENCY.md) | Living | The concurrency invariants, including invariant 3 (`pico_w_asserts` arms its tripwire). |
 | [GLOSSARY.md](GLOSSARY.md) · [pt-BR](GLOSSARY.pt-BR.md) · [es-ES](GLOSSARY.es-ES.md) | Living | Tag glossary. |
+| [security-audit/ACHADO_2026-09-21_V09_ESCALACAO_POR_USER_MGR.md](security-audit/ACHADO_2026-09-21_V09_ESCALACAO_POR_USER_MGR.md) | **ABERTO** | 🔴 V-09, severidade alta: uma conta com `PERM_USER_MGR` cria outra com qualquer bit, inclusive os que ela não tem, e recebe a senha na resposta. Achado em 21/09, correção urgente pendente de decisão (pt-BR). |
 | [diretrizes_seguranca_vibecoding.md](diretrizes_seguranca_vibecoding.md) | Living | The six failure classes every new code path is audited against. |
 | [images/README.md](images/README.md) · [images/screens/screens.md](images/screens/screens.md) | Living | How the screenshots and screen captures are produced. |
 
