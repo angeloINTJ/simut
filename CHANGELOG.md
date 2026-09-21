@@ -4,6 +4,124 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.6.1-beta (2026-09-21)
+
+**A scan button for the Wi-Fi network, and the web interface stops going whole
+into every image.** The SSID had to be typed from memory, and the hardest
+moment is the one the device forces: an unconfigured unit serves its setup page
+over its own access point, so it is guaranteed not to be on the network whose
+name it is asking for. It scans from there now. The same pass found that the
+Air and the alpha were carrying the panel mirror, the screen capture and the
+theme selector — **2,363 B of gzipped page** talking to four routes those
+images do not even register — and cut them out, which took the Air from
+**980 B** of OTA headroom back to **5,076 B**.
+
+### Choosing the network instead of typing it
+
+- **`Scan`, next to the SSID field on `/network`.** Name, whether it is
+  secured, signal. Tapping a row fills the SSID and moves the cursor to the
+  password. Twelve networks, sorted by signal; a mesh answering on several
+  radios appears **once**, as its strongest, and hidden SSIDs are not listed —
+  there is nothing to tap.
+- **It works in AP mode**, which is what it was built for. `cyw43_wifi_scan( )`
+  sweeps on the station interface, which AP mode leaves down, and asking anyway
+  is the documented way to leave `wifi_scan_state` stuck at 1 for the rest of
+  the boot — the 2026-09-08 field failure, 3 h 41 min dark. The device brings
+  that interface up **beside** the access point, once per boot, and the page
+  you are reading stays up.
+- **A refusal is reported at once.** `scanNetworks(true)` returning anything but
+  `-1` is a failure; `0` means the driver refused, and waiting out the 15 s
+  deadline for a sweep that never started reads as a hang. A stale list is
+  never served as a fresh one either: `again=1` that cannot start gets 503.
+- **Measured on the rig, 18/18**, in STA mode and from inside the device's own
+  access point with a second radio joined to it: **0.94 s** a sweep, **zero
+  polls lost**, twice, and a second sweep in the same boot still returns a list.
+
+### Only what the image can use gets compiled
+
+- **`/* @IF tft */` blocks in `WebUI.h`**, cut per environment by
+  `custom_web_omit` in `platformio.ini`. The default omits **nothing**, so an
+  environment that forgets the option ships fat — the safe way to be wrong.
+- **What the Air and the alpha stop carrying**: the panel mirror, the screen
+  capture, the theme selector. Four routes back them (`/api/screen_stream`,
+  `/api/touch`, `/api/screenshot`, `/api/keypad`) and `#if SIMUT_DISPLAY_TFT`
+  does not register any of them there. They were buttons that answered 404. The
+  alpha's two theme entry points are empty stubs.
+- This is **not** the `custom_fs_pages` diet and the rule that a shipping image
+  carries the complete interface still holds for that one: there the page exists
+  and lives on the filesystem, and a missing file is a runtime error. Here
+  nothing is missing — the control and the route go together.
+
+### Three fixes on the glass
+
+- **The lock and the signal are drawn.** They were an emoji and box-drawing
+  characters; v2.1.5 removed exactly that from this interface when it put stroke
+  icons in an SVG sprite. An open network gets no icon and keeps its slot, which
+  is the phone convention and what keeps the names aligned.
+- **The scan button is the height of the field beside it.** Every input carries
+  `margin: 0 0 16px`, and a margin sits outside the border box: in a flex row
+  with `align-items: stretch` the button stretched over the whole line and came
+  out 16 px taller.
+- **The Wi-Fi password has a reveal button**, and **the IP in the top-right
+  corner stops truncating on a phone**. It rendered as `192.168.3…` because it
+  was the only shrinkable item in the topbar — and the only information in it.
+  The version that used to sit next to the brand moved into the drawer.
+
+### The licence says the same thing everywhere
+
+- The `/license` page carried **`Copyright (c) 2025`** while the `LICENSE` file,
+  the firmware string and both language packs said 2026. The page is the copy a
+  user opens.
+- `tools/build_release.sh` packaged the Arduino IDE zips — a copy of the whole
+  source tree — **without `LICENSE` in them**, which is the one artefact not
+  honouring the "all copies" clause it contains.
+- `tools/check_license.py` keeps the five copies agreeing and checks that both
+  release scripts ship the file.
+
+### Gates added
+
+Three, all of them born from a defect found by reading or by looking at the
+page rather than by any test:
+
+- **an undefined CSS token.** `var(--x)` with no `--x:` is not a syntax error —
+  the browser drops the whole declaration. Two invented token names shipped a
+  button with no background and a label with no colour, in both themes.
+- **a page block that something outside it depends on.** A function defined
+  inside an `@IF` and called outside, a function inside one that nothing calls,
+  an element id fetched from outside. The middle one is there because the theme
+  selector broke exactly that way — `loadThemes( )` lost its only call when the
+  block moved, and sat on "Loading..." forever.
+- **licence consistency**, above.
+
+All three run **even when nothing is omitted**, or whoever only builds the
+release never learns they broke the Air.
+
+### Flash
+
+Both columns are PlatformIO's `Flash: used`.
+
+| image | v2.6.0-beta | v2.6.1-beta | Δ | `.bin` | under the OTA ceiling |
+|---|---:|---:|---:|---:|---:|
+| `pico_w_release` | 1,009,276 B | **1,012,668 B** | +3,392 | 1,024,700 B | 15,684 B |
+| `pico_w_alpha` | 978,036 B | **975,396 B** | **-2,640** | 990,348 B | 50,036 B |
+| `pico_w_air` | 1,017,736 B | **1,019,184 B** | +1,448 | 1,035,308 B | 5,076 B |
+
+The Air's `used` goes up by 1,448 and its `.bin` is unchanged from v2.6.0-beta:
+the scan cost it a 4 KiB step, and cutting the panel UI gave the same step back.
+Without that cut it would have shipped **980 B** under the OTA ceiling, one
+addition away from refusing an update while `used` still read 21 kB of slack.
+
+`pico_w_test_https` is **3,308 B** under the same ceiling and trips the gate's
+warning. It is `pico_w_test` plus BearSSL; the next thing added to it has to
+take a fourth page out to LittleFS.
+
+### Upgrading
+
+Nothing to migrate: the config schema stays at 25. The language packs gained
+nine web keys and one log string — they are not part of the firmware image, so
+upload the new ones on the Files page and reboot, or the new labels stay in
+English.
+
 ## v2.6.0-beta (2026-09-20)
 
 **Choosing the account before typing the PIN, and a keypad that stops
