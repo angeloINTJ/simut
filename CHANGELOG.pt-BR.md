@@ -4,6 +4,72 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.7.0 (2026-09-22)
+
+**A linha sai do beta.** Nada aqui é recurso novo: esta é a versão que deixa de
+se chamar beta, e faz isso por números, não por decisão. A imagem publicada
+abaixo é a que rodou **8,18 h de soak com zero reinícios** e **seis idas e
+voltas de OTA** sem perder nada, e traz uma correção de segurança e uma
+instrumentação que a campanha apontou como faltantes.
+
+### Ninguém concede uma permissão que não tem (V-09)
+
+- **O `users.add` limitava `perms` a `PERM_ALL_BITS` e nunca à máscara de quem
+  pedia.** Uma conta com `PERM_USER_MGR` e mais nada criava outra com todos os
+  bits e recebia a senha de uso único na mesma resposta. Agora é recusado campo
+  a campo: um pedido com bit que o chamador não tem volta `200` com
+  `"rejected":["users.perms"]` e **nenhuma conta é criada** — recusar em vez de
+  truncar calado, para que quem pediu enxergue o que aconteceu.
+- **A mesma regra no PIN de painel do slot 0.** Definir o PIN do admin é como a
+  web o configura, e `PERM_USER_MGR` sozinho bastava. Agora só o próprio admin
+  ou um admin pleno; qualquer outro recebe `"rejected":["users.id"]`.
+- Validado no ferro **com controle positivo**, que é o que dá peso à corrida: a
+  conta restrita pedindo um bit que ela **tem** continua sendo aceita e
+  continua recebendo as credenciais — é a regra do subconjunto, não um veto.
+- ⚠️ **Uma conta de serviço precisa agora portar todo bit que vai distribuir.**
+  Uma integração que criava usuários de painel com `ALARM_BLOCK|MAINT` a partir
+  de uma conta que só tinha `USER_MGR` para de funcionar. A receita corrigida
+  está em `docs/INTEGRACAO_SERVIDOR.md`.
+
+### Um travamento no campo deixa três números, não um
+
+- A autópsia diz `C0=[…] C1=[…] at up=…ms sc3=0x… hp=…`, e só o primeiro fato
+  sobrevivia ao reinício: o registro de 12 bytes tem um `int16` de contexto,
+  gasto em `200 + módulo do Core 0`. O resto ia para a serial do boot e para
+  lugar nenhum mais — o que no campo é nada, porque não há serial.
+- **Três registros irmãos passam a persistir o resto**, separados por faixa de
+  contexto: `1000 +` o módulo do Core 1 quando o Core 0 parou de alimentar,
+  `2000 +` o heap livre em KB, `4000 +` o uptime no travamento em minutos. Sem
+  mudança de formato, sem código de log novo, e `FATAL` nunca é filtrado, então
+  os quatro registros entram.
+- Custo: **+184 B** na imagem de release; **0 B** no Air e no alpha, onde o
+  crescimento coube no padding do linker. Todos os orçamentos de flash passam
+  sem alteração.
+
+### Medido na imagem aqui publicada
+
+| | |
+|---|---|
+| Soak | **8,18 h, 0 reinícios**, 99 amostras; maior bloco contíguo de heap 32.313 → 32.271 B, piso 32.266 — **−42 B**, ou −5,1 B/h. O contador de exposição de flash e os dois de morte do Core 1 ficaram em 0; o batimento do Core 1 teve pico de 44 ms |
+| OTA | **6 de 6 applies**, cada um julgado pela versão que o aparelho relê. Estágio de 34,9 a 35,9 s, CRC batendo nos seis, volta em 52 a 56 s |
+| Sistema de arquivos através da bateria de OTA | 57 arquivos restaurados, **0 registros faltando** (76.588 no backup, 76.612 no aparelho — os 24 a mais são não-selados que a restauração absorveu); configuração idêntica em todos os campos conferidos |
+
+### Conhecido, e não corrigido aqui
+
+- **Um reinício por watchdog com trace vazio** (`ctx=209`/`ctx=455`), reproduzido
+  três vezes entre 20 e 21 de setembro na imagem de bancada e nenhuma vez desde
+  então, em amostra grande: 15 corridas completas do reprodutor conhecido, 828
+  ciclos de escrita em flash, 321 mudanças de política e 41 sessões nos
+  primeiros 18 minutos depois de um boot. O gatilho conhecido **não existe na
+  imagem publicada** — o `write memory` não é compilado na CLI de release, e o
+  caminho web equivalente deu 0 em 500. Agora está instrumentado dos dois
+  lados, então a próxima ocorrência chega diagnosticável em vez de silenciosa.
+- **Resposta cortada em conexão ociosa**, medida em 7,1% das amostras espaçadas
+  de cinco minutos durante o soak. Quem corta é o aparelho: ele espera 4 s por
+  espaço na janela de envio do cliente e então mata o fluxo, o que o cliente vê
+  como bloco quebrado. Sob carga e com corpos grandes o mesmo sintoma era o
+  caminho de rede, e sumiu.
+
 ## v2.6.1-beta (2026-09-21)
 
 **Um botão de busca para a rede Wi-Fi, e a interface web deixa de ir inteira

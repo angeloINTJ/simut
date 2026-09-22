@@ -4,6 +4,76 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.7.0 (2026-09-22)
+
+**The line comes out of beta.** Nothing here is a new feature: this release is
+the one that stops calling itself beta, and it does so on numbers rather than
+on a decision. The image published below is the one that ran an **8.18 h soak
+with zero reboots** and **six OTA round trips** with nothing lost, and it
+carries one security fix and one piece of instrumentation that the campaign
+said were missing.
+
+### Nobody grants a permission they do not hold (V-09)
+
+- **`users.add` capped `perms` at `PERM_ALL_BITS` and never at the mask of the
+  account asking.** A caller holding `PERM_USER_MGR` and nothing else could
+  create an account with every bit and receive its one-time password in the
+  same reply. Refused now, field by field: a request carrying a bit the caller
+  lacks comes back `200` with `"rejected":["users.perms"]` and **no account is
+  created** — refused rather than silently truncated, so the caller can see
+  what happened.
+- **Same rule on the panel PIN of slot 0.** Setting the admin's panel PIN is
+  how the web configures it, and `PERM_USER_MGR` alone used to be enough.
+  Now only the admin itself or a full admin; anyone else gets
+  `"rejected":["users.id"]`.
+- Verified on hardware with positive controls, which is what makes the run
+  mean anything: the restricted account asking for a bit it **holds** is still
+  accepted and still gets its credentials, so this is the subset rule and not
+  a blanket veto.
+- ⚠️ **A service account must now carry every bit it hands out.** An
+  integration that created panel users with `ALARM_BLOCK|MAINT` from an
+  account holding only `USER_MGR` stops working. `docs/INTEGRACAO_SERVIDOR.md`
+  carries the corrected recipe.
+
+### A stall in the field leaves three numbers behind, not one
+
+- The crash autopsy reads `C0=[…] C1=[…] at up=…ms sc3=0x… hp=…`, and only its
+  first fact used to survive the reboot: the 12-byte record has one `int16` of
+  context, spent on `200 + Core-0 module`. The sentence went to the boot serial
+  and nowhere else, which is nothing at all in the field, where there is no
+  serial.
+- **Three sibling records now persist the rest**, told apart by context band:
+  `1000 +` Core 1's module when Core 0 stopped feeding, `2000 +` free heap in
+  KB, `4000 +` uptime at the stall in minutes. No format change, no new log
+  code, and `FATAL` is never filtered, so all four records land.
+- Cost: **+184 B** on the release image; **0 B** on the Air and the alpha,
+  where the growth fell inside the linker's padding. Every flash budget passes
+  unchanged.
+
+### Measured on the image published here
+
+| | |
+|---|---|
+| Soak | **8.18 h, 0 reboots**, 99 samples; largest contiguous heap block 32,313 → 32,271 B, floor 32,266 — **−42 B**, or −5.1 B/h. Flash-exposure counter and both Core 1 kill counters stayed at 0; Core 1 heartbeat peaked at 44 ms |
+| OTA | **6 of 6 applies**, each judged by the version the device reads back. Stage 34.9–35.9 s, CRC matching on all six, device back in 52–56 s |
+| Filesystem through the OTA battery | 57 files restored, **0 records missing** (76,588 backed up, 76,612 on the device — the 24 extra are unsealed records the restore absorbed); configuration identical across every field checked |
+
+### Known, and not fixed here
+
+- **A watchdog reset with an empty trace** (`ctx=209`/`ctx=455`) reproduced
+  three times between 20 and 21 September on the bench image, and not once
+  since in a large sample: 15 complete runs of the known reproducer, 828
+  flash-write cycles, 321 policy changes and 41 sessions across the first 18
+  minutes after a boot. Its known trigger does not exist in the published
+  image — `write memory` is not compiled into the release CLI, and the
+  equivalent web path gave 0 in 500. It is now instrumented on both sides, so
+  the next occurrence arrives diagnosable instead of silent.
+- **A response truncated on an idle connection**, measured at 7.1% of samples
+  five minutes apart during the soak. The device is the one cutting: it waits
+  4 s for room in the client's send window and then kills the stream, which a
+  client sees as a broken chunk. Under load with large bodies the same symptom
+  turned out to be the network path and is gone.
+
 ## v2.6.1-beta (2026-09-21)
 
 **A scan button for the Wi-Fi network, and the web interface stops going whole
