@@ -221,6 +221,7 @@ void AppManager::loop( ) {
 
  TRACE_MOD(0, MOD_WIFI);
  _netMgr->update( );
+ if (_netMgr->takeApFallback( )) startApMode(3);
 
  watchdog_update( );
 

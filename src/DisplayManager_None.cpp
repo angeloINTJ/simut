@@ -72,6 +72,7 @@ bool DisplayManager::isDisplayBusy( ) { return false; }
 bool DisplayManager::isHeavyRendering( ) { return false; }
 bool DisplayManager::isSkipPressed( ) { return false; }
 bool DisplayManager::isScreenTouched( ) { return false; }
+void DisplayManager::setApInfo(const char* ssid, const char* psk) { (void)ssid; (void)psk; }
 void DisplayManager::beginTouch( ) { }
 
 void DisplayManager::setWebBusy(bool busy, const char* username) { (void)busy; (void)username; }

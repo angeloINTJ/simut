@@ -1606,6 +1606,22 @@ void DisplayManager::handleTouch( ) {
  }
  }
  }
+ else if (_uiMode == MODE_CONFIRM_AP) {
+ /* Same two buttons, same rects as the mute confirmation above. */
+ if (y >= 190 && y <= 230) {
+ if (x >= 20 && x <= 150) {
+ if (!acceptTouch(0xC2)) return;
+ showSettingsMain( );
+ }
+ else if (x >= 170 && x <= 300) {
+ if (!acceptTouch(0xC3)) return;
+ /* Core 0 owns the bit check and the radio; the panel only asks.
+  * Nothing is drawn from here: beginAP( ) is a boot-status screen
+  * away and the AP line replaces this one. */
+ UiEvent ev; ev.type = UiEvent::EVT_START_AP; ev.id = 0; pushUiEvent(ev);
+ }
+ }
+ }
 }
 
 bool DisplayManager::acceptTouch(uint8_t zoneId) {

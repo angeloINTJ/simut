@@ -107,7 +107,11 @@ enum UiMode {
   * Appended for the same reason the v24 block was: isMenuActive( )'s
   * ">= MODE_AUTH" has to keep covering the whole settings tree. */
  MODE_AUTH_USER,                 /**< who is at the panel: pick an account */
- MODE_SETTINGS_PIN_POLICY        /**< PIN length, keypad and alphabet */
+ MODE_SETTINGS_PIN_POLICY,       /**< PIN length, keypad and alphabet */
+ /* 2.7.1 — a way into AP mode that is not a three-second gesture during a
+  * window nobody can see. Appended for the same reason as the two blocks
+  * above: isMenuActive( )'s ">= MODE_AUTH" has to keep covering the tree. */
+ MODE_CONFIRM_AP                 /**< "start the setup access point?" */
 };
 
 /** Time range selection for graph rendering. */
@@ -675,7 +679,10 @@ struct UiEvent {
  /* v25 — id = minLen, param = keypad * 16 + alphabet. Packed into the two
   * fields the event already has rather than growing UiEvent, which every
   * queue entry pays for. */
- EVT_PIN_POLICY
+ EVT_PIN_POLICY,
+ /* 2.7.1 — the panel asks for the setup AP. No payload: Core 0 owns the
+  * permission check and the network call, exactly as with every v24 event. */
+ EVT_START_AP
  };
  EventType type;
  int id;

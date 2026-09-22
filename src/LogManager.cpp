@@ -1138,7 +1138,7 @@ static const char* translateCodeEn(uint16_t code) {
  case APP_DISPLAY_LAUNCHED: return "Display launched on Core 1";
  case APP_TOUCH_CAL_INITIAL: return "Initial touch cal saved";
  case APP_TOUCH_CAL_REQUIRED: return "Touch calibration required";
- case APP_AP_MODE_TRIGGERED: return "AP mode triggered by user";
+ case APP_AP_MODE_TRIGGERED: return "AP mode started";
  case APP_READY: return "System ready";
  case APP_READY_AP: return "System ready (AP mode)";
  case APP_STORAGE_CRITICAL: return "Storage critical failure";

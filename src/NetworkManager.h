@@ -54,6 +54,18 @@ public:
   * where the AP is deliberately open for bench work. */
  const char* getApPsk( ) const { return _apPsk; }
 
+ /** The SSID beginAP( ) actually put on the air, empty before it ran.
+  * Composed in one place so a second caller cannot drift from the naming
+  * rule: the alpha's LCD has to name the network for an operator whose
+  * only other channel is a cable. */
+ const char* getApSsid( ) const { return _apSsid; }
+
+ /** True once, when the reconnect ladder has failed a whole round and the
+  * device should fall back to the setup AP. Consumed by AppManager, which is
+  * the layer that owns both the radio and the display — see the comment at
+  * the arming site for why here and why once. */
+ bool takeApFallback( ) { bool d = _apFallbackDue; _apFallbackDue = false; return d; }
+
 
  /** Seed the provisional clock from the last timestamp on flash.
   *
@@ -187,6 +199,7 @@ public:
 private:
  /** Derived WPA2 key of the setup AP (V-05). AP_PSK_LEN + terminator. */
  char _apPsk[AP_PSK_LEN + 1] = {0};
+ bool _apFallbackDue = false;
  bool _mdnsEnabled = true;
  uint16_t _advPort = 0;
  bool _advTls = false;
@@ -208,6 +221,9 @@ private:
  char _ssid[32];
  char _pass[32];
  char _deviceName[32];
+ /** deviceName + "_SETUP", declared after the name it is built from so the
+  * sizeof below is the real bound and not a second copy of 32. */
+ char _apSsid[sizeof(_deviceName) + 8] = {0};
  char _ntpServer[32];
  int8_t _tzOffset;
 

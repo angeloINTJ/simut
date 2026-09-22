@@ -56,6 +56,36 @@ static float alphaChannelValue(const SlotSnapshot& s, uint8_t ch) {
 	}
 }
 
+/* One 16-column window onto a string that may be longer than the display,
+ * advanced by `step`. A device name is 32 bytes and the setup SSID appends
+ * "_SETUP", so the network can be 37 characters wide on a screen with sixteen
+ * columns — and a truncated SSID is worse than no SSID, because it is the
+ * name the operator has to find in a phone's list. Two spaces of gap before
+ * it wraps, so the end and the beginning do not read as one word. */
+static void alphaMarquee(Hd44780_16x2 &lcd, uint8_t row, const char* s, uint16_t step) {
+	const size_t n = strlen(s);
+	lcd.setCursor(0, row);
+	if (n <= 16) {
+		lcd.print(s);
+		for (size_t i = n; i < 16; i++) lcd.write(' ');
+		return;
+	}
+	const size_t span = n + 2;
+	const size_t off  = (size_t)step % span;
+	for (size_t i = 0; i < 16; i++) {
+		const size_t k = (off + i) % span;
+		lcd.write(k < n ? s[k] : ' ');
+	}
+}
+
+/* Core 0 hands the setup network over once, when it comes up. */
+void DisplayManager::setApInfo(const char* ssid, const char* psk) {
+	mutex_enter_blocking(&_stateMutex);
+	safeCopy(_apSsidLcd, ssid ? ssid : "", sizeof(_apSsidLcd));
+	safeCopy(_apPskLcd,  psk  ? psk  : "", sizeof(_apPskLcd));
+	mutex_exit(&_stateMutex);
+}
+
 void DisplayManager::core1Entry( ){ if (_instance) _instance->loopCore1(); }
 void DisplayManager::loopCore1( ) {
 	_lcd.begin( );
@@ -174,6 +204,51 @@ void DisplayManager::loopCore1( ) {
 					_cycleSlot = -1;
 				}
 			}
+
+		} else if (_sharedState.apMode) {
+			/* ── SETUP AP: the network, the key, the address ─────────
+			 *
+			 * Until 2.7.1 this build showed "AP" in the corner and went on
+			 * cycling sensor readings. The WPA2 key the setup network has
+			 * carried since V-05 is published in exactly two places —
+			 * beginAP( )'s console line and the `ap` command's reply — and
+			 * neither is reachable from a phone. The suffix the boot builds
+			 * for TR_BOOT_AP_NETWORK does carry it, but this renderer draws
+			 * a progress bar and never the boot log's text, so on an alpha
+			 * the key reached no display at all (measured 2026-09-22: the
+			 * word `suffix` does not appear in this file). An operator with
+			 * the network in their phone's list and no password is exactly
+			 * the report this fixes.
+			 *
+			 * Three pages of 3 s. The value gets the whole second line, so a
+			 * long device name still has sixteen columns to scroll through. */
+			char ssid[sizeof(_apSsidLcd)], psk[sizeof(_apPskLcd)];
+			{
+				mutex_enter_blocking(&_stateMutex);
+				safeCopy(ssid, _apSsidLcd, sizeof(ssid));
+				safeCopy(psk,  _apPskLcd,  sizeof(psk));
+				mutex_exit(&_stateMutex);
+			}
+			static uint8_t  apPage = 0;
+			static uint16_t apStep = 0;
+			if (millis( ) - _lt >= 3000) { _lt = millis( ); apPage = (apPage + 1) % 3; apStep = 0; }
+
+			_lcd.setCursor(0, 0);
+			switch (apPage) {
+				case 0: _lcd.print("Modo AP  1 de 3"); break;
+				case 1: _lcd.print("Rede:    2 de 3"); break;
+				default: _lcd.print("Senha:   3 de 3"); break;
+			}
+			_lcd.write(' ');
+			switch (apPage) {
+				case 0:  alphaMarquee(_lcd, 1, "192.168.4.1", apStep); break;
+				case 1:  alphaMarquee(_lcd, 1, ssid[0] ? ssid : "?", apStep); break;
+				default: alphaMarquee(_lcd, 1, psk[0] ? psk : "(aberta)", apStep); break;
+			}
+			apStep++;
+			_lcd.blit( );
+			delay(300);
+			continue;
 
 		} else {
 			/* ── SENSOR VALUES (cycle active slots × channels) ───── */

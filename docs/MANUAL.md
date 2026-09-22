@@ -1042,10 +1042,45 @@ Of the recovery commands only `ap` is allowed over the link.
 
 ## 14. Recovery
 
+### AP mode — the setup network
+
+When the device is not on a network, it brings one up itself: `<name>_SETUP`,
+**WPA2**, portal at `http://192.168.4.1`. The key is derived from the board's
+serial number — not configurable, and it survives a factory reset — and the
+device publishes it in four places:
+
+| Where | Builds |
+|---|---|
+| USB console, the `[AP] PSK :` line | all |
+| Reply to the `ap` command, on the channel that asked (USB or Bluetooth) | all |
+| Boot line, next to "Connect to network …" | release (TFT) |
+| Third LCD page, while the AP is up | alpha |
+
+And there are five ways into it:
+
+| How | Builds | Notes |
+|---|---|---|
+| **By itself**, when no Wi-Fi is configured | all | this is the factory state |
+| **By itself**, after ~33 min of failing to associate | release, alpha | one whole round of the reconnect ladder; the AP times out after 15 min and the device goes back to trying the LAN |
+| **Settings → 12. Configuration Mode** | release (TFT) | asks first; needs the network bit |
+| **The `ap` command** | all | over USB, and over Bluetooth on the alpha and Air images |
+| **Holding the screen during boot** | release (TFT) | the panel asks for it and draws the 3 s bar; see below |
+
+⚠️ **The touch gesture is the most fragile of the five.** The window opens when
+the panel writes "Hold screen for AP Mode" and lasts 3.5 s; holding for 3 s
+inside it starts the AP. Up to v2.7.0 that window ran **before Core 1 existed**,
+and Core 1 is what draws the TFT: the instruction reached the glass 38 ms after
+the window had closed (measured 2026-09-22 — window `[3919..7419] ms`, Core 1 at
+`7457 ms`), so anyone obeying what the panel said was always too late. Since
+v2.7.1 the window runs with the panel drawing, so **what is on the screen is
+true while it is on the screen**.
+
 | Symptom | What to do |
 |---|---|
 | Forgot the admin password | `system admin reset confirm` over **USB serial** (the command is refused over Bluetooth), then log in with the printed password — the web forces you to change it. Since this release the reset survives a reboot, so there is no rush |
-| Answers on serial but not on the network | `show net status` — with no IP, reconfigure Wi-Fi from the display |
+| Answers on serial but not on the network | `show net status` — with no IP, enter AP mode (above) and reconfigure Wi-Fi from the portal |
+| The router changed and the device vanished from the LAN | Wait ~33 min: it opens the setup network on its own. Or force it from the panel, with `ap` over USB, or with `ap` over Bluetooth (alpha and Air) |
+| I can see the `_SETUP` network on my phone but I do not know the password | It is derived from the board and has not been blank since v2.4.1-beta. Read it on the USB console, in the `ap` reply, on the TFT's boot screen or on the alpha's LCD |
 | Blank screen after adjusting the display offset | Fixed in v1.6.2-beta. On older firmware a factory reset clears the stored offset |
 | Update reported success but the version did not change | The applier defect described in §12. Flash v1.6.2-beta over USB |
 | Does not enumerate over USB at all | BOOTSEL rescue — see [RECOVERY.md](RECOVERY.md) |

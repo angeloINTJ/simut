@@ -339,7 +339,7 @@ void DisplayManager::showSettingsMain( ) {
   * historical table order (icon id = item id = EVT_MENU_SELECT id); only the
   * VISIBLE list changes per account. Items with no bit are for everyone:
   * the PIN (one's own), the license and the status screen. */
- static const uint16_t NEED[11] = {
+ static const uint16_t NEED[MENU_ITEM_COUNT] = {
  PERM_SYS_CONFIG,      /* 0 themes */
  PERM_PANEL_ALARM_ANY, /* 1 alarms */
  PERM_SYS_CONFIG,      /* 2 sounds */
@@ -350,10 +350,11 @@ void DisplayManager::showSettingsMain( ) {
  0,                    /* 7 status */
  PERM_SYS_CONFIG,      /* 8 display offset */
  PERM_USER_MGR,        /* 9 users */
- PERM_USER_MGR         /* 10 PIN policy (v25) */
+ PERM_USER_MGR,        /* 10 PIN policy (v25) */
+ PERM_NET_CONFIG       /* 11 setup AP (2.7.1) */
  };
  _menuCount = 0;
- for (uint8_t i = 0; i < 11; i++) {
+ for (uint8_t i = 0; i < MENU_ITEM_COUNT; i++) {
  if (NEED[i] == 0 || (_panelPerms & NEED[i])) _menuItems[_menuCount++] = i;
  }
  _forceSettingsRedraw = true; _repaintSettings = true;
@@ -378,7 +379,13 @@ void DisplayManager::drawSettingsMain( ) {
  if(!_driver.canvas) return;
  bool fullRedraw = _forceSettingsRedraw; bool pageChanged = (_mainMenuPage != _lastMainMenuPage);
  const int TOTAL_ITEMS = _menuCount;
- static const LangKey menuItems[11] = {TR_MENU_THEMES, TR_MENU_ALARMS, TR_MENU_SOUNDS, TR_MENU_LANG, TR_MENU_PASSWORD, TR_MENU_TOUCH_CAL, TR_MENU_LICENSE, TR_MENU_STATUS, TR_MENU_DISPLAY_OFFSET, TR_MENU_USERS, TR_PIN_POLICY};
+ /* TR_AP_MODE ("Configuration Mode" / "Modo de Configuração") is reused rather
+  * than a key being added: it already names this screen on the boot's AP
+  * progress bar, it is in all eight packs, and the es-ES pack is 83 B from its
+  * 16 KB resident ceiling — a pack that overflows is rejected whole. It is the
+  * only row whose string carries no leading number, which is why the number is
+  * printed beside it instead of baked in. */
+ static const LangKey menuItems[MENU_ITEM_COUNT] = {TR_MENU_THEMES, TR_MENU_ALARMS, TR_MENU_SOUNDS, TR_MENU_LANG, TR_MENU_PASSWORD, TR_MENU_TOUCH_CAL, TR_MENU_LICENSE, TR_MENU_STATUS, TR_MENU_DISPLAY_OFFSET, TR_MENU_USERS, TR_PIN_POLICY, TR_AP_MODE};
  int totalPages = (TOTAL_ITEMS + 3) / 4; if (totalPages == 0) totalPages = 1;
  if (_mainMenuPage >= totalPages) _mainMenuPage = totalPages - 1;
  if (_mainMenuPage < 0) _mainMenuPage = 0;
@@ -440,11 +447,18 @@ void DisplayManager::drawSettingsMain( ) {
   * 6 license, 7 status, 8 display-offset, 9 users. The v25 item 10 (PIN
   * policy) borrows the PIN icon: it is the same subject, and a new glyph is
   * flash for a picture nobody would read differently. */
- uiMenuIcon(_driver.canvas, 10, 9, (item == 10) ? 4 : item,
+ uiMenuIcon(_driver.canvas, 10, 9, (item == 10) ? 4 : (item == 11) ? 3 : item,
  isSelected ? C_BG_MAIN : C_ACCENT);
  _driver.canvas->setFont(&simutFont9pt); _driver.canvas->setTextColor(txt);
  const char* label = tr(menuItems[item]);
- if (_menuCount < 11) label = menuLabelNoNumber(label);
+ char numbered[40];
+ if (_menuCount < MENU_ITEM_COUNT) {
+ label = menuLabelNoNumber(label);
+ } else if (item == 11) {
+ /* The only row whose translation has no number of its own. */
+ snprintf(numbered, sizeof(numbered), "%d. %s", (int)item + 1, label);
+ label = numbered;
+ }
  _driver.canvas->setCursor(34, 24); _driver.canvas->print(label);
  _driver.canvas->fillTriangle(itemW - 20, 11, itemW - 20, 23, itemW - 10, 17, isSelected ? C_BG_MAIN : C_TEXT_SUB);
  }
@@ -800,6 +814,68 @@ void DisplayManager::showSettingsSounds(const SoundSettingsState& state) {
  mutex_exit(&_stateMutex);
 }
 
+
+/* Starting the setup AP takes the device off the LAN for up to 15 minutes, so
+ * it asks first — the same two-button screen the Global Mute confirmation
+ * uses, and the same hardcoded EN/PT strings, which is the rule this file
+ * already follows for confirmations (the TFT renders ASCII only, and the
+ * es-ES pack has 83 B left). */
+void DisplayManager::showApConfirm( ) {
+ mutex_enter_blocking(&_stateMutex);
+ _uiMode = MODE_CONFIRM_AP;
+ _forceSettingsRedraw = true;
+ _repaintSettings = true;
+ mutex_exit(&_stateMutex);
+}
+
+void DisplayManager::drawApConfirm( ) {
+ if (!_driver.canvas) return;
+ if (!_forceSettingsRedraw) return;
+ _forceSettingsRedraw = false;
+
+ const bool isPt = (_currentLangIdx == LANG_PT);
+ const char* titleTxt = menuLabelNoNumber(tr(TR_AP_MODE));
+ const char* msgL1 = isPt ? "O aparelho sai da rede" : "The device leaves the";
+ const char* msgL2 = isPt ? "e abre a rede de setup." : "LAN and opens its setup";
+ const char* msgL3 = isPt ? "Tem certeza?" : "network. Are you sure?";
+ const char* backTxt = tr(TR_BACK);
+ const char* confirmTxt = isPt ? "Confirmar" : "Confirm";
+
+ GFXcanvas16* cv = beginScreenRender( );
+ if (!cv) return;
+
+ int16_t bx, by; uint16_t bw, bh;
+
+ for (int strip = 0; strip < 6; strip++) {
+ cv->fillScreen(C_BG_MAIN);
+ const int16_t yOff = -strip * RENDER_STRIP_H;
+
+ cv->fillRect(4, 4 + yOff, 312, 32, C_ACCENT);
+ cv->setFont(&simutFont12pt);
+ cv->setTextColor(C_BG_MAIN);
+ cv->getTextBounds(titleTxt, 0, 0, &bx, &by, &bw, &bh);
+ cv->setCursor((320 - bw) / 2, 28 + yOff);
+ cv->print(titleTxt);
+
+ cv->setFont(&simutFont9pt);
+ cv->setTextColor(C_TEXT_MAIN);
+ cv->getTextBounds(msgL1, 0, 0, &bx, &by, &bw, &bh);
+ cv->setCursor((320 - bw) / 2, 80 + yOff);
+ cv->print(msgL1);
+ cv->getTextBounds(msgL2, 0, 0, &bx, &by, &bw, &bh);
+ cv->setCursor((320 - bw) / 2, 108 + yOff);
+ cv->print(msgL2);
+ cv->getTextBounds(msgL3, 0, 0, &bx, &by, &bw, &bh);
+ cv->setCursor((320 - bw) / 2, 136 + yOff);
+ cv->print(msgL3);
+
+ uiButton(cv, 20, 190 + yOff, 130, 40, backTxt, UI_BTN_SECONDARY);
+ uiButton(cv, 170, 190 + yOff, 130, 40, confirmTxt, UI_BTN_PRIMARY);
+
+ commitScreenStrip(strip * RENDER_STRIP_H);
+ }
+ endScreenRender( );
+}
 
 void DisplayManager::showMuteConfirm( ) {
  mutex_enter_blocking(&_stateMutex);

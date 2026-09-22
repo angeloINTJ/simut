@@ -337,6 +337,12 @@ public:
 	 *  mirror needs to know. */
 	bool lastTouchWasInjected( ) const { return _lastTouchInjected; }
 	bool isCore1Ready( ) { return _core1Ready; }
+	/** Completed boot-screen frames. _core1Ready is set before the panel has
+	 * been initialised, let alone drawn: measured on the rig 2026-09-22, the
+	 * first boot frame lands 757 ms after startCore1( ) returns. Core 0 waits
+	 * on THIS before opening the AP-by-touch window, so the window cannot
+	 * open while the instruction it depends on is still invisible. */
+	uint32_t bootPaintSeq( ) const { return _bootPaintSeq; }
 
 	/** Whether this build actually launches Core 1 for rendering.
 	 *
@@ -348,23 +354,16 @@ public:
 	 * once per wake. Measured 1,51 s between `boot: storage ok` and `[TCH] c=`
 	 * on 2026-09-08. This constant is the guard, and it lives next to
 	 * _core1Ready so that giving Air a display moves both together. */
-	/* kHasTouch: the touch controller is the XPT2046 on the TFT build. The
-	 * alpha's isScreenTouched( ) is a `return false` literal just like the
-	 * headless one, so the boot's touch-settle gate and AP-hold window could
-	 * only ever run out their clocks there too — 3,72 s of a boot, for a
-	 * gesture the build cannot report.
-	 * Decided by the preprocessor rather than by an expression over the
-	 * macros, so an include order that has not yet seen simut_config.h cannot
-	 * turn a missing define into a silent `true`. */
+	/* kHasTouch is gone: it existed to keep the boot's touch-settle gate and
+	 * AP-hold window from running out their clocks on a build with no touch
+	 * controller (3,72 s of a boot, for a gesture the build cannot report).
+	 * That whole block is inside `#if SIMUT_DISPLAY_TFT` now, which is the
+	 * same guard one step earlier — the code is not compiled instead of not
+	 * entered — so the constant had no readers left. */
 #if SIMUT_AIR
 	static constexpr bool kUsesCore1 = false;
-	static constexpr bool kHasTouch  = false;
-#elif SIMUT_DISPLAY_TFT
-	static constexpr bool kUsesCore1 = true;
-	static constexpr bool kHasTouch  = true;
 #else
 	static constexpr bool kUsesCore1 = true;
-	static constexpr bool kHasTouch  = false;
 #endif
 	void forceUnpause( );
 	/* Core-0-owned: a Core-1 launch is outstanding. Plain bool on purpose —
@@ -373,6 +372,7 @@ public:
 	 * the launch->victim_init window reads "not running", which is exactly the
 	 * window a second launch must not fire in. */
 	bool _core1Launched = false;
+	volatile uint32_t _bootPaintSeq = 0; /**< Core 1 writes, Core 0 reads */
 	void launchCore1IfAbsent( );   /**< Launch only when none is outstanding. */
 	void markCore1Down( );         /**< Publish "Core 1 is down" + drain the FIFO. */
 	/** Folds the finished pause into the max/owner accounting (diagnostics only). */
@@ -422,6 +422,11 @@ public:
 	void setSystemStatus(int rssi, bool bt, String timeStr);
 	/** Tells the alpha LCD whether the device is serving the Access Point. */
 	void setApMode(bool ap);
+	/** SSID and WPA2 key of the setup AP, for a build whose display is the
+	 * only channel its operator has. Real on the alpha, a no-op everywhere
+	 * else: the TFT already prints the key on its boot line and the
+	 * headless builds have no glass to print it on. */
+	void setApInfo(const char* ssid, const char* psk);
 
 	/** Boot status: stores a TR key (resolved at render via tr()) plus
 	 * optional suffix. Use for messages that should follow the active language.
@@ -610,6 +615,7 @@ public:
 
 	void showSettingsSounds(const SoundSettingsState& state);
 	void showMuteConfirm( );
+	void showApConfirm( ); /**< "start the setup access point?" (2.7.1) */
 	SoundSettingsState getSoundSettings( ) const { return _soundSettings; }
 
 
@@ -694,6 +700,13 @@ private:
 #if SIMUT_DISPLAY_ALPHA
 	SlotSnapshot _slotSnapshots[MAX_SENSORS];
 	uint8_t _activeSlotCount = 0;
+	/* What the setup network is called and what opens it. Alpha only: this is
+	 * the build with no touch panel to start AP mode from and no TFT to print
+	 * the key on, so the 16x2 is the whole distribution mechanism for an
+	 * operator who is standing in front of the device with a phone. 40 + 16 B
+	 * of RAM, in the one image that has room for them. */
+	char _apSsidLcd[40] = {0};
+	char _apPskLcd[16] = {0};
 #endif
 	bool _isDirty;
 	mutex_t _stateMutex;
@@ -1139,8 +1152,16 @@ private:
 	int8_t _panelUser = -1;
 	uint16_t _panelPerms = 0;
 
-	/* the settings menu, filtered by the session's bits */
-	uint8_t _menuItems[10];
+	/* the settings menu, filtered by the session's bits.
+	 *
+	 * MENU_ITEM_COUNT is the length of the three tables that have to agree
+	 * (NEED, menuItems, the EVT_MENU_SELECT dispatch) and of this buffer. It
+	 * is a named constant because the buffer was NOT grown when v25 appended
+	 * the PIN-policy row: the table had 11 entries and this array 10, so an
+	 * account holding every bit wrote _menuItems[10] — one past the end, and
+	 * _menuCount is the member right behind it. */
+	static constexpr uint8_t MENU_ITEM_COUNT = 12;
+	uint8_t _menuItems[MENU_ITEM_COUNT];
 	uint8_t _menuCount = 0;
 
 	/* per-sensor actions, maintenance entry */
@@ -1229,6 +1250,7 @@ private:
 	void drawSettingsSounds( );
 	void drawMelodySelect( );
 	void drawMuteConfirm( );
+	void drawApConfirm( );
 	SoundSettingsState _soundSettings;
 	int _soundSelection = 0;
 	bool _inMelodySelect = false;

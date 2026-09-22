@@ -859,6 +859,14 @@ void DisplayManager::setApMode(bool ap) {
 }
 
 #if !SIMUT_DISPLAY_ALPHA
+/* The TFT publishes the key on its own boot line (TR_BOOT_AP_NETWORK carries
+ * it as a suffix), so there is nothing to keep here. */
+void DisplayManager::setApInfo(const char* ssid, const char* psk) {
+	(void)ssid; (void)psk;
+}
+#endif
+
+#if !SIMUT_DISPLAY_ALPHA
 bool DisplayManager::isScreenTouched( ) {
  /* Read PENIRQ directly: LOW = touched, HIGH = idle.
   * Works before Core 1 is running (no SPI/lib needed). */
@@ -1591,6 +1599,9 @@ void DisplayManager::loopCore1( ) {
 
 			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawMuteConfirm( ); }
 		}
+		else if (_uiMode == MODE_CONFIRM_AP) {
+			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawApConfirm( ); }
+		}
 
 		/* A request that lands WHILE a draw is running must survive that draw.
 		 * Every branch above used to clear _repaintSettings after painting, and
@@ -1701,15 +1712,26 @@ void DisplayManager::render(const SystemState& state) {
 		                  (_lastRenderedState.apProgressPct != state.apProgressPct) ||
 		                  langJustChanged;
 		if (state.apProgressPct >= 0) {
-			if (fullRedraw) fastClearScreen(C_BG_MAIN);
-			_driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEXT_MAIN);
-			_driver.tft->setCursor(55, 120); _driver.tft->print(tr(TR_AP_MODE));
-			_driver.tft->drawRoundRect(40, 140, 240, 20, 6, C_TEXT_SUB);
+			/* Until 2.7.1 this branch was unreachable: the AP-hold window ran
+			 * before startCore1( ), so nothing rendered it. Now that it does
+			 * run, the redraw condition above is true on EVERY step — the
+			 * percentage is what changed — and clearing 320x240 plus
+			 * re-stamping the caption twenty times a second is a 3-second
+			 * flicker. Only the bar moves, so only the bar is painted after
+			 * the first frame. */
+			const bool enterAp = fullRedraw || (_lastRenderedState.apProgressPct < 0);
+			if (enterAp) {
+				fastClearScreen(C_BG_MAIN);
+				_driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEXT_MAIN);
+				_driver.tft->setCursor(55, 120); _driver.tft->print(tr(TR_AP_MODE));
+				_driver.tft->drawRoundRect(40, 140, 240, 20, 6, C_TEXT_SUB);
+			}
 			int wBar = map(state.apProgressPct, 0, 100, 0, 236);
 			if (wBar > 0) {
 				_driver.tft->fillRoundRect(42, 142, wBar, 16, 4, C_ACCENT);
 			}
 			_lastRenderedState = state;
+			_bootPaintSeq++;
 			return;
 		}
 
@@ -1789,6 +1811,7 @@ void DisplayManager::render(const SystemState& state) {
 		}
 
 		_lastRenderedState = state;
+		_bootPaintSeq++;
 		return;
 	}
 	if (_lastRenderedState.isBooting && !state.isBooting) {

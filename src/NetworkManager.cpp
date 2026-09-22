@@ -108,6 +108,7 @@ void NetworkManager::beginAP(const char* deviceName) {
  IPAddress apIP(192, 168, 4, 1); IPAddress gateway(192, 168, 4, 1); IPAddress subnet(255, 255, 255, 0);
  WiFi.softAPConfig(apIP, gateway, subnet);
  String apName = String(deviceName) + "_SETUP";
+ safeCopy(_apSsid, apName.c_str( ), sizeof(_apSsid));
 
  _apPsk[0] = '\0';
 #if !SIMUT_AP_OPEN
@@ -609,6 +610,27 @@ void NetworkManager::handleConnecting( ) {
  resetReconnectLadder( );
  LOG_CODE(LOG_INFO, "NET", NET_DORMANT_MODE, 0,
  TRL("Dormancy over — back to fast retries"));
+#if !SIMUT_AIR
+ /* And open the setup AP, once per boot.
+  *
+  * Until 2.7.1 nothing here ever did: begin( ) with no SSID went to
+  * NET_OFFLINE and this ladder retried for ever, so the ONLY ways into AP
+  * mode were a three-second gesture on a touch panel during a window the
+  * screen could not show, and the `ap` command over a cable or Bluetooth.
+  * A device whose router was replaced was unreachable by every channel its
+  * owner had, which is the report this release fixes.
+  *
+  * Here and not earlier: one full round is five connect cycles and three
+  * ten-minute dormancies, ~33 min of continuous failure. A router that
+  * reboots takes under two minutes, so this cannot be that. The AP's own
+  * 15-minute timeout reboots back to STA while an SSID is configured, so a
+  * device that was merely out of range comes back on its own.
+  *
+  * Air is excluded: its radio only exists inside a wake, an AP would hold
+  * it awake for fifteen minutes a round, and there is nobody in front of a
+  * hibernating device to use it. */
+ _apFallbackDue = true;
+#endif
  } else {
  /* Long dormancy: avoids draining battery/CPU with futile reconnections */
  _dormantWaits++;

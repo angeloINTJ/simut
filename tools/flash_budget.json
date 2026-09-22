@@ -289,35 +289,59 @@
   "copy a user reads. tools/check_license.py keeps the five copies agreeing and",
   "checks that both release scripts ship the file - build_release.sh packaged",
   "the whole source tree into the Arduino IDE zips without it, which is the one",
-  "artefact the MIT text's own 'all copies' clause was not being honoured in."
+  "artefact the MIT text's own 'all copies' clause was not being honoured in.",
+  "2026-09-22 (fix/ap-mode-reachable): +856 B on release, +864 test, +888",
+  "test_https, +856 asserts, +640 alpha, +232 air of 'used'. NO budget moves -",
+  "every environment is still inside the ~3,000 B margin this file carries - and",
+  "'measured' is updated because it has to describe an image that exists.",
+  "The .bin deltas are +856/+864/+888/+856 on the four panel builds and ZERO on",
+  "the alpha and the Air: both absorbed everything in the .rodata padding this",
+  "file describes at the top, so the alpha got its whole AP screen for nothing.",
+  "Real .bin slack under the 1,040,384 B OTA ceiling: release 14,596, test 9,708,",
+  "test_https 2,076, asserts 12,420, alpha 50,036, air 5,076 (unchanged).",
+  "pico_w_test_https keeps warning and is now 2,076 B from the ceiling. It is the",
+  "bench HTTPS image, not a field one - release-ota.yml does not publish it - but",
+  "the next thing added to the panel builds has to take a fourth page out to",
+  "LittleFS, as the 2026-09-20 note already said.",
+  "What the bytes bought: the AP-by-touch window moved to after startCore1( ) so",
+  "the panel can actually draw the instruction it gives (measured on main: window",
+  "[3919..7419] ms, Core 1 launched at 7457 ms - the prompt reached the glass 38",
+  "ms after the last moment a finger could start the gesture); a twelfth settings",
+  "row that starts the setup AP with a confirmation; the alpha's LCD publishing",
+  "the SSID and the WPA2 key, which reached no display on that build at all; and",
+  "an automatic fallback into AP mode for an unconfigured device or one that has",
+  "failed a whole reconnect round. Air is excluded from the fallback, which is",
+  "why it pays 232 B and not more.",
+  "Also here: _menuItems was 10 entries against an 11-entry table since v25, so",
+  "an account holding every bit wrote one past the end of it."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-09-20",
- "measured_at_commit": "feat/web-ui-per-build (@IF tft: the panel UI is not compiled into images with no panel)",
+ "measured_on": "2026-09-22",
+ "measured_at_commit": "fix/ap-mode-reachable (AP mode is reachable again: the window the panel can draw, a menu row, the key on the alpha LCD, and a fallback)",
  "envs": {
   "pico_w_release": {
    "budget": 1015564,
-   "measured": 1012668
+   "measured": 1013756
   },
   "pico_w_test": {
    "budget": 1020420,
-   "measured": 1017524
+   "measured": 1018644
   },
   "pico_w_test_https": {
    "budget": 1028044,
-   "measured": 1025148
+   "measured": 1026276
   },
   "pico_w_asserts": {
    "budget": 1017740,
-   "measured": 1014844
+   "measured": 1015932
   },
   "pico_w_alpha": {
    "budget": 978396,
-   "measured": 975396
+   "measured": 976236
   },
   "pico_w_air": {
    "budget": 1022184,
-   "measured": 1019184
+   "measured": 1019624
   }
  }
 }

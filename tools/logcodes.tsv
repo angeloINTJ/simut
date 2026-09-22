@@ -57,7 +57,7 @@
 400	APP_DISPLAY_LAUNCHED	Display launched on Core 1	Display iniciado no Core 1	Display iniciado no Core 1	Pantalla iniciada en Core 1
 401	APP_TOUCH_CAL_INITIAL	Initial touch cal saved	Calibracao inicial do touch salva	Calibração inicial do touch salva	Calibración táctil inicial guardada
 402	APP_TOUCH_CAL_REQUIRED	Touch calibration required	Calibracao do touch necessaria	Calibração do touch necessária	Calibración táctil requerida
-403	APP_AP_MODE_TRIGGERED	AP mode triggered by user	AP ativado pelo usuario	AP ativado pelo usuário	Modo AP activado por el usuario
+403	APP_AP_MODE_TRIGGERED	AP mode started	AP iniciado	AP iniciado	Modo AP iniciado
 404	APP_READY	System ready	Sistema pronto	Sistema pronto	Sistema listo
 405	APP_READY_AP	System ready (AP mode)	Sistema pronto (modo AP)	Sistema pronto (modo AP)	Sistema listo (modo AP)
 406	APP_STORAGE_CRITICAL	Storage critical failure	Falha critica de storage	Falha crítica de storage	Fallo crítico de almacenamiento
