@@ -127,9 +127,18 @@ Aplicar a mesma regra em:
 1. `add` (`WebManager_Commit.cpp:1362`) — o achado;
 2. a ação `pin` com `id == 0` — exigir que o chamador **seja** o slot 0 ou tenha
    `PERM_FULL_ADMIN`, senão `rejectField("users.id")`;
-3. a CLI `user perm <nome> <papel>` (`AppManager_CmdHandlers.cpp`) — o console
-   serial é acesso físico e tem outra classe de ameaça, mas a regra deve ser a
-   mesma nos dois caminhos, senão a web vira a porta estreita e a serial a larga;
+3. ~~a CLI `user perm <nome> <papel>`~~ — ❌ **RETRATADO em 22/09: não se
+   aplica, e a recomendação original estava errada.** A regra é
+   `perms & ~perms_de_quem_pede`, e **na CLI não existe quem pede**: `enable` +
+   `configure terminal` é um nível único, sem conta e sem máscara. O
+   `SECURITY.md` põe isso no modelo de ameaça — *"USB CDC: serial always
+   available, no auth (requires physical access)"* — e o comentário do próprio
+   handler já dizia que ali se pode `user add`, `user del` e `admin reset`,
+   "this widens nothing that serial access did not already grant". Quem está na
+   serial já tem o equivalente a admin; não há privilégio menor de onde
+   escalar. A frase "senão a web vira a porta estreita e a serial a larga"
+   descrevia como defeito o que é uma **posição documentada**: acesso físico é
+   controle total, por desenho;
 4. `docs/AUTHORIZATION.md` — corrigir o resumo desta rota (§2).
 
 **Teste que deve nascer junto:** um caso no `test_authz`/`web_test_suite.py` que
@@ -173,6 +182,13 @@ Duas coisas que a conta nova continua fazendo certo, confirmadas na mesma
 corrida: o login de `gestor` com a senha de uso único devolveu
 `{"ok":true,"redirect":"/force_chpass"}` (troca forçada armada), e uma tentativa
 com senha errada já veio com `lockSec`, ou seja o lockout cobre a conta nova.
+
+### Uma retratação
+
+O §5 mandava aplicar a mesma regra na CLI. **Não se aplica** — a CLI não tem
+chamador com máscara, e o acesso físico já é controle total por desenho
+(`SECURITY.md`). O item 3 está riscado com o motivo. Eu havia tratado como
+defeito uma posição explícita do modelo de ameaça.
 
 ### Três armadilhas da rota que o instrumento me cobrou
 
