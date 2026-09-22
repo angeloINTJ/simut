@@ -308,6 +308,54 @@ Latest. Conserto: `gh release edit --draft=false --latest`.
   --only lockout` = V-01a **3/3** (lockout de 8 s sobrevive à reconexão, escada 8→16). +56 B no air. Ship no
   próximo release. ⚠️ Framework pinado: um bump precisa reconferir o `availableForWrite()`; a sonda é a regressão.
 
+## Pedido em 21/09/2026 — contas sem reinício
+
+**Pedido do mantenedor:** aplicar criação, exclusão e reset de conta **ao vivo**,
+sem reiniciar o aparelho. Hoje a seção `users` do `commit_all` responde
+`reboot_for:["users"]`, e criar três contas em três requisições reinicia três
+vezes — a plataforma da empresa vai cadastrar usuários em lote.
+
+**Por que reinicia hoje:** `CFG_USERS` está em `CFG_REBOOT_CLASSES`
+(`src/ConfigApply.h:89`), junto de rede, identidade e slots.
+
+🔴 **E aqui há uma contradição entre comentário e código, no mesmo arquivo.** A
+nota em `ConfigApply.h:176`, ao mapear `pinAuth` para `CFG_USERS`, afirma:
+
+> *"CFG_USERS não está em CFG_REBOOT_CLASSES, e é o certo: quem valida PIN lê a
+> política a cada uso, então um teclado novo vale na próxima tela desenhada.
+> Reiniciar aqui derrubaria o aparelho por uma configuração que não exige nada
+> disso."*
+
+`CFG_USERS` **está** em `CFG_REBOOT_CLASSES`. O comentário (`3c0b728`, 20/09) é
+**posterior** à linha que o contradiz (`bc31410`, 19/09), então ele não é
+resíduo de uma remoção: ele descreve um estado que nunca existiu. A consequência
+é medível — hoje **uma troca de política de PIN reinicia o aparelho**, e o
+`API_POST.md` documenta isso como comportamento ("o que ainda reinicia … política
+de PIN"), concordando com o código e não com o comentário.
+
+O comentário já traz, de graça, metade do argumento para o pedido: quem consome
+a política **lê a cada uso**. A pergunta que falta responder, e que decide o
+tamanho da tarefa, é se o mesmo vale para as contas:
+
+| o que consome `cfg.users[]` | lê a cada uso ou cacheia no boot? |
+|---|---|
+| sessão web (`getAuthPerms`) | ? |
+| PIN do painel (`AppManager_Panel`) | ? |
+| CLI (`user …`) | ? |
+| assinatura do registro de alarme (`user` congelado no push, v25) | lê no push — já é ao vivo |
+
+**Trabalho, em ordem:** (1) responder a tabela acima por leitura; (2) se todos
+leem ao vivo, tirar `CFG_USERS` de `CFG_REBOOT_CLASSES` e acrescentar o gancho de
+runtime que falte (o `applyAlarmRuntimeConfig` da 2ª linha é o precedente
+pronto); (3) um caso no `web_test_suite.py` que crie conta, **confira
+`reboot:false`**, e logue com ela em seguida sem reiniciar; (4) decidir o que
+fazer com o `mustChangePassword` da conta nova, que hoje chega junto do boot.
+
+⚠️ **Não entra na campanha de estabilidade.** É melhoria, não bloqueio, e mexer
+em firmware agora invalida o soak já medido — ver `PLANO_STABLE.md`.
+
+---
+
 ## O que este plano NÃO cobre
 
 - As cinco issues abertas (#52, #57, #58, #60, #61) — todas `good first issue`
