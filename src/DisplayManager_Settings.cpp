@@ -872,7 +872,10 @@ void DisplayManager::drawApConfirm( ) {
  uiButton(cv, 20, 190 + yOff, 130, 40, backTxt, UI_BTN_SECONDARY);
  uiButton(cv, 170, 190 + yOff, 130, 40, confirmTxt, UI_BTN_PRIMARY);
 
- commitScreenStrip(strip * RENDER_STRIP_H);
+ /* The strip INDEX, not its y — commitScreenStrip multiplies. Passing the
+  * offset drew the header and left the previous screen under it, which the
+  * rig showed before it was caught (2026-09-22). */
+ commitScreenStrip(strip);
  }
  endScreenRender( );
 }

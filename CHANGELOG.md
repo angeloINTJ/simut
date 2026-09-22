@@ -4,6 +4,118 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.7.1 (2026-09-22)
+
+**A setup network you can actually get into.** The report was two symptoms on
+two builds — holding the touch panel did not enter AP mode on the release
+image, and a phone could not join the setup network on the alpha — and neither
+of them was in the AP code. Measured on the rig: `ap` brings up
+`<name>_SETUP` on WPA2, a phone-like client joins in **4,1 s**, gets a DHCP
+lease and loads the portal (`302` → `/login` `200`), on the release AND on the
+alpha with Bluetooth live, and again with a randomised MAC — which is what a
+phone actually uses. The beacon carries `pair_ccmp group_ccmp psk` in **both**
+its WPA and RSN information elements, so the `WPA1 WPA2` a scanner shows is two
+IEs and no TKIP anywhere. That closes the residue
+`docs/analysis/PLANO_DIVIDA_TECNICA.md` left open under 1.3, without monitor
+mode.
+
+What was broken is everything around it.
+
+### The panel asked for a gesture it could not show
+
+The AP-hold window ran ~190 lines before `startCore1( )`, and Core 1 is the
+only thing that draws the TFT. Measured with the PicoHand driving PENIRQ: the
+window ran `[3919..7419] ms` and Core 1 was launched at **7457 ms** — the
+instruction reached the glass **38 ms after** the last moment a finger could
+start the gesture, and the five-entry boot-log ring still held it, so the
+screen displayed an instruction that had already expired. The mechanism itself
+was correct in all four bench cases; the gesture only ever worked blind, held
+from before power-on, for ~8,3 s.
+
+- The window now runs **after** `startCore1( )` **and after Core 1 has actually
+  painted a frame**. `isCore1Ready( )` is set before the panel is initialised:
+  the first boot frame lands 757 ms after the launch returns, so a bounded wait
+  on a new frame counter is what makes the invariant exact — the window cannot
+  open while the instruction is invisible. Re-measured: window `[4869..8369]`,
+  first frame at `4667`.
+- It reads PENIRQ and nothing else. The old block drove TOUCH_CS/TFT_CS/SCK/
+  MOSI by hand because the SPI bus was still uninitialised that early; doing it
+  now would fight Core 1, and `isScreenTouched( )` falls back to an SPI
+  transaction on a bus Core 0 does not own.
+- The 3-second progress bar is reachable for the first time, so it also stopped
+  clearing 320×240 twenty times a second.
+- ⚠️ The settle gate's comment claimed a touch that never goes quiet is treated
+  as stuck and the window skipped. Nothing implemented that, and it is a good
+  thing: a finger held from power-on is indistinguishable from a stuck
+  controller, so the "fix" would have killed the gesture. The comment says so
+  now.
+
+### The alpha never showed the key
+
+`getApPsk( )` had exactly two readers — the console line and the `ap` reply.
+The suffix built for the boot's network line does carry the key, but
+`DisplayManager_Alpha.cpp` draws a progress bar and never the boot log's text.
+So an operator standing at an alpha with a phone saw the network in the list
+and had no way to learn its password. **The LCD now takes the whole screen
+while the AP is up** and cycles three 3-second pages: the address, the SSID and
+the key, with the value on the second line so a 37-character SSID has sixteen
+columns to scroll through.
+
+### Nothing ever opened the AP by itself
+
+`ApPsk.h` has said since V-05 that "AP mode is what an UNCONFIGURED device boots
+into" — it is the reason the key is derived from the board id rather than
+living in the configuration. Nothing implemented it: `begin( )` with an empty
+SSID went to `NET_OFFLINE` and the ladder retried for ever, and the only two
+callers of `beginAP( )` were the touch gesture and `ap`. A device whose router
+was replaced was unreachable by every channel its owner had.
+
+- An **unconfigured device boots into AP mode**.
+- A configured one **falls back after one full round of the reconnect ladder** —
+  five connect cycles and three ten-minute dormancies. A router reboot takes
+  under two minutes, so this cannot be that, and the AP's own 15-minute timeout
+  returns to STA while an SSID is configured.
+- **SIMUT Air is excluded**: its radio only exists inside a wake, an AP would
+  hold it awake for fifteen minutes a round, and there is nobody in front of a
+  hibernating device to use it.
+- `APP_AP_MODE_TRIGGERED`'s `ctx` now says who asked — `0` a person, `1` the
+  boot gesture, `2` unconfigured, `3` the ladder giving up — and its text went
+  neutral in all five tables, which gave the es-ES pack 28 B back. It was 83 B
+  from its 16 KB resident ceiling and is now 111.
+
+### A twelfth row in Settings
+
+**Settings → 12. Configuration Mode**, behind `PERM_NET_CONFIG`, with the same
+two-button confirmation the Global Mute screen uses. Verified on the rig with a
+throwaway account: the row opens the confirmation (UI mode 29) and confirming
+puts `simuttft_SETUP` on the air. `TR_AP_MODE` is reused rather than a key
+added — the es-ES pack has 111 B left and a pack that overflows is rejected
+whole.
+
+### Fixed on the way in
+
+- **The settings menu was one row short for a full admin.** `_menuItems` was 10
+  entries against an 11-entry table: v25 appended the PIN-policy row and did not
+  grow the buffer, so an account holding every bit wrote `_menuItems[10]` — one
+  past the end, with `_menuCount` as the member right behind it. Caught on the
+  rig before the fix: an admin's menu on v2.7.0 draws ten rows and **no numbers**
+  (the numbers are dropped when the list is filtered), and "11. PIN security" is
+  unreachable. It is `MENU_ITEM_COUNT` now, and the three tables that must agree
+  are sized from it.
+- `CLAUDE.md` claimed `pio run` with no `-e` builds all six. `default_envs =
+  pico_w_release` says otherwise.
+- `docs/MANUAL.md` mentioned AP mode six times and never said how to enter it.
+  §14 now lists all five ways in and all four places the key is published.
+
+### Cost
+
++1,072 B on release, +1,088 test, +1,112 test_https, +1,072 asserts, +640
+alpha, +224 air of `used`; the `.bin` deltas are the same on the four panel builds and
+**zero** on the alpha and the Air, which absorbed everything in their `.rodata`
+padding. No budget moves. Real `.bin` slack under the OTA ceiling: release
+14,380, test 9,484, test_https 1,852 (still warning), asserts 12,204, alpha
+50,036, air 5,076 — unchanged.
+
 ## v2.7.0 (2026-09-22)
 
 **The line comes out of beta.** Nothing here is a new feature: this release is

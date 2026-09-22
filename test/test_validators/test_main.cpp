@@ -24,6 +24,7 @@
 #include <unity.h>
 #include <stdlib.h>
 #include "SystemDefs_Validate.h"
+#include "display/AlphaMarquee.h"
 #include "ParseFloat.h"
 #include "SystemDefs_Time.h"
 #include "SystemDefs_Network.h"  /* authLockoutMs — shared auth lockout backoff */
@@ -2953,6 +2954,64 @@ void test_pin_keypad_deals_the_whole_set(void) {
     }
 }
 
+/* ── alphaMarqueeWindow — the alpha's one line onto a longer string ───────
+ *
+ * The setup AP screen names the network an operator has to find on a phone,
+ * and a device name is 32 bytes plus "_SETUP" against sixteen columns. There
+ * is no LCD on the bench, so the window arithmetic is checked here: what the
+ * display is handed, not what it lights up.
+ */
+static void test_alpha_marquee_pads_a_short_string(void) {
+    char out[ALPHA_LCD_COLS + 1];
+    alphaMarqueeWindow("simut_SETUP", 0, out);
+    TEST_ASSERT_EQUAL_STRING("simut_SETUP     ", out);
+    TEST_ASSERT_EQUAL_UINT(ALPHA_LCD_COLS, strlen(out));
+    /* A name that already fits does not move: the step is ignored. */
+    char later[ALPHA_LCD_COLS + 1];
+    alphaMarqueeWindow("simut_SETUP", 7, later);
+    TEST_ASSERT_EQUAL_STRING(out, later);
+}
+
+static void test_alpha_marquee_fills_exactly_at_the_width(void) {
+    char out[ALPHA_LCD_COLS + 1];
+    alphaMarqueeWindow("0123456789abcdef", 3, out);   /* exactly 16 */
+    TEST_ASSERT_EQUAL_STRING("0123456789abcdef", out);
+}
+
+static void test_alpha_marquee_scrolls_and_wraps_through_the_gap(void) {
+    const char* ssid = "um_nome_de_aparelho_bem_longo_SETUP";  /* 35 > 16 */
+    const size_t n = strlen(ssid);
+    char out[ALPHA_LCD_COLS + 1];
+
+    alphaMarqueeWindow(ssid, 0, out);
+    TEST_ASSERT_EQUAL_STRING_LEN(ssid, out, ALPHA_LCD_COLS);
+
+    /* One column per step. */
+    alphaMarqueeWindow(ssid, 1, out);
+    TEST_ASSERT_EQUAL_STRING_LEN(ssid + 1, out, ALPHA_LCD_COLS);
+
+    /* The seam: the last character, then ALPHA_MARQUEE_GAP spaces, then the
+     * first. Without the gap the tail and the head read as one word. */
+    alphaMarqueeWindow(ssid, (uint16_t)(n - 1), out);
+    TEST_ASSERT_EQUAL_CHAR(ssid[n - 1], out[0]);
+    for (int i = 0; i < ALPHA_MARQUEE_GAP; i++) TEST_ASSERT_EQUAL_CHAR(' ', out[1 + i]);
+    TEST_ASSERT_EQUAL_CHAR(ssid[0], out[1 + ALPHA_MARQUEE_GAP]);
+
+    /* A full span returns to the start, so a caller may count up for ever. */
+    char again[ALPHA_LCD_COLS + 1];
+    alphaMarqueeWindow(ssid, (uint16_t)(n + ALPHA_MARQUEE_GAP), again);
+    alphaMarqueeWindow(ssid, 0, out);
+    TEST_ASSERT_EQUAL_STRING(out, again);
+}
+
+static void test_alpha_marquee_blanks_nothing(void) {
+    char out[ALPHA_LCD_COLS + 1];
+    alphaMarqueeWindow("", 5, out);
+    TEST_ASSERT_EQUAL_STRING("                ", out);
+    alphaMarqueeWindow(NULL, 5, out);
+    TEST_ASSERT_EQUAL_STRING("                ", out);
+}
+
 int main(int /*argc*/, char** /*argv*/) {
     UNITY_BEGIN();
 
@@ -3183,6 +3242,10 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_pin_keypad_deals_the_whole_set);
     RUN_TEST(test_pin_plain_keypad_is_ordered_and_complete);
     RUN_TEST(test_pin_group_popup_geometry);
+    RUN_TEST(test_alpha_marquee_pads_a_short_string);
+    RUN_TEST(test_alpha_marquee_fills_exactly_at_the_width);
+    RUN_TEST(test_alpha_marquee_scrolls_and_wraps_through_the_gap);
+    RUN_TEST(test_alpha_marquee_blanks_nothing);
 
     return UNITY_END();
 }

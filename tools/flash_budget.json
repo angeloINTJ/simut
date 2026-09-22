@@ -290,50 +290,54 @@
   "checks that both release scripts ship the file - build_release.sh packaged",
   "the whole source tree into the Arduino IDE zips without it, which is the one",
   "artefact the MIT text's own 'all copies' clause was not being honoured in.",
-  "2026-09-22 (fix/ap-mode-reachable): +856 B on release, +864 test, +888",
-  "test_https, +856 asserts, +640 alpha, +232 air of 'used'. NO budget moves -",
-  "every environment is still inside the ~3,000 B margin this file carries - and",
-  "'measured' is updated because it has to describe an image that exists.",
-  "The .bin deltas are +856/+864/+888/+856 on the four panel builds and ZERO on",
-  "the alpha and the Air: both absorbed everything in the .rodata padding this",
-  "file describes at the top, so the alpha got its whole AP screen for nothing.",
-  "Real .bin slack under the 1,040,384 B OTA ceiling: release 14,596, test 9,708,",
-  "test_https 2,076, asserts 12,420, alpha 50,036, air 5,076 (unchanged).",
-  "pico_w_test_https keeps warning and is now 2,076 B from the ceiling. It is the",
+  "2026-09-22 (fix/ap-mode-reachable, v2.7.1): +1,072 B on release, +1,088 test,",
+  "+1,112 test_https, +1,072 asserts, +640 alpha, +224 air of 'used' against main",
+  "at 994f058. NO budget moves - every environment is still inside the ~3,000 B",
+  "margin this file carries - and 'measured' is updated because it has to",
+  "describe an image that exists.",
+  "The .bin deltas are +1,072/+1,088/+1,112/+1,072 on the four panel builds and",
+  "ZERO on the alpha and the Air: both absorbed everything in the .rodata padding",
+  "this file describes at the top, so the alpha's whole setup-AP screen cost its",
+  "image nothing.",
+  "Real .bin slack under the 1,040,384 B OTA ceiling: release 14,380, test 9,484,",
+  "test_https 1,852, asserts 12,204, alpha 50,036, air 5,076 (unchanged).",
+  "pico_w_test_https keeps warning and is now 1,852 B from the ceiling. It is the",
   "bench HTTPS image, not a field one - release-ota.yml does not publish it - but",
   "the next thing added to the panel builds has to take a fourth page out to",
   "LittleFS, as the 2026-09-20 note already said.",
-  "What the bytes bought: the AP-by-touch window moved to after startCore1( ) so",
-  "the panel can actually draw the instruction it gives (measured on main: window",
-  "[3919..7419] ms, Core 1 launched at 7457 ms - the prompt reached the glass 38",
-  "ms after the last moment a finger could start the gesture); a twelfth settings",
-  "row that starts the setup AP with a confirmation; the alpha's LCD publishing",
-  "the SSID and the WPA2 key, which reached no display on that build at all; and",
-  "an automatic fallback into AP mode for an unconfigured device or one that has",
-  "failed a whole reconnect round. Air is excluded from the fallback, which is",
-  "why it pays 232 B and not more.",
+  "What the bytes bought: the AP-by-touch window moved to after startCore1( ) AND",
+  "after Core 1 has painted a frame, so the panel can be showing the instruction",
+  "it gives (measured on main: window [3919..7419] ms, Core 1 launched at 7457 -",
+  "the prompt reached the glass 38 ms after the last moment a finger could start",
+  "the gesture; measured here: first frame 4667, window [4869..8369]); a twelfth",
+  "settings row that starts the setup AP behind a confirmation; the alpha's LCD",
+  "publishing the SSID and the WPA2 key, which reached no display on that build",
+  "at all; and an automatic fallback into AP mode for an unconfigured device or",
+  "one that has failed a whole reconnect round. Air is excluded from the",
+  "fallback, which is why it pays 224 B and not more.",
   "Also here: _menuItems was 10 entries against an 11-entry table since v25, so",
-  "an account holding every bit wrote one past the end of it."
+  "an account holding every bit wrote one past the end of it - shown on the rig",
+  "as an admin menu with ten rows and no numbers."
  ],
  "ceiling": 1044480,
  "measured_on": "2026-09-22",
- "measured_at_commit": "fix/ap-mode-reachable (AP mode is reachable again: the window the panel can draw, a menu row, the key on the alpha LCD, and a fallback)",
+ "measured_at_commit": "fix/ap-mode-reachable, v2.7.1 (AP mode is reachable again: a window the panel can draw, a menu row, the key on the alpha LCD, and a fallback)",
  "envs": {
   "pico_w_release": {
    "budget": 1015564,
-   "measured": 1013756
+   "measured": 1013972
   },
   "pico_w_test": {
    "budget": 1020420,
-   "measured": 1018644
+   "measured": 1018868
   },
   "pico_w_test_https": {
    "budget": 1028044,
-   "measured": 1026276
+   "measured": 1026500
   },
   "pico_w_asserts": {
    "budget": 1017740,
-   "measured": 1015932
+   "measured": 1016148
   },
   "pico_w_alpha": {
    "budget": 978396,
@@ -341,7 +345,7 @@
   },
   "pico_w_air": {
    "budget": 1022184,
-   "measured": 1019624
+   "measured": 1019616
   }
  }
 }

@@ -2,6 +2,7 @@
 #include "LogManager.h"
 #include "display/HD44780_16x2.h"
 #include "display/BigFont_HD44780.h"
+#include "display/AlphaMarquee.h"
 #include "sensors/SensorHelpers.h"
 #include <LittleFS.h>
 #include <string.h>
@@ -63,19 +64,10 @@ static float alphaChannelValue(const SlotSnapshot& s, uint8_t ch) {
  * name the operator has to find in a phone's list. Two spaces of gap before
  * it wraps, so the end and the beginning do not read as one word. */
 static void alphaMarquee(Hd44780_16x2 &lcd, uint8_t row, const char* s, uint16_t step) {
-	const size_t n = strlen(s);
+	char win[ALPHA_LCD_COLS + 1];
+	alphaMarqueeWindow(s, step, win);
 	lcd.setCursor(0, row);
-	if (n <= 16) {
-		lcd.print(s);
-		for (size_t i = n; i < 16; i++) lcd.write(' ');
-		return;
-	}
-	const size_t span = n + 2;
-	const size_t off  = (size_t)step % span;
-	for (size_t i = 0; i < 16; i++) {
-		const size_t k = (off + i) % span;
-		lcd.write(k < n ? s[k] : ' ');
-	}
+	lcd.print(win);
 }
 
 /* Core 0 hands the setup network over once, when it comes up. */

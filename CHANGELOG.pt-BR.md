@@ -4,6 +4,118 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.7.1 (2026-09-22)
+
+**Uma rede de setup em que dá para entrar.** O relato eram dois sintomas em dois
+builds — segurar o painel não entrava em modo AP na imagem release, e o celular
+não conectava na rede de setup no alpha — e nenhum dos dois estava no código do
+AP. Medido na bancada: `ap` sobe `<nome>_SETUP` em WPA2, um cliente fazendo de
+celular entra em **4,1 s**, pega lease DHCP e abre o portal (`302` → `/login`
+`200`), no release E no alpha com o Bluetooth no ar, e de novo com MAC
+aleatório — que é o que um celular usa de verdade. O beacon carrega
+`pair_ccmp group_ccmp psk` nos **dois** IEs, então o `WPA1 WPA2` que o scanner
+mostra são dois IEs e nenhum TKIP. Isso fecha o resíduo que o
+`docs/analysis/PLANO_DIVIDA_TECNICA.md` deixou aberto no 1.3, sem monitor mode.
+
+O que estava quebrado era tudo em volta.
+
+### O painel pedia um gesto que não conseguia mostrar
+
+A janela do toque rodava ~190 linhas antes do `startCore1( )`, e o Core 1 é a
+única coisa que desenha o TFT. Medido com a PicoHand acionando o PENIRQ: a
+janela correu `[3919..7419] ms` e o Core 1 nasceu em **7457 ms** — a instrução
+chegou ao vidro **38 ms depois** do último instante em que um dedo podia
+começar o gesto, e o anel de cinco linhas do boot ainda a exibia, de modo que a
+tela mostrava uma instrução já vencida. O mecanismo em si estava certo nos
+quatro casos de bancada; o gesto só funcionava às cegas, segurando desde antes
+de ligar, por ~8,3 s.
+
+- A janela agora roda **depois** do `startCore1( )` **e depois de o Core 1 ter
+  pintado um quadro**. O `isCore1Ready( )` é marcado antes de o painel estar
+  inicializado: o primeiro quadro do boot sai 757 ms depois de o lançamento
+  retornar, então uma espera limitada sobre um contador de quadros é o que
+  torna a garantia exata — a janela não abre enquanto a instrução está
+  invisível. Remedido: janela `[4869..8369]`, primeiro quadro em `4667`.
+- Ela lê o PENIRQ e nada mais. O bloco antigo acionava TOUCH_CS/TFT_CS/SCK/MOSI
+  na mão porque o barramento SPI ainda não existia tão cedo; fazer isso agora
+  brigaria com o Core 1, e o `isScreenTouched( )` cai para uma transação SPI
+  num barramento que o Core 0 não é dono.
+- A barra de progresso de 3 s ficou alcançável pela primeira vez, então também
+  parou de limpar 320×240 vinte vezes por segundo.
+- ⚠️ O comentário do portão de assentamento dizia que um toque que nunca fica
+  quieto é tratado como preso e a janela é ignorada. Nada implementava isso — e
+  ainda bem: um dedo segurando desde o power-on é indistinguível de um
+  controlador preso, então a "correção" mataria o gesto. O comentário diz isso
+  agora.
+
+### O alpha nunca mostrou a chave
+
+O `getApPsk( )` tinha exatamente dois leitores — a linha do console e a resposta
+do `ap`. O sufixo montado para a linha de rede do boot carrega a chave, mas o
+`DisplayManager_Alpha.cpp` desenha uma barra de progresso e nunca o texto do log
+de boot. Um operador em frente a um alpha com o celular via a rede na lista e não
+tinha como saber a senha. **O LCD agora toma a tela inteira enquanto o AP está no
+ar** e alterna três páginas de 3 s: o endereço, o SSID e a chave, com o valor na
+segunda linha para que um SSID de 37 caracteres tenha dezesseis colunas por onde
+rolar.
+
+### Nada abria o AP sozinho
+
+O `ApPsk.h` diz desde o V-05 que "AP mode is what an UNCONFIGURED device boots
+into" — é a razão de a chave ser derivada do id da placa em vez de morar na
+configuração. Nada implementava isso: o `begin( )` com SSID vazio ia para
+`NET_OFFLINE` e a escada tentava para sempre, e os dois únicos chamadores do
+`beginAP( )` eram o gesto do toque e o `ap`. Um aparelho cujo roteador foi
+trocado ficava inalcançável por todos os canais que o dono tinha.
+
+- Um **aparelho sem configuração dá boot em modo AP**.
+- Um configurado **cai para o AP depois de uma rodada inteira da escada de
+  reconexão** — cinco ciclos de conexão e três dormências de dez minutos. Um
+  roteador que reinicia leva menos de dois minutos, então isto não pode ser
+  aquilo, e o timeout de 15 min do próprio AP devolve à STA enquanto houver SSID
+  configurado.
+- **O SIMUT Air fica de fora**: o rádio dele só existe dentro de um wake, um AP o
+  manteria acordado quinze minutos por rodada, e não há ninguém na frente de um
+  aparelho hibernando para usá-lo.
+- O `ctx` do `APP_AP_MODE_TRIGGERED` agora diz quem pediu — `0` uma pessoa, `1` o
+  gesto do boot, `2` sem configuração, `3` a escada desistindo — e o texto ficou
+  neutro nas cinco tabelas, o que devolveu 28 B ao pacote es-ES. Ele estava a
+  83 B do teto residente de 16 KB e agora está a 111.
+
+### Um décimo segundo item nas Configurações
+
+**Configurações → 12. Modo de Configuração**, atrás do `PERM_NET_CONFIG`, com a
+mesma confirmação de dois botões da tela de Mudo Global. Validado na bancada com
+uma conta descartável: o item abre a confirmação (UI mode 29) e confirmar põe o
+`simuttft_SETUP` no ar. O `TR_AP_MODE` é reaproveitado em vez de uma chave nova —
+o pacote es-ES tem 111 B de folga e um pacote que estoura é rejeitado inteiro.
+
+### Corrigido no caminho
+
+- **O menu de configurações estava uma linha curto para um admin pleno.** O
+  `_menuItems` tinha 10 entradas contra uma tabela de 11: a v25 acrescentou a
+  linha de política de PIN e não cresceu o buffer, então uma conta com todos os
+  bits escrevia `_menuItems[10]` — uma além do fim, com o `_menuCount` logo
+  atrás. Flagrado na bancada antes da correção: o menu do admin na v2.7.0
+  desenha dez linhas e **nenhum número** (os números somem quando a lista é
+  filtrada), e o "11. Segurança do PIN" fica inalcançável. Agora é
+  `MENU_ITEM_COUNT`, e as três tabelas que precisam concordar são dimensionadas
+  por ele.
+- O `CLAUDE.md` afirmava que `pio run` sem `-e` constrói os seis. O
+  `default_envs = pico_w_release` diz o contrário.
+- O `docs/MANUAL.pt-BR.md` citava modo AP seis vezes e nunca dizia como entrar.
+  A §14 agora lista as cinco maneiras de entrar e os quatro lugares onde a chave
+  é publicada.
+
+### Custo
+
++1.072 B no release, +1.088 test, +1.112 test_https, +1.072 asserts, +640 alpha,
++224 air de `used`; os deltas de `.bin` são os mesmos nos quatro builds com painel e
+**zero** no alpha e no Air, que absorveram tudo no enchimento de `.rodata`.
+Nenhum orçamento sobe. Folga real de `.bin` sob o teto de OTA: release 14.380,
+test 9.484, test_https 1.852 (ainda em aviso), asserts 12.204, alpha 50.036,
+air 5.076 — inalterada.
+
 ## v2.7.0 (2026-09-22)
 
 **A linha sai do beta.** Nada aqui é recurso novo: esta é a versão que deixa de
