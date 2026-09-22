@@ -391,6 +391,34 @@ ficar na fila e executar vários inputs depois.
   0 depois.
 - **FATAL nunca é filtrado**; WARN/ERROR não roteados passam sempre — código
   novo só fica quieto se alguém o listar de propósito.
+- **A autópsia de um travamento é UM registro com faixa de `ctx`, e desde
+  22/09 são QUATRO.** O registro de 12 B tem um `int16` de contexto, e a
+  frase inteira (`C0=[…] C1=[…] at up=…ms sc3=0x… hp=…`) só existe na serial
+  do boot seguinte. Os três fatos que não cabiam no primeiro registro viraram
+  registros irmãos do mesmo código, separados por faixa:
+
+  | faixa | veredito / fato | alcance |
+  |---|---|---|
+  | `0` | reset externo (`picotool`, toque de 1200 bps) | — |
+  | `100+core` | soft panic: batimento parado | 100..101 |
+  | `200+mod` | **HW watchdog**: módulo em que o Core 0 estava (`209` = CLI, `455` = trace vazio) | 200..455 |
+  | `300+phase` | Core 1 congelado, na fase | 300..3xx |
+  | `400` | Core 1 hard fault | — |
+  | `1000+mod` | **módulo do Core 1** quando o Core 0 parou de alimentar (`1255` = sem trace) | 1000..1255 |
+  | `2000+KB` | heap livre no travamento, em KB inteiros | 2000..2999 |
+  | `4000+min` | uptime do aparelho no travamento, em MINUTOS | 4000..32000 |
+
+  Leia os quatro como um grupo: são gravados consecutivamente, no boot logo
+  depois do travamento. ⚠️ **As faixas são disjuntas de propósito** — a
+  primeira versão pôs minutos em `2000` saturando em 20000, e um aparelho de
+  pé há 1000 min gravava `ctx=3000`, que se lê como "heap 0 KB". Quem inventar
+  uma faixa nova confere o alcance inteiro, saturação incluída
+  (`test_log_policy`, caso `..._never_collide_with_EACH_OTHER`).
+- **O arnês de bancada engolia a autópsia até 22/09.** `Rig.cmd( )` dormia 12 s
+  atravessando o reboot e `reconnect( )` chamava `reset_input_buffer( )`;
+  medido A-contra-A, o caminho antigo colhia **0 B** de um banner de 550 B.
+  Hoje `reconnect( )` espera LENDO e guarda em `SIMUT_BOOT_SERIAL_LOG`. Se for
+  escrever um arnês novo: **esperar por um reboot é ler, não dormir**.
 - **`clear log confirm` não zera o que `show system log` devolve** (ele costura
   o rotacionado com o corrente). Só valem deltas entre duas leituras.
 - **Num wake, o preâmbulo de boot é suprimido** (`LogPolicy::setQuietPreamble( )`,

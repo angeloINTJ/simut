@@ -1021,6 +1021,19 @@ void LogManager::performCrashAutopsy( ) {
   * days later, without a script camped on the boot serial. */
  logCode(LOG_FATAL, "SYS", SYS_BOOT, 200 + (c0Valid == 0x80 ? c0Mod : 0xFF),
  String(msg));
+
+ /* …and the rest of that sentence, persisted: three more records of the same
+  * code, told apart by context band. Why bands and not a wider record, and
+  * why these saturate, is at autopsyBandCore1 in SystemDefs_Logging.h. Read
+  * them as a group — they are written consecutively, right after this one. */
+ /* No message on these three, and not to save typing: the sentence they
+  * belong to was just printed with the record above, so a caption here would
+  * repeat it on the serial and pay for the repetition in .rodata. Measured on
+  * the alpha image, which happened to sit against a 4 KiB boundary: three
+  * short captions grew .text by 192 B and .rodata by a whole 4096 B page. */
+ logCode(LOG_FATAL, "SYS", SYS_BOOT, autopsyBandCore1(c1Valid, c1Mod));
+ logCode(LOG_FATAL, "SYS", SYS_BOOT, autopsyBandStallMinutes(_preBootScratch6));
+ logCode(LOG_FATAL, "SYS", SYS_BOOT, autopsyBandHeapKB(_preBootScratch7));
  } else if (wdReset) {
  /* A FORCE reset (TRIGGER written) that none of our own reboot paths
  * marked: the cause is outside this firmware — picotool upload reboots

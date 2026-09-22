@@ -538,6 +538,84 @@ static void test_a_fault_during_a_quiet_preamble_still_lands(void) {
     TEST_ASSERT_FALSE(pol.shouldPersist(SYS_TEL_FAIL, LVL_ERROR, 2000));
 }
 
+
+/* ── Autopsy context bands ────────────────────────────────────────────────────
+ *
+ * The three facts a stall leaves behind that the 200-band record has no room
+ * for. Pure arithmetic, so it belongs here rather than on the bench — and it
+ * is arithmetic a person will read squinting at `ctx=1009`, so these tests
+ * state the contract that reader depends on. */
+
+static void test_the_autopsy_bands_never_collide_with_the_verdict_bands(void) {
+    /* The verdict bands top out at 200 + 0xFF = 455. A band reaching below
+     * that would make a Core 1 module look like a verdict, which is exactly
+     * the confusion separate bands exist to prevent. */
+    TEST_ASSERT_TRUE(autopsyBandCore1(0x80, 0) > 455);
+    TEST_ASSERT_TRUE(autopsyBandHeapKB(0) > 455);
+    TEST_ASSERT_TRUE(autopsyBandStallMinutes(0) > 455);
+}
+
+static void test_the_autopsy_bands_never_collide_with_EACH_OTHER(void) {
+    /* The test that earned its place: the first version put minutes at 2000
+     * saturating at 20000, so 1000 minutes of uptime wrote ctx=3000 and read
+     * as "free heap 0 KB". Assert the whole SATURATED range of each band,
+     * not one sample of it. */
+    const int16_t c1_lo = autopsyBandCore1(0x80, 0);
+    const int16_t c1_hi = autopsyBandCore1(0x00, 0);              /* 0xFF path */
+    const int16_t hp_lo = autopsyBandHeapKB(0);
+    const int16_t hp_hi = autopsyBandHeapKB(0xFFFFFFFFUL);        /* saturated */
+    const int16_t up_lo = autopsyBandStallMinutes(0);
+    const int16_t up_hi = autopsyBandStallMinutes(0xFFFFFFFFUL);  /* saturated */
+
+    TEST_ASSERT_TRUE(c1_lo <= c1_hi);
+    TEST_ASSERT_TRUE(hp_lo <= hp_hi);
+    TEST_ASSERT_TRUE(up_lo <= up_hi);
+    TEST_ASSERT_TRUE(c1_hi < hp_lo);   /* Core 1 band ends before heap starts */
+    TEST_ASSERT_TRUE(hp_hi < up_lo);   /* heap band ends before minutes start  */
+    TEST_ASSERT_TRUE(up_hi <= 32767);  /* and the last one still fits int16    */
+}
+
+static void test_the_core1_band_carries_the_module_and_says_when_it_cannot(void) {
+    TEST_ASSERT_EQUAL_INT16(1007, autopsyBandCore1(0x80, 7));
+    TEST_ASSERT_EQUAL_INT16(1000, autopsyBandCore1(0x80, 0));
+    /* No valid marker: 0xFF, the same "unknown" the 200 band uses, rather than
+     * a module number that would name an innocent module. */
+    TEST_ASSERT_EQUAL_INT16(1255, autopsyBandCore1(0x00, 7));
+    TEST_ASSERT_EQUAL_INT16(1255, autopsyBandCore1(0x7F, 7));
+}
+
+static void test_the_heap_band_is_kb_and_saturates(void) {
+    TEST_ASSERT_EQUAL_INT16(2000, autopsyBandHeapKB(0));
+    TEST_ASSERT_EQUAL_INT16(2000, autopsyBandHeapKB(1023));
+    TEST_ASSERT_EQUAL_INT16(2031, autopsyBandHeapKB(32000));  /* a healthy RP2040 heap */
+    /* Garbage out of a scratch register must not wrap into a plausible small
+     * number — the trap setUptimeSec documents. */
+    const int16_t junk = autopsyBandHeapKB(0xFFFFFFFFUL);
+    TEST_ASSERT_TRUE(junk > 0);
+    TEST_ASSERT_EQUAL_INT16(2999, junk);
+}
+
+static void test_the_stall_band_is_minutes_and_saturates(void) {
+    TEST_ASSERT_EQUAL_INT16(4000, autopsyBandStallMinutes(0));
+    TEST_ASSERT_EQUAL_INT16(4000, autopsyBandStallMinutes(59999UL));   /* under a minute */
+    TEST_ASSERT_EQUAL_INT16(4001, autopsyBandStallMinutes(60000UL));
+    TEST_ASSERT_EQUAL_INT16(4060, autopsyBandStallMinutes(3600000UL)); /* one hour */
+    /* 18 minutes is the uptime of the one reproduction there is; the band has
+     * to keep that resolution or it cannot answer the question being asked. */
+    TEST_ASSERT_EQUAL_INT16(4018, autopsyBandStallMinutes(18UL * 60000UL));
+    const int16_t junk = autopsyBandStallMinutes(0xFFFFFFFFUL);
+    TEST_ASSERT_TRUE(junk > 0);
+    TEST_ASSERT_EQUAL_INT16(32000, junk);
+}
+
+static void test_a_reader_gets_the_number_back_out_of_the_band(void) {
+    /* The whole point: someone reading a .blog days later subtracts the band
+     * and has the fact. */
+    TEST_ASSERT_EQUAL_INT(9, autopsyBandCore1(0x80, 9) - 1000);
+    TEST_ASSERT_EQUAL_INT(18, autopsyBandStallMinutes(18UL * 60000UL) - 4000);
+    TEST_ASSERT_EQUAL_INT(31, autopsyBandHeapKB(31UL * 1024UL) - 2000);
+}
+
 int main(int, char**) {
     UNITY_BEGIN( );
 
@@ -588,6 +666,13 @@ int main(int, char**) {
     RUN_TEST(test_a_silenced_preamble_does_not_open_its_family);
     RUN_TEST(test_the_cold_boot_notice_is_never_filtered);
     RUN_TEST(test_a_fault_during_a_quiet_preamble_still_lands);
+
+    RUN_TEST(test_the_autopsy_bands_never_collide_with_the_verdict_bands);
+    RUN_TEST(test_the_autopsy_bands_never_collide_with_EACH_OTHER);
+    RUN_TEST(test_the_core1_band_carries_the_module_and_says_when_it_cannot);
+    RUN_TEST(test_the_stall_band_is_minutes_and_saturates);
+    RUN_TEST(test_the_heap_band_is_kb_and_saturates);
+    RUN_TEST(test_a_reader_gets_the_number_back_out_of_the_band);
 
     return UNITY_END( );
 }
