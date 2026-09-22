@@ -417,5 +417,66 @@ struct __attribute__((packed)) CompactLogRecord {
 };
 static_assert(sizeof(CompactLogRecord) == 12, "CompactLogRecord must be 12 bytes!");
 
+/** @name Autopsy context bands — the crash verdict, persisted
+ *
+ * The autopsy sentence a stall produces at the next boot reads
+ * `C0=[…] C1=[…] at up=…ms sc3=0x… hp=…`, and only its FIRST fact survives:
+ * the record above carries one int16 of context, which the HW-watchdog branch
+ * spends on `200 + Core-0 module`. The rest lives on the boot serial and
+ * nowhere else. That is workable on a bench with a script camped on the port
+ * (and until 2026-09-22 not even there — the harness flushed it), and it is
+ * nothing at all in the field, where a stall becomes "it rebooted by itself".
+ *
+ * So the remaining facts go into MORE records of the same code, told apart by
+ * context band. Bands rather than a packed word because every existing reader
+ * prints `ctx` as a number, and a person reads `1009` without a decoder; more
+ * records rather than a wider record because the 12-byte format has readers in
+ * `tools/`, in the web UI and in `.blog` files already on disk. A new LogCode
+ * would cost its strings in six languages; a band costs the call.
+ *
+ * | band | fact | range |
+ * |---|---|---|
+ * | `1000 +` | Core 1's module when Core 0 stopped feeding (`0xFF` = no trace) | 1000..1255 |
+ * | `2000 +` | free heap at the stall, whole KB | 2000..2999 |
+ * | `4000 +` | device uptime at the stall, MINUTES | 4000..32000 |
+ *
+ * The verdict bands, which none of these reach into: `0` external reset ·
+ * `100+core` soft panic · `200+mod` HW watchdog · `300+phase` Core 1 frozen ·
+ * `400` Core 1 hard fault. All below 456.
+ *
+ * ⚠️ **The ranges are disjoint by construction, and that is load-bearing.**
+ * The first version of this put minutes at `2000 +` saturating at 20000, so a
+ * device up 1000 minutes wrote `ctx=3000` — which reads exactly like "free
+ * heap 0 KB" in the band below it. The collision test in
+ * `test/test_log_policy` caught it before the bench did. Each band's width now
+ * covers its whole domain: heap is bounded by the RP2040's 264 KB, and
+ * minutes saturate at 28000 (19.4 days, past the 49.7-day `millis( )` wrap
+ * only in theory but well inside int16).
+ *
+ * Every one of these saturates instead of wrapping, for the reason
+ * setUptimeSec gives: the values come out of watchdog scratch registers, which
+ * hold garbage after a cold boot, and a wrapped int16 reads as a perfectly
+ * plausible small number.
+ */
+///@{
+/** Who Core 1 was in when Core 0 stopped feeding — the half the D-C1 hunt
+ *  lacks, since `200+mod` already says Core 0 was in [CLI]. 0xFF = no trace. */
+inline constexpr int16_t autopsyBandCore1(uint8_t c1Valid, uint8_t c1Mod) {
+	return (int16_t)(1000 + (c1Valid == 0x80 ? c1Mod : 0xFF));
+}
+/** Free heap at the stall, in whole KB. Saturates at 999: the RP2040 has
+ *  264 KB of SRAM, so anything past that is a garbage register, not a heap. */
+inline constexpr int16_t autopsyBandHeapKB(uint32_t freeBytes) {
+	const uint32_t kb = freeBytes / 1024UL;
+	return (int16_t)(2000 + (int)(kb > 999UL ? 999UL : kb));
+}
+/** Device uptime at the stall, in MINUTES: milliseconds would overflow an
+ *  int16 in 33 s, and minutes reach 19.4 days before the cap. */
+inline constexpr int16_t autopsyBandStallMinutes(uint32_t upMsAtStall) {
+	const uint32_t m = upMsAtStall / 60000UL;
+	return (int16_t)(4000 + (int)(m > 28000UL ? 28000UL : m));
+}
+///@}
+
 /** @brief Size of each log record in flash (bytes). */
 #define LOG_RECORD_SIZE 12
