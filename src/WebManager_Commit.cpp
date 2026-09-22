@@ -495,7 +495,13 @@ void WebManager::handleApiCommitAll( ) {
 	/* ── slots section: sensor provisioning ─────────────────────────────────
 	 * Format: "slots":{"s":[{"i":0,"a":true,"t":2,"p":[2,255,255,255],
 	 *                        "hwId":"DHT0","name":"Sala",
-	 *                        "tmin":-10,"tmax":50,"hmin":0,"hmax":100,"al":true}]}
+	 *                        "lim":{"temp":[-10,50],"hum":[0,100]},"al":true}]}
+	 *
+	 * This line said "tmin":-10,"tmax":50,"hmin":0,"hmax":100 until 2026-09-21.
+	 * Pass 2 has never read those four keys here — limits arrive under "lim",
+	 * keyed by channel — so a client following the comment got 200, an empty
+	 * `applied`, an empty `rejected`, and no change. docs/API_POST.md carried
+	 * the same example and was corrected with it.
 	 * Only edited slots are sent — the payload cap is 6144 B and a full
 	 * 16-slot dump plus the sys section would crowd it.
 	 *

@@ -26,7 +26,9 @@ na MESMA rede do device (o device conecta no SSID e alcança o host pelo IP
 que este script descobre via rota default).
 """
 import argparse
+import atexit
 import glob
+import hashlib
 import http.server
 import json
 import os
@@ -39,6 +41,7 @@ import tempfile
 import threading
 import time
 
+import requests
 import serial
 
 BAUD = 115200
@@ -156,6 +159,92 @@ class Collector:
 
 
 # ── device ──────────────────────────────────────────────────────────────────
+# ── config do aparelho: fotografar antes, devolver depois ───────────────────
+#
+# Esta suíte reescreve a telemetria e a linha de alarmes do aparelho — servidor,
+# porta, path, modo, qmax e os dois templates — e até 21/09/2026 não devolvia
+# nada. Quem rodasse ela numa bancada apontada para o coletor de verdade
+# (192.168.3.206:8080 /telemetry) ficava com o aparelho falando com a bancada,
+# em CSV, com os templates do teste. Ninguém percebe até faltar dado do outro
+# lado.
+#
+# A devolução vai pela WEB, não pela CLI, e por um motivo medido: o
+# `alarm set line` passa pelo `strVal2[64]` do CommandParser e **corta em 63
+# caracteres em silêncio** (medido em 21/09: 70 entram, 63 ficam). O template
+# real deste aparelho tem 141. Só o commit_all carrega o valor inteiro.
+
+# t_key fica de fora de propósito: o /api/config devolve a chave MASCARADA
+# ("Bobi***"), e mandar a máscara de volta gravaria a máscara.
+CFG_FIELDS = ("t_srv", "t_port", "t_path", "t_int", "t_bat", "t_mode", "t_sec",
+              "a_en", "a_mode", "a_qmax", "a_path", "a_glob", "a_line", "a_sep",
+              "t_glob", "t_line")
+
+
+def _web_session(host):
+    user = os.environ.get("SIMUT_WEB_USER", "admin")
+    pw = os.environ["SIMUT_WEB_PASS"]
+    s = requests.Session()
+    n = s.get(f"http://{host}/api/login_init", timeout=10).json().get("nonce", "")
+    s.post(f"http://{host}/api/login",
+           data={"user": user,
+                 "pass": hashlib.sha256(pw.encode("latin-1")).hexdigest(),
+                 "nonce": n},
+           headers={"Content-Type": "application/x-www-form-urlencoded"},
+           timeout=15, allow_redirects=False)
+    if "SIMUTSESS" not in s.cookies.get_dict():
+        raise RuntimeError("login web recusado")
+    return s
+
+
+def config_snapshot(host):
+    """Devolve o /api/config do aparelho, ou None se não der para fotografar."""
+    if not os.environ.get("SIMUT_WEB_PASS"):
+        print("  [WARN] sem SIMUT_WEB_PASS: a config do aparelho NAO sera "
+              "restaurada no fim — ela ficara apontada para esta bancada")
+        return None
+    try:
+        snap = _web_session(host).get(f"http://{host}/api/config", timeout=20).json()
+        print(f"  [CFG] snapshot da config tirado ({len(snap)} campos)")
+        return snap
+    except Exception as e:
+        print(f"  [WARN] snapshot da config falhou ({e}) — nada sera restaurado")
+        return None
+
+
+def config_restore(host, snap):
+    """Põe a config de volta e CONFERE lendo o que o aparelho ficou."""
+    if not snap:
+        return
+    payload = {k: snap.get(k) for k in CFG_FIELDS if k in snap}
+    for k in ("a_en", "t_sec"):
+        if k in payload:
+            payload[k] = 1 if payload[k] else 0
+    try:
+        s = _web_session(host)
+        r = s.post(f"http://{host}/api/commit_all",
+                   data={"_payload": json.dumps({"sys": payload})}, timeout=40)
+        print(f"  [CFG] restauracao: HTTP {r.status_code} {r.text[:80]}")
+        time.sleep(4)
+        for _ in range(20):
+            try:
+                back = _web_session(host).get(f"http://{host}/api/config",
+                                              timeout=20).json()
+                break
+            except Exception:
+                time.sleep(3)
+        else:
+            print("  [CFG] FALHOU: aparelho nao respondeu depois do commit")
+            return
+        drift = {k: (payload[k], back.get(k)) for k in payload
+                 if back.get(k) != payload[k]}
+        if drift:
+            print(f"  [CFG] NAO VOLTOU: {drift}")
+        else:
+            print(f"  [CFG] config restaurada e conferida ({len(payload)} campos)")
+    except Exception as e:
+        print(f"  [CFG] restauracao falhou: {e}")
+
+
 class Device:
     def __init__(self):
         self.ser = None
@@ -307,6 +396,14 @@ def main():
     dev = Device()
     if dev.ser is None:
         sys.exit("  [FATAL] device Pico W não encontrado em /dev/ttyACM*")
+
+    # atexit e não try/finally de propósito: o corpo desta suíte chama
+    # sys.exit( ) em vários pontos, e um finally só cobriria o bloco em que
+    # estivesse. Assim a devolução acontece por qualquer saída, inclusive a que
+    # aborta no meio — que é exatamente quando a config fica torta.
+    dev_host = os.environ.get("SIMUT_HOST", "192.168.3.24")
+    snap = config_snapshot(dev_host)
+    atexit.register(config_restore, dev_host, snap)
 
     col = Collector(tls=args.tls)
     col.start()

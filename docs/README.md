@@ -35,10 +35,12 @@ Consulted while changing the code, and enforced by CI where a gate exists.
 
 | document | state | about |
 |---|---|---|
+| [INTEGRACAO_SERVIDOR.md](INTEGRACAO_SERVIDOR.md) | Living | Manual de integração para quem escreve o servidor da empresa: os dois sentidos de tráfego (o aparelho empurra telemetria e alarmes; o servidor comanda contas, nomes, limites e manutenção), com os formatos exatos, o contrato de confirmação, as armadilhas medidas e o que HTTP puro custa nesta primeira fase (pt-BR). |
 | [API_POST.md](API_POST.md) | Living | As 18 rotas POST, o que cada uma recebe e devolve — referência compacta para quem escreve o lado servidor. Os códigos e corpos citados foram obtidos de chamadas reais ao aparelho, não de leitura de código; as permissões são as de AUTHORIZATION.md, que é a fonte normativa. |
 | [AUTHORIZATION.md](AUTHORIZATION.md) | Living | The authorization matrix (`check_authz.py --list` counts the routes; 61 after `GET /api/wifi/scan`). Gated by `tools/check_authz.py`. |
 | [CONCURRENCY.md](CONCURRENCY.md) | Living | The concurrency invariants, including invariant 3 (`pico_w_asserts` arms its tripwire). |
 | [GLOSSARY.md](GLOSSARY.md) · [pt-BR](GLOSSARY.pt-BR.md) · [es-ES](GLOSSARY.es-ES.md) | Living | Tag glossary. |
+| [security-audit/ACHADO_2026-09-21_V09_ESCALACAO_POR_USER_MGR.md](security-audit/ACHADO_2026-09-21_V09_ESCALACAO_POR_USER_MGR.md) | **ABERTO** | 🔴 V-09, severidade alta: uma conta com `PERM_USER_MGR` cria outra com qualquer bit, inclusive os que ela não tem, e recebe a senha na resposta. Achado em 21/09, correção urgente pendente de decisão (pt-BR). |
 | [diretrizes_seguranca_vibecoding.md](diretrizes_seguranca_vibecoding.md) | Living | The six failure classes every new code path is audited against. |
 | [images/README.md](images/README.md) · [images/screens/screens.md](images/screens/screens.md) | Living | How the screenshots and screen captures are produced. |
 
@@ -51,6 +53,7 @@ fixed, which is exactly what makes them useful when it comes back.
 | document | version | about |
 |---|---|---|
 | [analysis/PLANO_DIVIDA_TECNICA.md](analysis/PLANO_DIVIDA_TECNICA.md) | **Living** | The debt still owed and the order to pay it in, with the dependencies that set that order. |
+| [analysis/PLANO_STABLE.md](analysis/PLANO_STABLE.md) | **Living** | O que precisa ser verdade para a linha sair de beta, a matriz de testes que prova cada item, e os três bloqueios abertos (pt-BR). |
 | [analysis/DIETA_FLASH.md](analysis/DIETA_FLASH.md) | **Living** | Where the 1 MB release image goes and what gives bytes back without dropping a feature: attributed from the linker map, six levers measured by A/B builds, −53,848 B in one image (pt-BR). |
 | [analysis/ESPELHO_DELTA.md](analysis/ESPELHO_DELTA.md) | **Living** | Sending only the blocks that changed in the panel mirror: measured on the rig, and what stands in the way (pt-BR). |
 | [analysis/ANALISE_GESTOR_FROTA.md](analysis/ANALISE_GESTOR_FROTA.md) | 2026-09-11 | What the firmware would need to give a fleet manager watching hundreds of units — the design behind the unmerged `feat/fleet-api` branch (pt-BR). |
