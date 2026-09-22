@@ -50,7 +50,8 @@ gates by testing the bits it needs against `getAuthPerms()`.
 
 ### The two privilege tiers — this is the load-bearing invariant
 
-`/api/commit_all` refuses any `perms` value above `PERM_ALL_BITS` (0x1FFF) when
+`/api/commit_all` refuses any `perms` value above the CALLER's own mask, and
+above `PERM_ALL_BITS` (0x1FFF), when
 creating users (there is no edit action — a role change is `del` + `add`) (`WebManager_Commit.cpp`). So a web administrator can
 hand out at most all thirteen named bits. `PERM_FULL_ADMIN` (0xFFFF) is reachable
 only two ways: the factory seed sets it on user slot 0 (`StorageManager.cpp`),
@@ -126,7 +127,7 @@ handler checks.
 | `POST /api/force_chpass` | authenticated (`perms != 0`) **and** password-change-required (`isPasswordChangeRequired`) — completes the forced password change |
 | `POST /api/calib` | `PERM_CALIB` |
 | `POST /api/save_sys` | `PERM_SYS_CONFIG` |
-| `POST /api/commit_all` | `PERM_SYS_CONFIG` **plus per-section authz** (`WebCommitSections.h`). `_dry=1` runs the same gates and parsers on a copy and writes nothing — it needs the same bits as the real thing |
+| `POST /api/commit_all` | **ANY ONE** of `PERM_SYS_CONFIG`, `PERM_NET_CONFIG`, `PERM_USER_MGR` at the door (`commitEntryPerms( )`), **then per-section authz** (`WebCommitSections.h`) — a pure user manager gets in on purpose, or the role could manage nobody. Since V-09 the `users` section also refuses to grant a bit the CALLER does not hold (`commitGrantAllowed`), and only the admin itself or a full admin may set slot 0's panel PIN (`commitPinTargetAllowed`). `_dry=1` runs the same gates and parsers on a copy and writes nothing — it needs the same bits as the real thing |
 | `POST /api/reset_touch_cal`, `/api/history_rebind`, `/api/set_time` | `PERM_SYS_CONFIG` |
 | `POST /api/clear_logs` | `PERM_LOGS` **and** `PERM_SYS_CONFIG` (both) |
 | `POST /api/action` | `PERM_SYS_CONFIG` (per-`op` selector inside; `op=reboot` also answers 409 with a pending password change and 503 during touch calibration, like `commit_all`) |

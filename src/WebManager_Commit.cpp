@@ -1357,6 +1357,13 @@ void WebManager::handleApiCommitAll( ) {
 					if (perms < 0 || perms > PERM_ALL_BITS) {
 						rejectField("users.perms"); objStart = objEnd + 1; continue;
 					}
+					/* V-09: e nada acima do que o chamador possui. O teto de
+					 * PERM_ALL_BITS sozinho deixava uma conta com PERM_USER_MGR
+					 * cunhar outra com todos os demais bits e receber a senha
+					 * dela na mesma resposta. */
+					if (!commitGrantAllowed((uint16_t)perms, _currentUserPerms)) {
+						rejectField("users.perms"); objStart = objEnd + 1; continue;
+					}
 
 					/* Capacity last: a full table is a state limit, and saying
 					 * so is only useful once the request itself is sound. */
@@ -1398,10 +1405,18 @@ void WebManager::handleApiCommitAll( ) {
 				else if (type == "pin") {
 #if SIMUT_PANEL_PIN
 					/* v24: {"type":"pin","id":N,"pin":"123456"} — "" removes it. Slot 0
-					 * is allowed: this is how the admin's panel PIN is set from the web. */
+					 * is allowed: this is how the admin's panel PIN is set from the web.
+					 *
+					 * V-09, segundo vetor: por QUEM. Setar o PIN do slot 0 é
+					 * entregar o painel como admin a quem souber o valor, e
+					 * PERM_USER_MGR sozinho bastava. Agora só o próprio admin
+					 * ou um full admin. */
 					int ip = obj.indexOf("\"id\":");
 					int id = (ip >= 0) ? obj.substring(ip + 5).toInt( ) : -1;
 					if (!(id >= 0 && id < MAX_USERS && cfg.users[id].active)) {
+						rejectField("users.id"); objStart = objEnd + 1; continue;
+					}
+					if (!commitPinTargetAllowed(id, _currentUserId, _currentUserPerms)) {
 						rejectField("users.id"); objStart = objEnd + 1; continue;
 					}
 					String pinS = jsonExtractStringValue(obj, "pin");

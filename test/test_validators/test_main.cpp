@@ -1208,6 +1208,44 @@ void test_commit_usermgr_can_commit_users_only(void) {
     TEST_ASSERT_EQUAL_INT(SEC_SYS, commitScanSections(andSys, P_USERMGR_ONLY, st));
 }
 
+/* V-09: a section gate says WHICH sections a caller may touch; it never said
+ * WHAT VALUE it may write into them. A pure user manager passed the gate above
+ * (by design — otherwise the role manages nobody) and then wrote any bit it
+ * liked into the new account, getting that account's one-time password back in
+ * the same response. The rule is one line and it belongs next to the gate. */
+void test_commit_grant_refuses_bits_the_caller_lacks(void) {
+    /* The V-09 payload itself: user manager asks for everything. */
+    TEST_ASSERT_FALSE(commitGrantAllowed(PERM_ALL_BITS, P_USERMGR_ONLY));
+    /* One bit over is still over. */
+    TEST_ASSERT_FALSE(commitGrantAllowed(PERM_USER_MGR | PERM_SYS_CONFIG,
+                                         P_USERMGR_ONLY));
+    /* A user manager may still mint a user manager — its own bit. */
+    TEST_ASSERT_TRUE(commitGrantAllowed(PERM_USER_MGR, P_USERMGR_ONLY));
+    /* And an account with nothing at all, which the page offers. */
+    TEST_ASSERT_TRUE(commitGrantAllowed(0, P_USERMGR_ONLY));
+    /* Full admin grants anything inside the product's map. */
+    TEST_ASSERT_TRUE(commitGrantAllowed(PERM_ALL_BITS, PERM_FULL_ADMIN));
+    /* Subsets pass, supersets do not, for a mixed mask. */
+    const uint16_t mixed = PERM_USER_MGR | PERM_SYS_CONFIG | PERM_HISTORY;
+    TEST_ASSERT_TRUE(commitGrantAllowed(PERM_SYS_CONFIG | PERM_HISTORY, mixed));
+    TEST_ASSERT_FALSE(commitGrantAllowed(mixed | PERM_FILE_DELETE, mixed));
+}
+
+/* V-09, second vector: setting slot 0's panel PIN hands the panel to whoever
+ * chose the value. The web is the right place to do it; PERM_USER_MGR is not
+ * the right authority. */
+void test_commit_pin_target_protects_the_admin_slot(void) {
+    /* A user manager (slot 4) may not touch the admin's PIN. */
+    TEST_ASSERT_FALSE(commitPinTargetAllowed(0, 4, P_USERMGR_ONLY));
+    /* The admin may set its own. */
+    TEST_ASSERT_TRUE(commitPinTargetAllowed(0, 0, P_USERMGR_ONLY));
+    /* So may a full admin from any slot. */
+    TEST_ASSERT_TRUE(commitPinTargetAllowed(0, 7, PERM_FULL_ADMIN));
+    /* Every other slot stays ordinary user management. */
+    TEST_ASSERT_TRUE(commitPinTargetAllowed(5, 4, P_USERMGR_ONLY));
+    TEST_ASSERT_TRUE(commitPinTargetAllowed(31, 4, P_USERMGR_ONLY));
+}
+
 void test_commit_netonly_can_commit_net_only(void) {
     int st[SEC_COUNT];
     String net("{\"net\":{\"ssid\":\"lab\",\"use_dhcp\":1}}");
@@ -3036,6 +3074,8 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_commit_sys_operator_cannot_change_net);
     RUN_TEST(test_commit_sys_operator_keeps_own_sections);
     RUN_TEST(test_commit_usermgr_can_commit_users_only);
+    RUN_TEST(test_commit_grant_refuses_bits_the_caller_lacks);
+    RUN_TEST(test_commit_pin_target_protects_the_admin_slot);
     RUN_TEST(test_commit_netonly_can_commit_net_only);
     RUN_TEST(test_commit_admin_passes_everything);
     RUN_TEST(test_commit_entry_perms_exclude_viewer);

@@ -143,3 +143,39 @@ inline int commitScanSections(const String& body, uint16_t perms, int* outStart)
 inline constexpr uint16_t commitEntryPerms( ) {
 	return PERM_SYS_CONFIG | PERM_NET_CONFIG | PERM_USER_MGR;
 }
+
+/**
+ * May @p caller hand @p requested to an account it is creating or editing?
+ *
+ * Nobody grants what they do not hold. Until 2026-09-21 the users section
+ * capped `perms` at PERM_ALL_BITS and compared it against nothing else, so an
+ * account with PERM_USER_MGR and nothing else — which the front door above
+ * lets in on purpose, or the role could manage nobody — minted an account with
+ * every other bit and got its one-time password back in the same response
+ * (V-09). PERM_FULL_ADMIN stayed out of reach only because 0xFFFF is above the
+ * cap, which is an accident of arithmetic and not a gate.
+ *
+ * The answer is a refusal, not a truncation. Masking the request down to what
+ * the caller holds would create an account that differs from the one asked for
+ * under a 200, which is the failure shape this codebase keeps finding
+ * elsewhere; the caller gets `rejected` and knows.
+ *
+ * Kept here, pure and header-only, for the same reason commitScanSections is:
+ * test_validators covers exactly what the firmware runs.
+ */
+inline constexpr bool commitGrantAllowed(uint16_t requested, uint16_t caller) {
+	return (requested & ~caller) == 0;
+}
+
+/**
+ * May @p caller set or clear the PANEL PIN of account @p targetSlot?
+ *
+ * Slot 0 is the admin, and the web is deliberately the way its panel PIN is
+ * set — but by the admin, or by somebody holding every bit, and not by a user
+ * manager who would otherwise walk to the panel and act as the admin there
+ * (the second vector of V-09). Any other slot is ordinary user management.
+ */
+inline constexpr bool commitPinTargetAllowed(int targetSlot, int callerSlot,
+                                             uint16_t caller) {
+	return targetSlot != 0 || callerSlot == 0 || caller == PERM_FULL_ADMIN;
+}
