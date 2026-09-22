@@ -81,6 +81,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 BAUD = 115200
+
+# The one line this suite must never swallow: see Target._keep_autopsy.
+AUTOPSY_RE = re.compile(r'HW WATCHDOG|SOFT PANIC|System boot:|Boot after forced')
+BOOT_LOG = os.environ.get('SIMUT_BOOT_SERIAL_LOG', '')
 PROMPT_RE = re.compile(r'SIMUT(?:\([a-z0-9-]+\))?\s*[#>]\s*$')
 # The last thing setup( ) prints. A cold boot keeps streaming log lines for
 # ~15 s after the port enumerates, and a command written into that stream gets
@@ -403,18 +407,57 @@ class Target:
         unambiguously ours. The cap keeps a chatty device (debug on) from
         blocking here forever.
         """
-        self.ser.reset_input_buffer()
+        self._keep_autopsy(self._take_buffered())
         deadline = time.time() + cap_s
         last_byte = time.time()
         while time.time() < deadline:
             n = self.ser.in_waiting
             if n:
-                self.ser.read(n)
+                self._keep_autopsy(self.ser.read(n).decode('utf-8', 'replace'))
                 last_byte = time.time()
             elif time.time() - last_byte >= quiet_s:
                 return
             else:
                 time.sleep(0.02)
+
+    def _take_buffered(self):
+        """Empty the input buffer and RETURN what was in it.
+
+        Same post-condition as reset_input_buffer( ) — the buffer is empty —
+        but the bytes are handed back instead of dropped, because one of them
+        may be the crash autopsy (see _keep_autopsy)."""
+        try:
+            n = self.ser.in_waiting
+            return self.ser.read(n).decode('utf-8', 'replace') if n else ''
+        except Exception:
+            return ''
+
+    def _keep_autopsy(self, text):
+        """Shout and record if the swallowed text was a crash autopsy.
+
+        This function swallows the banner on purpose, and that is right for
+        everything in it but ONE line. The autopsy text — `C0=[…] C1=[…] at
+        up=…ms sc3=0x…` — exists once, in the boot that follows a stall, and
+        the 12-byte log record keeps only code and context
+        (LogManager.cpp:1019). A suite that drops it turns a diagnosable stall
+        into "the device rebooted". Measured 2026-09-22 on the TFT bench: the
+        drop-and-flush path collected 0 B of a 550 B banner."""
+        if not text:
+            return
+        hits = [ln.strip() for ln in text.splitlines() if AUTOPSY_RE.search(ln)]
+        if not hits:
+            return
+        self.autopsies = getattr(self, 'autopsies', []) + hits
+        stamp = time.strftime('%Y-%m-%d %H:%M:%S')
+        print(f'  [AUTOPSY] {stamp} — the device booted after a stall:')
+        for ln in hits:
+            print(f'  [AUTOPSY] {ln}')
+        if BOOT_LOG:
+            try:
+                with open(BOOT_LOG, 'a', buffering=1) as fh:
+                    fh.write(f'\n===== autopsy {stamp} =====\n{text}')
+            except OSError as e:
+                print(f'  [AUTOPSY] could not write {BOOT_LOG}: {e}')
 
     def read_until(self, pattern, timeout, collect=None):
         """Read until `pattern` (compiled regex) matches; return the match, or None.

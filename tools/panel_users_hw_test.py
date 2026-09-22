@@ -39,6 +39,16 @@ from PIL import Image
 
 TARGET_GLOB = '/dev/serial/by-id/usb-Raspberry_Pi_Pico_W_*-if00'
 BAUD = 115200
+
+# The autopsy text — `C0=[…] C1=[…] at up=…ms sc3=0x… hp=…` — exists ONCE, on
+# the serial, in the boot that follows a stall, and the compact 12-byte log
+# record keeps only code and context (LogManager.cpp:1019). Until 2026-09-22
+# this harness threw that text away: cmd( ) slept 12 s through the reboot and
+# reconnect( ) called reset_input_buffer( ), which drops the banner. Three
+# reproductions of the D-C1 watchdog (2026-09-20 twice, 2026-09-21 once) were
+# lost that way and had to be reconstructed from uptime afterwards.
+AUTOPSY_RE = re.compile(r'HW WATCHDOG|SOFT PANIC|System boot:|Boot after forced')
+BOOT_LOG = os.environ.get('SIMUT_BOOT_SERIAL_LOG', '')
 COLLECTOR_PORT = int(os.environ.get('SIMUT_ALARM_COLLECTOR_PORT', '18081'))
 COLLECTOR_LOG = os.environ.get('SIMUT_ALARM_COLLECTOR_LOG', '/tmp/simut_alarm_collector.jsonl')
 
@@ -195,7 +205,9 @@ class Rig:
             # reboot — print the uptime and let it say.
             self.serial_drops = getattr(self, 'serial_drops', 0) + 1
             print(f'  [serial] {e} — port lost (#{self.serial_drops}); reopening')
-            time.sleep(12.0)
+            # Do NOT sleep through the reboot: the autopsy text is emitted in
+            # exactly this window, and a blind sleep plus reset_input_buffer( )
+            # is what lost three reproductions. reconnect( ) waits by READING.
             if not self.reconnect():
                 raise
             self._lost_mode = True          # see cfg( )
@@ -374,7 +386,14 @@ class Rig:
             time.sleep(2)
         raise RuntimeError('web server did not come back after reload')
 
-    def reconnect(self):
+    def reconnect(self, boot_wait=10.0):
+        """Reopen the port — and KEEP what the device says while it boots.
+
+        The boot banner is the only place the crash autopsy text ever exists,
+        so it is drained into self.boot_text (and SIMUT_BOOT_SERIAL_LOG, when
+        set) BEFORE reset_input_buffer( ) is allowed to run. `boot_wait` is
+        how long to listen; 10 s covers the banner measured on this bench
+        (boot to first prompt ~8 s) without stretching a mere CDC hiccup."""
         try:
             self.ser.close()
         except Exception:
@@ -386,6 +405,7 @@ class Rig:
                     self.ser = serial.Serial(port, BAUD, timeout=0.3)
                     self.ser.dtr = True
                     time.sleep(0.5)
+                    self._drain_boot(boot_wait)
                     self.ser.reset_input_buffer()
                     self.cmd('enable')
                     if self._ip():
@@ -394,6 +414,35 @@ class Rig:
                     pass
             time.sleep(2)
         return False
+
+    def _drain_boot(self, seconds):
+        """Read everything for `seconds`, keep it, and shout if it is an autopsy."""
+        buf, end = '', time.time() + seconds
+        while time.time() < end:
+            try:
+                data = self.ser.read(self.ser.in_waiting or 1)
+            except Exception:
+                break
+            if data:
+                buf += data.decode('utf-8', 'replace')
+            else:
+                time.sleep(0.05)
+        if not buf.strip():
+            return
+        self.boot_text = getattr(self, 'boot_text', '') + buf
+        stamp = time.strftime('%Y-%m-%d %H:%M:%S')
+        if BOOT_LOG:
+            try:
+                with open(BOOT_LOG, 'a', buffering=1) as fh:
+                    fh.write(f'\n===== boot serial {stamp} =====\n{buf}')
+            except OSError as e:
+                print(f'  [serial] could not write {BOOT_LOG}: {e}')
+        hits = [ln.strip() for ln in buf.splitlines() if AUTOPSY_RE.search(ln)]
+        if hits:
+            self.autopsies = getattr(self, 'autopsies', []) + hits
+            print(f'  [AUTOPSY] {len(hits)} line(s) from the boot serial at {stamp}:')
+            for ln in hits:
+                print(f'  [AUTOPSY] {ln}')
 
     def keypad_faces(self):
         """The cards, in deal order (`slots` glyphs each, decoys included).
