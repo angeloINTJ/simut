@@ -1024,10 +1024,28 @@ void AppManager::setup( ) {
   * the key is derived from the board id instead of living in the config —
   * but nothing implemented it: begin( ) with an empty SSID went to
   * NET_OFFLINE and stayed there. Measured 2026-09-22 by reading the only two
-  * callers of beginAP( ): the touch gesture and the `ap` command. */
- const bool unconfigured = (cfg.wifiSsid[0] == '\0');
- if (forceAP || unconfigured) {
- LOG_CODE(LOG_WARN, "APP", APP_AP_MODE_TRIGGERED, unconfigured ? 2 : 1,
+  * callers of beginAP( ): the touch gesture and the `ap` command.
+  *
+  * It sets forceAP rather than joining the condition below, because the flag
+  * is read twice more after this: by the `else if` chain that would otherwise
+  * start the STA, and ~230 lines down by the branch that sets _isApMode and
+  * leaves TR_BOOT_AP_ACTIVE on the screen. A second condition here would have
+  * brought the AP up and then told the rest of the boot it was in station
+  * mode.
+  *
+  * Air is excluded, as it is from the runtime fallback: the AP-mode timeout
+  * only reboots to STA when an SSID is configured, so on a device with none
+  * this state has no exit, and an Air that never hibernates is a battery on
+  * a bench. Its channel is the CLI, over USB or Bluetooth, which it has. */
+ bool apBecauseUnconfigured = false;
+#if !SIMUT_AIR
+ if (!forceAP && cfg.wifiSsid[0] == '\0') {
+  forceAP = true;
+  apBecauseUnconfigured = true;
+ }
+#endif
+ if (forceAP) {
+ LOG_CODE(LOG_WARN, "APP", APP_AP_MODE_TRIGGERED, apBecauseUnconfigured ? 2 : 1,
           TRL("AP mode started."));
  _displayMgr->setBootStatusKey(TR_BOOT_START_AP);
  /* beginAP first: the network line now carries the WPA2 key, and the key
@@ -1257,6 +1275,27 @@ void AppManager::setup( ) {
  /* pre forceAP branch */
  if (forceAP) {
  _isApMode = true;
+ /* The last lines of the five-slot ring are the ones an operator standing
+  * at the panel needs. TR_BOOT_AP_NETWORK and its PSK suffix are pushed at
+  * the TOP of this branch, ~230 lines up, and by the time the boot ends they
+  * have scrolled off — captured on the rig 2026-09-22, the screen read IP /
+  * telemetry / web / callbacks / "AP Active!" and the key was nowhere.
+  *
+  * Raw lines (key == TR_KEYS_COUNT renders the suffix alone, see
+  * BootLogEntry): an SSID and a random key are the two things on this screen
+  * with nothing to translate, and the translated TR_BOOT_AP_NETWORK names
+  * "SIMUT_SETUP" rather than this device's real network. Two lines and not
+  * one because the suffix is 40 bytes and a device name may be 31, which
+  * makes the SSID alone 37. */
+ {
+  const char* apSsid = _netMgr->getApSsid( );
+  const char* apPsk  = _netMgr->getApPsk( );
+  char apLine[40];
+  snprintf(apLine, sizeof(apLine), "%s", (apSsid && *apSsid) ? apSsid : "-");
+  _displayMgr->setBootStatusKey((LangKey)TR_KEYS_COUNT, apLine, false);
+  snprintf(apLine, sizeof(apLine), "PSK %s", (apPsk && *apPsk) ? apPsk : "(open)");
+  _displayMgr->setBootStatusKey((LangKey)TR_KEYS_COUNT, apLine, false);
+ }
  _displayMgr->setBootStatusKey(TR_BOOT_AP_ACTIVE, nullptr, false);
  LOG_CODE(LOG_INFO, "APP", APP_READY_AP, 0, TRL("System ready (AP mode)."));
  } else {

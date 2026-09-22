@@ -101,7 +101,34 @@ void NetworkManager::begin(const SystemConfig &cfg,
  * mechanism — whoever can see the device can read it, and whoever is merely in
  * radio range cannot.
  */
-void NetworkManager::beginAP(const char* deviceName) {
+bool NetworkManager::beginAP(const char* deviceName) {
+ /* Take the radio away from the station FIRST, and wait for it to let go.
+  *
+  * Measured on the rig 2026-09-22: `ap` issued while the station was hunting
+  * for an SSID that does not exist brought up an access point the host could
+  * SEE at 94% signal and could NOT associate with — 45 s and a timeout, twice
+  * — against 2,6 s from the same build with the station connected. One radio
+  * serves both, WiFi.mode(WIFI_AP) only assigns a field, and the framework's
+  * beginAP tears the station down but cannot cancel a sweep already issued to
+  * the driver: cyw43_wifi_scan( ) owns the chip until it finishes, and its
+  * wifi_scan_state is the same flag that made NET_SCANNING_RETRY terminal on
+  * 2026-09-08. Starting an AP on top of that produced beacons and no
+  * association.
+  *
+  * This matters more than the command: the 2.7.1 fallback opens the AP
+  * exactly when the ladder has been failing, which is exactly when a sweep is
+  * in flight. Bounded, because a sweep that never finishes is the documented
+  * wedge and must not hold the recovery path hostage. */
+ {
+  const unsigned long t0 = millis( );
+  while (WiFi.scanComplete( ) == -1 && millis( ) - t0 < 4000) delay(50);
+  WiFi.scanDelete( );
+  _scanState = SCAN_IDLE;
+  _scanStaForced = false;
+  WiFi.disconnect(false);
+  delay(200);
+ }
+
  _state = NET_AP_CONFIG;
  _apStartTime = millis( );
  WiFi.mode(WIFI_AP);
@@ -127,12 +154,24 @@ void NetworkManager::beginAP(const char* deviceName) {
  }
 #endif
 
+ /* The return value is read. It used to be dropped, so a softAP( ) that
+  * failed still set NET_AP_CONFIG and still printed "AP mode started" — the
+  * operator was told to join a network that was not on the air. Seen on the
+  * rig on 2026-09-22 before the teardown above was added. */
+ bool up;
  if (_apPsk[0]) {
-  WiFi.softAP(apName.c_str( ), _apPsk);
+  up = WiFi.softAP(apName.c_str( ), _apPsk);
  } else {
   /* SIMUT_AP_OPEN=1 only, or a derivation that could not produce a full key.
    * Never silently: an open setup network is the finding, so it says so. */
-  WiFi.softAP(apName.c_str( ));
+  up = WiFi.softAP(apName.c_str( ));
+ }
+ if (!up) {
+  _state = NET_OFFLINE;
+  _reconnectTimer = millis( );
+  if (Serial) { Serial.println("\n[AP] FAILED to start"); Serial.flush( ); }
+  LOG_CODE(LOG_ERROR, "NET", SYS_AP_START, -1, TRL("Access Point failed to start"));
+  return false;
  }
  _dnsServer.start(53, "*", apIP);
 
@@ -148,6 +187,7 @@ void NetworkManager::beginAP(const char* deviceName) {
  }
  LOG_CODE(LOG_INFO, "NET", SYS_AP_START, _apPsk[0] ? 1 : 0,
           String(TRL("Access Point: ")) + apName);
+ return true;
 }
 
 
@@ -391,6 +431,7 @@ void NetworkManager::update( ) {
  case NET_CONNECTED_WAIT_IP:
  if (WiFi.localIP( ).toString( ) != "0.0.0.0") {
  LOG_CODE(LOG_INFO, "NET", SYS_IP_ACQUIRED, 0, "IP: " + WiFi.localIP( ).toString( ));
+ _everHadIp = true;
  MetricsManager::instance( ).data( ).wifiReconnects++;
  applyManualDnsIfNeeded( ); /* Manual DNS post-DHCP */
 #if SIMUT_MDNS
@@ -611,24 +652,32 @@ void NetworkManager::handleConnecting( ) {
  LOG_CODE(LOG_INFO, "NET", NET_DORMANT_MODE, 0,
  TRL("Dormancy over — back to fast retries"));
 #if !SIMUT_AIR
- /* And open the setup AP, once per boot.
+ /* ── Setup AP, the patient arm ────────────────────────────────────────
   *
-  * Until 2.7.1 nothing here ever did: begin( ) with no SSID went to
+  * Until 2.7.1 nothing anywhere did this: begin( ) with no SSID went to
   * NET_OFFLINE and this ladder retried for ever, so the ONLY ways into AP
   * mode were a three-second gesture on a touch panel during a window the
   * screen could not show, and the `ap` command over a cable or Bluetooth.
   * A device whose router was replaced was unreachable by every channel its
   * owner had, which is the report this release fixes.
   *
-  * Here and not earlier: one full round is five connect cycles and three
-  * ten-minute dormancies, ~33 min of continuous failure. A router that
-  * reboots takes under two minutes, so this cannot be that. The AP's own
-  * 15-minute timeout reboots back to STA while an SSID is configured, so a
-  * device that was merely out of range comes back on its own.
+  * This is the arm for a device that HAD an address and lost it, and it is
+  * deliberately slow: one whole round of the ladder is five connect cycles
+  * and then three dormancies, and a dormancy is WIFI_DORMANT_DELAY_MS
+  * before EACH of the two scans that precede an association attempt — so a
+  * round is much longer than three times ten minutes.
+  * Not measured to completion on the rig: the run
+  * that would have shown it was still going at 29 min, and the arithmetic
+  * says ~68 (7 min of the five cycles, then three attempts of 600 + 600 + 20
+  * s each). What WAS measured is the mechanism, on the fast arm below.
+  * Taking a working LAN away for fifteen minutes over an outage that ends
+  * on its own is the worse trade; the fast arm below is for the case where
+  * there was never a LAN to take.
   *
-  * Air is excluded: its radio only exists inside a wake, an AP would hold
-  * it awake for fifteen minutes a round, and there is nobody in front of a
-  * hibernating device to use it. */
+  * Air is excluded from both: its radio only exists inside a wake, an AP
+  * would hold it awake for fifteen minutes a round, the AP timeout only
+  * returns to STA when an SSID is configured — so with none there is no
+  * exit — and there is nobody in front of a hibernating device to use it. */
  _apFallbackDue = true;
 #endif
  } else {
@@ -636,6 +685,23 @@ void NetworkManager::handleConnecting( ) {
  _dormantWaits++;
  _reconnectDelay = WIFI_DORMANT_DELAY_MS;
  LOG_CODE(LOG_WARN, "NET", NET_DORMANT_MODE, _connectCycles, String(TRL("Dormant: retry in ")) + (_reconnectDelay / 1000) + "s");
+#if !SIMUT_AIR
+ /* ── Setup AP, the fast arm ───────────────────────────────────────────
+  *
+  * A device that has NEVER had an address since it booted is not a link
+  * that dropped — it is a network that is not there: the router was
+  * replaced, the password changed, the unit was moved. There is no working
+  * LAN to protect, so the FIRST dormancy is enough; the patient arm above
+  * would cost an hour of being unreachable for nothing.
+  * Measured on the rig 2026-09-22 with an SSID that does not
+  * exist: 421 s from boot, and the log reads 526 ctx=5 (first dormancy),
+  * 403 ctx=3 (AP because the ladder gave up) and 15 ctx=1 (AP up, WPA2) one
+  * second apart. A second run, polled from the device itself, put it between
+  * 358 and 382 s — the ladder's own scan times move it. The host then JOINED
+  * that AP in 4,08 s and loaded the portal, which is the half that only works
+  * because of the teardown at the top of beginAP( ). */
+ if (!_everHadIp) _apFallbackDue = true;
+#endif
  }
  } else {
  _reconnectDelay = min(_reconnectDelay * 2, MAX_RECONNECT_DELAY);

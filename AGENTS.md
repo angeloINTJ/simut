@@ -28,6 +28,15 @@ acordado/dormindo, não como power-gating; o GP3 da mão vai ao GP17 do alvo e
 **finge o carregador** (3,3 V direto, sem o divisor da placa real). Detalhes,
 comandos e o analisador lógico: `tools/PicoHand/MANUAL_CLAUDE_CODE.pt-BR.md`.
 
+**O alvo tem um painel TFT ligado** (ILI9341 + XPT2046, pinagem do
+`simut_config.h`), o que esta lista não dizia até 22/09/2026 — `/api/screenshot`
+devolve o dashboard renderizado e `POST /api/touch` dirige o painel. Vale para
+validar UI de verdade; o que **não** dá para exercitar de fora é o PENIRQ, que
+nenhum fio da mão alcança. O contorno é uma imagem só de bancada com
+`-DTOUCH_IRQ=17 -DTOUCH_CS=21`: o PENIRQ passa a ser a linha CHARGER da mão, e
+`CHARGER OFF` (nível baixo) é "dedo na tela". Foi assim que o gesto de AP do
+boot foi medido nos quatro casos em 22/09.
+
 ### Gravar firmware
 
 **Nunca peça ao usuário para resetar o Pico à mão.** A mão existe para isso.

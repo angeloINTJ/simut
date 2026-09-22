@@ -46,7 +46,9 @@ public:
  bool dnsAuto = true,
  bool ntpEnabled = true,
  const char* dns2 = "");
- void beginAP(const char* deviceName);
+ /** Bring up the setup Access Point. False when the radio refused it —
+  * the caller must not tell anyone to join a network that is not there. */
+ bool beginAP(const char* deviceName);
  void update( );
 
  /** The WPA2 key of the setup AP, derived from the board id (V-05).
@@ -200,6 +202,10 @@ private:
  /** Derived WPA2 key of the setup AP (V-05). AP_PSK_LEN + terminator. */
  char _apPsk[AP_PSK_LEN + 1] = {0};
  bool _apFallbackDue = false;
+ /** An IP was acquired at least once since this boot. Separates "the
+  * network I know is gone" from "the link dropped for a while", which get
+  * different patience before the setup AP takes the LAN away. */
+ bool _everHadIp = false;
  bool _mdnsEnabled = true;
  uint16_t _advPort = 0;
  bool _advTls = false;

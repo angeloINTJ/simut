@@ -19,6 +19,34 @@ mostra são dois IEs e nenhum TKIP. Isso fecha o resíduo que o
 
 O que estava quebrado era tudo em volta.
 
+### O AP que dava para ver e não dava para entrar
+
+Achado ao reexaminar o alpha no fim do dia, e é muito provavelmente o próprio
+sintoma relatado. O `ap` disparado enquanto a estação estava **caçando um SSID
+que não existe** subiu um ponto de acesso que o host enxergava a 94% de sinal e
+com o qual não conseguia associar: **45 s e timeout, duas vezes**, contra
+**2,6 s** no mesmo build com a estação conectada.
+
+Um rádio serve aos dois. O `WiFi.mode(WIFI_AP)` só atribui um campo, e o
+`beginAP( )` do framework derruba a estação mas não cancela uma varredura já
+entregue ao driver — o `cyw43_wifi_scan( )` é dono do chip até terminar, e o
+`wifi_scan_state` dele é a mesma flag que tornou o `NET_SCANNING_RETRY` terminal
+em 08/09/2026. Subir um AP em cima disso produziu beacons e nenhuma associação.
+
+O `beginAP( )` agora espera a varredura acabar (limitado a 4 s, porque uma
+varredura que nunca termina é a armadilha documentada e não pode sequestrar o
+caminho de recuperação), descarta o resultado, desconecta e deixa o chip assentar
+antes de pedir o AP. Do mesmo estado que falhava: **4,07 s**, lease DHCP, portal
+`200`.
+
+Isto pesa mais que o comando. O fallback abaixo abre o AP exatamente quando a
+escada vem falhando — que é exatamente quando há varredura em voo.
+
+- **O retorno do `softAP( )` é lido.** Ele era descartado, então uma partida que
+  falhava ainda marcava `NET_AP_CONFIG` e ainda imprimia "Modo AP iniciado": o
+  operador era mandado entrar numa rede que não estava no ar. Agora responde
+  `false`, registra `SYS_AP_START` com `ctx=-1` e diz isso no console.
+
 ### O painel pedia um gesto que não conseguia mostrar
 
 A janela do toque rodava ~190 linhas antes do `startCore1( )`, e o Core 1 é a
@@ -68,15 +96,26 @@ configuração. Nada implementava isso: o `begin( )` com SSID vazio ia para
 `beginAP( )` eram o gesto do toque e o `ap`. Um aparelho cujo roteador foi
 trocado ficava inalcançável por todos os canais que o dono tinha.
 
-- Um **aparelho sem configuração dá boot em modo AP**.
-- Um configurado **cai para o AP depois de uma rodada inteira da escada de
-  reconexão** — cinco ciclos de conexão e três dormências de dez minutos. Um
-  roteador que reinicia leva menos de dois minutos, então isto não pode ser
-  aquilo, e o timeout de 15 min do próprio AP devolve à STA enquanto houver SSID
-  configurado.
-- **O SIMUT Air fica de fora**: o rádio dele só existe dentro de um wake, um AP o
-  manteria acordado quinze minutos por rodada, e não há ninguém na frente de um
-  aparelho hibernando para usá-lo.
+- Um **aparelho sem configuração dá boot em modo AP**. Ele marca a mesma flag
+  que o gesto do toque marca, em vez de entrar na condição ao lado, porque a
+  flag é lida mais duas vezes depois — pelo ramo que senão subiria a estação, e
+  pelo que ~230 linhas abaixo marca o `_isApMode` e deixa a linha do AP na
+  tela. Uma segunda condição teria subido o AP e dito ao resto do boot que ele
+  estava em modo estação.
+- Um configurado cai para o AP em **duas velocidades**, porque as duas falhas
+  não são a mesma falha. Um aparelho que **nunca teve endereço desde que
+  ligou** não é um enlace que caiu — o roteador foi trocado, a senha mudou, a
+  unidade mudou de lugar — e não há LAN funcionando a proteger, então a
+  **primeira dormência** basta (**medido: 6–7 min**, e o host entrou nesse AP em 4,08 s). Um que **tinha endereço e
+  perdeu** espera **uma rodada inteira da escada** (~68 min por aritmética, não medido até o fim), porque
+  tirar uma LAN que funciona por quinze minutos por causa de uma queda que
+  termina sozinha é a troca pior. Nos dois casos o timeout de 15 min do próprio
+  AP devolve à STA enquanto houver SSID configurado.
+- **O SIMUT Air fica de fora das duas**: o rádio dele só existe dentro de um
+  wake, um AP o manteria acordado quinze minutos por rodada, o timeout do AP só
+  devolve à STA quando há SSID configurado — então num aparelho sem SSID esse
+  estado não tem saída — e não há ninguém na frente de um aparelho hibernando
+  para usá-lo. O canal dele é a CLI, pela USB ou pelo Bluetooth, que ele tem.
 - O `ctx` do `APP_AP_MODE_TRIGGERED` agora diz quem pediu — `0` uma pessoa, `1` o
   gesto do boot, `2` sem configuração, `3` a escada desistindo — e o texto ficou
   neutro nas cinco tabelas, o que devolveu 28 B ao pacote es-ES. Ele estava a
@@ -109,12 +148,20 @@ o pacote es-ES tem 111 B de folga e um pacote que estoura é rejeitado inteiro.
 
 ### Custo
 
-+1.072 B no release, +1.088 test, +1.112 test_https, +1.072 asserts, +640 alpha,
-+224 air de `used`; os deltas de `.bin` são os mesmos nos quatro builds com painel e
-**zero** no alpha e no Air, que absorveram tudo no enchimento de `.rodata`.
-Nenhum orçamento sobe. Folga real de `.bin` sob o teto de OTA: release 14.380,
-test 9.484, test_https 1.852 (ainda em aviso), asserts 12.204, alpha 50.036,
-air 5.076 — inalterada.
+`used`: +1.424 B no release, +1.440 test, +1.464 test_https, +1.424 asserts,
++5.160 alpha, **+224 air**. Por seção, que é onde o número do alpha se desmonta:
+`.text` +1.304 release, +1.064 alpha, +224 air; `.rodata` +120 release, 0 air — e
++4.096 no alpha, que é **um degrau de alinhamento, não conteúdo**. O `.rodata` do
+alpha na main é 442.368 B, exatamente 108 páginas de 4 KiB sem folga nenhuma,
+então o primeiro byte acrescentado custa uma página inteira. Só o orçamento do
+alpha sobe (978.396 → 983.396, medido + a margem de 3.000 B que este arquivo
+carrega).
+
+Deltas de `.bin`: +1.424/+1.440/+1.464/+1.424 nos quatro builds com painel,
++4.096 no alpha (a mesma página) e **zero no Air**. Folga real de `.bin` sob o
+teto de OTA: release 14.028, test 9.132, **test_https 1.500** (a mais apertada
+até hoje, e ainda em aviso), asserts 11.852, alpha 45.940, air 5.076 —
+inalterada.
 
 ## v2.7.0 (2026-09-22)
 

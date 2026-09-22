@@ -22,6 +22,10 @@ static char _alphaLangCode[8] = {0};
 static char _alphaHelpBuf[2048];
 
 /* ── Alpha multi-slot cycling state (Core 1) ─────────────────────── */
+/* One column of scroll per frame on the setup-AP screen. 300 ms is slow
+ * enough to read a key off the glass and fast enough that a 37-character
+ * SSID takes 11 s to go round once. */
+static const uint32_t AP_SCROLL_MS = 300;
 static int8_t  _cycleSlot = -1;       /* slot currently on screen */
 static uint8_t _cycleCh   = CH_TEMP;  /* channel currently on screen */
 
@@ -57,12 +61,8 @@ static float alphaChannelValue(const SlotSnapshot& s, uint8_t ch) {
 	}
 }
 
-/* One 16-column window onto a string that may be longer than the display,
- * advanced by `step`. A device name is 32 bytes and the setup SSID appends
- * "_SETUP", so the network can be 37 characters wide on a screen with sixteen
- * columns — and a truncated SSID is worse than no SSID, because it is the
- * name the operator has to find in a phone's list. Two spaces of gap before
- * it wraps, so the end and the beginning do not read as one word. */
+/* Write one window of `s` on `row`. The arithmetic and the reason for it are
+ * in display/AlphaMarquee.h, where a host test can reach them. */
 static void alphaMarquee(Hd44780_16x2 &lcd, uint8_t row, const char* s, uint16_t step) {
 	char win[ALPHA_LCD_COLS + 1];
 	alphaMarqueeWindow(s, step, win);
@@ -223,7 +223,21 @@ void DisplayManager::loopCore1( ) {
 			}
 			static uint8_t  apPage = 0;
 			static uint16_t apStep = 0;
-			if (millis( ) - _lt >= 3000) { _lt = millis( ); apPage = (apPage + 1) % 3; apStep = 0; }
+			const char* apVal = (apPage == 0) ? "192.168.4.1"
+			                  : (apPage == 1) ? (ssid[0] ? ssid : "?")
+			                                  : (psk[0]  ? psk  : "(aberta)");
+			/* A page lasts 3 s, or one whole scroll when its value is wider
+			 * than the display. A fixed 3 s flips after ten of the
+			 * thirty-seven steps a 35-character SSID needs, and since the
+			 * step resets with the page the tail would never be shown at
+			 * all — which is the half of the screen that says _SETUP. */
+			const size_t apLen = strlen(apVal);
+			const uint32_t apDwell = (apLen > ALPHA_LCD_COLS)
+			        ? (uint32_t)(apLen + ALPHA_MARQUEE_GAP) * AP_SCROLL_MS
+			        : 3000u;
+			if (millis( ) - _lt >= apDwell) {
+				_lt = millis( ); apPage = (apPage + 1) % 3; apStep = 0;
+			}
 
 			_lcd.setCursor(0, 0);
 			switch (apPage) {
@@ -232,14 +246,10 @@ void DisplayManager::loopCore1( ) {
 				default: _lcd.print("Senha:   3 de 3"); break;
 			}
 			_lcd.write(' ');
-			switch (apPage) {
-				case 0:  alphaMarquee(_lcd, 1, "192.168.4.1", apStep); break;
-				case 1:  alphaMarquee(_lcd, 1, ssid[0] ? ssid : "?", apStep); break;
-				default: alphaMarquee(_lcd, 1, psk[0] ? psk : "(aberta)", apStep); break;
-			}
+			alphaMarquee(_lcd, 1, apVal, apStep);
 			apStep++;
 			_lcd.blit( );
-			delay(300);
+			delay(AP_SCROLL_MS);
 			continue;
 
 		} else {

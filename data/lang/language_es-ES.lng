@@ -379,6 +379,7 @@ Elija un nuevo PIN
 9e61e5c1 NTP deshabilitado — modo RTC manual
 9f329bc2 Admin aplicó los cambios — reiniciando
 a1984a33 Carpeta creada: 
+a3021e13 Fallo al iniciar el AP
 a7c6522f Permisos definidos por la CLI: 
 aa95ee6e Correspondencia de hardware restaurada
 abc23722 Calibración táctil autoajustada (sin pantalla, solo en RAM)

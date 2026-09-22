@@ -21,6 +21,34 @@ mode.
 
 What was broken is everything around it.
 
+### The AP you could see and could not join
+
+Found while re-testing the alpha at the end of the day, and it is very probably
+the reported symptom itself. `ap` issued while the station was **hunting for an
+SSID that is not there** brought up an access point the host could see at 94%
+signal and could not associate with: **45 s and a timeout, twice**, against
+**2,6 s** from the same build with the station connected.
+
+One radio serves both. `WiFi.mode(WIFI_AP)` only assigns a field, and the
+framework's `beginAP( )` tears the station down but cannot cancel a sweep
+already issued to the driver — `cyw43_wifi_scan( )` owns the chip until it
+finishes, and its `wifi_scan_state` is the same flag that made
+`NET_SCANNING_RETRY` terminal on 2026-09-08. Starting an AP on top of that
+produced beacons and no association.
+
+`beginAP( )` now waits out the sweep (bounded at 4 s, because a sweep that
+never finishes is the documented wedge and must not hold the recovery path
+hostage), drops the result, disconnects and lets the chip settle before asking
+for the AP. From the same failing state: **4,07 s**, DHCP lease, portal `200`.
+
+This matters more than the command. The fallback below opens the AP exactly
+when the ladder has been failing — which is exactly when a sweep is in flight.
+
+- **`softAP( )`'s return value is read.** It used to be dropped, so a failed
+  start still set `NET_AP_CONFIG` and still printed "AP mode started": the
+  operator was told to join a network that was not on the air. It now answers
+  `false`, logs `SYS_AP_START` with `ctx=-1`, and says so on the console.
+
 ### The panel asked for a gesture it could not show
 
 The AP-hold window ran ~190 lines before `startCore1( )`, and Core 1 is the
@@ -70,14 +98,26 @@ SSID went to `NET_OFFLINE` and the ladder retried for ever, and the only two
 callers of `beginAP( )` were the touch gesture and `ap`. A device whose router
 was replaced was unreachable by every channel its owner had.
 
-- An **unconfigured device boots into AP mode**.
-- A configured one **falls back after one full round of the reconnect ladder** —
-  five connect cycles and three ten-minute dormancies. A router reboot takes
-  under two minutes, so this cannot be that, and the AP's own 15-minute timeout
+- An **unconfigured device boots into AP mode**. It sets the same flag the
+  touch gesture does rather than joining the condition beside it, because the
+  flag is read twice more after that — by the branch that would otherwise
+  start the station, and by the one ~230 lines down that sets `_isApMode` and
+  leaves the AP line on the screen. A second condition would have brought the
+  AP up and then told the rest of the boot it was in station mode.
+- A configured one falls back in **two speeds**, because the two failures are
+  not the same failure. A device that has **never had an address since it
+  booted** is not a link that dropped — the router was replaced, the password
+  changed, the unit was moved — and there is no working LAN to protect, so the
+  **first dormancy** is enough (**measured: 6–7 min**, and the host joined that AP in 4,08 s). One that **had an address
+  and lost it** waits **a whole round of the ladder** (~68 min by arithmetic, not measured to completion),
+  because taking a working LAN away for fifteen minutes over an outage that
+  ends by itself is the worse trade. Either way the AP's own 15-minute timeout
   returns to STA while an SSID is configured.
-- **SIMUT Air is excluded**: its radio only exists inside a wake, an AP would
-  hold it awake for fifteen minutes a round, and there is nobody in front of a
-  hibernating device to use it.
+- **SIMUT Air is excluded from both**: its radio only exists inside a wake, an
+  AP would hold it awake for fifteen minutes a round, the AP timeout only
+  returns to STA when an SSID is configured — so on a device with none that
+  state has no exit — and there is nobody in front of a hibernating device to
+  use it. Its channel is the CLI, over USB or Bluetooth, which it has.
 - `APP_AP_MODE_TRIGGERED`'s `ctx` now says who asked — `0` a person, `1` the
   boot gesture, `2` unconfigured, `3` the ladder giving up — and its text went
   neutral in all five tables, which gave the es-ES pack 28 B back. It was 83 B
@@ -109,12 +149,18 @@ whole.
 
 ### Cost
 
-+1,072 B on release, +1,088 test, +1,112 test_https, +1,072 asserts, +640
-alpha, +224 air of `used`; the `.bin` deltas are the same on the four panel builds and
-**zero** on the alpha and the Air, which absorbed everything in their `.rodata`
-padding. No budget moves. Real `.bin` slack under the OTA ceiling: release
-14,380, test 9,484, test_https 1,852 (still warning), asserts 12,204, alpha
-50,036, air 5,076 — unchanged.
+`used`: +1,424 B on release, +1,440 test, +1,464 test_https, +1,424 asserts,
++5,160 alpha, **+224 air**. Per section, which is where the alpha's number comes
+apart: `.text` +1,304 release, +1,064 alpha, +224 air; `.rodata` +120 release, 0
+air — and +4,096 on the alpha, which is **one alignment step, not content**.
+main's alpha `.rodata` is 442,368 B, exactly 108 pages of 4 KiB with no slack,
+so the first byte added to it costs a whole page. Only the alpha budget is
+raised (978,396 → 983,396, measured + the 3,000 B margin this file carries).
+
+`.bin` deltas are +1,424/+1,440/+1,464/+1,424 on the four panel builds, +4,096
+on the alpha (the same page) and **zero on the Air**. Real `.bin` slack under
+the OTA ceiling: release 14,028, test 9,132, **test_https 1,500** (its tightest
+yet, and still warning), asserts 11,852, alpha 45,940, air 5,076 — unchanged.
 
 ## v2.7.0 (2026-09-22)
 

@@ -381,8 +381,8 @@ void DisplayManager::drawSettingsMain( ) {
  const int TOTAL_ITEMS = _menuCount;
  /* TR_AP_MODE ("Configuration Mode" / "Modo de Configuração") is reused rather
   * than a key being added: it already names this screen on the boot's AP
-  * progress bar, it is in all eight packs, and the es-ES pack is 83 B from its
-  * 16 KB resident ceiling — a pack that overflows is rejected whole. It is the
+  * progress bar, it is in all eight packs, and the es-ES pack has 111 B left of
+  * its 16 KB resident ceiling — a pack that overflows is rejected whole. It is the
   * only row whose string carries no leading number, which is why the number is
   * printed beside it instead of baked in. */
  static const LangKey menuItems[MENU_ITEM_COUNT] = {TR_MENU_THEMES, TR_MENU_ALARMS, TR_MENU_SOUNDS, TR_MENU_LANG, TR_MENU_PASSWORD, TR_MENU_TOUCH_CAL, TR_MENU_LICENSE, TR_MENU_STATUS, TR_MENU_DISPLAY_OFFSET, TR_MENU_USERS, TR_PIN_POLICY, TR_AP_MODE};
@@ -446,7 +446,9 @@ void DisplayManager::drawSettingsMain( ) {
   * 0 themes, 1 alarms, 2 sounds, 3 lang, 4 PIN, 5 touch-cal,
   * 6 license, 7 status, 8 display-offset, 9 users. The v25 item 10 (PIN
   * policy) borrows the PIN icon: it is the same subject, and a new glyph is
-  * flash for a picture nobody would read differently. */
+  * flash for a picture nobody would read differently. The 2.7.1 item 11 (setup
+  * AP) borrows the language globe for the same reason — it is the network
+  * glyph this set has. */
  uiMenuIcon(_driver.canvas, 10, 9, (item == 10) ? 4 : (item == 11) ? 3 : item,
  isSelected ? C_BG_MAIN : C_ACCENT);
  _driver.canvas->setFont(&simutFont9pt); _driver.canvas->setTextColor(txt);
@@ -819,7 +821,7 @@ void DisplayManager::showSettingsSounds(const SoundSettingsState& state) {
  * it asks first — the same two-button screen the Global Mute confirmation
  * uses, and the same hardcoded EN/PT strings, which is the rule this file
  * already follows for confirmations (the TFT renders ASCII only, and the
- * es-ES pack has 83 B left). */
+ * es-ES pack has 111 B left of its resident ceiling). */
 void DisplayManager::showApConfirm( ) {
  mutex_enter_blocking(&_stateMutex);
  _uiMode = MODE_CONFIRM_AP;
@@ -834,6 +836,9 @@ void DisplayManager::drawApConfirm( ) {
  _forceSettingsRedraw = false;
 
  const bool isPt = (_currentLangIdx == LANG_PT);
+ /* The same string the menu row uses. It carries no number today — the row
+  * gets one at draw time — and the strip is here so that a pack which bakes
+  * one in cannot put "12. " in a screen title. */
  const char* titleTxt = menuLabelNoNumber(tr(TR_AP_MODE));
  const char* msgL1 = isPt ? "O aparelho sai da rede" : "The device leaves the";
  const char* msgL2 = isPt ? "e abre a rede de setup." : "LAN and opens its setup";
