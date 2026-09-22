@@ -4,7 +4,7 @@
 formato, com que garantias — e onde estão as armadilhas que já morderam esta
 bancada.
 
-**Base:** firmware **v2.6.1-beta** + a correção V-09 (PR #149) · **Estado:**
+**Base:** firmware **v2.7.0** (que já inclui a correção V-09) · **Estado:**
 Living · **Transporte desta primeira fase: HTTP puro, sem TLS** (§8 diz o que
 isso custa e o que fazer quando for a hora).
 

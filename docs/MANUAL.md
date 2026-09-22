@@ -1,11 +1,12 @@
 # SIMUT — User Manual
 
-**Firmware:** v2.6.1-beta · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **License:** MIT
+**Firmware:** v2.7.0 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **License:** MIT
 **Repository:** https://github.com/angeloINTJ/simut
 
-> **This is beta software.** It is tested on real hardware, but it is not a
-> certified metrological instrument. Do not make it the only control on
-> regulated storage without validating it against your own reference.
+> **This is not a certified metrological instrument.** It is tested on real
+> hardware and this release carries an 8.2 h soak and six OTA round trips on
+> the image published here, but do not make it the only control on regulated
+> storage without validating it against your own reference.
 
 Everything below was checked against a running device. Where a number is quoted
 it was measured rather than estimated; where behaviour is untested or known to
