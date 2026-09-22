@@ -130,8 +130,30 @@ número ou o log neste documento. Não antes, e não por prazo.
 | portão | estado em 22/09 |
 |---|---|
 | **V-09** | 🟢 **fechado**: corrigido no PR #149 (10/10 no CI, `+64 B`/imagem) e **validado no ferro em 22/09, 10/10 veredictos com controle positivo** (§6 e §7 do achado) |
-| **B1** | 🟡 **aberto, mas deixou de ser cego**: duas hipóteses descartadas com número e os dois instrumentos que faltavam feitos em 22/09 — PR #150 (o arnês parou de engolir o texto da autópsia; A-contra-A: 0 B contra 550 B) e PR #151 (três fatos da autópsia passam a ser PERSISTIDOS em faixas de `ctx`, +184 B, o que vale no campo, onde não há serial). **E o reprodutor conhecido parou de reproduzir**: 15 corridas completas desde 20/09, quando deu 2/2. Terceira hipótese (uptime baixo) em medição |
+| **B1** | 🟡 **aberto, mas deixou de ser cego — e a bancada esgotou o que sabia perguntar.** As **três** hipóteses estão descartadas com número (828 ciclos de `write memory`; 321 apertos de política; 41 sessões de 1 a 18 min depois de um boot, em 6 boots), o reprodutor conhecido **parou de reproduzir** (15 corridas completas desde 20/09, quando deu 2/2), e o gatilho continua **inalcançável na imagem publicada** (0 em 500 pelo equivalente web). O que mudou de verdade é que ele deixou de ser indiagnosticável: PR #150 (o arnês parou de engolir o texto; A-contra-A 0 B × 550 B) e PR #151 (três fatos da autópsia PERSISTIDOS em faixas de `ctx`, +184 B — vale no campo, onde não há serial). **A decisão de promover com isto é sua**: ver §5.1 |
 | **B13** | 🟡 metade explicada (caminho de rede, provado por A/B/A′); a metade ociosa segue sem mecanismo |
+
+### 5.1 O B1 e a decisão que sobra
+
+A bancada esgotou o que sabia perguntar sobre o B1. O que existe hoje:
+
+| | |
+|---|---|
+| reproduções | **3**, todas entre 20/09 e 21/09 (2 pelo `panel_fulltable_test.py`, 1 numa sessão de 5 comandos de CLI) |
+| desde então | **0** — em 15 corridas completas do reprodutor, 828 ciclos de `write memory`, 321 apertos de política e 41 sessões na faixa de 1 a 18 min de uptime |
+| na imagem publicada | **inalcançável pelo caminho conhecido**: `write memory` não existe na `pico_w_release`, e o equivalente web deu **0 em 500** |
+| diagnosticabilidade | era **zero** (o texto só existia na serial e o arnês o descartava); hoje é bancada (#150) **e campo** (#151) |
+
+Isso deixa duas saídas honestas, e nenhuma delas é minha:
+
+1. **Promover**, registrando o B1 como defeito conhecido, não reproduzido em
+   amostra grande, inalcançável pelo caminho conhecido na imagem publicada, e
+   **instrumentado** — a próxima ocorrência, no campo ou na bancada, chega com
+   `C1=[…]`, uptime e heap. É a saída que o estado da medição sustenta.
+2. **Não promover** enquanto não houver causa-raiz. É defensável, mas a bancada
+   não tem mais pergunta barata a fazer: o próximo passo seria instrumentar por
+   instrução (marcador por-instrução no Core 0), que é trabalho de firmware com
+   custo próprio.
 
 ⚠️ **E há uma conta a pagar depois deles:** o B2 e o B3 foram medidos *na imagem
 que a versão publicava em 21/09*. A correção do V-09 mudou o firmware, então o
@@ -176,6 +198,9 @@ não são caçadas, são duas corridas conhecidas.
 | 22/09 01:10→04:01 | **T2 de novo, agora com o arnês que enxerga: 6 corridas COMPLETAS, 0 reproduções** | `panel_fulltable_test.py` seis vezes, 2 h 51, tabela cheia (32 contas ativas) e todas as verificações passando em cada uma. **0 autópsias, 0 quedas de porta, 0 quedas de serial.** Soma-se às 9 completas de 21/09: **15 corridas completas do reprodutor conhecido sem reproduzir**, contra 2/2 em 20/09. O caminho da tabela cheia deixou de ser o reprodutor barato que a memória do D-C1 registra |
 | 22/09 04:01 | 🔴 **Meu vigia mentiu pela terceira vez nesta família** | O laço anunciou "AUTÓPSIA CAPTURADA" nas **seis** corridas, com zero autópsias: `n=$(grep -c X f \|\| echo 0)` **duplica** o zero, porque `grep -c` sai com status 1 ao contar 0 — `n` vira `"0\n0"`, que não é igual a `"0"`. Os arquivos, lidos direto, dizem 0. Forma certa: `n=$(grep -c X f); n=${n:-0}`, e **rodar o vigia contra o caso vazio de propósito** antes de confiar nele |
 | 22/09 04:03 | **Terceira hipótese em curso: a faixa de uptime baixo** | A única reprodução por CLI foi **18 min** depois de um boot; as 828 varreduras de `write memory` e as 280 mudanças de política que descartaram as duas primeiras hipóteses rodaram com **7 h** de uptime. `b1_boot_band.py` reinicia e roda a sessão exata de cinco comandos em 60/120/180/300/480/720/1080 s depois de cada boot, com o banner capturado. 100 min, sem vigilância |
+| 22/09 04:03→05:47 | 🟢 **Terceira hipótese DESCARTADA: 6 boots, 41 sessões de 1 a 18 min de uptime, 0 quedas** | A sessão exata de cinco comandos (`enable` / `configure terminal` / `user policy 4 3 0` / `end` / `write memory`) rodada em 60/120/180/300/480/720/1080 s depois de cada boot, com o banner capturado em cada reinício. **0 autópsias, 0 quedas de porta.** Uptime baixo não é a variável |
+| 22/09 06:0x | 🔴 **Eu tinha deixado a política de PIN errada desde 21/09, e quase a carimbei** | O valor do mantenedor é `pin_min=4 pin_kb=3 pin_alpha=0`; a caçada de política de 21/09 alternava `5 3 0` ↔ `4 1 0` e **terminou num `4 1 0`**. Hoje li `kb=1`, tomei por linha de base e "restaurei" para ele. Pego comparando com `config_now3.json` — o instantâneo de logo depois do restauro aprovado — e corrigido para `4 3 0`, conferido lendo de volta. **Regra: restaure para o SNAPSHOT datado, não para o que se lê no início da sessão; e laço que alterna valores termina no valor de origem, explicitamente** |
+| 22/09 | ⚠️ **Efeito colateral que não se desfaz** | Apertar a política marca **toda** conta com PIN (`pinAuth.pinMustChange`). Relaxar marca ninguém **mas não limpa**: o bit só cai quando aquele slot tem um PIN **definido** (`setUserPin`), e `/api/config` **não expõe** o bitmap — não dá para ler nem restaurar pela web. As 6 contas com PIN deste aparelho estão marcadas desde o restauro de 21/09 que o mantenedor aprovou |
 | 22/09 00:1x | B1: segunda hipótese testada — o laço do `user policy` | **140 ciclos, 280 trocas de política, 0 autópsias.** Somando com o `write memory`: **1.135 escritas de flash com display vivo desde o boot, `fx`=0, zero travamentos**. As duas hipóteses do plano estão descartadas; sobra a proximidade do boot (a reprodução de 16:52 foi com 18 min de uptime) |
 | 21/09 21:24 | **T2 fechado: 12 corridas, 4,4 h, ZERO reboots** | `uptime` de 272 min prova que o aparelho não reiniciou desde as 16:52. `c1kq=328` — **328 escritas de flash com o display vivo** — com `c1kl=0`, `c1kh=0`, `fx=0`. Os 4 `SYS_BOOT ctx=209` que o laço listou são **o mesmo registro** de 16:52 achado em 4 despejos: o instrumento relata o anel, não a diferença. **Conclusão: a suíte do painel não é o reprodutor do B1** — 328 ciclos contra os "25 `write memory` reproduzem 2 de 2" de 20/09 |
 | 21/09 16:52 | 🔴 **B1 REPRODUZIDO: `SYS_BOOT ctx=209` (WATCHDOG, C0=[CLI])** na `pico_w_test` v2.6.1-beta | **E numa sessão de CINCO comandos de CLI**, não em 25 `write memory`: `enable` / `configure terminal` / `user policy 4 3 0` / `end` / `write memory`, com o display vivo. Datado em ~16:52:26 pelo anel (primeiro carimbo pós-boot 16:52:45 com `up=19s`). Três evidências independentes o põem **dentro** da sessão: as linhas de boot (`[DBG] BME HW I2C init`) chegaram na captura da própria CLI; o `APP_UI_PIN_POLICY` do comando está carimbado 16:53:02, **depois** do boot; e o `write memory` respondeu OK no aparelho já reiniciado. Anel preservado em `t2/evidencia/logs_run1.bin` |
