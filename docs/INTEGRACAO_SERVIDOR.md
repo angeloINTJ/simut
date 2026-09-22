@@ -4,9 +4,13 @@
 formato, com que garantias — e onde estão as armadilhas que já morderam esta
 bancada.
 
-**Base:** firmware **v2.6.1-beta** · **Estado:** Living · **Transporte desta
-primeira fase: HTTP puro, sem TLS** (§8 diz o que isso custa e o que fazer
-quando for a hora).
+**Base:** firmware **v2.6.1-beta** + a correção V-09 (PR #149) · **Estado:**
+Living · **Transporte desta primeira fase: HTTP puro, sem TLS** (§8 diz o que
+isso custa e o que fazer quando for a hora).
+
+🔴 **Mudança de 22/09/2026 que afeta o desenho do servidor:** uma conta agora só
+concede permissões que ela própria tem. A conta de serviço recomendada deixou de
+ser `265` e passou a ser **`7433`** — §5.2 tem o porquê e a medição.
 
 Os números e formatos deste documento vêm da fonte do firmware e de chamadas
 reais ao aparelho do laboratório (`192.168.3.24`), não de leitura de código
@@ -319,8 +323,33 @@ não um "nível":
 | `PERM_MAINT` | `0x1000` | painel: abrir/encerrar manutenção |
 
 **Recomendação:** crie no aparelho uma conta só para o servidor, com
-`PERM_DASHBOARD | PERM_SYS_CONFIG | PERM_USER_MGR` = `0x0109` = **265**, e nada
-mais. Não use a conta `admin` do mantenedor.
+
+```
+PERM_DASHBOARD | PERM_SYS_CONFIG | PERM_USER_MGR      (0x0001|0x0008|0x0100)
+| PERM_ALARM_LIMITS | PERM_ALARM_BLOCK | PERM_MAINT   (0x0400|0x0800|0x1000)
+= 0x1D09 = 7433
+```
+
+e nada mais. Não use a conta `admin` do mantenedor.
+
+🔴 **Por que os três bits de painel entram numa conta que não usa o painel —
+esta é a parte que muda desde 22/09/2026.** O aparelho passou a recusar que
+qualquer conta conceda um bit que ela própria não tem (achado V-09). Então uma
+conta de serviço com `USER_MGR` mas **sem** `ALARM_BLOCK`/`MAINT` consegue criar
+contas, e **não** consegue criar exatamente a conta de painel que o seu servidor
+existe para cadastrar.
+
+**Medido nesta bancada em 22/09**, HTTP puro, mesmo aparelho:
+
+| conta de serviço | pedido | resposta |
+|---|---|---|
+| `perms` = **265** (a recomendação antiga) | `add` de usuário de painel com `perms`=6144 | `200` `{"rejected":["users.perms"]}` — **conta não criada** |
+| `perms` = **7433** | o mesmo `add` | `200` com `creds` — criada |
+
+A regra é o **subconjunto**: `perms_pedido & ~perms_da_conta_que_pede` tem de ser
+zero. A conta de serviço precisa *portar* todo bit que vai distribuir. Ela nunca
+usa os bits de painel (não tem PIN, não fica na parede) — eles estão ali só para
+poder repassá-los.
 
 ⚠️ Os três bits `ALARM_LIMITS`/`ALARM_BLOCK`/`MAINT` governam **o painel na
 parede** (identificação por PIN), não a API. Pela API, o que vale é
@@ -411,6 +440,13 @@ PERM_ALARM_BLOCK (0x0800) + PERM_MAINT (0x1000)                    = 6144
 3. **PIN malformado ou repetido rejeita o campo, não a conta** — vem `200` com
    `"rejected":["users.pin"]` e a conta entra **sem** PIN. Leia o `rejected` e
    avise o usuário, senão ele vai ao painel e não entra.
+4. **Você só concede o que a sua conta tem.** `perms` pedido com qualquer bit
+   fora da máscara da conta que pede volta `200` com
+   `"rejected":["users.perms"]` e **a conta não é criada** — nada é truncado em
+   silêncio. É por isso que a conta de serviço de §5.2 leva 7433 e não 265.
+   Consequência prática para a plataforma: a tela que monta as permissões do
+   novo usuário deve oferecer **no máximo** os bits da conta de serviço, lidos
+   uma vez em `GET /api/users`.
 
 ⚠️ **Política de PIN.** O comprimento aceito depende de `pin_min`, `pin_kb`
 (glifos por tecla: 1/2/3) e `pin_alpha` (0 = só dígitos, 1 = `0-9A-Z`). Leia a
@@ -550,6 +586,9 @@ curl -b j -s http://$IP/api/config | python3 -c \
   'import sys,json; d=json.load(sys.stdin); print({k:d[k] for k in ("pin_min","pin_kb","pin_alpha")})'
 
 # 3. criar a conta com PIN e as permissões de painel (bloqueio + manutenção)
+#    PRÉ-REQUISITO: a conta "servidor" precisa TER os bits 0x0800|0x1000 para
+#    poder concedê-los — é a conta de perms=7433 de §5.2. Com 265 este passo
+#    volta 200 com rejected:["users.perms"] e não cria nada.
 curl -b j -s -X POST http://$IP/api/commit_all --data-urlencode \
   '_payload={"users":{"actions":[{"type":"add","name":"joao","perms":6144,"pin":"482913"}]}}'
 # → {"status":"ok","reboot":true,"reboot_for":["users"],"creds":[{"u":"joao","p":"…"}]}
@@ -590,6 +629,10 @@ desta própria nota, porque ela citava a linha reprovada.)
 | 14 | **A CLI serial corta template em 63 caracteres em silêncio** | configure templates **pela web**, nunca pela serial |
 | 15 | **Manutenção some do histórico de alarmes** (não gera limite nem falha) | trate `maint_on`/`maint_off` como o par que explica o silêncio |
 | 16 | **Campo que o parser não conhece é ignorado em silêncio** — `tmin` em `slots` foi o caso encontrado | confira o efeito lendo o estado de volta (`GET /api/alarms`), não o `applied` |
+| 17 | **Uma conta só concede as permissões que ela tem** (desde 22/09/2026) | dê à conta de serviço **todos** os bits que ela vai distribuir — `7433`, não `265` (§5.2); `perms` com bit de fora volta `rejected:["users.perms"]` e não cria nada |
+| 18 | **`del` e `reset` são por `id`, nunca por nome** | `{"type":"del","name":"joao"}` volta **200 e não apaga nada**; leia o `id` em `GET /api/users` primeiro. Medido: o `add` seguinte deu `rejected:["users.dup"]` e me custou uma corrida |
+| 19 | **O destino do login vem no CORPO, não em `Location`** | `{"ok":true,"redirect":"/force_chpass"}` — quem lê o header `Location` recebe vazio **sempre** e passa batido pela troca de senha obrigatória da conta nova |
+| 20 | **Toda escrita em `users` reinicia, e a resposta chega antes do reinício** | medido em 22/09: 3 `add` + 3 `del` custaram **7 reboots** (~25 s cada). Seu cliente precisa de *relogin no 401* depois de **cada** escrita de conta, não só na primeira |
 
 ---
 
@@ -645,6 +688,10 @@ Antes de ligar em produção, prove cada linha:
 - [ ] guarda `creds` na resposta que as traz
 - [ ] valida PIN contra `pin_min`/`pin_kb`/`pin_alpha` do aparelho
 - [ ] não tenta silenciar pela rede (§5.7)
+- [ ] a conta de serviço **tem** todos os bits que a plataforma vai distribuir
+      (`7433`, §5.2), e o formulário de permissões não oferece mais do que isso
+- [ ] apaga e reseta conta por **`id`**, lido em `GET /api/users` — nunca por nome
+- [ ] lê o destino do login no **corpo** (`redirect`), não no header `Location`
 
 ---
 

@@ -318,6 +318,13 @@ vezes — a plataforma da empresa vai cadastrar usuários em lote.
 **Por que reinicia hoje:** `CFG_USERS` está em `CFG_REBOOT_CLASSES`
 (`src/ConfigApply.h:89`), junto de rede, identidade e slots.
 
+**Custo medido em 22/09**, na verificação do V-09 no ferro: uma corrida que fez
+**3 `add` e 3 `del`** pagou **7 reboots** (o sétimo por um 401 no meio, quando a
+sessão morreu com o aparelho). Cada volta leva ~25 s, então um cadastro de seis
+contas custa ~3 min de aparelho fora do ar — e o cliente precisa de retentativa
+em *cada* passo, porque a resposta chega e a sessão morre depois dela. Foi isso
+que obrigou o instrumento a ter uma sessão que se refaz sozinha.
+
 🔴 **E aqui há uma contradição entre comentário e código, no mesmo arquivo.** A
 nota em `ConfigApply.h:176`, ao mapear `pinAuth` para `CFG_USERS`, afirma:
 

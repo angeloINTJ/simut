@@ -67,8 +67,10 @@ Isto não é para tranquilizar; é para não refazer o que já foi feito.
 | **B2** | 🟢 **fechado** — 7,9 h na `pico_w_release`, 0 reboots, heap −34 B |
 | **B3** | metade fechada com número (6/6 applies, 75.831/75.831 registros); a outra metade é margem com portão em CI |
 
-O B11 diz em qual imagem o B2 e o B3 se fecham. Os outros sete — B4, B5, B6,
-B7, B10, B12 e B13 — ficam registrados e não impedem a promoção.
+O B11 diz em qual imagem o B2 e o B3 se fecham. Os outros seis — B4, B5, B6,
+B7, B10 e B12 — ficam registrados e não impedem a promoção. O B13 **passou a
+importar** porque o mantenedor o colocou no portão de promoção em 21/09, junto
+com o B1 e o V-09 (§5).
 
 ---
 
@@ -121,8 +123,20 @@ mesma `main` e publicada com `--latest`.
 ⚠️ `prerelease=true` **nunca** vira Latest — é o erro que já custou uma tag
 neste repositório.
 
-A promoção acontece quando **B1, B2 e B3 estiverem fechados**, cada um com o
+A promoção acontece quando **B1, V-09 e B13 estiverem fechados** — o portão que
+o mantenedor definiu em 21/09, depois que o B2 e o B3 fecharam — cada um com o
 número ou o log neste documento. Não antes, e não por prazo.
+
+| portão | estado em 22/09 |
+|---|---|
+| **V-09** | 🟢 **fechado**: corrigido no PR #149 (10/10 no CI, `+64 B`/imagem) e **validado no ferro em 22/09, 10/10 veredictos com controle positivo** (§6 e §7 do achado) |
+| **B1** | 🔴 aberto: reproduzido, duas hipóteses descartadas com número, falta o texto da autópsia |
+| **B13** | 🟡 metade explicada (caminho de rede, provado por A/B/A′); a metade ociosa segue sem mecanismo |
+
+⚠️ **E há uma conta a pagar depois deles:** o B2 e o B3 foram medidos *na imagem
+que a versão publicava em 21/09*. A correção do V-09 mudou o firmware, então o
+soak (T3) e a OTA (T4) precisam de uma passada na imagem final antes da tag —
+não são caçadas, são duas corridas conhecidas.
 
 ---
 
@@ -152,13 +166,16 @@ número ou o log neste documento. Não antes, e não por prazo.
 | 21/09 14:46 | **T3 COMPLETO: 7,9 h na imagem publicada** | **0 reboots**, `c1kl`/`c1kh` = 0, `fx` = 0, batimento do Core 1 máx. 65 ms, heap contíguo **32.300 → 32.266 B** (mínimo 32.252). 245 envios de telemetria e 52 falhas, todas da janela sem coletor. **Fecha o B2** |
 | 22/09 00:4x | **B13: A/B/A′ — a metade sob carga é o caminho de rede, não o firmware** | Laço de corpos grandes (`/api/logs`, `/api/history_days`, `/download`), 90 requisições em ~66 s por lado. **Roteador:** 3 cortadas (3,3%) e `cgx` **+49**. **Hotspot do host (roteador fora do caminho):** **0 e 0**. **Roteador de novo, aparelho recém-iniciado:** 1 (1,7%) e +8 — descarta o uptime como variável. O `cgx` cresce muito mais que as falhas visíveis porque o `urllib3` repete GET quando a queda é antes dos cabeçalhos |
 | 22/09 | ⚠️ **Retratação:** eu havia escrito que "nenhum dos quatro contadores registra" | Verdade só para `/api/status` (corpo pequeno). Com corpo grande o `cgx` registra, e muito. A frase anterior media um caso e falava de todos |
+| 22/09 01:0x | **Imagem da campanha substituída pela do PR #149** (`pico_w_test` de `fix/v09-perms-escalation`, `87f9162`) | Flash 97,4% (1.017.588 B). `fsguard backup` antes: **59 arquivos, 0 falhas**. É o custo já sinalizado: o soak do B2 e a OTA do B3 foram medidos na imagem anterior |
+| 22/09 01:2x | 🟢 **V-09 VALIDADO NO FERRO — 10/10 veredictos, com controle positivo** | Conta `gestor` com `perms`=256 (só `USER_MGR`): pedir `perms=8191` volta `{"applied":[],"rejected":["users.perms"]}` **sem `creds`** e a conta não nasce; pedir `perms=256` **é aceito** com `creds` (é o que prova que a regra é `perms & ~caller`, não um veto geral); `pin` no `id:0` volta `rejected:["users.id"]`; o `admin` continua podendo dar 8191. `/api/users` confirmou os três estados e as 6 contas voltaram à linha de base. **Fecha o V-09** |
+| 22/09 01:2x | **Três contratos da rota `users` que o instrumento me cobrou** | (1) `del`/`reset` são por **`id`**, não por nome — `{"type":"del","name":…}` volta 200 e não apaga (o `add` seguinte deu `users.dup`); (2) o destino do login vem no **corpo** (`{"ok":true,"redirect":"/force_chpass"}`), não em `Location` — ler o header devolve `''` sempre e a troca forçada passa batida; (3) **toda escrita em `users` reinicia**: esta corrida custou **7 reboots** para 3 `add` + 3 `del`. Os três vão para o manual do servidor |
 | 22/09 00:1x | B1: segunda hipótese testada — o laço do `user policy` | **140 ciclos, 280 trocas de política, 0 autópsias.** Somando com o `write memory`: **1.135 escritas de flash com display vivo desde o boot, `fx`=0, zero travamentos**. As duas hipóteses do plano estão descartadas; sobra a proximidade do boot (a reprodução de 16:52 foi com 18 min de uptime) |
 | 21/09 21:24 | **T2 fechado: 12 corridas, 4,4 h, ZERO reboots** | `uptime` de 272 min prova que o aparelho não reiniciou desde as 16:52. `c1kq=328` — **328 escritas de flash com o display vivo** — com `c1kl=0`, `c1kh=0`, `fx=0`. Os 4 `SYS_BOOT ctx=209` que o laço listou são **o mesmo registro** de 16:52 achado em 4 despejos: o instrumento relata o anel, não a diferença. **Conclusão: a suíte do painel não é o reprodutor do B1** — 328 ciclos contra os "25 `write memory` reproduzem 2 de 2" de 20/09 |
 | 21/09 16:52 | 🔴 **B1 REPRODUZIDO: `SYS_BOOT ctx=209` (WATCHDOG, C0=[CLI])** na `pico_w_test` v2.6.1-beta | **E numa sessão de CINCO comandos de CLI**, não em 25 `write memory`: `enable` / `configure terminal` / `user policy 4 3 0` / `end` / `write memory`, com o display vivo. Datado em ~16:52:26 pelo anel (primeiro carimbo pós-boot 16:52:45 com `up=19s`). Três evidências independentes o põem **dentro** da sessão: as linhas de boot (`[DBG] BME HW I2C init`) chegaram na captura da própria CLI; o `APP_UI_PIN_POLICY` do comando está carimbado 16:53:02, **depois** do boot; e o `write memory` respondeu OK no aparelho já reiniciado. Anel preservado em `t2/evidencia/logs_run1.bin` |
 | 21/09 17:02 | 🔴 **O B13 matou uma corrida de teste** | A corrida 1 do T2 terminou `rc=1` por `InvalidChunkLength` — a mesma resposta truncada. Aqui sob **carga** e em corpos **grandes e transmitidos por partes** (`/api/logs`, `/api/keypad` a cada login), não no `/api/status` ocioso. Deixa de ser curiosidade: quebra cliente de verdade |
 | 21/09 | ⚠️ **Duas correções de instrumento, minhas** | (1) o laço do T2 atribuiu à corrida 1 um boot que era **anterior** a ela — ele relata qualquer `SYS_BOOT` no anel, não os novos; a atribuição correta é por diferença entre despejos. (2) O amostrador não registrou o reboot: ele abria **sessão nova a cada 10 s**, e um login repetido da mesma conta invalida o token anterior (`WebManager_Auth.cpp:462`), então ele colhia 401 engolidos em silêncio |
 | 21/09 16:34 | **T5: queda de rede na imagem publicada — 4/4** | Entrou no hotspot em 18 s; apagão curto: reconectou **15 s** depois de o AP voltar; apagão longo: **entrou em dormência (1×)** e voltou **495 s** depois; SSID oculto: **13 s pelo caminho cego** (`SYS_WIFI_CONNECT ctx=1` ×2). Restauração conferida: de volta na rede real em 10 s. A adaptação do teste para TFT funcionou (pulou o M0, que não existe fora do Air) |
-| 21/09 | 🔴 **V-09 (segurança, ABERTO): `PERM_USER_MGR` concede bits que não tem** | Achado do mantenedor, conferido na fonte: `users.add` só limita `perms` a `PERM_ALL_BITS`, nunca à máscara de quem pede, e devolve a senha da conta nova em `creds`. Alcança tudo menos `/api/ota/apply` e `/api/tls` (que exigem `PERM_FULL_ADMIN` exato). Segundo vetor: `{"type":"pin","id":0}` define o PIN de painel do admin. **Não entra na campanha** — corrigir agora invalidaria o soak de 7,9 h já medido nesta imagem; PR próprio, ver [`security-audit/ACHADO_2026-09-21_V09…`](../security-audit/ACHADO_2026-09-21_V09_ESCALACAO_POR_USER_MGR.md) |
+| 21/09 | 🟢 **V-09 (segurança, hoje FECHADO — ver 22/09 01:2x): `PERM_USER_MGR` concedia bits que não tem** | Achado do mantenedor, conferido na fonte: `users.add` só limita `perms` a `PERM_ALL_BITS`, nunca à máscara de quem pede, e devolve a senha da conta nova em `creds`. Alcança tudo menos `/api/ota/apply` e `/api/tls` (que exigem `PERM_FULL_ADMIN` exato). Segundo vetor: `{"type":"pin","id":0}` define o PIN de painel do admin. **Não entra na campanha** — corrigir agora invalidaria o soak de 7,9 h já medido nesta imagem; PR próprio, ver [`security-audit/ACHADO_2026-09-21_V09…`](../security-audit/ACHADO_2026-09-21_V09_ESCALACAO_POR_USER_MGR.md) |
 | 21/09 15:25 | **D-C1 pela web, na imagem publicada: 500 commits que gravam flash, 0 reboots** | 5,8 min, display vivo, instrumento validado antes (o `SYS_STORAGE_SAVE` sobe a cada commit). O reprodutor conhecido do B1 usa `write memory`, **comando que não existe na `pico_w_release`** — lá a CLI é o console de emergência. Então o gatilho conhecido é inalcançável na imagem que a versão publica, e o gatilho equivalente que existe nela não reproduziu em 500 tentativas |
 | 21/09 15:11 | Resposta truncada: teste do socket ocioso | **0 quebras em 4 rodadas** de 5 min de silêncio, pela sessão mantida e por sessão nova. **Não refuta nada**: a 4% por requisição, 4 tentativas esperam 0,17 evento. Teste subdimensionado; fica aberto como B13 com os números que existem |
 | 21/09 15:11 | O que o mesmo teste revelou (sem querer) | Os 401 que ele deu **eram dele**: `allocSessionSlot` reaproveita o slot da MESMA conta e invalida o token anterior (`WebManager_Auth.cpp:462`). O timeout ocioso é **15 min**, não 5. Foi para o manual do servidor antes que alguém deduzisse o contrário |

@@ -1,13 +1,12 @@
 # V-09 — quem gerencia usuários concede o que não tem
 
-**Achado por:** Ângelo, 21/09/2026 · **Severidade: Alta** · **Estado: ABERTO,
-correção urgente** · **Base:** `main` @ v2.6.1-beta, conferido em
-`docs/plano-stable` @ `87b768f`.
+**Achado por:** Ângelo, 21/09/2026 · **Severidade: Alta** · **Estado:
+CORRIGIDO e VALIDADO NO FERRO em 22/09/2026** · **Base do achado:** `main` @
+v2.6.1-beta · **Correção:** PR #149 (`fix/v09-perms-escalation`, `87f9162`).
 
-**Como foi conferido:** leitura da fonte. **Não foi exercitado no ferro** — o
-aparelho estava no meio do T5 (queda de rede) quando o achado chegou. A
-reprodução de bancada está no §4 e leva dois minutos; o código, porém, não
-deixa margem: a comparação que faltaria não existe em lugar nenhum da seção.
+**Como foi conferido:** leitura da fonte em 21/09 (o aparelho estava no meio do
+T5 e não pôde ser usado), **e a reprodução do §4 rodada no ferro em 22/09** com
+controle positivo — o registro está no §7. Forma escolhida: **A, recusar**.
 
 ---
 
@@ -137,10 +136,56 @@ Aplicar a mesma regra em:
 crie a conta `USER_MGR` pura, tente `perms=0x1FFF` e exija `rejected`. Sem ele a
 correção não tem quem a defenda na próxima refatoração.
 
-## 6. Por que não corrigi agora
+## 6. Por que a correção esperou um dia
 
-A imagem no ferro está sob campanha de estabilidade (`PLANO_STABLE.md`): o B2
-fechou hoje com 7,9 h de soak **naquela imagem**, e o B1 ainda depende de
-corridas nela. Mudar firmware agora invalida o que já foi medido e o que falta
-medir. A correção é pequena e isolada, mas merece PR próprio, com o teste do §5,
-e uma decisão explícita sua sobre a forma (A, B ou C).
+A imagem no ferro estava sob a campanha de estabilidade (`PLANO_STABLE.md`): o
+B2 fechou em 21/09 com 7,9 h de soak **naquela imagem**, e o B1 dependia de
+corridas nela. Gravar firmware novo invalidava o que já tinha sido medido. Então
+a correção foi escrita, revisada e testada em nativo no mesmo dia (PR #149,
+`+64 B` por imagem, 10/10 no CI), e **só foi ao ferro depois** que a caçada do
+B1 e o A/B do B13 liberaram o aparelho — em 22/09, §7.
+
+O preço dessa ordem está pago e anotado: a imagem da campanha mudou, então o
+soak do B2 e o OTA do B3 precisam ser remedidos na imagem que a versão vai
+publicar. Isso está na tabela de bloqueadores do `PLANO_STABLE.md`.
+
+## 7. Validação no ferro — 22/09/2026
+
+Rodada na imagem `pico_w_test` construída de `fix/v09-perms-escalation`
+(`87f9162`), gravada no rig às 01h; aparelho em 192.168.3.24, HTTP puro.
+Instrumento: `v09_verify.py` (scratchpad da sessão), **10/10 veredictos**.
+
+O que dá peso à corrida é o **controle positivo**: sem os casos B e D,
+"recusou" não distingue a regra do subconjunto de um portão que recusa tudo.
+
+| caso | quem pede | pedido | resposta do aparelho | veredito |
+|---|---|---|---|---|
+| **A** | `gestor` (`perms`=256, só `USER_MGR`) | `add` com `perms=8191` | `200` `{"applied":[],"rejected":["users.perms"]}`, **sem `creds`** | recusa, e a conta `escalou` não existe em `/api/users` |
+| **B** | `gestor` | `add` com `perms=256` — o bit que ele tem | `200` `{"rejected":[],"creds":[{"u":"parceiro",…}]}` | **aceita o subconjunto**: a regra é `perms & ~caller`, não um veto |
+| **C** | `gestor` | `pin` no `id:0` (painel do admin) | `200` `{"applied":[],"rejected":["users.id"]}` | segundo vetor fechado |
+| **D** | `admin` (`perms`=65535) | `add` com `perms=8191` | `200` `{"creds":[{"u":"plenos",…}]}` | o admin não perdeu nada |
+
+Conferência final: `/api/users` mostrou `parceiro` com 256 e `plenos` com 8191,
+`escalou` ausente, e as seis contas originais voltaram byte a byte à linha de
+base depois da limpeza.
+
+Duas coisas que a conta nova continua fazendo certo, confirmadas na mesma
+corrida: o login de `gestor` com a senha de uso único devolveu
+`{"ok":true,"redirect":"/force_chpass"}` (troca forçada armada), e uma tentativa
+com senha errada já veio com `lockSec`, ou seja o lockout cobre a conta nova.
+
+### Três armadilhas da rota que o instrumento me cobrou
+
+Nenhuma é defeito — são contratos que um cliente novo (o servidor da empresa,
+`INTEGRACAO_SERVIDOR.md`) descobre do jeito difícil:
+
+1. **`del` e `reset` são por `id`, não por nome** (`WebManager_Commit.cpp:1432`).
+   Um `{"type":"del","name":"gestor"}` volta `200` e não apaga nada — meu
+   primeiro instrumento "apagou" a conta e o `add` seguinte deu `users.dup`.
+2. **O destino do login vem no CORPO, não em `Location`**
+   (`WebManager_Auth.cpp:544`): `{"ok":true,"redirect":"/force_chpass"}`. Ler o
+   header devolve `''` **sempre**, e a troca de senha forçada passa batida.
+3. **Toda escrita na seção `users` reinicia o aparelho.** Esta corrida sozinha
+   custou **7 reboots** (3 `add` + 3 `del` + um 401 no meio), cada um ~25 s: é a
+   dívida já registrada em `PLANO_DIVIDA_TECNICA.md` e o que faz o servidor da
+   empresa precisar de retentativa em cada cadastro de usuário.
