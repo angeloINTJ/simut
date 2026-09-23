@@ -113,7 +113,7 @@ Adding a new sensor driver? Follow the step-by-step guide in [docs/adding-a-new-
 
 ## Flash Budget
 
-Flash is critically tight — ~97.6 % of the 1020 KB app slot in the release env, and ~98 % in `pico_w_air`, which has the least room of the five images. Before adding features, consider:
+Flash is critically tight. The release image uses 97.2 % of the 1,044,480 B program slot, and every image's `.bin` has to stay under the 1,040,384 B over-the-air ceiling — `pico_w_air` has 5,076 B left there, and the bench image `pico_w_test_https` 668 (2026-09-23, `tools/flash_budget.json`). Before adding features, consider:
 
 1. Can it be optimized to use less space?
 2. Can it replace something of lower value?
@@ -152,7 +152,7 @@ Add tests for new validation logic, encoding/decoding, parser changes, and secur
 
 ### A test is what makes a fix a fix
 
-`native_network` exists because a device in the field could not reconnect for three and a half hours and the cause was found by reading its log — there was no test that could have found it. Its stub is not a simulation of the radio; it is a set of knobs shaped like failures that actually happened, and eight of its seventeen cases fail against the code as it stood before the fix.
+`native_network` exists because a device in the field could not reconnect for three and a half hours and the cause was found by reading its log — there was no test that could have found it. Its stub is not a simulation of the radio; it is a set of knobs shaped like failures that actually happened, and eight of its original seventeen cases fail against the code as it stood before the fix.
 
 That is the bar for a test accompanying a bug fix: **run it against the unfixed code and watch it fail.** A regression test that passes either way is worse than none, because it is claimed as cover.
 

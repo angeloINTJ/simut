@@ -20,7 +20,7 @@ adversarial public network.
 
 ## Supported Versions
 
-Security fixes always ship in the most recent beta release; earlier
+Security fixes always ship in the most recent release; earlier
 versions receive no backports. Update to the latest release before
 reporting a vulnerability.
 
