@@ -248,6 +248,11 @@ private:
  bool     _airWokeFromSleep = false;
  /** Seconds the last sleep really lasted, as the RTC measured it (0 = unknown). */
  uint32_t _airSleptSec = 0;
+ /** The clock that sleep carried (scratch[6]/[7], see AIR_CLOCK_MAGIC): epoch
+  *  seconds and milliseconds at the instant the alarm was armed. 0 = none, and
+  *  the provisional clock falls back to the newest record on flash. */
+ uint32_t _airClockSec = 0;
+ uint16_t _airClockMs = 0;
  /** True once the wake gave up on the WiFi: stops pumping the network so a
   *  missing SSID cannot keep the device awake past its sensor reading. */
  bool     _airNetGaveUp = false;
@@ -259,9 +264,9 @@ private:
   *  on the wireless chip — the onboard LED included, since LED_BUILTIN on the
   *  Pico W is one of its GPIOs and writing it would power the radio back up. */
  bool     _airRadioUp = true;
- /** Wakes since the last one that sent telemetry; the telemetry schedule.
-  *  Carried across the sleep in scratch[1]. */
- uint8_t  _airSkipWakes = 0;   /* wakes still to skip after a failed telemetry wake */
+ /** Wakes still to skip after a failed telemetry wake (AIR_TEL_FAIL_SKIP_WAKES
+  *  booked, one spent per wake). Carried across the sleep in scratch[1]. */
+ uint8_t  _airSkipWakes = 0;
  uint32_t _airLastActivityMs = 0; /* M0 idle timer */
  /** Short M0 window before a cycle that a reset interrupted resumes itself
   *  (plan F25). 0 = no interrupted cycle, or the crash-loop guard tripped, and

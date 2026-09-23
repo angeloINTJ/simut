@@ -196,12 +196,33 @@ bool NetworkManager::beginAP(const char* deviceName) {
  * Provides approximate timestamps until NTP sync completes (Virtual RTC).
  */
 void NetworkManager::setProvisionalTime(uint32_t lastTs, uint32_t elapsedSec) {
- if (lastTs > 1600000000) {
- _provisionalBase = lastTs + elapsedSec;
- _provisionalBootMillis = millis( );
+ if (lastTs > 1600000000) setProvisionalNow(lastTs + elapsedSec, 0);
+}
+
+void NetworkManager::setProvisionalNow(uint32_t sec, uint16_t ms) {
+ if (sec <= 1600000000 || ms > 999) return;
+ _provisionalBase = sec;
+ /* Backdating the anchor by the fraction is the whole point: getEpoch( )
+  * divides (millis( ) - anchor) by 1000, so the second rolls over exactly
+  * (1000 - ms) ms from now instead of a full second from now. */
+ _provisionalBootMillis = millis( ) - ms;
  _provisionalActive = true;
  LOG_CODE(LOG_INFO, "NET", NET_PROVISIONAL_TIME, 0, String(TRL("Provisional: ")) + getFormattedDate( ) + " " + getFormattedTime( ));
+}
+
+bool NetworkManager::getEpochMs(uint32_t& sec, uint16_t& ms) {
+ struct timeval tv;
+ gettimeofday(&tv, nullptr);
+ if (tv.tv_sec > 1600000000) {
+  sec = (uint32_t)tv.tv_sec;
+  ms  = (uint16_t)(tv.tv_usec / 1000);
+  return true;
  }
+ if (!_provisionalActive) return false;
+ const uint32_t el = millis( ) - _provisionalBootMillis;
+ sec = _provisionalBase + el / 1000UL;
+ ms  = (uint16_t)(el % 1000UL);
+ return sec > 1600000000;
 }
 
 void NetworkManager::setTimeSyncCallback(TimeSyncCallback cb) { _timeSyncCb = cb; }

@@ -731,7 +731,7 @@ specify.
 | Payload | JSON, CSV, or a custom template |
 | Security | TLS supported |
 | Trigger | A minimum batch: the device transmits once that many records are waiting (0 disables telemetry) |
-| Upload size | A maximum batch: a longer queue goes out in batches of that size until it is empty |
+| Upload size | A maximum batch: a longer queue goes out in batches of up to that size until it is empty |
 | Home Assistant Discovery | MQTT only, opt-in checkbox |
 | Remote syslog | RFC 5424 over UDP, opt-in (see below) |
 
@@ -1333,6 +1333,12 @@ stays off until that many records are waiting. `t_bat` caps how many go in one
 upload. With `t_int=5` and a reading a minute, seven of every eight wakes never
 power the radio at all — which is the point, since the radio is the most
 expensive thing a wake can do.
+
+`t_bat` is a ceiling, not a promise. A long queue — a collector that was away
+for an hour, say — is sent in batches as large as the free memory allows, which
+can be fewer than `t_bat`: with `t_bat=250`, an Air awake in M0 sends 190 or so
+at a time. Each batch ends at the last record that fitted whole, and the next
+one starts right after it.
 
 ---
 

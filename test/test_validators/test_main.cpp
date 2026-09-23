@@ -31,6 +31,7 @@
 #include <cmath>      /* isnan, NAN para floatToI16 */
 #include "SystemDefs_Logging.h"  /* tagStringToId — B1/B2 */
 #include "sensors/SensorChannelTable.h" /* channel table integrity */
+#include "TelemetryCursor.h"  /* what the telemetry cursor may advance to */
 #include "sensors/CalibCurve.h"         /* calibration curve engine */
 #include "WebJsonSlice.h"               /* depth-aware JSON slicing */
 #include "SimutTime.h"                 /* fixed-offset localtime/mktime */
@@ -3012,6 +3013,47 @@ static void test_alpha_marquee_blanks_nothing(void) {
     TEST_ASSERT_EQUAL_STRING("                ", out);
 }
 
+/* ── Telemetry cursor (TelemetryCursor.h) ─────────────────────────────────
+ * The cursor decides which stored records are never offered again, so every
+ * case below is a record that would otherwise be lost or re-sent forever. */
+struct CurRec { uint32_t epoch; };
+static const uint32_t CUR_NOW = 1790157862u;   /* 2026-09-23, the bench day */
+
+/* The 2026-09-23 defect. A batch of 200 was gathered after cursor C and
+ * buildPayload kept 199: the frontier is the 199th, and the 200th must be
+ * the first thing the next batch offers. Handing over the newest GATHERED
+ * epoch as the floor (the old caller) returned the 200th, and the record was
+ * never sent — 11 of 74 boundaries on the bench, one record each. */
+static void test_tel_cursor_stops_at_what_the_payload_kept(void) {
+    CurRec gathered[200];
+    const uint32_t from = CUR_NOW - 86400u * 20u;
+    for (int i = 0; i < 200; i++) gathered[i].epoch = from + 60u * (uint32_t)(i + 1);
+    const uint32_t kept = telDeliveredCursor(gathered, 199, from, CUR_NOW, HIST_EPOCH_MIN);
+    TEST_ASSERT_EQUAL_UINT32(gathered[198].epoch, kept);
+    TEST_ASSERT_TRUE(gathered[199].epoch > kept);                 /* offered again */
+    /* The old call, for the record: the gathered maximum as the floor wins. */
+    TEST_ASSERT_EQUAL_UINT32(gathered[199].epoch,
+        telDeliveredCursor(gathered, 199, gathered[199].epoch, CUR_NOW, HIST_EPOCH_MIN));
+}
+
+static void test_tel_cursor_nothing_delivered_keeps_the_floor(void) {
+    CurRec none[1] = {{0}};
+    TEST_ASSERT_EQUAL_UINT32(12345u, telDeliveredCursor(none, 0, 12345u, CUR_NOW, HIST_EPOCH_MIN));
+}
+
+/* 2026-08-14: the tail is not the newest when the writer's clock was wrong,
+ * and a stamp in the future must not become the frontier. */
+static void test_tel_cursor_takes_the_newest_and_clamps_the_future(void) {
+    CurRec mixed[3] = {{CUR_NOW - 100u}, {CUR_NOW - 50u}, {CUR_NOW - 200u}};
+    TEST_ASSERT_EQUAL_UINT32(CUR_NOW - 50u, telDeliveredCursor(mixed, 3, 0, CUR_NOW, HIST_EPOCH_MIN));
+    CurRec ahead[2] = {{CUR_NOW - 100u}, {CUR_NOW + 3600u}};
+    TEST_ASSERT_EQUAL_UINT32(CUR_NOW, telDeliveredCursor(ahead, 2, 0, CUR_NOW, HIST_EPOCH_MIN));
+    /* No real clock yet: nothing to clamp against. */
+    TEST_ASSERT_EQUAL_UINT32(CUR_NOW + 3600u, telDeliveredCursor(ahead, 2, 0, 1000u, HIST_EPOCH_MIN));
+    /* Never backwards, even when the clamp lands below the floor. */
+    TEST_ASSERT_EQUAL_UINT32(CUR_NOW + 10u, telDeliveredCursor(ahead, 2, CUR_NOW + 10u, CUR_NOW, HIST_EPOCH_MIN));
+}
+
 int main(int /*argc*/, char** /*argv*/) {
     UNITY_BEGIN();
 
@@ -3246,6 +3288,9 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_alpha_marquee_fills_exactly_at_the_width);
     RUN_TEST(test_alpha_marquee_scrolls_and_wraps_through_the_gap);
     RUN_TEST(test_alpha_marquee_blanks_nothing);
+    RUN_TEST(test_tel_cursor_stops_at_what_the_payload_kept);
+    RUN_TEST(test_tel_cursor_nothing_delivered_keeps_the_floor);
+    RUN_TEST(test_tel_cursor_takes_the_newest_and_clamps_the_future);
 
     return UNITY_END();
 }

@@ -330,35 +330,57 @@
   "   its network. Air is excluded from both, which is why it pays 224 B.",
   "Also here: _menuItems was 10 entries against an 11-entry table since v25, so",
   "an account holding every bit wrote one past the end of it - shown on the rig",
-  "as an admin menu with ten rows and no numbers."
+  "as an admin menu with ten rows and no numbers.",
+  "2026-09-23 (fix/air-clock-carry): measured against main at a14e7aa.",
+  "'used' +824 B on release, test, test_https, asserts and alpha, +1,336 on",
+  "air. No budget moves: every environment is still under its own, the four",
+  "panel builds by 368..416 B. Two commits, measured apart:",
+  " - the Air's clock, +32 B everywhere and +544 on air. The sleep carries the",
+  "   clock of the instant its alarm was armed (scratch[6]/[7]) and the wake",
+  "   seeds the provisional clock from it to the millisecond. The shared 32 B",
+  "   are setProvisionalNow( ), which setProvisionalTime( ) now calls; the rest",
+  "   links only into the Air, the `[AIR] clock=` line the drift was measured",
+  "   with included.",
+  " - whole records in the telemetry payload, +792 B everywhere. appendWhole( )",
+  "   reserves a record, its separator and the bytes that close the payload",
+  "   BEFORE appending, in the JSON, CSV and template builders of both the batch",
+  "   and the alarm line, and the cursor rule moved to TelemetryCursor.h. It is",
+  "   the fix for invalid JSON bodies on a long queue - 68 of 69 on the Air in",
+  "   M0 - and every image carries it because every image builds these payloads.",
+  ".bin: +824 on the four panel builds, 0 on alpha and air (their padding took",
+  "it). Real .bin slack under the 1,040,384 B OTA ceiling: release 13,204, test",
+  "8,308, test_https 676, asserts 11,028, alpha 45,940, air 5,076 (unchanged).",
+  "pico_w_test_https keeps warning, now 676 B from the ceiling: the next thing",
+  "added to the panel builds has to take a fourth page out to LittleFS, as the",
+  "2026-09-20 note says."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-09-22",
- "measured_at_commit": "fix/ap-mode-reachable, v2.7.1 (AP mode is reachable, and joinable, again)",
+ "measured_on": "2026-09-23",
+ "measured_at_commit": "fix/air-clock-carry (the Air's clock across the sleep, whole records in the telemetry payload)",
  "envs": {
   "pico_w_release": {
    "budget": 1015564,
-   "measured": 1014324
+   "measured": 1015148
   },
   "pico_w_test": {
    "budget": 1020420,
-   "measured": 1019220
+   "measured": 1020044
   },
   "pico_w_test_https": {
    "budget": 1028044,
-   "measured": 1026852
+   "measured": 1027676
   },
   "pico_w_asserts": {
    "budget": 1017740,
-   "measured": 1016500
+   "measured": 1017324
   },
   "pico_w_alpha": {
    "budget": 983396,
-   "measured": 980756
+   "measured": 981580
   },
   "pico_w_air": {
    "budget": 1022184,
-   "measured": 1019616
+   "measured": 1020952
   }
  }
 }

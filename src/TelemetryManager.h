@@ -237,7 +237,9 @@ private:
  uint32_t jitter(uint32_t base);
 
 
- bool collectBatch(std::vector<BinaryHistoryRecord>& batch, uint32_t& newCursor);
+ /** Gathers the next batch; @p fromCursor gets the cursor it was read from
+  * (never its newest epoch — deliveredCursor( ) decides that, after buildPayload). */
+ bool collectBatch(std::vector<BinaryHistoryRecord>& batch, uint32_t& fromCursor);
 
 
  bool attemptHttpUpload(String& payload, uint32_t newCursor);

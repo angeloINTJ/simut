@@ -18,6 +18,7 @@
 #include "MetricsManager.h"
 #include "HaDiscovery.h"
 #include "AlarmPayload.h" /* formatadores da 2ª linha (header-only, testáveis) */
+#include "TelemetryCursor.h" /* what the cursor may advance to (header-only, testable) */
 #include "TouchPriority.h"
 #include "BuildIdentity.h"
 #include "sensors/SensorChannelTable.h"
@@ -253,60 +254,18 @@ void TelemetryManager::begin(StorageManager* storage, NetworkManager* network) {
 
 }
 
+/* The rule, and the three ways it has been wrong, live in TelemetryCursor.h
+ * where the host tests reach them. This is the vector-shaped door to it. */
+static uint32_t deliveredCursor(const std::vector<BinaryHistoryRecord>& batch,
+                                uint32_t fromCursor, uint32_t nowEpoch) {
+ return telDeliveredCursor(batch.data( ), batch.size( ), fromCursor, nowEpoch,
+                           (uint32_t)HIST_EPOCH_MIN);
+}
+
 /**
  * @brief Periodic telemetry check — collects batch and dispatches via configured transport.
  * Respects backoff intervals, network availability, and heavy task locks.
  */
-/**
- * @brief Highest epoch safe to record as delivered.
- *
- * @p batch is what buildPayload left behind, so it is exactly what the
- * transport carries. Two things this must not do:
- *
- *  · Read the last element as the newest one. That was the rule, and it holds
- *    only while records arrive in time order — which is an assumption about
- *    the writer's clock, not a property of the data. A boot with a mis-seeded
- *    provisional clock (2026-08-14) writes blocks stamped ahead of the ones
- *    that follow them, and then the tail of the vector is not the high-water
- *    mark at all.
- *
- *  · Let a record stamped in the future set the frontier. The cursor is a
- *    scalar in time and `epoch > lastCursor` skips everything at or below it,
- *    forever — so one block stamped hours ahead buried every correctly stamped
- *    record behind it, permanently, and without a log line. That is worse than
- *    the graph bug of the same night, because a chart redraws and a telemetry
- *    record that was never sent is gone.
- *
- * Clamping to @p nowEpoch stops a future stamp from moving the frontier past
- * real time. The record still goes out; it just does not get to define what
- * counts as sent. Anything ahead of the clamp is offered again on a later
- * round, which is the right way round: ingest is keyed by timestamp, so a
- * duplicate costs a write and a gap costs the measurement.
- *
- * What this does NOT fix, because a scalar cursor in time cannot: a record
- * stamped ahead of its neighbours but still behind `now` — a mis-stamped block
- * read back hours later — advances the frontier over records that are older
- * and not yet sent, and those stay unsent. Closing that needs the cursor to
- * become a scan position rather than an instant, which is a format change, or
- * needs the stamps to be right in the first place, which is what the seed
- * ceiling in h5SeedCeiling is for. The clamp covers the live case, where the
- * bad stamp is in the future at the moment of sending, and that is the shape
- * the 2026-08-14 device was in while it was writing.
- *
- * @param fallback Cursor to keep when nothing was delivered, or when the clamp
- *                 would move it backwards.
- */
-static uint32_t deliveredCursor(const std::vector<BinaryHistoryRecord>& batch,
-                                uint32_t fallback, uint32_t nowEpoch) {
- uint32_t hi = 0;
- for (size_t i = 0; i < batch.size( ); i++) {
- if (batch[i].epoch > hi) hi = batch[i].epoch;
- }
- if (hi == 0) return fallback;
- if (nowEpoch >= HIST_EPOCH_MIN && hi > nowEpoch) hi = nowEpoch;
- return (hi < fallback) ? fallback : hi;
-}
-
 void TelemetryManager::update( ) {
  /* Segunda linha (alarmes): ciclo próprio, independente do intervalo da
   * telemetria convencional — um alarme não espera a cadência de massa. */
@@ -489,7 +448,9 @@ void TelemetryManager::update( ) {
   * cursor has to follow what the payload actually carries — see
   * deliveredCursor for why the last element is not that. */
  newCursor = deliveredCursor(batch, newCursor, (uint32_t)time(nullptr));
- success = attemptMqttPublish(payload, batch, newCursor);
+ /* Empty = nothing well formed could be built (see buildPayload): no
+  * publish, and the failure path below owns the retry. */
+ if (payload.length( ) > 0) success = attemptMqttPublish(payload, batch, newCursor);
  /* batch and payload go out of scope here and free memory */
  } else {
  /*
@@ -511,7 +472,9 @@ void TelemetryManager::update( ) {
  batch.clear( );
  batch.shrink_to_fit( );
 
- success = attemptHttpUpload(payload, newCursor);
+ /* Same as the MQTT branch: an empty payload is a failure to build, not a
+  * batch to POST. */
+ if (payload.length( ) > 0) success = attemptHttpUpload(payload, newCursor);
  }
 
  __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE);
@@ -671,7 +634,7 @@ uint8_t TelemetryManager::safeBatchLimit(uint8_t configured) {
  return max((uint8_t)1, min(min(configured, HARD_CAP), heapLimit));
 }
 
-bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uint32_t& newCursor) {
+bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uint32_t& fromCursor) {
  LogManager::TraceScope _tC(0, MOD_TEL_COLLECT);
  SystemConfig &cfg = _storageRef->getConfig( );
  uint32_t lastCursor = _storageRef->getLastSentTimestamp( );
@@ -708,7 +671,12 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
  if (lastRecorded > 86400UL * 30) lastCursor = lastRecorded - 86400UL * 30;
  }
 
- newCursor = lastCursor;
+ /* The cursor this batch is read from — after the two corrections above — and
+  * deliberately NOT the newest epoch gathered below. What counts as sent is
+  * decided after buildPayload, which may still drop records off the end; the
+  * newest-gathered figure handed over from here is what made the cursor jump
+  * over those (see TelemetryCursor.h). */
+ fromCursor = lastCursor;
 
 
  std::vector<String> files;
@@ -834,7 +802,6 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
 	 else if (chOf[c] == CH_PRESS) rec.pressure       = BinaryHistoryRecord::floatToI16x10(v);
 	 }
 	 batch.push_back(rec);
-	 if (epoch > newCursor) newCursor = epoch;
 	 }
 	 if ((inFileCount % 10) == 0 && fileHasMore && batch.size( ) < limit) {
 	 feedWdt( ); yield( );
@@ -886,7 +853,6 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
  else if (ch == CH_PRESS) rec.pressure       = BinaryHistoryRecord::floatToI16x10(v);
  }
  batch.push_back(rec);
- if (epoch > newCursor) newCursor = epoch;
  }
  feedWdt( );
  }
@@ -1648,8 +1614,10 @@ bool TelemetryManager::forceSync( ) {
  /* Same as update( ): the cursor follows the payload, not the collection. */
  newCursor = deliveredCursor(batch, newCursor, (uint32_t)time(nullptr));
 
- bool ok;
- if (cfg.telTransport == TEL_TRANSPORT_MQTT) {
+ bool ok = false;
+ if (payload.length( ) == 0) {
+ /* nothing well formed to send — see buildPayload */
+ } else if (cfg.telTransport == TEL_TRANSPORT_MQTT) {
  ok = attemptMqttPublish(payload, batch, newCursor);
  } else {
  batch.clear( );
@@ -1677,6 +1645,18 @@ bool TelemetryManager::forceSync( ) {
  * The only heap object is the String `s` which is reserved once.
  * No temporary String is created during the loop → safe for 50+ records.
  */
+/* Append two pieces — a separator and a line, or a line and its newline — only
+ * if the string can take both AND still has `tail` bytes left for whatever must
+ * close the payload after them. Either both go in or neither does; see the
+ * measurement in buildPayload( ) for what happened when nothing checked. */
+static bool appendWhole(String& s, const char* a, size_t alen,
+                        const char* b, size_t blen, size_t tail) {
+ if (!s.reserve(s.length( ) + alen + blen + tail)) return false;
+ if (alen) s.concat(a, alen);
+ if (blen) s.concat(b, blen);
+ return true;
+}
+
 String TelemetryManager::buildPayload(std::vector<BinaryHistoryRecord>& batch) {
  LogManager::TraceScope _tB(0, MOD_TEL_BUILD);
  SystemConfig &cfg = _storageRef->getConfig( );
@@ -1707,21 +1687,42 @@ String TelemetryManager::buildPayload(std::vector<BinaryHistoryRecord>& batch) {
  String s;
  s.reserve(estimatedSize);
 
+ /* Every record goes in whole or not at all, and the payload always closes.
+  *
+  * String::concat( ) does not throw and does not partially append: when the
+  * realloc behind it fails it returns false and the string is left as it was,
+  * and nothing here used to look. The reserve above asks for 300 B a line —
+  * twelve sensors' worth — so with five sensors a 199-record batch wanted
+  * 60 KB while the largest free block in M0 was 46 KB; the reserve failed,
+  * the string grew one realloc per record, and around 29 KB it could not move
+  * any more. From there every record line was dropped while the one-byte
+  * commas and the closing bracket still fitted. Measured on the bench
+  * 2026-09-23 (Air v2.7.1, M0 drain into a collector that keeps every body):
+  * 68 of 69 batches ended in `},,,,,,,,,]` — invalid JSON, about nine records
+  * short, and the cursor moved past all of them.
+  *
+  * So room is reserved BEFORE each record: its separator, its line and the
+  * bytes that must still close the payload after it. If that reserve fails,
+  * the batch ends there — `batch` is cut to what went in, which is what
+  * deliveredCursor( ) reads, and the rest is offered again next batch. */
+ size_t kept = batch.size( );
+ bool closed = false;
+
  if (cfg.telMode == TEL_MODE_JSON) {
  /*
  * JSON: builds directly with stack char buffer.
- * formatLineJson writes to lineBuf (512 bytes, stack).
- * s.concat(lineBuf, len) appends without creating temporary String.
+ * formatLineJson writes to lineBuf (512 bytes, stack), and appendWhole( )
+ * adds it without creating a temporary String.
  */
  s = "[";
  char lineBuf[512];
  for (size_t i = 0; i < batch.size( ); i++) {
- if (i > 0) s.concat(',');
  int len = formatLineJsonBuf(batch[i], cfg, lineBuf, sizeof(lineBuf));
- s.concat(lineBuf, len);
+ /* this record, its comma and the closing bracket */
+ if (s.length( ) == 0 || !appendWhole(s, ",", i > 0 ? 1 : 0, lineBuf, (size_t)len, 1)) { kept = i; break; }
  if (i % 10 == 9) { watchdog_update( ); yield( ); }
  }
- s.concat(']');
+ closed = (s.length( ) > 0) && s.concat(']');
  } else if (cfg.telMode == TEL_MODE_CSV) {
  /* The header has to name every column toCsvLine emits, and toCsvLine emits
   * the fixed layout `epoch;s0..s15;h0..h15;press` — all 16 slots, active or
@@ -1730,28 +1731,32 @@ String TelemetryManager::buildPayload(std::vector<BinaryHistoryRecord>& batch) {
   * header index read the wrong values. The rows are the persisted, upload-
   * compatible format and do not change; the header was what lied. */
  s = "timestamp";
+ /* The header is not a record: if any piece of it fails to land, there is
+  * nothing well formed to send. */
+ bool hdrOk = (s.length( ) > 0);
  char hdrBuf[32];
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (cfg.sensors[i].active && cfg.sensors[i].hwId[0])
  snprintf(hdrBuf, sizeof(hdrBuf), ";s%d_%s", i, cfg.sensors[i].hwId);
  else
  snprintf(hdrBuf, sizeof(hdrBuf), ";s%d", i);
- s.concat(hdrBuf);
+ hdrOk = hdrOk && s.concat(hdrBuf);
  }
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (cfg.sensors[i].active && cfg.sensors[i].hwId[0])
  snprintf(hdrBuf, sizeof(hdrBuf), ";h%d_%s", i, cfg.sensors[i].hwId);
  else
  snprintf(hdrBuf, sizeof(hdrBuf), ";h%d", i);
- s.concat(hdrBuf);
+ hdrOk = hdrOk && s.concat(hdrBuf);
  }
- s.concat(";press");
- s.concat('\n');
+ hdrOk = hdrOk && s.concat(";press");
+ hdrOk = hdrOk && s.concat('\n');
+ closed = hdrOk;
  char csvBuf[256];
- for (size_t i = 0; i < batch.size( ); i++) {
+ for (size_t i = 0; closed && i < batch.size( ); i++) {
  batch[i].toCsvLine(csvBuf, sizeof(csvBuf));
- s.concat(csvBuf);
- s.concat('\n');
+ /* a row closes itself: its newline goes in with it */
+ if (!appendWhole(s, csvBuf, strlen(csvBuf), "\n", 1, 0)) { kept = i; break; }
  if (i % 10 == 9) { watchdog_update( ); yield( ); }
  }
  } else if (cfg.telMode == 2) {
@@ -1771,6 +1776,7 @@ String TelemetryManager::buildPayload(std::vector<BinaryHistoryRecord>& batch) {
  char lineBuf[1024];
  size_t gi = 0;
  size_t spanStart = 0;
+ bool ok = true;   /* every literal span and token landed */
 
  while (gi < gtLen) {
  if (gt[gi] != '{') { gi++; continue; }
@@ -1787,17 +1793,25 @@ String TelemetryManager::buildPayload(std::vector<BinaryHistoryRecord>& batch) {
  if (tokKind == 0) { gi++; continue; }
 
  /* Flush literal span before token */
- if (gi > spanStart) s.concat(gt + spanStart, gi - spanStart);
+ if (gi > spanStart) ok = ok && s.concat(gt + spanStart, gi - spanStart);
 
  if (tokKind == 1) {
- s.concat(cfg.deviceName);
+ ok = ok && s.concat(cfg.deviceName);
  } else if (tokKind == 2) {
- s.concat(macStr);
+ ok = ok && s.concat(macStr);
  } else { /* DATA */
- for (size_t i = 0; i < batch.size( ); i++) {
- if (i > 0 && sepLen > 0) s.concat(sep, sepLen);
+ /* What must still fit after the last record: the rest of the template,
+  * plus room for one device name or MAC in it. Not exact — a template with
+  * several of them after {DATA} can still run out while closing, and then
+  * `ok` goes false and nothing is sent: the records stay queued for the
+  * next attempt instead of going out half-formed. */
+ const size_t tail = (gtLen - (gi + tokLen)) + sizeof(cfg.deviceName);
+ /* `kept`, not the batch: a second {DATA} in the template must not put back
+  * records the first one had to leave out. */
+ for (size_t i = 0; ok && i < kept; i++) {
  int len = formatLineCustomBuf(batch[i], cfg, lineBuf, sizeof(lineBuf));
- if (len > 0) s.concat(lineBuf, len);
+ if (len < 0) len = 0;
+ if (!appendWhole(s, sep, i > 0 ? sepLen : 0, lineBuf, (size_t)len, tail)) { kept = i; break; }
  if (i % 10 == 9) { watchdog_update( ); yield( ); }
  }
  }
@@ -1805,7 +1819,19 @@ String TelemetryManager::buildPayload(std::vector<BinaryHistoryRecord>& batch) {
  gi += tokLen;
  spanStart = gi;
  }
- if (gtLen > spanStart) s.concat(gt + spanStart, gtLen - spanStart);
+ if (gtLen > spanStart) ok = ok && s.concat(gt + spanStart, gtLen - spanStart);
+ closed = ok;
+ }
+
+ if (kept < batch.size( )) {
+ batch.resize(kept);
+ batch.shrink_to_fit( );
+ }
+ /* Nothing well formed to send: an empty string and an empty batch, which
+  * the callers read as "could not build" — never as a delivery. */
+ if (!closed || batch.empty( )) {
+ batch.clear( );
+ return String( );
  }
  return s;
 }
@@ -2501,8 +2527,10 @@ void TelemetryManager::updateAlarms( ) {
 		_alarmDumpNext = false;
 	}
 
-	bool success;
-	if (cfg.telTransport == TEL_TRANSPORT_MQTT) {
+	bool success = false;
+	if (payload.length( ) == 0) {
+		/* nada bem formado para enviar (buildAlarmPayload) — a fila fica */
+	} else if (cfg.telTransport == TEL_TRANSPORT_MQTT) {
 		success = attemptAlarmMqttPublish(payload, batch);
 	} else {
 		success = attemptAlarmHttpUpload(payload, batch);
@@ -2526,26 +2554,33 @@ String TelemetryManager::buildAlarmPayload(std::vector<AlarmRecord>& batch) {
 	String s;
 	s.reserve(batch.size( ) * perLine + fixedPart);
 
+	/* Mesma regra de buildPayload( ) (o porquê e a medição estão lá): cada
+	 * registro entra inteiro ou não entra, e o payload sempre fecha. O lote é
+	 * cortado no que entrou — a confirmação da fila é pelos `seq` deste vetor,
+	 * então o que ficou de fora continua na fila para o próximo envio. */
+	size_t kept = batch.size( );
+	bool closed = false;
+
 	if (mode == TEL_MODE_JSON) {
 		/* Mesma regra da linha convencional: JSON ignora o template global
 		 * e emite um array de linhas. */
 		s = "[";
 		char lineBuf[512];
 		for (size_t i = 0; i < batch.size( ); i++) {
-			if (i > 0) s.concat(',');
 			int len = alarmFormatLine(batch[i], cfg, lineBuf, sizeof(lineBuf));
-			s.concat(lineBuf, len);
+			if (len < 0) len = 0;
+			if (s.length( ) == 0 || !appendWhole(s, ",", i > 0 ? 1 : 0, lineBuf, (size_t)len, 1)) { kept = i; break; }
 			if (i % 10 == 9) { watchdog_update( ); yield( ); }
 		}
-		s.concat(']');
+		closed = (s.length( ) > 0) && s.concat(']');
 	} else if (mode == TEL_MODE_CSV) {
 		s = "seq;ts;id;v;user;lo;hi;until";
-		s.concat('\n');
+		closed = (s.length( ) > 0) && s.concat('\n');
 		char csvBuf[96];
-		for (size_t i = 0; i < batch.size( ); i++) {
+		for (size_t i = 0; closed && i < batch.size( ); i++) {
 			int len = alarmFormatCsvLine(batch[i], cfg, csvBuf, sizeof(csvBuf));
-			if (len > 0) s.concat(csvBuf, len);
-			s.concat('\n');
+			if (len < 0) len = 0;
+			if (!appendWhole(s, csvBuf, (size_t)len, "\n", 1, 0)) { kept = i; break; }
 			if (i % 10 == 9) { watchdog_update( ); yield( ); }
 		}
 	} else {
@@ -2563,6 +2598,7 @@ String TelemetryManager::buildAlarmPayload(std::vector<AlarmRecord>& batch) {
 		char lineBuf[512];
 		size_t gi = 0;
 		size_t spanStart = 0;
+		bool ok = true;
 		while (gi < gtLen) {
 			if (gt[gi] != '{') { gi++; continue; }
 			const size_t remaining = gtLen - gi;
@@ -2572,23 +2608,34 @@ String TelemetryManager::buildAlarmPayload(std::vector<AlarmRecord>& batch) {
 			else if (remaining >= 5 && memcmp(gt + gi, "{MAC}", 5) == 0) { tokKind = 2; tokLen = 5; }
 			else if (remaining >= 6 && memcmp(gt + gi, "{DATA}", 6) == 0) { tokKind = 3; tokLen = 6; }
 			if (tokKind == 0) { gi++; continue; }
-			if (gi > spanStart) s.concat(gt + spanStart, gi - spanStart);
+			if (gi > spanStart) ok = ok && s.concat(gt + spanStart, gi - spanStart);
 			if (tokKind == 1) {
-				s.concat(cfg.deviceName);
+				ok = ok && s.concat(cfg.deviceName);
 			} else if (tokKind == 2) {
-				s.concat(macStr);
+				ok = ok && s.concat(macStr);
 			} else {
-				for (size_t i = 0; i < batch.size( ); i++) {
-					if (i > 0 && sepLen > 0) s.concat(sep, sepLen);
+				/* o resto do template, com folga para um nome ou um MAC */
+				const size_t tail = (gtLen - (gi + tokLen)) + sizeof(cfg.deviceName);
+				for (size_t i = 0; ok && i < kept; i++) {
 					int len = alarmFormatLine(batch[i], cfg, lineBuf, sizeof(lineBuf));
-					if (len > 0) s.concat(lineBuf, len);
+					if (len < 0) len = 0;
+					if (!appendWhole(s, sep, i > 0 ? sepLen : 0, lineBuf, (size_t)len, tail)) { kept = i; break; }
 					if (i % 10 == 9) { watchdog_update( ); yield( ); }
 				}
 			}
 			gi += tokLen;
 			spanStart = gi;
 		}
-		if (gtLen > spanStart) s.concat(gt + spanStart, gtLen - spanStart);
+		if (gtLen > spanStart) ok = ok && s.concat(gt + spanStart, gtLen - spanStart);
+		closed = ok;
+	}
+
+	if (kept < batch.size( )) batch.resize(kept);
+	/* Nada bem formado para enviar: string vazia e lote vazio — o chamador
+	 * não envia e a fila fica como estava. */
+	if (!closed || batch.empty( )) {
+		batch.clear( );
+		return String( );
 	}
 	return s;
 }
