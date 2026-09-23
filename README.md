@@ -25,25 +25,57 @@
 
 ## Overview
 
-SIMUT is a professional-grade IoT firmware for the **Raspberry Pi Pico W** that provides real-time temperature, humidity and pressure monitoring through a dual-core architecture. It features a local TFT touchscreen dashboard, an embedded web interface with role-based access control, binary on-device history with client-side graphing, telemetry upload (HTTP/MQTT, with Home Assistant MQTT Discovery), a Prometheus `/metrics` endpoint, remote syslog forwarding (RFC 5424), OTA updates, and a CLI over USB serial.
+SIMUT is IoT firmware for the **Raspberry Pi Pico W** that monitors temperature, humidity and pressure on up to 16 sensors, and keeps working with or without a network. One source tree builds three published devices:
+
+- a **touch-panel monitor** (320×240 TFT);
+- a **character-LCD monitor** (16×2, the *alpha*);
+- a **battery logger** that hibernates between readings (the *Air*, experimental).
+
+They share one core:
+- binary on-device history and per-channel alarms;
+- 32 user accounts with 13 permission bits;
+- an embedded web interface;
+- telemetry over HTTP(S) or MQTT(S), with a separate line for alarms;
+- Home Assistant MQTT Discovery, a Prometheus `/metrics` endpoint and remote syslog (RFC 5424);
+- over-the-air updates and a serial console.
+
+## Project status
+
+| | |
+|---|---|
+| **Current release** | **v2.7.1** (2026-09-22). The 2.7 line left beta with v2.7.0, on measurements: an 8.18 h soak with 0 reboots, and 6 of 6 over-the-air updates with nothing lost. |
+| **Published images** | Three images, each as `.uf2` and `.bin`: `release` (TFT touch panel), `alpha` (16×2 LCD with a Bluetooth console) and `air` (headless battery logger). The pt-BR and es-ES language packs and an OTA manifest ship alongside. |
+| **On `main`, not yet released** | <ul><li>The Air carries its clock across the sleep: stamps stay within ±0.09 s instead of drifting 0.8 s per wake.</li><li>Telemetry payloads are built one whole record at a time, so a long queue no longer goes out as invalid JSON or skips records.</li><li>With one sensor, the alpha's LCD shows the pending telemetry count, and its Wi-Fi icon fills left to right.</li></ul> |
+| **Maturity** | <ul><li>`release`: **stable**.</li><li>`alpha`: published and bench-tested, except its LCD output, which host tests cover — the bench has no HD44780.</li><li>`air`: **experimental**. Its one long soak failed: a sleep in cycle 119 never woke (F28). A watchdog across the wake now mitigates it; the root cause is not confirmed.</li></ul> |
+| **Tests** | Every pull request runs 408 host test cases in 7 suites, 60 s of fuzzing and static analysis, and builds all six firmware images from a cold cache. Behaviour on real hardware is verified on a bench — see [Verification](#verification-on-hardware). |
+
+**Known limitations.** Each one is documented where it applies.
+- **Updates.** An update over the air reformats the filesystem:
+  - Wi-Fi, accounts and sensor slots are carried across. History, calibration files and language packs are not, so the web page downloads a backup before it starts, and restoring it brings them back.
+  - There is one firmware slot and no rollback. A bad flash is recovered with BOOTSEL and a USB cable.
+- **Unexplained resets.** A watchdog reset with an empty trace (`ctx=209`/`ctx=455`) appeared three times on the bench image on 20–21 September and not since. Both cores are now instrumented to explain the next one.
+- **Idle connections.** During the v2.7.0 soak, 7.1 % of responses on an idle keep-alive connection arrived cut short. The device drops a stream it cannot send for 4 s.
+- **User list.** Every save of the user list reboots the device, about 25 s each time.
+- **Telemetry cursor.** The cursor is a single timestamp, so a record stamped out of order on flash is skipped: 6 of 75,778 records in one measurement.
+- **Not a certified instrument.** SIMUT is not a certified metrological instrument. Validate it against your own reference before relying on it for regulated storage.
 
 ## Why SIMUT?
 
 | Need | DIY Arduino Sketch | ESPHome / Tasmota | **SIMUT** |
 |------|:---:|:---:|:---:|
-| Standalone with display | ⚠️ Manual coding | ❌ No TFT support | ✅ Built-in touch UI |
-| Regulated environments | ❌ No audit trail | ❌ No user RBAC | ✅ Multi-user, audit logs |
-| Cold chain (−55 °C and below-freezing probes) | ⚠️ Basic readings | ✅ Basic monitoring | ✅ Calibrated multi-sensor |
+| Standalone with display | ⚠️ Manual coding | ❌ No TFT support | ✅ Built-in touch UI, or a 16×2 LCD |
+| Regulated environments | ❌ No audit trail | ❌ No user RBAC | ✅ 32 accounts, per-account panel PIN, signed audit trail |
+| Cold chain (probes down to −50 °C) | ⚠️ Basic readings | ✅ Basic monitoring | ✅ Calibrated multi-sensor, maintenance windows |
 | Offline operation | ✅ Yes | ❌ Often cloud-dependent | ✅ Full local web + display |
 | OTA updates | ❌ Manual reflash | ✅ OTA | ✅ OTA + backup/restore |
-| Security | ❌ None | ⚠️ Basic | ✅ HMAC-SHA256, RBAC, rate limiting, optional HTTPS |
+| Security | ❌ None | ⚠️ Basic | ✅ HMAC-SHA256, 13-bit RBAC, lockouts, optional HTTPS |
 | Home Assistant | ⚠️ Manual setup | ✅ Native | ✅ MQTT Discovery (opt-in) |
 | Prometheus metrics | ❌ None | ✅ Built-in | ✅ `/metrics` endpoint |
 | Remote audit log | ❌ None | ⚠️ Add-on | ✅ Syslog (RFC 5424 / UDP) |
 
 **SIMUT is for you if:** you need a standalone, secure, auditable temperature monitoring system that works with or without internet — typical in laboratories, pharmacies, blood banks, vaccine storage, and food cold chains.
 
-**ESPHome/Tasmota may be better if:** you don't need a local display and prefer YAML configuration over a built-in web UI. (If what kept you there was Home Assistant: SIMUT now speaks MQTT Discovery.)
+**ESPHome/Tasmota may be better if:** you don't need a local display and prefer YAML configuration over a built-in web UI. (If what kept you there was Home Assistant: SIMUT speaks MQTT Discovery.)
 
 ## Architecture
 
@@ -66,17 +98,18 @@ SIMUT is a professional-grade IoT firmware for the **Raspberry Pi Pico W** that 
 │  ┌──────────┴──────────────────────────────────────────┐ │
 │  │  Hardware Interfaces                                │ │
 │  │  ◆ SPI → ILI9341 TFT 320×240 + XPT2046 Touch        │ │
+│  │    (alpha: HD44780 16×2 LCD · Air: no display)      │ │
 │  │  ◆ GP0–GP15 → 16 universal sensor slots:            │ │
 │  │      DS18B20 (1-Wire) · DHT22 · BMP280/BME280 (I2C) │ │
-│  │  ◆ USB CDC → CLI Serial                             │ │
-│  │  ◆ WiFi (CYW43439) → HTTP Server + Telemetry        │ │
+│  │  ◆ USB CDC → serial console (+ Bluetooth: alpha/Air)│ │
+│  │  ◆ WiFi (CYW43439) → HTTP(S) server + telemetry     │ │
 │  └─────────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────┘
          │                   │                   │
     ┌────┴────┐          ┌───┴────┐         ┌────┴───────┐
     │ Sensors │          │ Web UI │         │  Telemetry │
-    │ DS18B20 │          │ Browser│         │  HTTP/MQTT │
-    │  DHT22  │          │ (RBAC) │         │    Server  │
+    │ DS18B20 │          │ Browser│         │ HTTP(S) /  │
+    │  DHT22  │          │ (RBAC) │         │  MQTT(S)   │
     │ BMx280  │          └────────┘         └────────────┘
     └─────────┘
 ```
@@ -96,63 +129,156 @@ SIMUT is a professional-grade IoT firmware for the **Raspberry Pi Pico W** that 
 | Component | Specification |
 |-----------|---------------|
 | MCU | Raspberry Pi Pico W (RP2040, dual-core) |
-| Display | ILI9341 320×240 TFT (SPI, DMA-driven) |
-| Touch | XPT2046 resistive touchscreen |
-| Sensors | **16 universal slots on GP0–GP15** — any mix of DS18B20 (1-Wire), DHT22, BMP280/BME280 (I2C, 2 pins) |
-| Buzzer | Passive piezo (PIO-driven) |
+| Display | `release`: ILI9341 320×240 TFT (SPI, DMA-driven) · `alpha`: HD44780 16×2 character LCD (4-bit) · `air`: none |
+| Touch | XPT2046 resistive touchscreen (`release`) |
+| Sensors | **16 universal slots on GP0–GP15** — any mix of DS18B20 (1-Wire), DHT22 and BMP280/BME280. A BMx280 is I²C and takes two pins; two of them can share a pair (0x76/0x77) |
+| Buzzer | Passive piezo (PIO-driven) — not on the Air |
 | Storage | 2 MB internal flash (1 MB firmware slot + 1 MB LittleFS) |
 
 See the **[Wiring Guide](docs/WIRING.md)** for the complete pinout and connection diagrams.
 
-> **SIMUT PCB — layout now available for download** — the KiCad board design (`.kicad_pcb`, `.kicad_sch`) lives in [`PCB_test/`](PCB_test/), and the ready-to-fab package (Gerbers + PTH/NPTH drills, no paste layers) is published as a public release: **[simut-pcb-v1.0 — `simut_pcb_fabrication.zip`](https://github.com/angeloINTJ/simut/releases/tag/simut-pcb-v1.0)**.
+> **SIMUT PCB — layout available for download** — the KiCad board design (`.kicad_pcb`, `.kicad_sch`) lives in [`PCB_test/`](PCB_test/), and the ready-to-fab package (Gerbers + PTH/NPTH drills, no paste layers) is published as a public release: **[simut-pcb-v1.0 — `simut_pcb_fabrication.zip`](https://github.com/angeloINTJ/simut/releases/tag/simut-pcb-v1.0)**.
 
 ## Key Features
 
-### Sensing
-- **16 universal sensor slots** — GP0–GP15, each slot accepts DS18B20, DHT22 or BMP280/BME280; type and pins assigned at runtime, no recompile
-- **Temperature, humidity and pressure** as first-class channels, per-sensor calibration offsets and multi-point calibration curves
-- **Zero-trust sensor pipeline** — ROM verification, hardware mismatch detection, error hysteresis
-- **Per-sensor alarms** — thresholds with buzzer melodies and visual TFT feedback
+### Sensing and alarms
+- **16 universal sensor slots** — GP0–GP15. Each slot takes a DS18B20, a DHT22 or a BMP280/BME280; a BMx280 is retyped automatically from its chip ID. Type and pins are assigned at runtime, with no recompile.
+- **Temperature, humidity and pressure** as first-class channels.
+- **Calibration** — per-sensor offsets and curves of up to 5 points per channel, linear or smooth.
+- **Zero-trust sensor pipeline:**
+  - DS18B20 ROM verification, with a swapped probe quarantined until the right one returns;
+  - error hysteresis: 3 failures to enter, 5 successes to leave;
+  - out-of-range readings rejected.
+- **Alarms on every channel:**
+  - low and high limits per channel;
+  - a fault alarm that fires even when a sensor's limits are off;
+  - a 120 s silence and a global mute;
+  - buzzer melodies and visual feedback on the display.
+- **Maintenance windows** — per sensor, up to 30 days, set from the panel or by a server. While one is open, alarms are suppressed, and the window's start and end are reported as `maint_on` / `maint_off`.
 
-### Display & UI
-- **320×240 ILI9341 TFT** — dashboard, bucketed history graphs with min/max band, statistics, calendar, touch-driven settings
-- **DMA rendering fast path** — canvas compositing at wire speed, zero tearing
-- **Fingertip password keyboard** — 8 group keys + popup, any of 91 characters in exactly two taps
-- **4 px safe area everywhere** — the screen-alignment offset (±4 px per axis) can never crop content
-- **Custom themes** loaded from LittleFS (up to 8, offline editor in `tools/theme-editor/`); compile-time theme packs available
-- **Sound system** — Touch / Confirmation / Error / Alarm / Attention classes with configurable melodies and volume
+### Touch panel (`release`)
+- **320×240 ILI9341 touch panel** — dashboard, history graphs with a min/max band, statistics, calendar, settings.
+- **Identity at the panel** — the operator picks an account, then types that account's PIN:
+  - 32 accounts, each with its own PIN;
+  - a configurable PIN policy: minimum length, 1–3 glyphs per key, digits or 0-9A-Z;
+  - a keypad that is re-dealt after every tap;
+  - a lockout per account: the sixth failure locks the account, and 20 failures in total lock the panel.
+- **Administration on the glass:**
+  - a Users item creates accounts and sets their permission bits and PINs;
+  - the 12 settings rows are filtered by what the account may do;
+  - Settings → 12 starts the setup access point.
+- **Top-panel gestures** — a tap toggles min/max, a 3 s hold pins the selection.
+- **DMA rendering fast path** — canvas compositing over 62.5 MHz SPI.
+- **4 px safe area everywhere** — the screen-alignment offset (±4 px per axis) can never crop content.
+- **Themes** — up to 8 loaded from LittleFS (11 ship in `data/themes/`); the editor in `tools/theme-editor/` previews on a live device.
+- **Sound system** — Touch, Confirmation, Error, Alarm and Attention classes, 6 melodies each, with separate system and alarm volumes.
 
-### Connectivity & Web
-- **Embedded web server** — multi-user sessions, RBAC (10 permission bits), file manager, live dashboard with a display-capture panel
-- **gzip-compressed WebUI** — minified inline pages, browser-cacheable, light & dark themes
-- **History graphs decimated in the browser** — the page downloads the raw binary day files and does min/max bucketing client-side; the device only serves bytes
-- **CSV export in the browser** — decoded from the same raw files by the page itself
-- **Telemetry** — HTTP POST and MQTT with JSON / CSV / custom payload templates, TLS support, adaptive batch sizing
+### Character LCD (`alpha`)
+- **Readings** — cycles every active slot and channel every 3 s, with big digits for temperature and humidity and an `S<n>` tag naming the slot.
+- **Setup access point** — shows the address, the SSID and the key, scrolling long values.
+- **Bluetooth console** — see the security note under [Environments](#environments).
+- **On `main`, not yet released** — with a single sensor, the bottom-left corner shows the pending telemetry count (`N`, or `Nk` from a thousand up), and the Wi-Fi icon fills left to right.
 
-### Time & Storage
-- **NTP time sync** — exponential backoff, multi-server fallback, virtual RTC seeded from history across reboots
-- **Compact binary history (V5)** — delta + anchor encoding at ~5.4 bytes/record ≈ 116 days of records in flash (11 channels at 1-minute cadence)
-- **LittleFS** — CRC32 dual-bank config, per-day history files, rotating compact log
+### Web interface
+- **11 pages** — gzip-compressed (zopfli) in flash, with light and dark themes that follow the system preference, a file manager, and multi-user sessions that expire after 15 minutes idle.
+- **Live panel mirror** (`release`) — the panel's current frame in the browser, 213 ms per frame. A click on it is a touch on the glass.
+- **Changes say what they cost** — three buttons:
+  - *Test*: applied, not saved;
+  - *Apply now*: saved, no reboot;
+  - *Save and restart*.
+
+  The device classifies each change with a dry run before the page offers them.
+- **Wi-Fi scan** — pick the network from a list, even from inside the setup access point.
+- **History graphs and CSV export in the browser** — the page downloads the raw binary day files, then decodes, buckets (min/max/mean) and exports them itself. The recent, unsealed hour comes from `/api/history/open`. The chart renderer is embedded — no CDN.
+- **HTTP API** — 61 routes. Each one is either gated by a permission or public by design, and CI checks it.
+
+### Telemetry and integrations
+- **Four transports** — HTTP, HTTPS, MQTT and MQTTS:
+  - payloads in JSON, CSV or a custom template;
+  - TLS 1.2 (ECDHE with AES-GCM), with the server certificate checked against an uploaded `/cert.pem`.
+- **Batching by quantity:**
+  - `t_int` is the minimum batch: the radio stays off until that many records wait (0 = off);
+  - `t_bat` is the maximum per request, a ceiling that free memory can lower;
+  - the batch size adapts to successes and failures, and the server's response time paces the next one.
+- **A second line for alarms:**
+  - alarm, fault and maintenance events travel in their own queue (32 by default, up to 64);
+  - each event leaves the queue only when the server acknowledges it (HTTP 2xx or an MQTT ack);
+  - each carries the name of the account that acted.
+- **Integrations** — Home Assistant MQTT Discovery (opt-in), Prometheus `/metrics` (session or HTTP Basic), and remote syslog (RFC 5424 over UDP).
+- **Fleet hooks:**
+  - `X-SIMUT-*` identity headers on uploads;
+  - on the `release` image, an mDNS `_simut._tcp` service with id, version, image and TLS in its TXT record;
+  - Bearer tokens and a configurable CORS origin.
+
+### Network and time
+- **Wi-Fi that reconnects itself:**
+  - a retry ladder: 5 s, doubling to 120 s, then dormancy and a new round;
+  - hidden SSIDs and signal-quality checks;
+  - static IP, two DNS servers, a custom NTP server or a manual clock, and a configurable web port.
+- **Setup access point:**
+  - named `<device name>_SETUP` — `simut_SETUP` from the factory;
+  - WPA2, with a per-device key shown on the USB console, the TFT boot screen and the alpha's LCD;
+  - a captive portal at `http://192.168.4.1`.
+
+  Five ways in:
+  - a unit with no network configured opens it by itself (not the Air);
+  - an automatic fallback opens it when the network is lost (not the Air);
+  - Settings → 12 on the panel;
+  - the `ap` console command (USB, or Bluetooth on the alpha and the Air);
+  - a 3 s hold on the panel during boot.
+- **NTP** — the retry backoff grows from 20 s to 15 min, with a fallback to `pool.ntp.org`. Until NTP syncs, a provisional clock is seeded from the newest stored record.
+
+### Storage and history
+- **Compact binary history (V5)** — delta + anchor encoding at 5.38 bytes/record, about 116 days in the 1 MB filesystem (11 channels at a 1-minute cadence, measured on bench files on 2026-07-31):
+  - blocks of 60 records, each with its own CRC;
+  - the open block is saved after every record;
+  - past 86 % full, the oldest day is deleted.
+- **Configuration** — CRC32-checked, written to a temporary file and renamed, with a `.bak` fallback. Secrets are obfuscated at rest.
+- **Event log** — 2 × 800 records and 155 event codes:
+  - routine events are persisted on state changes, with an hourly heartbeat and a count of what was suppressed;
+  - security, configuration and fatal records are never filtered.
 
 ### Security
-- **Hardened authentication** — HMAC-SHA256 with per-user random salt, 5000 rounds
-- **Random admin password on factory reset** — 8 chars shown once on the TFT, never persisted
-- **Rate limiter** — 16-slot LRU with 15-min TTL, lockout-aware eviction, exponential backoff
-- **Path-traversal-safe uploads** — `..`, percent-encoding, control bytes and reserved chars blocked
-- **[SECURITY.md](SECURITY.md)** with threat model, rotation policy, and incident response
+- **Accounts and permissions:**
+  - 32 accounts, 13 permission bits;
+  - nobody can grant a bit they do not hold;
+  - backup, restore, OTA and certificate install require the full-admin mask.
+- **Passwords:**
+  - HMAC-SHA256, 5000 rounds, an 8-byte hardware-random salt per user and a board-bound pepper;
+  - a factory-fresh unit generates a random 8-character admin password, prints it once on the USB console and forces a change at the first login.
+- **Brute-force limits:**
+  - login lockout from 2 s to 300 s per client, with `429` once every lockout slot is taken;
+  - per-IP throttling on the heavy routes;
+  - the Bluetooth console has its own exponential lockout and stops advertising 5 minutes after boot.
+- **Sessions** — an `HttpOnly; SameSite=Strict` cookie (`Secure` over HTTPS), or a Bearer token.
+- **Uploads** — path traversal, percent-encoding, control bytes and reserved names are refused, and `/config` is out of the file manager's reach.
+- **Optional HTTPS** (`release`) — install the certificate pair with `POST /api/tls`. TLS 1.2, ECDHE with AES-GCM.
+- **Audits** — the audits of 2026-08-16, of v2.3.6-beta and of 2026-09-07 are closed. The last finding, V-09 (a restricted account could create one with more bits than it held), was fixed in v2.7.0, and both it and the 2026-09-07 fixes were verified on hardware. See **[SECURITY.md](SECURITY.md)**.
 
-### Resilience & Forensics
-- **Crash forensics** — black-box profiler with watchdog scratch-register autopsy on every boot
-- **Dual-core flash discipline** — Core 1 provably paused around every flash write (measured, not assumed)
-- **Watchdog discipline** — feeds around every LittleFS operation; slow HTTP clients cannot starve the loop
+### Resilience and forensics
+- **Crash autopsy on every boot** — the watchdog scratch registers name the stalled module on each core. Since v2.7.0, three more records also persist Core 1's module, the free heap and the uptime at the stall.
+- **Dual-core flash discipline** — Core 1 is paused around every flash write (measured, not assumed).
+- **Watchdog discipline** — the watchdog is fed around every filesystem operation, so slow HTTP clients cannot starve the loop.
 
-### OTA Updates
-- **OTA firmware update** — upload via web UI, applied in-place with config snapshot preservation (Wi-Fi, users and sensor slots survive)
-- **Backup & restore** — full LittleFS backup/restore with CRC32 integrity verification
-- **[Recovery guide](docs/RECOVERY.md)** — BOOTSEL and picotool paths for every failure mode
+### Updates, backup and recovery
+- **OTA from the web page:**
+  - admin only;
+  - the image is checked before it is committed (size, boot2 CRC, image variant) and again on the next boot;
+  - Wi-Fi, accounts and sensor slots are carried across, and the rest of the filesystem is reformatted, so the page downloads a backup first;
+  - the device is back in under a minute: 52–56 s in the v2.7.0 campaign.
+- **Backup & restore** — the whole filesystem in one file, CRC32-checked and bound to the chip.
+- **[Recovery guide](docs/RECOVERY.md)** — BOOTSEL, picotool and 1200 bps paths for every failure mode.
+
+### SIMUT Air (experimental)
+- **Two modes, no display, no buzzer:**
+  - **M0** is awake: web, console, Bluetooth and sensors;
+  - **M1** is the cycle: sleep on the RTC alarm, wake, read, write history, and sleep again.
+- **The radio only when it pays** — it comes up only when `t_int` records are waiting. A reading wake takes 9.31 s with a DS18B20, and with a 60 s interval the device is awake about 13 % of the time.
+- **Charger pin** — a charger-detect pin (GP17 by default) keeps it awake while powered.
+- **Full console** — the only published image with the full console.
 
 ### Internationalization
-- **3 interface languages** — English built-in; Portuguese and Spanish via external `.lng` language packs loaded from LittleFS at boot
+- **3 interface languages** — English built in; Portuguese (pt-BR) and Spanish (es-ES) come as `.lng` packs on the filesystem. A device runs English plus the one pack installed.
 
 ## Quick Start
 
@@ -175,7 +301,7 @@ pio run -e pico_w_release
 # Flash to Pico W (auto-reset via 1200 bps touch; BOOTSEL works too)
 pio run -e pico_w_release -t upload
 
-# First flash only: upload LittleFS data (language packs, favicon).
+# First flash only: upload LittleFS data (language packs, themes, favicon).
 # ⚠️ uploadfs REFORMATS the LittleFS partition — on a device already in
 # service it destroys history, config and calibration. Never run it again
 # after the device has data; language packs can be uploaded later from the
@@ -183,37 +309,47 @@ pio run -e pico_w_release -t upload
 pio run -e pico_w_release -t uploadfs
 ```
 
-Prefer not to build? Every [release](https://github.com/angeloINTJ/simut/releases/latest) ships a ready `simut_vX.Y.Z.uf2` (drag-and-drop with BOOTSEL held), plus PlatformIO and Arduino IDE source bundles.
+Prefer not to build? Every [release](https://github.com/angeloINTJ/simut/releases/latest) ships `simut_vX.Y.Z_release.uf2`, `_alpha.uf2` and `_air.uf2` (drag-and-drop with BOOTSEL held), the matching `.bin` for over-the-air updates, and the pt-BR and es-ES language packs.
 
 ### First Boot
-1. The device boots to the dashboard and, on a factory-fresh unit, shows a **random 8-character admin password on the TFT** — write it down, it is never shown again.
-2. Configure Wi-Fi from the touch display's settings, **or** hold a finger on the screen for ~3 s during boot to start setup AP mode — the device broadcasts **`simut_SETUP`** for 15 minutes.
-3. Open the web interface at `http://simut.local` (mDNS) or the IP shown on the display, and log in as `admin` with the password from step 1. You will be asked to change it.
-4. Add sensors in **Config → Sensors & GPIO** (or watch them auto-appear with *Scan for probes*).
+1. **Capture the admin password.** A factory-fresh unit prints a random 8-character admin password **once on the USB serial console** (115200 baud). It is never stored in plain text. If you miss it, `system admin reset confirm` over USB prints a new one.
+2. **Join it to your network.** A unit with no network configured opens its setup access point by itself. The Air does not: type `ap` on its console instead.
+   - Join `<name>_SETUP` (`simut_SETUP` from the factory). It is WPA2, and its per-device key is printed on the USB console, the TFT boot screen and the alpha's LCD.
+   - The portal opens at `http://192.168.4.1`.
+
+   Without a screen, you can use the console instead: `system ssid <name>`, `system pass <secret>`, then `reload confirm`.
+3. **Open the web interface** at the address the device got — on the `release` image also `http://simut.local` — and log in as `admin` with the password from step 1. You will be asked to choose a new one.
+4. **Add sensors** in **Config → Sensors & GPIO**, or let *Scan for probes* find them.
+5. **On the touch panel**, Settings asks for an account and its PIN. The factory admin PIN is `1234`, and it must be changed on first use.
 
 ## Project Structure
 
 ```
 simut/
-├── src/                    # All firmware source
+├── src/                    # Firmware source (C++17)
 │   ├── main.cpp            # Entry point
-│   ├── AppManager*         # Application state machine
-│   ├── DisplayManager*     # TFT display, touch, themes (Core 1)
-│   ├── WebManager*         # Web server, API, OTA endpoints
-│   ├── StorageManager*     # LittleFS, config, history
+│   ├── AppManager*         # Application state machine, boot, alarms, Air cycle
+│   ├── DisplayManager*     # TFT panel and alpha LCD (Core 1), touch, themes
+│   ├── WebManager*         # Web server, HTTP API, sessions, OTA, TLS
+│   ├── StorageManager*     # LittleFS, config, accounts, history files
 │   ├── SensorManager*      # DS18B20 / DHT22 / BMx280 drivers
-│   ├── NetworkManager*     # WiFi, mDNS, AP setup mode
-│   ├── TelemetryManager*   # MQTT and HTTP telemetry
-│   ├── CommandManager*     # CLI parser
-│   ├── LogManager*         # Logging and crash forensics
-│   ├── history/            # V5 history codec
+│   ├── NetworkManager*     # Wi-Fi, reconnect ladder, setup AP, mDNS, NTP
+│   ├── TelemetryManager*   # HTTP(S)/MQTT(S) telemetry and the alarm line
+│   ├── CommandManager*     # Serial and Bluetooth console
+│   ├── LogManager*         # Event log and crash forensics
+│   ├── HistoryV5.*         # V5 history codec
+│   ├── air/                # SIMUT Air configuration
+│   ├── display/            # Keypads, fonts and labels shared by the displays
+│   ├── sensors/            # Channel table, calibration curves
+│   ├── ota/                # Update staging, validation and applier
 │   └── SystemDefs*.h       # System constants and limits
-├── data/                   # LittleFS assets (language packs, favicon)
+├── data/                   # LittleFS assets (language packs, themes, favicon)
 ├── PCB_test/               # KiCad PCB design + Gerber/DRL fabrication files
-├── test/                   # Native unit tests (Unity)
-├── tools/                  # screen_mapper, release scripts, theme editor…
+├── test/                   # Native unit tests (Unity), seven suites
+├── tools/                  # Build gates, bench suites, PicoHand, release scripts, theme editor
 ├── docs/                   # Documentation + GitHub Pages site
-├── WebUI.h                 # Web UI source (gzipped into WebUI_GZ.h at build)
+├── WebUI.h                 # Web UI source (gzipped into src/WebUI_GZ.h at build)
+├── AGENTS.md               # Bench manual: flashing, the Air, measuring (Portuguese)
 └── platformio.ini          # Build configuration
 ```
 
@@ -221,69 +357,135 @@ simut/
 
 ### Environments
 
-| Environment | Purpose |
-|-------------|---------|
-| `pico_w_release` | Production firmware — **the image releases ship** |
-| `pico_w_test` | Same firmware + full 56-command CLI for bench suites |
-| `pico_w_asserts` | Release + concurrency assertions |
-| `pico_w_alpha` | Headless build (16×2 char LCD, no TFT) |
-| `pico_w_air` | **Experimental** — SIMUT Air: headless, no buzzer, deep-sleep hibernation cycle (M0 operational / M1 wake-sample-send-sleep); see [`docs/analysis/SIMUT_AIR_ESBOCO.md`](docs/analysis/SIMUT_AIR_ESBOCO.md) and the fix plan [`SIMUT_AIR_PLANO_FIX.md`](docs/analysis/SIMUT_AIR_PLANO_FIX.md) |
-| the seven `native*` envs | Host-side unit tests |
-| `native_logpolicy` | Edge-triggered log-persistence filter (18 tests) |
-| `native_air` | SIMUT Air persistent config (`air/AirConfig.h`, 7 tests) |
+| Environment | Purpose | Published |
+|-------------|---------|:---:|
+| `pico_w_release` | Production image for the TFT panel: emergency console, HTTPS server, mDNS | ✅ `…_release` |
+| `pico_w_alpha` | 16×2 character LCD (HD44780), no touch; emergency console + Bluetooth console | ✅ `…_alpha` |
+| `pico_w_air` | **Experimental** — SIMUT Air: headless, no buzzer, hibernation cycle (M0 awake / M1 wake-read-send-sleep); full console + Bluetooth. See §17 of the [User Manual](docs/MANUAL.md) | ✅ `…_air` |
+| `pico_w_test` | Bench image: the full console for the test suites; no HTTPS, no mDNS | — |
+| `pico_w_test_https` | `pico_w_test` plus the HTTPS server, for TLS validation; three of its pages are served from LittleFS to fit | — |
+| `pico_w_asserts` | Release + concurrency assertions | — |
+| seven `native*` envs | Host-side unit tests — see [Testing](#testing) | — |
 
 > **Security note for `pico_w_alpha` and `pico_w_air`:** both compile the
-> Bluetooth SPP CLI in (`SIMUT_BLUETOOTH=1`), so on those two images it is
-> live attack surface — authenticated by the **admin web password**, with an
-> exponential lockout, a discovery window that closes 5 minutes after boot,
-> and recovery commands restricted to USB. The setup access point is WPA2 on
-> every image, with a per-device key shown on the console and the display.
-> See [SECURITY.md](SECURITY.md) §2 and §8.
+> Bluetooth SPP console in (`SIMUT_BLUETOOTH=1`), so on those two images it is
+> live attack surface. It is authenticated by the **admin web password**, with
+> an exponential lockout that survives a reconnect, and a discovery window that
+> closes 5 minutes after boot. Recovery commands are restricted to USB.
+>
+> The setup access point is WPA2 on every image, with a per-device key shown on
+> the console and, where there is one, on the display. See [SECURITY.md](SECURITY.md) §2 and §8.
 
-> There is no debug environment. `pico_w_debug` was removed in v2.4.1 after never once linking: at `-Og` the image overflowed the 1020 KB app slot by ~100 KB. Flash is tight — the release image used ~97 % of the slot when that decision was made, ~93 % since the v2.4.9-beta diet — so a GDB target has to be built by cutting features. For the concurrency tripwire on hardware, use `pico_w_asserts`.
+> There is no debug environment. `pico_w_debug` was removed in v2.4.1 after never once linking: at `-Og` the image overflowed the 1020 KB app slot by ~100 KB. Flash is tight. The release image uses 97.2 % of the 1,044,480 B program slot, and its `.bin` sits 13,196 B under the 1,040,384 B over-the-air ceiling. A GDB target would have to be built by cutting features. For the concurrency tripwire on hardware, use `pico_w_asserts`.
 
 ### Build Flags
 - `-Os` — optimize for size
-- `-Wall -Wextra` — elevated warnings
+- `-Wall -Wextra`, and `-Werror` on `src/` (third-party libraries are not held to it)
 - `-specs=nano.specs` — newlib-nano for smaller binary
+- `-DNDEBUG` on every image
 - LTO is disabled (toolchain limitation with earlephilhower Arduino-Pico)
+- The framework is pinned to arduino-pico 5.6.1 and patched by `tools/arduino_pico_overrides/patch.sh`
 
 ## Configuration
 
-### CLI
-A command-line interface is available via USB Serial (115200 baud).
+### Console (CLI)
+A serial console is available over USB (115200 baud), and over Bluetooth SPP on the alpha and the Air.
 
-- The **release image** ships a minimal 12-command emergency console: `show net status`, `show system info`, `show system log`, `debug on|off`, `system admin reset`, `system format`, `system factory`, `system https off`, `system ssid <name>`, `system pass <pass>`, `reload`, `help`. The Air image adds `air status|hibernate|stop|idle <sec>`.
-- The **`pico_w_test` image** ships the full Cisco-style CLI (56 commands, `enable` / `configure terminal` modes) — see the [CLI Manual](docs/CLI-Manual.md) (in Portuguese).
+- **The emergency console** runs on the `release` and `alpha` images. Its 14 commands:
+  - `show net status`, `show system info`, `show system log`
+  - `debug on|off`
+  - `system admin reset`, `system format`, `system factory`, `system https off`
+  - `system ssid <name>`, `system pass <secret>`, `system cors <origin|off>`
+  - `ap`, `reload`, `help`
 
-Day-to-day configuration is designed to happen on the touch display and the web UI, which are always full-featured.
+  Destructive commands ask for `confirm`, and the four recoveries (`system factory`, `system format`, `system admin reset`, `system https off`) are refused over Bluetooth.
+- **The full Cisco-style console** (`enable` / `configure terminal`) runs on the `air` image and the `pico_w_test` bench images — see the [CLI Manual](docs/CLI-Manual.md) (in Portuguese). The Air adds `air status | hibernate | stop | idle <sec> | charger <gpio|off>`.
+
+**Where configuration happens:**
+- **The web interface** is the day-to-day tool.
+- **The touch panel** covers what an operator needs at the device: themes, alarms, sounds, language, their own PIN, users, the PIN policy, touch calibration, display offset, status and the setup access point.
 
 ### Web API
-The device exposes a REST API at `http://<device-ip>/api/`. The full route table is in the [User Manual](docs/MANUAL.md).
+The device exposes a REST API at `http://<device-ip>/api/`:
+- **61 routes** — 51 gated by a permission, 10 public by design, 0 ungated, checked by `tools/check_authz.py` in CI;
+- the route table is in the [User Manual](docs/MANUAL.md);
+- [docs/AUTHORIZATION.md](docs/AUTHORIZATION.md) maps each route to its permission;
+- [docs/API_POST.md](docs/API_POST.md) documents the POST bodies.
 
 ## Testing
 
+### Host tests
+
 ```bash
-# Host-side unit tests
-pio test -e native            # validators, CRC, float conversion, time logic
-pio test -e native_history_v5 # V5 history codec (54 tests)
-pio test -e native_cli        # CLI parser
+pio test -e native             # validators, telemetry cursor, labels, parsers (185 cases)
+pio test -e native_history_v5  # V5 history codec (63)
+pio test -e native_cli         # CLI parser (31)
+pio test -e native_logpolicy   # edge-triggered log persistence (45)
+pio test -e native_alarmqueue  # alarm telemetry queue (39)
+pio test -e native_network     # Wi-Fi reconnect state machine (29)
+pio test -e native_air         # SIMUT Air persistent config (16)
 
 # V5 codec reference checks (Python vs C++, 20k random cases)
 python3 tools/check_history_v5_parity.py --cases 20000
 python3 tools/history_v5.py --selftest --trials 200000
 ```
 
+### Continuous integration
+
+Every push and pull request to `main` runs four jobs:
+- **gates** — the host suites plus these checks:
+  - secret scan, log-code tables, authorization matrix;
+  - licence consistency, filesystem guard, Air consistency;
+  - history day-merge tests.
+- **firmware** — all six images, built from a cold cache:
+  - each is checked against its flash budget and the over-the-air ceiling;
+  - the build itself enforces `-Werror` and the web UI, CLI help, log-code, channel-table and language-pack gates.
+- **fuzz** — 60 s of libFuzzer against the web-API validators, with contract oracles.
+- **static analysis** — cppcheck, at a pinned version.
+
+`main` is protected: eight of these checks must pass before anything merges.
+
+### Verification on hardware
+
+**The bench:**
+- a Pico W with the TFT panel and touch;
+- a second Pico, the *PicoHand*, which works the target's RESET and BOOTSEL lines, times its awake/asleep line and fakes a charger (see [AGENTS.md](AGENTS.md), in Portuguese);
+- bench suites in `tools/` for the web API, the panel, telemetry, OTA, Wi-Fi outages and the Air cycle.
+
+What has been measured on real hardware, latest first:
+
+| Date | What | Result |
+|---|---|---|
+| 2026-09-23 | Air clock across the sleep (`main`) | Stamps within −0.085 … +0.030 s over 10 wakes (v2.7.1 lost 0.8 s per wake); the NTP correction fell from 9–10 s to 0.08 s |
+| 2026-09-23 | Long telemetry queues on the Air (`main`) | 0 invalid bodies; 13,681 of 13,682 records delivered awake, 13,670 of 13,671 hibernating (v2.7.1: 68 of 69 bodies were invalid JSON) |
+| 2026-09-22 | v2.7.0 soak | 8.18 h, 0 reboots; the largest free heap block moved −42 B |
+| 2026-09-22 | v2.7.0 over-the-air updates | 6 of 6 applied; 57 files restored, 0 records missing |
+| 2026-09-22 | Setup access point (v2.7.1) | A client joins in 4.1 s, on `release` and on `alpha` with Bluetooth live, also with a randomised MAC. The automatic fallback opens after 6–7 min without a network |
+| 2026-09-22 | V-09 fix | 10 of 10 verdicts, with positive controls |
+| 2026-09-21 | Collector down for 3 h 58 min | 237 records queued, 0 reboots; drained in one round with 0 missing, plus 25 alarm-line records |
+| 2026-09-21 | Web suites | 67/67 as admin, 87/87 as a restricted account; 500 flash-writing commits, 0 reboots |
+| 2026-09-21 | Wi-Fi scan | 18 of 18, 0.94 s per sweep, also from inside the access point |
+| 2026-09-20 | Panel accounts, PINs and policy | 32/32 |
+| 2026-09-19 | Panel mirror | 613 → 213 ms per frame; pixel-exact against the framebuffer (0 of 76,800 differ) |
+| 2026-09-11 | Power cut during an update | Only the ~25 s apply window leaves the device needing BOOTSEL |
+| 2026-08-10 | History across resets | 10 of 10 hardware resets and 10 of 10 reboots lost 0 records |
+
+The 16×2 LCD is the one output not validated on glass. The bench has no HD44780, so host tests check what it is handed.
+
 ## Documentation
 
 | Document | Description |
 |----------|-------------|
-| [User Manual](docs/MANUAL.md) | Hardware setup, display/web/CLI guide, OTA, API reference, troubleshooting |
-| [Manual do Usuário (pt-BR)](docs/MANUAL.pt-BR.html) | Illustrated product manual with real screenshots — **depicts v2.1.10**; see [MANUAL.md](docs/MANUAL.md) for what the firmware does now |
+| [User Manual](docs/MANUAL.md) | Hardware setup, display/web/console guide, OTA, API reference, troubleshooting — kept current |
+| [Manual do Usuário (pt-BR)](docs/MANUAL.pt-BR.md) | The same manual, in Portuguese |
+| [Illustrated manual (pt-BR)](docs/MANUAL.pt-BR.html) | Product manual with real screenshots — **depicts v2.1.10**; the manuals above describe what the firmware does now |
 | [Wiring Guide](docs/WIRING.md) | Complete pinout and connection diagrams |
+| [Over-the-air updates](docs/OTA_USAGE.md) | Updating from the web page, and what survives it |
 | [Recovery Guide](docs/RECOVERY.md) | Brick recovery — BOOTSEL, picotool, 1200 bps reset |
-| [CLI Manual](docs/CLI-Manual.md) | Full command reference for the `pico_w_test` console (in Portuguese) |
+| [CLI Manual](docs/CLI-Manual.md) | Full console reference, the Air's included (in Portuguese) |
+| [Authorization matrix](docs/AUTHORIZATION.md) | Every HTTP route and the permission it requires |
 | [Security Policy](SECURITY.md) | Threat model, credential handling, incident response |
+| [Documentation index](docs/README.md) | Which documents are kept current and which are snapshots |
 | [Changelog](CHANGELOG.md) | Version history and feature changes |
 
 ## Contributing
