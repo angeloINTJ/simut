@@ -145,6 +145,7 @@ DisplayManager::DisplayManager( ) {
 	_sharedState.topSlotTemp = NAN; _sharedState.topSlotValid = false;
 	_sharedState.selectedSlotIdx = 0;
 	_sharedState.wifiRssi = -100;
+	_sharedState.pendingPkts = 0;   /* heap object: nothing zeroes it but this */
 	_sharedState.btActive = false;
 	_sharedState.isBooting = true;
 	_sharedState.showSkipButton = false;

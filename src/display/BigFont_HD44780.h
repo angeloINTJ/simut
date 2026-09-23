@@ -28,14 +28,22 @@ const uint8_t BF_LR[8]  = { 0b11111, 0b11111, 0b11111, 0b11111, 0b11111, 0b11111
 const uint8_t BF_UMB[8] = { 0b11111, 0b11111, 0b00000, 0b00000, 0b00000, 0b00000, 0b11111, 0b11111 };
 const uint8_t BF_GR[8]  = { 0b01100, 0b10010, 0b10010, 0b01100, 0b00000, 0b00000, 0b00000, 0b00000 };
 
-/* WiFi signal-strength icons (slot 7) — right triangle, right-angle
-   at bottom-right, flipped horizontally.  2px up-shift to align with 'W'.
-   Each level adds one row from bottom up.                              */
+/* WiFi signal-strength icons (slot 7) — a staircase of five one-pixel bars,
+   each a pixel taller than the one on its left, bottom-aligned.  2px up-shift
+   to align with 'W'. Level 0 is an X.
+
+   Each level lights one more BAR, left to right: level 3 is the three short
+   bars on the left at their own heights and nothing to their right. That is
+   how the TFT top bar reads (DisplayManager_Dashboard.cpp, four bars lit from
+   the left), and it is what a signal icon means to anyone holding a phone.
+   Up to 2.7.1 each level lit one more ROW from the bottom up instead, so a
+   weak signal was a flat line across the whole cell — full width, which reads
+   as "full" — and the icon grew upward, not outward.                     */
 const uint8_t BF_WIFI0[8] = { 0b00000, 0b10001, 0b01010, 0b00100, 0b01010, 0b10001, 0b00000, 0b00000 };
-const uint8_t BF_WIFI1[8] = { 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b11111, 0b00000, 0b00000 };
-const uint8_t BF_WIFI2[8] = { 0b00000, 0b00000, 0b00000, 0b00000, 0b01111, 0b11111, 0b00000, 0b00000 };
-const uint8_t BF_WIFI3[8] = { 0b00000, 0b00000, 0b00000, 0b00111, 0b01111, 0b11111, 0b00000, 0b00000 };
-const uint8_t BF_WIFI4[8] = { 0b00000, 0b00000, 0b00011, 0b00111, 0b01111, 0b11111, 0b00000, 0b00000 };
+const uint8_t BF_WIFI1[8] = { 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b10000, 0b00000, 0b00000 };
+const uint8_t BF_WIFI2[8] = { 0b00000, 0b00000, 0b00000, 0b00000, 0b01000, 0b11000, 0b00000, 0b00000 };
+const uint8_t BF_WIFI3[8] = { 0b00000, 0b00000, 0b00000, 0b00100, 0b01100, 0b11100, 0b00000, 0b00000 };
+const uint8_t BF_WIFI4[8] = { 0b00000, 0b00000, 0b00010, 0b00110, 0b01110, 0b11110, 0b00000, 0b00000 };
 const uint8_t BF_WIFI5[8] = { 0b00000, 0b00001, 0b00011, 0b00111, 0b01111, 0b11111, 0b00000, 0b00000 };
 
 enum BigFontSlot : uint8_t {

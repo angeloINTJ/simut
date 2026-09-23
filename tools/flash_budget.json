@@ -352,31 +352,45 @@
   "8,308, test_https 676, asserts 11,028, alpha 45,940, air 5,076 (unchanged).",
   "pico_w_test_https keeps warning, now 676 B from the ceiling: the next thing",
   "added to the panel builds has to take a fourth page out to LittleFS, as the",
-  "2026-09-20 note says."
+  "2026-09-20 note says.",
+  "2026-09-23 (feat/alpha-pending-wifi): +48 B on the alpha, +8 on release,",
+  "test, test_https and asserts, 0 on the air. No budget moves; 'measured' does,",
+  "to describe the images that exist. The alphanumeric display learns two things",
+  "the TFT top bar already did: the pending-telemetry count, on the three",
+  "columns of the second line no screen uses when there is a single sensor to",
+  "show, and a Wi-Fi icon that lights its bars left to right. The count's",
+  "format moved into display/PendingLabel.h so both displays print it from one",
+  "place - the +8 B on the panel images is that call and one line in the",
+  "DisplayManager constructor that zeroes the field (the object lives on the",
+  "heap, and nothing else initialised it).",
+  "Re-measured after fix/air-clock-carry merged (main at 15feed0): the same",
+  "+48 / +8 / 0 on top of it. Real .bin slack under the 1,040,384 B OTA ceiling:",
+  "release 13,196, test 8,300, test_https 668, asserts 11,020, alpha 45,940,",
+  "air 5,076."
  ],
  "ceiling": 1044480,
  "measured_on": "2026-09-23",
- "measured_at_commit": "fix/air-clock-carry (the Air's clock across the sleep, whole records in the telemetry payload)",
+ "measured_at_commit": "feat/alpha-pending-wifi on main 15feed0 (pending count and left-to-right Wi-Fi on the 16x2)",
  "envs": {
   "pico_w_release": {
    "budget": 1015564,
-   "measured": 1015148
+   "measured": 1015156
   },
   "pico_w_test": {
    "budget": 1020420,
-   "measured": 1020044
+   "measured": 1020052
   },
   "pico_w_test_https": {
    "budget": 1028044,
-   "measured": 1027676
+   "measured": 1027684
   },
   "pico_w_asserts": {
    "budget": 1017740,
-   "measured": 1017324
+   "measured": 1017332
   },
   "pico_w_alpha": {
    "budget": 983396,
-   "measured": 981580
+   "measured": 981628
   },
   "pico_w_air": {
    "budget": 1022184,

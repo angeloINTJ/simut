@@ -3,6 +3,7 @@
 #include "display/HD44780_16x2.h"
 #include "display/BigFont_HD44780.h"
 #include "display/AlphaMarquee.h"
+#include "display/PendingLabel.h"
 #include "sensors/SensorHelpers.h"
 #include <LittleFS.h>
 #include <string.h>
@@ -294,12 +295,22 @@ void DisplayManager::loopCore1( ) {
 				/* No active sensors — show big ERRO. */
 				_big.showError(_lcd);
 			} else {
-				/* Identification on line 1, col 0 when >1 slot is active. */
+				/* Line 1, columns 0-2: the only cells no screen below draws on
+				 * (the big digits start at column 3 or 4, "ERRO" at 3). With
+				 * more than one slot they say which slot is on screen; with one
+				 * there is nothing to identify, and they carry the pending
+				 * telemetry count instead, the way the TFT top bar does —
+				 * nothing when the queue is empty, "Nk" past a thousand. */
 				if (n > 1) {
 					char id[8];
 					snprintf(id, sizeof(id), "S%d", (int)_cycleSlot);
 					_lcd.setCursor(0, 1);
 					_lcd.print(id);
+				} else if (_sharedState.pendingPkts > 0) {
+					char pend[PENDING_LABEL_MAX];
+					pendingLabel(_sharedState.pendingPkts, pend, sizeof(pend));
+					_lcd.setCursor(0, 1);
+					_lcd.print(pend);
 				}
 
 				const SlotSnapshot &cs = snap[_cycleSlot];
@@ -510,7 +521,10 @@ void DisplayManager::showSettingsThemes(int){}
 void DisplayManager::updateSystemStatus(const SystemStatusData& d) {
 	_netStatus = d;
 }
-void DisplayManager::setTelemetryPending(uint16_t){}
+/* Same store as the TFT build: one aligned 16-bit write, read by Core 1. */
+void DisplayManager::setTelemetryPending(uint16_t count) {
+	_sharedState.pendingPkts = count;
+}
 void DisplayManager::showSettingsLicense( ){}
 const char* DisplayManager::getActiveLicenseText( ){return "";}
 void DisplayManager::loadTouchCalibration(const TouchCalData*){}

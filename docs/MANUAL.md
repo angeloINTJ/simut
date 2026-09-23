@@ -72,7 +72,12 @@ attached and how much of the time the device is awake.
 
 The alpha build cycles its sensor slots on the two lines of the LCD, shows boot
 progress as a bar, and carries a Bluetooth serial console because it has no
-touch panel to enter AP mode from. Its Bluetooth is discoverable for **five
+touch panel to enter AP mode from. The top-left corner is `W` and a signal icon
+whose bars fill left to right; with a single sensor, the bottom-left corner
+shows the telemetry records waiting to be sent, the way the TFT's top bar does
+— the number up to 999, whole thousands with a `k` after that, and nothing when
+the queue is empty. With more than one sensor that corner names the slot on
+screen instead (`S0`, `S3`…). Its Bluetooth is discoverable for **five
 minutes after boot** and no longer, so an unattended unit stops advertising
 itself; a phone that is already paired keeps connecting, and rebooting reopens
 the window to pair a new one.

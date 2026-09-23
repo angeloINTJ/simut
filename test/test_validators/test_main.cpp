@@ -31,6 +31,8 @@
 #include <cmath>      /* isnan, NAN para floatToI16 */
 #include "SystemDefs_Logging.h"  /* tagStringToId — B1/B2 */
 #include "sensors/SensorChannelTable.h" /* channel table integrity */
+#include "display/PendingLabel.h"    /* pending count as both displays print it */
+#include "display/BigFont_HD44780.h" /* the alpha LCD glyphs */
 #include "TelemetryCursor.h"  /* what the telemetry cursor may advance to */
 #include "sensors/CalibCurve.h"         /* calibration curve engine */
 #include "WebJsonSlice.h"               /* depth-aware JSON slicing */
@@ -3013,6 +3015,58 @@ static void test_alpha_marquee_blanks_nothing(void) {
     TEST_ASSERT_EQUAL_STRING("                ", out);
 }
 
+
+/* ── Pending count label (display/PendingLabel.h) ─────────────────────────
+ * The TFT top bar's format, now shared with the 16x2. The property that lets
+ * the alpha show it at all: nothing a uint16_t holds is wider than the three
+ * free columns of its second line. */
+static void test_pending_label_reads_like_the_top_bar(void) {
+    char b[PENDING_LABEL_MAX];
+    pendingLabel(1, b, sizeof(b));     TEST_ASSERT_EQUAL_STRING("1", b);
+    pendingLabel(999, b, sizeof(b));   TEST_ASSERT_EQUAL_STRING("999", b);
+    pendingLabel(1000, b, sizeof(b));  TEST_ASSERT_EQUAL_STRING("1k", b);
+    pendingLabel(1999, b, sizeof(b));  TEST_ASSERT_EQUAL_STRING("1k", b);   /* whole thousands */
+    pendingLabel(65535, b, sizeof(b)); TEST_ASSERT_EQUAL_STRING("65k", b);
+}
+
+static void test_pending_label_fits_three_columns(void) {
+    char b[16];
+    for (uint32_t n = 0; n <= 65535u; n++) {
+        pendingLabel((uint16_t)n, b, sizeof(b));
+        TEST_ASSERT_TRUE(strlen(b) <= 3);
+        TEST_ASSERT_TRUE(strlen(b) + 1 <= PENDING_LABEL_MAX);
+    }
+}
+
+/* ── Alpha Wi-Fi glyph (display/BigFont_HD44780.h) ────────────────────────
+ * Level L lights exactly the L bars on the LEFT, bar c at height c + 1,
+ * bottom-aligned on row 5 — the way the TFT's bars fill. Up to 2.7.1 level 1
+ * was the whole bottom row, which a reader takes for a full-width signal. */
+static int wifiBarHeight(const uint8_t* g, int col) {
+    const uint8_t bit = (uint8_t)(1u << (4 - col));
+    int h = 0;
+    for (int row = 5; row >= 0 && (g[row] & bit); row--) h++;
+    for (int row = 0; row < 8; row++) {          /* nothing lit off the bar */
+        const bool inBar = (row <= 5 && row > 5 - h);
+        if (!inBar) TEST_ASSERT_EQUAL_UINT8(0, g[row] & bit);
+    }
+    return h;
+}
+
+static void test_alpha_wifi_grows_left_to_right(void) {
+    const uint8_t* lv[6] = { BF_WIFI0, BF_WIFI1, BF_WIFI2, BF_WIFI3, BF_WIFI4, BF_WIFI5 };
+    for (int L = 1; L <= 5; L++) {
+        for (int c = 0; c < 5; c++) {
+            TEST_ASSERT_EQUAL_INT(c < L ? c + 1 : 0, wifiBarHeight(lv[L], c));
+        }
+        if (L >= 2) {                             /* each level holds the one before */
+            for (int row = 0; row < 8; row++) {
+                TEST_ASSERT_EQUAL_UINT8(lv[L - 1][row], (uint8_t)(lv[L][row] & lv[L - 1][row]));
+            }
+        }
+    }
+}
+
 /* ── Telemetry cursor (TelemetryCursor.h) ─────────────────────────────────
  * The cursor decides which stored records are never offered again, so every
  * case below is a record that would otherwise be lost or re-sent forever. */
@@ -3288,6 +3342,9 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_alpha_marquee_fills_exactly_at_the_width);
     RUN_TEST(test_alpha_marquee_scrolls_and_wraps_through_the_gap);
     RUN_TEST(test_alpha_marquee_blanks_nothing);
+    RUN_TEST(test_pending_label_reads_like_the_top_bar);
+    RUN_TEST(test_pending_label_fits_three_columns);
+    RUN_TEST(test_alpha_wifi_grows_left_to_right);
     RUN_TEST(test_tel_cursor_stops_at_what_the_payload_kept);
     RUN_TEST(test_tel_cursor_nothing_delivered_keeps_the_floor);
     RUN_TEST(test_tel_cursor_takes_the_newest_and_clamps_the_future);
