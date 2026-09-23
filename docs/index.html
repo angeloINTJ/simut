@@ -484,8 +484,8 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     <div class="hero-grid">
       <div>
         <p class="release-line">
-          <span class="tag tag-beta" data-i18n="tag.beta">Beta</span>
-          <span class="tag">v2.3.9-beta</span>
+          <span class="tag" data-i18n="tag.stable">Stable</span>
+          <span class="tag">v2.7.1</span>
           <span class="tag">MIT</span>
           <span class="tag">RP2040</span>
         </p>
@@ -528,12 +528,15 @@ footer > .shell { padding-block: 2.5rem 3rem; }
 
 <section class="caution">
   <div class="shell">
-    <h2 data-i18n="beta.title">Beta — read this before you rely on it</h2>
+    <h2 data-i18n="beta.title">Before you rely on it</h2>
     <ul>
       <li data-i18n="beta.1">
-        SIMUT is <strong>beta software</strong>. It is tested on real hardware, but it
-        is not a certified metrological instrument. Do not make it the only control
-        on regulated storage without validating it against your own reference.
+        SIMUT is <strong>stable since v2.7.0</strong>: the image published with it
+        ran an 8.18 h soak with no reboot and six over-the-air updates with nothing
+        lost. It is tested on real hardware, but it is not a certified metrological
+        instrument. Do not make it the only control on regulated storage without
+        validating it against your own reference. The Air build is still
+        experimental.
       </li>
       <li data-i18n="beta.2">
         <strong>Over-the-air updates work from v1.6.2-beta onward — and only from
@@ -544,7 +547,8 @@ footer > .shell { padding-block: 2.5rem 3rem; }
       <li data-i18n="beta.3">
         An update <strong>reformats the filesystem</strong>. Wi-Fi credentials, users
         and sensor slots are carried across automatically; language packs,
-        <code>calib.csv</code> and stored history are not. Download a backup first.
+        <code>calib.csv</code> and stored history are not. The update page downloads
+        a backup before it starts — restore it afterwards.
       </li>
       <li data-i18n="beta.4">
         There is <strong>no second firmware slot to roll back to</strong>. The image is
@@ -560,50 +564,50 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     <p class="eyebrow" data-i18n="new.eyebrow">This generation</p>
     <h2 data-i18n="new.h2">What changed recently</h2>
     <p class="lede" style="margin-bottom:2rem" data-i18n="new.lede">
-      The line grew a second and a third shape: a build with a character LCD, and one with no display at all that sleeps on a battery between readings. A full security audit was closed in the same stretch, and every number below was measured on real hardware.
+      The line left beta in September 2026, on measurements rather than a decision. Since then the panel learned who is in front of it, a server can edit alarms live, and the setup network became one you can actually join. Every number below was measured on real hardware.
     </p>
     <div class="releases">
       <article class="release">
-        <div><div class="ver">SIMUT Air</div><div class="date" data-i18n="new.d1">Sep 2026 · experimental</div></div>
+        <div><div class="ver">v2.7.0–v2.7.1</div><div class="date" data-i18n="new.d1">Sep 2026</div></div>
         <div>
-          <h3 data-i18n="new.t1">A build that spends its life asleep</h3>
+          <h3 data-i18n="new.t1">Out of beta, and a setup network you can join</h3>
           <p data-i18n="new.b1">
-            Same firmware, display compiled out, and a deep-sleep cycle in its
-            place: it wakes on a clock, reads its sensors, writes the reading to
-            flash and drops off the USB bus again. A reading wake measures
-            <strong>9.31 s against 51 s asleep</strong> — about 13% of the time
-            awake — and the radio only comes up once enough readings are queued to
-            be worth sending, which on the bench is one wake in eight.
+            v2.7.0 is the first stable release of the line: the published image ran
+            <strong>8.18 h with 0 reboots</strong> and <strong>6 of 6 over-the-air
+            updates</strong> with nothing lost, and it closed V-09 — an account could
+            create another with more permissions than it held. v2.7.1 made the setup
+            access point reachable: a phone joins it in <strong>4.1 s</strong>, it
+            opens by itself on a device with no network or one that lost its own, and
+            the alpha's LCD now shows its name and key.
           </p>
         </div>
       </article>
       <article class="release">
-        <div><div class="ver" data-i18n="new.v2">The wake</div><div class="date" data-i18n="new.d2">Sep 2026</div></div>
+        <div><div class="ver">v2.5–v2.6</div><div class="date" data-i18n="new.d2">Sep 2026</div></div>
         <div>
-          <h3 data-i18n="new.t2">25.5 seconds of which 23 were not work</h3>
+          <h3 data-i18n="new.t2">Who is at the panel, and a panel in the browser</h3>
           <p data-i18n="new.b2">
-            Three loops in the boot polled things that were compile-time constants
-            in that image — a touch panel it does not have, a second core it never
-            launches — so each ran out its full timeout, every wake, one of them
-            spinning at full core current for 1.5 s. And the sensor sat idle
-            between conversions because its rate limit was written for a display
-            refreshing once a second. <strong>25.5 s → 9.31 s</strong>, measured
-            marker by marker and confirmed by a probe that touches nothing.
+            Up to <strong>32 accounts</strong>, each with its own PIN: the operator
+            picks the account, then types a PIN on a keypad dealt again after every
+            tap, and every alarm action is signed with the account's name. The panel
+            shows up live in the browser — <strong>213 ms a frame</strong>, and a click
+            is a touch. A server can edit alarm limits and open maintenance windows
+            without a reboot, and the network page lists the Wi-Fi networks in range,
+            even from inside the setup access point.
           </p>
         </div>
       </article>
       <article class="release">
-        <div><div class="ver">v2.3.5–v2.3.9</div><div class="date" data-i18n="new.d3">Aug–Sep 2026</div></div>
+        <div><div class="ver" data-i18n="new.v3">On main</div><div class="date" data-i18n="new.d3">next release</div></div>
         <div>
-          <h3 data-i18n="new.t3">A cheaper board, and a closed audit</h3>
+          <h3 data-i18n="new.t3">The Air keeps time, and long queues arrive whole</h3>
           <p data-i18n="new.b3">
-            The alpha build drives a 16×2 character LCD instead of the TFT, cycling
-            slots on two lines, and carries a Bluetooth console because it has no
-            touch panel to start AP mode from. Alongside it, a security audit
-            closed: the setup access point is <strong>WPA2 with a per-device
-            key</strong>, Bluetooth stops advertising five minutes after boot, the
-            radio console got the same exponential lockout as the web login, and
-            the four recovery commands are refused over anything but a cable.
+            Reported from a battery Air: the device woke on time, but the clock it
+            stamped readings with lost 0.8 s a wake, and a long telemetry queue went
+            out as invalid JSON. The clock now crosses the sleep with it —
+            <strong>within ±0.09 s</strong> over ten wakes — and payloads are built
+            one whole record at a time: <strong>13,681 of 13,682</strong> records
+            delivered, where 68 of 69 bodies used to arrive broken.
           </p>
         </div>
       </article>
@@ -906,7 +910,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'nav.status': 'Números', 'nav.new': 'Novidades', 'nav.caps': 'Recursos',
     'nav.screens': 'Telas', 'nav.direction': 'Direção', 'nav.hardware': 'Hardware',
     'nav.start': 'Começar', 'nav.docs': 'Documentação',
-    'tag.beta': 'Beta',
+    'tag.stable': 'Estável',
     'hero.h1': 'Monitoramento de temperatura que não responde à nuvem de ninguém.',
     'hero.lede': 'Firmware de código aberto para o Raspberry Pi Pico W. Ele lê até dezesseis sensores, desenha as leituras num display de toque, serve a própria interface web na sua rede local, mantém trilha de auditoria e se atualiza pelo ar — sem conta para criar e sem serviço do qual depender.',
     'hero.download': 'Baixar firmware', 'hero.manual': 'Ler o manual', 'hero.source': 'Código no GitHub',
@@ -915,25 +919,23 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'ro.slots': 'Slots de sensor', 'ro.types': 'Tipos de sensor', 'ro.cores': 'Núcleos usados',
     'ro.ota': 'Atualizações OTA verificadas', 'ro.down': 'Indisponibilidade por atualização',
     'ro.cloud': 'Dependências de nuvem',
-    'beta.title': 'Beta — leia isto antes de depender dele',
-    'beta.1': 'O SIMUT é <strong>software beta</strong>. Ele é testado em hardware real, mas não é um instrumento metrológico certificado. Não faça dele o único controle de um armazenamento regulado sem validá-lo contra a sua própria referência.',
+    'beta.title': 'Antes de depender dele',
+    'beta.1': 'O SIMUT é <strong>estável desde a v2.7.0</strong>: a imagem publicada com ela passou por um soak de 8,18 h sem nenhum reboot e por seis atualizações pelo ar sem perder nada. Ele é testado em hardware real, mas não é um instrumento metrológico certificado. Não faça dele o único controle de um armazenamento regulado sem validá-lo contra a sua própria referência. O build Air continua experimental.',
     'beta.2': '<strong>Atualizações pelo ar funcionam da v1.6.2-beta em diante — e só de lá.</strong> Toda versão anterior levava um aplicador que reportava sucesso e não mudava nada, então não existe caminho pelo ar até esta release. Grave por USB uma vez; depois disso as atualizações funcionam normalmente.',
-    'beta.3': 'Uma atualização <strong>reformata o sistema de arquivos</strong>. Credenciais de Wi-Fi, usuários e slots de sensor são preservados automaticamente; pacotes de idioma, <code>calib.csv</code> e o histórico gravado não. Baixe um backup antes.',
+    'beta.3': 'Uma atualização <strong>reformata o sistema de arquivos</strong>. Credenciais de Wi-Fi, usuários e slots de sensor são preservados automaticamente; pacotes de idioma, <code>calib.csv</code> e o histórico gravado não. A página de atualização baixa um backup antes de começar — restaure-o depois.',
     'beta.4': '<strong>Não há um segundo slot de firmware para reverter</strong>. A imagem é checada antes de ser efetivada e verificada de novo no boot seguinte, mas a recuperação de uma gravação ruim é o botão BOOTSEL e um cabo USB.',
     'new.eyebrow': 'Esta geração', 'new.h2': 'O que mudou recentemente',
-    'new.lede': 'Vinte e duas releases em seis dias levaram a linha da 2.2.0 à 2.3.2 — o servidor web aprendeu HTTPS, o aparelho aprendeu a falar Prometheus, Home Assistant e syslog, e cada release foi verificada em hardware real.',
-    'new.d1': '21 ago 2026', 'new.d2': '19–20 ago 2026', 'new.d3': '19 ago 2026',
-    'new.lede': 'A linha ganhou uma segunda e uma terceira forma: um build com LCD de caracteres, e um sem display nenhum, que dorme com bateria entre as leituras. Uma auditoria de segurança inteira foi fechada no mesmo trecho, e cada número abaixo foi medido em hardware real.',
-    'new.d1': 'set 2026 · experimental',
+    'new.lede': 'A linha saiu do beta em setembro de 2026, por medições e não por decisão. Desde então o painel aprendeu quem está na frente dele, um servidor pode editar alarmes ao vivo, e a rede de configuração virou uma em que dá para entrar de verdade. Todo número abaixo foi medido em hardware real.',
+    'new.d1': 'set 2026',
     'new.d2': 'set 2026',
-    'new.d3': 'ago–set 2026',
-    'new.v2': 'O wake',
-    'new.t1': 'Um build que passa a vida dormindo',
-    'new.b1': 'Mesmo firmware, display compilado fora, e um ciclo de deep sleep no lugar: ele acorda no relógio, lê os sensores, grava a leitura na flash e some do barramento USB de novo. Um wake de leitura mede <strong>9,31 s contra 51 s dormindo</strong> — cerca de 13% do tempo acordado — e o rádio só sobe quando há leituras suficientes na fila para valer o envio, o que na bancada é um wake em cada oito.',
-    'new.t2': '25,5 segundos, dos quais 23 não eram trabalho',
-    'new.b2': 'Três laços do boot consultavam coisas que eram constantes de compilação naquela imagem — um painel touch que ele não tem, um segundo núcleo que ele nunca lança — então cada um gastava o timeout inteiro, a cada wake, e um deles em laço apertado a plena corrente por 1,5 s. E o sensor ficava ocioso entre conversões porque o limitador de taxa dele foi escrito para um display que atualiza uma vez por segundo. <strong>25,5 s → 9,31 s</strong>, medido marcador a marcador e confirmado por uma sonda que não toca em nada.',
-    'new.t3': 'Uma placa mais barata, e uma auditoria fechada',
-    'new.b3': 'O build alpha conduz um LCD de caracteres 16×2 no lugar do TFT, alternando slots em duas linhas, e carrega um console Bluetooth porque não tem painel touch por onde iniciar o modo AP. Junto dele, uma auditoria de segurança foi fechada: o ponto de acesso de configuração é <strong>WPA2 com chave por dispositivo</strong>, o Bluetooth para de se anunciar cinco minutos depois do boot, o console pelo rádio ganhou o mesmo lockout exponencial do login web, e os quatro comandos de recuperação são recusados por qualquer coisa que não seja um cabo.',
+    'new.v3': 'Na main',
+    'new.d3': 'próxima release',
+    'new.t1': 'Fora do beta, e uma rede de configuração em que dá para entrar',
+    'new.b1': 'A v2.7.0 é a primeira release estável da linha: a imagem publicada rodou <strong>8,18 h sem nenhum reboot</strong> e <strong>6 de 6 atualizações pelo ar</strong> sem perder nada, e fechou o V-09 — uma conta podia criar outra com mais permissões do que tinha. A v2.7.1 tornou o ponto de acesso de configuração alcançável: um celular entra nele em <strong>4,1 s</strong>, ele abre sozinho num aparelho sem rede ou que perdeu a sua, e o LCD do alpha agora mostra o nome e a chave.',
+    'new.t2': 'Quem está no painel, e um painel no navegador',
+    'new.b2': 'Até <strong>32 contas</strong>, cada uma com o seu PIN: o operador escolhe a conta e digita o PIN num teclado sorteado de novo a cada toque, e toda ação de alarme sai assinada com o nome da conta. O painel aparece ao vivo no navegador — <strong>213 ms por quadro</strong>, e um clique é um toque. Um servidor pode editar limites de alarme e abrir janelas de manutenção sem reiniciar, e a página de rede lista as redes Wi-Fi ao alcance, inclusive de dentro do ponto de acesso.',
+    'new.t3': 'O Air guarda a hora, e filas longas chegam inteiras',
+    'new.b3': 'Relatado num Air a bateria: o aparelho acordava na hora certa, mas o relógio que carimbava as leituras perdia 0,8 s por wake, e uma fila longa de telemetria saía como JSON inválido. Agora o relógio atravessa o sono junto — <strong>dentro de ±0,09 s</strong> em dez wakes — e o payload é montado um registro inteiro por vez: <strong>13.681 de 13.682</strong> registros entregues, onde antes 68 de 69 corpos chegavam quebrados.',
     'new.changelog': 'Changelog completo',
     'cap.eyebrow': 'Recursos', 'cap.h2': 'O que o firmware faz',
     'cap.lede': 'Tudo abaixo roda no dispositivo. Nada liga para casa.',
@@ -1039,7 +1041,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'nav.status': 'Cifras', 'nav.new': 'Novedades', 'nav.caps': 'Funciones',
     'nav.screens': 'Pantallas', 'nav.direction': 'Rumbo', 'nav.hardware': 'Hardware',
     'nav.start': 'Empezar', 'nav.docs': 'Documentación',
-    'tag.beta': 'Beta',
+    'tag.stable': 'Estable',
     'hero.h1': 'Monitorización de temperatura que no responde a la nube de nadie.',
     'hero.lede': 'Firmware de código abierto para la Raspberry Pi Pico W. Lee hasta dieciséis sensores, los dibuja en una pantalla táctil, sirve su propia interfaz web en tu red local, mantiene un registro de auditoría y se actualiza por aire — sin cuenta que crear y sin servicio del que depender.',
     'hero.download': 'Descargar firmware', 'hero.manual': 'Leer el manual', 'hero.source': 'Código en GitHub',
@@ -1048,25 +1050,23 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'ro.slots': 'Ranuras de sensor', 'ro.types': 'Tipos de sensor', 'ro.cores': 'Núcleos usados',
     'ro.ota': 'Actualizaciones OTA verificadas', 'ro.down': 'Indisponibilidad por actualización',
     'ro.cloud': 'Dependencias de nube',
-    'beta.title': 'Beta — lee esto antes de confiar en él',
-    'beta.1': 'SIMUT es <strong>software beta</strong>. Se prueba en hardware real, pero no es un instrumento metrológico certificado. No lo conviertas en el único control de un almacenamiento regulado sin validarlo contra tu propia referencia.',
+    'beta.title': 'Antes de confiar en él',
+    'beta.1': 'SIMUT es <strong>estable desde la v2.7.0</strong>: la imagen publicada con ella superó un soak de 8,18 h sin ningún reinicio y seis actualizaciones por aire sin perder nada. Se prueba en hardware real, pero no es un instrumento metrológico certificado. No lo conviertas en el único control de un almacenamiento regulado sin validarlo contra tu propia referencia. El build Air sigue siendo experimental.',
     'beta.2': '<strong>Las actualizaciones por aire funcionan desde la v1.6.2-beta en adelante — y solo desde ahí.</strong> Toda versión anterior llevaba un aplicador que informaba éxito y no cambiaba nada, así que no existe camino por aire hasta esta release. Grábala por USB una vez; después las actualizaciones funcionan con normalidad.',
-    'beta.3': 'Una actualización <strong>reformatea el sistema de archivos</strong>. Las credenciales de Wi-Fi, los usuarios y las ranuras de sensor se conservan automáticamente; los paquetes de idioma, <code>calib.csv</code> y el historial guardado no. Descarga una copia de seguridad antes.',
+    'beta.3': 'Una actualización <strong>reformatea el sistema de archivos</strong>. Las credenciales de Wi-Fi, los usuarios y las ranuras de sensor se conservan automáticamente; los paquetes de idioma, <code>calib.csv</code> y el historial guardado no. La página de actualización descarga una copia de seguridad antes de empezar — restáurala después.',
     'beta.4': '<strong>No hay una segunda ranura de firmware a la que volver</strong>. La imagen se comprueba antes de aplicarse y se verifica de nuevo en el siguiente arranque, pero la recuperación de una grabación defectuosa es el botón BOOTSEL y un cable USB.',
     'new.eyebrow': 'Esta generación', 'new.h2': 'Qué cambió recientemente',
-    'new.lede': 'Veintidós releases en seis días llevaron la línea de la 2.2.0 a la 2.3.2 — el servidor web aprendió HTTPS, el dispositivo aprendió a hablar Prometheus, Home Assistant y syslog, y cada release fue verificada en hardware real.',
-    'new.d1': '21 ago 2026', 'new.d2': '19–20 ago 2026', 'new.d3': '19 ago 2026',
-    'new.lede': 'La línea ganó una segunda y una tercera forma: un build con LCD de caracteres, y uno sin pantalla alguna, que duerme con batería entre lecturas. Una auditoría de seguridad completa se cerró en el mismo tramo, y cada número de abajo fue medido en hardware real.',
-    'new.d1': 'sep 2026 · experimental',
+    'new.lede': 'La línea salió de beta en septiembre de 2026, por mediciones y no por decisión. Desde entonces el panel aprendió quién está delante, un servidor puede editar las alarmas en vivo, y la red de configuración pasó a ser una a la que de verdad se puede entrar. Cada número de abajo se midió en hardware real.',
+    'new.d1': 'sep 2026',
     'new.d2': 'sep 2026',
-    'new.d3': 'ago–sep 2026',
-    'new.v2': 'El wake',
-    'new.t1': 'Un build que pasa la vida dormido',
-    'new.b1': 'El mismo firmware, la pantalla compilada fuera, y un ciclo de deep sleep en su lugar: despierta con el reloj, lee sus sensores, escribe la lectura en flash y desaparece del bus USB otra vez. Un despertar de lectura mide <strong>9,31 s contra 51 s dormido</strong> — cerca del 13% del tiempo despierto — y la radio solo se enciende cuando hay suficientes lecturas en cola para que valga la pena enviarlas, que en el banco es uno de cada ocho despertares.',
-    'new.t2': '25,5 segundos, de los cuales 23 no eran trabajo',
-    'new.b2': 'Tres bucles del arranque consultaban cosas que eran constantes de compilación en esa imagen — un panel táctil que no tiene, un segundo núcleo que nunca lanza — así que cada uno agotaba su timeout entero, en cada despertar, y uno de ellos girando a plena corriente durante 1,5 s. Y el sensor quedaba ocioso entre conversiones porque su limitador de tasa fue escrito para una pantalla que se refresca una vez por segundo. <strong>25,5 s → 9,31 s</strong>, medido marcador a marcador y confirmado por una sonda que no toca nada.',
-    'new.t3': 'Una placa más barata, y una auditoría cerrada',
-    'new.b3': 'El build alpha maneja un LCD de caracteres 16×2 en lugar del TFT, alternando slots en dos líneas, y lleva una consola Bluetooth porque no tiene panel táctil desde donde iniciar el modo AP. Junto a él se cerró una auditoría de seguridad: el punto de acceso de configuración es <strong>WPA2 con clave por dispositivo</strong>, el Bluetooth deja de anunciarse cinco minutos después del arranque, la consola por radio recibió el mismo bloqueo exponencial que el login web, y los cuatro comandos de recuperación se rechazan por cualquier vía que no sea un cable.',
+    'new.v3': 'En main',
+    'new.d3': 'próxima release',
+    'new.t1': 'Fuera de beta, y una red de configuración a la que se puede entrar',
+    'new.b1': 'La v2.7.0 es la primera release estable de la línea: la imagen publicada funcionó <strong>8,18 h sin ningún reinicio</strong> y superó <strong>6 de 6 actualizaciones por aire</strong> sin perder nada, y cerró el V-09 — una cuenta podía crear otra con más permisos de los que tenía. La v2.7.1 hizo alcanzable el punto de acceso de configuración: un móvil entra en <strong>4,1 s</strong>, se abre solo en un dispositivo sin red o que perdió la suya, y el LCD del alpha muestra ahora su nombre y su clave.',
+    'new.t2': 'Quién está en el panel, y un panel en el navegador',
+    'new.b2': 'Hasta <strong>32 cuentas</strong>, cada una con su PIN: el operador elige la cuenta y teclea el PIN en un teclado que se vuelve a barajar tras cada toque, y cada acción de alarma sale firmada con el nombre de la cuenta. El panel aparece en vivo en el navegador — <strong>213 ms por fotograma</strong>, y un clic es un toque. Un servidor puede editar los límites de alarma y abrir ventanas de mantenimiento sin reiniciar, y la página de red lista las redes Wi-Fi al alcance, incluso desde dentro del punto de acceso.',
+    'new.t3': 'El Air guarda la hora, y las colas largas llegan enteras',
+    'new.b3': 'Reportado desde un Air a batería: el dispositivo despertaba a su hora, pero el reloj con el que marcaba las lecturas perdía 0,8 s por despertar, y una cola larga de telemetría salía como JSON inválido. Ahora el reloj cruza el sueño con él — <strong>dentro de ±0,09 s</strong> en diez despertares — y el payload se construye un registro entero cada vez: <strong>13.681 de 13.682</strong> registros entregados, donde antes 68 de 69 cuerpos llegaban rotos.',
     'new.changelog': 'Changelog completo',
     'cap.eyebrow': 'Funciones', 'cap.h2': 'Qué hace el firmware',
     'cap.lede': 'Todo lo de abajo corre en el dispositivo. Nada llama a casa.',
