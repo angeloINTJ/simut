@@ -376,6 +376,19 @@ void AppManager::airLoop( ) {
    * and the wake slept without trying. isTimeSynced( ) must not gate it either
    * — the provisional clock stamps the records well enough, and a late stamp
    * beats a lost measurement. */
+  {
+   /* The clock this record is about to be stamped with, to the millisecond.
+    * A console that timestamps what it receives compares it against a real
+    * clock with nothing else in the way; the stamp itself keeps only whole
+    * seconds, and the day file is the wrong place to look for a drift that
+    * lives below one. */
+   uint32_t s = 0;
+   uint16_t ms = 0;
+   if (_netMgr->getEpochMs(s, ms)) {
+    Serial.printf("[AIR] clock=%lu.%03u %s\n", (unsigned long)s, (unsigned)ms,
+                  _netMgr->isTimeTrusted( ) ? "ntp" : "prov");
+   }
+  }
   processHistoryLogging( );
   _storageMgr->flushWipV5( );
 
@@ -606,6 +619,14 @@ void AppManager::airEnterDormant( ) {
 
   airRtcSetDatetime(&t);
 
+  /* The clock, read at the instant the RTC starts timing the sleep: the load
+   * above lands the first tick, and the alarm fires wakeSec ticks after it, so
+   * "this instant + the seconds the RTC reports at the wake" is when the wake
+   * begins. Handed to the next boot in scratch[6]/[7] (see AIR_CLOCK_MAGIC). */
+  uint32_t clkSec = 0;
+  uint16_t clkMs = 0;
+  const bool clkOk = _netMgr->getEpochMs(clkSec, clkMs);
+
   /* Arm the alarm relative to what the RTC ACTUALLY reads, not to the zero that
    * was just written to it.
    *
@@ -640,6 +661,8 @@ void AppManager::airEnterDormant( ) {
 
   /* M1-vs-M0 discriminator: survives the wake, zeroed on power cycle. */
   watchdog_hw->scratch[0] = AIR_DORMANT_MAGIC;
+  watchdog_hw->scratch[7] = clkOk ? clkSec : 0u;
+  watchdog_hw->scratch[6] = clkOk ? airClockPack(clkSec, clkMs) : 0u;
 
   /* The wake is an INTENTIONAL SYSRESETREQ, but the watchdog REASON register is
    * read-only and retains a TIMER bit set by any historical watchdog fire

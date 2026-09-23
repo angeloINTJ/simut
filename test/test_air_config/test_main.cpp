@@ -185,6 +185,63 @@ static void test_sleep_sec_bounded(void) {
     }
 }
 
+/* The clock carried across the sleep (scratch[6]/[7]). The tag has to refuse
+ * everything that is not the pair one sleep wrote: a register left at zero, a
+ * register holding a soft panic's payload, and a tag written beside different
+ * seconds — each of those, believed, would seed the clock with fiction. */
+static void test_clock_carry_roundtrip(void) {
+    const uint32_t sec = 1790157862u;
+    for (uint16_t ms = 0; ms <= 999; ms += 37) {
+        const uint32_t tag = airClockPack(sec, ms);
+        TEST_ASSERT_TRUE(airClockValid(tag, sec));
+        TEST_ASSERT_EQUAL_UINT16(ms, airClockMs(tag));
+    }
+    TEST_ASSERT_EQUAL_UINT16(999, airClockMs(airClockPack(sec, 1500)));  /* clamped, not wrapped */
+}
+
+static void test_clock_carry_refuses(void) {
+    const uint32_t sec = 1790157862u;
+    const uint32_t tag = airClockPack(sec, 250);
+    TEST_ASSERT_FALSE(airClockValid(0, 0));                    /* cold boot: zeroed registers */
+    TEST_ASSERT_FALSE(airClockValid(0, sec));
+    TEST_ASSERT_FALSE(airClockValid(tag, sec + 1));            /* tag beside other seconds */
+    TEST_ASSERT_FALSE(airClockValid(tag ^ 0x80000000u, sec));  /* magic damaged */
+    TEST_ASSERT_FALSE(airClockValid(airClockPack(12345u, 0), 12345u));  /* implausible epoch */
+    TEST_ASSERT_FALSE(airClockValid((tag & ~0x3FFu) | 1000u, sec));      /* ms out of range */
+    /* What a soft panic leaves there: (core<<24)|(mod0<<16)|(mod1<<8)|phase in
+     * scratch[6] and an elapsed count in scratch[7]. Never a clock. */
+    TEST_ASSERT_FALSE(airClockValid((1u << 24) | (9u << 16) | (8u << 8) | 3u, 15321u));
+}
+
+/* The arithmetic the wake seeds with. The carried instant is when the alarm was
+ * armed; the wake begins sleptSec later, and the seed is taken sinceMs into the
+ * boot. The first case is the bench cycle of 2026-09-23: armed at .600 of a
+ * second, 27 s asleep, seeded 1.3 s into the boot. */
+static void test_clock_carry_advance(void) {
+    uint32_t s = 0;
+    uint16_t m = 0;
+    airClockAdvance(1790157800u, 600, 27, 1300, s, m);
+    TEST_ASSERT_EQUAL_UINT32(1790157828u, s);
+    TEST_ASSERT_EQUAL_UINT16(900, m);
+    airClockAdvance(1790157800u, 999, 0, 1, s, m);             /* carry into the next second */
+    TEST_ASSERT_EQUAL_UINT32(1790157801u, s);
+    TEST_ASSERT_EQUAL_UINT16(0, m);
+    airClockAdvance(1790157800u, 0, 86399, 4000000u, s, m);    /* a day's sleep + a long boot */
+    TEST_ASSERT_EQUAL_UINT32(1790157800u + 86399u + 4000u, s);
+    TEST_ASSERT_EQUAL_UINT16(0, m);
+    /* The property that ends the drift: chaining wakes loses nothing. Ten
+     * cycles of 27 s asleep plus 32.777 s awake land exactly 597.770 s later —
+     * the old seed, whole seconds from a truncated stamp, lost up to two per
+     * cycle. */
+    uint32_t cs = 1790157800u;
+    uint16_t cm = 0;
+    for (int i = 0; i < 10; i++) {
+        airClockAdvance(cs, cm, 27, 32777u, cs, cm);
+    }
+    TEST_ASSERT_EQUAL_UINT32(1790157800u + 597u, cs);
+    TEST_ASSERT_EQUAL_UINT16(770, cm);
+}
+
 int main(void) {
     UNITY_BEGIN( );
     RUN_TEST(test_default_config);
@@ -200,5 +257,8 @@ int main(void) {
     RUN_TEST(test_sanitise_resets_denied_pin);
     RUN_TEST(test_idle_sec_bounds);
     RUN_TEST(test_sleep_sec_bounded);
+    RUN_TEST(test_clock_carry_roundtrip);
+    RUN_TEST(test_clock_carry_refuses);
+    RUN_TEST(test_clock_carry_advance);
     return UNITY_END( );
 }

@@ -767,7 +767,7 @@ um endpoint que você especifica.
 | Payload | JSON, CSV ou um template customizado |
 | Segurança | TLS suportado |
 | Disparo | Um lote mínimo: o aparelho transmite quando essa quantidade de registros está esperando (0 desliga a telemetria) |
-| Tamanho do envio | Um lote máximo: uma fila maior sai em lotes desse tamanho até acabar |
+| Tamanho do envio | Um lote máximo: uma fila maior sai em lotes de até esse tamanho até acabar |
 | Home Assistant Discovery | Somente MQTT, checkbox opt-in |
 | Syslog remoto | RFC 5424 sobre UDP, opt-in (veja abaixo) |
 
@@ -1363,6 +1363,12 @@ desligado até haver essa quantidade de registros esperando. O `t_bat` limita
 quantos vão num envio. Com `t_int=5` e uma leitura por minuto, sete de cada oito
 wakes não ligam o rádio — que é o ponto, já que o rádio é a coisa mais cara que
 um wake pode fazer.
+
+O `t_bat` é um teto, não uma promessa. Uma fila longa — um coletor que ficou
+uma hora fora, por exemplo — sai em lotes do tamanho que a memória livre
+permite, que pode ser menor que o `t_bat`: com `t_bat=250`, um Air acordado em
+M0 envia uns 190 por vez. Cada lote termina no último registro que coube
+inteiro, e o seguinte começa logo depois dele.
 
 ---
 

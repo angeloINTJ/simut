@@ -331,6 +331,28 @@
   "Also here: _menuItems was 10 entries against an 11-entry table since v25, so",
   "an account holding every bit wrote one past the end of it - shown on the rig",
   "as an admin menu with ten rows and no numbers.",
+  "2026-09-23 (fix/air-clock-carry): measured against main at a14e7aa.",
+  "'used' +824 B on release, test, test_https, asserts and alpha, +1,336 on",
+  "air. No budget moves: every environment is still under its own, the four",
+  "panel builds by 368..416 B. Two commits, measured apart:",
+  " - the Air's clock, +32 B everywhere and +544 on air. The sleep carries the",
+  "   clock of the instant its alarm was armed (scratch[6]/[7]) and the wake",
+  "   seeds the provisional clock from it to the millisecond. The shared 32 B",
+  "   are setProvisionalNow( ), which setProvisionalTime( ) now calls; the rest",
+  "   links only into the Air, the `[AIR] clock=` line the drift was measured",
+  "   with included.",
+  " - whole records in the telemetry payload, +792 B everywhere. appendWhole( )",
+  "   reserves a record, its separator and the bytes that close the payload",
+  "   BEFORE appending, in the JSON, CSV and template builders of both the batch",
+  "   and the alarm line, and the cursor rule moved to TelemetryCursor.h. It is",
+  "   the fix for invalid JSON bodies on a long queue - 68 of 69 on the Air in",
+  "   M0 - and every image carries it because every image builds these payloads.",
+  ".bin: +824 on the four panel builds, 0 on alpha and air (their padding took",
+  "it). Real .bin slack under the 1,040,384 B OTA ceiling: release 13,204, test",
+  "8,308, test_https 676, asserts 11,028, alpha 45,940, air 5,076 (unchanged).",
+  "pico_w_test_https keeps warning, now 676 B from the ceiling: the next thing",
+  "added to the panel builds has to take a fourth page out to LittleFS, as the",
+  "2026-09-20 note says.",
   "2026-09-23 (feat/alpha-pending-wifi): +48 B on the alpha, +8 on release,",
   "test, test_https and asserts, 0 on the air. No budget moves; 'measured' does,",
   "to describe the images that exist. The alphanumeric display learns two things",
@@ -340,35 +362,39 @@
   "format moved into display/PendingLabel.h so both displays print it from one",
   "place - the +8 B on the panel images is that call and one line in the",
   "DisplayManager constructor that zeroes the field (the object lives on the",
-  "heap, and nothing else initialised it)."
+  "heap, and nothing else initialised it).",
+  "Re-measured after fix/air-clock-carry merged (main at 15feed0): the same",
+  "+48 / +8 / 0 on top of it. Real .bin slack under the 1,040,384 B OTA ceiling:",
+  "release 13,196, test 8,300, test_https 668, asserts 11,020, alpha 45,940,",
+  "air 5,076."
  ],
  "ceiling": 1044480,
  "measured_on": "2026-09-23",
- "measured_at_commit": "feat/alpha-pending-wifi (pending count and left-to-right Wi-Fi on the 16x2)",
+ "measured_at_commit": "feat/alpha-pending-wifi on main 15feed0 (pending count and left-to-right Wi-Fi on the 16x2)",
  "envs": {
   "pico_w_release": {
    "budget": 1015564,
-   "measured": 1014332
+   "measured": 1015156
   },
   "pico_w_test": {
    "budget": 1020420,
-   "measured": 1019228
+   "measured": 1020052
   },
   "pico_w_test_https": {
    "budget": 1028044,
-   "measured": 1026860
+   "measured": 1027684
   },
   "pico_w_asserts": {
    "budget": 1017740,
-   "measured": 1016508
+   "measured": 1017332
   },
   "pico_w_alpha": {
    "budget": 983396,
-   "measured": 980804
+   "measured": 981628
   },
   "pico_w_air": {
    "budget": 1022184,
-   "measured": 1019616
+   "measured": 1020952
   }
  }
 }

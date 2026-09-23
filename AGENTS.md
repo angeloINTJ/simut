@@ -255,6 +255,11 @@ sem display, serial e BT são a única interface local.
 - **`t_int` é lote mínimo em registros, não tempo** (config v22; 0 desliga a
   telemetria). `t_bat` é o lote máximo por requisição. Migração v21→v22 converte
   o valor antigo; sem ela um `t_int=300000` viraria "300 mil pendentes".
+- **`t_bat` é teto, não promessa.** O heap corta antes: o payload para no
+  primeiro registro que não cabe inteiro, e o cursor anda só até o último que
+  foi no corpo. No Air em M0 (23/09), `t_bat=250` saiu em lotes de 190–192. Até
+  então o `String::concat( )` falhava calado no meio do registro — 68 de 69
+  corpos eram JSON inválido — e o cursor pulava o que o corte deixara fora.
 - **Telemetria desligada + Wi-Fi de pé = acordado para sempre.** Se o aparelho
   "não dorme", confira `t_int` antes de procurar outra causa.
 - **Quem causou o boot decide quanto o M0 dura.** Boot limpo (energia, RUN,
@@ -320,9 +325,21 @@ sem display, serial e BT são a única interface local.
   em flash do bloco aberto e não é apagado. Foi isso que levou o histórico de
   16,0 para 1,9 B/registro (07/09). Um bloco retomado carrega carimbos da sessão
   anterior; `shiftHistoryTimeV5` sela antes de corrigir, de propósito.
-- **O relógio provisório é semeado com o sono medido** (`scratch[1]`), não com
-  um palpite fixo. Nos wakes sem rádio não há NTP: o que esse relógio disser é o
-  que o histórico guarda.
+- **O relógio atravessa o sono.** Ao armar o alarme, `airEnterDormant( )` grava
+  o instante em `scratch[7]` (segundos) e `scratch[6]` (milissegundos, sob
+  `AIR_CLOCK_MAGIC` e com os 6 bits baixos dos segundos como conferência). O
+  wake soma a isso o sono que o RTC mediu (`scratch[1]`), `AIR_WAKE_BOOT_MS`
+  (140 ms de boot ROM + crt0, que o `millis( )` não vê) e o próprio `millis( )`,
+  e zera os dois registradores antes de armar o watchdog — nenhuma autópsia lê o
+  relógio. Nos wakes sem rádio não há NTP: o que esse relógio disser é o que o
+  histórico guarda. Medido em 23/09 contra um host com NTP, ciclo físico de
+  59,77 s: a semente antiga (último registro + sono, truncados ao segundo)
+  atrasava 0,8 s por wake e o NTP do wake de telemetria saltava +9–10 s de uma
+  vez — os intervalos gravados iam de 54 a 69 s, o "acorda antes, acorda
+  depois" relatado. Com o relógio carregado: erro entre −0,085 e +0,030 s em 10
+  wakes, sem acumular, e o NTP corrige 0,08 s. Sem carga válida (boot frio,
+  firmware anterior) volta a semente antiga; o boot do carregador usa a carga e
+  deixou de nascer 27 s adiantado.
 - **SSID ausente não alarga o wake**: `AIR_MAX_CONNECT_ATTEMPTS` (2); na prática
   só uma tentativa começa por wake (custa até 20 s num wake de ~28 s).
 - **O LED não é o indicador de acordado — o GP16 é.** `LED_BUILTIN` é um GPIO do
@@ -372,6 +389,11 @@ ficar na fila e executar vários inputs depois.
 - **Não meça o histórico pelo delta do arquivo do dia**: o bloco aberto vive no
   `.wip` e o arquivo dá +0 — indistinguível de "parou de gravar". Olhe os blocos
   selados (`h5_block_anchors`) e o `tel=` de pendentes.
+- **Deriva do relógio não se mede no histórico**: o carimbo guarda segundos
+  inteiros e um atraso de 0,8 s por wake aparece como um intervalo "errado" de
+  vez em quando, indistinguível de wake fora de hora. Meça pela linha
+  `[AIR] clock=<s>.<ms> prov|ntp` que o DECIDE imprime, contra o relógio de um
+  host com NTP.
 - **Passe sempre o nominal do aparelho ao decodificar um `.h5`**: o V5 guarda
   desvios do passo nominal, e o nominal errado reescreve todos os tempos
   interiores e fabrica rajadas e gaps que não existem.

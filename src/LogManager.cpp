@@ -663,6 +663,11 @@ void LogManager::setMinSerialLevel(LogLevel level) { _minSerialLevel = level; }
  * reserving an additional bitfield).
  * scratch[6] — SOFT PANIC payload: (deadCore<<24)|(mod0<<16)|(mod1<<8).
  * scratch[7] — SOFT PANIC payload: elapsed_ms since last heartbeat.
+ * scratch[6]/[7] also carry, between a SIMUT Air sleep and the top of the
+ * next setup( ), the clock of the instant the wake alarm was armed
+ * (AIR_CLOCK_MAGIC in air/AirConfig.h). That path writes the clean-reboot
+ * mark in scratch[5] and the wake zeroes both before its watchdog is armed,
+ * so no verdict below ever reads the clock.
  * ========================================================================= */
 
 /** @brief Set the currently executing module for crash forensics.

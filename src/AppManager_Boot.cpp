@@ -176,8 +176,18 @@ void AppManager::setup( ) {
     * without a send. Zero here after a power cycle simply means the first
     * telemetry waits a whole interval, which is the safe direction. */
    _airSkipWakes = airScratch1Wakes(watchdog_hw->scratch[1]);
+   /* And the clock that sleep carried, believed only beside a valid scratch[1]:
+    * both are written by the same sleep, and the tag must match the seconds. */
+   if (airClockValid(watchdog_hw->scratch[6], watchdog_hw->scratch[7])) {
+    _airClockSec = watchdog_hw->scratch[7];
+    _airClockMs = airClockMs(watchdog_hw->scratch[6]);
+   }
   }
   watchdog_hw->scratch[1] = 0;
+  /* Zeroed before the loop arms the watchdog, so no autopsy of this boot can
+   * read the clock as an uptime (scratch[6]) or a handler position (scratch[7]). */
+  watchdog_hw->scratch[6] = 0;
+  watchdog_hw->scratch[7] = 0;
  }
 #endif
 
@@ -877,17 +887,30 @@ void AppManager::setup( ) {
  uint32_t lastTs = _storageMgr->getLastRecordedTimestamp( );
 
 #if SIMUT_AIR
- /* An Air wake knows exactly how long it was asleep — the RTC measured it and
-  * scratch[1] carried it across the reset — so the provisional clock is seeded
-  * with that instead of the historical 60-second guess.
+ /* An Air wake knows what time it is: the sleep carried the clock of the
+  * instant its alarm was armed (scratch[6]/[7]) and the RTC measured the sleep
+  * that followed (scratch[1]). This matters more than on any other build: the
+  * radio comes up only every Nth wake, the records in between never see NTP,
+  * and whatever this clock says is what the history keeps.
   *
-  * This stops being a refinement the moment the radio is raised only every Nth
-  * wake: the records in between never see NTP, so whatever this clock says is
-  * what the history keeps. A fixed 60 would file every reading at the interval
-  * it assumed rather than the one that actually elapsed. The millis( ) term is
-  * the boot time already spent before this line, which the provisional clock
-  * only starts counting from here. */
- if (_airWokeFromSleep && _airSleptSec > 0) {
+  * The carried instant is used whenever it came, the charger boot included —
+  * that boot clears _airWokeFromSleep because its millis( ) will count operator
+  * time, not because it forgot the time of day, and the 60-second guess below
+  * started it 27 s fast on 2026-09-23. The millis( ) term is the part of this
+  * boot already run, and AIR_WAKE_BOOT_MS the part before millis( ) existed
+  * (boot ROM and crt0: measured 140 ms a wake, which the clock lost on every
+  * one of them until it was counted). */
+ if (_airClockSec) {
+  uint32_t nowSec = 0;
+  uint16_t nowMs = 0;
+  airClockAdvance(_airClockSec, _airClockMs, _airSleptSec,
+                  (uint32_t)AIR_WAKE_BOOT_MS + millis( ), nowSec, nowMs);
+  _netMgr->setProvisionalNow(nowSec, nowMs);
+ } else if (_airWokeFromSleep && _airSleptSec > 0) {
+  /* No clock carried — the sleep had no plausible epoch to give, or a
+   * firmware older than the carry wrote it: the newest record plus the sleep.
+   * Loses the tail of the previous wake and up to a second per wake to
+   * truncation — the drift the carry exists to end. */
   _netMgr->setProvisionalTime(lastTs, _airSleptSec + millis( ) / 1000UL);
  } else
 #endif

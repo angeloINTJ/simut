@@ -69,15 +69,6 @@ public:
  bool takeApFallback( ) { bool d = _apFallbackDue; _apFallbackDue = false; return d; }
 
 
- /** Seed the provisional clock from the last timestamp on flash.
-  *
-  * @param lastTs     epoch of the last record written.
-  * @param elapsedSec how much time is known to have passed since it. The 60 s
-  *        default is the historical guess, adequate only because a device that
-  *        boots normally reaches NTP within seconds. SIMUT Air passes the real
-  *        figure: with the radio raised once every N wakes, most records are
-  *        stamped by this clock and never corrected, so a fixed guess would
-  *        write the interval it assumed instead of the one that elapsed. */
  /** Announce the device over mDNS when the link comes up (default true).
   *
   * A SIMUT Air wake turns this off: nobody resolves a name for a device that is
@@ -96,7 +87,31 @@ public:
  void announceService( );
 #endif
 
+ /** Seed the provisional clock from the last timestamp on flash.
+  *
+  * @param lastTs     epoch of the last record written.
+  * @param elapsedSec how much time is known to have passed since it. The 60 s
+  *        default is the historical guess, adequate only because a device that
+  *        boots normally reaches NTP within seconds. A SIMUT Air wake that
+  *        carried no clock across its sleep passes the seconds the RTC slept
+  *        instead — see setProvisionalNow( ) for the path it normally takes. */
  void setProvisionalTime(uint32_t lastTs, uint32_t elapsedSec = 60);
+
+ /** Seed the provisional clock with an instant known to the millisecond:
+  * @p sec + @p ms is "now", at the moment of the call.
+  *
+  * The millisecond is what setProvisionalTime( ) cannot express. Seeding whole
+  * seconds throws away up to one on every call, and a SIMUT Air device seeds
+  * on every wake: that loss, plus the time the previous wake stayed up after
+  * its last record, is what drifted the stamps ~0.8 s per wake on 2026-09-23.
+  * Refuses an implausible epoch, like its sibling. */
+ void setProvisionalNow(uint32_t sec, uint16_t ms);
+
+ /** The clock in force, to the millisecond: real time once NTP (or a manual
+  * set) has landed, the provisional clock before that. False when neither
+  * holds a plausible epoch — nothing to carry. */
+ bool getEpochMs(uint32_t& sec, uint16_t& ms);
+
  void setTimeSyncCallback(TimeSyncCallback cb);
 
  /* Manual RTC set (via settimeofday) for when NTP

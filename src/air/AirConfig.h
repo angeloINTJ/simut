@@ -72,6 +72,66 @@ inline uint8_t airScratch1Wakes(uint32_t v) {
   return (uint8_t)((v >> AIR_WAKES_SHIFT) & AIR_WAKES_MAX);
 }
 
+/* scratch[7] + scratch[6] — the clock itself, carried across the sleep.
+ *
+ *   scratch[7]   epoch seconds at the moment the wake alarm was armed
+ *   scratch[6]   bits 31..16  AIR_CLOCK_MAGIC
+ *                bits 15..10  low six bits of scratch[7], so a tag is only
+ *                             believed next to the seconds it was written with
+ *                bits  9..0   milliseconds into that second (0..999)
+ *
+ * The provisional clock used to be rebuilt at every wake from the newest record
+ * on flash: lastTs + the seconds the RTC slept + millis( ) / 1000. That sum
+ * leaves out everything the previous wake did after stamping its record — a
+ * whole telemetry flush, on the wake that raised the radio — and truncates
+ * twice, once in the stamp and once in the millis term. Measured on the bench
+ * 2026-09-23 against the host clock: the stamps lost 0.75 to 0.85 s on every
+ * reading-only wake and 2.6 s on the wake after a flush, so ten wakes drifted
+ * about 9 s behind and the next NTP put it all back in one step. The history
+ * of that day reads 59, 59, 59 ... 69, 54 s between records while the probe
+ * timed a steady 59.8 s cycle — "wakes early, then late" in the operator's
+ * data, from a device that never missed a wake.
+ *
+ * Carrying the epoch (to the millisecond) from the instant the alarm is armed
+ * makes the wake's clock that instant plus what the RTC measured, and nothing
+ * is re-derived from a truncated stamp.
+ *
+ * Why these two registers: their other owners are forensic, and they cannot
+ * meet this one. scratch[6] is the uptime main.cpp writes on every loop pass
+ * and scratch[7] the web handlers' position trace (HPOS) or a soft panic's
+ * payload; the autopsy reads them only when scratch[5] says watchdog or panic.
+ * The sleep path writes the clean-reboot mark into scratch[5] and never returns
+ * to the loop, and the wake reads and zeroes both registers at the top of
+ * setup( ), before its watchdog is armed — so no verdict can see the clock,
+ * and a later one finds zeros, as it did before. */
+#define AIR_CLOCK_MAGIC      0xC10C0000u
+#define AIR_CLOCK_MAGIC_MASK 0xFFFF0000u
+#define AIR_CLOCK_EPOCH_MIN  1600000000u  /* the provisional clock's plausibility floor */
+
+inline uint32_t airClockPack(uint32_t sec, uint16_t ms) {
+  if (ms > 999) ms = 999;
+  return AIR_CLOCK_MAGIC | ((sec & 0x3Fu) << 10) | (uint32_t)ms;
+}
+
+inline bool airClockValid(uint32_t tag, uint32_t sec) {
+  if ((tag & AIR_CLOCK_MAGIC_MASK) != AIR_CLOCK_MAGIC) return false;
+  if (((tag >> 10) & 0x3Fu) != (sec & 0x3Fu)) return false;
+  if ((tag & 0x3FFu) > 999u) return false;
+  return sec > AIR_CLOCK_EPOCH_MIN;
+}
+
+inline uint16_t airClockMs(uint32_t tag) { return (uint16_t)(tag & 0x3FFu); }
+
+/* The carried instant moved forward by the sleep the RTC measured and by the
+ * time this boot has run since. 64-bit on purpose: epoch milliseconds passed
+ * 2^32 in 1970. */
+inline void airClockAdvance(uint32_t sec, uint16_t ms, uint32_t sleptSec, uint32_t sinceMs,
+                            uint32_t& outSec, uint16_t& outMs) {
+  const uint64_t t = (uint64_t)sec * 1000u + ms + (uint64_t)sleptSec * 1000u + sinceMs;
+  outSec = (uint32_t)(t / 1000u);
+  outMs  = (uint16_t)(t % 1000u);
+}
+
 struct __attribute__((packed)) AirConfig {
   uint32_t magic;
   uint16_t version;
