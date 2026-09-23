@@ -58,7 +58,9 @@ void loop( ) {
   * timestamp at all — which leaves "stalled after seven minutes of download
   * load" and "reset while idling during a firmware upload" reading identically.
   * Only Core 0 reaches here, and the soft-panic payload overwrites scratch[6]
-  * on its way out, so the two uses of the register cannot collide. */
+  * on its way out, so the two uses of the register cannot collide. Neither can
+  * the SIMUT Air clock carry: it is written on the way into sleep, which never
+  * comes back through this loop, and zeroed at the top of the next setup( ). */
  watchdog_hw->scratch[6] = millis( );
 #endif
 

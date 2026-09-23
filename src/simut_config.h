@@ -437,6 +437,19 @@
 // long instead degrades to "as fast as it can" and the log line says OVERRUN.
 #define AIR_MIN_SLEEP_SEC 5
 #endif
+#ifndef AIR_WAKE_BOOT_MS
+// The part of a wake that happens before millis( ) exists: from the RTC alarm
+// to the moment runtime_init releases the timer — boot ROM, boot2 and crt0
+// copying and zeroing ~120 KB of RAM on the ring oscillator, all uncounted.
+// The clock carried across the sleep (AIR_CLOCK_MAGIC) is "alarm instant +
+// millis( )", so without this term every wake started that much behind and
+// the provisional clock drifted by it. Measured on the bench 2026-09-23 (Air,
+// clock printed at DECIDE against an NTP-synced host): 117 to 182 ms per wake
+// over four wakes, mean 140. It depends on the image's RAM footprint and on
+// the ROSC, which varies by chip and temperature, so it is a calibration, not
+// a law: the telemetry wake's NTP still settles whatever it leaves.
+#define AIR_WAKE_BOOT_MS 140
+#endif
 #ifndef AIR_RESUME_GRACE_SEC
 // How long M0 waits before resuming a cycle that a reset interrupted (plan
 // F25). The hibernation marker is cleared on every boot on purpose, so a device
