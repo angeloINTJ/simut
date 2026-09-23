@@ -129,9 +129,14 @@ Pinagem completa e notas de montagem: [WIRING.md](WIRING.md).
    **uma única vez** na serial USB a 115200 baud. Anote — ela é guardada apenas
    como hash com salt, e nada a recupera depois exceto um reset.
 
-3. **Entre em uma rede.** Configure o Wi-Fi pelo display touch. O dispositivo
-   responde a mDNS, então é alcançável em `http://simut.local` além de pelo IP.
-   `show net status` na serial imprime o endereço, se você precisar.
+3. **Entre em uma rede.** Uma unidade sem rede configurada abre sozinha o
+   ponto de acesso de configuração — `<nome>_SETUP`, WPA2, com a chave impressa
+   no console USB e no display (§14) — e o portal em `http://192.168.4.1`
+   recebe o nome e a senha da rede. O Air não abre sozinho: digite `ap` no
+   console dele. Pela USB, `system ssid` e `system pass` fazem o mesmo. A
+   imagem release responde a mDNS, então é alcançável em `http://simut.local`
+   além de pelo IP. `show net status` na serial imprime o endereço, se você
+   precisar.
 
    > O mDNS vem ligado e custa 15.272 B de flash — medido, linkando a imagem
    > das duas formas. Defina `SIMUT_MDNS=0` em `src/simut_config.h` para
@@ -1147,9 +1152,9 @@ v2.7.1 a janela roda com o painel desenhando, então **o que está escrito na te
 | Slots de sensor | 16 (GPIO0–GPIO15) |
 | Canais por sensor | 4 (temperatura, umidade, pressão, lux) |
 | Pinos por sensor | até 4 |
-| Contas de usuário | 5 |
+| Contas de usuário | 32 |
 | Sessões web simultâneas | 3 |
-| Bits de permissão | 10 |
+| Bits de permissão | 13 |
 | Janela de média | 10 amostras, média aparada |
 | Pontos do gráfico no TFT | 200 |
 | Intervalo do histórico | 1–1440 minutos, padrão 1 |

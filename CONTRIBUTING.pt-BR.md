@@ -105,7 +105,7 @@ Vai adicionar um novo driver de sensor? Siga o guia passo a passo em [docs/addin
 
 ## Orçamento de Flash
 
-A flash está criticamente apertada — ~97 % do slot de app de 1020 KB no env de release (o env `pico_w_test` roda a ~99 %). Antes de adicionar funcionalidades, considere:
+A flash está criticamente apertada. A imagem release usa 97,2 % do slot de programa de 1.044.480 B, e o `.bin` de toda imagem tem de ficar abaixo do teto de atualização pelo ar, de 1.040.384 B — o `pico_w_air` tem 5.076 B de sobra ali, e a imagem de bancada `pico_w_test_https`, 668 (23/09/2026, `tools/flash_budget.json`). Antes de adicionar funcionalidades, considere:
 
 1. Pode ser otimizada para usar menos espaço?
 2. Pode substituir algo de menor valor?
@@ -125,11 +125,14 @@ A flash está criticamente apertada — ~97 % do slot de app de 1020 KB no env d
 ## Testes
 
 - Testes unitários usam o framework [Unity](http://www.throwtheswitch.org/unity)
-- Cinco ambientes de teste estão disponíveis:
-  - `pio test -e native` — validadores (119 casos de teste: validação de IP, CRC8, codificação de float, etc.)
-  - `pio test -e native_history_v5` — testes de ida e volta do HistoryCodec
-  - `pio test -e native_cli` — testes do parser da CLI (tokenização e roteamento de comandos)
-  - `pio test -e native_logpolicy` — testes do filtro de persistência de logs edge-triggered (18 casos)
+- Sete ambientes nativos, todos rodados pelo CI:
+  - `pio test -e native` — validadores: validação de IP, CRC8, codificação de float, cursor de telemetria, rótulos
+  - `pio test -e native_history_v5` — ida e volta do codec do histórico V5
+  - `pio test -e native_cli` — parser da CLI (tokenização e roteamento de comandos)
+  - `pio test -e native_logpolicy` — filtro de persistência de logs por transição
+  - `pio test -e native_alarmqueue` — invariantes da fila de alarmes
+  - `pio test -e native_air` — configuração e limites do SIMUT Air
+  - `pio test -e native_network` — máquina de estados da reconexão Wi-Fi, contra um rádio controlável
 - Adicione testes para nova lógica de validação, encoding/decoding, mudanças de parser e caminhos críticos de segurança
 - Teste em hardware é obrigatório para mudanças em display, sensores, WiFi e OTA
 

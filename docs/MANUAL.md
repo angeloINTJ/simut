@@ -124,9 +124,14 @@ Full pinout and assembly notes: [WIRING.md](WIRING.md).
    **once** over USB serial at 115200 baud. Write it down — it is stored only
    as a salted hash, and nothing recovers it later except a reset.
 
-3. **Join a network.** Configure Wi-Fi from the touch display. The device
-   answers to mDNS, so it is reachable at `http://simut.local` as well as by
-   IP. `show net status` over serial prints the address if you need it.
+3. **Join a network.** A unit with no network configured opens its setup
+   access point by itself — `<name>_SETUP`, WPA2, with the key printed on the
+   USB console and on the display (§14) — and the portal at
+   `http://192.168.4.1` takes the network's name and password. The Air does
+   not open it by itself: type `ap` on its console. Over USB, `system ssid`
+   and `system pass` do the same job. The release image answers to mDNS, so it
+   is reachable at `http://simut.local` as well as by IP. `show net status`
+   over serial prints the address if you need it.
 
    > mDNS is on by default and costs 15,272 B of flash — measured, by linking
    > the image both ways. Set `SIMUT_MDNS=0` in `src/simut_config.h` to drop
@@ -1108,9 +1113,9 @@ true while it is on the screen**.
 | Sensor slots | 16 (GPIO0–GPIO15) |
 | Channels per sensor | 4 (temperature, humidity, pressure, lux) |
 | Pins per sensor | up to 4 |
-| User accounts | 5 |
+| User accounts | 32 |
 | Concurrent web sessions | 3 |
-| Permission bits | 10 |
+| Permission bits | 13 |
 | Averaging window | 10 samples, trimmed mean |
 | TFT graph points | 200 |
 | History interval | 1–1440 minutes, default 1 |

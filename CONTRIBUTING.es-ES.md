@@ -104,7 +104,7 @@ pio run -e pico_w_release -t uploadfs
 
 ## Presupuesto de Memoria Flash
 
-El espacio en la memoria flash es críticamente ajustado — ~97 % del slot de app de 1020 KB en el env de release (el env `pico_w_test` llega a ~99 %). Antes de añadir nuevas características, considera:
+El espacio en la memoria flash es críticamente ajustado. La imagen release usa el 97,2 % del slot de programa de 1.044.480 B, y el `.bin` de cada imagen tiene que quedar por debajo del techo de actualización por el aire, de 1.040.384 B — a `pico_w_air` le quedan 5.076 B ahí, y a la imagen de banco `pico_w_test_https`, 668 (23/09/2026, `tools/flash_budget.json`). Antes de añadir nuevas características, considera:
 
 1. ¿Se puede optimizar para usar menos espacio?
 2. ¿Puede reemplazar algo de menor valor?
@@ -124,11 +124,14 @@ El espacio en la memoria flash es críticamente ajustado — ~97 % del slot de a
 ## Pruebas
 
 - Las pruebas unitarias usan el framework [Unity](http://www.throwtheswitch.org/unity).
-- Hay cinco entornos de prueba disponibles:
-  - `pio test -e native` — validadores (119 casos de prueba: validación de IP, CRC8, codificación de float, etc.)
-  - `pio test -e native_history_v5` — pruebas de ida y vuelta del HistoryCodec
-  - `pio test -e native_cli` — pruebas del analizador CLI (tokenización y enrutamiento de comandos)
-  - `pio test -e native_logpolicy` — pruebas del filtro de persistencia de logs edge-triggered (18 casos)
+- Siete entornos nativos, todos ejecutados por el CI:
+  - `pio test -e native` — validadores: validación de IP, CRC8, codificación de float, cursor de telemetría, etiquetas
+  - `pio test -e native_history_v5` — ida y vuelta del códec del histórico V5
+  - `pio test -e native_cli` — analizador de la CLI (tokenización y enrutamiento de comandos)
+  - `pio test -e native_logpolicy` — filtro de persistencia de logs por transición
+  - `pio test -e native_alarmqueue` — invariantes de la cola de alarmas
+  - `pio test -e native_air` — configuración y límites del SIMUT Air
+  - `pio test -e native_network` — máquina de estados de la reconexión Wi-Fi, contra una radio controlable
 - Añade pruebas para nueva lógica de validación, codificación/decodificación, cambios en el analizador y rutas críticas de seguridad.
 - Se requieren pruebas de hardware para cambios en la pantalla, sensores, WiFi y OTA.
 
