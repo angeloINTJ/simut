@@ -18,6 +18,7 @@
 #include "StorageManager.h"
 #include "UiWidgets.h" /* blitTitleBar/blitFooterMenu compose the shared chrome */
 #include "sensors/SensorPanelDispatch.h"
+#include "display/PendingLabel.h" /* the pending count, as both displays print it */
 #include "hardware/dma.h" /* strip-blit fast path: SSP 16-bit + DMA */
 #include "hardware/spi.h"
 
@@ -649,13 +650,10 @@ void DisplayManager::drawTopBar(const SystemState& state) {
  }
 
  if (state.pendingPkts > 0) {
- char pktBuf[10];
- /* >=1000 abbreviates as "Nk" to fit in the top bar. */
- if (state.pendingPkts >= 1000) {
- snprintf(pktBuf, sizeof(pktBuf), "%uk", (unsigned)(state.pendingPkts / 1000));
- } else {
- snprintf(pktBuf, sizeof(pktBuf), "%u", (unsigned)state.pendingPkts);
- }
+ char pktBuf[PENDING_LABEL_MAX];
+ /* >=1000 abbreviates as "Nk" to fit in the top bar — display/PendingLabel.h,
+  * shared with the alphanumeric display so the two read the same. */
+ pendingLabel(state.pendingPkts, pktBuf, sizeof(pktBuf));
 
  _driver.canvas->setFont(&simutFont9pt);
 

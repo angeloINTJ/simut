@@ -76,7 +76,12 @@ o que está ligado e quanto tempo o aparelho fica acordado.
 
 O build alpha alterna os slots de sensor nas duas linhas do LCD, mostra o
 progresso do boot como uma barra, e carrega um console Bluetooth porque não tem
-painel touch por onde entrar em modo AP. O Bluetooth dele fica **descobrível
+painel touch por onde entrar em modo AP. O canto superior esquerdo é o `W` e um
+ícone de sinal cujas barras enchem da esquerda para a direita; com um único
+sensor, o canto inferior esquerdo mostra os registros de telemetria esperando
+envio, como a barra superior do TFT — o número até 999, milhares inteiros com
+`k` a partir daí, e nada quando a fila está vazia. Com mais de um sensor, esse
+canto diz qual slot está na tela (`S0`, `S3`…). O Bluetooth dele fica **descobrível
 por cinco minutos após o boot** e não mais, então uma unidade sem ninguém por
 perto para de se anunciar; um celular já pareado continua conectando, e
 reiniciar reabre a janela para parear outro.
