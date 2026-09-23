@@ -255,6 +255,11 @@ sem display, serial e BT são a única interface local.
 - **`t_int` é lote mínimo em registros, não tempo** (config v22; 0 desliga a
   telemetria). `t_bat` é o lote máximo por requisição. Migração v21→v22 converte
   o valor antigo; sem ela um `t_int=300000` viraria "300 mil pendentes".
+- **`t_bat` é teto, não promessa.** O heap corta antes: o payload para no
+  primeiro registro que não cabe inteiro, e o cursor anda só até o último que
+  foi no corpo. No Air em M0 (23/09), `t_bat=250` saiu em lotes de 190–192. Até
+  então o `String::concat( )` falhava calado no meio do registro — 68 de 69
+  corpos eram JSON inválido — e o cursor pulava o que o corte deixara fora.
 - **Telemetria desligada + Wi-Fi de pé = acordado para sempre.** Se o aparelho
   "não dorme", confira `t_int` antes de procurar outra causa.
 - **Quem causou o boot decide quanto o M0 dura.** Boot limpo (energia, RUN,
