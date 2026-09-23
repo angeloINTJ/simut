@@ -29,9 +29,14 @@
 #include "lwip/memp.h"
 #endif
 
-void AppManager::startApMode( ) {
+/* ctx says WHO asked, because the four callers are four different stories in
+ * a log read months later: 0 a person (CLI, Bluetooth or the panel's menu),
+ * 1 the boot touch gesture, 2 an unconfigured device, 3 the reconnect ladder
+ * giving up after a full round. 1 and 2 are logged at their own site in
+ * AppManager_Boot.cpp, which runs before this function exists to be called. */
+void AppManager::startApMode(uint8_t why) {
  SystemConfig &cfg = _storageMgr->getConfig( );
- LOG_CODE(LOG_WARN, "APP", APP_AP_MODE_TRIGGERED, 0, TRL("User triggered AP mode."));
+ LOG_CODE(LOG_WARN, "APP", APP_AP_MODE_TRIGGERED, why, TRL("AP mode started."));
  _netMgr->beginAP(cfg.deviceName);
  _isApMode = true;
  /* The key goes to the channel the command came in on. beginAP prints it to
@@ -40,6 +45,9 @@ void AppManager::startApMode( ) {
   * operator told to join a WPA2 network without being told the key would be
   * worse off than before the AP was closed (V-05). */
  const char* psk = _netMgr->getApPsk( );
+ /* And to the display, for the build where the display is the only channel
+  * the operator has (alpha; a no-op elsewhere). */
+ _displayMgr->setApInfo(_netMgr->getApSsid( ), psk);
  if (psk && *psk) {
   _cmdMgr->printSuccess(String(_cmdMgr->isPt( )
    ? "Modo AP iniciado (WPA2). Senha: " : "AP mode started (WPA2). Key: ") + psk);

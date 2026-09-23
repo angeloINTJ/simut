@@ -302,7 +302,23 @@ void AppManager::core0Yield( ) {
  if (panelAllowed(PERM_USER_MGR, -1)) _displayMgr->showPinPolicy( );
 #endif
  }
+ else if (uiEv.id == 11) {
+#if SIMUT_DISPLAY_TFT
+ /* The screen lives in DisplayManager_Settings.cpp, which is not in the
+  * alpha or Air link — the same reason id 4 and id 10 carry a guard. */
+ if (panelAllowed(PERM_NET_CONFIG, -1)) _displayMgr->showApConfirm( );
+#endif
  }
+ }
+#if SIMUT_DISPLAY_TFT
+ else if (uiEv.type == UiEvent::EVT_START_AP) {
+ /* The bit is checked HERE and not only when the row was drawn: the menu
+  * is filtered by the session's bits, but the event arrives from Core 1
+  * and Core 0 is where authorisation lives — the same rule every v24
+  * panel event follows. */
+ if (panelAllowed(PERM_NET_CONFIG, -1)) startApMode( );
+ }
+#endif
  else if (uiEv.type == UiEvent::EVT_APPLY_THEME) {
  SystemConfig &cfg = _storageMgr->getConfig( );
  cfg.themeIndex = uiEv.id;

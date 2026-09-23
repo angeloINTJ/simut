@@ -1,6 +1,6 @@
 # SIMUT — User Manual
 
-**Firmware:** v2.7.0 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **License:** MIT
+**Firmware:** v2.7.1 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **License:** MIT
 **Repository:** https://github.com/angeloINTJ/simut
 
 > **This is not a certified metrological instrument.** It is tested on real
@@ -1042,10 +1042,52 @@ Of the recovery commands only `ap` is allowed over the link.
 
 ## 14. Recovery
 
+### AP mode — the setup network
+
+When the device is not on a network, it brings one up itself: `<name>_SETUP`,
+**WPA2**, portal at `http://192.168.4.1`. The key is derived from the board's
+serial number — not configurable, and it survives a factory reset — and the
+device publishes it in four places:
+
+| Where | Builds |
+|---|---|
+| USB console, the `[AP] PSK :` line | all |
+| Reply to the `ap` command, on the channel that asked (USB or Bluetooth) | all |
+| Boot line, next to "Connect to network …" | release (TFT) |
+| Third LCD page, while the AP is up | alpha |
+
+And there are five ways into it:
+
+| How | Builds | Notes |
+|---|---|---|
+| **By itself**, when no Wi-Fi is configured | release, alpha | this is the factory state; the Air is excluded (see below) |
+| **By itself**, when it cannot get onto the network | release, alpha | at the **first dormancy** if it never had an address since it booted (router replaced, password changed, unit moved) — **measured: 6–7 min** (421 s in one run, 358–382 s in another); after **a whole round** of the ladder if it had an address and lost it — ~68 min by arithmetic, not measured to completion. The AP times out after 15 min and the device goes back to trying the LAN |
+| **Settings → 12. Configuration Mode** | release (TFT) | asks first; needs the network bit |
+| **The `ap` command** | all | over USB, and over Bluetooth on the alpha and Air images |
+| **Holding the screen during boot** | release (TFT) | the panel asks for it and draws the 3 s bar; see below |
+
+**SIMUT Air is excluded from both automatic entries.** Its radio only exists
+inside a wake, the AP's 15-minute timeout only returns to STA when an SSID is
+configured — so on a device with none that state has no exit — and an Air that
+never hibernates is a battery on a bench. Its channel is the CLI, over USB or
+Bluetooth, which it has carried in full since 2026-09-18.
+
+⚠️ **The touch gesture is the most fragile of the five.** The window opens when
+the panel writes "Hold screen for AP Mode" and lasts 3.5 s; holding for 3 s
+inside it starts the AP. Up to v2.7.0 that window ran **before Core 1 existed**,
+and Core 1 is what draws the TFT: the instruction reached the glass 38 ms after
+the window had closed (measured 2026-09-22 — window `[3919..7419] ms`, Core 1 at
+`7457 ms`), so anyone obeying what the panel said was always too late. Since
+v2.7.1 the window runs with the panel drawing, so **what is on the screen is
+true while it is on the screen**.
+
 | Symptom | What to do |
 |---|---|
 | Forgot the admin password | `system admin reset confirm` over **USB serial** (the command is refused over Bluetooth), then log in with the printed password — the web forces you to change it. Since this release the reset survives a reboot, so there is no rush |
-| Answers on serial but not on the network | `show net status` — with no IP, reconfigure Wi-Fi from the display |
+| Answers on serial but not on the network | `show net status` — with no IP, enter AP mode (above) and reconfigure Wi-Fi from the portal |
+| The router changed and the device vanished from the LAN | It opens the setup network on its own — **measured: 6–7 min** (421 s in one run, 358–382 s in another), because it never got an address on that boot. Or force it from the panel, with `ap` over USB, or with `ap` over Bluetooth (alpha and Air) |
+| I can see the `_SETUP` network but the phone will not connect | Fixed in v2.7.1. Up to v2.7.0, an `ap` issued while the device was **hunting for a network that is not there** raised an AP that was visible and unjoinable (measured: 45 s and a timeout, against 4,07 s after the fix) — and that is exactly when `ap` gets used. On older firmware, `reload confirm` and then `ap` right after the boot |
+| I can see the `_SETUP` network on my phone but I do not know the password | It is derived from the board and has not been blank since v2.4.1-beta. Read it on the USB console, in the `ap` reply, on the TFT's boot screen or on the alpha's LCD |
 | Blank screen after adjusting the display offset | Fixed in v1.6.2-beta. On older firmware a factory reset clears the stored offset |
 | Update reported success but the version did not change | The applier defect described in §12. Flash v1.6.2-beta over USB |
 | Does not enumerate over USB at all | BOOTSEL rescue — see [RECOVERY.md](RECOVERY.md) |

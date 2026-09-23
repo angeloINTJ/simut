@@ -633,6 +633,74 @@ static void test_ap_mode_enables_the_sta_interface_once(void) {
         "re-enabled the STA interface on every scan; it is already up");
 }
 
+/* ── beginAP takes the radio from the station before using it ─────────────
+ *
+ * Measured on the rig 2026-09-22: `ap` issued while the station was hunting
+ * for an SSID that is not there raised an access point the host could SEE at
+ * 94% signal and could not associate with — 45 s and a timeout, twice,
+ * against 2,6 s from a device that was connected. One radio serves both, and
+ * cyw43_wifi_scan( ) owns the chip until its sweep finishes. The fallback
+ * added in 2.7.1 opens the AP exactly when the ladder has been failing, which
+ * is exactly when a sweep is in flight, so this is a gate and not a detail.
+ */
+static void test_ap_waits_for_a_sweep_before_taking_the_radio(void) {
+    NetworkManager net;
+    WiFi.reset( );
+    WiFi.scanDurationMs = 2500;
+    WiFi.nets = { {"neighbour", -55, 4, 6} };
+
+    net.begin(makeConfig( ), true, false, "");
+    TEST_ASSERT_TRUE(net.startScan( ));          /* a sweep is now in flight */
+    TEST_ASSERT_EQUAL_INT(SCAN_RUNNING, WiFi.scanComplete( ));
+
+    const uint32_t t0 = millis( );
+    TEST_ASSERT_TRUE(net.beginAP("simut-test"));
+    const uint32_t waited = millis( ) - t0;
+
+    TEST_ASSERT_TRUE_MESSAGE(waited >= 2500,
+        "took the radio while a sweep was still running");
+    TEST_ASSERT_TRUE_MESSAGE(WiFi.scanDeletes >= 1,
+        "left the finished sweep's result behind for the next reader");
+    TEST_ASSERT_TRUE_MESSAGE(WiFi.disconnects >= 1,
+        "never disconnected the station");
+}
+
+/* And the wedge does not hold the recovery path hostage: a sweep that never
+ * finishes is the documented failure (cyw43's wifi_scan_state, 2026-09-08),
+ * and an AP that waits for it for ever would be worse than one that starts a
+ * little early. */
+static void test_a_wedged_sweep_does_not_block_the_ap(void) {
+    NetworkManager net;
+    WiFi.reset( );
+    WiFi.scanNeverCompletes = true;
+    net.begin(makeConfig( ), true, false, "");
+    TEST_ASSERT_TRUE(net.startScan( ));
+
+    const uint32_t t0 = millis( );
+    TEST_ASSERT_TRUE(net.beginAP("simut-test"));
+    const uint32_t waited = millis( ) - t0;
+
+    TEST_ASSERT_TRUE_MESSAGE(waited < 6000,
+        "waited on a sweep that never finishes");
+}
+
+/* A radio that refuses the AP must say so. The return used to be dropped, so
+ * a failed softAP( ) still left NET_AP_CONFIG behind and the console still
+ * printed "AP mode started" — the operator was sent to a network that was not
+ * on the air. */
+static void test_a_refused_ap_is_reported_and_not_latched(void) {
+    NetworkManager net;
+    WiFi.reset( );
+    WiFi.softApFails = true;
+    net.begin(makeConfig( ), true, false, "");
+
+    TEST_ASSERT_FALSE_MESSAGE(net.beginAP("simut-test"),
+        "reported success for an AP the radio refused");
+    TEST_ASSERT_FALSE_MESSAGE(net.isApConfig( ),
+        "left the state machine in AP mode with no AP");
+    WiFi.softApFails = false;
+}
+
 int main(int, char**) {
     UNITY_BEGIN( );
 
@@ -668,6 +736,9 @@ int main(int, char**) {
     RUN_TEST(test_a_refusal_leaves_the_previous_list_in_the_buffer);
     RUN_TEST(test_a_scan_from_ap_mode_brings_the_sta_interface_up_first);
     RUN_TEST(test_ap_mode_enables_the_sta_interface_once);
+    RUN_TEST(test_ap_waits_for_a_sweep_before_taking_the_radio);
+    RUN_TEST(test_a_wedged_sweep_does_not_block_the_ap);
+    RUN_TEST(test_a_refused_ap_is_reported_and_not_latched);
 
     return UNITY_END( );
 }

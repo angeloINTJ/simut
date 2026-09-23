@@ -2,6 +2,7 @@
 #include "LogManager.h"
 #include "display/HD44780_16x2.h"
 #include "display/BigFont_HD44780.h"
+#include "display/AlphaMarquee.h"
 #include "sensors/SensorHelpers.h"
 #include <LittleFS.h>
 #include <string.h>
@@ -21,6 +22,10 @@ static char _alphaLangCode[8] = {0};
 static char _alphaHelpBuf[2048];
 
 /* ── Alpha multi-slot cycling state (Core 1) ─────────────────────── */
+/* One column of scroll per frame on the setup-AP screen. 300 ms is slow
+ * enough to read a key off the glass and fast enough that a 37-character
+ * SSID takes 11 s to go round once. */
+static const uint32_t AP_SCROLL_MS = 300;
 static int8_t  _cycleSlot = -1;       /* slot currently on screen */
 static uint8_t _cycleCh   = CH_TEMP;  /* channel currently on screen */
 
@@ -54,6 +59,23 @@ static float alphaChannelValue(const SlotSnapshot& s, uint8_t ch) {
 		case CH_PRESS: return s.pres;
 		default:       return NAN;
 	}
+}
+
+/* Write one window of `s` on `row`. The arithmetic and the reason for it are
+ * in display/AlphaMarquee.h, where a host test can reach them. */
+static void alphaMarquee(Hd44780_16x2 &lcd, uint8_t row, const char* s, uint16_t step) {
+	char win[ALPHA_LCD_COLS + 1];
+	alphaMarqueeWindow(s, step, win);
+	lcd.setCursor(0, row);
+	lcd.print(win);
+}
+
+/* Core 0 hands the setup network over once, when it comes up. */
+void DisplayManager::setApInfo(const char* ssid, const char* psk) {
+	mutex_enter_blocking(&_stateMutex);
+	safeCopy(_apSsidLcd, ssid ? ssid : "", sizeof(_apSsidLcd));
+	safeCopy(_apPskLcd,  psk  ? psk  : "", sizeof(_apPskLcd));
+	mutex_exit(&_stateMutex);
 }
 
 void DisplayManager::core1Entry( ){ if (_instance) _instance->loopCore1(); }
@@ -174,6 +196,61 @@ void DisplayManager::loopCore1( ) {
 					_cycleSlot = -1;
 				}
 			}
+
+		} else if (_sharedState.apMode) {
+			/* ── SETUP AP: the network, the key, the address ─────────
+			 *
+			 * Until 2.7.1 this build showed "AP" in the corner and went on
+			 * cycling sensor readings. The WPA2 key the setup network has
+			 * carried since V-05 is published in exactly two places —
+			 * beginAP( )'s console line and the `ap` command's reply — and
+			 * neither is reachable from a phone. The suffix the boot builds
+			 * for TR_BOOT_AP_NETWORK does carry it, but this renderer draws
+			 * a progress bar and never the boot log's text, so on an alpha
+			 * the key reached no display at all (measured 2026-09-22: the
+			 * word `suffix` does not appear in this file). An operator with
+			 * the network in their phone's list and no password is exactly
+			 * the report this fixes.
+			 *
+			 * Three pages of 3 s. The value gets the whole second line, so a
+			 * long device name still has sixteen columns to scroll through. */
+			char ssid[sizeof(_apSsidLcd)], psk[sizeof(_apPskLcd)];
+			{
+				mutex_enter_blocking(&_stateMutex);
+				safeCopy(ssid, _apSsidLcd, sizeof(ssid));
+				safeCopy(psk,  _apPskLcd,  sizeof(psk));
+				mutex_exit(&_stateMutex);
+			}
+			static uint8_t  apPage = 0;
+			static uint16_t apStep = 0;
+			const char* apVal = (apPage == 0) ? "192.168.4.1"
+			                  : (apPage == 1) ? (ssid[0] ? ssid : "?")
+			                                  : (psk[0]  ? psk  : "(aberta)");
+			/* A page lasts 3 s, or one whole scroll when its value is wider
+			 * than the display. A fixed 3 s flips after ten of the
+			 * thirty-seven steps a 35-character SSID needs, and since the
+			 * step resets with the page the tail would never be shown at
+			 * all — which is the half of the screen that says _SETUP. */
+			const size_t apLen = strlen(apVal);
+			const uint32_t apDwell = (apLen > ALPHA_LCD_COLS)
+			        ? (uint32_t)(apLen + ALPHA_MARQUEE_GAP) * AP_SCROLL_MS
+			        : 3000u;
+			if (millis( ) - _lt >= apDwell) {
+				_lt = millis( ); apPage = (apPage + 1) % 3; apStep = 0;
+			}
+
+			_lcd.setCursor(0, 0);
+			switch (apPage) {
+				case 0: _lcd.print("Modo AP  1 de 3"); break;
+				case 1: _lcd.print("Rede:    2 de 3"); break;
+				default: _lcd.print("Senha:   3 de 3"); break;
+			}
+			_lcd.write(' ');
+			alphaMarquee(_lcd, 1, apVal, apStep);
+			apStep++;
+			_lcd.blit( );
+			delay(AP_SCROLL_MS);
+			continue;
 
 		} else {
 			/* ── SENSOR VALUES (cycle active slots × channels) ───── */

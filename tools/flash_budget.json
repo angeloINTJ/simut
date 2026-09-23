@@ -289,35 +289,76 @@
   "copy a user reads. tools/check_license.py keeps the five copies agreeing and",
   "checks that both release scripts ship the file - build_release.sh packaged",
   "the whole source tree into the Arduino IDE zips without it, which is the one",
-  "artefact the MIT text's own 'all copies' clause was not being honoured in."
+  "artefact the MIT text's own 'all copies' clause was not being honoured in.",
+  "2026-09-22 (fix/ap-mode-reachable, v2.7.1): measured against main at 994f058.",
+  "'used' +1,424 B on release, +1,440 test, +1,464 test_https, +1,424 asserts,",
+  "+5,160 alpha, +224 air. Only the ALPHA budget is raised, and this is the raise",
+  "the rule asks to be argued for.",
+  "Per SECTION, which is where the alpha's number comes apart: .text +1,304",
+  "release, +1,064 alpha, +224 air; .rodata +120 release, 0 air - and +4,096 on",
+  "the alpha, which is ONE ALIGNMENT STEP and not content. main's alpha .rodata is",
+  "442,368 B, exactly 108 pages of 4 KiB with zero slack, so the first byte added",
+  "to it costs a whole page. The alpha's real cost here is 1,064 B of code.",
+  "Budget: alpha 978,396 -> 983,396 (measured + 3,000, the margin this file",
+  "carries). Every other environment stays where it was and is still inside its",
+  "margin.",
+  ".bin deltas: +1,424 / +1,440 / +1,464 / +1,424 on the four panel builds,",
+  "+4,096 on the alpha (the same page) and ZERO on the Air - its 224 B of .text",
+  "fit in padding it already had. Real .bin slack under the 1,040,384 B OTA",
+  "ceiling: release 14,028, test 9,132, test_https 1,500, asserts 11,852,",
+  "alpha 45,940, air 5,076 (unchanged).",
+  "pico_w_test_https keeps warning and is now 1,500 B from the ceiling, its",
+  "tightest yet. It is the bench HTTPS image, not a field one - release-ota.yml",
+  "does not publish it - but the next thing added to the panel builds has to take",
+  "a fourth page out to LittleFS, as the 2026-09-20 note already said.",
+  "What the bytes bought, in the order they were found:",
+  " - beginAP( ) waits out a scan already issued to the driver before taking the",
+  "   radio, and READS softAP( )'s return. Without it, an AP raised while the",
+  "   station was hunting for an SSID that is not there was visible at 94% and",
+  "   unjoinable - 45 s and a timeout, twice, against 4,07 s after the fix. That",
+  "   is the state the new fallback fires in, so this is what makes it work.",
+  " - the AP-by-touch window moved to after startCore1( ) AND after Core 1 has",
+  "   painted a frame (measured on main: window [3919..7419] ms, Core 1 launched",
+  "   at 7457 - the prompt reached the glass 38 ms after the last moment a finger",
+  "   could start the gesture; measured here: first frame 4667, window",
+  "   [4869..8369]).",
+  " - the alpha's LCD publishes the SSID and the key, which reached no display on",
+  "   that build at all, and the TFT keeps them on its last boot screen instead of",
+  "   scrolling them out of the five-slot ring.",
+  " - a twelfth settings row that starts the setup AP behind a confirmation.",
+  " - an automatic fallback for an unconfigured device or one that cannot get on",
+  "   its network. Air is excluded from both, which is why it pays 224 B.",
+  "Also here: _menuItems was 10 entries against an 11-entry table since v25, so",
+  "an account holding every bit wrote one past the end of it - shown on the rig",
+  "as an admin menu with ten rows and no numbers."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-09-20",
- "measured_at_commit": "feat/web-ui-per-build (@IF tft: the panel UI is not compiled into images with no panel)",
+ "measured_on": "2026-09-22",
+ "measured_at_commit": "fix/ap-mode-reachable, v2.7.1 (AP mode is reachable, and joinable, again)",
  "envs": {
   "pico_w_release": {
    "budget": 1015564,
-   "measured": 1012668
+   "measured": 1014324
   },
   "pico_w_test": {
    "budget": 1020420,
-   "measured": 1017524
+   "measured": 1019220
   },
   "pico_w_test_https": {
    "budget": 1028044,
-   "measured": 1025148
+   "measured": 1026852
   },
   "pico_w_asserts": {
    "budget": 1017740,
-   "measured": 1014844
+   "measured": 1016500
   },
   "pico_w_alpha": {
-   "budget": 978396,
-   "measured": 975396
+   "budget": 983396,
+   "measured": 980756
   },
   "pico_w_air": {
    "budget": 1022184,
-   "measured": 1019184
+   "measured": 1019616
   }
  }
 }

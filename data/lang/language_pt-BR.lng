@@ -211,7 +211,7 @@ Escolha um novo PIN
 400 Display iniciado no Core 1
 401 Calibração inicial do touch salva
 402 Calibração do touch necessária
-403 AP ativado pelo usuário
+403 AP iniciado
 404 Sistema pronto
 405 Sistema pronto (modo AP)
 406 Falha crítica de storage
@@ -316,14 +316,6 @@ Escolha um novo PIN
 600 Forçar despausar
 999 Erro desconhecido
 @TRL
-f6c4c6c6 Varredura de redes
-9598a022 CLI definiu PIN do painel: 
-68c547be CLI removeu PIN do painel: 
-b52b332c Config migrada para o schema atual
-c58f1416 Admin aplicou alterações sem reiniciar
-9e42fc96 Politica de PIN alterada
-98d1b5c0 Atualização preparada descartada: o aparelho reiniciou antes de aplicar
-eb144bf6 Reboot solicitado pela web
 016eef1e DS18B20 pareado ao seu número de série
 018a9730 Factory defaults ativos; senha admin via USB/serial.
 08676d6a Falha de MQTT: 
@@ -344,6 +336,7 @@ eb144bf6 Reboot solicitado pela web
 3b8726db Config de schema antigo descartada — padrões carregados
 4053e02c Troca de senha rejeitada: entrada inválida
 44641c1c Boots sujos seguidos: 
+48b990f5 PIN fora da política; troca obrigatória.
 4922ff94 UI do display iniciada no Core 1.
 4e94b2fd Arquivo enviado.
 508b2648 Falha crítica de storage!
@@ -354,6 +347,7 @@ eb144bf6 Reboot solicitado pela web
 5d4833ee Login rejeitado: tamanho inválido
 5d6ece6d Usuário removido pela CLI: 
 672a9c0e Sensor recuperado
+68c547be CLI removeu PIN do painel: 
 6f018fda Login OK: 
 6f23c06b Época do histórico do sensor resetada via web
 6fb51ac0 Sinal WiFi perdido, entrando em stealth scan
@@ -377,10 +371,15 @@ eb144bf6 Reboot solicitado pela web
 9090b55d RTC ajustado manualmente
 90b25998 Nova tentativa em 
 920cd7ed Baixado pelo usuário: 
+93660ea8 Modo AP iniciado.
 9485b99b Cursor de telemetria resetado via web
+9598a022 CLI definiu PIN do painel: 
+98d1b5c0 Atualização preparada descartada: o aparelho reiniciou antes de aplicar
+9e42fc96 Politica de PIN alterada
 9e61e5c1 NTP desabilitado — modo RTC manual
 9f329bc2 Admin aplicou alterações — reiniciando
 a1984a33 Pasta criada: 
+a3021e13 Falha ao iniciar o AP
 a7c6522f Permissões definidas pela CLI: 
 aa95ee6e Correspondência de hardware restaurada
 abc23722 Calibração de toque autoajustada (sem tela, só na RAM)
@@ -391,13 +390,14 @@ b26f921c Schema do histórico migrado via web (dia preservado)
 b358b19a Admin apagou logs do sistema
 b41f8605 Correção por NTP: 
 b5299c92 Sessão BT encerrada (5 min inativo)
+b52b332c Config migrada para o schema atual
 b9d74daa Timeout do AP, reiniciando para STA
 bd2abe55 Falha de login: 
 bf328b4f Dormente: nova tentativa em 
 c0664bd5 ). Nova tentativa em 
 c1def48a INVARIANTE-3 VIOLADA: _stateMutex preso atravessando FLASH_OP
 c1efa9ef Formatando FS do flash...
-c72bc4db Usuário ativou modo AP.
+c58f1416 Admin aplicou alterações sem reiniciar
 c8d42c3f Login rejeitado: limite de sessões
 c98bcdab Procurando SSID (backoff=
 cc0a0d40 PIN padrão detectado; forçando troca.
@@ -412,14 +412,15 @@ e232b5b9 Saída:
 e45e023f Divergência de hardware (Acesso Negado)
 e50c0507 MQTT conectado a 
 e5ac1216 SSID encontrado, conectando...
+eb144bf6 Reboot solicitado pela web
 f43dab3c forceUnpause: refCount=
+f6c4c6c6 Varredura de redes
 f7c33aba Bloqueio do Bluetooth após senhas erradas
 f914ca06 Sistema pronto (modo AP).
 f99bdf81 Janela de descoberta do Bluetooth fechada
 fa87bdae Upload falhou (#
 fd0933a1 Calibração do touch resetada via web
 ff5e139d Erro HTTP: 
-48b990f5 PIN fora da política; troca obrigatória.
 @HELP
 ===========================================
     SIMUT - CONSOLE DE EMERGÊNCIA

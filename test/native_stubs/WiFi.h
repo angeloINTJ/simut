@@ -174,7 +174,8 @@ public:
     String macAddress( )    { return String("AA:BB:CC:DD:EE:FF"); }
 
     void softAPConfig(IPAddress, IPAddress, IPAddress) {}
-    bool softAP(const char*, const char* = nullptr) { return true; }
+    bool softApFails = false;   /**< the radio refuses to bring the AP up */
+    bool softAP(const char*, const char* = nullptr) { return !softApFails; }
 
 private:
     bool     _joining = false;

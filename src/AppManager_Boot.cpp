@@ -282,8 +282,10 @@ void AppManager::setup( ) {
  /* startCore1 deferred until AFTER _storageMgr->begin().
 	 * Without Core 1 active, flash_safe_execute uses the single-core
 	 * path (local disable_interrupts only), avoiding the multicore_lockout
-	 * IRQ that often hangs on post-OTA boot. Trade-off: the TFT does not
-	 * show boot status messages until later (~10-15s). */
+	 * IRQ that often hangs on post-OTA boot. Trade-off: the TFT shows no boot
+	 * status at all until Core 1 exists — measured 7,46 s on the rig
+	 * (2026-09-22), not the ~10-15 s this comment used to claim. That gap is
+	 * why the AP-by-touch window now lives after startCore1( ) and not here. */
  _uart_mark('D'); /* startCore1 deferred */
 
  /* Wait for Core 1 to be READY before proceeding.
@@ -302,108 +304,10 @@ void AppManager::setup( ) {
   * nothing for it to stand in for. */
  if (DisplayManager::kUsesCore1) delay(BOOT_STEP_DELAY_MS);
 
-#if SIMUT_DISPLAY_TFT
- /* Configure XPT2046 + SPI bus pins for reliable PENIRQ detection.
-  * PENIRQ (GPIO 20): input with pull-up, LOW = touched.
-  * TOUCH_CS (GPIO 17): HIGH = deselected, required for XPT2046 to scan.
-  * TFT_CS (GPIO 28): HIGH = deselected, prevents SPI bus contention.
-  * SPI SCK (GPIO 18), MOSI (GPIO 19): output LOW, stable idle state.
-  * Without stable SPI lines, the XPT2046 may enter an undefined state
-  * where PENIRQ does not respond to touch. */
- gpio_init(20); gpio_set_dir(20, GPIO_IN); gpio_pull_up(20);
- gpio_init(17); gpio_set_dir(17, GPIO_OUT); gpio_put(17, 1);
- gpio_init(28); gpio_set_dir(28, GPIO_OUT); gpio_put(28, 1);
- gpio_init(18); gpio_set_dir(18, GPIO_OUT); gpio_put(18, 0);
- gpio_init(19); gpio_set_dir(19, GPIO_OUT); gpio_put(19, 0);
- gpio_init(16); gpio_set_dir(16, GPIO_IN);
-
- /* XPT2046 touch-detect circuit is always active from power-up.
-  * No SPI wake-up needed — PENIRQ (GPIO 20) asserts LOW on touch.
-  * Reading gpio_get(20) directly is sufficient for AP-mode detection.
-  *
-  * SPI bus is left uninitialized here; Core 1 will set it up later. */
-#endif // SIMUT_DISPLAY_TFT
-
+ /* forceAP is decided further down, once Core 1 is drawing — see the block
+  * after startCore1( ). It is declared here because the two branches that
+  * read it (the network start and the "AP active" boot line) are below. */
  bool forceAP = false;
- _displayMgr->setBootStatusKey(TR_BOOT_HOLD_AP);
-
- /* Touch settle + sanity gate: some XPT2046 controllers report
-	 * touched()=true permanently right after boot (controller in
-	 * indeterminate state before first Z-axis sample, or electrical
-	 * noise on PENIRQ). Without this gate, the boot detects that
-	 * stale-true as an AP-hold gesture and enters AP mode on every
-	 * reboot.
-	 *
-	 * Strategy: wait for 200ms of consecutive quiet (up to 1500ms cap).
-	 * - Quiet seen -> touch functional -> AP detection window normal.
-	 * - Quiet NOT seen -> touch stuck-true (HW/calibration bug) ->
-	 *   bypass the AP detection window.
-	 * AP-by-touch is unavailable while stuck; fix is recalibrating
-	 * touch (via CLI or Settings) or a clean power cycle. */
- bool touch_settled __attribute__((unused)) = false;
- /* Both loops below only ever ask isScreenTouched( ). On a build without a
-  * touch controller that is a compile-time `false`, so the settle gate can
-  * only time out its quiet window and the AP-hold window can only run to its
-  * end — 220 ms + 3500 ms per boot, waiting for a gesture the build cannot
-  * report. Measured 4,52 s between `boot: delay ok` and `boot: ap-detect ok`
-  * on the Air rig, 2026-09-08, which is 18% of a whole wake. */
- if (DisplayManager::kHasTouch) {
- {
- unsigned long settle_start = millis( );
- unsigned long quiet_since = 0;
- while (millis( ) - settle_start < 1500) {
- TRACE_BEAT(0);
- if (_displayMgr->isScreenTouched( )) {
- quiet_since = 0;
- } else {
- if (quiet_since == 0) quiet_since = millis( );
- if (millis( ) - quiet_since >= 200) { touch_settled = true; break; }
- }
- delay(20);
- }
-
- }
-
- {
- unsigned long waitStart = millis( );
- while (millis( ) - waitStart < AP_DETECT_WINDOW_MS) {
- TRACE_BEAT(0);
- if (_displayMgr->isScreenTouched( )) {
-
- unsigned long holdStart = millis( );
- bool held = true;
- int missedTouches = 0;
-
- while (millis( ) - holdStart < AP_HOLD_DURATION_MS) {
- TRACE_BEAT(0);
- if (!_displayMgr->isScreenTouched( )) {
- missedTouches++;
- if (missedTouches > AP_HOLD_MAX_MISSED) {
- held = false;
-
- _displayMgr->setApProgress(-1);
- _displayMgr->setBootStatusKey(TR_BOOT_AP_CANCELLED, nullptr, false);
- delay(800);
- break;
- }
- } else {
- missedTouches = 0;
- }
- int pct = map(millis( ) - holdStart, 0, AP_HOLD_DURATION_MS, 0, 100);
- _displayMgr->setApProgress(pct);
- delay(50);
- }
- if (held) forceAP = true;
- break;
- }
- delay(50);
- }
- }
- }
- 
-
- _displayMgr->setApProgress(-1);
- AIR_BOOT_MARK("ap-detect ok");
 
  _storageMgr->setLockCallback([](bool lock) {
  app.pauseDisplayForFlash(lock);
@@ -575,8 +479,114 @@ void AppManager::setup( ) {
  _uart_mark(_displayMgr->isCore1Ready( ) ? 'R' : 'X');
  }
 #if SIMUT_DISPLAY_TFT
- Serial.print("[TCH] c="); Serial.println(gpio_get(20));
-#endif
+ /* ── AP by touch: hold the screen while the boot asks you to ─────────────
+  *
+  * This used to run ~190 lines earlier, before the filesystem mount and
+  * therefore before startCore1( ). Core 1 is the only thing that draws the
+  * TFT, so "Hold screen for AP Mode..." and the 3-second progress bar were
+  * written into shared state that nobody was rendering: measured on the rig
+  * on 2026-09-22, the window ran [3919..7419] ms and Core 1 was launched at
+  * 7457 ms — the instruction reached the glass 38 ms AFTER the last moment a
+  * finger could start the gesture, and the boot-log ring still held it, so
+  * the screen showed an instruction that had already expired. Whoever obeyed
+  * what the panel said was always too late; the gesture only ever worked
+  * blind, held from before power-on, for ~8,3 s.
+  *
+  * Moving it here costs nothing in rescue value: the gesture only sets a
+  * flag, and beginAP( ) runs ~440 lines below either way, so a boot that
+  * cannot mount the filesystem never reached AP mode before this change
+  * either.
+  *
+  * PENIRQ only. The old block also drove TOUCH_CS/TFT_CS/SCK/MOSI by hand
+  * because the SPI bus was still uninitialised that early; here Core 1 has
+  * already set the bus up, and touching those pins from Core 0 now would
+  * fight it. _displayMgr->isScreenTouched( ) is not used for the same
+  * reason: its fallback is _driver.ts->touched( ), an SPI transaction on a
+  * bus this core does not own. */
+ gpio_init(TOUCH_IRQ); gpio_set_dir(TOUCH_IRQ, GPIO_IN); gpio_pull_up(TOUCH_IRQ);
+ Serial.print("[TCH] c="); Serial.println(gpio_get(TOUCH_IRQ));
+
+ /* Ask, then WAIT until the panel has actually drawn the asking.
+  * isCore1Ready( ) is set before the TFT is initialised: measured 2026-09-22,
+  * Core 1 reports ready at once and its first boot frame lands 757 ms later.
+  * Without this wait the window would open 557 ms before the instruction
+  * appeared — a smaller version of the defect this whole block moved to fix.
+  * Bounded, because a defunct Core 1 must not hold the boot. */
+ {
+  const uint32_t seq0 = _displayMgr->bootPaintSeq( );
+  _displayMgr->setBootStatusKey(TR_BOOT_HOLD_AP);
+  unsigned long t0 = millis( );
+  while (_displayMgr->bootPaintSeq( ) == seq0 && millis( ) - t0 < 1500) {
+   TRACE_BEAT(0);
+   delay(10);
+  }
+ }
+
+ /* Touch settle gate: some XPT2046 controllers report touched( ) for a while
+  * after boot (controller in an indeterminate state before the first Z
+  * sample, or noise on PENIRQ). Waiting for 200 ms of consecutive quiet, up
+  * to a 1500 ms cap, keeps that stale-true from reading as a gesture on the
+  * first sample of the window.
+  *
+  * It is a SETTLE, not a veto, and it must stay one. A finger held from
+  * power-on is indistinguishable from a stuck controller — both never go
+  * quiet — so "no quiet seen => skip the window", which an earlier comment
+  * here described, would have killed exactly the gesture it was documenting.
+  * Proven on the bench 2026-09-22 with the PicoHand driving PENIRQ: held
+  * from reset, the gate times out at 1500 ms and the window that follows
+  * sees the finger on its first sample. */
+ {
+  unsigned long settleStart = millis( );
+  unsigned long quietSince = 0;
+  while (millis( ) - settleStart < 1500) {
+   TRACE_BEAT(0);
+   if (!gpio_get(TOUCH_IRQ)) {
+    quietSince = 0;
+   } else {
+    if (quietSince == 0) quietSince = millis( );
+    if (millis( ) - quietSince >= 200) break;
+   }
+   delay(20);
+  }
+ }
+
+ {
+  unsigned long waitStart = millis( );
+  while (millis( ) - waitStart < AP_DETECT_WINDOW_MS) {
+   TRACE_BEAT(0);
+   if (!gpio_get(TOUCH_IRQ)) {
+    unsigned long holdStart = millis( );
+    bool held = true;
+    int missedTouches = 0;
+
+    while (millis( ) - holdStart < AP_HOLD_DURATION_MS) {
+     TRACE_BEAT(0);
+     if (gpio_get(TOUCH_IRQ)) {
+      missedTouches++;
+      if (missedTouches > AP_HOLD_MAX_MISSED) {
+       held = false;
+       _displayMgr->setApProgress(-1);
+       _displayMgr->setBootStatusKey(TR_BOOT_AP_CANCELLED, nullptr, false);
+       delay(800);
+       break;
+      }
+     } else {
+      missedTouches = 0;
+     }
+     int pct = map(millis( ) - holdStart, 0, AP_HOLD_DURATION_MS, 0, 100);
+     _displayMgr->setApProgress(pct);
+     delay(50);
+    }
+    if (held) forceAP = true;
+    break;
+   }
+   delay(50);
+  }
+ }
+
+ _displayMgr->setApProgress(-1);
+ AIR_BOOT_MARK("ap-detect ok");
+#endif // SIMUT_DISPLAY_TFT
 
 
  /* DisplayManager needs the config pointer to render the dashboard
@@ -1009,19 +1019,48 @@ void AppManager::setup( ) {
  BLOG("[BOOT step] 9: pre _netMgr (forceAP="); BLOG_U(forceAP ? 1 : 0);
  BLOG(") @ "); BLOG_U(millis( )); BLOG_NL( );
  if (Serial) { Serial.println("[DBG] network begin..."); Serial.flush(); }
+ /* An unconfigured device boots into AP mode. ApPsk.h has said so since
+  * V-05 — "AP mode is what an UNCONFIGURED device boots into" is the reason
+  * the key is derived from the board id instead of living in the config —
+  * but nothing implemented it: begin( ) with an empty SSID went to
+  * NET_OFFLINE and stayed there. Measured 2026-09-22 by reading the only two
+  * callers of beginAP( ): the touch gesture and the `ap` command.
+  *
+  * It sets forceAP rather than joining the condition below, because the flag
+  * is read twice more after this: by the `else if` chain that would otherwise
+  * start the STA, and ~230 lines down by the branch that sets _isApMode and
+  * leaves TR_BOOT_AP_ACTIVE on the screen. A second condition here would have
+  * brought the AP up and then told the rest of the boot it was in station
+  * mode.
+  *
+  * Air is excluded, as it is from the runtime fallback: the AP-mode timeout
+  * only reboots to STA when an SSID is configured, so on a device with none
+  * this state has no exit, and an Air that never hibernates is a battery on
+  * a bench. Its channel is the CLI, over USB or Bluetooth, which it has. */
+ bool apBecauseUnconfigured = false;
+#if !SIMUT_AIR
+ if (!forceAP && cfg.wifiSsid[0] == '\0') {
+  forceAP = true;
+  apBecauseUnconfigured = true;
+ }
+#endif
  if (forceAP) {
- LOG_CODE(LOG_WARN, "APP", APP_AP_MODE_TRIGGERED, 0, TRL("User triggered AP mode."));
+ LOG_CODE(LOG_WARN, "APP", APP_AP_MODE_TRIGGERED, apBecauseUnconfigured ? 2 : 1,
+          TRL("AP mode started."));
  _displayMgr->setBootStatusKey(TR_BOOT_START_AP);
  /* beginAP first: the network line now carries the WPA2 key, and the key
   * does not exist until the AP has been brought up (V-05). */
  _netMgr->beginAP(cfg.deviceName);
  {
-  /* Appended as a suffix rather than added as a new translation key. @DICT is
-   * positional and check_lang_packs demands exactly TR_KEYS_COUNT lines, so a
-   * new key rejects every .lng already in the field — and a rejected pack
-   * reverts the whole UI to English until someone uploads a new one. "PSK" is
-   * an acronym and the value is random, so there is nothing here to translate. */
+  /* Appended as a suffix rather than added as a new translation key. "PSK" is
+   * an acronym and the value is random, so there is nothing here to translate.
+   * (The reason this comment used to give — that a new key rejects every .lng
+   * already in the field — stopped being true when the parser started leaving
+   * missing keys null and logging "pack is older than the firmware"; a short
+   * pack keeps translating what it knows. check_lang_packs still demands
+   * exactly TR_KEYS_COUNT lines of the packs IN THIS REPO.) */
   const char* psk = _netMgr->getApPsk( );
+  _displayMgr->setApInfo(_netMgr->getApSsid( ), psk);
   char suffix[24];
   snprintf(suffix, sizeof(suffix), "  PSK %s", (psk && *psk) ? psk : "-");
   _displayMgr->setBootStatusKey(TR_BOOT_AP_NETWORK, suffix);
@@ -1236,6 +1275,27 @@ void AppManager::setup( ) {
  /* pre forceAP branch */
  if (forceAP) {
  _isApMode = true;
+ /* The last lines of the five-slot ring are the ones an operator standing
+  * at the panel needs. TR_BOOT_AP_NETWORK and its PSK suffix are pushed at
+  * the TOP of this branch, ~230 lines up, and by the time the boot ends they
+  * have scrolled off — captured on the rig 2026-09-22, the screen read IP /
+  * telemetry / web / callbacks / "AP Active!" and the key was nowhere.
+  *
+  * Raw lines (key == TR_KEYS_COUNT renders the suffix alone, see
+  * BootLogEntry): an SSID and a random key are the two things on this screen
+  * with nothing to translate, and the translated TR_BOOT_AP_NETWORK names
+  * "SIMUT_SETUP" rather than this device's real network. Two lines and not
+  * one because the suffix is 40 bytes and a device name may be 31, which
+  * makes the SSID alone 37. */
+ {
+  const char* apSsid = _netMgr->getApSsid( );
+  const char* apPsk  = _netMgr->getApPsk( );
+  char apLine[40];
+  snprintf(apLine, sizeof(apLine), "%s", (apSsid && *apSsid) ? apSsid : "-");
+  _displayMgr->setBootStatusKey((LangKey)TR_KEYS_COUNT, apLine, false);
+  snprintf(apLine, sizeof(apLine), "PSK %s", (apPsk && *apPsk) ? apPsk : "(open)");
+  _displayMgr->setBootStatusKey((LangKey)TR_KEYS_COUNT, apLine, false);
+ }
  _displayMgr->setBootStatusKey(TR_BOOT_AP_ACTIVE, nullptr, false);
  LOG_CODE(LOG_INFO, "APP", APP_READY_AP, 0, TRL("System ready (AP mode)."));
  } else {

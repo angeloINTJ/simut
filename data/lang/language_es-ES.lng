@@ -211,7 +211,7 @@ Elija un nuevo PIN
 400 Pantalla iniciada en Core 1
 401 Calibración táctil inicial guardada
 402 Calibración táctil requerida
-403 Modo AP activado por el usuario
+403 Modo AP iniciado
 404 Sistema listo
 405 Sistema listo (modo AP)
 406 Fallo crítico de almacenamiento
@@ -316,14 +316,6 @@ Elija un nuevo PIN
 600 Forzar reanudación
 999 Error desconocido
 @TRL
-f6c4c6c6 Búsqueda de redes
-9598a022 CLI definió PIN del panel: 
-68c547be CLI quitó PIN del panel: 
-b52b332c Config migrada al esquema actual
-c58f1416 Admin aplicó cambios sin reiniciar
-9e42fc96 Politica de PIN cambiada
-98d1b5c0 Actualización preparada descartada: el equipo se reinició antes de aplicar
-eb144bf6 Reinicio solicitado por la web
 016eef1e DS18B20 emparejado a su número de serie
 018a9730 Valores de fábrica activos; contraseña admin por USB/serial.
 08676d6a Fallo de MQTT: 
@@ -344,6 +336,7 @@ eb144bf6 Reinicio solicitado por la web
 3b8726db Config de esquema antiguo descartada — valores de fábrica cargados
 4053e02c Cambio de contraseña rechazado: entrada inválida
 44641c1c Arranques sucios seguidos: 
+48b990f5 PIN fuera de la política; cambio obligatorio.
 4922ff94 UI de la pantalla iniciada en Core 1.
 4e94b2fd Archivo subido.
 508b2648 ¡Fallo crítico de almacenamiento!
@@ -354,6 +347,7 @@ eb144bf6 Reinicio solicitado por la web
 5d4833ee Inicio de sesión rechazado: tamaño inválido
 5d6ece6d Usuario eliminado por la CLI: 
 672a9c0e Sensor recuperado
+68c547be CLI quitó PIN del panel: 
 6f018fda Inicio de sesión OK: 
 6f23c06b Época del historial del sensor restablecida vía web
 6fb51ac0 Señal WiFi perdida, entrando en stealth scan
@@ -377,10 +371,15 @@ eb144bf6 Reinicio solicitado por la web
 9090b55d RTC ajustado manualmente
 90b25998 Nuevo intento en 
 920cd7ed Descargado por el usuario: 
+93660ea8 Modo AP iniciado.
 9485b99b Cursor de telemetría restablecido vía web
+9598a022 CLI definió PIN del panel: 
+98d1b5c0 Actualización preparada descartada: el equipo se reinició antes de aplicar
+9e42fc96 Politica de PIN cambiada
 9e61e5c1 NTP deshabilitado — modo RTC manual
 9f329bc2 Admin aplicó los cambios — reiniciando
 a1984a33 Carpeta creada: 
+a3021e13 Fallo al iniciar el AP
 a7c6522f Permisos definidos por la CLI: 
 aa95ee6e Correspondencia de hardware restaurada
 abc23722 Calibración táctil autoajustada (sin pantalla, solo en RAM)
@@ -391,13 +390,14 @@ b26f921c Esquema del historial migrado vía web (día conservado)
 b358b19a Admin borró los registros del sistema
 b41f8605 Corrección por NTP: 
 b5299c92 Sesión BT cerrada (5 min inactiva)
+b52b332c Config migrada al esquema actual
 b9d74daa Timeout del AP, reiniciando a STA
 bd2abe55 Fallo de inicio de sesión: 
 bf328b4f Inactivo: nuevo intento en 
 c0664bd5 ). Nuevo intento en 
 c1def48a INVARIANTE-3 VIOLADA: _stateMutex retenido durante FLASH_OP
 c1efa9ef Formateando el FS del flash...
-c72bc4db El usuario activó el modo AP.
+c58f1416 Admin aplicó cambios sin reiniciar
 c8d42c3f Inicio de sesión rechazado: límite de sesiones
 c98bcdab Buscando SSID (backoff=
 cc0a0d40 PIN predeterminado detectado; forzando cambio.
@@ -412,14 +412,15 @@ e232b5b9 Cierre de sesión:
 e45e023f Discrepancia de hardware (Acceso Denegado)
 e50c0507 MQTT conectado a 
 e5ac1216 SSID encontrado, conectando...
+eb144bf6 Reinicio solicitado por la web
 f43dab3c forceUnpause: refCount=
+f6c4c6c6 Búsqueda de redes
 f7c33aba Bloqueo del Bluetooth tras contraseñas erróneas
 f914ca06 Sistema listo (modo AP).
 f99bdf81 Ventana de descubrimiento Bluetooth cerrada
 fa87bdae Falló la subida (#
 fd0933a1 Calibración táctil restablecida vía web
 ff5e139d Error HTTP: 
-48b990f5 PIN fuera de la política; cambio obligatorio.
 @HELP
 ===========================================
     SIMUT - CONSOLA DE EMERGENCIA

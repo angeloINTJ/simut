@@ -1,6 +1,6 @@
 # SIMUT — Manual do Usuário
 
-**Firmware:** v2.7.0 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **Licença:** MIT
+**Firmware:** v2.7.1 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **Licença:** MIT
 **Repositório:** https://github.com/angeloINTJ/simut
 
 [English](MANUAL.md) | **Português**
@@ -1081,10 +1081,52 @@ depois do boot. Dos comandos de recuperação, só o `ap` é permitido pelo enla
 
 ## 14. Recuperação
 
+### Modo AP — a rede de setup
+
+Quando o aparelho não está na rede, ele mesmo levanta uma: `<nome>_SETUP`,
+**WPA2**, portal em `http://192.168.4.1`. A senha é derivada do número de série
+da placa (não é configurável, e sobrevive a um reset de fábrica) — o aparelho a
+publica de quatro maneiras:
+
+| Onde | Vale para |
+|---|---|
+| Console USB, na linha `[AP] PSK :` | todos |
+| Resposta do comando `ap`, no canal que pediu (USB ou Bluetooth) | todos |
+| Linha do boot, junto de "Conecte-se à rede …" | release (TFT) |
+| Terceira página do LCD, enquanto o AP está no ar | alpha |
+
+E há quatro maneiras de entrar nele:
+
+| Como | Vale para | Observação |
+|---|---|---|
+| **Sozinho**, quando não há Wi-Fi configurado | release, alpha | é o estado de fábrica; o Air fica de fora (ver abaixo) |
+| **Sozinho**, quando não consegue entrar na rede | release, alpha | na **primeira dormência** se ele nunca teve endereço desde que ligou (roteador trocado, senha mudada, aparelho mudado de lugar) — **medido: 6–7 min** (421 s numa corrida, 358–382 s noutra); depois de **uma rodada inteira** da escada se ele tinha endereço e perdeu — ~68 min por aritmética, não medido até o fim. O AP se desfaz em 15 min e o aparelho volta a tentar a rede |
+| **Configurações → 12. Modo de Configuração** | release (TFT) | pede confirmação; exige o bit de rede |
+| **Comando `ap`** | todos | pela USB, e pelo Bluetooth nas imagens alpha e Air |
+| **Segurando a tela durante o boot** | release (TFT) | o painel pede e mostra a barra de 3 s; ver abaixo |
+
+**O SIMUT Air fica de fora das duas entradas automáticas.** O rádio dele só
+existe dentro de um wake, o timeout de 15 min do AP só devolve à STA quando há
+SSID configurado — então num aparelho sem SSID esse estado não tem saída — e um
+Air que nunca hiberna é uma bateria na bancada. O canal dele é a CLI, pela USB
+ou pelo Bluetooth, que ele tem completa desde 18/09/2026.
+
+⚠️ **O gesto do toque é o mais frágil dos cinco.** A janela abre quando o painel
+escreve "Segure a tela para o modo AP" e dura 3,5 s; segurar 3 s dentro dela
+liga o AP. Até a v2.7.0 essa janela corria **antes** do Core 1 existir, e o Core
+1 é quem desenha o TFT: a instrução chegava ao vidro 38 ms depois de a janela
+fechar (medido em 22/09/2026 — janela `[3919..7419] ms`, Core 1 em `7457 ms`),
+de modo que quem obedecia ao que o painel dizia estava sempre atrasado. Desde a
+v2.7.1 a janela roda com o painel desenhando, então **o que está escrito na tela
+é verdade enquanto está escrito**.
+
 | Sintoma | O que fazer |
 |---|---|
 | Esqueci a senha de admin | `system admin reset confirm` pela **serial USB** (o comando é recusado pelo Bluetooth), depois entre com a senha impressa — a web obriga a trocá-la. Desde esta versão o reset sobrevive a um reboot, então não há pressa |
-| Responde na serial mas não na rede | `show net status` — sem IP, reconfigure o Wi-Fi pelo display |
+| Responde na serial mas não na rede | `show net status` — sem IP, entre em modo AP (acima) e reconfigure o Wi-Fi pelo portal |
+| O roteador mudou e o aparelho sumiu da rede | Ele abre a rede de setup sozinho — **medido: 6–7 min** (421 s numa corrida, 358–382 s noutra), porque nunca chegou a ter endereço nesse boot. Ou force pelo painel, pelo `ap` na USB, ou pelo `ap` por Bluetooth (alpha e Air) |
+| Vejo a rede `_SETUP` mas o celular não conecta | Corrigido na v2.7.1. Até a v2.7.0, um `ap` disparado enquanto o aparelho estava **caçando uma rede que não existe** subia um AP visível e inassociável (medido: 45 s e timeout, contra 4,07 s depois da correção) — e é justamente aí que se usa o `ap`. Em firmware mais antigo, `reload confirm` e o `ap` logo no boot |
+| Vejo a rede `_SETUP` no celular mas não sei a senha | Ela é derivada da placa e nunca foi em branco desde a v2.4.1-beta. Leia-a no console USB, na resposta do `ap`, no boot do TFT ou no LCD do alpha |
 | Tela em branco depois de ajustar o offset do display | Corrigido na v1.6.2-beta. Em firmwares mais antigos, um reset de fábrica limpa o offset armazenado |
 | A atualização reportou sucesso mas a versão não mudou | O defeito do aplicador descrito na §12. Grave a v1.6.2-beta pelo USB |
 | Não enumera no USB de jeito nenhum | Resgate por BOOTSEL — veja [RECOVERY.md](RECOVERY.md) |

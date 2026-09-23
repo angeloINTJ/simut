@@ -21,6 +21,11 @@ namespace simut_native {
 }
 inline uint32_t millis() { return simut_native::fake_millis_value; }
 inline void set_native_millis(uint32_t v) { simut_native::fake_millis_value = v; }
+/* delay( ) ADVANCES the fake clock. Anything else makes a `while (cond &&
+ * millis( ) - t0 < cap) delay(n)` — the shape the firmware uses to wait
+ * bounded on the radio — spin for ever on the host, which is a hang in a
+ * test suite rather than the timeout the code is asking for. */
+inline void delay(uint32_t ms) { simut_native::fake_millis_value += ms; }
 
 /* strlcpy — BSD, ausente na glibc; o firmware tem via Arduino core.
  * Mantida em sync com a semântica do alvo (dest sempre terminado em NUL). */

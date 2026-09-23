@@ -28,7 +28,9 @@ pio test -e native_logpolicy   # one suite; six exist
 run by CI — `pico_w_asserts` is the one that is easy to forget, because it is
 not in the table above and nothing local reminds you of it. This line said
 "five" until 2026-09-20, and a change that raised the other five budgets went
-to CI with that one over its own. `pio run` with no `-e` builds them all.
+to CI with that one over its own. ⚠️ **`pio run` with no `-e` builds only
+`pico_w_release`** — `default_envs` in `platformio.ini` says so, and this line
+claimed the opposite until 2026-09-22. Name the six.
 There is no debug environment — see the note in `platformio.ini` for why.
 
 ## What will fail your build before CI does
