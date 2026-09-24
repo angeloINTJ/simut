@@ -2228,7 +2228,7 @@ void WebManager::handleApiScreenStream( ) {
  if (!ok) LOG_CODE(LOG_WARN, "WEB", WEB_SCREENSHOT_ABORTED, 0, "");
 }
 
-/* POST /api/touch — a tap on the panel, sent from the mirror in the browser.
+/* POST /api/touch — a tap or a press-and-hold on the panel, from the mirror.
  *
  * x and y are PANEL coordinates (0..319, 0..239), never browser pixels: the
  * page maps the click through the canvas rect before sending, so the device
@@ -2236,6 +2236,16 @@ void WebManager::handleApiScreenStream( ) {
  * outside the panel is a 400 rather than a clamp — a click that landed off
  * the image is a bug in the caller's mapping, and clamping it would press a
  * button on the edge of the screen instead of saying so.
+ *
+ * The optional ms field turns the tap into a HOLD: injectTouch keeps the
+ * simulated press down for ms milliseconds before it auto-releases, which is
+ * what reaches the panel's long-press gestures — the 3 s hold that fixes the
+ * top dashboard card — that a ~100 ms tap cannot. Absent, ms defaults to 100
+ * (a tap: the old behaviour, unchanged). Unlike x/y, ms is CLAMPED to
+ * 100..15000 rather than rejected — a hold past the ceiling is still a hold
+ * and cannot press the wrong thing, while a stray huge value must not wedge
+ * the panel as held. This is the web twin of the CLI 'touch hold X Y [ms]';
+ * the mirror sends the duration the pointer was actually held down.
  *
  * WHY the mirror is let through the priority window this opens. An accepted
  * touch arms TOUCH_PRIORITY_MS (5 s) so that background work — flash writes,
@@ -2279,12 +2289,27 @@ void WebManager::handleApiTouch( ) {
  return;
  }
 
- _displayRef->injectTouch((int16_t)x, (int16_t)y);
+ uint32_t ms = 100;  /* absent = a tap, the old behaviour */
+ String sms = _server->arg("ms");
+ if (sms.length( )) {
+ int ims = 0;
+ if (!parseIntStrict(sms, ims)) {
+ _server->send(400, "application/json",
+               "{\"error\":\"ms must be an integer 100..15000\"}");
+ return;
+ }
+ if (ims < 100)   ims = 100;    /* clamp, never reject — see the header */
+ if (ims > 15000) ims = 15000;
+ ms = (uint32_t)ims;
+ }
+
+ _displayRef->injectTouch((int16_t)x, (int16_t)y, ms);
  _displayRef->resetTouchIdle( );
 
 
- char json[48];
- snprintf(json, sizeof(json), "{\"ok\":true,\"x\":%d,\"y\":%d}", x, y);
+ char json[64];
+ snprintf(json, sizeof(json),
+          "{\"ok\":true,\"x\":%d,\"y\":%d,\"ms\":%lu}", x, y, (unsigned long)ms);
  _server->send(200, "application/json", json);
 }
 

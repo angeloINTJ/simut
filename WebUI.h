@@ -686,6 +686,14 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
          * deixaria o resto da pagina (inclusive o fetchLoop de 3 s) sem
          * resposta. */
         let mirOn = false, mirTimer = null, mirTapPend = false;
+        /* Espelho — estado do segurar (toque longo). O navegador mede quanto
+         * tempo o ponteiro ficou pressionado e manda como ms no POST /api/touch;
+         * o aparelho segura o toque esse tempo (o mesmo que a CLI 'touch hold').
+         * mirLastImg = ultimo quadro, para redesenhar o anel de progresso por
+         * cima sem borrar. */
+        let mirLastImg = null, mirDowning = false, mirDownT = 0, mirDownX = 0,
+            mirDownY = 0, mirHoldMs = 0, mirHoldTimer = null, mirPtrId = -1;
+        const MIR_LONG_MS = 3000;   /* limiar do gesto de toque longo no painel */
 
         /* RGB565 -> RGBA, sem replicar bits baixos: e exatamente a conta que
          * o /api/screenshot faz ao montar o BMP, e as duas imagens precisam
@@ -745,35 +753,82 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 p += len;
             }
             ctx.putImageData(img, 0, 0);
+            mirLastImg = img;   /* guardado p/ redesenhar o anel do segurar */
         }
 
-        /* Clique no espelho = toque no painel. O canvas tem 320x240 de bitmap e
-         * um tamanho em tela maior; o mapeamento e a razao entre os dois, lida
-         * do rect no momento do clique — nao de um fator guardado, que ficaria
-         * errado assim que a janela mudasse de tamanho. A caixa .shot forca
-         * 4:3, a mesma proporcao do painel, entao nao ha borda para descontar.
-         * O aparelho recebe coordenada de PAINEL e nunca precisa saber o
-         * tamanho do canvas. */
-        async function mirTap(ev) {
-            if (!mirOn) return;
+        /* Clique no espelho = toque no painel; SEGURAR = toque longo. O canvas
+         * tem 320x240 de bitmap e um tamanho em tela maior; o mapeamento e a
+         * razao entre os dois, lida do rect no momento do toque — nao de um
+         * fator guardado, que ficaria errado assim que a janela mudasse de
+         * tamanho. A caixa .shot forca 4:3, a mesma proporcao do painel, entao
+         * nao ha borda para descontar. O aparelho recebe coordenada de PAINEL e
+         * nunca precisa saber o tamanho do canvas. */
+        function mirPanelXY(ev) {
             const cv = document.getElementById('mirror');
             const r = cv.getBoundingClientRect();
-            if (!r.width || !r.height) return;
+            if (!r.width || !r.height) return null;
             const x = Math.floor((ev.clientX - r.left) * cv.width / r.width);
             const y = Math.floor((ev.clientY - r.top) * cv.height / r.height);
-            if (x < 0 || y < 0 || x >= cv.width || y >= cv.height) return;
+            if (x < 0 || y < 0 || x >= cv.width || y >= cv.height) return null;
+            return { x, y };
+        }
 
-            /* Marca o ponto na hora: o proximo quadro so chega em ~1,5 s e sem
-             * isso o clique parece nao ter acontecido. O quadro seguinte
-             * apaga a marca por cima. */
-            mirTapPend = true;
-
+        /* Desenha o anel do toque, e um arco de progresso ate MIR_LONG_MS, por
+         * cima do ultimo quadro sem borrar: restaura o quadro e redesenha. O
+         * anel fica verde quando cruza o limiar do gesto longo, para dizer que
+         * ja vale como toque longo antes mesmo de soltar. */
+        function mirRing(x, y, elapsed) {
+            const cv = document.getElementById('mirror');
             const ctx = cv.getContext('2d');
-            ctx.strokeStyle = '#ff2d2d'; ctx.lineWidth = 2;
+            if (mirLastImg) ctx.putImageData(mirLastImg, 0, 0);
+            ctx.strokeStyle = elapsed >= MIR_LONG_MS ? '#22c55e' : '#ff2d2d';
+            ctx.lineWidth = 2;
             ctx.beginPath(); ctx.arc(x, y, 9, 0, 6.2832); ctx.stroke();
+            if (elapsed > 0) {
+                const frac = Math.min(elapsed / MIR_LONG_MS, 1);
+                ctx.beginPath();
+                ctx.arc(x, y, 13, -1.5708, -1.5708 + frac * 6.2832);
+                ctx.stroke();
+            }
+        }
 
+        function mirDown(ev) {
+            if (!mirOn) return;
+            const p = mirPanelXY(ev);
+            if (!p) return;
+            ev.preventDefault();
+            /* Captura o ponteiro: o pointerup chega aqui mesmo se soltar fora do
+             * canvas, e o gesto fica ancorado no ponto onde comecou. */
+            mirPtrId = ev.pointerId;
+            try { document.getElementById('mirror').setPointerCapture(mirPtrId); } catch (e) {}
+            mirDowning = true; mirDownT = performance.now();
+            mirDownX = p.x; mirDownY = p.y;
+            mirRing(p.x, p.y, 0);
+            /* Enquanto o ponteiro esta em baixo, mirTick nao puxa quadros (um
+             * quadro novo apagaria o anel); este intervalo mostra o progresso. */
+            if (mirHoldTimer) clearInterval(mirHoldTimer);
+            mirHoldTimer = setInterval(() => {
+                const el = performance.now() - mirDownT;
+                mirRing(mirDownX, mirDownY, el);
+                document.getElementById('mirStat').textContent = (el / 1000).toFixed(1) + ' s';
+            }, 100);
+        }
+
+        async function mirUp() {
+            if (!mirDowning) return;
+            mirDowning = false;
+            if (mirHoldTimer) { clearInterval(mirHoldTimer); mirHoldTimer = null; }
+            const held = Math.round(performance.now() - mirDownT);
+            const x = mirDownX, y = mirDownY;
+            /* Marca o ponto agora: o proximo quadro so chega depois da janela de
+             * silencio (e, num segurar, depois de o aparelho soltar). */
+            mirTapPend = true;
+            mirRing(x, y, held);
+            const body = new URLSearchParams({ x: String(x), y: String(y) });
+            /* So manda ms quando foi mesmo um segurar; um toque rapido vai sem
+             * ms e o aparelho faz um tap (100 ms), o comportamento antigo. */
+            if (held >= 250) { mirHoldMs = held; body.set('ms', String(held)); }
             try {
-                const body = new URLSearchParams({ x: String(x), y: String(y) });
                 const r2 = await fetchSafe('/api/touch', {
                     method: 'POST', retries: 0, body,
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
@@ -788,8 +843,16 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             }
         }
 
+        function mirCancel() {
+            /* Ponteiro cancelado com o toque em baixo: solta onde comecou. */
+            if (mirDowning) mirUp();
+        }
+
         async function mirTick() {
             if (!mirOn) return;
+            /* Ponteiro em baixo: nao puxa quadros (um quadro novo apagaria o
+             * anel de progresso); mirDown/mirHoldTimer cuidam do desenho. */
+            if (mirDowning) { mirTimer = setTimeout(mirTick, 120); return; }
             /* Aba escondida nao desenha nada, e o aparelho atende uma
              * requisicao por vez: continuar puxando quadros para ninguem
              * roubaria o servidor de quem esta olhando outra coisa. */
@@ -815,7 +878,11 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
              * aqui antes de virar comentario. */
             if (mirTapPend) {
                 mirTapPend = false;
-                mirTimer = setTimeout(mirTick, 600);
+                /* Depois de um segurar, espera tambem o aparelho soltar
+                 * (mirHoldMs) antes do proximo quadro, senao ele sai no meio do
+                 * gesto. Um tap ou um quadro comum tem mirHoldMs = 0. */
+                const extra = mirHoldMs; mirHoldMs = 0;
+                mirTimer = setTimeout(mirTick, 600 + extra);
                 return;
             }
 
@@ -847,7 +914,11 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             if (mirTimer) { clearTimeout(mirTimer); mirTimer = null; }
             const cv = document.getElementById('mirror');
             cv.classList.remove('live');
-            cv.removeEventListener('click', mirTap);
+            cv.removeEventListener('pointerdown', mirDown);
+            cv.removeEventListener('pointerup', mirUp);
+            cv.removeEventListener('pointercancel', mirCancel);
+            if (mirHoldTimer) { clearInterval(mirHoldTimer); mirHoldTimer = null; }
+            mirDowning = false;
             document.getElementById('mirLbl').textContent = window.t('dash_disp_live', 'Live view');
             if (msg) document.getElementById('mirStat').textContent = msg;
         }
@@ -860,9 +931,11 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             const cv = document.getElementById('mirror');
             cv.style.display = 'block';
             cv.classList.add('live');
-            cv.addEventListener('click', mirTap);
+            cv.addEventListener('pointerdown', mirDown);
+            cv.addEventListener('pointerup', mirUp);
+            cv.addEventListener('pointercancel', mirCancel);
             document.getElementById('mirLbl').textContent = window.t('dash_disp_stop', 'Stop');
-            document.getElementById('mirStat').textContent = window.t('dash_disp_tap', 'Click the mirror to touch the panel');
+            document.getElementById('mirStat').textContent = window.t('dash_disp_tap', 'Click to tap, hold to long-press');
             mirTick();
         }
 
@@ -2857,12 +2930,6 @@ global.H5G = H5G;
 
 
         /* ============== F-CSV: export histórico + logs (UI simplificada) ============== */
-        /* Mini CRC32-IEEE com tabela 256. Compat com firmware crc32_*. */
-        const _crcTab = (() => { const t = new Uint32Array(256);
-            for (let i=0;i<256;i++){let c=i; for(let j=0;j<8;j++) c=(c&1)?((c>>>1)^0xEDB88320):(c>>>1); t[i]=c>>>0;} return t; })();
-        function crc32(u8) { let c = 0xFFFFFFFF >>> 0;
-            for (let i=0;i<u8.length;i++) c = (_crcTab[(c ^ u8[i]) & 0xFF] ^ (c >>> 8)) >>> 0;
-            return (~c) >>> 0; }
 
         function _isoLocal(epoch) {
             const d = new Date(epoch * 1000);
@@ -2876,13 +2943,6 @@ global.H5G = H5G;
                    sgn + tzh + ':' + tzm;
         }
 
-        function _readUtf8(u8, off, len) {
-            try { return new TextDecoder('utf-8', {fatal:false}).decode(u8.subarray(off, off+len)); }
-            catch(e) { let s=''; for(let i=0;i<len;i++) s+=String.fromCharCode(u8[off+i]); return s; }
-        }
-
-        /* Decoder .simx kind='H' -> array de linhas CSV (sem header).
-         * Filtra por sensor selecionado (sensorIdx == 'all' ou string com idx). */
         /* HistoryV5 decoder for the browser.
          *
          * The export used to arrive as a .simx bundle of 70-byte BinaryHistoryRecords
@@ -3091,81 +3151,6 @@ global.H5G = H5G;
                     const val = raw * Math.pow(10, d.scaleExp);
                     lines.push(iso + ',' + s.hwId + ',"' + s.friendly + '",'
                                + val.toFixed(h5KindDecimals(d.kind)) + ',' + h5KindUnit(d.kind));
-                }
-            }
-            return lines;
-        }
-        function _decodeSimxHistory(buf, filterIdx) {
-            const u8 = new Uint8Array(buf);
-            if (u8.length < 36) throw new Error('blob too small');
-            const dv = new DataView(buf);
-            const magic = String.fromCharCode(u8[0],u8[1],u8[2],u8[3]);
-            if (magic !== 'SIMX') throw new Error('bad magic');
-            if (u8[4] !== 1) throw new Error('bad version');
-            if (u8[5] !== 0x48 /*'H'*/) throw new Error('bad kind');
-            /* Era um teste fixo `!== 28` contra um firmware que emitia 74 —
-               todo export falhava aqui com "bad recordSize". Aceita o que o
-               cabecalho declarar e usa esse passo na iteracao. */
-            const recSize = dv.getUint16(8, true);
-            if (!recSize || recSize > 512) throw new Error('bad recordSize');
-            const tblSize = dv.getUint32(20, true);
-            /* CRC32: ultimos 4 bytes vs computado */
-            const crcExp = dv.getUint32(u8.length - 4, true);
-            const crcCalc = crc32(u8.subarray(0, u8.length - 4));
-            if (crcExp !== crcCalc) throw new Error('CRC32 mismatch');
-
-            /* Parse SENSOR_TABLE -> map idx -> {hwId, friendly} */
-            const sensors = {};
-            let off = 32, end = 32 + tblSize;
-            while (off < end) {
-                const idx = u8[off++]; const hwLen = u8[off++];
-                const hwId = _readUtf8(u8, off, hwLen); off += hwLen;
-                const frLen = u8[off++];
-                const friendly = _readUtf8(u8, off, frLen); off += frLen;
-                sensors[idx] = { hwId, friendly };
-            }
-
-            /* Itera PAYLOAD: N x BinaryHistoryRecord (70 B):
-             *   epoch u32 | sensors[16] i16 | humidity[16] i16 | pressure i16
-             *
-             * Este leitor estava parado num registro de 28 B (epoch + o par
-             * ambiente + sensors[10]) enquanto o firmware ja emitia 74 B com
-             * 16 slots, umidade por slot e pressao — lia a partir do offset
-             * errado do segundo registro em diante. Agora acompanha o layout,
-             * e o par ambiente saiu junto com o slot 10 especial.
-             *
-             * REC_SIZE vem do cabecalho (recordSize) quando presente, para o
-             * proximo passo de layout nao voltar a silenciar este parser. */
-            const REC = recSize && recSize > 0 ? recSize : 70;
-            const OFF_T = 4, OFF_H = 4 + 32, OFF_P = 4 + 64;
-            const payStart = 32 + tblSize;
-            const payEnd = u8.length - 4;
-            const lines = [];
-            const NAN_S = -32768;
-            /* filterIdx aceita: 'all' (string), array de slots [0,5], ou int legacy */
-            const wantAll = (filterIdx === 'all');
-            const filterSet = wantAll ? null : new Set(
-                Array.isArray(filterIdx) ? filterIdx.map(Number) : [parseInt(filterIdx, 10)]
-            );
-            for (let p = payStart; p + REC <= payEnd; p += REC) {
-                const epoch = dv.getUint32(p, true);
-                const iso = _isoLocal(epoch);
-                for (let i = 0; i < 16; i++) {
-                    if (!wantAll && !filterSet.has(i)) continue;
-                    const s = sensors[i];
-                    if (!s) continue;
-                    const t = dv.getInt16(p + OFF_T + i*2, true);
-                    if (t !== NAN_S) {
-                        lines.push(`${iso},${s.hwId},"${s.friendly}",${(t/100).toFixed(2)},°C`);
-                    }
-                    const h = dv.getInt16(p + OFF_H + i*2, true);
-                    if (h !== NAN_S) {
-                        lines.push(`${iso},${s.hwId},"${s.friendly}",${(h/100).toFixed(2)},%RH`);
-                    }
-                }
-                const pr = dv.getInt16(p + OFF_P, true);
-                if (pr !== NAN_S && wantAll) {
-                    lines.push(`${iso},,,${(pr/10).toFixed(1)},hPa`);
                 }
             }
             return lines;
