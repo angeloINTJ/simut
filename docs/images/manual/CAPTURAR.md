@@ -3,7 +3,7 @@
 Gerado por `tools/build_manual.py` — não edite à mão. Salve cada captura
 nesta pasta com o nome indicado e rode o script de novo.
 
-194 pendentes de 194.
+150 pendentes de 194.
 
 
 ## Capítulo 1 — O SIMUT em uma página
@@ -56,25 +56,13 @@ nesta pasta com o nome indicado e rode o script de novo.
       Uma alteração que se aplica sem reinício: o selo diz Não exige reinício e os três botões aparecem.
 - [ ] `05-confirmacao.png` (Página web) — rota /config; largura 1280; sessão admin; Nome do aparelho alterado; janela de confirmação aberta depois de tocar em Salvar e reiniciar
       A confirmação de Salvar e reiniciar, que avisa quanto tempo o aparelho fica fora do ar.
-- [ ] `05-configuracoes.png` (Página web) — rota /config; largura 1280; sessão admin; imagem release; valores de fábrica; nenhuma alteração preparada; página no topo mostrando Identidade, Data e Hora e o início de Hardware
-      A página Configurações aberta, com as seções Identidade e Data e Hora.
 - [ ] `05-erro-carga.png` (Página web) — rota /config; largura 1280; sessão admin; aparelho sem responder a /api/config (por exemplo, rede interrompida depois de a página abrir); faixa de erro visível e campos desabilitados
       A faixa de erro de carga: os campos ficam desabilitados para que nada em branco seja gravado.
 - [ ] `05-data-hora.png` (Página web) — rota /config; largura 1280; sessão admin; NTP desligado e gravado; seção Data e Hora com os campos de data e hora preenchidos; mensagem Hora aplicada. abaixo do botão Aplicar Agora
       A seção Data e Hora com o NTP desligado, depois de um acerto manual.
-- [ ] `05-hardware.png` (Página web) — rota /config; largura 1280; sessão admin; imagem release; valores de fábrica; seção Hardware inteira, com a linha da política de PIN e a dica 4 – 8
-      A seção Hardware na imagem release, com a política de PIN do painel.
-- [ ] `05-sensores.png` (Página web) — rota /config; largura 1280; sessão admin; dois slots configurados (um DS18B20 e um BME280); seção Sensores e GPIO com o mapa de GPIOs e a tabela de slots; editor fechado
-      A seção Sensores e GPIO, com o mapa de GPIOs e a tabela de slots. O editor de slot está no capítulo 6.
-- [ ] `05-syslog.png` (Página web) — rota /config; largura 1280; sessão admin; syslog ligado com IP do Coletor 192.0.2.10, porta 514 e nível Info; recorte das seções Syslog Remoto e Calibração do Touch
-      As duas últimas seções da página: o syslog e a calibração do touch.
 
 ## Capítulo 6 — Sensores e calibração
 
-- [ ] `06-hardware.png` (Página web) — rota /config; largura 1280; sessão admin; imagem release; valores de fábrica; recorte da seção Hardware
-      A seção Hardware com os valores de fábrica: resolução de 12 bits, amostra de 2000 ms, histórico a cada 1 min e a política de PIN.
-- [ ] `06-sensores.png` (Página web) — rota /config; largura 1280; sessão admin; imagem release; 3 slots ativos (DS18B20 em GP2, DHT22 em GP3, BME280 em GP4 e GP5); recorte da seção Sensores e GPIO
-      A seção Sensores e GPIO. A faixa de GP0 a GP15 mostra quais pinos estão ocupados e por qual slot; a tabela lista só os slots em uso.
 - [ ] `06-editor-ds18b20.png` (Página web) — rota /config; largura 1280; sessão admin com a permissão Calibração; imagem release; editor do slot 2 aberto, DS18B20 ativo em GP2, relógio sincronizado por NTP, sem correção
       O editor de um slot DS18B20: tipo, nome, ID de hardware, estado, o pino 1-Wire, o bloco de calibração e as operações de hardware.
 - [ ] `06-editor-bme280.png` (Página web) — rota /config; largura 390; sessão admin; imagem release; editor de um slot novo com o tipo BME280 escolhido, Pino 0 — SDA em GP4, Pino 1 — SCL em GP5, ID de hardware e nome preenchidos, Ativo ligado, ainda não gravado
@@ -98,32 +86,14 @@ nesta pasta com o nome indicado e rode o script de novo.
 
 ## Capítulo 7 — Alarmes, sons e janelas de manutenção
 
-- [ ] `07-painel-limite.png` (Tela do painel) — screen dash; 2 sensores ativos; o sensor do cartão de baixo acima do máximo de temperatura, alarme não silenciado; captura na fase vermelha da piscada
-      Um alarme de limite no painel: o cartão do sensor pisca em vermelho.
 - [ ] `07-painel-falha.png` (Tela do painel) — screen dash; 2 sensores ativos; o DS18B20 do cartão de baixo desligado do pino há mais de 3 leituras; captura na fase âmbar da piscada
       Um alarme de falha no painel: o cartão pisca em âmbar e mostra Erro no lugar do valor.
-- [ ] `07-tela-alarme.png` (Tela do painel) — tela MODE_ALARM_ACTION; a partir da screen dash com um sensor chamado Freezer acima do limite, toque no cartão que pisca; a ferramenta de mapa de telas não alcança esta tela sozinha
-      A tela de alarme de um sensor, com Silenciar 120s, Desativar e Min/Max.
-- [ ] `07-silenciado.png` (Tela do painel) — screen dash; um sensor acima do limite; logo depois de tocar em Silenciar 120s; a barra de cima mostra Silenciado com a contagem
-      O painel durante o silêncio: a contagem na barra de cima e o cartão parado.
-- [ ] `07-pagina-limites.png` (Página web) — rota /alarms; largura 1280; sessão admin; 3 sensores ativos (DS18B20, DHT22 e BME280); recorte da seção Limites de Alarme
-      A seção Limites de Alarme: um cartão por sensor ativo, com a chave de alarme e um par de campos por grandeza.
-- [ ] `07-pagina-sons.png` (Página web) — rota /alarms; largura 1280; sessão admin; valores de fábrica; recorte da seção Configuração de Sons
-      A seção Configuração de Sons com os valores de fábrica: todos os sons ligados, volumes em 70 %.
-- [ ] `07-lista-sensores.png` (Tela do painel) — screen alm; 3 sensores ativos, um deles com alarmes desligados
-      A lista de sensores do menu de alarmes, com o estado SIM ou NÃO de cada um.
-- [ ] `07-menu-sensor.png` (Tela do painel) — screen alm -> tap(160,57) -> tap(160,57); sessão admin; sensor com alarmes ligados e sem manutenção
-      O menu de um sensor para uma conta com as três permissões de painel.
 - [ ] `07-menu-sensor-manut.png` (Tela do painel) — menu do sensor aberto por uma conta que tem só a permissão Manut. (painel); caminho: tela inicial, botão de configurações, conta, PIN, Limites de Alarme, sensor
       O mesmo menu para uma conta só com Manut. (painel): as duas primeiras linhas apagadas, com cadeado, e a seleção em Manutenção.
-- [ ] `07-editor-limites.png` (Tela do painel) — screen alm -> tap(160,57) -> tap(160,57) -> tap(160,57); sessão admin; sensor DHT22; barra Temp Max selecionada
-      O editor de limites de um DHT22: temperatura e umidade, mínimo e máximo.
 - [ ] `07-manutencao-entrada.png` (Tela do painel) — menu do sensor -> Manutenção -> ENTRAR; sessão admin; janela fechada; Horas 2 e Minutos 30 ajustados, antes de INICIAR
       A tela Manutenção com a janela fechada: horas, minutos e INICIAR.
 - [ ] `07-manutencao-aberta.png` (Tela do painel) — mesmo caminho, com a janela aberta há alguns minutos
       A tela Manutenção com a janela aberta: o tempo que falta e FECHAR.
-- [ ] `07-sons-painel.png` (Tela do painel) — screen set -> tap(105,215) -> tap(105,215) -> tap(250,215); sessão admin; valores de fábrica; primeira página
-      A tela Config. de Sons, primeira página: os dois volumes, Toque na Tela e Confirmação.
 - [ ] `07-melodia.png` (Tela do painel) — tela Config. de Sons; som Alarme desligado; toque na linha Alarme duas vezes para abrir a escolha de melodia
       A escolha de melodia do som de alarme, com as seis opções.
 - [ ] `07-mudo-confirmar.png` (Tela do painel) — tela MODE_CONFIRM_MUTE_ALL; na tela Config. de Sons, selecione Mudo Global desligado e toque nele; a ferramenta de mapa de telas não alcança esta tela sozinha
@@ -174,8 +144,6 @@ nesta pasta com o nome indicado e rode o script de novo.
 
 ## Capítulo 9 — Rede, Wi-Fi e HTTPS
 
-- [ ] `09-rede.png` (Página web) — rota /network; largura 1280; sessão admin; imagem release; conectado por DHCP à rede MinhaRede; DNS automático; porta 80; sem certificado HTTPS instalado
-      A página Rede: à esquerda, o estado da conexão; à direita, o formulário de configuração.
 - [ ] `09-ip-estatico.png` (Página web) — rota /network; largura 1280; sessão admin; DHCP desligado; IP Estático 192.0.2.10, Máscara 255.255.255.0, Gateway 192.0.2.1; DNS automático desligado com DNS Primário 192.0.2.1; alterações preparadas e ainda não gravadas
       A seção IPv4 com o DHCP desligado e os campos do IP fixo preenchidos.
 - [ ] `09-servidor-web.png` (Página web) — rota /network; largura 1280; sessão admin; imagem release; certificado HTTPS instalado; página aberta por https; recorte das seções Servidor de Hora (NTP) e Servidor Web, com o interruptor Conexões persistentes visível e ligado
@@ -195,8 +163,6 @@ nesta pasta com o nome indicado e rode o script de novo.
       O acerto manual com o NTP desligado: data, hora e o botão Aplicar Agora da seção.
 - [ ] `10-correcao.png` (Diagrama) — linha do tempo: aparelho desligado por 2 h; boot com relógio provisório a partir do último registro, 2 h atrasado; medições carimbadas com a hora provisória; acerto por NTP com correção de +7200 s; os blocos gravados desde o boot deslocados 2 h para a frente; eventos 524, 13, 408, 409 e 410 marcados na linha
       O que o primeiro acerto por NTP faz com as medições gravadas sob o relógio provisório.
-- [ ] `10-painel-hora.png` (Tela do painel) — screen dash; 2 sensores ativos; relógio acertado por NTP; recorte da faixa de topo com a data e a hora
-      A data e a hora no topo do painel principal, no fuso do aparelho.
 
 ## Capítulo 11 — O painel
 
@@ -206,8 +172,6 @@ nesta pasta com o nome indicado e rode o script de novo.
       A contagem de pendentes em vermelho: o último envio falhou.
 - [ ] `11-aviso-web.png` (Tela do painel) — screen dash; até 5 s depois de entrar na interface web com a conta admin; recorte da barra de cima com Web: admin no lugar do relógio
       O aviso de entrada pela web, no lugar da data e da hora.
-- [ ] `11-minmax.png` (Tela do painel) — screen dash -> tap(160,150); DHT22 selecionado no cartão de baixo, com leituras desde a meia-noite
-      O cartão de baixo em mínimo e máximo: temperatura e umidade, e o botão de gráfico à direita.
 - [ ] `11-selecao.png` (Tela do painel) — screen dash; 3 sensores ativos; segure o dedo no cartão de cima por 3 s e solte; a ferramenta de mapa de telas não faz o gesto de segurar
       O cartão de cima em seleção: cinza, espelhando o sensor do cartão de baixo.
 - [ ] `11-paginas.png` (Tela do painel) — screen dash; 7 sensores ativos, nenhum fixado fora da primeira página; barra de botões na primeira página, com S e o botão 1/2
@@ -216,48 +180,20 @@ nesta pasta com o nome indicado e rode o script de novo.
       O aviso de web ocupada: WEB ‘admin’ - toque bloqueado.
 - [ ] `11-carregando.png` (Tela do painel) — tela MODE_GRAPH_LOADING; aparece por instantes ao abrir um gráfico a partir da tela inicial; transitória, pode exigir várias tentativas de captura
       A tela Carregando…, ao abrir um gráfico.
-- [ ] `11-grafico.png` (Tela do painel) — screen dash -> tap(160,150) -> tap(290,150) -> tap(286,215) -> tap(286,215) -> tap(286,215); DHT22 selecionado no cartão de baixo; o gráfico abre em 1H e os três toques na lupa de menos levam a 24H; histórico de pelo menos um dia
-      O gráfico de 24H de um DHT22: faixa de mínimo e máximo, linha de temperatura, curva de umidade e marcadores.
 - [ ] `11-detalhe-temp.png` (Tela do painel) — screen gra -> tap(160,120); gráfico de um BME280 aberto antes, em 24H
       O detalhe numérico, página de temperatura: máximo, mínimo, média e desvio.
 - [ ] `11-detalhe-umid.png` (Tela do painel) — screen gra -> tap(160,120) -> tap(160,120); mesmo BME280
       A página de umidade do detalhe.
 - [ ] `11-detalhe-pressao.png` (Tela do painel) — screen gra -> tap(160,120) -> tap(160,120) -> tap(160,120); mesmo BME280
       A página de pressão do detalhe.
-- [ ] `11-calendario.png` (Tela do painel) — screen gra -> tap(160,215); mês corrente com histórico em pelo menos dez dias
-      O calendário: os dias com histórico têm um ponto, e o dia de hoje fica destacado.
-- [ ] `11-menu.png` (Tela do painel) — screen set; a ferramenta entra como administrador; primeira página, item 1 selecionado
-      O menu completo, primeira página: itens numerados de 1 a 4.
-- [ ] `11-menu-p3.png` (Tela do painel) — screen set -> tap(35,215); a seta para cima dá a volta e seleciona o item 12; terceira página
-      A terceira página do menu completo, com Alinhamento da Tela, Usuários, Segurança do PIN e Modo de Configuração.
-- [ ] `11-temas.png` (Tela do painel) — screen thm; tema de fábrica aplicado; pelo menos quatro temas instalados
-      A escolha de tema, com as amostras de cor de cada um.
-- [ ] `11-idioma.png` (Tela do painel) — screen lng; pacote pt-BR carregado e em uso
-      A escolha de idioma: English e o pacote instalado.
-- [ ] `11-sensibilidade.png` (Tela do painel) — screen touchsens; dedo ainda não encostado; barra vazia
-      A etapa de sensibilidade: a mira, a barra de estabilidade e o limite de pressão.
 - [ ] `11-mira.png` (Tela do painel) — screen touchcal e complete a etapa de sensibilidade com o dedo; capture a primeira mira, no canto de cima à esquerda; o toque simulado não completa a sensibilidade, porque não tem pressão
       A etapa de posição: a primeira mira, Toque na mira (1/4) e a volta [ 1 / 2 ].
 - [ ] `11-calib-ok.png` (Tela do painel) — depois do oitavo toque de uma calibração com as duas voltas coerentes
       O fim de uma calibração aceita: Calibração Concluída! e ENTENDI.
 - [ ] `11-calib-recusada.png` (Tela do painel) — depois do oitavo toque, tendo tocado longe da mira num dos cantos da segunda volta
       Uma calibração recusada: Toques imprecisos! Tente novamente.
-- [ ] `11-licenca.png` (Tela do painel) — screen lic; primeira página
-      A primeira página da licença.
-- [ ] `11-status-1.png` (Tela do painel) — screen sts; página 1
-      Status do Sistema, página 1: o aparelho.
-- [ ] `11-status-2.png` (Tela do painel) — screen sts -> tap(105,215); página 2; Wi-Fi conectado e NTP sincronizado
-      Status do Sistema, página 2: rede e hora.
-- [ ] `11-status-3.png` (Tela do painel) — screen sts -> tap(105,215) -> tap(105,215); página 3
-      Status do Sistema, página 3: sensores.
-- [ ] `11-status-4.png` (Tela do painel) — screen sts -> tap(35,215); a seta para cima dá a volta até a página 4; telemetria MQTT ligada, com registros pendentes
-      Status do Sistema, página 4: telemetria.
 - [ ] `11-alinhamento.png` (Tela do painel) — screen offset; deslocamento X +2 e Y -1 ajustado, antes de APLICAR
       O alinhamento da tela, com as quatro setas, o quadrado de zerar e os valores X e Y.
-- [ ] `11-teclado-texto.png` (Tela do painel) — screen usr -> tap(270,215) -> tap(121,151); NOVO e depois a tecla do grupo pqrs, segunda linha, segunda coluna
-      O teclado de texto com o grupo pqrs aberto, em minúsculas e maiúsculas.
-- [ ] `11-ap-confirmar.png` (Tela do painel) — screen set -> tap(35,215) -> tap(270,215); a seta para cima dá a volta até o item 12
-      A confirmação do Modo de Configuração.
 - [ ] `11-mensagem-ok.png` (Tela do painel) — menu > Alterar Senha; digite duas vezes um PIN novo e válido, com ENTRAR
       Uma mensagem de sucesso: PIN salvo! e ENTENDI.
 - [ ] `11-boot.png` (Foto) — boot com rede configurada e alcançável; capture durante Aguardando roteador; a captura por GET /api/screenshot não alcança o boot, então use foto da tela
@@ -308,8 +244,6 @@ nesta pasta com o nome indicado e rode o script de novo.
 
 ## Capítulo 13 — A interface web no dia a dia
 
-- [ ] `13-entrada.png` (Página web) — rota /login; largura 1280; sem sessão; idioma Português escolhido no seletor do rodapé; campos vazios
-      A página de entrada. Note o seletor de idioma no rodapé e o link Trocar senha abaixo do botão Entrar.
 - [ ] `13-entrada-bloqueio.png` (Página web) — rota /login; largura 390; sem sessão; uma senha errada acabou de ser enviada; a mensagem Bloqueado por 2s. Tentativas excessivas. está na tela e o botão Entrar está desativado
       O bloqueio depois de uma senha errada. O botão Entrar volta sozinho quando a contagem termina.
 - [ ] `13-trocar-senha.png` (Página web) — rota /login, depois de tocar em Trocar senha; largura 390; sem sessão; Nova Senha preenchida com 8 caracteres entre letras e dígitos, sem símbolo; Repetir Nova Senha vazia
@@ -320,14 +254,10 @@ nesta pasta com o nome indicado e rode o script de novo.
       A troca de senha obrigatória. Com as duas senhas iguais e as quatro regras atendidas, a barra fica verde e o botão Salvar e Entrar fica ativo.
 - [ ] `13-barra-topo.png` (Página web) — rota /alarms; largura 1280; sessão admin; um limite de alarme alterado e ainda não gravado; recorte da barra de topo e da trilha
       A barra de topo com uma alteração preparada: o selo, os botões de gravação, o botão de tema e o endereço do aparelho.
-- [ ] `13-gaveta.png` (Página web) — rota /; largura 1280; sessão admin; gaveta aberta; idioma PT no seletor; relógio do aparelho acertado
-      A gaveta aberta para a conta admin, com os oito itens, a versão, Licença, a saudação, o seletor de idioma e Sair.
 - [ ] `13-gaveta-restrita.png` (Página web) — rota /; largura 390; sessão de um operador com as permissões Painel e Histórico; gaveta aberta
       A gaveta de uma conta com Painel e Histórico: só Painel de Controle, Histórico e Logs e Licença aparecem.
 - [ ] `13-acesso-negado.png` (Página web) — rota /; largura 1280; sessão de um operador sem a permissão Painel, logo depois de entrar
       A resposta Access Denied, que uma conta sem a permissão Painel recebe ao entrar.
-- [ ] `13-painel-de-controle.png` (Página web) — rota /; largura 1280; sessão admin; imagem release; tema escuro; 2 sensores ativos (um DS18B20 e um BME280); relógio acertado; telemetria ligada com alguns registros pendentes; bloco Tela antes de qualquer captura
-      O Painel de Controle na imagem release: cartões de estado, cartões de métricas, tabela de sensores e, à direita, o bloco Tela.
 - [ ] `13-painel-de-controle-alpha.png` (Página web) — rota /; largura 1280; sessão admin; imagem alpha; 1 sensor DHT22 ativo; telemetria desligada
       O Painel de Controle numa imagem sem painel com toque: uma coluna só, sem o bloco Tela.
 - [ ] `13-painel-de-controle-celular.png` (Página web) — rota /; largura 390; sessão admin; imagem release; 2 sensores ativos; página rolada até a tabela de sensores
@@ -342,15 +272,11 @@ nesta pasta com o nome indicado e rode o script de novo.
       O Painel de Controle no tema claro. Compare com a figura do tema escuro no início da seção do Painel de Controle.
 - [ ] `13-celular-pendente.png` (Página web) — rota /alarms; largura 390; sessão admin; um limite de alarme alterado e ainda não gravado; a barra fixa do rodapé visível
       No celular, os botões de gravação ficam numa barra fixa no rodapé.
-- [ ] `13-licenca.png` (Página web) — rota /license; largura 1280; sessão admin; página rolada até o início dos Avisos de Terceiros
-      A página Licença, com o resumo em linguagem simples e o texto original da licença MIT.
 
 ## Capítulo 15 — Histórico
 
 - [ ] `15-caminho.png` (Diagrama) — fluxo da esquerda para a direita: sensores → 'registro a cada Intervalo Histórico' → caixa 'bloco aberto (RAM), até 60 registros'; seta tracejada 'cópia a cada registro' para '/history/.wip'; seta cheia 'selar (60 registros, virada do dia, correção do NTP)' para '/history/AAAAMMDD.h5', desenhado como uma pilha de blocos, cada um com 'CRC' e 'mín/máx'; ao lado, uma fila de arquivos diários com o mais antigo marcado 'apagado acima de 86 %'
       Legenda: o registro nasce na RAM, é copiado para o .wip na hora e vai para o arquivo do dia quando o bloco sela.
-- [ ] `15-pagina.png` (Página web) — rota /history; largura 1280; sessão admin; imagem release; 3 sensores ativos (DS18B20, DHT22, BME280); período 24h; um sensor selecionado; histórico com 20 dias; seção de eventos ainda não carregada
-      A página Histórico e Logs: à esquerda, o seletor de sensores e o calendário; à direita, os mínimos e máximos, o gráfico e os controles de período; embaixo, os eventos do sistema.
 - [ ] `15-sensores.png` (Página web) — rota /history; largura 1280; sessão admin; lista Origem aberta com 3 sensores, dois marcados; recorte do cartão da esquerda
       A lista de sensores aberta. O ponto colorido é a cor da série no gráfico.
 - [ ] `15-calendario.png` (Página web) — rota /history; largura 1280; sessão admin; mês de setembro de 2026 com os dias 1 a 23 destacados; dia 22 selecionado; recorte do calendário
@@ -370,15 +296,11 @@ nesta pasta com o nome indicado e rode o script de novo.
 
 - [ ] `16-transicao.png` (Diagrama) — linha do tempo de 3 horas da família Telemetria: pontos cinza pequenos a cada envio (console), pontos grandes onde o registro vai para a flash; flash no 1º envio depois do boot, na 1ª falha (coletor cai), nenhuma nas falhas seguintes, na 1ª volta, e um por hora nos trechos estáveis; marcas 'Registros de rotina suprimidos (5), ctx = N' a cada hora
       Legenda: o console vê todos os eventos; a flash guarda as transições e um registro por hora de cada família.
-- [ ] `16-eventos.png` (Página web) — rota /history; largura 1280; sessão admin; seção Eventos do Sistema carregada; caixas INF, WRN e ERR marcadas; cerca de 15 linhas visíveis, incluindo uma entrada (300), uma mudança de configuração (303) e uma falha de telemetria (31)
-      A seção Eventos do Sistema com os três níveis marcados. O registro mais recente fica no topo.
 - [ ] `16-eventos-celular.png` (Página web) — rota /history; largura 390; sessão admin; seção Eventos do Sistema carregada, rolada até a tabela; só ERR marcado
       A tabela de eventos no celular, com o filtro de entrada: só erros.
 
 ## Capítulo 17 — Atualização, backup e restauração
 
-- [ ] `17-arquivos.png` (Página web) — rota /files; largura 1280; sessão admin; pasta raiz; pastas history, lang, themes e web; arquivos calib.csv, README.txt (com cadeado), system.blog e system.old.blog
-      A página Arquivos na raiz, vista pelo administrador: os seis botões, as pastas e os arquivos. O cadeado marca o README.txt, que não pode ser apagado.
 - [ ] `17-arquivos-leitura.png` (Página web) — rota /files; largura 390; sessão de um operador com as permissões Painel, Histórico e Leitura; pasta raiz
       A mesma página para uma conta só com Leitura: resta o botão Baixar.
 - [ ] `17-restaurar-confirmar.png` (Página web) — rota /files; largura 1280; sessão admin; backup do próprio aparelho escolhido, validação concluída, janela de confirmação aberta com o número de arquivos e o tamanho
@@ -421,26 +343,16 @@ nesta pasta com o nome indicado e rode o script de novo.
 
 - [ ] `21-cursor.png` (Diagrama) — Linha do tempo horizontal com os registros do histórico como pequenos quadrados. Uma marca vertical 'cursor' separa os registros já confirmados (cinza, à esquerda) dos pendentes (coloridos, à direita). Um colchete agrupa os primeiros pendentes como 'lote (até o Lote máximo)'. Uma seta leva o lote ao 'coletor'; a volta '2xx' move o cursor para o fim do lote; uma volta alternativa 'falha' deixa o cursor parado e aponta para 'espera e reenvia'. À direita, o bloco da hora aberta, ainda na RAM, também entra no lote.
       Legenda: o cursor separa o que o coletor já confirmou do que ainda falta. Só uma confirmação o move.
-- [ ] `21-pagina-http.png` (Página web) — rota /telemetry; largura 1280; sessão admin; imagem release; Transporte HTTP(S); IP Servidor coletor.exemplo.com.br; Porta 8080; TLS desligado; Endpoint /api/telemetria; API Key preenchida (mostrada mascarada); Lote mínimo 1; Lote máximo 250; Formato JSON
-      Legenda: a página Telemetria com o transporte HTTP. Note a chave mascarada no campo API Key e os botões Enviar agora e Resetar cursor de envio logo abaixo dos lotes.
-- [ ] `21-pagina-mqtt.png` (Página web) — rota /telemetry; largura 1280; sessão admin; Transporte MQTT(S); IP Servidor coletor.exemplo.com.br; Porta 1883; TLS desligado (rótulo Usar MQTTS (TLS)); Tópico fabrica/camara1/data; Client ID vazio; Usuário simut; Senha vazia; QoS 0; Keep-Alive 60; Reter desligado
-      Legenda: com o transporte MQTT, os campos Endpoint e API Key saem e entram os do broker. Note que a Porta não muda sozinha.
-- [ ] `21-construtor.png` (Página web) — rota /telemetry; largura 1280; sessão admin; bloco Construtor com Formato Dinâmico; quadro de tags visível; 1. Global com o modelo de fábrica; 2. Linha com o modelo de dois sensores da seção Exemplos deste capítulo (t0_ID, t1_ID, u1_ID e p1_ID); 3. Separador vírgula; Prévia ao Vivo preenchida
-      Legenda: o construtor no formato Dinâmico, com o quadro de tags e a prévia. A prévia usa valores de demonstração.
 
 ## Capítulo 22 — Linha de alarmes
 
 - [ ] `22-fluxo.png` (Diagrama) — Diagrama em duas raias, HTTP e MQTT. À esquerda, a fila na RAM do aparelho com registros seq 1, 2 e 3. Raia HTTP: seta 'POST com a fila inteira' até o coletor; volta '2xx' e os três registros saem da fila; volta alternativa 'outro código ou nada em 4 s' e a fila fica, com 'novo envio em 15 s'. Raia MQTT: seta 'publish em <tópico>/alarm' até o broker e daí ao coletor; o coletor grava e publica a confirmação com os seq 1, 2 e 3 em '<tópico>/alarm/ack'; o broker entrega ao aparelho, que tira os três da fila. Uma nota mostra que, sem a confirmação, a fila inteira é publicada de novo a cada 15 s.
       Legenda: no HTTP, a resposta 2xx confirma o lote. No MQTT, a publicação não confirma nada: só a mensagem de confirmação do coletor tira os registros da fila.
-- [ ] `22-bloco-alarmes.png` (Página web) — rota /telemetry; largura 1280; sessão admin; rolar até o bloco Payload de Alarmes — 2ª Linha de Telemetria; Habilitar linha de telemetria de alarmes ligado; Formato JSON; Tamanho da fila (RAM) 32; Caminho HTTP vazio; texto Pendentes: 0 visível
-      Legenda: o bloco da linha de alarmes, no fim da página Telemetria. Note o número de Pendentes no texto do bloco e o Caminho HTTP vazio, que usa o Endpoint da telemetria seguido de /alarm.
 
 ## Capítulo 23 — Home Assistant
 
 - [ ] `23-fluxo.png` (Diagrama) — Três caixas da esquerda para a direita: 'SIMUT (simut_0a1b2c)', 'Broker MQTT (broker.exemplo.com.br:1883)' e 'Home Assistant'. Setas do SIMUT para o broker, numeradas: 1 'ao conectar: homeassistant/sensor/simut_0a1b2c/<objeto>/config (retida, uma por medição)'; 2 'simut/status {status: online} (retida)'; 3 'simut/data {ts, tSTM0001, ...} a cada envio'. Seta tracejada do broker para o próprio broker: 'se o aparelho some: simut/status {status: offline} (última vontade)'. Setas do broker para o Home Assistant: 'assina homeassistant/# e cria dispositivo e entidades'; 'lê os valores em simut/data'; 'lê a disponibilidade em simut/status'. Nota no rodapé: 'o Home Assistant não manda nada ao aparelho'.
       Legenda: o caminho das mensagens. O aparelho só publica; o Home Assistant só assina. Tudo passa pelo broker.
-- [ ] `23-telemetria-ha.png` (Página web) — rota /telemetry; largura 1280; sessão admin; Transporte MQTT(S); IP Servidor broker.exemplo.com.br; Porta 1883; Usar MQTTS (TLS) desligado; Tópico simut/data; Client ID vazio; Usuário simut; Reter ligado; Home Assistant Discovery ligado, com a dica visível; Lote mínimo 1; Formato JSON; recorte do bloco MQTT até o Lote mínimo
-      Legenda: a opção Home Assistant Discovery no bloco do MQTT. Note a dica embaixo dela: a descoberta exige o formato JSON e só acontece no próximo envio.
 - [ ] `23-evento-548.png` (Página web) — rota /history; largura 1280; sessão admin; seção Eventos do Sistema carregada, com INF marcado e o filtro 548; uma linha do evento 548 Discovery HA atualizado com contexto 4, logo abaixo de 35 MQTT conectado
       Legenda: o evento 548 confirma a publicação. O contexto 4 é o número de entidades publicadas.
 
