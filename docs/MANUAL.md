@@ -1,6 +1,6 @@
 # SIMUT — User Manual
 
-**Firmware:** v2.7.1 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **License:** MIT
+**Firmware:** v2.7.2 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **License:** MIT
 **Repository:** https://github.com/angeloINTJ/simut
 
 > **This is not a certified metrological instrument.** It is tested on real
@@ -1070,7 +1070,7 @@ device publishes it in four places:
 |---|---|
 | USB console, the `[AP] PSK :` line | all |
 | Reply to the `ap` command, on the channel that asked (USB or Bluetooth) | all |
-| Boot line, next to "Connect to network …" | release (TFT) |
+| The panel's boot terminal: at boot, next to "Connect to network …"; and, since v2.7.2, as its last lines whenever the AP opens during operation (Settings → 12, `ap`, the fallback) — network, `PSK`, 192.168.4.1 | release (TFT) |
 | Third LCD page, while the AP is up | alpha |
 
 And there are five ways into it:

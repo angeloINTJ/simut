@@ -413,7 +413,7 @@ Detalhes nos capítulos [20](#cap-20), [21](#cap-21) e [22](#cap-22).
 | O assinante MQTT quebra ao receber um array | Depois de uma parada, lotes com mais de 5 registros saem numa mensagem só | Aceite objeto e array |
 | O coletor recebe `"camara":null` | Forma simples do marcador, com o sensor sem leitura | Use `"t0_ID":{t0}` ou `"t0":{t0}` para a chave sumir |
 | JSON inválido no formato **Dinâmico** | Modelo mal escrito; o aparelho não valida | Confira a **Prévia ao Vivo** e o primeiro corpo recebido |
-| JSON inválido no formato JSON, com filas longas (v2.7.1) | Lote grande montado com pouca memória | Responda 400 a corpo inválido: o cursor não avança e o lote sai de novo, menor; a correção já está na `main` |
+| JSON inválido no formato JSON, com filas longas (v2.7.1) | Lote grande montado com pouca memória | Responda 400 a corpo inválido: o cursor não avança e o lote sai de novo, menor; corrigido na v2.7.2 |
 | Medições repetidas no banco | Duplicatas por desenho (confirmação perdida, queda de energia, reset do cursor) | Grave com chave única (`uid`, `ts`, canal) |
 | Buraco nas medições depois de uma parada longa | Registros mais de 30 dias antes do mais novo, ou hora fora de ordem | Recupere pelo histórico do aparelho |
 | A primeira ativação manda milhares de registros | O aparelho começa 30 dias antes do registro mais novo | Esperado; prepare o coletor para a carga inicial |

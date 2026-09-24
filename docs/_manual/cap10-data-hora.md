@@ -187,11 +187,11 @@ A data e a hora no topo do painel principal, no fuso do aparelho.
 
 ## O relógio do Air através do sono {#cap-10-air}
 
-[air]{.img} [main]{.img}
+[air]{.img}
 
 O Air passa a maior parte do tempo hibernando, e o rádio só liga em alguns despertares ([capítulo 19](#cap-19)). Nos despertares sem rádio, não há NTP: a hora que o histórico grava é a que o próprio Air reconstrói.
 
-Na `main`, o Air carrega o relógio através do sono. Ao dormir, ele guarda o instante em que armou o alarme, com milissegundos. Ao acordar, soma a esse instante a duração do sono, medida pelo relógio de hardware, e o tempo de boot já decorrido, incluindo cerca de 140 ms antes de o firmware começar a contar. A hora sai com erro de cerca de ±0,09 s por despertar (medido em bancada em 23/09/2026). Isso vale também no boot com o carregador conectado.
+Desde a v2.7.2, o Air carrega o relógio através do sono. Ao dormir, ele guarda o instante em que armou o alarme, com milissegundos. Ao acordar, soma a esse instante a duração do sono, medida pelo relógio de hardware, e o tempo de boot já decorrido, incluindo cerca de 140 ms antes de o firmware começar a contar. A hora sai com erro de cerca de ±0,09 s por despertar (medido em bancada em 23/09/2026). Isso vale também no boot com o carregador conectado.
 
 Na v2.7.1, e quando o sono não trouxe uma hora plausível, o Air reconstrói a hora a partir do registro mais recente mais a duração do sono. Esse método perde o fim do despertar anterior e até cerca de 1 s por despertar, e o erro se acumula até o próximo acerto por NTP.
 

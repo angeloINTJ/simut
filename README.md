@@ -43,7 +43,7 @@ They share one core:
 
 | | |
 |---|---|
-| **Current release** | **v2.7.1** (2026-09-22). The 2.7 line left beta with v2.7.0, on measurements: an 8.18 h soak with 0 reboots, and 6 of 6 over-the-air updates with nothing lost. |
+| **Current release** | **v2.7.2** (2026-09-24). The 2.7 line left beta with v2.7.0, on measurements: an 8.18 h soak with 0 reboots, and 6 of 6 over-the-air updates with nothing lost. v2.7.2 fixes the Air's clock and its long telemetry batches, and two panel screens, and every image is 16 kB smaller. |
 | **Published images** | Three images, each as `.uf2` and `.bin`: `release` (TFT touch panel), `alpha` (16×2 LCD with a Bluetooth console) and `air` (headless battery logger). The pt-BR and es-ES language packs and an OTA manifest ship alongside. |
 | **On `main`, not yet released** | <ul><li>The Air carries its clock across the sleep: stamps stay within ±0.09 s instead of drifting 0.8 s per wake.</li><li>Telemetry payloads are built one whole record at a time, so a long queue no longer goes out as invalid JSON or skips records.</li><li>With one sensor, the alpha's LCD shows the pending telemetry count, and its Wi-Fi icon fills left to right.</li></ul> |
 | **Maturity** | <ul><li>`release`: **stable**.</li><li>`alpha`: published and bench-tested, except its LCD output, which host tests cover — the bench has no HD44780.</li><li>`air`: **experimental**. Its one long soak failed: a sleep in cycle 119 never woke (F28). A watchdog across the wake now mitigates it; the root cause is not confirmed.</li></ul> |
@@ -315,9 +315,9 @@ Prefer not to build? Every [release](https://github.com/angeloINTJ/simut/release
 ### First Boot
 1. **Capture the admin password.** A factory-fresh unit prints a random 8-character admin password **once on the USB serial console** (115200 baud). It is never stored in plain text. If you miss it, `system admin reset confirm` over USB prints a new one.
 2. **Join it to your network.** A unit with no network configured opens its setup access point by itself. The Air does not: type `ap` on its console instead.
-   - Join `<name>_SETUP` (`simut_SETUP` from the factory). It is WPA2, and its per-device key is printed on the USB console and the TFT boot screen. On an alpha, read it from the USB console or from the `ap` command's reply: by the v2.7.1 code, the LCD does not reach its AP pages.
+   - Join `<name>_SETUP` (`simut_SETUP` from the factory). It is WPA2, and its per-device key is printed on the USB console and on the TFT's boot terminal — at boot, and since v2.7.2 also when the AP opens during operation. On an alpha, read it from the USB console or from the `ap` command's reply: by the v2.7.2 code, the LCD does not reach its AP pages.
    - The portal opens at `http://192.168.4.1`.
-   - While the setup access point is up, the device does not measure: in v2.7.1 it reads no sensors, checks no alarms and records no history until it joins a network.
+   - While the setup access point is up, the device does not measure: in v2.7.2 it reads no sensors, checks no alarms and records no history until it joins a network.
 
    Without a screen, you can use the console instead: `system ssid <name>`, `system pass <secret>`, then `reload confirm`. The console stops at the first space, so a network name or password with a space has to go through the web page.
 3. **Open the web interface** at the address the device got — on the `release` image also `http://simut.local` — and log in as `admin` with the password from step 1. You will be asked to choose a new one.
@@ -458,8 +458,9 @@ What has been measured on real hardware, latest first:
 
 | Date | What | Result |
 |---|---|---|
-| 2026-09-23 | Air clock across the sleep (`main`) | Stamps within −0.085 … +0.030 s over 10 wakes (v2.7.1 lost 0.8 s per wake); the NTP correction fell from 9–10 s to 0.08 s |
-| 2026-09-23 | Long telemetry queues on the Air (`main`) | 0 invalid bodies; 13,681 of 13,682 records delivered awake, 13,670 of 13,671 hibernating (v2.7.1: 68 of 69 bodies were invalid JSON) |
+| 2026-09-24 | Panel: PIN security and setup mode (v2.7.2) | The footer arrows stay on the screen (v2.7.1 closed it); an unsaved tap no longer changes the stored policy; Confirm shows the network, the key and 192.168.4.1 (v2.7.1 stayed on the confirmation, AP already up) |
+| 2026-09-23 | Air clock across the sleep (v2.7.2) | Stamps within −0.085 … +0.030 s over 10 wakes (v2.7.1 lost 0.8 s per wake); the NTP correction fell from 9–10 s to 0.08 s |
+| 2026-09-23 | Long telemetry queues on the Air (v2.7.2) | 0 invalid bodies; 13,681 of 13,682 records delivered awake, 13,670 of 13,671 hibernating (v2.7.1: 68 of 69 bodies were invalid JSON) |
 | 2026-09-22 | v2.7.0 soak | 8.18 h, 0 reboots; the largest free heap block moved −42 B |
 | 2026-09-22 | v2.7.0 over-the-air updates | 6 of 6 applied; 57 files restored, 0 records missing |
 | 2026-09-22 | Setup access point (v2.7.1) | A client joins in 4.1 s, on `release` and on `alpha` with Bluetooth live, also with a randomised MAC. The automatic fallback opens after 6–7 min without a network |
@@ -480,7 +481,7 @@ The 16×2 LCD is the one output not validated on glass. The bench has no HD44780
 |----------|-------------|
 | [User Manual](docs/MANUAL.md) | Hardware setup, display/web/console guide, OTA, API reference, troubleshooting — kept current |
 | [Manual do Usuário (pt-BR)](docs/MANUAL.pt-BR.md) | The same manual, in Portuguese |
-| [Complete manual (pt-BR)](docs/MANUAL.pt-BR.html) | The full product manual in Portuguese, rebuilt for v2.7.1: 31 chapters on installation, configuration, daily use and server integration. Screenshots are being recaptured; each missing one is marked where it belongs |
+| [Complete manual (pt-BR)](docs/MANUAL.pt-BR.html) | The full product manual in Portuguese, updated for v2.7.2: 31 chapters on installation, configuration, daily use and server integration. Screenshots are being recaptured; each missing one is marked where it belongs |
 | [Wiring Guide](docs/WIRING.md) | Complete pinout and connection diagrams |
 | [Over-the-air updates](docs/OTA_USAGE.md) | Updating from the web page, and what survives it |
 | [Recovery Guide](docs/RECOVERY.md) | Brick recovery — BOOTSEL, picotool, 1200 bps reset |

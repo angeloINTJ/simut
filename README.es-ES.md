@@ -43,7 +43,7 @@ Los tres comparten el mismo núcleo:
 
 | | |
 |---|---|
-| **Release actual** | **v2.7.1** (22/09/2026). La línea 2.7 salió de beta con la v2.7.0, sobre mediciones: un soak de 8,18 h sin ningún reinicio y 6 de 6 actualizaciones por el aire sin perder nada. |
+| **Release actual** | **v2.7.2** (24/09/2026). La línea 2.7 salió de beta con la v2.7.0, sobre mediciones: un soak de 8,18 h sin ningún reinicio y 6 de 6 actualizaciones por el aire sin perder nada. La v2.7.2 corrige el reloj del Air y los lotes largos de la telemetría, y dos pantallas del panel, y cada imagen queda 16 kB más pequeña. |
 | **Imágenes publicadas** | Tres imágenes, cada una en `.uf2` y `.bin`: `release` (panel táctil TFT), `alpha` (LCD 16×2 con consola Bluetooth) y `air` (registrador a batería sin pantalla). Junto a ellas van los packs de idioma pt-BR y es-ES y un manifiesto de OTA. |
 | **En `main`, aún sin release** | <ul><li>El Air conserva el reloj a través del sueño: las marcas de tiempo quedan en ±0,09 s en lugar de retrasarse 0,8 s por despertar.</li><li>La telemetría construye el payload un registro entero cada vez, así que una cola larga ya no sale como JSON inválido ni se salta registros.</li><li>Con un sensor, el LCD del alpha muestra el número de envíos de telemetría pendientes, y el icono de Wi-Fi crece de izquierda a derecha.</li></ul> |
 | **Madurez** | <ul><li>`release`: **estable**.</li><li>`alpha`: publicado y probado en el banco, salvo la salida del LCD, que cubren los tests en el host — el banco no tiene HD44780.</li><li>`air`: **experimental**. Su único soak largo falló: un sueño en el ciclo 119 nunca despertó (F28). Hoy lo mitiga un watchdog a lo largo del despertar; la causa raíz no está confirmada.</li></ul> |
@@ -315,9 +315,9 @@ pio run -e pico_w_release -t uploadfs
 ### Primer arranque
 1. **Apunta la contraseña del admin.** Una unidad recién salida de fábrica imprime una contraseña de admin aleatoria de 8 caracteres **una sola vez en la consola serie USB** (115200 baudios). Nunca se guarda en texto plano. Si la pierdes, `system admin reset confirm` por USB imprime una nueva.
 2. **Conéctalo a tu red.** Una unidad sin red configurada abre sola su punto de acceso de configuración. El Air no: escribe `ap` en su consola.
-   - Conéctate a `<nombre>_SETUP` (`simut_SETUP` de fábrica). Es WPA2, y su clave por dispositivo se imprime en la consola USB y en la pantalla de arranque del TFT. En un alpha, léela en la consola USB o en la respuesta del comando `ap`: según el código de la v2.7.1, el LCD no llega a sus páginas del AP.
+   - Conéctate a `<nombre>_SETUP` (`simut_SETUP` de fábrica). Es WPA2, y su clave por dispositivo se imprime en la consola USB y en el terminal de arranque del TFT — al arrancar y, desde la v2.7.2, también cuando el AP se abre en operación. En un alpha, léela en la consola USB o en la respuesta del comando `ap`: según el código de la v2.7.2, el LCD no llega a sus páginas del AP.
    - El portal se abre en `http://192.168.4.1`.
-   - Mientras el punto de acceso está activo, el dispositivo no mide: en la v2.7.1 no lee sensores, no comprueba alarmas ni graba histórico hasta entrar en una red.
+   - Mientras el punto de acceso está activo, el dispositivo no mide: en la v2.7.2 no lee sensores, no comprueba alarmas ni graba histórico hasta entrar en una red.
 
    Sin pantalla, puedes usar la consola: `system ssid <nombre>`, `system pass <clave>` y luego `reload confirm`. La consola corta en el primer espacio: una red o una clave con espacio solo por la página web.
 3. **Abre la interfaz web** en la dirección que obtuvo el dispositivo — en la imagen `release`, también en `http://simut.local` — y entra como `admin` con la contraseña del paso 1. Se te pedirá elegir una nueva.
@@ -460,8 +460,9 @@ Lo que se ha medido en hardware real, de lo más reciente a lo más antiguo:
 
 | Fecha | Qué | Resultado |
 |---|---|---|
-| 23/09/2026 | Reloj del Air a través del sueño (`main`) | Marcas de tiempo entre −0,085 y +0,030 s en 10 despertares (la v2.7.1 perdía 0,8 s por despertar); la corrección del NTP bajó de 9–10 s a 0,08 s |
-| 23/09/2026 | Colas largas de telemetría en el Air (`main`) | 0 cuerpos inválidos; 13.681 de 13.682 registros entregados despierto, 13.670 de 13.671 hibernando (v2.7.1: 68 de 69 cuerpos eran JSON inválido) |
+| 24/09/2026 | Panel: Seguridad del PIN y Modo de Configuración (v2.7.2) | Las flechas del pie se quedan en la pantalla (la v2.7.1 la cerraba); un toque sin guardar ya no cambia la política grabada; Confirmar muestra la red, la clave y 192.168.4.1 (la v2.7.1 se quedaba en la confirmación, con el AP ya activo) |
+| 23/09/2026 | Reloj del Air a través del sueño (v2.7.2) | Marcas de tiempo entre −0,085 y +0,030 s en 10 despertares (la v2.7.1 perdía 0,8 s por despertar); la corrección del NTP bajó de 9–10 s a 0,08 s |
+| 23/09/2026 | Colas largas de telemetría en el Air (v2.7.2) | 0 cuerpos inválidos; 13.681 de 13.682 registros entregados despierto, 13.670 de 13.671 hibernando (v2.7.1: 68 de 69 cuerpos eran JSON inválido) |
 | 22/09/2026 | Soak de la v2.7.0 | 8,18 h, 0 reinicios; el mayor bloque libre del heap varió −42 B |
 | 22/09/2026 | Actualizaciones por el aire de la v2.7.0 | 6 de 6 aplicadas; 57 archivos restaurados, 0 registros perdidos |
 | 22/09/2026 | Punto de acceso de configuración (v2.7.1) | Un cliente entra en 4,1 s, en `release` y en `alpha` con el Bluetooth activo, también con MAC aleatoria. El fallback automático se abre tras 6–7 min sin red |
@@ -482,7 +483,7 @@ El LCD 16×2 es la única salida no validada en la pantalla real. El banco no ti
 |----------|-------------|
 | [Manual de Usuario (EN)](docs/MANUAL.md) | Montaje, pantalla/web/consola, OTA, referencia de la API, resolución de problemas — mantenido al día |
 | [Manual do Usuário (pt-BR)](docs/MANUAL.pt-BR.md) | El mismo manual, en portugués |
-| [Manual completo (pt-BR)](docs/MANUAL.pt-BR.html) | El manual del producto en portugués, rehecho para la v2.7.1: 31 capítulos sobre instalación, configuración, uso diario e integración con servidores. Las pantallas se están recapturando; cada una que falta está marcada en su lugar |
+| [Manual completo (pt-BR)](docs/MANUAL.pt-BR.html) | El manual del producto en portugués, actualizado para la v2.7.2: 31 capítulos sobre instalación, configuración, uso diario e integración con servidores. Las pantallas se están recapturando; cada una que falta está marcada en su lugar |
 | [Guía de Cableado](docs/WIRING.md) | Pinout completo y diagramas de conexión |
 | [Actualización por el aire](docs/OTA_USAGE.md) | Actualizar desde la página web, y lo que sobrevive |
 | [Guía de Recuperación](docs/RECOVERY.md) | Recuperación de brick — BOOTSEL, picotool, reset 1200 bps |

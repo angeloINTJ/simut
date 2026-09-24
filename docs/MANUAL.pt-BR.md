@@ -1,6 +1,6 @@
 # SIMUT — Manual do Usuário
 
-**Firmware:** v2.7.1 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **Licença:** MIT
+**Firmware:** v2.7.2 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **Licença:** MIT
 **Repositório:** https://github.com/angeloINTJ/simut
 
 [English](MANUAL.md) | **Português**
@@ -1110,7 +1110,7 @@ publica de quatro maneiras:
 |---|---|
 | Console USB, na linha `[AP] PSK :` | todos |
 | Resposta do comando `ap`, no canal que pediu (USB ou Bluetooth) | todos |
-| Linha do boot, junto de "Conecte-se à rede …" | release (TFT) |
+| O terminal de boot do painel: no boot, junto de "Conecte-se à rede …"; e, desde a v2.7.2, nas últimas linhas sempre que o AP abre em operação (Configurações → 12, `ap`, a escada) — rede, `PSK`, 192.168.4.1 | release (TFT) |
 | Terceira página do LCD, enquanto o AP está no ar | alpha |
 
 E há quatro maneiras de entrar nele:

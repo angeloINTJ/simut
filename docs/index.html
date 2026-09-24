@@ -486,7 +486,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
       <div>
         <p class="release-line">
           <span class="tag" data-i18n="tag.stable">Stable</span>
-          <span class="tag">v2.7.1</span>
+          <span class="tag">v2.7.2</span>
           <span class="tag">MIT</span>
           <span class="tag">RP2040</span>
         </p>
@@ -569,7 +569,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     </p>
     <div class="releases">
       <article class="release">
-        <div><div class="ver">v2.7.0–v2.7.1</div><div class="date" data-i18n="new.d1">Sep 2026</div></div>
+        <div><div class="ver">v2.7.0–v2.7.2</div><div class="date" data-i18n="new.d1">Sep 2026</div></div>
         <div>
           <h3 data-i18n="new.t1">Out of beta, and a setup network you can join</h3>
           <p data-i18n="new.b1">
@@ -579,7 +579,9 @@ footer > .shell { padding-block: 2.5rem 3rem; }
             create another with more permissions than it held. v2.7.1 made the setup
             access point reachable: a phone joins it in <strong>4.1 s</strong>, it
             opens by itself on a device with no network or one that lost its own, and
-            the alpha's LCD now shows its name and key.
+            the alpha's LCD now shows its name and key. v2.7.2 fixes the Air's clock
+            and its long telemetry batches, and two panel screens, and every image is
+            <strong>16 kB smaller</strong>.
           </p>
         </div>
       </article>
@@ -857,7 +859,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
       <a class="doc" href="RECOVERY.html"><h3 data-i18n="d4.t">Recovery</h3><p data-i18n="d4.b">Getting a board back after a failed update, and what BOOTSEL rescue involves.</p></a>
       <a class="doc" href="GLOSSARY.html"><h3 data-i18n="d5.t">Glossary</h3><p data-i18n="d5.b">The terms used across the interface and the documentation, defined once.</p></a>
       <a class="doc" href="https://github.com/angeloINTJ/simut/blob/main/SECURITY.md"><h3 data-i18n="d6.t">Security policy</h3><p data-i18n="d6.b">Threat model, how credentials are handled, and how to report a vulnerability.</p></a>
-      <a class="doc doc-larga" href="MANUAL.pt-BR.html"><h3 data-i18n="d7.t">Complete manual, in Portuguese</h3><p data-i18n="d7.b">Thirty-one chapters for v2.7.1: installation, configuration, daily use and server integration. Screenshots are being recaptured.</p></a>
+      <a class="doc doc-larga" href="MANUAL.pt-BR.html"><h3 data-i18n="d7.t">Complete manual, in Portuguese</h3><p data-i18n="d7.b">Thirty-one chapters for v2.7.2: installation, configuration, daily use and server integration. Screenshots are being recaptured.</p></a>
     </div>
   </div>
 </section>
@@ -933,7 +935,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'new.v3': 'Na main',
     'new.d3': 'próxima release',
     'new.t1': 'Fora do beta, e uma rede de configuração em que dá para entrar',
-    'new.b1': 'A v2.7.0 é a primeira release estável da linha: a imagem publicada rodou <strong>8,18 h sem nenhum reboot</strong> e <strong>6 de 6 atualizações pelo ar</strong> sem perder nada, e fechou o V-09 — uma conta podia criar outra com mais permissões do que tinha. A v2.7.1 tornou o ponto de acesso de configuração alcançável: um celular entra nele em <strong>4,1 s</strong>, ele abre sozinho num aparelho sem rede ou que perdeu a sua, e o LCD do alpha agora mostra o nome e a chave.',
+    'new.b1': 'A v2.7.0 é a primeira release estável da linha: a imagem publicada rodou <strong>8,18 h sem nenhum reboot</strong> e <strong>6 de 6 atualizações pelo ar</strong> sem perder nada, e fechou o V-09 — uma conta podia criar outra com mais permissões do que tinha. A v2.7.1 tornou o ponto de acesso de configuração alcançável: um celular entra nele em <strong>4,1 s</strong>, ele abre sozinho num aparelho sem rede ou que perdeu a sua, e o LCD do alpha agora mostra o nome e a chave. A v2.7.2 corrige o relógio do Air e os lotes longos da telemetria, e duas telas do painel, e toda imagem fica <strong>16 kB menor</strong>.',
     'new.t2': 'Quem está no painel, e um painel no navegador',
     'new.b2': 'Até <strong>32 contas</strong>, cada uma com o seu PIN: o operador escolhe a conta e digita o PIN num teclado sorteado de novo a cada toque, e toda ação de alarme sai assinada com o nome da conta. O painel aparece ao vivo no navegador — <strong>213 ms por quadro</strong>, e um clique é um toque. Um servidor pode editar limites de alarme e abrir janelas de manutenção sem reiniciar, e a página de rede lista as redes Wi-Fi ao alcance, inclusive de dentro do ponto de acesso.',
     'new.t3': 'O Air guarda a hora, e filas longas chegam inteiras',
@@ -1028,7 +1030,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'd4.t': 'Recuperação', 'd4.b': 'Como trazer uma placa de volta depois de uma atualização falha, e o que envolve o resgate por BOOTSEL.',
     'd5.t': 'Glossário', 'd5.b': 'Os termos usados na interface e na documentação, definidos uma vez.',
     'd6.t': 'Política de segurança', 'd6.b': 'Modelo de ameaças, como as credenciais são tratadas e como relatar uma vulnerabilidade.',
-    'd7.t': 'Manual completo', 'd7.b': 'Trinta e um capítulos para a v2.7.1: instalação, configuração, uso no dia a dia e integração com servidores. As telas estão sendo recapturadas.',
+    'd7.t': 'Manual completo', 'd7.b': 'Trinta e um capítulos para a v2.7.2: instalação, configuração, uso no dia a dia e integração com servidores. As telas estão sendo recapturadas.',
     'co.eyebrow': 'Contribuir', 'co.h2': 'É código aberto, e é beta',
     'co.lede': 'O que é uma boa combinação se você gosta de achar coisas. Relatos de bug vindos de instalações reais são a coisa mais útil que você pode mandar — especialmente os que vêm com log anexado.',
     'co.bug': 'Relatar um bug', 'co.feat': 'Pedir um recurso',
@@ -1065,7 +1067,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'new.v3': 'En main',
     'new.d3': 'próxima release',
     'new.t1': 'Fuera de beta, y una red de configuración a la que se puede entrar',
-    'new.b1': 'La v2.7.0 es la primera release estable de la línea: la imagen publicada funcionó <strong>8,18 h sin ningún reinicio</strong> y superó <strong>6 de 6 actualizaciones por aire</strong> sin perder nada, y cerró el V-09 — una cuenta podía crear otra con más permisos de los que tenía. La v2.7.1 hizo alcanzable el punto de acceso de configuración: un móvil entra en <strong>4,1 s</strong>, se abre solo en un dispositivo sin red o que perdió la suya, y el LCD del alpha muestra ahora su nombre y su clave.',
+    'new.b1': 'La v2.7.0 es la primera release estable de la línea: la imagen publicada funcionó <strong>8,18 h sin ningún reinicio</strong> y superó <strong>6 de 6 actualizaciones por aire</strong> sin perder nada, y cerró el V-09 — una cuenta podía crear otra con más permisos de los que tenía. La v2.7.1 hizo alcanzable el punto de acceso de configuración: un móvil entra en <strong>4,1 s</strong>, se abre solo en un dispositivo sin red o que perdió la suya, y el LCD del alpha muestra ahora su nombre y su clave. La v2.7.2 corrige el reloj del Air y los lotes largos de la telemetría, y dos pantallas del panel, y cada imagen queda <strong>16 kB más pequeña</strong>.',
     'new.t2': 'Quién está en el panel, y un panel en el navegador',
     'new.b2': 'Hasta <strong>32 cuentas</strong>, cada una con su PIN: el operador elige la cuenta y teclea el PIN en un teclado que se vuelve a barajar tras cada toque, y cada acción de alarma sale firmada con el nombre de la cuenta. El panel aparece en vivo en el navegador — <strong>213 ms por fotograma</strong>, y un clic es un toque. Un servidor puede editar los límites de alarma y abrir ventanas de mantenimiento sin reiniciar, y la página de red lista las redes Wi-Fi al alcance, incluso desde dentro del punto de acceso.',
     'new.t3': 'El Air guarda la hora, y las colas largas llegan enteras',
@@ -1160,7 +1162,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'd4.t': 'Recuperación', 'd4.b': 'Cómo recuperar una placa tras una actualización fallida, y qué implica el rescate por BOOTSEL.',
     'd5.t': 'Glosario', 'd5.b': 'Los términos usados en la interfaz y la documentación, definidos una vez.',
     'd6.t': 'Política de seguridad', 'd6.b': 'Modelo de amenazas, cómo se tratan las credenciales y cómo informar de una vulnerabilidad.',
-    'd7.t': 'Manual completo, en portugués', 'd7.b': 'Treinta y un capítulos para la v2.7.1: instalación, configuración, uso diario e integración con servidores. Las pantallas se están recapturando.',
+    'd7.t': 'Manual completo, en portugués', 'd7.b': 'Treinta y un capítulos para la v2.7.2: instalación, configuración, uso diario e integración con servidores. Las pantallas se están recapturando.',
     'co.eyebrow': 'Contribuir', 'co.h2': 'Es código abierto, y es beta',
     'co.lede': 'Lo cual es buena combinación si te gusta encontrar cosas. Los informes de error de instalaciones reales son lo más útil que puedes enviar — sobre todo los que vienen con un log adjunto.',
     'co.bug': 'Informar de un error', 'co.feat': 'Pedir una función',

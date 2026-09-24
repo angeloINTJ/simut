@@ -4,7 +4,7 @@ Este capítulo reúne em tabelas os números do SIMUT: faixas, valores de fábri
 
 ## Como ler as tabelas {#cap-28-como-ler}
 
-- Os valores são os da v2.7.1. O selo [main]{.img} marca o que só existe na `main` (commit 14d7de1) e ainda não saiu em release.
+- Os valores são os da v2.7.2.
 - Quando um número muda de uma imagem para outra, a célula traz o selo da imagem: [release]{.img}, [alpha]{.img} ou [air]{.img}.
 - Uma medição traz a data e a versão em que foi feita. Os demais números vêm do código.
 - A coluna **Onde** leva ao capítulo que explica o item. Lá estão o efeito de cada valor e o que fazer quando um limite é atingido.
@@ -304,7 +304,7 @@ O filtro vale só para a flash: o console com `debug on` e o syslog recebem todo
 | **API Key** | Até 63 caracteres | [cap. 21](#cap-21-transporte) |
 | Formatos | JSON, CSV com 34 colunas e **Dinâmico** | [cap. 21](#cap-21-json) |
 | Modelos do **Dinâmico** | **1. Global** até 255 caracteres; **2. Linha** até 511; **3. Separador** até 7 | [cap. 21](#cap-21-construtor) |
-| [main]{.img} Montagem do corpo | Um registro inteiro por vez; o cursor avança só até o último registro enviado | [cap. 21](#cap-21-registro-inteiro) |
+| Montagem do corpo | Um registro inteiro por vez; o cursor avança só até o último registro enviado | [cap. 21](#cap-21-registro-inteiro) |
 
 ### MQTT e TLS da telemetria {#cap-28-mqtt}
 
@@ -390,7 +390,7 @@ O filtro vale só para a flash: o console com `debug on` e o syslog recebem todo
 | Consumo | Cerca de 8,2 mA de média e 17 dias numa 18650 de 3.400 mAh. É uma conta sobre os tempos, não uma medição de corrente | [cap. 19](#cap-19-tempos) |
 | Lote com `t_bat=250` | Cerca de 190 registros, limitado pela memória (Air em M0, v2.7.1, 23/09/2026) | [cap. 19](#cap-19-telemetria) |
 | Relógio através do sono | Na v2.7.1, perde até cerca de 1 s por despertar até o próximo acerto por NTP | [cap. 19](#cap-19-relogio) |
-| [main]{.img} Relógio através do sono | Cerca de ±0,09 s por despertar, sem acúmulo (−0,085 a +0,030 s em 10 despertares, bancada, 23/09/2026) | [cap. 10](#cap-10-air) |
+| Relógio através do sono | Cerca de ±0,09 s por despertar, sem acúmulo (−0,085 a +0,030 s em 10 despertares, bancada, 23/09/2026) | [cap. 10](#cap-10-air) |
 
 ::: atencao
 **O Air é experimental.** Os tempos acima foram medidos em bancada, com o **Intervalo Histórico** de 1 min e um DS18B20 a 12 bits. O único teste longo do ciclo parou depois de 119 ciclos, em 10/09/2026 ([capítulo 19](#cap-19-status)).

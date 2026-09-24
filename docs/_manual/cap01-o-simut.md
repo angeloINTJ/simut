@@ -100,15 +100,16 @@ O aparelho em blocos: os sensores entram pelo Core 0, a tela fica com o Core 1, 
 
 ## Versões {#cap-01-versoes}
 
-Este manual descreve a **v2.7.1**, de 22/09/2026, a versão publicada mais recente. A linha 2.7 saiu do beta com a v2.7.0.
+Este manual descreve a **v2.7.2**, de 24/09/2026, a versão publicada mais recente. A linha 2.7 saiu do beta com a v2.7.0.
 
-Três mudanças já estão no código-fonte (`main`) e ainda não saíram numa versão publicada. O manual as descreve com o selo [main]{.img}:
+O que a v2.7.2 mudou para quem usa o aparelho:
 
-- [main]{.img} o relógio do Air atravessa o sono com erro de ±0,09 s ([capítulo 10](#cap-10-air));
-- [main]{.img} a telemetria monta o envio um registro inteiro por vez ([capítulo 21](#cap-21-registro-inteiro));
-- [main]{.img} o LCD da alpha mostra os registros pendentes (`N` ou `Nk`) e um ícone de Wi-Fi que cresce da esquerda para a direita ([capítulo 12](#cap-12-pendentes)).
+- o relógio do Air atravessa o sono com erro de ±0,09 s ([capítulo 10](#cap-10-air));
+- a telemetria monta o envio um registro inteiro por vez ([capítulo 21](#cap-21-registro-inteiro));
+- o LCD da alpha mostra os registros pendentes (`N` ou `Nk`) e um ícone de Wi-Fi que cresce da esquerda para a direita ([capítulo 12](#cap-12-pendentes));
+- no painel, as setas da tela **Segurança do PIN** movem a seleção, e o **Modo de Configuração** mostra a rede, a chave e o endereço do AP ([capítulo 11](#cap-11-ap)).
 
-Um aparelho com a v2.7.1 não tem esses três itens. Como conferir a versão do seu aparelho está no [capítulo 17](#cap-17-ota-conferir), e as versões anteriores estão no apêndice [Histórico de versões](#ap-c).
+Um aparelho com a v2.7.1 não tem esses itens. Onde este manual diz "na v2.7.1" ou "pelo código da v2.7.1", o texto vale também para a v2.7.2, salvo nas mudanças acima. Como conferir a versão do seu aparelho está no [capítulo 17](#cap-17-ota-conferir), e as versões anteriores estão no apêndice [Histórico de versões](#ap-c).
 
 ## Como ler este manual {#cap-01-como-ler}
 

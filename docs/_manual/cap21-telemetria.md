@@ -192,9 +192,7 @@ Três limites decidem quantos registros vão num lote, e vale o menor:
 
 ### Um registro inteiro por vez {#cap-21-registro-inteiro}
 
-[main]{.img}
-
-Na `main`, o aparelho monta o corpo um registro inteiro por vez: cada registro entra completo, com o separador e o fechamento garantidos, ou fica para o lote seguinte. O cursor avança só até o registro mais novo que o corpo levou de fato.
+Desde a v2.7.2, o aparelho monta o corpo um registro inteiro por vez: cada registro entra completo, com o separador e o fechamento garantidos, ou fica para o lote seguinte. O cursor avança só até o registro mais novo que o corpo levou de fato.
 
 Até a v2.7.1, um lote montado com pouca memória livre podia chegar ao coletor como JSON inválido, com registros faltando no fim, e o cursor passava por cima dos registros que ficaram de fora. Medido em 23/09/2026 num Air v2.7.1, esvaziando a fila para um coletor que guardava todo corpo recebido: 68 de 69 lotes chegaram como JSON inválido, cada um com cerca de nove registros a menos.
 
