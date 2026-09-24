@@ -429,6 +429,7 @@ td code, .cell code, .caution code, p code, li code {
 }
 .doc:nth-child(2n) { border-right: 0; }
 @media (max-width: 700px) { .doc, .doc:nth-child(2n) { border-right: 0; } }
+.doc-larga { grid-column: 1 / -1; border-right: 0; }
 .doc:hover { background: var(--surface); }
 .doc h3 { color: var(--accent); margin-bottom: .25rem; }
 .doc p { font-size: .9rem; color: var(--ink-soft); margin: 0; }
@@ -856,6 +857,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
       <a class="doc" href="RECOVERY.html"><h3 data-i18n="d4.t">Recovery</h3><p data-i18n="d4.b">Getting a board back after a failed update, and what BOOTSEL rescue involves.</p></a>
       <a class="doc" href="GLOSSARY.html"><h3 data-i18n="d5.t">Glossary</h3><p data-i18n="d5.b">The terms used across the interface and the documentation, defined once.</p></a>
       <a class="doc" href="https://github.com/angeloINTJ/simut/blob/main/SECURITY.md"><h3 data-i18n="d6.t">Security policy</h3><p data-i18n="d6.b">Threat model, how credentials are handled, and how to report a vulnerability.</p></a>
+      <a class="doc doc-larga" href="MANUAL.pt-BR.html"><h3 data-i18n="d7.t">Complete manual, in Portuguese</h3><p data-i18n="d7.b">Thirty-one chapters for v2.7.1: installation, configuration, daily use and server integration. Screenshots are being recaptured.</p></a>
     </div>
   </div>
 </section>
@@ -1026,6 +1028,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'd4.t': 'Recuperação', 'd4.b': 'Como trazer uma placa de volta depois de uma atualização falha, e o que envolve o resgate por BOOTSEL.',
     'd5.t': 'Glossário', 'd5.b': 'Os termos usados na interface e na documentação, definidos uma vez.',
     'd6.t': 'Política de segurança', 'd6.b': 'Modelo de ameaças, como as credenciais são tratadas e como relatar uma vulnerabilidade.',
+    'd7.t': 'Manual completo', 'd7.b': 'Trinta e um capítulos para a v2.7.1: instalação, configuração, uso no dia a dia e integração com servidores. As telas estão sendo recapturadas.',
     'co.eyebrow': 'Contribuir', 'co.h2': 'É código aberto, e é beta',
     'co.lede': 'O que é uma boa combinação se você gosta de achar coisas. Relatos de bug vindos de instalações reais são a coisa mais útil que você pode mandar — especialmente os que vêm com log anexado.',
     'co.bug': 'Relatar um bug', 'co.feat': 'Pedir um recurso',
@@ -1157,6 +1160,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'd4.t': 'Recuperación', 'd4.b': 'Cómo recuperar una placa tras una actualización fallida, y qué implica el rescate por BOOTSEL.',
     'd5.t': 'Glosario', 'd5.b': 'Los términos usados en la interfaz y la documentación, definidos una vez.',
     'd6.t': 'Política de seguridad', 'd6.b': 'Modelo de amenazas, cómo se tratan las credenciales y cómo informar de una vulnerabilidad.',
+    'd7.t': 'Manual completo, en portugués', 'd7.b': 'Treinta y un capítulos para la v2.7.1: instalación, configuración, uso diario e integración con servidores. Las pantallas se están recapturando.',
     'co.eyebrow': 'Contribuir', 'co.h2': 'Es código abierto, y es beta',
     'co.lede': 'Lo cual es buena combinación si te gusta encontrar cosas. Los informes de error de instalaciones reales son lo más útil que puedes enviar — sobre todo los que vienen con un log adjunto.',
     'co.bug': 'Informar de un error', 'co.feat': 'Pedir una función',
