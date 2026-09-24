@@ -860,8 +860,8 @@ void DisplayManager::setApMode(bool ap) {
 }
 
 #if !SIMUT_DISPLAY_ALPHA
-/* The TFT publishes the key on its own boot line (TR_BOOT_AP_NETWORK carries
- * it as a suffix), so there is nothing to keep here. */
+/* The TFT publishes the network and the key as lines of the boot terminal
+ * (AppManager::showApOnPanel), so there is nothing to keep here. */
 void DisplayManager::setApInfo(const char* ssid, const char* psk) {
 	(void)ssid; (void)psk;
 }

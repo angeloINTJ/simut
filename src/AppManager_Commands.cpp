@@ -37,8 +37,34 @@
 void AppManager::startApMode(uint8_t why) {
  SystemConfig &cfg = _storageMgr->getConfig( );
  LOG_CODE(LOG_WARN, "APP", APP_AP_MODE_TRIGGERED, why, TRL("AP mode started."));
- _netMgr->beginAP(cfg.deviceName);
+#if SIMUT_DISPLAY_TFT
+ /* The panel changes screen HERE, before the radio is touched. Nothing did
+  * until 2026-09-24: the menu's confirmation stayed on the glass with the AP
+  * already on the air (measured on the rig: UI mode 29 twelve seconds after
+  * Confirm, IP 192.168.4.1), and the 30 s idle guard then dropped it on a
+  * dashboard that no longer updates. setBootStatusKey( ) takes the panel off
+  * whatever it shows — the web reboot path relies on the same thing — and
+  * doing it first matters because beginAP( ) can hold Core 0 for ~4.2 s
+  * waiting for a sweep to let go of the radio. Not on the alpha: the boot flag
+  * this sets would hide the LCD's own AP pages. */
+ _displayMgr->setBootStatusKey(TR_BOOT_START_AP);
+#endif
+ if (!_netMgr->beginAP(cfg.deviceName)) {
+  /* beginAP( ) logged SYS_AP_START -1 and gave the radio back to the
+   * reconnect ladder. _isApMode stays false so the loop keeps measuring: it
+   * used to be set regardless, which left a device with no AP, nothing
+   * measured and "AP mode started" printed on the console. */
+#if SIMUT_DISPLAY_TFT
+  _displayMgr->endBoot( );
+  _displayMgr->showPanelMessage(false, TR_ERROR_LBL, MODE_DASHBOARD);
+#endif
+  _cmdMgr->printError(_cmdMgr->isPt( ) ? "O modo AP nao iniciou." : "AP mode did not start.");
+  return;
+ }
  _isApMode = true;
+#if SIMUT_DISPLAY_TFT
+ showApOnPanel( );
+#endif
  /* The key goes to the channel the command came in on. beginAP prints it to
   * the USB console, but `ap` is the one recovery command still allowed over
   * Bluetooth (D-4), and over that link the USB print is not visible — an
@@ -59,6 +85,34 @@ void AppManager::startApMode(uint8_t why) {
  _cmdMgr->printInfo(_cmdMgr->isPt( )
   ? "Conecte-se ao AP e acesse http://192.168.4.1"
   : "Join the AP and open http://192.168.4.1");
+}
+
+/* What an operator standing at the panel needs, as the last four lines of the
+ * boot terminal: the network, its key, where to point the browser, and that
+ * the AP is up. One function for the boot (forceAP) and for startApMode( ) —
+ * the menu, `ap` and the fallback — so the two screens cannot drift apart.
+ *
+ * Raw lines (key == TR_KEYS_COUNT renders the suffix alone, see BootLogEntry):
+ * an SSID and a random key are the two things on this screen with nothing to
+ * translate, and the translated TR_BOOT_AP_NETWORK names "SIMUT_SETUP" rather
+ * than this device's real network. Two lines and not one because the suffix is
+ * 40 bytes and a device name may be 31, which makes the SSID alone 37.
+ *
+ * The boot pushes TR_BOOT_AP_NETWORK (with the key) and TR_BOOT_AP_IP when the
+ * AP comes up, and three more lines follow before it ends. Captured on the rig
+ * 2026-09-22 the ring read IP / telemetry / web / callbacks / "AP Active!",
+ * the key nowhere; the SSID and key lines added that day then pushed the
+ * address off in turn. So the address is repeated here as well. */
+void AppManager::showApOnPanel( ) {
+ const char* apSsid = _netMgr->getApSsid( );
+ const char* apPsk  = _netMgr->getApPsk( );
+ char apLine[40];
+ snprintf(apLine, sizeof(apLine), "%s", (apSsid && *apSsid) ? apSsid : "-");
+ _displayMgr->setBootStatusKey((LangKey)TR_KEYS_COUNT, apLine, false);
+ snprintf(apLine, sizeof(apLine), "PSK %s", (apPsk && *apPsk) ? apPsk : "(open)");
+ _displayMgr->setBootStatusKey((LangKey)TR_KEYS_COUNT, apLine, false);
+ _displayMgr->setBootStatusKey(TR_BOOT_AP_IP);
+ _displayMgr->setBootStatusKey(TR_BOOT_AP_ACTIVE, nullptr, false);
 }
 
 void AppManager::executeCommand(CliDemand cmd) {

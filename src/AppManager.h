@@ -110,6 +110,8 @@ private:
  void executeCommand(CliDemand cmd);
  /** Starts Access Point mode at runtime (192.168.4.1) — the 'ap' CLI/BT command. */
  void startApMode(uint8_t why = 0);
+ /** Network, key, address and "AP active" as the boot terminal's last lines. */
+ void showApOnPanel( );
 
  /* Handlers extracted from the longest cases in executeCommand's switch
 	 * (>=30 lines each). Each receives the command, the active config,

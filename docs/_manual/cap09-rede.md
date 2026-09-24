@@ -238,7 +238,7 @@ A rede do AP:
 A chave é derivada da identidade do chip e é sempre a mesma para aquele aparelho, mesmo depois de um reset de fábrica. Ela usa letras maiúsculas e algarismos, sem `O`, `0`, `I` e `1`, para ser lida em voz alta sem confusão. A chave aparece:
 
 - no console serial, quando o AP abre;
-- na tela de boot do painel, quando o aparelho liga já no AP;
+- no painel, quando o aparelho liga já no AP ou abre o AP em operação (pelo menu, pela escada ou pelo comando `ap`);
 - no LCD do alpha, que na v2.7.1 quase nunca chega a mostrá-la ([capítulo 12](#cap-12-ap));
 - na resposta do comando `ap` do console ([capítulo 14](#cap-14)).
 
@@ -266,7 +266,7 @@ O log de eventos registra o motivo no contexto do evento 403: 0 para o comando `
 ### Enquanto o AP está aberto {#cap-09-ap-aberto}
 
 ::: perigo
-**Com o AP aberto, o aparelho não mede.** Enquanto o AP de configuração está no ar, o aparelho não lê os sensores, não confere os limites dos alarmes, não grava o histórico e não envia telemetria nem syslog. O painel e o LCD ficam com os últimos valores lidos, que só se atualizam enquanto alguém usa a interface web pelo AP. Um alarme novo não soa.
+**Com o AP aberto, o aparelho não mede.** Enquanto o AP de configuração está no ar, o aparelho não lê os sensores, não confere os limites dos alarmes, não grava o histórico e não envia telemetria nem syslog. O painel fica na tela do AP, com a rede, a chave e o endereço. O LCD fica com os últimos valores lidos, que só se atualizam enquanto alguém usa a interface web pelo AP. Um alarme novo não soa.
 
 Na v2.7.1 o AP também abre sozinho, e isso tem duas consequências:
 

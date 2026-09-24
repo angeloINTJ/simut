@@ -337,7 +337,7 @@ OK: Modo AP iniciado (WPA2). Senha: K7PX4MRW2A
 Conecte-se ao AP e acesse http://192.168.4.1
 ```
 
-O nome da rede é o nome do aparelho seguido de `_SETUP`. O log registra o código 403, **AP iniciado**, com o contexto 0. O AP aberto em operação fecha sozinho em 15 minutos, com um reinício ([capítulo 9](#cap-09-ap-aberto)).
+O nome da rede é o nome do aparelho seguido de `_SETUP`. O log registra o código 403, **AP iniciado**, com o contexto 0. O AP aberto em operação fecha sozinho em 15 minutos, com um reinício ([capítulo 9](#cap-09-ap-aberto)). Se o AP não abrir, a resposta é `ERROR: O modo AP nao iniciou.` e o aparelho continua medindo.
 
 ## O console completo {#cap-14-completo}
 
