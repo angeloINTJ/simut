@@ -182,4 +182,10 @@ hand_release_all() {
     # Best-effort: don't abort if the hand already disappeared.
     hand RELEASE BOOTSEL > /dev/null 2>&1 || true
     hand RELEASE RESET   > /dev/null 2>&1 || true
+    # The two auxiliary channels too. On the TFT build their wires land on the
+    # panel's SPI bus — GP16 is MISO, GP17 is TOUCH_CS — so a CHARGER left
+    # driven, or a PROBE left armed, corrupts every GRAM read (manual §13;
+    # AGENTS.md §1). A hand without the channels answers ERR, which is fine.
+    hand CHARGER HIZ     > /dev/null 2>&1 || true
+    hand PROBE STOP      > /dev/null 2>&1 || true
 }

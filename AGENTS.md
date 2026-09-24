@@ -37,6 +37,36 @@ nenhum fio da mão alcança. O contorno é uma imagem só de bancada com
 `CHARGER OFF` (nível baixo) é "dedo na tela". Foi assim que o gesto de AP do
 boot foi medido nos quatro casos em 22/09.
 
+🔴 **No build TFT, o GP16 e o GP17 do alvo são o MISO da tela e o `TOUCH_CS` —
+e estão ligados à mão (PROBE e CHARGER).** Um `CHARGER ON/OFF` ou um
+`PROBE START` que fique engatado corrompe **toda** leitura da GRAM
+(`/api/screenshot`, o espelho web, `/api/screen_stream`): com o CHARGER em nível
+baixo o XPT2046 fica selecionado e disputa o MISO com o ILI9341 — e o GP3 da mão
+ainda briga com o próprio GP17 do alvo, duas saídas push-pull no mesmo fio. A
+escrita vai pelo MOSI, então **o vidro continua certo e só a leitura mente**. Em
+12/09 a disputa dava captura preta (manual da mão, §13); em 24/09, com a mão
+achada em `CHARGER OFF` + `PROBE armed=YES`, dava capturas **escuras e
+saturadas**: os bits 6, 5 e 2 de cada byte voltavam zerados — texto
+(245,245,245) lido como (144,144,144), acento (0,150,255) como (0,144,152),
+vermelho (255,60,60) como (152,24,24). Soltas as linhas, a mesma imagem a
+12 MHz leu exato. 22 figuras do manual (capítulos 07 e 11, capturadas em 23/09)
+saíram assim. Quem deixava a mão nesse estado: o `air_test_suite.py` (T09 arma a
+sonda e não desarma; T11/T14 "restauram" com `CHARGER OFF`, que DIRIGE nível
+baixo) e o `bt_auth_test.py` (`CHARGER OFF` no fim). Desde 24/09 os dois, e o
+`hand_release_all`, devolvem as linhas a `CHARGER HIZ` / `PROBE STOP`.
+
+- **Antes de fotografar um build TFT:** `hand CHARGER STATUS` tem de dizer
+  `HIZ` e `hand PROBE STATUS`, `armed=NO`. Se não: `hand CHARGER HIZ` e
+  `hand PROBE STOP`. "Soltar" o CHARGER é `HIZ`, nunca `OFF`.
+- **Confira uma captura contra a cor que o firmware escreveu, nunca contra outra
+  captura.** A corrupção é determinística: todas as leituras concordam entre si,
+  e foi assim que ela passou dois dias sem ser vista — a escada de clock de
+  19/09 (`SIMUT_TFT_READ_HZ`) também comparou leitor contra leitor. No tema
+  `simut_def` (índice 0), qualquer menu tem de conter (240,244,240) — o texto —
+  e (0,148,248) — o acento: é o RGB565 expandido sem replicar bits, de propósito
+  (o espelho e o BMP têm de sair iguais). Se o pixel mais claro da tela ficar
+  em ~(144..152), a mão está no barramento.
+
 ### Gravar firmware
 
 **Nunca peça ao usuário para resetar o Pico à mão.** A mão existe para isso.

@@ -568,3 +568,13 @@ wins while the line is high-Z.
 | image | the real SIMUT dashboard (SALA 2 T5 21.9 °C, SALA 22.3 °C/73 %) |
 
 Before this fix the same endpoint returned `min=0 max=0` for 100% of the bytes.
+
+**2026-09-24 — idle is not enough if the user does not give the lines back.**
+The hand was found in `CHARGER OFF` + `PROBE armed=YES` under a TFT image, and
+captures came out **dark and oversaturated** instead of black: bits 6, 5 and 2
+of every byte read as zero (text (245,245,245) read as (144,144,144)).
+`CHARGER OFF` **drives** the line low — letting go is `CHARGER HIZ`.
+`air_test_suite.py` (T09 arms the probe and never disarms it; T11/T14 end on
+`OFF`) and `bt_auth_test.py` left the hand that way; since then they, and
+`hand_release_all`, end on `CHARGER HIZ` + `PROBE STOP`. The pre-capture check
+and the colour criterion are in `AGENTS.md` §1.
