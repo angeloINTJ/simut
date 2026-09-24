@@ -1113,6 +1113,9 @@ private:
 	uint8_t _failBySlot[MAX_USERS] = {0};
 	uint32_t _slotLocked = 0;       /**< bit i: slot i is out until reboot */
 	int _policySel = 0, _lastPolicySel = -1;
+	/** The policy editor's working copy, taken by showPinPolicy( ). Core 0
+	 *  sees it only when SAVE sends it (EVT_PIN_POLICY). */
+	uint8_t _policyMin = 0, _policyKb = 0, _policyAlpha = 0;
 	char _pinBuf[PIN_MAX_LEN + 1] = {0};
 	uint8_t _pinLen = 0;
 	char _pinFirst[PIN_MAX_LEN + 1] = {0};

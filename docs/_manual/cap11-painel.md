@@ -487,10 +487,10 @@ O item **Modo de Configuração** abre o ponto de acesso de configuração com o
 
 O aparelho confere a permissão **Rede** antes de abrir o AP e registra no log o código 403, **AP iniciado**, com o contexto 0.
 
-O painel não mostra o nome da rede nem a chave do AP aberto em operação. Use a chave anotada na primeira configuração, ou o comando `ap` do console, que responde com ela ([capítulo 14](#cap-14)). Depois de **Confirmar**, a tela de confirmação fica como está; ela volta à tela inicial em 30 s.
+Depois de **Confirmar**, o painel passa ao terminal da tela de boot, com **Iniciando Ponto de Acesso (AP)...**, e em poucos segundos mostra o que é preciso para entrar no AP: o nome da rede (o nome do aparelho seguido de `_SETUP`), a chave, numa linha que começa com `PSK`, **Acesse no celular: 192.168.4.1** e **AP Ativo! Reinicie a placa para sair.** O comando `ap` do console também responde com a chave ([capítulo 14](#cap-14)). Se o AP não abrir, o painel mostra **Erro** e o aparelho continua medindo.
 
 ::: atencao
-**O painel com o AP aberto.** Enquanto o AP está aberto, o aparelho não lê os sensores, não confere os alarmes e não grava o histórico ([capítulo 9](#cap-09-ap-aberto)). A tela inicial fica com os últimos valores lidos, e o botão **CFG** não abre as Configurações. O AP aberto em operação fecha sozinho em 15 min, com um reinício.
+**O painel com o AP aberto.** Enquanto o AP está aberto, o aparelho não lê os sensores, não confere os alarmes e não grava o histórico ([capítulo 9](#cap-09-ap-aberto)). O painel fica na tela do AP e não responde ao toque. O AP aberto em operação fecha sozinho em 15 min, com um reinício.
 :::
 
 ::: {.figura #fig-11-ap-confirmar tipo="tft" arquivo="11-ap-confirmar.png" captura="screen set -> tap(35,215) -> tap(270,215); a seta para cima dá a volta até o item 12"}

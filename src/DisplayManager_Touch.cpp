@@ -1616,8 +1616,10 @@ void DisplayManager::handleTouch( ) {
  else if (x >= 170 && x <= 300) {
  if (!acceptTouch(0xC3)) return;
  /* Core 0 owns the bit check and the radio; the panel only asks.
-  * Nothing is drawn from here: beginAP( ) is a boot-status screen
-  * away and the AP line replaces this one. */
+  * Nothing is drawn from here: startApMode( ) puts the boot terminal
+  * up before it touches the radio and ends it with the network, the
+  * key and the address. This used to say beginAP( ) did that; nothing
+  * did, and the confirmation stayed on the glass (fixed 2026-09-24). */
  UiEvent ev; ev.type = UiEvent::EVT_START_AP; ev.id = 0; pushUiEvent(ev);
  }
  }

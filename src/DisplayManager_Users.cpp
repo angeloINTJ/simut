@@ -1192,10 +1192,25 @@ void DisplayManager::enterPinFor(int slot) {
 /* v25 — the PIN policy editor                                                */
 /* ────────────────────────────────────────────────────────────────────────── */
 
+/* The editor works on a COPY of the stored policy, taken here; Core 0 sees the
+ * result only when SAVE sends it. It used to edit the live struct, so that the
+ * rows could show the clamping as it happened, and each consequence of that
+ * was measured on the rig on 2026-09-24:
+ *  - SAVE compared the new policy with ITSELF. Core 0 reads the old values out
+ *    of that same struct to decide whose PIN no longer complies, so raising the
+ *    length 4 -> 5 here logged "0 to renew" with six accounts holding a PIN.
+ *    The web and `user policy` read the old values first and were not affected.
+ *  - one tap, unsaved, already WAS the policy: /api/config read 5 before SAVE,
+ *    and still read 5 after the 30 s idle guard had taken the panel home.
+ *  - leaving without saving had to put it back, and did it by re-reading the
+ *    whole config from flash: an account added over the CLI and not yet
+ *    written was gone after one BACK.
+ * A copy has none of the three and costs three bytes. */
 void DisplayManager::showPinPolicy( ) {
 	mutex_enter_blocking(&_stateMutex);
 	_uiMode = MODE_SETTINGS_PIN_POLICY;
 	_policySel = 0; _lastPolicySel = -1;
+	pinPolicy(_policyMin, _policyKb, _policyAlpha);
 	_forceSettingsRedraw = true; _repaintSettings = true;
 	mutex_exit(&_stateMutex);
 }
@@ -1211,10 +1226,13 @@ void DisplayManager::showPinPolicy( ) {
  * "Scrambled 3" silently caps the length at 8 and a knob that changes another
  * knob without saying so is how a policy screen lies. */
 void DisplayManager::drawPinPolicy( ) {
-	if (!_driver.canvas || !_sysConfigPtr) return;
-	uint8_t minLen, keypad, alphabet;
-	pinPolicy(minLen, keypad, alphabet);
+	if (!_driver.canvas) return;
+	const uint8_t minLen = _policyMin, keypad = _policyKb, alphabet = _policyAlpha;
 
+	/* Title and footer never change on this screen, so they are painted on the
+	 * way in and nowhere else. A tap on a value used to take this branch too —
+	 * a full clear plus both bands to repaint three rows, which is the
+	 * whole-screen flash the operator saw on every tap (reported 2026-09-24). */
 	if (_forceSettingsRedraw) {
 		fastClearScreen(C_BG_MAIN);
 		blitTitleBar(menuLabelNoNumber(tr(TR_PIN_POLICY)));
@@ -1235,9 +1253,9 @@ void DisplayManager::drawPinPolicy( ) {
 	         (unsigned)PinKb::maxLenFor(keypad));
 	safeCopy(value[2], (alphabet == PinKb::ALPHA_ALNUM) ? "0-9 A-Z" : "0-9", sizeof(value[2]));
 
-	/* Three rows in ONE canvas pass: the canvas is 320x45 and a row is 38, so
-	 * the old per-row blit meant three DMA transfers where the rows never
-	 * change independently — every tap here re-clamps the other two. */
+	/* All three rows on every repaint, one canvas pass and one blit each (the
+	 * canvas is 320x45 and a row is 38). Not one row at a time, because a
+	 * change to one can move another: the keypad caps the length. */
 	const int itemW = 300;
 	int16_t bx, by; uint16_t bw, bh;
 	for (int i = 0; i < 3; i++) {
@@ -1515,8 +1533,6 @@ bool DisplayManager::handleTouchPanelV24(int16_t x, int16_t y) {
 	}
 
 	if (_uiMode == MODE_SETTINGS_PIN_POLICY) {
-		uint8_t minLen, keypad, alphabet;
-		pinPolicy(minLen, keypad, alphabet);
 		if (y >= 46 && y < 178) {
 			const int row = (y - 46) / 44;
 			if (row < 0 || row > 2) return true;
@@ -1531,6 +1547,7 @@ bool DisplayManager::handleTouchPanelV24(int16_t x, int16_t y) {
 			 * the length, so the pair on screen is always one the panel can
 			 * actually run — the screen cannot offer 10 characters on a keypad
 			 * that would take 3.2 s to resolve them. */
+			uint8_t minLen = _policyMin, keypad = _policyKb, alphabet = _policyAlpha;
 			if (row == 0) {
 				minLen = (minLen >= PinKb::maxLenFor(keypad)) ? (uint8_t)PinKb::PIN_LEN_MIN
 				                                              : (uint8_t)(minLen + 1);
@@ -1540,32 +1557,39 @@ bool DisplayManager::handleTouchPanelV24(int16_t x, int16_t y) {
 				} while (!PinKb::comboSupported(alphabet, keypad));
 			} else {
 				alphabet = (uint8_t)((alphabet + 1) % PinKb::ALPHA_COUNT);
-				/* ALPHA_ALNUM has no plain layout; step the keypad instead of
-				 * refusing the alphabet the operator just asked for. */
+				/* Every pair has a layout since KB_PLAIN became ordered, so this
+				 * does not step today. It stays so that a pair without one would
+				 * move the keypad instead of refusing the alphabet just asked for. */
 				while (!PinKb::comboSupported(alphabet, keypad)) keypad++;
 			}
 			clampPinPolicy(minLen, keypad, alphabet);
-			if (_sysConfigPtr) {
-				_sysConfigPtr->pinAuth.pinMinLen   = minLen;
-				_sysConfigPtr->pinAuth.pinKeypad   = keypad;
-				_sysConfigPtr->pinAuth.pinAlphabet = alphabet;
-			}
-			_forceSettingsRedraw = true; _repaintSettings = true;
+			_policyMin = minLen; _policyKb = keypad; _policyAlpha = alphabet;
+			/* The rows only: see drawPinPolicy( ). */
+			_repaintSettings = true;
 			return true;
 		}
+		/* The footer is the standard one (uiFooterMenu: up 5..67, down 73..135,
+		 * back 141..216, save 222..315), so it answers in the standard zones,
+		 * the ones MODE_SETTINGS_MAIN uses. Everything left of x=219 used to be
+		 * BACK, and the two arrows drawn there closed the screen — measured on
+		 * the rig on 2026-09-24: UI mode 28 -> 6 on a tap of the down arrow. */
 		if (y > 185) {
-			if (x < 219) {
+			if (x < 70) {
+				if (!acceptHoldTouch(10)) return true;
+				_policySel = (_policySel > 0) ? _policySel - 1 : 2;
+				_repaintSettings = true;
+			} else if (x < 138) {
+				if (!acceptHoldTouch(11)) return true;
+				_policySel = (_policySel < 2) ? _policySel + 1 : 0;
+				_repaintSettings = true;
+			} else if (x < 219) {
 				if (!acceptTouch(12)) return true;
-				/* Leaving without saving puts back what is stored: the rows
-				 * above edit the live struct so the screen can show the
-				 * clamping as it happens, and Core 0 owns what reaches flash. */
-				UiEvent ev; ev.type = UiEvent::EVT_PIN_POLICY; ev.id = -1; ev.param = 0;
-				pushUiEvent(ev);
+				/* Nothing to put back: the rows edited a copy. */
 				showSettingsMain( );
 			} else {
 				if (!acceptTouch(13)) return true;
 				UiEvent ev; ev.type = UiEvent::EVT_PIN_POLICY;
-				ev.id = (int)minLen; ev.param = (int)keypad * 16 + (int)alphabet;
+				ev.id = (int)_policyMin; ev.param = (int)_policyKb * 16 + (int)_policyAlpha;
 				pushUiEvent(ev);
 			}
 		}

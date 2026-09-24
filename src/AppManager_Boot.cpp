@@ -1299,27 +1299,9 @@ void AppManager::setup( ) {
  if (forceAP) {
  _isApMode = true;
  /* The last lines of the five-slot ring are the ones an operator standing
-  * at the panel needs. TR_BOOT_AP_NETWORK and its PSK suffix are pushed at
-  * the TOP of this branch, ~230 lines up, and by the time the boot ends they
-  * have scrolled off — captured on the rig 2026-09-22, the screen read IP /
-  * telemetry / web / callbacks / "AP Active!" and the key was nowhere.
-  *
-  * Raw lines (key == TR_KEYS_COUNT renders the suffix alone, see
-  * BootLogEntry): an SSID and a random key are the two things on this screen
-  * with nothing to translate, and the translated TR_BOOT_AP_NETWORK names
-  * "SIMUT_SETUP" rather than this device's real network. Two lines and not
-  * one because the suffix is 40 bytes and a device name may be 31, which
-  * makes the SSID alone 37. */
- {
-  const char* apSsid = _netMgr->getApSsid( );
-  const char* apPsk  = _netMgr->getApPsk( );
-  char apLine[40];
-  snprintf(apLine, sizeof(apLine), "%s", (apSsid && *apSsid) ? apSsid : "-");
-  _displayMgr->setBootStatusKey((LangKey)TR_KEYS_COUNT, apLine, false);
-  snprintf(apLine, sizeof(apLine), "PSK %s", (apPsk && *apPsk) ? apPsk : "(open)");
-  _displayMgr->setBootStatusKey((LangKey)TR_KEYS_COUNT, apLine, false);
- }
- _displayMgr->setBootStatusKey(TR_BOOT_AP_ACTIVE, nullptr, false);
+  * at the panel needs; the menu's "Setup mode" shows the same four (see
+  * showApOnPanel( ), AppManager_Commands.cpp). */
+ showApOnPanel( );
  LOG_CODE(LOG_INFO, "APP", APP_READY_AP, 0, TRL("System ready (AP mode)."));
  } else {
  /* pre preloadMinMax */
