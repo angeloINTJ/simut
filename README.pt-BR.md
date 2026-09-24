@@ -135,7 +135,7 @@ Os três compartilham o mesmo núcleo:
 
 Veja o **[Guia de Fiação](docs/WIRING.md)** para a pinagem completa e os diagramas de ligação.
 
-> **PCB do SIMUT — layout disponível para download** — o projeto da placa no KiCad (`.kicad_pcb`, `.kicad_sch`) está em [`PCB_test/`](PCB_test/), e o pacote de fabricação pronto para enviar à fábrica (Gerbers + furação PTH/NPTH, sem camadas de pasta) está publicado como release público: **[simut-pcb-v1.0 — `simut_pcb_fabrication.zip`](https://github.com/angeloINTJ/simut/releases/tag/simut-pcb-v1.0)**.
+> **PCB do SIMUT — layout disponível para download** — o projeto da placa no KiCad (`.kicad_pcb`, `.kicad_sch`) está em [`PCB_test/`](PCB_test/), e o pacote de fabricação pronto para enviar à fábrica (Gerbers + furação PTH/NPTH, sem camadas de pasta) está publicado como release público: **[simut-pcb-v1.1 — `simut_pcb_fabrication.zip`](https://github.com/angeloINTJ/simut/releases/tag/simut-pcb-v1.1)**.
 
 ## Recursos principais
 
@@ -215,7 +215,7 @@ Veja o **[Guia de Fiação](docs/WIRING.md)** para a pinagem completa e os diagr
   - IP estático, dois servidores DNS, servidor NTP próprio ou relógio manual, e porta web configurável.
 - **Ponto de acesso de configuração:**
   - chama-se `<nome do aparelho>_SETUP` — `simut_SETUP` de fábrica;
-  - WPA2, com chave por aparelho mostrada no console USB, na tela de boot do TFT e no LCD do alpha;
+  - WPA2, com chave por aparelho mostrada no console USB e na tela de boot do TFT;
   - portal cativo em `http://192.168.4.1`.
 
   Cinco formas de entrar:
@@ -303,7 +303,8 @@ pio run -e pico_w_release -t upload
 # ⚠️ uploadfs REFORMATA a partição LittleFS — num dispositivo já em uso ele
 # destrói histórico, config e calibração. Nunca repita depois que o
 # dispositivo tiver dados; packs de idioma podem subir depois pelo
-# gerenciador de arquivos da web.
+# gerenciador de arquivos da web. Ele copia OS DOIS packs de idioma, e o
+# aparelho carrega o primeiro em ordem alfabética (es-ES): apague o outro.
 pio run -e pico_w_release -t uploadfs
 ```
 
@@ -312,10 +313,11 @@ Prefere não compilar? Todo [release](https://github.com/angeloINTJ/simut/releas
 ### Primeiro boot
 1. **Anote a senha do admin.** Uma unidade recém-saída de fábrica imprime uma senha de admin aleatória de 8 caracteres **uma única vez no console serial USB** (115200 baud). Ela nunca é gravada em texto puro. Se você perder, `system admin reset confirm` pela USB imprime uma nova.
 2. **Coloque o aparelho na sua rede.** Uma unidade sem rede configurada abre sozinha o ponto de acesso de configuração. O Air não abre: digite `ap` no console dele.
-   - Conecte-se a `<nome>_SETUP` (`simut_SETUP` de fábrica). É WPA2, e a chave por aparelho é impressa no console USB, na tela de boot do TFT e no LCD do alpha.
+   - Conecte-se a `<nome>_SETUP` (`simut_SETUP` de fábrica). É WPA2, e a chave por aparelho é impressa no console USB e na tela de boot do TFT. No alpha, leia a chave no console USB ou na resposta do comando `ap`: pelo código da v2.7.1, o LCD não chega às páginas do AP.
    - O portal abre em `http://192.168.4.1`.
+   - Enquanto o ponto de acesso está no ar, o aparelho não mede: na v2.7.1 ele não lê sensores, não confere alarmes e não grava histórico até entrar numa rede.
 
-   Sem tela, dá para usar o console: `system ssid <nome>`, `system pass <senha>` e depois `reload confirm`.
+   Sem tela, dá para usar o console: `system ssid <nome>`, `system pass <senha>` e depois `reload confirm`. O console corta no primeiro espaço: rede ou senha com espaço só pela página web.
 3. **Abra a interface web** no endereço que o aparelho recebeu — na imagem `release`, também em `http://simut.local` — e entre como `admin` com a senha do passo 1. O aparelho vai pedir uma senha nova.
 4. **Adicione sensores** em **Config → Sensors & GPIO**, ou deixe o *Scan for probes* encontrá-los.
 5. **No painel touch**, Configurações pede uma conta e o PIN dela. O PIN de fábrica do admin é `1234`, e a troca é exigida no primeiro uso.
@@ -476,7 +478,7 @@ O LCD 16×2 é a única saída não validada na tela de verdade. A bancada não 
 |----------|-------------|
 | [Manual do Usuário](docs/MANUAL.pt-BR.md) | Montagem, display/web/console, OTA, referência da API, solução de problemas — mantido atualizado |
 | [User Manual (EN)](docs/MANUAL.md) | O mesmo manual, em inglês |
-| [Manual ilustrado](docs/MANUAL.pt-BR.html) | Manual do produto com telas reais — **retrata a v2.1.10**; os manuais acima descrevem o que o firmware faz hoje |
+| [Manual completo](docs/MANUAL.pt-BR.html) | O manual do produto, refeito para a v2.7.1: 31 capítulos sobre instalação, configuração, uso no dia a dia e integração com servidores. As telas estão sendo recapturadas; cada uma que falta está marcada no lugar dela |
 | [Guia de Fiação](docs/WIRING.md) | Pinagem completa e diagramas de ligação |
 | [Atualização pelo ar](docs/OTA_USAGE.md) | Atualizar pela página web, e o que sobrevive |
 | [Guia de Recuperação](docs/RECOVERY.md) | Recuperação de brick — BOOTSEL, picotool, reset 1200 bps |

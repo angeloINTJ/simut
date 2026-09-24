@@ -137,7 +137,7 @@ They share one core:
 
 See the **[Wiring Guide](docs/WIRING.md)** for the complete pinout and connection diagrams.
 
-> **SIMUT PCB — layout available for download** — the KiCad board design (`.kicad_pcb`, `.kicad_sch`) lives in [`PCB_test/`](PCB_test/), and the ready-to-fab package (Gerbers + PTH/NPTH drills, no paste layers) is published as a public release: **[simut-pcb-v1.0 — `simut_pcb_fabrication.zip`](https://github.com/angeloINTJ/simut/releases/tag/simut-pcb-v1.0)**.
+> **SIMUT PCB — layout available for download** — the KiCad board design (`.kicad_pcb`, `.kicad_sch`) lives in [`PCB_test/`](PCB_test/), and the ready-to-fab package (Gerbers + PTH/NPTH drills, no paste layers) is published as a public release: **[simut-pcb-v1.1 — `simut_pcb_fabrication.zip`](https://github.com/angeloINTJ/simut/releases/tag/simut-pcb-v1.1)**.
 
 ## Key Features
 
@@ -217,7 +217,7 @@ See the **[Wiring Guide](docs/WIRING.md)** for the complete pinout and connectio
   - static IP, two DNS servers, a custom NTP server or a manual clock, and a configurable web port.
 - **Setup access point:**
   - named `<device name>_SETUP` — `simut_SETUP` from the factory;
-  - WPA2, with a per-device key shown on the USB console, the TFT boot screen and the alpha's LCD;
+  - WPA2, with a per-device key shown on the USB console and the TFT boot screen;
   - a captive portal at `http://192.168.4.1`.
 
   Five ways in:
@@ -305,7 +305,8 @@ pio run -e pico_w_release -t upload
 # ⚠️ uploadfs REFORMATS the LittleFS partition — on a device already in
 # service it destroys history, config and calibration. Never run it again
 # after the device has data; language packs can be uploaded later from the
-# web file manager instead.
+# web file manager instead. It copies BOTH language packs, and the device
+# loads the first alphabetically (es-ES): delete the one you do not want.
 pio run -e pico_w_release -t uploadfs
 ```
 
@@ -314,10 +315,11 @@ Prefer not to build? Every [release](https://github.com/angeloINTJ/simut/release
 ### First Boot
 1. **Capture the admin password.** A factory-fresh unit prints a random 8-character admin password **once on the USB serial console** (115200 baud). It is never stored in plain text. If you miss it, `system admin reset confirm` over USB prints a new one.
 2. **Join it to your network.** A unit with no network configured opens its setup access point by itself. The Air does not: type `ap` on its console instead.
-   - Join `<name>_SETUP` (`simut_SETUP` from the factory). It is WPA2, and its per-device key is printed on the USB console, the TFT boot screen and the alpha's LCD.
+   - Join `<name>_SETUP` (`simut_SETUP` from the factory). It is WPA2, and its per-device key is printed on the USB console and the TFT boot screen. On an alpha, read it from the USB console or from the `ap` command's reply: by the v2.7.1 code, the LCD does not reach its AP pages.
    - The portal opens at `http://192.168.4.1`.
+   - While the setup access point is up, the device does not measure: in v2.7.1 it reads no sensors, checks no alarms and records no history until it joins a network.
 
-   Without a screen, you can use the console instead: `system ssid <name>`, `system pass <secret>`, then `reload confirm`.
+   Without a screen, you can use the console instead: `system ssid <name>`, `system pass <secret>`, then `reload confirm`. The console stops at the first space, so a network name or password with a space has to go through the web page.
 3. **Open the web interface** at the address the device got — on the `release` image also `http://simut.local` — and log in as `admin` with the password from step 1. You will be asked to choose a new one.
 4. **Add sensors** in **Config → Sensors & GPIO**, or let *Scan for probes* find them.
 5. **On the touch panel**, Settings asks for an account and its PIN. The factory admin PIN is `1234`, and it must be changed on first use.
@@ -478,7 +480,7 @@ The 16×2 LCD is the one output not validated on glass. The bench has no HD44780
 |----------|-------------|
 | [User Manual](docs/MANUAL.md) | Hardware setup, display/web/console guide, OTA, API reference, troubleshooting — kept current |
 | [Manual do Usuário (pt-BR)](docs/MANUAL.pt-BR.md) | The same manual, in Portuguese |
-| [Illustrated manual (pt-BR)](docs/MANUAL.pt-BR.html) | Product manual with real screenshots — **depicts v2.1.10**; the manuals above describe what the firmware does now |
+| [Complete manual (pt-BR)](docs/MANUAL.pt-BR.html) | The full product manual in Portuguese, rebuilt for v2.7.1: 31 chapters on installation, configuration, daily use and server integration. Screenshots are being recaptured; each missing one is marked where it belongs |
 | [Wiring Guide](docs/WIRING.md) | Complete pinout and connection diagrams |
 | [Over-the-air updates](docs/OTA_USAGE.md) | Updating from the web page, and what survives it |
 | [Recovery Guide](docs/RECOVERY.md) | Brick recovery — BOOTSEL, picotool, 1200 bps reset |

@@ -1,6 +1,6 @@
 # tools/
 
-130 scripts. This file exists because until 2026-09-08 there was no way
+131 scripts. This file exists because until 2026-09-08 there was no way
 to tell a live bench tool from a leftover, and one of them —
 `compressor.py` — had been superseded for three months while still looking
 usable: it regenerated `WebUI_GZ.h` into the repository root, where nothing
@@ -59,7 +59,7 @@ local build before CI ever sees it.
 | `sensor_soak.py` | Sensor soak — protocol item #4 of docs/analysis/SIMUT-Plano-Estabilidade-Concorrencia.md. | 2026-08-14 |
 | `web_test_suite.py` | End-to-end test suite for the SIMUT web interface. | 2026-08-17 |
 
-## Referenced elsewhere (50)
+## Referenced elsewhere (51)
 
 Named by a document, a workflow, or another script — a recipe in `docs/` or a
 step in a bench procedure. Run by hand, but with instructions somewhere.
@@ -71,6 +71,7 @@ step in a bench procedure. Run by hand, but with instructions somewhere.
 | `alarm_mqtt_test.py` | SIMUT v21 — Teste em hardware da 2ª linha de telemetria sobre MQTT com | 2026-08-23 |
 | `arduino_pico_overrides/restore.sh` | restore.sh — reverte overrides SIMUT do framework arduino-pico. | 2026-08-20 |
 | `build_lang_pack.py` | F-LANGPACK Etapa 3 — gera data/lang/language_pt-BR.lng. | 2026-08-10 |
+| `build_manual.py` | Builds `docs/MANUAL.pt-BR.html`, the complete product manual in Portuguese, from the chapter sources in `docs/_manual/` (pandoc plus the Ângulo template). A figure whose PNG is not yet in `docs/images/manual/` renders as a pending box and is listed in Appendix A and in `docs/images/manual/CAPTURAR.md`; capturing one is: save the PNG under that name, run the script again. `--check` fails on a `[[VERIFICAR` marker, a repeated figure id, a broken internal link or markup that leaked through as text. Needs pandoc; not part of the firmware build or of CI. | 2026-09-23 |
 | `build_release_pio.sh` | build_release_pio.sh — Generate PlatformIO / VS Code compatible release zip. | 2026-08-29 |
 | `check_air_consistency.py` | Static consistency gate for the SIMUT Air build (no hardware, no PlatformIO). | 2026-09-06 |
 | `check_history_v5_parity.py` | Bit-exact parity gate between the firmware V5 codec and the reference. | 2026-08-22 |

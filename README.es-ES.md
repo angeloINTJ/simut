@@ -137,7 +137,7 @@ Los tres comparten el mismo núcleo:
 
 Consulta la **[Guía de Cableado](docs/WIRING.md)** para el pinout completo y los diagramas de conexión.
 
-> **PCB del SIMUT — diseño disponible para descarga** — el diseño de la placa en KiCad (`.kicad_pcb`, `.kicad_sch`) está en [`PCB_test/`](PCB_test/), y el paquete de fabricación listo para enviar a la fábrica (Gerbers + taladros PTH/NPTH, sin capas de pasta) está publicado como release público: **[simut-pcb-v1.0 — `simut_pcb_fabrication.zip`](https://github.com/angeloINTJ/simut/releases/tag/simut-pcb-v1.0)**.
+> **PCB del SIMUT — diseño disponible para descarga** — el diseño de la placa en KiCad (`.kicad_pcb`, `.kicad_sch`) está en [`PCB_test/`](PCB_test/), y el paquete de fabricación listo para enviar a la fábrica (Gerbers + taladros PTH/NPTH, sin capas de pasta) está publicado como release público: **[simut-pcb-v1.1 — `simut_pcb_fabrication.zip`](https://github.com/angeloINTJ/simut/releases/tag/simut-pcb-v1.1)**.
 
 ## Características principales
 
@@ -217,7 +217,7 @@ Consulta la **[Guía de Cableado](docs/WIRING.md)** para el pinout completo y lo
   - IP estática, dos servidores DNS, un servidor NTP propio o un reloj manual, y puerto web configurable.
 - **Punto de acceso de configuración:**
   - se llama `<nombre del dispositivo>_SETUP` — `simut_SETUP` de fábrica;
-  - WPA2, con una clave por dispositivo que se muestra en la consola USB, en la pantalla de arranque del TFT y en el LCD del alpha;
+  - WPA2, con una clave por dispositivo que se muestra en la consola USB y en la pantalla de arranque del TFT;
   - portal cautivo en `http://192.168.4.1`.
 
   Cinco formas de entrar:
@@ -305,7 +305,8 @@ pio run -e pico_w_release -t upload
 # ⚠️ uploadfs REFORMATEA la partición LittleFS — en un dispositivo ya en
 # servicio destruye histórico, configuración y calibración. No lo repitas
 # cuando el dispositivo tenga datos; los packs de idioma pueden subirse
-# después desde el gestor de archivos web.
+# después desde el gestor de archivos web. Copia LOS DOS packs de idioma, y el
+# dispositivo carga el primero en orden alfabético (es-ES): borra el otro.
 pio run -e pico_w_release -t uploadfs
 ```
 
@@ -314,10 +315,11 @@ pio run -e pico_w_release -t uploadfs
 ### Primer arranque
 1. **Apunta la contraseña del admin.** Una unidad recién salida de fábrica imprime una contraseña de admin aleatoria de 8 caracteres **una sola vez en la consola serie USB** (115200 baudios). Nunca se guarda en texto plano. Si la pierdes, `system admin reset confirm` por USB imprime una nueva.
 2. **Conéctalo a tu red.** Una unidad sin red configurada abre sola su punto de acceso de configuración. El Air no: escribe `ap` en su consola.
-   - Conéctate a `<nombre>_SETUP` (`simut_SETUP` de fábrica). Es WPA2, y su clave por dispositivo se imprime en la consola USB, en la pantalla de arranque del TFT y en el LCD del alpha.
+   - Conéctate a `<nombre>_SETUP` (`simut_SETUP` de fábrica). Es WPA2, y su clave por dispositivo se imprime en la consola USB y en la pantalla de arranque del TFT. En un alpha, léela en la consola USB o en la respuesta del comando `ap`: según el código de la v2.7.1, el LCD no llega a sus páginas del AP.
    - El portal se abre en `http://192.168.4.1`.
+   - Mientras el punto de acceso está activo, el dispositivo no mide: en la v2.7.1 no lee sensores, no comprueba alarmas ni graba histórico hasta entrar en una red.
 
-   Sin pantalla, puedes usar la consola: `system ssid <nombre>`, `system pass <clave>` y luego `reload confirm`.
+   Sin pantalla, puedes usar la consola: `system ssid <nombre>`, `system pass <clave>` y luego `reload confirm`. La consola corta en el primer espacio: una red o una clave con espacio solo por la página web.
 3. **Abre la interfaz web** en la dirección que obtuvo el dispositivo — en la imagen `release`, también en `http://simut.local` — y entra como `admin` con la contraseña del paso 1. Se te pedirá elegir una nueva.
 4. **Añade sensores** en **Config → Sensors & GPIO**, o deja que *Scan for probes* los encuentre.
 5. **En el panel táctil**, Ajustes pide una cuenta y su PIN. El PIN de fábrica del admin es `1234`, y hay que cambiarlo en el primer uso.
@@ -480,7 +482,7 @@ El LCD 16×2 es la única salida no validada en la pantalla real. El banco no ti
 |----------|-------------|
 | [Manual de Usuario (EN)](docs/MANUAL.md) | Montaje, pantalla/web/consola, OTA, referencia de la API, resolución de problemas — mantenido al día |
 | [Manual do Usuário (pt-BR)](docs/MANUAL.pt-BR.md) | El mismo manual, en portugués |
-| [Manual ilustrado (pt-BR)](docs/MANUAL.pt-BR.html) | Manual del producto con pantallas reales — **retrata la v2.1.10**; los manuales de arriba describen lo que el firmware hace hoy |
+| [Manual completo (pt-BR)](docs/MANUAL.pt-BR.html) | El manual del producto en portugués, rehecho para la v2.7.1: 31 capítulos sobre instalación, configuración, uso diario e integración con servidores. Las pantallas se están recapturando; cada una que falta está marcada en su lugar |
 | [Guía de Cableado](docs/WIRING.md) | Pinout completo y diagramas de conexión |
 | [Actualización por el aire](docs/OTA_USAGE.md) | Actualizar desde la página web, y lo que sobrevive |
 | [Guía de Recuperación](docs/RECOVERY.md) | Recuperación de brick — BOOTSEL, picotool, reset 1200 bps |
