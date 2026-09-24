@@ -385,7 +385,7 @@ A rota exige uma conta de administrador completo, com todas as permissões. Outr
 
 ```bash
 export SIMUT_WEB_USER=admin
-export SIMUT_WEB_PASS='sua-senha'
+read -rsp 'Senha do admin: ' SIMUT_WEB_PASS; echo; export SIMUT_WEB_PASS
 python3 tools/install_tls_cert.py --host 192.0.2.10 \
   --cert web_cert.pem --key web_key.pem --reboot
 ```

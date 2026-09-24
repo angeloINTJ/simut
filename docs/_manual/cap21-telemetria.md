@@ -583,7 +583,7 @@ Os receptores abaixo gravam, sem duplicar, e só então confirmam. Todos esperam
 - **API Key:** `troque-este-segredo`;
 - **Formato:** JSON. O receptor em Python puro também aceita CSV.
 
-Troque o segredo de exemplo por um valor seu, diferente para cada aparelho.
+Os receptores leem o token da variável de ambiente `SIMUT_TOKEN`, que deve ter o mesmo valor do campo **API Key** do aparelho. Use um valor diferente para cada aparelho, e não o escreva no código.
 
 ### Python, só com a biblioteca padrão {#cap-21-rx-python}
 
@@ -595,11 +595,12 @@ Este receptor atende a telemetria em JSON e em CSV e também a linha de alarmes 
 import csv
 import io
 import json
+import os
 import sqlite3
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-TOKEN = "troque-este-segredo"            # o mesmo valor do campo API Key
+TOKEN = os.environ["SIMUT_TOKEN"]       # o mesmo valor do campo API Key
 PORTA = 8080
 
 banco = sqlite3.connect("simut.db", check_same_thread=False)
@@ -679,18 +680,19 @@ if __name__ == "__main__":
     ThreadingHTTPServer(("0.0.0.0", PORTA), Coletor).serve_forever()
 ```
 
-Salve como `coletor.py` e rode com `python3 coletor.py`. O programa precisa do Python 3.7 ou mais novo.
+Salve como `coletor.py`, ponha o token na variável `SIMUT_TOKEN` e rode com `python3 coletor.py`. O programa precisa do Python 3.7 ou mais novo.
 
 ### Flask {#cap-21-rx-flask}
 
 ```python
 # pip install flask
+import os
 import sqlite3
 from contextlib import closing
 
 from flask import Flask, abort, request
 
-TOKEN = "troque-este-segredo"
+TOKEN = os.environ["SIMUT_TOKEN"]
 app = Flask(__name__)
 
 with closing(sqlite3.connect("simut.db")) as con:
@@ -728,7 +730,7 @@ if __name__ == "__main__":
 // npm install express
 const express = require("express");
 
-const TOKEN = "troque-este-segredo";
+const TOKEN = process.env.SIMUT_TOKEN;
 const app = express();
 app.use(express.text({ type: "*/*", limit: "1mb" }));  // corpo cru, qualquer Content-Type
 

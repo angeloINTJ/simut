@@ -5266,7 +5266,7 @@ E6614103E7512B29,uSALA-1,Sala,55.00,52.00</code></pre>
 <p>A rota exige uma conta de administrador completo, com todas as permissões. Outra conta recebe <code>403</code>.</p>
 <p><strong>Pelo script</strong> <code>tools/install_tls_cert.py</code>, que entra no aparelho, envia o par e, com <code>--reboot</code>, reinicia:</p>
 <pre class="bash"><code>export SIMUT_WEB_USER=admin
-export SIMUT_WEB_PASS=&#39;sua-senha&#39;
+read -rsp &#39;Senha do admin: &#39; SIMUT_WEB_PASS; echo; export SIMUT_WEB_PASS
 python3 tools/install_tls_cert.py --host 192.0.2.10 \
   --cert web_cert.pem --key web_key.pem --reboot</code></pre>
 <p><strong>Pelo <code>curl</code>.</strong> Primeiro abra uma sessão, depois envie os dois blocos PEM juntos no corpo do pedido, em qualquer ordem, com um tipo de conteúdo que não seja de formulário:</p>
@@ -13590,7 +13590,7 @@ ON CONFLICT (uid, ts, canal) DO NOTHING;</code></pre>
 <li><strong>API Key:</strong> <code>troque-este-segredo</code>;</li>
 <li><strong>Formato:</strong> JSON. O receptor em Python puro também aceita CSV.</li>
 </ul>
-<p>Troque o segredo de exemplo por um valor seu, diferente para cada aparelho.</p>
+<p>Os receptores leem o token da variável de ambiente <code>SIMUT_TOKEN</code>, que deve ter o mesmo valor do campo <strong>API Key</strong> do aparelho. Use um valor diferente para cada aparelho, e não o escreva no código.</p>
 <h4 id="cap-21-rx-python">Python, só com a biblioteca padrão</h4>
 <p>Este receptor atende a telemetria em JSON e em CSV e também a linha de alarmes em JSON, no caminho de fábrica dela, <code>/api/telemetria/alarm</code> (<a href="#cap-22">capítulo 22</a>). Ele grava num arquivo SQLite e só responde 204 depois de gravar.</p>
 <pre class="python"><code>#!/usr/bin/env python3
@@ -13598,11 +13598,12 @@ ON CONFLICT (uid, ts, canal) DO NOTHING;</code></pre>
 import csv
 import io
 import json
+import os
 import sqlite3
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-TOKEN = &quot;troque-este-segredo&quot;            # o mesmo valor do campo API Key
+TOKEN = os.environ[&quot;SIMUT_TOKEN&quot;]       # o mesmo valor do campo API Key
 PORTA = 8080
 
 banco = sqlite3.connect(&quot;simut.db&quot;, check_same_thread=False)
@@ -13680,15 +13681,16 @@ class Coletor(BaseHTTPRequestHandler):
 if __name__ == &quot;__main__&quot;:
     print(f&quot;Coletor SIMUT na porta {PORTA}&quot;)
     ThreadingHTTPServer((&quot;0.0.0.0&quot;, PORTA), Coletor).serve_forever()</code></pre>
-<p>Salve como <code>coletor.py</code> e rode com <code>python3 coletor.py</code>. O programa precisa do Python 3.7 ou mais novo.</p>
+<p>Salve como <code>coletor.py</code>, ponha o token na variável <code>SIMUT_TOKEN</code> e rode com <code>python3 coletor.py</code>. O programa precisa do Python 3.7 ou mais novo.</p>
 <h4 id="cap-21-rx-flask">Flask</h4>
 <pre class="python"><code># pip install flask
+import os
 import sqlite3
 from contextlib import closing
 
 from flask import Flask, abort, request
 
-TOKEN = &quot;troque-este-segredo&quot;
+TOKEN = os.environ[&quot;SIMUT_TOKEN&quot;]
 app = Flask(__name__)
 
 with closing(sqlite3.connect(&quot;simut.db&quot;)) as con:
@@ -13722,7 +13724,7 @@ if __name__ == &quot;__main__&quot;:
 <pre class="js"><code>// npm install express
 const express = require(&quot;express&quot;);
 
-const TOKEN = &quot;troque-este-segredo&quot;;
+const TOKEN = process.env.SIMUT_TOKEN;
 const app = express();
 app.use(express.text({ type: &quot;*/*&quot;, limit: &quot;1mb&quot; }));  // corpo cru, qualquer Content-Type
 
