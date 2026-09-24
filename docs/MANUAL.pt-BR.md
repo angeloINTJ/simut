@@ -653,6 +653,13 @@ para coordenada de painel e chama `POST /api/touch` com `x` e `y`. É o mesmo
 `touch sim` do console, e obedece ao mesmo teclado de PIN — tocar em Ajustes
 pede a senha do display como pediria para um dedo.
 
+Segurar o clique — ou o dedo, numa tela de toque — faz um **toque longo**. A
+página mede o tempo e desenha um anel que fica verde no limiar de 3 s do painel;
+ao soltar, manda a duração como `ms`, e o aparelho segura o toque esse tempo (de
+100 a 15000 ms) — o que o `touch hold` do console faz. Menos de 250 ms é um
+toque comum. O aparelho reproduz o toque depois que você solta, então a tela só
+reage aí.
+
 ⚠️ Quem chamar `/api/touch` por fora da página precisa **esperar ~600 ms antes
 de pedir o próximo quadro**. Um toque vira um evento que o Core 0 consome no
 laço dele, e uma captura ocupa esse mesmo core: pedir o quadro logo em seguida
@@ -1060,10 +1067,11 @@ cortados já tinham equivalentes na web, e removê-los devolveu 44,5 KB de flash
 
 ### Firmware de teste — o console completo
 
-Os builds `pico_w_test` trazem os 56 comandos com modos estilo Cisco
-(`enable` → `configure terminal` → `write memory`), mais `touch sim` e `screen`
-para dirigir o display por script. É o build que as suítes automatizadas em
-`tools/` exigem. Não é o que deve estar num dispositivo que alguém usa.
+Os builds `pico_w_test` trazem os 56 comandos com modos estilo Cisco (`enable` →
+`configure terminal` → `write memory`), mais `touch sim`, `touch hold` e
+`screen` para dirigir o display por script. É o build que as suítes
+automatizadas em `tools/` exigem. Não é o que deve estar num dispositivo que
+alguém usa.
 
 **O SIMUT Air também traz, desde 18/09/2026.** Aquele build é headless: o
 console serial e o Bluetooth são a única interface local que ele tem, e
@@ -1224,6 +1232,7 @@ Permissões entre colchetes.
 | `/api/history_rebind` | POST | Reaponta os registros para um novo ID de hardware |
 | `/api/export/history.bin` | GET | Exportação binária bruta |
 | `/api/logs` | GET | Log de eventos [LOGS] |
+| `/api/logcodes` | GET | Nomes dos eventos: os do pacote ativo, depois os em inglês — texto puro [LOGS] |
 | `/api/export/logs.bin` | GET | Exportação binária bruta |
 | `/api/clear_logs` | POST | Apaga o log |
 
@@ -1263,7 +1272,7 @@ Permissões entre colchetes.
 | `/api/screenshot` | GET | BMP 320×240 de 24 bits lido do painel |
 | `/api/screenshot_chunk` | GET | Um bloco de 16 linhas com um CRC32, para transferência verificável |
 | `/api/screen_stream` | GET | Um quadro do painel em faixas com RLE de paleta (espelho ao vivo) |
-| `/api/touch` | POST | Toca o painel em `x` (0..319) e `y` (0..239) — coordenadas do painel |
+| `/api/touch` | POST | Toca o painel em `x` (0..319) e `y` (0..239) — coordenadas do painel; com `ms` (100..15000), segura o toque esse tempo |
 | `/api/keypad` | GET | O teclado do PIN **como está no vidro agora**: `faces` (uma por tecla, POSICIONAL — o pad numérico ordenado tem duas VAZIAS), `kb` (`cards`, `num` ou `groups`), `grid`, `policy` e `pop` para o popup do alfanumérico de dois toques. Descreve o vidro, não o segredo: num teclado sorteado nunca diz qual casa do cartão é o caractere |
 
 ---

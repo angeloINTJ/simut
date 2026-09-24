@@ -111,6 +111,7 @@ handler checks.
 | `GET /api/calib` | `PERM_CALIB` |
 | `GET /api/history_multi`, `/api/history_days`, `/api/export/history.bin`, `/api/history/open` | `PERM_HISTORY` |
 | `GET /api/export/logs.bin`, `/api/logs` | `PERM_LOGS` |
+| `GET /api/logcodes` | `PERM_LOGS` — the event names the log view prints: the active pack's `@LOGCODES`, then the firmware's English names (`?l=en`: English only). Static labels, no device data; gated anyway because its only reader is the log view, which already needs the bit. |
 | `GET /api/screenshot`, `/api/screenshot_chunk` | `PERM_SYS_CONFIG` |
 | `GET /api/screen_stream` | `PERM_SYS_CONFIG` |
 | `POST /api/touch` | `PERM_SYS_CONFIG` — drives the panel UI; the panel's PIN keypad still guards the settings screens, and every panel action tests the bit of the account the PIN identified (below) |

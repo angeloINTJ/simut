@@ -84,7 +84,7 @@ void AppManager::handleTimeSync(uint32_t bootTs, int32_t delta) {
  _pendingTimeSync = false;
  /* Level, not a new code: the persisted record carries only code + context, so
   * a WARN is what survives into `show system log` without costing a string in
-  * five tables. Context saturates at int16 — a pegged value is itself the
+  * three tables. Context saturates at int16 — a pegged value is itself the
   * signal that the correction was enormous. The record's own epoch is already
   * corrected, so the seed that caused it is (epoch - delta). */
  const bool suspect = (delta > NTP_SUSPECT_DELTA_S) || (delta < -NTP_SUSPECT_DELTA_S);

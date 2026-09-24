@@ -627,6 +627,13 @@ the same injection the console's `touch sim` performs, and it faces the same PIN
 keypad — reaching Settings asks for the display password exactly as it would for
 a finger.
 
+Holding the click — or a finger, on a touch screen — makes it a **long press**.
+The page times the press and draws a ring that turns green at the panel's 3 s
+threshold; on release it sends the duration as `ms`, and the device holds the
+touch that long (100 to 15000 ms) — what the console's `touch hold` does. A
+press under 250 ms is an ordinary tap. The device replays the press after you
+let go, so the screen reacts only then.
+
 ⚠️ A caller using `/api/touch` outside the page must **wait ~600 ms before
 asking for the next frame**. A tap becomes an event Core 0 consumes in its loop,
 and a capture occupies that same core, so a frame requested immediately
@@ -1020,8 +1027,8 @@ cut had web equivalents already, and removing them returned 44.5 KB of flash.
 
 ### Test firmware — the full console
 
-`pico_w_test` builds ship the 56 commands with Cisco-style modes
-(`enable` → `configure terminal` → `write memory`), plus `touch sim` and
+`pico_w_test` builds ship the 56 commands with Cisco-style modes (`enable` →
+`configure terminal` → `write memory`), plus `touch sim`, `touch hold` and
 `screen` for driving the display from a script. It is the build the automated
 suites under `tools/` require. It is not what belongs on a device someone uses.
 
@@ -1186,6 +1193,7 @@ brackets.
 | `/api/history_rebind` | POST | Re-point records at a new hardware ID |
 | `/api/export/history.bin` | GET | Raw binary export |
 | `/api/logs` | GET | Event log [LOGS] |
+| `/api/logcodes` | GET | Event names: the active pack's, then English — plain text [LOGS] |
 | `/api/export/logs.bin` | GET | Raw binary export |
 | `/api/clear_logs` | POST | Erase the log |
 
@@ -1239,7 +1247,7 @@ What a manager of many devices (the SIMUT-RX app, or any client) relies on:
 | `/api/screenshot` | GET | 320×240 24-bit BMP off the panel |
 | `/api/screenshot_chunk` | GET | One 16-row chunk with a CRC32, for verifiable transfer |
 | `/api/screen_stream` | GET | One frame of the panel in palette-RLE strips (live mirror) |
-| `/api/touch` | POST | Taps the panel at `x` (0..319), `y` (0..239) — panel coordinates |
+| `/api/touch` | POST | Taps the panel at `x` (0..319), `y` (0..239) — panel coordinates; with `ms` (100..15000) it holds the touch that long |
 | `/api/keypad` | GET | The PIN keypad **as it is on the glass right now**: `faces` (one per key, positional — the ordered numeric pad has two EMPTY ones), `kb` (`cards`, `num` or `groups`), `grid`, `policy`, and `pop` for the two-tap alphanumeric popup. It describes the glass, not the secret: on a dealt keypad it never says which slot of a card is the character |
 
 ---

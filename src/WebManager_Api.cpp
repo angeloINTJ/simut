@@ -522,7 +522,8 @@ void WebManager::handleApiAlarms( ) {
  * blob is ~14 KB and the firmware never reads it, so the parser deliberately
  * leaves it on flash (see DisplayManager_LangParser.cpp). Content-Length is
  * known up front, so this is a plain-bodied response, not chunked. */
-/* Byte range of the @WEBDICT block in the pack AS IT IS ON DISK RIGHT NOW.
+/* Byte range of a directive's block in the pack AS IT IS ON DISK RIGHT NOW —
+ * @WEBDICT for /api/lang, @LOGCODES for /api/logcodes.
  *
  * The parser records that range once, at boot. Replacing the pack through
  * /files leaves those numbers describing the PREVIOUS file: the handler then
@@ -537,11 +538,10 @@ void WebManager::handleApiAlarms( ) {
  * needs the range. One pass over ~28 KB of flash on an endpoint the client
  * caches for 5 minutes.
  *
- * Byte-wise on purpose: the block is one ~15 KB line, so no line-oriented read
+ * Byte-wise on purpose: @WEBDICT is one ~15 KB line, so no line-oriented read
  * with a bounded buffer can be trusted to keep its place. */
-static bool scanWebDictRange(File &f, uint32_t &outOffset, uint32_t &outLen) {
-	static const char kDir[] = "@WEBDICT";
-	const size_t kDirLen = sizeof(kDir) - 1;
+static bool scanPackSection(File &f, const char* kDir, uint32_t &outOffset, uint32_t &outLen) {
+	const size_t kDirLen = strlen(kDir);
 
 	f.seek(0);
 	uint8_t buf[128];
@@ -612,7 +612,7 @@ void WebManager::handleApiLang( ) {
 			 * Falls back to the cached pair only if the scan finds no
 			 * @WEBDICT — a pack shape this build does not understand. */
 			uint32_t scanOff = 0, scanLen = 0;
-			if (scanWebDictRange(f, scanOff, scanLen)) {
+			if (scanPackSection(f, "@WEBDICT", scanOff, scanLen)) {
 				offset = scanOff;
 				len = scanLen;
 			}
@@ -651,6 +651,93 @@ void WebManager::handleApiLang( ) {
 		streamBreath( );
 	}
 	f.close( );
+}
+
+/* GET /api/logcodes[?l=en] -> text/plain, one "<code> <name>\n" per line.
+ *
+ * The history page's event names. They used to ship inside HIST_PAGE as two
+ * JS tables, EVT_NAMES_EN/PT (4,006 B gz): the PT one written without
+ * accents, and handed to ANY non-English pack, so an es-ES device showed its
+ * events in Portuguese. The packs already carry the right names in @LOGCODES
+ * (pt-BR with accents, es-ES in Spanish), kept off the resident budget on
+ * purpose, so this streams that block straight off the file the way
+ * /api/lang streams @WEBDICT.
+ *
+ * Without ?l=en and with a pack active, the pack's lines come first and the
+ * firmware's English names follow for EVERY code; the client keeps the first
+ * name each code gets. A pack older than a code — OTA replaces the firmware,
+ * never /lang/ — still names it, in English, instead of showing a number.
+ * With ?l=en, or with no pack, English only.
+ *
+ * Plain text rather than JSON: the names leave byte-for-byte as the pack holds
+ * them and nothing here has to escape. The page escapes before a name reaches
+ * HTML — a pack is a file that an account with the upload bit can replace.
+ * PERM_LOGS because the only reader is the log view, which already needs it. */
+void WebManager::handleApiLogcodes( ) {
+	if (!requirePerm(PERM_LOGS)) return;
+
+	/* Codes live in 0..999: tools/gen_logcodes.py --check fails the build on
+	 * one outside that range, so this loop cannot silently skip a code. */
+	static const uint16_t kCodeSpace = 1000;
+	char line[128];
+	uint32_t enLen = 0;
+	for (uint16_t c = 0; c < kCodeSpace; c++) {
+		const char* name = LogManager::translateCodeEnglish(c);
+		if (name[0] == '?' && name[1] == '\0') continue;
+		int k = snprintf(line, sizeof(line), "%u %s\n", (unsigned)c, name);
+		if (k > 0 && k < (int)sizeof(line)) enLen += (uint32_t)k;
+	}
+
+	File f;
+	uint32_t packOff = 0, packLen = 0;
+	const char* path = nullptr;
+	uint32_t dictOff = 0, dictLen = 0;   /* unused: only the pack's path is wanted */
+	if (_server->arg("l") != "en" && DisplayManager::getActiveWebDictSource(&path, &dictOff, &dictLen)) {
+		ReadGuard rg(_storageRef);
+		f = LittleFS.open(path, "r");
+		if (f && !(scanPackSection(f, "@LOGCODES", packOff, packLen) && f.seek(packOff))) {
+			f.close( );
+			packLen = 0;
+		}
+	}
+
+	_server->sendHeader("Cache-Control", "private, max-age=300");
+	_server->setContentLength(packLen + enLen);
+	_server->send(200, "text/plain; charset=utf-8", "");
+	_server->client( ).setTimeout(500);
+
+	char buf[WEB_STREAM_CHUNK_SOFT];
+	uint32_t sent = 0;
+	while (f && sent < packLen) {
+		if (isClientGone( ) || isHandlerOvertime( )) { f.close( ); return; }
+		size_t want = packLen - sent;
+		if (want > sizeof(buf)) want = sizeof(buf);
+		size_t n = 0;
+		{
+			ReadGuard rg(_storageRef);
+			n = f.read((uint8_t*)buf, want);
+		}
+		if (n == 0 || !safeSend(buf, n)) { f.close( ); return; }
+		sent += n;
+		streamBreath( );
+	}
+	if (f) f.close( );
+
+	size_t used = 0;
+	for (uint16_t c = 0; c < kCodeSpace; c++) {
+		const char* name = LogManager::translateCodeEnglish(c);
+		if (name[0] == '?' && name[1] == '\0') continue;
+		int k = snprintf(line, sizeof(line), "%u %s\n", (unsigned)c, name);
+		if (k <= 0 || k >= (int)sizeof(line)) continue;
+		if (used + (size_t)k > sizeof(buf)) {
+			if (isClientGone( ) || !safeSend(buf, used)) return;
+			used = 0;
+			streamBreath( );
+		}
+		memcpy(buf + used, line, (size_t)k);
+		used += (size_t)k;
+	}
+	if (used) safeSend(buf, used);
 }
 
 void WebManager::handleApiStatus( ) {

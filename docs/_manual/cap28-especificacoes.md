@@ -43,7 +43,7 @@ Legenda: a flash de 2 MB. O teto da atualização web fica 4 KiB abaixo do fim d
 | HTTPS na interface web | Sim, com certificado | Não | Não | [cap. 9](#cap-09-https) |
 | Nome `<nome>.local` (mDNS) | Sim | Não | Não | [cap. 9](#cap-09-mdns) |
 | Console serial | De emergência, 14 comandos | De emergência, 14 comandos | Completo | [cap. 14](#cap-14-perfis) |
-| Rotas da API | 61 | 55 | 55, só acordado (M0) | [cap. 26](#cap-26-imagens) |
+| Rotas da API | 62 | 56 | 56, só acordado (M0) | [cap. 26](#cap-26-imagens) |
 | AP de configuração | Abre sozinho ou a pedido | Abre sozinho ou a pedido | Só pelo comando `ap` | [cap. 9](#cap-09-ap-quando) |
 | PIN e contas no painel | Sim | Não | Não | [cap. 8](#cap-08-imagens) |
 | Hibernação entre leituras | Não | Não | Sim | [cap. 19](#cap-19-ciclo) |
@@ -195,7 +195,7 @@ O filtro vale só para a flash: o console com `debug on` e o syslog recebem todo
 
 | Item | Valor | Onde |
 |---|---|---|
-| Rotas | [release]{.img} 61, das quais 51 exigem permissão ou sessão e 10 são públicas. [alpha]{.img} [air]{.img} 55 | [cap. 26](#cap-26-imagens) |
+| Rotas | [release]{.img} 62, das quais 52 exigem permissão ou sessão e 10 são públicas. [alpha]{.img} [air]{.img} 56 | [cap. 26](#cap-26-imagens) |
 | Pedidos simultâneos | Um de cada vez; os outros esperam na fila | [cap. 26](#cap-26-um-por-vez) |
 | Intervalo mínimo por endereço | 200 ms em `GET /api/logs` e `GET /api/ls`; 5 s em `POST /api/calib` e `POST /api/tls` | [cap. 26](#cap-26-ritmo) |
 | Campo `_payload` de `POST /api/commit_all` | Até 6.144 bytes | [cap. 26](#cap-26-referencia) |

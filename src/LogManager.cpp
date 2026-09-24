@@ -1291,6 +1291,8 @@ static const char* translateCodeEn(uint16_t code) {
  }
 }
 
+const char* LogManager::translateCodeEnglish(uint16_t code) { return translateCodeEn(code); }
+
 
 const char* LogManager::translateCode(uint16_t code) {
  /* PT (and any other languages) come from .lng via @LOGCODES.

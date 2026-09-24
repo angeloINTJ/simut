@@ -97,7 +97,9 @@ somam 16%** — é ali que estão as alavancas que não tiram função.
 | **total** | **97.499** | **94.611** | **−2.888 (−3,0%)** |
 
 Os 13 blocos custam 2,4 s para recomprimir a 15 iterações; 50 iterações dão
-mais 18 B. O formato continua sendo gzip padrão — a objeção que derrubou o
+mais 18 B. (A tabela é a medição desta dieta. Desde 2026-09-24 são 12 blocos:
+a FORCE_CHPASS deixou de existir — a LOGIN a serve em modo forçado — e HIST e
+LANG_JS encolheram; ver a seção 11.) O formato continua sendo gzip padrão — a objeção que derrubou o
 brotli (não vale em HTTP sem TLS) não se aplica.
 
 ### 2.2 A libc: o que puxou cada membro caro
@@ -224,15 +226,15 @@ e ainda ter a margem de 3 kB que o orçamento sempre usou.
 
 | alavanca | ≈ bytes | de onde vem o número |
 |---|---:|---|
-| Tabela de códigos de log | −3.000 | `translateCodeEn( )` é um `switch` de 141 casos sobre códigos de 0 a 999; o GCC emitiu uma tabela densa de 1.000 × 4 B (`CSWTCH.138`, **4.000 B**). Uma tabela esparsa ordenada gerada pelo `gen_logcodes.py` (141 × 6 B = 846 B) e busca binária |
+| Tabela de códigos de log | −3.000 | **Executada em 2026-09-24: −2.000 medido, por outro caminho (seção 11).** `translateCodeEn( )` é um `switch` de 141 casos sobre códigos de 0 a 999; o GCC emitiu uma tabela densa de 1.000 × 4 B (`CSWTCH.138`, **4.000 B**). Uma tabela esparsa ordenada gerada pelo `gen_logcodes.py` (141 × 6 B = 846 B) e busca binária |
 | Tabela de CRC32 | −1.024 | `ota::CRC32_TABLE` (1 KiB) e `SystemUtils::crc32_update` calculam o **mesmo** CRC refletido `0xEDB88320`, o segundo bit a bit. O CRC-32/MPEG-2 de `ota/validation.cpp` é outro e fica |
-| `FS_README_TEXT` | −2.000 | 2.192 B de texto em pt-BR gravado no LittleFS ao formatar; um ponteiro para a documentação faz o mesmo |
+| `FS_README_TEXT` | −2.000 | **Executada em 2026-09-24: −815 medido, mapa mantido (seção 11).** 2.192 B de texto em pt-BR gravado no LittleFS ao formatar; um ponteiro para a documentação faz o mesmo |
 | Tabela de rotas | −2.500 | `WebManager::begin( )` tem 4.260 B para ~60 `server.on(path, method, std::bind(…))`; uma tabela `{path, method, handler}` e um laço. O `std::function` em si custa 580 B no total — não é ele |
-| Script comum das páginas | −3.440 a −10.550 | redundância entre páginas medida no estudo do espelho; LOGIN e FORCE_CHPASS repetem 3.440 B de script de tema. Um `/s.js` cacheado pelo navegador paga **uma requisição a mais por página em HTTPS** e reabre a armadilha de ordem do `lang.js` síncrono — decisão de UX |
+| Script comum das páginas | −3.440 a −10.550 | **O par LOGIN/FORCE_CHPASS foi executado em 2026-09-24: −3.728 medido, sem requisição a mais (seção 11).** Redundância entre páginas medida no estudo do espelho; LOGIN e FORCE_CHPASS repetem 3.440 B de script de tema. Um `/s.js` cacheado pelo navegador paga **uma requisição a mais por página em HTTPS** e reabre a armadilha de ordem do `lang.js` síncrono — decisão de UX |
 | `SIMUT_LICENSE_STUB` na release | −1.800 | `LICENSE_TEXT_EN` tem 1.833 B; a tela "sobre" do TFT deixa de mostrar a licença (a página web fica). Decisão de produto |
 | CLI só em inglês | −1.000 | `AppManager_Commands.cpp.o` guarda 2.564 B de literais únicos mesmo com `SIMUT_CLI_FULL=0`, em pares pt/en ("Comando desconhecido…" 94 B + "Unknown command…" 85 B). Decisão de produto |
 | Fontes | −1.000 a −3.000 | 11.696 B; a 24 pt já é subconjunto (3,0 kB); as duas de 8 bits carregam 224 glifos cada (tabela de 1.792 B cada) — cortar o que a UI não imprime é trabalho no gerador de fontes |
-| `strptime` | −3.125 | puxado pelo `HTTPClient` do framework para uma data que o SIMUT nunca lê; mesmo mecanismo de override |
+| `strptime` | −3.125 | **Executada em 2026-09-24: −5.864 medido (seção 11).** Puxado pelo `HTTPClient` do framework para uma data que o SIMUT nunca lê; mesmo mecanismo de override |
 | Air: BTstack sem log | −23.572 + código | seção 3; exige recompilar `liblwip-bt.a` |
 | Air: BTstack só clássico | −19.000 | `sm` + `uECC` + `le_device_db`; mesmo caminho |
 
@@ -376,3 +378,47 @@ mediam o que eu achava que mediam.
 ali teria sombreado a glibc do binário de teste inteiro. Os overrides ficaram
 atrás de `#if defined(ARDUINO_ARCH_RP2040)`, e a aritmética — que é o que
 importa — é testada no host contra a libc do próprio host.
+
+---
+
+## 11. A segunda dieta (2026-09-24, PRs #159 e o seguinte)
+
+Motivo: o toque longo pela web (`POST /api/touch` com `ms`) empurrou a
+`pico_w_test_https` 500 B acima do teto de OTA do `.bin`. Em vez de mover uma
+quarta página para o LittleFS ou isentar a imagem do teto, a dieta pagou a
+feature — e sobrou. Tudo abaixo é medido no build, nos seis ambientes.
+
+| alavanca | estimado (seção 5) | medido | como |
+|---|---:|---:|---|
+| Tabela de códigos de log | −3.000 | **−2.000** | não a tabela esparsa gerada, e sim `__attribute__((optimize("no-tree-switch-conversion")))` só no `translateCodeEn( )`: o `CSWTCH` era um `const char*[1000]`, uma tabela de **dados** — `no-jump-tables` não o toca. A cadeia de comparação custa 2.032 B e roda só quando uma linha de log é renderizada. O `gen_logcodes.py` não mudou por isso |
+| `strptime` (e o resto) | −3.125 | **−5.864** | patch `httpclient_no_cookies.patch`: o SIMUT nunca instala `CookieJar`, mas o parser de cabeçalhos chamava `setCookie( )` a cada `Set-Cookie`; um `return` cedo tirou o `strptime_l`, o corpo do parsing e as tabelas de locale que ele arrastava |
+| LOGIN × FORCE_CHPASS | −3.440 | **−3.728** | sem `/s.js` e sem requisição a mais: a `/force_chpass` passou a servir a própria LOGIN, que escolhe o modo pelo `location.pathname`. A FORCE era subconjunto estrito dela |
+| `FS_README_TEXT` | −2.000 | **−815** | a prosa saiu, o mapa ficou (2.192 → 1.377 B) |
+| nomes de evento | — | **−4.256** (com a linha de baixo, já descontado o endpoint novo, ≈ +850 B) | `EVT_NAMES_EN/PT` (4.006 B gz) saíram do HIST: `GET /api/logcodes` serve o `@LOGCODES` do pack — que já existia nos dois pacotes e ninguém lia — e os nomes em inglês do firmware. Conserta o es-ES, que via os eventos em português |
+| fallback `dict.pt` do lang.js | — | incluída acima | −1.226 B gz; as 48 chaves estão nos dois pacotes |
+| decodificador `.simx` morto | — | ≈ −800 | a exportação já usava `/download` + `.h5`; o decodificador do navegador sobrava |
+| JS morto e dicionários `en` | — | ≈ −500 | cada símbolo com uma ocorrência só (a própria definição) |
+
+Resultado contra o `main` de antes da dieta, `.bin`, já pagas as duas
+features novas (`touch hold` na CLI e o toque longo na web) e o `help` que
+faltava a elas e aos cinco `air …` do Air (+168 B no test, +152 no test_https,
++256 no Air, cujo `.bin` não se mexeu): release −17.304, test −16.656,
+test_https −16.664, asserts −17.304, alpha −16.384, air −16.384. A
+`pico_w_test_https` foi de 668 B de folga no teto de OTA para **17.332 B**; os
+orçamentos de `tools/flash_budget.json` desceram a medido + 3.000, como a
+seção 7 manda.
+
+**Ficaram de fora, com motivo:** a tabela de CRC32 do backup (seção 5; o
+comentário dela defende vazão sob o WDT da Web — dropá-la exige cronometrar o
+backup no ferro antes), os 13 prints `[DBG]`/`[BMx]` do boot (≈ 0,7 kB; são o
+rastro de um boot travado), e as chaves só-Chart.js no config vivo do gráfico
+(−140 B, fácil de quebrar).
+
+**O que esta dieta descobriu e o estudo não sabia.** O maior símbolo do
+`.rodata` — 225 kB, `43439A0_7_95_49_00_combined` — é o firmware do **rádio
+WiFi** (o "combined" é firmware + CLM regulatório, não WiFi + Bluetooth), e é
+irredutível. E o caminho de `printf` com ponto flutuante (`_svfprintf_r` +
+`_dtoa_r`, ≈ 13 kB) **não é alavanca**: o `snprintf` chama o `_svfprintf_r`
+incondicionalmente e só ele chama o `_dtoa_r`; tirar os `%f` do código não tira
+nada, e o `DisplayManager_FmtFloat.h` existe pela pilha do Core 1, não pela
+flash.

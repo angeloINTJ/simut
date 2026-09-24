@@ -1,9 +1,11 @@
-"""PlatformIO pre-build guard — the five log-code tables must agree.
+"""PlatformIO pre-build guard — the three log-code tables must agree.
 
-A log code lives in the LogCode enum, translateCodeEn( ), EVT_NAMES_EN,
-EVT_NAMES_PT and the @LOGCODES block of each pack. Adding one is five manual
-edits; v1.5.6-beta shipped five codes that never reached the browser tables and
-one that reached no English table at all, rendering as "?" everywhere.
+A log code lives in the LogCode enum, translateCodeEn( ) and the @LOGCODES
+block of each pack. It used to be five: until 2026-09-24 the browser also
+carried EVT_NAMES_EN / EVT_NAMES_PT, and v1.5.6-beta shipped five codes that
+never reached those tables and one that reached no English table at all,
+rendering as "?" everywhere. The history page now reads @LOGCODES through
+GET /api/logcodes, so the browser holds no copy to drift.
 
 The real work is in tools/gen_logcodes.py; this wrapper only wires --check into
 the build so the drift is caught locally, not two releases later. Same pattern

@@ -435,6 +435,7 @@ private:
 	void handleApiLogs( );
 	void handleApiClearLogs( );
 	void handleApiLang( ); /**< Serve @WEBDICT from .lng file as JSON. */
+	void handleApiLogcodes( ); /**< Event names: pack @LOGCODES then firmware English, text/plain. */
 
 	/* handleApiUserAdd/Del/Reset replaced by handleApiCommitAll */
 

@@ -427,35 +427,69 @@
   "20,852, test_https 13,228, asserts 24,060, alpha 58,228, air 21,460.",
   "pico_w_test_https is three sectors clear of the ceiling and no longer",
   "warns; every budget below keeps its pre-branch value with 12.9-16.7 kB of",
-  "measured room under it."
+  "measured room under it.",
+  "2026-09-24 (feat/evt-names-in-packs, on main after #158 and #159): the",
+  "history page stops carrying the event names and the lang.js fallback,",
+  "and every budget comes DOWN. 'used' -4,256 B on release, test_https and",
+  "asserts, -4,264 test, -3,312 alpha and air. HIST_PAGE 26,426 -> 22,542",
+  "and LANG_JS 11,755 -> 10,529 gz (-5,110); the firmware pays ~850 B back.",
+  "(1) EVT_NAMES_EN/PT (4,006 B gz) out of HIST_PAGE: GET /api/logcodes",
+  "streams the active pack's @LOGCODES off the file the way /api/lang streams",
+  "@WEBDICT, then the firmware's English names for every code (0..999, which",
+  "gen_logcodes.py --check now enforces); the page keeps the first name each",
+  "code gets and escapes it before HTML. @LOGCODES was shipped in both packs",
+  "and read by nobody (logcodeLookup returns nullptr to keep it off the",
+  "resident budget); now it is the web's source. It also fixes a real defect:",
+  "the PT table was handed to ANY non-English pack, so es-ES devices showed",
+  "their events in Portuguese — and pt-BR ones without accents. gen_logcodes",
+  "goes from five tables to three and the TSV loses its js_pt column. (2) the",
+  "inline dict.pt fallback in lang.js (-1,226 gz): all 48 of its keys are in",
+  "both shipped packs; a device on an older pack shows those labels in",
+  "English until its .lng is replaced — the contract every other key had.",
+  "BUDGETS LOWERED to measured + 3,000 on all six. docs/analysis/DIETA_FLASH.md",
+  "section 7 says a budget must come down in the same change as a diet, or it",
+  "stops being a high-water mark; #159 left them at their pre-branch values,",
+  "12.9-16.7 kB above what the images measured, and this corrects that.",
+  "(3) the console help `touch hold` never had — #159 merged it accepted at",
+  "every prompt, user EXEC included, and listed at none — and the Air's five",
+  "`air` commands, unlisted since the Air got the full CLI on 2026-09-18;",
+  "check_cli_help.py now walks the commands on the default mask too. 'used'",
+  "+168 test, +152 test_https, +256 air; the emergency CLIs do not change.",
+  "The figures below differ from the sum of those deltas by 8 B at most: every",
+  "page links /lang.js?v=<hash of WebUI.h>, so any edit to WebUI.h, a comment",
+  "included, re-compresses them all.",
+  "Real .bin slack under the 1,040,384 B OTA ceiling: release 30,500, test",
+  "24,956, test_https 17,332, asserts 28,324, alpha 62,324, air 21,460 (the",
+  "Air's .bin moved neither time: alignment padding took the -3,312 B of",
+  "the page and the +256 B of the help)."
  ],
  "ceiling": 1044480,
  "measured_on": "2026-09-24",
- "measured_at_commit": "feat/cli-touch-hold (touch hold on the CLI and POST /api/touch; two diet passes — CSWTCH, dead .simx decoder, HTTPClient cookies, FS_README, FORCE_CHPASS folded into LOGIN, dead JS — every budget at its pre-branch value)",
+ "measured_at_commit": "feat/evt-names-in-packs on main 3e17034 (event names from the packs via /api/logcodes; lang.js fallback out; budgets lowered to measured + 3,000)",
  "envs": {
   "pico_w_release": {
-   "budget": 1015564,
-   "measured": 1002116
+   "budget": 1000852,
+   "measured": 997852
   },
   "pico_w_test": {
-   "budget": 1020420,
-   "measured": 1007500
+   "budget": 1006396,
+   "measured": 1003396
   },
   "pico_w_test_https": {
-   "budget": 1028044,
-   "measured": 1015124
+   "budget": 1014020,
+   "measured": 1011020
   },
   "pico_w_asserts": {
-   "budget": 1017740,
-   "measured": 1004292
+   "budget": 1003028,
+   "measured": 1000028
   },
   "pico_w_alpha": {
-   "budget": 983396,
-   "measured": 966708
+   "budget": 966396,
+   "measured": 963396
   },
   "pico_w_air": {
-   "budget": 1022184,
-   "measured": 1006344
+   "budget": 1006288,
+   "measured": 1003288
   }
  }
 }

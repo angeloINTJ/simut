@@ -250,7 +250,7 @@ nesta pasta com o nome indicado e rode o script de novo.
       O formulário de troca de senha. Três requisitos estão verdes e Símbolo ainda não; o botão Salvar Nova Senha continua desativado.
 - [ ] `13-aviso-sessao-segura.png` (Página web) — rota /login; largura 1280; navegador com cookie seguro de uma visita HTTPS anterior ao mesmo endereço, aparelho agora em HTTP; logo depois de uma entrada com senha certa
       A faixa amarela que aparece quando o navegador não consegue guardar a sessão nova.
-- [ ] `13-troca-obrigatoria.png` (Página web) — rota /force_chpass; largura 390; sessão de uma conta recém-criada com senha temporária; Nova Senha preenchida com uma senha que atende às quatro regras e Repetir Senha igual
+- [ ] `13-troca-obrigatoria.png` (Página web) — rota /force_chpass; largura 390; sessão de uma conta recém-criada com senha temporária; Nova Senha preenchida com uma senha que atende às quatro exigências e Repetir Nova Senha igual
       A troca de senha obrigatória. Com as duas senhas iguais e as quatro regras atendidas, a barra fica verde e o botão Salvar e Entrar fica ativo.
 - [ ] `13-barra-topo.png` (Página web) — rota /alarms; largura 1280; sessão admin; um limite de alarme alterado e ainda não gravado; recorte da barra de topo e da trilha
       A barra de topo com uma alteração preparada: o selo, os botões de gravação, o botão de tema e o endereço do aparelho.

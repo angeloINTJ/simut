@@ -164,25 +164,25 @@ Algumas contas precisam trocar a senha antes de usar a interface:
 - as contas criadas ou resetadas por um administrador na página **Usuários**, que recebem uma senha temporária mostrada uma única vez ([capítulo 8](#cap-08));
 - a conta `admin`, depois do comando `system admin reset` no console ([capítulo 14](#cap-14)).
 
-Enquanto a troca estiver pendente, toda página interna leva a esta. A página abre com **Bem-vindo!** (*Welcome!*) e o texto **Defina uma nova senha forte para acessar o sistema.**
+Enquanto a troca estiver pendente, toda página interna leva a esta. É a própria página de entrada, com a marca SIMUT no alto, mostrando só o formulário de senha nova: **Bem-vindo!** (*Welcome!*) e o texto **Defina uma nova senha forte para acessar o sistema.**
 
-1. Digite a senha nova em **Nova Senha**.
-2. Acompanhe a barra de força e a orientação **Mínimo 8 caracteres, incluindo letras, números e símbolos.**
-3. Repita a senha em **Repetir Senha** (*Repeat Password*).
+1. Digite a senha nova em **Nova Senha** (*New Password*).
+2. Acompanhe a barra de força e as quatro exigências embaixo dela — **Mínimo 8 caracteres**, **Letra**, **Dígito** e **Símbolo** —, que se marcam uma a uma conforme a senha as atende.
+3. Repita a senha em **Repetir Nova Senha** (*Repeat New Password*).
 4. Toque em **Salvar e Entrar** (*Save & Login*).
 
-A marca **Mostrar senhas** (*Show passwords*) mostra os dois campos. O botão **Salvar e Entrar** só fica ativo com pelo menos 8 caracteres, uma letra de A a Z, um dígito, um símbolo e as duas senhas iguais. A barra fica vermelha, depois amarela, e verde quando a senha atende às quatro regras.
+A marca **Mostrar senha** (*Show password*) mostra os campos. O botão **Salvar e Entrar** só fica ativo com as quatro exigências atendidas — pelo menos 8 caracteres, uma letra de A a Z, um dígito e um símbolo — e as duas senhas iguais. A barra fica vermelha, depois amarela, e verde quando a senha atende às quatro.
 
 A página não pede a senha atual: a sessão já provou quem você é. Com a senha salva, o aparelho abre o **Painel de Controle**, na mesma sessão.
 
-Se o aparelho recusar a senha, a página mostra `Error updating password.`, sempre em inglês. Há duas causas:
+Se o aparelho recusar a senha, a página mostra `Error updating password.` embaixo do botão, sempre em inglês. Há duas causas:
 
 - em HTTPS, a senha tem menos de 8 caracteres, ou falta letra ou dígito;
 - alguém tocou no painel do aparelho nos últimos 5 s. Espere e toque em **Salvar e Entrar** de novo.
 
-Esta página não tem seletor de idioma: ela segue a escolha feita na página de entrada. Também não há como seguir para outra página antes de trocar a senha. Para desistir, feche o navegador ou abra o endereço `/logout`.
+O seletor de idioma é o mesmo da página de entrada. Não há como seguir para outra página antes de trocar a senha. Para desistir, feche o navegador ou abra o endereço `/logout`.
 
-::: {.figura #fig-13-troca-obrigatoria tipo="web" arquivo="13-troca-obrigatoria.png" captura="rota /force_chpass; largura 390; sessão de uma conta recém-criada com senha temporária; Nova Senha preenchida com uma senha que atende às quatro regras e Repetir Senha igual"}
+::: {.figura #fig-13-troca-obrigatoria tipo="web" arquivo="13-troca-obrigatoria.png" captura="rota /force_chpass; largura 390; sessão de uma conta recém-criada com senha temporária; Nova Senha preenchida com uma senha que atende às quatro exigências e Repetir Nova Senha igual"}
 A troca de senha obrigatória. Com as duas senhas iguais e as quatro regras atendidas, a barra fica verde e o botão Salvar e Entrar fica ativo.
 :::
 
@@ -466,7 +466,7 @@ Há dois seletores:
 
 Os dois seletores gravam a mesma escolha no navegador. Ela vale para todas as páginas daquele navegador e muda os textos na hora, sem recarregar. Na primeira visita de um navegador sem escolha guardada, a interface usa o pacote do aparelho, se houver um.
 
-O idioma do navegador muda só os textos da interface web. O idioma do painel, do console e dos nomes dos eventos é o do aparelho.
+O idioma do navegador muda os textos da interface web; nos nomes dos eventos, ele escolhe entre o inglês e o idioma do pacote do aparelho ([capítulo 16](#cap-16)). O idioma do painel e do console é o do aparelho.
 
 Alguns textos aparecem sempre em inglês, qualquer que seja a escolha: por exemplo `No active sensors.`, `Connection Error`, `Access Denied`, `Error updating password.` e a unidade `pkts` dos registros pendentes.
 
