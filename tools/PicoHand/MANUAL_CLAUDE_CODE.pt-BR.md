@@ -565,3 +565,12 @@ do alvo lê "bateria" com a linha em Hi-Z.
 | imagem | dashboard real do SIMUT (SALA 2 T5 21,9 °C, SALA 22,3 °C/73 %) |
 
 Antes desta correção, o mesmo endpoint devolvia `min=0 max=0` em 100% dos bytes.
+
+**24/09/2026 — o idle não basta se quem usa não devolve.** A mão foi achada em
+`CHARGER OFF` + `PROBE armed=YES` sob uma imagem TFT, e as capturas saíam
+**escuras e saturadas** em vez de pretas: os bits 6, 5 e 2 de cada byte vinham
+zerados (texto (245,245,245) lido como (144,144,144)). `CHARGER OFF` **dirige**
+nível baixo — "soltar" é `CHARGER HIZ`. O `air_test_suite.py` (T09 arma a sonda
+sem desarmar; T11/T14 terminam em `OFF`) e o `bt_auth_test.py` deixavam a mão
+assim; desde então eles, e o `hand_release_all`, terminam em `CHARGER HIZ` +
+`PROBE STOP`. Conferência antes de fotografar e o critério de cor: `AGENTS.md` §1.

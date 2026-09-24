@@ -111,7 +111,8 @@
  * MUST be validated by reading pixels back (GET /api/screenshot reads the
  * panel GRAM): stray pixels in flat regions mean the wiring cannot carry
  * it — drop back to 31250000u. Touch and panel READS are unaffected
- * (they run their own 2 MHz transactions). */
+ * (they run their own transactions: the touch at 2 MHz, the read-back at
+ * SIMUT_TFT_READ_HZ below). */
 #ifndef SIMUT_TFT_SPI_HZ
 #define SIMUT_TFT_SPI_HZ 62500000u
 #endif
@@ -138,8 +139,14 @@
  *
  * Plus a 32-frame soak at 12 MHz with DMA: every frame identical, 0 differing
  * pixels, and 3 of 3 frames equal to the three-vote forensic BMP. If a
- * different module or longer wiring shows stray pixels, drop to 6000000u — and
- * check it the same way, two captures of a STILL screen diffed pixel by pixel.
+ * different module or longer wiring shows stray pixels, drop to 6000000u.
+ *
+ * Check a clock against colours the firmware WROTE, not only capture against
+ * capture: in simut_def any menu holds (240,244,240) and (0,148,248). Every
+ * comparison above is reader against reader, and that proves only that an
+ * error is deterministic — on 2026-09-24 the PicoHand holding TOUCH_CS low
+ * zeroed bits 6, 5 and 2 of every byte, in every capture alike (AGENTS.md §1).
+ * With the hand released, 12 MHz read the theme back exactly.
  * A wrong clock here does not corrupt the panel; it corrupts what the mirror
  * reports, which looks like a display fault. */
 #ifndef SIMUT_TFT_READ_HZ

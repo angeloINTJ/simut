@@ -257,6 +257,18 @@ class Hand:
                 self.cmd('RELEASE RESET')
             except Exception:
                 pass
+            # The auxiliary channels back to high impedance, one at a time so an
+            # old hand that ERRs on one still gets the other. T09 leaves the
+            # probe armed and T11/T14 leave CHARGER driven LOW, and on the TFT
+            # build those wires are the panel's MISO (GP16) and TOUCH_CS (GP17).
+            # On 2026-09-24 the hand was found in exactly that state under a
+            # TFT image, and every screenshot read bits 6, 5 and 2 of each byte
+            # as zero — dark, oversaturated captures of a correct screen.
+            for c in ('CHARGER HIZ', 'PROBE STOP'):
+                try:
+                    self.cmd(c)
+                except Exception:
+                    pass
 
     def verify(self):
         return parse_vfy(self.cmd('VERIFY', timeout=3))

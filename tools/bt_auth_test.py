@@ -91,8 +91,13 @@ def hand(cmd, timeout=3.0):
 
 
 def hold_awake(on):
-    """Fake the charger so an Air build stays up. False when the hand cannot."""
-    r = hand('CHARGER ON' if on else 'CHARGER OFF')
+    """Fake the charger so an Air build stays up. False when the hand cannot.
+
+    Letting go is CHARGER HIZ, not CHARGER OFF: OFF drives the line LOW, and on
+    a TFT build that wire is the touch controller's chip select, which then
+    fights the panel on MISO and corrupts every screenshot (AGENTS.md §1). An
+    Air reads "battery" from its own pull-down either way."""
+    r = hand('CHARGER ON' if on else 'CHARGER HIZ')
     return r.startswith('OK')
 
 
