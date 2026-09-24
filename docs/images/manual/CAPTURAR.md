@@ -43,7 +43,7 @@ nesta pasta com o nome indicado e rode o script de novo.
       O primeiro boot em um só desenho: a senha, a rede, a web, o idioma, os sensores e o PIN.
 - [ ] `04-painel-ap.png` (Tela do painel) — release recém-gravada, sem rede configurada, depois do boot; a caixa de boot termina com simut_SETUP, PSK e a chave, e AP Ativo! Reinicie a placa para sair.; capturar com GET /api/screenshot pelo próprio AP, com sessão admin depois da troca de senha; se a captura não funcionar no AP, use foto da tela; borre a chave antes de publicar
       O painel de um aparelho novo: a rede do ponto de acesso, a chave e o aviso de AP ativo ficam na tela.
-- [ ] `04-lcd-ap.png` (LCD 16×2) — alpha recém-gravada, sem rede configurada, depois do boot com o ponto de acesso aberto; linha de cima SIMUT 2.7.1, linha de baixo [##############] com a barra cheia
+- [ ] `04-lcd-ap.png` (LCD 16×2) — alpha recém-gravada, sem rede configurada, depois do boot com o ponto de acesso aberto; linha de cima SIMUT 2.7.2, linha de baixo [##############] com a barra cheia
       O LCD de uma alpha nova com o ponto de acesso aberto: a tela de boot fica parada, e a chave está no console.
 - [ ] `04-novo-pin.png` (Tela do painel) — release com configuração de fábrica; tela inicial → botão de configurações → admin → PIN 1234 → ENTRAR; tela Novo PIN aberta, antes de digitar
       A troca obrigatória do PIN de fábrica: a tela Novo PIN abre direto depois do 1234.
@@ -229,11 +229,11 @@ nesta pasta com o nome indicado e rode o script de novo.
       Uma temperatura negativa: o traço antes dos algarismos.
 - [ ] `12-sem-sensor.png` (LCD 16×2) — imagem alpha sem nenhum slot ativo, conectada ao Wi-Fi; ERRO em letras grandes e W com o ícone de sinal
       ERRO fixo: nenhum sensor ativo.
-- [ ] `12-wifi-niveis.png` (Diagrama) — os seis desenhos do ícone, em grade de 5 x 8 pixels, lado a lado: X, 1, 2, 3, 4 e 5 barras; em cima, a escada da main (colunas acesas da esquerda para a direita); embaixo, os desenhos da v2.7.1 (linhas acesas de baixo para cima); bitmaps em src/display/BigFont_HD44780.h
-      Os seis estados do ícone de sinal: a escada da main e as linhas da v2.7.1.
-- [ ] `12-pendentes.png` (LCD 16×2) — imagem da main; 1 sensor ativo; telemetria ligada com o coletor fora do ar, 37 registros pendentes; 37 no canto de baixo à esquerda
+- [ ] `12-wifi-niveis.png` (Diagrama) — os seis desenhos do ícone, em grade de 5 x 8 pixels, lado a lado: X, 1, 2, 3, 4 e 5 barras; em cima, a escada da v2.7.2 (colunas acesas da esquerda para a direita); embaixo, os desenhos da v2.7.1 (linhas acesas de baixo para cima); bitmaps em src/display/BigFont_HD44780.h
+      Os seis estados do ícone de sinal: a escada da v2.7.2 e as linhas da v2.7.1.
+- [ ] `12-pendentes.png` (LCD 16×2) — imagem v2.7.2; 1 sensor ativo; telemetria ligada com o coletor fora do ar, 37 registros pendentes; 37 no canto de baixo à esquerda
       A contagem de pendentes no canto de baixo, com um único sensor.
-- [ ] `12-pendentes-k.png` (LCD 16×2) — imagem da main; 1 sensor ativo; 2.500 registros pendentes; 2k no canto de baixo
+- [ ] `12-pendentes-k.png` (LCD 16×2) — imagem v2.7.2; 1 sensor ativo; 2.500 registros pendentes; 2k no canto de baixo
       Mais de mil pendentes: a contagem em milhares.
 - [ ] `12-ap-1.png` (LCD 16×2) — AP aberto em operação pelo comando ap, depois de abrir uma página da interface web pelo AP; página Modo AP 1 de 3 com 192.168.4.1
       A página 1 do AP: o endereço.

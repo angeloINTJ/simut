@@ -13,7 +13,7 @@ O LCD só mostra; ele não tem botões nem toque. Tudo o que se configura num al
 | As leituras, uma grandeza por vez | O mínimo, o máximo e o histórico |
 | `ERRO` para sensor em falha | O estado do Bluetooth |
 | O sinal do Wi-Fi | Menus |
-| A contagem de pendentes da telemetria [main]{.img} | |
+| A contagem de pendentes da telemetria | |
 | O endereço, o nome e a chave do AP de configuração, com uma ressalva na v2.7.1 ([O ponto de acesso de configuração](#cap-12-ap)) | |
 
 O LCD fala só português, seja qual for o idioma da interface web ou do console.
@@ -25,7 +25,7 @@ O LCD tem 16 colunas (0 a 15) e 2 linhas (0 e 1). Nas leituras, ele se divide as
 | Área | Linha | Colunas | O que mostra |
 |---|---|---|---|
 | Canto de cima | 0 | 0 e 1 | `W` e o ícone do sinal do Wi-Fi |
-| Canto de baixo | 1 | 0 a 2 | O slot na tela, como `S2`, ou a contagem de pendentes [main]{.img} |
+| Canto de baixo | 1 | 0 a 2 | O slot na tela, como `S2`, ou a contagem de pendentes |
 | Valor | 0 e 1 | 3 a 13 | O número em algarismos grandes, de duas linhas |
 | Unidade | 0 e 1 | 13 a 15 | `o` e `C`, ou `%UR` |
 
@@ -107,7 +107,7 @@ Como cada grandeza aparece:
 
 A dezena de uma temperatura abaixo de 10 °C fica em branco: 5,3 °C aparece como `5,3`.
 
-**Qual sensor está na tela.** Com mais de um sensor ativo, o canto de baixo à esquerda mostra `S` e o número do slot, como `S2`. Com um só, o canto fica livre para a contagem de pendentes [main]{.img}. O LCD não mostra o nome do sensor.
+**Qual sensor está na tela.** Com mais de um sensor ativo, o canto de baixo à esquerda mostra `S` e o número do slot, como `S2`. Com um só, o canto fica livre para a contagem de pendentes. O LCD não mostra o nome do sensor.
 
 ::: {.figura #fig-12-temperatura tipo="lcd" arquivo="12-temperatura.png" captura="2 sensores ativos; na vez da temperatura do slot 0, com 23,4 °C; W e o ícone de sinal no canto de cima, S0 no canto de baixo"}
 Uma temperatura em algarismos grandes, com o slot no canto de baixo.
@@ -159,17 +159,17 @@ O canto de cima à esquerda mostra `W` seguido de um ícone de sinal com seis es
 | 1 barra | de −90 a −81 dBm |
 | Um `X` | abaixo de −90 dBm, ou sem conexão |
 
-[main]{.img} As barras são uma escada de cinco degraus, cada um um pixel mais alto que o da esquerda, e acendem da esquerda para a direita, como no painel da imagem `release` e no celular.
+Desde a v2.7.2, as barras são uma escada de cinco degraus, cada um um pixel mais alto que o da esquerda, e acendem da esquerda para a direita, como no painel da imagem `release` e no celular.
 
 Na v2.7.1, cada nível acende uma linha a mais, de baixo para cima: com sinal fraco, o ícone é uma linha reta na largura toda, e ele cresce para cima.
 
-::: {.figura #fig-12-wifi-niveis tipo="diagrama" arquivo="12-wifi-niveis.png" captura="os seis desenhos do ícone, em grade de 5 x 8 pixels, lado a lado: X, 1, 2, 3, 4 e 5 barras; em cima, a escada da main (colunas acesas da esquerda para a direita); embaixo, os desenhos da v2.7.1 (linhas acesas de baixo para cima); bitmaps em src/display/BigFont_HD44780.h"}
-Os seis estados do ícone de sinal: a escada da main e as linhas da v2.7.1.
+::: {.figura #fig-12-wifi-niveis tipo="diagrama" arquivo="12-wifi-niveis.png" captura="os seis desenhos do ícone, em grade de 5 x 8 pixels, lado a lado: X, 1, 2, 3, 4 e 5 barras; em cima, a escada da v2.7.2 (colunas acesas da esquerda para a direita); embaixo, os desenhos da v2.7.1 (linhas acesas de baixo para cima); bitmaps em src/display/BigFont_HD44780.h"}
+Os seis estados do ícone de sinal: a escada da v2.7.2 e as linhas da v2.7.1.
 :::
 
 ## Os pendentes da telemetria {#cap-12-pendentes}
 
-[main]{.img} Com um único sensor ativo, o canto de baixo à esquerda mostra quantos registros esperam envio pela telemetria, do mesmo jeito que o painel da imagem `release`:
+Desde a v2.7.2, com um único sensor ativo, o canto de baixo à esquerda mostra quantos registros esperam envio pela telemetria, do mesmo jeito que o painel da imagem `release`:
 
 - nada, quando não há pendentes;
 - o número, até 999, como `37`;
@@ -179,11 +179,11 @@ O aparelho atualiza a contagem a cada 10 s. Com mais de um sensor, o canto mostr
 
 Na v2.7.1, o LCD não mostra os pendentes.
 
-::: {.figura #fig-12-pendentes tipo="lcd" arquivo="12-pendentes.png" captura="imagem da main; 1 sensor ativo; telemetria ligada com o coletor fora do ar, 37 registros pendentes; 37 no canto de baixo à esquerda"}
+::: {.figura #fig-12-pendentes tipo="lcd" arquivo="12-pendentes.png" captura="imagem v2.7.2; 1 sensor ativo; telemetria ligada com o coletor fora do ar, 37 registros pendentes; 37 no canto de baixo à esquerda"}
 A contagem de pendentes no canto de baixo, com um único sensor.
 :::
 
-::: {.figura #fig-12-pendentes-k tipo="lcd" arquivo="12-pendentes-k.png" captura="imagem da main; 1 sensor ativo; 2.500 registros pendentes; 2k no canto de baixo"}
+::: {.figura #fig-12-pendentes-k tipo="lcd" arquivo="12-pendentes-k.png" captura="imagem v2.7.2; 1 sensor ativo; 2.500 registros pendentes; 2k no canto de baixo"}
 Mais de mil pendentes: a contagem em milhares.
 :::
 

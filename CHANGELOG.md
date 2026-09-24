@@ -4,6 +4,222 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.7.2 (2026-09-24)
+
+**Three reports from the field, and none of them was where it looked.** The Air
+on 2.7.1 *"seems to wake early, sometimes late, and large batches come out
+broken"*: it woke on time. What it wrote down was late, and what it sent after a
+long queue was invalid JSON, with records the cursor then skipped. The panel, on
+the 8ae8db2 test build: on **PIN security** the footer arrows closed the screen,
+and behind them the editor had been writing the live policy, so tightening it
+from the panel never marked a single account for a new PIN. On **Configuration
+Mode**, Confirm opened the access point and nothing told the panel, which kept
+asking "Are you sure?" with the AP already on the air.
+
+Along the way every image lost 16 kB, a long press became reachable from the CLI
+and from the browser, and es-ES devices stopped naming their events in
+Portuguese.
+
+`CONFIG_VERSION` stays 25: no migration runs, and a device updating over the air
+keeps its configuration.
+
+### The Air woke on time; its stamps did not
+
+The probe line timed consecutive cycles at 59.70–59.92 s, while the day file
+held 54, 59 and 69–70 s between records one wake apart. A wake without the radio
+has no NTP, and its clock was seeded from the newest record, plus the slept
+seconds, plus `millis( )/1000`. That loses what the previous wake did after its
+record, the fractions (truncated twice), and the boot ROM and crt0 that run
+before `millis( )` exists: **−0.8 s per wake**, which the next telemetry wake's
+NTP then put back **+9–10 s at once**.
+
+The sleep now carries the clock. `airEnterDormant( )` leaves the time, to the
+millisecond, in two watchdog scratch registers with a magic and a cross-check.
+The wake adds the sleep the RTC measured, 140 ms of boot (`AIR_WAKE_BOOT_MS`,
+measured at 117–182) and `millis( )`.
+
+| against an NTP-synced host | error per wake | NTP step | stored intervals |
+|---|---|---|---|
+| v2.7.1 | −0.8 s, accumulating | +9–10 s | 54–69 s |
+| v2.7.2 | −0.085 … +0.030 s over 10 wakes, no drift | 0.08 s | 59–61 s |
+
+The charger boot, which fell through to a 60-second guess and started 27 s fast,
+uses the carry too.
+
+### Long telemetry queues: invalid JSON, and a cursor that skipped the cut
+
+Both need a queue that grew while the collector was away, then a drain of
+190–250 records per batch. `buildPayload( )` reserved `n × 300 + 256` B, 60 KB
+for 199 records, against a 46 KB largest block, and the failed reserve was
+silent. Past ~29 KB `String::concat( )` started failing, also silently, and the
+body went out as `},,,,,,,,,]`. Records are now appended whole: each one, its
+separator and the closing bytes are reserved first. A record that does not fit
+ends the batch, and a body that cannot close is a failed send, which the
+existing retry takes over.
+
+The cursor then advanced to the newest record *gathered*, not sent, so the
+records the body had dropped were skipped for good, a regression of 29cc4f4
+(2026-08-15). It now advances to what the batch was read from
+(`src/TelemetryCursor.h`, three host tests).
+
+Drains of the whole history into a collector that checks every record against
+the flash:
+
+| | bodies | invalid | records delivered |
+|---|---|---|---|
+| v2.7.1, awake | 69 | 68 | 139 of 13,672 |
+| v2.7.2, awake | 72 | 0 | 13,681 of 13,682 |
+| v2.7.2, hibernating | 62 | 0 | 13,670 of 13,671 |
+
+The record still missing is one stamped out of order on flash, the case a scalar
+cursor cannot express. `t_bat` is a ceiling, not a promise: at 250, batches
+leave with 190–192 records, cut cleanly.
+
+### PIN security: the arrows, and a policy that never marked anyone
+
+Reproduced on the rig before anything was touched:
+
+- The footer is the standard one, but the handler treated everything left of
+  SAVE as BACK: the down arrow took UI mode 28 to 6. The arrows now move the
+  selection, as in every other menu.
+- A tap on a value cleared the panel and repainted the title and the footer to
+  change one row. Only the rows are repainted now.
+- The editor wrote every tap straight into the live config. Raising the minimum
+  4 → 5 from the panel logged **`0 to renew` with six accounts holding a PIN**,
+  because Core 0 read the "old" policy from the struct the editor had already
+  overwritten. The web and `user policy` read it first and were never affected.
+  One unsaved tap moved `/api/config` to 5, and it stayed there after the idle
+  guard took the panel home. Leaving without saving re-read the whole config
+  from flash, discarding an account added over the CLI and not yet written.
+
+The editor works on a copy now. Verified on the rig: the arrows stay on the
+screen, an unsaved tap followed by 38 s idle leaves the stored policy alone,
+BACK keeps a RAM-only account, and SAVE of an unchanged policy answers "PIN
+salvo!". Raising the policy with the fix was not exercised there: it would have
+marked the rig's six real accounts.
+
+### Configuration Mode shows how to join
+
+Twelve seconds after Confirm the access point was up (IP 192.168.4.1) and the
+panel was still in UI mode 29, captured through the AP itself. The boot path
+draws the AP's lines; `startApMode( )`, which serves the menu, `ap` and the
+reconnect fallback, never did, and on the TFT `setApInfo( )` is a no-op.
+
+Now the panel switches to the boot terminal before the radio is touched. It ends
+with the network, `PSK <key>`, `Access on mobile: 192.168.4.1` and `AP Active!`,
+and it stays there instead of dropping to a dashboard that no longer updates.
+The boot-time AP screen uses the same four lines and gains the address, which
+the lines added in 2.7.1 had pushed off the ring. A `softAP( )` that fails no
+longer leaves the device unmeasured and claiming "AP mode started": the console
+and the panel say it did not start, and the loop keeps measuring.
+
+### A long press from the CLI and from the browser
+
+`touch hold <X> <Y> [ms]` (default 3500, clamped to 100–15000, privileged mode)
+and an optional `ms` on `POST /api/touch`; the dashboard mirror turns a
+press-and-hold into it. Both reach the 3-second hold that pins the top card,
+which a ~100 ms tap cannot.
+
+### Event names from the language packs
+
+The history page carried its own two tables of event names, and the Portuguese
+one, without accents, went to every non-English pack: **es-ES devices showed
+their events in Portuguese**. `GET /api/logcodes` now streams the active pack's
+`@LOGCODES` straight off the file, followed by the firmware's English names, so
+a pack older than a code still names it. The route is gated on `PERM_LOGS`, and
+the page escapes each name, because a pack is a file an uploader can replace.
+Measured on the rig: 1,435 of 1,435 log rows named from the pt-BR pack, accents
+included, and 1,349 of 1,349 in Spanish after uploading es-ES.
+
+Also in the log view:
+
+- The CSV's `timestamp_iso` exported a record from before the clock was set as
+  `1969-12-31T21:00:30-03:00`. It is now `Boot +00:00:30`, as the table shows.
+  Wrong since v1.0.0.
+- The CSV's `uptime_sec` column was literally `undefined`.
+
+In the CLI, `touch hold` was accepted at every prompt, user EXEC included, and
+listed nowhere; so were the Air's five `air` commands. Both now have their mode
+and their help. `check_cli_help.py` walks the parser instead of the mode table;
+against the old sources it fails on exactly those six commands.
+
+### The 16×2 learns the pending count
+
+With one sensor installed, the alpha's LCD shows the telemetry records waiting
+to be sent in its bottom-left corner, in the panel's format (`999`, `1k` …
+`65k`). Its Wi-Fi icon now fills left to right, like the panel's bars, instead of
+a row at a time from the bottom. Checked through the bitmaps and host tests, not
+on glass: the bench has no HD44780.
+
+### 16 kB back in every image
+
+No budget rises and nothing moves to LittleFS:
+
+- `translateCodeEn`'s sparse switch had become a 4,000 B jump table; a compare
+  chain is half that (−2,000 B).
+- HTTPClient's cookie parsing is compiled out by a new framework patch,
+  `httpclient_no_cookies.patch`, applied by `patch.sh`. SIMUT never installs a
+  cookie jar, but the header parser kept `strptime( )` and its locale tables
+  linked: −5,864 B on the panel images, −4.6 kB on the alpha and the Air.
+- `/force_chpass` is served by the login page in a forced mode; its own page was
+  a strict subset (−3,728 B). Proven end to end on the bench.
+- The two event-name tables (4,006 B gzipped), a dead `.simx` decoder, dead JS,
+  never-read English dictionaries and an inline Portuguese fallback left the
+  web pages.
+
+| `.bin`, B | v2.7.1 | v2.7.2 | change | slack under the OTA ceiling |
+|---|---|---|---|---|
+| release | 1,026,356 | 1,010,084 | −16,272 | 30,300 |
+| alpha | 994,444 | 978,060 | −16,384 | 62,324 |
+| air | 1,035,308 | 1,018,924 | −16,384 | 21,460 |
+| test | 1,031,252 | 1,015,636 | −15,616 | 24,748 |
+| asserts | 1,028,532 | 1,012,260 | −16,272 | 28,124 |
+| test_https | 1,038,884 | 1,023,260 | −15,624 | 17,124 |
+
+The panel fixes above are included; they cost 200 B of it. `pico_w_test_https`
+no longer warns.
+
+### The bench
+
+Rig screenshots had come out dark and oversaturated since 2026-09-23: bits 6, 5
+and 2 of every byte read back as zero. On the TFT build the panel's MISO (GP16)
+and the touch chip select (GP17) are wired to the PicoHand's probe and charger
+lines, and the hand had been left driving CHARGER low with the probe armed. The
+touch controller stayed selected and fought the panel on every GRAM read.
+`air_test_suite.py` and `bt_auth_test.py` left it that way; they, and
+`hand_release_all`, now let the lines go (`CHARGER HIZ`, `PROBE STOP`).
+AGENTS.md §1 says what to check before a capture, and to judge a capture against
+the colours the firmware wrote, not against another capture.
+
+### Documentation
+
+- A new product manual in Portuguese, `docs/MANUAL.pt-BR.html`: 31 chapters,
+  generated from `docs/_manual/` by `tools/build_manual.py`, with 44 real
+  screenshots. 22 of those were taken through the capture defect above and will
+  be recaptured.
+- The READMEs, the manuals and the landing page caught up with 2.7.1, and now
+  with this release.
+
+### Upgrading
+
+Nothing to migrate. The language packs changed a little: the forced
+password-change page's four keys are gone, since that page is the login page
+now, and the mirror's hint mentions the long press. The packs are not part of
+the firmware image; upload the ones attached to this release on the Files page
+and reboot. With the old packs everything works, and the hint keeps its old
+text.
+
+### Known, and not fixed here
+
+- **With the setup access point open, the device does not measure.** The loop
+  returns before the sensors, the alarms, the history and the telemetry. The
+  panel now at least says how to join. A device with no network configured still
+  boots into the AP and stays there (release and alpha).
+- **An alarm refused by a full alarm-line queue is never reported**, and a full
+  queue keeps its oldest records (#161).
+- **The alpha's LCD rarely reaches its AP pages**, by the code. The key is on the
+  USB console and in the `ap` reply.
+
 ## v2.7.1 (2026-09-22)
 
 **A setup network you can actually get into.** The report was two symptoms on

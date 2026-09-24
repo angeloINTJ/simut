@@ -4,6 +4,227 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.7.2 (2026-09-24)
+
+**Três relatos de campo, e nenhum estava onde parecia.** O Air na 2.7.1 *"parece
+acordar adiantado, às vezes atrasado, e os lotes grandes chegam quebrados"*: ele
+acordava na hora. O que ele anotava é que saía atrasado, e o que enviava depois
+de uma fila longa era JSON inválido, com registros que o cursor depois pulava. O
+painel, na build de teste 8ae8db2: na **Segurança do PIN** as setas do rodapé
+fechavam a tela, e por trás delas o editor escrevia na política viva, então
+apertar a política pelo painel nunca marcou nenhuma conta para trocar o PIN. No
+**Modo de Configuração**, o Confirmar abria o ponto de acesso e nada avisava o
+painel, que continuava perguntando "Tem certeza?" com o AP já no ar.
+
+No caminho, toda imagem perdeu 16 kB, o toque longo passou a ser alcançável pela
+CLI e pelo navegador, e os aparelhos em es-ES deixaram de nomear os eventos em
+português.
+
+A `CONFIG_VERSION` continua 25: nenhuma migração roda, e um aparelho atualizado
+pelo ar mantém a configuração.
+
+### O Air acordava na hora; os carimbos, não
+
+A sonda cronometrou ciclos seguidos de 59,70 a 59,92 s, enquanto o arquivo do
+dia tinha 54, 59 e 69–70 s entre registros de wakes consecutivos. Um wake sem
+rádio não tem NTP, e o relógio dele era semeado com o registro mais novo, mais os
+segundos dormidos, mais `millis( )/1000`. Isso perde o que o wake anterior fez
+depois do registro dele, as frações (truncadas duas vezes) e a ROM de boot e o
+crt0, que rodam antes de o `millis( )` existir: **−0,8 s por wake**, que o NTP do
+wake de telemetria seguinte devolvia de uma vez, **+9–10 s**.
+
+Agora o sono carrega o relógio. O `airEnterDormant( )` deixa a hora, com
+milissegundos, em dois registradores de rascunho do watchdog, com uma marca e
+uma conferência cruzada. O wake soma o sono que o RTC mediu, 140 ms de boot
+(`AIR_WAKE_BOOT_MS`, medido entre 117 e 182) e o `millis( )`.
+
+| contra um host sincronizado por NTP | erro por wake | salto do NTP | intervalos gravados |
+|---|---|---|---|
+| v2.7.1 | −0,8 s, acumulando | +9–10 s | 54–69 s |
+| v2.7.2 | −0,085 … +0,030 s em 10 wakes, sem deriva | 0,08 s | 59–61 s |
+
+O boot com carregador, que caía num palpite de 60 segundos e começava 27 s
+adiantado, também usa o relógio carregado.
+
+### Filas longas de telemetria: JSON inválido, e um cursor que pulava o corte
+
+Os dois precisam de uma fila que cresceu com o coletor fora do ar e de uma
+drenagem de 190 a 250 registros por lote. O `buildPayload( )` reservava
+`n × 300 + 256` B, 60 KB para 199 registros, contra um maior bloco livre de
+46 KB, e a reserva falhava calada. Passados ~29 KB, o `String::concat( )`
+começava a falhar, também calado, e o corpo saía como `},,,,,,,,,]`. Agora cada
+registro entra inteiro: ele, o separador e os bytes de fechamento são reservados
+antes. Um registro que não cabe encerra o lote, e um corpo que não fecha é um
+envio que falhou, que a nova tentativa que já existia assume.
+
+O cursor, por sua vez, avançava até o registro mais novo *lido*, e não o
+enviado, então os registros que o corpo deixou de fora eram pulados para sempre,
+uma regressão do 29cc4f4 (15/08/2026). Agora ele avança até onde o lote foi
+lido (`src/TelemetryCursor.h`, três testes no host).
+
+Drenagens do histórico inteiro para um coletor que confere cada registro contra
+a flash:
+
+| | corpos | inválidos | registros entregues |
+|---|---|---|---|
+| v2.7.1, acordado | 69 | 68 | 139 de 13.672 |
+| v2.7.2, acordado | 72 | 0 | 13.681 de 13.682 |
+| v2.7.2, hibernando | 62 | 0 | 13.670 de 13.671 |
+
+O registro que ainda falta é um gravado fora de ordem na flash, o caso que um
+cursor escalar não consegue expressar. O `t_bat` é teto, não promessa: em 250,
+os lotes saem com 190 a 192 registros, cortados limpos.
+
+### Segurança do PIN: as setas, e uma política que nunca marcou ninguém
+
+Reproduzido na bancada antes de mexer em qualquer coisa:
+
+- O rodapé é o padrão, mas o tratamento de toque considerava tudo à esquerda do
+  SALVAR como SAIR: a seta para baixo levava o modo de 28 a 6. Agora as setas
+  movem a seleção, como em todo outro menu.
+- Um toque num valor apagava o painel e redesenhava o título e o rodapé para
+  mudar uma linha. Agora só as linhas são redesenhadas.
+- O editor escrevia cada toque direto na configuração viva. Subir o mínimo de 4
+  para 5 pelo painel registrou **`0 to renew` com seis contas com PIN**, porque o
+  Core 0 lia a política "antiga" da estrutura que o editor já tinha
+  sobrescrito. A web e o `user policy` leem antes e nunca foram afetados. Um
+  toque sem salvar levava o `/api/config` a 5, e ele continuava em 5 depois que
+  a guarda de ociosidade levava o painel ao início. Sair sem salvar relia a
+  configuração inteira da flash e descartava uma conta criada pela CLI e ainda
+  não gravada.
+
+Agora o editor trabalha numa cópia. Conferido na bancada: as setas ficam na
+tela, um toque não salvo seguido de 38 s de ociosidade não muda a política
+gravada, o SAIR mantém uma conta que só existe na RAM, e o SALVAR sem mudança
+responde "PIN salvo!". Apertar a política com a correção não foi exercitado lá:
+marcaria as seis contas reais da bancada.
+
+### O Modo de Configuração mostra como entrar
+
+Doze segundos depois do Confirmar, o ponto de acesso estava no ar (IP
+192.168.4.1) e o painel continuava no modo 29, capturado pelo próprio AP. O
+caminho do boot desenha as linhas do AP; o `startApMode( )`, que atende o menu,
+o `ap` e a escada de reconexão, nunca desenhou, e no TFT o `setApInfo( )` não faz
+nada.
+
+Agora o painel passa ao terminal de boot antes de o rádio ser tocado. Ele
+termina com a rede, `PSK <chave>`, `Acesse no celular: 192.168.4.1` e `AP
+Ativo!`, e fica ali, em vez de cair num dashboard que já não se atualiza. A tela
+do AP no boot usa as mesmas quatro linhas e ganha o endereço, que as linhas
+adicionadas na 2.7.1 tinham empurrado para fora do anel. Um `softAP( )` que falha
+não deixa mais o aparelho sem medir e dizendo "Modo AP iniciado": o console e o
+painel dizem que ele não subiu, e o laço continua medindo.
+
+### Toque longo pela CLI e pelo navegador
+
+`touch hold <X> <Y> [ms]` (padrão 3500, limitado a 100–15000, modo
+privilegiado) e um `ms` opcional no `POST /api/touch`; o espelho do dashboard
+transforma um clique segurado nele. Os dois alcançam o toque de 3 segundos que
+fixa o cartão de cima, que um toque de ~100 ms não alcança.
+
+### Os nomes dos eventos vêm dos pacotes de idioma
+
+A página de histórico carregava duas tabelas próprias de nomes de eventos, e a
+portuguesa, sem acentos, ia para todo pacote que não fosse inglês: **aparelhos em
+es-ES mostravam os eventos em português**. Agora o `GET /api/logcodes` transmite
+o `@LOGCODES` do pacote ativo direto do arquivo, seguido dos nomes em inglês do
+firmware, então um pacote mais antigo que um código ainda o nomeia. A rota exige
+`PERM_LOGS`, e a página escapa cada nome, porque um pacote é um arquivo que quem
+faz upload pode trocar. Medido na bancada: 1.435 de 1.435 linhas do log com o
+nome vindo do pacote pt-BR, com acentos, e 1.349 de 1.349 em espanhol depois de
+subir o es-ES.
+
+Também na visão do log:
+
+- O `timestamp_iso` do CSV exportava um registro de antes do acerto do relógio
+  como `1969-12-31T21:00:30-03:00`. Agora sai `Boot +00:00:30`, como a tabela
+  mostra. Errado desde a v1.0.0.
+- A coluna `uptime_sec` do CSV era literalmente `undefined`.
+
+Na CLI, o `touch hold` era aceito em qualquer prompt, inclusive o EXEC de
+usuário, e não aparecia em lista nenhuma; os cinco comandos `air` do Air, a
+mesma coisa. Os dois agora têm o seu modo e a sua ajuda. O `check_cli_help.py`
+percorre o parser em vez da tabela de modos; contra as fontes antigas ele falha
+exatamente nesses seis comandos.
+
+### O 16×2 aprende a contagem de pendentes
+
+Com um sensor instalado, o LCD da alpha mostra no canto de baixo à esquerda os
+registros de telemetria esperando envio, no formato do painel (`999`, `1k` …
+`65k`). O ícone de Wi-Fi agora cresce da esquerda para a direita, como as barras
+do painel, em vez de uma linha por vez de baixo para cima. Conferido pelos
+bitmaps e por testes no host, não no vidro: a bancada não tem HD44780.
+
+### 16 kB de volta em toda imagem
+
+Nenhum orçamento sobe e nada vai para o LittleFS:
+
+- O switch esparso do `translateCodeEn` tinha virado uma tabela de salto de
+  4.000 B; uma cadeia de comparações é a metade (−2.000 B).
+- A leitura de cookies do HTTPClient sai da compilação por um patch novo do
+  framework, `httpclient_no_cookies.patch`, aplicado pelo `patch.sh`. O SIMUT
+  nunca instala um pote de cookies, mas o leitor de cabeçalhos mantinha o
+  `strptime( )` e as tabelas de locale no link: −5.864 B nas imagens com painel,
+  −4,6 kB na alpha e no Air.
+- O `/force_chpass` é servido pela página de login num modo forçado; a página
+  própria dele era um subconjunto estrito (−3.728 B). Provado de ponta a ponta na
+  bancada.
+- As duas tabelas de nomes de eventos (4.006 B comprimidos), um decodificador
+  `.simx` morto, JS morto, dicionários ingleses nunca lidos e um fallback
+  português embutido saíram das páginas web.
+
+| `.bin`, B | v2.7.1 | v2.7.2 | mudança | folga sob o teto do OTA |
+|---|---|---|---|---|
+| release | 1.026.356 | 1.010.084 | −16.272 | 30.300 |
+| alpha | 994.444 | 978.060 | −16.384 | 62.324 |
+| air | 1.035.308 | 1.018.924 | −16.384 | 21.460 |
+| test | 1.031.252 | 1.015.636 | −15.616 | 24.748 |
+| asserts | 1.028.532 | 1.012.260 | −16.272 | 28.124 |
+| test_https | 1.038.884 | 1.023.260 | −15.624 | 17.124 |
+
+As correções do painel acima já estão incluídas; custaram 200 B disso. A
+`pico_w_test_https` deixou de avisar.
+
+### A bancada
+
+As capturas da bancada vinham saindo escuras e saturadas desde 23/09/2026: os
+bits 6, 5 e 2 de cada byte voltavam zerados. No build TFT, o MISO do painel
+(GP16) e o chip select do touch (GP17) estão ligados às linhas de sonda e de
+carregador da PicoHand, e a mão tinha ficado dirigindo o CHARGER em nível baixo,
+com a sonda armada. O controlador de touch ficava selecionado e disputava com o
+painel toda leitura de GRAM. O `air_test_suite.py` e o `bt_auth_test.py` deixavam
+a mão assim; eles, e o `hand_release_all`, agora soltam as linhas (`CHARGER HIZ`,
+`PROBE STOP`). O AGENTS.md §1 diz o que conferir antes de uma captura, e que uma
+captura se julga pelas cores que o firmware escreveu, não por outra captura.
+
+### Documentação
+
+- Um manual novo do produto em português, `docs/MANUAL.pt-BR.html`: 31
+  capítulos, gerados a partir de `docs/_manual/` pelo `tools/build_manual.py`,
+  com 44 capturas reais. 22 delas saíram pelo defeito de captura acima e serão
+  refeitas.
+- Os READMEs, os manuais e a página de apresentação alcançaram a 2.7.1, e agora
+  esta versão.
+
+### Atualizando
+
+Nada para migrar. Os pacotes de idioma mudaram pouco: as quatro chaves da página
+de troca forçada de senha saíram, porque essa página agora é a de login, e a dica
+do espelho cita o toque longo. Os pacotes não fazem parte da imagem do firmware;
+suba os que vêm anexados a esta versão pela página Arquivos e reinicie. Com os
+pacotes antigos tudo funciona, e a dica mantém o texto antigo.
+
+### Conhecido, e não corrigido aqui
+
+- **Com o ponto de acesso de configuração aberto, o aparelho não mede.** O laço
+  volta antes dos sensores, dos alarmes, do histórico e da telemetria. Agora o
+  painel ao menos diz como entrar. Um aparelho sem rede configurada continua
+  ligando no AP e ficando nele (release e alpha).
+- **Um alarme recusado pela fila cheia da linha de alarmes nunca é informado**, e
+  uma fila cheia guarda os registros mais antigos (#161).
+- **O LCD da alpha raramente chega às páginas do AP**, pelo código. A chave está
+  no console USB e na resposta do `ap`.
+
 ## v2.7.1 (2026-09-22)
 
 **Uma rede de setup em que dá para entrar.** O relato eram dois sintomas em dois

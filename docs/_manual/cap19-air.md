@@ -73,9 +73,7 @@ O alarme do relógio do RP2040 é uma hora do dia. Um sono de 24 h inteiras cair
 
 ### O relógio através do sono {#cap-19-relogio}
 
-[main]{.img}
-
-Nos despertares sem rádio não há NTP: a hora que o histórico grava é a que o Air reconstrói. Na `main`, o Air carrega o relógio através do sono, com erro de cerca de ±0,09 s por despertar (de −0,085 a +0,030 s em 10 despertares, medido em 23/09/2026). Na v2.7.1, a hora perde até cerca de 1 s por despertar até o próximo acerto por NTP. Os detalhes estão no [capítulo 10](#cap-10-air).
+Nos despertares sem rádio não há NTP: a hora que o histórico grava é a que o Air reconstrói. Desde a v2.7.2, o Air carrega o relógio através do sono, com erro de cerca de ±0,09 s por despertar (de −0,085 a +0,030 s em 10 despertares, medido em 23/09/2026). Na v2.7.1, a hora perde até cerca de 1 s por despertar até o próximo acerto por NTP. Os detalhes estão no [capítulo 10](#cap-10-air).
 
 ## O tempo de ociosidade {#cap-19-ociosidade}
 
@@ -158,7 +156,7 @@ O rádio é a coisa mais cara que um despertar pode fazer. Por isso, o Air decid
 
 Os registros esperam na flash, e o histórico guarda meses deles ([capítulo 15](#cap-15-capacidade)). O que não sai num despertar sai num dos seguintes.
 
-[main]{.img} Na `main`, cada lote leva só registros inteiros, e o cursor avança só até o último registro que foi no corpo ([capítulo 21](#cap-21-registro-inteiro)).
+Desde a v2.7.2, cada lote leva só registros inteiros, e o cursor avança só até o último registro que foi no corpo ([capítulo 21](#cap-21-registro-inteiro)).
 
 ::: nota
 **Por que contar registros e não horas.** Num despertar sem rádio, a hora é a reconstruída pelo próprio Air. Uma regra baseada no relógio mediria justamente o que não é confiável. A contagem de registros é exata.
@@ -241,7 +239,7 @@ Dentro de um despertar, o console responde antes de o registro ser gravado, ent�
 
 O sufixo `OVERRUN` nessa linha indica que o despertar não coube no intervalo: o Air dormiu o mínimo de 5 s. Aumente o **Intervalo Histórico** ou reduza o que o despertar faz.
 
-No começo de cada despertar, o console mostra também se o rádio vai ligar, como `[AIR] wake: radio=off (pending=3 min=5 skip=0)`. [main]{.img} Na `main`, a linha `[AIR] clock=` mostra, antes de gravar o registro, a hora com milissegundos e se ela veio do NTP (`ntp`) ou do relógio carregado (`prov`).
+No começo de cada despertar, o console mostra também se o rádio vai ligar, como `[AIR] wake: radio=off (pending=3 min=5 skip=0)`. Desde a v2.7.2, a linha `[AIR] clock=` mostra, antes de gravar o registro, a hora com milissegundos e se ela veio do NTP (`ntp`) ou do relógio carregado (`prov`).
 
 ## Receita de instalação {#cap-19-instalacao}
 

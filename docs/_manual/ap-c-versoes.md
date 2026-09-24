@@ -2,18 +2,11 @@
 
 O que cada versão da linha 2.x trouxe para quem usa o aparelho, da mais nova para a mais antiga. O registro completo, com as medições de cada mudança, está no `CHANGELOG.pt-BR.md` do repositório.
 
-## Na `main`, ainda sem release
-
-| Mudança | Onde está no manual |
-|---|---|
-| O Air carrega o relógio através do sono: os carimbos ficam dentro de ±0,09 s em vez de atrasar 0,8 s a cada despertar | [capítulo 19](#cap-19) |
-| A telemetria monta o corpo de cada envio um registro inteiro por vez: uma fila longa não sai mais como JSON inválido nem pula registros | [capítulo 21](#cap-21) |
-| Com um sensor, o LCD do alpha mostra quantos registros esperam envio, e o ícone de Wi-Fi cresce da esquerda para a direita | [capítulo 12](#cap-12) |
-
 ## Linha 2.7 — estável
 
 | Versão | Data | O que trouxe |
 |---|---|---|
+| v2.7.2 | 24/09/2026 | O Air carrega o relógio através do sono: os carimbos ficam dentro de ±0,09 s em vez de atrasar 0,8 s a cada despertar ([capítulo 19](#cap-19)). A telemetria monta cada envio um registro inteiro por vez: uma fila longa não sai mais como JSON inválido nem pula registros ([capítulo 21](#cap-21)). Com um sensor, o LCD do alpha mostra quantos registros esperam envio, e o ícone de Wi-Fi cresce da esquerda para a direita ([capítulo 12](#cap-12)). No painel, as setas da tela Segurança do PIN movem a seleção em vez de fechá-la, apertar a política marca as contas para trocar o PIN, e o Modo de Configuração mostra a rede, a chave e o endereço do AP ([capítulo 11](#cap-11)). Os nomes dos eventos vêm do pacote de idioma. Toda imagem fica 16 kB menor |
 | v2.7.1 | 22/09/2026 | O ponto de acesso de configuração volta a aceitar conexões: um celular entra em 4,1 s. O AP abre sozinho num aparelho sem rede configurada ou que perdeu a sua. O painel ganha a linha 12 em Configurações, e o LCD do alpha mostra o nome e a chave da rede |
 | v2.7.0 | 22/09/2026 | A linha sai do beta com base em medições: 8,18 h sem reinício e 6 de 6 atualizações pelo ar sem perda. Corrige o V-09 (uma conta restrita podia criar outra com mais permissões do que tinha). A autópsia de travamento passa a guardar mais três registros |
 
