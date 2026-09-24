@@ -383,7 +383,7 @@ public:
 	 * Core 1 reads _simTouchActive in handleTouch and uses the override
 	 * coordinates instead of the real _ts->getPoint(). Useful for automation
 	 * (generating screenshots of all screens via API). */
-	void injectTouch(int16_t x, int16_t y);
+	void injectTouch(int16_t x, int16_t y, uint32_t holdMs = 100);
 
 	/** Forces MODE_GRAPH_VIEW for screenshot automation
 	 * (bypasses touch). Sets _uiMode + _forceFullRedraw. */
@@ -796,6 +796,10 @@ private:
 	volatile int16_t _simTouchY = 0;
 	volatile bool _simTouchActive = false;
 	volatile uint32_t _simTouchSetMs = 0;
+	/* How long an injected touch stays down before it auto-releases. 100 ms is
+	 * a tap ('touch sim'); 'touch hold' raises it to reach the long-press
+	 * gestures (the 3 s top-card hold, the boot AP gesture window). */
+	volatile uint32_t _simTouchHoldMs = 100;
 
 
 	volatile bool _webBusy = false;

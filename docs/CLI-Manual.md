@@ -182,6 +182,7 @@ do modo User EXEC continuam disponíveis.**
 |---------|-----------|
 | `screen <nome>` | Navega diretamente para uma tela TFT. Nomes: `dash` (dashboard), `set` (configurações), `thm` (temas), `lng` (idioma), `pwd` (senha), `lic` (licença), `sts` (status), `alm` (alarmes), `gra` (gráfico), `touchcal` (calibração touch), `touchsens` (sensibilidade touch), `offset` (offset do display) |
 | `touch sim <X> <Y>` | Injeta toque simulado na tela (X: 0–319, Y: 0–239). Uso: automação de screenshots |
+| `touch hold <X> <Y> [ms]` | Injeta um toque **mantido** (segurar) por `ms` (padrão 3500, faixa 100–15000), depois solta. Aciona os gestos de toque longo — como o segurar de 3 s que fixa o cartão de cima — que o tap de `touch sim` não alcança. Uso: automação de screenshots |
 
 ### Navegação
 

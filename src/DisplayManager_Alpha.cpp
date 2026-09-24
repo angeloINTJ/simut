@@ -412,7 +412,7 @@ void DisplayManager::loadDisplayOffset(const DisplayOffsetData*){}
 /* ── Stubs for guarded/excluded TFT methods ─────────────────────── */
 bool DisplayManager::getUiEvent(UiEvent&){return false;}
 void DisplayManager::setWebBusy(bool,const char*){}
-void DisplayManager::injectTouch(int16_t,int16_t){}
+void DisplayManager::injectTouch(int16_t,int16_t,uint32_t){}
 void DisplayManager::setSlotData(float t, float h, float p, SensorType type, bool isValid, int slotIdx, String name) {
 	_sharedState.slotTemp = t;
 	_sharedState.slotHum  = h;

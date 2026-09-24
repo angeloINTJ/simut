@@ -250,6 +250,26 @@ void test_long_line_still_parses_help_prefix(void) {
     TEST_ASSERT_EQUAL(CMD_HELP, d.type);
 }
 
+void test_touch_hold_with_ms(void) {
+    /* 'touch hold X Y MS' — x/y in strVal1/strVal2, MS in intVal1 (valid). */
+    CliDemand d = parse("touch hold 160 70 3500");
+    TEST_ASSERT_EQUAL(CMD_TOUCH_HOLD, d.type);
+    assertStr1(d, "160");
+    TEST_ASSERT_EQUAL_STRING("70", d.strVal2);
+    TEST_ASSERT_TRUE(d.intVal1Valid);
+    TEST_ASSERT_EQUAL_INT(3500, d.intVal1);
+}
+
+void test_touch_hold_without_ms_marks_intval_invalid(void) {
+    /* MS omitted: still a hold, but intVal1Valid is false so the handler
+     * applies its default duration instead of a stray 0. */
+    CliDemand d = parse("touch hold 160 70");
+    TEST_ASSERT_EQUAL(CMD_TOUCH_HOLD, d.type);
+    assertStr1(d, "160");
+    TEST_ASSERT_EQUAL_STRING("70", d.strVal2);
+    TEST_ASSERT_FALSE(d.intVal1Valid);
+}
+
 int main(int argc, char** argv) {
     UNITY_BEGIN();
     RUN_TEST(test_empty_is_unknown);
@@ -283,5 +303,7 @@ int main(int argc, char** argv) {
     RUN_TEST(test_sensor_remove_without_confirm);
     RUN_TEST(test_system_format_confirm);
     RUN_TEST(test_long_line_still_parses_help_prefix);
+    RUN_TEST(test_touch_hold_with_ms);
+    RUN_TEST(test_touch_hold_without_ms_marks_intval_invalid);
     return UNITY_END();
 }

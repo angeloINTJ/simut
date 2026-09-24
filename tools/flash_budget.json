@@ -366,27 +366,53 @@
   "Re-measured after fix/air-clock-carry merged (main at 15feed0): the same",
   "+48 / +8 / 0 on top of it. Real .bin slack under the 1,040,384 B OTA ceiling:",
   "release 13,196, test 8,300, test_https 668, asserts 11,020, alpha 45,940,",
-  "air 5,076."
+  "air 5,076.",
+  "2026-09-24 (feat/cli-touch-hold): +32 B on release and asserts, +520 test,",
+  "+512 test_https, +304 air, 0 alpha. A 'touch hold X Y [MS]' CLI command that",
+  "injects a sustained press for the panel's long-press gestures - the 3 s hold",
+  "that fixes the top card - which the ~100 ms 'touch sim' tap cannot reach, and",
+  "which was blocking the last of the TFT manual captures. Only pico_w_test and",
+  "pico_w_test_https are raised, and this is the raise the rule asks for.",
+  "The parser branch and the handler both sit under SIMUT_CLI_FULL, so the",
+  "deltas split by that flag and not by having a panel. The two full-CLI panel",
+  "builds (test +520, test_https +512) and the full-CLI headless Air (+304 - its",
+  "injectTouch is the None stub and there is no mapTouchPoint) carry the handler;",
+  "release, asserts and alpha get only injectTouch's default-arg signature and",
+  "the one-line mapTouchPoint change (auto-release after _simTouchHoldMs instead",
+  "of a hardcoded 100 ms), which is +32 on the two other TFT builds and 0 on the",
+  "alpha. test and test_https tripped their margins - 368 and 360 B, what was",
+  "left of the +3,000 the 2026-09-20 pass set - by 152 B each; both budgets go to",
+  "measured + 3,000. release (376 B under), asserts (376) and air (928) still fit",
+  "and are not raised; only 'measured' moves.",
+  "Measured locally, and CI's 'used' for the two failing envs matched to the",
+  "byte (1,020,572 and 1,028,196). Real .bin slack under the 1,040,384 B OTA",
+  "ceiling: release 13,164, test 7,780, test_https 156, asserts 10,988, alpha",
+  "45,940, air 5,076.",
+  "🔴 pico_w_test_https is now 156 B from the OTA ceiling, the least it",
+  "has ever had. Its .bin grew 512 B (668 -> 156) without crossing a 4 KiB page,",
+  "so it still fits and the gate only WARNs - but the next thing added to any",
+  "panel build has to take a fourth page out to LittleFS, exactly as every note",
+  "since 2026-09-20 has said."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-09-23",
- "measured_at_commit": "feat/alpha-pending-wifi on main 15feed0 (pending count and left-to-right Wi-Fi on the 16x2)",
+ "measured_on": "2026-09-24",
+ "measured_at_commit": "feat/cli-touch-hold (the 'touch hold' CLI command for long-press gesture automation)",
  "envs": {
   "pico_w_release": {
    "budget": 1015564,
-   "measured": 1015156
+   "measured": 1015188
   },
   "pico_w_test": {
-   "budget": 1020420,
-   "measured": 1020052
+   "budget": 1023572,
+   "measured": 1020572
   },
   "pico_w_test_https": {
-   "budget": 1028044,
-   "measured": 1027684
+   "budget": 1031196,
+   "measured": 1028196
   },
   "pico_w_asserts": {
    "budget": 1017740,
-   "measured": 1017332
+   "measured": 1017364
   },
   "pico_w_alpha": {
    "budget": 983396,
@@ -394,7 +420,7 @@
   },
   "pico_w_air": {
    "budget": 1022184,
-   "measured": 1020952
+   "measured": 1021256
   }
  }
 }

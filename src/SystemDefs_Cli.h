@@ -108,6 +108,13 @@ enum DemandType {
  * via /api/screenshot. intVal1=x, intVal2 reused for y. */
  CMD_TOUCH_SIM,
 
+ /* 'touch hold X Y [MS]' — injects a sustained touch (press-and-hold) at
+  * (x,y) for MS milliseconds, then releases it. Drives the long-press
+  * gestures that a ~100 ms 'touch sim' tap cannot (e.g. the 3 s hold that
+  * fixes the top dashboard card), for screenshot automation.
+  * strVal1=x, strVal2=y, intVal1=hold ms (intVal1Valid=false → default). */
+ CMD_TOUCH_HOLD,
+
  /* 'screen <NAME>' — switches TFT screen directly via
  * show*Screen methods (bypasses handleTouch which has pressure gates).
  * NAMEs (the 12 the handler accepts): dash, set, thm, lng, pwd, lic,
