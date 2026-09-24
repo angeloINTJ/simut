@@ -16,9 +16,20 @@ the config-mode block while their mask is USER|PRIV, meaning showIf( ) filtered
 them out of the one section that mentioned them and they rendered nowhere at
 all.
 
-So the invariant checked here is not "is it mentioned somewhere" but the one
-that matters to a user at a prompt: for every mode a command is accepted in,
-some help block that renders in that mode must list it.
+So the invariant checked here is not "is it mentioned somewhere" but one that
+matters to a user at a prompt: some help block that renders in a mode where the
+command is accepted must list it. Not yet "in every mode it is accepted in" —
+on 2026-09-24 that stronger form flagged three commands (`alarm show` in config
+mode, `debug` and `sensor scan` in user EXEC), each listed in another mode
+where it works too.
+
+A command with no case in getCommandModeMask( ) is accepted wherever its
+`default:` says — every mode — and until 2026-09-24 this script skipped it,
+because it walked the cases rather than the parser. That is how `touch hold`
+was merged in #159 accepted at every prompt, user EXEC included, and listed at
+none, and how the five `air` commands went unlisted on the Air from the day it
+got this CLI (2026-09-18). The walk now starts from what the parser can
+produce, minus comments and, outside the Air, the Air-only block.
 
 Navigation commands are exempt: printModeHelp writes them as literal
 consolePrintln lines rather than through showIf, and they are verified by
@@ -87,17 +98,18 @@ if AIR:
                            'CMD_AIR_HIBERNATE', 'CMD_AIR_STATUS'}
 
 
-def strip_gated(src):
-    """Drop the blocks the emergency image does not compile.
+def strip_gated(src, full=False):
+    """Drop the blocks this image does not compile.
 
-    `#if SIMUT_CLI_FULL` always, and `#if SIMUT_AIR` when this is not an Air
-    build — otherwise the CMD_AIR_* the Air-only parser block produces would
-    read as reachable in every image.
+    `#if SIMUT_CLI_FULL` for the emergency image (`full` false), and
+    `#if SIMUT_AIR` when this is not an Air build — otherwise the CMD_AIR_* the
+    Air-only parser block produces would read as reachable in every image.
     """
     out, depth = [], 0
     for line in src.splitlines():
         s = line.lstrip()
-        if s.startswith('#if SIMUT_CLI_FULL') or (not AIR and s.startswith('#if SIMUT_AIR')):
+        if (not full and s.startswith('#if SIMUT_CLI_FULL')) or \
+           (not AIR and s.startswith('#if SIMUT_AIR')):
             depth += 1
             continue
         if depth:
@@ -196,8 +208,19 @@ def check_cli_help(*args, **kwargs):
         check_emergency_cli(parser)
         return
 
-    masks = dict(re.findall(r'case\s+(CMD_[A-Z0-9_]+):\s*return\s+([A-Z_ |]+);', mgr))
-    reachable = set(re.findall(r'(CMD_[A-Z0-9_]+)', parser))
+    # The full CLI's table only: the emergency image defines the same function
+    # as a one-liner, and a case in some other switch is not a mode mask.
+    fn = mgr.find('uint8_t getCommandModeMask(DemandType t) {')
+    if fn < 0:
+        print('[cli-help] WARNING: getCommandModeMask not found — check skipped')
+        return
+    table = mgr[fn:]
+    table = table[:table.find('\n}\n')]
+    masks = dict(re.findall(r'case\s+(CMD_[A-Z0-9_]+):\s*return\s+([A-Z_ |]+);', table))
+    m = re.search(r'default:\s*return\s+([A-Z_ |]+);', table)
+    default = m.group(1) if m else None
+    reachable = set(re.findall(r'(CMD_[A-Z0-9_]+)',
+                               strip_comments(strip_gated(parser, full=True))))
 
     start = mgr.find('void CommandManager::printModeHelp')
     if start < 0:
@@ -208,16 +231,22 @@ def check_cli_help(*args, **kwargs):
     listed = blocks_of(body[:end] if end > 0 else body)
 
     problems = []
-    for cmd, expr in sorted(masks.items()):
-        if cmd in NAV_EXEMPT or cmd in SENTINELS or cmd not in reachable:
+    checked = defaulted = 0
+    for cmd in sorted(reachable - NAV_EXEMPT - SENTINELS):
+        expr = masks.get(cmd, default)
+        if expr is None:
+            problems.append(f'{cmd}: no case in getCommandModeMask( ) and no default')
             continue
+        checked += 1
+        defaulted += cmd not in masks
         usable = modes_of(expr)
         if not usable:
             continue
         shown = listed.get(cmd, set()) & usable
         if not shown:
             where = ','.join(sorted(listed.get(cmd, set()))) or 'nowhere'
-            problems.append(f'{cmd}: accepted in {",".join(sorted(usable))} '
+            how = '' if cmd in masks else ' (no case: the default mask)'
+            problems.append(f'{cmd}: accepted in {",".join(sorted(usable))}{how} '
                             f'but only listed in {where}')
 
     if problems:
@@ -225,10 +254,11 @@ def check_cli_help(*args, **kwargs):
         for p in problems:
             print(f'[cli-help]   {p}')
         print('[cli-help] Add a showIf( ) in a block that renders in that mode,')
-        print('[cli-help] or widen the mask in getCommandModeMask( ).')
+        print('[cli-help] or set its mask in getCommandModeMask( ).')
         sys.exit(1)
 
-    print(f'[cli-help] OK {len(masks)} commands, all discoverable where accepted')
+    print(f'[cli-help] OK {checked} commands ({defaulted} on the default mask), '
+          f'all discoverable where accepted')
 
 
 check_cli_help()

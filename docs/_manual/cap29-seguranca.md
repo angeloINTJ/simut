@@ -62,7 +62,7 @@ O console USB é o caminho de maior confiança: quem tem o cabo tem a placa na m
 
 ## Limites contra abuso {#cap-29-abuso}
 
-- **Toda rota da API tem dono.** São 61 rotas: 51 exigem uma permissão e 10 são públicas por projeto, como a página de login. Nenhuma fica sem proteção, e o CI confere isso a cada mudança.
+- **Toda rota da API tem dono.** São 62 rotas: 52 exigem uma permissão e 10 são públicas por projeto, como a página de login. Nenhuma fica sem proteção, e o CI confere isso a cada mudança.
 - **As rotas pesadas têm intervalo mínimo por endereço de origem:** 200 ms em `/api/logs` e `/api/ls`, e 5 s em `/api/calib` e `/api/tls`.
 - **O gerenciador de arquivos recusa:**
   - caminhos com `..`, codificação por `%`, bytes de controle e nomes reservados;

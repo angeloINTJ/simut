@@ -643,7 +643,7 @@ O que **já** protege, mesmo sem TLS:
 - a senha **nunca** viaja em claro: vai como SHA-256 do texto puro, com nonce;
 - sessão por token com prazo e três slots;
 - backoff exponencial por IP no login;
-- permissões por bit, testadas rota a rota (61 rotas, nenhuma sem portão —
+- permissões por bit, testadas rota a rota (62 rotas, nenhuma sem portão —
   `AUTHORIZATION.md` é auditada por portão de CI).
 
 O que **não** protege, e o programador precisa saber:

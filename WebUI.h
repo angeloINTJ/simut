@@ -2692,11 +2692,27 @@ global.Chart = H5G;
             });
         }
 
-        // Logs — binary parsing in browser. Tabelas sincronizadas com LogManager::translateCode (LogManager.cpp).
-        const EVT_NAMES_EN = { '0':'OK', '1':'System boot', '2':'User-requested reboot', '3':'Heap memory low', '4':'Uptime milestone', '5':'Routine log records suppressed', '10':'WiFi connecting', '11':'WiFi disconnected', '12':'WiFi scanning', '13':'NTP synced', '14':'IP acquired', '15':'AP mode started', '20':'Storage failure', '21':'Config saved', '22':'Storage rotated', '23':'Flash formatting', '24':'Storage recovered', '25':'Config migrated', '30':'Telemetry sent', '31':'Telemetry failed', '32':'Telemetry retry', '33':'Telemetry queued', '34':'SSL cert loaded', '35':'MQTT connected', '36':'MQTT disconnected', '37':'MQTT published', '100':'Sensor recovered', '101':'Sensor timeout', '102':'Sensor checksum error', '103':'Sensor CRC error', '104':'Sensor out of range', '105':'Hardware mismatch', '106':'Sensor missing', '200':'Touch event', '201':'Display restarted', '202':'Graph rendered', '300':'Login success', '301':'Login failed', '302':'Unauthorized access', '303':'Config changed', '304':'Session expired', '305':'File uploaded', '306':'File deleted', '307':'Bluetooth lockout', '308':'Panel PIN accepted', '309':'Panel PIN rejected', '310':'Panel PIN lockout', '311':'Keypad entry fits two accounts', '400':'Display launched on Core 1', '401':'Initial touch cal saved', '402':'Touch calibration required', '403':'AP mode started', '404':'System ready', '405':'System ready (AP mode)', '406':'Storage critical failure', '407':'Sensors calibrated', '408':'NTP correcting timestamps', '409':'Timestamps corrected', '410':'Graph caches invalidated', '411':'Air cycle held in M0', '412':'Cold boot, not a hibernation wake', '413':'Sleep clamped to under 24 h (alarm is time-of-day)', '414':'Previous Air wake did not complete', '440':'Theme changed via UI', '441':'Language changed via UI', '442':'Alarm limits saved via UI', '443':'Touch cal saved to flash', '444':'Touch sensitivity saved', '445':'Display PIN changed', '446':'Sound settings saved', '447':'Alarm silenced via UI', '448':'Alarm silence expired', '449':'All alarms deactivated (RAM)', '450':'User created via panel', '451':'User deleted via panel', '452':'Panel PIN set for user', '453':'User permissions changed via panel', '454':'Maintenance opened via panel', '455':'Maintenance closed via panel', '456':'Sensor alarms blocked via panel', '457':'Sensor alarms unblocked via panel', '458':'Panel action refused: no permission', '459':'PIN policy changed via panel', '470':'Alarm triggered', '471':'Alarm cleared', '472':'Alarm silence cancelled', '480':'Min/Max cache loaded', '481':'Min/Max cache partial', '482':'Graph cache refresh started', '483':'Graph cache refresh done', '484':'Graph cache: ambient', '485':'Graph cache: board temp', '486':'Graph cache preload done', '487':'Graph loading', '488':'Graph render budget exceeded', '489':'Preload budget exceeded', '500':'Display pause stuck >5s', '501':'Yield stuck >10s', '502':'Core 1 dead >10s, restarting', '503':'Flash busy collision', '510':'History record saved', '511':'Heap status report', '512':'History skip: no time reference', '513':'History resumed: time reference acquired', '514':'History skip: V4 schema is empty', '515':'History skip: schema covers no active sensor', '520':'DHCP mode enabled', '521':'Static IP mode enabled', '522':'WiFi manager starting', '523':'WiFi SSID not configured', '524':'Provisional time set from flash', '525':'WiFi connect timeout', '526':'WiFi dormant mode', '527':'Show IP', '528':'mDNS start failed', '540':'HTTP transport initialized', '541':'MQTT transport initialized', '542':'MQTT connecting', '543':'cert.pem empty, insecure mode', '544':'cert.pem read error', '545':'No cert.pem, insecure mode', '546':'Forcing telemetry sync', '547':'Retry logs suppressed', '548':'HA discovery refreshed', '549':'Alarm telemetry line enabled', '550':'Alarm payload sent', '551':'Alarm send failed', '552':'Alarm receipt confirmed', '553':'Alarm queue overflow', '560':'History write failed', '561':'Timestamp correction budget exceeded', '562':'Storage limit budget exceeded', '563':'Skipping active log file', '564':'Storage stats report', '565':'Config report', '566':'History block sealed', '567':'History snapshot written', '568':'History schema mismatch', '569':'Legacy history purged', '570':'Web server started', '571':'Client disconnected (file)', '572':'Client disconnected (history)', '573':'Screenshot aborted by client', '574':'File uploaded', '575':'Client disconnected (broken pipe)', '576':'Web cert invalid (HTTP fallback)', '577':'CORS enabled for origin', '578':'CORS origin file invalid (CORS off)', '579':'Web cert pair installed', '580':'Theme applied', '581':'Theme not found', '585':'Unknown command', '590':'Runtime sensors loaded', '600':'Force unpause', '999':'Unknown error' };
-        const EVT_NAMES_PT = { '0':'OK', '1':'Boot do sistema', '2':'Reboot solicitado pelo usuario', '3':'Heap baixa', '4':'Marco de uptime', '5':'Registros de rotina suprimidos', '10':'Conectando WiFi', '11':'WiFi desconectado', '12':'Varredura WiFi', '13':'NTP sincronizado', '14':'IP obtido', '15':'AP iniciado', '20':'Falha no storage', '21':'Config salva', '22':'Storage rotacionado', '23':'Formatando flash', '24':'Storage recuperado', '25':'Config migrada', '30':'Telemetria enviada', '31':'Falha de telemetria', '32':'Retry de telemetria', '33':'Telemetria enfileirada', '34':'Cert SSL carregado', '35':'MQTT conectado', '36':'MQTT desconectado', '37':'MQTT publicado', '100':'Sensor recuperado', '101':'Timeout de sensor', '102':'Erro de checksum', '103':'Erro de CRC', '104':'Sensor fora de range', '105':'Divergencia de hardware', '106':'Sensor ausente', '200':'Evento de toque', '201':'Display reiniciado', '202':'Grafico renderizado', '300':'Login bem-sucedido', '301':'Falha de login', '302':'Acesso nao autorizado', '303':'Config alterada', '304':'Sessao expirada', '305':'Arquivo enviado', '306':'Arquivo apagado', '307':'Bloqueio Bluetooth', '308':'PIN do painel aceito', '309':'PIN do painel recusado', '310':'Bloqueio do PIN do painel', '311':'Entrada do teclado casa com duas contas', '400':'Display iniciado no Core 1', '401':'Calibracao inicial do touch salva', '402':'Calibracao do touch necessaria', '403':'AP iniciado', '404':'Sistema pronto', '405':'Sistema pronto (modo AP)', '406':'Falha critica de storage', '407':'Sensores calibrados', '408':'NTP corrigindo timestamps', '409':'Timestamps corrigidos', '410':'Caches de grafico invalidados', '411':'Ciclo Air retido em M0', '412':'Boot frio, nao veio da hibernacao', '413':'Sono limitado a menos de 24 h (alarme e por hora do dia)', '414':'Wake anterior do Air nao completou', '440':'Tema alterado via UI', '441':'Idioma alterado via UI', '442':'Limites de alarme salvos via UI', '443':'Calibracao do touch salva', '444':'Sensibilidade do touch salva', '445':'PIN do display alterado', '446':'Config de som salva', '447':'Alarme silenciado via UI', '448':'Silenciamento de alarme expirou', '449':'Todos alarmes desativados (RAM)', '450':'Usuario criado pelo painel', '451':'Usuario removido pelo painel', '452':'PIN do painel definido', '453':'Permissoes alteradas pelo painel', '454':'Manutencao aberta pelo painel', '455':'Manutencao encerrada pelo painel', '456':'Alarmes do sensor bloqueados pelo painel', '457':'Alarmes do sensor desbloqueados pelo painel', '458':'Acao do painel recusada: sem permissao', '459':'Politica de PIN alterada pelo painel', '470':'Alarme disparado', '471':'Alarme zerado', '472':'Silenciamento cancelado', '480':'Cache Min/Max carregado', '481':'Cache Min/Max parcial', '482':'Refresh de cache iniciado', '483':'Refresh de cache concluido', '484':'Cache de grafico: ambiente', '485':'Cache de grafico: placa', '486':'Pre-carga de cache concluida', '487':'Carregando grafico', '488':'Budget de render excedido', '489':'Budget de pre-carga excedido', '500':'Pause do display preso >5s', '501':'Yield preso >10s', '502':'Core 1 travado >10s, reiniciando', '503':'Colisao por flash ocupado', '510':'Registro de historico salvo', '511':'Relatorio de heap', '512':'Historico pulado: sem referencia de hora', '513':'Historico retomado: referencia de hora obtida', '514':'Historico pulado: schema V4 vazio', '515':'Historico pulado: schema nao cobre sensor ativo', '520':'Modo DHCP ativado', '521':'Modo IP estatico ativado', '522':'Gerenciador WiFi iniciando', '523':'SSID WiFi nao configurado', '524':'Hora provisoria do flash', '525':'Timeout na conexao WiFi', '526':'WiFi em modo dormente', '527':'Mostrar IP', '528':'Falha ao iniciar mDNS', '540':'Transporte HTTP inicializado', '541':'Transporte MQTT inicializado', '542':'MQTT conectando', '543':'cert.pem vazio, modo inseguro', '544':'Erro de leitura de cert.pem', '545':'Sem cert.pem, modo inseguro', '546':'Forcando sync de telemetria', '547':'Logs de retry suprimidos', '548':'Discovery HA atualizado', '549':'Linha de alarmes ligada', '550':'Payload de alarmes enviado', '551':'Falha no envio de alarmes', '552':'Recebimento de alarmes confirmado', '553':'Estouro da fila de alarmes', '560':'Falha em escrever historico', '561':'Budget de correcao de ts excedido', '562':'Budget de limite de storage excedido', '563':'Pulando arquivo de log ativo', '564':'Relatorio de estatisticas', '565':'Relatorio de config', '566':'Bloco de historico selado', '567':'Snapshot de historico gravado', '568':'Schema de historico divergente', '569':'Historico legado apagado', '570':'Servidor web iniciado', '571':'Cliente desconectado (arquivo)', '572':'Cliente desconectado (historico)', '573':'Screenshot abortado pelo cliente', '574':'Arquivo enviado', '575':'Cliente desconectado (conexao encerrada)', '576':'Cert web invalido (HTTP)', '577':'CORS ligado para a origem', '578':'Origem CORS invalida (CORS desligado)', '579':'Par de certificados web instalado', '580':'Tema aplicado', '581':'Tema nao encontrado', '585':'Comando desconhecido', '590':'Sensores em runtime carregados', '600':'Forcar despausar', '999':'Erro desconhecido' };
-
-        function evtName(code) { let l = localStorage.getItem('simut_lang') || 'en'; let dict = (l === 'pt') ? EVT_NAMES_PT : EVT_NAMES_EN; let lbl = dict[code.toString()]; if (lbl) return lbl; return (l === 'pt' ? 'Evento #' : 'Event #') + code; }
+        /* Logs — binary parsing in browser. Event names come from the device:
+           GET /api/logcodes streams the active pack's @LOGCODES (accents in
+           pt-BR, Spanish in es-ES) followed by the firmware's English names, one
+           "<code> <name>" per line, and the first name a code gets wins — so a
+           pack older than a code still names it, in English. English readers
+           ask for ?l=en. This replaced EVT_NAMES_EN/PT, 4,006 B gz of this page,
+           and the PT table's habit of speaking Portuguese to every non-English
+           pack, es-ES included. A name is pack text, so it is escaped before it
+           reaches HTML (see the row builder). */
+        let _evtNames = null, _evtLang = '';
+        async function loadEvtNames() {
+            const lang = localStorage.getItem('simut_lang') || 'en';
+            if (_evtNames && _evtLang === lang) return;
+            const m = {};
+            try {
+                const r = await fetchSafe('/api/logcodes' + (lang === 'en' ? '?l=en' : ''), {timeout: 10000, retries: 1});
+                if (r.ok) (await r.text()).split('\n').forEach(ln => { const sp = ln.indexOf(' '); if (sp > 0) { const k = ln.slice(0, sp); if (!(k in m)) m[k] = ln.slice(sp + 1).replace(/\r$/, ''); } });
+            } catch (e) {}
+            _evtNames = m; _evtLang = lang;
+        }
+        function evtName(code) { const l = _evtNames && _evtNames[String(code)]; return l || ('#' + code); }
         const TAG_NAMES = ['APP','NET','TEL','STO','WEB','CFG','CLI','SENSOR','HIST','SYS','DSP','SEC','OTA','?','?','?'];
         const LVL_LABELS = ['DBG','INF','WRN','ERR','FTL']; const LVL_CLASS = ['log-inf','log-inf','log-wrn','log-err','log-err'];
         function fmtUptime(ms) { let s=Math.floor(ms/1000); let d=Math.floor(s/86400); s%=86400; let h=Math.floor(s/3600); s%=3600; let m=Math.floor(s/60); s%=60; let p=v=>v<10?'0'+v:v; return d>0?d+'d '+p(h)+':'+p(m)+':'+p(s):p(h)+':'+p(m)+':'+p(s); }
@@ -2717,6 +2733,7 @@ global.Chart = H5G;
             document.getElementById('logProgStatus').innerText = window.t('hist_loading', 'Loading...');
 
             try {
+                await loadEvtNames();
                 const res = await fetchSafe('/api/logs', {timeout: 30000, retries: 1});
                 if(!res.ok) throw new Error("HTTP");
 
@@ -2779,7 +2796,7 @@ global.Chart = H5G;
                     let lvlLabel = LVL_LABELS[lvl] || 'UNK';
                     let lvlCls = LVL_CLASS[lvl] || '';
                     let tag = TAG_NAMES[tagId] || '?';
-                    let desc = evtName(code) + (ctx !== 0 ? ' <span style="color:var(--tinta-2)">[ctx: ' + ctx + ']</span>' : '');
+                    let desc = escHtml(evtName(code)) + (ctx !== 0 ? ' <span style="color:var(--tinta-2)">[ctx: ' + ctx + ']</span>' : '');
 
                     parsedLogRows.push({ epoch, upSec, code, ctx, lvl, dateStr, upStr, lvlLabel, lvlCls, tag, desc });
                 }
@@ -3368,7 +3385,11 @@ global.Chart = H5G;
                     const hay = (r.dateStr + ' ' + r.upStr + ' ' + r.lvlLabel + ' ' + r.tag + ' ' + r.desc).toLowerCase();
                     if (hay.indexOf(search) < 0) continue;
                 }
-                const iso = (r.epoch && r.epoch > 0) ? _isoLocal(r.epoch) : r.dateStr;
+                /* The table's rule, not `> 0`: a record stamped before the
+                   clock is set carries seconds since boot, and on 2026-09-24
+                   one with epoch 30 left here as 1969-12-31T21:00:30-03:00
+                   while its row read "Boot +00:00:30". */
+                const iso = (r.epoch > 1000000000) ? _isoLocal(r.epoch) : r.dateStr;
                 const msgRaw = (typeof evtName === 'function') ? evtName(r.code) : ('Event #' + r.code);
                 const msgEsc = msgRaw.replace(/"/g, '""');
                 lines.push(iso + ',' + r.lvlLabel + ',' + r.tag + ',' + r.code + ',"' + msgEsc + '",' + r.ctx + ',' + r.upSec);
@@ -7216,67 +7237,15 @@ static const char LANG_JS[] PROGMEM = R"raw(
        aborted over HTTPS; it is fetched here instead (queued + retried), and
        a page still shows its own inline <style> until this lands. */
     (function(){var n=0;(function g(){n++;fetch("/style.css").then(function(r){if(!r.ok)throw 0;return r.text();}).then(function(t){var e=document.createElement("style");e.textContent=t;var h=document.head;h.insertBefore(e,h.firstChild);}).catch(function(){if(n<20)setTimeout(g,Math.min(400*n,1500));});})();})();
-    /* F-LANGPACK β: dict.pt vem de GET /api/lang (servido do .lng).
-     * EN inline acima cobre overrides; data-en attrs no HTML cobrem o resto. */
-    const dict = {
-        /* v3.32.5: fallback inline para chaves faltantes no .lng do device
-         * (sem uploadfs). Chaves vêm do /api/lang via Object.assign que
-         * sobrescreve por cima — se o .lng tiver, prevalece sobre estes. */
-        pt: {
-            "alm_attention": "Atenção",
-            "fil_uploaded": "Upload concluído.",
-            "fil_up_err": "Erro no upload.",
-            /* Religar histórico (/config → editor de slot). Ficam aqui, e não
-               só no .lng, porque o pack vive no LittleFS e não é atualizado
-               por um flash de firmware — sem isto o botão sairia em inglês
-               num device que já está em português. */
-            "sens_hist": "Gravação do histórico",
-            "sens_rebind": "Religar histórico agora",
-            "sens_rebind_hint": "Um slot criado ou renomeado hoje não tem coluna no arquivo de histórico de hoje, então não é gravado até amanhã. Isto reescreve esse arquivo para todos os slots, preservando os registros já feitos. O dispositivo reinicia ao final.",
-            "sens_rebind_confirm": "Reescrever o arquivo de histórico de hoje com os slots atuais?\n\nOs registros já feitos são preservados. O dispositivo reinicia ao final.",
-            "sens_rebind_pending": "Salve e Reinicie antes — reescrever agora usaria a configuração anterior.",
-            "sens_rebind_busy": "Reescrevendo...",
-            "sens_rebind_ok": "Histórico reescrito",
-            "sens_rebind_ok_forced": "Histórico recriado",
-            "sens_rebind_recs": "registros preservados",
-            "sens_rebind_reboot": "Reiniciando...",
-            "sens_rebind_force": "Não foi possível ler o arquivo de histórico de hoje, então os registros não podem ser preservados.\n\nRecriar vazio? Os registros de hoje são perdidos. Os dias anteriores não são tocados.",
-            "sens_rebind_kept": "Nada foi alterado.",
-            "sens_rebind_meas": "medições",
-            "sens_rebind_err": "Falha ao reescrever",
-            "sens_rebind_unsure": "Sem resposta do dispositivo. Recarregue a página e confira o log antes de tentar de novo.",
-            /* v3.34.0: F-CALIB-UI integrado no /dashboard (~10 chaves usadas inline) */
-            "usr_pcal": "Calibração",
-            "usr_plim": "Limites de alarme (painel)", "usr_pblk": "Bloquear alarmes (painel)", "usr_pmnt": "Manutenção (painel)",
-            "usr_pin": "PIN do painel (4-8 dígitos, opcional)", "usr_pin_btn": "PIN", "usr_haspin": "PIN",
-            "usr_pend_pin": "Pendente: PIN",
-            "usr_pin_msg": "PIN do painel desta conta: 4 a 8 dígitos, ou vazio para remover.",
-            "usr_pin_bad": "O PIN deve ter 4 a 8 dígitos.",
-            /* Curvas de calibração por pontos (/config → editor de slot).
-               Inline pelo mesmo motivo do bloco sens_rebind acima: o .lng no
-               LittleFS não acompanha o flash do firmware. */
-            "cal_pts_hint": "Até 5 pontos por grandeza, cada um ligando a leitura bruta ao valor mostrado por um instrumento confiável. Um ponto aplica um offset constante; mais pontos dobram a correção entre eles, mantida reta além das pontas. Deixe o bruto vazio para captar a leitura ao salvar.",
-            "cal_raw": "Bruto",
-            "cal_ref": "Referência",
-            "cal_corr": "corrigido",
-            "cal_cap": "Usar a leitura bruta atual",
-            "cal_del": "Remover este ponto",
-            "cal_add": "Adicionar ponto",
-            "cal_clear": "Remover correção",
-            "cal_none": "Sem correção — padrão do sensor.",
-            "cal_legacy": "Offset constante",
-            "cal_save_hint": "As correções são gravadas no Salvar e Reiniciar. Requer NTP sincronizado.",
-            "cal_err_max": "no máximo 5 pontos.",
-            "cal_err_num": "todo ponto precisa de bruto e referência numéricos.",
-            "cal_err_noread": "sem leitura ao vivo para captar — preencha o valor bruto.",
-            "cal_err_rng": "ponto fora da faixa plausível",
-            "cal_err_dup": "dois pontos com o mesmo valor bruto.",
-            "cal_mode_lbl": "Interpolação",
-            "cal_mode_lin": "Reta",
-            "cal_mode_cub": "Suave",
-            "cal_mode_hint": "Suave é uma cúbica monótona: dobra pelas âncoras sem jamais ultrapassá-las. Precisa de 3+ pontos; com menos, comporta-se como reta."
-        }
-    };
+    /* F-LANGPACK: dict.pt is filled from GET /api/lang, the active pack's
+       @WEBDICT — whatever language that pack is, 'pt' is only the slot name.
+       There was an inline fallback here for keys an older .lng on the device
+       might lack (v3.32.5); it went on 2026-09-24 (-1,226 B gz): every one of
+       its 48 keys is in both shipped packs, and a device still on an older
+       pack shows those labels in English — from the data-en attributes and
+       the t( ) defaults — until its .lng is replaced, which is the same
+       contract every other key already had. */
+    const dict = { pt: {} };
     fetch('/api/lang').then(r=>r.json()).then(d=>{Object.assign(dict.pt,d);if(Object.keys(d).length>0&&!localStorage.getItem('simut_lang'))localStorage.setItem('simut_lang','pt');if(typeof applyLang==='function')applyLang();}).catch(()=>{});
 
     /* Infra compartilhada (movida das paginas autenticadas individuais p/ ca'). */

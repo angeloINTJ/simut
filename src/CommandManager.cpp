@@ -355,6 +355,7 @@ uint8_t getCommandModeMask(DemandType t) {
  case CMD_DEFINE_SENSOR:     return CLI_VALID_PRIV;
  case CMD_ACCEPT_SENSOR:     return CLI_VALID_PRIV;
  case CMD_TOUCH_SIM:         return CLI_VALID_PRIV;
+ case CMD_TOUCH_HOLD:        return CLI_VALID_PRIV;
  case CMD_GOTO_SCREEN:       return CLI_VALID_PRIV;
  /* Global Config */
  case CMD_SET_THEME:         return CLI_VALID_CONFIG;
@@ -507,6 +508,8 @@ void CommandManager::printModeHelp( ) {
                                   : "  system admin reset [confirm]  New random admin password");
   showIf(CMD_TOUCH_SIM,        pt ? "  touch sim <X> <Y>     Injetar toque (0..319, 0..239)"
                                   : "  touch sim <X> <Y>     Inject touch (0..319, 0..239)");
+  showIf(CMD_TOUCH_HOLD,       pt ? "  touch hold <X> <Y> [ms]  Toque longo (padrao 3500, 100..15000 ms)"
+                                  : "  touch hold <X> <Y> [ms]  Long press (default 3500, 100..15000 ms)");
   showIf(CMD_GOTO_SCREEN,      pt ? "  screen <n>            Ir para tela do display"
                                   : "  screen <n>            Go to display screen");
   consolePrintln("");
@@ -629,6 +632,32 @@ void CommandManager::printModeHelp( ) {
                              : "  tel reset             Reset telemetry cursor");
   }
  }
+
+#if SIMUT_AIR
+ /* ── SIMUT Air ──
+  * The Air has shipped this full CLI since 2026-09-18, and until 2026-09-24
+  * these five commands were accepted at every prompt and listed at none: the
+  * only text that named them was the emergency HELP_TEXT_EN block, which this
+  * image never prints. check_cli_help.py missed it because it only looked at
+  * commands with a case in getCommandModeMask( ), and these take the default.
+  * Listed where the Air console starts — `air stop` is what an operator types
+  * first, to keep the device awake. */
+ if (_cliMode == CLI_MODE_USER_EXEC || _cliMode == CLI_MODE_PRIV_EXEC) {
+  consolePrintln("");
+  consolePrintln("  --- SIMUT Air ---");
+  auto showIf = [&](DemandType t, const char* s) { if (getCommandModeMask(t) & curMask) consolePrintln(s); };
+  showIf(CMD_AIR_STATUS,    pt ? "  air status            Config do Air + fase atual"
+                               : "  air status            Air config + current phase");
+  showIf(CMD_AIR_STOP,      pt ? "  air stop              Cancelar a hibernacao, voltar ao M0"
+                               : "  air stop              Cancel hibernation, back to M0");
+  showIf(CMD_AIR_HIBERNATE, pt ? "  air hibernate         Hibernar agora"
+                               : "  air hibernate         Enter hibernation now");
+  showIf(CMD_AIR_IDLE,      pt ? "  air idle <10..65535>  Segundos ociosos ate hibernar"
+                               : "  air idle <10..65535>  Idle seconds before hibernating");
+  showIf(CMD_AIR_CHARGER,   pt ? "  air charger <gpio|off>  Linha alta = carregando (fica acordado)"
+                               : "  air charger <gpio|off>  Line high while charging (stays awake)");
+ }
+#endif
 
  printDivider( );
 }

@@ -1,6 +1,6 @@
 # API REST {#cap-26}
 
-Este capítulo é a referência da interface de programação do aparelho: como abrir sessão, o que cada uma das 61 rotas faz, que permissão ela exige e o que ela responde. É para quem escreve um cliente, um script ou um servidor de gestão que fala com o aparelho.
+Este capítulo é a referência da interface de programação do aparelho: como abrir sessão, o que cada uma das 62 rotas faz, que permissão ela exige e o que ela responde. É para quem escreve um cliente, um script ou um servidor de gestão que fala com o aparelho.
 
 ## Antes de começar {#cap-26-antes}
 
@@ -23,9 +23,9 @@ O aparelho atende um protocolo por vez. Com o par de certificados instalado, a i
 
 | Imagem | Rotas | Diferença |
 |---|---|---|
-| release | 61 | Todas |
-| alpha | 55 | Sem as 5 rotas do painel e sem `POST /api/tls` |
-| Air | 55 | As mesmas da alpha, e só enquanto o Air está acordado em M0 ([capítulo 19](#cap-19)) |
+| release | 62 | Todas |
+| alpha | 56 | Sem as 5 rotas do painel e sem `POST /api/tls` |
+| Air | 56 | As mesmas da alpha, e só enquanto o Air está acordado em M0 ([capítulo 19](#cap-19)) |
 
 Uma rota que não existe na imagem responde como qualquer caminho desconhecido ([Convenções](#cap-26-convencoes)).
 
@@ -423,7 +423,7 @@ O intervalo conta por endereço IP de origem, e as quatro rotas dividem o mesmo 
 - **Campo desconhecido** num pedido é ignorado em silêncio. Confira o efeito lendo o estado de volta.
 - **Caminho inexistente** responde `404` com o texto `404: Not Found`. Se o cabeçalho `Host` do pedido não é o IP do aparelho nem termina em `.local`, a resposta é um `302` para `http://<ip>/network`, o comportamento de portal do ponto de acesso. Uma rota com o método errado, como `GET /api/commit_all`, conta como caminho inexistente.
 
-## As 61 rotas {#cap-26-rotas}
+## As 62 rotas {#cap-26-rotas}
 
 As tabelas usam o nome do bit de cada permissão. O nome que a página **Usuários** mostra e o que cada bit libera estão no [capítulo 8](#cap-08-permissoes). "Administrador completo" é a conta com todas as permissões, `0xFFFF` ([capítulo 8](#cap-08-admin)); nenhuma combinação das 13 permissões substitui esse nível.
 
@@ -496,6 +496,7 @@ As tabelas usam o nome do bit de cada permissão. O nome que a página **Usuári
 | GET | `/api/export/history.bin` | [PERM_HISTORY]{.perm} | Exporta até 31 dias num pacote `.simx` |
 | POST | `/api/history_rebind` | [PERM_SYS_CONFIG]{.perm} | Adapta o dia corrente ao esquema atual e reinicia |
 | GET | `/api/logs` | [PERM_LOGS]{.perm} | O log de eventos inteiro, em registros binários |
+| GET | `/api/logcodes` | [PERM_LOGS]{.perm} | Os nomes dos eventos, em texto: no idioma do pacote e em inglês |
 | GET | `/api/export/logs.bin` | [PERM_LOGS]{.perm} | Exporta até 31 dias do log num pacote `.simx` |
 | POST | `/api/clear_logs` | [PERM_LOGS]{.perm} e [PERM_SYS_CONFIG]{.perm} | Apaga o log de eventos |
 
@@ -531,10 +532,10 @@ As três operações de `/api/restore` são uma única rota com o parâmetro `op
 | GET | `/api/screenshot` | [PERM_SYS_CONFIG]{.perm} | Captura da tela do painel em BMP |
 | GET | `/api/screenshot_chunk` | [PERM_SYS_CONFIG]{.perm} | Um pedaço da captura, com CRC |
 | GET | `/api/screen_stream` | [PERM_SYS_CONFIG]{.perm} | Um quadro do painel no formato compacto do espelho |
-| POST | `/api/touch` | [PERM_SYS_CONFIG]{.perm} | Um toque no painel |
+| POST | `/api/touch` | [PERM_SYS_CONFIG]{.perm} | Um toque no painel, ou um toque longo com `ms` |
 | GET | `/api/keypad` | [PERM_SYS_CONFIG]{.perm} | As faces do teclado de PIN na tela |
 
-São 61 rotas: 51 exigem uma permissão ou uma sessão, e 10 são públicas por projeto. O repositório confere essa lista a cada mudança, e nenhuma rota fica sem portão ([capítulo 29](#cap-29-abuso)).
+São 62 rotas: 52 exigem uma permissão ou uma sessão, e 10 são públicas por projeto. O repositório confere essa lista a cada mudança, e nenhuma rota fica sem portão ([capítulo 29](#cap-29-abuso)).
 
 ## Receitas {#cap-26-receitas}
 
@@ -1045,7 +1046,7 @@ curl -s -b jar -o open.h5 -w '%{http_code}\n' "$H/api/history/open"
 
 Cada ponto traz `t`, o horário, e `v`, com uma chave por grandeza: a letra do canal (`t` temperatura, `u` umidade, `p` pressão, `l` luz) seguida do `hwId`. O aparelho reduz os pontos para cerca de 600 por resposta. Um pedido grande demais para uma resposta só não é atendido: volta a estimativa, com `"sliceRequired":1`, e o cliente deve pedir o período em fatias com `from` e `to`. Um pedido de histórico por vez: um segundo em paralelo recebe `503` `{"error":"Already processing"}`.
 
-**Exportar.** `GET /api/export/history.bin?from=<epoch>&to=<epoch>` devolve um pacote `.simx` com os registros do período, até 31 dias. É o que a página **Histórico e Logs** converte em CSV no navegador. Fora da regra, a resposta é `400` com `Missing from/to params`, `Invalid range` ou `Range exceeds 31 days`.
+**Exportar.** `GET /api/export/history.bin?from=<epoch>&to=<epoch>` devolve um pacote `.simx` com os registros do período, até 31 dias. A página **Histórico e Logs** não usa esta rota: ela baixa os arquivos `.h5` do dia por `/download` e monta o CSV no navegador. Fora da regra, a resposta é `400` com `Missing from/to params`, `Invalid range` ou `Range exceeds 31 days`.
 
 ### Log de eventos {#cap-26-logs}
 
@@ -1066,7 +1067,7 @@ Cada registro, em *little-endian*:
 | 10 | byte | Nível nos bits 7 a 5 (0 depuração, 1 informação, 2 aviso, 3 erro, 4 fatal), núcleo no bit 4 e subsistema nos bits 3 a 0 |
 | 11 | byte | Tempo desde o boot: os 8 bits altos |
 
-Os subsistemas, de 0 a 12: `APP`, `NET`, `TEL`, `STO`, `WEB`, `CFG`, `CLI`, `SENSOR`, `HIST`, `SYS`, `DSP`, `SEC`, `OTA`; 15 é desconhecido. O registro binário não traz o texto do evento: a página o monta pelo código.
+Os subsistemas, de 0 a 12: `APP`, `NET`, `TEL`, `STO`, `WEB`, `CFG`, `CLI`, `SENSOR`, `HIST`, `SYS`, `DSP`, `SEC`, `OTA`; 15 é desconhecido. O registro binário não traz o texto do evento: a página o busca pelo código em `GET /api/logcodes`, descrito abaixo.
 
 ```python
 import struct
@@ -1077,6 +1078,12 @@ for i in range(0, len(dados) - 11, 12):
     ts, up_lo, code, ctx, flags, up_hi = struct.unpack_from("<IHHhBB", dados, i)
     nivel, tag = flags >> 5, flags & 0x0F
     print(ts, code, ctx, nivel, TAGS[tag] if tag < len(TAGS) else "?", (up_hi << 16) | up_lo)
+```
+
+`GET /api/logcodes` devolve os nomes dos eventos em texto puro, uma linha `<código> <nome>` por evento. Exige **Logs** [PERM_LOGS]{.perm}. Com um pacote de idioma instalado, vêm primeiro os nomes do pacote e depois os nomes em inglês de todos os códigos: fique com o primeiro nome de cada código, e um evento que o pacote ainda não conhece sai em inglês. Com `?l=en`, ou sem pacote, só inglês.
+
+```bash
+curl -s -b jar "$H/api/logcodes" | head -3
 ```
 
 `GET /api/export/logs.bin?from=<epoch>&to=<epoch>&level=<all|inf|err>` exporta um período de até 31 dias num pacote `.simx`, filtrado por nível. `POST /api/clear_logs` apaga o log e exige **Logs** e **Sistema** ao mesmo tempo; a própria limpeza fica registrada.
@@ -1294,7 +1301,7 @@ As cinco rotas do painel exigem **Sistema** [PERM_SYS_CONFIG]{.perm}. A interfac
 | `GET /api/screenshot` | Um BMP de 320 × 240 pixels e 24 bits, 230.454 bytes |
 | `GET /api/screenshot_chunk?n=N` | Um pedaço de 16 linhas, `n` de 0 a 14: 12 bytes de cabeçalho (índice, tamanho e CRC-32, cada um em 32 bits *big-endian*) e 15.360 bytes de pixels BGR |
 | `GET /api/screen_stream` | Um quadro inteiro no formato compacto do espelho, em 30 faixas de 8 linhas. O formato é interno e pode mudar entre versões |
-| `POST /api/touch` | Com `x` de 0 a 319 e `y` de 0 a 239, em coordenadas do painel, um toque. Responde `{"ok":true,"x":160,"y":120}`; fora da faixa, `400` |
+| `POST /api/touch` | Com `x` de 0 a 319 e `y` de 0 a 239, em coordenadas do painel, um toque. Com `ms`, o toque fica pressionado esse tempo antes de soltar — é o toque longo, como o de 3 s que fixa o cartão de cima; de 100 a 15000, e um valor fora disso é levado à borda. Responde `{"ok":true,"x":160,"y":120,"ms":100}`; `x` ou `y` fora da faixa, ou `ms` que não é número, `400` |
 | `GET /api/keypad` | As faces do teclado de PIN que está na tela, a geometria das teclas e a política de PIN |
 
 ```bash
@@ -1443,7 +1450,7 @@ O método `commit` já monta o JSON em UTF-8 direto, como o aparelho espera, e d
 
 | Assunto | Valor |
 |---|---|
-| Rotas | 61 na release, 55 na alpha e no Air |
+| Rotas | 62 na release, 56 na alpha e no Air |
 | Porta | 80 de fábrica; 443 em HTTPS com a porta de fábrica |
 | Entrada | `GET /api/login_init`, depois `POST /api/login` com `user`, `pass` = SHA-256 hexadecimal minúsculo, `nonce` |
 | Código de uso único | 32 algarismos hexadecimais, 60 s, uma tentativa, por endereço IP |

@@ -222,6 +222,10 @@ public:
 
  const char* getLevelString(LogLevel level);
  const char* translateCode(uint16_t code);
+ /** English label for a code whatever the configured language — the
+  *  firmware's own table. "?" for a code it does not know. Feeds
+  *  GET /api/logcodes, whose English half must stay English. */
+ static const char* translateCodeEnglish(uint16_t code);
 
  /** Language for log code labels. Synced with cfg.displayLang. */
  void setLanguage(uint8_t lang) { _language = lang; }

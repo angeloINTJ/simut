@@ -140,7 +140,7 @@ A tabela mostra o registro mais recente primeiro, com estas colunas:
 | **Módulo** (*Module*) | O módulo, como `SEC` ou `TEL` |
 | **Descrição** (*Event Description*) | O nome do evento, seguido de `[ctx: N]` quando o contexto não é zero |
 
-Os nomes dos eventos aparecem em português, sem acentos, quando o idioma da página é **PT**, e em inglês quando é **EN**. Um código que a página não conhece aparece como `Evento #` e o número.
+Os nomes dos eventos vêm do aparelho. Com a página em **EN**, saem em inglês; em qualquer outro idioma, saem no idioma do pacote instalado — português com acentos num aparelho em pt-BR, espanhol num em es-ES. Um evento que o pacote ainda não conhece — um código que chegou com uma atualização de firmware antes de o pacote ser trocado — aparece em inglês. Só um código que nem o firmware conhece aparece como `#` e o número.
 
 Se a leitura falha, a tabela mostra `Error fetching logs`. Isso acontece, por exemplo, quando alguém está usando o painel naquele momento. Espere alguns segundos e toque de novo.
 
@@ -168,15 +168,11 @@ As colunas:
 | `level` | `INF`, `WRN`, `ERR` ou `FTL` |
 | `module` | O módulo |
 | `code` | O código do evento |
-| `message` | O nome do evento, entre aspas, no idioma da página |
+| `message` | O nome do evento, entre aspas, no mesmo idioma da tabela |
 | `context` | O contexto |
-| `uptime_sec` | Deveria trazer o tempo ligado em segundos |
+| `uptime_sec` | O tempo ligado, em segundos |
 
 As linhas saem em ordem cronológica, do mais antigo para o mais recente, ao contrário da tabela.
-
-::: atencao
-**A coluna uptime_sec sai com o texto `undefined` em todas as linhas.** A página preenche essa coluna com um campo que não existe. Para o tempo ligado, use a coluna **Tempo** da tabela ou o `show system log` do console.
-:::
 
 ### Limpar o log {#cap-16-limpar}
 

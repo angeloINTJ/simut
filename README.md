@@ -190,7 +190,7 @@ See the **[Wiring Guide](docs/WIRING.md)** for the complete pinout and connectio
   The device classifies each change with a dry run before the page offers them.
 - **Wi-Fi scan** — pick the network from a list, even from inside the setup access point.
 - **History graphs and CSV export in the browser** — the page downloads the raw binary day files, then decodes, buckets (min/max/mean) and exports them itself. The recent, unsealed hour comes from `/api/history/open`. The chart renderer is embedded — no CDN.
-- **HTTP API** — 61 routes. Each one is either gated by a permission or public by design, and CI checks it.
+- **HTTP API** — 62 routes. Each one is either gated by a permission or public by design, and CI checks it.
 
 ### Telemetry and integrations
 - **Four transports** — HTTP, HTTPS, MQTT and MQTTS:
@@ -409,7 +409,7 @@ A serial console is available over USB (115200 baud), and over Bluetooth SPP on 
 
 ### Web API
 The device exposes a REST API at `http://<device-ip>/api/`:
-- **61 routes** — 51 gated by a permission, 10 public by design, 0 ungated, checked by `tools/check_authz.py` in CI;
+- **62 routes** — 52 gated by a permission, 10 public by design, 0 ungated, checked by `tools/check_authz.py` in CI;
 - the route table is in the [User Manual](docs/MANUAL.md);
 - [docs/AUTHORIZATION.md](docs/AUTHORIZATION.md) maps each route to its permission;
 - [docs/API_POST.md](docs/API_POST.md) documents the POST bodies.

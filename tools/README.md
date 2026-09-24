@@ -32,7 +32,7 @@ or a release.
 | `check_flash_budget.py` | Fails the build when a firmware image grows past its budget in tools/flash_budget.json. | 2026-09-08 |
 | `check_fsguard.py` | check_fsguard.py — the /config filesystem guards, pinned so they cannot silently rot. | 2026-08-29 |
 | `fsguard.py` | LittleFS guard for OTA benches: backup and restore with day-file merging. | 2026-08-21 |
-| `gen_logcodes.py` | Single source of truth for the SIMUT log-code tables. | 2026-07-26 |
+| `gen_logcodes.py` | Single source of truth for the SIMUT log-code tables. | 2026-09-24 |
 | `h5_day_merge.py` | Merge V5 history day files (same day, same schema) into one file. | 2026-08-21 |
 | `run_cppcheck.sh` | run_cppcheck.sh — static-analysis gate over src/ (issue #35). | 2026-08-18 |
 | `run_fuzz.sh` | run_fuzz.sh — libFuzzer gate over the web-API input validators (issue #44). | 2026-08-19 |
@@ -50,10 +50,10 @@ local build before CI ever sees it.
 | `build_favicon_header.py` | PlatformIO pre-build script — regenerates src/Favicon.{h,cpp} from data/favicon.ico. | 2026-07-27 |
 | `build_webui_gz.py` | PlatformIO pre-build script — regenerates WebUI_GZ.h from WebUI.h, recortando os blocos `@IF <feature>` que o ambiente declarou em `custom_web_omit` (hoje só `tft`). Dois portões acompanham o recorte e rodam **sempre**, inclusive quando nada é omitido: função definida dentro de um bloco e chamada fora, e id de elemento que só existe dentro e é buscado fora. Running it **by hand** needs the interpreter that has zopfli, which is PlatformIO's pipx venv (`~/.local/share/pipx/venvs/platformio/bin/python`) — not the system `python3` and not `~/.platformio/penv/bin/python`. Either of those falls back to gzip -9 and every page grows ~2,888 B in total, with no error. | 2026-09-20 |
 | `check_channels.py` | Build guard: keep channel knowledge inside the channel table. | 2026-07-30 |
-| `check_cli_help.py` | PlatformIO pre-build guard — every usable CLI command must be documented. | 2026-09-07 |
+| `check_cli_help.py` | PlatformIO pre-build guard — every usable CLI command must be documented, the ones on the `default:` mask included. | 2026-09-24 |
 | `check_flash_probe.py` | PlatformIO post-build guard — FlashIrqProbe wrappers must live in SRAM. | 2026-07-23 |
 | `check_lang_packs.py` | Fails the build when a .lng @DICT does not have exactly TR_KEYS_COUNT lines. | 2026-08-19 |
-| `check_logcodes.py` | PlatformIO pre-build guard — the five log-code tables must agree. | 2026-07-26 |
+| `check_logcodes.py` | PlatformIO pre-build guard — the three log-code tables must agree (enum, `translateCodeEn`, each pack's `@LOGCODES`); every code must sit in 0..999, the range `GET /api/logcodes` walks. | 2026-09-24 |
 | `pico_test_suite.py` | Pico W v1.5.2 — Test suite final de estabilidade. | 2026-08-22 |
 | `save_storm.py` | Save-storm validation — protocol item #2 of docs/analysis/SIMUT-Plano-Estabilidade-Concorrencia.md. | 2026-08-22 |
 | `sensor_soak.py` | Sensor soak — protocol item #4 of docs/analysis/SIMUT-Plano-Estabilidade-Concorrencia.md. | 2026-08-14 |

@@ -1,35 +1,34 @@
 #!/usr/bin/env python3
 """Single source of truth for the SIMUT log-code tables.
 
-A log code has to be declared in five places that must agree, and nothing
-enforced that: the LogCode enum, translateCodeEn( ) in LogManager.cpp, the
-EVT_NAMES_EN / EVT_NAMES_PT objects in WebUI.h, and the @LOGCODES block of
-each language pack. v1.5.6-beta shipped five codes (512-515, 575) present in
-the enum and missing from the browser tables, and 575 turned out to be missing
-from translateCodeEn as well, so it rendered as "?" on every channel in every
-language. Nobody noticed because adding a code is five manual edits and the
+A log code has to be declared in three places that must agree, and nothing
+enforced that: the LogCode enum, translateCodeEn( ) in LogManager.cpp, and the
+@LOGCODES block of each language pack. It used to be five: the browser carried
+its own EVT_NAMES_EN / EVT_NAMES_PT objects in WebUI.h until 2026-09-24, when
+the history page started reading @LOGCODES through GET /api/logcodes instead.
+v1.5.6-beta shipped five codes (512-515, 575) present in the enum and missing
+from those browser tables, and 575 turned out to be missing from
+translateCodeEn as well, so it rendered as "?" on every channel in every
+language. Nobody noticed because adding a code was five manual edits and the
 fifth is easy to skip.
 
 tools/logcodes.tsv is the canonical list. This script regenerates the derived
-blocks from it and, in --check mode, fails the build when any of the five
-drifts. --check compares TEXT, not just presence: editing a label in one table
-and not the others is the same class of bug and used to be invisible too.
+blocks from it and, in --check mode, fails the build when any of them drifts.
+--check compares TEXT, not just presence: editing a label in one table and not
+the others is the same class of bug and used to be invisible too. It also keeps
+every code inside 0..999, the range GET /api/logcodes walks for the English
+names — a code past it would be served in no language at all.
 
 Columns, tab-separated:
-    code    numeric value
+    code    numeric value, 0..999
     enum    LogCode enumerator name
-    en      English — feeds translateCodeEn( ) and EVT_NAMES_EN
-    js_pt   Portuguese for EVT_NAMES_PT, historically written WITHOUT accents
+    en      English — feeds translateCodeEn( )
     pt      Portuguese for the pt-BR pack @LOGCODES, with accents
     es      Spanish for the es-ES pack @LOGCODES
 
-js_pt and pt are separate columns because the two tables genuinely differ
-today; collapsing them would be a content change, not a refactor.
-
 Usage:
-    gen_logcodes.py --check      verify all five tables; non-zero on drift
+    gen_logcodes.py --check      verify the three tables; non-zero on drift
     gen_logcodes.py --cpp        emit the translateCodeEn( ) case block
-    gen_logcodes.py --js         emit EVT_NAMES_EN / EVT_NAMES_PT
     gen_logcodes.py --lng        emit both @LOGCODES blocks
     gen_logcodes.py --sync-lng   write the @LOGCODES blocks into data/lang/
 
@@ -46,10 +45,9 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 TSV = ROOT / "tools" / "logcodes.tsv"
 ENUM_H = ROOT / "src" / "SystemDefs_Logging.h"
 LOGMGR = ROOT / "src" / "LogManager.cpp"
-WEBUI = ROOT / "WebUI.h"
 LANGS = {"pt-BR": "pt", "es-ES": "es"}
 
-FIELDS = ("code", "enum", "en", "js_pt", "pt", "es")
+FIELDS = ("code", "enum", "en", "pt", "es")
 
 
 # ── loading ────────────────────────────────────────────────────────────────
@@ -91,16 +89,6 @@ def parse_cpp():
             for m in re.finditer(r'case\s+(\w+)\s*:\s*return\s+"((?:[^"\\]|\\.)*)"', body)}
 
 
-def parse_js(which):
-    """{code: label} from a WebUI EVT_NAMES_* object."""
-    text = WEBUI.read_text(encoding="utf-8", errors="replace")
-    m = re.search(which + r"\s*=\s*\{(.*?)\};", text, re.S)
-    if not m:
-        sys.exit(f"{which} not found in {WEBUI.name}")
-    return {int(k): unescape_js(v)
-            for k, v in re.findall(r"'(\d+)'\s*:\s*'((?:[^'\\]|\\.)*)'", m.group(1))}
-
-
 def parse_lng(lang):
     """{code: label} from a pack's @LOGCODES block."""
     text = (ROOT / "data" / "lang" / f"language_{lang}.lng").read_text(encoding="utf-8")
@@ -123,25 +111,11 @@ def unescape_c(s):
     return s.replace('\\"', '"').replace("\\\\", "\\")
 
 
-def escape_js(s):
-    return s.replace("\\", "\\\\").replace("'", "\\'")
-
-
-def unescape_js(s):
-    return s.replace("\\'", "'").replace("\\\\", "\\")
-
-
 # ── emitters ───────────────────────────────────────────────────────────────
 
 def emit_cpp(rows):
     for r in rows:
         print(f'\t\tcase {r["enum"]}: return "{escape_c(r["en"])}";')
-
-
-def emit_js(rows):
-    for name, col in (("EVT_NAMES_EN", "en"), ("EVT_NAMES_PT", "js_pt")):
-        pairs = ", ".join(f"'{r['code']}':'{escape_js(r[col])}'" for r in rows)
-        print(f"        const {name} = {{ {pairs} }};")
 
 
 def lng_block(rows, col):
@@ -196,16 +170,9 @@ def check(rows):
         if name not in by_name:
             problems.append(f"translateCodeEn has a case for {name}, TSV does not")
 
-    for which, col in (("EVT_NAMES_EN", "en"), ("EVT_NAMES_PT", "js_pt")):
-        table = parse_js(which)
-        for r in rows:
-            if r["code"] not in table:
-                problems.append(f"{which}: missing {r['code']} ({r['enum']})")
-            elif table[r["code"]] != r[col]:
-                problems.append(f"{which} {r['code']}: {table[r['code']]!r} != TSV {r[col]!r}")
-        for code in table:
-            if code not in by_code:
-                problems.append(f"{which} has {code}, TSV does not")
+    for r in rows:
+        if not 0 <= r["code"] < 1000:
+            problems.append(f"{r['enum']} = {r['code']}: outside 0..999, the range GET /api/logcodes walks")
 
     for lang, col in LANGS.items():
         table = parse_lng(lang)
@@ -227,10 +194,9 @@ def check(rows):
         print("[logcodes] Edit tools/logcodes.tsv, then regenerate:")
         print("[logcodes]   python3 tools/gen_logcodes.py --sync-lng")
         print("[logcodes]   python3 tools/gen_logcodes.py --cpp   # paste into LogManager.cpp")
-        print("[logcodes]   python3 tools/gen_logcodes.py --js    # paste into WebUI.h")
         return False
 
-    print(f"[logcodes] OK {len(rows)} codes, five tables in agreement")
+    print(f"[logcodes] OK {len(rows)} codes, three tables in agreement")
     return True
 
 
@@ -239,9 +205,8 @@ def main():
     # Real flags, not a positional whose values start with "--": argparse reads
     # those as options and refuses them as a positional choice.
     g = ap.add_mutually_exclusive_group(required=True)
-    g.add_argument("--check", action="store_true", help="verify the five tables; non-zero on drift")
+    g.add_argument("--check", action="store_true", help="verify the three tables; non-zero on drift")
     g.add_argument("--cpp", action="store_true", help="emit the translateCodeEn( ) case block")
-    g.add_argument("--js", action="store_true", help="emit EVT_NAMES_EN / EVT_NAMES_PT")
     g.add_argument("--lng", action="store_true", help="emit both @LOGCODES blocks")
     g.add_argument("--sync-lng", action="store_true", help="write @LOGCODES into data/lang/")
     a = ap.parse_args()
@@ -250,8 +215,6 @@ def main():
         sys.exit(0 if check(rows) else 1)
     elif a.cpp:
         emit_cpp(rows)
-    elif a.js:
-        emit_js(rows)
     elif a.lng:
         emit_lng(rows)
     else:
