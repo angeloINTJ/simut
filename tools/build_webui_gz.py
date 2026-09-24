@@ -145,11 +145,12 @@ OUTPUT_FILE = os.path.join(PROJECT_DIR, "src", "WebUI_GZ.h")
 # "Page asset missing". FILE_PAGE is circular: it is how you upload the very
 # file that is missing. HIST_PAGE is the biggest at 32 KB and the hottest page
 # there is; moving it costs +12.5 ms per load (measured), because the mutex is
-# taken once per KB, not once per request. LOGIN_PAGE, FORCE_CHPASS_PAGE,
-# STYLE_CSS and LANG_JS are not in DIETABLE at all: the first two lock the
-# device out if the file is missing, and the other two are loaded by eight
-# pages each and have no FS route (they are served with their own cache
-# headers, not through serveProtectedFsPage).
+# taken once per KB, not once per request. LOGIN_PAGE, STYLE_CSS and LANG_JS
+# are not in DIETABLE at all: the first locks the device out if the file is
+# missing (it also serves /force_chpass, in a forced mode picked from the
+# pathname — the separate FORCE_CHPASS_PAGE was folded into it 2026-09-24),
+# and the other two are loaded by eight pages each and have no FS route (they
+# are served with their own cache headers, not through serveProtectedFsPage).
 #
 # DEPLOYING a diet page: the file must reach /web/ on the device or the route
 # answers "Page asset missing". Upload it through the Files page or POST to
@@ -201,8 +202,9 @@ def _resolve_diet() -> dict:
             f"build_webui_gz: custom_fs_pages nomeia {', '.join(unknown)}, que "
             f"nao pode sair do firmware.\n"
             f"Elegiveis: {', '.join(sorted(DIETABLE))}.\n"
-            f"As demais ou trancam o aparelho se o arquivo faltar (login, "
-            f"force_chpass) ou nao tem rota de filesystem (style.css, lang.js)."
+            f"As demais ou trancam o aparelho se o arquivo faltar (login, que "
+            f"tambem atende /force_chpass) ou nao tem rota de filesystem "
+            f"(style.css, lang.js)."
         )
     return {n: DIETABLE[n] for n in names}
 

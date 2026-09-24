@@ -366,35 +366,96 @@
   "Re-measured after fix/air-clock-carry merged (main at 15feed0): the same",
   "+48 / +8 / 0 on top of it. Real .bin slack under the 1,040,384 B OTA ceiling:",
   "release 13,196, test 8,300, test_https 668, asserts 11,020, alpha 45,940,",
-  "air 5,076."
+  "air 5,076.",
+  "2026-09-24 (feat/cli-touch-hold): a 'touch hold X Y [ms]' long-press on two",
+  "surfaces — the CLI ('touch hold') and POST /api/touch / the dashboard mirror",
+  "— PLUS the flash diet that paid for both. Every budget RETURNS to its",
+  "pre-branch value: nothing is raised and no page moves to LittleFS.",
+  "Features. The CLI command is under SIMUT_CLI_FULL: +520 test, +512",
+  "test_https, +304 air; +32 on release/asserts for the injectTouch default-arg",
+  "signature and the one-line mapTouchPoint change. The web long-press adds an",
+  "ms field to POST /api/touch and press-and-hold to the mirror: +656 on the",
+  "four TFT builds, 0 on alpha/air (the mirror is behind @IF tft /",
+  "SIMUT_DISPLAY_TFT).",
+  "Diet, both SHARED so every image benefits: (1) translateCodeEn compiled with",
+  "optimize(no-tree-switch-conversion). GCC was materialising a 4,000 B",
+  "const char*[1000] index (CSWTCH.141) for a switch whose LogCodes are sparse",
+  "over 0..999; a compare chain is 2,032 B — net -2,000 B, and the function runs",
+  "only when a log line is rendered. (2) the dead .simx browser decoder",
+  "(_decodeSimxHistory + its private crc32/_crcTab/_readUtf8) removed from",
+  "HIST_PAGE; the export path uses /download + .h5 now, so ~0.8 KB gz comes off",
+  "every web image's shared blob. The .simx SERVER routes stay (bench tool).",
+  "Net vs main .bin: release -2,128, test -1,640, test_https -1,648, asserts",
+  "-2,128, alpha -4,096, air -4,096 — two features added and every image is",
+  "SMALLER than on main. Measured locally. Real .bin slack under the 1,040,384 B",
+  "OTA ceiling: release 15,324, test 9,940, test_https 2,316, asserts 13,148,",
+  "alpha 50,036, air 9,172. pico_w_test_https went from 668 to 2,316 B and no",
+  "longer warns.",
+  "2026-09-24 (feat/cli-touch-hold, second diet pass — on top of the entry",
+  "above): four more cuts, no budget moves, no page to LittleFS, no exemption.",
+  "(1) HTTPClient cookie parsing compiled out (tools/arduino_pico_overrides/",
+  "patches/httpclient_no_cookies.patch): SIMUT never installs a CookieJar, but",
+  "the header parser calls setCookie( ) on every Set-Cookie so its two",
+  "strptime( ) calls kept newlib's strptime_l (2,528 B) linked, plus the",
+  "parsing body and the locale tables it drags in — 'used' -5,864 on release,",
+  "test, test_https and asserts, -4,648 alpha, -4,640 air. strptime and",
+  "strptime_l are gone from every image; mktime (288 B) stays, it has other",
+  "callers. (2) FS_README_TEXT 2,192 -> 1,377 B: every path and its meaning",
+  "kept, the prose cut. (3) /force_chpass is now served from LOGIN_PAGE in a",
+  "forced mode picked from the pathname: FORCE_CHPASS_PAGE was a strict subset",
+  "of it (same sha256, theme IIFE, tokens, 20 CSS rules, strength meter).",
+  "LOGIN gz 6,501 -> 6,644 (+143), FORCE_CHPASS (4,027) deleted; -3,728 B of",
+  ".bin measured on test_https. The gates stay server-side and unchanged",
+  "(checkPageAccess 302, handleApiForceChpass); proven on the bench: temp",
+  "login -> 302 /force_chpass -> 200 login blob in forced mode -> POST",
+  "/api/force_chpass 200 -> new password logs in. (4) dead JS and never-read",
+  "'en' dictionaries: HIST 26,522 -> 26,426, LANG_JS 11,965 -> 11,755, DASH",
+  "6,255 -> 6,238. Also fixed while there: exportLogsCsv wrote r.upHr while",
+  "rows carry upSec, so the uptime_sec column was literally 'undefined'.",
+  "Measured and deliberately NOT taken: the OTA backup's 1 KB CRC32 table (its",
+  "comment argues throughput under the web WDT — dropping it needs a backup",
+  "timing on hardware first); the 13 [DBG]/[BMx] boot prints (~0.7 KB, they",
+  "are the boot-hang breadcrumbs); Chart.js-only keys inside the live",
+  "renderChart config (-140 B, easy to break); EVT_NAMES_EN/PT out of HIST",
+  "(-3.7 KB, but it moves the log-code names into the packs and gen_logcodes",
+  "— and it would fix a real defect: es-ES users see PORTUGUESE event names);",
+  "the inline dict.pt fallback in lang.js (-1.3 KB, a compatibility policy for",
+  "devices with an old .lng). Both of the last two are the maintainer's call.",
+  "Whole branch vs main .bin: release -13,040, test -12,552, test_https",
+  "-12,560, asserts -13,040, alpha -12,288, air -16,384 (four 4 KiB pages).",
+  "Real .bin slack under the 1,040,384 B OTA ceiling: release 26,236, test",
+  "20,852, test_https 13,228, asserts 24,060, alpha 58,228, air 21,460.",
+  "pico_w_test_https is three sectors clear of the ceiling and no longer",
+  "warns; every budget below keeps its pre-branch value with 12.9-16.7 kB of",
+  "measured room under it."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-09-23",
- "measured_at_commit": "feat/alpha-pending-wifi on main 15feed0 (pending count and left-to-right Wi-Fi on the 16x2)",
+ "measured_on": "2026-09-24",
+ "measured_at_commit": "feat/cli-touch-hold (touch hold on the CLI and POST /api/touch; two diet passes — CSWTCH, dead .simx decoder, HTTPClient cookies, FS_README, FORCE_CHPASS folded into LOGIN, dead JS — every budget at its pre-branch value)",
  "envs": {
   "pico_w_release": {
    "budget": 1015564,
-   "measured": 1015156
+   "measured": 1002116
   },
   "pico_w_test": {
    "budget": 1020420,
-   "measured": 1020052
+   "measured": 1007500
   },
   "pico_w_test_https": {
    "budget": 1028044,
-   "measured": 1027684
+   "measured": 1015124
   },
   "pico_w_asserts": {
    "budget": 1017740,
-   "measured": 1017332
+   "measured": 1004292
   },
   "pico_w_alpha": {
    "budget": 983396,
-   "measured": 981628
+   "measured": 966708
   },
   "pico_w_air": {
    "budget": 1022184,
-   "measured": 1020952
+   "measured": 1006344
   }
  }
 }

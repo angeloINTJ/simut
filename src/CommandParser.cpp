@@ -153,6 +153,17 @@ CliDemand parseCliCommand(String input) {
 		cmd.setStrVal2(t3.c_str( ));
 		return cmd;
 	}
+	/* 'touch hold X Y [MS]' — a sustained press for the long-press gestures
+	 * (e.g. the 3 s hold that fixes the top card) that `touch sim`'s ~100 ms
+	 * tap cannot reach. MS is optional; intVal1Valid tells the handler whether
+	 * the fourth token parsed, so an omitted MS falls back to the default. */
+	if (t0 == "touch" && t1 == "hold") {
+		cmd.type = CMD_TOUCH_HOLD;
+		cmd.setStrVal1(t2.c_str( ));
+		cmd.setStrVal2(t3.c_str( ));
+		cmd.intVal1Valid = parseIntStrict(r4, cmd.intVal1);
+		return cmd;
+	}
 	if (t0 == "screen") {
 		cmd.type = CMD_GOTO_SCREEN;
 		cmd.setStrVal1(t1.c_str( ));

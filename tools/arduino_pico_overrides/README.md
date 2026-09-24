@@ -70,8 +70,18 @@ arduino_pico_overrides/
 ├── originals/                 ← virgin backup (.gitignored, created by patch.sh)
 ├── patched_headers/
 │   └── lwipopts.h             ← SIMUT-tuned header
-└── patches/
-    └── wifi_tls_handshake_deadline.patch
+└── patches/                   ← one unified diff per override, applied by patch.sh
+    ├── wifi_tls_handshake_deadline.patch
+    ├── bearssl_suite_trim.patch
+    ├── bearssl_server_static_pool.patch
+    ├── httpclient_read_deadlines.patch
+    ├── httpclient_send_feed.patch
+    ├── httpclient_no_cookies.patch      ← 2026-09-24, flash: -5,864 B on every image
+    ├── clientcontext_rx_leak.patch
+    ├── clientcontext_acked_feed.patch
+    ├── webserver_parse_deadline.patch
+    ├── webserver_keepalive.patch
+    └── webserver_cors_origin.patch
 ```
 
 ## TLS handshake deadline (2026-07-25)
@@ -124,6 +134,23 @@ reducing UDP_PCB **breaks mDNS** (DHCP+DNS+NTP+mDNS responder = 4 PCBs minimum).
 ### `btstack_config.h`
 
 **Not modified** — changes to BTstack break RSSI sampling on the Pico W.
+
+### `HTTPClient.cpp` — cookie parsing compiled out (2026-09-24)
+
+SIMUT never installs a `CookieJar` (telemetry authenticates with a bearer
+key), so the body of `HTTPClient::setCookie( )` could never run — yet it was
+**linked**, because the header parser calls it on every `Set-Cookie`. Its two
+`strptime( )` calls pulled newlib's `strptime_l` (2,528 B) plus the parsing
+body and the locale tables it drags in. `httpclient_no_cookies.patch` puts an
+early `return` after the `_cookieJar` null-check and wraps the rest of the
+body in `#if 0` (kept so the diff against upstream stays readable). The public
+API (`setCookieJar` / `resetCookieJar` / `clearAllCookies`) is untouched; a jar
+installed at runtime is simply never populated.
+
+Measured on `pico_w_release`: `used` 1,013,028 → 1,007,164 (**−5,864 B**);
+the same delta on test / test_https / asserts, −4,6 kB on alpha and air.
+`strptime` and `strptime_l` are gone from every image; `mktime` (288 B) stays,
+it has other callers.
 
 ## Usage
 

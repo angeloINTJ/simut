@@ -34,7 +34,7 @@ void DisplayManager::launchCore1IfAbsent( ) { }
 void DisplayManager::markCore1Down( ) { }
 void DisplayManager::accountPauseEnd( ) { }
 void DisplayManager::restartCore1( ) { }
-void DisplayManager::injectTouch(int16_t x, int16_t y) { (void)x; (void)y; }
+void DisplayManager::injectTouch(int16_t x, int16_t y, uint32_t holdMs) { (void)x; (void)y; (void)holdMs; }
 void DisplayManager::forceGraphView( ) { }
 bool DisplayManager::requestQuietMode(uint32_t timeoutMs) { (void)timeoutMs; return true; }
 void DisplayManager::releaseQuietMode( ) { }

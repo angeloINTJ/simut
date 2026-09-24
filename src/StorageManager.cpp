@@ -251,47 +251,34 @@ bool StorageManager::isHeavyTaskLocked( ) const { return __atomic_load_n(&_heavy
  *
  * Keep it accurate: a wrong map is worse than no map. Every path below is
  * the one the firmware really uses. */
+/* Trimmed 2026-09-24 from 2,192 to 1,377 B of flash (measured, pico_w_release):
+ * every path and its meaning stayed, the prose around them went. The .h5
+ * layout it used to narrate lives in docs/HistoryV5_Instrucoes_Implementacao.md;
+ * the file's job is to be a map, not the manual. */
 static const char FS_README_TEXT[] PROGMEM =
-"SIMUT - mapa do sistema de arquivos (LittleFS)\n"
-"\n"
-"Escrito pelo firmware. Nao aparece com caixa de selecao em /files e nao\n"
-"pode ser apagado por la; se sumir, volta no proximo boot.\n"
+"SIMUT - mapa do LittleFS. Escrito pelo firmware; se sumir, volta no boot.\n"
 "\n"
 "/config/        Configuracao do sistema. Nao editar a mao.\n"
-"  system.bin    Config ativa (binaria, com CRC32).\n"
-"  system.bak    Copia de seguranca, usada se a ativa corromper.\n"
+"  system.bin    Config ativa (binaria, CRC32). system.bak: copia de seguranca.\n"
 "  system.tmp    Temporario de escrita; so sobra apos queda de energia.\n"
 "  t_cursor.bin  Ate onde a telemetria ja enviou.\n"
-"\n"
-"/history/       Historico de medicoes, um arquivo por dia.\n"
-"  AAAAMMDD.h5   Formato V5, comprimido e autodescritivo. O arquivo comeca\n"
-"                por um chunk SCHEMA que diz quais canais existem, que\n"
-"                grandeza cada um mede e em que escala; depois vem um\n"
-"                bloco por hora, cada um com CRC e com o minimo/maximo de\n"
-"                cada canal no proprio cabecalho.\n"
-"                Trocar sensores no meio do dia NAO custa mais o resto do\n"
-"                dia: grava-se um SCHEMA novo no mesmo arquivo e o que ja\n"
-"                estava la continua legivel.\n"
-"                Para ler no computador: tools/history_v5.py --dump-csv\n"
-"  .wip          Instantaneo do bloco ainda aberto na RAM, regravado a\n"
-"                cada 10 min. E adotado no boot seguinte apos queda de\n"
-"                energia; se estiver corrompido, e descartado.\n"
-"\n"
-"/lang/          Pacotes de idioma (.lng), um por idioma. Suba por /files.\n"
-"                Nunca por 'uploadfs': aquilo reformata a particao.\n"
+"/history/       Medicoes, um arquivo por dia.\n"
+"  AAAAMMDD.h5   Formato V5: chunk SCHEMA + um bloco por hora com CRC e\n"
+"                min/max. Trocar sensores so grava um SCHEMA novo.\n"
+"                Ler no computador: tools/history_v5.py --dump-csv\n"
+"  .wip          Bloco aberto na RAM, regravado a cada 10 min; adotado no\n"
+"                boot seguinte, descartado se corrompido.\n"
+"/lang/          Pacotes de idioma (.lng). Suba por /files, nunca por\n"
+"                'uploadfs' (reformata a particao).\n"
 "/themes/        Temas personalizados (.thm). Opcional.\n"
-"/web/           Paginas servidas do disco em vez do firmware. Em geral\n"
-"                vazia; so tem conteudo se alguma pagina foi movida para\n"
-"                ca por falta de espaco no firmware.\n"
-"\n"
-"/calib.csv      Offsets de calibracao. DS18B20 e indexado pela ROM;\n"
-"                sensor sem ROM (DHT22, BMP280) vai pelo numero de serie\n"
-"                da placa mais o hwId, em linhas t<hwId> e u<hwId>.\n"
+"/web/           Paginas servidas do disco; so tem conteudo se alguma foi\n"
+"                movida para ca por falta de espaco no firmware.\n"
+"/calib.csv      Offsets de calibracao: DS18B20 pela ROM; sem ROM (DHT22,\n"
+"                BMP280) por serie da placa + hwId (linhas t<hwId>/u<hwId>).\n"
 "/cert.pem       Certificado TLS da telemetria. Opcional.\n"
 "/system.blog    Log de eventos (binario). O .old.blog e o anterior.\n"
 "\n"
-"Espaco: mantenha o uso abaixo de 86%. Acima disso o firmware comeca a\n"
-"apagar os arquivos de historico mais antigos para abrir espaco.\n";
+"Mantenha o uso abaixo de 86%: acima disso o historico mais antigo e apagado.\n";
 
 /* Written only when missing or stale (size differs), never on every boot —
  * a flash write per boot is exactly the exposure the stability work spent

@@ -3,11 +3,12 @@
 inline_tokens_check.py — portão das cópias dos tokens de cor (Ângulo).
 
 Os dezessete papéis de cor dos dois temas vivem numa cópia só, injetada pelo
-/lang.js antes da primeira pintura. Duas páginas não carregam o /lang.js —
-/login e /force_chpass, que vêm antes da sessão — e por isso levam a mesma
+/lang.js antes da primeira pintura. Uma página não carrega o /lang.js — /login,
+que vem antes da sessão e também atende /force_chpass (mesmo blob, modo
+forçado escolhido pelo pathname desde 2026-09-24) — e por isso leva a mesma
 tabela inline. "Mudou lá, mude aqui" é a regra que este portão faz valer: ele
 compara, declaração a declaração, o bloco servido no /lang.js com o bloco
-inline de cada página pré-sessão.
+inline da página pré-sessão.
 
 O segundo invariante é o contrário: nenhuma página AUTENTICADA pode carregar
 um bloco `:root{` inline. Até a 2.4.5 cada uma trazia uma cópia dos tokens
@@ -29,7 +30,7 @@ import sys
 
 import requests
 
-PRE_SESSION = ['/login', '/force_chpass']
+PRE_SESSION = ['/login']  # /force_chpass serves this same blob (forced mode picked from the pathname)
 AUTHENTICATED = ['/', '/history', '/alarms', '/telemetry', '/config',
                  '/network', '/users', '/files', '/license']
 

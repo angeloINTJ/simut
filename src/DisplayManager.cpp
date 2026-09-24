@@ -887,10 +887,13 @@ void DisplayManager::beginTouch( ) {
 
 /* Inject simulated touch for automation (screenshot capture).
  * Set flag + coords; Core 1 sees it on the next handleTouch iteration.
- * Auto-clear after 100ms (1-2 frames @ 30 FPS) to simulate a tap. */
-void DisplayManager::injectTouch(int16_t x, int16_t y) {
+ * Auto-clears after holdMs (mapTouchPoint): 100 ms is a tap ('touch sim');
+ * a larger holdMs ('touch hold') keeps the press down long enough for the
+ * long-press gestures, then releases so the release edge still fires. */
+void DisplayManager::injectTouch(int16_t x, int16_t y, uint32_t holdMs) {
 	__atomic_store_n(&_simTouchX, x, __ATOMIC_RELEASE);
 	__atomic_store_n(&_simTouchY, y, __ATOMIC_RELEASE);
+	__atomic_store_n(&_simTouchHoldMs, holdMs, __ATOMIC_RELEASE);
 	__atomic_store_n(&_simTouchSetMs, millis( ), __ATOMIC_RELEASE);
 	__atomic_store_n(&_simTouchActive, true, __ATOMIC_RELEASE);
 }

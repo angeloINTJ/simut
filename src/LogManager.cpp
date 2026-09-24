@@ -1075,6 +1075,16 @@ void LogManager::performCrashAutopsy( ) {
  * @param code Log code (LogCode enum).
  * @return Pointer to constant string with the description.
  */
+/* Compile this ONE function without tree-switch-conversion. Otherwise GCC
+ * turns the 155-case switch into a const char*[1000] table indexed by code
+ * (the symbol CSWTCH.141): 4,000 B of .rodata that is mostly the default
+ * pointer, because the LogCodes are sparse across 0..999. A compare chain is
+ * 2,032 B of .text instead, and this runs only when a log line is rendered —
+ * never hot. Net -2,000 B on the image (measured, pico_w_test_https,
+ * 2026-09-24). The attribute keeps -Os and disables only that one pass; it
+ * sits before `static` so tools/gen_logcodes.py's parser, anchored on the
+ * exact signature, still matches. */
+__attribute__((optimize("no-tree-switch-conversion")))
 static const char* translateCodeEn(uint16_t code) {
  switch ((LogCode)code) {
  /* ── System (0–9) ── */
