@@ -49,9 +49,10 @@ cp -v "$ORIG/lwipopts.h" "$FW/include/"
 # entao um "restore" deixava HTTPClient, ClientContext e Parsing patchados —
 # dois deles com override real ainda ativo. ATENCAO: cada um segura algo (ver
 # patch.sh) — TLS sem prazo trava o Core 0, Parsing sem prazo aceita o DoS do
-# request lento (D-B8), HTTPClient/ClientContext idem. Os dois patches do
-# HTTPClient (prazos de leitura e feed no envio) moram no mesmo arquivo, entao
-# um unico original reverte os dois.
+# request lento (D-B8), HTTPClient/ClientContext idem. Os tres patches do
+# HTTPClient (prazos de leitura, feed no envio e o parsing de cookies compilado
+# fora, este ultimo so por flash) moram no mesmo arquivo, entao um unico
+# original reverte os tres.
 [ -f "$ORIG/WiFiClientSecureBearSSL.cpp" ] && \
     cp -v "$ORIG/WiFiClientSecureBearSSL.cpp" "$FW/libraries/WiFi/src/"
 [ -f "$ORIG/HTTPClient.cpp" ] && \

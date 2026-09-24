@@ -460,7 +460,6 @@ private:
 	void handleLicense( );
 	void handleApiAlarms( );
 
-	String getForceChpassHtml(bool isError);
 
 	String rgb565ToHex(uint16_t color);
 	void feedWatchdog( );

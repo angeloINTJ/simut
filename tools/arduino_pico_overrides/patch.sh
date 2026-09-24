@@ -198,6 +198,27 @@ else
     patch -p1 -d "$FW" < "$HTTPC_SEND_PATCH"
 fi
 
+# 2c-ter. Parsing de cookies do HTTPClient compilado FORA (HTTPClient.cpp)
+#
+#   O SIMUT nunca instala um CookieJar — a telemetria autentica por chave
+#   bearer — então o corpo de setCookie( ) jamais executa. Mas ele ficava
+#   LINKADO: o parser de cabeçalhos chama setCookie( ) em todo Set-Cookie, e
+#   os dois strptime( ) lá dentro puxam o strptime_l da newlib: 2.528 B de
+#   flash para um recurso que não pode rodar aqui. Medido no pico_w_release
+#   em 2026-09-24 (ver tools/flash_budget.json).
+#
+#   Patch: um return cedo + o resto do corpo em #if 0 (mantido para o diff
+#   contra o upstream continuar legível). A API pública (setCookieJar/
+#   resetCookieJar/clearAllCookies) permanece; um jar instalado em runtime
+#   simplesmente nunca é populado.
+HTTPC_COOKIE_PATCH="$OVR/patches/httpclient_no_cookies.patch"
+if grep -q "SIMUT override — cookie parsing compiled out" "$HTTPC"; then
+    echo "[patch] HTTPClient já tem o parsing de cookies compilado fora — nada a fazer"
+else
+    echo "[patch] compilando fora o parsing de cookies do HTTPClient"
+    patch -p1 -d "$FW" < "$HTTPC_COOKIE_PATCH"
+fi
+
 # 2d. Vazamento de pbufs de recepcao no ClientContext (ClientContext.h)
 #
 #   close( ) e abort( ) desanexam todos os callbacks e largam o _pcb, mas

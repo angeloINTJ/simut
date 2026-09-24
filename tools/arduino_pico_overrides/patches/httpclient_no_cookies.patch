@@ -1,0 +1,30 @@
+--- a/libraries/HTTPClient/src/HTTPClient.cpp	2026-09-24 08:15:26.116142558 -0300
++++ b/libraries/HTTPClient/src/HTTPClient.cpp	2026-09-24 08:15:26.128566037 -0300
+@@ -1328,6 +1328,19 @@
+         return;
+     }
+ 
++    /* SIMUT override — cookie parsing compiled out.
++     *
++     * This firmware never installs a CookieJar (telemetry authenticates with a
++     * bearer key), so the parsing below could never run — yet it was LINKED,
++     * because the header parser calls setCookie( ) on every Set-Cookie. Its two
++     * strptime( ) calls pull newlib's strptime_l: 2,528 B of flash for a
++     * feature that cannot execute here. Measured on pico_w_release 2026-09-24.
++     * The public API (setCookieJar/resetCookieJar/clearAllCookies) is kept so
++     * callers still compile; a jar set at runtime is simply never populated. */
++    (void)date; (void)headerValue;
++    return;
++#if 0 /* SIMUT: unreachable — kept for diffability against upstream */
++
+ #define HTTP_TIME_PATTERN "%a, %d %b %Y %H:%M:%S"
+ 
+     Cookie cookie;
+@@ -1455,6 +1468,7 @@
+         _cookieJar->push_back(cookie);
+     }
+ 
++#endif
+ }
+ 
+ bool HTTPClient::generateCookieString(String *cookieString) {

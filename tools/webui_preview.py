@@ -52,7 +52,7 @@ PAGES = {
     "/alarms": ("ALARMS_PAGE", "text/html"),
     "/license": ("LICENSE_PAGE", "text/html"),
     "/login": ("LOGIN_PAGE", "text/html"),
-    "/force_chpass": ("FORCE_CHPASS_PAGE", "text/html"),
+    "/force_chpass": ("LOGIN_PAGE", "text/html"),  # same blob; the page picks its forced mode from the pathname
     "/lang.js": ("LANG_JS", "application/javascript"),
     "/style.css": ("STYLE_CSS", "text/css"),
 }

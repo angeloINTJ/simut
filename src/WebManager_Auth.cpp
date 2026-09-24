@@ -224,10 +224,17 @@ void WebManager::handleForceChpass( ) {
 	if (getAuthPerms( ) == 0) { _server->sendHeader("Location", "/login", true); _server->send(302, "text/plain", ""); return; }
 	if (!isPasswordChangeRequired( )) { _server->sendHeader("Location", "/", true); _server->send(302, "text/plain", ""); return; }
 
+	/* The login page, in a forced mode it picks from location.pathname: only
+	 * the new-password half of its change-password form is shown and the POST
+	 * goes to /api/force_chpass. FORCE_CHPASS_PAGE used to be a separate blob
+	 * that was a strict subset of LOGIN_PAGE (same sha256, theme, tokens and
+	 * 20 CSS rules); serving the one page from both routes is -3,728 B of
+	 * flash, measured 2026-09-24. The two gates above are what keep an
+	 * account with a pending change on this page; the blob has no say. */
 	_server->sendHeader("Content-Encoding", "gzip");
-	_server->setContentLength(WebUI_GZ::FORCE_CHPASS_PAGE_GZ_LEN);
+	_server->setContentLength(WebUI_GZ::LOGIN_PAGE_GZ_LEN);
 	_server->send(200, "text/html", "");
-	safeSend_GZ(WebUI_GZ::FORCE_CHPASS_PAGE_GZ, WebUI_GZ::FORCE_CHPASS_PAGE_GZ_LEN);
+	safeSend_GZ(WebUI_GZ::LOGIN_PAGE_GZ, WebUI_GZ::LOGIN_PAGE_GZ_LEN);
 }
 /* Looks for the client IP's own slot first; if not found, picks the LRU
  * among evictable slots (free OR without active lockout). A slot under

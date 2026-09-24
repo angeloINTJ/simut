@@ -98,7 +98,6 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     /* F-LANGPACK β: dict.pt vem de GET /api/lang (servido do .lng). */
     const dictLog = {
         pt: {},
-        en: { "log_usr": "Username", "log_pas": "Password", "log_show": "Show password", "log_btn": "Sign In", "log_err": "Invalid credentials.", "log_full": "System is full. Try again later.", "log_lock": "Locked for {s}s. Too many attempts.", "log_chpass_link": "Change password", "log_chpass_title": "Change Password", "log_oldpass": "Current Password", "log_newpass": "New Password", "log_newpass2": "Repeat New Password", "log_chpass_btn": "Save New Password", "log_chpass_back": "← Back to Login", "log_chpass_ok": "Password changed. Please sign in.", "log_chpass_same": "New password must differ from current.", "log_chpass_mismatch": "Passwords do not match.", "log_chpass_req_len": "At least 8 characters", "log_chpass_req_letter": "Letter", "log_chpass_req_digit": "Digit", "log_chpass_req_symbol": "Symbol" }
     };
     fetch('/api/lang').then(r=>r.json()).then(d=>{Object.assign(dictLog.pt,d);if(Object.keys(d).length>0&&!localStorage.getItem('simut_lang'))localStorage.setItem('simut_lang','pt');applyLang();}).catch(()=>{});
     function t(key, fallback, vars) { let l = localStorage.getItem('simut_lang') || 'en'; let s = (l !== 'en' && dictLog[l] && dictLog[l][key]) ? dictLog[l][key] : fallback; if (vars) for (let k in vars) s = s.replace('{'+k+'}', vars[k]); return s; }
@@ -219,8 +218,44 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             }
         } catch(ex) { document.getElementById('chErr').textContent = 'Connection error.'; btn.disabled = false; await fetchNonce(); }
     }
+    /* /force_chpass is this same page in a forced mode: handleForceChpass
+       serves LOGIN_PAGE_GZ there and the pathname picks the mode. Only the
+       new-password half of the change form is shown; the POST goes to
+       /api/force_chpass with p1/p2 and rides the session cookie, so no
+       nonce is fetched. The gate stays server-side (checkPageAccess +
+       handleApiForceChpass); this page only decides what to draw. It
+       replaced a second page that was a strict subset of this one:
+       -3,728 B of flash, measured 2026-09-24. */
+    const FORCED = (location.pathname === '/force_chpass');
+    async function doForced(e) {
+        e.preventDefault();
+        let btn = document.getElementById('btnChpass'); if (btn.disabled) return;
+        let np1El = document.getElementById('np1'), np2El = document.getElementById('np2');
+        let v1 = np1El.value, v2 = np2El.value;
+        if (!v1 || v1 !== v2) return;
+        /* Same wire rule as doChpass: plaintext over HTTPS (server enforces the
+           policy), sha256 over HTTP. */
+        if (location.protocol !== 'https:') { if (v1.length !== 64) v1 = sha256(v1); v2 = v1; }
+        btn.disabled = true; document.getElementById('chErr').textContent = '';
+        try {
+            let fd = new URLSearchParams(); fd.append('p1', v1); fd.append('p2', v2);
+            let r = await fetch('/api/force_chpass', { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: fd.toString(), credentials: 'same-origin' });
+            if (r.ok) { np1El.value = ''; np2El.value = ''; window.location.href = '/'; return; }
+            document.getElementById('chErr').textContent = 'Error updating password.'; btn.disabled = false;
+        } catch(ex) { document.getElementById('chErr').textContent = 'Connection error.'; btn.disabled = false; }
+    }
     document.addEventListener('DOMContentLoaded', () => {
-        applyLang(); fetchNonce();
+        if (FORCED) {
+            setMode('chpass');
+            document.getElementById('chTitle').style.display = 'none';
+            let u2 = document.querySelector('input[name="user2"]'), op = document.getElementById('opInput');
+            u2.style.display = 'none'; u2.required = false; op.style.display = 'none'; op.required = false;
+            document.getElementById('lnkBack').style.display = 'none';
+            let b = document.getElementById('btnChpass'); b.setAttribute('data-i18n', 'fcp_btn'); b.textContent = t('fcp_btn', 'Save & Login');
+            document.getElementById('chpassForm').onsubmit = doForced;
+            document.getElementById('fcpIntro').style.display = '';
+        }
+        applyLang(); if (!FORCED) fetchNonce();
         /* Loop guard: a login POST set simut_login_ok and redirected to a
            protected page; the server 302'd it back here because no session
            cookie arrived. The usual cause is a Secure cookie left by an earlier
@@ -252,7 +287,8 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <a class="toggle-link" id="lnkChpass" onclick="setMode('chpass')" data-i18n="log_chpass_link">Change password</a>
         </form>
         <form id="chpassForm" style="display:none;" onsubmit="doChpass(event)">
-            <h3 data-i18n="log_chpass_title">Change Password</h3>
+            <div id="fcpIntro" style="display:none;"><h3 data-i18n="fcp_wel">Welcome!</h3><div class="tagline" data-i18n="fcp_msg">Please set a strong new password to access the system.</div></div>
+            <h3 id="chTitle" data-i18n="log_chpass_title">Change Password</h3>
             <input type="text" name="user2" placeholder="Username" data-i18n="log_usr" required autocomplete="off">
             <input type="password" id="opInput" placeholder="Current Password" data-i18n="log_oldpass" required>
             <input type="password" id="np1" placeholder="New Password" data-i18n="log_newpass" required onkeyup="chpassStrength()">
@@ -268,7 +304,7 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <button type="submit" id="btnChpass" data-i18n="log_chpass_btn" disabled>Save New Password</button>
             <div class="err" id="chErr"></div>
             <div class="ok-msg" id="chOk"></div>
-            <a class="toggle-link" onclick="setMode('login')" data-i18n="log_chpass_back">← Back to Login</a>
+            <a class="toggle-link" id="lnkBack" onclick="setMode('login')" data-i18n="log_chpass_back">← Back to Login</a>
         </form>
         <div class="lang-box">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
@@ -283,136 +319,6 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 )raw";
 
 
-static const char FORCE_CHPASS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <title>SIMUT - Setup</title>
-    <script>(function(){var t=null;try{t=localStorage.getItem('simut_ui_theme');}catch(e){}if(!t)t=(window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';document.documentElement.setAttribute('data-theme',t==='light'?'claro':'escuro');})()</script>
-    <style>
-        /* Angulo (ANGULO.md do simut-rx). Pre-sessao nao carrega o lang.js, entao os
-           tokens dos dois temas moram aqui — copia do bloco do lang.js; mudou la, mude aqui.
-           O tema vem do script acima, pela mesma chave simut_ui_theme. */
-        :root{color-scheme:dark;--fundo:#161513;--superficie:#201e1b;--superficie-2:#2a2723;--tinta:#ebe7df;--tinta-2:#a39c90;--linha:#383430;--linha-forte:#78716a;--acento:#5fb39a;--acento-forte:#7cc7b2;--acento-tinta:#0e211b;--positivo:#6fbe8e;--positivo-suave:#24352b;--alerta:#d9a84e;--alerta-suave:#38301c;--perigo:#e07862;--perigo-suave:#382220;--perigo-tinta:#2b100c;--veu:rgba(0,0,0,.6);--sombra-flutuante:0 16px 40px rgba(0,0,0,.5)}:root[data-theme=claro]{color-scheme:light;--fundo:#f6f6f4;--superficie:#fff;--superficie-2:#ecebe6;--tinta:#201e1a;--tinta-2:#5f5b54;--linha:#dcdad3;--linha-forte:#827e76;--acento:#1f6355;--acento-forte:#174d42;--acento-tinta:#f1faf6;--positivo:#20784e;--positivo-suave:#e1f0e7;--alerta:#8a6116;--alerta-suave:#f3ead2;--perigo:#b3382e;--perigo-suave:#f7e3e0;--perigo-tinta:#fff5f3;--veu:rgba(0,0,0,.4);--sombra-flutuante:0 12px 32px rgba(23,22,20,.16)}
-        /* margin:auto no lugar de align-items:center — com conteudo mais alto que a
-           viewport, centralizar por flex joga o topo fora do alcance da rolagem. */
-        body { background: var(--fundo); color: var(--tinta); font: 400 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; display: flex; min-height: 100vh; min-height: 100dvh; margin: 0; padding: 16px; box-sizing: border-box; }
-        /* Cartao: linha, nunca sombra. */
-        .box { background: var(--superficie); margin: auto; padding: clamp(20px, 5vw, 40px); border-radius: 12px; border: 1px solid var(--linha); width: min(360px, 100%); box-sizing: border-box; text-align: center; }
-        h2, h3 { font-family: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 8px; }
-        h2 { font-size: 24px; line-height: 30px; }
-        h3 { font-size: 18px; line-height: 24px; }
-        input[type="text"], input[type="password"] { width: 100%; padding: 10px 12px; min-height: 44px; margin: 8px 0; background: var(--superficie); border: 1px solid var(--linha-forte); color: var(--tinta); border-radius: 6px; box-sizing: border-box; font: inherit; }
-        input::placeholder { color: var(--tinta-2); opacity: 0.8; }
-        input:focus { border-color: var(--acento); outline: none; }
-        :focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
-        @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; } }
-        button[type="submit"] { width: 100%; padding: 12px 16px; min-height: 44px; background: var(--acento); color: var(--acento-tinta); font: inherit; font-weight: 600; border: 1px solid transparent; border-radius: 6px; cursor: pointer; margin-top: 12px; transition: background 0.15s; }
-        button[type="submit"]:hover { background: var(--acento-forte); }
-        button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; }
-        .chk-row { display: flex; align-items: center; gap: 8px; margin: 8px 0; justify-content: flex-start; }
-        .chk-row input { width: 18px; height: 18px; accent-color: var(--acento); cursor: pointer; margin: 0; }
-        .chk-row label { color: var(--tinta-2); font-size: 14px; cursor: pointer; }
-        .bar-bg { width: 100%; height: 6px; background: var(--superficie-2); border-radius: 999px; margin-top: 6px; overflow: hidden; }
-        .bar-fg { height: 100%; width: 0; transition: 0.3s; background: var(--perigo); border-radius: 999px; }
-        p { color: var(--tinta-2); font-size: 14px; line-height: 20px; margin: 0 0 20px; }
-        .req { text-align: left; font-size: 13px; line-height: 18px; color: var(--tinta-2); margin-top: 8px; }
-        /* Toast: copia da folha comum, que esta pagina nao carrega; top:16px porque nao ha barra. */
-        #net-toast { position: fixed; top: 16px; left: 50%; transform: translate(-50%, -24px); max-width: min(560px, calc(100% - 32px)); z-index: 9999; padding: 12px 16px; border-radius: 6px; border: 1px solid; font-size: 14px; font-weight: 600; box-shadow: var(--sombra-flutuante); opacity: 0; pointer-events: none; transition: transform 0.25s, opacity 0.25s; }
-        #net-toast.show { transform: translate(-50%, 0); opacity: 1; }
-        #net-toast.warn { background: var(--alerta-suave); color: var(--alerta); border-color: var(--alerta); }
-        #net-toast.err { background: var(--perigo-suave); color: var(--perigo); border-color: var(--perigo); }
-        #net-toast.ok { background: var(--positivo-suave); color: var(--positivo); border-color: var(--positivo); }
-    </style>
-    <script>
-    /* F-LANGPACK β: dict.pt vem de GET /api/lang (servido do .lng).
-     * v3.32.5: fallback inline pra chaves fcp_* faltantes no .lng do device. */
-    const dictFcp = {
-        pt: {
-            "fcp_wel":  "Bem-vindo!",
-            "fcp_msg":  "Defina uma nova senha forte para acessar o sistema.",
-            "fcp_p1":   "Nova Senha",
-            "fcp_p2":   "Repetir Senha",
-            "fcp_req":  "Mínimo 8 caracteres, incluindo letras, números e símbolos.",
-            "fcp_show": "Mostrar senhas"
-        },
-        en: { "fcp_btn": "Save & Login" }
-    };
-    fetch('/api/lang').then(r=>r.json()).then(d=>{Object.assign(dictFcp.pt,d);if(Object.keys(d).length>0&&!localStorage.getItem('simut_lang'))localStorage.setItem('simut_lang','pt');applyLang();}).catch(()=>{});
-    function setLang(l) { localStorage.setItem('simut_lang', l); applyLang(); }
-    function escHtml(s){var d=document.createElement('div');d.textContent=(s===null||s===undefined)?'':String(s);return d.innerHTML;}
-    function applyLang() { let l = localStorage.getItem('simut_lang') || 'en'; document.querySelectorAll('.lang-select').forEach(s => s.value = l); document.querySelectorAll('[data-i18n]').forEach(el => { let k = el.getAttribute('data-i18n'); if(!el.hasAttribute('data-en')) el.setAttribute('data-en', el.placeholder || el.innerHTML); let fromDict = (l !== 'en' && dictFcp[l] && dictFcp[l][k]); let t = fromDict ? dictFcp[l][k] : el.getAttribute('data-en'); if(el.tagName === 'INPUT') el.placeholder = t; else el.innerHTML = fromDict ? escHtml(t) : t; }); }
-    document.addEventListener('DOMContentLoaded', applyLang);
-    function sha256(ascii){function rightRotate(value,amount){return(value>>>amount)|(value<<(32-amount));}var mathPow=Math.pow;var maxWord=mathPow(2,32);var lengthProperty='length';var i,j;var result='';var words=[];var asciiBitLength=ascii[lengthProperty]*8;var hash=sha256.h=sha256.h||[];var k=sha256.k=sha256.k||[];var primeCounter=k[lengthProperty];var isComposite={};for(var candidate=2;primeCounter<64;candidate++){if(!isComposite[candidate]){for(i=0;i<313;i+=candidate)isComposite[i]=candidate;hash[primeCounter]=(mathPow(candidate,.5)*maxWord)|0;k[primeCounter++]=(mathPow(candidate,1/3)*maxWord)|0;}}ascii+='\x80';while(ascii[lengthProperty]%64-56)ascii+='\x00';for(i=0;i<ascii[lengthProperty];i++){j=ascii.charCodeAt(i);if(j>>8)return;words[i>>2]|=j<<((3-i)%4)*8;}words[words[lengthProperty]]=((asciiBitLength/maxWord)|0);words[words[lengthProperty]]=(asciiBitLength);for(j=0;j<words[lengthProperty];){var w=words.slice(j,j+=16);var oldHash=hash;hash=hash.slice(0,8);for(i=0;i<64;i++){var w15=w[i-15],w2=w[i-2];var a=hash[0],e=hash[4];var temp1=hash[7]+(rightRotate(e,6)^rightRotate(e,11)^rightRotate(e,25))+((e&hash[5])^((~e)&hash[6]))+k[i]+(w[i]=(i<16)?w[i]:(w[i-16]+(rightRotate(w15,7)^rightRotate(w15,18)^(w15>>>3))+w[i-7]+(rightRotate(w2,17)^rightRotate(w2,19)^(w2>>>10)))|0);var temp2=(rightRotate(a,2)^rightRotate(a,13)^rightRotate(a,22))+((a&hash[1])^(a&hash[2])^(hash[1]&hash[2]));hash=[(temp1+temp2)|0].concat(hash);hash[4]=(hash[4]+temp1)|0;}for(i=0;i<8;i++)hash[i]=(hash[i]+oldHash[i])|0;}for(i=0;i<8;i++){for(j=3;j+1;j--){var b=(hash[i]>>(j*8))&255;result+=((b<16)?0:'')+b.toString(16);}}return result;}
-
-    async function doSubmit(e) {
-        e.preventDefault();
-        let p1El = document.getElementById('p1');
-        let p2El = document.getElementById('p2');
-
-        // 1. Extrai para a RAM
-        let val1 = p1El.value;
-        let val2 = p2El.value;
-
-        // 2. Over HTTPS send the plaintext on the encrypted channel so the
-        //    server can enforce the password policy (A-5); over HTTP send the
-        //    sha256 as before (nothing readable on a cleartext link).
-        if (location.protocol !== 'https:') {
-            if (val1.length !== 64) val1 = sha256(val1);
-            if (val2.length !== 64) val2 = sha256(val2);
-        }
-
-        try {
-            let fd = new URLSearchParams();
-            fd.append('p1', val1);
-            fd.append('p2', val2);
-
-            let r = await fetch('/api/force_chpass', { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: fd.toString() });
-
-            if(r.ok) {
-                // Limpa os campos visuais e redireciona
-                p1El.value = '';
-                p2El.value = '';
-                window.location.href = '/';
-            } else {
-                showToast('Error updating password.', 'err');
-            }
-        } catch(ex) {
-            showToast('Connection error.', 'err');
-        }
-    }
-    function showToast(msg, type, ms) { var el = document.getElementById('net-toast'); el.textContent = msg; el.className = type + ' show'; setTimeout(function() { el.className = ''; }, ms || 3000); }
-    function togglePass() { let t = document.getElementById('chkPass').checked ? 'text' : 'password'; document.getElementById('p1').type = t; document.getElementById('p2').type = t; }
-    </script>
-</head>
-<body>
-    <div id="net-toast" role="status" aria-live="polite"></div>
-    <div class="box">
-        <h2 data-i18n="fcp_wel">Welcome!</h2>
-        <p data-i18n="fcp_msg">Please set a strong new password to access the system.</p>
-        <form onsubmit="doSubmit(event)">
-            <input type="password" id="p1" name="p1" placeholder="New Password" data-i18n="fcp_p1" required onkeyup="checkStr()">
-            <div class="bar-bg"><div class="bar-fg" id="bar"></div></div>
-            <div class="req" id="req-text" data-i18n="fcp_req">At least 8 characters, including letters, numbers, and special symbols.</div>
-            <input type="password" id="p2" name="p2" placeholder="Repeat Password" data-i18n="fcp_p2" required onkeyup="checkStr()">
-            <div class="chk-row"><input type="checkbox" id="chkPass" onchange="togglePass()"><label for="chkPass" data-i18n="fcp_show">Show passwords</label></div>
-            <button type="submit" id="btn" data-i18n="fcp_btn" disabled>Save & Login</button>
-            <script>
-                function checkStr() {
-                    let p1 = document.getElementById('p1').value; let p2 = document.getElementById('p2').value; let s = 0;
-                    if(p1.length >= 8) s += 25; if(/[A-Za-z]/.test(p1)) s += 25; if(/[0-9]/.test(p1)) s += 25; if(/[^A-Za-z0-9]/.test(p1)) s += 25;
-                    let b = document.getElementById('bar'); b.style.width = s + '%';
-                    b.style.background = s <= 25 ? 'var(--perigo)' : s <= 75 ? 'var(--alerta)' : 'var(--positivo)';
-                    document.getElementById('btn').disabled = !(s === 100 && p1 === p2);
-                }
-            </script>
-        </form>
-    </div>
-</body>
-</html>
-)raw";
 
 
 static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
@@ -473,7 +379,7 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     </style>
     <script>
         /* window.t/applyLang/setLang/showToast/fetchSafe vem de /lang.js */
-        document.addEventListener('DOMContentLoaded', () => { setTimeout(applyLang, 50); setTimeout(() => { let activeTab = document.querySelector('.nav a.active'); if (activeTab) { activeTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); } }, 100); }); window.updateLang = applyLang;
+        document.addEventListener('DOMContentLoaded', () => { setTimeout(applyLang, 50); setTimeout(() => { let activeTab = document.querySelector('.nav a.active'); if (activeTab) { activeTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); } }, 100); });
 
     </script>
 </head>
@@ -1027,7 +933,6 @@ var PAD = 6;            /* respiro entre area do grafico e rotulos */
  * referencia da 9, e a regressao so apareceu quando a legenda comeu 21 px do
  * topo. Densidade nao e constante: e funcao do espaco. */
 var Y_PITCH = TICK_PX * 1.4;
-var TICK_LEN = 0;       /* a pagina nao desenha marcas para fora do eixo */
 var BAND_IN_RANGE = true;   /* ver fromData() */
 
 /* Legenda: a marca e um RETANGULO com a cor e o tracejado da serie, nao um
@@ -1207,7 +1112,6 @@ Scale.prototype.setRange = function (p0, p1) {
 };
 
 Scale.prototype.getPixelForValue = function (v) { return this.a * v + this.b; };
-Scale.prototype.getValueForPixel = function (p) { return this.a ? (p - this.b) / this.a : this.min; };
 
 /* ---- o grafico ---- */
 function H5G(ctx, config) {
@@ -1776,7 +1680,6 @@ H5G.prototype._unbind = function () {
 };
 
 global.Chart = H5G;
-global.H5G = H5G;
 
 })(window);
     </script>
@@ -2796,7 +2699,6 @@ global.H5G = H5G;
         function evtName(code) { let l = localStorage.getItem('simut_lang') || 'en'; let dict = (l === 'pt') ? EVT_NAMES_PT : EVT_NAMES_EN; let lbl = dict[code.toString()]; if (lbl) return lbl; return (l === 'pt' ? 'Evento #' : 'Event #') + code; }
         const TAG_NAMES = ['APP','NET','TEL','STO','WEB','CFG','CLI','SENSOR','HIST','SYS','DSP','SEC','OTA','?','?','?'];
         const LVL_LABELS = ['DBG','INF','WRN','ERR','FTL']; const LVL_CLASS = ['log-inf','log-inf','log-wrn','log-err','log-err'];
-        const LVL_NUM = { 'INF':1, 'WRN':2, 'ERR':3 };
         function fmtUptime(ms) { let s=Math.floor(ms/1000); let d=Math.floor(s/86400); s%=86400; let h=Math.floor(s/3600); s%=3600; let m=Math.floor(s/60); s%=60; let p=v=>v<10?'0'+v:v; return d>0?d+'d '+p(h)+':'+p(m)+':'+p(s):p(h)+':'+p(m)+':'+p(s); }
 
         let parsedLogRows = [];
@@ -3156,25 +3058,13 @@ global.H5G = H5G;
             return lines;
         }
 
-        /* Export chunked com chunk_size adaptativo + cancelamento + retry.
-         *
-         * Calibragem (tools/test_chunk_perf.sh):
-         *   6h => 717ms  (5/5, 22s p/ 7d)
-         *   12h => 2183ms (5/5)
-         *   24h => 2635ms (5/5, 19s p/ 7d — sweet spot)
-         *   48h => 6278ms (5/5, mas perto do deadline 10s)
-         *
-         * Estrategia:
-         *  - Inicial: 24h (ou menos se heap_lb baixo)
-         *  - Em falha: divide chunk pela metade (split) e re-tenta o mesmo cursor.
-         *  - Apos N OK consecutivos: tenta aumentar de volta ate o teto.
-         *  - Cancelavel via AbortController + flag.
-         */
+        /* Export chunked + cancelamento + retry. O chunk e fixo em 24 h — a
+         * calibragem (tools/test_chunk_perf.sh) deu 6h 717 ms, 12h 2183 ms,
+         * 24h 2635 ms (19 s p/ 7 d, o ponto doce) e 48h 6278 ms (beira o
+         * deadline de 10 s). O split adaptativo que existiu aqui foi removido;
+         * sobraram o tamanho inicial e o numero de tentativas. */
         const EXP_CHUNK_INITIAL = 86400;      /* 24h sweet spot */
-        const EXP_CHUNK_MAX     = 86400;      /* nao passar de 24h (48h beira o limite) */
-        const EXP_CHUNK_MIN     =  3600;      /* 1h minimo */
-        const EXP_MAX_RETRIES   = 2;          /* por tamanho — split conta como retry mais agressivo */
-        const EXP_RECOVERY_WIN  = 5;          /* OK consecutivos antes de tentar aumentar */
+        const EXP_MAX_RETRIES   = 2;          /* por chunk */
         let _expAbort = null;                 /* AbortController do fetch atual */
         let _expCancelled = false;
 
@@ -3240,7 +3130,6 @@ global.H5G = H5G;
             }
             const filterArr = _selectedSensors.slice();
             const from = _lastChartCutoff, to = _lastChartEnd;
-            const totalSecs = to - from;
             const orig = btn.innerHTML;
             btn.disabled = true; btn.innerHTML = '⏳';
             _expCancelled = false;
@@ -3482,7 +3371,7 @@ global.H5G = H5G;
                 const iso = (r.epoch && r.epoch > 0) ? _isoLocal(r.epoch) : r.dateStr;
                 const msgRaw = (typeof evtName === 'function') ? evtName(r.code) : ('Event #' + r.code);
                 const msgEsc = msgRaw.replace(/"/g, '""');
-                lines.push(iso + ',' + r.lvlLabel + ',' + r.tag + ',' + r.code + ',"' + msgEsc + '",' + r.ctx + ',' + r.upHr);
+                lines.push(iso + ',' + r.lvlLabel + ',' + r.tag + ',' + r.code + ',"' + msgEsc + '",' + r.ctx + ',' + r.upSec);
             }
             if (lines.length === 0) { showToast(window.t('exp_empty','No data in this range.'), 'warn'); return; }
             const csv = '﻿' + 'timestamp_iso,level,module,code,message,context,uptime_sec\n' + lines.join('\n') + '\n';
@@ -5616,10 +5505,6 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         const SCAN_TRIES = 20, SCAN_MISS = 6;
         let scanBusy = false, scanNets = [];
 
-        /* escHtml NAO escapa aspas, e este texto vai para dentro de um atributo:
-           uma SSID com " fecharia o title e abriria markup. */
-        function escAttr(v) { return escHtml(v).replace(/"/g, '&quot;'); }
-
         function scanNote(txt) {
             document.getElementById('scanBox').innerHTML =
                 '<div class="scan-note">' + escHtml(txt) + '</div>';
@@ -7367,16 +7252,6 @@ static const char LANG_JS[] PROGMEM = R"raw(
             "usr_pend_pin": "Pendente: PIN",
             "usr_pin_msg": "PIN do painel desta conta: 4 a 8 dígitos, ou vazio para remover.",
             "usr_pin_bad": "O PIN deve ter 4 a 8 dígitos.",
-            "cal_mode": "Modo Calibração",
-            "cal_id": "ID",
-            "cal_name": "Nome",
-            "cal_ref_t": "Ref. (°C)",
-            "cal_ref_h": "Ref. (%)",
-            "cal_apply": "Atualizar",
-            "cal_apply_ok": "Atualizado v",
-            "cal_apply_fail": "Falha: ",
-            "cal_no_changes": "Nada a alterar.",
-            "cal_ntp_no": "NTP não sincronizado",
             /* Curvas de calibração por pontos (/config → editor de slot).
                Inline pelo mesmo motivo do bloco sens_rebind acima: o .lng no
                LittleFS não acompanha o flash do firmware. */
@@ -7400,10 +7275,6 @@ static const char LANG_JS[] PROGMEM = R"raw(
             "cal_mode_lin": "Reta",
             "cal_mode_cub": "Suave",
             "cal_mode_hint": "Suave é uma cúbica monótona: dobra pelas âncoras sem jamais ultrapassá-las. Precisa de 3+ pontos; com menos, comporta-se como reta."
-        },
-        en: {
-            "hist_load_btn": "Load", "hist_prompt": "Click 'Load' to view system logs.",
-            "greet_morning": "Good morning", "greet_afternoon": "Good afternoon", "greet_evening": "Good evening", "greet_hello": "Hello", "greet_logout": "Logout"
         }
     };
     fetch('/api/lang').then(r=>r.json()).then(d=>{Object.assign(dict.pt,d);if(Object.keys(d).length>0&&!localStorage.getItem('simut_lang'))localStorage.setItem('simut_lang','pt');if(typeof applyLang==='function')applyLang();}).catch(()=>{});
@@ -7571,7 +7442,7 @@ static const char LANG_JS[] PROGMEM = R"raw(
        escreve no mesmo ponto sem reentrar no analisador. */
     /* O sprite dos icones vem junto com a barra: e o primeiro markup do <body>
        em toda pagina, entao qualquer <use href="#i-…"> depois dele resolve. */
-    var TOPBAR_HTML = '<svg style="display:none" xmlns="http://www.w3.org/2000/svg"><symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol><symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol><symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol><symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol><symbol id="i-dash" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol><symbol id="i-hist" viewBox="0 0 24 24"><path d="M3 20h18M4 16l5-6 4 4 4-7 3 3"/></symbol><symbol id="i-alm" viewBox="0 0 24 24"><path d="M6 17V11a6 6 0 0 1 12 0v6l2 2H4zM10 21h4"/></symbol><symbol id="i-tel" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 7.8a6 6 0 0 0 0 8.4M19.1 4.9a10 10 0 0 1 0 14.2M4.9 4.9a10 10 0 0 0 0 14.2"/></symbol><symbol id="i-cfg" viewBox="0 0 24 24"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></symbol><symbol id="i-net" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol><symbol id="i-usr" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol><symbol id="i-file" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol><symbol id="i-lic" viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6zM14 3v5h5M9 13h6M9 17h6"/></symbol><symbol id="i-cam" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></symbol><symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3l10 18H2zM12 10v4M12 17.5v.01"/></symbol><symbol id="i-left" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol><symbol id="i-right" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol><symbol id="i-sound" viewBox="0 0 24 24"><path d="M4 10v4h3l5 4V6L7 10zM16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></symbol><symbol id="i-doc" viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6zM14 3v5h5"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol><symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol><symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></symbol><symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></symbol><symbol id="i-chip" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M4 10h3M4 14h3M17 10h3M17 14h3M10 4v3M14 4v3M10 17v3M14 17v3"/></symbol><symbol id="i-archive" viewBox="0 0 24 24"><path d="M3 5h18v4H3zM5 9v10h14V9M10 13h4"/></symbol><symbol id="i-restore" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/></symbol><symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></symbol><symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 5.2A9.9 9.9 0 0 1 12 5c6.5 0 10 7 10 7a18 18 0 0 1-3.4 4.3M6.6 6.7A18 18 0 0 0 2 12s3.5 7 10 7a9.8 9.8 0 0 0 4.2-.9"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol></svg>'
+    var TOPBAR_HTML = '<svg style="display:none" xmlns="http://www.w3.org/2000/svg"><symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol><symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol><symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol><symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol><symbol id="i-dash" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol><symbol id="i-hist" viewBox="0 0 24 24"><path d="M3 20h18M4 16l5-6 4 4 4-7 3 3"/></symbol><symbol id="i-alm" viewBox="0 0 24 24"><path d="M6 17V11a6 6 0 0 1 12 0v6l2 2H4zM10 21h4"/></symbol><symbol id="i-tel" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 7.8a6 6 0 0 0 0 8.4M19.1 4.9a10 10 0 0 1 0 14.2M4.9 4.9a10 10 0 0 0 0 14.2"/></symbol><symbol id="i-cfg" viewBox="0 0 24 24"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></symbol><symbol id="i-net" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol><symbol id="i-usr" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol><symbol id="i-file" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol><symbol id="i-lic" viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6zM14 3v5h5M9 13h6M9 17h6"/></symbol><symbol id="i-cam" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></symbol><symbol id="i-left" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol><symbol id="i-right" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol><symbol id="i-sound" viewBox="0 0 24 24"><path d="M4 10v4h3l5 4V6L7 10zM16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></symbol><symbol id="i-doc" viewBox="0 0 24 24"><path d="M6 3h8l5 5v13H6zM14 3v5h5"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol><symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol><symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></symbol><symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></symbol><symbol id="i-chip" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M4 10h3M4 14h3M17 10h3M17 14h3M10 4v3M14 4v3M10 17v3M14 17v3"/></symbol><symbol id="i-archive" viewBox="0 0 24 24"><path d="M3 5h18v4H3zM5 9v10h14V9M10 13h4"/></symbol><symbol id="i-restore" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/></symbol><symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></symbol><symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 5.2A9.9 9.9 0 0 1 12 5c6.5 0 10 7 10 7a18 18 0 0 1-3.4 4.3M6.6 6.7A18 18 0 0 0 2 12s3.5 7 10 7a9.8 9.8 0 0 0 4.2-.9"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol></svg>'
         +'<div id="net-toast" role="status" aria-live="polite"></div>'
         +'<div class="topbar">'
         +'<div>'
