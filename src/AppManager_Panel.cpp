@@ -260,13 +260,14 @@ bool AppManager::handlePanelEvent(const UiEvent& ev) {
  return true;
 
  case UiEvent::EVT_PIN_POLICY: {
- /* id < 0 is "I left without saving": put back what is stored, because the
-  * editor edits the live struct so it can show the clamping as it happens. */
- if (ev.id < 0) { _storageMgr->loadConfiguration( ); return true; }
  if (!panelAllowed(PERM_USER_MGR, -1)) {
  _displayMgr->showPanelMessage(false, TR_NO_PERMISSION, MODE_SETTINGS_MAIN);
  return true;
  }
+ /* The OLD values, read before anything is written: the editor works on a
+  * copy (DisplayManager::showPinPolicy), so the struct still holds what is
+  * stored. Until 2026-09-24 it edited this struct directly and these three
+  * were already the new policy — nobody was ever marked from the panel. */
  const uint8_t oldMin = cfg.pinAuth.pinMinLen, oldKb = cfg.pinAuth.pinKeypad,
                oldAlpha = cfg.pinAuth.pinAlphabet;
  uint8_t minLen = (uint8_t)ev.id;
