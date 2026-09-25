@@ -51,16 +51,16 @@ O painel de um aparelho novo: a rede do ponto de acesso, a chave e o aviso de AP
 
 ### No LCD
 
-[alpha]{.img} O LCD mostra `SIMUT 2.7.2` e `Inicializando` e, depois, uma barra de progresso ([capítulo 12](#cap-12-boot)).
+[alpha]{.img} O LCD mostra `SIMUT 2.7.3` e `Inicializando` e, depois, uma barra de progresso ([capítulo 12](#cap-12-boot)).
 
-Num aparelho novo, pelo código da v2.7.2, o LCD fica parado em `SIMUT 2.7.2` com a barra cheia e não mostra as páginas do ponto de acesso. Esse comportamento vem da leitura do código e não foi observado em bancada, que não tem LCD. Pegue o nome da rede e a chave no console, como em [Pôr o aparelho na rede](#cap-04-rede).
+Num aparelho novo, pelo código da v2.7.3, o LCD fica parado em `SIMUT 2.7.3` com a barra cheia e não mostra as páginas do ponto de acesso. Esse comportamento vem da leitura do código e não foi observado em bancada, que não tem LCD. Pegue o nome da rede e a chave no console, como em [Pôr o aparelho na rede](#cap-04-rede).
 
 ```text
-SIMUT 2.7.2
+SIMUT 2.7.3
 [##############]
 ```
 
-::: {.figura #fig-04-lcd-ap tipo="lcd" arquivo="04-lcd-ap.png" captura="alpha recém-gravada, sem rede configurada, depois do boot com o ponto de acesso aberto; linha de cima SIMUT 2.7.2, linha de baixo [##############] com a barra cheia"}
+::: {.figura #fig-04-lcd-ap tipo="lcd" arquivo="04-lcd-ap.png" captura="alpha recém-gravada, sem rede configurada, depois do boot com o ponto de acesso aberto; linha de cima SIMUT 2.7.3, linha de baixo [##############] com a barra cheia"}
 O LCD de uma alpha nova com o ponto de acesso aberto: a tela de boot fica parada, e a chave está no console.
 :::
 

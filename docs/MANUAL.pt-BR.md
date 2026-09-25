@@ -1,6 +1,6 @@
 # SIMUT — Manual do Usuário
 
-**Firmware:** v2.7.2 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **Licença:** MIT
+**Firmware:** v2.7.3 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **Licença:** MIT
 **Repositório:** https://github.com/angeloINTJ/simut
 
 [English](MANUAL.md) | **Português**
@@ -544,11 +544,20 @@ política de PIN continuam exigindo reinício, e nesse caso a barra mostra só
 limite, não para configurar. Enquanto o pendente estiver lá, a barra continua
 visível.
 
+**Reiniciar sem salvar** (desde a v2.7.3, na seção *Reiniciar* no fim da
+página) reinicia o aparelho sem gravar nada: o que ainda está pendente é
+descartado, e o que foi aplicado com **Testar** também, porque o aparelho
+volta com a configuração gravada. Ele pede confirmação; o aparelho fica fora
+do ar por cerca de 10 s.
+
 ### Autenticação
 
 O login é uma troca em duas etapas: o navegador busca um nonce em
 `/api/login_init`, faz o hash da senha no lado do cliente e posta o hash junto
 com o nonce. A sessão é um cookie `SIMUTSESS`.
+
+Desde a v2.7.3 a tela de login mostra a versão do firmware abaixo do nome do
+produto, então dá para saber o que um aparelho roda antes de entrar.
 
 Dois detalhes importam se você for automatizar contra ele:
 

@@ -4,6 +4,116 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.7.3 (2026-09-25)
+
+**A tela de login diz qual firmware responde, e a página Configurações sabe
+reiniciar sem salvar.** Dois recursos pequenos pedidos na bancada, e a marca, os
+READMEs, o site e a documentação trazidos para um só padrão visual.
+
+`CONFIG_VERSION` continua 25: nenhuma migração roda, e um aparelho que atualiza
+pelo ar mantém a configuração.
+
+### A versão do firmware na tela de login
+
+A tela de login mostra a versão abaixo do nome do produto, `v2.7.3`, antes de
+qualquer login. A página não tem sessão para perguntar ao aparelho, então o
+número é carimbado nela no build: o `tools/build_webui_gz.py` lê o
+`SIMUT_VERSION` de `src/SystemDefs_Limits.h`, e a versão entra no carimbo do
+cabeçalho gerado, então mudar a versão regenera as páginas. Custa 74 B de página
+comprimida. É o mesmo número que a imagem release já anuncia no registro TXT do
+mDNS; o SECURITY.md §8 diz isso, e por que só a última release tem suporte.
+
+Conferido na bancada nos dois temas, na imagem release e no build de teste.
+
+### Reiniciar sem salvar (#165)
+
+A página Configurações termina numa seção *Reiniciar* com um botão, **Reiniciar
+sem salvar**. Ele reinicia o aparelho e não grava nada: o que ainda está
+pendente na página é descartado, e o que foi aplicado com **Testar** também,
+porque o aparelho volta com a configuração gravada. Ele pede confirmação.
+
+Não há rota nova. O botão chama `POST /api/action?op=reboot`, que já existia
+atrás da permissão Sistema e registra `SYS_REBOOT_USER` (código 2), com as
+guardas de um commit: 409 enquanto há troca de senha pendente, 503 nos 5 s
+depois de um toque no painel.
+
+Na bancada, na imagem release e no build de teste: o aparelho saiu do ar 3,3 s
+depois do clique e voltou a responder 26,4 s depois dele, e um nome editado na
+página e nunca salvo era o antigo depois do reinício. Os pacotes pt-BR e es-ES
+trazem as cinco strings da seção.
+
+### O padrão Ângulo (#166)
+
+O `ANGULO.md`, o padrão visual compartilhado com o simut-rx, agora mora também
+neste repositório, e o AGENTS.md §7 o torna regra para tudo o que for construído
+daqui em diante. O `tools/check_angulo.py` o segura no CI: os tokens de design
+(`docs/assets/angulo.css`) têm de ser a cópia byte a byte dos do simut-rx,
+fixada por sha256; o CSS do site só usa tokens; os arquivos da marca usam as
+cores da marca; os READMEs, o site, os guias e todo documento Living ficam sem
+emoji; os selos são planos.
+
+- **Ícone e logotipo.** O `tools/gen_logo.py` desenha todos os arquivos da marca
+  a partir dos tokens e da fonte de display, a Bricolage Grotesque 600. O
+  favicon do aparelho foi de 835 para 731 B, e o logotipo da tela de login é o
+  mesmo contorno da Bricolage.
+- **O site.** O GitHub Pages passou para os tokens, claro e escuro, com layout
+  próprio. Quatro fatos da página inicial estavam errados e foram corrigidos nos
+  três idiomas: o Wi-Fi não se configura pelo painel, os nomes dos assets, "é
+  beta" e um colofão que ainda citava a v2.3.2-beta.
+- **READMEs e docs.** O logotipo, selos planos e frases novas nos três READMEs,
+  e cerca de 260 emoji fora dos documentos Living.
+
+### Flash
+
+Contra o `.bin` publicado da v2.7.2: release +168 B; alpha e Air mantêm o
+tamanho ao byte, porque o que ganharam cabe no preenchimento de alinhamento de
+4 KiB antes do `.data`. Folga sob o teto de OTA de 1.040.384 B: release 30.132,
+alpha 62.324, Air 21.460. Nenhum orçamento mudou.
+
+### A bancada
+
+- **Sem reinício depois de gravar.** A bancada tinha o hábito de dar
+  `reload confirm` depois de cada gravação, "por causa do BMP280". Não
+  consertava nada: 13 de 13 gravações sem ele (picotool, `pio run -t upload` e
+  alternando a v2.7.2 com esta release) trouxeram o BMP280 lendo temperatura e
+  pressão em segundos, e o log do próprio aparelho mostra 19 de 19 boots depois
+  de gravação subindo o driver na primeira sondagem, sem nenhum erro de sensor.
+  A falha que o hábito contornava foi corrigida no a46b0de (2026-07-31); a nota
+  que mantinha o hábito vivo só foi aposentada agora.
+- **O portão de segredos lê nomes.** O `tools/scan_secrets.sh` trata como
+  credencial qualquer nome com *token* que receba um literal entre aspas, e a
+  constante `TOKENS` do `check_angulo.py`, cujo valor é o caminho dos tokens de
+  design, derrubou o CI uma vez. Renomeada em vez de ir para o allowlist: o
+  allowlist é para credenciais publicadas de propósito.
+
+### Documentação
+
+- Os READMEs, os dois manuais, a página inicial e o manual do produto descrevem
+  esta release. A linha "Na `main`, ainda sem release" dos READMEs, que ainda
+  listava três coisas que a v2.7.2 já tinha entregado, saiu. Os READMEs em
+  português e em espanhol contam 62 rotas HTTP, como o inglês, e os três contam
+  os 410 casos de teste no host que o CI roda.
+- O `tools/build_manual.py` tira a versão do `SIMUT_VERSION`. Digitada à mão,
+  ela ficou em v2.7.1 durante toda a release v2.7.2, e a capa do manual do
+  produto dizia isso.
+
+### Atualizando
+
+Nada para migrar. Os pacotes de idioma ganharam as cinco strings da seção
+Reiniciar. Os pacotes não fazem parte da imagem do firmware; suba os que vêm
+anexados a esta versão pela página Arquivos e reinicie. Com os pacotes antigos
+tudo funciona, e a seção nova aparece em inglês.
+
+### Conhecido, e não corrigido aqui
+
+- **Com o ponto de acesso de configuração aberto, o aparelho não mede.** O laço
+  volta antes dos sensores, dos alarmes, do histórico e da telemetria. Um
+  aparelho sem rede configurada liga no AP e fica nele (release e alpha).
+- **Um alarme recusado pela fila cheia da linha de alarmes nunca é informado**, e
+  uma fila cheia guarda os registros mais antigos (#161).
+- **O LCD da alpha raramente chega às páginas do AP**, pelo código. A chave está
+  no console USB e na resposta do `ap`.
+
 ## v2.7.2 (2026-09-24)
 
 **Três relatos de campo, e nenhum estava onde parecia.** O Air na 2.7.1 *"parece

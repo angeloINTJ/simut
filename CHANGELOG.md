@@ -4,6 +4,119 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.7.3 (2026-09-25)
+
+**The login page says which firmware answers it, and the Configuration page can
+restart without saving.** Two small features asked for at the bench, and the
+brand, the READMEs, the site and the documentation brought under one visual
+standard.
+
+`CONFIG_VERSION` stays 25: no migration runs, and a device updating over the air
+keeps its configuration.
+
+### The firmware version on the login page
+
+The login page shows the version under the product name, `v2.7.3`, before
+anyone signs in. The page has no session to ask the device with, so the number
+is stamped into it when it is built: `tools/build_webui_gz.py` reads
+`SIMUT_VERSION` from `src/SystemDefs_Limits.h`, and the version is part of the
+generated header's stamp, so bumping it regenerates the pages. It costs 74 B of
+compressed page. It is the number the release image already announces in its
+mDNS TXT record; SECURITY.md §8 says so, and why only the latest release is
+supported.
+
+Verified on the bench in both themes, on the release image and the test build.
+
+### Restart without saving (#165)
+
+The Configuration page ends in a *Restart* section with one button, **Restart
+without saving**. It restarts the device and writes nothing: edits still staged
+on the page are dropped, and so is anything applied with **Test**, because the
+device comes back with its saved configuration. It asks first.
+
+There is no new route. The button calls `POST /api/action?op=reboot`, which
+already existed behind the System permission and logs `SYS_REBOOT_USER`
+(code 2), with the guards a commit has: 409 while a password change is pending,
+503 within 5 s of a touch on the panel.
+
+On the bench, on the release image and the test build: the device went offline
+3.3 s after the click and answered again 26.4 s after it, and a device name
+edited on the page but never saved was the old one after the restart. The
+pt-BR and es-ES packs carry the section's five strings.
+
+### The Ângulo standard (#166)
+
+`ANGULO.md`, the visual standard shared with simut-rx, now lives in this
+repository too, and AGENTS.md §7 makes it the rule for anything built from here
+on. `tools/check_angulo.py` holds it in CI: the design tokens
+(`docs/assets/angulo.css`) must be the byte-exact copy of simut-rx's, pinned by
+sha256; the site's CSS may use tokens only; the brand files must use the brand
+colours; the READMEs, the site, the guides and every Living document stay free
+of emoji; badges are flat.
+
+- **Icon and wordmark.** `tools/gen_logo.py` draws every brand asset from the
+  tokens and the display face, Bricolage Grotesque 600. The device's favicon
+  went from 835 to 731 B, and the login page's wordmark is the same Bricolage
+  outline.
+- **The site.** GitHub Pages moved to the tokens, light and dark, with its own
+  layout. Four facts on the landing page were wrong and are fixed in its three
+  languages: Wi-Fi is not configured from the panel, the asset names, "it is
+  beta", and a colophon still naming v2.3.2-beta.
+- **READMEs and docs.** The logo, flat badges and new taglines in all three
+  READMEs, and about 260 emoji out of the Living documents.
+
+### Flash
+
+Against the published v2.7.2 `.bin`: release +168 B; alpha and air keep their
+size to the byte, because what they gained fits inside the 4 KiB alignment pad
+before `.data`. Slack under the 1,040,384 B OTA ceiling: release 30,132, alpha
+62,324, air 21,460. No budget moved.
+
+### The bench
+
+- **No restart after flashing.** The bench had a habit of `reload confirm`
+  after every flash, "for the BMP280". It fixed nothing: 13 of 13 flashes
+  without it (picotool, `pio run -t upload`, and alternating v2.7.2 with this
+  release) brought the BMP280 up reading temperature and pressure within
+  seconds, and the device's own log shows 19 of 19 post-flash boots bringing
+  its driver up on the first probe, with no sensor error. The failure the
+  habit worked around was fixed in a46b0de (2026-07-31); the note that kept the
+  habit alive was not retired until now.
+- **The secret gate reads names.** `tools/scan_secrets.sh` treats any name
+  containing *token* that is assigned a quoted literal as a credential, and
+  `check_angulo.py`'s `TOKENS` constant, whose value is the path to the design
+  tokens, failed CI once. Renamed rather than allowlisted: the allowlist is for
+  credentials published on purpose.
+
+### Documentation
+
+- The READMEs, both manuals, the landing page and the product manual describe
+  this release. The READMEs' "On `main`, not yet released" row, which still
+  listed three things v2.7.2 had shipped, is gone. The Portuguese and Spanish
+  READMEs count 62 HTTP routes like the English one, and all three count the
+  410 host test cases CI runs.
+- `tools/build_manual.py` takes the version from `SIMUT_VERSION`. Typed by
+  hand, it stayed at v2.7.1 through the whole v2.7.2 release, and the product
+  manual's cover said so.
+
+### Upgrading
+
+Nothing to migrate. The language packs gained the five strings of the Restart
+section. The packs are not part of the firmware image; upload the ones attached
+to this release on the Files page and reboot. With the old packs everything
+works, and the new section reads in English.
+
+### Known, and not fixed here
+
+- **With the setup access point open, the device does not measure.** The loop
+  returns before the sensors, the alarms, the history and the telemetry. A
+  device with no network configured boots into the AP and stays there (release
+  and alpha).
+- **An alarm refused by a full alarm-line queue is never reported**, and a full
+  queue keeps its oldest records (#161).
+- **The alpha's LCD rarely reaches its AP pages**, by the code. The key is on the
+  USB console and in the `ap` reply.
+
 ## v2.7.2 (2026-09-24)
 
 **Three reports from the field, and none of them was where it looked.** The Air
