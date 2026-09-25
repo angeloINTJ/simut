@@ -67,6 +67,7 @@ A página de entrada. Note o seletor de idioma no rodapé e o link Trocar senha 
 A página mostra, de cima para baixo:
 
 - o logotipo SIMUT e a legenda "Sistema de Monitoramento Universal e Telemetria", sempre em português;
+- a versão do firmware, como `v2.7.3`, abaixo da legenda (desde a v2.7.3);
 - **Usuário** (*Username*): o nome da conta;
 - **Senha** (*Password*);
 - **Mostrar senha** (*Show password*): mostra a senha digitada;

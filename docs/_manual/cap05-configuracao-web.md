@@ -335,6 +335,17 @@ O aviso **Calibração resetada. Recalibre pelo display.** confirma. Se alguém 
 
 Nas imagens alpha e Air, que não têm painel de toque, a seção também aparece. O botão só apaga o registro de calibração guardado e não tem outro efeito.
 
+### Reiniciar {#cap-05-reiniciar}
+
+Desde a v2.7.3, a última seção da página tem o botão **Reiniciar sem salvar** (*Restart without saving*). Ele reinicia o aparelho sem gravar nada: o que está pendente na barra de topo é descartado, e o que foi aplicado com **Testar** também se desfaz, porque o aparelho volta com a configuração gravada. Ele age na hora, sem passar pela barra de topo:
+
+1. Toque em **Reiniciar sem salvar**.
+2. Confirme em **Reiniciar agora SEM salvar?** O aviso lembra que as alterações não salvas nesta página serão perdidas e que o aparelho fica fora do ar por cerca de 10 s.
+
+O aviso **Reiniciando...** confirma, e a página se recarrega cerca de 12 s depois, na página de entrada, porque o reinício encerra as sessões. Medido em 25/09/2026: o aparelho saiu do ar 3,3 s depois do clique e voltou a responder aos 26,4 s. O log de eventos registra o código 2 (**Reboot solicitado pelo usuário**).
+
+Se alguém tocou no painel há menos de 5 s, aparece **Display em uso. Tente novamente em alguns segundos.** e nada acontece. Se o aparelho recusar o pedido, aparece **Não foi possível reiniciar.** e ele continua no ar.
+
 ## Referência rápida {#cap-05-referencia}
 
 Todos os campos da página **Configurações** que passam pela barra de topo, na seção `sys` de `POST /api/commit_all`. Os campos da página **Telemetria** estão no [capítulo 21](#cap-21) e no [capítulo 22](#cap-22); os da página **Rede**, no [capítulo 9](#cap-09).

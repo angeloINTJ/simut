@@ -23,7 +23,7 @@ A snapshot is not stale. A **living** document that has fallen behind is.
 | document | state | about |
 |---|---|---|
 | [MANUAL.md](MANUAL.md) · [pt-BR](MANUAL.pt-BR.md) | Living | The user manual: screens, web UI, CLI, telemetry, OTA. |
-| [MANUAL.pt-BR.html](MANUAL.pt-BR.html) | Living | The complete product manual, in Portuguese: 31 chapters for v2.7.2. Generated from the chapter sources in [_manual/](_manual/) by `tools/build_manual.py` — edit those, never the HTML. Screenshots still to capture are listed in its Appendix A and in [images/manual/CAPTURAR.md](images/manual/CAPTURAR.md). |
+| [MANUAL.pt-BR.html](MANUAL.pt-BR.html) | Living | The complete product manual, in Portuguese: 31 chapters for v2.7.3. Generated from the chapter sources in [_manual/](_manual/) by `tools/build_manual.py` — edit those, never the HTML. Screenshots still to capture are listed in its Appendix A and in [images/manual/CAPTURAR.md](images/manual/CAPTURAR.md). |
 | [CLI-Manual.md](CLI-Manual.md) | Living | Every serial/Bluetooth command, for the `pico_w_test` profile. |
 | [WIRING.md](WIRING.md) | Living | Pinout and bench wiring, including the PicoHand rig. |
 | [RECOVERY.md](RECOVERY.md) | Living | Getting a Pico W back after a bad OTA. Read before you need it. |

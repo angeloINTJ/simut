@@ -4,7 +4,7 @@ Este capítulo reúne em tabelas os números do SIMUT: faixas, valores de fábri
 
 ## Como ler as tabelas {#cap-28-como-ler}
 
-- Os valores são os da v2.7.2.
+- Os valores são os da v2.7.3.
 - Quando um número muda de uma imagem para outra, a célula traz o selo da imagem: [release]{.img}, [alpha]{.img} ou [air]{.img}.
 - Uma medição traz a data e a versão em que foi feita. Os demais números vêm do código.
 - A coluna **Onde** leva ao capítulo que explica o item. Lá estão o efeito de cada valor e o que fazer quando um limite é atingido.

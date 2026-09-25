@@ -59,7 +59,20 @@ CAPTURAR = os.path.join(IMG, "CAPTURAR.md")
 LOGCODES = os.path.join(ROOT, "tools", "logcodes.tsv")
 FONT = os.path.join(ROOT, "docs", "assets", "fonts", "angulo-display-600.woff2")
 
-VERSION = "v2.7.1"
+# Read from the firmware, not typed here: typed, it stayed "v2.7.1" through the
+# whole v2.7.2 release, and the manual's cover and <meta> said 2.7.1 while its
+# chapters described 2.7.2. The version chore bumps SIMUT_VERSION anyway, so
+# the manual now follows it without a second edit anyone has to remember.
+def _firmware_version():
+    path = os.path.join(ROOT, "src", "SystemDefs_Limits.h")
+    m = re.search(r'^#define\s+SIMUT_VERSION\s+"([0-9A-Za-z.+-]+)"',
+                  open(path, encoding="utf-8").read(), re.M)
+    if not m:
+        raise SystemExit('build_manual: no #define SIMUT_VERSION "x.y.z" in src/SystemDefs_Limits.h')
+    return "v" + m.group(1)
+
+
+VERSION = _firmware_version()
 
 # Parts of the book, by chapter number. The chapter files carry their own
 # number in the name (capNN-*.md); this only decides where a part starts.

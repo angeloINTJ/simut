@@ -8,12 +8,12 @@ Cada versão publicada, na página de versões do projeto no GitHub (`github.com
 
 | Arquivo | Para que serve |
 |---|---|
-| `simut_v2.7.2_release.uf2` | Gravar a imagem release pelo USB |
-| `simut_v2.7.2_alpha.uf2` | Gravar a imagem alpha pelo USB |
-| `simut_v2.7.2_air.uf2` | Gravar a imagem do Air pelo USB |
-| `simut_v2.7.2_release.bin` | Atualizar a release pela página **Arquivos** ([capítulo 17](#cap-17-ota)) |
-| `simut_v2.7.2_alpha.bin` | Atualizar a alpha pela página **Arquivos** |
-| `simut_v2.7.2_air.bin` | Atualizar o Air pela página **Arquivos** |
+| `simut_v2.7.3_release.uf2` | Gravar a imagem release pelo USB |
+| `simut_v2.7.3_alpha.uf2` | Gravar a imagem alpha pelo USB |
+| `simut_v2.7.3_air.uf2` | Gravar a imagem do Air pelo USB |
+| `simut_v2.7.3_release.bin` | Atualizar a release pela página **Arquivos** ([capítulo 17](#cap-17-ota)) |
+| `simut_v2.7.3_alpha.bin` | Atualizar a alpha pela página **Arquivos** |
+| `simut_v2.7.3_air.bin` | Atualizar o Air pela página **Arquivos** |
 | `language_pt-BR.lng` | Pacote de idioma português do Brasil |
 | `language_es-ES.lng` | Pacote de idioma espanhol |
 | `manifest.json` | Tamanho, soma SHA-256 e tipo de cada imagem, para um gestor de frota ([capítulo 27](#cap-27-manifest)) |
@@ -75,7 +75,7 @@ O `picotool` é a ferramenta de linha de comando do Raspberry Pi para o RP2040. 
 
 ```bash
 picotool info
-picotool load -x simut_v2.7.2_release.uf2
+picotool load -x simut_v2.7.3_release.uf2
 ```
 
 O `picotool info` confirma que a placa está no modo BOOTSEL. O `load -x` grava e reinicia a placa no fim.
@@ -169,7 +169,7 @@ PLATFORMIO_BUILD_FLAGS="-DSIMUT_TFT_SPI_HZ=31250000u" pio run -e pico_w_release
 
 As versões anteriores à 1.6.2-beta tinham um defeito na atualização pela rede: diziam que tinham aplicado a imagem sem aplicá-la. Por isso, a primeira atualização de um aparelho desses é pelo USB.
 
-Um aparelho na versão 1.x perde duas coisas no primeiro boot da 2.7.2:
+Um aparelho na versão 1.x perde duas coisas no primeiro boot da 2.7.3:
 
 - **A configuração.** O firmware não lê configurações das versões 1.x. O aparelho começa com a configuração de fábrica e uma senha nova para o `admin`, mostrada no console USB ([capítulo 4](#cap-04-senha)). Anote a rede, as contas e os sensores antes de atualizar.
 - **O histórico no formato antigo.** Os arquivos `.sim4` da pasta `/history` são apagados no primeiro boot. Baixe-os antes de atualizar e converta-os no computador, com a ferramenta `tools/history_v5.py` do código-fonte:

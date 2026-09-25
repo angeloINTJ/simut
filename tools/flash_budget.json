@@ -484,27 +484,36 @@
   "+72 on test_https, 0 on alpha and air. 'measured' includes it. Margins left:",
   "2,888 release, 2,880 test, 2,888 test_https, 2,888 asserts, 2,920 alpha,",
   "2,960 air; .bin slack under the OTA ceiling: release 30,388, test 24,836,",
-  "test_https 17,220, asserts 28,212, alpha 62,324, air 21,460."
+  "test_https 17,220, asserts 28,212, alpha 62,324, air 21,460.",
+  "2026-09-25 (chore/v2.7.3, on main 32d5b36 = #165 + #166): 'measured' moves",
+  "to main with the version bump. Against the 'measured' above: +256 on release,",
+  "test_https and asserts, +248 on test, 0 on alpha and air. Nearly all of it is",
+  "#165's Restart section on /config, which did not move 'measured'; the bump",
+  "itself is +8 on release (998,212 on the integration branch at 2.7.2, 998,220",
+  "at 2.7.3), the one digit sitting inside the gzip'd login page. Budgets do not",
+  "move. Margins left: 2,632 release, test, test_https and asserts, 2,920 alpha,",
+  "2,960 air; .bin slack under the OTA ceiling: release 30,132, test 24,588,",
+  "test_https 16,964, asserts 27,956, alpha 62,324, air 21,460."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-09-24",
- "measured_at_commit": "docs/angulo-aesthetic on main 649d677 (Ângulo brand, favicon 835 -> 731 B; firmware version on the login page; budgets unchanged)",
+ "measured_on": "2026-09-25",
+ "measured_at_commit": "chore/v2.7.3 on main 32d5b36 (#165 Restart without saving, #166 Ângulo standard; SIMUT_VERSION 2.7.3; budgets unchanged)",
  "envs": {
   "pico_w_release": {
    "budget": 1000852,
-   "measured": 997964
+   "measured": 998220
   },
   "pico_w_test": {
    "budget": 1006396,
-   "measured": 1003516
+   "measured": 1003764
   },
   "pico_w_test_https": {
    "budget": 1014020,
-   "measured": 1011132
+   "measured": 1011388
   },
   "pico_w_asserts": {
    "budget": 1003028,
-   "measured": 1000140
+   "measured": 1000396
   },
   "pico_w_alpha": {
    "budget": 966396,

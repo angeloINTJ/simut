@@ -270,7 +270,7 @@ O log de eventos registra o motivo no contexto do evento 403: 0 para o comando `
 
 Desde a v2.7.1 o AP também abre sozinho, e isso tem duas consequências:
 
-- **Aparelho sem rede configurada** fica no AP desde o boot e não mede até alguém gravar uma rede. Não use a v2.7.1 nem a v2.7.2 num aparelho que vai funcionar sem Wi-Fi.
+- **Aparelho sem rede configurada** fica no AP desde o boot e não mede até alguém gravar uma rede. Não use a v2.7.1, a v2.7.2 nem a v2.7.3 num aparelho que vai funcionar sem Wi-Fi.
 - **Aparelho que perde a rede** por mais de uma volta da escada (cerca de 68 min) passa a alternar 15 min no AP, sem medir, com cerca de 6 a 7 min medindo, até a rede voltar. Numa queda longa, ele fica sem medir cerca de dois terços do tempo.
 
 Esses números vêm da leitura do código da v2.7.1 e não foram medidos no aparelho. O log de eventos mostra quando isso aconteceu: o evento 403 com contexto 2 ou 3 marca o início, e o 525 `AP mode timeout, rebooting to STA` marca o fim de cada período.
@@ -307,7 +307,7 @@ O aparelho também se anuncia como um serviço `_simut._tcp`, para que um progra
 | Campo | Conteúdo |
 |---|---|
 | `uid` | Identidade do chip, 16 algarismos hexadecimais |
-| `ver` | Versão do firmware, como `2.7.2` |
+| `ver` | Versão do firmware, como `2.7.3` |
 | `env` | Imagem: `release` |
 | `tls` | `1` com HTTPS, `0` com HTTP |
 

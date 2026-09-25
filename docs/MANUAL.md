@@ -1,6 +1,6 @@
 # SIMUT — User Manual
 
-**Firmware:** v2.7.2 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **License:** MIT
+**Firmware:** v2.7.3 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **License:** MIT
 **Repository:** https://github.com/angeloINTJ/simut
 
 > **This is not a certified metrological instrument.** It is tested on real
@@ -486,11 +486,20 @@ still need a restart, and then the bar shows only "Save & restart" and says
 **Test** does not survive a power cut — it is for trying a limit, not for
 configuring. While the staged set is there, the bar stays visible.
 
+**Restart without saving** (since v2.7.3, in the *Restart* section at the
+bottom of the page) restarts the device and writes nothing: whatever is still
+staged is dropped, and so is anything applied with **Test**, because the
+device comes back with its saved configuration. It asks first; the device is
+offline for about 10 s.
+
 ### Authentication
 
 Login is a two-step exchange: the browser fetches a nonce from
 `/api/login_init`, hashes the password client-side, and posts the hash with the
 nonce. The session is a `SIMUTSESS` cookie.
+
+Since v2.7.3 the login page shows the firmware version under the product
+name, so you can tell what a device runs before signing in.
 
 Two details matter if you are scripting against it:
 

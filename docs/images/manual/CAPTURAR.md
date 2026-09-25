@@ -43,7 +43,7 @@ nesta pasta com o nome indicado e rode o script de novo.
       O primeiro boot em um só desenho: a senha, a rede, a web, o idioma, os sensores e o PIN.
 - [ ] `04-painel-ap.png` (Tela do painel) — release recém-gravada, sem rede configurada, depois do boot; a caixa de boot termina com simut_SETUP, PSK e a chave, e AP Ativo! Reinicie a placa para sair.; capturar com GET /api/screenshot pelo próprio AP, com sessão admin depois da troca de senha; se a captura não funcionar no AP, use foto da tela; borre a chave antes de publicar
       O painel de um aparelho novo: a rede do ponto de acesso, a chave e o aviso de AP ativo ficam na tela.
-- [ ] `04-lcd-ap.png` (LCD 16×2) — alpha recém-gravada, sem rede configurada, depois do boot com o ponto de acesso aberto; linha de cima SIMUT 2.7.2, linha de baixo [##############] com a barra cheia
+- [ ] `04-lcd-ap.png` (LCD 16×2) — alpha recém-gravada, sem rede configurada, depois do boot com o ponto de acesso aberto; linha de cima SIMUT 2.7.3, linha de baixo [##############] com a barra cheia
       O LCD de uma alpha nova com o ponto de acesso aberto: a tela de boot fica parada, e a chave está no console.
 - [ ] `04-novo-pin.png` (Tela do painel) — release com configuração de fábrica; tela inicial → botão de configurações → admin → PIN 1234 → ENTRAR; tela Novo PIN aberta, antes de digitar
       A troca obrigatória do PIN de fábrica: a tela Novo PIN abre direto depois do 1234.
