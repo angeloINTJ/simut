@@ -13,6 +13,9 @@
  */
 
 #include "DisplayManager.h"
+#if SIMUT_UI_STUDY
+#include "UiStudy.h"
+#endif
 #include "DisplayManager_Fonts.h"
 #include "LogManager.h"
 
@@ -156,6 +159,11 @@ bool DisplayManager::isAnyAlarmActive( ) const {
 
 void DisplayManager::redrawAlarmFlash( ) {
 	if (!_driver.tft || !_driver.canvas) return;
+#if SIMUT_UI_STUDY
+	/* The flash phase is part of the study frame's signature: ask for a
+	 * render instead of painting the shipped cards over the study layout. */
+	if (g_uiStudyVariant != 0) { studyMarkDirty( ); return; }
+#endif
 
 	if (isSlotAlarming(_lastRenderedState.topSlotIdx) ||
 	    isSlotErrAlarming(_lastRenderedState.topSlotIdx)) {

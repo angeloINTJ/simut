@@ -12,6 +12,9 @@
  */
 
 #include "DisplayManager.h"
+#if SIMUT_UI_STUDY
+#include "UiStudy.h"
+#endif
 #if SIMUT_DISPLAY_TFT
 #include "DisplayManager_Fonts.h"
 #include "UiWidgets.h"
@@ -212,8 +215,21 @@ void DisplayManager::drawSettingsLang( ) {
  uint16_t txt = isSelected ? C_BG_MAIN : C_TEXT_MAIN;
 
 
+#if SIMUT_UI_STUDY
+ if (uiStudyThemeActive( )) {
+ /* Ângulo list row, as in drawSettingsMain: linha/acento border, r 6. */
+ const AnguloTokens& T = anguloTokens( );
+ bg = isSelected ? T.superficie2 : T.superficie; txt = T.tinta;
+ _driver.canvas->fillRoundRect(0, 0, itemW, 34, 6, bg);
+ _driver.canvas->drawRoundRect(0, 0, itemW, 34, 6, isSelected ? T.acento : T.linha);
+ } else {
  _driver.canvas->fillRoundRect(0, 0, itemW, 34, 8, bg);
  if (!isSelected) _driver.canvas->drawRoundRect(0, 0, itemW, 34, 8, C_TEXT_SUB);
+ }
+#else
+ _driver.canvas->fillRoundRect(0, 0, itemW, 34, 8, bg);
+ if (!isSelected) _driver.canvas->drawRoundRect(0, 0, itemW, 34, 8, C_TEXT_SUB);
+#endif
 
 
  _driver.canvas->setFont(&simutFont9pt);

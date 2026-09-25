@@ -15,6 +15,9 @@
  */
 
 #include "DisplayManager.h"
+#if SIMUT_UI_STUDY
+#include "UiStudy.h"
+#endif
 #include "LogManager.h"
 #include "UiWidgets.h"
 #include "FlashIrqProbe.h" /* Core-1 exposure flags for the flash probe */
@@ -832,9 +835,10 @@ bool DisplayManager::isSkipPressed( ) {
 	return false;
 }
 
-/* Alpha-only snapshot of every slot; no-op for the TFT build. */
+/* Snapshot of every slot: the alpha LCD cycles through them and the Ângulo
+ * study lists them; a no-op in the shipped TFT build, which shows two. */
 void DisplayManager::setSlotsSnapshot(const SlotSnapshot* snap, uint8_t count) {
-#if SIMUT_DISPLAY_ALPHA
+#if SIMUT_DISPLAY_ALPHA || SIMUT_UI_STUDY
 	if (!snap) return;
 	mutex_enter_blocking(&_stateMutex);
 	uint8_t n = (count < MAX_SENSORS) ? count : (uint8_t)MAX_SENSORS;
@@ -1360,12 +1364,26 @@ void DisplayManager::loopCore1( ) {
 				_isDirty = false;
 				mutex_exit(&_stateMutex);
 
+#if SIMUT_UI_STUDY
+				if (g_uiStudyVariant != 0) {
+					_forceFullRedraw = true;
+					renderStudyDashboard(snap);
+				} else {
 				drawInterfaceFixed( );
 				drawTopBar(snap);
 				drawSlotPanel(snap.topSlotTemp, snap.topSlotHum, snap.topSlotType, snap.topSlotValid, snap.topSlotIdx, snap.topSlotName, true, _topPanel, snap.topSlotPres);
 				drawSlotPanel(snap.slotTemp, snap.slotHum, snap.slotType, snap.slotValid, snap.selectedSlotIdx, snap.slotName, true, _bottomPanel, snap.slotPres);
 				drawBottomButtons(snap.selectedSlotIdx);
 				_lastRenderedState = snap;
+				}
+#else
+				drawInterfaceFixed( );
+				drawTopBar(snap);
+				drawSlotPanel(snap.topSlotTemp, snap.topSlotHum, snap.topSlotType, snap.topSlotValid, snap.topSlotIdx, snap.topSlotName, true, _topPanel, snap.topSlotPres);
+				drawSlotPanel(snap.slotTemp, snap.slotHum, snap.slotType, snap.slotValid, snap.selectedSlotIdx, snap.slotName, true, _bottomPanel, snap.slotPres);
+				drawBottomButtons(snap.selectedSlotIdx);
+				_lastRenderedState = snap;
+#endif
 				_uiMode = MODE_DASHBOARD;
 			} else {
 				fastClearScreen(C_BG_MAIN);
@@ -1824,6 +1842,11 @@ void DisplayManager::render(const SystemState& state) {
 		_forceFullRedraw = true;
 	}
 
+#if SIMUT_UI_STUDY
+	/* The study's layouts replace the four drawers below wholesale; the boot
+	 * terminal above is untouched. */
+	if (g_uiStudyVariant != 0) { renderStudyDashboard(state); return; }
+#endif
 	bool full = _forceFullRedraw;
 	if (full) {
 		C1_PHASE(C1P_R_FULL);

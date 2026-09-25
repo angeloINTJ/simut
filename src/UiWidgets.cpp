@@ -15,6 +15,9 @@
 #include "UiWidgets.h"
 #include "Themes.h"
 #include "DisplayManager_Fonts.h"
+#if SIMUT_UI_STUDY
+#include "UiStudy.h"
+#endif
 
 /* Centered text inside a rect, 9pt UI font. Assumes font/color already set. */
 static void uiCenteredText(Adafruit_GFX* g, int16_t x, int16_t y, int16_t w,
@@ -27,6 +30,28 @@ static void uiCenteredText(Adafruit_GFX* g, int16_t x, int16_t y, int16_t w,
 
 void uiTitleBar(Adafruit_GFX* g, int16_t yTop, const char* title,
 	int curPage, int totalPages, int16_t h) {
+#if SIMUT_UI_STUDY
+	if (uiStudyThemeActive( )) {
+		/* Ângulo: a title is text, not a card — `titulo` in the display face,
+		 * `tinta`, at the 4-px margin, and a 1-px `linha` under the bar in
+		 * place of the accent tab (rule 3: line before shadow, and rule 1: the
+		 * accent is for action, not decoration). The 312x32 rect stays as the
+		 * blit region every caller composes into. */
+		const AnguloTokens& T = anguloTokens( );
+		g->fillRect(4, yTop, 312, h, T.fundo);
+		g->drawFastHLine(4, yTop + h, 312, T.linha);
+		if (title) {
+			g->setFont(&simutFontDisplay12);
+			g->setTextSize(1);
+			g->setTextColor(T.tinta);
+			g->setCursor(4, yTop + h / 2 + 8);
+			g->print(title);
+		}
+		if (curPage >= 0 && totalPages > 1)
+			uiPageDots(g, (int16_t)(yTop + h / 2), curPage, totalPages);
+		return;
+	}
+#endif
 	g->fillRoundRect(4, yTop, 312, h, 8, C_CARD_BG);
 	/* Accent tab: what visually brands "this is a screen title". */
 	g->fillRoundRect(4, yTop, 6, h, 3, C_ACCENT);
@@ -55,6 +80,21 @@ void uiPageDots(Adafruit_GFX* g, int16_t cy, int cur, int total) {
 void uiButton(Adafruit_GFX* g, int16_t x, int16_t y, int16_t w, int16_t h,
 	const char* label, UiBtnStyle style) {
 	const bool primary = (style == UI_BTN_PRIMARY);
+#if SIMUT_UI_STUDY
+	if (uiStudyThemeActive( )) {
+		/* §4.1: raio-controle (6); primary = acento / acento-tinta, secondary
+		 * = superficie with a linha-forte border and tinta. Label in the bold
+		 * text face — the standard's 500 weight has no closer glyph set here. */
+		const AnguloTokens& T = anguloTokens( );
+		g->fillRoundRect(x, y, w, h, 6, primary ? T.acento : T.superficie);
+		if (!primary) g->drawRoundRect(x, y, w, h, 6, T.linhaForte);
+		g->setFont(&simutFont9pt);
+		g->setTextSize(1);
+		g->setTextColor(primary ? T.acentoTinta : T.tinta);
+		uiCenteredText(g, x, y, w, h, label);
+		return;
+	}
+#endif
 	g->fillRoundRect(x, y, w, h, 8, primary ? C_ACCENT : C_CARD_BG);
 	if (!primary) g->drawRoundRect(x, y, w, h, 8, C_TEXT_SUB);
 	g->setFont(&simutFont9pt);
@@ -65,6 +105,37 @@ void uiButton(Adafruit_GFX* g, int16_t x, int16_t y, int16_t w, int16_t h,
 
 void uiNavArrow(Adafruit_GFX* g, int16_t x, int16_t y, int16_t w, int16_t h,
 	UiArrowDir dir) {
+#if SIMUT_UI_STUDY
+	if (uiStudyThemeActive( )) {
+		/* Secondary chrome and a single-stroke chevron (rule 6), 2 px wide,
+		 * instead of the filled triangle. */
+		const AnguloTokens& T = anguloTokens( );
+		g->fillRoundRect(x, y, w, h, 6, T.superficie);
+		g->drawRoundRect(x, y, w, h, 6, T.linhaForte);
+		const int16_t cx = x + w / 2, cy = y + h / 2;
+		for (int8_t i = 0; i < 2; i++) {
+			switch (dir) {
+			case UI_UP:
+				g->drawLine(cx - 6, cy + 3 + i, cx, cy - 3 + i, T.tinta);
+				g->drawLine(cx, cy - 3 + i, cx + 6, cy + 3 + i, T.tinta);
+				break;
+			case UI_DOWN:
+				g->drawLine(cx - 6, cy - 3 + i, cx, cy + 3 + i, T.tinta);
+				g->drawLine(cx, cy + 3 + i, cx + 6, cy - 3 + i, T.tinta);
+				break;
+			case UI_LEFT:
+				g->drawLine(cx + 3 + i, cy - 6, cx - 3 + i, cy, T.tinta);
+				g->drawLine(cx - 3 + i, cy, cx + 3 + i, cy + 6, T.tinta);
+				break;
+			case UI_RIGHT:
+				g->drawLine(cx - 3 + i, cy - 6, cx + 3 + i, cy, T.tinta);
+				g->drawLine(cx + 3 + i, cy, cx - 3 + i, cy + 6, T.tinta);
+				break;
+			}
+		}
+		return;
+	}
+#endif
 	g->fillRoundRect(x, y, w, h, 8, C_CARD_BG);
 	g->drawRoundRect(x, y, w, h, 8, C_TEXT_SUB);
 	const int16_t cx = x + w / 2, cy = y + h / 2;
@@ -95,6 +166,23 @@ void uiFooterMenu(Adafruit_GFX* g, const char* exitLabel,
 }
 
 void uiCloseX(Adafruit_GFX* g, int16_t x, int16_t y, int16_t w, int16_t h) {
+#if SIMUT_UI_STUDY
+	if (uiStudyThemeActive( )) {
+		/* A secondary control with a 2-px stroked X in tinta. Radius 4, not
+		 * the standard's 6: on a 24-px button GFX's fill arc at r=6 reads as a
+		 * chamfer (measured, see the comment below). */
+		const AnguloTokens& T = anguloTokens( );
+		g->fillRoundRect(x, y, w, h, 4, T.superficie);
+		g->drawRoundRect(x, y, w, h, 4, T.linhaForte);
+		const int16_t r = (h < w ? h : w) / 2 - 7;
+		const int16_t cx = x + w / 2, cy = y + h / 2;
+		for (int8_t i = 0; i < 2; i++) {
+			g->drawLine(cx - r + i, cy - r, cx + r + i, cy + r, T.tinta);
+			g->drawLine(cx - r + i, cy + r, cx + r + i, cy - r, T.tinta);
+		}
+		return;
+	}
+#endif
 	/* Radius 4 — the system's SMALL-element radius (keyboard keys, the
 	 * editor's step buttons, the scrollbar all use it). GFX's fill arcs at
 	 * r=6..8 drop one pixel per column for most of the arc, i.e. they ARE
@@ -116,8 +204,18 @@ void uiCloseX(Adafruit_GFX* g, int16_t x, int16_t y, int16_t w, int16_t h) {
 
 void uiScrollbar(Adafruit_GFX* g, int16_t x, int16_t y, int16_t w, int16_t h,
 	int pages, int cur) {
+#if SIMUT_UI_STUDY
+	if (uiStudyThemeActive( )) {
+		/* Track on superficie-2, no outline; the thumb below is the accent. */
+		g->fillRoundRect(x, y, w, h, 4, anguloTokens( ).superficie2);
+	} else {
+		g->fillRoundRect(x, y, w, h, 4, C_CARD_BG);
+		g->drawRoundRect(x, y, w, h, 4, C_TEXT_SUB);
+	}
+#else
 	g->fillRoundRect(x, y, w, h, 4, C_CARD_BG);
 	g->drawRoundRect(x, y, w, h, 4, C_TEXT_SUB);
+#endif
 	if (pages < 1) pages = 1;
 	int thumbH = h / pages;
 	if (thumbH < 20) thumbH = 20;

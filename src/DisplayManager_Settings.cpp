@@ -12,6 +12,9 @@
  */
 
 #include "DisplayManager.h"
+#if SIMUT_UI_STUDY
+#include "UiStudy.h"
+#endif
 #include "SensorManager.h"
 #include "DisplayManager_Fonts.h"
 #include "DisplayManager_FmtFloat.h"
@@ -58,8 +61,21 @@ void DisplayManager::drawSettingsThemes( ) {
  bool isSelected = (actualIdx == _previewThemeIdx);
  uint16_t bg = isSelected ? C_ACCENT : C_CARD_BG;
  uint16_t txt = isSelected ? C_BG_MAIN : C_TEXT_MAIN;
+#if SIMUT_UI_STUDY
+ if (uiStudyThemeActive( )) {
+ /* Ângulo list row, as in drawSettingsMain: linha/acento border, r 6. */
+ const AnguloTokens& T = anguloTokens( );
+ bg = isSelected ? T.superficie2 : T.superficie; txt = T.tinta;
+ _driver.canvas->fillRoundRect(0, 0, itemW, 34, 6, bg);
+ _driver.canvas->drawRoundRect(0, 0, itemW, 34, 6, isSelected ? T.acento : T.linha);
+ } else {
  _driver.canvas->fillRoundRect(0, 0, itemW, 34, 8, bg);
  if (!isSelected) _driver.canvas->drawRoundRect(0, 0, itemW, 34, 8, C_TEXT_SUB);
+ }
+#else
+ _driver.canvas->fillRoundRect(0, 0, itemW, 34, 8, bg);
+ if (!isSelected) _driver.canvas->drawRoundRect(0, 0, itemW, 34, 8, C_TEXT_SUB);
+#endif
  _driver.canvas->setFont(&simutFont9pt); _driver.canvas->setTextColor(txt);
  const ThemePalette* tp = getThemePalette(actualIdx);
  _driver.canvas->setCursor(10, 24); _driver.canvas->print(tp->displayName);
@@ -157,9 +173,22 @@ void DisplayManager::renderAlarmRow(int mapIdx, int16_t& outStatusX) {
  bool isSelected = (mapIdx == _alarmSelection);
  uint16_t bg = isSelected ? C_ACCENT : C_CARD_BG;
  uint16_t txt = isSelected ? C_BG_MAIN : C_TEXT_MAIN;
+#if SIMUT_UI_STUDY
+ if (uiStudyThemeActive( )) {
+ /* Ângulo list row, as in drawSettingsMain: linha/acento border, r 6. */
+ const AnguloTokens& T = anguloTokens( );
+ bg = isSelected ? T.superficie2 : T.superficie; txt = T.tinta;
+ _driver.canvas->fillRoundRect(0, 0, itemW, ALARM_EDIT_BAR_H, 6, bg);
+ _driver.canvas->drawRoundRect(0, 0, itemW, ALARM_EDIT_BAR_H, 6, isSelected ? T.acento : T.linha);
+ } else {
+ _driver.canvas->fillRoundRect(0, 0, itemW, ALARM_EDIT_BAR_H, ALARM_EDIT_BAR_R, bg);
+ if (!isSelected) _driver.canvas->drawRoundRect(0, 0, itemW, ALARM_EDIT_BAR_H, ALARM_EDIT_BAR_R, C_TEXT_SUB);
+ }
+#else
  _driver.canvas->fillRoundRect(0, 0, itemW, ALARM_EDIT_BAR_H, ALARM_EDIT_BAR_R, bg);
  if (!isSelected) _driver.canvas->drawRoundRect(0, 0, itemW, ALARM_EDIT_BAR_H,
  ALARM_EDIT_BAR_R, C_TEXT_SUB);
+#endif
 
  const char* statusTxt = rec->alarmsActive ? tr(TR_ON) : tr(TR_OFF);
  uint16_t sw;
@@ -175,11 +204,22 @@ void DisplayManager::renderAlarmRow(int mapIdx, int16_t& outStatusX) {
 
  /* ON/OFF indicator right-aligned */
  uint16_t statusColor;
+#if SIMUT_UI_STUDY
+ if (uiStudyThemeActive( )) {
+ /* State in a state colour, selected or not (§4.3): positivo = ligado. */
+ statusColor = rec->alarmsActive ? anguloTokens( ).positivo : anguloTokens( ).linhaForte;
+ } else if (isSelected) {
+ statusColor = C_BG_MAIN;
+ } else {
+ statusColor = rec->alarmsActive ? C_TEMP_OK : C_TEXT_OFF;
+ }
+#else
  if (isSelected) {
  statusColor = C_BG_MAIN;
  } else {
  statusColor = rec->alarmsActive ? C_TEMP_OK : C_TEXT_OFF;
  }
+#endif
  _driver.canvas->setTextColor(statusColor);
  _driver.canvas->setCursor(itemW - 10 - (int)sw, 24);
  _driver.canvas->print(statusTxt);
@@ -440,8 +480,26 @@ void DisplayManager::drawSettingsMain( ) {
  bool isSelected = (mapIdx == _menuSelection);
  uint16_t bg = isSelected ? C_ACCENT : C_CARD_BG;
  uint16_t txt = isSelected ? C_BG_MAIN : C_TEXT_MAIN;
+#if SIMUT_UI_STUDY
+ const bool ang = uiStudyThemeActive( );
+ if (ang) {
+ /* Ângulo list row: a surface bounded by `linha`, raio-controle (6); the
+  * selected one on superficie-2 with the accent as its border (§4.4,
+  * "selecionado"), text always tinta — no inverted row, so the footer's
+  * primary button stays the one accent fill on the screen. The rows keep
+  * x=10 (2 px off the 4-px grid) because the other five lists share it. */
+ const AnguloTokens& T = anguloTokens( );
+ bg = isSelected ? T.superficie2 : T.superficie; txt = T.tinta;
+ _driver.canvas->fillRoundRect(0, 0, itemW, 34, 6, bg);
+ _driver.canvas->drawRoundRect(0, 0, itemW, 34, 6, isSelected ? T.acento : T.linha);
+ } else {
  _driver.canvas->fillRoundRect(0, 0, itemW, 34, 8, bg);
  if (!isSelected) _driver.canvas->drawRoundRect(0, 0, itemW, 34, 8, C_TEXT_SUB);
+ }
+#else
+ _driver.canvas->fillRoundRect(0, 0, itemW, 34, 8, bg);
+ if (!isSelected) _driver.canvas->drawRoundRect(0, 0, itemW, 34, 8, C_TEXT_SUB);
+#endif
  /* Items keep their table order, so the icon id IS the item id:
   * 0 themes, 1 alarms, 2 sounds, 3 lang, 4 PIN, 5 touch-cal,
   * 6 license, 7 status, 8 display-offset, 9 users. The v25 item 10 (PIN
@@ -449,9 +507,16 @@ void DisplayManager::drawSettingsMain( ) {
   * flash for a picture nobody would read differently. The 2.7.1 item 11 (setup
   * AP) borrows the language globe for the same reason — it is the network
   * glyph this set has. */
+#if SIMUT_UI_STUDY
+ uiMenuIcon(_driver.canvas, 10, 9, (item == 10) ? 4 : (item == 11) ? 3 : item,
+ ang ? (isSelected ? anguloTokens( ).acento : anguloTokens( ).tinta2) : (isSelected ? C_BG_MAIN : C_ACCENT));
+ /* `corpo` is the regular weight (§3.2); the bold stays for rotulo/buttons. */
+ _driver.canvas->setFont(ang ? &simutFontText9 : &simutFont9pt); _driver.canvas->setTextColor(txt);
+#else
  uiMenuIcon(_driver.canvas, 10, 9, (item == 10) ? 4 : (item == 11) ? 3 : item,
  isSelected ? C_BG_MAIN : C_ACCENT);
  _driver.canvas->setFont(&simutFont9pt); _driver.canvas->setTextColor(txt);
+#endif
  const char* label = tr(menuItems[item]);
  char numbered[40];
  if (_menuCount < MENU_ITEM_COUNT) {
@@ -462,6 +527,16 @@ void DisplayManager::drawSettingsMain( ) {
  label = numbered;
  }
  _driver.canvas->setCursor(34, 24); _driver.canvas->print(label);
+#if SIMUT_UI_STUDY
+ if (ang) {
+ /* Single-stroke chevron (rule 6), 2 px, accent on the selected row. */
+ const uint16_t cc = isSelected ? anguloTokens( ).acento : anguloTokens( ).tinta2;
+ for (int8_t i = 0; i < 2; i++) {
+ _driver.canvas->drawLine(itemW - 18 + i, 11, itemW - 12 + i, 17, cc);
+ _driver.canvas->drawLine(itemW - 12 + i, 17, itemW - 18 + i, 23, cc);
+ }
+ } else
+#endif
  _driver.canvas->fillTriangle(itemW - 20, 11, itemW - 20, 23, itemW - 10, 17, isSelected ? C_BG_MAIN : C_TEXT_SUB);
  }
  blitCanvas(_driver.canvas, 10, y, itemW, 34);
@@ -1027,8 +1102,21 @@ void DisplayManager::drawSettingsSounds( ) {
  uint16_t bg = isSelected ? C_ACCENT : C_CARD_BG;
  uint16_t txt = isSelected ? C_BG_MAIN : C_TEXT_MAIN;
 
+#if SIMUT_UI_STUDY
+ if (uiStudyThemeActive( )) {
+ /* Ângulo list row, as in drawSettingsMain: linha/acento border, r 6. */
+ const AnguloTokens& T = anguloTokens( );
+ bg = isSelected ? T.superficie2 : T.superficie; txt = T.tinta;
+ _driver.canvas->fillRoundRect(0, 0, itemW, 34, 6, bg);
+ _driver.canvas->drawRoundRect(0, 0, itemW, 34, 6, isSelected ? T.acento : T.linha);
+ } else {
  _driver.canvas->fillRoundRect(0, 0, itemW, 34, 8, bg);
  if (!isSelected) _driver.canvas->drawRoundRect(0, 0, itemW, 34, 8, C_TEXT_SUB);
+ }
+#else
+ _driver.canvas->fillRoundRect(0, 0, itemW, 34, 8, bg);
+ if (!isSelected) _driver.canvas->drawRoundRect(0, 0, itemW, 34, 8, C_TEXT_SUB);
+#endif
 
  _driver.canvas->setFont(&simutFont9pt); _driver.canvas->setTextColor(txt);
  _driver.canvas->setCursor(10, 24);
@@ -1148,8 +1236,21 @@ void DisplayManager::drawMelodySelect( ) {
  uint16_t bg = isSelected ? C_ACCENT : C_CARD_BG;
  uint16_t txt = isSelected ? C_BG_MAIN : C_TEXT_MAIN;
 
+#if SIMUT_UI_STUDY
+ if (uiStudyThemeActive( )) {
+ /* Ângulo list row, as in drawSettingsMain: linha/acento border, r 6. */
+ const AnguloTokens& T = anguloTokens( );
+ bg = isSelected ? T.superficie2 : T.superficie; txt = T.tinta;
+ _driver.canvas->fillRoundRect(0, 0, itemW, 34, 6, bg);
+ _driver.canvas->drawRoundRect(0, 0, itemW, 34, 6, isSelected ? T.acento : T.linha);
+ } else {
  _driver.canvas->fillRoundRect(0, 0, itemW, 34, 8, bg);
  if (!isSelected) _driver.canvas->drawRoundRect(0, 0, itemW, 34, 8, C_TEXT_SUB);
+ }
+#else
+ _driver.canvas->fillRoundRect(0, 0, itemW, 34, 8, bg);
+ if (!isSelected) _driver.canvas->drawRoundRect(0, 0, itemW, 34, 8, C_TEXT_SUB);
+#endif
 
  _driver.canvas->setFont(&simutFont9pt); _driver.canvas->setTextColor(txt);
  _driver.canvas->setCursor(14, 24);

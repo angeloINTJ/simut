@@ -48,6 +48,29 @@ const ThemePalette availableThemes[] = {
  RGB565(18, 18, 20), RGB565(35, 38, 45), RGB565(245, 245, 245), RGB565(180, 180, 185), RGB565(90, 90, 100), RGB565(0, 150, 255), RGB565(50, 200, 255), RGB565(50, 50, 60),
  RGB565(255, 60, 60), RGB565(255, 170, 0), RGB565(0, 255, 2), RGB565(0, 200, 255), RGB565(0, 121, 255) , RGB565(180, 180, 185), RGB565(245, 245, 245), RGB565(245, 245, 245) , RGB565(0, 0, 0) , THM_STATE_DARK },
 
+#if SIMUT_UI_STUDY
+ /* ------ ÂNGULO (panel study, bench image only) ------
+  * The §3.1 tokens of ANGULO.md folded onto the 24 fields this palette has.
+  * The fold is the decision, so it is written out: readings are `tinta`
+  * (rule 1: one colour calls attention, and it is the accent), secondary
+  * readings and sensor names are `tinta-2`, the disabled/off text is
+  * `linha-forte`, and the limit alarm is the destructive pair (`perigo` fill,
+  * `perigo-tinta` text) because a panel that must be read across a room
+  * needs the firm version, not the pale badge. selBg carries FIXED white
+  * text in the drawers, so it is the darkest neutral of each theme. What the
+  * 24 fields cannot carry (linha, positivo, the -suave backgrounds) lives in
+  * UiStudy.cpp and is selected by the idName prefix "angulo_". */
+ { "angulo_claro", "Angulo claro",
+ RGB565(246, 246, 244), RGB565(255, 255, 255), RGB565(32, 30, 26), RGB565(95, 91, 84), RGB565(130, 126, 118), RGB565(31, 99, 85), RGB565(23, 77, 66), RGB565(236, 235, 230),
+ RGB565(179, 56, 46), RGB565(138, 97, 22), RGB565(32, 30, 26), RGB565(95, 91, 84), RGB565(95, 91, 84) , RGB565(32, 30, 26), RGB565(32, 30, 26), RGB565(95, 91, 84) , RGB565(241, 250, 246) ,
+ RGB565(179, 56, 46), RGB565(255, 245, 243), RGB565(247, 227, 224), RGB565(179, 56, 46), RGB565(138, 97, 22), RGB565(32, 30, 26), RGB565(95, 91, 84) },
+
+ { "angulo_escuro", "Angulo escuro",
+ RGB565(22, 21, 19), RGB565(32, 30, 27), RGB565(235, 231, 223), RGB565(163, 156, 144), RGB565(120, 113, 106), RGB565(95, 179, 154), RGB565(124, 199, 178), RGB565(42, 39, 35),
+ RGB565(224, 120, 98), RGB565(217, 168, 78), RGB565(235, 231, 223), RGB565(163, 156, 144), RGB565(163, 156, 144) , RGB565(235, 231, 223), RGB565(235, 231, 223), RGB565(163, 156, 144) , RGB565(14, 33, 27) ,
+ RGB565(224, 120, 98), RGB565(43, 16, 12), RGB565(56, 34, 32), RGB565(224, 120, 98), RGB565(217, 168, 78), RGB565(42, 39, 35), RGB565(163, 156, 144) },
+#endif /* SIMUT_UI_STUDY */
+
 #ifdef SIMUT_THEMES_HEALTH
  /* ------ HEALTH: 12 awareness-month campaigns ------ */
  { "jan_branco", "Janeiro Branco",

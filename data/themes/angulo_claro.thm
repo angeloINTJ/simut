@@ -1,0 +1,31 @@
+# SIMUT theme — the Angulo interface standard (ANGULO.md §3.1) folded onto
+# the 24 theme fields; same fold as src/Themes.cpp under SIMUT_UI_STUDY.
+# Generated 2026-09-25 by the study/tft-angulo branch, contrast-checked on
+# the pairs the drawers paint (tools/gen_theme_collection.py PAIRS).
+@NAME Angulo claro
+@CODE angulo_claro
+@COLORS
+bgMain=#F6F6F4
+cardBg=#FFFFFF
+textMain=#201E1A
+textSub=#5F5B54
+textOff=#827E76
+accent=#1F6355
+accentHigh=#174D42
+barBg=#ECEBE6
+tempHot=#B3382E
+tempWarm=#8A6116
+tempOk=#201E1A
+tempCold=#5F5B54
+humidity=#5F5B54
+btnText=#201E1A
+titleText=#201E1A
+sensorName=#5F5B54
+btnTextActive=#F1FAF6
+alarmBg=#B3382E
+alarmText=#FFF5F3
+alarmTextDim=#F7E3E0
+alarmBorder=#B3382E
+cautionBg=#8A6116
+selBg=#201E1A
+stampText=#5F5B54

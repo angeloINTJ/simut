@@ -25,6 +25,9 @@
  */
 
 #include "DisplayManager.h"
+#if SIMUT_UI_STUDY
+#include "UiStudy.h"
+#endif
 #if SIMUT_DISPLAY_TFT
 #include "DisplayManager_Fonts.h"
 #include "UiWidgets.h"
@@ -674,10 +677,23 @@ void DisplayManager::drawAlarmSensorMenu( ) {
 		const bool allowed = (_panelPerms & need[i]) != 0;
 		const bool sel = (i == _sensorMenuSel);
 		_driver.canvas->fillScreen(C_BG_MAIN);
+#if SIMUT_UI_STUDY
+		/* Ângulo list row, as in drawSettingsMain; a row the account cannot
+		 * use keeps its dimmed text (linha-forte) whether selected or not. */
+		const bool ang = uiStudyThemeActive( );
+		const uint16_t bg = ang ? (sel ? anguloTokens( ).superficie2 : anguloTokens( ).superficie)
+		                        : (sel ? C_ACCENT : C_CARD_BG);
+		const uint16_t txt = ang ? (allowed ? anguloTokens( ).tinta : anguloTokens( ).linhaForte)
+		                         : (sel ? C_BG_MAIN : (allowed ? C_TEXT_MAIN : C_TEXT_OFF));
+		_driver.canvas->fillRoundRect(0, 0, itemW, 34, ang ? 6 : 8, bg);
+		if (ang) _driver.canvas->drawRoundRect(0, 0, itemW, 34, 6, sel ? anguloTokens( ).acento : anguloTokens( ).linha);
+		else if (!sel) _driver.canvas->drawRoundRect(0, 0, itemW, 34, 8, C_TEXT_SUB);
+#else
 		const uint16_t bg = sel ? C_ACCENT : C_CARD_BG;
 		const uint16_t txt = sel ? C_BG_MAIN : (allowed ? C_TEXT_MAIN : C_TEXT_OFF);
 		_driver.canvas->fillRoundRect(0, 0, itemW, 34, 8, bg);
 		if (!sel) _driver.canvas->drawRoundRect(0, 0, itemW, 34, 8, C_TEXT_SUB);
+#endif
 		_driver.canvas->setFont(&simutFont9pt);
 		_driver.canvas->setTextColor(txt);
 		_driver.canvas->setCursor(10, 24);
@@ -704,6 +720,15 @@ void DisplayManager::drawAlarmSensorMenu( ) {
 			_driver.canvas->setCursor(itemW - 10 - (int)bw, 24);
 			_driver.canvas->print(val);
 		} else {
+#if SIMUT_UI_STUDY
+			if (uiStudyThemeActive( )) {
+				const uint16_t cc = sel ? anguloTokens( ).acento : anguloTokens( ).tinta2;
+				for (int8_t i = 0; i < 2; i++) {
+					_driver.canvas->drawLine(itemW - 18 + i, 11, itemW - 12 + i, 17, cc);
+					_driver.canvas->drawLine(itemW - 12 + i, 17, itemW - 18 + i, 23, cc);
+				}
+			} else
+#endif
 			_driver.canvas->fillTriangle(itemW - 20, 11, itemW - 20, 23, itemW - 10, 17, sel ? C_BG_MAIN : C_TEXT_SUB);
 			bw = 10;
 		}
@@ -712,7 +737,12 @@ void DisplayManager::drawAlarmSensorMenu( ) {
 			 * first letter of "SIM" (rig, 2026-09-19). Drawn on the selected
 			 * row as well: the highlight used to hide the one cue that said
 			 * why ENTER only beeps. */
+#if SIMUT_UI_STUDY
+			uiMenuIcon(_driver.canvas, (int16_t)(itemW - 10 - (int)bw - 26), 9, 4,
+			           uiStudyThemeActive( ) ? anguloTokens( ).linhaForte : (sel ? C_BG_MAIN : C_TEXT_OFF));
+#else
 			uiMenuIcon(_driver.canvas, (int16_t)(itemW - 10 - (int)bw - 26), 9, 4, sel ? C_BG_MAIN : C_TEXT_OFF);
+#endif
 		}
 		blitCanvas(_driver.canvas, 10, y, itemW, 34);
 	}
@@ -1022,10 +1052,20 @@ void DisplayManager::drawUserEdit( ) {
 		_driver.canvas->fillScreen(C_BG_MAIN);
 		if (idx < rows) {
 			const bool sel = (idx == _userEditSel);
+#if SIMUT_UI_STUDY
+			const bool ang = uiStudyThemeActive( );
+			const uint16_t bg = ang ? (sel ? anguloTokens( ).superficie2 : anguloTokens( ).superficie)
+			                        : (sel ? C_ACCENT : C_CARD_BG);
+			const uint16_t txt = ang ? anguloTokens( ).tinta : (sel ? C_BG_MAIN : C_TEXT_MAIN);
+			_driver.canvas->fillRoundRect(0, 0, itemW, 34, ang ? 6 : 8, bg);
+			if (ang) _driver.canvas->drawRoundRect(0, 0, itemW, 34, 6, sel ? anguloTokens( ).acento : anguloTokens( ).linha);
+			else if (!sel) _driver.canvas->drawRoundRect(0, 0, itemW, 34, 8, C_TEXT_SUB);
+#else
 			const uint16_t bg = sel ? C_ACCENT : C_CARD_BG;
 			const uint16_t txt = sel ? C_BG_MAIN : C_TEXT_MAIN;
 			_driver.canvas->fillRoundRect(0, 0, itemW, 34, 8, bg);
 			if (!sel) _driver.canvas->drawRoundRect(0, 0, itemW, 34, 8, C_TEXT_SUB);
+#endif
 			_driver.canvas->setFont(&simutFont9pt);
 			_driver.canvas->setTextColor(txt);
 			_driver.canvas->setCursor(10, 24);

@@ -498,6 +498,9 @@
  "ceiling": 1044480,
  "measured_on": "2026-09-25",
  "measured_at_commit": "chore/v2.7.3 on main 32d5b36 (#165 Restart without saving, #166 Ângulo standard; SIMUT_VERSION 2.7.3; budgets unchanged)",
+ "unbudgeted": {
+  "pico_w_uistudy": "bench-only study image (pico_w_test + SIMUT_UI_STUDY=1): the Angulo panel study of 2026-09-25, flashed over USB and never published, so it has no OTA ceiling to hold; its size is reported in the study branch instead"
+ },
  "envs": {
   "pico_w_release": {
    "budget": 1000852,

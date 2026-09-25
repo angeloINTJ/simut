@@ -697,9 +697,13 @@ private:
 #endif
 
 	SystemState _sharedState;
-#if SIMUT_DISPLAY_ALPHA
+#if SIMUT_DISPLAY_ALPHA || SIMUT_UI_STUDY
+	/* Every slot's last reading: the alpha LCD cycles through them, the
+	 * Ângulo study's list layout paints them all at once. */
 	SlotSnapshot _slotSnapshots[MAX_SENSORS];
 	uint8_t _activeSlotCount = 0;
+#endif
+#if SIMUT_DISPLAY_ALPHA
 	/* What the setup network is called and what opens it. Alpha only: this is
 	 * the build with no touch panel to start AP mode from and no TFT to print
 	 * the key on, so the 16x2 is the whole distribution mechanism for an
@@ -865,6 +869,16 @@ private:
 	bool pullSnapshot(SystemState& localSnapshot);
 
 	void render(const SystemState& state);
+#if SIMUT_UI_STUDY
+	/* Ângulo panel study (UiStudy.cpp): paints one of three dashboard layouts
+	 * through the 6-strip renderer wherever the shipped drawers would have
+	 * painted. _studySig is a hash of the last painted state, so a frame is
+	 * only redrawn when something visible moved. */
+	void renderStudyDashboard(const SystemState& state);
+	void studyPaint(const SystemState& st);
+	void studyMarkDirty( );
+	uint32_t _studySig = 0;
+#endif
 	void drawInterfaceFixed( );
 	void drawTopBar(const SystemState& state);
 	void drawSlotPanel(float t, float h, SensorType type, bool isValid, int slotIdx, const char* name, bool forceNameRedraw, DashPanel& panel, float p = NAN);

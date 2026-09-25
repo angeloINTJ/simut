@@ -11,6 +11,9 @@
 #include "AppManager.h"
 #include "CommandManager.h"
 #include "CommandParser.h"
+#if SIMUT_UI_STUDY
+#include "UiStudy.h" /* g_uiStudyVariant, for `screen uN` */
+#endif
 #include "CorsOrigin.h" /* isValidCorsOrigin — a mesma regra que o WebManager usa */
 #include "DisplayManager.h"
 #include "LogManager.h"
@@ -1400,6 +1403,18 @@ void AppManager::executeCommand(CliDemand cmd) {
  * /api/screenshot completes (chunked ~5s, full ~4s).
  * resetTouchIdle( ) gives a 30s window for capture. */
  const char* n = cmd.strVal1;
+#if SIMUT_UI_STUDY
+ /* Ângulo panel study: u0 = the shipped dashboard, u1..u3 = layouts A (two
+  * cards), B (list), C (focus). The theme is chosen the usual way
+  * (`system theme angulo_claro|angulo_escuro`, RAM only until write memory). */
+ if (n[0] == 'u' && n[1] >= '0' && n[1] <= '3' && n[2] == '\0') {
+ g_uiStudyVariant = (uint8_t)(n[1] - '0');
+ _displayMgr->forceDashboard( );
+ _displayMgr->resetTouchIdle( );
+ _cmdMgr->printSuccess(n);
+ break;
+ }
+#endif
  /* v24: the settings tree is filtered by the panel session's bits, and a
   * screen forced from here has no session. The serial console already
   * outranks every account (it resets the admin), so it looks in as the

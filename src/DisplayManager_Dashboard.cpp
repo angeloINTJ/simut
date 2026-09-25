@@ -13,6 +13,9 @@
  */
 
 #include "DisplayManager.h"
+#if SIMUT_UI_STUDY
+#include "UiStudy.h"
+#endif
 #include "DisplayManager_Fonts.h"
 #include "LogManager.h"
 #include "StorageManager.h"
@@ -168,6 +171,9 @@ void DisplayManager::maskStripCorners(GFXcanvas16* canvas,
 
 void DisplayManager::restoreNormalDashboard( ) {
  if (!_driver.tft || !_driver.canvas) return;
+#if SIMUT_UI_STUDY
+ if (g_uiStudyVariant != 0) { studyMarkDirty( ); return; } /* see redrawAlarmFlash */
+#endif
  drawSlotPanel(_lastRenderedState.topSlotTemp, _lastRenderedState.topSlotHum,
  _lastRenderedState.topSlotType, _lastRenderedState.topSlotValid,
  _lastRenderedState.topSlotIdx, _lastRenderedState.topSlotName, true, _topPanel, _lastRenderedState.topSlotPres);

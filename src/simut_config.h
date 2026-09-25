@@ -169,6 +169,20 @@
 #define SIMUT_MIRROR_PROBE 0
 #endif
 
+/* SIMUT_UI_STUDY — bench-only study of the touch panel under the Ângulo
+ * interface standard (ANGULO.md; AGENTS.md §7 names the panel as the one
+ * surface the standard has not reached). 1 compiles two extra built-in
+ * themes (angulo_claro / angulo_escuro: the §3.1 tokens in RGB565), the
+ * display face (Bricolage Grotesque 600) plus a regular text weight, restyles
+ * the shared chrome while one of those themes is active, and adds three
+ * dashboard layouts selectable at the console: `screen u1|u2|u3`, and
+ * `screen u0` for the shipped dashboard. Only env:pico_w_uistudy sets it;
+ * with the default 0 nothing below compiles and the six CI images are
+ * byte-identical to main (checked A-against-A, 2026-09-25). */
+#ifndef SIMUT_UI_STUDY
+#define SIMUT_UI_STUDY 0
+#endif
+
 /* =========================================================================
  * SECTION 3: ALPHA DISPLAY — HD44780 16x2
  *
