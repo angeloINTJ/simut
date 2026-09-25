@@ -14,6 +14,7 @@ substance lives there, not here.
 | Web UI source | `WebUI.h` at the repository root, all 8 languages. `tools/build_webui_gz.py` compresses it into `src/WebUI_GZ.h` on every build — never edit the generated header |
 | Tools | `tools/` — [`tools/README.md`](tools/README.md) says which of the 104 scripts are live |
 | Documentation | `docs/` — [`docs/README.md`](docs/README.md) marks each document **Living** or **Snapshot** |
+| Interface standard | [`ANGULO.md`](ANGULO.md) — the Ângulo guide for anything with a screen or a reader: web UI, site, README, docs, brand. [`AGENTS.md`](AGENTS.md) §7 says how it applies here and what `tools/check_angulo.py` enforces in CI |
 | Tests | `test/` — six native environments, `pio test -e native…` |
 
 ## Building and testing
@@ -28,7 +29,7 @@ pio test -e native_logpolicy   # one suite; six exist
 run by CI — `pico_w_asserts` is the one that is easy to forget, because it is
 not in the table above and nothing local reminds you of it. This line said
 "five" until 2026-09-20, and a change that raised the other five budgets went
-to CI with that one over its own. ⚠️ **`pio run` with no `-e` builds only
+to CI with that one over its own. **`pio run` with no `-e` builds only
 `pico_w_release`** — `default_envs` in `platformio.ini` says so, and this line
 claimed the opposite until 2026-09-22. Name the six.
 There is no debug environment — see the note in `platformio.ini` for why.

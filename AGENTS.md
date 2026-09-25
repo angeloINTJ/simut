@@ -9,6 +9,12 @@ numerados, as retratações, as medições do dia — está no `CHANGELOG.md` e 
 Todo número citado aqui foi medido e traz a data. Se o código deixar de bater
 com uma regra, a regra está errada e deve ser corrigida aqui.
 
+**Se o que você vai construir tem tela ou vira texto que alguém lê — página
+web, tela do painel, README, documento, ícone —, leia o `ANGULO.md` e a §7
+deste manual antes do primeiro estilo ou da primeira frase.** Parte das regras
+é conferida por `tools/check_angulo.py`, no CI; a outra parte é o checklist do
+§8 do guia, e é sua.
+
 ## 1. A bancada
 
 Um Pico W (o **alvo**, que roda o SIMUT) e um Pico comum (a **PicoHand**, ou
@@ -37,7 +43,7 @@ nenhum fio da mão alcança. O contorno é uma imagem só de bancada com
 `CHARGER OFF` (nível baixo) é "dedo na tela". Foi assim que o gesto de AP do
 boot foi medido nos quatro casos em 22/09.
 
-🔴 **No build TFT, o GP16 e o GP17 do alvo são o MISO da tela e o `TOUCH_CS` —
+**No build TFT, o GP16 e o GP17 do alvo são o MISO da tela e o `TOUCH_CS` —
 e estão ligados à mão (PROBE e CHARGER).** Um `CHARGER ON/OFF` ou um
 `PROBE START` que fique engatado corrompe **toda** leitura da GRAM
 (`/api/screenshot`, o espelho web, `/api/screen_stream`): com o CHARGER em nível
@@ -122,14 +128,14 @@ hand_release_all
   oito contas as setas saltam PÁGINA, então a linha alvo não é a selecionada e
   precisa de DOIS toques — um só deixa o seletor no vidro e o teclado nunca
   abre ("keypad not on screen (got 0 faces)").
-- ⚠️ **Nem todo comando roda dentro de `configure terminal`.** `tel …` e
+- **Nem todo comando roda dentro de `configure terminal`.** `tel …` e
   `alarm set …` são de CONFIGURAÇÃO; **`sensor <slot> <campo> <valor>` é EXEC
   privilegiado** e, dentro do `configure terminal`, responde "Comando requer
   modo privilegiado" e **não muda nada**. Como ninguém lê a resposta, a falha é
   silenciosa: em 20/09 um `sensor 0 alarm on` por `Rig.cfg( )` devolveu OK e
   deixou o alarme desligado, e só apareceu ao conferir o `/api/alarms` depois.
   **Confira o efeito pela API, não pelo retorno do comando.**
-- 🔴 **`active` do `/api/alarms` é o bit de ALARME LIGADO** (`alarmsActive`,
+- **`active` do `/api/alarms` é o bit de ALARME LIGADO** (`alarmsActive`,
   `WebManager_Api.cpp:393`), **não** "o sensor existe". A lista de alarmes do
   painel é montada de `sensors[i].active` (sensor CONFIGURADO,
   `DisplayManager_Settings.cpp:86`). Como o `/api/alarms` só emite os
@@ -137,7 +143,7 @@ hand_release_all
   elemento `k` é a linha `k`** — não filtre nada. Filtrar por `active` deixou
   as duas bancadas apontando para o sensor 4 enquanto tocavam a linha 0 (sensor
   0), e o `ctx=500` correto do log foi lido como defeito por uma tarde.
-- 🔴 **O teto de falhas do painel só o BOOT limpa.** `PinKb::PANEL_FAIL_CEILING`
+- **O teto de falhas do painel só o BOOT limpa.** `PinKb::PANEL_FAIL_CEILING`
   (20) falhas ligam `_permanentLockout`, e daí toda visita às Configurações
   repinta "Tentativas Excedidas" em vez de abrir o seletor. Um login
   bem-sucedido zera `_failedAttempts` e `_failBySlot`, mas **nunca**
@@ -151,7 +157,7 @@ hand_release_all
 - **O teclado do PIN é embaralhado: descubra o sorteio antes de tocar.** O
   alfabeto é distribuído em cartões a cada abertura da tela (e de novo após um
   PIN recusado e entre as duas digitações de um PIN novo), então nenhuma
-  coordenada é estável — **quando o teclado é sorteado**. ⚠️ **Desde a v25 o
+  coordenada é estável — **quando o teclado é sorteado**. **Desde a v25 o
   NÚMERO de cartões depende da política**: dígitos com 3 glifos dá 4 cartões
   (10 dígitos + 2 de enchimento), e as outras dão 6, 12 ou 18 (`PinKb::GRIDS`).
   Um script que assume quatro só funciona sob uma política — em 20/09 o
@@ -159,7 +165,7 @@ hand_release_all
   uma lista cujo último cartão era `'56'`. **Leia a grade e a política de
   `GET /api/keypad`** (`grid` = keys, slots, cols, rows, x, y, w, h, pitchX,
   pitchY; `policy` = minLen, maxLen, teclado, alfabeto), nunca de constantes.
-- 🔑 **Com 1 glifo por tecla NÃO há sorteio**: o teclado é ORDENADO, porque um
+- **Com 1 glifo por tecla NÃO há sorteio**: o teclado é ORDENADO, porque um
   conjunto de um não esconde nada de quem lê o vidro e embaralhar só custa a
   memória muscular do operador. O campo **`kb`** do `/api/keypad` diz qual
   está no vidro e **a interação de cada um é diferente**:
@@ -168,7 +174,7 @@ hand_release_all
   | `cards` | cartões sorteados, **re-sorteados a cada toque** | 1 (o cartão) |
   | `num` | pad numérico 1..9/0, duas células VAZIAS | 1 |
   | `groups` | 9 grupos (`0-9 ABC … WXYZ`) + popup | **2** (grupo, caractere) |
-  ⚠️ Num teclado ordenado **não espere re-sorteio** (`fresh_faces` esperaria
+  Atenção: num teclado ordenado **não espere re-sorteio** (`fresh_faces` esperaria
   para sempre) e **não descarte faces vazias** — elas são posicionais, e o pad
   numérico tem duas. A geometria do popup vem em **`pop`** = keyW, keyH, gap,
   y(1 linha), y(linha 0), y(linha 1); uma linha de `m` teclas começa em
@@ -178,13 +184,13 @@ hand_release_all
   responde ao `/api/keypad` agora, então `pin_exact( )` lê a geometria como
   todo o resto em vez de carregar a sua cópia do pad numérico.
   `show display keypad` imprime os cartões em ordem de sorteio — só
-  responde com o teclado na tela. ⚠️ **São DUAS telas**: ao IDENTIFICAR, os cartões
+  responde com o teclado na tela. **São DUAS telas**: ao IDENTIFICAR, os cartões
   sorteados, e o cartão inteiro é um botão (`Rig.pin( )` toca no centro do
   cartão que contém o dígito); ao DEFINIR um PIN, um teclado numérico COMUM de
   posições fixas (`Rig.pin_exact( )`, que não lê sorteio nenhum). Trocar os
-  dois faz a entrada virar outro PIN sem erro nenhum. ⚠️ O rodapé mudou em
+  dois faz a entrada virar outro PIN sem erro nenhum. Atenção: o rodapé mudou em
   19/09: ⌫ / SAIR / ENTRAR nos rects padrão (y=195, h=40) e sem o botão da
-  licença — as coordenadas antigas caem no lugar errado. ⚠️ **O sorteio muda a cada TOQUE**, então é uma leitura
+  licença — as coordenadas antigas caem no lugar errado. **O sorteio muda a cada TOQUE**, então é uma leitura
   por dígito. **Leia por `GET /api/keypad`, não pela serial.** O mesmo sorteio
   sai em 0,01 s contra 1,2 s do `show display keypad`, que ainda espera a
   janela de 5 s da prioridade do toque; um PIN de 4 dígitos leva 4,6 s contra
@@ -193,7 +199,7 @@ hand_release_all
   o que matou as duas primeiras rodadas de tabela cheia, nas contas 18 e 21
   de 25. `Rig.keypad_faces( )` usa o HTTP; `keypad_faces_cli( )` guarda o
   caminho serial para imagem sem servidor web.
-  ⚠️ Identificar com 8 toques bloqueia o Core 0 por ~360 ms (medido 19/09:
+  Atenção: identificar com 8 toques bloqueia o Core 0 por ~360 ms (medido 19/09:
   449 ms de pior resposta HTTP contra 91 ms ocioso) — uma requisição web que
   caia nessa janela simplesmente espera.
 - **Captura que mostra a tela ANTERIOR com o modo já trocado não é o
@@ -232,6 +238,7 @@ pio test -e native -e native_history_v5 -e native_cli -e native_logpolicy \
          -e native_alarmqueue -e native_network -e native_air
 ./tools/run_fuzz.sh                       # 60 s; NÃO está no pio test e já pegou defeito real
 python3 tools/check_air_consistency.py
+python3 tools/check_angulo.py             # o padrão de interface (§7): site, marca, READMEs, docs Living
 python3 tools/check_flash_budget.py <env> build.log   # o CI roda assim; local, leia a linha "used"
 ```
 
@@ -470,7 +477,7 @@ ficar na fila e executar vários inputs depois.
   | `4000+min` | uptime do aparelho no travamento, em MINUTOS | 4000..32000 |
 
   Leia os quatro como um grupo: são gravados consecutivamente, no boot logo
-  depois do travamento. ⚠️ **As faixas são disjuntas de propósito** — a
+  depois do travamento. **As faixas são disjuntas de propósito** — a
   primeira versão pôs minutos em `2000` saturando em 20000, e um aparelho de
   pé há 1000 min gravava `ctx=3000`, que se lê como "heap 0 KB". Quem inventar
   uma faixa nova confere o alcance inteiro, saturação incluída
@@ -498,7 +505,7 @@ ficar na fila e executar vários inputs depois.
   `gen_logcodes.py`, nunca o `.h`. A rota é ~12× mais rápida que o console
   (0,15 s contra 1,76 s para 1.189 registros, medido 19/09), e é ela que
   `Rig.log_records( )` usa.
-  ⚠️ **`/api/logs` RECUSA**: 429 para duas leituras dentro de 200 ms e 503
+  **`/api/logs` RECUSA**: 429 para duas leituras dentro de 200 ms e 503
   dentro da janela de toque. Um leitor que devolva lista vazia nessas duas
   respostas transforma "não consegui olhar" em "o registro não existe" — foi
   exatamente o que a primeira versão de `log_records( )` fez, dizendo 0
@@ -556,7 +563,141 @@ ficar na fila e executar vários inputs depois.
   Mexer em `MOVING_AVG_WINDOW` ou na resolução do DS18 muda o número gravado — é
   decisão do mantenedor.
 
-## 7. O que este manual não guarda, e onde está
+## 7. O padrão de interface — o Ângulo
+
+**Tudo o que tem tela ou vira documento neste repositório segue o
+`ANGULO.md`.** Não é gosto da ocasião: é o padrão de todos os sistemas do dono,
+e a casa dele é o repo `simut-rx` — lá ficam os anexos §11–§13 e a fonte da
+verdade dos valores. Vale para a UI web do aparelho, o site e a landing em
+`docs/`, o manual, os três READMEs, os documentos Living, a marca e as
+mensagens que o usuário lê no console. Antes de escrever, leia o §2 (as oito
+regras), o §7 (microcopy) e o §8 (o checklist) do guia.
+
+### As oito regras (`ANGULO.md` §2)
+
+1. **Uma cor manda.** Só `acento` chama atenção; os neutros fazem o resto.
+   Gradiente só em gráfico de dados — nunca em botão, título, fundo ou selo. O
+   estilo `flat` do shields.io desenha um gradiente: selo de README é
+   `style=flat-square`.
+2. **Duas famílias, papéis claros.** `display` (Bricolage Grotesque 600) nos
+   títulos, `texto` (a fonte do sistema) no resto. Nenhuma palavra do título em
+   outra cor ou outro peso.
+3. **Linha antes de sombra.** Superfícies se separam por `linha` de 1 px. Sombra
+   só no que flutua (menu, modal, toast), e só `--sombra-flutuante`. **Cartão
+   nunca tem sombra.**
+4. **Dois raios e o círculo:** `raio-controle` (6 px) em botão, campo e chip;
+   `raio-cartao` (12 px) em cartão, modal e imagem; `raio-total` em pílula,
+   avatar e interruptor.
+5. **Espaço na escala.** Toda distância é um `espaco-*` da grade de 4 px. Valor
+   mágico é bug a corrigir, não escolha.
+6. **Ícone de um traço só**, de um conjunto só — aqui, o sprite da UI web.
+   **Emoji nunca faz papel de ícone, nem em tela nem em documento:** nada de
+   check, xis, triângulo de aviso ou bolinha colorida como status, e nada de
+   emoji em título. O estado se escreve em palavras: "feito", "recusado",
+   "Atenção:".
+7. **Microcopy que diz o que faz.** Botão é verbo + objeto ("Baixar firmware").
+   Nada de "revolucione", "turbine", "de nível profissional". Um erro diz o que
+   aconteceu e como resolver, sem pedir desculpas. Título em caixa de sentença;
+   ênfase em negrito, não em caixa alta.
+8. **Todo estado existe.** Hover, foco visível, desabilitado, erro, vazio e
+   carregando são desenhados antes de o componente ser dado por pronto.
+
+### De onde vêm os valores, e o que nunca se edita à mão
+
+A fonte da verdade é `design/tokens.cor.json` + `design/tokens.comum.json` no
+`simut-rx`; o build de lá gera `web/angulo.css` e se recusa a gerar se algum dos
+52 pares de contraste falhar, nos dois temas. Aqui, os valores chegam por cópia:
+
+| Onde | O que é | Quando um token muda |
+|---|---|---|
+| `docs/assets/angulo.css` | cópia byte a byte de `simut-rx/web/angulo.css`; o sha256 dela está fixado em `tools/check_angulo.py` | recopiar e atualizar o hash — **nunca** editar aqui |
+| `docs/assets/fonts/` | a face de display (subconjunto de 13 kB) e a licença OFL, que viajam juntas | recopiar de `simut-rx/design/fonts/` |
+| `docs/assets/site.css` | o que toda página do site divide: barra de topo, marca, botões, selos, prosa, rodapé | nada — só `var(--…)`, nenhum hex |
+| `docs/_layouts/default.html` | o layout de toda página Markdown do GitHub Pages; substitui o do Cayman, que tinha cabeçalho em gradiente | nada |
+| `docs/index.html` | a landing: `angulo.css` + `site.css` + um bloco só dela; o tema fica em `angulo:tema`, a chave do manual | nada |
+| `tools/build_manual.py` | o manual; tokens copiados no CSS dele, a face embutida em base64 | recopiar os valores ali e regerar |
+| `WebUI.h` (`LANG_JS` e `LOGIN_PAGE`) | a UI do aparelho: uma cópia no `/lang.js` das páginas com sessão, outra no login, que também serve o `/force_chpass` | mudar as duas |
+| `tools/gen_logo.py` | toda a marca, **lendo as cores de `docs/assets/angulo.css`** | rodar de novo |
+
+### A marca
+
+O §6 do guia diz: a marca é o nome na `display`, peso 600, −0,02em. O ícone é o
+S da mesma face em `acento-tinta` sobre um disco de `acento` — o par do botão
+primário. Nada disso se redesenha à mão: `python3 tools/gen_logo.py` (pede
+`fonttools`, `brotli` e `pillow`, que não são dependências do projeto) gera
+`docs/images/logo-*.svg`, os dois selos "Powered by", o
+`docs/images/social-preview.png`, o `docs/_includes/marca.html` e o
+`data/favicon.ico`.
+
+- **O `favicon.ico` é flash, byte a byte:** `build_favicon_header.py` o embute em
+  `src/Favicon.cpp`. São 731 B desde 24/09/2026 (eram 835). O S do quadro de
+  16 px é maior que o do vetor, 68% do disco contra 60%, de propósito: com 60% o
+  traço do meio se fundia às contraformas.
+- **README:** `<picture>` com `logo-wordmark.svg` e `logo-wordmark-dark.svg`, e o
+  GitHub escolhe pelo tema do visitante. Um SVG com `prefers-color-scheme`
+  **dentro** dele segue o sistema operacional, não o tema do GitHub, e o nome
+  cai claro sobre claro — já aconteceu.
+- A marca da tela de login da UI web é o mesmo contorno (`logo-name.svg`), com
+  `fill=currentColor`.
+
+### Onde o padrão ainda não chegou, ou chegou com desvio
+
+Conferido no código em 24/09/2026. Desvio registrado não é defeito; desvio
+calado é.
+
+- **UI web do aparelho** — Ângulo desde a 2.4.6-beta, com desvios pagos em
+  flash: nenhuma fonte embutida (nenhum `@font-face`, a pilha cai para a do
+  sistema); medidas em px em vez de `var(--espaco-N)` (146 contra 1); os tokens
+  em duas cópias, mais um 18º papel, `--veu`, para o véu de modal e gaveta; e a
+  paleta das séries do gráfico, que é dado e não cromo — a exceção que a regra 1
+  abre. Dois desvios que nenhum anexo registrava: o traço dos ícones é 1,75 (o
+  §6 pede 1,5) e, sem escolha guardada, o tema é o escuro (o §3.1 diz claro),
+  guardado em `simut_ui_theme` e não em `angulo:tema`.
+- **Painel TFT — não é Ângulo.** As cores vêm do tema ativo (`.thm`, 24 campos,
+  11 em `data/themes/`), e o de fábrica usa acento azul
+  (`RGB565(0, 150, 255)`, `src/Themes.cpp`). Levar o painel ao Ângulo é decisão
+  de produto em aberto. Enquanto isso, o que não depende de cor vale lá também:
+  microcopy, a área segura e a grade de 4 px, todo estado desenhado — e emoji
+  nem existe na fonte CP437.
+- **LCD 16×2 do alpha:** vale a microcopy.
+- **Documentos Snapshot** (campanhas, auditorias, análises datadas — ver
+  `docs/README.md`) **não se editam** para seguir o padrão: um registro editado
+  deixa de ser evidência.
+- **O bloco do all-contributors nos READMEs** é gerado pelo bot, com os emojis
+  da especificação dele, e fica como ele escreve.
+
+### O que é verificado por máquina, e o que é seu
+
+`python3 tools/check_angulo.py` roda no job `gates` do CI e sai com 1 em
+qualquer achado:
+
+| Regra | Onde ela morde |
+|---|---|
+| Tokens não se editam aqui | sha256 de `docs/assets/angulo.css`, fixado no script |
+| Nenhuma cor literal, nenhum gradiente | `site.css` e o `<style>` da landing; as cores da marca, só entre os tokens |
+| Sombra só `--sombra-flutuante`; só os três raios | `site.css` e a landing |
+| Distância na grade de 4 px; tamanho, entrelinha e espaçamento de letra da escala | `margin`, `padding`, `gap`, `font`, `letter-spacing` |
+| Nenhum emoji no lugar de ícone ou de palavra | READMEs, site, guias da raiz e de `tools/`, fontes do manual, e todo documento que o `docs/README.md` marca Living |
+| Selo de README sem gradiente | todo `img.shields.io` com `style=flat-square` |
+
+Cada regra foi conferida por mutação em 24/09/2026: devolver a violação deixa
+exatamente um achado, 19 de 19. Contra a `main` de antes desta mudança, ele
+acusa 409. **A UI web do aparelho não passa por ele** — os desvios acima
+quebrariam o portão — e um documento só entra na checagem de emoji quando o
+`docs/README.md` o marca Living.
+
+O que a máquina não vê é o checklist do §8 do guia, e é seu: uma só `display`
+ou `titulo` e um só botão primário por tela; todo texto sobre um fundo da tabela
+de combinações; anel de foco em todo controle; rótulo visível em todo campo;
+erro que diz o que fazer; botão com verbo e objeto; estados vazio, carregando e
+erro desenhados; alvo de toque de 44 px no celular. Em documento: título em
+caixa de sentença, ênfase em negrito, e nenhuma promessa que um número não
+sustente.
+
+## 8. O que este manual não guarda, e onde está
+
+- O padrão de interface por inteiro: `ANGULO.md` (o guia, §1–§10); os anexos
+  §11–§13 e os tokens estão no repo `simut-rx`.
 
 - A história dos achados do Air (F01–F28), com medições e retratações:
   `docs/analysis/SIMUT_AIR_PLANO_FIX.md` (snapshot) e o `CHANGELOG.md`.

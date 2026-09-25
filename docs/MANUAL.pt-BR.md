@@ -355,16 +355,16 @@ painel, ou a página de configuração na web.
 | **teclado** 3 → 2 → 1 glifo | menos candidatos por toque ⇒ palpite mais caro | quem observa passa a ver mais |
 | **comprimento** | cada caractere multiplica | toques, e **CPU** |
 
-⚠️ O teclado é **soma zero**: o conjunto que esconde o caractere de quem observa
+Atenção: o teclado é **soma zero**: o conjunto que esconde o caractere de quem observa
 é o mesmo que a busca tem de percorrer. O **alfabeto** é o único eixo que não é
 troca.
 
-⚠️ **O teto de comprimento é de CPU, não de gosto.** A árvore de toques custa
+**O teto de comprimento é de CPU, não de gosto.** A árvore de toques custa
 `S+S²+…+Sⁿ` SHA-256, medidos em **36,6 µs** cada no ferro, e o Core 0 fica
 parado nisso — o servidor web espera atrás. Daí **16/12/8** caracteres para 1/2/3
 glifos por tecla. Com 3 glifos, 10 toques seriam 3,2 s e 16 seriam 39 minutos.
 
-⚠️ **Apertar a política marca toda conta que tem PIN para trocá-lo** no próximo
+**Apertar a política marca toda conta que tem PIN para trocá-lo** no próximo
 acesso. É inevitável: o aparelho guarda apenas o *digest* e não tem como saber
 se um PIN antigo ainda cabe na regra nova.
 
@@ -540,7 +540,7 @@ política de PIN continuam exigindo reinício, e nesse caso a barra mostra só
 > e só o aparelho sabe fazer isso: um campo digitado de volta ao valor atual
 > não é mudança nenhuma.
 
-⚠️ **Testar** não sobrevive a uma queda de energia — é para experimentar um
+**Testar** não sobrevive a uma queda de energia — é para experimentar um
 limite, não para configurar. Enquanto o pendente estiver lá, a barra continua
 visível.
 
@@ -660,7 +660,7 @@ ao soltar, manda a duração como `ms`, e o aparelho segura o toque esse tempo (
 toque comum. O aparelho reproduz o toque depois que você solta, então a tela só
 reage aí.
 
-⚠️ Quem chamar `/api/touch` por fora da página precisa **esperar ~600 ms antes
+Atenção: quem chamar `/api/touch` por fora da página precisa **esperar ~600 ms antes
 de pedir o próximo quadro**. Um toque vira um evento que o Core 0 consome no
 laço dele, e uma captura ocupa esse mesmo core: pedir o quadro logo em seguida
 fotografa a tela antes da transição. A espera não pode morar no aparelho
@@ -1129,7 +1129,7 @@ SSID configurado — então num aparelho sem SSID esse estado não tem saída �
 Air que nunca hiberna é uma bateria na bancada. O canal dele é a CLI, pela USB
 ou pelo Bluetooth, que ele tem completa desde 18/09/2026.
 
-⚠️ **O gesto do toque é o mais frágil dos cinco.** A janela abre quando o painel
+**O gesto do toque é o mais frágil dos cinco.** A janela abre quando o painel
 escreve "Segure a tela para o modo AP" e dura 3,5 s; segurar 3 s dentro dela
 liga o AP. Até a v2.7.0 essa janela corria **antes** do Core 1 existir, e o Core
 1 é quem desenha o TFT: a instrução chegava ao vidro 38 ms depois de a janela
@@ -1344,7 +1344,7 @@ uma leitura por minuto e telemetria a cada quinto wake, isso dá cerca de
 amostras enchendo do zero, e o DS18B20 leva 750 ms por conversão a 12 bits.
 Reduzir o `MOVING_AVG_WINDOW` ou a resolução do sensor é a alavanca que resta, e
 as duas mudam o número gravado, então nenhuma foi aplicada por você.
-⚠️ Note também que o driver hoje espera 750 ms fixos seja qual for a resolução
+Note também que o driver hoje espera 750 ms fixos seja qual for a resolução
 configurada, então **baixar a resolução agora custa precisão e não devolve
 tempo** enquanto essa espera não seguir o ajuste.
 

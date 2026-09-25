@@ -1,6 +1,6 @@
 # Recovery — Pico W Brick After OTA
 
-> 📖 English · [Ver documentación en español](../README.es-ES.md) · [Ver documentação em português](../README.pt-BR.md)
+> English · [Ver documentación en español](../README.es-ES.md) · [Ver documentação em português](../README.pt-BR.md)
 >
 > Recovery procedures for a Pico W that no longer boots. Read BEFORE
 > any destructive test. Keep the `.uf2` of the last stable version saved
@@ -127,16 +127,16 @@ from step 5.
 
 ---
 
-## What NOT to Do
+## What not to do
 
-- ❌ `picotool erase` while the device is in APP mode — fails; only
+- `picotool erase` while the device is in APP mode — fails; only
   works in BOOTSEL.
-- ❌ `picotool reboot` expecting to recover a frozen device — only
+- `picotool reboot` expecting to recover a frozen device — only
   works if the device responds.
-- ❌ Reflash without `picotool erase` first — staging area + metadata
+- Reflash without `picotool erase` first — staging area + metadata
   may have garbage from the broken apply, causing strange behavior
   (even if the sketch slot is OK).
-- ❌ Delete the old version `.uf2` before confirming the new one is
+- Delete the old version `.uf2` before confirming the new one is
   stable on HW. Always keep the **rollback** available.
 
 ---

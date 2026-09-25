@@ -1,23 +1,27 @@
 <p align="center">
-  <img src="docs/images/logo-wordmark.svg" alt="SIMUT" height="76">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo-wordmark-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="docs/images/logo-wordmark.svg">
+    <img src="docs/images/logo-wordmark.svg" alt="SIMUT" height="64">
+  </picture>
 </p>
 
 # SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
 
 > Integrated Universal Monitoring and Telemetry System
 
-> Professional-grade IoT firmware for Raspberry Pi Pico W
+> Offline-first temperature, humidity and pressure monitoring for the Raspberry Pi Pico W
 
 [English](README.md) | [Português](README.pt-BR.md) | [Español](README.es-ES.md)
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Platform: RP2040](https://img.shields.io/badge/Platform-RP2040-green.svg)](https://www.raspberrypi.com/products/raspberry-pi-pico/)
-[![Framework: Arduino](https://img.shields.io/badge/Framework-Arduino-teal.svg)](https://arduino-pico.readthedocs.io/)
-[![CI](https://github.com/angeloINTJ/simut/actions/workflows/build.yml/badge.svg)](https://github.com/angeloINTJ/simut/actions/workflows/build.yml)
-[![Release](https://img.shields.io/github/v/release/angeloINTJ/simut?label=Release&color=blue)](https://github.com/angeloINTJ/simut/releases/latest)
-[![Docs](https://img.shields.io/badge/Docs-GitHub_Pages-34D058.svg)](https://angelointj.github.io/simut/)
-[![Contributors](https://img.shields.io/badge/All_Contributors-5-orange.svg)](#contributors-)
-[![Contributions Welcome](https://img.shields.io/badge/Contributions-Welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![License: MIT](https://img.shields.io/badge/License-MIT-1f6355?style=flat-square&labelColor=5f5b54)](LICENSE)
+[![Platform: RP2040](https://img.shields.io/badge/Platform-RP2040-1f6355?style=flat-square&labelColor=5f5b54)](https://www.raspberrypi.com/products/raspberry-pi-pico/)
+[![Framework: Arduino](https://img.shields.io/badge/Framework-Arduino-1f6355?style=flat-square&labelColor=5f5b54)](https://arduino-pico.readthedocs.io/)
+[![CI](https://img.shields.io/github/actions/workflow/status/angeloINTJ/simut/build.yml?branch=main&label=CI&style=flat-square&labelColor=5f5b54)](https://github.com/angeloINTJ/simut/actions/workflows/build.yml)
+[![Release](https://img.shields.io/github/v/release/angeloINTJ/simut?label=Release&color=1f6355&style=flat-square&labelColor=5f5b54)](https://github.com/angeloINTJ/simut/releases/latest)
+[![Docs](https://img.shields.io/badge/Docs-GitHub_Pages-1f6355?style=flat-square&labelColor=5f5b54)](https://angelointj.github.io/simut/)
+[![Contributors](https://img.shields.io/badge/Contributors-5-1f6355?style=flat-square&labelColor=5f5b54)](#contributors)
+[![Contributions welcome](https://img.shields.io/badge/Contributions-welcome-1f6355?style=flat-square&labelColor=5f5b54)](CONTRIBUTING.md)
 
 <p align="center">
   <img src="docs/images/tft-tour.gif" alt="SIMUT TFT tour — dashboard, history graphs, calendar and settings" width="400">
@@ -61,17 +65,17 @@ They share one core:
 
 ## Why SIMUT?
 
-| Need | DIY Arduino Sketch | ESPHome / Tasmota | **SIMUT** |
+| Need | DIY Arduino sketch | ESPHome / Tasmota | **SIMUT** |
 |------|:---:|:---:|:---:|
-| Standalone with display | ⚠️ Manual coding | ❌ No TFT support | ✅ Built-in touch UI, or a 16×2 LCD |
-| Regulated environments | ❌ No audit trail | ❌ No user RBAC | ✅ 32 accounts, per-account panel PIN, signed audit trail |
-| Cold chain (probes down to −50 °C) | ⚠️ Basic readings | ✅ Basic monitoring | ✅ Calibrated multi-sensor, maintenance windows |
-| Offline operation | ✅ Yes | ❌ Often cloud-dependent | ✅ Full local web + display |
-| OTA updates | ❌ Manual reflash | ✅ OTA | ✅ OTA + backup/restore |
-| Security | ❌ None | ⚠️ Basic | ✅ HMAC-SHA256, 13-bit RBAC, lockouts, optional HTTPS |
-| Home Assistant | ⚠️ Manual setup | ✅ Native | ✅ MQTT Discovery (opt-in) |
-| Prometheus metrics | ❌ None | ✅ Built-in | ✅ `/metrics` endpoint |
-| Remote audit log | ❌ None | ⚠️ Add-on | ✅ Syslog (RFC 5424 / UDP) |
+| Standalone with display | Manual coding | No TFT support | Built-in touch UI, or a 16×2 LCD |
+| Regulated environments | No audit trail | No user RBAC | 32 accounts, per-account panel PIN, signed audit trail |
+| Cold chain (probes down to −50 °C) | Basic readings | Basic monitoring | Calibrated multi-sensor, maintenance windows |
+| Offline operation | Yes | Often cloud-dependent | Full local web + display |
+| OTA updates | Manual reflash | OTA | OTA + backup/restore |
+| Security | None | Basic | HMAC-SHA256, 13-bit RBAC, lockouts, optional HTTPS |
+| Home Assistant | Manual setup | Native | MQTT Discovery (opt-in) |
+| Prometheus metrics | None | Built-in | `/metrics` endpoint |
+| Remote audit log | None | Add-on | Syslog (RFC 5424 / UDP) |
 
 **SIMUT is for you if:** you need a standalone, secure, auditable temperature monitoring system that works with or without internet — typical in laboratories, pharmacies, blood banks, vaccine storage, and food cold chains.
 
@@ -116,13 +120,13 @@ They share one core:
 
 ## Screenshots
 
-| TFT Dashboard | TFT History Graph | Web Dashboard | Early Alpha |
+| TFT dashboard | TFT history graph | Web dashboard | Early alpha |
 |:---:|:---:|:---:|:---:|
 | ![TFT dashboard](docs/images/screens/dashboard.png) | ![TFT graph](docs/images/screens/graph.png) | ![Web dashboard](docs/images/web-dashboard.png) | [![Alpha video](https://img.youtube.com/vi/wLjghqId8nE/hqdefault.jpg)](https://youtu.be/wLjghqId8nE) |
 
 > Every display screen, captured off the real panel framebuffer: [docs/images/screens/screens.md](docs/images/screens/screens.md).
 >
-> The **Early Alpha** video shows the first TFT + touch prototype — the UI has been redesigned since.
+> The **early alpha** video shows the first TFT + touch prototype — the UI has been redesigned since.
 
 ## Hardware
 
@@ -135,11 +139,11 @@ They share one core:
 | Buzzer | Passive piezo (PIO-driven) — not on the Air |
 | Storage | 2 MB internal flash (1 MB firmware slot + 1 MB LittleFS) |
 
-See the **[Wiring Guide](docs/WIRING.md)** for the complete pinout and connection diagrams.
+See the **[wiring guide](docs/WIRING.md)** for the complete pinout and connection diagrams.
 
 > **SIMUT PCB — layout available for download** — the KiCad board design (`.kicad_pcb`, `.kicad_sch`) lives in [`PCB_test/`](PCB_test/), and the ready-to-fab package (Gerbers + PTH/NPTH drills, no paste layers) is published as a public release: **[simut-pcb-v1.1 — `simut_pcb_fabrication.zip`](https://github.com/angeloINTJ/simut/releases/tag/simut-pcb-v1.1)**.
 
-## Key Features
+## Key features
 
 ### Sensing and alarms
 - **16 universal sensor slots** — GP0–GP15. Each slot takes a DS18B20, a DHT22 or a BMP280/BME280; a BMx280 is retyped automatically from its chip ID. Type and pins are assigned at runtime, with no recompile.
@@ -280,7 +284,7 @@ See the **[Wiring Guide](docs/WIRING.md)** for the complete pinout and connectio
 ### Internationalization
 - **3 interface languages** — English built in; Portuguese (pt-BR) and Spanish (es-ES) come as `.lng` packs on the filesystem. A device runs English plus the one pack installed.
 
-## Quick Start
+## Quick start
 
 ### Prerequisites
 - [PlatformIO](https://platformio.org/) (Core 6.x or later)
@@ -288,7 +292,7 @@ See the **[Wiring Guide](docs/WIRING.md)** for the complete pinout and connectio
 - Raspberry Pi Pico W
 - No local toolchain? `docker compose run build` builds in a container — the path [CONTRIBUTING.md](CONTRIBUTING.md) recommends for new contributors
 
-### Build & Flash
+### Build and flash
 
 ```bash
 # Clone the repository
@@ -302,17 +306,17 @@ pio run -e pico_w_release
 pio run -e pico_w_release -t upload
 
 # First flash only: upload LittleFS data (language packs, themes, favicon).
-# ⚠️ uploadfs REFORMATS the LittleFS partition — on a device already in
+# Warning: uploadfs reformats the LittleFS partition — on a device already in
 # service it destroys history, config and calibration. Never run it again
 # after the device has data; language packs can be uploaded later from the
-# web file manager instead. It copies BOTH language packs, and the device
+# web file manager instead. It copies both language packs, and the device
 # loads the first alphabetically (es-ES): delete the one you do not want.
 pio run -e pico_w_release -t uploadfs
 ```
 
 Prefer not to build? Every [release](https://github.com/angeloINTJ/simut/releases/latest) ships `simut_vX.Y.Z_release.uf2`, `_alpha.uf2` and `_air.uf2` (drag-and-drop with BOOTSEL held), the matching `.bin` for over-the-air updates, and the pt-BR and es-ES language packs.
 
-### First Boot
+### First boot
 1. **Capture the admin password.** A factory-fresh unit prints a random 8-character admin password **once on the USB serial console** (115200 baud). It is never stored in plain text. If you miss it, `system admin reset confirm` over USB prints a new one.
 2. **Join it to your network.** A unit with no network configured opens its setup access point by itself. The Air does not: type `ap` on its console instead.
    - Join `<name>_SETUP` (`simut_SETUP` from the factory). It is WPA2, and its per-device key is printed on the USB console and on the TFT's boot terminal — at boot, and since v2.7.2 also when the AP opens during operation. On an alpha, read it from the USB console or from the `ap` command's reply: by the v2.7.2 code, the LCD does not reach its AP pages.
@@ -324,7 +328,7 @@ Prefer not to build? Every [release](https://github.com/angeloINTJ/simut/release
 4. **Add sensors** in **Config → Sensors & GPIO**, or let *Scan for probes* find them.
 5. **On the touch panel**, Settings asks for an account and its PIN. The factory admin PIN is `1234`, and it must be changed on first use.
 
-## Project Structure
+## Project structure
 
 ```
 simut/
@@ -361,9 +365,9 @@ simut/
 
 | Environment | Purpose | Published |
 |-------------|---------|:---:|
-| `pico_w_release` | Production image for the TFT panel: emergency console, HTTPS server, mDNS | ✅ `…_release` |
-| `pico_w_alpha` | 16×2 character LCD (HD44780), no touch; emergency console + Bluetooth console | ✅ `…_alpha` |
-| `pico_w_air` | **Experimental** — SIMUT Air: headless, no buzzer, hibernation cycle (M0 awake / M1 wake-read-send-sleep); full console + Bluetooth. See §17 of the [User Manual](docs/MANUAL.md) | ✅ `…_air` |
+| `pico_w_release` | Production image for the TFT panel: emergency console, HTTPS server, mDNS | `…_release` |
+| `pico_w_alpha` | 16×2 character LCD (HD44780), no touch; emergency console + Bluetooth console | `…_alpha` |
+| `pico_w_air` | **Experimental** — SIMUT Air: headless, no buzzer, hibernation cycle (M0 awake / M1 wake-read-send-sleep); full console + Bluetooth. See §17 of the [user manual](docs/MANUAL.md) | `…_air` |
 | `pico_w_test` | Bench image: the full console for the test suites; no HTTPS, no mDNS | — |
 | `pico_w_test_https` | `pico_w_test` plus the HTTPS server, for TLS validation; three of its pages are served from LittleFS to fit | — |
 | `pico_w_asserts` | Release + concurrency assertions | — |
@@ -380,7 +384,7 @@ simut/
 
 > There is no debug environment. `pico_w_debug` was removed in v2.4.1 after never once linking: at `-Og` the image overflowed the 1020 KB app slot by ~100 KB. Flash is tight. The release image uses 97.2 % of the 1,044,480 B program slot, and its `.bin` sits 13,196 B under the 1,040,384 B over-the-air ceiling. A GDB target would have to be built by cutting features. For the concurrency tripwire on hardware, use `pico_w_asserts`.
 
-### Build Flags
+### Build flags
 - `-Os` — optimize for size
 - `-Wall -Wextra`, and `-Werror` on `src/` (third-party libraries are not held to it)
 - `-specs=nano.specs` — newlib-nano for smaller binary
@@ -401,7 +405,7 @@ A serial console is available over USB (115200 baud), and over Bluetooth SPP on 
   - `ap`, `reload`, `help`
 
   Destructive commands ask for `confirm`, and the four recoveries (`system factory`, `system format`, `system admin reset`, `system https off`) are refused over Bluetooth.
-- **The full Cisco-style console** (`enable` / `configure terminal`) runs on the `air` image and the `pico_w_test` bench images — see the [CLI Manual](docs/CLI-Manual.md) (in Portuguese). The Air adds `air status | hibernate | stop | idle <sec> | charger <gpio|off>`.
+- **The full Cisco-style console** (`enable` / `configure terminal`) runs on the `air` image and the `pico_w_test` bench images — see the [CLI manual](docs/CLI-Manual.md) (in Portuguese). The Air adds `air status | hibernate | stop | idle <sec> | charger <gpio|off>`.
 
 **Where configuration happens:**
 - **The web interface** is the day-to-day tool.
@@ -410,7 +414,7 @@ A serial console is available over USB (115200 baud), and over Bluetooth SPP on 
 ### Web API
 The device exposes a REST API at `http://<device-ip>/api/`:
 - **62 routes** — 52 gated by a permission, 10 public by design, 0 ungated, checked by `tools/check_authz.py` in CI;
-- the route table is in the [User Manual](docs/MANUAL.md);
+- the route table is in the [user manual](docs/MANUAL.md);
 - [docs/AUTHORIZATION.md](docs/AUTHORIZATION.md) maps each route to its permission;
 - [docs/API_POST.md](docs/API_POST.md) documents the POST bodies.
 
@@ -479,21 +483,21 @@ The 16×2 LCD is the one output not validated on glass. The bench has no HD44780
 
 | Document | Description |
 |----------|-------------|
-| [User Manual](docs/MANUAL.md) | Hardware setup, display/web/console guide, OTA, API reference, troubleshooting — kept current |
-| [Manual do Usuário (pt-BR)](docs/MANUAL.pt-BR.md) | The same manual, in Portuguese |
+| [User manual](docs/MANUAL.md) | Hardware setup, display/web/console guide, OTA, API reference, troubleshooting — kept current |
+| [Manual do usuário (pt-BR)](docs/MANUAL.pt-BR.md) | The same manual, in Portuguese |
 | [Complete manual (pt-BR)](docs/MANUAL.pt-BR.html) | The full product manual in Portuguese, updated for v2.7.2: 31 chapters on installation, configuration, daily use and server integration. Screenshots are being recaptured; each missing one is marked where it belongs |
-| [Wiring Guide](docs/WIRING.md) | Complete pinout and connection diagrams |
+| [Wiring guide](docs/WIRING.md) | Complete pinout and connection diagrams |
 | [Over-the-air updates](docs/OTA_USAGE.md) | Updating from the web page, and what survives it |
-| [Recovery Guide](docs/RECOVERY.md) | Brick recovery — BOOTSEL, picotool, 1200 bps reset |
-| [CLI Manual](docs/CLI-Manual.md) | Full console reference, the Air's included (in Portuguese) |
+| [Recovery guide](docs/RECOVERY.md) | Brick recovery — BOOTSEL, picotool, 1200 bps reset |
+| [CLI manual](docs/CLI-Manual.md) | Full console reference, the Air's included (in Portuguese) |
 | [Authorization matrix](docs/AUTHORIZATION.md) | Every HTTP route and the permission it requires |
-| [Security Policy](SECURITY.md) | Threat model, credential handling, incident response |
+| [Security policy](SECURITY.md) | Threat model, credential handling, incident response |
 | [Documentation index](docs/README.md) | Which documents are kept current and which are snapshots |
 | [Changelog](CHANGELOG.md) | Version history and feature changes |
 
 ## Contributing
 
-Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code conventions, and the pull request process.
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup, the code conventions and the pull request process.
 
 All contributors must follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
@@ -504,9 +508,9 @@ All contributors must follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 - **Security vulnerabilities:** See [SECURITY.md](SECURITY.md) — do not open a public issue
 - **Questions:** Open a discussion or issue
 
-## Contributors ✨
+## Contributors
 
-Thanks goes to these wonderful people:
+Thanks to everyone who has contributed:
 
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- prettier-ignore-start -->

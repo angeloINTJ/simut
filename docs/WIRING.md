@@ -1,8 +1,8 @@
 # SIMUT — Wiring Guide
 
-> 📖 English · [Ver documentación en español](../README.es-ES.md) · [Ver documentação em português](../README.pt-BR.md)
+> English · [Ver documentación en español](../README.es-ES.md) · [Ver documentação em português](../README.pt-BR.md)
 
-> 🛠️ **Board layout available** — the SIMUT carrier board was designed in KiCad. The layout (`.kicad_pcb`, `.kicad_sch`) is in [`PCB_test/`](../PCB_test/) and the ready-to-fab package (Gerbers + PTH/NPTH drills) is published for public download: **[simut-pcb-v1.1 — `simut_pcb_fabrication.zip`](https://github.com/angeloINTJ/simut/releases/tag/simut-pcb-v1.1)**.
+> **Board layout available** — the SIMUT carrier board was designed in KiCad. The layout (`.kicad_pcb`, `.kicad_sch`) is in [`PCB_test/`](../PCB_test/) and the ready-to-fab package (Gerbers + PTH/NPTH drills) is published for public download: **[simut-pcb-v1.1 — `simut_pcb_fabrication.zip`](https://github.com/angeloINTJ/simut/releases/tag/simut-pcb-v1.1)**.
 
 ## Pinout Diagram — ILI9341 TFT + XPT2046 Touch
 
@@ -276,12 +276,12 @@ either, both or neither:
 2. **Awake/sleep probe** — feed it to a logic analyser (or the PicoHand) to time
    the cycle without relying on USB enumeration.
 
-> 🔬 **Reference bench (2026-09-06):** GP16 goes to the **PicoHand** as a probe,
+> **Reference bench (2026-09-06):** GP16 goes to the **PicoHand** as a probe,
 > and the DS18B20 sits on **GP0 with no gating** — it is powered continuously.
 > So on that bench GP16 measures the cycle rather than switching anything, and
 > the power-gating path below is documented but not exercised.
 
-> ⚠️ **On a TFT build these pins are NOT free.** GP16 is SPI0 MISO and GP17 the
+> **On a TFT build these pins are NOT free.** GP16 is SPI0 MISO and GP17 the
 > touch chip-select. A PicoHand left wired here must idle in high impedance, or
 > its pull/drive keeps the touch controller on the SPI bus and the
 > `/api/screenshot` GRAM read-back comes back all-black (the panel still shows
@@ -307,7 +307,7 @@ either, both or neither:
 - USB: the device **detaches from the host on purpose** when it sleeps and
   re-enumerates on every wake. A `ttyACM` that disappears is normal in M1.
 
-✅ Fixed on 2026-09-06 (item F03 of
+Fixed on 2026-09-06 (item F03 of
 [`docs/analysis/SIMUT_AIR_PLANO_FIX.md`](analysis/SIMUT_AIR_PLANO_FIX.md)):
 the line used to be asserted only inside the M1 warm-up phase, so in the
 operational mode and during the M1 boot it stayed LOW and anything gated by it

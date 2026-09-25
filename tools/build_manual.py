@@ -57,7 +57,7 @@ IMG = os.path.join(ROOT, "docs", "images", "manual")
 OUT = os.path.join(ROOT, "docs", "MANUAL.pt-BR.html")
 CAPTURAR = os.path.join(IMG, "CAPTURAR.md")
 LOGCODES = os.path.join(ROOT, "tools", "logcodes.tsv")
-FONT = os.path.join(SRC, "fonts", "angulo-display-600.woff2")
+FONT = os.path.join(ROOT, "docs", "assets", "fonts", "angulo-display-600.woff2")
 
 VERSION = "v2.7.1"
 

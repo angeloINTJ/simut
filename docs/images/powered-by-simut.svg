@@ -1,14 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="200" height="40" viewBox="0 0 200 40">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#1a73e8"/>
-      <stop offset="100%" stop-color="#0d47a1"/>
-    </linearGradient>
-  </defs>
-  <!-- Background -->
-  <rect width="200" height="40" rx="6" fill="url(#bg)"/>
-  <!-- Lightning bolt icon -->
-  <text x="18" y="28" font-size="20" fill="#ffd54f" font-family="sans-serif">⚡</text>
-  <!-- Text -->
-  <text x="48" y="26" font-size="14" font-weight="bold" fill="#ffffff" font-family="Arial, Helvetica, sans-serif">Powered by SIMUT</text>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 179 40" width="179" height="40" role="img" aria-label="Powered by SIMUT"><title>Powered by SIMUT</title><rect x=".5" y=".5" width="178" height="39" rx="6" fill="#ffffff" stroke="#827e76"/><circle cx="24.0" cy="20.0" r="12.0" fill="#1f6355"/><path fill="#f1faf6" d="M24 27.2Q21.3 27.2 19.7 26.1Q18.2 25 18.2 22.9L20.5 22.2Q20.5 23.7 21.5 24.4Q22.5 25.1 24.1 25.1Q25.6 25.1 26.5 24.6Q27.3 24 27.3 23.2Q27.3 22.6 26.8 22.2Q26.4 21.9 25.6 21.6Q24.9 21.4 23.9 21.2Q22.9 20.9 21.9 20.7Q21 20.4 20.2 19.9Q19.4 19.5 18.9 18.8Q18.4 18 18.4 16.9Q18.4 15 19.8 13.9Q21.3 12.8 23.8 12.8Q26.3 12.8 27.8 13.9Q29.3 15 29.3 17L26.9 17.6Q26.9 16.3 26.1 15.6Q25.2 14.9 23.8 14.9Q22.5 14.9 21.7 15.4Q20.9 15.9 20.9 16.7Q20.9 17.4 21.4 17.8Q22 18.2 22.8 18.4Q23.6 18.7 24.6 18.9Q25.5 19.1 26.4 19.3Q27.3 19.6 28.1 20.1Q28.9 20.5 29.4 21.2Q29.8 22 29.8 23.1Q29.8 25 28.4 26.1Q26.9 27.2 24 27.2Z"/><text x="44" y="25" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="13" fill="#5f5b54" textLength="69" lengthAdjust="spacing">Powered by</text><path fill="#201e1a" d="M122 25.2Q119 25.2 118 24.4Q117 23.5 117 21.8L119 21.2Q119 22.4 120 23Q120 23.6 122 23.6Q123 23.6 124 23.1Q124 22.7 124 22.1Q124 21.6 124 21.3Q124 21 123 20.8Q122 20.6 122 20.4Q121 20.2 120 20Q119 19.8 119 19.5Q118 19.1 118 18.5Q117 17.9 117 17.1Q117 15.6 118 14.7Q119 13.8 121 13.8Q123 13.8 125 14.7Q126 15.6 126 17.1L124 17.6Q124 16.5 123 16Q123 15.4 121 15.4Q120 15.4 120 15.8Q119 16.2 119 16.9Q119 17.4 120 17.7Q120 18.1 121 18.2Q121 18.4 122 18.6Q123 18.8 124 19Q124 19.2 125 19.5Q126 19.9 126 20.5Q126 21.1 126 22Q126 23.4 125 24.3Q124 25.2 122 25.2ZM128 25V14H130V25ZM132 25V14H136L139 22.6H139L142 14H145V25H143L143 16.1H143L140 25H138L134 16.1H134L134 25ZM152 25.2Q150 25.2 149 24Q147 22.8 147 20.7V14H149V20.6Q149 23.3 152 23.3Q154 23.3 154 22.7Q155 22 155 20.6V14H157V20.7Q157 22.9 156 24Q155 25.2 152 25.2ZM161 25V15.8H158V14H167V15.8H164V25Z"/></svg>

@@ -19,8 +19,8 @@ source.
 
 | Line | GPIO | State |
 |------|------|-------|
-| RESET | GP0 | ✅ **Works end to end.** Target uptime went 134 s → 19 s on `hand RESET`. |
-| BOOTSEL | GP1 | ✅ **Works end to end.** Target entered BOOTSEL and was flashed without a human touching it. |
+| RESET | GP0 | **Works end to end.** Target uptime went 134 s → 19 s on `hand RESET`. |
+| BOOTSEL | GP1 | **Works end to end.** Target entered BOOTSEL and was flashed without a human touching it. |
 
 The full recovery recipe (§4.2) was executed start to finish: `hand BOOTSEL`
 returned `OK`, the target's CDC port vanished, `picotool info` reported the
@@ -371,7 +371,7 @@ printf 'SELF_BOOTSEL\n' > /dev/serial/by-id/usb-Raspberry_Pi_Pico_<hand>-if00
 picotool load -x tools/PicoHand/build/pico_hand.ino.uf2
 ```
 
-⚠️ This works because **the target is running**, leaving exactly one RP2 Boot
+Note: this works because **the target is running**, leaving exactly one RP2 Boot
 device on the bus. With the target also in BOOTSEL, `picotool` would take
 whichever it found first — which is how the target's own flash path ends up
 having to use the 1200 bps touch instead.
@@ -477,17 +477,17 @@ because every command resets the target's idle timer. The probe touches
 nothing. Measured on 2026-09-06, one full cycle: 120.715 s asleep, 29.455 s
 awake, 89.413 s asleep again.
 
-⚠️ **`micros()` wraps about every 71 minutes.** Read differences, never
+**`micros()` wraps about every 71 minutes.** Read differences, never
 absolutes, and keep a measurement well inside that. The suite handles the wrap.
 
-⚠️ **GP4/GP5 are still the serial bridge.** The probe went to GP2 precisely so
+**GP4/GP5 are still the serial bridge.** The probe went to GP2 precisely so
 the bridge keeps working.
 
-⚠️ **GP2 boots high-Z (since 2026-09-12, §13).** The pull-down is engaged only
+**GP2 boots high-Z (since 2026-09-12, §13).** The pull-down is engaged only
 by `PROBE START` and released by `PROBE STOP`, so idle the hand does not load
 the line — which matters when the target's GP16 is the TFT MISO, not the Air probe.
 
-⚠️ **Reflashing the hand resets the target.** Observed on 2026-09-06: after
+**Reflashing the hand resets the target.** Observed on 2026-09-06: after
 copying the `.uf2` to the `RPI-RP2` volume, the target came back with its uptime
 zeroed, in a cold boot (M0). Plan a bench run around that.
 
@@ -512,15 +512,15 @@ still reads as battery, because the target's own GP17 pull-down wins, and the
 hand stops disturbing a bus that pin belongs to on other builds. `CHARGER
 ON/OFF` reclaim the push-pull output; `CHARGER HIZ` returns it to idle.
 
-⚠️ **No divider on this wire.** The divider on the real board exists to bring
+**No divider on this wire.** The divider on the real board exists to bring
 5 V down to a safe logic level. GP3 already sits at 3.3 V: run it straight to
 GP17, and share GND (pin 3 is right beside both).
 
-⚠️ **An idle hand, or one in reset or BOOTSEL, floats GP3.** The target pulls
+**An idle hand, or one in reset or BOOTSEL, floats GP3.** The target pulls
 GP17 down internally, so the line reads "on battery" — the safe failure. Since
 2026-09-12 that float is also the boot state (§13).
 
-⚠️ **The stimulus is the logic level, not the current.** The bench proves the
+**The stimulus is the logic level, not the current.** The bench proves the
 firmware's *decision*, never that the battery is actually charging.
 
 ### Reflashing the hand

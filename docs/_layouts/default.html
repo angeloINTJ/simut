@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="{% if page.path contains '.pt-BR.' %}pt-BR{% elsif page.path contains '.es-ES.' %}es{% else %}en{% endif %}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+{%- comment -%}
+  The theme is set before the first paint (ANGULO.md §5.2): the choice saved
+  under angulo:tema wins -- the key the manual already uses on this origin --
+  and without one, the system's preference. Without JavaScript, angulo.css
+  falls back to claro.
+{%- endcomment %}
+<script>(function(){var d=document.documentElement,t=null;try{t=localStorage.getItem('angulo:tema');}catch(e){}if(t!=='claro'&&t!=='escuro')t=window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches?'escuro':'claro';d.dataset.theme=t;})();</script>
+{% seo %}
+<link rel="icon" href="{{ '/images/logo-mark.svg' | relative_url }}" type="image/svg+xml">
+<link rel="stylesheet" href="{{ '/assets/angulo.css' | relative_url }}">
+<link rel="stylesheet" href="{{ '/assets/site.css' | relative_url }}">
+{% include head-custom.html %}
+</head>
+<body>
+<a class="pular" href="#conteudo">Skip to content</a>
+{% include icones.html %}
+<header class="topo">
+  <div class="moldura">
+    <a class="marca" href="{{ '/' | relative_url }}" aria-label="SIMUT home">{% include marca.html %}</a>
+    <nav aria-label="Documentation">
+      <a href="{{ '/MANUAL.html' | relative_url }}"{% if page.url == '/MANUAL.html' %} aria-current="page"{% endif %}>Manual</a>
+      <a href="{{ '/WIRING.html' | relative_url }}"{% if page.url == '/WIRING.html' %} aria-current="page"{% endif %}>Wiring</a>
+      <a href="{{ '/OTA_USAGE.html' | relative_url }}"{% if page.url == '/OTA_USAGE.html' %} aria-current="page"{% endif %}>Updates</a>
+      <a href="{{ '/RECOVERY.html' | relative_url }}"{% if page.url == '/RECOVERY.html' %} aria-current="page"{% endif %}>Recovery</a>
+      {%- comment -%} Not README.html: jekyll-optional-front-matter leaves README.md out of the site on purpose. {%- endcomment %}
+      <a href="https://github.com/angeloINTJ/simut/tree/main/docs">All documents</a>
+      <a href="https://github.com/angeloINTJ/simut">GitHub</a>
+    </nav>
+    <div class="topo-acoes"><button class="tema" type="button" aria-label="Use dark theme"><svg class="ic ic-lua" aria-hidden="true"><use href="#i-moon"/></svg><svg class="ic ic-sol" aria-hidden="true"><use href="#i-sun"/></svg></button></div>
+  </div>
+</header>
+<main id="conteudo" class="moldura">
+<article class="prosa">
+{{ content }}
+</article>
+</main>
+<footer class="rodape">
+  <div class="moldura">
+    <span>SIMUT · MIT License · <a href="https://github.com/angeloINTJ/simut/edit/main/docs/{{ page.path }}">Edit this page</a></span>
+    <nav aria-label="Project">
+      <a href="https://github.com/angeloINTJ/simut">GitHub</a>
+      <a href="https://github.com/angeloINTJ/simut/releases">Releases</a>
+      <a href="https://github.com/angeloINTJ/simut/blob/main/CHANGELOG.md">Changelog</a>
+      <a href="https://github.com/angeloINTJ/simut/blob/main/LICENSE">License</a>
+    </nav>
+  </div>
+</footer>
+<script>(function(){var h=document.documentElement,b=document.querySelector('.tema');if(!b)return;function r(){var l=h.dataset.theme==='escuro'?'Use light theme':'Use dark theme';b.setAttribute('aria-label',l);b.title=l;}b.addEventListener('click',function(){var t=h.dataset.theme==='escuro'?'claro':'escuro';h.dataset.theme=t;try{localStorage.setItem('angulo:tema',t);}catch(e){}r();});r();})();</script>
+</body>
+</html>

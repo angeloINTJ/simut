@@ -1,23 +1,27 @@
 <p align="center">
-  <img src="docs/images/logo-wordmark.svg" alt="SIMUT" height="76">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo-wordmark-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="docs/images/logo-wordmark.svg">
+    <img src="docs/images/logo-wordmark.svg" alt="SIMUT" height="64">
+  </picture>
 </p>
 
 # SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
 
 > Sistema Integrado de Monitoreo Universal y Telemetría
 
-> Firmware IoT de nivel profesional para Raspberry Pi Pico W
+> Monitoreo de temperatura, humedad y presión para la Raspberry Pi Pico W, con o sin red
 
 [English](README.md) | [Português](README.pt-BR.md) | [Español](README.es-ES.md)
 
-[![License: MIT](https://img.shields.io/badge/Licencia-MIT-blue.svg)](LICENSE)
-[![Platform: RP2040](https://img.shields.io/badge/Plataforma-RP2040-green.svg)](https://www.raspberrypi.com/products/raspberry-pi-pico/)
-[![Framework: Arduino](https://img.shields.io/badge/Framework-Arduino-teal.svg)](https://arduino-pico.readthedocs.io/)
-[![CI](https://github.com/angeloINTJ/simut/actions/workflows/build.yml/badge.svg)](https://github.com/angeloINTJ/simut/actions/workflows/build.yml)
-[![Release](https://img.shields.io/github/v/release/angeloINTJ/simut?label=Release&color=blue)](https://github.com/angeloINTJ/simut/releases/latest)
-[![Docs](https://img.shields.io/badge/Docs-GitHub_Pages-34D058.svg)](https://angelointj.github.io/simut/)
-[![Contributors](https://img.shields.io/badge/Contribuidores-5-orange.svg)](#contribuidores-)
-[![Contributions Welcome](https://img.shields.io/badge/Contribuciones-Bienvenidas-brightgreen.svg)](CONTRIBUTING.es-ES.md)
+[![License: MIT](https://img.shields.io/badge/Licencia-MIT-1f6355?style=flat-square&labelColor=5f5b54)](LICENSE)
+[![Platform: RP2040](https://img.shields.io/badge/Plataforma-RP2040-1f6355?style=flat-square&labelColor=5f5b54)](https://www.raspberrypi.com/products/raspberry-pi-pico/)
+[![Framework: Arduino](https://img.shields.io/badge/Framework-Arduino-1f6355?style=flat-square&labelColor=5f5b54)](https://arduino-pico.readthedocs.io/)
+[![CI](https://img.shields.io/github/actions/workflow/status/angeloINTJ/simut/build.yml?branch=main&label=CI&style=flat-square&labelColor=5f5b54)](https://github.com/angeloINTJ/simut/actions/workflows/build.yml)
+[![Release](https://img.shields.io/github/v/release/angeloINTJ/simut?label=Release&color=1f6355&style=flat-square&labelColor=5f5b54)](https://github.com/angeloINTJ/simut/releases/latest)
+[![Docs](https://img.shields.io/badge/Docs-GitHub_Pages-1f6355?style=flat-square&labelColor=5f5b54)](https://angelointj.github.io/simut/)
+[![Contributors](https://img.shields.io/badge/Contribuidores-5-1f6355?style=flat-square&labelColor=5f5b54)](#contribuidores)
+[![Contribuciones bienvenidas](https://img.shields.io/badge/Contribuciones-bienvenidas-1f6355?style=flat-square&labelColor=5f5b54)](CONTRIBUTING.es-ES.md)
 
 <p align="center">
   <img src="docs/images/tft-tour.gif" alt="Tour del TFT de SIMUT — dashboard, gráficos de histórico, calendario y ajustes" width="400">
@@ -63,15 +67,15 @@ Los tres comparten el mismo núcleo:
 
 | Necesidad | Sketch Arduino DIY | ESPHome / Tasmota | **SIMUT** |
 |------|:---:|:---:|:---:|
-| Autónomo con pantalla | ⚠️ Programación manual | ❌ Sin soporte TFT | ✅ UI táctil integrada, o LCD 16×2 |
-| Entornos regulados | ❌ Sin traza de auditoría | ❌ Sin RBAC de usuarios | ✅ 32 cuentas, PIN de panel por cuenta, traza de auditoría firmada |
-| Cadena de frío (sondas hasta −50 °C) | ⚠️ Lecturas básicas | ✅ Monitoreo básico | ✅ Multisensor calibrado, ventanas de mantenimiento |
-| Operación offline | ✅ Sí | ❌ A menudo depende de la nube | ✅ Web local completa + pantalla |
-| Actualización OTA | ❌ Reflasheo manual | ✅ OTA | ✅ OTA + backup/restore |
-| Seguridad | ❌ Ninguna | ⚠️ Básica | ✅ HMAC-SHA256, RBAC de 13 bits, bloqueos, HTTPS opcional |
-| Home Assistant | ⚠️ Integración manual | ✅ Nativa | ✅ MQTT Discovery (opcional) |
-| Métricas Prometheus | ❌ Ninguna | ✅ Integrado | ✅ Ruta `/metrics` |
-| Registro de auditoría remoto | ❌ Ninguno | ⚠️ Complemento | ✅ Syslog (RFC 5424 / UDP) |
+| Autónomo con pantalla | Programación manual | Sin soporte TFT | UI táctil integrada, o LCD 16×2 |
+| Entornos regulados | Sin traza de auditoría | Sin RBAC de usuarios | 32 cuentas, PIN de panel por cuenta, traza de auditoría firmada |
+| Cadena de frío (sondas hasta −50 °C) | Lecturas básicas | Monitoreo básico | Multisensor calibrado, ventanas de mantenimiento |
+| Operación offline | Sí | A menudo depende de la nube | Web local completa + pantalla |
+| Actualización OTA | Reflasheo manual | OTA | OTA + backup/restore |
+| Seguridad | Ninguna | Básica | HMAC-SHA256, RBAC de 13 bits, bloqueos, HTTPS opcional |
+| Home Assistant | Integración manual | Nativa | MQTT Discovery (opcional) |
+| Métricas Prometheus | Ninguna | Integrado | Ruta `/metrics` |
+| Registro de auditoría remoto | Ninguno | Complemento | Syslog (RFC 5424 / UDP) |
 
 **SIMUT es para ti si:** necesitas un sistema de monitoreo de temperatura autónomo, seguro y auditable que funcione con o sin internet — típico de laboratorios, farmacias, bancos de sangre, almacenamiento de vacunas y cadenas de frío alimentarias.
 
@@ -135,7 +139,7 @@ Los tres comparten el mismo núcleo:
 | Zumbador | Piezo pasivo (por PIO) — no existe en el Air |
 | Almacenamiento | Flash interna de 2 MB (slot de firmware de 1 MB + LittleFS de 1 MB) |
 
-Consulta la **[Guía de Cableado](docs/WIRING.md)** para el pinout completo y los diagramas de conexión.
+Consulta la **[guía de cableado](docs/WIRING.md)** para el pinout completo y los diagramas de conexión.
 
 > **PCB del SIMUT — diseño disponible para descarga** — el diseño de la placa en KiCad (`.kicad_pcb`, `.kicad_sch`) está en [`PCB_test/`](PCB_test/), y el paquete de fabricación listo para enviar a la fábrica (Gerbers + taladros PTH/NPTH, sin capas de pasta) está publicado como release público: **[simut-pcb-v1.1 — `simut_pcb_fabrication.zip`](https://github.com/angeloINTJ/simut/releases/tag/simut-pcb-v1.1)**.
 
@@ -301,11 +305,11 @@ pio run -e pico_w_release
 # Flashear la Pico W (auto-reset por toque de 1200 bps; BOOTSEL también funciona)
 pio run -e pico_w_release -t upload
 
-# SOLO en el primer flasheo: subir los datos de LittleFS (packs de idioma, temas, favicon).
-# ⚠️ uploadfs REFORMATEA la partición LittleFS — en un dispositivo ya en
+# Solo en el primer flasheo: subir los datos de LittleFS (packs de idioma, temas, favicon).
+# Atención: uploadfs reformatea la partición LittleFS — en un dispositivo ya en
 # servicio destruye histórico, configuración y calibración. No lo repitas
 # cuando el dispositivo tenga datos; los packs de idioma pueden subirse
-# después desde el gestor de archivos web. Copia LOS DOS packs de idioma, y el
+# después desde el gestor de archivos web. Copia los dos packs de idioma, y el
 # dispositivo carga el primero en orden alfabético (es-ES): borra el otro.
 pio run -e pico_w_release -t uploadfs
 ```
@@ -361,9 +365,9 @@ simut/
 
 | Entorno | Propósito | Publicado |
 |-------------|---------|:---:|
-| `pico_w_release` | Imagen de producción para el panel TFT: consola de emergencia, servidor HTTPS, mDNS | ✅ `…_release` |
-| `pico_w_alpha` | LCD de caracteres 16×2 (HD44780), sin táctil; consola de emergencia + consola Bluetooth | ✅ `…_alpha` |
-| `pico_w_air` | **Experimental** — SIMUT Air: sin pantalla, sin zumbador, ciclo de hibernación (M0 despierto / M1 despierta-lee-envía-duerme); consola completa + Bluetooth. Ver el §17 del [Manual de Usuario](docs/MANUAL.md) | ✅ `…_air` |
+| `pico_w_release` | Imagen de producción para el panel TFT: consola de emergencia, servidor HTTPS, mDNS | `…_release` |
+| `pico_w_alpha` | LCD de caracteres 16×2 (HD44780), sin táctil; consola de emergencia + consola Bluetooth | `…_alpha` |
+| `pico_w_air` | **Experimental** — SIMUT Air: sin pantalla, sin zumbador, ciclo de hibernación (M0 despierto / M1 despierta-lee-envía-duerme); consola completa + Bluetooth. Ver el §17 del [Manual de Usuario](docs/MANUAL.md) | `…_air` |
 | `pico_w_test` | Imagen de banco: la consola completa para las suites de prueba; sin HTTPS, sin mDNS | — |
 | `pico_w_test_https` | `pico_w_test` más el servidor HTTPS, para validar TLS; tres de sus páginas se sirven desde LittleFS para que quepa | — |
 | `pico_w_asserts` | Release + aserciones de concurrencia | — |
@@ -403,7 +407,7 @@ La consola serie está disponible por USB (115200 baudios) y, en el alpha y el A
   - `ap`, `reload`, `help`
 
   Los comandos destructivos piden `confirm`, y las cuatro recuperaciones (`system factory`, `system format`, `system admin reset`, `system https off`) se rechazan por Bluetooth.
-- **La consola completa estilo Cisco** (`enable` / `configure terminal`) funciona en la imagen `air` y en las imágenes de banco `pico_w_test` — ver el [Manual de la CLI](docs/CLI-Manual.md) (en portugués). El Air añade `air status | hibernate | stop | idle <seg> | charger <gpio|off>`.
+- **La consola completa estilo Cisco** (`enable` / `configure terminal`) funciona en la imagen `air` y en las imágenes de banco `pico_w_test` — ver el [manual de la CLI](docs/CLI-Manual.md) (en portugués). El Air añade `air status | hibernate | stop | idle <seg> | charger <gpio|off>`.
 
 **Dónde se configura cada cosa:**
 - **La interfaz web** es la herramienta del día a día.
@@ -412,7 +416,7 @@ La consola serie está disponible por USB (115200 baudios) y, en el alpha y el A
 ### API Web
 El dispositivo expone una API REST en `http://<ip-del-dispositivo>/api/`:
 - **61 rutas** — 51 protegidas por un permiso, 10 públicas por diseño, ninguna sin protección, comprobadas por `tools/check_authz.py` en el CI;
-- la tabla de rutas está en el [Manual de Usuario](docs/MANUAL.md);
+- la tabla de rutas está en el [manual de usuario](docs/MANUAL.md);
 - [docs/AUTHORIZATION.md](docs/AUTHORIZATION.md) asocia cada ruta con su permiso;
 - [docs/API_POST.md](docs/API_POST.md) documenta los cuerpos de los POST.
 
@@ -481,21 +485,21 @@ El LCD 16×2 es la única salida no validada en la pantalla real. El banco no ti
 
 | Documento | Descripción |
 |----------|-------------|
-| [Manual de Usuario (EN)](docs/MANUAL.md) | Montaje, pantalla/web/consola, OTA, referencia de la API, resolución de problemas — mantenido al día |
-| [Manual do Usuário (pt-BR)](docs/MANUAL.pt-BR.md) | El mismo manual, en portugués |
+| [Manual de usuario (EN)](docs/MANUAL.md) | Montaje, pantalla/web/consola, OTA, referencia de la API, resolución de problemas — mantenido al día |
+| [Manual do usuário (pt-BR)](docs/MANUAL.pt-BR.md) | El mismo manual, en portugués |
 | [Manual completo (pt-BR)](docs/MANUAL.pt-BR.html) | El manual del producto en portugués, actualizado para la v2.7.2: 31 capítulos sobre instalación, configuración, uso diario e integración con servidores. Las pantallas se están recapturando; cada una que falta está marcada en su lugar |
-| [Guía de Cableado](docs/WIRING.md) | Pinout completo y diagramas de conexión |
+| [Guía de cableado](docs/WIRING.md) | Pinout completo y diagramas de conexión |
 | [Actualización por el aire](docs/OTA_USAGE.md) | Actualizar desde la página web, y lo que sobrevive |
-| [Guía de Recuperación](docs/RECOVERY.md) | Recuperación de brick — BOOTSEL, picotool, reset 1200 bps |
+| [Guía de recuperación](docs/RECOVERY.md) | Recuperación de brick — BOOTSEL, picotool, reset 1200 bps |
 | [Manual de la CLI](docs/CLI-Manual.md) | Referencia completa de la consola, la del Air incluida (en portugués) |
 | [Matriz de autorización](docs/AUTHORIZATION.md) | Cada ruta HTTP y el permiso que exige |
-| [Política de Seguridad](SECURITY.md) | Modelo de amenazas, manejo de credenciales, respuesta a incidentes |
+| [Política de seguridad](SECURITY.md) | Modelo de amenazas, manejo de credenciales, respuesta a incidentes |
 | [Índice de la documentación](docs/README.md) | Qué documentos se mantienen al día y cuáles son instantáneas |
 | [Changelog](CHANGELOG.md) | Historial de versiones y cambios |
 
 ## Contribuir
 
-¡Las contribuciones son bienvenidas! Lee [CONTRIBUTING.es-ES.md](CONTRIBUTING.es-ES.md) para el setup de desarrollo, las convenciones de código y el proceso de pull request.
+Las contribuciones son bienvenidas. Lee [CONTRIBUTING.es-ES.md](CONTRIBUTING.es-ES.md) para el setup de desarrollo, las convenciones de código y el proceso de pull request.
 
 Todos los contribuidores deben seguir el [Código de Conducta](CODE_OF_CONDUCT.es-ES.md).
 
@@ -506,9 +510,9 @@ Todos los contribuidores deben seguir el [Código de Conducta](CODE_OF_CONDUCT.e
 - **Vulnerabilidades de seguridad:** ver [SECURITY.md](SECURITY.md) — no abras una issue pública
 - **Preguntas:** abre una discusión o una issue
 
-## Contribuidores ✨
+## Contribuidores
 
-Gracias a estas personas maravillosas:
+Gracias a todas las personas que han contribuido:
 
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- prettier-ignore-start -->

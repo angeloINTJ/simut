@@ -35,10 +35,10 @@ curl -b j -c j -s http://IP/api/login \
 **Lockout:** o login tem backoff exponencial por IP. `GET /api/login_init`
 devolve `locked`/`lockSec` — consulte antes de insistir.
 
-⚠️ **Senha pendente de troca** (`admin reset`) faz `commit_all` e `action?op=reboot`
+**Senha pendente de troca** (`admin reset`) faz `commit_all` e `action?op=reboot`
 responderem **409** com `{"next":"/api/force_chpass"}`.
 
-⚠️ **Calibração de toque em curso** faz as rotas que mexem em config responderem **503**.
+**Calibração de toque em curso** faz as rotas que mexem em config responderem **503**.
 
 ---
 
@@ -60,13 +60,13 @@ conseguir abrir o painel.
 | `PERM_FILE_DELETE` | `0x0080` | `delete` |
 | `PERM_USER_MGR` | `0x0100` | seção `users` · estado de segurança · **item Usuários do painel** |
 | `PERM_CALIB` | `0x0200` | `calib` |
-| 🆕 `PERM_ALARM_LIMITS` | `0x0400` | **painel**: editar limites de alarme de um sensor |
-| 🆕 `PERM_ALARM_BLOCK` | `0x0800` | **painel**: ligar/desligar os alarmes de um sensor (e o "Desativar" do pop-up de alarme) |
-| 🆕 `PERM_MAINT` | `0x1000` | **painel**: abrir/encerrar a janela de manutenção de um sensor |
+| `PERM_ALARM_LIMITS` (novo) | `0x0400` | **painel**: editar limites de alarme de um sensor |
+| `PERM_ALARM_BLOCK` (novo) | `0x0800` | **painel**: ligar/desligar os alarmes de um sensor (e o "Desativar" do pop-up de alarme) |
+| `PERM_MAINT` (novo) | `0x1000` | **painel**: abrir/encerrar a janela de manutenção de um sensor |
 
 `PERM_ALL_BITS` = `0x1FFF` (os treze) · `PERM_FULL_ADMIN` = `0xFFFF`.
 
-🆕 **Os três bits novos são do painel.** O painel identifica quem está na
+**Os três bits novos são do painel.** O painel identifica quem está na
 frente dele pelo **PIN** (4–8 dígitos, único por conta) e testa o bit daquela
 conta antes de cada ação. Na web nada mudou: a seção `alarms` continua exigindo
 `PERM_SYS_CONFIG`, porque é o que a página `/alarms` precisa para renderizar. Um
@@ -79,7 +79,7 @@ com cadeado e só consegue manutenção; nenhum dos dois aparece no menu Usuári
 que exige `PERM_USER_MGR`. Cada ação sai no log com `ctx = usuário×100 + slot`
 (`pjoao` = conta 4, sensor 0 → `400`) e na 2ª linha de telemetria com `"user"`.
 
-### 🔴 O teto que separa os dois
+### O teto que separa os dois
 
 Quatro rotas exigem **igualdade exata** com `PERM_FULL_ADMIN` (`0xFFFF`), e a
 página de usuários **não consegue conceder mais que `0x03FF`**. Logo:
@@ -116,12 +116,12 @@ A conta passa em toda seção do `commit_all` e ainda assim não chega nas duas.
 
 **Padrões de criação:** `user add` pelo CLI dá `0x0203` (painel + histórico +
 calibração). Pela web, `perms` é explícito e **ausente = 0** — uma conta criada
-sem marcar caixa nenhuma não entra em lugar nenhum. 🆕 Pelo **painel**
+sem marcar caixa nenhuma não entra em lugar nenhum. Novo: pelo **painel**
 (Usuários → NOVO) a conta nasce só com os bits do painel escolhidos nas três
 linhas, uma senha web aleatória que ninguém vê e `mustChangePassword` — é uma
 conta do painel até um admin dar bits de página e resetar a senha.
 
-🆕 **PIN do painel:** `user pin <nome> <4-8 dígitos|off>` no CLI; `"pin"` na
+**PIN do painel:** `user pin <nome> <4-8 dígitos|off>` no CLI; `"pin"` na
 seção `users` da web (abaixo); ou o próprio usuário no painel (item "Alterar
 Senha", que hoje é o PIN). Único por conta — o painel identifica **pelo** PIN
 (não há campo de usuário): `user pin pmaria 5678` respondeu
@@ -146,7 +146,7 @@ Senha", que hoje é o PIN). Único por conta — o painel identifica **pelo** PI
 | `/api/restore?op=validate` | `FILE_READ` |
 | `/api/restore?op=apply` `?op=stage` · `/api/ota/apply` · `/api/tls` | **`== 0xFFFF`** |
 
-⚠️ **`commit_all` é autorizado por seção, não só na entrada.** A entrada só prova
+**`commit_all` é autorizado por seção, não só na entrada.** A entrada só prova
 que há sessão com *algum* bit que a rota usa; cada seção é conferida depois. E a
 recusa vale para o payload **inteiro** — nada é aplicado pela metade. Medido:
 
@@ -160,10 +160,10 @@ conta 0x0008 (só SYS_CONFIG)    {"alarms":…}             200
 conta 0x0003 (viewer)           {"alarms":…}             403
 ```
 
-⚠️ **`_dry=1` exige os mesmos bits** que a gravação de verdade. Validar não é
+**`_dry=1` exige os mesmos bits** que a gravação de verdade. Validar não é
 mais barato em permissão do que aplicar.
 
-⚠️ O `commit_all` recusa qualquer `perms` acima de `0x03FF` na seção `users` —
+Atenção: o `commit_all` recusa qualquer `perms` acima de `0x03FF` na seção `users` —
 escalonar para `0xFFFF` por payload não funciona.
 
 ---
@@ -204,7 +204,7 @@ curl -b j -X POST http://IP/api/commit_all \
 | `net` | `PERM_NET_CONFIG` | Wi-Fi, IP, porta web |
 | `users` | `PERM_USER_MGR` | contas |
 
-#### 🆕 Três modos, além do commit normal
+#### Três modos, além do commit normal
 
 | campo | o que faz |
 |---|---|
@@ -218,12 +218,12 @@ parsers escrevem **só** em `cfg`, portanto ensaiáveis numa cópia. As outras
 respondem **400** `{"error":"accepts sys, net and alarms only"}`: `users` gera
 senhas, `slots` e `calib` mexem em arquivos. Ambos indisponíveis no Air.
 
-⚠️ **Quem decide se precisa reiniciar é o aparelho**, por comparação com a
+**Quem decide se precisa reiniciar é o aparelho**, por comparação com a
 configuração corrente (`src/ConfigApply.h`) — um campo reenviado igual ao valor
 atual **não é mudança**. Um cliente que reimplemente essa regra vai discordar do
 aparelho no dia em que um campo mudar de classe.
 
-#### 🆕 A resposta diz se reiniciou, e por quê
+#### A resposta diz se reiniciou, e por quê
 
 ```json
 {"status":"ok","reboot":false,"applied":["alarms","maint"]}
@@ -248,7 +248,7 @@ telemetria pelo lado HTTP · tema e idioma.
 slot · cadência/resolução de sensor · MQTT e TLS da telemetria · fuso/NTP · log ·
 PIN do display · **política de PIN** · porta web e overlays.
 
-⚠️ Um campo que ninguém classificou força reinício por segurança (`unclassified`).
+Atenção: um campo que ninguém classificou força reinício por segurança (`unclassified`).
 
 #### Chaves de `sys`
 
@@ -260,10 +260,10 @@ PIN do display · **política de PIN** · porta web e overlays.
 · **2ª linha (alarmes)** `a_en` `a_mode` `a_qmax` `a_path` `a_glob` `a_line` `a_sep`
 · **syslog** `slog_en` `slog_srv` `slog_port` `slog_lvl`
 
-⚠️ `a_line`/`a_glob`/`a_sep` ficam em **`sys`**, não em `alarms`.
-⚠️ `t_int` é **lote mínimo em registros**, não milissegundos (config v22+). 0 desliga.
-⚠️ `m_qos` só aceita 0 — o transporte não entrega QoS 1/2.
-⚠️ `pin_min`/`pin_kb`/`pin_alpha` viajam como **conjunto**: os três se
+Atenção: `a_line`/`a_glob`/`a_sep` ficam em **`sys`**, não em `alarms`.
+Atenção: `t_int` é **lote mínimo em registros**, não milissegundos (config v22+). 0 desliga.
+Atenção: `m_qos` só aceita 0 — o transporte não entrega QoS 1/2.
+Atenção: `pin_min`/`pin_kb`/`pin_alpha` viajam como **conjunto**: os três se
 restringem (o teclado limita o comprimento, o alfabeto exclui um teclado), então
 uma combinação impossível recusa o campo `pin_min` inteiro em vez de aplicar
 metade. `pin_kb` é 1/2/3 **glifos por tecla** e `pin_alpha` 0 (`0-9`) ou 1
@@ -286,7 +286,7 @@ Mande só os slots editados — e **só os campos editados**: o parser escreve
 apenas o que veio, então `{"i":0,"name":"Sala"}` não apaga tipo, pinos nem
 limites.
 
-🔴 **`tmin`/`tmax`/`hmin`/`hmax` não valem aqui** (21/09/2026). Este exemplo os
+**`tmin`/`tmax`/`hmin`/`hmax` não valem aqui** (21/09/2026). Este exemplo os
 trazia e o parser da seção `slots` nunca os leu: o commit responde **200 com
 `applied` e `rejected` vazios** e nada muda. Limites vão em `lim`, por canal, ou
 pela seção `alarms`.
@@ -300,7 +300,7 @@ pela seção `alarms`.
 ```
 `add` e `reset` devolvem a senha em `creds` — entregue **só nessa resposta**.
 
-🆕 `pin` é opcional no `add` e existe como ação própria (`""` remove; `id` 0 = o
+Novo: `pin` é opcional no `add` e existe como ação própria (`""` remove; `id` 0 = o
 admin, é assim que se define o PIN do admin pela web). Um PIN malformado ou
 repetido **rejeita o campo, não a conta**: medido,
 `{"type":"pin","id":0,"pin":"12"}` → `200`
@@ -314,7 +314,7 @@ repetido **rejeita o campo, não a conta**: medido,
 
 ---
 
-## 🆕 Alarmes e manutenção
+## Alarmes e manutenção
 
 ### `POST /api/commit_all` seção `alarms` · `PERM_SYS_CONFIG`
 
@@ -333,7 +333,7 @@ repetido **rejeita o campo, não a conta**: medido,
 | `active` | liga/desliga o alarme **de limite** deste slot |
 | `tmin` `tmax` `hmin` `hmax` | nomes antigos de temperatura e umidade |
 | `"<canal>":[min,max]` | forma por canal (`temp` `hum` `press` `lux`) — **vence** sobre a anterior |
-| 🆕 `maint` | **segundos a partir de agora**; `0` fecha a janela |
+| `maint` (novo) | **segundos a partir de agora**; `0` fecha a janela |
 
 **Tudo isso aplica ao vivo.** Resposta: `{"reboot":false,"applied":["alarms","maint"]}`.
 
@@ -368,7 +368,7 @@ curl -b j -X POST http://IP/api/commit_all \
 #### No payload da 2ª linha
 
 Terceiro domínio, separado de `alarm` e `err`, para um servidor que casa por
-campo nunca confundir manutenção com falha. 🆕 Desde a config v24 os códigos são
+campo nunca confundir manutenção com falha. Desde a config v24 os códigos são
 `maint_on`/`maint_off`, o registro de entrada diz **até quando** (`until`, epoch,
 resolução de 1 min) e todo registro causado por alguém diz **quem** (`user`) —
 recebidos do rig em 19/09, pelo painel, conta `pjoao`:
@@ -395,7 +395,7 @@ foi trocado pelo novo na migração; um template editado é do operador e fica
 como está. No modo CSV a linha ganhou quatro colunas no fim:
 `seq;ts;id;v;user;lo;hi;until` (vazias quando não se aplicam).
 
-⚠️ **Um template custom escrito antes da v23/v24** não tem `{MAINT}` nem os
+**Um template custom escrito antes da v23/v24** não tem `{MAINT}` nem os
 tokens novos. Acrescente-os, ou pergunte por `GET /api/alarms`.
 
 ---
@@ -433,13 +433,13 @@ Sem corpo. Invalida a calibração de toque.
 
 ### `POST /api/clear_logs` · `PERM_LOGS` **e** `PERM_SYS_CONFIG`
 Sem corpo.
-⚠️ Não zera o que `show system log` devolve (ele costura o rotacionado) — só
+Atenção: não zera o que `show system log` devolve (ele costura o rotacionado) — só
 valem *deltas* entre duas leituras.
 
 ### `POST /api/touch` · `PERM_SYS_CONFIG`
 `x=0..319`, `y=0..239` — um toque no painel, em coordenadas **do painel**.
 Fora da faixa é 400, não clamp.
-⚠️ **Não espera o painel repintar** antes de responder: o `UiEvent` é consumido
+**Não espera o painel repintar** antes de responder: o `UiEvent` é consumido
 pelo mesmo core que atende a requisição. Quem chama é que espera.
 
 ---
@@ -467,7 +467,7 @@ taxa (**429**).
 ```bash
 curl -b j -F "file=@pack.lng" -F "uploadDir=/lang" http://IP/api/upload
 ```
-⚠️ Pacote `.lng` só passa a valer **no boot seguinte**.
+Atenção: pacote `.lng` só passa a valer **no boot seguinte**.
 
 ### `POST /api/mkdir` · `PERM_FILE_UPLOAD`
 `dir=/caminho`. Ausente → 400 `Missing dir`.
@@ -490,8 +490,8 @@ A permissão é conferida no **primeiro byte** do fluxo, não só no fim.
 
 ### `POST /api/ota/apply` · **`== PERM_FULL_ADMIN`**
 `test=1` para um ensaio sem aplicar.
-⚠️ **O apply zera o `/history` e o LittleFS** — faça backup antes.
-⚠️ Transferência grande na porta 80 cai (RST do roteador): use `:8080`.
+**O apply zera o `/history` e o LittleFS** — faça backup antes.
+Atenção: transferência grande na porta 80 cai (RST do roteador): use `:8080`.
 
 ### `POST /api/tls` · **`== PERM_FULL_ADMIN`** · só onde há HTTPS
 Corpo cru com os **dois blocos PEM concatenados** (certificado + chave privada),
@@ -500,7 +500,7 @@ até 8 KB. Os dois precisam **casar** antes de qualquer arquivo ser escrito.
 curl -b j -X POST --data-binary @<(cat cert.pem key.pem) http://IP/api/tls
 ```
 Chave com passphrase é recusada com a instrução para decifrar.
-⚠️ `br_rsa_compute_pubexp` exige `p ≡ 3 mod 4` e recusa ~metade das chaves RSA —
+Atenção: `br_rsa_compute_pubexp` exige `p ≡ 3 mod 4` e recusa ~metade das chaves RSA —
 **P-521 (EC) funciona sempre**.
 
 ---

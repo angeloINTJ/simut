@@ -18,8 +18,8 @@ Tudo abaixo foi exercitado contra o dispositivo real, não lido do código.
 
 | Linha | GPIO | Estado |
 |-------|------|--------|
-| RESET | GP0 | ✅ **Funciona de ponta a ponta.** O uptime do alvo caiu de 134 s para 19 s com `hand RESET`. |
-| BOOTSEL | GP1 | ✅ **Funciona de ponta a ponta.** O alvo entrou em BOOTSEL e foi gravado sem ninguém encostar nele. |
+| RESET | GP0 | **Funciona de ponta a ponta.** O uptime do alvo caiu de 134 s para 19 s com `hand RESET`. |
+| BOOTSEL | GP1 | **Funciona de ponta a ponta.** O alvo entrou em BOOTSEL e foi gravado sem ninguém encostar nele. |
 
 A receita completa de recuperação (§4.2) foi executada do início ao fim: o
 `hand BOOTSEL` retornou `OK`, a porta CDC do alvo sumiu, o `picotool info`
@@ -365,7 +365,7 @@ printf 'SELF_BOOTSEL\n' > /dev/serial/by-id/usb-Raspberry_Pi_Pico_<mao>-if00
 picotool load -x tools/PicoHand/build/pico_hand.ino.uf2
 ```
 
-⚠️ Funciona porque **o alvo está rodando**, deixando exatamente um dispositivo
+Atenção: funciona porque **o alvo está rodando**, deixando exatamente um dispositivo
 RP2 Boot no barramento. Com o alvo também em BOOTSEL o `picotool` pegaria o
 primeiro que encontrasse — e é justamente por isso que o caminho de gravação do
 alvo precisa do toque a 1200 bps.
@@ -468,19 +468,19 @@ medir; a serial é pior ainda, porque todo comando reseta o timer de inatividade
 do alvo. A sonda não toca em nada. Medida de 06/09, ciclo completo:
 sono 120,715 s, acordado 29,455 s, sono seguinte 89,413 s.
 
-⚠️ **`micros()` dá a volta a cada ~71 minutos.** Leia diferenças, nunca valores
+**`micros()` dá a volta a cada ~71 minutos.** Leia diferenças, nunca valores
 absolutos, e mantenha a janela de medição bem dentro disso. A suíte já trata a
 volta.
 
-⚠️ **GP4/GP5 continuam sendo a ponte serial.** A sonda foi para GP2 justamente
+**GP4/GP5 continuam sendo a ponte serial.** A sonda foi para GP2 justamente
 para não desativá-la.
 
-⚠️ **O GP2 nasce em alta impedância (desde 12/09/2026, §13).** O pull-down só
+**O GP2 nasce em alta impedância (desde 12/09/2026, §13).** O pull-down só
 é engatado por `PROBE START`; `PROBE STOP` o solta de volta. No ocioso a mão não
 carrega a linha — o que importa quando o GP16 do alvo é o MISO do TFT, não a
 sonda do Air.
 
-⚠️ **Regravar a mão reinicia o alvo.** Foi observado em 06/09: depois de copiar
+**Regravar a mão reinicia o alvo.** Foi observado em 06/09: depois de copiar
 o `.uf2` para o volume `RPI-RP2`, o alvo apareceu com uptime zerado, em boot
 frio (M0). Contar com isso ao planejar uma bateria.
 
@@ -507,15 +507,15 @@ próprio GP17 do alvo tem pull-down — e a mão deixa de sujar o barramento em
 bancadas onde esse pino não é o sense do carregador. `CHARGER ON/OFF` reassume a
 saída push-pull; `CHARGER HIZ` devolve à ociosidade.
 
-⚠️ **Nada de divisor neste fio.** O divisor da placa real existe para trazer os
+**Nada de divisor neste fio.** O divisor da placa real existe para trazer os
 5 V a um nível lógico seguro. O GP3 já entrega 3,3 V: vai direto no GP17, com
 o GND em comum (o pino 3 fica bem ao lado dos dois).
 
-⚠️ **A mão ociosa, em reset ou em BOOTSEL, deixa o GP3 flutuando.** O alvo puxa
+**A mão ociosa, em reset ou em BOOTSEL, deixa o GP3 flutuando.** O alvo puxa
 o GP17 para baixo internamente, então a linha lê "na bateria" — a falha segura.
 Desde 12/09/2026 esse "flutuando" é também o estado de boot (§13).
 
-⚠️ **O estímulo é o nível lógico, não a corrente.** A bancada prova a *decisão*
+**O estímulo é o nível lógico, não a corrente.** A bancada prova a *decisão*
 do firmware, nunca que a bateria está de fato carregando.
 
 ### Como regravar a mão
