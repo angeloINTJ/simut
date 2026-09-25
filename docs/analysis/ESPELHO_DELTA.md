@@ -117,7 +117,7 @@ bloco é calcular dois índices e um `__atomic_fetch_or` numa palavra: ~10–15
 instruções, contra os vários microssegundos que a própria janela de endereço já
 gasta em SPI. **Estimativa de 2 a 5% no caminho de texto — não medido.**
 
-### ⚠️ A armadilha que vai morder quem implementar
+### A armadilha que vai morder quem implementar
 
 `readRow` também chama `setAddrWindow` — a leitura de GRAM abre janela como
 qualquer escrita. Um gancho ingênuo marcaria como suja exatamente a região que o
@@ -185,7 +185,7 @@ falhar — ou limpar só depois do último `safeSend` bem-sucedido.
 
 ---
 
-## 6. 🔴 O que impede isso hoje
+## 6. O que impede isso hoje
 
 **A folga de OTA da imagem de release é 484 B.**
 
@@ -331,7 +331,7 @@ parcela com `timer_hw->timerawl` e as publica em `show metrics`
 - **Controle A-contra-A em capturas adjacentes** e comparação pixel a pixel
   contra ele.
 
-⚠️ **Duas vezes o instrumento mentiu antes do firmware, e as duas foram pegas:**
+**Duas vezes o instrumento mentiu antes do firmware, e as duas foram pegas:**
 
 1. `PLATFORMIO_BUILD_FLAGS` apaga `.pio/build`: o primeiro `-t upload` rodou
    **sem** a variável, recompilou sem a sonda e gravou a imagem errada. A string
@@ -349,9 +349,9 @@ Dashboard vivo, 20 quadros intercalados, mediana:
 
 | parcela | por quadro | fração | a §9.4 dizia |
 |---|---:|---:|---:|
-| ler o painel (30 × `readRect`) | 410,2 ms | 64% | 64–70% ✅ |
+| ler o painel (30 × `readRect`) | 410,2 ms | 64% | 64–70% (conferiu) |
 | **espera do park** | 107,0 ms | 17% | — |
-| rede (30 escritas chunked) | 88,1 ms | 14% | 7% ❌ |
+| rede (30 escritas chunked) | 88,1 ms | 14% | 7% (errou) |
 | RLE de paleta | 23,0 ms | 4% | — |
 | **handshake de lockout do SDK** | 4,4 ms | 0,7% | — |
 | resíduo | 9,9 ms | 2% | — |
@@ -405,7 +405,7 @@ A coluna de repintura acima **importa para o PREPARK sozinho** (`pm=2`): ali ele
 corta os renders de 64 para 30 sem zerá-los, e é a única configuração em que esse
 custo é visível.
 
-### 10.4 ⚠️ A leitura fica mais lenta quando a pausa encurta — e eu não sei por quê
+### 10.4 A leitura fica mais lenta quando a pausa encurta — e eu não sei por quê
 
 Em **todo** braço que encurta a pausa, `readRect` demora mais: 411,9 → 419,2 ms
 no default (+7,3), e até 431,6 ms no `pm=7` (+19,7). A geometria é idêntica, o
@@ -435,7 +435,7 @@ A leitura melhora 4 ms no par `pm=5` (417,7 contra 421,7, SRAM ganhando 80,6% do
 pares), o que é pequeno e não sobrevive à faixa. Revertido: é um laço no caminho
 crítico de concorrência, e uma mudança ali sem número é risco sem retorno.
 
-⚠️ Antes de medir, eu já tinha escrito num comentário de código que a mudança
+Atenção: antes de medir, eu já tinha escrito num comentário de código que a mudança
 recuperava 18 ms — número que eu tirei de ler errado a minha própria tabela (o
 429 ms era do braço `pm=7`, não do SOFT; o SOFT mediu 411,5 antes e 412,0
 depois). O comentário foi apagado junto com o código. **A regra da casa pegou:
@@ -465,7 +465,7 @@ esteja de fato mais lenta no fio; explicaria também por que a soma não se move
   `pm=0`; o controle sem toque mexe no máximo 118 px. O C1IDLE tem escape por
   **PENIRQ** (`isScreenTouched( )`, um `gpio_get`, sem SPI) porque o portão que
   faz o painel ganhar do espelho só arma depois que um toque é *detectado*, e a
-  detecção mora justamente na leitura que o C1IDLE pula. ⚠️ O escape por dedo
+  detecção mora justamente na leitura que o C1IDLE pula. Atenção: o escape por dedo
   real **não foi testado no ferro** — a PicoHand não está ligada ao GP20. A prova
   indireta de que o PENIRQ lê ALTO sem ninguém é que o C1IDLE encurta o park:
   se disparasse à toa, o ramo nunca seria tomado.
@@ -583,7 +583,7 @@ Cada `safeSend` paga um `setTimeout` no cliente, um `feedWatchdog` e um
 | 4 kB | 313,3 ms | 72,2 ms | 5 |
 | 16 kB | 311,6 ms | 74,9 ms | 2 |
 
-⚠️ **E depois do DMA isso INVERTE** (§11.4): com a leitura sobreposta, um buffer
+**E depois do DMA isso INVERTE** (§11.4): com a leitura sobreposta, um buffer
 grande deixa o Core 0 ocioso na maior parte das faixas e depois trava o
 barramento num flush longo. Medido no dashboard com DMA: 0 → 222,2 ms, 512 →
 208,3, 1024 → 210,7, 2048 → 211,7, **4096 → 232,3**. O default ficou em **1 kB**,
@@ -606,7 +606,7 @@ enche um, o Core 0 converte, codifica e envia o outro.
 | bloqueante, 12 MHz, 4 kB | 314,0 ms | 187,5 ms | 7,7 ms |
 | **DMA** | **242,5 ms** | 122,9 ms | 0,2 ms |
 
-⚠️ **O DMA obriga o Core 1 a ficar parado o quadro inteiro**, porque o barramento
+**O DMA obriga o Core 1 a ficar parado o quadro inteiro**, porque o barramento
 está em uso do primeiro Start ao último Finish. Isso levaria o pior `PARK` de
 7 ms para **238 ms** — um quarto de segundo em que o painel não percebe um dedo,
 a cada quadro de um espelho em laço. O conserto é um único ponto de escape: entre
@@ -638,7 +638,7 @@ pergunta de formato:
   Recusado.
 - **Paleta por quadro em vez de por faixa: 4%.** Não paga a complexidade.
 
-🔴 **E o ponto que importa: o codec NÃO encurta o quadro.** Depois do DMA o
+**E o ponto que importa: o codec NÃO encurta o quadro.** Depois do DMA o
 gargalo é o barramento, e o Core 0 já termina antes da próxima faixa chegar.
 Isso não é dedução — é medida: **encarecer o envio de propósito** (`?sb=0`, 61
 escritas em vez de 7) mexeu no quadro **14 ms, não 70**. O que o codec compra é
@@ -648,15 +648,15 @@ banda: 40% a menos no fio, que vale para um cliente remoto, não para o relógio
 
 | alavanca | ganho | veredito |
 |---|---:|---|
-| clock 6 → 12 MHz | −188 ms | ✅ adotado |
-| pipeline por DMA | −72 ms | ✅ adotado |
-| coalescer envio (1 kB) | −66 ms | ✅ adotado |
-| `ENC_PAL_RLE4` | −40% de bytes | ✅ adotado (banda, não tempo) |
-| conversão por ponteiro | ~0 | ⬜ inócuo, ficou |
-| agrupar faixas (`g=2`) | −12,8 ms | ❌ 5 kB de heap |
-| clock 16/20 MHz | 0 | ❌ mesmo degrau do PL022 |
-| deflate no aparelho | bytes | ❌ CPU vira o gargalo |
-| paleta por quadro | 4% de bytes | ❌ não paga |
+| clock 6 → 12 MHz | −188 ms | adotado |
+| pipeline por DMA | −72 ms | adotado |
+| coalescer envio (1 kB) | −66 ms | adotado |
+| `ENC_PAL_RLE4` | −40% de bytes | adotado (banda, não tempo) |
+| conversão por ponteiro | ~0 | inócuo, ficou |
+| agrupar faixas (`g=2`) | −12,8 ms | recusado: 5 kB de heap |
+| clock 16/20 MHz | 0 | recusado: mesmo degrau do PL022 |
+| deflate no aparelho | bytes | recusado: CPU vira o gargalo |
+| paleta por quadro | 4% de bytes | recusado: não paga |
 
 ### 11.7 O resultado
 

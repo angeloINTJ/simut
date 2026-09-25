@@ -1,6 +1,6 @@
 # Adding a New Sensor to SIMUT
 
-> 📖 English · [Ver documentación en español](../README.es-ES.md) · [Ver documentação em português](../README.pt-BR.md)
+> English · [Ver documentación en español](../README.es-ES.md) · [Ver documentação em português](../README.pt-BR.md)
 
 SIMUT collects real-world measurements from physical sensors on a Raspberry Pi Pico W
 and pushes them to a local dashboard, history log, and optional telemetry endpoint.

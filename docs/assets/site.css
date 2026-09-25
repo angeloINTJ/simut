@@ -1,0 +1,188 @@
+/* ==========================================================================
+   SIMUT docs site — what every page shares: the top bar and the brand, the
+   theme switch, buttons, selos, the prose of the Markdown pages, the footer.
+
+   Loaded after angulo.css, the byte-for-byte copy of simut-rx/web/angulo.css,
+   and every colour, distance and radius below is one of its var()s. A hex or
+   an rgb() in this file is a bug (ANGULO.md §8), and so is a distance off the
+   4 px grid. The px that remain are line thicknesses and the sizes the guide
+   itself fixes: the 40 px button, the 6 px selo dot, the 20 px icon.
+   ========================================================================== */
+
+html { -webkit-text-size-adjust: 100%; }
+
+.moldura { max-width: 1120px; margin: 0 auto; padding: 0 var(--espaco-6); }
+@media (max-width: 640px) { .moldura { padding: 0 var(--espaco-4); } }
+
+.pular {
+    position: absolute; left: var(--espaco-4); top: var(--espaco-2); z-index: 20;
+    transform: translateY(-200%);
+    padding: var(--espaco-2) var(--espaco-4); border-radius: var(--raio-controle);
+    background: var(--acento); color: var(--acento-tinta);
+    font: 500 15px/24px var(--font-texto); text-decoration: none;
+}
+.pular:focus { transform: none; }
+
+/* ---------- top bar ---------- */
+.topo { position: sticky; top: 0; z-index: 10; background: var(--superficie); border-bottom: 1px solid var(--linha); }
+/* A nav that wraps to two lines would sit on top of the text it scrolls over. */
+@media (max-width: 860px) { .topo { position: static; } }
+.topo .moldura {
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: var(--espaco-2) var(--espaco-5); padding-block: var(--espaco-3);
+}
+/* The nav never wraps: links that do not fit scroll sideways, so the brand
+   and the switches keep their row. It sits right by an auto margin on its
+   first link -- justify-content: flex-end would push an overflowing start out
+   of reach, where no scroll can bring it back. */
+.topo nav { display: flex; flex: 1 1 0; min-width: 0; gap: var(--espaco-3); overflow-x: auto; scrollbar-width: none; }
+.topo nav::-webkit-scrollbar { display: none; }
+.topo nav a:first-child { margin-left: auto; }
+.topo nav a {
+    flex: none; display: inline-flex; align-items: center; min-height: 40px; white-space: nowrap;
+    font: 600 13px/16px var(--font-texto); color: var(--tinta-2); text-decoration: none;
+}
+.topo nav a:hover { color: var(--tinta); }
+.topo nav a[aria-current="page"] { color: var(--acento); }
+.topo-acoes { display: flex; flex: none; align-items: center; gap: var(--espaco-2); }
+/* Narrow: brand and switches on the first row, the nav on a row of its own. */
+@media (max-width: 860px) {
+    .topo nav { order: 3; flex-basis: 100%; }
+    .topo nav a:first-child { margin-left: 0; }
+    .topo-acoes { margin-left: auto; }
+}
+/* A long nav -- the landing page's ten sections -- takes its own row sooner. */
+@media (max-width: 1100px) {
+    .topo-longo nav { order: 3; flex-basis: 100%; }
+    .topo-longo nav a:first-child { margin-left: 0; }
+    .topo-longo .topo-acoes { margin-left: auto; }
+}
+
+/* The brand is the name in display 600, -0.02em (§6), drawn as outlines so it
+   is the same letterform on every system; tools/gen_logo.py writes it. */
+.marca { display: inline-flex; align-items: center; min-height: 40px; color: var(--tinta); text-decoration: none; }
+.marca-svg { display: block; height: 28px; width: auto; }
+.marca-disco { fill: var(--acento); }
+.marca-s { fill: var(--acento-tinta); }
+.marca-nome { fill: var(--tinta); }
+
+/* ---------- icons: one set, one stroke (§6) — the web UI's own sprite ---------- */
+.ic {
+    width: 20px; height: 20px; flex: none;
+    fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* The theme switch shows where a click goes: the moon in the light theme, the
+   sun in the dark one — as the device's web UI does. */
+.tema {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; padding: 0; cursor: pointer;
+    border: 1px solid var(--linha-forte); border-radius: var(--raio-total);
+    background: transparent; color: var(--tinta-2);
+}
+.tema:hover { color: var(--tinta); border-color: var(--acento); }
+.tema .ic-sol { display: none; }
+[data-theme="escuro"] .tema .ic-sol { display: block; }
+[data-theme="escuro"] .tema .ic-lua { display: none; }
+
+/* ---------- buttons (§4.1) ---------- */
+.botao {
+    display: inline-flex; align-items: center; justify-content: center; gap: var(--espaco-2);
+    min-height: 40px; padding: var(--espaco-3) var(--espaco-4);
+    border: 1px solid transparent; border-radius: var(--raio-controle);
+    font: 500 15px/16px var(--font-texto); text-decoration: none; cursor: pointer;
+}
+.botao-primario { background: var(--acento); color: var(--acento-tinta); }
+.botao-primario:hover { background: var(--acento-forte); }
+.botao-secundario { background: var(--superficie); border-color: var(--linha-forte); color: var(--tinta); }
+.botao-secundario:hover { background: var(--superficie-2); }
+
+/* ---------- selos (§4.3): a state in one word, a 6 px dot, soft ground ---------- */
+.selo {
+    display: inline-flex; align-items: center; gap: var(--espaco-1);
+    padding: var(--espaco-1) var(--espaco-2); border-radius: var(--raio-total);
+    background: var(--superficie-2); color: var(--tinta-2);
+    font: 600 13px/16px var(--font-texto); white-space: nowrap;
+}
+.selo::before { content: ""; width: 6px; height: 6px; border-radius: var(--raio-total); background: currentColor; }
+.selo-positivo { background: var(--positivo-suave); color: var(--positivo); }
+.selo-alerta { background: var(--alerta-suave); color: var(--alerta); }
+.selo-perigo { background: var(--perigo-suave); color: var(--perigo); }
+
+/* On alerta-suave only alerta is allowed as text (§3.1 combinations). */
+.faixa-alerta { background: var(--alerta-suave); color: var(--alerta); }
+
+/* Touch targets: at least 44 px wherever the pointer is a finger (§3.6). */
+@media (pointer: coarse) {
+    .botao, .marca, .topo nav a { min-height: var(--alvo-toque); }
+    .tema { width: var(--alvo-toque); height: var(--alvo-toque); }
+}
+
+/* ---------- prose: the Markdown pages ---------- */
+.prosa { max-width: 880px; padding-block: var(--espaco-7); }
+.prosa > :first-child { margin-top: 0; }
+.prosa :is(h1, h2, h3, h4)[id] { scroll-margin-top: calc(var(--espaco-7) + var(--espaco-6)); }
+.prosa h1 { font: 600 34px/38px var(--font-display); letter-spacing: -0.02em; margin: var(--espaco-7) 0 var(--espaco-5); }
+.prosa h2 { font: 600 24px/30px var(--font-display); letter-spacing: -0.01em; margin: var(--espaco-7) 0 var(--espaco-4); }
+.prosa h3 { font: 600 18px/24px var(--font-display); letter-spacing: -0.005em; margin: var(--espaco-6) 0 var(--espaco-3); }
+.prosa h4 { font: 600 16px/24px var(--font-texto); margin: var(--espaco-5) 0 var(--espaco-2); }
+.prosa :is(h5, h6) { font: 600 13px/16px var(--font-texto); color: var(--tinta-2); margin: var(--espaco-5) 0 var(--espaco-2); }
+.prosa :is(p, ul, ol, dl, blockquote) { max-width: 70ch; margin: 0 0 var(--espaco-4); }
+.prosa :is(ul, ol) { padding-left: var(--espaco-5); }
+.prosa li { margin: 0 0 var(--espaco-1); }
+.prosa li > :is(ul, ol) { margin: var(--espaco-1) 0 0; }
+.prosa li > p { margin: 0 0 var(--espaco-2); }
+
+/* Links are underlined: acento against tinta is not enough on its own. */
+.prosa a { color: var(--acento); text-decoration-thickness: 1px; text-underline-offset: var(--espaco-1); }
+.prosa a:hover { color: var(--acento-forte); }
+
+.prosa code {
+    font-family: var(--font-mono); font-size: .8125em; font-weight: 500;   /* 13 on 16: the dado size */
+    background: var(--superficie-2); padding: 0 var(--espaco-1); border-radius: var(--raio-controle);
+}
+.prosa pre {
+    margin: 0 0 var(--espaco-4); padding: var(--espaco-4); overflow-x: auto;
+    background: var(--superficie-2); border: 1px solid var(--linha); border-radius: var(--raio-cartao);
+}
+.prosa pre code { font: 500 13px/20px var(--font-mono); background: none; padding: 0; border-radius: 0; }
+.prosa .highlighter-rouge { margin: 0 0 var(--espaco-4); }
+.prosa .highlight pre { margin: 0; }
+/* Syntax colour is one step, not a palette: comments recede, the rest is tinta. */
+.highlight :is(.c, .c1, .cm, .cs, .cp, .cd) { color: var(--tinta-2); }
+.highlight .err { color: inherit; background: none; }
+
+/* A table is as wide as its content, never wider than the column, and scrolls
+   sideways when a cell will not wrap — fit-content covers all three cases. */
+.prosa table {
+    display: block; width: fit-content; max-width: 100%; overflow-x: auto;
+    margin: 0 0 var(--espaco-5); border-collapse: separate; border-spacing: 0;
+    background: var(--superficie); border: 1px solid var(--linha); border-radius: var(--raio-cartao);
+}
+.prosa :is(th, td) { padding: var(--espaco-2) var(--espaco-3); border-bottom: 1px solid var(--linha); text-align: left; vertical-align: top; }
+.prosa th { font: 600 13px/16px var(--font-texto); color: var(--tinta-2); background: var(--superficie-2); }
+.prosa tbody tr:last-child > td { border-bottom: 0; }
+
+.prosa blockquote { padding-left: var(--espaco-4); border-left: 2px solid var(--linha-forte); color: var(--tinta-2); }
+.prosa blockquote > :last-child { margin-bottom: 0; }
+.prosa hr { border: 0; border-top: 1px solid var(--linha); margin: var(--espaco-6) 0; }
+.prosa img { max-width: 100%; height: auto; border-radius: var(--raio-cartao); }
+.prosa kbd {
+    font: 500 13px/20px var(--font-mono); padding: 0 var(--espaco-1);
+    background: var(--superficie); border: 1px solid var(--linha-forte); border-radius: var(--raio-controle);
+}
+.prosa dt { font-weight: 600; margin: var(--espaco-4) 0 var(--espaco-1); }
+.prosa dd { margin: 0 0 var(--espaco-2); padding-left: var(--espaco-4); border-left: 2px solid var(--linha); }
+.prosa summary { cursor: pointer; font-weight: 600; }
+.prosa .footnotes { font: 400 13px/18px var(--font-texto); color: var(--tinta-2); }
+
+/* ---------- footer ---------- */
+.rodape { background: var(--superficie); border-top: 1px solid var(--linha); }
+.rodape .moldura {
+    display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end;
+    gap: var(--espaco-3) var(--espaco-5); padding-block: var(--espaco-6);
+    font: 400 13px/18px var(--font-texto); color: var(--tinta-2);
+}
+.rodape nav { display: flex; flex-wrap: wrap; gap: var(--espaco-2) var(--espaco-4); }
+.rodape a { color: var(--tinta-2); }
+.rodape a:hover { color: var(--acento); }

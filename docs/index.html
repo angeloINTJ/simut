@@ -19,433 +19,158 @@
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:image" content="https://angelointj.github.io/simut/images/social-preview.png" />
 
+<script>(function(){var d=document.documentElement,t=null;try{t=localStorage.getItem('angulo:tema');}catch(e){}if(t!=='claro'&&t!=='escuro')t=window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches?'escuro':'claro';d.dataset.theme=t;})();</script>
+<link rel="icon" href="images/logo-mark.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="assets/angulo.css" />
+<link rel="stylesheet" href="assets/site.css" />
 <style>
 /* ------------------------------------------------------------------ *
- *  SIMUT — instrument specimen sheet
+ *  SIMUT — landing page, in the Ângulo standard (ANGULO.md).
  *
- *  The palette is the subject's own: neutrals biased cold, a deep teal
- *  for the in-range state, and amber reserved for caution. Beta is a
- *  caution state, so it wears the amber and nothing else does.
+ *  Three layers, loaded in order: assets/angulo.css holds the tokens (a
+ *  byte-for-byte copy of simut-rx/web/angulo.css), assets/site.css the
+ *  pieces every page shares (top bar, brand, buttons, selos, footer), and
+ *  this block the pieces only this page has. Nothing below names a colour,
+ *  a distance or a radius of its own; the 1px values are line thickness.
  * ------------------------------------------------------------------ */
-:root {
-  color-scheme: light;
-  --paper:      #eff3f4;
-  --surface:    #ffffff;
-  --surface-2:  #e7edee;
-  --ink:        #0e1a1f;
-  --ink-soft:   #54666e;
-  --ink-faint:  #7b8d95;
-  --rule:       #d2dcdf;
-  --rule-firm:  #b6c5c9;
-  --accent:     #0a6570;
-  --accent-ink: #ffffff;
-  --warn:       #a9541b;
-  --warn-bg:    #fbf1e6;
-  --warn-rule:  #e0c298;
-
-  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
-  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-
-  --measure: 66ch;
-  --gutter: clamp(1.25rem, 5vw, 4rem);
-  --rail: 1180px;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --paper:      #0a1317;
-    --surface:    #101e23;
-    --surface-2:  #16272d;
-    --ink:        #e4edef;
-    --ink-soft:   #8ca2aa;
-    --ink-faint:  #6b8189;
-    --rule:       #213238;
-    --rule-firm:  #2e444c;
-    --accent:     #57c6d2;
-    --accent-ink: #05191d;
-    --warn:       #de9642;
-    --warn-bg:    #1d1810;
-    --warn-rule:  #4a3a20;
-  }
-}
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --paper:      #0a1317;
-  --surface:    #101e23;
-  --surface-2:  #16272d;
-  --ink:        #e4edef;
-  --ink-soft:   #8ca2aa;
-  --ink-faint:  #6b8189;
-  --rule:       #213238;
-  --rule-firm:  #2e444c;
-  --accent:     #57c6d2;
-  --accent-ink: #05191d;
-  --warn:       #de9642;
-  --warn-bg:    #1d1810;
-  --warn-rule:  #4a3a20;
-}
-:root[data-theme="light"] {
-  color-scheme: light;
-  --paper:      #eff3f4;
-  --surface:    #ffffff;
-  --surface-2:  #e7edee;
-  --ink:        #0e1a1f;
-  --ink-soft:   #54666e;
-  --ink-faint:  #7b8d95;
-  --rule:       #d2dcdf;
-  --rule-firm:  #b6c5c9;
-  --accent:     #0a6570;
-  --accent-ink: #ffffff;
-  --warn:       #a9541b;
-  --warn-bg:    #fbf1e6;
-  --warn-rule:  #e0c298;
-}
-
-*, *::before, *::after { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
-body {
-  margin: 0;
-  background: var(--paper);
-  color: var(--ink);
-  font-family: var(--sans);
-  font-size: 17px;
-  line-height: 1.62;
-  -webkit-font-smoothing: antialiased;
-}
-/* height:auto is not optional here. Every img carries width/height attributes
- * so layout is reserved before the bytes land, and those attributes are
- * presentational hints: with a CSS width and no CSS height, the attribute
- * height wins and the image renders squashed to it. Pair them or the ratio
- * silently dies. */
 img { max-width: 100%; height: auto; display: block; }
-a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 3px; }
-a:hover { text-decoration-thickness: 2px; }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 1px; }
-
-.shell { max-width: var(--rail); margin-inline: auto; padding-inline: var(--gutter); }
-
-.skip {
-  position: absolute; left: -9999px; top: 0;
-  background: var(--accent); color: var(--accent-ink);
-  padding: .6rem 1rem; z-index: 20;
-}
-.skip:focus { left: 0; }
-
-/* ---- masthead ---------------------------------------------------- */
-.masthead {
-  border-bottom: 1px solid var(--rule);
-  background: var(--surface);
-  position: sticky; top: 0; z-index: 10;
-}
-.masthead > .shell {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 1.5rem; min-height: 60px; flex-wrap: wrap;
-}
-.wordmark {
-  font-family: var(--mono);
-  font-weight: 700; font-size: .95rem;
-  letter-spacing: .22em; text-transform: uppercase;
-  color: var(--ink); text-decoration: none;
-  display: inline-flex; align-items: center; gap: .6rem;
-}
-.wordmark::before {
-  content: ""; width: 9px; height: 9px; border-radius: 50%;
-  background: var(--accent); flex: none;
-}
-.masthead nav { display: flex; gap: 1.4rem; flex-wrap: wrap; }
-.masthead nav a {
-  font-family: var(--mono); font-size: .74rem;
-  letter-spacing: .13em; text-transform: uppercase;
-  color: var(--ink-soft); text-decoration: none;
-}
-.masthead nav a:hover { color: var(--accent); }
-
-/* Language switcher. The page follows the browser's own preference order on
- * first visit; these are for overriding it, and the choice is remembered. */
-.langbar { display: flex; gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
-.lang-btn {
-  font-family: var(--mono); font-size: .68rem; font-weight: 600;
-  letter-spacing: .1em;
-  padding: .3rem .5rem; border: 0; cursor: pointer;
-  background: var(--surface); color: var(--ink-faint);
-}
-.lang-btn:hover { color: var(--accent); }
-.lang-btn[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
-
-/* ---- shared section furniture ------------------------------------ */
-.band { border-bottom: 1px solid var(--rule); }
-.band > .shell { padding-block: clamp(3rem, 7vw, 5.5rem); }
-
-.eyebrow {
-  font-family: var(--mono); font-size: .72rem;
-  letter-spacing: .2em; text-transform: uppercase;
-  color: var(--ink-faint);
-  margin: 0 0 1.1rem;
-  display: flex; align-items: center; gap: .8rem;
-}
-.eyebrow::after {
-  content: ""; height: 1px; background: var(--rule); flex: 1;
-}
-
-h1, h2, h3 { text-wrap: balance; margin: 0; }
-h2 {
-  font-size: clamp(1.5rem, 3vw, 2rem);
-  line-height: 1.2; letter-spacing: -.018em; font-weight: 650;
-  margin-bottom: .9rem;
-}
-h3 { font-size: 1.03rem; font-weight: 650; letter-spacing: -.005em; }
-p { margin: 0 0 1rem; max-width: var(--measure); }
+a { color: var(--acento); text-decoration-thickness: 1px; text-underline-offset: var(--espaco-1); }
+a:hover { color: var(--acento-forte); }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+h2 { font: 600 24px/30px var(--font-display); letter-spacing: -0.01em; margin-bottom: var(--espaco-3); }
+h3 { font: 600 18px/24px var(--font-display); letter-spacing: -0.005em; }
+p { margin: 0 0 var(--espaco-4); max-width: 70ch; }
 p:last-child { margin-bottom: 0; }
-.lede { color: var(--ink-soft); font-size: 1.06rem; }
+.lede { color: var(--tinta-2); }
+code {
+  font-family: var(--font-mono); font-size: .8125em; font-weight: 500;
+  background: var(--superficie-2); padding: 0 var(--espaco-1); border-radius: var(--raio-controle);
+}
+
+.band { border-bottom: 1px solid var(--linha); }
+.band > .moldura { padding-block: var(--espaco-7); }
+.eyebrow { font: 600 13px/16px var(--font-texto); color: var(--tinta-2); margin: 0 0 var(--espaco-2); }
+
+/* Language: a segmented control, and the pressed one is the active tab. */
+.langbar { display: inline-flex; border: 1px solid var(--linha-forte); border-radius: var(--raio-controle); overflow: hidden; }
+.lang-btn {
+  min-height: 40px; padding: 0 var(--espaco-3); border: 0; cursor: pointer;
+  background: var(--superficie); color: var(--tinta-2); font: 600 13px/16px var(--font-texto);
+}
+.lang-btn + .lang-btn { border-left: 1px solid var(--linha-forte); }
+.lang-btn:hover { background: var(--superficie-2); color: var(--tinta); }
+.lang-btn[aria-pressed="true"] { background: var(--acento); color: var(--acento-tinta); }
+@media (pointer: coarse) { .lang-btn { min-height: var(--alvo-toque); } }
 
 /* ---- hero -------------------------------------------------------- */
-.hero > .shell { padding-block: clamp(3.5rem, 9vw, 6.5rem) clamp(2.5rem, 5vw, 3.5rem); }
+.hero > .moldura { padding-block: var(--espaco-7); }
 .hero-grid {
-  display: grid; gap: clamp(2rem, 5vw, 4rem);
+  display: grid; gap: var(--espaco-6); align-items: start;
   grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr);
-  align-items: start;
 }
 @media (max-width: 860px) { .hero-grid { grid-template-columns: 1fr; } }
+.release-line { display: flex; flex-wrap: wrap; gap: var(--espaco-2); margin: 0 0 var(--espaco-5); }
+h1 { font: 600 34px/38px var(--font-display); letter-spacing: -0.02em; margin-bottom: var(--espaco-4); }
+h1 .expand { display: block; margin-top: var(--espaco-2); font: 400 13px/18px var(--font-texto); letter-spacing: 0; color: var(--tinta-2); }
+.actions { display: flex; flex-wrap: wrap; gap: var(--espaco-3); margin-top: var(--espaco-5); }
 
-.release-line {
-  display: flex; align-items: center; gap: .7rem; flex-wrap: wrap;
-  font-family: var(--mono); font-size: .74rem;
-  letter-spacing: .14em; text-transform: uppercase;
-  color: var(--ink-faint); margin-bottom: 1.6rem;
+/* ---- figures: cards, contoured by linha, never by a shadow ------- */
+.plate, .shot, .gallery figure, .screens figure {
+  margin: 0; display: flex; flex-direction: column; overflow: hidden;
+  background: var(--superficie); border: 1px solid var(--linha); border-radius: var(--raio-cartao);
 }
-.tag {
-  border: 1px solid var(--rule-firm); padding: .22rem .55rem;
-  color: var(--ink-soft); white-space: nowrap;
-}
-.tag-beta { border-color: var(--warn-rule); color: var(--warn); background: var(--warn-bg); }
-
-h1 {
-  font-size: clamp(2.6rem, 7.5vw, 4.4rem);
-  line-height: .98; letter-spacing: -.04em; font-weight: 700;
-  margin-bottom: 1.1rem;
-}
-h1 .expand {
-  display: block; margin-top: .7rem;
-  font-family: var(--mono); font-weight: 400;
-  font-size: clamp(.78rem, 1.7vw, .95rem);
-  letter-spacing: .1em; line-height: 1.5;
-  text-transform: uppercase; color: var(--ink-faint);
-}
-.hero p { font-size: 1.12rem; }
-
-.actions { display: flex; gap: .7rem; flex-wrap: wrap; margin-top: 1.9rem; }
-.btn {
-  display: inline-block; padding: .72rem 1.25rem;
-  font-family: var(--mono); font-size: .76rem;
-  letter-spacing: .13em; text-transform: uppercase;
-  text-decoration: none; border: 1px solid var(--accent);
-}
-.btn-solid { background: var(--accent); color: var(--accent-ink); }
-.btn-solid:hover { opacity: .88; }
-.btn-ghost { color: var(--accent); background: transparent; }
-.btn-ghost:hover { background: var(--surface); }
-
-.plate { border: 1px solid var(--rule); background: var(--surface); }
-.plate img { width: 100%; height: auto; }
-
+figcaption { font: 400 13px/18px var(--font-texto); color: var(--tinta-2); padding: var(--espaco-3) var(--espaco-4); border-top: 1px solid var(--linha); }
+.plate img, .shot img { width: 100%; }
 /* Panel captures are 640x480 read off a 320x240 screen. Browsers smooth an
  * upscale by default, which turns crisp UI pixels into mush -- keep them
  * blocky, the way the panel draws them. */
 .pixels { image-rendering: pixelated; }
-.plate figcaption {
-  font-family: var(--mono); font-size: .7rem;
-  letter-spacing: .11em; text-transform: uppercase;
-  color: var(--ink-faint); padding: .7rem .85rem;
-  border-top: 1px solid var(--rule);
-}
+/* Both members of the gallery and every screen are natively 4:3, so nothing
+ * is cropped -- the ratio reserves the space, it does not force a shape. */
+.gallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--espaco-4); margin-top: var(--espaco-4); }
+@media (max-width: 860px) { .gallery { grid-template-columns: 1fr; } }
+.gallery img, .screens img { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; }
+.screens { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--espaco-4); }
+@media (max-width: 900px) { .screens { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 520px) { .screens { grid-template-columns: 1fr; } }
 
-/* ---- readout strip ----------------------------------------------- */
+/* ---- readout: six figures in one card, divided by linha ---------- */
+#status > .moldura { padding-block: var(--espaco-6); }
 .readout {
-  border-top: 1px solid var(--rule-firm);
-  display: grid; grid-template-columns: repeat(6, 1fr);
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 1px; overflow: hidden;
+  background: var(--linha); border: 1px solid var(--linha); border-radius: var(--raio-cartao);
 }
 @media (max-width: 900px) { .readout { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 500px) { .readout { grid-template-columns: repeat(2, 1fr); } }
-.channel {
-  padding: 1.15rem 1rem 1.25rem;
-  border-right: 1px solid var(--rule);
-  border-bottom: 1px solid var(--rule);
-}
-.channel:last-child { border-right: 0; }
-.channel .val {
-  font-family: var(--mono); font-variant-numeric: tabular-nums;
-  font-size: clamp(1.25rem, 2.6vw, 1.65rem); font-weight: 600;
-  letter-spacing: -.02em; color: var(--ink); line-height: 1.1;
-}
-.channel .val .unit { font-size: .62em; font-weight: 400; color: var(--ink-faint); margin-left: .15em; }
-.channel .key {
-  font-family: var(--mono); font-size: .66rem;
-  letter-spacing: .14em; text-transform: uppercase;
-  color: var(--ink-faint); margin-top: .5rem;
-}
+.channel { background: var(--superficie); padding: var(--espaco-4); }
+.channel .val { font: 600 24px/30px var(--font-display); letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.channel .val .unit { font: 400 13px/18px var(--font-texto); color: var(--tinta-2); margin-left: var(--espaco-1); }
+.channel .key { font: 400 13px/18px var(--font-texto); color: var(--tinta-2); margin-top: var(--espaco-1); }
 
-/* ---- caution panel ----------------------------------------------- */
-.caution {
-  background: var(--warn-bg);
-  border-top: 1px solid var(--warn-rule);
-  border-bottom: 1px solid var(--warn-rule);
-}
-.caution > .shell { padding-block: clamp(2rem, 4vw, 2.75rem); }
-.caution h2 {
-  font-family: var(--mono); font-size: .8rem; font-weight: 700;
-  letter-spacing: .2em; text-transform: uppercase;
-  color: var(--warn); margin-bottom: 1rem;
-}
-.caution ul { margin: 0; padding-left: 1.1rem; max-width: var(--measure); }
-.caution li { margin-bottom: .55rem; }
+/* ---- caution: the faixa de atenção. On alerta-suave the only text
+ * colour the combinations table allows is alerta, so it all is. ---- */
+.caution { border-bottom: 1px solid var(--linha); }
+.caution > .moldura { padding-block: var(--espaco-6); }
+.caution h2 { color: inherit; }
+.caution ul { margin: 0; padding-left: var(--espaco-5); max-width: 70ch; }
+.caution li { margin-bottom: var(--espaco-2); }
 .caution li:last-child { margin-bottom: 0; }
-.caution strong { color: var(--ink); }
+.caution code { background: var(--superficie); color: var(--tinta); }
 
-/* ---- changelog rail ---------------------------------------------- */
-.releases { display: grid; gap: 0; }
+/* ---- changelog rail --------------------------------------------- */
+.releases { border-top: 1px solid var(--linha); }
 .release {
-  display: grid; grid-template-columns: 148px minmax(0, 1fr);
-  gap: clamp(1rem, 3vw, 2.5rem);
-  padding-block: 1.6rem;
-  border-top: 1px solid var(--rule);
+  display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: var(--espaco-5);
+  padding-block: var(--espaco-5); border-bottom: 1px solid var(--linha);
 }
-.release:last-child { border-bottom: 1px solid var(--rule); }
-@media (max-width: 700px) { .release { grid-template-columns: 1fr; gap: .5rem; } }
-.release .ver {
-  font-family: var(--mono); font-size: .78rem; font-weight: 600;
-  letter-spacing: .06em; color: var(--accent);
-}
-.release .date {
-  font-family: var(--mono); font-size: .68rem;
-  letter-spacing: .1em; text-transform: uppercase;
-  color: var(--ink-faint); margin-top: .3rem;
-}
-.release h3 { margin-bottom: .35rem; }
-.release p { color: var(--ink-soft); font-size: .96rem; margin: 0; }
+@media (max-width: 700px) { .release { grid-template-columns: 1fr; gap: var(--espaco-2); } }
+.release .ver { font: 500 13px/20px var(--font-mono); }
+.release .date { font: 400 13px/18px var(--font-texto); color: var(--tinta-2); margin-top: var(--espaco-1); }
+.release h3 { margin-bottom: var(--espaco-2); }
+.release p { color: var(--tinta-2); margin: 0; }
 
-/* ---- matrix ------------------------------------------------------ */
-.matrix { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--rule); }
+/* ---- capabilities and engine: one subject per cell, so each is a card */
+.matrix { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--espaco-4); }
 @media (max-width: 900px) { .matrix { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 620px) { .matrix { grid-template-columns: 1fr; } }
-.cell {
-  padding: 1.5rem 1.4rem 1.6rem;
-  border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
-}
-.cell:nth-child(3n) { border-right: 0; }
-@media (max-width: 900px) {
-  .cell { border-right: 1px solid var(--rule); }
-  .cell:nth-child(3n) { border-right: 1px solid var(--rule); }
-  .cell:nth-child(2n) { border-right: 0; }
-}
-@media (max-width: 620px) { .cell, .cell:nth-child(3n) { border-right: 0; } }
-.cell h3 { margin-bottom: .5rem; }
-.cell p { font-size: .93rem; color: var(--ink-soft); margin: 0; }
+.cell { background: var(--superficie); border: 1px solid var(--linha); border-radius: var(--raio-cartao); padding: var(--espaco-5); }
+.cell h3 { margin-bottom: var(--espaco-2); }
+.cell p { color: var(--tinta-2); margin: 0; }
 
 /* ---- spec table -------------------------------------------------- */
-.scroller { overflow-x: auto; border: 1px solid var(--rule); background: var(--surface); }
+.scroller { overflow-x: auto; background: var(--superficie); border: 1px solid var(--linha); border-radius: var(--raio-cartao); }
 table { border-collapse: collapse; width: 100%; min-width: 520px; }
-th, td { text-align: left; padding: .78rem 1.1rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th, td { text-align: left; padding: var(--espaco-3) var(--espaco-4); border-bottom: 1px solid var(--linha); vertical-align: top; }
 tbody tr:last-child td { border-bottom: 0; }
-th {
-  font-family: var(--mono); font-size: .68rem; font-weight: 600;
-  letter-spacing: .14em; text-transform: uppercase;
-  color: var(--ink-faint); background: var(--surface-2);
-}
-td:first-child { font-weight: 600; white-space: nowrap; }
-td { font-size: .94rem; color: var(--ink-soft); }
-td:first-child { color: var(--ink); }
-td code, .cell code, .caution code, p code, li code {
-  font-family: var(--mono); font-size: .86em;
-  background: var(--surface-2); padding: .1em .35em;
-  border: 1px solid var(--rule);
-}
+th { font: 600 13px/16px var(--font-texto); color: var(--tinta-2); background: var(--superficie-2); }
+td { color: var(--tinta-2); }
+td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
 
 /* ---- steps ------------------------------------------------------- */
-.steps { counter-reset: step; display: grid; gap: 0; border-top: 1px solid var(--rule); }
+.steps { counter-reset: step; border-top: 1px solid var(--linha); }
 .step {
-  counter-increment: step;
-  display: grid; grid-template-columns: 3.2rem minmax(0, 1fr);
-  gap: 1rem; padding-block: 1.35rem;
-  border-bottom: 1px solid var(--rule);
+  counter-increment: step; display: grid; grid-template-columns: var(--espaco-7) minmax(0, 1fr);
+  gap: var(--espaco-4); padding-block: var(--espaco-5); border-bottom: 1px solid var(--linha);
 }
-.step::before {
-  content: counter(step, decimal-leading-zero);
-  font-family: var(--mono); font-size: .8rem; font-weight: 600;
-  letter-spacing: .08em; color: var(--accent); padding-top: .15rem;
-}
-.step h3 { margin-bottom: .3rem; }
-.step p { font-size: .94rem; color: var(--ink-soft); margin: 0; }
+.step::before { content: counter(step); font: 600 24px/30px var(--font-display); color: var(--tinta-2); }
+.step h3 { margin-bottom: var(--espaco-1); }
+.step p { color: var(--tinta-2); margin: 0; }
 
-/* ---- gallery ----------------------------------------------------- */
-/* Both members of this pair are natively 4:3, so nothing is cropped -- the
- * ratio is declared to reserve the right space, not to force a shape. */
-.gallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
-@media (max-width: 860px) { .gallery { grid-template-columns: 1fr; } }
-.gallery figure { margin: 0; background: var(--surface); display: flex; flex-direction: column; }
-.gallery img { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: contain; }
-
-/* The screen map: seventeen 4:3 captures, shown at their own ratio. */
-.screens {
-  display: grid; gap: 1px; background: var(--rule);
-  border: 1px solid var(--rule);
-  grid-template-columns: repeat(4, 1fr);
-}
-@media (max-width: 900px) { .screens { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 520px) { .screens { grid-template-columns: 1fr; } }
-.screens figure { margin: 0; background: var(--surface); }
-.screens img { width: 100%; height: auto; aspect-ratio: 4 / 3; display: block; }
-.screens figcaption {
-  font-family: var(--mono); font-size: .64rem;
-  letter-spacing: .09em; text-transform: uppercase;
-  color: var(--ink-faint); padding: .55rem .7rem;
-  border-top: 1px solid var(--rule);
-}
-.shot { margin: 0 0 1px; border: 1px solid var(--rule); background: var(--surface); }
-.shot img { width: 100%; height: auto; }
-.shot figcaption {
-  font-family: var(--mono); font-size: .68rem;
-  letter-spacing: .11em; text-transform: uppercase;
-  color: var(--ink-faint); padding: .7rem .85rem; border-top: 1px solid var(--rule);
-}
-.split {
-  display: grid; gap: clamp(1.5rem, 4vw, 3rem);
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
-  align-items: center;
-}
-@media (max-width: 860px) { .split { grid-template-columns: 1fr; } }
-.gallery figcaption {
-  font-family: var(--mono); font-size: .68rem;
-  letter-spacing: .11em; text-transform: uppercase;
-  color: var(--ink-faint); padding: .7rem .85rem; border-top: 1px solid var(--rule);
-}
-
-/* ---- docs list --------------------------------------------------- */
-.docs { display: grid; grid-template-columns: repeat(2, 1fr); border-top: 1px solid var(--rule); }
+/* ---- docs: clickable cards; hover firms the line, adds no shadow -- */
+.docs { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--espaco-4); }
 @media (max-width: 700px) { .docs { grid-template-columns: 1fr; } }
 .doc {
-  display: block; text-decoration: none; color: inherit;
-  padding: 1.25rem 1.3rem;
-  border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
+  display: block; text-decoration: none; color: inherit; padding: var(--espaco-5);
+  background: var(--superficie); border: 1px solid var(--linha); border-radius: var(--raio-cartao);
 }
-.doc:nth-child(2n) { border-right: 0; }
-@media (max-width: 700px) { .doc, .doc:nth-child(2n) { border-right: 0; } }
-.doc-larga { grid-column: 1 / -1; border-right: 0; }
-.doc:hover { background: var(--surface); }
-.doc h3 { color: var(--accent); margin-bottom: .25rem; }
-.doc p { font-size: .9rem; color: var(--ink-soft); margin: 0; }
+.doc:hover { border-color: var(--linha-forte); }
+.doc-larga { grid-column: 1 / -1; }
+.doc h3 { color: var(--acento); margin-bottom: var(--espaco-1); }
+.doc p { color: var(--tinta-2); margin: 0; }
 
-/* ---- footer ------------------------------------------------------ */
-footer { background: var(--surface); }
-footer > .shell { padding-block: 2.5rem 3rem; }
-.foot-grid { display: flex; justify-content: space-between; gap: 2rem; flex-wrap: wrap; align-items: flex-end; }
-.foot-links { display: flex; gap: 1.3rem; flex-wrap: wrap; }
-.foot-links a {
-  font-family: var(--mono); font-size: .72rem;
-  letter-spacing: .12em; text-transform: uppercase; text-decoration: none;
-  color: var(--ink-soft);
-}
-.foot-links a:hover { color: var(--accent); }
-.colophon { font-family: var(--mono); font-size: .7rem; letter-spacing: .06em; color: var(--ink-faint); line-height: 1.7; }
+/* A lede that opens a grid, and a note that closes one. */
+.antes { margin-bottom: var(--espaco-6); }
+.depois { margin-top: var(--espaco-5); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -453,11 +178,12 @@ footer > .shell { padding-block: 2.5rem 3rem; }
 </style>
 </head>
 <body>
-<a class="skip" href="#main" data-i18n="skip">Skip to content</a>
+<a class="pular" href="#main" data-i18n="skip">Skip to content</a>
+<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden"><symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol><symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol></svg>
 
-<header class="masthead">
-  <div class="shell">
-    <a class="wordmark" href="./">SIMUT</a>
+<header class="topo topo-longo">
+  <div class="moldura">
+    <a class="marca" href="./" aria-label="SIMUT"><svg class="marca-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4281 1024" aria-hidden="true" focusable="false"><circle class="marca-disco" cx="512" cy="512" r="500"/><path class="marca-s" d="M512 812Q399 812 334 767Q270 721 269 631L367 602Q365 665 407 695Q449 725 517 725Q581 725 614 703Q648 680 648 646Q648 620 630 605Q611 590 580 580Q548 570 510 561Q467 551 426 540Q386 529 352 510Q319 491 299 460Q280 430 280 383Q280 306 339 259Q398 212 503 212Q607 212 669 258Q732 305 735 385L634 413Q634 356 598 327Q562 299 502 299Q448 299 416 320Q385 341 385 375Q385 403 406 419Q427 436 461 446Q496 456 537 466Q575 474 613 484Q651 495 683 514Q715 533 735 564Q755 595 755 642Q755 719 693 766Q632 812 512 812Z"/><path class="marca-nome" d="M1553 855Q1424 855 1350 803Q1277 751 1276 648L1388 615Q1386 687 1434 722Q1482 756 1559 756Q1632 756 1670 730Q1709 704 1709 665Q1709 636 1688 618Q1667 601 1631 590Q1595 578 1551 568Q1502 557 1456 544Q1409 531 1371 510Q1333 488 1310 453Q1288 418 1288 365Q1288 276 1356 222Q1423 169 1543 169Q1662 169 1734 222Q1805 275 1808 367L1693 399Q1693 334 1652 301Q1611 268 1542 268Q1480 268 1444 292Q1408 317 1408 355Q1408 387 1432 406Q1456 425 1496 436Q1535 448 1582 459Q1625 468 1668 480Q1712 493 1749 514Q1786 536 1808 572Q1831 607 1831 661Q1831 749 1761 802Q1691 855 1553 855ZM1934 842V182H2062V842ZM2198 842V182H2389L2585 701H2590L2783 182H2966V842H2846L2854 310H2844L2635 842H2525L2319 310H2309L2317 842ZM3386 855Q3240 855 3168 782Q3097 709 3097 586V182H3224V581Q3224 742 3386 742Q3468 742 3508 702Q3548 663 3548 581V182H3674V586Q3674 714 3602 784Q3529 855 3386 855ZM3945 842V289H3749V182H4269V289H4072V842Z"/></svg></a>
     <nav aria-label="Sections">
       <a href="#status" data-i18n="nav.status">Status</a>
       <a href="#whats-new" data-i18n="nav.new">What's new</a>
@@ -470,10 +196,13 @@ footer > .shell { padding-block: 2.5rem 3rem; }
       <a href="#docs" data-i18n="nav.docs">Docs</a>
       <a href="https://github.com/angeloINTJ/simut">GitHub</a>
     </nav>
-    <div class="langbar" role="group" aria-label="Language">
-      <button type="button" class="lang-btn" data-lang="en" lang="en">EN</button>
-      <button type="button" class="lang-btn" data-lang="pt" lang="pt-BR">PT</button>
-      <button type="button" class="lang-btn" data-lang="es" lang="es">ES</button>
+    <div class="topo-acoes">
+      <div class="langbar" role="group" aria-label="Language">
+        <button type="button" class="lang-btn" data-lang="en" lang="en">EN</button>
+        <button type="button" class="lang-btn" data-lang="pt" lang="pt-BR">PT</button>
+        <button type="button" class="lang-btn" data-lang="es" lang="es">ES</button>
+      </div>
+      <button class="tema" type="button" aria-label="Use dark theme"><svg class="ic ic-lua" aria-hidden="true"><use href="#i-moon"/></svg><svg class="ic ic-sol" aria-hidden="true"><use href="#i-sun"/></svg></button>
     </div>
   </div>
 </header>
@@ -481,14 +210,14 @@ footer > .shell { padding-block: 2.5rem 3rem; }
 <main id="main">
 
 <section class="hero">
-  <div class="shell">
+  <div class="moldura">
     <div class="hero-grid">
       <div>
         <p class="release-line">
-          <span class="tag" data-i18n="tag.stable">Stable</span>
-          <span class="tag">v2.7.2</span>
-          <span class="tag">MIT</span>
-          <span class="tag">RP2040</span>
+          <span class="selo selo-positivo" data-i18n="tag.stable">Stable</span>
+          <span class="selo">v2.7.2</span>
+          <span class="selo">MIT</span>
+          <span class="selo">RP2040</span>
         </p>
         <h1>
           <span data-i18n="hero.h1">Temperature monitoring that answers to nobody's cloud.</span>
@@ -501,12 +230,12 @@ footer > .shell { padding-block: 2.5rem 3rem; }
           account to create and no service to depend on.
         </p>
         <div class="actions">
-          <a class="btn btn-solid" href="https://github.com/angeloINTJ/simut/releases/latest" data-i18n="hero.download">Download firmware</a>
-          <a class="btn btn-ghost" href="MANUAL.html" data-i18n="hero.manual">Read the manual</a>
-          <a class="btn btn-ghost" href="https://github.com/angeloINTJ/simut" data-i18n="hero.source">Source on GitHub</a>
+          <a class="botao botao-primario" href="https://github.com/angeloINTJ/simut/releases/latest" data-i18n="hero.download">Download firmware</a>
+          <a class="botao botao-secundario" href="MANUAL.html" data-i18n="hero.manual">Read the manual</a>
+          <a class="botao botao-secundario" href="https://github.com/angeloINTJ/simut" data-i18n="hero.source">View the source on GitHub</a>
         </div>
       </div>
-      <figure class="plate" style="margin:0">
+      <figure class="plate">
         <img class="pixels" src="images/screens/dashboard.png" data-i18n-alt="alt.dashboard" alt="The SIMUT device dashboard: two sensor cards showing temperature and humidity, above a row of slot buttons." width="640" height="480" />
         <figcaption data-i18n="cap.hero">Device dashboard · captured off a 320×240 panel</figcaption>
       </figure>
@@ -515,7 +244,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
 </section>
 
 <section id="status" class="band">
-  <div class="shell" style="padding-block:0">
+  <div class="moldura">
     <div class="readout">
       <div class="channel"><div class="val">16</div><div class="key" data-i18n="ro.slots">Sensor slots</div></div>
       <div class="channel"><div class="val">4</div><div class="key" data-i18n="ro.types">Sensor types</div></div>
@@ -527,8 +256,8 @@ footer > .shell { padding-block: 2.5rem 3rem; }
   </div>
 </section>
 
-<section class="caution">
-  <div class="shell">
+<section class="caution faixa-alerta">
+  <div class="moldura">
     <h2 data-i18n="beta.title">Before you rely on it</h2>
     <ul>
       <li data-i18n="beta.1">
@@ -561,10 +290,10 @@ footer > .shell { padding-block: 2.5rem 3rem; }
 </section>
 
 <section id="whats-new" class="band">
-  <div class="shell">
+  <div class="moldura">
     <p class="eyebrow" data-i18n="new.eyebrow">This generation</p>
     <h2 data-i18n="new.h2">What changed recently</h2>
-    <p class="lede" style="margin-bottom:2rem" data-i18n="new.lede">
+    <p class="lede antes" data-i18n="new.lede">
       The line left beta in September 2026, on measurements rather than a decision. Since then the panel learned who is in front of it, a server can edit alarms live, and the setup network became one you can actually join. Every number below was measured on real hardware.
     </p>
     <div class="releases">
@@ -615,7 +344,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
         </div>
       </article>
     </div>
-    <p style="margin-top:1.6rem">
+    <p class="depois">
       <a href="https://github.com/angeloINTJ/simut/blob/main/CHANGELOG.md" data-i18n="new.changelog">Full changelog</a> ·
       <a href="https://github.com/angeloINTJ/simut/blob/main/CHANGELOG.pt-BR.md">Português</a>
     </p>
@@ -623,10 +352,10 @@ footer > .shell { padding-block: 2.5rem 3rem; }
 </section>
 
 <section id="capabilities" class="band">
-  <div class="shell">
+  <div class="moldura">
     <p class="eyebrow" data-i18n="cap.eyebrow">Capabilities</p>
     <h2 data-i18n="cap.h2">What the firmware does</h2>
-    <p class="lede" style="margin-bottom:2rem" data-i18n="cap.lede">
+    <p class="lede antes" data-i18n="cap.lede">
       Everything below runs on the device. Nothing phones home.
     </p>
     <div class="matrix">
@@ -687,7 +416,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
 </section>
 
 <section class="band">
-  <div class="shell">
+  <div class="moldura">
     <p class="eyebrow" data-i18n="use.eyebrow">In use</p>
     <figure class="shot">
       <img src="images/web-dashboard.png" data-i18n-alt="alt.web" alt="The SIMUT web dashboard in a browser: system statistics, memory and flash usage, and a table of five live sensors of three different types." loading="lazy" width="1280" height="900" />
@@ -707,10 +436,10 @@ footer > .shell { padding-block: 2.5rem 3rem; }
 </section>
 
 <section id="screens" class="band">
-  <div class="shell">
+  <div class="moldura">
     <p class="eyebrow" data-i18n="scr.eyebrow">Every screen</p>
     <h2 data-i18n="scr.h2">The whole interface, on a 320×240 panel</h2>
-    <p class="lede" style="margin-bottom:2rem" data-i18n="scr.lede">
+    <p class="lede antes" data-i18n="scr.lede">
       Captured off a running device, one frame per screen. Not renderings —
       the framebuffer read back over SPI.
     </p>
@@ -728,7 +457,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
       <figure><img class="pixels" src="images/screens/touch-calibration.png" alt="" loading="lazy" width="640" height="480" /><figcaption data-i18n="s.cal">Touch calibration</figcaption></figure>
       <figure><img class="pixels" src="images/screens/settings-license.png" alt="" loading="lazy" width="640" height="480" /><figcaption data-i18n="s.lic">License</figcaption></figure>
     </div>
-    <p style="margin-top:1.2rem" data-i18n="scr.note">
+    <p class="depois" data-i18n="scr.note">
       History graphs, statistics and the calendar are in the animation above —
       they need stored readings to draw, and this device had just been
       reflashed. Full map, including how each screen is reached:
@@ -738,10 +467,10 @@ footer > .shell { padding-block: 2.5rem 3rem; }
 </section>
 
 <section id="engine" class="band">
-  <div class="shell">
+  <div class="moldura">
     <p class="eyebrow" data-i18n="eng.eyebrow">Under the hood</p>
     <h2 data-i18n="eng.h2">The sensors do not run on the processor</h2>
-    <p class="lede" style="margin-bottom:2rem" data-i18n="eng.lede">
+    <p class="lede antes" data-i18n="eng.lede">
       Every sensor bus and the buzzer are driven by the RP2040's PIO — programmable
       state machines that clock a protocol in hardware while both CPU cores get on
       with something else.
@@ -765,7 +494,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
         was doing: which core, which module, and for how long. The next boot reports
         the autopsy instead of coming up blank.</p></div>
     </div>
-    <p style="margin-top:1.6rem" data-i18n="eng.libs">
+    <p class="depois" data-i18n="eng.libs">
       The PIO libraries:
       <a href="https://github.com/angeloINTJ/OneWirePIO_RP2040">OneWirePIO</a> ·
       <a href="https://github.com/angeloINTJ/DHT22PIO_RP2040">DHT22PIO</a> ·
@@ -777,7 +506,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
 </section>
 
 <section id="universal" class="band">
-  <div class="shell">
+  <div class="moldura">
     <p class="eyebrow" data-i18n="uni.eyebrow">The direction</p>
     <div>
       <div>
@@ -802,7 +531,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
         </p>
       </div>
     </div>
-    <figure class="shot" style="margin-top:2rem">
+    <figure class="shot depois">
       <img src="images/web-sensors.png" data-i18n-alt="alt.slots" alt="The sensor configuration page: a GP0 to GP15 pin map and a table of five slots holding DS18B20, DHT22 and BMP280 sensors." loading="lazy" width="1186" height="477" />
       <figcaption data-i18n="cap.slots">Five slots · three sensor types · one model</figcaption>
     </figure>
@@ -810,10 +539,10 @@ footer > .shell { padding-block: 2.5rem 3rem; }
 </section>
 
 <section id="hardware" class="band">
-  <div class="shell">
+  <div class="moldura">
     <p class="eyebrow" data-i18n="hw.eyebrow">Hardware</p>
     <h2 data-i18n="hw.h2">What you need</h2>
-    <p class="lede" style="margin-bottom:2rem" data-i18n="hw.lede">
+    <p class="lede antes" data-i18n="hw.lede">
       Roughly the cost of a takeaway meal, and none of it is proprietary.
     </p>
     <div class="scroller">
@@ -830,26 +559,26 @@ footer > .shell { padding-block: 2.5rem 3rem; }
         </tbody>
       </table>
     </div>
-    <p style="margin-top:1.2rem"><a href="WIRING.html" data-i18n="hw.wiring">Wiring diagram and pinout →</a></p>
+    <p class="depois"><a href="WIRING.html" data-i18n="hw.wiring">Wiring diagram and pinout →</a></p>
   </div>
 </section>
 
 <section id="start" class="band">
-  <div class="shell">
+  <div class="moldura">
     <p class="eyebrow" data-i18n="st.eyebrow">Get started</p>
     <h2 data-i18n="st.h2">From parts to readings</h2>
     <div class="steps">
       <div class="step"><div><h3 data-i18n="st1.t">Build the hardware</h3><p data-i18n="st1.b">Wire the display, touch panel and sensors to the Pico W following the <a href="WIRING.html">wiring guide</a>. A breadboard is enough to start.</p></div></div>
-      <div class="step"><div><h3 data-i18n="st2.t">Download the firmware</h3><p data-i18n="st2.b">Take the image for your board from the <a href="https://github.com/angeloINTJ/simut/releases/latest">latest release</a>: <code>simut_*.uf2</code> for the touch display, <code>simut_alpha_*.uf2</code> for the 16×2 LCD, <code>simut_air_*.uf2</code> for the headless battery build. Arduino IDE and PlatformIO source trees are published alongside them.</p></div></div>
+      <div class="step"><div><h3 data-i18n="st2.t">Download the firmware</h3><p data-i18n="st2.b">Take the image for your board from the <a href="https://github.com/angeloINTJ/simut/releases/latest">latest release</a>: <code>simut_vX.Y.Z_release.uf2</code> for the touch panel, <code>_alpha.uf2</code> for the 16×2 LCD, <code>_air.uf2</code> for the headless battery logger. The matching <code>.bin</code> files are for over-the-air updates.</p></div></div>
       <div class="step"><div><h3 data-i18n="st3.t">Flash over USB</h3><p data-i18n="st3.b">Hold BOOTSEL while connecting the Pico, then drop the <code>.uf2</code> onto the <code>RPI-RP2</code> drive that appears. The board reboots into SIMUT on its own.</p></div></div>
-      <div class="step"><div><h3 data-i18n="st4.t">Join it to your network</h3><p data-i18n="st4.b">Configure Wi-Fi from the touch display. The admin password is printed once over USB serial on first boot — write it down, and change it at first web login.</p></div></div>
+      <div class="step"><div><h3 data-i18n="st4.t">Join it to your network</h3><p data-i18n="st4.b">A unit with no network configured opens its setup access point, <code>simut_SETUP</code>, by itself. Its key is printed on the USB console and on the panel's boot screen, and the portal is at <code>http://192.168.4.1</code>. The admin password is printed once on the USB console at first boot — write it down; the first web login asks you to change it.</p></div></div>
       <div class="step"><div><h3 data-i18n="st5.t">Open the interface</h3><p data-i18n="st5.b">Browse to <code>http://simut.local</code> — or <code>https://</code> once you upload a certificate — add your sensors to slots, set alarm thresholds, and calibrate against a reference if the readings matter.</p></div></div>
     </div>
   </div>
 </section>
 
 <section id="docs" class="band">
-  <div class="shell">
+  <div class="moldura">
     <p class="eyebrow" data-i18n="dc.eyebrow">Documentation</p>
     <h2 data-i18n="dc.h2">Read further</h2>
     <div class="docs">
@@ -865,40 +594,37 @@ footer > .shell { padding-block: 2.5rem 3rem; }
 </section>
 
 <section class="band">
-  <div class="shell">
+  <div class="moldura">
     <p class="eyebrow" data-i18n="co.eyebrow">Contributing</p>
-    <h2 data-i18n="co.h2">It is open source, and it is beta</h2>
+    <h2 data-i18n="co.h2">It is open source</h2>
     <p class="lede" data-i18n="co.lede">
-      Which is a good combination if you like finding things. Bug reports from real
-      deployments are the most useful thing you can send — especially the ones with a
-      log attached.
+      Bug reports from real deployments are the most useful thing you can send —
+      especially the ones with a log attached.
     </p>
     <div class="actions">
-      <a class="btn btn-ghost" href="https://github.com/angeloINTJ/simut/issues/new?template=bug_report.md" data-i18n="co.bug">Report a bug</a>
-      <a class="btn btn-ghost" href="https://github.com/angeloINTJ/simut/issues/new?template=feature_request.md" data-i18n="co.feat">Request a feature</a>
-      <a class="btn btn-ghost" href="https://github.com/angeloINTJ/simut/blob/main/CONTRIBUTING.md" data-i18n="co.guide">Contributing guide</a>
-      <a class="btn btn-ghost" href="https://github.com/angeloINTJ/simut/security/advisories/new" data-i18n="co.vuln">Report a vulnerability</a>
+      <a class="botao botao-secundario" href="https://github.com/angeloINTJ/simut/issues/new?template=bug_report.md" data-i18n="co.bug">Report a bug</a>
+      <a class="botao botao-secundario" href="https://github.com/angeloINTJ/simut/issues/new?template=feature_request.md" data-i18n="co.feat">Request a feature</a>
+      <a class="botao botao-secundario" href="https://github.com/angeloINTJ/simut/blob/main/CONTRIBUTING.md" data-i18n="co.guide">Read the contributing guide</a>
+      <a class="botao botao-secundario" href="https://github.com/angeloINTJ/simut/security/advisories/new" data-i18n="co.vuln">Report a vulnerability</a>
     </div>
   </div>
 </section>
 
 </main>
 
-<footer>
-  <div class="shell">
-    <div class="foot-grid">
-      <div class="colophon" data-i18n="ft.colophon">
+<footer class="rodape">
+  <div class="moldura">
+    <div class="colophon" data-i18n="ft.colophon">
         SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria<br />
-        MIT licensed · built for the Raspberry Pi Pico W · v2.3.2-beta
+        MIT licensed · built for the Raspberry Pi Pico W · v2.7.2
       </div>
-      <div class="foot-links">
+    <nav aria-label="Project">
         <a href="https://github.com/angeloINTJ/simut">GitHub</a>
         <a href="https://github.com/angeloINTJ/simut/releases" data-i18n="ft.releases">Releases</a>
         <a href="https://github.com/angeloINTJ/simut/blob/main/CHANGELOG.md" data-i18n="ft.changelog">Changelog</a>
         <a href="https://github.com/angeloINTJ/simut/blob/main/LICENSE" data-i18n="ft.license">License</a>
         <a href="https://github.com/angeloINTJ/simut/edit/main/docs/index.html" data-i18n="ft.edit">Edit this page</a>
-      </div>
-    </div>
+    </nav>
   </div>
 </footer>
 
@@ -917,7 +643,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'tag.stable': 'Estável',
     'hero.h1': 'Monitoramento de temperatura que não responde à nuvem de ninguém.',
     'hero.lede': 'Firmware de código aberto para o Raspberry Pi Pico W. Ele lê até dezesseis sensores, desenha as leituras num display de toque, serve a própria interface web na sua rede local, mantém trilha de auditoria e se atualiza pelo ar — sem conta para criar e sem serviço do qual depender.',
-    'hero.download': 'Baixar firmware', 'hero.manual': 'Ler o manual', 'hero.source': 'Código no GitHub',
+    'hero.download': 'Baixar firmware', 'hero.manual': 'Ler o manual', 'hero.source': 'Ver o código no GitHub',
     'alt.dashboard': 'O painel do dispositivo SIMUT: dois cartões de sensor mostrando temperatura e umidade, acima de uma fileira de botões de slot.',
     'cap.hero': 'Painel do dispositivo · capturado de uma tela de 320×240',
     'ro.slots': 'Slots de sensor', 'ro.types': 'Tipos de sensor', 'ro.cores': 'Núcleos usados',
@@ -1016,11 +742,11 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'st1.t': 'Monte o hardware',
     'st1.b': 'Ligue o display, o painel de toque e os sensores ao Pico W seguindo o <a href="WIRING.html">guia de ligação</a>. Uma protoboard basta para começar.',
     'st2.t': 'Baixe o firmware',
-    'st2.b': 'Pegue a imagem da sua placa na <a href="https://github.com/angeloINTJ/simut/releases/latest">última release</a>: <code>simut_*.uf2</code> para o display touch, <code>simut_alpha_*.uf2</code> para o LCD 16×2, <code>simut_air_*.uf2</code> para o build sem display, a bateria. As árvores de código para Arduino IDE e PlatformIO são publicadas junto.',
+    'st2.b': 'Pegue a imagem da sua placa na <a href="https://github.com/angeloINTJ/simut/releases/latest">última release</a>: <code>simut_vX.Y.Z_release.uf2</code> para o painel de toque, <code>_alpha.uf2</code> para o LCD 16×2, <code>_air.uf2</code> para o registrador a bateria, sem tela. Os arquivos <code>.bin</code> correspondentes são para a atualização pelo ar.',
     'st3.t': 'Grave por USB',
     'st3.b': 'Segure o BOOTSEL enquanto conecta o Pico, depois solte o <code>.uf2</code> no drive <code>RPI-RP2</code> que aparecer. A placa reinicia no SIMUT sozinha.',
     'st4.t': 'Coloque na sua rede',
-    'st4.b': 'Configure o Wi-Fi pelo display de toque. A senha de admin é impressa uma única vez na serial USB no primeiro boot — anote e troque no primeiro login web.',
+    'st4.b': 'Um aparelho sem rede configurada abre sozinho o ponto de acesso de configuração, <code>simut_SETUP</code>. A chave sai no console USB e na tela de boot do painel, e o portal fica em <code>http://192.168.4.1</code>. A senha de admin é impressa uma única vez no console USB no primeiro boot — anote; o primeiro login web pede para trocá-la.',
     'st5.t': 'Abra a interface',
     'st5.b': 'Acesse <code>http://simut.local</code> — ou <code>https://</code> depois de subir um certificado — adicione seus sensores aos slots, defina os limites de alarme e calibre contra uma referência se as leituras importarem.',
     'dc.eyebrow': 'Documentação', 'dc.h2': 'Leia mais',
@@ -1031,11 +757,11 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'd5.t': 'Glossário', 'd5.b': 'Os termos usados na interface e na documentação, definidos uma vez.',
     'd6.t': 'Política de segurança', 'd6.b': 'Modelo de ameaças, como as credenciais são tratadas e como relatar uma vulnerabilidade.',
     'd7.t': 'Manual completo', 'd7.b': 'Trinta e um capítulos para a v2.7.2: instalação, configuração, uso no dia a dia e integração com servidores. As telas estão sendo recapturadas.',
-    'co.eyebrow': 'Contribuir', 'co.h2': 'É código aberto, e é beta',
-    'co.lede': 'O que é uma boa combinação se você gosta de achar coisas. Relatos de bug vindos de instalações reais são a coisa mais útil que você pode mandar — especialmente os que vêm com log anexado.',
+    'co.eyebrow': 'Contribuir', 'co.h2': 'É código aberto',
+    'co.lede': 'Relatos de bug vindos de instalações reais são a coisa mais útil que você pode mandar — especialmente os que vêm com log anexado.',
     'co.bug': 'Relatar um bug', 'co.feat': 'Pedir um recurso',
-    'co.guide': 'Guia de contribuição', 'co.vuln': 'Relatar vulnerabilidade',
-    'ft.colophon': 'SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria<br />Licença MIT · feito para o Raspberry Pi Pico W · v2.3.2-beta',
+    'co.guide': 'Ler o guia de contribuição', 'co.vuln': 'Relatar vulnerabilidade',
+    'ft.colophon': 'SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria<br />Licença MIT · feito para o Raspberry Pi Pico W · v2.7.2',
     'ft.releases': 'Releases', 'ft.changelog': 'Changelog', 'ft.license': 'Licença',
     'ft.edit': 'Editar esta página'
   },
@@ -1049,7 +775,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'tag.stable': 'Estable',
     'hero.h1': 'Monitorización de temperatura que no responde a la nube de nadie.',
     'hero.lede': 'Firmware de código abierto para la Raspberry Pi Pico W. Lee hasta dieciséis sensores, los dibuja en una pantalla táctil, sirve su propia interfaz web en tu red local, mantiene un registro de auditoría y se actualiza por aire — sin cuenta que crear y sin servicio del que depender.',
-    'hero.download': 'Descargar firmware', 'hero.manual': 'Leer el manual', 'hero.source': 'Código en GitHub',
+    'hero.download': 'Descargar firmware', 'hero.manual': 'Leer el manual', 'hero.source': 'Ver el código en GitHub',
     'alt.dashboard': 'El panel del dispositivo SIMUT: dos tarjetas de sensor con temperatura y humedad, sobre una fila de botones de ranura.',
     'cap.hero': 'Panel del dispositivo · capturado de una pantalla de 320×240',
     'ro.slots': 'Ranuras de sensor', 'ro.types': 'Tipos de sensor', 'ro.cores': 'Núcleos usados',
@@ -1148,11 +874,11 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'st1.t': 'Monta el hardware',
     'st1.b': 'Conecta la pantalla, el panel táctil y los sensores a la Pico W siguiendo la <a href="WIRING.html">guía de conexión</a>. Una protoboard basta para empezar.',
     'st2.t': 'Descarga el firmware',
-    'st2.b': 'Toma la imagen de tu placa de la <a href="https://github.com/angeloINTJ/simut/releases/latest">última release</a>: <code>simut_*.uf2</code> para la pantalla táctil, <code>simut_alpha_*.uf2</code> para el LCD 16×2, <code>simut_air_*.uf2</code> para el build sin pantalla, a batería. Los árboles de código para Arduino IDE y PlatformIO se publican junto a ellos.',
+    'st2.b': 'Toma la imagen de tu placa de la <a href="https://github.com/angeloINTJ/simut/releases/latest">última release</a>: <code>simut_vX.Y.Z_release.uf2</code> para el panel táctil, <code>_alpha.uf2</code> para el LCD 16×2, <code>_air.uf2</code> para el registrador a batería, sin pantalla. Los <code>.bin</code> correspondientes son para la actualización por aire.',
     'st3.t': 'Graba por USB',
     'st3.b': 'Mantén BOOTSEL mientras conectas la Pico, y suelta el <code>.uf2</code> en la unidad <code>RPI-RP2</code> que aparece. La placa arranca en SIMUT por sí sola.',
     'st4.t': 'Únela a tu red',
-    'st4.b': 'Configura el Wi-Fi desde la pantalla táctil. La contraseña de admin se imprime una sola vez por el serie USB en el primer arranque — anótala y cámbiala en el primer acceso web.',
+    'st4.b': 'Un dispositivo sin red configurada abre solo el punto de acceso de configuración, <code>simut_SETUP</code>. La clave aparece en la consola USB y en la pantalla de arranque del panel, y el portal está en <code>http://192.168.4.1</code>. La contraseña de admin se imprime una sola vez en la consola USB en el primer arranque — anótala; el primer acceso web pide cambiarla.',
     'st5.t': 'Abre la interfaz',
     'st5.b': 'Entra en <code>http://simut.local</code> — o <code>https://</code> tras subir un certificado — añade tus sensores a las ranuras, fija los límites de alarma y calibra contra una referencia si las lecturas importan.',
     'dc.eyebrow': 'Documentación', 'dc.h2': 'Sigue leyendo',
@@ -1163,17 +889,31 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'd5.t': 'Glosario', 'd5.b': 'Los términos usados en la interfaz y la documentación, definidos una vez.',
     'd6.t': 'Política de seguridad', 'd6.b': 'Modelo de amenazas, cómo se tratan las credenciales y cómo informar de una vulnerabilidad.',
     'd7.t': 'Manual completo, en portugués', 'd7.b': 'Treinta y un capítulos para la v2.7.2: instalación, configuración, uso diario e integración con servidores. Las pantallas se están recapturando.',
-    'co.eyebrow': 'Contribuir', 'co.h2': 'Es código abierto, y es beta',
-    'co.lede': 'Lo cual es buena combinación si te gusta encontrar cosas. Los informes de error de instalaciones reales son lo más útil que puedes enviar — sobre todo los que vienen con un log adjunto.',
+    'co.eyebrow': 'Contribuir', 'co.h2': 'Es código abierto',
+    'co.lede': 'Los informes de error de instalaciones reales son lo más útil que puedes enviar — sobre todo los que vienen con un log adjunto.',
     'co.bug': 'Informar de un error', 'co.feat': 'Pedir una función',
-    'co.guide': 'Guía de contribución', 'co.vuln': 'Informar de vulnerabilidad',
-    'ft.colophon': 'SIMUT — Sistema Integrado de Monitorización Universal y Telemetría<br />Licencia MIT · hecho para la Raspberry Pi Pico W · v2.3.2-beta',
+    'co.guide': 'Leer la guía de contribución', 'co.vuln': 'Informar de vulnerabilidad',
+    'ft.colophon': 'SIMUT — Sistema Integrado de Monitorización Universal y Telemetría<br />Licencia MIT · hecho para la Raspberry Pi Pico W · v2.7.2',
     'ft.releases': 'Releases', 'ft.changelog': 'Changelog', 'ft.license': 'Licencia',
     'ft.edit': 'Editar esta página'
   }
 };
 
   var TAG = { en: 'en', pt: 'pt-BR', es: 'es' };
+  /* The theme switch's label names where a click goes, in the page's language. */
+  var TEMA = { en: ['Use dark theme', 'Use light theme'], pt: ['Usar tema escuro', 'Usar tema claro'], es: ['Usar tema oscuro', 'Usar tema claro'] };
+  var cur = 'en', root = document.documentElement, sw = document.querySelector('.tema');
+  function rotuloTema() {
+    if (!sw) return;
+    var l = TEMA[cur][root.dataset.theme === 'escuro' ? 1 : 0];
+    sw.setAttribute('aria-label', l); sw.title = l;
+  }
+  if (sw) sw.addEventListener('click', function () {
+    var t = root.dataset.theme === 'escuro' ? 'claro' : 'escuro';
+    root.dataset.theme = t;
+    try { localStorage.setItem('angulo:tema', t); } catch (e) {}
+    rotuloTema();
+  });
   var en = {};
   var nodes = document.querySelectorAll('[data-i18n]');
   var alts = document.querySelectorAll('[data-i18n-alt]');
@@ -1183,6 +923,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
 
   function apply(lang) {
     if (!DICT[lang]) lang = 'en';
+    cur = lang;
     document.documentElement.lang = TAG[lang];
     nodes.forEach(function (el) {
       var v = DICT[lang][el.dataset.i18n];
@@ -1197,6 +938,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
       b.setAttribute('aria-pressed', String(b.dataset.lang === lang));
     });
     try { localStorage.setItem('simut-lang', lang); } catch (e) {}
+    rotuloTema();
   }
 
   /* Chosen language wins; otherwise follow the browser's own preference

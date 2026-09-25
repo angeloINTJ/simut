@@ -341,16 +341,16 @@ the panel, or the configuration page on the web.
 | **keypad** 3 → 2 → 1 glyph | fewer candidates per tap ⇒ a dearer guess | a watcher sees more |
 | **length** | every character multiplies | taps, and **CPU** |
 
-⚠️ The keypad is **zero-sum**: the set that hides the character from a watcher
+Warning: The keypad is **zero-sum**: the set that hides the character from a watcher
 is the set the search has to walk. The **alphabet** is the one axis that is not
 a trade.
 
-⚠️ **The length ceiling is CPU, not taste.** The tap tree costs `S+S²+…+Sⁿ`
+**The length ceiling is CPU, not taste.** The tap tree costs `S+S²+…+Sⁿ`
 SHA-256, measured at **36.6 µs** each on the rig, and Core 0 is stopped for it —
 the web server waits behind. Hence **16/12/8** characters for 1/2/3 glyphs per
 key. At 3 glyphs, 10 taps would be 3.2 s and 16 would be 39 minutes.
 
-⚠️ **Tightening the policy marks every account holding a PIN to change it** at
+**Tightening the policy marks every account holding a PIN to change it** at
 its next visit. That is unavoidable: the device keeps only the *digest* and has
 no way to know whether an old PIN still fits the new rule.
 
@@ -483,7 +483,7 @@ still need a restart, and then the bar shows only "Save & restart" and says
 > the current one, and only the device can do that: a field typed back to its
 > current value is not a change at all.
 
-⚠️ **Test** does not survive a power cut — it is for trying a limit, not for
+**Test** does not survive a power cut — it is for trying a limit, not for
 configuring. While the staged set is there, the bar stays visible.
 
 ### Authentication
@@ -634,7 +634,7 @@ touch that long (100 to 15000 ms) — what the console's `touch hold` does. A
 press under 250 ms is an ordinary tap. The device replays the press after you
 let go, so the screen reacts only then.
 
-⚠️ A caller using `/api/touch` outside the page must **wait ~600 ms before
+Warning: A caller using `/api/touch` outside the page must **wait ~600 ms before
 asking for the next frame**. A tap becomes an event Core 0 consumes in its loop,
 and a capture occupies that same core, so a frame requested immediately
 photographs the screen before the transition. The wait cannot live in the device
@@ -1089,7 +1089,7 @@ configured — so on a device with none that state has no exit — and an Air th
 never hibernates is a battery on a bench. Its channel is the CLI, over USB or
 Bluetooth, which it has carried in full since 2026-09-18.
 
-⚠️ **The touch gesture is the most fragile of the five.** The window opens when
+**The touch gesture is the most fragile of the five.** The window opens when
 the panel writes "Hold screen for AP Mode" and lasts 3.5 s; holding for 3 s
 inside it starts the AP. Up to v2.7.0 that window ran **before Core 1 existed**,
 and Core 1 is what draws the TFT: the instruction reached the glass 38 ms after
@@ -1321,7 +1321,7 @@ and 17 days on a 3400 mAh 18650** — arithmetic, not a measurement.
 filling from empty, and the DS18B20 takes 750 ms per conversion at 12-bit
 resolution. Lowering `MOVING_AVG_WINDOW` or the sensor resolution is the lever
 that remains, and both change the recorded number, so neither is done for you.
-⚠️ Note also that the driver currently waits a fixed 750 ms whatever resolution
+Note also that the driver currently waits a fixed 750 ms whatever resolution
 is configured, so **lowering the resolution today costs precision and returns no
 time** until that wait follows the setting.
 

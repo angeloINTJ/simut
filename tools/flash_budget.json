@@ -461,35 +461,51 @@
   "Real .bin slack under the 1,040,384 B OTA ceiling: release 30,500, test",
   "24,956, test_https 17,332, asserts 28,324, alpha 62,324, air 21,460 (the",
   "Air's .bin moved neither time: alignment padding took the -3,312 B of",
-  "the page and the +256 B of the help)."
+  "the page and the +256 B of the help).",
+  "2026-09-24 (docs/angulo-aesthetic): the brand moves to the Ângulo standard,",
+  "and two of its files are in the image. Favicon::DATA 835 -> 731 B (the S of",
+  "the display face on an acento disc, tools/gen_logo.py) and LOGIN_PAGE_GZ",
+  "6,647 -> 6,585 (the login brand traced from Bricolage Grotesque instead of",
+  "Liberation Sans Bold); STYLE_CSS_GZ +3 for the brand's -0.02em, and the",
+  "other pages +-1 B each, re-compressed around the new hash of WebUI.h. 'used'",
+  "against main 649d677, both built on the same day: -168 on release, test,",
+  "test_https and asserts; 0 on alpha and air, where the ~166 B fall inside",
+  "the 4 KiB alignment pad before .data and neither .bin moves.",
+  "'measured' moves to these figures and the budgets do NOT. The 'measured'",
+  "above was already 40-208 B stale on main (#162-#164 grew the images after",
+  "3e17034 without touching it), so measured + 3,000 today would raise every",
+  "budget for bytes this change does not add. Margins left: 2,968 release,",
+  "2,960 test, 2,960 test_https, 2,968 asserts, 2,920 alpha, 2,960 air.",
+  "Real .bin slack under the 1,040,384 B OTA ceiling: release 30,468, test",
+  "24,916, test_https 17,292, asserts 28,292, alpha 62,324, air 21,460."
  ],
  "ceiling": 1044480,
  "measured_on": "2026-09-24",
- "measured_at_commit": "feat/evt-names-in-packs on main 3e17034 (event names from the packs via /api/logcodes; lang.js fallback out; budgets lowered to measured + 3,000)",
+ "measured_at_commit": "docs/angulo-aesthetic on main 649d677 (Ângulo brand: favicon 835 -> 731 B, login brand in Bricolage outlines; budgets unchanged)",
  "envs": {
   "pico_w_release": {
    "budget": 1000852,
-   "measured": 997852
+   "measured": 997884
   },
   "pico_w_test": {
    "budget": 1006396,
-   "measured": 1003396
+   "measured": 1003436
   },
   "pico_w_test_https": {
    "budget": 1014020,
-   "measured": 1011020
+   "measured": 1011060
   },
   "pico_w_asserts": {
    "budget": 1003028,
-   "measured": 1000028
+   "measured": 1000060
   },
   "pico_w_alpha": {
    "budget": 966396,
-   "measured": 963396
+   "measured": 963476
   },
   "pico_w_air": {
    "budget": 1006288,
-   "measured": 1003288
+   "measured": 1003328
   }
  }
 }

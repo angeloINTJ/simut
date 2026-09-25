@@ -57,6 +57,15 @@ jobs:
       - name: Check licence consistency
         run: python3 tools/check_license.py
 
+      # The Ângulo interface standard (ANGULO.md), where a machine can see it:
+      # the token copy is pinned, the site's CSS names no colour and stays on
+      # the 4 px grid and the three radii, the brand uses token colours, and
+      # no emoji plays an icon in the READMEs, on the site or in a Living
+      # document. What it does not check, the device's web UI included, is in
+      # AGENTS.md §7.
+      - name: Check the Ângulo interface standard
+        run: python3 tools/check_angulo.py
+
       # Every filesystem-mutating handler (delete/upload/ls) and the restore
       # validator must refuse the /config credential store. This is what blocks
       # a guard removal from shipping (findings ACH-01..04).

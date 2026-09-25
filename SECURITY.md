@@ -1,6 +1,6 @@
 # SIMUT Security
 
-> 📖 Project overview in Spanish/Portuguese: [README.es-ES.md](README.es-ES.md) · [README.pt-BR.md](README.pt-BR.md) (this security policy is English-only).
+> Project overview in Spanish/Portuguese: [README.es-ES.md](README.es-ES.md) · [README.pt-BR.md](README.pt-BR.md) (this security policy is English-only).
 
 This document describes the threat model, implemented defenses, and
 operational security procedures of the SIMUT firmware. It must be kept
@@ -26,8 +26,8 @@ reporting a vulnerability.
 
 | Version                                 | Supported          |
 | --------------------------------------- | ------------------ |
-| Latest published release tag            | ✅ receives fixes  |
-| All earlier versions                    | ❌ no backports    |
+| Latest published release tag            | receives fixes    |
+| All earlier versions                    | no backports      |
 
 ---
 

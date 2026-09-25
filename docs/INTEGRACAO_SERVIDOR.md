@@ -8,7 +8,7 @@ bancada.
 Living · **Transporte desta primeira fase: HTTP puro, sem TLS** (§8 diz o que
 isso custa e o que fazer quando for a hora).
 
-🔴 **Mudança de 22/09/2026 que afeta o desenho do servidor:** uma conta agora só
+**Mudança de 22/09/2026 que afeta o desenho do servidor:** uma conta agora só
 concede permissões que ela própria tem. A conta de serviço recomendada deixou de
 ser `265` e passou a ser **`7433`** — §5.2 tem o porquê e a medição.
 
@@ -68,7 +68,7 @@ X-SIMUT-Cfg: EEC9D73D             ← CRC-32 da configuração em RAM
   abrir sessão**, só olhando o cabeçalho do POST que já ia chegar.
 - `X-SIMUT-Ver` responde "a atualização entrou?" pelo mesmo caminho.
 
-⚠️ **MQTT não tem cabeçalho.** Se um dia a frota usar MQTT, a identidade passa a
+**MQTT não tem cabeçalho.** Se um dia a frota usar MQTT, a identidade passa a
 ser o `clientId`. Neste projeto o transporte é HTTP, então os quatro valem.
 
 ---
@@ -85,7 +85,7 @@ Duas configurações governam a cadência, e as duas estão no aparelho:
 | `t_int` | **lote mínimo em registros** para disparar um envio. `0` desliga a telemetria | `1` |
 | `t_bat` | teto de registros por POST | `250` |
 
-⚠️ **`t_int` é quantidade de registros, não milissegundos** (mudou na config
+**`t_int` é quantidade de registros, não milissegundos** (mudou na config
 v22). Com `t_int=1` o aparelho manda assim que existe 1 registro novo — na
 prática, um POST por minuto. Com `t_int=60` ele acumula uma hora e manda de uma
 vez, o que é o modo que economiza rádio.
@@ -134,7 +134,7 @@ Corpo: **um array puro**. `Content-Type: application/json`.
 `Content-Type: text/csv`. Cabeçalho + linhas, layout **fixo de 34 colunas**:
 `timestamp;s0..s15;h0..h15;press` — todos os 16 slots, ativos ou não.
 
-⚠️ O cabeçalho nomeia os slots ativos com `hwId` (`;s0_STM0009`), mas **as linhas
+Atenção: o cabeçalho nomeia os slots ativos com `hwId` (`;s0_STM0009`), mas **as linhas
 sempre têm as 34 colunas**. Leia por posição, não por contagem de cabeçalho.
 
 #### Modo custom (`t_mode: 2`)
@@ -177,7 +177,7 @@ some. É assim que o modo JSON default é reproduzível em custom.
 caminho, o aparelho reenvia — e o firmware prefere explicitamente uma duplicata
 a um buraco. Medido: 264 registros recebidos num dreno, 263 instantes distintos.
 
-⚠️ **Nunca responda 2xx para dizer "recebi mas não gravei".** Para o aparelho,
+**Nunca responda 2xx para dizer "recebi mas não gravei".** Para o aparelho,
 2xx é a única confirmação que existe; depois dele o dado não volta mais.
 
 ---
@@ -195,7 +195,7 @@ evento chegar em segundos, enquanto a telemetria comum anda no ritmo do lote.
 | confirmação | **2xx esvazia a fila**; qualquer outra coisa mantém e repete |
 | formato | `a_mode`: 0 JSON, 1 CSV, 2 custom (independente do `t_mode`) |
 
-⚠️ **Se `a_path` == `t_path`, as duas linhas chegam no mesmo endpoint.** É a
+**Se `a_path` == `t_path`, as duas linhas chegam no mesmo endpoint.** É a
 configuração do laboratório hoje, e foi medida: num mesmo dreno chegaram 239
 registros de histórico e 25 de alarme no mesmo caminho. **Distinga pela forma**
 (registro de alarme tem `id` e um dos campos `alarm`/`err`/`maint`), ou — melhor
@@ -249,7 +249,7 @@ se aplicam). No custom valem os tokens `{TS} {ID} {HWID} {SLOT} {CH} {VAL}
 {ALARM} {ERR} {MAINT} {LO} {HI} {UNTIL} {USER} {SEQ}`, com a mesma regra da
 chave composta que some.
 
-⚠️ Um template custom escrito antes da v23/v24 **não tem** `{MAINT}`, `{LO}`,
+Atenção: um template custom escrito antes da v23/v24 **não tem** `{MAINT}`, `{LO}`,
 `{HI}`, `{UNTIL}` nem `{USER}` e emitirá esses eventos sem esses campos.
 
 ---
@@ -287,7 +287,7 @@ jar*.
 | calibração de toque em curso | **503** | tente de novo em alguns segundos |
 | requisições rápidas demais | `{"error":"Too Fast"}` | espaçar. O aparelho é um RP2040, não um cluster |
 
-⚠️ **Três slots de sessão, e a regra de quem fica é medida, não suposta**
+**Três slots de sessão, e a regra de quem fica é medida, não suposta**
 (`WebManager_Auth.cpp:462`):
 
 - **um login novo da MESMA conta toma o slot dela e invalida o token anterior.**
@@ -332,7 +332,7 @@ PERM_DASHBOARD | PERM_SYS_CONFIG | PERM_USER_MGR      (0x0001|0x0008|0x0100)
 
 e nada mais. Não use a conta `admin` do mantenedor.
 
-🔴 **Por que os três bits de painel entram numa conta que não usa o painel —
+**Por que os três bits de painel entram numa conta que não usa o painel —
 esta é a parte que muda desde 22/09/2026.** O aparelho passou a recusar que
 qualquer conta conceda um bit que ela própria não tem (achado V-09). Então uma
 conta de serviço com `USER_MGR` mas **sem** `ALARM_BLOCK`/`MAINT` consegue criar
@@ -351,7 +351,7 @@ zero. A conta de serviço precisa *portar* todo bit que vai distribuir. Ela nunc
 usa os bits de painel (não tem PIN, não fica na parede) — eles estão ali só para
 poder repassá-los.
 
-⚠️ Os três bits `ALARM_LIMITS`/`ALARM_BLOCK`/`MAINT` governam **o painel na
+Atenção: os três bits `ALARM_LIMITS`/`ALARM_BLOCK`/`MAINT` governam **o painel na
 parede** (identificação por PIN), não a API. Pela API, o que vale é
 `PERM_SYS_CONFIG`.
 
@@ -379,12 +379,12 @@ curl -b j -X POST http://IP/api/commit_all \
 | `rejected` | campos **recusados** (fora de faixa, inválidos) — o valor anterior ficou |
 | `creds` | senhas de uso único, **só nesta resposta** |
 
-⚠️ **Quem decide se precisa reiniciar é o aparelho**, comparando com a
+**Quem decide se precisa reiniciar é o aparelho**, comparando com a
 configuração corrente. Um campo reenviado igual ao valor atual **não é mudança**
 e não reinicia nada. Não reimplemente essa regra no servidor: vocês vão
 discordar no dia em que um campo mudar de classe.
 
-⚠️ **`rejected` chega com HTTP 200.** Um servidor que só olha o código de status
+**`rejected` chega com HTTP 200.** Um servidor que só olha o código de status
 vai achar que gravou. **Sempre leia `rejected`.**
 
 **Três modos de ensaio**, úteis para uma plataforma que aplica modelo em frota:
@@ -448,7 +448,7 @@ PERM_ALARM_BLOCK (0x0800) + PERM_MAINT (0x1000)                    = 6144
    novo usuário deve oferecer **no máximo** os bits da conta de serviço, lidos
    uma vez em `GET /api/users`.
 
-⚠️ **Política de PIN.** O comprimento aceito depende de `pin_min`, `pin_kb`
+**Política de PIN.** O comprimento aceito depende de `pin_min`, `pin_kb`
 (glifos por tecla: 1/2/3) e `pin_alpha` (0 = só dígitos, 1 = `0-9A-Z`). Leia a
 política em `GET /api/config` antes de validar o PIN no seu formulário — o
 aparelho vai recusar o que não obedecer. Máximo 16/12/8 caracteres conforme o
@@ -481,18 +481,18 @@ curl -b j -X POST http://IP/api/commit_all --data-urlencode '_payload={
 **Campo ausente = campo preservado.** O parser só escreve o que veio: mandar
 `{"i":0,"name":"Câmara fria 1"}` não apaga tipo, pinos, `hwId` nem limites.
 
-🔴 **`tmin`/`tmax`/`hmin`/`hmax` NÃO funcionam nesta seção.** O comentário do
+**`tmin`/`tmax`/`hmin`/`hmax` NÃO funcionam nesta seção.** O comentário do
 firmware e a tabela do `API_POST.md` os listavam, mas o parser da seção `slots`
 nunca os leu: o commit responde **200, `applied` vazio, `rejected` vazio** e
 **nada acontece**. Achado em 21/09/2026 ao escrever este manual; comentário e
 documento corrigidos no mesmo dia. Para limites, use a seção `alarms` (§5.6) ou
 o campo `lim` acima.
 
-⚠️ **Mudar `hwId` muda as chaves do payload** (`tSTM0009` → `tOUTRO`) e o
+**Mudar `hwId` muda as chaves do payload** (`tSTM0009` → `tOUTRO`) e o
 histórico já gravado continua com o antigo. Trate `hwId` como imutável depois de
 instalado; para renomear o que a pessoa vê, use `name`.
 
-⚠️ **Provisionamento de slot reinicia o aparelho.**
+**Provisionamento de slot reinicia o aparelho.**
 
 ### 5.6 Limites de alarme, bloqueio e manutenção
 
@@ -528,7 +528,7 @@ cortado **e** aparece em `rejected`.
 **A janela persiste em flash** e o aparelho sai dela sozinho no vencimento,
 emitindo o `maint_off` — mesmo que o servidor nunca mais fale com ele.
 
-⚠️ **Limite fora da faixa plausível do canal → HTTP 400 e NENHUMA seção é
+**Limite fora da faixa plausível do canal → HTTP 400 e NENHUMA seção é
 aplicada.** O commit é atômico: se você mandou cinco sensores e um limite é
 absurdo, os cinco ficam como estavam. Banda invertida (min ≥ max) é corrigida
 automaticamente, sem erro.
@@ -560,11 +560,11 @@ parecido:
 | `GET /api/history_days` | `HISTORY` | dias disponíveis |
 | `GET /api/history/open` | `HISTORY` | o bloco **ainda não selado** do dia corrente |
 
-⚠️ **`active` no `/api/alarms` é o bit de ALARME, não "o sensor existe".** Um
+**`active` no `/api/alarms` é o bit de ALARME, não "o sensor existe".** Um
 sensor instalado e funcionando com alarme desligado vem `active:false`. Já
 confundiu gente nesta bancada.
 
-⚠️ **O arquivo `<dia>.h5` só tem blocos selados.** Quem baixa só ele é cego na
+**O arquivo `<dia>.h5` só tem blocos selados.** Quem baixa só ele é cego na
 ponta recente: o que foi medido desde o último selo está em
 `GET /api/history/open`. Se o seu servidor reconciliar histórico, leia os dois.
 
@@ -600,7 +600,7 @@ curl -b j -s http://$IP/api/users
 
 ---
 
-⚠️ **A senha vem do ambiente, não do script.** A primeira versão desta receita
+**A senha vem do ambiente, não do script.** A primeira versão desta receita
 atribuía a senha direto na variável, e o portão de segredos deste repositório a
 reprovou — corretamente: um exemplo com senha no corpo é o exemplo que alguém
 copia trocando só o valor. Exporte `SIMUT_SERVER_PASS` e mantenha a senha fora

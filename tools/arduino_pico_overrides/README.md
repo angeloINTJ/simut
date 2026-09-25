@@ -178,19 +178,19 @@ is preserved after the first patch.
 | Flash | 98.7% | 98.8% | ~0 |
 | `memp_memory_PBUF_POOL_base` | 36,771 B | 18,387 B | -18 KB |
 | `WebManager::handleApiScreenshotChunk::payload` | 15,360 B (BSS) | 0 B (heap on demand) | -15 KB |
-| mDNS responder (`simut.local:5353`) | ✅ works | ✅ **works** | — |
-| RSSI display | ✅ -35 dBm | ✅ **-35 dBm** | — |
-| HTTP Telemetry | ✅ | ✅ | — |
-| Backup/Restore via API | ✅ (29/29 critical) | ✅ (29/29 critical) | — |
+| mDNS responder (`simut.local:5353`) | works | **works** | — |
+| RSSI display | -35 dBm | **-35 dBm** | — |
+| HTTP Telemetry | works | works | — |
+| Backup/Restore via API | works (29/29 critical) | works (29/29 critical) | — |
 
-## What Was NOT Done (and Why)
+## What was not done, and why
 
 | Attempt | Result | Status |
 |---|---|---|
-| `MEMP_NUM_UDP_PCB` 7→2 | Broke mDNS responder | ❌ reverted in v1.0.0 |
-| `MEMP_NUM_TCP_PCB` 5→3 | No measurable effect (PCBs are small) | ❌ not worth the complexity |
-| BTstack profiles 0 (AVRCP/HFP/HIDS/AVDTP) | Broke RSSI sampling on display | ❌ reverted in v1.0.0 |
-| `MAX_NR_HCI_CONNECTIONS` 2→1 | Broke RSSI sampling on display | ❌ reverted in v1.0.0 |
+| `MEMP_NUM_UDP_PCB` 7→2 | Broke mDNS responder | reverted in v1.0.0 |
+| `MEMP_NUM_TCP_PCB` 5→3 | No measurable effect (PCBs are small) | not worth the complexity |
+| BTstack profiles 0 (AVRCP/HFP/HIDS/AVDTP) | Broke RSSI sampling on display | reverted in v1.0.0 |
+| `MAX_NR_HCI_CONNECTIONS` 2→1 | Broke RSSI sampling on display | reverted in v1.0.0 |
 
 ## When This Breaks
 

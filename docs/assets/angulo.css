@@ -1,0 +1,125 @@
+/* ==========================================================================
+   Ângulo — tokens para a web
+   GERADO por design/build-tokens.mjs. Não edite: o próximo build sobrescreve.
+   A fonte da verdade é design/tokens.cor.json + design/tokens.comum.json.
+
+   Tema: <html data-theme="claro"> (padrão) ou <html data-theme="escuro">
+   ========================================================================== */
+
+/* ---------- Fonte de display ----------
+   Bricolage Grotesque SemiBold, licença OFL 1.1 (design/fonts/OFL-*.txt),
+   subsetada ao alfabeto do português e à pontuação da interface: 13 kB contra
+   47 kB. Renomeada para "Ângulo Display" porque o arquivo não é mais a fonte
+   completa — chamá-lo pelo nome original faria um navegador com a Bricolage
+   instalada misturar as duas. */
+@font-face {
+    font-family: "Ângulo Display";
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+    src: url("fonts/angulo-display-600.woff2") format("woff2");
+}
+
+
+/* ---------- Cor: tema claro (padrão) ---------- */
+:root,
+[data-theme="claro"] {
+    color-scheme: light;
+
+    --fundo:             #f6f6f4;   /* Fundo da página e das telas. Neutro morno, nunca branco puro. */
+    --superficie:        #ffffff;   /* Cartões, campos, menus e folhas. */
+    --superficie-2:      #ecebe6;   /* Faixas, chips inativos, cabeçalho de tabela, fundo de código. */
+    --tinta:             #201e1a;   /* Texto principal e ícones. */
+    --tinta-2:           #5f5b54;   /* Texto de apoio, metadados, rótulos, ícones secundários. */
+    --linha:             #dcdad3;   /* Divisórias e contorno de cartão. Decorativa: abaixo de 3:1 de propósito. */
+    --linha-forte:       #827e76;   /* Borda de campos, caixas de seleção e botão secundário. Passa de 3:1. */
+    --acento:            #1f6355;   /* A única cor de destaque: botão primário, link, aba ativa, anel de foco. */
+    --acento-forte:      #174d42;   /* Hover e pressionado do que usa acento. */
+    --acento-tinta:      #f1faf6;   /* Texto e ícone sobre acento e acento-forte. */
+    --positivo:          #20784e;   /* Sucesso: texto de selo, check, mensagem de êxito. */
+    --positivo-suave:    #e1f0e7;   /* Fundo de selo e faixa de sucesso, com texto em positivo. */
+    --alerta:            #8a6116;   /* Atenção e pendência: texto de selo e ícone. */
+    --alerta-suave:      #f3ead2;   /* Fundo de selo e faixa de atenção, com texto em alerta. */
+    --perigo:            #b3382e;   /* Erro e exclusão: mensagem, borda de campo inválido, botão destrutivo. */
+    --perigo-suave:      #f7e3e0;   /* Fundo de selo e faixa de erro, com texto em perigo. */
+    --perigo-tinta:      #fff5f3;   /* Texto sobre o botão destrutivo. */
+
+    --sombra-flutuante: 0 12px 32px rgba(23, 22, 20, 0.16);
+}
+
+/* ---------- Cor: tema escuro ---------- */
+[data-theme="escuro"] {
+    color-scheme: dark;
+
+    --fundo:             #161513;
+    --superficie:        #201e1b;
+    --superficie-2:      #2a2723;
+    --tinta:             #ebe7df;
+    --tinta-2:           #a39c90;
+    --linha:             #383430;
+    --linha-forte:       #78716a;
+    --acento:            #5fb39a;
+    --acento-forte:      #7cc7b2;
+    --acento-tinta:      #0e211b;
+    --positivo:          #6fbe8e;
+    --positivo-suave:    #24352b;
+    --alerta:            #d9a84e;
+    --alerta-suave:      #38301c;
+    --perigo:            #e07862;
+    --perigo-suave:      #382220;
+    --perigo-tinta:      #2b100c;
+
+    --sombra-flutuante: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+
+/* ---------- Escalas: iguais nos dois temas ---------- */
+:root {
+    /* Famílias */
+    --font-display: "Ângulo Display", "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+    --font-texto:   system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-mono:    ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+
+    /* Espaço: grade de 4px. Valor fora da escala é bug, não escolha. */
+    --espaco-1: 4px;   /* Entre ícone e texto. */
+    --espaco-2: 8px;   /* Entre rótulo e campo; entre selos numa linha. */
+    --espaco-3: 12px;   /* Padding vertical de botões e campos; itens de lista compacta. */
+    --espaco-4: 16px;   /* Padding horizontal de botões; cartão compacto; margem de tela no celular. */
+    --espaco-5: 24px;   /* Padding de cartão; entre blocos de um formulário. */
+    --espaco-6: 32px;   /* Entre seções de uma tela; margem de página na web. */
+    --espaco-7: 48px;   /* Respiro acima de um título de página. */
+
+    /* Raio: dois raios e o círculo. */
+    --raio-controle: 6px;   /* Botões, campos, chips, menus. */
+    --raio-cartao:   12px;   /* Cartões, modais, folhas, imagens. */
+    --raio-total:    999px;   /* Pílulas, avatares, interruptores. É o círculo, não um terceiro raio. */
+
+    /* Alvo de toque mínimo (celular). */
+    --alvo-toque: 44px;
+}
+
+/* ---------- Estilos de texto: a escala inteira em sete classes ---------- */
+.display   { font: 600 34px/38px var(--font-display); letter-spacing: -0.02em; }
+.titulo    { font: 600 24px/30px var(--font-display); letter-spacing: -0.01em; }
+.subtitulo { font: 600 18px/24px var(--font-display); letter-spacing: -0.005em; }
+.corpo     { font: 400 16px/24px var(--font-texto); }
+.rotulo    { font: 600 13px/16px var(--font-texto); color: var(--tinta-2); }
+.apoio     { font: 400 13px/18px var(--font-texto); color: var(--tinta-2); }
+.dado      { font: 500 13px/20px var(--font-mono); }
+
+/* ---------- Base e foco ---------- */
+body {
+    margin: 0;
+    background: var(--fundo);
+    color: var(--tinta);
+    font: 400 16px/24px var(--font-texto);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+/* Anel de foco só por teclado, em todo controle, nos dois temas. Aparece na
+   navegação por Tab e nunca no clique do mouse — um anel que pisca a cada
+   clique é o que ensina a desligá-lo. */
+:focus-visible {
+    outline: 2px solid var(--acento);
+    outline-offset: 2px;
+}

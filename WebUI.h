@@ -72,8 +72,10 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .bar-bg { width: 100%; height: 6px; background: var(--superficie-2); border-radius: 999px; margin-top: 6px; overflow: hidden; }
         .bar-fg { height: 100%; width: 0; transition: 0.3s; background: var(--perigo); border-radius: 999px; }
         /* A marca e vetor, nao texto: a pilha do sistema entrega uma fonte diferente
-           em cada SO e a marca mudava de desenho. Tracado do Liberation Sans Bold;
-           fill=currentColor, entao a cor acompanha o acento. */
+           em cada SO e a marca mudava de desenho. E o nome na face de display do
+           Angulo (Bricolage Grotesque 600, -0.02em, ANGULO.md 6), o mesmo contorno
+           de docs/images/logo-name.svg que tools/gen_logo.py gera; fill=currentColor,
+           entao a cor acompanha o acento. */
         .brand { width: min(210px, 100%); margin: 0 auto 8px; color: var(--acento); }
         .brand svg { width: 100%; height: auto; display: block; }
         /* text-wrap:balance — sem isto sobraria uma palavra orfa na 2a linha a 360px. */
@@ -275,7 +277,7 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <div class="box">
         <!-- Sem data-i18n de proposito: SIMUT e a sigla desta frase, entao traduzir
              a legenda quebraria a correspondencia com as letras. -->
-        <div class="brand"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2951 708" fill="currentColor" role="img" aria-label="SIMUT"><g transform="translate(-29 698) scale(1 -1)"><path d="M628 198Q628 97 553 44Q478 -10 333 -10Q201 -10 125 37Q50 84 29 179L168 202Q182 147 223 123Q264 98 337 98Q488 98 488 190Q488 219 470 238Q453 257 422 270Q390 283 301 301Q224 319 193 330Q163 341 139 356Q114 371 97 392Q80 413 71 441Q61 469 61 506Q61 599 131 649Q201 698 335 698Q463 698 527 658Q591 618 610 526L470 507Q459 551 427 574Q394 596 332 596Q201 596 201 514Q201 487 215 470Q229 453 256 441Q284 429 367 411Q466 390 509 372Q552 354 577 331Q602 307 615 274Q628 241 628 198ZM704 0V688H848V0ZM1523 0V417Q1523 431 1523 445Q1523 459 1528 567Q1493 436 1477 384L1353 0H1250L1126 384L1074 567Q1080 454 1080 417V0H952V688H1145L1268 303L1278 266L1302 174L1333 284L1459 688H1651V0ZM2041 -10Q1899 -10 1823 60Q1748 129 1748 258V688H1892V269Q1892 188 1931 145Q1970 103 2045 103Q2122 103 2163 147Q2205 191 2205 274V688H2349V265Q2349 134 2268 62Q2187 -10 2041 -10ZM2757 577V0H2613V577H2391V688H2980V577Z"/></g></svg></div>
+        <div class="brand"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2993 686" fill="currentColor" role="img" aria-label="SIMUT"><path d="M277 686Q148 686 74.5 634Q1 582 0 479L112 446Q110 518 158 552Q206 587 283 587Q356 587 394 561Q433 535 433 496Q433 467 412 450Q391 432 355 420Q319 409 275 399Q226 388 180 375Q133 362 95 340Q57 319 34.5 284Q12 249 12 196Q12 107 79.5 53.5Q147 0 267 0Q386 0 458 53Q529 106 532 198L417 230Q417 165 376 132Q335 99 266 99Q204 99 168 124Q132 148 132 186Q132 218 156 237Q180 256 220 268Q259 279 306 290Q349 299 392 312Q436 324 473 346Q510 367 532 402Q555 438 555 492Q555 580 485 633Q415 686 277 686ZM658 673V13H786V673ZM922 673V13H1113L1309 532H1314L1507 13H1690V673H1570L1578 141H1568L1359 673H1249L1043 141H1033L1041 673ZM2110 686Q1964 686 1892 613Q1821 540 1821 417V13H1948V412Q1948 573 2110 573Q2192 573 2232 534Q2272 494 2272 412V13H2398V417Q2398 545 2326 616Q2253 686 2110 686ZM2669 673V120H2473V13H2993V120H2796V673Z"/></svg></div>
         <div class="tagline">Sistema de Monitoramento Universal e Telemetria</div>
         <form id="loginForm" onsubmit="doLogin(event)">
             <input type="text" name="user" placeholder="Username" data-i18n="log_usr" required autocomplete="off">
@@ -7127,7 +7129,7 @@ pre, #preview, #apreview { background: var(--superficie-2); color: var(--tinta);
 .topbar > div { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .hamburger { background: none; border: 0; color: var(--tinta-2); padding: 8px; display: inline-flex; border-radius: 6px; }
 .hamburger:hover { color: var(--tinta); background: var(--superficie-2); }
-.brand { font-family: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; color: var(--tinta); white-space: nowrap; }
+.brand { font-family: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif; font-size: 18px; font-weight: 600; letter-spacing: -0.02em; color: var(--tinta); white-space: nowrap; }
 .brand > span { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 13px; font-weight: 500; letter-spacing: 0; color: var(--tinta-2); margin-left: 6px; }
 .status-pill { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--tinta-2); min-width: 0; }
 /* O endereco e o que alguem le nesta barra para digitar em outro aparelho:
@@ -7221,8 +7223,9 @@ static const char LANG_JS[] PROGMEM = R"raw(
        so: as nove que cada pagina carregava ("M1 anti-piscada") sairam. Sem
        escolha guardada vale a preferencia do sistema; o botao da barra grava a
        escolha em simut_ui_theme, a mesma chave de sempre. Os valores sao os do
-       design/tokens.cor.json do simut-rx — mudou la, muda aqui (e nas copias
-       do login e do force_chpass, que nao carregam este arquivo). */
+       design/tokens.cor.json do simut-rx — mudou la, muda aqui (e na copia do
+       LOGIN_PAGE, que tambem serve o /force_chpass desde 24/09 e nao carrega
+       este arquivo). */
     (function(){var d=document.documentElement,t=null;try{t=localStorage.getItem('simut_ui_theme');}catch(e){}if(!t)t=(window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';d.setAttribute('data-theme',t==='light'?'claro':'escuro');var s=document.createElement('style');s.textContent=':root{color-scheme:dark;--fundo:#161513;--superficie:#201e1b;--superficie-2:#2a2723;--tinta:#ebe7df;--tinta-2:#a39c90;--linha:#383430;--linha-forte:#78716a;--acento:#5fb39a;--acento-forte:#7cc7b2;--acento-tinta:#0e211b;--positivo:#6fbe8e;--positivo-suave:#24352b;--alerta:#d9a84e;--alerta-suave:#38301c;--perigo:#e07862;--perigo-suave:#382220;--perigo-tinta:#2b100c;--veu:rgba(0,0,0,.6);--sombra-flutuante:0 16px 40px rgba(0,0,0,.5)}:root[data-theme=claro]{color-scheme:light;--fundo:#f6f6f4;--superficie:#fff;--superficie-2:#ecebe6;--tinta:#201e1a;--tinta-2:#5f5b54;--linha:#dcdad3;--linha-forte:#827e76;--acento:#1f6355;--acento-forte:#174d42;--acento-tinta:#f1faf6;--positivo:#20784e;--positivo-suave:#e1f0e7;--alerta:#8a6116;--alerta-suave:#f3ead2;--perigo:#b3382e;--perigo-suave:#f7e3e0;--perigo-tinta:#fff5f3;--veu:rgba(0,0,0,.4);--sombra-flutuante:0 12px 32px rgba(23,22,20,.16)}';document.head.appendChild(s);})();
     /* Queue treatment for the single TLS slot: the server serves ONE TLS
        connection at a time, so a browser firing its dashboard fetches in
