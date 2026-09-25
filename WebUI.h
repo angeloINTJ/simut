@@ -3680,6 +3680,18 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 <button type="button" class="sxb sxb-dang" onclick="resetTouchCal()" data-i18n="cfg_touch_reset">Reset Touch Calibration</button>
                 <div class="c-sub" style="margin-top:6px;font-size:0.8em;color:var(--tinta-2)" data-i18n="cfg_touch_hint">Clears the stored calibration and starts the wizard on the display — follow the on-screen steps there.</div>
             </div>
+
+            <!-- Restart the device WITHOUT writing config. The twin of "Salvar e
+                 Reiniciar" in the topbar: that one runs commit_all + save; this
+                 one hits /api/action?op=reboot, which reaches safeReboot( )
+                 without a saveConfiguration( ). The open history block is still
+                 flushed (safeReboot's pre-reboot hook), so a plain restart never
+                 costs a measurement — only the staged, uncommitted edits go. -->
+            <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--linha)">
+                <h3 data-i18n="cfg_reboot_title">Restart</h3>
+                <button type="button" class="sxb sxb-dang" id="reboot_nosave_btn" onclick="rebootNoSave()" data-i18n="cfg_reboot_btn">Restart without saving</button>
+                <div class="c-sub" style="margin-top:6px;font-size:0.8em;color:var(--tinta-2)" data-i18n="cfg_reboot_hint">Restarts the device immediately. Unsaved changes on this page are discarded; the saved configuration is kept. The device goes offline for ~10 seconds.</div>
+            </div>
         </div>
     </div>
 
@@ -3913,6 +3925,35 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 if (j.status === 'ok') showToast(window.t('cfg_touch_done', 'Reset done — calibration wizard is now running on the display.'), 'ok');
                 else showToast('Error', 'err');
             } catch(e) { showToast('Error', 'err'); }
+        }
+
+        /* Restart the device without saving. Reuses sensAction( ), which POSTs
+           /api/action?op=reboot — the handler answers 200 and closes the socket
+           just before safeReboot( ), so a clean success and a dropped connection
+           mean the same thing: the reboot began. Both land on the "Restarting..."
+           toast and the delayed reload. 503 is the panel mid touch-calibration,
+           the same guard commit_all carries; a bare !ok (e.g. 409 forced password
+           change) reports and leaves the device up. */
+        async function rebootNoSave() {
+            if (!confirm(window.t('cfg_reboot_confirm',
+                'Restart now WITHOUT saving?\n\nUnsaved changes on this page will be lost.\nThe device goes offline for ~10 seconds.'))) return;
+            const btn = SE('reboot_nosave_btn');
+            if (btn) btn.disabled = true;
+            try {
+                const r = await sensAction('reboot');
+                if (r.status === 503) {
+                    showToast(window.t('display_busy', 'Display in use. Try again shortly.'), 'warn');
+                    if (btn) btn.disabled = false;
+                    return;
+                }
+                if (!r.ok) {
+                    showToast(window.t('cfg_reboot_fail', 'Could not restart.'), 'err', 9000);
+                    if (btn) btn.disabled = false;
+                    return;
+                }
+            } catch(e) { /* socket dropped as the device reset — the reboot began */ }
+            showToast(window.t('sens_rebind_reboot', 'Restarting...'), 'ok', 20000);
+            setTimeout(() => { window.location.reload(); }, 12000);
         }
 
         /* Sensor slot editor.
