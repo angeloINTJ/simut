@@ -47,10 +47,10 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TOKENS = "docs/assets/angulo.css"
+ANGULO_CSS = "docs/assets/angulo.css"
 # sha256 of simut-rx/web/angulo.css as copied on 2026-09-24. Never edit the
 # copy: recopy it from simut-rx and put the new hash here.
-TOKENS_SHA256 = "f90637eda3a93dc112833fb24b582d2a2cd0e4680fcd54c84784141054488ff5"
+ANGULO_CSS_SHA256 = "f90637eda3a93dc112833fb24b582d2a2cd0e4680fcd54c84784141054488ff5"
 FACE = ["docs/assets/fonts/angulo-display-600.woff2", "docs/assets/fonts/OFL-BricolageGrotesque.txt"]
 SITE_CSS = ["docs/assets/site.css"]
 LANDING = "docs/index.html"
@@ -101,11 +101,11 @@ def blank_comments(css):
 
 
 def check_tokens():
-    data = open(os.path.join(ROOT, TOKENS), "rb").read()
+    data = open(os.path.join(ROOT, ANGULO_CSS), "rb").read()
     digest = hashlib.sha256(data).hexdigest()
-    if digest != TOKENS_SHA256:
-        findings.append(f"{TOKENS}:1: sha256 {digest[:16]}... is not the pinned copy of simut-rx/web/angulo.css -- "
-                        "recopy it from simut-rx and update TOKENS_SHA256 in tools/check_angulo.py")
+    if digest != ANGULO_CSS_SHA256:
+        findings.append(f"{ANGULO_CSS}:1: sha256 {digest[:16]}... is not the pinned copy of simut-rx/web/angulo.css -- "
+                        "recopy it from simut-rx and update ANGULO_CSS_SHA256 in tools/check_angulo.py")
     for f in FACE:
         if not os.path.exists(os.path.join(ROOT, f)):
             findings.append(f"{f}:1: missing -- the display face and its OFL licence travel together")
