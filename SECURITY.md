@@ -440,6 +440,12 @@ Wipes 100% of flash: code, config, history, logs.
   HTTPS instead (TLS 1.2, EC P-256; defaults to port 443 when the
   configured port is 80) and the cookie carries `Secure`; one TLS client
   is served at a time, and an absent or invalid pair falls back to HTTP.
+  The login page is public by design, and since v2.7.3 it shows the
+  firmware version: an operator has to see what a unit runs before
+  signing in to it. That tells anyone who can reach the page which
+  advisories apply — the same number the `release` image already
+  announces to the whole LAN in its mDNS TXT record — and it is why only
+  the latest release is supported (see the table above).
 - **mDNS**: `<deviceName>.local` (default `simut.local`) — for
   discovery only; does not expose additional endpoints.
 - **Bluetooth SPP**: `SIMUT_CLI` — `SIMUT_BLUETOOTH 0` in

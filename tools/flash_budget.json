@@ -477,27 +477,34 @@
   "budget for bytes this change does not add. Margins left: 2,968 release,",
   "2,960 test, 2,960 test_https, 2,968 asserts, 2,920 alpha, 2,960 air.",
   "Real .bin slack under the 1,040,384 B OTA ceiling: release 30,468, test",
-  "24,916, test_https 17,292, asserts 28,292, alpha 62,324, air 21,460."
+  "24,916, test_https 17,292, asserts 28,292, alpha 62,324, air 21,460.",
+  "Same day, same branch, second commit: the firmware version on the login page,",
+  "stamped at build time by build_webui_gz.py (the page has no session to ask",
+  "/api/perms). LOGIN_PAGE_GZ +74 B; 'used' +80 on release, test and asserts,",
+  "+72 on test_https, 0 on alpha and air. 'measured' includes it. Margins left:",
+  "2,888 release, 2,880 test, 2,888 test_https, 2,888 asserts, 2,920 alpha,",
+  "2,960 air; .bin slack under the OTA ceiling: release 30,388, test 24,836,",
+  "test_https 17,220, asserts 28,212, alpha 62,324, air 21,460."
  ],
  "ceiling": 1044480,
  "measured_on": "2026-09-24",
- "measured_at_commit": "docs/angulo-aesthetic on main 649d677 (Ângulo brand: favicon 835 -> 731 B, login brand in Bricolage outlines; budgets unchanged)",
+ "measured_at_commit": "docs/angulo-aesthetic on main 649d677 (Ângulo brand, favicon 835 -> 731 B; firmware version on the login page; budgets unchanged)",
  "envs": {
   "pico_w_release": {
    "budget": 1000852,
-   "measured": 997884
+   "measured": 997964
   },
   "pico_w_test": {
    "budget": 1006396,
-   "measured": 1003436
+   "measured": 1003516
   },
   "pico_w_test_https": {
    "budget": 1014020,
-   "measured": 1011060
+   "measured": 1011132
   },
   "pico_w_asserts": {
    "budget": 1003028,
-   "measured": 1000060
+   "measured": 1000140
   },
   "pico_w_alpha": {
    "budget": 966396,

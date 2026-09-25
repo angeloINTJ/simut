@@ -1006,6 +1006,27 @@ def _stamp_assets(src: str, tag: str) -> str:
     return src
 
 
+# A versao do firmware, para a pagina de login: sem sessao ela nao alcanca o
+# /api/perms de onde a barra de topo le a versao, entao o numero vai carimbado
+# na pagina. Lido do unico lugar onde e definido, para que o bump de uma release
+# nao deixe a tela mostrando a anterior -- e por isso a versao entra tambem no
+# carimbo de idempotencia abaixo: sem ela, um bump sozinho acharia o WebUI_GZ.h
+# "up to date" e a imagem nova sairia com o numero velho.
+VERSION_TOKEN = "@SIMUT_VERSION@"
+_VERSION_RE = re.compile(r'^#define\s+SIMUT_VERSION\s+"([0-9A-Za-z.+-]+)"', re.M)
+
+
+def _firmware_version() -> str:
+    path = os.path.join(PROJECT_DIR, "src", "SystemDefs_Limits.h")
+    with open(path, "r", encoding="utf-8") as f:
+        m = _VERSION_RE.search(f.read())
+    if not m:
+        # O padrao aceita so [0-9A-Za-z.+-]: o numero entra cru no HTML.
+        raise SystemExit("build_webui_gz: no SIMUT_VERSION of the form "
+                         '#define SIMUT_VERSION "x.y.z" in src/SystemDefs_Limits.h')
+    return m.group(1)
+
+
 # Com o escaner com contexto, as taxas reais dos 12 arrays ficam entre 56% e
 # 97% e sao consistentes entre si. Antes iam de 60% a 97% — e essa dispersao ERA
 # o sintoma: a HIST_PAGE retinha 93% e a ALARMS 98% nao por serem densas, mas
@@ -1128,7 +1149,8 @@ def generate() -> None:
     # and getting yesterday's pages.
     input_hash = _hash_file(INPUT_FILE)
     gen_hash = _hash_file(os.path.join(PROJECT_DIR, "tools", "build_webui_gz.py"))
-    stamp = f"{input_hash} gen={gen_hash[:12]} layout={LAYOUT_TAG} omit={OMIT_TAG}"
+    version = _firmware_version()
+    stamp = f"{input_hash} gen={gen_hash[:12]} layout={LAYOUT_TAG} omit={OMIT_TAG} ver={version}"
     if os.path.isfile(OUTPUT_FILE):
         # The generated .h carries the input hash AND the layout in the first
         # comment line. The layout half is not cosmetic: `pio run -e pico_w_test
@@ -1187,7 +1209,7 @@ def generate() -> None:
     for name, html_content in matches:
         original_len = len(html_content)
         kind = _block_kind(name)
-        stamped = _stamp_assets(html_content, asset_tag)
+        stamped = _stamp_assets(html_content, asset_tag).replace(VERSION_TOKEN, version)
         minified = _minify_web_block(stamped, kind)
         _assert_only_whitespace_removed(name, stamped, minified, kind)
         _syntax_check_scripts(name, minified, kind)

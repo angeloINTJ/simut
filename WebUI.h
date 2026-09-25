@@ -80,6 +80,10 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .brand svg { width: 100%; height: auto; display: block; }
         /* text-wrap:balance — sem isto sobraria uma palavra orfa na 2a linha a 360px. */
         .tagline { font-size: 13px; line-height: 18px; color: var(--tinta-2); margin-bottom: 28px; text-wrap: balance; }
+        /* A versao do firmware, carimbada no build por tools/build_webui_gz.py: sem
+           sessao esta pagina nao alcanca o /api/perms de onde a barra de topo a le.
+           Estilo dado do Angulo (13/20, mono), porque e um identificador. */
+        .ver { display: block; margin-top: 4px; font: 500 13px/20px ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace; color: var(--tinta-2); }
         .err { color: var(--perigo); font-size: 14px; margin-top: 12px; min-height: 1.2em; }
         .ok-msg { color: var(--positivo); font-size: 14px; margin-top: 12px; min-height: 1.2em; }
         .loop-msg { display: none; margin-top: 10px; padding: 10px 12px; border-radius: 6px; background: var(--alerta-suave); color: var(--alerta); border: 1px solid var(--alerta); font-size: 13px; line-height: 1.4; text-align: left; }
@@ -278,7 +282,7 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         <!-- Sem data-i18n de proposito: SIMUT e a sigla desta frase, entao traduzir
              a legenda quebraria a correspondencia com as letras. -->
         <div class="brand"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2993 686" fill="currentColor" role="img" aria-label="SIMUT"><path d="M277 686Q148 686 74.5 634Q1 582 0 479L112 446Q110 518 158 552Q206 587 283 587Q356 587 394 561Q433 535 433 496Q433 467 412 450Q391 432 355 420Q319 409 275 399Q226 388 180 375Q133 362 95 340Q57 319 34.5 284Q12 249 12 196Q12 107 79.5 53.5Q147 0 267 0Q386 0 458 53Q529 106 532 198L417 230Q417 165 376 132Q335 99 266 99Q204 99 168 124Q132 148 132 186Q132 218 156 237Q180 256 220 268Q259 279 306 290Q349 299 392 312Q436 324 473 346Q510 367 532 402Q555 438 555 492Q555 580 485 633Q415 686 277 686ZM658 673V13H786V673ZM922 673V13H1113L1309 532H1314L1507 13H1690V673H1570L1578 141H1568L1359 673H1249L1043 141H1033L1041 673ZM2110 686Q1964 686 1892 613Q1821 540 1821 417V13H1948V412Q1948 573 2110 573Q2192 573 2232 534Q2272 494 2272 412V13H2398V417Q2398 545 2326 616Q2253 686 2110 686ZM2669 673V120H2473V13H2993V120H2796V673Z"/></svg></div>
-        <div class="tagline">Sistema de Monitoramento Universal e Telemetria</div>
+        <div class="tagline">Sistema de Monitoramento Universal e Telemetria<span class="ver">v@SIMUT_VERSION@</span></div>
         <form id="loginForm" onsubmit="doLogin(event)">
             <input type="text" name="user" placeholder="Username" data-i18n="log_usr" required autocomplete="off">
             <input type="password" id="passInput" name="pass" placeholder="Password" data-i18n="log_pas" required>
