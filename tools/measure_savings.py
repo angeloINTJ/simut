@@ -71,13 +71,17 @@ FLAG_FEATURES = [
     ("sensor_bme280",  "pico_w_release", "-DSIMUT_SENSOR_BME280=0"),
 ]
 
-# Recursos que HOJE nao sao chaveaveis isolados — o corte depende de outro recurso.
-# A auditoria de 2026-09-26 os revelou. Ficam FORA do piso ate a correcao; medi-los
-# com --only <nome> ainda tenta (para conferir depois do fix).
+# Recursos que nao sao chaveaveis isolados — o corte depende de outro recurso.
+# A auditoria de 2026-09-26 achou sound_buzzer e air acoplados via SoundManager.h
+# (no-op so sob SIMUT_AIR); o macro SIMUT_SOUND_BUZZER destravou o buzzer. air
+# CONTINUA acoplado, por outro motivo: o perfil air usa display=nenhum, que exclui
+# DisplayManager.cpp, e o caminho de boot nao-air (SIMUT_AIR=0) referencia a
+# DisplayManager cheia — link quebra. SIMUT_AIR e uma variante de build (headless +
+# ciclo dormente), nao uma chave isolada; medir seu custo pediria desemaranhar o
+# mostrador. Fica fora do piso.
 COUPLED = {
-    "sound_buzzer": "SoundManager.h so vira no-op sob SIMUT_AIR; sem macro do buzzer, "
-                    "excluir SoundManager.cpp fora do Air nao linka",
-    "air":          "a variante air=0 herda sound_buzzer=0, que hoje precisa de SIMUT_AIR",
+    "air": "SIMUT_AIR=0 com display=nenhum nao linka (DisplayManager.cpp excluida "
+           "pelo mostrador headless; o boot nao-air chama a DisplayManager cheia)",
 }
 # Recursos que economizam quando LIGADOS (desligar ADICIONA bytes). Medidos e
 # mostrados, mas fora do piso 'desligar economiza'.

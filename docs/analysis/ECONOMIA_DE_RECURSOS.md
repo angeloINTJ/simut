@@ -35,6 +35,7 @@ a variante é o mesmo perfil com só ele desligado, derivada pelo modelo
 | `sensor_bme280` | `pico_w_release` | 17 724 B | 220 B |
 | `mdns` | `pico_w_release` | 16 576 B | 168 B |
 | `sensor_ds18b20` | `pico_w_release` | 5 432 B | 64 B |
+| `sound_buzzer` | `pico_w_release` | 5 008 B | 0 B |
 | `sensor_dht22` | `pico_w_release` | 3 400 B | 0 B |
 | `concurrency_asserts` | `pico_w_asserts` | 2 176 B | 0 B |
 | `license_stub` | `pico_w_test` | −1 728 B | 0 B |
@@ -53,14 +54,17 @@ Os três achados que a medição trouxe:
    licença; desligá-lo o *adiciona* (+1 728 B). Fica fora do piso "desligar
    economiza" — não é um recurso que se desliga para poupar.
 
-3. **O buzzer não é chaveável isolado — está preso ao SIMUT_AIR.** `SoundManager.h`
-   só vira no-op sob `#if SIMUT_AIR`; não há macro do buzzer. Excluir
-   `SoundManager.cpp` fora do Air não linka (o `CommandManager` chama os métodos
-   reais). Por isso `sound_buzzer` e `air` aparecem **acoplados** e ficam fora do
-   piso: numa build TFT/normal não dá para largar o buzzer e poupar seus bytes.
-   Corrigir isso — dar um macro ao buzzer (`SIMUT_SOUND_BUZZER`) e destravar o
-   no-op também sob ele — é o próximo passo de "economia ao máximo em qualquer
-   funcionalidade", num PR de firmware dedicado.
+3. **O buzzer ganhou a própria chave (2026-09-26).** Antes estava preso ao
+   `SIMUT_AIR`: `SoundManager.h` só virava no-op lá, então excluir
+   `SoundManager.cpp` numa build TFT/normal não linkava. O macro
+   `SIMUT_SOUND_BUZZER` (default 1, no-op também sob `!SIMUT_SOUND_BUZZER`)
+   destravou: `sound_buzzer` agora devolve 5 008 B em qualquer perfil, e a troca é
+   **byte-idêntica** nos seis firmwares (o caminho ligado não mudou). O `air`
+   **continua acoplado**, por outro motivo: o perfil `air` usa `display=nenhum`,
+   que exclui `DisplayManager.cpp`, e o caminho de boot não-air (`SIMUT_AIR=0`)
+   referencia a `DisplayManager` cheia — o link quebra. `SIMUT_AIR` é uma variante
+   de build (headless + ciclo dormente), não uma chave isolada; medir seu custo
+   pediria desemaranhar o mostrador. Fica fora do piso.
 
 Os temas (`SIMUT_THEMES_*`) não entram: vêm **comentados** (desligados) em todo
 perfil, custo zero. São "ligar para gastar", não "desligar para poupar".

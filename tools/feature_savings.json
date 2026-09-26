@@ -38,5 +38,10 @@
     "base": "pico_w_release",
     "flash_saved": 17724,
     "ram_saved": 220
+  },
+  "sound_buzzer": {
+    "base": "pico_w_release",
+    "flash_saved": 5008,
+    "ram_saved": 0
   }
 }

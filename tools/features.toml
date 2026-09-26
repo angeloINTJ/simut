@@ -105,7 +105,12 @@ emit       = "on_is_1"
 on_include = ["air/*.c"]
 
 [toggles.sound_buzzer]
-emit           = "none"
+macro          = "SIMUT_SOUND_BUZZER"
+emit           = "off_is_0"       # default do config e 1; desligado -DSIMUT_SOUND_BUZZER=0.
+                                  # Antes era `none` (so exclusao de arquivo), o que so
+                                  # linkava sob SIMUT_AIR — SoundManager.h so virava no-op
+                                  # la. Com macro proprio, um perfil TFT/normal tambem larga
+                                  # o buzzer e poupa (ECONOMIA_DE_RECURSOS.md, 2026-09-26).
 off_exclude    = ["SoundManager.cpp"]
 off_lib_ignore = ["BuzzerPIO_RP2040"]
 
