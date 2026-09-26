@@ -51,16 +51,6 @@ code {
 .band > .moldura { padding-block: var(--espaco-7); }
 .eyebrow { font: 600 13px/16px var(--font-texto); color: var(--tinta-2); margin: 0 0 var(--espaco-2); }
 
-/* Language: a segmented control, and the pressed one is the active tab. */
-.langbar { display: inline-flex; border: 1px solid var(--linha-forte); border-radius: var(--raio-controle); overflow: hidden; }
-.lang-btn {
-  min-height: 40px; padding: 0 var(--espaco-3); border: 0; cursor: pointer;
-  background: var(--superficie); color: var(--tinta-2); font: 600 13px/16px var(--font-texto);
-}
-.lang-btn + .lang-btn { border-left: 1px solid var(--linha-forte); }
-.lang-btn:hover { background: var(--superficie-2); color: var(--tinta); }
-.lang-btn[aria-pressed="true"] { background: var(--acento); color: var(--acento-tinta); }
-@media (pointer: coarse) { .lang-btn { min-height: var(--alvo-toque); } }
 
 /* ---- hero -------------------------------------------------------- */
 .hero > .moldura { padding-block: var(--espaco-7); }
@@ -570,7 +560,7 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
     <h2 data-i18n="st.h2">From parts to readings</h2>
     <div class="steps">
       <div class="step"><div><h3 data-i18n="st1.t">Build the hardware</h3><p data-i18n="st1.b">Wire the display, touch panel and sensors to the Pico W following the <a href="WIRING.html">wiring guide</a>. A breadboard is enough to start.</p></div></div>
-      <div class="step"><div><h3 data-i18n="st2.t">Download the firmware</h3><p data-i18n="st2.b">Take the image for your board from the <a href="https://github.com/angeloINTJ/simut/releases/latest">latest release</a>: <code>simut_vX.Y.Z_release.uf2</code> for the touch panel, <code>_alpha.uf2</code> for the 16×2 LCD, <code>_air.uf2</code> for the headless battery logger. The matching <code>.bin</code> files are for over-the-air updates.</p></div></div>
+      <div class="step"><div><h3 data-i18n="st2.t">Download the firmware</h3><p data-i18n="st2.b">Take the image for your board from the <a href="https://github.com/angeloINTJ/simut/releases/latest">latest release</a>: <code>simut_vX.Y.Z_release.uf2</code> for the touch panel, <code>_alpha.uf2</code> for the 16×2 LCD, <code>_air.uf2</code> for the headless battery logger. The matching <code>.bin</code> files are for over-the-air updates. To leave a feature out, or add one, assemble your own in the <a href="configurador/">build configurator</a>.</p></div></div>
       <div class="step"><div><h3 data-i18n="st3.t">Flash over USB</h3><p data-i18n="st3.b">Hold BOOTSEL while connecting the Pico, then drop the <code>.uf2</code> onto the <code>RPI-RP2</code> drive that appears. The board reboots into SIMUT on its own.</p></div></div>
       <div class="step"><div><h3 data-i18n="st4.t">Join it to your network</h3><p data-i18n="st4.b">A unit with no network configured opens its setup access point, <code>simut_SETUP</code>, by itself. Its key is printed on the USB console and on the panel's boot screen, and the portal is at <code>http://192.168.4.1</code>. The admin password is printed once on the USB console at first boot — write it down; the first web login asks you to change it.</p></div></div>
       <div class="step"><div><h3 data-i18n="st5.t">Open the interface</h3><p data-i18n="st5.b">Browse to <code>http://simut.local</code> — or <code>https://</code> once you upload a certificate — add your sensors to slots, set alarm thresholds, and calibrate against a reference if the readings matter.</p></div></div>
@@ -743,7 +733,7 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
     'st1.t': 'Monte o hardware',
     'st1.b': 'Ligue o display, o painel de toque e os sensores ao Pico W seguindo o <a href="WIRING.html">guia de ligação</a>. Uma protoboard basta para começar.',
     'st2.t': 'Baixe o firmware',
-    'st2.b': 'Pegue a imagem da sua placa na <a href="https://github.com/angeloINTJ/simut/releases/latest">última release</a>: <code>simut_vX.Y.Z_release.uf2</code> para o painel de toque, <code>_alpha.uf2</code> para o LCD 16×2, <code>_air.uf2</code> para o registrador a bateria, sem tela. Os arquivos <code>.bin</code> correspondentes são para a atualização pelo ar.',
+    'st2.b': 'Pegue a imagem da sua placa na <a href="https://github.com/angeloINTJ/simut/releases/latest">última release</a>: <code>simut_vX.Y.Z_release.uf2</code> para o painel de toque, <code>_alpha.uf2</code> para o LCD 16×2, <code>_air.uf2</code> para o registrador a bateria, sem tela. Os arquivos <code>.bin</code> correspondentes são para a atualização pelo ar. Para deixar um recurso de fora, ou acrescentar um, monte a sua no <a href="configurador/">configurador de build</a>.',
     'st3.t': 'Grave por USB',
     'st3.b': 'Segure o BOOTSEL enquanto conecta o Pico, depois solte o <code>.uf2</code> no drive <code>RPI-RP2</code> que aparecer. A placa reinicia no SIMUT sozinha.',
     'st4.t': 'Coloque na sua rede',
@@ -875,7 +865,7 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
     'st1.t': 'Monta el hardware',
     'st1.b': 'Conecta la pantalla, el panel táctil y los sensores a la Pico W siguiendo la <a href="WIRING.html">guía de conexión</a>. Una protoboard basta para empezar.',
     'st2.t': 'Descarga el firmware',
-    'st2.b': 'Toma la imagen de tu placa de la <a href="https://github.com/angeloINTJ/simut/releases/latest">última release</a>: <code>simut_vX.Y.Z_release.uf2</code> para el panel táctil, <code>_alpha.uf2</code> para el LCD 16×2, <code>_air.uf2</code> para el registrador a batería, sin pantalla. Los <code>.bin</code> correspondientes son para la actualización por aire.',
+    'st2.b': 'Toma la imagen de tu placa de la <a href="https://github.com/angeloINTJ/simut/releases/latest">última release</a>: <code>simut_vX.Y.Z_release.uf2</code> para el panel táctil, <code>_alpha.uf2</code> para el LCD 16×2, <code>_air.uf2</code> para el registrador a batería, sin pantalla. Los <code>.bin</code> correspondientes son para la actualización por aire. Para dejar fuera un recurso, o añadir uno, arma la tuya en el <a href="configurador/">configurador de build</a>.',
     'st3.t': 'Graba por USB',
     'st3.b': 'Mantén BOOTSEL mientras conectas la Pico, y suelta el <code>.uf2</code> en la unidad <code>RPI-RP2</code> que aparece. La placa arranca en SIMUT por sí sola.',
     'st4.t': 'Únela a tu red',

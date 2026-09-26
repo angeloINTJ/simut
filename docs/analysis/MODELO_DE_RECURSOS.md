@@ -884,12 +884,15 @@ elimina.
    ele: o CI constrói, mede e anexa o `.uf2` com os números reais. **A cotação
    vira binário medido**, que é a regra da casa.
 
-> **Estado em 26/09: o modelo e a build sob medida existem; a página vem no
-> PR seguinte.** O que a página vai ler já é gerado e conferido
+> **Estado em 26/09: o configurador existe, em
+> [`docs/configurador/`](../configurador/index.html).** A página escolhe o
+> produto, liga e desliga as chaves da árvore, trava o que uma regra proíbe
+> com o motivo à vista, estima o flash e o `.bin` contra os dois tetos e
+> compila pelo `build-custom.yml`. O que ela lê é gerado e conferido
 > (`docs/configurador/model.json`, pelo `gen_features.py`), e o
-> `tools/build_custom.py` compila um perfil escolhido: sem mudanças, a imagem
-> sai idêntica byte a byte à publicada; com o Air sem Bluetooth, sai exatamente
-> no número que a matriz mediu. Quatro coisas saíram diferentes do plano acima,
+> `tools/build_custom.py` compila o perfil escolhido: sem mudanças, a imagem sai
+> idêntica byte a byte à publicada; com o Air sem Bluetooth, sai exatamente no
+> número que a matriz mediu. Quatro coisas saíram diferentes do plano acima,
 > cada uma por um motivo medido.
 >
 > - **Regras medidas, não semântica de Kconfig.** Cada `[[rules]]` do manifesto
@@ -911,16 +914,21 @@ elimina.
 >   no `.bin` (com o Bluetooth ligado, o `.bin` anda em degraus de 4 KB), e é
 >   esse erro que vira a margem de "no limite". A primeira passada achou
 >   duas inversões que não compilavam, consertadas no #185.
-> - **A saída é um perfil JSON, e o botão vai disparar `build-custom.yml`**,
->   que roda o `build_custom.py`: reaplica as regras (a página não é a
+> - **A saída é um perfil JSON, e o botão dispara `build-custom.yml`**, que
+>   roda o `build_custom.py`: reaplica as regras (a página não é a
 >   autoridade), recusa perfil malformado antes de baixar qualquer coisa
 >   (`tools/test_build_custom.py` tenta 34 formas) e publica o `.uf2` e o
->   `.bin` com os tamanhos medidos. O `features-matrix.yml` do P4 é outra coisa:
->   a matriz rodando no CI, que por enquanto roda à mão.
+>   `.bin` com os tamanhos medidos. Só quem tem escrita no repositório dispara
+>   um workflow; o token dessa pessoa fica no navegador dela e só vai para
+>   `api.github.com`, que é o único destino que a política de conteúdo da página
+>   permite. Quem não tem escrita pede a build: a página abre um issue com o
+>   perfil. O `features-matrix.yml` do P4 é outra coisa: a matriz rodando no
+>   CI, que por enquanto roda à mão.
 > - **Ficou para depois:** a RAM contra os limiares da seção 4, o FS, os
->   recursos finitos de hardware e o painel de maturidade do P6. A primeira
->   página mostra o flash, o teto de OTA e o número de RAM, e diz que é
->   estimativa.
+>   recursos finitos de hardware e o painel de maturidade do P6. A página mostra
+>   o flash, o teto de OTA e o número de RAM, e diz que é estimativa;
+>   `tools/test_configurator_page.py` roda as contas dela no `node` e as confere
+>   com o lado Python.
 
 ### P8 — Testar perfis, não o produto cartesiano (M)
 

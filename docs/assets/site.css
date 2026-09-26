@@ -85,6 +85,18 @@ html { -webkit-text-size-adjust: 100%; }
 [data-theme="escuro"] .tema .ic-sol { display: block; }
 [data-theme="escuro"] .tema .ic-lua { display: none; }
 
+/* Language: a segmented control, and the pressed one is the active tab. The
+   landing page and the configurator both carry one. */
+.langbar { display: inline-flex; border: 1px solid var(--linha-forte); border-radius: var(--raio-controle); overflow: hidden; }
+.lang-btn {
+    min-height: 40px; padding: 0 var(--espaco-3); border: 0; cursor: pointer;
+    background: var(--superficie); color: var(--tinta-2); font: 600 13px/16px var(--font-texto);
+}
+.lang-btn + .lang-btn { border-left: 1px solid var(--linha-forte); }
+.lang-btn:hover { background: var(--superficie-2); color: var(--tinta); }
+.lang-btn[aria-pressed="true"] { background: var(--acento); color: var(--acento-tinta); }
+@media (pointer: coarse) { .lang-btn { min-height: var(--alvo-toque); } }
+
 /* ---------- buttons (§4.1) ---------- */
 .botao {
     display: inline-flex; align-items: center; justify-content: center; gap: var(--espaco-2);

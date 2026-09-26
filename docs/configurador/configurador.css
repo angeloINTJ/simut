@@ -1,0 +1,226 @@
+/* configurador.css — the build configurator (docs/configurador/).
+ *
+ * Only what this page has of its own. The frame, the top bar, the brand, the
+ * buttons, the selos and the footer come from ../assets/site.css; every value
+ * comes from ../assets/angulo.css. No literal colour, no gradient, no shadow
+ * but --sombra-flutuante, no radius off the three, no distance off the 4 px
+ * grid: tools/check_angulo.py reads this file as it reads site.css. The px
+ * that remain are line thickness and the sizes the guide fixes (the 44 px
+ * touch target, the switch drawn inside it). */
+
+.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* Read by a screen reader, not drawn. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap; margin: -1px; padding: 0; border: 0;
+}
+
+.cfg { display: grid; gap: var(--espaco-6); padding-block: var(--espaco-7); }
+
+.cfg-cabeca h1 {
+  margin: 0 0 var(--espaco-2);
+  font: 600 24px/30px var(--font-display); letter-spacing: -0.01em; color: var(--tinta);
+}
+.cfg-cabeca p { margin: 0; max-width: 70ch; color: var(--tinta-2); font: 400 16px/24px var(--font-texto); }
+
+.cfg-carregando { margin: 0; font: 400 16px/24px var(--font-texto); color: var(--tinta-2); }
+.cfg-falha { margin: 0; font: 400 16px/24px var(--font-texto); color: var(--perigo); }
+
+/* ---- layout: the choice on the left, the result beside it ----------------- */
+
+.cfg-grade { display: grid; gap: var(--espaco-6); align-items: start; }
+.cfg-coluna { display: grid; gap: var(--espaco-6); min-width: 0; }
+
+@media (min-width: 960px) {
+  .cfg-grade { grid-template-columns: minmax(0, 1fr) 380px; }
+  /* Clears the sticky top bar (40 px of control, two espaco-3 of padding).
+     Taller than the window -- the GitHub access form open -- it scrolls on
+     its own, or its end would stay out of reach while the tree scrolls. */
+  .cfg-resultado {
+    position: sticky; top: calc(var(--espaco-7) + var(--espaco-5));
+    max-height: calc(100vh - var(--espaco-7) - var(--espaco-7)); overflow-y: auto;
+  }
+}
+
+.cfg-secao { display: grid; gap: var(--espaco-3); min-width: 0; }
+.cfg-secao-titulo { margin: 0; font: 600 13px/16px var(--font-texto); color: var(--tinta-2); }
+
+.cfg-apoio { margin: 0; font: 400 13px/18px var(--font-texto); color: var(--tinta-2); }
+.cfg-apoio a { color: var(--acento); text-underline-offset: var(--espaco-1); }
+.cfg-apoio a:hover { color: var(--acento-forte); }
+
+/* ---- products: selectable cards (§4.4), one radio each -------------------- */
+
+.cfg-produtos {
+  display: grid; gap: var(--espaco-3);
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  margin: 0; padding: 0; border: 0; min-width: 0;
+}
+
+.cfg-produto {
+  position: relative; display: grid; gap: var(--espaco-1); align-content: start;
+  padding: var(--espaco-4); cursor: pointer;
+  background: var(--superficie); border: 1px solid var(--linha); border-radius: var(--raio-cartao);
+}
+.cfg-produto:hover { border-color: var(--linha-forte); }
+.cfg-produto:has(input:checked) { border-color: var(--acento); }
+.cfg-produto:has(input:focus-visible) { outline: 2px solid var(--acento); outline-offset: 2px; }
+/* The radio is the whole card: invisible, and it takes the click anywhere. */
+.cfg-produto input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+
+.cfg-produto-nome { font: 600 16px/24px var(--font-texto); color: var(--tinta); }
+.cfg-produto-desc { font: 400 13px/18px var(--font-texto); color: var(--tinta-2); }
+.cfg-produto-num { font: 500 13px/20px var(--font-mono); color: var(--tinta-2); }
+
+.cfg-bancada {
+  display: inline-flex; align-items: center; gap: var(--espaco-2); min-height: 40px;
+  font: 400 13px/18px var(--font-texto); color: var(--tinta-2); cursor: pointer;
+}
+.cfg-bancada input { width: 16px; height: 16px; margin: 0; accent-color: var(--acento); cursor: pointer; }
+
+/* ---- the tree: one card per group, switches divided by linha ------------- */
+
+.cfg-bloco {
+  background: var(--superficie); border: 1px solid var(--linha);
+  border-radius: var(--raio-cartao); padding: var(--espaco-5);
+}
+.cfg-bloco-titulo {
+  margin: 0; font: 600 18px/24px var(--font-display); letter-spacing: -0.005em; color: var(--tinta);
+}
+.cfg-bloco > .cfg-bloco-titulo { margin-bottom: var(--espaco-2); }
+
+details.cfg-bloco > summary {
+  display: flex; align-items: center; min-height: 40px; cursor: pointer; list-style: none;
+}
+details.cfg-bloco > summary::-webkit-details-marker { display: none; }
+details.cfg-bloco > summary::after {
+  content: "+"; margin-left: auto; font: 500 18px/24px var(--font-mono); color: var(--tinta-2);
+}
+details.cfg-bloco[open] > summary::after { content: "−"; }
+details.cfg-bloco[open] > summary { margin-bottom: var(--espaco-2); }
+details > summary:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; border-radius: var(--raio-controle); }
+
+/* Name and switch share the first row; the help and the lock reason run the
+ * full width under them, so on a phone the prose is not squeezed into the
+ * column the price and the switch leave free. */
+.cfg-chave {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
+  gap: var(--espaco-1) var(--espaco-4); padding-block: var(--espaco-3);
+}
+.cfg-chave + .cfg-chave { border-top: 1px solid var(--linha); }
+.cfg-chave-texto { display: contents; }
+.cfg-chave-nome { grid-column: 1; grid-row: 1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--espaco-2); }
+.cfg-chave-texto > .cfg-apoio, .cfg-chave-trava { grid-column: 1 / -1; }
+.cfg-chave-nome label { font: 400 16px/24px var(--font-texto); color: var(--tinta); cursor: pointer; }
+.cfg-chave-trava { margin: 0; font: 400 13px/18px var(--font-texto); color: var(--tinta-2); }
+.cfg-chave:has(.cfg-interruptor:disabled) .cfg-chave-nome label { cursor: not-allowed; }
+
+/* Price and switch share a 44 px row: the target the guide asks for (§3.6). */
+.cfg-chave-lado { grid-column: 2; grid-row: 1; display: flex; align-items: center; gap: var(--espaco-3); min-height: 44px; }
+.cfg-chave-custo { font: 500 13px/20px var(--font-mono); color: var(--tinta-2); white-space: nowrap; }
+
+/* The switch: a native checkbox with role=switch, drawn as a pill. On is the
+ * accent because it is a control's state; the label beside it says what. */
+.cfg-interruptor {
+  appearance: none; -webkit-appearance: none; position: relative; flex: none;
+  width: 44px; height: 24px; margin: 0; cursor: pointer;
+  background: var(--superficie-2); border: 1px solid var(--linha-forte); border-radius: var(--raio-total);
+}
+.cfg-interruptor::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px;
+  border-radius: var(--raio-total); background: var(--tinta-2);
+}
+.cfg-interruptor:checked { background: var(--acento); border-color: var(--acento); }
+.cfg-interruptor:checked::after { left: 22px; background: var(--acento-tinta); }
+.cfg-interruptor:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+.cfg-interruptor:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ---- the result ------------------------------------------------------------ */
+
+.cfg-resultado .cfg-bloco { display: grid; gap: var(--espaco-4); }
+.cfg-resultado-cabeca { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--espaco-2); }
+.cfg-selos { display: inline-flex; flex-wrap: wrap; gap: var(--espaco-2); }
+
+.cfg-medidor { display: grid; gap: var(--espaco-2); }
+.cfg-medidor-linha { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--espaco-2); }
+.cfg-medidor-rotulo { font: 600 13px/16px var(--font-texto); color: var(--tinta-2); }
+.cfg-medidor-valor { font: 500 13px/20px var(--font-mono); color: var(--tinta); }
+
+/* The bar is data, not chrome: its fill follows the state, never the brand. */
+.cfg-barra { height: 8px; overflow: hidden; background: var(--superficie-2); border-radius: var(--raio-total); }
+.cfg-barra > span { display: block; height: 100%; border-radius: var(--raio-total); background: var(--positivo); }
+.cfg-barra[data-estado="alerta"] > span { background: var(--alerta); }
+.cfg-barra[data-estado="perigo"] > span { background: var(--perigo); }
+
+/* A faixa per state. On each soft ground the only text colour the
+ * combinations table allows is its own firm one (§3.1). */
+.cfg-avisos { display: grid; gap: var(--espaco-2); margin: 0; padding: 0; list-style: none; }
+.cfg-aviso {
+  margin: 0; padding: var(--espaco-3) var(--espaco-4); border-radius: var(--raio-controle);
+  font: 400 13px/18px var(--font-texto); background: var(--alerta-suave); color: var(--alerta);
+}
+.cfg-aviso[data-tom="perigo"] { background: var(--perigo-suave); color: var(--perigo); }
+.cfg-aviso[data-tom="positivo"] { background: var(--positivo-suave); color: var(--positivo); }
+.cfg-aviso[data-tom="neutro"] { background: var(--superficie-2); color: var(--tinta-2); }
+
+.cfg-acoes { display: flex; flex-wrap: wrap; gap: var(--espaco-3); }
+.botao:disabled { opacity: 0.45; cursor: not-allowed; }
+.botao-discreto { background: transparent; color: var(--acento); }
+.botao-discreto:hover { background: var(--superficie-2); }
+.botao:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+@media (pointer: coarse) { .cfg-bancada { min-height: var(--alvo-toque); } }
+
+/* ---- GitHub access, the run, the local commands --------------------------- */
+
+.cfg-token { display: grid; gap: var(--espaco-3); padding-top: var(--espaco-4); border-top: 1px solid var(--linha); }
+.cfg-token-titulo { margin: 0; font: 600 16px/24px var(--font-texto); color: var(--tinta); }
+
+.cfg-campo { display: grid; gap: var(--espaco-2); }
+.cfg-campo label { font: 600 13px/16px var(--font-texto); color: var(--tinta-2); }
+.cfg-campo input {
+  min-height: 44px; padding: var(--espaco-3); width: 100%;
+  font: 500 16px/24px var(--font-mono); color: var(--tinta);
+  background: var(--superficie); border: 1px solid var(--linha-forte); border-radius: var(--raio-controle);
+}
+.cfg-campo input:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; border-color: var(--acento); }
+.cfg-campo[data-erro] input { border-color: var(--perigo); }
+.cfg-campo-erro { margin: 0; font: 400 13px/18px var(--font-texto); color: var(--perigo); }
+
+.cfg-estado { display: grid; gap: var(--espaco-2); }
+
+details.cfg-local > summary {
+  display: flex; align-items: center; min-height: 40px; cursor: pointer;
+  font: 400 13px/18px var(--font-texto); color: var(--acento);
+}
+details.cfg-local[open] { display: grid; gap: var(--espaco-2); }
+.cfg-comando {
+  margin: 0; padding: var(--espaco-3); overflow-x: auto; white-space: pre;
+  font: 500 13px/20px var(--font-mono); color: var(--tinta);
+  background: var(--superficie-2); border: 1px solid var(--linha); border-radius: var(--raio-controle);
+}
+
+/* ---- the phone: the figure follows the reader down the tree --------------- */
+
+.cfg-fixa { display: none; }
+@media (max-width: 959px) {
+  .cfg-fixa {
+    position: sticky; bottom: 0; z-index: 5;
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+    gap: var(--espaco-2) var(--espaco-3); margin-top: var(--espaco-4); padding: var(--espaco-3) var(--espaco-4);
+    background: var(--superficie); border: 1px solid var(--linha); border-radius: var(--raio-cartao);
+    box-shadow: var(--sombra-flutuante);
+  }
+  .cfg-fixa.cfg-fixa-oculta { display: none; }
+  .cfg-fixa-valor { font: 500 13px/20px var(--font-mono); color: var(--tinta); }
+  .cfg-fixa a { font: 600 13px/16px var(--font-texto); color: var(--acento); min-height: 44px; display: inline-flex; align-items: center; }
+}
+
+@media (max-width: 640px) {
+  .cfg { padding-block: var(--espaco-6); }
+  .cfg-bloco { padding: var(--espaco-4); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

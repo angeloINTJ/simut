@@ -203,8 +203,16 @@ def main():
         "ceilings": {"ota_bin": ota_max},
         "fits_ota": fits_ota,
         "files": files,
-        "src_commit": subprocess.run(["git", "log", "-1", "--format=%H", "--", "src"],
-                                     cwd=ROOT, capture_output=True, text=True).stdout.strip(),
+        # O commit de onde a build saiu, não o último que tocou em src/: o
+        # checkout do Actions é raso (uma revisão), e lá os dois dariam o HEAD
+        # de qualquer jeito. Com ele e o perfil, a build se refaz byte a byte
+        # (conferido em 26/09: CI e máquina local, o mesmo sha256).
+        "commit": subprocess.run(["git", "rev-parse", "HEAD"],
+                                 cwd=ROOT, capture_output=True, text=True).stdout.strip(),
+        # Só arquivo rastreado conta: a pasta de saída e os cabeçalhos gerados
+        # da build são não rastreados e existiriam em toda build.
+        "dirty": bool(subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"],
+                                     cwd=ROOT, capture_output=True, text=True).stdout.strip()),
     }
     with open(os.path.join(args.out, "build.json"), "w", encoding="utf-8") as fh:
         json.dump(report, fh, indent=2, ensure_ascii=False)
