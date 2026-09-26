@@ -1,16 +1,18 @@
 # features.toml — o manifesto de recursos do SIMUT.
 #
-# Fonte única do que cada perfil de firmware liga, desliga e escolhe. O gerador
-# tools/gen_features.py o transforma em tools/generated/profiles.ini (a config do
-# PlatformIO) e em tools/generated/features_model.json (para o configurador). O
-# portao tools/check_features.py prova que os perfis gerados resolvem, byte a
-# byte de configuracao, para os mesmos ambientes que platformio.ini mantem a mao.
+# Fonte única do que cada perfil de firmware liga, desliga e escolhe, e a FONTE do
+# build: tools/gen_features.py o transforma em tools/generated/profiles.ini (a config
+# do PlatformIO, incluida pelo platformio.ini via extra_configs) e em
+# tools/generated/features_model.json (para o configurador). O platformio.ini nao
+# define mais [env:pico_w_*]: guarda so o pico_base e os ambientes native. O portao
+# tools/check_features.py prova que os perfis resolvem, flag a flag e unidade de
+# traducao a unidade, para o que este manifesto descreve.
 #
-# Este e o passo P1 de docs/analysis/MODELO_DE_RECURSOS.md: a fidelidade. O
-# manifesto reproduz o estado de HOJE (main), inclusive um flag morto
-# (factory_reset, marcado abaixo), porque provar fidelidade e reproduzir a
-# realidade atual. A limpeza (P0) vem depois, mexendo no manifesto e na
-# realidade juntos e mantendo o .bin identico.
+# Este e o passo P1 de docs/analysis/MODELO_DE_RECURSOS.md. A troca do platformio.ini
+# a mao para estes perfis foi validada por build byte-a-byte: os seis firmware.bin
+# saem identicos a imagem anterior. Um flag morto (factory_reset, marcado abaixo) e
+# mantido por enquanto para nao mudar a imagem; a limpeza (P0) vem depois, tirando-o
+# do manifesto e mantendo o .bin identico.
 #
 # Comentarios explicam por que, e citam a evidencia — a regra da casa.
 
@@ -117,6 +119,12 @@ off_lib_ignore = ["BuzzerPIO_RP2040"]
 #  Os perfis. Os seis ambientes de firmware que o CI constroi hoje.
 #  `extends` herda o dicionario de recursos do pai e sobrescreve.
 # ---------------------------------------------------------------------------
+# pico_w_release — a imagem do usuario.
+#   -DNDEBUG (2026-09-18, alavanca 2 de DIETA_FLASH.md): -6.832 B de .bin. src/ nao
+#   tem assert( ) de runtime (so _Static_assert, que NDEBUG nao toca), entao o que
+#   isso desliga sao as checagens internas do pico-sdk e do LittleFS e as strings
+#   __FILE__ delas, entre elas um caminho absoluto de 116 B da maquina de build que
+#   saia na imagem publicada.
 [profiles.pico_w_release]
 display             = "tft"
 cli_full            = false
@@ -131,6 +139,16 @@ sound_buzzer        = true
 build_type          = "release"
 publish             = true
 
+# pico_w_test — imagem de bancada, CLI completa. Nao publicada; orcamento proprio.
+#   Carrega a CLI completa e, desde 2026-08-17, a UI web inteira. Medido em e14170f,
+#   12 paginas embutidas: sem alavanca estourava o FLASH por 856 B; com parseIntStrict
+#   no lugar de sscanf, 6.604 B livres (cabe, sem margem); com +SIMUT_MDNS=0, 21.980 B.
+#   -DSIMUT_MDNS=0: 15.376 B medidos; as suites acham a placa por USB (udevadm) e falam
+#   por IP, nenhuma resolve SIMUT.local (a release mantem mDNS). -DSIMUT_LICENSE_STUB
+#   mantem o texto da licenca fora da imagem. Quando faltar espaco, tire DAQUI, nunca da
+#   release. As suites dirigem por serial com enable/configure terminal/write memory/
+#   user .../touch sim. O build_flags e re-derivado do pico_base, nao anexado ao da
+#   release, senao ficaria -DSIMUT_CLI_FULL=0 e =1 na mesma linha.
 [profiles.pico_w_test]
 display       = "tft"
 cli_full      = true
@@ -144,16 +162,40 @@ sound_buzzer  = true
 build_type    = "release"
 publish       = false
 
+# pico_w_test_https — a unica imagem com CLI completa E servidor TLS. Nao publicada.
+#   Existe porque validar o servidor HTTPS pede duas coisas que nenhuma imagem de campo
+#   junta: o servidor so compila com SIMUT_WEB_HTTPS (release), cujo console de
+#   emergencia nao cria a conta descartavel das suites web; a pico_w_test tem as contas
+#   e nao tem TLS. Os numeros do PR #137 (POST /api/tls) sairam de um env assim, digitado
+#   a mao e apagado depois. custom_fs_pages ALARMS/FILE/TEL (2026-09-20, config v25): so
+#   este env ficou sem espaco (a politica de PIN custa ~7,1 kB). O portao de flash confere
+#   DOIS numeros e o teto de OTA e o mais apertado: so ALARMS_PAGE fora deixou o .bin
+#   1.420 B acima do teto de 1.040.384 B mesmo com a regiao cabendo. Sao as duas paginas
+#   que um soak HTTPS menos toca; TEL_PAGE entra por folga (com duas fora o .bin ficava
+#   3.732 B sob o teto, menos de um setor de 4 KiB). Suba data/web/{alarms,files,tel}.
+#   html.gz para /web/ antes de uma suite, ou as rotas dao "Page asset missing" (POST
+#   /api/upload, nunca uploadfs).
 [profiles.pico_w_test_https]
 extends         = "pico_w_test"
 web_https       = true
 custom_fs_pages = ["ALARMS_PAGE", "FILE_PAGE", "TEL_PAGE"]
 
+# pico_w_asserts — release com o invariante 3 de concorrencia armado (T1.6). Nao publicada.
+#   -DSIMUT_CONCURRENCY_ASSERTS transforma FLASH_OP num tripwire que loga quem entra nele
+#   segurando o _stateMutex: imagem para um soak que cace regressao do invariante 3.
+#   Existe porque o pico_w_debug (onde o flag era documentado) nao linka: a -Og e sem
+#   --gc-sections a imagem estoura o slot de 1020 KB por ~69 KB. Ver a nota "sem env de
+#   debug" no platformio.ini.
 [profiles.pico_w_asserts]
 extends             = "pico_w_release"
 concurrency_asserts = true
 publish             = false
 
+# pico_w_alpha — LCD HD44780 16x2 no lugar do TFT. Economiza ~30 KB tirando a UI grafica.
+#   Mantem BluetoothManager.cpp + SerialBT (console BT para o modo AP). O painel de toque
+#   nao existe: o #if SIMUT_DISPLAY_TFT do WebManager_Core.cpp nao registra
+#   /api/screen_stream, /touch, /screenshot nem /keypad, e custom_web_omit=tft recorta o
+#   bloco @IF tft da pagina.
 [profiles.pico_w_alpha]
 display       = "alpha_paralelo"
 cli_full      = false
@@ -166,6 +208,18 @@ air           = false
 sound_buzzer  = true
 publish       = true
 
+# pico_w_air — build headless que hiberna (sem display, sem buzzer).
+#   Mesmo conjunto de fontes do alpha (TFT/toque/UI fora, driver HD44780 mantido mas nunca
+#   iniciado), mais: SIMUT_AIR=1 (headless + ciclo dormant); SIMUT_CLI_FULL=1 desde
+#   2026-09-18 — era 0 porque nao cabia (a conta de 2026-09-06 foi contra 876 B de folga, e
+#   a CLI completa custa +45.056 B), e a dieta da v2.4.9-beta liberou 62.420 B (977.964 ->
+#   1.023.020 B medidos, 17.364 B sob o teto de OTA); esta imagem e a que mais precisa,
+#   headless, o console serial/BT e a UNICA interface local. SIMUT_MDNS=0 desde a
+#   v2.4.4-beta: o responder nunca anunciava e a imagem de OTA fica no teto de 1016 KiB,
+#   tirar (~15 KiB) mantem o Air atualizavel (ver #118). SoundManager.cpp fora: buzzer
+#   dropado (SoundManager.h e no-op sob SIMUT_AIR). A config do Air (wake, idle, ...) vive
+#   em /config/air.bin, NAO no SystemConfig (o CONFIG_VERSION do SystemConfig e 25 na
+#   v2.7.3; o comentario antigo do env dizia "stays 21" e estava errado).
 [profiles.pico_w_air]
 display       = "nenhum"
 cli_full      = true

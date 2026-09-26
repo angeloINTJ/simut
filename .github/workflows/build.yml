@@ -82,12 +82,13 @@ jobs:
 
       # The feature model (docs/analysis/MODELO_DE_RECURSOS.md, P1): tools/
       # features.toml is the single source, gen_features.py derives the six
-      # firmware environments from it, and check_features.py proves — via
-      # PlatformIO's own resolver — that those derived environments are, flag
-      # for flag and translation-unit for translation-unit, the ones
-      # platformio.ini still maintains by hand. It is not the build source yet;
-      # it is the fidelity proof that lets the switchover happen later. This
-      # gate is what keeps the manifest and platformio.ini from drifting apart.
+      # firmware environments into tools/generated/profiles.ini, and
+      # platformio.ini includes that file via extra_configs (it no longer
+      # defines [env:pico_w_*]). --check keeps the generated files in sync with
+      # the manifest; check_features.py proves — via PlatformIO's own resolver —
+      # that the environments the build uses are, flag for flag and
+      # translation-unit for translation-unit, what the manifest describes. This
+      # is the gate that keeps the manifest and the build from drifting apart.
       - name: Feature model in sync
         run: python3 tools/gen_features.py --check
       - name: Feature model reproduces platformio.ini

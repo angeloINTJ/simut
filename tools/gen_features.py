@@ -40,12 +40,13 @@ TOGGLE_ORDER = [
 
 HEADER = """; profiles.ini — GERADO por tools/gen_features.py a partir de tools/features.toml.
 ; NAO EDITE A MAO. Rode `python3 tools/gen_features.py` depois de mudar o manifesto.
-; tools/check_features.py prova que estes ambientes resolvem para o mesmo que os
-; [env:*] escritos a mao no platformio.ini (passo P1 de MODELO_DE_RECURSOS.md).
 ;
-; Ainda NAO incluido por platformio.ini: a troca (extra_configs + remocao dos
-; [env:*] a mao) e o passo seguinte, depois que a prova byte-a-byte de build
-; passar. Ate la este arquivo e a evidencia, nao a fonte do build.
+; Este arquivo E a fonte dos seis ambientes de firmware: o platformio.ini o inclui
+; via `extra_configs` e nao define mais [env:pico_w_*]. tools/gen_features.py --check
+; garante que ele esta em dia com o manifesto, e tools/check_features.py prova que
+; ele resolve, flag a flag e unidade de traducao a unidade, para o que o manifesto
+; descreve. A troca foi validada por build byte-a-byte contra a imagem anterior
+; (docs/analysis/MODELO_DE_RECURSOS.md, P1).
 """
 
 

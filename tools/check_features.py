@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """check_features.py — o portao de fidelidade do modelo de recursos (P1).
 
-Prova que tools/generated/profiles.ini, gerado do manifesto features.toml,
-resolve para EXATAMENTE a mesma configuracao de build que os [env:*] escritos a
-mao no platformio.ini de hoje. Compara, por ambiente de firmware:
+Prova que os seis ambientes de firmware que o build usa (o platformio.ini inclui
+tools/generated/profiles.ini via extra_configs) resolvem para EXATAMENTE o que o
+manifesto features.toml descreve, gerado na hora. Se o profiles.ini commitado ou
+o platformio.ini divergirem do manifesto, o portao pega. Compara, por ambiente:
 
     - o conjunto de macros -D e demais flags de compilacao;
     - o conjunto de unidades de traducao compiladas (o filtro resolvido contra src/);

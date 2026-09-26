@@ -642,19 +642,22 @@ frase que o configurador tem de saber dar.
 > reproduzem os `[env:*]` de hoje — flag a flag e unidade de tradução a unidade
 > (release e asserts 67, alpha e air 57). O portão sabe reprovar: uma mutação no
 > manifesto é pega (controle conferido). Os dois passos rodam no job `gates` do
-> CI. A **prova de build byte a byte também está feita**: os seis ambientes,
-> construídos do `platformio.ini` à mão e dos perfis gerados (`pio run -c`,
-> limpo dos dois lados), dão `firmware.bin` de sha256 idêntico — release, test,
-> test_https, asserts, alpha e air. A ordem do filtro no gerado foi escrita para
-> bater com a de hoje, então a ordem de link (que já custou 427 B aqui) não muda
-> a imagem. O que **falta do P1** é só a **troca**: `extra_configs` no
-> `platformio.ini`, remover os `[env:*]` à mão (com o porquê de cada um realocado
-> para o manifesto), retomar o `check_features.py` para o invariante de depois da
-> troca (o de hoje compara gerado × à mão, e sem os `[env:*]` à mão vira
-> tautológico), e o `simut_features.h`. É mudança distinta e agora segura, boa
-> para um PR próprio. O manifesto reproduz o estado de HOJE, inclusive o flag
-> morto `SIMUT_FACTORY_RESET` (o P0 o remove dos dois lados, idêntico). Nada mais
-> abaixo foi iniciado.
+> CI. A **prova de build byte a byte foi feita** e a **troca também**: o
+> `platformio.ini` agora inclui `tools/generated/profiles.ini` via
+> `extra_configs` e não define mais `[env:pico_w_*]` (guarda só o `pico_base` e
+> os ambientes native); o porquê de cada perfil, com os bytes medidos, foi
+> realocado para o manifesto, e a nota de por que não existe ambiente de debug
+> ficou no `platformio.ini`. Os seis `firmware.bin` construídos do
+> `platformio.ini` já trocado saem **idênticos** aos de antes da troca (sha256
+> conferido, build limpo). A ordem do filtro no gerado foi escrita para bater com
+> a de hoje, então a ordem de link (que já custou 427 B aqui) não muda a imagem.
+> O `check_features.py` continua válido: agora compara os perfis que o build usa
+> (o `profiles.ini` incluído) contra o manifesto gerado na hora, então pega
+> qualquer deriva entre manifesto, `profiles.ini` e build. O `simut_features.h`
+> (macros de recurso como header gerado, para o `#if` do código) fica para o P2,
+> quando as costuras começarem. O manifesto ainda carrega o flag morto
+> `SIMUT_FACTORY_RESET` para não mudar a imagem; o P0 o remove, idêntico. Nada
+> mais abaixo foi iniciado.
 
 Oito passos, na ordem em que as dependências os põem. Cada um diz o que
 fecha, porque um passo sem medição que o feche é um passo que nunca termina;

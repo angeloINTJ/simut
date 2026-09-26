@@ -35,7 +35,7 @@ or a release.
 | `fsguard.py` | LittleFS guard for OTA benches: backup and restore with day-file merging. | 2026-08-21 |
 | `gen_logcodes.py` | Single source of truth for the SIMUT log-code tables. | 2026-09-24 |
 | `gen_features.py` | Deriva `tools/generated/profiles.ini` e `features_model.json` do manifesto `tools/features.toml` (o modelo de recursos, `docs/analysis/MODELO_DE_RECURSOS.md` P1). O CI o roda com `--check` para pegar arquivo gerado desatualizado. | 2026-09-25 |
-| `check_features.py` | Prova, pelo resolvedor do próprio PlatformIO, que os seis ambientes de firmware derivados do manifesto reproduzem os `[env:*]` mantidos à mão no `platformio.ini` — flag a flag e unidade de tradução a unidade. A fidelidade que destrava a troca (P1). Sabe reprovar: mutação no manifesto é pega, controle conferido em 25/09. | 2026-09-25 |
+| `check_features.py` | Prova, pelo resolvedor do próprio PlatformIO, que os seis ambientes de firmware que o build usa (o `platformio.ini` inclui `tools/generated/profiles.ini` via `extra_configs`) resolvem para o que o manifesto `tools/features.toml` descreve — flag a flag e unidade de tradução a unidade. A troca foi validada por build byte-a-byte contra a imagem anterior (P1). Sabe reprovar: mutação no manifesto é pega, controle conferido em 25/09. | 2026-09-25 |
 | `h5_day_merge.py` | Merge V5 history day files (same day, same schema) into one file. | 2026-08-21 |
 | `run_cppcheck.sh` | run_cppcheck.sh — static-analysis gate over src/ (issue #35). | 2026-08-18 |
 | `run_fuzz.sh` | run_fuzz.sh — libFuzzer gate over the web-API input validators (issue #44). | 2026-08-19 |
