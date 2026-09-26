@@ -1,6 +1,6 @@
 # SIMUT — Manual do Usuário
 
-**Firmware:** v2.7.3 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **Licença:** MIT
+**Firmware:** v2.7.4 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **Licença:** MIT
 **Repositório:** https://github.com/angeloINTJ/simut
 
 [English](MANUAL.md) | **Português**
@@ -1228,7 +1228,7 @@ Permissões entre colchetes.
 | `/api/users` | GET | Contas [USER_MGR] |
 | `/api/perms` | GET | Bits de permissão da sessão |
 | `/api/sec_status` | GET | Estado de bloqueio e de segurança |
-| `/api/themes` | GET | Temas disponíveis |
+| `/api/themes` | GET | Temas disponíveis. Só nas imagens com painel touch: a alpha e o Air respondem 404 desde a v2.7.4 |
 | `/api/lang` | GET | Dicionário de idioma |
 
 ### Histórico e logs
@@ -1264,7 +1264,7 @@ Permissões entre colchetes.
 | `/api/set_time` | POST | Acerta o relógio |
 | `/api/calib` | GET/POST | Offsets de calibração [CALIB] |
 | `/api/action` | POST | Ações multiplexadas — `tel_sync`, `tel_reset`, `sensor_scan`, `scan_results`, `sensor_accept`, `sensor_wipe` |
-| `/api/reset_touch_cal` | POST | Limpa a calibração do touch |
+| `/api/reset_touch_cal` | POST | Limpa a calibração do touch. Só nas imagens com painel touch, como o `/api/themes` |
 
 ### Firmware e backup
 

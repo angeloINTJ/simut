@@ -24,10 +24,10 @@ O aparelho atende um protocolo por vez. Com o par de certificados instalado, a i
 | Imagem | Rotas | Diferença |
 |---|---|---|
 | release | 62 | Todas |
-| alpha | 56 | Sem as 5 rotas do painel e sem `POST /api/tls` |
-| Air | 56 | As mesmas da alpha, e só enquanto o Air está acordado em M0 ([capítulo 19](#cap-19)) |
+| alpha | 54 | Sem as 5 rotas do painel, sem `GET /api/themes` e `POST /api/reset_touch_cal`, e sem `POST /api/tls` |
+| Air | 54 | As mesmas da alpha, e só enquanto o Air está acordado em M0 ([capítulo 19](#cap-19)) |
 
-Uma rota que não existe na imagem responde como qualquer caminho desconhecido ([Convenções](#cap-26-convencoes)).
+Até a v2.7.3 a alpha e o Air tinham 56: `GET /api/themes` e `POST /api/reset_touch_cal` respondiam também nelas, sem painel para usar. Uma rota que não existe na imagem responde como qualquer caminho desconhecido ([Convenções](#cap-26-convencoes)).
 
 ### Um pedido por vez {#cap-26-um-por-vez}
 
@@ -470,7 +470,7 @@ As tabelas usam o nome do bit de cada permissão. O nome que a página **Usuári
 | Método | Rota | Permissão | O que faz |
 |---|---|---|---|
 | GET | `/api/status` | [PERM_DASHBOARD]{.perm} | Identidade, saúde e leituras atuais |
-| GET | `/api/themes` | [PERM_DASHBOARD]{.perm} | Temas do painel disponíveis |
+| GET | `/api/themes` | [PERM_DASHBOARD]{.perm} | [release]{.img} Temas do painel disponíveis |
 | GET | `/metrics` | [PERM_DASHBOARD]{.perm}, por sessão ou HTTP Basic | Métricas no formato do Prometheus ([capítulo 24](#cap-24)) |
 | GET | `/api/config` | [PERM_SYS_CONFIG]{.perm} | Configuração geral, telemetria, linha de alarmes, syslog e política de PIN |
 | GET | `/api/alarms` | [PERM_SYS_CONFIG]{.perm} | Limites, alarmes ligados e janelas de manutenção por slot, e os sons |
@@ -484,7 +484,7 @@ As tabelas usam o nome do bit de cada permissão. O nome que a página **Usuári
 | POST | `/api/action` | [PERM_SYS_CONFIG]{.perm} | Reinício, telemetria e sondas, pelo parâmetro `op` |
 | POST | `/api/set_time` | [PERM_SYS_CONFIG]{.perm} | Acerta o relógio na hora |
 | POST | `/api/save_sys` | [PERM_SYS_CONFIG]{.perm} | Troca o tema do painel na hora |
-| POST | `/api/reset_touch_cal` | [PERM_SYS_CONFIG]{.perm} | Apaga a calibração do toque e abre o assistente no painel |
+| POST | `/api/reset_touch_cal` | [PERM_SYS_CONFIG]{.perm} | [release]{.img} Apaga a calibração do toque e abre o assistente no painel |
 
 ### Histórico e log de eventos {#cap-26-rotas-historico}
 
@@ -761,9 +761,9 @@ Para entrar na rota, a conta precisa de pelo menos uma entre **Sistema**, **Rede
 | Grupos | Efeito |
 |---|---|
 | `alarms`, `maint`, `alarm_tel`, `telemetry`, `display` | Aplicam sem reiniciar |
-| `net`, `identity`, `users`, `slots`, `sensing`, `mqtt`, `time`, `logging`, `display_pin`, `web`, `unclassified` | Reiniciam |
+| `net`, `identity`, `users`, `slots`, `sensing`, `mqtt`, `time`, `web`, `unclassified` | Reiniciam |
 
-O que cada grupo inclui está em [Os grupos de configuração](#cap-05-grupos). Qualquer alteração de conta ou de PIN, e também da política de PIN, cai em `users` e reinicia. Não copie essa tabela para o seu cliente: use o ensaio, que responde pela regra do próprio aparelho.
+Quatro campos sem efeito, `s_int`, `log` e dois que só o arquivo de configuração carrega, não entram em grupo nenhum e gravam sem reiniciar, desde a v2.7.4. Até a v2.7.3 eles caíam em `sensing`, `logging`, `net` e `display_pin`, e reiniciavam o aparelho. O que cada grupo inclui está em [Os grupos de configuração](#cap-05-grupos). Qualquer alteração de conta ou de PIN, e também da política de PIN, cai em `users` e reinicia. Não copie essa tabela para o seu cliente: use o ensaio, que responde pela regra do próprio aparelho.
 
 Quando há reinício, a resposta chega antes dele. O aparelho fica fora do ar por alguns segundos e encerra todas as sessões. Para saber quando ele voltou, repita `GET /api/login_init` a cada 3 s até ele responder, e entre de novo.
 
@@ -990,13 +990,13 @@ Outras três rotas agem na hora, sem reiniciar:
 |---|---|---|
 | `POST /api/set_time` | JSON `{"epoch":1790164800}`, com `Content-Type: application/json` | `{"ok":true,"now":1790164800}`. Recusa valores até `1600000000` (13/09/2020) com `400` `{"error":"epoch too low"}`. Com o NTP ligado, o próximo acerto sobrescreve ([capítulo 10](#cap-10)) |
 | `POST /api/save_sys` | Formulário `theme=<índice>` | `{"status":"ok"}`; `400` com índice fora da lista |
-| `POST /api/reset_touch_cal` | Nenhum | `{"status":"ok","wizard":true}`. O painel abre o assistente de calibração do toque |
+| `POST /api/reset_touch_cal` | Nenhum | [release]{.img} `{"status":"ok","wizard":true}`. O painel abre o assistente de calibração do toque |
 
 `POST /api/history_rebind` adapta o dia corrente do histórico ao esquema atual dos sensores, mantendo os registros, e reinicia. Com `force=1`, recria o esquema e descarta o dia. Use-a só quando o log de eventos indicar esquema de histórico diferente ([capítulo 15](#cap-15)).
 
 ### Temas {#cap-26-temas}
 
-`GET /api/themes` lista os temas do painel na ordem do índice:
+[release]{.img} `GET /api/themes` lista os temas do painel na ordem do índice:
 
 ```json
 [{"id":0,"name":"Simut Default"},{"id":1,"name":"Janeiro Branco"},{"id":2,"name":"Fevereiro Roxo"}]

@@ -527,7 +527,7 @@ Não impedem o build; são o que o painel de maturidade mostra.
 | id | perigo | recursos | evidência |
 |---|---|---|---|
 | R-R1 | Com o AP no ar o aparelho **não mede**: `_isApMode` pula sensores, alarmes e histórico | `net.ap` | manual cap. 9; achado da v2.7.1 |
-| R-R2 | `net.ap_auto` numa instalação sem Wi-Fi: o aparelho abre o AP em ~7 min, para de medir e reinicia a cada 15 | `net.ap_auto` | manual cap. 9 ("não use a v2.7.1 a v2.7.3 num aparelho que vai funcionar sem Wi-Fi") |
+| R-R2 | `net.ap_auto` numa instalação sem Wi-Fi: o aparelho abre o AP em ~7 min, para de medir e reinicia a cada 15 | `net.ap_auto` | manual cap. 9 ("não use nenhuma versão da v2.7.1 à v2.7.4 num aparelho que vai funcionar sem Wi-Fi") |
 | R-R3 | `sensors.scan` invade o GP16 (R-H7): no TFT corrompe o MISO até o Core 1 relançar; no Air, mexe no power dos sensores | `sensors.scan` × `display = tft`, `power.air` | inferida |
 | R-R4 | Um payload de telemetria acima de ~15,8 KB deixava o guarda do watchdog sem alimentar; o lote é limitado pela fórmula do heap, não pelo 250 | `tel.http` | memória da bancada (TelemetryGuard); `src/TelemetryManager.cpp:622-627` |
 | R-R5 | Fila de alarmes cheia: a borda recusada some e a fila guarda os mais antigos | `tel.alarm_line` | issue #161, aberta |

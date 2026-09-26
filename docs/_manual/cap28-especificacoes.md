@@ -4,7 +4,7 @@ Este capítulo reúne em tabelas os números do SIMUT: faixas, valores de fábri
 
 ## Como ler as tabelas {#cap-28-como-ler}
 
-- Os valores são os da v2.7.3.
+- Os valores são os da v2.7.4.
 - Quando um número muda de uma imagem para outra, a célula traz o selo da imagem: [release]{.img}, [alpha]{.img} ou [air]{.img}.
 - Uma medição traz a data e a versão em que foi feita. Os demais números vêm do código.
 - A coluna **Onde** leva ao capítulo que explica o item. Lá estão o efeito de cada valor e o que fazer quando um limite é atingido.
@@ -75,7 +75,7 @@ Legenda: a flash de 2 MB. O teto da atualização web fica 4 KiB abaixo do fim d
 | **Procurar sondas** | Resultado em até 10 s; sensores I²C só em GP4 (SDA) e GP5 (SCL) | [cap. 6](#cap-06-procurar) |
 | **Resolução DS18B20** | 9 a 12 bits; fábrica 12 | [cap. 6](#cap-06-resolucao) |
 | Espera da conversão do DS18B20 | Sempre 750 ms, qualquer que seja a resolução | [cap. 6](#cap-06-resolucao) |
-| **Amostra (ms)** | 1000 a 60000; fábrica 2000. Sem efeito na v2.7.1 | [cap. 6](#cap-06-amostra) |
+| **Amostra (ms)** | 1000 a 60000; fábrica 2000. Sem efeito; mudar grava sem reiniciar desde a v2.7.4 | [cap. 6](#cap-06-amostra) |
 
 ### Tipos de sensor {#cap-28-tipos}
 

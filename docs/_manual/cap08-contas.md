@@ -38,7 +38,7 @@ Cada permissão libera um grupo de ações. O aparelho confere a permissão em c
 
 | Permissão | Nome na página | Na interface web | No painel | Na interface de programação |
 |---|---|---|---|---|
-| [PERM_DASHBOARD]{.perm} `0x0001` | **Painel** | Páginas **Painel de Controle** e **Licença** | Nada | `GET /api/status`, `/api/themes`; `/metrics` ([capítulo 24](#cap-24)) |
+| [PERM_DASHBOARD]{.perm} `0x0001` | **Painel** | Páginas **Painel de Controle** e **Licença** | Nada | `GET /api/status`, `/api/themes` ([release]{.img}); `/metrics` ([capítulo 24](#cap-24)) |
 | [PERM_HISTORY]{.perm} `0x0002` | **Histórico** | Página **Histórico e Logs**: gráficos, calendário e exportação | Nada | Consultas e exportação do histórico; baixar arquivos de `/history` |
 | [PERM_LOGS]{.perm} `0x0004` | **Logs** | Página **Histórico e Logs**: eventos. Limpar o log exige também **Sistema** | Nada | Consulta e exportação do log de eventos |
 | [PERM_SYS_CONFIG]{.perm} `0x0008` | **Sistema** | Páginas **Alarmes e Sons**, **Telemetria** e **Configurações**; no **Painel de Controle**, captura, espelho e tema do painel | Itens **Temas Visuais**, **Sons de Alarme**, **Idioma do Sistema**, **Calibrar Touch** e **Alinhamento da Tela** | Configuração, alarmes, sensores, hora, envio e cursor da telemetria, reinício, captura e toque remoto do painel |

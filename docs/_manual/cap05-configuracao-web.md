@@ -88,7 +88,7 @@ A confirmação de Salvar e reiniciar, que avisa quanto tempo o aparelho fica fo
 
 ### Os grupos de configuração {#cap-05-grupos}
 
-O aparelho classifica cada alteração comparando a configuração de antes com a de depois, campo por campo. Um grupo só se aplica sem reinício quando o firmware relê aqueles campos a cada uso, ou tem uma função que empurra o valor novo para quem o usa. Todo o resto reinicia. Um campo que não pertence a nenhum grupo conhecido cai em `unclassified` e também reinicia.
+O aparelho classifica cada alteração comparando a configuração de antes com a de depois, campo por campo. Um grupo só se aplica sem reinício quando o firmware relê aqueles campos a cada uso, ou tem uma função que empurra o valor novo para quem o usa. Todo o resto reinicia. Um campo que não pertence a nenhum grupo conhecido cai em `unclassified` e também reinicia. Quatro campos que nenhuma parte do firmware lê são a exceção: **Amostra (ms)**, **Registro Local** e dois que só o arquivo de configuração carrega. O aparelho os reconhece, eles não entram em grupo nenhum e gravam sem reiniciar, desde a v2.7.4.
 
 | Grupo | O que inclui | Onde se altera | Sem reinício? |
 |---|---|---|---|
@@ -101,13 +101,11 @@ O aparelho classifica cada alteração comparando a configuração de antes com 
 | `display` | Tema e idioma do painel | Nenhuma página grava estes campos por aqui | Sim |
 | `identity` | Nome do aparelho | **Configurações** | Não |
 | `time` | Fuso horário e servidor NTP | **Configurações**, **Rede** | Não |
-| `logging` | **Registro Local** | **Configurações** | Não |
-| `sensing` | Intervalo de amostra e resolução do DS18B20 | **Configurações** | Não |
+| `sensing` | Resolução do DS18B20 | **Configurações** | Não |
 | `slots` | Tipo, GPIOs, identificação e nome dos slots de sensor | **Configurações** ([capítulo 6](#cap-06)) | Não: o ensaio é recusado |
 | `net` | Wi-Fi, DHCP, IP estático, DNS primário | **Rede** ([capítulo 9](#cap-09)) | Não |
 | `mqtt` | Transporte, conta, senha e opções MQTT, e o TLS da telemetria | **Telemetria** ([capítulo 21](#cap-21)) | Não |
 | `web` | A área de extensão da configuração: porta web, conexões persistentes, sons, intervalo do histórico, NTP ligado, DNS automático e secundário, syslog e Home Assistant | Várias | Não |
-| `display_pin` | Campo antigo, sem uso | — | Não |
 | `unclassified` | Qualquer diferença fora dos grupos acima | — | Não |
 
 O tema do painel tem gravação própria, pelo **Painel de Controle**, e não passa por estes botões ([capítulo 13](#cap-13-tema-painel)).
@@ -201,16 +199,17 @@ Um integrador pode usar o ensaio para validar uma configuração antes de mandá
 
 ## A página Configurações {#cap-05-pagina}
 
-A página **Configurações** (*System Config*, rota `/config`) exige a permissão **Sistema**. Ela tem seis seções, nesta ordem:
+A página **Configurações** (*System Config*, rota `/config`) exige a permissão **Sistema**. Ela tem sete seções, nesta ordem; a alpha e o Air não têm a sexta:
 
 1. **Identidade** (*General Identity*)
 2. **Data e Hora** (*Date & Time*)
 3. **Hardware** (*Hardware & Sampling*)
 4. **Sensores e GPIO** (*Sensors & GPIO*)
 5. **Syslog Remoto (Auditoria)** (*Remote Syslog (Audit Trail)*)
-6. **Calibração do Touch** (*Touch Calibration*)
+6. [release]{.img} **Calibração do Touch** (*Touch Calibration*)
+7. **Reiniciar** (*Restart*)
 
-As cinco primeiras preparam alterações para os botões da barra de topo. A página não tem botão de gravar próprio. **Calibração do Touch** age na hora, com botão próprio.
+As cinco primeiras preparam alterações para os botões da barra de topo. A página não tem botão de gravar próprio. **Calibração do Touch** e **Reiniciar** agem na hora, cada uma com botão próprio.
 
 Se a página não consegue ler a configuração do aparelho, ela mostra uma faixa vermelha: **Não foi possível carregar as configurações atuais. Os campos estão desabilitados para evitar salvar valores em branco sobre a sua configuração.** Os campos ficam desabilitados, de propósito. Toque em **Tentar novamente** (*Retry*). A página já tenta três vezes antes de mostrar a faixa.
 
@@ -228,7 +227,7 @@ A faixa de erro de carga: os campos ficam desabilitados para que nada em branco 
 |---|---|---|---|---|---|
 | **Nome** (*Device Name*) | Nome do aparelho | 1 a 31 caracteres, sem aspas `"` nem barra invertida `\`; espaços nas pontas são removidos | `simut` | Reinicia (`identity`) | `name` |
 | **Fuso Horário** (*Timezone Offset (Hours)*) | Diferença do horário local para o UTC, em horas inteiras | −12 a +14 | −3 | Reinicia (`time`) | `tz` |
-| **Registro Local** (*Enable Local Logging*) | Preferência de registro local | Ligado ou desligado | Ligado | Reinicia (`logging`) | `log` |
+| **Registro Local** (*Enable Local Logging*) | Preferência de registro local, sem efeito | Ligado ou desligado | Ligado | Grava sem reiniciar | `log` |
 
 O **Nome** aparece em vários lugares:
 
@@ -244,7 +243,7 @@ Como o nome vira endereço de rede e nome de rede Wi-Fi, prefira letras sem acen
 O **Fuso Horário** não tem horário de verão nem frações de hora. Detalhes, e um efeito colateral de digitar neste campo, estão no [capítulo 10](#cap-10-fuso).
 
 ::: atencao
-**Registro Local não desliga nada nesta versão.** O aparelho grava a preferência e a mostra em `show system info` (`Logging: ATIVO` ou `INATIVO`), mas nenhuma parte do firmware a consulta: o log de eventos e o histórico continuam gravados com ela desligada. Alterá-la reinicia o aparelho sem outro efeito.
+**Registro Local não desliga nada nesta versão.** O aparelho grava a preferência e a mostra em `show system info` (`Logging: ATIVO` ou `INATIVO`), mas nenhuma parte do firmware a consulta: o log de eventos e o histórico continuam gravados com ela desligada. Desde a v2.7.4, alterá-la grava sem reiniciar; até a v2.7.3, reiniciava o aparelho, e nada mais.
 :::
 
 ### Data e Hora {#cap-05-data-hora}
@@ -274,7 +273,7 @@ A seção Data e Hora com o NTP desligado, depois de um acerto manual.
 | Campo | O que faz | Faixa e formato | Fábrica | Aplicação | Chave |
 |---|---|---|---|---|---|
 | **Resolução DS18B20** (*DS18B20 Resolution*) | Resolução das sondas DS18B20 | **9-bit**, 10-bit, 11-bit ou **12-bit** | 12 bits | Reinicia (`sensing`) | `res` |
-| **Amostra (ms)** (*Sample Interval (ms)*) | Intervalo entre leituras dos sensores | 1.000 a 60.000 ms | 2.000 ms | Reinicia (`sensing`) | `s_int` |
+| **Amostra (ms)** (*Sample Interval (ms)*) | Sem efeito: o ritmo de leitura é fixo por tipo de sensor ([capítulo 6](#cap-06-amostra)) | 1.000 a 60.000 ms | 2.000 ms | Grava sem reiniciar | `s_int` |
 | **Intervalo Histórico (min)** (*History Recording Interval (min)*) | Intervalo entre registros gravados no histórico | 1 a 1.440 min | 1 min | Reinicia (`web`) | `h_int` |
 | **Teclado do painel: glifos por tecla** (*Panel keypad: glyphs per key*) | Quantos caracteres cada tecla do PIN mostra | 1, 2 ou 3 | 3 | Reinicia (`users`) | `pin_kb` |
 | **Caracteres do PIN** (*PIN characters*) | Alfabeto do PIN | `0-9` ou `0-9 A-Z` | `0-9` | Reinicia (`users`) | `pin_alpha` |
@@ -319,11 +318,13 @@ Esta seção envia os eventos do log a um coletor syslog na rede, para que a tri
 
 Com o interruptor ligado e o **IP do Coletor** vazio, nada é enviado. O formato das mensagens e a configuração do coletor estão no [capítulo 25](#cap-25).
 
-::: {.figura #fig-05-syslog tipo="web" arquivo="05-syslog.png" captura="rota /config; largura 1280; sessão admin; syslog ligado com IP do Coletor 192.0.2.10, porta 514 e nível Info; recorte das seções Syslog Remoto e Calibração do Touch"}
+::: {.figura #fig-05-syslog tipo="web" arquivo="05-syslog.png" captura="rota /config; largura 1280; sessão admin; imagem release; syslog ligado com IP do Coletor 192.0.2.10, porta 514 e nível Info; recorte das seções Syslog Remoto e Calibração do Touch"}
 As duas últimas seções da página: o syslog e a calibração do touch.
 :::
 
 ### Calibração do Touch {#cap-05-touch}
+
+[release]{.img}
 
 O botão **Resetar Calibração** (*Reset Touch Calibration*) apaga a calibração do toque guardada e abre o assistente de calibração no painel. Ele age na hora, sem passar pela barra de topo:
 
@@ -333,7 +334,7 @@ O botão **Resetar Calibração** (*Reset Touch Calibration*) apaga a calibraç�
 
 O aviso **Calibração resetada. Recalibre pelo display.** confirma. Se alguém tocou no painel há menos de 5 s, aparece **Display em uso. Tente novamente em alguns segundos.** O log de eventos registra `Touch calibration reset via web` com o código 303.
 
-Nas imagens alpha e Air, que não têm painel de toque, a seção também aparece. O botão só apaga o registro de calibração guardado e não tem outro efeito.
+A seção só aparece na imagem release, a única com painel de toque. Até a v2.7.3 ela aparecia também na alpha e no Air, onde o botão apagava o registro de calibração guardado e dizia que o assistente estava rodando num painel que não existe.
 
 ### Reiniciar {#cap-05-reiniciar}
 
@@ -354,10 +355,10 @@ Todos os campos da página **Configurações** que passam pela barra de topo, na
 |---|---|---|---|---|
 | `name` | **Nome** | 1 a 31 caracteres | `simut` | `identity`, reinicia |
 | `tz` | **Fuso Horário** | −12 a +14 | −3 | `time`, reinicia |
-| `log` | **Registro Local** | `1` ou `0` | `1` | `logging`, reinicia |
+| `log` | **Registro Local** | `1` ou `0` | `1` | nenhum, grava sem reiniciar |
 | `ntp_enabled` | **Sincronizar automaticamente via NTP** | `1` ou `0` | `1` | `web`, reinicia |
 | `res` | **Resolução DS18B20** | 9 a 12 | 12 | `sensing`, reinicia |
-| `s_int` | **Amostra (ms)** | 1000 a 60000 | 2000 | `sensing`, reinicia |
+| `s_int` | **Amostra (ms)** | 1000 a 60000 | 2000 | nenhum, grava sem reiniciar |
 | `h_int` | **Intervalo Histórico (min)** | 1 a 1440 | 1 | `web`, reinicia |
 | `pin_kb` | **Teclado do painel: glifos por tecla** | 1 a 3 | 3 | `users`, reinicia |
 | `pin_alpha` | **Caracteres do PIN** | 0 (`0-9`) ou 1 (`0-9 A-Z`) | 0 | `users`, reinicia |

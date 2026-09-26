@@ -163,7 +163,7 @@ Detalhes no [capítulo 5](#cap-05).
 | **Registro Local** desligado, mas o log de eventos continua sendo gravado | A preferência não é consultada nesta versão | Nada a fazer; o log de eventos não tem interruptor pela web |
 | Baixar a **Resolução DS18B20** não deixou a leitura mais rápida | O aparelho espera 750 ms por leitura em qualquer resolução | Deixe em 12 bits, a mais precisa |
 | Os campos da política de PIN não aparecem | A imagem não tem painel de toque (alpha ou Air) | Normal: a política só existe na imagem release |
-| **Resetar Calibração** não fez nada visível | Imagem alpha ou Air, sem painel de toque | Normal nessas imagens |
+| A seção **Calibração do Touch** não aparece em **Configurações** | Imagem alpha ou Air, sem painel de toque | Normal desde a v2.7.4: a seção só existe na imagem release |
 
 ## Sensores e calibração {#cap-30-sensores}
 

@@ -493,11 +493,27 @@
   "at 2.7.3), the one digit sitting inside the gzip'd login page. Budgets do not",
   "move. Margins left: 2,632 release, test, test_https and asserts, 2,920 alpha,",
   "2,960 air; .bin slack under the OTA ceiling: release 30,132, test 24,588,",
-  "test_https 16,964, asserts 27,956, alpha 62,324, air 21,460."
+  "test_https 16,964, asserts 27,956, alpha 62,324, air 21,460.",
+  "2026-09-26 (chore/v2.7.4, on main 7824d95 = #190): all six built with",
+  "SIMUT_VERSION 2.7.4. Against the 'measured' here: test +8, the other five",
+  "to the byte. #190 cuts the touch-calibration section from the alpha and Air",
+  "pages (-222 B gzipped there, inside the 4 KiB pad before .data, so neither",
+  ".bin moves) and, since the asset stamp is the hash of WebUI.h, re-stamps",
+  "every page; test reuses the release's header, so its +8 is linker layout.",
+  "The bump changes one digit inside the gzip'd login page and no size. #181",
+  "and #184 had moved 'measured' without moving 'measured_at_commit', which",
+  "still described #175; it now names this commit. Budgets do not move.",
+  "Against v2.7.3's 'measured': release -240 (+2,704 at #175, -2,984 at #181,",
+  "+40 at #184, the three commits that moved it), test -384, test_https -352,",
+  "asserts -240, alpha -168, air -184. Margins left: 2,592 release, test,",
+  "test_https and asserts, 2,920 alpha, 2,960 air; .bin slack under the OTA",
+  "ceiling: release 30,372, test 24,972, test_https 17,316, asserts 28,196,",
+  "alpha 62,324, air 21,460. Against the published v2.7.3 .bin: release -240,",
+  "alpha and air the same size to the byte."
  ],
  "ceiling": 1044480,
  "measured_on": "2026-09-26",
- "measured_at_commit": "fix/scan-breaks-bmp280-i2c on main c4d7b12: raised pico_w_release (1000924) + pico_w_asserts (1003100) budgets to measured + 2632 B headroom. The scan I2C-bus recovery pulls i2c_deinit/i2c_init (~72 B), and the P2 sensor-driver seam (#168-174) had already consumed the old headroom, so these two crossed the mark; the other four still fit. measured is the zopfli image PlatformIO prints.",
+ "measured_at_commit": "chore/v2.7.4 on main 7824d95 (#190 merged; SIMUT_VERSION 2.7.4; budgets unchanged). All six rebuilt here; test moved +8, the other five match what #184 (2420998) wrote, to the byte. measured is the zopfli image PlatformIO prints.",
  "envs": {
   "pico_w_release": {
    "budget": 1000572,
@@ -505,7 +521,7 @@
   },
   "pico_w_test": {
    "budget": 1005972,
-   "measured": 1003372
+   "measured": 1003380
   },
   "pico_w_test_https": {
    "budget": 1013628,

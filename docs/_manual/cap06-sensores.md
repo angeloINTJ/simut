@@ -26,7 +26,7 @@ A seção Hardware com os valores de fábrica: resolução de 12 bits, amostra d
 | Campo | O que faz | Faixa | Fábrica | Reinicia |
 |---|---|---|---|---|
 | **Resolução DS18B20** (*DS18B20 Resolution*) | Resolução da conversão de temperatura das sondas DS18B20 | **9-bit**, `10-bit`, `11-bit`, **12-bit** | 12-bit | Sim |
-| **Amostra (ms)** (*Sample Interval (ms)*) | Gravado, mas sem efeito na v2.7.1 ([Amostra (ms)](#cap-06-amostra)) | 1000 a 60000 | 2000 | Sim |
+| **Amostra (ms)** (*Sample Interval (ms)*) | Gravado, mas sem efeito ([Amostra (ms)](#cap-06-amostra)) | 1000 a 60000 | 2000 | Não, desde a v2.7.4 |
 | **Intervalo Histórico (min)** (*History Recording Interval (min)*) | De quantos em quantos minutos o histórico grava um registro | 1 a 1440 | 1 | Sim |
 | **Teclado do painel: glifos por tecla** | Política de PIN do painel | 1, 2 ou 3 | 3 | Sim |
 | **Caracteres do PIN** | Política de PIN do painel | `0-9` ou `0-9 A-Z` | `0-9` | Sim |
@@ -43,7 +43,7 @@ O aparelho sempre espera 750 ms pela conversão, que é o tempo da resolução d
 ### Amostra (ms) {#cap-06-amostra}
 
 ::: atencao
-**Na v2.7.1, este campo não muda nada.** O aparelho valida o valor (de 1000 a 60000 ms), grava e informa na página, mas nenhuma parte do firmware o usa. O ritmo de leitura é fixo por tipo de sensor ([Leitura e histórico](#cap-06-intervalos)). Mudar o campo só provoca um reinício.
+**Este campo não muda nada.** O aparelho valida o valor (de 1000 a 60000 ms), grava e informa na página, mas nenhuma parte do firmware o usa. O ritmo de leitura é fixo por tipo de sensor ([Leitura e histórico](#cap-06-intervalos)). Desde a v2.7.4, mudar o campo grava sem reiniciar; até a v2.7.3, provocava um reinício, e nada mais.
 :::
 
 ### Intervalo Histórico (min) {#cap-06-intervalo-historico}
@@ -231,7 +231,7 @@ O botão **Procurar sondas** varre os pinos do aparelho em busca de sensores lig
 A busca por BME280 e BMP280 olha só o par GP4/GP5. Um sensor I²C em outros pinos não aparece na busca, mas funciona se você configurar o slot à mão.
 
 ::: atencao
-**A busca mexe nos pinos.** Para testar cada pino, o aparelho reconfigura um a um os GPIOs de GP0 a GP16, inclusive os de sensores ativos, e a página não recarrega os sensores depois. Faça a busca antes de configurar os slots, ou reinicie o aparelho depois dela.
+**A busca mexe nos pinos.** Para testar cada pino, o aparelho reconfigura um a um os GPIOs de GP0 a GP16, inclusive os de sensores ativos, e a página não recarrega os sensores depois. Desde a v2.7.4, o aparelho devolve ao BMP280 ou BME280 os pinos de I²C de hardware no fim da busca; até a v2.7.3, esse sensor entrava em erro uns 10 s depois e ficava assim até o aparelho perder a energia. O GP16 continua sem voltar ao estado de antes ([capítulo 2](#cap-02-livres)): faça a busca antes de configurar os slots, ou reinicie o aparelho depois dela.
 :::
 
 ::: {.figura #fig-06-procurar tipo="web" arquivo="06-procurar.png" captura="rota /config; largura 1280; sessão admin; imagem release; um DS18B20 em GP2 e um DHT22 em GP3 ligados; logo depois de tocar em Procurar sondas e a busca terminar; recorte dos botões e da linha de resultado"}
