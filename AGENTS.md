@@ -265,6 +265,15 @@ python3 tools/check_flash_budget.py <env> build.log   # o CI roda assim; local, 
 - **`tools/flash_budget.json` desce na mesma mudança que encolhe a imagem.** Um
   orçamento que só sobe deixa de ser marca d'água. Compare o `.bin`, não o
   `used` do PlatformIO (soma de seções, ~12 kB abaixo).
+- **Economia por recurso**: `tools/measure_savings.py` mede quanto de flash e RAM
+  cada chave devolve quando desligada, e `tools/feature_savings.json` guarda o
+  piso — um ratchet ao contrário do orçamento (a economia só sobe). O portão
+  `measure_savings.py --check` reprova se um recurso vazou para o caminho
+  sempre-ligado e deixou de sumir. Constrói ~13 imagens, então NÃO está no job
+  `gates`: roda em `.github/workflows/savings.yml` (noturno/manual). Ao mexer no
+  que um recurso guarda, confira barato com `--check --only <recurso>`. A tabela
+  e os achados (bluetooth = 140 kB; buzzer preso ao SIMUT_AIR) estão em
+  [docs/analysis/ECONOMIA_DE_RECURSOS.md](docs/analysis/ECONOMIA_DE_RECURSOS.md).
 - `PLATFORMIO_BUILD_FLAGS` muda o checksum do projeto e **apaga `.pio/build`
   inteiro**, todos os ambientes. Cada experimento por flag é uma build completa.
 - O `zopfli` é opcional (`pip install zopfli`): sem ele as páginas web caem para

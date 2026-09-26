@@ -1,0 +1,42 @@
+{
+  "cli_full": {
+    "base": "pico_w_test",
+    "flash_saved": 48232,
+    "ram_saved": 0
+  },
+  "web_https": {
+    "base": "pico_w_release",
+    "flash_saved": 24520,
+    "ram_saved": 24
+  },
+  "mdns": {
+    "base": "pico_w_release",
+    "flash_saved": 16576,
+    "ram_saved": 168
+  },
+  "concurrency_asserts": {
+    "base": "pico_w_asserts",
+    "flash_saved": 2176,
+    "ram_saved": 0
+  },
+  "bluetooth": {
+    "base": "pico_w_alpha",
+    "flash_saved": 140132,
+    "ram_saved": 19348
+  },
+  "sensor_ds18b20": {
+    "base": "pico_w_release",
+    "flash_saved": 5432,
+    "ram_saved": 64
+  },
+  "sensor_dht22": {
+    "base": "pico_w_release",
+    "flash_saved": 3400,
+    "ram_saved": 0
+  },
+  "sensor_bme280": {
+    "base": "pico_w_release",
+    "flash_saved": 17724,
+    "ram_saved": 220
+  }
+}
