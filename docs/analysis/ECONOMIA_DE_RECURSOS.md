@@ -40,6 +40,15 @@ a variante é o mesmo perfil com só ele desligado, derivada pelo modelo
 | `concurrency_asserts` | `pico_w_asserts` | 2 176 B | 0 B |
 | `license_stub` | `pico_w_test` | −1 728 B | 0 B |
 
+> **Cada número vale para a sua base, não para todo produto.** A matriz do
+> configurador (`tools/feature_costs.json`, escrita por
+> `measure_savings.py --matrix` em 26/09) mede cada chave a partir de cada
+> produto publicado, e o valor muda de base para base: o buzzer devolve 5.016 B
+> no SIMUT e 8.224 B no Alpha; o `web_https` custa 24.528 B no SIMUT, 21.776 B
+> no Alpha e 25.768 B no Air; o Bluetooth, que devolve 140.196 B no Alpha, nem
+> cabe no SIMUT (estoura o slot em 105.964 B). Este documento guarda o piso de
+> economia por recurso; o custo por produto mora lá.
+
 Os três achados que a medição trouxe:
 
 1. **A RAM estática quase não se move ao desligar.** `bluetooth` é a exceção
@@ -52,13 +61,16 @@ Os três achados que a medição trouxe:
 
 2. **`license_stub` é "ligar para economizar".** O stub *remove* o texto da
    licença; desligá-lo o *adiciona* (+1 728 B). Fica fora do piso "desligar
-   economiza" — não é um recurso que se desliga para poupar.
+   economiza" — não é um recurso que se desliga para poupar. E só a tela de
+   Licença do mostrador touch lê esse texto: no Alpha e no Air a imagem sai
+   idêntica, byte a byte, com a chave ligada ou desligada (matriz, 26/09).
 
 3. **O buzzer ganhou a própria chave (2026-09-26).** Antes estava preso ao
    `SIMUT_AIR`: `SoundManager.h` só virava no-op lá, então excluir
    `SoundManager.cpp` numa build TFT/normal não linkava. O macro
    `SIMUT_SOUND_BUZZER` (default 1, no-op também sob `!SIMUT_SOUND_BUZZER`)
-   destravou: `sound_buzzer` agora devolve 5 008 B em qualquer perfil, e a troca é
+   destravou: `sound_buzzer` agora desliga em qualquer perfil (5 008 B no release;
+   por produto, veja a nota acima da lista), e a troca é
    **byte-idêntica** nos seis firmwares (o caminho ligado não mudou). O `air`
    **continua acoplado**, por outro motivo: o perfil `air` usa `display=nenhum`,
    que exclui `DisplayManager.cpp`, e o caminho de boot não-air (`SIMUT_AIR=0`)

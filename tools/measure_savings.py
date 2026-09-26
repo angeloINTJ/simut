@@ -22,6 +22,18 @@ economia cai e o portao reprova: o recurso vazou para o caminho sempre-ligado.
   tools/measure_savings.py --only air     # so um recurso (rapido)
   tools/measure_savings.py --update        # grava o piso em tools/feature_savings.json
   tools/measure_savings.py --check         # reprova se a economia caiu abaixo do piso
+  tools/measure_savings.py --matrix        # custos POR PRODUTO p/ o configurador
+  tools/measure_savings.py --checks        # so as combinacoes de conferencia
+
+--matrix mede, para cada produto publicado, o que muda ao inverter CADA chave a
+partir dele, e grava tools/feature_costs.json — a estimativa do configurador
+(docs/configurador/). Existe porque custo medido numa base nao vale noutra: o
+buzzer devolve 5.016 B no SIMUT e 8.224 B no Alpha, e o Bluetooth, que devolve
+140.196 B no Alpha, nem cabe no SIMUT (estoura o slot em 105.964 B; medido
+2026-09-26). Inversao que quebra uma regra do manifesto nao compila e fica
+anotada; inversao que estoura o flash registra o excesso que o linker da.
+Depois das inversoes, compila as combinacoes de CHECKS de verdade: a pagina
+soma as diferencas, e e contra estas builds que ela mede o quanto a soma erra.
 
 Metrica: o `used` que o proprio PlatformIO reporta (ELF), nao o .bin — e o numero
 consistente entre base e variante, e o que importa aqui e a DIFERENCA. O flash e o
@@ -32,9 +44,12 @@ do linker) — ver RAM_TOL.
 @license MIT License
 """
 import argparse
+import datetime
+import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 
@@ -44,6 +59,8 @@ import gen_features as gf  # noqa: E402  (reusa compose/emit_env — mesma fonte
 ROOT = gf.ROOT
 PROFILES_INI = os.path.join(ROOT, "tools", "generated", "profiles.ini")
 LEDGER = os.path.join(ROOT, "tools", "feature_savings.json")
+COSTS_PATH = os.path.join(ROOT, "tools", "feature_costs.json")
+OVERFLOW_RE = re.compile(r"region `?FLASH'? overflowed by (\d+) bytes")
 
 # RAM estatica pode oscilar poucos bytes por alinhamento do linker mesmo quando a
 # RAM do recurso nao muda; o piso de RAM aceita essa folga. O flash nao tem folga.
@@ -136,13 +153,52 @@ def parse_sizes(text):
     return out
 
 
-def pio_build(env):
-    """Constroi um env e devolve {'flash':N,'ram':M}, ou None se falhou."""
+def pio_run(env):
     pio = os.path.expanduser("~/.platformio/penv/bin/pio")
     if not os.path.exists(pio):
         pio = "pio"
-    r = subprocess.run([pio, "run", "-e", env],
-                       cwd=ROOT, capture_output=True, text=True)
+    return subprocess.run([pio, "run", "-e", env],
+                          cwd=ROOT, capture_output=True, text=True)
+
+
+# build_webui_gz.py cai para gzip -9 quando o python do PlatformIO nao tem o
+# zopfli, e a imagem sai ~2.888 B maior do que o CI a mede. Uma medida assim nao
+# e um custo, e um erro de instrumento: recusada, nunca gravada.
+NO_ZOPFLI = "WARN zopfli not installed"
+
+
+def pio_build_full(env, echo=False):
+    """Constroi e devolve {'used','bin','ram','sha256'}; se o linker estoura o
+    flash, {'overflow': N} (o excesso que ELE mede); senao {'error': a 1a linha}.
+    O sha256 do .bin e o que prova que uma chave nao muda nada num produto.
+    `echo` repassa a saida inteira do PlatformIO: no CI e o log da build."""
+    r = pio_run(env)
+    if echo:
+        sys.stdout.write(r.stdout)
+        sys.stdout.write(r.stderr)
+        sys.stdout.flush()
+    if NO_ZOPFLI in r.stdout:
+        return {"error": "zopfli ausente no python do PlatformIO: medida recusada"}
+    sizes = parse_sizes(r.stdout)
+    if r.returncode == 0 and sizes:
+        binp = os.path.join(ROOT, ".pio", "build", env, "firmware.bin")
+        with open(binp, "rb") as fh:
+            digest = hashlib.sha256(fh.read()).hexdigest()
+        return {"used": sizes["flash"], "bin": os.path.getsize(binp), "ram": sizes["ram"],
+                "sha256": digest}
+    out = r.stdout + r.stderr
+    m = OVERFLOW_RE.search(out)
+    if m:
+        return {"overflow": int(m.group(1))}
+    first = next((ln.strip() for ln in out.splitlines()
+                  if "error:" in ln or "undefined reference" in ln
+                  or "multiple definition" in ln), "build falhou")
+    return {"error": first[:200]}
+
+
+def pio_build(env):
+    """Constroi um env e devolve {'flash':N,'ram':M}, ou None se falhou."""
+    r = pio_run(env)
     sizes = parse_sizes(r.stdout)
     if r.returncode != 0 or sizes is None:
         sys.stderr.write(f"[falha ao construir {env}]\n")
@@ -280,6 +336,181 @@ def cmd_check(results, targets):
     return 0
 
 
+def _git(*args):
+    return subprocess.run(["git", *args], cwd=ROOT, capture_output=True,
+                          text=True).stdout.strip()
+
+
+# Combinacoes de conferencia: compiladas de verdade, para a pagina medir o erro
+# da soma que ela faz (docs/configurador/logic.js). Escolhidas onde a interacao
+# e plausivel — Bluetooth junto de rede e console, sensores junto do buzzer
+# (os dois usam a PIO), a CLI completa sem a familia que ela comanda — e um caso
+# sem interacao, que tem de dar erro zero. Na primeira medicao (2026-09-26) a
+# soma errou de 0 a 4.392 B: por isso o numero e medido, nao escrito na pagina.
+CHECKS = [
+    ("pico_w_release", {"mdns": False, "sound_buzzer": False, "sensor_bme280": False}),
+    ("pico_w_release", {"web_https": False, "license_stub": True, "concurrency_asserts": True}),
+    ("pico_w_alpha", {"bluetooth": False, "mdns": True, "web_https": True, "cli_full": True}),
+    ("pico_w_alpha", {"sound_buzzer": False, "sensor_dht22": False, "sensor_bme280": False}),
+    ("pico_w_alpha", {"cli_full": True, "sensor_ds18b20": False}),
+    ("pico_w_air", {"bluetooth": False, "web_https": True, "mdns": True}),
+    ("pico_w_air", {"cli_full": False, "concurrency_asserts": True, "sensor_bme280": False}),
+    ("pico_w_air", {"sensor_ds18b20": False, "sensor_dht22": False, "sensor_bme280": False}),
+]
+
+
+def measure_checks():
+    """Compila CHECKS e devolve [{base, set, used, bin, ram}] (ou overflow/error).
+    So o numero REAL: a estimativa e a da pagina, que le estes valores e mede o
+    proprio erro — assim a soma existe num lugar so."""
+    M = gf.load_manifest()
+    blocks, plan = [], []
+    for i, (p, changes) in enumerate(CHECKS):
+        prof = gf.resolve_profile(p, M["profiles"])
+        prof.update(changes)
+        bad = gf.rule_violations(gf.config_of(prof), M)
+        if bad:
+            sys.exit(f"measure_savings: a conferencia {i} quebra a regra {bad[0]['id']}")
+        env = f"_check_{i}"
+        blocks.append(gf.emit_env(env, gf.compose(prof, M)))
+        plan.append((p, changes, env))
+    out = []
+    with TempEnvs(blocks):
+        for p, changes, env in plan:
+            r = pio_build_full(env)
+            r.pop("sha256", None)
+            out.append({"base": p, "set": changes, **r})
+            shutil.rmtree(os.path.join(ROOT, ".pio", "build", env), ignore_errors=True)
+    return out
+
+
+def print_checks(doc):
+    """Console apenas: a mesma soma da pagina, para quem roda ver o erro ja."""
+    for c in doc.get("checks", []):
+        base = doc["products"][c["base"]]["base"]
+        flips = doc["products"][c["base"]]["flips"]
+        est = base["used"] + sum(flips[k]["used"] - base["used"] for k in c["set"] if "used" in flips[k])
+        what = ", ".join(f"{k}={'on' if v else 'off'}" for k, v in c["set"].items())
+        if "used" in c:
+            print(f"  {c['base']:<15} {what}: real {c['used']}, soma {est}, erro {c['used'] - est:+} B")
+        else:
+            print(f"  {c['base']:<15} {what}: {c}")
+
+
+def cmd_checks():
+    with open(COSTS_PATH, encoding="utf-8") as fh:
+        doc = json.load(fh)
+    doc["checks"] = measure_checks()
+    with open(COSTS_PATH, "w", encoding="utf-8") as fh:
+        json.dump(doc, fh, indent=2, ensure_ascii=False)
+        fh.write("\n")
+    print("conferencias (real contra a soma das inversoes):")
+    print_checks(doc)
+    return 0
+
+
+def measure_matrix():
+    """Para cada produto publicado: a base, e cada chave invertida a partir dela."""
+    M = gf.load_manifest()
+    products = [p for p in M["profiles"]
+                if gf.resolve_profile(p, M["profiles"]).get("publish")]
+    blocks, plan = [], []
+    for p in products:
+        prof = gf.resolve_profile(p, M["profiles"])
+        for t in gf.TOGGLE_ORDER:
+            flipped = dict(prof)
+            flipped[t] = not bool(prof.get(t, False))
+            bad = gf.rule_violations(gf.config_of(flipped), M)
+            if bad:
+                plan.append((p, t, None, bad[0]["id"]))
+                continue
+            env = f"_cost_{p}_{t}"
+            blocks.append(gf.emit_env(env, gf.compose(flipped, M)))
+            plan.append((p, t, env, None))
+
+    result = {"products": {}}
+    with TempEnvs(blocks):
+        for p in products:
+            base = pio_build_full(p)
+            if "used" not in base:
+                sys.exit(f"measure_savings: a base {p} nao compilou: {base}")
+            result["products"][p] = {"base": base, "flips": {}}
+        for p, t, env, rule in plan:
+            if rule:
+                result["products"][p]["flips"][t] = {"rule": rule}
+                continue
+            r = pio_build_full(env)
+            # A mesma imagem, byte a byte: a chave nao tem consumidor neste
+            # produto (o texto curto da licenca so existe na tela touch). A pagina
+            # mostra isso em vez de um "+0 B" que parece economia.
+            if r.pop("sha256", None) == result["products"][p]["base"]["sha256"]:
+                r["same"] = True
+            result["products"][p]["flips"][t] = r
+            # uma pasta de build inteira por inversao: nao guardar dezenas delas
+            shutil.rmtree(os.path.join(ROOT, ".pio", "build", env), ignore_errors=True)
+    for v in result["products"].values():
+        v["base"].pop("sha256", None)
+    return result
+
+
+def cmd_matrix():
+    res = measure_matrix()
+    doc = {
+        "_comment": [
+            "Custos POR PRODUTO para o configurador (docs/configurador/). GERADO por",
+            "tools/measure_savings.py --matrix; nao edite a mao. Para cada produto",
+            "publicado: `base` e a imagem como o manifesto a define, e cada `flips.<chave>`",
+            "e a MESMA imagem com so aquela chave invertida — used/bin/ram medidos, ou",
+            "`overflow` (o excesso que o linker reporta quando nao cabe no slot), ou",
+            "`rule` (a regra do manifesto que proibe a combinacao; nao foi compilada).",
+            "`same: true` diz que a imagem saiu identica a base, byte a byte: a chave nao",
+            "tem consumidor naquele produto, e a pagina diz isso em vez de mostrar +0 B.",
+            "A pagina SOMA as diferencas quando mais de uma chave muda: estimativa, e ela",
+            "diz isso. O numero real vem da build (tools/build_custom.py). `checks` sao",
+            "combinacoes compiladas de verdade: a pagina compara cada uma com a soma dela",
+            "e usa o maior erro como margem de \"perto do limite\".",
+        ],
+        "measured_at": {
+            "date": datetime.date.today().isoformat(),
+            "src_commit": _git("log", "-1", "--format=%h", "--", "src"),
+            "src_dirty": bool(_git("status", "--porcelain", "--", "src")),
+        },
+        "products": res["products"],
+        "checks": measure_checks(),
+    }
+    with open(COSTS_PATH, "w", encoding="utf-8") as fh:
+        json.dump(doc, fh, indent=2, ensure_ascii=False)
+        fh.write("\n")
+    errors = 0
+    for p, v in res["products"].items():
+        b = v["base"]
+        print(f"\n{p}: base used={b['used']} bin={b['bin']} ram={b['ram']}")
+        for t, r in v["flips"].items():
+            if r.get("same"):
+                print(f"  {t:<20} a mesma imagem: a chave nao muda nada neste produto")
+            elif "used" in r:
+                print(f"  {t:<20} flash {r['used'] - b['used']:+8} B  ram {r['ram'] - b['ram']:+7} B")
+            elif "overflow" in r:
+                print(f"  {t:<20} NAO CABE: estoura o slot em {r['overflow']} B")
+            elif "rule" in r:
+                print(f"  {t:<20} proibida pela regra {r['rule']}")
+            else:
+                errors += 1
+                print(f"  {t:<20} ERRO: {r['error']}")
+    print("\nconferencias (real contra a soma das inversoes):")
+    print_checks(doc)
+    print(f"\ngravado: {os.path.relpath(COSTS_PATH, ROOT)} "
+          "— rode python3 tools/gen_features.py para levar ao model.json")
+    if errors:
+        # Uma inversao que nao compila e um defeito de chaveamento (ou uma regra
+        # que falta no manifesto), nao um custo: a pagina ofereceria uma build
+        # que falha. Em 2026-09-26 foram duas, no Air — ambas consertadas no src/.
+        print(f"measure_savings: {errors} inversao(oes) nao compilam — conserte ou "
+              "declare a regra em tools/features.toml [[rules]]")
+        return 1
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -288,7 +519,16 @@ def main():
     ap.add_argument("--update", action="store_true", help="grava o piso no ledger")
     ap.add_argument("--check", action="store_true", help="reprova se a economia caiu")
     ap.add_argument("--list", action="store_true", help="lista os recursos medidos")
+    ap.add_argument("--matrix", action="store_true",
+                    help="custos por produto -> tools/feature_costs.json")
+    ap.add_argument("--checks", action="store_true",
+                    help="so as combinacoes de conferencia, no feature_costs.json existente")
     args = ap.parse_args()
+
+    if args.matrix:
+        return cmd_matrix()
+    if args.checks:
+        return cmd_checks()
 
     if args.list:
         for f in all_feature_names():

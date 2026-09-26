@@ -1,0 +1,30 @@
+{
+  "_comment": [
+    "O que as regras do manifesto (tools/features.toml [[rules]] e [[hazards]]) têm de",
+    "responder. tools/test_configurator_rules.py roda esta tabela no validador Python",
+    "(tools/gen_features.py rule_violations, o que tools/build_custom.py aplica antes de",
+    "compilar) E no JS (docs/configurador/rules.js, o que a página aplica para travar",
+    "opções): os dois têm de dar exatamente `violates`/`hazards`. Toda regra e todo aviso",
+    "precisa de pelo menos um caso que o acenda. Estes casos são de LÓGICA; se a imagem",
+    "cabe no flash é outra pergunta, respondida pela estimativa e, de fato, pela build."
+  ],
+  "cases": [
+    {"name": "SIMUT as shipped",               "base": "pico_w_release", "set": {},                                                       "violates": []},
+    {"name": "SIMUT Alpha as shipped",         "base": "pico_w_alpha",   "set": {},                                                       "violates": []},
+    {"name": "SIMUT Air as shipped",           "base": "pico_w_air",     "set": {},                                                       "violates": []},
+    {"name": "SIMUT without mDNS",             "base": "pico_w_release", "set": {"mdns": false},                                          "violates": []},
+    {"name": "SIMUT without any sensor",       "base": "pico_w_release", "set": {"sensor_ds18b20": false, "sensor_dht22": false, "sensor_bme280": false}, "violates": []},
+    {"name": "SIMUT with hibernation",         "base": "pico_w_release", "set": {"air": true},                                            "violates": ["air-needs-headless", "air-no-buzzer"]},
+    {"name": "SIMUT with hibernation, no buzzer", "base": "pico_w_release", "set": {"air": true, "sound_buzzer": false},              "violates": ["air-needs-headless"]},
+    {"name": "Alpha with hibernation, no buzzer", "base": "pico_w_alpha", "set": {"air": true, "sound_buzzer": false},                "violates": ["air-needs-headless"]},
+    {"name": "Air without hibernation",        "base": "pico_w_air",     "set": {"air": false},                                           "violates": ["headless-needs-air"]},
+    {"name": "Air with the buzzer",            "base": "pico_w_air",     "set": {"sound_buzzer": true},                                   "violates": ["air-no-buzzer"]},
+    {"name": "Air without Bluetooth",          "base": "pico_w_air",     "set": {"bluetooth": false},                                     "violates": []},
+    {"name": "Air with the full CLI off",      "base": "pico_w_air",     "set": {"cli_full": false},                                      "violates": []}
+  ],
+  "hazard_cases": [
+    {"name": "SIMUT as shipped",               "base": "pico_w_release", "set": {},                  "hazards": []},
+    {"name": "SIMUT with Bluetooth",           "base": "pico_w_release", "set": {"bluetooth": true}, "hazards": ["bt-flash-core1"]},
+    {"name": "SIMUT Alpha as shipped",         "base": "pico_w_alpha",   "set": {},                  "hazards": []}
+  ]
+}

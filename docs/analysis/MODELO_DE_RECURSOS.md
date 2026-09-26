@@ -90,7 +90,8 @@ tools/features.toml            o manifesto: a única fonte
         │                            arquivo do recurso, rota/comando/página sem etiqueta,
         │                            perfil gerado ≠ perfil commitado
         │
-        └─ tools/features_cost.json  a matriz de custo, escrita pelo CI, nunca à mão
+        └─ tools/feature_costs.json  a matriz de custo por produto, escrita pela máquina
+                                     (measure_savings.py --matrix), nunca à mão
 ```
 
 A escolha de gerar um `.ini` incluído por `extra_configs`, em vez de reescrever
@@ -882,6 +883,44 @@ elimina.
 4. A saída é `profile.toml`, e um botão dispara o `features-matrix.yml` com
    ele: o CI constrói, mede e anexa o `.uf2` com os números reais. **A cotação
    vira binário medido**, que é a regra da casa.
+
+> **Estado em 26/09: o modelo e a build sob medida existem; a página vem no
+> PR seguinte.** O que a página vai ler já é gerado e conferido
+> (`docs/configurador/model.json`, pelo `gen_features.py`), e o
+> `tools/build_custom.py` compila um perfil escolhido: sem mudanças, a imagem
+> sai idêntica byte a byte à publicada; com o Air sem Bluetooth, sai exatamente
+> no número que a matriz mediu. Quatro coisas saíram diferentes do plano acima,
+> cada uma por um motivo medido.
+>
+> - **Regras medidas, não semântica de Kconfig.** Cada `[[rules]]` do manifesto
+>   é `when` → `require` e carrega a evidência de ter compilado a combinação que
+>   proíbe: `air` exige `display = nenhum` (dois `DisplayManager` no link), sem
+>   mostrador exige `air` (falta `DisplayManager::begin`), e `air` exige o
+>   buzzer desligado (`BuzzerNote` deixa de ser tipo). A segunda nenhum
+>   `requires` escrito à mão tinha previsto. `[[hazards]]` guarda o que compila
+>   mas é risco conhecido (R-H24). A página aplica as regras por
+>   `docs/configurador/rules.js`, a build pelo `gen_features.rule_violations`, e
+>   `tools/test_configurator_rules.py` roda uma tabela nos dois.
+> - **Custo por produto, não por chave.** Uma chave custa diferente em cada
+>   base (o buzzer: 5.016 B no SIMUT, 8.224 B no Alpha), então
+>   `measure_savings.py --matrix` compila cada produto publicado com cada chave
+>   invertida, 32 builds, e grava `tools/feature_costs.json`. Quem sai idêntico
+>   à base, byte a byte, fica `same`: é chave sem efeito naquele produto. Oito
+>   combinações de conferência são compiladas de verdade, e a página mede
+>   contra elas o erro da própria soma: até 4.392 B no flash usado e 8.192 B
+>   no `.bin` (com o Bluetooth ligado, o `.bin` anda em degraus de 4 KB), e é
+>   esse erro que vira a margem de "no limite". A primeira passada achou
+>   duas inversões que não compilavam, consertadas no #185.
+> - **A saída é um perfil JSON, e o botão vai disparar `build-custom.yml`**,
+>   que roda o `build_custom.py`: reaplica as regras (a página não é a
+>   autoridade), recusa perfil malformado antes de baixar qualquer coisa
+>   (`tools/test_build_custom.py` tenta 34 formas) e publica o `.uf2` e o
+>   `.bin` com os tamanhos medidos. O `features-matrix.yml` do P4 é outra coisa:
+>   a matriz rodando no CI, que por enquanto roda à mão.
+> - **Ficou para depois:** a RAM contra os limiares da seção 4, o FS, os
+>   recursos finitos de hardware e o painel de maturidade do P6. A primeira
+>   página mostra o flash, o teto de OTA e o número de RAM, e diz que é
+>   estimativa.
 
 ### P8 — Testar perfis, não o produto cartesiano (M)
 

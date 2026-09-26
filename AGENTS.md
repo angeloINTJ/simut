@@ -272,8 +272,19 @@ python3 tools/check_flash_budget.py <env> build.log   # o CI roda assim; local, 
   sempre-ligado e deixou de sumir. Constrói ~13 imagens, então NÃO está no job
   `gates`: roda em `.github/workflows/savings.yml` (noturno/manual). Ao mexer no
   que um recurso guarda, confira barato com `--check --only <recurso>`. A tabela
-  e os achados (bluetooth = 140 kB; buzzer preso ao SIMUT_AIR) estão em
+  e os achados (bluetooth = 140 kB no Alpha; o buzzer, com chave própria desde
+  26/09) estão em
   [docs/analysis/ECONOMIA_DE_RECURSOS.md](docs/analysis/ECONOMIA_DE_RECURSOS.md).
+- **Build sob medida** (o configurador, P7 de `MODELO_DE_RECURSOS.md`):
+  `tools/build_custom.py --profile '{"v":1,"base":"pico_w_air","set":{"bluetooth":false}}'`
+  reaplica as regras do manifesto (exit 2 se quebra uma), compila e deixa em
+  `--out` o `.uf2`, o `.bin` e um `build.json` com tamanhos e sha256; exit 3 é
+  "não cabe no slot". `.github/workflows/build-custom.yml` faz o mesmo por
+  `workflow_dispatch` (só quem tem escrita dispara) e publica o artefato. A
+  estimativa da página vem de `tools/feature_costs.json`, que envelhece com o
+  código: quando uma mudança mexe no tamanho de um recurso, rode
+  `measure_savings.py --matrix` (32 builds e 8 conferências, cada uma completa) e depois
+  `gen_features.py`, que leva os números ao `docs/configurador/model.json`.
 - `PLATFORMIO_BUILD_FLAGS` muda o checksum do projeto e **apaga `.pio/build`
   inteiro**, todos os ambientes. Cada experimento por flag é uma build completa.
 - O `zopfli` é opcional (`pip install zopfli`): sem ele as páginas web caem para

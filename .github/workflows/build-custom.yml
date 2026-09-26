@@ -1,0 +1,119 @@
+name: SIMUT custom build
+
+# Compiles a build assembled in the configurator (docs/configurador/). The page
+# dispatches this workflow with the profile; tools/build_custom.py re-applies the
+# manifest's rules — the page is not the authority — compiles, and publishes the
+# .uf2 (flash over USB) and the .bin (install through the web interface's OTA)
+# as an artifact, with build.json carrying the measured sizes and sha256.
+#
+# Only accounts with write access can dispatch a workflow, so this is not open
+# to the public; the public page offers them "request this build" instead.
+#
+# The inputs are untrusted text. They reach the shell only through `env:` and
+# are read as variables — never interpolated into a `run:` script, which is the
+# GitHub Actions injection path. build_custom.py validates the profile strictly
+# before anything is downloaded or built.
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'Configurator profile: {"v":1,"base":"pico_w_air","set":{...}}'
+        required: true
+        type: string
+      request_id:
+        description: 'Id the page uses to find this run (a-z, 0-9, dash)'
+        required: true
+        type: string
+
+# The page finds its run by this title (the dispatch API returns no run id).
+run-name: custom build ${{ inputs.request_id }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Validate the request id
+        env:
+          REQUEST_ID: ${{ inputs.request_id }}
+        run: |
+          if [[ ! "$REQUEST_ID" =~ ^[a-z0-9-]{8,40}$ ]]; then
+            echo "request_id must be 8-40 characters of a-z, 0-9 and dash" >&2
+            exit 2
+          fi
+
+      - uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      # Before anything is downloaded: a profile that is malformed or breaks a
+      # rule fails here in seconds, not after a toolchain install.
+      - name: Validate the profile
+        env:
+          SIMUT_PROFILE: ${{ inputs.profile }}
+        run: python3 tools/build_custom.py --validate-only
+
+      - name: Cache PlatformIO packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.platformio
+          key: ${{ runner.os }}-pio-custom-${{ hashFiles('platformio.ini') }}
+          restore-keys: |
+            ${{ runner.os }}-pio-custom-
+            ${{ runner.os }}-pio-fw-
+
+      - name: Install PlatformIO
+        run: pip install platformio zopfli
+
+      # The same patched framework every firmware build uses: a factory
+      # arduino-pico has not compiled since v2.3.0 (see build.yml).
+      - name: Apply framework overrides
+        run: |
+          pio pkg install -e pico_w_release
+          bash tools/arduino_pico_overrides/patch.sh
+
+      - name: Build
+        id: build
+        env:
+          SIMUT_PROFILE: ${{ inputs.profile }}
+        run: python3 tools/build_custom.py --out build-custom
+
+      - name: Publish the firmware
+        uses: actions/upload-artifact@v7
+        with:
+          # The page reads the measured sizes back from this name: the artifact
+          # list is readable through the API, the job's outputs are not.
+          name: simut-${{ inputs.request_id }}-bin${{ steps.build.outputs.bin }}-ram${{ steps.build.outputs.ram }}
+          path: build-custom/
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Summary
+        env:
+          NAME: ${{ steps.build.outputs.name }}
+          USED: ${{ steps.build.outputs.used }}
+          BIN: ${{ steps.build.outputs.bin }}
+          RAM: ${{ steps.build.outputs.ram }}
+          FITS_OTA: ${{ steps.build.outputs.fits_ota }}
+        run: |
+          {
+            echo "### $NAME"
+            echo ""
+            echo "| | bytes |"
+            echo "|---|---:|"
+            echo "| flash used | $USED |"
+            echo "| .bin | $BIN |"
+            echo "| RAM used | $RAM |"
+            echo ""
+            if [ "$FITS_OTA" = "true" ]; then
+              echo "Installs over OTA (.bin) or USB (.uf2)."
+            else
+              echo "**Attention:** the .bin is over the OTA ceiling — flash the .uf2 over USB."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

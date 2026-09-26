@@ -3,7 +3,7 @@
 # Fonte única do que cada perfil de firmware liga, desliga e escolhe, e a FONTE do
 # build: tools/gen_features.py o transforma em tools/generated/profiles.ini (a config
 # do PlatformIO, incluida pelo platformio.ini via extra_configs) e em
-# tools/generated/features_model.json (para o configurador). O platformio.ini nao
+# docs/configurador/model.json (a arvore do configurador). O platformio.ini nao
 # define mais [env:pico_w_*]: guarda so o pico_base e os ambientes native. O portao
 # tools/check_features.py prova que os perfis resolvem, flag a flag e unidade de
 # traducao a unidade, para o que este manifesto descreve.
@@ -17,7 +17,7 @@
 
 [meta]
 version   = 1
-generates = ["tools/generated/profiles.ini", "tools/generated/features_model.json"]
+generates = ["tools/generated/profiles.ini", "docs/configurador/model.json"]
 # Os ambientes de host (native_*) NAO sao modelados aqui: sao suites de teste,
 # nao imagens de firmware. O portao os ignora.
 
@@ -115,6 +115,23 @@ emit           = "off_is_0"       # default do config e 1; desligado -DSIMUT_SOU
 off_exclude    = ["SoundManager.cpp"]
 off_lib_ignore = ["BuzzerPIO_RP2040"]
 
+# Os três drivers de sensor (2026-09-26). O default do simut_config.h é 1, então
+# ligado não emite nada e o profiles.ini não muda; desligado emite -D<macro>=0,
+# que o #178 provou compilar e encolher a imagem (drivers por classe, #172-175).
+# Os drivers ainda são headers: não há .cpp a excluir — o linker descarta o que
+# a guarda deixa sem referência.
+[toggles.sensor_ds18b20]
+macro = "SIMUT_SENSOR_DS18B20"
+emit  = "off_is_0"
+
+[toggles.sensor_dht22]
+macro = "SIMUT_SENSOR_DHT22"
+emit  = "off_is_0"
+
+[toggles.sensor_bme280]
+macro = "SIMUT_SENSOR_BME280"
+emit  = "off_is_0"
+
 # ---------------------------------------------------------------------------
 #  Os perfis. Os seis ambientes de firmware que o CI constroi hoje.
 #  `extends` herda o dicionario de recursos do pai e sobrescreve.
@@ -135,6 +152,9 @@ concurrency_asserts = false
 bluetooth           = false
 air                 = false
 sound_buzzer        = true
+sensor_ds18b20      = true
+sensor_dht22        = true
+sensor_bme280       = true
 build_type          = "release"
 publish             = true
 
@@ -157,6 +177,9 @@ mdns          = false
 bluetooth     = false
 air           = false
 sound_buzzer  = true
+sensor_ds18b20 = true
+sensor_dht22  = true
+sensor_bme280 = true
 build_type    = "release"
 publish       = false
 
@@ -203,6 +226,9 @@ mdns          = false
 bluetooth     = true
 air           = false
 sound_buzzer  = true
+sensor_ds18b20 = true
+sensor_dht22  = true
+sensor_bme280 = true
 publish       = true
 
 # pico_w_air — build headless que hiberna (sem display, sem buzzer).
@@ -226,4 +252,220 @@ mdns          = false
 bluetooth     = true
 air           = true
 sound_buzzer  = false
+sensor_ds18b20 = true
+sensor_dht22  = true
+sensor_bme280 = true
 publish       = true
+
+# ===========================================================================
+#  O configurador (docs/configurador/): como cada escolha aparece na árvore.
+#  Nada daqui muda o build — compose( ) não lê as tabelas ui_*, rules nem
+#  hazards. gen_features.py junta isto, as regras e os custos medidos por
+#  produto (tools/feature_costs.json) em docs/configurador/model.json, e o
+#  --check confere que o arquivo publicado bate com este manifesto.
+# ===========================================================================
+
+[ui_products.pico_w_release]
+order    = 1
+label.en = "SIMUT"
+label.pt = "SIMUT"
+desc.en  = "Touch display, web interface over HTTPS, sensors, alarms and telemetry."
+desc.pt  = "Tela touch, interface web por HTTPS, sensores, alarmes e telemetria."
+
+[ui_products.pico_w_alpha]
+order    = 2
+label.en = "SIMUT Alpha"
+label.pt = "SIMUT Alpha"
+desc.en  = "16x2 character LCD instead of the touch display, and a Bluetooth console."
+desc.pt  = "LCD de caracteres 16x2 no lugar da tela touch, e um console por Bluetooth."
+
+[ui_products.pico_w_air]
+order    = 3
+label.en = "SIMUT Air"
+label.pt = "SIMUT Air"
+desc.en  = "No display: wakes, reads, sends and sleeps again, to run on battery."
+desc.pt  = "Sem mostrador: acorda, lê, envia e volta a dormir, para rodar na bateria."
+
+[ui_products.pico_w_test]
+order    = 4
+bench    = true
+label.en = "Bench image"
+label.pt = "Imagem de bancada"
+desc.en  = "Full command line for the test suites. Not published."
+desc.pt  = "Linha de comando completa para as suítes de teste. Não publicada."
+
+[ui_products.pico_w_test_https]
+order    = 5
+bench    = true
+label.en = "Bench image with HTTPS"
+label.pt = "Imagem de bancada com HTTPS"
+desc.en  = "The only image with the full command line and the TLS server together. Not published."
+desc.pt  = "A única imagem com linha de comando completa e servidor TLS juntos. Não publicada."
+
+[ui_products.pico_w_asserts]
+order    = 6
+bench    = true
+label.en = "Concurrency soak image"
+label.pt = "Imagem de soak de concorrência"
+desc.en  = "The release image with the concurrency tripwire armed. Not published."
+desc.pt  = "A imagem de release com a armadilha de concorrência armada. Não publicada."
+
+[ui_displays.tft]
+label.en = "Touch display (ILI9341, 320x240)"
+label.pt = "Tela touch (ILI9341, 320x240)"
+
+[ui_displays.alpha_paralelo]
+label.en = "16x2 character LCD (HD44780)"
+label.pt = "LCD de caracteres 16x2 (HD44780)"
+
+[ui_displays.nenhum]
+label.en = "No display"
+label.pt = "Sem mostrador"
+
+[ui_groups.network]
+order    = 1
+label.en = "Network"
+label.pt = "Rede"
+
+[ui_groups.interface]
+order    = 2
+label.en = "Interface"
+label.pt = "Interface"
+
+[ui_groups.sensors]
+order    = 3
+label.en = "Sensors"
+label.pt = "Sensores"
+
+[ui_groups.sound]
+order    = 4
+label.en = "Sound"
+label.pt = "Som"
+
+[ui_groups.power]
+order    = 5
+label.en = "Power"
+label.pt = "Energia"
+
+[ui_groups.bench]
+order    = 6
+advanced = true
+label.en = "Bench and diagnostics"
+label.pt = "Bancada e diagnóstico"
+
+[ui_toggles.web_https]
+group    = "network"
+label.en = "HTTPS web server"
+label.pt = "Servidor web HTTPS"
+help.en  = "Serves the web interface over TLS. Without it the device answers plain HTTP only."
+help.pt  = "Serve a interface web por TLS. Sem ele o aparelho responde só em HTTP."
+
+[ui_toggles.mdns]
+group    = "network"
+label.en = "Find by name on the network (mDNS)"
+label.pt = "Achar pelo nome na rede (mDNS)"
+help.en  = "Answers to <device name>.local, so a browser finds it without the IP address."
+help.pt  = "Responde por <nome do aparelho>.local, para o navegador achá-lo sem o endereço IP."
+
+[ui_toggles.bluetooth]
+group    = "network"
+label.en = "Bluetooth serial console"
+label.pt = "Console serial por Bluetooth"
+help.en  = "A password-protected console over classic Bluetooth (SPP). It advertises for the first 5 minutes after power-up, so it reaches a device whose Wi-Fi is not set up yet."
+help.pt  = "Um console protegido por senha, por Bluetooth clássico (SPP). Ele se anuncia nos primeiros 5 minutos depois de ligar e assim alcança um aparelho com o Wi-Fi ainda por configurar."
+
+[ui_toggles.cli_full]
+group    = "interface"
+label.en = "Full command line"
+label.pt = "Linha de comando completa"
+help.en  = "Every serial and Bluetooth command. Without it only the emergency console remains."
+help.pt  = "Todos os comandos por serial e Bluetooth. Sem ela fica só o console de emergência."
+
+[ui_toggles.sensor_ds18b20]
+group    = "sensors"
+label.en = "DS18B20 temperature probes"
+label.pt = "Sondas de temperatura DS18B20"
+help.en  = "1-Wire probes, one per pin, each recognized by its serial number."
+help.pt  = "Sondas 1-Wire, uma por pino, cada uma reconhecida pelo número de série."
+
+[ui_toggles.sensor_dht22]
+group    = "sensors"
+label.en = "DHT22 temperature and humidity"
+label.pt = "DHT22 temperatura e umidade"
+help.en  = "One sensor per pin."
+help.pt  = "Um sensor por pino."
+
+[ui_toggles.sensor_bme280]
+group    = "sensors"
+label.en = "BME280 / BMP280 temperature, humidity and pressure"
+label.pt = "BME280 / BMP280 temperatura, umidade e pressão"
+help.en  = "I2C sensor on a pin pair; the BMP280 variant has no humidity."
+help.pt  = "Sensor I2C num par de pinos; a variante BMP280 não mede umidade."
+
+[ui_toggles.sound_buzzer]
+group    = "sound"
+label.en = "Buzzer sounds"
+label.pt = "Sons no buzzer"
+help.en  = "Touch clicks, confirmations and alarm sounds on the buzzer (GP22)."
+help.pt  = "Cliques de toque, confirmações e sons de alarme no buzzer (GP22)."
+
+[ui_toggles.air]
+group    = "power"
+label.en = "Hibernation between readings"
+label.pt = "Hibernação entre leituras"
+help.en  = "The Air cycle: wake, read, send, sleep. Exists only without a display."
+help.pt  = "O ciclo do Air: acorda, lê, envia, dorme. Só existe sem mostrador."
+
+[ui_toggles.license_stub]
+group    = "bench"
+label.en = "Short license text on the touch display"
+label.pt = "Texto curto da licença na tela touch"
+help.en  = "The touch display's License screen shows two lines that point to the LICENSE file instead of the full MIT text and credits. The /license web page always keeps the full text."
+help.pt  = "A tela de Licença do mostrador touch mostra duas linhas que apontam para o arquivo LICENSE, em vez do texto MIT completo e dos créditos. A página web /license mantém sempre o texto completo."
+
+[ui_toggles.concurrency_asserts]
+group    = "bench"
+label.en = "Concurrency tripwire"
+label.pt = "Armadilha de concorrência"
+help.en  = "Logs an error when a flash operation starts while the state mutex is held. For soak runs, not for field images."
+help.pt  = "Registra um erro quando uma operação de flash começa com o mutex de estado preso. Para soak, não para campo."
+
+# ---------------------------------------------------------------------------
+#  Regras entre escolhas. Cada uma foi MEDIDA em 2026-09-26 compilando a
+#  combinação proibida; "evidence" guarda o erro. A página as usa para travar
+#  a opção com o motivo à vista, e tools/build_custom.py as reaplica antes de
+#  compilar — a página não é a autoridade. Semântica: se todas as condições de
+#  `when` valem, todas as de `require` têm de valer.
+# ---------------------------------------------------------------------------
+[[rules]]
+id       = "air-needs-headless"
+when     = { air = true }
+require  = { display = "nenhum" }
+why.en   = "Hibernation needs a build without a display."
+why.pt   = "A hibernação exige uma build sem mostrador."
+evidence = "TFT+air and alpha+air fail to link: multiple definition of DisplayManager::DisplayManager(). SIMUT_AIR switches on DisplayManager_None.cpp, which collides with the chosen display's DisplayManager."
+
+[[rules]]
+id       = "headless-needs-air"
+when     = { display = "nenhum" }
+require  = { air = true }
+why.en   = "A build without a display exists only with hibernation."
+why.pt   = "Uma build sem mostrador só existe com a hibernação."
+evidence = "The air profile with air=false fails to link: undefined reference to DisplayManager::begin(). The headless display drops DisplayManager.cpp and the non-air boot path calls it."
+
+[[rules]]
+id       = "air-no-buzzer"
+when     = { air = true }
+require  = { sound_buzzer = false }
+why.en   = "The hibernating build carries no buzzer: its sound code does not compile with hibernation on."
+why.pt   = "A build que hiberna não leva o buzzer: o código de som não compila com a hibernação ligada."
+evidence = "air+sound_buzzer fails to compile: SoundManager.cpp: 'BuzzerNote' does not name a type. SIMUT_AIR turns SoundManager.h into the no-op class, and SoundManager.cpp has no guard of its own."
+
+# Avisos: combinações que compilam mas carregam um risco conhecido. Não travam
+# nada; a página mostra o motivo e de onde vem a evidência.
+[[hazards]]
+id       = "bt-flash-core1"
+when     = { bluetooth = true, display = "tft" }
+why.en   = "Bluetooth writes its pairing data to flash without pausing Core 1, which draws the touch display. Inferred from the framework source, never reproduced."
+why.pt   = "O Bluetooth grava os dados de pareamento no flash sem pausar o Core 1, que desenha a tela touch. Inferido do código do framework, nunca reproduzido."
+evidence = "MODELO_DE_RECURSOS.md R-H24 (inferred): btstack_flash_bank.cpp:53-56 writes the TLV without Core1FlashPause."
