@@ -2,8 +2,13 @@
  * @file SensorDrawing.h
  * @brief Shared procedural icons for sensor panel rendering.
  *
- * Each icon function is guarded by its sensor's compile flag — when a sensor
- * is disabled via SIMUT_SENSOR_*, its icon code is stripped from flash.
+ * These are plain inline drawing primitives. Each icon used to carry a
+ * per-sensor compile guard (#if SIMUT_SENSOR_*) so a disabled sensor's icon
+ * left the flash — redundant, because an inline helper that no enabled driver
+ * calls is dropped by the linker (--gc-sections) regardless, which is how the
+ * ungated °C helpers below have always worked. Removing the seven guards took
+ * SensorDrawing.h out of the sensor feature macros entirely, with no change to
+ * a build that compiles every family (feature model, P2, sensor seam).
  *
  * All functions draw into a GFXcanvas16. The caller is responsible for
  * blitting the canvas to the TFT at the correct position.
@@ -24,7 +29,6 @@
 #if SIMUT_DISPLAY_TFT
 /* ── Thermometer (large, 18×28 px) ──────────────────────────────────────── */
 
-#if SIMUT_SENSOR_DS18B20 || SIMUT_SENSOR_DHT22 || SIMUT_SENSOR_BME280
 inline void drawThermometerLarge(GFXcanvas16* cv, int16_t x, int16_t y,
                                  uint16_t outline, uint16_t bg, uint16_t mercury) {
     cv->fillCircle(x + 5, y + 26, 7, outline);
@@ -35,11 +39,9 @@ inline void drawThermometerLarge(GFXcanvas16* cv, int16_t x, int16_t y,
     cv->fillCircle(x + 5, y + 26, 4, mercury);
     cv->fillCircle(x + 5, y + 2, 2, outline);
 }
-#endif
 
 /* ── Thermometer (mini, ~12×20 px) ──────────────────────────────────────── */
 
-#if SIMUT_SENSOR_DS18B20 || SIMUT_SENSOR_DHT22 || SIMUT_SENSOR_BME280
 inline void drawThermometerMini(GFXcanvas16* cv, int16_t x, int16_t y,
                                 uint16_t outline, uint16_t bg, uint16_t mercury) {
     cv->fillCircle(x + 4, y + 15, 5, outline);
@@ -50,11 +52,9 @@ inline void drawThermometerMini(GFXcanvas16* cv, int16_t x, int16_t y,
     cv->fillCircle(x + 4, y + 15, 3, mercury);
     cv->fillCircle(x + 4, y + 2, 2, outline);
 }
-#endif
 
 /* ── Drop / water droplet (large, ~20×22 px) ────────────────────────────── */
 
-#if SIMUT_SENSOR_DHT22 || SIMUT_SENSOR_BME280
 inline void drawDropLarge(GFXcanvas16* cv, int16_t x, int16_t y,
                           uint16_t color, uint16_t shine) {
     cv->fillCircle(x + 6, y + 20, 8, color);
@@ -62,11 +62,9 @@ inline void drawDropLarge(GFXcanvas16* cv, int16_t x, int16_t y,
     cv->fillCircle(x + 4, y + 17, 3, shine);
     cv->fillCircle(x + 3, y + 14, 1, shine);
 }
-#endif
 
 /* ── Drop / water droplet (mini, ~12×14 px) ─────────────────────────────── */
 
-#if SIMUT_SENSOR_DHT22 || SIMUT_SENSOR_BME280
 inline void drawDropMini(GFXcanvas16* cv, int16_t x, int16_t y,
                          uint16_t color, uint16_t shine) {
     cv->fillCircle(x + 5, y + 7, 6, color);
@@ -74,11 +72,9 @@ inline void drawDropMini(GFXcanvas16* cv, int16_t x, int16_t y,
     cv->fillCircle(x + 3, y + 5, 2, shine);
     cv->drawPixel(x + 3, y + 2, shine);
 }
-#endif
 
 /* ── Barometer / pressure gauge (large, ~20×22 px) ──────────────────────── */
 
-#if SIMUT_SENSOR_BME280
 inline void drawBarometerLarge(GFXcanvas16* cv, int16_t x, int16_t y,
                                 uint16_t outline, uint16_t bg, uint16_t needle) {
     /* Outer ring */
@@ -92,11 +88,9 @@ inline void drawBarometerLarge(GFXcanvas16* cv, int16_t x, int16_t y,
     /* Top mounting point */
     cv->fillCircle(x + 7, y, 2, outline);
 }
-#endif
 
 /* ── Barometer / pressure gauge (mini, ~12×14 px) ───────────────────────── */
 
-#if SIMUT_SENSOR_BME280
 inline void drawBarometerMini(GFXcanvas16* cv, int16_t x, int16_t y,
                                uint16_t outline, uint16_t bg, uint16_t needle) {
     cv->fillCircle(x + 5, y + 6, 6, outline);
@@ -106,7 +100,6 @@ inline void drawBarometerMini(GFXcanvas16* cv, int16_t x, int16_t y,
     cv->drawLine(x + 5, y + 6, x + 8, y + 2, needle);
     cv->fillCircle(x + 5, y, 2, outline);
 }
-#endif
 
 /* ── "°C" unit ──────────────────────────────────────────────────────────────
  * The Latin-1 fonts (FreeSansBold*8b_latin1.h) carry a REAL degree glyph
@@ -137,7 +130,6 @@ inline void drawUnitDegC_Mini(GFXcanvas16* cv, int16_t x, int16_t baseY,
 
 /* ── Min/Max panel helpers ─────────────────────────────────────────────── */
 
-#if SIMUT_SENSOR_DS18B20 || SIMUT_SENSOR_DHT22 || SIMUT_SENSOR_BME280
 
 /** Renders temperature right-aligned at dotX (1 decimal).
  *  Returns x after the value for °C unit placement. */
@@ -217,6 +209,5 @@ inline void drawMinMaxGraphBtn(GFXcanvas16* cv, int16_t x, int16_t y,
     cv->fillTriangle(cx + 10, cy - 5, cx + 10, cy + 5, cx + 17, cy, fg);
 }
 
-#endif
 #endif // SIMUT_DISPLAY_TFT
 
