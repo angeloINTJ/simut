@@ -293,113 +293,108 @@ bool CommandManager::isPrivOrHigher( ) const {
 
 void CommandManager::printDivider( ) { consolePrintln("-------------------------------------------"); }
 
-/* ── Mode validity mask table — one byte per DemandType ── */
+/* ── Mode validity table ── the CLI_VALID_* mask each command is accepted in.
+ *
+ * Was a switch(t) inside getCommandModeMask; now the CLI_COMMANDS table, so the
+ * mask is data the help renderer and the gate read directly, instead of a
+ * switch only tools/check_cli_help.py could scrape. A command with no row takes
+ * the default CLI_VALID_ALL: the CMD_AIR_* commands (accepted in the single Air
+ * mode) and the CMD_NONE/CMD_UNKNOWN sentinels.
+ *
+ * The PIN-panel commands sit in the table unconditionally — their DemandType
+ * always exists in the enum, and a build without SIMUT_PANEL_PIN never parses
+ * them, so their row is never consulted. That removes the two #if SIMUT_PANEL_PIN
+ * this function used to carry.
+ * docs/analysis/MODELO_DE_RECURSOS.md, P2 (costura da CLI), estagio 1. */
+struct CliCommandDef {
+ DemandType demand;
+ uint8_t    modes;   /**< CLI_VALID_* mask (full CLI; the emergency CLI has one mode) */
+};
 
-#if !SIMUT_CLI_FULL
-/* Emergency image: one mode, and every surviving command is valid in it.
- * The caller still asks, so answer without carrying the table. */
-uint8_t getCommandModeMask(DemandType) { return CLI_VALID_ALL; }
-#else
+#if SIMUT_CLI_FULL
+static constexpr CliCommandDef CLI_COMMANDS[] = {
+ { CMD_HELP,                 CLI_VALID_ALL },
+ { CMD_SHOW_THEMES,          CLI_VALID_READONLY },
+ { CMD_SHOW_LOGS,            CLI_VALID_READONLY },
+ { CMD_SHOW_SENSORS,         CLI_VALID_READONLY },
+ { CMD_SHOW_STORAGE,         CLI_VALID_READONLY },
+ { CMD_SHOW_SYSINFO,         CLI_VALID_READONLY },
+ { CMD_SHOW_NET,             CLI_VALID_READONLY },
+ { CMD_SHOW_METRICS,         CLI_VALID_READONLY },
+ { CMD_SHOW_KEYPAD,          CLI_VALID_READONLY },
+ { CMD_SHOW_SENSOR_TYPES,    CLI_VALID_READONLY },
+ { CMD_SHOW_GPIO,            CLI_VALID_READONLY },
+ { CMD_LANGUAGE,             CLI_VALID_USER | CLI_VALID_PRIV },
+ { CMD_DEBUG,                CLI_VALID_USER | CLI_VALID_PRIV },
+ { CMD_SET_TIME,             CLI_VALID_USER | CLI_VALID_PRIV },
+ { CMD_SCAN_SENSORS,         CLI_VALID_USER | CLI_VALID_PRIV },
+ { CMD_RESCHEMA_SENSORS,     CLI_VALID_PRIV },
+ { CMD_TEL_SYNC,             CLI_VALID_USER | CLI_VALID_PRIV },
+ { CMD_TEL_DUMP,             CLI_VALID_USER | CLI_VALID_PRIV },
+ { CMD_TEL_RESET,            CLI_VALID_PRIV },
+ { CMD_ALARM_SHOW,           CLI_VALID_READONLY },
+ { CMD_ALARM_DUMP,           CLI_VALID_USER | CLI_VALID_PRIV },
+ { CMD_ALARM_SET,            CLI_VALID_CONFIG },
+ { CMD_ALARM_FLUSH,          CLI_VALID_PRIV },
+ { CMD_WRITE_MEMORY,         CLI_VALID_PRIV },
+ { CMD_CLEAR_LOGS,           CLI_VALID_PRIV },
+ { CMD_RELOAD,               CLI_VALID_PRIV },
+ { CMD_AP,                   CLI_VALID_PRIV },
+ { CMD_RESET_TOUCH_CAL,      CLI_VALID_PRIV | CLI_VALID_CONFIG },
+ { CMD_FACTORY_RESET,        CLI_VALID_PRIV | CLI_VALID_CONFIG },
+ { CMD_FORMAT_FS,            CLI_VALID_PRIV | CLI_VALID_CONFIG },
+ { CMD_HTTPS_OFF,            CLI_VALID_PRIV | CLI_VALID_CONFIG },
+ { CMD_RESET_ADMIN,          CLI_VALID_PRIV | CLI_VALID_CONFIG },
+ { CMD_WIPE_SENSOR,          CLI_VALID_PRIV },
+ { CMD_REMOVE_SENSOR,        CLI_VALID_PRIV },
+ { CMD_DEFINE_SENSOR,        CLI_VALID_PRIV },
+ { CMD_ACCEPT_SENSOR,        CLI_VALID_PRIV },
+ { CMD_TOUCH_SIM,            CLI_VALID_PRIV },
+ { CMD_TOUCH_HOLD,           CLI_VALID_PRIV },
+ { CMD_GOTO_SCREEN,          CLI_VALID_PRIV },
+ { CMD_SET_THEME,            CLI_VALID_CONFIG },
+ { CMD_SET_DS_RES,           CLI_VALID_CONFIG },
+ { CMD_SET_SYS_NAME,         CLI_VALID_CONFIG },
+ { CMD_SET_WIFI_SSID,        CLI_VALID_CONFIG },
+ { CMD_SET_WIFI_PASS,        CLI_VALID_CONFIG },
+ { CMD_SET_CORS_ORIGIN,      CLI_VALID_CONFIG },
+ { CMD_SET_TIMEZONE,         CLI_VALID_CONFIG },
+ { CMD_SET_NTP,              CLI_VALID_CONFIG },
+ { CMD_SET_TEL_SERVER,       CLI_VALID_CONFIG },
+ { CMD_SET_TEL_PORT,         CLI_VALID_CONFIG },
+ { CMD_SET_TEL_PATH,         CLI_VALID_CONFIG },
+ { CMD_SET_TEL_BATCH,        CLI_VALID_CONFIG },
+ { CMD_SET_TEL_INTERVAL,     CLI_VALID_CONFIG },
+ { CMD_SET_TEL_CRYPTO,       CLI_VALID_CONFIG },
+ { CMD_SET_TEL_MODE,         CLI_VALID_CONFIG },
+ { CMD_SET_HISTORY_INTERVAL, CLI_VALID_CONFIG },
+ { CMD_SET_NTP_ENABLED,      CLI_VALID_CONFIG },
+ { CMD_SET_DNS_CFG,          CLI_VALID_CONFIG },
+ { CMD_IP_CFG,               CLI_VALID_CONFIG },
+ { CMD_USER_ADD,             CLI_VALID_CONFIG },
+ { CMD_USER_DEL,             CLI_VALID_CONFIG },
+ { CMD_USER_PASS,            CLI_VALID_CONFIG },
+ { CMD_USER_PERM,            CLI_VALID_CONFIG },
+ { CMD_USER_PIN,             CLI_VALID_CONFIG },
+ { CMD_USER_POLICY,          CLI_VALID_CONFIG },
+ { CMD_SET_WEB_PORT,         CLI_VALID_CONFIG },
+ { CMD_SENSOR_FIELD,         CLI_VALID_PRIV | CLI_VALID_SENSOR },
+ { CMD_SENSOR_ENTER,         CLI_VALID_CONFIG },
+ { CMD_ENABLE,               CLI_VALID_USER },
+ { CMD_DISABLE,              CLI_VALID_PRIV },
+ { CMD_CONFIGURE,            CLI_VALID_PRIV },
+ { CMD_EXIT,                 CLI_VALID_PRIV | CLI_VALID_CONFIG | CLI_VALID_SENSOR },
+ { CMD_END,                  CLI_VALID_CONFIG | CLI_VALID_SENSOR },
+ { CMD_DO,                   CLI_VALID_CONFIG | CLI_VALID_SENSOR },
+};
+
 uint8_t getCommandModeMask(DemandType t) {
- switch (t) {
- /* Diagnostic / Show — valid in all modes */
- case CMD_HELP:              return CLI_VALID_ALL;
- case CMD_SHOW_THEMES:       return CLI_VALID_READONLY;
- case CMD_SHOW_LOGS:         return CLI_VALID_READONLY;
- case CMD_SHOW_SENSORS:      return CLI_VALID_READONLY;
- case CMD_SHOW_STORAGE:      return CLI_VALID_READONLY;
- case CMD_SHOW_SYSINFO:      return CLI_VALID_READONLY;
- case CMD_SHOW_NET:          return CLI_VALID_READONLY;
- case CMD_SHOW_METRICS:      return CLI_VALID_READONLY;
-#if SIMUT_PANEL_PIN
- case CMD_SHOW_KEYPAD:       return CLI_VALID_READONLY;
-#endif
- case CMD_SHOW_SENSOR_TYPES: return CLI_VALID_READONLY;
- case CMD_SHOW_GPIO:         return CLI_VALID_READONLY;
- /* Session — exec modes */
- case CMD_LANGUAGE:          return CLI_VALID_USER | CLI_VALID_PRIV;
- case CMD_DEBUG:             return CLI_VALID_USER | CLI_VALID_PRIV;
- case CMD_SET_TIME:          return CLI_VALID_USER | CLI_VALID_PRIV;
- case CMD_SCAN_SENSORS:      return CLI_VALID_USER | CLI_VALID_PRIV;
- case CMD_RESCHEMA_SENSORS:  return CLI_VALID_PRIV;
- /* Telemetry — exec modes */
- case CMD_TEL_SYNC:          return CLI_VALID_USER | CLI_VALID_PRIV;
- case CMD_TEL_DUMP:          return CLI_VALID_USER | CLI_VALID_PRIV;
- case CMD_TEL_RESET:         return CLI_VALID_PRIV;
- /* Alarm line (v21) — segunda linha de telemetria.
-  * show é READONLY como show metrics: operador precisa ler a fila em
-  * qualquer modo EXEC (USER e PRIV). */
- case CMD_ALARM_SHOW:        return CLI_VALID_READONLY;
- case CMD_ALARM_DUMP:        return CLI_VALID_USER | CLI_VALID_PRIV;
- case CMD_ALARM_SET:         return CLI_VALID_CONFIG;
- case CMD_ALARM_FLUSH:       return CLI_VALID_PRIV;
- /* Privileged EXEC only */
- case CMD_WRITE_MEMORY:      return CLI_VALID_PRIV;
- case CMD_CLEAR_LOGS:        return CLI_VALID_PRIV;
- case CMD_RELOAD:            return CLI_VALID_PRIV;
- case CMD_AP:                return CLI_VALID_PRIV;
- /* Also valid in config mode. These change persisted configuration
-  * (they set changed=true and need 'write memory'), and their own help text
-  * advertises the 'conf ...' form — which is only a stripped prefix, so it
-  * resolves to the same command and was still refused inside (config)#. The
-  * refusal then said "use 'enable'" to someone who had already enabled and
-  * gone one level deeper, which is how touch calibration ended up looking
-  * unreachable from the CLI. */
- case CMD_RESET_TOUCH_CAL:   return CLI_VALID_PRIV | CLI_VALID_CONFIG;
- case CMD_FACTORY_RESET:     return CLI_VALID_PRIV | CLI_VALID_CONFIG;
- case CMD_FORMAT_FS:         return CLI_VALID_PRIV | CLI_VALID_CONFIG;
- case CMD_HTTPS_OFF:         return CLI_VALID_PRIV | CLI_VALID_CONFIG;
- case CMD_RESET_ADMIN:       return CLI_VALID_PRIV | CLI_VALID_CONFIG;
- case CMD_WIPE_SENSOR:       return CLI_VALID_PRIV;
- case CMD_REMOVE_SENSOR:     return CLI_VALID_PRIV;
- case CMD_DEFINE_SENSOR:     return CLI_VALID_PRIV;
- case CMD_ACCEPT_SENSOR:     return CLI_VALID_PRIV;
- case CMD_TOUCH_SIM:         return CLI_VALID_PRIV;
- case CMD_TOUCH_HOLD:        return CLI_VALID_PRIV;
- case CMD_GOTO_SCREEN:       return CLI_VALID_PRIV;
- /* Global Config */
- case CMD_SET_THEME:         return CLI_VALID_CONFIG;
- case CMD_SET_DS_RES:        return CLI_VALID_CONFIG;
- case CMD_SET_SYS_NAME:      return CLI_VALID_CONFIG;
- case CMD_SET_WIFI_SSID:     return CLI_VALID_CONFIG;
- case CMD_SET_WIFI_PASS:     return CLI_VALID_CONFIG;
- case CMD_SET_CORS_ORIGIN:   return CLI_VALID_CONFIG;
- case CMD_SET_TIMEZONE:      return CLI_VALID_CONFIG;
- case CMD_SET_NTP:           return CLI_VALID_CONFIG;
- case CMD_SET_TEL_SERVER:    return CLI_VALID_CONFIG;
- case CMD_SET_TEL_PORT:      return CLI_VALID_CONFIG;
- case CMD_SET_TEL_PATH:      return CLI_VALID_CONFIG;
- case CMD_SET_TEL_BATCH:     return CLI_VALID_CONFIG;
- case CMD_SET_TEL_INTERVAL:  return CLI_VALID_CONFIG;
- case CMD_SET_TEL_CRYPTO:    return CLI_VALID_CONFIG;
- case CMD_SET_TEL_MODE:      return CLI_VALID_CONFIG;
- case CMD_SET_HISTORY_INTERVAL: return CLI_VALID_CONFIG;
- case CMD_SET_NTP_ENABLED:   return CLI_VALID_CONFIG;
- case CMD_SET_DNS_CFG:       return CLI_VALID_CONFIG;
- case CMD_IP_CFG:            return CLI_VALID_CONFIG;
- case CMD_USER_ADD:          return CLI_VALID_CONFIG;
- case CMD_USER_DEL:          return CLI_VALID_CONFIG;
- case CMD_USER_PASS:         return CLI_VALID_CONFIG;
- case CMD_USER_PERM:         return CLI_VALID_CONFIG;
-#if SIMUT_PANEL_PIN
- case CMD_USER_PIN:          return CLI_VALID_CONFIG;
- case CMD_USER_POLICY:       return CLI_VALID_CONFIG;
-#endif
- case CMD_SET_WEB_PORT:      return CLI_VALID_CONFIG;
- /* Sensor sub-commands — privileged + sensor config mode */
- case CMD_SENSOR_FIELD:      return CLI_VALID_PRIV | CLI_VALID_SENSOR;
- case CMD_SENSOR_ENTER:      return CLI_VALID_CONFIG;  /* enter sensor mode from config */
- /* Navigation */
- case CMD_ENABLE:            return CLI_VALID_USER;
- case CMD_DISABLE:           return CLI_VALID_PRIV;
- case CMD_CONFIGURE:         return CLI_VALID_PRIV;
- case CMD_EXIT:              return CLI_VALID_PRIV | CLI_VALID_CONFIG | CLI_VALID_SENSOR;
- case CMD_END:               return CLI_VALID_CONFIG | CLI_VALID_SENSOR;
- case CMD_DO:                return CLI_VALID_CONFIG | CLI_VALID_SENSOR;
- default:                    return CLI_VALID_ALL;
- }
+ for (const CliCommandDef& c : CLI_COMMANDS) if (c.demand == t) return c.modes;
+ return CLI_VALID_ALL;  /* no row: Air commands + sentinels, accepted anywhere */
 }
-
+#else
+/* Emergency image: one mode, every surviving command valid in it. */
+uint8_t getCommandModeMask(DemandType) { return CLI_VALID_ALL; }
 #endif /* SIMUT_CLI_FULL */
 
 #if SIMUT_CLI_FULL
