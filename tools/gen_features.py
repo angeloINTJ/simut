@@ -8,8 +8,9 @@ Le tools/features.toml (a fonte unica) e escreve, sem tocar em mais nada:
 
 Cada [env:*] gerado herda `pico_base` do platformio.ini e acrescenta apenas os
 flags, o filtro de fontes e o lib_ignore que o manifesto deriva dos recursos
-ligados. tools/check_features.py prova que isso resolve para o mesmo que
-platformio.ini mantem a mao hoje.
+ligados. O platformio.ini inclui o profiles.ini via `extra_configs` e nao define
+mais [env:pico_w_*]; tools/check_features.py prova que os perfis que o build usa
+resolvem para o que o manifesto descreve.
 
 Uso:
     python3 tools/gen_features.py            # escreve os arquivos gerados
