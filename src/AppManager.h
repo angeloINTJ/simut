@@ -98,7 +98,6 @@ private:
  int8_t _lastSavedSlotIdx = -1;
  
  void preloadMinMax( );
- void openStatsScreen(int sensorId);
 
  void updateLiveDisplay( );
  void refreshSelectedSlot( );

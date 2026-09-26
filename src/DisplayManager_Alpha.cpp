@@ -387,7 +387,6 @@ int DisplayManager::buildDashLayout(DashBtn*,int*,bool*){return 0;}
 void DisplayManager::drawLoadingScreen( ){}
 void DisplayManager::drawGraphScreen( ){}
 void DisplayManager::drawGraphDetailScreen( ){}
-void DisplayManager::drawStatsScreen( ){}
 void DisplayManager::drawPeriodButtons( ){}
 void DisplayManager::drawCalendarScreen( ){}
 void DisplayManager::drawGraphHeaderBar(bool){}
@@ -606,7 +605,6 @@ void DisplayManager::unaccent(const char* utf8, char* out, size_t outSize) {
 	}
 	out[o] = '\0';
 }
-void DisplayManager::showStats(const GraphDataPackage&,float,float){}
 const char* DisplayManager::trlLookup(const char*){return "";}
 void DisplayManager::fillCalData(TouchCalData*)const{}
 void DisplayManager::getNewPassword(char*,unsigned)const{}

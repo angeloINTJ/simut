@@ -570,15 +570,6 @@ void DisplayManager::handleTouch( ) {
  pushUiEvent(ev);
  }
  }
- else if (_uiMode == MODE_STATS_VIEW) {
- if (y < 40 && x > 270) { if (!acceptTouch(0)) return; _uiMode = MODE_DASHBOARD; _isDirty = true; _forceFullRedraw = true; return; }
- if (y > 170) {
- if (!acceptTouch(1)) return;
- drawGraphBusyHint( ); /* 24H read follows */
- UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = _graphData.sensorIdx; ev.param = 3;
- pushUiEvent(ev); return;
- }
- }
  else if (_uiMode == MODE_GRAPH_VIEW) {
  /* X button (close) — top right corner */
  if (y < 40 && x > 284) { if (!acceptTouch(0)) return; _graphNavOffset = 0; _uiMode = MODE_DASHBOARD; _isDirty = true; _forceFullRedraw = true; return; }

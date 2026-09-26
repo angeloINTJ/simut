@@ -534,9 +534,6 @@ private:
 	void handleApiRestoreFinish( );
 	void handleApiRestoreUploadData( );
 
-	/* OTA: staging test handler stub (see WebManager_Core.cpp). */
-	void handleApiOtaStagingTest( );
-
 	/* OTA: triggers apply of pending update. Accepts ?test=1 which
 	 * injects stub metadata and exercises the infrastructure path
 	 * (tear down → IRQ off → SRAM applier → watchdog reboot) without

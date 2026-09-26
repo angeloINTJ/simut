@@ -477,7 +477,6 @@ public:
 	uint32_t getAlarmSilenceEnd( ) const { return _alarmSilenceEnd; }
 	int8_t getAlarmActionSlot( ) const { return _alarmActionSlot; }
 
-	void showStats(const GraphDataPackage& data, float minHum, float maxHum);
 	void showGraphPlot(const GraphDataPackage& data, float minHum, float maxHum);
 
 	void showCalendar(int year, int month, uint32_t daysMask);
@@ -931,7 +930,6 @@ private:
 	void drawLoadingScreen( );
 	void drawGraphScreen( );
 	void drawGraphDetailScreen( ); /**< Numeric detail screen for the period */
-	void drawStatsScreen( );
 	void drawPeriodButtons( );
 	void drawCalendarScreen( ); /**< Calendar screen with data-day indicators */
 	void drawGraphHeaderBar(bool blitNow = true); /**< Redraws only the graph header.

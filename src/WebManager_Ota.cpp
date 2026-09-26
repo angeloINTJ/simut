@@ -447,61 +447,6 @@ void WebManager::handleApiRestoreFinish( ) {
 }
 
 /* ===========================================================================
- * Staging selftest (DESTRUCTIVE)
- * ===========================================================================
- *
- * GET /api/ota/staging_test
- *
- * Sequence: HeavyTaskGuard → session_begin (erases 1 MB) → selftest
- * (write/read/erase 1 4KB sector) → session_end (LittleFS reformatted).
- *
- * Client MUST call /api/backup BEFORE and /api/restore?op=apply AFTER
- * to preserve data. Without auth we get 403; anything but == PERM_FULL_ADMIN too.
- * Admin only.
- * ========================================================================= */
-void WebManager::handleApiOtaStagingTest( ) {
- /* OTA staging selftest: DESTRUCTIVE (erases 1 MB) — ADMIN-ONLY. */
- if (getAuthPerms( ) != PERM_FULL_ADMIN) {
- _server->send(403, "text/plain", "Forbidden — admin only");
- return;
- }
- if (rejectIfTouchPriority( )) return;
-
- HeavyTaskGuard htg(_storageRef);
- if (!htg.isLocked( )) {
- _server->send(503, "text/plain", "System Busy");
- return;
- }
-
- LOG_CODE(LOG_WARN, "OTA", SEC_CONFIG_CHANGED, _currentUserId, "stg_test_begin");
-
- /* RenderGuard pauses display during operation (~5-10s). */
- bool ok_begin = false, ok_test = false, ok_end = false;
- int diff = -1;
- uint32_t t0 = millis( );
- {
- RenderGuard rg(_displayRef);
- ok_begin = ota::staging_session_begin(_storageRef);
- if (ok_begin) {
- ok_test = ota::staging_selftest(&diff);
- ok_end = ota::staging_session_end(_storageRef);
- }
- }
- uint32_t dt = millis( ) - t0;
-
- LOG_CODE(ok_test ? LOG_INFO : LOG_ERROR, "OTA", SEC_CONFIG_CHANGED,
- _currentUserId, ok_test ? "stg_test_ok" : "stg_test_fail");
-
- char buf[160];
- snprintf(buf, sizeof(buf),
- "{\"ok\":%s,\"begin\":%d,\"selftest\":%d,\"end\":%d,\"first_diff\":%d,\"time_ms\":%lu}",
- (ok_begin && ok_test && ok_end) ? "true" : "false",
- ok_begin ? 1 : 0, ok_test ? 1 : 0, ok_end ? 1 : 0,
- diff, (unsigned long)dt);
- _server->send(200, "application/json", buf);
-}
-
-/* ===========================================================================
  * Apply orchestrator endpoint
  * ===========================================================================
  *

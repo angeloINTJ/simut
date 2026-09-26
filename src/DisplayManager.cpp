@@ -1472,9 +1472,6 @@ void DisplayManager::loopCore1( ) {
 		else if (_uiMode == MODE_GRAPH_LOADING) {
 			if (_repaintLoading) { C1_PHASE(C1P_UI_GRAPH); drawLoadingScreen( ); _repaintLoading = false; }
 		}
-		else if (_uiMode == MODE_STATS_VIEW) {
-			if (_repaintGraph) { C1_PHASE(C1P_UI_GRAPH); drawStatsScreen( ); _repaintGraph = false; }
-		}
 		else if (_uiMode == MODE_GRAPH_VIEW) {
 			if (_repaintGraph) { C1_PHASE(C1P_UI_GRAPH); drawGraphScreen( ); _repaintGraph = false; }
 		}

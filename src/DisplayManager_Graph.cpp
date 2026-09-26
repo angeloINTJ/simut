@@ -1,6 +1,6 @@
 /**
  * @file DisplayManager_Graph.cpp
- * @brief Graph rendering: showStats/showGraphPlot + draw* screens.
+ * @brief Graph rendering: showGraphPlot + draw* screens.
  * @details Sub-file of DisplayManager.cpp.
  * Includes: dual Y-axis plot, decimation, peak markers, alternating header
  * bar (name/date), detailed numeric screen, loading screen
@@ -18,14 +18,6 @@
 #include "UiWidgets.h"
 #include "sensors/SensorChannels.h" /* CH_TEMP/CH_HUM/CH_PRESS for card units */
 
-void DisplayManager::showStats(const GraphDataPackage& data, float minHum, float maxHum) {
- mutex_enter_blocking(&_stateMutex);
- _graphData = data; _currentMinHum = minHum; _currentMaxHum = maxHum;
- _uiMode = MODE_STATS_VIEW;
- __dmb( );
- _repaintGraph = true;
- mutex_exit(&_stateMutex);
-}
 
 void DisplayManager::showGraphPlot(const GraphDataPackage& data, float minHum, float maxHum) {
  mutex_enter_blocking(&_stateMutex);
@@ -384,160 +376,6 @@ void DisplayManager::drawGraphIcon(int16_t x, int16_t y, uint16_t color) {
  _driver.tft->drawLine(x, y+2, x+22, y+2, color);
 }
 
-void DisplayManager::drawStatsScreen( ) {
- int16_t x1, y1; uint16_t w, h_bound;
-
- /* Header via canvas — appears instantly */
- if (_driver.canvas) {
- GFXcanvas16* cv = _driver.canvas;
- cv->fillScreen(C_BG_MAIN);
- uiTitleBar(cv, 4, _graphData.title);
- uiCloseX(cv, 284, 8, 32, 24); /* standard rect, centered in the 32px bar */
- blitCanvas(cv, 0, 0, 320, 45);
- } else {
- uiTitleBar(_driver.tft, 4, _graphData.title);
- uiCloseX(_driver.tft, 284, 8, 32, 24);
- }
-
- /* Clear zone below header/canvas (y=45..235) — 4px bottom margin */
- _driver.tft->fillRect(4, 45, 312, 191, C_BG_MAIN);
-
-
- _driver.tft->setFont(NULL); _driver.tft->setTextSize(1); _driver.tft->setTextColor(C_TEXT_SUB);
- _driver.tft->setCursor(14, 38); _driver.tft->print("ID: "); _driver.tft->print(_graphData.hwId);
- _driver.tft->setCursor(14, 49); _driver.tft->print("SN: "); _driver.tft->print(_graphData.rom);
-
-
- auto drawTemp = [&](float val, int anchorX, int y, uint16_t color, bool large) {
- int16_t bx1, by1; uint16_t bw, bh;
- int symbolX = anchorX + (large ? 38 : 28);
- _driver.tft->setTextColor(color);
-
- if (large) _driver.tft->setFont(&simutFont24pt);
- else _driver.tft->setFont(&simutFont12pt);
-
- if (isnan(val)) {
- _driver.tft->getTextBounds("--.-", 0, 0, &bx1, &by1, &bw, &bh);
- _driver.tft->setCursor(anchorX - bw, y); _driver.tft->print("--.-");
- } else {
- char iPart[8], dPart[4];
- snprintf(iPart, sizeof(iPart), "%d", (int)val);
- snprintf(dPart, sizeof(dPart), ".%d", abs((int)(val * 10) % 10));
- _driver.tft->getTextBounds(iPart, 0, 0, &bx1, &by1, &bw, &bh);
- _driver.tft->setCursor(anchorX - bw - 2, y); _driver.tft->print(iPart);
- _driver.tft->setCursor(anchorX, y); _driver.tft->print(dPart);
- }
-
-
- _driver.tft->setFont(large ? &simutFont12pt : &simutFont9pt);
- _driver.tft->setCursor(symbolX, y);
- _driver.tft->print("\xB0" "C"); /* real Latin-1 degree glyph */
- };
-
-
- auto drawHum = [&](float val, int anchorX, int y, uint16_t color) {
- int16_t bx1, by1; uint16_t bw, bh;
- char buf[6];
- if (isnan(val)) snprintf(buf, sizeof(buf), "--");
- else snprintf(buf, sizeof(buf), "%d", (int)val);
-
- _driver.tft->setFont(&simutFont12pt); _driver.tft->setTextColor(color);
- _driver.tft->getTextBounds(buf, 0, 0, &bx1, &by1, &bw, &bh);
- _driver.tft->setCursor(anchorX - bw, y); _driver.tft->print(buf);
- _driver.tft->setTextColor(C_TEXT_SUB); _driver.tft->setCursor(anchorX + 4, y); _driver.tft->print("%");
- };
-
-
- if (_graphData.hasHumidity && !isnan(_currentMinHum)) {
- const int cardW = 148, cardH = 96, cardR = 12;
- const int cardY = 62;
- const int leftX = 5, rightX = 167;
-
-
- _driver.tft->fillRoundRect(leftX, cardY, cardW, cardH, cardR, C_CARD_BG);
- _driver.tft->drawRoundRect(leftX, cardY, cardW, cardH, cardR, C_ACCENT_HIGH);
-
- _driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEMP_HOT);
- _driver.tft->getTextBounds(tr(TR_MAX_LBL), 0, 0, &x1, &y1, &w, &h_bound);
- _driver.tft->setCursor(leftX + (cardW - w) / 2, cardY + 18); _driver.tft->print(tr(TR_MAX_LBL));
-
-
- drawTemp(_graphData.realMaxVal, leftX + 68, cardY + 52, C_TEMP_HOT, false);
-
-
- _driver.tft->fillCircle(leftX + 25, cardY + 74, 3, C_HUMIDITY);
- drawHum(_currentMaxHum, leftX + 80, cardY + 80, C_HUMIDITY);
-
-
- _driver.tft->fillRoundRect(rightX, cardY, cardW, cardH, cardR, C_CARD_BG);
- _driver.tft->drawRoundRect(rightX, cardY, cardW, cardH, cardR, C_ACCENT_HIGH);
-
- _driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEMP_OK);
- _driver.tft->getTextBounds(tr(TR_MIN_LBL), 0, 0, &x1, &y1, &w, &h_bound);
- _driver.tft->setCursor(rightX + (cardW - w) / 2, cardY + 18); _driver.tft->print(tr(TR_MIN_LBL));
-
- drawTemp(_graphData.realMinVal, rightX + 68, cardY + 52, C_TEMP_OK, false);
-
- _driver.tft->fillCircle(rightX + 25, cardY + 74, 3, C_HUMIDITY);
- drawHum(_currentMinHum, rightX + 80, cardY + 80, C_HUMIDITY);
- }
-
-
- else {
- const int cardW = 148, cardH = 96, cardR = 12;
- const int cardY = 62;
- const int leftX = 5, rightX = 167;
-
-
- _driver.tft->fillRoundRect(leftX, cardY, cardW, cardH, cardR, C_CARD_BG);
- _driver.tft->drawRoundRect(leftX, cardY, cardW, cardH, cardR, C_ACCENT_HIGH);
-
- _driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEMP_HOT);
- _driver.tft->getTextBounds(tr(TR_MAX_LBL), 0, 0, &x1, &y1, &w, &h_bound);
- _driver.tft->setCursor(leftX + (cardW - w) / 2, cardY + 18); _driver.tft->print(tr(TR_MAX_LBL));
-
- drawTemp(_graphData.realMaxVal, leftX + 55, cardY + 68, C_TEMP_HOT, true);
-
-
- _driver.tft->fillRoundRect(rightX, cardY, cardW, cardH, cardR, C_CARD_BG);
- _driver.tft->drawRoundRect(rightX, cardY, cardW, cardH, cardR, C_ACCENT_HIGH);
-
- _driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEMP_OK);
- _driver.tft->getTextBounds(tr(TR_MIN_LBL), 0, 0, &x1, &y1, &w, &h_bound);
- _driver.tft->setCursor(rightX + (cardW - w) / 2, cardY + 18); _driver.tft->print(tr(TR_MIN_LBL));
-
- drawTemp(_graphData.realMinVal, rightX + 55, cardY + 68, C_TEMP_OK, true);
- }
-
-
- {
- const char* rangeLabels[] = {"1h", "6h", "24h", "3d", "7d"};
- const char* rangeText = ((_graphData.timeRange >= 0) && (_graphData.timeRange < 5))
- ? rangeLabels[_graphData.timeRange] : "?";
- char periodBuf[16];
- snprintf(periodBuf, sizeof(periodBuf), "[ %s ]", rangeText);
- _driver.tft->setFont(NULL); _driver.tft->setTextSize(1); _driver.tft->setTextColor(C_TEXT_OFF);
- _driver.tft->getTextBounds(periodBuf, 0, 0, &x1, &y1, &w, &h_bound);
- _driver.tft->setCursor(160 - w / 2, 168); _driver.tft->print(periodBuf);
- }
-
-
- _driver.tft->fillRoundRect(10, 180, 300, 40, 12, C_ACCENT);
-
-
- int icX = 50, icY = 188;
- _driver.tft->fillRect(icX, icY + 8, 4, 12, C_BG_MAIN);
- _driver.tft->fillRect(icX + 6, icY + 2, 4, 18, C_BG_MAIN);
- _driver.tft->fillRect(icX + 12, icY + 6, 4, 14, C_BG_MAIN);
- _driver.tft->drawFastHLine(icX - 2, icY + 20, 20, C_BG_MAIN);
-
-
- _driver.tft->setFont(&simutFont12pt); _driver.tft->setTextColor(C_BG_MAIN);
- String btnTxt = tr(TR_PLOT_CHART);
- _driver.tft->getTextBounds(btnTxt, 0, 0, &x1, &y1, &w, &h_bound);
- _driver.tft->setCursor(160 - (w / 2) + 15, 207);
- _driver.tft->print(btnTxt);
-}
 
 
 /* =========================================================================== */

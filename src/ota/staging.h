@@ -91,17 +91,4 @@ bool staging_session_begin_lite(StorageManager* storage);
  */
 bool staging_session_end(StorageManager* storage);
 
-/**
- * @brief Self-test do path raw flash (Fase 4 acceptance criteria).
- *
- * Escreve padrão xadrez (0xAA/0x55) em UM setor; lê de volta; compara;
- * apaga setor. Chamável só com sessão ativa (LittleFS desmontada).
- *
- * Resultado em @p out_first_diff: -1 = OK, >=0 = offset do primeiro byte
- * que não bateu.
- *
- * @return true se padrão escrito + lido + apagado conferem 100%.
- */
-bool staging_selftest(int* out_first_diff);
-
 } /* namespace ota */

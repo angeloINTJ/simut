@@ -305,8 +305,8 @@ mostre como tal e para que o CI os construa.
 - **`SIMUT_FACTORY_RESET=1`** está em três ambientes e não tem nenhum uso em `src/`.
 - **`sampleIntervalMs` (`s_int`)** é validado, gravado e ecoado, e nenhum código o lê (3.4).
 - **`cfg.loggingEnabled`**, o interruptor "Enable Local Logging" da CFG, não tem consumidor que desligue o log, e ainda assim força reinício (`ConfigApply.h:80`).
-- **`handleApiOtaStagingTest`** está definido (`src/WebManager_Ota.cpp:462`) e declarado, sem rota.
-- **`MODE_STATS_VIEW`** é inalcançável.
+- **`handleApiOtaStagingTest`** estava definido (`src/WebManager_Ota.cpp:462`) e declarado, sem rota — **apagado** com `staging_selftest` no P0 (2026-09-26).
+- **`MODE_STATS_VIEW`** era inalcançável (gatilho `param==99` nunca emitido) — a tela e sua cadeia foram **apagadas** no P0 (2026-09-26): `drawStatsScreen` estava linkada, −2.984 B no release.
 - **`SIMUT_BOOT_SERIAL_LOG`** não existe em `src/`; é variável de ambiente de duas ferramentas.
 - **Duas semânticas de macro convivem**: `#if` de valor na maioria, `#ifdef` de presença em `SIMUT_WEB_HTTPS`, `SIMUT_LICENSE_STUB`, `SIMUT_CONCURRENCY_ASSERTS`, `SIMUT_THEMES_*`, `SIMUT_WDT_DISABLED` e num sítio do `SIMUT_MDNS`. `NetworkManager.h:22-26` documenta o risco.
 - **`custom_web_omit = tft` e `SIMUT_DISPLAY_TFT = 0` não sabem um do outro.**
@@ -687,12 +687,12 @@ evita modelar defeito.
 | ~~`SIMUT_FACTORY_RESET`~~ **feito** | saiu do manifesto (`tools/features.toml`); depois da troca do P1 o flag vinha do `profiles.ini` gerado, não mais do `platformio.ini` | os seis `firmware.bin` reconstruídos ficaram byte a byte iguais, confirmando que a imagem nunca lia o flag |
 | `sampleIntervalMs` (`s_int`) | ou passa a ser lido pelo pipeline, ou sai da CFG, do `commit_all`, do `/api/config` e do CLI; o campo fica no esquema | ou um teste que prove o efeito, ou a página sem o campo |
 | `cfg.loggingEnabled` | idem: ou o log obedece, ou o interruptor sai; hoje só força reinício | idem |
-| `handleApiOtaStagingTest` | apagar, ou registrar sob `web.api_bench` | `check_authz.py --list` sem órfão |
-| `MODE_STATS_VIEW` | apagar a tela | `DisplayManager.cpp` menor pelo número que a dieta medir |
+| ~~`handleApiOtaStagingTest`~~ **feito** | apagado com `staging_selftest` (único a chamá-lo); nunca teve rota, então o `--gc-sections` já o descartava — só 8 B de deslocamento de layout no `.bin` | — |
+| ~~`MODE_STATS_VIEW`~~ **feito** | tela apagada. O gatilho era `EVT_OPEN_GRAPH` com `param==99`, que ninguém emite (`_graphData.timeRange ∈ [0,4]`), mas o `if` é runtime, então `drawStatsScreen` (154 linhas) estava LINKADA: **−2.984 B no release**, e a cadeia (`openStatsScreen`/`showStats`/handlers) nos seis | os quatro budgets TFT desceram no `flash_budget.json` |
 | `SIMUT_BOOT_SERIAL_LOG` | renomear nas duas ferramentas, para não parecer macro do firmware | — |
 | `custom_web_omit` × `SIMUT_DISPLAY_TFT` | o gerador de páginas deriva o omit da macro, lendo `CPPDEFINES` do ambiente | um ambiente com `TFT=0` e sem `custom_web_omit` recebe o mesmo blob que com |
 | ~~`SHIPPING_ENVS`~~ **feito** | `pico_w_air` incluído em `tools/build_webui_gz.py` | o gerador agora recusa `custom_fs_pages` no Air; o Air não declara nenhuma, então a imagem ficou idêntica |
-| rotas fantasmas | `/api/reset_touch_cal` e `/api/themes` só com TFT | alpha e Air com 54 rotas, e `AUTHORIZATION.md` dizendo isso |
+| rotas fantasmas | `/api/reset_touch_cal` e `/api/themes` só com TFT — pela via de auto-registro (como `registerScreenRoutes`, que os drivers de rota já usam), **não** um `#if` no núcleo; é trabalho da costura de rotas do P2, não um `#if` avulso | alpha e Air com 54 rotas, e `AUTHORIZATION.md` dizendo isso |
 | `cfg.useHttps`, `displayPin` | campos mortos que forçam reinício: sair das classes de reinício (`ConfigApply.h:138, :164, :169`); o campo fica no esquema | um `commit_all` que só os toca responde sem `_reboot` |
 | `docs/OTA_USAGE.md:46` e o comentário de `SystemDefs_Network.h:140-141` | dizer que é o stage que grava sobre o FS; apagar a menção ao `TelemetryGuard` | — |
 | `Dockerfile:21-22`, `docker-compose.yml:9`, `tools/build_release_pio.sh:66` | os três constroem sem `patch.sh` ou apagam os overrides que o build exige (R-S30) | um build no Docker limpo que linka |
