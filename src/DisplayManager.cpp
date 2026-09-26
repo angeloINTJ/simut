@@ -194,14 +194,6 @@ bool DisplayManager::stateMutexHeldByCurrentCore( ) {
 	return owner == get_core_num( );
 }
 
-#ifdef SIMUT_CONCURRENCY_ASSERTS
-/* Free-function bridge declared in ConcurrencyAsserts.h so StorageManager
- * does not need to include DisplayManager.h. */
-bool simutStateMutexHeldByCurrentCore( ) {
-	return DisplayManager::stateMutexHeldByCurrentCore( );
-}
-#endif
-
 /* THE single funnel for every Core-1 launch.
  *
  * multicore_launch_core1_raw( ) is an UNBOUNDED push/pop FIFO handshake: it

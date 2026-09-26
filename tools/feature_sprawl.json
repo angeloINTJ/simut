@@ -40,8 +40,7 @@
   "SystemDefs_Cli.h": 1
  },
  "SIMUT_CONCURRENCY_ASSERTS": {
-  "ConcurrencyAsserts.h": 1,
-  "DisplayManager.cpp": 1
+  "ConcurrencyAsserts.h": 1
  },
  "SIMUT_DISPLAY_ALPHA": {
   "DisplayManager.cpp": 8,

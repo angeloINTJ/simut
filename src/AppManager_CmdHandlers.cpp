@@ -383,9 +383,12 @@ void AppManager::cmdHandleAcceptSensor(const CliDemand& cmd, SystemConfig& cfg, 
  uint8_t gpio = (uint8_t)cmd.intVal1;
  if (gpio >= MAX_SENSORS) return;
 
- uint8_t foundRom[8];
  String dbId; CalibCurve dbCurve; String dbName;
 #if SIMUT_SENSOR_DS18B20
+ /* Declared inside the guard: with the DS18B20 family off nothing reads it,
+  * and -Werror=unused-variable stopped the SIMUT Air build without that
+  * family (found by tools/measure_savings.py --matrix, 2026-09-26). */
+ uint8_t foundRom[8];
  if (!_sensorMgr->identifyPhysicalSensor(gpio, foundRom)) {
  _cmdMgr->printError((pt ? "Nenhum sensor no GPIO " : "No physical sensor detected on GPIO ") + String(gpio));
  return;

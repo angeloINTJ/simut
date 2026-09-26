@@ -23,9 +23,11 @@
 
 #ifdef SIMUT_CONCURRENCY_ASSERTS
 
-/** Implemented in DisplayManager.cpp (needs private _stateMutex access).
- *  Uses mutex_try_enter owner introspection: if the try fails and the
- *  reported owner is this core, we are (re-)entering while holding it. */
+/** Implemented in ConcurrencyAsserts.cpp, compiled only with this macro on,
+ *  as a bridge to DisplayManager::stateMutexHeldByCurrentCore( ) (which needs
+ *  private _stateMutex access). That uses mutex_try_enter owner
+ *  introspection: if the try fails and the reported owner is this core, we
+ *  are (re-)entering while holding it. */
 bool simutStateMutexHeldByCurrentCore( );
 
 #define SIMUT_ASSERT_NO_STATE_MUTEX() do { \
