@@ -234,9 +234,13 @@ conf web port <1..65535>
 #endif /* SIMUT_CLI_FULL */
 
 #if defined(SIMUT_LICENSE_STUB)
-/* Bench/test image only (pico_w_test): the full MIT text costs ~6.5 KB of
- * a flash slot the full CLI already fills to the brim. The release image
- * always carries the complete license below. */
+/* Profiles that set license_stub in tools/features.toml (the two test images,
+ * and SIMUT Air). The only reader is the touch display's License screen, when
+ * it shows English or a language pack without @LICENSE: there it saves 1,728 B
+ * against the full text below (SIMUT, measured 2026-09-26 by
+ * tools/measure_savings.py --matrix). Without the touch display nothing reads
+ * the string, so on Air the switch changes nothing. The release image always
+ * carries the complete license below; the /license web page is separate. */
 static const char LICENSE_TEXT_EN[] PROGMEM =
 "MIT License - full text ships in the release image\n"
 "and in the LICENSE file of the source repository.\n";

@@ -775,6 +775,19 @@ merece arquivo próprio e vai junto do vizinho; e um objeto vazio muda a ordem
 de link e os veneers em centenas de bytes (427 B medidos, `platformio.ini:36-42`),
 então arquivo desligado sai do filtro, nunca fica sob `#if` inteiro.
 
+> **Duas chaves que o manifesto aceitava e que não compilavam (26/09).** A
+> matriz de custo do configurador (`tools/measure_savings.py --matrix`, P4 e P7)
+> compila cada produto publicado com cada chave invertida, e achou duas no Air.
+> Com `concurrency_asserts` ligada, o link falhava: a ponte
+> `simutStateMutexHeldByCurrentCore` morava no `DisplayManager.cpp`, que o Air
+> não compila. Agora ela mora no `ConcurrencyAsserts.cpp`, que sai do filtro com
+> a chave desligada. O placar desce de 234 para 233, e o arquivo novo custou
+> 0 B no `pico_w_asserts` (`used` idêntico). Sem a família DS18B20, um
+> `foundRom` sem uso parava o `-Werror` em toda imagem com a CLI completa. As
+> cinco imagens que não ligam a chave saíram idênticas byte a byte, e as quatro
+> combinações que falhavam no `main` compilam: Air com a armadilha, Air sem
+> DS18B20, Air sem nenhum sensor e Alpha com a CLI completa sem DS18B20.
+
 ### P3 — As magnitudes num lugar só (M)
 
 1. `gen_features.py` emite também `src/simut_limits.h` a partir das magnitudes

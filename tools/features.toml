@@ -89,8 +89,9 @@ macro = "SIMUT_MDNS"
 emit  = "off_is_0"       # default do config e 1
 
 [toggles.concurrency_asserts]
-macro = "SIMUT_CONCURRENCY_ASSERTS"
-emit  = "bare"
+macro       = "SIMUT_CONCURRENCY_ASSERTS"
+emit        = "bare"
+off_exclude = ["ConcurrencyAsserts.cpp"]  # a ponte do tripwire; so existe ligado
 
 [toggles.bluetooth]
 macro          = "SIMUT_BLUETOOTH"

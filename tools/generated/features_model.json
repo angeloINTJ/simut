@@ -23,6 +23,7 @@
         ],
         "excludes": [
           "DisplayManager_Alpha.cpp",
+          "ConcurrencyAsserts.cpp",
           "BluetoothManager.cpp"
         ],
         "includes": [],
@@ -56,6 +57,7 @@
         ],
         "excludes": [
           "DisplayManager_Alpha.cpp",
+          "ConcurrencyAsserts.cpp",
           "BluetoothManager.cpp"
         ],
         "includes": [],
@@ -90,6 +92,7 @@
         ],
         "excludes": [
           "DisplayManager_Alpha.cpp",
+          "ConcurrencyAsserts.cpp",
           "BluetoothManager.cpp"
         ],
         "includes": [],
@@ -174,7 +177,8 @@
           "DisplayManager_Fonts.cpp",
           "DisplayManager_i18n.cpp",
           "DisplayManager_LangParser.cpp",
-          "AppManager_Graph.cpp"
+          "AppManager_Graph.cpp",
+          "ConcurrencyAsserts.cpp"
         ],
         "includes": [
           "DisplayManager_Alpha.cpp"
@@ -227,6 +231,7 @@
           "AppManager_Graph.cpp",
           "DisplayManager.cpp",
           "DisplayManager_Alpha.cpp",
+          "ConcurrencyAsserts.cpp",
           "SoundManager.cpp"
         ],
         "includes": [
