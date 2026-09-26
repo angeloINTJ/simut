@@ -1,0 +1,49 @@
+name: SIMUT savings watermark
+
+# O portão de economia (docs/analysis/ECONOMIA_DE_RECURSOS.md): prova que
+# desligar um recurso ainda devolve pelo menos o que devolvia — que nenhum
+# recurso vazou para o caminho sempre-ligado. Constrói ~13 imagens (base +
+# variante por recurso), caro demais para o job `gates` de todo PR, então roda
+# à noite e sob demanda. Um `--check --only <recurso>` local é o passo barato
+# para conferir um recurso ao mexer no que ele guarda.
+on:
+  schedule:
+    - cron: '0 6 * * *'   # 06:00 UTC diariamente
+  workflow_dispatch: {}
+
+jobs:
+  savings:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      # Só ~/.platformio: o toolchain e o framework, grandes e estáveis. NÃO
+      # .pio — a economia sai da DIFERENÇA de dois builds reais; um diretório de
+      # build quente pularia unidades e mentiria o tamanho.
+      - name: Cache PlatformIO packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.platformio
+          key: ${{ runner.os }}-pio-savings-${{ hashFiles('platformio.ini') }}
+          restore-keys: |
+            ${{ runner.os }}-pio-savings-
+            ${{ runner.os }}-pio-fw-
+
+      - name: Install PlatformIO
+        run: pip install platformio zopfli
+
+      # O mesmo framework corrigido do build de firmware: um arduino-pico de
+      # fábrica não compila desde a v2.3.0 (ver .github/workflows/build.yml).
+      # O patch.sh é idempotente; todos os perfis compartilham o mesmo pacote.
+      - name: Apply framework overrides
+        run: |
+          pio pkg install -e pico_w_release
+          bash tools/arduino_pico_overrides/patch.sh
+
+      - name: Check per-feature savings watermark
+        run: python3 tools/measure_savings.py --check
