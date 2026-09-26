@@ -12,7 +12,7 @@ substance lives there, not here.
 |---|---|
 | Firmware source | `src/` — ~56k lines, C++17, RP2040 / arduino-pico |
 | Web UI source | `WebUI.h` at the repository root, all 8 languages. `tools/build_webui_gz.py` compresses it into `src/WebUI_GZ.h` on every build — never edit the generated header |
-| Tools | `tools/` — [`tools/README.md`](tools/README.md) says which of the 104 scripts are live |
+| Tools | `tools/` — [`tools/README.md`](tools/README.md) says which of the 141 scripts are live |
 | Documentation | `docs/` — [`docs/README.md`](docs/README.md) marks each document **Living** or **Snapshot** |
 | Interface standard | [`ANGULO.md`](ANGULO.md) — the Ângulo guide for anything with a screen or a reader: web UI, site, README, docs, brand. [`AGENTS.md`](AGENTS.md) §7 says how it applies here and what `tools/check_angulo.py` enforces in CI |
 | Tests | `test/` — eight native environments, `pio test -e native…` |

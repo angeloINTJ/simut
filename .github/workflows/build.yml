@@ -130,6 +130,15 @@ jobs:
       - name: Configurator page (its sums and locks match the build side)
         run: python3 tools/test_configurator_page.py
 
+      # The web UI is cut per image (`@IF tft` in WebUI.h), and a route only
+      # the touch-panel images register must be called from inside such a
+      # block, or the alpha and the Air carry a button that answers 404 — the
+      # touch-calibration section #184 left behind. build_webui_gz.py refuses
+      # it on every build; this pins that refusal, so a change to the check
+      # cannot quietly stop it from biting.
+      - name: Web UI feature routes (panel-only routes stay inside @IF tft)
+        run: python3 tools/test_webui_feature_routes.py
+
       # OTA applies reformat the LittleFS, so benches restore /history from
       # backup — and the current-day file can only be given back by MERGING
       # with what the device wrote meanwhile. This is the tool that hole

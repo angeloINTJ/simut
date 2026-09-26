@@ -1,6 +1,6 @@
 # tools/
 
-134 scripts. This file exists because until 2026-09-08 there was no way
+141 scripts. This file exists because until 2026-09-08 there was no way
 to tell a live bench tool from a leftover, and one of them —
 `compressor.py` — had been superseded for three months while still looking
 usable: it regenerated `WebUI_GZ.h` into the repository root, where nothing
@@ -16,7 +16,7 @@ wrong, the description is the bug.
 
 ---
 
-## Called by CI (17)
+## Called by CI (24)
 
 Invoked from `.github/workflows/build.yml` — or, for the release manifest, from
 `release-ota.yml` when a tag is pushed. Breaking one of these fails a pull request
@@ -41,6 +41,7 @@ or a release.
 | `build_custom.py` | Compila a build montada no configurador (`docs/configurador/`): recebe um perfil `{"v":1,"base":…,"set":{…}}` por `--profile` ou `SIMUT_PROFILE`, recusa o que não for exatamente esse formato (chave repetida, versão que não é o inteiro 1, produto ou chave fora do manifesto, valor que não é booleano) e reaplica as regras do manifesto, porque a página não é a autoridade (exit 2). Compila e deixa em `--out` o `.uf2` (USB), o `.bin` (OTA) e `build.json` com flags, tamanhos, sha256 e se o `.bin` cabe no teto de OTA; exit 3 é "não cabe no slot". Sem mudanças, a imagem sai idêntica byte a byte à do perfil publicado (conferido em 26/09). `--validate-only` só confere. É o que `.github/workflows/build-custom.yml` roda. | 2026-09-26 |
 | `test_build_custom.py` | A porta do `build_custom.py`: 34 perfis hostis têm de ser recusados antes de qualquer build (quebra de linha no nome do produto, chave repetida, `NaN`, `__proto__`, `display` no conjunto…), cada produto sem mudanças tem de compor o mesmo ambiente que o manifesto, as regras têm de sair com exit 2 pela linha de comando, e um perfil com `\n::warning::` embutido não pode injetar comando no log do Actions. Job `gates`. Sabe reprovar: sem o bloqueio de chave repetida e com a versão frouxa, reprova quatro casos; sem o escape do log, acusa o comando injetado (26/09). | 2026-09-26 |
 | `test_configurator_page.py` | Roda as contas da página do configurador (`docs/configurador/logic.js`) no `node`, contra o `model.json` gerado, e confere cada resposta com o lado Python: o perfil que a página escreve é o que o `build_custom.py` aceita, com a mesma grafia (468 perfis e links); com uma chave mudada, a estimativa é exatamente a medida da matriz; chave travada é a que o `rule_violations` proíbe; `same` é o da matriz; 9 links hostis são recusados; a precisão que a página diz ter é a recalculada aqui. Job `gates`. Sabe reprovar: perfil com as chaves fora de ordem, trava que nunca trava e link que aceita chave desconhecida, os três pegos (26/09). | 2026-09-26 |
+| `test_webui_feature_routes.py` | Rota que só as imagens com painel registram (`registerScreenRoutes( )`, lida do C++) tem de ser chamada de dentro de um bloco `@IF tft` do `WebUI.h`, ou a alpha e o Air levam um botão que responde 404 — a seção de calibração do toque que o #184 deixou para trás. Casos sintéticos (fora é recusado, dentro passa, `?` e prefixo de rota, comentário não conta) e o `WebUI.h` de verdade. Job `gates`; a mesma conferência roda em todo `pio run`, dentro do `build_webui_gz.py`. Sabe reprovar: no `WebUI.h` de antes do conserto acusa `/api/reset_touch_cal` e só ela (26/09). | 2026-09-26 |
 | `check_features.py` | Prova, pelo resolvedor do próprio PlatformIO, que os seis ambientes de firmware que o build usa (o `platformio.ini` inclui `tools/generated/profiles.ini` via `extra_configs`) resolvem para o que o manifesto `tools/features.toml` descreve — flag a flag e unidade de tradução a unidade. A troca foi validada por build byte-a-byte contra a imagem anterior (P1). Sabe reprovar: mutação no manifesto é pega, controle conferido em 25/09. | 2026-09-25 |
 | `h5_day_merge.py` | Merge V5 history day files (same day, same schema) into one file. | 2026-08-21 |
 | `run_cppcheck.sh` | run_cppcheck.sh — static-analysis gate over src/ (issue #35). | 2026-08-18 |
@@ -57,7 +58,7 @@ local build before CI ever sees it.
 | script | what it does | last touched |
 |---|---|---|
 | `build_favicon_header.py` | PlatformIO pre-build script — regenerates src/Favicon.{h,cpp} from data/favicon.ico. | 2026-07-27 |
-| `build_webui_gz.py` | PlatformIO pre-build script — regenerates WebUI_GZ.h from WebUI.h, recortando os blocos `@IF <feature>` que o ambiente declarou em `custom_web_omit` (hoje só `tft`). Dois portões acompanham o recorte e rodam **sempre**, inclusive quando nada é omitido: função definida dentro de um bloco e chamada fora, e id de elemento que só existe dentro e é buscado fora. Running it **by hand** needs the interpreter that has zopfli, which is PlatformIO's pipx venv (`~/.local/share/pipx/venvs/platformio/bin/python`) — not the system `python3` and not `~/.platformio/penv/bin/python`. Either of those falls back to gzip -9 and every page grows ~2,888 B in total, with no error. | 2026-09-20 |
+| `build_webui_gz.py` | PlatformIO pre-build script — regenerates WebUI_GZ.h from WebUI.h, recortando os blocos `@IF <feature>` que o ambiente declarou em `custom_web_omit` (hoje só `tft`). Três portões acompanham o recorte e rodam **sempre**, inclusive quando nada é omitido: função definida dentro de um bloco e chamada fora, id de elemento que só existe dentro e é buscado fora, e rota que só as imagens com a feature registram chamada fora (a lista sai do registrador em C++, `WEB_FEATURE_ROUTES`). Running it **by hand** needs the interpreter that has zopfli, which is PlatformIO's pipx venv (`~/.local/share/pipx/venvs/platformio/bin/python`) — not the system `python3` and not `~/.platformio/penv/bin/python`. Either of those falls back to gzip -9 and every page grows ~2,888 B in total, with no error. | 2026-09-20 |
 | `check_channels.py` | Build guard: keep channel knowledge inside the channel table. | 2026-07-30 |
 | `check_cli_help.py` | PlatformIO pre-build guard — every usable CLI command must be documented, the ones on the `default:` mask included. | 2026-09-24 |
 | `check_flash_probe.py` | PlatformIO post-build guard — FlashIrqProbe wrappers must live in SRAM. | 2026-07-23 |

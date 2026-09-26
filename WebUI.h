@@ -3681,11 +3681,13 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 <!-- U24: save button removido. Use "Salvar e Reiniciar" no topbar. -->
             </form>
 
+            /* @IF tft */
             <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--linha)">
                 <h3 data-i18n="cfg_touch_title">Touch Calibration</h3>
                 <button type="button" class="sxb sxb-dang" onclick="resetTouchCal()" data-i18n="cfg_touch_reset">Reset Touch Calibration</button>
                 <div class="c-sub" style="margin-top:6px;font-size:0.8em;color:var(--tinta-2)" data-i18n="cfg_touch_hint">Clears the stored calibration and starts the wizard on the display — follow the on-screen steps there.</div>
             </div>
+            /* @ENDIF */
 
             <!-- Restart the device WITHOUT writing config. The twin of "Salvar e
                  Reiniciar" in the topbar: that one runs commit_all + save; this
@@ -3921,6 +3923,13 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             form.addEventListener('change', handler);
         }
 
+        /* @IF tft */
+        /* Only on an image with a touch panel, like the section that calls it.
+           The alpha and the Air do not register /api/reset_touch_cal (#184),
+           and before that the route answered "the wizard is running on the
+           display" on a device with no display. The comment lives here and not
+           in the markup: the HTML minifier drops a comment but keeps the
+           whitespace on both sides, 2 B on every image with the panel. */
         async function resetTouchCal() {
             let msg = window.t('cfg_touch_confirm', 'Reset touch calibration to factory defaults?');
             if (!confirm(msg)) return;
@@ -3932,6 +3941,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 else showToast('Error', 'err');
             } catch(e) { showToast('Error', 'err'); }
         }
+        /* @ENDIF */
 
         /* Restart the device without saving. Reuses sensAction( ), which POSTs
            /api/action?op=reboot — the handler answers 200 and closes the socket
