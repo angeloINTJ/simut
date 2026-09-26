@@ -87,7 +87,7 @@
   "AppManager_CmdHandlers.cpp": 1,
   "AppManager_Commands.cpp": 3,
   "AppManager_Events.cpp": 4,
-  "CommandManager.cpp": 4,
+  "CommandManager.cpp": 2,
   "CommandParser.cpp": 2,
   "DisplayManager.h": 2,
   "PinKeypad.h": 1,

@@ -23,9 +23,9 @@ on 2026-09-24 that stronger form flagged three commands (`alarm show` in config
 mode, `debug` and `sensor scan` in user EXEC), each listed in another mode
 where it works too.
 
-A command with no case in getCommandModeMask( ) is accepted wherever its
-`default:` says — every mode — and until 2026-09-24 this script skipped it,
-because it walked the cases rather than the parser. That is how `touch hold`
+A command with no row in the CLI_COMMANDS table is accepted wherever the
+lookup's fallback says — every mode — and until 2026-09-24 this script skipped
+it, because it walked the mask rather than the parser. That is how `touch hold`
 was merged in #159 accepted at every prompt, user EXEC included, and listed at
 none, and how the five `air` commands went unlisted on the Air from the day it
 got this CLI (2026-09-18). The walk now starts from what the parser can
@@ -208,16 +208,19 @@ def check_cli_help(*args, **kwargs):
         check_emergency_cli(parser)
         return
 
-    # The full CLI's table only: the emergency image defines the same function
-    # as a one-liner, and a case in some other switch is not a mode mask.
+    # The mode mask lives in the CLI_COMMANDS table now (was a switch in
+    # getCommandModeMask). Each row is `{ CMD_X, MASK },`; a command with no row
+    # takes the fallback the lookup returns. The full CLI only: the emergency
+    # image defines getCommandModeMask as a one-liner and carries no table.
+    tbl = mgr.find('CLI_COMMANDS[] = {')
     fn = mgr.find('uint8_t getCommandModeMask(DemandType t) {')
-    if fn < 0:
-        print('[cli-help] WARNING: getCommandModeMask not found — check skipped')
+    if tbl < 0 or fn < 0:
+        print('[cli-help] WARNING: CLI_COMMANDS / getCommandModeMask not found — check skipped')
         return
-    table = mgr[fn:]
-    table = table[:table.find('\n}\n')]
-    masks = dict(re.findall(r'case\s+(CMD_[A-Z0-9_]+):\s*return\s+([A-Z_ |]+);', table))
-    m = re.search(r'default:\s*return\s+([A-Z_ |]+);', table)
+    table = mgr[tbl:mgr.find('\n};', tbl)]
+    masks = dict(re.findall(r'\{\s*(CMD_[A-Z0-9_]+),\s*([A-Z_ |]+?)\s*\}', table))
+    fnbody = mgr[fn:mgr.find('\n}\n', fn)]
+    m = re.search(r'return\s+(CLI_VALID_[A-Z_ |]+);', fnbody)
     default = m.group(1) if m else None
     reachable = set(re.findall(r'(CMD_[A-Z0-9_]+)',
                                strip_comments(strip_gated(parser, full=True))))
@@ -235,7 +238,7 @@ def check_cli_help(*args, **kwargs):
     for cmd in sorted(reachable - NAV_EXEMPT - SENTINELS):
         expr = masks.get(cmd, default)
         if expr is None:
-            problems.append(f'{cmd}: no case in getCommandModeMask( ) and no default')
+            problems.append(f'{cmd}: no row in CLI_COMMANDS and no fallback mask')
             continue
         checked += 1
         defaulted += cmd not in masks
@@ -254,7 +257,7 @@ def check_cli_help(*args, **kwargs):
         for p in problems:
             print(f'[cli-help]   {p}')
         print('[cli-help] Add a showIf( ) in a block that renders in that mode,')
-        print('[cli-help] or set its mask in getCommandModeMask( ).')
+        print('[cli-help] or add its row to the CLI_COMMANDS table.')
         sys.exit(1)
 
     print(f'[cli-help] OK {checked} commands ({defaulted} on the default mask), '
