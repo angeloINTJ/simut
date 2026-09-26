@@ -501,27 +501,27 @@
  "envs": {
   "pico_w_release": {
    "budget": 1000572,
-   "measured": 997940
+   "measured": 997980
   },
   "pico_w_test": {
    "budget": 1005972,
-   "measured": 1003340
+   "measured": 1003372
   },
   "pico_w_test_https": {
    "budget": 1013628,
-   "measured": 1010996
+   "measured": 1011036
   },
   "pico_w_asserts": {
    "budget": 1002748,
-   "measured": 1000116
+   "measured": 1000156
   },
   "pico_w_alpha": {
-   "budget": 966836,
-   "measured": 963916
+   "budget": 966228,
+   "measured": 963308
   },
   "pico_w_air": {
-   "budget": 1006688,
-   "measured": 1003728
+   "budget": 1006104,
+   "measured": 1003144
   }
  }
 }
