@@ -2388,6 +2388,23 @@ void WebManager::handleApiKeypad( ) {
  _server->send(200, "application/json", json);
 }
 
+/* The panel-mirror routes live here, beside their handlers, and register
+ * themselves so WebManager::begin( ) need not test SIMUT_DISPLAY_TFT to place
+ * them. docs/analysis/MODELO_DE_RECURSOS.md, P2 (costura das rotas). */
+void WebManager::registerScreenRoutes( ) {
+ _server->on("/api/screenshot", HTTP_GET, std::bind(&WebManager::handleApiScreenshot, this));
+ _server->on("/api/screenshot_chunk", HTTP_GET, std::bind(&WebManager::handleApiScreenshotChunk, this));
+ _server->on("/api/screen_stream", HTTP_GET, std::bind(&WebManager::handleApiScreenStream, this));
+ _server->on("/api/touch", HTTP_POST, std::bind(&WebManager::handleApiTouch, this));
+ _server->on("/api/keypad", HTTP_GET, std::bind(&WebManager::handleApiKeypad, this));
+}
+
+#else
+
+/* No panel compiled in: the mirror routes do not exist, so begin( ) calls this
+ * no-op instead of testing the macro. */
+void WebManager::registerScreenRoutes( ) { }
+
 #endif /* SIMUT_DISPLAY_TFT */
 
 void WebManager::handleApiHistoryDays( ) {
