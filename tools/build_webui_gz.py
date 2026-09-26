@@ -222,8 +222,9 @@ FS_PAGES = _resolve_diet()
 # têm painel de toque, e carregavam mesmo assim o espelho do painel, a captura
 # de tela e o seletor de tema do dashboard — 2.363 B de página gzipada, medidos
 # por A/B, falando com rotas (`/api/screen_stream`, `/api/touch`,
-# `/api/screenshot`, `/api/keypad`) que o `#if SIMUT_DISPLAY_TFT` do
-# WebManager_Core.cpp nem registra nessas imagens. Botões que respondem 404.
+# `/api/screenshot`, `/api/keypad`) que essas imagens nem registram: quem as
+# registra é o `registerScreenRoutes( )` do WebManager_History.cpp, que sem
+# SIMUT_DISPLAY_TFT é um stub vazio. Botões que respondem 404.
 #
 # Isto NÃO é a dieta do custom_fs_pages, e a regra de 2026-08-17 ("imagem de
 # produção carrega a interface INTEIRA") continua valendo para aquilo: lá a
@@ -236,6 +237,40 @@ FS_PAGES = _resolve_diet()
 WEB_FEATURES = {
     "tft": "painel de toque: espelho, captura, temas e teclado do painel",
 }
+
+# Onde cada feature registra as rotas que só ela tem. A página que chama uma
+# delas tem de fazê-lo de dentro de um bloco @IF da feature, ou a imagem sem a
+# feature leva um botão que responde 404. Foi o que o #184 deixou para trás em
+# 2026-09-26: /api/reset_touch_cal passou a ser registrada só com o painel, e a
+# seção "Touch Calibration" da /config continuou em todas as imagens. A lista
+# de rotas sai do próprio C++, não de uma cópia aqui, para não envelhecer
+# quando uma rota muda de dono.
+WEB_FEATURE_ROUTES = {
+    "tft": (os.path.join("src", "WebManager_History.cpp"), "registerScreenRoutes"),
+}
+
+
+def _feature_routes(feature: str) -> set:
+    """As rotas que o registrador da feature cadastra com `_server->on("…")`,
+    somadas sobre todas as definições dele (a com painel e o stub vazio)."""
+    if feature not in WEB_FEATURE_ROUTES:
+        return set()
+    rel, func = WEB_FEATURE_ROUTES[feature]
+    with open(os.path.join(PROJECT_DIR, rel), encoding="utf-8") as f:
+        src = f.read()
+    routes = set()
+    for m in re.finditer(r"::" + re.escape(func) + r"\s*\(\s*\)\s*\{", src):
+        depth, i = 1, m.end()
+        while depth and i < len(src):
+            depth += {"{": 1, "}": -1}.get(src[i], 0)
+            i += 1
+        routes |= set(re.findall(r'_server->on\(\s*"([^"]+)"', src[m.end():i]))
+    if not routes:
+        raise SystemExit(
+            f"build_webui_gz: nenhuma rota em {func}( ) de {rel}. O registrador "
+            f"mudou de nome ou de arquivo? Atualize WEB_FEATURE_ROUTES."
+        )
+    return routes
 
 
 def _resolve_web_omit() -> set:
@@ -296,7 +331,10 @@ def _strip_web_features(content: str) -> str:
 
     strip = lambda t: re.sub(r"/\*.*?\*/", " ", t, flags=re.S)
     problems = []
-    for feature, spans in by_feature.items():
+    # Uma feature com rotas proprias e conferida mesmo sem bloco nenhum: ai a
+    # pagina inteira e "fora", e qualquer chamada a uma dessas rotas e o defeito.
+    for feature in sorted(set(by_feature) | set(WEB_FEATURE_ROUTES)):
+        spans = by_feature.get(feature, [])
         outside, prev = [], 0
         for a, b, _ in spans:
             outside.append(content[prev:a])
@@ -328,11 +366,18 @@ def _strip_web_features(content: str) -> str:
         for el in sorted(ids):
             if re.search(r"getElementById\(\s*['\"]" + re.escape(el) + r"['\"]", outside):
                 problems.append(f"  #{el} so existe dentro de @IF {feature} e e buscado fora")
+        # E as rotas: chamar de fora do bloco uma rota que so a feature
+        # registra e o botao que responde 404 na imagem sem ela. A rota vem
+        # entre aspas e termina em aspa ou em '?', para que '/api/screenshot'
+        # nao case dentro de '/api/screenshot_chunk'.
+        for route in sorted(_feature_routes(feature)):
+            if re.search(r"['\"`]" + re.escape(route) + r"['\"`?]", code_out):
+                problems.append(f"  {route} so e registrada com {feature} e e chamada fora")
     if problems:
         raise SystemExit(
             "build_webui_gz: a interface depende de um bloco que pode ser "
-            "recortado.\nNuma imagem sem essa feature isto vira TypeError no "
-            "navegador, nao erro de build.\n" + "\n".join(sorted(set(problems)))
+            "recortado.\nNuma imagem sem essa feature isto vira TypeError ou 404 "
+            "no navegador, nao erro de build.\n" + "\n".join(sorted(set(problems)))
         )
 
     if WEB_OMIT:
