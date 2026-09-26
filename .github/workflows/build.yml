@@ -102,6 +102,25 @@ jobs:
       - name: Feature entanglement watermark
         run: python3 tools/check_feature_sprawl.py
 
+      # The configurator's rules (tools/features.toml [[rules]], each measured
+      # by compiling the forbidden combination). They are applied twice: by
+      # docs/configurador/rules.js, so the page can lock an option, and by
+      # gen_features.rule_violations, which the build side applies before
+      # compiling — the page is not the authority. Two implementations of one
+      # rule drift apart silently; this runs both against one table and also
+      # fails on a rule no case exercises. node ships with the runner.
+      - name: Configurator rules (page and CI agree)
+        run: python3 tools/test_configurator_rules.py
+
+      # The door of the custom build (.github/workflows/build-custom.yml): the
+      # profile arrives through a workflow_dispatch, and what got past
+      # tools/build_custom.py would become PlatformIO configuration — a newline
+      # in a product name would be a new [env]. Hostile profiles must be
+      # refused before anything is built, the rules must refuse what they
+      # forbid, and no profile may inject a workflow command into the log.
+      - name: Custom build input (hostile profiles refused)
+        run: python3 tools/test_build_custom.py
+
       # OTA applies reformat the LittleFS, so benches restore /history from
       # backup — and the current-day file can only be given back by MERGING
       # with what the device wrote meanwhile. This is the tool that hole

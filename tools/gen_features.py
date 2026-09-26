@@ -3,8 +3,15 @@
 
 Le tools/features.toml (a fonte unica) e escreve, sem tocar em mais nada:
 
-    tools/generated/profiles.ini        um [env:*] por perfil, para o PlatformIO
-    tools/generated/features_model.json  os recursos por perfil, para o configurador
+    tools/generated/profiles.ini    um [env:*] por perfil, para o PlatformIO
+    docs/configurador/model.json    a arvore do configurador: produtos, chaves,
+                                    regras medidas, avisos, tetos e custos por
+                                    produto (tools/feature_costs.json)
+
+Antes de gerar, confere o manifesto: toda chave tem rotulo, todo grupo existe,
+toda regra fala de chaves conhecidas — e nenhum dos seis perfis que o CI
+constroi quebra uma regra. rule_violations( ) e a semantica das regras que
+tools/build_custom.py reaplica antes de compilar e que a pagina espelha.
 
 Cada [env:*] gerado herda `pico_base` do platformio.ini e acrescenta apenas os
 flags, o filtro de fontes e o lib_ignore que o manifesto deriva dos recursos
@@ -30,13 +37,17 @@ import tomllib
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MANIFEST = os.path.join(ROOT, "tools", "features.toml")
 OUT_INI = os.path.join(ROOT, "tools", "generated", "profiles.ini")
-OUT_JSON = os.path.join(ROOT, "tools", "generated", "features_model.json")
+OUT_MODEL = os.path.join(ROOT, "docs", "configurador", "model.json")
+COSTS = os.path.join(ROOT, "tools", "feature_costs.json")
+BUDGET = os.path.join(ROOT, "tools", "flash_budget.json")
+LANGS = ("en", "pt")
 
 # Ordem canonica dos interruptores na emissao. So afeta a legibilidade do
 # profiles.ini; o portao compara conjuntos, nao ordem.
 TOGGLE_ORDER = [
     "cli_full", "web_https", "license_stub", "mdns",
     "concurrency_asserts", "bluetooth", "air", "sound_buzzer",
+    "sensor_ds18b20", "sensor_dht22", "sensor_bme280",
 ]
 
 HEADER = """; profiles.ini — GERADO por tools/gen_features.py a partir de tools/features.toml.
@@ -148,22 +159,152 @@ def emit_env(name: str, c: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
+def config_of(prof: dict) -> dict:
+    """O que as regras enxergam de um perfil: o mostrador e cada chave, em bool."""
+    cfg = {"display": prof["display"]}
+    for t in TOGGLE_ORDER:
+        cfg[t] = bool(prof.get(t, False))
+    return cfg
+
+
+def _matches(cfg: dict, conds: dict) -> bool:
+    return all(cfg.get(k) == v for k, v in conds.items())
+
+
+def rule_violations(cfg: dict, M: dict) -> list[dict]:
+    """As regras que `cfg` quebra: todas as condicoes de `when` valem e alguma
+    de `require` nao. E a mesma semantica de docs/configurador/rules.js —
+    tools/test_configurator_rules.py roda as duas contra a mesma tabela."""
+    return [r for r in M.get("rules", [])
+            if _matches(cfg, r["when"]) and not _matches(cfg, r["require"])]
+
+
+def hazard_hits(cfg: dict, M: dict) -> list[dict]:
+    """Os avisos que `cfg` acende: compila, mas carrega um risco conhecido."""
+    return [h for h in M.get("hazards", []) if _matches(cfg, h["when"])]
+
+
+def _texts(entry: dict, key: str, where: str) -> dict:
+    t = entry.get(key)
+    if not isinstance(t, dict) or any(not str(t.get(lang, "")).strip() for lang in LANGS):
+        sys.exit(f"gen_features: {where}.{key} precisa de texto em " + " e ".join(LANGS))
+    return {lang: t[lang] for lang in LANGS}
+
+
+def check_manifest(M: dict) -> None:
+    """Confere o manifesto antes de gerar. Um erro aqui e uma arvore que a pagina
+    nao saberia desenhar, ou uma regra que reprova uma imagem que o CI constroi."""
+    toggles, ui_t = M["toggles"], M.get("ui_toggles", {})
+    groups, ui_d, ui_p = M.get("ui_groups", {}), M.get("ui_displays", {}), M.get("ui_products", {})
+    for t in TOGGLE_ORDER:
+        if t not in toggles:
+            sys.exit(f"gen_features: {t} esta no TOGGLE_ORDER sem [toggles.{t}]")
+        if t not in ui_t:
+            sys.exit(f"gen_features: [toggles.{t}] sem [ui_toggles.{t}]: a arvore nao saberia rotula-la")
+    for t in toggles:
+        if t not in TOGGLE_ORDER:
+            sys.exit(f"gen_features: [toggles.{t}] fora do TOGGLE_ORDER: nunca seria emitida")
+    for t, u in ui_t.items():
+        if t not in toggles:
+            sys.exit(f"gen_features: [ui_toggles.{t}] sem [toggles.{t}]")
+        if u.get("group") not in groups:
+            sys.exit(f"gen_features: ui_toggles.{t}.group '{u.get('group')}' nao e um [ui_groups]")
+    for d in M["display"]:
+        if d not in ui_d:
+            sys.exit(f"gen_features: [display.{d}] sem [ui_displays.{d}]")
+    for name in M["profiles"]:
+        if name not in ui_p:
+            sys.exit(f"gen_features: [profiles.{name}] sem [ui_products.{name}]")
+    known = set(TOGGLE_ORDER) | {"display"}
+    for kind, parts in (("rules", ("when", "require")), ("hazards", ("when",))):
+        ids = set()
+        for r in M.get(kind, []):
+            if r["id"] in ids:
+                sys.exit(f"gen_features: {kind} com id repetido: {r['id']}")
+            ids.add(r["id"])
+            for part in parts:
+                for k, v in r[part].items():
+                    if k not in known:
+                        sys.exit(f"gen_features: {kind} {r['id']}.{part}: chave desconhecida '{k}'")
+                    if k == "display" and v not in M["display"]:
+                        sys.exit(f"gen_features: {kind} {r['id']}.{part}: mostrador desconhecido '{v}'")
+                    if k != "display" and not isinstance(v, bool):
+                        sys.exit(f"gen_features: {kind} {r['id']}.{part}.{k} tem de ser true/false")
+    # Nenhuma imagem que o CI constroi pode quebrar uma regra: se quebrasse, ou a
+    # regra esta errada, ou o CI estaria compilando algo que nao linka.
+    for name in M["profiles"]:
+        bad = rule_violations(config_of(resolve_profile(name, M["profiles"])), M)
+        if bad:
+            sys.exit(f"gen_features: o perfil {name} quebra a regra {bad[0]['id']}")
+
+
+def build_model(M: dict) -> dict:
+    """A arvore do configurador, na forma que a pagina (docs/configurador/) le."""
+    import check_flash_budget  # o mesmo teto de OTA que o portao de flash usa
+
+    check_manifest(M)
+    with open(BUDGET, encoding="utf-8") as fh:
+        flash_region = json.load(fh)["ceiling"]
+    costs = None
+    if os.path.exists(COSTS):
+        with open(COSTS, encoding="utf-8") as fh:
+            costs = json.load(fh)
+
+    groups = sorted(
+        ({"id": g, "order": v["order"], "advanced": bool(v.get("advanced", False)),
+          "label": _texts(v, "label", f"ui_groups.{g}")}
+         for g, v in M["ui_groups"].items()),
+        key=lambda g: g["order"])
+    toggles = []
+    for t in TOGGLE_ORDER:
+        u = M["ui_toggles"][t]
+        toggles.append({"id": t, "group": u["group"],
+                        "label": _texts(u, "label", f"ui_toggles.{t}"),
+                        "help": _texts(u, "help", f"ui_toggles.{t}")})
+    displays = {d: {"label": _texts(M["ui_displays"][d], "label", f"ui_displays.{d}")}
+                for d in M["display"]}
+    products = []
+    for name in M["profiles"]:
+        u = M["ui_products"][name]
+        prof = resolve_profile(name, M["profiles"])
+        products.append({"id": name, "order": u["order"],
+                         "bench": bool(u.get("bench", False)),
+                         "publish": bool(prof.get("publish", False)),
+                         "label": _texts(u, "label", f"ui_products.{name}"),
+                         "desc": _texts(u, "desc", f"ui_products.{name}"),
+                         "config": config_of(prof)})
+    products.sort(key=lambda p: p["order"])
+
+    def public(r: dict, kind: str) -> dict:
+        out = {"id": r["id"], "when": r["when"]}
+        if kind == "rules":
+            out["require"] = r["require"]
+        out["why"] = _texts(r, "why", f"{kind}.{r['id']}")
+        out["evidence"] = r["evidence"]
+        return out
+
+    return {
+        "version": M["meta"]["version"],
+        "source": "tools/features.toml",
+        "ceilings": {"flash_region": flash_region,
+                     "ota_bin": check_flash_budget.ota_safe_max()},
+        "groups": groups,
+        "toggles": toggles,
+        "displays": displays,
+        "products": products,
+        "rules": [public(r, "rules") for r in M.get("rules", [])],
+        "hazards": [public(h, "hazards") for h in M.get("hazards", [])],
+        "costs": costs,
+    }
+
+
 def build_outputs(M: dict) -> tuple[str, str]:
-    profiles = M["profiles"]
     ini_parts = [HEADER]
-    model = {"version": M["meta"]["version"], "profiles": {}}
-    for name in profiles:
-        prof = resolve_profile(name, profiles)
-        c = compose(prof, M)
-        ini_parts.append(emit_env(name, c))
-        model["profiles"][name] = {
-            "features": {k: v for k, v in prof.items()
-                         if k not in ("custom_fs_pages",)},
-            "derived": c,
-        }
+    for name in M["profiles"]:
+        ini_parts.append(emit_env(name, compose(resolve_profile(name, M["profiles"]), M)))
     ini = "\n".join(ini_parts)
-    js = json.dumps(model, indent=2, ensure_ascii=False) + "\n"
-    return ini, js
+    model = json.dumps(build_model(M), indent=2, ensure_ascii=False) + "\n"
+    return ini, model
 
 
 def main() -> int:
@@ -174,16 +315,17 @@ def main() -> int:
     args = ap.parse_args()
 
     M = load_manifest()
-    ini, js = build_outputs(M)
+    ini, model = build_outputs(M)
 
     if args.stdout:
         sys.stdout.write(ini)
         return 0
 
+    outputs = ((OUT_INI, ini), (OUT_MODEL, model))
     if args.check:
         stale = []
-        for path, want in ((OUT_INI, ini), (OUT_JSON, js)):
-            have = open(path).read() if os.path.exists(path) else None
+        for path, want in outputs:
+            have = open(path, encoding="utf-8").read() if os.path.exists(path) else None
             if have != want:
                 stale.append(os.path.relpath(path, ROOT))
         if stale:
@@ -193,15 +335,14 @@ def main() -> int:
         print("gen_features: os arquivos gerados estao em dia.")
         return 0
 
-    os.makedirs(os.path.dirname(OUT_INI), exist_ok=True)
-    with open(OUT_INI, "w") as fh:
-        fh.write(ini)
-    with open(OUT_JSON, "w") as fh:
-        fh.write(js)
-    print(f"gen_features: escrito {os.path.relpath(OUT_INI, ROOT)} e "
-          f"{os.path.relpath(OUT_JSON, ROOT)} ({len(M['profiles'])} perfis).")
+    for path, content in outputs:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(content)
+    print("gen_features: escrito " + " e ".join(os.path.relpath(p, ROOT) for p, _ in outputs)
+          + f" ({len(M['profiles'])} perfis).")
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(main())

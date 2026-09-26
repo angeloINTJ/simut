@@ -1,0 +1,741 @@
+{
+  "version": 1,
+  "source": "tools/features.toml",
+  "ceilings": {
+    "flash_region": 1044480,
+    "ota_bin": 1040384
+  },
+  "groups": [
+    {
+      "id": "network",
+      "order": 1,
+      "advanced": false,
+      "label": {
+        "en": "Network",
+        "pt": "Rede"
+      }
+    },
+    {
+      "id": "interface",
+      "order": 2,
+      "advanced": false,
+      "label": {
+        "en": "Interface",
+        "pt": "Interface"
+      }
+    },
+    {
+      "id": "sensors",
+      "order": 3,
+      "advanced": false,
+      "label": {
+        "en": "Sensors",
+        "pt": "Sensores"
+      }
+    },
+    {
+      "id": "sound",
+      "order": 4,
+      "advanced": false,
+      "label": {
+        "en": "Sound",
+        "pt": "Som"
+      }
+    },
+    {
+      "id": "power",
+      "order": 5,
+      "advanced": false,
+      "label": {
+        "en": "Power",
+        "pt": "Energia"
+      }
+    },
+    {
+      "id": "bench",
+      "order": 6,
+      "advanced": true,
+      "label": {
+        "en": "Bench and diagnostics",
+        "pt": "Bancada e diagnóstico"
+      }
+    }
+  ],
+  "toggles": [
+    {
+      "id": "cli_full",
+      "group": "interface",
+      "label": {
+        "en": "Full command line",
+        "pt": "Linha de comando completa"
+      },
+      "help": {
+        "en": "Every serial and Bluetooth command. Without it only the emergency console remains.",
+        "pt": "Todos os comandos por serial e Bluetooth. Sem ela fica só o console de emergência."
+      }
+    },
+    {
+      "id": "web_https",
+      "group": "network",
+      "label": {
+        "en": "HTTPS web server",
+        "pt": "Servidor web HTTPS"
+      },
+      "help": {
+        "en": "Serves the web interface over TLS. Without it the device answers plain HTTP only.",
+        "pt": "Serve a interface web por TLS. Sem ele o aparelho responde só em HTTP."
+      }
+    },
+    {
+      "id": "license_stub",
+      "group": "bench",
+      "label": {
+        "en": "Short license text on the touch display",
+        "pt": "Texto curto da licença na tela touch"
+      },
+      "help": {
+        "en": "The touch display's License screen shows two lines that point to the LICENSE file instead of the full MIT text and credits. The /license web page always keeps the full text.",
+        "pt": "A tela de Licença do mostrador touch mostra duas linhas que apontam para o arquivo LICENSE, em vez do texto MIT completo e dos créditos. A página web /license mantém sempre o texto completo."
+      }
+    },
+    {
+      "id": "mdns",
+      "group": "network",
+      "label": {
+        "en": "Find by name on the network (mDNS)",
+        "pt": "Achar pelo nome na rede (mDNS)"
+      },
+      "help": {
+        "en": "Answers to <device name>.local, so a browser finds it without the IP address.",
+        "pt": "Responde por <nome do aparelho>.local, para o navegador achá-lo sem o endereço IP."
+      }
+    },
+    {
+      "id": "concurrency_asserts",
+      "group": "bench",
+      "label": {
+        "en": "Concurrency tripwire",
+        "pt": "Armadilha de concorrência"
+      },
+      "help": {
+        "en": "Logs an error when a flash operation starts while the state mutex is held. For soak runs, not for field images.",
+        "pt": "Registra um erro quando uma operação de flash começa com o mutex de estado preso. Para soak, não para campo."
+      }
+    },
+    {
+      "id": "bluetooth",
+      "group": "network",
+      "label": {
+        "en": "Bluetooth serial console",
+        "pt": "Console serial por Bluetooth"
+      },
+      "help": {
+        "en": "A password-protected console over classic Bluetooth (SPP). It advertises for the first 5 minutes after power-up, so it reaches a device whose Wi-Fi is not set up yet.",
+        "pt": "Um console protegido por senha, por Bluetooth clássico (SPP). Ele se anuncia nos primeiros 5 minutos depois de ligar e assim alcança um aparelho com o Wi-Fi ainda por configurar."
+      }
+    },
+    {
+      "id": "air",
+      "group": "power",
+      "label": {
+        "en": "Hibernation between readings",
+        "pt": "Hibernação entre leituras"
+      },
+      "help": {
+        "en": "The Air cycle: wake, read, send, sleep. Exists only without a display.",
+        "pt": "O ciclo do Air: acorda, lê, envia, dorme. Só existe sem mostrador."
+      }
+    },
+    {
+      "id": "sound_buzzer",
+      "group": "sound",
+      "label": {
+        "en": "Buzzer sounds",
+        "pt": "Sons no buzzer"
+      },
+      "help": {
+        "en": "Touch clicks, confirmations and alarm sounds on the buzzer (GP22).",
+        "pt": "Cliques de toque, confirmações e sons de alarme no buzzer (GP22)."
+      }
+    },
+    {
+      "id": "sensor_ds18b20",
+      "group": "sensors",
+      "label": {
+        "en": "DS18B20 temperature probes",
+        "pt": "Sondas de temperatura DS18B20"
+      },
+      "help": {
+        "en": "1-Wire probes, one per pin, each recognized by its serial number.",
+        "pt": "Sondas 1-Wire, uma por pino, cada uma reconhecida pelo número de série."
+      }
+    },
+    {
+      "id": "sensor_dht22",
+      "group": "sensors",
+      "label": {
+        "en": "DHT22 temperature and humidity",
+        "pt": "DHT22 temperatura e umidade"
+      },
+      "help": {
+        "en": "One sensor per pin.",
+        "pt": "Um sensor por pino."
+      }
+    },
+    {
+      "id": "sensor_bme280",
+      "group": "sensors",
+      "label": {
+        "en": "BME280 / BMP280 temperature, humidity and pressure",
+        "pt": "BME280 / BMP280 temperatura, umidade e pressão"
+      },
+      "help": {
+        "en": "I2C sensor on a pin pair; the BMP280 variant has no humidity.",
+        "pt": "Sensor I2C num par de pinos; a variante BMP280 não mede umidade."
+      }
+    }
+  ],
+  "displays": {
+    "tft": {
+      "label": {
+        "en": "Touch display (ILI9341, 320x240)",
+        "pt": "Tela touch (ILI9341, 320x240)"
+      }
+    },
+    "alpha_paralelo": {
+      "label": {
+        "en": "16x2 character LCD (HD44780)",
+        "pt": "LCD de caracteres 16x2 (HD44780)"
+      }
+    },
+    "nenhum": {
+      "label": {
+        "en": "No display",
+        "pt": "Sem mostrador"
+      }
+    }
+  },
+  "products": [
+    {
+      "id": "pico_w_release",
+      "order": 1,
+      "bench": false,
+      "publish": true,
+      "label": {
+        "en": "SIMUT",
+        "pt": "SIMUT"
+      },
+      "desc": {
+        "en": "Touch display, web interface over HTTPS, sensors, alarms and telemetry.",
+        "pt": "Tela touch, interface web por HTTPS, sensores, alarmes e telemetria."
+      },
+      "config": {
+        "display": "tft",
+        "cli_full": false,
+        "web_https": true,
+        "license_stub": false,
+        "mdns": true,
+        "concurrency_asserts": false,
+        "bluetooth": false,
+        "air": false,
+        "sound_buzzer": true,
+        "sensor_ds18b20": true,
+        "sensor_dht22": true,
+        "sensor_bme280": true
+      }
+    },
+    {
+      "id": "pico_w_alpha",
+      "order": 2,
+      "bench": false,
+      "publish": true,
+      "label": {
+        "en": "SIMUT Alpha",
+        "pt": "SIMUT Alpha"
+      },
+      "desc": {
+        "en": "16x2 character LCD instead of the touch display, and a Bluetooth console.",
+        "pt": "LCD de caracteres 16x2 no lugar da tela touch, e um console por Bluetooth."
+      },
+      "config": {
+        "display": "alpha_paralelo",
+        "cli_full": false,
+        "web_https": false,
+        "license_stub": false,
+        "mdns": false,
+        "concurrency_asserts": false,
+        "bluetooth": true,
+        "air": false,
+        "sound_buzzer": true,
+        "sensor_ds18b20": true,
+        "sensor_dht22": true,
+        "sensor_bme280": true
+      }
+    },
+    {
+      "id": "pico_w_air",
+      "order": 3,
+      "bench": false,
+      "publish": true,
+      "label": {
+        "en": "SIMUT Air",
+        "pt": "SIMUT Air"
+      },
+      "desc": {
+        "en": "No display: wakes, reads, sends and sleeps again, to run on battery.",
+        "pt": "Sem mostrador: acorda, lê, envia e volta a dormir, para rodar na bateria."
+      },
+      "config": {
+        "display": "nenhum",
+        "cli_full": true,
+        "web_https": false,
+        "license_stub": true,
+        "mdns": false,
+        "concurrency_asserts": false,
+        "bluetooth": true,
+        "air": true,
+        "sound_buzzer": false,
+        "sensor_ds18b20": true,
+        "sensor_dht22": true,
+        "sensor_bme280": true
+      }
+    },
+    {
+      "id": "pico_w_test",
+      "order": 4,
+      "bench": true,
+      "publish": false,
+      "label": {
+        "en": "Bench image",
+        "pt": "Imagem de bancada"
+      },
+      "desc": {
+        "en": "Full command line for the test suites. Not published.",
+        "pt": "Linha de comando completa para as suítes de teste. Não publicada."
+      },
+      "config": {
+        "display": "tft",
+        "cli_full": true,
+        "web_https": false,
+        "license_stub": true,
+        "mdns": false,
+        "concurrency_asserts": false,
+        "bluetooth": false,
+        "air": false,
+        "sound_buzzer": true,
+        "sensor_ds18b20": true,
+        "sensor_dht22": true,
+        "sensor_bme280": true
+      }
+    },
+    {
+      "id": "pico_w_test_https",
+      "order": 5,
+      "bench": true,
+      "publish": false,
+      "label": {
+        "en": "Bench image with HTTPS",
+        "pt": "Imagem de bancada com HTTPS"
+      },
+      "desc": {
+        "en": "The only image with the full command line and the TLS server together. Not published.",
+        "pt": "A única imagem com linha de comando completa e servidor TLS juntos. Não publicada."
+      },
+      "config": {
+        "display": "tft",
+        "cli_full": true,
+        "web_https": true,
+        "license_stub": true,
+        "mdns": false,
+        "concurrency_asserts": false,
+        "bluetooth": false,
+        "air": false,
+        "sound_buzzer": true,
+        "sensor_ds18b20": true,
+        "sensor_dht22": true,
+        "sensor_bme280": true
+      }
+    },
+    {
+      "id": "pico_w_asserts",
+      "order": 6,
+      "bench": true,
+      "publish": false,
+      "label": {
+        "en": "Concurrency soak image",
+        "pt": "Imagem de soak de concorrência"
+      },
+      "desc": {
+        "en": "The release image with the concurrency tripwire armed. Not published.",
+        "pt": "A imagem de release com a armadilha de concorrência armada. Não publicada."
+      },
+      "config": {
+        "display": "tft",
+        "cli_full": false,
+        "web_https": true,
+        "license_stub": false,
+        "mdns": true,
+        "concurrency_asserts": true,
+        "bluetooth": false,
+        "air": false,
+        "sound_buzzer": true,
+        "sensor_ds18b20": true,
+        "sensor_dht22": true,
+        "sensor_bme280": true
+      }
+    }
+  ],
+  "rules": [
+    {
+      "id": "air-needs-headless",
+      "when": {
+        "air": true
+      },
+      "require": {
+        "display": "nenhum"
+      },
+      "why": {
+        "en": "Hibernation needs a build without a display.",
+        "pt": "A hibernação exige uma build sem mostrador."
+      },
+      "evidence": "TFT+air and alpha+air fail to link: multiple definition of DisplayManager::DisplayManager(). SIMUT_AIR switches on DisplayManager_None.cpp, which collides with the chosen display's DisplayManager."
+    },
+    {
+      "id": "headless-needs-air",
+      "when": {
+        "display": "nenhum"
+      },
+      "require": {
+        "air": true
+      },
+      "why": {
+        "en": "A build without a display exists only with hibernation.",
+        "pt": "Uma build sem mostrador só existe com a hibernação."
+      },
+      "evidence": "The air profile with air=false fails to link: undefined reference to DisplayManager::begin(). The headless display drops DisplayManager.cpp and the non-air boot path calls it."
+    },
+    {
+      "id": "air-no-buzzer",
+      "when": {
+        "air": true
+      },
+      "require": {
+        "sound_buzzer": false
+      },
+      "why": {
+        "en": "The hibernating build carries no buzzer: its sound code does not compile with hibernation on.",
+        "pt": "A build que hiberna não leva o buzzer: o código de som não compila com a hibernação ligada."
+      },
+      "evidence": "air+sound_buzzer fails to compile: SoundManager.cpp: 'BuzzerNote' does not name a type. SIMUT_AIR turns SoundManager.h into the no-op class, and SoundManager.cpp has no guard of its own."
+    }
+  ],
+  "hazards": [
+    {
+      "id": "bt-flash-core1",
+      "when": {
+        "bluetooth": true,
+        "display": "tft"
+      },
+      "why": {
+        "en": "Bluetooth writes its pairing data to flash without pausing Core 1, which draws the touch display. Inferred from the framework source, never reproduced.",
+        "pt": "O Bluetooth grava os dados de pareamento no flash sem pausar o Core 1, que desenha a tela touch. Inferido do código do framework, nunca reproduzido."
+      },
+      "evidence": "MODELO_DE_RECURSOS.md R-H24 (inferred): btstack_flash_bank.cpp:53-56 writes the TLV without Core1FlashPause."
+    }
+  ],
+  "costs": {
+    "_comment": [
+      "Custos POR PRODUTO para o configurador (docs/configurador/). GERADO por",
+      "tools/measure_savings.py --matrix; nao edite a mao. Para cada produto",
+      "publicado: `base` e a imagem como o manifesto a define, e cada `flips.<chave>`",
+      "e a MESMA imagem com so aquela chave invertida — used/bin/ram medidos, ou",
+      "`overflow` (o excesso que o linker reporta quando nao cabe no slot), ou",
+      "`rule` (a regra do manifesto que proibe a combinacao; nao foi compilada).",
+      "`same: true` diz que a imagem saiu identica a base, byte a byte: a chave nao",
+      "tem consumidor naquele produto, e a pagina diz isso em vez de mostrar +0 B.",
+      "A pagina SOMA as diferencas quando mais de uma chave muda: estimativa, e ela",
+      "diz isso. O numero real vem da build (tools/build_custom.py). `checks` sao",
+      "combinacoes compiladas de verdade: a pagina compara cada uma com a soma dela",
+      "e usa o maior erro como margem de \"perto do limite\"."
+    ],
+    "measured_at": {
+      "date": "2026-09-26",
+      "src_commit": "379adca",
+      "src_dirty": false
+    },
+    "products": {
+      "pico_w_release": {
+        "base": {
+          "used": 997980,
+          "bin": 1010012,
+          "ram": 116924
+        },
+        "flips": {
+          "cli_full": {
+            "overflow": 13700
+          },
+          "web_https": {
+            "used": 973452,
+            "bin": 985484,
+            "ram": 116900
+          },
+          "license_stub": {
+            "used": 996252,
+            "bin": 1008284,
+            "ram": 116924
+          },
+          "mdns": {
+            "used": 981404,
+            "bin": 993436,
+            "ram": 116756
+          },
+          "concurrency_asserts": {
+            "used": 1000156,
+            "bin": 1012188,
+            "ram": 116924
+          },
+          "bluetooth": {
+            "overflow": 105964
+          },
+          "air": {
+            "rule": "air-needs-headless"
+          },
+          "sound_buzzer": {
+            "used": 992964,
+            "bin": 1004996,
+            "ram": 116924
+          },
+          "sensor_ds18b20": {
+            "used": 992556,
+            "bin": 1004588,
+            "ram": 116860
+          },
+          "sensor_dht22": {
+            "used": 994588,
+            "bin": 1006620,
+            "ram": 116924
+          },
+          "sensor_bme280": {
+            "used": 980248,
+            "bin": 992284,
+            "ram": 116704
+          }
+        }
+      },
+      "pico_w_alpha": {
+        "base": {
+          "used": 963308,
+          "bin": 978060,
+          "ram": 129960
+        },
+        "flips": {
+          "cli_full": {
+            "used": 1007044,
+            "bin": 1023116,
+            "ram": 128032
+          },
+          "web_https": {
+            "used": 985084,
+            "bin": 998540,
+            "ram": 129968
+          },
+          "license_stub": {
+            "used": 963308,
+            "bin": 978060,
+            "ram": 129960,
+            "same": true
+          },
+          "mdns": {
+            "used": 979708,
+            "bin": 994444,
+            "ram": 130128
+          },
+          "concurrency_asserts": {
+            "used": 965436,
+            "bin": 978060,
+            "ram": 129960
+          },
+          "bluetooth": {
+            "used": 823112,
+            "bin": 835148,
+            "ram": 110612
+          },
+          "air": {
+            "rule": "air-needs-headless"
+          },
+          "sound_buzzer": {
+            "used": 955084,
+            "bin": 969868,
+            "ram": 129960
+          },
+          "sensor_ds18b20": {
+            "used": 958812,
+            "bin": 973964,
+            "ram": 129896
+          },
+          "sensor_dht22": {
+            "used": 961780,
+            "bin": 973964,
+            "ram": 129960
+          },
+          "sensor_bme280": {
+            "used": 944392,
+            "bin": 957556,
+            "ram": 129740
+          }
+        }
+      },
+      "pico_w_air": {
+        "base": {
+          "used": 1003144,
+          "bin": 1018924,
+          "ram": 120112
+        },
+        "flips": {
+          "cli_full": {
+            "used": 959088,
+            "bin": 973868,
+            "ram": 122020
+          },
+          "web_https": {
+            "used": 1028912,
+            "bin": 1043500,
+            "ram": 120124
+          },
+          "license_stub": {
+            "used": 1003144,
+            "bin": 1018924,
+            "ram": 120112,
+            "same": true
+          },
+          "mdns": {
+            "used": 1018312,
+            "bin": 1031212,
+            "ram": 120280
+          },
+          "concurrency_asserts": {
+            "used": 1005280,
+            "bin": 1018924,
+            "ram": 120112
+          },
+          "bluetooth": {
+            "used": 865572,
+            "bin": 877604,
+            "ram": 100796
+          },
+          "air": {
+            "rule": "headless-needs-air"
+          },
+          "sound_buzzer": {
+            "rule": "air-no-buzzer"
+          },
+          "sensor_ds18b20": {
+            "used": 998264,
+            "bin": 1010732,
+            "ram": 120048
+          },
+          "sensor_dht22": {
+            "used": 1001616,
+            "bin": 1014828,
+            "ram": 120112
+          },
+          "sensor_bme280": {
+            "used": 988308,
+            "bin": 1002516,
+            "ram": 119892
+          }
+        }
+      }
+    },
+    "checks": [
+      {
+        "base": "pico_w_release",
+        "set": {
+          "mdns": false,
+          "sound_buzzer": false,
+          "sensor_bme280": false
+        },
+        "used": 958656,
+        "bin": 970692,
+        "ram": 116536
+      },
+      {
+        "base": "pico_w_release",
+        "set": {
+          "web_https": false,
+          "license_stub": true,
+          "concurrency_asserts": true
+        },
+        "used": 973900,
+        "bin": 985932,
+        "ram": 116900
+      },
+      {
+        "base": "pico_w_alpha",
+        "set": {
+          "bluetooth": false,
+          "mdns": true,
+          "web_https": true,
+          "cli_full": true
+        },
+        "used": 909416,
+        "bin": 921452,
+        "ram": 108892
+      },
+      {
+        "base": "pico_w_alpha",
+        "set": {
+          "sound_buzzer": false,
+          "sensor_dht22": false,
+          "sensor_bme280": false
+        },
+        "used": 938600,
+        "bin": 953460,
+        "ram": 129740
+      },
+      {
+        "base": "pico_w_alpha",
+        "set": {
+          "cli_full": true,
+          "sensor_ds18b20": false
+        },
+        "used": 1002172,
+        "bin": 1014924,
+        "ram": 127968
+      },
+      {
+        "base": "pico_w_air",
+        "set": {
+          "bluetooth": false,
+          "web_https": true,
+          "mdns": true
+        },
+        "used": 905324,
+        "bin": 917356,
+        "ram": 100976
+      },
+      {
+        "base": "pico_w_air",
+        "set": {
+          "cli_full": false,
+          "concurrency_asserts": true,
+          "sensor_bme280": false
+        },
+        "used": 946388,
+        "bin": 961556,
+        "ram": 121800
+      },
+      {
+        "base": "pico_w_air",
+        "set": {
+          "sensor_ds18b20": false,
+          "sensor_dht22": false,
+          "sensor_bme280": false
+        },
+        "used": 981244,
+        "bin": 994324,
+        "ram": 119828
+      }
+    ]
+  }
+}
