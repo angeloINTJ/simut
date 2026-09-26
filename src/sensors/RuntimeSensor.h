@@ -16,8 +16,10 @@
 #pragma once
 
 #include <Arduino.h>
-#include "../SystemDefs.h"     /* MAX_SENSOR_CHANNELS, MOVING_AVG_WINDOW, SensorRecord, SensorType */
+#include "../SystemDefs.h"     /* MAX_SENSOR_CHANNELS, MOVING_AVG_WINDOW, SensorRecord, SensorType, ScanResult */
 #include "SensorConfig.h"      /* SIMUT_SENSOR_* feature flags */
+#include "SensorHelpers.h"     /* CH_TEMP/CH_HUM/CH_PRESS, SensorFormat — self-sufficient when a
+                                * driver header pulls this in without SensorManager.h ahead of it */
 #include "CalibCurve.h"        /* CalibCurve */
 
 

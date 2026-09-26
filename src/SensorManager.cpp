@@ -73,19 +73,26 @@ SensorManager::SensorManager( )
  * with the CYW43 radio — so this is not hypothetical. Log it loudly; the ctx
  * is the PIO block number. */
 void SensorManager::begin( ) {
+ /* Register the compiled-in families into the driver list in read order, and
+  * begin each. begin() forwards to the same hardware wrapper as before, so the
+  * PIO-claim failure and its log are unchanged — the only new thing is that
+  * processPeriodicReads now iterates this list instead of three inline blocks. */
 #if SIMUT_SENSOR_DS18B20
- if (!_ds18.begin( )) {
+ _drivers.push_back(&_dsDriver);
+ if (!_dsDriver.begin( )) {
  LOG_CODE(LOG_ERROR, "SENSOR", ERR_SENSOR_MISSING, 0,
           TRL("DS18B20 PIO init failed (pio0 full) — 1-Wire disabled this boot"));
  }
 #endif
 #if SIMUT_SENSOR_DHT22
- if (!_dht.begin( )) {
+ _drivers.push_back(&_dhtDriver);
+ if (!_dhtDriver.begin( )) {
  LOG_CODE(LOG_ERROR, "SENSOR", ERR_SENSOR_MISSING, 1,
           TRL("DHT22 PIO init failed (pio1 full) — DHT22 disabled this boot"));
  }
 #endif
 #if SIMUT_SENSOR_BME280
+ _drivers.push_back(&_bmeDriver);
  /* BME280 begin() deferred to initRuntimeSensors() — needs I2C bus ready. */
 #endif
 }
@@ -334,7 +341,7 @@ bool SensorManager::identifyPhysicalSensor(uint8_t gpio, uint8_t* romOut) {
 
 #endif
 
-void SensorManager::handleSensorResult(RuntimeSensor &s, bool success, float v1, float v2, const char* errorMsg) {
+void SensorManager::reportResult(RuntimeSensor &s, bool success, float v1, float v2, const char* errorMsg) {
  LogCode code = SYS_OK;
 
  if (!success) {
@@ -360,9 +367,9 @@ void SensorManager::handleSensorResult(RuntimeSensor &s, bool success, float v1,
 
  if (!s.inErrorState) {
  /* Raw goes in; the curve is applied to the filtered mean inside
- * pushChannelSample. Sensors without a humidity die never push CH_HUM. */
- pushChannelSample(s, CH_TEMP, v1);
- if (sensorHasHumidity(s.type)) pushChannelSample(s, CH_HUM, v2);
+ * pushSample. Sensors without a humidity die never push CH_HUM. */
+ pushSample(s, CH_TEMP, v1);
+ if (sensorHasHumidity(s.type)) pushSample(s, CH_HUM, v2);
  }
  }
  else {
@@ -528,211 +535,11 @@ uint32_t SensorManager::readGap(const RuntimeSensor& s) const {
 
 void SensorManager::processPeriodicReads( ) {
  uint32_t now = millis( );
-
-#if SIMUT_SENSOR_DS18B20
- /* ── DS18B20: parallel batch read ── */
- if (_ds18.state == DS18B20Driver::DS_IDLE) {
- bool needsRead = false;
- for (auto &s : _runtimeSensors) {
- if (s.type == TYPE_DS18B20 && (now - s.lastReadTime >= readGap(s))) {
- needsRead = true; break;
- }
- }
-
- if (needsRead) {
- for (auto &s : _runtimeSensors) {
- if (s.type == TYPE_DS18B20) _ds18.requestTemperatures(s.config.pins[0]);
- }
- _ds18.timer = now;
- _ds18.state = DS18B20Driver::DS_WAITING;
- }
- }
- else if (_ds18.state == DS18B20Driver::DS_WAITING) {
- if (now - _ds18.timer >= DS18B20_CONVERSION_TIME_MS) {
- for (auto &s : _runtimeSensors) {
- if (s.type == TYPE_DS18B20) {
-
-
- if (s.hardwareMismatch) {
- /* Wave 2 (sensor doc issue #3): the quarantine used to be permanent
-  * until reboot or manual recalibration. Every 10th skipped cycle,
-  * re-read the ROM — if the CONFIGURED chip is back on the pin (user
-  * swapped the right sensor back), lift the quarantine and let the
-  * normal read path below run this very cycle. A different chip
-  * keeps failing the match and stays quarantined (safety preserved). */
- if (++s.mismatchRechecks >= 10) {
- s.mismatchRechecks = 0;
- uint8_t romNow[8];
- if (_ds18.readROM(s.config.pins[0], romNow) &&
-     _ds18.checkRomMatch(romNow, s.config.rom)) {
- s.hardwareMismatch = false;
- s.inErrorState = false;
- s.consecutiveErrors = 0;
- LOG_CODE(LOG_INFO, "SENSOR", SYS_OK, s.config.pins[0], TRL("Hardware match restored"));
- }
- }
- }
-
- if (s.hardwareMismatch) {
- if (!s.inErrorState) {
- LOG_CODE(LOG_ERROR, "SENSOR", ERR_SENSOR_MISMATCH, s.config.pins[0], TRL("Hardware Mismatch (Access Denied)"));
- }
- s.inErrorState = true;
- s.buffers[0].clear( );
- s.avgValue[0] = NAN;
- s.rawValue[0] = NAN;
- s.consecutiveSuccess = 0;
- s.lastReadTime = now;
- __atomic_store_n(&_newDataAvailable, true, __ATOMIC_RELEASE);
- continue;
- }
-
- s.totalReadings++;
- bool romVerified = true;
- const char* failReason = "";
-
- /* ROM verification every 5 reads — skip if config ROM is all zeros
-  * (unpaired sensor). A zero ROM means "accept any DS18B20 on this pin". */
- bool romIsZero = true;
- for (int k = 0; k < 8; k++) if (s.config.rom[k] != 0) romIsZero = false;
-
- if (!romIsZero && s.totalReadings % 5 == 0) {
- uint8_t currentRom[8];
- if (_ds18.readROM(s.config.pins[0], currentRom)) {
- if (!_ds18.checkRomMatch(currentRom, s.config.rom)) {
- romVerified = false;
- failReason = "ROM Mismatch";
- s.hardwareMismatch = true;
- }
- } else {
- romVerified = false; failReason = "ROM Read Failed";
- }
- }
-
- if (romVerified) {
- float tempC = 0.0f;
- bool success = _ds18.getTemperatureValidated(s.config.pins[0], tempC);
-
- if (!success) handleSensorResult(s, false, 0, 0, "CRC/Read Error");
- else if (tempC < -50 || tempC > 150) handleSensorResult(s, false, 0, 0, "Out of Range");
- else handleSensorResult(s, true, tempC, NAN, "");
- s.lastReadTime = now;
- } else {
- handleSensorResult(s, false, 0, 0, failReason);
- s.lastReadTime = now;
- }
- }
- }
- _ds18.state = DS18B20Driver::DS_IDLE;
- }
- }
-#endif /* SIMUT_SENSOR_DS18B20 */
-
-#if SIMUT_SENSOR_DHT22
- /* ── DHT22: sequential one-at-a-time ── */
- if (_dht.state == DHT22Driver::DHT_IDLE) {
-
- for (size_t i = 0; i < _runtimeSensors.size( ); i++) {
- auto &s = _runtimeSensors[i];
- if (s.type == TYPE_DHT22 && (now - s.lastReadTime >= readGap(s))) {
- _dht.reset( );
- _dht.requestReading(s.config.pins[0]);
-
- _dht.timer = millis( );
- _dht.currentSensorIdx = i;
- _dht.state = DHT22Driver::DHT_WAITING;
- break;
- }
- }
- }
- else if (_dht.state == DHT22Driver::DHT_WAITING) {
-
- if (_dht.currentSensorIdx >= 0 && _dht.currentSensorIdx < (int)_runtimeSensors.size( )) {
- auto &s = _runtimeSensors[_dht.currentSensorIdx];
-
- _dht.update( );
- DHT22PIO::State st = _dht.getState( );
-
- if (st == DHT22PIO::DATA_READY) {
- float t, h;
- if (_dht.getResults(t, h)) {
- handleSensorResult(s, true, t, h, "");
- } else {
- handleSensorResult(s, false, 0, 0, "Checksum Error");
- }
- _dht.reset( );
- s.lastReadTime = millis( );
- _dht.state = DHT22Driver::DHT_IDLE;
- }
- else if (st == DHT22PIO::ERROR_TIMEOUT || st == DHT22PIO::ERROR_CHECKSUM) {
- const char* errMsg = (st == DHT22PIO::ERROR_TIMEOUT) ? "Sensor Timeout" : "Checksum Error";
- handleSensorResult(s, false, 0, 0, errMsg);
- _dht.reset( );
- s.lastReadTime = millis( );
- _dht.state = DHT22Driver::DHT_IDLE;
- }
-
- else if (timeSince(_dht.timer, DHT22_READ_TIMEOUT_MS)) {
- handleSensorResult(s, false, 0, 0, "Sensor Timeout");
- _dht.reset( );
- s.lastReadTime = millis( );
- _dht.state = DHT22Driver::DHT_IDLE;
- }
- } else {
-
- _dht.state = DHT22Driver::DHT_IDLE;
- }
- }
-#endif /* SIMUT_SENSOR_DHT22 */
-
-#if SIMUT_SENSOR_BME280
- /* ── BME280: multi-driver forced-mode via PIO ──
-  * Each driver operates independently — one can be in WAITING
-  * while another is IDLE. No shared bus contention. */
- for (size_t di = 0; di < _bmeDrivers.size(); di++) {
-  auto *drv = _bmeDrivers[di];
-
-  if (drv->state == BME280Driver::BME_IDLE) {
-   for (size_t i = 0; i < _runtimeSensors.size( ); i++) {
-    auto &s = _runtimeSensors[i];
-    if ((s.type == TYPE_BME280 || s.type == TYPE_BMP280) && s.bmeDriverIdx == (int8_t)di
-        && (now - s.lastReadTime >= readGap(s))) {
-     drv->reset( );
-     drv->requestReading( );
-     drv->timer = millis( );
-     drv->currentSensorIdx = i;
-     drv->state = BME280Driver::BME_WAITING;
-     break;
-    }
-   }
-  }
-  else if (drv->state == BME280Driver::BME_WAITING) {
-   if (drv->currentSensorIdx >= 0 && drv->currentSensorIdx < (int)_runtimeSensors.size( )) {
-    auto &s = _runtimeSensors[drv->currentSensorIdx];
-
-    if (timeSince(drv->timer, BME280_MEAS_TIME_MS)) {
-     float t, h, p;
-     if (drv->getResults(t, h, p)) {
-      /* BME280: v1=temp, v2=humidity (pressure available via API) */
-     if (!drv->isBME( )) h = NAN;  /* BMP280: cached flag, not a live I2C read */
-      handleSensorResult(s, true, t, h, "");
-      /* Pressure rides the same per-channel path as everything else.
-       * It used to have its own inline copy of the mean AND its own offset
-       * add — the era when it was pushed raw left a stored CH_PRESS offset
-       * changing nothing anywhere; the calibration was write-only. */
-      pushChannelSample(s, CH_PRESS, p);
-     } else {
-      handleSensorResult(s, false, 0, 0, "I2C Read Error");
-     }
-     drv->reset( );
-     s.lastReadTime = millis( );
-    }
-   } else {
-    drv->state = BME280Driver::BME_IDLE;
-   }
-  }
- }
-#endif /* SIMUT_SENSOR_BME280 */
+ /* Each family's asynchronous read state machine lives in its SensorDriver
+  * now; the three inline blocks that used to be here (DS18B20 parallel batch,
+  * DHT22 sequential, BME280 per-bus) moved verbatim into serviceReads( ). One
+  * millis( ) snapshot feeds them all, exactly as the inline blocks did. */
+ for (SensorDriver* d : _drivers) d->serviceReads(*this, now);
 }
 
 /**
@@ -756,7 +563,7 @@ static float channelMean(const RingBuffer& ring) {
  * mean through the calibration curve — the only value consumers ever see.
  * Sets the atomic _newDataAvailable flag for cross-core notification.
  */
-void SensorManager::pushChannelSample(RuntimeSensor &sensor, uint8_t ch, float rawV) {
+void SensorManager::pushSample(RuntimeSensor &sensor, uint8_t ch, float rawV) {
  /* isfinite, not !isnan: INFINITY passes isnan and poisoned the whole
   * averaging chain (BMP280 humidity compensation yields inf; newlib-
   * nano printf masked it by printing NaN as "inf" during forensics). */
