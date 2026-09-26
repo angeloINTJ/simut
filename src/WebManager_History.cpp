@@ -2388,15 +2388,22 @@ void WebManager::handleApiKeypad( ) {
  _server->send(200, "application/json", json);
 }
 
-/* The panel-mirror routes live here, beside their handlers, and register
- * themselves so WebManager::begin( ) need not test SIMUT_DISPLAY_TFT to place
- * them. docs/analysis/MODELO_DE_RECURSOS.md, P2 (costura das rotas). */
+/* The TFT-only web routes register themselves here so WebManager::begin( ) need
+ * not test SIMUT_DISPLAY_TFT to place them. The panel-mirror routes live beside
+ * their handlers in this file; /api/themes (theme catalogue) and
+ * /api/reset_touch_cal (touch-calibration reset) are TFT-only too — their
+ * handlers live in WebManager_Api.cpp/WebManager_Commit.cpp, but registering them
+ * here means a non-TFT image (alpha, Air) no longer carries the dead routes, and
+ * --gc-sections drops the now-unreferenced handlers (P0 ghost-routes finding).
+ * docs/analysis/MODELO_DE_RECURSOS.md, P2 (costura das rotas). */
 void WebManager::registerScreenRoutes( ) {
  _server->on("/api/screenshot", HTTP_GET, std::bind(&WebManager::handleApiScreenshot, this));
  _server->on("/api/screenshot_chunk", HTTP_GET, std::bind(&WebManager::handleApiScreenshotChunk, this));
  _server->on("/api/screen_stream", HTTP_GET, std::bind(&WebManager::handleApiScreenStream, this));
  _server->on("/api/touch", HTTP_POST, std::bind(&WebManager::handleApiTouch, this));
  _server->on("/api/keypad", HTTP_GET, std::bind(&WebManager::handleApiKeypad, this));
+ _server->on("/api/themes", HTTP_GET, std::bind(&WebManager::handleApiThemes, this));
+ _server->on("/api/reset_touch_cal", HTTP_POST, std::bind(&WebManager::handleResetTouchCal, this));
 }
 
 #else

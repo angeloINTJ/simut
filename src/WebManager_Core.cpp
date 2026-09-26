@@ -145,7 +145,6 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
  _server->on("/api/wifi/scan", HTTP_GET, std::bind(&WebManager::handleApiWifiScan, this));
  _server->on("/api/config", HTTP_GET, std::bind(&WebManager::handleApiConfig, this));
  _server->on("/api/users", HTTP_GET, std::bind(&WebManager::handleApiUsers, this));
- _server->on("/api/themes", HTTP_GET, std::bind(&WebManager::handleApiThemes, this));
  _server->on("/api/alarms", HTTP_GET, std::bind(&WebManager::handleApiAlarms, this));
  _server->on("/api/lang", HTTP_GET, std::bind(&WebManager::handleApiLang, this));
  _server->on("/api/logcodes", HTTP_GET, std::bind(&WebManager::handleApiLogcodes, this));
@@ -157,7 +156,6 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
  _server->on("/api/save_sys", HTTP_POST, std::bind(&WebManager::handleSaveSystem, this));
  _server->on("/api/commit_all", HTTP_POST, std::bind(&WebManager::handleApiCommitAll, this));
  /* /api/save_net replaced by /api/commit_all */
- _server->on("/api/reset_touch_cal", HTTP_POST, std::bind(&WebManager::handleResetTouchCal, this));
  _server->on("/api/history_rebind", HTTP_POST, std::bind(&WebManager::handleApiHistoryRebind, this));
  /* user_add/del/rst replaced by /api/commit_all */
  _server->on("/api/history_multi", HTTP_GET, std::bind(&WebManager::handleApiHistoryMulti, this)); /* Multi-sensor replacement for /api/history single-sensor */
