@@ -80,6 +80,19 @@ jobs:
       - name: Air consistency gate
         run: python3 tools/check_air_consistency.py
 
+      # The feature model (docs/analysis/MODELO_DE_RECURSOS.md, P1): tools/
+      # features.toml is the single source, gen_features.py derives the six
+      # firmware environments from it, and check_features.py proves — via
+      # PlatformIO's own resolver — that those derived environments are, flag
+      # for flag and translation-unit for translation-unit, the ones
+      # platformio.ini still maintains by hand. It is not the build source yet;
+      # it is the fidelity proof that lets the switchover happen later. This
+      # gate is what keeps the manifest and platformio.ini from drifting apart.
+      - name: Feature model in sync
+        run: python3 tools/gen_features.py --check
+      - name: Feature model reproduces platformio.ini
+        run: python3 tools/check_features.py
+
       # OTA applies reformat the LittleFS, so benches restore /history from
       # backup — and the current-day file can only be given back by MERGING
       # with what the device wrote meanwhile. This is the tool that hole

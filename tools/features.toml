@@ -1,0 +1,179 @@
+# features.toml — o manifesto de recursos do SIMUT.
+#
+# Fonte única do que cada perfil de firmware liga, desliga e escolhe. O gerador
+# tools/gen_features.py o transforma em tools/generated/profiles.ini (a config do
+# PlatformIO) e em tools/generated/features_model.json (para o configurador). O
+# portao tools/check_features.py prova que os perfis gerados resolvem, byte a
+# byte de configuracao, para os mesmos ambientes que platformio.ini mantem a mao.
+#
+# Este e o passo P1 de docs/analysis/MODELO_DE_RECURSOS.md: a fidelidade. O
+# manifesto reproduz o estado de HOJE (main), inclusive um flag morto
+# (factory_reset, marcado abaixo), porque provar fidelidade e reproduzir a
+# realidade atual. A limpeza (P0) vem depois, mexendo no manifesto e na
+# realidade juntos e mantendo o .bin identico.
+#
+# Comentarios explicam por que, e citam a evidencia — a regra da casa.
+
+[meta]
+version   = 1
+generates = ["tools/generated/profiles.ini", "tools/generated/features_model.json"]
+# Os ambientes de host (native_*) NAO sao modelados aqui: sao suites de teste,
+# nao imagens de firmware. O portao os ignora.
+
+# Flags que todo perfil de firmware acrescenta sobre ${pico_base.build_flags}.
+[base]
+common_flags = ["-DNDEBUG"]   # as seis imagens carregam NDEBUG (release ganhou em 2026-09-18)
+
+# ---------------------------------------------------------------------------
+#  A escolha do mostrador. Exatamente um valor por perfil.
+#  As listas de exclusao sao as unidades de traducao que a variante NAO compila;
+#  a de include, as que ela acrescenta. Resolvidas contra src/ pelo portao.
+# ---------------------------------------------------------------------------
+[display.tft]
+# O default do simut_config.h ja e TFT=1, ALPHA=0, entao nada e emitido.
+flags   = []
+exclude = ["DisplayManager_Alpha.cpp"]   # a implementacao alpha nao entra
+
+[display.alpha_paralelo]
+flags   = ["-DSIMUT_DISPLAY_TFT=0", "-DSIMUT_DISPLAY_ALPHA=1", "-DHD44780_MODE_PARALLEL=1"]
+exclude = [
+  "DisplayManager_Touch.cpp", "DisplayManager_Settings.cpp", "DisplayManager_Graph.cpp",
+  "DisplayManager_Dashboard.cpp", "DisplayManager_Calibration.cpp", "DisplayManager_Auth.cpp",
+  "DisplayManager_Alarm.cpp", "DisplayManager_Calendar.cpp", "DisplayManager_Fonts.cpp",
+  "DisplayManager_i18n.cpp", "DisplayManager_LangParser.cpp", "AppManager_Graph.cpp",
+]
+include             = ["DisplayManager_Alpha.cpp"]
+ignore_display_libs = true    # o LCD nao usa ILI9341/GFX/XPT2046
+web_omit            = "tft"   # a pagina recorta o bloco @IF tft
+
+[display.nenhum]
+# O mostrador headless do Air. Mantem i18n e LangParser (web e CLI os usam).
+flags   = ["-DSIMUT_DISPLAY_TFT=0", "-DSIMUT_DISPLAY_ALPHA=0"]
+exclude = [
+  "DisplayManager_Touch.cpp", "DisplayManager_Settings.cpp", "DisplayManager_Graph.cpp",
+  "DisplayManager_Dashboard.cpp", "DisplayManager_Calibration.cpp", "DisplayManager_Auth.cpp",
+  "DisplayManager_Alarm.cpp", "DisplayManager_Calendar.cpp", "DisplayManager_Fonts.cpp",
+  "AppManager_Graph.cpp", "DisplayManager.cpp", "DisplayManager_Alpha.cpp",
+]
+include             = ["DisplayManager_None.cpp"]
+ignore_display_libs = true
+web_omit            = "tft"
+
+[libs]
+display = ["Adafruit ILI9341", "Adafruit GFX Library", "XPT2046_Touchscreen"]
+
+# ---------------------------------------------------------------------------
+#  Os interruptores. `emit` diz como o flag e escrito, e por que:
+#    value      -> sempre -D<macro>=0 ou =1        (chave de valor)
+#    on_is_1    -> ligado -D<macro>=1, desligado nada  (macro de presenca:
+#                  emitir =0 ligaria, porque o teste e #ifdef — R-S27)
+#    off_is_0   -> ligado nada (default do config), desligado -D<macro>=0
+#    bare       -> ligado -D<macro>, desligado nada
+#    none       -> sem macro; so mexe em arquivo e biblioteca
+# ---------------------------------------------------------------------------
+[toggles.cli_full]
+macro = "SIMUT_CLI_FULL"
+emit  = "value"
+
+[toggles.web_https]
+macro = "SIMUT_WEB_HTTPS"
+emit  = "on_is_1"        # #ifdef: -DSIMUT_WEB_HTTPS=0 LIGA o servidor (defeito Z08)
+
+[toggles.license_stub]
+macro = "SIMUT_LICENSE_STUB"
+emit  = "on_is_1"
+
+[toggles.mdns]
+macro = "SIMUT_MDNS"
+emit  = "off_is_0"       # default do config e 1
+
+[toggles.factory_reset]
+macro = "SIMUT_FACTORY_RESET"
+emit  = "on_is_1"
+dead  = true             # nada em src/ le este flag (P0 o remove; aqui so por fidelidade)
+
+[toggles.concurrency_asserts]
+macro = "SIMUT_CONCURRENCY_ASSERTS"
+emit  = "bare"
+
+[toggles.bluetooth]
+macro          = "SIMUT_BLUETOOTH"
+emit           = "on_is_1"
+on_flags       = ["-DPIO_FRAMEWORK_ARDUINO_ENABLE_BLUETOOTH"]  # so este flag troca o blob e liblwip-bt
+off_exclude    = ["BluetoothManager.cpp"]
+off_lib_ignore = ["SerialBT"]  # o LDF segue o #include mesmo desligado; sem o ignore o link morre
+
+[toggles.air]
+macro      = "SIMUT_AIR"
+emit       = "on_is_1"
+on_include = ["air/*.c"]
+
+[toggles.sound_buzzer]
+emit           = "none"
+off_exclude    = ["SoundManager.cpp"]
+off_lib_ignore = ["BuzzerPIO_RP2040"]
+
+# ---------------------------------------------------------------------------
+#  Os perfis. Os seis ambientes de firmware que o CI constroi hoje.
+#  `extends` herda o dicionario de recursos do pai e sobrescreve.
+# ---------------------------------------------------------------------------
+[profiles.pico_w_release]
+display             = "tft"
+cli_full            = false
+web_https           = true
+factory_reset       = true
+license_stub        = false
+mdns                = true
+concurrency_asserts = false
+bluetooth           = false
+air                 = false
+sound_buzzer        = true
+build_type          = "release"
+publish             = true
+
+[profiles.pico_w_test]
+display       = "tft"
+cli_full      = true
+web_https     = false
+factory_reset = true
+license_stub  = true
+mdns          = false
+bluetooth     = false
+air           = false
+sound_buzzer  = true
+build_type    = "release"
+publish       = false
+
+[profiles.pico_w_test_https]
+extends         = "pico_w_test"
+web_https       = true
+custom_fs_pages = ["ALARMS_PAGE", "FILE_PAGE", "TEL_PAGE"]
+
+[profiles.pico_w_asserts]
+extends             = "pico_w_release"
+concurrency_asserts = true
+publish             = false
+
+[profiles.pico_w_alpha]
+display       = "alpha_paralelo"
+cli_full      = false
+web_https     = false
+factory_reset = false
+license_stub  = false
+mdns          = false
+bluetooth     = true
+air           = false
+sound_buzzer  = true
+publish       = true
+
+[profiles.pico_w_air]
+display       = "nenhum"
+cli_full      = true
+web_https     = false
+factory_reset = false
+license_stub  = true
+mdns          = false
+bluetooth     = true
+air           = true
+sound_buzzer  = false
+publish       = true
