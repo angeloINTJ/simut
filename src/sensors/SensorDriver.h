@@ -108,4 +108,18 @@ public:
   *  drivers in registration order; the two actions touch different pins and PIO
   *  blocks, so the end state matches the old block whichever runs first. */
  virtual void scanFinalize(std::vector<ScanResult>& out) { (void)out; }
+
+ /* ── Per-slot init: called from initRuntimeSensors ── */
+
+ /** Called once at the start of each initRuntimeSensors, before the slot loop.
+  *  BME280 tears down last init's drivers and resets its per-call address
+  *  bookkeeping here (but NOT its per-boot I2C-peripheral flags). Default no-op. */
+ virtual void initBegin( ) { }
+
+ /** Called for every active slot, once per driver. The driver claims the slot
+  *  if it is its family and sets it up (BME280: pick the I2C bus + address,
+  *  bring the peripheral up once, create the per-bus driver, and adopt the
+  *  chip-ID type). Returns true iff it retyped rs (BME280<->BMP280), so the
+  *  caller can count it for persistence. Default: not mine, no-op, false. */
+ virtual bool initSlot(RuntimeSensor& rs) { (void)rs; return false; }
 };

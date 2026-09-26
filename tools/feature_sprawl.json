@@ -98,7 +98,7 @@
   "WebManager_Commit.cpp": 4
  },
  "SIMUT_SENSOR_BME280": {
-  "SensorManager.cpp": 6,
+  "SensorManager.cpp": 2,
   "SensorManager.h": 2,
   "sensors/BME280Driver.h": 1,
   "sensors/BME280SensorDriver.h": 1,

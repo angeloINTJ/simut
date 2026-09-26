@@ -127,10 +127,8 @@ private:
  DHT22SensorDriver _dhtDriver{_dht};
 #endif
 #if SIMUT_SENSOR_BME280
- std::vector<BME280Driver*> _bmeDrivers;  /**< One driver per (sda,scl,addr) triplet */
- BME280SensorDriver _bmeDriver{_bmeDrivers};
- int8_t _getOrCreateBmeDriver(uint8_t sda, uint8_t scl, uint8_t addr);  /**< PIO fallback */
- int8_t _getOrCreateBmeDriver(TwoWire &wire, uint8_t addr);             /**< Hardware I2C (Wire/Wire1) */
+ std::vector<BME280Driver*> _bmeDrivers;  /**< One driver per (sda,scl,addr) triplet; owned via _bmeDriver */
+ BME280SensorDriver _bmeDriver{_bmeDrivers};  /**< holds the read/scan/per-slot-init state machines */
 #endif
 
  /** The compiled-in families, in read order (DS18B20, DHT22, BME280). Built
