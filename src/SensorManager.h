@@ -27,75 +27,17 @@
 #include "LogManager.h"
 #include "sensors/SensorHelpers.h"
 #include "sensors/CalibCurve.h"
+#include "sensors/RuntimeSensor.h"   /* RingBuffer + RuntimeSensor (moved out 2026-09-26) */
+#include "sensors/SensorDriver.h"    /* SensorDriver interface + SensorHost */
+#include "sensors/DS18B20SensorDriver.h"
+#include "sensors/DHT22SensorDriver.h"
+#include "sensors/BME280SensorDriver.h"
 
 
-struct RingBuffer {
- float data[MOVING_AVG_WINDOW];
- uint8_t head = 0;
- uint8_t count = 0;
-
- void push(float v) {
- data[head] = v;
- head = (head + 1) % MOVING_AVG_WINDOW;
- if (count < MOVING_AVG_WINDOW) count++;
- }
-
- void clear( ) { head = 0; count = 0; }
-
- bool empty( ) const { return count == 0; }
- bool full( ) const { return count >= MOVING_AVG_WINDOW; }
- uint8_t size( ) const { return count; }
-
-
- void copyTo(float* dst) const {
- if (count == 0) return;
- uint8_t start = (head >= count) ? (head - count) : (MOVING_AVG_WINDOW - (count - head));
- for (uint8_t i = 0; i < count; i++) {
- dst[i] = data[(start + i) % MOVING_AVG_WINDOW];
- }
- }
-};
-
-
-struct RuntimeSensor {
- SensorRecord config;
- SensorType type;
-
- /* Channel arrays — one buffer + averages + calibration per measurement axis.
-  * [CH_TEMP]=0, [CH_HUM]=1, [CH_PRESS]=2, [CH_LUX]=3.
-  * Inactive channels maintain NAN averages and empty buffers.
-  *
-  * The ring holds RAW samples and the curve is applied to the filtered mean,
-  * not the other way around: for the old constant offset both orders are the
-  * same arithmetic, but a piecewise curve pushed through the trimmed mean
-  * would let the correction move the outlier cut, and editing a curve at
-  * runtime would leave 10 samples of the old correction in the window. */
- RingBuffer buffers[MAX_SENSOR_CHANNELS];
- float rawValue[MAX_SENSOR_CHANNELS]; /**< filtered mean of the raw samples */
- float avgValue[MAX_SENSOR_CHANNELS]; /**< rawValue through the curve — what every consumer reads */
- CalibCurve calib[MAX_SENSOR_CHANNELS];
-
- uint32_t lastReadTime;
- uint32_t readInterval;
-
- uint32_t totalReadings;
- uint8_t consecutiveErrors;
- uint8_t consecutiveSuccess;
- bool inErrorState;
- bool hardwareMismatch;
- uint8_t mismatchRechecks;   /**< Wave 2: skip-cycles since last ROM re-verify (auto-recovery) */
-
-#if SIMUT_SENSOR_BME280
- int8_t  bmeDriverIdx = -1;  /**< Index into SensorManager::_bmeDrivers, -1 = not BME280 */
- uint8_t i2cAddr = 0;        /**< I2C address (0x76 or 0x77), 0 = unassigned */
-#endif
-
- /** @return true if at least CH_TEMP buffer is full. */
- bool bufferFull() const { return buffers[CH_TEMP].full(); }
-};
-
-
-class SensorManager {
+/* SensorManager IS the SensorHost the drivers call back into: the read-cycle
+ * helpers (readGap, reportResult, pushSample, notifyNewData) that used to be
+ * private are now the host interface each driver shares. */
+class SensorManager : public SensorHost {
 public:
  SensorManager( );
  void begin( );
@@ -173,19 +115,37 @@ public:
 
 private:
  uint8_t _retypedSlots = 0;
+ /* Hardware wrappers, still owned here; each is wrapped by the SensorDriver
+  * below it, which holds the read state machine. The scan and per-slot init
+  * still reach the wrappers directly (later steps move those in too). */
 #if SIMUT_SENSOR_DS18B20
  DS18B20Driver _ds18;
+ DS18B20SensorDriver _dsDriver{_ds18};
 #endif
 #if SIMUT_SENSOR_DHT22
  DHT22Driver _dht;
+ DHT22SensorDriver _dhtDriver{_dht};
 #endif
 #if SIMUT_SENSOR_BME280
  std::vector<BME280Driver*> _bmeDrivers;  /**< One driver per (sda,scl,addr) triplet */
+ BME280SensorDriver _bmeDriver{_bmeDrivers};
  int8_t _getOrCreateBmeDriver(uint8_t sda, uint8_t scl, uint8_t addr);  /**< PIO fallback */
  int8_t _getOrCreateBmeDriver(TwoWire &wire, uint8_t addr);             /**< Hardware I2C (Wire/Wire1) */
 #endif
 
- uint32_t readGap(const RuntimeSensor& s) const;   /**< 0 while fast sampling; else s.readInterval */
+ /** The compiled-in families, in read order (DS18B20, DHT22, BME280). Built
+  *  once in begin( ); processPeriodicReads iterates it. Adding a sensor family
+  *  is a new SensorDriver here, not another #if in the read loop. */
+ std::vector<SensorDriver*> _drivers;
+
+ /* ── SensorHost: the read-cycle callbacks the drivers share ── */
+ std::vector<RuntimeSensor>& runtimeSensors( ) override { return _runtimeSensors; }
+ uint32_t readGap(const RuntimeSensor& s) const override;   /**< 0 while fast sampling; else s.readInterval */
+ void reportResult(RuntimeSensor& s, bool success, float v1, float v2, const char* errorMsg) override;
+ void pushSample(RuntimeSensor& s, uint8_t ch, float rawV) override;
+ void notifyNewData( ) override {
+ __atomic_store_n(&_newDataAvailable, true, __ATOMIC_RELEASE);
+ }
 
  std::vector<RuntimeSensor> _runtimeSensors;
  volatile bool _newDataAvailable = false;
@@ -217,7 +177,4 @@ private:
 
 
  void processPeriodicReads( );
- void pushChannelSample(RuntimeSensor &sensor, uint8_t ch, float rawV);
-
- void handleSensorResult(RuntimeSensor &s, bool success, float v1, float v2, const char* errorMsg);
 };
