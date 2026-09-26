@@ -500,28 +500,28 @@
  "measured_at_commit": "fix/scan-breaks-bmp280-i2c on main c4d7b12: raised pico_w_release (1000924) + pico_w_asserts (1003100) budgets to measured + 2632 B headroom. The scan I2C-bus recovery pulls i2c_deinit/i2c_init (~72 B), and the P2 sensor-driver seam (#168-174) had already consumed the old headroom, so these two crossed the mark; the other four still fit. measured is the zopfli image PlatformIO prints.",
  "envs": {
   "pico_w_release": {
-   "budget": 1003556,
-   "measured": 1000924
+   "budget": 1000572,
+   "measured": 997940
   },
   "pico_w_test": {
-   "budget": 1006396,
-   "measured": 1003764
+   "budget": 1005972,
+   "measured": 1003340
   },
   "pico_w_test_https": {
-   "budget": 1014020,
-   "measured": 1011388
+   "budget": 1013628,
+   "measured": 1010996
   },
   "pico_w_asserts": {
-   "budget": 1005732,
-   "measured": 1003100
+   "budget": 1002748,
+   "measured": 1000116
   },
   "pico_w_alpha": {
-   "budget": 966396,
-   "measured": 963476
+   "budget": 966836,
+   "measured": 963916
   },
   "pico_w_air": {
-   "budget": 1006288,
-   "measured": 1003328
+   "budget": 1006688,
+   "measured": 1003728
   }
  }
 }

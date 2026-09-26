@@ -140,8 +140,7 @@ void AppManager::core0Yield( ) {
  if (handlePanelEvent(uiEv)) continue;
  if (uiEv.type == UiEvent::EVT_SLOT_SELECT) { _currentSensorIdx = uiEv.id; _lastSlotChangeTime = millis( ); refreshSelectedSlot( ); }
  else if (uiEv.type == UiEvent::EVT_OPEN_GRAPH) {
- if (uiEv.param == 99) openStatsScreen(uiEv.id);
- else {
+ {
  [[maybe_unused]] int sensorId = uiEv.id;
  int range = uiEv.param;
  bool hasAnchor = (_graphAnchorEnd != 0);

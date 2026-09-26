@@ -75,7 +75,6 @@ enum LanguageCode {
 /** Active UI screen on the TFT display (Core 1 state). */
 enum UiMode {
  MODE_DASHBOARD,
- MODE_STATS_VIEW,
  MODE_GRAPH_LOADING,
  MODE_GRAPH_VIEW,
  MODE_GRAPH_DETAIL, /**< Numeric graph detail screen */

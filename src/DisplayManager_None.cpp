@@ -84,7 +84,6 @@ void DisplayManager::setAlarmSilenced(bool silenced, uint32_t endTime) { (void)s
 void DisplayManager::setAlarmErrMuted(int8_t slotIdx, bool muted) { (void)slotIdx; (void)muted; }
 bool DisplayManager::isAlarmErrMuted(int8_t slotIdx) const { (void)slotIdx; return false; }
 
-void DisplayManager::showStats(const GraphDataPackage& data, float minHum, float maxHum) { (void)data; (void)minHum; (void)maxHum; }
 void DisplayManager::showGraphPlot(const GraphDataPackage& data, float minHum, float maxHum) { (void)data; (void)minHum; (void)maxHum; }
 void DisplayManager::showCalendar(int year, int month, uint32_t daysMask) { (void)year; (void)month; (void)daysMask; }
 void DisplayManager::setCalendarDays(uint32_t daysMask) { (void)daysMask; }
