@@ -1,0 +1,247 @@
+{
+  "version": 1,
+  "profiles": {
+    "pico_w_release": {
+      "features": {
+        "display": "tft",
+        "cli_full": false,
+        "web_https": true,
+        "license_stub": false,
+        "mdns": true,
+        "concurrency_asserts": false,
+        "bluetooth": false,
+        "air": false,
+        "sound_buzzer": true,
+        "build_type": "release",
+        "publish": true
+      },
+      "derived": {
+        "flags": [
+          "-DNDEBUG",
+          "-DSIMUT_CLI_FULL=0",
+          "-DSIMUT_WEB_HTTPS=1"
+        ],
+        "excludes": [
+          "DisplayManager_Alpha.cpp",
+          "BluetoothManager.cpp"
+        ],
+        "includes": [],
+        "lib_ignore": [
+          "SerialBT"
+        ],
+        "web_omit": null,
+        "custom_fs_pages": null,
+        "build_type": "release"
+      }
+    },
+    "pico_w_test": {
+      "features": {
+        "display": "tft",
+        "cli_full": true,
+        "web_https": false,
+        "license_stub": true,
+        "mdns": false,
+        "bluetooth": false,
+        "air": false,
+        "sound_buzzer": true,
+        "build_type": "release",
+        "publish": false
+      },
+      "derived": {
+        "flags": [
+          "-DNDEBUG",
+          "-DSIMUT_CLI_FULL=1",
+          "-DSIMUT_LICENSE_STUB=1",
+          "-DSIMUT_MDNS=0"
+        ],
+        "excludes": [
+          "DisplayManager_Alpha.cpp",
+          "BluetoothManager.cpp"
+        ],
+        "includes": [],
+        "lib_ignore": [
+          "SerialBT"
+        ],
+        "web_omit": null,
+        "custom_fs_pages": null,
+        "build_type": "release"
+      }
+    },
+    "pico_w_test_https": {
+      "features": {
+        "display": "tft",
+        "cli_full": true,
+        "web_https": true,
+        "license_stub": true,
+        "mdns": false,
+        "bluetooth": false,
+        "air": false,
+        "sound_buzzer": true,
+        "build_type": "release",
+        "publish": false
+      },
+      "derived": {
+        "flags": [
+          "-DNDEBUG",
+          "-DSIMUT_CLI_FULL=1",
+          "-DSIMUT_WEB_HTTPS=1",
+          "-DSIMUT_LICENSE_STUB=1",
+          "-DSIMUT_MDNS=0"
+        ],
+        "excludes": [
+          "DisplayManager_Alpha.cpp",
+          "BluetoothManager.cpp"
+        ],
+        "includes": [],
+        "lib_ignore": [
+          "SerialBT"
+        ],
+        "web_omit": null,
+        "custom_fs_pages": [
+          "ALARMS_PAGE",
+          "FILE_PAGE",
+          "TEL_PAGE"
+        ],
+        "build_type": "release"
+      }
+    },
+    "pico_w_asserts": {
+      "features": {
+        "display": "tft",
+        "cli_full": false,
+        "web_https": true,
+        "license_stub": false,
+        "mdns": true,
+        "concurrency_asserts": true,
+        "bluetooth": false,
+        "air": false,
+        "sound_buzzer": true,
+        "build_type": "release",
+        "publish": false
+      },
+      "derived": {
+        "flags": [
+          "-DNDEBUG",
+          "-DSIMUT_CLI_FULL=0",
+          "-DSIMUT_WEB_HTTPS=1",
+          "-DSIMUT_CONCURRENCY_ASSERTS"
+        ],
+        "excludes": [
+          "DisplayManager_Alpha.cpp",
+          "BluetoothManager.cpp"
+        ],
+        "includes": [],
+        "lib_ignore": [
+          "SerialBT"
+        ],
+        "web_omit": null,
+        "custom_fs_pages": null,
+        "build_type": "release"
+      }
+    },
+    "pico_w_alpha": {
+      "features": {
+        "display": "alpha_paralelo",
+        "cli_full": false,
+        "web_https": false,
+        "license_stub": false,
+        "mdns": false,
+        "bluetooth": true,
+        "air": false,
+        "sound_buzzer": true,
+        "publish": true
+      },
+      "derived": {
+        "flags": [
+          "-DNDEBUG",
+          "-DSIMUT_DISPLAY_TFT=0",
+          "-DSIMUT_DISPLAY_ALPHA=1",
+          "-DHD44780_MODE_PARALLEL=1",
+          "-DSIMUT_CLI_FULL=0",
+          "-DSIMUT_MDNS=0",
+          "-DSIMUT_BLUETOOTH=1",
+          "-DPIO_FRAMEWORK_ARDUINO_ENABLE_BLUETOOTH"
+        ],
+        "excludes": [
+          "DisplayManager_Touch.cpp",
+          "DisplayManager_Settings.cpp",
+          "DisplayManager_Graph.cpp",
+          "DisplayManager_Dashboard.cpp",
+          "DisplayManager_Calibration.cpp",
+          "DisplayManager_Auth.cpp",
+          "DisplayManager_Alarm.cpp",
+          "DisplayManager_Calendar.cpp",
+          "DisplayManager_Fonts.cpp",
+          "DisplayManager_i18n.cpp",
+          "DisplayManager_LangParser.cpp",
+          "AppManager_Graph.cpp"
+        ],
+        "includes": [
+          "DisplayManager_Alpha.cpp"
+        ],
+        "lib_ignore": [
+          "Adafruit ILI9341",
+          "Adafruit GFX Library",
+          "XPT2046_Touchscreen"
+        ],
+        "web_omit": "tft",
+        "custom_fs_pages": null,
+        "build_type": null
+      }
+    },
+    "pico_w_air": {
+      "features": {
+        "display": "nenhum",
+        "cli_full": true,
+        "web_https": false,
+        "license_stub": true,
+        "mdns": false,
+        "bluetooth": true,
+        "air": true,
+        "sound_buzzer": false,
+        "publish": true
+      },
+      "derived": {
+        "flags": [
+          "-DNDEBUG",
+          "-DSIMUT_DISPLAY_TFT=0",
+          "-DSIMUT_DISPLAY_ALPHA=0",
+          "-DSIMUT_CLI_FULL=1",
+          "-DSIMUT_LICENSE_STUB=1",
+          "-DSIMUT_MDNS=0",
+          "-DSIMUT_BLUETOOTH=1",
+          "-DPIO_FRAMEWORK_ARDUINO_ENABLE_BLUETOOTH",
+          "-DSIMUT_AIR=1"
+        ],
+        "excludes": [
+          "DisplayManager_Touch.cpp",
+          "DisplayManager_Settings.cpp",
+          "DisplayManager_Graph.cpp",
+          "DisplayManager_Dashboard.cpp",
+          "DisplayManager_Calibration.cpp",
+          "DisplayManager_Auth.cpp",
+          "DisplayManager_Alarm.cpp",
+          "DisplayManager_Calendar.cpp",
+          "DisplayManager_Fonts.cpp",
+          "AppManager_Graph.cpp",
+          "DisplayManager.cpp",
+          "DisplayManager_Alpha.cpp",
+          "SoundManager.cpp"
+        ],
+        "includes": [
+          "DisplayManager_None.cpp",
+          "air/*.c"
+        ],
+        "lib_ignore": [
+          "Adafruit ILI9341",
+          "Adafruit GFX Library",
+          "XPT2046_Touchscreen",
+          "BuzzerPIO_RP2040"
+        ],
+        "web_omit": "tft",
+        "custom_fs_pages": null,
+        "build_type": null
+      }
+    }
+  }
+}

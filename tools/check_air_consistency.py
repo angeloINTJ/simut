@@ -16,7 +16,8 @@ check_authz / check_fsguard.
   C4  tools/check_cli_help.py must not expect CMD_AIR_* unconditionally: the
       list has to depend on SIMUT_AIR (F15).
   C5  every Air method declared in AppManager.h has a definition (F17).
-  C6  the [env:pico_w_air] comment block agrees with its -DSIMUT_CLI_FULL flag (F18).
+  C6  the pico_w_air rationale in tools/features.toml agrees with its cli_full
+      setting (F18) — since the P1 switchover the air env is generated from there.
   C7  AirConfig fields marked obsolete in the header must not be written by
       firmware code outside AirConfig.h (F17) — informational.
   C8  LogManager's scratch register map documents the Air marker in
@@ -222,17 +223,24 @@ def c5_declared_methods_defined():
 # C6 — platformio.ini comment vs flag ------------------------------------
 
 def c6_env_comment_matches_flag():
-    ini = read(os.path.join(ROOT, 'platformio.ini'))
-    m = re.search(r'(;[^\n]*\n)+\[env:pico_w_air\](.*?)(?=\n\[env:|\Z)', ini, re.DOTALL)
-    if not m:
-        problem('C6', 'platformio.ini: [env:pico_w_air] not found')
+    # Since the P1 switchover (docs/analysis/MODELO_DE_RECURSOS.md) the air
+    # environment is generated from tools/features.toml; the cli_full setting and
+    # the rationale comment that used to explain it both live there, not in a
+    # platformio.ini [env:] block. The check is the same: the two must agree.
+    import tomllib
+    raw = read(os.path.join(ROOT, 'tools', 'features.toml'))
+    try:
+        prof = tomllib.loads(raw)['profiles']['pico_w_air']
+    except Exception:
+        problem('C6', 'tools/features.toml: [profiles.pico_w_air] not found')
         return
-    comment = m.group(0)[:m.group(0).find('[env:pico_w_air]')]
-    body = m.group(2)
-    flag = re.findall(r'-DSIMUT_CLI_FULL=(\d)', body)
+    cli_full = 1 if prof.get('cli_full') else 0
+    m = re.search(r'((?:#[^\n]*\n)+)\[profiles\.pico_w_air\]', raw)
+    comment = m.group(1) if m else ''
     said = re.findall(r'SIMUT_CLI_FULL=(\d)', comment)
-    if flag and said and said[-1] != flag[-1]:
-        problem('C6', f'platformio.ini: pico_w_air comment says SIMUT_CLI_FULL={said[-1]} but the env sets {flag[-1]}')
+    if said and int(said[-1]) != cli_full:
+        problem('C6', f'features.toml: pico_w_air rationale says SIMUT_CLI_FULL={said[-1]} '
+                      f'but the profile sets cli_full={"true" if cli_full else "false"}')
 
 
 # C7 — obsolete AirConfig fields written by firmware (informational) -----

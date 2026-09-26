@@ -1,6 +1,6 @@
 # tools/
 
-131 scripts. This file exists because until 2026-09-08 there was no way
+134 scripts. This file exists because until 2026-09-08 there was no way
 to tell a live bench tool from a leftover, and one of them —
 `compressor.py` — had been superseded for three months while still looking
 usable: it regenerated `WebUI_GZ.h` into the repository root, where nothing
@@ -16,7 +16,7 @@ wrong, the description is the bug.
 
 ---
 
-## Called by CI (14)
+## Called by CI (17)
 
 Invoked from `.github/workflows/build.yml` — or, for the release manifest, from
 `release-ota.yml` when a tag is pushed. Breaking one of these fails a pull request
@@ -34,6 +34,9 @@ or a release.
 | `check_angulo.py` | The Ângulo interface standard where a machine can see it: the token copy pinned by sha256, the site's CSS on tokens and the 4 px grid, the brand on token colours, no emoji in the READMEs, on the site or in a Living document, badges flat-square. Mutation-tested, 19 of 19 (AGENTS.md §7). | 2026-09-24 |
 | `fsguard.py` | LittleFS guard for OTA benches: backup and restore with day-file merging. | 2026-08-21 |
 | `gen_logcodes.py` | Single source of truth for the SIMUT log-code tables. | 2026-09-24 |
+| `gen_features.py` | Deriva `tools/generated/profiles.ini` e `features_model.json` do manifesto `tools/features.toml` (o modelo de recursos, `docs/analysis/MODELO_DE_RECURSOS.md` P1). O CI o roda com `--check` para pegar arquivo gerado desatualizado. | 2026-09-25 |
+| `check_feature_sprawl.py` | A marca d'água do emaranhamento (P2 do modelo de recursos): conta os sítios `#if SIMUT_` por macro e por arquivo em `src/` (283 hoje, 24 macros) e os prende ao teto de `tools/feature_sprawl.json`. Um sítio a mais num arquivo compartilhado reprova; extrair um recurso para a sua unidade de tradução baixa a marca. Mesmo mecanismo do orçamento de flash. Sabe reprovar: controle conferido em 26/09. | 2026-09-26 |
+| `check_features.py` | Prova, pelo resolvedor do próprio PlatformIO, que os seis ambientes de firmware que o build usa (o `platformio.ini` inclui `tools/generated/profiles.ini` via `extra_configs`) resolvem para o que o manifesto `tools/features.toml` descreve — flag a flag e unidade de tradução a unidade. A troca foi validada por build byte-a-byte contra a imagem anterior (P1). Sabe reprovar: mutação no manifesto é pega, controle conferido em 25/09. | 2026-09-25 |
 | `h5_day_merge.py` | Merge V5 history day files (same day, same schema) into one file. | 2026-08-21 |
 | `run_cppcheck.sh` | run_cppcheck.sh — static-analysis gate over src/ (issue #35). | 2026-08-18 |
 | `run_fuzz.sh` | run_fuzz.sh — libFuzzer gate over the web-API input validators (issue #44). | 2026-08-19 |

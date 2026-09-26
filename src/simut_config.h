@@ -264,11 +264,13 @@
 /* =========================================================================
  * SECTION 6: COMMUNICATION FEATURES
  *
- * SIMUT_BLUETOOTH — Bluetooth Serial CLI (BLE UART).
- *                   Costs ~22 KB flash. Disabled by default.
+ * SIMUT_BLUETOOTH — Bluetooth Serial CLI over classic SPP (SerialBT/RFCOMM, not
+ *                   BLE). Costs 64,732 B of flash and 16,416 B of .bss, measured
+ *                   — see the note in platformio.ini's [pico_base]. Off by default.
  *
  * SIMUT_MDNS      — mDNS responder (<deviceName>.local hostname, `_simut._tcp` service).
- *                   Enabled by default. Negligible flash cost.
+ *                   Enabled by default. Costs ~15 KB of flash (15,376 B measured,
+ *                   LEAmDNS); off in test/alpha/air.
  * ========================================================================= */
 
 #ifndef SIMUT_BLUETOOTH

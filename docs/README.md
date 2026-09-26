@@ -53,6 +53,7 @@ fixed, which is exactly what makes them useful when it comes back.
 
 | document | version | about |
 |---|---|---|
+| [analysis/MODELO_DE_RECURSOS.md](analysis/MODELO_DE_RECURSOS.md) | **Living** | O que do firmware vale uma chave de compilação ou uma magnitude escolhida pelo cliente (54 chaves, 2 escolhas, 33 magnitudes), as 105 regras que os prendem uns aos outros com a força de cada uma, e o plano em oito passos para que isso seja uma base gerada de um manifesto, não mais uma camada de `#if` (pt-BR). |
 | [analysis/PLANO_DIVIDA_TECNICA.md](analysis/PLANO_DIVIDA_TECNICA.md) | **Living** | The debt still owed and the order to pay it in, with the dependencies that set that order. |
 | [analysis/PLANO_STABLE.md](analysis/PLANO_STABLE.md) | **Living** | O que precisa ser verdade para a linha sair de beta, a matriz de testes que prova cada item, e os três bloqueios abertos (pt-BR). |
 | [analysis/DIETA_FLASH.md](analysis/DIETA_FLASH.md) | **Living** | Where the 1 MB release image goes and what gives bytes back without dropping a feature: attributed from the linker map, six levers measured by A/B builds, −53,848 B in one image (pt-BR). |

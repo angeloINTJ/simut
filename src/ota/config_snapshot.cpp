@@ -24,8 +24,9 @@
  *
  * v20 cabia num setor (3921 B contra 4076 úteis, margem 155 B). A v21 anexou
  * AlarmTelConfig (segunda linha de telemetria) e passou o orçamento; a região
- * ganhou um SEGUNDO setor (8172 B úteis — margem atual ~3,4 KiB), e o buffer
- * de scratch em applier.cpp cresceu junto.
+ * ganhou um SEGUNDO setor (8172 B úteis), e o buffer de scratch em applier.cpp
+ * cresceu junto. A folga era ~3,4 KiB na v21; na v25 (SystemConfig 6738 B mais
+ * 4 de CRC contra 8172 úteis) é de 1.430 B.
  *
  * Fails at compile time instead. If this fires, either the config has to shrink
  * or the snapshot needs a THIRD sector — do not just raise the constant. */
