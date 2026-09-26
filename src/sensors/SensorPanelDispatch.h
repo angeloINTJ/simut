@@ -14,9 +14,18 @@
  * renderMinMax (whose signatures differ — a DS18B20 has one value, a DHT22
  * two, a BMP280 two of a different pair). The adapters keep the driver bodies
  * untouched. This file compiles only in TFT builds (DisplayManager_Dashboard
- * leaves the filter otherwise), and every TFT profile ships all three sensor
- * families, so the table's function pointers always resolve; per-family
- * conditionality returns with the driver-to-.cpp step of the seam.
+ * leaves the filter otherwise).
+ *
+ * Each single-family adapter and its table row is `#if SIMUT_SENSOR_*` guarded
+ * (2026-09-26): a profile that disables a family must compile, and the adapter
+ * would otherwise call a driver renderPanel/renderMinMax that is compiled out.
+ * The intermediate table (#170) dropped these guards on the promise that "every
+ * TFT profile ships all three families" — but that made the families
+ * un-switchable, which the switchability test caught (a DHT22=0 build failed to
+ * link DHT22_renderMinMax). minMaxDS18B20 stays UNguarded on purpose: it is the
+ * shared temp-only strip (renderTempMinMax, in SensorDrawing.h) that the BMP280
+ * row reuses, so it must survive a DS18B20=0 build; being `inline`, it draws no
+ * unused-function warning when no row points at it (a DHT22-only profile).
  * docs/analysis/MODELO_DE_RECURSOS.md, P2 (costura dos sensores), incremento 3.
  *
  * Theme colors are passed as parameters so the drivers follow the
@@ -59,6 +68,7 @@ using SensorMinMaxFn = void (*)(GFXcanvas16* cv, float minV1, float maxV1, float
 /* ── Panel adapters (v1=temp, v2=hum, v3=press; valueCol = the second value's
  *    color, which the driver reads as humidity or pressure) ───────────────── */
 
+#if SIMUT_SENSOR_DS18B20
 inline void panelDS18B20(GFXcanvas16* cv, float v1, [[maybe_unused]] float v2, [[maybe_unused]] float v3,
     bool isValid, int16_t cardW, [[maybe_unused]] bool leftAnchor, bool isRedPhase, uint16_t panelBg,
     uint16_t alarmText, uint16_t alarmTextDim, const GFXfont& font24, const GFXfont& font12,
@@ -67,7 +77,9 @@ inline void panelDS18B20(GFXcanvas16* cv, float v1, [[maybe_unused]] float v2, [
     DS18B20_renderPanel(cv, v1, isValid, cardW, isRedPhase, panelBg, alarmText, alarmTextDim,
                         font24, font12, font9, txtSub, tempOk, tempHot, textOff);
 }
+#endif
 
+#if SIMUT_SENSOR_DHT22
 inline void panelDHT22(GFXcanvas16* cv, float v1, float v2, [[maybe_unused]] float v3, bool isValid,
     int16_t cardW, bool leftAnchor, bool isRedPhase, uint16_t panelBg, uint16_t alarmText,
     uint16_t alarmTextDim, const GFXfont& font24, const GFXfont& font12, const GFXfont& font9,
@@ -77,7 +89,9 @@ inline void panelDHT22(GFXcanvas16* cv, float v1, float v2, [[maybe_unused]] flo
                       alarmTextDim, font24, font12, font9, txtSub, tempOk, tempHot, valueCol,
                       textOff, humSuffix);
 }
+#endif
 
+#if SIMUT_SENSOR_BME280
 inline void panelBMP280(GFXcanvas16* cv, float v1, [[maybe_unused]] float v2, float v3, bool isValid,
     int16_t cardW, bool leftAnchor, bool isRedPhase, uint16_t panelBg, uint16_t alarmText,
     uint16_t alarmTextDim, const GFXfont& font24, const GFXfont& font12, const GFXfont& font9,
@@ -88,6 +102,7 @@ inline void panelBMP280(GFXcanvas16* cv, float v1, [[maybe_unused]] float v2, fl
     BMP280_renderPanel(cv, v1, v3, isValid, cardW, leftAnchor, isRedPhase, panelBg, alarmText,
                        alarmTextDim, font24, font12, font9, txtSub, tempOk, tempHot, valueCol, textOff);
 }
+#endif
 
 /* ── Min/max adapters (minV1/maxV1 = temperature, minV2/maxV2 = humidity) ─── */
 
@@ -97,11 +112,12 @@ inline void minMaxDS18B20(GFXcanvas16* cv, float minV1, float maxV1, [[maybe_unu
     uint16_t tempHot, [[maybe_unused]] uint16_t valueCol, uint16_t textOff, uint16_t accentHigh,
     uint16_t btnTextActive, const char* minLabel, const char* maxLabel,
     [[maybe_unused]] const char* humSuffix) {
-    DS18B20_renderMinMax(cv, minV1, maxV1, isValid, cardW, isRedPhase, panelBg, alarmText, alarmTextDim,
+    renderTempMinMax(cv, minV1, maxV1, isValid, cardW, isRedPhase, panelBg, alarmText, alarmTextDim,
                          font9, txtSub, tempOk, tempHot, textOff, accentHigh, btnTextActive,
                          minLabel, maxLabel);
 }
 
+#if SIMUT_SENSOR_DHT22
 inline void minMaxDHT22(GFXcanvas16* cv, float minV1, float maxV1, float minV2, float maxV2,
     bool isValid, int16_t cardW, bool isRedPhase, uint16_t panelBg, uint16_t alarmText,
     uint16_t alarmTextDim, const GFXfont& font9, uint16_t txtSub, uint16_t tempOk, uint16_t tempHot,
@@ -111,7 +127,9 @@ inline void minMaxDHT22(GFXcanvas16* cv, float minV1, float maxV1, float minV2, 
                        alarmTextDim, font9, txtSub, tempOk, tempHot, valueCol, textOff, accentHigh,
                        btnTextActive, minLabel, maxLabel, humSuffix);
 }
+#endif
 
+#if SIMUT_SENSOR_BME280
 inline void minMaxBME280(GFXcanvas16* cv, float minV1, float maxV1, float minV2, float maxV2,
     bool isValid, int16_t cardW, bool isRedPhase, uint16_t panelBg, uint16_t alarmText,
     uint16_t alarmTextDim, const GFXfont& font9, uint16_t txtSub, uint16_t tempOk, uint16_t tempHot,
@@ -121,6 +139,7 @@ inline void minMaxBME280(GFXcanvas16* cv, float minV1, float maxV1, float minV2,
                         alarmTextDim, font9, txtSub, tempOk, tempHot, valueCol, textOff, accentHigh,
                         btnTextActive, minLabel, maxLabel, humSuffix);
 }
+#endif
 
 /* Type → (panel, min/max) renderer. BMP280 draws its min/max temperature-only
  * (there is no pressure extreme tracked), which is why it points at the
@@ -133,10 +152,16 @@ struct SensorPanelDispatch {
 };
 
 inline constexpr SensorPanelDispatch SENSOR_PANEL_DISPATCH[] = {
+#if SIMUT_SENSOR_DS18B20
     { TYPE_DS18B20, panelDS18B20, minMaxDS18B20 },
+#endif
+#if SIMUT_SENSOR_DHT22
     { TYPE_DHT22,   panelDHT22,   minMaxDHT22   },
+#endif
+#if SIMUT_SENSOR_BME280
     { TYPE_BME280,  panelBMP280,  minMaxBME280  },
     { TYPE_BMP280,  panelBMP280,  minMaxDS18B20 },
+#endif
 };
 
 inline const SensorPanelDispatch& sensorPanelFor(SensorType type) {

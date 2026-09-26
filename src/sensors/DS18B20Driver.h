@@ -146,39 +146,5 @@ inline void DS18B20_renderPanel(GFXcanvas16* cv, float t, bool isValid,
         cv->setCursor(unitX + 2, 35); cv->print("\xB0" "C");
     }
 
-/* ── Min/Max panel rendering (temp only, 43px strip) ───────────────── */
-inline void DS18B20_renderMinMax(GFXcanvas16* cv,
-    float minT, float maxT, bool isValid,
-    int16_t cardW, bool isRedPhase, uint16_t panelBg,
-    uint16_t alarmText, uint16_t alarmTextDim,
-    const GFXfont& font9,
-    uint16_t txtSub, uint16_t tempOk, uint16_t tempHot, uint16_t textOff,
-    uint16_t accentHigh, uint16_t btnTextActive,
-    const char* minLabel, const char* maxLabel) {
-    uint16_t icCol   = isRedPhase ? alarmTextDim : txtSub;
-    uint16_t mercCol = isRedPhase ? alarmText : tempHot;
-
-    int16_t x1, y1; uint16_t minLblW, maxLblW, hb;
-    cv->setFont(&font9);
-    cv->getTextBounds(minLabel, 0, 0, &x1, &y1, &minLblW, &hb);
-    cv->getTextBounds(maxLabel, 0, 0, &x1, &y1, &maxLblW, &hb);
-    int biggestLbl = (minLblW > maxLblW) ? (int)minLblW : (int)maxLblW;
-
-    const int LABEL_X = 18;
-    const int THERM_X = LABEL_X + biggestLbl + 8;
-    const int DOT_X  = THERM_X + 36;
-    const int BTN_X = minMaxBtnX(cardW);
-
-    drawMinMaxTempRow(cv, minLabel, LABEL_X, THERM_X, DOT_X,
-        0, minT, isRedPhase,
-        txtSub, icCol, mercCol, tempOk, panelBg, alarmText, font9);
-
-    drawMinMaxTempRow(cv, maxLabel, LABEL_X, THERM_X, DOT_X,
-        22, maxT, isRedPhase,
-        txtSub, icCol, mercCol, tempOk, panelBg, alarmText, font9);
-
-    drawMinMaxGraphBtn(cv, BTN_X, MINMAX_BTN_Y, MINMAX_BTN_W, MINMAX_BTN_H,
-                       accentHigh, btnTextActive);
-}
 #endif /* SIMUT_SENSOR_DS18B20 */
 #endif // SIMUT_DISPLAY_TFT
