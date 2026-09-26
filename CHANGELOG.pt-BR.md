@@ -107,10 +107,12 @@ O firmware está sendo cortado ao longo dos seus recursos (plano P2 em
 medido e deixado de fora de uma build: o caminho dos sensores dividido em um
 driver por família (#170, #172, #173, #174), a tabela de comandos do console
 (#171), rotas registradas pelo recurso a que pertencem (#169), o buzzer atrás
-da sua própria chave (#180), e o manifesto que gera os seis ambientes de build
-(#168). Nada disso pretende mudar o que uma imagem publicada faz. Cada passo foi
-conferido quando entrou, a maioria na bancada, e o candidato à release como um
-todo, na bancada (abaixo).
+da sua própria chave (#180), as famílias de sensor chaveáveis no código do
+painel (#176, #178), a economia de cada recurso medida e segurada toda noite
+(#179), e o manifesto que gera os seis ambientes de build (#168). Nada disso
+pretende mudar o que uma imagem publicada faz. Cada passo foi conferido quando
+entrou, a maioria na bancada, e o candidato à release como um todo, na bancada
+(abaixo).
 
 ### Flash
 

@@ -102,10 +102,11 @@ The firmware is being cut along its features (plan P2 in
 measured and left out of a build: the sensor pipeline split into one driver per
 family (#170, #172, #173, #174), the console's command table (#171), routes
 registered by the feature that owns them (#169), the buzzer behind its own
-switch (#180), and the manifest that generates the six build environments
-(#168). None of it is meant to change what a published image does. Each step
-was checked when it merged, most on the bench, and the release candidate as a
-whole on the bench (below).
+switch (#180), the sensor families switchable in the panel's code (#176, #178),
+each feature's savings measured and held nightly (#179), and the manifest that
+generates the six build environments (#168). None of it is meant to change what
+a published image does. Each step was checked when it merged, most on the
+bench, and the release candidate as a whole on the bench (below).
 
 ### Flash
 
