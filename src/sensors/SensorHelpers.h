@@ -93,57 +93,75 @@ inline const char* sensorChannelName(uint8_t ch) { return channelInfo(ch).name; 
 /** Forward declaration — implementation after SensorFormat definition below. */
 inline bool sensorHasChannel(SensorType t, uint8_t channel);
 
+/* ===========================================================================
+ * SENSOR TYPE TABLE — one row per driver type: the single source of the
+ * per-type metadata that four switch(SensorType) helpers used to each carry
+ * under their own #if SIMUT_SENSOR_* cases (twelve sites in this file).
+ *
+ * Rows are UNCONDITIONAL. The metadata — name, interval, channel mask, pin
+ * map — is pure data and costs a handful of bytes even for a driver compiled
+ * out, which is the right trade: a slot configured for a type whose driver is
+ * absent still needs its name and pin map to render "not available", and a
+ * consumer asks `enabled` to know whether the driver is actually there.
+ * `enabled` is the feature macro used as a VALUE (0/1), not an #if, so this
+ * header stops spreading SIMUT_SENSOR_* across its helpers — the four lookups
+ * below carry none. Every profile ships all three families today, so the table
+ * returns exactly what the switches did; the difference shows only in a build
+ * that compiles a family out, where returning the real name (not "Unknown")
+ * is the intended behaviour.
+ *
+ * Adding a sensor type is one row here plus its driver file.
+ * docs/analysis/MODELO_DE_RECURSOS.md, P2 (costura dos sensores), incremento 1.
+ * =========================================================================== */
+struct SensorTypeDef {
+ SensorType     type;
+ const char*    name;
+ bool           enabled;            /**< driver compiled in (feature macro as value) */
+ uint32_t       defaultIntervalMs;
+ uint8_t        channelMask;        /**< 1<<CH_* per channel this part reports */
+ uint8_t        pinCount;
+ PinRequirement pins[MAX_SENSOR_PINS];
+};
+
+inline constexpr SensorTypeDef SENSOR_TYPE_TABLE[] = {
+ { TYPE_DS18B20, "DS18B20", (bool)SIMUT_SENSOR_DS18B20, 1000,
+   (uint8_t)(1u << CH_TEMP), 1,
+   {{ROLE_DATA, "1-Wire", FLAG_PULLUP}} },
+ { TYPE_DHT22, "DHT22", (bool)SIMUT_SENSOR_DHT22, 2000,
+   (uint8_t)((1u << CH_TEMP) | (1u << CH_HUM)), 1,
+   {{ROLE_DATA, "Data", FLAG_PULLUP}} },
+ { TYPE_BME280, "BME280", (bool)SIMUT_SENSOR_BME280, 5000,
+   (uint8_t)((1u << CH_TEMP) | (1u << CH_HUM) | (1u << CH_PRESS)), 2,
+   {{ROLE_I2C_SDA, "SDA", FLAG_PULLUP}, {ROLE_I2C_SCL, "SCL", FLAG_PULLUP}} },
+ /* Same driver as the BME280, one channel fewer: the hole at CH_HUM is the
+  * whole point of the mask (a BMP280 has no humidity die). */
+ { TYPE_BMP280, "BMP280", (bool)SIMUT_SENSOR_BME280, 5000,
+   (uint8_t)((1u << CH_TEMP) | (1u << CH_PRESS)), 2,
+   {{ROLE_I2C_SDA, "SDA", FLAG_PULLUP}, {ROLE_I2C_SCL, "SCL", FLAG_PULLUP}} },
+};
+
+/** @return the table row for a type, or nullptr for TYPE_NONE / unknown. */
+inline const SensorTypeDef* sensorTypeDef(SensorType t) {
+ for (const SensorTypeDef& d : SENSOR_TYPE_TABLE) if (d.type == t) return &d;
+ return nullptr;
+}
+
 /** @return human-readable sensor type name (e.g. "DS18B20", "DHT22"). */
 inline const char* sensorTypeName(SensorType t) {
- switch (t) {
-#if SIMUT_SENSOR_DS18B20
- case TYPE_DS18B20: return "DS18B20";
-#endif
-#if SIMUT_SENSOR_DHT22
- case TYPE_DHT22:   return "DHT22";
-#endif
-#if SIMUT_SENSOR_BME280
- /* This used to answer "BMP280" for TYPE_BME280 — the one type covered both
-  * parts and the label picked the wrong one for anybody holding a BME280. */
- case TYPE_BME280:  return "BME280";
- case TYPE_BMP280:  return "BMP280";
-#endif
- default:           return "Unknown";
- }
+ const SensorTypeDef* d = sensorTypeDef(t);
+ return d ? d->name : "Unknown";
 }
 
 /** @return true if this sensor type is compiled-in and available. */
 inline bool sensorTypeEnabled(SensorType t) {
- switch (t) {
-#if SIMUT_SENSOR_DS18B20
- case TYPE_DS18B20: return true;
-#endif
-#if SIMUT_SENSOR_DHT22
- case TYPE_DHT22:   return true;
-#endif
-#if SIMUT_SENSOR_BME280
- case TYPE_BME280:  return true;
- case TYPE_BMP280:  return true;  /* same driver, one channel fewer */
-#endif
- default:           return false;
- }
+ const SensorTypeDef* d = sensorTypeDef(t);
+ return d && d->enabled;
 }
 
 /** @return the default read interval in ms for this sensor type. */
 inline uint32_t sensorDefaultIntervalMs(SensorType t) {
- switch (t) {
-#if SIMUT_SENSOR_DS18B20
- case TYPE_DS18B20: return 1000;
-#endif
-#if SIMUT_SENSOR_DHT22
- case TYPE_DHT22:   return 2000;
-#endif
-#if SIMUT_SENSOR_BME280
- case TYPE_BME280:  return 5000;
- case TYPE_BMP280:  return 5000;
-#endif
- default:           return 5000;
- }
+ const SensorTypeDef* d = sensorTypeDef(t);
+ return d ? d->defaultIntervalMs : 5000;
 }
 
 /* ===========================================================================
@@ -159,7 +177,8 @@ inline uint32_t sensorDefaultIntervalMs(SensorType t) {
  * the channel table, so a new driver reporting an existing quantity needs no
  * metadata at all beyond its mask.
  *
- * Adding a new sensor type requires ONLY a new entry in forType() + a driver file.
+ * Adding a new sensor type requires ONLY a new row in SENSOR_TYPE_TABLE + a
+ * driver file.
  */
 struct SensorFormat {
  /** Bit N set = this sensor reports channel N (1 << CH_TEMP, 1 << CH_HUM, ...).
@@ -188,47 +207,25 @@ struct SensorFormat {
  return n;
  }
 
- /** Factory: returns the complete driver metadata for a given sensor type. */
+ /** Factory: returns the complete driver metadata for a given sensor type.
+  *  Channel mask and pin map now come from SENSOR_TYPE_TABLE (above); this
+  *  fills in the per-channel presentation from the channel table. */
  static SensorFormat forType(SensorType t) {
  SensorFormat f = {};
- switch (t) {
-#if SIMUT_SENSOR_DS18B20
- case TYPE_DS18B20:
+ const SensorTypeDef* d = sensorTypeDef(t);
+ if (d) {
+ f.channelMask = d->channelMask;
+ f.pinCount    = d->pinCount;
+ for (uint8_t p = 0; p < d->pinCount && p < MAX_SENSOR_PINS; p++) f.pins[p] = d->pins[p];
+ } else {
+ /* TYPE_NONE / unknown: one temperature channel on a single data pin — the
+  * neutral shape forType( ) has always fallen back to. */
  f.channelMask = (1u << CH_TEMP);
- f.pinCount  = 1;
- f.pins[0]   = {ROLE_DATA, "1-Wire", FLAG_PULLUP};
- break;
-#endif
-#if SIMUT_SENSOR_DHT22
- case TYPE_DHT22:
- f.channelMask = (1u << CH_TEMP) | (1u << CH_HUM);
- f.pinCount  = 1;
- f.pins[0]   = {ROLE_DATA, "Data", FLAG_PULLUP};
- break;
-#endif
-#if SIMUT_SENSOR_BME280
- case TYPE_BME280:
- f.channelMask = (1u << CH_TEMP) | (1u << CH_HUM) | (1u << CH_PRESS);
- f.pinCount  = 2;
- f.pins[0]   = {ROLE_I2C_SDA, "SDA", FLAG_PULLUP};
- f.pins[1]   = {ROLE_I2C_SCL, "SCL", FLAG_PULLUP};
- break;
- case TYPE_BMP280:
- /* The hole at CH_HUM is the whole point of the mask. */
- f.channelMask = (1u << CH_TEMP) | (1u << CH_PRESS);
- f.pinCount  = 2;
- f.pins[0]   = {ROLE_I2C_SDA, "SDA", FLAG_PULLUP};
- f.pins[1]   = {ROLE_I2C_SCL, "SCL", FLAG_PULLUP};
- break;
-#endif
- default:
- f.channelMask = (1u << CH_TEMP);
- f.pinCount  = 1;
- f.pins[0]   = {ROLE_DATA, "Data", 0};
- break;
+ f.pinCount    = 1;
+ f.pins[0]     = {ROLE_DATA, "Data", 0};
  }
- /* Presentation comes from the channel table, so a driver entry above says
-  * only WHICH channels it reports. Every entry used to restate the unit,
+ /* Presentation comes from the channel table, so a driver row says only
+  * WHICH channels it reports. Every entry used to restate the unit,
   * decimals and icon of each channel it had, which is how {"°C", 1,
   * "thermometer"} ended up written once per driver. A driver that genuinely
   * deviates (same quantity, different unit) can still overwrite values[]

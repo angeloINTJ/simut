@@ -127,14 +127,14 @@ Every image has a budget in `tools/flash_budget.json`, checked by CI. The budget
 2. Fork the repository and create a branch (`feature/my-feature`)
 3. Write your code and test on hardware if possible
 4. Ensure the firmware builds. Warnings in `src/` are errors, so a build that succeeds already has none
-5. Ensure all seven native suites pass (see Testing below)
+5. Ensure all eight native suites pass (see Testing below)
 6. Update documentation in `docs/` if your change affects user-facing behavior
 7. Submit the PR with a clear description, referencing the issue number
 8. The PR template checklist will guide you through remaining steps
 
 ## Testing
 
-Unit tests use the [Unity](http://www.throwtheswitch.org/unity) framework. Seven native environments, all of them run by CI:
+Unit tests use the [Unity](http://www.throwtheswitch.org/unity) framework. Eight native environments, all of them run by CI:
 
 | environment | what it covers |
 |---|---|
@@ -145,6 +145,7 @@ Unit tests use the [Unity](http://www.throwtheswitch.org/unity) framework. Seven
 | `native_alarmqueue` | the alarm queue's invariants |
 | `native_air` | SIMUT Air configuration and bounds |
 | `native_network` | the WiFi reconnect state machine, against a controllable radio |
+| `native_sensors` | the sensor type table — names, channel masks, pins per driver type |
 
 The web-API validators also have a fuzz target — `./tools/run_fuzz.sh`, 60 s under libFuzzer with contract oracles — that CI runs on every pull request and `pio test` does not. Run it whenever you touch a validator or a parser: it found a one-ulp defect in `parseFloat( )` within a minute of the change that introduced it.
 

@@ -15,17 +15,17 @@ substance lives there, not here.
 | Tools | `tools/` — [`tools/README.md`](tools/README.md) says which of the 104 scripts are live |
 | Documentation | `docs/` — [`docs/README.md`](docs/README.md) marks each document **Living** or **Snapshot** |
 | Interface standard | [`ANGULO.md`](ANGULO.md) — the Ângulo guide for anything with a screen or a reader: web UI, site, README, docs, brand. [`AGENTS.md`](AGENTS.md) §7 says how it applies here and what `tools/check_angulo.py` enforces in CI |
-| Tests | `test/` — six native environments, `pio test -e native…` |
+| Tests | `test/` — eight native environments, `pio test -e native…` |
 
 ## Building and testing
 
 ```bash
 pio run -e pico_w_release      # the shipping image
 pio run -e pico_w_air          # the hibernating build; least flash headroom
-pio test -e native_logpolicy   # one suite; six exist
+pio test -e native_logpolicy   # one suite; eight exist
 ```
 
-**Six** firmware environments and seven native suites, all of them built and
+**Six** firmware environments and eight native suites, all of them built and
 run by CI — `pico_w_asserts` is the one that is easy to forget, because it is
 not in the table above and nothing local reminds you of it. This line said
 "five" until 2026-09-20, and a change that raised the other five budgets went

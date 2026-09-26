@@ -109,7 +109,7 @@ jobs:
       - name: History V5 day-merge tests
         run: python3 tools/test_h5_day_merge.py
 
-      # ALL SEVEN native environments. Separate steps rather than one
+      # ALL EIGHT native environments. Separate steps rather than one
       # `pio test -e a -e b ...` so a failure names itself in the Actions UI
       # instead of hiding behind the first environment that broke.
       #
@@ -134,6 +134,12 @@ jobs:
 
       - name: Run unit tests (Air config)
         run: pio test -e native_air
+
+      # The sensor type table (SensorHelpers.h). The sensor pipeline had no
+      # native coverage until the feature-model seam (P2) turned its per-type
+      # metadata into a data table; this pins that table's contract.
+      - name: Run unit tests (sensor table)
+        run: pio test -e native_sensors
 
       # The reconnect state machine, against a controllable radio. Its knobs
       # are shaped like the failures seen on real devices — a scan that never
