@@ -211,7 +211,8 @@
           "-DSIMUT_MDNS=0",
           "-DSIMUT_BLUETOOTH=1",
           "-DPIO_FRAMEWORK_ARDUINO_ENABLE_BLUETOOTH",
-          "-DSIMUT_AIR=1"
+          "-DSIMUT_AIR=1",
+          "-DSIMUT_SOUND_BUZZER=0"
         ],
         "excludes": [
           "DisplayManager_Touch.cpp",

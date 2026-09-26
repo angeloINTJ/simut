@@ -126,6 +126,9 @@
   "sensors/DS18B20SensorDriver.h": 1,
   "sensors/SensorPanelDispatch.h": 2
  },
+ "SIMUT_SOUND_BUZZER": {
+  "SoundManager.h": 1
+ },
  "SIMUT_THEMES_HEALTH": {
   "Themes.cpp": 1
  },

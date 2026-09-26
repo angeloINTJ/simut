@@ -7,10 +7,11 @@
  * SystemConfig::reserved[10..15]. Uses dual-SM PIO architecture
  * (PWM amplitude + frequency gate) via the BuzzerPIO_RP2040 library.
  *
- * SIMUT Air (SIMUT_AIR=1) drops the buzzer: the class compiles to a no-op and
- * the BuzzerPIO dependency is not pulled in. The SoundEvent / SoundConfigData /
- * SoundSettingsState types are kept so StorageManager and DisplayManager
- * keep compiling unchanged.
+ * Dropping the buzzer (SIMUT_SOUND_BUZZER=0, or SIMUT_AIR=1 which forces it): the
+ * class compiles to a no-op and the BuzzerPIO dependency is not pulled in. The
+ * SoundEvent / SoundConfigData / SoundSettingsState types are kept so
+ * StorageManager and DisplayManager keep compiling unchanged. The no-op carries
+ * the FULL public interface, so every caller builds against it untouched.
  *
  * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
@@ -68,10 +69,10 @@ struct SoundSettingsState {
  uint8_t attentionMelody;
 };
 
-#if SIMUT_AIR
+#if SIMUT_AIR || !SIMUT_SOUND_BUZZER
 
-/* ── SIMUT Air: no buzzer. The whole class is a no-op so the rest of the
- * firmware keeps calling it unchanged. ── */
+/* ── No buzzer (SIMUT_SOUND_BUZZER=0, or the headless Air build). The whole class
+ * is a no-op so the rest of the firmware keeps calling it unchanged. ── */
 class SoundManager {
 public:
  SoundManager( ) { }
@@ -99,7 +100,7 @@ public:
  bool isWebSoundsEnabled( ) const { return false; }
 };
 
-#else /* !SIMUT_AIR — full buzzer implementation */
+#else /* buzzer present (!SIMUT_AIR && SIMUT_SOUND_BUZZER) — full implementation */
 
 #include <BuzzerPIO_RP2040.h>
 
@@ -201,4 +202,4 @@ private:
  static const BuzzerNote MEL_ATTENTION_3[], MEL_ATTENTION_4[], MEL_ATTENTION_5[];
 };
 
-#endif /* SIMUT_AIR */
+#endif /* SIMUT_AIR || !SIMUT_SOUND_BUZZER */

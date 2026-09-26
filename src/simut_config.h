@@ -235,6 +235,15 @@
 #define BUZZER_PIN 22         // Buzzer GPIO
 #endif
 
+// Set to 0 to drop the buzzer: SoundManager compiles to a no-op and
+// SoundManager.cpp leaves the build (features.toml off_exclude). SIMUT_AIR forces
+// the same no-op; giving the buzzer its own switch (2026-09-26) lets a TFT/normal
+// profile drop it too, not only the headless Air build. Measured cost in
+// docs/analysis/ECONOMIA_DE_RECURSOS.md.
+#ifndef SIMUT_SOUND_BUZZER
+#define SIMUT_SOUND_BUZZER 1  // Buzzer sound engine (enabled)
+#endif
+
 /* =========================================================================
  * SECTION 5: SENSORS
  *
