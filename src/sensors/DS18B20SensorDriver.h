@@ -137,8 +137,41 @@ public:
   }
  }
 
+ /* ── Scan ── 1-Wire presence + ROM read on one pin. The old ONEWIRE_RESET /
+  * ONEWIRE_WAIT states: the first tick drives the reset, later ticks wait out
+  * the 1200 us presence window. Present + ROM read -> found; present but the
+  * ROM read fails, or nothing present, hands the pin to the next family (a
+  * DHT22 shares the same GPIO probe). */
+ ScanVerdict scanPin(uint8_t pin, bool firstCall, std::vector<ScanResult>& out) override {
+  if (firstCall) {
+  _hw.setPin(pin);
+  _hw.sendReset( );
+  _scanTimer = micros( );
+  return SCAN_KEEP;
+  }
+  if (micros( ) - _scanTimer < 1200) return SCAN_KEEP;
+  if (_hw.isSensorPresent( )) {
+  ScanResult res;
+  res.pin = pin;
+  res.type = TYPE_DS18B20;
+  if (_hw.readROM(pin, res.rom)) {
+  out.push_back(res);
+  return SCAN_FOUND;
+  }
+  }
+  return SCAN_NEXT_FAMILY;
+ }
+
+ /* Park the 1-Wire pin back at the default once the sweep is done — the old
+  * `_ds18.setPin(PIN_ONEWIRE_DEFAULT)` that closed the scan. */
+ void scanFinalize(std::vector<ScanResult>& out) override {
+  (void)out;
+  _hw.setPin(PIN_ONEWIRE_DEFAULT);
+ }
+
 private:
  DS18B20Driver& _hw;
+ uint32_t _scanTimer = 0;   /**< micros( ) stamp of the 1-Wire reset during scan */
 };
 
 #endif /* SIMUT_SENSOR_DS18B20 */

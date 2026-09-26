@@ -152,27 +152,22 @@ private:
  bool _fastSampling = false;   /**< see setFastSampling( ) */
 
 
+ /* The scan is now family-agnostic: the per-family sub-states (ONEWIRE_RESET/
+  * WAIT, DHT_REQUEST/WAIT, BME_SCAN_CHECK) moved into each SensorDriver's
+  * scanPin( )/scanFinalize( ). What is left is the outer sweep — set up a pin,
+  * offer it to each driver in turn, advance, and finalize once. */
  enum ScanState {
  IDLE,
  SETUP_PIN,
-#if SIMUT_SENSOR_DS18B20
- ONEWIRE_RESET,
- ONEWIRE_WAIT,
-#endif
-#if SIMUT_SENSOR_DHT22
- DHT_REQUEST,
- DHT_WAIT,
-#endif
-#if SIMUT_SENSOR_BME280
- BME_SCAN_CHECK,
- BME_SCAN_WAIT,
-#endif
+ PROBE,
  NEXT_PIN,
+ FINALIZE,
  COMPLETE
  };
  ScanState _scanState = IDLE;
  uint8_t _currentScanPin = 0;
- uint32_t _scanTimer = 0;
+ int _scanDriverIdx = 0;       /**< which driver PROBE is currently offering the pin to */
+ bool _scanFirstCall = true;   /**< true on the first scanPin( ) of a (pin, driver) pair */
  std::vector<ScanResult> _scanResults;
 
 

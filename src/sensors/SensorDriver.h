@@ -61,9 +61,17 @@ public:
 };
 
 
-/** One instance per compiled-in sensor family. Inc 1 (2026-09-26) gives it the
- *  read state machine only; the scan and per-slot init still live in the
- *  manager and move here in later steps. */
+/** What one call to a driver's per-pin scan probe decides. */
+enum ScanVerdict {
+ SCAN_NEXT_FAMILY,  /**< not this family on this pin — the manager tries the next driver */
+ SCAN_FOUND,        /**< found one on this pin (appended to `out`) — stop probing this pin */
+ SCAN_KEEP          /**< still probing this pin — call again next update( ) */
+};
+
+
+/** One instance per compiled-in sensor family. Inc 1 (2026-09-26) gave it the
+ *  read state machine; Inc 2 adds the scan probe. The per-slot init still lives
+ *  in the manager and moves here in a later step. */
 class SensorDriver {
 public:
  virtual ~SensorDriver( ) { }
@@ -79,4 +87,25 @@ public:
   *  SensorManager::update( ) with the loop's single millis( ) snapshot, so the
   *  three families share one timestamp exactly as the old inline blocks did. */
  virtual void serviceReads(SensorHost& host, uint32_t now) = 0;
+
+ /* ── Scan: a user-triggered GPIO sweep, only while a scan runs ── */
+
+ /** Pumped every update( ) during a scan — the DHT22 keeps its PIO state
+  *  machine advancing here while the manager waits on it. Default no-op. */
+ virtual void scanPump( ) { }
+
+ /** Probe `pin` for this family. Non-blocking: owns its own sub-state across
+  *  calls, with `firstCall` true the first tick the manager points it at `pin`.
+  *  Per-pin families (DS18B20, DHT22) implement it; an I2C family (BME280)
+  *  leaves the default, which declines every pin and does its probe in
+  *  scanFinalize instead. */
+ virtual ScanVerdict scanPin(uint8_t pin, bool firstCall, std::vector<ScanResult>& out) {
+ (void)pin; (void)firstCall; (void)out; return SCAN_NEXT_FAMILY;
+ }
+
+ /** Called once after the pin sweep. BME280 does its I2C probe here; DS18B20
+  *  parks its 1-Wire pin back at the default. The manager calls this across the
+  *  drivers in registration order; the two actions touch different pins and PIO
+  *  blocks, so the end state matches the old block whichever runs first. */
+ virtual void scanFinalize(std::vector<ScanResult>& out) { (void)out; }
 };
