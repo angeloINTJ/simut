@@ -27,72 +27,7 @@
 #include "LogManager.h"
 #include "sensors/SensorHelpers.h"
 #include "sensors/CalibCurve.h"
-
-
-struct RingBuffer {
- float data[MOVING_AVG_WINDOW];
- uint8_t head = 0;
- uint8_t count = 0;
-
- void push(float v) {
- data[head] = v;
- head = (head + 1) % MOVING_AVG_WINDOW;
- if (count < MOVING_AVG_WINDOW) count++;
- }
-
- void clear( ) { head = 0; count = 0; }
-
- bool empty( ) const { return count == 0; }
- bool full( ) const { return count >= MOVING_AVG_WINDOW; }
- uint8_t size( ) const { return count; }
-
-
- void copyTo(float* dst) const {
- if (count == 0) return;
- uint8_t start = (head >= count) ? (head - count) : (MOVING_AVG_WINDOW - (count - head));
- for (uint8_t i = 0; i < count; i++) {
- dst[i] = data[(start + i) % MOVING_AVG_WINDOW];
- }
- }
-};
-
-
-struct RuntimeSensor {
- SensorRecord config;
- SensorType type;
-
- /* Channel arrays — one buffer + averages + calibration per measurement axis.
-  * [CH_TEMP]=0, [CH_HUM]=1, [CH_PRESS]=2, [CH_LUX]=3.
-  * Inactive channels maintain NAN averages and empty buffers.
-  *
-  * The ring holds RAW samples and the curve is applied to the filtered mean,
-  * not the other way around: for the old constant offset both orders are the
-  * same arithmetic, but a piecewise curve pushed through the trimmed mean
-  * would let the correction move the outlier cut, and editing a curve at
-  * runtime would leave 10 samples of the old correction in the window. */
- RingBuffer buffers[MAX_SENSOR_CHANNELS];
- float rawValue[MAX_SENSOR_CHANNELS]; /**< filtered mean of the raw samples */
- float avgValue[MAX_SENSOR_CHANNELS]; /**< rawValue through the curve — what every consumer reads */
- CalibCurve calib[MAX_SENSOR_CHANNELS];
-
- uint32_t lastReadTime;
- uint32_t readInterval;
-
- uint32_t totalReadings;
- uint8_t consecutiveErrors;
- uint8_t consecutiveSuccess;
- bool inErrorState;
- bool hardwareMismatch;
- uint8_t mismatchRechecks;   /**< Wave 2: skip-cycles since last ROM re-verify (auto-recovery) */
-
-#if SIMUT_SENSOR_BME280
- int8_t  bmeDriverIdx = -1;  /**< Index into SensorManager::_bmeDrivers, -1 = not BME280 */
- uint8_t i2cAddr = 0;        /**< I2C address (0x76 or 0x77), 0 = unassigned */
-#endif
-
- /** @return true if at least CH_TEMP buffer is full. */
- bool bufferFull() const { return buffers[CH_TEMP].full(); }
-};
+#include "sensors/RuntimeSensor.h"   /* RingBuffer + RuntimeSensor (moved out 2026-09-26) */
 
 
 class SensorManager {
