@@ -1,6 +1,6 @@
 # Instalar o firmware {#cap-03}
 
-Este capítulo mostra quais arquivos cada versão publica, como escolher a imagem certa, como gravá-la pelo cabo USB, como pôr o pacote de idioma no aparelho e como compilar o firmware a partir do código-fonte. É para quem instala um aparelho novo ou atualiza um aparelho antigo pelo USB. A atualização pela rede, de um aparelho já em uso, está no [capítulo 17](#cap-17-ota).
+Este capítulo mostra quais arquivos cada versão publica, como escolher a imagem certa, como gravá-la pelo cabo USB, como pôr o pacote de idioma no aparelho, como montar uma imagem sob medida e como compilar o firmware a partir do código-fonte. É para quem instala um aparelho novo ou atualiza um aparelho antigo pelo USB. A atualização pela rede, de um aparelho já em uso, está no [capítulo 17](#cap-17-ota).
 
 ## Os arquivos de cada versão {#cap-03-arquivos}
 
@@ -8,12 +8,12 @@ Cada versão publicada, na página de versões do projeto no GitHub (`github.com
 
 | Arquivo | Para que serve |
 |---|---|
-| `simut_v2.7.3_release.uf2` | Gravar a imagem release pelo USB |
-| `simut_v2.7.3_alpha.uf2` | Gravar a imagem alpha pelo USB |
-| `simut_v2.7.3_air.uf2` | Gravar a imagem do Air pelo USB |
-| `simut_v2.7.3_release.bin` | Atualizar a release pela página **Arquivos** ([capítulo 17](#cap-17-ota)) |
-| `simut_v2.7.3_alpha.bin` | Atualizar a alpha pela página **Arquivos** |
-| `simut_v2.7.3_air.bin` | Atualizar o Air pela página **Arquivos** |
+| `simut_v2.7.4_release.uf2` | Gravar a imagem release pelo USB |
+| `simut_v2.7.4_alpha.uf2` | Gravar a imagem alpha pelo USB |
+| `simut_v2.7.4_air.uf2` | Gravar a imagem do Air pelo USB |
+| `simut_v2.7.4_release.bin` | Atualizar a release pela página **Arquivos** ([capítulo 17](#cap-17-ota)) |
+| `simut_v2.7.4_alpha.bin` | Atualizar a alpha pela página **Arquivos** |
+| `simut_v2.7.4_air.bin` | Atualizar o Air pela página **Arquivos** |
 | `language_pt-BR.lng` | Pacote de idioma português do Brasil |
 | `language_es-ES.lng` | Pacote de idioma espanhol |
 | `manifest.json` | Tamanho, soma SHA-256 e tipo de cada imagem, para um gestor de frota ([capítulo 27](#cap-27-manifest)) |
@@ -75,7 +75,7 @@ O `picotool` é a ferramenta de linha de comando do Raspberry Pi para o RP2040. 
 
 ```bash
 picotool info
-picotool load -x simut_v2.7.3_release.uf2
+picotool load -x simut_v2.7.4_release.uf2
 ```
 
 O `picotool info` confirma que a placa está no modo BOOTSEL. O `load -x` grava e reinicia a placa no fim.
@@ -121,6 +121,21 @@ pio run -e pico_w_release -t uploadfs
 :::
 
 A pasta `data/` leva os dois pacotes de idioma e os 11 temas. Depois de um `uploadfs`, apague `language_es-ES.lng` da pasta `/lang` pela página **Arquivos**, se você quer o aparelho em português, e reinicie.
+
+## Uma imagem sob medida {#cap-03-sob-medida}
+
+O [configurador de build](https://angelointj.github.io/simut/configurador/) monta uma imagem com outro conjunto de recursos, pelo navegador. Ele tem português e inglês, tema claro e escuro, e pode ser instalado como aplicativo.
+
+1. Em **Produto**, escolha SIMUT (a imagem release), SIMUT Alpha ou SIMUT Air.
+2. Em **Recursos**, ligue ou desligue o que a imagem leva. Cada recurso mostra quanto a imagem daquele produto cresce ou encolhe, medido compilando. Uma combinação que o firmware não compila aparece **Bloqueada**, com o motivo.
+3. Em **Resultado**, a página soma as mudanças e diz se a imagem **Cabe**, está **No limite** ou **Não cabe**, no espaço do programa e no teto da atualização pela rede.
+4. Toque em **Compilar esta build**. A integração contínua do projeto compila a imagem e entrega o `.uf2`, para o USB, e o `.bin`, para a página **Arquivos** ([capítulo 17](#cap-17-ota)).
+
+**Compilar esta build** exige um token do GitHub com acesso de escrita ao repositório. Sem ele, **Pedir esta build** abre um pedido no GitHub com a configuração preenchida.
+
+- **A soma é uma estimativa.** Contra oito builds reais de mudanças combinadas, ela errou por até 4.392 B de flash e 8.192 B de `.bin`. Por isso a página diz **No limite** perto de um teto; a build dá o número exato.
+- **A imagem sai da `main`** e informa a versão da `main`, que pode estar à frente da última versão publicada. Sem mudanças, a página aponta a última versão publicada, porque compilar gera a `main` de hoje.
+- **A imagem continua do mesmo tipo.** O configurador não troca a tela de um produto, então a página **Arquivos** aceita o `.bin` num aparelho do mesmo produto ([capítulo 17](#cap-17-ota-conferencias)).
 
 ## Compilar a partir do código-fonte {#cap-03-fonte}
 
@@ -169,7 +184,7 @@ PLATFORMIO_BUILD_FLAGS="-DSIMUT_TFT_SPI_HZ=31250000u" pio run -e pico_w_release
 
 As versões anteriores à 1.6.2-beta tinham um defeito na atualização pela rede: diziam que tinham aplicado a imagem sem aplicá-la. Por isso, a primeira atualização de um aparelho desses é pelo USB.
 
-Um aparelho na versão 1.x perde duas coisas no primeiro boot da 2.7.3:
+Um aparelho na versão 1.x perde duas coisas no primeiro boot da 2.7.4:
 
 - **A configuração.** O firmware não lê configurações das versões 1.x. O aparelho começa com a configuração de fábrica e uma senha nova para o `admin`, mostrada no console USB ([capítulo 4](#cap-04-senha)). Anote a rede, as contas e os sensores antes de atualizar.
 - **O histórico no formato antigo.** Os arquivos `.sim4` da pasta `/history` são apagados no primeiro boot. Baixe-os antes de atualizar e converta-os no computador, com a ferramenta `tools/history_v5.py` do código-fonte:

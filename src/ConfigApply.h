@@ -70,15 +70,15 @@ enum ConfigChange : uint32_t {
 	CFG_TELEMETRY  = 1u << 3,  /**< linha convencional pelo lado HTTP */
 	CFG_DISPLAY    = 1u << 4,  /**< tema e idioma */
 	/* ── exigem reboot ── */
-	CFG_NET        = 1u << 16, /**< Wi-Fi, IP, DHCP, HTTPS */
+	CFG_NET        = 1u << 16, /**< Wi-Fi, IP, DHCP, DNS (useHttps não tem leitor: CFG_NONE) */
 	CFG_IDENTITY   = 1u << 17, /**< nome do aparelho (mDNS, SSID do AP) */
 	CFG_USERS      = 1u << 18, /**< contas */
 	CFG_SLOTS      = 1u << 19, /**< provisionamento de sensor: tipo, pinos, ROM */
-	CFG_SENSING    = 1u << 20, /**< cadência de leitura, resolução do DS18 */
+	CFG_SENSING    = 1u << 20, /**< resolução do DS18 (a cadência não tem leitor: CFG_NONE) */
 	CFG_MQTT       = 1u << 21, /**< transporte, credenciais MQTT, TLS da telemetria */
 	CFG_TIME       = 1u << 22, /**< fuso e servidor NTP */
-	CFG_LOGGING    = 1u << 23, /**< liga/desliga o log */
-	CFG_PIN        = 1u << 24, /**< PIN do display */
+	CFG_LOGGING    = 1u << 23, /**< sem campo desde o #182: loggingEnabled não desliga nada */
+	CFG_PIN        = 1u << 24, /**< sem campo desde o #182: displayPin é campo morto */
 	CFG_RESERVED   = 1u << 25, /**< overlays de reserved[]: porta web, HA, syslog */
 	CFG_UNKNOWN    = 1u << 31, /**< algo fora de toda classe — fail-safe */
 };

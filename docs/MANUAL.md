@@ -1,6 +1,6 @@
 # SIMUT — User Manual
 
-**Firmware:** v2.7.3 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **License:** MIT
+**Firmware:** v2.7.4 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **License:** MIT
 **Repository:** https://github.com/angeloINTJ/simut
 
 > **This is not a certified metrological instrument.** It is tested on real
@@ -1189,7 +1189,7 @@ brackets.
 | `/api/users` | GET | Accounts [USER_MGR] |
 | `/api/perms` | GET | Permission bits of the session |
 | `/api/sec_status` | GET | Lockout and security state |
-| `/api/themes` | GET | Available themes |
+| `/api/themes` | GET | Available themes. Images with the touch panel only: the alpha and the Air answer 404 since v2.7.4 |
 | `/api/lang` | GET | Language dictionary |
 
 ### History and logs
@@ -1225,7 +1225,7 @@ brackets.
 | `/api/set_time` | POST | Set the clock |
 | `/api/calib` | GET/POST | Calibration offsets [CALIB] |
 | `/api/action` | POST | Multiplexed actions — `tel_sync`, `tel_reset`, `sensor_scan`, `scan_results`, `sensor_accept`, `sensor_wipe`, `reboot` |
-| `/api/reset_touch_cal` | POST | Clear touch calibration |
+| `/api/reset_touch_cal` | POST | Clear touch calibration. Images with the touch panel only, like `/api/themes` |
 
 ### Firmware and backup
 

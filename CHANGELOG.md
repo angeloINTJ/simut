@@ -4,6 +4,170 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.7.4 (2026-09-26)
+
+**A sensor scan no longer takes a hardware-I2C BMP280 down, four settings that
+did nothing no longer restart the device, and a build configurator on the
+site.** The rest of the release is groundwork for the feature model: the
+firmware cut along its features, so each can be switched off and measured, with
+nothing a published image does changed by it.
+
+`CONFIG_VERSION` stays 25 and the language packs are the same as v2.7.3's: no
+migration runs, and a device updating over the air keeps its configuration.
+
+### A sensor scan no longer breaks a hardware-I2C BMP280/BME280 (#175)
+
+After a sensor scan (**Scan for probes** on the Configuration page, or
+`sensor scan` on the console), a BMP280 or BME280 wired to hardware-I2C pins
+went into error about ten seconds later and stayed there until the device lost
+power. It looked fine right after the scan, which is how it went unnoticed. The
+scan probes every pin by bit-banging, which takes the pins away from the I2C
+peripheral, and nothing gave them back; the driver now re-attaches its pins
+after the probe.
+
+On the bench, BMP280 on pins 4/5: before, the sensor was in error from ten
+seconds after the scan onward; after, it read for the 40 s watched, 22 reads
+and none failed. The scan's own result did not change. Found while moving the
+scan into the drivers (#173); the defect predates that change.
+
+### Four settings no longer restart the device (#182)
+
+Saving the Configuration page restarts the device only when a change needs it.
+Four fields that nothing in the firmware reads were still counted as needing it:
+**Sample Interval (ms)** (`s_int`), **Enable Local Logging** (`log`), and two
+that only the configuration file carries, `useHttps` and `displayPin`. Changing
+only these now saves without a restart. The two on the page still do nothing;
+taking them off it is a separate decision.
+
+A host test fails on the old classification and passes on the new one. On the
+bench, a rehearsed commit (`_dry=1`) of the sample interval answers
+`"reboot":false`, and the same rehearsal of a network field still answers
+`"reboot":true`.
+
+### The touch panel's routes and settings left the alpha and the Air (#184, #190)
+
+`/api/themes` and `/api/reset_touch_cal` answered on images without a touch
+panel. The touch-panel code registers them now: alpha 608 B and Air 584 B of
+flash lighter. The touch-panel images answer both, checked on the bench.
+
+The Configuration page's **Touch Calibration** section went with them (#190).
+On v2.7.3 its button, on an alpha or an Air, cleared a calibration no panel
+uses and reported "calibration wizard is now running on the display"; with
+the route gone it would have answered an error. The section and its script are
+now cut from those images' pages, and the build refuses a page that calls a
+touch-panel route from outside the part it cuts. The touch-panel images' pages
+did not change: with the asset stamp set aside, all twelve are identical to the
+ones built just before this change. On the bench, the alpha's Configuration
+page has no section, its scripts parse, and the route answers 404.
+
+### Dead code out (#181)
+
+An unreachable statistics screen and an OTA self-test that was never registered
+are gone: 2,984 B off the release image on their own, less off the others.
+
+### The build configurator (#186, #187, #188)
+
+[angelointj.github.io/simut/configurador](https://angelointj.github.io/simut/configurador/)
+builds a firmware image to order. Pick SIMUT, SIMUT Alpha or SIMUT Air, switch
+features on or off, see whether the image still fits the flash slot and the OTA
+ceiling, and compile it: the `.uf2` for USB and the `.bin` for the web
+interface's OTA. English and Portuguese, both themes, installable as an app.
+
+- **Combinations the firmware cannot build are locked**, each with a reason
+  measured by compiling it: hibernation needs a build without a display, a build
+  without a display needs hibernation, and hibernation leaves the buzzer out.
+- **The cost of each switch is measured per product**, because it is not one
+  number: the buzzer frees 5,016 B on SIMUT and 8,224 B on Alpha, and Bluetooth,
+  which frees 140,196 B on Alpha, does not fit SIMUT at all. Several changes at
+  once are added up, which is an estimate: against eight real builds of
+  combined changes the sum missed by up to 4,392 B of flash and 8,192 B of
+  `.bin`, and the page says so and keeps that margin from the ceilings.
+- **Compile** runs `.github/workflows/build-custom.yml`, which only accounts with
+  write access can start; anyone else sends the configuration as a request, an
+  issue with the profile filled in. The workflow checks the profile and applies
+  the rules again before it builds, because the page is not the authority. An
+  unchanged product builds byte-identical to the published image, and a build
+  made in CI matched the same build made on the bench, byte for byte.
+- A custom build is compiled from `main` and reports `main`'s version.
+
+The first run of the cost matrix found two combinations the model allowed that
+did not compile: the Air with the concurrency tripwire, and any image with the
+full console but without DS18B20 support. Both are fixed (#185), with no
+published image changed.
+
+### Under the hood
+
+The firmware is being cut along its features (plan P2 in
+`docs/analysis/MODELO_DE_RECURSOS.md`), so that each can be switched off,
+measured and left out of a build: the sensor pipeline split into one driver per
+family (#170, #172, #173, #174), the console's command table (#171), routes
+registered by the feature that owns them (#169), the buzzer behind its own
+switch (#180), the sensor families switchable in the panel's code (#176, #178),
+each feature's savings measured and held nightly (#179), and the manifest that
+generates the six build environments (#168). None of it is meant to change what
+a published image does. Each step was checked when it merged, most on the
+bench, and the release candidate as a whole on the bench (below).
+
+### Flash
+
+Against the published v2.7.3 `.bin`: release 240 B smaller; alpha and Air keep
+their size to the byte, because what they shed fits inside a 4 KiB alignment
+step. The release had grown by 2,704 B between v2.7.3 and the scan fix, and
+the dead code took 2,984 B off. Slack under the 1,040,384 B OTA ceiling:
+release 30,372, alpha 62,324, Air 21,460. No budget moved.
+
+### The bench
+
+The release candidate, built from `main` before #190, on the bench board (touch
+display, two DS18B20, two DHT22, a BMP280 on hardware I2C):
+
+- **Test image:** the web suite, 87 passed and 0 failed (the five admin pages it
+  skips signed in without admin rights, it checks again as admin); the console's
+  modes; all five sensors across the three families; a scan, with the BMP280
+  still reading 90 s later; the rehearsed commit; both touch-panel routes; the
+  panel captured.
+- **Release image:** the same checks, then 10 minutes with no restart and the
+  sensors valid every minute. The version string alone was then changed and
+  flashed: the console and the login page say `2.7.4`.
+- **Air and alpha images:** boot, and all five sensors read. Then the alpha
+  image again, with the version string changed, on an HD44780 16×2 wired in
+  parallel in place of the touch panel: the boot screen with the version and its
+  progress bar, the connected screen with the device's IP, then each sensor's
+  reading in turn, with its slot and the Wi-Fi level.
+- **After #190:** that change's alpha image on the same board: the Configuration
+  page without the touch-calibration section, its scripts parsing, the route
+  answering 404, the five sensors reading. The touch-panel images were not
+  flashed again; their pages were compared instead, and are identical once the
+  asset stamp is set aside.
+- **One defect found, and it is not new.** Read 1,000 times in a row,
+  `/api/status` occasionally returns a reply whose chunked framing is broken
+  (#189). The published v2.7.3 does the same, 12 times in 2,000, so it is listed
+  below rather than fixed here.
+
+### Upgrading
+
+Nothing to migrate, and nothing to upload: the language packs attached to this
+release are the ones v2.7.3 shipped.
+
+### Known, and not fixed here
+
+- **A chunked reply occasionally loses its framing** (#189): 0.15 to 0.6 % of
+  `/api/status` reads in a tight loop. The device does not restart and the next
+  request succeeds; the page misses one refresh.
+- **With the setup access point open, the device does not measure.** The loop
+  returns before the sensors, the alarms, the history and the telemetry. A
+  device with no network configured boots into the AP and stays there (release
+  and alpha).
+- **An alarm refused by a full alarm-line queue is never reported**, and a full
+  queue keeps its oldest records (#161).
+- **The alpha's LCD rarely reaches its AP pages**, by the code. The key is on the
+  USB console and in the `ap` reply.
+- **`configure terminal` does not need `enable`**: it enters configuration mode
+  from user mode, although the console's command table says it needs privileged
+  mode. It opens nothing, because `enable` asks for no password on the USB
+  console and the Bluetooth console authenticates the whole session, but the
+  table and the behaviour disagree.
+
 ## v2.7.3 (2026-09-25)
 
 **The login page says which firmware answers it, and the Configuration page can

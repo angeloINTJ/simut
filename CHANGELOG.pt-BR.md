@@ -4,6 +4,175 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.7.4 (2026-09-26)
+
+**Uma busca de sensores não derruba mais um BMP280 em I2C de hardware, quatro
+configurações que não faziam nada não reiniciam mais o aparelho, e um
+configurador de build no site.** O resto da release é a base do modelo de
+recursos: o firmware cortado ao longo dos seus recursos, para que cada um possa
+ser desligado e medido, sem que nada do que uma imagem publicada faz tenha
+mudado por isso.
+
+`CONFIG_VERSION` continua 25 e os pacotes de idioma são os da v2.7.3: nenhuma
+migração roda, e um aparelho que atualiza pelo ar mantém a configuração.
+
+### Uma busca de sensores não quebra mais um BMP280/BME280 em I2C de hardware (#175)
+
+Depois de uma busca de sensores (**Procurar sondas** na página Configurações, ou
+`sensor scan` no console), um BMP280 ou BME280 ligado a pinos de I2C de hardware
+entrava em erro uns dez segundos depois e ficava assim até o aparelho perder a
+energia. Logo depois da busca ele parecia bem, e foi por isso que passou
+despercebido. A busca sonda cada pino por bit-bang, o que tira os pinos do
+periférico de I2C, e nada os devolvia; o driver agora religa os seus pinos
+depois da sondagem.
+
+Na bancada, BMP280 nos pinos 4/5: antes, o sensor ficava em erro dos dez
+segundos depois da busca em diante; depois, leu durante os 40 s observados, 22
+leituras e nenhuma falha. O resultado da própria busca não mudou. Achado ao
+levar a busca para os drivers (#173); o defeito é anterior a essa mudança.
+
+### Quatro configurações não reiniciam mais o aparelho (#182)
+
+Salvar a página Configurações só reinicia o aparelho quando uma mudança exige.
+Quatro campos que nada no firmware lê ainda contavam como se exigissem:
+**Amostra (ms)** (`s_int`), **Registro Local** (`log`), e dois que só o arquivo
+de configuração carrega, `useHttps` e `displayPin`. Mudar só esses agora salva
+sem reiniciar. Os dois da página continuam sem fazer nada; tirá-los de lá é uma
+decisão à parte.
+
+Um teste no host falha com a classificação antiga e passa com a nova. Na
+bancada, um commit ensaiado (`_dry=1`) do intervalo de amostra responde
+`"reboot":false`, e o mesmo ensaio de um campo de rede continua respondendo
+`"reboot":true`.
+
+### As rotas e a configuração do painel touch saíram da alpha e do Air (#184, #190)
+
+`/api/themes` e `/api/reset_touch_cal` respondiam em imagens sem painel touch.
+Agora quem as registra é o código do painel touch: a alpha ficou 608 B e o Air
+584 B mais leves de flash. As imagens com painel touch respondem às duas,
+conferido na bancada.
+
+A seção **Calibração do Touch** da página Configurações foi junto (#190). Na
+v2.7.3, numa alpha ou num Air, o botão dela apagava uma calibração que nenhum
+painel usa e dizia que o assistente de calibração estava rodando no display;
+sem a rota, ele responderia um erro. A seção e o script dela agora são cortados
+das páginas dessas imagens, e a build recusa uma página que chame uma rota do
+painel touch de fora da parte que ela corta. As páginas das imagens com painel
+touch não mudaram: pondo de lado o carimbo dos arquivos, as doze saem iguais às
+compiladas logo antes dessa mudança. Na bancada, a página Configurações da
+alpha não tem a seção, os scripts dela compilam, e a rota responde 404.
+
+### Código morto fora (#181)
+
+Uma tela de estatísticas inalcançável e um autoteste de OTA que nunca foi
+registrado saíram: 2.984 B a menos na imagem release, por conta própria, e menos
+nas outras.
+
+### O configurador de build (#186, #187, #188)
+
+[angelointj.github.io/simut/configurador](https://angelointj.github.io/simut/configurador/)
+monta uma imagem de firmware sob medida. Escolha SIMUT, SIMUT Alpha ou SIMUT
+Air, ligue e desligue recursos, veja se a imagem ainda cabe no slot de flash e
+no teto de OTA, e compile: o `.uf2` para o USB e o `.bin` para a OTA da
+interface web. Em inglês e português, nos dois temas, instalável como app.
+
+- **As combinações que o firmware não consegue compilar ficam travadas**, cada
+  uma com um motivo medido compilando-a: a hibernação exige uma build sem
+  mostrador, uma build sem mostrador exige a hibernação, e a hibernação deixa o
+  buzzer de fora.
+- **O custo de cada chave é medido por produto**, porque não é um número só: o
+  buzzer devolve 5.016 B no SIMUT e 8.224 B na Alpha, e o Bluetooth, que devolve
+  140.196 B na Alpha, nem cabe no SIMUT. Várias mudanças juntas são somadas, o
+  que é uma estimativa: contra oito builds reais de mudanças combinadas a soma
+  errou por até 4.392 B de flash e 8.192 B de `.bin`, e a página diz isso e
+  guarda essa margem dos tetos.
+- **Compilar** roda o `.github/workflows/build-custom.yml`, que só contas com
+  acesso de escrita podem disparar; qualquer outra pessoa manda a configuração
+  como pedido, um issue com o perfil preenchido. O workflow confere o perfil e
+  aplica as regras de novo antes de compilar, porque a página não é a
+  autoridade. Um produto sem mudanças compila idêntico, byte a byte, à imagem
+  publicada, e uma build feita no CI saiu igual, byte a byte, à mesma build
+  feita na bancada.
+- Uma build sob medida é compilada da `main` e informa a versão da `main`.
+
+A primeira passada da matriz de custo achou duas combinações que o modelo
+permitia e que não compilavam: o Air com a armadilha de concorrência, e qualquer
+imagem com o console completo sem o suporte a DS18B20. As duas estão
+consertadas (#185), sem mudar nenhuma imagem publicada.
+
+### Por dentro
+
+O firmware está sendo cortado ao longo dos seus recursos (plano P2 em
+`docs/analysis/MODELO_DE_RECURSOS.md`), para que cada um possa ser desligado,
+medido e deixado de fora de uma build: o caminho dos sensores dividido em um
+driver por família (#170, #172, #173, #174), a tabela de comandos do console
+(#171), rotas registradas pelo recurso a que pertencem (#169), o buzzer atrás
+da sua própria chave (#180), as famílias de sensor chaveáveis no código do
+painel (#176, #178), a economia de cada recurso medida e segurada toda noite
+(#179), e o manifesto que gera os seis ambientes de build (#168). Nada disso
+pretende mudar o que uma imagem publicada faz. Cada passo foi conferido quando
+entrou, a maioria na bancada, e o candidato à release como um todo, na bancada
+(abaixo).
+
+### Flash
+
+Contra o `.bin` publicado da v2.7.3: release 240 B menor; alpha e Air mantêm o
+tamanho ao byte, porque o que perderam cabe dentro de um degrau de alinhamento
+de 4 KiB. A release tinha crescido 2.704 B entre a v2.7.3 e o conserto da busca,
+e o código morto tirou 2.984 B. Folga sob o teto de OTA de 1.040.384 B: release
+30.372, alpha 62.324, Air 21.460. Nenhum orçamento mudou.
+
+### A bancada
+
+O candidato à release, compilado da `main` antes do #190, na placa da bancada
+(painel touch, duas DS18B20, dois DHT22, um BMP280 em I2C de hardware):
+
+- **Imagem de teste:** a suíte web, 87 aprovados e 0 falhas (as cinco páginas de
+  admin que ela pula logada sem direito de admin, ela confere de novo como
+  admin); os modos do console; os cinco sensores das três famílias; uma busca,
+  com o BMP280 ainda lendo 90 s depois; o commit ensaiado; as duas rotas do
+  painel touch; o painel capturado.
+- **Imagem release:** as mesmas conferências, depois 10 minutos sem reinício e
+  com os sensores válidos a cada minuto. Depois só a string da versão mudou e
+  foi gravada: o console e a tela de login dizem `2.7.4`.
+- **Imagens do Air e da alpha:** boot, e os cinco sensores lidos. Depois a
+  imagem alpha de novo, já com a string da versão trocada, num HD44780 16×2
+  ligado em paralelo no lugar do painel touch: a tela de boot com a versão e a
+  barra de progresso, a tela de conectado com o IP do aparelho, e depois a
+  leitura de cada sensor, um por vez, com o slot e o nível do Wi-Fi.
+- **Depois do #190:** a imagem alpha dessa mudança na mesma placa: a página
+  Configurações sem a seção de calibração do toque, os scripts dela compilando,
+  a rota respondendo 404, os cinco sensores lendo. As imagens com painel touch
+  não foram regravadas; as páginas delas foram comparadas, e saem iguais quando
+  se põe de lado o carimbo dos arquivos.
+- **Um defeito achado, e ele não é novo.** Lido 1.000 vezes seguidas, o
+  `/api/status` de vez em quando devolve uma resposta com o enquadramento
+  chunked quebrado (#189). A v2.7.3 publicada faz o mesmo, 12 vezes em 2.000,
+  então ele está listado abaixo em vez de consertado aqui.
+
+### Atualizando
+
+Nada para migrar, e nada para subir: os pacotes de idioma anexados a esta
+release são os que a v2.7.3 trouxe.
+
+### Conhecido, e não corrigido aqui
+
+- **Uma resposta chunked de vez em quando perde o enquadramento** (#189): 0,15 a
+  0,6 % das leituras do `/api/status` num laço apertado. O aparelho não reinicia
+  e a requisição seguinte funciona; a página perde uma atualização.
+- **Com o ponto de acesso de configuração aberto, o aparelho não mede.** O laço
+  volta antes dos sensores, dos alarmes, do histórico e da telemetria. Um
+  aparelho sem rede configurada liga no AP e fica nele (release e alpha).
+- **Um alarme recusado pela fila cheia da linha de alarmes nunca é informado**, e
+  uma fila cheia guarda os registros mais antigos (#161).
+- **O LCD da alpha raramente chega às páginas do AP**, pelo código. A chave está
+  no console USB e na resposta do `ap`.
+- **`configure terminal` não precisa de `enable`**: ele entra no modo de
+  configuração a partir do modo usuário, embora a tabela de comandos do console
+  diga que ele exige o modo privilegiado. Não abre nada, porque o `enable` não
+  pede senha no console USB e o console Bluetooth autentica a sessão inteira,
+  mas a tabela e o comportamento discordam.
+
 ## v2.7.3 (2026-09-25)
 
 **A tela de login diz qual firmware responde, e a página Configurações sabe
