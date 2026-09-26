@@ -647,6 +647,7 @@ A fonte da verdade é `design/tokens.cor.json` + `design/tokens.comum.json` no
 | `docs/assets/site.css` | o que toda página do site divide: barra de topo, marca, botões, selos, prosa, rodapé | nada — só `var(--…)`, nenhum hex |
 | `docs/_layouts/default.html` | o layout de toda página Markdown do GitHub Pages; substitui o do Cayman, que tinha cabeçalho em gradiente | nada |
 | `docs/index.html` | a landing: `angulo.css` + `site.css` + um bloco só dela; o tema fica em `angulo:tema`, a chave do manual | nada |
+| `docs/configurador/` | o configurador de build: `angulo.css` + `site.css` + `configurador.css`, a mesma chave de tema; a marca inline é a de `_includes/marca.html` e as cores do manifesto do app são tokens, os dois conferidos | nada — os ícones do app saem do `gen_logo.py` |
 | `tools/build_manual.py` | o manual; tokens copiados no CSS dele, a face embutida em base64 | recopiar os valores ali e regerar |
 | `WebUI.h` (`LANG_JS` e `LOGIN_PAGE`) | a UI do aparelho: uma cópia no `/lang.js` das páginas com sessão, outra no login, que também serve o `/force_chpass` | mudar as duas |
 | `tools/gen_logo.py` | toda a marca, **lendo as cores de `docs/assets/angulo.css`** | rodar de novo |
@@ -658,8 +659,10 @@ S da mesma face em `acento-tinta` sobre um disco de `acento` — o par do botão
 primário. Nada disso se redesenha à mão: `python3 tools/gen_logo.py` (pede
 `fonttools`, `brotli` e `pillow`, que não são dependências do projeto) gera
 `docs/images/logo-*.svg`, os dois selos "Powered by", o
-`docs/images/social-preview.png`, o `docs/_includes/marca.html` e o
-`data/favicon.ico`.
+`docs/images/social-preview.png`, o `docs/_includes/marca.html`, o
+`data/favicon.ico` e os três ícones do configurador (`docs/configurador/icon-*.png`,
+o de 512 px também na versão maskable, com o S dentro dos 80 % que o Android
+garante mostrar).
 
 - **O `favicon.ico` é flash, byte a byte:** `build_favicon_header.py` o embute em
   `src/Favicon.cpp`. São 731 B desde 24/09/2026 (eram 835). O S do quadro de
@@ -706,14 +709,17 @@ qualquer achado:
 | Regra | Onde ela morde |
 |---|---|
 | Tokens não se editam aqui | sha256 de `docs/assets/angulo.css`, fixado no script |
-| Nenhuma cor literal, nenhum gradiente | `site.css` e o `<style>` da landing; as cores da marca, só entre os tokens |
-| Sombra só `--sombra-flutuante`; só os três raios | `site.css` e a landing |
+| Nenhuma cor literal, nenhum gradiente | `site.css`, o `<style>` da landing e o `configurador.css`; as cores da marca e as do manifesto do configurador, só entre os tokens |
+| Sombra só `--sombra-flutuante`; só os três raios | `site.css`, a landing e o configurador |
+| A marca inline é a gerada | a landing e o configurador carregam, byte a byte, o `docs/_includes/marca.html` |
 | Distância na grade de 4 px; tamanho, entrelinha e espaçamento de letra da escala | `margin`, `padding`, `gap`, `font`, `letter-spacing` |
-| Nenhum emoji no lugar de ícone ou de palavra | READMEs, site, guias da raiz e de `tools/`, fontes do manual, e todo documento que o `docs/README.md` marca Living |
+| Nenhum emoji no lugar de ícone ou de palavra | READMEs, site (o configurador inclusive, com os textos do `app.js`), guias da raiz e de `tools/`, fontes do manual, e todo documento que o `docs/README.md` marca Living |
 | Selo de README sem gradiente | todo `img.shields.io` com `style=flat-square` |
 
 Cada regra foi conferida por mutação em 24/09/2026: devolver a violação deixa
-exatamente um achado, 19 de 19. Contra a `main` de antes desta mudança, ele
+exatamente um achado, 19 de 19. As quatro que chegaram com o configurador, em
+26/09 (cor literal no CSS dele, a marca inline alterada, cor fora dos tokens no
+manifesto, emoji no `app.js`): 4 de 4. Contra a `main` de antes desta mudança, ele
 acusa 409. **A UI web do aparelho não passa por ele** — os desvios acima
 quebrariam o portão — e um documento só entra na checagem de emoji quando o
 `docs/README.md` o marca Living.

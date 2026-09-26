@@ -28,6 +28,9 @@ Outputs, all committed:
   docs/images/powered-by-simut-large.svg  badge, 72 px tall
   docs/images/social-preview.png      1280x640, the og:image of the site
   docs/_includes/marca.html           disc + name inline, coloured by CSS classes
+  docs/configurador/icon-192.png      the configurator's app icon, 192 and 512 px,
+  docs/configurador/icon-512.png        and the maskable one Android crops to its
+  docs/configurador/icon-maskable-512.png   own shape
   data/favicon.ico                    16 + 32 px; the firmware serves this file
 
 data/favicon.ico is compiled into the firmware image by
@@ -343,6 +346,27 @@ def draw_mark(size, ss=16):
     return im.resize((size, size), Image.BOX)
 
 
+def draw_maskable(size, ss=4):
+    """acento to every edge and the S sized for the central circle of 80 %: a
+    maskable icon is cropped to the platform's own shape, and that circle is
+    the only part the Web App Manifest spec promises will show."""
+    c = T["claro"]
+    big = size * ss
+    im = Image.new("RGBA", (big, big), rgb(c["acento"]) + (255,))
+    d = ImageDraw.Draw(im)
+    s = S_IN_DISC * 0.8 * big / (_s_ink[3] - _s_ink[1])
+    icx, icy = (_s_ink[0] + _s_ink[2]) / 2, (_s_ink[1] + _s_ink[3]) / 2
+    for poly in polygons("S", big / 2 - icx * s, big / 2 + icy * s, s):
+        d.polygon(poly, fill=rgb(c["acento-tinta"]) + (255,))
+    return im.resize((size, size), Image.BOX)
+
+
+def png(im):
+    buf = io.BytesIO()
+    im.save(buf, "PNG", optimize=True)
+    return buf.getvalue()
+
+
 def favicon():
     """16 and 32 px frames, the two sizes a tab asks for; anything larger scales
     from 32. Alpha under 32 is zeroed before the palette is cut, or near-clear
@@ -418,3 +442,7 @@ if __name__ == "__main__":
     write("docs/_includes/marca.html", marca_include() + "\n")
     write("docs/images/social-preview.png", social_preview(), "wb")
     write("data/favicon.ico", favicon(), "wb")
+    # 4x supersampling, not draw_mark's 16x: at 512 px, 16x is an 8192 px canvas.
+    write("docs/configurador/icon-192.png", png(draw_mark(192, ss=4)), "wb")
+    write("docs/configurador/icon-512.png", png(draw_mark(512, ss=4)), "wb")
+    write("docs/configurador/icon-maskable-512.png", png(draw_maskable(512)), "wb")

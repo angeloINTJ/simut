@@ -121,6 +121,15 @@ jobs:
       - name: Custom build input (hostile profiles refused)
         run: python3 tools/test_build_custom.py
 
+      # The configurator page's arithmetic (docs/configurador/logic.js), run
+      # under node against the generated model.json and checked against the
+      # Python side: the profile it writes is the one build_custom.py accepts,
+      # spelled the same; a single change estimates exactly what the matrix
+      # measured; a locked switch is one the rules forbid; hostile links are
+      # refused; the accuracy it claims is the one recomputed here.
+      - name: Configurator page (its sums and locks match the build side)
+        run: python3 tools/test_configurator_page.py
+
       # OTA applies reformat the LittleFS, so benches restore /history from
       # backup — and the current-day file can only be given back by MERGING
       # with what the device wrote meanwhile. This is the tool that hole

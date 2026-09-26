@@ -16,12 +16,16 @@ WHAT IT CHECKS
   1. docs/assets/angulo.css is still the byte-for-byte copy of
      simut-rx/web/angulo.css: its sha256 is pinned below, so an edit by hand
      fails here, and a recopy updates the pin in the same change.
-  2. The site's own CSS -- docs/assets/site.css and the <style> of
-     docs/index.html -- names no colour (no #hex, rgb(), hsl()), draws no
+  2. The site's own CSS -- docs/assets/site.css, the <style> of
+     docs/index.html and the configurator's stylesheet -- names no colour (no #hex, rgb(), hsl()), draws no
      gradient, casts no shadow but --sombra-flutuante, rounds no corner but
      the three radius tokens, sets no margin, padding or gap off the 4 px grid,
      and uses no font size, line height or tracking outside the text styles.
-  3. The brand files use token colours only, and no gradient or filter.
+  3. The brand files use token colours only, and no gradient or filter. A
+     standalone page that draws the brand inline (the landing, the
+     configurator) carries the one tools/gen_logo.py writes to
+     docs/_includes/marca.html, byte for byte; and the configurator's web app
+     manifest names token colours only.
   4. No emoji plays an icon: not in the READMEs (outside the all-contributors
      block, which that bot writes), not on the site, not in any document that
      docs/README.md marks Living, nor in the root and tools guides.
@@ -52,8 +56,12 @@ ANGULO_CSS = "docs/assets/angulo.css"
 # copy: recopy it from simut-rx and put the new hash here.
 ANGULO_CSS_SHA256 = "f90637eda3a93dc112833fb24b582d2a2cd0e4680fcd54c84784141054488ff5"
 FACE = ["docs/assets/fonts/angulo-display-600.woff2", "docs/assets/fonts/OFL-BricolageGrotesque.txt"]
-SITE_CSS = ["docs/assets/site.css"]
+SITE_CSS = ["docs/assets/site.css", "docs/configurador/configurador.css"]
 LANDING = "docs/index.html"
+# Pages that stand alone, outside Jekyll's layout: each draws the brand inline.
+STANDALONE = [LANDING, "docs/configurador/index.html"]
+MARCA = "docs/_includes/marca.html"
+APP_MANIFEST = "docs/configurador/manifest.webmanifest"
 BRAND = ["docs/images/logo-mark.svg", "docs/images/logo-wordmark.svg", "docs/images/logo-wordmark-dark.svg",
          "docs/images/logo-name.svg", "docs/images/powered-by-simut.svg", "docs/images/powered-by-simut-large.svg"]
 READMES = ["README.md", "README.pt-BR.md", "README.es-ES.md"]
@@ -148,12 +156,13 @@ def check_css(path, css, offset=0, text=None):
 def check_site():
     for path in SITE_CSS:
         check_css(path, read(path))
-    page = read(LANDING)
-    for m in re.finditer(r"<style>(.*?)</style>", page, re.S):
-        check_css(LANDING, m.group(1), offset=m.start(1), text=page)
-    for m in re.finditer(r'\sstyle="([^"]*)"', page):
-        if re.search(r"(margin|padding|gap)[^:]*:\s*[0-9.]+(rem|px|em)", m.group(1)):
-            report(LANDING, page, m.start(), f'inline style="{m.group(1)}" -- a distance off the grid; use a class')
+    for path in STANDALONE:
+        page = read(path)
+        for m in re.finditer(r"<style>(.*?)</style>", page, re.S):
+            check_css(path, m.group(1), offset=m.start(1), text=page)
+        for m in re.finditer(r'\sstyle="([^"]*)"', page):
+            if re.search(r"(margin|padding|gap)[^:]*:\s*[0-9.]+(rem|px|em)", m.group(1)):
+                report(path, page, m.start(), f'inline style="{m.group(1)}" -- a distance off the grid; use a class')
 
 
 def check_brand(token_colours):
@@ -164,6 +173,23 @@ def check_brand(token_colours):
                 report(path, svg, m.start(), f"{m.group(1)} is not a token colour")
         for m in re.finditer(r"<(linearGradient|radialGradient|filter)\b", svg):
             report(path, svg, m.start(), f"<{m.group(1)}>: no gradient, no shadow (rules 1 and 3)")
+
+
+def check_standalone_brand(token_colours):
+    """The inline brand is the generated one: a hand-edited copy drifts from
+    the SVG files and nothing else would notice."""
+    marca = read(MARCA).strip()
+    for path in STANDALONE:
+        page = read(path)
+        m = re.search(r'<svg class="marca-svg".*?</svg>', page, re.S)
+        if not m:
+            findings.append(f"{path}:1: no inline brand (<svg class=\"marca-svg\">) -- paste {MARCA}")
+        elif m.group(0) != marca:
+            report(path, page, m.start(), f"the inline brand is not {MARCA} -- rerun tools/gen_logo.py and paste it")
+    manifest = read(APP_MANIFEST)
+    for m in re.finditer(r'"(theme_color|background_color)"\s*:\s*"(#[0-9a-fA-F]{3,8})"', manifest):
+        if m.group(2).lower() not in token_colours:
+            report(APP_MANIFEST, manifest, m.start(), f"{m.group(1)} {m.group(2)} is not a token colour")
 
 
 def living_docs():
@@ -179,7 +205,7 @@ def living_docs():
 
 
 def check_emoji():
-    files = READMES + GUIDES + living_docs() + [LANDING]
+    files = READMES + GUIDES + living_docs() + STANDALONE + ["docs/configurador/app.js"]
     files += [rel(p) for p in glob.glob(os.path.join(ROOT, "docs", "_manual", "*.md"))]
     files += [rel(p) for p in glob.glob(os.path.join(ROOT, "docs", "_layouts", "*.html"))]
     files += [rel(p) for p in glob.glob(os.path.join(ROOT, "docs", "_includes", "*.html"))]
@@ -206,6 +232,7 @@ if __name__ == "__main__":
     colours = check_tokens()
     check_site()
     check_brand(colours)
+    check_standalone_brand(colours)
     n = check_emoji()
     check_badges()
     for f in findings:

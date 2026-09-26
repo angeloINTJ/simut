@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://api.github.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'" />
+<meta name="referrer" content="no-referrer" />
+<title>SIMUT build configurator</title>
+<meta name="description" content="Choose a SIMUT product, switch its features on or off, see whether the image still fits the flash, and compile it: the .uf2 for USB and the .bin for the web interface's OTA." />
+<link rel="canonical" href="https://angelointj.github.io/simut/configurador/" />
+<script src="tema.js"></script>
+<link rel="icon" href="../images/logo-mark.svg" type="image/svg+xml" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<link rel="stylesheet" href="../assets/angulo.css" />
+<link rel="stylesheet" href="../assets/site.css" />
+<link rel="stylesheet" href="configurador.css" />
+<script type="module" src="app.js"></script>
+</head>
+<body>
+<a class="pular" href="#main" data-i18n="skip">Skip to content</a>
+<svg class="sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol><symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol></svg>
+
+<header class="topo">
+  <div class="moldura">
+    <a class="marca" href="../" aria-label="SIMUT"><svg class="marca-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4281 1024" aria-hidden="true" focusable="false"><circle class="marca-disco" cx="512" cy="512" r="500"/><path class="marca-s" d="M512 812Q399 812 334 767Q270 721 269 631L367 602Q365 665 407 695Q449 725 517 725Q581 725 614 703Q648 680 648 646Q648 620 630 605Q611 590 580 580Q548 570 510 561Q467 551 426 540Q386 529 352 510Q319 491 299 460Q280 430 280 383Q280 306 339 259Q398 212 503 212Q607 212 669 258Q732 305 735 385L634 413Q634 356 598 327Q562 299 502 299Q448 299 416 320Q385 341 385 375Q385 403 406 419Q427 436 461 446Q496 456 537 466Q575 474 613 484Q651 495 683 514Q715 533 735 564Q755 595 755 642Q755 719 693 766Q632 812 512 812Z"/><path class="marca-nome" d="M1553 855Q1424 855 1350 803Q1277 751 1276 648L1388 615Q1386 687 1434 722Q1482 756 1559 756Q1632 756 1670 730Q1709 704 1709 665Q1709 636 1688 618Q1667 601 1631 590Q1595 578 1551 568Q1502 557 1456 544Q1409 531 1371 510Q1333 488 1310 453Q1288 418 1288 365Q1288 276 1356 222Q1423 169 1543 169Q1662 169 1734 222Q1805 275 1808 367L1693 399Q1693 334 1652 301Q1611 268 1542 268Q1480 268 1444 292Q1408 317 1408 355Q1408 387 1432 406Q1456 425 1496 436Q1535 448 1582 459Q1625 468 1668 480Q1712 493 1749 514Q1786 536 1808 572Q1831 607 1831 661Q1831 749 1761 802Q1691 855 1553 855ZM1934 842V182H2062V842ZM2198 842V182H2389L2585 701H2590L2783 182H2966V842H2846L2854 310H2844L2635 842H2525L2319 310H2309L2317 842ZM3386 855Q3240 855 3168 782Q3097 709 3097 586V182H3224V581Q3224 742 3386 742Q3468 742 3508 702Q3548 663 3548 581V182H3674V586Q3674 714 3602 784Q3529 855 3386 855ZM3945 842V289H3749V182H4269V289H4072V842Z"/></svg></a>
+    <nav aria-label="Site">
+      <a href="../" data-i18n="nav.home">Home</a>
+      <a href="../MANUAL.html" data-i18n="nav.manual">Manual</a>
+      <a href="https://github.com/angeloINTJ/simut">GitHub</a>
+    </nav>
+    <div class="topo-acoes">
+      <div class="langbar" role="group" aria-label="Language">
+        <button type="button" class="lang-btn" data-lang="en" lang="en">EN</button>
+        <button type="button" class="lang-btn" data-lang="pt" lang="pt-BR">PT</button>
+      </div>
+      <button class="tema" type="button" aria-label="Use dark theme"><svg class="ic ic-lua" aria-hidden="true"><use href="#i-moon"/></svg><svg class="ic ic-sol" aria-hidden="true"><use href="#i-sun"/></svg></button>
+    </div>
+  </div>
+</header>
+
+<main id="main" class="moldura cfg">
+  <div class="cfg-cabeca">
+    <h1 data-i18n="title">Build configurator</h1>
+    <p data-i18n="lede">Pick a product, switch features on or off, and see whether the image still fits before you compile it.</p>
+  </div>
+  <p id="cfg-anuncio" class="sr-only" aria-live="polite"></p>
+  <div id="app" class="cfg-app">
+    <p class="cfg-carregando" data-i18n="loading">Loading the feature model…</p>
+    <noscript><p class="cfg-falha">This page needs JavaScript: it reads the feature model and works out which combinations build.</p></noscript>
+  </div>
+</main>
+
+<footer class="rodape">
+  <div class="moldura">
+    <div data-i18n="ft.colophon">SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria. MIT licensed.</div>
+    <nav aria-label="Project">
+      <a href="https://github.com/angeloINTJ/simut/blob/main/tools/features.toml" data-i18n="ft.source">Feature model</a>
+      <a href="https://github.com/angeloINTJ/simut/blob/main/docs/analysis/MODELO_DE_RECURSOS.md" data-i18n="ft.design">How it works</a>
+      <a href="https://github.com/angeloINTJ/simut/edit/main/docs/configurador/index.html" data-i18n="ft.edit">Edit this page</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>
