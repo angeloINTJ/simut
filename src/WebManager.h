@@ -474,6 +474,12 @@ private:
 
 	uint32_t _handlerDeadline = 0;
 	void safeStreamFile(File& f, const String& contentType);
+	/* Per-feature route registration: called unconditionally from begin( ) and
+	 * defined — real or no-op — in the feature's own translation unit, so the
+	 * web core no longer needs an #if to know a panel or the HTTPS server
+	 * exists. docs/analysis/MODELO_DE_RECURSOS.md, P2 (costura das rotas). */
+	void registerScreenRoutes( ); /**< the 5 panel-mirror routes; WebManager_History.cpp */
+	void registerTlsRoutes( );    /**< POST /api/tls; WebManager_Tls.cpp */
 #if SIMUT_DISPLAY_TFT
 	void handleApiScreenshot( );
 	void handleApiScreenshotChunk( ); /**< /chunked with CRC32 */

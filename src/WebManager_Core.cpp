@@ -167,18 +167,13 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
  _server->on("/api/export/logs.bin", HTTP_GET, std::bind(&WebManager::handleApiExportLogs, this));
  _server->on("/api/logs", HTTP_GET, std::bind(&WebManager::handleApiLogs, this));
  _server->on("/api/clear_logs", HTTP_POST, std::bind(&WebManager::handleApiClearLogs, this));
-#if SIMUT_DISPLAY_TFT
- _server->on("/api/screenshot", HTTP_GET, std::bind(&WebManager::handleApiScreenshot, this));
- _server->on("/api/screenshot_chunk", HTTP_GET, std::bind(&WebManager::handleApiScreenshotChunk, this));
- _server->on("/api/screen_stream", HTTP_GET, std::bind(&WebManager::handleApiScreenStream, this));
- _server->on("/api/touch", HTTP_POST, std::bind(&WebManager::handleApiTouch, this));
- _server->on("/api/keypad", HTTP_GET, std::bind(&WebManager::handleApiKeypad, this));
-#endif
-#ifdef SIMUT_WEB_HTTPS
- /* The one route that writes into /config, and the reason it may: see
-  * WebManager_Tls.cpp. Registered only where the HTTPS server exists. */
- _server->on("/api/tls", HTTP_POST, std::bind(&WebManager::handleApiTls, this));
-#endif
+ /* The panel-mirror routes and the HTTPS-install route register themselves
+  * from their own translation units, each a no-op where its feature is
+  * compiled out — so this core no longer tests SIMUT_DISPLAY_TFT or
+  * SIMUT_WEB_HTTPS to place them. Definitions in WebManager_History.cpp and
+  * WebManager_Tls.cpp. docs/analysis/MODELO_DE_RECURSOS.md, P2 (costura das rotas). */
+ registerScreenRoutes( );
+ registerTlsRoutes( );
  _server->on("/api/sec_status", HTTP_GET, std::bind(&WebManager::handleApiSecStatus, this));
  _server->on("/api/set_time", HTTP_POST, std::bind(&WebManager::handleApiSetTime, this));
 

@@ -61,7 +61,6 @@
   "UiWidgets.cpp": 1,
   "UiWidgets.h": 1,
   "WebManager.h": 2,
-  "WebManager_Core.cpp": 1,
   "WebManager_History.cpp": 1,
   "display/DisplayDriver.h": 1,
   "display/HD44780_16x2.h": 2,
@@ -156,7 +155,7 @@
  "SIMUT_WEB_HTTPS": {
   "WebManager.h": 1,
   "WebManager_Auth.cpp": 2,
-  "WebManager_Core.cpp": 7,
+  "WebManager_Core.cpp": 6,
   "WebManager_Tls.cpp": 1
  }
 }

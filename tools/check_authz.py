@@ -4,9 +4,20 @@
 Every HTTP route the firmware registers must enforce authorization, or be on a
 short allowlist of routes that are unauthenticated *by design* (the login flow
 itself, the static assets the login page needs before a session exists). This
-gate parses the route table in src/WebManager_Core.cpp, follows each route to
-its handler body, and fails if a handler neither checks a permission nor is
-allowlisted with a reason.
+gate parses the route registrations across src/WebManager*.cpp, follows each
+route to its handler body, and fails if a handler neither checks a permission
+nor is allowlisted with a reason.
+
+Route registration used to live only in WebManager_Core.cpp. The feature-model
+seam work (docs/analysis/MODELO_DE_RECURSOS.md, P2) moves each feature's routes
+into its own WebManager_*.cpp — the panel mirror into WebManager_History.cpp,
+POST /api/tls into WebManager_Tls.cpp — so the web core no longer tests
+SIMUT_DISPLAY_TFT or SIMUT_WEB_HTTPS to place them. This gate therefore parses
+every WebManager*.cpp, not just the core: wherever a route registers, it is
+audited, and a feature that grows its own routes cannot slip past by living
+outside the core. The scan is text, so the ?op= prose that names
+"_server->on( )" in comments does not match the regex, which requires a
+"path", HTTP_x, registration.
 
 Why a gate and not just a doc: the dangerous failure here is a NEW route added
 without a check — exactly the shape of the /api/restore?op=apply hole that once
@@ -29,13 +40,16 @@ Usage:  python3 tools/check_authz.py         (exit 0 clean, 1 on a finding)
 
 CI runs the no-arg form as its own step.
 """
+import glob
 import os
 import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "src")
-ROUTES_FILE = os.path.join(SRC, "WebManager_Core.cpp")
+# Every WebManager*.cpp, so a route is audited wherever a feature registers it
+# (see the module docstring). Sorted for a stable scan order.
+ROUTES_FILES = sorted(glob.glob(os.path.join(SRC, "WebManager*.cpp")))
 
 # Tokens whose presence in a handler body proves it performs an authorization
 # check. Kept broad on purpose (see module docstring: present, not correct):
@@ -140,7 +154,7 @@ def handler_body(all_src, name):
 def main():
     list_mode = "--list" in sys.argv
 
-    routes_text = read(ROUTES_FILE)
+    routes_text = "\n".join(read(p) for p in ROUTES_FILES)
     all_src = {}
     for fn in os.listdir(SRC):
         if fn.endswith(".cpp"):

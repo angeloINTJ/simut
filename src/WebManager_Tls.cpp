@@ -274,4 +274,19 @@ void WebManager::handleApiTls( ) {
 	_server->send(200, "application/json", resp);
 }
 
+/* The install route registers itself here, in the unit the HTTPS server is
+ * compiled into. It is the one route that writes into /config; the reason it
+ * may is the file comment at the top. begin( ) calls this unconditionally, so
+ * the web core need not test SIMUT_WEB_HTTPS to place it.
+ * docs/analysis/MODELO_DE_RECURSOS.md, P2 (costura das rotas). */
+void WebManager::registerTlsRoutes( ) {
+	_server->on("/api/tls", HTTP_POST, std::bind(&WebManager::handleApiTls, this));
+}
+
+#else
+
+/* HTTPS server compiled out: there is no /api/tls to install into, so begin( )
+ * calls this no-op instead of testing SIMUT_WEB_HTTPS. */
+void WebManager::registerTlsRoutes( ) { }
+
 #endif /* SIMUT_WEB_HTTPS */

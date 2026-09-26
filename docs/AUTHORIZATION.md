@@ -2,10 +2,15 @@
 
 Every HTTP route the firmware serves, the permission it requires, and why the
 unauthenticated ones are safe to leave open. This file is the human-readable
-half; `tools/check_authz.py` is the enforced half — it parses the route table
-in `src/WebManager_Core.cpp`, follows each route to its handler, and fails CI if
-a route is neither gated nor on its allowlist. Run `python3 tools/check_authz.py
---list` to print the live matrix straight from the source.
+half; `tools/check_authz.py` is the enforced half — it parses the route
+registrations across `src/WebManager*.cpp`, follows each route to its handler,
+and fails CI if a route is neither gated nor on its allowlist. It scans every
+`WebManager*.cpp`, not just the core, because the feature-model seam work
+(`docs/analysis/MODELO_DE_RECURSOS.md`, P2) moves each feature's routes into its
+own unit — the panel mirror into `WebManager_History.cpp`, `POST /api/tls` into
+`WebManager_Tls.cpp` — so a route is audited wherever it registers. Run
+`python3 tools/check_authz.py --list` to print the live matrix straight from the
+source.
 
 ## How a refusal is answered
 
