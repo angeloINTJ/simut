@@ -1,0 +1,162 @@
+{
+ "SIMUT_AIR": {
+  "AppManager.h": 2,
+  "AppManager_Air.cpp": 1,
+  "AppManager_Boot.cpp": 19,
+  "AppManager_Commands.cpp": 2,
+  "AppManager_Loop.cpp": 2,
+  "CommandManager.cpp": 1,
+  "CommandParser.cpp": 1,
+  "DisplayManager.h": 1,
+  "DisplayManager_None.cpp": 1,
+  "HelpLicenseEN.h": 1,
+  "NetworkManager.cpp": 5,
+  "NetworkManager.h": 1,
+  "SoundManager.h": 1,
+  "WebManager_Commit.cpp": 1,
+  "air/AirConfig.h": 2
+ },
+ "SIMUT_AP_OPEN": {
+  "NetworkManager.cpp": 1
+ },
+ "SIMUT_BLUETOOTH": {
+  "AppManager_Boot.cpp": 1,
+  "AppManager_Commands.cpp": 1,
+  "BluetoothManager.cpp": 2,
+  "BluetoothManager.h": 2
+ },
+ "SIMUT_BUILD_EPOCH": {
+  "SystemDefs_Limits.h": 1
+ },
+ "SIMUT_CLI_FULL": {
+  "AppManager.h": 1,
+  "AppManager_CmdHandlers.cpp": 3,
+  "AppManager_Commands.cpp": 11,
+  "AppManager_Sensors.cpp": 1,
+  "CommandManager.cpp": 6,
+  "CommandManager.h": 4,
+  "CommandParser.cpp": 6,
+  "HelpLicenseEN.h": 1,
+  "SystemDefs_Cli.h": 1
+ },
+ "SIMUT_CONCURRENCY_ASSERTS": {
+  "ConcurrencyAsserts.h": 1,
+  "DisplayManager.cpp": 1
+ },
+ "SIMUT_DISPLAY_ALPHA": {
+  "DisplayManager.cpp": 8,
+  "DisplayManager.h": 1,
+  "display/DisplayDriver.h": 1
+ },
+ "SIMUT_DISPLAY_TFT": {
+  "AppManager_Boot.cpp": 4,
+  "AppManager_Commands.cpp": 3,
+  "AppManager_Events.cpp": 5,
+  "AppManager_Panel.cpp": 1,
+  "DisplayManager.cpp": 2,
+  "DisplayManager.h": 3,
+  "DisplayManager_Users.cpp": 1,
+  "DisplayManager_i18n.cpp": 2,
+  "SystemDefs_Limits.h": 1,
+  "UiWidgets.cpp": 1,
+  "UiWidgets.h": 1,
+  "WebManager.h": 2,
+  "WebManager_Core.cpp": 1,
+  "WebManager_History.cpp": 1,
+  "display/DisplayDriver.h": 1,
+  "display/HD44780_16x2.h": 2,
+  "sensors/BME280Driver.h": 2,
+  "sensors/DHT22Driver.h": 2,
+  "sensors/DS18B20Driver.h": 2,
+  "sensors/SensorDrawing.h": 2
+ },
+ "SIMUT_LICENSE_STUB": {
+  "HelpLicenseEN.h": 1
+ },
+ "SIMUT_MDNS": {
+  "NetworkManager.cpp": 3,
+  "NetworkManager.h": 3,
+  "SystemDefs_Network.h": 1
+ },
+ "SIMUT_MIRROR_PROBE": {
+  "CommandManager.cpp": 1,
+  "DisplayManager_Auth.cpp": 6,
+  "WebManager_History.cpp": 1
+ },
+ "SIMUT_PANEL_PIN": {
+  "AppManager.h": 1,
+  "AppManager_CmdHandlers.cpp": 1,
+  "AppManager_Commands.cpp": 3,
+  "AppManager_Events.cpp": 4,
+  "CommandManager.cpp": 4,
+  "CommandParser.cpp": 2,
+  "DisplayManager.h": 2,
+  "PinKeypad.h": 1,
+  "StorageManager.cpp": 1,
+  "StorageManager.h": 1,
+  "SystemDefs_Validate.h": 1,
+  "WebManager_Api.cpp": 2,
+  "WebManager_Commit.cpp": 4
+ },
+ "SIMUT_SENSOR_BME280": {
+  "SensorManager.cpp": 9,
+  "SensorManager.h": 4,
+  "sensors/BME280Driver.h": 1,
+  "sensors/SensorDrawing.h": 7,
+  "sensors/SensorHelpers.h": 4,
+  "sensors/SensorPanelDispatch.h": 2
+ },
+ "SIMUT_SENSOR_DHT22": {
+  "SensorManager.cpp": 8,
+  "SensorManager.h": 3,
+  "sensors/DHT22Driver.h": 1,
+  "sensors/SensorDrawing.h": 5,
+  "sensors/SensorHelpers.h": 4,
+  "sensors/SensorPanelDispatch.h": 2
+ },
+ "SIMUT_SENSOR_DS18B20": {
+  "AppManager_Boot.cpp": 1,
+  "AppManager_CmdHandlers.cpp": 2,
+  "AppManager_Commands.cpp": 2,
+  "AppManager_Sensors.cpp": 2,
+  "SensorManager.cpp": 9,
+  "SensorManager.h": 4,
+  "StorageManager.cpp": 1,
+  "WebManager_Calib.cpp": 1,
+  "WebManager_Commit.cpp": 1,
+  "sensors/DS18B20Driver.h": 1,
+  "sensors/SensorDrawing.h": 3,
+  "sensors/SensorHelpers.h": 4,
+  "sensors/SensorPanelDispatch.h": 4
+ },
+ "SIMUT_THEMES_HEALTH": {
+  "Themes.cpp": 1
+ },
+ "SIMUT_THEMES_MEDICAL": {
+  "Themes.cpp": 1
+ },
+ "SIMUT_THEMES_NATURE": {
+  "Themes.cpp": 1
+ },
+ "SIMUT_THEMES_PRO": {
+  "Themes.cpp": 1
+ },
+ "SIMUT_THEMES_RETRO": {
+  "Themes.cpp": 1
+ },
+ "SIMUT_THEMES_SAFETY": {
+  "Themes.cpp": 1
+ },
+ "SIMUT_THEMES_UTILITY": {
+  "Themes.cpp": 1
+ },
+ "SIMUT_WDT_DISABLED": {
+  "main.cpp": 3
+ },
+ "SIMUT_WEB_HTTPS": {
+  "WebManager.h": 1,
+  "WebManager_Auth.cpp": 2,
+  "WebManager_Core.cpp": 7,
+  "WebManager_Tls.cpp": 1
+ }
+}

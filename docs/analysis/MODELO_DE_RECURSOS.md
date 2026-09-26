@@ -655,11 +655,13 @@ frase que o configurador tem de saber dar.
 > (o `profiles.ini` incluído) contra o manifesto gerado na hora, então pega
 > qualquer deriva entre manifesto, `profiles.ini` e build. O `simut_features.h`
 > (macros de recurso como header gerado, para o `#if` do código) fica para o P2,
-> quando as costuras começarem. O primeiro item do **P0 já foi feito**: o flag
-> morto `SIMUT_FACTORY_RESET` saiu do manifesto (e, por tabela, do build), e os
-> seis `firmware.bin` continuam idênticos, o que confirma que a imagem nunca o
-> lia. Nada
-> mais abaixo foi iniciado.
+> quando as costuras começarem. Itens do **P0 feitos**: o flag morto
+> `SIMUT_FACTORY_RESET` saiu (imagem idêntica, confirmando que nunca era lido);
+> os comentários que erravam o custo do Bluetooth, do mDNS e a margem do
+> snapshot foram corrigidos; e o `pico_w_air` entrou no `SHIPPING_ENVS`. Tudo
+> isso está no PR #168. O **P2 começou pela catraca**: `check_feature_sprawl.py`
+> prende os 283 sítios de `#if SIMUT_` a uma marca d'água (ver o quadro no P2
+> abaixo); as costuras que a fazem descer vêm a seguir.
 
 Oito passos, na ordem em que as dependências os põem. Cada um diz o que
 fecha, porque um passo sem medição que o feche é um passo que nunca termina;
@@ -749,9 +751,23 @@ esforço.
 Ordem dentro do P2, pelo retorno: rotas e páginas primeiro (é o que corta
 mais bytes com menos risco), depois sensores e telemetria (é o que o cliente
 mais escolhe), depois a CLI, depois o display (é o maior e o mais entrelaçado
-com o Core 1). A cada costura, o gate do `check_features.py` passa a contar os
-sítios de `#if SIMUT_` por arquivo e **só aceita o número descer**: é o mesmo
-mecanismo da marca d'água de flash, aplicado ao emaranhamento.
+com o Core 1).
+
+> **A catraca do P2 já existe.** `tools/check_feature_sprawl.py` conta os sítios
+> de `#if SIMUT_` por macro e por arquivo em `src/` e os prende a uma marca
+> d'água em `tools/feature_sprawl.json`; um sítio a mais num arquivo
+> compartilhado reprova, extrair um recurso para a sua unidade de tradução baixa
+> a marca. É o mesmo mecanismo do orçamento de flash, aplicado ao emaranhamento,
+> e roda no job `gates` do CI. O **placar de partida é 283 sítios em 24 macros**
+> (`SIMUT_AIR` 41/15, `SIMUT_DISPLAY_TFT` 39/20, `SIMUT_SENSOR_DS18B20` 35/13,
+> `SIMUT_CLI_FULL` 34/9, `SIMUT_PANEL_PIN` 27/13). Cada costura abaixo tem de
+> fazer esse número descer, e trava o ganho com `--update` no mesmo commit. O
+> controle negativo confere: um `#if SIMUT_AIR` injetado num arquivo
+> compartilhado é pego.
+
+Cada costura abaixo tem, portanto, uma medida objetiva de sucesso: o placar
+desce. É o mesmo espírito da marca d'água de flash, agora sobre o
+emaranhamento.
 
 Duas armadilhas medidas que limitam a granularidade: sem LTO, **cada `.cpp`
 novo custa ~2 KB** (`platformio.ini:56-57`), então um recurso de 300 B não

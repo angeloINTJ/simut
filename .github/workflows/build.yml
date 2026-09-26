@@ -94,6 +94,14 @@ jobs:
       - name: Feature model reproduces platformio.ini
         run: python3 tools/check_features.py
 
+      # The entanglement watermark (MODELO_DE_RECURSOS.md, P2): the count of
+      # `#if SIMUT_` sites per feature macro and per file, held to a high-water
+      # mark in tools/feature_sprawl.json. A site added to a shared file fails;
+      # extracting a feature into its own translation unit — the P2 goal —
+      # lowers the mark. Same idea as the flash budget, for entanglement.
+      - name: Feature entanglement watermark
+        run: python3 tools/check_feature_sprawl.py
+
       # OTA applies reformat the LittleFS, so benches restore /history from
       # backup — and the current-day file can only be given back by MERGING
       # with what the device wrote meanwhile. This is the tool that hole
