@@ -703,9 +703,28 @@ void test_classify_names_each_group_alone(void) {
     x = base; x.ds18Resolution = 11;                     expectOnly(base, x, CFG_SENSING);
     x = base; x.telEncryption = true;                    expectOnly(base, x, CFG_MQTT);
     x = base; x.timezoneOffset = -3;                     expectOnly(base, x, CFG_TIME);
-    x = base; x.loggingEnabled = true;                   expectOnly(base, x, CFG_LOGGING);
-    x = base; strcpy(x.displayPin, "1234");              expectOnly(base, x, CFG_PIN);
     x = base; x.reserved[24] = 8;                        expectOnly(base, x, CFG_RESERVED);
+}
+
+/* Dead fields (no consumer) classify as CFG_NONE, so a commit touching only one
+ * does NOT reboot (P0, 2026-09-26). useHttps is called "the dead cfg.useHttps
+ * flag" in WebManager_Auth.cpp; displayPin is "v24: dead field"; sampleIntervalMs
+ * is stored and echoed but never read by the sensing pipeline; loggingEnabled is
+ * shown but gates no logging. Before this, each forced a needless reboot
+ * (CFG_NET/CFG_PIN/CFG_SENSING/CFG_LOGGING). */
+void test_classify_dead_fields_do_not_reboot(void) {
+    SystemConfig base; memset(&base, 0, sizeof(base));
+    SystemConfig x;
+
+    x = base; x.useHttps = true;                         expectOnly(base, x, CFG_NONE);
+    x = base; strcpy(x.displayPin, "1234");              expectOnly(base, x, CFG_NONE);
+    x = base; x.sampleIntervalMs = 5000;                 expectOnly(base, x, CFG_NONE);
+    x = base; x.loggingEnabled = true;                   expectOnly(base, x, CFG_NONE);
+
+    /* And the reboot decision agrees: only a dead field changed -> no reboot. */
+    x = base; x.loggingEnabled = true; x.useHttps = true;
+    SystemConfig sc = base;
+    TEST_ASSERT_FALSE(configNeedsReboot(classifyConfigChanges(sc, x)));
 }
 
 void test_classify_reports_nothing_when_nothing_changed(void) {
@@ -1032,6 +1051,7 @@ int main(int argc, char** argv) {
     RUN_TEST(test_v24_csv_appends_four_columns);
     RUN_TEST(test_classify_consumes_its_before);
     RUN_TEST(test_classify_names_each_group_alone);
+    RUN_TEST(test_classify_dead_fields_do_not_reboot);
     RUN_TEST(test_classify_reports_nothing_when_nothing_changed);
     RUN_TEST(test_classify_combines_groups);
     RUN_TEST(test_reboot_classes_are_exactly_the_ones_that_reboot);

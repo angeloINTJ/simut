@@ -135,7 +135,7 @@ inline const CfgSpan* cfgSpans(size_t& n) {
 		CFG_FIELD(staticMask,        CFG_NET),
 		CFG_FIELD(staticGateway,     CFG_NET),
 		CFG_FIELD(staticDns,         CFG_NET),
-		CFG_FIELD(useHttps,          CFG_NET),
+		CFG_FIELD(useHttps,          CFG_NONE), /* dead flag (WebManager_Auth) — no reboot */
 		CFG_FIELD(users,             CFG_USERS),
 		CFG_FIELD(telServer,         CFG_TELEMETRY),
 		CFG_FIELD(telPort,           CFG_TELEMETRY),
@@ -161,12 +161,12 @@ inline const CfgSpan* cfgSpans(size_t& n) {
 		CFG_FIELD(mqttClientId,      CFG_MQTT),
 		CFG_FIELD(mqttKeepAlive,     CFG_MQTT),
 		CFG_FIELD(timezoneOffset,    CFG_TIME),
-		CFG_FIELD(sampleIntervalMs,  CFG_SENSING),
-		CFG_FIELD(loggingEnabled,    CFG_LOGGING),
+		CFG_FIELD(sampleIntervalMs,  CFG_NONE), /* dead: stored+echoed, never read — no reboot */
+		CFG_FIELD(loggingEnabled,    CFG_NONE), /* dead: shown in CLI, gates no logging — no reboot */
 		CFG_FIELD(ds18Resolution,    CFG_SENSING),
 		/* sensors[] não entra aqui — ver cfgSensorSpans. */
 		CFG_FIELD(themeIndex,        CFG_DISPLAY),
-		CFG_FIELD(displayPin,        CFG_PIN), /* v24: dead field, still a span */
+		CFG_FIELD(displayPin,        CFG_NONE), /* v24: dead field — CFG_NONE so it no longer reboots */
 		CFG_FIELD(displayLang,       CFG_DISPLAY),
 		CFG_FIELD(ntpServer,         CFG_TIME),
 		CFG_FIELD(reserved,          CFG_RESERVED),

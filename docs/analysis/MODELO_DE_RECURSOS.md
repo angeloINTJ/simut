@@ -304,7 +304,7 @@ mostre como tal e para que o CI os construa.
 
 - **`SIMUT_FACTORY_RESET=1`** está em três ambientes e não tem nenhum uso em `src/`.
 - **`sampleIntervalMs` (`s_int`)** é validado, gravado e ecoado, e nenhum código o lê (3.4).
-- **`cfg.loggingEnabled`**, o interruptor "Enable Local Logging" da CFG, não tem consumidor que desligue o log, e ainda assim força reinício (`ConfigApply.h:80`).
+- **`cfg.loggingEnabled`**, o interruptor "Enable Local Logging" da CFG, não tem consumidor que desligue o log; **deixou de forçar reinício** (reclassificado `CFG_NONE`, 2026-09-26).
 - **`handleApiOtaStagingTest`** estava definido (`src/WebManager_Ota.cpp:462`) e declarado, sem rota — **apagado** com `staging_selftest` no P0 (2026-09-26).
 - **`MODE_STATS_VIEW`** era inalcançável (gatilho `param==99` nunca emitido) — a tela e sua cadeia foram **apagadas** no P0 (2026-09-26): `drawStatsScreen` estava linkada, −2.984 B no release.
 - **`SIMUT_BOOT_SERIAL_LOG`** não existe em `src/`; é variável de ambiente de duas ferramentas.
@@ -313,7 +313,7 @@ mostre como tal e para que o CI os construa.
 - **O `pico_w_air` não estava em `SHIPPING_ENVS`** do gerador de páginas, embora seja publicado: podia declarar `custom_fs_pages` sem recusa. **Corrigido no P0** (`tools/build_webui_gz.py`), imagem idêntica.
 - **`/api/reset_touch_cal` e `/api/themes` seguem registradas** no alpha e no Air, que não têm o que calibrar nem o que colorir.
 - **Comentários que mentem sobre custo**: Bluetooth "BLE UART, ~22 KB" (`src/simut_config.h:267-268`; na verdade SPP clássico, 64.732 B de flash + 16.416 B de `.bss`) e mDNS "negligible" (`:271`; ~15 KB, 15.376 B medidos) **corrigidos no P0**, imagem idêntica; ainda aberto o tema "~70 B" contra "~85 B" no manual.
-- **`cfg.useHttps` e `displayPin` são campos mortos que forçam reinício** (`ConfigApply.h:138, :164, :169`): o cookie `Secure` segue o transporte real, não o campo (`src/WebManager_Auth.cpp:513-518`).
+- **`cfg.useHttps` e `displayPin` eram campos mortos que forçavam reinício**: reclassificados para `CFG_NONE` (2026-09-26), não reiniciam mais. O cookie `Secure` segue o transporte real, não o campo (`src/WebManager_Auth.cpp:513-518`).
 - **`SystemDefs_Network.h:140-141` cita um `TelemetryGuard` que já não existe**, e o `SendGuard` alimenta o watchdog de um timer por IRQ a cada 2 s, contra o invariante 9 de `CONCURRENCY.md`, embora o próprio código diga que essas alimentações não chegam (`src/WebManager_Core.cpp:505-545`).
 - **`@TRL` não tem consumidor em runtime no TFT nem no Air**: `trlLookup` devolve `nullptr` e tudo sai em inglês (`src/DisplayManager_LangParser.cpp:332-334, :346-360`), ao contrário do que o gate e o `CLAUDE.md` prometem.
 
@@ -536,7 +536,7 @@ Não impedem o build; são o que o painel de maturidade mostra.
 | R-R9 | No Air, alarmes, OTA, web e Bluetooth só existem em M0; um `air stop` pelo Bluetooth não funciona em M1 | `power.air` | manual cap. 20; `CLI-Manual.md` §9.1 |
 | R-R10 | 6 falhas de PIN trancam a conta e 20 trancam o painel até o reboot; 8 toques ocupam ~360 ms do Core 0 | `panel.pin` | `AGENTS.md` §1; `AUTHORIZATION.md` |
 | R-R11 | Três sessões web; a quarta pessoa é recusada; um login novo da mesma conta derruba o token anterior | `web` | `src/WebManager_Auth.cpp:20-72`; `INTEGRACAO_SERVIDOR.md` §5.1 |
-| R-R12 | `sampleIntervalMs`, `loggingEnabled`, `useHttps` e `displayPin` são aceitos e não fazem nada, e três deles forçam reinício | núcleo | 2.15; `ConfigApply.h:138, :164, :169` |
+| R-R12 | `sampleIntervalMs`, `loggingEnabled`, `useHttps` e `displayPin` são aceitos e não fazem nada; **os quatro deixaram de forçar reinício** (`CFG_NONE`, 2026-09-26) — resta que ainda são aceitos e ecoados | núcleo | 2.15; `ConfigApply.h` |
 | R-R13 | Trocar de perfil por OTA sem `schema_id` (P5) grava um blob de config que a outra imagem lê sem saber | `ota.web` | R-S1 |
 | R-R14 | `MAX_CUSTOM_THEMES` é 8 e `data/themes/` traz 12: quatro somem em silêncio | `tft.themes_fs` | `src/Themes.cpp:302` |
 | R-R15 | Sem SSID configurado o AP não tem saída: o timeout só volta a STA com SSID, e o aparelho nunca mede (release e alpha; o Air não abre AP sozinho) | `net.ap` | `src/AppManager_Boot.cpp:1045-1069`; `CHANGELOG.md` v2.7.3 |
@@ -685,15 +685,15 @@ evita modelar defeito.
 | item | o que fazer | fecha quando |
 |---|---|---|
 | ~~`SIMUT_FACTORY_RESET`~~ **feito** | saiu do manifesto (`tools/features.toml`); depois da troca do P1 o flag vinha do `profiles.ini` gerado, não mais do `platformio.ini` | os seis `firmware.bin` reconstruídos ficaram byte a byte iguais, confirmando que a imagem nunca lia o flag |
-| `sampleIntervalMs` (`s_int`) | ou passa a ser lido pelo pipeline, ou sai da CFG, do `commit_all`, do `/api/config` e do CLI; o campo fica no esquema | ou um teste que prove o efeito, ou a página sem o campo |
-| `cfg.loggingEnabled` | idem: ou o log obedece, ou o interruptor sai; hoje só força reinício | idem |
+| `sampleIntervalMs` (`s_int`) | **reboot removido** (`CFG_NONE`, 2026-09-26); ainda gravado e ecoado no `/api/config` — tirá-lo da página/CLI é o resto do item | página sem o campo (resto) |
+| `cfg.loggingEnabled` | **reboot removido** (`CFG_NONE`); o interruptor ainda aparece sem efeito — ou o log passa a obedecê-lo, ou ele sai da página/CLI (resto) | idem |
 | ~~`handleApiOtaStagingTest`~~ **feito** | apagado com `staging_selftest` (único a chamá-lo); nunca teve rota, então o `--gc-sections` já o descartava — só 8 B de deslocamento de layout no `.bin` | — |
 | ~~`MODE_STATS_VIEW`~~ **feito** | tela apagada. O gatilho era `EVT_OPEN_GRAPH` com `param==99`, que ninguém emite (`_graphData.timeRange ∈ [0,4]`), mas o `if` é runtime, então `drawStatsScreen` (154 linhas) estava LINKADA: **−2.984 B no release**, e a cadeia (`openStatsScreen`/`showStats`/handlers) nos seis | os quatro budgets TFT desceram no `flash_budget.json` |
 | `SIMUT_BOOT_SERIAL_LOG` | renomear nas duas ferramentas, para não parecer macro do firmware | — |
 | `custom_web_omit` × `SIMUT_DISPLAY_TFT` | o gerador de páginas deriva o omit da macro, lendo `CPPDEFINES` do ambiente | um ambiente com `TFT=0` e sem `custom_web_omit` recebe o mesmo blob que com |
 | ~~`SHIPPING_ENVS`~~ **feito** | `pico_w_air` incluído em `tools/build_webui_gz.py` | o gerador agora recusa `custom_fs_pages` no Air; o Air não declara nenhuma, então a imagem ficou idêntica |
 | rotas fantasmas | `/api/reset_touch_cal` e `/api/themes` só com TFT — pela via de auto-registro (como `registerScreenRoutes`, que os drivers de rota já usam), **não** um `#if` no núcleo; é trabalho da costura de rotas do P2, não um `#if` avulso | alpha e Air com 54 rotas, e `AUTHORIZATION.md` dizendo isso |
-| `cfg.useHttps`, `displayPin` | campos mortos que forçam reinício: sair das classes de reinício (`ConfigApply.h:138, :164, :169`); o campo fica no esquema | um `commit_all` que só os toca responde sem `_reboot` |
+| ~~`cfg.useHttps`, `displayPin`~~ **feito** | reclassificados para `CFG_NONE` em `ConfigApply.h` (mortos, reconhecidos como efeito-zero — não `CFG_UNKNOWN`, que reiniciaria); o campo fica no esquema. Teste `test_classify_dead_fields_do_not_reboot` prova o `_reboot` ausente | um `commit_all` que só os toca responde sem `_reboot` — confere |
 | `docs/OTA_USAGE.md:46` e o comentário de `SystemDefs_Network.h:140-141` | dizer que é o stage que grava sobre o FS; apagar a menção ao `TelemetryGuard` | — |
 | `Dockerfile:21-22`, `docker-compose.yml:9`, `tools/build_release_pio.sh:66` | os três constroem sem `patch.sh` ou apagam os overrides que o build exige (R-S30) | um build no Docker limpo que linka |
 | comentários de custo (2.15) e de hardware (apêndice B) — **parcial** | corrigidos os do Bluetooth (`src/simut_config.h`: SPP clássico, 64.732 B + 16.416 B) e do mDNS (~15 KB, 15.376 B medidos), e a margem do snapshot (`src/ota/config_snapshot.cpp`: 1.430 B na v25, não os ~3,4 KiB da v21). Faltam o `.wip` "a cada 10 min" (é literal de string, não comentário: muda o binário, item à parte) e os de hardware inferidos (o SPI a 24 MHz precisa de medição, não de outra afirmação sem número) | a regra da casa: comentário que discorda do código é defeito; imagens conferidas idênticas após os três |
