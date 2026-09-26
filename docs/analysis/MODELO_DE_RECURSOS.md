@@ -310,9 +310,9 @@ mostre como tal e para que o CI os construa.
 - **`SIMUT_BOOT_SERIAL_LOG`** não existe em `src/`; é variável de ambiente de duas ferramentas.
 - **Duas semânticas de macro convivem**: `#if` de valor na maioria, `#ifdef` de presença em `SIMUT_WEB_HTTPS`, `SIMUT_LICENSE_STUB`, `SIMUT_CONCURRENCY_ASSERTS`, `SIMUT_THEMES_*`, `SIMUT_WDT_DISABLED` e num sítio do `SIMUT_MDNS`. `NetworkManager.h:22-26` documenta o risco.
 - **`custom_web_omit = tft` e `SIMUT_DISPLAY_TFT = 0` não sabem um do outro.**
-- **O `pico_w_air` não está em `SHIPPING_ENVS`** do gerador de páginas, embora seja publicado: poderia declarar `custom_fs_pages` sem recusa.
+- **O `pico_w_air` não estava em `SHIPPING_ENVS`** do gerador de páginas, embora seja publicado: podia declarar `custom_fs_pages` sem recusa. **Corrigido no P0** (`tools/build_webui_gz.py`), imagem idêntica.
 - **`/api/reset_touch_cal` e `/api/themes` seguem registradas** no alpha e no Air, que não têm o que calibrar nem o que colorir.
-- **Três comentários mentem sobre custo**: Bluetooth "BLE UART, ~22 KB" (`src/simut_config.h:281-282`; medidos 64.732 B de SPP clássico), mDNS "negligible" (`:285`; 15.804 B), o tema "~70 B" contra "~85 B" no manual.
+- **Comentários que mentem sobre custo**: Bluetooth "BLE UART, ~22 KB" (`src/simut_config.h:267-268`; na verdade SPP clássico, 64.732 B de flash + 16.416 B de `.bss`) e mDNS "negligible" (`:271`; ~15 KB, 15.376 B medidos) **corrigidos no P0**, imagem idêntica; ainda aberto o tema "~70 B" contra "~85 B" no manual.
 - **`cfg.useHttps` e `displayPin` são campos mortos que forçam reinício** (`ConfigApply.h:138, :164, :169`): o cookie `Secure` segue o transporte real, não o campo (`src/WebManager_Auth.cpp:513-518`).
 - **`SystemDefs_Network.h:140-141` cita um `TelemetryGuard` que já não existe**, e o `SendGuard` alimenta o watchdog de um timer por IRQ a cada 2 s, contra o invariante 9 de `CONCURRENCY.md`, embora o próprio código diga que essas alimentações não chegam (`src/WebManager_Core.cpp:505-545`).
 - **`@TRL` não tem consumidor em runtime no TFT nem no Air**: `trlLookup` devolve `nullptr` e tudo sai em inglês (`src/DisplayManager_LangParser.cpp:332-334, :346-360`), ao contrário do que o gate e o `CLAUDE.md` prometem.
@@ -689,12 +689,12 @@ evita modelar defeito.
 | `MODE_STATS_VIEW` | apagar a tela | `DisplayManager.cpp` menor pelo número que a dieta medir |
 | `SIMUT_BOOT_SERIAL_LOG` | renomear nas duas ferramentas, para não parecer macro do firmware | — |
 | `custom_web_omit` × `SIMUT_DISPLAY_TFT` | o gerador de páginas deriva o omit da macro, lendo `CPPDEFINES` do ambiente | um ambiente com `TFT=0` e sem `custom_web_omit` recebe o mesmo blob que com |
-| `SHIPPING_ENVS` | incluir `pico_w_air` | o gerador recusa `custom_fs_pages` no Air |
+| ~~`SHIPPING_ENVS`~~ **feito** | `pico_w_air` incluído em `tools/build_webui_gz.py` | o gerador agora recusa `custom_fs_pages` no Air; o Air não declara nenhuma, então a imagem ficou idêntica |
 | rotas fantasmas | `/api/reset_touch_cal` e `/api/themes` só com TFT | alpha e Air com 54 rotas, e `AUTHORIZATION.md` dizendo isso |
 | `cfg.useHttps`, `displayPin` | campos mortos que forçam reinício: sair das classes de reinício (`ConfigApply.h:138, :164, :169`); o campo fica no esquema | um `commit_all` que só os toca responde sem `_reboot` |
 | `docs/OTA_USAGE.md:46` e o comentário de `SystemDefs_Network.h:140-141` | dizer que é o stage que grava sobre o FS; apagar a menção ao `TelemetryGuard` | — |
 | `Dockerfile:21-22`, `docker-compose.yml:9`, `tools/build_release_pio.sh:66` | os três constroem sem `patch.sh` ou apagam os overrides que o build exige (R-S30) | um build no Docker limpo que linka |
-| os três comentários de custo (2.15) e os seis de hardware (apêndice B) | corrigir com o número medido e a data | a regra da casa: comentário que discorda do código é defeito |
+| comentários de custo (2.15) e de hardware (apêndice B) — **parcial** | corrigidos os do Bluetooth (`src/simut_config.h`: SPP clássico, 64.732 B + 16.416 B) e do mDNS (~15 KB, 15.376 B medidos), e a margem do snapshot (`src/ota/config_snapshot.cpp`: 1.430 B na v25, não os ~3,4 KiB da v21). Faltam o `.wip` "a cada 10 min" (é literal de string, não comentário: muda o binário, item à parte) e os de hardware inferidos (o SPI a 24 MHz precisa de medição, não de outra afirmação sem número) | a regra da casa: comentário que discorda do código é defeito; imagens conferidas idênticas após os três |
 
 ### P1 — O manifesto, o gerador e a prova de fidelidade (M)
 

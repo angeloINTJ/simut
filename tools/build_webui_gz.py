@@ -157,8 +157,13 @@ OUTPUT_FILE = os.path.join(PROJECT_DIR, "src", "WebUI_GZ.h")
 # /api/upload. NOT `uploadfs` — that reformats the partition and takes the
 # history, logs and calib.csv with it.
 
-# Envs that a user's device runs. These carry the whole interface, always.
-SHIPPING_ENVS = {"pico_w_release", "pico_w_alpha", "pico_w_asserts"}
+# Envs that a user's device runs. These carry the whole interface from firmware,
+# always — an OTA reformats the LittleFS, so a page served from there would
+# vanish on every update. pico_w_air is here too: it is published by
+# release-ota.yml and headless (custom_web_omit=tft), and had been missing from
+# this set, which left nothing stopping a page diet from leaking into it. It
+# declares no custom_fs_pages today, so adding it is a guard, not a change.
+SHIPPING_ENVS = {"pico_w_release", "pico_w_alpha", "pico_w_asserts", "pico_w_air"}
 
 # The only pages a diet may name, and the file each becomes on the device.
 # The set is exactly the routes that go through serveProtectedPage, which is
