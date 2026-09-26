@@ -400,7 +400,6 @@ void AppManager::executeCommand(CliDemand cmd) {
 
 #if SIMUT_CLI_FULL
 #if SIMUT_SENSOR_DS18B20
-#if SIMUT_SENSOR_DS18B20
  case CMD_SET_DS_RES: {
  const bool pt = _cmdMgr->isPt( );
  if (!cmd.intVal1Valid) {
@@ -422,7 +421,6 @@ void AppManager::executeCommand(CliDemand cmd) {
  changed = true;
  break;
  }
-#endif
 #endif
 
  case CMD_SET_SYS_NAME: {

@@ -113,7 +113,7 @@
  "SIMUT_SENSOR_DS18B20": {
   "AppManager_Boot.cpp": 1,
   "AppManager_CmdHandlers.cpp": 2,
-  "AppManager_Commands.cpp": 2,
+  "AppManager_Commands.cpp": 1,
   "AppManager_Sensors.cpp": 2,
   "SensorManager.cpp": 4,
   "SensorManager.h": 3,
