@@ -106,6 +106,32 @@ public:
    memset(res.rom, 0, 8);
    out.push_back(res);
   }
+
+  /* The scan just drove pins 4/5 (and every swept pin) as GPIO/1-Wire/PIO,
+   * leaving a hardware-I2C bus off the peripheral. Unlike a reboot, a runtime
+   * reload keeps the per-boot _i2cNInit guard and never re-muxes, so a running
+   * BME/BMP on Wire answers errors until a power cycle (measured: one scan ->
+   * BMP280 "Error" ~10 s later, permanent).
+   *
+   * A bare pin re-mux (gpio_set_function GPIO_FUNC_I2C + pull-up) is NOT enough:
+   * measured on the rig, the sensor still errored ~12 s after the scan, so the
+   * PERIPHERAL needs re-initialising, not just the pins. end( ) clears _running
+   * (begin( )/setSDA/setSCL no-op on a running bus), then begin( ) re-inits i2cN
+   * and restores GPIO_FUNC_I2C. That drags i2c_deinit/i2c_init into the image —
+   * release grows ~72 B past its flash budget, raised in tools/flash_budget.json
+   * in this change. recoverBus( ) is deliberately NOT used (it bit-bangs to SIO,
+   * the reload trap). */
+  for (uint8_t bi = 0; bi < _bmeBusCount; bi++) {
+   uint8_t sda = _bmeBuses[bi].s, scl = _bmeBuses[bi].d;
+   int periph = i2cPeripheralForPins(sda, scl);
+   if (periph == 0) {
+    Wire.end( );  Wire.setSDA(sda);  Wire.setSCL(scl);  Wire.begin( );
+   } else if (periph == 1) {
+    Wire1.end( ); Wire1.setSDA(sda); Wire1.setSCL(scl); Wire1.begin( );
+   }
+   /* periph < 0 is the PIO bit-bang fallback — a separate, rarer path; its
+    * own driver owns its PIO and is not re-established here. */
+  }
  }
 
  /* ── Per-slot init ── the manager's initRuntimeSensors Phase 1 for the 280s,
