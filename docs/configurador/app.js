@@ -20,7 +20,7 @@ import * as L from "./logic.js";
 const REPO = "angeloINTJ/simut";
 const WORKFLOW = "build-custom.yml";
 const API = "https://api.github.com";
-const TOKEN_KEY = "simut:configurador:token";
+const STORAGE_KEY = "simut:configurador:token";   // where the token is kept, not a token
 const LANG_KEY = "simut-lang";          // the landing page's key: one choice for the site
 const THEME_KEY = "angulo:tema";        // every Ângulo page's key
 const TOKEN_RE = /^(github_pat_[A-Za-z0-9_]{20,250}|ghp_[A-Za-z0-9]{36})$/;
@@ -638,7 +638,7 @@ function issueUrl() {
 /* ---- the token --------------------------------------------------------------- */
 
 function loadToken() {
-  state.token = storageGet("sessionStorage", TOKEN_KEY) || storageGet("localStorage", TOKEN_KEY);
+  state.token = storageGet("sessionStorage", STORAGE_KEY) || storageGet("localStorage", STORAGE_KEY);
 }
 
 function renderToken() {
@@ -677,8 +677,8 @@ function saveToken(e) {
     return;
   }
   const remember = document.getElementById("lembrar").checked;
-  storageSet(remember ? "localStorage" : "sessionStorage", TOKEN_KEY, value);
-  storageSet(remember ? "sessionStorage" : "localStorage", TOKEN_KEY, null);
+  storageSet(remember ? "localStorage" : "sessionStorage", STORAGE_KEY, value);
+  storageSet(remember ? "sessionStorage" : "localStorage", STORAGE_KEY, null);
   state.token = value;
   state.tokenError = null;
   render();
@@ -686,8 +686,8 @@ function saveToken(e) {
 }
 
 function forgetToken() {
-  storageSet("localStorage", TOKEN_KEY, null);
-  storageSet("sessionStorage", TOKEN_KEY, null);
+  storageSet("localStorage", STORAGE_KEY, null);
+  storageSet("sessionStorage", STORAGE_KEY, null);
   state.token = null;
   state.tokenOpen = true;
   render();
