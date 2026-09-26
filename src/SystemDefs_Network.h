@@ -137,9 +137,8 @@ struct WifiNet {
 /**
  * Ceiling for watchdog feeding in long-operation guards (ms).
  *
- * Applies to the repeating timers SendGuard (WebManager) and
- * TelemetryGuard (TelemetryManager). While a blocking operation
- * is in progress (TLS POST, large payload send), the guard feeds the
+ * Applies to the SendGuard repeating timer (WebManager). While a blocking
+ * operation is in progress (TLS POST, large payload send), the guard feeds the
  * watchdog every 2 s — up to this ceiling. If exceeded, stops feeding
  * (watchdog acts as safety net against real deadlocks) AND signals
  * clean abort via shared flag, so the handler returns with error

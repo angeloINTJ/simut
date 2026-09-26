@@ -314,7 +314,7 @@ mostre como tal e para que o CI os construa.
 - **`/api/reset_touch_cal` e `/api/themes` seguem registradas** no alpha e no Air, que não têm o que calibrar nem o que colorir.
 - **Comentários que mentem sobre custo**: Bluetooth "BLE UART, ~22 KB" (`src/simut_config.h:267-268`; na verdade SPP clássico, 64.732 B de flash + 16.416 B de `.bss`) e mDNS "negligible" (`:271`; ~15 KB, 15.376 B medidos) **corrigidos no P0**, imagem idêntica; ainda aberto o tema "~70 B" contra "~85 B" no manual.
 - **`cfg.useHttps` e `displayPin` eram campos mortos que forçavam reinício**: reclassificados para `CFG_NONE` (2026-09-26), não reiniciam mais. O cookie `Secure` segue o transporte real, não o campo (`src/WebManager_Auth.cpp:513-518`).
-- **`SystemDefs_Network.h:140-141` cita um `TelemetryGuard` que já não existe**, e o `SendGuard` alimenta o watchdog de um timer por IRQ a cada 2 s, contra o invariante 9 de `CONCURRENCY.md`, embora o próprio código diga que essas alimentações não chegam (`src/WebManager_Core.cpp:505-545`).
+- **`SystemDefs_Network.h:140-141` citava um `TelemetryGuard` que já não existe** — corrigido em 2026-09-26 (o comentário cita só o `SendGuard`). Resta que o `SendGuard` alimenta o watchdog de um timer por IRQ a cada 2 s, contra o invariante 9 de `CONCURRENCY.md`, embora o próprio código diga que essas alimentações não chegam (`src/WebManager_Core.cpp:505-545`).
 - **`@TRL` não tem consumidor em runtime no TFT nem no Air**: `trlLookup` devolve `nullptr` e tudo sai em inglês (`src/DisplayManager_LangParser.cpp:332-334, :346-360`), ao contrário do que o gate e o `CLAUDE.md` prometem.
 
 ---
@@ -694,7 +694,7 @@ evita modelar defeito.
 | ~~`SHIPPING_ENVS`~~ **feito** | `pico_w_air` incluído em `tools/build_webui_gz.py` | o gerador agora recusa `custom_fs_pages` no Air; o Air não declara nenhuma, então a imagem ficou idêntica |
 | rotas fantasmas | `/api/reset_touch_cal` e `/api/themes` só com TFT — pela via de auto-registro (como `registerScreenRoutes`, que os drivers de rota já usam), **não** um `#if` no núcleo; é trabalho da costura de rotas do P2, não um `#if` avulso | alpha e Air com 54 rotas, e `AUTHORIZATION.md` dizendo isso |
 | ~~`cfg.useHttps`, `displayPin`~~ **feito** | reclassificados para `CFG_NONE` em `ConfigApply.h` (mortos, reconhecidos como efeito-zero — não `CFG_UNKNOWN`, que reiniciaria); o campo fica no esquema. Teste `test_classify_dead_fields_do_not_reboot` prova o `_reboot` ausente | um `commit_all` que só os toca responde sem `_reboot` — confere |
-| `docs/OTA_USAGE.md:46` e o comentário de `SystemDefs_Network.h:140-141` | dizer que é o stage que grava sobre o FS; apagar a menção ao `TelemetryGuard` | — |
+| `docs/OTA_USAGE.md:46` e o comentário de `SystemDefs_Network.h:140-141` | ~~apagar a menção ao `TelemetryGuard`~~ **feito** (2026-09-26): o comentário de `WDT_FEED_MAX_WINDOW_MS` cita só o `SendGuard`, único a usar a constante. RESTA `OTA_USAGE.md:46` (stage×apply) — fontes conflitam, quer verificação das internas do OTA | — |
 | `Dockerfile:21-22`, `docker-compose.yml:9`, `tools/build_release_pio.sh:66` | os três constroem sem `patch.sh` ou apagam os overrides que o build exige (R-S30) | um build no Docker limpo que linka |
 | comentários de custo (2.15) e de hardware (apêndice B) — **parcial** | corrigidos os do Bluetooth (`src/simut_config.h`: SPP clássico, 64.732 B + 16.416 B) e do mDNS (~15 KB, 15.376 B medidos), e a margem do snapshot (`src/ota/config_snapshot.cpp`: 1.430 B na v25, não os ~3,4 KiB da v21). Faltam o `.wip` "a cada 10 min" (é literal de string, não comentário: muda o binário, item à parte) e os de hardware inferidos (o SPI a 24 MHz precisa de medição, não de outra afirmação sem número) | a regra da casa: comentário que discorda do código é defeito; imagens conferidas idênticas após os três |
 
@@ -1607,7 +1607,7 @@ código é defeito). Nenhuma foi corrigida nesta análise; o P0 as leva.
 | `AGENTS.md:300-301` | telemetria desligada com Wi-Fi de pé mantém o Air acordado para sempre | com `telInterval = 0` a fase de envio vai para SLEEP (`src/AppManager_Air.cpp:457-465`) |
 | `AGENTS.md:250-252`; `CLAUDE.md` ("matriz de autorização" entre os portões do `pio run`) | `pio run` roda a matriz de autorização | `check_authz.py` só roda no CI; não está nos `extra_scripts` (`platformio.ini:153-160`) |
 | `platformio.ini:68-70`; `src/AppManager_Boot.cpp:1197` | "combined WiFi+BT radio blob" | `DIETA_FLASH.md` §11: "combined" é firmware + CLM |
-| `src/SystemDefs_Network.h:140-141` | cita o `TelemetryGuard` | já não existe; o `SendGuard` alimenta o watchdog por IRQ contra o invariante 9 |
+| ~~`src/SystemDefs_Network.h:140-141`~~ **feito** | citava o `TelemetryGuard` | removido em 2026-09-26 (cita só o `SendGuard`); resta o `SendGuard` alimentar o watchdog por IRQ contra o invariante 9 |
 | `src/AppManager_Loop.cpp:335` vs `src/SystemDefs_Limits.h:74` | `SIMUT_BUILD_EPOCH` = 2025-09-20 num, 2026-07-30 no outro | um dos dois |
 | `src/DisplayManager_LangParser.cpp:332-360`; `tools/check_lang_packs.py:321-333`; `CLAUDE.md` | uma entrada `@TRL` faltando deixa "só aquela linha" em inglês | `@TRL` não tem consumidor em runtime no TFT nem no Air: tudo sai em inglês (R-R17) |
 | `Dockerfile:21-22`; `docker-compose.yml:9` | constroem a release com `pio run` | sem `patch.sh`; pelo R-S30 o link falharia (leitura de código, não executado) |
