@@ -102,13 +102,15 @@
   "SensorManager.h": 2,
   "sensors/BME280Driver.h": 1,
   "sensors/BME280SensorDriver.h": 1,
-  "sensors/RuntimeSensor.h": 1
+  "sensors/RuntimeSensor.h": 1,
+  "sensors/SensorPanelDispatch.h": 3
  },
  "SIMUT_SENSOR_DHT22": {
   "SensorManager.cpp": 2,
   "SensorManager.h": 2,
   "sensors/DHT22Driver.h": 1,
-  "sensors/DHT22SensorDriver.h": 1
+  "sensors/DHT22SensorDriver.h": 1,
+  "sensors/SensorPanelDispatch.h": 3
  },
  "SIMUT_SENSOR_DS18B20": {
   "AppManager_Boot.cpp": 1,
@@ -121,7 +123,8 @@
   "WebManager_Calib.cpp": 1,
   "WebManager_Commit.cpp": 1,
   "sensors/DS18B20Driver.h": 1,
-  "sensors/DS18B20SensorDriver.h": 1
+  "sensors/DS18B20SensorDriver.h": 1,
+  "sensors/SensorPanelDispatch.h": 2
  },
  "SIMUT_THEMES_HEALTH": {
   "Themes.cpp": 1

@@ -34,8 +34,8 @@ void AppManager::checkAndAutoHealSensors( ) {
  for (int k = 0; k < 8; k++) if (cfg.sensors[gpio].rom[k] != 0) romIsZero = false;
  if (romIsZero) continue;
 
- uint8_t foundRom[8];
 #if SIMUT_SENSOR_DS18B20
+ uint8_t foundRom[8];
  if (_sensorMgr->identifyPhysicalSensor(gpio, foundRom)) {
  if (foundRom[0] == 0x00 || dallasCrc8(foundRom, 7) != foundRom[7]) continue;
 
