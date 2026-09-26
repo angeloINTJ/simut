@@ -6,7 +6,6 @@
         "display": "tft",
         "cli_full": false,
         "web_https": true,
-        "factory_reset": true,
         "license_stub": false,
         "mdns": true,
         "concurrency_asserts": false,
@@ -20,8 +19,7 @@
         "flags": [
           "-DNDEBUG",
           "-DSIMUT_CLI_FULL=0",
-          "-DSIMUT_WEB_HTTPS=1",
-          "-DSIMUT_FACTORY_RESET=1"
+          "-DSIMUT_WEB_HTTPS=1"
         ],
         "excludes": [
           "DisplayManager_Alpha.cpp",
@@ -41,7 +39,6 @@
         "display": "tft",
         "cli_full": true,
         "web_https": false,
-        "factory_reset": true,
         "license_stub": true,
         "mdns": false,
         "bluetooth": false,
@@ -55,8 +52,7 @@
           "-DNDEBUG",
           "-DSIMUT_CLI_FULL=1",
           "-DSIMUT_LICENSE_STUB=1",
-          "-DSIMUT_MDNS=0",
-          "-DSIMUT_FACTORY_RESET=1"
+          "-DSIMUT_MDNS=0"
         ],
         "excludes": [
           "DisplayManager_Alpha.cpp",
@@ -76,7 +72,6 @@
         "display": "tft",
         "cli_full": true,
         "web_https": true,
-        "factory_reset": true,
         "license_stub": true,
         "mdns": false,
         "bluetooth": false,
@@ -91,8 +86,7 @@
           "-DSIMUT_CLI_FULL=1",
           "-DSIMUT_WEB_HTTPS=1",
           "-DSIMUT_LICENSE_STUB=1",
-          "-DSIMUT_MDNS=0",
-          "-DSIMUT_FACTORY_RESET=1"
+          "-DSIMUT_MDNS=0"
         ],
         "excludes": [
           "DisplayManager_Alpha.cpp",
@@ -116,7 +110,6 @@
         "display": "tft",
         "cli_full": false,
         "web_https": true,
-        "factory_reset": true,
         "license_stub": false,
         "mdns": true,
         "concurrency_asserts": true,
@@ -131,7 +124,6 @@
           "-DNDEBUG",
           "-DSIMUT_CLI_FULL=0",
           "-DSIMUT_WEB_HTTPS=1",
-          "-DSIMUT_FACTORY_RESET=1",
           "-DSIMUT_CONCURRENCY_ASSERTS"
         ],
         "excludes": [
@@ -152,7 +144,6 @@
         "display": "alpha_paralelo",
         "cli_full": false,
         "web_https": false,
-        "factory_reset": false,
         "license_stub": false,
         "mdns": false,
         "bluetooth": true,
@@ -203,7 +194,6 @@
         "display": "nenhum",
         "cli_full": true,
         "web_https": false,
-        "factory_reset": false,
         "license_stub": true,
         "mdns": false,
         "bluetooth": true,

@@ -10,9 +10,8 @@
 #
 # Este e o passo P1 de docs/analysis/MODELO_DE_RECURSOS.md. A troca do platformio.ini
 # a mao para estes perfis foi validada por build byte-a-byte: os seis firmware.bin
-# saem identicos a imagem anterior. Um flag morto (factory_reset, marcado abaixo) e
-# mantido por enquanto para nao mudar a imagem; a limpeza (P0) vem depois, tirando-o
-# do manifesto e mantendo o .bin identico.
+# saem identicos a imagem anterior. O flag SIMUT_FACTORY_RESET, que a imagem nunca
+# leu, foi removido no P0 e o build conferido identico.
 #
 # Comentarios explicam por que, e citam a evidencia — a regra da casa.
 
@@ -89,11 +88,6 @@ emit  = "on_is_1"
 macro = "SIMUT_MDNS"
 emit  = "off_is_0"       # default do config e 1
 
-[toggles.factory_reset]
-macro = "SIMUT_FACTORY_RESET"
-emit  = "on_is_1"
-dead  = true             # nada em src/ le este flag (P0 o remove; aqui so por fidelidade)
-
 [toggles.concurrency_asserts]
 macro = "SIMUT_CONCURRENCY_ASSERTS"
 emit  = "bare"
@@ -129,7 +123,6 @@ off_lib_ignore = ["BuzzerPIO_RP2040"]
 display             = "tft"
 cli_full            = false
 web_https           = true
-factory_reset       = true
 license_stub        = false
 mdns                = true
 concurrency_asserts = false
@@ -153,7 +146,6 @@ publish             = true
 display       = "tft"
 cli_full      = true
 web_https     = false
-factory_reset = true
 license_stub  = true
 mdns          = false
 bluetooth     = false
@@ -200,7 +192,6 @@ publish             = false
 display       = "alpha_paralelo"
 cli_full      = false
 web_https     = false
-factory_reset = false
 license_stub  = false
 mdns          = false
 bluetooth     = true
@@ -224,7 +215,6 @@ publish       = true
 display       = "nenhum"
 cli_full      = true
 web_https     = false
-factory_reset = false
 license_stub  = true
 mdns          = false
 bluetooth     = true

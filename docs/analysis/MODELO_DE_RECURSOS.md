@@ -655,8 +655,10 @@ frase que o configurador tem de saber dar.
 > (o `profiles.ini` incluído) contra o manifesto gerado na hora, então pega
 > qualquer deriva entre manifesto, `profiles.ini` e build. O `simut_features.h`
 > (macros de recurso como header gerado, para o `#if` do código) fica para o P2,
-> quando as costuras começarem. O manifesto ainda carrega o flag morto
-> `SIMUT_FACTORY_RESET` para não mudar a imagem; o P0 o remove, idêntico. Nada
+> quando as costuras começarem. O primeiro item do **P0 já foi feito**: o flag
+> morto `SIMUT_FACTORY_RESET` saiu do manifesto (e, por tabela, do build), e os
+> seis `firmware.bin` continuam idênticos, o que confirma que a imagem nunca o
+> lia. Nada
 > mais abaixo foi iniciado.
 
 Oito passos, na ordem em que as dependências os põem. Cada um diz o que
@@ -680,7 +682,7 @@ evita modelar defeito.
 
 | item | o que fazer | fecha quando |
 |---|---|---|
-| `SIMUT_FACTORY_RESET` | sair de `platformio.ini:180, :240, :261` | `grep` vazio; as três imagens byte a byte iguais |
+| ~~`SIMUT_FACTORY_RESET`~~ **feito** | saiu do manifesto (`tools/features.toml`); depois da troca do P1 o flag vinha do `profiles.ini` gerado, não mais do `platformio.ini` | os seis `firmware.bin` reconstruídos ficaram byte a byte iguais, confirmando que a imagem nunca lia o flag |
 | `sampleIntervalMs` (`s_int`) | ou passa a ser lido pelo pipeline, ou sai da CFG, do `commit_all`, do `/api/config` e do CLI; o campo fica no esquema | ou um teste que prove o efeito, ou a página sem o campo |
 | `cfg.loggingEnabled` | idem: ou o log obedece, ou o interruptor sai; hoje só força reinício | idem |
 | `handleApiOtaStagingTest` | apagar, ou registrar sob `web.api_bench` | `check_authz.py --list` sem órfão |

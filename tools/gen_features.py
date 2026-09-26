@@ -34,7 +34,7 @@ OUT_JSON = os.path.join(ROOT, "tools", "generated", "features_model.json")
 # Ordem canonica dos interruptores na emissao. So afeta a legibilidade do
 # profiles.ini; o portao compara conjuntos, nao ordem.
 TOGGLE_ORDER = [
-    "cli_full", "web_https", "license_stub", "mdns", "factory_reset",
+    "cli_full", "web_https", "license_stub", "mdns",
     "concurrency_asserts", "bluetooth", "air", "sound_buzzer",
 ]
 
