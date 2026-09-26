@@ -25,6 +25,7 @@
 
 #include <Arduino.h>
 #include <vector>
+#include <cstring>
 #include "BME280Driver.h"
 #include "SensorDriver.h"
 
@@ -86,6 +87,22 @@ public:
      drv->state = BME280Driver::BME_IDLE;
     }
    }
+  }
+ }
+
+ /* ── Scan ── BME280 is I2C, not detectable by sweeping GPIOs, so scanPin is
+  * left at the base default (declines every pin) and the probe runs once here,
+  * after the sweep. PIO bit-bang on the default I2C pins (4=SDA, 5=SCL) tries
+  * the primary address; non-default wiring is still configured by hand after
+  * the scan. This is the old BME_SCAN_CHECK block, verbatim. */
+ void scanFinalize(std::vector<ScanResult>& out) override {
+  BMx280PIO_RP2040 probe(4, 5, BME280_ADDR_PRIMARY);
+  if (probe.begin()) {
+   ScanResult res;
+   res.pin = 255; /* I2C — no single GPIO */
+   res.type = TYPE_BME280;
+   memset(res.rom, 0, 8);
+   out.push_back(res);
   }
  }
 

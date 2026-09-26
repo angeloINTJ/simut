@@ -98,15 +98,15 @@
   "WebManager_Commit.cpp": 4
  },
  "SIMUT_SENSOR_BME280": {
-  "SensorManager.cpp": 8,
-  "SensorManager.h": 3,
+  "SensorManager.cpp": 6,
+  "SensorManager.h": 2,
   "sensors/BME280Driver.h": 1,
   "sensors/BME280SensorDriver.h": 1,
   "sensors/RuntimeSensor.h": 1
  },
  "SIMUT_SENSOR_DHT22": {
-  "SensorManager.cpp": 7,
-  "SensorManager.h": 3,
+  "SensorManager.cpp": 2,
+  "SensorManager.h": 2,
   "sensors/DHT22Driver.h": 1,
   "sensors/DHT22SensorDriver.h": 1
  },
@@ -115,8 +115,8 @@
   "AppManager_CmdHandlers.cpp": 2,
   "AppManager_Commands.cpp": 2,
   "AppManager_Sensors.cpp": 2,
-  "SensorManager.cpp": 8,
-  "SensorManager.h": 4,
+  "SensorManager.cpp": 4,
+  "SensorManager.h": 3,
   "StorageManager.cpp": 1,
   "WebManager_Calib.cpp": 1,
   "WebManager_Commit.cpp": 1,

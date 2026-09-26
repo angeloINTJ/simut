@@ -22,6 +22,7 @@
 #if SIMUT_SENSOR_DHT22
 
 #include <Arduino.h>
+#include <cstring>
 #include "DHT22Driver.h"
 #include "SensorDriver.h"
 
@@ -92,8 +93,38 @@ public:
   }
  }
 
+ /* Keep the DHT22 PIO advancing while the manager waits on it — the old
+  * `_dht.update( )` called at the top of the scan branch every tick. */
+ void scanPump( ) override { _hw.update( ); }
+
+ /* ── Scan ── one DHT22 presence probe on a pin. The old DHT_REQUEST /
+  * DHT_WAIT states: request on the first tick, then watch for a frame. A
+  * frame (good or checksum-bad) means a DHT22 is there; a timeout hands the
+  * pin on (nothing found — the next family, then the next pin). */
+ ScanVerdict scanPin(uint8_t pin, bool firstCall, std::vector<ScanResult>& out) override {
+  if (firstCall) {
+  _hw.requestReading(pin);
+  _scanTimer = millis( );
+  return SCAN_KEEP;
+  }
+  DHT22PIO::State s = _hw.getState( );
+  if (s == DHT22PIO::DATA_READY || s == DHT22PIO::ERROR_CHECKSUM) {
+  ScanResult res;
+  res.pin = pin;
+  res.type = TYPE_DHT22;
+  memset(res.rom, 0, 8);
+  out.push_back(res);
+  return SCAN_FOUND;
+  }
+  if (s == DHT22PIO::ERROR_TIMEOUT || timeSince(_scanTimer, DHT22_READ_TIMEOUT_MS)) {
+  return SCAN_NEXT_FAMILY;
+  }
+  return SCAN_KEEP;
+ }
+
 private:
  DHT22Driver& _hw;
+ uint32_t _scanTimer = 0;   /**< millis( ) stamp of the DHT22 scan request */
 };
 
 #endif /* SIMUT_SENSOR_DHT22 */

@@ -389,126 +389,51 @@ void SensorManager::reportResult(RuntimeSensor &s, bool success, float v1, float
 void SensorManager::update( ) {
 
  if (isScanning( )) {
-#if SIMUT_SENSOR_DHT22
- _dht.update( );
-#endif
+  /* Pump every family each tick (the DHT22 keeps its PIO advancing); then run
+   * one step of the outer sweep. The per-family probe sub-states live in the
+   * drivers' scanPin( ) now. */
+  for (SensorDriver* d : _drivers) d->scanPump( );
 
- if (_scanState == IDLE || _scanState == COMPLETE) return;
+  switch (_scanState) {
+  case SETUP_PIN:
+   gpio_init(_currentScanPin);
+   gpio_set_pulls(_currentScanPin, true, false);
+   _scanDriverIdx = 0;
+   _scanFirstCall = true;
+   _scanState = PROBE;
+   break;
 
- switch (_scanState) {
- case SETUP_PIN:
- gpio_init(_currentScanPin);
- gpio_set_pulls(_currentScanPin, true, false);
-#if SIMUT_SENSOR_DS18B20
- _scanState = ONEWIRE_RESET;
-#elif SIMUT_SENSOR_DHT22
- _scanState = DHT_REQUEST;
-#else
- _scanState = NEXT_PIN;
-#endif
- break;
+  case PROBE: {
+   /* Offer the pin to each driver in registration order (DS18B20, then DHT22;
+    * BME280 declines every pin and probes in FINALIZE). FOUND or the list
+    * running out ends this pin; NEXT_FAMILY steps to the next driver; KEEP
+    * waits out this driver's own timing. */
+   if (_scanDriverIdx >= (int)_drivers.size( )) { _scanState = NEXT_PIN; break; }
+   ScanVerdict v = _drivers[_scanDriverIdx]->scanPin(_currentScanPin, _scanFirstCall, _scanResults);
+   _scanFirstCall = false;
+   if (v == SCAN_KEEP) break;
+   if (v == SCAN_FOUND) { _scanState = NEXT_PIN; break; }
+   _scanDriverIdx++;            /* SCAN_NEXT_FAMILY */
+   _scanFirstCall = true;
+   break;
+  }
 
-#if SIMUT_SENSOR_DS18B20
- case ONEWIRE_RESET:
- _ds18.setPin(_currentScanPin);
- _ds18.sendReset( );
- _scanTimer = micros( );
- _scanState = ONEWIRE_WAIT;
- break;
+  case NEXT_PIN:
+   _currentScanPin++;
+   if (_currentScanPin > 16) _scanState = FINALIZE;
+   else _scanState = SETUP_PIN;
+   break;
 
- case ONEWIRE_WAIT:
- if (micros( ) - _scanTimer >= 1200) {
- if (_ds18.isSensorPresent( )) {
- ScanResult res;
- res.pin = _currentScanPin;
- res.type = TYPE_DS18B20;
- if (_ds18.readROM(_currentScanPin, res.rom)) {
- _scanResults.push_back(res);
- _scanState = NEXT_PIN;
- } else {
-#if SIMUT_SENSOR_DHT22
- _scanState = DHT_REQUEST;
-#else
- _scanState = NEXT_PIN;
-#endif
- }
- } else {
-#if SIMUT_SENSOR_DHT22
- _scanState = DHT_REQUEST;
-#else
- _scanState = NEXT_PIN;
-#endif
- }
- }
- break;
-#endif /* SIMUT_SENSOR_DS18B20 */
+  case FINALIZE:
+   /* Each driver closes the sweep: BME280 does its I2C probe, DS18B20 parks
+    * its 1-Wire pin. Independent hardware, so registration order is fine. */
+   for (SensorDriver* d : _drivers) d->scanFinalize(_scanResults);
+   _scanState = COMPLETE;
+   break;
 
-#if SIMUT_SENSOR_DHT22
- case DHT_REQUEST:
- _dht.requestReading(_currentScanPin);
- _scanTimer = millis( );
- _scanState = DHT_WAIT;
- break;
-
- case DHT_WAIT: {
- DHT22PIO::State s = _dht.getState( );
- if (s == DHT22PIO::DATA_READY || s == DHT22PIO::ERROR_CHECKSUM) {
- ScanResult res;
- res.pin = _currentScanPin;
- res.type = TYPE_DHT22;
- memset(res.rom, 0, 8);
- _scanResults.push_back(res);
- _scanState = NEXT_PIN;
- } else if (s == DHT22PIO::ERROR_TIMEOUT || timeSince(_scanTimer, DHT22_READ_TIMEOUT_MS)) {
- _scanState = NEXT_PIN;
- }
- }
- break;
-#endif /* SIMUT_SENSOR_DHT22 */
-
- case NEXT_PIN:
- _currentScanPin++;
- if (_currentScanPin > 16) {
-#if SIMUT_SENSOR_BME280
- _scanState = BME_SCAN_CHECK;
-#else
-#if SIMUT_SENSOR_DS18B20
- _ds18.setPin(PIN_ONEWIRE_DEFAULT);
-#endif
- _scanState = COMPLETE;
-#endif
- } else {
- _scanState = SETUP_PIN;
- }
- break;
-
-#if SIMUT_SENSOR_BME280
-	 case BME_SCAN_CHECK: {
-	  /* BME280 is I2C — not detectable via GPIO probing. PIO bit-bang
-	   * on default I2C pins (4=SDA, 5=SCL) probes both addresses.
-	   * PIO works on any pin pair — users with non-default wiring
-	   * can still configure manually after scan. */
-	  {
-	   BMx280PIO_RP2040 probe(4, 5, BME280_ADDR_PRIMARY);
-	   if (probe.begin()) {
-	    ScanResult res;
-	    res.pin = 255; /* I2C — no single GPIO */
-	    res.type = TYPE_BME280;
-	    memset(res.rom, 0, 8);
-	    _scanResults.push_back(res);
-	   }
-	  }
-#if SIMUT_SENSOR_DS18B20
-	  _ds18.setPin(PIN_ONEWIRE_DEFAULT);
-#endif
-	  _scanState = COMPLETE;
-	  break;
-	 }
-#endif /* SIMUT_SENSOR_BME280 */
-
- default: break;
- }
- return;
+  default: break;
+  }
+  return;
  }
 
  processPeriodicReads( );
