@@ -72,3 +72,12 @@ locally. When one fires, it is usually right:
 - Measure before claiming. If a change is described as saving bytes, making
   something faster, or fixing a failure, the number or the reproduction goes
   in the commit message — and if it was not verified on hardware, say so.
+- Tests first. Before implementing a feature, a function, or a refactor, write
+  down the tests that will prove it: the native-suite cases that pin the
+  behaviour, and — for what the host cannot exercise — the check on the rig
+  (which values to compare, before and after). When the implementation is done,
+  run them and put the result in the PR. A refactor's proof is that behaviour is
+  unchanged (a normalized diff, an identical sha256, or a before/after on
+  hardware); a fix's is a reproduction that fails before and passes after. New
+  host-testable behaviour earns a new case in `test/`; there are eight native
+  suites for a reason.

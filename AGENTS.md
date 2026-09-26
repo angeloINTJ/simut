@@ -229,13 +229,25 @@ hand_release_all
 
 ## 2. Portões antes de um push
 
+### Testes primeiro
+
+Antes de implementar uma funcionalidade, uma função ou um refactor, **descreva
+os testes que vão prová-lo** — os casos da suíte nativa que fixam o comportamento
+e, para o que o host não alcança, a validação no ferro (quais valores comparar,
+antes e depois). Ao terminar a implementação, **rode-os** e ponha o resultado no
+PR. Num refactor a prova é o comportamento inalterado (diff normalizado, sha256
+igual, ou o A/B no ferro); num fix é a reprodução que falha antes e passa depois.
+Comportamento novo que o host consegue exercitar ganha um caso novo em `test/`.
+
+### Os portões
+
 O CI cobre tudo isto, mas só em pull request — meça antes:
 
 ```bash
 pio run -e pico_w_release -e pico_w_test -e pico_w_test_https \
         -e pico_w_asserts -e pico_w_alpha -e pico_w_air
 pio test -e native -e native_history_v5 -e native_cli -e native_logpolicy \
-         -e native_alarmqueue -e native_network -e native_air
+         -e native_alarmqueue -e native_network -e native_air -e native_sensors
 ./tools/run_fuzz.sh                       # 60 s; NÃO está no pio test e já pegou defeito real
 python3 tools/check_air_consistency.py
 python3 tools/check_angulo.py             # o padrão de interface (§7): site, marca, READMEs, docs Living
