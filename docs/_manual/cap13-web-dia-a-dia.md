@@ -356,7 +356,7 @@ A tabela lista os sensores ativos, um por linha:
 | **Leitura** (*Reading*) | O valor atual, com as grandezas do sensor separadas por barras |
 | **Nome** (*Sensor Name*) | O nome dado ao slot |
 
-A leitura segue o formato do navegador, com ponto decimal: a temperatura com duas casas e `ºC`, a umidade com uma casa e `%`, e a pressão com uma casa e `hPa`. Um BME280, por exemplo, aparece como `23.45 ºC | 55.2% | 1013.2 hPa`. Um sensor em erro mostra `Error`; um sensor que ainda não tem leitura mostra `--`.
+A leitura segue o formato do navegador, com ponto decimal: a temperatura com duas casas e `°C`, a umidade com uma casa e `%`, e a pressão com uma casa e `hPa`. Um BME280, por exemplo, aparece como `23.45 ºC | 55.2% | 1013.2 hPa`. Um sensor em erro mostra `Error`; um sensor que ainda não tem leitura mostra `--`.
 
 Enquanto carrega, a tabela mostra **Carregando sensores...** (*Loading sensors...*). Sem sensores ativos, mostra `No active sensors.`; os sensores são criados na página **Configurações** ([capítulo 6](#cap-06)). Quando a consulta falha, a tabela mostra `Connection Error` em vermelho: o aparelho está fora do ar, reiniciando, ou a sessão acabou. Recarregue a página.
 

@@ -551,7 +551,7 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 let tabHtml = '';
                 if (sysData.sensors && sysData.sensors.length > 0) {
                     sysData.sensors.forEach((sn) => {
-                        let v = (sn.val === 'Error' || sn.val === '--') ? sn.val : parseFloat(sn.val).toFixed(2) + ' ºC';
+                        let v = (sn.val === 'Error' || sn.val === '--') ? sn.val : parseFloat(sn.val).toFixed(2) + ' °C';
                         if(sn.hum) v += ' | ' + parseFloat(sn.hum).toFixed(1) + '%';
                         if(sn.press) v += ' | ' + parseFloat(sn.press).toFixed(1) + ' hPa';
                         const typeLabel = sn.type || '?';
