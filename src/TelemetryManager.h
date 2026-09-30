@@ -255,11 +255,13 @@ private:
  HTTPClient* _httpKeepPtr = nullptr;
 #endif
 
+#if SIMUT_TEL_MQTT
  WiFiClient _mqttWifiClient;
  WiFiClientSecure* _mqttSecurePtr = nullptr; /**< Allocated on demand (MQTT+TLS only) ~16KB */
  PubSubClient _mqttClient;
  bool _mqttInitialized;
  uint32_t _lastMqttReconnect;
+#endif
 
  bool mqttEnsureConnected( );
  bool attemptMqttPublish(String& payload, std::vector<BinaryHistoryRecord>& batch, uint32_t newCursor);

@@ -247,6 +247,20 @@ void test_tel_encryption_accepted_follows_the_tls_switch(void) {
     TEST_ASSERT_TRUE(telEncryptionAccepted(true, true));
 }
 
+/* SIMUT_TEL_MQTT=0 (2026-09-30): HTTP is the only transport such an image has,
+ * and a stored MQTT would have the batch POSTed to the broker — so the commit
+ * takes 0 and refuses 1. With MQTT compiled in, 0..1 as before; outside that
+ * range, refused in both. */
+void test_tel_transport_accepted_follows_the_mqtt_switch(void) {
+    TEST_ASSERT_TRUE(telTransportAccepted(0, false));        /* HTTP, no MQTT */
+    TEST_ASSERT_FALSE(telTransportAccepted(1, false));       /* MQTT, no MQTT: refuse */
+    TEST_ASSERT_TRUE(telTransportAccepted(0, true));
+    TEST_ASSERT_TRUE(telTransportAccepted(1, true));
+    TEST_ASSERT_FALSE(telTransportAccepted(2, true));        /* out of range, always */
+    TEST_ASSERT_FALSE(telTransportAccepted(-1, true));
+    TEST_ASSERT_FALSE(telTransportAccepted(2, false));
+}
+
 /* =========================================================================== */
 /*  isInRange                                                                  */
 /* =========================================================================== */
@@ -3210,6 +3224,7 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_isInRange);
     RUN_TEST(test_tel_min_batch_from_legacy_ms);
     RUN_TEST(test_tel_encryption_accepted_follows_the_tls_switch);
+    RUN_TEST(test_tel_transport_accepted_follows_the_mqtt_switch);
 
     /* parseIntStrict */
     RUN_TEST(test_parseIntStrict_valid);

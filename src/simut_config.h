@@ -287,6 +287,10 @@
  *                   In an image without the HTTPS web server it is the only thing
  *                   that links BearSSL's TLS engine; measured cost per product in
  *                   docs/analysis/ECONOMIA_DE_RECURSOS.md.
+ *
+ * SIMUT_TEL_MQTT  — the MQTT transport (MQTT and MQTTS, PubSubClient), the alarm
+ *                   line's MQTT path with its ack topic, and Home Assistant MQTT
+ *                   Discovery. Enabled by default; without it telemetry is HTTP only.
  * ========================================================================= */
 
 #ifndef SIMUT_BLUETOOTH
@@ -303,6 +307,13 @@
 // travel in what would be sent (TelemetryManager.cpp, SIMUT_TEL_TLS blocks).
 #ifndef SIMUT_TEL_TLS
 #define SIMUT_TEL_TLS 1         // HTTPS / MQTTS telemetry client (enabled)
+#endif
+
+// Set to 0 to drop the MQTT transport and Home Assistant Discovery. A config that
+// names MQTT is refused at the commit and at every send: every other branch of the
+// transport choice is HTTP, and it would POST the batch to the broker's port.
+#ifndef SIMUT_TEL_MQTT
+#define SIMUT_TEL_MQTT 1        // MQTT / MQTTS transport + HA Discovery (enabled)
 #endif
 
 /* Setup access point without a key. 0 = WPA2 with a per-device key derived

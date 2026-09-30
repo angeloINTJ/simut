@@ -214,6 +214,18 @@
         "en": "Sends to the collector over TLS, and validates it against /cert.pem when one is uploaded. Without it telemetry goes over plain HTTP or MQTT only, and a configuration that asks for encryption is refused instead of being sent in the clear.",
         "pt": "Envia ao coletor por TLS, e o valida contra o /cert.pem quando há um. Sem ela a telemetria vai só por HTTP ou MQTT sem criptografia, e uma configuração que pede criptografia é recusada em vez de ir em claro."
       }
+    },
+    {
+      "id": "tel_mqtt",
+      "group": "telemetry",
+      "label": {
+        "en": "MQTT and Home Assistant",
+        "pt": "MQTT e Home Assistant"
+      },
+      "help": {
+        "en": "Publishes to an MQTT broker (MQTT, or MQTTS with the TLS switch), takes the alarm line's receipts on the ack topic, and announces the sensors to Home Assistant by MQTT Discovery. Without it telemetry goes by HTTP only.",
+        "pt": "Publica num broker MQTT (MQTT, ou MQTTS com a chave de TLS), recebe as confirmações da linha de alarmes no tópico de ack e anuncia os sensores ao Home Assistant pelo MQTT Discovery. Sem ele a telemetria vai só por HTTP."
+      }
     }
   ],
   "displays": {
@@ -263,7 +275,8 @@
         "sensor_ds18b20": true,
         "sensor_dht22": true,
         "sensor_bme280": true,
-        "tel_tls": true
+        "tel_tls": true,
+        "tel_mqtt": true
       }
     },
     {
@@ -292,7 +305,8 @@
         "sensor_ds18b20": true,
         "sensor_dht22": true,
         "sensor_bme280": true,
-        "tel_tls": true
+        "tel_tls": true,
+        "tel_mqtt": true
       }
     },
     {
@@ -321,7 +335,8 @@
         "sensor_ds18b20": true,
         "sensor_dht22": true,
         "sensor_bme280": true,
-        "tel_tls": true
+        "tel_tls": true,
+        "tel_mqtt": true
       }
     },
     {
@@ -350,7 +365,8 @@
         "sensor_ds18b20": true,
         "sensor_dht22": true,
         "sensor_bme280": true,
-        "tel_tls": true
+        "tel_tls": true,
+        "tel_mqtt": true
       }
     },
     {
@@ -379,7 +395,8 @@
         "sensor_ds18b20": true,
         "sensor_dht22": true,
         "sensor_bme280": true,
-        "tel_tls": true
+        "tel_tls": true,
+        "tel_mqtt": true
       }
     },
     {
@@ -408,7 +425,8 @@
         "sensor_ds18b20": true,
         "sensor_dht22": true,
         "sensor_bme280": true,
-        "tel_tls": true
+        "tel_tls": true,
+        "tel_mqtt": true
       }
     }
   ],

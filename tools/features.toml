@@ -126,6 +126,16 @@ off_lib_ignore = ["BuzzerPIO_RP2040"]
 macro = "SIMUT_TEL_TLS"
 emit  = "off_is_0"
 
+# O transporte MQTT (2026-09-30): MQTT e MQTTS pelo PubSubClient, o caminho MQTT da
+# linha de alarmes com o tópico de ack, e o Home Assistant Discovery. Mesmo desenho
+# do tel_tls: cercado no lugar, dentro do TelemetryManager, com as imagens de hoje
+# byte a byte idênticas. Sem ele, uma config que nomeia MQTT é recusada no commit
+# e em cada envio — todo outro ramo da escolha de transporte é HTTP, e faria POST
+# no broker.
+[toggles.tel_mqtt]
+macro = "SIMUT_TEL_MQTT"
+emit  = "off_is_0"
+
 # Os três drivers de sensor (2026-09-26). O default do simut_config.h é 1, então
 # ligado não emite nada e o profiles.ini não muda; desligado emite -D<macro>=0,
 # que o #178 provou compilar e encolher a imagem (drivers por classe, #172-175).
@@ -167,6 +177,7 @@ sensor_ds18b20      = true
 sensor_dht22        = true
 sensor_bme280       = true
 tel_tls             = true
+tel_mqtt            = true
 build_type          = "release"
 publish             = true
 
@@ -193,6 +204,7 @@ sensor_ds18b20 = true
 sensor_dht22  = true
 sensor_bme280 = true
 tel_tls       = true
+tel_mqtt      = true
 build_type    = "release"
 publish       = false
 
@@ -243,6 +255,7 @@ sensor_ds18b20 = true
 sensor_dht22  = true
 sensor_bme280 = true
 tel_tls       = true
+tel_mqtt      = true
 publish       = true
 
 # pico_w_air — build headless que hiberna (sem display, sem buzzer).
@@ -270,6 +283,7 @@ sensor_ds18b20 = true
 sensor_dht22  = true
 sensor_bme280 = true
 tel_tls       = true
+tel_mqtt      = true
 publish       = true
 
 # ===========================================================================
@@ -400,6 +414,13 @@ label.en = "Encrypted telemetry (HTTPS and MQTTS)"
 label.pt = "Telemetria criptografada (HTTPS e MQTTS)"
 help.en  = "Sends to the collector over TLS, and validates it against /cert.pem when one is uploaded. Without it telemetry goes over plain HTTP or MQTT only, and a configuration that asks for encryption is refused instead of being sent in the clear."
 help.pt  = "Envia ao coletor por TLS, e o valida contra o /cert.pem quando há um. Sem ela a telemetria vai só por HTTP ou MQTT sem criptografia, e uma configuração que pede criptografia é recusada em vez de ir em claro."
+
+[ui_toggles.tel_mqtt]
+group    = "telemetry"
+label.en = "MQTT and Home Assistant"
+label.pt = "MQTT e Home Assistant"
+help.en  = "Publishes to an MQTT broker (MQTT, or MQTTS with the TLS switch), takes the alarm line's receipts on the ack topic, and announces the sensors to Home Assistant by MQTT Discovery. Without it telemetry goes by HTTP only."
+help.pt  = "Publica num broker MQTT (MQTT, ou MQTTS com a chave de TLS), recebe as confirmações da linha de alarmes no tópico de ack e anuncia os sensores ao Home Assistant pelo MQTT Discovery. Sem ele a telemetria vai só por HTTP."
 
 [ui_toggles.cli_full]
 group    = "interface"

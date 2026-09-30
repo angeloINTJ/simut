@@ -458,6 +458,21 @@ inline bool telEncryptionAccepted(bool want, bool tlsCompiled) {
     return !want || tlsCompiled;
 }
 
+/**
+ * @brief May a request set the telemetry transport to @p transport?
+ *
+ * 0 is HTTP and 1 is MQTT (TelemetryTransport). MQTT is a build switch
+ * (SIMUT_TEL_MQTT, 2026-09-30): an image without it takes HTTP and refuses
+ * MQTT, because every other branch of the transport choice is HTTP and a
+ * stored MQTT would have the batch POSTed to the broker's port. Anything
+ * outside 0..1 is refused in every image, as it always was.
+ *
+ * @param mqttCompiled SIMUT_TEL_MQTT, passed in for the same reason as above.
+ */
+inline bool telTransportAccepted(int transport, bool mqttCompiled) {
+    return transport == 0 || (transport == 1 && mqttCompiled);
+}
+
 /** Check if a numeric value falls within [minVal, maxVal]. */
 inline bool isInRange(int value, int minVal, int maxVal) {
  return (value >= minVal && value <= maxVal);

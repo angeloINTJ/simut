@@ -23,6 +23,7 @@ economia cai e o portao reprova: o recurso vazou para o caminho sempre-ligado.
   tools/measure_savings.py --update        # grava o piso em tools/feature_savings.json
   tools/measure_savings.py --check         # reprova se a economia caiu abaixo do piso
   tools/measure_savings.py --matrix        # custos POR PRODUTO p/ o configurador
+  tools/measure_savings.py --matrix --only tel_mqtt   # so as inversoes desta chave
   tools/measure_savings.py --checks        # so as combinacoes de conferencia
 
 --matrix mede, para cada produto publicado, o que muda ao inverter CADA chave a
@@ -82,6 +83,7 @@ MANIFEST_FEATURES = [
     # cliente da telemetria e o unico que liga o motor TLS do BearSSL. No SIMUT o
     # servidor segura a maior parte dele (a matriz mede os tres produtos).
     ("tel_tls",             "pico_w_air"),
+    ("tel_mqtt",            "pico_w_air"),
 ]
 
 # Recursos que sao default do simut_config.h (nao vivem no manifesto): desligar =
@@ -457,6 +459,84 @@ def measure_matrix():
     return result
 
 
+def cmd_matrix_partial(toggles):
+    """So as inversoes de `toggles`, gravadas no feature_costs.json que existe.
+
+    Vale quando a chave nova nasce desligavel sem mudar nada ligada: as bases
+    e as outras inversoes continuam as mesmas imagens. Isso nao se supoe — as
+    tres bases sao reconstruidas e comparadas com o que o arquivo guarda (used,
+    bin, ram); qualquer diferenca recusa, e a matriz inteira e o caminho. Custa
+    3 builds de base + 3 por chave, contra ~45 da matriz inteira."""
+    M = gf.load_manifest()
+    unknown = [t for t in toggles if t not in gf.TOGGLE_ORDER]
+    if unknown:
+        sys.exit(f"measure_savings: chave desconhecida: {', '.join(unknown)}")
+    with open(COSTS_PATH, encoding="utf-8") as fh:
+        doc = json.load(fh)
+    products = list(doc["products"])
+    blocks, plan = [], []
+    for p in products:
+        prof = gf.resolve_profile(p, M["profiles"])
+        for t in toggles:
+            flipped = dict(prof)
+            flipped[t] = not bool(prof.get(t, False))
+            bad = gf.rule_violations(gf.config_of(flipped), M)
+            if bad:
+                plan.append((p, t, None, bad[0]["id"]))
+                continue
+            env = f"_cost_{p}_{t}"
+            blocks.append(gf.emit_env(env, gf.compose(flipped, M)))
+            plan.append((p, t, env, None))
+    with TempEnvs(blocks):
+        bases = {}
+        for p in products:
+            b = pio_build_full(p)
+            if "used" not in b:
+                sys.exit(f"measure_savings: a base {p} nao compilou: {b}")
+            stored = doc["products"][p]["base"]
+            if any(b[k] != stored[k] for k in ("used", "bin", "ram")):
+                sys.exit(f"measure_savings: a base {p} mudou (hoje used={b['used']} bin={b['bin']} "
+                         f"ram={b['ram']}, o arquivo diz {stored}). As outras inversoes podem ter "
+                         "mudado junto: rode --matrix inteiro.")
+            bases[p] = b
+        for p, t, env, rule in plan:
+            if rule:
+                doc["products"][p]["flips"][t] = {"rule": rule}
+                continue
+            r = pio_build_full(env)
+            if r.pop("sha256", None) == bases[p]["sha256"]:
+                r["same"] = True
+            doc["products"][p]["flips"][t] = r
+            shutil.rmtree(os.path.join(ROOT, ".pio", "build", env), ignore_errors=True)
+    doc["measured_at"] = {
+        "date": datetime.date.today().isoformat(),
+        "src_commit": _git("log", "-1", "--format=%h", "--", "src"),
+        "src_dirty": bool(_git("status", "--porcelain", "--", "src")),
+        "partial": sorted(set(doc["measured_at"].get("partial", [])) | set(toggles)),
+    }
+    with open(COSTS_PATH, "w", encoding="utf-8") as fh:
+        json.dump(doc, fh, indent=2, ensure_ascii=False)
+        fh.write("\n")
+    errors = 0
+    for p in products:
+        b = doc["products"][p]["base"]
+        for t in toggles:
+            r = doc["products"][p]["flips"][t]
+            if r.get("same"):
+                print(f"{p:<15} {t:<12} a mesma imagem")
+            elif "used" in r:
+                print(f"{p:<15} {t:<12} flash {r['used'] - b['used']:+8} B  ram {r['ram'] - b['ram']:+7} B")
+            elif "rule" in r:
+                print(f"{p:<15} {t:<12} proibida pela regra {r['rule']}")
+            elif "overflow" in r:
+                print(f"{p:<15} {t:<12} NAO CABE: estoura o slot em {r['overflow']} B")
+            else:
+                errors += 1
+                print(f"{p:<15} {t:<12} ERRO: {r['error']}")
+    print(f"gravado: {os.path.relpath(COSTS_PATH, ROOT)} — rode python3 tools/gen_features.py")
+    return 1 if errors else 0
+
+
 def cmd_matrix():
     res = measure_matrix()
     doc = {
@@ -530,7 +610,7 @@ def main():
     args = ap.parse_args()
 
     if args.matrix:
-        return cmd_matrix()
+        return cmd_matrix_partial(args.only) if args.only else cmd_matrix()
     if args.checks:
         return cmd_checks()
 
