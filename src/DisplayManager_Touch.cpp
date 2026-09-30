@@ -518,8 +518,15 @@ void DisplayManager::handleTouch( ) {
  bool selOk = (sel >= 0 && sel < 16);
 
 #if SIMUT_TFT_GRAPH
- /* Right corner: graph button (priority over alarm) */
- if (_bottomPanel.showMinMax && x > 266) {
+ /* Right corner: graph button (priority over alarm). Same three numbers the
+  * top card's zone uses (the rectangle the drivers paint): both cards are
+  * drawn by the same code at CARD_X / CARD_W. This one still read `x > 266`
+  * while the button spans 245..302, so a tap on its left third fell through
+  * to the toggle below and switched min/max OFF instead of opening the graph
+  * — the bug the top card's zone was fixed for, left behind on this card. */
+ constexpr int16_t MM_BTN_X0 = CARD_X + minMaxBtnX(CARD_W);
+ constexpr int16_t MM_BTN_X1 = MM_BTN_X0 + MINMAX_BTN_W;   /* exclusive */
+ if (_bottomPanel.showMinMax && x >= MM_BTN_X0 && x < MM_BTN_X1) {
  _bottomPanel.showMinMax = false;
  if (sel >= 0 && sel <= 10) {
  UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = sel; ev.param = 0;
