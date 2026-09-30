@@ -234,10 +234,18 @@ FS_PAGES = _resolve_diet()
 # A lista é por ambiente (`custom_web_omit` no platformio.ini) e o padrão é
 # NÃO omitir nada: um ambiente novo que esqueça a opção sai gordo, que é o
 # lado seguro de errar.
+#
+# `/* @IF !feature */` e o avesso (2026-09-30): o bloco so entra na imagem SEM a
+# feature. E o que a pagina diz quando o recurso nao existe — a telemetria que
+# o aparelho guardou pedindo MQTT, gravado de novo com uma imagem sem MQTT,
+# nao manda nada ate alguem salvar a pagina, e so a pagina pode dizer isso.
+# Nas imagens com a feature ele sai inteiro, entao elas saem como eram.
 WEB_FEATURES = {
     "tft": "painel de toque: espelho, captura, temas e teclado do painel",
     "web_history": "a pagina de historico e eventos (/history) e o link dela no menu",
     "syslog": "a secao Syslog remoto da pagina de configuracao",
+    "tel_tls": "a chave de TLS da telemetria e o aviso de certificado",
+    "tel_mqtt": "o seletor de transporte e os campos do MQTT na pagina de telemetria",
 }
 
 # Onde cada feature registra as rotas que só ela tem. A página que chama uma
@@ -311,9 +319,17 @@ WEB_OMIT = _resolve_web_omit()
 OMIT_TAG = ",".join(sorted(WEB_OMIT)) or "nothing"
 
 _IF_RE = re.compile(
-    r"[ \t]*/\*\s*@IF\s+(\w+)\s*\*/[^\n]*\n(.*?)[ \t]*/\*\s*@ENDIF\s*\*/[^\n]*\n",
+    r"[ \t]*/\*\s*@IF\s+(!?\w+)\s*\*/[^\n]*\n(.*?)[ \t]*/\*\s*@ENDIF\s*\*/[^\n]*\n",
     re.S,
 )
+
+
+def _in_image(feature: str) -> bool:
+    """Se o bloco `@IF feature` fica nesta imagem: o normal quando a feature
+    nao foi omitida, o negado (`!feature`) quando foi."""
+    if feature.startswith("!"):
+        return feature[1:] in WEB_OMIT
+    return feature not in WEB_OMIT
 
 
 def _strip_web_features(content: str) -> str:
@@ -342,7 +358,7 @@ def _strip_web_features(content: str) -> str:
     by_feature = {}
     for m in _IF_RE.finditer(content):
         feature, body = m.group(1), m.group(2)
-        if feature not in WEB_FEATURES:
+        if feature.lstrip("!") not in WEB_FEATURES:
             raise SystemExit(
                 f"build_webui_gz: @IF {feature} nao e uma feature conhecida.\n"
                 "Conhecidas: " + ", ".join(sorted(WEB_FEATURES))
@@ -370,6 +386,21 @@ def _strip_web_features(content: str) -> str:
         # de 21/09 deixou passar exatamente o defeito que ela existe para pegar.
         code_in, code_out = strip(body), strip(outside)
         defs = set(re.findall(r"\b(?:async\s+)?function\s+(\w+)\s*\(", code_in))
+        # O outro lado da mesma feature (`tft` e `!tft`) nunca esta na mesma
+        # imagem. Uma funcao definida nos DOIS lados existe em toda imagem, uma
+        # vez so, e o codigo comum pode chama-la: e o par que deixa uma linha
+        # comum como `toggleTransport(); toggleBuilder( );` intacta quando o
+        # transporte some.
+        other = feature[1:] if feature.startswith("!") else "!" + feature
+        other_spans = by_feature.get(other, [])
+        pair_defs = set(re.findall(r"\b(?:async\s+)?function\s+(\w+)\s*\(",
+                                   strip("\n".join(b for _, _, b in other_spans))))
+        common, prev = [], 0
+        for a, b, _ in sorted(spans + other_spans):
+            common.append(content[prev:a])
+            prev = b
+        common.append(content[prev:])
+        code_common = strip("".join(common))
         # Um nome que TAMBEM e definido fora do bloco nao e dependencia dele:
         # as chamadas de fora vao para a funcao de fora. Cada pagina e um blob
         # proprio, e duas paginas podem ter cada uma o seu helper `fmt` — foi o
@@ -387,12 +418,21 @@ def _strip_web_features(content: str) -> str:
             # sempre, na imagem COM painel, e foi o Angelo quem viu no aparelho.
             # Conta >= 2 porque a propria definicao e uma ocorrencia; `\bnome\b`
             # e nao `nome(` para que `addEventListener('load', nome)` conte.
-            elif len(re.findall(r"\b" + re.escape(name) + r"\b", code_in)) < 2:
+            elif (len(re.findall(r"\b" + re.escape(name) + r"\b", code_in))
+                  + (len(re.findall(r"\b" + re.escape(name) + r"\b", code_common))
+                     if name in pair_defs else 0)) < 2:
                 problems.append(
                     f"  {name}( ) e definida dentro de @IF {feature} e nunca usada")
         ids = set(re.findall(r'\bid="([\w-]+)"', body))
+        # A busca que confere o nulo antes de usar nao vira TypeError: e o
+        # `var w = getElementById(...); if (!w) return;` que o arquivo ja usa, e
+        # o que o toggleTransport( ) faz com o rotulo do TLS numa imagem com
+        # MQTT e sem TLS. So conta se o `if` testa a MESMA variavel.
+        unguarded = re.sub(
+            r"\b(?:let|const|var)\s+(\w+)\s*=\s*document\.getElementById\(\s*['\"][\w-]+['\"]\s*\)"
+            r"\s*;\s*if\s*\(\s*!?\s*\1\s*\)", " ", outside)
         for el in sorted(ids):
-            if re.search(r"getElementById\(\s*['\"]" + re.escape(el) + r"['\"]", outside):
+            if re.search(r"getElementById\(\s*['\"]" + re.escape(el) + r"['\"]", unguarded):
                 problems.append(f"  #{el} so existe dentro de @IF {feature} e e buscado fora")
         # E as rotas: chamar de fora do bloco uma rota que so a feature
         # registra e o botao que responde 404 na imagem sem ela. A rota vem
@@ -408,11 +448,7 @@ def _strip_web_features(content: str) -> str:
             "no navegador, nao erro de build.\n" + "\n".join(sorted(set(problems)))
         )
 
-    if WEB_OMIT:
-        content = _IF_RE.sub(lambda m: "" if m.group(1) in WEB_OMIT else m.group(2), content)
-    else:
-        content = _IF_RE.sub(lambda m: m.group(2), content)
-    return content
+    return _IF_RE.sub(lambda m: m.group(2) if _in_image(m.group(1)) else "", content)
 
 
 # The layout is part of the build identity, not just the source hash: two envs
