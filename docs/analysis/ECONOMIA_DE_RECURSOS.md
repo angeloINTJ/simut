@@ -39,6 +39,10 @@ a variante é o mesmo perfil com só ele desligado, derivada pelo modelo
 | `sensor_ds18b20` | `pico_w_release` | 5 432 B | 64 B |
 | `sound_buzzer` | `pico_w_release` | 5 008 B | 0 B |
 | `tel_mqtt` (MQTT e Home Assistant, 2026-09-30) | `pico_w_air` | 7 704 B | 0 B |
+| `web_history` (página de histórico, 2026-09-30) | `pico_w_air` | 21 768 B | 0 B |
+| `web_export_api` (`/api/history_multi` e `.simx`, 2026-09-30) | `pico_w_release` | 12 344 B | 2 052 B |
+| `web_metrics` (`/metrics`, 2026-09-30) | `pico_w_release` | 4 912 B | 0 B |
+| `syslog` (2026-09-30) | `pico_w_release` | 1 768 B | 0 B (heap: 2 135 B) |
 | `sensor_dht22` | `pico_w_release` | 3 400 B | 0 B |
 | `concurrency_asserts` | `pico_w_asserts` | 2 176 B | 0 B |
 | `license_stub` | `pico_w_test` | −1 728 B | 0 B |
@@ -144,6 +148,52 @@ e contam a falha; o `commit_all` aceita `t_transport=0` e recusa `1`, para que
 uma config restaurada de uma imagem com MQTT volte a HTTP. Com a chave ligada,
 as seis imagens saem byte a byte idênticas.
 
+### A interface web, peça a peça (2026-09-30)
+
+Quatro itens do rastreio abaixo, cada um cercado **onde a rota é registrada**
+(`WebManager_Core.cpp`): sem o registro, o linker larga o handler junto.
+
+- `web_history` — a página `/history` (gráficos, calendário, CSV, visor de
+  eventos) e as duas rotas que só ela chama, `/api/logcodes` e
+  `/api/clear_logs`. A página sai da imagem por um bloco `@IF web_history` do
+  `WebUI.h`, e o link do menu por outro. O aparelho grava o histórico do mesmo
+  jeito; `/api/logs`, `/api/history/open` e `/api/history_days` ficam, porque as
+  ferramentas de bancada e o guia de integração as leem.
+- `web_export_api` — `/api/history_multi` e as duas exportações `.simx`.
+  Nenhuma página as chama. O buffer estático de 2 048 B do `history_multi` sai
+  com a rota: é a primeira chave, depois do Bluetooth, que devolve RAM estática
+  de verdade.
+- `web_metrics` — `GET /metrics`; o `WebManager_Metrics.cpp` sai da build.
+- `syslog` — o `SyslogManager.h` vira uma classe vazia com a mesma interface
+  (o objeto de 2 136 B do heap cai para 1 B), o `.cpp` sai da build e a seção
+  Syslog remoto sai da página de configuração por um bloco `@IF syslog`. Os
+  campos `slog_*` ficam na config: uma build não é um esquema.
+
+Por produto (`measure_savings.py --matrix`, flash `used`):
+
+| Desligada | SIMUT | SIMUT Alpha | SIMUT Air |
+|---|---:|---:|---:|
+| `web_history` | −23 896 B | −25 872 B | −21 768 B |
+| `web_export_api` | −12 344 B (−2 052 B de RAM) | −15 408 B (−2 052 B de RAM) | −10 952 B (−2 048 B de RAM) |
+| `web_metrics` | −4 912 B | −7 464 B | −3 368 B |
+| `syslog` | −1 768 B | −1 256 B | −1 248 B |
+
+As quatro juntas, compiladas de verdade no Air: 1 004 352 → 962 912 B
+(−41 440); a soma das quatro erra essa build por 4 104 B.
+
+O portão de rotas por recurso do `build_webui_gz.py` passou a ler também rotas
+cercadas por `#if <MACRO>` no C++, e confere que nenhuma página chama as da
+página de histórico ou da exportação fora do bloco delas.
+
+**O carimbo dos assets.** O gerador carimba `?v=<tag>` nas URLs de `/style.css`
+e `/lang.js` de toda página, servidos com cache de 7 dias. O tag era o hash do
+`WebUI.h` cru: qualquer edição nele, até um marcador `@IF` num comentário,
+recarimbava toda página e mudava toda imagem, com os dois assets intactos.
+Agora é o hash **desses dois**, como servidos. Com o tag fixado no valor que a
+`main` gerava, as seis imagens deste PR saíram byte a byte idênticas à `main`:
+a única diferença delas é o carimbo, e daqui em diante uma edição só de página
+não muda mais a imagem.
+
 ## O que ainda não tem chave — o rastreio de 2026-09-30
 
 A tabela acima mede o que já se desliga. Esta seção olha o contrário: **o que
@@ -159,15 +209,12 @@ piso do `feature_savings.json`.
 
 | Candidato | O que sairia | SIMUT | Air | Observação |
 |---|---|---:|---:|---|
-| Página de histórico e as rotas sem página | `HIST_PAGE` (22 543 B gz), `/api/history_multi` (7 236), `/api/export/*` (3 376) | ~33 KB | ~33 KB | `/api/logs`, `/api/history/open` e `/api/history_days` ficam: as ferramentas de bancada e o `INTEGRACAO_SERVIDOR.md` dependem delas |
 | Gráfico e calendário do painel | `DisplayManager_Graph`, `AppManager_Graph`, `DisplayManager_Calendar` | ~16,5 KB | — | só o TFT |
-| Contas no painel | `DisplayManager_Users` | ~15 KB | — | só o TFT; preso ao PIN do painel |
+| Identidade no painel | `DisplayManager_Users`: teclado do PIN, sessão, menu de alarme por conta, janela de manutenção, contas | ~15 KB | — | só o TFT. Só a administração de contas são ~3 KB; o resto é o PIN do painel (`SIMUT_PANEL_PIN`), e desligá-lo pede decidir o que um painel sem PIN deixa fazer — aberto ou só leitura (R-D5, decisão de produto) |
 | Curvas de calibração | `/api/calib`, o motor das curvas | ~8 KB | ~8 KB | não há offset separado: o offset simples **é** uma curva de 1 ponto, e o `calib.csv` também guarda a identidade dos DS18B20. Sem a chave, a leitura sai crua |
-| `/metrics` (Prometheus) | handler, autenticação, `PromMetrics` | ~3,3 KB | ~3,3 KB | o corte mais limpo: uma rota, sem página, sem config |
 | Backup e restauração | validar e aplicar o `.bkp` | ~3,5 KB | ~3,5 KB | o CRC32 do `backup.cpp` fica (o estágio da OTA usa), e a atualização pela página chama `/api/backup` antes de gravar |
 | Busca de redes Wi-Fi | handler, `pollScan`, o bloco da NET | ~2,8 KB | ~2,8 KB | o `native_network` testa a busca |
 | Pacotes de idioma | `DisplayManager_LangParser` | ~2,6 KB | ~2,1 KB | uma imagem só em inglês precisa forçar EN, ou a CLI bilíngue responde em português |
-| Syslog | `SyslogManager` e acessores | ~1,5 KB | ~1,5 KB | |
 
 ### RAM que existe em toda imagem
 
@@ -182,8 +229,8 @@ piso do `feature_savings.json`.
 | `/api/calib` | `WebManager_Calib` | 3 640 | `.bss` | segue as curvas de calibração |
 | pacote de idioma | `DisplayManager_LangParser` | 2 785 | `.bss` | segue os pacotes |
 | objeto `TelemetryManager` | `AppManager` | 2 272 | heap | a fila de alarmes de 2 KiB existe com a linha desligada |
-| objeto `SyslogManager` | `AppManager` | 2 136 | heap | o anel existe com o syslog desligado |
-| `/api/history_multi` | `WebManager_History` | 2 048 | `.bss` | segue a página de histórico |
+| objeto `SyslogManager` | `AppManager` | 2 136 | heap | chave `syslog` (2026-09-30): desligada, 1 B |
+| `/api/history_multi` | `WebManager_History` | 2 048 | `.bss` | chave `web_export_api` (2026-09-30): sai com a rota |
 
 O heap acima é o `sizeof( )` de cada gerente, lido por uma unidade de
 compilação de sondagem com os flags de cada ambiente (o `build_type = release`
