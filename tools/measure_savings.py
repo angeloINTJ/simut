@@ -78,6 +78,10 @@ MANIFEST_FEATURES = [
     ("bluetooth",           "pico_w_alpha"),
     ("air",                 "pico_w_air"),
     ("sound_buzzer",        "pico_w_release"),
+    # O Air e a base porque e onde a chave rende tudo: sem o servidor HTTPS, o
+    # cliente da telemetria e o unico que liga o motor TLS do BearSSL. No SIMUT o
+    # servidor segura a maior parte dele (a matriz mede os tres produtos).
+    ("tel_tls",             "pico_w_air"),
 ]
 
 # Recursos que sao default do simut_config.h (nao vivem no manifesto): desligar =

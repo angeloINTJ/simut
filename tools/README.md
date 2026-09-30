@@ -171,7 +171,7 @@ from a document. Anything genuinely dead should leave the tree, as
 | `theme-editor/index.html` | Browser app for authoring `.thm` theme files — `index.html` + `app.js` + `presets.js` + `sha256.js`; open the file, no server needed. | 2026-06-03 |
 | `factory_reset.py` | Factory reset Pico and configure WiFi. | 2026-07-23 |
 | `factory_reset_manual_wifi.py` | r"""§5.6 E2E — Config de fábrica → WiFi com reconfiguração manual | 2026-08-23 |
-| `flash_compose.py` | Where the flash goes, from a linker map: attributes every section to its archive or object and computes the merged string pool once instead of trusting the map (docs/analysis/DIETA_FLASH.md). | 2026-09-18 |
+| `flash_compose.py` | Where the flash goes, from a linker map: attributes every section to its archive or object and computes the merged string pool once instead of trusting the map (docs/analysis/DIETA_FLASH.md). `--env <name>` gets the map by relinking an already-built environment with `-Map` (no rebuild, and it refuses unless the relinked `.bin` is byte-identical to the build's); `--objects` breaks it down per object file with the static RAM each holds — the tracking in docs/analysis/ECONOMIA_DE_RECURSOS.md. | 2026-09-30 |
 | `fix_lockout.py` | Fix DisplayManager.cpp - reduce lockout timeout and add Core 1 restart. | 2026-07-23 |
 | `gen_gfx_font.py` | Porte fiel do fontconvert.c (Adafruit GFX) para Python/freetype-py. | 2026-08-12 |
 | `history_reset_cycles.py` | r"""Abrupt-reset cycles against the V5 history, driven by the PicoHand. | 2026-08-10 |

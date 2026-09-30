@@ -235,6 +235,18 @@ void test_isValidCfgString(void) {
 }
 
 
+/* SIMUT_TEL_TLS=0 (2026-09-30): an image without the telemetry's TLS client
+ * takes "encryption off" — a config restored from an image with TLS arrives
+ * with it on and must be undoable from the page and the CLI — and refuses
+ * "encryption on", which would leave it refusing to send. With the client
+ * compiled in, both answers stay what they always were. */
+void test_tel_encryption_accepted_follows_the_tls_switch(void) {
+    TEST_ASSERT_TRUE(telEncryptionAccepted(false, false));   /* off, no TLS: undo */
+    TEST_ASSERT_FALSE(telEncryptionAccepted(true, false));   /* on, no TLS: refuse */
+    TEST_ASSERT_TRUE(telEncryptionAccepted(false, true));    /* with TLS: as before */
+    TEST_ASSERT_TRUE(telEncryptionAccepted(true, true));
+}
+
 /* =========================================================================== */
 /*  isInRange                                                                  */
 /* =========================================================================== */
@@ -3197,6 +3209,7 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_isValidCfgString);
     RUN_TEST(test_isInRange);
     RUN_TEST(test_tel_min_batch_from_legacy_ms);
+    RUN_TEST(test_tel_encryption_accepted_follows_the_tls_switch);
 
     /* parseIntStrict */
     RUN_TEST(test_parseIntStrict_valid);

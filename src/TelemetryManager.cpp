@@ -68,6 +68,13 @@ static void addIdentityHeaders(HTTPClient& http, StorageManager* storage);
 static constexpr size_t MQTT_BUFFER_CEILING = 8192;
 static constexpr size_t MQTT_PACKET_OVERHEAD = 16;
 
+/* SYS_TEL_FAIL's context when the configuration asks for encryption and the
+ * image carries no TLS client (SIMUT_TEL_TLS=0). Far from everything else that
+ * code's ctx holds — HTTP status codes, HTTPClient's -1..-11, PubSubClient's
+ * -4..5, a failure count — so a log reader cannot take it for a network
+ * failure: nothing was attempted, nothing left the device. */
+static constexpr int TEL_CTX_NO_TLS = -200;
+
 static bool historyDayIsBefore(const String &fileName, const char *minDay) {
 	if (fileName.length( ) < 8) return false;
 	for (int i = 0; i < 8; i++) {
@@ -138,6 +145,7 @@ void TelemetryManager::begin(StorageManager* storage, NetworkManager* network) {
  _cachedCert = "";
 
  SystemConfig &cfg = _storageRef->getConfig( );
+#if SIMUT_TEL_TLS
  if (cfg.telEncryption) {
  if (LittleFS.exists("/cert.pem")) {
  File certFile = LittleFS.open("/cert.pem", "r");
@@ -176,6 +184,17 @@ void TelemetryManager::begin(StorageManager* storage, NetworkManager* network) {
           "TLS on without cert validation: connection not authenticated (MITM possible) — upload /cert.pem");
  }
  }
+#else
+ /* No TLS client in this image. A config that asks for encryption — restored
+  * from an image that had one, or written before the switch existed — is not
+  * sent at all: falling back to plain TCP would put the API key and the MQTT
+  * password on the wire. Said once here, with the reason; the transports then
+  * refuse under the same code, which the log's family latch keeps quiet. */
+ if (cfg.telEncryption) {
+ LOG_CODE(LOG_WARN, "TEL", SYS_TEL_FAIL, TEL_CTX_NO_TLS,
+          "encryption is on and this image has no TLS client: telemetry is not sent — turn t_sec off");
+ }
+#endif
 
 
  /* v21 — segunda linha (alarmes). Só o formato é próprio; transporte,
@@ -190,6 +209,13 @@ void TelemetryManager::begin(StorageManager* storage, NetworkManager* network) {
 
  if (cfg.telTransport == TEL_TRANSPORT_MQTT) {
  if (cfg.telEncryption) {
+#if !SIMUT_TEL_TLS
+ /* The client below was built on the plain socket (_mqttWifiClient), and
+  * a connect on it would carry the password in the clear to a port that
+  * expects TLS. Leaving _mqttInitialized false keeps every MQTT path shut. */
+ resetBackoff( );
+ return;
+#else
  _mqttSecurePtr = new WiFiClientSecure( );
  if (_mqttSecurePtr) {
  _mqttSecurePtr->setTimeout(NET_SOCKET_TIMEOUT_MS);
@@ -221,6 +247,7 @@ void TelemetryManager::begin(StorageManager* storage, NetworkManager* network) {
  }
  _mqttClient.setClient(*_mqttSecurePtr);
  }
+#endif
  } else {
  _mqttWifiClient.setTimeout(NET_SOCKET_TIMEOUT_MS);
  _mqttClient.setClient(_mqttWifiClient);
@@ -247,6 +274,7 @@ void TelemetryManager::begin(StorageManager* storage, NetworkManager* network) {
  * If allocated later, the heap may be too fragmented for
  * the ~16KB contiguous block that TLS needs.
  */
+#if SIMUT_TEL_TLS
  if (cfg.telEncryption && cfg.telInterval > 0) {
  _httpSecurePtr = new WiFiClientSecure( );
  if (_httpSecurePtr) {
@@ -255,6 +283,7 @@ void TelemetryManager::begin(StorageManager* storage, NetworkManager* network) {
  else _httpSecurePtr->setInsecure( );
  }
  }
+#endif
  LOG_CODE(LOG_INFO, "TEL", TEL_HTTP_INIT, cfg.telPort, String(cfg.telServer) + String(cfg.telPath));
  }
 
@@ -902,6 +931,12 @@ bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
  bool connected = false;
 
  if (cfg.telEncryption) {
+#if !SIMUT_TEL_TLS
+ /* Refused before any socket opens; begin( ) said why. */
+ LOG_CODE(LOG_ERROR, "TEL", SYS_TEL_FAIL, TEL_CTX_NO_TLS, "no TLS client in this image");
+ MetricsManager::instance( ).data( ).telFailed++;
+ return false;
+#else
  if (!_httpSecurePtr) {
  _httpSecurePtr = new WiFiClientSecure( );
  if (!_httpSecurePtr) {
@@ -943,6 +978,7 @@ bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
  else _httpSecurePtr->setInsecure( );
 
  connected = http.begin(*_httpSecurePtr, url);
+#endif
  } else {
  connected = http.begin(client, url);
  }
@@ -1033,6 +1069,7 @@ bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
   * in BOTH builds (D14 — a separate defect the watchdog reboots used to hide),
   * and removing the stop( ) only brought the drip kill back. Put it back.
   */
+#if SIMUT_TEL_TLS
 #if TEL_TLS_KEEPALIVE_EXPERIMENT
  /* Experiment: a clean 2xx keeps the session for the next batch. HTTPClient's
   * end( ) has already drained any unread body under its own deadline and
@@ -1043,7 +1080,9 @@ bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
 #else
  if (cfg.telEncryption) { if (_httpSecurePtr) _httpSecurePtr->stop( ); }
 #endif
- else client.stop( );
+ else
+#endif
+ client.stop( );
 
  http.end( );
  }
@@ -2664,6 +2703,11 @@ bool TelemetryManager::attemptAlarmHttpUpload(String& payload, std::vector<Alarm
 	bool connected = false;
 
 	if (cfg.telEncryption) {
+#if !SIMUT_TEL_TLS
+		/* Same refusal as the data line: no TLS client, nothing sent. */
+		LOG_CODE(LOG_ERROR, "TEL", TEL_ALARM_FAIL, TEL_CTX_NO_TLS, "no TLS client in this image");
+		return false;
+#else
 		if (!_httpSecurePtr) {
 			_httpSecurePtr = new WiFiClientSecure( );
 			if (!_httpSecurePtr) {
@@ -2678,6 +2722,7 @@ bool TelemetryManager::attemptAlarmHttpUpload(String& payload, std::vector<Alarm
 		if (_hasCert) _httpSecurePtr->setCACert(_cachedCert.c_str( ));
 		else _httpSecurePtr->setInsecure( );
 		connected = http.begin(*_httpSecurePtr, url);
+#endif
 	} else {
 		connected = http.begin(client, url);
 	}
@@ -2717,8 +2762,11 @@ bool TelemetryManager::attemptAlarmHttpUpload(String& payload, std::vector<Alarm
 			         String(TRL("HTTP error: ")) + http.errorToString(code));
 		}
 
+#if SIMUT_TEL_TLS
 		if (cfg.telEncryption) { if (_httpSecurePtr) _httpSecurePtr->stop( ); }
-		else client.stop( );
+		else
+#endif
+		client.stop( );
 		http.end( );
 	}
 

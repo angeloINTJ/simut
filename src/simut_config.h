@@ -280,6 +280,13 @@
  * SIMUT_MDNS      — mDNS responder (<deviceName>.local hostname, `_simut._tcp` service).
  *                   Enabled by default. Costs ~15 KB of flash (15,376 B measured,
  *                   LEAmDNS); off in test/alpha/air.
+ *
+ * SIMUT_TEL_TLS   — the telemetry's TLS client: HTTPS and MQTTS to the collector
+ *                   (WiFiClientSecure over BearSSL), the /cert.pem it validates
+ *                   against, and the alarm line's HTTPS path. Enabled by default.
+ *                   In an image without the HTTPS web server it is the only thing
+ *                   that links BearSSL's TLS engine; measured cost per product in
+ *                   docs/analysis/ECONOMIA_DE_RECURSOS.md.
  * ========================================================================= */
 
 #ifndef SIMUT_BLUETOOTH
@@ -288,6 +295,14 @@
 
 #ifndef SIMUT_MDNS
 #define SIMUT_MDNS 1            // mDNS hostname resolution (enabled)
+#endif
+
+// Set to 0 to drop the telemetry's TLS client. Telemetry keeps running over plain
+// HTTP and MQTT; a config that asks for encryption is refused at the commit and
+// never sent in the clear at the socket — the API key and the MQTT password
+// travel in what would be sent (TelemetryManager.cpp, SIMUT_TEL_TLS blocks).
+#ifndef SIMUT_TEL_TLS
+#define SIMUT_TEL_TLS 1         // HTTPS / MQTTS telemetry client (enabled)
 #endif
 
 /* Setup access point without a key. 0 = WPA2 with a per-device key derived
