@@ -52,19 +52,50 @@ bool stage_session_begin(StageSession& s, StorageManager* storage) {
 
     if (!storage) { s.status = StageStatus::BEGIN_FAILED; return false; }
 
-    /* Snapshot ANTES de unmount LFS (precisa LFS-readable). Commit em end. */
+    /* Snapshot ANTES de unmount LFS (precisa LFS-readable). */
     s_snapshot_len = ota_snapshot_serialize();
 
     if (!staging_session_begin_lite(storage)) {
         s.status = StageStatus::BEGIN_FAILED;
         return false;
     }
+
+    /* Commit do snapshot AQUI, no BEGIN — não mais no end.
+     *
+     * A staging area É a partição do LittleFS: begin_lite já desmontou a FS e
+     * a partir daqui cada página gravada apaga a FS por baixo. Se o upload for
+     * cortado no meio — o que o RST do roteador em fluxos porta-80 sustentados
+     * (~12-15 s; a imagem leva ~30 s) torna ROTINA, ver
+     * [[roteador-mata-fluxos-porta-80]] — o abort remonta e a FS é
+     * reformatada, e o snapshot que só era gravado no END nunca existiu: o
+     * aparelho voltava de fábrica (WiFi, contas, sensores perdidos). Gravado no
+     * begin, ele sobrevive a um stage interrompido e até a uma queda de energia,
+     * e o boot o restaura (StorageManager::begin). Medido no ferro 2026-09-30:
+     * stage cortado a ~400 KB deixava /config vazio e o boot seguinte anunciava
+     * FACTORY DEFAULTS; com este par de mudanças a config volta inteira.
+     *
+     * Os setores do snapshot (254..255) são apagados aqui e marcados no bitmap
+     * de ensure_sector_erased, então o upload não os reescreve; flush_page ainda
+     * reserva esses dois setores como teto, de modo que nenhuma imagem os pisa. */
+    if (s_snapshot_len > 0) {
+        const uint32_t snap_off = OTA_STAGING_MAX_SIZE - 2u * OTA_FLASH_SECTOR_SIZE;
+        if (ensure_sector_erased(snap_off) &&
+            ensure_sector_erased(snap_off + OTA_FLASH_SECTOR_SIZE)) {
+            ota_snapshot_commit(s_snapshot_len);
+        }
+    }
+
     s.status = StageStatus::STAGING;
     return true;
 }
 
 static bool flush_page(StageSession& s) {
-    if (s.bytes_written + OTA_FLASH_PAGE_SIZE > OTA_STAGING_MAX_SIZE) {
+    /* Teto é OTA_SNAPSHOT_OFFSET, não OTA_STAGING_MAX_SIZE: os dois últimos
+     * setores da staging guardam o snapshot da config (gravado no begin) e o
+     * upload nunca pode escrever neles. Coincide com OTA_APP_SAFE_MAX_SIZE
+     * (1016 KiB), o mesmo teto que a validação e o applier já impõem. */
+    if (s.bytes_written + OTA_FLASH_PAGE_SIZE >
+        OTA_STAGING_MAX_SIZE - 2u * OTA_FLASH_SECTOR_SIZE) {
         s.status = StageStatus::OVERFLOW_ERR;
         return false;
     }
@@ -111,16 +142,10 @@ bool stage_session_end(StageSession& s) {
                OTA_FLASH_PAGE_SIZE - s.page_buf_filled);
         if (!flush_page(s)) return false;
     }
-    /* Snapshot commit no fim — apaga os DOIS últimos setores (254..255,
-     * reservados pro snapshot; v21) e escreve. Não-fatal: sem snapshot,
-     * device sobe em factory pós-apply e user restaura via .bkp. */
-    if (s_snapshot_len > 0) {
-        const uint32_t snap_off = OTA_STAGING_MAX_SIZE - 2u * OTA_FLASH_SECTOR_SIZE;
-        if (ensure_sector_erased(snap_off) &&
-            ensure_sector_erased(snap_off + OTA_FLASH_SECTOR_SIZE)) {
-            ota_snapshot_commit(s_snapshot_len);
-        }
-    }
+    /* O snapshot já foi gravado no stage_session_begin — não aqui. Fazê-lo no
+     * end deixava um stage cortado no meio sem snapshot nenhum (o abort não
+     * passa por aqui). Os setores 254..255 já estão apagados e escritos, e o
+     * bitmap de ensure_sector_erased os marca, então nada os toca de novo. */
     s.crc32_running ^= 0xFFFFFFFFu;
     s.status = StageStatus::STAGED;
     return true;

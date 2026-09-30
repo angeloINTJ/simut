@@ -385,12 +385,9 @@ bool StorageManager::begin( ) {
  * still creates README.md in custom dirs — that path is
  * outside wrap and safe. */
 
- /* Config restore after OTA apply.
- *
- * If metadata.state == APPLYING (real apply, not test stub) and there is a
- * CRC-valid snapshot in the metadata partition, restore `system.bin`
- * BEFORE loadConfiguration — so the pre-apply config
- * is loaded normally instead of falling to loadDefaults.
+ /* Config restore from the OTA snapshot, BEFORE loadConfiguration — so the
+ * pre-update config is loaded normally instead of falling to loadDefaults.
+ * The trigger is "no system.bin", which the detailed note below explains.
  *
  * Restore failure is non-fatal: loadConfiguration will fail to
  * find the file, saveConfiguration writes defaults, device boots
@@ -406,10 +403,21 @@ bool StorageManager::begin( ) {
  */
  {
  uart_putc_raw(uart1, '7');
- ota::UpdateMetadata m;
- if (ota::ota_metadata_read(m) &&
- m.state == ota::STATE_APPLYING &&
- ota::ota_snapshot_present( )) {
+ /* Recover the config from the OTA snapshot whenever there is no system.bin
+  * to load. Two paths reach here with the filesystem freshly reformatted and
+  * the config gone. One is a real apply. The other — which this broadened
+  * check adds — is an OTA stage that did not complete: the staging area IS the
+  * filesystem partition, so a stage overwrites the FS from its first page, and
+  * if the upload is cut (the router's RST on sustained port-80 flows, ~12-15 s,
+  * makes this routine) the abort path remounts and LittleFS.format()s, taking
+  * WiFi, users and every sensor slot with it. The snapshot is now written at
+  * stage BEGIN (firmware_stage.cpp), so it is on flash even for an interrupted
+  * stage or a power cut; keyed on "no system.bin" it is restored here, and
+  * loadConfiguration then loads it as usual. The gate used to require
+  * metadata.state == APPLYING, which an interrupted stage never sets — that was
+  * the whole gap. A stale snapshot from an older stage can only be read when
+  * there is no config at all, where restoring last-known-good beats factory. */
+ if (!LittleFS.exists(FILE_CONFIG) && ota::ota_snapshot_present( )) {
  uart_putc_raw(uart1, '8');
  (void)ota::ota_snapshot_restore_to_lfs( );
  uart_putc_raw(uart1, '9');
