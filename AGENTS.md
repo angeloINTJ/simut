@@ -290,6 +290,35 @@ python3 tools/check_flash_budget.py <env> build.log   # o CI roda assim; local, 
 - O `zopfli` é opcional (`pip install zopfli`): sem ele as páginas web caem para
   `gzip -9` e a imagem fica 2.888 B acima do orçamento, dentro da margem.
 
+### Retenção de dados no update — portão de RELEASE, no ferro
+
+Toda versão publicada tem de provar **no hardware** que atualizar não apaga a
+configuração — Wi-Fi, contas, sensores, telemetria, calibração. O CI e as suítes
+nativas **não** cobrem isto: o caminho de OTA é flash/XIP e a área de staging *é* a
+partição do LittleFS (`src/ota/ota_layout.h`), então só o ferro o exercita. Foi
+essa cegueira que deixou um stage de OTA interrompido reformatar o sistema de
+arquivos e o aparelho voltar de fábrica sem ninguém ver, até 2026-09-30 (PR #192: o
+snapshot da config só era gravado no fim do stage, e um upload cortado nunca chegava
+lá — e nesta bancada o roteador corta fluxos porta-80 com mais de ~12-15 s, enquanto
+a imagem leva ~30 s).
+
+Antes de publicar, no rig, com os números no PR:
+
+1. **Backup datado** da config (dump íntegro da flash, ou `GET /api/config` mais o
+   `.bkp` que a página baixa sozinha).
+2. **Apply completo** pela OTA na **:8080** — a porta que o roteador não corta: a
+   versão lida de volta (`GET /api/perms`) bate **e** a config confere campo a campo
+   (contas logam, sensores lendo, servidor de telemetria e nome do aparelho
+   intactos). Receita em [docs/OTA_USAGE.md](docs/OTA_USAGE.md).
+3. **Stage interrompido** — cortar o upload no meio e reiniciar: o boot **não pode**
+   cair em fábrica. Numa imagem sem a correção isto vira fábrica, e é esse o controle
+   negativo que prova que o teste morde.
+4. **Devolver a bancada** ao estado de origem e conferir byte a byte (o slot da app
+   e o `system.bin`).
+
+É um portão de release, não de todo push, e a suíte nativa não o substitui: some da
+imagem publicada se for pulado.
+
 ## 3. SIMUT Air — o build que hiberna
 
 `pio run -e pico_w_air`. Em 18/09/2026, com a CLI completa ligada:
