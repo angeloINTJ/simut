@@ -53,5 +53,25 @@
     "base": "pico_w_air",
     "flash_saved": 7704,
     "ram_saved": 0
+  },
+  "web_history": {
+    "base": "pico_w_air",
+    "flash_saved": 21768,
+    "ram_saved": 0
+  },
+  "web_export_api": {
+    "base": "pico_w_release",
+    "flash_saved": 12344,
+    "ram_saved": 2052
+  },
+  "web_metrics": {
+    "base": "pico_w_release",
+    "flash_saved": 4912,
+    "ram_saved": 0
+  },
+  "syslog": {
+    "base": "pico_w_release",
+    "flash_saved": 1768,
+    "ram_saved": 0
   }
 }

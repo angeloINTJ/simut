@@ -20,8 +20,8 @@
       "order": 2,
       "advanced": false,
       "label": {
-        "en": "Telemetry",
-        "pt": "Telemetria"
+        "en": "Telemetry and integrations",
+        "pt": "Telemetria e integrações"
       }
     },
     {
@@ -226,6 +226,54 @@
         "en": "Publishes to an MQTT broker (MQTT, or MQTTS with the TLS switch), takes the alarm line's receipts on the ack topic, and announces the sensors to Home Assistant by MQTT Discovery. Without it telemetry goes by HTTP only.",
         "pt": "Publica num broker MQTT (MQTT, ou MQTTS com a chave de TLS), recebe as confirmações da linha de alarmes no tópico de ack e anuncia os sensores ao Home Assistant pelo MQTT Discovery. Sem ele a telemetria vai só por HTTP."
       }
+    },
+    {
+      "id": "web_history",
+      "group": "interface",
+      "label": {
+        "en": "History page in the web interface",
+        "pt": "Página de histórico na interface web"
+      },
+      "help": {
+        "en": "The /history page: charts, calendar, CSV export in the browser and the event log viewer. The device records history either way, and the history files stay downloadable from the Files page.",
+        "pt": "A página /history: gráficos, calendário, CSV no navegador e o visor de eventos. O aparelho grava o histórico do mesmo jeito, e os arquivos de histórico continuam na página Arquivos."
+      }
+    },
+    {
+      "id": "web_export_api",
+      "group": "interface",
+      "label": {
+        "en": "History export API",
+        "pt": "API de exportação do histórico"
+      },
+      "help": {
+        "en": "Routes that return several sensors' history in one call (/api/history_multi) and export the history and the log as .simx. No page uses them; bench tools and integrations do.",
+        "pt": "Rotas que devolvem o histórico de vários sensores numa chamada (/api/history_multi) e exportam o histórico e o log em .simx. Nenhuma página as usa; ferramentas de bancada e integrações, sim."
+      }
+    },
+    {
+      "id": "web_metrics",
+      "group": "telemetry",
+      "label": {
+        "en": "Prometheus metrics (/metrics)",
+        "pt": "Métricas para o Prometheus (/metrics)"
+      },
+      "help": {
+        "en": "A /metrics endpoint in the Prometheus text format, with Basic authentication for the scraper.",
+        "pt": "Um endpoint /metrics no formato de texto do Prometheus, com autenticação Basic para o coletor."
+      }
+    },
+    {
+      "id": "syslog",
+      "group": "telemetry",
+      "label": {
+        "en": "Remote syslog (audit trail)",
+        "pt": "Syslog remoto (trilha de auditoria)"
+      },
+      "help": {
+        "en": "Forwards log events to a syslog collector (RFC 5424 over UDP), so the audit trail survives outside the device.",
+        "pt": "Encaminha os eventos do log a um coletor syslog (RFC 5424 por UDP), para a trilha de auditoria sobreviver fora do aparelho."
+      }
     }
   ],
   "displays": {
@@ -276,7 +324,11 @@
         "sensor_dht22": true,
         "sensor_bme280": true,
         "tel_tls": true,
-        "tel_mqtt": true
+        "tel_mqtt": true,
+        "web_history": true,
+        "web_export_api": true,
+        "web_metrics": true,
+        "syslog": true
       }
     },
     {
@@ -306,7 +358,11 @@
         "sensor_dht22": true,
         "sensor_bme280": true,
         "tel_tls": true,
-        "tel_mqtt": true
+        "tel_mqtt": true,
+        "web_history": true,
+        "web_export_api": true,
+        "web_metrics": true,
+        "syslog": true
       }
     },
     {
@@ -336,7 +392,11 @@
         "sensor_dht22": true,
         "sensor_bme280": true,
         "tel_tls": true,
-        "tel_mqtt": true
+        "tel_mqtt": true,
+        "web_history": true,
+        "web_export_api": true,
+        "web_metrics": true,
+        "syslog": true
       }
     },
     {
@@ -366,7 +426,11 @@
         "sensor_dht22": true,
         "sensor_bme280": true,
         "tel_tls": true,
-        "tel_mqtt": true
+        "tel_mqtt": true,
+        "web_history": true,
+        "web_export_api": true,
+        "web_metrics": true,
+        "syslog": true
       }
     },
     {
@@ -396,7 +460,11 @@
         "sensor_dht22": true,
         "sensor_bme280": true,
         "tel_tls": true,
-        "tel_mqtt": true
+        "tel_mqtt": true,
+        "web_history": true,
+        "web_export_api": true,
+        "web_metrics": true,
+        "syslog": true
       }
     },
     {
@@ -426,7 +494,11 @@
         "sensor_dht22": true,
         "sensor_bme280": true,
         "tel_tls": true,
-        "tel_mqtt": true
+        "tel_mqtt": true,
+        "web_history": true,
+        "web_export_api": true,
+        "web_metrics": true,
+        "syslog": true
       }
     }
   ],
@@ -505,11 +577,8 @@
     ],
     "measured_at": {
       "date": "2026-09-30",
-      "src_commit": "26fb9fd",
-      "src_dirty": false,
-      "partial": [
-        "tel_mqtt"
-      ]
+      "src_commit": "045d75b",
+      "src_dirty": false
     },
     "products": {
       "pico_w_release": {
@@ -520,7 +589,7 @@
         },
         "flips": {
           "cli_full": {
-            "overflow": 15068
+            "overflow": 15060
           },
           "web_https": {
             "used": 974828,
@@ -528,8 +597,8 @@
             "ram": 116932
           },
           "license_stub": {
-            "used": 997628,
-            "bin": 1009660,
+            "used": 997620,
+            "bin": 1009652,
             "ram": 116956
           },
           "mdns": {
@@ -554,13 +623,13 @@
             "ram": 116956
           },
           "sensor_ds18b20": {
-            "used": 993932,
-            "bin": 1005964,
+            "used": 993924,
+            "bin": 1005956,
             "ram": 116892
           },
           "sensor_dht22": {
-            "used": 995964,
-            "bin": 1007996,
+            "used": 995956,
+            "bin": 1007988,
             "ram": 116956
           },
           "sensor_bme280": {
@@ -576,6 +645,26 @@
           "tel_mqtt": {
             "used": 990636,
             "bin": 1002668,
+            "ram": 116956
+          },
+          "web_history": {
+            "used": 975460,
+            "bin": 987492,
+            "ram": 116956
+          },
+          "web_export_api": {
+            "used": 987012,
+            "bin": 999044,
+            "ram": 114904
+          },
+          "web_metrics": {
+            "used": 994444,
+            "bin": 1006476,
+            "ram": 116956
+          },
+          "syslog": {
+            "used": 997588,
+            "bin": 1009620,
             "ram": 116956
           }
         }
@@ -614,8 +703,8 @@
             "ram": 129992
           },
           "bluetooth": {
-            "used": 824216,
-            "bin": 836252,
+            "used": 824208,
+            "bin": 836244,
             "ram": 110644
           },
           "air": {
@@ -649,6 +738,26 @@
           "tel_mqtt": {
             "used": 952708,
             "bin": 965804,
+            "ram": 129992
+          },
+          "web_history": {
+            "used": 938636,
+            "bin": 953516,
+            "ram": 129992
+          },
+          "web_export_api": {
+            "used": 949100,
+            "bin": 961708,
+            "ram": 127940
+          },
+          "web_metrics": {
+            "used": 957044,
+            "bin": 969900,
+            "ram": 129992
+          },
+          "syslog": {
+            "used": 963252,
+            "bin": 978092,
             "ram": 129992
           }
         }
@@ -687,8 +796,8 @@
             "ram": 120144
           },
           "bluetooth": {
-            "used": 866620,
-            "bin": 878652,
+            "used": 866612,
+            "bin": 878644,
             "ram": 100828
           },
           "air": {
@@ -721,6 +830,26 @@
             "used": 996648,
             "bin": 1010764,
             "ram": 120144
+          },
+          "web_history": {
+            "used": 982584,
+            "bin": 998476,
+            "ram": 120144
+          },
+          "web_export_api": {
+            "used": 993400,
+            "bin": 1006668,
+            "ram": 118096
+          },
+          "web_metrics": {
+            "used": 1000984,
+            "bin": 1014860,
+            "ram": 120144
+          },
+          "syslog": {
+            "used": 1003104,
+            "bin": 1018956,
+            "ram": 120144
           }
         }
       }
@@ -744,8 +873,8 @@
           "license_stub": true,
           "concurrency_asserts": true
         },
-        "used": 975348,
-        "bin": 987380,
+        "used": 975340,
+        "bin": 987372,
         "ram": 116932
       },
       {
@@ -756,8 +885,8 @@
           "web_https": true,
           "cli_full": true
         },
-        "used": 910448,
-        "bin": 922484,
+        "used": 910440,
+        "bin": 922476,
         "ram": 108924
       },
       {
@@ -788,8 +917,8 @@
           "web_https": true,
           "mdns": true
         },
-        "used": 906380,
-        "bin": 918412,
+        "used": 906372,
+        "bin": 918404,
         "ram": 101008
       },
       {
@@ -813,6 +942,28 @@
         "used": 982436,
         "bin": 998452,
         "ram": 119860
+      },
+      {
+        "base": "pico_w_air",
+        "set": {
+          "tel_tls": false,
+          "tel_mqtt": false
+        },
+        "used": 928880,
+        "bin": 941132,
+        "ram": 120128
+      },
+      {
+        "base": "pico_w_air",
+        "set": {
+          "web_history": false,
+          "web_export_api": false,
+          "web_metrics": false,
+          "syslog": false
+        },
+        "used": 962912,
+        "bin": 977996,
+        "ram": 118096
       }
     ]
   }

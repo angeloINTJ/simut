@@ -212,7 +212,9 @@ void WebManager::handleLogin( ) {
  * env may move pages out, via custom_fs_pages in platformio.ini — see the
  * measurements and the picking criterion in that script. */
 void WebManager::handleRoot( )    { DASH_PAGE_SERVE(PERM_DASHBOARD); }
+#if SIMUT_WEB_HISTORY
 void WebManager::handleHistory( ) { HIST_PAGE_SERVE(PERM_HISTORY | PERM_LOGS); }
+#endif
 void WebManager::handleConfig( )  { CFG_PAGE_SERVE(PERM_SYS_CONFIG); }
 void WebManager::handleTelemetry( ) { TEL_PAGE_SERVE(PERM_SYS_CONFIG); }
 void WebManager::handleNetwork( ) { NET_PAGE_SERVE(PERM_NET_CONFIG); }

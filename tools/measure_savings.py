@@ -84,6 +84,10 @@ MANIFEST_FEATURES = [
     # servidor segura a maior parte dele (a matriz mede os tres produtos).
     ("tel_tls",             "pico_w_air"),
     ("tel_mqtt",            "pico_w_air"),
+    ("web_history",         "pico_w_air"),
+    ("web_export_api",      "pico_w_release"),
+    ("web_metrics",         "pico_w_release"),
+    ("syslog",              "pico_w_release"),
 ]
 
 # Recursos que sao default do simut_config.h (nao vivem no manifesto): desligar =
@@ -362,6 +366,12 @@ CHECKS = [
     ("pico_w_air", {"bluetooth": False, "web_https": True, "mdns": True}),
     ("pico_w_air", {"cli_full": False, "concurrency_asserts": True, "sensor_bme280": False}),
     ("pico_w_air", {"sensor_ds18b20": False, "sensor_dht22": False, "sensor_bme280": False}),
+    # As chaves de 2026-09-30, juntas: as duas da telemetria dividem o
+    # TelemetryManager, e as quatro da web dividem o WebManager_Core.cpp e a
+    # pagina de configuracao — interacao plausivel nos dois casos.
+    ("pico_w_air", {"tel_tls": False, "tel_mqtt": False}),
+    ("pico_w_air", {"web_history": False, "web_export_api": False, "web_metrics": False,
+                    "syslog": False}),
 ]
 
 

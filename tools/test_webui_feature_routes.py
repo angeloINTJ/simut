@@ -95,10 +95,45 @@ check("'/api/screenshots' nao e '/api/screenshot'",
 check("rota citada em comentario /* */ nao e chamada",
       verdict("<script>/* chama '/api/touch' no painel */ x();</script>\n") is None)
 
-# 6. O WebUI.h de verdade: a conferencia que o build roda em toda imagem.
+# 6. Rotas cercadas por #if no C++ (2026-09-30): as de /api/ dentro das regioes
+#    `#if SIMUT_WEB_HISTORY` do WebManager_Core.cpp, sem a pagina /history (que
+#    e alcancada por link, e o link sai no bloco do menu).
+hist = feature_routes("web_history")
+check("as rotas da pagina de historico sao as duas /api/ da regiao #if",
+      hist == {"/api/logcodes", "/api/clear_logs"}, f"obtido {sorted(hist)}")
+exp = feature_routes("web_export_api")
+check("as rotas de exportacao sao as tres da regiao #if",
+      exp == {"/api/history_multi", "/api/export/history.bin", "/api/export/logs.bin"},
+      f"obtido {sorted(exp)}")
+v = verdict("<script>fetch('/api/history_multi?s=0');</script>\n")
+check("uma pagina que chama /api/history_multi e recusada",
+      v is not None and "/api/history_multi so e registrada com web_export_api" in v, repr(v))
+
+# 7. Um nome definido dentro do bloco E fora dele (cada pagina com o seu helper)
+#    nao e dependencia do bloco: a chamada de fora vai para a funcao de fora.
+#    Foi o `fmt` do dashboard quando a pagina de historico virou um bloco.
+dois = """
+<script>function fmt(v){return v;} x = fmt(1);</script>
+/* @IF tft */
+<script>function fmt(v){return v;} y = fmt(2);</script>
+/* @ENDIF */
+"""
+check("helper homonimo definido fora nao e dependencia do bloco",
+      verdict(dois) is None, repr(verdict(dois)))
+um = """
+<script>x = fmt(1);</script>
+/* @IF tft */
+<script>function fmt(v){return v;} y = fmt(2);</script>
+/* @ENDIF */
+"""
+v = verdict(um)
+check("... mas sem a definicao de fora, a chamada ainda e recusada",
+      v is not None and "fmt( ) e definida dentro de @IF tft e chamada fora" in v, repr(v))
+
+# 8. O WebUI.h de verdade: a conferencia que o build roda em toda imagem.
 real = open(os.path.join(ROOT, "WebUI.h"), encoding="utf-8").read()
 v = verdict(real)
-check("WebUI.h: nenhuma rota do painel chamada fora do @IF tft", v is None, v)
+check("WebUI.h: nenhuma rota de feature chamada fora do seu @IF", v is None, v)
 
 print(f"{ok} ok, {fail} falha(s)")
 sys.exit(1 if fail else 0)

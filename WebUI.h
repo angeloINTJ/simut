@@ -891,6 +891,7 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 )raw";
 
 
+/* @IF web_history */
 static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -3421,6 +3422,7 @@ global.Chart = H5G;
 </body>
 </html>
 )raw";
+/* @ENDIF */
 
 
 static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
@@ -3644,6 +3646,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     </div>
                 </div>
 
+                /* @IF syslog */
                 <div class="row" style="margin-top: 16px; border-top:1px solid var(--linha); padding-top:16px;">
                     <div style="width:100%">
                         <h3 data-i18n="cfg_slog" style="margin-top:0;">Remote Syslog (Audit Trail)</h3>
@@ -3677,6 +3680,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         </div>
                     </div>
                 </div>
+                /* @ENDIF */
 
                 <!-- U24: save button removido. Use "Salvar e Reiniciar" no topbar. -->
             </form>
@@ -3888,6 +3892,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     sync();
                 })();
                 document.getElementById('h_int').value = val('h_int', 1);
+                /* @IF syslog */
                 /* Syslog forwarder: refletir o estado REAL da config — sem isso
                  * o checkbox ficava sempre desmarcado (default HTML) e o usuário
                  * via "syslog desligado" na interface enquanto ele transmitia. */
@@ -3896,6 +3901,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 document.getElementById('slog_port').value = val('slog_port', 514);
                 const lvlSel = document.getElementById('slog_lvl');
                 if (lvlSel) lvlSel.value = String(val('slog_lvl', 1));
+                /* @ENDIF */
                 wirePendingListeners();
         }
 
@@ -7438,7 +7444,9 @@ static const char LANG_JS[] PROGMEM = R"raw(
         +'<div class="drawer-head"><div class="brand">SIMUT<span> IoT</span></div><button class="hamburger" onclick="toggleDrawer()" aria-label="Close"><svg class="ic"><use href="#i-close"/></svg></button></div>'
         +'<nav aria-label="Main">'
         +'<a href="/"><svg class="ic"><use href="#i-dash"/></svg><span data-i18n="nav_dash">Dashboard</span></a>'
+        /* @IF web_history */
         +'<a href="/history"><svg class="ic"><use href="#i-hist"/></svg><span data-i18n="nav_hist">History &amp; Logs</span></a>'
+        /* @ENDIF */
         +'<a href="/alarms"><svg class="ic"><use href="#i-alm"/></svg><span data-i18n="nav_alm">Alarms &amp; Sounds</span></a>'
         +'<a href="/telemetry"><svg class="ic"><use href="#i-tel"/></svg><span data-i18n="nav_tel">Telemetry</span></a>'
         +'<a href="/config"><svg class="ic"><use href="#i-cfg"/></svg><span data-i18n="nav_cfg">System Config</span></a>'

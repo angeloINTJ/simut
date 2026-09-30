@@ -49,6 +49,7 @@ TOGGLE_ORDER = [
     "concurrency_asserts", "bluetooth", "air", "sound_buzzer",
     "sensor_ds18b20", "sensor_dht22", "sensor_bme280",
     "tel_tls", "tel_mqtt",
+    "web_history", "web_export_api", "web_metrics", "syslog",
 ]
 
 HEADER = """; profiles.ini — GERADO por tools/gen_features.py a partir de tools/features.toml.
@@ -100,7 +101,9 @@ def compose(prof: dict, M: dict) -> dict:
     includes += disp.get("include", [])
     if disp.get("ignore_display_libs"):
         lib_ignore += M["libs"]["display"]
-    web_omit = disp.get("web_omit")
+    # The web builder's @IF blocks to cut (tools/build_webui_gz.py): the display
+    # choice may name one, and a switch that is off names its own (off_web_omit).
+    web_omit = [disp["web_omit"]] if disp.get("web_omit") else []
 
     for tname in TOGGLE_ORDER:
         t = M["toggles"][tname]
@@ -124,13 +127,15 @@ def compose(prof: dict, M: dict) -> dict:
         else:
             excludes += t.get("off_exclude", [])
             lib_ignore += t.get("off_lib_ignore", [])
+            if t.get("off_web_omit"):
+                web_omit.append(t["off_web_omit"])
 
     return {
         "flags": flags,
         "excludes": excludes,
         "includes": includes,
         "lib_ignore": dedup(lib_ignore),
-        "web_omit": web_omit,
+        "web_omit": ", ".join(web_omit) or None,
         "custom_fs_pages": prof.get("custom_fs_pages"),
         "build_type": prof.get("build_type"),
     }

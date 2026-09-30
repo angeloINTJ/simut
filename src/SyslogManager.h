@@ -34,10 +34,12 @@
 #include <stdint.h>
 #include <WiFiUdp.h>
 #include "pico/sync.h"
+#include "simut_config.h"
 #include "LogManager.h" /* SyslogEvent */
 
 class StorageManager;
 
+#if SIMUT_SYSLOG
 class SyslogManager {
 public:
 	SyslogManager( );
@@ -86,3 +88,18 @@ private:
 	int _head = 0;  /**< next write slot */
 	int _count = 0; /**< occupied slots */
 };
+#else
+/* SIMUT_SYSLOG=0 (2026-09-30): the doors AppManager knocks on, and nothing
+ * behind them — no ring, no socket, and SyslogManager.cpp out of the build
+ * (tools/features.toml). The real object is 2,136 B of heap that every image
+ * held whether syslog was enabled or not; this one is 1. The slog_* fields
+ * stay in the config (reserved[56..63]): a build is not a schema. */
+class SyslogManager {
+public:
+	void configure(StorageManager&) { }
+	void enqueue(const SyslogEvent&) { }
+	void pump( ) { }
+	void flushBlocking( ) { }
+	bool isEnabled( ) const { return false; }
+};
+#endif
