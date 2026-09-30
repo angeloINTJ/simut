@@ -130,7 +130,118 @@ v = verdict(um)
 check("... mas sem a definicao de fora, a chamada ainda e recusada",
       v is not None and "fmt( ) e definida dentro de @IF tft e chamada fora" in v, repr(v))
 
-# 8. O WebUI.h de verdade: a conferencia que o build roda em toda imagem.
+# 8. O bloco negado (2026-09-30): `@IF !feature` so entra na imagem SEM a
+#    feature — o que a pagina diz quando o recurso nao existe (a telemetria
+#    que o aparelho guardou pedindo MQTT, numa imagem sem MQTT). As duas
+#    metades nunca coexistem, entao cada uma e "fora" da outra.
+def cut(content, omit):
+    saved = _ns["WEB_OMIT"]
+    _ns["WEB_OMIT"] = set(omit)
+    try:
+        return strip_web_features(content)
+    finally:
+        _ns["WEB_OMIT"] = saved
+
+
+par = """
+/* @IF tft */
+<select id="sel"></select>
+/* @ENDIF */
+/* @IF !tft */
+<div id="aviso">sem painel</div>
+/* @ENDIF */
+"""
+check("@IF !tft entra na imagem sem painel",
+      "aviso" in cut(par, {"tft"}) and "sel" not in cut(par, {"tft"}))
+check("... e sai da imagem com painel",
+      "aviso" not in cut(par, set()) and "sel" in cut(par, set()))
+check("os marcadores somem nas duas", "@IF" not in cut(par, {"tft"}) + cut(par, set()))
+
+v = verdict("/* @IF !nada */\nx\n/* @ENDIF */\n")
+check("@IF !<feature desconhecida> e recusado",
+      v is not None and "@IF !nada nao e uma feature conhecida" in v, repr(v))
+
+v = verdict("""
+/* @IF !tft */
+<div id="aviso"></div>
+/* @ENDIF */
+<script>document.getElementById('aviso').style.display = '';</script>
+""")
+check("id que so existe no @IF !tft e buscado fora e recusado",
+      v is not None and "#aviso so existe dentro de @IF !tft" in v, repr(v))
+
+v = verdict("""
+/* @IF !tft */
+<script>fetch('/api/touch');</script>
+/* @ENDIF */
+""")
+check("rota do painel chamada dentro do @IF !tft e recusada (la nao existe)",
+      v is not None and "/api/touch so e registrada com tft" in v, repr(v))
+
+v = verdict("""
+/* @IF tft */
+<div id="sel"></div>
+/* @ENDIF */
+/* @IF !tft */
+<script>document.getElementById('sel').value = 1;</script>
+/* @ENDIF */
+""")
+check("o @IF !tft que busca um id do @IF tft e recusado",
+      v is not None and "#sel so existe dentro de @IF tft" in v, repr(v))
+
+# O par: a mesma funcao definida nos dois lados, chamada so no codigo comum.
+# Toda imagem tem exatamente uma — nem "chamada fora", nem "nunca usada".
+stub = """
+/* @IF tft */
+<script>function prep() { document.getElementById('sel').value = 0; }</script>
+<select id="sel"></select>
+/* @ENDIF */
+/* @IF !tft */
+<script>function prep() { }</script>
+/* @ENDIF */
+<script>prep();</script>
+"""
+check("funcao definida no @IF tft e no @IF !tft, chamada no comum, passa",
+      verdict(stub) is None, repr(verdict(stub)))
+v = verdict("""
+/* @IF !tft */
+<script>function prep() { }</script>
+/* @ENDIF */
+<script>prep();</script>
+""")
+check("... mas so no @IF !tft, a chamada comum e recusada (a imagem com painel nao a tem)",
+      v is not None and "prep( ) e definida dentro de @IF !tft e chamada fora" in v, repr(v))
+v = verdict("""
+/* @IF !tft */
+<script>function orfa() { }</script>
+/* @ENDIF */
+""")
+check("funcao do @IF !tft que ninguem chama e recusada",
+      v is not None and "orfa( ) e definida dentro de @IF !tft e nunca usada" in v, repr(v))
+
+# 9. Busca que confere o nulo nao e dependencia: `let e = getElementById('x');
+#    if (e) ...` nao vira TypeError na imagem sem o bloco. E o que o
+#    toggleTransport( ) do MQTT faz com o rotulo do TLS, numa imagem com MQTT e
+#    sem TLS. A conferencia tem de testar a MESMA variavel.
+guard = """
+/* @IF tft */
+<span id="rot"></span>
+/* @ENDIF */
+<script>let s = document.getElementById('rot'); if (s) s.textContent = 'x';
+var w = document.getElementById('rot'); if (!w) return;</script>
+"""
+check("busca que confere o nulo, fora do bloco, passa",
+      verdict(guard) is None, repr(verdict(guard)))
+v = verdict("""
+/* @IF tft */
+<span id="rot"></span>
+/* @ENDIF */
+<script>let s = document.getElementById('rot'); if (t) s.textContent = 'x';</script>
+""")
+check("... mas conferir OUTRA variavel nao protege",
+      v is not None and "#rot so existe dentro de @IF tft" in v, repr(v))
+
+# 10. O WebUI.h de verdade: a conferencia que o build roda em toda imagem.
 real = open(os.path.join(ROOT, "WebUI.h"), encoding="utf-8").read()
 v = verdict(real)
 check("WebUI.h: nenhuma rota de feature chamada fora do seu @IF", v is None, v)
