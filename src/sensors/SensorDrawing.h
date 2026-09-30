@@ -20,6 +20,7 @@
 #pragma once
 #if SIMUT_DISPLAY_TFT
 #include <Adafruit_GFX.h>
+#include "../simut_config.h" /* SIMUT_TFT_GRAPH — undefined would read as 0 and hide the button */
 #include "../Themes.h" /* C_ALARM_* state colors + themeTint for glints */
 #endif
 #ifndef RGB565
@@ -196,9 +197,15 @@ constexpr int16_t minMaxBtnX(int16_t cardW) {
 	       ((int16_t)(cardW - 1) - MINMAX_BTN_ANCHOR - MINMAX_BTN_W) / 2;
 }
 
-/** Renders the graph history button icon. */
+/** Renders the graph history button icon — nothing, in a build without the
+ *  graph (SIMUT_TFT_GRAPH=0): a button with no screen behind it is a lie, and
+ *  its touch zones are compiled out with it (DisplayManager_Touch.cpp). */
 inline void drawMinMaxGraphBtn(GFXcanvas16* cv, int16_t x, int16_t y,
                                 int16_t w, int16_t h, uint16_t fill, uint16_t fg) {
+#if !SIMUT_TFT_GRAPH
+    (void)cv; (void)x; (void)y; (void)w; (void)h; (void)fill; (void)fg;
+    return;
+#endif
     cv->fillRoundRect(x, y, w, h, 12, fill);
     int cx = x + w / 2;
     int cy = y + h / 2;

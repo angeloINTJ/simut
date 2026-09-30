@@ -88,6 +88,7 @@ MANIFEST_FEATURES = [
     ("web_export_api",      "pico_w_release"),
     ("web_metrics",         "pico_w_release"),
     ("syslog",              "pico_w_release"),
+    ("tft_graph",           "pico_w_release"),
 ]
 
 # Recursos que sao default do simut_config.h (nao vivem no manifesto): desligar =

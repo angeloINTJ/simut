@@ -50,9 +50,9 @@
  "SIMUT_DISPLAY_TFT": {
   "AppManager_Boot.cpp": 4,
   "AppManager_Commands.cpp": 3,
-  "AppManager_Events.cpp": 5,
+  "AppManager_Events.cpp": 2,
   "AppManager_Panel.cpp": 1,
-  "DisplayManager.cpp": 2,
+  "DisplayManager.cpp": 3,
   "DisplayManager.h": 3,
   "DisplayManager_Users.cpp": 1,
   "DisplayManager_i18n.cpp": 2,
@@ -140,6 +140,14 @@
   "AppManager_Commands.cpp": 1,
   "TelemetryManager.cpp": 7,
   "WebManager_Commit.cpp": 1
+ },
+ "SIMUT_TFT_GRAPH": {
+  "AppManager_Commands.cpp": 1,
+  "AppManager_Events.cpp": 3,
+  "DisplayManager.cpp": 3,
+  "DisplayManager.h": 1,
+  "DisplayManager_Touch.cpp": 3,
+  "sensors/SensorDrawing.h": 1
  },
  "SIMUT_THEMES_HEALTH": {
   "Themes.cpp": 1
