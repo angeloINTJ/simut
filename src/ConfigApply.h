@@ -119,6 +119,11 @@ struct CfgSpan { uint16_t off; uint16_t len; uint32_t cls; };
 #define CFG_FIELD(f, c) { (uint16_t)offsetof(SystemConfig, f), \
                           (uint16_t)sizeof(((SystemConfig*)0)->f), (c) }
 
+/** Um membro de um campo-struct, quando as metades do campo são de classes
+ *  diferentes (telCustom: um Content-Type por linha de telemetria). */
+#define CFG_SUBFIELD(f, T, m, c) { (uint16_t)(offsetof(SystemConfig, f) + offsetof(T, m)), \
+                                   (uint16_t)sizeof(((T*)0)->m), (c) }
+
 /** A tabela. Toda a configuração que NÃO está em sensors[] — cada campo uma
  *  linha, na ordem da declaração, para que ler as duas lado a lado seja
  *  suficiente para auditar a cobertura.
@@ -178,6 +183,11 @@ inline const CfgSpan* cfgSpans(size_t& n) {
 		 * novo vale na próxima tela desenhada. Reiniciar aqui derrubaria o
 		 * aparelho por uma configuração que não exige nada disso. */
 		CFG_FIELD(pinAuth,           CFG_USERS),
+		/* v26: um Content-Type por linha, lido pelo envio a cada requisição —
+		 * cada metade é a classe AO VIVO da sua linha. Fora da tabela, caía no
+		 * CFG_UNKNOWN do fail-safe e cada edição do campo reiniciava o aparelho. */
+		CFG_SUBFIELD(telCustom, TelemetryCustomConfig, telCustomContentType,   CFG_TELEMETRY),
+		CFG_SUBFIELD(telCustom, TelemetryCustomConfig, alarmCustomContentType, CFG_ALARMTEL),
 	};
 	n = sizeof(T) / sizeof(T[0]);
 	return T;
@@ -213,7 +223,7 @@ inline const CfgSpan* cfgSensorSpans(size_t& n) {
  *
  * ⚠️ `before` é CONSUMIDO: vira a sonda do fail-safe no lugar, e sai desta
  * função sem valor. Assinatura assim, e não com uma cópia local, porque
- * SystemConfig tem 6.738 bytes (era 4.792 quando isto foi escrito) e isto roda dentro de um handler web — a versão
+ * SystemConfig tem 6.802 bytes (era 4.792 quando isto foi escrito) e isto roda dentro de um handler web — a versão
  * com `SystemConfig probe = before;` na pilha compilava, passava nos testes
  * nativos (onde a pilha é do host) e teria estourado no ferro. O chamador já
  * tem a cópia no heap; ela é o rascunho.

@@ -159,6 +159,11 @@ t_line: {"ts":{TS},"t0_ID":{t0},"u0_ID":{u0}}
 `hwId` do slot (`"tSTM0009":24.06`); se o slot não tem leitura, a chave inteira
 some. É assim que o modo JSON default é reproduzível em custom.
 
+**`Content-Type` do modo custom:** o que estiver em `t_ct` (v26) — por exemplo
+`application/json`, `application/x-ndjson` ou `text/csv`. Vazio = `application/json`.
+Até a v2.7.4 este modo mandava sempre `text/plain`, e um receptor que exige JSON
+recusava o corpo mesmo quando ele era JSON válido.
+
 ### 3.3 O contrato de resposta — a parte que mais importa
 
 > **2xx = entregue. Qualquer outra coisa = não entregue.**
@@ -194,6 +199,7 @@ evento chegar em segundos, enquanto a telemetria comum anda no ritmo do lote.
 | retentativa | a cada **15 s** enquanto houver fila |
 | confirmação | **2xx esvazia a fila**; qualquer outra coisa mantém e repete |
 | formato | `a_mode`: 0 JSON, 1 CSV, 2 custom (independente do `t_mode`) |
+| `Content-Type` no custom | `a_ct` (v26); vazio = `application/json` |
 
 **Se `a_path` == `t_path`, as duas linhas chegam no mesmo endpoint.** É a
 configuração do laboratório hoje, e foi medida: num mesmo dreno chegaram 239

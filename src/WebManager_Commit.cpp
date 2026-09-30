@@ -9,6 +9,7 @@
 #include "WebManager.h"
 #include "ConfigApply.h"
 #include "CorsOrigin.h"   /* isValidCorsOrigin — a mesma regra do CLI e do boot */
+#include "TelContentType.h" /* isValidMediaType — o Content-Type vira header HTTP */
 #include "ParseFloat.h"
 #include "WebJsonSlice.h"
 #include "WebCommitSections.h"
@@ -894,6 +895,19 @@ void WebManager::handleApiCommitAll( ) {
 				else rejectField(k);
 			};
 
+			/* v26 `t_ct` / `a_ct`: the Content-Type of each line's custom mode.
+			 * Stricter than setStr on purpose — the value becomes an HTTP header
+			 * verbatim, and isValidCfgString would let UTF-8 and a lone "json"
+			 * through. Trimmed; empty clears it (the sender then uses
+			 * "application/json"); anything else must be a media type. */
+			auto setContentType = [&](const char* k, char* dst, size_t dstSize) {
+				if (!jsonValueIsString(sys, k)) { rejectField(k); return; }
+				String v = getStr(k);
+				v.trim( );
+				if (v.length( ) == 0 || isValidMediaType(v.c_str( ), dstSize - 1)) safeCopy(dst, v.c_str( ), dstSize);
+				else rejectField(k);
+			};
+
 			/* `cors`: a origem que o gerenciador web usa para falar com este
 			 * aparelho. Entra pela seção `sys` como os outros campos de
 			 * configuração — e não pela SystemConfig, que é struct binária
@@ -1066,6 +1080,7 @@ void WebManager::handleApiCommitAll( ) {
 			if (has("t_glob")) setStr("t_glob", cfg.telGlobalTemplate, sizeof(cfg.telGlobalTemplate));
 			if (has("t_line")) setStr("t_line", cfg.telLineTemplate, sizeof(cfg.telLineTemplate));
 			if (has("t_sep")) setStr("t_sep", cfg.telLineSeparator, sizeof(cfg.telLineSeparator));
+			if (has("t_ct")) setContentType("t_ct", cfg.telCustom.telCustomContentType, sizeof(cfg.telCustom.telCustomContentType));
 			/* 2ª linha (alarmes, v21): mesmos validadores da linha convencional.
 			 * a_qmax usa as constantes do AlarmTelConfig (1..64). */
 			fl = readFlag("a_en"); if (fl >= 0) cfg.alarmTel.enabled = (fl == 1);
@@ -1075,6 +1090,7 @@ void WebManager::handleApiCommitAll( ) {
 			if (has("a_glob")) setStr("a_glob", cfg.alarmTel.globalTemplate, sizeof(cfg.alarmTel.globalTemplate));
 			if (has("a_line")) setStr("a_line", cfg.alarmTel.lineTemplate, sizeof(cfg.alarmTel.lineTemplate));
 			if (has("a_sep")) setStr("a_sep", cfg.alarmTel.lineSeparator, sizeof(cfg.alarmTel.lineSeparator));
+			if (has("a_ct")) setContentType("a_ct", cfg.telCustom.alarmCustomContentType, sizeof(cfg.telCustom.alarmCustomContentType));
 			/* NTP enable/disable flag (overlay NetworkTimeData). */
 			fl = readFlag("ntp_enabled"); if (fl >= 0 && !dry) _storageRef->setNtpEnabled(fl == 1);
 			if (has("h_int")) { int v; if (parseIntStrict(getNum("h_int"), v) && isInRange(v, 1, 1440)) { if (!dry) _storageRef->setHistoryIntervalMin((uint16_t)v); } else rejectField("h_int"); }

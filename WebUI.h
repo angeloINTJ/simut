@@ -4917,6 +4917,9 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
                         <label data-i18n="cfg_tpl3">3. Separator</label>
                         <input type="text" id="t_sep" name="t_sep" maxlength="7" placeholder="," oninput="renderPreview()">
+
+                        <label data-i18n="cfg_ct">Content-Type Header</label>
+                        <input type="text" id="t_ct" name="t_ct" maxlength="31" placeholder="application/json" oninput="renderPreview()">
                     </div>
 
                     <div style="margin-top:15px;">
@@ -4983,6 +4986,9 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
                         <label data-i18n="cfg_tpl3">3. Separator</label>
                         <input type="text" id="a_sep" name="a_sep" maxlength="7" placeholder="," oninput="renderAlarmPreview()">
+
+                        <label data-i18n="cfg_ct">Content-Type Header</label>
+                        <input type="text" id="a_ct" name="a_ct" maxlength="31" placeholder="application/json" oninput="renderAlarmPreview()">
                     </div>
 
                     <div style="margin-top:15px;">
@@ -5324,6 +5330,7 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             document.getElementById('t_glob').value = val('t_glob', '');
             document.getElementById('t_line').value = val('t_line', '');
             document.getElementById('t_sep').value = val('t_sep', '');
+            document.getElementById('t_ct').value = val('t_ct', '');
             /* 2ª linha de telemetria (alarmes) */
             document.getElementById('a_en').checked = !!val('a_en', false);
             document.getElementById('a_mode').value = val('a_mode', 0);
@@ -5332,6 +5339,7 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             document.getElementById('a_glob').value = val('a_glob', '');
             document.getElementById('a_line').value = val('a_line', '');
             document.getElementById('a_sep').value = val('a_sep', '');
+            document.getElementById('a_ct').value = val('a_ct', '');
             const _apSpan = document.getElementById('a_pending_span');
             if (_apSpan) _apSpan.textContent = val('a_pending', 0);
             if (d.serial) _devSerial = d.serial;

@@ -305,6 +305,10 @@ void WebManager::handleApiConfig( ) {
 	if (!safeSend(jsonEscape(cfg.telLineTemplate).c_str( ))) return;
 	safeSend("\",\"t_sep\":\"");
 	if (!safeSend(jsonEscape(cfg.telLineSeparator).c_str( ))) return;
+	/* v26: without this the page loaded the field empty every time — a value
+	 * the device was sending looked like one that had never been saved. */
+	safeSend("\",\"t_ct\":\"");
+	if (!safeSend(jsonEscape(cfg.telCustom.telCustomContentType).c_str( ))) return;
 
 	/* ── 2ª linha de telemetria (alarmes, v21) ── */
 	{
@@ -320,6 +324,8 @@ void WebManager::handleApiConfig( ) {
 		if (!safeSend(jsonEscape(cfg.alarmTel.lineTemplate).c_str( ))) return;
 		safeSend("\",\"a_sep\":\"");
 		if (!safeSend(jsonEscape(cfg.alarmTel.lineSeparator).c_str( ))) return;
+		safeSend("\",\"a_ct\":\"");
+		if (!safeSend(jsonEscape(cfg.telCustom.alarmCustomContentType).c_str( ))) return;
 	}
 
 	safeSend("\",\"serial\":\"");

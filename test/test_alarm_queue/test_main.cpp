@@ -727,6 +727,27 @@ void test_classify_dead_fields_do_not_reboot(void) {
     TEST_ASSERT_FALSE(configNeedsReboot(classifyConfigChanges(sc, x)));
 }
 
+/* v26: the custom Content-Type is read by the sender on every upload — the
+ * header is built per request from the live config — so an edit applies at the
+ * next send: CFG_TELEMETRY for the data line, CFG_ALARMTEL for the alarm line.
+ * Left out of the span table it fell to CFG_UNKNOWN, the fail-safe, and every
+ * edit of the field rebooted the device. */
+void test_classify_content_type_is_live(void) {
+    SystemConfig base; memset(&base, 0, sizeof(base));
+    SystemConfig x;
+
+    x = base; strcpy(x.telCustom.telCustomContentType, "text/csv");
+    expectOnly(base, x, CFG_TELEMETRY);
+    x = base; strcpy(x.telCustom.alarmCustomContentType, "application/x-ndjson");
+    expectOnly(base, x, CFG_ALARMTEL);
+
+    x = base;
+    strcpy(x.telCustom.telCustomContentType, "text/csv");
+    strcpy(x.telCustom.alarmCustomContentType, "text/csv");
+    SystemConfig sc = base;
+    TEST_ASSERT_FALSE(configNeedsReboot(classifyConfigChanges(sc, x)));
+}
+
 void test_classify_reports_nothing_when_nothing_changed(void) {
     SystemConfig a; memset(&a, 0, sizeof(a));
     SystemConfig b = a;
@@ -855,6 +876,10 @@ static void test_cfgmig_sizes_are_literals_and_current_is_not_legacy(void) {
     TEST_ASSERT_EQUAL_INT(CFG_LEGACY_V22, configLegacyKind(4732));
     TEST_ASSERT_EQUAL_INT(CFG_LEGACY_V23, configLegacyKind(4796));
     TEST_ASSERT_EQUAL_INT(CFG_LEGACY_V24, configLegacyKind(6734));
+    TEST_ASSERT_EQUAL_INT(CFG_LEGACY_V25, configLegacyKind(6742));
+    /* The CURRENT schema is never a legacy kind: attemptLoad( ) reads it by
+     * size before it asks configLegacyKind( ), and the day v27 lands, v26 joins
+     * the table above. */
     TEST_ASSERT_EQUAL_INT(CFG_LEGACY_NONE, configLegacyKind(sizeof(SystemConfig) + 4));
     TEST_ASSERT_EQUAL_INT(CFG_LEGACY_NONE, configLegacyKind(4795));
     TEST_ASSERT_EQUAL_INT(CFG_LEGACY_NONE, configLegacyKind(0));
@@ -863,7 +888,9 @@ static void test_cfgmig_sizes_are_literals_and_current_is_not_legacy(void) {
     TEST_ASSERT_EQUAL_UINT(4728, CFG_V22_BLOB);
     TEST_ASSERT_EQUAL_UINT(4792, CFG_V23_BLOB);
     TEST_ASSERT_EQUAL_UINT(6730, CFG_V24_BLOB);
-    TEST_ASSERT_EQUAL_UINT(6738, sizeof(SystemConfig));
+    TEST_ASSERT_EQUAL_UINT(6738, CFG_V25_BLOB);
+    TEST_ASSERT_EQUAL_UINT(6802, CFG_V26_BLOB);
+    TEST_ASSERT_EQUAL_UINT(6802, sizeof(SystemConfig));
     TEST_ASSERT_EQUAL_UINT(70, sizeof(UserAccount));
     TEST_ASSERT_EQUAL_UINT(32, MAX_USERS);
 }
@@ -923,6 +950,127 @@ static void test_cfgmig_v24_grows_without_moving_anything(void) {
     blob[4] = 24;
     TEST_ASSERT_FALSE(configMigrateLegacy(blob, sizeof(blob) - 1, CFG_LEGACY_V24, out));
     TEST_ASSERT_FALSE(configMigrateLegacy(blob, sizeof(blob), CFG_LEGACY_V23, out));
+}
+
+/* v25 -> v26: the 2.7.4 -> next upgrade, which every device in the field takes.
+ * v25 already IS the 32 x 70 account layout, so its migration is the same
+ * straight copy as v24's: every byte keeps its offset and the telCustom tail
+ * arrives zero, which the sender reads as "application/json".
+ *
+ * The first cut of v26 sent this kind down the v20..v23 walk — five accounts of
+ * 62 bytes, then the tail from byte 478. Measured on the host 2026-09-30: the
+ * head survived, and account 0 by the accident that a legacy record is the
+ * first 62 bytes of a v24 one; accounts 1..31, telemetry, every sensor slot,
+ * reserved[], alarmTel, maint and the PIN policy came back empty — with the
+ * function still answering true, so nothing downstream could tell. Account 1
+ * and the far end of the tail are the markers that caught it. */
+static void test_cfgmig_v25_grows_without_moving_anything(void) {
+    static SystemConfig src;
+    memset(&src, 0, sizeof(src));
+    src.magic = CONFIG_MAGIC;
+    src.version = 25;
+    strcpy(src.deviceName, "rig-name");
+    src.users[0].active = true;
+    strcpy(src.users[0].username, "admin");
+    src.users[1].active = true;                        /* the first casualty */
+    strcpy(src.users[1].username, "viewer");
+    src.users[1].permissions = 0x0003;
+    src.users[31].active = true;
+    strcpy(src.users[31].username, "last");
+    src.users[31].pinHash[0] = 0x5A;
+    strcpy(src.telServer, "192.168.3.206");
+    src.telPort = 8080;
+    src.sensors[0].active = true;
+    strcpy(src.sensors[0].hwId, "STM0009");
+    strcpy(src.sensors[MAX_SENSORS - 1].friendlyName, "last-slot");
+    src.reserved[63] = 0xA5;
+    src.alarmTel.queueMax = 7;
+    src.maint.until[15] = 0x12345678;
+    src.pinAuth.pinSalt[7] = 0xC3;
+    src.pinAuth.pinMinLen = 6; src.pinAuth.pinKeypad = 2; src.pinAuth.pinAlphabet = 1;
+    src.pinAuth.pinMustChange = 0x80000001u;
+    /* the bytes a v25 file does NOT have */
+    strcpy(src.telCustom.telCustomContentType, "text/csv");
+    strcpy(src.telCustom.alarmCustomContentType, "text/csv");
+
+    static uint8_t blob[CFG_V25_BLOB];
+    memcpy(blob, &src, CFG_V25_BLOB);   /* truncates exactly at telCustom */
+
+    static SystemConfig out;
+    memset(&out, 0xEE, sizeof(out));
+    TEST_ASSERT_TRUE(configMigrateLegacy(blob, sizeof(blob), CFG_LEGACY_V25, out));
+
+    TEST_ASSERT_EQUAL_UINT32(CONFIG_MAGIC, out.magic);
+    TEST_ASSERT_EQUAL_UINT16(25, out.version);      /* the caller stamps 26 */
+    TEST_ASSERT_EQUAL_STRING("rig-name", out.deviceName);
+    TEST_ASSERT_EQUAL_STRING("admin", out.users[0].username);
+    TEST_ASSERT_TRUE(out.users[1].active);
+    TEST_ASSERT_EQUAL_STRING("viewer", out.users[1].username);
+    TEST_ASSERT_EQUAL_UINT16(0x0003, out.users[1].permissions);
+    TEST_ASSERT_TRUE(out.users[31].active);
+    TEST_ASSERT_EQUAL_STRING("last", out.users[31].username);
+    TEST_ASSERT_EQUAL_UINT8(0x5A, out.users[31].pinHash[0]);
+    TEST_ASSERT_EQUAL_STRING("192.168.3.206", out.telServer);
+    TEST_ASSERT_EQUAL_UINT16(8080, out.telPort);
+    TEST_ASSERT_TRUE(out.sensors[0].active);
+    TEST_ASSERT_EQUAL_STRING("STM0009", out.sensors[0].hwId);
+    TEST_ASSERT_EQUAL_STRING("last-slot", out.sensors[MAX_SENSORS - 1].friendlyName);
+    TEST_ASSERT_EQUAL_UINT8(0xA5, out.reserved[63]);
+    TEST_ASSERT_EQUAL_UINT8(7, out.alarmTel.queueMax);
+    TEST_ASSERT_EQUAL_UINT32(0x12345678u, out.maint.until[15]);
+    TEST_ASSERT_EQUAL_UINT8(0xC3, out.pinAuth.pinSalt[7]);
+    /* a v25 file HAS a policy: it is carried, not reset */
+    TEST_ASSERT_EQUAL_UINT8(6, out.pinAuth.pinMinLen);
+    TEST_ASSERT_EQUAL_UINT8(2, out.pinAuth.pinKeypad);
+    TEST_ASSERT_EQUAL_UINT8(1, out.pinAuth.pinAlphabet);
+    TEST_ASSERT_EQUAL_UINT32(0x80000001u, out.pinAuth.pinMustChange);
+    /* the tail the old file did not carry comes back empty */
+    const uint8_t* tail = (const uint8_t*)&out.telCustom;
+    for (size_t k = 0; k < sizeof(out.telCustom); k++) TEST_ASSERT_EQUAL_UINT8(0, tail[k]);
+
+    /* wrong version stamp, wrong length, wrong kind: all refused */
+    blob[4] = 24;
+    TEST_ASSERT_FALSE(configMigrateLegacy(blob, sizeof(blob), CFG_LEGACY_V25, out));
+    blob[4] = 26;
+    TEST_ASSERT_FALSE(configMigrateLegacy(blob, sizeof(blob), CFG_LEGACY_V25, out));
+    blob[4] = 25;
+    TEST_ASSERT_FALSE(configMigrateLegacy(blob, sizeof(blob) - 1, CFG_LEGACY_V25, out));
+    TEST_ASSERT_FALSE(configMigrateLegacy(blob, sizeof(blob), CFG_LEGACY_V24, out));
+}
+
+/* Memory safety, for every kind. The mis-routed v25 of the first cut of v26 did
+ * not just lose fields: the five-account walk copies `blobLen - 478` bytes to
+ * telServer (offset 2408), and for a 6738-byte blob that is 6260 bytes into a
+ * 6802-byte struct — 1866 bytes past its end. On the device the destination is
+ * a heap object allocated during boot. The field checks above could not see
+ * that; a guard region right after the struct can. Every kind, filled with a
+ * pattern that is not zero, must leave the guard untouched. */
+static void test_cfgmig_never_writes_past_the_struct(void) {
+    static struct { SystemConfig cfg; uint8_t guard[2048]; } box;
+    static uint8_t blob[CFG_V25_BLOB];      /* the largest legacy blob */
+    const struct { CfgLegacyKind kind; uint16_t ver; } kinds[] = {
+        { CFG_LEGACY_V20, 20 }, { CFG_LEGACY_V22, 22 }, { CFG_LEGACY_V23, 23 },
+        { CFG_LEGACY_V24, 24 }, { CFG_LEGACY_V25, 25 },
+    };
+    for (const auto& k : kinds) {
+        const size_t len = configLegacyBlobLen(k.kind);
+        TEST_ASSERT_TRUE(len > 0 && len <= sizeof(blob));
+        memset(blob, 0x5C, len);
+        const uint32_t magic = CONFIG_MAGIC;
+        memcpy(blob, &magic, 4);
+        blob[4] = (uint8_t)(k.ver & 0xFF);
+        blob[5] = (uint8_t)(k.ver >> 8);
+        memset(box.guard, 0xA5, sizeof(box.guard));
+        TEST_ASSERT_TRUE(configMigrateLegacy(blob, len, k.kind, box.cfg));
+        size_t past = 0;                       /* how far the damage reaches */
+        for (size_t g = 0; g < sizeof(box.guard); g++)
+            if (box.guard[g] != 0xA5) past = g + 1;
+        if (past) {
+            char msg[64];
+            snprintf(msg, sizeof(msg), "v%u wrote %u B past the struct", (unsigned)k.ver, (unsigned)past);
+            TEST_FAIL_MESSAGE(msg);
+        }
+    }
 }
 
 static void test_cfgmig_v23_every_segment_lands(void) {
@@ -1052,11 +1200,14 @@ int main(int argc, char** argv) {
     RUN_TEST(test_classify_consumes_its_before);
     RUN_TEST(test_classify_names_each_group_alone);
     RUN_TEST(test_classify_dead_fields_do_not_reboot);
+    RUN_TEST(test_classify_content_type_is_live);
     RUN_TEST(test_classify_reports_nothing_when_nothing_changed);
     RUN_TEST(test_classify_combines_groups);
     RUN_TEST(test_reboot_classes_are_exactly_the_ones_that_reboot);
     RUN_TEST(test_cfgmig_sizes_are_literals_and_current_is_not_legacy);
     RUN_TEST(test_cfgmig_v24_grows_without_moving_anything);
+    RUN_TEST(test_cfgmig_v25_grows_without_moving_anything);
+    RUN_TEST(test_cfgmig_never_writes_past_the_struct);
     RUN_TEST(test_cfgmig_v23_every_segment_lands);
     RUN_TEST(test_cfgmig_v22_and_v20_stop_where_their_tails_stop);
     RUN_TEST(test_cfgmig_refuses_wrong_magic_version_or_length);

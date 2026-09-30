@@ -255,12 +255,15 @@ Atenção: um campo que ninguém classificou força reinício por segurança (`u
 `name` `tz` `log` `res` `s_int` `h_int` `cors` `ntp_enabled`
 · **política de PIN do painel (v25)** `pin_min` `pin_kb` `pin_alpha`
 · **telemetria** `t_srv` `t_port` `t_path` `t_key` `t_int` `t_bat` `t_mode`
-`t_glob` `t_line` `t_sep` `t_sec` `t_transport`
+`t_glob` `t_line` `t_sep` `t_ct` `t_sec` `t_transport`
 · **MQTT** `m_topic` `m_user` `m_pass` `m_qos` `m_retain` `m_cid` `m_ka` `m_had`
-· **2ª linha (alarmes)** `a_en` `a_mode` `a_qmax` `a_path` `a_glob` `a_line` `a_sep`
+· **2ª linha (alarmes)** `a_en` `a_mode` `a_qmax` `a_path` `a_glob` `a_line` `a_sep` `a_ct`
 · **syslog** `slog_en` `slog_srv` `slog_port` `slog_lvl`
 
-Atenção: `a_line`/`a_glob`/`a_sep` ficam em **`sys`**, não em `alarms`.
+Atenção: `a_line`/`a_glob`/`a_sep`/`a_ct` ficam em **`sys`**, não em `alarms`.
+`t_ct`/`a_ct` (v26): o `Content-Type` do formato custom de cada linha — um media type
+(`tipo/subtipo`, parâmetros opcionais), até 31 caracteres ASCII visíveis. Vazio = `application/json`;
+qualquer outra coisa é recusada com o campo em `rejected`.
 Atenção: `t_int` é **lote mínimo em registros**, não milissegundos (config v22+). 0 desliga.
 Atenção: `m_qos` só aceita 0 — o transporte não entrega QoS 1/2.
 Atenção: `pin_min`/`pin_kb`/`pin_alpha` viajam como **conjunto**: os três se

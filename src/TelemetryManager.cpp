@@ -19,6 +19,14 @@
 #include "HaDiscovery.h"
 #include "AlarmPayload.h" /* formatadores da 2ª linha (header-only, testáveis) */
 #include "TelemetryCursor.h" /* what the cursor may advance to (header-only, testable) */
+#include "TelContentType.h" /* the Content-Type each line sends (header-only, testable) */
+
+/* TelContentType.h mirrors TelMode instead of including it (its native suite
+ * cannot include the records header); this is the pin that keeps the mirror
+ * honest. */
+static_assert(TEL_CT_MODE_JSON == TEL_MODE_JSON && TEL_CT_MODE_CSV == TEL_MODE_CSV &&
+              TEL_CT_MODE_CUSTOM == TEL_MODE_CUSTOM,
+              "TelContentType.h's mode values drifted from TelMode in SystemDefs_Records.h");
 #include "TouchPriority.h"
 #include "BuildIdentity.h"
 #include "sensors/SensorChannelTable.h"
@@ -943,9 +951,14 @@ bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
  int code = 0;
 
  if (connected) {
- if (cfg.telMode == TEL_MODE_JSON) http.addHeader("Content-Type", "application/json");
- else if (cfg.telMode == TEL_MODE_CSV) http.addHeader("Content-Type", "text/csv");
- else http.addHeader("Content-Type", "text/plain");
+ /* v26: the custom mode sends the operator's Content-Type (it used to fall
+  * into "text/plain", which a JSON endpoint refuses). Checked again here, at
+  * the sink — see TelContentType.h for why the commit check is not enough. */
+ char ctBuf[TEL_CT_MAX + 1];
+ http.addHeader("Content-Type",
+                telContentTypeFor(cfg.telMode, cfg.telCustom.telCustomContentType,
+                                  sizeof(cfg.telCustom.telCustomContentType),
+                                  ctBuf, sizeof(ctBuf)));
 
  String tokenStr = String(cfg.telApiKey);
  tokenStr.trim( );
@@ -2673,9 +2686,12 @@ bool TelemetryManager::attemptAlarmHttpUpload(String& payload, std::vector<Alarm
 	int code = 0;
 
 	if (connected) {
-		if (cfg.alarmTel.mode == TEL_MODE_JSON) http.addHeader("Content-Type", "application/json");
-		else if (cfg.alarmTel.mode == TEL_MODE_CSV) http.addHeader("Content-Type", "text/csv");
-		else http.addHeader("Content-Type", "text/plain");
+		/* v26: same rule as the data line, with the alarm line's own field. */
+		char ctBuf[TEL_CT_MAX + 1];
+		http.addHeader("Content-Type",
+		               telContentTypeFor(cfg.alarmTel.mode, cfg.telCustom.alarmCustomContentType,
+		                                 sizeof(cfg.telCustom.alarmCustomContentType),
+		                                 ctBuf, sizeof(ctBuf)));
 		addTelemetryAuthHeader(http, cfg);
 		addIdentityHeaders(http, _storageRef);
 
