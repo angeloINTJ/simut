@@ -845,7 +845,14 @@ private:
 	void drawAlarmAction( );
 
 	UiMode _uiMode = MODE_DASHBOARD;
+#if SIMUT_DISPLAY_TFT
+	/* 5,872 B, the largest member by far, and only the touch panel's graph
+	 * reads or writes it (DisplayManager_Graph/Touch, AppManager_Graph — all
+	 * TFT-only units). Until 2026-09-30 it sat in the alpha and the headless
+	 * Air object too: 5.9 KB of heap for a graph neither image can draw.
+	 * sizeof(DisplayManager): alpha 8,552 -> 2,676 B, Air 8,192 -> 2,320 B. */
 	GraphDataPackage _graphData;
+#endif
 	float _currentMinHum;
 	float _currentMaxHum;
 	uint8_t _detailPage = 0; /**< 0 = temperature, 1 = humidity, 2 = pressure */

@@ -53,7 +53,7 @@
   "AppManager_Events.cpp": 5,
   "AppManager_Panel.cpp": 1,
   "DisplayManager.cpp": 2,
-  "DisplayManager.h": 3,
+  "DisplayManager.h": 4,
   "DisplayManager_Users.cpp": 1,
   "DisplayManager_i18n.cpp": 2,
   "SystemDefs_Limits.h": 1,
