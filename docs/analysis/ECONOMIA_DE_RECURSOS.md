@@ -31,7 +31,7 @@ a variante é o mesmo perfil com só ele desligado, derivada pelo modelo
 | Recurso | Base | Flash devolvido | RAM estática devolvida |
 |---|---|---:|---:|
 | `bluetooth` | `pico_w_alpha` | 140 132 B | 19 348 B |
-| `tel_tls` (cliente TLS da telemetria, 2026-09-30) | `pico_w_air` | 67 888 B | 16 B |
+| `tel_tls` (cliente TLS da telemetria, 2026-09-30) | `pico_w_air` | 67 936 B | 16 B |
 | `cli_full` | `pico_w_test` | 48 232 B | 0 B |
 | `web_https` (TLS) | `pico_w_release` | 24 520 B | 24 B |
 | `web_history` (página de histórico, 2026-09-30) | `pico_w_air` | 21 768 B | 0 B |
@@ -121,6 +121,15 @@ antes dela. É por isso que o TLS ficou cercado dentro dos transportes, onde
 mora, e não foi movido para uma unidade de tradução própria: movê-lo mudaria
 os caminhos HTTPS e MQTTS que levaram semanas de bancada para assentar.
 
+**A página de telemetria segue a chave (2026-09-30).** Sem o cliente TLS, ela
+perde a chave de TLS e o aviso de certificado, e ganha — só nessa imagem,
+por um bloco `@IF !tel_tls` — um aviso para a configuração guardada que ainda
+pede criptografia: nada é enviado até a página ser salva, e ela já deixa
+`t_sec=0` pendente para isso. O SIMUT sem a chave encolhe mais 136 B com o
+corte. O Alpha e o Air, 0 B: a imagem com Bluetooth anda em degraus de 4 KB, e
+o corte cabe no degrau (o Air sem TLS mede os mesmos 936 272 B antes e depois
+dele). O piso do Air, medido de novo, é 67 936 B — a base dele mudou no #200.
+
 ### O MQTT e o Home Assistant (2026-09-30)
 
 O segundo item da lista abaixo, com o mesmo desenho do TLS: `SIMUT_TEL_MQTT`
@@ -148,6 +157,13 @@ faria POST do lote na porta do broker. O boot registra `SYS_TEL_FAIL` com
 e contam a falha; o `commit_all` aceita `t_transport=0` e recusa `1`, para que
 uma config restaurada de uma imagem com MQTT volte a HTTP. Com a chave ligada,
 as seis imagens saem byte a byte idênticas.
+
+**A página de telemetria segue a chave (2026-09-30).** Sem o MQTT, somem o
+seletor de transporte e os campos do MQTT — tópico, cliente, usuário, senha,
+QoS, keep-alive, retain e o Discovery —, ficam os do HTTP, e um aviso só dessa
+imagem aparece quando a configuração guardada pede MQTT, com `t_transport=0` já
+pendente. O SIMUT encolhe mais 448 B; o Alpha e o Air, 0 B, pelo mesmo degrau
+de 4 KB.
 
 ### A interface web, peça a peça (2026-09-30)
 

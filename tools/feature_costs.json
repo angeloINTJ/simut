@@ -16,7 +16,11 @@
   "measured_at": {
     "date": "2026-09-30",
     "src_commit": "c17eb52",
-    "src_dirty": false
+    "src_dirty": false,
+    "partial": [
+      "tel_mqtt",
+      "tel_tls"
+    ]
   },
   "products": {
     "pico_w_release": {
@@ -76,13 +80,13 @@
           "ram": 116736
         },
         "tel_tls": {
-          "used": 998196,
-          "bin": 1010228,
+          "used": 998060,
+          "bin": 1010092,
           "ram": 116956
         },
         "tel_mqtt": {
-          "used": 990636,
-          "bin": 1002668,
+          "used": 990188,
+          "bin": 1002220,
           "ram": 116956
         },
         "web_history": {

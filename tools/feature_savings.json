@@ -46,7 +46,7 @@
   },
   "tel_tls": {
     "base": "pico_w_air",
-    "flash_saved": 67888,
+    "flash_saved": 67936,
     "ram_saved": 16
   },
   "tel_mqtt": {
