@@ -34,17 +34,18 @@ a variante é o mesmo perfil com só ele desligado, derivada pelo modelo
 | `tel_tls` (cliente TLS da telemetria, 2026-09-30) | `pico_w_air` | 67 888 B | 16 B |
 | `cli_full` | `pico_w_test` | 48 232 B | 0 B |
 | `web_https` (TLS) | `pico_w_release` | 24 520 B | 24 B |
+| `web_history` (página de histórico, 2026-09-30) | `pico_w_air` | 21 768 B | 0 B |
+| `tft_graph` (gráfico e calendário do painel, 2026-09-30) | `pico_w_release` | 20 312 B | 2 236 B (heap: 5 872 B) |
 | `sensor_bme280` | `pico_w_release` | 17 724 B | 220 B |
 | `mdns` | `pico_w_release` | 16 576 B | 168 B |
+| `web_export_api` (`/api/history_multi` e `.simx`, 2026-09-30) | `pico_w_release` | 12 344 B | 2 052 B |
+| `tel_mqtt` (MQTT e Home Assistant, 2026-09-30) | `pico_w_air` | 7 704 B | 0 B |
 | `sensor_ds18b20` | `pico_w_release` | 5 432 B | 64 B |
 | `sound_buzzer` | `pico_w_release` | 5 008 B | 0 B |
-| `tel_mqtt` (MQTT e Home Assistant, 2026-09-30) | `pico_w_air` | 7 704 B | 0 B |
-| `web_history` (página de histórico, 2026-09-30) | `pico_w_air` | 21 768 B | 0 B |
-| `web_export_api` (`/api/history_multi` e `.simx`, 2026-09-30) | `pico_w_release` | 12 344 B | 2 052 B |
 | `web_metrics` (`/metrics`, 2026-09-30) | `pico_w_release` | 4 912 B | 0 B |
-| `syslog` (2026-09-30) | `pico_w_release` | 1 768 B | 0 B (heap: 2 135 B) |
 | `sensor_dht22` | `pico_w_release` | 3 400 B | 0 B |
 | `concurrency_asserts` | `pico_w_asserts` | 2 176 B | 0 B |
+| `syslog` (2026-09-30) | `pico_w_release` | 1 768 B | 0 B (heap: 2 135 B) |
 | `license_stub` | `pico_w_test` | −1 728 B | 0 B |
 
 > **Cada número vale para a sua base, não para todo produto.** A matriz do
@@ -194,6 +195,39 @@ Agora é o hash **desses dois**, como servidos. Com o tag fixado no valor que a
 a única diferença delas é o carimbo, e daqui em diante uma edição só de página
 não muda mais a imagem.
 
+### O gráfico do painel (2026-09-30)
+
+`SIMUT_TFT_GRAPH` segue o TFT no `simut_config.h`: o Alpha e o Air são 0 sem
+dizer, e `-DSIMUT_TFT_GRAPH=1` sem o TFT para num `#error`. Isso trouxe o
+primeiro ganho, que não dependia de chave nenhuma: o `_graphData` (5 872 B, o
+maior membro do `DisplayManager`) vivia no objeto do Alpha e do Air, no heap,
+para um gráfico que nenhuma das duas desenha — `sizeof(DisplayManager)` caiu de
+8 552 para 2 676 B no Alpha e de 8 192 para 2 320 B no Air. O Air é quem sente:
+o lote da telemetria dele é cortado pelo heap antes do `t_bat`.
+
+Numa build TFT, a chave desligada tira as três unidades do gráfico, o botão da
+faixa de min/max (um toque ali cai no liga/desliga do min/max), as zonas de
+toque dos dois cartões que o abrem, os ramos de toque e o despacho de desenho
+das telas de gráfico, detalhe e calendário, e o `_graphData` também. O
+`screen gra` da CLI responde `?screen`, como o `screen pin` sem o PIN (o Air,
+que também não tem gráfico, respondia OK sem tela nenhuma). O SIMUT sem o
+gráfico: 999 356 → 979 044 B de flash (−20 312) e 2 236 B de RAM estática — os
+cinco vetores de coordenadas da curva (400 B cada, `static` no
+`drawGraphScreen`) e as linhas da tela de detalhe —, mais os 5 872 B de heap.
+
+É também o que abre espaço para a CLI completa no SIMUT: sozinha, ela estoura o
+flash dele por 15 060 B (a inversão `cli_full` do SIMUT na matriz); sem o
+gráfico, cabe — 1 027 108 B, compilado uma vez em 2026-09-30. A soma das
+inversões não diz isso, porque uma das parcelas não linka: por isso a
+combinação não entrou nas conferências do `measure_savings.py`, que medem o
+erro da soma.
+
+As três cercas que o laço de eventos já tinha em volta do
+`renderGraphOptimized` passaram a ser do gráfico, e o sinal de "desenhando o
+gráfico" agora é baixado fora delas: com a cerca em volta dos dois, um evento
+perdido deixaria o sinal de pé e pararia todos os eventos da interface. Com a
+chave ligada, as quatro imagens com painel saem byte a byte idênticas.
+
 ## O que ainda não tem chave — o rastreio de 2026-09-30
 
 A tabela acima mede o que já se desliga. Esta seção olha o contrário: **o que
@@ -209,7 +243,6 @@ piso do `feature_savings.json`.
 
 | Candidato | O que sairia | SIMUT | Air | Observação |
 |---|---|---:|---:|---|
-| Gráfico e calendário do painel | `DisplayManager_Graph`, `AppManager_Graph`, `DisplayManager_Calendar` | ~16,5 KB | — | só o TFT |
 | Identidade no painel | `DisplayManager_Users`: teclado do PIN, sessão, menu de alarme por conta, janela de manutenção, contas | ~15 KB | — | só o TFT. Só a administração de contas são ~3 KB; o resto é o PIN do painel (`SIMUT_PANEL_PIN`), e desligá-lo pede decidir o que um painel sem PIN deixa fazer — aberto ou só leitura (R-D5, decisão de produto) |
 | Curvas de calibração | `/api/calib`, o motor das curvas | ~8 KB | ~8 KB | não há offset separado: o offset simples **é** uma curva de 1 ponto, e o `calib.csv` também guarda a identidade dos DS18B20. Sem a chave, a leitura sai crua |
 | Backup e restauração | validar e aplicar o `.bkp` | ~3,5 KB | ~3,5 KB | o CRC32 do `backup.cpp` fica (o estágio da OTA usa), e a atualização pela página chama `/api/backup` antes de gravar |
@@ -224,11 +257,12 @@ piso do `feature_savings.json`.
 | buffers da OTA | `ota/applier` 8 620, `ota/restore` 4 500, `ota/validation` 4 128 | 17 248 | `.bss` | usados uma vez por atualização ou restauração |
 | objeto `StorageManager` | `AppManager` | 11 684 | heap | núcleo (histórico) |
 | objeto `WebManager` | `AppManager` | 10 652 | heap | 8 KiB de buffer de upload |
-| objeto `DisplayManager` | `AppManager` | 8 576 (Alpha 8 552, Air 8 192) | heap | no Alpha e no Air carrega o `_graphData` do gráfico (~5,7 KB) e buffers de PIN que essas imagens nunca tocam |
+| objeto `DisplayManager` | `AppManager` | 8 576 (Alpha 2 676, Air 2 320) | heap | até 2026-09-30 o Alpha e o Air carregavam o `_graphData` do gráfico (5 872 B), que nenhuma das duas desenha: 8 552 e 8 192 B. Sobram ~2 KB de membros só-TFT nelas |
 | pilha do Core 1 | `DisplayManager.cpp` | 8 192 | `.bss` | segue o TFT |
 | `/api/calib` | `WebManager_Calib` | 3 640 | `.bss` | segue as curvas de calibração |
 | pacote de idioma | `DisplayManager_LangParser` | 2 785 | `.bss` | segue os pacotes |
 | objeto `TelemetryManager` | `AppManager` | 2 272 | heap | a fila de alarmes de 2 KiB existe com a linha desligada |
+| coordenadas do gráfico | `DisplayManager_Graph` | 2 260 | `.bss` | chave `tft_graph` (2026-09-30): só nas imagens com painel; a variante sem o gráfico mede −2 236 B de RAM usada |
 | objeto `SyslogManager` | `AppManager` | 2 136 | heap | chave `syslog` (2026-09-30): desligada, 1 B |
 | `/api/history_multi` | `WebManager_History` | 2 048 | `.bss` | chave `web_export_api` (2026-09-30): sai com a rota |
 

@@ -609,7 +609,7 @@
     ],
     "measured_at": {
       "date": "2026-09-30",
-      "src_commit": "045d75b",
+      "src_commit": "c17eb52",
       "src_dirty": false
     },
     "products": {
@@ -698,138 +698,146 @@
             "used": 997588,
             "bin": 1009620,
             "ram": 116956
+          },
+          "tft_graph": {
+            "used": 979044,
+            "bin": 991076,
+            "ram": 114720
           }
         }
       },
       "pico_w_alpha": {
         "base": {
-          "used": 964508,
+          "used": 964388,
           "bin": 978092,
           "ram": 129992
         },
         "flips": {
           "cli_full": {
-            "used": 1008252,
+            "used": 1008052,
             "bin": 1023148,
             "ram": 128064
           },
           "web_https": {
-            "used": 986284,
+            "used": 986164,
             "bin": 998572,
             "ram": 130000
           },
           "license_stub": {
-            "used": 964508,
+            "used": 964388,
             "bin": 978092,
             "ram": 129992,
             "same": true
           },
           "mdns": {
-            "used": 980900,
+            "used": 980788,
             "bin": 994476,
             "ram": 130160
           },
           "concurrency_asserts": {
-            "used": 966700,
+            "used": 966580,
             "bin": 982188,
             "ram": 129992
           },
           "bluetooth": {
-            "used": 824208,
-            "bin": 836244,
+            "used": 824096,
+            "bin": 836132,
             "ram": 110644
           },
           "air": {
             "rule": "air-needs-headless"
           },
           "sound_buzzer": {
-            "used": 956276,
+            "used": 956156,
             "bin": 969900,
             "ram": 129992
           },
           "sensor_ds18b20": {
-            "used": 960004,
+            "used": 959892,
             "bin": 973996,
             "ram": 129928
           },
           "sensor_dht22": {
-            "used": 962980,
+            "used": 962860,
             "bin": 978092,
             "ram": 129992
           },
           "sensor_bme280": {
-            "used": 945584,
-            "bin": 961684,
+            "used": 945472,
+            "bin": 957588,
             "ram": 129772
           },
           "tel_tls": {
-            "used": 892420,
-            "bin": 908460,
+            "used": 892308,
+            "bin": 904364,
             "ram": 129976
           },
           "tel_mqtt": {
-            "used": 952708,
+            "used": 952588,
             "bin": 965804,
             "ram": 129992
           },
           "web_history": {
-            "used": 938636,
+            "used": 938524,
             "bin": 953516,
             "ram": 129992
           },
           "web_export_api": {
-            "used": 949100,
+            "used": 948980,
             "bin": 961708,
             "ram": 127940
           },
           "web_metrics": {
-            "used": 957044,
+            "used": 956924,
             "bin": 969900,
             "ram": 129992
           },
           "syslog": {
-            "used": 963252,
+            "used": 963132,
             "bin": 978092,
             "ram": 129992
+          },
+          "tft_graph": {
+            "rule": "graph-needs-tft"
           }
         }
       },
       "pico_w_air": {
         "base": {
-          "used": 1004352,
+          "used": 1004208,
           "bin": 1018956,
           "ram": 120144
         },
         "flips": {
           "cli_full": {
-            "used": 960296,
+            "used": 960136,
             "bin": 973900,
             "ram": 122052
           },
           "web_https": {
-            "used": 1030120,
+            "used": 1029976,
             "bin": 1043532,
             "ram": 120156
           },
           "license_stub": {
-            "used": 1004352,
+            "used": 1004208,
             "bin": 1018956,
             "ram": 120144,
             "same": true
           },
           "mdns": {
-            "used": 1019520,
+            "used": 1019376,
             "bin": 1035340,
             "ram": 120312
           },
           "concurrency_asserts": {
-            "used": 1006552,
+            "used": 1006408,
             "bin": 1018956,
             "ram": 120144
           },
           "bluetooth": {
-            "used": 866612,
-            "bin": 878644,
+            "used": 866420,
+            "bin": 878452,
             "ram": 100828
           },
           "air": {
@@ -839,49 +847,52 @@
             "rule": "air-no-buzzer"
           },
           "sensor_ds18b20": {
-            "used": 999456,
+            "used": 999264,
             "bin": 1014860,
             "ram": 120080
           },
           "sensor_dht22": {
-            "used": 1002824,
+            "used": 1002680,
             "bin": 1014860,
             "ram": 120144
           },
           "sensor_bme280": {
-            "used": 989516,
+            "used": 989372,
             "bin": 1002548,
             "ram": 119924
           },
           "tel_tls": {
-            "used": 936464,
+            "used": 936272,
             "bin": 949324,
             "ram": 120128
           },
           "tel_mqtt": {
-            "used": 996648,
+            "used": 996504,
             "bin": 1010764,
             "ram": 120144
           },
           "web_history": {
-            "used": 982584,
+            "used": 982440,
             "bin": 998476,
             "ram": 120144
           },
           "web_export_api": {
-            "used": 993400,
+            "used": 993256,
             "bin": 1006668,
             "ram": 118096
           },
           "web_metrics": {
-            "used": 1000984,
+            "used": 1000840,
             "bin": 1014860,
             "ram": 120144
           },
           "syslog": {
-            "used": 1003104,
+            "used": 1002960,
             "bin": 1018956,
             "ram": 120144
+          },
+          "tft_graph": {
+            "rule": "graph-needs-tft"
           }
         }
       }
@@ -917,8 +928,8 @@
           "web_https": true,
           "cli_full": true
         },
-        "used": 910440,
-        "bin": 922476,
+        "used": 910240,
+        "bin": 922276,
         "ram": 108924
       },
       {
@@ -928,7 +939,7 @@
           "sensor_dht22": false,
           "sensor_bme280": false
         },
-        "used": 939800,
+        "used": 939680,
         "bin": 953492,
         "ram": 129772
       },
@@ -938,7 +949,7 @@
           "cli_full": true,
           "sensor_ds18b20": false
         },
-        "used": 1003364,
+        "used": 1003164,
         "bin": 1019052,
         "ram": 128000
       },
@@ -949,8 +960,8 @@
           "web_https": true,
           "mdns": true
         },
-        "used": 906372,
-        "bin": 918404,
+        "used": 906172,
+        "bin": 918204,
         "ram": 101008
       },
       {
@@ -960,7 +971,7 @@
           "concurrency_asserts": true,
           "sensor_bme280": false
         },
-        "used": 947660,
+        "used": 947500,
         "bin": 961588,
         "ram": 121832
       },
@@ -971,8 +982,8 @@
           "sensor_dht22": false,
           "sensor_bme280": false
         },
-        "used": 982436,
-        "bin": 998452,
+        "used": 982244,
+        "bin": 994356,
         "ram": 119860
       },
       {
@@ -981,7 +992,7 @@
           "tel_tls": false,
           "tel_mqtt": false
         },
-        "used": 928880,
+        "used": 928688,
         "bin": 941132,
         "ram": 120128
       },
@@ -993,7 +1004,7 @@
           "web_metrics": false,
           "syslog": false
         },
-        "used": 962912,
+        "used": 962768,
         "bin": 977996,
         "ram": 118096
       }
