@@ -16,8 +16,17 @@
       }
     },
     {
-      "id": "interface",
+      "id": "telemetry",
       "order": 2,
+      "advanced": false,
+      "label": {
+        "en": "Telemetry",
+        "pt": "Telemetria"
+      }
+    },
+    {
+      "id": "interface",
+      "order": 3,
       "advanced": false,
       "label": {
         "en": "Interface",
@@ -26,7 +35,7 @@
     },
     {
       "id": "sensors",
-      "order": 3,
+      "order": 4,
       "advanced": false,
       "label": {
         "en": "Sensors",
@@ -35,7 +44,7 @@
     },
     {
       "id": "sound",
-      "order": 4,
+      "order": 5,
       "advanced": false,
       "label": {
         "en": "Sound",
@@ -44,7 +53,7 @@
     },
     {
       "id": "power",
-      "order": 5,
+      "order": 6,
       "advanced": false,
       "label": {
         "en": "Power",
@@ -53,7 +62,7 @@
     },
     {
       "id": "bench",
-      "order": 6,
+      "order": 7,
       "advanced": true,
       "label": {
         "en": "Bench and diagnostics",
@@ -193,6 +202,18 @@
         "en": "I2C sensor on a pin pair; the BMP280 variant has no humidity.",
         "pt": "Sensor I2C num par de pinos; a variante BMP280 não mede umidade."
       }
+    },
+    {
+      "id": "tel_tls",
+      "group": "telemetry",
+      "label": {
+        "en": "Encrypted telemetry (HTTPS and MQTTS)",
+        "pt": "Telemetria criptografada (HTTPS e MQTTS)"
+      },
+      "help": {
+        "en": "Sends to the collector over TLS, and validates it against /cert.pem when one is uploaded. Without it telemetry goes over plain HTTP or MQTT only, and a configuration that asks for encryption is refused instead of being sent in the clear.",
+        "pt": "Envia ao coletor por TLS, e o valida contra o /cert.pem quando há um. Sem ela a telemetria vai só por HTTP ou MQTT sem criptografia, e uma configuração que pede criptografia é recusada em vez de ir em claro."
+      }
     }
   ],
   "displays": {
@@ -241,7 +262,8 @@
         "sound_buzzer": true,
         "sensor_ds18b20": true,
         "sensor_dht22": true,
-        "sensor_bme280": true
+        "sensor_bme280": true,
+        "tel_tls": true
       }
     },
     {
@@ -269,7 +291,8 @@
         "sound_buzzer": true,
         "sensor_ds18b20": true,
         "sensor_dht22": true,
-        "sensor_bme280": true
+        "sensor_bme280": true,
+        "tel_tls": true
       }
     },
     {
@@ -297,7 +320,8 @@
         "sound_buzzer": false,
         "sensor_ds18b20": true,
         "sensor_dht22": true,
-        "sensor_bme280": true
+        "sensor_bme280": true,
+        "tel_tls": true
       }
     },
     {
@@ -325,7 +349,8 @@
         "sound_buzzer": true,
         "sensor_ds18b20": true,
         "sensor_dht22": true,
-        "sensor_bme280": true
+        "sensor_bme280": true,
+        "tel_tls": true
       }
     },
     {
@@ -353,7 +378,8 @@
         "sound_buzzer": true,
         "sensor_ds18b20": true,
         "sensor_dht22": true,
-        "sensor_bme280": true
+        "sensor_bme280": true,
+        "tel_tls": true
       }
     },
     {
@@ -381,7 +407,8 @@
         "sound_buzzer": true,
         "sensor_ds18b20": true,
         "sensor_dht22": true,
-        "sensor_bme280": true
+        "sensor_bme280": true,
+        "tel_tls": true
       }
     }
   ],

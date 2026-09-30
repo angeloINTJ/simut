@@ -440,6 +440,24 @@ inline uint32_t telMinBatchFromLegacyMs(uint32_t legacyMs, uint16_t histMin,
     return count;
 }
 
+/**
+ * @brief May a request set telemetry encryption to @p want?
+ *
+ * The telemetry's TLS client is a build switch (SIMUT_TEL_TLS, 2026-09-30).
+ * In an image without it, turning encryption OFF is always taken — a config
+ * restored from an image that had TLS arrives with it on, and the page and
+ * the CLI must be able to undo that — while turning it ON is refused: the
+ * image cannot encrypt, and the transports refuse to send rather than fall
+ * back to plain TCP. The commit rejects the field (the page's toast names
+ * it) and the CLI prints why.
+ *
+ * @param tlsCompiled SIMUT_TEL_TLS, passed in so this header stays free of
+ *                    simut_config.h and the host suite can hold both answers.
+ */
+inline bool telEncryptionAccepted(bool want, bool tlsCompiled) {
+    return !want || tlsCompiled;
+}
+
 /** Check if a numeric value falls within [minVal, maxVal]. */
 inline bool isInRange(int value, int minVal, int maxVal) {
  return (value >= minVal && value <= maxVal);

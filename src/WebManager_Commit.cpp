@@ -975,7 +975,15 @@ void WebManager::handleApiCommitAll( ) {
 			};
 			int fl;
 			fl = readFlag("log");   if (fl >= 0) cfg.loggingEnabled = (fl == 1);
-			fl = readFlag("t_sec"); if (fl >= 0) cfg.telEncryption = (fl == 1);
+			fl = readFlag("t_sec");
+#if SIMUT_TEL_TLS
+			if (fl >= 0) cfg.telEncryption = (fl == 1);
+#else
+			if (fl >= 0) {
+				if (telEncryptionAccepted(fl == 1, false)) cfg.telEncryption = (fl == 1);
+				else rejectField("t_sec");
+			}
+#endif
 			if (has("t_key")) {
 				/* If value contains "***", it came from the masked GET
 				 * and the user did not edit — keep current cfg.telApiKey. Otherwise overwrite. */

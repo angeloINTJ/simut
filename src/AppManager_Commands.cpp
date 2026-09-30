@@ -543,6 +543,13 @@ void AppManager::executeCommand(CliDemand cmd) {
  _cmdMgr->printError(pt ? "Use 'on' ou 'off'" : "Use 'on' or 'off'");
  break;
  }
+#if !SIMUT_TEL_TLS
+ if (!telEncryptionAccepted(cmd.boolVal, false)) {
+ _cmdMgr->printError(pt ? "Esta imagem nao tem cliente TLS (SIMUT_TEL_TLS=0)"
+                        : "This image has no TLS client (SIMUT_TEL_TLS=0)");
+ break;
+ }
+#endif
  cfg.telEncryption = cmd.boolVal;
  changed = true;
  break;
