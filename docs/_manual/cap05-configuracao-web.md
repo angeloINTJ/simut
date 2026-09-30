@@ -94,8 +94,8 @@ O aparelho classifica cada alteração comparando a configuração de antes com 
 |---|---|---|---|
 | `alarms` | Limites de alarme por canal e alarmes ligados por slot | **Alarmes e Sons** ([capítulo 7](#cap-07)) | Sim |
 | `maint` | Janelas de manutenção | **Alarmes e Sons** ([capítulo 7](#cap-07)) | Sim |
-| `alarm_tel` | Linha de alarmes: ligada, fila, formato, modelos e caminho | **Telemetria** ([capítulo 22](#cap-22)) | Sim |
-| `telemetry` | Telemetria pelo lado HTTP: servidor, porta, caminho, chave, lote mínimo e máximo, formato e modelos | **Telemetria** ([capítulo 21](#cap-21)) | Sim |
+| `alarm_tel` | Linha de alarmes: ligada, fila, formato, modelos, `Content-Type` e caminho | **Telemetria** ([capítulo 22](#cap-22)) | Sim |
+| `telemetry` | Telemetria pelo lado HTTP: servidor, porta, caminho, chave, lote mínimo e máximo, formato, modelos e `Content-Type` | **Telemetria** ([capítulo 21](#cap-21)) | Sim |
 | `users` | Política de PIN do painel | **Configurações** ([Hardware](#cap-05-hardware)) | Não: reinicia (pelo painel, vale sem reinício) |
 | `users` | Contas | **Usuários** ([capítulo 8](#cap-08)) | Não: o ensaio é recusado |
 | `display` | Tema e idioma do painel | Nenhuma página grava estes campos por aqui | Sim |

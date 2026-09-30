@@ -4,6 +4,179 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.8.0 (2026-09-30)
+
+**An update cut off halfway no longer sends the device back to factory settings,
+and the custom telemetry format sends the Content-Type its server expects.**
+
+`CONFIG_VERSION` goes from 25 to 26, which is why this is 2.8 and not 2.7.5. The
+configuration migrates by itself on the first boot and loses nothing, but
+v2.7.4 and older cannot read the new file: see *Upgrading* before going back.
+
+### An interrupted update no longer loses the configuration (#192, #195)
+
+An update from the Files page first uploads the new image into the flash area
+the filesystem lives in, then applies it. The configuration (Wi-Fi, accounts,
+sensors, telemetry, alarm limits) crossed that on a copy written at the end of
+the upload. When the upload was cut before the end there was no copy, the
+filesystem was already overwritten, and the next boot came up on factory
+defaults: the setup access point, a new admin password on the USB console, and
+nothing of the configuration. On the bench's network this was the usual
+outcome, not a rare one: the router cuts port-80 connections after 12 to 15 s,
+and the upload takes about 30.
+
+The copy is now written when the upload starts. When an upload is cut or
+refused, the device writes the configuration back to the filesystem at once;
+when the power goes in the middle of it, the next boot restores it from the
+copy. The copy is used once: the boot after the upload reads it before writing
+anything, then erases it, and `system format` erases it too. Everything else on
+the filesystem is still erased by any update, cut or complete (history,
+language packs, themes, the touch calibration, `/web`, the event log and the
+Air's own options), and comes back from the `.bkp` backup the page downloads
+before it uploads.
+
+It took two changes. #192 moved the copy to the start of the upload; preparing
+this release found what that left open (#195). After a cut upload the copy was
+the only one on flash, in the last two blocks of the filesystem, where the log
+and the history are written sooner or later: on the bench, a device left like
+that, its filesystem filled and then restarted, came back on factory defaults.
+The boot also created
+its directories before reading the copy, and could write over it. And the copy
+was never erased, so a `system format` could bring back an old configuration;
+that one is from the code, not seen on the bench.
+
+**What this does not cover:** the upload runs on the firmware already
+installed, so the protection holds for updates made from v2.8.0 on. The update
+*to* v2.8.0 from v2.7.4 or older still runs the old code; see *Upgrading*.
+
+### The custom telemetry format sends the Content-Type you set (#194)
+
+The **Dynamic Builder** payload format sent every request as `text/plain`, so a
+server that parses JSON refused a body that was valid JSON. Each telemetry line
+now has a **Content-Type Header** field for that format, on the Telemetry page: in
+*Payload Builder* for the data line (`t_ct`) and in *Alarm Payload* for the
+alarm line (`a_ct`). Whatever it holds is sent as the header; empty sends
+`application/json`. The JSON and CSV formats keep their own header
+(`application/json`, `text/csv`) whatever the field says.
+
+The value becomes an HTTP header, so it is checked as a media type (`type/subtype`
+with optional `; parameters`, printable ASCII, up to 31 characters) when the
+page saves it, and again before each send, because a restored backup writes the
+file as it is. A value that fails is refused at save with the field named in
+`rejected`, and one that reaches the sender anyway goes out as
+`application/json`, never as written. Changing it does not restart the device;
+the next send uses it. `GET /api/config` returns both fields.
+
+Checked end to end on the bench against a collector on a PC:
+
+| Setting | Header the server received |
+|---|---|
+| Dynamic Builder, `application/x-ndjson` | `application/x-ndjson` |
+| Dynamic Builder, `text/csv` | `text/csv` |
+| Dynamic Builder, `application/json; charset=utf-8` | `application/json; charset=utf-8` |
+| Dynamic Builder, empty | `application/json` |
+| JSON format, field set to `text/csv` | `application/json` |
+| `bad value`, `aplicação/json`, `json` | refused at save, nothing stored |
+
+### Under the hood
+
+- **Post-update data retention is a release gate** (#193). Every published
+  version has to show on the bench that an update keeps the configuration,
+  including an upload cut halfway (`AGENTS.md` §2). The native suites cannot:
+  the update path is flash and the upload area is the filesystem. This release
+  is the first to go through it, and it caught a defect before merge: the first
+  version of the v26 migration read a v25 file as if it were v20–v23, wrote
+  1,866 B past the end of the configuration during boot, and the device hung in
+  `setup()` on every boot, with no web and no console. A host test now migrates
+  every older schema into a structure followed by a guard region and fails on
+  any byte written past it.
+- The configuration grew by 64 B, to 6,802; with its CRC it still fits the
+  snapshot that carries it across an update with 1,366 B to spare, and the
+  build fails if it ever stops fitting.
+
+### Flash
+
+Against the published v2.7.4 `.bin`: release 1,376 B larger (the Content-Type
+field and its checks, #194, and the snapshot fixes, #195); alpha and Air 32 B
+larger each, because most of the 1,200 and 1,208 B they grew fits inside a 4 KiB
+alignment step. Slack under the 1,040,384 B OTA ceiling: release 28,996,
+alpha 62,292, Air 21,428. No budget moved.
+
+### The bench
+
+The release candidate, built from `main` with the version string set, on the
+bench board (touch display, two DS18B20, two DHT22, a BMP280 on hardware I2C),
+starting from its own configuration (v2.7.3 and v2.7.4, schema 25):
+
+- **Test image,** flashed over USB onto the v2.7.3 configuration: migrated on
+  the first boot (`Config saved (6802)`); the web suite, 87 passed and 0 failed.
+- **Release image, the retention gate:** from the published v2.7.4 with the
+  bench's configuration, a complete update over the air (port 8080, the one the
+  router does not cut). The device reports `2.8.0`, the five sensors read, and
+  the configuration file keeps the v2.7.4 one byte for byte: the whole 6,738-byte
+  structure is identical except the version byte, and the 64 new bytes are zero.
+  The old file stays as `/config/system.bak`, and the copy was erased after that
+  boot. The `.bkp` the update saved first was then restored (72 files): 67 came
+  back identical, and the other five are the ones that should differ: the
+  migrated configuration and its backup, and the day's history (two files) and
+  the event log, still being written. Then an upload cut at 400 kB on v2.8.0
+  itself, and a reset: no factory defaults, the configuration file identical to
+  the one before. `system format` right after a cut upload, with a fresh copy on
+  flash: factory defaults, as asked. Then 10 minutes, sampled every 15 s: no
+  restart, no failed request, the five sensors with a value in every sample.
+- **The A/B of #195,** both sides from the same flash: an upload cut at 400 kB,
+  nothing changed, the filesystem filled to 100 % through the Files page and
+  emptied, then a reset. Before, the copy had been written over and the device
+  came back on factory defaults; after, the configuration had been written back
+  right after the cut, byte-identical, and the device kept it.
+- **Air image:** from the published v2.7.4 Air, the same complete update over
+  the air: `2.8.0`, the five sensors, the configuration file byte for byte except
+  the version. The update erased the Air's own options (`air idle` 777 became
+  300, as chapter 19 of the manual says) and the `.bkp` brought them back.
+- **Alpha image:** from the published v2.7.4 alpha, the same: `2.8.0`, the five
+  sensors, the configuration byte for byte except the version, the copy erased
+  after the boot. On both Bluetooth images the app slot matches the image except
+  the 4 KiB sector where the Bluetooth stack keeps its pairing data.
+- **Content-Type:** the table above, measured on the first release candidate
+  (before #195, which does not touch that path).
+
+### Upgrading
+
+- **The configuration migrates on the first boot** (schema 25 to 26). Nothing to
+  do.
+- **From v2.7.4 or older, the update still runs the old upload code**, so a cut
+  upload can still return the device to factory defaults on this one update.
+  If uploads have failed partway on your network, set **HTTP Port** on the
+  Network page to another port (8080 was not cut on the bench) for this update,
+  and keep the `.bkp` the page downloads: restoring it brings everything back.
+- **Going back to v2.7.4 or older loses the configuration:** they do not read
+  schema 26 and start on factory defaults (flashed over USB, they may first fall
+  back to the pre-update copy in `/config/system.bak`). Restore the `.bkp` taken
+  before updating to v2.8.0. Read from the code, not measured on the bench.
+- **Language packs:** both gained the new field's label. The packs are not part
+  of the firmware image; upload the ones attached to this release on the Files
+  page and reboot. With the old packs everything works, and the label reads in
+  English.
+
+### Known, and not fixed here
+
+- **A chunked reply occasionally loses its framing** (#189): 0.15 to 0.6 % of
+  `/api/status` reads in a tight loop. The device does not restart and the next
+  request succeeds; the page misses one refresh.
+- **With the setup access point open, the device does not measure.** The loop
+  returns before the sensors, the alarms, the history and the telemetry. A
+  device with no network configured boots into the AP and stays there (release
+  and alpha).
+- **An alarm refused by a full alarm-line queue is never reported**, and a full
+  queue keeps its oldest records (#161).
+- **The alpha's LCD rarely reaches its AP pages**, by the code. The key is on the
+  USB console and in the `ap` reply.
+- **`configure terminal` does not need `enable`**: it enters configuration mode
+  from user mode, although the console's command table says it needs privileged
+  mode. It opens nothing, because `enable` asks for no password on the USB
+  console and the Bluetooth console authenticates the whole session, but the
+  table and the behaviour disagree.
+
 ## v2.7.4 (2026-09-26)
 
 **A sensor scan no longer takes a hardware-I2C BMP280 down, four settings that

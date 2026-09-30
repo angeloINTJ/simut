@@ -200,6 +200,12 @@ A variante do aparelho aparece na resposta de `/api/status`, no campo `sys.env`,
 
 A área onde a imagem nova é recebida é a mesma partição da flash que guarda o sistema de arquivos. Por isso, **a atualização reformata o sistema de arquivos.** Antes de começar, o aparelho guarda uma cópia da configuração principal numa área separada e a devolve no primeiro boot da imagem nova.
 
+Desde a v2.8.0, essa cópia é gravada logo no início do envio. Se o envio é cortado no meio por uma queda da rede, ou recusado no fim, o aparelho grava a configuração de volta no sistema de arquivos em seguida; se a energia cai no meio do envio, o boot seguinte a devolve a partir da cópia. Nos dois casos se mantém o que a coluna **Sobrevive** da tabela abaixo lista, e o resto do sistema de arquivos se perde do mesmo jeito ([Falta de energia durante a atualização](#cap-17-energia)). A cópia serve uma vez: o boot seguinte ao envio a apaga, e um `system format` também. Até a v2.7.4, a cópia só era gravada no fim do envio e só era lida no boot que segue a aplicação, e um envio interrompido deixava o aparelho com a configuração de fábrica.
+
+::: atencao
+**Quem conduz o envio é o firmware instalado, não o novo.** A proteção vale para as atualizações feitas a partir de um aparelho que já tem a v2.8.0. Ao atualizar da v2.7.4 ou anterior, um envio cortado ainda leva a configuração junto. Para esse salto, use uma porta do servidor web que a sua rede não derrube em envios longos ([capítulo 9](#cap-09-servidor-web)) e guarde o backup que a página baixa.
+:::
+
 | Sobrevive | Se perde |
 |---|---|
 | A rede Wi-Fi e o IP | O histórico inteiro |
@@ -283,7 +289,7 @@ A segunda confirmação, depois de o backup chegar ao computador. Cancelar aqui 
 O envio da imagem. O painel do aparelho fica parado até o reinício.
 :::
 
-::: {.figura #fig-17-ota-linha-tempo tipo="diagrama" arquivo="17-ota-linha-tempo.png" captura="linha do tempo horizontal de uma atualização: 'backup .bkp baixado' (segundos, verde); 'envio e conferência da imagem, 35 a 36 s' (amarelo, rótulo 'sistema de arquivos já sobrescrito'); 'aplicação, cerca de 25 s' (vermelho, rótulo 'única janela em que um corte de energia exige BOOTSEL'); 'boot da imagem nova' (verde); marca 'interface web de volta, 52 a 56 s depois da aplicação'; embaixo, o que cada corte causa: configuração perdida, aparelho sem firmware, nada"}
+::: {.figura #fig-17-ota-linha-tempo tipo="diagrama" arquivo="17-ota-linha-tempo.png" captura="linha do tempo horizontal de uma atualização: 'backup .bkp baixado' (segundos, verde); 'envio e conferência da imagem, 35 a 36 s' (amarelo, rótulo 'sistema de arquivos já sobrescrito'); 'aplicação, cerca de 25 s' (vermelho, rótulo 'única janela em que um corte de energia exige BOOTSEL'); 'boot da imagem nova' (verde); marca 'interface web de volta, 52 a 56 s depois da aplicação'; embaixo, o que cada corte causa: arquivos perdidos com a configuração preservada, aparelho sem firmware, nada"}
 Legenda: as etapas de uma atualização e o que um corte de energia em cada uma custa.
 :::
 
@@ -303,17 +309,18 @@ Os tempos dependem do tamanho da imagem e da rede. Para confirmar uma atualizaç
 |---|---|---|
 | Antes de tudo | A conta é o administrador completo | O aparelho recusa com HTTP 403. A página só mostra o botão **Firmware** ao administrador completo |
 | Etapa 1 | O cabeçalho do backup confere com o que o aparelho anunciou | **Backup corrompido (CRC). Abortado.** Nada muda no aparelho |
-| Fim do envio | O tamanho está entre 100 KiB e 1016 KiB (1.040.384 bytes) | Recusa, `v=4` (pequeno) ou `v=5` (grande) |
+| Durante o envio | A imagem não passa de 1016 KiB (1.040.384 bytes) | O envio para no ponto em que passa, e a recusa aparece sem número, como `v=undefined`. Até a v2.7.4, uma imagem de até 1 MiB só era recusada no fim, como `v=5` |
+| Fim do envio | O tamanho é de pelo menos 100 KiB | Recusa, `v=4` |
 | Fim do envio | Os primeiros 256 bytes formam um início de imagem válido para o RP2040, com o CRC que a ROM do chip confere | Recusa, `v=6` |
 | Fim do envio | A imagem traz a etiqueta da variante (`SIMUT-ENV`) igual à do aparelho | Recusa, `v=7` |
 | Primeiro boot | O CRC da imagem gravada confere com o da imagem recebida | O log registra o erro ([Conferir a versão](#cap-17-ota-conferir)) |
 
 Uma imagem sem etiqueta de variante, de uma versão anterior à etiqueta, é aceita.
 
-Uma recusa aparece como **Falha no envio (validação v=N). Cancelled.**. Um arquivo maior que 1 MiB nem chega a ser conferido e aparece como `v=undefined`.
+Uma recusa aparece como **Falha no envio (validação v=N). Cancelled.**. Um arquivo maior que 1016 KiB não chega a ser conferido e aparece como `v=undefined`.
 
 ::: perigo
-**Uma recusa no envio também apaga o sistema de arquivos.** A imagem é gravada sobre o sistema de arquivos enquanto chega, e a conferência só acontece no fim. Quando o aparelho recusa a imagem, ele reformata o sistema de arquivos e continua funcionando com a configuração que está na RAM, mas o arquivo da configuração já não existe. **Restaure o backup do passo 4 antes de reiniciar o aparelho.** Se ele reiniciar antes, volta com a configuração de fábrica ([capítulo 18](#cap-18-fabrica)).
+**Uma recusa no envio também apaga o sistema de arquivos.** A imagem é gravada sobre o sistema de arquivos enquanto chega, e a conferência só acontece no fim. Quando o aparelho recusa a imagem, ele reformata o sistema de arquivos e continua funcionando com a configuração que está na RAM; desde a v2.8.0 ele grava a configuração de volta logo em seguida, e até a v2.7.4 o arquivo dela simplesmente deixava de existir. **Restaure o backup do passo 4**: ele devolve o histórico, os pacotes de idioma e os demais arquivos. Até a v2.7.4, um reinício antes disso voltava com a configuração de fábrica ([capítulo 18](#cap-18-fabrica)).
 :::
 
 ### Conferir a versão {#cap-17-ota-conferir}
@@ -355,21 +362,23 @@ Depois de um envio aceito, a página pede a aplicação. Se o aparelho recusar, 
 | 409 | Não há imagem aceita esperando | Recomece a atualização |
 | 503 | O painel estava em uso naquele instante | Não reinicie o aparelho: a imagem gravada está esperando. Repita a aplicação pela API, com `POST /api/ota/apply` e a sessão do administrador ([capítulo 26](#cap-26-ota)) |
 
-Enquanto a imagem espera a aplicação, o sistema de arquivos está fora de uso. Um reinício nesse estado descarta a imagem e deixa o aparelho com a configuração de fábrica. O log registra **Config alterada** (303), módulo `OTA`, nível `WRN`; no console, a linha traz o texto `Staged update discarded: device rebooted before apply`.
+Enquanto a imagem espera a aplicação, o sistema de arquivos está fora de uso. Um reinício nesse estado descarta a imagem e o sistema de arquivos. Desde a v2.8.0, o aparelho volta com a configuração guardada no início do envio; até a v2.7.4, voltava com a configuração de fábrica. Nos dois casos, os demais arquivos só voltam pelo backup. O log registra **Config alterada** (303), módulo `OTA`, nível `WRN`; no console, a linha traz o texto `Staged update discarded: device rebooted before apply`.
 
 ## Falta de energia durante a atualização {#cap-17-energia}
 
-Uma campanha de testes em 11/09/2026 interrompeu atualizações em cada etapa, com um reinício pelo pino RUN no papel de corte de energia:
+Uma campanha de testes em 11/09/2026 interrompeu atualizações em cada etapa, com um reinício pelo pino RUN no papel de corte de energia. A coluna **Configuração** mostra o que mudou na v2.8.0 ([O que sobrevive e o que se perde](#cap-17-sobrevive)):
 
 | Etapa interrompida | Firmware | Configuração | Como recuperar |
 |---|---|---|---|
 | Download do backup | Intacto | Intacta | Nada a fazer |
-| Envio da imagem | Intacto, versão antiga | Perdida | Pegue a senha do administrador pelo console USB, configure a rede e restaure o backup ([capítulo 18](#cap-18-fabrica)) |
-| Entre o envio e a aplicação | Intacto, versão antiga | Perdida | Idem |
+| Envio da imagem | Intacto, versão antiga | Intacta desde a v2.8.0; perdida até a v2.7.4. Os demais arquivos se perdem | Restaure o backup. Até a v2.7.4, pegue antes a senha do administrador pelo console USB e configure a rede ([capítulo 18](#cap-18-fabrica)) |
+| Entre o envio e a aplicação | Intacto, versão antiga | Idem | Idem |
 | Aplicação, os cerca de 25 s em que a imagem é copiada | Corrompido: o aparelho não liga | — | BOOTSEL e cabo USB ([capítulo 18](#cap-18-bootsel)) |
 | Boot da imagem nova | Atualizado | Intacta | Nada a fazer |
 
-A aplicação é a única janela em que um corte deixa o aparelho sem firmware. Nas outras etapas, o pior caso é perder a configuração e os arquivos, que o backup devolve.
+Em 30/09/2026, na bancada, um envio cortado aos 400 kB e seguido de reinício deixou a v2.7.3 com a configuração de fábrica e a v2.8.0 com a configuração inteira. A linha **Entre o envio e a aplicação** da v2.8.0 vem da leitura do código e não foi repetida no aparelho.
+
+A aplicação é a única janela em que um corte deixa o aparelho sem firmware. Nas outras etapas, o pior caso é perder os arquivos, que o backup devolve; até a v2.7.4, também a configuração.
 
 ::: atencao
 **Um aparelho instalado longe.** Uma falta de energia nos cerca de 25 s da aplicação exige ir até o aparelho com um computador e um cabo USB. Atualize aparelhos remotos com a alimentação garantida, de preferência com uma pessoa no local.

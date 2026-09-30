@@ -4,7 +4,7 @@ Este capítulo reúne em tabelas os números do SIMUT: faixas, valores de fábri
 
 ## Como ler as tabelas {#cap-28-como-ler}
 
-- Os valores são os da v2.7.4.
+- Os valores são os da v2.8.0.
 - Quando um número muda de uma imagem para outra, a célula traz o selo da imagem: [release]{.img}, [alpha]{.img} ou [air]{.img}.
 - Uma medição traz a data e a versão em que foi feita. Os demais números vêm do código.
 - A coluna **Onde** leva ao capítulo que explica o item. Lá estão o efeito de cada valor e o que fazer quando um limite é atingido.
@@ -304,6 +304,7 @@ O filtro vale só para a flash: o console com `debug on` e o syslog recebem todo
 | **API Key** | Até 63 caracteres | [cap. 21](#cap-21-transporte) |
 | Formatos | JSON, CSV com 34 colunas e **Dinâmico** | [cap. 21](#cap-21-json) |
 | Modelos do **Dinâmico** | **1. Global** até 255 caracteres; **2. Linha** até 511; **3. Separador** até 7 | [cap. 21](#cap-21-construtor) |
+| **Cabeçalho Content-Type** do **Dinâmico** | Até 31 caracteres, um tipo de mídia; vazio vale `application/json`. JSON manda sempre `application/json`, e CSV, `text/csv` | [cap. 21](#cap-21-content-type) |
 | Montagem do corpo | Um registro inteiro por vez; o cursor avança só até o último registro enviado | [cap. 21](#cap-21-registro-inteiro) |
 
 ### MQTT e TLS da telemetria {#cap-28-mqtt}
@@ -338,6 +339,7 @@ O filtro vale só para a flash: o console com `debug on` e o syslog recebem todo
 | `seq` | De 1 a 65.535; volta a 1 e recomeça a cada reinício | [cap. 22](#cap-22-registro) |
 | **Caminho HTTP** | Até 31 caracteres; vazio usa o **Endpoint** com `/alarm` | [cap. 22](#cap-22-campos) |
 | Modelos | **1. Global** até 255 caracteres; **2. Linha** até 511; **3. Separador** até 7 | [cap. 22](#cap-22-campos) |
+| **Cabeçalho Content-Type** | Até 31 caracteres, um tipo de mídia; vazio vale `application/json`; só no **Dinâmico** | [cap. 22](#cap-22-campos) |
 | [air]{.img} Air | Alarmes só acordado (M0); a fila não atravessa o sono | [cap. 22](#cap-22-fila) |
 
 ## Syslog, Prometheus e Home Assistant {#cap-28-outras-integracoes}
@@ -368,6 +370,7 @@ O filtro vale só para a flash: o console com `debug on` e o syslog recebem todo
 | Restauração | Só no mesmo aparelho; no máximo 200 arquivos, com até 4 KiB de nomes somados | [cap. 17](#cap-17-restauracao-recusa) |
 | Atualização: tamanho da imagem | De 100 KiB a 1.016 KiB (1.040.384 B) | [cap. 17](#cap-17-ota-conferencias) |
 | Atualização: outras conferências | Início de imagem válido para o RP2040 nos primeiros 256 bytes; etiqueta da variante igual à do aparelho | [cap. 17](#cap-17-ota-conferencias) |
+| Atualização: cópia da configuração | Gravada no início do envio e usada uma vez, no boot seguinte, desde a v2.8.0; um envio cortado ou recusado mantém a configuração e apaga os demais arquivos | [cap. 17](#cap-17-sobrevive) |
 | [release]{.img} Captura do painel | BMP de 320 × 240 pixels, 230.454 bytes | [cap. 13](#cap-13-captura) |
 
 ## SIMUT Air {#cap-28-air}

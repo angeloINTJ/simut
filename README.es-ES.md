@@ -47,10 +47,10 @@ Los tres comparten el mismo núcleo:
 
 | | |
 |---|---|
-| **Release actual** | **v2.7.4** (26/09/2026). La línea 2.7 salió de beta con la v2.7.0, sobre mediciones: un soak de 8,18 h sin ningún reinicio y 6 de 6 actualizaciones por el aire sin perder nada. La v2.7.4 corrige la búsqueda de sensores, que dejaba en error un BMP280 en I2C de hardware, y cuatro ajustes que no hacen nada ya no reinician el dispositivo; la v2.7.3 había puesto la versión del firmware en la página de inicio de sesión y el botón *Reiniciar sin guardar* en la página de configuración. |
+| **Release actual** | **v2.8.0** (30/09/2026). SIMUT salió de beta con la v2.7.0, sobre mediciones: un soak de 8,18 h sin ningún reinicio y 6 de 6 actualizaciones por el aire sin perder nada. La v2.8.0 conserva la configuración cuando una actualización se corta a mitad, y deja que el formato de telemetría personalizado envíe el Content-Type que espera su servidor; la v2.7.4 había corregido la búsqueda de sensores, que dejaba en error un BMP280 en I2C de hardware. |
 | **Imágenes publicadas** | Tres imágenes, cada una en `.uf2` y `.bin`: `release` (panel táctil TFT), `alpha` (LCD 16×2 con consola Bluetooth) y `air` (registrador a batería sin pantalla). Junto a ellas van los packs de idioma pt-BR y es-ES y un manifiesto de OTA. Una imagen con otro conjunto de funciones sale del [configurador de build](https://angelointj.github.io/simut/configurador/), y el CI la compila desde `main`. |
 | **Madurez** | <ul><li>`release`: **estable**.</li><li>`alpha`: publicado y probado en el banco, con su LCD 16×2 incluido desde el 26/09/2026.</li><li>`air`: **experimental**. Su único soak largo falló: un sueño en el ciclo 119 nunca despertó (F28). Hoy lo mitiga un watchdog a lo largo del despertar; la causa raíz no está confirmada.</li></ul> |
-| **Pruebas** | Cada pull request ejecuta 420 casos de test en el host en 8 suites, 60 s de fuzzing y análisis estático, y compila las seis imágenes de firmware con la caché fría. El comportamiento en hardware real se verifica en un banco — ver [Verificación en hardware](#verificación-en-hardware). |
+| **Pruebas** | Cada pull request ejecuta 426 casos de test en el host en 8 suites, 60 s de fuzzing y análisis estático, y compila las seis imágenes de firmware con la caché fría. El comportamiento en hardware real se verifica en un banco — ver [Verificación en hardware](#verificación-en-hardware). |
 
 **Limitaciones conocidas.** Cada una está documentada donde aplica.
 - **Actualización.** La actualización por el aire reformatea el sistema de archivos:
@@ -321,9 +321,9 @@ pio run -e pico_w_release -t uploadfs
 ### Primer arranque
 1. **Apunta la contraseña del admin.** Una unidad recién salida de fábrica imprime una contraseña de admin aleatoria de 8 caracteres **una sola vez en la consola serie USB** (115200 baudios). Nunca se guarda en texto plano. Si la pierdes, `system admin reset confirm` por USB imprime una nueva.
 2. **Conéctalo a tu red.** Una unidad sin red configurada abre sola su punto de acceso de configuración. El Air no: escribe `ap` en su consola.
-   - Conéctate a `<nombre>_SETUP` (`simut_SETUP` de fábrica). Es WPA2, y su clave por dispositivo se imprime en la consola USB y en el terminal de arranque del TFT — al arrancar y, desde la v2.7.2, también cuando el AP se abre en operación. En un alpha, léela en la consola USB o en la respuesta del comando `ap`: según el código de la v2.7.4, el LCD no llega a sus páginas del AP.
+   - Conéctate a `<nombre>_SETUP` (`simut_SETUP` de fábrica). Es WPA2, y su clave por dispositivo se imprime en la consola USB y en el terminal de arranque del TFT — al arrancar y, desde la v2.7.2, también cuando el AP se abre en operación. En un alpha, léela en la consola USB o en la respuesta del comando `ap`: según el código de la v2.8.0, el LCD no llega a sus páginas del AP.
    - El portal se abre en `http://192.168.4.1`.
-   - Mientras el punto de acceso está activo, el dispositivo no mide: en la v2.7.4 no lee sensores, no comprueba alarmas ni graba histórico hasta entrar en una red.
+   - Mientras el punto de acceso está activo, el dispositivo no mide: en la v2.8.0 no lee sensores, no comprueba alarmas ni graba histórico hasta entrar en una red.
 
    Sin pantalla, puedes usar la consola: `system ssid <nombre>`, `system pass <clave>` y luego `reload confirm`. La consola corta en el primer espacio: una red o una clave con espacio solo por la página web.
 3. **Abre la interfaz web** en la dirección que obtuvo el dispositivo — en la imagen `release`, también en `http://simut.local` — y entra como `admin` con la contraseña del paso 1. Se te pedirá elegir una nueva.
@@ -353,7 +353,7 @@ simut/
 │   └── SystemDefs*.h       # Constantes y límites del sistema
 ├── data/                   # Assets de LittleFS (packs de idioma, temas, favicon)
 ├── PCB_test/               # Diseño de la PCB en KiCad + archivos de fabricación (Gerber/DRL)
-├── test/                   # Tests unitarios nativos (Unity), siete suites
+├── test/                   # Tests unitarios nativos (Unity), ocho suites
 ├── tools/                  # Puertas de build, suites de banco, PicoHand, scripts de release, editor de temas
 ├── docs/                   # Documentación + sitio GitHub Pages
 ├── WebUI.h                 # Fuente de la web UI (se convierte en src/WebUI_GZ.h al compilar)
@@ -373,7 +373,7 @@ simut/
 | `pico_w_test` | Imagen de banco: la consola completa para las suites de prueba; sin HTTPS, sin mDNS | — |
 | `pico_w_test_https` | `pico_w_test` más el servidor HTTPS, para validar TLS; tres de sus páginas se sirven desde LittleFS para que quepa | — |
 | `pico_w_asserts` | Release + aserciones de concurrencia | — |
-| siete entornos `native*` | Tests unitarios en el host — ver [Pruebas](#pruebas) | — |
+| ocho entornos `native*` | Tests unitarios en el host — ver [Pruebas](#pruebas) | — |
 
 > **Nota de seguridad para `pico_w_alpha` y `pico_w_air`:** las dos compilan la
 > consola Bluetooth SPP (`SIMUT_BLUETOOTH=1`), así que en esas dos imágenes es
@@ -466,6 +466,9 @@ Lo que se ha medido en hardware real, de lo más reciente a lo más antiguo:
 
 | Fecha | Qué | Resultado |
 |---|---|---|
+| 30/09/2026 | Candidato a release (v2.8.0) | Suite web con 87 aprobados y 0 fallos; actualización por el aire desde la v2.7.4 publicada: el archivo de configuración idéntico byte a byte, salvo la versión, cinco sensores leyendo, el `.bkp` restaurado con 67 de 72 archivos idénticos (los otros cinco debían diferir); un envío cortado a 400 kB y un reinicio: configuración intacta; 10 min sin reinicio; Air y alpha actualizados por el aire desde la v2.7.4 con su configuración (las opciones propias del Air de vuelta con el `.bkp`) |
+| 30/09/2026 | Un envío cortado y luego el sistema de archivos lleno (v2.8.0) | Misma flash de partida, envío cortado a 400 kB, nada cambiado, el sistema de archivos llenado al 100 % y vaciado, reinicio: antes del #195 el dispositivo volvió con los valores de fábrica, después con su configuración. El mismo corte en la v2.7.3, sin llenar: valores de fábrica (#192) |
+| 30/09/2026 | Content-Type de la telemetría personalizada (v2.8.0) | Colector en un PC: la cabecera recibida coincide con el campo para `application/x-ndjson`, `text/csv` y `application/json; charset=utf-8`; vacío envía `application/json`; el formato JSON ignora el campo; `bad value`, `aplicação/json` y `json` se rechazan al guardar |
 | 26/09/2026 | Candidato a release (v2.7.4) | Suite web con 87 aprobados y 0 fallos; los cinco sensores de las tres familias; tras una búsqueda de sensores el BMP280 siguió leyendo durante 90 s (antes de la corrección fallaba unos 10 s después); un commit ensayado del intervalo de muestreo responde `"reboot":false`; 10 min sin reiniciarse |
 | 26/09/2026 | El LCD 16×2 del alpha (v2.7.4) | En un HD44780 conectado en paralelo: la pantalla de arranque con la versión y su barra de progreso, la pantalla de conectado con la IP, y después cada sensor por turno, con su slot y el nivel del Wi-Fi |
 | 25/09/2026 | Página de configuración e inicio de sesión (v2.7.3) | *Reiniciar sin guardar*, en la imagen release y en el build de prueba: sin conexión 3,3 s después del clic, de vuelta a los 26,4 s, y un nombre editado y nunca guardado no sobrevivió al reinicio. La página de inicio de sesión muestra la versión en los dos temas; 9 páginas, 0 errores de script |
@@ -492,7 +495,7 @@ Dos cosas del LCD 16×2 no han pasado por la pantalla real: la disposición con 
 |----------|-------------|
 | [Manual de usuario (EN)](docs/MANUAL.md) | Montaje, pantalla/web/consola, OTA, referencia de la API, resolución de problemas — mantenido al día |
 | [Manual do usuário (pt-BR)](docs/MANUAL.pt-BR.md) | El mismo manual, en portugués |
-| [Manual completo (pt-BR)](docs/MANUAL.pt-BR.html) | El manual del producto en portugués, actualizado para la v2.7.4: 31 capítulos sobre instalación, configuración, uso diario e integración con servidores. Las pantallas se están recapturando; cada una que falta está marcada en su lugar |
+| [Manual completo (pt-BR)](docs/MANUAL.pt-BR.html) | El manual del producto en portugués, actualizado para la v2.8.0: 31 capítulos sobre instalación, configuración, uso diario e integración con servidores. Las pantallas se están recapturando; cada una que falta está marcada en su lugar |
 | [Guía de cableado](docs/WIRING.md) | Pinout completo y diagramas de conexión |
 | [Actualización por el aire](docs/OTA_USAGE.md) | Actualizar desde la página web, y lo que sobrevive |
 | [Guía de recuperación](docs/RECOVERY.md) | Recuperación de brick — BOOTSEL, picotool, reset 1200 bps |
