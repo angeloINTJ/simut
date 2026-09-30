@@ -34,6 +34,7 @@
 #include "display/PendingLabel.h"    /* pending count as both displays print it */
 #include "display/BigFont_HD44780.h" /* the alpha LCD glyphs */
 #include "TelemetryCursor.h"  /* what the telemetry cursor may advance to */
+#include "TelContentType.h"   /* the Content-Type header of a telemetry line */
 #include "sensors/CalibCurve.h"         /* calibration curve engine */
 #include "WebJsonSlice.h"               /* depth-aware JSON slicing */
 #include "SimutTime.h"                 /* fixed-offset localtime/mktime */
@@ -3108,6 +3109,73 @@ static void test_tel_cursor_takes_the_newest_and_clamps_the_future(void) {
     TEST_ASSERT_EQUAL_UINT32(CUR_NOW + 10u, telDeliveredCursor(ahead, 2, CUR_NOW + 10u, CUR_NOW, HIST_EPOCH_MIN));
 }
 
+/* ── Content-Type of a telemetry line (TelContentType.h) ──────────────────
+ * The custom payload mode lets the operator name the header, because only the
+ * operator knows what the server on the other end parses. The value goes into
+ * an HTTP header verbatim, so what is refused here is what would break the
+ * request or smuggle a second header into it. */
+static void test_media_type_accepts_what_servers_expect(void) {
+    TEST_ASSERT_TRUE(isValidMediaType("application/json"));
+    TEST_ASSERT_TRUE(isValidMediaType("text/csv"));
+    TEST_ASSERT_TRUE(isValidMediaType("text/plain"));
+    TEST_ASSERT_TRUE(isValidMediaType("application/x-ndjson"));
+    TEST_ASSERT_TRUE(isValidMediaType("application/vnd.api+json"));
+    TEST_ASSERT_TRUE(isValidMediaType("application/json; charset=utf-8"));
+    TEST_ASSERT_TRUE(isValidMediaType("text/plain;charset=\"utf-8\""));
+    /* 31 characters: exactly what the field holds */
+    TEST_ASSERT_TRUE(isValidMediaType("application/aaaaaaaaaaaaaaaaaaa"));
+}
+
+static void test_media_type_refuses_what_would_break_the_header(void) {
+    TEST_ASSERT_FALSE(isValidMediaType(nullptr));
+    TEST_ASSERT_FALSE(isValidMediaType(""));
+    TEST_ASSERT_FALSE(isValidMediaType("json"));               /* no subtype */
+    TEST_ASSERT_FALSE(isValidMediaType("/json"));
+    TEST_ASSERT_FALSE(isValidMediaType("application/"));
+    TEST_ASSERT_FALSE(isValidMediaType("app lication/json"));  /* space in a token */
+    TEST_ASSERT_FALSE(isValidMediaType("application/json x")); /* junk after the type */
+    TEST_ASSERT_FALSE(isValidMediaType("application/json\r\nX-Evil: 1")); /* a second header */
+    TEST_ASSERT_FALSE(isValidMediaType("application/json\n"));
+    TEST_ASSERT_FALSE(isValidMediaType("application/json\x7f"));
+    TEST_ASSERT_FALSE(isValidMediaType("aplica\xc3\xa7\xc3\xa3o/json")); /* UTF-8 is not a header byte */
+    /* 32 characters: one more than the field holds */
+    TEST_ASSERT_FALSE(isValidMediaType("application/aaaaaaaaaaaaaaaaaaaa"));
+}
+
+static void test_tel_content_type_per_mode(void) {
+    char buf[TEL_CT_MAX + 1];
+    char ct[TEL_CT_MAX + 1];
+
+    /* The fixed modes ignore the field. */
+    strcpy(ct, "text/csv");
+    TEST_ASSERT_EQUAL_STRING("application/json", telContentTypeFor(TEL_CT_MODE_JSON, ct, sizeof(ct), buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING("text/csv", telContentTypeFor(TEL_CT_MODE_CSV, ct, sizeof(ct), buf, sizeof(buf)));
+    /* A mode nobody knows keeps what every mode but JSON/CSV used to send. */
+    TEST_ASSERT_EQUAL_STRING("text/plain", telContentTypeFor(7, ct, sizeof(ct), buf, sizeof(buf)));
+
+    /* Custom: what the operator stored, trimmed. */
+    memset(ct, 0, sizeof(ct)); strcpy(ct, "text/plain");
+    TEST_ASSERT_EQUAL_STRING("text/plain", telContentTypeFor(TEL_CT_MODE_CUSTOM, ct, sizeof(ct), buf, sizeof(buf)));
+    memset(ct, 0, sizeof(ct)); strcpy(ct, "  application/x-ndjson  ");
+    TEST_ASSERT_EQUAL_STRING("application/x-ndjson", telContentTypeFor(TEL_CT_MODE_CUSTOM, ct, sizeof(ct), buf, sizeof(buf)));
+
+    /* Empty or blank: the default — a migrated v25 config arrives like this. */
+    memset(ct, 0, sizeof(ct));
+    TEST_ASSERT_EQUAL_STRING("application/json", telContentTypeFor(TEL_CT_MODE_CUSTOM, ct, sizeof(ct), buf, sizeof(buf)));
+    strcpy(ct, "    ");
+    TEST_ASSERT_EQUAL_STRING("application/json", telContentTypeFor(TEL_CT_MODE_CUSTOM, ct, sizeof(ct), buf, sizeof(buf)));
+
+    /* Not a media type: fall back, never send it. A restored .bkp writes the
+     * field raw, so the sender cannot lean on the commit handler's check. */
+    memset(ct, 0, sizeof(ct)); strcpy(ct, "hello world");
+    TEST_ASSERT_EQUAL_STRING("application/json", telContentTypeFor(TEL_CT_MODE_CUSTOM, ct, sizeof(ct), buf, sizeof(buf)));
+    memset(ct, 0, sizeof(ct)); memcpy(ct, "text/csv\r\nX-A: 1", 16);
+    TEST_ASSERT_EQUAL_STRING("application/json", telContentTypeFor(TEL_CT_MODE_CUSTOM, ct, sizeof(ct), buf, sizeof(buf)));
+    /* 32 bytes with no terminator: read no further than the field, refuse. */
+    memset(ct, 'a', sizeof(ct)); memcpy(ct, "text/", 5);
+    TEST_ASSERT_EQUAL_STRING("application/json", telContentTypeFor(TEL_CT_MODE_CUSTOM, ct, sizeof(ct), buf, sizeof(buf)));
+}
+
 int main(int /*argc*/, char** /*argv*/) {
     UNITY_BEGIN();
 
@@ -3348,6 +3416,9 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_tel_cursor_stops_at_what_the_payload_kept);
     RUN_TEST(test_tel_cursor_nothing_delivered_keeps_the_floor);
     RUN_TEST(test_tel_cursor_takes_the_newest_and_clamps_the_future);
+    RUN_TEST(test_media_type_accepts_what_servers_expect);
+    RUN_TEST(test_media_type_refuses_what_would_break_the_header);
+    RUN_TEST(test_tel_content_type_per_mode);
 
     return UNITY_END();
 }

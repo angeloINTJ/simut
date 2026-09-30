@@ -26,7 +26,8 @@
  *
  * Pure and header-only, like AlarmPayload.h and ConfigApply.h: the native
  * test builds synthetic v20/v22/v23 blobs with a known value in every segment
- * and checks that each one lands where the current struct says it should.
+ * — and truncated v24/v25 ones — and checks that each one lands where the
+ * current struct says it should.
  * The CRC is the caller's — it covers the file as written, so it is checked
  * over the raw blob before this runs.
  *
@@ -71,7 +72,15 @@ constexpr size_t CFG_V24_BLOB = 6730;  /**< v24: 32 x 70 B accounts + pinSalt  *
  *  offset — so its migration is a straight copy and not a segment walk. */
 constexpr size_t CFG_V25_BLOB = 6738;
 
-/** Tail lengths, i.e. how much of a legacy blob follows its five accounts. */
+/** v26 — the CURRENT schema: + TelemetryCustomConfig (64 B), the Content-Type
+ *  each telemetry line sends in its custom payload mode. A v25 blob is this one
+ *  truncated at telCustom, so — like v24 — its migration is a straight copy.
+ *  Not a legacy kind: it becomes one the day v27 lands. */
+constexpr size_t CFG_V26_BLOB = 6802;
+
+/** Tail lengths, i.e. how much of a legacy blob follows its five accounts.
+ *  Only the five-account schemas (v20..v23) have one: from v24 on there is no
+ *  "tail after the accounts" to relocate, the whole blob is a prefix. */
 constexpr size_t CFG_V20_TAIL_LEN = CFG_V20_BLOB - CFG_LEGACY_TAIL_OFF;  /* 3439 */
 constexpr size_t CFG_V22_TAIL_LEN = CFG_V22_BLOB - CFG_LEGACY_TAIL_OFF;  /* 4250 */
 constexpr size_t CFG_V23_TAIL_LEN = CFG_V23_BLOB - CFG_LEGACY_TAIL_OFF;  /* 4314 */
@@ -94,13 +103,19 @@ static_assert(offsetof(SystemConfig, maint) - offsetof(SystemConfig, telServer) 
 	"alarmTel changed size or moved — the v21/v22 tail copy no longer lines up");
 static_assert(offsetof(SystemConfig, pinAuth) - offsetof(SystemConfig, telServer) == CFG_V23_TAIL_LEN,
 	"maint changed size or moved — the v23 tail copy no longer lines up");
-static_assert(sizeof(SystemConfig) == CFG_V25_BLOB,
-	"SystemConfig is not the v25 layout — bump CONFIG_VERSION, add a literal here and a case to configMigrateLegacy( )");
+static_assert(sizeof(SystemConfig) == CFG_V26_BLOB,
+	"SystemConfig is not the v26 layout — bump CONFIG_VERSION, add a literal here and a case to configMigrateLegacy( )");
 /* The v24 blob is the v25 struct truncated at the policy: the assert makes
  * the straight copy in configMigrateLegacy( ) legal, and breaks the build if
  * anyone inserts a field before pinMinLen instead of appending after it. */
 static_assert(offsetof(SystemConfig, pinAuth) + offsetof(DisplayAuthConfig, pinMinLen) == CFG_V24_BLOB,
 	"a field was inserted before DisplayAuthConfig::pinMinLen — the v24 copy no longer lines up");
+/* Same guarantee one schema later: the v25 blob is the v26 struct truncated at
+ * telCustom. This is what makes its straight copy legal — and what the first
+ * cut of v26 lacked: without it the v25 kind fell into the five-account walk
+ * and a real 2.7.4 config lost everything past account 0 (see the test). */
+static_assert(offsetof(SystemConfig, telCustom) == CFG_V25_BLOB,
+	"a field was inserted before telCustom — the v25 copy no longer lines up");
 
 /** Which legacy schema a file of this size holds. */
 enum CfgLegacyKind : uint8_t {
@@ -108,7 +123,8 @@ enum CfgLegacyKind : uint8_t {
 	CFG_LEGACY_V20,   /**< version 20 */
 	CFG_LEGACY_V22,   /**< version 21 or 22 — same layout, v22 changed a meaning */
 	CFG_LEGACY_V23,   /**< version 23 */
-	CFG_LEGACY_V24    /**< version 24 — same layout, four fields shorter */
+	CFG_LEGACY_V24,   /**< version 24 — same layout, four fields shorter */
+	CFG_LEGACY_V25    /**< version 25 — same layout, the telCustom tail shorter */
 };
 
 /** By FILE size (blob + CRC), because that is what attemptLoad( ) has before
@@ -119,6 +135,7 @@ inline CfgLegacyKind configLegacyKind(size_t fileSize) {
 	if (fileSize == CFG_V22_BLOB + crc) return CFG_LEGACY_V22;
 	if (fileSize == CFG_V23_BLOB + crc) return CFG_LEGACY_V23;
 	if (fileSize == CFG_V24_BLOB + crc) return CFG_LEGACY_V24;
+	if (fileSize == CFG_V25_BLOB + crc) return CFG_LEGACY_V25;
 	return CFG_LEGACY_NONE;
 }
 
@@ -129,6 +146,7 @@ inline size_t configLegacyBlobLen(CfgLegacyKind kind) {
 		case CFG_LEGACY_V22: return CFG_V22_BLOB;
 		case CFG_LEGACY_V23: return CFG_V23_BLOB;
 		case CFG_LEGACY_V24: return CFG_V24_BLOB;
+		case CFG_LEGACY_V25: return CFG_V25_BLOB;
 		default:             return 0;
 	}
 }
@@ -169,18 +187,23 @@ inline bool configMigrateLegacy(const uint8_t* blob, size_t blobLen,
 		case CFG_LEGACY_V22: if (ver != 21 && ver != 22) return false; break;
 		case CFG_LEGACY_V23: if (ver != 23) return false; break;
 		case CFG_LEGACY_V24: if (ver != 24) return false; break;
+		case CFG_LEGACY_V25: if (ver != 25) return false; break;
 		default: return false;
 	}
 
 	memset(&out, 0, sizeof(out));
 	uint8_t* dst = (uint8_t*)&out;
 
-	/* v24 is not a legacy LAYOUT, only a shorter one: accounts are already 32
-	 * slots of 70 bytes and every field before the policy is where it is now.
-	 * The four policy bytes and the must-change map stay zero, which is not a
-	 * valid policy — the caller's per-version defaults fill it in. */
-	if (kind == CFG_LEGACY_V24) {
-		memcpy(dst, blob, CFG_V24_BLOB);
+	/* v24 and v25 are not legacy LAYOUTS, only shorter ones: accounts are
+	 * already 32 slots of 70 bytes and every field they hold is where it is
+	 * now (the static_asserts above pin both truncation points). What they
+	 * lack stays zero — for v24 the PIN policy and the must-change map, which
+	 * the caller clamps to the v24 behaviour; for v25 the telCustom tail, which
+	 * the sender reads as "application/json". The five-account walk below is
+	 * for v20..v23 ONLY: a 32-account blob pushed through it keeps its head and
+	 * account 0 and loses everything after. */
+	if (kind == CFG_LEGACY_V24 || kind == CFG_LEGACY_V25) {
+		memcpy(dst, blob, blobLen);
 		return true;
 	}
 
@@ -194,9 +217,15 @@ inline bool configMigrateLegacy(const uint8_t* blob, size_t blobLen,
 		       CFG_LEGACY_USER_STRIDE);
 	}
 
-	/* 3. tail: everything after the accounts, to where the tail now starts */
-	memcpy(dst + offsetof(SystemConfig, telServer), blob + CFG_LEGACY_TAIL_OFF,
-	       blobLen - CFG_LEGACY_TAIL_OFF);
+	/* 3. tail: everything after the accounts, to where the tail now starts.
+	 * Bounded, and the bound is not decoration: the first cut of v26 routed a
+	 * v25 blob here, and its 6260-byte "tail" landed 1866 bytes past the end of
+	 * `out` — a heap object during boot. v20..v23 fit by construction (the
+	 * static_asserts above pin their tails); anything else is refused, not
+	 * copied. */
+	const size_t tailLen = blobLen - CFG_LEGACY_TAIL_OFF;
+	if (offsetof(SystemConfig, telServer) + tailLen > sizeof(SystemConfig)) return false;
+	memcpy(dst + offsetof(SystemConfig, telServer), blob + CFG_LEGACY_TAIL_OFF, tailLen);
 
 	return true;
 }

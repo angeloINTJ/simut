@@ -251,6 +251,20 @@ struct __attribute__((packed)) AlarmTelConfig {
 static_assert(sizeof(AlarmTelConfig) == 811, "AlarmTelConfig v21 must be 811 bytes (packed)");
 
 /* ────────────────────────────────────────────────────────────────────────
+ * Telemetry Custom Config (v26) — Content-Type for TEL_MODE_CUSTOM
+ *
+ * JSON and CSV send a fixed header; the custom payload can be anything, and
+ * only the operator knows what the server on the other end parses. Each value
+ * is a media type of at most 31 characters (TelContentType.h validates it at
+ * commit AND again at send), and empty means "application/json".
+ * ──────────────────────────────────────────────────────────────────────── */
+struct __attribute__((packed)) TelemetryCustomConfig {
+	char telCustomContentType[32];   /**< data line, TEL_MODE_CUSTOM (e.g. "text/csv") */
+	char alarmCustomContentType[32]; /**< alarm line (alarmTel), TEL_MODE_CUSTOM */
+};
+static_assert(sizeof(TelemetryCustomConfig) == 64, "TelemetryCustomConfig must be 64 bytes (packed)");
+
+/* ────────────────────────────────────────────────────────────────────────
  * Modo manutenção por slot (v23)
  * ──────────────────────────────────────────────────────────────────────── */
 
@@ -372,7 +386,6 @@ struct __attribute__((packed)) SystemConfig {
  char telLineTemplate[512];
  char telLineSeparator[8];
 
-
  uint8_t telTransport;
  char mqttTopic[64];
  char mqttUser[32];
@@ -435,6 +448,13 @@ struct __attribute__((packed)) SystemConfig {
   * então a migração deixou de ser "ler o blob na cabeça" e passou a copiar
   * por segmentos com tamanhos congelados em literais — ver ConfigMigrate.h. */
  DisplayAuthConfig pinAuth;
+
+ /* v26 — telemetry custom Content-Type (for TEL_MODE_CUSTOM). TAIL-ONLY, like
+  * every field since v21: a v25 blob ends exactly where this begins, which is
+  * what makes its migration a straight copy (ConfigMigrate.h). Read per request
+  * by the sender, so an edit applies at the next upload without a reboot
+  * (ConfigApply.h). Empty means "application/json". */
+ TelemetryCustomConfig telCustom;
 };
 /* Locks SystemConfig layout. Adding a field without
  * CONFIG_VERSION bump + migration = corrupts existing flash; the assert forces
@@ -452,8 +472,10 @@ static_assert(offsetof(SystemConfig, alarmTel) < offsetof(SystemConfig, maint),
  "maint must stay AFTER alarmTel — the v22 migration depends on tail-append");
 static_assert(offsetof(SystemConfig, maint) + sizeof(MaintConfig) == offsetof(SystemConfig, pinAuth),
  "pinAuth must follow maint directly — a v23 blob's tail is copied as one block");
-static_assert(offsetof(SystemConfig, pinAuth) + sizeof(DisplayAuthConfig) == sizeof(SystemConfig),
- "pinAuth must be the LAST field — a field after it breaks the v23 migration");
+static_assert(offsetof(SystemConfig, pinAuth) + sizeof(DisplayAuthConfig) == offsetof(SystemConfig, telCustom),
+ "telCustom must follow pinAuth directly — the v25 migration depends on tail-append");
+static_assert(offsetof(SystemConfig, telCustom) + sizeof(TelemetryCustomConfig) == sizeof(SystemConfig),
+ "telCustom must be the LAST field — a field after it is v27: bump CONFIG_VERSION and make v26 a legacy kind in ConfigMigrate.h");
 
 /** Overlay in reserved[24..25]: web server configuration. */
 struct __attribute__((packed)) WebConfigData {

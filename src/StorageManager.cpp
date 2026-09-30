@@ -102,7 +102,7 @@ struct Core1FlashPause {
  * Tail-append only: every byte a v20 blob held keeps its offset, so the
  * v20→v21 reader (attemptLoad) migrates without translating anything and
  * without the 2.0.0-style schema break. See SystemDefs_Records.h. */
-const uint16_t CONFIG_VERSION = 25;
+const uint16_t CONFIG_VERSION = 26;
 
 /* -------------------------------------------------------------------------- */
 /* Legacy UserAccount layout (v14 and earlier) — used ONLY by the */
@@ -823,6 +823,14 @@ bool StorageManager::loadMigrateLegacyBlob(File& f, size_t fileSize, uint8_t kin
  _migratedFromV24 = true;
  preV24 = false;
  break;
+ case CFG_LEGACY_V25:
+ /* Already a v25 file: salt, PIN digests AND the policy are all there, so —
+  * as for v24, and for the same reason — finishMigrationV24( ) must not run.
+  * The one thing a v25 blob lacks is the telCustom tail, which arrives zero
+  * and is sent as "application/json" (TelContentType.h). */
+ _migratedFromV25 = true;
+ preV24 = false;
+ break;
  }
  if (preV24) finishMigrationV24(outCfg);
  outCfg.version = CONFIG_VERSION;
@@ -992,6 +1000,7 @@ bool StorageManager::loadConfiguration( ) {
  _migratedFromV22 = false;
  _migratedFromV23 = false;
  _migratedFromV24 = false;
+ _migratedFromV25 = false;
  saveConfiguration( );
  }
  return true;

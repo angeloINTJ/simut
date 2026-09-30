@@ -781,6 +781,7 @@ public:
  bool _migratedFromV22 = false;   /**< v21/v22 blob read: maintenance tail appended. */
  bool _migratedFromV23 = false;   /**< v23 blob read: accounts widened to 32, PIN salt appended (v24). */
  bool _migratedFromV24 = false;   /**< v24 blob read: the PIN policy tail appended (v25). */
+ bool _migratedFromV25 = false;   /**< v25 blob read: the telCustom tail appended (v26). */
  /** ANY legacy blob was read and migrated — the one flag loadConfiguration( )
   *  tests before persisting the result. Per-version flags are for the log. */
  bool _migratedLegacy = false;
