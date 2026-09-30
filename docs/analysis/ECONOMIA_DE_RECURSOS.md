@@ -1,7 +1,8 @@
 # Economia por recurso — quanto cada chave devolve quando desligada
 
 **Estado:** Living · **Levantado em:** 2026-09-26 contra `main` `dc7c7c5`,
-medindo os seis ambientes de firmware com `tools/measure_savings.py` ·
+medindo os seis ambientes de firmware com `tools/measure_savings.py`; o rastreio
+do que ainda não tem chave, em 2026-09-30 contra `main` `7b948e7` (v2.8.0) ·
 **Pergunta:** ao desligar um driver ou qualquer funcionalidade, quanto de flash
 e de RAM a imagem realmente devolve — e o que hoje **não** devolve o que deveria?
 
@@ -30,6 +31,7 @@ a variante é o mesmo perfil com só ele desligado, derivada pelo modelo
 | Recurso | Base | Flash devolvido | RAM estática devolvida |
 |---|---|---:|---:|
 | `bluetooth` | `pico_w_alpha` | 140 132 B | 19 348 B |
+| `tel_tls` (cliente TLS da telemetria, 2026-09-30) | `pico_w_air` | 67 888 B | 16 B |
 | `cli_full` | `pico_w_test` | 48 232 B | 0 B |
 | `web_https` (TLS) | `pico_w_release` | 24 520 B | 24 B |
 | `sensor_bme280` | `pico_w_release` | 17 724 B | 220 B |
@@ -81,6 +83,86 @@ Os três achados que a medição trouxe:
 Os temas (`SIMUT_THEMES_*`) não entram: vêm **comentados** (desligados) em todo
 perfil, custo zero. São "ligar para gastar", não "desligar para poupar".
 
+### O cliente TLS da telemetria (2026-09-30)
+
+Até a v2.8.0, HTTPS e MQTTS para o coletor entravam em toda imagem, sem chave.
+Numa imagem sem o servidor HTTPS — o Alpha e o Air — o `WiFiClientSecure` da
+telemetria é o **único** que liga o motor TLS do BearSSL, e a chave
+`SIMUT_TEL_TLS` devolve quase tudo dele:
+
+| Produto | Flash `used` | `.bin` |
+|---|---:|---:|
+| SIMUT Air | 1 004 352 → 936 464 B (−67 888) | −69 632 B |
+| SIMUT Alpha | 964 508 → 892 420 B (−72 088) | −69 632 B |
+| SIMUT | 999 356 → 998 196 B (−1 160) | −1 160 B |
+
+No Air e no Alpha sem a chave sobram 14 símbolos `br_` — SHA-256 e HMAC, da
+senha e da chave do AP —, nenhum `br_ssl_*` nem `br_x509_*`. No SIMUT o servidor
+HTTPS segura o `WiFiClientSecure` inteiro, cliente incluso: a classe é uma só, e
+o linker não separa o lado cliente do lado servidor.
+
+Sem a chave, a telemetria continua por HTTP e MQTT sem criptografia, e **uma
+configuração que pede criptografia nunca vai em claro** — a chave da API e a
+senha do MQTT viajam no que seria enviado. O boot registra uma vez
+`SYS_TEL_FAIL` com `ctx=-200` e deixa o MQTT sem inicializar; os dois envios
+por HTTP (dados e alarmes) recusam com o mesmo `ctx` antes de abrir socket; o
+`commit_all` recusa `t_sec=1` (o aviso da página nomeia o campo) e aceita
+`t_sec=0`, para que uma config restaurada de uma imagem com TLS possa ser
+desfeita; e o `tel crypto on` da CLI diz que a imagem não tem cliente TLS.
+
+Com a chave ligada, as seis imagens saem **byte a byte idênticas** à `main` de
+antes dela. É por isso que o TLS ficou cercado dentro dos transportes, onde
+mora, e não foi movido para uma unidade de tradução própria: movê-lo mudaria
+os caminhos HTTPS e MQTTS que levaram semanas de bancada para assentar.
+
+## O que ainda não tem chave — o rastreio de 2026-09-30
+
+A tabela acima mede o que já se desliga. Esta seção olha o contrário: **o que
+mais gasta flash e RAM e ainda não tem chave**, para decidir a ordem das
+próximas. Os números são do mapa do linker da imagem que o build fez
+(`tools/flash_compose.py --env <env> --objects`), agrupados por símbolo quando
+um objeto mistura recursos, e do `sizeof( )` dos gerentes, que vivem no heap e
+não aparecem em mapa nenhum. São **estimativas do que sairia**: o número medido
+só existe quando a chave existe, e aí ele vem para a tabela de cima e para o
+piso do `feature_savings.json`.
+
+### Flash
+
+| Candidato | O que sairia | SIMUT | Air | Observação |
+|---|---|---:|---:|---|
+| Página de histórico e as rotas sem página | `HIST_PAGE` (22 543 B gz), `/api/history_multi` (7 236), `/api/export/*` (3 376) | ~33 KB | ~33 KB | `/api/logs`, `/api/history/open` e `/api/history_days` ficam: as ferramentas de bancada e o `INTEGRACAO_SERVIDOR.md` dependem delas |
+| Gráfico e calendário do painel | `DisplayManager_Graph`, `AppManager_Graph`, `DisplayManager_Calendar` | ~16,5 KB | — | só o TFT |
+| Contas no painel | `DisplayManager_Users` | ~15 KB | — | só o TFT; preso ao PIN do painel |
+| MQTT e Home Assistant | `PubSubClient` e ~5,5 KB do `TelemetryManager` | ~7 KB | ~7 KB | quase tudo num bloco contíguo; um `telTransport=1` salvo numa imagem sem MQTT precisa ser recusado, ou cai no ramo HTTP e faz POST no broker |
+| Curvas de calibração | `/api/calib`, o motor das curvas | ~8 KB | ~8 KB | não há offset separado: o offset simples **é** uma curva de 1 ponto, e o `calib.csv` também guarda a identidade dos DS18B20. Sem a chave, a leitura sai crua |
+| `/metrics` (Prometheus) | handler, autenticação, `PromMetrics` | ~3,3 KB | ~3,3 KB | o corte mais limpo: uma rota, sem página, sem config |
+| Backup e restauração | validar e aplicar o `.bkp` | ~3,5 KB | ~3,5 KB | o CRC32 do `backup.cpp` fica (o estágio da OTA usa), e a atualização pela página chama `/api/backup` antes de gravar |
+| Busca de redes Wi-Fi | handler, `pollScan`, o bloco da NET | ~2,8 KB | ~2,8 KB | o `native_network` testa a busca |
+| Pacotes de idioma | `DisplayManager_LangParser` | ~2,6 KB | ~2,1 KB | uma imagem só em inglês precisa forçar EN, ou a CLI bilíngue responde em português |
+| Syslog | `SyslogManager` e acessores | ~1,5 KB | ~1,5 KB | |
+
+### RAM que existe em toda imagem
+
+| O quê | Onde | Bytes | Tipo | Observação |
+|---|---|---:|---|---|
+| pools do lwIP | `memp.c`, `mem.c` | 39 670 + 16 415 | `.bss` | núcleo; dimensionados pelo `lwipopts.h` para seis conexões a 4×MSS |
+| buffers da OTA | `ota/applier` 8 620, `ota/restore` 4 500, `ota/validation` 4 128 | 17 248 | `.bss` | usados uma vez por atualização ou restauração |
+| objeto `StorageManager` | `AppManager` | 11 684 | heap | núcleo (histórico) |
+| objeto `WebManager` | `AppManager` | 10 652 | heap | 8 KiB de buffer de upload |
+| objeto `DisplayManager` | `AppManager` | 8 576 (Alpha 8 552, Air 8 192) | heap | no Alpha e no Air carrega o `_graphData` do gráfico (~5,7 KB) e buffers de PIN que essas imagens nunca tocam |
+| pilha do Core 1 | `DisplayManager.cpp` | 8 192 | `.bss` | segue o TFT |
+| `/api/calib` | `WebManager_Calib` | 3 640 | `.bss` | segue as curvas de calibração |
+| pacote de idioma | `DisplayManager_LangParser` | 2 785 | `.bss` | segue os pacotes |
+| objeto `TelemetryManager` | `AppManager` | 2 272 | heap | a fila de alarmes de 2 KiB existe com a linha desligada |
+| objeto `SyslogManager` | `AppManager` | 2 136 | heap | o anel existe com o syslog desligado |
+| `/api/history_multi` | `WebManager_History` | 2 048 | `.bss` | segue a página de histórico |
+
+O heap acima é o `sizeof( )` de cada gerente, lido por uma unidade de
+compilação de sondagem com os flags de cada ambiente (o `build_type = release`
+não gera DWARF, então o `gdb` não os vê). A RAM estática soma o que o
+PlatformIO chama de "RAM used"; o `--objects` fecha nela a 12–17 B nos três
+produtos (alinhamento que o mapa não atribui a objeto nenhum).
+
 ## Como rodar
 
 ```bash
@@ -88,6 +170,7 @@ python3 tools/measure_savings.py              # a tabela acima
 python3 tools/measure_savings.py --only air   # só um recurso (rápido)
 python3 tools/measure_savings.py --update      # grava o piso no ledger
 python3 tools/measure_savings.py --check       # reprova se a economia caiu
+python3 tools/flash_compose.py --env pico_w_air --objects   # o rastreio: flash e RAM por objeto
 ```
 
 O `--check` reconstrói base e variante de cada recurso do ledger e falha se a
