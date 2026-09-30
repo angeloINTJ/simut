@@ -469,7 +469,6 @@ def main():
 <p class="sub">Instalação, configuração, uso no dia a dia e integração com servidores, para as três imagens publicadas: o painel (release), o LCD (alpha) e o registrador a bateria (Air).</p>
 <ul class="fatos">
 <li><span class="selo">Firmware {VERSION}</span></li>
-<li><span class="selo">Inclui o que está na main em 23/09/2026</span></li>
 <li><span class="selo">{len(toc)} capítulos e 3 apêndices</span></li>
 <li><span class="selo selo-alerta"><i></i>{pending} {"imagem" if pending == 1 else "imagens"} a capturar</span></li>
 </ul>

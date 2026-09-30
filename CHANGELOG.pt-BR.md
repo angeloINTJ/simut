@@ -4,6 +4,183 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.8.0 (2026-09-30)
+
+**Uma atualização cortada no meio não devolve mais o aparelho às configurações
+de fábrica, e o formato de telemetria personalizado manda o Content-Type que o
+servidor espera.**
+
+`CONFIG_VERSION` passa de 25 para 26, e é por isso que esta é a 2.8 e não a
+2.7.5. A configuração migra sozinha no primeiro boot e não perde nada, mas a
+v2.7.4 e as anteriores não leem o arquivo novo: veja *Atualizando* antes de
+voltar de versão.
+
+### Uma atualização interrompida não perde mais a configuração (#192, #195)
+
+Uma atualização pela página Arquivos primeiro sobe a imagem nova para a área da
+flash onde mora o sistema de arquivos, e depois a aplica. A configuração (Wi-Fi,
+contas, sensores, telemetria, limites de alarme) atravessava isso numa cópia
+gravada no fim do envio. Quando o envio era cortado antes do fim, não havia
+cópia, o sistema de arquivos já estava sobrescrito, e o boot seguinte subia com
+os padrões de fábrica: o ponto de acesso de configuração, uma senha de admin
+nova no console USB, e nada da configuração. Na rede da bancada esse era o
+desfecho comum, não o raro: o roteador corta conexões na porta 80 depois de 12 a
+15 s, e o envio leva uns 30.
+
+A cópia agora é gravada quando o envio começa. Quando um envio é cortado ou
+recusado, o aparelho grava a configuração de volta no sistema de arquivos na
+hora; quando a energia cai no meio dele, o boot seguinte a restaura a partir da
+cópia. A cópia serve uma vez: o boot depois do envio a lê antes de escrever
+qualquer coisa e depois a apaga, e o `system format` também a apaga. Todo o
+resto do sistema de arquivos continua sendo apagado por qualquer atualização,
+cortada ou completa (histórico, pacotes de idioma, temas, a calibração do toque,
+`/web`, o log de eventos e as opções próprias do Air), e volta pelo backup
+`.bkp` que a página baixa antes de enviar.
+
+Foram duas mudanças. O #192 levou a cópia para o início do envio; preparar esta
+release achou o que ele deixou aberto (#195). Depois de um envio cortado, a
+cópia era a única na flash, nos dois últimos blocos do sistema de arquivos, onde
+o log e o histórico acabam escrevendo: na bancada, um aparelho deixado assim,
+com o sistema de arquivos enchido e depois reiniciado, voltou em padrões de
+fábrica. O boot também criava os diretórios
+antes de ler a cópia, e podia escrever por cima dela. E a cópia nunca era
+apagada, então um `system format` podia trazer de volta uma configuração antiga;
+este último vem da leitura do código, não foi visto na bancada.
+
+**O que isto não cobre:** o envio roda no firmware já instalado, então a
+proteção vale para as atualizações feitas a partir da v2.8.0. A atualização
+*para* a v2.8.0 vinda da v2.7.4 ou anterior ainda roda o código antigo; veja
+*Atualizando*.
+
+### O formato de telemetria personalizado manda o Content-Type que você define (#194)
+
+O formato de payload **Dinâmico** mandava toda requisição como `text/plain`, e
+um servidor que interpreta JSON recusava um corpo que era JSON válido. Cada linha
+de telemetria agora tem um campo **Cabeçalho Content-Type** para esse formato, na
+página Telemetria: em *Construtor* para a linha de dados (`t_ct`) e em *Payload
+de Alarmes* para a linha de alarmes (`a_ct`). O que o campo tiver vai como
+cabeçalho; vazio manda `application/json`. Os formatos JSON e CSV mantêm o
+próprio cabeçalho (`application/json`, `text/csv`), diga o campo o que disser.
+
+O valor vira um cabeçalho HTTP, então é conferido como media type (`tipo/subtipo`
+com `; parâmetros` opcionais, ASCII imprimível, até 31 caracteres) quando a
+página o salva, e de novo antes de cada envio, porque um backup restaurado grava
+o arquivo como está. Um valor que falha é recusado ao salvar, com o campo citado
+em `rejected`, e um que chegue ao envio assim mesmo sai como `application/json`,
+nunca como escrito. Mudar o campo não reinicia o aparelho; o envio seguinte já o
+usa. O `GET /api/config` devolve os dois campos.
+
+Conferido de ponta a ponta na bancada, contra um coletor num PC:
+
+| Configuração | Cabeçalho que o servidor recebeu |
+|---|---|
+| Dinâmico, `application/x-ndjson` | `application/x-ndjson` |
+| Dinâmico, `text/csv` | `text/csv` |
+| Dinâmico, `application/json; charset=utf-8` | `application/json; charset=utf-8` |
+| Dinâmico, vazio | `application/json` |
+| Formato JSON, campo com `text/csv` | `application/json` |
+| `bad value`, `aplicação/json`, `json` | recusado ao salvar, nada gravado |
+
+### Por dentro
+
+- **A retenção de dados depois de uma atualização é portão de release** (#193).
+  Toda versão publicada tem de mostrar na bancada que uma atualização mantém a
+  configuração, inclusive com o envio cortado no meio (`AGENTS.md` §2). As suítes
+  nativas não conseguem: o caminho da atualização é flash, e a área do envio é o
+  sistema de arquivos. Esta release é a primeira a passar por ele, e ele pegou um
+  defeito antes do merge: a primeira versão da migração v26 lia um arquivo v25
+  como se fosse v20–v23, escrevia 1.866 B além do fim da configuração durante o
+  boot, e o aparelho travava no `setup()` a cada boot, sem web e sem console. Um
+  teste de host agora migra todo esquema anterior para uma estrutura seguida de
+  uma região de guarda e falha com qualquer byte escrito além dela.
+- A configuração cresceu 64 B, para 6.802; com o CRC ela ainda cabe no snapshot
+  que a carrega através de uma atualização, com 1.366 B de sobra, e a build falha
+  se um dia deixar de caber.
+
+### Flash
+
+Contra o `.bin` publicado da v2.7.4: release 1.376 B maior (o campo de
+Content-Type e as conferências dele, #194, e as correções do snapshot, #195);
+alpha e Air 32 B maiores cada, porque quase todos os 1.200 e 1.208 B que cresceram cabem
+dentro de um degrau de alinhamento de 4 KiB. Folga sob o teto de OTA de
+1.040.384 B: release 28.996, alpha 62.292, Air 21.428. Nenhum orçamento mudou.
+
+### A bancada
+
+O candidato à release, compilado da `main` com a string da versão trocada, na
+placa da bancada (painel touch, duas DS18B20, dois DHT22, um BMP280 em I2C de
+hardware), partindo da configuração dela (v2.7.3 e v2.7.4, esquema 25):
+
+- **Imagem de teste,** gravada pelo USB sobre a configuração da v2.7.3: migrou
+  no primeiro boot (`Config saved (6802)`); a suíte web, 87 aprovados e 0 falhas.
+- **Imagem release, o portão de retenção:** da v2.7.4 publicada com a
+  configuração da bancada, uma atualização completa pelo ar (porta 8080, a que o
+  roteador não corta). O aparelho informa `2.8.0`, os cinco sensores leem, e o
+  arquivo de configuração mantém o da v2.7.4 byte a byte: a estrutura inteira de
+  6.738 bytes é idêntica, fora o byte da versão, e os 64 bytes novos são zero. O
+  arquivo antigo fica como `/config/system.bak`, e a cópia foi apagada depois
+  desse boot. Depois o `.bkp` que a atualização salvou antes foi restaurado (72
+  arquivos): 67 voltaram idênticos, e os outros cinco são os que deviam diferir:
+  a configuração migrada e o backup dela, e o histórico do dia (dois arquivos) e
+  o log de eventos, ainda sendo gravados. Depois um envio cortado em 400 kB na
+  própria v2.8.0, e um reset: nada de padrões de fábrica, o arquivo de
+  configuração idêntico ao de antes. O `system format` logo depois de um envio
+  cortado, com uma cópia nova na flash: padrões de fábrica, como pedido. Depois
+  10 minutos, com amostras a cada 15 s: nenhum reinício, nenhuma requisição
+  falha, os cinco sensores com valor em todas as amostras.
+- **O A/B do #195,** os dois lados partindo da mesma flash: um envio cortado em
+  400 kB, nada alterado, o sistema de arquivos enchido até 100 % pela página
+  Arquivos e esvaziado, depois um reset. Antes, a cópia tinha sido sobrescrita e
+  o aparelho voltou em padrões de fábrica; depois, a configuração tinha sido
+  gravada de volta logo após o corte, idêntica byte a byte, e o aparelho a
+  manteve.
+- **Imagem do Air:** da v2.7.4 Air publicada, a mesma atualização completa
+  pelo ar: `2.8.0`, os cinco sensores, o arquivo de configuração byte a byte fora
+  a versão. A atualização apagou as opções próprias do Air (`air idle` 777 virou
+  300, como diz o capítulo 19 do manual) e o `.bkp` as trouxe de volta.
+- **Imagem alpha:** da v2.7.4 alpha publicada, o mesmo: `2.8.0`, os cinco
+  sensores, a configuração byte a byte fora a versão, a cópia apagada depois do
+  boot. Nas duas imagens com Bluetooth o slot da app bate com a imagem, fora o
+  setor de 4 KiB onde a pilha Bluetooth guarda os dados de pareamento.
+- **Content-Type:** a tabela acima, medida no primeiro candidato à release
+  (antes do #195, que não toca nesse caminho).
+
+### Atualizando
+
+- **A configuração migra no primeiro boot** (esquema 25 para 26). Nada a fazer.
+- **Vindo da v2.7.4 ou anterior, a atualização ainda roda o código de envio
+  antigo**, então um envio cortado ainda pode devolver o aparelho aos padrões de
+  fábrica nesta atualização. Se envios já falharam no meio na sua rede, mude a
+  **Porta HTTP** na página Rede para outra porta (a 8080 não foi cortada na
+  bancada) para esta atualização, e guarde o `.bkp` que a página baixa:
+  restaurá-lo traz tudo de volta.
+- **Voltar para a v2.7.4 ou anterior perde a configuração:** elas não leem o
+  esquema 26 e sobem em padrões de fábrica (gravadas pelo USB, podem antes cair
+  na cópia de antes da atualização em `/config/system.bak`). Restaure o `.bkp`
+  feito antes de atualizar para a v2.8.0. Lido do código, não medido na bancada.
+- **Pacotes de idioma:** os dois ganharam o rótulo do campo novo. Os pacotes não
+  fazem parte da imagem do firmware; suba os anexados a esta release na página
+  Arquivos e reinicie. Com os pacotes antigos tudo funciona, e o rótulo aparece
+  em inglês.
+
+### Conhecido, e não corrigido aqui
+
+- **Uma resposta chunked de vez em quando perde o enquadramento** (#189): 0,15 a
+  0,6 % das leituras do `/api/status` num laço apertado. O aparelho não reinicia
+  e a requisição seguinte funciona; a página perde uma atualização.
+- **Com o ponto de acesso de configuração aberto, o aparelho não mede.** O laço
+  volta antes dos sensores, dos alarmes, do histórico e da telemetria. Um
+  aparelho sem rede configurada liga no AP e fica nele (release e alpha).
+- **Um alarme recusado pela fila cheia da linha de alarmes nunca é informado**, e
+  uma fila cheia guarda os registros mais antigos (#161).
+- **O LCD da alpha raramente chega às páginas do AP**, pelo código. A chave está
+  no console USB e na resposta do `ap`.
+- **`configure terminal` não precisa de `enable`**: ele entra no modo de
+  configuração a partir do modo usuário, embora a tabela de comandos do console
+  diga que ele exige o modo privilegiado. Não abre nada, porque o `enable` não
+  pede senha no console USB e o console Bluetooth autentica a sessão inteira,
+  mas a tabela e o comportamento discordam.
+
 ## v2.7.4 (2026-09-26)
 
 **Uma busca de sensores não derruba mais um BMP280 em I2C de hardware, quatro

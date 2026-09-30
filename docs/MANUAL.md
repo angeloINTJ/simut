@@ -1,6 +1,6 @@
 # SIMUT — User Manual
 
-**Firmware:** v2.7.4 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **License:** MIT
+**Firmware:** v2.8.0 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **License:** MIT
 **Repository:** https://github.com/angeloINTJ/simut
 
 > **This is not a certified metrological instrument.** It is tested on real
@@ -754,7 +754,7 @@ specify.
 | Setting | Options |
 |---|---|
 | Transport | HTTP POST, or MQTT |
-| Payload | JSON, CSV, or a custom template |
+| Payload | JSON, CSV, or a custom template, sent with the `Content-Type` you set (`application/json` when left empty) |
 | Security | TLS supported |
 | Trigger | A minimum batch: the device transmits once that many records are waiting (0 disables telemetry) |
 | Upload size | A maximum batch: a longer queue goes out in batches of up to that size until it is empty |
@@ -864,6 +864,14 @@ The tokens `{tAMB}`, `{uAMB}` and `{pAMB}` were removed in v1.6.0-beta along
 with the privileged ambient slot they resolved through. Use the numbered slot
 tokens instead.
 
+The custom template goes out with the `Content-Type` in the page's
+**Content-Type Header** field (`t_ct`; the alarm line has its own, `a_ct`):
+a media type such as `application/json`, `application/x-ndjson` or `text/csv`,
+up to 31 characters. Empty means `application/json`; anything that is not a
+media type is refused when saved. JSON and CSV keep their fixed headers. Up to
+v2.7.4 the custom template always went out as `text/plain`, which a server that
+insists on JSON refuses.
+
 Records that cannot be delivered are queued; the dashboard shows the pending
 count.
 
@@ -908,6 +916,19 @@ rejoins the network unattended.
 Nothing else does. **Language packs, `/calib.csv` and all stored history are
 lost.** Download a backup first.
 
+Since v2.8.0 the snapshot is written when the upload **starts** and is used
+once: the next boot restores it if it finds no `/config/system.bin`, and erases
+it. An upload that is cut half-way (a router reset) or refused at the end makes
+the device write the configuration back at once; a power cut in the middle of
+the upload brings it back from the snapshot on the next boot. The rest of the
+filesystem is gone either way. Up to v2.7.4
+the snapshot was written only at the end of the upload and read only on the
+boot after an apply, so an interrupted upload came back on factory defaults.
+The upload runs on the firmware that is installed, not on the new one: the
+protection holds for updates made *from* v2.8.0 on. Updating from v2.7.4 or
+older, use a web port your network does not cut on long transfers, and keep the
+backup.
+
 ### There is no rollback
 
 The application slot is single. The image is validated before it is committed
@@ -942,7 +963,7 @@ while `dsize` and `dcrc` describe the bytes that actually arrived.
 
 | Stage | Check |
 |---|---|
-| Upload | Size between 100 KB and the 1020 KB application slot |
+| Upload | Size between 100 KB and 1016 KiB (1,040,384 B). Since v2.8.0 a larger image stops the upload at the point where it crosses the ceiling |
 | Upload | CRC32/MPEG-2 over the first 252 bytes against the 4 bytes that follow — the same check the RP2040 boot ROM performs, so a file that is not a valid RP2040 image is rejected before anything is erased |
 | Apply | The applier copies staging into the application slot from SRAM, with interrupts off |
 | Next boot | The installed image is CRC-checked against the metadata and the verdict logged |

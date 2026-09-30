@@ -2,6 +2,12 @@
 
 O que cada versão da linha 2.x trouxe para quem usa o aparelho, da mais nova para a mais antiga. O registro completo, com as medições de cada mudança, está no `CHANGELOG.pt-BR.md` do repositório.
 
+## Linha 2.8 — estável
+
+| Versão | Data | O que trouxe |
+|---|---|---|
+| v2.8.0 | 30/09/2026 | Um envio de firmware cortado ou recusado não leva mais a configuração: a cópia que atravessa a atualização é gravada no início do envio, o aparelho grava a configuração de volta assim que um envio termina sem aplicação, e o boot seguinte usa a cópia uma vez e a apaga. Os demais arquivos continuam voltando só pelo backup, e a proteção vale a partir de um aparelho que já tem a v2.8.0 ([capítulo 17](#cap-17-sobrevive)). No formato **Dinâmico**, cada linha de telemetria ganha o campo **Cabeçalho Content-Type**, que antes era sempre `text/plain`; vazio, vale `application/json` ([capítulo 21](#cap-21-dinamico) e [capítulo 22](#cap-22-dinamico)). A configuração passa à versão 26 do formato: uma versão anterior gravada depois dela não a lê e volta com a configuração de fábrica ([capítulo 3](#cap-03-antigo)) |
+
 ## Linha 2.7 — estável
 
 | Versão | Data | O que trouxe |

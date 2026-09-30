@@ -47,10 +47,10 @@ They share one core:
 
 | | |
 |---|---|
-| **Current release** | **v2.7.4** (2026-09-26). The 2.7 line left beta with v2.7.0, on measurements: an 8.18 h soak with 0 reboots, and 6 of 6 over-the-air updates with nothing lost. v2.7.4 fixes a sensor scan that left a BMP280 on hardware I2C in error, and four settings that do nothing no longer restart the device; v2.7.3 had put the firmware version on the login page and a *Restart without saving* button on the Configuration page. |
+| **Current release** | **v2.8.0** (2026-09-30). SIMUT left beta with v2.7.0, on measurements: an 8.18 h soak with 0 reboots, and 6 of 6 over-the-air updates with nothing lost. v2.8.0 keeps the configuration when an update is cut off halfway, and lets the custom telemetry format send the Content-Type its server expects; v2.7.4 had fixed a sensor scan that left a BMP280 on hardware I2C in error. |
 | **Published images** | Three images, each as `.uf2` and `.bin`: `release` (TFT touch panel), `alpha` (16×2 LCD with a Bluetooth console) and `air` (headless battery logger). The pt-BR and es-ES language packs and an OTA manifest ship alongside. An image with a different set of features comes from the [build configurator](https://angelointj.github.io/simut/configurador/), and CI builds it from `main`. |
 | **Maturity** | <ul><li>`release`: **stable**.</li><li>`alpha`: published and bench-tested, its 16×2 LCD included since 2026-09-26.</li><li>`air`: **experimental**. Its one long soak failed: a sleep in cycle 119 never woke (F28). A watchdog across the wake now mitigates it; the root cause is not confirmed.</li></ul> |
-| **Tests** | Every pull request runs 420 host test cases in 8 suites, 60 s of fuzzing and static analysis, and builds all six firmware images from a cold cache. Behaviour on real hardware is verified on a bench — see [Verification](#verification-on-hardware). |
+| **Tests** | Every pull request runs 426 host test cases in 8 suites, 60 s of fuzzing and static analysis, and builds all six firmware images from a cold cache. Behaviour on real hardware is verified on a bench — see [Verification](#verification-on-hardware). |
 
 **Known limitations.** Each one is documented where it applies.
 - **Updates.** An update over the air reformats the filesystem:
@@ -321,9 +321,9 @@ Prefer not to build? Every [release](https://github.com/angeloINTJ/simut/release
 ### First boot
 1. **Capture the admin password.** A factory-fresh unit prints a random 8-character admin password **once on the USB serial console** (115200 baud). It is never stored in plain text. If you miss it, `system admin reset confirm` over USB prints a new one.
 2. **Join it to your network.** A unit with no network configured opens its setup access point by itself. The Air does not: type `ap` on its console instead.
-   - Join `<name>_SETUP` (`simut_SETUP` from the factory). It is WPA2, and its per-device key is printed on the USB console and on the TFT's boot terminal — at boot, and since v2.7.2 also when the AP opens during operation. On an alpha, read it from the USB console or from the `ap` command's reply: by the v2.7.4 code, the LCD does not reach its AP pages.
+   - Join `<name>_SETUP` (`simut_SETUP` from the factory). It is WPA2, and its per-device key is printed on the USB console and on the TFT's boot terminal — at boot, and since v2.7.2 also when the AP opens during operation. On an alpha, read it from the USB console or from the `ap` command's reply: by the v2.8.0 code, the LCD does not reach its AP pages.
    - The portal opens at `http://192.168.4.1`.
-   - While the setup access point is up, the device does not measure: in v2.7.4 it reads no sensors, checks no alarms and records no history until it joins a network.
+   - While the setup access point is up, the device does not measure: in v2.8.0 it reads no sensors, checks no alarms and records no history until it joins a network.
 
    Without a screen, you can use the console instead: `system ssid <name>`, `system pass <secret>`, then `reload confirm`. The console stops at the first space, so a network name or password with a space has to go through the web page.
 3. **Open the web interface** at the address the device got — on the `release` image also `http://simut.local` — and log in as `admin` with the password from step 1. You will be asked to choose a new one.
@@ -353,7 +353,7 @@ simut/
 │   └── SystemDefs*.h       # System constants and limits
 ├── data/                   # LittleFS assets (language packs, themes, favicon)
 ├── PCB_test/               # KiCad PCB design + Gerber/DRL fabrication files
-├── test/                   # Native unit tests (Unity), seven suites
+├── test/                   # Native unit tests (Unity), eight suites
 ├── tools/                  # Build gates, bench suites, PicoHand, release scripts, theme editor
 ├── docs/                   # Documentation + GitHub Pages site
 ├── WebUI.h                 # Web UI source (gzipped into src/WebUI_GZ.h at build)
@@ -373,7 +373,7 @@ simut/
 | `pico_w_test` | Bench image: the full console for the test suites; no HTTPS, no mDNS | — |
 | `pico_w_test_https` | `pico_w_test` plus the HTTPS server, for TLS validation; three of its pages are served from LittleFS to fit | — |
 | `pico_w_asserts` | Release + concurrency assertions | — |
-| seven `native*` envs | Host-side unit tests — see [Testing](#testing) | — |
+| eight `native*` envs | Host-side unit tests — see [Testing](#testing) | — |
 
 > **Security note for `pico_w_alpha` and `pico_w_air`:** both compile the
 > Bluetooth SPP console in (`SIMUT_BLUETOOTH=1`), so on those two images it is
@@ -464,6 +464,9 @@ What has been measured on real hardware, latest first:
 
 | Date | What | Result |
 |---|---|---|
+| 2026-09-30 | Release candidate (v2.8.0) | Web suite 87 passed, 0 failed; update from the published v2.7.4 over the air: the configuration file identical byte for byte except the version, five sensors reading, the `.bkp` restored 67 of 72 files identical (the other five expected to differ); an upload cut at 400 kB, then a reset: configuration intact; 10 min without a restart; Air and alpha updated over the air from v2.7.4 with their configuration (the Air's own options back from the `.bkp`) |
+| 2026-09-30 | An upload cut, then the filesystem filled (v2.8.0) | Same starting flash, upload cut at 400 kB, nothing changed, the filesystem filled to 100 % and emptied, reset: before #195 the device came back on factory defaults, after it with its configuration. The same cut on v2.7.3, without the filling: factory defaults (#192) |
+| 2026-09-30 | Custom telemetry Content-Type (v2.8.0) | Collector on a PC: the header received matches the field for `application/x-ndjson`, `text/csv` and `application/json; charset=utf-8`; empty sends `application/json`; the JSON format ignores the field; `bad value`, `aplicação/json` and `json` are refused at save |
 | 2026-09-26 | Release candidate (v2.7.4) | Web suite 87 passed, 0 failed; all five sensors across the three families; after a sensor scan the BMP280 kept reading for 90 s (before the fix it failed about 10 s after); a rehearsed commit of the sample interval answers `"reboot":false`; 10 min without a restart |
 | 2026-09-26 | The alpha's 16×2 LCD (v2.7.4) | On an HD44780 wired in parallel: the boot screen with the version and its progress bar, the connected screen with the IP, then each sensor in turn with its slot and the Wi-Fi level |
 | 2026-09-25 | Configuration page and login page (v2.7.3) | *Restart without saving*, on the `release` image and on the test build: offline 3.3 s after the click, back at 26.4 s, and a name edited but never saved did not survive the restart. The login page shows the version in both themes; 9 pages, 0 script errors |
@@ -490,7 +493,7 @@ Two things on the 16×2 LCD have not been on glass: the single-sensor layout, wi
 |----------|-------------|
 | [User manual](docs/MANUAL.md) | Hardware setup, display/web/console guide, OTA, API reference, troubleshooting — kept current |
 | [Manual do usuário (pt-BR)](docs/MANUAL.pt-BR.md) | The same manual, in Portuguese |
-| [Complete manual (pt-BR)](docs/MANUAL.pt-BR.html) | The full product manual in Portuguese, updated for v2.7.4: 31 chapters on installation, configuration, daily use and server integration. Screenshots are being recaptured; each missing one is marked where it belongs |
+| [Complete manual (pt-BR)](docs/MANUAL.pt-BR.html) | The full product manual in Portuguese, updated for v2.8.0: 31 chapters on installation, configuration, daily use and server integration. Screenshots are being recaptured; each missing one is marked where it belongs |
 | [Wiring guide](docs/WIRING.md) | Complete pinout and connection diagrams |
 | [Over-the-air updates](docs/OTA_USAGE.md) | Updating from the web page, and what survives it |
 | [Recovery guide](docs/RECOVERY.md) | Brick recovery — BOOTSEL, picotool, 1200 bps reset |

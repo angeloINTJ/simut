@@ -509,35 +509,46 @@
   "test_https and asserts, 2,920 alpha, 2,960 air; .bin slack under the OTA",
   "ceiling: release 30,372, test 24,972, test_https 17,316, asserts 28,196,",
   "alpha 62,324, air 21,460. Against the published v2.7.3 .bin: release -240,",
-  "alpha and air the same size to the byte."
+  "alpha and air the same size to the byte.",
+  "",
+  "2026-09-30 (chore/v2.8.0, on main 8aa898b = #195): all six built with",
+  "SIMUT_VERSION 2.8.0; release, test, alpha and air came out byte-identical to",
+  "the release candidate that went through the bench. Against v2.7.4's",
+  "'measured': release +1,376 (#192 -8, #194 +824, #195 +560), test +1,368,",
+  "test_https +1,312, asserts +1,448, alpha +1,200, air +1,208. #194 and #195",
+  "moved the images without moving 'measured'; it now names this commit. Budgets",
+  "do not move. Margins left: 1,216 release, 1,224 test, 1,280 test_https, 1,144",
+  "asserts, 1,720 alpha, 1,752 air; .bin slack under the OTA ceiling: release",
+  "28,996, test 23,604, test_https 16,004, asserts 26,748, alpha 62,292, air",
+  "21,428. Against the published v2.7.4 .bin: release +1,376, alpha and air +32."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-09-26",
- "measured_at_commit": "chore/v2.7.4 on main 7824d95 (#190 merged; SIMUT_VERSION 2.7.4; budgets unchanged). All six rebuilt here; test moved +8, the other five match what #184 (2420998) wrote, to the byte. measured is the zopfli image PlatformIO prints.",
+ "measured_on": "2026-09-30",
+ "measured_at_commit": "chore/v2.8.0 on main 8aa898b (#195 merged; SIMUT_VERSION 2.8.0; budgets unchanged). All six rebuilt here; release, test, alpha and air byte-identical to the candidate tested on the bench. measured is the zopfli image PlatformIO prints.",
  "envs": {
   "pico_w_release": {
    "budget": 1000572,
-   "measured": 997980
+   "measured": 999356
   },
   "pico_w_test": {
    "budget": 1005972,
-   "measured": 1003380
+   "measured": 1004748
   },
   "pico_w_test_https": {
    "budget": 1013628,
-   "measured": 1011036
+   "measured": 1012348
   },
   "pico_w_asserts": {
    "budget": 1002748,
-   "measured": 1000156
+   "measured": 1001604
   },
   "pico_w_alpha": {
    "budget": 966228,
-   "measured": 963308
+   "measured": 964508
   },
   "pico_w_air": {
    "budget": 1006104,
-   "measured": 1003144
+   "measured": 1004352
   }
  }
 }

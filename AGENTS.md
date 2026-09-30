@@ -312,7 +312,12 @@ Antes de publicar, no rig, com os números no PR:
    intactos). Receita em [docs/OTA_USAGE.md](docs/OTA_USAGE.md).
 3. **Stage interrompido** — cortar o upload no meio e reiniciar: o boot **não pode**
    cair em fábrica. Numa imagem sem a correção isto vira fábrica, e é esse o controle
-   negativo que prova que o teste morde.
+   negativo que prova que o teste morde. Repita **enchendo o sistema de arquivos**
+   entre o corte e o reinício (arquivos pela página Arquivos até faltar espaço, depois
+   apagados), sem mexer em configuração: é o que o log e o histórico fazem com o tempo,
+   e o reinício logo depois do corte não enxerga. O snapshot mora nos dois últimos
+   blocos do LittleFS; até o #195 ele era a única cópia depois de um corte, e com o
+   sistema de arquivos cheio o aparelho voltava de fábrica.
 4. **Devolver a bancada** ao estado de origem e conferir byte a byte (o slot da app
    e o `system.bin`).
 

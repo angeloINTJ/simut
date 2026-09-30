@@ -319,11 +319,12 @@ Detalhes no [capítulo 17](#cap-17).
 |---|---|---|
 | Os botões **Backup**, **Restaurar** e **Firmware** não aparecem | A conta não é o administrador completo | Entre com uma conta que tenha todas as permissões |
 | **Falha ao baixar backup. Tente novamente.** na etapa 1 | O painel estava em uso, outra operação pesada rodava, ou a rede caiu | Espere alguns segundos e recomece. Nada mudou no aparelho |
-| **Falha no envio (validação v=7). Cancelled.** | A imagem é de outra variante (release, alpha ou air) | Use o `.bin` da variante do aparelho. Restaure o backup antes de reiniciar |
-| **Falha no envio (validação v=4)** ou **v=5** | O arquivo é pequeno demais ou grande demais para ser uma imagem | Confira que escolheu o `.bin` certo. Restaure o backup antes de reiniciar |
-| **Falha no envio (validação v=6)** | O arquivo não é uma imagem do RP2040 | Use o `.bin` publicado, não o `.uf2` nem outro arquivo. Restaure o backup antes de reiniciar |
-| **Falha no envio (validação v=undefined)** | O arquivo passa de 1 MiB, ou o envio caiu | Confira o arquivo e a rede. Restaure o backup antes de reiniciar |
-| Depois de uma recusa no envio, o aparelho reiniciou e voltou sem rede e sem contas | A recusa reformatou o sistema de arquivos; a configuração estava só na RAM | Pegue a senha pelo console USB, configure a rede e restaure o backup ([capítulo 18](#cap-18-fabrica)) |
+| **Falha no envio (validação v=7). Cancelled.** | A imagem é de outra variante (release, alpha ou air) | Use o `.bin` da variante do aparelho. Restaure o backup, que devolve os arquivos apagados pela recusa |
+| **Falha no envio (validação v=4)** | O arquivo é pequeno demais para ser uma imagem. Até a v2.7.4, `v=5` era a recusa de um arquivo grande demais | Confira que escolheu o `.bin` certo. Restaure o backup |
+| **Falha no envio (validação v=6)** | O arquivo não é uma imagem do RP2040 | Use o `.bin` publicado, não o `.uf2` nem outro arquivo. Restaure o backup |
+| **Falha no envio (validação v=undefined)** | O arquivo passa de 1016 KiB, ou o envio caiu | Confira o arquivo e a rede. Restaure o backup |
+| Depois de uma recusa ou de um envio cortado, o aparelho reiniciou e voltou sem rede e sem contas | Aparelho com a v2.7.4 ou anterior: a recusa reformatou o sistema de arquivos, e a configuração estava só na RAM | Pegue a senha pelo console USB, configure a rede e restaure o backup ([capítulo 18](#cap-18-fabrica)) |
+| Depois de uma recusa ou de um envio cortado, o aparelho voltou com a rede e as contas, mas sem histórico, idioma e temas | Desde a v2.8.0, a configuração volta da cópia guardada no início do envio; os demais arquivos foram apagados pelo envio | Restaure o backup que a página baixou antes do envio ([capítulo 17](#cap-17-restauracao)) |
 | **Aplicação recusada (HTTP 503)** | O painel estava em uso no instante da aplicação | Não reinicie. Repita `POST /api/ota/apply` com a sessão do administrador |
 | A página de entrada não abre logo depois da atualização | O aparelho está gravando a imagem e reiniciando | Espere cerca de 1 min e recarregue |
 | O aparelho continua na versão antiga | A aplicação não aconteceu | Confira a versão na gaveta e o log; refaça a atualização |
@@ -413,6 +414,8 @@ Detalhes nos capítulos [20](#cap-20), [21](#cap-21) e [22](#cap-22).
 | O assinante MQTT quebra ao receber um array | Depois de uma parada, lotes com mais de 5 registros saem numa mensagem só | Aceite objeto e array |
 | O coletor recebe `"camara":null` | Forma simples do marcador, com o sensor sem leitura | Use `"t0_ID":{t0}` ou `"t0":{t0}` para a chave sumir |
 | JSON inválido no formato **Dinâmico** | Modelo mal escrito; o aparelho não valida | Confira a **Prévia ao Vivo** e o primeiro corpo recebido |
+| O coletor recusa o corpo do formato **Dinâmico** (evento 31 com o contexto 400 ou 415), embora ele seja válido | O `Content-Type` não é o que o coletor exige. Até a v2.7.4, o **Dinâmico** mandava sempre `text/plain` | Preencha o **Cabeçalho Content-Type** da linha com o tipo que o coletor espera ([capítulo 21](#cap-21-content-type)) |
+| **Campos não aplicados: t_ct** ou **a_ct** | O valor não é um tipo de mídia: falta a barra, tem acento ou passa de 31 caracteres | Escreva `tipo/subtipo`, como `application/json` |
 | JSON inválido no formato JSON, com filas longas (v2.7.1) | Lote grande montado com pouca memória | Responda 400 a corpo inválido: o cursor não avança e o lote sai de novo, menor; corrigido na v2.7.2 |
 | Medições repetidas no banco | Duplicatas por desenho (confirmação perdida, queda de energia, reset do cursor) | Grave com chave única (`uid`, `ts`, canal) |
 | Buraco nas medições depois de uma parada longa | Registros mais de 30 dias antes do mais novo, ou hora fora de ordem | Recupere pelo histórico do aparelho |

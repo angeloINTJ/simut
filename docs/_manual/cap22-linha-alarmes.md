@@ -184,6 +184,8 @@ Fora da forma composta, um marcador sem valor vira texto vazio, e não `null`, c
 
 Os códigos já vêm com aspas: escreva `"alarm":{alarm}`, e não `"alarm":"{alarm}"`.
 
+No HTTP, o corpo sai com o `Content-Type` do campo **Cabeçalho Content-Type** da linha de alarmes, que vazio vale `application/json` ([Entrega por HTTP](#cap-22-http)).
+
 ::: nota
 **A página mostra só parte dos marcadores.** O quadro de tags da página lista `{TS}`, `{ID}`, `{HWID}`, `{SLOT}`, `{CH}`, `{VAL}`, `{ALARM}`, `{ERR}` e `{SEQ}`. O aparelho também aceita `{MAINT}`, `{LO}`, `{HI}`, `{UNTIL}` e `{USER}`, mas a **Prévia ao Vivo** não os conhece e os mostra como texto. A prévia do CSV também está desatualizada: mostra 4 colunas, e o aparelho envia 8.
 :::
@@ -199,7 +201,7 @@ O aparelho faz um POST com a fila inteira, no máximo 64 registros, para:
 - o **Caminho HTTP** da linha, se estiver preenchido;
 - senão, o **Endpoint** da telemetria seguido de `/alarm`. Com o **Endpoint** `/api/telemetria`, o caminho é `/api/telemetria/alarm`; com o de fábrica, `/api.php/alarm`.
 
-A requisição tem a mesma forma da telemetria ([capítulo 21](#cap-21-anatomia)): mesmos cabeçalhos de identidade, mesma chave de acesso, `Content-Type` conforme o formato da linha (`application/json`, `text/csv` ou `text/plain`).
+A requisição tem a mesma forma da telemetria ([capítulo 21](#cap-21-anatomia)): mesmos cabeçalhos de identidade, mesma chave de acesso, `Content-Type` conforme o formato da linha: `application/json` no JSON, `text/csv` no CSV e, no **Dinâmico**, o **Cabeçalho Content-Type** da linha de alarmes, que vazio vale `application/json`. Até a v2.7.4, o **Dinâmico** saía sempre como `text/plain`.
 
 | O coletor responde | O aparelho faz | Evento |
 |---|---|---|
@@ -270,10 +272,12 @@ Os campos ficam no bloco **Payload de Alarmes — 2ª Linha de Telemetria** (*Al
 | **1. Global** (*1. Global Template (The Envelope)*) | `a_glob` | Até 255 caracteres | `{"dev":"{DEV}","mac":"{MAC}","alarms":[{DATA}]}` |
 | **2. Linha** (*2. Row Template (Single Alarm)*) | `a_line` | Até 511 caracteres | O modelo de fábrica ([JSON](#cap-22-json)) |
 | **3. Separador** (*3. Separator*) | `a_sep` | Até 7 caracteres | `,` |
+| **Cabeçalho Content-Type** (*Content-Type Header*) | `a_ct` | Até 31 caracteres: um tipo de mídia, como `application/json` | Vazio, que vale `application/json` |
 
 - O **Formato** da linha de alarmes é independente do **Formato** da telemetria.
 - O texto do bloco mostra **Pendentes:** (*Pending:*) e o tamanho da fila no momento em que a página abriu. Para atualizar o número, recarregue a página.
-- Os três modelos só aparecem no formato **Dinâmico**, mas o **2. Linha** também vale no JSON ([JSON](#cap-22-json)).
+- Os três modelos e o **Cabeçalho Content-Type** só aparecem no formato **Dinâmico**, mas o **2. Linha** também vale no JSON ([JSON](#cap-22-json)).
+- O **Cabeçalho Content-Type** é independente do da telemetria e segue as mesmas regras: só vale no **Dinâmico** e no HTTP, e um valor que não é um tipo de mídia é recusado com o aviso **Campos não aplicados: a_ct** ([capítulo 21](#cap-21-content-type)).
 - A linha precisa de um **IP Servidor** preenchido na telemetria; sem ele, nada sai.
 
 ::: {.figura #fig-22-bloco-alarmes tipo="web" arquivo="22-bloco-alarmes.png" captura="rota /telemetry; largura 1280; sessão admin; rolar até o bloco Payload de Alarmes — 2ª Linha de Telemetria; Habilitar linha de telemetria de alarmes ligado; Formato JSON; Tamanho da fila (RAM) 32; Caminho HTTP vazio; texto Pendentes: 0 visível"}

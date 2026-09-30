@@ -131,7 +131,7 @@ Sintoma: o aparelho liga sem rede Wi-Fi, abre a rede de configuração, e a senh
 
 Causas possíveis:
 
-- uma atualização interrompida no envio da imagem, ou recusada, seguida de um reinício ([capítulo 17](#cap-17-energia));
+- uma atualização interrompida no envio da imagem, ou recusada, seguida de um reinício, num aparelho com a v2.7.4 ou anterior. Desde a v2.8.0, a configuração volta nesse caso, e só os arquivos se perdem ([capítulo 17](#cap-17-energia));
 - o sistema de arquivos não montou no boot, e o aparelho o reformatou;
 - alguém rodou `system factory` ou `system format` ([capítulo 17](#cap-17-fabrica));
 - o firmware foi gravado depois de apagar a flash inteira.

@@ -1,6 +1,6 @@
 # SIMUT — Manual do Usuário
 
-**Firmware:** v2.7.4 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **Licença:** MIT
+**Firmware:** v2.8.0 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **Licença:** MIT
 **Repositório:** https://github.com/angeloINTJ/simut
 
 [English](MANUAL.md) | **Português**
@@ -785,7 +785,7 @@ um endpoint que você especifica.
 | Ajuste | Opções |
 |---|---|
 | Transporte | HTTP POST ou MQTT |
-| Payload | JSON, CSV ou um template customizado |
+| Payload | JSON, CSV ou um template customizado, enviado com o `Content-Type` que você definir (`application/json` quando vazio) |
 | Segurança | TLS suportado |
 | Disparo | Um lote mínimo: o aparelho transmite quando essa quantidade de registros está esperando (0 desliga a telemetria) |
 | Tamanho do envio | Um lote máximo: uma fila maior sai em lotes de até esse tamanho até acabar |
@@ -900,6 +900,14 @@ Os tokens `{tAMB}`, `{uAMB}` e `{pAMB}` foram removidos na v1.6.0-beta junto
 com o slot ambiente privilegiado pelo qual eles resolviam. Use os tokens de
 slot numerados em vez deles.
 
+O template customizado sai com o `Content-Type` do campo **Cabeçalho
+Content-Type** da página (`t_ct`; a linha de alarmes tem o seu, `a_ct`): um
+media type como `application/json`, `application/x-ndjson` ou `text/csv`, até
+31 caracteres. Vazio vale `application/json`; o que não for media type é
+recusado ao gravar. JSON e CSV mantêm os cabeçalhos fixos. Até a v2.7.4 o
+template customizado saía sempre como `text/plain`, que um servidor que exige
+JSON recusa.
+
 Os registros que não podem ser entregues ficam enfileirados; o dashboard mostra
 a contagem de pendentes.
 
@@ -947,6 +955,19 @@ automaticamente, e o dispositivo volta para a rede sem assistência.
 Nada mais sobrevive. **Pacotes de idioma, o `/calib.csv` e todo o histórico
 armazenado se perdem.** Baixe um backup antes.
 
+Desde a v2.8.0 o snapshot é gravado quando o envio **começa** e vale uma vez: o
+boot seguinte o restaura se não encontrar o `/config/system.bin`, e o apaga. Um
+envio cortado no meio (um reset do roteador) ou recusado no fim faz o aparelho
+gravar a configuração de volta na hora; uma queda de energia no meio do envio a
+devolve pelo snapshot no boot seguinte. O resto do sistema de arquivos se perde
+do mesmo jeito. Até a
+v2.7.4 o snapshot só era gravado no fim do envio e só era lido no boot depois
+de um apply, então um envio interrompido voltava com os padrões de fábrica.
+O envio roda no firmware instalado, não no novo: a proteção vale para as
+atualizações feitas *a partir* da v2.8.0. Ao atualizar da v2.7.4 ou anterior,
+use uma porta web que a sua rede não corte em transferências longas, e guarde o
+backup.
+
 ### Não existe rollback
 
 O slot de aplicação é único. A imagem é validada antes de ser gravada e
@@ -982,7 +1003,7 @@ que fecha a última página de 256 bytes, que é o que o aplicador copia, enquan
 
 | Etapa | Verificação |
 |---|---|
-| Upload | Tamanho entre 100 KB e o slot de aplicação de 1020 KB |
+| Upload | Tamanho entre 100 KB e 1016 KiB (1.040.384 B). Desde a v2.8.0, uma imagem maior para o envio no ponto em que passa do teto |
 | Upload | CRC32/MPEG-2 sobre os primeiros 252 bytes contra os 4 bytes que vêm em seguida — a mesma checagem que a boot ROM do RP2040 faz, de modo que um arquivo que não seja uma imagem RP2040 válida é rejeitado antes que qualquer coisa seja apagada |
 | Apply | O aplicador copia o staging para o slot de aplicação a partir da SRAM, com as interrupções desligadas |
 | Próximo boot | A imagem instalada tem o CRC conferido contra os metadados e o veredito é registrado no log |
@@ -1182,12 +1203,13 @@ v2.7.1 a janela roda com o painel desenhando, então **o que está escrito na te
 |---|---|---|
 | Aplicação | `0x000000` | 1020 KB |
 | Staging / LittleFS | `0x0FF000` | 1024 KB |
-| Snapshot de configuração | últimos 4 KB do staging | 4 KB |
+| Snapshot de configuração | `0x1FD000` — os últimos 8 KB do staging (setores 254–255) | 8 KB |
 | Metadados de OTA | `0x1FF000` | 4 KB |
 
 A área de staging e o sistema de arquivos são a mesma região física. É por isso
-que uma atualização reformata o sistema de arquivos, e por isso que o snapshot
-da configuração vive no setor de metadados.
+que uma atualização reformata o sistema de arquivos. O snapshot da configuração
+fica nos dois últimos setores dessa região, e é também por isso que uma imagem
+só é aceita até 1016 KiB: uma maior teria a cauda onde o snapshot é gravado.
 
 ### Build
 

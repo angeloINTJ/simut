@@ -652,10 +652,10 @@ O bloco `sensors` lista só os slots ativos:
 |---|---|---|
 | `name`, `tz`, `log`, `res`, `s_int`, `h_int`, `ntp_enabled` | Identidade, hora e amostragem | [Capítulo 5](#cap-05-referencia) |
 | `pin_min`, `pin_max`, `pin_kb`, `pin_alpha` | [release]{.img} Política de PIN do painel. `pin_max` é só de leitura | [Capítulo 8](#cap-08-politica) |
-| `t_transport`, `t_sec`, `t_srv`, `t_port`, `t_path`, `t_key`, `t_int`, `t_bat`, `t_mode`, `t_glob`, `t_line`, `t_sep` | Telemetria | [Capítulo 21](#cap-21-pagina) |
+| `t_transport`, `t_sec`, `t_srv`, `t_port`, `t_path`, `t_key`, `t_int`, `t_bat`, `t_mode`, `t_glob`, `t_line`, `t_sep`, `t_ct` | Telemetria | [Capítulo 21](#cap-21-pagina) |
 | `m_topic`, `m_cid`, `m_user`, `m_qos`, `m_retain`, `m_ka` | MQTT | [Capítulo 21](#cap-21-campos-mqtt) |
 | `m_had` | Home Assistant Discovery | [Capítulo 23](#cap-23) |
-| `a_en`, `a_mode`, `a_qmax`, `a_path`, `a_glob`, `a_line`, `a_sep` | Linha de alarmes | [Capítulo 22](#cap-22-campos) |
+| `a_en`, `a_mode`, `a_qmax`, `a_path`, `a_glob`, `a_line`, `a_sep`, `a_ct` | Linha de alarmes | [Capítulo 22](#cap-22-campos) |
 | `slog_en`, `slog_srv`, `slog_port`, `slog_lvl` | Syslog | [Capítulo 5](#cap-05-syslog) e [capítulo 25](#cap-25) |
 
 Chaves só de leitura:

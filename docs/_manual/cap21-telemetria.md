@@ -157,12 +157,13 @@ Use o reset depois que o coletor perdeu dados, ou ao apontar o aparelho para um 
 | **1. Global** (*1. Global Template (The Envelope)*) | `t_glob` | Até 255 caracteres | `{"dev":"{DEV}","mac":"{MAC}","data":[{DATA}]}` | Não |
 | **2. Linha** (*2. Row Template (Single Reading)*) | `t_line` | Até 511 caracteres | `{"ts":{TS},"t0_ID":{t0},"u0_ID":{u0}}` | Não |
 | **3. Separador** (*3. Separator*) | `t_sep` | Até 7 caracteres | `,` | Não |
+| **Cabeçalho Content-Type** (*Content-Type Header*) | `t_ct` | Até 31 caracteres: um tipo de mídia, como `application/json` | Vazio, que vale `application/json` | Não |
 
-Os três modelos só aparecem, e só valem, no formato **Dinâmico**. As opções do **Formato** têm, em inglês, os nomes *JSON Array (Standard)*, *CSV Raw (Standard)* e *Dynamic Builder (Advanced)*.
+Os três modelos e o **Cabeçalho Content-Type** só aparecem, e só valem, no formato **Dinâmico** ([O cabeçalho Content-Type](#cap-21-content-type)). As opções do **Formato** têm, em inglês, os nomes *JSON Array (Standard)*, *CSV Raw (Standard)* e *Dynamic Builder (Advanced)*.
 
 A **Prévia ao Vivo** (*Live Preview*) mostra um exemplo montado com valores de demonstração, não com as suas medições. No CSV, a prévia não mostra as 34 colunas que o aparelho envia de verdade ([Formato CSV](#cap-21-csv)).
 
-::: {.figura #fig-21-construtor tipo="web" arquivo="21-construtor.png" captura="rota /telemetry; largura 1280; sessão admin; bloco Construtor com Formato Dinâmico; quadro de tags visível; 1. Global com o modelo de fábrica; 2. Linha com o modelo de dois sensores da seção Exemplos deste capítulo (t0_ID, t1_ID, u1_ID e p1_ID); 3. Separador vírgula; Prévia ao Vivo preenchida"}
+::: {.figura #fig-21-construtor tipo="web" arquivo="21-construtor.png" captura="rota /telemetry; largura 1280; sessão admin; bloco Construtor com Formato Dinâmico; quadro de tags visível; 1. Global com o modelo de fábrica; 2. Linha com o modelo de dois sensores da seção Exemplos deste capítulo (t0_ID, t1_ID, u1_ID e p1_ID); 3. Separador vírgula; Cabeçalho Content-Type vazio; Prévia ao Vivo preenchida"}
 Legenda: o construtor no formato **Dinâmico**, com o quadro de tags e a prévia. A prévia usa valores de demonstração.
 :::
 
@@ -287,7 +288,7 @@ Content-Length: 265
 | Caminho | O campo **Endpoint** |
 | `Host` | O **IP Servidor**; a porta só aparece quando não é 80 nem 443 |
 | `User-Agent`, `Accept-Encoding`, `Connection` | Fixos, da biblioteca HTTP do aparelho |
-| `Content-Type` | `application/json` (JSON), `text/csv` (CSV) ou `text/plain` (**Dinâmico**) |
+| `Content-Type` | `application/json` (JSON), `text/csv` (CSV) ou o **Cabeçalho Content-Type** (**Dinâmico**; vazio, `application/json`) |
 | Chave de acesso | O cabeçalho montado a partir da **API Key**, se houver |
 | `X-SIMUT-*` | A identidade do aparelho ([capítulo 20](#cap-20-cabecalhos)) |
 | `Content-Length` | O tamanho do corpo. O corpo nunca vai em partes (*chunked*) |
@@ -354,7 +355,18 @@ O formato **Dinâmico** existe para falar com um receptor que já existe e cujo 
 - **3. Separador:** o que vai entre um registro e o próximo;
 - **1. Global:** o envelope. O marcador `{DATA}` recebe as linhas unidas pelo separador.
 
-O `Content-Type` é sempre `text/plain`, mesmo quando o resultado é JSON.
+O `Content-Type` do POST é o do campo **Cabeçalho Content-Type** ([O cabeçalho Content-Type](#cap-21-content-type)).
+
+### O cabeçalho Content-Type {#cap-21-content-type}
+
+O campo **Cabeçalho Content-Type** diz ao receptor o que o corpo é. O aparelho o põe no POST como está gravado, sem os espaços das pontas. Vazio, manda `application/json`. Escreva o tipo que o receptor espera, como `application/json`, `application/x-ndjson`, `text/csv`, `text/plain` ou `application/json; charset=utf-8`.
+
+- **O campo só vale no Dinâmico e no HTTP.** No formato JSON o aparelho manda sempre `application/json`, e no CSV sempre `text/csv`, seja qual for o campo. O MQTT não tem cabeçalhos.
+- **O valor tem de ser um tipo de mídia:** `tipo/subtipo`, só com letras sem acento, algarismos e sinais como `.`, `+` e `-`, e os parâmetros opcionais depois de um `;`. O aparelho recusa, ao gravar, um valor sem a barra, como `json`, um com acento, como `aplicação/json`, e um com mais de 31 caracteres. O valor recusado não é gravado. Com **Testar** ou **Aplicar agora**, a página avisa **Campos não aplicados: t_ct**; **Salvar e reiniciar** reinicia sem mostrar o aviso.
+- **Um valor inválido que chegue por outro caminho**, como um backup restaurado, não sai no cabeçalho: o aparelho manda `application/json` no lugar dele.
+- **Mudar o campo não reinicia o aparelho.** O valor novo vale a partir do envio seguinte.
+
+Até a v2.7.4, o **Dinâmico** mandava sempre `text/plain`, mesmo quando o resultado era JSON, e um receptor que exige JSON recusava o corpo. A linha de alarmes tem um campo igual e independente ([capítulo 22](#cap-22-dinamico)).
 
 ### Marcadores {#cap-21-marcadores}
 
@@ -884,6 +896,8 @@ O log de eventos guarda transições, não repetições. Da família da telemetr
 | O assinante MQTT quebra com um array | Depois de uma parada, a fila sai em lotes com array | Aceite objeto e array ([Mensagens de medição](#cap-21-mensagens)) |
 | O coletor recebe `"camara":null` | Forma simples do marcador, com o sensor sem leitura | Use `"t0_ID":{t0}` ou `"t0":{t0}` para a chave sumir |
 | JSON inválido no formato **Dinâmico** | Modelo mal escrito | Confira a **Prévia ao Vivo** e o primeiro corpo recebido |
+| O coletor recusa o corpo do formato **Dinâmico** (evento 31 com o contexto 400 ou 415), embora ele seja válido | O `Content-Type` não é o que o coletor exige. Até a v2.7.4, o **Dinâmico** mandava sempre `text/plain` | Preencha o **Cabeçalho Content-Type** com o tipo que o coletor espera ([O cabeçalho Content-Type](#cap-21-content-type)) |
+| **Campos não aplicados: t_ct** | O valor não é um tipo de mídia: falta a barra, tem acento ou passa de 31 caracteres | Escreva `tipo/subtipo`, como `application/json` |
 | Medições repetidas no banco | Duplicatas por desenho | Grave com chave única (`uid`, `ts`, canal) |
 | Buraco nas medições depois de horas sem coletor | Registros com mais de 30 dias antes do mais novo, ou hora fora de ordem | Recupere pelo histórico do aparelho ([capítulo 15](#cap-15)) |
 | Primeira ativação manda milhares de registros | O aparelho começa 30 dias antes do registro mais novo | Esperado; prepare o coletor para a carga inicial |
