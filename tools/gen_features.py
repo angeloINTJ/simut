@@ -48,7 +48,7 @@ TOGGLE_ORDER = [
     "cli_full", "web_https", "license_stub", "mdns",
     "concurrency_asserts", "bluetooth", "air", "sound_buzzer",
     "sensor_ds18b20", "sensor_dht22", "sensor_bme280",
-    "tel_tls",
+    "tel_tls", "tel_mqtt",
 ]
 
 HEADER = """; profiles.ini — GERADO por tools/gen_features.py a partir de tools/features.toml.

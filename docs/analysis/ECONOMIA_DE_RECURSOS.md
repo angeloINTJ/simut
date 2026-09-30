@@ -38,6 +38,7 @@ a variante é o mesmo perfil com só ele desligado, derivada pelo modelo
 | `mdns` | `pico_w_release` | 16 576 B | 168 B |
 | `sensor_ds18b20` | `pico_w_release` | 5 432 B | 64 B |
 | `sound_buzzer` | `pico_w_release` | 5 008 B | 0 B |
+| `tel_mqtt` (MQTT e Home Assistant, 2026-09-30) | `pico_w_air` | 7 704 B | 0 B |
 | `sensor_dht22` | `pico_w_release` | 3 400 B | 0 B |
 | `concurrency_asserts` | `pico_w_asserts` | 2 176 B | 0 B |
 | `license_stub` | `pico_w_test` | −1 728 B | 0 B |
@@ -115,6 +116,34 @@ antes dela. É por isso que o TLS ficou cercado dentro dos transportes, onde
 mora, e não foi movido para uma unidade de tradução própria: movê-lo mudaria
 os caminhos HTTPS e MQTTS que levaram semanas de bancada para assentar.
 
+### O MQTT e o Home Assistant (2026-09-30)
+
+O segundo item da lista abaixo, com o mesmo desenho do TLS: `SIMUT_TEL_MQTT`
+cerca, onde moram, o cliente MQTT do `TelemetryManager` (o `PubSubClient` e o
+socket que ele usa), a inicialização no `begin( )`, a rede de segurança do
+Discovery no `update( )` e os dois blocos de funções do MQTT — o dos dados e o
+da linha de alarmes com o tópico de ack —, cada um com um `#else` que devolve
+as portas que o resto do gerente ainda chama.
+
+| Produto | Flash `used` | `.bin` |
+|---|---:|---:|
+| SIMUT | 999 356 → 990 636 B (−8 720) | −8 720 B |
+| SIMUT Alpha | 964 508 → 952 708 B (−11 800) | −12 288 B |
+| SIMUT Air | 1 004 352 → 996 648 B (−7 704) | −8 192 B |
+
+Nenhum símbolo do `PubSubClient` sobra. No heap, o objeto de telemetria cai de
+2 272 para 2 168 B, e somem os 256 B que o construtor do `PubSubClient` pede
+ao `malloc` em toda imagem. As duas chaves juntas — sem TLS e sem MQTT — deixam
+o Air em 928 880 B (−75 472) e o Alpha em 884 836 B (−79 672).
+
+Sem a chave, **uma configuração que nomeia MQTT é recusada**, nunca enviada de
+outro jeito: todo outro ramo da escolha de transporte é HTTP, e um MQTT salvo
+faria POST do lote na porta do broker. O boot registra `SYS_TEL_FAIL` com
+`ctx=-201` uma vez; os envios de dados e de alarmes recusam com o mesmo `ctx`
+e contam a falha; o `commit_all` aceita `t_transport=0` e recusa `1`, para que
+uma config restaurada de uma imagem com MQTT volte a HTTP. Com a chave ligada,
+as seis imagens saem byte a byte idênticas.
+
 ## O que ainda não tem chave — o rastreio de 2026-09-30
 
 A tabela acima mede o que já se desliga. Esta seção olha o contrário: **o que
@@ -133,7 +162,6 @@ piso do `feature_savings.json`.
 | Página de histórico e as rotas sem página | `HIST_PAGE` (22 543 B gz), `/api/history_multi` (7 236), `/api/export/*` (3 376) | ~33 KB | ~33 KB | `/api/logs`, `/api/history/open` e `/api/history_days` ficam: as ferramentas de bancada e o `INTEGRACAO_SERVIDOR.md` dependem delas |
 | Gráfico e calendário do painel | `DisplayManager_Graph`, `AppManager_Graph`, `DisplayManager_Calendar` | ~16,5 KB | — | só o TFT |
 | Contas no painel | `DisplayManager_Users` | ~15 KB | — | só o TFT; preso ao PIN do painel |
-| MQTT e Home Assistant | `PubSubClient` e ~5,5 KB do `TelemetryManager` | ~7 KB | ~7 KB | quase tudo num bloco contíguo; um `telTransport=1` salvo numa imagem sem MQTT precisa ser recusado, ou cai no ramo HTTP e faz POST no broker |
 | Curvas de calibração | `/api/calib`, o motor das curvas | ~8 KB | ~8 KB | não há offset separado: o offset simples **é** uma curva de 1 ponto, e o `calib.csv` também guarda a identidade dos DS18B20. Sem a chave, a leitura sai crua |
 | `/metrics` (Prometheus) | handler, autenticação, `PromMetrics` | ~3,3 KB | ~3,3 KB | o corte mais limpo: uma rota, sem página, sem config |
 | Backup e restauração | validar e aplicar o `.bkp` | ~3,5 KB | ~3,5 KB | o CRC32 do `backup.cpp` fica (o estágio da OTA usa), e a atualização pela página chama `/api/backup` antes de gravar |

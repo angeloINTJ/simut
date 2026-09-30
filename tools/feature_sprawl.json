@@ -128,6 +128,11 @@
  "SIMUT_SOUND_BUZZER": {
   "SoundManager.h": 1
  },
+ "SIMUT_TEL_MQTT": {
+  "TelemetryManager.cpp": 6,
+  "TelemetryManager.h": 1,
+  "WebManager_Commit.cpp": 1
+ },
  "SIMUT_TEL_TLS": {
   "AppManager_Commands.cpp": 1,
   "TelemetryManager.cpp": 7,

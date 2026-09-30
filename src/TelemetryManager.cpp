@@ -74,6 +74,9 @@ static constexpr size_t MQTT_PACKET_OVERHEAD = 16;
  * -4..5, a failure count — so a log reader cannot take it for a network
  * failure: nothing was attempted, nothing left the device. */
 static constexpr int TEL_CTX_NO_TLS = -200;
+/* The same, for a configuration that names MQTT in an image without the MQTT
+ * transport (SIMUT_TEL_MQTT=0). */
+static constexpr int TEL_CTX_NO_MQTT = -201;
 
 static bool historyDayIsBefore(const String &fileName, const char *minDay) {
 	if (fileName.length( ) < 8) return false;
@@ -113,8 +116,10 @@ static bool historyDayIsBefore(const String &fileName, const char *minDay) {
  * Escrevê-la ao contrário era só um aviso hoje, mas é a forma exata de um bug
  * futuro: basta um membro passar a depender de outro na construção. */
 TelemetryManager::TelemetryManager( )
- : _alarmQueue(ALARM_QUEUE_DEFAULT),
-   _mqttClient(_mqttWifiClient)
+ : _alarmQueue(ALARM_QUEUE_DEFAULT)
+#if SIMUT_TEL_MQTT
+ , _mqttClient(_mqttWifiClient)
+#endif
 {
  /* Both were left as indeterminate members until begin( ) ran, which is fine
   * only while nothing touches them first — and the Air boot now does: it asks
@@ -126,8 +131,10 @@ TelemetryManager::TelemetryManager( )
  _currentBackoff = BACKOFF_MIN_MS;
  _backoffUntil = 0;
  _consecutiveFails = 0;
+#if SIMUT_TEL_MQTT
  _mqttInitialized = false;
  _lastMqttReconnect = 0;
+#endif
  s_alarmInstance = this;
 }
 
@@ -208,6 +215,14 @@ void TelemetryManager::begin(StorageManager* storage, NetworkManager* network) {
  }
 
  if (cfg.telTransport == TEL_TRANSPORT_MQTT) {
+#if !SIMUT_TEL_MQTT
+ /* No MQTT client in this image. Every other branch of the transport choice
+  * is HTTP, so a saved MQTT transport would POST the batch to the broker's
+  * port: it is refused instead — said once here, and again at every send
+  * under the same code, which the log's family latch keeps quiet. */
+ LOG_CODE(LOG_WARN, "TEL", SYS_TEL_FAIL, TEL_CTX_NO_MQTT,
+          "transport is MQTT and this image has no MQTT client: telemetry is not sent — set t_transport to HTTP");
+#else
  if (cfg.telEncryption) {
 #if !SIMUT_TEL_TLS
  /* The client below was built on the plain socket (_mqttWifiClient), and
@@ -268,6 +283,7 @@ void TelemetryManager::begin(StorageManager* storage, NetworkManager* network) {
 
  _mqttInitialized = true;
  LOG_CODE(LOG_INFO, "TEL", TEL_MQTT_INIT, cfg.telPort, String(cfg.telServer));
+#endif
  } else {
  /*
  * HTTP: pre-allocate WiFiClientSecure at boot to avoid fragmentation.
@@ -316,6 +332,7 @@ void TelemetryManager::update( ) {
  * Prevents loop() from attempting implicit reconnect with long socket
  * timeout that would freeze the main loop on degraded networks.
  */
+#if SIMUT_TEL_MQTT
  if (cfg.telTransport == TEL_TRANSPORT_MQTT && _mqttInitialized
  && _mqttClient.connected( )) {
  _mqttClient.loop( );
@@ -336,6 +353,7 @@ void TelemetryManager::update( ) {
  }
  }
  }
+#endif
 
  uint32_t now = millis( );
 
@@ -1091,6 +1109,7 @@ bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
 }
 
 
+#if SIMUT_TEL_MQTT
 String TelemetryManager::buildMqttClientId( ) {
  SystemConfig &cfg = _storageRef->getConfig( );
  String cid = String(cfg.mqttClientId);
@@ -1574,6 +1593,20 @@ bool TelemetryManager::isMqttConnected( ) {
  if (!_mqttInitialized) return false;
  return _mqttClient.connected( );
 }
+#else
+/* SIMUT_TEL_MQTT=0: the doors the rest of the manager still knocks on. The data
+ * send refuses with the same context begin( ) logged, and counts the failure so
+ * the dashboard does not read "0 failures" while nothing is sent. */
+bool TelemetryManager::isMqttConnected( ) { return false; }
+
+bool TelemetryManager::attemptMqttPublish(String& payload, std::vector<BinaryHistoryRecord>& batch,
+                                          uint32_t newCursor) {
+ (void)payload; (void)batch; (void)newCursor;
+ LOG_CODE(LOG_ERROR, "TEL", SYS_TEL_FAIL, TEL_CTX_NO_MQTT, "no MQTT client in this image");
+ MetricsManager::instance( ).data( ).telFailed++;
+ return false;
+}
+#endif
 
 
 void TelemetryManager::resetBackoff( ) {
@@ -2773,6 +2806,7 @@ bool TelemetryManager::attemptAlarmHttpUpload(String& payload, std::vector<Alarm
 	return success;
 }
 
+#if SIMUT_TEL_MQTT
 String TelemetryManager::mqttAlarmTopic( ) {
 	return mqttDataTopic( ) + "/alarm";
 }
@@ -2832,6 +2866,13 @@ void TelemetryManager::handleAlarmAckPayload(const uint8_t* payload, unsigned in
 		         String(_alarmQueue.size( )) + " pending");
 	}
 }
+#else
+bool TelemetryManager::attemptAlarmMqttPublish(String& payload, std::vector<AlarmRecord>& batch) {
+ (void)payload; (void)batch;
+ LOG_CODE(LOG_ERROR, "TEL", TEL_ALARM_FAIL, TEL_CTX_NO_MQTT, "no MQTT client in this image");
+ return false;
+}
+#endif
 
 void TelemetryManager::ackAlarmBatch(const std::vector<AlarmRecord>& batch) {
 	if (batch.empty( )) return;

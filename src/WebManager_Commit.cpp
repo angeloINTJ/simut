@@ -1058,7 +1058,13 @@ void WebManager::handleApiCommitAll( ) {
 			 * most this until the queue is empty. */
 			if (has("t_bat")) { int v; if (parseIntStrict(getNum("t_bat"), v) && isInRange(v, 1, 250)) cfg.telBatchSize = (uint8_t)v; else rejectField("t_bat"); }
 			if (has("t_mode")) { int v; if (parseIntStrict(getNum("t_mode"), v) && isInRange(v, 0, 2)) cfg.telMode = (uint8_t)v; else rejectField("t_mode"); }
+#if SIMUT_TEL_MQTT
 			if (has("t_transport")) { int v; if (parseIntStrict(getNum("t_transport"), v) && isInRange(v, 0, 1)) cfg.telTransport = (uint8_t)v; else rejectField("t_transport"); }
+#else
+			/* No MQTT transport in this image: HTTP is the only one it can take,
+			 * and a config restored with MQTT can be set back to it. */
+			if (has("t_transport")) { int v; if (parseIntStrict(getNum("t_transport"), v) && telTransportAccepted(v, false)) cfg.telTransport = (uint8_t)v; else rejectField("t_transport"); }
+#endif
 			if (has("m_topic")) setStr("m_topic", cfg.mqttTopic, sizeof(cfg.mqttTopic));
 			if (has("m_cid")) setStr("m_cid", cfg.mqttClientId, sizeof(cfg.mqttClientId));
 			if (has("m_user")) setStr("m_user", cfg.mqttUser, sizeof(cfg.mqttUser));
