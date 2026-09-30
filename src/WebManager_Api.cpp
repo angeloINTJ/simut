@@ -20,6 +20,7 @@
 #include <LittleFS.h>
 #include <time.h>
 #include "BuildIdentity.h"
+#include "FeatureBits.h"
 
 using ReadGuard = StorageManager::ReadGuard;
 
@@ -816,10 +817,17 @@ void WebManager::handleApiStatus( ) {
 	 * needed three routes and still could not tell alpha from Air. `cfg` is
 	 * the CRC-32 of the configuration in RAM: two devices with the same
 	 * value have the same configuration, and a device whose value changed
-	 * since the last read was edited by someone (§ fleet, R1/R5). */
+	 * since the last read was edited by someone (§ fleet, R1/R5).
+	 *
+	 * feat: which of the configurator's switches the image was built with,
+	 * one bit per switch (FeatureBits.h, generated from tools/features.toml).
+	 * "cap" says only whether there is a panel; an image from the configurator
+	 * can also lack the history page, the export API, /metrics, MQTT or TLS,
+	 * and a client that cannot tell meets a 404 that looks like a fault of the
+	 * device. The same bits for every account: they describe the build. */
 	char macBuf[20];
 	_netRef->getMacAddress(macBuf, sizeof(macBuf));
-	snprintf(buffer, sizeof(buffer), "{\"sys\":{\"name\":\"%s\",\"ver\":\"%s\",\"env\":\"%s\",\"uid\":\"%s\",\"mac\":\"%s\",\"cfg\":\"%08lX\",\"uptime\":%lu,\"rssi\":%d,\"ip\":\"%s\",\"theme\":%d,\"heap_f\":%lu,\"heap_t\":%lu,\"heap_lb\":%lu,\"fs_u\":%lu,\"fs_t\":%lu,\"time\":%lu,\"ntp\":%d,\"pending\":%d,\"tel\":%d,\"hi\":%u,\"cap\":%d},",
+	snprintf(buffer, sizeof(buffer), "{\"sys\":{\"name\":\"%s\",\"ver\":\"%s\",\"env\":\"%s\",\"uid\":\"%s\",\"mac\":\"%s\",\"cfg\":\"%08lX\",\"uptime\":%lu,\"rssi\":%d,\"ip\":\"%s\",\"theme\":%d,\"heap_f\":%lu,\"heap_t\":%lu,\"heap_lb\":%lu,\"fs_u\":%lu,\"fs_t\":%lu,\"time\":%lu,\"ntp\":%d,\"pending\":%d,\"tel\":%d,\"hi\":%u,\"cap\":%d,\"feat\":%lu},",
 	         devName.c_str( ), SIMUT_VERSION, simut_env_name( ),
 	         StorageManager::getBoardSerialNumber( ).c_str( ), macBuf,
 	         (unsigned long)_storageRef->getConfigCrc( ),
@@ -832,7 +840,8 @@ void WebManager::handleApiStatus( ) {
 	          * so a reader outside the device has to be told. Without it a
 	          * browser decoding .h5 would place every record after the first
 	          * at the wrong instant on any device not sampling once a minute. */
-	         (unsigned)_storageRef->getHistoryIntervalMin( ), SIMUT_DISPLAY_TFT);
+	         (unsigned)_storageRef->getHistoryIntervalMin( ), SIMUT_DISPLAY_TFT,
+	         (unsigned long)SIMUT_FEATURE_BITS);
 
 	if (!safeSend(buffer)) return;
 

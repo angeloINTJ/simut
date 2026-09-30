@@ -11,7 +11,7 @@
   },
   "mdns": {
     "base": "pico_w_release",
-    "flash_saved": 16576,
+    "flash_saved": 16568,
     "ram_saved": 168
   },
   "concurrency_asserts": {
@@ -61,17 +61,17 @@
   },
   "web_export_api": {
     "base": "pico_w_release",
-    "flash_saved": 12344,
+    "flash_saved": 12336,
     "ram_saved": 2052
   },
   "web_metrics": {
     "base": "pico_w_release",
-    "flash_saved": 4912,
+    "flash_saved": 4904,
     "ram_saved": 0
   },
   "syslog": {
     "base": "pico_w_release",
-    "flash_saved": 1768,
+    "flash_saved": 1760,
     "ram_saved": 0
   },
   "tft_graph": {

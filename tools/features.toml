@@ -17,7 +17,7 @@
 
 [meta]
 version   = 1
-generates = ["tools/generated/profiles.ini", "docs/configurador/model.json"]
+generates = ["tools/generated/profiles.ini", "docs/configurador/model.json", "src/FeatureBits.h"]
 # Os ambientes de host (native_*) NAO sao modelados aqui: sao suites de teste,
 # nao imagens de firmware. O portao os ignora.
 
@@ -71,29 +71,44 @@ display = ["Adafruit ILI9341", "Adafruit GFX Library", "XPT2046_Touchscreen"]
 #    off_is_0   -> ligado nada (default do config), desligado -D<macro>=0
 #    bare       -> ligado -D<macro>, desligado nada
 #    none       -> sem macro; so mexe em arquivo e biblioteca
+#
+#  `bit` e a posicao da chave no "feat" do /api/status (2026-09-30): o firmware diz
+#  com que chaves foi compilado, no vocabulario deste manifesto, e o cliente — o app
+#  simut-rx, o gerenciador de frota — esconde o que a imagem nao tem em vez de
+#  encontrar um 404, como ja fazia com o display pelo "cap". O valor sai dos macros
+#  que o compilador viu (src/FeatureBits.h, gerado daqui), nao deste arquivo; o
+#  tools/test_feature_bits.py confere que os dois concordam em todo perfil.
+#  PERMANENTE: um bit nunca troca de chave nem volta a ser usado, porque um app ja
+#  instalado le o numero. Chave nova pega o proximo livre.
 # ---------------------------------------------------------------------------
 [toggles.cli_full]
+bit   = 0
 macro = "SIMUT_CLI_FULL"
 emit  = "value"
 
 [toggles.web_https]
+bit   = 1
 macro = "SIMUT_WEB_HTTPS"
 emit  = "on_is_1"        # #ifdef: -DSIMUT_WEB_HTTPS=0 LIGA o servidor (defeito Z08)
 
 [toggles.license_stub]
+bit   = 2
 macro = "SIMUT_LICENSE_STUB"
 emit  = "on_is_1"
 
 [toggles.mdns]
+bit   = 3
 macro = "SIMUT_MDNS"
 emit  = "off_is_0"       # default do config e 1
 
 [toggles.concurrency_asserts]
+bit         = 4
 macro       = "SIMUT_CONCURRENCY_ASSERTS"
 emit        = "bare"
 off_exclude = ["ConcurrencyAsserts.cpp"]  # a ponte do tripwire; so existe ligado
 
 [toggles.bluetooth]
+bit            = 5
 macro          = "SIMUT_BLUETOOTH"
 emit           = "on_is_1"
 on_flags       = ["-DPIO_FRAMEWORK_ARDUINO_ENABLE_BLUETOOTH"]  # so este flag troca o blob e liblwip-bt
@@ -101,11 +116,13 @@ off_exclude    = ["BluetoothManager.cpp"]
 off_lib_ignore = ["SerialBT"]  # o LDF segue o #include mesmo desligado; sem o ignore o link morre
 
 [toggles.air]
+bit        = 6
 macro      = "SIMUT_AIR"
 emit       = "on_is_1"
 on_include = ["air/*.c"]
 
 [toggles.sound_buzzer]
+bit            = 7
 macro          = "SIMUT_SOUND_BUZZER"
 emit           = "off_is_0"       # default do config e 1; desligado -DSIMUT_SOUND_BUZZER=0.
                                   # Antes era `none` (so exclusao de arquivo), o que so
@@ -125,6 +142,7 @@ off_lib_ignore = ["BuzzerPIO_RP2040"]
 # de telemetria perde a chave de TLS com ele, e diz por que um aparelho que guardou
 # "criptografado" não envia nada até ela ser salva (@IF tel_tls / @IF !tel_tls).
 [toggles.tel_tls]
+bit          = 11
 macro        = "SIMUT_TEL_TLS"
 emit         = "off_is_0"
 off_web_omit = "tel_tls"
@@ -137,6 +155,7 @@ off_web_omit = "tel_tls"
 # no broker. A página de telemetria perde o seletor de transporte e os campos do
 # MQTT com ele, e diz o mesmo de uma config guardada pedindo MQTT.
 [toggles.tel_mqtt]
+bit          = 12
 macro        = "SIMUT_TEL_MQTT"
 emit         = "off_is_0"
 off_web_omit = "tel_mqtt"
@@ -147,15 +166,18 @@ off_web_omit = "tel_mqtt"
 # WebUI.h que `off_web_omit` nomeia (o gerador junta ao custom_web_omit). Ligadas,
 # as imagens de hoje saem byte a byte idênticas.
 [toggles.web_history]
+bit          = 13
 macro        = "SIMUT_WEB_HISTORY"
 emit         = "off_is_0"
 off_web_omit = "web_history"
 
 [toggles.web_export_api]
+bit   = 14
 macro = "SIMUT_WEB_EXPORT_API"
 emit  = "off_is_0"
 
 [toggles.web_metrics]
+bit         = 15
 macro       = "SIMUT_WEB_METRICS"
 emit        = "off_is_0"
 off_exclude = ["WebManager_Metrics.cpp"]  # só o /metrics usa; a rota sai junto
@@ -165,6 +187,7 @@ off_exclude = ["WebManager_Metrics.cpp"]  # só o /metrics usa; a rota sai junto
 # a seção Syslog remoto sai da página de configuração. Os campos slog_* ficam na
 # config: uma build não é um esquema.
 [toggles.syslog]
+bit          = 16
 macro        = "SIMUT_SYSLOG"
 emit         = "off_is_0"
 off_exclude  = ["SyslogManager.cpp"]
@@ -176,6 +199,7 @@ off_web_omit = "syslog"
 # objeto DisplayManager deles, no heap. Numa build TFT, desligado tira as três
 # unidades do gráfico, o botão da faixa de min/max e as zonas de toque que o abrem.
 [toggles.tft_graph]
+bit         = 17
 macro       = "SIMUT_TFT_GRAPH"
 emit        = "off_is_0"
 off_exclude = ["DisplayManager_Graph.cpp", "AppManager_Graph.cpp", "DisplayManager_Calendar.cpp"]
@@ -186,14 +210,17 @@ off_exclude = ["DisplayManager_Graph.cpp", "AppManager_Graph.cpp", "DisplayManag
 # Os drivers ainda são headers: não há .cpp a excluir — o linker descarta o que
 # a guarda deixa sem referência.
 [toggles.sensor_ds18b20]
+bit   = 8
 macro = "SIMUT_SENSOR_DS18B20"
 emit  = "off_is_0"
 
 [toggles.sensor_dht22]
+bit   = 9
 macro = "SIMUT_SENSOR_DHT22"
 emit  = "off_is_0"
 
 [toggles.sensor_bme280]
+bit   = 10
 macro = "SIMUT_SENSOR_BME280"
 emit  = "off_is_0"
 

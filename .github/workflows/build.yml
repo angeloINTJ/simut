@@ -93,6 +93,12 @@ jobs:
         run: python3 tools/gen_features.py --check
       - name: Feature model reproduces platformio.ini
         run: python3 tools/check_features.py
+      # The "feat" of /api/status is computed from the macros the compiler
+      # sees (src/FeatureBits.h), and a client decodes it with the manifest's
+      # bits. This preprocesses the header with every profile's flags, and
+      # with each switch flipped from it, and compares the two.
+      - name: Feature bits /api/status reports
+        run: python3 tools/test_feature_bits.py
 
       # The entanglement watermark (MODELO_DE_RECURSOS.md, P2): the count of
       # `#if SIMUT_` sites per feature macro and per file, held to a high-water
