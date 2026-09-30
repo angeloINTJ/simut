@@ -1075,6 +1075,7 @@ def _assert_only_whitespace_removed(name: str, raw: str, mini: str, kind: str) -
 # assets mudam. O servidor casa a rota pelo caminho e ignora a query — verificado
 # contra o dispositivo antes de adotar isto.
 _ASSET_URLS = ("/style.css", "/lang.js")
+_ASSET_BLOCKS = ("STYLE_CSS", "LANG_JS")   # the blocks those two URLs serve
 
 
 def _stamp_assets(src: str, tag: str) -> str:
@@ -1283,7 +1284,18 @@ def generate() -> None:
     total_in = 0
     total_min = 0
     total_gz = 0
-    asset_tag = input_hash[:8]
+    # The tag versions /style.css and /lang.js, so it is the hash of THOSE TWO
+    # as served — after the @IF cut and the version token — and not of the
+    # whole WebUI.h, which it was until 2026-09-30. Hashing the raw file meant
+    # that any edit anywhere in it, down to an @IF marker in a comment, restamped
+    # every page and moved every image, while the two assets the tag exists to
+    # version had not changed. A page edit does not need the browser to fetch
+    # the shared assets again; a change to either of them still does.
+    shared = "".join(c for n, c in matches if n in _ASSET_BLOCKS)
+    if len({n for n, _ in matches} & set(_ASSET_BLOCKS)) != len(_ASSET_BLOCKS):
+        raise SystemExit("build_webui_gz: STYLE_CSS/LANG_JS missing — nothing to version")
+    asset_tag = hashlib.sha256(
+        shared.replace(VERSION_TOKEN, version).encode("utf-8")).hexdigest()[:8]
     for name, html_content in matches:
         original_len = len(html_content)
         kind = _block_kind(name)
