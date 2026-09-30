@@ -523,32 +523,32 @@
   "21,428. Against the published v2.7.4 .bin: release +1,376, alpha and air +32."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-09-30 fix/headless-graph-ram on main 64d3d93 (#199 merged): alpha and air measured again after the TFT graph buffer left their DisplayManager (alpha -120, air -112 B of flash), and the air once more after `screen gra` stopped answering OK in an image without the graph (-32); both budgets down by the same. The four TFT images are byte-identical to main. measured is the zopfli image PlatformIO prints.",
+ "measured_on": "2026-09-30 feat/status-reports-switches on main 43b0a09 (#201 merged): all six measured again after /api/status gained \"feat\" (release +16, test +24, test_https +16, asserts +16, alpha +8, air +8 B of flash). Budgets unchanged: the growth fits under each. measured is the zopfli image PlatformIO prints.",
  "measured_at_commit": "chore/v2.8.0 on main 8aa898b (#195 merged; SIMUT_VERSION 2.8.0; budgets unchanged). All six rebuilt here; release, test, alpha and air byte-identical to the candidate tested on the bench. measured is the zopfli image PlatformIO prints.",
  "envs": {
   "pico_w_release": {
    "budget": 1000572,
-   "measured": 999356
+   "measured": 999372
   },
   "pico_w_test": {
    "budget": 1005972,
-   "measured": 1004748
+   "measured": 1004772
   },
   "pico_w_test_https": {
    "budget": 1013628,
-   "measured": 1012348
+   "measured": 1012364
   },
   "pico_w_asserts": {
    "budget": 1002748,
-   "measured": 1001604
+   "measured": 1001620
   },
   "pico_w_alpha": {
    "budget": 966108,
-   "measured": 964388
+   "measured": 964396
   },
   "pico_w_air": {
    "budget": 1005960,
-   "measured": 1004208
+   "measured": 1004216
   }
  }
 }

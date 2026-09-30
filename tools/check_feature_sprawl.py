@@ -10,7 +10,8 @@ baixa a marca. E o mesmo mecanismo do orcamento de flash, aplicado ao
 emaranhamento: o numero fica no diff, onde um revisor o ve.
 
 O simut_config.h fica de fora: e onde as macros sao DEFINIDAS (os `#ifndef X /
-#define X`), nao onde elas espalham codigo. A regra do P2 e "so aceita o numero
+#define X`), nao onde elas espalham codigo. O FeatureBits.h tambem: e gerado do
+manifesto, um teste por chave. A regra do P2 e "so aceita o numero
 descer", entao um sitio a mais e erro; ao extrair uma costura, rode --update para
 travar o ganho no mesmo commit.
 
@@ -29,8 +30,12 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "src")
 BASELINE = os.path.join(ROOT, "tools", "feature_sprawl.json")
 
-# simut_config.h define as macros; nao conta como espalhamento.
-SKIP_FILES = {"simut_config.h"}
+# simut_config.h define as macros; nao conta como espalhamento. O FeatureBits.h
+# (2026-09-30) e gerado do manifesto pelo gen_features.py: um teste por chave,
+# por construcao, para compor o "feat" do /api/status — e a tabela que o
+# manifesto ja e, nao codigo espalhado. Contado, cada chave nova subiria a marca
+# em um sitio sem que nada tivesse se emaranhado.
+SKIP_FILES = {"simut_config.h", "FeatureBits.h"}
 EXTS = (".cpp", ".c", ".h", ".hpp", ".ino")
 
 COND = re.compile(r"^\s*#\s*(?:if|ifdef|ifndef|elif)\b(.*)$")

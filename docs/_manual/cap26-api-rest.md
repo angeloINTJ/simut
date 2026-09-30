@@ -554,7 +554,7 @@ curl -s -b jar "$H/api/status"
  "mac":"28:cd:c1:0a:1b:2c","cfg":"3F2A91C4","uptime":29260512,"rssi":-58,
  "ip":"192.0.2.10","theme":0,"heap_f":61240,"heap_t":230400,"heap_lb":40960,
  "fs_u":413696,"fs_t":1048576,"time":1790164800,"ntp":1,"pending":0,"tel":1,
- "hi":1,"cap":1},
+ "hi":1,"cap":1,"feat":262026},
  "metr":{"lb":40960,"lbm":33792,"hm":52112,"wf":0,"mq":0,"rmn":-63,"rmx":-55,
  "ts":135,"tf":0,"tr":0,"tb":412345,"tl":180,"so":24000,"se":2,"cs":3,
  "fo":210,"fom":38,"fot":2100,"f50":0,"fx":0,"ad":0,"c1a":12,"c1n":1,
@@ -589,6 +589,7 @@ O bloco `sys`:
 | `tel` | `1` se a telemetria está ligada (lote mínimo acima de 0) |
 | `hi` | Intervalo do histórico, em minutos |
 | `cap` | `1` se a imagem tem painel |
+| `feat` | Com que chaves do configurador a imagem foi compilada: um bit por chave, ligado se a chave está ligada. O número de cada chave é o campo `bit` dela no [`model.json` do configurador](https://angelointj.github.io/simut/configurador/model.json) e nunca muda. Serve para não chamar o que a imagem não tem — a página de histórico (`web_history`, bit 13), a API de exportação (`web_export_api`, bit 14), o `/metrics` (`web_metrics`, bit 15), o MQTT (`tel_mqtt`, bit 12), o TLS da telemetria (`tel_tls`, bit 11). O SIMUT publicado responde 262026. Um firmware anterior ao campo não o manda: trate a ausência como "tudo o que a variante sempre teve" |
 
 O bloco `metr` traz contadores de diagnóstico, zerados a cada boot:
 

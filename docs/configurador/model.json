@@ -74,6 +74,7 @@
     {
       "id": "cli_full",
       "group": "interface",
+      "bit": 0,
       "label": {
         "en": "Full command line",
         "pt": "Linha de comando completa"
@@ -86,6 +87,7 @@
     {
       "id": "web_https",
       "group": "network",
+      "bit": 1,
       "label": {
         "en": "HTTPS web server",
         "pt": "Servidor web HTTPS"
@@ -98,6 +100,7 @@
     {
       "id": "license_stub",
       "group": "bench",
+      "bit": 2,
       "label": {
         "en": "Short license text on the touch display",
         "pt": "Texto curto da licença na tela touch"
@@ -110,6 +113,7 @@
     {
       "id": "mdns",
       "group": "network",
+      "bit": 3,
       "label": {
         "en": "Find by name on the network (mDNS)",
         "pt": "Achar pelo nome na rede (mDNS)"
@@ -122,6 +126,7 @@
     {
       "id": "concurrency_asserts",
       "group": "bench",
+      "bit": 4,
       "label": {
         "en": "Concurrency tripwire",
         "pt": "Armadilha de concorrência"
@@ -134,6 +139,7 @@
     {
       "id": "bluetooth",
       "group": "network",
+      "bit": 5,
       "label": {
         "en": "Bluetooth serial console",
         "pt": "Console serial por Bluetooth"
@@ -146,6 +152,7 @@
     {
       "id": "air",
       "group": "power",
+      "bit": 6,
       "label": {
         "en": "Hibernation between readings",
         "pt": "Hibernação entre leituras"
@@ -158,6 +165,7 @@
     {
       "id": "sound_buzzer",
       "group": "sound",
+      "bit": 7,
       "label": {
         "en": "Buzzer sounds",
         "pt": "Sons no buzzer"
@@ -170,6 +178,7 @@
     {
       "id": "sensor_ds18b20",
       "group": "sensors",
+      "bit": 8,
       "label": {
         "en": "DS18B20 temperature probes",
         "pt": "Sondas de temperatura DS18B20"
@@ -182,6 +191,7 @@
     {
       "id": "sensor_dht22",
       "group": "sensors",
+      "bit": 9,
       "label": {
         "en": "DHT22 temperature and humidity",
         "pt": "DHT22 temperatura e umidade"
@@ -194,6 +204,7 @@
     {
       "id": "sensor_bme280",
       "group": "sensors",
+      "bit": 10,
       "label": {
         "en": "BME280 / BMP280 temperature, humidity and pressure",
         "pt": "BME280 / BMP280 temperatura, umidade e pressão"
@@ -206,6 +217,7 @@
     {
       "id": "tel_tls",
       "group": "telemetry",
+      "bit": 11,
       "label": {
         "en": "Encrypted telemetry (HTTPS and MQTTS)",
         "pt": "Telemetria criptografada (HTTPS e MQTTS)"
@@ -218,6 +230,7 @@
     {
       "id": "tel_mqtt",
       "group": "telemetry",
+      "bit": 12,
       "label": {
         "en": "MQTT and Home Assistant",
         "pt": "MQTT e Home Assistant"
@@ -230,6 +243,7 @@
     {
       "id": "web_history",
       "group": "interface",
+      "bit": 13,
       "label": {
         "en": "History page in the web interface",
         "pt": "Página de histórico na interface web"
@@ -242,6 +256,7 @@
     {
       "id": "web_export_api",
       "group": "interface",
+      "bit": 14,
       "label": {
         "en": "History export API",
         "pt": "API de exportação do histórico"
@@ -254,6 +269,7 @@
     {
       "id": "web_metrics",
       "group": "telemetry",
+      "bit": 15,
       "label": {
         "en": "Prometheus metrics (/metrics)",
         "pt": "Métricas para o Prometheus (/metrics)"
@@ -266,6 +282,7 @@
     {
       "id": "syslog",
       "group": "telemetry",
+      "bit": 16,
       "label": {
         "en": "Remote syslog (audit trail)",
         "pt": "Syslog remoto (trilha de auditoria)"
@@ -278,6 +295,7 @@
     {
       "id": "tft_graph",
       "group": "interface",
+      "bit": 17,
       "label": {
         "en": "Graph and calendar on the touch display",
         "pt": "Gráfico e calendário na tela touch"

@@ -930,6 +930,20 @@ elimina.
 >   `tools/test_configurator_page.py` roda as contas dela no `node` e as confere
 >   com o lado Python.
 
+> **Estado em 30/09: o aparelho diz com que chaves foi compilado.** Uma imagem
+> do configurador pode não ter a página de histórico, a API de exportação, o
+> `/metrics`, o MQTT ou o TLS da telemetria, e o app e o gerenciador de frota só
+> sabiam distinguir o display (o `cap` do `/api/status`): o resto virava 404,
+> que na tela parece defeito do aparelho. Agora o `/api/status` manda `feat`, um
+> bit por chave, no vocabulário deste manifesto: o `bit` de cada `[toggles.*]`,
+> permanente, porque um app instalado decodifica o número. O valor não sai do
+> manifesto — sai dos macros que o compilador viu, pelo `src/FeatureBits.h` que
+> o `gen_features.py` gera —, e o `tools/test_feature_bits.py` passa esse
+> cabeçalho pelo pré-processador do host com os flags de cada perfil, e de cada
+> chave invertida a partir dele, para conferir que os dois dizem o mesmo. O
+> `model.json` leva o `bit` junto, então quem lê o aparelho decodifica com a
+> mesma tabela que a página usa para montar a build.
+
 ### P8 — Testar perfis, não o produto cartesiano (M)
 
 1. Suítes nativas por recurso, para o que hoje é uma só (`native_network`,
