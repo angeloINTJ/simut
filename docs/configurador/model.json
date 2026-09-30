@@ -20,8 +20,8 @@
       "order": 2,
       "advanced": false,
       "label": {
-        "en": "Telemetry",
-        "pt": "Telemetria"
+        "en": "Telemetry and integrations",
+        "pt": "Telemetria e integrações"
       }
     },
     {
@@ -226,6 +226,54 @@
         "en": "Publishes to an MQTT broker (MQTT, or MQTTS with the TLS switch), takes the alarm line's receipts on the ack topic, and announces the sensors to Home Assistant by MQTT Discovery. Without it telemetry goes by HTTP only.",
         "pt": "Publica num broker MQTT (MQTT, ou MQTTS com a chave de TLS), recebe as confirmações da linha de alarmes no tópico de ack e anuncia os sensores ao Home Assistant pelo MQTT Discovery. Sem ele a telemetria vai só por HTTP."
       }
+    },
+    {
+      "id": "web_history",
+      "group": "interface",
+      "label": {
+        "en": "History page in the web interface",
+        "pt": "Página de histórico na interface web"
+      },
+      "help": {
+        "en": "The /history page: charts, calendar, CSV export in the browser and the event log viewer. The device records history either way, and the history files stay downloadable from the Files page.",
+        "pt": "A página /history: gráficos, calendário, CSV no navegador e o visor de eventos. O aparelho grava o histórico do mesmo jeito, e os arquivos de histórico continuam na página Arquivos."
+      }
+    },
+    {
+      "id": "web_export_api",
+      "group": "interface",
+      "label": {
+        "en": "History export API",
+        "pt": "API de exportação do histórico"
+      },
+      "help": {
+        "en": "Routes that return several sensors' history in one call (/api/history_multi) and export the history and the log as .simx. No page uses them; bench tools and integrations do.",
+        "pt": "Rotas que devolvem o histórico de vários sensores numa chamada (/api/history_multi) e exportam o histórico e o log em .simx. Nenhuma página as usa; ferramentas de bancada e integrações, sim."
+      }
+    },
+    {
+      "id": "web_metrics",
+      "group": "telemetry",
+      "label": {
+        "en": "Prometheus metrics (/metrics)",
+        "pt": "Métricas para o Prometheus (/metrics)"
+      },
+      "help": {
+        "en": "A /metrics endpoint in the Prometheus text format, with Basic authentication for the scraper.",
+        "pt": "Um endpoint /metrics no formato de texto do Prometheus, com autenticação Basic para o coletor."
+      }
+    },
+    {
+      "id": "syslog",
+      "group": "telemetry",
+      "label": {
+        "en": "Remote syslog (audit trail)",
+        "pt": "Syslog remoto (trilha de auditoria)"
+      },
+      "help": {
+        "en": "Forwards log events to a syslog collector (RFC 5424 over UDP), so the audit trail survives outside the device.",
+        "pt": "Encaminha os eventos do log a um coletor syslog (RFC 5424 por UDP), para a trilha de auditoria sobreviver fora do aparelho."
+      }
     }
   ],
   "displays": {
@@ -276,7 +324,11 @@
         "sensor_dht22": true,
         "sensor_bme280": true,
         "tel_tls": true,
-        "tel_mqtt": true
+        "tel_mqtt": true,
+        "web_history": true,
+        "web_export_api": true,
+        "web_metrics": true,
+        "syslog": true
       }
     },
     {
@@ -306,7 +358,11 @@
         "sensor_dht22": true,
         "sensor_bme280": true,
         "tel_tls": true,
-        "tel_mqtt": true
+        "tel_mqtt": true,
+        "web_history": true,
+        "web_export_api": true,
+        "web_metrics": true,
+        "syslog": true
       }
     },
     {
@@ -336,7 +392,11 @@
         "sensor_dht22": true,
         "sensor_bme280": true,
         "tel_tls": true,
-        "tel_mqtt": true
+        "tel_mqtt": true,
+        "web_history": true,
+        "web_export_api": true,
+        "web_metrics": true,
+        "syslog": true
       }
     },
     {
@@ -366,7 +426,11 @@
         "sensor_dht22": true,
         "sensor_bme280": true,
         "tel_tls": true,
-        "tel_mqtt": true
+        "tel_mqtt": true,
+        "web_history": true,
+        "web_export_api": true,
+        "web_metrics": true,
+        "syslog": true
       }
     },
     {
@@ -396,7 +460,11 @@
         "sensor_dht22": true,
         "sensor_bme280": true,
         "tel_tls": true,
-        "tel_mqtt": true
+        "tel_mqtt": true,
+        "web_history": true,
+        "web_export_api": true,
+        "web_metrics": true,
+        "syslog": true
       }
     },
     {
@@ -426,7 +494,11 @@
         "sensor_dht22": true,
         "sensor_bme280": true,
         "tel_tls": true,
-        "tel_mqtt": true
+        "tel_mqtt": true,
+        "web_history": true,
+        "web_export_api": true,
+        "web_metrics": true,
+        "syslog": true
       }
     }
   ],

@@ -316,6 +316,40 @@
 #define SIMUT_TEL_MQTT 1        // MQTT / MQTTS transport + HA Discovery (enabled)
 #endif
 
+/* =========================================================================
+ * SECTION 6b: WEB INTERFACE — pieces a build can leave out (2026-09-30)
+ *
+ * Each one is a route (or a page and its routes) guarded where it is
+ * registered in WebManager_Core.cpp; with the registration gone, the linker
+ * drops the handler. A page comes out of the image through the web builder's
+ * @IF blocks (custom_web_omit, derived from tools/features.toml).
+ *
+ * SIMUT_WEB_HISTORY    — the history page (/history: charts, calendar, CSV,
+ *                        event viewer) with /api/logcodes and /api/clear_logs,
+ *                        which only it calls. The history itself is recorded
+ *                        either way; /api/logs, /api/history/open and
+ *                        /api/history_days stay (the bench tools and the
+ *                        server-integration guide read them).
+ * SIMUT_WEB_EXPORT_API — /api/history_multi and the .simx export routes
+ *                        (/api/export/history.bin, /api/export/logs.bin): no
+ *                        page calls them; bench tools and integrations do.
+ * SIMUT_WEB_METRICS    — GET /metrics for Prometheus.
+ * SIMUT_SYSLOG         — the RFC 5424 / UDP forwarder (SyslogManager) and the
+ *                        Remote Syslog section of the config page.
+ * ========================================================================= */
+#ifndef SIMUT_WEB_HISTORY
+#define SIMUT_WEB_HISTORY 1     // history page + its two routes (enabled)
+#endif
+#ifndef SIMUT_WEB_EXPORT_API
+#define SIMUT_WEB_EXPORT_API 1  // /api/history_multi + .simx export (enabled)
+#endif
+#ifndef SIMUT_WEB_METRICS
+#define SIMUT_WEB_METRICS 1     // Prometheus /metrics (enabled)
+#endif
+#ifndef SIMUT_SYSLOG
+#define SIMUT_SYSLOG 1          // RFC 5424 syslog forwarder (enabled)
+#endif
+
 /* Setup access point without a key. 0 = WPA2 with a per-device key derived
  * from the board id and shown on the console and the display (see ApPsk.h and
  * NetworkManager::beginAP) — finding V-05, where an open AP handed anyone in

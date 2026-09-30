@@ -128,7 +128,9 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
  _server->on("/files", HTTP_GET, std::bind(&WebManager::handleFiles, this));
  _server->on("/alarms", HTTP_GET, std::bind(&WebManager::handleAlarms, this));
  _server->on("/license", HTTP_GET, std::bind(&WebManager::handleLicense, this));
+ #if SIMUT_WEB_HISTORY
  _server->on("/history", HTTP_GET, std::bind(&WebManager::handleHistory, this));
+ #endif
  _server->on("/lang.js", HTTP_GET, std::bind(&WebManager::handleLangJs, this));
  _server->on("/style.css", HTTP_GET, std::bind(&WebManager::handleStyleCss, this));
  _server->on("/favicon.ico", HTTP_GET, std::bind(&WebManager::handleFavicon, this));
@@ -139,7 +141,9 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
  _server->on("/api/force_chpass", HTTP_POST, std::bind(&WebManager::handleApiForceChpass, this));
  _server->on("/api/login_chpass", HTTP_POST, std::bind(&WebManager::handleApiLoginChpass, this));
  _server->on("/api/status", HTTP_GET, std::bind(&WebManager::handleApiStatus, this));
+ #if SIMUT_WEB_METRICS
  _server->on("/metrics", HTTP_GET, std::bind(&WebManager::handleMetrics, this));
+ #endif
  _server->on("/api/perms", HTTP_GET, std::bind(&WebManager::handleApiPerms, this));
  _server->on("/api/network", HTTP_GET, std::bind(&WebManager::handleApiNetwork, this));
  _server->on("/api/wifi/scan", HTTP_GET, std::bind(&WebManager::handleApiWifiScan, this));
@@ -147,7 +151,9 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
  _server->on("/api/users", HTTP_GET, std::bind(&WebManager::handleApiUsers, this));
  _server->on("/api/alarms", HTTP_GET, std::bind(&WebManager::handleApiAlarms, this));
  _server->on("/api/lang", HTTP_GET, std::bind(&WebManager::handleApiLang, this));
+ #if SIMUT_WEB_HISTORY
  _server->on("/api/logcodes", HTTP_GET, std::bind(&WebManager::handleApiLogcodes, this));
+ #endif
  _server->on("/api/sensors", HTTP_GET, std::bind(&WebManager::handleApiSensorsGet, this));
  _server->on("/api/calib", HTTP_GET, std::bind(&WebManager::handleApiCalibGet, this));
  _server->on("/api/calib", HTTP_POST, std::bind(&WebManager::handleApiCalibPost, this));
@@ -158,13 +164,21 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
  /* /api/save_net replaced by /api/commit_all */
  _server->on("/api/history_rebind", HTTP_POST, std::bind(&WebManager::handleApiHistoryRebind, this));
  /* user_add/del/rst replaced by /api/commit_all */
+ #if SIMUT_WEB_EXPORT_API
  _server->on("/api/history_multi", HTTP_GET, std::bind(&WebManager::handleApiHistoryMulti, this)); /* Multi-sensor replacement for /api/history single-sensor */
+ #endif
  _server->on("/api/history_days", HTTP_GET, std::bind(&WebManager::handleApiHistoryDays, this));
+ #if SIMUT_WEB_EXPORT_API
  _server->on("/api/export/history.bin", HTTP_GET, std::bind(&WebManager::handleApiExportHistory, this));
+ #endif
  _server->on("/api/history/open", HTTP_GET, std::bind(&WebManager::handleApiHistoryOpen, this));
+ #if SIMUT_WEB_EXPORT_API
  _server->on("/api/export/logs.bin", HTTP_GET, std::bind(&WebManager::handleApiExportLogs, this));
+ #endif
  _server->on("/api/logs", HTTP_GET, std::bind(&WebManager::handleApiLogs, this));
+ #if SIMUT_WEB_HISTORY
  _server->on("/api/clear_logs", HTTP_POST, std::bind(&WebManager::handleApiClearLogs, this));
+ #endif
  /* The panel-mirror routes and the HTTPS-install route register themselves
   * from their own translation units, each a no-op where its feature is
   * compiled out — so this core no longer tests SIMUT_DISPLAY_TFT or

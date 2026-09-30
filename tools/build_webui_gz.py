@@ -236,6 +236,8 @@ FS_PAGES = _resolve_diet()
 # lado seguro de errar.
 WEB_FEATURES = {
     "tft": "painel de toque: espelho, captura, temas e teclado do painel",
+    "web_history": "a pagina de historico e eventos (/history) e o link dela no menu",
+    "syslog": "a secao Syslog remoto da pagina de configuracao",
 }
 
 # Onde cada feature registra as rotas que só ela tem. A página que chama uma
@@ -245,29 +247,49 @@ WEB_FEATURES = {
 # seção "Touch Calibration" da /config continuou em todas as imagens. A lista
 # de rotas sai do próprio C++, não de uma cópia aqui, para não envelhecer
 # quando uma rota muda de dono.
+#
+# Duas formas de dizer onde elas estao: o nome de um registrador (as rotas
+# dentro do corpo dele), ou "#if <MACRO>" — as rotas `/api/` cadastradas entre
+# essa linha e o #endif dela, que e como as chaves de 2026-09-30 cercam as suas
+# no WebManager_Core.cpp sem mover uma linha (as imagens que ja existem saem
+# identicas). So as de `/api/`: uma pagina e alcancada por link, e o link sai
+# no bloco @IF do menu; o navMap e uma tabela de permissao, nao uma chamada.
 WEB_FEATURE_ROUTES = {
     "tft": (os.path.join("src", "WebManager_History.cpp"), "registerScreenRoutes"),
+    "web_history": (os.path.join("src", "WebManager_Core.cpp"), "#if SIMUT_WEB_HISTORY"),
+    # Sem bloco na interface: nenhuma pagina as chama, e a conferencia garante
+    # que continue assim — a imagem sem elas nao pode ter um botao que da 404.
+    "web_export_api": (os.path.join("src", "WebManager_Core.cpp"), "#if SIMUT_WEB_EXPORT_API"),
 }
 
 
 def _feature_routes(feature: str) -> set:
-    """As rotas que o registrador da feature cadastra com `_server->on("…")`,
-    somadas sobre todas as definições dele (a com painel e o stub vazio)."""
+    """As rotas que a feature cadastra com `_server->on("…")`: dentro do
+    registrador dela, somadas sobre todas as definicoes dele (a com painel e o
+    stub vazio), ou dentro das regioes `#if <MACRO>` que a cercam."""
     if feature not in WEB_FEATURE_ROUTES:
         return set()
     rel, func = WEB_FEATURE_ROUTES[feature]
     with open(os.path.join(PROJECT_DIR, rel), encoding="utf-8") as f:
         src = f.read()
     routes = set()
-    for m in re.finditer(r"::" + re.escape(func) + r"\s*\(\s*\)\s*\{", src):
-        depth, i = 1, m.end()
-        while depth and i < len(src):
-            depth += {"{": 1, "}": -1}.get(src[i], 0)
-            i += 1
-        routes |= set(re.findall(r'_server->on\(\s*"([^"]+)"', src[m.end():i]))
+    if func.startswith("#if "):
+        for m in re.finditer(r"^[ \t]*" + re.escape(func) + r"[ \t]*\n(.*?)^[ \t]*#endif",
+                             src, re.S | re.M):
+            routes |= {r for r in re.findall(r'_server->on\(\s*"([^"]+)"', m.group(1))
+                       if r.startswith("/api/")}
+        what = f"regiao {func}"
+    else:
+        for m in re.finditer(r"::" + re.escape(func) + r"\s*\(\s*\)\s*\{", src):
+            depth, i = 1, m.end()
+            while depth and i < len(src):
+                depth += {"{": 1, "}": -1}.get(src[i], 0)
+                i += 1
+            routes |= set(re.findall(r'_server->on\(\s*"([^"]+)"', src[m.end():i]))
+        what = f"{func}( )"
     if not routes:
         raise SystemExit(
-            f"build_webui_gz: nenhuma rota em {func}( ) de {rel}. O registrador "
+            f"build_webui_gz: nenhuma rota em {what} de {rel}. O registrador "
             f"mudou de nome ou de arquivo? Atualize WEB_FEATURE_ROUTES."
         )
     return routes
@@ -348,8 +370,14 @@ def _strip_web_features(content: str) -> str:
         # de 21/09 deixou passar exatamente o defeito que ela existe para pegar.
         code_in, code_out = strip(body), strip(outside)
         defs = set(re.findall(r"\b(?:async\s+)?function\s+(\w+)\s*\(", code_in))
+        # Um nome que TAMBEM e definido fora do bloco nao e dependencia dele:
+        # as chamadas de fora vao para a funcao de fora. Cada pagina e um blob
+        # proprio, e duas paginas podem ter cada uma o seu helper `fmt` — foi o
+        # que apareceu quando a pagina de historico inteira virou um bloco
+        # (2026-09-30), com o `fmt` do dashboard chamado fora dela.
+        defs_out = set(re.findall(r"\b(?:async\s+)?function\s+(\w+)\s*\(", code_out))
         for name in sorted(defs):
-            if re.search(r"\b" + re.escape(name) + r"\s*\(", code_out):
+            if name not in defs_out and re.search(r"\b" + re.escape(name) + r"\s*\(", code_out):
                 problems.append(f"  {name}( ) e definida dentro de @IF {feature} e chamada fora")
             # E o contrario: funcao que o bloco define e NINGUEM usa. Marcar uma
             # regiao e facil; tirar dela a unica chamada e o que aconteceu em

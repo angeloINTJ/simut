@@ -136,6 +136,35 @@ emit  = "off_is_0"
 macro = "SIMUT_TEL_MQTT"
 emit  = "off_is_0"
 
+# A interface web, peça a peça (2026-09-30). Cada uma é uma rota, ou uma página e
+# as rotas que só ela chama, cercada onde é registrada no WebManager_Core.cpp; sem
+# o registro, o linker larga o handler. A página sai da imagem pelo bloco @IF do
+# WebUI.h que `off_web_omit` nomeia (o gerador junta ao custom_web_omit). Ligadas,
+# as imagens de hoje saem byte a byte idênticas.
+[toggles.web_history]
+macro        = "SIMUT_WEB_HISTORY"
+emit         = "off_is_0"
+off_web_omit = "web_history"
+
+[toggles.web_export_api]
+macro = "SIMUT_WEB_EXPORT_API"
+emit  = "off_is_0"
+
+[toggles.web_metrics]
+macro       = "SIMUT_WEB_METRICS"
+emit        = "off_is_0"
+off_exclude = ["WebManager_Metrics.cpp"]  # só o /metrics usa; a rota sai junto
+
+# O encaminhador de syslog (2026-09-30): SyslogManager.h vira uma classe vazia de
+# mesma interface (o objeto de 2.136 B do heap cai para 1 B), o .cpp sai da build e
+# a seção Syslog remoto sai da página de configuração. Os campos slog_* ficam na
+# config: uma build não é um esquema.
+[toggles.syslog]
+macro        = "SIMUT_SYSLOG"
+emit         = "off_is_0"
+off_exclude  = ["SyslogManager.cpp"]
+off_web_omit = "syslog"
+
 # Os três drivers de sensor (2026-09-26). O default do simut_config.h é 1, então
 # ligado não emite nada e o profiles.ini não muda; desligado emite -D<macro>=0,
 # que o #178 provou compilar e encolher a imagem (drivers por classe, #172-175).
@@ -178,6 +207,10 @@ sensor_dht22        = true
 sensor_bme280       = true
 tel_tls             = true
 tel_mqtt            = true
+web_history         = true
+web_export_api      = true
+web_metrics         = true
+syslog              = true
 build_type          = "release"
 publish             = true
 
@@ -205,6 +238,10 @@ sensor_dht22  = true
 sensor_bme280 = true
 tel_tls       = true
 tel_mqtt      = true
+web_history   = true
+web_export_api = true
+web_metrics   = true
+syslog        = true
 build_type    = "release"
 publish       = false
 
@@ -256,6 +293,10 @@ sensor_dht22  = true
 sensor_bme280 = true
 tel_tls       = true
 tel_mqtt      = true
+web_history   = true
+web_export_api = true
+web_metrics   = true
+syslog        = true
 publish       = true
 
 # pico_w_air — build headless que hiberna (sem display, sem buzzer).
@@ -284,6 +325,10 @@ sensor_dht22  = true
 sensor_bme280 = true
 tel_tls       = true
 tel_mqtt      = true
+web_history   = true
+web_export_api = true
+web_metrics   = true
+syslog        = true
 publish       = true
 
 # ===========================================================================
@@ -358,8 +403,8 @@ label.pt = "Rede"
 
 [ui_groups.telemetry]
 order    = 2
-label.en = "Telemetry"
-label.pt = "Telemetria"
+label.en = "Telemetry and integrations"
+label.pt = "Telemetria e integrações"
 
 [ui_groups.interface]
 order    = 3
@@ -421,6 +466,34 @@ label.en = "MQTT and Home Assistant"
 label.pt = "MQTT e Home Assistant"
 help.en  = "Publishes to an MQTT broker (MQTT, or MQTTS with the TLS switch), takes the alarm line's receipts on the ack topic, and announces the sensors to Home Assistant by MQTT Discovery. Without it telemetry goes by HTTP only."
 help.pt  = "Publica num broker MQTT (MQTT, ou MQTTS com a chave de TLS), recebe as confirmações da linha de alarmes no tópico de ack e anuncia os sensores ao Home Assistant pelo MQTT Discovery. Sem ele a telemetria vai só por HTTP."
+
+[ui_toggles.web_history]
+group    = "interface"
+label.en = "History page in the web interface"
+label.pt = "Página de histórico na interface web"
+help.en  = "The /history page: charts, calendar, CSV export in the browser and the event log viewer. The device records history either way, and the history files stay downloadable from the Files page."
+help.pt  = "A página /history: gráficos, calendário, CSV no navegador e o visor de eventos. O aparelho grava o histórico do mesmo jeito, e os arquivos de histórico continuam na página Arquivos."
+
+[ui_toggles.web_export_api]
+group    = "interface"
+label.en = "History export API"
+label.pt = "API de exportação do histórico"
+help.en  = "Routes that return several sensors' history in one call (/api/history_multi) and export the history and the log as .simx. No page uses them; bench tools and integrations do."
+help.pt  = "Rotas que devolvem o histórico de vários sensores numa chamada (/api/history_multi) e exportam o histórico e o log em .simx. Nenhuma página as usa; ferramentas de bancada e integrações, sim."
+
+[ui_toggles.web_metrics]
+group    = "telemetry"
+label.en = "Prometheus metrics (/metrics)"
+label.pt = "Métricas para o Prometheus (/metrics)"
+help.en  = "A /metrics endpoint in the Prometheus text format, with Basic authentication for the scraper."
+help.pt  = "Um endpoint /metrics no formato de texto do Prometheus, com autenticação Basic para o coletor."
+
+[ui_toggles.syslog]
+group    = "telemetry"
+label.en = "Remote syslog (audit trail)"
+label.pt = "Syslog remoto (trilha de auditoria)"
+help.en  = "Forwards log events to a syslog collector (RFC 5424 over UDP), so the audit trail survives outside the device."
+help.pt  = "Encaminha os eventos do log a um coletor syslog (RFC 5424 por UDP), para a trilha de auditoria sobreviver fora do aparelho."
 
 [ui_toggles.cli_full]
 group    = "interface"

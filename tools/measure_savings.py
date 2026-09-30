@@ -84,6 +84,10 @@ MANIFEST_FEATURES = [
     # servidor segura a maior parte dele (a matriz mede os tres produtos).
     ("tel_tls",             "pico_w_air"),
     ("tel_mqtt",            "pico_w_air"),
+    ("web_history",         "pico_w_air"),
+    ("web_export_api",      "pico_w_release"),
+    ("web_metrics",         "pico_w_release"),
+    ("syslog",              "pico_w_release"),
 ]
 
 # Recursos que sao default do simut_config.h (nao vivem no manifesto): desligar =
