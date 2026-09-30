@@ -338,6 +338,40 @@ static void writeIfStale(const char* path, const char* text, bool progmem) {
  f.close( );
 }
 
+void StorageManager::ensureDirs( ) {
+ if (!LittleFS.exists(DIR_CONFIG)) LittleFS.mkdir(DIR_CONFIG);
+ if (!LittleFS.exists(DIR_HISTORY)) LittleFS.mkdir(DIR_HISTORY);
+ if (!LittleFS.exists(DIR_LANG)) LittleFS.mkdir(DIR_LANG);
+ /* /themes and /web were never created here — only handleApiMkdir made them,
+  * and only if the user thought to. Combined with LittleFS hiding empty
+  * directories, /themes was invisible in /files on a fresh filesystem, so
+  * there was no folder to upload a .thm into. */
+ if (!LittleFS.exists(DIR_THEMES)) LittleFS.mkdir(DIR_THEMES);
+ if (!LittleFS.exists(DIR_WEB)) LittleFS.mkdir(DIR_WEB);
+}
+
+/* A stage that stops short of the apply — the upload cut, an image that fails
+ * validation, a stage without commit — remounts LittleFS on a partition the
+ * stage had overwritten, which the mount formats. The device keeps running with
+ * the configuration in RAM and nothing writes it back: saveConfiguration( ) is
+ * only called when a setting changes, and skips a save whose CRC matches the
+ * last one. The only copy on flash was the OTA snapshot in the last two blocks,
+ * which the log and the history get allocated over sooner or later, and a
+ * reboot after that came up on factory defaults. Rebuilt here: the directories
+ * and READMEs a boot would create, and the config written at once, with the
+ * last save's CRC dropped so the write is not skipped. Runs on the loop with
+ * Core 1 up, so the directory writes take the pause every runtime flash write
+ * needs (see FLASH_OP). */
+bool StorageManager::rebuildAfterStageAbort( ) {
+ LogManager::WdtWindow _wdt(30000);
+ {
+  Core1FlashPause _c1(this);
+  FLASH_OP({ ensureDirs( ); ensureFsReadme( ); });
+ }
+ _lastSavedCrc = 0;
+ return saveConfiguration( );
+}
+
 void StorageManager::ensureFsReadme( ) {
  writeIfStale(FILE_FS_README, FS_README_TEXT, true);
 
@@ -357,18 +391,25 @@ bool StorageManager::begin( ) {
  uart_putc_raw(uart1, '0');
  if (!mountFS( )) return false;
  uart_putc_raw(uart1, '1');
- if (!LittleFS.exists(DIR_CONFIG)) LittleFS.mkdir(DIR_CONFIG);
- uart_putc_raw(uart1, '3');
- if (!LittleFS.exists(DIR_HISTORY)) LittleFS.mkdir(DIR_HISTORY);
- uart_putc_raw(uart1, '4');
- if (!LittleFS.exists(DIR_LANG)) LittleFS.mkdir(DIR_LANG);
- uart_putc_raw(uart1, '6');
- /* /themes and /web were never created here — only handleApiMkdir made them,
-  * and only if the user thought to. Combined with LittleFS hiding empty
-  * directories, /themes was invisible in /files on a fresh filesystem, so
-  * there was no folder to upload a .thm into. */
- if (!LittleFS.exists(DIR_THEMES)) LittleFS.mkdir(DIR_THEMES);
- if (!LittleFS.exists(DIR_WEB)) LittleFS.mkdir(DIR_WEB);
+ /* The OTA config snapshot is copied to RAM here, before the first write to
+  * the filesystem, and restored from the copy further down. It lives in the
+  * last two blocks of this partition, and the only time it is needed — no
+  * system.bin — is on a freshly formatted filesystem, whose allocator starts at
+  * a block derived from the superblock's CRC (the format writes a timestamp
+  * there). The directories and READMEs below were created before the restore
+  * read the region, and one of them could be allocated right on top of it: on
+  * the bench (2026-09-30), after a format and a boot, a directory's metadata
+  * pair sat in blocks 254..255. On an update that is a factory reset.
+  * An empty system.bin counts as missing: the framework's open("w") syncs the
+  * new entry at once, so a power cut in the middle of the restore below leaves
+  * a zero-byte file, and the next boot has to restore again, not load it. */
+ bool haveConfig = false;
+ {
+  File cfg = LittleFS.open(FILE_CONFIG, "r");
+  if (cfg) { haveConfig = cfg.size( ) > 0; cfg.close( ); }
+ }
+ const uint32_t snapLen = haveConfig ? 0 : ota::ota_snapshot_stash( );
+ ensureDirs( );
  uart_putc_raw(uart1, '7');
  ensureFsReadme( );
  uart_putc_raw(uart1, '8');
@@ -415,11 +456,13 @@ bool StorageManager::begin( ) {
   * stage or a power cut; keyed on "no system.bin" it is restored here, and
   * loadConfiguration then loads it as usual. The gate used to require
   * metadata.state == APPLYING, which an interrupted stage never sets — that was
-  * the whole gap. A stale snapshot from an older stage can only be read when
-  * there is no config at all, where restoring last-known-good beats factory. */
- if (!LittleFS.exists(FILE_CONFIG) && ota::ota_snapshot_present( )) {
+  * the whole gap. The copy was taken above, before the directories. A snapshot
+  * is used once: AppManager_Boot.cpp erases it after this boot, because a
+  * stale one read here brought back the configuration `system format` had
+  * just wiped. */
+ if (snapLen > 0) {
  uart_putc_raw(uart1, '8');
- (void)ota::ota_snapshot_restore_to_lfs( );
+ (void)ota::ota_snapshot_restore_stash(snapLen);
  uart_putc_raw(uart1, '9');
  }
  uart_putc_raw(uart1, 'A');

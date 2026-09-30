@@ -95,19 +95,30 @@ bool ota_snapshot_commit(uint16_t total_len);
 bool ota_snapshot_present();
 
 /**
- * @brief Restaura `system.bin` do snapshot para o LittleFS recém-formatado.
+ * @brief Copia a região do snapshot para `s_applier_buf` e a valida lá.
  *
- * Pré-condição: LittleFS montada, diretório `/config` existe (ambos
- * garantidos por `StorageManager::begin()` antes da chamada).
+ * Chamada por `StorageManager::begin()` logo depois de montar o LittleFS e
+ * ANTES de qualquer escrita nele: a região são os blocos 254..255 da própria
+ * partição, e o alocador de um LittleFS recém-formatado pode pôr ali os
+ * diretórios que o boot cria. Só leitura (XIP), sem desabilitar IRQs.
  *
- * Em sucesso, NÃO limpa o snapshot — quem chama (AppManager_Boot via
- * `ota_metadata_clear()`) é responsável por isso. Isto permite que o
- * boot detecte estado consistente: se `ota_metadata_clear` falhar antes
- * do reboot final, próximo boot retenta o restore (idempotente).
- *
- * @return true se sistema.bin foi escrito (file path / CRC OK); false caso
- *         contrário. Caller decide se prossegue com factory defaults.
+ * @return Tamanho do payload (o `system.bin`) se a cópia é válida; 0 se não há
+ *         snapshot, ou se ele não passa em magic/tamanho/CRC.
  */
-bool ota_snapshot_restore_to_lfs();
+uint32_t ota_snapshot_stash();
+
+/**
+ * @brief Grava em `/config/system.bin` o payload copiado por `ota_snapshot_stash()`.
+ *
+ * Pré-condição: LittleFS montada, diretório `/config` existe, e nada usou
+ * `s_applier_buf` desde o stash (ambos garantidos por `StorageManager::begin()`).
+ *
+ * NÃO apaga o snapshot: `AppManager_Boot.cpp` o apaga depois que o boot passou
+ * do `begin()`, então um restore interrompido (queda de energia) é refeito no
+ * boot seguinte.
+ *
+ * @return true se `system.bin` foi escrito inteiro.
+ */
+bool ota_snapshot_restore_stash(uint32_t payload_size);
 
 } /* namespace ota */

@@ -48,12 +48,28 @@ static const uint8_t* snapshot_region_xip() {
     return (const uint8_t*)(XIP_BASE + OTA_SNAPSHOT_OFFSET);
 }
 
-static bool read_header_from_xip(ConfigSnapshotHeader& hdr) {
-    memcpy(&hdr, snapshot_region_xip(), sizeof(hdr));
-    return hdr.magic == CONFIG_SNAPSHOT_MAGIC &&
-           hdr.schema_version == CONFIG_SNAPSHOT_VERSION &&
-           hdr.payload_size > 0 &&
-           hdr.payload_size <= CONFIG_SNAPSHOT_PAYLOAD_MAX;
+/* Payload size of a valid snapshot laid out at @p base (magic, schema, size in
+ * range, CRC32 over header + payload), or 0. The same check serves the region
+ * itself (XIP) and the copy in s_applier_buf. */
+static uint32_t valid_payload_size(const uint8_t* base) {
+    ConfigSnapshotHeader hdr;
+    memcpy(&hdr, base, sizeof(hdr));
+    if (hdr.magic != CONFIG_SNAPSHOT_MAGIC ||
+        hdr.schema_version != CONFIG_SNAPSHOT_VERSION ||
+        hdr.payload_size == 0 ||
+        hdr.payload_size > CONFIG_SNAPSHOT_PAYLOAD_MAX) {
+        return 0;
+    }
+    /* Valida CRC32 — sem isso, restore com payload corrompido pode resultar
+     * em config quebrada (CRC mismatch dentro do próprio system.bin pode
+     * subir, mas qualquer corrupção silenciosa é pior que factory). */
+    uint32_t crc = crc32_init();
+    crc = crc32_update(crc, base, sizeof(hdr) + hdr.payload_size);
+    crc = crc32_final(crc);
+
+    uint32_t stored = 0;
+    memcpy(&stored, base + sizeof(hdr) + hdr.payload_size, sizeof(stored));
+    return (crc == stored) ? hdr.payload_size : 0;
 }
 
 /* ---------------------------------------------------------------------------
@@ -106,36 +122,37 @@ bool ota_snapshot_commit(uint16_t total_len) {
 }
 
 bool ota_snapshot_present() {
-    ConfigSnapshotHeader hdr;
-    if (!read_header_from_xip(hdr)) return false;
-
-    /* Valida CRC32 — sem isso, restore com payload corrompido pode resultar
-     * em config quebrada (CRC mismatch dentro do próprio system.bin pode
-     * subir, mas qualquer corrupção silenciosa é pior que factory). */
-    const uint8_t* base = snapshot_region_xip();
-    uint32_t crc = crc32_init();
-    crc = crc32_update(crc, base, sizeof(hdr) + hdr.payload_size);
-    crc = crc32_final(crc);
-
-    uint32_t stored = 0;
-    memcpy(&stored, base + sizeof(hdr) + hdr.payload_size, sizeof(stored));
-    return crc == stored;
+    return valid_payload_size(snapshot_region_xip()) != 0;
 }
 
-bool ota_snapshot_restore_to_lfs() {
-    ConfigSnapshotHeader hdr;
-    if (!read_header_from_xip(hdr)) return false;
-    if (!ota_snapshot_present()) return false; /* CRC mismatch — abandona */
+uint32_t ota_snapshot_stash() {
+    /* The restore reads this copy, never the region. The region is the last
+     * two blocks of the LittleFS partition, and it is only ever needed on a
+     * freshly formatted filesystem — where the allocator starts at a block
+     * derived from the superblock's CRC, which carries the format's timestamp,
+     * so the directories and READMEs StorageManager::begin( ) creates can land
+     * on it. They used to be created before the restore read it. Seen on the
+     * bench 2026-09-30: after a format and a boot, a directory's metadata pair
+     * sat in blocks 254..255 and the snapshot was gone before anything read
+     * it. */
+    memcpy(s_applier_buf, snapshot_region_xip(), CONFIG_SNAPSHOT_REGION_SIZE);
+    return valid_payload_size(s_applier_buf);
+}
 
-    const uint8_t* payload = snapshot_region_xip() + sizeof(ConfigSnapshotHeader);
+bool ota_snapshot_restore_stash(uint32_t payload_size) {
+    if (payload_size == 0 || payload_size > CONFIG_SNAPSHOT_PAYLOAD_MAX) return false;
+    const uint8_t* payload = s_applier_buf + sizeof(ConfigSnapshotHeader);
 
-    /* Caminho idempotente: se restore parcial cair (power loss entre open
-     * e close), próximo boot tenta de novo (snapshot ainda no flash). */
+    /* Caminho idempotente: se o restore cair (power loss entre open e close),
+     * o próximo boot tenta de novo — o open("w") do framework já deixa um
+     * system.bin vazio comitado, que o begin( ) conta como ausente, e o
+     * snapshot só é apagado depois que o boot passa do StorageManager::begin( )
+     * (AppManager_Boot.cpp). */
     File f = LittleFS.open(FILE_CONFIG, "w");
     if (!f) return false;
-    size_t written = f.write(payload, hdr.payload_size);
+    size_t written = f.write(payload, payload_size);
     f.close();
-    return written == hdr.payload_size;
+    return written == payload_size;
 }
 
 } /* namespace ota */

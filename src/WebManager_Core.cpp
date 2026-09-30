@@ -541,6 +541,16 @@ void WebManager::initSendGuardTimer( ) {
 void WebManager::update( ) {
  _clientAcceptsGzip = false;
 
+ /* A stage that ended short of the apply left LittleFS freshly formatted and
+  * the config only in RAM (StorageManager::rebuildAfterStageAbort( )). Written
+  * back here, on the loop, and not in the upload callback or the finish
+  * handler that noticed: a flash write inside the multipart parser is not a
+  * habit worth starting (WebManager_Ota.cpp). */
+ if (_stageAbortRebuild && _storageRef) {
+  _stageAbortRebuild = false;
+  (void)_storageRef->rebuildAfterStageAbort( );
+ }
+
  uint32_t handlerStart = millis( );
  _handlerDeadline = handlerStart + 6000;
 
