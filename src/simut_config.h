@@ -72,6 +72,17 @@
 #define SIMUT_DISPLAY_ALPHA 0  // HD44780 16x2 alphanumeric LCD
 #endif
 
+// The touch panel's graph and calendar (DisplayManager_Graph, _Calendar and
+// AppManager_Graph; 2026-09-30). Follows the TFT, so the alpha and the Air are 0
+// without saying so, and a TFT build can drop it: the min/max strip then has no
+// graph button and the dashboard cards no zone that opens it.
+#ifndef SIMUT_TFT_GRAPH
+#define SIMUT_TFT_GRAPH SIMUT_DISPLAY_TFT
+#endif
+#if SIMUT_TFT_GRAPH && !SIMUT_DISPLAY_TFT
+#error "SIMUT_TFT_GRAPH draws on the touch panel: it needs SIMUT_DISPLAY_TFT"
+#endif
+
 /* =========================================================================
  * SECTION 2: TFT DISPLAY PINS
  *

@@ -1434,7 +1434,9 @@ void AppManager::executeCommand(CliDemand cmd) {
  else if (!strcmp(n, "lic")) _displayMgr->showSettingsLicense( );
  else if (!strcmp(n, "sts")) _displayMgr->showSystemStatus( );
  else if (!strcmp(n, "alm")) _displayMgr->showSettingsAlarms(&cfg);
+#if SIMUT_TFT_GRAPH
  else if (!strcmp(n, "gra")) _displayMgr->forceGraphView( );
+#endif
  else if (!strcmp(n, "touchcal")) _displayMgr->showTouchCalibration( );
  else if (!strcmp(n, "touchsens")) _displayMgr->showTouchSensitivity( );
  else if (!strcmp(n, "offset")) _displayMgr->showSettingsDisplayOffset( );

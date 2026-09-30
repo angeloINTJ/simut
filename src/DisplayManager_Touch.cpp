@@ -423,6 +423,7 @@ void DisplayManager::handleTouch( ) {
   * its left third fell through to the short-tap path and turned min/max OFF —
   * the mirror image of the mode-indicator bug above, on the same button. Both
   * zones now come from the same three numbers the drivers draw with. */
+#if SIMUT_TFT_GRAPH
  constexpr int16_t MM_BTN_X0 = CARD_X + minMaxBtnX(CARD_W);
  constexpr int16_t MM_BTN_X1 = MM_BTN_X0 + MINMAX_BTN_W;   /* exclusive */
  if (_topPanel.showMinMax && firstTouch && x >= MM_BTN_X0 && x < MM_BTN_X1) {
@@ -443,6 +444,7 @@ void DisplayManager::handleTouch( ) {
  }
  return;
  }
+#endif
 
  /* Alarme (LIMITE ou ERRO) NÃO silenciado: toque → tela de silenciar.
  * Ação por slot: abre a ação do sensor EXIBIDO no painel tocado (o topo
@@ -511,6 +513,7 @@ void DisplayManager::handleTouch( ) {
  int sel = _sharedState.selectedSlotIdx;
  bool selOk = (sel >= 0 && sel < 16);
 
+#if SIMUT_TFT_GRAPH
  /* Right corner: graph button (priority over alarm) */
  if (_bottomPanel.showMinMax && x > 266) {
  _bottomPanel.showMinMax = false;
@@ -520,6 +523,7 @@ void DisplayManager::handleTouch( ) {
  }
  return;
  }
+#endif
 
  /* Alarme (LIMITE ou ERRO) não silenciado: toque → tela de silenciar.
  * Silenciado → min/max normal. */
@@ -570,6 +574,7 @@ void DisplayManager::handleTouch( ) {
  pushUiEvent(ev);
  }
  }
+#if SIMUT_TFT_GRAPH
  else if (_uiMode == MODE_GRAPH_VIEW) {
  /* X button (close) — top right corner */
  if (y < 40 && x > 284) { if (!acceptTouch(0)) return; _graphNavOffset = 0; _uiMode = MODE_DASHBOARD; _isDirty = true; _forceFullRedraw = true; return; }
@@ -788,6 +793,7 @@ void DisplayManager::handleTouch( ) {
  }
  }
  }
+#endif
  else if (_uiMode == MODE_SETTINGS_THEMES) {
  if (y >= 40 && y <= 185) {
  int clickedIndex = 0;

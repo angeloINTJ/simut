@@ -523,7 +523,7 @@
   "21,428. Against the published v2.7.4 .bin: release +1,376, alpha and air +32."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-09-30 fix/headless-graph-ram on main 64d3d93 (#199 merged): alpha and air measured again after the TFT graph buffer left their DisplayManager (alpha -120, air -112 B of flash; both budgets down by the same). The four TFT images are byte-identical to main. measured is the zopfli image PlatformIO prints.",
+ "measured_on": "2026-09-30 fix/headless-graph-ram on main 64d3d93 (#199 merged): alpha and air measured again after the TFT graph buffer left their DisplayManager (alpha -120, air -112 B of flash), and the air once more after `screen gra` stopped answering OK in an image without the graph (-32); both budgets down by the same. The four TFT images are byte-identical to main. measured is the zopfli image PlatformIO prints.",
  "measured_at_commit": "chore/v2.8.0 on main 8aa898b (#195 merged; SIMUT_VERSION 2.8.0; budgets unchanged). All six rebuilt here; release, test, alpha and air byte-identical to the candidate tested on the bench. measured is the zopfli image PlatformIO prints.",
  "envs": {
   "pico_w_release": {
@@ -547,8 +547,8 @@
    "measured": 964388
   },
   "pico_w_air": {
-   "budget": 1005992,
-   "measured": 1004240
+   "budget": 1005960,
+   "measured": 1004208
   }
  }
 }

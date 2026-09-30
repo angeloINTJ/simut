@@ -50,6 +50,7 @@ TOGGLE_ORDER = [
     "sensor_ds18b20", "sensor_dht22", "sensor_bme280",
     "tel_tls", "tel_mqtt",
     "web_history", "web_export_api", "web_metrics", "syslog",
+    "tft_graph",
 ]
 
 HEADER = """; profiles.ini — GERADO por tools/gen_features.py a partir de tools/features.toml.
@@ -132,7 +133,7 @@ def compose(prof: dict, M: dict) -> dict:
 
     return {
         "flags": flags,
-        "excludes": excludes,
+        "excludes": dedup(excludes),   # a switch may name a unit its display already drops
         "includes": includes,
         "lib_ignore": dedup(lib_ignore),
         "web_omit": ", ".join(web_omit) or None,

@@ -122,9 +122,9 @@ void AppManager::core0Yield( ) {
  _displayMgr->setGraphNavOffset(_graphNavOffset);
 
  _isRenderingGraph = true;
-#if SIMUT_DISPLAY_TFT
+#if SIMUT_TFT_GRAPH
  renderGraphOptimized(navId, _lastGraphRange, true, 0, _graphAnchorEnd);
-#endif // SIMUT_DISPLAY_TFT
+#endif // SIMUT_TFT_GRAPH
  _isRenderingGraph = false;
  };
 
@@ -174,11 +174,11 @@ void AppManager::core0Yield( ) {
  }
 
  _isRenderingGraph = true;
-#if SIMUT_DISPLAY_TFT
+#if SIMUT_TFT_GRAPH
  renderGraphOptimized(sensorId, range, true, 0,
  hasAnchor ? _graphAnchorEnd : 0);
+#endif // SIMUT_TFT_GRAPH
  _isRenderingGraph = false;
-#endif // SIMUT_DISPLAY_TFT
  }
  }
  /* ── Calendar open ── */
@@ -236,10 +236,10 @@ void AppManager::core0Yield( ) {
  }
 
  _isRenderingGraph = true;
-#if SIMUT_DISPLAY_TFT
+#if SIMUT_TFT_GRAPH
  renderGraphOptimized(sensorId, RANGE_24H, true, 0, _graphAnchorEnd);
+#endif // SIMUT_TFT_GRAPH
  _isRenderingGraph = false;
-#endif // SIMUT_DISPLAY_TFT
  }
  /* ── Month change in calendar ── */
  else if (uiEv.type == UiEvent::EVT_CALENDAR_MONTH) {

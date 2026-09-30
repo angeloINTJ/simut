@@ -165,6 +165,16 @@ emit         = "off_is_0"
 off_exclude  = ["SyslogManager.cpp"]
 off_web_omit = "syslog"
 
+# O gráfico e o calendário do painel touch (2026-09-30). Segue o TFT
+# (simut_config.h deriva SIMUT_TFT_GRAPH de SIMUT_DISPLAY_TFT), então o alpha e o
+# Air já são 0 e dizem isso aqui: sem o gráfico, o `_graphData` de 5.872 B sai do
+# objeto DisplayManager deles, no heap. Numa build TFT, desligado tira as três
+# unidades do gráfico, o botão da faixa de min/max e as zonas de toque que o abrem.
+[toggles.tft_graph]
+macro       = "SIMUT_TFT_GRAPH"
+emit        = "off_is_0"
+off_exclude = ["DisplayManager_Graph.cpp", "AppManager_Graph.cpp", "DisplayManager_Calendar.cpp"]
+
 # Os três drivers de sensor (2026-09-26). O default do simut_config.h é 1, então
 # ligado não emite nada e o profiles.ini não muda; desligado emite -D<macro>=0,
 # que o #178 provou compilar e encolher a imagem (drivers por classe, #172-175).
@@ -202,6 +212,7 @@ concurrency_asserts = false
 bluetooth           = false
 air                 = false
 sound_buzzer        = true
+tft_graph           = true
 sensor_ds18b20      = true
 sensor_dht22        = true
 sensor_bme280       = true
@@ -233,6 +244,7 @@ mdns          = false
 bluetooth     = false
 air           = false
 sound_buzzer  = true
+tft_graph     = true
 sensor_ds18b20 = true
 sensor_dht22  = true
 sensor_bme280 = true
@@ -288,6 +300,7 @@ mdns          = false
 bluetooth     = true
 air           = false
 sound_buzzer  = true
+tft_graph     = false
 sensor_ds18b20 = true
 sensor_dht22  = true
 sensor_bme280 = true
@@ -320,6 +333,7 @@ mdns          = false
 bluetooth     = true
 air           = true
 sound_buzzer  = false
+tft_graph     = false
 sensor_ds18b20 = true
 sensor_dht22  = true
 sensor_bme280 = true
@@ -502,6 +516,13 @@ label.pt = "Linha de comando completa"
 help.en  = "Every serial and Bluetooth command. Without it only the emergency console remains."
 help.pt  = "Todos os comandos por serial e Bluetooth. Sem ela fica só o console de emergência."
 
+[ui_toggles.tft_graph]
+group    = "interface"
+label.en = "Graph and calendar on the touch display"
+label.pt = "Gráfico e calendário na tela touch"
+help.en  = "The history graph opened from the min/max strip, its detail screen and the calendar to pick a day. Without it the strip has no graph button; the history is still recorded and stays on the web."
+help.pt  = "O gráfico do histórico aberto pela faixa de min/max, a tela de detalhe e o calendário para escolher o dia. Sem ele a faixa não tem o botão do gráfico; o histórico continua gravado e na web."
+
 [ui_toggles.sensor_ds18b20]
 group    = "sensors"
 label.en = "DS18B20 temperature probes"
@@ -573,6 +594,14 @@ require  = { air = true }
 why.en   = "A build without a display exists only with hibernation."
 why.pt   = "Uma build sem mostrador só existe com a hibernação."
 evidence = "The air profile with air=false fails to link: undefined reference to DisplayManager::begin(). The headless display drops DisplayManager.cpp and the non-air boot path calls it."
+
+[[rules]]
+id       = "graph-needs-tft"
+when     = { tft_graph = true }
+require  = { display = "tft" }
+why.en   = "The graph draws on the touch display."
+why.pt   = "O gráfico é desenhado na tela touch."
+evidence = "SIMUT_TFT_GRAPH follows SIMUT_DISPLAY_TFT in simut_config.h, so an alpha or Air profile with the switch on still comes out without the graph (its three units leave with the display), and forcing -DSIMUT_TFT_GRAPH=1 without the TFT stops at an #error there."
 
 [[rules]]
 id       = "air-no-buzzer"

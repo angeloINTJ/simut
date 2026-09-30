@@ -274,6 +274,18 @@
         "en": "Forwards log events to a syslog collector (RFC 5424 over UDP), so the audit trail survives outside the device.",
         "pt": "Encaminha os eventos do log a um coletor syslog (RFC 5424 por UDP), para a trilha de auditoria sobreviver fora do aparelho."
       }
+    },
+    {
+      "id": "tft_graph",
+      "group": "interface",
+      "label": {
+        "en": "Graph and calendar on the touch display",
+        "pt": "Gráfico e calendário na tela touch"
+      },
+      "help": {
+        "en": "The history graph opened from the min/max strip, its detail screen and the calendar to pick a day. Without it the strip has no graph button; the history is still recorded and stays on the web.",
+        "pt": "O gráfico do histórico aberto pela faixa de min/max, a tela de detalhe e o calendário para escolher o dia. Sem ele a faixa não tem o botão do gráfico; o histórico continua gravado e na web."
+      }
     }
   ],
   "displays": {
@@ -328,7 +340,8 @@
         "web_history": true,
         "web_export_api": true,
         "web_metrics": true,
-        "syslog": true
+        "syslog": true,
+        "tft_graph": true
       }
     },
     {
@@ -362,7 +375,8 @@
         "web_history": true,
         "web_export_api": true,
         "web_metrics": true,
-        "syslog": true
+        "syslog": true,
+        "tft_graph": false
       }
     },
     {
@@ -396,7 +410,8 @@
         "web_history": true,
         "web_export_api": true,
         "web_metrics": true,
-        "syslog": true
+        "syslog": true,
+        "tft_graph": false
       }
     },
     {
@@ -430,7 +445,8 @@
         "web_history": true,
         "web_export_api": true,
         "web_metrics": true,
-        "syslog": true
+        "syslog": true,
+        "tft_graph": true
       }
     },
     {
@@ -464,7 +480,8 @@
         "web_history": true,
         "web_export_api": true,
         "web_metrics": true,
-        "syslog": true
+        "syslog": true,
+        "tft_graph": true
       }
     },
     {
@@ -498,7 +515,8 @@
         "web_history": true,
         "web_export_api": true,
         "web_metrics": true,
-        "syslog": true
+        "syslog": true,
+        "tft_graph": true
       }
     }
   ],
@@ -530,6 +548,20 @@
         "pt": "Uma build sem mostrador só existe com a hibernação."
       },
       "evidence": "The air profile with air=false fails to link: undefined reference to DisplayManager::begin(). The headless display drops DisplayManager.cpp and the non-air boot path calls it."
+    },
+    {
+      "id": "graph-needs-tft",
+      "when": {
+        "tft_graph": true
+      },
+      "require": {
+        "display": "tft"
+      },
+      "why": {
+        "en": "The graph draws on the touch display.",
+        "pt": "O gráfico é desenhado na tela touch."
+      },
+      "evidence": "SIMUT_TFT_GRAPH follows SIMUT_DISPLAY_TFT in simut_config.h, so an alpha or Air profile with the switch on still comes out without the graph (its three units leave with the display), and forcing -DSIMUT_TFT_GRAPH=1 without the TFT stops at an #error there."
     },
     {
       "id": "air-no-buzzer",

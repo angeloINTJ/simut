@@ -808,6 +808,7 @@ void DisplayManager::forceDashboard( ) {
 	mutex_exit(&_stateMutex);
 }
 
+#if SIMUT_TFT_GRAPH
 /* Forces graph screen (slot 0). Useful for screenshot
  * automation — bypasses touch to go directly to MODE_GRAPH_VIEW. */
 void DisplayManager::forceGraphView( ) {
@@ -818,6 +819,26 @@ void DisplayManager::forceGraphView( ) {
 	_repaintGraph = true;
 	mutex_exit(&_stateMutex);
 }
+#else
+/* No graph in this image: the alpha (whose other stubs live in
+ * DisplayManager_Alpha.cpp) or a TFT build with SIMUT_TFT_GRAPH=0. The CLI's
+ * `screen gra` does not call it there — it answers ?screen, as `screen pin`
+ * does without the PIN — so this only keeps the header's promise. */
+void DisplayManager::forceGraphView( ) { }
+#if SIMUT_DISPLAY_TFT
+/* SIMUT_TFT_GRAPH=0 on the touch panel (2026-09-30): the graph's units are out
+ * of the build, and the event loop still names three of their doors
+ * (AppManager_Events.cpp) — the ones the alpha and headless variants stub too.
+ * No graph screen is ever entered: its button is not drawn and its touch zones
+ * are compiled out. The loading flag is raised so a caller waiting on it never
+ * burns its 500 ms. */
+void DisplayManager::setGraphNavOffset(int offset) { (void)offset; }
+void DisplayManager::requestLoadingScreen( ) { _loadingDrawn = true; }
+void DisplayManager::showCalendar(int year, int month, uint32_t daysMask) {
+	(void)year; (void)month; (void)daysMask;
+}
+#endif
+#endif
 
 bool DisplayManager::isSkipPressed( ) {
 	if (_skipPressed) { _skipPressed = false; return true; }
@@ -1461,6 +1482,7 @@ void DisplayManager::loopCore1( ) {
 			C1_PHASE(C1P_SNAPSHOT);
 			if (pullSnapshot(currentSnapshot)) { C1_PHASE(C1P_RENDER); render(currentSnapshot); }
 		}
+#if SIMUT_TFT_GRAPH
 		else if (_uiMode == MODE_GRAPH_LOADING) {
 			if (_repaintLoading) { C1_PHASE(C1P_UI_GRAPH); drawLoadingScreen( ); _repaintLoading = false; }
 		}
@@ -1473,10 +1495,12 @@ void DisplayManager::loopCore1( ) {
 		else if (_uiMode == MODE_CALENDAR) {
 			if (_repaintCalendar) { C1_PHASE(C1P_UI_SETTINGS); drawCalendarScreen( ); _repaintCalendar = false; }
 		}
+#endif
 
 		C1_PHASE(C1P_LOOP_TAIL);
 
 		/* Revert header to date/time after 3s of showing the name */
+#if SIMUT_TFT_GRAPH
 		if ((_uiMode == MODE_GRAPH_VIEW || _uiMode == MODE_GRAPH_DETAIL)
 		    && _headerShowName
 		    && timeSince(_headerNameTimer, 3000))
@@ -1484,7 +1508,9 @@ void DisplayManager::loopCore1( ) {
 			_headerShowName = false;
 			drawGraphHeaderBar( );
 		}
-		else if (_uiMode == MODE_SETTINGS_THEMES) {
+		else
+#endif
+		if (_uiMode == MODE_SETTINGS_THEMES) {
 			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawSettingsThemes( ); }
 		}
 		else if (_uiMode == MODE_SETTINGS_ALARMS) {

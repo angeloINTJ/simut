@@ -20,7 +20,10 @@
     {"name": "Air without hibernation",        "base": "pico_w_air",     "set": {"air": false},                                           "violates": ["headless-needs-air"]},
     {"name": "Air with the buzzer",            "base": "pico_w_air",     "set": {"sound_buzzer": true},                                   "violates": ["air-no-buzzer"]},
     {"name": "Air without Bluetooth",          "base": "pico_w_air",     "set": {"bluetooth": false},                                     "violates": []},
-    {"name": "Air with the full CLI off",      "base": "pico_w_air",     "set": {"cli_full": false},                                      "violates": []}
+    {"name": "Air with the full CLI off",      "base": "pico_w_air",     "set": {"cli_full": false},                                      "violates": []},
+    {"name": "Alpha with the panel graph",     "base": "pico_w_alpha",   "set": {"tft_graph": true},                                      "violates": ["graph-needs-tft"]},
+    {"name": "Air with the panel graph",       "base": "pico_w_air",     "set": {"tft_graph": true},                                      "violates": ["graph-needs-tft"]},
+    {"name": "SIMUT without the panel graph",  "base": "pico_w_release", "set": {"tft_graph": false},                                     "violates": []}
   ],
   "hazard_cases": [
     {"name": "SIMUT as shipped",               "base": "pico_w_release", "set": {},                  "hazards": []},
