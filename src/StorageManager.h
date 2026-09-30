@@ -170,6 +170,12 @@ public:
   *  after the directories exist. No-op on the common boot. */
  void ensureFsReadme( );
 
+ /** After an OTA stage that did not reach the apply: recreate the directories
+  *  on the freshly formatted filesystem and write the RAM config to it,
+  *  whatever the last save's CRC says. Call outside flash safe mode —
+  *  LittleFS takes its own lockout. @return saveConfiguration( )'s result. */
+ bool rebuildAfterStageAbort( );
+
  /* ── V4 history API — the only history format ────────────────
   * writeHistoryEntry(BinaryHistoryRecord) and the .bin filename builders
   * lived here until v2/v3 were removed. Nothing had called the writer for
@@ -795,6 +801,8 @@ public:
  * change (boot or day rollover). */
 
  bool mountFS( );
+ /** /config, /history, /lang, /themes, /web — each only if missing. */
+ void ensureDirs( );
  void loadDefaults( );
  /** v21: preenche AlarmTelConfig com os defaults de fábrica (linha de
   * alarmes DESLIGADA, JSON, fila 32, templates §3.3 da proposta).

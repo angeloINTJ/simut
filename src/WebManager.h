@@ -561,6 +561,10 @@ private:
 	ota::StageSession _stageSession;
 	/* Concurrency: we assume 1 admin web session at a time. HeavyTaskGuard
 	 * on apply covers the pathological case of 2 sessions competing for LittleFS. */
+	/* Set where a stage ends short of the apply and remounts LittleFS on a
+	 * freshly formatted partition; update( ) then rebuilds the directories and
+	 * writes the RAM config (StorageManager::rebuildAfterStageAbort( )). */
+	bool _stageAbortRebuild = false;
 
 	String generateSecureToken( );
 

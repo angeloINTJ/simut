@@ -254,6 +254,7 @@ void WebManager::handleApiRestoreUploadData( ) {
  if (_restoreRejected) return;
  if (is_stage) {
  ota::stage_session_abort(_stageSession);
+ _stageAbortRebuild = true;
  } else {
  ota::restore_session_abort(_restoreSession);
  }
@@ -348,11 +349,13 @@ void WebManager::handleApiRestoreFinish( ) {
  /* Testing: remount. */
  RenderGuard rg(_displayRef);
  ota::staging_session_end(_storageRef);
+ _stageAbortRebuild = true;
  } else if (_stageSession.status == ota::StageStatus::STAGING ||
  _stageSession.status == ota::StageStatus::OVERFLOW_ERR ||
  _stageSession.status == ota::StageStatus::WRITE_FAILED) {
  RenderGuard rg(_displayRef);
  ota::stage_session_abort(_stageSession);
+ _stageAbortRebuild = true;
  }
 
  char buf[256];

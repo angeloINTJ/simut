@@ -103,27 +103,41 @@ bool ota_metadata_write(const UpdateMetadata& in);
 bool ota_metadata_set_state(UpdateState st);
 
 /**
- * @brief Apaga setor metadata (todos 0xFF). Equivale a "no pending update".
+ * @brief Apaga o setor de metadata (todos 0xFF). Equivale a "no pending update".
  *
- * IMPORTANTE: também apaga o snapshot da configuração nas pages 1..15.
- * Chamar somente após o restore ter sido bem-sucedido OU em factory init.
+ * Só o setor de 0x1FF000. O snapshot da configuração tem setores próprios
+ * (`OTA_SNAPSHOT_OFFSET`) desde a v21 e NÃO é apagado aqui — este comentário
+ * dizia que era, e o boot confiou nisso até 2026-09-30: veja
+ * `ota_snapshot_clear( )`.
  */
 bool ota_metadata_clear();
 
 /**
- * @brief Grava bytes brutos nas pages 1..15 do setor de metadata.
+ * @brief Programa o snapshot nos seus dois setores (`OTA_SNAPSHOT_OFFSET`).
  *
- * Preserva a page 0 (UpdateMetadata) atual: lê via XIP, monta scratch
- * [page0 | snapshot_data | 0xFF padding] em `s_applier_buf`, erase + program
- * 4 KiB inteiros.
+ * Copia @p data para `s_applier_buf`, completa com 0xFF até 8 KiB e programa
+ * os dois setores, que o caller já apagou (`ensure_sector_erased` no stage).
  *
  * **PRE-CONDIÇÃO**: caller deve garantir Core 1 pausado
  * (`StorageManager::enterFlashSafeMode()`). Não é a função quem decide.
  *
  * @param data  Buffer com snapshot serializado (header + payload + CRC).
- * @param len   Tamanho em bytes; <= 3840.
+ * @param len   Tamanho em bytes; <= 8192.
  * @return true se gravado.
  */
 bool ota_snapshot_write(const uint8_t* data, uint16_t len);
+
+/**
+ * @brief Apaga os dois setores do snapshot da configuração.
+ *
+ * O snapshot é de uso único: o boot seguinte ao stage o restaura (se faltar
+ * `system.bin`) e o apaga logo depois, e `system format` o apaga antes de
+ * formatar. Os setores são os blocos 254..255 do LittleFS, então só chame com
+ * `ota_snapshot_present( )` verdadeiro — um snapshot válido ali prova que o
+ * LittleFS não guarda nada nesses blocos.
+ *
+ * **PRE-CONDIÇÃO**: Core 1 pausado (`StorageManager::enterFlashSafeMode()`).
+ */
+bool ota_snapshot_clear();
 
 } /* namespace ota */

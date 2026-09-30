@@ -106,4 +106,11 @@ bool __not_in_flash_func(ota_metadata_clear)() {
     return true;
 }
 
+bool __not_in_flash_func(ota_snapshot_clear)() {
+    uint32_t saved_irq = save_and_disable_interrupts();
+    flash_range_erase(OTA_SNAPSHOT_OFFSET, OTA_SNAPSHOT_SIZE);
+    restore_interrupts(saved_irq);
+    return true;
+}
+
 } /* namespace ota */

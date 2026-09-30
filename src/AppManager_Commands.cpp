@@ -21,6 +21,8 @@
 #include "TelemetryManager.h"
 #include "Themes.h"
 #include "WebManager.h" /* _cg*Hits: por que um envio em chunks foi abortado */
+#include "ota/config_snapshot.h" /* system format apaga o snapshot da config */
+#include "ota/metadata.h"
 #include <LittleFS.h>
 #include <time.h>
 #include "lwip/opt.h"
@@ -719,6 +721,17 @@ void AppManager::executeCommand(CliDemand cmd) {
   * snapshot would land on the fresh filesystem and next boot would adopt
   * it, handing back a day file the user asked to erase. */
  LogManager::instance( ).suppressPreRebootHook( );
+ /* The OTA config snapshot goes too. It sits in the last two filesystem
+  * blocks, which LittleFS.format( ) leaves alone, and the next boot restores
+  * it whenever system.bin is missing — a format asked for by the user would
+  * come back with the configuration it was meant to wipe. The boot erases a
+  * snapshot once it has had its one use; this covers one written by a stage
+  * cut short since the last boot. */
+ if (ota::ota_snapshot_present( )) {
+ _storageMgr->enterFlashSafeMode( );
+ ota::ota_snapshot_clear( );
+ _storageMgr->exitFlashSafeMode( );
+ }
  /* Core 1 dead during the multi-second erase burst; no unpause needed
   * because the device reboots right after. */
  _displayMgr->requestQuietMode( );

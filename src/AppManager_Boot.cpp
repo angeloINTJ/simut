@@ -760,8 +760,10 @@ void AppManager::setup( ) {
  }
 
  /* Snapshot was already consumed by StorageManager::begin (restore
-	 * before loadConfiguration). Clear the metadata partition now —
-	 * erases UpdateMetadata + snapshot region together (factory state). */
+	 * before loadConfiguration). Clear the metadata sector now. It is the
+	 * UpdateMetadata alone — this comment said it took the snapshot region
+	 * with it, which stopped being true when the snapshot got sectors of its
+	 * own; the snapshot is erased just below, on every boot that finds one. */
  _storageMgr->enterFlashSafeMode( );
  ota::ota_metadata_clear( );
  _storageMgr->exitFlashSafeMode( );
@@ -779,6 +781,23 @@ void AppManager::setup( ) {
  ota::ota_metadata_clear( );
  _storageMgr->exitFlashSafeMode( );
  }
+ }
+
+ /* The OTA config snapshot is single-use. StorageManager::begin( ) has had its
+  * one chance at it (restored when there was no system.bin); a snapshot still
+  * on flash past this point can only be stale. Left there, it sat in the last
+  * two filesystem blocks until LittleFS happened to allocate them — a format
+  * rewrites only the superblocks — and with the restore keyed on "no
+  * system.bin" (#192) the next `system format` came back with the Wi-Fi and
+  * the accounts of the last update instead of factory defaults. On the bench
+  * (2026-09-30) a valid snapshot was still on flash after a completed update
+  * and after an interrupted one. A valid snapshot also proves LittleFS keeps
+  * nothing in those blocks, so erasing them cannot hurt the filesystem. */
+ if (ota::ota_snapshot_present( )) {
+ _storageMgr->enterFlashSafeMode( );
+ ota::ota_snapshot_clear( );
+ _storageMgr->exitFlashSafeMode( );
+ BLOG("[BOOT] OTA config snapshot erased after use"); BLOG_NL( );
  }
 
  BLOG("[BOOT step] 7: pos OTA detect @ "); BLOG_U(millis( )); BLOG_NL( );
