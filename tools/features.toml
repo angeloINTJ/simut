@@ -121,20 +121,25 @@ off_lib_ignore = ["BuzzerPIO_RP2040"]
 # transportes (TelemetryManager.cpp), cercado no lugar, e o linker descarta o
 # BearSSL que ninguém mais chama — numa imagem sem o servidor HTTPS, o motor TLS
 # inteiro. Uma config que pede criptografia numa imagem sem ele é recusada no commit
-# e nunca vai em claro pelo socket (docs/analysis/ECONOMIA_DE_RECURSOS.md).
+# e nunca vai em claro pelo socket (docs/analysis/ECONOMIA_DE_RECURSOS.md). A página
+# de telemetria perde a chave de TLS com ele, e diz por que um aparelho que guardou
+# "criptografado" não envia nada até ela ser salva (@IF tel_tls / @IF !tel_tls).
 [toggles.tel_tls]
-macro = "SIMUT_TEL_TLS"
-emit  = "off_is_0"
+macro        = "SIMUT_TEL_TLS"
+emit         = "off_is_0"
+off_web_omit = "tel_tls"
 
 # O transporte MQTT (2026-09-30): MQTT e MQTTS pelo PubSubClient, o caminho MQTT da
 # linha de alarmes com o tópico de ack, e o Home Assistant Discovery. Mesmo desenho
 # do tel_tls: cercado no lugar, dentro do TelemetryManager, com as imagens de hoje
 # byte a byte idênticas. Sem ele, uma config que nomeia MQTT é recusada no commit
 # e em cada envio — todo outro ramo da escolha de transporte é HTTP, e faria POST
-# no broker.
+# no broker. A página de telemetria perde o seletor de transporte e os campos do
+# MQTT com ele, e diz o mesmo de uma config guardada pedindo MQTT.
 [toggles.tel_mqtt]
-macro = "SIMUT_TEL_MQTT"
-emit  = "off_is_0"
+macro        = "SIMUT_TEL_MQTT"
+emit         = "off_is_0"
+off_web_omit = "tel_mqtt"
 
 # A interface web, peça a peça (2026-09-30). Cada uma é uma rota, ou uma página e
 # as rotas que só ela chama, cercada onde é registrada no WebManager_Core.cpp; sem

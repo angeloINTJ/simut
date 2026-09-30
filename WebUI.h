@@ -4767,6 +4767,7 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <form id="sysForm" onsubmit="event.preventDefault()">
                 <h3 data-i18n="cfg_tel">Telemetry Engine</h3>
                 <div class="grp">
+                    /* @IF tel_mqtt */
                     <div class="row" style="margin-bottom:15px;">
                         <div class="col">
                             <label data-i18n="cfg_transport">Transport Protocol</label>
@@ -4776,6 +4777,10 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             </select>
                         </div>
                     </div>
+                    /* @ENDIF */
+                    /* @IF !tel_mqtt */
+                    <div id="tel_no_mqtt" class="faixa faixa-alerta" style="display:none;margin:0 0 12px" data-i18n="tel_no_mqtt">This image has no MQTT, so telemetry goes over HTTP. The device's settings still ask for MQTT and nothing is sent: saving switches them to HTTP.</div>
+                    /* @ENDIF */
 
                     <!-- Campos compartilhados: Server, Port e TLS (usados por HTTP e MQTT) -->
                     <div class="row">
@@ -4788,6 +4793,7 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             <input type="number" id="t_port" name="t_port" min="1" max="65535">
                         </div>
                     </div>
+                    /* @IF tel_tls */
                     <label class="cfg-tg" style="margin-top:5px;">
                         <span class="toggle"><input type="checkbox" id="t_sec" name="t_sec" value="1" onchange="updateTlsWarn()"><span class="slider"></span></span>
                         <span id="t_sec_lbl" data-i18n="cfg_sec">Use TLS / SSL</span>
@@ -4797,6 +4803,10 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <div id="tls_noverify_warn" style="display:none;margin:6px 0 0;padding:8px 10px;border-radius:6px;background:rgba(245,158,11,.12);border:1px solid var(--alerta);color:var(--alerta);font-size:.82rem">
                         <span data-i18n="cfg_tls_noverify">TLS without certificate validation — the connection is encrypted but not authenticated (MITM possible). Upload /cert.pem via Files to validate the server.</span>
                     </div>
+                    /* @ENDIF */
+                    /* @IF !tel_tls */
+                    <div id="tel_no_tls" class="faixa faixa-alerta" style="display:none;margin:8px 0 0" data-i18n="tel_no_tls">This image has no TLS client, so telemetry goes unencrypted. The device's settings still ask for encryption and nothing is sent: saving turns it off (check the port as well).</div>
+                    /* @ENDIF */
 
                     <!-- Campos exclusivos do transporte HTTP -->
                     <div id="http_fields" style="border-top:1px solid var(--linha); padding-top:15px; margin-top:5px;">
@@ -4812,6 +4822,7 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         </div>
                     </div>
 
+                    /* @IF tel_mqtt */
                     <!-- Campos exclusivos do transporte MQTT -->
                     <div id="mqtt_fields" style="display:none; border-top:1px solid var(--linha); padding-top:15px; margin-top:5px;">
                         <div class="row">
@@ -4856,6 +4867,7 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         </label>
                         <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--tinta-2)" data-i18n="cfg_mq_had_hint">Publishes retained config messages so Home Assistant auto-creates this device and its sensors. Requires JSON payload mode; entities appear at the next upload.</div>
                     </div>
+                    /* @ENDIF */
 
                     <div class="row" style="margin-top: 15px; border-top:1px solid var(--linha); padding-top:15px;">
                         <div class="col">
@@ -5222,9 +5234,17 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         function toggleBuilder() { let mode = document.getElementById('t_mode').value; document.getElementById('custom_tools').style.display = (mode == '2') ? 'block' : 'none'; renderPreview(); }
         function toggleAlarmBuilder() { let mode = document.getElementById('a_mode').value; document.getElementById('alarm_custom_tools').style.display = (mode == '2') ? 'block' : 'none'; renderAlarmPreview(); }
 
+        /* @IF tel_mqtt */
         function toggleTransport() { let tr = document.getElementById('t_transport').value; document.getElementById('http_fields').style.display = (tr == '0') ? 'block' : 'none'; document.getElementById('mqtt_fields').style.display = (tr == '1') ? 'block' : 'none'; let secSpan = document.getElementById('t_sec_lbl'); if (secSpan) secSpan.textContent = (tr == '1') ? window.t('cfg_sec_mqtt', 'Use MQTTS (TLS)') : window.t('cfg_sec', 'Use HTTPS (SSL)'); }
+        /* @ENDIF */
+        /* @IF !tel_mqtt */
+        /* Sem MQTT so ha o HTTP, e os campos dele ja nascem visiveis. */
+        function toggleTransport( ) { }
+        /* @ENDIF */
+        /* @IF tel_tls */
         /* M-8: selo "sem validação de cert" quando TLS on sem cert (window.__tlsCert). */
         function updateTlsWarn() { var w = document.getElementById('tls_noverify_warn'); if (!w) return; var on = document.getElementById('t_sec').checked; w.style.display = (on && !window.__tlsCert) ? 'block' : 'none'; }
+        /* @ENDIF */
 
         function updateTelDisabledWarn() {
             const inp = document.getElementById('t_int');
@@ -5314,14 +5334,32 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         function applyConfig(d) {
             const p = Pending.getSection('sys');
             const val = (key, def) => (p[key] !== undefined ? p[key] : (d[key] !== undefined ? d[key] : def));
+            /* @IF tel_mqtt */
             document.getElementById('t_transport').value = val('t_transport', 0);
+            /* @ENDIF */
+            /* @IF !tel_mqtt */
+            if (+val('t_transport', 0) === 1) {
+                document.getElementById('tel_no_mqtt').style.display = '';
+                Pending.setField('sys', 't_transport', '0');
+            }
+            /* @ENDIF */
+            /* @IF tel_tls */
             document.getElementById('t_sec').checked = !!val('t_sec', false);
             window.__tlsCert = !!val('t_cert', false);   /* M-8: cert loaded at boot? */
             updateTlsWarn();
+            /* @ENDIF */
+            /* @IF !tel_tls */
+            const sec = val('t_sec', 0);
+            if (sec === true || +sec === 1) {
+                document.getElementById('tel_no_tls').style.display = '';
+                Pending.setField('sys', 't_sec', '0');
+            }
+            /* @ENDIF */
             document.getElementById('t_srv').value = val('t_srv', '');
             document.getElementById('t_port').value = val('t_port', 80);
             document.getElementById('t_path').value = val('t_path', '');
             document.getElementById('t_key').value = val('t_key', '');
+            /* @IF tel_mqtt */
             document.getElementById('m_topic').value = val('m_topic', '');
             document.getElementById('m_cid').value = val('m_cid', '');
             document.getElementById('m_user').value = val('m_user', '');
@@ -5329,6 +5367,7 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             document.getElementById('m_retain').checked = !!val('m_retain', false);
             document.getElementById('m_ka').value = val('m_ka', 60);
             document.getElementById('m_had').checked = !!val('m_had', false);
+            /* @ENDIF */
             document.getElementById('t_int').value = val('t_int', 10);
             updateTelDisabledWarn();
             document.getElementById('t_bat').value = val('t_bat', 10);
