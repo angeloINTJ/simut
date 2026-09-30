@@ -15,8 +15,11 @@
   ],
   "measured_at": {
     "date": "2026-09-30",
-    "src_commit": "8b19ecb",
-    "src_dirty": false
+    "src_commit": "26fb9fd",
+    "src_dirty": false,
+    "partial": [
+      "tel_mqtt"
+    ]
   },
   "products": {
     "pico_w_release": {
@@ -78,6 +81,11 @@
         "tel_tls": {
           "used": 998196,
           "bin": 1010228,
+          "ram": 116956
+        },
+        "tel_mqtt": {
+          "used": 990636,
+          "bin": 1002668,
           "ram": 116956
         }
       }
@@ -147,6 +155,11 @@
           "used": 892420,
           "bin": 908460,
           "ram": 129976
+        },
+        "tel_mqtt": {
+          "used": 952708,
+          "bin": 965804,
+          "ram": 129992
         }
       }
     },
@@ -213,6 +226,11 @@
           "used": 936464,
           "bin": 949324,
           "ram": 120128
+        },
+        "tel_mqtt": {
+          "used": 996648,
+          "bin": 1010764,
+          "ram": 120144
         }
       }
     }

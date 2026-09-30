@@ -48,5 +48,10 @@
     "base": "pico_w_air",
     "flash_saved": 67888,
     "ram_saved": 16
+  },
+  "tel_mqtt": {
+    "base": "pico_w_air",
+    "flash_saved": 7704,
+    "ram_saved": 0
   }
 }
