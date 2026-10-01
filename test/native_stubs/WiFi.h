@@ -68,6 +68,9 @@ public:
                                              leaves wifi_scan_state stuck */
     bool     visible          = true;   /**< AP appears in a scan */
     bool     joinable         = true;   /**< association would succeed */
+    bool     joinRefused      = false;  /**< the radio will not take the join request at all:
+                                             begin( ) answers WL_IDLE_STATUS, as the framework
+                                             does when cyw43_wifi_join( ) keeps failing */
     bool     scanNeverCompletes = false;/**< the wedge: scanComplete( ) stays -1 */
     bool     scanFailsToStart = false;  /**< scanComplete( ) answers -2 */
     uint32_t scanDurationMs   = 1000;   /**< how long a healthy scan takes */
@@ -85,7 +88,7 @@ public:
 
     /** Put the radio back the way a fresh test finds it. */
     void reset( ) {
-        visible = joinable = true;
+        visible = joinable = true; joinRefused = false;
         scanNeverCompletes = scanFailsToStart = false;
         scanDurationMs = 1000; joinDurationMs = 500;
         rssi = -60; apSsid = "bench-ap";
@@ -101,13 +104,20 @@ public:
 
     void config(IPAddress, IPAddress, IPAddress, IPAddress) {}
 
+    /** What the framework answers: a started join reports WL_DISCONNECTED (no
+     *  address yet) and finishes in the background; WL_IDLE_STATUS means the
+     *  radio did not take the request. */
     int begin(const char* ssid, const char* /*pass*/) {
         joinAttempts++;
         lastSsid = String(ssid);
-        _joining = true;
         _associated = false;
+        if (joinRefused) {
+            _joining = false;
+            return WL_IDLE_STATUS;
+        }
+        _joining = true;
         _joinStartedAt = millis( );
-        return WL_IDLE_STATUS;
+        return WL_DISCONNECTED;
     }
 
     int disconnect(bool /*wifiOff*/ = false) {

@@ -193,6 +193,14 @@ Durante a escada, o aparelho continua medindo, gravando o histórico e atendendo
 A escada de reconexão: esperas que dobram, três dormências de 10 min e o recomeço, até a rede voltar.
 :::
 
+### Quando o rádio recusa o pedido {#cap-09-recusa}
+
+Um sinal fraco não impede o pedido de conexão: o rádio aceita o pedido, e a associação falha depois, como uma tentativa comum da escada. Mas o rádio pode recusar o próprio pedido, quando o chip ou o driver entra num estado do qual um pedido novo não o tira. Cada recusa vira o evento **Conectando WiFi** (10) com contexto 2, e a escada segue.
+
+Três recusas seguidas, com o aparelho ligado há mais de 30 min, fazem o aparelho reiniciar para recuperar o rádio. Antes, ele grava o evento 10 com contexto 3. Nos primeiros 30 min depois de um boot, ele não reinicia por esse motivo, então um rádio que continua quebrado custa no máximo um reinício a cada meia hora.
+
+Até a v2.8.0, uma recusa prendia o aparelho por até 15 s dentro do pedido, e o watchdog, que reinicia o aparelho depois de 8,4 s sem resposta, o reiniciava. O log mostrava só a autópsia de um travamento no módulo `WIFI`, contexto 202 ([Como ler um travamento](#cap-16-travamento)).
+
 ### Outros motivos para reconectar {#cap-09-vigilancia}
 
 Conectado, o aparelho confere o sinal uma vez por minuto. Um sinal impossível, 0 dBm ou mais, ou abaixo de −120 dBm, indica que o rádio parou de responder de verdade, mesmo que o Wi-Fi ainda se diga conectado. Duas leituras impossíveis seguidas fazem o aparelho derrubar a conexão e entrar na escada, com o evento **Implausible RSSI twice — link presumed dead, reconnecting**.
@@ -209,6 +217,8 @@ A página **Histórico e Logs** mostra os eventos ([capítulo 16](#cap-16)). Os 
 | 12 | `Scanning for SSID (backoff=<n>s)` | Cada busca da escada |
 | 10 | `SSID found, connecting...` | A rede apareceu na busca |
 | 10 | `SSID not in scan — associating anyway` | Tentativa sem ver a rede, depois de duas buscas |
+| 10 | `The radio refused the join` | O rádio recusou o pedido; o contexto é 2 ([Quando o rádio recusa o pedido](#cap-09-recusa)) |
+| 10 | `The radio refused 3 joins in a row - restarting to recover it` | Três recusas seguidas: o aparelho reinicia; o contexto é 3 |
 | 525 | `Retry in <n>s` | Uma tentativa falhou; o contexto é o número de falhas seguidas |
 | 526 | `Dormant: retry in 600s` | Início de uma dormência |
 | 526 | `Dormancy over — back to fast retries` | Fim das três dormências |

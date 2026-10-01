@@ -103,6 +103,7 @@ Detalhes no [capítulo 9](#cap-09).
 | Depois de desligar o HTTPS, a entrada volta sempre para a página de entrada | Cookie `Secure` antigo no navegador | Siga o aviso da página de entrada ([capítulo 13](#cap-13-sessao-segura)) |
 | O gestor de frota não consegue falar com o aparelho | CORS desligado, origem diferente da página, ou falta reiniciar | `system cors <origem exata, sem barra no fim>` e `reload confirm`. Confira o evento 577 no boot |
 | O aparelho reconecta sozinho de tempos em tempos com sinal bom | O rádio devolveu leituras de sinal impossíveis | Normal: é a proteção contra rádio travado. Se for frequente, verifique a alimentação e a distância do roteador |
+| O aparelho reiniciou sozinho, e o log mostra **Conectando WiFi** (10) com contexto 3 logo antes | O rádio recusou três pedidos de conexão seguidos | Normal: o reinício recupera o rádio ([capítulo 9](#cap-09-recusa)). Se repetir a cada meia hora, desligue e religue a alimentação, e confira o sinal |
 | A telemetria para com o sinal fraco | Abaixo de −78 dBm a telemetria espera | Melhore o sinal: aproxime o roteador ou use um repetidor |
 
 ## Data e hora {#cap-30-hora}

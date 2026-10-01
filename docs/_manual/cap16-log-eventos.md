@@ -304,6 +304,7 @@ Se o log mostra travamentos repetidos, anote os contextos, exporte o log e siga 
 | **Config alterada** (303) | Uma mudança de configuração, um backup, uma restauração ou uma atualização, com o número da conta no contexto | [Capítulo 17](#cap-17) |
 | **Falha de telemetria** (31) | O coletor não recebeu | [Capítulo 21](#cap-21-eventos) |
 | **WiFi desconectado** (11) | A rede caiu | [Capítulo 9](#cap-09-log) |
+| **Conectando WiFi** (10) com contexto 2 ou 3 | O rádio recusou um pedido de conexão; no contexto 3, recusou três seguidos e o aparelho reiniciou para recuperá-lo | [Capítulo 9](#cap-09-recusa) |
 | **NTP corrigindo timestamps** (408) | O relógio foi corrigido e o histórico, ajustado | [Capítulo 10](#cap-10-correcao) |
 | **Registros de rotina suprimidos** (5) | Quantos eventos de rotina ficaram fora da flash na última hora | [Persistência por transição](#cap-16-transicao) |
 | **Boot frio, não veio da hibernação** (412) | [air]{.img} Uma falta de energia ou reinício num Air | [Capítulo 19](#cap-19) |

@@ -68,12 +68,17 @@ cp -v "$ORIG/lwipopts.h" "$FW/include/"
     cp -v "$ORIG/HTTPServer.cpp" "$FW/libraries/WebServer/src/"
 [ -f "$ORIG/WebServerTemplate.h" ] && \
     cp -v "$ORIG/WebServerTemplate.h" "$FW/libraries/WebServer/src/"
+# Espera do join com prazo (patch 2j). Sem ela, um join que o radio recusa
+# segura o Core 0 por 15 s e o watchdog reinicia o aparelho.
+[ -f "$ORIG/CYW43shim.cpp" ] && \
+    cp -v "$ORIG/CYW43shim.cpp" "$FW/libraries/lwIP_CYW43/src/utility/"
 
 # Invalida cache PIO — FrameworkArduino (lwip) + os .o das libs patchadas, senao
 # o build "passa" religando os objetos antigos ainda patchados.
 for obj in "$ROOT/.pio/build"/*/lib*/WiFi/*.o \
            "$ROOT/.pio/build"/*/lib*/HTTPClient/HTTPClient.cpp.o \
-           "$ROOT/.pio/build"/*/lib*/WebServer/*.o; do
+           "$ROOT/.pio/build"/*/lib*/WebServer/*.o \
+           $(find "$ROOT/.pio/build" -path "*/lwIP_CYW43/*" -name "*.o" 2>/dev/null); do
     [ -f "$obj" ] && { rm -f "$obj"; echo "[restore] cache invalidado: $obj"; }
 done
 for build in "$ROOT/.pio/build"/*/FrameworkArduino/lwip; do

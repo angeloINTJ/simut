@@ -51,7 +51,17 @@ namespace simut_native { uint32_t fake_millis_value = 0; }
 LogManager::LogManager( ) {}
 void LogManager::logCode(LogLevel, const char*, LogCode, int, String) {}
 const char* LogManager::tr(const char* en) const { return en; }
-void LogManager::safeReboot( ) {}
+/* Counted: the one reboot NetworkManager plans for itself is a radio that
+ * will not take a join (see the refused-join tests).
+ *
+ * safeReboot( ) is [[noreturn]], so this stub must not return either. The
+ * empty stub that stood here did, which is undefined behaviour that nothing
+ * reached until the refused-join tests did: measured 2026-10-01, the caller's
+ * String temporaries were destroyed twice ("double free detected in tcache
+ * 2"). It throws instead, and the pump that can reach it catches. */
+struct SafeRebootCalled {};
+static unsigned g_safeReboots = 0;
+void LogManager::safeReboot( ) { g_safeReboots++; throw SafeRebootCalled{ }; }
 void MetricsManager::observeRssi(int32_t) {}
 void dns_setserver(uint8_t, const ip_addr_t*) {}
 
@@ -113,6 +123,7 @@ void setUp(void) {
     set_native_millis(100000);   /* away from 0, so wrap arithmetic is exercised */
     WiFi.reset( );
     g_cyw43StaModeEnables = 0;
+    g_safeReboots = 0;
 }
 void tearDown(void) {}
 
@@ -702,6 +713,83 @@ static void test_a_refused_ap_is_reported_and_not_latched(void) {
     WiFi.softApFails = false;
 }
 
+/* ══ a radio that will not take the join ═════════════════════════════════
+ *
+ * WiFi.begin( ) queues the join and returns; it answers WL_IDLE_STATUS only
+ * when the radio would not take the request at all. On 2026-09-30 22:13 a
+ * device at -79 dBm met that after two scans that never finished. The
+ * framework retried the refused request for 15 s, Core 0 sat past the 8.4 s
+ * watchdog, and the watchdog's reboot is what got the radio back — at the cost
+ * of an unplanned boot. The framework patch bounds the wait; these pin what
+ * NetworkManager does with the answer. */
+
+/** Pump until `n` more association attempts have happened (or `capMs`). */
+static void pumpUntilAttempts(NetworkManager& net, unsigned n, uint32_t capMs) {
+    const unsigned target = WiFi.joinAttempts + n;
+    const uint32_t end = millis( ) + capMs;
+    while (WiFi.joinAttempts < target && (int32_t)(millis( ) - end) < 0) {
+        set_native_millis(millis( ) + 500);
+        try {
+            net.update( );
+        } catch (const SafeRebootCalled&) {
+            break;   /* a device would be restarting now */
+        }
+    }
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(target, WiFi.joinAttempts, "the machine stopped trying");
+}
+
+static void test_refused_joins_end_in_one_planned_restart(void) {
+    set_native_millis(WIFI_RADIO_RESTART_MIN_UPTIME_MS + 100000UL);   /* past the gate */
+    NetworkManager net;
+    bringUp(net);
+
+    WiFi.joinRefused = true;              /* the radio stops taking joins */
+    WiFi.disconnect( );
+    pumpUntilAttempts(net, WIFI_JOIN_REFUSALS_BEFORE_RESTART - 1, 30UL * 60UL * 1000UL);
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(0, g_safeReboots, "restarted before the third refusal");
+    pumpUntilAttempts(net, 1, 30UL * 60UL * 1000UL);
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(1, g_safeReboots,
+        "three refusals in a row and no planned restart: the watchdog would have done it, unplanned");
+}
+
+/* A radio that takes a join again is a radio that does not need a restart. */
+static void test_an_accepted_join_clears_the_refusals(void) {
+    set_native_millis(WIFI_RADIO_RESTART_MIN_UPTIME_MS + 100000UL);
+    NetworkManager net;
+    bringUp(net);
+
+    WiFi.joinRefused = true;
+    WiFi.disconnect( );
+    pumpUntilAttempts(net, WIFI_JOIN_REFUSALS_BEFORE_RESTART - 1, 30UL * 60UL * 1000UL);
+    WiFi.joinRefused = false;             /* it takes the next one */
+    pump(net, 30UL * 60UL * 1000UL, 500);
+    TEST_ASSERT_TRUE_MESSAGE(net.isConnected( ), "setup: the accepted join never landed");
+
+    WiFi.joinRefused = true;              /* and later refuses again */
+    WiFi.disconnect( );
+    pumpUntilAttempts(net, WIFI_JOIN_REFUSALS_BEFORE_RESTART - 1, 30UL * 60UL * 1000UL);
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(0, g_safeReboots,
+        "refusals counted across an accepted join: the count is meant to be in a row");
+}
+
+/* Not in the first half hour: a radio that stays broken costs one reboot per
+ * half hour, not one per attempt. */
+static void test_no_planned_restart_in_the_first_half_hour(void) {
+    NetworkManager net;                   /* setUp put the clock at 100 s */
+    bringUp(net);
+
+    WiFi.joinRefused = true;
+    WiFi.disconnect( );
+    pumpUntilAttempts(net, WIFI_JOIN_REFUSALS_BEFORE_RESTART, 20UL * 60UL * 1000UL);
+    TEST_ASSERT_TRUE(millis( ) < WIFI_RADIO_RESTART_MIN_UPTIME_MS);
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(0, g_safeReboots, "restarted inside the first half hour");
+
+    set_native_millis(WIFI_RADIO_RESTART_MIN_UPTIME_MS + 1000UL);
+    pumpUntilAttempts(net, 1, 30UL * 60UL * 1000UL);
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(1, g_safeReboots,
+        "the gate held the restart back for good instead of for half an hour");
+}
+
 /* ══ the clock ═══════════════════════════════════════════════════════════ */
 
 /* "Synced" means NTP or a manual time set the clock — not that getEpoch( )
@@ -832,6 +920,9 @@ int main(int, char**) {
     RUN_TEST(test_ap_waits_for_a_sweep_before_taking_the_radio);
     RUN_TEST(test_a_wedged_sweep_does_not_block_the_ap);
 
+    RUN_TEST(test_refused_joins_end_in_one_planned_restart);
+    RUN_TEST(test_an_accepted_join_clears_the_refusals);
+    RUN_TEST(test_no_planned_restart_in_the_first_half_hour);
     RUN_TEST(test_a_provisional_clock_is_not_a_synced_one);
     RUN_TEST(test_a_refused_ap_is_reported_and_not_latched);
 
