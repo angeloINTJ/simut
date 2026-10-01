@@ -337,27 +337,23 @@ void TelemetryManager::update( ) {
  * the alarm line on MQTT, loop( ) never ran: no ACK was ever read, the queue
  * never drained, and the line republished the same batch every 15 s until the
  * queue was full. Found by reading while the v2.7.1 manual was written
- * (finding 28). The HA discovery reconciliation stays behind the gate, as it
- * always was — with telemetry off there is nothing to publish to HA.
+ * (finding 28).
  */
 #if SIMUT_TEL_MQTT
- const bool mqttUp = cfg.telTransport == TEL_TRANSPORT_MQTT && _mqttInitialized
-                     && _mqttClient.connected( );
- if (mqttUp) {
+ if (cfg.telTransport == TEL_TRANSPORT_MQTT && _mqttInitialized
+ && _mqttClient.connected( )) {
  _mqttClient.loop( );
  watchdog_update( );
- }
-#endif
 
- if (cfg.telInterval == 0) return;
-
-#if SIMUT_TEL_MQTT
- if (mqttUp && _mqttClient.connected( )) {
  /* HA discovery safety net for config paths that do NOT reboot (commit_all
   * does, and its post-reboot connect reconciles there): while connected,
   * a mismatch between the toggle and the persisted published bit is
   * settled here. Two RAM reads per pass when in sync; the CAS keeps the
-  * publish burst from interleaving with a send. */
+  * publish burst from interleaving with a send. Only with the conventional
+  * line on, as before loop( ) moved above the gate: with telemetry off
+  * there is nothing to reconcile, and a want computed then would unpublish
+  * the entities. */
+ if (cfg.telInterval != 0 && _mqttClient.connected( )) {
  bool haWant = _storageRef->isHaDiscoveryEnabled( ) && cfg.telMode == TEL_MODE_JSON;
  if (haWant != _storageRef->wasHaDiscoveryPublished( )) {
  bool expected = false;
@@ -368,7 +364,10 @@ void TelemetryManager::update( ) {
  }
  }
  }
+ }
 #endif
+
+ if (cfg.telInterval == 0) return;
 
  uint32_t now = millis( );
 
