@@ -66,6 +66,14 @@ jobs:
       - name: Check the Ângulo interface standard
         run: python3 tools/check_angulo.py
 
+      # The counts the three READMEs quote — host test cases and suites, the
+      # release image's share of the slot, event codes, routes — against the
+      # files that own them. On 2026-10-01 every README still carried the
+      # v2.7.1 flash figures and two test counts behind the suites, and an
+      # outside review quoted them back as the state of the project.
+      - name: Check the numbers the READMEs quote
+        run: python3 tools/check_readme_numbers.py
+
       # Every filesystem-mutating handler (delete/upload/ls) and the restore
       # validator must refuse the /config credential store. This is what blocks
       # a guard removal from shipping (findings ACH-01..04).

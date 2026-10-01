@@ -50,13 +50,14 @@ Los tres comparten el mismo núcleo:
 | **Release actual** | **v2.8.0** (30/09/2026). SIMUT salió de beta con la v2.7.0, sobre mediciones: un soak de 8,18 h sin ningún reinicio y 6 de 6 actualizaciones por el aire sin perder nada. La v2.8.0 conserva la configuración cuando una actualización se corta a mitad, y deja que el formato de telemetría personalizado envíe el Content-Type que espera su servidor; la v2.7.4 había corregido la búsqueda de sensores, que dejaba en error un BMP280 en I2C de hardware. |
 | **Imágenes publicadas** | Tres imágenes, cada una en `.uf2` y `.bin`: `release` (panel táctil TFT), `alpha` (LCD 16×2 con consola Bluetooth) y `air` (registrador a batería sin pantalla). Junto a ellas van los packs de idioma pt-BR y es-ES y un manifiesto de OTA. Una imagen con otro conjunto de funciones sale del [configurador de build](https://angelointj.github.io/simut/configurador/), y el CI la compila desde `main`. |
 | **Madurez** | <ul><li>`release`: **estable**.</li><li>`alpha`: publicado y probado en el banco, con su LCD 16×2 incluido desde el 26/09/2026.</li><li>`air`: **experimental**. Su único soak largo falló: un sueño en el ciclo 119 nunca despertó (F28). Hoy lo mitiga un watchdog a lo largo del despertar; la causa raíz no está confirmada.</li></ul> |
-| **Pruebas** | Cada pull request ejecuta 426 casos de test en el host en 8 suites, 60 s de fuzzing y análisis estático, y compila las seis imágenes de firmware con la caché fría. El comportamiento en hardware real se verifica en un banco — ver [Verificación en hardware](#verificación-en-hardware). |
+| **Pruebas** | Cada pull request ejecuta 428 casos de test en el host en 8 suites, 60 s de fuzzing y análisis estático, y compila las seis imágenes de firmware con la caché fría. El comportamiento en hardware real se verifica en un banco — ver [Verificación en hardware](#verificación-en-hardware). |
 
 **Limitaciones conocidas.** Cada una está documentada donde aplica.
 - **Actualización.** La actualización por el aire reformatea el sistema de archivos:
   - Wi-Fi, cuentas y slots de sensor se conservan. El histórico, los archivos de calibración y los packs de idioma no, así que la página web descarga un backup antes de empezar, y restaurarlo los recupera.
   - Hay un único slot de firmware y ningún rollback. Un flasheo fallido se recupera con BOOTSEL y un cable USB.
-- **Reinicios sin explicación.** Un reinicio de watchdog con la traza vacía (`ctx=209`/`ctx=455`) apareció tres veces en la imagen de banco el 20–21 de septiembre, y no desde entonces. Los dos núcleos están ahora instrumentados para explicar el siguiente.
+- **Punto de acceso de configuración.** Con el punto de acceso de configuración activo, el dispositivo deja de leer los sensores, de comprobar las alarmas y de grabar el histórico, y desde la v2.7.1 se abre solo: en un dispositivo sin red configurada y tras unos 68 min sin la red. Hay una corrección en revisión ([#204](https://github.com/angeloINTJ/simut/pull/204)).
+- **Reinicios sin explicación.** Un reinicio de watchdog (`ctx=209` o `ctx=455`) apareció tres veces en la imagen de prueba el 20–21 de septiembre, y no desde entonces; el que se capturó con su contexto tenía el Core 0 en la consola (`ctx=209`). Los dos núcleos están ahora instrumentados para explicar el siguiente. Un `ctx=455` (traza vacía) en el primer arranque después de `picotool load -x` no es esto: ese reinicio pasa por el watchdog, y el registro apareció tras 11 de 11 grabaciones así y tras ninguno de 7 reinicios por el pin (30/09/2026).
 - **Conexiones inactivas.** Durante el soak de la v2.7.0, el 7,1 % de las respuestas en una conexión keep-alive inactiva llegaron cortadas. El dispositivo corta un flujo que no puede enviar durante 4 s.
 - **Respuestas chunked.** Leído en un bucle cerrado, el 0,15–0,6 % de las respuestas de `/api/status` llega con el encuadre chunked roto ([#189](https://github.com/angeloINTJ/simut/issues/189)). El dispositivo no se reinicia y la petición siguiente funciona; la página pierde una actualización.
 - **Lista de usuarios.** Cada guardado de la lista de usuarios reinicia el dispositivo, unos 25 s cada vez.
@@ -68,7 +69,7 @@ Los tres comparten el mismo núcleo:
 | Necesidad | Sketch Arduino DIY | ESPHome / Tasmota | **SIMUT** |
 |------|:---:|:---:|:---:|
 | Autónomo con pantalla | Programación manual | Sin soporte TFT | UI táctil integrada, o LCD 16×2 |
-| Entornos regulados | Sin traza de auditoría | Sin RBAC de usuarios | 32 cuentas, PIN de panel por cuenta, traza de auditoría firmada |
+| Entornos regulados | Sin traza de auditoría | Sin RBAC de usuarios | 32 cuentas, PIN de panel por cuenta, registro de eventos persistente y syslog remoto |
 | Cadena de frío (sondas hasta −50 °C) | Lecturas básicas | Monitoreo básico | Multisensor calibrado, ventanas de mantenimiento |
 | Operación offline | Sí | A menudo depende de la nube | Web local completa + pantalla |
 | Actualización OTA | Reflasheo manual | OTA | OTA + backup/restore |
@@ -149,7 +150,7 @@ Consulta la **[guía de cableado](docs/WIRING.md)** para el pinout completo y lo
 - **16 slots universales de sensor** — GP0–GP15. Cada slot acepta DS18B20, DHT22 o BMP280/BME280; el BMx280 se reclasifica solo por el ID del chip. Tipo y pines se asignan en tiempo de ejecución, sin recompilar.
 - **Temperatura, humedad y presión** como canales de primera clase.
 - **Calibración** — offsets por sensor y curvas de hasta 5 puntos por canal, lineales o suaves.
-- **Pipeline de sensores de confianza cero:**
+- **Validación de los sensores:**
   - verificación de la ROM del DS18B20, con la sonda cambiada en cuarentena hasta que vuelva la correcta;
   - histéresis de error: 3 fallos para entrar, 5 éxitos para salir;
   - lecturas fuera de rango descartadas.
@@ -239,7 +240,7 @@ Consulta la **[guía de cableado](docs/WIRING.md)** para el pinout completo y lo
   - bloques de 60 registros, cada uno con su CRC;
   - el bloque abierto se guarda tras cada registro;
   - al superar el 86 % de ocupación, se borra el día más antiguo.
-- **Configuración** — con CRC32, escrita en un archivo temporal y renombrada, con un `.bak` de reserva. Los secretos se guardan ofuscados.
+- **Configuración** — con CRC32, escrita en un archivo temporal y renombrada, con un `.bak` de reserva. Los secretos se guardan ofuscados, no cifrados: el acceso físico a la flash queda fuera del modelo de amenazas ([SECURITY.md §3](SECURITY.md#3-secret-storage)).
 - **Log de eventos** — 2 × 800 registros y 155 códigos de evento:
   - los eventos rutinarios se guardan en los cambios de estado, con un latido por hora y un recuento de lo suprimido;
   - los registros de seguridad, configuración y fallo fatal nunca se filtran.
@@ -386,7 +387,7 @@ simut/
 > clave por dispositivo que se muestra en la consola y, donde la hay, en la
 > pantalla. Ver [SECURITY.md](SECURITY.md) §2 y §8.
 
-> No hay entorno de depuración. `pico_w_debug` se eliminó en la v2.4.1 tras no enlazar nunca: en `-Og` la imagen desbordaba el slot de 1020 KB en ~100 KB. La flash va justa. La imagen release usa el 97,2 % del slot de programa de 1.044.480 B, y su `.bin` queda 13.196 B por debajo del techo de actualización por el aire, de 1.040.384 B. Un objetivo de GDB habría que montarlo recortando funcionalidades. Para el tripwire de concurrencia en hardware, usa `pico_w_asserts`.
+> No hay entorno de depuración. `pico_w_debug` se eliminó en la v2.4.1 tras no enlazar nunca: en `-Og` la imagen desbordaba el slot de 1020 KB en ~100 KB. La flash va justa. La imagen release usa el 95,7 % del slot de programa de 1.044.480 B (el valor medido vive en `tools/flash_budget.json`), y el CI comprueba cada `.bin` contra el techo de actualización por el aire, de 1.040.384 B. Un objetivo de GDB habría que montarlo recortando funcionalidades. Para el tripwire de concurrencia en hardware, usa `pico_w_asserts`.
 
 ### Flags de compilación
 - `-Os` — optimización por tamaño
@@ -427,13 +428,14 @@ El dispositivo expone una API REST en `http://<ip-del-dispositivo>/api/`:
 ### Tests en el host
 
 ```bash
-pio test -e native             # validadores, cursor de telemetría, etiquetas, parsers (185 casos)
+pio test -e native             # validadores, cursor de telemetría, etiquetas, parsers (190 casos)
 pio test -e native_history_v5  # códec del histórico V5 (63)
-pio test -e native_cli         # parser de la CLI (31)
+pio test -e native_cli         # parser de la CLI (33)
 pio test -e native_logpolicy   # persistencia de log por transición (45)
-pio test -e native_alarmqueue  # cola de la telemetría de alarmas (39)
+pio test -e native_alarmqueue  # cola de la telemetría de alarmas (43)
 pio test -e native_network     # máquina de estados de la reconexión Wi-Fi (29)
 pio test -e native_air         # configuración persistente del SIMUT Air (16)
+pio test -e native_sensors     # tabla de tipos de sensor (9)
 
 # Comprobaciones de referencia del códec V5 (Python vs C++, 20 mil casos aleatorios)
 python3 tools/check_history_v5_parity.py --cases 20000
