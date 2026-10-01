@@ -30,6 +30,7 @@
 /* For the C1_PHASE stamp below: timer_hw is a fixed MMIO address, so reading it
  * is a load with no call and no XIP fetch. */
 #include <hardware/structs/timer.h>
+#include <hardware/timer.h>          /* timer_hw on the RP2350, which has two timers */
 
 #ifdef __cplusplus
 extern "C" {

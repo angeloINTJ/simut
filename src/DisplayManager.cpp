@@ -28,7 +28,7 @@
 #include "hardware/structs/timer.h"
 #include "hardware/sync.h"
 #include "hardware/irq.h"   /* Core-1 private wait: exclusive alarm handler */
-#include "hardware/timer.h" /* hardware_alarm_claim_unused, TIMER_IRQ_0 */
+#include "hardware/timer.h" /* hardware_alarm_claim_unused, hardware_alarm_get_irq_num */
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -1167,7 +1167,10 @@ static void core1WaitInit( ) {
 		s_c1AlarmNum = (uint8_t)n;
 		g_core1WaitAlarm = s_c1AlarmNum;
 	}
-	const uint irqn = (uint)(TIMER_IRQ_0 + s_c1AlarmNum);
+	/* The SDK's mapping, not TIMER_IRQ_0 + n: the RP2350 has two timers and
+	 * names their IRQs TIMER0_IRQ_n/TIMER1_IRQ_n; TIMER_IRQ_0 exists only on the
+	 * RP2040, where this is the same sum (identical image, 2026-10-01). */
+	const uint irqn = hardware_alarm_get_irq_num(s_c1AlarmNum);
 	if (irq_get_exclusive_handler(irqn) != core1AlarmIsr) {
 		irq_set_exclusive_handler(irqn, core1AlarmIsr);
 	}

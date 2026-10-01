@@ -30,6 +30,8 @@
 #include <LittleFS.h>
 #include <hardware/uart.h>
 #include <hardware/gpio.h>
+#include <hardware/regs/addressmap.h> /* WATCHDOG_BASE */
+#include <hardware/regs/watchdog.h>   /* WATCHDOG_SCRATCH5_OFFSET */
 #include <SPI.h>
 #include <time.h>
 
@@ -93,14 +95,19 @@ static inline void _uart_mark(char c) { uart_putc_raw(uart1, c); }
  * scratch[5] survives watchdog_reboot. setup() clears it immediately
  * upon detection to avoid re-cycling on the next boot. */
 #define POST_OTA_APPLY_MAGIC 0xC72BAB07u
-#define WD_BASE_ADDR 0x40058000u
-#define WD_SCRATCH5_OFFSET 0x20u
+
+/* The SDK's names for the chip being compiled (the watchdog is at 0x40058000
+ * on the RP2040 and 0x400d8000 on the RP2350), where this spelled out the
+ * RP2040's. Kept as one folded address rather than watchdog_hw->scratch[5]:
+ * that compiles to base + #0x20 and changes the image for nothing, and the
+ * point of the change (2026-10-01) was six identical RP2040 images. */
+#define WD_SCRATCH5_ADDR (WATCHDOG_BASE + WATCHDOG_SCRATCH5_OFFSET)
 
 static inline uint32_t alpha30_read_scratch5( ) {
- return *(volatile uint32_t*)(WD_BASE_ADDR + WD_SCRATCH5_OFFSET);
+ return *(volatile uint32_t*)(WD_SCRATCH5_ADDR);
 }
 static inline void alpha30_write_scratch5(uint32_t v) {
- *(volatile uint32_t*)(WD_BASE_ADDR + WD_SCRATCH5_OFFSET) = v;
+ *(volatile uint32_t*)(WD_SCRATCH5_ADDR) = v;
 }
 
 void AppManager::setup( ) {

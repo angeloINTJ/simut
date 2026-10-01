@@ -63,24 +63,26 @@
 #define XIP_BASE 0x10000000u
 #endif
 
-/* Endereços hardcoded das HW peripherals — não dependem de includes ou
- * funções que possam estar em flash app slot apagada.
+/* Endereços das HW peripherals como constantes de compilação — nada aqui
+ * chama função nem lê dado que possa estar no app slot que o applier apaga.
  *
- * O `#undef` antes de cada `#define` é deliberado, e não um `#ifndef`: três
- * destes nomes também chegam do SDK por include transitivo, e um `#ifndef`
- * deixaria o valor do SDK vencer — exatamente o oposto do que o parágrafo
- * acima promete. Os valores coincidem hoje; a independência é o ponto. */
-#define WATCHDOG_BASE_ADDR     0x40058000u
-#undef  WATCHDOG_CTRL_OFFSET
-#define WATCHDOG_CTRL_OFFSET   0x00u
-#undef  WATCHDOG_LOAD_OFFSET
-#define WATCHDOG_LOAD_OFFSET   0x04u
-#undef  WATCHDOG_SCRATCH4_OFFSET
-#define WATCHDOG_SCRATCH4_OFFSET 0x1Cu   /* 0x18 é SCRATCH3 — ver nota abaixo */
-#define WATCHDOG_SET_ALIAS     0x00002000u   /* RP2040 SET alias offset */
-#define WATCHDOG_CLR_ALIAS     0x00003000u   /* RP2040 CLR alias offset */
-#define WATCHDOG_CTRL_TRIG     (1u << 31)    /* TRIGGER bit — 1u<<30 é ENABLE, e os dois já foram trocados aqui */
-#define WATCHDOG_CTRL_ENABLE   (1u << 30)    /* ENABLE bit */
+ * Até 2026-10-01 eram os números do RP2040 escritos à mão, com `#undef` sobre
+ * os nomes do SDK para que o valor dele não vencesse ("a independência é o
+ * ponto"). A independência que importa é de CÓDIGO em flash, e um macro não é
+ * código: os headers de hardware/regs são só #define. Escritos à mão, os
+ * números eram os de UM chip — no RP2350 o watchdog fica em 0x400d8000, o PSM
+ * em 0x40018000, e ROSC/XOSC são os bits 2 e 3 do WDSEL, não 0 e 1. Agora vêm
+ * do SDK do chip compilado; no RP2040 as seis imagens saíram idênticas, byte a
+ * byte. Os offsets (CTRL 0x00, LOAD 0x04, SCRATCH4 0x1C) e os aliases de
+ * SET/CLR são os mesmos nos dois chips. */
+#include <hardware/regs/addressmap.h>   /* WATCHDOG_BASE, PSM_BASE, REG_ALIAS_*_BITS */
+#include <hardware/regs/watchdog.h>     /* WATCHDOG_*_OFFSET, WATCHDOG_CTRL_*_BITS */
+#include <hardware/regs/psm.h>          /* PSM_WDSEL_* */
+#define WATCHDOG_BASE_ADDR     WATCHDOG_BASE
+#define WATCHDOG_SET_ALIAS     REG_ALIAS_SET_BITS
+#define WATCHDOG_CLR_ALIAS     REG_ALIAS_CLR_BITS
+#define WATCHDOG_CTRL_TRIG     WATCHDOG_CTRL_TRIGGER_BITS  /* bit 31 — o 30 é ENABLE, e os dois já foram trocados aqui */
+#define WATCHDOG_CTRL_ENABLE   WATCHDOG_CTRL_ENABLE_BITS   /* bit 30 */
 
 /* PSM (Power Supply Monitor) — controla quais peripherals o watchdog reset
  * derruba. SDK pico-sdk hardware_watchdog/watchdog.c::_watchdog_enable
@@ -94,13 +96,9 @@
  * host não recebe dados pós-watchdog reboot.
  *
  * Correção do boot loop: alinhar com o valor do SDK em vez de 0xFFFFFFFF. */
-#define PSM_BASE_ADDR          0x40010000u
-#define PSM_WDSEL_OFFSET       0x08u
-#define PSM_WDSEL_ROSC_BIT     (1u << 0)
-#define PSM_WDSEL_XOSC_BIT     (1u << 1)
-#define PSM_WDSEL_BITS_ALL     0x0001FFFFu  /* 17 bits válidos */
-#define PSM_WDSEL_RESET_MASK   (PSM_WDSEL_BITS_ALL & ~(PSM_WDSEL_ROSC_BIT | PSM_WDSEL_XOSC_BIT))
-                                            /* = 0x0001FFFC (todos exceto ROSC/XOSC) */
+#define PSM_BASE_ADDR          PSM_BASE
+#define PSM_WDSEL_RESET_MASK   (PSM_WDSEL_BITS & ~(PSM_WDSEL_ROSC_BITS | PSM_WDSEL_XOSC_BITS))
+                                            /* RP2040: 0x0001FFFC; RP2350: 0x01FFFFF3 */
 
 /* SCB SYSRESETREQ (não usado mais — incompleto, deixa SIO stale).
  * Mantido como referência: é a causa do travamento intermitente do Core 1
