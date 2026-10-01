@@ -220,6 +220,7 @@ Detalhes no [capítulo 11](#cap-11).
 | Sintoma | Causa provável | O que fazer |
 |---|---|---|
 | A tela inicial não responde ao toque e a barra de cima mostra `WEB '...' - toque bloqueado` | Alguém lê o histórico ou o log pela interface web | Espere a operação terminar; o aviso some sozinho |
+| O painel desenha normalmente, mas não responde a nenhum toque, até reiniciar | Até a v2.8.0: o toque só era lido quando a interrupção dele avisava, e uma interrupção perdida deixava o toque morto | Reinicie. Nas versões seguintes o aparelho lê o toque também sem a interrupção e grava **Evento de toque** (200) uma vez por boot: anote o contexto e relate ([capítulo 16](#cap-16-acompanhar)) |
 | O toque cai no lugar errado ou só funciona com força | Calibração do toque ruim ou descartada pelo alinhamento da tela | **Configurações > Calibrar Touch**; se não alcançar o menu, comece a calibração pela página **Configurações** da web ou pelo console |
 | A calibração volta sempre para a primeira mira | **Toques imprecisos! Tente novamente.**: as duas voltas discordam | Segure cada mira até ela ficar verde e toque no centro dela, com a mesma pressão |
 | A borda da imagem aparece cortada de um lado | Painel com a imagem deslocada | **Alinhamento da Tela**, ajuste, **APLICAR** e refaça a calibração que abre em seguida |

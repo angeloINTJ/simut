@@ -15,6 +15,9 @@
  *            · the suppressed counter reports hourly, saturates at int16, and
  *              never reports zero
  *            · millis( ) wrapping past 2^32 does not stall either cadence
+ *          It also holds the autopsy bands (SystemDefs_Logging.h) and the
+ *          touch wake (TouchWake.h): both decide what a log line will say, and
+ *          neither needs more than arithmetic to be tested.
  *
  * @project SIMUT — edge-triggered log filter unit testing
  * @license MIT License
@@ -23,6 +26,7 @@
 #include <unity.h>
 #include "LogPolicy.h"
 #include "SystemDefs_Logging.h"
+#include "TouchWake.h"
 
 /* ----- Required by native_stubs/Arduino.h linker symbol ----- */
 namespace simut_native {
@@ -629,6 +633,130 @@ static void test_a_reader_gets_the_number_back_out_of_the_band(void) {
     TEST_ASSERT_EQUAL_INT(721, autopsyBandHandlerPos(721UL) - 2000);
 }
 
+/* ============================================================================
+ *  TOUCH WAKE — the touch read without trusting one interrupt (TouchWake.h)
+ *  Field log of 2026-10-01: the panel drew for 16 h and answered no touch.
+ * ============================================================================ */
+
+static void test_touch_an_awake_library_is_left_alone(void) {
+    TouchWake w;
+    TEST_ASSERT_FALSE(w.before(true, true, 1000));    /* its interrupt woke it */
+    w.after(true);
+    TEST_ASSERT_EQUAL_UINT32(1, w.awake);
+    TEST_ASSERT_EQUAL_UINT32(0, w.pollWakes);
+    TEST_ASSERT_EQUAL_UINT32(0, w.timerWakes);
+    TEST_ASSERT_EQUAL_UINT32(0, w.pollRescues);
+}
+
+static void test_touch_a_lost_edge_is_read_by_the_poll(void) {
+    /* PENIRQ low and the library asleep: the edge never arrived. */
+    TouchWake w;
+    TEST_ASSERT_TRUE(w.before(false, true, 1000));
+    w.after(true);
+    TEST_ASSERT_EQUAL_UINT32(1, w.pollWakes);
+    TEST_ASSERT_EQUAL_UINT32(1, w.pollRescues);
+    TEST_ASSERT_EQUAL_UINT32(0, w.timerRescues);
+}
+
+static void test_touch_a_light_contact_is_read_but_rescues_nothing(void) {
+    /* The line is low, the pressure stays under the library's threshold. */
+    TouchWake w;
+    TEST_ASSERT_TRUE(w.before(false, true, 1000));
+    w.after(false);
+    TEST_ASSERT_EQUAL_UINT32(1, w.pollWakes);
+    TEST_ASSERT_EQUAL_UINT32(0, w.pollRescues);
+}
+
+static void test_touch_a_held_finger_is_one_rescue(void) {
+    /* The poll wakes the library once; while the finger stays, the library is
+     * awake by itself and nothing more is forced or counted. */
+    TouchWake w;
+    TEST_ASSERT_TRUE(w.before(false, true, 1000));
+    w.after(true);
+    for (uint32_t t = 1015; t < 4000; t += 15) {
+        TEST_ASSERT_FALSE(w.before(true, true, t));
+        w.after(true);
+    }
+    TEST_ASSERT_EQUAL_UINT32(1, w.pollWakes);
+    TEST_ASSERT_EQUAL_UINT32(1, w.pollRescues);
+}
+
+static void test_touch_an_idle_controller_is_read_on_the_timer(void) {
+    TouchWake w;
+    TEST_ASSERT_FALSE(w.before(false, false, TOUCH_REARM_MS - 1));
+    TEST_ASSERT_TRUE(w.before(false, false, TOUCH_REARM_MS));
+    w.after(false);
+    TEST_ASSERT_FALSE(w.before(false, false, 2 * TOUCH_REARM_MS - 1));
+    TEST_ASSERT_TRUE(w.before(false, false, 2 * TOUCH_REARM_MS));
+    w.after(false);
+    TEST_ASSERT_EQUAL_UINT32(2, w.timerWakes);
+    TEST_ASSERT_EQUAL_UINT32(0, w.timerRescues);
+}
+
+static void test_touch_any_read_restarts_the_timer(void) {
+    TouchWake w;
+    w.before(true, false, 700);                         /* the interrupt's read */
+    TEST_ASSERT_FALSE(w.before(false, false, 700 + TOUCH_REARM_MS - 1));
+    TEST_ASSERT_TRUE(w.before(false, false, 700 + TOUCH_REARM_MS));
+    w.before(false, true, 2000);                        /* a poll read */
+    TEST_ASSERT_FALSE(w.before(false, false, 2000 + TOUCH_REARM_MS - 1));
+    TEST_ASSERT_TRUE(w.before(false, false, 2000 + TOUCH_REARM_MS));
+}
+
+static void test_touch_a_finger_only_the_timer_found_is_a_timer_rescue(void) {
+    /* PENIRQ high with a finger on the glass: the controller's pen interrupt
+     * was off. The read that found it is also the one that turns it back on. */
+    TouchWake w;
+    TEST_ASSERT_TRUE(w.before(false, false, TOUCH_REARM_MS));
+    w.after(true);
+    TEST_ASSERT_EQUAL_UINT32(1, w.timerRescues);
+    TEST_ASSERT_EQUAL_UINT32(0, w.pollRescues);
+}
+
+static void test_touch_a_read_nobody_forced_rescues_nothing(void) {
+    TouchWake w;
+    w.before(false, true, 1000);
+    w.after(true);
+    w.before(true, true, 1015);                         /* awake by itself now */
+    w.after(true);
+    TEST_ASSERT_EQUAL_UINT32(1, w.pollRescues);
+    TEST_ASSERT_EQUAL_UINT32(0, w.timerRescues);
+}
+
+static void test_touch_the_timer_survives_millis_wrap(void) {
+    TouchWake w;
+    const uint32_t t0 = 0xFFFFFFFFu - 10u;
+    w.before(true, false, t0);
+    TEST_ASSERT_FALSE(w.before(false, false, t0 + TOUCH_REARM_MS - 1));   /* wrapped */
+    TEST_ASSERT_TRUE(w.before(false, false, t0 + TOUCH_REARM_MS));
+}
+
+static void test_touch_each_finding_is_reported_once_per_boot(void) {
+    TouchWake w;
+    uint8_t reported = 0;
+    TEST_ASSERT_EQUAL_UINT8(0, touchReportDue(reported, w));   /* before Core 1 looked */
+    w.irqUnarmed = true;
+    w.pollRescues = 2;
+    w.timerRescues = 1;
+    TEST_ASSERT_EQUAL_UINT8(1, touchReportDue(reported, w));
+    TEST_ASSERT_EQUAL_UINT8(2, touchReportDue(reported, w));
+    TEST_ASSERT_EQUAL_UINT8(3, touchReportDue(reported, w));
+    TEST_ASSERT_EQUAL_UINT8(0, touchReportDue(reported, w));
+    w.pollRescues = 9;                                          /* more of the same */
+    TEST_ASSERT_EQUAL_UINT8(0, touchReportDue(reported, w));
+}
+
+static void test_touch_a_later_finding_is_still_reported(void) {
+    TouchWake w;
+    uint8_t reported = 0;
+    w.timerRescues = 1;
+    TEST_ASSERT_EQUAL_UINT8(3, touchReportDue(reported, w));
+    w.irqUnarmed = true;                                        /* hours later */
+    TEST_ASSERT_EQUAL_UINT8(1, touchReportDue(reported, w));
+    TEST_ASSERT_EQUAL_UINT8(0, touchReportDue(reported, w));
+}
+
+
 int main(int, char**) {
     UNITY_BEGIN( );
 
@@ -687,6 +815,18 @@ int main(int, char**) {
     RUN_TEST(test_the_hp_band_is_the_position_and_saturates);
     RUN_TEST(test_a_reader_gets_the_number_back_out_of_the_band);
     RUN_TEST(test_the_fourth_record_keeps_the_handler_position);
+
+    RUN_TEST(test_touch_an_awake_library_is_left_alone);
+    RUN_TEST(test_touch_a_lost_edge_is_read_by_the_poll);
+    RUN_TEST(test_touch_a_light_contact_is_read_but_rescues_nothing);
+    RUN_TEST(test_touch_a_held_finger_is_one_rescue);
+    RUN_TEST(test_touch_an_idle_controller_is_read_on_the_timer);
+    RUN_TEST(test_touch_any_read_restarts_the_timer);
+    RUN_TEST(test_touch_a_finger_only_the_timer_found_is_a_timer_rescue);
+    RUN_TEST(test_touch_a_read_nobody_forced_rescues_nothing);
+    RUN_TEST(test_touch_the_timer_survives_millis_wrap);
+    RUN_TEST(test_touch_each_finding_is_reported_once_per_boot);
+    RUN_TEST(test_touch_a_later_finding_is_still_reported);
 
     return UNITY_END( );
 }

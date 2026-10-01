@@ -80,6 +80,18 @@ void AppManager::loop( ) {
 
 #if !SIMUT_AIR
  LogManager::instance( ).checkCrossCoreHealth( ); /* Air is single-core: no Core 1 display to monitor */
+ {
+ /* What Core 1's touch read found (TouchWake.h), logged here because Core 1
+  * cannot log: once per boot each, so a dead interrupt is one line, not one
+  * per touch. A build without a touch panel never finds anything. */
+ static uint8_t touchReported = 0;
+ static const char* const kTouchFinding[4] = {
+ "", "Touch interrupt off on Core 1, polling PENIRQ",
+ "A touch came only through the PENIRQ poll",
+ "A touch came only through the timed read" };
+ const uint8_t ctx = touchReportDue(touchReported, g_touchWake);
+ if (ctx) LOG_CODE(LOG_WARN, "DSP", EVT_UI_TOUCH, ctx, kTouchFinding[ctx]);
+ }
 #endif
  /* Hourly accounting for the edge-triggered log filter. Cheap on every other
   * pass (one wrap-safe compare); it only writes once an hour, and only when

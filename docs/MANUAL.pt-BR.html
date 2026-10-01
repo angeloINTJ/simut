@@ -10799,16 +10799,21 @@ python3 tools/history_v5.py --dump-csv 20260923.h5 --interval 300 &gt; 20260923.
 <td><a href="#cap-09-recusa">Capítulo 9</a></td>
 </tr>
 <tr class="even">
+<td><strong>Evento de toque</strong> (200)</td>
+<td>O toque do painel chegou por outro caminho que não a interrupção. Contexto 1: a interrupção do toque estava desligada no núcleo 1. Contexto 2: um toque só chegou pela consulta à linha do toque. Contexto 3: um toque só chegou pela leitura periódica. Cada um é gravado uma vez por boot</td>
+<td><a href="#cap-30-painel">Capítulo 30</a></td>
+</tr>
+<tr class="odd">
 <td><strong>NTP corrigindo timestamps</strong> (408)</td>
 <td>O relógio foi corrigido e o histórico, ajustado</td>
 <td><a href="#cap-10-correcao">Capítulo 10</a></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><strong>Registros de rotina suprimidos</strong> (5)</td>
 <td>Quantos eventos de rotina ficaram fora da flash na última hora</td>
 <td><a href="#cap-16-transicao">Persistência por transição</a></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><strong>Boot frio, não veio da hibernação</strong> (412)</td>
 <td><span class="selo selo-img">air</span> Uma falta de energia ou reinício num Air</td>
 <td><a href="#cap-19">Capítulo 19</a></td>
@@ -23349,76 +23354,81 @@ echo</code></pre>
 <td>Espere a operação terminar; o aviso some sozinho</td>
 </tr>
 <tr class="even">
+<td>O painel desenha normalmente, mas não responde a nenhum toque, até reiniciar</td>
+<td>Até a v2.8.0: o toque só era lido quando a interrupção dele avisava, e uma interrupção perdida deixava o toque morto</td>
+<td>Reinicie. Nas versões seguintes o aparelho lê o toque também sem a interrupção e grava <strong>Evento de toque</strong> (200) uma vez por boot: anote o contexto e relate (<a href="#cap-16-acompanhar">capítulo 16</a>)</td>
+</tr>
+<tr class="odd">
 <td>O toque cai no lugar errado ou só funciona com força</td>
 <td>Calibração do toque ruim ou descartada pelo alinhamento da tela</td>
 <td><strong>Configurações &gt; Calibrar Touch</strong>; se não alcançar o menu, comece a calibração pela página <strong>Configurações</strong> da web ou pelo console</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>A calibração volta sempre para a primeira mira</td>
 <td><strong>Toques imprecisos! Tente novamente.</strong>: as duas voltas discordam</td>
 <td>Segure cada mira até ela ficar verde e toque no centro dela, com a mesma pressão</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>A borda da imagem aparece cortada de um lado</td>
 <td>Painel com a imagem deslocada</td>
 <td><strong>Alinhamento da Tela</strong>, ajuste, <strong>APLICAR</strong> e refaça a calibração que abre em seguida</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>O menu mostra poucos itens</td>
 <td>A conta identificada não tem as permissões dos outros itens</td>
 <td>Entre com outra conta, ou dê as permissões pela página <strong>Usuários</strong></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>O toque no cartão abre a tela de alarme em vez do mínimo e máximo</td>
 <td>O sensor está em alarme sem silêncio</td>
 <td>Use <strong>Min/Max</strong> na tela de alarme, ou silencie</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>O gesto de 3 s no cartão de cima não faz nada</td>
 <td>O sensor do cartão de cima está em alarme sem silêncio, ou o dedo escorregou e o toque recomeçou</td>
 <td>Silencie o alarme; mantenha o dedo parado por 3 s</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>O botão de gráfico não abre o gráfico</td>
 <td>O sensor está num slot de 11 a 15</td>
 <td>Use a página <strong>Histórico e Logs</strong> da web para esses slots</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>O gráfico abre sempre no mesmo período antigo, até o <strong>Hoje</strong> do calendário</td>
 <td>A janela ficou presa depois de navegar no tempo (código da v2.7.1)</td>
 <td>Toque na seta para a esquerda e depois na seta para a direita até ela apagar; ou reinicie</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Mínimo e máximo do cartão incluem valores de ontem</td>
 <td>Eles não zeram à meia-noite; contam desde o dia em que o aparelho ligou</td>
 <td>Reinicie para recomeçar a contagem</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Mínimo e máximo do cartão não acompanham as leituras</td>
 <td>O GPIO do sensor difere do número do slot (código da v2.7.1)</td>
 <td>Um reinício relê os valores do histórico. Onde der, ponha o sensor no slot de mesmo número do GPIO</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>Fails</code> sempre <code>0</code> no <strong>Status do Sistema</strong></td>
 <td>O campo não é preenchido na v2.7.1</td>
 <td>Veja as falhas na página <strong>Telemetria</strong> ou no log de eventos</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>No boot, o celular não acha a rede <code>SIMUT_SETUP</code></td>
 <td>O nome real da rede é o nome do aparelho seguido de <code>_SETUP</code></td>
 <td>Procure <code>&lt;nome&gt;_SETUP</code>, como <code>simut_SETUP</code>; o nome aparece numa das últimas linhas da caixa de boot</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>O gesto do AP no boot não pega</td>
 <td>O dedo encostou antes da linha <strong>Mantenha a tela pressionada</strong> ou saiu antes de 3 s</td>
 <td>Encoste depois da linha aparecer, em até 3,5 s, e mantenha até a barra encher</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Com o AP aberto, as leituras param e o <strong>CFG</strong> não abre nada</td>
 <td>Com o AP aberto, o aparelho não mede nem atende o painel (v2.7.1)</td>
 <td>Configure a rede pelo AP e deixe o aparelho reiniciar</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>O painel voltou sozinho à tela inicial e o tema escolhido não ficou</td>
 <td>30 s sem toque antes de <strong>APLICAR</strong></td>
 <td>Escolha de novo e toque em <strong>APLICAR</strong></td>

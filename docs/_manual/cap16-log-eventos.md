@@ -305,6 +305,7 @@ Se o log mostra travamentos repetidos, anote os contextos, exporte o log e siga 
 | **Falha de telemetria** (31) | O coletor não recebeu | [Capítulo 21](#cap-21-eventos) |
 | **WiFi desconectado** (11) | A rede caiu | [Capítulo 9](#cap-09-log) |
 | **Conectando WiFi** (10) com contexto 2 ou 3 | O rádio recusou um pedido de conexão; no contexto 3, recusou três seguidos e o aparelho reiniciou para recuperá-lo | [Capítulo 9](#cap-09-recusa) |
+| **Evento de toque** (200) | O toque do painel chegou por outro caminho que não a interrupção. Contexto 1: a interrupção do toque estava desligada no núcleo 1. Contexto 2: um toque só chegou pela consulta à linha do toque. Contexto 3: um toque só chegou pela leitura periódica. Cada um é gravado uma vez por boot | [Capítulo 30](#cap-30-painel) |
 | **NTP corrigindo timestamps** (408) | O relógio foi corrigido e o histórico, ajustado | [Capítulo 10](#cap-10-correcao) |
 | **Registros de rotina suprimidos** (5) | Quantos eventos de rotina ficaram fora da flash na última hora | [Persistência por transição](#cap-16-transicao) |
 | **Boot frio, não veio da hibernação** (412) | [air]{.img} Uma falta de energia ou reinício num Air | [Capítulo 19](#cap-19) |
