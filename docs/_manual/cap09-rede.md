@@ -265,18 +265,18 @@ O log de eventos registra o motivo no contexto do evento 403: 0 para o comando `
 
 ### Enquanto o AP está aberto {#cap-09-ap-aberto}
 
+**Com o AP aberto, o aparelho continua medindo.** Ele lê os sensores, confere os limites dos alarmes e grava o histórico com o AP de configuração no ar. Só a telemetria e o syslog esperam a rede voltar; a linha de alarmes guarda os eventos na fila e os envia depois. O painel fica na tela do AP, com a rede, a chave e o endereço: um alarme soa pelo buzzer, mas não aparece no vidro enquanto essa tela estiver aberta. No alpha, o LCD mostra as páginas do AP (endereço, rede e chave) quando o AP abre em operação; com o AP aberto no boot, ele fica na barra de progresso.
+
 ::: perigo
-**Com o AP aberto, o aparelho não mede.** Enquanto o AP de configuração está no ar, o aparelho não lê os sensores, não confere os limites dos alarmes, não grava o histórico e não envia telemetria nem syslog. O painel fica na tela do AP, com a rede, a chave e o endereço. O LCD fica com os últimos valores lidos, que só se atualizam enquanto alguém usa a interface web pelo AP. Um alarme novo não soa.
+**Da v2.7.1 à v2.8.0, com o AP aberto o aparelho não media.** Nessas versões, enquanto o AP de configuração está no ar, o aparelho não lê os sensores, não confere os limites dos alarmes e não grava o histórico, e um alarme novo não soa. Como o AP também abre sozinho desde a v2.7.1, isso tem duas consequências:
 
-Desde a v2.7.1 o AP também abre sozinho, e isso tem duas consequências:
-
-- **Aparelho sem rede configurada** fica no AP desde o boot e não mede até alguém gravar uma rede. Não use nenhuma versão da v2.7.1 à v2.8.0 num aparelho que vai funcionar sem Wi-Fi.
+- **Aparelho sem rede configurada** fica no AP desde o boot e não mede até alguém gravar uma rede. Não use nenhuma dessas versões num aparelho que vai funcionar sem Wi-Fi.
 - **Aparelho que perde a rede** por mais de uma volta da escada (cerca de 68 min) passa a alternar 15 min no AP, sem medir, com cerca de 6 a 7 min medindo, até a rede voltar. Numa queda longa, ele fica sem medir cerca de dois terços do tempo.
 
-Esses números vêm da leitura do código da v2.7.1 e não foram medidos no aparelho. O log de eventos mostra quando isso aconteceu: o evento 403 com contexto 2 ou 3 marca o início, e o 525 `AP mode timeout, rebooting to STA` marca o fim de cada período.
+Esses números vêm da leitura do código da v2.7.1. O log de eventos mostra quando isso aconteceu: o evento 403 com contexto 2 ou 3 marca o início, e o 525 `AP mode timeout, rebooting to STA` marca o fim de cada período. O que não foi medido não é recuperado.
 :::
 
-- A telemetria e o syslog esperam a rede voltar; o que não foi medido não é recuperado.
+- A telemetria e o syslog esperam a rede voltar.
 - O aparelho não tenta a rede configurada enquanto o AP está aberto.
 - Um AP aberto com o aparelho em operação (pela escada, pelo painel ou pelo comando `ap`), com uma rede configurada, dura 15 min. Depois disso o aparelho reinicia para tentar a rede de novo, com ou sem alguém conectado ao AP. O evento é **Timeout na conexão WiFi** (525) com o texto `AP mode timeout, rebooting to STA`. Se a rede ainda não estiver lá, o AP volta na primeira dormência, cerca de 6 a 7 min depois.
 - Um AP aberto no boot, pelo gesto ou por falta de rede configurada, fica aberto até alguém gravar uma rede ou reiniciar o aparelho.

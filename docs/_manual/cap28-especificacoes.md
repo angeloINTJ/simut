@@ -252,10 +252,10 @@ O filtro vale só para a flash: o console com `debug on` e o syslog recebem todo
 | Endereço do aparelho | `http://192.168.4.1` | [cap. 9](#cap-09-ap) |
 | AP aberto em operação, com rede configurada | Dura 15 min; depois o aparelho reinicia para tentar a rede | [cap. 9](#cap-09-ap-aberto) |
 | AP aberto no boot, pelo gesto ou sem rede configurada | Fica aberto até alguém gravar uma rede ou reiniciar o aparelho | [cap. 9](#cap-09-ap-aberto) |
-| Medição com o AP aberto | Nenhuma: não lê sensores, não confere alarmes, não grava histórico nem envia telemetria | [cap. 9](#cap-09-ap-aberto) |
+| Medição com o AP aberto | Continua: lê sensores, confere alarmes e grava histórico; telemetria e syslog esperam a rede | [cap. 9](#cap-09-ap-aberto) |
 
 ::: perigo
-**Com o AP de configuração aberto, a v2.7.1 não mede.** Um aparelho sem rede configurada fica no AP desde o boot, e um que perde a rede por mais de cerca de 68 min passa a alternar 15 min no AP com cerca de 6 a 7 min medindo. O que não foi medido não é recuperado ([capítulo 9](#cap-09-ap-aberto)).
+**Da v2.7.1 à v2.8.0, com o AP de configuração aberto o aparelho não media.** Nessas versões, um aparelho sem rede configurada fica no AP desde o boot, e um que perde a rede por mais de cerca de 68 min passa a alternar 15 min no AP com cerca de 6 a 7 min medindo. O que não foi medido não é recuperado ([capítulo 9](#cap-09-ap-aberto)).
 :::
 
 ### Data e hora {#cap-28-hora}

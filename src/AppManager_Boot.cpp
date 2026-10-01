@@ -1322,6 +1322,11 @@ void AppManager::setup( ) {
   * showApOnPanel( ), AppManager_Commands.cpp). */
  showApOnPanel( );
  LOG_CODE(LOG_INFO, "APP", APP_READY_AP, 0, TRL("System ready (AP mode)."));
+ /* core0Yield( ) evaluates alarms only 5 s after this stamp, and the AP
+  * boot never set it: even with the loop running its checks in AP mode,
+  * a unit that booted into the AP would never have sounded an alarm. No
+  * endBoot( ) here — the panel keeps the AP box with the network and key. */
+ _bootCompletedAt = millis( );
  } else {
  /* pre preloadMinMax */
  _displayMgr->setBootStatusKey(TR_BOOT_LOAD_MINMAX);
