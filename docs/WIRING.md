@@ -195,6 +195,17 @@ The BME280 module typically comes on a breakout board with 6 pins:
 > **I2C pull-ups**: Most BME280 modules include 4.7 kΩ pull-ups on SDA/SCL.
 > If yours doesn't, add external 4.7 kΩ resistors from SDA to 3V3 and SCL to 3V3.
 
+> **Hardware I2C needs the roles right.** The RP2040's I2C controllers take
+> SDA and SCL on fixed pins: I2C0 has SDA on GP0, 4, 8, 12 and SCL on GP1, 5,
+> 9, 13; I2C1 has SDA on GP2, 6, 10, 14 and SCL on GP3, 7, 11, 15. The first
+> sensor of each controller, in slot order, gets it. Every other pair — SDA
+> and SCL swapped, both on one controller's SDA pins, a pair split across the
+> two controllers, or a second pair on a controller already in use — is read
+> by bit-bang, slower (~1.6 ms with interrupts off per transaction, see
+> [CONCURRENCY.md](CONCURRENCY.md)), with a `BME in bit-bang` warning in the
+> event log. Firmware up to v2.8.0 halted at every boot on swapped roles and
+> read a second pair on a used controller as the first sensor.
+
 Example CLI setup for BME280 on GPIO 4 (SDA) + GPIO 5 (SCL):
 ```
 sensor 0 create bme280

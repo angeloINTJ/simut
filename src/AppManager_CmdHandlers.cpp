@@ -76,6 +76,16 @@ void AppManager::cmdHandleSensorField(const CliDemand& cmd, SystemConfig& cfg, b
     }
    }
   }
+  /* ...and inside this slot, which the loop above skips: SDA == SCL passed
+   * here and made a BME/BMP that could never read (until 2026-10-01 it
+   * panicked the boot in Wire.setSCL). The web commit already refuses it. */
+  for(int pp=0;pp<MAX_SENSOR_PINS;pp++){
+   if(pp!=pinIdx&&r.pins[pp]==(uint8_t)gpio){
+    _cmdMgr->printError((pt?"GPIO ":"GPIO ")+String(gpio)
+      +(pt?" ja e o pino ":" is already pin ")+String(pp)+(pt?" deste slot":" of this slot"));
+    return;
+   }
+  }
   r.pins[pinIdx]=(uint8_t)gpio;
 
   /* Show role label for context */

@@ -242,28 +242,56 @@ inline uint8_t sensorValueCount(SensorType t) {
  return SensorFormat::forType(t).channelCount( );
 }
 
-/** RP2040 I2C peripheral selection.
- *  Returns 0 for I2C0 (Wire), 1 for I2C1 (Wire1), or -1 if neither.
- *  Valid I2C0 pins: 0,1,4,5,8,9,12,13,16,17,20,21
- *  Valid I2C1 pins: 2,3,6,7,10,11,14,15,18,19,26,27
+/** RP2040 I2C peripheral selection, by ROLE.
+ *  Returns 0 for I2C0 (Wire), 1 for I2C1 (Wire1), or -1 when the pair has no
+ *  hardware path — the BME/BMP driver then takes its bit-bang path, which
+ *  drives any two GPIOs.
  *
- *  @note Wave 2 status: this function IS the selector for the BME280
- *        hardware-I2C path (SensorManager routes matching pairs to
- *        Wire/Wire1 and only falls back to PIO/bit-bang otherwise —
- *        loudly, see the WARN there). Zero PIO cost on the HW path. */
+ *  Each GPIO has one role per controller: GPn is SDA of I2C0 when n%4 == 0,
+ *  SCL of I2C0 when n%4 == 1, SDA of I2C1 when n%4 == 2, SCL of I2C1 when
+ *  n%4 == 3. Any SDA of a controller pairs with any of its SCLs.
+ *    I2C0: SDA 0,4,8,12,16,20 · SCL 1,5,9,13,17,21
+ *    I2C1: SDA 2,6,10,14,18,26 · SCL 3,7,11,15,19,27
+ *
+ *  Until 2026-10-01 this checked the pin SET of each controller and not the
+ *  role, so SDA=GP5/SCL=GP4 — both I2C0 pins, swapped — answered 0, and
+ *  TwoWire::setSDA(5) is a panic( ) in the framework ("illegal pin",
+ *  libraries/Wire/src/Wire.cpp): on every boot, before the console, out only
+ *  with BOOTSEL and an erased flash, and a .bkp carried the config back. The
+ *  same pin twice (the CLI let one slot have it) failed the same way. Found by
+ *  reading, while writing the v2.7.1 manual; pinned by test_sensors.
+ *
+ *  @note this IS the selector for the BME280 hardware-I2C path; the pair still
+ *        has to find its controller free — i2cPeripheralFor( ) below. */
 inline int i2cPeripheralForPins(uint8_t sda, uint8_t scl) {
-    /* Bitmask of valid I2C pins: bit N set = pin N usable on that peripheral */
-    constexpr uint32_t I2C0_MASK = (1u<<0)|(1u<<1)|(1u<<4)|(1u<<5)|(1u<<8)|(1u<<9)
-        |(1u<<12)|(1u<<13)|(1u<<16)|(1u<<17)|(1u<<20)|(1u<<21);
-    constexpr uint32_t I2C1_MASK = (1u<<2)|(1u<<3)|(1u<<6)|(1u<<7)|(1u<<10)|(1u<<11)
-        |(1u<<14)|(1u<<15)|(1u<<18)|(1u<<19)|(1u<<26)|(1u<<27);
-    bool sda0 = (I2C0_MASK & (1u << sda)) != 0;
-    bool scl0 = (I2C0_MASK & (1u << scl)) != 0;
-    bool sda1 = (I2C1_MASK & (1u << sda)) != 0;
-    bool scl1 = (I2C1_MASK & (1u << scl)) != 0;
-    if (sda0 && scl0) return 0;
-    if (sda1 && scl1) return 1;
+    /* Bit N set = GPIO N carries that role on that controller. */
+    constexpr uint32_t I2C0_SDA = (1u<<0)|(1u<<4)|(1u<<8)|(1u<<12)|(1u<<16)|(1u<<20);
+    constexpr uint32_t I2C0_SCL = (1u<<1)|(1u<<5)|(1u<<9)|(1u<<13)|(1u<<17)|(1u<<21);
+    constexpr uint32_t I2C1_SDA = (1u<<2)|(1u<<6)|(1u<<10)|(1u<<14)|(1u<<18)|(1u<<26);
+    constexpr uint32_t I2C1_SCL = (1u<<3)|(1u<<7)|(1u<<11)|(1u<<15)|(1u<<19)|(1u<<27);
+    if (sda >= 32 || scl >= 32) return -1;   /* PIN_UNUSED; `1u << 255` is UB */
+    const uint32_t s = 1u << sda, c = 1u << scl;
+    if ((I2C0_SDA & s) && (I2C0_SCL & c)) return 0;
+    if ((I2C1_SDA & s) && (I2C1_SCL & c)) return 1;
     return -1;
+}
+
+/** The pins a hardware I2C controller is muxed to; PIN_UNUSED = not yet.
+ *  Per boot, like the mux itself (see BME280SensorDriver::initBegin). */
+struct I2cBinding { uint8_t sda = PIN_UNUSED, scl = PIN_UNUSED; };
+
+/** The controller a pair may use given what is already muxed, or -1 for the
+ *  bit-bang path. A controller drives ONE pair: two 280s on different pairs of
+ *  the same controller used to share it, the second slot's driver ran on the
+ *  bus the first had muxed — same address, the other sensor's wires — and the
+ *  slot read the first sensor as its own, with no error anywhere. Found by
+ *  reading, like the role swap above. A free controller answers its index and
+ *  the caller binds it. */
+inline int i2cPeripheralFor(uint8_t sda, uint8_t scl, const I2cBinding bound[2]) {
+    const int p = i2cPeripheralForPins(sda, scl);
+    if (p < 0) return -1;
+    if (bound[p].sda == PIN_UNUSED) return p;
+    return (bound[p].sda == sda && bound[p].scl == scl) ? p : -1;
 }
 
 /** Auto-configure a GPIO pin based on its declared role.

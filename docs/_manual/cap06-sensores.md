@@ -100,7 +100,7 @@ Todas as imagens (release, alpha e Air) trazem os quatro tipos:
 
 Sobre os sensores I²C (BME280 e BMP280):
 
-- **Um por par de pinos.** A leitura aceitaria dois sensores no mesmo par SDA/SCL, em `0x76` e `0x77`, mas a gravação recusa dois slots ativos no mesmo GPIO. Dê a cada sensor o seu par, e siga as regras do I²C do [capítulo 2](#cap-02-i2c): um segundo sensor em outro par do mesmo periférico repete a leitura do primeiro.
+- **Um por par de pinos.** A leitura aceitaria dois sensores no mesmo par SDA/SCL, em `0x76` e `0x77`, mas a gravação recusa dois slots ativos no mesmo GPIO. Dê a cada sensor o seu par, e siga as regras do I²C do [capítulo 2](#cap-02-i2c): um segundo sensor em outro par do mesmo periférico é lido pelo PIO, mais devagar.
 - **O aparelho confere o chip.** Se você escolheu BME280 e o chip é um BMP280, ou o contrário, o aparelho corrige o tipo na partida pelo identificador do chip e grava a correção.
 - **Pares do periférico I²C.** Com SDA e SCL num par que o periférico I²C do RP2040 aceita, a leitura usa esse periférico. Em outros pares, o aparelho lê o sensor pelo PIO do RP2040, sem o periférico. A ligação está no [capítulo 2](#cap-02).
 

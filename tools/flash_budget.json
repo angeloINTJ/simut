@@ -523,32 +523,32 @@
   "21,428. Against the published v2.7.4 .bin: release +1,376, alpha and air +32."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-09-30 feat/status-reports-switches on main 43b0a09 (#201 merged): all six measured again after /api/status gained \"feat\" (release +16, test +24, test_https +16, asserts +16, alpha +8, air +8 B of flash). Budgets unchanged: the growth fits under each. measured is the zopfli image PlatformIO prints.",
+ "measured_on": "2026-10-01 fix/i2c-pin-roles on main 2721eb2: all six measured again after the I2C pin check learned the SDA/SCL roles and each controller its bound pair (release +48, test +224, test_https +240, asserts +48, alpha +56, air +176 B of flash; test and air also carry the CLI's same-pin-in-one-slot refusal). Budgets unchanged: the growth fits under each. measured is the zopfli image PlatformIO prints.",
  "measured_at_commit": "chore/v2.8.0 on main 8aa898b (#195 merged; SIMUT_VERSION 2.8.0; budgets unchanged). All six rebuilt here; release, test, alpha and air byte-identical to the candidate tested on the bench. measured is the zopfli image PlatformIO prints.",
  "envs": {
   "pico_w_release": {
    "budget": 1000572,
-   "measured": 999372
+   "measured": 999420
   },
   "pico_w_test": {
    "budget": 1005972,
-   "measured": 1004772
+   "measured": 1004996
   },
   "pico_w_test_https": {
    "budget": 1013628,
-   "measured": 1012364
+   "measured": 1012604
   },
   "pico_w_asserts": {
    "budget": 1002748,
-   "measured": 1001620
+   "measured": 1001668
   },
   "pico_w_alpha": {
    "budget": 966108,
-   "measured": 964396
+   "measured": 964452
   },
   "pico_w_air": {
    "budget": 1005960,
-   "measured": 1004216
+   "measured": 1004392
   }
  }
 }

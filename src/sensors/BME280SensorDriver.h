@@ -121,16 +121,14 @@ public:
    * release grows ~72 B past its flash budget, raised in tools/flash_budget.json
    * in this change. recoverBus( ) is deliberately NOT used (it bit-bangs to SIO,
    * the reload trap). */
-  for (uint8_t bi = 0; bi < _bmeBusCount; bi++) {
-   uint8_t sda = _bmeBuses[bi].s, scl = _bmeBuses[bi].d;
-   int periph = i2cPeripheralForPins(sda, scl);
-   if (periph == 0) {
-    Wire.end( );  Wire.setSDA(sda);  Wire.setSCL(scl);  Wire.begin( );
-   } else if (periph == 1) {
-    Wire1.end( ); Wire1.setSDA(sda); Wire1.setSCL(scl); Wire1.begin( );
-   }
-   /* periph < 0 is the PIO bit-bang fallback — a separate, rarer path; its
-    * own driver owns its PIO and is not re-established here. */
+  for (uint8_t p = 0; p < 2; p++) {
+   /* Re-mux the pair each controller was BOUND to, not every bus a slot
+    * named: a second pair on the same controller runs bit-bang, and muxing
+    * the controller to it here would take it off the first pair. The
+    * bit-bang path owns its own pins and is not re-established here. */
+   if (_i2cBound[p].sda == PIN_UNUSED) continue;
+   TwoWire& bus = p ? Wire1 : Wire;
+   bus.end( ); bus.setSDA(_i2cBound[p].sda); bus.setSCL(_i2cBound[p].scl); bus.begin( );
   }
  }
 
@@ -145,7 +143,7 @@ public:
   /* Two lifetimes (the note the old inline statics/locals carried). The
    * ADDRESS BOOKKEEPING is per-call — reset every init, or a reload finds
    * 0x76 "already taken" by the boot pass and strands the sensor. The I2C
-   * PERIPHERAL flags (_i2c0Init/_i2c1Init) are per-boot and are NOT reset:
+   * PERIPHERAL bindings (_i2cBound) are per-boot and are NOT reset:
    * recoverBus( ) bit-bangs the pins off the peripheral and TwoWire::begin( )
    * on a running bus does not re-mux them, so a reload must not re-run it. */
   for (uint8_t i = 0; i < 8; i++) { _bmeBuses[i] = BmeAddrTrack{ }; }
@@ -180,31 +178,31 @@ public:
   }
   if (addr == 0) return false;
 
-  int periph = i2cPeripheralForPins(sda, scl);
+  const int periph = i2cPeripheralFor(sda, scl, _i2cBound);
   int8_t drvIdx = -1;
-  if (periph == 0) {
-   if (!_i2c0Init) {
+  if (periph >= 0) {
+   TwoWire& bus = periph ? Wire1 : Wire;
+   if (_i2cBound[periph].sda == PIN_UNUSED) {
     /* Before the peripheral takes the pins: a sensor left mid-byte by the
      * last reset is still holding SDA. */
     BME280Driver::recoverBus(sda, scl);
-    Wire.setSDA(sda); Wire.setSCL(scl); Wire.begin( );
-    _i2c0Init = true;
+    bus.setSDA(sda); bus.setSCL(scl); bus.begin( );
+    _i2cBound[periph].sda = sda; _i2cBound[periph].scl = scl;
    }
-   drvIdx = getOrCreate(Wire, addr);
-  } else if (periph == 1) {
-   if (!_i2c1Init) {
-    BME280Driver::recoverBus(sda, scl);
-    Wire1.setSDA(sda); Wire1.setSCL(scl); Wire1.begin( );
-    _i2c1Init = true;
-   }
-   drvIdx = getOrCreate(Wire1, addr);
+   drvIdx = getOrCreate(bus, addr);
   } else {
-   /* Pins not I2C-capable — PIO bit-bang. Wave 2: ~1.6 ms IRQs-off per I2C
-    * transaction on Core 0. LOUD so a silent regression never hides. HW pairs:
-    * I2C0 = 0/1, 4/5, 8/9, 12/13, 16/17, 20/21; I2C1 = 2/3, 6/7, 10/11, 14/15,
-    * 18/19, 26/27. */
-   LOG_CODE(LOG_WARN, "SENSOR", SYS_OK, sda,
-            TRL("BME in bit-bang (pins have no hardware I2C) — see docs/CONCURRENCY.md"));
+   /* No hardware path for this pair — PIO bit-bang. Wave 2: ~1.6 ms IRQs-off
+    * per I2C transaction on Core 0. LOUD so a silent regression never hides.
+    * Two reasons, told apart by ctx: the pins have no hardware I2C in these
+    * roles (ctx = SDA pin; swapped SDA/SCL lands here), or the controller is
+    * already muxed to another pair (ctx = 100 + SDA pin). HW pairs are listed
+    * at i2cPeripheralForPins( ). One sentence for both, on purpose: the
+    * es-ES pack had 79 B of its resident RAM ceiling left (2026-10-01), and a
+    * second @TRL line would have pushed it over — a rejected pack reverts the
+    * whole UI to English. */
+   LOG_CODE(LOG_WARN, "SENSOR", SYS_OK,
+            i2cPeripheralForPins(sda, scl) < 0 ? sda : 100 + sda,
+            TRL("BME in bit-bang (no free hardware I2C) — see docs/CONCURRENCY.md"));
    drvIdx = getOrCreate(sda, scl, addr);
   }
 
@@ -262,9 +260,9 @@ private:
  }
 
  std::vector<BME280Driver*>& _list;
- /* Per-boot: the I2C peripheral is muxed once and survives reloads (see initBegin). */
- bool _i2c0Init = false;
- bool _i2c1Init = false;
+ /* Per-boot: each I2C peripheral is muxed once, to one pair, and survives
+  * reloads (see initBegin); index 0 = Wire, 1 = Wire1. */
+ I2cBinding _i2cBound[2];
  /* Per-call: which of 0x76/0x77 is taken on each (sda,scl) bus; reset each init. */
  struct BmeAddrTrack { uint8_t s, d; bool a76, a77; };
  BmeAddrTrack _bmeBuses[8] = { };
