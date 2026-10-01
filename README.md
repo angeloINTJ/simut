@@ -50,7 +50,7 @@ They share one core:
 | **Current release** | **v2.8.0** (2026-09-30). SIMUT left beta with v2.7.0, on measurements: an 8.18 h soak with 0 reboots, and 6 of 6 over-the-air updates with nothing lost. v2.8.0 keeps the configuration when an update is cut off halfway, and lets the custom telemetry format send the Content-Type its server expects; v2.7.4 had fixed a sensor scan that left a BMP280 on hardware I2C in error. |
 | **Published images** | Three images, each as `.uf2` and `.bin`: `release` (TFT touch panel), `alpha` (16×2 LCD with a Bluetooth console) and `air` (headless battery logger). The pt-BR and es-ES language packs and an OTA manifest ship alongside. An image with a different set of features comes from the [build configurator](https://angelointj.github.io/simut/configurador/), and CI builds it from `main`. |
 | **Maturity** | <ul><li>`release`: **stable**.</li><li>`alpha`: published and bench-tested, its 16×2 LCD included since 2026-09-26.</li><li>`air`: **experimental**. Its one long soak failed: a sleep in cycle 119 never woke (F28). A watchdog across the wake now mitigates it; the root cause is not confirmed.</li></ul> |
-| **Tests** | Every pull request runs 462 host test cases in 8 suites, 60 s of fuzzing and static analysis, and builds all seven firmware images from a cold cache. Behaviour on real hardware is verified on a bench — see [Verification](#verification-on-hardware). |
+| **Tests** | Every pull request runs 484 host test cases in 9 suites, 60 s of fuzzing and static analysis, and builds all seven firmware images from a cold cache. Behaviour on real hardware is verified on a bench — see [Verification](#verification-on-hardware). |
 
 **Known limitations.** Each one is documented where it applies.
 - **Updates.** An update over the air reformats the filesystem:
@@ -355,7 +355,7 @@ simut/
 │   └── SystemDefs*.h       # System constants and limits
 ├── data/                   # LittleFS assets (language packs, themes, favicon)
 ├── PCB_test/               # KiCad PCB design + Gerber/DRL fabrication files
-├── test/                   # Native unit tests (Unity), eight suites
+├── test/                   # Native unit tests (Unity), nine suites
 ├── tools/                  # Build gates, bench suites, PicoHand, release scripts, theme editor
 ├── docs/                   # Documentation + GitHub Pages site
 ├── WebUI.h                 # Web UI source (gzipped into src/WebUI_GZ.h at build)
@@ -436,6 +436,7 @@ pio test -e native_alarmqueue  # alarm telemetry queue (47)
 pio test -e native_network     # Wi-Fi reconnect state machine (36)
 pio test -e native_air         # SIMUT Air persistent config (16)
 pio test -e native_sensors     # sensor type table (13)
+pio test -e native_otasig      # OTA image signature check (22)
 
 # V5 codec reference checks (Python vs C++, 20k random cases)
 python3 tools/check_history_v5_parity.py --cases 20000
