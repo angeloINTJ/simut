@@ -67,8 +67,9 @@ locally. When one fires, it is usually right:
 
 ## Working agreements
 
-- `main` is protected. Every change goes through a pull request, and the eight
-  required checks must pass.
+- `main` is protected. Every change goes through a pull request, and the nine
+  required checks must pass: every CI job except the `pico_w_test_https`
+  image (`firmware (pico2_w_release)` joined on 2026-10-01).
 - Commit messages and pull requests are written in English; conversation with
   the maintainer is in Portuguese.
 - Measure before claiming. If a change is described as saving bytes, making

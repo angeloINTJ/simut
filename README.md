@@ -455,7 +455,7 @@ Every push and pull request to `main` runs four jobs:
 - **fuzz** — 60 s of libFuzzer against the web-API validators, with contract oracles.
 - **static analysis** — cppcheck, at a pinned version.
 
-`main` is protected: eight of these checks must pass before anything merges.
+`main` is protected: nine of these checks must pass before anything merges, every job except the `pico_w_test_https` image.
 
 ### Verification on hardware
 
