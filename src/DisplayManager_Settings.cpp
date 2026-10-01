@@ -351,7 +351,8 @@ void DisplayManager::showSettingsMain( ) {
  PERM_SYS_CONFIG,      /* 8 display offset */
  PERM_USER_MGR,        /* 9 users */
  PERM_USER_MGR,        /* 10 PIN policy (v25) */
- PERM_NET_CONFIG       /* 11 setup AP (2.7.1) */
+ PERM_NET_CONFIG,      /* 11 setup AP (2.7.1) */
+ PERM_SYS_CONFIG       /* 12 date and time (2026-10-01) — /api/set_time's bit */
  };
  _menuCount = 0;
  for (uint8_t i = 0; i < MENU_ITEM_COUNT; i++) {
@@ -385,7 +386,7 @@ void DisplayManager::drawSettingsMain( ) {
   * its 16 KB resident ceiling — a pack that overflows is rejected whole. It is the
   * only row whose string carries no leading number, which is why the number is
   * printed beside it instead of baked in. */
- static const LangKey menuItems[MENU_ITEM_COUNT] = {TR_MENU_THEMES, TR_MENU_ALARMS, TR_MENU_SOUNDS, TR_MENU_LANG, TR_MENU_PASSWORD, TR_MENU_TOUCH_CAL, TR_MENU_LICENSE, TR_MENU_STATUS, TR_MENU_DISPLAY_OFFSET, TR_MENU_USERS, TR_PIN_POLICY, TR_AP_MODE};
+ static const LangKey menuItems[MENU_ITEM_COUNT] = {TR_MENU_THEMES, TR_MENU_ALARMS, TR_MENU_SOUNDS, TR_MENU_LANG, TR_MENU_PASSWORD, TR_MENU_TOUCH_CAL, TR_MENU_LICENSE, TR_MENU_STATUS, TR_MENU_DISPLAY_OFFSET, TR_MENU_USERS, TR_PIN_POLICY, TR_AP_MODE, TR_MENU_CLOCK};
  int totalPages = (TOTAL_ITEMS + 3) / 4; if (totalPages == 0) totalPages = 1;
  if (_mainMenuPage >= totalPages) _mainMenuPage = totalPages - 1;
  if (_mainMenuPage < 0) _mainMenuPage = 0;
@@ -448,8 +449,10 @@ void DisplayManager::drawSettingsMain( ) {
   * policy) borrows the PIN icon: it is the same subject, and a new glyph is
   * flash for a picture nobody would read differently. The 2.7.1 item 11 (setup
   * AP) borrows the language globe for the same reason — it is the network
-  * glyph this set has. */
- uiMenuIcon(_driver.canvas, 10, 9, (item == 10) ? 4 : (item == 11) ? 3 : item,
+  * glyph this set has. Item 12 (date and time) has a clock of its own, id 10:
+  * no glyph here reads as time. */
+ uiMenuIcon(_driver.canvas, 10, 9,
+ (item == 10) ? 4 : (item == 11) ? 3 : (item == 12) ? 10 : item,
  isSelected ? C_BG_MAIN : C_ACCENT);
  _driver.canvas->setFont(&simutFont9pt); _driver.canvas->setTextColor(txt);
  const char* label = tr(menuItems[item]);
@@ -881,6 +884,116 @@ void DisplayManager::drawApConfirm( ) {
   * offset drew the header and left the previous screen under it, which the
   * rig showed before it was caught (2026-09-22). */
  commitScreenStrip(strip);
+ }
+ endScreenRender( );
+}
+
+/* The date and time (2026-10-01). A unit with no network configured asks for
+ * them when it boots — the maintainer's decision, replacing the setup AP that
+ * opened by itself there: with no network there is no NTP, and records stamped
+ * by the provisional clock are not to be trusted. Settings > 13 opens the same
+ * screen at any time. The calendar arithmetic is display/ClockEntry.h, tested
+ * on the host; this file only draws it.
+ *
+ * Strings: the title is TR_MENU_CLOCK without its number. The hint is
+ * hardcoded EN/PT, the rule this file follows for confirmations — the es-ES
+ * pack has 62 B left of its resident ceiling after the menu row.
+ *
+ * Nobody answering is the 30 s idle guard in handleTouch( ): back to the
+ * dashboard, which is what SKIP does. A unit back from a power cut with nobody
+ * in front of it shows its readings, not a question. The guard counts from
+ * _lastTouchTime, which is why it is restarted here: at boot it is the time of
+ * the last touch, or zero, and the prompt would last one sample. */
+void DisplayManager::showClockEntry(const ClockEntry& start, bool atBoot) {
+ mutex_enter_blocking(&_stateMutex);
+ _uiMode = MODE_SET_CLOCK;
+ _clockEntry = start;
+ _clockAtBoot = atBoot;
+ _clockValuesDirty = false;
+ _lastTouchTime = millis( );
+ _forceSettingsRedraw = true;
+ _repaintSettings = true;
+ mutex_exit(&_stateMutex);
+}
+
+/* The values band, at yOff from the screen's own coordinates: the full render
+ * draws it into each 40-px strip, a step repaints only this band. */
+void DisplayManager::drawClockValues(Adafruit_GFX* g, int16_t yOff) {
+ const int v[CE_FIELDS] = { _clockEntry.day, _clockEntry.month, _clockEntry.year,
+                            _clockEntry.hour, _clockEntry.minute };
+ const int16_t base = CLOCK_VALUE_Y + 27 + yOff;   /* baseline in the 38-px band */
+ int16_t bx, by; uint16_t bw, bh;
+ char buf[6];
+ g->setFont(&simutFont12pt);
+ g->setTextSize(1);
+ g->setTextColor(C_TEXT_MAIN);
+ for (int i = 0; i < CE_FIELDS; i++) {
+  snprintf(buf, sizeof(buf), (i == CE_YEAR) ? "%04d" : "%02d", v[i]);
+  g->getTextBounds(buf, 0, 0, &bx, &by, &bw, &bh);
+  g->setCursor(CLOCK_COL_X[i] + (CLOCK_COL_W[i] - (int)bw) / 2 - bx, base);
+  g->print(buf);
+ }
+ /* The separators sit in the gaps between columns: "/" "/" in the date, ":"
+  * in the time. None between the year and the hour — the wider gap is it. */
+ static const char SEP[CE_FIELDS - 1] = { '/', '/', 0, ':' };
+ g->setTextColor(C_TEXT_SUB);
+ for (int i = 0; i < CE_FIELDS - 1; i++) {
+  if (!SEP[i]) continue;
+  const char sep[2] = { SEP[i], '\0' };
+  g->getTextBounds(sep, 0, 0, &bx, &by, &bw, &bh);
+  const int gapMid = (CLOCK_COL_X[i] + CLOCK_COL_W[i] + CLOCK_COL_X[i + 1]) / 2;
+  g->setCursor(gapMid - (int)bw / 2 - bx, base);
+  g->print(sep);
+ }
+}
+
+void DisplayManager::drawClockEntry( ) {
+ if (!_driver.canvas) return;
+
+ if (!_forceSettingsRedraw) {
+  if (!_clockValuesDirty) return;
+  _clockValuesDirty = false;
+  _driver.canvas->fillScreen(C_BG_MAIN);
+  drawClockValues(_driver.canvas, -CLOCK_VALUE_Y);
+  blitCanvas(_driver.canvas, 0, CLOCK_VALUE_Y, 320, CLOCK_ROW_H);
+  return;
+ }
+ _forceSettingsRedraw = false;
+ _clockValuesDirty = false;
+
+ const bool isPt = (_currentLangIdx == LANG_PT);
+ const char* hint = !_clockAtBoot ? nullptr
+  : isPt ? "Sem Wi-Fi, os dados levam esta hora." : "No Wi-Fi: records take this time.";
+ /* Copied, not kept as pointers: tr( ) hands out a rotating scratch buffer for
+  * a string the pack translates, and six strips of tr(TR_SAVE) overwrote the
+  * BACK label with SAVE — two SAVE buttons on the rig, 2026-10-01. */
+ char titleTxt[40], leftTxt[24], saveTxt[24];
+ safeCopy(titleTxt, menuLabelNoNumber(tr(TR_MENU_CLOCK)), sizeof(titleTxt));
+ safeCopy(leftTxt, _clockAtBoot ? tr(TR_SKIP) : tr(TR_BACK), sizeof(leftTxt));
+ safeCopy(saveTxt, tr(TR_SAVE), sizeof(saveTxt));
+
+ GFXcanvas16* cv = beginScreenRender( );
+ if (!cv) return;
+ int16_t bx, by; uint16_t bw, bh;
+ for (int strip = 0; strip < 6; strip++) {
+  cv->fillScreen(C_BG_MAIN);
+  const int16_t yOff = -strip * RENDER_STRIP_H;
+  uiTitleBar(cv, 4 + yOff, titleTxt);
+  for (int i = 0; i < CE_FIELDS; i++) {
+   uiNavArrow(cv, CLOCK_COL_X[i], CLOCK_UP_Y + yOff, CLOCK_COL_W[i], CLOCK_ROW_H - 4, UI_UP);
+   uiNavArrow(cv, CLOCK_COL_X[i], CLOCK_DOWN_Y + 4 + yOff, CLOCK_COL_W[i], CLOCK_ROW_H - 4, UI_DOWN);
+  }
+  drawClockValues(cv, yOff);
+  if (hint) {
+   cv->setFont(&simutFont9pt);
+   cv->setTextColor(C_TEMP_WARM);
+   cv->getTextBounds(hint, 0, 0, &bx, &by, &bw, &bh);
+   cv->setCursor((320 - (int)bw) / 2 - bx, 179 + yOff);
+   cv->print(hint);
+  }
+  uiButton(cv, 20, 190 + yOff, 130, 40, leftTxt, UI_BTN_SECONDARY);
+  uiButton(cv, 170, 190 + yOff, 130, 40, saveTxt, UI_BTN_PRIMARY);
+  commitScreenStrip(strip);
  }
  endScreenRender( );
 }

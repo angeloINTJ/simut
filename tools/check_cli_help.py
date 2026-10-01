@@ -88,6 +88,11 @@ EMERGENCY_EXPECTED = {
     # published firmware has NO way to set the origin — and the manager page
     # cannot set it either, because without it the page cannot reach the device.
     'CMD_SET_CORS_ORIGIN',
+    # 'time' since 2026-10-01: a unit with no network configured says at boot
+    # that its clock is provisional and names this command, and on the alpha
+    # the console is the only way to answer — so the release and alpha images
+    # have to parse it, not only the full CLI.
+    'CMD_SET_TIME',
 }
 
 # The `air` family exists only where SIMUT_AIR is set: both the parser block

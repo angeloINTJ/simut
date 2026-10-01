@@ -308,6 +308,15 @@ void AppManager::core0Yield( ) {
  if (panelAllowed(PERM_NET_CONFIG, -1)) _displayMgr->showApConfirm( );
 #endif
  }
+ else if (uiEv.id == 12) {
+ /* The clock in force, as the screen's starting point: the provisional one
+  * when there is nothing better, which is usually minutes off, not years.
+  * No guard: unlike id 11's, this screen has stubs on the alpha and Air. */
+ if (panelAllowed(PERM_SYS_CONFIG, -1)) {
+ _displayMgr->showClockEntry(
+  clockEntryFrom(_netMgr->getEpoch( ), simutTimeOffsetSeconds( )), false);
+ }
+ }
  }
 #if SIMUT_DISPLAY_TFT
  else if (uiEv.type == UiEvent::EVT_START_AP) {
@@ -316,6 +325,30 @@ void AppManager::core0Yield( ) {
   * and Core 0 is where authorisation lives — the same rule every v24
   * panel event follows. */
  if (panelAllowed(PERM_NET_CONFIG, -1)) startApMode( );
+ }
+ else if (uiEv.type == UiEvent::EVT_SET_CLOCK) {
+ /* Who may set the clock from the panel. A session with PERM_SYS_CONFIG —
+  * the bit /api/set_time asks for — always. Without a session, only while
+  * the boot's own question still stands: no network configured and no real
+  * clock in force (clockEntryAtBoot). That is the case the maintainer asked
+  * the panel to cover on 2026-10-01, a unit nobody has configured yet, and
+  * it closes by itself: the first set makes the clock real, and from then on
+  * the panel asks for the bit like every other action. Re-evaluated here on
+  * Core 0, from state Core 0 owns, rather than taken from the screen. */
+ SystemConfig &cfg = _storageMgr->getConfig( );
+ ClockEntry c;
+ const bool bootQuestion = clockEntryAtBoot(cfg.wifiSsid[0] != '\0', _netMgr->isTimeTrusted( ));
+ if (!clockEntryUnpack(uiEv.id, uiEv.param, c)) {
+ /* The screen cannot build such fields (clockEntryStep keeps them a date);
+  * refused anyway, because this side does not take the screen's word. */
+ _displayMgr->showPanelMessage(false, TR_ERROR_LBL, MODE_DASHBOARD);
+ } else if (bootQuestion || panelAllowed(PERM_SYS_CONFIG, -1)) {
+ _netMgr->setManualTime(clockEntryToEpoch(c, simutTimeOffsetSeconds( )),
+  bootQuestion ? NetworkManager::TIME_SRC_PANEL_BOOT : NetworkManager::TIME_SRC_PANEL);
+ _soundMgr->play(SND_CONFIRM);
+ if (bootQuestion) _displayMgr->forceDashboard( );
+ else              _displayMgr->showSettingsMain( );
+ }
  }
 #endif
  else if (uiEv.type == UiEvent::EVT_APPLY_THEME) {

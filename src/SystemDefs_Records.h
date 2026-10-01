@@ -110,7 +110,10 @@ enum UiMode {
  /* 2.7.1 — a way into AP mode that is not a three-second gesture during a
   * window nobody can see. Appended for the same reason as the two blocks
   * above: isMenuActive( )'s ">= MODE_AUTH" has to keep covering the tree. */
- MODE_CONFIRM_AP                 /**< "start the setup access point?" */
+ MODE_CONFIRM_AP,                /**< "start the setup access point?" */
+ /* 2026-10-01 — the date and time, asked at boot on a unit with no network and
+  * offered from Settings. Appended for the same reason as the blocks above. */
+ MODE_SET_CLOCK                  /**< dd / mm / yyyy  hh : mm (display/ClockEntry.h) */
 };
 
 /** Time range selection for graph rendering. */
@@ -703,7 +706,11 @@ struct UiEvent {
  EVT_PIN_POLICY,
  /* 2.7.1 — the panel asks for the setup AP. No payload: Core 0 owns the
   * permission check and the network call, exactly as with every v24 event. */
- EVT_START_AP
+ EVT_START_AP,
+ /* 2026-10-01 — the date and time set at the panel: id = yyyymmdd, param =
+  * hhmm (clockEntryPack). Core 0 checks them, converts at the device's offset
+  * and decides whether this session may set the clock at all. */
+ EVT_SET_CLOCK
  };
  EventType type;
  int id;

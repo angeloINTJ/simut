@@ -50,7 +50,7 @@ They share one core:
 | **Current release** | **v2.8.0** (2026-09-30). SIMUT left beta with v2.7.0, on measurements: an 8.18 h soak with 0 reboots, and 6 of 6 over-the-air updates with nothing lost. v2.8.0 keeps the configuration when an update is cut off halfway, and lets the custom telemetry format send the Content-Type its server expects; v2.7.4 had fixed a sensor scan that left a BMP280 on hardware I2C in error. |
 | **Published images** | Three images, each as `.uf2` and `.bin`: `release` (TFT touch panel), `alpha` (16×2 LCD with a Bluetooth console) and `air` (headless battery logger). The pt-BR and es-ES language packs and an OTA manifest ship alongside. An image with a different set of features comes from the [build configurator](https://angelointj.github.io/simut/configurador/), and CI builds it from `main`. |
 | **Maturity** | <ul><li>`release`: **stable**.</li><li>`alpha`: published and bench-tested, its 16×2 LCD included since 2026-09-26.</li><li>`air`: **experimental**. Its one long soak failed: a sleep in cycle 119 never woke (F28). A watchdog across the wake now mitigates it; the root cause is not confirmed.</li></ul> |
-| **Tests** | Every pull request runs 433 host test cases in 8 suites, 60 s of fuzzing and static analysis, and builds all six firmware images from a cold cache. Behaviour on real hardware is verified on a bench — see [Verification](#verification-on-hardware). |
+| **Tests** | Every pull request runs 443 host test cases in 8 suites, 60 s of fuzzing and static analysis, and builds all six firmware images from a cold cache. Behaviour on real hardware is verified on a bench — see [Verification](#verification-on-hardware). |
 
 **Known limitations.** Each one is documented where it applies.
 - **Updates.** An update over the air reformats the filesystem:
@@ -385,7 +385,7 @@ simut/
 > The setup access point is WPA2 on every image, with a per-device key shown on
 > the console and, where there is one, on the display. See [SECURITY.md](SECURITY.md) §2 and §8.
 
-> There is no debug environment. `pico_w_debug` was removed in v2.4.1 after never once linking: at `-Og` the image overflowed the 1020 KB app slot by ~100 KB. Flash is tight. The release image uses 95.7 % of the 1,044,480 B program slot (`tools/flash_budget.json` keeps the measured value), and CI checks every `.bin` against the 1,040,384 B over-the-air ceiling. A GDB target would have to be built by cutting features. For the concurrency tripwire on hardware, use `pico_w_asserts`.
+> There is no debug environment. `pico_w_debug` was removed in v2.4.1 after never once linking: at `-Og` the image overflowed the 1020 KB app slot by ~100 KB. Flash is tight. The release image uses 96.1 % of the 1,044,480 B program slot (`tools/flash_budget.json` keeps the measured value), and CI checks every `.bin` against the 1,040,384 B over-the-air ceiling. A GDB target would have to be built by cutting features. For the concurrency tripwire on hardware, use `pico_w_asserts`.
 
 ### Build flags
 - `-Os` — optimize for size
@@ -426,12 +426,12 @@ The device exposes a REST API at `http://<device-ip>/api/`:
 ### Host tests
 
 ```bash
-pio test -e native             # validators, telemetry cursor, labels, parsers (190 cases)
+pio test -e native             # validators, telemetry cursor, labels, parsers (197 cases)
 pio test -e native_history_v5  # V5 history codec (63)
 pio test -e native_cli         # CLI parser (33)
 pio test -e native_logpolicy   # edge-triggered log persistence (45)
 pio test -e native_alarmqueue  # alarm telemetry queue (43)
-pio test -e native_network     # Wi-Fi reconnect state machine (30)
+pio test -e native_network     # Wi-Fi reconnect state machine (33)
 pio test -e native_air         # SIMUT Air persistent config (16)
 pio test -e native_sensors     # sensor type table (13)
 

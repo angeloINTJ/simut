@@ -96,7 +96,10 @@ void AppManager::updateLiveDisplay( ) {
  {
  String dateStr = _netMgr->getFormattedDate( );
  dateStr.replace("/20", "/");
- String fullStatus = dateStr + " - " + _netMgr->getFormattedTime( );
+ /* " ? " marks the provisional clock on the TFT's top bar
+  * (DisplayManager_Dashboard.cpp, drawTopBar). */
+ String fullStatus = dateStr + (_netMgr->isTimeTrusted( ) ? " - " : " ? ")
+                   + _netMgr->getFormattedTime( );
  _displayMgr->setSystemStatus(_netMgr->getRssi( ), false, fullStatus);
  _displayMgr->setApMode(_netMgr->isApConfig( ));
 

@@ -1061,34 +1061,17 @@ void AppManager::setup( ) {
  BLOG("[BOOT step] 9: pre _netMgr (forceAP="); BLOG_U(forceAP ? 1 : 0);
  BLOG(") @ "); BLOG_U(millis( )); BLOG_NL( );
  if (Serial) { Serial.println("[DBG] network begin..."); Serial.flush(); }
- /* An unconfigured device boots into AP mode. ApPsk.h has said so since
-  * V-05 — "AP mode is what an UNCONFIGURED device boots into" is the reason
-  * the key is derived from the board id instead of living in the config —
-  * but nothing implemented it: begin( ) with an empty SSID went to
-  * NET_OFFLINE and stayed there. Measured 2026-09-22 by reading the only two
-  * callers of beginAP( ): the touch gesture and the `ap` command.
-  *
-  * It sets forceAP rather than joining the condition below, because the flag
-  * is read twice more after this: by the `else if` chain that would otherwise
-  * start the STA, and ~230 lines down by the branch that sets _isApMode and
-  * leaves TR_BOOT_AP_ACTIVE on the screen. A second condition here would have
-  * brought the AP up and then told the rest of the boot it was in station
-  * mode.
-  *
-  * Air is excluded, as it is from the runtime fallback: the AP-mode timeout
-  * only reboots to STA when an SSID is configured, so on a device with none
-  * this state has no exit, and an Air that never hibernates is a battery on
-  * a bench. Its channel is the CLI, over USB or Bluetooth, which it has. */
- bool apBecauseUnconfigured = false;
-#if !SIMUT_AIR
- if (!forceAP && cfg.wifiSsid[0] == '\0') {
-  forceAP = true;
-  apBecauseUnconfigured = true;
- }
-#endif
+ /* An unconfigured device does NOT boot into AP mode. It did from 2.7.1
+  * (2026-09-22) to 2026-10-01, when the maintainer decided the AP opens only
+  * when a person asks for it — Settings → 12 on the panel, `ap` on the
+  * console, the hold gesture above — and that a unit with no network asks for
+  * the date and time instead, because with no network there is no NTP and the
+  * records it keeps would carry the provisional clock (see the end of setup( )
+  * and display/ClockEntry.h). ApPsk.h's "AP mode is what an UNCONFIGURED
+  * device boots into" is the reason the key is derived from the board id, and
+  * that reason still holds for an AP opened by hand on such a device. */
  if (forceAP) {
- LOG_CODE(LOG_WARN, "APP", APP_AP_MODE_TRIGGERED, apBecauseUnconfigured ? 2 : 1,
-          TRL("AP mode started."));
+ LOG_CODE(LOG_WARN, "APP", APP_AP_MODE_TRIGGERED, 1, TRL("AP mode started."));
  _displayMgr->setBootStatusKey(TR_BOOT_START_AP);
  /* beginAP first: the network line now carries the WPA2 key, and the key
   * does not exist until the AP has been brought up (V-05). */
@@ -1141,6 +1124,15 @@ void AppManager::setup( ) {
  int dotCount = 0;
  int waitState = 0;
 
+ /* No network configured: there is nothing to wait for, and this loop used to
+  * run its whole 30 s timeout on every such boot before the dashboard came up.
+  * 2.7.1 to 2.8.0 hid it behind the boot AP; with the AP no longer opening by
+  * itself (2026-10-01) the wait was back in front of the clock question.
+  * TR_BOOT_WIFI_SKIPPED says why the line moved on. */
+ if (cfg.wifiSsid[0] == '\0') {
+  _displayMgr->setBootStatusKey(TR_BOOT_WIFI_SKIPPED);
+  skipped = true;
+ }
 #if SIMUT_AIR
  if (!_airActive)
 #endif
@@ -1149,7 +1141,7 @@ void AppManager::setup( ) {
   * isTimeSynced( ) as well cost nothing while it was always true — now that it
   * tells the truth, a unit with NTP off would sit the full 30 s here on every
   * boot for a sync that is not coming. */
- while (!_netMgr->isConnected( )) {
+ while (!skipped && !_netMgr->isConnected( )) {
  TRACE_BEAT(0);
  watchdog_update( );
  _netMgr->update( );
@@ -1443,6 +1435,27 @@ void AppManager::setup( ) {
   * point on APP_UI_LANG_CHANGED and APP_SENSORS_CALIBRATED mean an operator
   * did something, and they are logged like anything else. */
  LogManager::instance( ).endBootPreamble( );
+
+ /* A unit with no network configured asks for the date and time, and says why
+  * (2026-10-01, the maintainer's decision; it used to open the setup AP here
+  * instead). With no network there is no NTP, and until a person sets the
+  * clock every record is stamped by the provisional one — and nothing in the
+  * day file will say so later (display/ClockEntry.h). The panel puts the
+  * question on the glass; every image
+  * also says it on the console, which is the only channel the alpha and the
+  * Air have for it. Not in an AP boot — the gesture asked for something
+  * else — and not on an Air wake, where nobody is there to answer. */
+ if (!forceAP && clockEntryAtBoot(cfg.wifiSsid[0] != '\0', _netMgr->isTimeTrusted( ))
+#if SIMUT_AIR
+     && !_airActive
+#endif
+    ) {
+  _displayMgr->showClockEntry(clockEntryFrom(_netMgr->getEpoch( ), simutTimeOffsetSeconds( )),
+                              /*atBoot=*/true);   /* a stub without a panel */
+  _cmdMgr->printInfo(_cmdMgr->isPt( )
+   ? "Sem rede, relogio provisorio: conf time AAAA-MM-DD HH:MM:SS"
+   : "No network, provisional clock: conf time YYYY-MM-DD HH:MM:SS");
+ }
 
  AIR_BOOT_MARK("done");
  TRACE_MOD(0, MOD_IDLE);

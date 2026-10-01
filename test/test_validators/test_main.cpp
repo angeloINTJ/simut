@@ -38,6 +38,7 @@
 #include "sensors/CalibCurve.h"         /* calibration curve engine */
 #include "WebJsonSlice.h"               /* depth-aware JSON slicing */
 #include "SimutTime.h"                 /* fixed-offset localtime/mktime */
+#include "display/ClockEntry.h"         /* the date and time set at the panel */
 #include "PemBlocks.h"                 /* the PEM splitting POST /api/tls does */
 #include "WebCommitSections.h"          /* per-section authz for /api/commit_all */
 #include "FsSecretPath.h"               /* /config download guard (A-4) */
@@ -2688,6 +2689,166 @@ void test_simuttime_days_from_civil_anchors(void) {
                             (long long)simutDaysFromCivil(2026, 9, 0));
 }
 
+/* ──────────────────────────────────────────────────────────────────────────
+ * A date a person typed — SimutTime's calendar check and the panel's clock
+ * entry (display/ClockEntry.h).
+ *
+ * 2026-10-01: a unit with no network configured asks for the date and time at
+ * boot instead of opening its setup access point. Normalisation, which is what
+ * makes simutMkTimeTz right for arithmetic, is wrong for input: `conf time
+ * 2026-02-31 ...` was accepted and set the clock to 3 March.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+void test_simuttime_days_in_month(void) {
+    TEST_ASSERT_EQUAL_UINT(31, simutDaysInMonth(2026, 1));
+    TEST_ASSERT_EQUAL_UINT(28, simutDaysInMonth(2026, 2));
+    TEST_ASSERT_EQUAL_UINT(29, simutDaysInMonth(2028, 2));
+    TEST_ASSERT_EQUAL_UINT(28, simutDaysInMonth(2100, 2));   /* century, not leap */
+    TEST_ASSERT_EQUAL_UINT(29, simutDaysInMonth(2000, 2));   /* 400-year, leap */
+    TEST_ASSERT_EQUAL_UINT(30, simutDaysInMonth(2026, 4));
+    TEST_ASSERT_EQUAL_UINT(30, simutDaysInMonth(2026, 11));
+    TEST_ASSERT_EQUAL_UINT(31, simutDaysInMonth(2026, 12));
+    TEST_ASSERT_EQUAL_UINT(0,  simutDaysInMonth(2026, 0));
+    TEST_ASSERT_EQUAL_UINT(0,  simutDaysInMonth(2026, 13));
+}
+
+void test_simuttime_valid_civil_refuses_what_mktime_would_normalise(void) {
+    TEST_ASSERT_TRUE (simutValidCivil(2026, 10, 1, 9, 38));
+    TEST_ASSERT_FALSE(simutValidCivil(2026, 2, 31, 12, 0));  /* was 3 March */
+    TEST_ASSERT_FALSE(simutValidCivil(2027, 2, 29, 12, 0));
+    TEST_ASSERT_TRUE (simutValidCivil(2028, 2, 29, 12, 0));
+    TEST_ASSERT_FALSE(simutValidCivil(2026, 4, 31, 12, 0));
+    TEST_ASSERT_TRUE (simutValidCivil(2026, 4, 30, 12, 0));
+    TEST_ASSERT_FALSE(simutValidCivil(2026, 10, 0, 12, 0));
+    TEST_ASSERT_FALSE(simutValidCivil(2026, 0, 1, 12, 0));
+    TEST_ASSERT_FALSE(simutValidCivil(2026, 13, 1, 12, 0));
+    TEST_ASSERT_TRUE (simutValidCivil(2026, 10, 1, 23, 59, 59));
+    TEST_ASSERT_FALSE(simutValidCivil(2026, 10, 1, 24, 0));
+    TEST_ASSERT_FALSE(simutValidCivil(2026, 10, 1, 12, 60));
+    TEST_ASSERT_FALSE(simutValidCivil(2026, 10, 1, 12, 0, 60));
+    TEST_ASSERT_FALSE(simutValidCivil(2026, 10, 1, -1, 0));
+    /* the years `conf time` has always accepted, and no others */
+    TEST_ASSERT_FALSE(simutValidCivil(SIMUT_CLOCK_YEAR_MIN - 1, 12, 31, 23, 59));
+    TEST_ASSERT_TRUE (simutValidCivil(SIMUT_CLOCK_YEAR_MIN, 1, 1, 0, 0));
+    TEST_ASSERT_TRUE (simutValidCivil(SIMUT_CLOCK_YEAR_MAX, 12, 31, 23, 59));
+    TEST_ASSERT_FALSE(simutValidCivil(SIMUT_CLOCK_YEAR_MAX + 1, 1, 1, 0, 0));
+}
+
+static ClockEntry ce(int y, int mo, int d, int h, int mi) {
+    ClockEntry c;
+    c.year = (int16_t)y; c.month = (int8_t)mo; c.day = (int8_t)d;
+    c.hour = (int8_t)h; c.minute = (int8_t)mi;
+    return c;
+}
+
+void test_clock_entry_day_follows_the_month(void) {
+    ClockEntry c = ce(2026, 3, 31, 10, 0);
+    clockEntryStep(c, CE_MONTH, -1);                /* 31/03 -> February */
+    TEST_ASSERT_EQUAL_INT(2, c.month);
+    TEST_ASSERT_EQUAL_INT(28, c.day);
+
+    c = ce(2028, 1, 31, 10, 0);
+    clockEntryStep(c, CE_MONTH, +1);                /* a leap February */
+    TEST_ASSERT_EQUAL_INT(29, c.day);
+    clockEntryStep(c, CE_YEAR, +1);                 /* 29/02/2028 -> 2029 */
+    TEST_ASSERT_EQUAL_INT(2029, c.year);
+    TEST_ASSERT_EQUAL_INT(28, c.day);
+
+    /* the day wraps inside ITS month, not inside 31 */
+    c = ce(2026, 4, 30, 10, 0);
+    clockEntryStep(c, CE_DAY, +1);
+    TEST_ASSERT_EQUAL_INT(1, c.day);
+    TEST_ASSERT_EQUAL_INT(4, c.month);              /* fields are independent */
+    clockEntryStep(c, CE_DAY, -1);
+    TEST_ASSERT_EQUAL_INT(30, c.day);
+}
+
+void test_clock_entry_wraps_and_stops(void) {
+    ClockEntry c = ce(2026, 12, 15, 23, 0);
+    clockEntryStep(c, CE_MONTH, +1);
+    TEST_ASSERT_EQUAL_INT(1, c.month);
+    TEST_ASSERT_EQUAL_INT(2026, c.year);            /* a wrap, not a carry */
+    clockEntryStep(c, CE_HOUR, +1);
+    TEST_ASSERT_EQUAL_INT(0, c.hour);
+    clockEntryStep(c, CE_MINUTE, -1);
+    TEST_ASSERT_EQUAL_INT(59, c.minute);
+    clockEntryStep(c, CE_MINUTE, +1);
+    TEST_ASSERT_EQUAL_INT(0, c.minute);
+
+    /* the year stops at the ends a hand-set clock may name */
+    c = ce(SIMUT_CLOCK_YEAR_MIN, 6, 1, 0, 0);
+    clockEntryStep(c, CE_YEAR, -1);
+    TEST_ASSERT_EQUAL_INT(SIMUT_CLOCK_YEAR_MIN, c.year);
+    c = ce(SIMUT_CLOCK_YEAR_MAX, 6, 1, 0, 0);
+    clockEntryStep(c, CE_YEAR, +1);
+    TEST_ASSERT_EQUAL_INT(SIMUT_CLOCK_YEAR_MAX, c.year);
+
+    /* a field the screen does not have changes nothing */
+    c = ce(2026, 10, 1, 9, 38);
+    clockEntryStep(c, CE_FIELDS, +1);
+    TEST_ASSERT_EQUAL_INT(1, c.day);
+    TEST_ASSERT_EQUAL_INT(9, c.hour);
+}
+
+void test_clock_entry_round_trips_at_the_device_offset(void) {
+    /* 2026-10-01 12:58:42 UTC, the instant of an alarm record on the rig */
+    const time_t t = 1790859522;
+    ClockEntry c = clockEntryFrom(t, -3 * 3600L);
+    TEST_ASSERT_EQUAL_INT(2026, c.year);
+    TEST_ASSERT_EQUAL_INT(10, c.month);
+    TEST_ASSERT_EQUAL_INT(1, c.day);
+    TEST_ASSERT_EQUAL_INT(9, c.hour);               /* -03 */
+    TEST_ASSERT_EQUAL_INT(58, c.minute);
+    /* back to the start of that minute: SAVE lands somewhere inside it */
+    TEST_ASSERT_EQUAL_INT64(1790859480LL, (long long)clockEntryToEpoch(c, -3 * 3600L));
+
+    /* the far end of the settable range, at both extremes of offset: the
+     * arithmetic is 32-bit, and 2099 is where it would show */
+    TEST_ASSERT_EQUAL_INT64(4102444740LL, (long long)clockEntryToEpoch(ce(2099, 12, 31, 23, 59), 0));
+    TEST_ASSERT_EQUAL_INT64(4102444740LL + 12 * 3600LL,
+                            (long long)clockEntryToEpoch(ce(2099, 12, 31, 23, 59), -12 * 3600L));
+    TEST_ASSERT_EQUAL_INT64(4102444740LL - 14 * 3600LL,
+                            (long long)clockEntryToEpoch(ce(2099, 12, 31, 23, 59), 14 * 3600L));
+    /* fields that are not a date give no instant at all */
+    TEST_ASSERT_EQUAL_INT64(0LL, (long long)clockEntryToEpoch(ce(2026, 2, 31, 0, 0), 0));
+    /* a clock seeded from nothing starts at the first day it may name */
+    c = clockEntryFrom((time_t)1600000001, 0);      /* 2020 */
+    TEST_ASSERT_EQUAL_INT(SIMUT_CLOCK_YEAR_MIN, c.year);
+    TEST_ASSERT_EQUAL_INT(1, c.month);
+    TEST_ASSERT_EQUAL_INT(1, c.day);
+}
+
+void test_clock_entry_packs_into_one_panel_event(void) {
+    /* The panel hands Core 0 the fields, not an instant: Core 0 owns the
+     * offset and the check, as with every other panel event. UiEvent has two
+     * ints, and a 2099 epoch does not fit in one. */
+    ClockEntry c = ce(2099, 12, 31, 23, 59);
+    int id = 0, param = 0;
+    clockEntryPack(c, id, param);
+    ClockEntry back;
+    TEST_ASSERT_TRUE(clockEntryUnpack(id, param, back));
+    TEST_ASSERT_EQUAL_INT(2099, back.year);
+    TEST_ASSERT_EQUAL_INT(12, back.month);
+    TEST_ASSERT_EQUAL_INT(31, back.day);
+    TEST_ASSERT_EQUAL_INT(23, back.hour);
+    TEST_ASSERT_EQUAL_INT(59, back.minute);
+    /* what Core 0 must refuse, whoever built the event */
+    TEST_ASSERT_FALSE(clockEntryUnpack(20260231, 1200, back));   /* 31/02 */
+    TEST_ASSERT_FALSE(clockEntryUnpack(20261001, 2460, back));   /* 24:60 */
+    TEST_ASSERT_FALSE(clockEntryUnpack(-1, 0, back));
+    TEST_ASSERT_FALSE(clockEntryUnpack(675620101, 0, back));     /* 67562 is 2026 in an int16_t */
+}
+
+void test_clock_prompt_only_without_a_network_or_a_real_clock(void) {
+    /* The maintainer's rule (2026-10-01): with no Wi-Fi configured there is no
+     * NTP, so the panel asks; it does not ask a unit that has a network (NTP
+     * will come) or a clock somebody already set. */
+    TEST_ASSERT_TRUE (clockEntryAtBoot(/*networkConfigured=*/false, /*clockTrusted=*/false));
+    TEST_ASSERT_FALSE(clockEntryAtBoot(true,  false));
+    TEST_ASSERT_FALSE(clockEntryAtBoot(false, true));
+    TEST_ASSERT_FALSE(clockEntryAtBoot(true,  true));
+}
+
 
 void test_panel_pin_validator(void) {
     TEST_ASSERT_TRUE(isValidPanelPin("1234"));
@@ -3429,6 +3590,13 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_simuttime_day_walk_crosses_month_and_year);
     RUN_TEST(test_simuttime_midnight_is_offset_from_utc);
     RUN_TEST(test_simuttime_days_from_civil_anchors);
+    RUN_TEST(test_simuttime_days_in_month);
+    RUN_TEST(test_simuttime_valid_civil_refuses_what_mktime_would_normalise);
+    RUN_TEST(test_clock_entry_day_follows_the_month);
+    RUN_TEST(test_clock_entry_wraps_and_stops);
+    RUN_TEST(test_clock_entry_round_trips_at_the_device_offset);
+    RUN_TEST(test_clock_entry_packs_into_one_panel_event);
+    RUN_TEST(test_clock_prompt_only_without_a_network_or_a_real_clock);
     RUN_TEST(test_panel_pin_validator);
     RUN_TEST(test_pin_policy_rules);
     RUN_TEST(test_pin_keypad_deals_the_whole_set);

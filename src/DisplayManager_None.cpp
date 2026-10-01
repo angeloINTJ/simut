@@ -106,6 +106,8 @@ void DisplayManager::showSettingsThemes(int currentThemeIdx) { (void)currentThem
 void DisplayManager::setPanelSession(int8_t user, uint16_t perms) { (void)user; (void)perms; }
 void DisplayManager::showAlarmSensorMenu(int sensorIdx) { (void)sensorIdx; }
 void DisplayManager::showMaintEntry(int sensorIdx) { (void)sensorIdx; }
+/* 2026-10-01: the clock question has no screen here; the console says it. */
+void DisplayManager::showClockEntry(const ClockEntry& start, bool atBoot) { (void)start; (void)atBoot; }
 void DisplayManager::showSettingsUsers( ) { }
 void DisplayManager::showUserEdit(int slot, bool isNew) { (void)slot; (void)isNew; }
 void DisplayManager::showPanelMessage(bool ok, LangKey msg, UiMode returnTo) { (void)ok; (void)msg; (void)returnTo; }

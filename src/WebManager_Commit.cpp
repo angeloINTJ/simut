@@ -1879,7 +1879,7 @@ void WebManager::handleApiSetTime( ) {
 	uint32_t epoch = (uint32_t)body.substring(vs, ve).toInt( );
 	if (epoch <= 1600000000UL) { _server->send(400, "application/json", "{\"error\":\"epoch too low\"}"); return; }
 
-	_netRef->setManualTime((time_t)epoch);
+	_netRef->setManualTime((time_t)epoch, NetworkManager::TIME_SRC_WEB);
 
 	char json[64];
 	snprintf(json, sizeof(json), "{\"ok\":true,\"now\":%lu}", (unsigned long)time(nullptr));

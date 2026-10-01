@@ -1621,6 +1621,48 @@ void DisplayManager::handleTouch( ) {
  }
  }
  }
+ else if (_uiMode == MODE_SET_CLOCK) {
+ /* The two buttons are the AP confirmation's rects. SKIP (at boot) or BACK
+  * stays on this core — nothing changes but the screen. SAVE hands the fields
+  * to Core 0, which checks them and decides whether this session may set the
+  * clock (AppManager_Events.cpp); the panel draws nothing until it answers. */
+ if (y >= 190 && y <= 230) {
+ if (x >= 20 && x <= 150) {
+ if (!acceptTouch(0xC4)) return;
+ if (_clockAtBoot) {
+ mutex_enter_blocking(&_stateMutex);
+ _uiMode = MODE_DASHBOARD; _isDirty = true; _forceFullRedraw = true;
+ mutex_exit(&_stateMutex);
+ } else {
+ showSettingsMain( );
+ }
+ }
+ else if (x >= 170 && x <= 300) {
+ if (!acceptTouch(0xC5)) return;
+ UiEvent ev; ev.type = UiEvent::EVT_SET_CLOCK;
+ clockEntryPack(_clockEntry, ev.id, ev.param);
+ pushUiEvent(ev);
+ }
+ return;
+ }
+ /* A column's +1 button is above its value and its -1 below, each a full
+  * CLOCK_ROW_H band — the value band between them is dead, so a press that
+  * lands on a number changes nothing. Held, a button repeats every
+  * HOLD_REPEAT_MS, the limit editor's behaviour: thirty days is a held press
+  * of nine seconds, not thirty taps. */
+ int delta = 0;
+ if (y >= CLOCK_UP_Y && y < CLOCK_UP_Y + CLOCK_ROW_H) delta = +1;
+ else if (y >= CLOCK_DOWN_Y && y < CLOCK_DOWN_Y + CLOCK_ROW_H + 4) delta = -1;
+ if (delta == 0) return;
+ for (uint8_t i = 0; i < CE_FIELDS; i++) {
+ if (x < CLOCK_COL_X[i] || x >= CLOCK_COL_X[i] + CLOCK_COL_W[i]) continue;
+ if (!acceptHoldTouch((uint8_t)(0xD0 + i * 2 + (delta > 0 ? 1 : 0)))) return;
+ clockEntryStep(_clockEntry, i, delta);
+ _clockValuesDirty = true;
+ _repaintSettings = true;
+ return;
+ }
+ }
 }
 
 bool DisplayManager::acceptTouch(uint8_t zoneId) {

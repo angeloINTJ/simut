@@ -62,12 +62,6 @@ public:
   * only other channel is a cable. */
  const char* getApSsid( ) const { return _apSsid; }
 
- /** True once, when the reconnect ladder has failed a whole round and the
-  * device should fall back to the setup AP. Consumed by AppManager, which is
-  * the layer that owns both the radio and the display — see the comment at
-  * the arming site for why here and why once. */
- bool takeApFallback( ) { bool d = _apFallbackDue; _apFallbackDue = false; return d; }
-
 
  /** Announce the device over mDNS when the link comes up (default true).
   *
@@ -114,10 +108,17 @@ public:
 
  void setTimeSyncCallback(TimeSyncCallback cb);
 
- /* Manual RTC set (via settimeofday) for when NTP
- * is disabled. `epoch` is UTC time in seconds (client converts
- * local time to epoch using the agreed TZ). No-op if epoch <= 0. */
- void setManualTime(time_t epoch);
+ /* Manual RTC set (via settimeofday) for when NTP is disabled or absent.
+ * `epoch` is UTC seconds (the caller converts local time at the configured
+ * offset). Ignored at or below 1600000000 (2020-09-13), which no real clock is.
+ * Ends the provisional clock the way NTP does, correcting what it stamped. */
+ /** @p source is the log line's ctx — who set the clock, read months later:
+  *  1 the web (/api/set_time), 2 the console (`conf time`), 3 the panel's
+  *  Settings > 13, 4 the panel's question at boot on a unit with no network.
+  *  0 is what every manual set logged before 2026-10-01. */
+ enum ManualTimeSource : uint8_t { TIME_SRC_WEB = 1, TIME_SRC_CLI = 2,
+                                   TIME_SRC_PANEL = 3, TIME_SRC_PANEL_BOOT = 4 };
+ void setManualTime(time_t epoch, uint8_t source);
 
 
  bool isConnected( );
@@ -216,11 +217,6 @@ public:
 private:
  /** Derived WPA2 key of the setup AP (V-05). AP_PSK_LEN + terminator. */
  char _apPsk[AP_PSK_LEN + 1] = {0};
- bool _apFallbackDue = false;
- /** An IP was acquired at least once since this boot. Separates "the
-  * network I know is gone" from "the link dropped for a while", which get
-  * different patience before the setup AP takes the LAN away. */
- bool _everHadIp = false;
  bool _mdnsEnabled = true;
  uint16_t _advPort = 0;
  bool _advTls = false;
@@ -270,6 +266,10 @@ private:
  uint32_t _provisionalBase = 0;
  uint32_t _provisionalBootMillis = 0;
  bool _provisionalActive = false;
+
+ /** The provisional clock is over and the real time is @p realNow: hand the
+  *  difference to whoever moves what the seed stamped, then retire the seed. */
+ void endProvisional(uint32_t realNow);
 
  void handleConnecting( );
  void syncNtp( );

@@ -114,6 +114,15 @@ CliDemand parseCliCommand(String input) {
 	if (t0 == "help" || t0 == "ajuda" || t0 == "?") { cmd.type = CMD_HELP; return cmd; }
 	if (t0 == "reload") { cmd.type = CMD_RELOAD; return cmd; }
 	if (t0 == "ap" || t0 == "apmode" || t0 == "ap-mode") { cmd.type = CMD_AP; return cmd; }
+	/* `time` on every image, not only the full CLI (2026-10-01): a unit with no
+	 * network configured says at boot that its clock is provisional and names
+	 * this command, and on the alpha the console is the only way in. */
+	if (t0 == "time") {
+		cmd.type = CMD_SET_TIME;
+		cmd.setStrVal1(t1.c_str( ));
+		cmd.setStrVal2(t2.c_str( ));
+		return cmd;
+	}
 #if SIMUT_AIR
 	/* Only the Air build has handlers for these. Parsing them everywhere meant
 	 * the release and alpha images recognised `air ...`, produced a CMD_AIR_*
@@ -214,12 +223,6 @@ CliDemand parseCliCommand(String input) {
 	if (t0 == "ntp") {
 		if (t1 == "on")  { cmd.type = CMD_SET_NTP_ENABLED; cmd.intVal1 = 1; return cmd; }
 		if (t1 == "off") { cmd.type = CMD_SET_NTP_ENABLED; cmd.intVal1 = 0; return cmd; }
-	}
-	if (t0 == "time") {
-		cmd.type = CMD_SET_TIME;
-		cmd.setStrVal1(t1.c_str( ));
-		cmd.setStrVal2(t2.c_str( ));
-		return cmd;
 	}
 	/* 'dns auto|manual ...' (bare, per help) and legacy 'net dns ...'
 	 * (reached as 'conf net dns ...' before normalization). */

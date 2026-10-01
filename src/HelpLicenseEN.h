@@ -62,6 +62,8 @@ reload [confirm]
  Reboot now
 ap
  Start AP mode (access point) for setup
+time <YYYY-MM-DD> <HH:MM:SS>
+ Set the clock by hand (no network)
 )raw"
 /* The `air` commands exist only in the Air build. Advertising them from the
  * release and alpha images sent users after commands their firmware answers

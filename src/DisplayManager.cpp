@@ -1621,6 +1621,9 @@ void DisplayManager::loopCore1( ) {
 		else if (_uiMode == MODE_CONFIRM_AP) {
 			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawApConfirm( ); }
 		}
+		else if (_uiMode == MODE_SET_CLOCK) {
+			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawClockEntry( ); }
+		}
 
 		/* A request that lands WHILE a draw is running must survive that draw.
 		 * Every branch above used to clear _repaintSettings after painting, and

@@ -32,6 +32,7 @@ class Adafruit_GFX;
 #include "pico/util/queue.h"
 #include "SystemDefs.h"
 #include "PinKeypad.h"   /* PinKb:: — geometry of the scrambled PIN keypad */
+#include "display/ClockEntry.h" /* the date and time set at the panel */
 #include "Themes.h"
 #include "SoundManager.h"
 
@@ -145,6 +146,10 @@ enum LangKey {
 	TR_PIN_ALPHABET,
 	TR_PIN_RENEW,
 
+	/* 2026-10-01 — Settings > 13, and the title of the screen it opens. A pack
+	 * without the line shows the English (DisplayManager_LangParser). */
+	TR_MENU_CLOCK,
+
 	TR_KEYS_COUNT
 };
 
@@ -222,6 +227,23 @@ constexpr int ALARM_EDIT_BTN_R  = ALARM_EDIT_BAR_R - ALARM_EDIT_INSET;
 /* Hit zones in SCREEN coordinates, wider than the glyphs they point at. */
 constexpr int ALARM_EDIT_HIT_DEC = ALARM_EDIT_BAR_X + ALARM_EDIT_INSET + ALARM_EDIT_BTN_W + 15;
 constexpr int ALARM_EDIT_HIT_INC = ALARM_EDIT_BAR_X + ALARM_EDIT_BAR_W - ALARM_EDIT_INSET - ALARM_EDIT_BTN_W - 15;
+
+/* ---------------------------------------------------------------------------
+ * Date-and-time entry geometry (MODE_SET_CLOCK).
+ *
+ * Five columns, dd / mm / yyyy  hh : mm, each with a +1 button above its value
+ * and a -1 button below. Shared by the drawing (DisplayManager_Settings.cpp)
+ * and the touch zones (DisplayManager_Touch.cpp), like the blocks around it.
+ * The widths fit the 12 pt digits (13 px each, the year 52 px); the columns
+ * run 7..313, inside the 4..315 safe area. The two buttons at the bottom are
+ * the AP confirmation's: 20..150 and 170..300, y 190..230.
+ * ------------------------------------------------------------------------- */
+constexpr int16_t CLOCK_COL_X[CE_FIELDS] = {  7,  65, 123, 207, 265 };
+constexpr int16_t CLOCK_COL_W[CE_FIELDS] = { 48,  48,  70,  48,  48 };
+constexpr int16_t CLOCK_UP_Y    = 42;   /**< +1 row, CLOCK_ROW_H tall */
+constexpr int16_t CLOCK_VALUE_Y = 82;   /**< the values */
+constexpr int16_t CLOCK_DOWN_Y  = 122;  /**< -1 row */
+constexpr int16_t CLOCK_ROW_H   = 38;
 
 /* ---------------------------------------------------------------------------
  * Graph period-button bar geometry.
@@ -615,6 +637,10 @@ public:
 	void showSettingsSounds(const SoundSettingsState& state);
 	void showMuteConfirm( );
 	void showApConfirm( ); /**< "start the setup access point?" (2.7.1) */
+	/** The date and time, starting from @p start. @p atBoot: asked by the boot
+	 *  of a unit with no network — the left button is SKIP, and a hint says why
+	 *  the question is there; otherwise it is BACK, to the settings menu. */
+	void showClockEntry(const ClockEntry& start, bool atBoot);
 	SoundSettingsState getSoundSettings( ) const { return _soundSettings; }
 
 
@@ -1173,7 +1199,7 @@ private:
 	 * the PIN-policy row: the table had 11 entries and this array 10, so an
 	 * account holding every bit wrote _menuItems[10] — one past the end, and
 	 * _menuCount is the member right behind it. */
-	static constexpr uint8_t MENU_ITEM_COUNT = 12;
+	static constexpr uint8_t MENU_ITEM_COUNT = 13;
 	uint8_t _menuItems[MENU_ITEM_COUNT];
 	uint8_t _menuCount = 0;
 
@@ -1264,6 +1290,11 @@ private:
 	void drawMelodySelect( );
 	void drawMuteConfirm( );
 	void drawApConfirm( );
+	void drawClockEntry( );
+	void drawClockValues(Adafruit_GFX* g, int16_t yOff);
+	ClockEntry _clockEntry = { 2026, 1, 1, 0, 0 };
+	bool _clockAtBoot = false;
+	bool _clockValuesDirty = false;  /**< a step changed a value: repaint that band only */
 	SoundSettingsState _soundSettings;
 	int _soundSelection = 0;
 	bool _inMelodySelect = false;
