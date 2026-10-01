@@ -84,7 +84,7 @@ jobs:
           sha256sum *.bin *.uf2 *.lng manifest.json > SHA256SUMS
           cat SHA256SUMS
       - name: Attach to the release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             release/ota/*.bin
