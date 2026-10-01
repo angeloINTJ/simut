@@ -1062,15 +1062,14 @@ figcaption b{color:var(--tinta);font-weight:600}
 </tr>
 </tbody>
 </table></div>
-<p>Com o SDA num pino de SDA e o SCL num pino de SCL <strong>do mesmo periférico</strong>, o aparelho usa o periférico I²C. Com o SDA num periférico e o SCL no outro, como SDA em GP8 e SCL em GP11, ele faz o I²C pelo PIO do RP2040, mais devagar, e registra no log de eventos o aviso <code>BME in bit-bang (pins have no hardware I2C)</code>.</p>
-<p>Para ligar vários BME280 ou BMP280, siga estas regras, tiradas do código da v2.7.1:</p>
+<p>Com o SDA num pino de SDA e o SCL num pino de SCL <strong>do mesmo periférico</strong>, o aparelho usa o periférico I²C. Qualquer outro par é lido pelo PIO do RP2040, mais devagar: o SDA num periférico e o SCL no outro (SDA em GP8 e SCL em GP11), o SDA e o SCL trocados (SDA em GP5 e SCL em GP4) e dois pinos do mesmo papel (SDA em GP0 e SCL em GP4). O log de eventos registra o aviso <code>BME in bit-bang (no free hardware I2C)</code>.</p>
+<p>Para ligar vários BME280 ou BMP280:</p>
 <ol type="1">
 <li><strong>Um sensor por par.</strong> A leitura do aparelho aceita dois sensores no mesmo par, em <code>0x76</code> e <code>0x77</code>, mas a página <strong>Configurações</strong> e o console recusam dois slots ativos no mesmo GPIO. Dê a cada sensor o seu par.</li>
-<li><strong>Um sensor por periférico.</strong> O aparelho prende cada periférico aos pinos do primeiro sensor que o usa, pela ordem dos slots. Um segundo sensor em outro par do mesmo periférico é lido nos pinos do primeiro. Por isso o segundo slot mostra a leitura do primeiro sensor. Use no máximo um sensor em pares do I2C0 e um em pares do I2C1, e ligue os demais em pares cruzados, que vão pelo PIO.</li>
-<li><strong>Nunca inverta SDA e SCL num mesmo periférico.</strong> SDA e SCL trocados (SDA em GP5 e SCL em GP4) ou dois pinos do mesmo papel (SDA em GP0 e SCL em GP4) passam na gravação.</li>
+<li><strong>O periférico fica com o primeiro par.</strong> O aparelho prende cada periférico aos pinos do primeiro sensor que o usa, pela ordem dos slots. Um segundo sensor em outro par do mesmo periférico é lido pelo PIO, como os pares cruzados, e o aviso do log traz <code>ctx</code> igual a 100 mais o GPIO do SDA.</li>
 </ol>
 <aside class="faixa faixa-perigo"><span class="selo selo-perigo"><i></i>Perigo</span>
-<p><strong>SDA e SCL trocados travam o boot.</strong> Pelo código da v2.7.1, um BME280 ou BMP280 com SDA e SCL em pinos do mesmo periférico, mas fora dos papéis da tabela, faz o firmware parar na partida dos sensores, a cada boot, antes de o console e a interface web ficarem prontos. O aparelho confere só se os dois pinos são do mesmo periférico, e a biblioteca de I²C para o processador quando recebe um SDA num pino de SCL. Confira a tabela antes de tocar em <strong>Salvar e reiniciar</strong>. Um aparelho nesse estado só volta apagando a flash inteira pelo BOOTSEL e gravando o firmware de novo (<a href="#cap-18-bootsel-apagar">capítulo 18</a>); a configuração se perde, e um backup feito com os pinos trocados traz o defeito de volta.</p>
+<p><strong>Até a v2.8.0, SDA e SCL trocados travavam o boot.</strong> Nessas versões, um BME280 ou BMP280 com SDA e SCL em pinos do mesmo periférico, mas fora dos papéis da tabela, ou com o mesmo GPIO nos dois papéis, faz o firmware parar na partida dos sensores, a cada boot, antes de o console e a interface web ficarem prontos. Nelas, também, um segundo sensor em outro par do mesmo periférico mostra a leitura do primeiro. Num aparelho com a v2.8.0 ou anterior, confira a tabela antes de tocar em <strong>Salvar e reiniciar</strong>. Um aparelho travado assim só volta apagando a flash inteira pelo BOOTSEL e gravando o firmware de novo (<a href="#cap-18-bootsel-apagar">capítulo 18</a>). Um backup feito com os pinos trocados traz a mesma configuração de volta: restaure-o só num firmware que já tenha a correção.</p>
 </aside>
 <h3 id="cap-02-placa">A placa do projeto</h3>
 <p>O projeto publica uma placa de circuito para a release e a alpha, desenhada no KiCad. Os arquivos de projeto e de fabricação (Gerber e furação) estão na pasta <code>PCB_test/</code> do repositório.</p>
@@ -2512,7 +2511,7 @@ SIMUT# reload confirm</code></pre>
 </table></div>
 <p>Sobre os sensores I²C (BME280 e BMP280):</p>
 <ul>
-<li><strong>Um por par de pinos.</strong> A leitura aceitaria dois sensores no mesmo par SDA/SCL, em <code>0x76</code> e <code>0x77</code>, mas a gravação recusa dois slots ativos no mesmo GPIO. Dê a cada sensor o seu par, e siga as regras do I²C do <a href="#cap-02-i2c">capítulo 2</a>: um segundo sensor em outro par do mesmo periférico repete a leitura do primeiro.</li>
+<li><strong>Um por par de pinos.</strong> A leitura aceitaria dois sensores no mesmo par SDA/SCL, em <code>0x76</code> e <code>0x77</code>, mas a gravação recusa dois slots ativos no mesmo GPIO. Dê a cada sensor o seu par, e siga as regras do I²C do <a href="#cap-02-i2c">capítulo 2</a>: um segundo sensor em outro par do mesmo periférico é lido pelo PIO, mais devagar.</li>
 <li><strong>O aparelho confere o chip.</strong> Se você escolheu BME280 e o chip é um BMP280, ou o contrário, o aparelho corrige o tipo na partida pelo identificador do chip e grava a correção.</li>
 <li><strong>Pares do periférico I²C.</strong> Com SDA e SCL num par que o periférico I²C do RP2040 aceita, a leitura usa esse periférico. Em outros pares, o aparelho lê o sensor pelo PIO do RP2040, sem o periférico. A ligação está no <a href="#cap-02">capítulo 2</a>.</li>
 </ul>
@@ -18069,7 +18068,7 @@ async function status(token) {
  &quot;mac&quot;:&quot;28:cd:c1:0a:1b:2c&quot;,&quot;cfg&quot;:&quot;3F2A91C4&quot;,&quot;uptime&quot;:29260512,&quot;rssi&quot;:-58,
  &quot;ip&quot;:&quot;192.0.2.10&quot;,&quot;theme&quot;:0,&quot;heap_f&quot;:61240,&quot;heap_t&quot;:230400,&quot;heap_lb&quot;:40960,
  &quot;fs_u&quot;:413696,&quot;fs_t&quot;:1048576,&quot;time&quot;:1790164800,&quot;ntp&quot;:1,&quot;pending&quot;:0,&quot;tel&quot;:1,
- &quot;hi&quot;:1,&quot;cap&quot;:1},
+ &quot;hi&quot;:1,&quot;cap&quot;:1,&quot;feat&quot;:262026},
  &quot;metr&quot;:{&quot;lb&quot;:40960,&quot;lbm&quot;:33792,&quot;hm&quot;:52112,&quot;wf&quot;:0,&quot;mq&quot;:0,&quot;rmn&quot;:-63,&quot;rmx&quot;:-55,
  &quot;ts&quot;:135,&quot;tf&quot;:0,&quot;tr&quot;:0,&quot;tb&quot;:412345,&quot;tl&quot;:180,&quot;so&quot;:24000,&quot;se&quot;:2,&quot;cs&quot;:3,
  &quot;fo&quot;:210,&quot;fom&quot;:38,&quot;fot&quot;:2100,&quot;f50&quot;:0,&quot;fx&quot;:0,&quot;ad&quot;:0,&quot;c1a&quot;:12,&quot;c1n&quot;:1,
@@ -18167,6 +18166,10 @@ async function status(token) {
 <tr class="odd">
 <td><code>cap</code></td>
 <td><code>1</code> se a imagem tem painel</td>
+</tr>
+<tr class="even">
+<td><code>feat</code></td>
+<td>Com que chaves do configurador a imagem foi compilada: um bit por chave, ligado se a chave está ligada. O número de cada chave é o campo <code>bit</code> dela no <a href="https://angelointj.github.io/simut/configurador/model.json"><code>model.json</code> do configurador</a> e nunca muda. Serve para não chamar o que a imagem não tem — a página de histórico (<code>web_history</code>, bit 13), a API de exportação (<code>web_export_api</code>, bit 14), o <code>/metrics</code> (<code>web_metrics</code>, bit 15), o MQTT (<code>tel_mqtt</code>, bit 12), o TLS da telemetria (<code>tel_tls</code>, bit 11). O SIMUT publicado responde 262026. Um firmware anterior ao campo não o manda: trate a ausência como “tudo o que a variante sempre teve”</td>
 </tr>
 </tbody>
 </table></div>
@@ -25282,7 +25285,7 @@ O formato de arquivo que a placa aceita no modo BOOTSEL (<a href="#cap-03">capí
 </section>
 </main>
 <footer class="colofao">
-<p>Manual do SIMUT, gerado em 30/09/2026 por <code>tools/build_manual.py</code> a partir de <code>docs/_manual/</code>. Licença MIT, como o firmware.</p>
+<p>Manual do SIMUT, gerado em 01/10/2026 por <code>tools/build_manual.py</code> a partir de <code>docs/_manual/</code>. Licença MIT, como o firmware.</p>
 <p>Visual no padrão Ângulo. Fonte de títulos: Ângulo Display, recorte da Bricolage Grotesque SemiBold, SIL Open Font License 1.1.</p>
 </footer>
 </div>

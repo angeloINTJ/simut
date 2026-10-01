@@ -232,16 +232,15 @@ O RP2040 tem dois periféricos I²C. Cada um só aceita SDA e SCL em certos pino
 | I2C0 | GP0, GP4, GP8, GP12 | GP1, GP5, GP9, GP13 | GP0/GP1, GP4/GP5, GP8/GP9, GP12/GP13 |
 | I2C1 | GP2, GP6, GP10, GP14 | GP3, GP7, GP11, GP15 | GP2/GP3, GP6/GP7, GP10/GP11, GP14/GP15 |
 
-Com o SDA num pino de SDA e o SCL num pino de SCL **do mesmo periférico**, o aparelho usa o periférico I²C. Com o SDA num periférico e o SCL no outro, como SDA em GP8 e SCL em GP11, ele faz o I²C pelo PIO do RP2040, mais devagar, e registra no log de eventos o aviso `BME in bit-bang (pins have no hardware I2C)`.
+Com o SDA num pino de SDA e o SCL num pino de SCL **do mesmo periférico**, o aparelho usa o periférico I²C. Qualquer outro par é lido pelo PIO do RP2040, mais devagar: o SDA num periférico e o SCL no outro (SDA em GP8 e SCL em GP11), o SDA e o SCL trocados (SDA em GP5 e SCL em GP4) e dois pinos do mesmo papel (SDA em GP0 e SCL em GP4). O log de eventos registra o aviso `BME in bit-bang (no free hardware I2C)`.
 
-Para ligar vários BME280 ou BMP280, siga estas regras, tiradas do código da v2.7.1:
+Para ligar vários BME280 ou BMP280:
 
 1. **Um sensor por par.** A leitura do aparelho aceita dois sensores no mesmo par, em `0x76` e `0x77`, mas a página **Configurações** e o console recusam dois slots ativos no mesmo GPIO. Dê a cada sensor o seu par.
-2. **Um sensor por periférico.** O aparelho prende cada periférico aos pinos do primeiro sensor que o usa, pela ordem dos slots. Um segundo sensor em outro par do mesmo periférico é lido nos pinos do primeiro. Por isso o segundo slot mostra a leitura do primeiro sensor. Use no máximo um sensor em pares do I2C0 e um em pares do I2C1, e ligue os demais em pares cruzados, que vão pelo PIO.
-3. **Nunca inverta SDA e SCL num mesmo periférico.** SDA e SCL trocados (SDA em GP5 e SCL em GP4) ou dois pinos do mesmo papel (SDA em GP0 e SCL em GP4) passam na gravação.
+2. **O periférico fica com o primeiro par.** O aparelho prende cada periférico aos pinos do primeiro sensor que o usa, pela ordem dos slots. Um segundo sensor em outro par do mesmo periférico é lido pelo PIO, como os pares cruzados, e o aviso do log traz `ctx` igual a 100 mais o GPIO do SDA.
 
 ::: perigo
-**SDA e SCL trocados travam o boot.** Pelo código da v2.7.1, um BME280 ou BMP280 com SDA e SCL em pinos do mesmo periférico, mas fora dos papéis da tabela, faz o firmware parar na partida dos sensores, a cada boot, antes de o console e a interface web ficarem prontos. O aparelho confere só se os dois pinos são do mesmo periférico, e a biblioteca de I²C para o processador quando recebe um SDA num pino de SCL. Confira a tabela antes de tocar em **Salvar e reiniciar**. Um aparelho nesse estado só volta apagando a flash inteira pelo BOOTSEL e gravando o firmware de novo ([capítulo 18](#cap-18-bootsel-apagar)); a configuração se perde, e um backup feito com os pinos trocados traz o defeito de volta.
+**Até a v2.8.0, SDA e SCL trocados travavam o boot.** Nessas versões, um BME280 ou BMP280 com SDA e SCL em pinos do mesmo periférico, mas fora dos papéis da tabela, ou com o mesmo GPIO nos dois papéis, faz o firmware parar na partida dos sensores, a cada boot, antes de o console e a interface web ficarem prontos. Nelas, também, um segundo sensor em outro par do mesmo periférico mostra a leitura do primeiro. Num aparelho com a v2.8.0 ou anterior, confira a tabela antes de tocar em **Salvar e reiniciar**. Um aparelho travado assim só volta apagando a flash inteira pelo BOOTSEL e gravando o firmware de novo ([capítulo 18](#cap-18-bootsel-apagar)). Um backup feito com os pinos trocados traz a mesma configuração de volta: restaure-o só num firmware que já tenha a correção.
 :::
 
 ## A placa do projeto {#cap-02-placa}

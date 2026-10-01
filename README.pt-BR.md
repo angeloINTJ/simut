@@ -48,7 +48,7 @@ Os três compartilham o mesmo núcleo:
 | **Release atual** | **v2.8.0** (30/09/2026). O SIMUT saiu do beta com a v2.7.0, com base em medições: soak de 8,18 h sem nenhum reboot e 6 de 6 atualizações pelo ar sem perder nada. A v2.8.0 mantém a configuração quando uma atualização é cortada no meio, e deixa o formato de telemetria personalizado mandar o Content-Type que o servidor espera; a v2.7.4 tinha corrigido a busca de sensores, que deixava em erro um BMP280 em I2C de hardware. |
 | **Imagens publicadas** | Três imagens, cada uma em `.uf2` e `.bin`: `release` (painel touch TFT), `alpha` (LCD 16×2 com console Bluetooth) e `air` (registrador a bateria sem display). Junto vêm os packs de idioma pt-BR e es-ES e um manifesto de OTA. Uma imagem com outro conjunto de recursos sai do [configurador de build](https://angelointj.github.io/simut/configurador/), e o CI a compila da `main`. |
 | **Maturidade** | <ul><li>`release`: **estável**.</li><li>`alpha`: publicado e testado na bancada, com o LCD 16×2 incluído desde 26/09/2026.</li><li>`air`: **experimental**. O único soak longo dele falhou: um sono no ciclo 119 nunca acordou (F28). Um watchdog ao longo do wake hoje mitiga o problema; a causa raiz não foi confirmada.</li></ul> |
-| **Testes** | Todo pull request roda 428 casos de teste no host em 8 suítes, 60 s de fuzzing e análise estática, e compila as seis imagens de firmware com o cache frio. O comportamento no hardware real é verificado numa bancada — ver [Verificação no hardware](#verificação-no-hardware). |
+| **Testes** | Todo pull request roda 432 casos de teste no host em 8 suítes, 60 s de fuzzing e análise estática, e compila as seis imagens de firmware com o cache frio. O comportamento no hardware real é verificado numa bancada — ver [Verificação no hardware](#verificação-no-hardware). |
 
 **Limitações conhecidas.** Cada uma está documentada onde se aplica.
 - **Atualização.** A atualização pelo ar reformata o sistema de arquivos:
@@ -431,7 +431,7 @@ pio test -e native_logpolicy   # persistência de log por transição (45)
 pio test -e native_alarmqueue  # fila da telemetria de alarmes (43)
 pio test -e native_network     # máquina de estados da reconexão Wi-Fi (29)
 pio test -e native_air         # config persistente do SIMUT Air (16)
-pio test -e native_sensors     # tabela de tipos de sensor (9)
+pio test -e native_sensors     # tabela de tipos de sensor (13)
 
 # Checagens de referência do codec V5 (Python vs C++, 20 mil casos aleatórios)
 python3 tools/check_history_v5_parity.py --cases 20000

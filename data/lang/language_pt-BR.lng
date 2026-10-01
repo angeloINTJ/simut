@@ -330,7 +330,7 @@ Escolha um novo PIN
 2d0aad45 Histórico pulado: schema não corresponde a nenhum sensor ativo
 2dfd2825 Login BT admin
 2e7466d7 Histórico retomado: schema corresponde aos sensores ativos
-2f67bcd7 BME em bit-bang (pinos sem I2C de hardware) — ver docs/CONCURRENCY.md
+49e614c5 BME em bit-bang (sem I2C de hardware livre) — ver docs/CONCURRENCY.md
 326af5e8 HTTPS desligado via serial (cert apagado)
 37b8c417 Schema do histórico reconstruído via web (dia descartado)
 3b8726db Config de schema antigo descartada — padrões carregados

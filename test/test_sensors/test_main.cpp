@@ -144,8 +144,72 @@ static void test_table_shape(void) {
     }
 }
 
+/* ── Hardware I2C pin selection (i2cPeripheralForPins / i2cPeripheralFor) ──
+ * Every GPIO has ONE role per controller: GPn is SDA of I2C0 when n%4 == 0,
+ * SCL of I2C0 when n%4 == 1, SDA of I2C1 when n%4 == 2 and SCL of I2C1 when
+ * n%4 == 3. Answering a peripheral for a pair the framework then refuses is
+ * not an error path: TwoWire::setSDA( ) on an illegal pin is a panic( ), on
+ * every boot, before the console exists. */
+
+static void test_i2c_hw_pairs_by_role(void) {
+    const uint8_t i2c0[][2] = { {0,1}, {4,5}, {8,9}, {12,13}, {16,17}, {20,21} };
+    const uint8_t i2c1[][2] = { {2,3}, {6,7}, {10,11}, {14,15}, {18,19}, {26,27} };
+    for (auto& p : i2c0) TEST_ASSERT_EQUAL_INT(0, i2cPeripheralForPins(p[0], p[1]));
+    for (auto& p : i2c1) TEST_ASSERT_EQUAL_INT(1, i2cPeripheralForPins(p[0], p[1]));
+    /* Any SDA of a controller pairs with any of its SCLs: the function select
+     * is per pin, and the framework accepts each one on its own. */
+    TEST_ASSERT_EQUAL_INT(0, i2cPeripheralForPins(4, 9));
+    TEST_ASSERT_EQUAL_INT(0, i2cPeripheralForPins(0, 13));
+    TEST_ASSERT_EQUAL_INT(1, i2cPeripheralForPins(2, 15));
+}
+
+/* The boot-lock: SDA and SCL wired (and configured) the other way round. Both
+ * pins belong to the controller, so a check by pin SET said 0, and
+ * Wire.setSDA(5) panicked. Swapped roles have no hardware path; the driver
+ * takes the bit-bang path, which drives any two GPIOs. */
+static void test_i2c_swapped_roles_have_no_hw_path(void) {
+    const uint8_t swapped[][2] = { {1,0}, {5,4}, {9,8}, {13,12},
+                                   {3,2}, {7,6}, {11,10}, {15,14} };
+    for (auto& p : swapped) TEST_ASSERT_EQUAL_INT(-1, i2cPeripheralForPins(p[0], p[1]));
+}
+
+static void test_i2c_no_hw_path_otherwise(void) {
+    /* One pin of each controller. */
+    TEST_ASSERT_EQUAL_INT(-1, i2cPeripheralForPins(4, 3));
+    TEST_ASSERT_EQUAL_INT(-1, i2cPeripheralForPins(2, 5));
+    /* The same pin twice: the CLI allowed it inside one slot, and setSCL(5)
+     * on a bus whose SDA is 5 is the same panic. */
+    TEST_ASSERT_EQUAL_INT(-1, i2cPeripheralForPins(5, 5));
+    TEST_ASSERT_EQUAL_INT(-1, i2cPeripheralForPins(4, 4));
+    /* Unassigned or out of range: `1u << 255` is undefined behaviour, not -1. */
+    TEST_ASSERT_EQUAL_INT(-1, i2cPeripheralForPins(PIN_UNUSED, 5));
+    TEST_ASSERT_EQUAL_INT(-1, i2cPeripheralForPins(4, PIN_UNUSED));
+    TEST_ASSERT_EQUAL_INT(-1, i2cPeripheralForPins(32, 1));
+}
+
+/* One controller drives one SDA/SCL pair. Two 280s on different pairs of the
+ * same controller used to share it: the second slot's driver ran on the bus
+ * the first had muxed — same address, the other sensor's wires — and read the
+ * first sensor as its own. The second pair now takes the bit-bang path. */
+static void test_i2c_bound_controller_keeps_its_pair(void) {
+    I2cBinding bound[2];
+    TEST_ASSERT_EQUAL_INT(0, i2cPeripheralFor(4, 5, bound));   /* free: may bind */
+    bound[0].sda = 4; bound[0].scl = 5;                         /* what the driver does */
+    TEST_ASSERT_EQUAL_INT(0,  i2cPeripheralFor(4, 5, bound));  /* its own pair */
+    TEST_ASSERT_EQUAL_INT(-1, i2cPeripheralFor(8, 9, bound));  /* I2C0, other pins */
+    TEST_ASSERT_EQUAL_INT(-1, i2cPeripheralFor(4, 9, bound));  /* shares SDA only */
+    TEST_ASSERT_EQUAL_INT(1,  i2cPeripheralFor(2, 3, bound));  /* I2C1 still free */
+    bound[1].sda = 2; bound[1].scl = 3;
+    TEST_ASSERT_EQUAL_INT(-1, i2cPeripheralFor(6, 7, bound));
+    TEST_ASSERT_EQUAL_INT(-1, i2cPeripheralFor(5, 4, bound));  /* no hw path at all */
+}
+
 int main(int /*argc*/, char** /*argv*/) {
     UNITY_BEGIN();
+    RUN_TEST(test_i2c_hw_pairs_by_role);
+    RUN_TEST(test_i2c_swapped_roles_have_no_hw_path);
+    RUN_TEST(test_i2c_no_hw_path_otherwise);
+    RUN_TEST(test_i2c_bound_controller_keeps_its_pair);
     RUN_TEST(test_type_enabled);
     RUN_TEST(test_type_name);
     RUN_TEST(test_default_interval);

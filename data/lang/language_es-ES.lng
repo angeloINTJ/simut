@@ -330,7 +330,7 @@ Elija un nuevo PIN
 2d0aad45 Historial omitido: el esquema no coincide con ningún sensor activo
 2dfd2825 Inicio de sesión BT admin
 2e7466d7 Historial reanudado: el esquema corresponde a los sensores activos
-2f67bcd7 BME en bit-bang (pines sin I2C de hardware) — ver docs/CONCURRENCY.md
+49e614c5 BME en bit-bang (sin I2C de hardware libre) — ver docs/CONCURRENCY.md
 326af5e8 HTTPS desactivado via serial (cert borrado)
 37b8c417 Esquema del historial reconstruido vía web (día descartado)
 3b8726db Config de esquema antiguo descartada — valores de fábrica cargados
