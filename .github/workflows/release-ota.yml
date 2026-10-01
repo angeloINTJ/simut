@@ -16,6 +16,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # Build provenance (the last step): the OIDC token signs the attestation,
+      # and attestations: write stores it against this repository.
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -69,6 +73,16 @@ jobs:
           mkdir -p release/ota
           cp data/lang/*.lng release/ota/
           ls -l release/ota/*.lng
+      - name: Checksums
+        # One file anyone can check a download against with `sha256sum -c`,
+        # without a fleet manager or a JSON parser. manifest.json carries the
+        # sha256 of the images for simut-rx; this covers the packs and the
+        # manifest itself too.
+        run: |
+          set -euo pipefail
+          cd release/ota
+          sha256sum *.bin *.uf2 *.lng manifest.json > SHA256SUMS
+          cat SHA256SUMS
       - name: Attach to the release
         uses: softprops/action-gh-release@v2
         with:
@@ -77,3 +91,18 @@ jobs:
             release/ota/*.uf2
             release/ota/*.lng
             release/ota/manifest.json
+            release/ota/SHA256SUMS
+      - name: Attest build provenance
+        # Ties every published file to this workflow run and the commit it
+        # built (Sigstore, public-good instance). Anyone can check a download
+        # with `gh attestation verify <file> --repo angeloINTJ/simut`. After the
+        # upload on purpose: a failure here must not hold the images back.
+        # Added 2026-10-01; first exercised by the next tag.
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            release/ota/*.bin
+            release/ota/*.uf2
+            release/ota/*.lng
+            release/ota/manifest.json
+            release/ota/SHA256SUMS

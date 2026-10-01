@@ -556,6 +556,14 @@ requires `PERM_SYS_CONFIG`.
   gzip/random, but does not prevent valid-signed malicious firmware).
   The operator is responsible for downloading the binary from a trusted
   channel.
+- **Where a download came from**: every release published by
+  `release-ota.yml` carries a `SHA256SUMS` file and a GitHub build-provenance
+  attestation that ties each image, pack and manifest to the workflow run and
+  the commit that built it. Check a download with `sha256sum -c SHA256SUMS`,
+  and its origin with `gh attestation verify <file> --repo angeloINTJ/simut`.
+  This proves where a file came from; the device still accepts any image a
+  full-admin account uploads. Releases before the one that added this
+  (2026-10-01) have neither.
 - **Rollback**: flashing a previous UF2 restores. Config in `/config/`
   survives OTA (snapshot) and USB reflash if the flash layout hasn't
   changed; if the LittleFS partition changes it may wipe everything
