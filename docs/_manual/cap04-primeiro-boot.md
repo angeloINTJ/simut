@@ -30,7 +30,7 @@ Tenha à mão:
 Um aparelho novo não tem rede configurada. A release e a alpha ligam direto no ponto de acesso de configuração; o Air liga acordado e espera ordens pelo console.
 
 ::: atencao
-**Sem rede, o aparelho não mede.** [release]{.img} [alpha]{.img} Enquanto o ponto de acesso de configuração está aberto, o aparelho não lê os sensores nem grava o histórico, e um ponto de acesso aberto no boot não fecha sozinho. O aparelho só começa a medir depois de entrar numa rede ([capítulo 9](#cap-09-ap-aberto)).
+**Da v2.7.1 à v2.8.0, sem rede o aparelho não media.** [release]{.img} [alpha]{.img} Nessas versões, enquanto o ponto de acesso de configuração está aberto, o aparelho não lê os sensores nem grava o histórico, e um ponto de acesso aberto no boot não fecha sozinho. Atualize o firmware antes de instalar um aparelho que vai funcionar sem Wi-Fi ([capítulo 9](#cap-09-ap-aberto)).
 :::
 
 ### No painel

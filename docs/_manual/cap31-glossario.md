@@ -141,7 +141,7 @@ Política de PIN
 :   As regras do PIN: comprimento mínimo, alfabeto e o teclado ([capítulo 8](#cap-08-politica)).
 
 Ponto de acesso de configuração
-:   A rede Wi-Fi `<nome>_SETUP` que o aparelho cria para ser configurado sem outra rede. Com ela no ar, o aparelho não mede ([capítulo 9](#cap-09-ap)).
+:   A rede Wi-Fi `<nome>_SETUP` que o aparelho cria para ser configurado sem outra rede. Com ela no ar, o aparelho continua medindo; da v2.7.1 à v2.8.0, não media ([capítulo 9](#cap-09-ap-aberto)).
 
 Recompor o histórico
 :   Operação que reescreve o arquivo do dia depois de uma mudança nos slots, mantendo os registros já feitos ([capítulo 6](#cap-06-recompor)).

@@ -200,7 +200,6 @@ figcaption b{color:var(--tinta);font-weight:600}
 <li><strong>Não é um instrumento metrológico certificado.</strong> Antes de usá-lo onde a norma exige instrumento certificado, compare-o com uma referência sua. A calibração por sensor está no <a href="#cap-06-calibracao">capítulo 6</a>.</li>
 <li><strong>Não aciona equipamentos.</strong> O aparelho não tem saídas para relés ou atuadores. Um alarme sai como som, como aviso na tela e como mensagem ao seu servidor.</li>
 <li><strong>Não depende de nuvem.</strong> A interface web sai do próprio aparelho e funciona numa rede local sem internet. As medições só saem para um servidor que você configurar: de fábrica, a telemetria e a linha de alarmes estão desligadas. O que o aparelho procura na rede de fábrica é a hora certa, por NTP (<a href="#cap-10-ntp">capítulo 10</a>).</li>
-<li><strong>Não mede enquanto espera ser configurado.</strong> <span class="selo selo-img">release</span> <span class="selo selo-img">alpha</span> Na v2.7.1, enquanto o ponto de acesso de configuração está aberto, o aparelho não lê os sensores nem grava o histórico (<a href="#cap-09-ap-aberto">capítulo 9</a>). Um aparelho novo liga já no ponto de acesso e só começa a medir depois de entrar numa rede (<a href="#cap-04">capítulo 4</a>).</li>
 </ul>
 <h3 id="cap-01-aparelhos">Os três aparelhos</h3>
 <p>O mesmo código gera três imagens de firmware publicadas, uma para cada montagem de hardware:</p>
@@ -1372,7 +1371,7 @@ pio run -e pico_w_release</code></pre>
 <h3 id="cap-04-boot">O que o boot mostra</h3>
 <p>Um aparelho novo não tem rede configurada. A release e a alpha ligam direto no ponto de acesso de configuração; o Air liga acordado e espera ordens pelo console.</p>
 <aside class="faixa faixa-atencao"><span class="selo selo-alerta"><i></i>Atenção</span>
-<p><strong>Sem rede, o aparelho não mede.</strong> <span class="selo selo-img">release</span> <span class="selo selo-img">alpha</span> Enquanto o ponto de acesso de configuração está aberto, o aparelho não lê os sensores nem grava o histórico, e um ponto de acesso aberto no boot não fecha sozinho. O aparelho só começa a medir depois de entrar numa rede (<a href="#cap-09-ap-aberto">capítulo 9</a>).</p>
+<p><strong>Da v2.7.1 à v2.8.0, sem rede o aparelho não media.</strong> <span class="selo selo-img">release</span> <span class="selo selo-img">alpha</span> Nessas versões, enquanto o ponto de acesso de configuração está aberto, o aparelho não lê os sensores nem grava o histórico, e um ponto de acesso aberto no boot não fecha sozinho. Atualize o firmware antes de instalar um aparelho que vai funcionar sem Wi-Fi (<a href="#cap-09-ap-aberto">capítulo 9</a>).</p>
 </aside>
 <h4>No painel</h4>
 <p><span class="selo selo-img">release</span> Depois de ligar, o painel leva alguns segundos para mostrar as etapas do boot: cerca de 7,5 s, medidos em bancada em 22/09/2026, durante o desenvolvimento da v2.7.1. Em seguida aparecem <code>SIMUT</code>, a versão e a caixa com as etapas (<a href="#cap-11-boot">capítulo 11</a>).</p>
@@ -5185,17 +5184,17 @@ E6614103E7512B29,uSALA-1,Sala,55.00,52.00</code></pre>
 <p>As duas regras da escada são diferentes de propósito. Um aparelho que nunca entrou na rede depois de ligar provavelmente está com a rede errada: o roteador foi trocado, a senha mudou ou o aparelho mudou de lugar. Ele abre o AP logo. Um aparelho que estava funcionando e perdeu a rede provavelmente está diante de uma queda passageira, e abrir o AP cedo tiraria da rede, por 15 min, um aparelho que voltaria sozinho.</p>
 <p>O log de eventos registra o motivo no contexto do evento 403: 0 para o comando <code>ap</code> ou o painel, 1 para o gesto no boot, 2 para aparelho sem rede configurada e 3 para a escada.</p>
 <h4 id="cap-09-ap-aberto">Enquanto o AP está aberto</h4>
+<p><strong>Com o AP aberto, o aparelho continua medindo.</strong> Ele lê os sensores, confere os limites dos alarmes e grava o histórico com o AP de configuração no ar. Só a telemetria e o syslog esperam a rede voltar; a linha de alarmes guarda os eventos na fila e os envia depois. O painel fica na tela do AP, com a rede, a chave e o endereço: um alarme soa pelo buzzer, mas não aparece no vidro enquanto essa tela estiver aberta. No alpha, o LCD mostra as páginas do AP (endereço, rede e chave) quando o AP abre em operação; com o AP aberto no boot, ele fica na barra de progresso.</p>
 <aside class="faixa faixa-perigo"><span class="selo selo-perigo"><i></i>Perigo</span>
-<p><strong>Com o AP aberto, o aparelho não mede.</strong> Enquanto o AP de configuração está no ar, o aparelho não lê os sensores, não confere os limites dos alarmes, não grava o histórico e não envia telemetria nem syslog. O painel fica na tela do AP, com a rede, a chave e o endereço. O LCD fica com os últimos valores lidos, que só se atualizam enquanto alguém usa a interface web pelo AP. Um alarme novo não soa.</p>
-<p>Desde a v2.7.1 o AP também abre sozinho, e isso tem duas consequências:</p>
+<p><strong>Da v2.7.1 à v2.8.0, com o AP aberto o aparelho não media.</strong> Nessas versões, enquanto o AP de configuração está no ar, o aparelho não lê os sensores, não confere os limites dos alarmes e não grava o histórico, e um alarme novo não soa. Como o AP também abre sozinho desde a v2.7.1, isso tem duas consequências:</p>
 <ul>
-<li><strong>Aparelho sem rede configurada</strong> fica no AP desde o boot e não mede até alguém gravar uma rede. Não use nenhuma versão da v2.7.1 à v2.8.0 num aparelho que vai funcionar sem Wi-Fi.</li>
+<li><strong>Aparelho sem rede configurada</strong> fica no AP desde o boot e não mede até alguém gravar uma rede. Não use nenhuma dessas versões num aparelho que vai funcionar sem Wi-Fi.</li>
 <li><strong>Aparelho que perde a rede</strong> por mais de uma volta da escada (cerca de 68 min) passa a alternar 15 min no AP, sem medir, com cerca de 6 a 7 min medindo, até a rede voltar. Numa queda longa, ele fica sem medir cerca de dois terços do tempo.</li>
 </ul>
-<p>Esses números vêm da leitura do código da v2.7.1 e não foram medidos no aparelho. O log de eventos mostra quando isso aconteceu: o evento 403 com contexto 2 ou 3 marca o início, e o 525 <code>AP mode timeout, rebooting to STA</code> marca o fim de cada período.</p>
+<p>Esses números vêm da leitura do código da v2.7.1. O log de eventos mostra quando isso aconteceu: o evento 403 com contexto 2 ou 3 marca o início, e o 525 <code>AP mode timeout, rebooting to STA</code> marca o fim de cada período. O que não foi medido não é recuperado.</p>
 </aside>
 <ul>
-<li>A telemetria e o syslog esperam a rede voltar; o que não foi medido não é recuperado.</li>
+<li>A telemetria e o syslog esperam a rede voltar.</li>
 <li>O aparelho não tenta a rede configurada enquanto o AP está aberto.</li>
 <li>Um AP aberto com o aparelho em operação (pela escada, pelo painel ou pelo comando <code>ap</code>), com uma rede configurada, dura 15 min. Depois disso o aparelho reinicia para tentar a rede de novo, com ou sem alguém conectado ao AP. O evento é <strong>Timeout na conexão WiFi</strong> (525) com o texto <code>AP mode timeout, rebooting to STA</code>. Se a rede ainda não estiver lá, o AP volta na primeira dormência, cerca de 6 a 7 min depois.</li>
 <li>Um AP aberto no boot, pelo gesto ou por falta de rede configurada, fica aberto até alguém gravar uma rede ou reiniciar o aparelho.</li>
@@ -21420,13 +21419,13 @@ echo</code></pre>
 </tr>
 <tr class="odd">
 <td>Medição com o AP aberto</td>
-<td>Nenhuma: não lê sensores, não confere alarmes, não grava histórico nem envia telemetria</td>
+<td>Continua: lê sensores, confere alarmes e grava histórico; telemetria e syslog esperam a rede</td>
 <td><a href="#cap-09-ap-aberto">cap. 9</a></td>
 </tr>
 </tbody>
 </table></div>
 <aside class="faixa faixa-perigo"><span class="selo selo-perigo"><i></i>Perigo</span>
-<p><strong>Com o AP de configuração aberto, a v2.7.1 não mede.</strong> Um aparelho sem rede configurada fica no AP desde o boot, e um que perde a rede por mais de cerca de 68 min passa a alternar 15 min no AP com cerca de 6 a 7 min medindo. O que não foi medido não é recuperado (<a href="#cap-09-ap-aberto">capítulo 9</a>).</p>
+<p><strong>Da v2.7.1 à v2.8.0, com o AP de configuração aberto o aparelho não media.</strong> Nessas versões, um aparelho sem rede configurada fica no AP desde o boot, e um que perde a rede por mais de cerca de 68 min passa a alternar 15 min no AP com cerca de 6 a 7 min medindo. O que não foi medido não é recuperado (<a href="#cap-09-ap-aberto">capítulo 9</a>).</p>
 </aside>
 <h4 id="cap-28-hora">Data e hora</h4>
 <div class="tw"><table>
@@ -22349,18 +22348,18 @@ echo</code></pre>
 <tbody>
 <tr class="odd">
 <td>O painel ou o LCD mostram valores parados, e o histórico não cresce</td>
-<td>O AP de configuração está no ar. Com ele aberto, o aparelho não lê os sensores, não confere os alarmes e não grava o histórico (v2.7.1)</td>
-<td>Configure a rede pelo AP, ou reinicie (<a href="#cap-09-ap-aberto">Enquanto o AP está aberto</a>)</td>
+<td>Da v2.7.1 à v2.8.0: o AP de configuração está no ar, e nessas versões, com ele aberto, o aparelho não lê os sensores, não confere os alarmes e não grava o histórico</td>
+<td>Atualize o firmware. Até lá, configure a rede pelo AP ou reinicie (<a href="#cap-09-ap-aberto">Enquanto o AP está aberto</a>)</td>
 </tr>
 <tr class="even">
 <td>Um aparelho que funciona sem Wi-Fi nunca gravou nada</td>
-<td>Sem rede configurada, a v2.7.1 abre o AP no boot e fica nele</td>
-<td>Configure uma rede Wi-Fi no aparelho (<a href="#cap-09-ap-aberto">capítulo 9</a>)</td>
+<td>Da v2.7.1 à v2.8.0, sem rede configurada, o aparelho abre o AP no boot, fica nele e não mede</td>
+<td>Atualize o firmware, ou configure uma rede Wi-Fi no aparelho (<a href="#cap-09-ap-aberto">capítulo 9</a>)</td>
 </tr>
 <tr class="odd">
 <td>Buracos de cerca de 15 min no histórico durante uma queda longa da rede</td>
-<td>A escada de reconexão abriu o AP, e com o AP no ar o aparelho não mede (v2.7.1)</td>
-<td>Confira no log os eventos 403 e 525. Restabeleça a rede; o trecho sem medição não é recuperado</td>
+<td>Da v2.7.1 à v2.8.0: a escada de reconexão abriu o AP, e com o AP no ar essas versões não medem</td>
+<td>Atualize o firmware. Confira no log os eventos 403 e 525; o trecho sem medição não é recuperado</td>
 </tr>
 <tr class="even">
 <td>O histórico parou e o log mostra 512</td>
@@ -24923,7 +24922,7 @@ As regras do PIN: comprimento mínimo, alfabeto e o teclado (<a href="#cap-08-po
 </dd>
 <dt>Ponto de acesso de configuração</dt>
 <dd>
-A rede Wi-Fi <code>&lt;nome&gt;_SETUP</code> que o aparelho cria para ser configurado sem outra rede. Com ela no ar, o aparelho não mede (<a href="#cap-09-ap">capítulo 9</a>).
+A rede Wi-Fi <code>&lt;nome&gt;_SETUP</code> que o aparelho cria para ser configurado sem outra rede. Com ela no ar, o aparelho continua medindo; da v2.7.1 à v2.8.0, não media (<a href="#cap-09-ap-aberto">capítulo 9</a>).
 </dd>
 <dt>Recompor o histórico</dt>
 <dd>

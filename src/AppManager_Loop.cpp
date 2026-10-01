@@ -255,11 +255,18 @@ void AppManager::loop( ) {
 
  watchdog_update( );
 
- if (_isApMode) {
- TRACE_MOD(0, MOD_IDLE);
- return;
- }
-
+ /* AP mode used to RETURN here, before everything below: the sensor heal,
+  * history, the .wip catch-up and core0Yield( ) — the only caller of
+  * checkAlarmConditions( ). While the AP was a setup screen someone opened
+  * on purpose (v1.0.0) that was a pause; v2.7.1 made it open by itself — a
+  * device with no network configured boots into it, and the reconnect
+  * ladder falls back to it — and from then on a monitor without Wi-Fi
+  * measured nothing, recorded nothing and sounded no alarm. Found by reading
+  * while the v2.7.1 manual was written (finding 48). Only what needs the
+  * upstream network stays out: with the station down, syslog and telemetry
+  * have nowhere to go, and the alarm line's queue keeps its edges for when
+  * the network is back. */
+ if (!_isApMode) {
  /* Syslog drain: Core 0, every loop, independent of menu/render state so a
   * WARN raised during a menu still leaves the box. UDP fire-and-forget; a
   * no-op when disabled or the link is down. */
@@ -276,6 +283,7 @@ void AppManager::loop( ) {
  bool telSuccess;
  if (_telemetryMgr->consumeLastSendResult(telSuccess)) {
  _displayMgr->setTelemetrySendStatus(telSuccess);
+ }
  }
  }
  }

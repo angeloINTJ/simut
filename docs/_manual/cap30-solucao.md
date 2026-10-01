@@ -17,9 +17,9 @@ Esta é a falha que mais importa num equipamento de monitoramento. Confira estes
 
 | Sintoma | Causa provável | O que fazer |
 |---|---|---|
-| O painel ou o LCD mostram valores parados, e o histórico não cresce | O AP de configuração está no ar. Com ele aberto, o aparelho não lê os sensores, não confere os alarmes e não grava o histórico (v2.7.1) | Configure a rede pelo AP, ou reinicie ([Enquanto o AP está aberto](#cap-09-ap-aberto)) |
-| Um aparelho que funciona sem Wi-Fi nunca gravou nada | Sem rede configurada, a v2.7.1 abre o AP no boot e fica nele | Configure uma rede Wi-Fi no aparelho ([capítulo 9](#cap-09-ap-aberto)) |
-| Buracos de cerca de 15 min no histórico durante uma queda longa da rede | A escada de reconexão abriu o AP, e com o AP no ar o aparelho não mede (v2.7.1) | Confira no log os eventos 403 e 525. Restabeleça a rede; o trecho sem medição não é recuperado |
+| O painel ou o LCD mostram valores parados, e o histórico não cresce | Da v2.7.1 à v2.8.0: o AP de configuração está no ar, e nessas versões, com ele aberto, o aparelho não lê os sensores, não confere os alarmes e não grava o histórico | Atualize o firmware. Até lá, configure a rede pelo AP ou reinicie ([Enquanto o AP está aberto](#cap-09-ap-aberto)) |
+| Um aparelho que funciona sem Wi-Fi nunca gravou nada | Da v2.7.1 à v2.8.0, sem rede configurada, o aparelho abre o AP no boot, fica nele e não mede | Atualize o firmware, ou configure uma rede Wi-Fi no aparelho ([capítulo 9](#cap-09-ap-aberto)) |
+| Buracos de cerca de 15 min no histórico durante uma queda longa da rede | Da v2.7.1 à v2.8.0: a escada de reconexão abriu o AP, e com o AP no ar essas versões não medem | Atualize o firmware. Confira no log os eventos 403 e 525; o trecho sem medição não é recuperado |
 | O histórico parou e o log mostra 512 | O aparelho perdeu a referência de hora, e sem ela o histórico não grava | Corrija o acesso ao NTP ou acerte a hora ([capítulo 10](#cap-10)). O evento 513 marca a volta |
 | O histórico parou e o log mostra 515 | Nenhum sensor está dando valor | Veja a tabela de sensores do **Painel de Controle** e o [capítulo 6](#cap-06-validacao) |
 | O log mostra **Pulando arquivo de log ativo** (563) | O sistema de arquivos passou de 86 % de ocupação | Remova arquivos que você enviou, como temas, pacotes de idioma e `/web` ([capítulo 15](#cap-15-capacidade)) |

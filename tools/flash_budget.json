@@ -523,7 +523,7 @@
   "21,428. Against the published v2.7.4 .bin: release +1,376, alpha and air +32."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-10-01 fix/i2c-pin-roles on main 2721eb2: all six measured again after the I2C pin check learned the SDA/SCL roles and each controller its bound pair (release +48, test +224, test_https +240, asserts +48, alpha +56, air +176 B of flash; test and air also carry the CLI's same-pin-in-one-slot refusal). Budgets unchanged: the growth fits under each. measured is the zopfli image PlatformIO prints.",
+ "measured_on": "2026-10-01 fix/ap-mode-keeps-measuring rebased on fix/i2c-pin-roles (#203), over main 7755384: all six measured on the combined tree. Against #203 alone: the same used for release, test, test_https, asserts and alpha; air -8 B (1,004,384). The AP-mode early return gave way to a gate around syslog and telemetry. Budgets unchanged: the growth of both fits under each. measured is the zopfli image PlatformIO prints.",
  "measured_at_commit": "chore/v2.8.0 on main 8aa898b (#195 merged; SIMUT_VERSION 2.8.0; budgets unchanged). All six rebuilt here; release, test, alpha and air byte-identical to the candidate tested on the bench. measured is the zopfli image PlatformIO prints.",
  "envs": {
   "pico_w_release": {
@@ -548,7 +548,7 @@
   },
   "pico_w_air": {
    "budget": 1005960,
-   "measured": 1004392
+   "measured": 1004384
   }
  }
 }

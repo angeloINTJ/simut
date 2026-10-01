@@ -33,7 +33,6 @@ Um mesmo profissional pode acumular mais de uma dessas funções. O [roteiro de 
 - **Não é um instrumento metrológico certificado.** Antes de usá-lo onde a norma exige instrumento certificado, compare-o com uma referência sua. A calibração por sensor está no [capítulo 6](#cap-06-calibracao).
 - **Não aciona equipamentos.** O aparelho não tem saídas para relés ou atuadores. Um alarme sai como som, como aviso na tela e como mensagem ao seu servidor.
 - **Não depende de nuvem.** A interface web sai do próprio aparelho e funciona numa rede local sem internet. As medições só saem para um servidor que você configurar: de fábrica, a telemetria e a linha de alarmes estão desligadas. O que o aparelho procura na rede de fábrica é a hora certa, por NTP ([capítulo 10](#cap-10-ntp)).
-- **Não mede enquanto espera ser configurado.** [release]{.img} [alpha]{.img} Na v2.7.1, enquanto o ponto de acesso de configuração está aberto, o aparelho não lê os sensores nem grava o histórico ([capítulo 9](#cap-09-ap-aberto)). Um aparelho novo liga já no ponto de acesso e só começa a medir depois de entrar numa rede ([capítulo 4](#cap-04)).
 
 ## Os três aparelhos {#cap-01-aparelhos}
 
