@@ -132,6 +132,8 @@ public:
  }
 
  uint8_t alarmQueueSize( ) const { return _alarmQueue.size( ); }
+ /** #161: o detector de borda só reoferece o que a fila recusou quando ela tiver espaço. */
+ bool alarmQueueFull( ) const { return _alarmQueue.full( ); }
  uint16_t alarmDropped( ) const { return _alarmQueue.dropped( ); }
  bool isAlarmLineEnabled( ) const { return _alarmEnabled; }
 

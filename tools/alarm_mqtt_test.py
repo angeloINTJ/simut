@@ -25,6 +25,11 @@ Uso:
                     Depois confirma tudo e exige fila 0. O template ganha 120 B
                     de enchimento (~191 B por registro): 11 registros passam de
                     2048 B, e N=12 sobra (nem toda borda vira registro).
+  ... --refused-edge  #161: qmax 1 e nada confirmado, então a 2ª borda do mesmo
+                    canal é recusada (fila cheia, descartados +1). Depois
+                    confirma tudo e exige que essa borda, ainda ativa, chegue
+                    com um seq novo. Até 2026-10-01 ela ficava latchada como
+                    anunciada e só voltava com um reinício.
 
 Requisitos: pyserial, paho-mqtt, requests, docker (ou broker em SIMUT_MQTT_BROKER).
 """
@@ -241,6 +246,8 @@ def main():
                     help="tel interval 0: a linha convencional desligada")
     ap.add_argument("--burst", type=int, default=0, metavar="N",
                     help="N idas e voltas do limite sem confirmar (qmax 32)")
+    ap.add_argument("--refused-edge", action="store_true",
+                    help="#161: borda recusada pela fila cheia (qmax 1) tem de chegar depois do ACK")
     args = ap.parse_args()
 
     broker_host, broker_port = start_broker()
@@ -264,7 +271,8 @@ def main():
     dev.cmd("tel crypto off")
     dev.cmd("alarm set on")
     dev.cmd("alarm set mode json")
-    dev.cmd("alarm set qmax 32" if args.burst else "alarm set qmax 16")
+    dev.cmd("alarm set qmax 1" if args.refused_edge
+            else "alarm set qmax 32" if args.burst else "alarm set qmax 16")
     if args.tel_off:
         dev.cmd("tel interval 0")
     dev.cmd(f"user del {TEST_USER}")
@@ -309,7 +317,7 @@ def main():
 
     # ── broker: assina e ack ──
     print("\n[03] Broker: assinar simut/data/alarm e publicar ACK")
-    got = {"payloads": [], "acked": 0, "hold": bool(args.burst)}
+    got = {"payloads": [], "acked": 0, "hold": bool(args.burst or args.refused_edge)}
 
     def on_connect(client, userdata, flags, reason_code, properties=None):
         client.subscribe("simut/data/alarm")
@@ -366,6 +374,44 @@ def main():
             time.sleep(2)
         big = max((len(p) for p in got["payloads"]), default=0)
         check("lote maior que 2048 B publicado", big > 2048, f"maior={big} B")
+
+    # ── #161: a borda que a fila cheia recusou chega quando há espaço ──
+    if args.refused_edge and slot is not None:
+        print("\n[04c] Borda recusada pela fila cheia, e o que acontece com ela depois do ACK (#161)")
+
+        def queue_state():
+            r = dev.cmd("alarm show", 2)
+            m = re.search(r"(?:fila|queue)\s+(\d+)/(\d+)\s*\|\s*(?:descartados|dropped)\s+(\d+)", r)
+            return tuple(int(x) for x in m.groups()) if m else None
+
+        def seen_seqs():
+            out = set()
+            for body in list(got["payloads"]):
+                try:
+                    recs = json.loads(body) if body.startswith("[") else []
+                except ValueError:
+                    continue
+                out |= {r["seq"] for r in recs if isinstance(r, dict) and "seq" in r}
+            return out
+
+        time.sleep(12)                        # [04] put the limit back: the edge ends
+        st = queue_state()
+        check("fila cheia e nada confirmado", st is not None and st[0] == st[1] == 1, str(st))
+        before_seqs, dropped0 = seen_seqs(), (st[2] if st else 0)
+        dev.cmd(f"sensor {slot} tmax -100")   # the same channel trips again: a new edge
+        time.sleep(20)                        # two passes of debounce, and a margin
+        st = queue_state()
+        check("a borda nova foi recusada (descartados +1)",
+              st is not None and st[2] == dropped0 + 1, f"{st}, antes {dropped0}")
+        got["hold"] = False                   # the server comes back and confirms
+        deadline = time.time() + 120
+        fresh = set()
+        while time.time() < deadline and not fresh:
+            fresh = seen_seqs() - before_seqs
+            time.sleep(2)
+        check("a borda recusada, ainda ativa, chegou depois do ACK", bool(fresh),
+              f"seqs vistos {sorted(seen_seqs())}, antes {sorted(before_seqs)}")
+        dev.cmd(f"sensor {slot} tmax 100")
 
     if slot is not None:
         # Alarms off BEFORE the stored limits come back: on the bench the

@@ -18,6 +18,7 @@
 #include <Arduino.h>
 #include <memory>
 #include "SystemDefs.h"
+#include "AlarmEdgeLatch.h"
 #if SIMUT_AIR
 #include "air/AirConfig.h"
 #endif
@@ -153,14 +154,16 @@ private:
  int8_t _alarmDeactivateSlot = -1;
 
  /* ── 2ª linha de telemetria (v21): detecção de borda de alarme/erro ──────
-  * Estado por slot, em RAM (~20 B). trip = canal fora do limite (borda já
-  * confirmada e enfileirada); cand = candidato visto em 1 ciclo (debounce de
-  * 2 ciclos, ~10 s); err = sensor em falha (sem debounce — a histerese de
-  * 3 erros já acontece no SensorManager). Zerado no boot; consumido por
-  * checkAlarmConditions( ). */
- uint8_t _alarmTripBits[MAX_SENSORS] = {0};
+  * Estado por slot, em RAM (~38 B). trip = canal fora do limite (borda já
+  * confirmada e aceita pela fila); cand = candidato visto em 1 ciclo
+  * (debounce de 2 ciclos, ~10 s); err = sensor em falha (sem debounce — a
+  * histerese de 3 erros já acontece no SensorManager). trip e err guardam,
+  * desde 2026-10-01 (#161), também a borda que a fila CHEIA recusou, para
+  * oferecê-la de novo quando houver espaço (AlarmEdgeLatch.h). Zerado no
+  * boot; consumido por checkAlarmConditions( ). */
+ AlarmEdgeLatch<uint8_t> _alarmTrip[MAX_SENSORS];
  uint8_t _alarmCandBits[MAX_SENSORS] = {0};
- uint16_t _alarmErrBits = 0;
+ AlarmEdgeLatch<uint16_t> _alarmErr;
  /** Bit por slot: a janela de manutenção estava aberta na última passada.
   *  Vive na RAM de propósito — a JANELA está na flash, este bit só existe para
   *  detectar a TRANSIÇÃO, e um reboot dentro da janela não deve reemitir

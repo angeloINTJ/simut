@@ -523,36 +523,36 @@
   "21,428. Against the published v2.7.4 .bin: release +1,376, alpha and air +32."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-10-01 feat/pico2w-s0 rebased on #214, over main 94487f3: the watchdog/PSM/timer-IRQ refactor leaves #214's six RP2040 images byte-identical, and the WDSEL offset fix that follows changes a constant only (same sizes). New: pico2_w_release, the release on the RP2350, 976,984 B used of its own 3,141,632 B slot (a per-env ceiling, read by check_flash_budget.py), .bin 989,296 B. measured is the zopfli image PlatformIO prints.",
+ "measured_on": "2026-10-01 fix/alarm-refused-edge on main 62bda39: all seven measured after the alarm edge detector learned to latch only what the queue took and to offer a refused edge again once the queue has room (#161, AlarmEdgeLatch.h): release +200, test +200, test_https +200, asserts +208, alpha +208, air +216, pico2_w_release +272 B. Budgets unchanged: the growth fits under each. measured is the zopfli image PlatformIO prints.",
  "measured_at_commit": "chore/v2.8.0 on main 8aa898b (#195 merged; SIMUT_VERSION 2.8.0; budgets unchanged). All six rebuilt here; release, test, alpha and air byte-identical to the candidate tested on the bench. measured is the zopfli image PlatformIO prints.",
  "envs": {
   "pico_w_release": {
    "budget": 1004740,
-   "measured": 1003724
+   "measured": 1003924
   },
   "pico_w_test": {
    "budget": 1009396,
-   "measured": 1008556
+   "measured": 1008756
   },
   "pico_w_test_https": {
    "budget": 1017036,
-   "measured": 1016148
+   "measured": 1016348
   },
   "pico_w_asserts": {
    "budget": 1006900,
-   "measured": 1005956
+   "measured": 1006164
   },
   "pico_w_alpha": {
    "budget": 966796,
-   "measured": 965292
+   "measured": 965500
   },
   "pico_w_air": {
    "budget": 1006704,
-   "measured": 1005272
+   "measured": 1005488
   },
   "pico2_w_release": {
    "budget": 978184,
-   "measured": 976984,
+   "measured": 977256,
    "ceiling": 3141632
   }
  }

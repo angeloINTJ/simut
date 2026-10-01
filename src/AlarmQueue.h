@@ -13,7 +13,10 @@
  * Política de estouro: drop-newest. O registro mais ANTIGO é o mais
  * provável de ainda representar o estado de alarme vigente; descartar o
  * mais velho esconderia alarme jamais confirmado. Cada descarte soma em
- * dropped( ) e vira métrica alarmDropped.
+ * dropped( ) e vira métrica alarmDropped. Desde 2026-10-01 (#161), uma
+ * borda recusada não fica latchada como anunciada: se a condição continua
+ * ativa, o detector a oferece de novo quando a fila tiver espaço
+ * (AlarmEdgeLatch.h).
  *
  * seq: uint16 monotônico por boot, começa em 1, pula o 0 no wrap.
  * 0 é o valor "inválido" (push recusado). É a chave do ACK — resolve

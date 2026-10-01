@@ -252,6 +252,7 @@ Vários aparelhos no mesmo broker precisam de tópicos diferentes. Com o mesmo *
 
 - **Capacidade.** O **Tamanho da fila (RAM)**, de 1 a 64; de fábrica, 32.
 - **Fila cheia.** O evento novo é recusado, e os mais antigos ficam. O aparelho registra o evento 553, **Estouro da fila de alarmes**, com o total recusado desde o último reinício. O registro mais antigo é o que mais provavelmente ainda descreve um alarme em curso, e descartá-lo esconderia um alarme nunca confirmado.
+- **Um alarme recusado volta quando houver espaço.** Uma borda de limite ou de falha recusada com a fila cheia é oferecida de novo assim que a fila tiver espaço, se a condição ainda estiver ativa. O registro sai com a hora e o valor daquele momento, e o evento 553 conta a recusa uma vez só. Uma condição que terminou antes disso não gera registro. Ações (silenciar, desativar) e bordas da janela de manutenção recusadas não voltam. Até a v2.8.0, a borda recusada ficava marcada como enviada e só voltava depois de um reinício.
 - **Diminuir a capacidade** com a fila cheia descarta os registros mais antigos até caber.
 - **Reinício.** A fila vive na RAM: um reinício perde tudo o que não foi confirmado. Os registros de estado depois do reinício ([Depois de um reinício](#cap-22-reinicio)) refazem o que ainda vale.
 - **Linha desligada.** Com a linha desligada, nada entra na fila e nada sai. O que já estava nela volta a sair quando a linha é religada.
