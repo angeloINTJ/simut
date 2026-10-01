@@ -18,6 +18,7 @@
 
 #include <unity.h>
 #include "AlarmQueue.h"
+#include "AlarmEdgeLatch.h" /* #161: an edge the full queue refused waits for room */
 #include "AlarmPayload.h"
 #include "ConfigApply.h"
 #include "ConfigMigrate.h" /* v24: legacy config blobs by segment, sizes frozen */
@@ -1166,6 +1167,116 @@ static void test_cfgmig_refuses_wrong_magic_version_or_length(void) {
 }
 
 
+/* ── #161: an edge the full queue refused is announced once there is room ──
+ *
+ * The detector latched an edge whether or not the queue took its record. An
+ * alarm that began while the queue was full (the server away long enough) was
+ * marked as announced and never sent, not even after the queue drained: only a
+ * reboot or the condition clearing and tripping again brought it back. These
+ * drive the latch the way AppManager::handleAlarmTelemetryEdges( ) does, one
+ * call per pass, through the same alarmEdgeOffer( ) it calls. */
+static uint16_t offerTrip(AlarmEdgeLatch<uint8_t>& l, uint8_t ch, bool active,
+                          AlarmQueue& q, uint32_t now) {
+    return alarmEdgeOffer(l, (uint8_t)(1u << ch), active, [&] {
+        return q.push(now, 0, ch, 100, ALARM_ERR_ALARM);
+    });
+}
+
+static void test_161_a_refused_edge_is_announced_once_the_queue_has_room(void) {
+    AlarmQueue q(2);
+    q.push(1, 1, 0, 0, ALARM_ERR_ALARM);
+    q.push(2, 2, 0, 0, ALARM_ERR_ALARM);          /* full: the server is away */
+    AlarmEdgeLatch<uint8_t> trip;
+
+    /* The freezer leaves its range while the queue is full. */
+    alarmEdgeRoom(trip, q.full( ));
+    TEST_ASSERT_EQUAL_UINT16(0, offerTrip(trip, 0, true, q, 100));
+    TEST_ASSERT_EQUAL_UINT16(1, q.dropped( ));
+
+    /* Still full, still out of range: not offered again, not counted again. */
+    for (uint32_t t = 105; t < 160; t += 5) {
+        alarmEdgeRoom(trip, q.full( ));
+        TEST_ASSERT_EQUAL_UINT16(0, offerTrip(trip, 0, true, q, t));
+    }
+    TEST_ASSERT_EQUAL_UINT16(1, q.dropped( ));
+    TEST_ASSERT_EQUAL_UINT8(2, q.size( ));
+
+    /* The server comes back and confirms what it had: the alarm goes out. */
+    q.ackOldest(2);
+    alarmEdgeRoom(trip, q.full( ));
+    TEST_ASSERT_NOT_EQUAL(0, offerTrip(trip, 0, true, q, 200));
+    AlarmRecord r[2];
+    TEST_ASSERT_EQUAL_UINT8(1, q.snapshot(r, 2));
+    TEST_ASSERT_EQUAL_UINT32(200, r[0].epoch);
+
+    /* Announced now: later passes add nothing while it stays out of range. */
+    for (uint32_t t = 205; t < 260; t += 5) {
+        alarmEdgeRoom(trip, q.full( ));
+        TEST_ASSERT_EQUAL_UINT16(0, offerTrip(trip, 0, true, q, t));
+    }
+    TEST_ASSERT_EQUAL_UINT8(1, q.size( ));
+}
+
+static void test_161_an_edge_that_ends_while_refused_is_not_announced(void) {
+    AlarmQueue q(1);
+    q.push(1, 1, 0, 0, ALARM_ERR_ALARM);
+    AlarmEdgeLatch<uint8_t> trip;
+    alarmEdgeRoom(trip, q.full( ));
+    offerTrip(trip, 0, true, q, 100);              /* refused */
+    alarmEdgeRoom(trip, q.full( ));
+    offerTrip(trip, 0, false, q, 105);             /* back in range, still full */
+    q.ackOldest(1);
+    alarmEdgeRoom(trip, q.full( ));
+    TEST_ASSERT_EQUAL_UINT16(0, offerTrip(trip, 0, false, q, 200));
+    TEST_ASSERT_EQUAL_UINT8(0, q.size( ));
+    TEST_ASSERT_EQUAL_UINT16(1, q.dropped( ));     /* the loss stays counted */
+    /* and if it trips again later, that is a new edge, announced normally */
+    alarmEdgeRoom(trip, q.full( ));
+    TEST_ASSERT_NOT_EQUAL(0, offerTrip(trip, 0, true, q, 300));
+}
+
+/* Room offers again what was refused, and only that: what the queue already
+ * took is not sent twice. */
+static void test_161_room_offers_only_the_refused_edges(void) {
+    AlarmQueue q(2);
+    AlarmEdgeLatch<uint8_t> trip;
+    alarmEdgeRoom(trip, q.full( ));
+    TEST_ASSERT_NOT_EQUAL(0, offerTrip(trip, 0, true, q, 100));   /* channel 0 taken */
+    q.push(101, 9, 0, 0, ALARM_ERR_ERROR);                         /* another slot fills it */
+    alarmEdgeRoom(trip, q.full( ));
+    offerTrip(trip, 0, true, q, 105);
+    TEST_ASSERT_EQUAL_UINT16(0, offerTrip(trip, 1, true, q, 105)); /* channel 1 refused */
+    q.ackOldest(2);
+    alarmEdgeRoom(trip, q.full( ));
+    TEST_ASSERT_EQUAL_UINT16(0, offerTrip(trip, 0, true, q, 200));
+    TEST_ASSERT_NOT_EQUAL(0, offerTrip(trip, 1, true, q, 200));
+    AlarmRecord r[2];
+    TEST_ASSERT_EQUAL_UINT8(1, q.snapshot(r, 2));
+    TEST_ASSERT_EQUAL_UINT8(1, r[0].channel);
+}
+
+/* The error latch is a bit per slot in a uint16_t: the top slot works too, and
+ * reset( ) (line switched off, slot removed) forgets both kinds of mark. */
+static void test_161_the_slot_latch_is_sixteen_bits_wide(void) {
+    AlarmQueue q(1);
+    q.push(1, 1, 0, 0, ALARM_ERR_ALARM);
+    AlarmEdgeLatch<uint16_t> err;
+    const uint16_t top = (uint16_t)(1u << 15);
+    alarmEdgeRoom(err, q.full( ));
+    TEST_ASSERT_EQUAL_UINT16(0, alarmEdgeOffer(err, top, true, [&] {
+        return q.push(100, 15, 0, 0, ALARM_ERR_ERROR); }));
+    TEST_ASSERT_FALSE(err.due(top));
+    err.reset( );
+    TEST_ASSERT_TRUE(err.due(top));
+    q.ackOldest(1);
+    alarmEdgeRoom(err, q.full( ));
+    TEST_ASSERT_NOT_EQUAL(0, alarmEdgeOffer(err, top, true, [&] {
+        return q.push(200, 15, 0, 0, ALARM_ERR_ERROR); }));
+    TEST_ASSERT_FALSE(err.due(top));
+    TEST_ASSERT_EQUAL_UINT16(top, err.announced);
+}
+
+
 int main(int argc, char** argv) {
     (void)argc;
     (void)argv;
@@ -1213,5 +1324,9 @@ int main(int argc, char** argv) {
     RUN_TEST(test_cfgmig_refuses_wrong_magic_version_or_length);
     RUN_TEST(test_classify_flags_an_unclassified_byte);
     RUN_TEST(test_change_list_renders_names);
+    RUN_TEST(test_161_a_refused_edge_is_announced_once_the_queue_has_room);
+    RUN_TEST(test_161_an_edge_that_ends_while_refused_is_not_announced);
+    RUN_TEST(test_161_room_offers_only_the_refused_edges);
+    RUN_TEST(test_161_the_slot_latch_is_sixteen_bits_wide);
     return UNITY_END();
 }

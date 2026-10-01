@@ -615,21 +615,29 @@ void AppManager::handleAlarmTelemetryEdges( ) {
 
 	if (!cfg.alarmTel.enabled) {
 		/* linha desligada: zera o estado para religar sem lixo */
-		memset(_alarmTripBits, 0, sizeof(_alarmTripBits));
+		for (auto& t : _alarmTrip) t.reset( );
 		memset(_alarmCandBits, 0, sizeof(_alarmCandBits));
-		_alarmErrBits = 0;
+		_alarmErr.reset( );
 		_alarmMaintBits = 0;
 		return;
 	}
+
+	/* #161: o que a fila CHEIA recusou fica marcado e não é oferecido de novo
+	 * a cada passada (seria um log 553 e um "descartado" a cada ~5 s). Com
+	 * espaço na fila, essas bordas voltam a valer, e as que seguem ativas
+	 * saem nesta passada. */
+	const bool queueFull = _telemetryMgr->alarmQueueFull( );
+	alarmEdgeRoom(_alarmErr, queueFull);
+	for (auto& t : _alarmTrip) alarmEdgeRoom(t, queueFull);
 
 	const auto& sensors = _sensorMgr->getRuntimeSensors( );
 	const uint32_t nowEpoch = (uint32_t)time(nullptr);
 
 	for (int i = 0; i < MAX_SENSORS; i++) {
 		if (!cfg.sensors[i].active) {
-			_alarmTripBits[i] = 0;
+			_alarmTrip[i].reset( );
 			_alarmCandBits[i] = 0;
-			_alarmErrBits &= (uint16_t)~(1u << i);
+			_alarmErr.clear((uint16_t)(1u << i));
 			_alarmMaintBits &= (uint16_t)~(1u << i);
 			continue;
 		}
@@ -669,9 +677,9 @@ void AppManager::handleAlarmTelemetryEdges( ) {
 			/* Estado de limite/erro zerado ao entrar: sair da manutenção com um
 			 * sensor já fora de faixa tem de RELATCHAR e alarmar de novo, e não
 			 * herdar o bit de antes e ficar calado. */
-			_alarmTripBits[i] = 0;
+			_alarmTrip[i].reset( );
 			_alarmCandBits[i] = 0;
-			_alarmErrBits &= (uint16_t)~(1u << i);
+			_alarmErr.clear((uint16_t)(1u << i));
 			continue;
 		}
 
@@ -692,13 +700,13 @@ void AppManager::handleAlarmTelemetryEdges( ) {
 		const bool errNow = (live->inErrorState || live->hardwareMismatch);
 		if (errNow) {
 			if (_displayMgr->isAlarmErrMuted(i)) {
-				_alarmErrBits &= (uint16_t)~(1u << i);
-				_alarmTripBits[i] = 0;
+				_alarmErr.clear((uint16_t)(1u << i));
+				_alarmTrip[i].reset( );
 				_alarmCandBits[i] = 0;
 				continue;
 			}
-			if (!(_alarmErrBits & (1u << i))) {
-				_alarmErrBits |= (1u << i);
+			/* Só a borda que a fila aceitou fica latchada (#161). */
+			alarmEdgeOffer(_alarmErr, (uint16_t)(1u << i), true, [&]( ) -> uint16_t {
 				uint8_t firstCh = CH_TEMP;
 				for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
 					if (sensorHasChannel((SensorType)cfg.sensors[i].sensorType, c)) {
@@ -706,18 +714,18 @@ void AppManager::handleAlarmTelemetryEdges( ) {
 						break;
 					}
 				}
-				_telemetryMgr->pushAlarm((uint8_t)i, firstCh, NAN, ALARM_ERR_ERROR);
-			}
+				return _telemetryMgr->pushAlarm((uint8_t)i, firstCh, NAN, ALARM_ERR_ERROR);
+			});
 			/* em falha não há valor a comparar com limites */
-			_alarmTripBits[i] = 0;
+			_alarmTrip[i].reset( );
 			_alarmCandBits[i] = 0;
 			continue;
 		}
-		_alarmErrBits &= (uint16_t)~(1u << i); /* voltou do erro */
+		_alarmErr.clear((uint16_t)(1u << i)); /* voltou do erro */
 
 		/* Bordas de LIMITE: só com alarmes habilitados para o slot. */
 		if (!cfg.sensors[i].alarmsActive) {
-			_alarmTripBits[i] = 0;
+			_alarmTrip[i].reset( );
 			_alarmCandBits[i] = 0;
 			continue;
 		}
@@ -731,18 +739,18 @@ void AppManager::handleAlarmTelemetryEdges( ) {
 			const bool trip = (v < cfg.sensors[i].chMin[c] || v > cfg.sensors[i].chMax[c]);
 			if (trip) {
 				if (_alarmCandBits[i] & bit) {
-					/* 2º ciclo consecutivo → borda confirmada */
+					/* 2º ciclo consecutivo → borda confirmada; latcha só se a
+					 * fila aceitou (#161) */
 					_alarmCandBits[i] &= (uint8_t)~bit;
-					if (!(_alarmTripBits[i] & bit)) {
-						_alarmTripBits[i] |= bit;
-						_telemetryMgr->pushAlarm((uint8_t)i, c, v, ALARM_ERR_ALARM);
-					}
+					alarmEdgeOffer(_alarmTrip[i], bit, true, [&]( ) -> uint16_t {
+						return _telemetryMgr->pushAlarm((uint8_t)i, c, v, ALARM_ERR_ALARM);
+					});
 				} else {
 					_alarmCandBits[i] |= bit;
 				}
 			} else {
 				_alarmCandBits[i] &= (uint8_t)~bit;
-				_alarmTripBits[i] &= (uint8_t)~bit;
+				_alarmTrip[i].clear(bit);
 			}
 		}
 	}
