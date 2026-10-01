@@ -49,11 +49,11 @@ falha antes (`CLAUDE.md`, *Tests first*).
 
 | Item | Estado |
 |---|---|
-| Com o AP de configuração aberto, o aparelho não mede, não grava e não alarma (achado 48) | PR #204, aguarda a bancada |
-| SDA e SCL trocados travam todo boot; um segundo BME/BMP no mesmo periférico lê o primeiro (achados 63 e 64) | PR #203, aguarda a bancada |
+| Com o AP de configuração aberto, o aparelho não mede, não grava e não alarma (achado 48) | PR #204, provado na bancada em 01/10: 34 → 34 leituras na main, 38 → 257 com o PR, e o alarme 470 |
+| SDA e SCL trocados travam todo boot; um segundo BME/BMP no mesmo periférico lê o primeiro (achados 63 e 64) | PR #203, provado na bancada em 01/10: a main entra em PANIC, o PR sobe em bit-bang; o 64 só no teste nativo (uma placa) |
 | Alarme recusado com a fila cheia nunca é anunciado (#161) | Decisão do mantenedor: (a) latch só com push aceito e reanúncio, ou (b) descartar o mais antigo |
-| Linha de alarmes por MQTT: ACK nunca lido com a telemetria desligada; a fila não cabe no buffer de 2.048 B (achados 28 e 29) | PR #208, aguarda a bancada |
-| `isTimeSynced( )` sempre verdadeiro (achado 66) | PR #209 |
+| Linha de alarmes por MQTT: ACK nunca lido com a telemetria desligada; a fila não cabe no buffer de 2.048 B (achados 28 e 29) | PR #208, provado na bancada em 01/10: fila presa em 5/16 e maior lote de 2.001 B na main; fila 0 e lote de 2.794 B com o PR |
+| `isTimeSynced( )` sempre verdadeiro (achado 66) | PR #209, provado na bancada em 01/10: com o NTP desligado a main diz `ntp=1` com o relógio em 1970; o PR diz 0 |
 | Com NTP ligado e sem servidor alcançável, o aparelho nunca chega a `NET_READY`, e telemetria e linha de alarmes esperam para sempre (achado 20). Documentado no manual, cap. 10, mas é armadilha para a LAN sem internet que o README promete | A fazer: desenho (sair para `NET_READY` depois de N falhas e seguir tentando o NTP) |
 | Os outros 16 achados de severidade alta (tabela abaixo) | Um PR por grupo |
 
@@ -146,8 +146,11 @@ dias), ou 1,5 + 1,5 + 1,0 MB (mais código, os 116 dias de hoje).
 3. **#161:** opção (a) ou (b).
 4. **OTA só com imagem assinada?**
 5. **Descrição do repositório no GitHub.**
-6. **Aparelho sem Wi-Fi:** sem rede configurada, o AP de configuração fica no
-   ar para sempre (WPA2). Com o PR #204 ele mede, mas o AP continua aberto.
+6. **Aparelho sem Wi-Fi** — decidida em 01/10/2026: o AP só abre a pedido
+   (Configurações > 12, `ap`, o gesto do boot), e um aparelho sem rede
+   configurada pede a data e a hora no boot, com a opção de pular. PR #214
+   (rascunho, empilhado no #204), provado na bancada. Em aberto: manter o
+   gesto do boot, que também abre o AP sem passar pelo menu.
 
 ## Triagem dos 75 achados de 23/09
 
