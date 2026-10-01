@@ -14,6 +14,7 @@
 #include <string.h>
 #include <string>
 #include <algorithm>
+#include <type_traits>
 #include <cctype>
 
 namespace simut_native {
@@ -223,11 +224,20 @@ inline String operator+(const String& a, unsigned long b) { String r(a); r += St
  * std::numeric_limits<>::min in <limits>, which any standard header may pull
  * in. Templates give the same mixed-type call sites the firmware uses
  * (`min(_reconnectDelay * 2, MAX_RECONNECT_DELAY)`) without poisoning the
- * standard library. */
+ * standard library.
+ *
+ * They return by VALUE. With both arguments of one type, `a < b ? a : b` is
+ * an lvalue, so the old `-> decltype(a < b ? a : b)` returned a reference to
+ * this function's own by-value parameter: a dangling reference every caller
+ * read after the frame was gone. It happened to read right; AddressSanitizer
+ * stopped test_network on it (stack-use-after-return in handleConnecting( ),
+ * 2026-10-01). ArduinoCore-API takes const references, so the firmware's
+ * reference points at the caller's operands and lives to the end of the
+ * full-expression — this was the stub's bug, not the device's. */
 template <typename T, typename U>
-inline auto min(T a, U b) -> decltype(a < b ? a : b) { return a < b ? a : b; }
+inline auto min(T a, U b) -> std::decay_t<decltype(a < b ? a : b)> { return a < b ? a : b; }
 template <typename T, typename U>
-inline auto max(T a, U b) -> decltype(a > b ? a : b) { return a > b ? a : b; }
+inline auto max(T a, U b) -> std::decay_t<decltype(a > b ? a : b)> { return a > b ? a : b; }
 
 /* ── Serial ──────────────────────────────────────────────────────────────
  * The console. Discards everything by default so a host run stays quiet, and
