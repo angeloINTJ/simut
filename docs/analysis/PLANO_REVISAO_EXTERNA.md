@@ -43,7 +43,7 @@ falha antes (`CLAUDE.md`, *Tests first*).
 | A-03 dividido: o `ctx=209` real, o `ctx=455` do `picotool -x` explicado | Mergeado (#205) |
 | `SHA256SUMS` e atestado de proveniência (Sigstore) em cada release | Mergeado (#207); exercido na próxima tag |
 | Descrição do repositório no GitHub ("Professional-grade") | Decisão do mantenedor (01/10): esperar |
-| Nota "como o SIMUT é desenvolvido" (A-14): agentes de IA ajudam, nada entra sem PR, oito checks e prova | A fazer |
+| Nota "como o SIMUT é desenvolvido" (A-14): agentes de IA ajudam, nada entra sem PR, nove checks e prova | A fazer |
 
 ## Fase 1 — o que contradiz a promessa
 
