@@ -15,7 +15,7 @@ substance lives there, not here.
 | Tools | `tools/` — [`tools/README.md`](tools/README.md) says which of the 141 scripts are live |
 | Documentation | `docs/` — [`docs/README.md`](docs/README.md) marks each document **Living** or **Snapshot** |
 | Interface standard | [`ANGULO.md`](ANGULO.md) — the Ângulo guide for anything with a screen or a reader: web UI, site, README, docs, brand. [`AGENTS.md`](AGENTS.md) §7 says how it applies here and what `tools/check_angulo.py` enforces in CI |
-| Tests | `test/` — eight native environments, `pio test -e native…` |
+| Tests | `test/` — nine native environments, `pio test -e native…` |
 
 ## Building and testing
 
@@ -25,7 +25,7 @@ pio run -e pico_w_air          # the hibernating build; least flash headroom
 pio test -e native_logpolicy   # one suite; eight exist
 ```
 
-**Seven** firmware environments and eight native suites, all of them built and
+**Seven** firmware environments and nine native suites, all of them built and
 run by CI — `pico_w_asserts` is the one that is easy to forget, because it is
 not in the table above and nothing local reminds you of it. This line said
 "five" until 2026-09-20, and a change that raised the other five budgets went
@@ -82,5 +82,5 @@ locally. When one fires, it is usually right:
   run them and put the result in the PR. A refactor's proof is that behaviour is
   unchanged (a normalized diff, an identical sha256, or a before/after on
   hardware); a fix's is a reproduction that fails before and passes after. New
-  host-testable behaviour earns a new case in `test/`; there are eight native
+  host-testable behaviour earns a new case in `test/`; there are nine native
   suites for a reason.

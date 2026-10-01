@@ -1,6 +1,6 @@
 # tools/
 
-141 scripts. This file exists because until 2026-09-08 there was no way
+142 scripts. This file exists because until 2026-09-08 there was no way
 to tell a live bench tool from a leftover, and one of them —
 `compressor.py` — had been superseded for three months while still looking
 usable: it regenerated `WebUI_GZ.h` into the repository root, where nothing
@@ -16,7 +16,7 @@ wrong, the description is the bug.
 
 ---
 
-## Called by CI (24)
+## Called by CI (25)
 
 Invoked from `.github/workflows/build.yml` — or, for the release manifest, from
 `release-ota.yml` when a tag is pushed. Breaking one of these fails a pull request
@@ -49,6 +49,7 @@ or a release.
 | `run_fuzz.sh` | run_fuzz.sh — libFuzzer gate over the web-API input validators (issue #44). | 2026-08-19 |
 | `scan_secrets.sh` | scan_secrets.sh — release gate: refuse to ship when a secret is tracked in Git. | 2026-08-16 |
 | `test_h5_day_merge.py` | Testa o mesclador de arquivos-dia V5 (tools/h5_day_merge.py). | 2026-08-21 |
+| `ota_sign.py` | Chaves, certificados e assinaturas da OTA que só aceita imagem assinada (`docs/analysis/OTA_ASSINADA.md`): `root-new` (raiz cifrada com senha digitada no terminal de quem gera), `signer-new` (chave de assinatura e o certificado dela pela raiz), `sign` (acrescenta o trailer de 241 B ao `.bin`), `verify` (decide como o aparelho decide, na mesma ordem). `vectors` escreve os vetores de `test/test_ota_sig` com um jogo fixo de chaves de TESTE que nenhuma imagem aceita; `vectors --check` e `selftest` rodam no job `gates`. Nunca imprime chave privada. Sabe reprovar: o selftest pega cada campo adulterado, a raiz forjada, o escopo trocado, a série revogada e o rollback (26 casos), e a suíte C++ pegou as nove mutações do módulo que importam (01/10). | 2026-10-01 |
 
 ## Called by the build (11)
 

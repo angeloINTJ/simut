@@ -1,8 +1,10 @@
 # OTA assinada — desenho
 
-Estado: **proposta**, 01/10/2026. Decisão do mantenedor, no mesmo dia: OTA só
-com imagem assinada, e, nas escolhas de chave, bancada e build local, "o mais
-profissional". Nada disto está no código ainda; as etapas estão no fim.
+Estado: **em andamento**. Decisão do mantenedor, 01/10/2026: OTA só com imagem
+assinada, e, nas escolhas de chave, bancada e build local, "o mais
+profissional". Feitas as etapas 1 (este desenho, #219) e 2 (ferramenta, módulo e
+testes no host); o stage ainda aceita imagem sem assinatura. As etapas estão no
+fim.
 
 ## O problema
 
@@ -53,7 +55,9 @@ o watchdog a cada 4 KiB; cada verificação fica bem abaixo dos 8,4 s dele.
 Flash: o BearSSL já está em todas as imagens por causa do TLS, com a
 verificação ECDSA, a curva P-256 e o SHA-256. O spike não acrescentou nenhum
 símbolo `br_*` (161 antes, 161 depois). O custo é o módulo novo e 65 B por
-chave pública. Medir na etapa 2.
+chave pública. O módulo da etapa 2 compila em todas as imagens, mas ninguém o
+chama ainda, e o linker o descarta (a release continua com 1.004.636 B): o custo
+se mede na etapa 3, quando o stage passar a chamá-lo.
 
 ## As chaves
 
@@ -73,7 +77,7 @@ candidata assinada pelo CI. Uma imagem de produção nunca confia na de
 bancada: a chave menos guardada viraria porta dos fundos.
 
 **Geração.** A raiz é gerada pelo mantenedor, num terminal dele
-(`tools/ota_keys.py`, etapa 2), com a senha digitada ali. A chave privada não
+(`tools/ota_sign.py root-new`), com a senha digitada ali. A chave privada não
 passa por nenhuma ferramenta de terceiros nem por sessão de agente.
 
 **Rotação.** A chave de assinatura tem um número de série no certificado. Para
@@ -102,8 +106,12 @@ O `.bin` continua o mesmo, byte a byte, e ganha um trailer no fim:
 | assinatura da imagem | 64 | ECDSA P-256 crua sobre o SHA-256 de `.bin` ‖ todos os campos acima |
 | rodapé: tamanho do trailer, versão do formato, `SIMUTSIG` | 4 + 2 + 2 + 8 | O aparelho acha o trailer pelo fim do arquivo |
 
-Cerca de 250 B. O `env` vai sem o prefixo para que o escâner da etiqueta, nos
-aparelhos antigos e no cliente, não ache duas.
+241 B. O `env` vai sem o prefixo para que o escâner da etiqueta, nos
+aparelhos antigos e no cliente, não ache duas. As duas assinaturas levam um
+prefixo de domínio (`SIMUT-OTA-CERT-v1`, `SIMUT-OTA-IMG-v1`) antes do que
+cobrem: uma assinatura de certificado nunca passa por assinatura de imagem, nem
+o contrário. A tabela byte a byte está em `tools/ota_sign.py`, que escreve o
+trailer, e `src/ota/signature.cpp` o lê.
 
 ## A verificação no aparelho
 
@@ -121,9 +129,14 @@ checagens de hoje (`ota_validate_staging`):
    variante em execução.
 
 Recusas novas, depois das sete de hoje, com o mesmo `v=` na resposta:
-8 sem assinatura, 9 assinatura inválida (certificado ou imagem), 10 chave
-revogada (série abaixo da mínima), 11 nível de segurança abaixo do mínimo,
-12 escopo não aceito (imagem de bancada num aparelho de produção). A página,
+8 sem assinatura, 9 assinatura inválida (certificado ou imagem) ou trailer
+malformado, 10 chave revogada (série abaixo da mínima), 11 nível de segurança
+abaixo do mínimo, 12 escopo não aceito (imagem de bancada num aparelho de
+produção). Assinada para outra variante, é a recusa que já existe para a
+etiqueta trocada, 7.
+
+A série mínima é guardada por escopo. O rig recebe candidatas do CI e builds de
+bancada, e com uma série só a primeira candidata revogaria a chave de bancada. A página,
 o simut-rx e o console mostram o motivo, e o manual também: o cap. 17, da
 atualização, e o cap. 18, da recuperação.
 
@@ -179,13 +192,27 @@ iguais depois.
 
 ## Testes, antes do código
 
-**No host.** A ferramenta Python (`cryptography`) gera vetores com uma chave de
-teste fixa, que nenhuma imagem aceita: imagem boa, um bit trocado em cada
-campo, trailer cortado, rodapé ausente, série baixa, nível baixo, escopo
-errado, `env` trocado. O módulo do aparelho (`src/ota/signature.*`) é escrito
-sem Arduino, com a verificação ECDSA injetada. A suíte nativa confere a
-decisão sobre cada vetor, com a verificação respondendo o veredito que a
-ferramenta calculou. A matemática é a do BearSSL, que o rig exercita inteira.
+**No host** (etapa 2, feita). `tools/ota_sign.py vectors` gera os vetores com um
+jogo fixo de chaves de TESTE, que nenhuma imagem aceita: a imagem boa, uma
+assinada pela bancada, uma com raiz forjada, uma com certificado "de produção"
+assinado pela raiz de bancada, uma com o `env` sem terminador. O módulo do
+aparelho (`src/ota/signature.*`) não tem Arduino nem BearSSL: o SHA-256 e o
+ECDSA entram injetados. Na suíte `native_otasig` o SHA-256 é uma referência
+conferida antes contra os vetores do FIPS 180-4, e o ECDSA responde verdadeiro
+só para os trios (chave, resumo, assinatura) genuínos que a ferramenta
+conferiu com ECDSA de verdade. Um módulo que resuma os bytes errados, na ordem
+errada ou com o domínio errado não acha assinatura genuína e falha.
+
+São 22 casos no C++ e 26 na referência Python (`ota_sign.py selftest`), com a
+mesma recusa esperada para cada vetor. Nove defeitos injetados no
+módulo, um por vez, são pegos: domínio trocado, trailer fora do resumo, último
+byte da imagem fora do resumo, `image_len` sem conferência, escopo ignorado na
+verificação, sem revogação, sem rollback, sem conferência de `env`, `env` sem
+terminador. Quatro deles passavam com a primeira versão dos vetores e pediram
+vetores novos: uma imagem que não é múltipla do pedaço de 512 B, bytes entre a
+imagem e o trailer, o certificado de escopo forjado e o `env` cheio.
+
+A matemática é a do BearSSL, que o rig exercita inteira.
 
 **No rig**, antes e depois:
 
@@ -202,10 +229,10 @@ ferramenta calculou. A matemática é a do BearSSL, que o rig exercita inteira.
 ## Etapas
 
 1. **Este desenho**, com as medidas.
-2. **Ferramentas e módulo**: `tools/ota_keys.py` (raiz, chave de assinatura,
-   certificado), `tools/ota_sign.py` (assinar, conferir), `src/ota/signature.*`
-   com a suíte nativa e os vetores. Ainda sem ligar ao stage. Mede o custo em
-   flash.
+2. **Ferramenta e módulo** (feita, 01/10/2026): `tools/ota_sign.py` (raiz,
+   chave de assinatura e certificado, assinar, conferir, vetores),
+   `src/ota/signature.*`, a suíte `native_otasig` e os vetores. Ainda sem ligar
+   ao stage.
 3. **Ligar ao stage**: as recusas 8 a 12, o registro de confiança, a página, o
    console, o simut-rx e o manual. A raiz de bancada provisória. O rig prova a
    tabela acima.

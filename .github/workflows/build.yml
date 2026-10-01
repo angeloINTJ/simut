@@ -160,7 +160,17 @@ jobs:
       - name: History V5 day-merge tests
         run: python3 tools/test_h5_day_merge.py
 
-      # ALL EIGHT native environments. Separate steps rather than one
+      # The OTA signature tool (docs/analysis/OTA_ASSINADA.md): its round trips
+      # and tamper cases with real ECDSA, and the committed host vectors, which
+      # are randomized signatures and so are checked by meaning: every listed
+      # signature verifies, and every blob gets the verdict the C++ tests expect.
+      - name: OTA signature tool and vectors
+        run: |
+          pip install cryptography
+          python3 tools/ota_sign.py selftest
+          python3 tools/ota_sign.py vectors --check
+
+      # ALL NINE native environments. Separate steps rather than one
       # `pio test -e a -e b ...` so a failure names itself in the Actions UI
       # instead of hiding behind the first environment that broke.
       #
@@ -200,7 +210,12 @@ jobs:
       - name: Run unit tests (network state machine)
         run: pio test -e native_network
 
-      # The same eight suites again, under AddressSanitizer and UBSan, with
+      # The signature check of a staged OTA image, against the vectors above:
+      # every refusal, and every trailer byte covered.
+      - name: Run unit tests (OTA signature)
+        run: pio test -e native_otasig
+
+      # The same nine suites again, under AddressSanitizer and UBSan, with
       # undefined behaviour made fatal. The plain runs above are the contract;
       # this run sees what a passing assertion cannot - a read past a buffer, a
       # reference to a dead frame that still holds the right bytes. Its first
@@ -216,7 +231,7 @@ jobs:
         run: |
           rc=0
           for e in native native_history_v5 native_cli native_logpolicy \
-                   native_alarmqueue native_air native_sensors native_network; do
+                   native_alarmqueue native_air native_sensors native_network native_otasig; do
             if ! pio test -e "$e"; then
               rc=1
               echo "::group::$e, run directly for the sanitizer report"
