@@ -16,9 +16,17 @@ Fluxo:
 
 Uso:
   SIMUT_WIFI_SSID=... SIMUT_WIFI_PASS=... python3 tools/alarm_mqtt_test.py
+  ... --tel-off     linha convencional desligada (tel interval 0): o ACK só é
+                    lido se o loop( ) do MQTT roda mesmo assim (achado 28 do
+                    manual v2.7.1; até 2026-10-01 a fila nunca esvaziava)
+  ... --burst N     N idas e voltas do limite SEM confirmar, com qmax 32: o lote
+                    passa de 2048 B, o buffer de fábrica do PubSubClient (achado
+                    29; até 2026-10-01 o publish falhava calado para sempre).
+                    Depois confirma tudo e exige fila 0.
 
 Requisitos: pyserial, paho-mqtt, requests, docker (ou broker em SIMUT_MQTT_BROKER).
 """
+import argparse
 import glob
 import hashlib
 import json
@@ -197,6 +205,13 @@ def clear_limit_edge(dev, gpio):
 
 
 def main():
+    ap = argparse.ArgumentParser(description="SIMUT: linha de alarmes por MQTT com ACK")
+    ap.add_argument("--tel-off", action="store_true",
+                    help="tel interval 0: a linha convencional desligada")
+    ap.add_argument("--burst", type=int, default=0, metavar="N",
+                    help="N idas e voltas do limite sem confirmar (qmax 32)")
+    args = ap.parse_args()
+
     broker_host, broker_port = start_broker()
     if not broker_host:
         sys.exit("  [FATAL] sem broker: instale mosquitto/docker ou defina SIMUT_MQTT_BROKER")
@@ -218,7 +233,9 @@ def main():
     dev.cmd("tel crypto off")
     dev.cmd("alarm set on")
     dev.cmd("alarm set mode json")
-    dev.cmd("alarm set qmax 16")
+    dev.cmd("alarm set qmax 32" if args.burst else "alarm set qmax 16")
+    if args.tel_off:
+        dev.cmd("tel interval 0")
     # templates default (token único, sem espaços — limitação do CLI tokenizado)
     dev.cmd('alarm set line {"ts":{TS},"id":"{ID}","val":{val},"alarm":{alarm},"err":{err},"seq":{seq}}')
     dev.cmd(f"user del {TEST_USER}")
@@ -256,7 +273,7 @@ def main():
 
     # ── broker: assina e ack ──
     print("\n[03] Broker: assinar simut/data/alarm e publicar ACK")
-    got = {"payloads": [], "acked": 0}
+    got = {"payloads": [], "acked": 0, "hold": bool(args.burst)}
 
     def on_connect(client, userdata, flags, reason_code, properties=None):
         client.subscribe("simut/data/alarm")
@@ -267,7 +284,9 @@ def main():
             got["payloads"].append(body)
             recs = json.loads(body) if body.startswith("[") else []
             seqs = [r["seq"] for r in recs if isinstance(r, dict) and "seq" in r]
-            if seqs:
+            if seqs and got["hold"]:
+                print(f"  [HOLD] {len(seqs)} registros, {len(body)} B — sem confirmar")
+            elif seqs:
                 client.publish("simut/data/alarm/ack", json.dumps({"seq": seqs}))
                 got["acked"] += len(seqs)
                 print(f"  [ACK] confirmados {seqs}")
@@ -300,6 +319,26 @@ def main():
             dev.cmd(f"sensor {gpio} tmax {tmax0}")
         else:
             dev.cmd(f"sensor {gpio} tmax 100")
+
+    # ── rajada: o lote passa do buffer de fábrica ──
+    if args.burst and gpio is not None:
+        print(f"\n[04b] Rajada de {args.burst} idas e voltas sem confirmar")
+        for _ in range(args.burst):
+            dev.cmd(f"sensor {gpio} tmax -100", 6)
+            dev.cmd(f"sensor {gpio} tmax 100", 6)
+        r = dev.cmd("alarm show", 2)
+        m = re.search(r"(?:fila|queue)\s+(\d+)/(\d+)", r)
+        print(f"  fila depois da rajada: {m.group(0) if m else r[:80]!r}")
+        got["hold"] = False                     # daqui em diante, confirma
+        deadline = time.time() + 90
+        while time.time() < deadline and not any(len(p) > 2048 for p in got["payloads"]):
+            cli.loop()
+            time.sleep(2)
+        big = max((len(p) for p in got["payloads"]), default=0)
+        check("lote maior que 2048 B publicado", big > 2048, f"maior={big} B")
+        if tmax0 is not None:
+            dev.cmd(f"sensor {gpio} tmin {tmin0}")
+            dev.cmd(f"sensor {gpio} tmax {tmax0}")
 
     # ── confirmação esvazia a fila ──
     print("\n[05] Fila esvazia após o ACK")

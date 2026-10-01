@@ -325,19 +325,34 @@ void TelemetryManager::update( ) {
  updateAlarms( );
 
  SystemConfig &cfg = _storageRef->getConfig( );
- if (cfg.telInterval == 0) return;
 
  /*
  * MQTT keepalive: calls loop() only if connected to the broker.
  * Prevents loop() from attempting implicit reconnect with long socket
  * timeout that would freeze the main loop on degraded networks.
+ *
+ * BEFORE the telemetry-off gate below, not after it: loop( ) is also the only
+ * place PubSubClient hands over a message, and the alarm line's ACK arrives as
+ * one (mqttAlarmAckCallback). With the conventional line off (t_int = 0) and
+ * the alarm line on MQTT, loop( ) never ran: no ACK was ever read, the queue
+ * never drained, and the line republished the same batch every 15 s until the
+ * queue was full. Found by reading while the v2.7.1 manual was written
+ * (finding 28). The HA discovery reconciliation stays behind the gate, as it
+ * always was — with telemetry off there is nothing to publish to HA.
  */
 #if SIMUT_TEL_MQTT
- if (cfg.telTransport == TEL_TRANSPORT_MQTT && _mqttInitialized
- && _mqttClient.connected( )) {
+ const bool mqttUp = cfg.telTransport == TEL_TRANSPORT_MQTT && _mqttInitialized
+                     && _mqttClient.connected( );
+ if (mqttUp) {
  _mqttClient.loop( );
  watchdog_update( );
+ }
+#endif
 
+ if (cfg.telInterval == 0) return;
+
+#if SIMUT_TEL_MQTT
+ if (mqttUp && _mqttClient.connected( )) {
  /* HA discovery safety net for config paths that do NOT reboot (commit_all
   * does, and its post-reboot connect reconciles there): while connected,
   * a mismatch between the toggle and the persisted published bit is
@@ -2831,6 +2846,25 @@ bool TelemetryManager::attemptAlarmMqttPublish(String& payload, std::vector<Alar
 	if (!mqttEnsureConnected( )) return false;
 
 	String topic = mqttAlarmTopic( );
+
+	/* The batch goes out in ONE publish, and PubSubClient refuses a packet
+	 * longer than its buffer (5 B of header, 2 + the topic, the payload) by
+	 * returning false and nothing else. begin( ) sets 2048 B and only the
+	 * conventional line's large batches ever grew it, while a JSON alarm record
+	 * is ~120 B: a full default queue of 32 never fit, every retry failed the
+	 * same way and the line stayed stuck (finding 29, by reading). Grow the
+	 * buffer as the conventional line does; past MQTT_BUFFER_CEILING, send the
+	 * front of the batch — the ACK is per seq, and the rest goes next round. */
+	const size_t overhead = topic.length( ) + MQTT_PACKET_OVERHEAD;
+	while (payload.length( ) + overhead > MQTT_BUFFER_CEILING && batch.size( ) > 1) {
+		batch.resize(batch.size( ) / 2);
+		payload = buildAlarmPayload(batch);
+	}
+	if (payload.length( ) + overhead > _mqttClient.getBufferSize( )) {
+		_mqttClient.setBufferSize((uint16_t)min(MQTT_BUFFER_CEILING,
+		                                        payload.length( ) + overhead));
+	}
+
 	feedWdt( );
 	bool ok = _mqttClient.publish(topic.c_str( ), payload.c_str( ), false);
 	if (ok) {
