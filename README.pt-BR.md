@@ -168,8 +168,9 @@ Veja o **[guia de fiação](docs/WIRING.md)** para a pinagem completa e os diagr
   - bloqueio por conta: a sexta falha bloqueia a conta, e 20 falhas no total bloqueiam o painel.
 - **Administração na tela:**
   - o item Usuários cria contas e define os bits de permissão e os PINs;
-  - as 12 linhas de Configurações são filtradas pelo que a conta pode fazer;
-  - Configurações → 12 liga o ponto de acesso de configuração.
+  - as 13 linhas de Configurações são filtradas pelo que a conta pode fazer;
+  - Configurações → 12 liga o ponto de acesso de configuração;
+  - Configurações → 13 acerta a data e a hora, e uma unidade sem rede configurada as pede no fim do boot.
 - **Gestos no painel superior** — um toque alterna mín/máx, segurar 3 s fixa a seleção.
 - **Renderização rápida com DMA** — composição em canvas pelo SPI a 62,5 MHz.
 - **Área segura de 4 px em toda tela** — o ajuste de alinhamento da tela (±4 px por eixo) nunca corta conteúdo.
@@ -225,13 +226,11 @@ Veja o **[guia de fiação](docs/WIRING.md)** para a pinagem completa e os diagr
   - WPA2, com chave por aparelho mostrada no console USB e na tela de boot do TFT;
   - portal cativo em `http://192.168.4.1`.
 
-  Cinco formas de entrar:
-  - uma unidade sem rede configurada abre sozinha (menos o Air);
-  - um fallback automático abre quando a rede se perde (menos o Air);
+  Só abre quando alguém pede. Uma unidade com a rede fora do ar continua medindo e tentando a rede. Três formas de entrar:
   - Configurações → 12 no painel;
   - o comando `ap` no console (USB, ou Bluetooth no alpha e no Air);
   - segurar o painel por 3 s durante o boot.
-- **NTP** — o intervalo entre tentativas cresce de 20 s a 15 min, com fallback para `pool.ntp.org`. Até o NTP sincronizar, um relógio provisório parte do registro mais novo gravado.
+- **NTP** — o intervalo entre tentativas cresce de 20 s a 15 min, com fallback para `pool.ntp.org`. Até o NTP sincronizar ou alguém acertar o relógio, um relógio provisório parte do registro mais novo gravado. O painel o marca com `?` entre a data e a hora, e o primeiro acerto depois do boot, pelo NTP ou à mão, corrige os blocos do histórico que o boot começou.
 
 ### Armazenamento e histórico
 - **Histórico binário compacto (V5)** — codificação delta + âncora a 5,38 bytes/registro, cerca de 116 dias no sistema de arquivos de 1 MB (11 canais a cada minuto, medido em arquivos de bancada em 31/07/2026):
@@ -319,12 +318,14 @@ Prefere não compilar? Todo [release](https://github.com/angeloINTJ/simut/releas
 
 ### Primeiro boot
 1. **Anote a senha do admin.** Uma unidade recém-saída de fábrica imprime uma senha de admin aleatória de 8 caracteres **uma única vez no console serial USB** (115200 baud). Ela nunca é gravada em texto puro. Se você perder, `system admin reset confirm` pela USB imprime uma nova.
-2. **Coloque o aparelho na sua rede.** Uma unidade sem rede configurada abre sozinha o ponto de acesso de configuração. O Air não abre: digite `ap` no console dele.
-   - Conecte-se a `<nome>_SETUP` (`simut_SETUP` de fábrica). É WPA2, e a chave por aparelho é impressa no console USB e no terminal de boot do TFT — no boot e, desde a v2.7.2, também quando o AP abre em operação. No alpha, leia a chave no console USB ou na resposta do comando `ap`: pelo código da v2.8.0, o LCD não chega às páginas do AP.
+2. **Coloque o aparelho na sua rede.** O ponto de acesso de configuração abre quando você pede: digite `ap` no console (no Air, depois de `enable`), ou use Configurações → 12 no painel touch. Da v2.7.1 à v2.8.0, uma unidade sem rede configurada o abria sozinha; não abre mais.
+   - Conecte-se a `<nome>_SETUP` (`simut_SETUP` de fábrica). É WPA2, e a chave por aparelho está na resposta do `ap`, no console USB e no terminal de boot do TFT.
    - O portal abre em `http://192.168.4.1`.
-   - Enquanto o ponto de acesso está no ar, o aparelho não mede: na v2.8.0 ele não lê sensores, não confere alarmes e não grava histórico até entrar numa rede.
+   - O aparelho continua medindo com o ponto de acesso no ar; só a telemetria e o syslog esperam a rede. Da v2.7.1 à v2.8.0, ele não lia sensores, não conferia alarmes e não gravava histórico enquanto o ponto de acesso estava no ar.
 
    Sem tela, dá para usar o console: `system ssid <nome>`, `system pass <senha>` e depois `reload confirm`. O console corta no primeiro espaço: rede ou senha com espaço só pela página web.
+
+   Sem rede configurada, a unidade pede a data e a hora no fim do boot, porque sem rede não há NTP: o painel touch abre uma tela de data e hora (**PULAR** sai dela, e Configurações → 13 acerta o relógio depois), e toda imagem escreve no console `Sem rede, relogio provisorio: conf time AAAA-MM-DD HH:MM:SS`. Esse comando funciona no console de todas as imagens, pela USB ou pelo Bluetooth: no alpha e no Air, que não têm painel, é o jeito de responder à pergunta. A seção **Data e Hora** da página web também acerta o relógio.
 3. **Abra a interface web** no endereço que o aparelho recebeu — na imagem `release`, também em `http://simut.local` — e entre como `admin` com a senha do passo 1. O aparelho vai pedir uma senha nova.
 4. **Adicione sensores** em **Config → Sensors & GPIO**, ou deixe o *Scan for probes* encontrá-los.
 5. **No painel touch**, Configurações pede uma conta e o PIN dela. O PIN de fábrica do admin é `1234`, e a troca é exigida no primeiro uso.
@@ -398,19 +399,19 @@ simut/
 ### Console (CLI)
 O console serial fica disponível pela USB (115200 baud) e, no alpha e no Air, por Bluetooth SPP.
 
-- **O console de emergência** roda nas imagens `release` e `alpha`. Os 14 comandos dele:
+- **O console de emergência** roda nas imagens `release` e `alpha`. Os 15 comandos dele:
   - `show net status`, `show system info`, `show system log`
   - `debug on|off`
   - `system admin reset`, `system format`, `system factory`, `system https off`
   - `system ssid <nome>`, `system pass <senha>`, `system cors <origem|off>`
-  - `ap`, `reload`, `help`
+  - `ap`, `time <data> <hora>`, `reload`, `help`
 
   Os comandos destrutivos pedem `confirm`, e as quatro recuperações (`system factory`, `system format`, `system admin reset`, `system https off`) são recusadas pelo Bluetooth.
 - **O console completo estilo Cisco** (`enable` / `configure terminal`) roda na imagem `air` e nas imagens de bancada `pico_w_test` — veja o [manual do CLI](docs/CLI-Manual.md). O Air acrescenta `air status | hibernate | stop | idle <seg> | charger <gpio|off>`.
 
 **Onde a configuração acontece:**
 - **A interface web** é a ferramenta do dia a dia.
-- **O painel touch** cobre o que o operador precisa no aparelho: temas, alarmes, sons, idioma, o próprio PIN, usuários, a política de PIN, calibração do toque, ajuste da tela, status e o ponto de acesso de configuração.
+- **O painel touch** cobre o que o operador precisa no aparelho: temas, alarmes, sons, idioma, o próprio PIN, usuários, a política de PIN, calibração do toque, ajuste da tela, status, o ponto de acesso de configuração e a data e a hora.
 
 ### API Web
 O aparelho expõe uma API REST em `http://<ip-do-dispositivo>/api/`:
@@ -475,7 +476,7 @@ O que foi medido no hardware real, do mais recente ao mais antigo:
 | 23/09/2026 | Filas longas de telemetria no Air (v2.7.2) | 0 corpos inválidos; 13.681 de 13.682 registros entregues acordado, 13.670 de 13.671 hibernando (v2.7.1: 68 de 69 corpos eram JSON inválido) |
 | 22/09/2026 | Soak da v2.7.0 | 8,18 h, 0 reboots; o maior bloco livre do heap variou −42 B |
 | 22/09/2026 | Atualizações pelo ar da v2.7.0 | 6 de 6 aplicadas; 57 arquivos restaurados, 0 registros faltando |
-| 22/09/2026 | Ponto de acesso de configuração (v2.7.1) | Um cliente entra em 4,1 s, no `release` e no `alpha` com Bluetooth ligado, também com MAC aleatório. O fallback automático abre depois de 6–7 min sem rede |
+| 22/09/2026 | Ponto de acesso de configuração (v2.7.1) | Um cliente entra em 4,1 s, no `release` e no `alpha` com Bluetooth ligado, também com MAC aleatório. O fallback automático abre depois de 6–7 min sem rede (removido em 01/10/2026) |
 | 22/09/2026 | Correção do V-09 | 10 de 10 vereditos, com controles positivos |
 | 21/09/2026 | Coletor fora do ar por 3 h 58 min | 237 registros na fila, 0 reboots; drenados numa rodada com 0 faltando, mais 25 registros da linha de alarmes |
 | 21/09/2026 | Suítes web | 67/67 como admin, 87/87 como conta restrita; 500 commits que gravam na flash, 0 reboots |

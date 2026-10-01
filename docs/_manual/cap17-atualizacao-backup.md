@@ -434,7 +434,7 @@ Se a gravação falhar, o console avisa `ERROR: NAO SALVOU: vale so ate reinicia
 
 `system factory confirm` grava a configuração de fábrica e reinicia. Depois dele:
 
-- o aparelho não tem rede Wi-Fi configurada e abre o ponto de acesso de configuração ([capítulo 9](#cap-09-ap));
+- o aparelho não tem rede Wi-Fi configurada e não abre o ponto de acesso sozinho: abra-o com o comando `ap` ou pelo menu do painel ([capítulo 9](#cap-09-ap-quando)). Na release, o painel pergunta a data e a hora no fim do boot ([capítulo 10](#cap-10-painel));
 - só existe a conta `admin`, com uma senha aleatória;
 - o histórico, o log, os pacotes de idioma, a calibração e o par do HTTPS continuam no sistema de arquivos.
 

@@ -36,7 +36,7 @@ Da esquerda para a direita:
 | Elemento | O que é |
 |---|---|
 | `SIMUT` | O nome do produto, fixo |
-| Data e hora | `dd/mm/aa - hh:mm:ss`, no fuso do aparelho ([capítulo 10](#cap-10-onde)) |
+| Data e hora | `dd/mm/aa - hh:mm:ss`, no fuso do aparelho. Com o relógio provisório, `dd/mm/aa ? hh:mm:ss`, em âmbar ([capítulo 10](#cap-10-onde)) |
 | Pendentes | Quantos registros esperam envio pela telemetria, seguidos de uma seta |
 | Sinal do Wi-Fi | Quatro barras, que acendem da esquerda para a direita |
 
@@ -280,9 +280,9 @@ O calendário: os dias com histórico têm um ponto, e o dia de hoje fica destac
 
 Para entrar, toque em **CFG**, escolha a sua conta e digite o PIN ([capítulo 8](#cap-08-entrar)). O menu abre com o título **Configurações >** seguido do nome da conta e lista só os itens que as permissões dela alcançam.
 
-O menu tem até 12 itens, quatro por página, com uma barra de rolagem à direita. Toque num item para selecioná-lo, ou mova a seleção com as setas do rodapé, e toque em **ENTRAR**. **SAIR** volta à tela inicial.
+O menu tem até 13 itens, quatro por página, com uma barra de rolagem à direita. Toque num item para selecioná-lo, ou mova a seleção com as setas do rodapé, e toque em **ENTRAR**. **SAIR** volta à tela inicial.
 
-Quando a conta vê os 12 itens, eles aparecem numerados, de `1.` a `12.`. Com o menu filtrado, os números somem, para a lista não começar por um número salteado.
+Quando a conta vê os 13 itens, eles aparecem numerados, de `1.` a `13.`. Com o menu filtrado, os números somem, para a lista não começar por um número salteado.
 
 | Nº | Item | Permissão | O que abre |
 |---|---|---|---|
@@ -298,6 +298,7 @@ Quando a conta vê os 12 itens, eles aparecem numerados, de `1.` a `12.`. Com o 
 | 10 | **Usuários** (*Users*) | **Usuários** [PERM_USER_MGR]{.perm} | [Usuários](#cap-11-usuarios) |
 | 11 | **Segurança do PIN** (*PIN security*) | **Usuários** | A política de PIN ([capítulo 8](#cap-08-politica)) |
 | 12 | **Modo de Configuração** (*Configuration Mode*) | **Rede** [PERM_NET_CONFIG]{.perm} | [O AP de configuração](#cap-11-ap) |
+| 13 | **Data e hora** (*Date and time*) | **Sistema** | [Data e hora](#cap-11-data-hora) |
 
 As três permissões de painel do item 2 são **Limites (painel)** [PERM_ALARM_LIMITS]{.perm}, **Bloqueio (painel)** [PERM_ALARM_BLOCK]{.perm} e **Manut. (painel)** [PERM_MAINT]{.perm}. O aparelho confere a permissão de novo quando recebe o pedido do painel: esconder o item é só conforto.
 
@@ -305,8 +306,12 @@ As três permissões de painel do item 2 são **Limites (painel)** [PERM_ALARM_L
 O menu completo, primeira página: itens numerados de 1 a 4.
 :::
 
-::: {.figura #fig-11-menu-p3 tipo="tft" arquivo="11-menu-p3.png" captura="screen set -> tap(35,215); a seta para cima dá a volta e seleciona o item 12; terceira página"}
+::: {.figura #fig-11-menu-p3 tipo="tft" arquivo="11-menu-p3.png" captura="screen set -> tap(35,215) -> tap(35,215); a seta para cima dá a volta até o item 13, e o segundo toque seleciona o item 12; terceira página"}
 A terceira página do menu completo, com Alinhamento da Tela, Usuários, Segurança do PIN e Modo de Configuração.
+:::
+
+::: {.figura #fig-11-menu-p4 tipo="tft" arquivo="11-menu-p4.png" captura="screen set -> tap(35,215); a seta para cima dá a volta e seleciona o item 13; quarta página"}
+A quarta página do menu completo, só com Data e hora.
 :::
 
 O menu filtrado de uma conta só com permissões de painel está na [figura do capítulo 8](#fig-08-menu-operador).
@@ -479,7 +484,7 @@ O teclado de texto com o grupo pqrs aberto, em minúsculas e maiúsculas.
 
 ### Modo de Configuração {#cap-11-ap}
 
-O item **Modo de Configuração** abre o ponto de acesso de configuração com o aparelho em operação. Use quando precisar trocar a rede Wi-Fi e não tiver outro caminho. O AP está no [capítulo 9](#cap-09-ap).
+O item **Modo de Configuração** abre o ponto de acesso de configuração com o aparelho em operação. Use para pôr na rede um aparelho novo ou para trocar a rede Wi-Fi: o AP não abre sozinho ([capítulo 9](#cap-09-ap-quando)).
 
 1. Toque em **Modo de Configuração** e em **ENTRAR**.
 2. A tela de confirmação diz: **O aparelho sai da rede e abre a rede de setup. Tem certeza?**
@@ -490,12 +495,24 @@ O aparelho confere a permissão **Rede** antes de abrir o AP e registra no log o
 Depois de **Confirmar**, o painel passa ao terminal da tela de boot, com **Iniciando Ponto de Acesso (AP)...**, e em poucos segundos mostra o que é preciso para entrar no AP: o nome da rede (o nome do aparelho seguido de `_SETUP`), a chave, numa linha que começa com `PSK`, **Acesse no celular: 192.168.4.1** e **AP Ativo! Reinicie a placa para sair.** O comando `ap` do console também responde com a chave ([capítulo 14](#cap-14)). Se o AP não abrir, o painel mostra **Erro** e o aparelho continua medindo.
 
 ::: atencao
-**O painel com o AP aberto.** Enquanto o AP está aberto, o aparelho não lê os sensores, não confere os alarmes e não grava o histórico ([capítulo 9](#cap-09-ap-aberto)). O painel fica na tela do AP e não responde ao toque. O AP aberto em operação fecha sozinho em 15 min, com um reinício.
+**O painel com o AP aberto.** O aparelho continua medindo e conferindo os alarmes, mas o painel fica na tela do AP e não responde ao toque: um alarme soa pela cigarra e não aparece no vidro ([capítulo 9](#cap-09-ap-aberto)). Com uma rede configurada, o AP fecha sozinho em 15 min, com um reinício; sem rede configurada, fica aberto até alguém gravar uma rede ou reiniciar o aparelho. Da v2.7.1 à v2.8.0, com o AP aberto, o aparelho não media.
 :::
 
-::: {.figura #fig-11-ap-confirmar tipo="tft" arquivo="11-ap-confirmar.png" captura="screen set -> tap(35,215) -> tap(270,215); a seta para cima dá a volta até o item 12"}
+::: {.figura #fig-11-ap-confirmar tipo="tft" arquivo="11-ap-confirmar.png" captura="screen set -> tap(35,215) -> tap(35,215) -> tap(270,215); a seta para cima dá a volta até o item 13, e o segundo toque seleciona o item 12"}
 A confirmação do Modo de Configuração.
 :::
+
+### Data e hora {#cap-11-data-hora}
+
+O item **Data e hora** acerta o relógio do aparelho, com a permissão **Sistema** no painel. Ele abre a mesma tela que um aparelho sem rede configurada mostra no fim do boot ([capítulo 10](#cap-10-painel)):
+
+- cinco colunas, `dd / mm / aaaa  hh : mm`, que começam na data e na hora do relógio em uso;
+- uma seta acima de cada valor, que soma 1, e uma abaixo, que subtrai 1; segurada, a seta repete a cada 300 ms;
+- **SAIR**, que volta ao menu sem mudar o relógio, e **SALVAR**, que acerta o relógio e volta ao menu.
+
+O dia fica dentro do mês, e o ano vai de 2026 a 2099. Os segundos ficam em zero. O aparelho confere a permissão **Sistema** quando recebe o **SALVAR**, e o log registra o código 13, `RTC set manually`, com o contexto 3. O primeiro acerto depois do boot corrige a hora dos blocos do histórico que o boot começou ([capítulo 10](#cap-10-correcao)).
+
+Na pergunta do boot, o botão da esquerda é **PULAR**, que vai à tela inicial, e uma linha em âmbar diz **Sem Wi-Fi, os dados levam esta hora.** A figura dessa tela está no [capítulo 4](#fig-04-painel-data-hora).
 
 ## A tela de alarme {#cap-11-alarme}
 
@@ -543,12 +560,12 @@ Ao ligar, o painel mostra `SIMUT` em letras grandes, a versão e uma caixa com `
 | **Montando Sistema de Arquivos...** | Sempre, primeiro |
 | **Mantenha a tela pressionada: Modo AP...** | Sempre; abre a janela do gesto do AP ([O gesto do AP no boot](#cap-11-boot-ap)) |
 | **Iniciando Gerenciador de Log...**, **Iniciando Interface de Comando...**, **Carregando Tema & Idioma...**, **Carregando Periféricos & Sensores...** | Sempre |
-| **Iniciando Ponto de Acesso (AP)...** e as linhas do AP | Só quando o aparelho abre o AP no boot |
+| **Iniciando Ponto de Acesso (AP)...** e as linhas do AP | Só quando o gesto abre o AP no boot |
 | **Iniciando Interface Wi-Fi...** | Quando o aparelho não abre o AP |
-| **Aguardando roteador** e pontos | Até entrar na rede, com o botão **PULAR** |
+| **Aguardando roteador** e pontos | Até entrar na rede, com o botão **PULAR**; só com rede configurada |
 | **Sincronizando Relógio Global** e pontos | Até acertar o relógio, com o botão **PULAR** |
 | **Rede Conectada & Sincronizada!** | Rede e hora prontas |
-| **Conexão Ignorada pelo Usuário.** | Depois de **PULAR** |
+| **Conexão Ignorada pelo Usuário.** | Depois de **PULAR**; sem rede configurada, logo, sem esperar o roteador |
 | **Timeout de rede. Iniciando Offline...** | Depois de 30 s sem rede ou sem hora |
 | **Iniciando Servidor de Telemetria...**, **Iniciando Servidor Web...**, **Registrando Callbacks...** | Sempre |
 | **Carregando cache diário Min/Max...**, **Aquecendo sensores...** | Quando o aparelho não abre o AP |
@@ -557,6 +574,8 @@ Ao ligar, o painel mostra `SIMUT` em letras grandes, a versão e uma caixa com `
 | **Sistema Pronto! Entrando no Painel.** | 0,8 s antes da tela inicial |
 
 **PULAR** (*SKIP*) aparece enquanto o aparelho espera o roteador ou o relógio. Um toque nele segue o boot sem rede; o aparelho continua tentando a rede depois ([capítulo 9](#cap-09-reconexao)).
+
+Num aparelho sem rede configurada e com o relógio provisório, o boot não termina na tela inicial: logo depois da última etapa, o painel abre a tela **Data e hora**, com **PULAR** e **SALVAR** ([Data e hora](#cap-11-data-hora)).
 
 ::: {.figura #fig-11-boot tipo="foto" arquivo="11-boot.png" captura="boot com rede configurada e alcançável; capture durante Aguardando roteador; a captura por GET /api/screenshot não alcança o boot, então use foto da tela"}
 A tela de boot com as últimas etapas e o botão PULAR.
@@ -573,7 +592,7 @@ O gesto abre o AP de configuração no boot, para quando o aparelho não consegu
 
 Se você levantar o dedo antes, a tela mostra **Modo AP Cancelado.** e o boot segue normal. Um dedo encostado desde antes de ligar também vale: a janela o encontra no primeiro instante.
 
-Com o AP aberto no boot, a caixa mostra **Iniciando Ponto de Acesso (AP)...**, **Conecte à rede SIMUT_SETUP** seguido de `PSK` e a chave, **Acesse no celular: 192.168.4.1** e, no fim, o nome real da rede, `PSK` com a chave e **AP Ativo! Reinicie a placa para sair.** O log registra o código 403 com o contexto 1 para o gesto e 2 para aparelho sem rede configurada.
+Com o AP aberto pelo gesto, a caixa mostra **Iniciando Ponto de Acesso (AP)...**, **Conecte à rede SIMUT_SETUP** seguido de `PSK` e a chave, **Acesse no celular: 192.168.4.1** e, no fim, o nome real da rede, `PSK` com a chave e **AP Ativo! Reinicie a placa para sair.** O log registra o código 403 com o contexto 1. O gesto é o único jeito de abrir o AP no boot: um aparelho sem rede configurada não o abre sozinho. Da v2.7.1 à v2.8.0, abria, e o log registrava o contexto 2.
 
 ::: atencao
 **O nome da rede na tela de boot.** A linha **Conecte à rede SIMUT_SETUP** tem o nome fixo. A rede de verdade é o nome do aparelho seguido de `_SETUP`, como `simut_SETUP` ([capítulo 9](#cap-09-ap)). Procure no celular o nome que aparece sozinho numa das últimas linhas da caixa.
@@ -601,7 +620,7 @@ O boot no AP: o nome da rede, a chave e AP Ativo!.
 
 ## A volta à tela inicial {#cap-11-ocioso}
 
-Depois de 30 s sem nenhum toque, qualquer tela volta à tela inicial, inclusive o menu, o gráfico e a tela de alarme. No mesmo prazo, um cartão em mínimo e máximo volta ao valor atual. As telas de boot não contam.
+Depois de 30 s sem nenhum toque, qualquer tela volta à tela inicial, inclusive o menu, o gráfico, a tela de alarme e a tela **Data e hora**, também quando o boot a abriu. No mesmo prazo, um cartão em mínimo e máximo volta ao valor atual. As telas de boot não contam.
 
 Uma alteração ainda não aplicada numa tela de lista, como um tema selecionado sem **APLICAR**, se perde na volta. O que já foi gravado continua gravado. Para voltar ao menu depois disso, toque em **CFG** e se identifique de novo.
 
@@ -612,7 +631,6 @@ As 30 telas do painel, com o modo interno que o console e as ferramentas usam, o
 | Modo | Título na tela | Como chegar | Tag | Figura |
 |---|---|---|---|---|
 | `MODE_DASHBOARD` | Sem título: barra de cima | Ao fim do boot; **SAIR** do menu; 30 s sem toque | `dash` | [11-principal](#fig-11-principal) |
-| `MODE_STATS_VIEW` | O nome do sensor | Nenhum toque chega a ela | — | — |
 | `MODE_GRAPH_LOADING` | **Carregando...** | Ao abrir um gráfico | — | [11-carregando](#fig-11-carregando) |
 | `MODE_GRAPH_VIEW` | A janela e o período | Cartão em mínimo e máximo, botão de gráfico | `gra` | [11-grafico](#fig-11-grafico) |
 | `MODE_GRAPH_DETAIL` | A janela e o período | Toque na área do gráfico | — | [11-detalhe-temp](#fig-11-detalhe-temp) |
@@ -641,5 +659,6 @@ As 30 telas do painel, com o modo interno que o console e as ferramentas usam, o
 | `MODE_AUTH_USER` | **Quem está usando o painel?** | **CFG**; **Desativar** na tela de alarme | `pin` | [08-quem](#fig-08-quem) |
 | `MODE_SETTINGS_PIN_POLICY` | **Segurança do PIN** | Menu, item 11 | — | [08-politica](#fig-08-politica) |
 | `MODE_CONFIRM_AP` | **Modo de Configuração** | Menu, item 12 | — | [11-ap-confirmar](#fig-11-ap-confirmar) |
+| `MODE_SET_CLOCK` | **Data e hora** | Fim do boot, sem rede configurada e com o relógio provisório; menu, item 13 | `clk` | [04-painel-data-hora](#fig-04-painel-data-hora) |
 
 As tags `touchcal` e `touchsens` abrem as duas a etapa de sensibilidade; a de posição vem depois dela. A tela de boot e a de progresso do gesto do AP não são modos: o painel as desenha antes da tela inicial, e `GET /api/screenshot` não as captura.

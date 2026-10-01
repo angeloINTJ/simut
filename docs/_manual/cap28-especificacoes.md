@@ -42,9 +42,9 @@ Legenda: a flash de 2 MB. O teto da atualização web fica 4 KiB abaixo do fim d
 | Bluetooth (console) | Não | Sim | Sim, acordado (M0) | [cap. 14](#cap-14-perfis) |
 | HTTPS na interface web | Sim, com certificado | Não | Não | [cap. 9](#cap-09-https) |
 | Nome `<nome>.local` (mDNS) | Sim | Não | Não | [cap. 9](#cap-09-mdns) |
-| Console serial | De emergência, 14 comandos | De emergência, 14 comandos | Completo | [cap. 14](#cap-14-perfis) |
+| Console serial | De emergência, 15 comandos | De emergência, 15 comandos | Completo | [cap. 14](#cap-14-perfis) |
 | Rotas da API | 62 | 56 | 56, só acordado (M0) | [cap. 26](#cap-26-imagens) |
-| AP de configuração | Abre sozinho ou a pedido | Abre sozinho ou a pedido | Só pelo comando `ap` | [cap. 9](#cap-09-ap-quando) |
+| AP de configuração | A pedido: menu do painel, comando `ap` ou gesto no boot | A pedido: comando `ap` | A pedido: comando `ap` | [cap. 9](#cap-09-ap-quando) |
 | PIN e contas no painel | Sim | Não | Não | [cap. 8](#cap-08-imagens) |
 | Hibernação entre leituras | Não | Não | Sim | [cap. 19](#cap-19-ciclo) |
 
@@ -225,7 +225,7 @@ O filtro vale só para a flash: o console com `debug on` e o syslog recebem todo
 
 | Item | Valor | Onde |
 |---|---|---|
-| Espera pela rede no boot | Até 30 s; depois o aparelho segue sem rede | [cap. 10](#cap-10-sem-ntp) |
+| Espera pela rede no boot | Com rede configurada, até 30 s; depois o aparelho segue sem rede. Sem rede configurada, nenhuma | [cap. 10](#cap-10-sem-ntp) |
 | Busca de redes | Até 12 redes na lista; prazo de 15 s no aparelho e cerca de 18 s na página | [cap. 9](#cap-09-busca) |
 | Sinal fraco | Em −78 dBm ou abaixo, a telemetria, a linha de alarmes e os envios pesados esperam | [cap. 9](#cap-09-referencia) |
 | Sinal impossível | 0 dBm ou mais, ou abaixo de −120 dBm, em duas leituras seguidas, com 1 min entre elas: o aparelho reconecta | [cap. 9](#cap-09-vigilancia) |
@@ -239,23 +239,22 @@ O filtro vale só para a flash: o console com `debug on` e o syslog recebem todo
 | Uma busca antes da tentativa | Até 15 s | [cap. 9](#cap-09-degraus) |
 | Esperas entre tentativas | 5, 10, 20, 40 e 80 s | [cap. 9](#cap-09-degraus) |
 | Dormência | 10 min antes de cada busca, três vezes; depois a escada recomeça | [cap. 9](#cap-09-degraus) |
-| AP pela escada, aparelho que nunca obteve IP desde que ligou | Na primeira dormência, cerca de 6 a 7 min depois de ligar (medido em bancada em 22/09/2026, desenvolvimento da v2.7.1) | [cap. 9](#cap-09-ap-quando) |
-| AP pela escada, aparelho que já obteve IP | Depois de uma volta inteira, cerca de 68 min (pela aritmética da escada) | [cap. 9](#cap-09-ap-quando) |
+| AP de configuração | A escada não abre o AP: tenta a rede até ela voltar. Da v2.7.1 à v2.8.0, abria: na primeira dormência, cerca de 6 a 7 min depois de ligar, num aparelho que nunca obteve IP (medido em bancada em 22/09/2026), e depois de uma volta inteira, cerca de 68 min pela aritmética da escada, num que já tinha obtido | [cap. 9](#cap-09-ap-quando) |
 
 ### AP de configuração {#cap-28-ap}
 
 | Item | Valor | Onde |
 |---|---|---|
-| Abertura sozinha | [release]{.img} [alpha]{.img} No boot sem rede configurada e pela escada de reconexão. [air]{.img} Nunca; só pelo comando `ap` | [cap. 9](#cap-09-ap-quando) |
+| Abertura | Só a pedido: o comando `ap`, em todas as imagens; [release]{.img} o item 12 do menu do painel, com a permissão **Rede**, e o gesto no boot. Da v2.7.1 à v2.8.0, a release e o alpha também abriam sozinhos, no boot sem rede configurada e pela escada de reconexão | [cap. 9](#cap-09-ap-quando) |
 | Nome da rede | `<nome>_SETUP` | [cap. 9](#cap-09-ap) |
 | Chave | 10 caracteres, letras maiúsculas e algarismos sem `O`, `0`, `I` e `1`; sempre a mesma naquele aparelho, mesmo depois de um reset de fábrica | [cap. 9](#cap-09-ap) |
 | Endereço do aparelho | `http://192.168.4.1` | [cap. 9](#cap-09-ap) |
 | AP aberto em operação, com rede configurada | Dura 15 min; depois o aparelho reinicia para tentar a rede | [cap. 9](#cap-09-ap-aberto) |
-| AP aberto no boot, pelo gesto ou sem rede configurada | Fica aberto até alguém gravar uma rede ou reiniciar o aparelho | [cap. 9](#cap-09-ap-aberto) |
+| AP aberto no boot pelo gesto, ou num aparelho sem rede configurada | Fica aberto até alguém gravar uma rede ou reiniciar o aparelho | [cap. 9](#cap-09-ap-aberto) |
 | Medição com o AP aberto | Continua: lê sensores, confere alarmes e grava histórico; telemetria e syslog esperam a rede | [cap. 9](#cap-09-ap-aberto) |
 
 ::: perigo
-**Da v2.7.1 à v2.8.0, com o AP de configuração aberto o aparelho não media.** Nessas versões, um aparelho sem rede configurada fica no AP desde o boot, e um que perde a rede por mais de cerca de 68 min passa a alternar 15 min no AP com cerca de 6 a 7 min medindo. O que não foi medido não é recuperado ([capítulo 9](#cap-09-ap-aberto)).
+**Da v2.7.1 à v2.8.0, com o AP de configuração aberto o aparelho não media.** Nessas versões, um aparelho sem rede configurada ficava no AP desde o boot, e um que perdia a rede por mais de cerca de 68 min passava a alternar 15 min no AP com cerca de 6 a 7 min medindo. O que não foi medido não é recuperado ([capítulo 9](#cap-09-ap-aberto)).
 :::
 
 ### Data e hora {#cap-28-hora}
@@ -264,7 +263,10 @@ O filtro vale só para a flash: o console com `debug on` e o syslog recebem todo
 |---|---|---|
 | Esperas entre pedidos ao NTP | 20 s, 1 min, 3 min, 9 min e, daí em diante, 15 min | [cap. 10](#cap-10-tentativas) |
 | Troca para `pool.ntp.org` | Depois de três esperas sem resposta, cerca de 4 min 20 s depois do primeiro pedido; vale até o próximo reinício | [cap. 10](#cap-10-tentativas) |
-| Correção do relógio no log de eventos | Acima de 5 s (evento 408); acima de 1 h, como aviso | [cap. 10](#cap-10-log) |
+| Correção do relógio no log de eventos | No primeiro acerto depois do boot, pelo NTP ou à mão: acima de 5 s (evento 408); acima de 1 h, como aviso | [cap. 10](#cap-10-log) |
+| [release]{.img} Pergunta da data e da hora no boot | Num aparelho sem rede configurada e com o relógio provisório; **PULAR**, ou 30 s sem toque, levam à tela inicial | [cap. 10](#cap-10-painel) |
+| Acerto à mão pelo painel e pelo console | Ano de 2026 a 2099; o dia tem de existir no mês; segundos em zero no painel. O `time` vale no console de todas as imagens | [cap. 10](#cap-10-manual) |
+| Contexto do evento 13 num acerto à mão | 1 interface web, 2 console, 3 painel (item 13 do menu), 4 painel (pergunta do boot) | [cap. 10](#cap-10-log) |
 | **Fuso Horário** | −12 a +14, em horas inteiras, sem horário de verão; fábrica −3 | [cap. 10](#cap-10-fuso) |
 
 ### Servidor web, HTTPS e CORS {#cap-28-servidor-web}
@@ -403,7 +405,7 @@ O filtro vale só para a flash: o console com `debug on` e o syslog recebem todo
 
 | Situação | Tempo | Onde |
 |---|---|---|
-| Boot sem rede | O aparelho espera a rede por até 30 s e segue sem ela; o painel mostra **Timeout de rede. Iniciando Offline...** | [cap. 11](#cap-11-boot) |
+| Boot sem rede | Com rede configurada e fora do ar, o aparelho espera a rede por até 30 s e segue sem ela, e o painel mostra **Timeout de rede. Iniciando Offline...**; sem rede configurada, segue na hora, com **Conexão Ignorada pelo Usuário.** | [cap. 11](#cap-11-boot) |
 | [release]{.img} Um toque no painel ocupa o aparelho | 5 s; nesse intervalo, gravações, capturas e exportações respondem `503` com `Retry-After` de 5 s nas gravações e 3 s nas leituras | [cap. 26](#cap-26-ocupado) |
 | [release]{.img} Console durante um toque | Guarda até 2 comandos e os executa depois dos 5 s | [cap. 14](#cap-14-usb) |
 | [release]{.img} Volta do painel à tela inicial | 30 s sem toque | [cap. 11](#cap-11-ocioso) |

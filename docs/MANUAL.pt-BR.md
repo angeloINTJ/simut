@@ -129,14 +129,24 @@ Pinagem completa e notas de montagem: [WIRING.md](WIRING.md).
    **uma única vez** na serial USB a 115200 baud. Anote — ela é guardada apenas
    como hash com salt, e nada a recupera depois exceto um reset.
 
-3. **Entre em uma rede.** Uma unidade sem rede configurada abre sozinha o
-   ponto de acesso de configuração — `<nome>_SETUP`, WPA2, com a chave impressa
-   no console USB e no display (§14) — e o portal em `http://192.168.4.1`
-   recebe o nome e a senha da rede. O Air não abre sozinho: digite `ap` no
-   console dele. Pela USB, `system ssid` e `system pass` fazem o mesmo. A
-   imagem release responde a mDNS, então é alcançável em `http://simut.local`
-   além de pelo IP. `show net status` na serial imprime o endereço, se você
-   precisar.
+3. **Entre em uma rede.** O ponto de acesso de configuração abre quando você
+   pede: `ap` no console (USB, ou Bluetooth no alpha e no Air), ou
+   Configurações → 12 no painel. Ele é `<nome>_SETUP`, WPA2, com a chave na
+   resposta do `ap`, no console USB e no display (§14), e o portal em
+   `http://192.168.4.1` recebe o nome e a senha da rede. Nenhuma imagem o abre
+   sozinha; da v2.7.1 à v2.8.0, uma unidade sem rede configurada abria. Pela
+   USB, `system ssid` e `system pass` fazem o mesmo. A imagem release responde
+   a mDNS, então é alcançável em `http://simut.local` além de pelo IP.
+   `show net status` na serial imprime o endereço, se você precisar.
+
+   Em vez disso, uma unidade sem rede configurada pede a data e a hora no fim
+   do boot, porque sem rede não há NTP e o relógio é o provisório: o painel
+   abre a tela **Data e hora** — acerte e toque em **SALVAR**, ou em
+   **PULAR**; 30 s sem toque fazem o mesmo que PULAR — e toda imagem escreve
+   no console `Sem rede, relogio provisorio: conf time AAAA-MM-DD HH:MM:SS`.
+   Esse comando funciona no console de todas as imagens, pela USB ou pelo
+   Bluetooth; no alpha e no Air, que não têm painel, é o jeito de responder à
+   pergunta. A seção **Data e Hora** da página web também serve.
 
    > O mDNS vem ligado e custa 15.272 B de flash — medido, linkando a imagem
    > das duas formas. Defina `SIMUT_MDNS=0` em `src/simut_config.h` para
@@ -291,6 +301,11 @@ quando há mais de quatro ativos e abrem as configurações (**CFG**).
   daquele sensor.
 - **Toque em CFG** para chegar às configurações — isso pede o **seu PIN**.
 
+A barra de cima mostra a data e a hora como `dd/mm/aa - hh:mm:ss`. Enquanto o
+relógio é o provisório — sem sincronização NTP e sem ninguém tê-lo acertado
+desde o boot —, o separador vira `?` e a data e a hora ficam em âmbar:
+`01/10/26 ? 09:58:12`.
+
 ### Primeiro a conta, depois o PIN
 
 O CFG abre a **lista de contas**: escolha a sua e só então digite o PIN. Cada
@@ -380,10 +395,11 @@ Alcançadas pelo CFG, depois do PIN. O título diz **quem entrou** —
 "Configurações > *nome*" — porque a sessão do painel dura até sair da árvore e
 tudo o que for feito nela sai assinado com esse nome. O menu lista **só o que a
 conta pode**:
-temas, sons, idioma, calibração e alinhamento pedem `SYS_CONFIG`; **Alarmes**
-pede qualquer um dos três bits do painel; **Usuários** pede `USER_MGR`; PIN,
-licença e status são de todos. Um operador com os bits de alarme vê quatro
-itens; o admin vê os dez.
+temas, sons, idioma, calibração, alinhamento e a data e hora pedem
+`SYS_CONFIG`; **Alarmes** pede qualquer um dos três bits do painel;
+**Usuários** e a política de PIN pedem `USER_MGR`; o ponto de acesso de
+configuração pede `NET_CONFIG`; PIN, licença e status são de todos. Um operador
+com os bits de alarme vê quatro itens; o admin vê os treze.
 
 ![menu do operador](images/screens/panel-menu-operator.png)
 
@@ -1043,12 +1059,12 @@ perfis, e qual deles você tem depende do build do firmware:
 
 | build | console |
 |---|---|
-| `pico_w_release`, `pico_w_alpha` | o console de emergência, catorze comandos |
+| `pico_w_release`, `pico_w_alpha` | o console de emergência, quinze comandos |
 | `pico_w_test` | o console completo, 56 comandos e quatro modos |
 | `pico_w_test_https` | o console completo, mais o servidor TLS — a imagem de bancada para qualquer coisa de HTTPS |
 | `pico_w_air` | o console completo, desde 18/09/2026 — veja abaixo |
 
-### Firmware de release — catorze comandos
+### Firmware de release — quinze comandos
 
 A imagem que os usuários rodam traz um console de recuperação, não uma
 interface de configuração. A configuração vive na interface web.
@@ -1067,6 +1083,7 @@ interface de configuração. A configuração vive na interface web.
 | `system pass <senha>` | Define a senha do Wi-Fi — **salva na hora** |
 | `system cors <origem>` / `off` | Libera a página do gerenciador web naquela origem a falar com este aparelho pelo navegador — **gravado na hora**, vale no próximo boot |
 | `ap` | Sobe o ponto de acesso de configuração — **WPA2**, chave impressa neste console |
+| `time <AAAA-MM-DD> <HH:MM:SS>` | Acerta o relógio, na hora local, até o próximo reboot. A data é conferida como num calendário: anos de 2026 a 2099, e `2026-02-31` é recusado. Até a v2.8.0, só o console completo o tinha |
 | `reload` | Reinicia |
 | `help` | Lista estes |
 
@@ -1131,7 +1148,7 @@ depois do boot. Dos comandos de recuperação, só o `ap` é permitido pelo enla
 
 ### Modo AP — a rede de setup
 
-Quando o aparelho não está na rede, ele mesmo levanta uma: `<nome>_SETUP`,
+Quando alguém pede, o aparelho levanta uma rede própria: `<nome>_SETUP`,
 **WPA2**, portal em `http://192.168.4.1`. A senha é derivada do número de série
 da placa (não é configurável, e sobrevive a um reset de fábrica) — o aparelho a
 publica de quatro maneiras:
@@ -1140,26 +1157,34 @@ publica de quatro maneiras:
 |---|---|
 | Console USB, na linha `[AP] PSK :` | todos |
 | Resposta do comando `ap`, no canal que pediu (USB ou Bluetooth) | todos |
-| O terminal de boot do painel: no boot, junto de "Conecte-se à rede …"; e, desde a v2.7.2, nas últimas linhas sempre que o AP abre em operação (Configurações → 12, `ap`, a escada) — rede, `PSK`, 192.168.4.1 | release (TFT) |
+| O terminal de boot do painel: no boot, junto de "Conecte-se à rede …"; e, desde a v2.7.2, nas últimas linhas sempre que o AP abre em operação (Configurações → 12, `ap`) — rede, `PSK`, 192.168.4.1 | release (TFT) |
 | Terceira página do LCD, enquanto o AP está no ar | alpha |
 
-E há quatro maneiras de entrar nele:
+E há três maneiras de entrar nele, todas a pedido de alguém:
 
 | Como | Vale para | Observação |
 |---|---|---|
-| **Sozinho**, quando não há Wi-Fi configurado | release, alpha | é o estado de fábrica; o Air fica de fora (ver abaixo) |
-| **Sozinho**, quando não consegue entrar na rede | release, alpha | na **primeira dormência** se ele nunca teve endereço desde que ligou (roteador trocado, senha mudada, aparelho mudado de lugar) — **medido: 6–7 min** (421 s numa corrida, 358–382 s noutra); depois de **uma rodada inteira** da escada se ele tinha endereço e perdeu — ~68 min por aritmética, não medido até o fim. O AP se desfaz em 15 min e o aparelho volta a tentar a rede |
 | **Configurações → 12. Modo de Configuração** | release (TFT) | pede confirmação; exige o bit de rede |
 | **Comando `ap`** | todos | pela USB, e pelo Bluetooth nas imagens alpha e Air |
 | **Segurando a tela durante o boot** | release (TFT) | o painel pede e mostra a barra de 3 s; ver abaixo |
 
-**O SIMUT Air fica de fora das duas entradas automáticas.** O rádio dele só
-existe dentro de um wake, o timeout de 15 min do AP só devolve à STA quando há
-SSID configurado — então num aparelho sem SSID esse estado não tem saída — e um
-Air que nunca hiberna é uma bateria na bancada. O canal dele é a CLI, pela USB
-ou pelo Bluetooth, que ele tem completa desde 18/09/2026.
+**Ele nunca abre sozinho.** Da v2.7.1 à v2.8.0 havia mais duas entradas na
+release e no alpha: no boot de uma unidade sem rede configurada, e pela escada
+de reconexão — na **primeira dormência** de uma unidade que nunca teve
+endereço desde que ligou (**medido: 6–7 min**, 421 s numa corrida, 358–382 s
+noutra), ou depois de **uma rodada inteira** da escada para uma que tinha
+(~68 min por aritmética). As duas saíram em 01/10/2026: uma unidade com a rede
+fora do ar continua medindo e tentando a rede pelo tempo que for preciso, e
+uma sem rede configurada pede a data e a hora (§3). Um AP aberto por alguém
+ainda se desfaz em 15 min quando há rede configurada, e o aparelho reinicia
+para tentá-la; sem rede configurada, fica no ar até alguém gravar uma rede ou
+reiniciar a unidade. No log de eventos, o 403 com contexto 0 é uma pessoa e o
+1 é o gesto do boot; o 2 e o 3 são as entradas automáticas, e só um log
+gravado da v2.7.1 à v2.8.0 os tem. O Air nunca teve nenhuma das duas: o rádio
+dele só existe dentro de um wake, e o canal dele é a CLI, pela USB ou pelo
+Bluetooth, que ele tem completa desde 18/09/2026.
 
-**O gesto do toque é o mais frágil dos cinco.** A janela abre quando o painel
+**O gesto do toque é o mais frágil dos três.** A janela abre quando o painel
 escreve "Segure a tela para o modo AP" e dura 3,5 s; segurar 3 s dentro dela
 liga o AP. Até a v2.7.0 essa janela corria **antes** do Core 1 existir, e o Core
 1 é quem desenha o TFT: a instrução chegava ao vidro 38 ms depois de a janela
@@ -1172,7 +1197,7 @@ v2.7.1 a janela roda com o painel desenhando, então **o que está escrito na te
 |---|---|
 | Esqueci a senha de admin | `system admin reset confirm` pela **serial USB** (o comando é recusado pelo Bluetooth), depois entre com a senha impressa — a web obriga a trocá-la. Desde esta versão o reset sobrevive a um reboot, então não há pressa |
 | Responde na serial mas não na rede | `show net status` — sem IP, entre em modo AP (acima) e reconfigure o Wi-Fi pelo portal |
-| O roteador mudou e o aparelho sumiu da rede | Ele abre a rede de setup sozinho — **medido: 6–7 min** (421 s numa corrida, 358–382 s noutra), porque nunca chegou a ter endereço nesse boot. Ou force pelo painel, pelo `ap` na USB, ou pelo `ap` por Bluetooth (alpha e Air) |
+| O roteador mudou e o aparelho sumiu da rede | Abra a rede de setup pelo painel (Configurações → 12), pelo `ap` na USB ou pelo `ap` por Bluetooth (alpha e Air), e grave a rede nova pelo portal. Ela não abre sozinha; da v2.7.1 à v2.8.0, abria 6–7 min depois do boot |
 | Vejo a rede `_SETUP` mas o celular não conecta | Corrigido na v2.7.1. Até a v2.7.0, um `ap` disparado enquanto o aparelho estava **caçando uma rede que não existe** subia um AP visível e inassociável (medido: 45 s e timeout, contra 4,07 s depois da correção) — e é justamente aí que se usa o `ap`. Em firmware mais antigo, `reload confirm` e o `ap` logo no boot |
 | Vejo a rede `_SETUP` no celular mas não sei a senha | Ela é derivada da placa e nunca foi em branco desde a v2.4.1-beta. Leia-a no console USB, na resposta do `ap`, no boot do TFT ou no LCD do alpha |
 | Tela em branco depois de ajustar o offset do display | Corrigido na v1.6.2-beta. Em firmwares mais antigos, um reset de fábrica limpa o offset armazenado |

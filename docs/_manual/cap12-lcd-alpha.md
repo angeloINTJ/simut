@@ -14,7 +14,7 @@ O LCD só mostra; ele não tem botões nem toque. Tudo o que se configura num al
 | `ERRO` para sensor em falha | O estado do Bluetooth |
 | O sinal do Wi-Fi | Menus |
 | A contagem de pendentes da telemetria | |
-| O endereço, o nome e a chave do AP de configuração, com uma ressalva na v2.7.1 ([O ponto de acesso de configuração](#cap-12-ap)) | |
+| O endereço, o nome e a chave do AP de configuração ([O ponto de acesso de configuração](#cap-12-ap)) | |
 
 O LCD fala só português, seja qual for o idioma da interface web ou do console.
 
@@ -65,7 +65,7 @@ No fim do boot, o LCD mostra o resultado da conexão:
 | `Conectado!` | `Obtendo IP...` | Associado à rede, esperando o endereço | Até 10 s |
 | `Sem WiFi` | `Offline` | Sem rede | 3 s |
 
-Depois disso, o LCD passa às leituras. Um boot que abre o AP de configuração não chega a esta etapa ([O ponto de acesso de configuração](#cap-12-ap)).
+Depois disso, o LCD passa às leituras, também num alpha sem rede configurada: o boot não abre o AP de configuração ([O ponto de acesso de configuração](#cap-12-ap)). Sem rede configurada, o boot não espera a rede e chega logo a `Sem WiFi`; no fim dele, o console escreve `Sem rede, relogio provisorio: conf time AAAA-MM-DD HH:MM:SS`. O LCD não mostra a hora: responda com esse comando, pelo console USB ou pelo Bluetooth, como `conf time 2026-10-01 14:30:00` ([capítulo 10](#cap-10-console)).
 
 ```text
  Conectado!
@@ -189,7 +189,7 @@ Mais de mil pendentes: a contagem em milhares.
 
 ## O ponto de acesso de configuração {#cap-12-ap}
 
-O alpha tem três páginas para o ponto de acesso de configuração ([capítulo 9](#cap-09-ap)), que se alternam:
+O ponto de acesso de configuração do alpha só abre pelo comando `ap`, no console USB ou pelo Bluetooth ([capítulo 14](#cap-14-ap)); o alpha não tem painel, nem o gesto do boot. Com o AP aberto, o LCD tem três páginas, que se alternam ([capítulo 9](#cap-09-ap)):
 
 | Página | Linha de cima | Linha de baixo |
 |---|---|---|
@@ -200,19 +200,20 @@ O alpha tem três páginas para o ponto de acesso de configuração ([capítulo 
 Cada página fica 3 s. Um valor com mais de 16 caracteres rola para a esquerda, uma coluna a cada 300 ms, com dois espaços entre o fim e o recomeço; nesse caso a página dura uma volta inteira. O nome de rede mais longo, com 37 caracteres, leva cerca de 12 s para passar.
 
 ::: atencao
-**Na v2.7.1, essas páginas quase nunca aparecem.** Pelo código da v2.7.1:
+**Da v2.7.1 à v2.8.0, essas páginas quase nunca apareciam.** Pelo código dessas versões:
 
-- **Num alpha que liga sem rede configurada**, o boot abre o AP e não encerra a tela de boot. O LCD fica em `SIMUT 2.7.1` com a barra cheia, sem o nome da rede e sem a chave.
-- **Num AP aberto com o aparelho em operação**, pela escada de reconexão ou pelo comando `ap`, o LCD continua nas leituras, paradas no último valor. As páginas do AP só aparecem depois que alguém abre uma página da interface web pelo AP.
+- **Num alpha que ligava sem rede configurada**, o boot abria o AP sozinho e não encerrava a tela de boot. O LCD ficava em `SIMUT` e na versão, com a barra cheia, sem o nome da rede e sem a chave.
+- **Num AP aberto com o aparelho em operação**, pela escada de reconexão ou pelo comando `ap`, o LCD continuava nas leituras, paradas no último valor. As páginas do AP só apareciam depois que alguém abria uma página da interface web pelo AP.
 
-Isso vem da leitura do código. O LCD não pôde ser conferido no aparelho, porque a bancada de testes não tem LCD.
+Hoje o alpha não abre o AP no boot, e o comando `ap` leva o LCD direto às páginas do AP, porque o aparelho continua medindo e atualizando o LCD com o AP aberto. Isso vem da leitura do código; o LCD com o AP aberto não foi conferido no aparelho.
 :::
 
 Para usar o AP num alpha:
 
-1. Pegue o nome da rede e a chave:
+1. Abra o AP com o comando `ap`, pelo console USB ou pelo Bluetooth ([capítulo 14](#cap-14-ap)), e pegue o nome da rede e a chave:
+   - na resposta do comando, que traz a chave; o nome da rede é o nome do aparelho seguido de `_SETUP`;
    - no console USB, que mostra as linhas `[AP] SSID`, `[AP] PSK` e `[AP] URL` quando o AP abre; ou
-   - na resposta do comando `ap`, pelo console USB ou pelo Bluetooth ([capítulo 14](#cap-14)). Ela traz a chave; o nome da rede é o nome do aparelho seguido de `_SETUP`.
+   - nas páginas do AP, no LCD.
 2. No celular ou no computador, conecte-se a essa rede com essa chave.
 3. Abra `http://192.168.4.1`.
 
@@ -223,7 +224,7 @@ Senha:   3 de 3
 K7PX4MRW2A
 ```
 
-::: {.figura #fig-12-ap-1 tipo="lcd" arquivo="12-ap-1.png" captura="AP aberto em operação pelo comando ap, depois de abrir uma página da interface web pelo AP; página Modo AP 1 de 3 com 192.168.4.1"}
+::: {.figura #fig-12-ap-1 tipo="lcd" arquivo="12-ap-1.png" captura="AP aberto em operação pelo comando ap; página Modo AP 1 de 3 com 192.168.4.1"}
 A página 1 do AP: o endereço.
 :::
 

@@ -424,6 +424,10 @@ errado não apontar o chamador para o parâmetro errado. `tel_sync` → `{"ok":t
 ### `POST /api/set_time` · `PERM_SYS_CONFIG`
 JSON cru `{"epoch":1789797592}` → `{"ok":true,"now":1789797592}`. Aplica na hora,
 **sem reiniciar**. Com NTP ligado, a próxima sincronização sobrescreve.
+Se o relógio em uso ainda é o provisório, o primeiro acerto depois do boot
+desloca pela diferença os blocos do histórico que o boot começou, como o NTP
+faz (eventos 408 e 409, acima de 5 s), e o log grava o evento 13 com `ctx=1`
+(até a v2.8.0, 0). Lido no código em 01/10/2026; não medido no aparelho.
 
 ### `POST /api/save_sys` · `PERM_SYS_CONFIG`
 `theme=<n>` → `{"status":"ok"}`. Troca o tema na hora, sem passar pelo commit.

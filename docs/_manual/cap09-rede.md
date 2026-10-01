@@ -187,10 +187,10 @@ O intervalo tem teto de 120 s, que a escada não chega a atingir: a 5ª falha j�
 
 Na dormência, a espera antes de cada busca passa a ser de 10 min. O aparelho cumpre três dormências. Se a rede não voltar, ele volta ao primeiro degrau e registra **Dormancy over — back to fast retries**. Uma conexão bem-sucedida, a qualquer momento, zera a escada.
 
-Durante a escada, o aparelho continua medindo, gravando o histórico e atendendo o painel. A telemetria pendente espera a rede voltar ([capítulo 21](#cap-21)). Isso muda quando a escada abre o AP de configuração: veja [Enquanto o AP está aberto](#cap-09-ap-aberto).
+Durante a escada, o aparelho continua medindo, gravando o histórico e atendendo o painel. A telemetria pendente espera a rede voltar ([capítulo 21](#cap-21)). A escada não abre o AP de configuração: o aparelho tenta a rede configurada pelo tempo que for preciso, e o AP só abre quando alguém pede ([Quando o AP abre](#cap-09-ap-quando)). Da v2.7.1 à v2.8.0, a escada também abria o AP sozinha.
 
-::: {.figura #fig-09-escada tipo="diagrama" arquivo="09-escada.png" captura="linha do tempo da escada de reconexão: queda; cinco ciclos de busca, busca e tentativa de 20 s com esperas de 5, 10, 20, 40 e 80 s; três dormências de 10 min antes de cada busca; ao fim, o AP de configuração (aparelho que já teve IP) e o recomeço da escada; marcar à parte o AP rápido na primeira dormência para o aparelho que nunca teve IP"}
-A escada de reconexão: esperas que dobram, três dormências de 10 min e o ponto em que o aparelho abre o AP de configuração.
+::: {.figura #fig-09-escada tipo="diagrama" arquivo="09-escada.png" captura="linha do tempo da escada de reconexão: queda; cinco ciclos de busca, busca e tentativa de 20 s com esperas de 5, 10, 20, 40 e 80 s; três dormências de 10 min antes de cada busca; ao fim, o recomeço da escada, que se repete até a rede voltar; nenhum AP de configuração na linha"}
+A escada de reconexão: esperas que dobram, três dormências de 10 min e o recomeço, até a rede voltar.
 :::
 
 ### Outros motivos para reconectar {#cap-09-vigilancia}
@@ -224,7 +224,7 @@ O log de eventos não grava cada repetição. Uma falha que se repete, como `Ret
 
 [release]{.img} [alpha]{.img}
 
-O ponto de acesso de configuração é uma rede Wi-Fi que o próprio aparelho cria para você configurá-lo quando ele não consegue entrar na sua rede. O primeiro uso, num aparelho novo, está no [capítulo 4](#cap-04).
+O ponto de acesso de configuração é uma rede Wi-Fi que o próprio aparelho cria, quando alguém pede, para ser configurado sem outra rede: num aparelho novo, ou num que não consegue entrar na sua rede. O primeiro uso, num aparelho novo, está no [capítulo 4](#cap-04-rede).
 
 A rede do AP:
 
@@ -238,8 +238,8 @@ A rede do AP:
 A chave é derivada da identidade do chip e é sempre a mesma para aquele aparelho, mesmo depois de um reset de fábrica. Ela usa letras maiúsculas e algarismos, sem `O`, `0`, `I` e `1`, para ser lida em voz alta sem confusão. A chave aparece:
 
 - no console serial, quando o AP abre;
-- no painel, quando o aparelho liga já no AP ou abre o AP em operação (pelo menu, pela escada ou pelo comando `ap`);
-- no LCD do alpha, que na v2.7.1 quase nunca chega a mostrá-la ([capítulo 12](#cap-12-ap));
+- no painel, quando o AP abre: no boot, pelo gesto, ou em operação, pelo menu ou pelo comando `ap`;
+- no LCD do alpha, na terceira das páginas do AP ([capítulo 12](#cap-12-ap));
 - na resposta do comando `ap` do console ([capítulo 14](#cap-14)).
 
 Anote a chave do seu aparelho na primeira configuração.
@@ -250,36 +250,37 @@ Anote a chave do seu aparelho na primeira configuração.
 
 ### Quando o AP abre {#cap-09-ap-quando}
 
-| Situação | Quando abre |
+O AP só abre quando alguém pede:
+
+| Quem pede | Quando abre |
 |---|---|
-| O aparelho liga sem rede configurada | No boot |
-| Gesto de toque no boot ([capítulo 4](#cap-04)) | No boot |
-| Item do menu do painel, com a permissão **Rede** no painel ([release]{.img}, [capítulo 11](#cap-11)) | Na hora |
-| Comando `ap` no console ([capítulo 14](#cap-14)) | Na hora |
-| Escada de reconexão, aparelho que **nunca** obteve IP desde que ligou | Na primeira dormência: cerca de 6 a 7 min depois de ligar, com uma rede que não existe (medido em bancada em 22/09/2026, durante o desenvolvimento da v2.7.1) |
-| Escada de reconexão, aparelho que **já** obteve IP desde que ligou | Ao fim de uma volta inteira da escada: cerca de 68 min quando a rede não aparece nas buscas, pela aritmética da escada; menos, se a rede aparece e só a entrada falha |
+| [release]{.img} Item 12 do menu do painel, **Modo de Configuração**, com a permissão **Rede** no painel ([capítulo 11](#cap-11-ap)) | Na hora |
+| Comando `ap` no console, pelo USB ou pelo Bluetooth ([capítulo 14](#cap-14-ap)) | Na hora |
+| [release]{.img} Gesto de toque no boot ([capítulo 11](#cap-11-boot-ap)) | No boot |
 
-As duas regras da escada são diferentes de propósito. Um aparelho que nunca entrou na rede depois de ligar provavelmente está com a rede errada: o roteador foi trocado, a senha mudou ou o aparelho mudou de lugar. Ele abre o AP logo. Um aparelho que estava funcionando e perdeu a rede provavelmente está diante de uma queda passageira, e abrir o AP cedo tiraria da rede, por 15 min, um aparelho que voltaria sozinho.
+O aparelho nunca troca a rede dele pelo AP sozinho. Sem rede configurada, ele liga, mede e grava como sempre, e a release pergunta a data e a hora no fim do boot ([capítulo 10](#cap-10-painel)). Com a rede fora do ar, ele segue a escada de reconexão até ela voltar ([Quando a rede cai](#cap-09-reconexao)).
 
-O log de eventos registra o motivo no contexto do evento 403: 0 para o comando `ap` ou o painel, 1 para o gesto no boot, 2 para aparelho sem rede configurada e 3 para a escada.
+Da v2.7.1 à v2.8.0, a release e o alpha também abriam o AP sozinhos: no boot de um aparelho sem rede configurada, e pela escada de reconexão. A escada abria o AP na primeira dormência de um aparelho que nunca tinha obtido IP desde que ligou, cerca de 6 a 7 min depois de ligar (medido em bancada em 22/09/2026, com uma rede que não existe), ou ao fim de uma volta inteira da escada num aparelho que já tinha obtido IP, cerca de 68 min pela aritmética da escada.
+
+O log de eventos registra quem pediu no contexto do evento 403: 0 para o comando `ap` ou o painel, 1 para o gesto no boot. Os contextos 2 (aparelho sem rede configurada) e 3 (a escada) só aparecem em logs gravados da v2.7.1 à v2.8.0.
 
 ### Enquanto o AP está aberto {#cap-09-ap-aberto}
 
-**Com o AP aberto, o aparelho continua medindo.** Ele lê os sensores, confere os limites dos alarmes e grava o histórico com o AP de configuração no ar. Só a telemetria e o syslog esperam a rede voltar; a linha de alarmes guarda os eventos na fila e os envia depois. O painel fica na tela do AP, com a rede, a chave e o endereço: um alarme soa pelo buzzer, mas não aparece no vidro enquanto essa tela estiver aberta. No alpha, o LCD mostra as páginas do AP (endereço, rede e chave) quando o AP abre em operação; com o AP aberto no boot, ele fica na barra de progresso.
+**Com o AP aberto, o aparelho continua medindo.** Ele lê os sensores, confere os limites dos alarmes e grava o histórico com o AP de configuração no ar. Só a telemetria e o syslog esperam a rede voltar; a linha de alarmes guarda os eventos na fila e os envia depois. O painel fica na tela do AP, com a rede, a chave e o endereço: um alarme soa pelo buzzer, mas não aparece no vidro enquanto essa tela estiver aberta. No alpha, o LCD mostra as páginas do AP: o endereço, a rede e a chave ([capítulo 12](#cap-12-ap)).
 
 ::: perigo
-**Da v2.7.1 à v2.8.0, com o AP aberto o aparelho não media.** Nessas versões, enquanto o AP de configuração está no ar, o aparelho não lê os sensores, não confere os limites dos alarmes e não grava o histórico, e um alarme novo não soa. Como o AP também abre sozinho desde a v2.7.1, isso tem duas consequências:
+**Da v2.7.1 à v2.8.0, com o AP aberto o aparelho não media.** Nessas versões, enquanto o AP de configuração estava no ar, o aparelho não lia os sensores, não conferia os limites dos alarmes e não gravava o histórico, e um alarme novo não soava. Como nessas versões o AP também abria sozinho, isso tinha duas consequências:
 
-- **Aparelho sem rede configurada** fica no AP desde o boot e não mede até alguém gravar uma rede. Não use nenhuma dessas versões num aparelho que vai funcionar sem Wi-Fi.
-- **Aparelho que perde a rede** por mais de uma volta da escada (cerca de 68 min) passa a alternar 15 min no AP, sem medir, com cerca de 6 a 7 min medindo, até a rede voltar. Numa queda longa, ele fica sem medir cerca de dois terços do tempo.
+- **Aparelho sem rede configurada** ficava no AP desde o boot e não media até alguém gravar uma rede. Não use nenhuma dessas versões num aparelho que vai funcionar sem Wi-Fi.
+- **Aparelho que perdia a rede** por mais de uma volta da escada (cerca de 68 min) passava a alternar 15 min no AP, sem medir, com cerca de 6 a 7 min medindo, até a rede voltar. Numa queda longa, ficava sem medir cerca de dois terços do tempo.
 
 Esses números vêm da leitura do código da v2.7.1. O log de eventos mostra quando isso aconteceu: o evento 403 com contexto 2 ou 3 marca o início, e o 525 `AP mode timeout, rebooting to STA` marca o fim de cada período. O que não foi medido não é recuperado.
 :::
 
 - A telemetria e o syslog esperam a rede voltar.
 - O aparelho não tenta a rede configurada enquanto o AP está aberto.
-- Um AP aberto com o aparelho em operação (pela escada, pelo painel ou pelo comando `ap`), com uma rede configurada, dura 15 min. Depois disso o aparelho reinicia para tentar a rede de novo, com ou sem alguém conectado ao AP. O evento é **Timeout na conexão WiFi** (525) com o texto `AP mode timeout, rebooting to STA`. Se a rede ainda não estiver lá, o AP volta na primeira dormência, cerca de 6 a 7 min depois.
-- Um AP aberto no boot, pelo gesto ou por falta de rede configurada, fica aberto até alguém gravar uma rede ou reiniciar o aparelho.
+- Um AP aberto com o aparelho em operação, pelo painel ou pelo comando `ap`, num aparelho com rede configurada, dura 15 min. Depois disso o aparelho reinicia para tentar a rede de novo, com ou sem alguém conectado ao AP. O evento é **Timeout na conexão WiFi** (525) com o texto `AP mode timeout, rebooting to STA`. Se a rede ainda não estiver lá, o aparelho segue a escada de reconexão, e o AP só volta se alguém o abrir de novo.
+- Um AP aberto no boot, pelo gesto, ou num aparelho sem rede configurada, fica aberto até alguém gravar uma rede ou reiniciar o aparelho.
 
 Para sair do AP com a rede certa:
 
@@ -291,10 +292,10 @@ Para sair do AP com a rede certa:
 O aparelho reinicia e tenta a rede nova.
 
 ::: atencao
-**HTTP ou HTTPS no AP.** Um aparelho que liga já no AP atende sempre em HTTP, mesmo com certificado instalado: é a porta de recuperação para um certificado com defeito. Um AP aberto com o aparelho já em operação, pela escada, pelo painel ou pelo comando `ap`, mantém o protocolo que o servidor web escolheu no boot. Numa release com certificado instalado, use `https://192.168.4.1`.
+**HTTP ou HTTPS no AP.** Um aparelho que liga já no AP, pelo gesto no boot, atende sempre em HTTP, mesmo com certificado instalado: é a porta de recuperação para um certificado com defeito. Um AP aberto com o aparelho já em operação, pelo painel ou pelo comando `ap`, mantém o protocolo que o servidor web escolheu no boot. Numa release com certificado instalado, use `https://192.168.4.1`.
 :::
 
-[air]{.img} O Air não abre o AP sozinho, nem no boot sem rede configurada: o rádio dele só existe durante um despertar, e ninguém está diante de um aparelho hibernando para usar o AP. O comando `ap` abre o AP também no Air, mas o jeito indicado de configurar a rede do Air é o console, por USB ou Bluetooth ([capítulo 19](#cap-19)).
+[air]{.img} O Air não tem painel: o AP dele só abre pelo comando `ap`, e ele nunca o abriu sozinho, nem da v2.7.1 à v2.8.0. O rádio do Air só existe durante um despertar, e ninguém está diante de um aparelho hibernando para usar o AP. O jeito indicado de configurar a rede do Air é o console, por USB ou Bluetooth ([capítulo 19](#cap-19)).
 
 ## mDNS: o endereço pelo nome {#cap-09-mdns}
 
