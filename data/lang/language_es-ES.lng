@@ -465,6 +465,7 @@ reload [confirm]
   Reinicia ahora
 ap
   Inicia el modo AP (punto de acceso)
+time <AAAA-MM-DD> <HH:MM:SS>
 ===========================================
 @LICENSE
 Licencia MIT
