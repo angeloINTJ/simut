@@ -814,7 +814,11 @@ void LogManager::checkCrossCoreHealth( ) {
  constexpr uint32_t SR_WD_ENABLE    = WATCHDOG_CTRL_ENABLE_BITS;
  constexpr uint32_t SR_WD_TRIG      = WATCHDOG_CTRL_TRIGGER_BITS;
  constexpr uint32_t SR_PSM_BASE     = PSM_BASE;
- constexpr uint32_t SR_PSM_WDSEL    = 0x18u;   /* sic — not PSM_WDSEL_OFFSET; see the next commit */
+ /* WDSEL is at 0x08 on both chips. This said 0x18 until 2026-10-01, which
+  * is no register at all, so the write went nowhere and the reset relied on
+  * whatever WDSEL the SDK's watchdog_enable( ) had left. ota/applier.cpp
+  * always had 0x08. */
+ constexpr uint32_t SR_PSM_WDSEL    = PSM_WDSEL_OFFSET;
  constexpr uint32_t SR_PSM_MASK     = (PSM_WDSEL_BITS & ~(PSM_WDSEL_ROSC_BITS | PSM_WDSEL_XOSC_BITS));
 
  *(volatile uint32_t*)(SR_PSM_BASE + SR_PSM_WDSEL) = SR_PSM_MASK;
@@ -891,7 +895,7 @@ void LogManager::safeReboot( ) {
  constexpr uint32_t LM_WD_ENABLE_BIT = WATCHDOG_CTRL_ENABLE_BITS;
  constexpr uint32_t LM_WD_TRIG_BIT = WATCHDOG_CTRL_TRIGGER_BITS;
  constexpr uint32_t LM_PSM_BASE = PSM_BASE;
- constexpr uint32_t LM_PSM_WDSEL_OFF = 0x18u;   /* sic — not PSM_WDSEL_OFFSET; see the next commit */
+ constexpr uint32_t LM_PSM_WDSEL_OFF = PSM_WDSEL_OFFSET;   /* was 0x18, no register: see SR_PSM_WDSEL above */
  constexpr uint32_t LM_PSM_BITS_ALL = PSM_WDSEL_BITS;
  constexpr uint32_t LM_PSM_ROSC_BIT = PSM_WDSEL_ROSC_BITS;
  constexpr uint32_t LM_PSM_XOSC_BIT = PSM_WDSEL_XOSC_BITS;
