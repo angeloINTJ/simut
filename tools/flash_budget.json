@@ -523,32 +523,32 @@
   "21,428. Against the published v2.7.4 .bin: release +1,376, alpha and air +32."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-10-01 fix/ap-mode-keeps-measuring rebased on fix/i2c-pin-roles (#203), over main 7755384: all six measured on the combined tree. Against #203 alone: the same used for release, test, test_https, asserts and alpha; air -8 B (1,004,384). The AP-mode early return gave way to a gate around syslog and telemetry. Budgets unchanged: the growth of both fits under each. measured is the zopfli image PlatformIO prints.",
+ "measured_on": "2026-10-01 fix/mqtt-alarm-ack-without-telemetry rebased on #204 and #203, over main 7755384: all six measured on the combined tree, each +152 B against #204: the MQTT loop( ) moved above the telemetry-off gate (one SIMUT_TEL_MQTT block, the HA reconciliation guarded inside it) and the alarm publish learned to fit the client buffer. Budgets unchanged: the growth fits under each. measured is the zopfli image PlatformIO prints.",
  "measured_at_commit": "chore/v2.8.0 on main 8aa898b (#195 merged; SIMUT_VERSION 2.8.0; budgets unchanged). All six rebuilt here; release, test, alpha and air byte-identical to the candidate tested on the bench. measured is the zopfli image PlatformIO prints.",
  "envs": {
   "pico_w_release": {
    "budget": 1000572,
-   "measured": 999420
+   "measured": 999572
   },
   "pico_w_test": {
    "budget": 1005972,
-   "measured": 1004996
+   "measured": 1005148
   },
   "pico_w_test_https": {
    "budget": 1013628,
-   "measured": 1012604
+   "measured": 1012756
   },
   "pico_w_asserts": {
    "budget": 1002748,
-   "measured": 1001668
+   "measured": 1001820
   },
   "pico_w_alpha": {
    "budget": 966108,
-   "measured": 964452
+   "measured": 964604
   },
   "pico_w_air": {
    "budget": 1005960,
-   "measured": 1004384
+   "measured": 1004536
   }
  }
 }

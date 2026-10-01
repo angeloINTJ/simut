@@ -16,9 +16,19 @@ Fluxo:
 
 Uso:
   SIMUT_WIFI_SSID=... SIMUT_WIFI_PASS=... python3 tools/alarm_mqtt_test.py
+  ... --tel-off     linha convencional desligada (tel interval 0): o ACK só é
+                    lido se o loop( ) do MQTT roda mesmo assim (achado 28 do
+                    manual v2.7.1; até 2026-10-01 a fila nunca esvaziava)
+  ... --burst N     N idas e voltas do limite SEM confirmar, com qmax 32: o lote
+                    passa de 2048 B, o buffer de fábrica do PubSubClient (achado
+                    29; até 2026-10-01 o publish falhava calado para sempre).
+                    Depois confirma tudo e exige fila 0. O template ganha 120 B
+                    de enchimento (~191 B por registro): 11 registros passam de
+                    2048 B, e N=12 sobra (nem toda borda vira registro).
 
 Requisitos: pyserial, paho-mqtt, requests, docker (ou broker em SIMUT_MQTT_BROKER).
 """
+import argparse
 import glob
 import hashlib
 import json
@@ -42,6 +52,14 @@ BAUD = 115200
 WIFI_SSID = os.environ.get("SIMUT_WIFI_SSID", "")
 WIFI_PASS = os.environ.get("SIMUT_WIFI_PASS", "")
 # vazio = device já tem WiFi persistido (migração v20→v21 preserva).
+
+ALARM_LINE = ('{"ts":{TS},"id":"{ID}","val":{val},"alarm":{alarm},'
+              '"err":{err},"seq":{seq}}')
+# --burst: the same line plus 120 bytes, so that a dozen round trips pass the
+# 2048 B buffer. Measured on the rig 2026-10-01: 16 round trips queued only 18
+# new records (edges this close together are not all recorded), and 23 records
+# of the plain line came to 1625 B — never past the size under test.
+ALARM_LINE_BURST = ALARM_LINE[:-1] + ',"pad":"' + "x" * 120 + '"}'
 
 TEST_USER = "alarmtest"
 TEST_PASS = "Alarm!Test2026"
@@ -169,34 +187,62 @@ class Dev:
         return None
 
 
-def first_active_sensor(dev):
-    """Primeiro slot ATIVO com alarmes LIGADOS; retorna (gpio, tmin, tmax)."""
+def temp_slots(dev):
+    """[slot, alarmes ligados, tmin, tmax] de cada slot ativo que mede temperatura."""
     r = dev.cmd("show sensors", 3)
-    cur = None
+    slots, cur = [], None
     for line in r.split("\n"):
-        m = re.search(r"Slot\s+(\d+)\].*?GPIO=(\d+)", line)
+        # [Slot 04] GPIO=4,SDA/5 | BMP280   | T+P   | SALA 2
+        m = re.search(r"\[Slot\s+(\d+)\]\s+GPIO=\S+\s*\|\s*\S+\s*\|\s*(\S+)", line)
         if m:
-            cur = int(m.group(2))
+            cur = [int(m.group(1)), False, None, None] if "T" in m.group(2).split("+") else None
+            if cur:
+                slots.append(cur)
             continue
-        if cur is None:
-            continue
-        if re.search(r"ALARMES:\s*LIGADO|ALARMS:\s*ON", line):
+        if cur and re.search(r"ALARMES:\s*LIGADO|ALARMS:\s*ON", line):
+            cur[1] = True
             lim = re.search(r"\[T:\s*([-\d.]+)\s*\.\.\s*([-\d.]+)\]", line)
             if lim:
-                return cur, float(lim.group(1)), float(lim.group(2))
-    r2 = dev.cmd("show sensors", 3)
-    m = re.search(r"GPIO=(\d+)\s*\|\s*(DS18B20|DHT22|BME280|BMP280)", r2)
-    if m:
-        return int(m.group(1)), None, None
-    return None, None, None
+                cur[2], cur[3] = float(lim.group(1)), float(lim.group(2))
+    return slots
 
 
-def clear_limit_edge(dev, gpio):
-    dev.cmd(f"sensor {gpio} tmax 100")
+def pick_alarm_slot(dev):
+    """Slot que vai gerar a borda; retorna (slot, tmin, tmax, ligado_pelo_teste).
+
+    A CLI endereça o SLOT (`sensor <slot> tmax ...`), não o GPIO: até 01/10/2026
+    isto devolvia o GPIO do cabeçalho, o que só acertava onde o slot N mora no
+    GPIO N. E exigia um slot com alarmes já ligados: a config da bancada tem
+    todos desligados, nenhuma borda saía e o teste falhava em qualquer imagem.
+    Agora um slot desligado é ligado para o teste (só na RAM) e desligado no fim."""
+    slots = temp_slots(dev)
+    on = [s for s in slots if s[1] and s[2] is not None]
+    if on:
+        return on[0][0], on[0][2], on[0][3], False
+    if not slots:
+        return None, None, None, False
+    slot = slots[0][0]
+    dev.cmd(f"sensor {slot} alarm on")
+    s = next((x for x in temp_slots(dev) if x[0] == slot), None)
+    return slot, (s[2] if s else None), (s[3] if s else None), True
+
+
+def clear_limit_edge(dev, slot):
+    # The band opened on both sides: a slot just switched on may sit below its
+    # stored minimum, and then raising tmax would not clear anything.
+    dev.cmd(f"sensor {slot} tmin -100")
+    dev.cmd(f"sensor {slot} tmax 100")
     time.sleep(12)
 
 
 def main():
+    ap = argparse.ArgumentParser(description="SIMUT: linha de alarmes por MQTT com ACK")
+    ap.add_argument("--tel-off", action="store_true",
+                    help="tel interval 0: a linha convencional desligada")
+    ap.add_argument("--burst", type=int, default=0, metavar="N",
+                    help="N idas e voltas do limite sem confirmar (qmax 32)")
+    args = ap.parse_args()
+
     broker_host, broker_port = start_broker()
     if not broker_host:
         sys.exit("  [FATAL] sem broker: instale mosquitto/docker ou defina SIMUT_MQTT_BROKER")
@@ -218,9 +264,9 @@ def main():
     dev.cmd("tel crypto off")
     dev.cmd("alarm set on")
     dev.cmd("alarm set mode json")
-    dev.cmd("alarm set qmax 16")
-    # templates default (token único, sem espaços — limitação do CLI tokenizado)
-    dev.cmd('alarm set line {"ts":{TS},"id":"{ID}","val":{val},"alarm":{alarm},"err":{err},"seq":{seq}}')
+    dev.cmd("alarm set qmax 32" if args.burst else "alarm set qmax 16")
+    if args.tel_off:
+        dev.cmd("tel interval 0")
     dev.cmd(f"user del {TEST_USER}")
     dev.cmd(f"user add {TEST_USER} {TEST_PASS}")
     dev.cmd(f"user perm {TEST_USER} admin")
@@ -245,8 +291,15 @@ def main():
     }, headers={"Content-Type": "application/x-www-form-urlencoded"}, timeout=15)
     check("login web OK", "SIMUTSESS" in web.cookies.get_dict(), str(r.status_code))
 
+    # The line template goes by the web, not by `alarm set line`: the CLI's
+    # value field is 64 bytes (CliDemand::strVal2), and this template is 75.
+    # Until 2026-10-01 it was sent by the CLI and arrived cut after "err":{err},
+    # — no {seq}, so nothing could be acknowledged, and a trailing comma that
+    # made every batch invalid JSON. Measured on the rig on main 2721eb2:
+    # [{"ts":1790859522,"id":"tSTM0009","val":24.75,"alarm":"alarm",]
     payload = {"sys": {"t_transport": 1, "m_topic": "simut/data",
-                       "m_cid": "simut-alarm-hw"}}
+                       "m_cid": "simut-alarm-hw", "a_mode": 0,
+                       "a_line": ALARM_LINE_BURST if args.burst else ALARM_LINE}}
     r = web.post(f"http://{ip}/api/commit_all",
                  data={"_payload": json.dumps(payload)}, timeout=30)
     check("commit_all aceito", r.status_code == 200, f"HTTP {r.status_code} {r.text[:120]}")
@@ -256,7 +309,7 @@ def main():
 
     # ── broker: assina e ack ──
     print("\n[03] Broker: assinar simut/data/alarm e publicar ACK")
-    got = {"payloads": [], "acked": 0}
+    got = {"payloads": [], "acked": 0, "hold": bool(args.burst)}
 
     def on_connect(client, userdata, flags, reason_code, properties=None):
         client.subscribe("simut/data/alarm")
@@ -267,7 +320,9 @@ def main():
             got["payloads"].append(body)
             recs = json.loads(body) if body.startswith("[") else []
             seqs = [r["seq"] for r in recs if isinstance(r, dict) and "seq" in r]
-            if seqs:
+            if seqs and got["hold"]:
+                print(f"  [HOLD] {len(seqs)} registros, {len(body)} B — sem confirmar")
+            elif seqs:
                 client.publish("simut/data/alarm/ack", json.dumps({"seq": seqs}))
                 got["acked"] += len(seqs)
                 print(f"  [ACK] confirmados {seqs}")
@@ -283,30 +338,50 @@ def main():
 
     # ── borda de limite ──
     print("\n[04] Borda de limite → payload no tópico /alarm")
-    gpio, tmin0, tmax0 = first_active_sensor(dev)
-    check("sensor real em GPIO", gpio is not None, str(gpio))
-    if gpio is not None:
-        clear_limit_edge(dev, gpio)
+    slot, tmin0, tmax0, switched_on = pick_alarm_slot(dev)
+    check("slot com temperatura", slot is not None, str(slot))
+    if slot is not None:
+        clear_limit_edge(dev, slot)
         before = len(got["payloads"])
-        dev.cmd(f"sensor {gpio} tmax -100")
+        dev.cmd(f"sensor {slot} tmax -100")
         deadline = time.time() + 120
         while time.time() < deadline and len(got["payloads"]) == before:
-            cli.loop()
             time.sleep(2)
         check("payload MQTT chegou", len(got["payloads"]) > before,
               str(got["payloads"][-1:])[:200])
-        if tmax0 is not None:
-            dev.cmd(f"sensor {gpio} tmin {tmin0}")
-            dev.cmd(f"sensor {gpio} tmax {tmax0}")
-        else:
-            dev.cmd(f"sensor {gpio} tmax 100")
+        dev.cmd(f"sensor {slot} tmax 100")
+
+    # ── rajada: o lote passa do buffer de fábrica ──
+    if args.burst and slot is not None:
+        print(f"\n[04b] Rajada de {args.burst} idas e voltas sem confirmar")
+        for _ in range(args.burst):
+            dev.cmd(f"sensor {slot} tmax -100", 6)
+            dev.cmd(f"sensor {slot} tmax 100", 6)
+        r = dev.cmd("alarm show", 2)
+        m = re.search(r"(?:fila|queue)\s+(\d+)/(\d+)", r)
+        print(f"  fila depois da rajada: {m.group(0) if m else r[:80]!r}")
+        got["hold"] = False                     # daqui em diante, confirma
+        deadline = time.time() + 90
+        while time.time() < deadline and not any(len(p) > 2048 for p in got["payloads"]):
+            time.sleep(2)
+        big = max((len(p) for p in got["payloads"]), default=0)
+        check("lote maior que 2048 B publicado", big > 2048, f"maior={big} B")
+
+    if slot is not None:
+        # Alarms off BEFORE the stored limits come back: on the bench the
+        # "fridge" probe sits at room temperature, and its own band put it back
+        # in alarm — one more record the run had not asked for.
+        if switched_on:
+            dev.cmd(f"sensor {slot} alarm off")
+        if tmin0 is not None:
+            dev.cmd(f"sensor {slot} tmin {tmin0}")
+            dev.cmd(f"sensor {slot} tmax {tmax0}")
 
     # ── confirmação esvazia a fila ──
     print("\n[05] Fila esvazia após o ACK")
     deadline = time.time() + 60
     size, cap = None, None
     while time.time() < deadline:
-        cli.loop()
         r = dev.cmd("alarm show", 2)
         m = re.search(r"(?:fila|queue)\s+(\d+)/(\d+)", r)
         if m:
