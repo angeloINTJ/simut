@@ -108,7 +108,11 @@ O que foi conferido no framework instalado (`framework-arduinopico`
 - Endereços do RP2040 escritos à mão: watchdog `0x40058000` e PSM
   `0x40010000` em `LogManager.cpp`, `AppManager_Boot.cpp`,
   `ota/orchestrator.cpp` e `ota/applier.cpp`. No RP2350 são `0x400d8000` e
-  `0x40018000`: o código compila e escreve no lugar errado.
+  `0x40018000`: o código compila e escreve no lugar errado. Corrigido no S0
+  (#215): os endereços vêm do SDK do chip, e as seis imagens do RP2040 saíram
+  idênticas byte a byte. A mesma leitura achou as duas reinicializações do
+  `LogManager.cpp` escrevendo o WDSEL em `PSM_BASE + 0x18`, onde não há
+  registrador (é `0x08` nos dois chips).
 - O Air usa `hardware/rtc.h`, e o RP2350 não tem RTC (tem o timer *always-on*
   do POWMAN). O Air no RP2350 é outro projeto.
 - O stepping A4 corrige o erratum E9 e exige pico-sdk 2.1.0 ou mais novo.
@@ -117,7 +121,7 @@ O que foi conferido no framework instalado (`framework-arduinopico`
 
 | Etapa | O que prova |
 |---|---|
-| S0, só no CI | Dimensão `chip` no `features.toml`; os registradores por `watchdog_hw`/`psm_hw`; as seis imagens do RP2040 idênticas byte a byte; os tamanhos das imagens do RP2350 |
+| S0, só no CI | Dimensão `chip` no `features.toml`; os registradores por `watchdog_hw`/`psm_hw`; as seis imagens do RP2040 idênticas byte a byte; os tamanhos das imagens do RP2350. **PR #215, 01/10/2026:** a release no RP2350 ocupa 972.928 B de um slot de 3.141.632 B e 123.184 B de RAM estática |
 | S1, uma placa A4 | As suítes de bancada existentes; o layout de 4 MB com staging própria, que já acaba com o reformatar |
 | S2 | A/B com TBYB: imagem que nunca confirma volta em cerca de 17 s; corte de energia no meio da gravação sobe a anterior; 20 ciclos com config e histórico idênticos |
 | S3 | O que o chip compra a mais: ambiente de debug, RAM, KDF com SHA-256 em hardware, boot assinado numa placa de teste (o OTP é irreversível) |
@@ -142,7 +146,8 @@ dias), ou 1,5 + 1,5 + 1,0 MB (mais código, os 116 dias de hoje).
    README põe no roteiro: trilha de auditoria completa (mudança de limite pela
    web não gera `alarm_lim`, achado 31), origem da hora por registro,
    exportação que acuse adulteração e relatório de lacunas.
-2. **Pico 2 W:** comprar uma ou duas placas A4 e escolher o layout.
+2. **Pico 2 W:** a placa chega até 03/10/2026 e abre o S1; o S0 está no
+   #215. Falta escolher o layout e conferir se a placa é A4.
 3. **#161:** opção (a) ou (b).
 4. **OTA só com imagem assinada?**
 5. **Descrição do repositório no GitHub.**
