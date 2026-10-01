@@ -989,7 +989,7 @@ Outras três rotas agem na hora, sem reiniciar:
 
 | Rota | Corpo | Resposta |
 |---|---|---|
-| `POST /api/set_time` | JSON `{"epoch":1790164800}`, com `Content-Type: application/json` | `{"ok":true,"now":1790164800}`. Recusa valores até `1600000000` (13/09/2020) com `400` `{"error":"epoch too low"}`. Com o NTP ligado, o próximo acerto sobrescreve ([capítulo 10](#cap-10)) |
+| `POST /api/set_time` | JSON `{"epoch":1790164800}`, com `Content-Type: application/json` | `{"ok":true,"now":1790164800}`. Recusa valores até `1600000000` (13/09/2020) com `400` `{"error":"epoch too low"}`. Com o NTP ligado, o próximo acerto sobrescreve. O primeiro acerto depois do boot corrige a hora dos blocos do histórico que o boot começou, e o log registra o evento 13 com o contexto 1 ([capítulo 10](#cap-10-correcao)) |
 | `POST /api/save_sys` | Formulário `theme=<índice>` | `{"status":"ok"}`; `400` com índice fora da lista |
 | `POST /api/reset_touch_cal` | Nenhum | [release]{.img} `{"status":"ok","wizard":true}`. O painel abre o assistente de calibração do toque |
 

@@ -360,7 +360,7 @@ O painel também desenha o histórico de cada sensor, com os mínimos e máximos
 
 ## As horas do histórico {#cap-15-horas}
 
-O histórico é carimbado com a hora do aparelho, qualquer que seja a fonte dela. Quando o primeiro acerto por NTP depois de um boot encontra o relógio provisório errado, o aparelho corrige a hora dos blocos gravados desde aquele boot ([capítulo 10](#cap-10-correcao)).
+O histórico é carimbado com a hora do aparelho, qualquer que seja a fonte dela. Quando o primeiro acerto depois de um boot, pelo NTP ou à mão, encontra o relógio provisório errado, o aparelho corrige a hora dos blocos que aquele boot começou ([capítulo 10](#cap-10-correcao)). Até a v2.8.0, só o acerto pelo NTP corrigia.
 
 ::: atencao
 **Mudar o Intervalo Histórico afeta a leitura dos dias anteriores.** Dentro de um bloco, a hora de cada registro é guardada como diferença em relação ao intervalo em vigor. A página decodifica todos os arquivos com o intervalo atual. Depois de uma mudança, os blocos gravados com o intervalo antigo aparecem com o primeiro registro na hora certa e os seguintes espalhados. Exporte o que precisa antes de mudar o intervalo, ou leia os arquivos antigos com `history_v5.py --interval` igual ao intervalo da época.

@@ -84,13 +84,13 @@ As contagens de erro ficam só na memória, e o reinício zera todas. A interfac
 
 O que é a rede `<nome>_SETUP`, quando ela abre e como sair dela estão no [capítulo 9](#cap-09-ap). Esta seção trata dos problemas.
 
-### O aparelho não entra na rede e não abre o AP {#cap-18-ap-nao-abre}
+### O aparelho não entra na rede {#cap-18-ap-nao-abre}
 
-Force a abertura:
+O AP não abre sozinho: nem num aparelho sem rede configurada, nem quando a rede cai. Abra-o:
 
 - pelo console USB ou Bluetooth, com o comando `ap`. A resposta traz a chave: `OK: Modo AP iniciado (WPA2). Senha: ...`;
-- [release]{.img} pelo painel, no menu de configurações, com a permissão **Rede** no painel ([capítulo 11](#cap-11));
-- [release]{.img} segurando a tela durante o boot, quando o painel pede **Mantenha a tela pressionada: Modo AP...** ([capítulo 4](#cap-04)).
+- [release]{.img} pelo painel, no item 12 do menu de configurações, com a permissão **Rede** no painel ([capítulo 11](#cap-11-ap));
+- [release]{.img} segurando a tela durante o boot, quando o painel pede **Mantenha a tela pressionada: Modo AP...** ([capítulo 11](#cap-11-boot-ap)).
 
 Se o console mostrar `[AP] FAILED to start`, o AP não subiu, e o log registra **AP iniciado** (15) com contexto −1. A causa mais comum é um nome de aparelho longo demais: o nome da rede é o nome do aparelho com `_SETUP`, e o total não pode passar de 32 caracteres. Encurte o nome para até 26 caracteres ([capítulo 9](#cap-09-ap)).
 
@@ -100,13 +100,13 @@ Se o console mostrar `[AP] FAILED to start`, o AP não subiu, e o log registra *
 2. **Confira a versão.** Até a v2.7.0, um AP aberto enquanto o aparelho procurava uma rede inexistente ficava visível e não aceitava conexões. A v2.7.1 corrigiu isso. Numa versão anterior, desligue e ligue o aparelho e abra o AP de novo.
 3. **Abra o endereço certo.** Com o celular na rede, abra `http://192.168.4.1`. Um AP aberto com o aparelho em operação mantém o protocolo do servidor web: com HTTPS instalado, use `https://192.168.4.1` ([capítulo 9](#cap-09-ap-aberto)).
 
-### O aparelho volta sempre para o AP {#cap-18-ap-volta}
+### A rede configurada está errada {#cap-18-ap-volta}
 
-A rede configurada está errada ou fora de alcance. Um aparelho que nunca obteve IP desde que ligou abre o AP na primeira dormência da escada de reconexão, cerca de 6 a 7 min depois de ligar ([capítulo 9](#cap-09-ap-quando)).
+Sintoma: `show net status` não mostra IP, e o log de eventos repete as tentativas da escada de reconexão. A rede configurada está errada ou fora de alcance. O aparelho continua medindo e tentando a rede, e não abre o AP sozinho. Da v2.7.1 à v2.8.0, um aparelho que nunca tinha obtido IP desde que ligou voltava sozinho para o AP, na primeira dormência da escada, cerca de 6 a 7 min depois de ligar ([capítulo 9](#cap-09-ap-quando)).
 
 Corrija a rede por um destes caminhos:
 
-- **Pelo AP:** conecte-se à rede `<nome>_SETUP`, abra `http://192.168.4.1`, entre com uma conta que tenha a permissão **Rede** e grave a rede certa na página **Rede** ([capítulo 9](#cap-09-busca)).
+- **Pelo AP:** abra-o ([O aparelho não entra na rede](#cap-18-ap-nao-abre)), conecte-se à rede `<nome>_SETUP`, abra `http://192.168.4.1`, entre com uma conta que tenha a permissão **Rede** e grave a rede certa na página **Rede** ([capítulo 9](#cap-09-busca)).
 - **Pelo console USB, na release e no alpha:**
 
   ```text
@@ -119,15 +119,15 @@ Corrija a rede por um destes caminhos:
 
 ### O AP não sai do ar {#cap-18-ap-preso}
 
-Um AP aberto no boot, por falta de rede configurada ou pelo gesto no painel, fica aberto até alguém gravar uma rede ou reiniciar o aparelho. O painel mostra **AP Ativo! Reinicie a placa para sair.** Grave a rede pelo AP ou pelo console e reinicie.
+Um AP aberto no boot, pelo gesto no painel, ou aberto num aparelho sem rede configurada, fica aberto até alguém gravar uma rede ou reiniciar o aparelho. O painel mostra **AP Ativo! Reinicie a placa para sair.** Grave a rede pelo AP ou pelo console e reinicie.
 
-Um AP aberto com o aparelho em operação fecha sozinho depois de 15 min e o aparelho reinicia para tentar a rede de novo ([capítulo 9](#cap-09-ap-aberto)).
+Com uma rede configurada, um AP aberto com o aparelho em operação fecha sozinho depois de 15 min, e o aparelho reinicia para tentar a rede de novo ([capítulo 9](#cap-09-ap-aberto)).
 
-[air]{.img} O Air não abre o AP sozinho. Configure a rede dele pelo console ([SIMUT Air](#cap-18-air)).
+[air]{.img} No Air, o AP só abre pelo comando `ap`. Configure a rede dele pelo console ([SIMUT Air](#cap-18-air)).
 
 ## Voltou com a configuração de fábrica {#cap-18-fabrica}
 
-Sintoma: o aparelho liga sem rede Wi-Fi, abre a rede de configuração, e a senha do administrador não funciona. Na release e no alpha, o AP abre sozinho, porque não há rede configurada.
+Sintoma: o aparelho liga sem rede Wi-Fi, e a senha do administrador não funciona. Na release, o painel pergunta a data e a hora no fim do boot, porque não há rede configurada; em todas as imagens, o console escreve `Sem rede, relogio provisorio: ...` ([capítulo 10](#cap-10-painel)). Da v2.7.1 à v2.8.0, a release e o alpha abriam a rede de configuração sozinhos nesse caso.
 
 Causas possíveis:
 
@@ -149,7 +149,7 @@ Para recuperar:
    ```
 
    Se você não viu a moldura, rode `system admin reset confirm` ([Senha do administrador esquecida](#cap-18-senha)).
-2. **Configure a rede.** Pelo AP ou pelo console ([O aparelho volta sempre para o AP](#cap-18-ap-volta)).
+2. **Configure a rede.** Pelo AP, aberto com `ap` ou pelo menu do painel, ou pelo console ([A rede configurada está errada](#cap-18-ap-volta)).
 3. **Entre na interface web** com `admin` e a senha, e troque a senha.
 4. **Restaure o último backup** ([capítulo 17](#cap-17-restauracao)). Ele devolve a configuração, as contas, o histórico e os demais arquivos da data do backup.
 

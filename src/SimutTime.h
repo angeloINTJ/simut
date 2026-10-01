@@ -108,6 +108,34 @@ inline time_t simutMkTimeTz(struct tm* tmv, long offsetSec) {
 	return t;
 }
 
+/** @brief Days in month @p m (1..12) of year @p y, Gregorian; 0 for a month that does not exist. */
+inline unsigned simutDaysInMonth(long y, unsigned m) {
+	if (m < 1 || m > 12) return 0;
+	if (m == 2) return ((y % 4 == 0 && y % 100 != 0) || y % 400 == 0) ? 29u : 28u;
+	return (m == 4 || m == 6 || m == 9 || m == 11) ? 30u : 31u;
+}
+
+/* The years a person may set the clock to. 2026 is the floor `conf time` has
+ * enforced since it was written; the panel's clock entry shares both ends. */
+constexpr int SIMUT_CLOCK_YEAR_MIN = 2026;
+constexpr int SIMUT_CLOCK_YEAR_MAX = 2099;
+
+/**
+ * @brief A local date and time a person typed, checked as a calendar checks it.
+ *
+ * simutMkTimeTz( ) normalises — 31 February is 3 March — and that is what the
+ * day arithmetic above relies on. For input it is wrong: `conf time 2026-02-31
+ * 12:00:00` checked only that the day was 1..31, and moved the clock to 3 March
+ * without a word. Found 2026-10-01 while giving the panel a clock entry that
+ * shares this check (display/ClockEntry.h).
+ */
+inline bool simutValidCivil(int y, int mo, int d, int h, int mi, int s = 0) {
+	if (y < SIMUT_CLOCK_YEAR_MIN || y > SIMUT_CLOCK_YEAR_MAX) return false;
+	if (mo < 1 || mo > 12) return false;
+	if (d < 1 || (unsigned)d > simutDaysInMonth(y, (unsigned)mo)) return false;
+	return h >= 0 && h <= 23 && mi >= 0 && mi <= 59 && s >= 0 && s <= 59;
+}
+
 /**
  * @brief Set the offset localtime_r( )/localtime( )/mktime( ) will use.
  * @param hours whole hours east of UTC — the sign of the config field, not the

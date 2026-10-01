@@ -430,6 +430,7 @@ void DisplayManager::setTopSlotData(float,float,float,SensorType,bool,int,String
 void DisplayManager::setPanelSession(int8_t, uint16_t){}
 void DisplayManager::showAlarmSensorMenu(int){}
 void DisplayManager::showMaintEntry(int){}
+void DisplayManager::showClockEntry(const ClockEntry&, bool){}
 void DisplayManager::showSettingsUsers( ){}
 void DisplayManager::showUserEdit(int, bool){}
 void DisplayManager::showPanelMessage(bool, LangKey, UiMode){}

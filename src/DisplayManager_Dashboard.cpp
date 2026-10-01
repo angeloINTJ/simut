@@ -560,10 +560,16 @@ void DisplayManager::drawTopBar(const SystemState& state) {
  * The " - " separator stays fixed in the center; the date grows to the
  * left and the time grows to the right, ensuring the text
  * does not jump when digits change.
+ *
+ * " ? " instead of " - ", and the whole line in amber, while the clock is the
+ * provisional one (AppManager::updateLiveDisplay). What is stamped meanwhile is
+ * not to be trusted, the maintainer said on 2026-10-01, and this is where the
+ * time is read — the day file keeps no mark of it (display/ClockEntry.h). No
+ * string and no flag: the separator is the flag, so the repaint the clock
+ * string already triggers carries it too.
  */
  _driver.canvas->setTextSize(1);
  _driver.canvas->setFont(&simutFont9pt);
- _driver.canvas->setTextColor(C_TITLE_TEXT);
 
  /* Separate date and time by " - ".
   * T1.2: fixed buffers — this runs EVERY dashboard frame on Core 1 and
@@ -572,6 +578,10 @@ void DisplayManager::drawTopBar(const SystemState& state) {
  char datePart[24];
  char timePart[16];
  const char* sep = strstr(state.timeString, " - ");
+ const bool provisional = !sep && (sep = strstr(state.timeString, " ? ")) != nullptr;
+ const char* sepTxt = provisional ? " ? " : " - ";
+ const uint16_t textColor = provisional ? C_TEMP_WARM : C_TITLE_TEXT;
+ _driver.canvas->setTextColor(textColor);
  if (sep) {
   size_t dlen = (size_t)(sep - state.timeString);
   if (dlen >= sizeof(datePart)) dlen = sizeof(datePart) - 1;
@@ -589,7 +599,7 @@ void DisplayManager::drawTopBar(const SystemState& state) {
  int16_t bx, by; uint16_t bw, bh;
  uint16_t sepW, dateW;
 
- _driver.canvas->getTextBounds(" - ", 0, 0, &bx, &by, &bw, &bh);
+ _driver.canvas->getTextBounds(sepTxt, 0, 0, &bx, &by, &bw, &bh);
  sepW = bw;
  _driver.canvas->getTextBounds(datePart, 0, 0, &bx, &by, &bw, &bh);
  dateW = bw;
@@ -606,10 +616,10 @@ void DisplayManager::drawTopBar(const SystemState& state) {
 
  _driver.canvas->setCursor(dateX, 20);
  _driver.canvas->print(datePart);
- _driver.canvas->setTextColor(C_TEXT_SUB);
+ _driver.canvas->setTextColor(provisional ? C_TEMP_WARM : C_TEXT_SUB);
  _driver.canvas->setCursor(sepX, 20);
- _driver.canvas->print(" - ");
- _driver.canvas->setTextColor(C_TITLE_TEXT);
+ _driver.canvas->print(sepTxt);
+ _driver.canvas->setTextColor(textColor);
  _driver.canvas->setCursor(timeX, 20);
  _driver.canvas->print(timePart);
  }

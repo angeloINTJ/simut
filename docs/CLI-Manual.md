@@ -2,11 +2,11 @@
 
 > **Leia isto antes do resto.** Desde a v1.5.6-beta existem **dois perfis de
 > CLI**, e esta referência cobre o **completo**; a imagem release traz só o
-> console de emergência de 14 comandos.
+> console de emergência de 15 comandos.
 >
 > | Perfil | Como obter | O que tem |
 > |---|---|---|
-> | **Emergência** (padrão) | `pico_w_release` e `pico_w_alpha` — é o que vem nos zips de release | 14 comandos, prompt único `SIMUT>` |
+> | **Emergência** (padrão) | `pico_w_release` e `pico_w_alpha` — é o que vem nos zips de release | 15 comandos, prompt único `SIMUT>` |
 > | **Completo** | `pico_w_test` (compilar da fonte) e **`pico_w_air`**, desde 18/09/2026 | os 56 comandos e os 4 modos descritos abaixo |
 >
 > O Air ficou no console de emergência enquanto a CLI completa (+45.056 B) não
@@ -37,6 +37,7 @@
 > system pass <senha>          Grava a senha do Wi-Fi na hora; idem
 > system cors <origem>|off     Origem da página do gerenciador web; grava na hora, vale no próximo boot
 > ap                           Sobe o ponto de acesso de configuração (WPA2, chave neste console)
+> time <AAAA-MM-DD> <HH:MM:SS> Acerta o relógio na hora local; vale até o próximo reboot
 > reload [confirm]             Reinicia agora
 > help                         Esta lista
 > ```
@@ -47,7 +48,7 @@
 ## Visão geral
 
 > Aplica-se ao perfil completo. Na imagem de release não há modos: o prompt é
-> sempre `SIMUT>` e os 14 comandos acima valem nele.
+> sempre `SIMUT>` e os 15 comandos acima valem nele.
 
 O SIMUT adota o modelo **Cisco IOS** com 4 modos hierárquicos. Cada modo tem seu
 próprio prompt e conjunto de comandos. O caractere `?` mostra os comandos
@@ -120,6 +121,38 @@ configuração.
 | `language` | Mostra o idioma atual |
 | `help`, `ajuda`, `?` | Lista comandos disponíveis neste modo |
 
+### Relógio
+
+| Comando | Descrição |
+|---------|-----------|
+| `time <AAAA-MM-DD> <HH:MM:SS>` | Ajuste manual do relógio, na hora local. Vale na hora e não sobrevive ao reboot. `conf time ...` é o mesmo comando. Vale aqui e no `SIMUT#`, pelo USB ou pelo Bluetooth |
+
+O `time` confere a data como um calendário: ano de 2026 a 2099, e o dia tem de
+existir no mês. Uma data que o calendário não tem é recusada e o relógio não
+muda:
+
+```
+SIMUT> time 2026-02-31 12:00:00
+ERROR: Data ou hora invalida (ano >= 2026)
+```
+
+Até a v2.8.0 a conferência era campo a campo: qualquer dia de 1 a 31 passava, e
+`2026-02-31` virava 03/03/2026 em silêncio; um campo fora da faixa respondia
+`Valores fora de range (ano >= 2026)`, mensagem que não existe mais.
+
+O primeiro acerto depois do boot, com o relógio ainda provisório, desloca pela
+diferença os blocos do histórico que o boot começou, como o NTP faz (eventos
+408 e 409, se a diferença passa de 5 s); o bloco retomado do `.wip` no boot é
+selado e não se desloca. O log grava o evento 13, `RTC set manually`, com
+contexto 2 (até a v2.8.0, contexto 0).
+
+Num aparelho sem rede configurada e com o relógio provisório, o boot termina
+com a linha `Sem rede, relogio provisorio: conf time AAAA-MM-DD HH:MM:SS`
+(`No network, provisional clock: ...` em inglês), em toda imagem. O `time`
+existe também no console de emergência da release e do alpha (§9); até a
+v2.8.0, só neste perfil. No alpha, que não tem painel, é o jeito de responder
+à linha do boot.
+
 ### Navegação
 
 | Comando | Descrição |
@@ -180,7 +213,7 @@ do modo User EXEC continuam disponíveis.**
 
 | Comando | Descrição |
 |---------|-----------|
-| `screen <nome>` | Navega diretamente para uma tela TFT. Nomes: `dash` (dashboard), `set` (configurações), `thm` (temas), `lng` (idioma), `pwd` (senha), `lic` (licença), `sts` (status), `alm` (alarmes), `gra` (gráfico), `touchcal` (calibração touch), `touchsens` (sensibilidade touch), `offset` (offset do display) |
+| `screen <nome>` | Navega diretamente para uma tela TFT. Nomes: `dash` (dashboard), `set` (configurações), `thm` (temas), `lng` (idioma), `pwd` (senha), `lic` (licença), `sts` (status), `alm` (alarmes), `gra` (gráfico), `touchcal` (calibração touch), `touchsens` (sensibilidade touch), `offset` (offset do display), `clk` (data e hora) |
 | `touch sim <X> <Y>` | Injeta toque simulado na tela (X: 0–319, Y: 0–239). Uso: automação de screenshots |
 | `touch hold <X> <Y> [ms]` | Injeta um toque **mantido** (segurar) por `ms` (padrão 3500, faixa 100–15000), depois solta. Aciona os gestos de toque longo — como o segurar de 3 s que fixa o cartão de cima — que o tap de `touch sim` não alcança. Uso: automação de screenshots |
 
@@ -210,7 +243,6 @@ executar qualquer comando do modo privilegiado sem sair do config.
 | `system ntp <servidor>` | Servidor NTP. Vazio = `pool.ntp.org` | max 31 chars |
 | `system history_interval <min>` | Intervalo entre registros de histórico | 1–1440 minutos |
 | `language <pt\|en>` | Idioma da interface CLI e display | `pt` ou `en` |
-| `time <AAAA-MM-DD> <HH:MM:SS>` | Ajuste manual do relógio (hora local) | — |
 | `ds18b20 resolution <bits>` | Resolução global para sensores DS18B20 | 9–12 bits |
 
 ### Rede
@@ -446,6 +478,7 @@ nem `configure terminal`, com este conjunto:
 | `system cors <origem>` \| `off` | grava em `/config/cors.txt` a origem da página do gerenciador web (ex.: `http://192.168.1.10:8080`); vale no próximo boot, então `reload confirm` |
 | `reload [confirm]` | reinicia |
 | `ap` | sobe o ponto de acesso de configuração |
+| `time <AAAA-MM-DD> <HH:MM:SS>` | acerta o relógio na hora local; vale até o próximo reboot (ver §1, "Relógio") |
 | `help` | esta lista, no idioma do pack instalado |
 
 ### 9.1 Comandos `air` (somente `pico_w_air`)

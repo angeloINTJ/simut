@@ -231,6 +231,12 @@ void uiMenuIcon(Adafruit_GFX* g, int16_t x, int16_t y, uint8_t id,
 		g->fillRoundRect(x, y + 10, 10, 6, 3, C_CARD_BG);
 		g->drawRoundRect(x, y + 10, 10, 6, 3, color);
 		break;
+	case 10: /* clock: a face and two hands at three o'clock (Settings > 13) */
+		g->drawCircle(x + 8, y + 8, 7, color);
+		g->drawCircle(x + 8, y + 8, 6, color);
+		g->drawFastVLine(x + 8, y + 3, 6, color);
+		g->drawFastHLine(x + 8, y + 8, 5, color);
+		break;
 	default: /* move: 4 outward triangles */
 		g->fillTriangle(x + 8, y, x + 5, y + 4, x + 11, y + 4, color);
 		g->fillTriangle(x + 8, y + 15, x + 5, y + 11, x + 11, y + 11, color);

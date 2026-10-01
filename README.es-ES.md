@@ -50,7 +50,7 @@ Los tres comparten el mismo núcleo:
 | **Release actual** | **v2.8.0** (30/09/2026). SIMUT salió de beta con la v2.7.0, sobre mediciones: un soak de 8,18 h sin ningún reinicio y 6 de 6 actualizaciones por el aire sin perder nada. La v2.8.0 conserva la configuración cuando una actualización se corta a mitad, y deja que el formato de telemetría personalizado envíe el Content-Type que espera su servidor; la v2.7.4 había corregido la búsqueda de sensores, que dejaba en error un BMP280 en I2C de hardware. |
 | **Imágenes publicadas** | Tres imágenes, cada una en `.uf2` y `.bin`: `release` (panel táctil TFT), `alpha` (LCD 16×2 con consola Bluetooth) y `air` (registrador a batería sin pantalla). Junto a ellas van los packs de idioma pt-BR y es-ES y un manifiesto de OTA. Una imagen con otro conjunto de funciones sale del [configurador de build](https://angelointj.github.io/simut/configurador/), y el CI la compila desde `main`. |
 | **Madurez** | <ul><li>`release`: **estable**.</li><li>`alpha`: publicado y probado en el banco, con su LCD 16×2 incluido desde el 26/09/2026.</li><li>`air`: **experimental**. Su único soak largo falló: un sueño en el ciclo 119 nunca despertó (F28). Hoy lo mitiga un watchdog a lo largo del despertar; la causa raíz no está confirmada.</li></ul> |
-| **Pruebas** | Cada pull request ejecuta 433 casos de test en el host en 8 suites, 60 s de fuzzing y análisis estático, y compila las seis imágenes de firmware con la caché fría. El comportamiento en hardware real se verifica en un banco — ver [Verificación en hardware](#verificación-en-hardware). |
+| **Pruebas** | Cada pull request ejecuta 443 casos de test en el host en 8 suites, 60 s de fuzzing y análisis estático, y compila las seis imágenes de firmware con la caché fría. El comportamiento en hardware real se verifica en un banco — ver [Verificación en hardware](#verificación-en-hardware). |
 
 **Limitaciones conocidas.** Cada una está documentada donde aplica.
 - **Actualización.** La actualización por el aire reformatea el sistema de archivos:
@@ -170,8 +170,9 @@ Consulta la **[guía de cableado](docs/WIRING.md)** para el pinout completo y lo
   - bloqueo por cuenta: el sexto fallo bloquea la cuenta, y 20 fallos en total bloquean el panel.
 - **Administración en la pantalla:**
   - un elemento Usuarios crea cuentas y fija sus bits de permiso y sus PIN;
-  - las 12 filas de Ajustes se filtran según lo que la cuenta puede hacer;
-  - Ajustes → 12 arranca el punto de acceso de configuración.
+  - las 13 filas de Ajustes se filtran según lo que la cuenta puede hacer;
+  - Ajustes → 12 arranca el punto de acceso de configuración;
+  - Ajustes → 13 fija la fecha y la hora, y una unidad sin red configurada las pide al final del arranque.
 - **Gestos en el panel superior** — un toque alterna mín/máx, mantener 3 s fija la selección.
 - **Renderizado rápido con DMA** — composición en canvas sobre SPI a 62,5 MHz.
 - **Área segura de 4 px en toda la UI** — el offset de alineación de pantalla (±4 px por eje) nunca recorta contenido.
@@ -227,13 +228,11 @@ Consulta la **[guía de cableado](docs/WIRING.md)** para el pinout completo y lo
   - WPA2, con una clave por dispositivo que se muestra en la consola USB y en la pantalla de arranque del TFT;
   - portal cautivo en `http://192.168.4.1`.
 
-  Cinco formas de entrar:
-  - una unidad sin red configurada lo abre sola (salvo el Air);
-  - un fallback automático lo abre cuando se pierde la red (salvo el Air);
+  Solo se abre cuando alguien lo pide. Una unidad con la red caída sigue midiendo y reintentando la red. Tres formas de entrar:
   - Ajustes → 12 en el panel;
   - el comando `ap` de la consola (USB, o Bluetooth en el alpha y el Air);
   - mantener el panel pulsado 3 s durante el arranque.
-- **NTP** — el intervalo entre reintentos crece de 20 s a 15 min, con fallback a `pool.ntp.org`. Hasta que sincroniza, un reloj provisional parte del registro más reciente guardado.
+- **NTP** — el intervalo entre reintentos crece de 20 s a 15 min, con fallback a `pool.ntp.org`. Hasta que el NTP sincroniza o alguien fija el reloj, un reloj provisional parte del registro más reciente guardado. El panel lo marca con `?` entre la fecha y la hora, y el primer ajuste después del arranque, por NTP o a mano, corrige los bloques del histórico que ese arranque empezó.
 
 ### Almacenamiento e histórico
 - **Histórico binario compacto (V5)** — codificación delta + ancla a 5,38 bytes/registro, unos 116 días en el sistema de archivos de 1 MB (11 canales con cadencia de 1 minuto, medido en archivos de banco el 31/07/2026):
@@ -321,12 +320,14 @@ pio run -e pico_w_release -t uploadfs
 
 ### Primer arranque
 1. **Apunta la contraseña del admin.** Una unidad recién salida de fábrica imprime una contraseña de admin aleatoria de 8 caracteres **una sola vez en la consola serie USB** (115200 baudios). Nunca se guarda en texto plano. Si la pierdes, `system admin reset confirm` por USB imprime una nueva.
-2. **Conéctalo a tu red.** Una unidad sin red configurada abre sola su punto de acceso de configuración. El Air no: escribe `ap` en su consola.
-   - Conéctate a `<nombre>_SETUP` (`simut_SETUP` de fábrica). Es WPA2, y su clave por dispositivo se imprime en la consola USB y en el terminal de arranque del TFT — al arrancar y, desde la v2.7.2, también cuando el AP se abre en operación. En un alpha, léela en la consola USB o en la respuesta del comando `ap`: según el código de la v2.8.0, el LCD no llega a sus páginas del AP.
+2. **Conéctalo a tu red.** El punto de acceso de configuración se abre cuando lo pides: escribe `ap` en la consola (en el Air, después de `enable`), o usa Ajustes → 12 en el panel táctil. De la v2.7.1 a la v2.8.0, una unidad sin red configurada lo abría sola; ya no lo hace.
+   - Conéctate a `<nombre>_SETUP` (`simut_SETUP` de fábrica). Es WPA2, y su clave por dispositivo está en la respuesta de `ap`, en la consola USB y en el terminal de arranque del TFT.
    - El portal se abre en `http://192.168.4.1`.
-   - Mientras el punto de acceso está activo, el dispositivo no mide: en la v2.8.0 no lee sensores, no comprueba alarmas ni graba histórico hasta entrar en una red.
+   - El dispositivo sigue midiendo con el punto de acceso activo; solo la telemetría y el syslog esperan a la red. De la v2.7.1 a la v2.8.0 no leía sensores, no comprobaba alarmas ni grababa histórico mientras el punto de acceso estaba activo.
 
    Sin pantalla, puedes usar la consola: `system ssid <nombre>`, `system pass <clave>` y luego `reload confirm`. La consola corta en el primer espacio: una red o una clave con espacio solo por la página web.
+
+   Sin red configurada, la unidad pide la fecha y la hora al final del arranque, porque sin red no hay NTP: el panel táctil abre una pantalla de fecha y hora (**OMITIR** la cierra, y Ajustes → 13 fija el reloj después), y cada imagen escribe en la consola una línea con `conf time AAAA-MM-DD HH:MM:SS`. Ese comando funciona en la consola de todas las imágenes, por USB o por Bluetooth: en el alpha y el Air, que no tienen panel, es la forma de responder a la pregunta. La sección **Date & Time** de la página web también fija el reloj.
 3. **Abre la interfaz web** en la dirección que obtuvo el dispositivo — en la imagen `release`, también en `http://simut.local` — y entra como `admin` con la contraseña del paso 1. Se te pedirá elegir una nueva.
 4. **Añade sensores** en **Config → Sensors & GPIO**, o deja que *Scan for probes* los encuentre.
 5. **En el panel táctil**, Ajustes pide una cuenta y su PIN. El PIN de fábrica del admin es `1234`, y hay que cambiarlo en el primer uso.
@@ -387,7 +388,7 @@ simut/
 > clave por dispositivo que se muestra en la consola y, donde la hay, en la
 > pantalla. Ver [SECURITY.md](SECURITY.md) §2 y §8.
 
-> No hay entorno de depuración. `pico_w_debug` se eliminó en la v2.4.1 tras no enlazar nunca: en `-Og` la imagen desbordaba el slot de 1020 KB en ~100 KB. La flash va justa. La imagen release usa el 95,7 % del slot de programa de 1.044.480 B (el valor medido vive en `tools/flash_budget.json`), y el CI comprueba cada `.bin` contra el techo de actualización por el aire, de 1.040.384 B. Un objetivo de GDB habría que montarlo recortando funcionalidades. Para el tripwire de concurrencia en hardware, usa `pico_w_asserts`.
+> No hay entorno de depuración. `pico_w_debug` se eliminó en la v2.4.1 tras no enlazar nunca: en `-Og` la imagen desbordaba el slot de 1020 KB en ~100 KB. La flash va justa. La imagen release usa el 96,1 % del slot de programa de 1.044.480 B (el valor medido vive en `tools/flash_budget.json`), y el CI comprueba cada `.bin` contra el techo de actualización por el aire, de 1.040.384 B. Un objetivo de GDB habría que montarlo recortando funcionalidades. Para el tripwire de concurrencia en hardware, usa `pico_w_asserts`.
 
 ### Flags de compilación
 - `-Os` — optimización por tamaño
@@ -402,19 +403,19 @@ simut/
 ### Consola (CLI)
 La consola serie está disponible por USB (115200 baudios) y, en el alpha y el Air, por Bluetooth SPP.
 
-- **La consola de emergencia** funciona en las imágenes `release` y `alpha`. Sus 14 comandos:
+- **La consola de emergencia** funciona en las imágenes `release` y `alpha`. Sus 15 comandos:
   - `show net status`, `show system info`, `show system log`
   - `debug on|off`
   - `system admin reset`, `system format`, `system factory`, `system https off`
   - `system ssid <nombre>`, `system pass <clave>`, `system cors <origen|off>`
-  - `ap`, `reload`, `help`
+  - `ap`, `time <fecha> <hora>`, `reload`, `help`
 
   Los comandos destructivos piden `confirm`, y las cuatro recuperaciones (`system factory`, `system format`, `system admin reset`, `system https off`) se rechazan por Bluetooth.
 - **La consola completa estilo Cisco** (`enable` / `configure terminal`) funciona en la imagen `air` y en las imágenes de banco `pico_w_test` — ver el [manual de la CLI](docs/CLI-Manual.md) (en portugués). El Air añade `air status | hibernate | stop | idle <seg> | charger <gpio|off>`.
 
 **Dónde se configura cada cosa:**
 - **La interfaz web** es la herramienta del día a día.
-- **El panel táctil** cubre lo que el operador necesita junto al dispositivo: temas, alarmas, sonidos, idioma, su propio PIN, usuarios, la política de PIN, la calibración del táctil, el ajuste de la pantalla, el estado y el punto de acceso de configuración.
+- **El panel táctil** cubre lo que el operador necesita junto al dispositivo: temas, alarmas, sonidos, idioma, su propio PIN, usuarios, la política de PIN, la calibración del táctil, el ajuste de la pantalla, el estado, el punto de acceso de configuración y la fecha y la hora.
 
 ### API Web
 El dispositivo expone una API REST en `http://<ip-del-dispositivo>/api/`:
@@ -428,12 +429,12 @@ El dispositivo expone una API REST en `http://<ip-del-dispositivo>/api/`:
 ### Tests en el host
 
 ```bash
-pio test -e native             # validadores, cursor de telemetría, etiquetas, parsers (190 casos)
+pio test -e native             # validadores, cursor de telemetría, etiquetas, parsers (197 casos)
 pio test -e native_history_v5  # códec del histórico V5 (63)
 pio test -e native_cli         # parser de la CLI (33)
 pio test -e native_logpolicy   # persistencia de log por transición (45)
 pio test -e native_alarmqueue  # cola de la telemetría de alarmas (43)
-pio test -e native_network     # máquina de estados de la reconexión Wi-Fi (30)
+pio test -e native_network     # máquina de estados de la reconexión Wi-Fi (33)
 pio test -e native_air         # configuración persistente del SIMUT Air (16)
 pio test -e native_sensors     # tabla de tipos de sensor (13)
 
@@ -479,7 +480,7 @@ Lo que se ha medido en hardware real, de lo más reciente a lo más antiguo:
 | 23/09/2026 | Colas largas de telemetría en el Air (v2.7.2) | 0 cuerpos inválidos; 13.681 de 13.682 registros entregados despierto, 13.670 de 13.671 hibernando (v2.7.1: 68 de 69 cuerpos eran JSON inválido) |
 | 22/09/2026 | Soak de la v2.7.0 | 8,18 h, 0 reinicios; el mayor bloque libre del heap varió −42 B |
 | 22/09/2026 | Actualizaciones por el aire de la v2.7.0 | 6 de 6 aplicadas; 57 archivos restaurados, 0 registros perdidos |
-| 22/09/2026 | Punto de acceso de configuración (v2.7.1) | Un cliente entra en 4,1 s, en `release` y en `alpha` con el Bluetooth activo, también con MAC aleatoria. El fallback automático se abre tras 6–7 min sin red |
+| 22/09/2026 | Punto de acceso de configuración (v2.7.1) | Un cliente entra en 4,1 s, en `release` y en `alpha` con el Bluetooth activo, también con MAC aleatoria. El fallback automático se abre tras 6–7 min sin red (eliminado el 01/10/2026) |
 | 22/09/2026 | Corrección del V-09 | 10 de 10 veredictos, con controles positivos |
 | 21/09/2026 | Colector caído durante 3 h 58 min | 237 registros en cola, 0 reinicios; vaciada en una ronda con 0 perdidos, más 25 registros de la línea de alarmas |
 | 21/09/2026 | Suites web | 67/67 como admin, 87/87 como cuenta restringida; 500 commits que escriben en la flash, 0 reinicios |

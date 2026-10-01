@@ -51,7 +51,7 @@ O mesmo código gera três imagens de firmware publicadas, uma para cada montage
 | Interface web e API REST | Sim | Sim | Só acordado (M0) |
 | HTTPS na interface web | Sim, com certificado | Não | Não |
 | Endereço `<nome>.local` (mDNS) | Sim | Não | Não |
-| Ponto de acesso de configuração | Abre sozinho ou a pedido | Abre sozinho ou a pedido | Só pelo comando `ap` |
+| Ponto de acesso de configuração | A pedido: menu do painel, comando `ap` ou gesto no boot | A pedido: comando `ap` | A pedido: comando `ap` |
 | Contas e PIN no painel | Sim | Não | Não |
 | Gráfico, calendário e temas na tela | Sim | Não | Não |
 | Espelho do painel na web | Sim | Não | Não |

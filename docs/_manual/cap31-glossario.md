@@ -50,7 +50,7 @@ Console completo
 :   O console serial com todos os comandos, nas imagens de teste e no Air ([capítulo 14](#cap-14-completo)).
 
 Console de emergência
-:   O console serial reduzido das imagens release e alpha, com 14 comandos: os de recuperação, os de rede e os de leitura do estado ([capítulo 14](#cap-14-emergencia)).
+:   O console serial reduzido das imagens release e alpha, com 15 comandos: os de recuperação, os de rede, os de leitura do estado e o acerto do relógio ([capítulo 14](#cap-14-emergencia)).
 
 Console serial
 :   A linha de comandos do aparelho, pelo cabo USB ou, no alpha e no Air, pelo Bluetooth ([capítulo 14](#cap-14)).
@@ -141,13 +141,16 @@ Política de PIN
 :   As regras do PIN: comprimento mínimo, alfabeto e o teclado ([capítulo 8](#cap-08-politica)).
 
 Ponto de acesso de configuração
-:   A rede Wi-Fi `<nome>_SETUP` que o aparelho cria para ser configurado sem outra rede. Com ela no ar, o aparelho continua medindo; da v2.7.1 à v2.8.0, não media ([capítulo 9](#cap-09-ap-aberto)).
+:   A rede Wi-Fi `<nome>_SETUP` que o aparelho cria, quando alguém pede, para ser configurado sem outra rede. Com ela no ar, o aparelho continua medindo; da v2.7.1 à v2.8.0, não media ([capítulo 9](#cap-09-ap-aberto)).
 
 Recompor o histórico
 :   Operação que reescreve o arquivo do dia depois de uma mudança nos slots, mantendo os registros já feitos ([capítulo 6](#cap-06-recompor)).
 
 Release
 :   A imagem com painel de toque, buzzer, HTTPS e mDNS ([capítulo 1](#cap-01)).
+
+Relógio provisório
+:   A hora que o aparelho usa até o primeiro acerto, pelo NTP ou à mão: parte do registro mais recente do histórico ou, sem histórico, de uma data gravada no firmware. No painel, a data e a hora aparecem em âmbar, com `?` no lugar do `-` ([capítulo 10](#cap-10-provisorio)).
 
 Reset de fábrica
 :   O comando `system factory confirm`, que volta a configuração ao estado de fábrica e mantém os arquivos ([capítulo 17](#cap-17-factory)).

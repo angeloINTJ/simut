@@ -159,6 +159,7 @@ Tamanho mínimo
 Teclado
 Caracteres
 Escolha um novo PIN
+13. Data e hora
 @LOGCODES
 0 OK
 1 Boot do sistema
@@ -464,6 +465,8 @@ reload [confirm]
   Reinicia agora
 ap
   Inicia o modo AP (ponto de acesso)
+time <AAAA-MM-DD> <HH:MM:SS>
+  Ajusta o relógio à mão (sem rede)
 ===========================================
 @LICENSE
 Licença MIT

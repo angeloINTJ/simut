@@ -10,7 +10,7 @@
   "DisplayManager.h": 1,
   "DisplayManager_None.cpp": 1,
   "HelpLicenseEN.h": 1,
-  "NetworkManager.cpp": 5,
+  "NetworkManager.cpp": 3,
   "NetworkManager.h": 1,
   "SoundManager.h": 1,
   "WebManager_Commit.cpp": 1,
@@ -30,7 +30,7 @@
  },
  "SIMUT_CLI_FULL": {
   "AppManager.h": 1,
-  "AppManager_CmdHandlers.cpp": 3,
+  "AppManager_CmdHandlers.cpp": 2,
   "AppManager_Commands.cpp": 11,
   "AppManager_Sensors.cpp": 1,
   "CommandManager.cpp": 6,

@@ -124,14 +124,24 @@ Full pinout and assembly notes: [WIRING.md](WIRING.md).
    **once** over USB serial at 115200 baud. Write it down — it is stored only
    as a salted hash, and nothing recovers it later except a reset.
 
-3. **Join a network.** A unit with no network configured opens its setup
-   access point by itself — `<name>_SETUP`, WPA2, with the key printed on the
-   USB console and on the display (§14) — and the portal at
-   `http://192.168.4.1` takes the network's name and password. The Air does
-   not open it by itself: type `ap` on its console. Over USB, `system ssid`
-   and `system pass` do the same job. The release image answers to mDNS, so it
-   is reachable at `http://simut.local` as well as by IP. `show net status`
-   over serial prints the address if you need it.
+3. **Join a network.** The setup access point opens when you ask for it:
+   `ap` on the console (USB, or Bluetooth on the alpha and the Air), or
+   Settings → 12 on the panel. It is `<name>_SETUP`, WPA2, with the key in the
+   `ap` reply, on the USB console and on the display (§14), and the portal at
+   `http://192.168.4.1` takes the network's name and password. No image opens
+   it by itself; v2.7.1 to v2.8.0 did, on a unit with no network configured.
+   Over USB, `system ssid` and `system pass` do the same job. The release image
+   answers to mDNS, so it is reachable at `http://simut.local` as well as by IP.
+   `show net status` over serial prints the address if you need it.
+
+   A unit with no network configured asks for the date and time at the end of
+   the boot instead, because without a network there is no NTP and the clock
+   is the provisional one: the panel opens a **date and time** screen — set it
+   and **SAVE**, or **SKIP**; 30 s untouched does the same as SKIP — and every
+   image prints `No network, provisional clock: conf time YYYY-MM-DD HH:MM:SS`
+   on the console. That command works on every image's console, over USB or
+   Bluetooth; on the alpha and the Air, which have no panel, it is how the
+   question is answered. The web page's **Date & Time** section works too.
 
    > mDNS is on by default and costs 15,272 B of flash — measured, by linking
    > the image both ways. Set `SIMUT_MDNS=0` in `src/simut_config.h` to drop
@@ -276,6 +286,11 @@ four are active, and open settings (**CFG**).
 - **Tap the graph icon** in the min/max view to open that sensor's history.
 - **Tap CFG** to reach settings — this asks for **your PIN**.
 
+The top bar shows the date and time as `dd/mm/yy - hh:mm:ss`. While the clock
+is the provisional one — no NTP sync and nobody has set it since the boot —
+the separator becomes `?` and the date and time turn amber:
+`01/10/26 ? 09:58:12`.
+
 ### The account first, then the PIN
 
 CFG opens the **account list**: pick yours, and only then type the PIN. Every
@@ -362,10 +377,11 @@ panel's **Users** item, on the `/users` web page, or with `user pin` on the CLI.
 Reached through CFG, after the PIN. The title says **who is in** — "Settings >
 *name*" — because the panel session lasts until the tree is left and everything
 done in it is signed with that name. The menu lists **only what the account's
-bits reach**: themes, sounds, language, calibration and alignment want
-`SYS_CONFIG`; **Alarms** wants any one of the three panel bits; **Users** wants
-`USER_MGR`; one's own PIN, the license and the status screen are everyone's. An
-alarm operator sees four items, the admin ten.
+bits reach**: themes, sounds, language, calibration, alignment and the date
+and time want `SYS_CONFIG`; **Alarms** wants any one of the three panel bits;
+**Users** and the PIN policy want `USER_MGR`; the setup access point wants
+`NET_CONFIG`; one's own PIN, the license and the status screen are everyone's.
+An alarm operator sees four items, the admin all thirteen.
 
 The fingertip keyboard of v2.1.9 — eight large group keys opening a popup with
 both cases at once, any of 91 characters in two taps — is still how text is
@@ -1002,12 +1018,12 @@ profiles, and which one you have depends on the firmware build:
 
 | build | console |
 |---|---|
-| `pico_w_release`, `pico_w_alpha` | the emergency console, fourteen commands |
+| `pico_w_release`, `pico_w_alpha` | the emergency console, fifteen commands |
 | `pico_w_test` | the full console, 56 commands and four modes |
 | `pico_w_test_https` | the full console, plus the TLS server — the bench image for anything HTTPS |
 | `pico_w_air` | the full console, since 2026-09-18 — see below |
 
-### Release firmware — fourteen commands
+### Release firmware — fifteen commands
 
 The image users run ships a recovery console, not a configuration interface.
 Configuration lives in the web UI.
@@ -1026,6 +1042,7 @@ Configuration lives in the web UI.
 | `system pass <secret>` | Set the Wi-Fi password — **saved immediately** |
 | `system cors <origin>` / `off` | Allow the web fleet manager page at that origin to reach this device from a browser — **written immediately**, takes effect on the next boot |
 | `ap` | Start the setup access point — **WPA2**, key printed on this console |
+| `time <YYYY-MM-DD> <HH:MM:SS>` | Set the clock, in local time, until the next reboot. The date is checked as a calendar checks it: years 2026 to 2099, and `2026-02-31` is refused. Up to v2.8.0 only the full console had it |
 | `reload` | Reboot |
 | `help` | List these |
 
@@ -1091,8 +1108,8 @@ Of the recovery commands only `ap` is allowed over the link.
 
 ### AP mode — the setup network
 
-When the device is not on a network, it brings one up itself: `<name>_SETUP`,
-**WPA2**, portal at `http://192.168.4.1`. The key is derived from the board's
+When someone asks for it, the device brings up a network of its own:
+`<name>_SETUP`, **WPA2**, portal at `http://192.168.4.1`. The key is derived from the board's
 serial number — not configurable, and it survives a factory reset — and the
 device publishes it in four places:
 
@@ -1100,26 +1117,34 @@ device publishes it in four places:
 |---|---|
 | USB console, the `[AP] PSK :` line | all |
 | Reply to the `ap` command, on the channel that asked (USB or Bluetooth) | all |
-| The panel's boot terminal: at boot, next to "Connect to network …"; and, since v2.7.2, as its last lines whenever the AP opens during operation (Settings → 12, `ap`, the fallback) — network, `PSK`, 192.168.4.1 | release (TFT) |
+| The panel's boot terminal: at boot, next to "Connect to network …"; and, since v2.7.2, as its last lines whenever the AP opens during operation (Settings → 12, `ap`) — network, `PSK`, 192.168.4.1 | release (TFT) |
 | Third LCD page, while the AP is up | alpha |
 
-And there are five ways into it:
+And there are three ways into it, all of them a person asking:
 
 | How | Builds | Notes |
 |---|---|---|
-| **By itself**, when no Wi-Fi is configured | release, alpha | this is the factory state; the Air is excluded (see below) |
-| **By itself**, when it cannot get onto the network | release, alpha | at the **first dormancy** if it never had an address since it booted (router replaced, password changed, unit moved) — **measured: 6–7 min** (421 s in one run, 358–382 s in another); after **a whole round** of the ladder if it had an address and lost it — ~68 min by arithmetic, not measured to completion. The AP times out after 15 min and the device goes back to trying the LAN |
 | **Settings → 12. Configuration Mode** | release (TFT) | asks first; needs the network bit |
 | **The `ap` command** | all | over USB, and over Bluetooth on the alpha and Air images |
 | **Holding the screen during boot** | release (TFT) | the panel asks for it and draws the 3 s bar; see below |
 
-**SIMUT Air is excluded from both automatic entries.** Its radio only exists
-inside a wake, the AP's 15-minute timeout only returns to STA when an SSID is
-configured — so on a device with none that state has no exit — and an Air that
-never hibernates is a battery on a bench. Its channel is the CLI, over USB or
-Bluetooth, which it has carried in full since 2026-09-18.
+**It never opens by itself.** v2.7.1 to v2.8.0 had two more entries on the
+release and the alpha: at boot on a unit with no network configured, and from
+the reconnect ladder — at the **first dormancy** of a unit that never had an
+address since it booted (**measured: 6–7 min**, 421 s in one run, 358–382 s in
+another), or after **a whole round** of the ladder for one that had (~68 min by
+arithmetic). Both were removed on 2026-10-01: a unit whose network is away
+keeps measuring and keeps retrying it for as long as it takes, and one with no
+network configured asks for the date and time instead (§3). An AP a person
+opens still times out after 15 min when a network is configured, and the
+device reboots to try it; with none configured it stays up until someone
+saves a network or restarts the unit. In an event log, 403 with context 0 is a
+person and 1 the boot gesture; 2 and 3 are the automatic entries, and only a
+log written by v2.7.1 to v2.8.0 has them. The Air never had either: its radio
+only exists inside a wake, and its channel is the CLI, over USB or Bluetooth,
+which it has carried in full since 2026-09-18.
 
-**The touch gesture is the most fragile of the five.** The window opens when
+**The touch gesture is the most fragile of the three.** The window opens when
 the panel writes "Hold screen for AP Mode" and lasts 3.5 s; holding for 3 s
 inside it starts the AP. Up to v2.7.0 that window ran **before Core 1 existed**,
 and Core 1 is what draws the TFT: the instruction reached the glass 38 ms after
@@ -1132,7 +1157,7 @@ true while it is on the screen**.
 |---|---|
 | Forgot the admin password | `system admin reset confirm` over **USB serial** (the command is refused over Bluetooth), then log in with the printed password — the web forces you to change it. Since this release the reset survives a reboot, so there is no rush |
 | Answers on serial but not on the network | `show net status` — with no IP, enter AP mode (above) and reconfigure Wi-Fi from the portal |
-| The router changed and the device vanished from the LAN | It opens the setup network on its own — **measured: 6–7 min** (421 s in one run, 358–382 s in another), because it never got an address on that boot. Or force it from the panel, with `ap` over USB, or with `ap` over Bluetooth (alpha and Air) |
+| The router changed and the device vanished from the LAN | Open the setup network from the panel (Settings → 12), with `ap` over USB, or with `ap` over Bluetooth (alpha and Air), and set the new network from the portal. It does not open by itself; v2.7.1 to v2.8.0 opened it 6–7 min after the boot |
 | I can see the `_SETUP` network but the phone will not connect | Fixed in v2.7.1. Up to v2.7.0, an `ap` issued while the device was **hunting for a network that is not there** raised an AP that was visible and unjoinable (measured: 45 s and a timeout, against 4,07 s after the fix) — and that is exactly when `ap` gets used. On older firmware, `reload confirm` and then `ap` right after the boot |
 | I can see the `_SETUP` network on my phone but I do not know the password | It is derived from the board and has not been blank since v2.4.1-beta. Read it on the USB console, in the `ap` reply, on the TFT's boot screen or on the alpha's LCD |
 | Blank screen after adjusting the display offset | Fixed in v1.6.2-beta. On older firmware a factory reset clears the stored offset |

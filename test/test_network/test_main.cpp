@@ -33,6 +33,7 @@
 #include <lwip/dns.h>
 #include <vector>
 #include <algorithm>
+#include <sys/time.h>   /* settimeofday, intercepted below */
 
 /* ── the radio, and the handful of symbols NetworkManager links against ──── */
 
@@ -709,8 +710,9 @@ static void test_a_refused_ap_is_reported_and_not_latched(void) {
  * epoch. isTimeSynced( ) was `getEpoch( ) > 1600000000`, true on every device,
  * always, and /api/status, the panel's status screen and simut_ntp_synced said
  * "synced" on units that never reached a time server (finding 66 of the
- * v2.7.1 manual). The host's own clock is real, so the test does not call
- * setManualTime( ): that would settimeofday( ) the machine running it. */
+ * v2.7.1 manual). The host's own clock is real: this test seeds a provisional
+ * clock and reads the answer. setManualTime( ) is exercised in the next
+ * section, under a settimeofday( ) that records instead of setting. */
 static void test_a_provisional_clock_is_not_a_synced_one(void) {
     NetworkManager net;
     net.begin(makeConfig( ), true, false, "");
@@ -720,6 +722,76 @@ static void test_a_provisional_clock_is_not_a_synced_one(void) {
     net.setProvisionalTime(1785380400UL, 60);
     TEST_ASSERT_TRUE(net.getEpoch( ) > 1600000000);      /* plausible...     */
     TEST_ASSERT_FALSE(net.isTimeSynced( ));               /* ...not synced   */
+}
+
+/* ══ the clock a person sets ═════════════════════════════════════════════ */
+
+/* setManualTime( ) sets the system clock, and on this host that is the host's.
+ * As a normal user the call fails with EPERM; as root it would move the
+ * machine's clock, which no test may do. Defined here, this is found before
+ * libc's, so the manager's call lands in it and only records what it asked. */
+static time_t g_systemClockSetTo = 0;
+extern "C" int settimeofday(const struct timeval* tv, const struct timezone* tz) noexcept {
+    (void)tz;
+    g_systemClockSetTo = tv->tv_sec;
+    return 0;
+}
+
+static unsigned g_syncCalls = 0;
+static uint32_t g_syncSeed = 0;
+static int32_t  g_syncDelta = 0;
+static void recordTimeSync(uint32_t seed, int32_t delta) {
+    g_syncCalls++; g_syncSeed = seed; g_syncDelta = delta;
+}
+
+/* What the provisional clock stamped is moved when the real time arrives: by
+ * NTP since V5 (AppManager::handleTimeSync rewrites this boot's blocks). A
+ * person setting the clock did not move it — the records kept the seed's error
+ * and, the clock now being trusted, the block holding them was sealed as
+ * synced. Found 2026-10-01 while making the panel ask for the time on a unit
+ * with no network, where the person is the only source of time there is. */
+static void test_a_manual_clock_corrects_what_the_provisional_one_stamped(void) {
+    NetworkManager net;
+    g_syncCalls = 0; g_systemClockSetTo = 0;
+    net.setTimeSyncCallback(recordTimeSync);
+    net.setProvisionalTime(1785380400UL, 60);       /* the newest record, + 60 s */
+    set_native_millis(millis( ) + 10000);             /* ten seconds of seed time */
+    const time_t real = (time_t)(1785380400UL + 60 + 10 + 3600);   /* an hour slow */
+
+    net.setManualTime(real, NetworkManager::TIME_SRC_WEB);
+
+    TEST_ASSERT_EQUAL_INT64((long long)real, (long long)g_systemClockSetTo);
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(1, g_syncCalls,
+        "the records the seed stamped were left where they were");
+    TEST_ASSERT_EQUAL_UINT32(1785380460UL, g_syncSeed);
+    TEST_ASSERT_INT32_WITHIN(1, 3600, g_syncDelta);
+    TEST_ASSERT_TRUE(net.isTimeTrusted( ));
+}
+
+/* Only the provisional stretch is corrected. Once a real clock is in force, a
+ * second set is a person adjusting it, and what was stamped under the first
+ * was right when it was written. */
+static void test_a_second_manual_set_moves_nothing(void) {
+    NetworkManager net;
+    g_syncCalls = 0;
+    net.setTimeSyncCallback(recordTimeSync);
+    net.setProvisionalTime(1785380400UL, 60);
+    net.setManualTime((time_t)(1785380400UL + 3600), NetworkManager::TIME_SRC_WEB);
+    TEST_ASSERT_EQUAL_UINT(1, g_syncCalls);
+    net.setManualTime((time_t)(1785380400UL + 7200), NetworkManager::TIME_SRC_WEB);
+    TEST_ASSERT_EQUAL_UINT(1, g_syncCalls);
+}
+
+/* A seed a few seconds off is not worth rewriting the day file for: the same
+ * threshold NTP has always used, |delta| > 5. */
+static void test_a_manual_set_close_to_the_seed_rewrites_nothing(void) {
+    NetworkManager net;
+    g_syncCalls = 0;
+    net.setTimeSyncCallback(recordTimeSync);
+    net.setProvisionalTime(1785380400UL, 0);
+    net.setManualTime((time_t)(1785380400UL + 3), NetworkManager::TIME_SRC_WEB);
+    TEST_ASSERT_EQUAL_UINT(0, g_syncCalls);
+    TEST_ASSERT_TRUE(net.isTimeTrusted( ));
 }
 
 int main(int, char**) {
@@ -762,6 +834,10 @@ int main(int, char**) {
 
     RUN_TEST(test_a_provisional_clock_is_not_a_synced_one);
     RUN_TEST(test_a_refused_ap_is_reported_and_not_latched);
+
+    RUN_TEST(test_a_manual_clock_corrects_what_the_provisional_one_stamped);
+    RUN_TEST(test_a_second_manual_set_moves_nothing);
+    RUN_TEST(test_a_manual_set_close_to_the_seed_rewrites_nothing);
 
     return UNITY_END( );
 }

@@ -1,6 +1,6 @@
 # O console serial e o Bluetooth {#cap-14}
 
-O console serial (a CLI) é a porta de entrada por texto do aparelho: pelo cabo USB em todas as imagens e pelo Bluetooth no alpha e no Air. Este capítulo mostra como se conectar, os 14 comandos do console de emergência, o console completo e os comandos do Air, para quem instala, recupera ou opera o aparelho sem a interface web.
+O console serial (a CLI) é a porta de entrada por texto do aparelho: pelo cabo USB em todas as imagens e pelo Bluetooth no alpha e no Air. Este capítulo mostra como se conectar, os 15 comandos do console de emergência, o console completo e os comandos do Air, para quem instala, recupera ou opera o aparelho sem a interface web.
 
 ## Os dois consoles {#cap-14-perfis}
 
@@ -8,8 +8,8 @@ Toda configuração do dia a dia fica na interface web ([capítulo 5](#cap-05)).
 
 | Imagem | Console | Bluetooth |
 |---|---|---|
-| `release` | Emergência, 14 comandos | Não |
-| `alpha` | Emergência, 14 comandos | Sim |
+| `release` | Emergência, 15 comandos | Não |
+| `alpha` | Emergência, 15 comandos | Sim |
 | Air | Completo, com os comandos `air` | Sim, com o aparelho acordado em operação |
 | Imagens de teste (`pico_w_test`, `pico_w_test_https`) | Completo, com os comandos do painel e do PIN | Não |
 
@@ -120,7 +120,7 @@ Durante o bloqueio, o aparelho descarta tudo o que chega pelo Bluetooth e avisa 
 
 ## O console de emergência {#cap-14-emergencia}
 
-[release]{.img} [alpha]{.img} O console de emergência tem um só modo, com o prompt `SIMUT>`, e 14 comandos:
+[release]{.img} [alpha]{.img} O console de emergência tem um só modo, com o prompt `SIMUT>`, e 15 comandos:
 
 | Comando | O que faz |
 |---|---|
@@ -137,6 +137,7 @@ Durante o bloqueio, o aparelho descarta tudo o que chega pelo Bluetooth e avisa 
 | `system pass <senha>` | Grava a senha da rede Wi-Fi |
 | `system cors <origem>` ou `system cors off` | Grava a origem liberada para o gestor de frota |
 | `ap` (ou `apmode`, `ap-mode`) | Abre o ponto de acesso de configuração |
+| `time <AAAA-MM-DD> <HH:MM:SS>` | Acerta o relógio, na hora local ([time](#cap-14-time)) |
 | `reload confirm` | Reinicia o aparelho |
 
 Um comando que não está na lista responde `ERROR: Comando desconhecido. As configuracoes ficam na interface web; 'help' lista o que resta aqui.` e vai para o log com o código 585, **Comando desconhecido**.
@@ -144,6 +145,7 @@ Um comando que não está na lista responde `ERROR: Comando desconhecido. As con
 ::: atencao
 **O cabeçalho oferece um comando que não existe aqui.** O cabeçalho do console, no USB e no Bluetooth, sugere `language en` (ou `language pt`). Esse comando só existe no console completo; no console de emergência ele responde "Comando desconhecido". Para trocar o idioma do console, troque o idioma do aparelho pela interface web ou pelo painel e reinicie.
 :::
+
 
 ### Confirmar comandos destrutivos {#cap-14-confirm}
 
@@ -169,6 +171,7 @@ O console de emergência não tem `write memory`. Cada comando que precisa sobre
 | `system cors` | Gravado em `/config/cors.txt` na hora; vale no próximo boot |
 | `system factory`, `system format`, `system https off` | Na hora, com reinício |
 | `debug on`, `debug off` | Só nesta sessão: `Vale para esta sessao; nao persiste apos reiniciar.` |
+| `time` | Só até o próximo reinício: o relógio não é gravado |
 
 ::: nota
 **O estado do `debug` pode acabar gravado.** O `debug` fica na configuração em memória. Se, na mesma sessão, outro comando gravar a configuração (`system ssid`, `system pass`, `system admin reset`) ou alguém salvar pela web, o estado do `debug` vai junto e passa a valer depois do reinício. Desligue o `debug` antes de gravar qualquer coisa.
@@ -294,7 +297,7 @@ Se a gravação falhar, o aparelho avisa `ERROR: NAO SALVOU: vale so ate reinici
 | `system factory confirm` | A configuração: contas, rede, sensores, telemetria e o resto. O histórico e os arquivos ficam | Configuração de fábrica. A senha nova do `admin` não é mostrada: rode `system admin reset confirm` depois do reinício ([capítulo 17](#cap-17-factory)) |
 | `system https off confirm` | O certificado e a chave do HTTPS | A interface web volta a responder em HTTP ([capítulo 9](#cap-09-https-off)) |
 
-Sem rede configurada depois do reinício, a imagem `release` e a `alpha` abrem o AP de configuração no boot ([capítulo 9](#cap-09-ap-quando)). O `system format` mostra `OK: Formatando LittleFS... reboot em seguida.` antes de começar; o `system factory` reinicia sem mensagem; o `system https off` diz `OK: HTTPS desligado. Reiniciando em HTTP...`, ou `OK: Nenhum certificado presente. Reiniciando...` quando não havia certificado.
+Sem rede configurada depois do reinício, o aparelho não abre o AP de configuração sozinho: abra-o com `ap` ([ap](#cap-14-ap)) ou grave a rede com `system ssid` e `system pass`. O boot também pede a data e a hora: na release, no painel; em todas as imagens, com a linha que cita o `time` ([time](#cap-14-time)). O `system format` mostra `OK: Formatando LittleFS... reboot em seguida.` antes de começar; o `system factory` reinicia sem mensagem; o `system https off` diz `OK: HTTPS desligado. Reiniciando em HTTP...`, ou `OK: Nenhum certificado presente. Reiniciando...` quando não havia certificado.
 
 ::: perigo
 **`system format` apaga o histórico.** Não há como desfazer. Baixe um backup e o histórico antes, se a web ainda responder ([capítulo 17](#cap-17)).
@@ -329,7 +332,7 @@ Sem argumento, o comando só mostra o uso: `system cors` vazio não apaga a orig
 
 ### ap {#cap-14-ap}
 
-Abre o ponto de acesso de configuração na hora e responde com a chave da rede:
+Abre o ponto de acesso de configuração na hora e responde com a chave da rede. É, com o item 12 do menu e o gesto no boot da release, o único jeito de abrir o AP: o aparelho não o abre sozinho ([capítulo 9](#cap-09-ap-quando)).
 
 ```text
 SIMUT> ap
@@ -337,7 +340,23 @@ OK: Modo AP iniciado (WPA2). Senha: K7PX4MRW2A
 Conecte-se ao AP e acesse http://192.168.4.1
 ```
 
-O nome da rede é o nome do aparelho seguido de `_SETUP`. O log registra o código 403, **AP iniciado**, com o contexto 0. O AP aberto em operação fecha sozinho em 15 minutos, com um reinício ([capítulo 9](#cap-09-ap-aberto)). Se o AP não abrir, a resposta é `ERROR: O modo AP nao iniciou.` e o aparelho continua medindo.
+O nome da rede é o nome do aparelho seguido de `_SETUP`. O log registra o código 403, **AP iniciado**, com o contexto 0. Com uma rede configurada, o AP fecha sozinho em 15 minutos, com um reinício; sem rede configurada, fica aberto até alguém gravar uma rede ou reiniciar o aparelho ([capítulo 9](#cap-09-ap-aberto)). Se o AP não abrir, a resposta é `ERROR: O modo AP nao iniciou.` e o aparelho continua medindo.
+
+### time {#cap-14-time}
+
+Acerta o relógio na hora, na hora local do fuso do aparelho. Funciona pelo USB e pelo Bluetooth, e `conf time` é o mesmo comando. Num aparelho sem rede configurada e com o relógio provisório, o boot termina com uma linha que cita o comando:
+
+```text
+Sem rede, relogio provisorio: conf time AAAA-MM-DD HH:MM:SS
+SIMUT> conf time 2026-10-01 14:30:00
+OK: Hora aplicada (imediato, nao persiste em reboot)
+```
+
+- **A data é conferida como num calendário.** O ano vai de 2026 a 2099, e o dia tem de existir no mês. `time 2026-02-31 12:00:00` responde `ERROR: Data ou hora invalida (ano >= 2026)`, e o relógio não muda. Um formato errado responde `ERROR: Formato invalido. Use: conf time AAAA-MM-DD HH:MM:SS`.
+- **O acerto não é gravado.** Ele vale até o próximo reinício; um aparelho sem rede pede a hora de novo a cada boot.
+- **O histórico é corrigido.** O primeiro acerto depois do boot corrige a hora dos blocos do histórico que o boot começou, e o log registra o código 13, `RTC set manually`, com o contexto 2 ([capítulo 10](#cap-10-correcao)).
+
+Até a v2.8.0, o `time` existia só no console completo, e no console de emergência ele respondia "Comando desconhecido".
 
 ## O console completo {#cap-14-completo}
 
@@ -433,7 +452,7 @@ E, no EXEC ou no privilegiado:
 
 | Comando | Efeito |
 |---|---|
-| `time AAAA-MM-DD HH:MM:SS` | Acerta o relógio na hora local, sem gravar; o ano precisa ser 2026 ou depois ([capítulo 10](#cap-10-manual)) |
+| `time AAAA-MM-DD HH:MM:SS` | Como no console de emergência ([time](#cap-14-time)) |
 | `language pt`, `language en` | Troca o idioma do console, do painel e do log na hora; `write memory` grava. `language` sozinho mostra o atual |
 | `debug on`, `debug off` | Como no console de emergência; aqui, `write memory` grava o estado |
 
@@ -573,7 +592,7 @@ Todos os comandos `user` precisam de `write memory` para ficar.
 
 | Comando | Efeito |
 |---|---|
-| `screen <tag>` | Abre uma tela do painel direto, como administrador: `dash`, `set`, `thm`, `lng`, `pwd`, `lic`, `sts`, `alm`, `gra`, `touchcal`, `touchsens`, `offset`, `usr`, `pin` ([referência das telas](#cap-11-referencia)) |
+| `screen <tag>` | Abre uma tela do painel direto, como administrador: `dash`, `set`, `thm`, `lng`, `pwd`, `lic`, `sts`, `alm`, `gra`, `touchcal`, `touchsens`, `offset`, `usr`, `clk`, `pin` ([referência das telas](#cap-11-referencia)) |
 | `touch sim <X> <Y>` | Simula um toque no ponto (X de 0 a 319, Y de 0 a 239) |
 | `touch hold <X> <Y> [ms]` | Simula um toque **mantido** por `ms` milissegundos (padrão 3500, de 100 a 15000) e depois solta: alcança os gestos de toque longo, como o de 3 s que fixa o cartão de cima, que o `touch sim` não alcança |
 | `show display keypad` | Mostra o que cada tecla do teclado de PIN embaralhado tem na tela agora |

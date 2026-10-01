@@ -3,7 +3,7 @@
 Gerado por `tools/build_manual.py` — não edite à mão. Salve cada captura
 nesta pasta com o nome indicado e rode o script de novo.
 
-150 pendentes de 194.
+153 pendentes de 197.
 
 
 ## Capítulo 1 — O SIMUT em uma página
@@ -39,12 +39,14 @@ nesta pasta com o nome indicado e rode o script de novo.
 
 ## Capítulo 4 — Primeiro boot e primeira configuração
 
-- [ ] `04-fluxo.png` (Diagrama) — fluxograma do primeiro boot: 'liga com o console USB aberto' → 'anota a senha do admin'; depois dois ramos: release e alpha 'AP simut_SETUP → 192.168.4.1 → troca de senha → Rede → Salvar e reiniciar'; Air 'console: enable, configure terminal, system ssid, system pass, reload confirm'; os ramos se juntam em 'aparelho na rede, começa a medir' → 'pacote de idioma e reinício' → 'fuso e hora' → 'primeiro sensor' → 'PIN do painel (release)' → 'pronto para usar'
-      O primeiro boot em um só desenho: a senha, a rede, a web, o idioma, os sensores e o PIN.
-- [ ] `04-painel-ap.png` (Tela do painel) — release recém-gravada, sem rede configurada, depois do boot; a caixa de boot termina com simut_SETUP, PSK e a chave, e AP Ativo! Reinicie a placa para sair.; capturar com GET /api/screenshot pelo próprio AP, com sessão admin depois da troca de senha; se a captura não funcionar no AP, use foto da tela; borre a chave antes de publicar
-      O painel de um aparelho novo: a rede do ponto de acesso, a chave e o aviso de AP ativo ficam na tela.
-- [ ] `04-lcd-ap.png` (LCD 16×2) — alpha recém-gravada, sem rede configurada, depois do boot com o ponto de acesso aberto; linha de cima SIMUT 2.8.0, linha de baixo [##############] com a barra cheia
-      O LCD de uma alpha nova com o ponto de acesso aberto: a tela de boot fica parada, e a chave está no console.
+- [ ] `04-fluxo.png` (Diagrama) — fluxograma do primeiro boot: 'liga com o console USB aberto' → 'anota a senha do admin' → na release, 'o painel pergunta a data e a hora: SALVAR ou PULAR'; depois dois ramos: release e alpha 'ap no console (na release, também o item 12 do menu) → AP simut_SETUP → 192.168.4.1 → troca de senha → Rede → Salvar e reiniciar'; Air 'console: enable, configure terminal, system ssid, system pass, reload confirm'; os ramos se juntam em 'aparelho na rede' → 'pacote de idioma e reinício' → 'fuso e hora' → 'primeiro sensor' → 'PIN do painel (release)' → 'pronto para usar'
+      O primeiro boot em um só desenho: a senha, a hora, a rede, a web, o idioma, os sensores e o PIN.
+- [ ] `04-painel-data-hora.png` (Tela do painel) — release recém-gravada, sem rede configurada, logo depois do boot; tela Data e hora com as cinco colunas e as setas, a linha Sem Wi-Fi, os dados levam esta hora. em âmbar e os botões PULAR e SALVAR; sem rede, GET /api/screenshot não alcança o aparelho: use foto da tela, antes dos 30 s sem toque que levam o painel à tela inicial
+      A pergunta do fim do boot num aparelho sem rede: a data e a hora do relógio provisório, prontas para acertar.
+- [ ] `04-painel-ap.png` (Tela do painel) — release recém-gravada, sem rede configurada; ponto de acesso aberto pelo menu (CFG, admin, PIN, item 12 Modo de Configuração, Confirmar) ou pelo comando ap no console USB; a caixa termina com simut_SETUP, PSK e a chave, Acesse no celular: 192.168.4.1 e AP Ativo! Reinicie a placa para sair.; capturar com GET /api/screenshot pelo próprio AP, com sessão admin depois da troca de senha; se a captura não funcionar no AP, use foto da tela; borre a chave antes de publicar
+      O painel com o ponto de acesso aberto: a rede, a chave e o aviso de AP ativo ficam na tela.
+- [ ] `04-lcd-ap.png` (LCD 16×2) — alpha recém-gravada, sem rede configurada; ponto de acesso aberto pelo comando ap no console USB, com o aparelho já nas leituras; página Rede: 2 de 3 com simut_SETUP na linha de baixo
+      O LCD de uma alpha com o ponto de acesso aberto pelo comando ap: a página com o nome da rede.
 - [ ] `04-novo-pin.png` (Tela do painel) — release com configuração de fábrica; tela inicial → botão de configurações → admin → PIN 1234 → ENTRAR; tela Novo PIN aberta, antes de digitar
       A troca obrigatória do PIN de fábrica: a tela Novo PIN abre direto depois do 1234.
 
@@ -150,8 +152,8 @@ nesta pasta com o nome indicado e rode o script de novo.
       A seção Servidor Web num aparelho com certificado instalado: o interruptor de conexões persistentes só aparece nesse caso.
 - [ ] `09-busca.png` (Página web) — rota /network; largura 1280; sessão admin; busca concluída com 5 redes de exemplo (MinhaRede protegida -48 dBm com 4 barras, uma rede aberta com 2 barras, as outras protegidas); lista aberta abaixo do campo SSID
       A lista de redes depois de Buscar: cadeado, nome, barras e sinal em dBm, da mais forte para a mais fraca.
-- [ ] `09-escada.png` (Diagrama) — linha do tempo da escada de reconexão: queda; cinco ciclos de busca, busca e tentativa de 20 s com esperas de 5, 10, 20, 40 e 80 s; três dormências de 10 min antes de cada busca; ao fim, o AP de configuração (aparelho que já teve IP) e o recomeço da escada; marcar à parte o AP rápido na primeira dormência para o aparelho que nunca teve IP
-      A escada de reconexão: esperas que dobram, três dormências de 10 min e o ponto em que o aparelho abre o AP de configuração.
+- [ ] `09-escada.png` (Diagrama) — linha do tempo da escada de reconexão: queda; cinco ciclos de busca, busca e tentativa de 20 s com esperas de 5, 10, 20, 40 e 80 s; três dormências de 10 min antes de cada busca; ao fim, o recomeço da escada, que se repete até a rede voltar; nenhum AP de configuração na linha
+      A escada de reconexão: esperas que dobram, três dormências de 10 min e o recomeço, até a rede voltar.
 - [ ] `09-aviso-certificado.png` (Página web) — rota https://192.0.2.10/login; largura 1280; navegador Chrome sem a exceção aceita; certificado autoassinado recém-instalado; página de aviso do navegador
       O aviso do navegador no primeiro acesso a um aparelho com certificado autoassinado.
 
@@ -163,6 +165,8 @@ nesta pasta com o nome indicado e rode o script de novo.
       O acerto manual com o NTP desligado: data, hora e o botão Aplicar Agora da seção.
 - [ ] `10-correcao.png` (Diagrama) — linha do tempo: aparelho desligado por 2 h; boot com relógio provisório a partir do último registro, 2 h atrasado; medições carimbadas com a hora provisória; acerto por NTP com correção de +7200 s; os blocos gravados desde o boot deslocados 2 h para a frente; eventos 524, 13, 408, 409 e 410 marcados na linha
       O que o primeiro acerto por NTP faz com as medições gravadas sob o relógio provisório.
+- [ ] `10-painel-hora-provisoria.png` (Tela do painel) — screen dash; rede configurada e NTP desligado e gravado, reiniciado e sem acerto à mão desde o boot; recorte da faixa de topo com a data e a hora em âmbar e o ? no lugar do -
+      O relógio provisório no topo do painel: a data e a hora em âmbar, separadas por ?.
 
 ## Capítulo 11 — O painel
 
@@ -186,6 +190,8 @@ nesta pasta com o nome indicado e rode o script de novo.
       A página de umidade do detalhe.
 - [ ] `11-detalhe-pressao.png` (Tela do painel) — screen gra -> tap(160,120) -> tap(160,120) -> tap(160,120); mesmo BME280
       A página de pressão do detalhe.
+- [ ] `11-menu-p4.png` (Tela do painel) — screen set -> tap(35,215); a seta para cima dá a volta e seleciona o item 13; quarta página
+      A quarta página do menu completo, só com Data e hora.
 - [ ] `11-mira.png` (Tela do painel) — screen touchcal e complete a etapa de sensibilidade com o dedo; capture a primeira mira, no canto de cima à esquerda; o toque simulado não completa a sensibilidade, porque não tem pressão
       A etapa de posição: a primeira mira, Toque na mira (1/4) e a volta [ 1 / 2 ].
 - [ ] `11-calib-ok.png` (Tela do painel) — depois do oitavo toque de uma calibração com as duas voltas coerentes
@@ -235,7 +241,7 @@ nesta pasta com o nome indicado e rode o script de novo.
       A contagem de pendentes no canto de baixo, com um único sensor.
 - [ ] `12-pendentes-k.png` (LCD 16×2) — imagem v2.7.2; 1 sensor ativo; 2.500 registros pendentes; 2k no canto de baixo
       Mais de mil pendentes: a contagem em milhares.
-- [ ] `12-ap-1.png` (LCD 16×2) — AP aberto em operação pelo comando ap, depois de abrir uma página da interface web pelo AP; página Modo AP 1 de 3 com 192.168.4.1
+- [ ] `12-ap-1.png` (LCD 16×2) — AP aberto em operação pelo comando ap; página Modo AP 1 de 3 com 192.168.4.1
       A página 1 do AP: o endereço.
 - [ ] `12-ap-2.png` (LCD 16×2) — mesmo estado; página Rede: 2 de 3 com simut_SETUP
       A página 2 do AP: o nome da rede.

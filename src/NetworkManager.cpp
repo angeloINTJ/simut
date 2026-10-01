@@ -235,15 +235,34 @@ void NetworkManager::setTimeSyncCallback(TimeSyncCallback cb) { _timeSyncCb = cb
  * of the client (JS/CLI already has access to timezone via cfg.timezoneOffset).
  * Clears `_provisionalActive` because we now have "real" (manual) time.
  */
-void NetworkManager::setManualTime(time_t epoch) {
+void NetworkManager::setManualTime(time_t epoch, uint8_t source) {
  if (epoch <= 1600000000) return; /* Reject obviously invalid value. */
+ /* Read the seed BEFORE the system clock moves: endProvisional( ) compares the
+  * two. It used to be `_provisionalActive = false` and nothing else, so what
+  * the seed had stamped this boot kept the seed's error — while the clock, now
+  * trusted, sealed the block holding it as synced. NTP has corrected that since
+  * V5; a person setting the clock is the same event and now takes the same
+  * path. Found 2026-10-01 (test_network) while making the panel ask for the
+  * time on a unit with no network, where a person is the only clock there is. */
+ const uint32_t realNow = (uint32_t)epoch;
  struct timeval tv;
  tv.tv_sec = epoch;
  tv.tv_usec = 0;
  settimeofday(&tv, nullptr);
- _provisionalActive = false;
- LOG_CODE(LOG_INFO, "NET", SYS_NTP_SYNC, 0,
+ endProvisional(realNow);
+ LOG_CODE(LOG_INFO, "NET", SYS_NTP_SYNC, source,
  TRL("RTC set manually"));
+}
+
+void NetworkManager::endProvisional(uint32_t realNow) {
+ if (!_provisionalActive) return;
+ const uint32_t provTime = _provisionalBase + ((millis( ) - _provisionalBootMillis) / 1000);
+ const int32_t delta = (int32_t)(realNow - provTime);
+ /* Five seconds is not worth rewriting a day file for. */
+ if (_timeSyncCb && abs(delta) > 5) {
+  _timeSyncCb(_provisionalBase, delta);
+ }
+ _provisionalActive = false;
 }
 
 
@@ -452,7 +471,6 @@ void NetworkManager::update( ) {
  case NET_CONNECTED_WAIT_IP:
  if (WiFi.localIP( ).toString( ) != "0.0.0.0") {
  LOG_CODE(LOG_INFO, "NET", SYS_IP_ACQUIRED, 0, "IP: " + WiFi.localIP( ).toString( ));
- _everHadIp = true;
  MetricsManager::instance( ).data( ).wifiReconnects++;
  applyManualDnsIfNeeded( ); /* Manual DNS post-DHCP */
 #if SIMUT_MDNS
@@ -483,17 +501,7 @@ void NetworkManager::update( ) {
  LOG_CODE(LOG_INFO, "NET", SYS_NTP_SYNC, 0, "NTP OK: " + getFormattedDate( ) + " " + getFormattedTime( ));
 
 
- if (_provisionalActive) {
- uint32_t realTime = time(nullptr);
- uint32_t provTime = _provisionalBase + ((millis( ) - _provisionalBootMillis) / 1000);
- int32_t delta = realTime - provTime;
-
-
- if (_timeSyncCb && abs(delta) > 5) {
- _timeSyncCb(_provisionalBase, delta);
- }
- _provisionalActive = false;
- }
+ endProvisional((uint32_t)time(nullptr));
 
  _state = NET_READY;
  resetReconnectLadder( );
@@ -672,57 +680,18 @@ void NetworkManager::handleConnecting( ) {
  resetReconnectLadder( );
  LOG_CODE(LOG_INFO, "NET", NET_DORMANT_MODE, 0,
  TRL("Dormancy over — back to fast retries"));
-#if !SIMUT_AIR
- /* ── Setup AP, the patient arm ────────────────────────────────────────
-  *
-  * Until 2.7.1 nothing anywhere did this: begin( ) with no SSID went to
-  * NET_OFFLINE and this ladder retried for ever, so the ONLY ways into AP
-  * mode were a three-second gesture on a touch panel during a window the
-  * screen could not show, and the `ap` command over a cable or Bluetooth.
-  * A device whose router was replaced was unreachable by every channel its
-  * owner had, which is the report this release fixes.
-  *
-  * This is the arm for a device that HAD an address and lost it, and it is
-  * deliberately slow: one whole round of the ladder is five connect cycles
-  * and then three dormancies, and a dormancy is WIFI_DORMANT_DELAY_MS
-  * before EACH of the two scans that precede an association attempt — so a
-  * round is much longer than three times ten minutes.
-  * Not measured to completion on the rig: the run
-  * that would have shown it was still going at 29 min, and the arithmetic
-  * says ~68 (7 min of the five cycles, then three attempts of 600 + 600 + 20
-  * s each). What WAS measured is the mechanism, on the fast arm below.
-  * Taking a working LAN away for fifteen minutes over an outage that ends
-  * on its own is the worse trade; the fast arm below is for the case where
-  * there was never a LAN to take.
-  *
-  * Air is excluded from both: its radio only exists inside a wake, an AP
-  * would hold it awake for fifteen minutes a round, the AP timeout only
-  * returns to STA when an SSID is configured — so with none there is no
-  * exit — and there is nobody in front of a hibernating device to use it. */
- _apFallbackDue = true;
-#endif
+ /* Until 2026-10-01 a whole round of the ladder ended here by asking for the
+  * setup AP (2.7.1), and the first dormancy of a unit that never had an
+  * address asked for it at once — measured on the rig at 6–7 min. The
+  * maintainer's decision that day: the AP opens when a person asks, from
+  * Settings or with the `ap` command, never because the network is away. A
+  * unit whose network is away keeps measuring and keeps trying it, on this
+  * ladder, for as long as it takes. */
  } else {
  /* Long dormancy: avoids draining battery/CPU with futile reconnections */
  _dormantWaits++;
  _reconnectDelay = WIFI_DORMANT_DELAY_MS;
  LOG_CODE(LOG_WARN, "NET", NET_DORMANT_MODE, _connectCycles, String(TRL("Dormant: retry in ")) + (_reconnectDelay / 1000) + "s");
-#if !SIMUT_AIR
- /* ── Setup AP, the fast arm ───────────────────────────────────────────
-  *
-  * A device that has NEVER had an address since it booted is not a link
-  * that dropped — it is a network that is not there: the router was
-  * replaced, the password changed, the unit was moved. There is no working
-  * LAN to protect, so the FIRST dormancy is enough; the patient arm above
-  * would cost an hour of being unreachable for nothing.
-  * Measured on the rig 2026-09-22 with an SSID that does not
-  * exist: 421 s from boot, and the log reads 526 ctx=5 (first dormancy),
-  * 403 ctx=3 (AP because the ladder gave up) and 15 ctx=1 (AP up, WPA2) one
-  * second apart. A second run, polled from the device itself, put it between
-  * 358 and 382 s — the ladder's own scan times move it. The host then JOINED
-  * that AP in 4,08 s and loaded the portal, which is the half that only works
-  * because of the teardown at the top of beginAP( ). */
- if (!_everHadIp) _apFallbackDue = true;
-#endif
  }
  } else {
  _reconnectDelay = min(_reconnectDelay * 2, MAX_RECONNECT_DELAY);

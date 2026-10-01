@@ -22,6 +22,7 @@
 #include "StorageManager.h"
 #include "SystemDefs.h"
 #include <time.h>
+#include "SimutTime.h"    /* simutValidCivil — a date as a calendar checks it */
 
 #if SIMUT_CLI_FULL
 void AppManager::cmdHandleSensorField(const CliDemand& cmd, SystemConfig& cfg, bool& changed) {
@@ -569,11 +570,10 @@ void AppManager::cmdHandleResetAdmin(const CliDemand& cmd, SystemConfig& cfg, bo
  * porque sscanf puxa __ssvfscanf_r/__ssvfiscanf_r (~12KB de flash).
  * Returns true if 3 values successfully extracted.
  *
- * Sob a mesma condição do único chamador (cmdHandleSetTime, logo abaixo): numa
- * imagem sem o CLI completo isto era função morta que o compilador avisava e o
- * linker depois descartava. Guardar a definição diz a intenção em vez de contar
- * com o descarte. */
-#if SIMUT_CLI_FULL
+ * Em toda imagem desde 2026-10-01, como o único chamador (cmdHandleSetTime,
+ * logo abaixo): a console de emergência da release e do alpha também ajusta o
+ * relógio, porque um aparelho sem rede configurada diz no boot que o relógio é
+ * provisório e manda usar `time`. */
 static bool parse_3ints(const char* s, char sep, int& a, int& b, int& c) {
  char* end;
  a = (int)strtol(s, &end, 10);
@@ -583,9 +583,7 @@ static bool parse_3ints(const char* s, char sep, int& a, int& b, int& c) {
  c = (int)strtol(end + 1, &end, 10);
  return (end > s + 1) && (*end == '\0' || *end == ' ');
 }
-#endif /* SIMUT_CLI_FULL — parse_3ints */
 
-#if SIMUT_CLI_FULL
 void AppManager::cmdHandleSetTime(const CliDemand& cmd) {
  const bool pt = _cmdMgr->isPt( );
  int y, mo, d, h, mi, s;
@@ -595,10 +593,11 @@ void AppManager::cmdHandleSetTime(const CliDemand& cmd) {
  : "Invalid format. Use: conf time YYYY-MM-DD HH:MM:SS");
  return;
  }
- if (y < 2026 || y > 2099 || mo < 1 || mo > 12 || d < 1 || d > 31
- || h < 0 || h > 23 || mi < 0 || mi > 59 || s < 0 || s > 59) {
- _cmdMgr->printError(pt ? "Valores fora de range (ano >= 2026)"
- : "Values out of range (year >= 2026)");
+ /* A calendar's check, not a range per field: d <= 31 let 2026-02-31 through,
+  * and mktime( ) quietly made it 3 March (2026-10-01, SimutTime.h). */
+ if (!simutValidCivil(y, mo, d, h, mi, s)) {
+ _cmdMgr->printError(pt ? "Data ou hora invalida (ano >= 2026)"
+ : "Invalid date or time (year >= 2026)");
  return;
  }
  struct tm tmLocal = {};
@@ -613,10 +612,12 @@ void AppManager::cmdHandleSetTime(const CliDemand& cmd) {
  _cmdMgr->printError(pt ? "Falha na conversao de tempo" : "Time conversion failed");
  return;
  }
- _netMgr->setManualTime(epoch);
+ _netMgr->setManualTime(epoch, NetworkManager::TIME_SRC_CLI);
  _cmdMgr->printSuccess(pt ? "Hora aplicada (imediato, nao persiste em reboot)"
  : "Time applied (immediate; not persisted across reboot)");
 }
+
+#if SIMUT_CLI_FULL
 
 void AppManager::cmdHandleIpCfg(const CliDemand& cmd, SystemConfig& cfg, bool& changed) {
  const bool pt = _cmdMgr->isPt( );

@@ -31,11 +31,12 @@
 #include "lwip/memp.h"
 #endif
 
-/* ctx says WHO asked, because the four callers are four different stories in
- * a log read months later: 0 a person (CLI, Bluetooth or the panel's menu),
- * 1 the boot touch gesture, 2 an unconfigured device, 3 the reconnect ladder
- * giving up after a full round. 1 and 2 are logged at their own site in
- * AppManager_Boot.cpp, which runs before this function exists to be called. */
+/* ctx says WHO asked, because the callers are different stories in a log read
+ * months later: 0 a person (CLI, Bluetooth or the panel's menu), 1 the boot
+ * touch gesture, logged at its own site in AppManager_Boot.cpp, which runs
+ * before this function exists to be called. 2 (an unconfigured device) and 3
+ * (the reconnect ladder giving up) were the AP opening by itself; both were
+ * retired on 2026-10-01, and a log from before then may still carry them. */
 void AppManager::startApMode(uint8_t why) {
  SystemConfig &cfg = _storageMgr->getConfig( );
  LOG_CODE(LOG_WARN, "APP", APP_AP_MODE_TRIGGERED, why, TRL("AP mode started."));
@@ -92,7 +93,7 @@ void AppManager::startApMode(uint8_t why) {
 /* What an operator standing at the panel needs, as the last four lines of the
  * boot terminal: the network, its key, where to point the browser, and that
  * the AP is up. One function for the boot (forceAP) and for startApMode( ) —
- * the menu, `ap` and the fallback — so the two screens cannot drift apart.
+ * the menu and `ap` — so the two screens cannot drift apart.
  *
  * Raw lines (key == TR_KEYS_COUNT renders the suffix alone, see BootLogEntry):
  * an SSID and a random key are the two things on this screen with nothing to
@@ -778,6 +779,9 @@ void AppManager::executeCommand(CliDemand cmd) {
  LogManager::instance( ).safeReboot( );
  }
 
+ case CMD_SET_TIME:   /* every image: see CommandParser.cpp */
+ cmdHandleSetTime(cmd); break; /* No changed flag: immediate action */
+
 #if SIMUT_CLI_FULL
  case CMD_SET_NTP_ENABLED: {
  const bool pt = _cmdMgr->isPt( );
@@ -791,9 +795,6 @@ void AppManager::executeCommand(CliDemand cmd) {
 
  case CMD_SET_DNS_CFG:
  cmdHandleDnsCfg(cmd, cfg, changed); break;
-
- case CMD_SET_TIME:
- cmdHandleSetTime(cmd); break; /* No changed flag: immediate action */
 
  case CMD_DEFINE_SENSOR: {
  const bool pt = _cmdMgr->isPt( );
@@ -1441,6 +1442,10 @@ void AppManager::executeCommand(CliDemand cmd) {
  else if (!strcmp(n, "touchsens")) _displayMgr->showTouchSensitivity( );
  else if (!strcmp(n, "offset")) _displayMgr->showSettingsDisplayOffset( );
  else if (!strcmp(n, "usr")) _displayMgr->showSettingsUsers( );
+ /* The date and time as Settings > 13 opens it (2026-10-01); a stub on the
+  * Air, which has this command and no panel. */
+ else if (!strcmp(n, "clk")) _displayMgr->showClockEntry(
+  clockEntryFrom(_netMgr->getEpoch( ), simutTimeOffsetSeconds( )), false);
 #if SIMUT_PANEL_PIN
  else if (!strcmp(n, "pin")) _displayMgr->showAuthUser( );
 #endif

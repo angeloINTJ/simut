@@ -199,7 +199,7 @@ Para vigiar limites com um Air, faça a conferência no coletor da telemetria.
 | Painel, LCD e buzzer | Não existem |
 | Espelho, captura e tema do painel na interface web | Não existem |
 | PIN do painel e bloqueios do painel | Não existem: não há painel |
-| Rede de configuração automática | Não abre sozinha, nem sem rede configurada ([capítulo 9](#cap-09-ap)). Configure a rede pelo console |
+| Rede de configuração que abre sozinha | Não existe no Air, nem existiu da v2.7.1 à v2.8.0, quando a release e o alpha a tinham. O comando `ap` abre o AP ([capítulo 9](#cap-09-ap)), mas configure a rede pelo console |
 | Nome `.local` (mDNS) | Não existe, nem em M0: saiu da imagem para caber no limite de tamanho da atualização. Use o IP |
 | Interface web, API, Bluetooth e atualização | Só em M0 ([capítulo 17](#cap-17-variantes)) |
 | Alarmes e linha de alarmes | Só em M0 ([Alarmes no Air](#cap-19-alarmes)) |
@@ -257,6 +257,7 @@ No começo de cada despertar, o console mostra também se o rádio vai ligar, co
    SIMUT# reload confirm
    ```
 
+   Sem rede configurada, o boot do Air escreve também `Sem rede, relogio provisorio: conf time AAAA-MM-DD HH:MM:SS`. Num Air que vai funcionar sem Wi-Fi, acerte a hora com o comando `time` ([capítulo 10](#cap-10-manual)).
 5. **Ligue o carregador** durante a configuração, para o Air não hibernar no meio dela. Sem carregador, cada comando e cada pedido da página renovam os 300 s de ociosidade.
 6. **Descubra o IP** com `show net status` e entre na interface web com `admin`. Troque a senha.
 7. **Configure os sensores** e o **Intervalo Histórico**, que é o período entre despertares ([capítulo 6](#cap-06)). Com o DS18B20, um despertar leva cerca de 9 s: um intervalo de 1 min deixa o Air acordado cerca de 13 % do tempo.

@@ -104,7 +104,8 @@ static const char* const DICTIONARY_EN[TR_KEYS_COUNT] = {
  "Minimum length",
  "Keypad",
  "Characters",
- "Choose a new PIN"
+ "Choose a new PIN",
+ "13. Date and time"
 };
 
 /* Channel -> label key. The table in SensorChannelTable.h carries an i18nKey

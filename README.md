@@ -50,7 +50,7 @@ They share one core:
 | **Current release** | **v2.8.0** (2026-09-30). SIMUT left beta with v2.7.0, on measurements: an 8.18 h soak with 0 reboots, and 6 of 6 over-the-air updates with nothing lost. v2.8.0 keeps the configuration when an update is cut off halfway, and lets the custom telemetry format send the Content-Type its server expects; v2.7.4 had fixed a sensor scan that left a BMP280 on hardware I2C in error. |
 | **Published images** | Three images, each as `.uf2` and `.bin`: `release` (TFT touch panel), `alpha` (16×2 LCD with a Bluetooth console) and `air` (headless battery logger). The pt-BR and es-ES language packs and an OTA manifest ship alongside. An image with a different set of features comes from the [build configurator](https://angelointj.github.io/simut/configurador/), and CI builds it from `main`. |
 | **Maturity** | <ul><li>`release`: **stable**.</li><li>`alpha`: published and bench-tested, its 16×2 LCD included since 2026-09-26.</li><li>`air`: **experimental**. Its one long soak failed: a sleep in cycle 119 never woke (F28). A watchdog across the wake now mitigates it; the root cause is not confirmed.</li></ul> |
-| **Tests** | Every pull request runs 433 host test cases in 8 suites, 60 s of fuzzing and static analysis, and builds all six firmware images from a cold cache. Behaviour on real hardware is verified on a bench — see [Verification](#verification-on-hardware). |
+| **Tests** | Every pull request runs 443 host test cases in 8 suites, 60 s of fuzzing and static analysis, and builds all six firmware images from a cold cache. Behaviour on real hardware is verified on a bench — see [Verification](#verification-on-hardware). |
 
 **Known limitations.** Each one is documented where it applies.
 - **Updates.** An update over the air reformats the filesystem:
@@ -170,8 +170,9 @@ See the **[wiring guide](docs/WIRING.md)** for the complete pinout and connectio
   - a lockout per account: the sixth failure locks the account, and 20 failures in total lock the panel.
 - **Administration on the glass:**
   - a Users item creates accounts and sets their permission bits and PINs;
-  - the 12 settings rows are filtered by what the account may do;
-  - Settings → 12 starts the setup access point.
+  - the 13 settings rows are filtered by what the account may do;
+  - Settings → 12 starts the setup access point;
+  - Settings → 13 sets the date and time, and a unit with no network configured asks for them at the end of the boot.
 - **Top-panel gestures** — a tap toggles min/max, a 3 s hold pins the selection.
 - **DMA rendering fast path** — canvas compositing over 62.5 MHz SPI.
 - **4 px safe area everywhere** — the screen-alignment offset (±4 px per axis) can never crop content.
@@ -227,13 +228,11 @@ See the **[wiring guide](docs/WIRING.md)** for the complete pinout and connectio
   - WPA2, with a per-device key shown on the USB console and the TFT boot screen;
   - a captive portal at `http://192.168.4.1`.
 
-  Five ways in:
-  - a unit with no network configured opens it by itself (not the Air);
-  - an automatic fallback opens it when the network is lost (not the Air);
+  It opens only when someone asks. A unit whose network is away keeps measuring and keeps retrying it. Three ways in:
   - Settings → 12 on the panel;
   - the `ap` console command (USB, or Bluetooth on the alpha and the Air);
   - a 3 s hold on the panel during boot.
-- **NTP** — the retry backoff grows from 20 s to 15 min, with a fallback to `pool.ntp.org`. Until NTP syncs, a provisional clock is seeded from the newest stored record.
+- **NTP** — the retry backoff grows from 20 s to 15 min, with a fallback to `pool.ntp.org`. Until NTP syncs or someone sets the clock, a provisional clock is seeded from the newest stored record. The panel marks it with `?` between the date and the time, and the first set after the boot, by NTP or by hand, corrects the history blocks that boot started.
 
 ### Storage and history
 - **Compact binary history (V5)** — delta + anchor encoding at 5.38 bytes/record, about 116 days in the 1 MB filesystem (11 channels at a 1-minute cadence, measured on bench files on 2026-07-31):
@@ -321,12 +320,14 @@ Prefer not to build? Every [release](https://github.com/angeloINTJ/simut/release
 
 ### First boot
 1. **Capture the admin password.** A factory-fresh unit prints a random 8-character admin password **once on the USB serial console** (115200 baud). It is never stored in plain text. If you miss it, `system admin reset confirm` over USB prints a new one.
-2. **Join it to your network.** A unit with no network configured opens its setup access point by itself. The Air does not: type `ap` on its console instead.
-   - Join `<name>_SETUP` (`simut_SETUP` from the factory). It is WPA2, and its per-device key is printed on the USB console and on the TFT's boot terminal — at boot, and since v2.7.2 also when the AP opens during operation. On an alpha, read it from the USB console or from the `ap` command's reply: by the v2.8.0 code, the LCD does not reach its AP pages.
+2. **Join it to your network.** The setup access point opens when you ask for it: type `ap` on the console (on the Air, after `enable`), or use Settings → 12 on the touch panel. From v2.7.1 to v2.8.0, a unit with no network configured opened it by itself; it no longer does.
+   - Join `<name>_SETUP` (`simut_SETUP` from the factory). It is WPA2, and its per-device key is in the reply to `ap`, on the USB console and on the TFT's boot terminal.
    - The portal opens at `http://192.168.4.1`.
-   - While the setup access point is up, the device does not measure: in v2.8.0 it reads no sensors, checks no alarms and records no history until it joins a network.
+   - The device keeps measuring while the access point is up; only telemetry and syslog wait for the network. v2.7.1 to v2.8.0 read no sensors, checked no alarms and recorded no history while it was up.
 
    Without a screen, you can use the console instead: `system ssid <name>`, `system pass <secret>`, then `reload confirm`. The console stops at the first space, so a network name or password with a space has to go through the web page.
+
+   With no network configured, the unit asks for the date and time at the end of the boot, because without a network there is no NTP: the touch panel opens a date-and-time screen (**SKIP** leaves it, and Settings → 13 sets the clock later), and every image prints `No network, provisional clock: conf time YYYY-MM-DD HH:MM:SS` on the console. That command works on every image's console, over USB or Bluetooth: on the alpha and the Air, which have no panel, it is how the question is answered. The web page's **Date & Time** section sets the clock too.
 3. **Open the web interface** at the address the device got — on the `release` image also `http://simut.local` — and log in as `admin` with the password from step 1. You will be asked to choose a new one.
 4. **Add sensors** in **Config → Sensors & GPIO**, or let *Scan for probes* find them.
 5. **On the touch panel**, Settings asks for an account and its PIN. The factory admin PIN is `1234`, and it must be changed on first use.
@@ -385,7 +386,7 @@ simut/
 > The setup access point is WPA2 on every image, with a per-device key shown on
 > the console and, where there is one, on the display. See [SECURITY.md](SECURITY.md) §2 and §8.
 
-> There is no debug environment. `pico_w_debug` was removed in v2.4.1 after never once linking: at `-Og` the image overflowed the 1020 KB app slot by ~100 KB. Flash is tight. The release image uses 95.7 % of the 1,044,480 B program slot (`tools/flash_budget.json` keeps the measured value), and CI checks every `.bin` against the 1,040,384 B over-the-air ceiling. A GDB target would have to be built by cutting features. For the concurrency tripwire on hardware, use `pico_w_asserts`.
+> There is no debug environment. `pico_w_debug` was removed in v2.4.1 after never once linking: at `-Og` the image overflowed the 1020 KB app slot by ~100 KB. Flash is tight. The release image uses 96.1 % of the 1,044,480 B program slot (`tools/flash_budget.json` keeps the measured value), and CI checks every `.bin` against the 1,040,384 B over-the-air ceiling. A GDB target would have to be built by cutting features. For the concurrency tripwire on hardware, use `pico_w_asserts`.
 
 ### Build flags
 - `-Os` — optimize for size
@@ -400,19 +401,19 @@ simut/
 ### Console (CLI)
 A serial console is available over USB (115200 baud), and over Bluetooth SPP on the alpha and the Air.
 
-- **The emergency console** runs on the `release` and `alpha` images. Its 14 commands:
+- **The emergency console** runs on the `release` and `alpha` images. Its 15 commands:
   - `show net status`, `show system info`, `show system log`
   - `debug on|off`
   - `system admin reset`, `system format`, `system factory`, `system https off`
   - `system ssid <name>`, `system pass <secret>`, `system cors <origin|off>`
-  - `ap`, `reload`, `help`
+  - `ap`, `time <date> <time>`, `reload`, `help`
 
   Destructive commands ask for `confirm`, and the four recoveries (`system factory`, `system format`, `system admin reset`, `system https off`) are refused over Bluetooth.
 - **The full Cisco-style console** (`enable` / `configure terminal`) runs on the `air` image and the `pico_w_test` bench images — see the [CLI manual](docs/CLI-Manual.md) (in Portuguese). The Air adds `air status | hibernate | stop | idle <sec> | charger <gpio|off>`.
 
 **Where configuration happens:**
 - **The web interface** is the day-to-day tool.
-- **The touch panel** covers what an operator needs at the device: themes, alarms, sounds, language, their own PIN, users, the PIN policy, touch calibration, display offset, status and the setup access point.
+- **The touch panel** covers what an operator needs at the device: themes, alarms, sounds, language, their own PIN, users, the PIN policy, touch calibration, display offset, status, the setup access point and the date and time.
 
 ### Web API
 The device exposes a REST API at `http://<device-ip>/api/`:
@@ -426,12 +427,12 @@ The device exposes a REST API at `http://<device-ip>/api/`:
 ### Host tests
 
 ```bash
-pio test -e native             # validators, telemetry cursor, labels, parsers (190 cases)
+pio test -e native             # validators, telemetry cursor, labels, parsers (197 cases)
 pio test -e native_history_v5  # V5 history codec (63)
 pio test -e native_cli         # CLI parser (33)
 pio test -e native_logpolicy   # edge-triggered log persistence (45)
 pio test -e native_alarmqueue  # alarm telemetry queue (43)
-pio test -e native_network     # Wi-Fi reconnect state machine (30)
+pio test -e native_network     # Wi-Fi reconnect state machine (33)
 pio test -e native_air         # SIMUT Air persistent config (16)
 pio test -e native_sensors     # sensor type table (13)
 
@@ -477,7 +478,7 @@ What has been measured on real hardware, latest first:
 | 2026-09-23 | Long telemetry queues on the Air (v2.7.2) | 0 invalid bodies; 13,681 of 13,682 records delivered awake, 13,670 of 13,671 hibernating (v2.7.1: 68 of 69 bodies were invalid JSON) |
 | 2026-09-22 | v2.7.0 soak | 8.18 h, 0 reboots; the largest free heap block moved −42 B |
 | 2026-09-22 | v2.7.0 over-the-air updates | 6 of 6 applied; 57 files restored, 0 records missing |
-| 2026-09-22 | Setup access point (v2.7.1) | A client joins in 4.1 s, on `release` and on `alpha` with Bluetooth live, also with a randomised MAC. The automatic fallback opens after 6–7 min without a network |
+| 2026-09-22 | Setup access point (v2.7.1) | A client joins in 4.1 s, on `release` and on `alpha` with Bluetooth live, also with a randomised MAC. The automatic fallback opens after 6–7 min without a network (removed on 2026-10-01) |
 | 2026-09-22 | V-09 fix | 10 of 10 verdicts, with positive controls |
 | 2026-09-21 | Collector down for 3 h 58 min | 237 records queued, 0 reboots; drained in one round with 0 missing, plus 25 alarm-line records |
 | 2026-09-21 | Web suites | 67/67 as admin, 87/87 as a restricted account; 500 flash-writing commits, 0 reboots |
