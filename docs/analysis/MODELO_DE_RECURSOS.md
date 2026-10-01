@@ -318,6 +318,17 @@ mostre como tal e para que o CI os construa.
 - **`SystemDefs_Network.h:140-141` citava um `TelemetryGuard` que já não existe** — corrigido em 2026-09-26 (o comentário cita só o `SendGuard`). Resta que o `SendGuard` alimenta o watchdog de um timer por IRQ a cada 2 s, contra o invariante 9 de `CONCURRENCY.md`, embora o próprio código diga que essas alimentações não chegam (`src/WebManager_Core.cpp:505-545`).
 - **`@TRL` não tem consumidor em runtime no TFT nem no Air**: `trlLookup` devolve `nullptr` e tudo sai em inglês (`src/DisplayManager_LangParser.cpp:332-334, :346-360`), ao contrário do que o gate e o `CLAUDE.md` prometem.
 
+### 2.16 O chip (desde 01/10/2026)
+
+Uma escolha por perfil, como o display, que o gerador traduz no `board` do PlatformIO. Não conta entre as chaves: não liga nem desliga recurso, troca a plataforma em que todos compilam.
+
+| Valor | `board` | O que muda | Estado |
+|---|---|---|---|
+| `rp2040` (padrão) | o do `pico_base`, `rpipicow` | nada: é o Pico W de todas as imagens publicadas | as seis imagens de sempre |
+| `rp2350` | `rpipico2w` | `-Wno-error=overloaded-virtual` (o `WiFiClientSecureBearSSL.h` do framework dispara esse aviso só neste chip, medido em 01/10/2026) | só `pico2_w_release`, só no CI (S0 da fase 4 de [PLANO_REVISAO_EXTERNA.md](PLANO_REVISAO_EXTERNA.md)); 976.984 B de flash de um slot de 3.141.632 B, 123.188 B de RAM estática de 524.288 (medido sobre o #214) |
+
+Para o RP2350 compilar sem escrever no lugar errado, os endereços do watchdog e do PSM e o número da IRQ do timer passaram a vir do SDK do chip (as seis imagens do RP2040 saíram idênticas, byte a byte). O layout de 4 MB, o OTA com partições A/B e o Air no RP2350 são etapas seguintes; o `pico2_w_release` herda hoje o LittleFS de 1 MB do `pico_base` e um OTA que supõe a flash do Pico W.
+
 ---
 
 ## 3. As magnitudes: o que se escolhe em tamanho, não em sim ou não

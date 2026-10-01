@@ -29,6 +29,7 @@
 
 #include <hardware/regs/addressmap.h>  /* XIP_NOCACHE_NOALLOC_BASE, for the QSPI probe */
 #include <hardware/structs/timer.h>
+#include <hardware/timer.h>          /* timer_hw on the RP2350, which has two timers */
 #include <pico/platform.h>
 
 extern "C" {

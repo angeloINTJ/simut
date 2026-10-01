@@ -25,13 +25,15 @@ pio run -e pico_w_air          # the hibernating build; least flash headroom
 pio test -e native_logpolicy   # one suite; eight exist
 ```
 
-**Six** firmware environments and eight native suites, all of them built and
+**Seven** firmware environments and eight native suites, all of them built and
 run by CI — `pico_w_asserts` is the one that is easy to forget, because it is
 not in the table above and nothing local reminds you of it. This line said
 "five" until 2026-09-20, and a change that raised the other five budgets went
-to CI with that one over its own. **`pio run` with no `-e` builds only
+to CI with that one over its own. The seventh, since 2026-10-01, is
+`pico2_w_release`: the release compiled for the Pico 2 W's RP2350, which CI
+builds and nothing runs on a board yet. **`pio run` with no `-e` builds only
 `pico_w_release`** — `default_envs` in `platformio.ini` says so, and this line
-claimed the opposite until 2026-09-22. Name the six.
+claimed the opposite until 2026-09-22. Name the seven.
 There is no debug environment — see the note in `platformio.ini` for why.
 
 ## What will fail your build before CI does

@@ -16,6 +16,8 @@
 #include <WiFi.h>
 #include <LittleFS.h>
 #include <hardware/sync.h>
+#include <hardware/regs/addressmap.h> /* WATCHDOG_BASE */
+#include <hardware/regs/watchdog.h>   /* WATCHDOG_SCRATCH5_OFFSET */
 
 namespace ota {
 
@@ -73,7 +75,8 @@ OrchestratorResult ota_apply_pending_update(StorageManager* storage) {
      * que próximo boot deve power-cycle CYW43. AppManager::setup detecta cedo
      * e dispara WL_REG_ON LOW 500ms → high-Z. Resolve F-OTA-BOOTLOOP residual
      * onde CYW43 chip fica em estado intermediário pós-watchdog_reboot. */
-    *(volatile uint32_t*)(0x40058000u + 0x20u) = 0xC72BAB07u;
+    /* The chip's own watchdog (SDK names), not the RP2040's address. */
+    *(volatile uint32_t*)(WATCHDOG_BASE + WATCHDOG_SCRATCH5_OFFSET) = 0xC72BAB07u;
 
     /* (5) IRQs globais OFF + jump pra applier SRAM. */
     uint32_t saved_irq = save_and_disable_interrupts();

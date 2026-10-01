@@ -12,7 +12,7 @@ Le tools/features.toml (a fonte unica) e escreve, sem tocar em mais nada:
                                     compilador ve (tools/test_feature_bits.py)
 
 Antes de gerar, confere o manifesto: toda chave tem rotulo, todo grupo existe,
-toda regra fala de chaves conhecidas — e nenhum dos seis perfis que o CI
+toda regra fala de chaves conhecidas — e nenhum dos sete perfis que o CI
 constroi quebra uma regra. rule_violations( ) e a semantica das regras que
 tools/build_custom.py reaplica antes de compilar e que a pagina espelha.
 
@@ -60,12 +60,12 @@ TOGGLE_ORDER = [
 HEADER = """; profiles.ini — GERADO por tools/gen_features.py a partir de tools/features.toml.
 ; NAO EDITE A MAO. Rode `python3 tools/gen_features.py` depois de mudar o manifesto.
 ;
-; Este arquivo E a fonte dos seis ambientes de firmware: o platformio.ini o inclui
-; via `extra_configs` e nao define mais [env:pico_w_*]. tools/gen_features.py --check
-; garante que ele esta em dia com o manifesto, e tools/check_features.py prova que
-; ele resolve, flag a flag e unidade de traducao a unidade, para o que o manifesto
-; descreve. A troca foi validada por build byte-a-byte contra a imagem anterior
-; (docs/analysis/MODELO_DE_RECURSOS.md, P1).
+; Este arquivo E a fonte dos sete ambientes de firmware: o platformio.ini o inclui
+; via `extra_configs` e nao define mais [env:pico_w_*] nem [env:pico2_w_*].
+; tools/gen_features.py --check garante que ele esta em dia com o manifesto, e
+; tools/check_features.py prova que ele resolve, flag a flag e unidade de traducao a
+; unidade, para o que o manifesto descreve. A troca foi validada por build
+; byte-a-byte contra a imagem anterior (docs/analysis/MODELO_DE_RECURSOS.md, P1).
 """
 
 
@@ -99,6 +99,11 @@ def compose(prof: dict, M: dict) -> dict:
     excludes: list[str] = []
     includes: list[str] = []
     lib_ignore: list[str] = []
+
+    # The chip first: it decides the board, and its flags are about the
+    # toolchain, not about a feature. A profile without the key is the Pico W.
+    chip = M["chip"][prof.get("chip", "rp2040")]
+    flags += chip.get("flags", [])
 
     disp = M["display"][prof["display"]]
     flags += disp.get("flags", [])
@@ -143,11 +148,14 @@ def compose(prof: dict, M: dict) -> dict:
         "web_omit": ", ".join(web_omit) or None,
         "custom_fs_pages": prof.get("custom_fs_pages"),
         "build_type": prof.get("build_type"),
+        "board": chip.get("board", ""),
     }
 
 
 def emit_env(name: str, c: dict) -> str:
     lines = [f"[env:{name}]", "extends = pico_base"]
+    if c.get("board"):
+        lines.append(f"board = {c['board']}")
     if c["build_type"]:
         lines.append(f"build_type = {c['build_type']}")
     # build_flags
@@ -239,6 +247,9 @@ def check_manifest(M: dict) -> None:
     for name in M["profiles"]:
         if name not in ui_p:
             sys.exit(f"gen_features: [profiles.{name}] sem [ui_products.{name}]")
+        chip = resolve_profile(name, M["profiles"]).get("chip", "rp2040")
+        if chip not in M.get("chip", {}):
+            sys.exit(f"gen_features: o perfil {name} pede o chip '{chip}', que nao tem [chip.{chip}]")
     known = set(TOGGLE_ORDER) | {"display"}
     for kind, parts in (("rules", ("when", "require")), ("hazards", ("when",))):
         ids = set()

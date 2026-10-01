@@ -48,7 +48,7 @@ Os três compartilham o mesmo núcleo:
 | **Release atual** | **v2.8.0** (30/09/2026). O SIMUT saiu do beta com a v2.7.0, com base em medições: soak de 8,18 h sem nenhum reboot e 6 de 6 atualizações pelo ar sem perder nada. A v2.8.0 mantém a configuração quando uma atualização é cortada no meio, e deixa o formato de telemetria personalizado mandar o Content-Type que o servidor espera; a v2.7.4 tinha corrigido a busca de sensores, que deixava em erro um BMP280 em I2C de hardware. |
 | **Imagens publicadas** | Três imagens, cada uma em `.uf2` e `.bin`: `release` (painel touch TFT), `alpha` (LCD 16×2 com console Bluetooth) e `air` (registrador a bateria sem display). Junto vêm os packs de idioma pt-BR e es-ES e um manifesto de OTA. Uma imagem com outro conjunto de recursos sai do [configurador de build](https://angelointj.github.io/simut/configurador/), e o CI a compila da `main`. |
 | **Maturidade** | <ul><li>`release`: **estável**.</li><li>`alpha`: publicado e testado na bancada, com o LCD 16×2 incluído desde 26/09/2026.</li><li>`air`: **experimental**. O único soak longo dele falhou: um sono no ciclo 119 nunca acordou (F28). Um watchdog ao longo do wake hoje mitiga o problema; a causa raiz não foi confirmada.</li></ul> |
-| **Testes** | Todo pull request roda 443 casos de teste no host em 8 suítes, 60 s de fuzzing e análise estática, e compila as seis imagens de firmware com o cache frio. O comportamento no hardware real é verificado numa bancada — ver [Verificação no hardware](#verificação-no-hardware). |
+| **Testes** | Todo pull request roda 443 casos de teste no host em 8 suítes, 60 s de fuzzing e análise estática, e compila as sete imagens de firmware com o cache frio. O comportamento no hardware real é verificado numa bancada — ver [Verificação no hardware](#verificação-no-hardware). |
 
 **Limitações conhecidas.** Cada uma está documentada onde se aplica.
 - **Atualização.** A atualização pelo ar reformata o sistema de arquivos:
@@ -373,6 +373,7 @@ simut/
 | `pico_w_test` | Imagem de bancada: o console completo para as suítes de teste; sem HTTPS, sem mDNS | — |
 | `pico_w_test_https` | `pico_w_test` mais o servidor HTTPS, para validar TLS; três das páginas vêm da LittleFS para caber | — |
 | `pico_w_asserts` | Release + asserções de concorrência | — |
+| `pico2_w_release` | A release compilada para o Pico 2 W (RP2350), para o CI vê-la compilar. Ainda não rodou numa placa | — |
 | oito ambientes `native*` | Testes unitários no host — ver [Testes](#testes) | — |
 
 > **Nota de segurança para `pico_w_alpha` e `pico_w_air`:** as duas compilam o
@@ -446,7 +447,7 @@ Todo push e pull request para a `main` roda quatro jobs:
   - varredura de segredos, tabelas de códigos de log, matriz de autorização;
   - consistência da licença, guarda do sistema de arquivos, consistência do Air;
   - testes da fusão de dias do histórico.
-- **firmware** — as seis imagens, compiladas com o cache frio:
+- **firmware** — as sete imagens, compiladas com o cache frio:
   - cada uma é conferida contra o seu orçamento de flash e o teto de atualização pelo ar;
   - o próprio build aplica o `-Werror` e os portões da interface web, da ajuda do CLI, dos códigos de log, da tabela de canais e dos packs de idioma.
 - **fuzz** — 60 s de libFuzzer contra os validadores da API web, com oráculos de contrato.

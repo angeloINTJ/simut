@@ -21,6 +21,9 @@
 #include <time.h>
 #include "pico/multicore.h"
 #include <hardware/watchdog.h>
+#include <hardware/regs/addressmap.h> /* WATCHDOG_BASE, PSM_BASE, REG_ALIAS_* */
+#include <hardware/regs/watchdog.h>
+#include <hardware/regs/psm.h>
 #include <stdio.h>
 
 /* Black-box profiler state — tracks per-core activity for crash forensics. */
@@ -798,16 +801,25 @@ void LogManager::checkCrossCoreHealth( ) {
 
  /* Safe reboot: clear WDT ENABLE before triggering.
   * watchdog_reboot(0,0,0) leaves ENABLE set → persistent boot loop. */
- constexpr uint32_t SR_WD_BASE      = 0x40058000u;
- constexpr uint32_t SR_WD_CTRL_OFF  = 0x00u;
- constexpr uint32_t SR_WD_LOAD_OFF  = 0x04u;
- constexpr uint32_t SR_WD_CLR_ALIAS = 0x3000u;
- constexpr uint32_t SR_WD_SET_ALIAS = 0x2000u;
- constexpr uint32_t SR_WD_ENABLE    = (1u << 30);
- constexpr uint32_t SR_WD_TRIG      = (1u << 31);
- constexpr uint32_t SR_PSM_BASE     = 0x40010000u;
- constexpr uint32_t SR_PSM_WDSEL    = 0x18u;
- constexpr uint32_t SR_PSM_MASK     = (0x0001FFFFu & ~(0x1u | 0x2u));
+ /* The SDK's own names (the hardware/regs headers) for each number this used to
+  * spell out, so the chip that is compiled for is the chip that is written
+  * to: on the RP2350 the watchdog sits at 0x400d8000 and the PSM at
+  * 0x40018000, and ROSC and XOSC are PSM bits 2 and 3, not 0 and 1. Same
+  * values on the RP2040 — every image came out identical, byte for byte. */
+ constexpr uint32_t SR_WD_BASE      = WATCHDOG_BASE;
+ constexpr uint32_t SR_WD_CTRL_OFF  = WATCHDOG_CTRL_OFFSET;
+ constexpr uint32_t SR_WD_LOAD_OFF  = WATCHDOG_LOAD_OFFSET;
+ constexpr uint32_t SR_WD_CLR_ALIAS = REG_ALIAS_CLR_BITS;
+ constexpr uint32_t SR_WD_SET_ALIAS = REG_ALIAS_SET_BITS;
+ constexpr uint32_t SR_WD_ENABLE    = WATCHDOG_CTRL_ENABLE_BITS;
+ constexpr uint32_t SR_WD_TRIG      = WATCHDOG_CTRL_TRIGGER_BITS;
+ constexpr uint32_t SR_PSM_BASE     = PSM_BASE;
+ /* WDSEL is at 0x08 on both chips. This said 0x18 until 2026-10-01, which
+  * is no register at all, so the write went nowhere and the reset relied on
+  * whatever WDSEL the SDK's watchdog_enable( ) had left. ota/applier.cpp
+  * always had 0x08. */
+ constexpr uint32_t SR_PSM_WDSEL    = PSM_WDSEL_OFFSET;
+ constexpr uint32_t SR_PSM_MASK     = (PSM_WDSEL_BITS & ~(PSM_WDSEL_ROSC_BITS | PSM_WDSEL_XOSC_BITS));
 
  *(volatile uint32_t*)(SR_PSM_BASE + SR_PSM_WDSEL) = SR_PSM_MASK;
  *(volatile uint32_t*)(SR_WD_BASE + SR_WD_CLR_ALIAS + SR_WD_CTRL_OFF) = SR_WD_ENABLE;
@@ -870,22 +882,23 @@ void LogManager::safeReboot( ) {
  Serial.end( );
  delay(100);
 
- /* RP2040 MMIO addresses — prefix LM_ to avoid clash with #defines from
- * pico-sdk (hardware/regs/watchdog.h defines WATCHDOG_CTRL_OFFSET etc).
- * Same values as src/ota/applier.cpp. */
- constexpr uint32_t LM_WD_BASE = 0x40058000u;
- constexpr uint32_t LM_WD_CTRL_OFF = 0x00u;
- constexpr uint32_t LM_WD_LOAD_OFF = 0x04u;
- constexpr uint32_t LM_WD_SCRATCH4 = 0x1Cu;
- constexpr uint32_t LM_WD_SET_ALIAS = 0x2000u;
- constexpr uint32_t LM_WD_CLR_ALIAS = 0x3000u;
- constexpr uint32_t LM_WD_ENABLE_BIT = (1u << 30);
- constexpr uint32_t LM_WD_TRIG_BIT = (1u << 31);
- constexpr uint32_t LM_PSM_BASE = 0x40010000u;
- constexpr uint32_t LM_PSM_WDSEL_OFF = 0x18u;
- constexpr uint32_t LM_PSM_BITS_ALL = 0x0001FFFFu;
- constexpr uint32_t LM_PSM_ROSC_BIT = 0x00000001u;
- constexpr uint32_t LM_PSM_XOSC_BIT = 0x00000002u;
+ /* MMIO by the SDK's names, for the chip being compiled — prefix LM_ so they
+  * do not clash with the SDK macros they are made from. Identical to the
+  * RP2040 literals they replaced (2026-10-01); on the RP2350 the bases and the
+  * ROSC/XOSC bits differ, which is the point. */
+ constexpr uint32_t LM_WD_BASE = WATCHDOG_BASE;
+ constexpr uint32_t LM_WD_CTRL_OFF = WATCHDOG_CTRL_OFFSET;
+ constexpr uint32_t LM_WD_LOAD_OFF = WATCHDOG_LOAD_OFFSET;
+ constexpr uint32_t LM_WD_SCRATCH4 = WATCHDOG_SCRATCH4_OFFSET;
+ constexpr uint32_t LM_WD_SET_ALIAS = REG_ALIAS_SET_BITS;
+ constexpr uint32_t LM_WD_CLR_ALIAS = REG_ALIAS_CLR_BITS;
+ constexpr uint32_t LM_WD_ENABLE_BIT = WATCHDOG_CTRL_ENABLE_BITS;
+ constexpr uint32_t LM_WD_TRIG_BIT = WATCHDOG_CTRL_TRIGGER_BITS;
+ constexpr uint32_t LM_PSM_BASE = PSM_BASE;
+ constexpr uint32_t LM_PSM_WDSEL_OFF = PSM_WDSEL_OFFSET;   /* was 0x18, no register: see SR_PSM_WDSEL above */
+ constexpr uint32_t LM_PSM_BITS_ALL = PSM_WDSEL_BITS;
+ constexpr uint32_t LM_PSM_ROSC_BIT = PSM_WDSEL_ROSC_BITS;
+ constexpr uint32_t LM_PSM_XOSC_BIT = PSM_WDSEL_XOSC_BITS;
  constexpr uint32_t LM_PSM_RESET_MASK = LM_PSM_BITS_ALL & ~(LM_PSM_ROSC_BIT | LM_PSM_XOSC_BIT);
 
  /* (1) PSM_WDSEL: all peripherals except ROSC/XOSC. */

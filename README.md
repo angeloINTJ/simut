@@ -50,7 +50,7 @@ They share one core:
 | **Current release** | **v2.8.0** (2026-09-30). SIMUT left beta with v2.7.0, on measurements: an 8.18 h soak with 0 reboots, and 6 of 6 over-the-air updates with nothing lost. v2.8.0 keeps the configuration when an update is cut off halfway, and lets the custom telemetry format send the Content-Type its server expects; v2.7.4 had fixed a sensor scan that left a BMP280 on hardware I2C in error. |
 | **Published images** | Three images, each as `.uf2` and `.bin`: `release` (TFT touch panel), `alpha` (16×2 LCD with a Bluetooth console) and `air` (headless battery logger). The pt-BR and es-ES language packs and an OTA manifest ship alongside. An image with a different set of features comes from the [build configurator](https://angelointj.github.io/simut/configurador/), and CI builds it from `main`. |
 | **Maturity** | <ul><li>`release`: **stable**.</li><li>`alpha`: published and bench-tested, its 16×2 LCD included since 2026-09-26.</li><li>`air`: **experimental**. Its one long soak failed: a sleep in cycle 119 never woke (F28). A watchdog across the wake now mitigates it; the root cause is not confirmed.</li></ul> |
-| **Tests** | Every pull request runs 443 host test cases in 8 suites, 60 s of fuzzing and static analysis, and builds all six firmware images from a cold cache. Behaviour on real hardware is verified on a bench — see [Verification](#verification-on-hardware). |
+| **Tests** | Every pull request runs 443 host test cases in 8 suites, 60 s of fuzzing and static analysis, and builds all seven firmware images from a cold cache. Behaviour on real hardware is verified on a bench — see [Verification](#verification-on-hardware). |
 
 **Known limitations.** Each one is documented where it applies.
 - **Updates.** An update over the air reformats the filesystem:
@@ -375,6 +375,7 @@ simut/
 | `pico_w_test` | Bench image: the full console for the test suites; no HTTPS, no mDNS | — |
 | `pico_w_test_https` | `pico_w_test` plus the HTTPS server, for TLS validation; three of its pages are served from LittleFS to fit | — |
 | `pico_w_asserts` | Release + concurrency assertions | — |
+| `pico2_w_release` | The release compiled for the Pico 2 W (RP2350), so CI sees it build. Not run on a board yet | — |
 | eight `native*` envs | Host-side unit tests — see [Testing](#testing) | — |
 
 > **Security note for `pico_w_alpha` and `pico_w_air`:** both compile the
@@ -448,7 +449,7 @@ Every push and pull request to `main` runs four jobs:
   - secret scan, log-code tables, authorization matrix;
   - licence consistency, filesystem guard, Air consistency;
   - history day-merge tests.
-- **firmware** — all six images, built from a cold cache:
+- **firmware** — all seven images, built from a cold cache:
   - each is checked against its flash budget and the over-the-air ceiling;
   - the build itself enforces `-Werror` and the web UI, CLI help, log-code, channel-table and language-pack gates.
 - **fuzz** — 60 s of libFuzzer against the web-API validators, with contract oracles.
