@@ -200,6 +200,32 @@ jobs:
       - name: Run unit tests (network state machine)
         run: pio test -e native_network
 
+      # The same eight suites again, under AddressSanitizer and UBSan, with
+      # undefined behaviour made fatal. The plain runs above are the contract;
+      # this run sees what a passing assertion cannot - a read past a buffer, a
+      # reference to a dead frame that still holds the right bytes. Its first
+      # run, on 2026-10-01, stopped test_network on a stack-use-after-return in
+      # the test stub's min( ), which returned a reference to its own by-value
+      # parameter. PLATFORMIO_BUILD_FLAGS reaches compile AND link on the native
+      # platform (and wipes .pio/build, which is why this runs last). The test
+      # runner hides the sanitizer's report, so a failing suite's binary is run
+      # again directly to put the report in the log.
+      - name: Host suites under AddressSanitizer and UBSan
+        env:
+          PLATFORMIO_BUILD_FLAGS: -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined
+        run: |
+          rc=0
+          for e in native native_history_v5 native_cli native_logpolicy \
+                   native_alarmqueue native_air native_sensors native_network; do
+            if ! pio test -e "$e"; then
+              rc=1
+              echo "::group::$e, run directly for the sanitizer report"
+              ".pio/build/$e/program" 2>&1 | tail -80 || true
+              echo "::endgroup::"
+            fi
+          done
+          exit $rc
+
   # Every image the repository claims to build, in parallel.
   #
   # Until 2026-09-08 this compiled pico_w_release and nothing else, so the other

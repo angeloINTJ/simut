@@ -249,6 +249,9 @@ pio run -e pico_w_release -e pico_w_test -e pico_w_test_https \
 pio test -e native -e native_history_v5 -e native_cli -e native_logpolicy \
          -e native_alarmqueue -e native_network -e native_air -e native_sensors
 ./tools/run_fuzz.sh                       # 60 s; NÃO está no pio test e já pegou defeito real
+PLATFORMIO_BUILD_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined" \
+  pio test -e native -e native_sensors …  # as oito de novo sob ASan/UBSan (apaga .pio/build); o relatório
+                                          # só aparece rodando .pio/build/<env>/program direto
 python3 tools/check_air_consistency.py
 python3 tools/check_angulo.py             # o padrão de interface (§7): site, marca, READMEs, docs Living
 python3 tools/check_readme_numbers.py     # os números que os três READMEs citam (testes, flash, códigos, rotas)
