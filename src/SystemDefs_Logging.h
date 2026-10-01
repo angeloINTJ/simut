@@ -437,7 +437,7 @@ static_assert(sizeof(CompactLogRecord) == 12, "CompactLogRecord must be 12 bytes
  * | band | fact | range |
  * |---|---|---|
  * | `1000 +` | Core 1's module when Core 0 stopped feeding (`0xFF` = no trace) | 1000..1255 |
- * | `2000 +` | free heap at the stall, whole KB | 2000..2999 |
+ * | `2000 +` | the web server's position trace (`hp=`, scratch[7]) | 2000..2999 |
  * | `4000 +` | device uptime at the stall, MINUTES | 4000..32000 |
  *
  * The verdict bands, which none of these reach into: `0` external reset ·
@@ -449,9 +449,9 @@ static_assert(sizeof(CompactLogRecord) == 12, "CompactLogRecord must be 12 bytes
  * device up 1000 minutes wrote `ctx=3000` — which reads exactly like "free
  * heap 0 KB" in the band below it. The collision test in
  * `test/test_log_policy` caught it before the bench did. Each band's width now
- * covers its whole domain: heap is bounded by the RP2040's 264 KB, and
- * minutes saturate at 28000 (19.4 days, past the 49.7-day `millis( )` wrap
- * only in theory but well inside int16).
+ * covers its whole domain: the positions the server writes are all under
+ * 1000, and minutes saturate at 28000 (19.4 days, past the 49.7-day `millis( )`
+ * wrap only in theory but well inside int16).
  *
  * Every one of these saturates instead of wrapping, for the reason
  * setUptimeSec gives: the values come out of watchdog scratch registers, which
@@ -464,11 +464,16 @@ static_assert(sizeof(CompactLogRecord) == 12, "CompactLogRecord must be 12 bytes
 inline constexpr int16_t autopsyBandCore1(uint8_t c1Valid, uint8_t c1Mod) {
 	return (int16_t)(1000 + (c1Valid == 0x80 ? c1Mod : 0xFF));
 }
-/** Free heap at the stall, in whole KB. Saturates at 999: the RP2040 has
- *  264 KB of SRAM, so anything past that is a garbage register, not a heap. */
-inline constexpr int16_t autopsyBandHeapKB(uint32_t freeBytes) {
-	const uint32_t kb = freeBytes / 1024UL;
-	return (int16_t)(2000 + (int)(kb > 999UL ? 999UL : kb));
+/** The web server's position trace at the stall (`hp=`, scratch[7]): 0 as the
+ *  server starts on a request (and at boot), the handlers' HPOS( ) marks as
+ *  they walk their stages (721 after a send, 901 on an abort), 740 once the
+ *  server has returned. Until 2026-10-01 this band read scratch[7] as free
+ *  heap and divided by 1024, so every position, all of them under 1024, came
+ *  out as 2000 and read as "0 KB free" (field log of 2026-09-30 22:13).
+ *  Saturates at 999, inside the band: a larger value is a garbage register,
+ *  not a position. */
+inline constexpr int16_t autopsyBandHandlerPos(uint32_t hp) {
+	return (int16_t)(2000 + (int)(hp > 999UL ? 999UL : hp));
 }
 /** Device uptime at the stall, in MINUTES: milliseconds would overflow an
  *  int16 in 33 s, and minutes reach 19.4 days before the cap. */

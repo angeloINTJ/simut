@@ -10603,8 +10603,8 @@ python3 tools/history_v5.py --dump-csv 20260923.h5 --interval 300 &gt; 20260923.
 </tr>
 <tr class="even">
 <td><code>2000</code> a <code>2999</code></td>
-<td>A memória livre no travamento</td>
-<td>Contexto menos 2000, em KB</td>
+<td>Onde estava o servidor web, a posição <code>hp=</code> do console</td>
+<td>Contexto menos 2000. <code>2740</code>: o servidor já tinha terminado de atender. <code>2000</code>: ele atendia, antes de qualquer etapa marcada, ou não tinha atendido nada desde o boot</td>
 </tr>
 <tr class="odd">
 <td><code>4000</code> a <code>32000</code></td>
@@ -10614,6 +10614,7 @@ python3 tools/history_v5.py --dump-csv 20260923.h5 --interval 300 &gt; 20260923.
 </tbody>
 </table></div>
 <p>Os vereditos de contexto 100, de 300 a 322 e 400 não têm registros irmãos.</p>
+<p>Até a v2.8.0, a faixa <code>2000</code> dizia, errado, a memória livre em KB. As posições são todas menores que 1024, então o registro saía sempre <code>2000</code>, e não dizia nada.</p>
 <h4 id="cap-16-modulos-travamento">Os módulos</h4>
 <p>Os números de módulo das faixas <code>200</code> e <code>1000</code>:</p>
 <div class="tw"><table>
@@ -10717,15 +10718,15 @@ python3 tools/history_v5.py --dump-csv 20260923.h5 --interval 300 &gt; 20260923.
          0 up2s      C0 [FTL][SYS   ] code=1 ctx=219
          0 up2s      C0 [FTL][SYS   ] code=1 ctx=1008
          0 up2s      C0 [FTL][SYS   ] code=1 ctx=4184
-         0 up2s      C0 [FTL][SYS   ] code=1 ctx=2031</code></pre>
+         0 up2s      C0 [FTL][SYS   ] code=1 ctx=2721</code></pre>
 <p>A leitura:</p>
 <ol type="1">
 <li><code>ctx=219</code>: o watchdog de hardware reiniciou o aparelho, com o núcleo 0 parado no módulo 19, <code>WEB_POLL</code>, que atende a interface web.</li>
 <li><code>ctx=1008</code>: o núcleo 1 estava no módulo 8, <code>DISPLAY</code>, desenhando o painel.</li>
 <li><code>ctx=4184</code>: o aparelho estava ligado havia 184 min, 3 h 04 min, quando travou. Isso confere com o <code>up3h04m</code> do último registro antes do travamento.</li>
-<li><code>ctx=2031</code>: havia 31 KB de memória livre.</li>
+<li><code>ctx=2721</code>: o atendimento web estava na posição 721, logo depois de entregar um pedaço da resposta. As posições são marcas no código-fonte (<code>HPOS</code>), e servem a quem for investigar o travamento.</li>
 </ol>
-<p>Na página, os mesmos quatro registros aparecem no topo da tabela, em ordem inversa, como <strong>Boot do sistema</strong> com <code>[ctx: 2031]</code>, <code>[ctx: 4184]</code>, <code>[ctx: 1008]</code> e <code>[ctx: 219]</code>, nível <code>FTL</code> e módulo <code>SYS</code>. Marque <strong>ERR</strong> para vê-los.</p>
+<p>Na página, os mesmos quatro registros aparecem no topo da tabela, em ordem inversa, como <strong>Boot do sistema</strong> com <code>[ctx: 2721]</code>, <code>[ctx: 4184]</code>, <code>[ctx: 1008]</code> e <code>[ctx: 219]</code>, nível <code>FTL</code> e módulo <code>SYS</code>. Marque <strong>ERR</strong> para vê-los.</p>
 <aside class="faixa faixa-nota"><span class="selo selo-neutro"><i></i>Nota</span>
 <p><strong>Por que a data fica vazia.</strong> A autópsia roda no começo do boot, antes de o relógio ser acertado, então os registros dela costumam sair com a data <code>0</code>, que a página mostra como <code>Boot +</code>. O travamento aconteceu segundos antes desse boot: use a data dos registros vizinhos para situá-lo.</p>
 </aside>

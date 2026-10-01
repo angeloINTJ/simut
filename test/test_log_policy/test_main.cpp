@@ -551,27 +551,28 @@ static void test_the_autopsy_bands_never_collide_with_the_verdict_bands(void) {
      * that would make a Core 1 module look like a verdict, which is exactly
      * the confusion separate bands exist to prevent. */
     TEST_ASSERT_TRUE(autopsyBandCore1(0x80, 0) > 455);
-    TEST_ASSERT_TRUE(autopsyBandHeapKB(0) > 455);
+    TEST_ASSERT_TRUE(autopsyBandHandlerPos(0) > 455);
     TEST_ASSERT_TRUE(autopsyBandStallMinutes(0) > 455);
 }
 
 static void test_the_autopsy_bands_never_collide_with_EACH_OTHER(void) {
     /* The test that earned its place: the first version put minutes at 2000
      * saturating at 20000, so 1000 minutes of uptime wrote ctx=3000 and read
-     * as "free heap 0 KB". Assert the whole SATURATED range of each band,
-     * not one sample of it. */
+     * as the band below it (then labelled "free heap"; see
+     * test_the_fourth_record_keeps_the_handler_position). Assert the whole
+     * SATURATED range of each band, not one sample of it. */
     const int16_t c1_lo = autopsyBandCore1(0x80, 0);
     const int16_t c1_hi = autopsyBandCore1(0x00, 0);              /* 0xFF path */
-    const int16_t hp_lo = autopsyBandHeapKB(0);
-    const int16_t hp_hi = autopsyBandHeapKB(0xFFFFFFFFUL);        /* saturated */
+    const int16_t hp_lo = autopsyBandHandlerPos(0);
+    const int16_t hp_hi = autopsyBandHandlerPos(0xFFFFFFFFUL);    /* saturated */
     const int16_t up_lo = autopsyBandStallMinutes(0);
     const int16_t up_hi = autopsyBandStallMinutes(0xFFFFFFFFUL);  /* saturated */
 
     TEST_ASSERT_TRUE(c1_lo <= c1_hi);
     TEST_ASSERT_TRUE(hp_lo <= hp_hi);
     TEST_ASSERT_TRUE(up_lo <= up_hi);
-    TEST_ASSERT_TRUE(c1_hi < hp_lo);   /* Core 1 band ends before heap starts */
-    TEST_ASSERT_TRUE(hp_hi < up_lo);   /* heap band ends before minutes start  */
+    TEST_ASSERT_TRUE(c1_hi < hp_lo);   /* Core 1 band ends before hp starts   */
+    TEST_ASSERT_TRUE(hp_hi < up_lo);   /* hp band ends before minutes start   */
     TEST_ASSERT_TRUE(up_hi <= 32767);  /* and the last one still fits int16    */
 }
 
@@ -584,15 +585,27 @@ static void test_the_core1_band_carries_the_module_and_says_when_it_cannot(void)
     TEST_ASSERT_EQUAL_INT16(1255, autopsyBandCore1(0x7F, 7));
 }
 
-static void test_the_heap_band_is_kb_and_saturates(void) {
-    TEST_ASSERT_EQUAL_INT16(2000, autopsyBandHeapKB(0));
-    TEST_ASSERT_EQUAL_INT16(2000, autopsyBandHeapKB(1023));
-    TEST_ASSERT_EQUAL_INT16(2031, autopsyBandHeapKB(32000));  /* a healthy RP2040 heap */
+static void test_the_hp_band_is_the_position_and_saturates(void) {
+    TEST_ASSERT_EQUAL_INT16(2000, autopsyBandHandlerPos(0));      /* no handler ran */
+    TEST_ASSERT_EQUAL_INT16(2901, autopsyBandHandlerPos(901));
+    TEST_ASSERT_EQUAL_INT16(2999, autopsyBandHandlerPos(999));
     /* Garbage out of a scratch register must not wrap into a plausible small
      * number — the trap setUptimeSec documents. */
-    const int16_t junk = autopsyBandHeapKB(0xFFFFFFFFUL);
+    const int16_t junk = autopsyBandHandlerPos(0xFFFFFFFFUL);
     TEST_ASSERT_TRUE(junk > 0);
     TEST_ASSERT_EQUAL_INT16(2999, junk);
+}
+
+/* The fourth record does not hold the heap. scratch[7] is the web server's
+ * position trace, `hp=` (HPOS( ) in the WebManager_*.cpp handlers: 721 after
+ * a send, 901 on an abort; 740 once the server has returned), and the
+ * HW-watchdog autopsy band read it as free bytes and divided by 1024. Every
+ * position written is under 1024, so the record came out 2000 every time: the
+ * field log of 2026-09-30 22:13 says "ctx=2000", which reads as "0 KB free"
+ * and means nothing. On the bench, a stall at hp=740 wrote 2000 too. The
+ * position is the fact; keep it. */
+static void test_the_fourth_record_keeps_the_handler_position(void) {
+    TEST_ASSERT_EQUAL_INT16(2721, autopsyBandHandlerPos(721));
 }
 
 static void test_the_stall_band_is_minutes_and_saturates(void) {
@@ -613,7 +626,7 @@ static void test_a_reader_gets_the_number_back_out_of_the_band(void) {
      * and has the fact. */
     TEST_ASSERT_EQUAL_INT(9, autopsyBandCore1(0x80, 9) - 1000);
     TEST_ASSERT_EQUAL_INT(18, autopsyBandStallMinutes(18UL * 60000UL) - 4000);
-    TEST_ASSERT_EQUAL_INT(31, autopsyBandHeapKB(31UL * 1024UL) - 2000);
+    TEST_ASSERT_EQUAL_INT(721, autopsyBandHandlerPos(721UL) - 2000);
 }
 
 int main(int, char**) {
@@ -671,8 +684,9 @@ int main(int, char**) {
     RUN_TEST(test_the_autopsy_bands_never_collide_with_EACH_OTHER);
     RUN_TEST(test_the_core1_band_carries_the_module_and_says_when_it_cannot);
     RUN_TEST(test_the_stall_band_is_minutes_and_saturates);
-    RUN_TEST(test_the_heap_band_is_kb_and_saturates);
+    RUN_TEST(test_the_hp_band_is_the_position_and_saturates);
     RUN_TEST(test_a_reader_gets_the_number_back_out_of_the_band);
+    RUN_TEST(test_the_fourth_record_keeps_the_handler_position);
 
     return UNITY_END( );
 }

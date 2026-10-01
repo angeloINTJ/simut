@@ -237,10 +237,12 @@ Desde a v2.7.0, o veredito do watchdog de hardware (contexto de 200 a 229, ou 45
 | Faixa | O que diz | Como ler |
 |---|---|---|
 | `1000` a `1255` | O módulo em que o núcleo 1 estava | Contexto menos 1000. `1255` quer dizer sem registro |
-| `2000` a `2999` | A memória livre no travamento | Contexto menos 2000, em KB |
+| `2000` a `2999` | Onde estava o servidor web, a posição `hp=` do console | Contexto menos 2000. `2740`: o servidor já tinha terminado de atender. `2000`: ele atendia, antes de qualquer etapa marcada, ou não tinha atendido nada desde o boot |
 | `4000` a `32000` | Há quanto tempo o aparelho estava ligado quando travou | Contexto menos 4000, em minutos |
 
 Os vereditos de contexto 100, de 300 a 322 e 400 não têm registros irmãos.
+
+Até a v2.8.0, a faixa `2000` dizia, errado, a memória livre em KB. As posições são todas menores que 1024, então o registro saía sempre `2000`, e não dizia nada.
 
 ### Os módulos {#cap-16-modulos-travamento}
 
@@ -270,7 +272,7 @@ O `show system log` de um aparelho que travou atendendo a interface web:
          0 up2s      C0 [FTL][SYS   ] code=1 ctx=219
          0 up2s      C0 [FTL][SYS   ] code=1 ctx=1008
          0 up2s      C0 [FTL][SYS   ] code=1 ctx=4184
-         0 up2s      C0 [FTL][SYS   ] code=1 ctx=2031
+         0 up2s      C0 [FTL][SYS   ] code=1 ctx=2721
 ```
 
 A leitura:
@@ -278,9 +280,9 @@ A leitura:
 1. `ctx=219`: o watchdog de hardware reiniciou o aparelho, com o núcleo 0 parado no módulo 19, `WEB_POLL`, que atende a interface web.
 2. `ctx=1008`: o núcleo 1 estava no módulo 8, `DISPLAY`, desenhando o painel.
 3. `ctx=4184`: o aparelho estava ligado havia 184 min, 3 h 04 min, quando travou. Isso confere com o `up3h04m` do último registro antes do travamento.
-4. `ctx=2031`: havia 31 KB de memória livre.
+4. `ctx=2721`: o atendimento web estava na posição 721, logo depois de entregar um pedaço da resposta. As posições são marcas no código-fonte (`HPOS`), e servem a quem for investigar o travamento.
 
-Na página, os mesmos quatro registros aparecem no topo da tabela, em ordem inversa, como **Boot do sistema** com `[ctx: 2031]`, `[ctx: 4184]`, `[ctx: 1008]` e `[ctx: 219]`, nível `FTL` e módulo `SYS`. Marque **ERR** para vê-los.
+Na página, os mesmos quatro registros aparecem no topo da tabela, em ordem inversa, como **Boot do sistema** com `[ctx: 2721]`, `[ctx: 4184]`, `[ctx: 1008]` e `[ctx: 219]`, nível `FTL` e módulo `SYS`. Marque **ERR** para vê-los.
 
 ::: nota
 **Por que a data fica vazia.** A autópsia roda no começo do boot, antes de o relógio ser acertado, então os registros dela costumam sair com a data `0`, que a página mostra como `Boot +`. O travamento aconteceu segundos antes desse boot: use a data dos registros vizinhos para situá-lo.
