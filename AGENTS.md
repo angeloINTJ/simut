@@ -251,6 +251,7 @@ pio test -e native -e native_history_v5 -e native_cli -e native_logpolicy \
 ./tools/run_fuzz.sh                       # 60 s; NÃO está no pio test e já pegou defeito real
 python3 tools/check_air_consistency.py
 python3 tools/check_angulo.py             # o padrão de interface (§7): site, marca, READMEs, docs Living
+python3 tools/check_readme_numbers.py     # os números que os três READMEs citam (testes, flash, códigos, rotas)
 python3 tools/check_flash_budget.py <env> build.log   # o CI roda assim; local, leia a linha "used"
 ```
 
