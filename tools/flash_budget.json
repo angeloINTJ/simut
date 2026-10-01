@@ -523,7 +523,7 @@
   "21,428. Against the published v2.7.4 .bin: release +1,376, alpha and air +32."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-10-01 feat/clock-first-ap-on-request rebased on #209, #208, #204 and #203, over main 7755384: all six measured on the combined tree, and each budget raised by exactly what its image grew against #209, so each keeps its margin: release +4,168, test +3,424, test_https +3,408, asserts +4,152, alpha +688, air +744 B. The panel's date-and-time screen and its Core 0 event, `time` on the emergency console, the calendar check and the open-block shift, less the two AP arms. measured is the zopfli image PlatformIO prints.",
+ "measured_on": "2026-10-01 feat/pico2w-s0 rebased on #214, over main 94487f3: the watchdog/PSM/timer-IRQ refactor leaves #214's six RP2040 images byte-identical, and the WDSEL offset fix that follows changes a constant only (same sizes). New: pico2_w_release, the release on the RP2350, 976,984 B used of its own 3,141,632 B slot (a per-env ceiling, read by check_flash_budget.py), .bin 989,296 B. measured is the zopfli image PlatformIO prints.",
  "measured_at_commit": "chore/v2.8.0 on main 8aa898b (#195 merged; SIMUT_VERSION 2.8.0; budgets unchanged). All six rebuilt here; release, test, alpha and air byte-identical to the candidate tested on the bench. measured is the zopfli image PlatformIO prints.",
  "envs": {
   "pico_w_release": {
@@ -549,6 +549,11 @@
   "pico_w_air": {
    "budget": 1006704,
    "measured": 1005272
+  },
+  "pico2_w_release": {
+   "budget": 978184,
+   "measured": 976984,
+   "ceiling": 3141632
   }
  }
 }

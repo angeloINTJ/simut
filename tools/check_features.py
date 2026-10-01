@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """check_features.py — o portao de fidelidade do modelo de recursos (P1).
 
-Prova que os seis ambientes de firmware que o build usa (o platformio.ini inclui
+Prova que os sete ambientes de firmware que o build usa (o platformio.ini inclui
 tools/generated/profiles.ini via extra_configs) resolvem para EXATAMENTE o que o
 manifesto features.toml descreve, gerado na hora. Se o profiles.ini commitado ou
 o platformio.ini divergirem do manifesto, o portao pega. Compara, por ambiente:
@@ -236,8 +236,9 @@ def main() -> int:
         return 1
 
     ground = pio_config(ROOT)
-    # os perfis do manifesto devem ser exatamente os ambientes pico_w_* de hoje
-    ground_fw = {s[4:] for s in ground if s.startswith("env:pico_w_")}
+    # os perfis do manifesto devem ser exatamente os ambientes de firmware de hoje:
+    # pico_w_* (o Pico W) e, desde 2026-10-01, pico2_w_* (o Pico 2 W, fase 4)
+    ground_fw = {s[4:] for s in ground if s.startswith(("env:pico_w_", "env:pico2_w_"))}
     missing = ground_fw - set(profiles)
     extra = set(profiles) - ground_fw
     if missing or extra:

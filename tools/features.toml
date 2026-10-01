@@ -23,7 +23,27 @@ generates = ["tools/generated/profiles.ini", "docs/configurador/model.json", "sr
 
 # Flags que todo perfil de firmware acrescenta sobre ${pico_base.build_flags}.
 [base]
-common_flags = ["-DNDEBUG"]   # as seis imagens carregam NDEBUG (release ganhou em 2026-09-18)
+common_flags = ["-DNDEBUG"]   # as sete imagens carregam NDEBUG (release ganhou em 2026-09-18)
+
+# ---------------------------------------------------------------------------
+#  O chip. Um valor por perfil; sem a chave, rp2040 (o Pico W, que o pico_base
+#  ja descreve). `board` sobrepoe o do pico_base; `flags` somam aos do perfil.
+#  Fase 4 de docs/analysis/PLANO_REVISAO_EXTERNA.md (2026-10-01): o RP2350 entra
+#  primeiro so no CI (S0), para o codigo nao voltar a depender do RP2040 sem que
+#  ninguem veja.
+# ---------------------------------------------------------------------------
+[chip.rp2040]
+board = ""
+flags = []
+
+[chip.rp2350]
+# Pico 2 W: RP2350, 4 MB de flash, o mesmo CYW43439. -Wno-error=overloaded-virtual
+# porque o WiFiClientSecureBearSSL.h do framework dispara esse aviso so neste chip
+# (medido em 2026-10-01 com o framework 1.50601.0) — e o -Werror vale para o que
+# src/ inclui. O layout da flash, o OTA e o Air no RP2350 ainda nao existem: o
+# pico_base continua dando 1 MB de LittleFS, e o OTA de hoje supoe a flash do Pico W.
+board = "rpipico2w"
+flags = ["-Wno-error=overloaded-virtual"]
 
 # ---------------------------------------------------------------------------
 #  A escolha do mostrador. Exatamente um valor por perfil.
@@ -225,7 +245,7 @@ macro = "SIMUT_SENSOR_BME280"
 emit  = "off_is_0"
 
 # ---------------------------------------------------------------------------
-#  Os perfis. Os seis ambientes de firmware que o CI constroi hoje.
+#  Os perfis. Os sete ambientes de firmware que o CI constroi hoje.
 #  `extends` herda o dicionario de recursos do pai e sobrescreve.
 # ---------------------------------------------------------------------------
 # pico_w_release — a imagem do usuario.
@@ -377,6 +397,16 @@ web_metrics   = true
 syslog        = true
 publish       = true
 
+# pico2_w_release — a release do Pico W compilada para o Pico 2 W (RP2350). Nao publicada.
+#   S0 da fase 4: o CI prova que compila e mede o tamanho; nada disto rodou numa
+#   placa ainda (o primeiro boot e o S1, numa placa de stepping A4). Os registradores do
+#   watchdog e do PSM vem do SDK do chip desde 2026-10-01; sem isso a imagem
+#   compilava e escrevia nos enderecos do RP2040.
+[profiles.pico2_w_release]
+extends = "pico_w_release"
+chip    = "rp2350"
+publish = false
+
 # ===========================================================================
 #  O configurador (docs/configurador/): como cada escolha aparece na árvore.
 #  Nada daqui muda o build — compose( ) não lê as tabelas ui_*, rules nem
@@ -429,6 +459,14 @@ label.en = "Concurrency soak image"
 label.pt = "Imagem de soak de concorrência"
 desc.en  = "The release image with the concurrency tripwire armed. Not published."
 desc.pt  = "A imagem de release com a armadilha de concorrência armada. Não publicada."
+
+[ui_products.pico2_w_release]
+order    = 7
+bench    = true
+label.en = "Pico 2 W build check"
+label.pt = "Verificação de build do Pico 2 W"
+desc.en  = "The release image compiled for the RP2350, so CI sees it build. Not run on a board yet; not published."
+desc.pt  = "A imagem de release compilada para o RP2350, para o CI vê-la compilar. Ainda não rodou numa placa; não publicada."
 
 [ui_displays.tft]
 label.en = "Touch display (ILI9341, 320x240)"

@@ -536,6 +536,41 @@
         "syslog": true,
         "tft_graph": true
       }
+    },
+    {
+      "id": "pico2_w_release",
+      "order": 7,
+      "bench": true,
+      "publish": false,
+      "label": {
+        "en": "Pico 2 W build check",
+        "pt": "Verificação de build do Pico 2 W"
+      },
+      "desc": {
+        "en": "The release image compiled for the RP2350, so CI sees it build. Not run on a board yet; not published.",
+        "pt": "A imagem de release compilada para o RP2350, para o CI vê-la compilar. Ainda não rodou numa placa; não publicada."
+      },
+      "config": {
+        "display": "tft",
+        "cli_full": false,
+        "web_https": true,
+        "license_stub": false,
+        "mdns": true,
+        "concurrency_asserts": false,
+        "bluetooth": false,
+        "air": false,
+        "sound_buzzer": true,
+        "sensor_ds18b20": true,
+        "sensor_dht22": true,
+        "sensor_bme280": true,
+        "tel_tls": true,
+        "tel_mqtt": true,
+        "web_history": true,
+        "web_export_api": true,
+        "web_metrics": true,
+        "syslog": true,
+        "tft_graph": true
+      }
     }
   ],
   "rules": [

@@ -150,7 +150,10 @@ def main():
 
     used, ceiling = (int(x) for x in matches[-1])
     budget = cfg["envs"][env]["budget"]
-    declared_ceiling = cfg.get("ceiling")
+    # An environment on another chip declares its own slot (the RP2350's 4 MB
+    # flash leaves 3 MB for code next to the same 1 MB of LittleFS); without
+    # it, the note below would call a different board a moved layout.
+    declared_ceiling = cfg["envs"][env].get("ceiling", cfg.get("ceiling"))
 
     # The ceiling moving is worth a word even when the image fits: it means the
     # partition layout changed under us, and every budget below was set against

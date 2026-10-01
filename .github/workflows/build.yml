@@ -89,7 +89,7 @@ jobs:
         run: python3 tools/check_air_consistency.py
 
       # The feature model (docs/analysis/MODELO_DE_RECURSOS.md, P1): tools/
-      # features.toml is the single source, gen_features.py derives the six
+      # features.toml is the single source, gen_features.py derives the seven
       # firmware environments into tools/generated/profiles.ini, and
       # platformio.ini includes that file via extra_configs (it no longer
       # defines [env:pico_w_*]). --check keeps the generated files in sync with
@@ -247,6 +247,11 @@ jobs:
           - pico_w_asserts
           - pico_w_alpha
           - pico_w_air
+          # The release on the Pico 2 W's RP2350 (2026-10-01, S0 of Phase 4 in
+          # docs/analysis/PLANO_REVISAO_EXTERNA.md). Nothing runs it on a board
+          # yet; building it here is what keeps the code from drifting back to
+          # RP2040-only addresses with nobody noticing.
+          - pico2_w_release
     name: firmware (${{ matrix.env }})
     steps:
       - uses: actions/checkout@v7

@@ -50,7 +50,7 @@ Los tres comparten el mismo núcleo:
 | **Release actual** | **v2.8.0** (30/09/2026). SIMUT salió de beta con la v2.7.0, sobre mediciones: un soak de 8,18 h sin ningún reinicio y 6 de 6 actualizaciones por el aire sin perder nada. La v2.8.0 conserva la configuración cuando una actualización se corta a mitad, y deja que el formato de telemetría personalizado envíe el Content-Type que espera su servidor; la v2.7.4 había corregido la búsqueda de sensores, que dejaba en error un BMP280 en I2C de hardware. |
 | **Imágenes publicadas** | Tres imágenes, cada una en `.uf2` y `.bin`: `release` (panel táctil TFT), `alpha` (LCD 16×2 con consola Bluetooth) y `air` (registrador a batería sin pantalla). Junto a ellas van los packs de idioma pt-BR y es-ES y un manifiesto de OTA. Una imagen con otro conjunto de funciones sale del [configurador de build](https://angelointj.github.io/simut/configurador/), y el CI la compila desde `main`. |
 | **Madurez** | <ul><li>`release`: **estable**.</li><li>`alpha`: publicado y probado en el banco, con su LCD 16×2 incluido desde el 26/09/2026.</li><li>`air`: **experimental**. Su único soak largo falló: un sueño en el ciclo 119 nunca despertó (F28). Hoy lo mitiga un watchdog a lo largo del despertar; la causa raíz no está confirmada.</li></ul> |
-| **Pruebas** | Cada pull request ejecuta 443 casos de test en el host en 8 suites, 60 s de fuzzing y análisis estático, y compila las seis imágenes de firmware con la caché fría. El comportamiento en hardware real se verifica en un banco — ver [Verificación en hardware](#verificación-en-hardware). |
+| **Pruebas** | Cada pull request ejecuta 443 casos de test en el host en 8 suites, 60 s de fuzzing y análisis estático, y compila las siete imágenes de firmware con la caché fría. El comportamiento en hardware real se verifica en un banco — ver [Verificación en hardware](#verificación-en-hardware). |
 
 **Limitaciones conocidas.** Cada una está documentada donde aplica.
 - **Actualización.** La actualización por el aire reformatea el sistema de archivos:
@@ -375,6 +375,7 @@ simut/
 | `pico_w_test` | Imagen de banco: la consola completa para las suites de prueba; sin HTTPS, sin mDNS | — |
 | `pico_w_test_https` | `pico_w_test` más el servidor HTTPS, para validar TLS; tres de sus páginas se sirven desde LittleFS para que quepa | — |
 | `pico_w_asserts` | Release + aserciones de concurrencia | — |
+| `pico2_w_release` | La release compilada para el Pico 2 W (RP2350), para que el CI la vea compilar. Aún no ha corrido en una placa | — |
 | ocho entornos `native*` | Tests unitarios en el host — ver [Pruebas](#pruebas) | — |
 
 > **Nota de seguridad para `pico_w_alpha` y `pico_w_air`:** las dos compilan la
@@ -450,7 +451,7 @@ Cada push y pull request a `main` ejecuta cuatro jobs:
   - escaneo de secretos, tablas de códigos de log, matriz de autorización;
   - consistencia de la licencia, guarda del sistema de archivos, consistencia del Air;
   - tests de la fusión de días del histórico.
-- **firmware** — las seis imágenes, compiladas con la caché fría:
+- **firmware** — las siete imágenes, compiladas con la caché fría:
   - cada una se comprueba contra su presupuesto de flash y el techo de actualización por el aire;
   - la propia compilación aplica el `-Werror` y las puertas de la interfaz web, la ayuda de la CLI, los códigos de log, la tabla de canales y los packs de idioma.
 - **fuzz** — 60 s de libFuzzer contra los validadores de la API web, con oráculos de contrato.
