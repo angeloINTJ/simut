@@ -1144,7 +1144,12 @@ void AppManager::setup( ) {
 #if SIMUT_AIR
  if (!_airActive)
 #endif
- while (!_netMgr->isConnected( ) || !_netMgr->isTimeSynced( )) {
+ /* isConnected( ) is NET_READY, which already waits for NTP when NTP is on
+  * (NET_CONNECTED_WAIT_NTP); with NTP off it is manual-clock mode. Waiting on
+  * isTimeSynced( ) as well cost nothing while it was always true — now that it
+  * tells the truth, a unit with NTP off would sit the full 30 s here on every
+  * boot for a sync that is not coming. */
+ while (!_netMgr->isConnected( )) {
  TRACE_BEAT(0);
  watchdog_update( );
  _netMgr->update( );
@@ -1169,14 +1174,18 @@ void AppManager::setup( ) {
  String dots = "";
  for (int i = 0; i < dotCount; i++) dots += ".";
 
- if (!_netMgr->isConnected( )) {
+ /* Inside this loop the link is not READY. isLinkUp( ) is READY or
+  * NET_CONNECTED_WAIT_NTP, so here it means "has an IP, waiting for the
+  * time server" — the phase the "Sync NTP" line was written for, which
+  * the old test (connected AND not synced) could never reach. */
+ if (!_netMgr->isLinkUp( )) {
  if (waitState != 1) {
  waitState = 1; dotCount = 0;
  _displayMgr->setBootStatusKey(TR_BOOT_WAITING_ROUTER, nullptr, true);
  } else {
  _displayMgr->replaceBootStatusKey(TR_BOOT_WAITING_ROUTER, dots.c_str( ), true);
  }
- } else if (!_netMgr->isTimeSynced( )) {
+ } else {
  if (waitState != 2) {
  waitState = 2; dotCount = 0;
  _displayMgr->setBootStatusKey(TR_BOOT_SYNC_NTP, nullptr, true);

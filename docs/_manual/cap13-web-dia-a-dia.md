@@ -303,7 +303,7 @@ O Painel de Controle numa imagem sem painel com toque: uma coluna só, sem o blo
 
 | Cartão | Valor | Linha de baixo |
 |---|---|---|
-| **Data e Hora** (*System Date & Time*) | Data e hora do relógio do aparelho, no formato `dd/mm/aaaa hh:mm:ss` | **Sincronizado**, em verde |
+| **Data e Hora** (*System Date & Time*) | Data e hora do relógio do aparelho, no formato `dd/mm/aaaa hh:mm:ss`; antes de o relógio ser acertado, **Falha NTP** | **Sincronizado**, em verde; antes do acerto, **Conectando...**, em vermelho |
 | **Tempo Ativo** (*System Uptime*) | Tempo desde o último reinício, como `2d 05h 13m 09s` | — |
 | **Sinal Wi-Fi** (*WiFi Signal*) | Intensidade do sinal agora, em dBm | `min <pior> / <melhor> max`: o pior e o melhor sinal vistos desde o último reinício |
 | **Registros Pendentes** (*Pending Records*) | Registros do histórico que ainda não foram enviados pela telemetria, como `12 pkts` | O estado da telemetria (tabela abaixo) |
@@ -324,7 +324,7 @@ A linha de baixo de **Registros Pendentes**:
 **Data e Hora** mostra o relógio do aparelho convertido para o fuso horário do seu computador, não para o fuso configurado no aparelho. Se os dois fusos forem diferentes, a hora da página difere da hora do painel. O fuso do aparelho está no [capítulo 10](#cap-10).
 
 ::: atencao
-**Sincronizado aparece mesmo antes do primeiro acerto do relógio.** Na v2.7.1, o aparelho sempre informa o relógio como sincronizado, e a página nunca mostra **Falha NTP**. Enquanto o relógio do sistema não foi acertado, nem por NTP nem manualmente, **Data e Hora** mostra uma data de 1969 ou 1970 ao lado de **Sincronizado**. O histórico continua sendo gravado com o relógio provisório do aparelho. Para acertar o relógio, veja o [capítulo 10](#cap-10).
+**Até a v2.8.0, Sincronizado aparecia mesmo antes do primeiro acerto do relógio.** Nessas versões, o aparelho sempre informa o relógio como sincronizado, e a página nunca mostra **Falha NTP**: enquanto o relógio do sistema não foi acertado, nem por NTP nem manualmente, **Data e Hora** mostra uma data de 1969 ou 1970 ao lado de **Sincronizado**. Em qualquer versão, o histórico continua sendo gravado com o relógio provisório do aparelho. Para acertar o relógio, veja o [capítulo 10](#cap-10).
 :::
 
 ### Cartões de métricas {#cap-13-metricas}

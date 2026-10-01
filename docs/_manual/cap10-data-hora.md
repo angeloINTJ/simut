@@ -53,7 +53,7 @@ Uma queda da rede Wi-Fi zera a contagem: na volta, as esperas recomeçam de 20 s
 - o cartão **Sinal Wi-Fi** do **Painel de Controle** mostra −100 dBm;
 - a telemetria e a linha de alarmes esperam;
 - o nome `.local` não responde ([capítulo 9](#cap-09-mdns));
-- no boot, o aparelho espera até 30 s pela rede antes de seguir; no painel, a mensagem é **Aguardando roteador**, seguida de **Timeout de rede. Iniciando Offline...**.
+- no boot, o aparelho espera até 30 s pela rede antes de seguir; no painel, a mensagem é **Sincronizando Relógio Global** (até a v2.8.0, **Aguardando roteador**), seguida de **Timeout de rede. Iniciando Offline...**.
 
 Numa rede sem acesso à internet, escolha uma destas saídas:
 

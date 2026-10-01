@@ -450,8 +450,8 @@ pelo mesmo core que atende a requisição. Quem chama é que espera.
 ## Calibração
 
 ### `POST /api/calib` · `PERM_CALIB`
-JSON cru, até ~8 KB. Exige NTP sincronizado (**503** se não) e tem limite de
-taxa (**429**).
+JSON cru, até ~8 KB. Exige o relógio acertado, por NTP ou à mão (**503** se
+não; até a v2.8.0 a recusa nunca acontecia), e tem limite de taxa (**429**).
 
 ```json
 {"sensors":[{"slot":0, "name":"Sala",

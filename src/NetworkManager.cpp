@@ -817,7 +817,15 @@ time_t NetworkManager::getEpoch( ) {
 }
 
 bool NetworkManager::isConnected( ) { return (_state == NET_READY); }
-bool NetworkManager::isTimeSynced( ) { return (getEpoch( ) > 1600000000); }
+/* Synced = NTP or a manual `time` set the clock: isTimeTrusted( ). It was
+ * `getEpoch( ) > 1600000000`, and getEpoch( ) never answers less — with no NTP
+ * it falls back to the provisional clock or to SIMUT_BUILD_EPOCH — so this was
+ * true on every device, always: /api/status, /api/perms, the panel's status
+ * screen and simut_ntp_synced said "synced" on units that never reached a time
+ * server, and the calibration page's "needs NTP" refusal could not fire. Found
+ * by reading while the v2.7.1 manual was written (finding 66); pinned by
+ * test_network. */
+bool NetworkManager::isTimeSynced( ) { return isTimeTrusted( ); }
 
 bool NetworkManager::isNetworkHealthy( ) {
  return isConnected( ) && getRssi( ) > RSSI_MIN_THRESHOLD;
