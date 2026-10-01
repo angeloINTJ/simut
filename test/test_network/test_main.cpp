@@ -701,6 +701,27 @@ static void test_a_refused_ap_is_reported_and_not_latched(void) {
     WiFi.softApFails = false;
 }
 
+/* ══ the clock ═══════════════════════════════════════════════════════════ */
+
+/* "Synced" means NTP or a manual time set the clock — not that getEpoch( )
+ * answers something plausible, which it always does: with no NTP it falls
+ * back to the provisional clock (the newest stored record) or to the build
+ * epoch. isTimeSynced( ) was `getEpoch( ) > 1600000000`, true on every device,
+ * always, and /api/status, the panel's status screen and simut_ntp_synced said
+ * "synced" on units that never reached a time server (finding 66 of the
+ * v2.7.1 manual). The host's own clock is real, so the test does not call
+ * setManualTime( ): that would settimeofday( ) the machine running it. */
+static void test_a_provisional_clock_is_not_a_synced_one(void) {
+    NetworkManager net;
+    net.begin(makeConfig( ), true, false, "");
+    /* Nothing provisional in force and a real wall clock: synced. */
+    TEST_ASSERT_TRUE(net.isTimeSynced( ));
+    /* What the boot does when the newest record on flash seeds the clock. */
+    net.setProvisionalTime(1785380400UL, 60);
+    TEST_ASSERT_TRUE(net.getEpoch( ) > 1600000000);      /* plausible...     */
+    TEST_ASSERT_FALSE(net.isTimeSynced( ));               /* ...not synced   */
+}
+
 int main(int, char**) {
     UNITY_BEGIN( );
 
@@ -738,6 +759,8 @@ int main(int, char**) {
     RUN_TEST(test_ap_mode_enables_the_sta_interface_once);
     RUN_TEST(test_ap_waits_for_a_sweep_before_taking_the_radio);
     RUN_TEST(test_a_wedged_sweep_does_not_block_the_ap);
+
+    RUN_TEST(test_a_provisional_clock_is_not_a_synced_one);
     RUN_TEST(test_a_refused_ap_is_reported_and_not_latched);
 
     return UNITY_END( );

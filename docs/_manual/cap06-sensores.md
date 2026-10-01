@@ -391,7 +391,7 @@ A escolha **Suave** precisa de 3 pontos ou mais. Com menos, ela se comporta como
 ### Requisitos {#cap-06-requisitos}
 
 - **Permissões.** A conta precisa de **Sistema** [PERM_SYS_CONFIG]{.perm}, para abrir a página, e de **Calibração** [PERM_CALIB]{.perm}, para ver e gravar o bloco.
-- **Relógio acertado por NTP.** Sem o relógio sincronizado por NTP, o aparelho recusa a gravação da calibração. O bloco avisa em vermelho: **NTP não sincronizado.** A sincronização está no [capítulo 10](#cap-10).
+- **Relógio acertado.** Sem o relógio acertado, por NTP ou à mão ([capítulo 10](#cap-10)), o aparelho recusa a gravação da calibração, e o bloco avisa em vermelho: **NTP não sincronizado.** Até a v2.8.0 a recusa nunca acontecia, porque o aparelho dava o relógio por sincronizado mesmo sem acerto.
 - **Slot ativo e gravado.** O bloco só aparece em slots ativos já gravados no aparelho. Num slot novo, grave o slot primeiro e calibre depois.
 - **Uma leitura ao vivo**, para os pontos em que você deixar o valor bruto vazio.
 - **Uma gravação a cada 5 s.** O aparelho recusa uma segunda gravação de calibração antes disso.

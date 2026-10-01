@@ -523,24 +523,24 @@
   "21,428. Against the published v2.7.4 .bin: release +1,376, alpha and air +32."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-10-01 fix/mqtt-alarm-ack-without-telemetry rebased on #204 and #203, over main 7755384: all six measured on the combined tree, each +152 B against #204: the MQTT loop( ) moved above the telemetry-off gate (one SIMUT_TEL_MQTT block, the HA reconciliation guarded inside it) and the alarm publish learned to fit the client buffer. Budgets unchanged: the growth fits under each. measured is the zopfli image PlatformIO prints.",
+ "measured_on": "2026-10-01 fix/time-synced-means-a-real-clock rebased on #208, #204 and #203, over main 7755384: all six measured on the combined tree after isTimeSynced( ) became isTimeTrusted( ) and the boot wait came down to isConnected( ). Against #208: release -16, test -16, test_https -16, asserts -16, alpha 0, air -8 B. Budgets unchanged. measured is the zopfli image PlatformIO prints.",
  "measured_at_commit": "chore/v2.8.0 on main 8aa898b (#195 merged; SIMUT_VERSION 2.8.0; budgets unchanged). All six rebuilt here; release, test, alpha and air byte-identical to the candidate tested on the bench. measured is the zopfli image PlatformIO prints.",
  "envs": {
   "pico_w_release": {
    "budget": 1000572,
-   "measured": 999572
+   "measured": 999556
   },
   "pico_w_test": {
    "budget": 1005972,
-   "measured": 1005148
+   "measured": 1005132
   },
   "pico_w_test_https": {
    "budget": 1013628,
-   "measured": 1012756
+   "measured": 1012740
   },
   "pico_w_asserts": {
    "budget": 1002748,
-   "measured": 1001820
+   "measured": 1001804
   },
   "pico_w_alpha": {
    "budget": 966108,
@@ -548,7 +548,7 @@
   },
   "pico_w_air": {
    "budget": 1005960,
-   "measured": 1004536
+   "measured": 1004528
   }
  }
 }

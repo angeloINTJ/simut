@@ -183,7 +183,7 @@ Detalhes no [capítulo 6](#cap-06).
 | **Resolução DS18B20** não muda uma das sondas | A resolução só vai ao primeiro slot DS18B20 ativo | Nenhuma ação na v2.7.1; o ajuste não afeta o tempo de leitura |
 | Mudar **Intervalo Histórico** com **Aplicar agora** reiniciou o aparelho | O campo exige reinício, e a classificação prévia não o vê | Use **Salvar e reiniciar** para este campo |
 | Editor sem o bloco **Calibração** | Conta sem a permissão **Calibração**, ou slot novo ainda não gravado | Peça a permissão; grave o slot antes de calibrar |
-| **Erro na calibração:** `NTP not synced` | Relógio não sincronizado por NTP | Sincronize o relógio ([capítulo 10](#cap-10)) e grave de novo |
+| **Erro na calibração:** `NTP not synced` | O relógio não foi acertado, nem por NTP nem à mão | Acerte o relógio ([capítulo 10](#cap-10)) e grave de novo |
 | **Erro na calibração:** `rate limited` | Duas gravações de calibração em menos de 5 s | Espere 5 s e grave de novo |
 | Correções sumiram depois de atualizar o firmware | A atualização apaga o `calib.csv` | Restaure o backup `.bkp` baixado antes da atualização |
 | Envio de `calib.csv` pela página **Arquivos** não muda nada | O `VERSION` do arquivo enviado não é maior que o atual | Aumente o número da linha `VERSION,` e envie de novo |

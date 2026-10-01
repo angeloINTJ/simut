@@ -3006,7 +3006,7 @@ SIMUT# reload confirm</code></pre>
 <h4 id="cap-06-requisitos">Requisitos</h4>
 <ul>
 <li><strong>Permissões.</strong> A conta precisa de <strong>Sistema</strong> <span class="selo selo-perm">PERM_SYS_CONFIG</span>, para abrir a página, e de <strong>Calibração</strong> <span class="selo selo-perm">PERM_CALIB</span>, para ver e gravar o bloco.</li>
-<li><strong>Relógio acertado por NTP.</strong> Sem o relógio sincronizado por NTP, o aparelho recusa a gravação da calibração. O bloco avisa em vermelho: <strong>NTP não sincronizado.</strong> A sincronização está no <a href="#cap-10">capítulo 10</a>.</li>
+<li><strong>Relógio acertado.</strong> Sem o relógio acertado, por NTP ou à mão (<a href="#cap-10">capítulo 10</a>), o aparelho recusa a gravação da calibração, e o bloco avisa em vermelho: <strong>NTP não sincronizado.</strong> Até a v2.8.0 a recusa nunca acontecia, porque o aparelho dava o relógio por sincronizado mesmo sem acerto.</li>
 <li><strong>Slot ativo e gravado.</strong> O bloco só aparece em slots ativos já gravados no aparelho. Num slot novo, grave o slot primeiro e calibre depois.</li>
 <li><strong>Uma leitura ao vivo</strong>, para os pontos em que você deixar o valor bruto vazio.</li>
 <li><strong>Uma gravação a cada 5 s.</strong> O aparelho recusa uma segunda gravação de calibração antes disso.</li>
@@ -5618,7 +5618,7 @@ reload confirm</code></pre>
 <li>o cartão <strong>Sinal Wi-Fi</strong> do <strong>Painel de Controle</strong> mostra −100 dBm;</li>
 <li>a telemetria e a linha de alarmes esperam;</li>
 <li>o nome <code>.local</code> não responde (<a href="#cap-09-mdns">capítulo 9</a>);</li>
-<li>no boot, o aparelho espera até 30 s pela rede antes de seguir; no painel, a mensagem é <strong>Aguardando roteador</strong>, seguida de <strong>Timeout de rede. Iniciando Offline…</strong>.</li>
+<li>no boot, o aparelho espera até 30 s pela rede antes de seguir; no painel, a mensagem é <strong>Sincronizando Relógio Global</strong> (até a v2.8.0, <strong>Aguardando roteador</strong>), seguida de <strong>Timeout de rede. Iniciando Offline…</strong>.</li>
 </ul>
 <p>Numa rede sem acesso à internet, escolha uma destas saídas:</p>
 <ul>
@@ -7882,8 +7882,8 @@ K7PX4MRW2A</code></pre>
 <tbody>
 <tr class="odd">
 <td><strong>Data e Hora</strong> (<em>System Date &amp; Time</em>)</td>
-<td>Data e hora do relógio do aparelho, no formato <code>dd/mm/aaaa hh:mm:ss</code></td>
-<td><strong>Sincronizado</strong>, em verde</td>
+<td>Data e hora do relógio do aparelho, no formato <code>dd/mm/aaaa hh:mm:ss</code>; antes de o relógio ser acertado, <strong>Falha NTP</strong></td>
+<td><strong>Sincronizado</strong>, em verde; antes do acerto, <strong>Conectando…</strong>, em vermelho</td>
 </tr>
 <tr class="even">
 <td><strong>Tempo Ativo</strong> (<em>System Uptime</em>)</td>
@@ -7946,7 +7946,7 @@ K7PX4MRW2A</code></pre>
 </table></div>
 <p><strong>Data e Hora</strong> mostra o relógio do aparelho convertido para o fuso horário do seu computador, não para o fuso configurado no aparelho. Se os dois fusos forem diferentes, a hora da página difere da hora do painel. O fuso do aparelho está no <a href="#cap-10">capítulo 10</a>.</p>
 <aside class="faixa faixa-atencao"><span class="selo selo-alerta"><i></i>Atenção</span>
-<p><strong>Sincronizado aparece mesmo antes do primeiro acerto do relógio.</strong> Na v2.7.1, o aparelho sempre informa o relógio como sincronizado, e a página nunca mostra <strong>Falha NTP</strong>. Enquanto o relógio do sistema não foi acertado, nem por NTP nem manualmente, <strong>Data e Hora</strong> mostra uma data de 1969 ou 1970 ao lado de <strong>Sincronizado</strong>. O histórico continua sendo gravado com o relógio provisório do aparelho. Para acertar o relógio, veja o <a href="#cap-10">capítulo 10</a>.</p>
+<p><strong>Até a v2.8.0, Sincronizado aparecia mesmo antes do primeiro acerto do relógio.</strong> Nessas versões, o aparelho sempre informa o relógio como sincronizado, e a página nunca mostra <strong>Falha NTP</strong>: enquanto o relógio do sistema não foi acertado, nem por NTP nem manualmente, <strong>Data e Hora</strong> mostra uma data de 1969 ou 1970 ao lado de <strong>Sincronizado</strong>. Em qualquer versão, o histórico continua sendo gravado com o relógio provisório do aparelho. Para acertar o relógio, veja o <a href="#cap-10">capítulo 10</a>.</p>
 </aside>
 <h4 id="cap-13-metricas">Cartões de métricas</h4>
 <p>Os números desta faixa são contados desde o último reinício e voltam a zero a cada reinício.</p>
@@ -15559,7 +15559,7 @@ simut_uptime_seconds 86412</code></pre>
 </tbody>
 </table></div>
 <aside class="faixa faixa-atencao"><span class="selo selo-alerta"><i></i>Atenção</span>
-<p><strong><code>simut_ntp_synced</code> não diz se a hora foi acertada.</strong> Na v2.7.1, a métrica vale 1 também antes da primeira sincronização, porque o aparelho conta a hora provisória como hora certa (<a href="#cap-10">capítulo 10</a>). Não a use para alertar sobre falta de NTP. Para isso, acompanhe os eventos 512 e 513 do log de eventos, por exemplo pelo syslog (<a href="#cap-25">capítulo 25</a>).</p>
+<p><strong><code>simut_ntp_synced</code> vale 1 só depois de o relógio ser acertado</strong>, por NTP ou à mão (<a href="#cap-10">capítulo 10</a>), e serve para alertar sobre falta de NTP. Até a v2.8.0 ela valia 1 também antes da primeira sincronização, porque o aparelho contava a hora provisória como hora certa. Num aparelho com essas versões, acompanhe os eventos 512 e 513 do log de eventos, por exemplo pelo syslog (<a href="#cap-25">capítulo 25</a>).</p>
 </aside>
 <h4 id="cap-24-m-memoria">Memória e armazenamento</h4>
 <div class="tw"><table>
@@ -16222,7 +16222,7 @@ simut_pressure_hpa{slot=&quot;1&quot;,hwid=&quot;BME28001&quot;,name=&quot;Sala&
 <li><strong>Só o agora.</strong> Não há histórico nem reenvio por esta rota. O que o Prometheus não consultou, perdeu.</li>
 <li><strong>Uma conferência de senha por leitura.</strong> Cerca de 0,69 s de aparelho ocupado a cada leitura com HTTP Basic.</li>
 <li><strong>Sem <code>uid</code> nas métricas.</strong> Identifique o aparelho pelo alvo ou por rótulos que você mesmo põe na configuração.</li>
-<li><strong><code>simut_ntp_synced</code> sempre 1</strong> na v2.7.1 (<a href="#cap-24-m-aparelho">Aparelho</a>).</li>
+<li><strong><code>simut_ntp_synced</code> sempre 1</strong> até a v2.8.0 (<a href="#cap-24-m-aparelho">Aparelho</a>).</li>
 <li><strong>Sem <code># HELP</code></strong>, só <code># TYPE</code>.</li>
 <li><strong>Contadores zerados a cada reinício.</strong></li>
 <li><strong>Nenhuma métrica de alarme por slot.</strong> O estado de alarme de cada sensor não sai por aqui; compare os valores com a sua faixa nas regras do Prometheus, ou use a linha de alarmes.</li>
@@ -23076,8 +23076,8 @@ echo</code></pre>
 </tr>
 <tr class="odd">
 <td><strong>Erro na calibração:</strong> <code>NTP not synced</code></td>
-<td>Relógio não sincronizado por NTP</td>
-<td>Sincronize o relógio (<a href="#cap-10">capítulo 10</a>) e grave de novo</td>
+<td>O relógio não foi acertado, nem por NTP nem à mão</td>
+<td>Acerte o relógio (<a href="#cap-10">capítulo 10</a>) e grave de novo</td>
 </tr>
 <tr class="even">
 <td><strong>Erro na calibração:</strong> <code>rate limited</code></td>

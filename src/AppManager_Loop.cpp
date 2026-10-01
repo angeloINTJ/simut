@@ -338,14 +338,15 @@ void AppManager::loop( ) {
   * the interval is 60 s. The block lost nothing; the minute the device spent
   * restarting was never sampled, and roughly 40 s of that was pure waiting.
   *
-  * The gate is the RAW system clock, deliberately not getEpoch( ) and not
-  * isTimeSynced( ): getEpoch( ) seeds a provisional clock from
-  * SIMUT_BUILD_EPOCH (2025-09-20) and returns it, which is above the
-  * HIST_EPOCH_MIN threshold, so both would report a good clock on a device
-  * that has none — and the record would be filed two years in the past, which
-  * poisons the day file far worse than a missing minute. time(nullptr) passes
-  * only once NTP or a manual `time` has really set the clock; with neither,
-  * behaviour is exactly what it was before.
+  * The gate is the RAW system clock, deliberately not getEpoch( ):
+  * getEpoch( ) seeds a provisional clock from SIMUT_BUILD_EPOCH (2026-07-30,
+  * SystemDefs_Limits.h) and returns it, which is above the HIST_EPOCH_MIN
+  * threshold, so it reports a good clock on a device that has none — and the
+  * record would be filed months in the past, which poisons the day file far
+  * worse than a missing minute. isTimeSynced( ) said the same until
+  * 2026-10-01; it is isTimeTrusted( ) now. time(nullptr) passes only once NTP
+  * or a manual `time` has really set the clock; with neither, behaviour is
+  * exactly what it was before.
   *
   * Rate-limited because a failed attempt leaves the flag clear: without it
   * this calls processHistoryLogging( ) every loop iteration while a sensor or

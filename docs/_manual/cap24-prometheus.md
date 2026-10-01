@@ -151,7 +151,7 @@ A resposta tem 45 famílias de métricas. Cada uma vem com a linha `# TYPE`, sem
 | `simut_ntp_synced` | gauge | 0 ou 1 | Veja o aviso abaixo |
 
 ::: atencao
-**`simut_ntp_synced` não diz se a hora foi acertada.** Na v2.7.1, a métrica vale 1 também antes da primeira sincronização, porque o aparelho conta a hora provisória como hora certa ([capítulo 10](#cap-10)). Não a use para alertar sobre falta de NTP. Para isso, acompanhe os eventos 512 e 513 do log de eventos, por exemplo pelo syslog ([capítulo 25](#cap-25)).
+**`simut_ntp_synced` vale 1 só depois de o relógio ser acertado**, por NTP ou à mão ([capítulo 10](#cap-10)), e serve para alertar sobre falta de NTP. Até a v2.8.0 ela valia 1 também antes da primeira sincronização, porque o aparelho contava a hora provisória como hora certa. Num aparelho com essas versões, acompanhe os eventos 512 e 513 do log de eventos, por exemplo pelo syslog ([capítulo 25](#cap-25)).
 :::
 
 ### Memória e armazenamento {#cap-24-m-memoria}
@@ -463,7 +463,7 @@ Uma leitura com conta e senha certas conta como uso do aparelho e reinicia o pra
 - **Só o agora.** Não há histórico nem reenvio por esta rota. O que o Prometheus não consultou, perdeu.
 - **Uma conferência de senha por leitura.** Cerca de 0,69 s de aparelho ocupado a cada leitura com HTTP Basic.
 - **Sem `uid` nas métricas.** Identifique o aparelho pelo alvo ou por rótulos que você mesmo põe na configuração.
-- **`simut_ntp_synced` sempre 1** na v2.7.1 ([Aparelho](#cap-24-m-aparelho)).
+- **`simut_ntp_synced` sempre 1** até a v2.8.0 ([Aparelho](#cap-24-m-aparelho)).
 - **Sem `# HELP`**, só `# TYPE`.
 - **Contadores zerados a cada reinício.**
 - **Nenhuma métrica de alarme por slot.** O estado de alarme de cada sensor não sai por aqui; compare os valores com a sua faixa nas regras do Prometheus, ou use a linha de alarmes.
