@@ -78,7 +78,7 @@ comprimida deixaria o histórico de pé.
 | Item | Estado |
 |---|---|
 | OTA assistida: a página e o simut-rx restauram o `.bkp` sozinhos depois do apply, mesclando o dia corrente | A fazer |
-| Imagem assinada, verificada no stage | Decisão do mantenedor; medir o custo por imagem antes |
+| Imagem assinada, verificada no stage | Decidida em 01/10/2026; desenho e medidas em [`OTA_ASSINADA.md`](OTA_ASSINADA.md) |
 | README e `RECOVERY.md` dizendo por que o slot é único, com os números acima, e a janela de cerca de 26 s do applier | A fazer |
 
 Não recomendado: tornar o applier retomável no RP2040 (boot2 próprio com um
@@ -154,9 +154,11 @@ slot e o histórico iria a cerca de 170 dias).
    anunciado quando a fila o aceitou, e reanunciar o que segue ativo quando
    ela voltar a ter espaço. A fila continua guardando os mais antigos, e o
    contrato do R3 não muda. Entra depois do #208, que mexe no mesmo arquivo.
-4. **OTA só com imagem assinada** — decidida em 01/10/2026: sim. O desenho
-   (onde fica a chave, as imagens de bancada, os builds do configurador) vem
-   antes do código.
+4. **OTA só com imagem assinada** — decidida em 01/10/2026: sim, e nas
+   escolhas de chave, bancada e build local, "o mais profissional": raiz
+   offline e chave de assinatura no CI com aprovação, anti-rollback, chave de
+   bancada separada, build local para o campo só por USB. O desenho está em
+   [`OTA_ASSINADA.md`](OTA_ASSINADA.md).
 5. **Descrição do repositório no GitHub** — 01/10/2026: esperar.
 6. **Aparelho sem Wi-Fi** — decidida em 01/10/2026: o AP só abre a pedido
    (Configurações > 12, `ap`, o gesto do boot), e um aparelho sem rede
