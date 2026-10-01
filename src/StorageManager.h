@@ -295,6 +295,9 @@ public:
   */
  int32_t shiftHistoryTimeV5(int32_t deltaS, const String& path = "",
                             uint32_t fromEpoch = 0);
+ /** The same correction for the block still open in RAM. Once per correction,
+  *  after the file passes, whatever they found (AppManager::handleTimeSync). */
+ void shiftOpenBlockTimeV5(int32_t deltaS);
 
  /** §11: delete everything in /history that is not a V5 file. */
  uint16_t purgeNonV5History( );

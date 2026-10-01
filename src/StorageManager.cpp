@@ -3162,11 +3162,21 @@ int32_t StorageManager::shiftHistoryTimeV5(int32_t deltaS, const String& path,
 		renamed = LittleFS.rename(tmp, src);
 	});
 	if (!renamed) { FLASH_OP({ LittleFS.remove(tmp); }); return -1; }
+	return blocks;
+}
 
-	/* The block still open in RAM has to move with the file it will join. */
+/* The block still open in RAM has to move with the file it will join — and
+ * only once per correction. This lived at the end of shiftHistoryTimeV5( ),
+ * which handleTimeSync( ) calls twice (today's file and yesterday's), so with
+ * both files present the open block moved twice; and with today's file absent
+ * (a unit's first day) the early return skipped it altogether. Measured on the
+ * rig 2026-10-01: a +3534 s manual set moved the three provisional records of
+ * the open block by +7068 s — an hour past the new clock, and ahead of the
+ * record that came next. Called once, by handleTimeSync( ), after both files. */
+void StorageManager::shiftOpenBlockTimeV5(int32_t deltaS) {
+	if (!_isMounted || deltaS == 0) return;
 	_h5Enc.shiftTime(deltaS);
 	_storageDirty = true;
-	return blocks;
 }
 
 uint16_t StorageManager::purgeNonV5History( ) {

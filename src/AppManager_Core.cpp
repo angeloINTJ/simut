@@ -112,6 +112,11 @@ void AppManager::handleTimeSync(uint32_t bootTs, int32_t delta) {
    const int32_t more = _storageMgr->shiftHistoryTimeV5(delta, yesterday, bootTs);
    if (more > 0) blocks += more;
   }
+  /* The open block once, here, and not inside the file passes above — two
+   * passes moved it twice (StorageManager::shiftOpenBlockTimeV5). After the
+   * first pass, so a block resumed from the last session is sealed first (F23)
+   * and keeps its own clock. */
+  _storageMgr->shiftOpenBlockTimeV5(delta);
  }
  LOG_CODE(blocks < 0 ? LOG_WARN : LOG_INFO, "APP", APP_NTP_CORRECTED, (int)blocks, "");
  _storageMgr->unlockHeavyTask( );
