@@ -38,11 +38,11 @@ falha antes (`CLAUDE.md`, *Tests first*).
 
 | Item | Estado |
 |---|---|
-| Números do README nos três idiomas, e um portão que os amarra às fontes (`tools/check_readme_numbers.py`, provado por mutação, 9 de 9) | PR #205 |
-| Tom: "zero-trust", "signed audit trail" e "obfuscated at rest" sem a ressalva | PR #205 |
-| A-03 dividido: o `ctx=209` real, o `ctx=455` do `picotool -x` explicado | PR #205 |
-| `SHA256SUMS` e atestado de proveniência (Sigstore) em cada release | PR #207 (exercido na próxima tag) |
-| Descrição do repositório no GitHub ("Professional-grade") | Decisão do mantenedor: é mudança pública |
+| Números do README nos três idiomas, e um portão que os amarra às fontes (`tools/check_readme_numbers.py`, provado por mutação, 9 de 9) | Mergeado (#205, 01/10) |
+| Tom: "zero-trust", "signed audit trail" e "obfuscated at rest" sem a ressalva | Mergeado (#205) |
+| A-03 dividido: o `ctx=209` real, o `ctx=455` do `picotool -x` explicado | Mergeado (#205) |
+| `SHA256SUMS` e atestado de proveniência (Sigstore) em cada release | Mergeado (#207); exercido na próxima tag |
+| Descrição do repositório no GitHub ("Professional-grade") | Decisão do mantenedor (01/10): esperar |
 | Nota "como o SIMUT é desenvolvido" (A-14): agentes de IA ajudam, nada entra sem PR, oito checks e prova | A fazer |
 
 ## Fase 1 — o que contradiz a promessa
@@ -67,7 +67,7 @@ falha antes (`CLAUDE.md`, *Tests first*).
 | A-08: contas sem reinício | Plano pronto em `PLANO_DIVIDA_TECNICA.md` |
 | A-05: soak longo do Air (3 dias ou mais) | A fazer, na bancada |
 | A-10: medir o login a 5.000 rodadas e escrever o número no `SECURITY.md` | A fazer, na bancada |
-| As oito suítes nativas sob AddressSanitizer e UBSan | PR #206; achou uma referência pendurada no `min( )` do stub de teste |
+| As oito suítes nativas sob AddressSanitizer e UBSan | Mergeado (#206); achou uma referência pendurada no `min( )` do stub de teste |
 
 ## Fase 3 — o Pico W sem trocar de chip
 
@@ -127,9 +127,10 @@ O que foi conferido no framework instalado (`framework-arduinopico`
 | S3 | O que o chip compra a mais: ambiente de debug, RAM, KDF com SHA-256 em hardware, boot assinado numa placa de teste (o OTP é irreversível) |
 | S4 | O Air no RP2350 |
 
-Layout proposto, a decidir: 1,25 MB + 1,25 MB + cerca de 1,5 MB de LittleFS
-(a release de hoje ocuparia 77 % do slot e o histórico iria a cerca de 170
-dias), ou 1,5 + 1,5 + 1,0 MB (mais código, os 116 dias de hoje).
+Layout decidido em 01/10/2026: **1,5 MB + 1,5 MB de código e 1,0 MB de
+LittleFS** — mais espaço para código, e o histórico nos 116 dias de hoje. A
+outra proposta era 1,25 + 1,25 + cerca de 1,5 MB (a release ocuparia 77 % do
+slot e o histórico iria a cerca de 170 dias).
 
 ## Fase 5 — organização
 
@@ -146,16 +147,24 @@ dias), ou 1,5 + 1,5 + 1,0 MB (mais código, os 116 dias de hoje).
    README põe no roteiro: trilha de auditoria completa (mudança de limite pela
    web não gera `alarm_lim`, achado 31), origem da hora por registro,
    exportação que acuse adulteração e relatório de lacunas.
-2. **Pico 2 W:** a placa chega até 03/10/2026 e abre o S1; o S0 está no
-   #215. Falta escolher o layout e conferir se a placa é A4.
-3. **#161:** opção (a) ou (b).
-4. **OTA só com imagem assinada?**
-5. **Descrição do repositório no GitHub.**
+2. **Pico 2 W** — layout decidido em 01/10/2026: 1,5 + 1,5 + 1,0 MB. A placa
+   chega até 03/10/2026 e abre o S1; o S0 está no #215. Falta conferir se a
+   placa é A4.
+3. **#161:** opção (a) ou (b), explicadas em 01/10. A recomendação é a (a):
+   só marcar o alarme como anunciado quando a fila o aceitou, e reanunciar o
+   que segue ativo quando ela voltar a ter espaço.
+4. **OTA só com imagem assinada** — decidida em 01/10/2026: sim. O desenho
+   (onde fica a chave, as imagens de bancada, os builds do configurador) vem
+   antes do código.
+5. **Descrição do repositório no GitHub** — 01/10/2026: esperar.
 6. **Aparelho sem Wi-Fi** — decidida em 01/10/2026: o AP só abre a pedido
    (Configurações > 12, `ap`, o gesto do boot), e um aparelho sem rede
    configurada pede a data e a hora no boot, com a opção de pular. PR #214
-   (rascunho, empilhado no #204), provado na bancada. Em aberto: manter o
-   gesto do boot, que também abre o AP sem passar pelo menu.
+   (rascunho, empilhado no #204), provado na bancada. O gesto do boot, que
+   também abre o AP sem passar pelo menu, fica (decidido em 01/10/2026).
+7. **Check obrigatório do Pico 2 W** — decidida em 01/10/2026:
+   `firmware (pico2_w_release)` entra na proteção da `main` quando o #215 for
+   mergeado.
 
 ## Triagem dos 75 achados de 23/09
 
