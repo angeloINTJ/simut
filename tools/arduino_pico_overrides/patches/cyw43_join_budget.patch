@@ -1,0 +1,77 @@
+--- a/libraries/lwIP_CYW43/src/utility/CYW43shim.cpp
++++ b/libraries/lwIP_CYW43/src/utility/CYW43shim.cpp
+@@ -25,6 +25,12 @@
+ }
+ #include <pico/cyw43_arch.h>
+ #include <Arduino.h>
++#include <hardware/watchdog.h>  /* SIMUT override: fed inside the bounded join wait */
++
++/* SIMUT override: the longest CYW43::begin( ) waits on a join, see there. */
++#ifndef SIMUT_CYW43_JOIN_WAIT_MS
++#define SIMUT_CYW43_JOIN_WAIT_MS 4000
++#endif
+ 
+ // From cyw43_ctrl.c
+ #define WIFI_JOIN_STATE_KIND_MASK (0x000f)
+@@ -89,12 +95,34 @@
+ #endif
+ 
+         cyw43_wifi_join(&cyw43_state, strlen(_ssid), (const uint8_t *)_ssid, strlen(_password), (const uint8_t *)_password, authmode, (_bssid[0] | _bssid[1] | _bssid[2] | _bssid[3] | _bssid[4] | _bssid[5]) ? _bssid : nullptr, CYW43_CHANNEL_NONE);
++        /* SIMUT override — bound the join wait, and feed the watchdog inside it.
++         *
++         * cyw43_wifi_join( ) queues the join and marks it active, so the first
++         * pass below normally returns at once and the association finishes in
++         * the background (the caller polls status( )). The loop only spins when
++         * the request itself fails: a driver that will not take the join. Then
++         * it retried, with no pause, for the whole of _timeout (WiFiClass sets
++         * 15 s), and a tail waited for a negotiation with no bound at all.
++         * Measured in the field on 2026-09-30: after two scans that never
++         * finished, a join here held Core 0 past the RP2040's 8.388 s watchdog,
++         * and the watchdog rebooted the device.
++         *
++         * Now: one deadline, SIMUT_CYW43_JOIN_WAIT_MS or _timeout if shorter; a
++         * pause between retries; and at the deadline a request the radio holds
++         * is accepted (true) and one it never took is refused (false). Feeding
++         * the watchdog in here is safe only because the loop is bounded. SIMUT's
++         * NetworkManager counts the refusals and plans the restart a radio that
++         * keeps refusing needs. */
++        const uint32_t joinBudget = ((uint32_t)_timeout < (uint32_t)SIMUT_CYW43_JOIN_WAIT_MS)
++                                    ? (uint32_t)_timeout : (uint32_t)SIMUT_CYW43_JOIN_WAIT_MS;
+         uint32_t start = millis();
+-        while (millis() - start < (long unsigned int)_timeout) {
++        while (millis() - start < joinBudget) {
++            watchdog_update();
+             auto link = cyw43_wifi_link_status(&cyw43_state, 0);
+             if (link != 1) {
+                 // Some error, we can retry
+                 cyw43_wifi_join(&cyw43_state, strlen(_ssid), (const uint8_t *)_ssid, strlen(_password), (const uint8_t *)_password, authmode, (_bssid[0] | _bssid[1] | _bssid[2] | _bssid[3] | _bssid[4] | _bssid[5]) ? _bssid : nullptr, CYW43_CHANNEL_NONE);
++                delay(50);
+             } else if (cyw43_state.wifi_join_state == 1) {
+                 // Link state can == 1 even if the negotiation is ongoing.  Check the internal negotiaion state.  When it hits 1 we are actually connected
+                 return true;
+@@ -102,24 +130,7 @@
+                 delay(50);
+             }
+         }
+-        if (cyw43_wifi_link_status(&cyw43_state, 0) == 1) {
+-            // Now we may have just started a retry and the work is still in progress, or we're connected
+-            if (cyw43_state.wifi_join_state == 1) {
+-                return true; // We succeeded
+-            } else {
+-                // We're still trying on our last try.  Wait for things to change
+-                while (true) {
+-                    if (cyw43_wifi_link_status(&cyw43_state, 0) != 1) {
+-                        return false;
+-                    } else if (cyw43_state.wifi_join_state == 1) {
+-                        return true;
+-                    } else {
+-                        delay(50);
+-                    }
+-                }
+-            }
+-        }
+-        return false; // We ended above with a failure
++        return cyw43_wifi_link_status(&cyw43_state, 0) == 1;
+     } else {
+         _netifAP = netif;
+         _itf = 1;

@@ -81,7 +81,8 @@ arduino_pico_overrides/
     ├── clientcontext_acked_feed.patch
     ├── webserver_parse_deadline.patch
     ├── webserver_keepalive.patch
-    └── webserver_cors_origin.patch
+    ├── webserver_cors_origin.patch
+    └── cyw43_join_budget.patch          ← 2026-10-01, the join wait bounded
 ```
 
 ## TLS handshake deadline (2026-07-25)
@@ -112,6 +113,30 @@ copied, so a framework update fails loudly instead of silently reverting. The
 WiFi library has its own PIO object cache (`lib*/WiFi/`) which `patch.sh`
 invalidates — without that the build succeeds while still linking the
 unpatched handshake.
+
+## Join wait bounded (2026-10-01)
+
+> **Turns a radio that refuses a join into a logged refusal, not a watchdog reboot.**
+
+`CYW43::begin( )` in `lwIP_CYW43/src/utility/CYW43shim.cpp` asks for the join
+and waits for the request to take. When the radio takes it, the first pass of
+the loop returns at once and the association finishes in the background. When
+the radio refuses it (`cyw43_wifi_join( )` failing), the loop asked again with
+no pause for the whole of `_timeout` (15 s, set by `WiFiClass`), then waited in
+a `while(true)` tail with no bound at all, and nothing fed the watchdog.
+
+Field log of 2026-09-30 22:13, a device at -79 dBm: the link dropped, two scans
+never finished, the blind join that followed was refused, and Core 0 passed the
+RP2040's 8.388 s watchdog inside this loop. The watchdog rebooted the device.
+
+`cyw43_join_budget.patch` gives the wait one deadline (`SIMUT_CYW43_JOIN_WAIT_MS`,
+4 s, or `_timeout` if shorter), pauses 50 ms between attempts, and feeds the
+watchdog inside the loop, which is safe only because the loop now ends. At the
+deadline a request the radio holds is accepted (`true`) and one it never took is
+refused (`false`, which `WiFi.begin( )` answers as `WL_IDLE_STATUS`).
+`NetworkManager::takeJoinAnswer( )` counts the refusals and plans the restart a
+radio that keeps refusing needs (`SystemDefs_Network.h`). The library has its own
+object cache (`lib*/lwIP_CYW43/`), which `patch.sh` and `restore.sh` invalidate.
 
 ## Changes Applied
 

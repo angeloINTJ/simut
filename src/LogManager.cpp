@@ -1051,7 +1051,7 @@ void LogManager::performCrashAutopsy( ) {
   * short captions grew .text by 192 B and .rodata by a whole 4096 B page. */
  logCode(LOG_FATAL, "SYS", SYS_BOOT, autopsyBandCore1(c1Valid, c1Mod));
  logCode(LOG_FATAL, "SYS", SYS_BOOT, autopsyBandStallMinutes(_preBootScratch6));
- logCode(LOG_FATAL, "SYS", SYS_BOOT, autopsyBandHeapKB(_preBootScratch7));
+ logCode(LOG_FATAL, "SYS", SYS_BOOT, autopsyBandHandlerPos(_preBootScratch7));
  } else if (wdReset) {
  /* A FORCE reset (TRIGGER written) that none of our own reboot paths
  * marked: the cause is outside this firmware — picotool upload reboots

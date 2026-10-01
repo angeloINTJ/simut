@@ -288,6 +288,12 @@ private:
  /** Handle a scan that did not produce the SSID — count it, and after
   *  WIFI_SCANS_BEFORE_BLIND_JOIN misses associate without one. */
  void afterFruitlessScan( );
+ /** WiFi.begin( ), and what to do when the radio will not take the join
+  *  (WIFI_JOIN_REFUSALS_BEFORE_RESTART in SystemDefs_Network.h). */
+ void beginJoin( );
+ /** What WiFi.begin( ) answered: WL_IDLE_STATUS is a refusal, counted and
+  *  logged, and the third in a row past the first half hour restarts. */
+ void takeJoinAnswer(int status);
 
  /* Apply manual DNS (primary and/or secondary) via lwIP
  * after IP acquired. No-op when dnsAuto=true and useDhcp=true. */
@@ -311,6 +317,8 @@ private:
  uint8_t _dormantWaits = 0;
  /** Consecutive scans that did not list the SSID; see WIFI_SCANS_BEFORE_BLIND_JOIN. */
  uint8_t _blindScans = 0;
+ /** Joins in a row the radio refused outright; reset by one it takes. */
+ uint8_t _joinRefusals = 0;
 
  /* ── NTP retry with exponential backoff + fallback ── */
  uint32_t _ntpRetryDelay = 20000; /**< Current delay between retries (ms) */

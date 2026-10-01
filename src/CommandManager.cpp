@@ -1064,6 +1064,15 @@ void CommandManager::renderMetrics( ) {
   consolePrintf (pt ? " Iteracoes: %lu | pior iteracao: %lu ms\n"
                     : " Iterations: %lu | worst iteration: %lu ms\n",
   (unsigned long)g_core1Iters, (unsigned long)g_core1IterMaxMs);
+  /* The touch read (TouchWake.h): iterations the library was awake by itself,
+   * reads forced by the PENIRQ poll and by the timer, and how many of those
+   * found a finger. All zero on a build without a touch panel. */
+  consolePrintf (pt ? " Toque: IRQ %s | acordado=%lu | poll=%lu (achou %lu) | timer=%lu (achou %lu)\n"
+                    : " Touch: IRQ %s | awake=%lu | poll=%lu (found %lu) | timer=%lu (found %lu)\n",
+  g_touchWake.irqUnarmed ? (pt ? "DESLIGADA" : "OFF") : (pt ? "ligada" : "on"),
+  (unsigned long)g_touchWake.awake,
+  (unsigned long)g_touchWake.pollWakes, (unsigned long)g_touchWake.pollRescues,
+  (unsigned long)g_touchWake.timerWakes, (unsigned long)g_touchWake.timerRescues);
   consolePrintf (pt ? " Lockout concedido: ultimo=%lu ms | pior=%lu ms\n"
                     : " Lockout granted: last=%lu ms | worst=%lu ms\n",
   (unsigned long)g_core1LockWaitLastMs, (unsigned long)g_core1LockWaitMaxMs);

@@ -383,6 +383,32 @@ else
     patch -p1 -d "$FW" < "$CORS_PATCH"
 fi
 
+# 2j. Espera do join com prazo (CYW43shim.cpp, lib lwIP_CYW43)
+#
+#   CYW43::begin( ) pede o join e espera o pedido "pegar". Quando o radio aceita,
+#   o primeiro passe do laco ja retorna, e a associacao termina em segundo
+#   plano. Quando o radio RECUSA o pedido (cyw43_wifi_join( ) falhando), o laco
+#   repetia o pedido sem pausa por _timeout inteiro (15 s, posto pela WiFiClass)
+#   e ainda tinha uma cauda while(true) sem prazo nenhum, tudo sem alimentar o
+#   watchdog. Campo, 30/09/2026 22:13, aparelho a -79 dBm: o link caiu, duas
+#   varreduras nao terminaram, o join as cegas foi recusado e o Core 0 passou
+#   dos 8,388 s do watchdog dentro desse laco, que reiniciou o aparelho.
+#
+#   O patch: um prazo so (SIMUT_CYW43_JOIN_WAIT_MS, 4 s, ou _timeout se menor),
+#   pausa de 50 ms entre tentativas, watchdog alimentado DENTRO do laco (seguro
+#   porque agora ele tem fim) e, no prazo, true se o radio segura o pedido e
+#   false se nunca o aceitou. O NetworkManager conta as recusas e planeja o
+#   reinicio que um radio que segue recusando precisa.
+CYW43_SHIM="$FW/libraries/lwIP_CYW43/src/utility/CYW43shim.cpp"
+JOIN_PATCH="$OVR/patches/cyw43_join_budget.patch"
+save_original "$CYW43_SHIM" "CYW43shim.cpp"
+if grep -q "SIMUT override — bound the join wait" "$CYW43_SHIM"; then
+    echo "[patch] CYW43shim já tem prazo no join — nada a fazer"
+else
+    echo "[patch] aplicando prazo na espera do join (CYW43shim)"
+    patch -p1 -d "$FW" < "$JOIN_PATCH"
+fi
+
 # 3. Invalida cache PIO (lwip src + lib WiFi)
 #    A lib WiFi tem cache próprio em lib*/WiFi/ — sem apagá-lo o .cpp patchado
 #    não recompila e o build "passa" ainda com o handshake sem prazo.
@@ -418,6 +444,12 @@ for wsobj in "$ROOT/.pio/build"/*/lib*/WebServer/*.o; do
         rm -f "$wsobj"
         echo "[patch] cache invalidado: $wsobj"
     fi
+done
+# lwIP_CYW43 tem cache proprio (lib*/lwIP_CYW43): sem apagar o objeto do
+# CYW43shim o build "passa" ainda com a espera do join sem prazo.
+for cywobj in $(find "$ROOT/.pio/build" -path "*/lwIP_CYW43/*" -name "*.o" 2>/dev/null); do
+    rm -f "$cywobj"
+    echo "[patch] cache invalidado: $cywobj"
 done
 
 echo ""

@@ -28,6 +28,7 @@
 #include "hardware/structs/timer.h"
 #include "hardware/sync.h"
 #include "hardware/irq.h"   /* Core-1 private wait: exclusive alarm handler */
+#include "hardware/structs/io_bank0.h" /* PROC1_INTE: is the touch interrupt armed */
 #include "hardware/timer.h" /* hardware_alarm_claim_unused, hardware_alarm_get_irq_num */
 #include <stdio.h>
 #include <stdlib.h>
@@ -1149,6 +1150,17 @@ static void core1VtorInit( ) {
 	scb_hw->vtor = (uint32_t)s_c1Vectors;
 }
 
+/* Core 1's half of the touch interrupt: the falling edge of TOUCH_IRQ enabled
+ * in PROC1_INTE, and IO_IRQ_BANK0 enabled in this core's NVIC. Both are what
+ * attachInterrupt( ) sets, and either one missing leaves the library asleep
+ * with the panel still drawing (TouchWake.h). Read from Core 1, since the NVIC
+ * of the other core cannot be read. */
+static bool touchIrqArmed( ) {
+	const uint32_t fall = (uint32_t)GPIO_IRQ_EDGE_FALL << (4u * (TOUCH_IRQ % 8u));
+	return (io_bank0_hw->proc1_irq_ctrl.inte[TOUCH_IRQ / 8u] & fall) != 0u &&
+	       irq_is_enabled(IO_IRQ_BANK0);
+}
+
 static void core1WaitInit( ) {
 	/* The static guard may skip only the CLAIM. A core reset clears this
 	 * core's NVIC and its vector table is rebuilt on launch, so a relaunched
@@ -1226,6 +1238,11 @@ void DisplayManager::loopCore1( ) {
 	/* Touch: reattach IRQ every launch (Core 1's NVIC was zeroed). */
 	_driver.ts->begin( );
 	_driver.ts->setRotation(3);
+	/* And read the controller once, whatever its line says. A relaunch can
+	 * follow a kill in the middle of a read, and that leaves the controller's
+	 * pen interrupt off (TouchWake.h). The constructor does this for the first
+	 * launch; the object survives every later one. */
+	_driver.ts->isrWake = true;
 
 	if (_driver.firstInit) {
 		/* Explicit clock. begin( ) with no argument took Adafruit_ILI9341's
@@ -1333,8 +1350,17 @@ void DisplayManager::loopCore1( ) {
 		 * synthesized screen-space coords. Allows CLI 'touch sim X Y'
 		 * for automation (screenshot capture). */
 		C1_PHASE(C1P_TOUCH_READ);
-		_rawTouchState = _driver.ts->touched( ) ||
-		                 __atomic_load_n(&_simTouchActive, __ATOMIC_ACQUIRE);
+		{
+			/* The library reads only when its interrupt woke it. Wake it here
+			 * too when PENIRQ is low, or when it has gone TOUCH_REARM_MS
+			 * unread, and count what that found (TouchWake.h). */
+			XPT2046_Touchscreen* const ts = _driver.ts;
+			g_touchWake.irqUnarmed = !touchIrqArmed( );
+			if (g_touchWake.before(ts->isrWake, !gpio_get(TOUCH_IRQ), millis( ))) ts->isrWake = true;
+			const bool touched = ts->touched( );
+			g_touchWake.after(touched);
+			_rawTouchState = touched || __atomic_load_n(&_simTouchActive, __ATOMIC_ACQUIRE);
+		}
 
 		/* Process touch BEFORE rendering for same-frame response */
 		C1_PHASE(C1P_TOUCH_HANDLE);

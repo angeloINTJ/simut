@@ -5020,6 +5020,10 @@ E6614103E7512B29,uSALA-1,Sala,55.00,52.00</code></pre>
 <p>Na dormência, a espera antes de cada busca passa a ser de 10 min. O aparelho cumpre três dormências. Se a rede não voltar, ele volta ao primeiro degrau e registra <strong>Dormancy over — back to fast retries</strong>. Uma conexão bem-sucedida, a qualquer momento, zera a escada.</p>
 <p>Durante a escada, o aparelho continua medindo, gravando o histórico e atendendo o painel. A telemetria pendente espera a rede voltar (<a href="#cap-21">capítulo 21</a>). A escada não abre o AP de configuração: o aparelho tenta a rede configurada pelo tempo que for preciso, e o AP só abre quando alguém pede (<a href="#cap-09-ap-quando">Quando o AP abre</a>). Da v2.7.1 à v2.8.0, a escada também abria o AP sozinha.</p>
 <figure id="fig-09-escada" class="fig fig-diagrama"><div class="pendente pendente-diagrama" role="img" aria-label="Imagem a capturar: A escada de reconexão: esperas que dobram, três dormências de 10 min e o recomeço, até a rede voltar."><span class="selo selo-alerta"><i></i>Imagem a capturar</span><span class="pend-tipo">Diagrama · <code>09-escada.png</code></span><span class="pend-como">linha do tempo da escada de reconexão: queda; cinco ciclos de busca, busca e tentativa de 20 s com esperas de 5, 10, 20, 40 e 80 s; três dormências de 10 min antes de cada busca; ao fim, o recomeço da escada, que se repete até a rede voltar; nenhum AP de configuração na linha</span></div><figcaption><b>Figura 77.</b> A escada de reconexão: esperas que dobram, três dormências de 10 min e o recomeço, até a rede voltar.</figcaption></figure>
+<h4 id="cap-09-recusa">Quando o rádio recusa o pedido</h4>
+<p>Um sinal fraco não impede o pedido de conexão: o rádio aceita o pedido, e a associação falha depois, como uma tentativa comum da escada. Mas o rádio pode recusar o próprio pedido, quando o chip ou o driver entra num estado do qual um pedido novo não o tira. Cada recusa vira o evento <strong>Conectando WiFi</strong> (10) com contexto 2, e a escada segue.</p>
+<p>Três recusas seguidas, com o aparelho ligado há mais de 30 min, fazem o aparelho reiniciar para recuperar o rádio. Antes, ele grava o evento 10 com contexto 3. Nos primeiros 30 min depois de um boot, ele não reinicia por esse motivo, então um rádio que continua quebrado custa no máximo um reinício a cada meia hora.</p>
+<p>Até a v2.8.0, uma recusa prendia o aparelho por até 15 s dentro do pedido, e o watchdog, que reinicia o aparelho depois de 8,4 s sem resposta, o reiniciava. O log mostrava só a autópsia de um travamento no módulo <code>WIFI</code>, contexto 202 (<a href="#cap-16-travamento">Como ler um travamento</a>).</p>
 <h4 id="cap-09-vigilancia">Outros motivos para reconectar</h4>
 <p>Conectado, o aparelho confere o sinal uma vez por minuto. Um sinal impossível, 0 dBm ou mais, ou abaixo de −120 dBm, indica que o rádio parou de responder de verdade, mesmo que o Wi-Fi ainda se diga conectado. Duas leituras impossíveis seguidas fazem o aparelho derrubar a conexão e entrar na escada, com o evento <strong>Implausible RSSI twice — link presumed dead, reconnecting</strong>.</p>
 <h4 id="cap-09-log">Como ler a escada no log de eventos</h4>
@@ -5067,6 +5071,16 @@ E6614103E7512B29,uSALA-1,Sala,55.00,52.00</code></pre>
 <td>10</td>
 <td><code>SSID not in scan — associating anyway</code></td>
 <td>Tentativa sem ver a rede, depois de duas buscas</td>
+</tr>
+<tr class="odd">
+<td>10</td>
+<td><code>The radio refused the join</code></td>
+<td>O rádio recusou o pedido; o contexto é 2 (<a href="#cap-09-recusa">Quando o rádio recusa o pedido</a>)</td>
+</tr>
+<tr class="even">
+<td>10</td>
+<td><code>The radio refused 3 joins in a row - restarting to recover it</code></td>
+<td>Três recusas seguidas: o aparelho reinicia; o contexto é 3</td>
 </tr>
 <tr class="odd">
 <td>525</td>
@@ -10603,8 +10617,8 @@ python3 tools/history_v5.py --dump-csv 20260923.h5 --interval 300 &gt; 20260923.
 </tr>
 <tr class="even">
 <td><code>2000</code> a <code>2999</code></td>
-<td>A memória livre no travamento</td>
-<td>Contexto menos 2000, em KB</td>
+<td>Onde estava o servidor web, a posição <code>hp=</code> do console</td>
+<td>Contexto menos 2000. <code>2740</code>: o servidor já tinha terminado de atender. <code>2000</code>: ele atendia, antes de qualquer etapa marcada, ou não tinha atendido nada desde o boot</td>
 </tr>
 <tr class="odd">
 <td><code>4000</code> a <code>32000</code></td>
@@ -10614,6 +10628,7 @@ python3 tools/history_v5.py --dump-csv 20260923.h5 --interval 300 &gt; 20260923.
 </tbody>
 </table></div>
 <p>Os vereditos de contexto 100, de 300 a 322 e 400 não têm registros irmãos.</p>
+<p>Até a v2.8.0, a faixa <code>2000</code> dizia, errado, a memória livre em KB. As posições são todas menores que 1024, então o registro saía sempre <code>2000</code>, e não dizia nada.</p>
 <h4 id="cap-16-modulos-travamento">Os módulos</h4>
 <p>Os números de módulo das faixas <code>200</code> e <code>1000</code>:</p>
 <div class="tw"><table>
@@ -10717,15 +10732,15 @@ python3 tools/history_v5.py --dump-csv 20260923.h5 --interval 300 &gt; 20260923.
          0 up2s      C0 [FTL][SYS   ] code=1 ctx=219
          0 up2s      C0 [FTL][SYS   ] code=1 ctx=1008
          0 up2s      C0 [FTL][SYS   ] code=1 ctx=4184
-         0 up2s      C0 [FTL][SYS   ] code=1 ctx=2031</code></pre>
+         0 up2s      C0 [FTL][SYS   ] code=1 ctx=2721</code></pre>
 <p>A leitura:</p>
 <ol type="1">
 <li><code>ctx=219</code>: o watchdog de hardware reiniciou o aparelho, com o núcleo 0 parado no módulo 19, <code>WEB_POLL</code>, que atende a interface web.</li>
 <li><code>ctx=1008</code>: o núcleo 1 estava no módulo 8, <code>DISPLAY</code>, desenhando o painel.</li>
 <li><code>ctx=4184</code>: o aparelho estava ligado havia 184 min, 3 h 04 min, quando travou. Isso confere com o <code>up3h04m</code> do último registro antes do travamento.</li>
-<li><code>ctx=2031</code>: havia 31 KB de memória livre.</li>
+<li><code>ctx=2721</code>: o atendimento web estava na posição 721, logo depois de entregar um pedaço da resposta. As posições são marcas no código-fonte (<code>HPOS</code>), e servem a quem for investigar o travamento.</li>
 </ol>
-<p>Na página, os mesmos quatro registros aparecem no topo da tabela, em ordem inversa, como <strong>Boot do sistema</strong> com <code>[ctx: 2031]</code>, <code>[ctx: 4184]</code>, <code>[ctx: 1008]</code> e <code>[ctx: 219]</code>, nível <code>FTL</code> e módulo <code>SYS</code>. Marque <strong>ERR</strong> para vê-los.</p>
+<p>Na página, os mesmos quatro registros aparecem no topo da tabela, em ordem inversa, como <strong>Boot do sistema</strong> com <code>[ctx: 2721]</code>, <code>[ctx: 4184]</code>, <code>[ctx: 1008]</code> e <code>[ctx: 219]</code>, nível <code>FTL</code> e módulo <code>SYS</code>. Marque <strong>ERR</strong> para vê-los.</p>
 <aside class="faixa faixa-nota"><span class="selo selo-neutro"><i></i>Nota</span>
 <p><strong>Por que a data fica vazia.</strong> A autópsia roda no começo do boot, antes de o relógio ser acertado, então os registros dela costumam sair com a data <code>0</code>, que a página mostra como <code>Boot +</code>. O travamento aconteceu segundos antes desse boot: use a data dos registros vizinhos para situá-lo.</p>
 </aside>
@@ -10777,6 +10792,16 @@ python3 tools/history_v5.py --dump-csv 20260923.h5 --interval 300 &gt; 20260923.
 <td><strong>WiFi desconectado</strong> (11)</td>
 <td>A rede caiu</td>
 <td><a href="#cap-09-log">Capítulo 9</a></td>
+</tr>
+<tr class="odd">
+<td><strong>Conectando WiFi</strong> (10) com contexto 2 ou 3</td>
+<td>O rádio recusou um pedido de conexão; no contexto 3, recusou três seguidos e o aparelho reiniciou para recuperá-lo</td>
+<td><a href="#cap-09-recusa">Capítulo 9</a></td>
+</tr>
+<tr class="even">
+<td><strong>Evento de toque</strong> (200)</td>
+<td>O toque do painel chegou por outro caminho que não a interrupção. Contexto 1: a interrupção do toque estava desligada no núcleo 1. Contexto 2: um toque só chegou pela consulta à linha do toque. Contexto 3: um toque só chegou pela leitura periódica. Cada um é gravado uma vez por boot</td>
+<td><a href="#cap-30-painel">Capítulo 30</a></td>
 </tr>
 <tr class="odd">
 <td><strong>NTP corrigindo timestamps</strong> (408)</td>
@@ -22846,6 +22871,11 @@ echo</code></pre>
 <td>Normal: é a proteção contra rádio travado. Se for frequente, verifique a alimentação e a distância do roteador</td>
 </tr>
 <tr class="odd">
+<td>O aparelho reiniciou sozinho, e o log mostra <strong>Conectando WiFi</strong> (10) com contexto 3 logo antes</td>
+<td>O rádio recusou três pedidos de conexão seguidos</td>
+<td>Normal: o reinício recupera o rádio (<a href="#cap-09-recusa">capítulo 9</a>). Se repetir a cada meia hora, desligue e religue a alimentação, e confira o sinal</td>
+</tr>
+<tr class="even">
 <td>A telemetria para com o sinal fraco</td>
 <td>Abaixo de −78 dBm a telemetria espera</td>
 <td>Melhore o sinal: aproxime o roteador ou use um repetidor</td>
@@ -23324,76 +23354,81 @@ echo</code></pre>
 <td>Espere a operação terminar; o aviso some sozinho</td>
 </tr>
 <tr class="even">
+<td>O painel desenha normalmente, mas não responde a nenhum toque, até reiniciar</td>
+<td>Até a v2.8.0: o toque só era lido quando a interrupção dele avisava, e uma interrupção perdida deixava o toque morto</td>
+<td>Reinicie. Nas versões seguintes o aparelho lê o toque também sem a interrupção e grava <strong>Evento de toque</strong> (200) uma vez por boot: anote o contexto e relate (<a href="#cap-16-acompanhar">capítulo 16</a>)</td>
+</tr>
+<tr class="odd">
 <td>O toque cai no lugar errado ou só funciona com força</td>
 <td>Calibração do toque ruim ou descartada pelo alinhamento da tela</td>
 <td><strong>Configurações &gt; Calibrar Touch</strong>; se não alcançar o menu, comece a calibração pela página <strong>Configurações</strong> da web ou pelo console</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>A calibração volta sempre para a primeira mira</td>
 <td><strong>Toques imprecisos! Tente novamente.</strong>: as duas voltas discordam</td>
 <td>Segure cada mira até ela ficar verde e toque no centro dela, com a mesma pressão</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>A borda da imagem aparece cortada de um lado</td>
 <td>Painel com a imagem deslocada</td>
 <td><strong>Alinhamento da Tela</strong>, ajuste, <strong>APLICAR</strong> e refaça a calibração que abre em seguida</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>O menu mostra poucos itens</td>
 <td>A conta identificada não tem as permissões dos outros itens</td>
 <td>Entre com outra conta, ou dê as permissões pela página <strong>Usuários</strong></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>O toque no cartão abre a tela de alarme em vez do mínimo e máximo</td>
 <td>O sensor está em alarme sem silêncio</td>
 <td>Use <strong>Min/Max</strong> na tela de alarme, ou silencie</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>O gesto de 3 s no cartão de cima não faz nada</td>
 <td>O sensor do cartão de cima está em alarme sem silêncio, ou o dedo escorregou e o toque recomeçou</td>
 <td>Silencie o alarme; mantenha o dedo parado por 3 s</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>O botão de gráfico não abre o gráfico</td>
 <td>O sensor está num slot de 11 a 15</td>
 <td>Use a página <strong>Histórico e Logs</strong> da web para esses slots</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>O gráfico abre sempre no mesmo período antigo, até o <strong>Hoje</strong> do calendário</td>
 <td>A janela ficou presa depois de navegar no tempo (código da v2.7.1)</td>
 <td>Toque na seta para a esquerda e depois na seta para a direita até ela apagar; ou reinicie</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Mínimo e máximo do cartão incluem valores de ontem</td>
 <td>Eles não zeram à meia-noite; contam desde o dia em que o aparelho ligou</td>
 <td>Reinicie para recomeçar a contagem</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Mínimo e máximo do cartão não acompanham as leituras</td>
 <td>O GPIO do sensor difere do número do slot (código da v2.7.1)</td>
 <td>Um reinício relê os valores do histórico. Onde der, ponha o sensor no slot de mesmo número do GPIO</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>Fails</code> sempre <code>0</code> no <strong>Status do Sistema</strong></td>
 <td>O campo não é preenchido na v2.7.1</td>
 <td>Veja as falhas na página <strong>Telemetria</strong> ou no log de eventos</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>No boot, o celular não acha a rede <code>SIMUT_SETUP</code></td>
 <td>O nome real da rede é o nome do aparelho seguido de <code>_SETUP</code></td>
 <td>Procure <code>&lt;nome&gt;_SETUP</code>, como <code>simut_SETUP</code>; o nome aparece numa das últimas linhas da caixa de boot</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>O gesto do AP no boot não pega</td>
 <td>O dedo encostou antes da linha <strong>Mantenha a tela pressionada</strong> ou saiu antes de 3 s</td>
 <td>Encoste depois da linha aparecer, em até 3,5 s, e mantenha até a barra encher</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Com o AP aberto, as leituras param e o <strong>CFG</strong> não abre nada</td>
 <td>Com o AP aberto, o aparelho não mede nem atende o painel (v2.7.1)</td>
 <td>Configure a rede pelo AP e deixe o aparelho reiniciar</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>O painel voltou sozinho à tela inicial e o tema escolhido não ficou</td>
 <td>30 s sem toque antes de <strong>APLICAR</strong></td>
 <td>Escolha de novo e toque em <strong>APLICAR</strong></td>

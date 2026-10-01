@@ -103,6 +103,7 @@ Detalhes no [capítulo 9](#cap-09).
 | Depois de desligar o HTTPS, a entrada volta sempre para a página de entrada | Cookie `Secure` antigo no navegador | Siga o aviso da página de entrada ([capítulo 13](#cap-13-sessao-segura)) |
 | O gestor de frota não consegue falar com o aparelho | CORS desligado, origem diferente da página, ou falta reiniciar | `system cors <origem exata, sem barra no fim>` e `reload confirm`. Confira o evento 577 no boot |
 | O aparelho reconecta sozinho de tempos em tempos com sinal bom | O rádio devolveu leituras de sinal impossíveis | Normal: é a proteção contra rádio travado. Se for frequente, verifique a alimentação e a distância do roteador |
+| O aparelho reiniciou sozinho, e o log mostra **Conectando WiFi** (10) com contexto 3 logo antes | O rádio recusou três pedidos de conexão seguidos | Normal: o reinício recupera o rádio ([capítulo 9](#cap-09-recusa)). Se repetir a cada meia hora, desligue e religue a alimentação, e confira o sinal |
 | A telemetria para com o sinal fraco | Abaixo de −78 dBm a telemetria espera | Melhore o sinal: aproxime o roteador ou use um repetidor |
 
 ## Data e hora {#cap-30-hora}
@@ -219,6 +220,7 @@ Detalhes no [capítulo 11](#cap-11).
 | Sintoma | Causa provável | O que fazer |
 |---|---|---|
 | A tela inicial não responde ao toque e a barra de cima mostra `WEB '...' - toque bloqueado` | Alguém lê o histórico ou o log pela interface web | Espere a operação terminar; o aviso some sozinho |
+| O painel desenha normalmente, mas não responde a nenhum toque, até reiniciar | Até a v2.8.0: o toque só era lido quando a interrupção dele avisava, e uma interrupção perdida deixava o toque morto | Reinicie. Nas versões seguintes o aparelho lê o toque também sem a interrupção e grava **Evento de toque** (200) uma vez por boot: anote o contexto e relate ([capítulo 16](#cap-16-acompanhar)) |
 | O toque cai no lugar errado ou só funciona com força | Calibração do toque ruim ou descartada pelo alinhamento da tela | **Configurações > Calibrar Touch**; se não alcançar o menu, comece a calibração pela página **Configurações** da web ou pelo console |
 | A calibração volta sempre para a primeira mira | **Toques imprecisos! Tente novamente.**: as duas voltas discordam | Segure cada mira até ela ficar verde e toque no centro dela, com a mesma pressão |
 | A borda da imagem aparece cortada de um lado | Painel com a imagem deslocada | **Alinhamento da Tela**, ajuste, **APLICAR** e refaça a calibração que abre em seguida |

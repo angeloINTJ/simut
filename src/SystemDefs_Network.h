@@ -118,6 +118,32 @@ constexpr uint8_t WIFI_SCANS_BEFORE_BLIND_JOIN = 2;
 constexpr uint32_t WIFI_SCAN_TIMEOUT_MS = 15000;
 
 /**
+ * A radio that will not take a join, and what is done about it.
+ *
+ * WiFi.begin( ) queues the join and returns at once; the association finishes
+ * in the background. It answers WL_IDLE_STATUS only when the radio would not
+ * take the request at all: cyw43_wifi_join( ) failing for the whole wait in the
+ * framework's CYW43::begin( ). A weak signal is not that, since a weak link
+ * still takes the request and fails to associate afterwards. A refusal is the
+ * driver or the chip in a state a join cannot leave.
+ *
+ * Field log of 2026-09-30 22:13, a device at -79 dBm: the link dropped, two
+ * scans never finished, and the blind join that followed was refused. The
+ * framework retried it for 15 s, Core 0 sat past the 8.4 s watchdog, and the
+ * watchdog rebooted the device. The reboot is what brought the radio back, but
+ * it came from the watchdog: at whatever point Core 1 had reached, with nothing
+ * persisted first. The framework patch (tools/arduino_pico_overrides,
+ * cyw43_join_budget.patch) now bounds that wait. These two constants keep the
+ * recovery and plan it:
+ * - after WIFI_JOIN_REFUSALS_BEFORE_RESTART refusals in a row,
+ *   NetworkManager logs SYS_WIFI_CONNECT ctx 3 and reboots by safeReboot( );
+ * - never within WIFI_RADIO_RESTART_MIN_UPTIME_MS of boot, so a radio that
+ *   stays broken costs one reboot per half hour, not one per attempt.
+ */
+constexpr uint8_t  WIFI_JOIN_REFUSALS_BEFORE_RESTART = 3;
+constexpr uint32_t WIFI_RADIO_RESTART_MIN_UPTIME_MS = 30UL * 60UL * 1000UL;
+
+/**
  * One access point, as the "pick a network" list needs it.
  *
  * Copied OUT of the driver's results, because WiFi.scanDelete( ) frees those

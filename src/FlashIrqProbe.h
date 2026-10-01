@@ -26,6 +26,7 @@
 #pragma once
 
 #include <stdint.h>
+#include "TouchWake.h"
 
 /* For the C1_PHASE stamp below: timer_hw is a fixed MMIO address, so reading it
  * is a load with no call and no XIP fetch. */
@@ -276,6 +277,11 @@ extern volatile uint8_t  g_core1PauseLastMod0;  /**< Core-0 TraceModule of the m
  * the stutter a user actually perceives. Both are written by Core 1 only. */
 extern volatile uint32_t g_core1Iters;          /**< loopCore1 iterations completed */
 extern volatile uint32_t g_core1IterMaxMs;      /**< Longest single iteration (stutter) */
+
+/* The touch read without trusting one interrupt (TouchWake.h). Core 1 writes it
+ * every iteration; Core 0 logs its findings once per boot and `show metrics`
+ * prints it. It stays zero on a build without a touch panel. */
+extern TouchWake g_touchWake;
 
 /* How long a SUCCESSFUL lockout takes to be granted, and how many pause
  * requests were abandoned. Shortening the retry budget is only safe if

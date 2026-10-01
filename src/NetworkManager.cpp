@@ -83,7 +83,7 @@ void NetworkManager::begin(const SystemConfig &cfg,
  _state = NET_OFFLINE;
  } else {
  LOG_CODE(LOG_INFO, "NET", NET_STARTING, 0, "");
- WiFi.begin(_ssid, _pass);
+ beginJoin( );
  _state = NET_CONNECTING;
  _stateTimer = millis( );
  }
@@ -460,7 +460,7 @@ void NetworkManager::update( ) {
  if (found) {
  LOG_CODE(LOG_INFO, "NET", SYS_WIFI_CONNECT, 0, TRL("SSID found, connecting..."));
  _blindScans = 0;
- WiFi.begin(_ssid, _pass);
+ beginJoin( );
  _state = NET_CONNECTING; _stateTimer = millis( );
  } else { afterFruitlessScan( ); }
  break;
@@ -645,12 +645,51 @@ void NetworkManager::afterFruitlessScan( ) {
   * touching the family latch. */
  LOG_CODE(LOG_WARN, "NET", SYS_WIFI_CONNECT, 1,
  TRL("SSID not in scan — associating anyway"));
- WiFi.begin(_ssid, _pass);
+ beginJoin( );
  _state = NET_CONNECTING;
  _stateTimer = millis( );
  } else {
  _state = NET_OFFLINE;
  _reconnectTimer = millis( );
+ }
+}
+
+/**
+ * @brief Ask the radio to associate, and plan the restart a refusing radio needs.
+ *
+ * WiFi.begin( ) queues the join and returns; update( ) polls for the outcome.
+ * WL_IDLE_STATUS back means the radio did not take the request at all, which a
+ * weak signal never causes (see WIFI_JOIN_REFUSALS_BEFORE_RESTART). On the
+ * field device of 2026-09-30 the refusal held Core 0 inside the framework past
+ * the watchdog, and the watchdog's reboot is what recovered the radio. With
+ * the framework's wait now bounded, the same recovery is planned here: logged
+ * (SYS_WIFI_CONNECT ctx 2 per refusal, ctx 3 before the restart), persisted by
+ * safeReboot( )'s pre-reboot hook, and not within the first half hour after a
+ * boot. The text is fixed English: the language packs are at their RAM
+ * ceiling, and this is an operator's line.
+ */
+void NetworkManager::beginJoin( ) {
+ takeJoinAnswer(WiFi.begin(_ssid, _pass));
+}
+
+/** @brief What a join's answer means: WL_IDLE_STATUS is a refusal, counted and
+ *  logged, and the third in a row past the first half hour restarts. Apart
+ *  from beginJoin( ) so that the rule can be fed an answer without a join of
+ *  its own; the bench feeds it one the radio is sure to refuse. */
+void NetworkManager::takeJoinAnswer(int status) {
+ if (status != WL_IDLE_STATUS) {
+ _joinRefusals = 0;
+ return;
+ }
+ if (_joinRefusals < 255) _joinRefusals++;
+ LOG_CODE(LOG_WARN, "NET", SYS_WIFI_CONNECT, 2, "The radio refused the join");
+ if (_joinRefusals >= WIFI_JOIN_REFUSALS_BEFORE_RESTART &&
+     millis( ) >= WIFI_RADIO_RESTART_MIN_UPTIME_MS) {
+ _joinRefusals = 0;
+ LOG_CODE(LOG_WARN, "NET", SYS_WIFI_CONNECT, 3,
+          "The radio refused 3 joins in a row - restarting to recover it");
+ watchdog_update( );
+ LogManager::instance( ).safeReboot( );
  }
 }
 
