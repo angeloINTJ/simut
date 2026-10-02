@@ -524,11 +524,11 @@
  ],
  "ceiling": 1044480,
  "measured_on": "2026-10-02 feat/ota-panel-screen on main 93f069a: all seven measured with the firmware-update screen (src/OtaScreen.h, src/DisplayManager_Ota.cpp): each step of an update on the panel, drawn from Core 0 while the stage holds Core 1, the alpha's two LCD lines, the boot line after an install, and 18 new strings. Against main: release +3,272, test +3,592, test_https +3,600, asserts +3,272, alpha +1,032, air +584, pico2_w_release +2,976 B. By symbol, on the release: drawOtaScreen +1,020, the text layout (otaPrepare, otaDraw, otaCentred, otaPercentText, otaBar) +650, showOta, otaProgress, otaEnd and otaPaintFromCore0 +368, otaTick +240, the three OTA handlers' hooks +216, the constructor +96 (the new members), handleTouch +72, the boot line +60, the 18 English strings +416 of literals and +72 of table, the 4-byte compare-and-swap from libatomic +42. Static RAM +72 B (18 more slots in the resident pack's string table). Budgets raised by the growth, which keeps each margin where it was; air's stays, 632 B under it. measured is the zopfli image PlatformIO prints.",
- "measured_at_commit": "chore/v2.8.0 on main 8aa898b (#195 merged; SIMUT_VERSION 2.8.0; budgets unchanged). All six rebuilt here; release, test, alpha and air byte-identical to the candidate tested on the bench. measured is the zopfli image PlatformIO prints.",
+ "measured_at_commit": "2026-10-02 chore/v2.9.0 on main e5cd23b (#224 merged; SIMUT_VERSION 2.9.0, the only source change; budgets unchanged). All seven rebuilt here: test, alpha, air and pico2_w_release equal to the figures #224 recorded, release, test_https and asserts 8 B under them. measured is the zopfli image PlatformIO prints.",
  "envs": {
   "pico_w_release": {
    "budget": 1013788,
-   "measured": 1013684
+   "measured": 1013676
   },
   "pico_w_test": {
    "budget": 1018836,
@@ -536,11 +536,11 @@
   },
   "pico_w_test_https": {
    "budget": 1026084,
-   "measured": 1025396
+   "measured": 1025388
   },
   "pico_w_asserts": {
    "budget": 1016012,
-   "measured": 1015980
+   "measured": 1015972
   },
   "pico_w_alpha": {
    "budget": 969108,

@@ -47,7 +47,7 @@ Los tres comparten el mismo núcleo:
 
 | | |
 |---|---|
-| **Release actual** | **v2.8.0** (30/09/2026). SIMUT salió de beta con la v2.7.0, sobre mediciones: un soak de 8,18 h sin ningún reinicio y 6 de 6 actualizaciones por el aire sin perder nada. La v2.8.0 conserva la configuración cuando una actualización se corta a mitad, y deja que el formato de telemetría personalizado envíe el Content-Type que espera su servidor; la v2.7.4 había corregido la búsqueda de sensores, que dejaba en error un BMP280 en I2C de hardware. |
+| **Release actual** | **v2.9.0** (02/10/2026). SIMUT salió de beta con la v2.7.0, sobre mediciones: un soak de 8,18 h sin ningún reinicio y 6 de 6 actualizaciones por el aire sin perder nada. La v2.9.0 es la primera release firmada: por el aire, el dispositivo solo instala imágenes que el proyecto firmó, y el panel muestra la actualización mientras ocurre. El punto de acceso de configuración solo se abre cuando se pide, una unidad sin red pide la fecha y la hora, y el dispositivo sigue midiendo con el punto de acceso activo; la v2.8.0 había pasado a conservar la configuración cuando una actualización se corta a mitad. |
 | **Imágenes publicadas** | Tres imágenes, cada una en `.uf2` y `.bin`: `release` (panel táctil TFT), `alpha` (LCD 16×2 con consola Bluetooth) y `air` (registrador a batería sin pantalla). Junto a ellas van los packs de idioma pt-BR y es-ES y un manifiesto de OTA. Una imagen con otro conjunto de funciones sale del [configurador de build](https://angelointj.github.io/simut/configurador/), y el CI la compila desde `main`. |
 | **Madurez** | <ul><li>`release`: **estable**.</li><li>`alpha`: publicado y probado en el banco, con su LCD 16×2 incluido desde el 26/09/2026.</li><li>`air`: **experimental**. Su único soak largo falló: un sueño en el ciclo 119 nunca despertó (F28). Hoy lo mitiga un watchdog a lo largo del despertar; la causa raíz no está confirmada.</li></ul> |
 | **Pruebas** | Cada pull request ejecuta 533 casos de test en el host en 9 suites, 60 s de fuzzing y análisis estático, y compila las siete imágenes de firmware con la caché fría. El comportamiento en hardware real se verifica en un banco — ver [Verificación en hardware](#verificación-en-hardware). |
@@ -56,7 +56,7 @@ Los tres comparten el mismo núcleo:
 - **Actualización.** La actualización por el aire reformatea el sistema de archivos:
   - Wi-Fi, cuentas y slots de sensor se conservan. El histórico, los archivos de calibración y los packs de idioma no, así que la página web descarga un backup antes de empezar, y restaurarlo los recupera.
   - Hay un único slot de firmware y ningún rollback. Un flasheo fallido se recupera con BOOTSEL y un cable USB.
-- **Punto de acceso de configuración.** Con el punto de acceso de configuración activo, el dispositivo deja de leer los sensores, de comprobar las alarmas y de grabar el histórico, y desde la v2.7.1 se abre solo: en un dispositivo sin red configurada y tras unos 68 min sin la red. Hay una corrección en revisión ([#204](https://github.com/angeloINTJ/simut/pull/204)).
+  - Desde la v2.9.0, solo una imagen que el proyecto firmó se instala por el aire: el `.bin` de una release, o una compilación del configurador. Una compilación propia va por USB.
 - **Reinicios sin explicación.** Un reinicio de watchdog (`ctx=209` o `ctx=455`) apareció tres veces en la imagen de prueba el 20–21 de septiembre, y no desde entonces; el que se capturó con su contexto tenía el Core 0 en la consola (`ctx=209`). Los dos núcleos están ahora instrumentados para explicar el siguiente. Un `ctx=455` (traza vacía) en el primer arranque después de `picotool load -x` no es esto: ese reinicio pasa por el watchdog, y el registro apareció tras 11 de 11 grabaciones así y tras ninguno de 7 reinicios por el pin (30/09/2026).
 - **Conexiones inactivas.** Durante el soak de la v2.7.0, el 7,1 % de las respuestas en una conexión keep-alive inactiva llegaron cortadas. El dispositivo corta un flujo que no puede enviar durante 4 s.
 - **Respuestas chunked.** Leído en un bucle cerrado, el 0,15–0,6 % de las respuestas de `/api/status` llega con el encuadre chunked roto ([#189](https://github.com/angeloINTJ/simut/issues/189)). El dispositivo no se reinicia y la petición siguiente funciona; la página pierde una actualización.
@@ -72,7 +72,7 @@ Los tres comparten el mismo núcleo:
 | Entornos regulados | Sin traza de auditoría | Sin RBAC de usuarios | 32 cuentas, PIN de panel por cuenta, registro de eventos persistente y syslog remoto |
 | Cadena de frío (sondas hasta −50 °C) | Lecturas básicas | Monitoreo básico | Multisensor calibrado, ventanas de mantenimiento |
 | Operación offline | Sí | A menudo depende de la nube | Web local completa + pantalla |
-| Actualización OTA | Reflasheo manual | OTA | OTA + backup/restore |
+| Actualización OTA | Reflasheo manual | OTA | OTA firmada + backup/restore |
 | Seguridad | Ninguna | Básica | HMAC-SHA256, RBAC de 13 bits, bloqueos, HTTPS opcional |
 | Home Assistant | Integración manual | Nativa | MQTT Discovery (opcional) |
 | Métricas Prometheus | Ninguna | Integrado | Ruta `/metrics` |
@@ -500,7 +500,7 @@ Dos cosas del LCD 16×2 no han pasado por la pantalla real: la disposición con 
 |----------|-------------|
 | [Manual de usuario (EN)](docs/MANUAL.md) | Montaje, pantalla/web/consola, OTA, referencia de la API, resolución de problemas — mantenido al día |
 | [Manual do usuário (pt-BR)](docs/MANUAL.pt-BR.md) | El mismo manual, en portugués |
-| [Manual completo (pt-BR)](docs/MANUAL.pt-BR.html) | El manual del producto en portugués, actualizado para la v2.8.0: 31 capítulos sobre instalación, configuración, uso diario e integración con servidores. Las pantallas se están recapturando; cada una que falta está marcada en su lugar |
+| [Manual completo (pt-BR)](docs/MANUAL.pt-BR.html) | El manual del producto en portugués, actualizado para la v2.9.0: 31 capítulos sobre instalación, configuración, uso diario e integración con servidores. Las pantallas se están recapturando; cada una que falta está marcada en su lugar |
 | [Guía de cableado](docs/WIRING.md) | Pinout completo y diagramas de conexión |
 | [Actualización por el aire](docs/OTA_USAGE.md) | Actualizar desde la página web, y lo que sobrevive |
 | [Guía de recuperación](docs/RECOVERY.md) | Recuperación de brick — BOOTSEL, picotool, reset 1200 bps |

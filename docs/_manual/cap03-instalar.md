@@ -4,25 +4,28 @@ Este capítulo mostra quais arquivos cada versão publica, como escolher a image
 
 ## Os arquivos de cada versão {#cap-03-arquivos}
 
-Cada versão publicada, na página de versões do projeto no GitHub (`github.com/angeloINTJ/simut/releases`), traz nove arquivos:
+Cada versão publicada, na página de versões do projeto no GitHub (`github.com/angeloINTJ/simut/releases`), traz dez arquivos:
 
 | Arquivo | Para que serve |
 |---|---|
-| `simut_v2.8.0_release.uf2` | Gravar a imagem release pelo USB |
-| `simut_v2.8.0_alpha.uf2` | Gravar a imagem alpha pelo USB |
-| `simut_v2.8.0_air.uf2` | Gravar a imagem do Air pelo USB |
-| `simut_v2.8.0_release.bin` | Atualizar a release pela página **Arquivos** ([capítulo 17](#cap-17-ota)) |
-| `simut_v2.8.0_alpha.bin` | Atualizar a alpha pela página **Arquivos** |
-| `simut_v2.8.0_air.bin` | Atualizar o Air pela página **Arquivos** |
+| `simut_v2.9.0_release.uf2` | Gravar a imagem release pelo USB |
+| `simut_v2.9.0_alpha.uf2` | Gravar a imagem alpha pelo USB |
+| `simut_v2.9.0_air.uf2` | Gravar a imagem do Air pelo USB |
+| `simut_v2.9.0_release.bin` | Atualizar a release pela página **Arquivos** ([capítulo 17](#cap-17-ota)) |
+| `simut_v2.9.0_alpha.bin` | Atualizar a alpha pela página **Arquivos** |
+| `simut_v2.9.0_air.bin` | Atualizar o Air pela página **Arquivos** |
 | `language_pt-BR.lng` | Pacote de idioma português do Brasil |
 | `language_es-ES.lng` | Pacote de idioma espanhol |
 | `manifest.json` | Tamanho, soma SHA-256 e tipo de cada imagem, para um gestor de frota ([capítulo 27](#cap-27-manifest)) |
+| `SHA256SUMS` | A soma SHA-256 de cada arquivo acima, para conferir um download com `sha256sum -c SHA256SUMS` |
+
+Desde a v2.9.0, cada arquivo publicado também tem um atestado de procedência, que liga o arquivo à execução do CI que o gerou e ao commit de onde veio; quem tem o `gh` confere um download com `gh attestation verify <arquivo> --repo angeloINTJ/simut`. Os `.bin` e os `.uf2` vêm assinados: a assinatura são os 241 bytes do fim do arquivo ([capítulo 17](#cap-17-ota-assinatura)).
 
 O `.uf2` e o `.bin` de uma mesma imagem têm o mesmo firmware: o `.uf2` é o `.bin` embrulhado no formato que o Pico W aceita pelo USB. Não troque um pelo outro: a página **Arquivos** recusa o `.uf2` ([capítulo 17](#cap-17-ota-conferencias)), e a unidade do BOOTSEL ignora o `.bin`.
 
 Os pacotes de idioma não vão dentro do firmware. Eles ficam no sistema de arquivos do aparelho e entram por outro caminho ([O pacote de idioma](#cap-03-idioma)). Os 11 temas do painel (arquivos `.thm`) não vêm na página da versão: estão na pasta `data/themes` do código-fonte, e são opcionais ([capítulo 11](#cap-11-temas)).
 
-::: {.figura #fig-03-arquivos tipo="diagrama" arquivo="03-arquivos.png" captura="os nove arquivos de uma versão e para onde vai cada um: .uf2 → cabo USB com BOOTSEL (aparelho novo ou recuperação); .bin → página Arquivos, atualização pela rede; language_pt-BR.lng → página Arquivos, pasta /lang; manifest.json → gestor de frota; três colunas coloridas por imagem (release, alpha, air)"}
+::: {.figura #fig-03-arquivos tipo="diagrama" arquivo="03-arquivos.png" captura="os dez arquivos de uma versão e para onde vai cada um: .uf2 → cabo USB com BOOTSEL (aparelho novo ou recuperação); .bin → página Arquivos, atualização pela rede; language_pt-BR.lng → página Arquivos, pasta /lang; manifest.json → gestor de frota; SHA256SUMS → conferência do download; três colunas coloridas por imagem (release, alpha, air)"}
 Os arquivos de uma versão e o caminho de cada um até o aparelho.
 :::
 
@@ -75,7 +78,7 @@ O `picotool` é a ferramenta de linha de comando do Raspberry Pi para o RP2040. 
 
 ```bash
 picotool info
-picotool load -x simut_v2.8.0_release.uf2
+picotool load -x simut_v2.9.0_release.uf2
 ```
 
 O `picotool info` confirma que a placa está no modo BOOTSEL. O `load -x` grava e reinicia a placa no fim.
@@ -184,7 +187,7 @@ PLATFORMIO_BUILD_FLAGS="-DSIMUT_TFT_SPI_HZ=31250000u" pio run -e pico_w_release
 
 As versões anteriores à 1.6.2-beta tinham um defeito na atualização pela rede: diziam que tinham aplicado a imagem sem aplicá-la. Por isso, a primeira atualização de um aparelho desses é pelo USB.
 
-Um aparelho na versão 1.x perde duas coisas no primeiro boot da 2.8.0:
+Um aparelho na versão 1.x perde duas coisas no primeiro boot da 2.9.0:
 
 - **A configuração.** O firmware não lê configurações das versões 1.x. O aparelho começa com a configuração de fábrica e uma senha nova para o `admin`, mostrada no console USB ([capítulo 4](#cap-04-senha)). Anote a rede, as contas e os sensores antes de atualizar.
 - **O histórico no formato antigo.** Os arquivos `.sim4` da pasta `/history` são apagados no primeiro boot. Baixe-os antes de atualizar e converta-os no computador, com a ferramenta `tools/history_v5.py` do código-fonte:
@@ -196,7 +199,7 @@ python3 tools/history_v5.py --convert-v4 AAAAMMDD.sim4 AAAAMMDD.h5
 Um aparelho na versão 2.x mantém a configuração: o firmware novo a converte no boot.
 
 ::: atencao
-**A conversão só vai para a frente.** A v2.8.0 grava a configuração num formato novo, que as versões anteriores não leem. Uma versão anterior gravada depois dela, pelo USB ou pela página **Arquivos**, pode voltar com a configuração de fábrica. Para voltar a uma versão anterior sem perder a configuração, grave-a e restaure o backup feito antes de atualizar para a v2.8.0, como o `simut_pre-ota_<número>.bkp` que a página **Arquivos** baixa ([capítulo 17](#cap-17-restauracao)). O que mudou no aparelho depois desse backup se perde.
+**A conversão só vai para a frente.** A v2.8.0 passou a gravar a configuração num formato novo, que as versões anteriores não leem; a v2.9.0 usa o mesmo. Uma versão anterior à v2.8.0 gravada depois dela, pelo USB, pode voltar com a configuração de fábrica; pela página **Arquivos**, desde a v2.9.0, só entra imagem assinada, e nenhuma versão anterior é. Para voltar a uma versão anterior à v2.8.0 sem perder a configuração, grave-a e restaure o backup feito antes de atualizar para a v2.8.0, como o `simut_pre-ota_<número>.bkp` que a página **Arquivos** baixa ([capítulo 17](#cap-17-restauracao)). O que mudou no aparelho depois desse backup se perde.
 :::
 
 ## Depois de gravar {#cap-03-depois}

@@ -1,14 +1,15 @@
 # SIMUT — Manual do Usuário
 
-**Firmware:** v2.8.0 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **Licença:** MIT
+**Firmware:** v2.9.0 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **Licença:** MIT
 **Repositório:** https://github.com/angeloINTJ/simut
 
 [English](MANUAL.md) | **Português**
 
 > **Este não é um instrumento metrológico certificado.** Ele é testado em
-> hardware real, e esta versão traz 8,2 h de soak e seis idas e voltas de OTA
-> na imagem aqui publicada, mas não o faça o único controle de um
-> armazenamento regulado sem validá-lo contra a sua própria referência.
+> hardware real: a linha saiu do beta com 8,2 h de soak e seis idas e voltas
+> de OTA (v2.7.0), e toda versão passa por uma atualização na bancada antes de
+> ser publicada. Ainda assim, não o faça o único controle de um armazenamento
+> regulado sem validá-lo contra a sua própria referência.
 
 **Três builds compartilham este manual.** A maior parte dele descreve o build
 *release* — o do display touch. Duas variantes diferem, e cada uma está marcada

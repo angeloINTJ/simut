@@ -3,11 +3,10 @@
 Estado: **em andamento**. Decisão do mantenedor, 01/10/2026: OTA só com imagem
 assinada, e, nas escolhas de chave, bancada e build local, "o mais
 profissional". Feitas as etapas 1 (este desenho, #219), 2 (ferramenta, módulo e
-testes no host, #220) e 3 (ligar ao stage, #221): o firmware do `main` só aceita
-imagem assinada. A etapa 4 tem a cerimônia feita (as chaves e o Environment
-`release`) e os jobs de assinatura neste ponto; **nenhuma release sai antes de uma
-execução assinada pelo CI ser conferida**: um aparelho que instalasse uma imagem
-sem assinatura recusaria todas as seguintes. As etapas estão no fim.
+testes no host, #220), 3 (ligar ao stage, #221) e 4 (cerimônia e CI, #222): o
+firmware do `main` só aceita imagem assinada, e a primeira execução assinada pelo
+CI foi conferida em 01/10/2026. A etapa 5 é a v2.9.0, a primeira release
+assinada. As etapas estão no fim.
 
 ## O problema
 
@@ -350,10 +349,14 @@ configuração e do histórico, é a etapa 5.
    bancada e a marca `ota_trust_bench`, a página, o log, as ferramentas de bancada
    e o manual. O rig prova a tabela acima. O simut-rx fica para um PR no
    repositório dele.
-4. **Cerimônia e CI**: o mantenedor gera a raiz e a chave de assinatura (feito,
-   01/10); o Environment `release` com ele como revisor e o segredo (feito,
-   01/10); o job de assinatura nos dois workflows e a candidata assinada por
-   `workflow_dispatch`. A etapa fecha quando a primeira execução assinada pelo CI
-   for conferida.
-5. **A primeira release assinada**, com o teste de retenção pelo ar a partir
-   da v2.8.0.
+4. **Cerimônia e CI** (feita, 01/10/2026): o mantenedor gerou a raiz e a chave
+   de assinatura; o Environment `release`, com ele como revisor, guarda o
+   segredo; os dois workflows assinam depois da aprovação dele. A primeira
+   execução assinada (`workflow_dispatch` no `main`, run 36953807511) foi
+   conferida: as três imagens com `v=0` contra `keys/`, signatário de série 1, e
+   a parte da imagem byte a byte igual à build local. No rig, a release assinada
+   pelo CI, gravada pelo USB, recusou uma imagem sem assinatura (8), uma de
+   bancada (12) e a do Air assinada pelo CI (7), e aceitou pelo ar a própria
+   imagem assinada (`202` em 1,97 s, `image verified`).
+5. **A primeira release assinada**, a v2.9.0, com o teste de retenção pelo ar a
+   partir da v2.8.0 publicada e um salto da candidata sobre ela mesma.

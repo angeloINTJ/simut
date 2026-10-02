@@ -4,7 +4,7 @@ Este capítulo reúne em tabelas os números do SIMUT: faixas, valores de fábri
 
 ## Como ler as tabelas {#cap-28-como-ler}
 
-- Os valores são os da v2.8.0.
+- Os valores são os da v2.9.0.
 - Quando um número muda de uma imagem para outra, a célula traz o selo da imagem: [release]{.img}, [alpha]{.img} ou [air]{.img}.
 - Uma medição traz a data e a versão em que foi feita. Os demais números vêm do código.
 - A coluna **Onde** leva ao capítulo que explica o item. Lá estão o efeito de cada valor e o que fazer quando um limite é atingido.
@@ -371,6 +371,7 @@ O filtro vale só para a flash: o console com `debug on` e o syslog recebem todo
 | Proteções do backup | Cabeçalho de 40 bytes com CRC32 próprio, CRC32 do conteúdo e a identidade do chip | [cap. 17](#cap-17-backup) |
 | Restauração | Só no mesmo aparelho; no máximo 200 arquivos, com até 4 KiB de nomes somados | [cap. 17](#cap-17-restauracao-recusa) |
 | Atualização: tamanho da imagem | De 100 KiB a 1.016 KiB (1.040.384 B) | [cap. 17](#cap-17-ota-conferencias) |
+| Atualização: assinatura | 241 B no fim do `.bin`, P-256; conferida no fim do envio (1,87 s) e de novo na instalação (1,94 s), desde a v2.9.0 | [cap. 17](#cap-17-ota-assinatura) |
 | Atualização: outras conferências | Início de imagem válido para o RP2040 nos primeiros 256 bytes; etiqueta da variante igual à do aparelho | [cap. 17](#cap-17-ota-conferencias) |
 | Atualização: cópia da configuração | Gravada no início do envio e usada uma vez, no boot seguinte, desde a v2.8.0; um envio cortado ou recusado mantém a configuração e apaga os demais arquivos | [cap. 17](#cap-17-sobrevive) |
 | [release]{.img} Captura do painel | BMP de 320 × 240 pixels, 230.454 bytes | [cap. 13](#cap-13-captura) |

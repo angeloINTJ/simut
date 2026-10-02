@@ -47,7 +47,7 @@ They share one core:
 
 | | |
 |---|---|
-| **Current release** | **v2.8.0** (2026-09-30). SIMUT left beta with v2.7.0, on measurements: an 8.18 h soak with 0 reboots, and 6 of 6 over-the-air updates with nothing lost. v2.8.0 keeps the configuration when an update is cut off halfway, and lets the custom telemetry format send the Content-Type its server expects; v2.7.4 had fixed a sensor scan that left a BMP280 on hardware I2C in error. |
+| **Current release** | **v2.9.0** (2026-10-02). SIMUT left beta with v2.7.0, on measurements: an 8.18 h soak with 0 reboots, and 6 of 6 over-the-air updates with nothing lost. v2.9.0 is the first signed release: over the air the device installs only images the project signed, and the panel shows an update while it happens. The setup access point opens only when asked, a unit with no network asks for the date and time, and the device keeps measuring with the access point up; v2.8.0 had kept the configuration when an update is cut off halfway. |
 | **Published images** | Three images, each as `.uf2` and `.bin`: `release` (TFT touch panel), `alpha` (16×2 LCD with a Bluetooth console) and `air` (headless battery logger). The pt-BR and es-ES language packs and an OTA manifest ship alongside. An image with a different set of features comes from the [build configurator](https://angelointj.github.io/simut/configurador/), and CI builds it from `main`. |
 | **Maturity** | <ul><li>`release`: **stable**.</li><li>`alpha`: published and bench-tested, its 16×2 LCD included since 2026-09-26.</li><li>`air`: **experimental**. Its one long soak failed: a sleep in cycle 119 never woke (F28). A watchdog across the wake now mitigates it; the root cause is not confirmed.</li></ul> |
 | **Tests** | Every pull request runs 533 host test cases in 9 suites, 60 s of fuzzing and static analysis, and builds all seven firmware images from a cold cache. Behaviour on real hardware is verified on a bench — see [Verification](#verification-on-hardware). |
@@ -56,7 +56,7 @@ They share one core:
 - **Updates.** An update over the air reformats the filesystem:
   - Wi-Fi, accounts and sensor slots are carried across. History, calibration files and language packs are not, so the web page downloads a backup before it starts, and restoring it brings them back.
   - There is one firmware slot and no rollback. A bad flash is recovered with BOOTSEL and a USB cable.
-- **Setup access point.** While the setup access point is up, the device stops reading sensors, checking alarms and recording history, and since v2.7.1 it opens by itself: on a unit with no network configured, and after about 68 min without the network. A fix is in review ([#204](https://github.com/angeloINTJ/simut/pull/204)).
+  - Since v2.9.0, only an image the project signed installs over the air: a release `.bin`, or a build from the configurator. A build of your own goes over USB.
 - **Unexplained resets.** A watchdog reset (`ctx=209` or `ctx=455`) appeared three times on the test image on 20–21 September and not since; the one caught with its context had Core 0 in the console (`ctx=209`). Both cores are now instrumented to explain the next one. A `ctx=455` (empty trace) on the first boot after `picotool load -x` is not this: that reboot goes through the watchdog, and the record appeared after 11 of 11 such flashes and after none of 7 hardware resets (2026-09-30).
 - **Idle connections.** During the v2.7.0 soak, 7.1 % of responses on an idle keep-alive connection arrived cut short. The device drops a stream it cannot send for 4 s.
 - **Chunked replies.** Read in a tight loop, 0.15–0.6 % of `/api/status` replies arrive with their chunked framing broken ([#189](https://github.com/angeloINTJ/simut/issues/189)). The device does not restart and the next request works; the page misses one update.
@@ -72,7 +72,7 @@ They share one core:
 | Regulated environments | No audit trail | No user RBAC | 32 accounts, per-account panel PIN, a persistent event log and remote syslog |
 | Cold chain (probes down to −50 °C) | Basic readings | Basic monitoring | Calibrated multi-sensor, maintenance windows |
 | Offline operation | Yes | Often cloud-dependent | Full local web + display |
-| OTA updates | Manual reflash | OTA | OTA + backup/restore |
+| OTA updates | Manual reflash | OTA | Signed OTA + backup/restore |
 | Security | None | Basic | HMAC-SHA256, 13-bit RBAC, lockouts, optional HTTPS |
 | Home Assistant | Manual setup | Native | MQTT Discovery (opt-in) |
 | Prometheus metrics | None | Built-in | `/metrics` endpoint |
@@ -498,7 +498,7 @@ Two things on the 16×2 LCD have not been on glass: the single-sensor layout, wi
 |----------|-------------|
 | [User manual](docs/MANUAL.md) | Hardware setup, display/web/console guide, OTA, API reference, troubleshooting — kept current |
 | [Manual do usuário (pt-BR)](docs/MANUAL.pt-BR.md) | The same manual, in Portuguese |
-| [Complete manual (pt-BR)](docs/MANUAL.pt-BR.html) | The full product manual in Portuguese, updated for v2.8.0: 31 chapters on installation, configuration, daily use and server integration. Screenshots are being recaptured; each missing one is marked where it belongs |
+| [Complete manual (pt-BR)](docs/MANUAL.pt-BR.html) | The full product manual in Portuguese, updated for v2.9.0: 31 chapters on installation, configuration, daily use and server integration. Screenshots are being recaptured; each missing one is marked where it belongs |
 | [Wiring guide](docs/WIRING.md) | Complete pinout and connection diagrams |
 | [Over-the-air updates](docs/OTA_USAGE.md) | Updating from the web page, and what survives it |
 | [Recovery guide](docs/RECOVERY.md) | Brick recovery — BOOTSEL, picotool, 1200 bps reset |

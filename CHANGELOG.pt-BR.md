@@ -4,6 +4,228 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.9.0 (2026-10-02)
+
+**As atualizações pelo ar só aceitam imagens assinadas pelo projeto, e o painel
+mostra a atualização enquanto ela acontece. O ponto de acesso de configuração
+só abre quando pedido, uma unidade sem rede pede a data e a hora, e o aparelho
+continua medindo com o ponto de acesso no ar.**
+
+Esta é a primeira release assinada. Um aparelho na v2.8.x a instala pelo ar
+como qualquer outra imagem, porque a v2.8.x não confere assinatura; da v2.9.0
+em diante, o aparelho só instala imagem assinada. O `CONFIG_VERSION` continua
+26: o arquivo de configuração é o mesmo, e a v2.8.0 o lê.
+
+### As atualizações pelo ar só aceitam imagem assinada (#219, #220, #221, #222)
+
+Até a v2.8.x, uma atualização conferia que o arquivo cabia no slot, que era uma
+imagem de RP2040 e que fora compilado para o mesmo hardware. Essas conferências
+pegam acidentes, não intenção: qualquer `.bin` que passasse nelas virava o
+firmware, atrás só da senha do administrador completo.
+
+Toda imagem que o projeto publica agora termina numa assinatura de 241 bytes:
+uma assinatura P-256 sobre todos os bytes, feita por uma chave de assinatura que
+uma chave raiz certifica. A raiz fica offline, com o mantenedor. A chave de
+assinatura mora num Environment do GitHub que só a entrega ao CI depois que o
+mantenedor aprova a execução, e uma raiz de bancada separada assina as imagens
+de teste, que só as imagens de teste aceitam. O aparelho confere a assinatura no
+fim do envio (1,87 s para 1 MB) e de novo quando a instalação é pedida (1,94 s),
+sobre os bytes que o instalador vai copiar. Uma recusa diz o motivo, como `v` na
+resposta e na página web:
+
+| `v` | Recusada porque |
+|---|---|
+| 8 | a imagem não é assinada |
+| 9 | a assinatura não confere: o arquivo mudou depois de assinado, ou foi assinado por uma chave em que o aparelho não confia |
+| 10 | foi assinada com uma chave aposentada |
+| 11 | está abaixo do nível de segurança instalado, e voltar a ela pelo ar está bloqueado |
+| 12 | foi assinada com a chave de bancada, que uma imagem publicada não aceita |
+
+O `.bin` de uma release e as builds do configurador são assinados pelo CI. Uma
+build feita na sua máquina chega ao aparelho só pelo USB; o USB não confere
+assinatura, e o BOOTSEL continua gravando qualquer `.uf2`. O desenho, os limites
+e a cerimônia das chaves estão em `docs/analysis/OTA_ASSINADA.md`.
+
+### O painel mostra a atualização enquanto ela acontece (#224)
+
+Até aqui o painel congelava no último quadro da tela inicial durante todo o
+envio, ficava assim durante a instalação, e nunca dizia quando uma imagem era
+recusada. Cada etapa agora toma o painel, de qualquer tela, sob **Atualização de
+firmware**: recebendo a nova versão (com a barra e a porcentagem), conferindo a
+assinatura, imagem conferida e instalando até o aparelho reiniciar, sempre com
+**Não desligue o aparelho**. Nem um toque nem a volta de 30 s sem toque as tiram
+da tela. Uma recusa diz o motivo e que o aparelho continua na versão atual, por
+12 s; um envio interrompido diz isso por 8 s; um toque sai de qualquer das duas.
+Depois de uma instalação cuja imagem confere com a enviada, o log do boot mostra
+`Update installed: v2.9.0`. O alpha escreve as mesmas etapas no LCD.
+
+Desenhar a tela custa ao envio cerca de 0,6 s: 32,2 s contra 31,6 s para uma
+imagem de 1 MB na bancada.
+
+### O ponto de acesso de configuração só abre quando pedido (#214)
+
+Desde a v2.7.1 o ponto de acesso abria sozinho numa unidade sem rede
+configurada, e a escada de reconexão caía nele depois de cerca de uma hora sem a
+rede. Agora ele só abre por Configurações → 12, pelo comando `ap` ou pelo gesto
+de manter a tela pressionada no boot. Uma unidade cuja rede sumiu continua
+medindo e continua tentando a rede.
+
+### Uma unidade sem rede pede a data e a hora (#214)
+
+Sem rede não há NTP, e os registros que um relógio provisório carimba não são
+confiáveis. No fim do boot, uma unidade sem rede configurada pede a data e a
+hora: no painel, uma tela nova (`dd / mm / aaaa  hh : mm`, com **PULAR** e
+**SALVAR**), e em todo console uma linha que nomeia o comando,
+`conf time AAAA-MM-DD HH:MM:SS`, que agora funciona em todo console, o de
+emergência inclusive. Configurações → 13 abre a mesma tela a qualquer momento.
+A tela inicial marca o relógio provisório com `?` em âmbar, um relógio acertado
+à mão corrige o que o provisório carimbou, como o NTP já fazia, e o `conf time`
+recusa datas que o calendário não tem (`2026-02-31` virava 3 de março).
+
+Consertado no caminho: uma correção do relógio movia o bloco aberto do histórico
+duas vezes, e o arquivo do dia andava para trás pelo tamanho da correção.
+Acontecia com o NTP também.
+
+### O aparelho continua medindo com o ponto de acesso no ar (#204)
+
+Da v2.7.1 à v2.8.0, com o ponto de acesso de configuração no ar, o laço
+principal voltava antes dos sensores, dos alarmes, do histórico e da telemetria.
+Um monitor sem Wi-Fi não media, não gravava e não alarmava. Agora só o syslog e
+a telemetria, que precisam da rede lá fora, esperam. Na bancada, 90 s com o
+ponto de acesso no ar: 0 leituras de sensor antes da correção, 219 depois, e o
+alarme disparou 3 s depois do `ap`.
+
+### Correções achadas enquanto o manual era escrito (#203, #208, #209, #217)
+
+- **SDA e SCL trocados num BME280/BMP280 travavam o boot** (#203): a conferência
+  dos pinos conhecia o par, não os papéis, e o framework entra em pânico com um
+  SDA ilegal. Agora o aparelho sobe, e o sensor lê por bit-bang. Um segundo 280
+  noutro par do mesmo controlador I2C não lê mais os valores do primeiro.
+- **A linha de alarmes por MQTT nunca lia os ACKs com a telemetria comum
+  desligada**, e uma fila cheia nunca cabia numa publicação (#208). As duas
+  esvaziam agora.
+- **"NTP sincronizado" era sempre verdade** (#209), na tela inicial da web, no
+  `/api/status`, no `/metrics` e no painel. Agora quer dizer que o NTP ou um
+  acerto à mão ajustou o relógio, e a recusa "precisa de NTP" da página de
+  calibração pode enfim acontecer.
+- **Uma borda de alarme recusada pela fila cheia da linha de alarmes nunca era
+  anunciada** (#161, #217). Agora ela sai quando há espaço, se a condição ainda
+  estiver ativa, e conta uma vez só.
+
+### De um log de campo (#218)
+
+- Um join de Wi-Fi que o rádio recusa prendia o Core 0 além do watchdog: o
+  aparelho reiniciava. O join agora desiste em 4 s, alimenta o watchdog, e três
+  recusas seguidas depois de 30 min ligado viram um reinício planejado.
+- O toque do painel podia ficar morto até um reinício se a interrupção dele se
+  perdesse. O Core 1 agora também lê o toque quando a linha está baixa, e a cada
+  250 ms.
+- O quarto registro da autópsia de um watchdog dizia "0 KB livres" toda vez;
+  agora ele dá a posição do servidor web.
+
+### Pacotes de idioma e a tela Licença (#223)
+
+- **Um pacote guarda só os textos dele na RAM.** O carregador lia tudo o que
+  vinha antes do dicionário web numa alocação só, 16,3 KB no es-ES, e ficava com
+  3 KB. Agora ele lê só os textos, no máximo 6 KB.
+- **A tela Licença mostra o que a `/license` mostra:** uma abertura no idioma do
+  pacote, o texto MIT no inglês original e todos os componentes de terceiros das
+  imagens. Conferidos contra os símbolos que cada imagem liga, os avisos deixavam
+  de fora seis componentes que toda imagem carrega e erravam os termos do
+  BTstack e três titulares. O `THIRD_PARTY_NOTICES.md` e os textos integrais das
+  licenças em `LICENSES/` são novos no repositório, e no código-fonte de cada
+  release.
+- Os pacotes perderam a licença traduzida (cerca de 1,95 KB cada) e ganharam os
+  18 textos da tela de atualização.
+
+### Por dentro
+
+- **O RP2350 do Pico 2 W** (#215): o CI compila a release para ele em todo pull
+  request. Ela não é publicada, e nada rodou num RP2350 ainda. No caminho, os
+  registradores do watchdog e da fonte passaram a usar os nomes do SDK no lugar
+  dos números do RP2040, e os dois caminhos de reinício que escreviam um
+  registrador no deslocamento errado foram consertados (o `watchdog_enable( )` já
+  tinha posto os mesmos bits).
+- **Mais chaves para o configurador** (#197–#202): o cliente TLS da telemetria, o
+  MQTT, a página de histórico, a API de exportação, o `/metrics`, o syslog e o
+  gráfico do painel podem ficar fora de uma build personalizada, e o
+  `/api/status` diz quais chaves uma imagem tem (`feat`). As imagens publicadas
+  não mudam com elas, a não ser pelo alpha e o Air, que deixaram de carregar no
+  heap o buffer de 5.872 B do gráfico do painel.
+- **O CI** roda as suítes do host sob AddressSanitizer e UBSan (#206), publica o
+  `SHA256SUMS` e um atestado de procedência da build com cada release (#207), e a
+  `main` exige nove checks (#216). Um portão mantém os números dos READMEs iguais
+  ao que a árvore mede (#205).
+
+### Flash
+
+Contra a v2.8.0 publicada, `.bin` assinado (a imagem e a assinatura de 241
+bytes): release 1.011.388 → 1.025.949 B (+14.561), alpha 978.092 → 982.429 B
+(+4.337), Air 1.018.956 → 1.027.389 B (+8.433). Folga sob o teto de 1.040.384 B
+da atualização pelo ar: release 14.435, alpha 57.955, Air 12.995.
+
+### A bancada
+
+As mudanças que rodam no aparelho foram conferidas na placa da bancada (painel
+de toque, dois DS18B20, dois DHT22, um BMP280 no I2C de hardware) contra a
+imagem logo antes delas, com a flash da placa despejada antes e restaurada byte a
+byte depois; os números estão em cada pull request. Entre elas:
+
+- **Atualizações assinadas:** uma imagem release assinada pelo CI, gravada pelo
+  USB, recusou uma imagem sem assinatura (8), uma assinada na bancada (12) e a
+  imagem do Air assinada pelo CI (7), e aceitou pelo ar a própria imagem
+  assinada; a imagem assinada pelo CI é, byte a byte, a build local mais a
+  assinatura. Um envio cortado depois de outro já confirmado deixava a
+  confirmação no lugar, e a instalação copiaria o que o corte deixou; a segunda
+  conferência da instalação agora o recusa (409, `v=9`).
+- **A tela de atualização:** cada etapa e cada motivo em pt-BR, inglês e es-ES;
+  as recusas, o corte e a tela de imagem conferida de atualizações reais iguais,
+  pixel a pixel, às telas desenhadas a pedido (0 pixels diferentes em cada uma);
+  duas atualizações completas pelo ar.
+- **As correções:** **#203** SDA/SCL trocados, pânico em todo boot antes, boot
+  completo depois. **#204**: acima. **#208**: a suíte de alarmes por MQTT 7/8
+  antes, 8/8 depois; um lote de 2.794 B confirmado onde a imagem anterior parava
+  em 2.001 B. **#209**: `ntp` 1 com um relógio de 1970 antes, 0 depois. **#217**:
+  a borda recusada chega quando o servidor confirma; 10/11 antes, 11/11 depois.
+  **#218**: um join recusado volta em 4,1 s em vez de um reinício pelo watchdog.
+- **#223:** o carregador antigo e o novo comparados nos dois pacotes e em 40.016
+  pacotes alterados; a tela Licença em três idiomas, 7 páginas.
+
+### Atualizando
+
+- **Da v2.8.x:** pelo ar, na página Arquivos, com o `.bin` desta release. Ele é
+  assinado, e a v2.8.x não confere assinatura, então nada muda no jeito de
+  fazer. Dali em diante o aparelho só instala imagem assinada.
+- **Voltar para a v2.8.x:** só pelo USB (`.uf2`), porque as imagens da v2.8.x não
+  são assinadas. A configuração fica: o formato não mudou.
+- **Da v2.7.4 ou anterior:** leia antes as notas de *Atualizando* da v2.8.0. O
+  envio roda no firmware instalado, então um envio cortado ainda pode devolver o
+  aparelho aos padrões de fábrica nessa única atualização.
+- **Uma unidade sem rede configurada** não abre mais o ponto de acesso de
+  configuração sozinha: abra-o por Configurações → 12, com `ap` no console ou com
+  o gesto de manter a tela pressionada no boot.
+- **Pacotes de idioma:** suba os dois que acompanham esta release na página
+  Arquivos e reinicie. Com os pacotes antigos tudo funciona, e os textos novos
+  aparecem em inglês. Os pacotes novos na v2.8.0 também funcionam, com a tela
+  Licença em inglês e um `@` sozinho no fim do `help` do console.
+
+### Conhecido, e não consertado aqui
+
+- **Uma resposta em partes (chunked) às vezes perde o enquadramento** (#189):
+  0,15 a 0,6 % das leituras de `/api/status` num laço apertado. O pedido seguinte
+  dá certo.
+- **No alpha, as mensagens do log em pt-BR ou es-ES saem vazias**, pelo código:
+  as buscas de tradução dele devolvem um texto vazio em vez de nenhum.
+- **Linhas acentuadas da tela de boot mostram `?`**, pelo código: a caixa do boot
+  dobra como UTF-8 um texto que já é Latin-1. As linhas de boot em inglês, que
+  uma atualização deixa, não são afetadas.
+- **A página web não repete uma instalação recusada com 503** (um toque no painel
+  nos 5 s antes), pelo código. O aparelho fica então esperando, com o sistema de
+  arquivos desmontado, até reiniciar, e o reinício descarta a imagem enviada.
+- Não conferido no hardware: a tela de atualização no LCD do alpha, e a linha de
+  boot depois de uma instalação, que o boot mostra antes de a web poder
+  capturá-la.
+
 ## v2.8.0 (2026-09-30)
 
 **Uma atualização cortada no meio não devolve mais o aparelho às configurações

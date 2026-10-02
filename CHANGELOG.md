@@ -4,6 +4,224 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.9.0 (2026-10-02)
+
+**Updates over the air take only images the project signed, and the panel
+shows an update while it happens. The setup access point opens only when asked,
+a unit with no network asks for the date and time, and the device keeps
+measuring with the access point up.**
+
+This is the first signed release. A device on v2.8.x installs it over the air
+like any other image, because v2.8.x checks no signature; from v2.9.0 on, a
+device installs only signed images. `CONFIG_VERSION` stays at 26: the
+configuration file is the same, and v2.8.0 reads it.
+
+### Updates over the air take only signed images (#219, #220, #221, #222)
+
+Until v2.8.x an update checked that the file fit the slot, that it was an
+RP2040 image and that it was built for the same hardware. Those checks catch
+accidents, not intent: any `.bin` that passed them became the firmware, behind
+the full admin's password alone.
+
+Every image the project publishes now ends in a 241-byte signature: a P-256
+signature over every byte, by a signing key that a root key certifies. The root
+is offline with the maintainer. The signing key lives in a GitHub Environment
+that hands it to the CI only after the maintainer approves the run, and a
+separate bench root signs the test images, which only test images accept. The
+device checks the signature at the end of the upload (1.87 s for 1 MB) and again
+when it is asked to install (1.94 s), on the bytes the installer is about to
+copy. A refusal says why, as `v` in the reply and in the web page:
+
+| `v` | Refused because |
+|---|---|
+| 8 | the image is not signed |
+| 9 | the signature does not match: the file changed after it was signed, or a key the device does not trust signed it |
+| 10 | it was signed with a retired key |
+| 11 | it is below the security level installed, and going back to it over the air is blocked |
+| 12 | it was signed with the bench key, which a published image does not accept |
+
+The `.bin` of a release and the builds of the configurator are signed by CI.
+A build made on your own machine reaches a device over USB only; USB checks no
+signature, and BOOTSEL still writes any `.uf2`. The design, its limits and the
+key ceremony are in `docs/analysis/OTA_ASSINADA.md`.
+
+### The panel shows an update while it happens (#224)
+
+Until now the panel froze on the last frame of the dashboard for the whole
+upload, kept it through the install, and never said when an image was refused.
+Each step now takes the panel, from whatever screen is up, under **Firmware
+update**: receiving the new version (with a bar and the percentage), checking
+the signature, image verified, and installing until the device restarts, each
+with **Do not switch the device off**. Neither a tap nor the 30 s idle return
+takes those away. A refusal names its reason and says the device is still on
+the current version, for 12 s; an upload cut short says so for 8 s; a tap
+leaves either. After an install whose image checks against what was sent, the
+boot log shows `Update installed: v2.9.0`. The alpha prints the same steps on
+its LCD.
+
+Drawing it costs the upload about 0.6 s: 32.2 s against 31.6 s for a 1 MB image
+on the bench.
+
+### The setup access point opens only when asked (#214)
+
+Since v2.7.1 the access point opened by itself on a unit with no network
+configured, and the reconnect ladder fell back to it after about an hour
+without the network. It now opens only from Settings → 12, the `ap` command,
+or the hold gesture at boot. A unit whose network is away keeps measuring and
+keeps retrying.
+
+### A unit with no network asks for the date and time (#214)
+
+With no network there is no NTP, and the records a provisional clock stamps
+cannot be trusted. At the end of the boot, a unit with no network configured
+asks for the date and time: on the panel a new screen (`dd / mm / yyyy  hh :
+mm`, with **SKIP** and **SAVE**), and on every console a line naming the
+command, `conf time YYYY-MM-DD HH:MM:SS`, which now works on every console,
+the emergency one included. Settings → 13 opens the same screen at any time.
+The dashboard marks a provisional clock with `?` in amber, a hand-set clock
+corrects what the provisional one stamped, as NTP already did, and `conf time`
+refuses dates the calendar does not have (`2026-02-31` used to become 3 March).
+
+Fixed on the way: a clock correction moved the open history block twice, so
+the day file ran backwards by the size of the correction. It happened with NTP
+too.
+
+### The device keeps measuring with the access point up (#204)
+
+From v2.7.1 to v2.8.0, while the setup access point was up, the main loop
+returned before the sensors, the alarms, the history and the telemetry. A
+monitor without Wi-Fi measured nothing, recorded nothing and sounded no alarm.
+Only syslog and telemetry, which need the upstream network, wait now. On the
+bench, 90 s with the access point up: 0 sensor reads before the fix, 219 after,
+and the alarm fired 3 s after `ap`.
+
+### Fixes found while the manual was written (#203, #208, #209, #217)
+
+- **SDA and SCL swapped on a BME280/BMP280 bricked the boot** (#203): the pin
+  check knew the pair, not the roles, and the framework panics on an illegal
+  SDA. The device now boots, and the sensor reads by bit-bang. A second 280 on
+  another pair of the same I2C controller no longer reads the first one's
+  values.
+- **The MQTT alarm line never read its ACKs with the regular telemetry off**,
+  and a full queue never fit in one publish (#208). Both now drain.
+- **"NTP synced" was always true** (#209), on the dashboard, in `/api/status`,
+  in `/metrics` and on the panel. It now means NTP or a manual time set the
+  clock, and the calibration page's "needs NTP" refusal can now fire.
+- **An alarm edge refused by a full alarm-line queue was never announced**
+  (#161, #217). It now goes out once there is room, if the condition is still
+  active, and it is counted once.
+
+### From a field log (#218)
+
+- A Wi-Fi join the radio refuses held Core 0 past the watchdog: the device
+  rebooted. The join now gives up after 4 s, feeds the watchdog, and three
+  refusals in a row after 30 min of uptime are a planned restart.
+- The panel's touch could stay dead until a reboot if its interrupt was lost.
+  Core 1 now also reads the touch when the line is low, and every 250 ms.
+- The fourth record of a watchdog autopsy said "0 KB free" every time; it now
+  gives the web server's position.
+
+### Language packs and the License screen (#223)
+
+- **A pack keeps only its strings in RAM.** The loader read everything before
+  the web dictionary into one allocation, 16.3 KB for es-ES, and kept 3 KB of it.
+  It now reads only the strings, at most 6 KB.
+- **The License screen shows what `/license` shows:** an opening in the pack's
+  language, the MIT text in its original English, and every third-party
+  component in the images. Checked against the symbols each image links, the
+  notices missed six components every image carries and had BTstack's terms and
+  three holders wrong. `THIRD_PARTY_NOTICES.md` and the full licence texts in
+  `LICENSES/` are new in the repository, and in the source of each release.
+- The packs lost their translated licence (about 1.95 KB each) and gained the
+  update screen's 18 strings.
+
+### Under the hood
+
+- **The Pico 2 W's RP2350** (#215): CI builds the release for it on every pull
+  request. It is not published, and nothing has run on an RP2350 yet. On the
+  way, the watchdog and power-supply registers took the SDK's names instead of
+  the RP2040's numbers, and the two reboot paths that wrote a register at the
+  wrong offset were fixed (`watchdog_enable( )` had already set the same bits).
+- **More switches for the configurator** (#197–#202): the telemetry TLS client,
+  MQTT, the history page, the export API, `/metrics`, syslog and the panel's
+  graph can each be left out of a custom build, and `/api/status` reports which
+  switches an image has (`feat`). The published images are unchanged by them,
+  except that the alpha and the Air no longer carry the panel graph's 5,872 B
+  buffer on the heap.
+- **CI** runs the host suites under AddressSanitizer and UBSan (#206), publishes
+  `SHA256SUMS` and a build-provenance attestation with each release (#207), and
+  `main` requires nine checks (#216). A gate keeps the READMEs' numbers equal to
+  what the tree measures (#205).
+
+### Flash
+
+Against the published v2.8.0, signed `.bin` (the image plus its 241-byte
+signature): release 1,011,388 → 1,025,949 B (+14,561), alpha 978,092 → 982,429 B
+(+4,337), Air 1,018,956 → 1,027,389 B (+8,433). Slack under the 1,040,384 B
+over-the-air ceiling: release 14,435, alpha 57,955, Air 12,995.
+
+### The bench
+
+The changes that run on the device were checked on the bench board (touch
+display, two DS18B20, two DHT22, a BMP280 on hardware I2C) against the image
+just before them, with the board's flash dumped first and restored byte for
+byte after; the numbers are in each pull request. Among them:
+
+- **Signed updates:** a release image signed by CI, flashed over USB, refused
+  an unsigned image (8), a bench-signed one (12) and the CI-signed Air image (7),
+  and took its own signed image over the air; the CI's signed image is byte for
+  byte the local build plus its signature. A stage cut after another was
+  committed left that commit in place, so the install would have copied
+  whatever the cut left behind; the install's second check now refuses it
+  (409, `v=9`).
+- **The update screen:** every step and reason in pt-BR, English and es-ES; the
+  refusals, the cut and the ready screen of real updates pixel for pixel equal
+  to the screens drawn on request (0 differing pixels in each); two full updates
+  over the air.
+- **The fixes:** **#203** swapped SDA/SCL, a panic
+  at every boot before, a full boot after. **#204**: above. **#208**: the MQTT
+  alarm suite 7/8 before, 8/8 after; a 2,794 B batch acknowledged where the image
+  before stopped at 2,001 B. **#209**: `ntp` 1 with a 1970 clock before, 0 after.
+  **#217**: the refused edge arrives once the server confirms; 10/11 before,
+  11/11 after. **#218**: a refused join returns in 4.1 s instead of a watchdog
+  reboot.
+- **#223:** the old and new pack loaders compared over the two packs and
+  40,016 altered packs; the License screen in three languages, 7 pages.
+
+### Upgrading
+
+- **From v2.8.x:** over the air, from the Files page, with the `.bin` of this
+  release. It is signed, and v2.8.x does not check signatures, so nothing
+  changes in how you do it. From then on the device installs only signed images.
+- **Going back to v2.8.x:** over USB only (`.uf2`), because v2.8.x images are not
+  signed. The configuration stays: the schema did not change.
+- **From v2.7.4 or older:** read the *Upgrading* notes of v2.8.0 first. The
+  upload runs on the installed firmware, so a cut upload can still return a
+  device to factory defaults on that one update.
+- **A unit with no network configured** no longer opens the setup access point
+  by itself: open it from Settings → 12, with `ap` on the console, or with the
+  hold gesture at boot.
+- **Language packs:** upload the two attached to this release on the Files page
+  and reboot. With the old packs everything works and the new strings read in
+  English. The new packs on v2.8.0 work too, with an English License screen and
+  a lone `@` at the end of the console's `help`.
+
+### Known, and not fixed here
+
+- **A chunked reply occasionally loses its framing** (#189): 0.15 to 0.6 % of
+  `/api/status` reads in a tight loop. The next request succeeds.
+- **On the alpha, the log's messages in pt-BR or es-ES come out empty**, by the
+  code: its translation lookups return an empty string instead of none.
+- **Accented lines on the boot screen print `?`**, by the code: the boot box
+  folds text that is already Latin-1 as if it were UTF-8. English boot lines,
+  which an update leaves, are unaffected.
+- **The web page does not retry an install refused with 503** (a touch on the
+  panel in the 5 s before), by the code. The device then waits with its
+  filesystem unmounted until it restarts, and the restart discards the staged
+  image.
+- Not checked on hardware: the update screen on the alpha's LCD, and the boot
+  line after an install, which the boot shows before the web can capture it.
+
 ## v2.8.0 (2026-09-30)
 
 **An update cut off halfway no longer sends the device back to factory settings,
