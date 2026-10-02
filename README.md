@@ -509,6 +509,14 @@ Two things on the 16×2 LCD have not been on glass: the single-sensor layout, wi
 | [Documentation index](docs/README.md) | Which documents are kept current and which are snapshots |
 | [Changelog](CHANGELOG.md) | Version history and feature changes |
 
+## How SIMUT is developed
+
+Most changes are written by an AI coding agent (Claude Code) in sessions the maintainer directs: from 1 September to 2 October 2026, 275 of the 371 commits on `main` carried a `Co-Authored-By: Claude` line. The instructions those sessions follow are [CLAUDE.md](CLAUDE.md) and [AGENTS.md](AGENTS.md) (in Portuguese). The rules are the same for every change, whoever typed it:
+- it reaches `main` only through a pull request, after nine required checks pass: the nine host test suites, also under AddressSanitizer and UBSan, 60 s of fuzzing, static analysis, and six firmware images built from a cold cache;
+- the tests come first: a fix carries a reproduction that fails before it and passes after, and a refactor shows that the behaviour did not change;
+- a claim about bytes, speed or a fix carries its measurement, and what was not checked on hardware says so;
+- product decisions, and the decision to merge, are the maintainer's.
+
 ## Contributing
 
 Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup, the code conventions and the pull request process.

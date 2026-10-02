@@ -507,6 +507,14 @@ Duas coisas do LCD 16×2 não passaram pela tela de verdade: o leiaute de um sen
 | [Índice da documentação](docs/README.md) | Quais documentos são mantidos atualizados e quais são retratos de uma época |
 | [Changelog](CHANGELOG.pt-BR.md) | Histórico de versões e mudanças |
 
+## Como o SIMUT é desenvolvido
+
+A maior parte das mudanças é escrita por um agente de IA (Claude Code) em sessões dirigidas pelo mantenedor: de 1º de setembro a 2 de outubro de 2026, 275 dos 371 commits da `main` traziam uma linha `Co-Authored-By: Claude`. As instruções que essas sessões seguem são o [CLAUDE.md](CLAUDE.md) e o [AGENTS.md](AGENTS.md). As regras são as mesmas para toda mudança, venha de quem vier:
+- ela só chega à `main` por pull request, depois de nove checks obrigatórios: as nove suítes de teste no host, também sob AddressSanitizer e UBSan, 60 s de fuzzing, análise estática e seis imagens de firmware compiladas com o cache frio;
+- os testes vêm primeiro: um conserto traz uma reprodução que falha antes e passa depois, e uma refatoração mostra que o comportamento não mudou;
+- uma afirmação sobre bytes, velocidade ou conserto traz a medição, e o que não foi conferido no hardware diz isso;
+- as decisões de produto, e a de mergear, são do mantenedor.
+
 ## Contribuindo
 
 Contribuições são bem-vindas. Leia o [CONTRIBUTING.pt-BR.md](CONTRIBUTING.pt-BR.md) para setup de desenvolvimento, convenções de código e o processo de pull request.

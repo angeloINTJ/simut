@@ -144,7 +144,7 @@ El espacio en la memoria flash es críticamente ajustado. La imagen release usa 
 
 ## Herramientas de IA
 
-Usamos asistentes de IA (Claude, Copilot, etc.) como **herramientas de ingeniería**, no como sustitutos del criterio humano. La IA ayuda con código repetitivo (boilerplate), borradores de documentación y la estructura base de las pruebas, pero las decisiones de arquitectura, los tiempos (timing) de PIO, el presupuesto de la memoria flash y el endurecimiento de la seguridad son trabajo humano. Si usas IA en tu contribución, está bien, solo revisa el resultado. El código generado es tu responsabilidad.
+SIMUT mismo lo escribe en su mayor parte un agente de IA, dirigido por el mantenedor; el README cuenta cómo ([Cómo se desarrolla SIMUT](README.es-ES.md#cómo-se-desarrolla-simut)). El listón no baja por eso: pull request, los nueve checks obligatorios, tests que prueban el cambio y una medición detrás de cada afirmación. Si usas un asistente de IA en tu contribución, está bien. Revisa lo que produce como revisarías tu propio trabajo, porque el cambio es tuyo.
 
 ## Licencia
 

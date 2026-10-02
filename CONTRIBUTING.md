@@ -168,7 +168,7 @@ The two largest modules, `TelemetryManager.cpp` and `StorageManager.cpp`, have t
 
 ## AI Tools
 
-We use AI assistants (Claude, Copilot, etc.) as **engineering tools**, not as substitutes for judgment. AI helps with boilerplate, documentation drafts, and test scaffolding — but architecture decisions, PIO timing, flash budgeting, and security hardening are human work. If you use AI in your contribution, that's fine — just review the output. Generated code is your responsibility.
+SIMUT itself is written mostly by an AI coding agent working under the maintainer's direction; the README says how ([How SIMUT is developed](README.md#how-simut-is-developed)). The bar does not move for it: a pull request, the nine required checks, tests that prove the change, and a measurement behind every claim. If you use an AI assistant for your contribution, that is fine. Review its output as you would review your own, because the change is yours.
 
 ## License
 
