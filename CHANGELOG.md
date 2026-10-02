@@ -95,6 +95,11 @@ Only syslog and telemetry, which need the upstream network, wait now. On the
 bench, 90 s with the access point up: 0 sensor reads before the fix, 219 after,
 and the alarm fired 3 s after `ap`.
 
+On the alpha, by the code, `ap` now takes the LCD straight to the access
+point's pages, because the LCD keeps updating with the access point up. Until
+v2.8.0 they rarely showed: the LCD stayed on the boot screen or on the last
+readings.
+
 ### Fixes found while the manual was written (#203, #208, #209, #217)
 
 - **SDA and SCL swapped on a BME280/BMP280 bricked the boot** (#203): the pin
@@ -188,6 +193,28 @@ byte after; the numbers are in each pull request. Among them:
 - **#223:** the old and new pack loaders compared over the two packs and
   40,016 altered packs; the License screen in three languages, 7 pages.
 
+The release gate (`AGENTS.md` §2) ran on the candidate the CI signed on `main`
+(run 36973204740), on the same board, from the published v2.8.0 with the bench's
+configuration. The published images carry the same image bytes; their signature
+is their own, because every signing run makes a new one.
+
+- **The update from v2.8.0,** complete, over the air on port 8080: `2.9.0`, the
+  five sensors reading, every configuration value the web API reports unchanged
+  (567 on the release), the configuration file identical byte for byte, and the
+  `.bkp` back with 70 of 74 files identical; the other four are the log and the
+  history, which grow. The same on the Air and the alpha (70 and 71 of 74),
+  where the Air's own options, which an update erases, came back with the
+  `.bkp`.
+- **The candidate over itself,** on all three, the candidate checking the
+  signature (`v` 0): the same.
+- **Refused,** with the configuration intact before and after a reset: an
+  unsigned image (8), the Air's signed image (7) and v2.8.0 (8).
+- **An upload cut at 400 kB, then a reset,** and the same with the filesystem
+  filled to its last 8 KB and emptied between the cut and the reset: the
+  configuration intact.
+- **30 minutes** without a restart, the five sensors valid in every sample. The
+  web suite on the test image: 87 passed, 0 failed.
+
 ### Upgrading
 
 - **From v2.8.x:** over the air, from the Files page, with the `.bin` of this
@@ -219,8 +246,14 @@ byte after; the numbers are in each pull request. Among them:
   panel in the 5 s before), by the code. The device then waits with its
   filesystem unmounted until it restarts, and the restart discards the staged
   image.
-- Not checked on hardware: the update screen on the alpha's LCD, and the boot
-  line after an install, which the boot shows before the web can capture it.
+- **`configure terminal` does not need `enable`**: it enters configuration mode
+  from user mode, although the console's command table says it needs privileged
+  mode. It opens nothing, because `enable` asks for no password on the USB
+  console and the Bluetooth console authenticates the whole session, but the
+  table and the behaviour disagree.
+- Not checked on hardware: the update screen on the alpha's LCD, the alpha's
+  LCD with the access point up, and the boot line after an install, which the
+  boot shows before the web can capture it.
 
 ## v2.8.0 (2026-09-30)
 
