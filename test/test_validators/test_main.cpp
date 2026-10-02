@@ -4359,6 +4359,23 @@ void test_telpos_the_old_cursor_keeps_its_rule_for_its_own_files(void) {
     TEST_ASSERT_EQUAL_UINT32(1500, got[0]);
 }
 
+/* An update while the old cursor is ahead of the clock: the clock went back
+ * after its last delivery, by less than the hour that resets it. Its rule held
+ * back every record written since, until the clock would catch up, and then
+ * skipped them. On the rig, 2026-10-02: 0 requests in 180 s, 0 pending. */
+void test_telpos_an_old_cursor_ahead_of_the_clock_gives_way(void) {
+    SimBlock f[] = { {20261002, 100, 5, 1000},     /* sent under the old cursor */
+                     {20261002, 300, 5, 1500} };   /* written after the clock went back */
+    TelCursorState kept; telCursorLegacy(kept, 2000, 20261002, 20261002);
+    TEST_ASSERT_FALSE(telDropLegacyAhead(kept, 1600, false));  /* a provisional clock may be the one behind */
+    TEST_ASSERT_FALSE(telDropLegacyAhead(kept, 2000, true));   /* not ahead */
+    TEST_ASSERT_EQUAL(0, simSend(kept, f, 2, nullptr));        /* the defect, kept: nothing goes */
+    TelCursorState c; telCursorLegacy(c, 2000, 20261002, 20261002);
+    TEST_ASSERT_TRUE(telDropLegacyAhead(c, 1600, true));
+    TEST_ASSERT_EQUAL(10, simSend(c, f, 2, nullptr));          /* the day goes again, held-back records with it */
+    TEST_ASSERT_EQUAL(0, simSend(c, f, 2, nullptr));
+}
+
 void test_telpos_saves_loads_and_an_older_firmware_reads_its_epoch(void) {
     TelCursorState c; telCursorReset(c, 20261001);
     TelRecPos p[2] = { {20261002, 100, 0, 1790958342}, {20261002, 100, 1, 1790958402} };
@@ -4929,6 +4946,7 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_telpos_the_floor_trails_today_and_waits_for_the_unsent);
     RUN_TEST(test_telpos_a_file_older_than_the_window_stays_closed);
     RUN_TEST(test_telpos_the_old_cursor_keeps_its_rule_for_its_own_files);
+    RUN_TEST(test_telpos_an_old_cursor_ahead_of_the_clock_gives_way);
     RUN_TEST(test_telpos_saves_loads_and_an_older_firmware_reads_its_epoch);
     RUN_TEST(test_telpos_a_full_table_closes_its_oldest_file);
     RUN_TEST(test_telpos_a_drain_longer_than_the_table_ends);

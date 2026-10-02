@@ -552,7 +552,10 @@ O cursor é uma posição no arquivo, não um instante. Um registro sai na ordem
 - Um bloco gravado num arquivo de dia com mais de 3 dias não sai pela telemetria. Para isso o relógio precisa voltar mais de três dias. O bloco continua no histórico.
 - Quando o aparelho não consegue saber o que já saiu de um arquivo de dia, ele manda o arquivo inteiro de novo e registra o evento 554, **Arquivo do dia reenviado pela telemetria**. Isso acontece quando o aparelho perde energia logo depois de enviar registros que ainda estavam só na RAM, quando um arquivo de dia é apagado e quando uma restauração de backup o traz de volta.
 
-Até a v2.9.0, o cursor era um instante, e um bloco gravado com hora anterior ao último registro enviado não saía mais. Depois da atualização, o cursor antigo continua valendo para os arquivos de dia até o do último registro enviado, até a primeira entrega em cada um; a posição vale para todo o resto. Se esse cursor antigo estiver mais de 1 h à frente do registro mais novo, ou do relógio, o aparelho o zera e registra um aviso com o texto `Telemetry cursor ahead of data — reset to 0`. Os envios recomeçam pela janela de 30 dias.
+Até a v2.9.0, o cursor era um instante, e um bloco gravado com hora anterior ao último registro enviado não saía mais. Depois da atualização, o cursor antigo continua valendo para os arquivos de dia até o do último registro enviado, até a primeira entrega em cada um; a posição vale para todo o resto. Se esse cursor antigo estiver à frente do relógio, o relógio voltou depois do último envio:
+
+- até 1 h à frente, com o relógio confiável (NTP ou acerto à mão), o aparelho deixa o cursor antigo de lado e manda o arquivo do dia de novo, inteiro, com o evento 554;
+- mais de 1 h à frente do registro mais novo, ou do relógio, ele zera o cursor e registra um aviso com o texto `Telemetry cursor ahead of data — reset to 0`. Os envios recomeçam pela janela de 30 dias.
 
 ## Duplicatas e idempotência {#cap-21-duplicatas}
 

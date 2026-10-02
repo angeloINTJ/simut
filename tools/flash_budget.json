@@ -523,36 +523,36 @@
   "21,428. Against the published v2.7.4 .bin: release +1,376, alpha and air +32."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-10-02 feat/telemetry-position-cursor on main 51dd1e6 (#230 merged in): all seven measured with the telemetry cursor by write position (A-04, src/TelemetryPosition.h): a record is sent by the day file, block and index it was written at, not by its stamp, so a block written after another but stamped before it is no longer skipped. Against main: release +2,008, test +1,992, test_https +2,000, asserts +2,000, alpha +1,984, air +1,976, pico2_w_release +1,936 B. By symbol, on the release: TelemetryManager::collectDay +856 and takeRecord +544 against collectBatch -592 (the walk by position, the check that a slot still holds, the open block placed in its file), listDayFiles +240 (the directory listing collectBatch and refreshPendingCount each carried; refreshPendingCount -192), StorageManager::telCursor +276 (the load, and the migration of the 4-byte cursor), telAdvance +220, h5SealPosition +176, h5LoadBlockFrom +164 against h5LoadNextBlock -108 (now a call to it), the delivery by runs (trimRuns, telCursorDelivered, markDeliveredPrefix, markDelivered) +286, h5WipBlock +352 replacing h5WipPendingSince -356. Trimmed until pico_w_test_https fit under the OTA ceiling: with #230 its signed .bin is 1,040,349 B, 35 B under 1,040,384 (the first cut was 181 B over it on its own). Static RAM unchanged; about 400 B more heap, once (the 148-byte cursor and 16 runs of 16 B live in the two heap-allocated managers). Budgets raised by the growth, which keeps each margin where it was; test_https, alpha and air included, as their margins are smaller than the growth. measured is the zopfli image PlatformIO prints.",
+ "measured_on": "2026-10-02 feat/accounts-apply-live on main 35c9678: all seven measured with accounts applying live (A-08): a web session checked against its live account on every request (src/SessionCheck.h), the panel's identity checked at every action, the dry run that rehearses users, and log code 312. Against main: release +624, test +680, test_https +664, asserts +640, alpha +352, air +280, pico2_w_release +664 B. By symbol, on the release: getAuthPerms +204 and AppManager::panelSessionCurrent +184 (the check and the log line with the account's name), handleApiForceChpass +60 (re-stamping the caller's session), completeLogin +32, panelIdentify +20, assignTempPassword +24 net, the web UI +28 compressed. Budgets of release, test, asserts and pico2_w_release raised by the growth, which keeps each margin where it was; test_https, alpha and air stay under theirs. measured is the zopfli image PlatformIO prints.",
  "measured_at_commit": "2026-10-02 chore/v2.9.0 on main e5cd23b (#224 merged; SIMUT_VERSION 2.9.0, the only source change; budgets unchanged). All seven rebuilt here: test, alpha, air and pico2_w_release equal to the figures #224 recorded, release, test_https and asserts 8 B under them. measured is the zopfli image PlatformIO prints.",
  "envs": {
   "pico_w_release": {
-   "budget": 1016452,
-   "measured": 1016340
+   "budget": 1014444,
+   "measured": 1014332
   },
   "pico_w_test": {
-   "budget": 1021532,
-   "measured": 1020892
+   "budget": 1019540,
+   "measured": 1018900
   },
   "pico_w_test_https": {
-   "budget": 1028084,
-   "measured": 1028076
+   "budget": 1026084,
+   "measured": 1026076
   },
   "pico_w_asserts": {
-   "budget": 1018676,
-   "measured": 1018636
+   "budget": 1016676,
+   "measured": 1016636
   },
   "pico_w_alpha": {
-   "budget": 971092,
-   "measured": 970572
+   "budget": 969108,
+   "measured": 968588
   },
   "pico_w_air": {
-   "budget": 1014240,
-   "measured": 1013928
+   "budget": 1012264,
+   "measured": 1011952
   },
   "pico2_w_release": {
-   "budget": 989440,
-   "measured": 989208,
+   "budget": 987504,
+   "measured": 987272,
    "ceiling": 3141632
   }
  }

@@ -737,17 +737,27 @@ struct TelChanMap {
 	}
 };
 
-/* The day files, in day order: the collection walks them that way, and the
- * count does not mind. */
-void TelemetryManager::listDayFiles(std::vector<String>& files) {
+/* The days that have a file, in order: the collection walks them that way,
+ * and the count does not mind. Days, not names: sorting numbers costs neither
+ * the String sort's code nor a heap block per file, and the name comes back
+ * from the number (dayPath). So only a name that is exactly YYYYMMDD.h5 is a
+ * day; anything else in the folder is not this reader's. */
+void TelemetryManager::listDays(std::vector<uint32_t>& days) {
 	{
 		StorageManager::ReadGuard rg(_storageRef);
 		Dir dir = LittleFS.openDir(DIR_HISTORY);
 		while (dir.next( )) {
-			if (dir.fileName( ).endsWith(HISTORY_FILE_EXT)) files.push_back(dir.fileName( ));
+			const String fn = dir.fileName( );
+			if (fn.length( ) != 8 + sizeof(HISTORY_FILE_EXT) - 1 || !fn.endsWith(HISTORY_FILE_EXT)) continue;
+			const uint32_t day = StorageManager::historyDayOfName(fn);
+			if (day) days.push_back(day);
 		}
 	}
-	std::sort(files.begin( ), files.end( ));
+	std::sort(days.begin( ), days.end( ));
+}
+
+static String dayPath(uint32_t day) {
+	return String(DIR_HISTORY) + "/" + String(day) + HISTORY_FILE_EXT;
 }
 
 /* One collection pass: what collectDay( ) shares with collectBatch( ). */
@@ -771,7 +781,9 @@ bool TelemetryManager::takeRecord(TelCollect& x, uint32_t day, uint32_t off, uin
 		x.runsFull = true;
 		return false;
 	}
-	BinaryHistoryRecord rec; rec.clear( ); rec.epoch = epoch;
+	x.batch.emplace_back( );                 /* built in place: no temporary to copy */
+	BinaryHistoryRecord& rec = x.batch.back( );
+	rec.clear( ); rec.epoch = epoch;
 	for (uint8_t c = 0; c < m.n; c++) {
 		if (vals[c] == H5_NAN_SENTINEL) continue;
 		const uint8_t slot = m.slot[c];
@@ -781,7 +793,6 @@ bool TelemetryManager::takeRecord(TelCollect& x, uint32_t day, uint32_t off, uin
 		else if (m.ch[c] == CH_HUM)   rec.humidity[slot] = BinaryHistoryRecord::floatToI16(v);
 		else if (m.ch[c] == CH_PRESS) rec.pressure       = BinaryHistoryRecord::floatToI16x10(v);
 	}
-	x.batch.push_back(rec);
 	if (!x.firstUnsent) x.firstUnsent = day;
 	return true;
 }
@@ -899,12 +910,20 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
   * manual future time set, a clock that drifted ahead and was corrected by
   * NTP — is dropped as before, and the files go again from the 30-day floor. */
  if (c.legacyDay) {
+ const uint32_t legacyDay = c.legacyDay;
  const bool aheadNow  = (nowEpoch > 1600000000UL) && (c.legacyEpoch > nowEpoch + 3600UL);
  const bool aheadData = (lastRecorded > 1600000000UL) && (c.legacyEpoch > lastRecorded + 3600UL);
  if (aheadNow || aheadData) {
  LOG_CODE(LOG_WARN, "TEL", SYS_OK, 0,
  TRL("Telemetry cursor ahead of data — reset to 0"));
  telCursorReset(c, 0);
+ } else if (telDropLegacyAhead(c, nowEpoch >= HIST_EPOCH_MIN ? nowEpoch : 0,
+                               _storageRef->clockTrusted( ))) {
+ /* Ahead by less than the hour above, which used to mean holding back
+  * every record written since until the clock caught up — and then
+  * skipping them. Measured on the rig 2026-10-02 right after an update:
+  * nothing sent in 180 s, 0 pending. Its files go again by position. */
+ LOG_CODE(LOG_WARN, "TEL", TEL_CURSOR_RESENT, (int)(legacyDay % 10000u), "");
  }
  }
 
@@ -918,8 +937,8 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
   * builds on, after buildPayload has had its say. */
  fromCursor = c.lastEpoch;
 
- std::vector<String> files;
- listDayFiles(files);
+ std::vector<uint32_t> days;
+ listDays(days);
 
  /* Two ceilings, and the lower one wins. safeBatchLimit is physics — what the
   * heap can hold right now, given the transport. _batchAuto is the controller
@@ -951,14 +970,14 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
  size_t fi = 0;
  bool ramLeft = ramDay != 0;
  while (batch.size( ) < limit && !x.runsFull) {
- uint32_t fileDay = 0;
- while (fi < files.size( ) && !(fileDay = StorageManager::historyDayOfName(files[fi]))) fi++;
+ const uint32_t fileDay = (fi < days.size( )) ? days[fi] : 0;
  uint32_t day;
  String path;
  bool withRam = false;
  if (fileDay && (!ramLeft || fileDay <= ramDay)) {
  day = fileDay;
- path = String(DIR_HISTORY) + "/" + files[fi++];
+ path = dayPath(day);
+ fi++;
  withRam = ramLeft && fileDay == ramDay;
  } else if (ramLeft) {
  day = ramDay;
@@ -2363,8 +2382,8 @@ void TelemetryManager::refreshPendingCount( ) {
  if (lastRecorded > 86400UL * 30) v.floorDay = StorageManager::historyDayOf(lastRecorded - 86400UL * 30);
  }
 
- std::vector<String> files;
- listDayFiles(files);
+ std::vector<uint32_t> days;
+ listDays(days);
 
  /* 32-bit accumulator, saturated on the way out. It used to be uint16_t with
   * an explicit cast on every add, so an archive holding more than 65535
@@ -2380,11 +2399,10 @@ void TelemetryManager::refreshPendingCount( ) {
  ramDay = 0;
  }
 
- for (const String& fn : files) {
- const uint32_t day = StorageManager::historyDayOfName(fn);
- if (!day || telFileDone(v, day)) continue;
+ for (const uint32_t day : days) {
+ if (telFileDone(v, day)) continue;
 
- String fullPath = String(DIR_HISTORY) + "/" + fn;
+ const String fullPath = dayPath(day);
 
  bool opened = false;
  { StorageManager::ReadGuard rg(_storageRef); opened = _storageRef->h5OpenDay(fullPath, false); }

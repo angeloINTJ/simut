@@ -19,7 +19,9 @@
  *   - a file before `floorDay` is done and never read again;
  *   - a file with a slot sends what lies past the slot's position;
  *   - a file with no slot sends everything — except under the old cursor's
- *     rule, for the files that existed when it was migrated (`legacyDay`);
+ *     rule, for the files that existed when it was migrated (`legacyDay`),
+ *     and only while that cursor is not ahead of the clock
+ *     (telDropLegacyAhead( ));
  *   - the block still open in RAM already has its position: it will be
  *     appended at the end of its day file.
  *
@@ -172,6 +174,21 @@ inline const TelPos* telFind(const TelCursorState& c, uint32_t day) {
 }
 
 /* ── The rule ────────────────────────────────────────────────────────────── */
+
+/**
+ * The old cursor ahead of a clock that can be believed. The epoch it delivered
+ * was clamped to the clock of that moment, so it is ahead now only because the
+ * clock went back since — and its rule then holds back every record written
+ * after, until the clock catches up, and skips them. Its files go to the
+ * position rule instead: sent again from the start, a duplicate, not a gap.
+ * @p now 0: no clock. @return true when the old rule was dropped.
+ */
+inline bool telDropLegacyAhead(TelCursorState& c, uint32_t now, bool trusted) {
+	if (!trusted || !now || !c.legacyDay || c.legacyEpoch <= now) return false;
+	c.legacyDay = 0;
+	c.legacyEpoch = 0;
+	return true;
+}
 
 /**
  * Does the slot still count from the records it was given? Asked with what the

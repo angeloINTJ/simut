@@ -252,7 +252,7 @@ private:
  bool collectDay(TelCollect& x, uint32_t day, const String& path, bool withRam, uint32_t ramOff);
  bool takeRecord(TelCollect& x, uint32_t day, uint32_t off, uint8_t idx, uint32_t epoch,
                  const int16_t* vals, const TelChanMap& m);
- void listDayFiles(std::vector<String>& files);
+ void listDays(std::vector<uint32_t>& days);
 
  /** Where the batch in flight was written (A-04, TelemetryPosition.h): runs
   *  of consecutive records of one block. collectBatch fills them, trimRuns( )
