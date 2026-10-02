@@ -72,7 +72,7 @@ Os eventos do relógio, na página **Histórico e Logs** ([capítulo 16](#cap-16
 | 13 | **NTP sincronizado**: `NTP OK: <data> <hora>` | O relógio está acertado e o aparelho terminou de entrar na rede. Aparece também a cada reconexão |
 | 13 | `NTP fallback: <servidor> -> pool.ntp.org` | Troca de servidor; o contexto é o número de falhas |
 | 13 | `NTP disabled — manual RTC mode` | O aparelho entrou na rede com o NTP desligado |
-| 13 | `RTC set manually` | Acerto manual. O contexto diz por onde: 1 interface web (`POST /api/set_time`), 2 console (`time`), 3 painel, item 13 do menu, 4 painel, pergunta do boot |
+| 13 | `RTC set manually` | Acerto manual. O contexto diz por onde: 1 interface web (`POST /api/set_time`), 2 console (`time`), 3 painel, item 4 do menu, 4 painel, pergunta do boot |
 | 408 | **NTP corrigindo timestamps**: `NTP correction: <n>s` | O primeiro acerto, pelo NTP ou à mão, corrigiu o relógio provisório em mais de 5 s; o contexto é a correção, em segundos |
 | 409 | **Timestamps corrigidos** | O histórico foi corrigido; o contexto é o número de blocos |
 | 410 | **Caches de gráfico invalidados** | Os gráficos serão refeitos com as horas corrigidas |
@@ -139,7 +139,7 @@ Para integradores, a rota é `POST /api/set_time` com o corpo `{"epoch": <segund
 [release]{.img} A tela **Data e hora** abre de dois jeitos:
 
 - **No fim do boot,** sozinha, num aparelho sem rede configurada e com o relógio provisório. Sem rede não há NTP, e o histórico leva a hora do relógio provisório, que perde o tempo em que o aparelho ficou desligado ([O relógio provisório](#cap-10-provisorio)).
-- **Pelo menu,** no item 13, **Data e hora**, a qualquer momento, com a permissão **Sistema** [PERM_SYS_CONFIG]{.perm} no painel, a mesma da rota `POST /api/set_time` ([capítulo 11](#cap-11-data-hora)).
+- **Pelo menu,** no item 4, **Data e hora**, a qualquer momento, com a permissão **Sistema** [PERM_SYS_CONFIG]{.perm} no painel, a mesma da rota `POST /api/set_time` ([capítulo 11](#cap-11-data-hora)).
 
 A tela tem cinco colunas, `dd / mm / aaaa  hh : mm`, que começam na data e na hora do relógio em uso. Acima de cada valor há uma seta que soma 1; abaixo, uma seta que subtrai 1. Segurada, a seta repete a cada 300 ms. O dia fica dentro do mês: mudar o mês ou o ano ajusta o dia, e 31/03 menos um mês dá 28/02, ou 29/02 num ano bissexto. O dia, o mês, a hora e o minuto dão a volta; o ano para em 2026 e em 2099. Os segundos ficam em zero.
 

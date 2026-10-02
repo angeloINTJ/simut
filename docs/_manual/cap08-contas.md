@@ -254,7 +254,7 @@ A tela Quem está usando o painel?, com as contas que têm PIN.
 :::
 
 ::: {.figura #fig-08-menu-operador tipo="tft" arquivo="08-menu-operador.png" captura="menu de configurações depois do PIN de uma conta que tem só permissões de painel; título Configurações > operador1"}
-O menu de uma conta só com permissões de painel: os itens sem numeração e o nome da conta no título.
+O menu de uma conta só com permissões de painel: Limites de Alarme, Status do Sistema, Alterar Senha e Licença, sem numeração, e o nome da conta no título.
 :::
 
 ### O teclado {#cap-08-teclado}
@@ -379,7 +379,7 @@ Como escolher:
 - **O alfabeto `0-9 A-Z`** torna um chute às cegas muito mais difícil sem custo nenhum. As letras são sempre maiúsculas.
 - **Um PIN mais longo** é a defesa principal contra chutes.
 
-**No painel.** O item **Segurança do PIN** (o 11º, *PIN security*) exige a permissão **Usuários** [PERM_USER_MGR]{.perm}.
+**No painel.** O item **Segurança do PIN** (o 7º, *PIN security*) exige a permissão **Usuários** [PERM_USER_MGR]{.perm}.
 
 1. Toque numa linha para selecioná-la e toque de novo para mudar o valor. **Tamanho mínimo** sobe até o teto e volta a 4; **Teclado** mostra o teto ao lado, como `3  (max 8)`; **Caracteres** alterna entre `0-9` e `0-9 A-Z`.
 2. Toque em **SALVAR**. O painel mostra **PIN salvo!**.
@@ -400,7 +400,7 @@ Os campos da política de PIN na página Configurações.
 
 ### Usuários no painel {#cap-08-usuarios-painel}
 
-O item **Usuários** (o 10º, *Users*) exige a permissão **Usuários** [PERM_USER_MGR]{.perm}. Ele lista todas as contas menos a `admin`, com:
+O item **Usuários** (o 6º, *Users*) exige a permissão **Usuários** [PERM_USER_MGR]{.perm}. Ele lista todas as contas menos a `admin`, com:
 
 - um ponto depois do nome, quando a conta tem PIN;
 - as letras `L`, `B` e `M` à direita, acesas para as permissões **Limites (painel)**, **Bloqueio (painel)** e **Manut. (painel)** que a conta tem.

@@ -105,8 +105,8 @@ O que a v2.9.0 mudou para quem usa o aparelho:
 
 - pelo ar, o aparelho só instala imagem assinada pelo projeto: o `.bin` de uma release ou uma build do configurador. Uma build feita na sua máquina vai pelo USB ([capítulo 17](#cap-17-ota-assinatura));
 - o painel mostra cada etapa de uma atualização e, numa recusa, o motivo ([capítulo 11](#cap-11-atualizacao));
-- o ponto de acesso de configuração só abre quando pedido: por Configurações → 12, pelo comando `ap` ou pelo gesto no boot. Com ele no ar, o aparelho continua medindo, gravando o histórico e alarmando ([capítulo 9](#cap-09-ap-quando));
-- uma unidade sem rede configurada pede a data e a hora no fim do boot, e Configurações → 13 abre a mesma tela a qualquer momento ([capítulo 10](#cap-10-painel)).
+- o ponto de acesso de configuração só abre quando pedido: por Configurações → Modo de Configuração, pelo comando `ap` ou pelo gesto no boot. Com ele no ar, o aparelho continua medindo, gravando o histórico e alarmando ([capítulo 9](#cap-09-ap-quando));
+- uma unidade sem rede configurada pede a data e a hora no fim do boot, e Configurações → Data e hora abre a mesma tela a qualquer momento ([capítulo 10](#cap-10-painel)).
 
 A v2.8.0, de 30/09/2026, tinha trazido:
 

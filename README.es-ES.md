@@ -171,8 +171,8 @@ Consulta la **[guía de cableado](docs/WIRING.md)** para el pinout completo y lo
 - **Administración en la pantalla:**
   - un elemento Usuarios crea cuentas y fija sus bits de permiso y sus PIN;
   - las 13 filas de Ajustes se filtran según lo que la cuenta puede hacer;
-  - Ajustes → 12 arranca el punto de acceso de configuración;
-  - Ajustes → 13 fija la fecha y la hora, y una unidad sin red configurada las pide al final del arranque.
+  - Ajustes → 8 arranca el punto de acceso de configuración;
+  - Ajustes → 4 fija la fecha y la hora, y una unidad sin red configurada las pide al final del arranque.
 - **Gestos en el panel superior** — un toque alterna mín/máx, mantener 3 s fija la selección.
 - **Renderizado rápido con DMA** — composición en canvas sobre SPI a 62,5 MHz.
 - **Área segura de 4 px en toda la UI** — el offset de alineación de pantalla (±4 px por eje) nunca recorta contenido.
@@ -229,7 +229,7 @@ Consulta la **[guía de cableado](docs/WIRING.md)** para el pinout completo y lo
   - portal cautivo en `http://192.168.4.1`.
 
   Solo se abre cuando alguien lo pide. Una unidad con la red caída sigue midiendo y reintentando la red. Tres formas de entrar:
-  - Ajustes → 12 en el panel;
+  - Ajustes → 8 en el panel;
   - el comando `ap` de la consola (USB, o Bluetooth en el alpha y el Air);
   - mantener el panel pulsado 3 s durante el arranque.
 - **NTP** — el intervalo entre reintentos crece de 20 s a 15 min, con fallback a `pool.ntp.org`. Hasta que el NTP sincroniza o alguien fija el reloj, un reloj provisional parte del registro más reciente guardado. El panel lo marca con `?` entre la fecha y la hora, y el primer ajuste después del arranque, por NTP o a mano, corrige los bloques del histórico que ese arranque empezó.
@@ -320,14 +320,14 @@ pio run -e pico_w_release -t uploadfs
 
 ### Primer arranque
 1. **Apunta la contraseña del admin.** Una unidad recién salida de fábrica imprime una contraseña de admin aleatoria de 8 caracteres **una sola vez en la consola serie USB** (115200 baudios). Nunca se guarda en texto plano. Si la pierdes, `system admin reset confirm` por USB imprime una nueva.
-2. **Conéctalo a tu red.** El punto de acceso de configuración se abre cuando lo pides: escribe `ap` en la consola (en el Air, después de `enable`), o usa Ajustes → 12 en el panel táctil. De la v2.7.1 a la v2.8.0, una unidad sin red configurada lo abría sola; ya no lo hace.
+2. **Conéctalo a tu red.** El punto de acceso de configuración se abre cuando lo pides: escribe `ap` en la consola (en el Air, después de `enable`), o usa Ajustes → 8 en el panel táctil. De la v2.7.1 a la v2.8.0, una unidad sin red configurada lo abría sola; ya no lo hace.
    - Conéctate a `<nombre>_SETUP` (`simut_SETUP` de fábrica). Es WPA2, y su clave por dispositivo está en la respuesta de `ap`, en la consola USB y en el terminal de arranque del TFT.
    - El portal se abre en `http://192.168.4.1`.
    - El dispositivo sigue midiendo con el punto de acceso activo; solo la telemetría y el syslog esperan a la red. De la v2.7.1 a la v2.8.0 no leía sensores, no comprobaba alarmas ni grababa histórico mientras el punto de acceso estaba activo.
 
    Sin pantalla, puedes usar la consola: `system ssid <nombre>`, `system pass <clave>` y luego `reload confirm`. La consola corta en el primer espacio: una red o una clave con espacio solo por la página web.
 
-   Sin red configurada, la unidad pide la fecha y la hora al final del arranque, porque sin red no hay NTP: el panel táctil abre una pantalla de fecha y hora (**OMITIR** la cierra, y Ajustes → 13 fija el reloj después), y cada imagen escribe en la consola una línea con `conf time AAAA-MM-DD HH:MM:SS`. Ese comando funciona en la consola de todas las imágenes, por USB o por Bluetooth: en el alpha y el Air, que no tienen panel, es la forma de responder a la pregunta. La sección **Date & Time** de la página web también fija el reloj.
+   Sin red configurada, la unidad pide la fecha y la hora al final del arranque, porque sin red no hay NTP: el panel táctil abre una pantalla de fecha y hora (**OMITIR** la cierra, y Ajustes → 4 fija el reloj después), y cada imagen escribe en la consola una línea con `conf time AAAA-MM-DD HH:MM:SS`. Ese comando funciona en la consola de todas las imágenes, por USB o por Bluetooth: en el alpha y el Air, que no tienen panel, es la forma de responder a la pregunta. La sección **Date & Time** de la página web también fija el reloj.
 3. **Abre la interfaz web** en la dirección que obtuvo el dispositivo — en la imagen `release`, también en `http://simut.local` — y entra como `admin` con la contraseña del paso 1. Se te pedirá elegir una nueva.
 4. **Añade sensores** en **Config → Sensors & GPIO**, o deja que *Scan for probes* los encuentre.
 5. **En el panel táctil**, Ajustes pide una cuenta y su PIN. El PIN de fábrica del admin es `1234`, y hay que cambiarlo en el primer uso.

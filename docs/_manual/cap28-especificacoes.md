@@ -245,7 +245,7 @@ O filtro vale só para a flash: o console com `debug on` e o syslog recebem todo
 
 | Item | Valor | Onde |
 |---|---|---|
-| Abertura | Só a pedido: o comando `ap`, em todas as imagens; [release]{.img} o item 12 do menu do painel, com a permissão **Rede**, e o gesto no boot. Da v2.7.1 à v2.8.0, a release e o alpha também abriam sozinhos, no boot sem rede configurada e pela escada de reconexão | [cap. 9](#cap-09-ap-quando) |
+| Abertura | Só a pedido: o comando `ap`, em todas as imagens; [release]{.img} o item 8 do menu do painel, com a permissão **Rede**, e o gesto no boot. Da v2.7.1 à v2.8.0, a release e o alpha também abriam sozinhos, no boot sem rede configurada e pela escada de reconexão | [cap. 9](#cap-09-ap-quando) |
 | Nome da rede | `<nome>_SETUP` | [cap. 9](#cap-09-ap) |
 | Chave | 10 caracteres, letras maiúsculas e algarismos sem `O`, `0`, `I` e `1`; sempre a mesma naquele aparelho, mesmo depois de um reset de fábrica | [cap. 9](#cap-09-ap) |
 | Endereço do aparelho | `http://192.168.4.1` | [cap. 9](#cap-09-ap) |
@@ -266,7 +266,7 @@ O filtro vale só para a flash: o console com `debug on` e o syslog recebem todo
 | Correção do relógio no log de eventos | No primeiro acerto depois do boot, pelo NTP ou à mão: acima de 5 s (evento 408); acima de 1 h, como aviso | [cap. 10](#cap-10-log) |
 | [release]{.img} Pergunta da data e da hora no boot | Num aparelho sem rede configurada e com o relógio provisório; **PULAR**, ou 30 s sem toque, levam à tela inicial | [cap. 10](#cap-10-painel) |
 | Acerto à mão pelo painel e pelo console | Ano de 2026 a 2099; o dia tem de existir no mês; segundos em zero no painel. O `time` vale no console de todas as imagens | [cap. 10](#cap-10-manual) |
-| Contexto do evento 13 num acerto à mão | 1 interface web, 2 console, 3 painel (item 13 do menu), 4 painel (pergunta do boot) | [cap. 10](#cap-10-log) |
+| Contexto do evento 13 num acerto à mão | 1 interface web, 2 console, 3 painel (item 4 do menu), 4 painel (pergunta do boot) | [cap. 10](#cap-10-log) |
 | **Fuso Horário** | −12 a +14, em horas inteiras, sem horário de verão; fábrica −3 | [cap. 10](#cap-10-fuso) |
 
 ### Servidor web, HTTPS e CORS {#cap-28-servidor-web}

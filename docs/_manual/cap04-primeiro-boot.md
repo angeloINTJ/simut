@@ -131,7 +131,7 @@ A conta `viewer`, a outra conta de fábrica, não tem senha conhecida. Gere uma 
    Conecte-se ao AP e acesse http://192.168.4.1
    ```
 
-   Na release, o item 12 do menu do painel, **Modo de Configuração**, faz o mesmo, com uma conta que tenha a permissão **Rede** no painel, e o painel passa a mostrar a rede e a chave ([capítulo 11](#cap-11-ap)). Na alpha, o `ap` funciona também pelo Bluetooth, e o LCD alterna o endereço, a rede e a chave ([capítulo 12](#cap-12-ap)).
+   Na release, o item 8 do menu do painel, **Modo de Configuração**, faz o mesmo, com uma conta que tenha a permissão **Rede** no painel, e o painel passa a mostrar a rede e a chave ([capítulo 11](#cap-11-ap)). Na alpha, o `ap` funciona também pelo Bluetooth, e o LCD alterna o endereço, a rede e a chave ([capítulo 12](#cap-12-ap)).
 2. No celular ou no computador, conecte-se à rede `simut_SETUP` com a chave.
 3. Abra `http://192.168.4.1`. A página de entrada aparece.
 4. Entre como `admin`, com a senha inicial.
@@ -146,7 +146,7 @@ A chave do ponto de acesso é sempre a mesma para aquele aparelho, mesmo depois 
 
 Com o ponto de acesso aberto, o painel da release passa ao terminal da tela de boot e mostra o nome real da rede, `simut_SETUP` de fábrica, `PSK` seguido da chave, **Acesse no celular: 192.168.4.1** e **AP Ativo! Reinicie a placa para sair.** O LCD do alpha alterna três páginas, com o endereço, a rede e a chave. O aparelho continua medindo com o ponto de acesso aberto ([capítulo 9](#cap-09-ap-aberto)).
 
-::: {.figura #fig-04-painel-ap tipo="tft" arquivo="04-painel-ap.png" captura="release recém-gravada, sem rede configurada; ponto de acesso aberto pelo menu (CFG, admin, PIN, item 12 Modo de Configuração, Confirmar) ou pelo comando ap no console USB; a caixa termina com simut_SETUP, PSK e a chave, Acesse no celular: 192.168.4.1 e AP Ativo! Reinicie a placa para sair.; capturar com GET /api/screenshot pelo próprio AP, com sessão admin depois da troca de senha; se a captura não funcionar no AP, use foto da tela; borre a chave antes de publicar"}
+::: {.figura #fig-04-painel-ap tipo="tft" arquivo="04-painel-ap.png" captura="release recém-gravada, sem rede configurada; ponto de acesso aberto pelo menu (CFG, admin, PIN, item 8 Modo de Configuração, Confirmar) ou pelo comando ap no console USB; a caixa termina com simut_SETUP, PSK e a chave, Acesse no celular: 192.168.4.1 e AP Ativo! Reinicie a placa para sair.; capturar com GET /api/screenshot pelo próprio AP, com sessão admin depois da troca de senha; se a captura não funcionar no AP, use foto da tela; borre a chave antes de publicar"}
 O painel com o ponto de acesso aberto: a rede, a chave e o aviso de AP ativo ficam na tela.
 :::
 

@@ -3,7 +3,7 @@
 Gerado por `tools/build_manual.py` — não edite à mão. Salve cada captura
 nesta pasta com o nome indicado e rode o script de novo.
 
-153 pendentes de 201.
+156 pendentes de 202.
 
 
 ## Capítulo 1 — O SIMUT em uma página
@@ -43,7 +43,7 @@ nesta pasta com o nome indicado e rode o script de novo.
       O primeiro boot em um só desenho: a senha, a hora, a rede, a web, o idioma, os sensores e o PIN.
 - [ ] `04-painel-data-hora.png` (Tela do painel) — release recém-gravada, sem rede configurada, logo depois do boot; tela Data e hora com as cinco colunas e as setas, a linha Sem Wi-Fi, os dados levam esta hora. em âmbar e os botões PULAR e SALVAR; sem rede, GET /api/screenshot não alcança o aparelho: use foto da tela, antes dos 30 s sem toque que levam o painel à tela inicial
       A pergunta do fim do boot num aparelho sem rede: a data e a hora do relógio provisório, prontas para acertar.
-- [ ] `04-painel-ap.png` (Tela do painel) — release recém-gravada, sem rede configurada; ponto de acesso aberto pelo menu (CFG, admin, PIN, item 12 Modo de Configuração, Confirmar) ou pelo comando ap no console USB; a caixa termina com simut_SETUP, PSK e a chave, Acesse no celular: 192.168.4.1 e AP Ativo! Reinicie a placa para sair.; capturar com GET /api/screenshot pelo próprio AP, com sessão admin depois da troca de senha; se a captura não funcionar no AP, use foto da tela; borre a chave antes de publicar
+- [ ] `04-painel-ap.png` (Tela do painel) — release recém-gravada, sem rede configurada; ponto de acesso aberto pelo menu (CFG, admin, PIN, item 8 Modo de Configuração, Confirmar) ou pelo comando ap no console USB; a caixa termina com simut_SETUP, PSK e a chave, Acesse no celular: 192.168.4.1 e AP Ativo! Reinicie a placa para sair.; capturar com GET /api/screenshot pelo próprio AP, com sessão admin depois da troca de senha; se a captura não funcionar no AP, use foto da tela; borre a chave antes de publicar
       O painel com o ponto de acesso aberto: a rede, a chave e o aviso de AP ativo ficam na tela.
 - [ ] `04-lcd-ap.png` (LCD 16×2) — alpha recém-gravada, sem rede configurada; ponto de acesso aberto pelo comando ap no console USB, com o aparelho já nas leituras; página Rede: 2 de 3 com simut_SETUP na linha de baixo
       O LCD de uma alpha com o ponto de acesso aberto pelo comando ap: a página com o nome da rede.
@@ -114,7 +114,7 @@ nesta pasta com o nome indicado e rode o script de novo.
 - [ ] `08-quem.png` (Tela do painel) — screen pin; contas admin, operador1 e manutencao com PIN; nenhuma bloqueada
       A tela Quem está usando o painel?, com as contas que têm PIN.
 - [ ] `08-menu-operador.png` (Tela do painel) — menu de configurações depois do PIN de uma conta que tem só permissões de painel; título Configurações > operador1
-      O menu de uma conta só com permissões de painel: os itens sem numeração e o nome da conta no título.
+      O menu de uma conta só com permissões de painel: Limites de Alarme, Status do Sistema, Alterar Senha e Licença, sem numeração, e o nome da conta no título.
 - [ ] `08-teclado-3.png` (Tela do painel) — screen pin e escolha de uma conta; política de fábrica: 0-9, 3 por tecla; dois caracteres já digitados
       O teclado embaralhado da política de fábrica: quatro cartões de três caracteres.
 - [ ] `08-teclado-alfa.png` (Tela do painel) — screen pin e escolha de uma conta; política 0-9 A-Z, 1 por tecla; grupo PQRS aberto
@@ -190,8 +190,14 @@ nesta pasta com o nome indicado e rode o script de novo.
       A página de umidade do detalhe.
 - [ ] `11-detalhe-pressao.png` (Tela do painel) — screen gra -> tap(160,120) -> tap(160,120) -> tap(160,120); mesmo BME280
       A página de pressão do detalhe.
+- [ ] `11-menu.png` (Tela do painel) — screen set; a ferramenta entra como administrador; primeira página, item 1 selecionado
+      O menu completo, primeira página: Limites de Alarme, Sons de Alarme, Status do Sistema e Data e hora, numerados de 1 a 4.
+- [ ] `11-menu-p2.png` (Tela do painel) — screen set -> tap(105,215) quatro vezes; a seta para baixo leva a seleção do item 1 ao item 5; segunda página
+      A segunda página do menu completo, com Alterar Senha, Usuários, Segurança do PIN e Modo de Configuração.
+- [ ] `11-menu-p3.png` (Tela do painel) — screen set -> tap(35,215) -> tap(35,215); a seta para cima dá a volta até o item 13, e o segundo toque seleciona o item 12; terceira página
+      A terceira página do menu completo, com Idioma do Sistema, Temas Visuais, Calibrar Touch e Alinhamento da Tela.
 - [ ] `11-menu-p4.png` (Tela do painel) — screen set -> tap(35,215); a seta para cima dá a volta e seleciona o item 13; quarta página
-      A quarta página do menu completo, só com Data e hora.
+      A quarta página do menu completo, só com Licença.
 - [ ] `11-mira.png` (Tela do painel) — screen touchcal e complete a etapa de sensibilidade com o dedo; capture a primeira mira, no canto de cima à esquerda; o toque simulado não completa a sensibilidade, porque não tem pressão
       A etapa de posição: a primeira mira, Toque na mira (1/4) e a volta [ 1 / 2 ].
 - [ ] `11-calib-ok.png` (Tela do painel) — depois do oitavo toque de uma calibração com as duas voltas coerentes

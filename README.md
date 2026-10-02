@@ -171,8 +171,8 @@ See the **[wiring guide](docs/WIRING.md)** for the complete pinout and connectio
 - **Administration on the glass:**
   - a Users item creates accounts and sets their permission bits and PINs;
   - the 13 settings rows are filtered by what the account may do;
-  - Settings → 12 starts the setup access point;
-  - Settings → 13 sets the date and time, and a unit with no network configured asks for them at the end of the boot.
+  - Settings → 8 starts the setup access point;
+  - Settings → 4 sets the date and time, and a unit with no network configured asks for them at the end of the boot.
 - **Top-panel gestures** — a tap toggles min/max, a 3 s hold pins the selection.
 - **DMA rendering fast path** — canvas compositing over 62.5 MHz SPI.
 - **4 px safe area everywhere** — the screen-alignment offset (±4 px per axis) can never crop content.
@@ -229,7 +229,7 @@ See the **[wiring guide](docs/WIRING.md)** for the complete pinout and connectio
   - a captive portal at `http://192.168.4.1`.
 
   It opens only when someone asks. A unit whose network is away keeps measuring and keeps retrying it. Three ways in:
-  - Settings → 12 on the panel;
+  - Settings → 8 on the panel;
   - the `ap` console command (USB, or Bluetooth on the alpha and the Air);
   - a 3 s hold on the panel during boot.
 - **NTP** — the retry backoff grows from 20 s to 15 min, with a fallback to `pool.ntp.org`. Until NTP syncs or someone sets the clock, a provisional clock is seeded from the newest stored record. The panel marks it with `?` between the date and the time, and the first set after the boot, by NTP or by hand, corrects the history blocks that boot started.
@@ -320,14 +320,14 @@ Prefer not to build? Every [release](https://github.com/angeloINTJ/simut/release
 
 ### First boot
 1. **Capture the admin password.** A factory-fresh unit prints a random 8-character admin password **once on the USB serial console** (115200 baud). It is never stored in plain text. If you miss it, `system admin reset confirm` over USB prints a new one.
-2. **Join it to your network.** The setup access point opens when you ask for it: type `ap` on the console (on the Air, after `enable`), or use Settings → 12 on the touch panel. From v2.7.1 to v2.8.0, a unit with no network configured opened it by itself; it no longer does.
+2. **Join it to your network.** The setup access point opens when you ask for it: type `ap` on the console (on the Air, after `enable`), or use Settings → 8 on the touch panel. From v2.7.1 to v2.8.0, a unit with no network configured opened it by itself; it no longer does.
    - Join `<name>_SETUP` (`simut_SETUP` from the factory). It is WPA2, and its per-device key is in the reply to `ap`, on the USB console and on the TFT's boot terminal.
    - The portal opens at `http://192.168.4.1`.
    - The device keeps measuring while the access point is up; only telemetry and syslog wait for the network. v2.7.1 to v2.8.0 read no sensors, checked no alarms and recorded no history while it was up.
 
    Without a screen, you can use the console instead: `system ssid <name>`, `system pass <secret>`, then `reload confirm`. The console stops at the first space, so a network name or password with a space has to go through the web page.
 
-   With no network configured, the unit asks for the date and time at the end of the boot, because without a network there is no NTP: the touch panel opens a date-and-time screen (**SKIP** leaves it, and Settings → 13 sets the clock later), and every image prints `No network, provisional clock: conf time YYYY-MM-DD HH:MM:SS` on the console. That command works on every image's console, over USB or Bluetooth: on the alpha and the Air, which have no panel, it is how the question is answered. The web page's **Date & Time** section sets the clock too.
+   With no network configured, the unit asks for the date and time at the end of the boot, because without a network there is no NTP: the touch panel opens a date-and-time screen (**SKIP** leaves it, and Settings → 4 sets the clock later), and every image prints `No network, provisional clock: conf time YYYY-MM-DD HH:MM:SS` on the console. That command works on every image's console, over USB or Bluetooth: on the alpha and the Air, which have no panel, it is how the question is answered. The web page's **Date & Time** section sets the clock too.
 3. **Open the web interface** at the address the device got — on the `release` image also `http://simut.local` — and log in as `admin` with the password from step 1. You will be asked to choose a new one.
 4. **Add sensors** in **Config → Sensors & GPIO**, or let *Scan for probes* find them.
 5. **On the touch panel**, Settings asks for an account and its PIN. The factory admin PIN is `1234`, and it must be changed on first use.

@@ -344,7 +344,7 @@ Ao ligar **Mudo Global**, o painel toca o som de atenção e pergunta: **Todos o
 
 As mudanças só valem depois de **SALVAR**, no rodapé da tela. O painel grava na hora, sem reiniciar, e o log registra o código 446, **Config de som salva**.
 
-::: {.figura #fig-07-sons-painel tipo="tft" arquivo="07-sons-painel.png" captura="screen set -> tap(105,215) -> tap(105,215) -> tap(250,215); sessão admin; valores de fábrica; primeira página"}
+::: {.figura #fig-07-sons-painel tipo="tft" arquivo="07-sons-painel.png" captura="screen set -> tap(105,215) -> tap(250,215); a seta para baixo seleciona o item 2, Sons de Alarme; sessão admin; valores de fábrica; primeira página"}
 A tela Config. de Sons, primeira página: os dois volumes, Toque na Tela e Confirmação.
 :::
 

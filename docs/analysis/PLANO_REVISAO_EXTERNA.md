@@ -161,10 +161,11 @@ slot e o histórico iria a cerca de 170 dias).
    [`OTA_ASSINADA.md`](OTA_ASSINADA.md).
 5. **Descrição do repositório no GitHub** — 01/10/2026: esperar.
 6. **Aparelho sem Wi-Fi** — decidida em 01/10/2026: o AP só abre a pedido
-   (Configurações > 12, `ap`, o gesto do boot), e um aparelho sem rede
-   configurada pede a data e a hora no boot, com a opção de pular. PR #214
-   (rascunho, empilhado no #204), provado na bancada. O gesto do boot, que
-   também abre o AP sem passar pelo menu, fica (decidido em 01/10/2026).
+   (Configurações > Modo de Configuração, `ap`, o gesto do boot), e um
+   aparelho sem rede configurada pede a data e a hora no boot, com a opção de
+   pular. PR #214 (rascunho, empilhado no #204), provado na bancada. O gesto
+   do boot, que também abre o AP sem passar pelo menu, fica (decidido em
+   01/10/2026).
 7. **Check obrigatório do Pico 2 W** — decidida em 01/10/2026:
    `firmware (pico2_w_release)` entra na proteção da `main` quando o #215 for
    mergeado.
