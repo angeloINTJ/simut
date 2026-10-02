@@ -1,0 +1,7 @@
+A small SHA-256 implementation for JavaScript
+https://github.com/geraintluff/sha256
+by Geraint Luff
+
+License (from the README of that repository):
+
+This library is released as "public domain".  You can copy, modify, re-release and re-license, or incorporate into any other project without restriction of any kind.

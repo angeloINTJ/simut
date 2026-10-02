@@ -523,36 +523,36 @@
   "21,428. Against the published v2.7.4 .bin: release +1,376, alpha and air +32."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-10-01 feat/ota-signed-stage on main 2690c0a: all seven measured with the signature check wired into the stage and, again, into the apply (docs/analysis/OTA_ASSINADA.md, stage 3). Against main built here: release +1,952, test +2,024, test_https +1,632, asserts +2,024, alpha +1,280, air +1,280, pico2_w_release +1,880 B. By symbol, on the release: sigCheck 548, the page's refusal messages 387 (FILE_PAGE_GZ), sigTrustParse 172, ota_check_staged_signature 172, the apply's re-check 156, the trust block 90 (156 with the bench root), the BearSSL glue and the stage hook ~220; no br_* symbol added (196 = 196 on the release, 161 = 161 on test and air). Budgets raised by the growth on all seven, which keeps each margin where it was (104 B on release, 32 on asserts). The OTA ceiling now counts the 241 B signature trailer (check_flash_budget.py): .bin slack signed is release 21,523, test 16,387, test_https 9,171, asserts 19,219, alpha 57,955, air 12,995. measured is the zopfli image PlatformIO prints.",
+ "measured_on": "2026-10-02 feat/lang-pack-dict-only on main ad85931: all seven measured with the pack loader reading only @DICT and the panel's License screen made the /license page's three parts (an opening in the pack's language, the MIT text, every third-party component). Against main: release +3,824, test +2,880, test_https +2,856, asserts +3,816, alpha +96, air -48, pico2_w_release +3,752 B. By symbol, on the release: the complete third-party list in LICENSE_TEXT_EN +855, the English opening +612, the /license page +438 (gzip), the @WEBDICT reader +420, the screen's layout and composition ~+340; the loader -340 and lazyRead -132. Static RAM goes the other way: -1,288 B on the release (the 2,048 B licence buffer gone, a 768 B opening buffer in its place), -3,320 on test. Budgets raised by the growth, which keeps each margin where it was; air's lowered by the 48 B it shrank. measured is the zopfli image PlatformIO prints.",
  "measured_at_commit": "chore/v2.8.0 on main 8aa898b (#195 merged; SIMUT_VERSION 2.8.0; budgets unchanged). All six rebuilt here; release, test, alpha and air byte-identical to the candidate tested on the bench. measured is the zopfli image PlatformIO prints.",
  "envs": {
   "pico_w_release": {
-   "budget": 1006692,
-   "measured": 1006588
+   "budget": 1010516,
+   "measured": 1010412
   },
   "pico_w_test": {
-   "budget": 1012364,
-   "measured": 1011724
+   "budget": 1015244,
+   "measured": 1014604
   },
   "pico_w_test_https": {
-   "budget": 1019628,
-   "measured": 1018940
+   "budget": 1022484,
+   "measured": 1021796
   },
   "pico_w_asserts": {
-   "budget": 1008924,
-   "measured": 1008892
+   "budget": 1012740,
+   "measured": 1012708
   },
   "pico_w_alpha": {
    "budget": 968076,
-   "measured": 967076
+   "measured": 967172
   },
   "pico_w_air": {
-   "budget": 1012312,
-   "measured": 1011096
+   "budget": 1012264,
+   "measured": 1011048
   },
   "pico2_w_release": {
-   "budget": 980064,
-   "measured": 979832,
+   "budget": 983816,
+   "measured": 983584,
    "ceiling": 3141632
   }
  }

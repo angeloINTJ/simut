@@ -42,6 +42,10 @@ echo "--- Copying root files ---"
 cp platformio.ini "${DST}/"
 cp WebUI.h        "${DST}/"
 cp LICENSE        "${DST}/"
+# The third-party notices travel with the licence: the BSD and MIT terms of
+# the components in the image ask a binary distribution to carry their text.
+cp THIRD_PARTY_NOTICES.md "${DST}/"
+cp -r LICENSES    "${DST}/"
 cp .editorconfig  "${DST}/"
 cp .dockerignore  "${DST}/" 2>/dev/null || true
 cp docker-compose.yml "${DST}/"

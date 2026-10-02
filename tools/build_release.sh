@@ -57,6 +57,10 @@ for VARIANT in simut_tft simut_alpha; do
   # do Software", e este zip e uma copia do codigo inteiro. Saiu sem ele de
   # v1.x ate 2026-09-21; o build_release_pio.sh sempre copiou.
   cp LICENSE "${DST}/LICENSE"
+  # Os avisos de terceiros vao junto: as licencas BSD e MIT dos componentes da
+  # imagem pedem que o texto acompanhe uma distribuicao em binario.
+  cp THIRD_PARTY_NOTICES.md "${DST}/THIRD_PARTY_NOTICES.md"
+  cp -r LICENSES "${DST}/LICENSES"
 
   # Restore Arduino-specific files
   if [ -f "/tmp/simut_arduino_config_${VARIANT}.h" ]; then

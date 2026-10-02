@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Positive controls for check_lang_packs.py — the split-ceiling gates.
+"""Positive controls for check_lang_packs.py — the two ceilings and the order.
 
 A gate that never fired is indistinguishable from a gate that cannot fire,
-so each new failure mode is provoked here on a synthetic pack mutated from
-the real es-ES one: a section AFTER @WEBDICT (suffix contract), a resident
-prefix over LANG_RESIDENT_MAX, and a file over LANG_FILE_MAX. The A-vs-A
-control runs the real packs through the same entry point first.
+so each failure mode is provoked here on a synthetic pack mutated from the
+real es-ES one: a section AFTER @WEBDICT (suffix contract), a @DICT over
+LANG_DICT_MAX, and a file over LANG_FILE_MAX. The A-vs-A control runs the
+real packs through the same entry point first, and one control checks the
+opposite: since the loader reads only @DICT, everything before @WEBDICT may
+outgrow the old 16 KB prefix ceiling without tripping anything.
 
 Run: python3 tools/test_lang_gate.py
 """
@@ -51,22 +53,23 @@ def run_gate(packs):
 
 
 def main():
-    file_max, res_max = gate.lang_limits()
-    check("limits read from parser source", file_max > res_max > 0,
-          f"file={file_max} res={res_max}")
+    file_max, dict_max = gate.lang_limits()
+    check("limits read from parser source", file_max > dict_max > 0,
+          f"file={file_max} dict={dict_max}")
 
-    # resident_split arithmetic on a hand-built file with known offsets
-    with tempfile.TemporaryDirectory() as td:
-        p = Path(td) / "t.lng"
-        p.write_bytes(b"# c\n@NAME X\n@DICT\na\n@WEBDICT\n{}\n")
-        res, has, tail = gate.resident_split(p)
-        check("resident_split offset", res == len(b"# c\n@NAME X\n@DICT\na\n"),
-              f"got {res}")
-        check("resident_split flags", has and not tail)
-        p.write_bytes(b"@DICT\na\n")
-        res, has, tail = gate.resident_split(p)
-        check("no @WEBDICT -> resident is whole file",
-              res == p.stat().st_size and not has and not tail)
+    # pack_index arithmetic on hand-built files with known offsets
+    head = b"# c\n@NAME X\n@DICT\n"
+    idx, tail = gate.pack_index(head + b"a\n@WEBDICT\n{}\n")
+    check("pack_index: @DICT range", idx.get("DICT") == (len(head), len(head) + 2),
+          f"got {idx.get('DICT')}")
+    check("pack_index: @WEBDICT runs to EOF, nothing after it",
+          idx.get("WEBDICT") == (len(head) + 11, len(head) + 14) and not tail,
+          f"got {idx.get('WEBDICT')} tail={tail}")
+    idx, tail = gate.pack_index(b"@DICT\na\n")
+    check("no @WEBDICT -> @DICT runs to EOF", idx == {"DICT": (6, 8)} and not tail,
+          f"got {idx}")
+    idx, tail = gate.pack_index(b"@DICT\na\n@DICTX\nb\n")
+    check("pack_index: names match exactly", idx == {"DICT": (6, 8)}, f"got {idx}")
 
     # A-vs-A: the real packs pass through the same entry point
     bad, err = run_gate(sorted((ROOT / "data" / "lang").glob("*.lng")))
@@ -81,15 +84,32 @@ def main():
         check("gate fires: section after @WEBDICT",
               bad and "AFTER" in err and "@WEBDICT" in err, err[-200:])
 
-        # resident prefix over LANG_RESIDENT_MAX (pad @HELP, before @WEBDICT)
-        pad = b"# pad\n" * ((res_max // 6) + 2)
+        # @DICT over LANG_DICT_MAX: one line made longer, so the line count
+        # stays right and only the ceiling can fire
+        p.write_bytes(real.replace(b"@DICT\n", b"@DICT\n" + b"x" * dict_max, 1))
+        bad, err = run_gate([p])
+        check("gate fires: @DICT over LANG_DICT_MAX",
+              bad and "LANG_DICT_MAX" in err, err[-200:])
+
+        # the bytes before @WEBDICT past the old 16,384 B prefix ceiling: not a
+        # failure any more, nothing outside @DICT reaches the heap
+        before = len(real.split(b"\n@WEBDICT")[0])
+        pad = b"# pad\n" * ((16384 - before) // 6 + 20)
         p.write_bytes(real.replace(b"@HELP\n", b"@HELP\n" + pad, 1))
         bad, err = run_gate([p])
-        check("gate fires: resident over LANG_RESIDENT_MAX",
-              bad and "LANG_RESIDENT_MAX" in err, err[-200:])
+        check("prefix over the old 16 KB ceiling passes",
+              not bad and before + len(pad) > 16384, err[-200:])
+
+        # the License screen's opening over its buffer: one of its five strings
+        # made longer inside @WEBDICT, so only that check can fire
+        grown = real.replace(b'"lic_summary":"', b'"lic_summary":"' + b"x" * 200, 1)
+        p.write_bytes(grown)
+        bad, err = run_gate([p])
+        check("gate fires: License opening over its buffer",
+              bad and "opening" in err, err[-200:])
 
         # whole file over LANG_FILE_MAX (pad inside the JSON blob: whitespace
-        # is legal there, adds no key, and leaves the resident prefix alone)
+        # is legal there, adds no key, and leaves @DICT alone)
         need = file_max - len(real) + 16
         p.write_bytes(real.replace(b"@WEBDICT\n{", b"@WEBDICT\n{" + b" " * need, 1))
         bad, err = run_gate([p])

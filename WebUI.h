@@ -6944,194 +6944,268 @@ SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
 Third-Party Software Notices
 ================================================================================
 
-This file lists the third-party libraries and components used by SIMUT,
-along with their respective licenses and copyright holders. SIMUT itself
-is licensed under the MIT License (see LICENSE file).
-
-These libraries are NOT redistributed with SIMUT source code — they are
-resolved at build time by the PlatformIO/Arduino build system. This notice
-is provided for attribution and license compliance.
+SIMUT is distributed under the MIT License above. Its firmware images also carry
+the third-party software listed here. The licence text of each one is reproduced
+in full in THIRD_PARTY_NOTICES.md and the LICENSES directory of the source
+repository, published with every release: https://github.com/angeloINTJ/simut
 
 ================================================================================
-1. Arduino-Pico Core
+1. Arduino-Pico core
 ================================================================================
-   Description:  Arduino core for Raspberry Pi RP2040/RP2350
-   Author:       Earle F. Philhower, III
-   License:      LGPL-2.1 (GNU Lesser General Public License v2.1)
-   URL:          https://github.com/earlephilhower/arduino-pico
-   Components:   Arduino.h, WiFi.h, WebServer.h, DNSServer.h,
-                 HTTPClient.h, WiFiClientSecure.h, SerialBT.h,
-                 LEAmDNS.h, SPI.h
-
-   Note: The LGPL permits linking with proprietary/MIT-licensed code
-   without requiring the SIMUT source to be LGPL. SIMUT does not modify
-   the Arduino-Pico core itself.
+   Description:   The Arduino core for the RP2040 and RP2350, with its WiFi,
+                  WebServer, HTTPClient, DNSServer, Updater, PicoOTA, SPI and
+                  Wire libraries. Its networking and filesystem code comes from
+                  the ESP8266 Arduino core, under the same licence.
+   Holder:        Earle F. Philhower, III
+   License:       LGPL-2.1
+   Images:        all images
+   URL:           https://github.com/earlephilhower/arduino-pico
+   Note:          SIMUT publishes its complete source, so an image can be
+                  rebuilt against a modified core, as the LGPL requires.
 
 ================================================================================
 2. Raspberry Pi Pico SDK
 ================================================================================
-   Description:  Hardware abstraction layer for RP2040
-   Author:       Raspberry Pi (Trading) Ltd.
-   License:      BSD-3-Clause
-   URL:          https://github.com/raspberrypi/pico-sdk
-   Components:   hardware/watchdog.h, hardware/pwm.h, hardware/clocks.h,
-                 hardware/gpio.h, hardware/sync.h, hardware/structs/timer.h,
-                 pico/multicore.h, pico/mutex.h, pico/time.h,
-                 pico/unique_id.h, pico/util/queue.h
+   Description:   Hardware access, multicore, flash and boot code for the RP2040
+                  and RP2350.
+   Holder:        Raspberry Pi (Trading) Ltd.
+   License:       BSD-3-Clause
+   Images:        all images
+   URL:           https://github.com/raspberrypi/pico-sdk
 
 ================================================================================
-3. Adafruit GFX Library
+3. TinyUSB
 ================================================================================
-   Description:  Core graphics library for Arduino displays
-   Author:       Limor Fried / Ladyada (Adafruit Industries)
-   Copyright:    Copyright (c) 2012 Adafruit Industries
-   License:      BSD (2-Clause)
-   URL:          https://github.com/adafruit/Adafruit-GFX-Library
-   Components:   Adafruit_GFX.h, GFXcanvas16
+   Description:   The USB stack behind the USB serial console.
+   Holder:        Ha Thach (tinyusb.org)
+   License:       MIT
+   Images:        all images
+   URL:           https://github.com/hathach/tinyusb
 
 ================================================================================
-4. Adafruit ILI9341
+4. cyw43-driver
 ================================================================================
-   Description:  Driver library for ILI9341 TFT displays
-   Author:       Limor Fried / Ladyada (Adafruit Industries)
-   Copyright:    Copyright (c) 2013 Adafruit Industries
-   License:      BSD (2-Clause)
-   URL:          https://github.com/adafruit/Adafruit_ILI9341
-   Components:   Adafruit_ILI9341.h
+   Description:   Driver for the Infineon CYW43439 Wi-Fi and Bluetooth chip of
+                  the Pico W and the Pico 2 W.
+   Holder:        George Robotics Pty Ltd
+   License:       Raspberry Pi licence (LICENSE.RP)
+   Images:        all images
+   URL:           https://github.com/georgerobotics/cyw43-driver
+   Note:          Licensed by Raspberry Pi Ltd for use with its own chips only.
+                  The driver's other licence (its LICENSE file) is for
+                  non-commercial use; LICENSE.RP is the one that covers SIMUT,
+                  which runs on the Pico W and the Pico 2 W.
 
 ================================================================================
-5. XPT2046_Touchscreen
+5. CYW43439 radio firmware
 ================================================================================
-   Description:  Touchscreen library for XPT2046 controllers
-   Author:       Paul Stoffregen
-   Copyright:    Copyright (c) 2015 Paul Stoffregen
-   License:      MIT
-   URL:          https://github.com/PaulStoffregen/XPT2046_Touchscreen
-   Components:   XPT2046_Touchscreen.h
+   Description:   The firmware the radio chip loads at boot: Wi-Fi in every
+                  image, Bluetooth too in the alpha and Air images.
+   Holder:        Infineon Technologies (Cypress)
+   License:       binary, shipped in cyw43-driver
+   Images:        all images
+   URL:           https://github.com/georgerobotics/cyw43-driver/tree/main/firmware
+   Note:          Shipped inside cyw43-driver; the Pico SDK carries no separate
+                  licence for it, so it travels under the driver's terms above.
 
 ================================================================================
-6. LittleFS
+6. lwIP
 ================================================================================
-   Description:  Little fail-safe filesystem for microcontrollers
-   Author:       ARM Limited (originally by Christopher Haster)
-   License:      BSD-3-Clause
-   URL:          https://github.com/littlefs-project/littlefs
-   Components:   LittleFS.h (via Arduino-Pico integration)
+   Description:   The TCP/IP stack (Adam Dunkels and the lwIP contributors),
+                  bundled in the Arduino-Pico core.
+   Holder:        Swedish Institute of Computer Science
+   License:       BSD-3-Clause
+   Images:        all images
+   URL:           https://savannah.nongnu.org/projects/lwip/
 
 ================================================================================
-7. PubSubClient
+7. BearSSL
 ================================================================================
-   Description:  MQTT client library for Arduino
-   Author:       Nick O'Leary
-   Copyright:    Copyright (c) 2008-2020 Nicholas O'Leary
-   License:      MIT
-   URL:          https://github.com/knolleary/pubsubclient
-   Components:   PubSubClient.h
+   Description:   TLS for HTTPS and MQTTS, SHA-256, and the P-256 check of
+                  signed updates.
+   Holder:        Thomas Pornin
+   License:       MIT
+   Images:        all images
+   URL:           https://bearssl.org
 
 ================================================================================
-8. BearSSL
+8. LittleFS
 ================================================================================
-   Description:  SSL/TLS implementation (crypto primitives)
-   Author:       Thomas Pornin
-   License:      MIT
-   URL:          https://bearssl.org/
-   Components:   bearssl/bearssl_hash.h, bearssl/bearssl_hmac.h
-                 (via Arduino-Pico WiFiClientSecure)
+   Description:   The flash filesystem: configuration, history, language packs.
+   Holder:        Arm Limited and the littlefs authors
+   License:       BSD-3-Clause
+   Images:        all images
+   URL:           https://github.com/littlefs-project/littlefs
 
 ================================================================================
-9. GNU FreeFont (FreeSans)
+9. MicroPython DHCP server
 ================================================================================
-   Description:  Scalable outline fonts (converted to GFX bitmap format)
-   Author:       GNU Project / Primoz Peterlin, Steve White
-   License:      GPL-3.0 with Font Embedding Exception
-   URL:          https://www.gnu.org/software/freefont/
-   Components:   Fonts/FreeSans9pt7b.h, Fonts/FreeSansBold9pt7b.h,
-                 Fonts/FreeSansBold12pt7b.h, Fonts/FreeSansBold24pt7b.h
-
-   Note: The Font Embedding Exception permits use of these fonts in
-   documents and programs without requiring those works to be GPL.
-   The fonts are embedded as bitmap data via Adafruit GFX font converter.
+   Description:   Hands out addresses on the setup access point; part of the
+                  Arduino-Pico WiFi library.
+   Holder:        Damien P. George
+   License:       MIT
+   Images:        all images
+   URL:           https://micropython.org
 
 ================================================================================
-10. OneWirePIO_RP2040
+10. LEAmDNS
 ================================================================================
-   Description:  1-Wire protocol via RP2040 PIO (no bit-banging)
-   Author:       Ângelo Moisés Alves
-   License:      MIT
-   URL:          https://github.com/angeloINTJ/OneWirePIO_RP2040
-   Components:   OneWirePIO.h, DS18B20PIO.h
+   Description:   The mDNS responder that answers for the device name on the
+                  local network; part of the Arduino-Pico core.
+   Holder:        LaborEtArs
+   License:       MIT
+   Images:        pico_w_release, pico_w_asserts, pico2_w_release
+   URL:           https://github.com/LaborEtArs/ESP8266mDNS
 
 ================================================================================
-11. DHT22PIO_RP2040
+11. newlib
 ================================================================================
-   Description:  DHT22 sensor driver via RP2040 PIO (no bit-banging)
-   Author:       Ângelo Moisés Alves
-   License:      MIT
-   URL:          https://github.com/angeloINTJ/DHT22PIO_RP2040
-   Components:   DHT22PIO.h, DHTBus.h
+   Description:   The C library of the toolchain: memory allocation, strings,
+                  formatted output.
+   Holder:        Red Hat, Inc. and others
+   License:       BSD-style (COPYING.NEWLIB)
+   Images:        all images
+   URL:           https://sourceware.org/newlib/
 
 ================================================================================
-12. BuzzerPIO_RP2040
+12. GCC runtime libraries
 ================================================================================
-   Description:  Buzzer/tone generator via RP2040 PIO with hardware volume
-                 control (PWM ultrasonic + audio gate, dual SM per PIO block)
-   Author:       Ângelo Moisés Alves
-   License:      MIT
-   URL:          https://github.com/angeloINTJ/BuzzerPIO_RP2040
-   Components:   BuzzerPIO_RP2040.h
+   Description:   libgcc and libstdc++, linked by the compiler. The exception
+                  lets them be combined with code under any licence.
+   Holder:        Free Software Foundation, Inc.
+   License:       GPL-3.0 with the GCC Runtime Library Exception
+   Images:        all images
+   URL:           https://gcc.gnu.org
 
 ================================================================================
-13. Liberation Sans Bold
+13. Adafruit GFX Library
 ================================================================================
-   Description:  Typeface whose outlines were traced into the SIMUT wordmark
-                 (the "SIMUT" lettering on the login screen). No font file is
-                 embedded: only the five glyphs S, I, M, U, T were converted
-                 to static SVG paths.
-   Author:       Steve Matteson (Ascender Corp.), maintained by Red Hat
-   Copyright:    Copyright (c) 2012 Red Hat, Inc.
-   License:      SIL Open Font License 1.1
-   URL:          https://github.com/liberationfonts/liberation-fonts
-   Components:   SVG path data in LOGIN_PAGE
+   Description:   Drawing primitives for the touch panel, and the classic 5x7
+                  font of its text screens.
+   Holder:        Adafruit Industries
+   License:       BSD-2-Clause
+   Images:        the five images with the touch panel
+   URL:           https://github.com/adafruit/Adafruit-GFX-Library
 
 ================================================================================
-14. TwoWirePIO_RP2040
+14. Adafruit ILI9341
 ================================================================================
-   Description:  I2C master via RP2040 PIO (hardware-I2C fallback for the
-                 BMx280 sensors when the pins are not I2C-capable)
-   Author:       Ângelo Moisés Alves
-   License:      MIT
-   URL:          https://github.com/angeloINTJ/TwoWirePIO_RP2040
-   Components:   WirePIO.h
+   Description:   Driver for the ILI9341 controller of the touch panel.
+   Holder:        Adafruit Industries (Limor Fried)
+   License:       BSD
+   Images:        the five images with the touch panel
+   URL:           https://github.com/adafruit/Adafruit_ILI9341
+   Note:          Its source files say &quot;BSD license, all text here must be
+                  included in any redistribution&quot;, so the whole header is
+                  reproduced. Its README says MIT; the source is what this list
+                  follows.
 
 ================================================================================
-15. BMx280PIO_RP2040
+15. XPT2046_Touchscreen
 ================================================================================
-   Description:  BME280/BMP280 I2C temperature/humidity/pressure driver
-   Author:       Ângelo Moisés Alves
-   License:      MIT
-   URL:          https://github.com/angeloINTJ/BMx280PIO_RP2040
-   Components:   BMx280PIO_RP2040.h
+   Description:   Driver for the XPT2046 touch controller.
+   Holder:        Paul Stoffregen
+   License:       MIT
+   Images:        the five images with the touch panel
+   URL:           https://github.com/PaulStoffregen/XPT2046_Touchscreen
 
 ================================================================================
-16. lwIP
+16. PubSubClient
 ================================================================================
-   Description:  Lightweight TCP/IP stack, bundled inside the Arduino-Pico core
-                 (liblwip.a, or liblwip-bt.a in the Bluetooth build)
-   Author:       Adam Dunkels and the lwIP contributors
-   License:      BSD-style (3-clause)
-   URL:          https://savannah.nongnu.org/projects/lwip/
-   Components:   liblwip.a / liblwip-bt.a
+   Description:   The MQTT client behind MQTT and MQTTS telemetry.
+   Holder:        Nicholas O'Leary
+   License:       MIT
+   Images:        all images
+   URL:           https://github.com/knolleary/pubsubclient
 
 ================================================================================
-17. BTstack
+17. OneWirePIO_RP2040
 ================================================================================
-   Description:  Dual-mode Bluetooth stack, bundled for the alpha build that
-                 enables the SerialBT CLI (CYW43_ENABLE_BLUETOOTH)
-   Author:       BlueKitchen GmbH
-   License:      BTstack license (free for non-commercial use; commercial use
-                 requires a separate license from BlueKitchen GmbH)
-   URL:          https://github.com/bluekitchen/btstack
-   Components:   liblwip-bt.a (via the Arduino-Pico Bluetooth framework flag)
+   Description:   1-Wire on the PIO, for the DS18B20 probes.
+   Holder:        Ângelo Moisés Alves
+   License:       MIT
+   Images:        all images
+   URL:           https://github.com/angeloINTJ/OneWirePIO_RP2040
+
+================================================================================
+18. DHT22PIO_RP2040
+================================================================================
+   Description:   The DHT22 protocol on the PIO.
+   Holder:        Ângelo Moisés Alves
+   License:       MIT
+   Images:        all images
+   URL:           https://github.com/angeloINTJ/DHT22PIO_RP2040
+
+================================================================================
+19. BuzzerPIO_RP2040
+================================================================================
+   Description:   Tones and melodies for the buzzer on the PIO.
+   Holder:        Ângelo Moisés Alves
+   License:       MIT
+   Images:        all images but pico_w_air
+   URL:           https://github.com/angeloINTJ/BuzzerPIO_RP2040
+
+================================================================================
+20. TwoWirePIO_RP2040
+================================================================================
+   Description:   I2C on the PIO (the WirePIO library).
+   Holder:        Ângelo Moisés Alves
+   License:       MIT
+   Images:        all images
+   URL:           https://github.com/angeloINTJ/TwoWirePIO_RP2040
+
+================================================================================
+21. BMx280PIO_RP2040
+================================================================================
+   Description:   BME280 and BMP280 driver.
+   Holder:        Ângelo Moisés Alves
+   License:       MIT
+   Images:        all images
+   URL:           https://github.com/angeloINTJ/BMx280PIO_RP2040
+
+================================================================================
+22. BTstack
+================================================================================
+   Description:   The Bluetooth stack behind the Bluetooth console of the alpha
+                  and Air images.
+   Holder:        BlueKitchen GmbH
+   License:       Raspberry Pi licence (LICENSE.RP)
+   Images:        pico_w_alpha, pico_w_air
+   URL:           https://github.com/bluekitchen/btstack
+   Note:          Raspberry Pi Ltd licenses BTstack to the buyers of the Pico W
+                  and the Pico 2 W for use in the products they build on them.
+                  BTstack's own licence (non-commercial) does not apply to that
+                  use.
+
+================================================================================
+23. GNU FreeFont (FreeSans Bold)
+================================================================================
+   Description:   The 9, 12 and 24 pt faces of the touch panel, converted to
+                  bitmaps and cut down to the glyphs SIMUT draws.
+   Holder:        GNU FreeFont contributors
+   License:       GPL-3.0-or-later with the font exception
+   Images:        the five images with the touch panel
+   URL:           https://www.gnu.org/software/freefont/
+
+================================================================================
+24. Liberation Sans Bold
+================================================================================
+   Description:   Five glyph outlines traced into the SIMUT wordmark of the web
+                  pages. No font file is embedded.
+   Holder:        Red Hat, Inc. (digitized data: Google, Arimo)
+   License:       SIL Open Font License 1.1
+   Images:        all images
+   URL:           https://github.com/liberationfonts/liberation-fonts
+
+================================================================================
+25. SHA-256 for JavaScript
+================================================================================
+   Description:   Hashes the password in the login page before it leaves the
+                  browser.
+   Holder:        Geraint Luff
+   License:       public domain
+   Images:        all images
+   URL:           https://github.com/geraintluff/sha256
 
 ================================================================================
 

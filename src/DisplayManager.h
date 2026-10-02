@@ -1409,7 +1409,9 @@ public:
 	 * EN is hardcoded in firmware (DICTIONARY_EN, translateCodeEn, and
 	 * EN literals in TRL sites). Non-EN comes from .lng:
 	 * @DICT -> strings[TR_KEYS_COUNT] (TFT UI, resident)
-	 * @HELP / @LICENSE -> byte ranges, lazy-read from LittleFS on demand
+	 * @HELP -> byte range, lazy-read from LittleFS when the CLI asks
+	 * @LICENSE (packs until 2026-10-02) -> skipped; the License screen draws
+	 *   the firmware's own LICENSE_TEXT_EN in every language
 	 * @LOGCODES / @TRL -> not resident (lookups fall back to inline EN)
 	 * @WEBDICT -> byte range, streamed to the browser via GET /api/lang
 	 * Defined in DisplayManager_LangParser.cpp. */
@@ -1417,7 +1419,7 @@ public:
 	struct TrlEntry { uint32_t hash; const char* text; };
 
 	/** UTF-8 to ASCII 7-bit transliteration (Latin accents removed).
-	 * Consumers: CLI/serial and the license page (classic CP437 font). */
+	 * Consumers: CLI/serial and the boot lines (classic CP437 font). */
 	static void unaccent(const char* utf8, char* out, size_t outSize);
 	/** UTF-8 to ISO-8859-1 for the TFT's Latin-1 fonts (accents kept).
 	 * Output never longer than input; non-Latin-1 degrades to '?'. */
@@ -1432,17 +1434,20 @@ public:
 	 * Logs a warning if extras exist. Core 0 only (LittleFS).
 	 * Returns true if a .lng was successfully loaded. */
 	static bool findAndLoadLangFile( );
-	/** Getters for @HELP/@LICENSE block from active .lng (UTF-8).
+	/** Getter for the @HELP block of the active .lng (UTF-8).
 	 * Caller applies unaccent() to render on ASCII UI/CLI.
 	 * Returns nullptr if .lng not loaded or section absent. */
 	static const char* getActiveHelpText( );
-	static const char* getActiveLicenseText( );
 	/** Where the Web UI translation blob (@WEBDICT) lives inside the active
 	 * .lng file, as a byte range to stream from LittleFS. It is half the pack
 	 * by size and no firmware code path reads it — only GET /api/lang hands it
 	 * to the browser — so it is deliberately NOT kept resident.
 	 * Returns false if no pack is loaded or the pack carries no @WEBDICT. */
 	static bool getActiveWebDictSource(const char** path, uint32_t* offset, uint32_t* len);
+	/** One string value of the active pack's @WEBDICT, read from flash, by
+	 * key. True when found and it fit in cap; *len is its length in bytes.
+	 * Core 0 only (LittleFS). */
+	static bool webDictValue(const char* key, char* out, size_t cap, size_t* len);
 	/** True if _activeLang is populated (any lookup may hit). */
 	static bool isLangLoaded( );
 	/** Active .lng meta info (name + code) for /api/perms to populate
@@ -1462,14 +1467,12 @@ private:
 		char path[64];
 		uint32_t webDictOffset;
 		uint32_t webDictLen;
-		/* @HELP / @LICENSE are lazy-loaded from the file on demand; only
-		 * their byte ranges are kept (offsets are relative to the file).
+		/* @HELP is lazy-loaded from the file on demand; only its byte
+		 * range is kept (offsets are relative to the file).
 		 * @LOGCODES / @TRL are no longer resident: log/TRL lookups fall
 		 * back to inline English. */
 		uint32_t helpOffset;
 		uint32_t helpLen;
-		uint32_t licenseOffset;
-		uint32_t licenseLen;
 	};
 	static ActiveLang _activeLang;
 	static bool _activeLangLoaded;

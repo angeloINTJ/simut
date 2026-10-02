@@ -16,23 +16,27 @@
  * <line N = last LangKey before TR_KEYS_COUNT>
  * @HELP
  * <free text, multiline>
- * @LICENSE
- * <free text, multiline>
  *
- * Memory strategy: single allocation, sized to the file MINUS its @WEBDICT
- * section. Pointers in _activeLang.strings/helpText/licenseText point into
- * this buffer; null-termination done by modifying the buffer in-place.
+ * Memory strategy: @DICT is the only section that reaches the heap. The
+ * loader streams the file once through a small stack chunk, and
+ * LangPackScanner (LangPackIndex.h) records where every section starts and
+ * ends; then it mallocs and reads @DICT alone, and _activeLang.strings point
+ * into that buffer, null-terminated in place. Every other section stays on
+ * flash as a byte range: @HELP is read when the CLI asks for it,
+ * GET /api/lang streams @WEBDICT and GET /api/logcodes scans for @LOGCODES on
+ * its own. @TRL is read by nothing on the device. Packs carried a @LICENSE
+ * section until 2026-10-02; the License screen draws the firmware's own text
+ * now, so in an older pack that section is an unknown directive and skipped.
  *
- * @WEBDICT is excluded on purpose. It is roughly 60% of a pack by bytes
- * (19 KB of 32 KB in es-ES) and no firmware code path reads it — it exists
- * only to be served to the browser by GET /api/lang. The loader first
- * locates the @WEBDICT marker by streaming the file through a small stack
- * chunk, then mallocs and reads ONLY the resident prefix; the blob's byte
- * range (webDictOffset/webDictLen) is recorded and the web handler streams
- * it from flash on demand. The blob must therefore be the file's suffix —
- * tools/check_lang_packs.py enforces that section order at build time.
- * Peak heap during load equals the resident prefix, not the file size,
- * which is what lets LANG_FILE_MAX exceed what the heap could ever hold.
+ * Until 2026-10-02 the loader read every byte before @WEBDICT into one malloc
+ * (16,351 B for es-ES), copied @DICT out of it and freed the rest at once, so
+ * its 16 KB ceiling was charged for bytes it threw away. The boot peak is now
+ * the dictionary itself (2,912 B for es-ES), and LANG_DICT_MAX bounds what
+ * actually stays.
+ *
+ * @WEBDICT must still be the file's suffix — the device refuses a pack with a
+ * directive after it, and tools/check_lang_packs.py enforces the same order
+ * at build time.
  *
  * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @author Ângelo Moisés Alves
@@ -40,6 +44,9 @@
  */
 
 #include "DisplayManager.h"
+#include "LangPackIndex.h"
+#include "Utf8Fold.h"
+#include "WebDictValue.h"
 #include "LogManager.h"
 #include <LittleFS.h>
 #include <stdlib.h>
@@ -50,13 +57,13 @@ bool DisplayManager::_activeLangLoaded = false;
 
 /* Defensive limits */
 static constexpr size_t LANG_FILE_MIN = 64;
-/* Two ceilings since the @WEBDICT suffix stopped being read into RAM.
- * LANG_RESIDENT_MAX bounds the malloc that lives for the whole uptime —
- * every section except @WEBDICT. LANG_FILE_MAX only bounds the file on
- * flash: the @WEBDICT majority of a pack is streamed to the browser by
- * GET /api/lang and never touches the heap, so the old single 32768
- * ceiling was charging web translations against RAM they never used. */
-static constexpr size_t LANG_RESIDENT_MAX = 16384;
+/* LANG_DICT_MAX bounds the one allocation a pack keeps for the whole uptime:
+ * its @DICT. es-ES is 2,910 B and pt-BR 2,815 B, so a pack can grow by more
+ * than its whole dictionary before this bites, while a hostile one — the pack
+ * is a file anyone with PERM_FILE_UPLOAD can put here — can no longer hold the
+ * 16 KB the old prefix ceiling allowed. LANG_FILE_MAX only bounds the file on
+ * flash: everything outside @DICT is read from there, if at all. */
+static constexpr size_t LANG_DICT_MAX = 6144;
 static constexpr size_t LANG_FILE_MAX = 49152;
 
 uint32_t DisplayManager::fnv1a32(const char* s) {
@@ -75,60 +82,22 @@ void DisplayManager::unloadLang( ) {
  _activeLangLoaded = false;
 }
 
-/* Locates the "@WEBDICT" marker by streaming the file through a small stack
- * chunk — the point is knowing where the resident prefix ends WITHOUT paying
- * a file-sized malloc first. Outputs:
- *   markerAt: file offset of the marker line's '@' (0 = no @WEBDICT; offset
- *             0 itself can never hold it, packs open with a comment header),
- *   bodyAt:   file offset just past the marker line's '\n' (== fsize when
- *             the marker line is the last line of the file).
- * Returns false when any section directive follows the @WEBDICT body: the
- * blob must be the file's suffix or the resident prefix is not contiguous.
- * tools/check_lang_packs.py refuses to ship such a pack; rejecting it here
- * keeps the device rule identical to the repo rule. */
-static bool findWebDictSuffix(File& f, size_t fsize, size_t& markerAt, size_t& bodyAt) {
- markerAt = 0;
- bodyAt = 0;
- char chunk[256];
- char dir[8]; /* longest directive we care about: "WEBDICT" */
- size_t dirLen = 0;
- size_t dirAt = 0, pos = 0;
- bool inDir = false, wantEol = false, atCol0 = true;
- f.seek(0);
- while (pos < fsize) {
- size_t got = f.readBytes(chunk, sizeof(chunk));
- if (got == 0) break;
- for (size_t k = 0; k < got; k++, pos++) {
- char c = chunk[k];
- if (markerAt && !wantEol && bodyAt && atCol0 && c == '@') return false;
- if (inDir) {
- if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
- if (dirLen == 7 && memcmp(dir, "WEBDICT", 7) == 0 && !markerAt) {
- markerAt = dirAt;
- wantEol = (c != '\n');
- if (!wantEol) bodyAt = pos + 1;
- }
- inDir = false;
- } else if (dirLen < sizeof(dir)) {
- dir[dirLen++] = c;
- } else {
- inDir = false; /* longer than any directive — not ours */
- }
- } else if (wantEol) {
- if (c == '\n') {
- bodyAt = pos + 1;
- wantEol = false;
- }
- } else if (atCol0 && c == '@') {
- inDir = true;
- dirLen = 0;
- dirAt = pos;
- }
- atCol0 = (c == '\n');
- }
- }
- if (markerAt && bodyAt == 0) bodyAt = fsize; /* marker line lacked a newline */
- return true;
+/* @NAME / @CODE value, from the range the index found on the directive line.
+ * Sanitised, not copied raw: these strings are served by /api/perms, which is
+ * the first request every page of the UI makes, and the pack is a file anyone
+ * with PERM_FILE_UPLOAD can put here. A quote in @NAME broke that response and
+ * took the whole interface down until the next boot with a different pack
+ * (V-04). Dropping the byte keeps the pack usable. The value is read through a
+ * 64 B window: the shipped names are 24 B, and the field keeps 15 at most. */
+static void readLangIdent(File& f, const LangPackIndex& ix, LangSection sec,
+                          char* out, size_t cap) {
+ if (!ix.present[sec]) return;
+ char raw[64];
+ size_t len = ix.end[sec] - ix.start[sec];
+ if (len > sizeof(raw)) len = sizeof(raw);
+ size_t got = 0;
+ if (len > 0 && f.seek(ix.start[sec])) got = f.readBytes(raw, len);
+ langIdentSanitize(raw, got, out, cap);
 }
 
 bool DisplayManager::loadLangFile(const char* path) {
@@ -144,111 +113,63 @@ bool DisplayManager::loadLangFile(const char* path) {
  return false;
  }
 
- /* Find where the resident prefix ends BEFORE allocating anything — the
-  * @WEBDICT suffix is served from flash by /api/lang and never loads. */
- size_t wdMarkerAt = 0, wdBodyAt = 0;
- if (!findWebDictSuffix(f, fsize, wdMarkerAt, wdBodyAt)) {
+ /* Index every section BEFORE allocating anything: one pass through a stack
+  * chunk, and only @DICT is read into RAM afterwards. */
+ LangPackScanner scan;
+ char chunk[256];
+ f.seek(0);
+ for (size_t seen = 0; seen < fsize; ) {
+ size_t got = f.readBytes(chunk, sizeof(chunk));
+ if (got == 0) break;
+ scan.feed(chunk, got);
+ seen += got;
+ }
+ LangPackIndex ix;
+ scan.finish(ix);
+ if (ix.tailAfterWebDict) {
  f.close( );
  return false;
  }
- size_t residSize = wdMarkerAt ? wdMarkerAt : fsize;
- if (residSize > LANG_RESIDENT_MAX) {
+
+ /* DICT is mandatory; without it reject the file.
+  *
+  * A body longer than LANG_DICT_MAX is read only up to the ceiling. Lines past
+  * TR_KEYS_COUNT were always ignored, and a pack that lost a directive line
+  * has the next section run on into its @DICT — the prefix loader took that
+  * pack and translated everything, so this one must too. It is refused only
+  * when the ceiling cuts into the TR_KEYS_COUNT lines themselves: then the
+  * dictionary really is too big. */
+ size_t dictSize = ix.present[LANG_SEC_DICT]
+ ? ix.end[LANG_SEC_DICT] - ix.start[LANG_SEC_DICT] : 0;
+ if (dictSize == 0) {
  f.close( );
  return false;
  }
+ const bool clipped = dictSize > LANG_DICT_MAX;
+ if (clipped) dictSize = LANG_DICT_MAX;
 
  /* +2: 1 to guarantee final \n terminator and 1 for closing '\0' */
- char* buf = (char*)malloc(residSize + 2);
- if (!buf) {
+ char* dictBuf = (char*)malloc(dictSize + 2);
+ if (!dictBuf) {
  f.close( );
  return false;
  }
-
- f.seek(0);
- size_t n = f.readBytes(buf, residSize);
+ size_t n = f.seek(ix.start[LANG_SEC_DICT]) ? f.readBytes(dictBuf, dictSize) : 0;
+ size_t lines = 0;
+ if (clipped) {
+ for (size_t k = 0; k < n; k++) lines += (dictBuf[k] == '\n');
+ }
+ if (n != dictSize || (clipped && lines < (size_t)TR_KEYS_COUNT)) {
+ free(dictBuf);
  f.close( );
- if (n == 0) { free(buf); return false; }
- buf[n] = '\n'; /* force line end even if missing */
- buf[n+1] = '\0';
- n++;
-
- /* Maps boundaries of each section. bodyStart=0 means "absent". */
- enum SecIdx { S_DICT = 0, S_HELP, S_LICENSE, S_LOGCODES, S_TRL, S_COUNT };
- size_t secStart[S_COUNT] = { 0, 0, 0, 0, 0 };
- size_t secEnd[S_COUNT] = { 0, 0, 0, 0, 0 };
-
- int curSec = -1;
- size_t i = 0;
-
- while (i < n) {
- bool atColZero = (i == 0) || buf[i-1] == '\n';
- if (!(atColZero && buf[i] == '@')) { i++; continue; }
-
- /* Close current section (HELP/LICENSE/DICT) */
- if (curSec >= 0) secEnd[curSec] = i;
-
- /* Identify directive: @NAME, @CODE, @DICT, @HELP, @LICENSE */
- size_t dirStart = i + 1;
- size_t dirEnd = dirStart;
- while (dirEnd < n && buf[dirEnd] != ' ' && buf[dirEnd] != '\t' &&
- buf[dirEnd] != '\n' && buf[dirEnd] != '\r') dirEnd++;
- size_t dirLen = dirEnd - dirStart;
-
- /* Advance i past the \n of the directive line */
- size_t lineEnd = dirEnd;
- while (lineEnd < n && buf[lineEnd] != '\n') lineEnd++;
- size_t bodyAfter = (lineEnd < n) ? lineEnd + 1 : n;
-
- if (dirLen == 4 && memcmp(buf + dirStart, "NAME", 4) == 0) {
- curSec = -1;
- size_t v = dirEnd;
- while (v < lineEnd && (buf[v] == ' ' || buf[v] == '\t')) v++;
- size_t vEnd = lineEnd;
- while (vEnd > v && (buf[vEnd-1] == '\r' || buf[vEnd-1] == ' ' ||
- buf[vEnd-1] == '\t')) vEnd--;
- /* Sanitised, not copied raw: this string is served by /api/perms, which
-  * is the first request every page of the UI makes, and the pack is a file
-  * anyone with PERM_FILE_UPLOAD can put here. A quote in @NAME broke that
-  * response and took the whole interface down until the next boot with a
-  * different pack (V-04). Dropping the byte keeps the pack usable. */
- langIdentSanitize(buf + v, vEnd - v, _activeLang.name, sizeof(_activeLang.name));
- } else if (dirLen == 4 && memcmp(buf + dirStart, "CODE", 4) == 0) {
- curSec = -1;
- size_t v = dirEnd;
- while (v < lineEnd && (buf[v] == ' ' || buf[v] == '\t')) v++;
- size_t vEnd = lineEnd;
- while (vEnd > v && (buf[vEnd-1] == '\r' || buf[vEnd-1] == ' ' ||
- buf[vEnd-1] == '\t')) vEnd--;
- langIdentSanitize(buf + v, vEnd - v, _activeLang.code, sizeof(_activeLang.code));
- } else if (dirLen == 4 && memcmp(buf + dirStart, "DICT", 4) == 0) {
- curSec = S_DICT;
- secStart[S_DICT] = bodyAfter;
- } else if (dirLen == 4 && memcmp(buf + dirStart, "HELP", 4) == 0) {
- curSec = S_HELP;
- secStart[S_HELP] = bodyAfter;
- } else if (dirLen == 7 && memcmp(buf + dirStart, "LICENSE", 7) == 0) {
- curSec = S_LICENSE;
- secStart[S_LICENSE] = bodyAfter;
- } else if (dirLen == 8 && memcmp(buf + dirStart, "LOGCODES", 8) == 0) {
- curSec = S_LOGCODES;
- secStart[S_LOGCODES] = bodyAfter;
- } else if (dirLen == 3 && memcmp(buf + dirStart, "TRL", 3) == 0) {
- curSec = S_TRL;
- secStart[S_TRL] = bodyAfter;
- } else {
- curSec = -1; /* unknown directive — ignore */
- }
-
- i = bodyAfter;
- }
- if (curSec >= 0) secEnd[curSec] = n;
-
- /* DICT is mandatory; without it reject the file */
- if (secStart[S_DICT] == 0 || secEnd[S_DICT] <= secStart[S_DICT]) {
- free(buf);
- memset(&_activeLang, 0, sizeof(_activeLang));
  return false;
  }
+ readLangIdent(f, ix, LANG_SEC_NAME, _activeLang.name, sizeof(_activeLang.name));
+ readLangIdent(f, ix, LANG_SEC_CODE, _activeLang.code, sizeof(_activeLang.code));
+ f.close( );
+ dictBuf[dictSize] = '\n';
+ dictBuf[dictSize + 1] = '\0';
+ size_t dictN = dictSize + 1;
 
  /* Partition the @DICT block into lines; line N is LangKey N.
  *
@@ -264,18 +185,6 @@ bool DisplayManager::loadLangFile(const char* path) {
  * against a newer firmware filled the new slots with "" and drew blank labels
  * on the TFT — a worse failure than English, because nothing looks wrong,
  * there is just nothing there. */
- size_t dictSize = secEnd[S_DICT] - secStart[S_DICT];
- char* dictBuf = (char*)malloc(dictSize + 2);
- if (!dictBuf) {
- free(buf);
- memset(&_activeLang, 0, sizeof(_activeLang));
- return false;
- }
- memcpy(dictBuf, buf + secStart[S_DICT], dictSize);
- dictBuf[dictSize] = '\n';
- dictBuf[dictSize + 1] = '\0';
- size_t dictN = dictSize + 1;
-
  int dictIdx = 0;
  size_t lineStart = 0;
  size_t dictEnd = dictN;
@@ -301,7 +210,6 @@ bool DisplayManager::loadLangFile(const char* path) {
  /* A file with no usable dictionary at all is still a bad file. */
  if (dictIdx == 0) {
  free(dictBuf);
- free(buf);
  memset(&_activeLang, 0, sizeof(_activeLang));
  return false;
  }
@@ -311,28 +219,18 @@ bool DisplayManager::loadLangFile(const char* path) {
  TRL("Language pack is older than the firmware — missing strings show in English"));
  }
 
- /* @HELP / @LICENSE: byte ranges into the file, lazy-read on demand. */
- if (secEnd[S_HELP] > secStart[S_HELP]) {
- _activeLang.helpOffset = (uint32_t)secStart[S_HELP];
- _activeLang.helpLen = (uint32_t)(secEnd[S_HELP] - secStart[S_HELP]);
+ /* @HELP: byte range into the file, lazy-read on demand. */
+ if (ix.end[LANG_SEC_HELP] > ix.start[LANG_SEC_HELP]) {
+ _activeLang.helpOffset = ix.start[LANG_SEC_HELP];
+ _activeLang.helpLen = ix.end[LANG_SEC_HELP] - ix.start[LANG_SEC_HELP];
  }
- if (secEnd[S_LICENSE] > secStart[S_LICENSE]) {
- _activeLang.licenseOffset = (uint32_t)secStart[S_LICENSE];
- _activeLang.licenseLen = (uint32_t)(secEnd[S_LICENSE] - secStart[S_LICENSE]);
+ /* @WEBDICT: opaque JSON blob, served via GET /api/lang to the browser
+  * straight from flash. Its range runs to the end of the file, which is
+  * byte for byte what the excision and the prefix loaders served before. */
+ if (ix.end[LANG_SEC_WEBDICT] > ix.start[LANG_SEC_WEBDICT]) {
+ _activeLang.webDictOffset = ix.start[LANG_SEC_WEBDICT];
+ _activeLang.webDictLen = ix.end[LANG_SEC_WEBDICT] - ix.start[LANG_SEC_WEBDICT];
  }
- /* @WEBDICT: opaque JSON blob, served via GET /api/lang to browser.
-  * Recorded as a byte range into the FILE — the suffix was never read into
-  * the buffer, findWebDictSuffix() located it up front. The length runs to
-  * end-of-file, which is byte-for-byte what the old excision formula served
-  * (it only ever dropped the '\n' the loader itself appended). */
- if (wdMarkerAt) {
- _activeLang.webDictOffset = (uint32_t)wdBodyAt;
- _activeLang.webDictLen = (uint32_t)(fsize - wdBodyAt);
- }
- /* @LOGCODES / @TRL are intentionally not resident: their lookups fall
-  * back to inline English. Free the transient prefix now that @DICT has
-  * been copied out. */
- free(buf);
 
  /* Path is kept so /api/lang can reopen the file to stream @WEBDICT. */
  strncpy(_activeLang.path, path, sizeof(_activeLang.path) - 1);
@@ -405,8 +303,8 @@ bool DisplayManager::findAndLoadLangFile( ) {
  return ok;
 }
 
-/* Lazy-read scratch for @HELP / @LICENSE — these sections are no longer
- * resident, so they are read from LittleFS only when a consumer asks. */
+/* Lazy-read scratch for @HELP — the section is not resident, so it is read
+ * from LittleFS only when the CLI asks for it. */
 static char _lazyReadBuf[2048];
 
 static const char* lazyRead(const char* path, uint32_t offset, uint32_t len) {
@@ -427,9 +325,32 @@ const char* DisplayManager::getActiveHelpText( ) {
  if (!_activeLangLoaded) return nullptr;
  return lazyRead(_activeLang.path, _activeLang.helpOffset, _activeLang.helpLen);
 }
-const char* DisplayManager::getActiveLicenseText( ) {
- if (!_activeLangLoaded) return nullptr;
- return lazyRead(_activeLang.path, _activeLang.licenseOffset, _activeLang.licenseLen);
+/* One string of the active pack's @WEBDICT, read from flash through a stack
+ * chunk (WebDictValue.h): the License screen opens with the sentences the
+ * /license page shows, and they are already in the pack. The whole blob is
+ * scanned, because the last occurrence of a key is the one the browser keeps.
+ * True only for a value that was found and fits. Core 0 only (LittleFS). */
+bool DisplayManager::webDictValue(const char* key, char* out, size_t cap, size_t* len) {
+ if (len) *len = 0;
+ if (!out || cap == 0) return false;
+ out[0] = '\0';
+ if (!_activeLangLoaded || _activeLang.webDictLen == 0) return false;
+ File f = LittleFS.open(_activeLang.path, "r");
+ if (!f) return false;
+ WebDictValue v(key, out, cap);
+ char chunk[256];
+ uint32_t left = _activeLang.webDictLen;
+ if (f.seek(_activeLang.webDictOffset)) {
+ while (left > 0) {
+ size_t got = f.readBytes(chunk, left < sizeof(chunk) ? left : sizeof(chunk));
+ if (got == 0) break;
+ v.feed(chunk, got);
+ left -= got;
+ }
+ }
+ f.close( );
+ if (len) *len = v.length( );
+ return v.done( ) && !v.clipped( );
 }
 bool DisplayManager::getActiveWebDictSource(const char** path, uint32_t* offset, uint32_t* len) {
  if (!_activeLangLoaded || _activeLang.webDictLen == 0) return false;
@@ -455,81 +376,9 @@ const char* DisplayManager::getActiveLangCode( ) { return _activeLangLoaded ? _a
  * infinite loop) — acceptable behavior for the display's limited font.
  * ───────────────────────────────────────────────────────────────── */
 void DisplayManager::unaccent(const char* utf8, char* out, size_t outSize) {
- if (!out || outSize == 0) return;
- if (!utf8) { out[0] = '\0'; return; }
-
- size_t o = 0;
- const unsigned char* p = (const unsigned char*)utf8;
-
- while (*p && o + 1 < outSize) {
- unsigned char c = *p;
- if (c < 0x80) {
- out[o++] = (char)c;
- p++;
- continue;
- }
- unsigned char c2 = p[1];
- char repl = '?';
- if (c == 0xC3) { /* 0xC0..0xFF */
- switch (c2) {
- case 0x80: case 0x81: case 0x82: case 0x83:
- case 0x84: case 0x85: repl = 'A'; break;
- case 0x86: repl = 'A'; break; /* AE */
- case 0x87: repl = 'C'; break;
- case 0x88: case 0x89: case 0x8A:
- case 0x8B: repl = 'E'; break;
- case 0x8C: case 0x8D: case 0x8E:
- case 0x8F: repl = 'I'; break;
- case 0x91: repl = 'N'; break;
- case 0x92: case 0x93: case 0x94:
- case 0x95: case 0x96: case 0x98: repl = 'O'; break;
- case 0x99: case 0x9A: case 0x9B:
- case 0x9C: repl = 'U'; break;
- case 0x9D: repl = 'Y'; break;
- case 0xA0: case 0xA1: case 0xA2: case 0xA3:
- case 0xA4: case 0xA5: repl = 'a'; break;
- case 0xA6: repl = 'a'; break; /* ae */
- case 0xA7: repl = 'c'; break;
- case 0xA8: case 0xA9: case 0xAA:
- case 0xAB: repl = 'e'; break;
- case 0xAC: case 0xAD: case 0xAE:
- case 0xAF: repl = 'i'; break;
- case 0xB1: repl = 'n'; break;
- case 0xB2: case 0xB3: case 0xB4:
- case 0xB5: case 0xB6: case 0xB8: repl = 'o'; break;
- case 0xB9: case 0xBA: case 0xBB:
- case 0xBC: repl = 'u'; break;
- case 0xBD: case 0xBF: repl = 'y'; break;
- default: repl = '?'; break;
- }
- out[o++] = repl;
- p += 2;
- } else if (c == 0xC2) {
- /* Spanish opening marks have no 7-bit form worth printing. Dropping
- * them reads right ("Sistema Listo!"); the default '?' below did not
- * ("?Sistema Listo!"), and the closing mark already tells the reader
- * whether the sentence is a question or an exclamation. */
- if (c2 == 0xA1 || c2 == 0xBF) { p += 2; continue; }
- /* Latin-1 supplement (0x80..0xBF): symbols like degree, +-, squared, cubed, copyright.
- * Simple substitutions; remainder becomes '?'. */
- switch (c2) {
- case 0xA9: repl = 'C'; break; /* copyright */
- case 0xAE: repl = 'R'; break; /* registered */
- case 0xB0: repl = 'o'; break; /* degree */
- case 0xB1: repl = '+'; break; /* plus-minus */
- case 0xB2: repl = '2'; break; /* squared */
- case 0xB3: repl = '3'; break; /* cubed */
- default: repl = '?'; break;
- }
- out[o++] = repl;
- p += 2;
- } else {
- /* UTF-8 multi-byte outside target: advance 1 byte, mark '?' */
- out[o++] = '?';
- p++;
- }
- }
- out[o] = '\0';
+ /* One table for every 7-bit consumer (CLI, boot lines, the License screen):
+  * Utf8Fold.h, where the native tests reach it. */
+ utf8FoldAscii(utf8, out, outSize);
 }
 
 /* ─────────────────────────────────────────────────────────────────

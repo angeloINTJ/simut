@@ -38,6 +38,12 @@
 #include "sensors/CalibCurve.h"         /* calibration curve engine */
 #include "WebJsonSlice.h"               /* depth-aware JSON slicing */
 #include "SimutTime.h"                 /* fixed-offset localtime/mktime */
+#include "LangPackIndex.h"             /* where each section of a .lng is */
+#include "Utf8Fold.h"                  /* UTF-8 to what the 5x7 font draws */
+#include "WebDictValue.h"              /* one string out of a pack's @WEBDICT */
+#include "TextWrap.h"                  /* the License screen's line layout */
+#include <string>
+#include <vector>
 #include "display/ClockEntry.h"         /* the date and time set at the panel */
 #include "PemBlocks.h"                 /* the PEM splitting POST /api/tls does */
 #include "WebCommitSections.h"          /* per-section authz for /api/commit_all */
@@ -1624,6 +1630,448 @@ void test_langident_terminates_and_respects_cap(void) {
     /* Zero cap must not write. Nothing to assert but the absence of a crash;
      * ASAN in the fuzz job is what actually watches this one. */
     langIdentSanitize("abc", 3, out2, 0);
+}
+
+/* ===========================================================================
+ *  LANGUAGE-PACK INDEX — LangPackScanner (LangPackIndex.h)
+ *
+ *  The loader used to read every byte before @WEBDICT into one malloc just to
+ *  find the dictionary in it. It now seeks to the ranges this scanner reports,
+ *  so these cases pin the rules the in-buffer parser applied: what counts as a
+ *  directive, where a body starts and ends, which occurrence wins, and that
+ *  @WEBDICT is the file's suffix. The chunking case is the one a stream adds:
+ *  the loader reads 256 B at a time, and a directive split across two reads
+ *  must index exactly like one that is not.
+ * =========================================================================== */
+static LangPackIndex langIndex(const char* s, size_t len, size_t chunk) {
+    LangPackScanner sc;
+    for (size_t i = 0; i < len; i += chunk) {
+        sc.feed(s + i, (len - i < chunk) ? len - i : chunk);
+    }
+    LangPackIndex ix;
+    sc.finish(ix);
+    return ix;
+}
+
+static LangPackIndex langIndex(const char* s) {
+    return langIndex(s, strlen(s), strlen(s) ? strlen(s) : 1);
+}
+
+/* The bytes a range covers, so a failure prints text instead of offsets. */
+static std::string langRange(const char* s, const LangPackIndex& ix, LangSection sec) {
+    return std::string(s + ix.start[sec], s + ix.end[sec]);
+}
+
+static bool langSameIndex(const LangPackIndex& a, const LangPackIndex& b) {
+    for (int k = 0; k < LANG_SEC_COUNT; k++) {
+        if (a.start[k] != b.start[k] || a.end[k] != b.end[k] ||
+            a.present[k] != b.present[k]) return false;
+    }
+    return a.tailAfterWebDict == b.tailAfterWebDict;
+}
+
+/* The shipped layout, small, plus the @LICENSE section packs carried until
+ * 2026-10-02. The firmware no longer reads it, so here it is an unknown
+ * directive: it must end @TRL and leave everything else where it was, or a
+ * device given an older pack would lose its dictionary. */
+static const char kLangPack[] =
+    "# SIMUT language pack\n"
+    "@NAME  Portugu\xc3\xaas (Brasil) \r\n"
+    "@CODE pt-BR\n"
+    "\n"
+    "@DICT\n"
+    "Ambiente\n"
+    "Configura\xc3\xa7\xc3\xb5" "es\n"
+    "@LOGCODES\n"
+    "100=Boot\n"
+    "@TRL\n"
+    "811c9dc5=Ol\xc3\xa1\n"
+    "@LICENSE\n"
+    "MIT\n"
+    "@HELP\n"
+    "ajuda linha 1\n"
+    "\n"
+    "@WEBDICT\n"
+    "{\"a\":\"b@c\"}";
+
+void test_langidx_finds_every_section(void) {
+    const LangPackIndex ix = langIndex(kLangPack);
+    TEST_ASSERT_FALSE(ix.tailAfterWebDict);
+    TEST_ASSERT_EQUAL_STRING("Portugu\xc3\xaas (Brasil)",
+                             langRange(kLangPack, ix, LANG_SEC_NAME).c_str());
+    TEST_ASSERT_EQUAL_STRING("pt-BR", langRange(kLangPack, ix, LANG_SEC_CODE).c_str());
+    TEST_ASSERT_EQUAL_STRING("Ambiente\nConfigura\xc3\xa7\xc3\xb5" "es\n",
+                             langRange(kLangPack, ix, LANG_SEC_DICT).c_str());
+    TEST_ASSERT_EQUAL_STRING("100=Boot\n", langRange(kLangPack, ix, LANG_SEC_LOGCODES).c_str());
+    TEST_ASSERT_EQUAL_STRING("811c9dc5=Ol\xc3\xa1\n", langRange(kLangPack, ix, LANG_SEC_TRL).c_str());
+    TEST_ASSERT_EQUAL_STRING("ajuda linha 1\n\n", langRange(kLangPack, ix, LANG_SEC_HELP).c_str());
+    TEST_ASSERT_EQUAL_STRING("{\"a\":\"b@c\"}", langRange(kLangPack, ix, LANG_SEC_WEBDICT).c_str());
+    for (int k = 0; k < LANG_SEC_COUNT; k++) TEST_ASSERT_TRUE(ix.present[k]);
+}
+
+void test_langidx_section_before_webdict_stops_at_the_marker(void) {
+    /* The old parser ran this body one byte long — it counted the newline it
+     * had appended to its own buffer — so reading it back from the file gave
+     * the '@' of "@WEBDICT" as its last character: the stray '@' at the foot
+     * of the License screen in pt-BR and es-ES. */
+    const LangPackIndex ix = langIndex(kLangPack);
+    TEST_ASSERT_EQUAL_CHAR('@', kLangPack[ix.end[LANG_SEC_HELP]]);
+    TEST_ASSERT_EQUAL_CHAR('\n', kLangPack[ix.end[LANG_SEC_HELP] - 1]);
+}
+
+void test_langidx_chunking_does_not_matter(void) {
+    const size_t len = sizeof(kLangPack) - 1;
+    const LangPackIndex whole = langIndex(kLangPack, len, len);
+    for (size_t chunk = 1; chunk < len; chunk++) {
+        if (!langSameIndex(whole, langIndex(kLangPack, len, chunk))) {
+            char msg[48];
+            snprintf(msg, sizeof(msg), "differs when fed %u bytes at a time", (unsigned)chunk);
+            TEST_FAIL_MESSAGE(msg);
+        }
+    }
+}
+
+void test_langidx_refuses_a_directive_after_webdict(void) {
+    TEST_ASSERT_TRUE(langIndex("@DICT\na\n@WEBDICT\n{}\n@HELP\nx\n").tailAfterWebDict);
+    TEST_ASSERT_TRUE(langIndex("@DICT\na\n@WEBDICT\n{}\n@WEBDICT\n{}").tailAfterWebDict);
+    /* Unknown directives count too: the rule is that the blob is the suffix. */
+    TEST_ASSERT_TRUE(langIndex("@DICT\na\n@WEBDICT\n{}\n@\n").tailAfterWebDict);
+    /* An '@' that does not start a line is the blob's own content, and text
+     * after the marker's name is ignored like on any directive line. */
+    const char* s = "@DICT\na\n@WEBDICT \r\n{\"k\":\"@x\"}\n {\"@\":1}";
+    const LangPackIndex ix = langIndex(s);
+    TEST_ASSERT_FALSE(ix.tailAfterWebDict);
+    TEST_ASSERT_EQUAL_STRING("{\"k\":\"@x\"}\n {\"@\":1}", langRange(s, ix, LANG_SEC_WEBDICT).c_str());
+}
+
+void test_langidx_directive_names_match_exactly(void) {
+    /* "@DICTX", "@DIC" and "@dict" are not the dictionary. Each is an unknown
+     * directive, which still ends the section before it. */
+    const char* s = "@DICT\na\n@DICTX\nb\n@DIC\nc\n@dict\nd\n@HELP\ne\n";
+    LangPackIndex ix = langIndex(s);
+    TEST_ASSERT_EQUAL_STRING("a\n", langRange(s, ix, LANG_SEC_DICT).c_str());
+    TEST_ASSERT_EQUAL_STRING("e\n", langRange(s, ix, LANG_SEC_HELP).c_str());
+    /* A name longer than any directive is unknown, not cut down into one. */
+    const char* t = "@DICT\na\n@WEBDICTIONARY\n{}\n";
+    ix = langIndex(t);
+    TEST_ASSERT_FALSE(ix.present[LANG_SEC_WEBDICT]);
+    TEST_ASSERT_FALSE(ix.tailAfterWebDict);
+    TEST_ASSERT_EQUAL_STRING("a\n", langRange(t, ix, LANG_SEC_DICT).c_str());
+}
+
+void test_langidx_an_at_sign_mid_line_is_content(void) {
+    const char* s = "@DICT\ne-mail a@b\n @recuado\n@HELP\nh\n";
+    const LangPackIndex ix = langIndex(s);
+    TEST_ASSERT_EQUAL_STRING("e-mail a@b\n @recuado\n", langRange(s, ix, LANG_SEC_DICT).c_str());
+}
+
+void test_langidx_directive_line_endings(void) {
+    /* CRLF: the body starts after the LF. Text after a directive's name is
+     * not part of anything, as it never was. */
+    const char* s = "@DICT\r\na\r\n@HELP extra words\nh\n";
+    const LangPackIndex ix = langIndex(s);
+    TEST_ASSERT_EQUAL_STRING("a\r\n", langRange(s, ix, LANG_SEC_DICT).c_str());
+    TEST_ASSERT_EQUAL_STRING("h\n", langRange(s, ix, LANG_SEC_HELP).c_str());
+}
+
+void test_langidx_name_and_code_values(void) {
+    /* Leading spaces and tabs, and trailing CR, spaces and tabs, are not the
+     * value; spaces inside it are. */
+    const char* s = "@NAME \t Espa\xc3\xb1ol (Espa\xc3\xb1" "a)\t \r\n@CODE\tes-ES\n@DICT\nx\n";
+    LangPackIndex ix = langIndex(s);
+    TEST_ASSERT_EQUAL_STRING("Espa\xc3\xb1ol (Espa\xc3\xb1" "a)", langRange(s, ix, LANG_SEC_NAME).c_str());
+    TEST_ASSERT_EQUAL_STRING("es-ES", langRange(s, ix, LANG_SEC_CODE).c_str());
+    /* A directive with no value is present and empty, and the loader names the
+     * pack "" as the old parser did. */
+    const char* t = "@NAME\n@CODE   \r\n@DICT\nx\n";
+    ix = langIndex(t);
+    TEST_ASSERT_TRUE(ix.present[LANG_SEC_NAME]);
+    TEST_ASSERT_EQUAL_UINT32(ix.start[LANG_SEC_NAME], ix.end[LANG_SEC_NAME]);
+    TEST_ASSERT_TRUE(ix.present[LANG_SEC_CODE]);
+    TEST_ASSERT_EQUAL_UINT32(ix.start[LANG_SEC_CODE], ix.end[LANG_SEC_CODE]);
+}
+
+void test_langidx_last_occurrence_wins(void) {
+    const char* s = "@NAME A\n@DICT\nold\n@NAME B\n@DICT\nnew\n";
+    const LangPackIndex ix = langIndex(s);
+    TEST_ASSERT_EQUAL_STRING("new\n", langRange(s, ix, LANG_SEC_DICT).c_str());
+    TEST_ASSERT_EQUAL_STRING("B", langRange(s, ix, LANG_SEC_NAME).c_str());
+}
+
+void test_langidx_absent_and_empty_sections(void) {
+    LangPackIndex ix = langIndex("@NAME X\n@HELP\nh\n");
+    TEST_ASSERT_FALSE(ix.present[LANG_SEC_DICT]);
+    ix = langIndex("@DICT\n@HELP\nh\n");
+    TEST_ASSERT_TRUE(ix.present[LANG_SEC_DICT]);
+    TEST_ASSERT_EQUAL_UINT32(ix.start[LANG_SEC_DICT], ix.end[LANG_SEC_DICT]);
+}
+
+void test_langidx_end_of_file(void) {
+    /* Without @WEBDICT the last body runs to the end of the file, newline or
+     * not. */
+    const char* s = "@DICT\na\nb";
+    LangPackIndex ix = langIndex(s);
+    TEST_ASSERT_EQUAL_STRING("a\nb", langRange(s, ix, LANG_SEC_DICT).c_str());
+    TEST_ASSERT_FALSE(ix.present[LANG_SEC_WEBDICT]);
+    /* A marker that is the last thing in the file has an empty body, and it
+     * still ends the section before it. */
+    const char* t = "@DICT\na\n@WEBDICT";
+    ix = langIndex(t);
+    TEST_ASSERT_EQUAL_STRING("a\n", langRange(t, ix, LANG_SEC_DICT).c_str());
+    TEST_ASSERT_EQUAL_UINT32(strlen(t), ix.start[LANG_SEC_WEBDICT]);
+    TEST_ASSERT_EQUAL_UINT32(strlen(t), ix.end[LANG_SEC_WEBDICT]);
+    /* A value on a last line that has no newline after it. */
+    const char* u = "@DICT\na\n@NAME X ";
+    ix = langIndex(u);
+    TEST_ASSERT_EQUAL_STRING("X", langRange(u, ix, LANG_SEC_NAME).c_str());
+}
+
+/* ===========================================================================
+ *  UTF-8 FOLDING — utf8FoldAscii (Utf8Fold.h)
+ *
+ *  The License screen, the boot lines and the CLI draw with a 7-bit font, and
+ *  the text they get is UTF-8. A code point outside the table used to come out
+ *  as one '?' per byte, so the dash in "versão original — é ela" read "???",
+ *  and a string ending in a lead byte was read past its terminator.
+ * =========================================================================== */
+static std::string fold(const char* s, size_t cap = 256) {
+    std::vector<char> out(cap ? cap : 1, 'X');
+    utf8FoldAscii(s, out.data( ), cap);
+    return cap ? std::string(out.data( )) : std::string( );
+}
+
+void test_fold_keeps_ascii_and_latin_letters(void) {
+    TEST_ASSERT_EQUAL_STRING("Acao Nandu Uber ate e Ola", fold("A\xc3\xa7\xc3\xa3o \xc3\x91" "and\xc3\xba \xc3\x9c" "ber at\xc3\xa9 \xc3\xa9 Ol\xc3\xa1").c_str( ));
+}
+
+void test_fold_drops_spanish_opening_marks(void) {
+    TEST_ASSERT_EQUAL_STRING("Listo? Si!", fold("\xc2\xbfListo? \xc2\xa1S\xc3\xad!").c_str( ));
+}
+
+void test_fold_punctuation_to_ascii(void) {
+    /* em dash, en dash, curly double and single quotes, ellipsis, bullet */
+    TEST_ASSERT_EQUAL_STRING("a - b - c \"d\" 'e' f. *",
+        fold("a \xe2\x80\x94 b \xe2\x80\x93 c \xe2\x80\x9c" "d\xe2\x80\x9d \xe2\x80\x98" "e\xe2\x80\x99 f\xe2\x80\xa6 \xe2\x80\xa2").c_str( ));
+}
+
+void test_fold_unknown_sequence_is_one_mark(void) {
+    TEST_ASSERT_EQUAL_STRING("x?y", fold("x\xe2\x82\xacy").c_str( ));          /* euro sign */
+    TEST_ASSERT_EQUAL_STRING("a?b", fold("a\xf0\x9f\x98\x80" "b").c_str( ));    /* emoji */
+    TEST_ASSERT_EQUAL_STRING("a?b", fold("a\x80" "b").c_str( ));                /* stray continuation */
+}
+
+void test_fold_never_reads_past_the_end(void) {
+    /* A lead byte right before the terminator: one mark, and the terminator
+     * still ends the string. ASan in the fuzz job watches the read. */
+    TEST_ASSERT_EQUAL_STRING("ab?", fold("ab\xc3").c_str( ));
+    TEST_ASSERT_EQUAL_STRING("?", fold("\xe2\x80").c_str( ));
+    TEST_ASSERT_EQUAL_STRING("?", fold("\xf0\x9f\x98").c_str( ));
+}
+
+void test_fold_respects_capacity(void) {
+    TEST_ASSERT_EQUAL_STRING("abc", fold("abcdef", 4).c_str( ));
+    TEST_ASSERT_EQUAL_STRING("ac", fold("\xc3\xa1\xc3\xa7\xc3\xa3", 3).c_str( ));
+    TEST_ASSERT_EQUAL_STRING("", fold("abc", 1).c_str( ));
+}
+
+void test_fold_symbols(void) {
+    TEST_ASSERT_EQUAL_STRING("25oC (C) 2026", fold("25\xc2\xb0" "C (\xc2\xa9) 2026").c_str( ));
+}
+
+/* ===========================================================================
+ *  ONE STRING FROM @WEBDICT — WebDictValue (WebDictValue.h)
+ *
+ *  The License screen opens with the same sentences the /license page shows,
+ *  so it reads them from the pack's @WEBDICT, one key at a time, straight from
+ *  flash. The blob is one JSON object; these cases pin what is a key, how a
+ *  value is decoded, and that 256-byte reads find the same thing as one read.
+ * =========================================================================== */
+static std::string wdv(const char* json, const char* key, size_t cap = 256, size_t chunk = 0,
+                       bool* done = nullptr, bool* clipped = nullptr) {
+    std::vector<char> out(cap, 'X');
+    WebDictValue v(key, out.data( ), cap);
+    const size_t len = strlen(json);
+    if (chunk == 0) chunk = len ? len : 1;
+    for (size_t i = 0; i < len; i += chunk) v.feed(json + i, (len - i < chunk) ? len - i : chunk);
+    if (done) *done = v.done( );
+    if (clipped) *clipped = v.clipped( );
+    TEST_ASSERT_EQUAL_UINT32(strlen(out.data( )), v.length( ));
+    return std::string(out.data( ));
+}
+
+void test_wdv_finds_a_value(void) {
+    bool done = false;
+    TEST_ASSERT_EQUAL_STRING("Software livre.",
+        wdv("{\"a\":\"1\",\"lic_sub\":\"Software livre.\",\"b\":\"2\"}", "lic_sub", 256, 0, &done).c_str( ));
+    TEST_ASSERT_TRUE(done);
+}
+
+void test_wdv_decodes_escapes(void) {
+    TEST_ASSERT_EQUAL_STRING("l1\nl2 \"q\" \\ / \xc3\xa9 \xe2\x80\x94 \xf0\x9f\x98\x80 \t",
+        wdv("{\"k\":\"l1\\nl2 \\\"q\\\" \\\\ \\/ \\u00e9 \\u2014 \\ud83d\\ude00 \\t\"}", "k").c_str( ));
+}
+
+void test_wdv_matches_the_key_exactly(void) {
+    bool done = true;
+    /* a longer key, a key's name used as a value, and a key with a suffix */
+    const char* j = "{\"lic_summary\":\"x\",\"v\":\"lic_sub\",\"lic_sub2\":\"y\"}";
+    TEST_ASSERT_EQUAL_STRING("", wdv(j, "lic_sub", 256, 0, &done).c_str( ));
+    TEST_ASSERT_FALSE(done);
+    TEST_ASSERT_EQUAL_STRING("x", wdv(j, "lic_summary").c_str( ));
+}
+
+void test_wdv_an_escaped_quote_is_never_a_key(void) {
+    TEST_ASSERT_EQUAL_STRING("yes", wdv("{\"x\":\"\\\"k\\\":\\\"no\\\"\",\"k\":\"yes\"}", "k").c_str( ));
+}
+
+void test_wdv_allows_whitespace_around_the_colon(void) {
+    TEST_ASSERT_EQUAL_STRING("v", wdv("{ \"k\" :\n \"v\" }", "k").c_str( ));
+}
+
+void test_wdv_chunking_does_not_matter(void) {
+    const char* j = "{\"a\":\"\\u00e7\\\"\",\"lic_legal_note\":\"vers\\u00e3o \\u2014 \\\"original\\\"\\n\",\"z\":\"\"}";
+    const std::string whole = wdv(j, "lic_legal_note");
+    TEST_ASSERT_EQUAL_STRING("vers\xc3\xa3o \xe2\x80\x94 \"original\"\n", whole.c_str( ));
+    for (size_t c = 1; c < strlen(j); c++) {
+        TEST_ASSERT_EQUAL_STRING(whole.c_str( ), wdv(j, "lic_legal_note", 256, c).c_str( ));
+    }
+}
+
+void test_wdv_clips_to_capacity(void) {
+    bool done = false, clipped = false;
+    TEST_ASSERT_EQUAL_STRING("abc", wdv("{\"k\":\"abcdef\"}", "k", 4, 0, &done, &clipped).c_str( ));
+    TEST_ASSERT_TRUE(done);
+    TEST_ASSERT_TRUE(clipped);
+    /* a multi-byte character that does not fit whole is left out whole */
+    TEST_ASSERT_EQUAL_STRING("ab", wdv("{\"k\":\"ab\\u00e9\"}", "k", 4, 0, &done, &clipped).c_str( ));
+    TEST_ASSERT_TRUE(clipped);
+    /* the same with the character written raw, as the packs write it */
+    TEST_ASSERT_EQUAL_STRING("ab", wdv("{\"k\":\"ab\xc3\xa9\"}", "k", 4, 0, &done, &clipped).c_str( ));
+    TEST_ASSERT_TRUE(clipped);
+    TEST_ASSERT_EQUAL_STRING("ab\xc3\xa9", wdv("{\"k\":\"ab\xc3\xa9\"}", "k", 5).c_str( ));
+}
+
+void test_wdv_last_occurrence_wins(void) {
+    /* JSON.parse in the browser keeps the last duplicate; the panel must show
+     * what the page shows. */
+    TEST_ASSERT_EQUAL_STRING("b", wdv("{\"k\":\"a\",\"k\":\"b\"}", "k").c_str( ));
+}
+
+/* ===========================================================================
+ *  THE LICENSE SCREEN'S LINE LAYOUT — TextWrap (TextWrap.h)
+ *
+ *  A column is one character, not one byte, now that the text is UTF-8; an
+ *  explicit newline starts a line whose leading spaces indent (the list of
+ *  holders), a wrap starts one whose leading spaces do not; and the opening
+ *  and the licence text read as one text across the two buffers. For ASCII
+ *  without indentation the layout must be the one the screen always had.
+ * =========================================================================== */
+struct WrapWord { int line, col; std::string w; };
+
+static std::vector<WrapWord> wrapAll(std::vector<const char*> segs, int cols, int* lines = nullptr) {
+    std::vector<WrapWord> out;
+    TextWrap tw;
+    for (const char* s : segs) {
+        tw.walk(s, cols, [&](int line, int col, const char* w, size_t n) {
+            out.push_back({line, col, std::string(w, n)});
+            return true;
+        });
+    }
+    if (lines) *lines = tw.lines( );
+    return out;
+}
+
+/* The screen's layout before 2026-10-02, kept as the reference for ASCII. */
+static std::vector<WrapWord> wrapOld(const char* text, int maxCols, int* lines) {
+    std::vector<WrapWord> out;
+    int line = 0, col = 0;
+    while (*text) {
+        if (*text == '\n') { line++; col = 0; text++; continue; }
+        if (*text == ' ') { if (col > 0 && col < maxCols) col++; text++; continue; }
+        int wlen = 0;
+        const char* w = text;
+        while (*text && *text != ' ' && *text != '\n' && wlen < 50) { wlen++; text++; }
+        if (col > 0 && col + wlen > maxCols) { line++; col = 0; }
+        out.push_back({line, col, std::string(w, wlen)});
+        col += wlen;
+    }
+    *lines = line + 1;
+    return out;
+}
+
+void test_wrap_breaks_at_the_column_limit(void) {
+    int lines = 0;
+    auto w = wrapAll({"aaa bbb ccc"}, 7, &lines);
+    TEST_ASSERT_EQUAL_INT(2, lines);
+    TEST_ASSERT_EQUAL_INT(0, w[1].line); TEST_ASSERT_EQUAL_INT(4, w[1].col);
+    TEST_ASSERT_EQUAL_INT(1, w[2].line); TEST_ASSERT_EQUAL_INT(0, w[2].col);
+}
+
+void test_wrap_counts_characters_not_bytes(void) {
+    int lines = 0;
+    wrapAll({"a\xc3\xa7\xc3\xa3o a\xc3\xa7\xc3\xa3o"}, 9, &lines);   /* 9 characters, 13 bytes */
+    TEST_ASSERT_EQUAL_INT(1, lines);
+}
+
+void test_wrap_indents_after_a_newline_only(void) {
+    auto w = wrapAll({"name\n  holder - MIT and a long tail"}, 16);
+    TEST_ASSERT_EQUAL_STRING("holder", w[1].w.c_str( ));
+    TEST_ASSERT_EQUAL_INT(2, w[1].col);                   /* indented */
+    /* "holder - MIT" fills the line to column 14; "and" wraps, and the line
+     * it starts is not indented */
+    const WrapWord* wrapped = nullptr;
+    for (const WrapWord& x : w) if (x.w == "and") wrapped = &x;
+    TEST_ASSERT_NOT_NULL(wrapped);
+    TEST_ASSERT_EQUAL_INT(0, wrapped->col);
+    TEST_ASSERT_EQUAL_INT(w[1].line + 1, wrapped->line);
+}
+
+void test_wrap_segments_read_as_one_text(void) {
+    int lines = 0;
+    auto w = wrapAll({"opening\n\n", "MIT License\nx"}, 50, &lines);
+    TEST_ASSERT_EQUAL_INT(4, lines);
+    TEST_ASSERT_EQUAL_STRING("MIT", w[1].w.c_str( ));
+    TEST_ASSERT_EQUAL_INT(2, w[1].line);
+    TEST_ASSERT_EQUAL_INT(3, w[3].line);
+}
+
+void test_wrap_splits_a_word_wider_than_the_screen(void) {
+    auto w = wrapAll({"abcdefghij"}, 4);
+    TEST_ASSERT_EQUAL_INT(3, (int)w.size( ));
+    TEST_ASSERT_EQUAL_STRING("abcd", w[0].w.c_str( ));
+    TEST_ASSERT_EQUAL_STRING("ij", w[2].w.c_str( ));
+    /* never inside a character */
+    auto u = wrapAll({"\xc3\xa1\xc3\xa1\xc3\xa1\xc3\xa1\xc3\xa1"}, 2);
+    TEST_ASSERT_EQUAL_INT(3, (int)u.size( ));
+    TEST_ASSERT_EQUAL_STRING("\xc3\xa1\xc3\xa1", u[0].w.c_str( ));
+    TEST_ASSERT_EQUAL_STRING("\xc3\xa1", u[2].w.c_str( ));
+}
+
+void test_wrap_stops_when_asked(void) {
+    TextWrap tw;
+    int seen = 0;
+    const bool finished = tw.walk("a b c d", 50, [&](int, int, const char*, size_t) { return ++seen < 2; });
+    TEST_ASSERT_FALSE(finished);
+    TEST_ASSERT_EQUAL_INT(2, seen);
+}
+
+void test_wrap_ascii_layout_is_unchanged(void) {
+    const char* mit =
+        "MIT License\n\nCopyright (c) 2026 Somebody\n\nPermission is hereby granted, free of charge, "
+        "to any person obtaining a copy of this software and associated documentation files (the "
+        "\"Software\"), to deal in the Software without restriction, including without limitation "
+        "the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies "
+        "of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND.";
+    int a = 0, b = 0;
+    auto n = wrapAll({mit}, 50, &a);
+    auto o = wrapOld(mit, 50, &b);
+    TEST_ASSERT_EQUAL_INT(b, a);
+    TEST_ASSERT_EQUAL_INT((int)o.size( ), (int)n.size( ));
+    for (size_t i = 0; i < o.size( ); i++) {
+        TEST_ASSERT_EQUAL_INT(o[i].line, n[i].line);
+        TEST_ASSERT_EQUAL_INT(o[i].col, n[i].col);
+        TEST_ASSERT_EQUAL_STRING(o[i].w.c_str( ), n[i].w.c_str( ));
+    }
 }
 
 /* ===========================================================================
@@ -3532,6 +3980,39 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_langident_strips_json_breakers);
     RUN_TEST(test_langident_keeps_legitimate_names);
     RUN_TEST(test_langident_terminates_and_respects_cap);
+    RUN_TEST(test_langidx_finds_every_section);
+    RUN_TEST(test_langidx_section_before_webdict_stops_at_the_marker);
+    RUN_TEST(test_langidx_chunking_does_not_matter);
+    RUN_TEST(test_langidx_refuses_a_directive_after_webdict);
+    RUN_TEST(test_langidx_directive_names_match_exactly);
+    RUN_TEST(test_langidx_an_at_sign_mid_line_is_content);
+    RUN_TEST(test_langidx_directive_line_endings);
+    RUN_TEST(test_langidx_name_and_code_values);
+    RUN_TEST(test_langidx_last_occurrence_wins);
+    RUN_TEST(test_langidx_absent_and_empty_sections);
+    RUN_TEST(test_langidx_end_of_file);
+    RUN_TEST(test_fold_keeps_ascii_and_latin_letters);
+    RUN_TEST(test_fold_drops_spanish_opening_marks);
+    RUN_TEST(test_fold_punctuation_to_ascii);
+    RUN_TEST(test_fold_unknown_sequence_is_one_mark);
+    RUN_TEST(test_fold_never_reads_past_the_end);
+    RUN_TEST(test_fold_respects_capacity);
+    RUN_TEST(test_fold_symbols);
+    RUN_TEST(test_wdv_finds_a_value);
+    RUN_TEST(test_wdv_decodes_escapes);
+    RUN_TEST(test_wdv_matches_the_key_exactly);
+    RUN_TEST(test_wdv_an_escaped_quote_is_never_a_key);
+    RUN_TEST(test_wdv_allows_whitespace_around_the_colon);
+    RUN_TEST(test_wdv_chunking_does_not_matter);
+    RUN_TEST(test_wdv_clips_to_capacity);
+    RUN_TEST(test_wdv_last_occurrence_wins);
+    RUN_TEST(test_wrap_breaks_at_the_column_limit);
+    RUN_TEST(test_wrap_counts_characters_not_bytes);
+    RUN_TEST(test_wrap_indents_after_a_newline_only);
+    RUN_TEST(test_wrap_segments_read_as_one_text);
+    RUN_TEST(test_wrap_splits_a_word_wider_than_the_screen);
+    RUN_TEST(test_wrap_stops_when_asked);
+    RUN_TEST(test_wrap_ascii_layout_is_unchanged);
     RUN_TEST(test_download_perm_gates_history_and_logs);
     RUN_TEST(test_download_perm_leaves_ordinary_files_alone);
 
