@@ -3,7 +3,7 @@
   "source": "tools/features.toml",
   "ceilings": {
     "flash_region": 1044480,
-    "ota_bin": 1040384
+    "ota_bin": 1040143
   },
   "groups": [
     {

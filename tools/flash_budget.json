@@ -523,36 +523,36 @@
   "21,428. Against the published v2.7.4 .bin: release +1,376, alpha and air +32."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-10-01 fix/wifi-join-watchdog on main 3cc0bfa: all seven measured with the three fixes from the field log of 2026-10-01 (the join wait bounded and its refusals counted, the touch read without trusting one interrupt, the autopsy's fourth record). Against main built on the same patched framework: release +728, test +968, test_https +976, asserts +728, alpha +320, air +4,352, pico2_w_release +712 B; of it, the join and its policy (the commit before this one) are release +264, test +248, air +168, the rest is the touch and its line in show metrics. The framework patch itself (cyw43_join_budget.patch) is -16 B on release, test_https and pico2_w_release and -24 B on the other four: the unbounded tail it removes is larger than the watchdog feed it adds. air's +4,352 is one 4 KiB step: .text +256 B, and its strings carried .rodata past the 4 KiB boundary it is padded to (446,464 -> 450,560 B); its .bin is 1,023,052 B, 17,332 B under the OTA ceiling. Budgets raised by the growth on the three it did not fit under: test +944, test_https +960, air +4,328. The other four fit, with 104 B left on release and 32 B on asserts. measured is the zopfli image PlatformIO prints.",
+ "measured_on": "2026-10-01 feat/ota-signed-stage on main 2690c0a: all seven measured with the signature check wired into the stage and, again, into the apply (docs/analysis/OTA_ASSINADA.md, stage 3). Against main built here: release +1,952, test +2,024, test_https +1,632, asserts +2,024, alpha +1,280, air +1,280, pico2_w_release +1,880 B. By symbol, on the release: sigCheck 548, the page's refusal messages 387 (FILE_PAGE_GZ), sigTrustParse 172, ota_check_staged_signature 172, the apply's re-check 156, the trust block 90 (156 with the bench root), the BearSSL glue and the stage hook ~220; no br_* symbol added (196 = 196 on the release, 161 = 161 on test and air). Budgets raised by the growth on all seven, which keeps each margin where it was (104 B on release, 32 on asserts). The OTA ceiling now counts the 241 B signature trailer (check_flash_budget.py): .bin slack signed is release 21,523, test 16,387, test_https 9,171, asserts 19,219, alpha 57,955, air 12,995. measured is the zopfli image PlatformIO prints.",
  "measured_at_commit": "chore/v2.8.0 on main 8aa898b (#195 merged; SIMUT_VERSION 2.8.0; budgets unchanged). All six rebuilt here; release, test, alpha and air byte-identical to the candidate tested on the bench. measured is the zopfli image PlatformIO prints.",
  "envs": {
   "pico_w_release": {
-   "budget": 1004740,
-   "measured": 1004636
+   "budget": 1006692,
+   "measured": 1006588
   },
   "pico_w_test": {
-   "budget": 1010340,
-   "measured": 1009700
+   "budget": 1012364,
+   "measured": 1011724
   },
   "pico_w_test_https": {
-   "budget": 1017996,
-   "measured": 1017308
+   "budget": 1019628,
+   "measured": 1018940
   },
   "pico_w_asserts": {
-   "budget": 1006900,
-   "measured": 1006868
+   "budget": 1008924,
+   "measured": 1008892
   },
   "pico_w_alpha": {
-   "budget": 966796,
-   "measured": 965796
+   "budget": 968076,
+   "measured": 967076
   },
   "pico_w_air": {
-   "budget": 1011032,
-   "measured": 1009816
+   "budget": 1012312,
+   "measured": 1011096
   },
   "pico2_w_release": {
-   "budget": 978184,
-   "measured": 977952,
+   "budget": 980064,
+   "measured": 979832,
    "ceiling": 3141632
   }
  }

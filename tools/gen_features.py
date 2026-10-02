@@ -140,6 +140,12 @@ def compose(prof: dict, M: dict) -> dict:
             if t.get("off_web_omit"):
                 web_omit.append(t["off_web_omit"])
 
+    # Not a switch: which roots the image trusts for its next update. Only an
+    # unpublished profile asks for the bench root, and check_manifest( ) refuses
+    # it anywhere else (docs/analysis/OTA_ASSINADA.md).
+    if prof.get("ota_trust_bench"):
+        flags.append("-DSIMUT_OTA_TRUST_BENCH=1")
+
     return {
         "flags": flags,
         "excludes": dedup(excludes),   # a switch may name a unit its display already drops
@@ -247,6 +253,12 @@ def check_manifest(M: dict) -> None:
     for name in M["profiles"]:
         if name not in ui_p:
             sys.exit(f"gen_features: [profiles.{name}] sem [ui_products.{name}]")
+        # Uma imagem publicada que confia na raiz de bancada aceitaria pelo ar o que
+        # a chave menos guardada assina: no campo, isso e porta dos fundos.
+        prof = resolve_profile(name, M["profiles"])
+        if prof.get("ota_trust_bench") and prof.get("publish"):
+            sys.exit(f"gen_features: o perfil {name} e publicado e pede ota_trust_bench: "
+                     f"so imagem de bancada confia na raiz de bancada")
         chip = resolve_profile(name, M["profiles"]).get("chip", "rp2040")
         if chip not in M.get("chip", {}):
             sys.exit(f"gen_features: o perfil {name} pede o chip '{chip}', que nao tem [chip.{chip}]")
@@ -322,7 +334,8 @@ def build_model(M: dict) -> dict:
         "version": M["meta"]["version"],
         "source": "tools/features.toml",
         "ceilings": {"flash_region": flash_region,
-                     "ota_bin": check_flash_budget.ota_safe_max()},
+                     # the largest .bin that still fits once signed
+                     "ota_bin": check_flash_budget.ota_bin_max()},
         "groups": groups,
         "toggles": toggles,
         "displays": displays,

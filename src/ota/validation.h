@@ -12,6 +12,11 @@
  *          NÃO usa LittleFS (lê staging via XIP); seguro de chamar com
  *          LFS desmontada (estado normal pós-stage_session_end final).
  *
+ *          Por último, a assinatura (docs/analysis/OTA_ASSINADA.md): quem
+ *          construiu a imagem, e se ela pode suceder a que está rodando. A
+ *          mesma checagem roda de novo no apply (ota_check_staged_signature),
+ *          sobre o que o staging tiver naquela hora.
+ *
  *          F-OTA-RAM (alpha2/alpha3): gzip dry-run REMOVIDO. SIMUT só
  *          recebe firmware RAW (.bin) desde v3.43.3 — eliminado o uzlib
  *          + 33 KiB de BSS (g_validate_ctx). Códigos NOT_GZIP e
@@ -26,6 +31,7 @@
 #pragma once
 #include <stdint.h>
 #include "firmware_stage.h"
+#include "signature.h"
 
 namespace ota {
 
@@ -38,6 +44,13 @@ enum class ValidationStatus : uint8_t {
     SIZE_TOO_LARGE  = 5,    /**< imagem > OTA_APP_SAFE_MAX_SIZE (1016 KiB — o teto que não toca o snapshot) */
     BOOT2_BAD       = 6,    /**< CRC-32/MPEG-2 dos primeiros 256 B inválido */
     ENV_MISMATCH    = 7,    /**< a imagem traz uma etiqueta SIMUT-ENV de OUTRA variante (release/alpha/air) */
+    /* 8..12: a assinatura. Os números são os de SigVerdict, de propósito
+     * (validation.cpp confere com static_assert). */
+    SIG_MISSING     = 8,    /**< sem trailer: imagem não assinada */
+    SIG_INVALID     = 9,    /**< trailer malformado, ou uma assinatura que não confere */
+    SIG_REVOKED     = 10,   /**< chave de assinatura abaixo da menor série aceita */
+    SIG_ROLLBACK    = 11,   /**< security_version abaixo do mínimo desta imagem */
+    SIG_SCOPE       = 12,   /**< escopo que esta imagem não aceita (chave de bancada numa de produção) */
 };
 
 struct ValidationReport {
@@ -59,5 +72,20 @@ struct ValidationReport {
  * @return true se report.status == OK.
  */
 bool ota_validate_staging(const StageSession& s, ValidationReport& report);
+
+/**
+ * @brief A assinatura da imagem no staging, contra o bloco de confiança desta
+ *        imagem (src/ota/ota_trust.h) e a variante em execução.
+ *
+ * ota_validate_staging( ) a chama no fim do stage. O apply a chama de novo,
+ * logo antes de o applier copiar o staging: nada amarra os metadados
+ * COMMITTED aos bytes validados — um stage novo não os apaga, e o applier
+ * copia o que a área tiver.
+ *
+ * @param staged_len  bytes recebidos (o trailer está no fim deles).
+ * @param report      Out: o veredito e os campos lidos do trailer.
+ * @return true se report.verdict == OK.
+ */
+bool ota_check_staged_signature(uint32_t staged_len, SigReport& report);
 
 } /* namespace ota */

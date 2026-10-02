@@ -98,12 +98,21 @@ for name, text in HOSTILE:
     failures.append(f"hostil «{name}» foi ACEITO: {got!r}")
 
 # O que é válido sai igual ao manifesto: cada produto, sem mudança, compõe o
-# mesmo ambiente que o profiles.ini gerado descreve.
+# mesmo ambiente que o profiles.ini gerado descreve -- menos a confiança na raiz
+# de bancada, que nenhuma build do configurador leva, mesmo partindo de uma imagem
+# de bancada: ela vai para o campo (docs/analysis/OTA_ASSINADA.md).
+BENCH = "-DSIMUT_OTA_TRUST_BENCH=1"
+bench_bases = 0
 for prof in M["profiles"]:
     base, changes = bc.parse_spec(json.dumps({"v": 1, "base": prof, "set": {}}), M)
     check(base == prof and changes == {}, f"{prof}: parse_spec mudou o perfil vazio")
-    check(gf.compose(bc.resolve(base, changes, M), M) == gf.compose(gf.resolve_profile(prof, M["profiles"]), M),
-          f"{prof}: sem mudanças, o ambiente composto difere do manifesto")
+    built = gf.compose(bc.resolve(base, changes, M), M)
+    shipped = gf.compose(gf.resolve_profile(prof, M["profiles"]), M)
+    bench_bases += BENCH in shipped["flags"]
+    check(BENCH not in built["flags"], f"{prof}: a build do configurador confia na raiz de bancada")
+    shipped["flags"] = [f for f in shipped["flags"] if f != BENCH]
+    check(built == shipped, f"{prof}: sem mudanças, o ambiente composto difere do manifesto")
+check(bench_bases > 0, "nenhum perfil de bancada: o caso acima não provou nada")
 
 # Uma chave mudada chega ao ambiente, e só ela.
 base, changes = bc.parse_spec(AIR % '{"bluetooth":false}', M)

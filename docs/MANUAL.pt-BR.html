@@ -11263,42 +11263,102 @@ Total: ~80 s. Não desligue o dispositivo durante o processo.</code></pre>
 <td>O aparelho recusa com HTTP 403. A página só mostra o botão <strong>Firmware</strong> ao administrador completo</td>
 </tr>
 <tr class="even">
+<td>Antes da etapa 1</td>
+<td>O arquivo termina com a assinatura</td>
+<td><strong>Este .bin não é assinado, e o aparelho só instala imagem assinada.</strong> A página não envia o arquivo, e nada muda no aparelho</td>
+</tr>
+<tr class="odd">
 <td>Etapa 1</td>
 <td>O cabeçalho do backup confere com o que o aparelho anunciou</td>
 <td><strong>Backup corrompido (CRC). Abortado.</strong> Nada muda no aparelho</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Durante o envio</td>
-<td>A imagem não passa de 1016 KiB (1.040.384 bytes)</td>
+<td>A imagem, com a assinatura, não passa de 1016 KiB (1.040.384 bytes)</td>
 <td>O envio para no ponto em que passa, e a recusa aparece sem número, como <code>v=undefined</code>. Até a v2.7.4, uma imagem de até 1 MiB só era recusada no fim, como <code>v=5</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Fim do envio</td>
 <td>O tamanho é de pelo menos 100 KiB</td>
 <td>Recusa, <code>v=4</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Fim do envio</td>
 <td>Os primeiros 256 bytes formam um início de imagem válido para o RP2040, com o CRC que a ROM do chip confere</td>
 <td>Recusa, <code>v=6</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Fim do envio</td>
 <td>A imagem traz a etiqueta da variante (<code>SIMUT-ENV</code>) igual à do aparelho</td>
 <td>Recusa, <code>v=7</code></td>
 </tr>
+<tr class="even">
+<td>Fim do envio</td>
+<td>A assinatura (<a href="#cap-17-ota-assinatura">A assinatura</a>)</td>
+<td>Recusa, <code>v=8</code> a <code>v=12</code></td>
+</tr>
 <tr class="odd">
+<td>Aplicação</td>
+<td>A assinatura de novo, sobre a imagem gravada naquele momento</td>
+<td>HTTP 409, e a imagem é descartada</td>
+</tr>
+<tr class="even">
 <td>Primeiro boot</td>
 <td>O CRC da imagem gravada confere com o da imagem recebida</td>
 <td>O log registra o erro (<a href="#cap-17-ota-conferir">Conferir a versão</a>)</td>
 </tr>
 </tbody>
 </table></div>
-<p>Uma imagem sem etiqueta de variante, de uma versão anterior à etiqueta, é aceita.</p>
-<p>Uma recusa aparece como <strong>Falha no envio (validação v=N). Cancelled.</strong>. Um arquivo maior que 1016 KiB não chega a ser conferido e aparece como <code>v=undefined</code>.</p>
+<p>Até a v2.8.x, o aparelho aceitava uma imagem sem assinatura e uma sem etiqueta de variante, anterior à etiqueta. Hoje as duas são recusadas com <code>v=8</code>.</p>
+<p>Uma recusa aparece como <strong>Falha no envio (validação v=N). Cancelled.</strong>, seguida do motivo de <code>v=7</code> a <code>v=12</code>. Um arquivo maior que 1016 KiB não chega a ser conferido e aparece como <code>v=undefined</code>.</p>
 <aside class="faixa faixa-perigo"><span class="selo selo-perigo"><i></i>Perigo</span>
 <p><strong>Uma recusa no envio também apaga o sistema de arquivos.</strong> A imagem é gravada sobre o sistema de arquivos enquanto chega, e a conferência só acontece no fim. Quando o aparelho recusa a imagem, ele reformata o sistema de arquivos e continua funcionando com a configuração que está na RAM; desde a v2.8.0 ele grava a configuração de volta logo em seguida, e até a v2.7.4 o arquivo dela simplesmente deixava de existir. <strong>Restaure o backup do passo 4</strong>: ele devolve o histórico, os pacotes de idioma e os demais arquivos. Até a v2.7.4, um reinício antes disso voltava com a configuração de fábrica (<a href="#cap-18-fabrica">capítulo 18</a>).</p>
 </aside>
+<h4 id="cap-17-ota-assinatura">A assinatura</h4>
+<p>Pelo ar, o aparelho só instala imagem assinada pelo projeto: os <code>.bin</code> das releases no GitHub e as builds do configurador. A assinatura são 241 bytes no fim do arquivo. Ela prova quem gerou a imagem e que nenhum byte mudou depois.</p>
+<div class="tw"><table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th><code>v</code></th>
+<th>Motivo</th>
+<th>O que fazer</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>8</td>
+<td>A imagem não é assinada</td>
+<td>Use um <code>.bin</code> de release do GitHub ou uma build do configurador. Um build local só entra pelo USB (<a href="#cap-18-bootsel">capítulo 18</a>)</td>
+</tr>
+<tr class="even">
+<td>9</td>
+<td>A assinatura não confere: o arquivo mudou depois de assinado, ou foi assinado por uma chave em que o aparelho não confia</td>
+<td>Baixe o <code>.bin</code> de novo, da página da release</td>
+</tr>
+<tr class="odd">
+<td>10</td>
+<td>A chave que assinou foi aposentada</td>
+<td>Use uma release mais nova</td>
+</tr>
+<tr class="even">
+<td>11</td>
+<td>A imagem está abaixo do nível de segurança instalado</td>
+<td>Use a versão instalada ou uma mais nova. Voltar para antes de uma correção de segurança só pelo USB</td>
+</tr>
+<tr class="odd">
+<td>12</td>
+<td>A imagem foi assinada com a chave de bancada, que só as imagens de teste aceitam</td>
+<td>Use um <code>.bin</code> de release do GitHub</td>
+</tr>
+</tbody>
+</table></div>
+<p>A página confere o fim do arquivo antes do backup: um arquivo sem assinatura é recusado ali, e nada muda no aparelho. As recusas de <code>v=8</code> a <code>v=12</code> vêm no fim do envio, quando o sistema de arquivos já foi sobrescrito: restaure o backup.</p>
+<p>A primeira versão assinada se instala pelo ar num aparelho na v2.8.x como qualquer outra, porque a v2.8.x não confere assinatura. Dali em diante, o aparelho só aceita imagem assinada. O USB não confere assinatura: o BOOTSEL grava qualquer <code>.uf2</code>.</p>
 <h4 id="cap-17-ota-conferir">Conferir a versão</h4>
 <p>A única prova de uma atualização é o aparelho informar a versão nova. Confira em qualquer um destes lugares:</p>
 <ul>
@@ -11369,6 +11429,11 @@ Total: ~80 s. Não desligue o dispositivo durante o processo.</code></pre>
 <td>Recomece a atualização</td>
 </tr>
 <tr class="odd">
+<td>409, com <code>v</code> no motivo</td>
+<td>A imagem gravada não confere mais com a assinatura: outro envio começou depois dela. O aparelho a descarta</td>
+<td>Recomece a atualização</td>
+</tr>
+<tr class="even">
 <td>503</td>
 <td>O painel estava em uso naquele instante</td>
 <td>Não reinicie o aparelho: a imagem gravada está esperando. Repita a aplicação pela API, com <code>POST /api/ota/apply</code> e a sessão do administrador (<a href="#cap-26-ota">capítulo 26</a>)</td>
@@ -11695,8 +11760,8 @@ SIMUT&gt; reload confirm</code></pre>
 <h3 id="cap-18-imagem">Imagem errada</h3>
 <p>Cada placa usa uma imagem: <code>release</code> para o painel de toque, <code>alpha</code> para o LCD 16×2, <code>air</code> para o SIMUT Air.</p>
 <ul>
-<li><strong>Pela página Arquivos,</strong> o aparelho recusa uma imagem de outra variante com <code>v=7</code> (<a href="#cap-17-ota-conferencias">capítulo 17</a>). A recusa reformata o sistema de arquivos: restaure o backup antes de reiniciar.</li>
-<li><strong>Pelo USB,</strong> o modo BOOTSEL grava qualquer <code>.uf2</code>. Uma imagem de outra variante não aciona o visor da sua placa, e a imagem do Air hiberna depois de 5 min sem uso.</li>
+<li><strong>Pela página Arquivos,</strong> o aparelho recusa uma imagem de outra variante com <code>v=7</code> e uma sem assinatura com <code>v=8</code> (<a href="#cap-17-ota-conferencias">capítulo 17</a>). A recusa reformata o sistema de arquivos: restaure o backup antes de reiniciar.</li>
+<li><strong>Pelo USB,</strong> o modo BOOTSEL grava qualquer <code>.uf2</code>, assinado ou não: é o caminho de um build local até um aparelho. Uma imagem de outra variante não aciona o visor da sua placa, e a imagem do Air hiberna depois de 5 min sem uso.</li>
 </ul>
 <p>Para saber qual imagem está no aparelho, consulte <code>/api/status</code> (campo <code>sys.env</code>) ou <code>/api/perms</code> (campo <code>env</code>).</p>
 <p>Para corrigir, grave o <code>.uf2</code> certo pelo BOOTSEL (<a href="#cap-18-bootsel">Gravar pelo BOOTSEL</a>). A gravação de um <code>.uf2</code> substitui só o firmware: a configuração e os arquivos continuam lá.</p>
@@ -19502,12 +19567,16 @@ curl -s -b jar -F bkp=@backup.bkp &quot;$H/api/restore?op=apply&quot;</code></pr
 <ol type="1">
 <li><p><strong>Baixe o backup.</strong> A atualização reformata o sistema de arquivos. Só a configuração principal, o arquivo <code>/config/system.bin</code>, sobrevive: Wi-Fi, contas, slots de sensor, limites, telemetria e os demais campos de configuração. O histórico, os pacotes de idioma, os temas personalizados, a calibração dos sensores (<code>/calib.csv</code>), a pasta <code>/web</code>, o log de eventos, o par de certificados HTTPS e a origem CORS se perdem até você restaurar o backup.</p>
 <pre class="bash"><code>curl -s -b jar -o antes.bkp &quot;$H/api/backup&quot;</code></pre></li>
-<li><p><strong>Envie a imagem.</strong> O campo do formulário leva o <code>.bin</code> da mesma imagem do aparelho (<code>release</code>, <code>alpha</code> ou <code>air</code>, o <code>env</code> do <code>/api/status</code>). <code>commit=1</code> deixa a imagem pronta para aplicar.</p>
+<li><p><strong>Envie a imagem.</strong> O campo do formulário leva o <code>.bin</code> da mesma imagem do aparelho (<code>release</code>, <code>alpha</code> ou <code>air</code>, o <code>env</code> do <code>/api/status</code>), assinado: os das releases e os do configurador são (<a href="#cap-17-ota-assinatura">capítulo 17</a>). <code>commit=1</code> deixa a imagem pronta para aplicar.</p>
 <pre class="bash"><code>curl -s -b jar -F file=@simut_v2.7.1_release.bin \
   &quot;$H/api/restore?op=stage&amp;commit=1&quot;</code></pre>
 <pre class="json"><code>{&quot;st&quot;:5,&quot;bytes&quot;:982844,&quot;crc32&quot;:&quot;1A2B3C4D&quot;,&quot;v&quot;:0,&quot;dsize&quot;:982844,&quot;dcrc&quot;:&quot;1A2B3C4D&quot;,&quot;committed&quot;:1,&quot;env&quot;:&quot;release&quot;}</code></pre>
 <p>Siga só com <code>"st":5</code>, <code>"v":0</code> e <code>"committed":1</code>. Uma imagem recusada volta com <code>422</code>:</p>
 <div class="tw"><table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
 <thead>
 <tr class="header">
 <th><code>v</code></th>
@@ -19531,6 +19600,26 @@ curl -s -b jar -F bkp=@backup.bkp &quot;$H/api/restore?op=apply&quot;</code></pr
 <td>7</td>
 <td>A imagem é de outra variante. <code>env</code> diz qual</td>
 </tr>
+<tr class="odd">
+<td>8</td>
+<td>A imagem não é assinada</td>
+</tr>
+<tr class="even">
+<td>9</td>
+<td>A assinatura não confere, ou o trailer da assinatura está malformado</td>
+</tr>
+<tr class="odd">
+<td>10</td>
+<td>A chave que assinou foi aposentada</td>
+</tr>
+<tr class="even">
+<td>11</td>
+<td>A imagem está abaixo do nível de segurança instalado</td>
+</tr>
+<tr class="odd">
+<td>12</td>
+<td>A imagem foi assinada com a chave de bancada</td>
+</tr>
 </tbody>
 </table></div>
 <p>Se o envio não terminou, a resposta traz só <code>st</code>, <code>bytes</code> e <code>crc32</code>, com <code>st</code> diferente de 5: <code>1</code> falha ao começar, <code>2</code> envio incompleto, <code>3</code> imagem maior que a área de preparo, <code>4</code> falha de gravação, <code>6</code> envio abortado.</p>
@@ -19538,7 +19627,7 @@ curl -s -b jar -F bkp=@backup.bkp &quot;$H/api/restore?op=apply&quot;</code></pr
 <li><p><strong>Aplique.</strong></p>
 <pre class="bash"><code>curl -s -b jar -X POST &quot;$H/api/ota/apply&quot;</code></pre>
 <pre class="json"><code>{&quot;accepted&quot;:true,&quot;mode&quot;:&quot;apply&quot;}</code></pre>
-<p>A resposta <code>202</code> chega antes de o aparelho desligar o Wi-Fi. Sem imagem preparada, a resposta é <code>409</code> <code>{"error":"no committed update pending"}</code>; com o painel em uso, <code>503</code>.</p></li>
+<p>A resposta <code>202</code> chega antes de o aparelho desligar o Wi-Fi. Sem imagem preparada, a resposta é <code>409</code> <code>{"error":"no committed update pending"}</code>; com o painel em uso, <code>503</code>. Antes de aplicar, o aparelho confere a assinatura de novo, sobre a imagem gravada naquele momento: se outro envio começou depois do passo 2, a resposta é <code>409</code> com <code>"v"</code>, e a imagem é descartada.</p></li>
 <li><p><strong>Confirme.</strong> Espere o aparelho voltar, repetindo <code>GET /api/login_init</code> a cada 3 s. Entre e leia <code>ver</code> em <code>GET /api/status</code>, ou <code>version</code> em <code>GET /api/perms</code>. Um status HTTP ou um tempo decorrido não provam nada: só a versão nova informada pelo aparelho prova a atualização. Depois, restaure o backup para recuperar o histórico e o resto (<a href="#cap-26-backup">Backup e restauração</a>).</p></li>
 </ol>
 <aside class="faixa faixa-perigo"><span class="selo selo-perigo"><i></i>Perigo</span>
@@ -20342,6 +20431,7 @@ if __name__ == &quot;__main__&quot;:
 <li><strong>A imagem certa.</strong> Leia <code>sys.env</code> e escolha <code>images[env]</code>. Nunca escolha pela versão ou pelo nome do arquivo.</li>
 <li><strong>O arquivo inteiro.</strong> Calcule o SHA-256 do <code>.bin</code> baixado e compare com <code>sha256</code>. Confira também <code>size</code>.</li>
 <li><strong>A etiqueta.</strong> O <code>.bin</code> contém o texto <code>SIMUT-ENV:&lt;env&gt;;v=&lt;versão&gt;;</code>. Confira que <code>&lt;env&gt;</code> é o do aparelho e <code>&lt;versão&gt;</code> é a do manifesto.</li>
+<li><strong>A assinatura.</strong> O <code>.bin</code> termina com os 8 bytes <code>SIMUTSIG</code>. Sem eles, o aparelho recusa a imagem com <code>"v":8</code>, depois de o envio já ter sobrescrito o sistema de arquivos.</li>
 <li><strong>A versão de partida.</strong> A versão atual do aparelho precisa ser igual ou mais nova que <code>min_from</code>. Firmwares anteriores à 1.6.2 tinham um aplicador que dizia ter atualizado sem instalar nada; eles precisam de uma gravação pelo cabo uma vez.</li>
 <li><strong>A conta.</strong> A atualização exige o administrador completo (<a href="#cap-27-admin">O que só o administrador completo faz</a>).</li>
 </ol>
@@ -20354,7 +20444,8 @@ dados = open(img[&quot;file&quot;], &quot;rb&quot;).read()
 assert len(dados) == img[&quot;size&quot;], &quot;tamanho diferente do manifesto&quot;
 assert hashlib.sha256(dados).hexdigest() == img[&quot;sha256&quot;], &quot;SHA-256 diferente&quot;
 m = re.search(rb&quot;SIMUT-ENV:([a-z]+);v=([^;]+);&quot;, dados)
-assert m and m.group(1).decode() == env and m.group(2).decode() == man[&quot;version&quot;], &quot;etiqueta errada&quot;</code></pre>
+assert m and m.group(1).decode() == env and m.group(2).decode() == man[&quot;version&quot;], &quot;etiqueta errada&quot;
+assert dados[-8:] == b&quot;SIMUTSIG&quot;, &quot;imagem sem assinatura&quot;</code></pre>
 <h4 id="cap-27-sequencia">A sequência em cada aparelho</h4>
 <p>A sequência é a do <a href="#cap-26-ota">capítulo 26</a>, com dois passos a mais no fim:</p>
 <ol type="1">
@@ -23804,6 +23895,16 @@ echo</code></pre>
 <td>Use o <code>.bin</code> da variante do aparelho. Restaure o backup, que devolve os arquivos apagados pela recusa</td>
 </tr>
 <tr class="even">
+<td><strong>Este .bin não é assinado, e o aparelho só instala imagem assinada.</strong></td>
+<td>O arquivo não tem assinatura: um build local, ou um <code>.bin</code> anterior à OTA assinada</td>
+<td>Use um <code>.bin</code> de release do GitHub ou uma build do configurador. A página recusou antes de enviar: nada mudou no aparelho</td>
+</tr>
+<tr class="odd">
+<td><strong>Falha no envio (validação v=8)</strong> a <strong>(validação v=12)</strong></td>
+<td>A assinatura: imagem sem assinatura (8), alterada ou de chave desconhecida (9), chave aposentada (10), abaixo do nível de segurança instalado (11), chave de bancada (12)</td>
+<td>Veja o que fazer em cada caso no <a href="#cap-17-ota-assinatura">capítulo 17</a>. Restaure o backup</td>
+</tr>
+<tr class="even">
 <td><strong>Falha no envio (validação v=4)</strong></td>
 <td>O arquivo é pequeno demais para ser uma imagem. Até a v2.7.4, <code>v=5</code> era a recusa de um arquivo grande demais</td>
 <td>Confira que escolheu o <code>.bin</code> certo. Restaure o backup</td>
@@ -24774,111 +24875,116 @@ echo</code></pre>
 <td>Envie a imagem com o mesmo <code>env</code> que <code>/api/status</code> informa</td>
 </tr>
 <tr class="odd">
-<td><code>POST /api/ota/apply</code> responde <code>409</code></td>
-<td>Nenhuma imagem preparada com <code>commit=1</code>, ou o aparelho reiniciou depois do envio</td>
-<td>Envie a imagem de novo com <code>op=stage&amp;commit=1</code></td>
+<td>O envio da imagem responde <code>422</code> com <code>"v"</code> de 8 a 12</td>
+<td>A assinatura da imagem foi recusada (<a href="#cap-26-ota">capítulo 26</a>)</td>
+<td>Envie o <code>.bin</code> assinado da release, sem alterá-lo</td>
 </tr>
 <tr class="even">
+<td><code>POST /api/ota/apply</code> responde <code>409</code></td>
+<td>Nenhuma imagem preparada com <code>commit=1</code>, o aparelho reiniciou depois do envio, ou, com <code>"v"</code>, outro envio começou depois e a imagem gravada não confere mais com a assinatura</td>
+<td>Envie a imagem de novo com <code>op=stage&amp;commit=1</code></td>
+</tr>
+<tr class="odd">
 <td>Um envio longo cai no meio</td>
 <td>Algum equipamento da rede corta conexões longas na porta 80</td>
 <td>Configure outra porta web (<a href="#cap-09-servidor-web">capítulo 9</a>)</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>avahi-browse</code> não acha alguns aparelhos</td>
 <td>São alpha ou Air, que não têm mDNS; ou estão em outra rede ou VLAN</td>
 <td>Descubra-os pelos cabeçalhos <code>X-SIMUT-*</code> da telemetria no coletor</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Dois aparelhos respondem pelo mesmo <code>&lt;nome&gt;.local</code></td>
 <td>Os dois têm o mesmo <strong>Nome</strong></td>
 <td>Dê um nome único a cada aparelho</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>O gestor gravou a configuração no aparelho errado</td>
 <td>O DHCP deu ao aparelho o IP que era de outro</td>
 <td>Compare <code>sys.uid</code> com o cadastro antes de cada gravação</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>As sessões do gestor caem sozinhas</td>
 <td>Dois trabalhadores, ou um operador, usam a mesma conta no mesmo aparelho</td>
 <td>Uma conta por processo; operadores com contas próprias</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Operadores recebem <strong>Limite de sessões atingido</strong></td>
 <td>O gestor ocupa vagas e não sai</td>
 <td>Uma sessão por aparelho, reaproveitada; <code>GET /logout</code> ao terminar</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>A conta de serviço cria contas, mas as de painel voltam com <code>users.perms</code></td>
 <td>A conta de serviço não tem as permissões de painel que tenta conceder</td>
 <td>Dê a ela <code>0x0400</code>, <code>0x0800</code> e <code>0x1000</code> (a conta de 7433)</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>O gestor não consegue atualizar o firmware</td>
 <td>A conta de serviço não é administrador completo</td>
 <td>A atualização exige o administrador completo (<a href="#cap-17-ota">capítulo 17</a>)</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>A página do gestor não recebe <code>token</code> na entrada</td>
 <td>A origem da página não é exatamente a origem configurada no aparelho, ou o aparelho não reiniciou depois da configuração</td>
 <td>Confira esquema, nome e porta da origem; reinicie o aparelho</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>A página do gestor em HTTPS não fala com os aparelhos</td>
 <td>Aparelhos em HTTP (conteúdo misto) ou certificado em que o navegador não confia</td>
 <td>Use HTTPS nos aparelhos, com certificados assinados por uma autoridade que os navegadores aceitem</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>O gestor no navegador perdeu um aparelho depois da atualização</td>
 <td>A atualização apagou a origem CORS e o certificado HTTPS</td>
 <td>Restaure o backup por um serviço no servidor ou pela página <strong>Arquivos</strong> do aparelho</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Um lote de configuração reiniciou toda a frota</td>
 <td>O modelo tinha campos que reiniciam (<code>tz</code>, <code>t_sec</code>, rede, contas)</td>
 <td>Separe as mudanças que reiniciam e aplique-as em ondas, fora do horário de uso</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>O ensaio passou, mas a gravação reiniciou</td>
 <td>O modelo tinha campos que o ensaio não enxerga</td>
 <td>Veja a lista no <a href="#cap-26-commit">capítulo 26</a> e conte com o reinício</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>O <code>cfg</code> de um aparelho mudou sem gravação do gestor</td>
 <td>Alguém mudou a configuração pela página, pelo painel ou pelo console</td>
 <td>Leia <code>GET /api/config</code> e compare com o modelo</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Os Air nunca hibernam</td>
 <td>O Prometheus ou o gestor consultam o Air com uma conta válida</td>
 <td>Tire o Air da coleta; use <code>?quiet=1</code> no <code>/api/status</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>O Prometheus bloqueia a entrada web de quem está no mesmo endereço</td>
 <td>Senha errada no Basic conta no mesmo bloqueio por IP</td>
 <td>Corrija a senha do Prometheus</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Um aparelho atualizado continua na versão antiga</td>
 <td>A aplicação foi recusada (<code>409</code> ou <code>403</code>) ou a imagem não foi preparada com <code>commit=1</code></td>
 <td>Leia a resposta de cada passo; só a versão informada pelo aparelho prova a atualização</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>O envio da imagem volta com <code>"v":7</code></td>
 <td>A imagem é de outra variante</td>
 <td>Escolha <code>images[env]</code> pelo <code>sys.env</code> do aparelho</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Depois da atualização e da restauração, textos novos aparecem em inglês</td>
 <td>O backup restaurado trouxe os pacotes de idioma antigos</td>
 <td>Envie os <code>.lng</code> da release nova para <code>/lang</code> e reinicie</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Um aparelho com firmware antigo não atualiza pela rede</td>
 <td>Versão anterior a <code>min_from</code></td>
 <td>Grave pelo cabo USB uma vez (<a href="#cap-03">capítulo 3</a>)</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Um aparelho sumiu do coletor</td>
 <td>Sem rede, sem energia, sinal abaixo de −78 dBm ou aparelho parado</td>
 <td>Compare a hora do último POST com o ritmo esperado e verifique o local</td>

@@ -104,7 +104,7 @@ pio run -e pico_w_release -t uploadfs
 
 ## Presupuesto de Memoria Flash
 
-El espacio en la memoria flash es críticamente ajustado. La imagen release usa el 97,2 % del slot de programa de 1.044.480 B, y el `.bin` de cada imagen tiene que quedar por debajo del techo de actualización por el aire, de 1.040.384 B — a `pico_w_air` le quedan 5.076 B ahí, y a la imagen de banco `pico_w_test_https`, 668 (23/09/2026, `tools/flash_budget.json`). Antes de añadir nuevas características, considera:
+El espacio en la memoria flash es críticamente ajustado. La imagen release usa el 97,2 % del slot de programa de 1.044.480 B, y el `.bin` de cada imagen, con sus 241 B de firma, tiene que quedar por debajo del techo de actualización por el aire, de 1.040.384 B — a `pico_w_air` le quedan 5.076 B ahí, y a la imagen de banco `pico_w_test_https`, 668 (23/09/2026, `tools/flash_budget.json`). Antes de añadir nuevas características, considera:
 
 1. ¿Se puede optimizar para usar menos espacio?
 2. ¿Puede reemplazar algo de menor valor?

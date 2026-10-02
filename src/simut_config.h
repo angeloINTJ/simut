@@ -466,6 +466,19 @@
 #define SIMUT_ENV_NAME "headless"
 #endif
 
+/* -------------------------------------------------------------------------
+ * SIMUT_OTA_TRUST_BENCH — 1 = over the air, this image also takes what the
+ * BENCH key signs (keys/ota_root_bench.pub), besides what the release key
+ * signs. It is how a local build reaches the rig through the usual OTA.
+ * Only an unpublished profile sets it (`ota_trust_bench` in
+ * tools/features.toml): tools/gen_features.py refuses it on a published one,
+ * and a configurator build drops it whatever its base. On a field device the
+ * less guarded key would be a way in (docs/analysis/OTA_ASSINADA.md).
+ * ---------------------------------------------------------------------- */
+#ifndef SIMUT_OTA_TRUST_BENCH
+#define SIMUT_OTA_TRUST_BENCH 0
+#endif
+
 #if SIMUT_AIR
 #ifndef AIR_WAKE_INTERVAL_MIN
 #define AIR_WAKE_INTERVAL_MIN 5  // Fallback wake period (min) when the history interval reads 0

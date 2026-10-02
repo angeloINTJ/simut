@@ -105,6 +105,10 @@ def canonical(base, changes):
 def resolve(base, changes, M):
     prof = gf.resolve_profile(base, M["profiles"])
     prof.update(changes)
+    # Uma build do configurador vai para o campo, seja qual for o produto de base:
+    # nunca confia na raiz de bancada, nem partindo de uma imagem de bancada
+    # (docs/analysis/OTA_ASSINADA.md). `changes` so traz chaves do TOGGLE_ORDER.
+    prof.pop("ota_trust_bench", None)
     return prof
 
 
@@ -192,7 +196,7 @@ def main():
         files[ext] = {"file": os.path.basename(dst), "sha256": sha256(dst),
                       "bytes": os.path.getsize(dst)}
     import check_flash_budget  # o mesmo teto de OTA que o portão usa
-    ota_max = check_flash_budget.ota_safe_max()
+    ota_max = check_flash_budget.ota_bin_max()   # o maior .bin que ainda cabe assinado
     fits_ota = ota_max is None or res["bin"] <= ota_max
     report = {
         "profile": json.loads(spec),

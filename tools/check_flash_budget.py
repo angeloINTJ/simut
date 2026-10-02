@@ -77,6 +77,23 @@ def ota_safe_max():
     return total - eeprom - fs - sector
 
 
+def sig_trailer_len():
+    """SIG_TRAILER_LEN, read out of src/ota/signature.h for the same reason
+    ota_safe_max( ) reads its numbers: no copy here to drift from the code.
+    0 if the header stops looking like this, which check_ota_bin reports."""
+    with open(os.path.join(ROOT, "src", "ota", "signature.h"), encoding="utf-8") as fh:
+        m = re.search(r"constexpr\s+uint32_t\s+SIG_TRAILER_LEN\s*=\s*(\d+)\s*;", fh.read())
+    return int(m.group(1)) if m else 0
+
+
+def ota_bin_max():
+    """The largest firmware.bin that still fits under the OTA ceiling once the
+    signature trailer is appended: what the configurator and build_custom.py
+    compare a .bin against. None if either number cannot be read."""
+    safe, trailer = ota_safe_max(), sig_trailer_len()
+    return safe - trailer if safe and trailer else None
+
+
 def check_ota_bin(env, safe_max, exempt=None):
     """The budget above measures what PlatformIO prints, which is the SUM OF
     SECTIONS. What OTA refuses is the .bin, and the two differ by the padding
@@ -94,20 +111,27 @@ def check_ota_bin(env, safe_max, exempt=None):
         print(f"[flash-budget] NOTE {env}: no firmware.bin next to the log, "
               f"so the OTA ceiling was not checked.")
         return
-    size = os.path.getsize(path)
+    # What goes over the air is the .bin with the signature trailer after it
+    # (docs/analysis/OTA_ASSINADA.md), so that is what has to fit.
+    trailer = sig_trailer_len()
+    if not trailer:
+        fail("src/ota/signature.h no longer says SIG_TRAILER_LEN; the OTA "
+             "ceiling cannot be checked against what is staged.")
+    size = os.path.getsize(path) + trailer
     slack = safe_max - size
     if slack < 0:
-        fail(f"{env}: firmware.bin is {size} B, OTA_APP_SAFE_MAX_SIZE is "
-             f"{safe_max} B — over by {-slack} B. An image this large stages "
-             f"and validates, then the config snapshot overwrites its tail.")
+        fail(f"{env}: firmware.bin + {trailer} B of signature is {size} B, "
+             f"OTA_APP_SAFE_MAX_SIZE is {safe_max} B — over by {-slack} B. An "
+             f"image this large stages and validates, then the config snapshot "
+             f"overwrites its tail.")
     band = 4096
     if slack < band:
-        print(f"[flash-budget] WARN {env}: firmware.bin is {size} B, only "
+        print(f"[flash-budget] WARN {env}: firmware.bin signed is {size} B, only "
               f"{slack} B under the OTA ceiling of {safe_max} B — less than one "
               f"flash sector. The next addition may make this image refuse to "
               f"update over the air while every other number still looks fine.")
     else:
-        print(f"[flash-budget] OK {env}: firmware.bin {size} B, "
+        print(f"[flash-budget] OK {env}: firmware.bin signed {size} B, "
               f"{slack} B under the OTA ceiling.")
 
 

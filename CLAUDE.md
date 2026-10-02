@@ -16,6 +16,7 @@ substance lives there, not here.
 | Documentation | `docs/` — [`docs/README.md`](docs/README.md) marks each document **Living** or **Snapshot** |
 | Interface standard | [`ANGULO.md`](ANGULO.md) — the Ângulo guide for anything with a screen or a reader: web UI, site, README, docs, brand. [`AGENTS.md`](AGENTS.md) §7 says how it applies here and what `tools/check_angulo.py` enforces in CI |
 | Tests | `test/` — nine native environments, `pio test -e native…` |
+| OTA keys | `keys/` — the public roots and the floors every image compiles (`keys/README.md`). Private keys never enter the repository; the bench ones live in `~/.simut-ota/` |
 
 ## Building and testing
 

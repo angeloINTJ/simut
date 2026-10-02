@@ -159,8 +159,8 @@ Sem backup, configure o aparelho de novo a partir do [capítulo 4](#cap-04).
 
 Cada placa usa uma imagem: `release` para o painel de toque, `alpha` para o LCD 16×2, `air` para o SIMUT Air.
 
-- **Pela página Arquivos,** o aparelho recusa uma imagem de outra variante com `v=7` ([capítulo 17](#cap-17-ota-conferencias)). A recusa reformata o sistema de arquivos: restaure o backup antes de reiniciar.
-- **Pelo USB,** o modo BOOTSEL grava qualquer `.uf2`. Uma imagem de outra variante não aciona o visor da sua placa, e a imagem do Air hiberna depois de 5 min sem uso.
+- **Pela página Arquivos,** o aparelho recusa uma imagem de outra variante com `v=7` e uma sem assinatura com `v=8` ([capítulo 17](#cap-17-ota-conferencias)). A recusa reformata o sistema de arquivos: restaure o backup antes de reiniciar.
+- **Pelo USB,** o modo BOOTSEL grava qualquer `.uf2`, assinado ou não: é o caminho de um build local até um aparelho. Uma imagem de outra variante não aciona o visor da sua placa, e a imagem do Air hiberna depois de 5 min sem uso.
 
 Para saber qual imagem está no aparelho, consulte `/api/status` (campo `sys.env`) ou `/api/perms` (campo `env`).
 

@@ -1009,7 +1009,8 @@ curl -b cookies.txt -X POST "http://simut.local/api/ota/apply"
 
 O staging precisa reportar `committed: 1` e `v: 0` antes que o apply faça
 qualquer coisa. O `/api/ota/apply` responde **409** quando não há atualização
-validada pendente.
+validada pendente, ou quando a imagem em staging não confere mais. Só imagem
+assinada entra: o `.bin` de uma release, ou uma build do configurador.
 
 Note que `bytes` e `dsize` diferem, e devem mesmo: `bytes` conta o padding 0xFF
 que fecha a última página de 256 bytes, que é o que o aplicador copia, enquanto
@@ -1021,6 +1022,9 @@ que fecha a última página de 256 bytes, que é o que o aplicador copia, enquan
 |---|---|
 | Upload | Tamanho entre 100 KB e 1016 KiB (1.040.384 B). Desde a v2.8.0, uma imagem maior para o envio no ponto em que passa do teto |
 | Upload | CRC32/MPEG-2 sobre os primeiros 252 bytes contra os 4 bytes que vêm em seguida — a mesma checagem que a boot ROM do RP2040 faz, de modo que um arquivo que não seja uma imagem RP2040 válida é rejeitado antes que qualquer coisa seja apagada |
+| Upload | A etiqueta `SIMUT-ENV` é a da variante do aparelho (`v=7`) |
+| Upload | A assinatura: um trailer de 241 bytes no fim do `.bin`, de uma chave em que a imagem em execução confia, sobre todos os bytes, com nível de segurança não menor que o instalado, para esta variante (`v=8` a `v=12`; [docs/analysis/OTA_ASSINADA.md](analysis/OTA_ASSINADA.md)). Até a v2.8.x, uma imagem sem assinatura era aceita |
+| Apply | A assinatura de novo, sobre o que a área de staging tiver naquele momento: um stage começado depois do aceito deixa os bytes dele ali, e o aplicador copia o que encontrar. **409** com `v` se ela não conferir mais |
 | Apply | O aplicador copia o staging para o slot de aplicação a partir da SRAM, com as interrupções desligadas |
 | Próximo boot | A imagem instalada tem o CRC conferido contra os metadados e o veredito é registrado no log |
 

@@ -327,6 +327,8 @@ Detalhes no [capítulo 17](#cap-17).
 | Os botões **Backup**, **Restaurar** e **Firmware** não aparecem | A conta não é o administrador completo | Entre com uma conta que tenha todas as permissões |
 | **Falha ao baixar backup. Tente novamente.** na etapa 1 | O painel estava em uso, outra operação pesada rodava, ou a rede caiu | Espere alguns segundos e recomece. Nada mudou no aparelho |
 | **Falha no envio (validação v=7). Cancelled.** | A imagem é de outra variante (release, alpha ou air) | Use o `.bin` da variante do aparelho. Restaure o backup, que devolve os arquivos apagados pela recusa |
+| **Este .bin não é assinado, e o aparelho só instala imagem assinada.** | O arquivo não tem assinatura: um build local, ou um `.bin` anterior à OTA assinada | Use um `.bin` de release do GitHub ou uma build do configurador. A página recusou antes de enviar: nada mudou no aparelho |
+| **Falha no envio (validação v=8)** a **(validação v=12)** | A assinatura: imagem sem assinatura (8), alterada ou de chave desconhecida (9), chave aposentada (10), abaixo do nível de segurança instalado (11), chave de bancada (12) | Veja o que fazer em cada caso no [capítulo 17](#cap-17-ota-assinatura). Restaure o backup |
 | **Falha no envio (validação v=4)** | O arquivo é pequeno demais para ser uma imagem. Até a v2.7.4, `v=5` era a recusa de um arquivo grande demais | Confira que escolheu o `.bin` certo. Restaure o backup |
 | **Falha no envio (validação v=6)** | O arquivo não é uma imagem do RP2040 | Use o `.bin` publicado, não o `.uf2` nem outro arquivo. Restaure o backup |
 | **Falha no envio (validação v=undefined)** | O arquivo passa de 1016 KiB, ou o envio caiu | Confira o arquivo e a rede. Restaure o backup |
@@ -538,7 +540,8 @@ Detalhes nos capítulos [26](#cap-26) e [27](#cap-27).
 | O `.h5` baixado não tem as últimas medições | Os arquivos por dia só têm blocos selados | Leia também `GET /api/history/open` |
 | A restauração responde `st` 6 | O backup é de outro aparelho | Um backup só restaura no aparelho que o gerou |
 | O envio da imagem responde `422` com `"v":7` | A imagem é de outra variante (release, alpha ou Air) | Envie a imagem com o mesmo `env` que `/api/status` informa |
-| `POST /api/ota/apply` responde `409` | Nenhuma imagem preparada com `commit=1`, ou o aparelho reiniciou depois do envio | Envie a imagem de novo com `op=stage&commit=1` |
+| O envio da imagem responde `422` com `"v"` de 8 a 12 | A assinatura da imagem foi recusada ([capítulo 26](#cap-26-ota)) | Envie o `.bin` assinado da release, sem alterá-lo |
+| `POST /api/ota/apply` responde `409` | Nenhuma imagem preparada com `commit=1`, o aparelho reiniciou depois do envio, ou, com `"v"`, outro envio começou depois e a imagem gravada não confere mais com a assinatura | Envie a imagem de novo com `op=stage&commit=1` |
 | Um envio longo cai no meio | Algum equipamento da rede corta conexões longas na porta 80 | Configure outra porta web ([capítulo 9](#cap-09-servidor-web)) |
 | `avahi-browse` não acha alguns aparelhos | São alpha ou Air, que não têm mDNS; ou estão em outra rede ou VLAN | Descubra-os pelos cabeçalhos `X-SIMUT-*` da telemetria no coletor |
 | Dois aparelhos respondem pelo mesmo `<nome>.local` | Os dois têm o mesmo **Nome** | Dê um nome único a cada aparelho |
