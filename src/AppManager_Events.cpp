@@ -262,56 +262,58 @@ void AppManager::core0Yield( ) {
 #endif
  }
  else if (uiEv.type == UiEvent::EVT_MENU_SELECT) {
- if (uiEv.id == 0) {
+ if (uiEv.id == MENU_THEMES) {
  _displayMgr->showSettingsThemes(_storageMgr->getConfig( ).themeIndex);
  }
- else if (uiEv.id == 1) {
+ else if (uiEv.id == MENU_ALARMS) {
  _displayMgr->showSettingsAlarms(&_storageMgr->getConfig( ));
  }
- else if (uiEv.id == 2) {
+ else if (uiEv.id == MENU_SOUNDS) {
 
  _displayMgr->showSettingsSounds(_soundMgr->getSettingsState( ));
  }
- else if (uiEv.id == 3) {
+ else if (uiEv.id == MENU_LANG) {
  _displayMgr->showSettingsLang(_storageMgr->getConfig( ).displayLang);
  }
- else if (uiEv.id == 4) {
+ else if (uiEv.id == MENU_OWN_PIN) {
 #if SIMUT_PANEL_PIN
  /* one's own PIN, on the numeric keypad, typed twice */
  _displayMgr->showPinEntry(DisplayManager::PIN_FOR_OWN);
 #endif
  }
- else if (uiEv.id == 5) {
+ else if (uiEv.id == MENU_TOUCH_CAL) {
  _displayMgr->showTouchCalibration( );
  }
- else if (uiEv.id == 6) {
+ else if (uiEv.id == MENU_LICENSE) {
  _displayMgr->showSettingsLicense( );
  }
- else if (uiEv.id == 7) {
+ else if (uiEv.id == MENU_STATUS) {
  _displayMgr->showSystemStatus( );
  }
- else if (uiEv.id == 8) {
+ else if (uiEv.id == MENU_DISPLAY_OFFSET) {
  _displayMgr->showSettingsDisplayOffset( );
  }
- else if (uiEv.id == 9) {
+ else if (uiEv.id == MENU_USERS) {
  if (panelAllowed(PERM_USER_MGR, -1)) _displayMgr->showSettingsUsers( );
  }
- else if (uiEv.id == 10) {
+ else if (uiEv.id == MENU_PIN_POLICY) {
 #if SIMUT_PANEL_PIN
  if (panelAllowed(PERM_USER_MGR, -1)) _displayMgr->showPinPolicy( );
 #endif
  }
- else if (uiEv.id == 11) {
+ else if (uiEv.id == MENU_SETUP_AP) {
 #if SIMUT_DISPLAY_TFT
  /* The screen lives in DisplayManager_Settings.cpp, which is not in the
-  * alpha or Air link — the same reason id 4 and id 10 carry a guard. */
+  * alpha or Air link — the same reason MENU_OWN_PIN and MENU_PIN_POLICY
+  * carry a guard. */
  if (panelAllowed(PERM_NET_CONFIG, -1)) _displayMgr->showApConfirm( );
 #endif
  }
- else if (uiEv.id == 12) {
+ else if (uiEv.id == MENU_CLOCK) {
  /* The clock in force, as the screen's starting point: the provisional one
   * when there is nothing better, which is usually minutes off, not years.
-  * No guard: unlike id 11's, this screen has stubs on the alpha and Air. */
+  * No guard: unlike MENU_SETUP_AP's, this screen has stubs on the alpha
+  * and Air. */
  if (panelAllowed(PERM_SYS_CONFIG, -1)) {
  _displayMgr->showClockEntry(
   clockEntryFrom(_netMgr->getEpoch( ), simutTimeOffsetSeconds( )), false);

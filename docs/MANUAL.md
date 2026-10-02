@@ -127,7 +127,7 @@ Full pinout and assembly notes: [WIRING.md](WIRING.md).
 
 3. **Join a network.** The setup access point opens when you ask for it:
    `ap` on the console (USB, or Bluetooth on the alpha and the Air), or
-   Settings → 12 on the panel. It is `<name>_SETUP`, WPA2, with the key in the
+   Settings → 8 on the panel. It is `<name>_SETUP`, WPA2, with the key in the
    `ap` reply, on the USB console and on the display (§14), and the portal at
    `http://192.168.4.1` takes the network's name and password. No image opens
    it by itself; v2.7.1 to v2.8.0 did, on a unit with no network configured.
@@ -1142,14 +1142,14 @@ device publishes it in four places:
 |---|---|
 | USB console, the `[AP] PSK :` line | all |
 | Reply to the `ap` command, on the channel that asked (USB or Bluetooth) | all |
-| The panel's boot terminal: at boot, next to "Connect to network …"; and, since v2.7.2, as its last lines whenever the AP opens during operation (Settings → 12, `ap`) — network, `PSK`, 192.168.4.1 | release (TFT) |
+| The panel's boot terminal: at boot, next to "Connect to network …"; and, since v2.7.2, as its last lines whenever the AP opens during operation (Settings → 8, `ap`) — network, `PSK`, 192.168.4.1 | release (TFT) |
 | Third LCD page, while the AP is up | alpha |
 
 And there are three ways into it, all of them a person asking:
 
 | How | Builds | Notes |
 |---|---|---|
-| **Settings → 12. Configuration Mode** | release (TFT) | asks first; needs the network bit |
+| **Settings → 8. Configuration Mode** | release (TFT) | asks first; needs the network bit |
 | **The `ap` command** | all | over USB, and over Bluetooth on the alpha and Air images |
 | **Holding the screen during boot** | release (TFT) | the panel asks for it and draws the 3 s bar; see below |
 
@@ -1182,7 +1182,7 @@ true while it is on the screen**.
 |---|---|
 | Forgot the admin password | `system admin reset confirm` over **USB serial** (the command is refused over Bluetooth), then log in with the printed password — the web forces you to change it. Since this release the reset survives a reboot, so there is no rush |
 | Answers on serial but not on the network | `show net status` — with no IP, enter AP mode (above) and reconfigure Wi-Fi from the portal |
-| The router changed and the device vanished from the LAN | Open the setup network from the panel (Settings → 12), with `ap` over USB, or with `ap` over Bluetooth (alpha and Air), and set the new network from the portal. It does not open by itself; v2.7.1 to v2.8.0 opened it 6–7 min after the boot |
+| The router changed and the device vanished from the LAN | Open the setup network from the panel (Settings → 8), with `ap` over USB, or with `ap` over Bluetooth (alpha and Air), and set the new network from the portal. It does not open by itself; v2.7.1 to v2.8.0 opened it 6–7 min after the boot |
 | I can see the `_SETUP` network but the phone will not connect | Fixed in v2.7.1. Up to v2.7.0, an `ap` issued while the device was **hunting for a network that is not there** raised an AP that was visible and unjoinable (measured: 45 s and a timeout, against 4,07 s after the fix) — and that is exactly when `ap` gets used. On older firmware, `reload confirm` and then `ap` right after the boot |
 | I can see the `_SETUP` network on my phone but I do not know the password | It is derived from the board and has not been blank since v2.4.1-beta. Read it on the USB console, in the `ap` reply, on the TFT's boot screen or on the alpha's LCD |
 | Blank screen after adjusting the display offset | Fixed in v1.6.2-beta. On older firmware a factory reset clears the stored offset |

@@ -1007,8 +1007,9 @@ void DisplayManager::handleTouch( ) {
  }
  else {
  if (!acceptTouch(13)) return;
- /* v24: the id is the ITEM (table order), not the row — the list is
- * filtered by the session's bits, so row 1 may be any item. */
+ /* v24: the id is the ITEM (display/SettingsMenu.h), not the row —
+ * the list follows MENU_ORDER and the session's bits, so row 1 may be
+ * any item. */
  if (_menuSelection < _menuCount) {
  UiEvent ev; ev.type = UiEvent::EVT_MENU_SELECT; ev.id = _menuItems[_menuSelection]; pushUiEvent(ev);
  }

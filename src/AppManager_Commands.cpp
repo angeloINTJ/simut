@@ -1445,7 +1445,7 @@ void AppManager::executeCommand(CliDemand cmd) {
  else if (!strcmp(n, "touchsens")) _displayMgr->showTouchSensitivity( );
  else if (!strcmp(n, "offset")) _displayMgr->showSettingsDisplayOffset( );
  else if (!strcmp(n, "usr")) _displayMgr->showSettingsUsers( );
- /* The date and time as Settings > 13 opens it (2026-10-01); a stub on the
+ /* The date and time as the Settings menu opens it (2026-10-01); a stub on the
   * Air, which has this command and no panel. */
  else if (!strcmp(n, "clk")) _displayMgr->showClockEntry(
   clockEntryFrom(_netMgr->getEpoch( ), simutTimeOffsetSeconds( )), false);

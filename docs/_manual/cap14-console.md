@@ -332,7 +332,7 @@ Sem argumento, o comando só mostra o uso: `system cors` vazio não apaga a orig
 
 ### ap {#cap-14-ap}
 
-Abre o ponto de acesso de configuração na hora e responde com a chave da rede. É, com o item 12 do menu e o gesto no boot da release, o único jeito de abrir o AP: o aparelho não o abre sozinho ([capítulo 9](#cap-09-ap-quando)).
+Abre o ponto de acesso de configuração na hora e responde com a chave da rede. É, com o item 8 do menu e o gesto no boot da release, o único jeito de abrir o AP: o aparelho não o abre sozinho ([capítulo 9](#cap-09-ap-quando)).
 
 ```text
 SIMUT> ap

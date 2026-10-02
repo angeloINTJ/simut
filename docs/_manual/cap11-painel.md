@@ -282,54 +282,45 @@ Para entrar, toque em **CFG**, escolha a sua conta e digite o PIN ([capítulo 8]
 
 O menu tem até 13 itens, quatro por página, com uma barra de rolagem à direita. Toque num item para selecioná-lo, ou mova a seleção com as setas do rodapé, e toque em **ENTRAR**. **SAIR** volta à tela inicial.
 
+Os itens seguem a frequência de uso. No menu completo, cada página é um grupo: a primeira tem o que se usa no dia a dia (alarmes, sons, status e relógio); a segunda, o acesso (o próprio PIN, as contas, a política de PIN e o AP de configuração); a terceira, os ajustes da tela, feitos uma vez; a quarta, a licença. Até a v2.9.0, os itens seguiam a ordem em que foram criados, de **Temas Visuais** (1) a **Data e hora** (13).
+
 Quando a conta vê os 13 itens, eles aparecem numerados, de `1.` a `13.`. Com o menu filtrado, os números somem, para a lista não começar por um número salteado.
 
 | Nº | Item | Permissão | O que abre |
 |---|---|---|---|
-| 1 | **Temas Visuais** (*Visual Themes*) | **Sistema** [PERM_SYS_CONFIG]{.perm} | [Temas](#cap-11-temas) |
-| 2 | **Limites de Alarme** (*Alarm Limits*) | Uma das três de painel | [Alarmes](#cap-11-alarmes) |
-| 3 | **Sons de Alarme** (*Alarm Sounds*) | **Sistema** | [Sons](#cap-11-sons) |
-| 4 | **Idioma do Sistema** (*System Language*) | **Sistema** | [Idioma](#cap-11-idioma) |
+| 1 | **Limites de Alarme** (*Alarm Limits*) | Uma das três de painel | [Alarmes](#cap-11-alarmes) |
+| 2 | **Sons de Alarme** (*Alarm Sounds*) | **Sistema** [PERM_SYS_CONFIG]{.perm} | [Sons](#cap-11-sons) |
+| 3 | **Status do Sistema** (*System Status*) | Nenhuma | [Status](#cap-11-status) |
+| 4 | **Data e hora** (*Date and time*) | **Sistema** | [Data e hora](#cap-11-data-hora) |
 | 5 | **Alterar Senha** (*Change Password*) | Nenhuma | O próprio PIN ([capítulo 8](#cap-08-proprio-pin)) |
-| 6 | **Calibrar Touch** (*Touch Calibration*) | **Sistema** | [Calibração do toque](#cap-11-calibrar) |
-| 7 | **Licença** (*License*) | Nenhuma | [Licença](#cap-11-licenca) |
-| 8 | **Status do Sistema** (*System Status*) | Nenhuma | [Status](#cap-11-status) |
-| 9 | **Alinhamento da Tela** (*Display Alignment*) | **Sistema** | [Alinhamento](#cap-11-alinhamento) |
-| 10 | **Usuários** (*Users*) | **Usuários** [PERM_USER_MGR]{.perm} | [Usuários](#cap-11-usuarios) |
-| 11 | **Segurança do PIN** (*PIN security*) | **Usuários** | A política de PIN ([capítulo 8](#cap-08-politica)) |
-| 12 | **Modo de Configuração** (*Configuration Mode*) | **Rede** [PERM_NET_CONFIG]{.perm} | [O AP de configuração](#cap-11-ap) |
-| 13 | **Data e hora** (*Date and time*) | **Sistema** | [Data e hora](#cap-11-data-hora) |
+| 6 | **Usuários** (*Users*) | **Usuários** [PERM_USER_MGR]{.perm} | [Usuários](#cap-11-usuarios) |
+| 7 | **Segurança do PIN** (*PIN security*) | **Usuários** | A política de PIN ([capítulo 8](#cap-08-politica)) |
+| 8 | **Modo de Configuração** (*Configuration Mode*) | **Rede** [PERM_NET_CONFIG]{.perm} | [O AP de configuração](#cap-11-ap) |
+| 9 | **Idioma do Sistema** (*System Language*) | **Sistema** | [Idioma](#cap-11-idioma) |
+| 10 | **Temas Visuais** (*Visual Themes*) | **Sistema** | [Temas](#cap-11-temas) |
+| 11 | **Calibrar Touch** (*Touch Calibration*) | **Sistema** | [Calibração do toque](#cap-11-calibrar) |
+| 12 | **Alinhamento da Tela** (*Display Alignment*) | **Sistema** | [Alinhamento](#cap-11-alinhamento) |
+| 13 | **Licença** (*License*) | Nenhuma | [Licença](#cap-11-licenca) |
 
-As três permissões de painel do item 2 são **Limites (painel)** [PERM_ALARM_LIMITS]{.perm}, **Bloqueio (painel)** [PERM_ALARM_BLOCK]{.perm} e **Manut. (painel)** [PERM_MAINT]{.perm}. O aparelho confere a permissão de novo quando recebe o pedido do painel: esconder o item é só conforto.
+As três permissões de painel do item 1 são **Limites (painel)** [PERM_ALARM_LIMITS]{.perm}, **Bloqueio (painel)** [PERM_ALARM_BLOCK]{.perm} e **Manut. (painel)** [PERM_MAINT]{.perm}. O aparelho confere a permissão de novo quando recebe o pedido do painel: esconder o item é só conforto.
 
 ::: {.figura #fig-11-menu tipo="tft" arquivo="11-menu.png" captura="screen set; a ferramenta entra como administrador; primeira página, item 1 selecionado"}
-O menu completo, primeira página: itens numerados de 1 a 4.
+O menu completo, primeira página: Limites de Alarme, Sons de Alarme, Status do Sistema e Data e hora, numerados de 1 a 4.
+:::
+
+::: {.figura #fig-11-menu-p2 tipo="tft" arquivo="11-menu-p2.png" captura="screen set -> tap(105,215) quatro vezes; a seta para baixo leva a seleção do item 1 ao item 5; segunda página"}
+A segunda página do menu completo, com Alterar Senha, Usuários, Segurança do PIN e Modo de Configuração.
 :::
 
 ::: {.figura #fig-11-menu-p3 tipo="tft" arquivo="11-menu-p3.png" captura="screen set -> tap(35,215) -> tap(35,215); a seta para cima dá a volta até o item 13, e o segundo toque seleciona o item 12; terceira página"}
-A terceira página do menu completo, com Alinhamento da Tela, Usuários, Segurança do PIN e Modo de Configuração.
+A terceira página do menu completo, com Idioma do Sistema, Temas Visuais, Calibrar Touch e Alinhamento da Tela.
 :::
 
 ::: {.figura #fig-11-menu-p4 tipo="tft" arquivo="11-menu-p4.png" captura="screen set -> tap(35,215); a seta para cima dá a volta e seleciona o item 13; quarta página"}
-A quarta página do menu completo, só com Data e hora.
+A quarta página do menu completo, só com Licença.
 :::
 
 O menu filtrado de uma conta só com permissões de painel está na [figura do capítulo 8](#fig-08-menu-operador).
-
-### Temas Visuais {#cap-11-temas}
-
-A tela **Configurações > Temas** (*Settings > Themes*) lista os temas instalados, quatro por página. Cada linha tem o nome do tema e três amostras de cor: o fundo, o cartão e o destaque. O tema de fábrica é o **Simut Default**; os outros vêm de arquivos `.thm` na pasta `/themes` do aparelho.
-
-1. Toque no tema, ou mova a seleção com as setas.
-2. Toque em **APLICAR**.
-
-O painel mostra **Aplicando Tema...** e volta à tela inicial com as cores novas. O aparelho grava na hora, sem reiniciar, e o log registra o código 440, **Tema alterado via UI**. **SAIR** volta ao menu sem mudar nada.
-
-O tema do painel também muda pela interface web ([capítulo 13](#cap-13-tema-painel)).
-
-::: {.figura #fig-11-temas tipo="tft" arquivo="11-temas.png" captura="screen thm; tema de fábrica aplicado; pelo menos quatro temas instalados"}
-A escolha de tema, com as amostras de cor de cada um.
-:::
 
 ### Limites de Alarme {#cap-11-alarmes}
 
@@ -340,71 +331,6 @@ Tudo isso, com as telas e as figuras, está no [capítulo 7](#cap-07-painel): a 
 ### Sons de Alarme {#cap-11-sons}
 
 A tela **Config. de Sons** (*Sound Settings*) tem nove linhas em três páginas: os dois volumes, os sons de toque, confirmação, erro, alarme e atenção, os sons da web e o **Mudo Global**. A escolha de melodia e a confirmação do **Mudo Global** são telas próprias. Tudo está no [capítulo 7](#cap-07-sons-painel).
-
-### Idioma do Sistema {#cap-11-idioma}
-
-A tela **Configurações > Idioma** (*Settings > Language*) tem até duas linhas:
-
-| Linha | Código | Quando aparece |
-|---|---|---|
-| **English** | `EN` | Sempre |
-| O nome do pacote de idioma instalado, como **Portugues** | O código do pacote, como `pt-BR` | Só com um pacote `.lng` carregado |
-
-1. Toque no idioma.
-2. Toque em **APLICAR**.
-
-O painel toca o som de confirmação e volta à tela inicial no idioma novo. O aparelho grava na hora, e o log registra o código 441, **Idioma alterado via UI**. O console serial passa a usar o mesmo idioma a partir do próximo reinício. De fábrica, o idioma é o do pacote; sem pacote carregado, o painel fica em inglês.
-
-Algumas telas não seguem o idioma escolhido: o aviso de web ocupada, o calendário e o LCD do alpha estão sempre em português, e as linhas da tela [Status do Sistema](#cap-11-status) estão sempre em inglês.
-
-::: {.figura #fig-11-idioma tipo="tft" arquivo="11-idioma.png" captura="screen lng; pacote pt-BR carregado e em uso"}
-A escolha de idioma: English e o pacote instalado.
-:::
-
-### Calibrar Touch {#cap-11-calibrar}
-
-A calibração acerta o toque em duas etapas seguidas: primeiro a pressão, depois a posição. Faça com o dedo ou com a caneta que vai usar no dia a dia.
-
-**Etapa 1, sensibilidade.** A tela **Sensibilidade do Toque** (*Touch Sensitivity*) mostra uma mira no centro, a frase **Toque na mira** (*Touch the crosshair*), uma barra vertical à direita e, embaixo dela, o limite de pressão encontrado.
-
-1. Encoste o dedo na mira e mantenha, com pressão leve e constante.
-2. Espere a barra encher. Ela sobe enquanto a pressão fica estável e desce devagar quando oscila. Com pressão estável, enche em cerca de 2 s.
-
-Quando a barra enche, a mira fica verde e a tela mostra **Calibração Concluída!**. O aparelho grava o limite de pressão (código 444, **Sensibilidade do touch salva**) e, 1,5 s depois, passa sozinho à etapa 2. **CANCELAR**, embaixo à esquerda, volta ao menu.
-
-**Etapa 2, posição.** A tela **Calibração do Touch** (*Touch Calibration*) mostra uma mira por vez, nos quatro cantos: em cima à esquerda, em cima à direita, embaixo à esquerda e embaixo à direita. A frase diz qual é a mira, como **Toque na mira (1/4)**, e `[ 1 / 2 ]` diz a volta.
-
-1. Segure o dedo na mira até ela ficar verde, cerca de 0,4 s.
-2. Solte. A próxima mira aparece.
-3. Repita nos quatro cantos, duas voltas: oito toques.
-
-O aparelho compara as duas voltas. Se algum canto diferir demais entre elas, a tela mostra **Toques imprecisos! Tente novamente.**; **ENTENDI** recomeça as oito miras. Se as voltas concordarem, a tela mostra **Calibração Concluída!**, o aparelho grava na hora (código 443, **Calibração do touch salva**) e **ENTENDI** volta ao menu. A etapa 2 não tem botão para cancelar.
-
-A calibração também começa pela interface web, pela página **Configurações** ([capítulo 5](#cap-05-touch)), e pelo console. Esse caminho existe porque um toque descalibrado pode não alcançar o menu.
-
-::: {.figura #fig-11-sensibilidade tipo="tft" arquivo="11-sensibilidade.png" captura="screen touchsens; dedo ainda não encostado; barra vazia"}
-A etapa de sensibilidade: a mira, a barra de estabilidade e o limite de pressão.
-:::
-
-::: {.figura #fig-11-mira tipo="tft" arquivo="11-mira.png" captura="screen touchcal e complete a etapa de sensibilidade com o dedo; capture a primeira mira, no canto de cima à esquerda; o toque simulado não completa a sensibilidade, porque não tem pressão"}
-A etapa de posição: a primeira mira, Toque na mira (1/4) e a volta [ 1 / 2 ].
-:::
-
-::: {.figura #fig-11-calib-ok tipo="tft" arquivo="11-calib-ok.png" captura="depois do oitavo toque de uma calibração com as duas voltas coerentes"}
-O fim de uma calibração aceita: Calibração Concluída! e ENTENDI.
-:::
-
-::: {.figura #fig-11-calib-recusada tipo="tft" arquivo="11-calib-recusada.png" captura="depois do oitavo toque, tendo tocado longe da mira num dos cantos da segunda volta"}
-Uma calibração recusada: Toques imprecisos! Tente novamente.
-:::
-
-### Licença {#cap-11-licenca}
-
-A tela **Licença MIT** (*MIT License*) tem as mesmas três partes da página **Licença** da interface web ([capítulo 13](#cap-13-licenca)), na mesma ordem: uma explicação no idioma do pacote instalado (as mesmas frases da página), o texto da licença MIT em inglês, porque é a versão original e a que tem valor legal, e a lista de todo o software de terceiros das imagens, com o titular e a licença de cada um. São 17 linhas por página e sete páginas. Acentos aparecem sem o sinal (*licença* vira *licenca*), porque a tela usa a fonte de 5×7 pontos. Pontos no título mostram a página. Um toque na metade de cima do texto volta uma página; na metade de baixo, avança. O rodapé tem seta para cima, seta para baixo e **SAIR**, que volta ao menu.
-
-::: {.figura #fig-11-licenca tipo="tft" arquivo="11-licenca.png" captura="screen lic; primeira página"}
-A primeira página da licença.
-:::
 
 ### Status do Sistema {#cap-11-status}
 
@@ -452,23 +378,17 @@ Status do Sistema, página 3: sensores.
 Status do Sistema, página 4: telemetria.
 :::
 
-### Alinhamento da Tela {#cap-11-alinhamento}
+### Data e hora {#cap-11-data-hora}
 
-Alguns painéis mostram a imagem deslocada alguns pixels, cortando a borda de um lado. A tela **Alinhamento da Tela** (*Display Alignment*) move a imagem inteira até 4 px em cada direção.
+O item **Data e hora** acerta o relógio do aparelho, com a permissão **Sistema** no painel. Ele abre a mesma tela que um aparelho sem rede configurada mostra no fim do boot ([capítulo 10](#cap-10-painel)):
 
-| Controle | O que faz |
-|---|---|
-| Setas para cima e para baixo | Movem a imagem 1 px na vertical, de −4 a +4 |
-| Setas para a esquerda e para a direita | Movem 1 px na horizontal, de −4 a +4 |
-| Quadrado no centro | Volta a `X +0` e `Y +0` |
-| **SAIR** | Volta ao menu e desfaz o que não foi aplicado |
-| **APLICAR** | Grava o deslocamento |
+- cinco colunas, `dd / mm / aaaa  hh : mm`, que começam na data e na hora do relógio em uso;
+- uma seta acima de cada valor, que soma 1, e uma abaixo, que subtrai 1; segurada, a seta repete a cada 300 ms;
+- **SAIR**, que volta ao menu sem mudar o relógio, e **SALVAR**, que acerta o relógio e volta ao menu.
 
-A imagem se move enquanto você ajusta, e os valores aparecem à direita, como `X +2` e `Y -1`. Ao tocar em **APLICAR**, o aparelho grava, descarta a calibração do toque, porque ela dependia da posição antiga da imagem, e abre a [calibração do toque](#cap-11-calibrar) na hora. Faça a calibração até o fim.
+O dia fica dentro do mês, e o ano vai de 2026 a 2099. Os segundos ficam em zero. O aparelho confere a permissão **Sistema** quando recebe o **SALVAR**, e o log registra o código 13, `RTC set manually`, com o contexto 3. O primeiro acerto depois do boot corrige a hora dos blocos do histórico que o boot começou ([capítulo 10](#cap-10-correcao)).
 
-::: {.figura #fig-11-alinhamento tipo="tft" arquivo="11-alinhamento.png" captura="screen offset; deslocamento X +2 e Y -1 ajustado, antes de APLICAR"}
-O alinhamento da tela, com as quatro setas, o quadrado de zerar e os valores X e Y.
-:::
+Na pergunta do boot, o botão da esquerda é **PULAR**, que vai à tela inicial, e uma linha em âmbar diz **Sem Wi-Fi, os dados levam esta hora.** A figura dessa tela está no [capítulo 4](#fig-04-painel-data-hora).
 
 ### Usuários e Segurança do PIN {#cap-11-usuarios}
 
@@ -498,21 +418,107 @@ Depois de **Confirmar**, o painel passa ao terminal da tela de boot, com **Inici
 **O painel com o AP aberto.** O aparelho continua medindo e conferindo os alarmes, mas o painel fica na tela do AP e não responde ao toque: um alarme soa pela cigarra e não aparece no vidro ([capítulo 9](#cap-09-ap-aberto)). Com uma rede configurada, o AP fecha sozinho em 15 min, com um reinício; sem rede configurada, fica aberto até alguém gravar uma rede ou reiniciar o aparelho. Da v2.7.1 à v2.8.0, com o AP aberto, o aparelho não media.
 :::
 
-::: {.figura #fig-11-ap-confirmar tipo="tft" arquivo="11-ap-confirmar.png" captura="screen set -> tap(35,215) -> tap(35,215) -> tap(270,215); a seta para cima dá a volta até o item 13, e o segundo toque seleciona o item 12"}
+::: {.figura #fig-11-ap-confirmar tipo="tft" arquivo="11-ap-confirmar.png" captura="screen set -> tap(105,215) sete vezes -> tap(270,215); a seta para baixo leva a seleção do item 1 ao item 8, Modo de Configuração"}
 A confirmação do Modo de Configuração.
 :::
 
-### Data e hora {#cap-11-data-hora}
+### Idioma do Sistema {#cap-11-idioma}
 
-O item **Data e hora** acerta o relógio do aparelho, com a permissão **Sistema** no painel. Ele abre a mesma tela que um aparelho sem rede configurada mostra no fim do boot ([capítulo 10](#cap-10-painel)):
+A tela **Configurações > Idioma** (*Settings > Language*) tem até duas linhas:
 
-- cinco colunas, `dd / mm / aaaa  hh : mm`, que começam na data e na hora do relógio em uso;
-- uma seta acima de cada valor, que soma 1, e uma abaixo, que subtrai 1; segurada, a seta repete a cada 300 ms;
-- **SAIR**, que volta ao menu sem mudar o relógio, e **SALVAR**, que acerta o relógio e volta ao menu.
+| Linha | Código | Quando aparece |
+|---|---|---|
+| **English** | `EN` | Sempre |
+| O nome do pacote de idioma instalado, como **Portugues** | O código do pacote, como `pt-BR` | Só com um pacote `.lng` carregado |
 
-O dia fica dentro do mês, e o ano vai de 2026 a 2099. Os segundos ficam em zero. O aparelho confere a permissão **Sistema** quando recebe o **SALVAR**, e o log registra o código 13, `RTC set manually`, com o contexto 3. O primeiro acerto depois do boot corrige a hora dos blocos do histórico que o boot começou ([capítulo 10](#cap-10-correcao)).
+1. Toque no idioma.
+2. Toque em **APLICAR**.
 
-Na pergunta do boot, o botão da esquerda é **PULAR**, que vai à tela inicial, e uma linha em âmbar diz **Sem Wi-Fi, os dados levam esta hora.** A figura dessa tela está no [capítulo 4](#fig-04-painel-data-hora).
+O painel toca o som de confirmação e volta à tela inicial no idioma novo. O aparelho grava na hora, e o log registra o código 441, **Idioma alterado via UI**. O console serial passa a usar o mesmo idioma a partir do próximo reinício. De fábrica, o idioma é o do pacote; sem pacote carregado, o painel fica em inglês.
+
+Algumas telas não seguem o idioma escolhido: o aviso de web ocupada, o calendário e o LCD do alpha estão sempre em português, e as linhas da tela [Status do Sistema](#cap-11-status) estão sempre em inglês.
+
+::: {.figura #fig-11-idioma tipo="tft" arquivo="11-idioma.png" captura="screen lng; pacote pt-BR carregado e em uso"}
+A escolha de idioma: English e o pacote instalado.
+:::
+
+### Temas Visuais {#cap-11-temas}
+
+A tela **Configurações > Temas** (*Settings > Themes*) lista os temas instalados, quatro por página. Cada linha tem o nome do tema e três amostras de cor: o fundo, o cartão e o destaque. O tema de fábrica é o **Simut Default**; os outros vêm de arquivos `.thm` na pasta `/themes` do aparelho.
+
+1. Toque no tema, ou mova a seleção com as setas.
+2. Toque em **APLICAR**.
+
+O painel mostra **Aplicando Tema...** e volta à tela inicial com as cores novas. O aparelho grava na hora, sem reiniciar, e o log registra o código 440, **Tema alterado via UI**. **SAIR** volta ao menu sem mudar nada.
+
+O tema do painel também muda pela interface web ([capítulo 13](#cap-13-tema-painel)).
+
+::: {.figura #fig-11-temas tipo="tft" arquivo="11-temas.png" captura="screen thm; tema de fábrica aplicado; pelo menos quatro temas instalados"}
+A escolha de tema, com as amostras de cor de cada um.
+:::
+
+### Calibrar Touch {#cap-11-calibrar}
+
+A calibração acerta o toque em duas etapas seguidas: primeiro a pressão, depois a posição. Faça com o dedo ou com a caneta que vai usar no dia a dia.
+
+**Etapa 1, sensibilidade.** A tela **Sensibilidade do Toque** (*Touch Sensitivity*) mostra uma mira no centro, a frase **Toque na mira** (*Touch the crosshair*), uma barra vertical à direita e, embaixo dela, o limite de pressão encontrado.
+
+1. Encoste o dedo na mira e mantenha, com pressão leve e constante.
+2. Espere a barra encher. Ela sobe enquanto a pressão fica estável e desce devagar quando oscila. Com pressão estável, enche em cerca de 2 s.
+
+Quando a barra enche, a mira fica verde e a tela mostra **Calibração Concluída!**. O aparelho grava o limite de pressão (código 444, **Sensibilidade do touch salva**) e, 1,5 s depois, passa sozinho à etapa 2. **CANCELAR**, embaixo à esquerda, volta ao menu.
+
+**Etapa 2, posição.** A tela **Calibração do Touch** (*Touch Calibration*) mostra uma mira por vez, nos quatro cantos: em cima à esquerda, em cima à direita, embaixo à esquerda e embaixo à direita. A frase diz qual é a mira, como **Toque na mira (1/4)**, e `[ 1 / 2 ]` diz a volta.
+
+1. Segure o dedo na mira até ela ficar verde, cerca de 0,4 s.
+2. Solte. A próxima mira aparece.
+3. Repita nos quatro cantos, duas voltas: oito toques.
+
+O aparelho compara as duas voltas. Se algum canto diferir demais entre elas, a tela mostra **Toques imprecisos! Tente novamente.**; **ENTENDI** recomeça as oito miras. Se as voltas concordarem, a tela mostra **Calibração Concluída!**, o aparelho grava na hora (código 443, **Calibração do touch salva**) e **ENTENDI** volta ao menu. A etapa 2 não tem botão para cancelar.
+
+A calibração também começa pela interface web, pela página **Configurações** ([capítulo 5](#cap-05-touch)), e pelo console. Esse caminho existe porque um toque descalibrado pode não alcançar o menu.
+
+::: {.figura #fig-11-sensibilidade tipo="tft" arquivo="11-sensibilidade.png" captura="screen touchsens; dedo ainda não encostado; barra vazia"}
+A etapa de sensibilidade: a mira, a barra de estabilidade e o limite de pressão.
+:::
+
+::: {.figura #fig-11-mira tipo="tft" arquivo="11-mira.png" captura="screen touchcal e complete a etapa de sensibilidade com o dedo; capture a primeira mira, no canto de cima à esquerda; o toque simulado não completa a sensibilidade, porque não tem pressão"}
+A etapa de posição: a primeira mira, Toque na mira (1/4) e a volta [ 1 / 2 ].
+:::
+
+::: {.figura #fig-11-calib-ok tipo="tft" arquivo="11-calib-ok.png" captura="depois do oitavo toque de uma calibração com as duas voltas coerentes"}
+O fim de uma calibração aceita: Calibração Concluída! e ENTENDI.
+:::
+
+::: {.figura #fig-11-calib-recusada tipo="tft" arquivo="11-calib-recusada.png" captura="depois do oitavo toque, tendo tocado longe da mira num dos cantos da segunda volta"}
+Uma calibração recusada: Toques imprecisos! Tente novamente.
+:::
+
+### Alinhamento da Tela {#cap-11-alinhamento}
+
+Alguns painéis mostram a imagem deslocada alguns pixels, cortando a borda de um lado. A tela **Alinhamento da Tela** (*Display Alignment*) move a imagem inteira até 4 px em cada direção.
+
+| Controle | O que faz |
+|---|---|
+| Setas para cima e para baixo | Movem a imagem 1 px na vertical, de −4 a +4 |
+| Setas para a esquerda e para a direita | Movem 1 px na horizontal, de −4 a +4 |
+| Quadrado no centro | Volta a `X +0` e `Y +0` |
+| **SAIR** | Volta ao menu e desfaz o que não foi aplicado |
+| **APLICAR** | Grava o deslocamento |
+
+A imagem se move enquanto você ajusta, e os valores aparecem à direita, como `X +2` e `Y -1`. Ao tocar em **APLICAR**, o aparelho grava, descarta a calibração do toque, porque ela dependia da posição antiga da imagem, e abre a [calibração do toque](#cap-11-calibrar) na hora. Faça a calibração até o fim.
+
+::: {.figura #fig-11-alinhamento tipo="tft" arquivo="11-alinhamento.png" captura="screen offset; deslocamento X +2 e Y -1 ajustado, antes de APLICAR"}
+O alinhamento da tela, com as quatro setas, o quadrado de zerar e os valores X e Y.
+:::
+
+### Licença {#cap-11-licenca}
+
+A tela **Licença MIT** (*MIT License*) tem as mesmas três partes da página **Licença** da interface web ([capítulo 13](#cap-13-licenca)), na mesma ordem: uma explicação no idioma do pacote instalado (as mesmas frases da página), o texto da licença MIT em inglês, porque é a versão original e a que tem valor legal, e a lista de todo o software de terceiros das imagens, com o titular e a licença de cada um. São 17 linhas por página e sete páginas. Acentos aparecem sem o sinal (*licença* vira *licenca*), porque a tela usa a fonte de 5×7 pontos. Pontos no título mostram a página. Um toque na metade de cima do texto volta uma página; na metade de baixo, avança. O rodapé tem seta para cima, seta para baixo e **SAIR**, que volta ao menu.
+
+::: {.figura #fig-11-licenca tipo="tft" arquivo="11-licenca.png" captura="screen lic; primeira página"}
+A primeira página da licença.
+:::
 
 ## A tela de alarme {#cap-11-alarme}
 
@@ -684,30 +690,30 @@ As 31 telas do painel, com o modo interno que o console e as ferramentas usam, o
 | `MODE_GRAPH_DETAIL` | A janela e o período | Toque na área do gráfico | — | [11-detalhe-temp](#fig-11-detalhe-temp) |
 | `MODE_AUTH` | **Autenticação de Segurança**, **Novo PIN** ou **Confirme o PIN** | Escolha da conta; **Alterar Senha**; **Definir PIN** | — | [08-teclado-3](#fig-08-teclado-3) |
 | `MODE_SETTINGS_MAIN` | **Configurações >** e a conta | PIN certo depois de **CFG** | `set` | [11-menu](#fig-11-menu) |
-| `MODE_SETTINGS_THEMES` | **Configurações > Temas** | Menu, item 1 | `thm` | [11-temas](#fig-11-temas) |
-| `MODE_SETTINGS_ALARMS` | **Limites de Alarme** | Menu, item 2 | `alm` | [07-lista-sensores](#fig-07-lista-sensores) |
+| `MODE_SETTINGS_THEMES` | **Configurações > Temas** | Menu, item 10 | `thm` | [11-temas](#fig-11-temas) |
+| `MODE_SETTINGS_ALARMS` | **Limites de Alarme** | Menu, item 1 | `alm` | [07-lista-sensores](#fig-07-lista-sensores) |
 | `MODE_SETTINGS_ALARM_EDIT` | O nome do sensor | Menu do sensor, **Limites de alarme** | — | [07-editor-limites](#fig-07-editor-limites) |
-| `MODE_SETTINGS_LANG` | **Configurações > Idioma** | Menu, item 4 | `lng` | [11-idioma](#fig-11-idioma) |
+| `MODE_SETTINGS_LANG` | **Configurações > Idioma** | Menu, item 9 | `lng` | [11-idioma](#fig-11-idioma) |
 | `MODE_SETTINGS_PASSWORD` | **Nome do usuário** | **Usuários**, **NOVO**; `screen pwd` abre a variante antiga, **Nova Senha** | `pwd` | [08-novo-nome](#fig-08-novo-nome) |
 | `MODE_SETTINGS_TOUCH_CAL` | **Calibração do Touch** | Fim da etapa de sensibilidade | — | [11-mira](#fig-11-mira) |
-| `MODE_SETTINGS_TOUCH_SENS` | **Sensibilidade do Toque** | Menu, item 6; **APLICAR** do alinhamento | `touchsens`, `touchcal` | [11-sensibilidade](#fig-11-sensibilidade) |
-| `MODE_SETTINGS_SOUNDS` | **Config. de Sons** | Menu, item 3 | — | [07-sons-painel](#fig-07-sons-painel) |
-| `MODE_SETTINGS_LICENSE` | **Licença MIT** | Menu, item 7 | `lic` | [11-licenca](#fig-11-licenca) |
-| `MODE_SETTINGS_STATUS` | **Status do Sistema** | Menu, item 8 | `sts` | [11-status-1](#fig-11-status-1) |
-| `MODE_SETTINGS_DISPLAY_OFFSET` | **Alinhamento da Tela** | Menu, item 9 | `offset` | [11-alinhamento](#fig-11-alinhamento) |
+| `MODE_SETTINGS_TOUCH_SENS` | **Sensibilidade do Toque** | Menu, item 11; **APLICAR** do alinhamento | `touchsens`, `touchcal` | [11-sensibilidade](#fig-11-sensibilidade) |
+| `MODE_SETTINGS_SOUNDS` | **Config. de Sons** | Menu, item 2 | — | [07-sons-painel](#fig-07-sons-painel) |
+| `MODE_SETTINGS_LICENSE` | **Licença MIT** | Menu, item 13 | `lic` | [11-licenca](#fig-11-licenca) |
+| `MODE_SETTINGS_STATUS` | **Status do Sistema** | Menu, item 3 | `sts` | [11-status-1](#fig-11-status-1) |
+| `MODE_SETTINGS_DISPLAY_OFFSET` | **Alinhamento da Tela** | Menu, item 12 | `offset` | [11-alinhamento](#fig-11-alinhamento) |
 | `MODE_ALARM_ACTION` | `!` e o nome do sensor | Toque no cartão em alarme | — | [07-tela-alarme](#fig-07-tela-alarme) |
 | `MODE_CALENDAR` | O mês e o ano | Terceiro botão do gráfico | — | [11-calendario](#fig-11-calendario) |
 | `MODE_CONFIRM_MUTE_ALL` | **Mudo Global** | **Config. de Sons**, **Mudo Global** desligado | — | [07-mudo-confirmar](#fig-07-mudo-confirmar) |
 | `MODE_SETTINGS_ALARM_SENSOR` | O nome do sensor | **Limites de Alarme**, sensor | — | [07-menu-sensor](#fig-07-menu-sensor) |
 | `MODE_SETTINGS_MAINT` | **Manutenção** | Menu do sensor, **Manutenção** | — | [07-manutencao-entrada](#fig-07-manutencao-entrada) |
-| `MODE_SETTINGS_USERS` | **Usuários** | Menu, item 10 | `usr` | [08-usuarios-lista](#fig-08-usuarios-lista) |
+| `MODE_SETTINGS_USERS` | **Usuários** | Menu, item 6 | `usr` | [08-usuarios-lista](#fig-08-usuarios-lista) |
 | `MODE_SETTINGS_USER_EDIT` | O nome da conta | **Usuários**, conta; ou o nome de uma conta nova | — | [08-novo-permissoes](#fig-08-novo-permissoes) |
 | `MODE_SETTINGS_USER_CONFIRM_DEL` | **Excluir usuário** | Editor da conta, **Excluir usuário** | — | [08-excluir](#fig-08-excluir) |
 | `MODE_PANEL_MESSAGE` | Sem título: ícone e mensagem | Resultado de uma ação | — | [11-mensagem-ok](#fig-11-mensagem-ok) |
 | `MODE_AUTH_USER` | **Quem está usando o painel?** | **CFG**; **Desativar** na tela de alarme | `pin` | [08-quem](#fig-08-quem) |
-| `MODE_SETTINGS_PIN_POLICY` | **Segurança do PIN** | Menu, item 11 | — | [08-politica](#fig-08-politica) |
-| `MODE_CONFIRM_AP` | **Modo de Configuração** | Menu, item 12 | — | [11-ap-confirmar](#fig-11-ap-confirmar) |
-| `MODE_SET_CLOCK` | **Data e hora** | Fim do boot, sem rede configurada e com o relógio provisório; menu, item 13 | `clk` | [04-painel-data-hora](#fig-04-painel-data-hora) |
+| `MODE_SETTINGS_PIN_POLICY` | **Segurança do PIN** | Menu, item 7 | — | [08-politica](#fig-08-politica) |
+| `MODE_CONFIRM_AP` | **Modo de Configuração** | Menu, item 8 | — | [11-ap-confirmar](#fig-11-ap-confirmar) |
+| `MODE_SET_CLOCK` | **Data e hora** | Fim do boot, sem rede configurada e com o relógio provisório; menu, item 4 | `clk` | [04-painel-data-hora](#fig-04-painel-data-hora) |
 | `MODE_OTA_UPDATE` | **Atualização de firmware** | Uma atualização pela web | `otarx`, `otachk`, `otardy`, `otainst`, `otaref`, `otacut` | [11-ota-recebendo](#fig-11-ota-recebendo) |
 
 As tags `touchcal` e `touchsens` abrem as duas a etapa de sensibilidade; a de posição vem depois dela. As da atualização mostram a etapa sem atualizar nada: `otarx` com a barra em 42 %, `otaref` seguido do código `v` da recusa (`otaref8`, sem assinatura; sem número, imagem inválida); qualquer outra tag a tira da tela. A tela de boot e a de progresso do gesto do AP não são modos: o painel as desenha antes da tela inicial, e `GET /api/screenshot` não as captura.

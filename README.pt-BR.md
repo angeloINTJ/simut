@@ -48,7 +48,7 @@ Os três compartilham o mesmo núcleo:
 | **Release atual** | **v2.9.0** (02/10/2026). O SIMUT saiu do beta com a v2.7.0, com base em medições: soak de 8,18 h sem nenhum reboot e 6 de 6 atualizações pelo ar sem perder nada. A v2.9.0 é a primeira release assinada: pelo ar, o aparelho só instala imagens que o projeto assinou, e o painel mostra a atualização enquanto ela acontece. O ponto de acesso de configuração só abre quando pedido, uma unidade sem rede pede a data e a hora, e o aparelho continua medindo com o ponto de acesso no ar; a v2.8.0 tinha passado a manter a configuração quando uma atualização é cortada no meio. |
 | **Imagens publicadas** | Três imagens, cada uma em `.uf2` e `.bin`: `release` (painel touch TFT), `alpha` (LCD 16×2 com console Bluetooth) e `air` (registrador a bateria sem display). Junto vêm os packs de idioma pt-BR e es-ES e um manifesto de OTA. Uma imagem com outro conjunto de recursos sai do [configurador de build](https://angelointj.github.io/simut/configurador/), e o CI a compila da `main`. |
 | **Maturidade** | <ul><li>`release`: **estável**.</li><li>`alpha`: publicado e testado na bancada, com o LCD 16×2 incluído desde 26/09/2026.</li><li>`air`: **experimental**. O único soak longo dele falhou: um sono no ciclo 119 nunca acordou (F28). Um watchdog ao longo do wake hoje mitiga o problema; a causa raiz não foi confirmada.</li></ul> |
-| **Testes** | Todo pull request roda 533 casos de teste no host em 9 suítes, 60 s de fuzzing e análise estática, e compila as sete imagens de firmware com o cache frio. O comportamento no hardware real é verificado numa bancada — ver [Verificação no hardware](#verificação-no-hardware). |
+| **Testes** | Todo pull request roda 539 casos de teste no host em 9 suítes, 60 s de fuzzing e análise estática, e compila as sete imagens de firmware com o cache frio. O comportamento no hardware real é verificado numa bancada — ver [Verificação no hardware](#verificação-no-hardware). |
 
 **Limitações conhecidas.** Cada uma está documentada onde se aplica.
 - **Atualização.** A atualização pelo ar reformata o sistema de arquivos:
@@ -169,8 +169,8 @@ Veja o **[guia de fiação](docs/WIRING.md)** para a pinagem completa e os diagr
 - **Administração na tela:**
   - o item Usuários cria contas e define os bits de permissão e os PINs;
   - as 13 linhas de Configurações são filtradas pelo que a conta pode fazer;
-  - Configurações → 12 liga o ponto de acesso de configuração;
-  - Configurações → 13 acerta a data e a hora, e uma unidade sem rede configurada as pede no fim do boot.
+  - Configurações → 8 liga o ponto de acesso de configuração;
+  - Configurações → 4 acerta a data e a hora, e uma unidade sem rede configurada as pede no fim do boot.
 - **Gestos no painel superior** — um toque alterna mín/máx, segurar 3 s fixa a seleção.
 - **Renderização rápida com DMA** — composição em canvas pelo SPI a 62,5 MHz.
 - **Área segura de 4 px em toda tela** — o ajuste de alinhamento da tela (±4 px por eixo) nunca corta conteúdo.
@@ -227,7 +227,7 @@ Veja o **[guia de fiação](docs/WIRING.md)** para a pinagem completa e os diagr
   - portal cativo em `http://192.168.4.1`.
 
   Só abre quando alguém pede. Uma unidade com a rede fora do ar continua medindo e tentando a rede. Três formas de entrar:
-  - Configurações → 12 no painel;
+  - Configurações → 8 no painel;
   - o comando `ap` no console (USB, ou Bluetooth no alpha e no Air);
   - segurar o painel por 3 s durante o boot.
 - **NTP** — o intervalo entre tentativas cresce de 20 s a 15 min, com fallback para `pool.ntp.org`. Até o NTP sincronizar ou alguém acertar o relógio, um relógio provisório parte do registro mais novo gravado. O painel o marca com `?` entre a data e a hora, e o primeiro acerto depois do boot, pelo NTP ou à mão, corrige os blocos do histórico que o boot começou.
@@ -318,14 +318,14 @@ Prefere não compilar? Todo [release](https://github.com/angeloINTJ/simut/releas
 
 ### Primeiro boot
 1. **Anote a senha do admin.** Uma unidade recém-saída de fábrica imprime uma senha de admin aleatória de 8 caracteres **uma única vez no console serial USB** (115200 baud). Ela nunca é gravada em texto puro. Se você perder, `system admin reset confirm` pela USB imprime uma nova.
-2. **Coloque o aparelho na sua rede.** O ponto de acesso de configuração abre quando você pede: digite `ap` no console (no Air, depois de `enable`), ou use Configurações → 12 no painel touch. Da v2.7.1 à v2.8.0, uma unidade sem rede configurada o abria sozinha; não abre mais.
+2. **Coloque o aparelho na sua rede.** O ponto de acesso de configuração abre quando você pede: digite `ap` no console (no Air, depois de `enable`), ou use Configurações → 8 no painel touch. Da v2.7.1 à v2.8.0, uma unidade sem rede configurada o abria sozinha; não abre mais.
    - Conecte-se a `<nome>_SETUP` (`simut_SETUP` de fábrica). É WPA2, e a chave por aparelho está na resposta do `ap`, no console USB e no terminal de boot do TFT.
    - O portal abre em `http://192.168.4.1`.
    - O aparelho continua medindo com o ponto de acesso no ar; só a telemetria e o syslog esperam a rede. Da v2.7.1 à v2.8.0, ele não lia sensores, não conferia alarmes e não gravava histórico enquanto o ponto de acesso estava no ar.
 
    Sem tela, dá para usar o console: `system ssid <nome>`, `system pass <senha>` e depois `reload confirm`. O console corta no primeiro espaço: rede ou senha com espaço só pela página web.
 
-   Sem rede configurada, a unidade pede a data e a hora no fim do boot, porque sem rede não há NTP: o painel touch abre uma tela de data e hora (**PULAR** sai dela, e Configurações → 13 acerta o relógio depois), e toda imagem escreve no console `Sem rede, relogio provisorio: conf time AAAA-MM-DD HH:MM:SS`. Esse comando funciona no console de todas as imagens, pela USB ou pelo Bluetooth: no alpha e no Air, que não têm painel, é o jeito de responder à pergunta. A seção **Data e Hora** da página web também acerta o relógio.
+   Sem rede configurada, a unidade pede a data e a hora no fim do boot, porque sem rede não há NTP: o painel touch abre uma tela de data e hora (**PULAR** sai dela, e Configurações → 4 acerta o relógio depois), e toda imagem escreve no console `Sem rede, relogio provisorio: conf time AAAA-MM-DD HH:MM:SS`. Esse comando funciona no console de todas as imagens, pela USB ou pelo Bluetooth: no alpha e no Air, que não têm painel, é o jeito de responder à pergunta. A seção **Data e Hora** da página web também acerta o relógio.
 3. **Abra a interface web** no endereço que o aparelho recebeu — na imagem `release`, também em `http://simut.local` — e entre como `admin` com a senha do passo 1. O aparelho vai pedir uma senha nova.
 4. **Adicione sensores** em **Config → Sensors & GPIO**, ou deixe o *Scan for probes* encontrá-los.
 5. **No painel touch**, Configurações pede uma conta e o PIN dela. O PIN de fábrica do admin é `1234`, e a troca é exigida no primeiro uso.
@@ -426,7 +426,7 @@ O aparelho expõe uma API REST em `http://<ip-do-dispositivo>/api/`:
 ### Testes no host
 
 ```bash
-pio test -e native             # validadores, cursor de telemetria, rótulos, parsers, pacotes de idioma, as telas Licença e de atualização (241 casos)
+pio test -e native             # validadores, cursor de telemetria, rótulos, parsers, pacotes de idioma, as telas Licença e de atualização, o menu de Configurações (247 casos)
 pio test -e native_history_v5  # codec do histórico V5 (63)
 pio test -e native_cli         # parser do CLI (33)
 pio test -e native_logpolicy   # persistência de log por transição, faixas da autópsia, leitura do toque (57)

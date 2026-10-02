@@ -46,6 +46,7 @@
 #include <string>
 #include <vector>
 #include "display/ClockEntry.h"         /* the date and time set at the panel */
+#include "display/SettingsMenu.h"       /* the panel's Settings menu: rows, order */
 #include "PemBlocks.h"                 /* the PEM splitting POST /api/tls does */
 #include "WebCommitSections.h"          /* per-section authz for /api/commit_all */
 #include "FsSecretPath.h"               /* /config download guard (A-4) */
@@ -3444,6 +3445,133 @@ void test_clock_prompt_only_without_a_network_or_a_real_clock(void) {
     TEST_ASSERT_FALSE(clockEntryAtBoot(true,  true));
 }
 
+/* ──────────────────────────────────────────────────────────────────────────
+ * The panel's Settings menu: which rows a session sees, in what order, and
+ * what each row reads (display/SettingsMenu.h).
+ *
+ * The menu is filtered by the bits of the account the PIN identified, so the
+ * rows are not the items: these cases pin both the order and the filter for
+ * every kind of account the panel has.
+ *
+ * 2026-10-02: the maintainer asked for the items in order of importance and of
+ * how often each is used, where they had sat in the order they were written.
+ * With four rows a page, each page of the full menu is a group: day to day,
+ * access, the screen itself, the licence.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/* The rows a session holding `perms` sees, as item ids. */
+static std::vector<int> settingsMenuFor(uint16_t perms) {
+    uint8_t out[MENU_ITEM_COUNT];
+    const uint8_t n = settingsMenuBuild(perms, out);
+    return std::vector<int>(out, out + n);
+}
+
+static void assertSettingsMenu(const std::vector<int>& want, uint16_t perms) {
+    const std::vector<int> got = settingsMenuFor(perms);
+    TEST_ASSERT_EQUAL_UINT(want.size( ), got.size( ));
+    TEST_ASSERT_EQUAL_INT_ARRAY(want.data( ), got.data( ), want.size( ));
+}
+
+void test_settings_menu_item_ids_are_the_historical_ones(void) {
+    /* The id, not the row, is what EVT_MENU_SELECT carries to Core 0 and
+     * which icon a row draws: ordering the menu moves rows, never ids. */
+    TEST_ASSERT_EQUAL_INT(0,  MENU_THEMES);
+    TEST_ASSERT_EQUAL_INT(1,  MENU_ALARMS);
+    TEST_ASSERT_EQUAL_INT(2,  MENU_SOUNDS);
+    TEST_ASSERT_EQUAL_INT(3,  MENU_LANG);
+    TEST_ASSERT_EQUAL_INT(4,  MENU_OWN_PIN);
+    TEST_ASSERT_EQUAL_INT(5,  MENU_TOUCH_CAL);
+    TEST_ASSERT_EQUAL_INT(6,  MENU_LICENSE);
+    TEST_ASSERT_EQUAL_INT(7,  MENU_STATUS);
+    TEST_ASSERT_EQUAL_INT(8,  MENU_DISPLAY_OFFSET);
+    TEST_ASSERT_EQUAL_INT(9,  MENU_USERS);
+    TEST_ASSERT_EQUAL_INT(10, MENU_PIN_POLICY);
+    TEST_ASSERT_EQUAL_INT(11, MENU_SETUP_AP);
+    TEST_ASSERT_EQUAL_INT(12, MENU_CLOCK);
+    TEST_ASSERT_EQUAL_INT(13, MENU_ITEM_COUNT);
+}
+
+void test_settings_menu_order_lists_every_item_once(void) {
+    int seen[MENU_ITEM_COUNT] = {0};
+    for (uint8_t i = 0; i < MENU_ITEM_COUNT; i++) {
+        TEST_ASSERT_TRUE(MENU_ORDER[i] < MENU_ITEM_COUNT);
+        seen[MENU_ORDER[i]]++;
+    }
+    for (uint8_t i = 0; i < MENU_ITEM_COUNT; i++) TEST_ASSERT_EQUAL_INT(1, seen[i]);
+}
+
+void test_settings_menu_full_admin_sees_every_item_in_order(void) {
+    const std::vector<int> all = {
+        MENU_ALARMS, MENU_SOUNDS, MENU_STATUS, MENU_CLOCK,               /* day to day */
+        MENU_OWN_PIN, MENU_USERS, MENU_PIN_POLICY, MENU_SETUP_AP,        /* access */
+        MENU_LANG, MENU_THEMES, MENU_TOUCH_CAL, MENU_DISPLAY_OFFSET,     /* the screen */
+        MENU_LICENSE,
+    };
+    assertSettingsMenu(all, 0xFFFF);   /* PERM_FULL_ADMIN: admin, and `screen set` */
+    assertSettingsMenu(all, 0x1FFF);   /* PERM_ALL_BITS: every bit the users page sets */
+}
+
+void test_settings_menu_follows_the_session_bits(void) {
+    /* Any one of the three panel bits makes an alarm operator, whose menu is
+     * one page with the alarms on top. */
+    const std::vector<int> op = { MENU_ALARMS, MENU_STATUS, MENU_OWN_PIN, MENU_LICENSE };
+    assertSettingsMenu(op, PERM_ALARM_LIMITS);
+    assertSettingsMenu(op, PERM_ALARM_BLOCK);
+    assertSettingsMenu(op, PERM_MAINT);
+    assertSettingsMenu(op, PERM_PANEL_ALARM_ANY);
+    /* No bit: the three items that are everyone's... */
+    const std::vector<int> none = { MENU_STATUS, MENU_OWN_PIN, MENU_LICENSE };
+    assertSettingsMenu(none, 0);
+    /* ...and bits that open nothing at the panel add nothing: dashboard,
+     * history, logs, the three file bits and calibration. */
+    assertSettingsMenu(none, 0x0001 | 0x0002 | 0x0004 | 0x0020 | 0x0040 | 0x0080 | 0x0200);
+    assertSettingsMenu({ MENU_SOUNDS, MENU_STATUS, MENU_CLOCK, MENU_OWN_PIN, MENU_LANG,
+                         MENU_THEMES, MENU_TOUCH_CAL, MENU_DISPLAY_OFFSET, MENU_LICENSE },
+                       PERM_SYS_CONFIG);
+    assertSettingsMenu({ MENU_STATUS, MENU_OWN_PIN, MENU_USERS, MENU_PIN_POLICY, MENU_LICENSE },
+                       PERM_USER_MGR);
+    assertSettingsMenu({ MENU_STATUS, MENU_OWN_PIN, MENU_SETUP_AP, MENU_LICENSE },
+                       PERM_NET_CONFIG);
+}
+
+void test_settings_menu_label_without_its_number(void) {
+    TEST_ASSERT_EQUAL_STRING("PIN security", menuLabelNoNumber("11. PIN security"));
+    TEST_ASSERT_EQUAL_STRING("Visual Themes", menuLabelNoNumber("1. Visual Themes"));
+    /* anything that is not "digits, dot, space" is left as it is */
+    const char* plain = "Configuration Mode";
+    TEST_ASSERT_EQUAL_PTR(plain, menuLabelNoNumber(plain));
+    const char* decimal = "12.5 V";
+    TEST_ASSERT_EQUAL_PTR(decimal, menuLabelNoNumber(decimal));
+    const char* noDigits = ". x";
+    TEST_ASSERT_EQUAL_PTR(noDigits, menuLabelNoNumber(noDigits));
+    const char* empty = "";
+    TEST_ASSERT_EQUAL_PTR(empty, menuLabelNoNumber(empty));
+}
+
+void test_settings_menu_numbers_a_row_by_where_it_sits(void) {
+    char buf[40];
+    /* With every item listed, a row is numbered by its position... */
+    TEST_ASSERT_EQUAL_STRING("1. Alarm Limits",
+        settingsMenuRowText("Alarm Limits", 0, MENU_ITEM_COUNT, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING("13. License",
+        settingsMenuRowText("License", 12, MENU_ITEM_COUNT, buf, sizeof(buf)));
+    /* ...whatever number its label carries: a pack installed before the menu
+     * computed its numbers still has the old ones in every label. */
+    TEST_ASSERT_EQUAL_STRING("1. Limites de Alarme",
+        settingsMenuRowText("2. Limites de Alarme", 0, MENU_ITEM_COUNT, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING("4. Data e hora",
+        settingsMenuRowText("13. Data e hora", 3, MENU_ITEM_COUNT, buf, sizeof(buf)));
+    /* A filtered list numbers nothing: its numbers would skip. */
+    TEST_ASSERT_EQUAL_STRING("Limites de Alarme",
+        settingsMenuRowText("2. Limites de Alarme", 0, 4, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING("Configuration Mode",
+        settingsMenuRowText("Configuration Mode", 2, 4, buf, sizeof(buf)));
+    /* A buffer too short truncates and stays a string. */
+    char tiny[6];
+    TEST_ASSERT_EQUAL_STRING("10. V",
+        settingsMenuRowText("Visual Themes", 9, MENU_ITEM_COUNT, tiny, sizeof(tiny)));
+}
+
 
 void test_panel_pin_validator(void) {
     TEST_ASSERT_TRUE(isValidPanelPin("1234"));
@@ -4236,6 +4364,12 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_clock_entry_round_trips_at_the_device_offset);
     RUN_TEST(test_clock_entry_packs_into_one_panel_event);
     RUN_TEST(test_clock_prompt_only_without_a_network_or_a_real_clock);
+    RUN_TEST(test_settings_menu_item_ids_are_the_historical_ones);
+    RUN_TEST(test_settings_menu_order_lists_every_item_once);
+    RUN_TEST(test_settings_menu_full_admin_sees_every_item_in_order);
+    RUN_TEST(test_settings_menu_follows_the_session_bits);
+    RUN_TEST(test_settings_menu_label_without_its_number);
+    RUN_TEST(test_settings_menu_numbers_a_row_by_where_it_sits);
     RUN_TEST(test_panel_pin_validator);
     RUN_TEST(test_pin_policy_rules);
     RUN_TEST(test_pin_keypad_deals_the_whole_set);

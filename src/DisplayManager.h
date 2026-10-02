@@ -33,6 +33,7 @@ class Adafruit_GFX;
 #include "SystemDefs.h"
 #include "PinKeypad.h"   /* PinKb:: — geometry of the scrambled PIN keypad */
 #include "display/ClockEntry.h" /* the date and time set at the panel */
+#include "display/SettingsMenu.h" /* the Settings menu: items, order, rows */
 #include "OtaScreen.h"          /* what the panel says during a firmware update */
 #include "Themes.h"
 #include "SoundManager.h"
@@ -147,8 +148,9 @@ enum LangKey {
 	TR_PIN_ALPHABET,
 	TR_PIN_RENEW,
 
-	/* 2026-10-01 — Settings > 13, and the title of the screen it opens. A pack
-	 * without the line shows the English (DisplayManager_LangParser). */
+	/* 2026-10-01 — the Settings row Date and time, and the title of the screen
+	 * it opens. A pack without the line shows the English
+	 * (DisplayManager_LangParser). */
 	TR_MENU_CLOCK,
 
 	/* 2026-10-02 — the firmware-update screen (OtaScreen.h, DisplayManager_Ota.cpp)
@@ -1147,8 +1149,6 @@ private:
 	 *  is what keeps the renderer, the touch mapper and the validator from
 	 *  each inventing their own fallback. */
 	void pinPolicy(uint8_t& minLen, uint8_t& keypad, uint8_t& alphabet) const;
-	/** Strips a leading "N. " from a menu label; see the definition. */
-	static const char* menuLabelNoNumber(const char* s);
 	/** Both account lists; `picking` is the v25 auth picker. */
 	void drawUserRowInto(GFXcanvas16* cv, bool picking, int mapIdx,
 	                     int16_t x, int16_t y, int16_t itemW);
@@ -1222,15 +1222,14 @@ private:
 	int8_t _panelUser = -1;
 	uint16_t _panelPerms = 0;
 
-	/* the settings menu, filtered by the session's bits.
+	/* the settings menu: the item ids this session's bits reach, in menu
+	 * order (display/SettingsMenu.h).
 	 *
-	 * MENU_ITEM_COUNT is the length of the three tables that have to agree
-	 * (NEED, menuItems, the EVT_MENU_SELECT dispatch) and of this buffer. It
-	 * is a named constant because the buffer was NOT grown when v25 appended
-	 * the PIN-policy row: the table had 11 entries and this array 10, so an
-	 * account holding every bit wrote _menuItems[10] — one past the end, and
-	 * _menuCount is the member right behind it. */
-	static constexpr uint8_t MENU_ITEM_COUNT = 13;
+	 * MENU_ITEM_COUNT, the last value of the item enum, sizes this buffer and
+	 * every table keyed by item. It is one name because the buffer was NOT
+	 * grown when v25 appended the PIN-policy row: the table had 11 entries and
+	 * this array 10, so an account holding every bit wrote _menuItems[10] —
+	 * one past the end, and _menuCount is the member right behind it. */
 	uint8_t _menuItems[MENU_ITEM_COUNT];
 	uint8_t _menuCount = 0;
 

@@ -1083,7 +1083,7 @@ void AppManager::setup( ) {
  if (Serial) { Serial.println("[DBG] network begin..."); Serial.flush(); }
  /* An unconfigured device does NOT boot into AP mode. It did from 2.7.1
   * (2026-09-22) to 2026-10-01, when the maintainer decided the AP opens only
-  * when a person asks for it — Settings → 12 on the panel, `ap` on the
+  * when a person asks for it — the panel's Configuration Mode, `ap` on the
   * console, the hold gesture above — and that a unit with no network asks for
   * the date and time instead, because with no network there is no NTP and the
   * records it keeps would carry the provisional clock (see the end of setup( )

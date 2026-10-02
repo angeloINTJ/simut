@@ -132,7 +132,7 @@ Pinagem completa e notas de montagem: [WIRING.md](WIRING.md).
 
 3. **Entre em uma rede.** O ponto de acesso de configuração abre quando você
    pede: `ap` no console (USB, ou Bluetooth no alpha e no Air), ou
-   Configurações → 12 no painel. Ele é `<nome>_SETUP`, WPA2, com a chave na
+   Configurações → 8 no painel. Ele é `<nome>_SETUP`, WPA2, com a chave na
    resposta do `ap`, no console USB e no display (§14), e o portal em
    `http://192.168.4.1` recebe o nome e a senha da rede. Nenhuma imagem o abre
    sozinha; da v2.7.1 à v2.8.0, uma unidade sem rede configurada abria. Pela
@@ -1181,14 +1181,14 @@ publica de quatro maneiras:
 |---|---|
 | Console USB, na linha `[AP] PSK :` | todos |
 | Resposta do comando `ap`, no canal que pediu (USB ou Bluetooth) | todos |
-| O terminal de boot do painel: no boot, junto de "Conecte-se à rede …"; e, desde a v2.7.2, nas últimas linhas sempre que o AP abre em operação (Configurações → 12, `ap`) — rede, `PSK`, 192.168.4.1 | release (TFT) |
+| O terminal de boot do painel: no boot, junto de "Conecte-se à rede …"; e, desde a v2.7.2, nas últimas linhas sempre que o AP abre em operação (Configurações → 8, `ap`) — rede, `PSK`, 192.168.4.1 | release (TFT) |
 | Terceira página do LCD, enquanto o AP está no ar | alpha |
 
 E há três maneiras de entrar nele, todas a pedido de alguém:
 
 | Como | Vale para | Observação |
 |---|---|---|
-| **Configurações → 12. Modo de Configuração** | release (TFT) | pede confirmação; exige o bit de rede |
+| **Configurações → 8. Modo de Configuração** | release (TFT) | pede confirmação; exige o bit de rede |
 | **Comando `ap`** | todos | pela USB, e pelo Bluetooth nas imagens alpha e Air |
 | **Segurando a tela durante o boot** | release (TFT) | o painel pede e mostra a barra de 3 s; ver abaixo |
 
@@ -1221,7 +1221,7 @@ v2.7.1 a janela roda com o painel desenhando, então **o que está escrito na te
 |---|---|
 | Esqueci a senha de admin | `system admin reset confirm` pela **serial USB** (o comando é recusado pelo Bluetooth), depois entre com a senha impressa — a web obriga a trocá-la. Desde esta versão o reset sobrevive a um reboot, então não há pressa |
 | Responde na serial mas não na rede | `show net status` — sem IP, entre em modo AP (acima) e reconfigure o Wi-Fi pelo portal |
-| O roteador mudou e o aparelho sumiu da rede | Abra a rede de setup pelo painel (Configurações → 12), pelo `ap` na USB ou pelo `ap` por Bluetooth (alpha e Air), e grave a rede nova pelo portal. Ela não abre sozinha; da v2.7.1 à v2.8.0, abria 6–7 min depois do boot |
+| O roteador mudou e o aparelho sumiu da rede | Abra a rede de setup pelo painel (Configurações → 8), pelo `ap` na USB ou pelo `ap` por Bluetooth (alpha e Air), e grave a rede nova pelo portal. Ela não abre sozinha; da v2.7.1 à v2.8.0, abria 6–7 min depois do boot |
 | Vejo a rede `_SETUP` mas o celular não conecta | Corrigido na v2.7.1. Até a v2.7.0, um `ap` disparado enquanto o aparelho estava **caçando uma rede que não existe** subia um AP visível e inassociável (medido: 45 s e timeout, contra 4,07 s depois da correção) — e é justamente aí que se usa o `ap`. Em firmware mais antigo, `reload confirm` e o `ap` logo no boot |
 | Vejo a rede `_SETUP` no celular mas não sei a senha | Ela é derivada da placa e nunca foi em branco desde a v2.4.1-beta. Leia-a no console USB, na resposta do `ap`, no boot do TFT ou no LCD do alpha |
 | Tela em branco depois de ajustar o offset do display | Corrigido na v1.6.2-beta. Em firmwares mais antigos, um reset de fábrica limpa o offset armazenado |
