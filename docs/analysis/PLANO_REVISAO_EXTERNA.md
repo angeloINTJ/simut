@@ -68,7 +68,7 @@ falha antes (`CLAUDE.md`, *Tests first*).
 | A-06 e #189: respostas truncadas e o enquadramento chunked | A fazer: soak que conta e relê; reprodução no host. O #189 está entre os conhecidos da v2.9.0 |
 | A-08: contas sem reinício | Plano pronto em `PLANO_DIVIDA_TECNICA.md`. Na v2.9.0, `CFG_USERS` ainda está em `CFG_REBOOT_CLASSES` (`ConfigApply.h`), e o comentário mais abaixo no mesmo arquivo diz que não está |
 | A-05: soak longo do Air (3 dias ou mais) | A fazer, na bancada. O Air está parado desde 11/09 |
-| A-10: medir o login a 5.000 rodadas e escrever o número no `SECURITY.md` | #228: o custo e a troca escritos no `SECURITY.md`, com a única medição que havia (0,69 s por leitura do `/metrics` com HTTP Basic, v2.2.13, 19/08). Falta a medição na v2.9.0, na bancada |
+| A-10: medir o login a 5.000 rodadas e escrever o número no `SECURITY.md` | #228: o custo e a troca escritos no `SECURITY.md`, com a medição na bancada (02/10, imagem de teste da v2.9.0, 133 MHz): uma verificação custa cerca de 645 ms. Três instrumentos, cada um contra um controle sem a verificação: `user pass` 646 ms × `user perm` 5 ms; `/metrics` com HTTP Basic 699 ms × com cookie 49 ms; login 740 ms do POST à resposta. O comentário de `PASSWORD_HMAC_ROUNDS` dizia ~400 ms, sem fonte, e passou a dizer o medido |
 | As oito suítes nativas sob AddressSanitizer e UBSan | Mergeado (#206); achou uma referência pendurada no `min( )` do stub de teste |
 
 ## Fase 3 — o Pico W sem trocar de chip
