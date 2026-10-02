@@ -81,6 +81,18 @@ jobs:
       - name: Check the numbers the READMEs quote
         run: python3 tools/check_readme_numbers.py
 
+      # The OTA headroom table (docs/analysis/PLANO_STABLE.md §3.1) against the
+      # "bin" each image records in tools/flash_budget.json. The ceiling does
+      # not move on the Pico W, so how far each image is from it is what is
+      # left for new features — and a table of that is right only on the day it
+      # is typed, unless something holds it. Each firmware job below fails a
+      # .bin larger than its record; this fails a table the record contradicts.
+      # test_flash_budget.py pins both rules.
+      - name: OTA headroom table matches the record
+        run: python3 tools/check_flash_budget.py --table
+      - name: OTA headroom gate tests
+        run: python3 tools/test_flash_budget.py
+
       # Every filesystem-mutating handler (delete/upload/ls) and the restore
       # validator must refuse the /config credential store. This is what blocks
       # a guard removal from shipping (findings ACH-01..04).
@@ -335,7 +347,9 @@ jobs:
       # Reads the size PlatformIO itself printed above. Skips the environments
       # recorded as unbudgeted, and fails on one that has neither a budget nor
       # a recorded reason — so adding an image to platformio.ini without
-      # deciding what it is allowed to weigh does not pass silently.
+      # deciding what it is allowed to weigh does not pass silently. Then holds
+      # firmware.bin, signed, to the OTA ceiling and to the size recorded for
+      # it ("bin"); an image under "ota_exempt" is held to neither.
       - name: Check flash budget
         run: python3 tools/check_flash_budget.py ${{ matrix.env }} build.log
 

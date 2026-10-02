@@ -1,6 +1,6 @@
 # tools/
 
-142 scripts. This file exists because until 2026-09-08 there was no way
+146 scripts. This file exists because until 2026-09-08 there was no way
 to tell a live bench tool from a leftover, and one of them —
 `compressor.py` — had been superseded for three months while still looking
 usable: it regenerated `WebUI_GZ.h` into the repository root, where nothing
@@ -16,7 +16,7 @@ wrong, the description is the bug.
 
 ---
 
-## Called by CI (25)
+## Called by CI (29)
 
 Invoked from `.github/workflows/build.yml` — or, for the release manifest, from
 `release-ota.yml` when a tag is pushed. Breaking one of these fails a pull request
@@ -30,7 +30,8 @@ or a release.
 | `check_license.py` | A licença diz a mesma coisa nas **três** cópias (LICENSE, página `/license` e a string do firmware que a tela Licença do painel desenha, o texto MIT palavra por palavra nas duas telas), nenhum pacote de idioma volta a trazer `@LICENSE`, e os **dois** scripts de release levam o `LICENSE`, o `THIRD_PARTY_NOTICES.md` e a pasta `LICENSES`. Nasceu de dois achados de 21/09: a página web dizia 2025 e o zip do Arduino IDE saía sem `LICENSE`. | 2026-10-02 |
 | `gen_notices.py` | Escreve a lista de software de terceiros, de `tools/third_party.toml`, nos três lugares que a mostram: `THIRD_PARTY_NOTICES.md` (com os textos em `LICENSES/`), o bloco *Third-Party Notices* da página `/license` e o fim da tela Licença do painel; e copia para o firmware o texto em inglês que abre essa tela, tirado da própria página. `--check` no CI. Nasceu de 02/10: conferida contra os símbolos de cada `firmware.elf`, a lista não citava seis componentes que toda imagem leva e errava os termos do BTstack. | 2026-10-02 |
 | `release_manifest.py` | The manifest a fleet manager downloads before an OTA: version, per-image size and sha256. Written by `release-ota.yml` next to the assets. | 2026-09-13 |
-| `check_flash_budget.py` | Fails the build when a firmware image grows past its budget in tools/flash_budget.json. | 2026-09-08 |
+| `check_flash_budget.py` | Fails the build when a firmware image grows past its budget in tools/flash_budget.json, or when its firmware.bin, signed, passes the OTA ceiling or the size recorded for it (`"bin"`; an image under `ota_exempt` is held to neither). `--table` holds the OTA headroom table of `docs/analysis/PLANO_STABLE.md` §3.1 to those records. | 2026-10-02 |
+| `test_flash_budget.py` | The two rules that keep that table true: a `.bin` that grew past its record fails, and the table must say, row for row, what the record makes of it (an exempt image's row says so). | 2026-10-02 |
 | `check_fsguard.py` | check_fsguard.py — the /config filesystem guards, pinned so they cannot silently rot. | 2026-08-29 |
 | `check_readme_numbers.py` | The counts the three READMEs quote are the counts the tree measures: host test cases and suites (the `RUN_TEST` lines of each `native*` suite), the release image's share of the slot (`flash_budget.json`), event codes (`logcodes.tsv`) and routes (`check_authz.py`). A reworded sentence fails too, so the gate cannot pass by finding nothing. Born on 2026-10-01: the READMEs still had the v2.7.1 flash figures and two test counts behind, and an outside review quoted them back. Mutation-tested, 9 of 9. | 2026-10-01 |
 | `check_angulo.py` | The Ângulo interface standard where a machine can see it: the token copy pinned by sha256, the site's CSS (the configurator's included) on tokens and the 4 px grid, the brand on token colours, the inline brand of the standalone pages equal to the generated one, the configurator's app manifest on token colours, no emoji in the READMEs, on the site or in a Living document, badges flat-square. Mutation-tested, 19 of 19 and then 4 of 4 for the configurator (AGENTS.md §7). | 2026-09-26 |
@@ -50,6 +51,7 @@ or a release.
 | `run_fuzz.sh` | run_fuzz.sh — libFuzzer gate over the web-API input validators (issue #44). | 2026-08-19 |
 | `scan_secrets.sh` | scan_secrets.sh — release gate: refuse to ship when a secret is tracked in Git. | 2026-08-16 |
 | `test_h5_day_merge.py` | Testa o mesclador de arquivos-dia V5 (tools/h5_day_merge.py). | 2026-08-21 |
+| `test_feature_bits.py` | Testa o "feat" do `/api/status`: para cada perfil, e para cada chave invertida a partir dele, pede ao pré-processador do host o `SIMUT_FEATURE_BITS` que os flags do build dão, e o compara com a máscara das chaves ligadas — sem compilar firmware. | 2026-09-30 |
 | `ota_sign.py` | Chaves, certificados e assinaturas da OTA que só aceita imagem assinada (`docs/analysis/OTA_ASSINADA.md`): `root-new` (raiz cifrada com senha digitada no terminal de quem gera; `--no-encrypt` só para a de bancada), `signer-new` (chave de assinatura e o certificado dela pela raiz), `gen-trust` (`src/ota/ota_trust.h` a partir de `keys/`), `check-keys` (as raízes, a política e todo certificado de `keys/` se sustentam), `sign` (acrescenta o trailer de 241 B ao `.bin`, depois de ler no próprio `.bin` a etiqueta e o bloco de confiança: recusa uma chave que não é a do certificado, a chave de produção numa imagem que confia na bancada, uma raiz que `keys/` não nomeia, e a imagem que, instalada, recusaria a próxima desta chave; o certificado pode vir em hex, a forma de `keys/`), `verify` (decide como o aparelho decide, na mesma ordem; `--running` toma a política de uma imagem), `inspect` (o que um `.bin` diz ser, no que confia e como foi assinado). `vectors` escreve os vetores de `test/test_ota_sig` com um jogo fixo de chaves de TESTE que nenhuma imagem aceita; `selftest`, `vectors --check`, `gen-trust --check` e `check-keys` rodam no job `gates`, e `sign`/`verify` nos jobs de assinatura do `release-ota.yml` e do `build-custom.yml`. Nunca imprime chave privada. Sabe reprovar: o selftest pega cada campo adulterado, a raiz forjada, o escopo trocado, a série revogada, o rollback, cada recusa do `sign`, o bloco de confiança malformado e o `keys/` incoerente (61 casos); doze mutações das regras do `sign` e do `check-keys` são pegas (01/10). | 2026-10-01 |
 
 ## Called by the build (11)

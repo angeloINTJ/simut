@@ -520,19 +520,36 @@
   "do not move. Margins left: 1,216 release, 1,224 test, 1,280 test_https, 1,144",
   "asserts, 1,720 alpha, 1,752 air; .bin slack under the OTA ceiling: release",
   "28,996, test 23,604, test_https 16,004, asserts 26,748, alpha 62,292, air",
-  "21,428. Against the published v2.7.4 .bin: release +1,376, alpha and air +32."
+  "21,428. Against the published v2.7.4 .bin: release +1,376, alpha and air +32.",
+  "",
+  "2026-10-02 (build/ota-headroom): 'bin' is each image's firmware.bin as built",
+  "on main 1875be9 (#232) — the size the OTA ceiling applies to, before the",
+  "241 B signature. docs/analysis/PLANO_STABLE.md §3.1 keeps the table of how",
+  "far each image is from that ceiling, the one number on the Pico W that does",
+  "not move, and two checks keep the table true: a built .bin larger than its",
+  "'bin' fails that image's CI job, and 'check_flash_budget.py --table' in the",
+  "gates job fails a table that does not say what these numbers make of it. So",
+  "an image that grows records its new size, and its row, in the same change.",
+  "A .bin that shrinks passes with a NOTE: the table may understate the room",
+  "left, never overstate it. pico_w_test_https is exempt from the OTA ceiling",
+  "(ota_exempt, with the reason) and records no 'bin'; its budget still holds."
  ],
  "ceiling": 1044480,
  "measured_on": "2026-10-02 feat/telemetry-position-cursor on main 51dd1e6 (#230 merged in): all seven measured with the telemetry cursor by write position (A-04, src/TelemetryPosition.h): a record is sent by the day file, block and index it was written at, not by its stamp, so a block written after another but stamped before it is no longer skipped. Against main: release +1,888, test +1,880, test_https +1,888, asserts +1,888, alpha +1,864, air +1,864, pico2_w_release +1,744 B. By symbol, on the release: collectDay +856 and takeRecord +512 against collectBatch -540 (the walk by position, the check that a slot still holds, the open block placed in its file, the old cursor giving way when ahead of the clock), telCursor +276 (the load, and the migration of the 4-byte cursor), telAdvance +220, h5SealPosition +176, h5LoadBlockFrom +164 against h5LoadNextBlock -108, the delivery by runs +286, h5WipBlock +352 replacing h5WipPendingSince -356, refreshPendingCount -248. The day files are listed and sorted as numbers: listDays +244, dayPath +104 and the uint32_t sort +510, against the String sort's -834. Trimmed until pico_w_test_https fit under the OTA ceiling: its signed .bin is 1,040,237 B, 147 B under 1,040,384 (the first cut was 181 B over it on its own). Static RAM unchanged; about 400 B more heap, once (the 148-byte cursor and 16 runs of 16 B live in the two heap-allocated managers). Budgets raised by the growth, which keeps each margin where it was; test_https, alpha and air included, as their margins are smaller than the growth. measured is the zopfli image PlatformIO prints.",
  "measured_at_commit": "2026-10-02 chore/v2.9.0 on main e5cd23b (#224 merged; SIMUT_VERSION 2.9.0, the only source change; budgets unchanged). All seven rebuilt here: test, alpha, air and pico2_w_release equal to the figures #224 recorded, release, test_https and asserts 8 B under them. measured is the zopfli image PlatformIO prints.",
+ "ota_exempt": {
+  "pico_w_test_https": "A bench image: the one with the full console and the TLS server together, for the HTTPS suites (AGENTS.md). It reaches the rig over USB, and release-ota.yml does not publish it. #232 (2026-10-02) left it 147 B under OTA_APP_SAFE_MAX_SIZE, and keeping it there meant cutting code the product images ship too, or moving more of its pages to LittleFS. Over the ceiling the device refuses to stage it, which costs only installing this image over the air; its flash budget still holds. Exempt since 2026-10-02 (docs/analysis/PLANO_STABLE.md, B6)."
+ },
  "envs": {
   "pico_w_release": {
    "budget": 1016332,
-   "measured": 1016220
+   "measured": 1016220,
+   "bin": 1028252
   },
   "pico_w_test": {
    "budget": 1021420,
-   "measured": 1020780
+   "measured": 1020780,
+   "bin": 1032812
   },
   "pico_w_test_https": {
    "budget": 1027972,
@@ -540,19 +557,23 @@
   },
   "pico_w_asserts": {
    "budget": 1018564,
-   "measured": 1018524
+   "measured": 1018524,
+   "bin": 1030556
   },
   "pico_w_alpha": {
    "budget": 970972,
-   "measured": 970452
+   "measured": 970452,
+   "bin": 986284
   },
   "pico_w_air": {
    "budget": 1014128,
-   "measured": 1013816
+   "measured": 1013816,
+   "bin": 1027148
   },
   "pico2_w_release": {
    "budget": 989248,
    "measured": 989016,
+   "bin": 1001328,
    "ceiling": 3141632
   }
  }

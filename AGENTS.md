@@ -245,7 +245,7 @@ O CI cobre tudo isto, mas só em pull request — meça antes:
 
 ```bash
 pio run -e pico_w_release -e pico_w_test -e pico_w_test_https \
-        -e pico_w_asserts -e pico_w_alpha -e pico_w_air
+        -e pico_w_asserts -e pico_w_alpha -e pico_w_air -e pico2_w_release
 pio test -e native -e native_history_v5 -e native_cli -e native_logpolicy \
          -e native_alarmqueue -e native_network -e native_air -e native_sensors \
          -e native_otasig
@@ -258,20 +258,30 @@ python3 tools/check_angulo.py             # o padrão de interface (§7): site, 
 python3 tools/check_readme_numbers.py     # os números que os três READMEs citam (testes, flash, códigos, rotas)
 python3 tools/check_license.py           # o texto MIT igual nas três cópias; os scripts de release levam os avisos
 python3 tools/gen_notices.py --check     # a lista de terceiros igual em THIRD_PARTY_NOTICES.md, /license e no painel
-python3 tools/check_flash_budget.py <env> build.log   # o CI roda assim; local, leia a linha "used"
+python3 tools/check_flash_budget.py <env> build.log   # o CI roda assim, imagem por imagem: orçamento, teto de OTA e "bin"
+python3 tools/check_flash_budget.py --table          # a tabela de folga da OTA (PLANO_STABLE §3.1) contra os "bin"
+python3 tools/test_flash_budget.py                   # as duas regras que mantêm essa tabela verdadeira
 ```
 
 - **`pico_w_test_https` é a imagem de bancada para HTTPS**, e a única com CLI
   completa e servidor TLS juntos: o servidor só é compilado no `pico_w_release`,
   cujo console de emergência não cria o usuário descartável que as suítes web
   usam para entrar — e resetar a senha do admin do rig para conseguir um não é
-  caminho. Não é imagem de campo e a `release-ota.yml` não a publica.
+  caminho. Não é imagem de campo e a `release-ota.yml` não a publica. **Isenta do
+  teto de OTA desde 02/10** (`ota_exempt`, B6 do `PLANO_STABLE.md`): acima dele o
+  aparelho a recusa no stage, e ela entra pela USB. O limite que sobra é o do
+  slot do programa, onde o linker a recusa: 4.484 B adiante em 02/10.
 - O `pio run` já roda os portões de fonte como *extra scripts*: `-Werror` em
   `src/`, códigos de log, packs de idioma, matriz de autorização, ajuda da CLI,
   sondas de flash em SRAM.
 - **`tools/flash_budget.json` desce na mesma mudança que encolhe a imagem.** Um
   orçamento que só sobe deixa de ser marca d'água. Compare o `.bin`, não o
   `used` do PlatformIO (soma de seções, ~12 kB abaixo).
+- **O `"bin"` de cada imagem é o `.bin` exato, e a tabela da §3.1 do
+  `PLANO_STABLE.md` sai dele.** Uma imagem que cresce reprova no job dela até o
+  PR gravar o tamanho novo no `"bin"` e a linha dela na tabela; o portão imprime
+  os números. A que encolhe passa com aviso: grave quando der, porque até lá a
+  tabela promete menos folga do que há.
 - **Economia por recurso**: `tools/measure_savings.py` mede quanto de flash e RAM
   cada chave devolve quando desligada, e `tools/feature_savings.json` guarda o
   piso — um ratchet ao contrário do orçamento (a economia só sobe). O portão

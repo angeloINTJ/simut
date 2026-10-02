@@ -24,6 +24,21 @@ and then argue with them about it. Parsing the real line means the gate and the
 build can never disagree; if the format ever changes, this fails loudly with
 "no Flash: line" rather than quietly measuring the wrong thing.
 
+THE OTA HEADROOM RECORD (2026-10-02)
+-----------------------------------
+The OTA ceiling does not move on this board — the staging area is the LittleFS
+partition itself — so how far each image is from it is what is left for new
+features. Each image's firmware.bin size is recorded as "bin" in
+tools/flash_budget.json, and docs/analysis/PLANO_STABLE.md keeps the headroom
+table that follows from it. Two checks hold them true:
+
+  * after a build, a firmware.bin larger than its "bin" fails: an image that
+    grows records its new size, and the table, in the same change;
+  * --table (the CI gates job) compares the table, row for row, with what the
+    record makes of it.
+
+An image listed under "ota_exempt" is held to neither, and its row says so.
+
 USAGE
 -----
     pio run -e pico_w_air 2>&1 | tee build.log
@@ -31,6 +46,9 @@ USAGE
 
     # or read the log on stdin
     pio run -e pico_w_air 2>&1 | python3 tools/check_flash_budget.py pico_w_air -
+
+    # the OTA headroom table against the record, no build needed
+    python3 tools/check_flash_budget.py --table
 
 Exit status is 0 when the image is within budget, 1 when it is over or when the
 log carries no size line to check.
@@ -46,6 +64,10 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BUDGET_FILE = os.path.join(ROOT, "tools", "flash_budget.json")
+HEADROOM_DOC = os.path.join(ROOT, "docs", "analysis", "PLANO_STABLE.md")
+HEADROOM_BEGIN = "<!-- ota-headroom:begin -->"
+HEADROOM_END = "<!-- ota-headroom:end -->"
+EXEMPT_CELL = "isenta"
 
 # The whole contract with PlatformIO, in one place.
 FLASH_RE = re.compile(r"used\s+(\d+)\s+bytes\s+from\s+(\d+)\s+bytes")
@@ -94,14 +116,113 @@ def ota_bin_max():
     return safe - trailer if safe and trailer else None
 
 
-def check_ota_bin(env, safe_max, exempt=None):
+def table_int(cell):
+    """A number as the table writes it — 1.028.493 (pt-BR), 1,028,493 or bare,
+    negative for an image over the ceiling — or None for anything else."""
+    digits = re.sub(r"[.,\s]", "", cell).replace("\u2212", "-")
+    return int(digits) if re.fullmatch(r"-?\d+", digits) else None
+
+
+def pt_int(n):
+    """1028493 -> 1.028.493, the way the table (pt-BR) writes it."""
+    return f"{n:,}".replace(",", ".")
+
+
+def headroom_rows(cfg, safe_max, trailer):
+    """{env: the row the record makes}, ready to paste into the table — what
+    --table asks for. An image with no "bin" and no exemption has none."""
+    exempt = cfg.get("ota_exempt", {})
+    rows = {}
+    for env, entry in cfg["envs"].items():
+        if env in exempt:
+            rows[env] = f"| `{env}` | {EXEMPT_CELL} | — |"
+        elif "bin" in entry:
+            signed = entry["bin"] + trailer
+            rows[env] = f"| `{env}` | {pt_int(signed)} | {pt_int(safe_max - signed)} |"
+    return rows
+
+
+def parse_headroom_table(text):
+    """{env: (signed .bin, headroom)} from the rows between the markers; None
+    for a row that says the image is exempt. ValueError without the markers."""
+    a, b = text.find(HEADROOM_BEGIN), text.find(HEADROOM_END)
+    if a < 0 or b < a:
+        raise ValueError("no headroom table")
+    rows = {}
+    for line in text[a:b].splitlines():
+        m = re.match(r"\|\s*`([a-z0-9_]+)`\s*\|\s*([^|]*?)\s*\|\s*([^|]*?)\s*\|", line)
+        if not m:
+            continue
+        env, signed, room = m.groups()
+        rows[env] = None if signed == EXEMPT_CELL else (table_int(signed), table_int(room))
+    return rows
+
+
+def headroom_table_errors(text, cfg, safe_max, trailer):
+    """What the table gets wrong against tools/flash_budget.json; [] when it
+    says, row for row, what the record makes of it."""
+    try:
+        rows = parse_headroom_table(text)
+    except ValueError:
+        return [f"no {HEADROOM_BEGIN} ... {HEADROOM_END} table in "
+                f"docs/analysis/PLANO_STABLE.md"]
+    exempt = cfg.get("ota_exempt", {})
+    want_rows = headroom_rows(cfg, safe_max, trailer)
+    errs = []
+    for env, entry in cfg["envs"].items():
+        if env not in exempt and "bin" not in entry:
+            errs.append(f"{env}: no \"bin\" recorded in tools/flash_budget.json")
+            continue
+        want = want_rows[env]
+        if env not in rows:
+            errs.append(f"{env}: no row in the OTA headroom table; it should read  {want}")
+            continue
+        got = rows[env]
+        if env in exempt:
+            if got is not None:
+                errs.append(f"{env}: exempt from the OTA ceiling in "
+                            f"tools/flash_budget.json, so its row reads  {want}")
+            continue
+        signed = entry["bin"] + trailer
+        if got != (signed, safe_max - signed):
+            errs.append(f"{env}: the row disagrees with \"bin\" {entry['bin']} "
+                        f"(+ {trailer} B of signature, under {safe_max}); it "
+                        f"should read  {want}")
+    for env in rows:
+        if env not in cfg["envs"]:
+            errs.append(f"{env}: a row for an image with no budget")
+    return errs
+
+
+def bin_vs_record(actual, recorded):
+    """(fails, message) for a built firmware.bin against its recorded size."""
+    if recorded is None:
+        return True, (f"no \"bin\" recorded for it in tools/flash_budget.json — "
+                      f"record {actual} there (the size of firmware.bin), and its "
+                      f"row in the OTA headroom table of docs/analysis/PLANO_STABLE.md.")
+    if actual > recorded:
+        return True, (f"firmware.bin is {actual} B, {actual - recorded} B more than "
+                      f"tools/flash_budget.json records for it (\"bin\": {recorded}). "
+                      f"An image that grows records its new size there, and its row "
+                      f"in the OTA headroom table of docs/analysis/PLANO_STABLE.md "
+                      f"(check_flash_budget.py --table), in this same change.")
+    if actual < recorded:
+        return False, (f"firmware.bin is {actual} B, {recorded - actual} B less than "
+                       f"recorded: the OTA headroom table understates what is left. "
+                       f"Record the new size when convenient.")
+    return False, None
+
+
+def check_ota_bin(env, safe_max, exempt=None, recorded_bin=None):
     """The budget above measures what PlatformIO prints, which is the SUM OF
     SECTIONS. What OTA refuses is the .bin, and the two differ by the padding
     the linker puts before .data's load address — so the .bin moves in 4 KiB
     steps and can cross the OTA ceiling while `used` still looks comfortable.
     This is the check that catches it, and it is the failure the budget number
-    cannot see: an image over OTA_APP_SAFE_MAX_SIZE stages, validates, and then
-    has its tail overwritten by the config snapshot."""
+    cannot see: the device refuses an image over OTA_APP_SAFE_MAX_SIZE — the
+    stage stops short of the config snapshot's sectors, validation answers
+    SIZE_TOO_LARGE, the applier will not copy it (src/ota/) — so it installs
+    only over USB, and a fleet on it stops updating over the air."""
     if exempt:
         print(f"[flash-budget] SKIP {env}: not held to the OTA ceiling on "
               f"purpose — {exempt}")
@@ -117,13 +238,14 @@ def check_ota_bin(env, safe_max, exempt=None):
     if not trailer:
         fail("src/ota/signature.h no longer says SIG_TRAILER_LEN; the OTA "
              "ceiling cannot be checked against what is staged.")
-    size = os.path.getsize(path) + trailer
+    raw = os.path.getsize(path)
+    size = raw + trailer
     slack = safe_max - size
     if slack < 0:
         fail(f"{env}: firmware.bin + {trailer} B of signature is {size} B, "
-             f"OTA_APP_SAFE_MAX_SIZE is {safe_max} B — over by {-slack} B. An "
-             f"image this large stages and validates, then the config snapshot "
-             f"overwrites its tail.")
+             f"OTA_APP_SAFE_MAX_SIZE is {safe_max} B — over by {-slack} B. The "
+             f"device refuses an image this large (stage, validation, applier): "
+             f"it would install only over USB.")
     band = 4096
     if slack < band:
         print(f"[flash-budget] WARN {env}: firmware.bin signed is {size} B, only "
@@ -133,6 +255,30 @@ def check_ota_bin(env, safe_max, exempt=None):
     else:
         print(f"[flash-budget] OK {env}: firmware.bin signed {size} B, "
               f"{slack} B under the OTA ceiling.")
+    fails, msg = bin_vs_record(raw, recorded_bin)
+    if msg:
+        msg += f" Its row would read  | `{env}` | {pt_int(size)} | {pt_int(slack)} |"
+        if fails:
+            fail(f"{env}: {msg}")
+        print(f"[flash-budget] NOTE {env}: {msg}")
+
+
+def check_table():
+    """--table: the OTA headroom table of docs/analysis/PLANO_STABLE.md against
+    tools/flash_budget.json. No build needed: the CI gates job runs it."""
+    with open(BUDGET_FILE, encoding="utf-8") as fh:
+        cfg = json.load(fh)
+    safe, trailer = ota_safe_max(), sig_trailer_len()
+    if not safe or not trailer:
+        fail("could not read OTA_APP_SAFE_MAX_SIZE or SIG_TRAILER_LEN out of "
+             "src/ota/ — the headroom table cannot be checked.")
+    with open(HEADROOM_DOC, encoding="utf-8") as fh:
+        errs = headroom_table_errors(fh.read(), cfg, safe, trailer)
+    if errs:
+        fail("the OTA headroom table and tools/flash_budget.json disagree:\n  "
+             + "\n  ".join(errs))
+    print(f"[flash-budget] OK the OTA headroom table matches the record "
+          f"({len(cfg['envs'])} images, {len(cfg.get('ota_exempt', {}))} exempt).")
 
 
 def fail(msg):
@@ -141,6 +287,9 @@ def fail(msg):
 
 
 def main():
+    if sys.argv[1:] == ["--table"]:
+        check_table()
+        return
     if len(sys.argv) != 3:
         print(__doc__.strip().split("USAGE\n-----\n", 1)[1])
         sys.exit(2)
@@ -207,7 +356,8 @@ def main():
               f"out of src/ota/ota_layout.h — the OTA ceiling was not checked.")
     else:
         check_ota_bin(env, safe_max,
-                      cfg.get("ota_exempt", {}).get(env))
+                      cfg.get("ota_exempt", {}).get(env),
+                      cfg["envs"][env].get("bin"))
 
 
 if __name__ == "__main__":

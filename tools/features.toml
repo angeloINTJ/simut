@@ -333,7 +333,10 @@ ota_trust_bench = true
 #   que um soak HTTPS menos toca; TEL_PAGE entra por folga (com duas fora o .bin ficava
 #   3.732 B sob o teto, menos de um setor de 4 KiB). Suba data/web/{alarms,files,tel}.
 #   html.gz para /web/ antes de uma suite, ou as rotas dao "Page asset missing" (POST
-#   /api/upload, nunca uploadfs).
+#   /api/upload, nunca uploadfs). Isenta do teto de OTA desde 2026-10-02 (ota_exempt em
+#   tools/flash_budget.json, B6 do PLANO_STABLE.md), e mesmo assim nenhuma das tres paginas
+#   volta para a flash: o .bin (1.039.996 B) esta a 4.484 B do fim do slot do programa, onde
+#   o linker o recusa, e a menor delas (alarms) tem 4.490 B gz.
 [profiles.pico_w_test_https]
 extends         = "pico_w_test"
 web_https       = true
