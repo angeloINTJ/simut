@@ -114,8 +114,9 @@ public:
  * Ends the provisional clock the way NTP does, correcting what it stamped. */
  /** @p source is the log line's ctx — who set the clock, read months later:
   *  1 the web (/api/set_time), 2 the console (`conf time`), 3 the panel's
-  *  Settings > 13, 4 the panel's question at boot on a unit with no network.
-  *  0 is what every manual set logged before 2026-10-01. */
+  *  Date and time item in Settings, 4 the panel's question at boot on a
+  *  unit with no network. 0 is what every manual set logged before
+  *  2026-10-01. */
  enum ManualTimeSource : uint8_t { TIME_SRC_WEB = 1, TIME_SRC_CLI = 2,
                                    TIME_SRC_PANEL = 3, TIME_SRC_PANEL_BOOT = 4 };
  void setManualTime(time_t epoch, uint8_t source);

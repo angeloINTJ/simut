@@ -100,12 +100,24 @@ inline constexpr uint16_t MENU_NEED[] = {
 static_assert(sizeof(MENU_NEED) / sizeof(MENU_NEED[0]) == MENU_ITEM_COUNT,
               "every Settings item needs its bit in MENU_NEED");
 
-/* The order the rows are listed in: the order the items were written in. */
+/* The order the rows are listed in: by importance and by how often each item
+ * is used, which is what the maintainer asked for on 2026-10-02 — until then
+ * the rows sat in the order the items were written, each new one appended.
+ * Four rows make a page, so each page of the full menu is a group:
+ *  1. day to day: the alarms and their sounds, the status screen (the IP,
+ *     the signal, the version — for every account) and the clock, which a
+ *     unit with no network needs set again after every power cut;
+ *  2. access: one's own PIN, the accounts, the PIN policy, and the setup
+ *     access point that puts the unit on a network;
+ *  3. the screen itself, set once: language, theme, touch, alignment;
+ *  4. the licence, last, as on the web drawer.
+ * An account with only panel bits sees one page: alarms, status, its own
+ * PIN, the licence. */
 inline constexpr uint8_t MENU_ORDER[] = {
-	MENU_THEMES, MENU_ALARMS, MENU_SOUNDS, MENU_LANG,
-	MENU_OWN_PIN, MENU_TOUCH_CAL, MENU_LICENSE, MENU_STATUS,
-	MENU_DISPLAY_OFFSET, MENU_USERS, MENU_PIN_POLICY, MENU_SETUP_AP,
-	MENU_CLOCK,
+	MENU_ALARMS, MENU_SOUNDS, MENU_STATUS, MENU_CLOCK,
+	MENU_OWN_PIN, MENU_USERS, MENU_PIN_POLICY, MENU_SETUP_AP,
+	MENU_LANG, MENU_THEMES, MENU_TOUCH_CAL, MENU_DISPLAY_OFFSET,
+	MENU_LICENSE,
 };
 static_assert(sizeof(MENU_ORDER) / sizeof(MENU_ORDER[0]) == MENU_ITEM_COUNT,
               "every Settings item needs its place in MENU_ORDER");

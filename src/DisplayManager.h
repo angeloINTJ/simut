@@ -148,8 +148,9 @@ enum LangKey {
 	TR_PIN_ALPHABET,
 	TR_PIN_RENEW,
 
-	/* 2026-10-01 — Settings > 13, and the title of the screen it opens. A pack
-	 * without the line shows the English (DisplayManager_LangParser). */
+	/* 2026-10-01 — the Settings row Date and time, and the title of the screen
+	 * it opens. A pack without the line shows the English
+	 * (DisplayManager_LangParser). */
 	TR_MENU_CLOCK,
 
 	/* 2026-10-02 — the firmware-update screen (OtaScreen.h, DisplayManager_Ota.cpp)

@@ -3452,6 +3452,11 @@ void test_clock_prompt_only_without_a_network_or_a_real_clock(void) {
  * The menu is filtered by the bits of the account the PIN identified, so the
  * rows are not the items: these cases pin both the order and the filter for
  * every kind of account the panel has.
+ *
+ * 2026-10-02: the maintainer asked for the items in order of importance and of
+ * how often each is used, where they had sat in the order they were written.
+ * With four rows a page, each page of the full menu is a group: day to day,
+ * access, the screen itself, the licence.
  * ────────────────────────────────────────────────────────────────────────── */
 
 /* The rows a session holding `perms` sees, as item ids. */
@@ -3497,34 +3502,35 @@ void test_settings_menu_order_lists_every_item_once(void) {
 
 void test_settings_menu_full_admin_sees_every_item_in_order(void) {
     const std::vector<int> all = {
-        MENU_THEMES, MENU_ALARMS, MENU_SOUNDS, MENU_LANG,
-        MENU_OWN_PIN, MENU_TOUCH_CAL, MENU_LICENSE, MENU_STATUS,
-        MENU_DISPLAY_OFFSET, MENU_USERS, MENU_PIN_POLICY, MENU_SETUP_AP,
-        MENU_CLOCK,
+        MENU_ALARMS, MENU_SOUNDS, MENU_STATUS, MENU_CLOCK,               /* day to day */
+        MENU_OWN_PIN, MENU_USERS, MENU_PIN_POLICY, MENU_SETUP_AP,        /* access */
+        MENU_LANG, MENU_THEMES, MENU_TOUCH_CAL, MENU_DISPLAY_OFFSET,     /* the screen */
+        MENU_LICENSE,
     };
     assertSettingsMenu(all, 0xFFFF);   /* PERM_FULL_ADMIN: admin, and `screen set` */
     assertSettingsMenu(all, 0x1FFF);   /* PERM_ALL_BITS: every bit the users page sets */
 }
 
 void test_settings_menu_follows_the_session_bits(void) {
-    /* Any one of the three panel bits makes an alarm operator. */
-    const std::vector<int> op = { MENU_ALARMS, MENU_OWN_PIN, MENU_LICENSE, MENU_STATUS };
+    /* Any one of the three panel bits makes an alarm operator, whose menu is
+     * one page with the alarms on top. */
+    const std::vector<int> op = { MENU_ALARMS, MENU_STATUS, MENU_OWN_PIN, MENU_LICENSE };
     assertSettingsMenu(op, PERM_ALARM_LIMITS);
     assertSettingsMenu(op, PERM_ALARM_BLOCK);
     assertSettingsMenu(op, PERM_MAINT);
     assertSettingsMenu(op, PERM_PANEL_ALARM_ANY);
     /* No bit: the three items that are everyone's... */
-    const std::vector<int> none = { MENU_OWN_PIN, MENU_LICENSE, MENU_STATUS };
+    const std::vector<int> none = { MENU_STATUS, MENU_OWN_PIN, MENU_LICENSE };
     assertSettingsMenu(none, 0);
     /* ...and bits that open nothing at the panel add nothing: dashboard,
      * history, logs, the three file bits and calibration. */
     assertSettingsMenu(none, 0x0001 | 0x0002 | 0x0004 | 0x0020 | 0x0040 | 0x0080 | 0x0200);
-    assertSettingsMenu({ MENU_THEMES, MENU_SOUNDS, MENU_LANG, MENU_OWN_PIN, MENU_TOUCH_CAL,
-                         MENU_LICENSE, MENU_STATUS, MENU_DISPLAY_OFFSET, MENU_CLOCK },
+    assertSettingsMenu({ MENU_SOUNDS, MENU_STATUS, MENU_CLOCK, MENU_OWN_PIN, MENU_LANG,
+                         MENU_THEMES, MENU_TOUCH_CAL, MENU_DISPLAY_OFFSET, MENU_LICENSE },
                        PERM_SYS_CONFIG);
-    assertSettingsMenu({ MENU_OWN_PIN, MENU_LICENSE, MENU_STATUS, MENU_USERS, MENU_PIN_POLICY },
+    assertSettingsMenu({ MENU_STATUS, MENU_OWN_PIN, MENU_USERS, MENU_PIN_POLICY, MENU_LICENSE },
                        PERM_USER_MGR);
-    assertSettingsMenu({ MENU_OWN_PIN, MENU_LICENSE, MENU_STATUS, MENU_SETUP_AP },
+    assertSettingsMenu({ MENU_STATUS, MENU_OWN_PIN, MENU_SETUP_AP, MENU_LICENSE },
                        PERM_NET_CONFIG);
 }
 

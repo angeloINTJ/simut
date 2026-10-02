@@ -849,9 +849,9 @@ void DisplayManager::drawApConfirm( ) {
 /* The date and time (2026-10-01). A unit with no network configured asks for
  * them when it boots — the maintainer's decision, replacing the setup AP that
  * opened by itself there: with no network there is no NTP, and records stamped
- * by the provisional clock are not to be trusted. Settings > 13 opens the same
- * screen at any time. The calendar arithmetic is display/ClockEntry.h, tested
- * on the host; this file only draws it.
+ * by the provisional clock are not to be trusted. The Settings menu opens
+ * the same screen at any time. The calendar arithmetic is
+ * display/ClockEntry.h, tested on the host; this file only draws it.
  *
  * Strings: the title is TR_MENU_CLOCK, the menu row's own string, stripped of
  * the number a pack installed before 2026-10-02 still bakes in. The hint is

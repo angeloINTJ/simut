@@ -168,8 +168,8 @@ SCREENS = [
     ('settings-main', 'Settings menu',
      'set', [], 'MODE_SETTINGS_MAIN'),
 
-    ('settings-sounds', 'Alarm sound settings, third item of the menu',
-     'set', [MENU['down'], MENU['down'], MENU['enter']],
+    ('settings-sounds', 'Alarm sound settings, second item of the menu',
+     'set', [MENU['down'], MENU['enter']],
      'MODE_SETTINGS_SOUNDS'),
 
     ('settings-themes', 'Theme picker',

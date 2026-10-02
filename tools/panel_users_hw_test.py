@@ -1077,9 +1077,8 @@ def step_admin(rig, col, results, state):
     for _ in range(4):
         rig.tap(*FOOT['down'], 0.6)
     rig.shot('24-menu-admin-p2')
-    for _ in range(5):
-        rig.tap(*FOOT['down'], 0.6)
-    rig.shot('25-menu-admin-p3')                 # row 9 = Users
+    rig.tap(*FOOT['down'], 0.6)                  # row 5 = Users (display/SettingsMenu.h)
+    rig.shot('25-menu-admin-users')
     rig.tap(*FOOT['enter'], 1.5)
     rig.shot('26-users-list')
     # NEW -> name keyboard -> bits -> PIN
