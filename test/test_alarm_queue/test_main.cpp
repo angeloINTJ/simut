@@ -782,6 +782,33 @@ void test_reboot_classes_are_exactly_the_ones_that_reboot(void) {
     TEST_ASSERT_TRUE(configNeedsReboot(CFG_ALARMS | CFG_NET));
 }
 
+/* A-08: accounts apply live. Their consumers read the account at use — a web
+ * session checks the live account on every request (SessionCheck.h), the panel
+ * in panelAllowed( ), the alarm line signs at push — so a commit that adds,
+ * deletes or resets accounts, or sets a PIN or the PIN policy, no longer pays
+ * a restart. One that also touches a reboot class still restarts. */
+void test_classify_accounts_apply_live(void) {
+    SystemConfig base; memset(&base, 0, sizeof(base));
+    SystemConfig x;
+
+    x = base;
+    x.users[3].active = true;
+    strcpy(x.users[3].username, "ana");
+    x.users[3].permissions = 1;
+    x.users[3].salt[0] = 9;
+    expectOnly(base, x, CFG_USERS);
+    SystemConfig sc = base;
+    TEST_ASSERT_FALSE(configNeedsReboot(classifyConfigChanges(sc, x)));
+
+    x = base; x.pinAuth.pinMinLen = 6;      /* the PIN policy */
+    expectOnly(base, x, CFG_USERS);
+    sc = base;
+    TEST_ASSERT_FALSE(configNeedsReboot(classifyConfigChanges(sc, x)));
+
+    TEST_ASSERT_FALSE(configNeedsReboot(CFG_USERS));
+    TEST_ASSERT_TRUE(configNeedsReboot(CFG_USERS | CFG_NET));
+}
+
 void test_classify_flags_an_unclassified_byte(void) {
     /* O fail-safe, que é o argumento de segurança inteiro deste módulo: um
      * campo que ninguém classificou tem de virar CFG_UNKNOWN, e CFG_UNKNOWN
@@ -1322,6 +1349,7 @@ int main(int argc, char** argv) {
     RUN_TEST(test_cfgmig_v23_every_segment_lands);
     RUN_TEST(test_cfgmig_v22_and_v20_stop_where_their_tails_stop);
     RUN_TEST(test_cfgmig_refuses_wrong_magic_version_or_length);
+    RUN_TEST(test_classify_accounts_apply_live);
     RUN_TEST(test_classify_flags_an_unclassified_byte);
     RUN_TEST(test_change_list_renders_names);
     RUN_TEST(test_161_a_refused_edge_is_announced_once_the_queue_has_room);

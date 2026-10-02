@@ -48,7 +48,7 @@ Os três compartilham o mesmo núcleo:
 | **Release atual** | **v2.9.0** (02/10/2026), a primeira release assinada; o [changelog](CHANGELOG.pt-BR.md) diz o que cada versão mudou. O SIMUT saiu do beta com a v2.7.0, com base em medições: soak de 8,18 h sem nenhum reboot e 6 de 6 atualizações pelo ar sem perder nada. |
 | **Imagens publicadas** | Três imagens, cada uma em `.uf2` e `.bin`: `release` (painel touch TFT), `alpha` (LCD 16×2 com console Bluetooth) e `air` (registrador a bateria sem display). Junto vêm os packs de idioma pt-BR e es-ES e um manifesto de OTA. Uma imagem com outro conjunto de recursos sai do [configurador de build](https://angelointj.github.io/simut/configurador/), e o CI a compila da `main`. |
 | **Maturidade** | <ul><li>`release`: **estável**.</li><li>`alpha`: publicado e testado na bancada, com o LCD 16×2 incluído desde 26/09/2026.</li><li>`air`: **experimental**. O único soak longo dele falhou: um sono no ciclo 119 nunca acordou (F28). Um watchdog ao longo do wake hoje mitiga o problema; a causa raiz não foi confirmada.</li></ul> |
-| **Testes** | Todo pull request roda 552 casos de teste no host em 9 suítes, 60 s de fuzzing e análise estática, e compila as sete imagens de firmware com o cache frio. O comportamento no hardware real é verificado numa bancada — ver [Verificação no hardware](docs/VERIFICATION.pt-BR.md). |
+| **Testes** | Todo pull request roda 553 casos de teste no host em 9 suítes, 60 s de fuzzing e análise estática, e compila as sete imagens de firmware com o cache frio. O comportamento no hardware real é verificado numa bancada — ver [Verificação no hardware](docs/VERIFICATION.pt-BR.md). |
 
 **Limitações conhecidas.** Cada uma está documentada onde se aplica.
 - **Atualização.** A atualização pelo ar reformata o sistema de arquivos:
@@ -58,7 +58,6 @@ Os três compartilham o mesmo núcleo:
 - **Resets sem explicação.** Um reset de watchdog (`ctx=209` ou `ctx=455`) apareceu três vezes na imagem de teste em 20–21 de setembro, e não desde então; o que foi capturado com o contexto tinha o Core 0 no console (`ctx=209`). Os dois núcleos agora estão instrumentados para explicar o próximo. Um `ctx=455` (trace vazio) no primeiro boot depois de `picotool load -x` não é isso: esse reinício passa pelo watchdog, e o registro apareceu depois de 11 de 11 gravações assim e de nenhum de 7 resets pelo pino (30/09/2026).
 - **Conexões ociosas.** No soak da v2.7.0, 7,1 % das respostas numa conexão keep-alive ociosa chegaram cortadas. O aparelho derruba um fluxo que não consegue enviar por 4 s.
 - **Respostas chunked.** Lido num laço apertado, 0,15–0,6 % das respostas do `/api/status` chegam com o enquadramento chunked quebrado ([#189](https://github.com/angeloINTJ/simut/issues/189)). O aparelho não reinicia e a requisição seguinte funciona; a página perde uma atualização.
-- **Lista de usuários.** Cada gravação da lista de usuários reinicia o aparelho, cerca de 25 s por vez.
 - **Cursor de telemetria.** O cursor é um único carimbo de tempo, então um registro gravado fora de ordem na flash é pulado: 6 de 75.778 registros numa medição.
 - **Não é instrumento certificado.** O SIMUT não é um instrumento metrológico certificado. Valide-o contra a sua própria referência antes de confiar nele para armazenamento regulado.
 
@@ -305,7 +304,7 @@ pio test -e native             # validadores, cursor de telemetria, rótulos, pa
 pio test -e native_history_v5  # codec do histórico V5 (63)
 pio test -e native_cli         # parser do CLI (33)
 pio test -e native_logpolicy   # persistência de log por transição, faixas da autópsia, leitura do toque (57)
-pio test -e native_alarmqueue  # fila da telemetria de alarmes (47)
+pio test -e native_alarmqueue  # fila da telemetria de alarmes (48)
 pio test -e native_network     # máquina de estados da reconexão Wi-Fi (36)
 pio test -e native_air         # config persistente do SIMUT Air (16)
 pio test -e native_sensors     # tabela de tipos de sensor (13)
