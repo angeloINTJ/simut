@@ -1,12 +1,12 @@
 # OTA assinada — desenho
 
-Estado: **em andamento**. Decisão do mantenedor, 01/10/2026: OTA só com imagem
+Estado: **em uso**. Decisão do mantenedor, 01/10/2026: OTA só com imagem
 assinada, e, nas escolhas de chave, bancada e build local, "o mais
 profissional". Feitas as etapas 1 (este desenho, #219), 2 (ferramenta, módulo e
 testes no host, #220), 3 (ligar ao stage, #221) e 4 (cerimônia e CI, #222): o
-firmware do `main` só aceita imagem assinada, e a primeira execução assinada pelo
-CI foi conferida em 01/10/2026. A etapa 5 é a v2.9.0, a primeira release
-assinada. As etapas estão no fim.
+firmware só aceita imagem assinada, e a primeira execução assinada pelo CI foi
+conferida em 01/10/2026. A etapa 5 é a v2.9.0, a primeira release assinada: a
+candidata passou no portão de retenção em 02/10/2026. As etapas estão no fim.
 
 ## O problema
 
@@ -358,5 +358,13 @@ configuração e do histórico, é a etapa 5.
    pelo CI, gravada pelo USB, recusou uma imagem sem assinatura (8), uma de
    bancada (12) e a do Air assinada pelo CI (7), e aceitou pelo ar a própria
    imagem assinada (`202` em 1,97 s, `image verified`).
-5. **A primeira release assinada**, a v2.9.0, com o teste de retenção pelo ar a
-   partir da v2.8.0 publicada e um salto da candidata sobre ela mesma.
+5. **A primeira release assinada**, a v2.9.0. A candidata que o CI assinou no
+   `main` (execução 36973204740, aprovada pelo mantenedor; as três imagens com
+   `v=0` contra `keys/` e a parte da imagem igual à build local) passou no portão
+   de retenção em 02/10/2026: da v2.8.0 publicada, pelo ar, na release, no Air e
+   no alpha, com a configuração intacta; a candidata sobre ela mesma, conferindo
+   a própria assinatura (`v=0`); recusadas uma imagem sem assinatura (8), a do
+   Air (7) e a v2.8.0 (8); um envio cortado, com e sem o sistema de arquivos
+   cheio antes do reinício. A release publicada pela tag é assinada numa
+   execução própria, com uma segunda aprovação, e por isso o trailer dela difere
+   do da candidata: a assinatura ECDSA é nova a cada execução.

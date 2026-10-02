@@ -95,6 +95,11 @@ a telemetria, que precisam da rede lá fora, esperam. Na bancada, 90 s com o
 ponto de acesso no ar: 0 leituras de sensor antes da correção, 219 depois, e o
 alarme disparou 3 s depois do `ap`.
 
+No alpha, pelo código, o `ap` agora leva o LCD direto às páginas do ponto de
+acesso, porque o LCD continua sendo atualizado com o ponto de acesso no ar. Até a
+v2.8.0 elas quase nunca apareciam: o LCD ficava na tela de boot ou nas últimas
+leituras.
+
 ### Correções achadas enquanto o manual era escrito (#203, #208, #209, #217)
 
 - **SDA e SCL trocados num BME280/BMP280 travavam o boot** (#203): a conferência
@@ -191,6 +196,28 @@ byte depois; os números estão em cada pull request. Entre elas:
 - **#223:** o carregador antigo e o novo comparados nos dois pacotes e em 40.016
   pacotes alterados; a tela Licença em três idiomas, 7 páginas.
 
+O portão de release (`AGENTS.md` §2) rodou na candidata que o CI assinou no
+`main` (execução 36973204740), na mesma placa, a partir da v2.8.0 publicada com a
+configuração da bancada. As imagens publicadas trazem os mesmos bytes de imagem;
+a assinatura é delas, porque cada execução de assinatura faz uma nova.
+
+- **A atualização a partir da v2.8.0,** completa, pelo ar na porta 8080: `2.9.0`,
+  os cinco sensores lendo, todos os valores de configuração que a API web
+  informa iguais (567 na release), o arquivo de configuração idêntico byte a
+  byte, e o `.bkp` de volta com 70 de 74 arquivos idênticos; os outros quatro são
+  o log e o histórico, que crescem. O mesmo no Air e no alpha (70 e 71 de 74),
+  onde as opções próprias do Air, que uma atualização apaga, voltaram com o
+  `.bkp`.
+- **A candidata sobre ela mesma,** nas três, com a candidata conferindo a
+  assinatura (`v` 0): o mesmo.
+- **Recusadas,** com a configuração intacta antes e depois de um reinício: uma
+  imagem sem assinatura (8), a imagem do Air assinada (7) e a v2.8.0 (8).
+- **Um envio cortado aos 400 kB, seguido de um reinício,** e o mesmo com o
+  sistema de arquivos cheio até os últimos 8 KB e esvaziado entre o corte e o
+  reinício: a configuração intacta.
+- **30 minutos** sem reinício, os cinco sensores válidos em todas as amostras. A
+  suíte web na imagem de teste: 87 aprovados, 0 falhas.
+
 ### Atualizando
 
 - **Da v2.8.x:** pelo ar, na página Arquivos, com o `.bin` desta release. Ele é
@@ -222,9 +249,14 @@ byte depois; os números estão em cada pull request. Entre elas:
 - **A página web não repete uma instalação recusada com 503** (um toque no painel
   nos 5 s antes), pelo código. O aparelho fica então esperando, com o sistema de
   arquivos desmontado, até reiniciar, e o reinício descarta a imagem enviada.
-- Não conferido no hardware: a tela de atualização no LCD do alpha, e a linha de
-  boot depois de uma instalação, que o boot mostra antes de a web poder
-  capturá-la.
+- **`configure terminal` não precisa de `enable`**: ele entra no modo de
+  configuração a partir do modo usuário, embora a tabela de comandos do console
+  diga que ele exige o modo privilegiado. Não abre nada, porque o `enable` não
+  pede senha no console USB e o console Bluetooth autentica a sessão inteira,
+  mas a tabela e o comportamento discordam.
+- Não conferido no hardware: a tela de atualização no LCD do alpha, o LCD do
+  alpha com o ponto de acesso no ar, e a linha de boot depois de uma instalação,
+  que o boot mostra antes de a web poder capturá-la.
 
 ## v2.8.0 (2026-09-30)
 
