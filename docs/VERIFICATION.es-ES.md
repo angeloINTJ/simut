@@ -1,0 +1,38 @@
+# Verificación en hardware
+
+[English](VERIFICATION.md) | [Português](VERIFICATION.pt-BR.md) | [Español](VERIFICATION.es-ES.md)
+
+Lo que se ha medido en hardware real, y en qué banco. El [README](../README.es-ES.md) tiene el resumen.
+
+**El banco:**
+- una Pico W con el panel TFT y el táctil;
+- una segunda Pico, la *PicoHand*, que acciona las líneas RESET y BOOTSEL del objetivo, cronometra su línea de despierto/dormido y simula un cargador (ver [AGENTS.md](../AGENTS.md), en portugués);
+- suites de banco en `tools/` para la API web, el panel, la telemetría, la OTA, las caídas de Wi-Fi y el ciclo del Air.
+
+Lo que se ha medido en hardware real, de lo más reciente a lo más antiguo:
+
+| Fecha | Qué | Resultado |
+|---|---|---|
+| 02/10/2026 | Candidato a release (v2.9.0), firmado por el CI | Suite web con 87 aprobados y 0 fallos en la imagen de prueba; actualización por el aire desde la v2.8.0 publicada en la release, el Air y el alpha: el archivo de configuración idéntico byte a byte, todos los valores de configuración que informa la API web iguales, cinco sensores leyendo, el `.bkp` restaurado con 70 o 71 de 74 archivos idénticos (los otros son el log y el historial); el candidato sobre sí mismo, comprobando su propia firma; una imagen sin firma (8), la del Air (7) y la v2.8.0 (8) rechazadas; un envío cortado a 400 kB y un reinicio, con y sin el sistema de archivos lleno en medio: configuración intacta; 30 min sin reinicio |
+| 30/09/2026 | Candidato a release (v2.8.0) | Suite web con 87 aprobados y 0 fallos; actualización por el aire desde la v2.7.4 publicada: el archivo de configuración idéntico byte a byte, salvo la versión, cinco sensores leyendo, el `.bkp` restaurado con 67 de 72 archivos idénticos (los otros cinco debían diferir); un envío cortado a 400 kB y un reinicio: configuración intacta; 10 min sin reinicio; Air y alpha actualizados por el aire desde la v2.7.4 con su configuración (las opciones propias del Air de vuelta con el `.bkp`) |
+| 30/09/2026 | Un envío cortado y luego el sistema de archivos lleno (v2.8.0) | Misma flash de partida, envío cortado a 400 kB, nada cambiado, el sistema de archivos llenado al 100 % y vaciado, reinicio: antes del #195 el dispositivo volvió con los valores de fábrica, después con su configuración. El mismo corte en la v2.7.3, sin llenar: valores de fábrica (#192) |
+| 30/09/2026 | Content-Type de la telemetría personalizada (v2.8.0) | Colector en un PC: la cabecera recibida coincide con el campo para `application/x-ndjson`, `text/csv` y `application/json; charset=utf-8`; vacío envía `application/json`; el formato JSON ignora el campo; `bad value`, `aplicação/json` y `json` se rechazan al guardar |
+| 26/09/2026 | Candidato a release (v2.7.4) | Suite web con 87 aprobados y 0 fallos; los cinco sensores de las tres familias; tras una búsqueda de sensores el BMP280 siguió leyendo durante 90 s (antes de la corrección fallaba unos 10 s después); un commit ensayado del intervalo de muestreo responde `"reboot":false`; 10 min sin reiniciarse |
+| 26/09/2026 | El LCD 16×2 del alpha (v2.7.4) | En un HD44780 conectado en paralelo: la pantalla de arranque con la versión y su barra de progreso, la pantalla de conectado con la IP, y después cada sensor por turno, con su slot y el nivel del Wi-Fi |
+| 25/09/2026 | Página de configuración e inicio de sesión (v2.7.3) | *Reiniciar sin guardar*, en la imagen release y en el build de prueba: sin conexión 3,3 s después del clic, de vuelta a los 26,4 s, y un nombre editado y nunca guardado no sobrevivió al reinicio. La página de inicio de sesión muestra la versión en los dos temas; 9 páginas, 0 errores de script |
+| 24/09/2026 | Panel: Seguridad del PIN y Modo de Configuración (v2.7.2) | Las flechas del pie se quedan en la pantalla (la v2.7.1 la cerraba); un toque sin guardar ya no cambia la política grabada; Confirmar muestra la red, la clave y 192.168.4.1 (la v2.7.1 se quedaba en la confirmación, con el AP ya activo) |
+| 23/09/2026 | Reloj del Air a través del sueño (v2.7.2) | Marcas de tiempo entre −0,085 y +0,030 s en 10 despertares (la v2.7.1 perdía 0,8 s por despertar); la corrección del NTP bajó de 9–10 s a 0,08 s |
+| 23/09/2026 | Colas largas de telemetría en el Air (v2.7.2) | 0 cuerpos inválidos; 13.681 de 13.682 registros entregados despierto, 13.670 de 13.671 hibernando (v2.7.1: 68 de 69 cuerpos eran JSON inválido) |
+| 22/09/2026 | Soak de la v2.7.0 | 8,18 h, 0 reinicios; el mayor bloque libre del heap varió −42 B |
+| 22/09/2026 | Actualizaciones por el aire de la v2.7.0 | 6 de 6 aplicadas; 57 archivos restaurados, 0 registros perdidos |
+| 22/09/2026 | Punto de acceso de configuración (v2.7.1) | Un cliente entra en 4,1 s, en `release` y en `alpha` con el Bluetooth activo, también con MAC aleatoria. El fallback automático se abre tras 6–7 min sin red (eliminado el 01/10/2026) |
+| 22/09/2026 | Corrección del V-09 | 10 de 10 veredictos, con controles positivos |
+| 21/09/2026 | Colector caído durante 3 h 58 min | 237 registros en cola, 0 reinicios; vaciada en una ronda con 0 perdidos, más 25 registros de la línea de alarmas |
+| 21/09/2026 | Suites web | 67/67 como admin, 87/87 como cuenta restringida; 500 commits que escriben en la flash, 0 reinicios |
+| 21/09/2026 | Búsqueda de redes Wi-Fi | 18 de 18, 0,94 s por barrido, también desde dentro del punto de acceso |
+| 20/09/2026 | Cuentas, PIN y política en el panel | 32/32 |
+| 19/09/2026 | Espejo del panel | 613 → 213 ms por fotograma; idéntico al framebuffer píxel a píxel (0 de 76.800 distintos) |
+| 11/09/2026 | Corte de corriente durante una actualización | Solo la ventana de aplicación, de ~25 s, deja el dispositivo necesitando BOOTSEL |
+| 10/08/2026 | Histórico a través de reinicios | 10 de 10 reinicios por hardware y 10 de 10 reinicios perdieron 0 registros |
+
+Dos cosas del LCD 16×2 no han pasado por la pantalla real: la disposición con un solo sensor, con su contador de telemetría pendiente (el banco tiene cinco sensores), y las páginas del punto de acceso, a las que, según el código, el LCD no llega.
