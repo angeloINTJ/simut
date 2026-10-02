@@ -113,7 +113,11 @@ enum UiMode {
  MODE_CONFIRM_AP,                /**< "start the setup access point?" */
  /* 2026-10-01 — the date and time, asked at boot on a unit with no network and
   * offered from Settings. Appended for the same reason as the blocks above. */
- MODE_SET_CLOCK                  /**< dd / mm / yyyy  hh : mm (display/ClockEntry.h) */
+ MODE_SET_CLOCK,                 /**< dd / mm / yyyy  hh : mm (display/ClockEntry.h) */
+ /* 2026-10-02 — a firmware update in progress, refused or cut (OtaScreen.h).
+  * Appended for the same reason as the blocks above; ">= MODE_AUTH" also keeps
+  * telemetry quiet while it is up, as it does for every menu. */
+ MODE_OTA_UPDATE
 };
 
 /** Time range selection for graph rendering. */

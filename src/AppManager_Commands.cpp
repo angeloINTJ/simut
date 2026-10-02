@@ -1427,6 +1427,9 @@ void AppManager::executeCommand(CliDemand cmd) {
  _panelUser = 0; _panelPerms = PERM_FULL_ADMIN; _panelAuthFor = PAUTH_SETTINGS;
  _displayMgr->setPanelSession(0, PERM_FULL_ADMIN);
  }
+ /* An update screen up keeps the panel from any other (DisplayManager_Ota.cpp):
+  * every screen but its own phases puts it down first. */
+ if (strncmp(n, "ota", 3) != 0) _displayMgr->showOta(OTA_PH_NONE);
  if (!strcmp(n, "dash")) _displayMgr->forceDashboard( );
  else if (!strcmp(n, "set")) _displayMgr->showSettingsMain( );
  else if (!strcmp(n, "thm")) _displayMgr->showSettingsThemes(cfg.themeIndex);
@@ -1449,6 +1452,16 @@ void AppManager::executeCommand(CliDemand cmd) {
 #if SIMUT_PANEL_PIN
  else if (!strcmp(n, "pin")) _displayMgr->showAuthUser( );
 #endif
+ /* The firmware-update screen at each phase (2026-10-02), for captures: the
+  * bar at 42 %, and a refusal named by the verdict after "otaref" — otaref8
+  * is an unsigned image, otaref alone a damaged one. */
+ else if (!strcmp(n, "otarx")) { _displayMgr->showOta(OTA_PH_RECEIVING); _displayMgr->otaProgress(42, 100); }
+ else if (!strcmp(n, "otachk")) _displayMgr->showOta(OTA_PH_CHECKING);
+ else if (!strcmp(n, "otardy")) _displayMgr->showOta(OTA_PH_READY);
+ else if (!strcmp(n, "otainst")) _displayMgr->showOta(OTA_PH_INSTALLING);
+ else if (!strcmp(n, "otacut")) _displayMgr->showOta(OTA_PH_CUT);
+ else if (!strncmp(n, "otaref", 6))
+  _displayMgr->showOta(OTA_PH_REFUSED, otaWhyFor(n[6] ? (unsigned)atoi(n + 6) : 1u));
  else { _cmdMgr->printError("?screen"); break; }
  _displayMgr->resetTouchIdle( );
  _cmdMgr->printSuccess(n);

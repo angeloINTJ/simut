@@ -116,6 +116,34 @@ void DisplayManager::loopCore1( ) {
 		/* Update WiFi signal icon (slot 7) based on RSSI */
 		_big.showWiFi(_lcd, _sharedState.wifiRssi);
 
+		/* ── FIRMWARE UPDATE (OtaScreen.h) ───────────────────────────
+		 * Ahead of every screen but a reboot's. Core 0 publishes each step
+		 * and never writes this LCD itself: this loop does not park for a
+		 * flash pause, so a pause can freeze it halfway through a write.
+		 * Before a step that freezes the panel, Core 0 waits for this pass
+		 * to have printed the phase (_otaDrawnSeq); the stage then holds
+		 * "Atualizando..." on the glass for the whole upload. */
+		{
+			const uint32_t otaSt = __atomic_load_n(&_otaState, __ATOMIC_ACQUIRE);
+			const OtaPhase otaPh = otaPhaseOf(otaSt);
+			if (otaPh != OTA_PH_NONE && !_sharedState.isBooting) {
+				const uint32_t hold = otaHoldMs(otaPh);
+				if (hold && timeSince(__atomic_load_n(&_otaShownMs, __ATOMIC_ACQUIRE), hold)) {
+					(void)otaEnd(otaSt);
+					_lcd.clear( );
+					_lt = millis( );
+					continue;
+				}
+				char row0[17], row1[17];
+				otaLcdLines(otaPh, otaWhyOf(otaSt), row0, row1);
+				_lcd.setCursor(0, 0); _lcd.print(row0);
+				_lcd.setCursor(0, 1); _lcd.print(row1);
+				_lcd.blit( );
+				__atomic_store_n(&_otaDrawnSeq, otaSeqOf(otaSt), __ATOMIC_RELEASE);
+				delay(100);
+				continue;
+			}
+		}
 
 		if (_sharedState.isBooting) {
 			/* ── BOOT SCREEN ──────────────────────────────────── */
@@ -358,6 +386,8 @@ void DisplayManager::loopCore1( ) {
 		delay(500);
 	}
 }
+/* The update screen is this core's to print (the branch at the top of the loop). */
+bool DisplayManager::otaPaintFromCore0( ) { return false; }
 void DisplayManager::handleTouch( ){}
 void DisplayManager::render(const SystemState&){}
 void DisplayManager::drawSlotPanel(float,float,SensorType,bool,int,const char*,bool,DashPanel&,float){}

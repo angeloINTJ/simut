@@ -160,6 +160,24 @@ Teclado
 Caracteres
 Escolha um novo PIN
 13. Data e hora
+Atualização de firmware
+Recebendo a nova versão
+Conferindo a assinatura
+Imagem conferida
+Instalando a nova versão
+O aparelho reinicia sozinho em cerca de 30 s
+Não desligue o aparelho
+Atualização recusada
+Atualização interrompida
+Continua na versão atual
+A imagem é de outro modelo
+A imagem não é assinada
+A assinatura não confere
+Assinada com uma chave aposentada
+Abaixo do nível de segurança instalado
+Assinada com a chave de bancada
+Não é uma imagem de firmware válida
+Atualização instalada
 @LOGCODES
 0 OK
 1 Boot do sistema

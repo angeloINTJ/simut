@@ -778,6 +778,52 @@ void DisplayManager::forceDashboard( ) {
 	mutex_exit(&_stateMutex);
 }
 
+/* The firmware-update screen (OtaScreen.h). Core 0 publishes each step and it
+ * is drawn by whichever core may touch the panel at that moment.
+ *
+ * Through most of an update that is Core 0 itself: the stage holds Core 1 under
+ * a flash pause from the first byte until the image is committed or given up,
+ * and otaPaintFromCore0( ) draws while Core 1 is parked where it cannot be
+ * inside an SPI transfer.
+ * Otherwise Core 1 draws on its next pass, and before the steps that freeze the
+ * panel — the stage, which parks Core 1 for the whole upload, and the install,
+ * which never returns — Core 0 waits until it has. The bound covers the alpha,
+ * whose loop sleeps 500 ms a pass; the TFT answered in about 125 ms on the rig
+ * (2026-10-02).
+ *
+ * No _stateMutex anywhere on this path: Core 1 may be frozen when it runs, and
+ * the stage would wait on a lock nobody can release. */
+static constexpr uint32_t OTA_PAINT_WAIT_MS = 800u;
+
+void DisplayManager::showOta(OtaPhase phase, OtaWhy why) {
+	__atomic_store_n(&_otaPct, (uint8_t)0, __ATOMIC_RELAXED);
+	__atomic_store_n(&_otaShownMs, millis( ), __ATOMIC_RELAXED);
+	const uint32_t next = otaNext(__atomic_load_n(&_otaState, __ATOMIC_ACQUIRE), phase, why);
+	__atomic_store_n(&_otaState, next, __ATOMIC_RELEASE);
+	if (phase == OTA_PH_NONE || otaPaintFromCore0( )) return;
+	if (!otaHoldsPanel(phase) || !_core1Ready ||
+	    __atomic_load_n(&_pauseRefCount, __ATOMIC_ACQUIRE) > 0) return;
+	const uint32_t t0 = millis( );
+	while (__atomic_load_n(&_otaDrawnSeq, __ATOMIC_ACQUIRE) != otaSeqOf(next) &&
+	       !timeSince(t0, OTA_PAINT_WAIT_MS)) {
+		watchdog_update( );
+		tight_loop_contents( );
+	}
+}
+
+void DisplayManager::otaProgress(uint32_t got, uint32_t total) {
+	const uint8_t pct = otaPercent(got, total);
+	if (pct == __atomic_load_n(&_otaPct, __ATOMIC_RELAXED)) return;
+	__atomic_store_n(&_otaPct, pct, __ATOMIC_RELEASE);
+	(void)otaPaintFromCore0( );
+}
+
+bool DisplayManager::otaEnd(uint32_t seen) {
+	uint32_t expected = seen;
+	return __atomic_compare_exchange_n(&_otaState, &expected, otaDismissed(seen), false,
+	                                   __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE);
+}
+
 #if SIMUT_TFT_GRAPH
 /* Forces graph screen (slot 0). Useful for screenshot
  * automation — bypasses touch to go directly to MODE_GRAPH_VIEW. */
@@ -1334,6 +1380,9 @@ void DisplayManager::loopCore1( ) {
 		/* Process touch BEFORE rendering for same-frame response */
 		C1_PHASE(C1P_TOUCH_HANDLE);
 		handleTouch( );
+		/* A firmware update takes the panel from any screen (DisplayManager_Ota.cpp);
+		 * with no phase published this only notices that there is none. */
+		otaTick( );
 		/* The mode this iteration is about to paint. Core 0 may replace it
 		 * while a draw below is in progress — see the check after the chain. */
 		const UiMode modeBeforeDraw = _uiMode;

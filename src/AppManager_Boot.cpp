@@ -716,6 +716,7 @@ void AppManager::setup( ) {
  String("post-apply boot, state=") + (int)m.state +
  " attempts=" + (int)m.attempts +
  (snap_present ? " snap=ok" : " snap=absent"));
+ bool installed = false;
 
  /* Verify the image the applier actually wrote.
 	 *
@@ -760,6 +761,7 @@ void AppManager::setup( ) {
  crc_ok = ((crc ^ 0xFFFFFFFFu) == m.uncompressed_crc32);
  }
  BLOG("[BOOT] OTA image CRC "); BLOG(crc_ok ? "ok" : "MISMATCH"); BLOG_NL( );
+ installed = crc_ok;
  LOG_CODE(crc_ok ? LOG_INFO : LOG_ERROR, "OTA", SEC_CONFIG_CHANGED, 0,
  crc_ok ? String("image verified, ") + (unsigned)len + " B"
  : String("image CRC mismatch over ") + (unsigned)total +
@@ -774,6 +776,17 @@ void AppManager::setup( ) {
  _storageMgr->enterFlashSafeMode( );
  ota::ota_metadata_clear( );
  _storageMgr->exitFlashSafeMode( );
+
+ /* The panel last said "installing" before the reboot (OtaScreen.h); this
+  * line says how that ended, and only when the slot holds what was staged.
+  * A test apply (?test=1) stages nothing, has no CRC to check, and gets no
+  * line. In English, as a rule: staging the image wrote over the file
+  * system, language pack included. */
+ if (installed) {
+ char suffix[16];
+ snprintf(suffix, sizeof(suffix), ": v%s", SIMUT_VERSION);
+ _displayMgr->setBootStatusKey(TR_BOOT_OTA_DONE, suffix);
+ }
  } else if (ota::ota_metadata_read(m) && m.state == ota::STATE_COMMITTED) {
  /* A stage was committed and the device rebooted before /api/ota/apply
   * — power cut, watchdog, someone pulled the cable. The staging area is

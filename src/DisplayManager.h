@@ -33,6 +33,7 @@ class Adafruit_GFX;
 #include "SystemDefs.h"
 #include "PinKeypad.h"   /* PinKb:: — geometry of the scrambled PIN keypad */
 #include "display/ClockEntry.h" /* the date and time set at the panel */
+#include "OtaScreen.h"          /* what the panel says during a firmware update */
 #include "Themes.h"
 #include "SoundManager.h"
 
@@ -149,6 +150,28 @@ enum LangKey {
 	/* 2026-10-01 — Settings > 13, and the title of the screen it opens. A pack
 	 * without the line shows the English (DisplayManager_LangParser). */
 	TR_MENU_CLOCK,
+
+	/* 2026-10-02 — the firmware-update screen (OtaScreen.h, DisplayManager_Ota.cpp)
+	 * and the boot line after an update. The reasons follow the validator's
+	 * verdicts v=7..12 (otaWhyFor); TR_OTA_WHY_DAMAGED covers the rest. */
+	TR_OTA_TITLE,
+	TR_OTA_RECEIVING,
+	TR_OTA_CHECKING,
+	TR_OTA_READY,
+	TR_OTA_INSTALLING,
+	TR_OTA_RESTARTS,
+	TR_OTA_KEEP_ON,
+	TR_OTA_REFUSED,
+	TR_OTA_CUT,
+	TR_OTA_KEPT,
+	TR_OTA_WHY_MODEL,
+	TR_OTA_WHY_UNSIGNED,
+	TR_OTA_WHY_SIGNATURE,
+	TR_OTA_WHY_RETIRED_KEY,
+	TR_OTA_WHY_BLOCKED,
+	TR_OTA_WHY_BENCH_KEY,
+	TR_OTA_WHY_DAMAGED,
+	TR_BOOT_OTA_DONE,
 
 	TR_KEYS_COUNT
 };
@@ -641,6 +664,14 @@ public:
 	 *  of a unit with no network — the left button is SKIP, and a hint says why
 	 *  the question is there; otherwise it is BACK, to the settings menu. */
 	void showClockEntry(const ClockEntry& start, bool atBoot);
+	/** The firmware-update screen (OtaScreen.h), published from Core 0 at each
+	 *  step of an update: it takes the panel from whatever screen is up and
+	 *  holds it until the next step, or — refused or cut — until its own hold
+	 *  ends or a tap. OTA_PH_NONE gives the panel back. Lock-free, because the
+	 *  stage keeps Core 1 frozen under a flash pause while it calls this. */
+	void showOta(OtaPhase phase, OtaWhy why = OTA_WHY_NONE);
+	/** Bytes of the image received so far, against the request's length. */
+	void otaProgress(uint32_t got, uint32_t total);
 	SoundSettingsState getSoundSettings( ) const { return _soundSettings; }
 
 
@@ -1295,6 +1326,7 @@ private:
 	ClockEntry _clockEntry = { 2026, 1, 1, 0, 0 };
 	bool _clockAtBoot = false;
 	bool _clockValuesDirty = false;  /**< a step changed a value: repaint that band only */
+
 	SoundSettingsState _soundSettings;
 	int _soundSelection = 0;
 	bool _inMelodySelect = false;
@@ -1456,6 +1488,24 @@ public:
 	static const char* getActiveLangCode( );
 
 private:
+	/* The firmware-update screen: DisplayManager_Ota.cpp draws it on the TFT,
+	 * DisplayManager_Alpha.cpp on the LCD. _otaState is the word OtaScreen.h
+	 * packs — Core 0 replaces it, Core 1 swaps in a dismissal — and
+	 * _otaDrawnSeq the request whose screen is on the glass, written by
+	 * whichever core drew it; Core 0 waits on it before a step that freezes
+	 * the panel. Last among the members, where they move no other one: 16 B
+	 * of flash less than among the clock's fields (measured 2026-10-02). */
+	volatile uint32_t _otaState = 0;
+	volatile uint32_t _otaShownMs = 0;  /**< when the phase on the glass was published */
+	volatile uint16_t _otaDrawnSeq = 0;
+	volatile uint8_t _otaPct = 0;
+	uint8_t _otaPctDrawn = 0;
+	bool _otaRedrawAll = false;         /**< another screen covered it: repaint all of it */
+	bool otaPaintFromCore0( );          /**< draws now when Core 1 cannot be mid-SPI */
+	bool otaEnd(uint32_t seen);         /**< dismisses `seen`, unless Core 0 published since */
+	void otaTick( );                    /**< Core 1, once a pass: take the panel, draw, let go */
+	void drawOtaScreen( );
+
 	struct ActiveLang {
 		char name[16];
 		char code[8];

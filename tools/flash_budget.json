@@ -523,36 +523,36 @@
   "21,428. Against the published v2.7.4 .bin: release +1,376, alpha and air +32."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-10-02 feat/lang-pack-dict-only on main ad85931: all seven measured with the pack loader reading only @DICT and the panel's License screen made the /license page's three parts (an opening in the pack's language, the MIT text, every third-party component). Against main: release +3,824, test +2,880, test_https +2,856, asserts +3,816, alpha +96, air -48, pico2_w_release +3,752 B. By symbol, on the release: the complete third-party list in LICENSE_TEXT_EN +855, the English opening +612, the /license page +438 (gzip), the @WEBDICT reader +420, the screen's layout and composition ~+340; the loader -340 and lazyRead -132. Static RAM goes the other way: -1,288 B on the release (the 2,048 B licence buffer gone, a 768 B opening buffer in its place), -3,320 on test. Budgets raised by the growth, which keeps each margin where it was; air's lowered by the 48 B it shrank. measured is the zopfli image PlatformIO prints.",
+ "measured_on": "2026-10-02 feat/ota-panel-screen on main 93f069a: all seven measured with the firmware-update screen (src/OtaScreen.h, src/DisplayManager_Ota.cpp): each step of an update on the panel, drawn from Core 0 while the stage holds Core 1, the alpha's two LCD lines, the boot line after an install, and 18 new strings. Against main: release +3,272, test +3,592, test_https +3,600, asserts +3,272, alpha +1,032, air +584, pico2_w_release +2,976 B. By symbol, on the release: drawOtaScreen +1,020, the text layout (otaPrepare, otaDraw, otaCentred, otaPercentText, otaBar) +650, showOta, otaProgress, otaEnd and otaPaintFromCore0 +368, otaTick +240, the three OTA handlers' hooks +216, the constructor +96 (the new members), handleTouch +72, the boot line +60, the 18 English strings +416 of literals and +72 of table, the 4-byte compare-and-swap from libatomic +42. Static RAM +72 B (18 more slots in the resident pack's string table). Budgets raised by the growth, which keeps each margin where it was; air's stays, 632 B under it. measured is the zopfli image PlatformIO prints.",
  "measured_at_commit": "chore/v2.8.0 on main 8aa898b (#195 merged; SIMUT_VERSION 2.8.0; budgets unchanged). All six rebuilt here; release, test, alpha and air byte-identical to the candidate tested on the bench. measured is the zopfli image PlatformIO prints.",
  "envs": {
   "pico_w_release": {
-   "budget": 1010516,
-   "measured": 1010412
+   "budget": 1013788,
+   "measured": 1013684
   },
   "pico_w_test": {
-   "budget": 1015244,
-   "measured": 1014604
+   "budget": 1018836,
+   "measured": 1018196
   },
   "pico_w_test_https": {
-   "budget": 1022484,
-   "measured": 1021796
+   "budget": 1026084,
+   "measured": 1025396
   },
   "pico_w_asserts": {
-   "budget": 1012740,
-   "measured": 1012708
+   "budget": 1016012,
+   "measured": 1015980
   },
   "pico_w_alpha": {
-   "budget": 968076,
-   "measured": 967172
+   "budget": 969108,
+   "measured": 968204
   },
   "pico_w_air": {
    "budget": 1012264,
-   "measured": 1011048
+   "measured": 1011632
   },
   "pico2_w_release": {
-   "budget": 983816,
-   "measured": 983584,
+   "budget": 986792,
+   "measured": 986560,
    "ceiling": 3141632
   }
  }

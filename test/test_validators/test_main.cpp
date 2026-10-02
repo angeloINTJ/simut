@@ -42,6 +42,7 @@
 #include "Utf8Fold.h"                  /* UTF-8 to what the 5x7 font draws */
 #include "WebDictValue.h"              /* one string out of a pack's @WEBDICT */
 #include "TextWrap.h"                  /* the License screen's line layout */
+#include "OtaScreen.h"                 /* the firmware-update screen */
 #include <string>
 #include <vector>
 #include "display/ClockEntry.h"         /* the date and time set at the panel */
@@ -2055,6 +2056,152 @@ void test_wrap_stops_when_asked(void) {
     TEST_ASSERT_EQUAL_INT(2, seen);
 }
 
+/* ===========================================================================
+ *  THE FIRMWARE-UPDATE SCREEN — OtaScreen.h
+ *
+ *  While an image arrives, is checked and is installed the panel says so, and
+ *  when one is refused it says why and that nothing changed. These cases pin
+ *  the parts that are pure: which verdict reads as which reason, the
+ *  percentage the bar shows, which screens leave by themselves and when, and
+ *  that the alpha's two LCD lines always fit their sixteen columns.
+ * =========================================================================== */
+void test_ota_why_maps_each_verdict(void) {
+    TEST_ASSERT_EQUAL_UINT8(OTA_WHY_NONE, otaWhyFor(0));
+    TEST_ASSERT_EQUAL_UINT8(OTA_WHY_MODEL, otaWhyFor(7));
+    TEST_ASSERT_EQUAL_UINT8(OTA_WHY_UNSIGNED, otaWhyFor(8));
+    TEST_ASSERT_EQUAL_UINT8(OTA_WHY_SIGNATURE, otaWhyFor(9));
+    TEST_ASSERT_EQUAL_UINT8(OTA_WHY_RETIRED_KEY, otaWhyFor(10));
+    TEST_ASSERT_EQUAL_UINT8(OTA_WHY_BLOCKED_VERSION, otaWhyFor(11));
+    TEST_ASSERT_EQUAL_UINT8(OTA_WHY_BENCH_KEY, otaWhyFor(12));
+    /* the structural checks (size, boot2, a stage that never finished) and
+     * anything a later firmware adds read as a damaged image */
+    for (unsigned v = 1; v <= 6; v++) TEST_ASSERT_EQUAL_UINT8(OTA_WHY_DAMAGED, otaWhyFor(v));
+    TEST_ASSERT_EQUAL_UINT8(OTA_WHY_DAMAGED, otaWhyFor(13));
+    TEST_ASSERT_EQUAL_UINT8(OTA_WHY_DAMAGED, otaWhyFor(255));
+}
+
+void test_ota_percent_never_says_done_early(void) {
+    TEST_ASSERT_EQUAL_UINT8(0, otaPercent(0, 1000));
+    TEST_ASSERT_EQUAL_UINT8(50, otaPercent(500, 1000));
+    TEST_ASSERT_EQUAL_UINT8(99, otaPercent(999, 1000));
+    /* the request also carries the multipart boundaries, so "all of it" can
+     * only be known at the end of the upload: 100 % is the CHECKING screen */
+    TEST_ASSERT_EQUAL_UINT8(99, otaPercent(1000, 1000));
+    TEST_ASSERT_EQUAL_UINT8(99, otaPercent(5000, 1000));
+    TEST_ASSERT_EQUAL_UINT8(0, otaPercent(5, 0));            /* no Content-Length */
+    TEST_ASSERT_EQUAL_UINT8(42, otaPercent(437100, 1040600));   /* 42.004 */
+    TEST_ASSERT_EQUAL_UINT8(41, otaPercent(437000, 1040600));   /* 41.995: floor, not round */
+}
+
+void test_ota_bar_fill(void) {
+    TEST_ASSERT_EQUAL_INT16(0, otaBarFill(0, 236));
+    TEST_ASSERT_EQUAL_INT16(118, otaBarFill(50, 236));
+    TEST_ASSERT_EQUAL_INT16(99, otaBarFill(42, 236));
+    TEST_ASSERT_EQUAL_INT16(236, otaBarFill(100, 236));
+    TEST_ASSERT_EQUAL_INT16(236, otaBarFill(250, 236));
+}
+
+void test_ota_which_screens_leave_by_themselves(void) {
+    TEST_ASSERT_EQUAL_UINT32(12000, otaHoldMs(OTA_PH_REFUSED));
+    TEST_ASSERT_EQUAL_UINT32(8000, otaHoldMs(OTA_PH_CUT));
+    const OtaPhase stay[] = { OTA_PH_RECEIVING, OTA_PH_CHECKING, OTA_PH_READY, OTA_PH_INSTALLING };
+    for (OtaPhase p : stay) {
+        TEST_ASSERT_EQUAL_UINT32(0, otaHoldMs(p));     /* until the next step says otherwise */
+        TEST_ASSERT_TRUE(otaHoldsPanel(p));            /* the idle return must not fire */
+        TEST_ASSERT_FALSE(otaTapDismisses(p));         /* a finger cannot leave mid-update */
+    }
+    TEST_ASSERT_TRUE(otaTapDismisses(OTA_PH_REFUSED));
+    TEST_ASSERT_TRUE(otaTapDismisses(OTA_PH_CUT));
+    TEST_ASSERT_FALSE(otaHoldsPanel(OTA_PH_NONE));
+}
+
+void test_ota_lcd_lines_fit_sixteen_columns(void) {
+    for (int p = OTA_PH_NONE; p <= OTA_PH_CUT; p++) {
+        for (int w = OTA_WHY_NONE; w <= OTA_WHY_DAMAGED; w++) {
+            char r0[17], r1[17];
+            otaLcdLines((OtaPhase)p, (OtaWhy)w, r0, r1);
+            TEST_ASSERT_EQUAL_UINT32(16, strlen(r0));
+            TEST_ASSERT_EQUAL_UINT32(16, strlen(r1));
+            for (int i = 0; i < 16; i++) {
+                /* the HD44780 ROM is not Latin-1: ASCII only */
+                TEST_ASSERT_TRUE(r0[i] >= 0x20 && r0[i] <= 0x7E);
+                TEST_ASSERT_TRUE(r1[i] >= 0x20 && r1[i] <= 0x7E);
+            }
+        }
+    }
+}
+
+void test_ota_lcd_lines_say_what_happened(void) {
+    char r0[17], r1[17];
+    otaLcdLines(OTA_PH_RECEIVING, OTA_WHY_NONE, r0, r1);
+    TEST_ASSERT_EQUAL_STRING("Atualizando...  ", r0);
+    TEST_ASSERT_EQUAL_STRING("Nao desligue!   ", r1);
+    otaLcdLines(OTA_PH_REFUSED, OTA_WHY_UNSIGNED, r0, r1);
+    TEST_ASSERT_EQUAL_STRING("Atualiz.recusada", r0);
+    TEST_ASSERT_EQUAL_STRING("sem assinatura  ", r1);
+    otaLcdLines(OTA_PH_REFUSED, OTA_WHY_BENCH_KEY, r0, r1);
+    TEST_ASSERT_EQUAL_STRING("chave de bancada", r1);
+    otaLcdLines(OTA_PH_CUT, OTA_WHY_NONE, r0, r1);
+    TEST_ASSERT_EQUAL_STRING("versao mantida  ", r1);
+}
+
+void test_ota_state_word_carries_phase_reason_and_request(void) {
+    const uint32_t s = otaPack(0x1234, OTA_PH_REFUSED, OTA_WHY_RETIRED_KEY);
+    TEST_ASSERT_EQUAL_UINT8(OTA_PH_REFUSED, otaPhaseOf(s));
+    TEST_ASSERT_EQUAL_UINT8(OTA_WHY_RETIRED_KEY, otaWhyOf(s));
+    TEST_ASSERT_EQUAL_UINT16(0x1234, otaSeqOf(s));
+    /* the word a device boots with: no phase, request 0 */
+    TEST_ASSERT_EQUAL_UINT8(OTA_PH_NONE, otaPhaseOf(0));
+    TEST_ASSERT_EQUAL_UINT16(0, otaSeqOf(0));
+    /* every publication is a new request, the same phase too: a second
+     * refusal over the first is drawn again and its hold starts over */
+    const uint32_t n = otaNext(s, OTA_PH_REFUSED, OTA_WHY_RETIRED_KEY);
+    TEST_ASSERT_EQUAL_UINT16(0x1235, otaSeqOf(n));
+    TEST_ASSERT_TRUE(n != s);
+    /* the number wraps instead of running into the reason */
+    const uint32_t w = otaNext(otaPack(0xFFFF, OTA_PH_CUT, OTA_WHY_NONE), OTA_PH_RECEIVING, OTA_WHY_NONE);
+    TEST_ASSERT_EQUAL_UINT16(0, otaSeqOf(w));
+    TEST_ASSERT_EQUAL_UINT8(OTA_PH_RECEIVING, otaPhaseOf(w));
+    TEST_ASSERT_EQUAL_UINT8(OTA_WHY_NONE, otaWhyOf(w));
+}
+
+void test_ota_dismissal_keeps_the_request_number(void) {
+    const uint32_t s = otaPack(7, OTA_PH_REFUSED, OTA_WHY_RETIRED_KEY);
+    const uint32_t d = otaDismissed(s);
+    TEST_ASSERT_EQUAL_UINT8(OTA_PH_NONE, otaPhaseOf(d));
+    TEST_ASSERT_EQUAL_UINT8(OTA_WHY_NONE, otaWhyOf(d));
+    TEST_ASSERT_EQUAL_UINT16(7, otaSeqOf(d));
+    TEST_ASSERT_EQUAL_UINT16(8, otaSeqOf(otaNext(d, OTA_PH_RECEIVING, OTA_WHY_NONE)));
+}
+
+static int32_t tenPxPerByte(const char*, size_t n) { return (int32_t)n * 10; }
+
+void test_ota_break_keeps_what_fits_on_one_line(void) {
+    TEST_ASSERT_EQUAL_UINT32(0, otaBreak("Update refused", 140, tenPxPerByte));   /* exactly 140 */
+    TEST_ASSERT_EQUAL_UINT32(0, otaBreak("", 100, tenPxPerByte));
+}
+
+void test_ota_break_balances_the_two_lines(void) {
+    /* 180 px into 120: after "one" the wider line is 140, after "two" 100,
+     * after "three" 130 */
+    TEST_ASSERT_EQUAL_UINT32(7, otaBreak("one two three four", 120, tenPxPerByte));
+    /* the first line as full as it can be (14) leaves "b" alone below it */
+    TEST_ASSERT_EQUAL_UINT32(9, otaBreak("aaaa aaaa aaaa b", 140, tenPxPerByte));
+    const char* t = "O aparelho reinicia sozinho em cerca de 30 s";
+    TEST_ASSERT_EQUAL_UINT32(19, otaBreak(t, 300, tenPxPerByte));
+    /* two breaks as good as each other: the earlier, so the longer line is
+     * the second one */
+    TEST_ASSERT_EQUAL_UINT32(4, otaBreak("aaaa bb cccc", 70, tenPxPerByte));
+}
+
+void test_ota_break_needs_a_space_between_two_words(void) {
+    TEST_ASSERT_EQUAL_UINT32(0, otaBreak("Atualizacao", 50, tenPxPerByte));  /* drawn as it is */
+    TEST_ASSERT_EQUAL_UINT32(0, otaBreak(" leading", 50, tenPxPerByte));
+    TEST_ASSERT_EQUAL_UINT32(0, otaBreak("trailing ", 50, tenPxPerByte));
+    /* no break makes both lines fit: still the one that overflows least */
+    TEST_ASSERT_EQUAL_UINT32(10, otaBreak("aaaaaaaaaa bbbbbbbbbbbb", 50, tenPxPerByte));
+}
+
 void test_wrap_ascii_layout_is_unchanged(void) {
     const char* mit =
         "MIT License\n\nCopyright (c) 2026 Somebody\n\nPermission is hereby granted, free of charge, "
@@ -4013,6 +4160,17 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_wrap_splits_a_word_wider_than_the_screen);
     RUN_TEST(test_wrap_stops_when_asked);
     RUN_TEST(test_wrap_ascii_layout_is_unchanged);
+    RUN_TEST(test_ota_why_maps_each_verdict);
+    RUN_TEST(test_ota_percent_never_says_done_early);
+    RUN_TEST(test_ota_bar_fill);
+    RUN_TEST(test_ota_which_screens_leave_by_themselves);
+    RUN_TEST(test_ota_lcd_lines_fit_sixteen_columns);
+    RUN_TEST(test_ota_lcd_lines_say_what_happened);
+    RUN_TEST(test_ota_state_word_carries_phase_reason_and_request);
+    RUN_TEST(test_ota_dismissal_keeps_the_request_number);
+    RUN_TEST(test_ota_break_keeps_what_fits_on_one_line);
+    RUN_TEST(test_ota_break_balances_the_two_lines);
+    RUN_TEST(test_ota_break_needs_a_space_between_two_words);
     RUN_TEST(test_download_perm_gates_history_and_logs);
     RUN_TEST(test_download_perm_leaves_ordinary_files_alone);
 

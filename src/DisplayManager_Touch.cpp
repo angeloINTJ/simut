@@ -31,9 +31,11 @@ void DisplayManager::handleTouch( ) {
  _pressActive = false;
 
  /* Short tap on top panel (release before 1s): toggle min/max.
-  * Not during the tail of a long press — see DASH_HOLD_LOCK_MS. */
+  * Not during the tail of a long press — see DASH_HOLD_LOCK_MS. And only if
+  * the dashboard is still up: a screen Core 0 put up under the finger (the
+  * firmware update's, 2026-10-02) would get the panel painted over it. */
  if (_topPanel.holdStart != 0 && !_topPanel.holdFired && _lastTouchRegion == 0 &&
- timeReached(_topPanel.lockUntil)) {
+ _uiMode == MODE_DASHBOARD && timeReached(_topPanel.lockUntil)) {
  /* A short tap is min/max. The WHOLE panel, and from either mode.
   *
   * It used to depend on which mode the panel was in: interactive, and the
@@ -138,7 +140,9 @@ void DisplayManager::handleTouch( ) {
 
  _btnHoldStartTime = 0;
  _lastPressedBtn = -1;
- if (_uiMode != MODE_DASHBOARD && !_sharedState.isBooting) {
+ /* The update screen leaves by its own clock (otaHoldMs), or not at all
+  * while an update is under way — never by this one. */
+ if (_uiMode != MODE_DASHBOARD && _uiMode != MODE_OTA_UPDATE && !_sharedState.isBooting) {
  if (timeSince(_lastTouchTime, 30000)) forceDashboard( );
  }
  return;
@@ -1662,6 +1666,15 @@ void DisplayManager::handleTouch( ) {
  _repaintSettings = true;
  return;
  }
+ }
+ else if (_uiMode == MODE_OTA_UPDATE) {
+ /* Deaf while an update runs, so a hand on the glass changes nothing; a
+  * tap anywhere leaves a screen that reports an ending. Through
+  * acceptTouch only then — it is what arms the touch-priority window,
+  * and that window would answer the apply with a 503. */
+ const uint32_t st = __atomic_load_n(&_otaState, __ATOMIC_ACQUIRE);
+ if (!otaTapDismisses(otaPhaseOf(st)) || !acceptTouch(0xC6)) return;
+ if (otaEnd(st)) forceDashboard( );
  }
 }
 
