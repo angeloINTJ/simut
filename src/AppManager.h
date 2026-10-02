@@ -183,9 +183,15 @@ private:
  enum PanelAuthFor : uint8_t { PAUTH_SETTINGS = 0, PAUTH_DEACTIVATE };
  int8_t _panelUser = -1;      /**< account the last accepted PIN identified, -1 none */
  uint16_t _panelPerms = 0;
+ /** The name the PIN identified. A slot is reusable, so the slot alone does
+  *  not say the account is still the same one (panelSessionCurrent). No
+  *  initializer: it is read only while _panelUser >= 0, and both places that
+  *  set _panelUser write it first — zeroing it cost the constructor 32 B. */
+ char _panelName[sizeof(UserAccount::username)];
  uint8_t _panelAuthFor = PAUTH_SETTINGS;
  bool handlePanelEvent(const UiEvent& ev);
  bool panelAllowed(uint16_t bit, int8_t slot);
+ bool panelSessionCurrent( );
  const char* panelUserName( ) const;
  void panelIdentify( );
  void panelDeactivateAlarm( );

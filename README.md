@@ -50,7 +50,7 @@ They share one core:
 | **Current release** | **v2.9.0** (2026-10-02), the first signed release; the [changelog](CHANGELOG.md) says what each version changed. SIMUT left beta with v2.7.0, on measurements: an 8.18 h soak with 0 reboots, and 6 of 6 over-the-air updates with nothing lost. |
 | **Published images** | Three images, each as `.uf2` and `.bin`: `release` (TFT touch panel), `alpha` (16×2 LCD with a Bluetooth console) and `air` (headless battery logger). The pt-BR and es-ES language packs and an OTA manifest ship alongside. An image with a different set of features comes from the [build configurator](https://angelointj.github.io/simut/configurador/), and CI builds it from `main`. |
 | **Maturity** | <ul><li>`release`: **stable**.</li><li>`alpha`: published and bench-tested, its 16×2 LCD included since 2026-09-26.</li><li>`air`: **experimental**. Its one long soak failed: a sleep in cycle 119 never woke (F28). A watchdog across the wake now mitigates it; the root cause is not confirmed.</li></ul> |
-| **Tests** | Every pull request runs 545 host test cases in 9 suites, 60 s of fuzzing and static analysis, and builds all seven firmware images from a cold cache. Behaviour on real hardware is verified on a bench — see [Verification on hardware](docs/VERIFICATION.md). |
+| **Tests** | Every pull request runs 552 host test cases in 9 suites, 60 s of fuzzing and static analysis, and builds all seven firmware images from a cold cache. Behaviour on real hardware is verified on a bench — see [Verification on hardware](docs/VERIFICATION.md). |
 
 **Known limitations.** Each one is documented where it applies.
 - **Updates.** An update over the air reformats the filesystem:
@@ -153,7 +153,7 @@ See the **[wiring guide](docs/WIRING.md)** for the complete pinout and connectio
 - **HTTP API** — 62 routes. Each one is either gated by a permission or public by design, and CI checks it.
 - **Telemetry** — HTTP, HTTPS, MQTT and MQTTS, batched by quantity, and a second, acknowledged line for alarms; Home Assistant, Prometheus and syslog.
 - **Network and time** — Wi-Fi that reconnects itself, a setup access point opened on request, and NTP with a provisional clock until it syncs.
-- **Storage** — the V5 binary history (about 116 days in 1 MB), a configuration with CRC32 and a `.bak`, and an event log with 155 event codes.
+- **Storage** — the V5 binary history (about 116 days in 1 MB), a configuration with CRC32 and a `.bak`, and an event log with 156 event codes.
 - **Security** — 32 accounts, 13 permission bits, salted HMAC-SHA256, lockouts and optional HTTPS.
 - **Updates** — signed over-the-air updates from the web page, and backup and restore of the whole filesystem.
 - **SIMUT Air** (experimental) — a battery logger that hibernates between readings.
@@ -303,7 +303,7 @@ The device exposes a REST API at `http://<device-ip>/api/`:
 ### Host tests
 
 ```bash
-pio test -e native             # validators, telemetry cursor, labels, parsers, language packs, the License and update screens, the Settings menu, the password check (253 cases)
+pio test -e native             # validators, telemetry cursor, labels, parsers, language packs, the License and update screens, the Settings menu, the password check, the web session (260 cases)
 pio test -e native_history_v5  # V5 history codec (63)
 pio test -e native_cli         # CLI parser (33)
 pio test -e native_logpolicy   # edge-triggered log persistence, autopsy bands, touch wake (57)

@@ -1425,6 +1425,7 @@ void AppManager::executeCommand(CliDemand cmd) {
   * admin — without that, `screen set` would show a three-item menu. */
  if (strcmp(n, "dash") != 0 && strcmp(n, "gra") != 0 && strcmp(n, "pin") != 0) {
  _panelUser = 0; _panelPerms = PERM_FULL_ADMIN; _panelAuthFor = PAUTH_SETTINGS;
+ memcpy(_panelName, _storageMgr->getConfig( ).users[0].username, sizeof(_panelName));
  _displayMgr->setPanelSession(0, PERM_FULL_ADMIN);
  }
  /* An update screen up keeps the panel from any other (DisplayManager_Ota.cpp):

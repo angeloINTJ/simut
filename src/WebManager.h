@@ -174,6 +174,9 @@ private:
 		String username;
 		uint16_t perms;
 		uint32_t lastActivity;
+		/* The account's salt at login. A different one later means someone
+		 * else set the password, and the session ends (SessionCheck.h). */
+		uint8_t salt[8];
 	};
 	ActiveSession _activeSessions[3];
 

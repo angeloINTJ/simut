@@ -144,6 +144,9 @@ enum LogCode {
  SEC_PIN_FAIL = 309,
  SEC_PIN_LOCKOUT = 310,
  SEC_PIN_AMBIGUOUS = 311,
+ /* A web session whose account was deleted, renamed or given a password by
+  * someone else since its login (SessionCheck.h). ctx = the account slot. */
+ SEC_SESSION_REVOKED = 312,
 
 
  /* ── Application lifecycle (400–439) ── */

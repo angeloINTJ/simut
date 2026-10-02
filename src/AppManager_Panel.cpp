@@ -31,6 +31,7 @@
 #include "TelemetryManager.h"      /* pushAlarm + AlarmErrCode (AlarmQueue.h) */
 #include "AlarmQueue.h"            /* alarmActorFromSlot */
 #include "SystemDefs_Validate.h"   /* isValidName, isValidPanelPin */
+#include "SessionCheck.h"          /* panelAccountStillThere */
 #include "sensors/SensorChannelTable.h" /* sensorHasChannel */
 #include <time.h>
 
@@ -42,6 +43,7 @@ bool AppManager::handlePanelEvent(const UiEvent& ev) { (void)ev; return false; }
 void AppManager::panelSaveAlarmLimits(int slot) { (void)slot; }
 void AppManager::panelSetUserPin(int slot, const char* pin, UiMode returnTo) { (void)slot; (void)pin; (void)returnTo; }
 bool AppManager::panelAllowed(uint16_t bit, int8_t slot) { (void)bit; (void)slot; return false; }
+bool AppManager::panelSessionCurrent( ) { return false; }
 #else
 
 static inline int panelCtx(int user, int slot) {
@@ -53,10 +55,32 @@ static void wipe(char* s, size_t n) {
  for (size_t i = 0; i < n; i++) v[i] = 0;
 }
 
+/* The account as it is NOW. Accounts change live — through the web since
+ * A-08, from this very panel and from the console — and the session holds a
+ * slot number and a copy of the bits. An account deleted or renamed under the
+ * panel ends the session here; one whose bits changed acts with the new ones,
+ * and the display is handed them too. */
+bool AppManager::panelSessionCurrent( ) {
+ if (_panelUser < 0) return false;
+ const SystemConfig &cfg = _storageMgr->getConfig( );
+ uint16_t now = 0;
+ if (!panelAccountStillThere(cfg.users, MAX_USERS, _panelUser, _panelName, now)) {
+ LOG_CODE(LOG_WARN, "SEC", SEC_SESSION_REVOKED, _panelUser, _panelName);
+ _panelUser = -1; _panelPerms = 0;
+ _displayMgr->setPanelSession(-1, 0);
+ return false;
+ }
+ if (now != _panelPerms) {
+ _panelPerms = now;
+ _displayMgr->setPanelSession(_panelUser, _panelPerms);
+ }
+ return true;
+}
+
 /* Every action passes through here first. A missing bit is a refusal the
  * operator hears (error tone) and the log keeps, with who tried what. */
 bool AppManager::panelAllowed(uint16_t bit, int8_t slot) {
- if (_panelUser >= 0 && (_panelPerms & bit)) return true;
+ if (panelSessionCurrent( ) && (_panelPerms & bit)) return true;
  LOG_CODE(LOG_WARN, "APP", APP_UI_PERM_DENIED, panelCtx(_panelUser, slot), "");
  _soundMgr->play(SND_ERROR);
  return false;
@@ -116,6 +140,7 @@ void AppManager::panelIdentify( ) {
 
  _panelUser = slot;
  _panelPerms = cfg.users[slot].permissions;
+ memcpy(_panelName, cfg.users[slot].username, sizeof(_panelName));
  _displayMgr->setPanelSession(_panelUser, _panelPerms);
  _displayMgr->authResult(true);
  _soundMgr->play(SND_CONFIRM);
@@ -221,6 +246,10 @@ void AppManager::panelSaveAlarmLimits(int slot) {
  * identifies BY them; setUserPin refuses a duplicate and names the owner. */
 void AppManager::panelSetUserPin(int slot, const char* pin, UiMode returnTo) {
  SystemConfig &cfg = _storageMgr->getConfig( );
+ /* "Own" is only true of an account still the one the PIN identified: a slot
+  * deleted and taken by another account since must not hand that account's
+  * PIN to whoever is at the panel. */
+ panelSessionCurrent( );
  const bool own = (slot == _panelUser);
  if (!own && !panelAllowed(PERM_USER_MGR, -1)) {
  _displayMgr->showPanelMessage(false, TR_NO_PERMISSION, returnTo);
