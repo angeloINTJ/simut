@@ -26,11 +26,29 @@ A signed image is the unchanged .bin followed by a 241-byte trailer:
 
 The device (src/ota/signature.cpp) runs the same checks as `verify` below, in the same order.
 
+What an image trusts is compiled into it as a trust block (src/ota/ota_trust.h, written by
+`gen-trust` from keys/):
+
+  off  len  field
+    0    8  magic b"SIMUTKEY"
+    8    1  format (1)
+    9    1  anchor count n, 1..4
+   10    2  reserved, zero
+   12    4  lowest security_version accepted        u32 LE
+   16    4  lowest serial accepted, release scope   u32 LE
+   20    4  lowest serial accepted, bench scope     u32 LE
+   24  66n  anchors: scope (1 B), then the root's uncompressed P-256 point (65 B)
+
+The device takes its policy from those bytes, and `sign` reads the same bytes out of the .bin
+before it signs: what the tool checks is what the device will enforce once the image runs.
+
 Subcommands
   root-new     a root key, encrypted with a passphrase typed here; writes the public key file
   signer-new   a signer key and its certificate, signed by a root
-  sign         append the trailer to a .bin
+  gen-trust    src/ota/ota_trust.h from keys/ (--check: fail if it is stale)
+  sign         append the trailer to a .bin, after checking the image may carry it
   verify       check a signed .bin the way the device does
+  inspect      what a .bin says it is, what it trusts, and how it is signed
   vectors      the host-test vectors (test/test_ota_sig/vectors.h), from a fixed test key
   selftest     round trips and tamper cases, with real ECDSA
 
@@ -42,7 +60,9 @@ Project: SIMUT. License: MIT.
 import argparse
 import getpass
 import hashlib
+import json
 import os
+import re
 import struct
 import sys
 
@@ -65,6 +85,17 @@ CERT_DOMAIN = b"SIMUT-OTA-CERT-v1"
 IMAGE_DOMAIN = b"SIMUT-OTA-IMG-v1"
 SCOPES = {"release": 1, "bench": 2}
 ENV_LEN = 16
+
+TRUST_MAGIC = b"SIMUTKEY"
+TRUST_FORMAT = 1
+TRUST_HEAD_LEN = 24
+ANCHOR_LEN = 66             # scope(1) pubkey(65)
+MAX_ANCHORS = 4
+ENV_TAG = re.compile(rb"SIMUT-ENV:([a-z]+);")   # src/BuildIdentity.cpp; the device reads [a-z] up to ';'
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+KEYS_DIR = os.path.join(ROOT, "keys")
+TRUST_HEADER = os.path.join(ROOT, "src", "ota", "ota_trust.h")
 
 # Device refusals (v= on the stage reply). 8..12 are new; a signed env that is not the
 # running variant is the same refusal validation.cpp already gives a wrong tag, 7.
@@ -181,6 +212,124 @@ def check(blob, anchors, min_serial, min_security, running_env):
     return V_OK, info
 
 
+# ── what an image is, and what it trusts ────────────────────────────────────
+
+class SignRefused(Exception):
+    """An image that must not carry the signature asked for. The message says why."""
+
+
+def trust_block(anchors, security_version, lowest_serial):
+    """anchors: [(root_pub_raw, scope)], in block order; lowest_serial: {scope: serial}."""
+    if not 1 <= len(anchors) <= MAX_ANCHORS:
+        raise ValueError(f"a trust block holds 1..{MAX_ANCHORS} roots")
+    head = TRUST_MAGIC + struct.pack("<BBHIII", TRUST_FORMAT, len(anchors), 0, security_version,
+                                     lowest_serial.get(SCOPES["release"], 0),
+                                     lowest_serial.get(SCOPES["bench"], 0))
+    return head + b"".join(bytes([scope]) + pub for pub, scope in anchors)
+
+
+def parse_trust(data, off=0):
+    """The trust block at data[off:] as {anchors, min_serial, min_security, length}, or None
+    when the bytes there are not one. Stricter than the device, which takes its own block
+    on faith past the shape: every root here must be a point on the curve."""
+    if len(data) - off < TRUST_HEAD_LEN or data[off:off + len(TRUST_MAGIC)] != TRUST_MAGIC:
+        return None
+    fmt, n, rsv, secver, rel, bench = struct.unpack_from("<BBHIII", data, off + len(TRUST_MAGIC))
+    if fmt != TRUST_FORMAT or not 1 <= n <= MAX_ANCHORS or rsv != 0:
+        return None
+    end = off + TRUST_HEAD_LEN + ANCHOR_LEN * n
+    if end > len(data):
+        return None
+    anchors = []
+    for i in range(n):
+        a = off + TRUST_HEAD_LEN + ANCHOR_LEN * i
+        scope, pub = data[a], bytes(data[a + 1:a + ANCHOR_LEN])
+        if scope not in SCOPES.values():
+            return None
+        try:
+            pub_from_bytes(pub)
+        except ValueError:
+            return None
+        anchors.append((pub, scope))
+    return dict(anchors=anchors, min_security=secver, length=end - off,
+                min_serial={SCOPES["release"]: rel, SCOPES["bench"]: bench})
+
+
+def image_trust(image):
+    """The one trust block compiled into an image. The magic alone can appear by accident
+    (the device keeps a copy to check its own block against), so only hits that parse
+    count."""
+    found, at = [], image.find(TRUST_MAGIC)
+    while at >= 0:
+        t = parse_trust(image, at)
+        if t:
+            found.append(t)
+        at = image.find(TRUST_MAGIC, at + 1)
+    if not found:
+        raise SignRefused("the image has no trust block: installed, it would refuse every update "
+                          "(a build from before signed OTA?)")
+    if len(found) > 1:
+        raise SignRefused(f"the image has {len(found)} trust blocks; which one the device uses "
+                          "is not something to guess")
+    return found[0]
+
+
+def env_tag(image):
+    """The env of the image's SIMUT-ENV tag, read the way the device reads it."""
+    envs = {m.group(1).decode() for m in ENV_TAG.finditer(image)}
+    if not envs:
+        raise SignRefused("the image has no SIMUT-ENV tag: nothing says which variant it is for")
+    if len(envs) > 1:
+        raise SignRefused(f"the image has tags for {sorted(envs)}")
+    return envs.pop()
+
+
+def known_roots(keys_dir=KEYS_DIR):
+    """{(root_pub_raw, scope)} that keys/ names: the only roots an image may trust."""
+    return {(read_pub(os.path.join(keys_dir, "ota_root_release.pub")), SCOPES["release"]),
+            (read_pub(os.path.join(keys_dir, "ota_root_bench.pub")), SCOPES["bench"])}
+
+
+# What the self-check of `sign` means when it fails: the image, once installed, would refuse
+# the next image from this same signer. An update that ends the updates.
+SELF_CHECK_WHY = {
+    V_SCOPE: "the image trusts no root for this signer's scope",
+    V_INVALID: "the image does not trust the root that certified this signer",
+    V_REVOKED: "the image's lowest accepted serial is above this signer's",
+    V_ROLLBACK: "the image's lowest accepted security_version is above the one signed",
+}
+
+
+def sign_image(image, signer_key, cert, roots, env=None, security_version=None):
+    """The signed image, after the checks that keep a signature off an image that must not
+    carry it. roots: known_roots( ). security_version: None takes the image's own floor, so
+    an image never refuses itself; a lower one is for the rig's rollback case only."""
+    if len(cert) != CERT_LEN:
+        raise SignRefused("a certificate is 137 bytes")
+    if image[-len(MAGIC):] == MAGIC:
+        raise SignRefused("the image is already signed")
+    tag = env_tag(image)
+    if env is not None and env != tag:
+        raise SignRefused(f"--env {env}, but the image's tag says {tag}")
+    trust = image_trust(image)
+    stranger = [pub.hex()[:16] for pub, sc in trust["anchors"] if (pub, sc) not in roots]
+    if stranger:
+        raise SignRefused("the image trusts a root keys/ does not name: " + ", ".join(stranger))
+    scope = cert[4]
+    if scope == SCOPES["release"] and any(sc == SCOPES["bench"] for _, sc in trust["anchors"]):
+        raise SignRefused("a release signature on an image that trusts the bench root would make "
+                          "the bench key a way into any device that installs it; sign a "
+                          "published profile, or use the bench signer")
+    secver = trust["min_security"] if security_version is None else security_version
+    blob = image + build_trailer(image, signer_key, cert, secver, tag)
+    floor = trust["min_security"] if security_version is None else 0
+    v, info = check(blob, trust["anchors"], trust["min_serial"], floor, tag)
+    if v != V_OK:
+        raise SignRefused(SELF_CHECK_WHY.get(v, f"v={v}") + ": installed, it would refuse the "
+                          "next image from this signer")
+    return blob, info
+
+
 # ── key files ───────────────────────────────────────────────────────────────
 
 def read_passphrase(prompt, confirm=False):
@@ -226,9 +375,11 @@ def read_pub(path):
 
 def cmd_root_new(a):
     key = ec.generate_private_key(ec.SECP256R1())
-    write_private(a.out, key, read_passphrase("Passphrase for the new root: ", confirm=True))
+    passphrase = None if a.no_encrypt else read_passphrase("Passphrase for the new root: ", confirm=True)
+    write_private(a.out, key, passphrase)
     write_pub(a.pub_out, pub_bytes(key))
-    print(f"root written to {a.out} (encrypted); public key {a.pub_out}: {pub_bytes(key).hex()}")
+    how = "NOT encrypted" if a.no_encrypt else "encrypted"
+    print(f"root written to {a.out} ({how}); public key {a.pub_out}: {pub_bytes(key).hex()}")
 
 
 def cmd_signer_new(a):
@@ -244,30 +395,94 @@ def cmd_signer_new(a):
 
 def cmd_sign(a):
     image = open(a.input, "rb").read()
-    if image[-8:] == MAGIC:
-        sys.exit(f"{a.input} is already signed")
-    key = load_key(a.key)
     cert = open(a.cert, "rb").read()
-    trailer = build_trailer(image, key, cert, a.security_version, a.env)
-    blob = image + trailer
-    if a.root_pub:
-        anchors = [(read_pub(p), cert[4]) for p in a.root_pub]
-        v, _ = check(blob, anchors, {}, 0, a.env)
-        if v != V_OK:
-            sys.exit(f"the signed image does not verify (v={v}); nothing written")
+    try:
+        roots = known_roots(a.keys)
+        blob, info = sign_image(image, load_key(a.key), cert, roots, a.env, a.security_version)
+    except SignRefused as e:
+        sys.exit(f"{a.input}: not signed: {e}")
+    if os.path.exists(a.output):
+        sys.exit(f"{a.output} exists; nothing written")
     with open(a.output, "wb") as f:
         f.write(blob)
-    print(f"{a.output}: {len(image)} + {TRAILER_LEN} B, security_version {a.security_version}, env {a.env}")
+    scope = {v: k for k, v in SCOPES.items()}[info["scope"]]
+    print(f"{a.output}: {len(image)} + {TRAILER_LEN} B, env {info['env']}, security_version "
+          f"{info['security_version']}, {scope} signer serial {info['serial']}")
+
+
+def cmd_gen_trust(a):
+    text = trust_header(a.keys)
+    if a.check:
+        have = open(a.out, encoding="utf-8").read() if os.path.exists(a.out) else None
+        if have != text:
+            print(f"{os.path.relpath(a.out, ROOT)} is stale against keys/: run tools/ota_sign.py gen-trust")
+            return 1
+        print(f"{os.path.relpath(a.out, ROOT)} matches keys/")
+        return 0
+    with open(a.out, "w", encoding="utf-8") as f:
+        f.write(text)
+    print(f"{os.path.relpath(a.out, ROOT)} written from keys/")
+    return 0
 
 
 def cmd_verify(a):
     blob = open(a.input, "rb").read()
-    anchors = [(read_pub(p), SCOPES["release"]) for p in (a.root_pub or [])]
-    anchors += [(read_pub(p), SCOPES["bench"]) for p in (a.bench_root_pub or [])]
-    min_serial = {SCOPES["release"]: a.min_serial, SCOPES["bench"]: a.min_bench_serial}
-    v, info = check(blob, anchors, min_serial, a.min_security, a.env)
+    if a.running:
+        # The verdict the device running that image would give: its trust block, its tag.
+        running = open(a.running, "rb").read()
+        if running[-len(MAGIC):] == MAGIC:
+            running = running[:-TRAILER_LEN]
+        try:
+            trust, env = image_trust(running), env_tag(running)
+        except SignRefused as e:
+            sys.exit(f"{a.running}: {e}")
+        v, info = check(blob, trust["anchors"], trust["min_serial"], trust["min_security"], env)
+    else:
+        if not a.env:
+            sys.exit("verify needs --env, or --running to take it from an image")
+        anchors = [(read_pub(p), SCOPES["release"]) for p in (a.root_pub or [])]
+        anchors += [(read_pub(p), SCOPES["bench"]) for p in (a.bench_root_pub or [])]
+        min_serial = {SCOPES["release"]: a.min_serial, SCOPES["bench"]: a.min_bench_serial}
+        v, info = check(blob, anchors, min_serial, a.min_security, a.env)
     print(f"v={v} {info}")
     return 0 if v == V_OK else 1
+
+
+def cmd_inspect(a):
+    image = open(a.input, "rb").read()
+    signed = len(image) > TRAILER_LEN and image[-len(MAGIC):] == MAGIC
+    body = image[:-TRAILER_LEN] if signed else image
+    names = {}
+    try:
+        for pub, sc in known_roots(a.keys):
+            names[pub] = "keys/ota_root_release.pub" if sc == SCOPES["release"] else "keys/ota_root_bench.pub"
+    except OSError:
+        pass   # inspect still works outside the repository; it just cannot name the roots
+    scope_name = {v: k for k, v in SCOPES.items()}
+    for what, fn in (("env", env_tag), ("trust", image_trust)):
+        try:
+            got = fn(body)
+        except SignRefused as e:
+            print(f"{what}: {e}")
+            continue
+        if what == "env":
+            print(f"env: {got}")
+        else:
+            print(f"trust: lowest security_version {got['min_security']}, lowest serial release "
+                  f"{got['min_serial'][1]}, bench {got['min_serial'][2]}")
+            for pub, sc in got["anchors"]:
+                print(f"  {scope_name.get(sc, sc)} root {pub.hex()[:16]}... "
+                      f"{names.get(pub, '(not in keys/)')}")
+    if not signed:
+        print("signature: none")
+        return 0
+    t = image[-TRAILER_LEN:]
+    secver, = struct.unpack("<I", t[0:4])
+    serial, sc = struct.unpack("<IB", t[24:29])
+    env = t[4:20].split(b"\0", 1)[0].decode("ascii", "replace")
+    print(f"signature: {len(body)} B signed for env {env}, security_version {secver}, "
+          f"{scope_name.get(sc, sc)} signer serial {serial} ({t[32:40].hex()}...)")
+    return 0
 
 
 # ── test vectors ────────────────────────────────────────────────────────────
@@ -332,6 +547,46 @@ def c_array(name, data):
         lines.append("    " + ", ".join(f"0x{b:02x}" for b in data[i:i + 16]) + ",")
     lines.append("};")
     return "\n".join(lines)
+
+
+def trust_header(keys_dir):
+    """src/ota/ota_trust.h: the two trust blocks an image can carry, from keys/."""
+    release = read_pub(os.path.join(keys_dir, "ota_root_release.pub"))
+    bench = read_pub(os.path.join(keys_dir, "ota_root_bench.pub"))
+    with open(os.path.join(keys_dir, "ota_policy.json"), encoding="utf-8") as f:
+        policy = json.load(f)
+    secver = int(policy["security_version"])
+    lowest = {SCOPES[k]: int(v) for k, v in policy["lowest_serial"].items()}
+    rel = trust_block([(release, SCOPES["release"])], secver, lowest)
+    both = trust_block([(release, SCOPES["release"]), (bench, SCOPES["bench"])], secver, lowest)
+    return "\n".join([
+        "/* GENERATED by tools/ota_sign.py gen-trust from keys/ - do not edit: change keys/ and",
+        " * run it again. CI runs `gen-trust --check`.",
+        " *",
+        " * The trust block an image carries: the roots it accepts the next image from and the",
+        " * floors it holds that image to (format in tools/ota_sign.py). validation.cpp takes",
+        " * its policy from these bytes, and `ota_sign.py sign` reads the same bytes out of a",
+        " * .bin before it signs, so what the tool checks is what the device enforces.",
+        " *",
+        f" * keys/ota_policy.json: security_version {secver}; lowest serial release "
+        f"{lowest.get(SCOPES['release'], 0)}, bench {lowest.get(SCOPES['bench'], 0)}.",
+        f" * release root {release.hex()[:16]}..., bench root {bench.hex()[:16]}...",
+        " */",
+        "#pragma once",
+        "#include <stdint.h>",
+        "",
+        "namespace ota {",
+        "",
+        "/* A published image trusts the release root only. */",
+        c_array("kTrustRelease", rel),
+        "",
+        "/* A bench image (SIMUT_OTA_TRUST_BENCH, which only an unpublished profile in",
+        " * tools/features.toml may set) trusts the bench root as well. */",
+        c_array("kTrustBench", both),
+        "",
+        "}  // namespace ota",
+        "",
+    ])
 
 
 def cmd_vectors(a):
@@ -408,7 +663,10 @@ def cmd_selftest(a):
 
     def case(name, blob, anchors, want, min_serial=None, min_sec=0, env="pico_w_test"):
         got, _ = check(blob, anchors, min_serial or {}, min_sec, env)
-        cases.append((name, got == want, got, want))
+        cases.append((name, got == want, f"v={got}", f"v={want}"))
+
+    def expect(name, ok, got="", want=""):
+        cases.append((name, bool(ok), got or ("ok" if ok else "no"), want))
 
     good = v["good"]
     n = len(good) - TRAILER_LEN
@@ -444,9 +702,93 @@ def cmd_selftest(a):
     case("env mismatch", good, prod, V_ENV, env="pico_w_release")
     case("extra byte after", good + b"\0", prod, V_MISSING)
     case("truncated", good[-100:], prod, V_MISSING)
+
+    # The trust block: the format both sides read.
+    low = {1: 2, 2: 7}
+    blk = trust_block([(root_pub, 1), (bench_pub, 2)], 4, low)
+    t = parse_trust(blk)
+    expect("trust block round trip", t == dict(anchors=[(root_pub, 1), (bench_pub, 2)], min_security=4,
+                                               min_serial=low, length=TRUST_HEAD_LEN + 2 * ANCHOR_LEN))
+
+    def mangled(off, value):
+        b = bytearray(blk)
+        b[off] = value
+        return bytes(b)
+
+    expect("trust: magic", parse_trust(mangled(0, ord("X"))) is None)
+    expect("trust: format", parse_trust(mangled(8, 2)) is None)
+    expect("trust: no roots", parse_trust(mangled(9, 0)) is None)
+    expect("trust: more roots than bytes", parse_trust(mangled(9, 3)) is None)
+    expect("trust: reserved", parse_trust(mangled(10, 1)) is None)
+    expect("trust: scope 3", parse_trust(mangled(TRUST_HEAD_LEN, 3)) is None)
+    expect("trust: a point off the curve", parse_trust(mangled(TRUST_HEAD_LEN + 40, blk[TRUST_HEAD_LEN + 40] ^ 1)) is None)
+
+    # `sign`: what may carry which signature. A synthetic image carries what a real one
+    # does: one env tag and one trust block.
+    root, bench_root, rogue = test_key(TEST_ROOT), test_key(TEST_BENCH_ROOT), test_key(TEST_ROGUE_ROOT)
+    signer, bench_signer = test_key(TEST_SIGNER), test_key(TEST_BENCH_SIGNER)
+    roots = {(root_pub, 1), (bench_pub, 2)}
+    floors = {1: 5, 2: 2}
+    rel_trust = trust_block([(root_pub, 1)], 3, floors)
+    bench_trust = trust_block([(root_pub, 1), (bench_pub, 2)], 3, floors)
+
+    def image(trust=rel_trust, tag=b"SIMUT-ENV:release;v=0.0.0;"):
+        return test_image() + tag + trust + test_image(64)
+
+    rel_cert = make_cert(root, pub_bytes(signer), 5, 1)
+    bench_cert = make_cert(bench_root, pub_bytes(bench_signer), 2, 2)
+
+    def signs(name, img, key, cert, want_ok, **kw):
+        try:
+            blob, _ = sign_image(img, key, cert, roots, **kw)
+        except SignRefused as e:
+            expect(name, not want_ok, f"refused: {e}")
+            return None
+        expect(name, want_ok, "signed")
+        return blob
+
+    blob = signs("sign: release key, release image", image(), signer, rel_cert, True)
+    if blob:
+        expect("sign: it verifies as the device running it would",
+               check(blob, [(root_pub, 1)], floors, 3, "release")[0] == V_OK)
+        expect("sign: security_version is the image's own floor", blob[-TRAILER_LEN:][0:4] == struct.pack("<I", 3))
+        expect("sign: env from the tag", blob[-TRAILER_LEN:][4:20].rstrip(b"\0") == b"release")
+    signs("sign: bench key, bench image", image(bench_trust), bench_signer, bench_cert, True)
+    signs("sign: release key on a bench-trusting image", image(bench_trust), signer, rel_cert, False)
+    signs("sign: bench key on a release image", image(), bench_signer, bench_cert, False)
+    signs("sign: a signer from a root the image does not trust", image(), signer,
+          make_cert(rogue, pub_bytes(signer), 5, 1), False)
+    signs("sign: a signer below the image's own lowest serial", image(), signer,
+          make_cert(root, pub_bytes(signer), 4, 1), False)
+    signs("sign: an image trusting a root keys/ does not name", image(trust_block([(pub_bytes(rogue), 1)], 3, floors)),
+          signer, make_cert(rogue, pub_bytes(signer), 5, 1), False)
+    signs("sign: no env tag", image(tag=b""), signer, rel_cert, False)
+    signs("sign: two env tags", image(tag=b"SIMUT-ENV:release;v=1;SIMUT-ENV:air;v=1;"), signer, rel_cert, False)
+    signs("sign: --env that is not the tag", image(), signer, rel_cert, False, env="air")
+    signs("sign: no trust block", image(trust=b""), signer, rel_cert, False)
+    signs("sign: two trust blocks", image(trust=rel_trust + rel_trust), signer, rel_cert, False)
+    signs("sign: already signed", blob or b"", signer, rel_cert, False)
+    low_blob = signs("sign: a lower security_version, asked for", image(), signer, rel_cert, True, security_version=2)
+    if low_blob:
+        expect("sign: which the image it came from refuses as a rollback",
+               check(low_blob, [(root_pub, 1)], floors, 3, "release")[0] == V_ROLLBACK)
+
+    # gen-trust: the header's arrays are the blocks, and the C++ side parses the same bytes
+    # (test/test_ota_sig). Written from a scratch keys/ with the TEST roots.
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        write_pub(os.path.join(d, "ota_root_release.pub"), root_pub)
+        write_pub(os.path.join(d, "ota_root_bench.pub"), bench_pub)
+        with open(os.path.join(d, "ota_policy.json"), "w") as f:
+            json.dump({"security_version": 3, "lowest_serial": {"release": 5, "bench": 2}}, f)
+        text = trust_header(d)
+    arrays = {m.group(1): bytes(int(x, 16) for x in re.findall(r"0x([0-9a-f]{2})", m.group(2)))
+              for m in re.finditer(r"static const uint8_t (\w+)\[\d+\] = \{(.*?)\};", text, re.S)}
+    expect("gen-trust: the release block", arrays.get("kTrustRelease") == rel_trust)
+    expect("gen-trust: the bench block", arrays.get("kTrustBench") == bench_trust)
     bad = [c for c in cases if not c[1]]
     for name, ok, got, want in cases:
-        print(f"[{'ok' if ok else 'FAIL'}] {name}: v={got}" + ("" if ok else f" (wanted {want})"))
+        print(f"[{'ok' if ok else 'FAIL'}] {name}: {got}" + ("" if ok or not want else f" (wanted {want})"))
     print(f"{len(cases) - len(bad)}/{len(cases)} cases")
     return 1 if bad else 0
 
@@ -455,26 +797,37 @@ def main():
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = p.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("root-new"); s.add_argument("--out", required=True); s.add_argument("--pub-out", required=True)
+    s.add_argument("--no-encrypt", action="store_true",
+                   help="the bench root only, which signs nothing a field device accepts")
     s = sub.add_parser("signer-new")
     s.add_argument("--root", required=True); s.add_argument("--scope", choices=SCOPES, required=True)
     s.add_argument("--serial", type=int, required=True)
     s.add_argument("--key-out", required=True); s.add_argument("--cert-out", required=True)
     s.add_argument("--no-encrypt", action="store_true", help="for a key that goes straight into a CI secret")
+    s = sub.add_parser("gen-trust"); s.add_argument("--keys", default=KEYS_DIR)
+    s.add_argument("--out", default=TRUST_HEADER); s.add_argument("--check", action="store_true")
     s = sub.add_parser("sign")
     s.add_argument("--key", required=True); s.add_argument("--cert", required=True)
-    s.add_argument("--security-version", type=int, required=True); s.add_argument("--env", required=True)
     s.add_argument("--in", dest="input", required=True); s.add_argument("--out", dest="output", required=True)
-    s.add_argument("--root-pub", action="append", help="check the result against this root before writing it")
+    s.add_argument("--env", help="refuse unless the image's SIMUT-ENV tag says this")
+    s.add_argument("--security-version", type=int,
+                   help="default: the image's own floor. Lower only to stage a rollback on the rig")
+    s.add_argument("--keys", default=KEYS_DIR, help="the roots an image may trust")
     s = sub.add_parser("verify")
-    s.add_argument("--in", dest="input", required=True); s.add_argument("--env", required=True)
+    s.add_argument("--in", dest="input", required=True)
+    s.add_argument("--running", help="the image the device runs: its trust block and its tag decide")
+    s.add_argument("--env")
     s.add_argument("--root-pub", action="append"); s.add_argument("--bench-root-pub", action="append")
     s.add_argument("--min-serial", type=int, default=0); s.add_argument("--min-bench-serial", type=int, default=0)
     s.add_argument("--min-security", type=int, default=0)
+    s = sub.add_parser("inspect"); s.add_argument("--in", dest="input", required=True)
+    s.add_argument("--keys", default=KEYS_DIR)
     s = sub.add_parser("vectors"); s.add_argument("--out", default="test/test_ota_sig/vectors.h")
     s.add_argument("--check", action="store_true")
     sub.add_parser("selftest")
     a = p.parse_args()
-    fn = {"root-new": cmd_root_new, "signer-new": cmd_signer_new, "sign": cmd_sign, "verify": cmd_verify,
+    fn = {"root-new": cmd_root_new, "signer-new": cmd_signer_new, "gen-trust": cmd_gen_trust,
+          "sign": cmd_sign, "verify": cmd_verify, "inspect": cmd_inspect,
           "vectors": cmd_vectors, "selftest": cmd_selftest}[a.cmd]
     sys.exit(fn(a) or 0)
 

@@ -308,20 +308,39 @@ Os tempos dependem do tamanho da imagem e da rede. Para confirmar uma atualizaç
 | Quando | O que é conferido | Se falhar |
 |---|---|---|
 | Antes de tudo | A conta é o administrador completo | O aparelho recusa com HTTP 403. A página só mostra o botão **Firmware** ao administrador completo |
+| Antes da etapa 1 | O arquivo termina com a assinatura | **Este .bin não é assinado, e o aparelho só instala imagem assinada.** A página não envia o arquivo, e nada muda no aparelho |
 | Etapa 1 | O cabeçalho do backup confere com o que o aparelho anunciou | **Backup corrompido (CRC). Abortado.** Nada muda no aparelho |
-| Durante o envio | A imagem não passa de 1016 KiB (1.040.384 bytes) | O envio para no ponto em que passa, e a recusa aparece sem número, como `v=undefined`. Até a v2.7.4, uma imagem de até 1 MiB só era recusada no fim, como `v=5` |
+| Durante o envio | A imagem, com a assinatura, não passa de 1016 KiB (1.040.384 bytes) | O envio para no ponto em que passa, e a recusa aparece sem número, como `v=undefined`. Até a v2.7.4, uma imagem de até 1 MiB só era recusada no fim, como `v=5` |
 | Fim do envio | O tamanho é de pelo menos 100 KiB | Recusa, `v=4` |
 | Fim do envio | Os primeiros 256 bytes formam um início de imagem válido para o RP2040, com o CRC que a ROM do chip confere | Recusa, `v=6` |
 | Fim do envio | A imagem traz a etiqueta da variante (`SIMUT-ENV`) igual à do aparelho | Recusa, `v=7` |
+| Fim do envio | A assinatura ([A assinatura](#cap-17-ota-assinatura)) | Recusa, `v=8` a `v=12` |
+| Aplicação | A assinatura de novo, sobre a imagem gravada naquele momento | HTTP 409, e a imagem é descartada |
 | Primeiro boot | O CRC da imagem gravada confere com o da imagem recebida | O log registra o erro ([Conferir a versão](#cap-17-ota-conferir)) |
 
-Uma imagem sem etiqueta de variante, de uma versão anterior à etiqueta, é aceita.
+Até a v2.8.x, o aparelho aceitava uma imagem sem assinatura e uma sem etiqueta de variante, anterior à etiqueta. Hoje as duas são recusadas com `v=8`.
 
-Uma recusa aparece como **Falha no envio (validação v=N). Cancelled.**. Um arquivo maior que 1016 KiB não chega a ser conferido e aparece como `v=undefined`.
+Uma recusa aparece como **Falha no envio (validação v=N). Cancelled.**, seguida do motivo de `v=7` a `v=12`. Um arquivo maior que 1016 KiB não chega a ser conferido e aparece como `v=undefined`.
 
 ::: perigo
 **Uma recusa no envio também apaga o sistema de arquivos.** A imagem é gravada sobre o sistema de arquivos enquanto chega, e a conferência só acontece no fim. Quando o aparelho recusa a imagem, ele reformata o sistema de arquivos e continua funcionando com a configuração que está na RAM; desde a v2.8.0 ele grava a configuração de volta logo em seguida, e até a v2.7.4 o arquivo dela simplesmente deixava de existir. **Restaure o backup do passo 4**: ele devolve o histórico, os pacotes de idioma e os demais arquivos. Até a v2.7.4, um reinício antes disso voltava com a configuração de fábrica ([capítulo 18](#cap-18-fabrica)).
 :::
+
+### A assinatura {#cap-17-ota-assinatura}
+
+Pelo ar, o aparelho só instala imagem assinada pelo projeto: os `.bin` das releases no GitHub e as builds do configurador. A assinatura são 241 bytes no fim do arquivo. Ela prova quem gerou a imagem e que nenhum byte mudou depois.
+
+| `v` | Motivo | O que fazer |
+|---|---|---|
+| 8 | A imagem não é assinada | Use um `.bin` de release do GitHub ou uma build do configurador. Um build local só entra pelo USB ([capítulo 18](#cap-18-bootsel)) |
+| 9 | A assinatura não confere: o arquivo mudou depois de assinado, ou foi assinado por uma chave em que o aparelho não confia | Baixe o `.bin` de novo, da página da release |
+| 10 | A chave que assinou foi aposentada | Use uma release mais nova |
+| 11 | A imagem está abaixo do nível de segurança instalado | Use a versão instalada ou uma mais nova. Voltar para antes de uma correção de segurança só pelo USB |
+| 12 | A imagem foi assinada com a chave de bancada, que só as imagens de teste aceitam | Use um `.bin` de release do GitHub |
+
+A página confere o fim do arquivo antes do backup: um arquivo sem assinatura é recusado ali, e nada muda no aparelho. As recusas de `v=8` a `v=12` vêm no fim do envio, quando o sistema de arquivos já foi sobrescrito: restaure o backup.
+
+A primeira versão assinada se instala pelo ar num aparelho na v2.8.x como qualquer outra, porque a v2.8.x não confere assinatura. Dali em diante, o aparelho só aceita imagem assinada. O USB não confere assinatura: o BOOTSEL grava qualquer `.uf2`.
 
 ### Conferir a versão {#cap-17-ota-conferir}
 
@@ -360,6 +379,7 @@ Depois de um envio aceito, a página pede a aplicação. Se o aparelho recusar, 
 |---|---|---|
 | 403 | A conta não é o administrador completo | Entre com o administrador completo e recomece |
 | 409 | Não há imagem aceita esperando | Recomece a atualização |
+| 409, com `v` no motivo | A imagem gravada não confere mais com a assinatura: outro envio começou depois dela. O aparelho a descarta | Recomece a atualização |
 | 503 | O painel estava em uso naquele instante | Não reinicie o aparelho: a imagem gravada está esperando. Repita a aplicação pela API, com `POST /api/ota/apply` e a sessão do administrador ([capítulo 26](#cap-26-ota)) |
 
 Enquanto a imagem espera a aplicação, o sistema de arquivos está fora de uso. Um reinício nesse estado descarta a imagem e o sistema de arquivos. Desde a v2.8.0, o aparelho volta com a configuração guardada no início do envio; até a v2.7.4, voltava com a configuração de fábrica. Nos dois casos, os demais arquivos só voltam pelo backup. O log registra **Config alterada** (303), módulo `OTA`, nível `WRN`; no console, a linha traz o texto `Staged update discarded: device rebooted before apply`.

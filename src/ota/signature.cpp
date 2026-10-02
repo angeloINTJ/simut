@@ -20,6 +20,8 @@ namespace {
 constexpr char CERT_DOMAIN[]  = "SIMUT-OTA-CERT-v1";
 constexpr char IMAGE_DOMAIN[] = "SIMUT-OTA-IMG-v1";
 constexpr char MAGIC[8]       = { 'S', 'I', 'M', 'U', 'T', 'S', 'I', 'G' };
+constexpr char TRUST_MAGIC[8] = { 'S', 'I', 'M', 'U', 'T', 'K', 'E', 'Y' };
+constexpr uint8_t TRUST_FORMAT_V1 = 1;
 
 /* Trailer offsets (tools/ota_sign.py has the table). */
 constexpr uint32_t T_SECVER  = 0;
@@ -34,9 +36,6 @@ constexpr uint32_t C_PUB     = 8;
 constexpr uint32_t C_ROOTSIG = 73;
 constexpr uint32_t ENV_LEN   = 16;
 
-/* The image is hashed in pieces of this size, read straight from staging. */
-constexpr uint32_t CHUNK = 512;
-
 uint32_t le32(const uint8_t* p) {
 	return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
 }
@@ -48,10 +47,15 @@ uint16_t le16(const uint8_t* p) {
 }  // namespace
 
 SigReport sigCheck(uint32_t stagedLen, SigRead read, void* src,
-                   const SigPolicy& pol, const SigCrypto& crypto) {
+                   const SigPolicy& pol, const SigCrypto& crypto,
+                   uint8_t* chunk, uint32_t chunkLen) {
 	SigReport r;
 	memset(&r, 0, sizeof(r));
 	r.verdict = SigVerdict::MISSING;
+	if (chunk == nullptr || chunkLen == 0) {
+		r.verdict = SigVerdict::INVALID;   /* nothing to read the image through: no verdict to give */
+		return r;
+	}
 
 	/* 1. The footer, or an unsigned image. One byte of image at least. */
 	if (stagedLen < SIG_TRAILER_LEN + 1) return r;
@@ -108,9 +112,8 @@ SigReport sigCheck(uint32_t stagedLen, SigRead read, void* src,
 	/* 6. The signer's signature over the image and every trailer byte before it. */
 	crypto.hashInit(crypto.hashCtx);
 	crypto.hashUpdate(crypto.hashCtx, IMAGE_DOMAIN, sizeof(IMAGE_DOMAIN) - 1);
-	uint8_t chunk[CHUNK];
-	for (uint32_t off = 0; off < r.imageLen; off += CHUNK) {
-		const uint32_t n = (r.imageLen - off) < CHUNK ? (r.imageLen - off) : CHUNK;
+	for (uint32_t off = 0; off < r.imageLen; off += chunkLen) {
+		const uint32_t n = (r.imageLen - off) < chunkLen ? (r.imageLen - off) : chunkLen;
 		if (!read(src, off, chunk, n)) return r;
 		crypto.hashUpdate(crypto.hashCtx, chunk, n);
 	}
@@ -132,6 +135,29 @@ SigReport sigCheck(uint32_t stagedLen, SigRead read, void* src,
 
 	r.verdict = SigVerdict::OK;
 	return r;
+}
+
+bool sigTrustParse(const uint8_t* blk, uint32_t len, SigAnchor* anchors, uint8_t maxAnchors,
+                   SigPolicy& pol) {
+	if (blk == nullptr || anchors == nullptr || len < SIG_TRUST_HEAD_LEN) return false;
+	if (memcmp(blk, TRUST_MAGIC, sizeof(TRUST_MAGIC)) != 0 || blk[8] != TRUST_FORMAT_V1) return false;
+	const uint8_t n = blk[9];
+	if (n == 0 || n > SIG_TRUST_MAX_ANCHORS || n > maxAnchors) return false;
+	if (blk[10] != 0 || blk[11] != 0) return false;
+	if (len != SIG_TRUST_HEAD_LEN + SIG_TRUST_ANCHOR_LEN * n) return false;
+	for (uint8_t i = 0; i < n; i++) {
+		const uint8_t* a = blk + SIG_TRUST_HEAD_LEN + SIG_TRUST_ANCHOR_LEN * i;
+		if ((a[0] != SIG_SCOPE_RELEASE && a[0] != SIG_SCOPE_BENCH) || a[1] != 0x04) return false;
+		anchors[i].scope = a[0];
+		anchors[i].pub = a + 1;
+	}
+	pol.anchors = anchors;
+	pol.anchorCount = n;
+	pol.minSecurityVersion = le32(blk + 12);
+	pol.minSerial[0] = 0;
+	pol.minSerial[SIG_SCOPE_RELEASE] = le32(blk + 16);
+	pol.minSerial[SIG_SCOPE_BENCH] = le32(blk + 20);
+	return true;
 }
 
 }  // namespace ota

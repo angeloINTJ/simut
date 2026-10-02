@@ -1,0 +1,7 @@
+{
+  "security_version": 1,
+  "lowest_serial": {
+    "release": 1,
+    "bench": 1
+  }
+}

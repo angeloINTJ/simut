@@ -380,9 +380,12 @@ void WebManager::handleApiRestoreFinish( ) {
  (unsigned long)_stageSession.crc32_running);
  }
  bool overall_ok = ok_staged && valid;
+ /* v= in the line: since signed OTA, "stage_v_fail" alone no longer says
+  * whether the file was the wrong variant or an unsigned image. */
  LOG_CODE(overall_ok ? LOG_INFO : LOG_WARN, "OTA", WEB_UPLOAD,
  (int)_stageSession.status,
- ok_staged ? (valid ? "stage+v_ok" : "stage_v_fail") : "stage_fail");
+ ok_staged ? (valid ? String("stage+v_ok") : String("stage_v_fail v=") + (int)vr.status)
+           : String("stage_fail"));
  _server->send(overall_ok ? 200 : 422, "application/json", buf);
  return;
  }
@@ -506,6 +509,33 @@ void WebManager::handleApiOtaApply( ) {
  if (!ota::ota_metadata_read(m) || m.state != ota::STATE_COMMITTED) {
  _server->send(409, "application/json",
  "{\"error\":\"no committed update pending\"}");
+ return;
+ }
+ /* The signature again, on the bytes the applier is about to copy.
+  * COMMITTED says a stage passed validation; nothing ties it to those
+  * bytes since. A new stage does not clear it, a stage that fails or is
+  * cut remounts the file system over the staging area, and the applier
+  * copies whatever is there (its CRC has nowhere to go). Without this, an
+  * unsigned image staged and cut after a signed one was COMMITTED would be
+  * flashed under the signed one's metadata — on the rig (2026-10-01), a
+  * stage cut after a COMMITTED one left the COMMITTED in place. The check
+  * costs 1.94 s before the 202. uncompressed_size is the received length
+  * the stage check ran over (handleApiRestoreFinish). */
+ ota::SigReport sr;
+ if (!ota::ota_check_staged_signature(m.uncompressed_size, sr)) {
+ {
+ RenderGuard rg(_displayRef);
+ _storageRef->enterFlashSafeMode( );
+ ota::ota_metadata_clear( );
+ _storageRef->exitFlashSafeMode( );
+ }
+ LOG_CODE(LOG_WARN, "OTA", SEC_CONFIG_CHANGED, _currentUserId,
+          String("apply refused: staged image no longer verifies, v=") + (int)sr.verdict);
+ char buf[96];
+ snprintf(buf, sizeof(buf),
+          "{\"error\":\"staged image no longer verifies; stage it again\",\"v\":%u}",
+          (unsigned)sr.verdict);
+ _server->send(409, "application/json", buf);
  return;
  }
  }

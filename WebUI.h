@@ -6264,6 +6264,15 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             let f = document.getElementById('fwFile').files[0];
             document.getElementById('fwFile').value = '';
             if (!f || !/\.bin$/i.test(f.name)) { showToast(window.t('fil_fw_need_bin','Please select a .bin firmware file'),'err'); return; }
+            /* The device installs only signed images (docs/analysis/OTA_ASSINADA.md)
+               and says so only after the upload, which has already reformatted the
+               file system by then. The signature trailer ends in SIMUTSIG: an
+               unsigned file is turned away here, before the backup and the upload. */
+            let tail = new Uint8Array(await f.slice(-8).arrayBuffer());
+            if (String.fromCharCode.apply(null, tail) !== 'SIMUTSIG') {
+                showToast(window.t('fil_fw_unsigned','This .bin is not signed, and the device installs only signed images. Use a release .bin from GitHub or a build from the configurator.'), 'err', 12000);
+                return;
+            }
             showToast(window.t('fil_fw_bk','Step 1/4: Downloading .bkp backup...'), 'ok');
             let r, bk;
             try { r = await fetch('/api/backup'); if (!r.ok) throw 0; bk = await r.blob(); }
@@ -6284,7 +6293,15 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 let r2 = await fetch('/api/restore?op=stage&commit=1', {method:'POST', body:fd});
                 let v = await r2.json();
                 if (r2.status !== 200 || v.committed !== 1) {
-                    showToast(window.t('fil_fw_stage_fail','Upload failed (validation v=')+v.v+'). Cancelled.', 'err');
+                    let why = {
+                        7: window.t('fil_fw_v7','The image is for another model (env ') + v.env + ').',
+                        8: window.t('fil_fw_v8','The image is not signed. Use a release .bin from GitHub or a build from the configurator.'),
+                        9: window.t('fil_fw_v9','The signature does not match: the file changed after it was signed, or a key this device does not trust signed it. Download the .bin again.'),
+                        10: window.t('fil_fw_v10','It was signed with a retired key. Use a newer release.'),
+                        11: window.t('fil_fw_v11','It is below the security level installed, and going back to it over the air is blocked. Use this version or a newer one.'),
+                        12: window.t('fil_fw_v12','It was signed with the bench key, which this device does not accept. Use a release .bin from GitHub.')
+                    }[v.v];
+                    showToast(window.t('fil_fw_stage_fail','Upload failed (validation v=')+v.v+'). Cancelled.' + (why ? ' ' + why : ''), 'err', 12000);
                     return;
                 }
                 showToast(window.t('fil_fw_app','Step 3/4: Applying firmware...'), 'ok');

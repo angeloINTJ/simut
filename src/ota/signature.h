@@ -16,6 +16,12 @@
  *          The numbers are the v= of the stage reply: 7 is the refusal
  *          validation.cpp already gives a wrong variant, 8..12 are new.
  *
+ *          What the image accepts comes from its trust block, compiled in from
+ *          keys/ (src/ota/ota_trust.h): the roots by scope and the floors it
+ *          holds the next image to. sigTrustParse( ) turns those bytes into the
+ *          policy, and tools/ota_sign.py reads the same bytes out of a .bin
+ *          before it signs one.
+ *
  *          No Arduino and no BearSSL here: SHA-256 and the ECDSA P-256 check
  *          come in through SigCrypto, so test/test_ota_sig drives this exact
  *          code on the host against vectors from tools/ota_sign.py, and the
@@ -38,6 +44,9 @@ constexpr uint32_t SIG_CERT_BODY_LEN = 73;   /* serial, scope, reserved, signer 
 constexpr uint32_t SIG_SIGNED_PREFIX = 161;  /* every trailer byte before the image signature */
 constexpr uint8_t  SIG_SCOPE_RELEASE = 1;
 constexpr uint8_t  SIG_SCOPE_BENCH   = 2;
+constexpr uint32_t SIG_TRUST_HEAD_LEN    = 24;  /* magic, format, count, reserved, three floors */
+constexpr uint32_t SIG_TRUST_ANCHOR_LEN  = 66;  /* scope, uncompressed P-256 point */
+constexpr uint8_t  SIG_TRUST_MAX_ANCHORS = 4;
 
 /** The verdict, numbered as the v= of the stage reply. */
 enum class SigVerdict : uint8_t {
@@ -85,9 +94,21 @@ struct SigReport {
 	char env[17];
 };
 
-/** Decide on the `stagedLen` bytes that `read` reaches. Fields of the report
- *  are filled as far as the trailer was read. */
+/** Decide on the `stagedLen` bytes that `read` reaches. The image is read
+ *  through `chunk`, `chunkLen` bytes the caller lends: the device passes a static
+ *  buffer, so the handler's stack carries only the trailer while BearSSL's
+ *  verify takes its own share of it. Fields of the report are filled as far as
+ *  the trailer was read. */
 SigReport sigCheck(uint32_t stagedLen, SigRead read, void* src,
-                   const SigPolicy& pol, const SigCrypto& crypto);
+                   const SigPolicy& pol, const SigCrypto& crypto,
+                   uint8_t* chunk, uint32_t chunkLen);
+
+/** Read a trust block (layout in tools/ota_sign.py) into `pol`: the roots, the
+ *  lowest serial of each scope, the lowest security version. Up to `maxAnchors`
+ *  roots go into `anchors`, pointing into `blk`, which must outlive the policy.
+ *  runningEnv is the caller's. false on any malformed field: then there is no
+ *  policy, and the caller refuses every image. */
+bool sigTrustParse(const uint8_t* blk, uint32_t len, SigAnchor* anchors, uint8_t maxAnchors,
+                   SigPolicy& pol);
 
 }  // namespace ota

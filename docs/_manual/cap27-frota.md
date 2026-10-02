@@ -430,8 +430,9 @@ Para cada aparelho, o gestor confere:
 1. **A imagem certa.** Leia `sys.env` e escolha `images[env]`. Nunca escolha pela versão ou pelo nome do arquivo.
 2. **O arquivo inteiro.** Calcule o SHA-256 do `.bin` baixado e compare com `sha256`. Confira também `size`.
 3. **A etiqueta.** O `.bin` contém o texto `SIMUT-ENV:<env>;v=<versão>;`. Confira que `<env>` é o do aparelho e `<versão>` é a do manifesto.
-4. **A versão de partida.** A versão atual do aparelho precisa ser igual ou mais nova que `min_from`. Firmwares anteriores à 1.6.2 tinham um aplicador que dizia ter atualizado sem instalar nada; eles precisam de uma gravação pelo cabo uma vez.
-5. **A conta.** A atualização exige o administrador completo ([O que só o administrador completo faz](#cap-27-admin)).
+4. **A assinatura.** O `.bin` termina com os 8 bytes `SIMUTSIG`. Sem eles, o aparelho recusa a imagem com `"v":8`, depois de o envio já ter sobrescrito o sistema de arquivos.
+5. **A versão de partida.** A versão atual do aparelho precisa ser igual ou mais nova que `min_from`. Firmwares anteriores à 1.6.2 tinham um aplicador que dizia ter atualizado sem instalar nada; eles precisam de uma gravação pelo cabo uma vez.
+6. **A conta.** A atualização exige o administrador completo ([O que só o administrador completo faz](#cap-27-admin)).
 
 ```python
 import hashlib, json, re
@@ -444,6 +445,7 @@ assert len(dados) == img["size"], "tamanho diferente do manifesto"
 assert hashlib.sha256(dados).hexdigest() == img["sha256"], "SHA-256 diferente"
 m = re.search(rb"SIMUT-ENV:([a-z]+);v=([^;]+);", dados)
 assert m and m.group(1).decode() == env and m.group(2).decode() == man["version"], "etiqueta errada"
+assert dados[-8:] == b"SIMUTSIG", "imagem sem assinatura"
 ```
 
 ### A sequência em cada aparelho {#cap-27-sequencia}

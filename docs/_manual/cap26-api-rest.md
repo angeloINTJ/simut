@@ -1212,7 +1212,7 @@ A atualização pela API. O único comprovante de sucesso é a versão nova info
    curl -s -b jar -o antes.bkp "$H/api/backup"
    ```
 
-2. **Envie a imagem.** O campo do formulário leva o `.bin` da mesma imagem do aparelho (`release`, `alpha` ou `air`, o `env` do `/api/status`). `commit=1` deixa a imagem pronta para aplicar.
+2. **Envie a imagem.** O campo do formulário leva o `.bin` da mesma imagem do aparelho (`release`, `alpha` ou `air`, o `env` do `/api/status`), assinado: os das releases e os do configurador são ([capítulo 17](#cap-17-ota-assinatura)). `commit=1` deixa a imagem pronta para aplicar.
 
    ```bash
    curl -s -b jar -F file=@simut_v2.7.1_release.bin \
@@ -1231,6 +1231,11 @@ A atualização pela API. O único comprovante de sucesso é a versão nova info
    | 5 | Imagem grande demais |
    | 6 | Início da imagem inválido |
    | 7 | A imagem é de outra variante. `env` diz qual |
+   | 8 | A imagem não é assinada |
+   | 9 | A assinatura não confere, ou o trailer da assinatura está malformado |
+   | 10 | A chave que assinou foi aposentada |
+   | 11 | A imagem está abaixo do nível de segurança instalado |
+   | 12 | A imagem foi assinada com a chave de bancada |
 
    Se o envio não terminou, a resposta traz só `st`, `bytes` e `crc32`, com `st` diferente de 5: `1` falha ao começar, `2` envio incompleto, `3` imagem maior que a área de preparo, `4` falha de gravação, `6` envio abortado.
 
@@ -1246,7 +1251,7 @@ A atualização pela API. O único comprovante de sucesso é a versão nova info
    {"accepted":true,"mode":"apply"}
    ```
 
-   A resposta `202` chega antes de o aparelho desligar o Wi-Fi. Sem imagem preparada, a resposta é `409` `{"error":"no committed update pending"}`; com o painel em uso, `503`.
+   A resposta `202` chega antes de o aparelho desligar o Wi-Fi. Sem imagem preparada, a resposta é `409` `{"error":"no committed update pending"}`; com o painel em uso, `503`. Antes de aplicar, o aparelho confere a assinatura de novo, sobre a imagem gravada naquele momento: se outro envio começou depois do passo 2, a resposta é `409` com `"v"`, e a imagem é descartada.
 
 4. **Confirme.** Espere o aparelho voltar, repetindo `GET /api/login_init` a cada 3 s. Entre e leia `ver` em `GET /api/status`, ou `version` em `GET /api/perms`. Um status HTTP ou um tempo decorrido não provam nada: só a versão nova informada pelo aparelho prova a atualização. Depois, restaure o backup para recuperar o histórico e o resto ([Backup e restauração](#cap-26-backup)).
 

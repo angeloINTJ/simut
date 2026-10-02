@@ -313,7 +313,10 @@ Antes de publicar, no rig, com os números no PR:
 2. **Apply completo** pela OTA na **:8080** — a porta que o roteador não corta: a
    versão lida de volta (`GET /api/perms`) bate **e** a config confere campo a campo
    (contas logam, sensores lendo, servidor de telemetria e nome do aparelho
-   intactos). Receita em [docs/OTA_USAGE.md](docs/OTA_USAGE.md).
+   intactos). Receita em [docs/OTA_USAGE.md](docs/OTA_USAGE.md). Desde a OTA
+   assinada (01/10/2026), a candidata sobe assinada: a do CI, ou um build local
+   assinado pela chave de bancada (`tools/ota_test.py` assina sozinho), e esta só
+   entra numa imagem de bancada ([docs/analysis/OTA_ASSINADA.md](docs/analysis/OTA_ASSINADA.md)).
 3. **Stage interrompido** — cortar o upload no meio e reiniciar: o boot **não pode**
    cair em fábrica. Numa imagem sem a correção isto vira fábrica, e é esse o controle
    negativo que prova que o teste morde. Repita **enchendo o sistema de arquivos**

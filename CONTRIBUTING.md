@@ -113,7 +113,7 @@ Adding a new sensor driver? Follow the step-by-step guide in [docs/adding-a-new-
 
 ## Flash Budget
 
-Flash is critically tight. The release image uses 97.2 % of the 1,044,480 B program slot, and every image's `.bin` has to stay under the 1,040,384 B over-the-air ceiling — `pico_w_air` has 5,076 B left there, and the bench image `pico_w_test_https` 668 (2026-09-23, `tools/flash_budget.json`). Before adding features, consider:
+Flash is critically tight. The release image uses 97.2 % of the 1,044,480 B program slot, and every image's `.bin`, with its 241 B signature, has to stay under the 1,040,384 B over-the-air ceiling — `pico_w_air` has 5,076 B left there, and the bench image `pico_w_test_https` 668 (2026-09-23, `tools/flash_budget.json`). Before adding features, consider:
 
 1. Can it be optimized to use less space?
 2. Can it replace something of lower value?

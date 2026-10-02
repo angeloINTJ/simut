@@ -969,7 +969,9 @@ curl -b cookies.txt -X POST "http://simut.local/api/ota/apply"
 ```
 
 Staging must report `committed: 1` and `v: 0` before apply will do anything.
-`/api/ota/apply` answers **409** when no validated update is pending.
+`/api/ota/apply` answers **409** when no validated update is pending, or when
+the staged image no longer verifies. Only a signed image stages: the `.bin` of a
+release, or a configurator build.
 
 Note that `bytes` and `dsize` differ, and should: `bytes` counts the 0xFF
 padding that closes the final 256-byte page, which is what the applier copies,
@@ -981,6 +983,9 @@ while `dsize` and `dcrc` describe the bytes that actually arrived.
 |---|---|
 | Upload | Size between 100 KB and 1016 KiB (1,040,384 B). Since v2.8.0 a larger image stops the upload at the point where it crosses the ceiling |
 | Upload | CRC32/MPEG-2 over the first 252 bytes against the 4 bytes that follow — the same check the RP2040 boot ROM performs, so a file that is not a valid RP2040 image is rejected before anything is erased |
+| Upload | The `SIMUT-ENV` tag names this device's variant (`v=7`) |
+| Upload | The signature: a 241-byte trailer at the end of the `.bin`, from a key the image running trusts, over every byte, at a security level no lower than the installed one, for this variant (`v=8` to `v=12`; [docs/analysis/OTA_ASSINADA.md](analysis/OTA_ASSINADA.md)). Up to v2.8.x an unsigned image was accepted |
+| Apply | The signature again, over what the staging area holds at that moment: a stage started after the accepted one leaves its bytes there, and the applier copies whatever it finds. **409** with `v` if it no longer verifies |
 | Apply | The applier copies staging into the application slot from SRAM, with interrupts off |
 | Next boot | The installed image is CRC-checked against the metadata and the verdict logged |
 
@@ -1291,7 +1296,7 @@ What a manager of many devices (the SIMUT-RX app, or any client) relies on:
 | `/api/status` → `sys` | `ver`, `env`, `uid` (board serial), `mac`, `cfg` (CRC-32 of the configuration in RAM) | one `PERM_DASHBOARD` read identifies, versions and fingerprints the device; two devices with the same `cfg` have the same configuration |
 | Telemetry POST headers | `X-SIMUT-Uid`, `X-SIMUT-Ver`, `X-SIMUT-Env`, `X-SIMUT-Cfg` | a receiver correlates the source address with the device without opening a session; the payload is unchanged |
 | mDNS | `_simut._tcp` with TXT `uid`, `ver`, `env`, `tls` | discovery by browse, passive, without touching the web server |
-| `.bin` | the string `SIMUT-ENV:<env>;v=<version>;` in `.rodata` | a client checks the file before uploading; the device checks the staged image (`v=7`, `ENV_MISMATCH`) before accepting it; images up to **1016 KiB** |
+| `.bin` | the string `SIMUT-ENV:<env>;v=<version>;` in `.rodata`, and the signature trailer ending in `SIMUTSIG` | a client checks the file before uploading; the device checks the staged image (`v=7`, `ENV_MISMATCH`) and its signature (`v=8` to `v=12`) before accepting it; images up to **1016 KiB** with the signature |
 | `commit_all` | `_dry=1`; non-string values and bad addresses land in `rejected` | validate a template on N devices before N reboots; nothing is erased under a 200 |
 | `Authorization: Bearer <SIMUTSESS>` | the session without a cookie jar | see `AUTHORIZATION.md` |
 

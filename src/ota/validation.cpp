@@ -10,12 +10,15 @@
 #include "validation.h"
 #include "staging.h"
 #include "ota_layout.h"
+#include "ota_trust.h"   /* kTrustRelease / kTrustBench, generated from keys/ */
 #include "backup.h"      /* crc32_update / OTA_CRC32_INIT */
 #include "../BuildIdentity.h"  /* SIMUT_ENV_TAG, simut_env_tag_scan */
 
 #include <Arduino.h>
 #include <hardware/watchdog.h>
 #include <string.h>
+#include <bearssl/bearssl_hash.h>
+#include <bearssl/bearssl_ec.h>
 
 /* F-OTA-RAM (v3.44.0-alpha2/alpha3, source removed v3.45.1): gzip dry-run
  * REMOVIDO. SIMUT só sobe firmware RAW (.bin) desde v3.43.3. Em v3.45.1
@@ -25,6 +28,32 @@
  * (gzip header não bate com layout RP2040 boot2). Mensagem de erro v=6. */
 
 namespace ota {
+
+static_assert((uint8_t)SigVerdict::ENV == (uint8_t)ValidationStatus::ENV_MISMATCH &&
+              (uint8_t)SigVerdict::MISSING == (uint8_t)ValidationStatus::SIG_MISSING &&
+              (uint8_t)SigVerdict::INVALID == (uint8_t)ValidationStatus::SIG_INVALID &&
+              (uint8_t)SigVerdict::REVOKED == (uint8_t)ValidationStatus::SIG_REVOKED &&
+              (uint8_t)SigVerdict::ROLLBACK == (uint8_t)ValidationStatus::SIG_ROLLBACK &&
+              (uint8_t)SigVerdict::SCOPE == (uint8_t)ValidationStatus::SIG_SCOPE,
+              "a signature verdict is the v= the stage reply carries");
+
+/* The staged image is read through this, by the variant scan and by the
+ * signature check, in pieces. Static rather than on the stack: both run inside
+ * a web handler, on Core 0's stack, which already carries the request — and
+ * the check takes a lot of that stack on top.
+ *
+ * How much, measured on the rig (2026-10-01, a bench build that painted the
+ * stack and read back the lowest word touched): 3.7 KB below the call, most
+ * of it BearSSL's verify plus whatever interrupt lands meanwhile, on top of
+ * the 1.6–1.9 KB the handler had already used. Core 0 peaks 5.6 KB below the
+ * top of its stack — past the 4 KB SCRATCH_Y bank and into SCRATCH_X, which
+ * no image uses: Core 1 runs on its own stack (DisplayManager.cpp) and nothing
+ * launches it on the SDK's. That leaves 2.5 KB above the heap. The verify
+ * cannot be made shallower from here; a deeper caller is what would cost. */
+static uint8_t s_win[4096 + SIMUT_ENV_TAG_MAX];
+
+/* The variant this image runs, read from its own SIMUT-ENV tag. */
+static const char* running_env(char* buf, unsigned len);
 
 /* CRC-32/MPEG-2 — polinômio 0x04C11DB7, init 0xFFFFFFFF, sem reflect, sem
  * xor-out. Distinto do CRC32 zlib (poly 0xEDB88320 reflected).
@@ -95,40 +124,114 @@ bool ota_validate_staging(const StageSession& s, ValidationReport& report) {
      * image is scanned for the SIMUT-ENV tag (BuildIdentity.cpp) in 4 KiB
      * windows with an overlap of one tag length, so a tag straddling two
      * windows is still found. ~1 MiB of XIP-speed reads, once per stage.
-     * No tag = an image older than the tag: accepted, reported as "". */
+     * No tag = an image older than the tag: this check lets it through,
+     * reported as "", and the signature below refuses it — no tool signs an
+     * image without a tag. */
+    char mine[sizeof(report.image_env)];
+    const char* running = running_env(mine, sizeof(mine));
     {
-        static uint8_t win[4096 + SIMUT_ENV_TAG_MAX];
         const uint32_t total = s.bytes_written;
         uint32_t off = 0;
         bool found = false;
         while (off < total && !found) {
             uint32_t n = total - off;
-            if (n > sizeof(win)) n = sizeof(win);
-            staging_read(off, win, n);
-            found = simut_env_tag_scan(win, n, report.image_env, sizeof(report.image_env));
-            if (n < sizeof(win)) break;
+            if (n > sizeof(s_win)) n = sizeof(s_win);
+            staging_read(off, s_win, n);
+            found = simut_env_tag_scan(s_win, n, report.image_env, sizeof(report.image_env));
+            if (n < sizeof(s_win)) break;
             off += 4096;
             watchdog_update();
         }
-        /* A variante EM EXECUÇÃO sai da etiqueta desta própria imagem, não do
-         * macro. Duas razões, e as duas importam: é a leitura que impede o
-         * linker de descartar a string (sem ela o .bin saía sem etiqueta), e
-         * comparar etiqueta contra etiqueta é o que garante que o formato que
-         * gravamos é o mesmo que sabemos ler. Se a nossa própria etiqueta não
-         * for legível, cai no macro — recusar toda atualização por causa de
-         * uma conferência interna seria pior que o problema. */
-        char mine[sizeof(report.image_env)];
-        const bool mineOk = simut_env_tag_scan(
-            reinterpret_cast<const unsigned char*>(SIMUT_ENV_TAG),
-            (unsigned)strlen(SIMUT_ENV_TAG), mine, sizeof(mine));
-        const char* running = mineOk ? mine : simut_env_name();
         if (found && strcmp(report.image_env, running) != 0) {
             report.status = ValidationStatus::ENV_MISMATCH;
             return false;
         }
     }
+
+    /* The signature, last: it is the expensive check (1.87 s for a 1 MB image,
+     * measured on the rig 2026-10-01: the SHA-256 and two ECDSA verifies), and
+     * the cheap ones above already turn away the wrong file. Over the received bytes, not bytes_written: the trailer is at the
+     * end of what arrived, before the 0xFF that closes the last page. */
+    SigReport sig;
+    if (!ota_check_staged_signature(s.bytes_received, sig)) {
+        report.status = static_cast<ValidationStatus>(static_cast<uint8_t>(sig.verdict));
+        return false;
+    }
     report.status = ValidationStatus::OK;
     return true;
+}
+
+/* A variante EM EXECUÇÃO sai da etiqueta desta própria imagem, não do macro.
+ * Duas razões, e as duas importam: é a leitura que impede o linker de
+ * descartar a string (sem ela o .bin saía sem etiqueta), e comparar etiqueta
+ * contra etiqueta é o que garante que o formato que gravamos é o mesmo que
+ * sabemos ler. Se a nossa própria etiqueta não for legível, cai no macro —
+ * recusar toda atualização por causa de uma conferência interna seria pior
+ * que o problema. */
+static const char* running_env(char* buf, unsigned len) {
+    const bool ok = simut_env_tag_scan(reinterpret_cast<const unsigned char*>(SIMUT_ENV_TAG),
+                                       (unsigned)strlen(SIMUT_ENV_TAG), buf, len);
+    return ok ? buf : simut_env_name();
+}
+
+/* ---- The signature: BearSSL bound to src/ota/signature.cpp ----
+ *
+ * BearSSL is in every image already, for TLS: SHA-256, the P-256 curve and
+ * the ECDSA verify. Binding it here added no br_* symbol: 196 before and after
+ * on the release, 161 and 161 on the test image and the Air (2026-10-01). */
+static br_sha256_context s_sha;
+
+static void sha_init(void* c) { br_sha256_init(static_cast<br_sha256_context*>(c)); }
+
+static void sha_update(void* c, const void* data, size_t len) {
+    br_sha256_update(static_cast<br_sha256_context*>(c), data, len);
+}
+
+static void sha_out(void* c, uint8_t out[32]) { br_sha256_out(static_cast<br_sha256_context*>(c), out); }
+
+static bool ecdsa_verify(const uint8_t pub[65], const uint8_t digest[32], const uint8_t sig[64]) {
+    br_ec_public_key pk;
+    pk.curve = BR_EC_secp256r1;
+    pk.q = const_cast<unsigned char*>(pub);
+    pk.qlen = 65;
+    watchdog_update();   /* 0.40 s per verify on the rig; two per image */
+    return br_ecdsa_i31_vrfy_raw(&br_ec_p256_m31, digest, 32, &pk, sig, 64) == 1;
+}
+
+static bool read_staged(void*, uint32_t off, uint8_t* buf, uint32_t len) {
+    staging_read(off, buf, len);
+    watchdog_update();   /* the image is hashed in 4 KiB pieces: ~1 s for 1 MB */
+    return true;
+}
+
+bool ota_check_staged_signature(uint32_t staged_len, SigReport& report) {
+    /* The apply passes a length out of the metadata sector: never read past
+     * what a stage can have written. */
+    if (staged_len > OTA_APP_SAFE_MAX_SIZE) {
+        memset(&report, 0, sizeof(report));
+        report.verdict = SigVerdict::INVALID;
+        return false;
+    }
+    /* What this image accepts: its own trust block. A bench image (a profile
+     * with ota_trust_bench) carries the one that adds the bench root; the
+     * other block is not referenced and does not reach the .bin. */
+    const uint8_t* blk = SIMUT_OTA_TRUST_BENCH ? kTrustBench : kTrustRelease;
+    const uint32_t blkLen = SIMUT_OTA_TRUST_BENCH ? sizeof(kTrustBench) : sizeof(kTrustRelease);
+    SigAnchor anchors[SIG_TRUST_MAX_ANCHORS];
+    SigPolicy pol;
+    memset(&pol, 0, sizeof(pol));
+    if (!sigTrustParse(blk, blkLen, anchors, SIG_TRUST_MAX_ANCHORS, pol)) {
+        /* Only a broken generator gets here (the host suite parses both blocks).
+         * With no policy there is nothing to accept against: refuse. */
+        memset(&report, 0, sizeof(report));
+        report.verdict = SigVerdict::INVALID;
+        return false;
+    }
+    char env[sizeof(ValidationReport::image_env)];
+    pol.runningEnv = running_env(env, sizeof(env));
+    static const SigCrypto crypto = { &s_sha, sha_init, sha_update, sha_out, ecdsa_verify };
+    report = sigCheck(staged_len, read_staged, nullptr, pol, crypto, s_win, 4096);
+    return report.verdict == SigVerdict::OK;
 }
 
 } /* namespace ota */

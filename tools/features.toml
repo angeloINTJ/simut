@@ -247,6 +247,13 @@ emit  = "off_is_0"
 # ---------------------------------------------------------------------------
 #  Os perfis. Os sete ambientes de firmware que o CI constroi hoje.
 #  `extends` herda o dicionario de recursos do pai e sobrescreve.
+#
+#  `ota_trust_bench = true` (2026-10-01): a imagem aceita pelo ar tambem o que a
+#  chave de BANCADA assina (keys/ota_root_bench.pub), alem do que a de producao
+#  assina. E o que deixa um build local chegar ao rig pela OTA de sempre. Nao e uma
+#  chave do configurador: nenhuma build do configurador confia na bancada, e o
+#  gerador recusa a marca num perfil `publish = true` -- numa imagem de campo, a
+#  chave menos guardada viraria porta dos fundos (docs/analysis/OTA_ASSINADA.md).
 # ---------------------------------------------------------------------------
 # pico_w_release — a imagem do usuario.
 #   -DNDEBUG (2026-09-18, alavanca 2 de DIETA_FLASH.md): -6.832 B de .bin. src/ nao
@@ -287,6 +294,8 @@ publish             = true
 #   release. As suites dirigem por serial com enable/configure terminal/write memory/
 #   user .../touch sim. O build_flags e re-derivado do pico_base, nao anexado ao da
 #   release, senao ficaria -DSIMUT_CLI_FULL=0 e =1 na mesma linha.
+#   ota_trust_bench: o rig roda esta imagem e recebe tanto o build local, assinado
+#   pela bancada, quanto a candidata que o CI assina.
 [profiles.pico_w_test]
 display       = "tft"
 cli_full      = true
@@ -308,6 +317,7 @@ web_metrics   = true
 syslog        = true
 build_type    = "release"
 publish       = false
+ota_trust_bench = true
 
 # pico_w_test_https — a unica imagem com CLI completa E servidor TLS. Nao publicada.
 #   Existe porque validar o servidor HTTPS pede duas coisas que nenhuma imagem de campo
@@ -337,6 +347,7 @@ custom_fs_pages = ["ALARMS_PAGE", "FILE_PAGE", "TEL_PAGE"]
 extends             = "pico_w_release"
 concurrency_asserts = true
 publish             = false
+ota_trust_bench     = true   # imagem de soak no rig, como a pico_w_test
 
 # pico_w_alpha — LCD HD44780 16x2 no lugar do TFT. Economiza ~30 KB tirando a UI grafica.
 #   Mantem BluetoothManager.cpp + SerialBT (console BT para o modo AP). O painel de toque
