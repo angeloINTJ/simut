@@ -9,12 +9,12 @@ O aparelho grava uma medição por intervalo do histórico: um registro com a ho
 Três ideias explicam todo o comportamento:
 
 - **O registro nasce na flash.** A telemetria só lê o histórico. Se o coletor está fora do ar, nada se perde: os registros esperam na flash e saem quando ele volta.
-- **Um cursor marca o que já foi entregue.** O cursor é a hora do registro mais novo que o coletor confirmou. Cada lote leva os registros com hora depois do cursor.
+- **Um cursor marca o que já foi entregue.** O cursor é um lugar no histórico: o arquivo do dia, o bloco e a posição no bloco do último registro que o coletor confirmou. Cada lote leva os registros gravados depois desse lugar, qualquer que seja a hora que eles carregam.
 - **Só uma confirmação avança o cursor.** No HTTP, a confirmação é uma resposta 2xx. No MQTT, é a publicação aceita com a conexão ainda viva. Qualquer outra coisa deixa o cursor onde está, e o mesmo trecho sai de novo.
 
 A telemetria vem desligada de fábrica.
 
-::: {.figura #fig-21-cursor tipo="diagrama" arquivo="21-cursor.png" captura="Linha do tempo horizontal com os registros do histórico como pequenos quadrados. Uma marca vertical 'cursor' separa os registros já confirmados (cinza, à esquerda) dos pendentes (coloridos, à direita). Um colchete agrupa os primeiros pendentes como 'lote (até o Lote máximo)'. Uma seta leva o lote ao 'coletor'; a volta '2xx' move o cursor para o fim do lote; uma volta alternativa 'falha' deixa o cursor parado e aponta para 'espera e reenvia'. À direita, o bloco da hora aberta, ainda na RAM, também entra no lote."}
+::: {.figura #fig-21-cursor tipo="diagrama" arquivo="21-cursor.png" captura="Fila horizontal com os registros do histórico como pequenos quadrados, na ordem em que foram gravados. Uma marca vertical 'cursor' separa os registros já confirmados (cinza, à esquerda) dos pendentes (coloridos, à direita). Um colchete agrupa os primeiros pendentes como 'lote (até o Lote máximo)'. Uma seta leva o lote ao 'coletor'; a volta '2xx' move o cursor para o fim do lote; uma volta alternativa 'falha' deixa o cursor parado e aponta para 'espera e reenvia'. À direita, o bloco da hora aberta, ainda na RAM, também entra no lote."}
 Legenda: o cursor separa o que o coletor já confirmou do que ainda falta. Só uma confirmação o move.
 :::
 
@@ -171,8 +171,8 @@ Legenda: o construtor no formato **Dinâmico**, com o quadro de tags e a prévia
 
 1. Cada registro novo do histórico soma 1 ao contador de pendentes, que o **Painel de Controle** mostra em **Registros Pendentes** ([capítulo 13](#cap-13)).
 2. Quando os pendentes chegam ao **Lote mínimo**, começa um esvaziamento. Depois de ligar, o primeiro espera pelo menos 8 s.
-3. Cada lote leva os registros com hora depois do cursor, até o limite do lote. Isso inclui a hora ainda aberta na RAM: o aparelho não espera o bloco do histórico fechar para enviar.
-4. Com a confirmação, o cursor avança até o registro mais novo que o lote levou.
+3. Cada lote leva os registros gravados depois do cursor, até o limite do lote. Isso inclui a hora ainda aberta na RAM: o aparelho não espera o bloco do histórico fechar para enviar.
+4. Com a confirmação, o cursor avança até o último registro que o lote levou.
 5. O aparelho repete até não sobrar nada e volta a esperar o lote mínimo.
 
 O aparelho não envia:
@@ -545,13 +545,14 @@ Quando o coletor volta de uma parada, o aparelho esvazia a fila em lotes, no rit
 
 ### Registros com hora fora de ordem {#cap-21-fora-de-ordem}
 
-O cursor é um instante, não uma posição no arquivo. Isso tem três consequências:
+O cursor é uma posição no arquivo, não um instante. Um registro sai na ordem em que foi gravado, qualquer que seja a hora que carrega:
 
-- Um registro com hora mais de 1 dia à frente do relógio do aparelho fica para depois, até o relógio alcançá-lo.
-- Um registro com hora no futuro sai, mas não empurra o cursor além da hora atual. Ele é oferecido de novo mais tarde, o que gera uma duplicata inofensiva.
-- Um registro gravado com hora adiantada em relação aos vizinhos, mas ainda no passado, empurra o cursor por cima de registros mais antigos ainda não enviados, e eles não saem mais pela telemetria. Continuam no histórico do aparelho.
+- Um bloco gravado depois de outro, mas com hora anterior, sai normalmente. É o que acontece quando o relógio volta: a hora provisória do boot corrigida pelo NTP, um acerto manual.
+- Um registro com hora mais de 1 dia à frente do relógio do aparelho não sai pela telemetria. Continua no histórico.
+- Um bloco gravado num arquivo de dia com mais de 3 dias não sai pela telemetria. Para isso o relógio precisa voltar mais de três dias. O bloco continua no histórico.
+- Quando o aparelho não consegue saber o que já saiu de um arquivo de dia, ele manda o arquivo inteiro de novo e registra o evento 554, **Arquivo do dia reenviado pela telemetria**. Isso acontece quando o aparelho perde energia logo depois de enviar registros que ainda estavam só na RAM, quando um arquivo de dia é apagado e quando uma restauração de backup o traz de volta.
 
-Se o cursor ficar mais de 1 h à frente do registro mais novo, ou do relógio, o aparelho o zera e registra um aviso com o texto `Telemetry cursor ahead of data — reset to 0`. Os envios recomeçam pela janela de 30 dias.
+Até a v2.9.0, o cursor era um instante, e um bloco gravado com hora anterior ao último registro enviado não saía mais. Depois da atualização, o cursor antigo continua valendo para os arquivos de dia até o do último registro enviado, até a primeira entrega em cada um; a posição vale para todo o resto. Se esse cursor antigo estiver mais de 1 h à frente do registro mais novo, ou do relógio, o aparelho o zera e registra um aviso com o texto `Telemetry cursor ahead of data — reset to 0`. Os envios recomeçam pela janela de 30 dias.
 
 ## Duplicatas e idempotência {#cap-21-duplicatas}
 
@@ -560,7 +561,7 @@ O aparelho prefere enviar duas vezes a deixar um buraco. Duplicatas acontecem po
 - a resposta 2xx se perde no caminho de volta, e o aparelho reenvia o lote;
 - o aparelho perde energia antes de gravar o cursor na flash, o que ele faz no máximo a cada 5 s;
 - no MQTT, a conexão cai logo depois da publicação;
-- um registro com hora no futuro é oferecido de novo;
+- o aparelho não consegue saber o que já saiu de um arquivo de dia e o manda inteiro ([Registros com hora fora de ordem](#cap-21-fora-de-ordem));
 - alguém usa **Resetar cursor de envio**.
 
 Por isso, o coletor precisa ser idempotente. A chave natural de uma medição é o aparelho, a hora e o canal: (`X-SIMUT-Uid`, `ts`, chave do canal). Grave com "insira se não existir":
@@ -863,6 +864,7 @@ Nas imagens com o console completo ([capítulo 14](#cap-14)), o comando `tel dum
 | 545 | **Sem cert.pem, modo inseguro** | Início, com TLS e sem o arquivo |
 | 546 | **Forçando sync de telemetria** | **Enviar agora**; o contexto é a conta |
 | 547 | **Logs de retry suprimidos** | A partir da 11ª falha seguida |
+| 554 | **Arquivo do dia reenviado pela telemetria** | O cursor não confere mais com o que o arquivo do dia guarda, e o arquivo sai inteiro de novo; o contexto é o mês e o dia (`MMDD`) |
 
 O log de eventos guarda transições, não repetições. Da família da telemetria, ele grava a primeira falha depois de um período saudável, o primeiro sucesso depois de uma falha e um registro por hora enquanto nada muda. O console serial mostra todas as linhas ([capítulo 16](#cap-16)).
 

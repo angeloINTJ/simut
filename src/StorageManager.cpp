@@ -1124,10 +1124,10 @@ bool StorageManager::saveConfiguration( ) {
  * pausing Core 1 per op (Core 1 is already frozen in the quiet loop). */
 
  /* Flush cursor to flash (if pending) */
- if (_cachedLastSent > 0) {
+ if (_tcurLoaded) {
  FLASH_OP({
  File cf = LittleFS.open(FILE_TCURSOR, "w");
- if (cf) { cf.write((uint8_t*)&_cachedLastSent, sizeof(_cachedLastSent)); cf.close( ); }
+ if (cf) { cf.write((const uint8_t*)&_tcur, sizeof(_tcur)); cf.close( ); }
  });
  }
 
@@ -1507,20 +1507,57 @@ void StorageManager::enforceStorageLimit( ) {
  }
 }
 
-uint32_t StorageManager::getLastSentTimestamp( ) {
- if (_cachedLastSent > 0) return _cachedLastSent;
- enterFlashReadLock( );
- if (!LittleFS.exists(FILE_TCURSOR)) { exitFlashReadLock( ); return 0; }
- File f = LittleFS.open(FILE_TCURSOR, "r");
- uint32_t ts = 0;
- if (f) { f.read((uint8_t*)&ts, sizeof(ts)); f.close( ); }
- exitFlashReadLock( );
- _cachedLastSent = ts;
- return ts;
+uint32_t StorageManager::historyDayOf(uint32_t epoch) {
+ time_t t = (time_t)epoch;
+ struct tm tmv;
+ localtime_r(&t, &tmv);
+ return (uint32_t)((tmv.tm_year + 1900) * 10000 + (tmv.tm_mon + 1) * 100 + tmv.tm_mday);
 }
 
-void StorageManager::setLastSentTimestamp(uint32_t ts) {
- _cachedLastSent = ts;
+TelCursorState& StorageManager::telCursor( ) {
+ if (_tcurLoaded) return _tcur;
+ _tcurLoaded = true;
+ uint8_t buf[sizeof(TelCursorState)];
+ int len = 0;
+ enterFlashReadLock( );
+ if (LittleFS.exists(FILE_TCURSOR)) {
+ File f = LittleFS.open(FILE_TCURSOR, "r");
+ if (f) {
+ /* A file of any other size is no cursor this firmware knows: read
+  * nothing, and telCursorLoad( ) starts over. */
+ const size_t sz = f.size( );
+ if (sz <= sizeof(buf)) len = f.read(buf, sz);
+ f.close( );
+ }
+ }
+ exitFlashReadLock( );
+ bool legacy = false;
+ if (!telCursorLoad(_tcur, buf, len > 0 ? (size_t)len : 0, legacy)) return _tcur;
+ if (legacy) {
+ const uint32_t e = _tcur.legacyEpoch;
+ if (e == 0) {
+ telCursorReset(_tcur, 0);   /* "never sent": the 30-day floor decides, as before */
+ } else {
+ /* The old rule keeps the day files it could have reached: up to the
+  * cursor's own day, from one block span behind it (a block open across
+  * midnight is filed under the day it started). Written in the new form
+  * at the next coalesced flush. */
+ const uint32_t floorEpoch = h5ScanFloor(e, h5NominalSeconds(getHistoryIntervalMin( )));
+ telCursorLegacy(_tcur, e, historyDayOf(e), historyDayOf(floorEpoch));
+ telCursorTouched( );
+ }
+ }
+ return _tcur;
+}
+
+void StorageManager::telCursorDelivered(const TelRun* r, size_t n, uint32_t lastEpoch) {
+ TelCursorState& c = telCursor( );
+ telAdvanceRuns(c, r, n);
+ if (lastEpoch > c.lastEpoch) c.lastEpoch = lastEpoch;
+ telCursorTouched( );
+}
+
+void StorageManager::telCursorTouched( ) {
  /* The coalescing window starts at the FIRST dirty set, not the latest one.
   * Restarting it on every set made the window slide: at a back-to-back cadence
   * (one batch every 73–281 ms, measured 2026-09-07) the 5 s never elapsed and the
@@ -1534,9 +1571,11 @@ void StorageManager::setLastSentTimestamp(uint32_t ts) {
 
 /**
  * @brief CMD_TEL_RESET: reset telemetry cursor without needing reboot.
- * Invalidates RAM cache (_cachedLastSent=0), clears pending coalescer,
- * and removes the flash file. Next getLastSentTimestamp returns 0; next
- * collectBatch applies the "lastRecorded - 30 days" fallback.
+ * Drops the RAM copy, clears pending coalescer, and removes the flash file.
+ * The next use reads what is on flash — nothing, so an empty cursor, and the
+ * next collectBatch applies the "lastRecorded - 30 days" floor. A file that
+ * lands before that read is taken instead: tools/telemetry_bench/
+ * phase_drain_full.py seeds one to drain past the floor.
  *
  * Use cases:
  * - Operations: re-send data after prolonged server outage (cursor
@@ -1546,7 +1585,8 @@ void StorageManager::setLastSentTimestamp(uint32_t ts) {
  * (previously used /api/delete + reboot via Serial).
  */
 void StorageManager::resetTelemetryCursor( ) {
- _cachedLastSent = 0;
+ telCursorReset(_tcur, 0);
+ _tcurLoaded = false;
  _cursorDirty = false;
  _cursorCoalesceTime = 0;
 
@@ -1566,7 +1606,7 @@ void StorageManager::flushCursorIfDirty(bool force) {
 
  /* Both gates below defer the write to a later call — which only works when a
   * later call is going to happen. On the way into deep sleep it is not: SRAM
-  * goes away, _cachedLastSent with it, and the next boot re-reads whatever is
+  * goes away, the cursor's RAM copy with it, and the next boot re-reads whatever is
   * still on flash. That is how the SIMUT Air cycle re-sent the same batch on
   * every wake: the send marked the cursor dirty, the flush ran ~150 ms later
   * (the whole awake window after a drained queue), the 5 s coalescing window
@@ -1592,7 +1632,7 @@ void StorageManager::flushCursorIfDirty(bool force) {
 	File f = LittleFS.open(FILE_TCURSOR, "w");
 	watchdog_update( );
 	if (f) {
-		f.write((uint8_t*)&_cachedLastSent, sizeof(_cachedLastSent));
+		f.write((const uint8_t*)&_tcur, sizeof(_tcur));
 		f.close( );
 		watchdog_update( );
 	}
@@ -2549,12 +2589,14 @@ bool StorageManager::h5WriteSchemaTo(File& f, uint8_t seq) {
 }
 
 bool StorageManager::h5FileHasSchema(const String& path, bool* outMatches,
-                                     uint8_t* outLastSeq) {
+                                     uint8_t* outLastSeq, uint32_t* outSize) {
 	if (outMatches) *outMatches = false;
 	if (outLastSeq) *outLastSeq = 0;
+	if (outSize) *outSize = 0;
 	File f = LittleFS.open(path, "r");
 	if (!f) return false;
 	const uint32_t size = (uint32_t)f.size( );
+	if (outSize) *outSize = size;
 
 	/* Two different questions, and they have two different answers.
 	 *
@@ -2906,11 +2948,11 @@ bool StorageManager::h5ResumeOpenBlock(const uint8_t* chunk, size_t len) {
 	return true;
 }
 
-uint16_t StorageManager::h5WipPendingSince(uint32_t cursor) {
-	if (!_isMounted) return 0;
+bool StorageManager::h5WipBlock(uint32_t& t0, uint8_t& count) {
+	if (!_isMounted) return false;
 	/* The encoder wins whenever it holds anything: after a resume the .wip is
 	 * still on flash and carries the same records. */
-	if (h5RamCount( ) > 0) return 0;
+	if (h5RamCount( ) > 0) return false;
 
 	/* Read under the read lock, decode after releasing it — ensureH5Schema( )
 	 * must not run holding _fsReadMutex (same rule the .wip seed in begin( )
@@ -2928,13 +2970,13 @@ uint16_t StorageManager::h5WipPendingSince(uint32_t cursor) {
 			}
 		}
 	}
-	if (len < sizeof(H5DataHeader)) return 0;
+	if (len < sizeof(H5DataHeader)) return false;
 
 	if (!_h5Valid) ensureH5Schema( );   /* empty encoder: cannot seal anything */
-	if (!_h5Valid) return 0;
+	if (!_h5Valid) return false;
 
-	return h5CountAfter(_h5Chunk, len, _h5Schema, _h5NCh, cursor,
-	                    h5NominalSeconds(getHistoryIntervalMin( )));
+	return h5SnapshotBlock(_h5Chunk, len, _h5Schema, _h5NCh,
+	                       h5NominalSeconds(getHistoryIntervalMin( )), t0, count);
 }
 
 void StorageManager::recoverWipV5( ) {
@@ -3244,7 +3286,8 @@ bool StorageManager::h5OpenDay(const String& path, bool verifyPayload) {
 	 * to h5LoadNextBlock( ), over the copy in RAM — §3.7-4 unchanged, since
 	 * a chunk that fails it is still never decoded. */
 	_h5RdVerify = verifyPayload;
-	_h5Scan.begin(h5FileRead, &_h5RdFile, (uint32_t)_h5RdFile.size( ), false);
+	_h5RdSize = (uint32_t)_h5RdFile.size( );
+	_h5Scan.begin(h5FileRead, &_h5RdFile, _h5RdSize, false);
 	_h5RdSchema = nullptr;
 	_h5RdNCh = 0;
 	_h5RdBlockOpen = false;
@@ -3294,17 +3337,9 @@ bool StorageManager::h5DecodeNext(uint32_t& epoch, int16_t* v) {
 }
 
 bool StorageManager::h5LoadNextBlock( ) {
-	for (;;) {
-		H5DataHeader hdr;
-		const int16_t *mn, *mx;
-		if (!h5NextBlock(hdr, mn, mx)) return false;
-
-		size_t len = 0;
-		if (!_h5Scan.readChunk(_h5Chunk, sizeof(_h5Chunk), len, _h5RdVerify)) continue;
-		if (!_h5Dec.begin(_h5Chunk, len, _h5RdSchema, _h5RdNCh)) continue;
-		_h5RdBlockOpen = true;
-		return true;
-	}
+	uint32_t off;
+	uint8_t count;
+	return h5LoadBlockFrom(0, off, count);
 }
 
 bool StorageManager::h5NextRecord(uint32_t& epoch, int16_t* v) {
@@ -3321,4 +3356,58 @@ bool StorageManager::h5SeekTo(uint32_t epoch) {
 	_h5RdNCh = _h5Scan.nCh( );
 	return true;
 }
+
+bool StorageManager::h5LoadBlockFrom(uint32_t minOff, uint32_t& off, uint8_t& count) {
+	for (;;) {
+		H5DataHeader hdr;
+		const int16_t *mn, *mx;
+		if (!h5NextBlock(hdr, mn, mx)) return false;
+		if (_h5Scan.chunkOffset( ) < minOff) continue;   /* hopped by header */
+		size_t len = 0;
+		if (!_h5Scan.readChunk(_h5Chunk, sizeof(_h5Chunk), len, _h5RdVerify)) continue;
+		if (!_h5Dec.begin(_h5Chunk, len, _h5RdSchema, _h5RdNCh)) continue;
+		_h5RdBlockOpen = true;
+		off = _h5Scan.chunkOffset( );
+		count = hdr.pre.a;
+		return true;
+	}
+}
+
+uint32_t StorageManager::historyDayOfName(const String& name) {
+	const int from = name.lastIndexOf('/') + 1;
+	if ((int)name.length( ) < from + 8) return 0;
+	uint32_t day = 0;
+	for (int i = from; i < from + 8; i++) {
+		const char c = name[i];
+		if (c < '0' || c > '9') return 0;
+		day = day * 10u + (uint32_t)(c - '0');
+	}
+	return day;
+}
+
+bool StorageManager::h5SealPosition(uint32_t t0, bool live, uint32_t& day, uint32_t& off) {
+	/* The same file the block will be appended to: sealHourV5( ) uses
+	 * _h5CurrentDay, recoverWipV5( ) the snapshot's own t0. */
+	const String path = (live && _h5CurrentDay.length( )) ? _h5CurrentDay
+	                                                      : getHistoryFileNameV5(t0);
+	day = historyDayOfName(path);
+	if (!day) return false;
+	/* The schema the SCHEMA chunk would be written from. Before recoverWipV5( )
+	 * on an Air wake it may not be built yet; same call h5WipBlock( )
+	 * makes in that window, and outside the read lock for the same reason. */
+	if (!_h5Valid) ensureH5Schema( );
+	if (!_h5Valid) return false;
+	uint32_t size = 0;
+	bool v5 = false, matches = false;
+	{
+		ReadGuard rg(this);
+		v5 = h5FileHasSchema(path, &matches, nullptr, &size);
+	}
+	/* h5AppendChunk writes a SCHEMA before the block into a file that is
+	 * missing or not V5 (deleted and begun again), and into one whose last
+	 * schema is not the one in force. */
+	off = (v5 && matches) ? size : (v5 ? size : 0) + (uint32_t)H5_SCHEMA_CHUNK_SIZE(_h5NCh);
+	return true;
+}
+
 

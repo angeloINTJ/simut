@@ -64,7 +64,7 @@ falha antes (`CLAUDE.md`, *Tests first*).
 | Item | Estado |
 |---|---|
 | A-03: o `ctx=209` com um laço dirigido (os cinco comandos de 21/09, painel desenhando) | A fazer, na bancada. À parte, um watchdog de campo foi corrigido no #218 (01/10, na v2.9.0): um join de Wi-Fi recusado segurava o Core 0 |
-| A-04: cursor de telemetria por posição de escrita, com o codec de referência em Python e o portão de paridade junto | A fazer: documento curto e teste nativo que falha antes. Na v2.9.0 o cursor ainda é uma época (`TelemetryCursor.h`) |
+| A-04: cursor de telemetria por posição de escrita, com o codec de referência em Python e o portão de paridade junto | #232: o cursor é a posição de gravação, pela opção B do [A04_CURSOR_POR_POSICAO.md](A04_CURSOR_POR_POSICAO.md) (#231): uma posição por arquivo de dia, janela de 3 dias. O formato do histórico não muda, então o codec de referência e o portão de paridade ficam como estão. No host, 18 casos novos no `test_validators`, os de antes rodados contra a regra por tempo e falhando onde ela pulava. Na bancada: a fazer |
 | A-06 e #189: respostas truncadas e o enquadramento chunked | A fazer: soak que conta e relê; reprodução no host. O #189 está entre os conhecidos da v2.9.0 |
 | A-08: contas sem reinício | Plano pronto em `PLANO_DIVIDA_TECNICA.md`. Na v2.9.0, `CFG_USERS` ainda está em `CFG_REBOOT_CLASSES` (`ConfigApply.h`), e o comentário mais abaixo no mesmo arquivo diz que não está |
 | A-05: soak longo do Air (3 dias ou mais) | A fazer, na bancada. O Air está parado desde 11/09 |

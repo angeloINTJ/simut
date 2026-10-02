@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 """Phase B2 — drain the WHOLE archive, past the firmware's 30-day floor.
 
-`tel reset` zeroes the cursor, and collectBatch then refuses to look further
-back than `lastRecorded − 30 days`:
+`tel reset` empties the cursor, and collectBatch then refuses to look further
+back than 30 days before the newest record (`lastRecorded − 30 days`, the floor
+it gives a cursor that never sent), so anything older is unreachable through
+telemetry no matter how long it runs. The floor is a policy, not a storage
+limit — and this proves it. The cursor lives in `/config/t_cursor.bin`; seeding
+it with HIST_EPOCH_MIN instead of leaving it empty skips the 30-day floor
+entirely and the device happily streams the entire archive.
 
-    if (lastCursor == 0) {
-        uint32_t lastRecorded = _storageRef->getLastRecordedTimestamp( );
-        if (lastRecorded > 86400UL * 30) lastCursor = lastRecorded - 86400UL * 30;
-    }
+Since A-04 (2026-10-02) the file is 148 bytes: a write position per day file
+and a floor day. A 4-byte file is the cursor from before it, and the firmware
+still reads one — as the old epoch, whose files keep the old rule. Seeded with
+HIST_EPOCH_MIN, that rule covers nothing written since 2020, so every file is
+sent whole, as before.
 
-so anything older is unreachable through telemetry no matter how long it runs.
-The floor is a policy in that one branch, not a storage limit — and this proves
-it. The cursor lives in a 4-byte file, `/config/t_cursor.bin`; seeding it with
-HIST_EPOCH_MIN instead of zero skips the fallback entirely and the device
-happily streams the entire archive.
-
-Run order matters: `tel reset` must come first (it clears the RAM cache AND
+Run order matters: `tel reset` must come first (it drops the RAM copy AND
 deletes the file), and the seeded file has to land before the next read.
 """
 import json

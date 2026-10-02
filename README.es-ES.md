@@ -50,7 +50,7 @@ Los tres comparten el mismo núcleo:
 | **Release actual** | **v2.9.0** (02/10/2026), la primera release firmada; el [changelog](CHANGELOG.md) dice qué cambió cada versión. SIMUT salió de beta con la v2.7.0, sobre mediciones: un soak de 8,18 h sin ningún reinicio y 6 de 6 actualizaciones por el aire sin perder nada. |
 | **Imágenes publicadas** | Tres imágenes, cada una en `.uf2` y `.bin`: `release` (panel táctil TFT), `alpha` (LCD 16×2 con consola Bluetooth) y `air` (registrador a batería sin pantalla). Junto a ellas van los packs de idioma pt-BR y es-ES y un manifiesto de OTA. Una imagen con otro conjunto de funciones sale del [configurador de build](https://angelointj.github.io/simut/configurador/), y el CI la compila desde `main`. |
 | **Madurez** | <ul><li>`release`: **estable**.</li><li>`alpha`: publicado y probado en el banco, con su LCD 16×2 incluido desde el 26/09/2026.</li><li>`air`: **experimental**. Su único soak largo falló: un sueño en el ciclo 119 nunca despertó (F28). Hoy lo mitiga un watchdog a lo largo del despertar; la causa raíz no está confirmada.</li></ul> |
-| **Pruebas** | Cada pull request ejecuta 545 casos de test en el host en 9 suites, 60 s de fuzzing y análisis estático, y compila las siete imágenes de firmware con la caché fría. El comportamiento en hardware real se verifica en un banco — ver [Verificación en hardware](docs/VERIFICATION.es-ES.md). |
+| **Pruebas** | Cada pull request ejecuta 562 casos de test en el host en 9 suites, 60 s de fuzzing y análisis estático, y compila las siete imágenes de firmware con la caché fría. El comportamiento en hardware real se verifica en un banco — ver [Verificación en hardware](docs/VERIFICATION.es-ES.md). |
 
 **Limitaciones conocidas.** Cada una está documentada donde aplica.
 - **Actualización.** La actualización por el aire reformatea el sistema de archivos:
@@ -61,7 +61,6 @@ Los tres comparten el mismo núcleo:
 - **Conexiones inactivas.** Durante el soak de la v2.7.0, el 7,1 % de las respuestas en una conexión keep-alive inactiva llegaron cortadas. El dispositivo corta un flujo que no puede enviar durante 4 s.
 - **Respuestas chunked.** Leído en un bucle cerrado, el 0,15–0,6 % de las respuestas de `/api/status` llega con el encuadre chunked roto ([#189](https://github.com/angeloINTJ/simut/issues/189)). El dispositivo no se reinicia y la petición siguiente funciona; la página pierde una actualización.
 - **Lista de usuarios.** Cada guardado de la lista de usuarios reinicia el dispositivo, unos 25 s cada vez.
-- **Cursor de telemetría.** El cursor es una única marca de tiempo, así que un registro grabado fuera de orden en la flash se salta: 6 de 75.778 registros en una medición.
 - **No es un instrumento certificado.** SIMUT no es un instrumento metrológico certificado. Valídalo contra tu propia referencia antes de confiar en él para almacenamiento regulado.
 
 ## ¿Por qué SIMUT?
@@ -153,7 +152,7 @@ Consulta la **[guía de cableado](docs/WIRING.md)** para el pinout completo y lo
 - **API HTTP** — 62 rutas. Cada una está protegida por un permiso o es pública por diseño, y el CI lo comprueba.
 - **Telemetría** — HTTP, HTTPS, MQTT y MQTTS, en lotes por cantidad, y una segunda línea, con confirmación, para las alarmas; Home Assistant, Prometheus y syslog.
 - **Red y hora** — Wi-Fi que se reconecta solo, punto de acceso de configuración abierto a pedido, y NTP con un reloj provisional hasta sincronizar.
-- **Almacenamiento** — el histórico binario V5 (unos 116 días en 1 MB), la configuración con CRC32 y `.bak`, y un log de eventos con 155 códigos de evento.
+- **Almacenamiento** — el histórico binario V5 (unos 116 días en 1 MB), la configuración con CRC32 y `.bak`, y un log de eventos con 156 códigos de evento.
 - **Seguridad** — 32 cuentas, 13 bits de permiso, HMAC-SHA256 con salt, bloqueos por intentos y HTTPS opcional.
 - **Actualización** — actualización por el aire firmada, desde la página web, y backup y restauración de todo el sistema de archivos.
 - **SIMUT Air** (experimental) — registrador a batería que hiberna entre lecturas.
@@ -264,7 +263,7 @@ simut/
 > clave por dispositivo que se muestra en la consola y, donde la hay, en la
 > pantalla. Ver [SECURITY.md](SECURITY.md) §2 y §8.
 
-> No hay entorno de depuración. `pico_w_debug` se eliminó en la v2.4.1 tras no enlazar nunca: en `-Og` la imagen desbordaba el slot de 1020 KB en ~100 KB. La flash va justa. La imagen release usa el 97,1 % del slot de programa de 1.044.480 B (el valor medido vive en `tools/flash_budget.json`), y el CI comprueba cada `.bin`, con sus 241 B de firma, contra el techo de actualización por el aire, de 1.040.384 B. Un objetivo de GDB habría que montarlo recortando funcionalidades. Para el tripwire de concurrencia en hardware, usa `pico_w_asserts`.
+> No hay entorno de depuración. `pico_w_debug` se eliminó en la v2.4.1 tras no enlazar nunca: en `-Og` la imagen desbordaba el slot de 1020 KB en ~100 KB. La flash va justa. La imagen release usa el 97,2 % del slot de programa de 1.044.480 B (el valor medido vive en `tools/flash_budget.json`), y el CI comprueba cada `.bin`, con sus 241 B de firma, contra el techo de actualización por el aire, de 1.040.384 B. Un objetivo de GDB habría que montarlo recortando funcionalidades. Para el tripwire de concurrencia en hardware, usa `pico_w_asserts`.
 
 ### Flags de compilación
 - `-Os` — optimización por tamaño
@@ -305,8 +304,8 @@ El dispositivo expone una API REST en `http://<ip-del-dispositivo>/api/`:
 ### Tests en el host
 
 ```bash
-pio test -e native             # validadores, cursor de telemetría, etiquetas, parsers, paquetes de idioma, las pantallas Licencia y de actualización, el menú de Ajustes, la verificación de contraseña (253 casos)
-pio test -e native_history_v5  # códec del histórico V5 (63)
+pio test -e native             # validadores, cursor de telemetría, etiquetas, parsers, paquetes de idioma, las pantallas Licencia y de actualización, el menú de Ajustes, la verificación de contraseña (271 casos)
+pio test -e native_history_v5  # códec del histórico V5 (62)
 pio test -e native_cli         # parser de la CLI (33)
 pio test -e native_logpolicy   # persistencia de log por transición, franjas de la autopsia, lectura del táctil (57)
 pio test -e native_alarmqueue  # cola de la telemetría de alarmas (47)

@@ -25,6 +25,9 @@
 #include "LogManager.h"
 #include "AlarmQueue.h" /* 2ª linha de telemetria (v21) */
 
+struct TelCollect;
+struct TelChanMap;
+
 class TelemetryManager {
 public:
  TelemetryManager( );
@@ -239,9 +242,28 @@ private:
  uint32_t jitter(uint32_t base);
 
 
- /** Gathers the next batch; @p fromCursor gets the cursor it was read from
-  * (never its newest epoch — deliveredCursor( ) decides that, after buildPayload). */
+ /** Gathers the next batch, and where each of its records was written
+  * (_runs). @p fromCursor gets the newest epoch delivered before it — never
+  * the batch's own newest: deliveredCursor( ) decides that, after buildPayload. */
  bool collectBatch(std::vector<BinaryHistoryRecord>& batch, uint32_t& fromCursor);
+ /** One day file, then the open block when it will be sealed into it. False
+  *  when the file's slot no longer holds (telSlotHolds): collectBatch forgets
+  *  the slot and collects the day again from its start. */
+ bool collectDay(TelCollect& x, uint32_t day, const String& path, bool withRam, uint32_t ramOff);
+ bool takeRecord(TelCollect& x, uint32_t day, uint32_t off, uint8_t idx, uint32_t epoch,
+                 const int16_t* vals, const TelChanMap& m);
+ void listDayFiles(std::vector<String>& files);
+
+ /** Where the batch in flight was written (A-04, TelemetryPosition.h): runs
+  *  of consecutive records of one block. collectBatch fills them, trimRuns( )
+  *  cuts them to what was sent, markDelivered( ) hands them to the cursor. */
+ TelRun  _runs[TEL_RUNS_MAX];
+ uint8_t _nRuns = 0;
+ void trimRuns(const std::vector<BinaryHistoryRecord>& batch, size_t n);
+ /** The runs reached the server; @p lastEpoch is the newest stamp among them. */
+ void markDelivered(uint32_t lastEpoch);
+ /** Only batch[0..n) reached it: a broker that took part of a batch. */
+ void markDeliveredPrefix(const std::vector<BinaryHistoryRecord>& batch, size_t n);
 
 
  bool attemptHttpUpload(String& payload, uint32_t newCursor);

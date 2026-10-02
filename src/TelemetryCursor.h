@@ -61,6 +61,11 @@
  * bad stamp is in the future at the moment of sending, and that is the shape
  * the 2026-08-14 device was in while it was writing.
  *
+ * Since A-04 (2026-10-02) the cursor IS a scan position (TelemetryPosition.h),
+ * and this epoch no longer decides what is sent. It is the cursor's lastEpoch,
+ * the first four bytes of /config/t_cursor.bin: what v2.9.0 and older read as
+ * their whole cursor after a downgrade, so it keeps the rule above.
+ *
  * @param epochMin  plausibility floor for @p nowEpoch (HIST_EPOCH_MIN): below
  *                  it the device has no real clock and the clamp is skipped.
  */

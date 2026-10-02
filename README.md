@@ -50,7 +50,7 @@ They share one core:
 | **Current release** | **v2.9.0** (2026-10-02), the first signed release; the [changelog](CHANGELOG.md) says what each version changed. SIMUT left beta with v2.7.0, on measurements: an 8.18 h soak with 0 reboots, and 6 of 6 over-the-air updates with nothing lost. |
 | **Published images** | Three images, each as `.uf2` and `.bin`: `release` (TFT touch panel), `alpha` (16×2 LCD with a Bluetooth console) and `air` (headless battery logger). The pt-BR and es-ES language packs and an OTA manifest ship alongside. An image with a different set of features comes from the [build configurator](https://angelointj.github.io/simut/configurador/), and CI builds it from `main`. |
 | **Maturity** | <ul><li>`release`: **stable**.</li><li>`alpha`: published and bench-tested, its 16×2 LCD included since 2026-09-26.</li><li>`air`: **experimental**. Its one long soak failed: a sleep in cycle 119 never woke (F28). A watchdog across the wake now mitigates it; the root cause is not confirmed.</li></ul> |
-| **Tests** | Every pull request runs 545 host test cases in 9 suites, 60 s of fuzzing and static analysis, and builds all seven firmware images from a cold cache. Behaviour on real hardware is verified on a bench — see [Verification on hardware](docs/VERIFICATION.md). |
+| **Tests** | Every pull request runs 562 host test cases in 9 suites, 60 s of fuzzing and static analysis, and builds all seven firmware images from a cold cache. Behaviour on real hardware is verified on a bench — see [Verification on hardware](docs/VERIFICATION.md). |
 
 **Known limitations.** Each one is documented where it applies.
 - **Updates.** An update over the air reformats the filesystem:
@@ -61,7 +61,6 @@ They share one core:
 - **Idle connections.** During the v2.7.0 soak, 7.1 % of responses on an idle keep-alive connection arrived cut short. The device drops a stream it cannot send for 4 s.
 - **Chunked replies.** Read in a tight loop, 0.15–0.6 % of `/api/status` replies arrive with their chunked framing broken ([#189](https://github.com/angeloINTJ/simut/issues/189)). The device does not restart and the next request works; the page misses one update.
 - **User list.** Every save of the user list reboots the device, about 25 s each time.
-- **Telemetry cursor.** The cursor is a single timestamp, so a record stamped out of order on flash is skipped: 6 of 75,778 records in one measurement.
 - **Not a certified instrument.** SIMUT is not a certified metrological instrument. Validate it against your own reference before relying on it for regulated storage.
 
 ## Why SIMUT?
@@ -153,7 +152,7 @@ See the **[wiring guide](docs/WIRING.md)** for the complete pinout and connectio
 - **HTTP API** — 62 routes. Each one is either gated by a permission or public by design, and CI checks it.
 - **Telemetry** — HTTP, HTTPS, MQTT and MQTTS, batched by quantity, and a second, acknowledged line for alarms; Home Assistant, Prometheus and syslog.
 - **Network and time** — Wi-Fi that reconnects itself, a setup access point opened on request, and NTP with a provisional clock until it syncs.
-- **Storage** — the V5 binary history (about 116 days in 1 MB), a configuration with CRC32 and a `.bak`, and an event log with 155 event codes.
+- **Storage** — the V5 binary history (about 116 days in 1 MB), a configuration with CRC32 and a `.bak`, and an event log with 156 event codes.
 - **Security** — 32 accounts, 13 permission bits, salted HMAC-SHA256, lockouts and optional HTTPS.
 - **Updates** — signed over-the-air updates from the web page, and backup and restore of the whole filesystem.
 - **SIMUT Air** (experimental) — a battery logger that hibernates between readings.
@@ -262,7 +261,7 @@ simut/
 > The setup access point is WPA2 on every image, with a per-device key shown on
 > the console and, where there is one, on the display. See [SECURITY.md](SECURITY.md) §2 and §8.
 
-> There is no debug environment. `pico_w_debug` was removed in v2.4.1 after never once linking: at `-Og` the image overflowed the 1020 KB app slot by ~100 KB. Flash is tight. The release image uses 97.1 % of the 1,044,480 B program slot (`tools/flash_budget.json` keeps the measured value), and CI checks every `.bin`, with its 241 B signature, against the 1,040,384 B over-the-air ceiling. A GDB target would have to be built by cutting features. For the concurrency tripwire on hardware, use `pico_w_asserts`.
+> There is no debug environment. `pico_w_debug` was removed in v2.4.1 after never once linking: at `-Og` the image overflowed the 1020 KB app slot by ~100 KB. Flash is tight. The release image uses 97.2 % of the 1,044,480 B program slot (`tools/flash_budget.json` keeps the measured value), and CI checks every `.bin`, with its 241 B signature, against the 1,040,384 B over-the-air ceiling. A GDB target would have to be built by cutting features. For the concurrency tripwire on hardware, use `pico_w_asserts`.
 
 ### Build flags
 - `-Os` — optimize for size
@@ -303,8 +302,8 @@ The device exposes a REST API at `http://<device-ip>/api/`:
 ### Host tests
 
 ```bash
-pio test -e native             # validators, telemetry cursor, labels, parsers, language packs, the License and update screens, the Settings menu, the password check (253 cases)
-pio test -e native_history_v5  # V5 history codec (63)
+pio test -e native             # validators, telemetry cursor, labels, parsers, language packs, the License and update screens, the Settings menu, the password check (271 cases)
+pio test -e native_history_v5  # V5 history codec (62)
 pio test -e native_cli         # CLI parser (33)
 pio test -e native_logpolicy   # edge-triggered log persistence, autopsy bands, touch wake (57)
 pio test -e native_alarmqueue  # alarm telemetry queue (47)

@@ -34,6 +34,8 @@
 #include "display/PendingLabel.h"    /* pending count as both displays print it */
 #include "display/BigFont_HD44780.h" /* the alpha LCD glyphs */
 #include "TelemetryCursor.h"  /* what the telemetry cursor may advance to */
+#include "TelemetryPosition.h" /* the cursor as a write position (A-04) */
+#include <algorithm>
 #include "TelContentType.h"   /* the Content-Type header of a telemetry line */
 #include "sensors/CalibCurve.h"         /* calibration curve engine */
 #include "WebJsonSlice.h"               /* depth-aware JSON slicing */
@@ -4139,6 +4141,319 @@ static void test_tel_cursor_takes_the_newest_and_clamps_the_future(void) {
     TEST_ASSERT_EQUAL_UINT32(CUR_NOW + 10u, telDeliveredCursor(ahead, 2, CUR_NOW + 10u, CUR_NOW, HIST_EPOCH_MIN));
 }
 
+/* ── The telemetry cursor as a write position (TelemetryPosition.h, A-04) ──
+ * A day file only grows at its end, so (day, block offset, record) is where a
+ * record was written, whatever its stamp says. These play a small flash, blocks
+ * in write order, through collection and delivery the way TelemetryManager
+ * does, and count what reaches the server. Epochs run e0, e0+1, … in a block. */
+struct SimBlock { uint32_t day; uint32_t off; uint8_t n; uint32_t e0; };
+
+/* Collect every unsent record — files in day order, blocks in offset order —
+ * and deliver all of it. Returns how many went; their epochs land in got[].
+ * First, what TelemetryManager::collectBatch does before trusting a slot: the
+ * first block at or past its offset must start AT it and still hold the record
+ * it counted last. */
+static size_t simSend(TelCursorState& c, const SimBlock* b, size_t nb, uint32_t* got) {
+    for (uint8_t i = 0; i < TEL_POS_SLOTS; i++) {
+        const TelPos p = c.pos[i];
+        if (!p.day) continue;
+        const SimBlock* first = nullptr;
+        for (size_t k = 0; k < nb; k++) {
+            if (b[k].day == p.day && b[k].off >= p.off && (!first || b[k].off < first->off)) first = &b[k];
+        }
+        if (!first) continue;
+        const uint32_t e = (p.rec && p.rec <= first->n) ? first->e0 + p.rec - 1u : 0;
+        if (!telSlotHolds(p, first->off == p.off, first->n, e)) telForgetDay(c, p.day);
+    }
+    std::vector<size_t> order(nb);
+    for (size_t i = 0; i < nb; i++) order[i] = i;
+    std::sort(order.begin( ), order.end( ), [&](size_t x, size_t y) {
+        return b[x].day != b[y].day ? b[x].day < b[y].day : b[x].off < b[y].off;
+    });
+    std::vector<TelRecPos> pos;
+    for (size_t k : order) {
+        if (telFileDone(c, b[k].day)) continue;
+        for (uint16_t r = 0; r < b[k].n; r++) {
+            const uint32_t ep = b[k].e0 + r;
+            if (telUnsent(c, b[k].day, b[k].off, r, ep)) {
+                if (got) got[pos.size( )] = ep;
+                pos.push_back(TelRecPos{ b[k].day, b[k].off, r, ep });
+            }
+        }
+    }
+    telAdvance(c, pos.data( ), pos.size( ));
+    return pos.size( );
+}
+
+/* 2 October 2026, as StorageManager::historyDayOf( ) hands it over. */
+static const TelToday TEL_OCT2 = { 20261002, 20260929, 20261003, false };
+static const TelToday TEL_OCT2_TRUSTED = { 20261002, 20260929, 20261003, true };
+
+/* No clock at all: the floor stays where it is. */
+void test_telpos_no_clock_moves_no_floor(void) {
+    TelCursorState c; telCursorReset(c, 20260920);
+    const TelToday none = { 0, 0, 0, false };
+    telAdvanceFloor(c, none, 0);
+    TEST_ASSERT_EQUAL_UINT32(20260920, c.floorDay);
+}
+
+void test_telpos_a_late_block_in_the_same_file_is_sent(void) {
+    TelCursorState c; telCursorReset(c, 20261001);
+    uint32_t got[64];
+    SimBlock f[] = { {20261002, 100, 5, 1000}, {20261002, 300, 5, 2000},
+                     {20261002, 500, 5, 1500} };          /* written after the clock went back */
+    TEST_ASSERT_EQUAL(10, simSend(c, f, 2, got));
+    TEST_ASSERT_EQUAL(5, simSend(c, f, 3, got));
+    TEST_ASSERT_EQUAL_UINT32(1500, got[0]);
+    TEST_ASSERT_EQUAL(0, simSend(c, f, 3, got));          /* and nothing twice */
+}
+
+void test_telpos_a_late_block_in_yesterdays_file_is_sent(void) {
+    TelCursorState c; telCursorReset(c, 20260930);
+    uint32_t got[64];
+    SimBlock f[] = { {20261001, 100, 5, 1000}, {20261002, 100, 5, 2000},
+                     {20261001, 300, 5, 1500} };          /* a stamp from yesterday, written today */
+    TEST_ASSERT_EQUAL(10, simSend(c, f, 2, got));
+    telAdvanceFloor(c, TEL_OCT2, 0);
+    TEST_ASSERT_EQUAL(5, simSend(c, f, 3, got));
+    TEST_ASSERT_EQUAL_UINT32(1500, got[0]);
+}
+
+void test_telpos_the_open_block_sent_in_part_is_finished_once_sealed(void) {
+    TelCursorState c; telCursorReset(c, 20261001);
+    uint32_t got[64];
+    /* Three records went out of the encoder at the position the block will
+     * have once sealed: the end of its day file. */
+    TelRecPos ram[3] = { {20261002, 700, 0, 3000}, {20261002, 700, 1, 3001}, {20261002, 700, 2, 3002} };
+    telAdvance(c, ram, 3);
+    SimBlock f[] = { {20261002, 700, 5, 3000} };
+    TEST_ASSERT_EQUAL(2, simSend(c, f, 1, got));
+    TEST_ASSERT_EQUAL_UINT32(3003, got[0]);
+}
+
+void test_telpos_the_floor_trails_today_and_waits_for_the_unsent(void) {
+    TelCursorState c; telCursorReset(c, 20260920);
+    SimBlock f[13];
+    for (int d = 0; d < 13; d++) f[d] = SimBlock{ (uint32_t)(20260920 + d), 100, 2, (uint32_t)(1000 + 10 * d) };
+    /* Nothing sent yet: the floor stays on the first file that has anything. */
+    telAdvanceFloor(c, TEL_OCT2, 20260920);
+    TEST_ASSERT_EQUAL_UINT32(20260920, c.floorDay);
+    TEST_ASSERT_EQUAL(26, simSend(c, f, 13, nullptr));
+    /* All sent: the floor comes up to three days behind today, no further. */
+    telAdvanceFloor(c, TEL_OCT2, 0);
+    TEST_ASSERT_EQUAL_UINT32(20260929, c.floorDay);
+}
+
+void test_telpos_a_file_older_than_the_window_stays_closed(void) {
+    TelCursorState c; telCursorReset(c, 20260920);
+    uint32_t got[64];
+    SimBlock f[] = { {20260925, 100, 2, 1000}, {20261002, 100, 2, 2000},
+                     {20260925, 300, 2, 1500},             /* behind the floor: the known limit */
+                     {20260930, 100, 2, 1600} };           /* inside the window */
+    TEST_ASSERT_EQUAL(4, simSend(c, f, 2, got));
+    telAdvanceFloor(c, TEL_OCT2, 0);
+    TEST_ASSERT_EQUAL(2, simSend(c, f, 4, got));
+    TEST_ASSERT_EQUAL_UINT32(1600, got[0]);
+}
+
+void test_telpos_the_old_cursor_keeps_its_rule_for_its_own_files(void) {
+    TelCursorState c;
+    /* Migrated from the 4-byte epoch 1999, whose block is in 20261002's file. */
+    telCursorLegacy(c, 1999, 20261002, 20261001);
+    uint32_t got[64];
+    SimBlock f[] = { {20261002, 100, 5, 1000}, {20261002, 300, 5, 1995},   /* sent under the old cursor */
+                     {20261002, 500, 5, 2000},                             /* after it */
+                     {20261003, 100, 5, 1500} };                           /* a new file, stamped behind it */
+    TEST_ASSERT_EQUAL(5, simSend(c, f, 3, got));
+    TEST_ASSERT_EQUAL_UINT32(2000, got[0]);
+    TEST_ASSERT_EQUAL(5, simSend(c, f, 4, got));
+    TEST_ASSERT_EQUAL_UINT32(1500, got[0]);
+}
+
+void test_telpos_saves_loads_and_an_older_firmware_reads_its_epoch(void) {
+    TelCursorState c; telCursorReset(c, 20261001);
+    TelRecPos p[2] = { {20261002, 100, 0, 1790958342}, {20261002, 100, 1, 1790958402} };
+    telAdvance(c, p, 2);
+    c.lastEpoch = 1790958402;
+    uint8_t buf[sizeof(TelCursorState)];
+    memcpy(buf, &c, sizeof(buf));
+    /* The first four bytes are what v2.9.0 reads as its whole cursor. */
+    uint32_t first; memcpy(&first, buf, 4);
+    TEST_ASSERT_EQUAL_UINT32(1790958402, first);
+    TelCursorState d; bool legacy = true;
+    TEST_ASSERT_TRUE(telCursorLoad(d, buf, sizeof(buf), legacy));
+    TEST_ASSERT_FALSE(legacy);
+    TEST_ASSERT_EQUAL_MEMORY(&c, &d, sizeof(c));
+    /* A length or a mark it does not know is no cursor at all. */
+    TEST_ASSERT_FALSE(telCursorLoad(d, buf, 7, legacy));
+    buf[4] ^= 0xFF;
+    TEST_ASSERT_FALSE(telCursorLoad(d, buf, sizeof(buf), legacy));
+    TEST_ASSERT_EQUAL_UINT32(0, d.floorDay);
+}
+
+void test_telpos_a_full_table_closes_its_oldest_file(void) {
+    TelCursorState c; telCursorReset(c, 20260901);
+    SimBlock f[TEL_POS_SLOTS + 1];
+    for (int d = 0; d <= TEL_POS_SLOTS; d++) f[d] = SimBlock{ (uint32_t)(20260901 + d), 100, 2, (uint32_t)(1000 + 10 * d) };
+    TEST_ASSERT_EQUAL(2 * (TEL_POS_SLOTS + 1), simSend(c, f, TEL_POS_SLOTS + 1, nullptr));
+    /* Nine files, eight slots. The oldest was drained by the very batch that
+     * needed its slot, so it is closed, not sent again. */
+    TEST_ASSERT_EQUAL_UINT32(20260902, c.floorDay);
+    TEST_ASSERT_EQUAL(0, simSend(c, f, TEL_POS_SLOTS + 1, nullptr));
+    /* A late block in an old file, the table full of newer ones: the newest
+     * cannot be closed, so the oldest of them goes again — a duplicate. */
+    TelCursorState d; telCursorReset(d, 20260901);
+    TelRecPos newer[TEL_POS_SLOTS];
+    for (int i = 0; i < TEL_POS_SLOTS; i++) newer[i] = TelRecPos{ (uint32_t)(20260910 + i), 100, 0, 5000u + i };
+    telAdvance(d, newer, TEL_POS_SLOTS);
+    TelRecPos late = { 20260905, 100, 0, 4000 };
+    telAdvance(d, &late, 1);
+    TEST_ASSERT_EQUAL_UINT32(20260901, d.floorDay);
+    TEST_ASSERT_NULL(telFind(d, 20260910));
+    TEST_ASSERT_NOT_NULL(telFind(d, 20260905));
+}
+
+/* A slow device's backlog: one batch spans more days than there are slots.
+ * Forgetting the oldest sent it again next batch, and that batch forgot the
+ * next one — a file of duplicates per batch, for ever. */
+void test_telpos_a_drain_longer_than_the_table_ends(void) {
+    TelCursorState c; telCursorReset(c, 20260901);
+    SimBlock f[20];
+    for (int d = 0; d < 20; d++) f[d] = SimBlock{ (uint32_t)(20260901 + d), 100, 3, (uint32_t)(1000 + 10 * d) };
+    TEST_ASSERT_EQUAL(60, simSend(c, f, 20, nullptr));
+    for (int i = 0; i < 3; i++) TEST_ASSERT_EQUAL(0, simSend(c, f, 20, nullptr));
+}
+
+/* What a slot checks before it is trusted. */
+void test_telpos_a_slot_holds_only_while_its_records_are_there(void) {
+    TelCursorState c; telCursorReset(c, 20261001);
+    TelRecPos ram[5] = { {20261002, 700, 0, 3000}, {20261002, 700, 1, 3001}, {20261002, 700, 2, 3002},
+                         {20261002, 700, 3, 3003}, {20261002, 700, 4, 3004} };
+    telAdvance(c, ram, 5);
+    const TelPos* p = telFind(c, 20261002);
+    TEST_ASSERT_NOT_NULL(p);
+    TEST_ASSERT_TRUE(telSlotHolds(*p, true, 5, 3004));      /* the same block, sealed */
+    TEST_ASSERT_TRUE(telSlotHolds(*p, true, 60, 3004));     /* ... and filled on */
+    /* The power went before the .wip caught up: the snapshot kept three, and
+     * the next readings took indices 3 and 4. */
+    TEST_ASSERT_FALSE(telSlotHolds(*p, true, 5, 3060));
+    TEST_ASSERT_FALSE(telSlotHolds(*p, true, 2, 0));        /* a shorter block took the offset */
+    TEST_ASSERT_FALSE(telSlotHolds(*p, false, 0, 0));       /* no block starts there any more */
+    TelPos none = {};
+    TEST_ASSERT_TRUE(telSlotHolds(none, false, 0, 0));      /* nothing counted, nothing to lose */
+}
+
+void test_telpos_readings_that_take_a_lost_position_are_sent(void) {
+    TelCursorState c; telCursorReset(c, 20261001);
+    uint32_t got[64];
+    /* Five records went out of the encoder at the end of today's file, and
+     * the power went before the snapshot had them all. */
+    TelRecPos ram[5] = { {20261002, 700, 0, 3000}, {20261002, 700, 1, 3001}, {20261002, 700, 2, 3002},
+                         {20261002, 700, 3, 3003}, {20261002, 700, 4, 3004} };
+    telAdvance(c, ram, 5);
+    /* What sealed at 700 holds other records at those indices. The position
+     * cannot say which went, so the whole file goes again. */
+    SimBlock f[] = { {20261002, 100, 5, 1000}, {20261002, 700, 5, 2998} };
+    TEST_ASSERT_EQUAL(10, simSend(c, f, 2, got));
+    TEST_ASSERT_EQUAL(0, simSend(c, f, 2, got));
+}
+
+void test_telpos_a_batch_kept_as_runs_advances_what_went(void) {
+    TelRun runs[TEL_RUNS_MAX]; uint8_t n = 0;
+    uint8_t k = 0;
+    for (uint8_t idx = 3; idx <= 7; idx++) TEST_ASSERT_TRUE(telRunPush(runs, n, 20261002, 100, idx, k++, 1000u + idx));
+    for (uint8_t idx = 0; idx <= 1; idx++) TEST_ASSERT_TRUE(telRunPush(runs, n, 20261002, 300, idx, k++, 2000u + idx));
+    TEST_ASSERT_TRUE(telRunPush(runs, n, 20261002, 300, 3, k++, 2003));   /* index 2 skipped: a new run */
+    TEST_ASSERT_EQUAL(3, n);
+    /* The broker took six of the eight. */
+    telRunsTrim(runs, n, 6, 2000);
+    TEST_ASSERT_EQUAL(2, n);
+    TEST_ASSERT_EQUAL(1, runs[1].len);
+    TelCursorState c; telCursorReset(c, 20261001);
+    telAdvanceRuns(c, runs, n);
+    const TelPos* p = telFind(c, 20261002);
+    TEST_ASSERT_NOT_NULL(p);
+    TEST_ASSERT_EQUAL_UINT32(300, p->off);
+    TEST_ASSERT_EQUAL(1, p->rec);
+    TEST_ASSERT_EQUAL_UINT32(2000, p->epoch);
+    /* A batch that would need one run too many ends before that record; one
+     * that extends the last run still fits. */
+    TelRun many[TEL_RUNS_MAX]; uint8_t m = 0;
+    for (uint8_t i = 0; i < TEL_RUNS_MAX; i++) TEST_ASSERT_TRUE(telRunPush(many, m, 20261002, 100u * (i + 1u), 0, i, 1));
+    TEST_ASSERT_FALSE(telRunPush(many, m, 20261002, 99999, 0, TEL_RUNS_MAX, 1));
+    TEST_ASSERT_TRUE(telRunPush(many, m, 20261002, 100u * TEL_RUNS_MAX, 1, TEL_RUNS_MAX, 2));
+}
+
+void test_telpos_a_trusted_clock_drops_the_days_ahead_of_it(void) {
+    TelCursorState c; telCursorReset(c, 20261001);
+    TelRecPos ahead[2] = { {20261003, 100, 0, 8000}, {20261010, 100, 0, 9000} };
+    telAdvance(c, ahead, 2);
+    telAdvanceFloor(c, TEL_OCT2, 0);           /* provisional: it may be the one behind */
+    TEST_ASSERT_NOT_NULL(telFind(c, 20261010));
+    telAdvanceFloor(c, TEL_OCT2_TRUSTED, 0);
+    TEST_ASSERT_NULL(telFind(c, 20261010));
+    TEST_ASSERT_NOT_NULL(telFind(c, 20261003));   /* tomorrow stays */
+}
+
+void test_telpos_a_rewritten_file_is_sent_again(void) {
+    TelCursorState c; telCursorReset(c, 20261001);
+    SimBlock f[] = { {20261002, 100, 5, 1000}, {20261002, 300, 5, 1010} };
+    TEST_ASSERT_EQUAL(10, simSend(c, f, 2, nullptr));
+    /* The day file was put back by a backup restore: it is now shorter than
+     * the position kept for it, so the position means nothing. */
+    telForgetIfBeyond(c, 20261002, 200);
+    SimBlock g[] = { {20261002, 100, 10, 1000} };
+    TEST_ASSERT_EQUAL(10, simSend(c, g, 1, nullptr));
+    /* A file that only grew keeps its place. */
+    telForgetIfBeyond(c, 20261002, 4000);
+    TEST_ASSERT_EQUAL(0, simSend(c, g, 1, nullptr));
+}
+
+void test_telpos_block_count_agrees_with_the_record_rule(void) {
+    TelCursorState c; telCursorReset(c, 20261001);
+    TelRecPos p[2] = { {20261002, 300, 0, 5000}, {20261002, 300, 1, 5001} };
+    telAdvance(c, p, 2);
+    TEST_ASSERT_EQUAL_UINT8(0, telBlockUnsent(c, 20261002, 100, 5, 9000));  /* before the position */
+    TEST_ASSERT_EQUAL_UINT8(3, telBlockUnsent(c, 20261002, 300, 5, 5000));  /* the block it is in */
+    TEST_ASSERT_EQUAL_UINT8(5, telBlockUnsent(c, 20261002, 500, 5, 100));   /* after it, however stamped */
+    TEST_ASSERT_EQUAL_UINT8(5, telBlockUnsent(c, 20261003, 100, 5, 100));   /* a file it has not reached */
+    TEST_ASSERT_EQUAL_UINT8(0, telBlockUnsent(c, 20260930, 100, 5, 9000));  /* behind the floor */
+    /* Under the old cursor's rule a header has only its first stamp: a block
+     * that starts after the epoch counts whole, one that starts at or before
+     * it counts as sent — the one straddling it is short of its tail. */
+    TelCursorState l; telCursorLegacy(l, 1999, 20261002, 20261001);
+    TEST_ASSERT_EQUAL_UINT8(5, telBlockUnsent(l, 20261002, 100, 5, 2000));
+    TEST_ASSERT_EQUAL_UINT8(0, telBlockUnsent(l, 20261002, 100, 5, 1998));
+}
+
+/* The open block on a SIMUT Air wake, counted from its snapshot before the
+ * boot puts it back in RAM (StorageManager::h5WipBlock): what the cursor has
+ * not taken of it, and nothing once a wake has sent it all. The F23 pins
+ * h5CountAfter held until the count became a position. */
+void test_telpos_the_snapshot_counts_what_no_wake_has_sent(void) {
+    TelCursorState c; telCursorReset(c, 20261001);
+    /* Nothing sent from it yet: every record waits, and one more each wake. */
+    for (uint8_t n = 1; n <= 8; n++) TEST_ASSERT_EQUAL_UINT8(n, telBlockUnsent(c, 20261002, 700, n, 3000));
+    /* A wake sent four of the eight. */
+    TelRecPos sent[4] = { {20261002, 700, 0, 3000}, {20261002, 700, 1, 3060},
+                          {20261002, 700, 2, 3120}, {20261002, 700, 3, 3180} };
+    telAdvance(c, sent, 4);
+    TEST_ASSERT_EQUAL_UINT8(4, telBlockUnsent(c, 20261002, 700, 8, 3000));
+    /* The next wakes add records; the count follows them. */
+    TEST_ASSERT_EQUAL_UINT8(6, telBlockUnsent(c, 20261002, 700, 10, 3000));
+    /* All of it went: the radio must not come up for it a second time. */
+    TelRecPos rest[6];
+    for (uint16_t i = 0; i < 6; i++) rest[i] = TelRecPos{ 20261002, 700, (uint16_t)(4 + i), 3240u + 60u * i };
+    telAdvance(c, rest, 6);
+    TEST_ASSERT_EQUAL_UINT8(0, telBlockUnsent(c, 20261002, 700, 10, 3000));
+}
+
+void test_telpos_a_clock_gone_back_pulls_the_floor_back(void) {
+    TelCursorState c; telCursorReset(c, 20301001);   /* the clock had run to 2030 */
+    telAdvanceFloor(c, TEL_OCT2, 0);
+    TEST_ASSERT_EQUAL_UINT32(20260929, c.floorDay);
+}
+
 /* ── Content-Type of a telemetry line (TelContentType.h) ──────────────────
  * The custom payload mode lets the operator name the header, because only the
  * operator knows what the server on the other end parses. The value goes into
@@ -4511,6 +4826,24 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_tel_cursor_stops_at_what_the_payload_kept);
     RUN_TEST(test_tel_cursor_nothing_delivered_keeps_the_floor);
     RUN_TEST(test_tel_cursor_takes_the_newest_and_clamps_the_future);
+    RUN_TEST(test_telpos_no_clock_moves_no_floor);
+    RUN_TEST(test_telpos_a_late_block_in_the_same_file_is_sent);
+    RUN_TEST(test_telpos_a_late_block_in_yesterdays_file_is_sent);
+    RUN_TEST(test_telpos_the_open_block_sent_in_part_is_finished_once_sealed);
+    RUN_TEST(test_telpos_the_floor_trails_today_and_waits_for_the_unsent);
+    RUN_TEST(test_telpos_a_file_older_than_the_window_stays_closed);
+    RUN_TEST(test_telpos_the_old_cursor_keeps_its_rule_for_its_own_files);
+    RUN_TEST(test_telpos_saves_loads_and_an_older_firmware_reads_its_epoch);
+    RUN_TEST(test_telpos_a_full_table_closes_its_oldest_file);
+    RUN_TEST(test_telpos_a_drain_longer_than_the_table_ends);
+    RUN_TEST(test_telpos_a_slot_holds_only_while_its_records_are_there);
+    RUN_TEST(test_telpos_readings_that_take_a_lost_position_are_sent);
+    RUN_TEST(test_telpos_a_batch_kept_as_runs_advances_what_went);
+    RUN_TEST(test_telpos_a_trusted_clock_drops_the_days_ahead_of_it);
+    RUN_TEST(test_telpos_a_rewritten_file_is_sent_again);
+    RUN_TEST(test_telpos_block_count_agrees_with_the_record_rule);
+    RUN_TEST(test_telpos_the_snapshot_counts_what_no_wake_has_sent);
+    RUN_TEST(test_telpos_a_clock_gone_back_pulls_the_floor_back);
     RUN_TEST(test_media_type_accepts_what_servers_expect);
     RUN_TEST(test_media_type_refuses_what_would_break_the_header);
     RUN_TEST(test_tel_content_type_per_mode);

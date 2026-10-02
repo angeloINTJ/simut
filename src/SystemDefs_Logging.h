@@ -250,6 +250,7 @@ enum LogCode {
  TEL_ALARM_FAIL = 551,        /* ciclo de envio de alarmes falhou; ctx = motivo/código */
  TEL_ALARM_ACK = 552,         /* confirmação de recebimento aplicada; ctx = registros */
  TEL_ALARM_DROP = 553,        /* estouro da fila de alarmes (drop-newest); ctx = total descartado */
+ TEL_CURSOR_RESENT = 554,     /* a day file's telemetry position no longer held (TelemetryPosition.h): sent again from its start; ctx = MMDD */
 
  /* ── Storage extended (560–569) ── */
  STO_WRITE_FAILED = 560,
