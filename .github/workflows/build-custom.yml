@@ -13,6 +13,13 @@ name: SIMUT custom build
 # are read as variables — never interpolated into a `run:` script, which is the
 # GitHub Actions injection path. build_custom.py validates the profile strictly
 # before anything is downloaded or built.
+#
+# The .bin is signed (docs/analysis/OTA_ASSINADA.md): a device installs only a
+# signed image over the air. `build` compiles with no secret in reach; `sign`
+# runs in the `release` Environment, which waits for the maintainer's approval
+# before the key reaches it, exactly as a release does. The page shows that wait
+# as its own state. build_custom.py never builds an image that trusts the bench
+# root, and the signing tool would refuse one if it did.
 on:
   workflow_dispatch:
     inputs:
@@ -35,6 +42,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Read by the signing job, which publishes under the name the page parses.
+    outputs:
+      name: ${{ steps.build.outputs.name }}
+      used: ${{ steps.build.outputs.used }}
+      bin: ${{ steps.build.outputs.bin }}
+      ram: ${{ steps.build.outputs.ram }}
+      fits_ota: ${{ steps.build.outputs.fits_ota }}
     steps:
       - name: Validate the request id
         env:
@@ -84,14 +98,14 @@ jobs:
           SIMUT_PROFILE: ${{ inputs.profile }}
         run: python3 tools/build_custom.py --out build-custom
 
-      - name: Publish the firmware
+      - name: Hand the build to the signing job
         uses: actions/upload-artifact@v7
         with:
-          # The page reads the measured sizes back from this name: the artifact
-          # list is readable through the API, the job's outputs are not.
-          name: simut-${{ inputs.request_id }}-bin${{ steps.build.outputs.bin }}-ram${{ steps.build.outputs.ram }}
+          # Not `simut-…`: the page takes the first artifact by that prefix, and
+          # this one is not yet the firmware it can install over the air.
+          name: unsigned-${{ inputs.request_id }}
           path: build-custom/
-          retention-days: 30
+          retention-days: 1
           if-no-files-found: error
 
       - name: Summary
@@ -117,3 +131,76 @@ jobs:
               echo "**Attention:** the .bin is over the OTA ceiling — flash the .uf2 over USB."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+  sign:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # The approval: the secret reaches this job only after the maintainer, the
+    # Environment's required reviewer, approves the run.
+    environment: release
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+
+      - name: Install the signing tool's one dependency
+        run: pip install cryptography
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: unsigned-${{ inputs.request_id }}
+          path: build-custom
+
+      # The same steps as the release's (release-ota.yml): keys/ checked, the
+      # key in a 0600 file shredded on the way out, the image refused if it
+      # trusts the bench root, each result verified the way the image it came
+      # from would. build.json gets the signed file's size and sha256, since
+      # that is the .bin it hands over.
+      - name: Sign the image
+        env:
+          OTA_SIGNER_KEY: ${{ secrets.OTA_SIGNER_KEY }}
+        run: |
+          set -euo pipefail
+          python3 tools/ota_sign.py check-keys
+          umask 077
+          key="$RUNNER_TEMP/signer.p8"
+          trap 'shred -u "$key" 2>/dev/null || rm -f "$key"' EXIT
+          printf '%s\n' "$OTA_SIGNER_KEY" > "$key"
+          shopt -s nullglob
+          bins=(build-custom/*.bin)
+          if [ "${#bins[@]}" -ne 1 ]; then
+            echo "expected one .bin in the build, found ${#bins[@]}" >&2
+            exit 1
+          fi
+          bin="${bins[0]}"
+          python3 tools/ota_sign.py sign --key "$key" --cert keys/ota_signer_release.cert \
+            --in "$bin" --out "$bin.signed"
+          python3 tools/ota_sign.py verify --in "$bin.signed" --running "$bin"
+          mv "$bin.signed" "$bin"
+          python3 tools/ota_sign.py inspect --in "$bin"
+          python3 - "$bin" <<'PY'
+          import hashlib, json, sys
+          path = sys.argv[1]
+          report = json.load(open("build-custom/build.json", encoding="utf-8"))
+          data = open(path, "rb").read()
+          report["files"]["bin"].update(sha256=hashlib.sha256(data).hexdigest(), bytes=len(data))
+          report["signed"] = True
+          with open("build-custom/build.json", "w", encoding="utf-8") as fh:
+              json.dump(report, fh, indent=2, ensure_ascii=False)
+              fh.write("\n")
+          PY
+
+      - name: Publish the firmware
+        uses: actions/upload-artifact@v7
+        with:
+          # The page reads the measured sizes back from this name: the artifact
+          # list is readable through the API, the job's outputs are not. The
+          # sizes are the build's, measured before the 241 B of signature.
+          name: simut-${{ inputs.request_id }}-bin${{ needs.build.outputs.bin }}-ram${{ needs.build.outputs.ram }}
+          path: build-custom/
+          retention-days: 30
+          if-no-files-found: error

@@ -84,6 +84,7 @@ const STR = {
     "run.dispatching": "Sending to GitHub…",
     "run.finding": "Waiting for the run to appear…",
     "run.queued": "In the queue at GitHub.",
+    "run.approval": "Compiled. Waiting for the maintainer to approve the signature: a device installs only signed images over the air.",
     "run.progress": "Compiling: {m} min so far.",
     "run.ok": "Compiled: .bin {bin} B, RAM {ram} B.",
     "run.okOta": "It fits the OTA ceiling: install the .bin through the web interface, or the .uf2 over USB.",
@@ -161,6 +162,7 @@ const STR = {
     "run.dispatching": "Enviando ao GitHub…",
     "run.finding": "Esperando a execução aparecer…",
     "run.queued": "Na fila do GitHub.",
+    "run.approval": "Compilada. Esperando o mantenedor aprovar a assinatura: o aparelho só instala imagem assinada pelo ar.",
     "run.progress": "Compilando: {m} min até agora.",
     "run.ok": "Compilada: .bin {bin} B, RAM {ram} B.",
     "run.okOta": "Cabe no teto de OTA: instale o .bin pela interface web, ou o .uf2 pelo USB.",
@@ -853,7 +855,10 @@ function renderRun() {
   const say = (text, tone) => kids.push(h("p", { class: tone ? "cfg-aviso" : "cfg-apoio", "data-tom": tone || null, text }));
   if (r.phase === "dispatching") say(t("run.dispatching"));
   else if (r.phase === "finding") say(t("run.finding"));
-  else if (r.phase === "queued" || r.phase === "waiting" || r.phase === "requested" || r.phase === "pending") say(t("run.queued"));
+  /* "waiting" is the run held at the `release` Environment for the maintainer's
+     approval before the signing job (build-custom.yml): a person, not a queue. */
+  else if (r.phase === "waiting") say(t("run.approval"));
+  else if (r.phase === "queued" || r.phase === "requested" || r.phase === "pending") say(t("run.queued"));
   else if (r.phase === "in_progress") say(t("run.progress", { m: Math.max(1, Math.round((Date.now() - r.started) / 60000)) }));
   else if (r.phase === "success") {
     if (r.bin !== null && r.bin !== undefined) {

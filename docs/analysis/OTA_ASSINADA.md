@@ -3,10 +3,11 @@
 Estado: **em andamento**. Decisão do mantenedor, 01/10/2026: OTA só com imagem
 assinada, e, nas escolhas de chave, bancada e build local, "o mais
 profissional". Feitas as etapas 1 (este desenho, #219), 2 (ferramenta, módulo e
-testes no host, #220) e 3 (ligar ao stage): o firmware do `main` só aceita imagem
-assinada. Até a etapa 4, o CI não assina nada, então **nenhuma release sai antes
-dela**: um aparelho que a instalasse recusaria todas as seguintes. As etapas
-estão no fim.
+testes no host, #220) e 3 (ligar ao stage, #221): o firmware do `main` só aceita
+imagem assinada. A etapa 4 tem a cerimônia feita (as chaves e o Environment
+`release`) e os jobs de assinatura neste ponto; **nenhuma release sai antes de uma
+execução assinada pelo CI ser conferida**: um aparelho que instalasse uma imagem
+sem assinatura recusaria todas as seguintes. As etapas estão no fim.
 
 ## O problema
 
@@ -98,6 +99,16 @@ bancada: a chave menos guardada viraria porta dos fundos.
 **Geração.** A raiz é gerada pelo mantenedor, num terminal dele
 (`tools/ota_sign.py root-new`), com a senha digitada ali. A chave privada não
 passa por nenhuma ferramenta de terceiros nem por sessão de agente.
+
+**A cerimônia, como foi.** Em 01/10/2026 o mantenedor gerou a raiz de produção
+(20h36) e, com a senha dela, a chave de assinatura de série 1 (22h16), as duas no
+terminal dele. A pública da raiz está em `keys/ota_root_release.pub`, e o
+certificado da chave de assinatura, que é público, em
+`keys/ota_signer_release.cert`. Às 22h23 ele criou o Environment `release`
+(revisor obrigatório: ele; só a branch `main` e as tags `v*`), e às 22h27 guardou
+a chave como o segredo `OTA_SIGNER_KEY` dele (horário de Brasília). A cópia local da
+chave de assinatura é apagada depois da primeira execução assinada conferida: a
+raiz certifica outra quando for preciso.
 
 **Rotação.** A chave de assinatura tem um número de série no certificado. Para
 trocá-la, por rotina ou por suspeita, a raiz certifica uma nova com série
@@ -230,16 +241,32 @@ iguais depois.
 
 ## O CI
 
-- `release-ota.yml` em três jobs: compilar (sem segredo); **assinar**, no
-  Environment `release`, que espera a aprovação do mantenedor; publicar
-  (`SHA256SUMS`, o manifesto do simut-rx e o atestado, já sobre os `.bin`
-  assinados). O job de assinatura usa o `ota_sign.py sign`, que recusa o que o
-  bloco de confiança proíbe (acima), e confere a própria saída antes de
-  entregá-la.
-- `build-custom.yml`: o mesmo job de assinatura, na mesma aprovação.
-- Candidata do teste de retenção: um `workflow_dispatch` que compila e assina,
-  sem publicar.
-- O `.uf2` não leva assinatura: o USB não confere.
+- `release-ota.yml` em três jobs. `build` compila as três variantes sem segredo
+  nenhum ao alcance. `sign` roda no Environment `release`: o GitHub só entrega a
+  chave depois que o mantenedor aprova a execução. Ele roda o `check-keys` (o
+  certificado com que assina tem de ser um que `keys/` abona), põe a chave num
+  arquivo 600 que é destruído na saída, assina cada imagem com o `ota_sign.py
+  sign` (que recusa uma chave que não é a do certificado, uma imagem que confia na
+  bancada e uma que recusaria a próxima desta chave) e confere cada resultado com
+  `verify --running`, como a imagem de origem o conferiria. `publish`, só no
+  push de tag, confere de novo cada `.bin` contra a raiz de produção de `keys/` e
+  só então escreve o manifesto, o `SHA256SUMS` e o atestado sobre as imagens
+  assinadas.
+- Disparado à mão (`workflow_dispatch`, no `main`), o mesmo workflow compila e
+  assina sem publicar: o artefato `signed-images` (30 dias) é a candidata do teste
+  de retenção da release.
+- `build-custom.yml`: o mesmo passo de assinatura, na mesma aprovação. A página do
+  configurador mostra a espera da aprovação como um estado próprio, e o
+  `build.json` do artefato passa a dar o tamanho e o sha256 do `.bin` assinado.
+- O `.uf2` da release sai do `.bin` assinado, com o trailer junto, e o da build
+  sob medida é o do PlatformIO, sem ele: nos dois casos o USB não lê o trailer.
+- Em todo PR, o job `gates` roda `check-keys`: as raízes, a política e todo
+  certificado de `keys/` se sustentam.
+
+Exercitado antes do merge, fora do GitHub, com a chave de bancada: o script de
+cada job, extraído do YAML, assinou e conferiu; recusou a chave de bancada com o
+certificado de produção, a chave de bancada numa imagem de produção, e o portão
+do `publish` recusou com `v=12` uma imagem assinada pela bancada.
 
 ## A bancada
 
@@ -323,8 +350,10 @@ configuração e do histórico, é a etapa 5.
    bancada e a marca `ota_trust_bench`, a página, o log, as ferramentas de bancada
    e o manual. O rig prova a tabela acima. O simut-rx fica para um PR no
    repositório dele.
-4. **Cerimônia e CI**: o mantenedor gera a raiz e a chave de assinatura; o
-   Environment `release` com ele como revisor; o job de assinatura nos dois
-   workflows; a candidata assinada.
+4. **Cerimônia e CI**: o mantenedor gera a raiz e a chave de assinatura (feito,
+   01/10); o Environment `release` com ele como revisor e o segredo (feito,
+   01/10); o job de assinatura nos dois workflows e a candidata assinada por
+   `workflow_dispatch`. A etapa fecha quando a primeira execução assinada pelo CI
+   for conferida.
 5. **A primeira release assinada**, com o teste de retenção pelo ar a partir
    da v2.8.0.
