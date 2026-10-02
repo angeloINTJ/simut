@@ -1573,9 +1573,7 @@ void StorageManager::telCursorTouched( ) {
  * @brief CMD_TEL_RESET: reset telemetry cursor without needing reboot.
  * Drops the RAM copy, clears pending coalescer, and removes the flash file.
  * The next use reads what is on flash — nothing, so an empty cursor, and the
- * next collectBatch applies the "lastRecorded - 30 days" floor. A file that
- * lands before that read is taken instead: tools/telemetry_bench/
- * phase_drain_full.py seeds one to drain past the floor.
+ * next collectBatch applies the "lastRecorded - 30 days" floor.
  *
  * Use cases:
  * - Operations: re-send data after prolonged server outage (cursor

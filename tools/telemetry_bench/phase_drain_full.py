@@ -9,11 +9,14 @@ limit — and this proves it. The cursor lives in `/config/t_cursor.bin`; seedin
 it with HIST_EPOCH_MIN instead of leaving it empty skips the 30-day floor
 entirely and the device happily streams the entire archive.
 
-Since A-04 (2026-10-02) the file is 148 bytes: a write position per day file
-and a floor day. A 4-byte file is the cursor from before it, and the firmware
-still reads one — as the old epoch, whose files keep the old rule. Seeded with
-HIST_EPOCH_MIN, that rule covers nothing written since 2020, so every file is
-sent whole, as before.
+It no longer runs as written. /api/upload refuses every path under /config
+since 2026-08-29 (7034221, the security audit's /config mutation paths), so the
+seed is turned away — the result says so, as seed_present_in_fs: false — and
+what the run measures is the 30-day floor again. And
+since A-04 (2026-10-02) the cursor file is 148 bytes: a write position per day
+file and a floor day. A 4-byte file is still read, as the old epoch cursor,
+whose files keep the old rule — a seed of HIST_EPOCH_MIN would cover nothing
+written since 2020 — but it needs another way onto the flash first.
 
 Run order matters: `tel reset` must come first (it drops the RAM copy AND
 deletes the file), and the seeded file has to land before the next read.
