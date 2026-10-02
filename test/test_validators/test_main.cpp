@@ -47,6 +47,7 @@
 #include <vector>
 #include "display/ClockEntry.h"         /* the date and time set at the panel */
 #include "display/SettingsMenu.h"       /* the panel's Settings menu: rows, order */
+#include "PasswordCheck.h"             /* one derivation per password check */
 #include "PemBlocks.h"                 /* the PEM splitting POST /api/tls does */
 #include "WebCommitSections.h"          /* per-section authz for /api/commit_all */
 #include "FsSecretPath.h"               /* /config download guard (A-4) */
@@ -3572,6 +3573,125 @@ void test_settings_menu_numbers_a_row_by_where_it_sits(void) {
         settingsMenuRowText("Visual Themes", 9, MENU_ITEM_COUNT, tiny, sizeof(tiny)));
 }
 
+/* ── The password check: one derivation, whatever the name (PasswordCheck.h) ──
+ * On the device a derivation costs ~645 ms. What these pin is that every check
+ * pays for exactly one, so the time of the answer says nothing about which
+ * names have an account. The stand-in hashes are cheap strings that depend on
+ * the password and the salt, which is all the check needs from them. */
+struct PwAccount {
+    bool active;
+    char username[16];
+    char password[33];
+    uint8_t salt[8];
+    uint8_t hashVersion;
+};
+
+struct CountingDerive {
+    int v1Calls = 0;
+    int legacyCalls = 0;
+    const uint8_t* lastSalt = nullptr;
+    String v1(const String& user, const String& pass, const uint8_t* salt) {
+        (void)user;
+        v1Calls++;
+        lastSalt = salt;
+        return String("v1:") + pass + ":" + String((unsigned)salt[0]);
+    }
+    /* A legacy hash is 30 characters; the check tells it apart by that. */
+    String legacy(const String& user, const String& pass) {
+        (void)user;
+        legacyCalls++;
+        return (String("lg:") + pass + "..............................").substring(0, 30);
+    }
+    bool same(const String& a, const String& b) { return a == b; }
+};
+
+/* ana and bia have current hashes, leg a legacy one, and old was deleted:
+ * its record still holds the right hash, as a deleted slot does. */
+static void pwAccounts(PwAccount (&u)[4]) {
+    memset(u, 0, sizeof(u));
+    CountingDerive d;
+    const char* names[4] = { "ana", "bia", "leg", "old" };
+    for (int i = 0; i < 4; i++) {
+        u[i].active = (i != 3);
+        strcpy(u[i].username, names[i]);
+        u[i].salt[0] = (uint8_t)(10 + i);
+        u[i].hashVersion = 1;
+        strcpy(u[i].password, d.v1(names[i], "right", u[i].salt).c_str( ));
+    }
+    u[2].hashVersion = 0;
+    strcpy(u[2].password, d.legacy("leg", "right").c_str( ));
+}
+
+void test_password_check_a_name_without_an_account_still_derives(void) {
+    PwAccount u[4]; pwAccounts(u);
+    CountingDerive d; bool legacy = true;
+    TEST_ASSERT_EQUAL_INT(-1, passwordCheck(u, 4, "zoe", "right", d, legacy));
+    TEST_ASSERT_EQUAL_INT(1, d.v1Calls);
+    TEST_ASSERT_EQUAL_INT(0, d.legacyCalls);
+    TEST_ASSERT_TRUE(d.lastSalt == PASSWORD_CHECK_NO_ACCOUNT_SALT);
+    TEST_ASSERT_FALSE(legacy);
+}
+
+void test_password_check_a_wrong_password_derives_once(void) {
+    PwAccount u[4]; pwAccounts(u);
+    CountingDerive d; bool legacy = true;
+    TEST_ASSERT_EQUAL_INT(-1, passwordCheck(u, 4, "bia", "wrong", d, legacy));
+    TEST_ASSERT_EQUAL_INT(1, d.v1Calls);
+    TEST_ASSERT_TRUE(d.lastSalt == u[1].salt);
+    TEST_ASSERT_FALSE(legacy);
+}
+
+void test_password_check_the_right_password_derives_once(void) {
+    PwAccount u[4]; pwAccounts(u);
+    CountingDerive d; bool legacy = true;
+    TEST_ASSERT_EQUAL_INT(1, passwordCheck(u, 4, "bia", "right", d, legacy));
+    TEST_ASSERT_EQUAL_INT(1, d.v1Calls);
+    TEST_ASSERT_FALSE(legacy);
+    CountingDerive d2;
+    TEST_ASSERT_EQUAL_INT(0, passwordCheck(u, 4, "ana", "right", d2, legacy));
+    TEST_ASSERT_EQUAL_INT(1, d2.v1Calls);
+}
+
+void test_password_check_a_deleted_account_is_no_account(void) {
+    PwAccount u[4]; pwAccounts(u);
+    CountingDerive d; bool legacy = true;
+    TEST_ASSERT_EQUAL_INT(-1, passwordCheck(u, 4, "old", "right", d, legacy));
+    TEST_ASSERT_EQUAL_INT(1, d.v1Calls);
+    TEST_ASSERT_TRUE(d.lastSalt == PASSWORD_CHECK_NO_ACCOUNT_SALT);
+}
+
+void test_password_check_a_name_in_other_case_is_no_account(void) {
+    PwAccount u[4]; pwAccounts(u);
+    CountingDerive d; bool legacy = true;
+    /* The name compares exactly, as it always did at the web login. */
+    TEST_ASSERT_EQUAL_INT(-1, passwordCheck(u, 4, "Ana", "right", d, legacy));
+    TEST_ASSERT_EQUAL_INT(1, d.v1Calls);
+    TEST_ASSERT_TRUE(d.lastSalt == PASSWORD_CHECK_NO_ACCOUNT_SALT);
+}
+
+void test_password_check_a_legacy_account_derives_its_own_way(void) {
+    PwAccount u[4]; pwAccounts(u);
+    bool legacy = false;
+    CountingDerive d;
+    TEST_ASSERT_EQUAL_INT(2, passwordCheck(u, 4, "leg", "right", d, legacy));
+    TEST_ASSERT_TRUE(legacy);
+    TEST_ASSERT_EQUAL_INT(1, d.legacyCalls);
+    TEST_ASSERT_EQUAL_INT(0, d.v1Calls);
+    CountingDerive d2;
+    TEST_ASSERT_EQUAL_INT(-1, passwordCheck(u, 4, "leg", "wrong", d2, legacy));
+    TEST_ASSERT_FALSE(legacy);
+    TEST_ASSERT_EQUAL_INT(1, d2.legacyCalls);
+    TEST_ASSERT_EQUAL_INT(0, d2.v1Calls);
+    /* A version-0 record whose hash is not 30 characters is checked as v1. */
+    CountingDerive d3;
+    strcpy(u[2].password, d3.v1("leg", "right", u[2].salt).c_str( ));
+    d3.v1Calls = 0;
+    TEST_ASSERT_EQUAL_INT(2, passwordCheck(u, 4, "leg", "right", d3, legacy));
+    TEST_ASSERT_FALSE(legacy);
+    TEST_ASSERT_EQUAL_INT(1, d3.v1Calls);
+    TEST_ASSERT_EQUAL_INT(0, d3.legacyCalls);
+}
+
 
 void test_panel_pin_validator(void) {
     TEST_ASSERT_TRUE(isValidPanelPin("1234"));
@@ -4370,6 +4490,12 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_settings_menu_follows_the_session_bits);
     RUN_TEST(test_settings_menu_label_without_its_number);
     RUN_TEST(test_settings_menu_numbers_a_row_by_where_it_sits);
+    RUN_TEST(test_password_check_a_name_without_an_account_still_derives);
+    RUN_TEST(test_password_check_a_wrong_password_derives_once);
+    RUN_TEST(test_password_check_the_right_password_derives_once);
+    RUN_TEST(test_password_check_a_deleted_account_is_no_account);
+    RUN_TEST(test_password_check_a_name_in_other_case_is_no_account);
+    RUN_TEST(test_password_check_a_legacy_account_derives_its_own_way);
     RUN_TEST(test_panel_pin_validator);
     RUN_TEST(test_pin_policy_rules);
     RUN_TEST(test_pin_keypad_deals_the_whole_set);
