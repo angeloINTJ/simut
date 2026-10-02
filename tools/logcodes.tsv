@@ -137,6 +137,7 @@
 551	TEL_ALARM_FAIL	Alarm send failed	Falha no envio de alarmes	Fallo al enviar alarmas
 552	TEL_ALARM_ACK	Alarm receipt confirmed	Recebimento de alarmes confirmado	Recepción de alarmas confirmada
 553	TEL_ALARM_DROP	Alarm queue overflow	Estouro da fila de alarmes	Desbordamiento de la cola de alarmas
+554	TEL_CURSOR_RESENT	Telemetry day file sent again	Arquivo do dia reenviado pela telemetria	Archivo del día reenviado por la telemetría
 560	STO_WRITE_FAILED	History write failed	Falha em escrever histórico	Fallo al escribir el historial
 561	STO_CORRECT_BUDGET	Timestamp correction budget exceeded	Budget de correção de ts excedido	Presupuesto de corrección de ts excedido
 562	STO_ENFORCE_BUDGET	Storage limit budget exceeded	Budget de limite de storage excedido	Presupuesto de límite de almacenamiento excedido

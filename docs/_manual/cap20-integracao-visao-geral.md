@@ -149,7 +149,7 @@ Uma hora errada estraga a integração de quatro jeitos:
 
 - **Sem referência de hora, o histórico não grava.** O aparelho pula a gravação e registra o evento 512, **Histórico pulado: sem referência de hora**. Sem histórico, a telemetria não tem o que mandar. O evento 513, **Histórico retomado: referência de hora obtida**, marca a volta.
 - **A hora provisória pode carimbar errado.** Até a primeira sincronização, o aparelho usa uma hora provisória guardada na flash (evento 524, **Hora provisória do flash**). O [capítulo 10](#cap-10) explica os limites dessa hora.
-- **O cursor da telemetria é um instante.** O aparelho envia o que tem hora depois do último registro confirmado. Registros com hora anterior a 13/09/2020 nunca são enviados, e registros com hora mais de 1 dia à frente do relógio do aparelho ficam para depois ([capítulo 21](#cap-21)).
+- **O cursor da telemetria segue a gravação, não a hora.** Um registro gravado depois sai depois, mesmo com hora anterior. Registros com hora anterior a 13/09/2020, ou mais de 1 dia à frente do relógio do aparelho, não saem pela telemetria ([capítulo 21](#cap-21-fora-de-ordem)).
 - **O seu banco ordena por `ts`.** Um aparelho adiantado ou atrasado grava fora de ordem e duplica ou esconde medições na chave (`uid`, `ts`).
 
 Mantenha a sincronização ligada: página **Configurações**, bloco **Data e Hora**, opção **Sincronizar automaticamente via NTP**. Numa rede sem acesso à internet, aponte o aparelho para um servidor NTP local, no campo **Endereço do Servidor** do bloco **Servidor de Hora (NTP)** da página **Rede**. O [capítulo 10](#cap-10) cobre o assunto.

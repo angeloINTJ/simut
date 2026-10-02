@@ -1259,6 +1259,7 @@ static const char* translateCodeEn(uint16_t code) {
  case TEL_ALARM_FAIL: return "Alarm send failed";
  case TEL_ALARM_ACK: return "Alarm receipt confirmed";
  case TEL_ALARM_DROP: return "Alarm queue overflow";
+ case TEL_CURSOR_RESENT: return "Telemetry day file sent again";
 
  /* ── Storage extended (560–565) ── */
  case STO_WRITE_FAILED: return "History write failed";

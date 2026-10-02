@@ -343,7 +343,7 @@ nesta pasta com o nome indicado e rode o script de novo.
 
 ## Capítulo 21 — Telemetria de medições
 
-- [ ] `21-cursor.png` (Diagrama) — Linha do tempo horizontal com os registros do histórico como pequenos quadrados. Uma marca vertical 'cursor' separa os registros já confirmados (cinza, à esquerda) dos pendentes (coloridos, à direita). Um colchete agrupa os primeiros pendentes como 'lote (até o Lote máximo)'. Uma seta leva o lote ao 'coletor'; a volta '2xx' move o cursor para o fim do lote; uma volta alternativa 'falha' deixa o cursor parado e aponta para 'espera e reenvia'. À direita, o bloco da hora aberta, ainda na RAM, também entra no lote.
+- [ ] `21-cursor.png` (Diagrama) — Fila horizontal com os registros do histórico como pequenos quadrados, na ordem em que foram gravados. Uma marca vertical 'cursor' separa os registros já confirmados (cinza, à esquerda) dos pendentes (coloridos, à direita). Um colchete agrupa os primeiros pendentes como 'lote (até o Lote máximo)'. Uma seta leva o lote ao 'coletor'; a volta '2xx' move o cursor para o fim do lote; uma volta alternativa 'falha' deixa o cursor parado e aponta para 'espera e reenvia'. À direita, o bloco da hora aberta, ainda na RAM, também entra no lote.
       Legenda: o cursor separa o que o coletor já confirmou do que ainda falta. Só uma confirmação o move.
 
 ## Capítulo 22 — Linha de alarmes

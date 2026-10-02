@@ -78,15 +78,6 @@ static constexpr int TEL_CTX_NO_TLS = -200;
  * transport (SIMUT_TEL_MQTT=0). */
 static constexpr int TEL_CTX_NO_MQTT = -201;
 
-static bool historyDayIsBefore(const String &fileName, const char *minDay) {
-	if (fileName.length( ) < 8) return false;
-	for (int i = 0; i < 8; i++) {
-		const char c = fileName[i];
-		if (c < '0' || c > '9') return false;
-	}
-	return strncmp(fileName.c_str( ), minDay, 8) < 0;
-}
-
 /*
  * TelemetryGuard is gone, and deliberately not replaced.
  *
@@ -310,9 +301,27 @@ void TelemetryManager::begin(StorageManager* storage, NetworkManager* network) {
 /* The rule, and the three ways it has been wrong, live in TelemetryCursor.h
  * where the host tests reach them. This is the vector-shaped door to it. */
 static uint32_t deliveredCursor(const std::vector<BinaryHistoryRecord>& batch,
-                                uint32_t fromCursor, uint32_t nowEpoch) {
- return telDeliveredCursor(batch.data( ), batch.size( ), fromCursor, nowEpoch,
-                           (uint32_t)HIST_EPOCH_MIN);
+                                uint32_t fromCursor, uint32_t nowEpoch,
+                                size_t n = SIZE_MAX) {
+ return telDeliveredCursor(batch.data( ), n < batch.size( ) ? n : batch.size( ), fromCursor,
+                           nowEpoch, (uint32_t)HIST_EPOCH_MIN);
+}
+
+/* What reached the server, as positions (A-04): the runs collectBatch kept,
+ * cut to the records the payload carries or the broker took. */
+void TelemetryManager::trimRuns(const std::vector<BinaryHistoryRecord>& batch, size_t n) {
+ if (n > batch.size( )) n = batch.size( );
+ telRunsTrim(_runs, _nRuns, (uint8_t)n, n ? batch[n - 1].epoch : 0);
+}
+
+void TelemetryManager::markDelivered(uint32_t lastEpoch) {
+ _storageRef->telCursorDelivered(_runs, _nRuns, lastEpoch);
+ _nRuns = 0;
+}
+
+void TelemetryManager::markDeliveredPrefix(const std::vector<BinaryHistoryRecord>& batch, size_t n) {
+ trimRuns(batch, n);
+ markDelivered(deliveredCursor(batch, 0, (uint32_t)time(nullptr), n));
 }
 
 /**
@@ -517,6 +526,7 @@ void TelemetryManager::update( ) {
   * cursor has to follow what the payload actually carries — see
   * deliveredCursor for why the last element is not that. */
  newCursor = deliveredCursor(batch, newCursor, (uint32_t)time(nullptr));
+ trimRuns(batch, batch.size( ));
  /* Empty = nothing well formed could be built (see buildPayload): no
   * publish, and the failure path below owns the retry. */
  if (payload.length( ) > 0) success = attemptMqttPublish(payload, batch, newCursor);
@@ -536,6 +546,7 @@ void TelemetryManager::update( ) {
  /* Same reason as the MQTT branch above: read the frontier off the batch
   * buildPayload left behind, before it is thrown away. */
  newCursor = deliveredCursor(batch, newCursor, (uint32_t)time(nullptr));
+ trimRuns(batch, batch.size( ));
 
  /* Free batch to reduce RAM peak before TLS handshake */
  batch.clear( );
@@ -703,85 +714,231 @@ uint8_t TelemetryManager::safeBatchLimit(uint8_t configured) {
  return max((uint8_t)1, min(min(configured, HARD_CAP), heapLimit));
 }
 
+/* Where each channel of a schema lands in a BinaryHistoryRecord. Rebuilt
+ * whenever the reader's schema changes: a day file can carry a second SCHEMA
+ * (§3.7-2), and the blocks after it mean something else. The mapping used to
+ * be taken once per file, from the first. */
+struct TelChanMap {
+	const H5ChannelDesc* of = nullptr;
+	uint8_t n = 0;
+	uint8_t slot[H5_MAX_CHANNELS];
+	uint8_t ch[H5_MAX_CHANNELS];
+	float   scale[H5_MAX_CHANNELS];
+
+	void use(const H5ChannelDesc* schema, uint8_t nCh) {
+		if (schema == of && nCh == n) return;
+		of = schema;
+		n = schema ? nCh : 0;
+		for (uint8_t c = 0; c < n; c++) {
+			slot[c]  = (uint8_t)(schema[c].id / MAX_SENSOR_CHANNELS);
+			ch[c]    = (uint8_t)(schema[c].id % MAX_SENSOR_CHANNELS);
+			scale[c] = powf(10.0f, (float)schema[c].scaleExp);
+		}
+	}
+};
+
+/* The days that have a file, in order: the collection walks them that way,
+ * and the count does not mind. Days, not names: sorting numbers costs neither
+ * the String sort's code nor a heap block per file, and the name comes back
+ * from the number (dayPath). So only a name that is exactly YYYYMMDD.h5 is a
+ * day; anything else in the folder is not this reader's. */
+void TelemetryManager::listDays(std::vector<uint32_t>& days) {
+	{
+		StorageManager::ReadGuard rg(_storageRef);
+		Dir dir = LittleFS.openDir(DIR_HISTORY);
+		while (dir.next( )) {
+			const String fn = dir.fileName( );
+			if (fn.length( ) != 8 + sizeof(HISTORY_FILE_EXT) - 1 || !fn.endsWith(HISTORY_FILE_EXT)) continue;
+			const uint32_t day = StorageManager::historyDayOfName(fn);
+			if (day) days.push_back(day);
+		}
+	}
+	std::sort(days.begin( ), days.end( ));
+}
+
+static String dayPath(uint32_t day) {
+	return String(DIR_HISTORY) + "/" + String(day) + HISTORY_FILE_EXT;
+}
+
+/* One collection pass: what collectDay( ) shares with collectBatch( ). */
+struct TelCollect {
+	std::vector<BinaryHistoryRecord>& batch;
+	TelCursorState& c;
+	uint8_t  limit;
+	uint32_t nowEpoch;
+	uint32_t firstUnsent;   /**< first day anything was taken from; 0 = none */
+	bool     runsFull;      /**< the batch ran out of runs (TEL_RUNS_MAX) */
+};
+
+/* A record the writer would refuse today, or the clock cannot place. */
+static bool telPlausible(uint32_t epoch, uint32_t nowEpoch) {
+	return epoch >= HIST_EPOCH_MIN && (nowEpoch < HIST_EPOCH_MIN || epoch <= nowEpoch + 86400UL);
+}
+
+bool TelemetryManager::takeRecord(TelCollect& x, uint32_t day, uint32_t off, uint8_t idx,
+                                  uint32_t epoch, const int16_t* vals, const TelChanMap& m) {
+	if (!telRunPush(_runs, _nRuns, day, off, idx, (uint8_t)x.batch.size( ), epoch)) {
+		x.runsFull = true;
+		return false;
+	}
+	x.batch.emplace_back( );                 /* built in place: no temporary to copy */
+	BinaryHistoryRecord& rec = x.batch.back( );
+	rec.clear( ); rec.epoch = epoch;
+	for (uint8_t c = 0; c < m.n; c++) {
+		if (vals[c] == H5_NAN_SENTINEL) continue;
+		const uint8_t slot = m.slot[c];
+		if (slot >= MAX_SENSORS) continue;
+		const float v = (float)vals[c] * m.scale[c];
+		if (m.ch[c] == CH_TEMP)       rec.sensors[slot]  = BinaryHistoryRecord::floatToI16(v);
+		else if (m.ch[c] == CH_HUM)   rec.humidity[slot] = BinaryHistoryRecord::floatToI16(v);
+		else if (m.ch[c] == CH_PRESS) rec.pressure       = BinaryHistoryRecord::floatToI16x10(v);
+	}
+	if (!x.firstUnsent) x.firstUnsent = day;
+	return true;
+}
+
+bool TelemetryManager::collectDay(TelCollect& x, uint32_t day, const String& path,
+                                  bool withRam, uint32_t ramOff) {
+	TelCursorState& c = x.c;
+	TelChanMap map;
+	int16_t vals[H5_MAX_CHANNELS];
+	uint32_t epoch = 0;
+
+	bool opened = false;
+	if (path.length( )) {
+		StorageManager::ReadGuard rg(_storageRef);
+		opened = _storageRef->h5OpenDay(path);
+	}
+	if (opened) {
+		/* The file ends where the open block will land, when it lands here. */
+		const uint32_t end = withRam ? ramOff : _storageRef->h5OpenDaySize( );
+		telForgetIfBeyond(c, day, end);
+		const TelPos* sp = telFind(c, day);
+		const TelPos slot = sp ? *sp : TelPos{ };
+		/* The blocks before the slot's are hopped by header. The first one
+		 * read must be the slot's own and still hold the record it counted
+		 * last, or the slot no longer means what it meant. */
+		uint32_t minOff = slot.day ? slot.off : 0;
+		bool check = slot.day && slot.rec;
+		bool holds = true;
+		while (holds && x.batch.size( ) < x.limit && !x.runsFull) {
+			uint32_t off = 0;
+			uint8_t count = 0;
+			bool got = false;
+			{
+				StorageManager::ReadGuard rg(_storageRef);
+				got = _storageRef->h5LoadBlockFrom(minOff, off, count);
+			}
+			minOff = 0;
+			if (!got) break;
+			map.use(_storageRef->h5ReaderSchema( ), _storageRef->h5ReaderChannels( ));
+			/* A slot points at a DATA chunk it took records from. No block
+			 * starting there, with one past it, means the file under the
+			 * slot is not the one it counted in. */
+			const bool anchor = check;
+			check = false;
+			if (anchor && off != slot.off) { holds = false; break; }
+			bool anchored = !anchor;
+			for (uint8_t idx = 0; ; idx++) {
+				/* RAM only: the block was read whole by h5LoadBlockFrom( ). */
+				if (!_storageRef->h5DecodeNext(epoch, vals)) break;
+				if (anchor && idx + 1u == slot.rec) {
+					anchored = telSlotHolds(slot, true, count, epoch);
+					if (!anchored) break;
+				}
+				if (telUnsent(c, day, off, idx, epoch) && telPlausible(epoch, x.nowEpoch)) {
+					if (!takeRecord(x, day, off, idx, epoch, vals, map)) break;
+					if (x.batch.size( ) >= x.limit) break;
+				}
+				if ((idx % 10) == 9) { feedWdt( ); yield( ); }
+			}
+			if (!anchored) holds = false;
+		}
+		{ StorageManager::ReadGuard rg(_storageRef); _storageRef->h5CloseDay( ); }
+		if (!holds) return false;
+	}
+
+	/* The hour still open in RAM, as the block it will be once sealed: the
+	 * last of this file, at ramOff.
+	 *
+	 * A V5 block reaches the day file only when it seals — 60 records, so once
+	 * an hour at the default sampling rate. Reading only .h5 meant telemetry
+	 * could never send anything newer than the last sealed block: a fresh
+	 * device stayed silent for its first 60 minutes, and in steady state every
+	 * reading was delivered up to an hour late. Sent from here, a record keeps
+	 * its position when the block lands, so nothing goes twice.
+	 *
+	 * No yield inside this walk — the history writer runs on this same core,
+	 * and letting it in here could seal the block while it is being read. It
+	 * is at most 60 records. */
+	if (withRam && x.batch.size( ) < x.limit && !x.runsFull) {
+		const uint8_t ramCount = _storageRef->h5RamCount( );
+		telForgetIfBeyond(c, day, ramOff);
+		const TelPos* sp = telFind(c, day);
+		if (sp && sp->rec && sp->off == ramOff) {
+			uint32_t e = 0;
+			const bool have = ramCount >= sp->rec
+			                  && _storageRef->h5RamRecord((uint8_t)(sp->rec - 1u), e, vals);
+			if (!telSlotHolds(*sp, true, ramCount, have ? e : 0)) return false;
+		}
+		map.use(_storageRef->getH5Schema( ), _storageRef->getH5ChannelCount( ));
+		for (uint8_t i = 0; i < ramCount && x.batch.size( ) < x.limit; i++) {
+			if (!_storageRef->h5RamRecord(i, epoch, vals)) break;
+			if (!telUnsent(c, day, ramOff, i, epoch) || !telPlausible(epoch, x.nowEpoch)) continue;
+			if (!takeRecord(x, day, ramOff, i, epoch, vals, map)) break;
+		}
+		feedWdt( );
+	}
+	return true;
+}
+
 bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uint32_t& fromCursor) {
  LogManager::TraceScope _tC(0, MOD_TEL_COLLECT);
  SystemConfig &cfg = _storageRef->getConfig( );
- uint32_t lastCursor = _storageRef->getLastSentTimestamp( );
+ TelCursorState& c = _storageRef->telCursor( );
+ const TelCursorState before = c;
+ _nRuns = 0;
 
- /* Cursor-in-the-future detection. If lastCursor > now + 1 day,
- * it is an artifact of manual future time set + return to NTP. Without reset,
- * collectBatch rejects all new records (rec.epoch > lastCursor
- * always false) and telemetry goes silent without log clues. Resets the
- * cursor → falls to the 30d fallback below. 1-day threshold tolerates
- * small drift (timezone). */
- /* Cursor-in-the-future detection. lastCursor > now + 1 day = artifact
- * of manual future time set + return to NTP. The >1 day window alone
- * misses SMALLER jumps: a clock that ran ahead (manual set / RTC drift)
- * and then corrected back (NTP) leaves the cursor hours ahead of the new
- * records — collectBatch rejects them silently (Enviadas=0, no retries)
- * while the pending counter grows. Also flag a cursor >1h ahead of the
- * NEWEST record (relative to the device's own clock, immune to tz). */
- uint32_t nowEpoch = (uint32_t)time(nullptr);
+ const uint32_t nowEpoch = (uint32_t)time(nullptr);
  const uint32_t lastRecorded = _storageRef->getLastRecordedTimestamp( );
- const bool cursorAheadNow  = (nowEpoch > 1600000000UL) &&
-                              (lastCursor > nowEpoch + 3600UL);
- const bool cursorAheadData = (lastRecorded > 1600000000UL) &&
-                              (lastCursor > lastRecorded + 3600UL);
- if (cursorAheadNow || cursorAheadData) {
+
+ /* A record is sent by WHERE it was written, not by its stamp (A-04,
+  * TelemetryPosition.h), so a clock that runs ahead and comes back no longer
+  * leaves a cursor that rejects every new record. What is left of that
+  * failure is the epoch migrated from the old 4-byte cursor, which still
+  * governs the files that existed when it was read: one ahead of the data — a
+  * manual future time set, a clock that drifted ahead and was corrected by
+  * NTP — is dropped as before, and the files go again from the 30-day floor. */
+ if (c.legacyDay) {
+ const uint32_t legacyDay = c.legacyDay;
+ const bool aheadNow  = (nowEpoch > 1600000000UL) && (c.legacyEpoch > nowEpoch + 3600UL);
+ const bool aheadData = (lastRecorded > 1600000000UL) && (c.legacyEpoch > lastRecorded + 3600UL);
+ if (aheadNow || aheadData) {
  LOG_CODE(LOG_WARN, "TEL", SYS_OK, 0,
  TRL("Telemetry cursor ahead of data — reset to 0"));
- _storageRef->setLastSentTimestamp(0);
- lastCursor = 0;
+ telCursorReset(c, 0);
+ } else if (telDropLegacyAhead(c, nowEpoch >= HIST_EPOCH_MIN ? nowEpoch : 0,
+                               _storageRef->clockTrusted( ))) {
+ /* Ahead by less than the hour above, which used to mean holding back
+  * every record written since until the clock caught up — and then
+  * skipping them. Measured on the rig 2026-10-02 right after an update:
+  * nothing sent in 180 s, 0 pending. Its files go again by position. */
+ LOG_CODE(LOG_WARN, "TEL", TEL_CURSOR_RESENT, (int)(legacyDay % 10000u), "");
+ }
  }
 
- /* Fallback when cursor is 0 (no NTP / never sent) —
- * use last recorded timestamp - 30 days to limit scan. */
- if (lastCursor == 0) {
- if (lastRecorded > 86400UL * 30) lastCursor = lastRecorded - 86400UL * 30;
+ /* Never sent, or reset: start 30 days behind the newest record, the floor
+  * the epoch cursor fell back to at zero. */
+ if (!c.floorDay && lastRecorded > 86400UL * 30) {
+ c.floorDay = StorageManager::historyDayOf(lastRecorded - 86400UL * 30);
  }
 
- /* The cursor this batch is read from — after the two corrections above — and
-  * deliberately NOT the newest epoch gathered below. What counts as sent is
-  * decided after buildPayload, which may still drop records off the end; the
-  * newest-gathered figure handed over from here is what made the cursor jump
-  * over those (see TelemetryCursor.h). */
- fromCursor = lastCursor;
+ /* The newest epoch delivered before this batch — what deliveredCursor( )
+  * builds on, after buildPayload has had its say. */
+ fromCursor = c.lastEpoch;
 
-
- std::vector<String> files;
- {
- _storageRef->enterFlashReadLock( );
- Dir dir = LittleFS.openDir(DIR_HISTORY);
- while (dir.next( )) {
- if (dir.fileName().endsWith(HISTORY_FILE_EXT)) {
- files.push_back(dir.fileName( ));
- }
- }
- _storageRef->exitFlashReadLock( );
- }
- std::sort(files.begin( ), files.end( ));
-
- /* L2: o corte compara apenas os 8 digitos YYYYMMDD do nome. Antes o
-  * limite era montado com o sufixo ".bin" fixo e comparado contra nomes
-  * que podem terminar em ".sim4" — funcionava por acaso (os digitos
-  * decidem antes de o sufixo importar) e quebraria em silencio ao mudar
-  * qualquer extensao. Comparar so a data torna a regra explicita. */
- char minDay[9] = "";
- if (lastCursor > 1000000000) {
- /* The floor is one block span behind the cursor, not the cursor's own day.
-  * A block open across midnight is filed under the day it STARTED, so
-  * yesterday's file goes on holding records after 00:00 — and cutting at the
-  * cursor's day closed that file the moment the cursor crossed midnight,
-  * stranding those records for good. They are not missing and not older than
-  * the cursor; they are in a file nobody opens again. Measured on the bench:
-  * 48 records of one straddling block, never sent. */
- const time_t cursorEpoch = (time_t)h5ScanFloor(
-     lastCursor, h5NominalSeconds(_storageRef->getHistoryIntervalMin( )));
- struct tm timeinfo;
- localtime_r(&cursorEpoch, &timeinfo);
- snprintf(minDay, sizeof(minDay), "%04d%02d%02d",
-          timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
- }
+ std::vector<uint32_t> days;
+ listDays(days);
 
  /* Two ceilings, and the lower one wins. safeBatchLimit is physics — what the
   * heap can hold right now, given the transport. _batchAuto is the controller
@@ -799,134 +956,73 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
  if (_batchAuto < limit) limit = _batchAuto;
  if (limit < 1) limit = 1;
 
-
- /* Codec V2 (delta + anchor). Replaces the raw 28-byte read
- * (V1 format) that was silently broken after migration. Reader follows
- * the pattern used in StorageManager::getLastRecorded
- * and WebManager::handleApiHistoryData. */
- /* L1: piso unificado em SystemDefs_Limits.h. Era 1,7e9 aqui e no
-  * escritor V2, contra 1,6e9 no escritor V4 — registros gravados na
-  * janela entre os dois nunca eram enviados. */
- const uint32_t EPOCH_MIN = HIST_EPOCH_MIN;
-
- for (const String& fn : files) {
- if (batch.size( ) >= limit) break;
- if (minDay[0] && historyDayIsBefore(fn, minDay)) continue;
-
- String fullPath = String(DIR_HISTORY) + "/" + fn;
-
- _storageRef->enterFlashReadLock( );
- File f = LittleFS.open(fullPath, "r");
- if (!f) { _storageRef->exitFlashReadLock( ); continue; }
-
- 	 {
-	 f.close( );
-	 _storageRef->exitFlashReadLock( );
-
-	 /* V5 read. The reader lives in StorageManager, so what used to be
-	  * ~5.9 KB of codec scratch plus a copy of the refill loop here is a
-	  * pair of calls. Mapping a value back to a slot is arithmetic on the
-	  * descriptor id rather than a string-pool lookup per measurement. */
-	 bool opened = false;
-	 { StorageManager::ReadGuard rg(_storageRef); opened = _storageRef->h5OpenDay(fullPath); }
-	 if (!opened) continue;
-
-	 uint8_t slotOf[H5_MAX_CHANNELS], chOf[H5_MAX_CHANNELS];
-	 float   scaleOf[H5_MAX_CHANNELS];
-	 uint8_t nCh = 0;
-	 {
-	 const H5ChannelDesc* schema = _storageRef->h5ReaderSchema( );
-	 nCh = _storageRef->h5ReaderChannels( );
-	 for (uint8_t c = 0; c < nCh && schema; c++) {
-	 slotOf[c] = (uint8_t)(schema[c].id / MAX_SENSOR_CHANNELS);
-	 chOf[c]   = (uint8_t)(schema[c].id % MAX_SENSOR_CHANNELS);
-	 scaleOf[c] = powf(10.0f, (float)schema[c].scaleExp);
-	 }
-	 }
-
-	 /* The cursor is an epoch, so start at the block that contains it
-	  * instead of decoding the whole day up to it. */
-	 { StorageManager::ReadGuard rg(_storageRef); _storageRef->h5SeekTo(lastCursor); }
-
-	 int16_t vals[H5_MAX_CHANNELS];
-	 uint32_t epoch = 0;
-	 uint32_t inFileCount = 0;
-	 bool fileHasMore = true;
-	 while (fileHasMore && batch.size( ) < limit) {
-	 {
-	 StorageManager::ReadGuard rg(_storageRef);
-	 if (!_storageRef->h5NextRecord(epoch, vals)) { fileHasMore = false; break; }
-	 }
-	 inFileCount++;
-	 if (epoch >= EPOCH_MIN && (nowEpoch < EPOCH_MIN || epoch <= nowEpoch + 86400UL)
-	     && epoch > lastCursor) {
-	 BinaryHistoryRecord rec; rec.clear( ); rec.epoch = epoch;
-	 for (uint8_t c = 0; c < nCh; c++) {
-	 if (vals[c] == H5_NAN_SENTINEL) continue;
-	 const uint8_t slot = slotOf[c];
-	 if (slot >= MAX_SENSORS) continue;
-	 const float v = (float)vals[c] * scaleOf[c];
-	 if (chOf[c] == CH_TEMP)       rec.sensors[slot]  = BinaryHistoryRecord::floatToI16(v);
-	 else if (chOf[c] == CH_HUM)   rec.humidity[slot] = BinaryHistoryRecord::floatToI16(v);
-	 else if (chOf[c] == CH_PRESS) rec.pressure       = BinaryHistoryRecord::floatToI16x10(v);
-	 }
-	 batch.push_back(rec);
-	 }
-	 if ((inFileCount % 10) == 0 && fileHasMore && batch.size( ) < limit) {
-	 feedWdt( ); yield( );
-	 }
-	 }
-	 { StorageManager::ReadGuard rg(_storageRef); _storageRef->h5CloseDay( ); }
-	 }
-
- feedWdt( );
+ /* The block still open in RAM belongs to the file it will be sealed into,
+  * and goes after that file's sealed blocks. */
+ uint32_t ramDay = 0, ramOff = 0;
+ if (_storageRef->h5RamCount( ) > 0
+     && !_storageRef->h5SealPosition(_storageRef->h5RamT0( ), true, ramDay, ramOff)) {
+ ramDay = 0;
  }
 
- /* Carry on into the hour still open in RAM.
-  *
-  * A V5 block reaches the day file only when it seals — 60 records, so once an
-  * hour at the default sampling rate. Reading only .h5 meant telemetry could
-  * never send anything newer than the last sealed block: a fresh device stayed
-  * silent for its first 60 minutes, and in steady state every reading was
-  * delivered up to an hour late. The samples are held plain in the encoder, so
-  * reaching them costs a copy and no decode.
-  *
-  * The cursor is an epoch, so nothing is sent twice: when this block later
-  * lands in the day file, the loop above skips it on `epoch > lastCursor`.
-  *
-  * No yield inside this walk — the history writer runs on this same core, and
-  * letting it in here could seal the block while it is being read. It is at
-  * most 60 records. */
- if (batch.size( ) < limit) {
- const uint8_t ramCount = _storageRef->h5RamCount( );
- const H5ChannelDesc* ramSchema = _storageRef->getH5Schema( );
- const uint8_t ramNCh = _storageRef->getH5ChannelCount( );
- if (ramCount > 0 && ramSchema && ramNCh > 0) {
- int16_t vals[H5_MAX_CHANNELS];
- uint32_t epoch = 0;
- for (uint8_t i = 0; i < ramCount && batch.size( ) < limit; i++) {
- if (!_storageRef->h5RamRecord(i, epoch, vals)) break;
- if (epoch < EPOCH_MIN) continue;
- if (nowEpoch >= EPOCH_MIN && epoch > nowEpoch + 86400UL) continue;
- if (epoch <= lastCursor) continue;
-
- BinaryHistoryRecord rec; rec.clear( ); rec.epoch = epoch;
- for (uint8_t c = 0; c < ramNCh; c++) {
- if (vals[c] == H5_NAN_SENTINEL) continue;
- const uint8_t slot = (uint8_t)(ramSchema[c].id / MAX_SENSOR_CHANNELS);
- const uint8_t ch   = (uint8_t)(ramSchema[c].id % MAX_SENSOR_CHANNELS);
- if (slot >= MAX_SENSORS) continue;
- const float v = (float)vals[c] * powf(10.0f, (float)ramSchema[c].scaleExp);
- if (ch == CH_TEMP)       rec.sensors[slot]  = BinaryHistoryRecord::floatToI16(v);
- else if (ch == CH_HUM)   rec.humidity[slot] = BinaryHistoryRecord::floatToI16(v);
- else if (ch == CH_PRESS) rec.pressure       = BinaryHistoryRecord::floatToI16x10(v);
+ /* Day files in order, the open block in its day's place. A file before the
+  * floor was fully sent and is not opened again. */
+ TelCollect x{ batch, c, limit, nowEpoch, 0, false };
+ size_t fi = 0;
+ bool ramLeft = ramDay != 0;
+ while (batch.size( ) < limit && !x.runsFull) {
+ const uint32_t fileDay = (fi < days.size( )) ? days[fi] : 0;
+ uint32_t day;
+ String path;
+ bool withRam = false;
+ if (fileDay && (!ramLeft || fileDay <= ramDay)) {
+ day = fileDay;
+ path = dayPath(day);
+ fi++;
+ withRam = ramLeft && fileDay == ramDay;
+ } else if (ramLeft) {
+ day = ramDay;
+ withRam = true;
+ } else {
+ break;
  }
- batch.push_back(rec);
+ if (withRam) ramLeft = false;
+ if (telFileDone(c, day)) continue;
+
+ const size_t mark = batch.size( );
+ const uint8_t runMark = _nRuns;
+ if (!collectDay(x, day, path, withRam, ramOff)) {
+ /* Something else sits where the records the slot counted were — the
+  * open block lost to a power cut after some of it was sent, a seal that
+  * failed, a day file deleted or put back by a restore. The position
+  * cannot say which records went, so the day goes again from its start:
+  * duplicates, which the server keys away by stamp, never a gap. */
+ LOG_CODE(LOG_WARN, "TEL", TEL_CURSOR_RESENT, (int)(day % 10000u), "");
+ telForgetDay(c, day);
+ batch.erase(batch.begin( ) + mark, batch.end( ));
+ _nRuns = runMark;
+ x.runsFull = false;
+ collectDay(x, day, path, withRam, ramOff);
  }
  feedWdt( );
  }
- }
 
+ /* The floor follows today, and waits for the first file that still had
+  * something to send. The days are the day files' own: local dates, off the
+  * same clock. Counted from today's noon, so the hour a DST change adds or
+  * takes never lands the window on the wrong date. */
+ TelToday today = { 0, 0, 0, _storageRef->clockTrusted( ) };
+ if (nowEpoch >= HIST_EPOCH_MIN) {
+ const time_t tt = (time_t)nowEpoch;
+ struct tm lt;
+ localtime_r(&tt, &lt);
+ const uint32_t noon = nowEpoch - (uint32_t)(lt.tm_hour * 3600 + lt.tm_min * 60 + lt.tm_sec) + 43200UL;
+ today.day = StorageManager::historyDayOf(nowEpoch);
+ today.window = StorageManager::historyDayOf(noon - 86400UL * TEL_POS_KEEP_DAYS);
+ today.tomorrow = StorageManager::historyDayOf(noon + 86400UL);
+ }
+ telAdvanceFloor(c, today, x.firstUnsent);
+
+ if (memcmp(&before, &c, sizeof(c)) != 0) _storageRef->telCursorTouched( );
  return !batch.empty( );
 }
 
@@ -1057,7 +1153,7 @@ bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
  if (code >= 200 && code < 300) {
  LOG_CODE(LOG_INFO, "TEL", SYS_TEL_SENT, code,
  "HTTP OK: " + String(payload.length( )) + " bytes, code " + String(code));
- _storageRef->setLastSentTimestamp(newCursor);
+ markDelivered(newCursor);
  success = true;
  auto& m = MetricsManager::instance( ).data( );
  m.telSent++;
@@ -1479,7 +1575,7 @@ bool TelemetryManager::attemptMqttPublish(String& payload, std::vector<BinaryHis
  delay(5);
  }
  if (connAlive) {
- _storageRef->setLastSentTimestamp(newCursor);
+ markDelivered(newCursor);
  success = true;
  } else {
  LOG_CODE(LOG_WARN, "TEL", SYS_TEL_MQTT_DISC, _mqttClient.state( ),
@@ -1487,8 +1583,7 @@ bool TelemetryManager::attemptMqttPublish(String& payload, std::vector<BinaryHis
  success = false;
  }
  } else if (published > 0) {
- uint32_t partialCursor = batch[published - 1].epoch;
- _storageRef->setLastSentTimestamp(partialCursor);
+ markDeliveredPrefix(batch, (size_t)published);
  success = false;
  }
  } else {
@@ -1538,7 +1633,7 @@ bool TelemetryManager::attemptMqttPublish(String& payload, std::vector<BinaryHis
  if (published > 0) {
  LOG_CODE(LOG_INFO, "TEL", SYS_TEL_MQTT_PUB, published,
  "MQTT split publish " + String(published) + "/" + String(batch.size( )));
- _storageRef->setLastSentTimestamp(batch[published - 1].epoch);
+ markDeliveredPrefix(batch, (size_t)published);
  success = (published == (int)batch.size( ));
  }
  } else {
@@ -1571,7 +1666,7 @@ bool TelemetryManager::attemptMqttPublish(String& payload, std::vector<BinaryHis
  if (connAlive) {
  LOG_CODE(LOG_INFO, "TEL", SYS_TEL_MQTT_PUB, batch.size( ),
  "MQTT batch OK: " + String(batch.size( )) + " items (" + String(payload.length( )) + " bytes)");
- _storageRef->setLastSentTimestamp(newCursor);
+ markDelivered(newCursor);
  sentBytes = (uint32_t)payload.length( );
  success = true;
  } else {
@@ -1712,6 +1807,7 @@ bool TelemetryManager::forceSync( ) {
 
  /* Same as update( ): the cursor follows the payload, not the collection. */
  newCursor = deliveredCursor(batch, newCursor, (uint32_t)time(nullptr));
+ trimRuns(batch, batch.size( ));
 
  bool ok = false;
  if (payload.length( ) == 0) {
@@ -2272,48 +2368,22 @@ void TelemetryManager::_dumpPayload(const char* payload, size_t len, const char*
 void TelemetryManager::refreshPendingCount( ) {
  if (!_storageRef || !_pendingDirty) return;
 
- uint32_t lastCursor = _storageRef->getLastSentTimestamp( );
+ /* A copy: counting must not move the cursor. It takes the same corrections
+  * collectBatch makes — the floor of a cursor that never sent, a slot past
+  * the end of its file — so the dashboard agrees with the next batch. */
+ TelCursorState v = _storageRef->telCursor( );
 
- /* The same 30-day floor collectBatch applies when the cursor is zero.
+ /* The same 30-day floor collectBatch applies when nothing was ever sent.
   * Without it, the count right after `tel reset` includes every record on
   * flash — including the ones the sender will never reach — so the dashboard
   * shows a backlog that can only ever shrink to a non-zero number. */
- if (lastCursor == 0) {
- uint32_t lastRecorded = _storageRef->getLastRecordedTimestamp( );
- if (lastRecorded > 86400UL * 30) lastCursor = lastRecorded - 86400UL * 30;
+ if (!v.floorDay) {
+ const uint32_t lastRecorded = _storageRef->getLastRecordedTimestamp( );
+ if (lastRecorded > 86400UL * 30) v.floorDay = StorageManager::historyDayOf(lastRecorded - 86400UL * 30);
  }
 
- std::vector<String> files;
- {
- _storageRef->enterFlashReadLock( );
- Dir dir = LittleFS.openDir(DIR_HISTORY);
- while (dir.next( )) {
- if (dir.fileName().endsWith(HISTORY_FILE_EXT)) {
- files.push_back(dir.fileName( ));
- }
- }
- _storageRef->exitFlashReadLock( );
- }
-
-
- /* L2: o corte compara apenas os 8 digitos YYYYMMDD do nome. Antes o
-  * limite era montado com o sufixo ".bin" fixo e comparado contra nomes
-  * que podem terminar em ".sim4" — funcionava por acaso (os digitos
-  * decidem antes de o sufixo importar) e quebraria em silencio ao mudar
-  * qualquer extensao. Comparar so a data torna a regra explicita. */
- char minDay[9] = "";
- if (lastCursor > 1000000000) {
- /* Same floor as collectBatch, for the same reason: a block open across
-  * midnight lives in the previous day's file. Counting from the cursor's own
-  * day undercounts exactly the records collectBatch used to strand, so the
-  * dashboard would have agreed with the bug instead of exposing it. */
- const time_t cursorEpoch = (time_t)h5ScanFloor(
-     lastCursor, h5NominalSeconds(_storageRef->getHistoryIntervalMin( )));
- struct tm timeinfo;
- localtime_r(&cursorEpoch, &timeinfo);
- snprintf(minDay, sizeof(minDay), "%04d%02d%02d",
-          timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
- }
+ std::vector<uint32_t> days;
+ listDays(days);
 
  /* 32-bit accumulator, saturated on the way out. It used to be uint16_t with
   * an explicit cast on every add, so an archive holding more than 65535
@@ -2321,67 +2391,54 @@ void TelemetryManager::refreshPendingCount( ) {
   * dashboard — this bench holds ~119k. */
  uint32_t total = 0;
 
+ /* Where the open block will land: the file it goes to ends there. */
+ const uint8_t ramCount = _storageRef->h5RamCount( );
+ uint32_t ramDay = 0, ramOff = 0;
+ if (ramCount > 0
+     && !_storageRef->h5SealPosition(_storageRef->h5RamT0( ), true, ramDay, ramOff)) {
+ ramDay = 0;
+ }
 
- /* Same reason as collectBatch — was reading 28 B raw
- * in V2 format, count was wrong (generally inflated). Reader identical
- * to collectBatch but only counts records with epoch > lastCursor. */
- for (const String& fn : files) {
- if (minDay[0] && historyDayIsBefore(fn, minDay)) continue;
+ for (const uint32_t day : days) {
+ if (telFileDone(v, day)) continue;
 
- String fullPath = String(DIR_HISTORY) + "/" + fn;
+ const String fullPath = dayPath(day);
 
  bool opened = false;
  { StorageManager::ReadGuard rg(_storageRef); opened = _storageRef->h5OpenDay(fullPath, false); }
  if (!opened) continue;
+ telForgetIfBeyond(v, day, day == ramDay ? ramOff : _storageRef->h5OpenDaySize( ));
 
 	 /* Counting is a header walk, not a decode.
 	  *
-	  * A V5 block header states how many records it holds and when the
-	  * first one is (§3.3), and blocks are in time order. So every block
-	  * whose t0 is past the cursor contributes all of its records with
-	  * nothing read but its header, and every block before those
-	  * contributes none. At most ONE block straddles the cursor, and it is
-	  * the last one with t0 <= cursor — that is the only one decoded.
+	  * A V5 block header states how many records it holds (§3.3), and that
+	  * is all the position rule needs: a block past the file's slot counts
+	  * whole, one before it counts nothing, the slot's own block counts what
+	  * lies past the slot. A dashboard tick touches ~24 headers per day.
+	  * verifyPayload is off for the same reason: CRCing payloads this path
+	  * never reads would put the whole file back through flash every ten
+	  * seconds.
 	  *
-	  * A dashboard tick that used to decode every record of every day now
-	  * touches ~24 headers per day plus one block. verifyPayload is off
-	  * for the same reason: CRCing payloads this path never reads would
-	  * put the whole file back through flash every ten seconds. */
-	 uint32_t straddleT0 = 0;
-	 uint8_t  straddleCount = 0;
-	 bool     haveStraddle = false;
+	  * A file still under the migrated epoch's rule has only its blocks' first
+	  * stamps here, and a block that starts at or before that epoch counts as
+	  * sent (telBlockUnsent). At most one straddles it; its tail is counted
+	  * from the first delivery after the update, which gives the file a slot.
+	  * The collection itself decides record by record, so this is the
+	  * estimate being short, never a record held back. */
 	 uint32_t walked = 0;
 	 for (;;) {
 	  H5DataHeader hdr;
 	  const int16_t *mn = nullptr, *mx = nullptr;
 	  bool got = false;
-	  { StorageManager::ReadGuard rg(_storageRef); got = _storageRef->h5NextBlock(hdr, mn, mx); }
+	  uint32_t off = 0;
+	  {
+	   StorageManager::ReadGuard rg(_storageRef);
+	   got = _storageRef->h5NextBlock(hdr, mn, mx);
+	   off = _storageRef->h5BlockOffset( );
+	  }
 	  if (!got) break;
-
-	  if (hdr.t0 > lastCursor) {
-	   total += hdr.pre.a;
-	  } else {
-	   straddleT0 = hdr.t0;
-	   straddleCount = hdr.pre.a;
-	   haveStraddle = true;
-	  }
+	  total += telBlockUnsent(v, day, off, hdr.pre.a, hdr.t0);
 	  if ((++walked % 20) == 0) { feedWdt( ); yield( ); }
-	 }
-
-	 if (haveStraddle && straddleCount > 1) {
-	  bool ok = false;
-	  { StorageManager::ReadGuard rg(_storageRef); ok = _storageRef->h5SeekTo(straddleT0); }
-	  if (ok) {
-	   int16_t vals[H5_MAX_CHANNELS];
-	   uint32_t epoch = 0;
-	   for (uint8_t r = 0; r < straddleCount; r++) {
-	    bool more = false;
-	    { StorageManager::ReadGuard rg(_storageRef); more = _storageRef->h5NextRecord(epoch, vals); }
-	    if (!more) break;
-	    if (epoch > lastCursor) total++;
-	    if ((r % 20) == 19) { feedWdt( ); yield( ); }
-	   }
-	  }
 	 }
  { StorageManager::ReadGuard rg(_storageRef); _storageRef->h5CloseDay( ); }
 
@@ -2400,17 +2457,28 @@ void TelemetryManager::refreshPendingCount( ) {
   * radio never came up: the whole telemetry schedule of the Air, silently off
   * since the boot stopped sealing the snapshot into the day file (F23).
   *
-  * h5WipPendingSince( ) covers exactly that window and returns 0 once the
-  * encoder holds the block, so the two terms can never count it twice. */
- {
- const uint8_t ramCount = _storageRef->h5RamCount( );
+  * h5WipBlock( ) reads the snapshot, checks it, and hands over its first
+  * stamp and record count; the position rule counts it against where
+  * recoverWipV5( ) will file it. It counts only while the encoder is empty, so
+  * the two terms can never count the block twice. */
+ if (ramCount > 0) {
+ if (ramDay) {
+ telForgetIfBeyond(v, ramDay, ramOff);
  int16_t vals[H5_MAX_CHANNELS];
  uint32_t epoch = 0;
  for (uint8_t i = 0; i < ramCount; i++) {
  if (!_storageRef->h5RamRecord(i, epoch, vals)) break;
- if (epoch > lastCursor) total++;
+ if (telUnsent(v, ramDay, ramOff, i, epoch)) total++;
  }
- if (ramCount == 0) total += _storageRef->h5WipPendingSince(lastCursor);
+ }
+ } else {
+ uint32_t t0 = 0, wipDay = 0, wipOff = 0;
+ uint8_t count = 0;
+ if (_storageRef->h5WipBlock(t0, count)
+     && _storageRef->h5SealPosition(t0, false, wipDay, wipOff)) {
+ telForgetIfBeyond(v, wipDay, wipOff);
+ total += telBlockUnsent(v, wipDay, wipOff, count, t0);
+ }
  }
 
  _pendingEstimate = (total > 0xFFFFu) ? (uint16_t)0xFFFFu : (uint16_t)total;

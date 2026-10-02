@@ -634,7 +634,7 @@ desta própria nota, porque ela citava a linha reprovada.)
 | 10 | **Segredos voltam mascarados** (`"Bobi***"`) no `GET /api/config` | nunca reenvie a máscara; omita o campo para manter |
 | 11 | **Fluxo grande na porta 80 morre em alguns roteadores** (>12–15 s) | para upload/OTA use a porta alternativa (`web_port`) |
 | 12 | **`Too Fast`** | espaçar requisições; não faça polling agressivo |
-| 13 | **Cursor escalar pode pular registro** de bloco fora de ordem — medido: **6 em 75.778 (0,0079%)** | não é falha do seu servidor; o dado está na flash e sai pelo histórico |
+| 13 | **Um arquivo de dia pode chegar de novo, inteiro** — quando o aparelho não consegue saber o que já saiu dele: perdeu energia logo depois de enviar registros que só estavam na RAM, o arquivo foi apagado, uma restauração de backup o trouxe de volta, ou a atualização da v2.9.0 encontrou o cursor antigo à frente do relógio (evento 554). Até a v2.9.0 o cursor era uma hora e pulava registro de bloco fora de ordem: **6 em 75.778 (0,0079%)** | grave de forma idempotente por (`uid`, `ts`, canal); a duplicata não estraga nada, e não há mais lacuna |
 | 14 | **A CLI serial corta template em 63 caracteres em silêncio** | configure templates **pela web**, nunca pela serial |
 | 15 | **Manutenção some do histórico de alarmes** (não gera limite nem falha) | trate `maint_on`/`maint_off` como o par que explica o silêncio |
 | 16 | **Campo que o parser não conhece é ignorado em silêncio** — `tmin` em `slots` foi o caso encontrado | confira o efeito lendo o estado de volta (`GET /api/alarms`), não o `applied` |

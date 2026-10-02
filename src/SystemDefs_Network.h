@@ -393,5 +393,5 @@ constexpr uint32_t AP_MODE_TIMEOUT_MS = 900000;
 /* ── Telemetry cursor ── */
 
 /** Minimum time between telemetry cursor writes to flash (ms).
- * Multiple setLastSentTimestamp calls within this window coalesce into 1 write. */
+ * Every delivery inside this window coalesces into 1 write. */
 constexpr uint32_t CURSOR_COALESCE_MS = 5000;

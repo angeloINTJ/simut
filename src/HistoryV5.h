@@ -609,10 +609,11 @@ static inline uint32_t h5SeedFromSnapshot(const uint8_t* chunk, size_t len,
 }
 
 /**
- * @brief How many records of a snapshot are newer than a cursor.
+ * @brief A snapshot's block, checked: its first stamp and how many records it
+ *        holds.
  *
  * The counterpart of h5SeedFromSnapshot for the telemetry queue: same file,
- * same decode, a different question. It exists because the open block spends
+ * same check, a different question. It exists because the open block spends
  * most of its life in /history/.wip and nowhere else — it reaches a day file
  * only when it seals, once an hour at one record a minute — so a reader that
  * counts what is waiting to be sent by walking *.h5 alone reads zero while an
@@ -623,31 +624,28 @@ static inline uint32_t h5SeedFromSnapshot(const uint8_t* chunk, size_t len,
  * put the snapshot back into RAM. Counting the day files there answers for a
  * block that sealed up to an hour ago.
  *
- * No plausibility window, unlike the seed. A stamp that is believed enough to
- * be written into the block is believed enough to be counted, and the answer
- * is a batch size, not a clock — the worst a wrong one can do here is raise
- * the radio a wake early or late. The CRC still has to pass: dec.begin( )
- * checks it, so a corrupt snapshot counts zero rather than a wild number.
+ * Which of those records are still to send is the telemetry cursor's
+ * question, and it is asked by position (TelemetryPosition.h): this hands over
+ * what a position needs. Until 2026-10-02 it counted the records newer than an
+ * epoch cursor, which skipped a block stamped behind the newest one sent.
  *
- * @return records with epoch > cursor, 0 for any chunk that fails a gate.
+ * The CRC still has to pass: dec.begin( ) checks it, so a corrupt snapshot
+ * gives nothing rather than a wild count.
+ *
+ * @return false for any chunk that fails a gate.
  */
-static inline uint16_t h5CountAfter(const uint8_t* chunk, size_t len,
-                                    const H5ChannelDesc* schema, uint8_t nCh,
-                                    uint32_t cursor, uint16_t nominalS) {
-    if (!chunk || len < sizeof(H5DataHeader) || !schema || nCh == 0) return 0;
+static inline bool h5SnapshotBlock(const uint8_t* chunk, size_t len,
+                                   const H5ChannelDesc* schema, uint8_t nCh,
+                                   uint16_t nominalS, uint32_t& t0, uint8_t& count) {
+    if (!chunk || len < sizeof(H5DataHeader) || !schema || nCh == 0) return false;
     const H5DataHeader* h = (const H5DataHeader*)chunk;
-    if (h->pre.magic != H5_MAGIC || h->pre.version != H5_VERSION) return 0;
+    if (h->pre.magic != H5_MAGIC || h->pre.version != H5_VERSION) return false;
 
     HistoryV5Decoder dec;
-    if (!dec.begin(chunk, len, schema, nCh, nominalS)) return 0;
-
-    uint16_t n = 0;
-    uint32_t epoch = 0;
-    int16_t vals[H5_MAX_CHANNELS];
-    while (dec.next(epoch, vals)) {
-        if (epoch > cursor) n++;
-    }
-    return n;
+    if (!dec.begin(chunk, len, schema, nCh, nominalS)) return false;
+    t0 = h->t0;
+    count = h->pre.a;
+    return true;
 }
 
 /* ===========================================================================

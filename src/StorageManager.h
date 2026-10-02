@@ -19,6 +19,7 @@
 #include "pico/mutex.h"
 #include "SystemDefs.h"
 #include "HistoryV5.h"
+#include "TelemetryPosition.h"
 #include "sensors/SensorHelpers.h"
 #include "sensors/CalibCurve.h"
 
@@ -106,6 +107,7 @@ public:
   * forgets to wire it gets the old, stricter gate rather than a free pass.
   */
  void setClockTrustedCallback(ClockTrustedCallback cb) { _clockTrustedCb = cb; }
+ bool clockTrusted( ) const { return _clockTrustedCb && _clockTrustedCb( ); }
  /** When set, saveConfiguration replaces the
  * IRQ-based multicore_lockout sequence with a single cooperative
  * quiet mode, avoiding cascading lockout stuck. */
@@ -328,6 +330,21 @@ public:
  bool h5NextBlock(H5DataHeader& hdr, const int16_t*& mn, const int16_t*& mx);
  /** Position the reader on the block containing @p epoch. */
  bool h5SeekTo(uint32_t epoch);
+ /** The next DATA block at or past byte @p minOff of the open day file, loaded
+  *  for h5DecodeNext( ). The blocks before it are hopped by header, never read.
+  *  Callers MUST hold the read lock, as for h5LoadNextBlock( ). */
+ bool h5LoadBlockFrom(uint32_t minOff, uint32_t& off, uint8_t& count);
+ /** Byte offset of the block h5NextBlock( ) or h5LoadBlockFrom( ) last gave. */
+ uint32_t h5BlockOffset( ) const { return _h5Scan.chunkOffset( ); }
+ /** Size of the day file h5OpenDay( ) opened. */
+ uint32_t h5OpenDaySize( ) const { return _h5RdSize; }
+ /** Where a block that starts at @p t0 will be sealed: its day file, and the
+  *  byte offset it will land at — the file's end, past the SCHEMA that has to
+  *  go first when the file is new or its schema changed. Telemetry uses it to
+  *  give the open block a position before the block reaches flash. @p live:
+  *  the block in the encoder, which seals into _h5CurrentDay; otherwise the
+  *  .wip, which recoverWipV5( ) files under its own t0. */
+ bool h5SealPosition(uint32_t t0, bool live, uint32_t& day, uint32_t& off);
  /** Schema in force at the reader's position. */
  const H5ChannelDesc* h5ReaderSchema( ) const { return _h5RdSchema; }
  uint8_t h5ReaderChannels( ) const { return _h5RdNCh; }
@@ -342,11 +359,13 @@ public:
   * Same core as the history writer, so no lock is needed; do not yield in the
   * middle of a walk, or the block can seal underneath it. */
  uint8_t h5RamCount( ) const { return _h5Valid ? _h5Enc.count( ) : 0; }
+ uint32_t h5RamT0( ) const { return (_h5Valid && _h5Enc.count( )) ? _h5Enc.t0( ) : 0; }
  bool h5RamRecord(uint8_t i, uint32_t& epoch, int16_t* vals) const {
  return _h5Valid && _h5Enc.sample(i, epoch, vals);
  }
  /**
-  * @brief The same count, for the window where the open block is on flash.
+  * @brief The open block, for the window where it is only on flash: its first
+  *        stamp and record count, from a snapshot that passed its CRC.
   *
   * h5RamCount( ) answers only once recoverWipV5( ) has put the snapshot back
   * into the encoder, and that runs late in setup( ) — after the sensors, the
@@ -355,12 +374,12 @@ public:
   * /history/.wip: the day files do not have it and RAM does not have it yet,
   * so every counter reads zero.
   *
-  * Answers 0 once the block IS in RAM, on purpose. After a resume the
+  * Answers false once the block IS in RAM, on purpose. After a resume the
   * snapshot is deliberately left on flash (it is the block's only copy until
   * the next record), so adding both would count the same records twice — the
   * encoder is the authority whenever it holds anything.
   */
- uint16_t h5WipPendingSince(uint32_t cursor);
+ bool h5WipBlock(uint32_t& t0, uint8_t& count);
  /**
   * @brief Serialize the open block as a standalone V5 stream (§3).
   * @details A SCHEMA chunk followed by the block sealed PARTIAL — byte for
@@ -384,8 +403,22 @@ public:
  uint32_t getLastRecordedTimestamp( );
  uint32_t getHistoryDaysMask(int year, int month);
 
- uint32_t getLastSentTimestamp( );
- void setLastSentTimestamp(uint32_t ts);
+ /** The telemetry cursor as a write position (TelemetryPosition.h), loaded on
+  *  first use. A 4-byte file from before it is migrated then: the old epoch
+  *  rule keeps governing the day files that existed under it. */
+ TelCursorState& telCursor( );
+ /** The runs @p r[0..n) of a batch reached the server. @p lastEpoch is the
+  *  newest stamp among them: what an older firmware would read as its whole
+  *  cursor. Written coalesced. */
+ void telCursorDelivered(const TelRun* r, size_t n, uint32_t lastEpoch);
+ /** The cursor moved some other way (its floor, a forgotten file). */
+ void telCursorTouched( );
+ /** YYYYMMDD of @p epoch in local time: the day file a record of that instant
+  *  goes to (getHistoryFileNameV5). */
+ static uint32_t historyDayOf(uint32_t epoch);
+ /** YYYYMMDD of a day file, from "YYYYMMDD.h5" or a path ending in it; 0 for
+  *  any other name. */
+ static uint32_t historyDayOfName(const String& name);
  void resetTelemetryCursor( ); /**< CMD_TEL_RESET: invalidates RAM cache + deletes flash file. */
 
  static String getBoardSerialNumber( );
@@ -678,7 +711,8 @@ public:
  mutex_t _fsReadMutex;
 
  bool _heavyTaskLocked = false;
- uint32_t _cachedLastSent = 0;
+ TelCursorState _tcur{};
+ bool _tcurLoaded = false;
  bool _cursorDirty = false;
  uint32_t _cursorCoalesceTime = 0;
  bool _lastSaveWasNoOp = false; /**< True if saveConfiguration skipped due to identical CRC */
@@ -753,6 +787,7 @@ public:
  bool             _h5RdBlockOpen = false;
  /** Verify the payload CRC when a block is read (§3.4), set by h5OpenDay. */
  bool             _h5RdVerify = true;
+ uint32_t         _h5RdSize = 0;
  uint8_t          _h5Chunk[H5_BLOCK_MAX_BYTES];
 
  /** Append @p len bytes of a sealed chunk to @p path, creating with SCHEMA. */
@@ -765,9 +800,10 @@ public:
   *        file, not the opening one — equals the schema being written.
   * @param outLastSeq schemaSeq of that last SCHEMA, so an appended one
   *        numbers on from it instead of from a member a reboot reset.
+  * @param outSize the file's size, when it opened.
   */
  bool h5FileHasSchema(const String& path, bool* outMatches,
-                      uint8_t* outLastSeq = nullptr);
+                      uint8_t* outLastSeq = nullptr, uint32_t* outSize = nullptr);
 
  
 
