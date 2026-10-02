@@ -562,9 +562,10 @@ resposta do **aparelho**, não da página.
 
 Os dois últimos só aparecem quando a mudança **pode** ser aplicada ao vivo —
 limites de alarme, manutenção, 2ª linha de alarmes, telemetria pelo lado HTTP,
-tema e idioma. Rede, contas, provisionamento de sensor, fuso e a própria
-política de PIN continuam exigindo reinício, e nesse caso a barra mostra só
-"Salvar e reiniciar" e diz **por quê**.
+tema e idioma, contas e a política de PIN (depois da v2.9.0; para contas só
+**Aplicar agora**, porque conta não se testa). Rede, provisionamento de sensor e
+fuso continuam exigindo reinício, e nesse caso a barra mostra só "Salvar e
+reiniciar" e diz **por quê**.
 
 > A página **pergunta ao aparelho** (um ensaio que não muda nada) em vez de
 > decidir sozinha. A regra é comparar a configuração encenada com a corrente,

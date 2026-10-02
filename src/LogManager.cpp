@@ -1161,6 +1161,7 @@ static const char* translateCodeEn(uint16_t code) {
  case SEC_PIN_FAIL: return "Panel PIN rejected";
  case SEC_PIN_LOCKOUT: return "Panel PIN lockout";
  case SEC_PIN_AMBIGUOUS: return "Keypad entry fits two accounts";
+ case SEC_SESSION_REVOKED: return "Session ended: account changed";
 
  /* ── App lifecycle (400–410) ── */
  case APP_DISPLAY_LAUNCHED: return "Display launched on Core 1";

@@ -213,10 +213,13 @@ curl -b j -X POST http://IP/api/commit_all \
 | `_nosave=1` | aplica na **RAM** e **não grava**: um reinício desfaz. Recusa com **409** se a mudança exigir reinício — e recusa sem ter tocado em nada |
 | `_reboot=1` | grava e **reinicia mesmo sem precisar** (`reboot_for:["requested"]`) |
 
-`_dry` e `_nosave` aceitam `sys`, `net` e `alarms` — as três seções cujos
-parsers escrevem **só** em `cfg`, portanto ensaiáveis numa cópia. As outras
-respondem **400** `{"error":"accepts sys, net and alarms only"}`: `users` gera
-senhas, `slots` e `calib` mexem em arquivos. Ambos indisponíveis no Air.
+`_dry` aceita `sys`, `net`, `alarms` e `users`; `_nosave` aceita só os três
+primeiros. São as seções cujos parsers escrevem **só** em `cfg`, portanto
+ensaiáveis numa cópia. Um ensaio de `users` classifica sem cunhar senha: a
+resposta não traz `creds`. E conta não se testa — uma que existe até o próximo
+reinício, com senha mostrada uma vez, não é ensaio. As outras seções respondem
+**400** `{"error":"accepts sys, net and alarms only, and users in a dry run"}`:
+`slots` e `calib` mexem em arquivos. Ambos indisponíveis no Air.
 
 **Quem decide se precisa reiniciar é o aparelho**, por comparação com a
 configuração corrente (`src/ConfigApply.h`) — um campo reenviado igual ao valor
@@ -242,11 +245,15 @@ aparelho no dia em que um campo mudar de classe.
 - `creds` — senhas de uso único, quando a seção `users` criou ou resetou conta. Só aqui.
 
 **O que aplica ao vivo** — alarmes · manutenção · 2ª linha de alarmes ·
-telemetria pelo lado HTTP · tema e idioma.
+telemetria pelo lado HTTP · tema e idioma · contas, PIN do painel e política de
+PIN (depois da v2.9.0). Uma sessão web cuja conta foi apagada, cujo slot passou a
+outro nome ou cuja senha outra pessoa definiu termina no pedido seguinte, com 401
+e o código 312 no log.
 
-**O que ainda reinicia** — rede · nome do aparelho · contas · provisionamento de
-slot · cadência/resolução de sensor · MQTT e TLS da telemetria · fuso/NTP · log ·
-PIN do display · **política de PIN** · porta web e overlays.
+**O que ainda reinicia** — rede · nome do aparelho · provisionamento de slot ·
+resolução do DS18 · MQTT e TLS da telemetria · fuso/NTP · porta web e overlays.
+(Cadência, log e o PIN antigo do display são campos sem leitor desde a v2.7.4: não
+reiniciam.)
 
 Atenção: um campo que ninguém classificou força reinício por segurança (`unclassified`).
 
@@ -309,8 +316,10 @@ repetido **rejeita o campo, não a conta**: medido,
 `{"type":"pin","id":0,"pin":"12"}` → `200`
 `{"status":"ok","reboot":false,"applied":[],"rejected":["users.pin"]}`; e
 `{"type":"add","name":"web1","perms":4096,"pin":"2222"}` → `200`
-`{"status":"ok","reboot":true,"reboot_for":["users"],"creds":[{"u":"web1","p":"…"}]}`
-— a conta `web1` entrou no painel com `2222` depois do reboot (log `308 ctx=6`).
+`{"status":"ok","reboot":false,"applied":["users"],"creds":[{"u":"web1","p":"…"}]}`
+— a conta `web1` entra no painel com `2222` na hora, sem reinício. Até a v2.9.0 a
+resposta era `"reboot":true,"reboot_for":["users"]` e a conta só valia depois do
+reboot.
 
 `GET /api/users` agora diz `"pin":true|false` por conta (nunca o PIN):
 `[{"id":0,"name":"admin","perms":65535,"pin":true},…]`.

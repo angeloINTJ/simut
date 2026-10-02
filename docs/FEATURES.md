@@ -98,7 +98,7 @@ Everything the firmware does, in detail. The [README](../README.md) has the summ
   - the open block is saved after every record;
   - past 86 % full, the oldest day is deleted.
 - **Configuration** — CRC32-checked, written to a temporary file and renamed, with a `.bak` fallback. Secrets are obfuscated at rest, not encrypted: physical access to the flash is outside the threat model ([SECURITY.md §3](../SECURITY.md#3-secret-storage)).
-- **Event log** — 2 × 800 records and 156 event codes:
+- **Event log** — 2 × 800 records and 157 event codes:
   - routine events are persisted on state changes, with an hourly heartbeat and a count of what was suppressed;
   - security, configuration and fatal records are never filtered.
 

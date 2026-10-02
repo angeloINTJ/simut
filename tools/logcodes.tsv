@@ -55,6 +55,7 @@
 309	SEC_PIN_FAIL	Panel PIN rejected	PIN do painel recusado	PIN del panel rechazado
 310	SEC_PIN_LOCKOUT	Panel PIN lockout	Bloqueio do PIN do painel	Bloqueo del PIN del panel
 311	SEC_PIN_AMBIGUOUS	Keypad entry fits two accounts	Entrada do teclado casa com duas contas	Entrada del teclado coincide con dos cuentas
+312	SEC_SESSION_REVOKED	Session ended: account changed	Sessão encerrada: conta alterada	Sesión cerrada: cuenta modificada
 400	APP_DISPLAY_LAUNCHED	Display launched on Core 1	Display iniciado no Core 1	Pantalla iniciada en Core 1
 401	APP_TOUCH_CAL_INITIAL	Initial touch cal saved	Calibração inicial do touch salva	Calibración táctil inicial guardada
 402	APP_TOUCH_CAL_REQUIRED	Touch calibration required	Calibração do touch necessária	Calibración táctil requerida

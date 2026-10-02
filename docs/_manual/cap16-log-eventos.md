@@ -10,7 +10,7 @@ Cada evento é um registro de 12 bytes gravado na flash, com estes campos:
 |---|---|
 | Data | A hora do aparelho no momento do evento, em segundos. Fica vazia quando o relógio ainda não tinha hora |
 | Tempo | Há quanto tempo o aparelho estava ligado, em segundos, até cerca de 194 dias |
-| Código | O número do evento, como 300 para uma entrada bem-sucedida. São 156 códigos |
+| Código | O número do evento, como 300 para uma entrada bem-sucedida. São 157 códigos |
 | Contexto | Um número que complementa o código, como o número da conta ou uma contagem |
 | Nível | A gravidade do evento |
 | Módulo | A parte do firmware que registrou o evento |
@@ -18,7 +18,7 @@ Cada evento é um registro de 12 bytes gravado na flash, com estes campos:
 
 O registro na flash guarda o código e o contexto, e não um texto. A descrição que você lê na página vem de uma tabela no navegador, pelo código. O texto completo de cada evento, com detalhes como o nome de um arquivo, só existe no console, no momento em que o evento acontece, e no syslog ([Onde ler o log](#cap-16-onde)).
 
-A lista completa dos 156 códigos está no [apêndice B](#ap-b).
+A lista completa dos 157 códigos está no [apêndice B](#ap-b).
 
 ### Níveis {#cap-16-niveis}
 

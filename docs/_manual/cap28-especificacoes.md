@@ -138,7 +138,7 @@ A luminosidade existe na tabela de grandezas, mas nenhum dos quatro tipos de sen
 | Tamanho de um registro | 12 bytes | [cap. 16](#cap-16-o-que) |
 | Arquivos | `/system.blog` e `/system.old.blog`, de 800 registros cada | [cap. 16](#cap-16-guarda) |
 | Registros guardados | Entre 800 e 1.600, os mais recentes | [cap. 16](#cap-16-guarda) |
-| Códigos de evento | 156 | [ap. B](#ap-b) |
+| Códigos de evento | 157 | [ap. B](#ap-b) |
 | Tempo ligado gravado no registro | Até cerca de 194 dias | [cap. 16](#cap-16-o-que) |
 | Registros segurados na RAM durante toque ou operação pesada | Até 32; o excedente se perde | [cap. 16](#cap-16-ram) |
 | Filtro por transição | Vai para a flash o primeiro sucesso de cada família depois do boot, a primeira falha, o primeiro sucesso depois de uma falha e um registro por família a cada hora | [cap. 16](#cap-16-transicao) |

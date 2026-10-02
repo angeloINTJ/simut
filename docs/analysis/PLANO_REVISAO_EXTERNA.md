@@ -45,7 +45,7 @@ falha antes (`CLAUDE.md`, *Tests first*).
 | A-03 dividido: o `ctx=209` real, o `ctx=455` do `picotool -x` explicado | Mergeado (#205) |
 | `SHA256SUMS` e atestado de proveniência (Sigstore) em cada release | Mergeado (#207). Exercido na v2.9.0: o sha256 da `release.bin` publicada está no `SHA256SUMS` e tem um atestado (conferido em 02/10) |
 | Descrição do repositório no GitHub ("Professional-grade") | Decisão do mantenedor (01/10): esperar. Em 02/10 ainda começa com "Professional-grade" |
-| Nota "como o SIMUT é desenvolvido" (A-14): agentes de IA ajudam, nada entra sem PR, nove checks e prova | #228: a seção *How SIMUT is developed* nos três READMEs, e a seção *AI Tools* do `CONTRIBUTING.md` reescrita para o fluxo de verdade |
+| Nota "como o SIMUT é desenvolvido" (A-14): agentes de IA ajudam, nada entra sem PR, nove checks e prova | Mergeado (#228): a seção *How SIMUT is developed* nos três READMEs, e a seção *AI Tools* do `CONTRIBUTING.md` reescrita para o fluxo de verdade |
 
 ## Fase 1 — o que contradiz a promessa
 
@@ -66,9 +66,9 @@ falha antes (`CLAUDE.md`, *Tests first*).
 | A-03: o `ctx=209` com um laço dirigido (os cinco comandos de 21/09, painel desenhando) | A fazer, na bancada. À parte, um watchdog de campo foi corrigido no #218 (01/10, na v2.9.0): um join de Wi-Fi recusado segurava o Core 0 |
 | A-04: cursor de telemetria por posição de escrita, com o codec de referência em Python e o portão de paridade junto | #232: o cursor é a posição de gravação, pela opção B do [A04_CURSOR_POR_POSICAO.md](A04_CURSOR_POR_POSICAO.md) (#231): uma posição por arquivo de dia, janela de 3 dias. O formato do histórico não muda, então o codec de referência e o portão de paridade ficam como estão. No host, 18 casos novos no `test_validators`, os de antes rodados contra a regra por tempo e falhando onde ela pulava. Na bancada: a fazer |
 | A-06 e #189: respostas truncadas e o enquadramento chunked | A fazer: soak que conta e relê; reprodução no host. O #189 está entre os conhecidos da v2.9.0 |
-| A-08: contas sem reinício | Plano pronto em `PLANO_DIVIDA_TECNICA.md`. Na v2.9.0, `CFG_USERS` ainda está em `CFG_REBOOT_CLASSES` (`ConfigApply.h`), e o comentário mais abaixo no mesmo arquivo diz que não está |
+| A-08: contas sem reinício | #230, mergeado em 02/10 (`51dd1e6`) depois de conferido no ferro contra a `main`: `CFG_USERS` sai de `CFG_REBOOT_CLASSES`; a sessão web confere a conta viva a cada requisição e o painel a cada ação (`SessionCheck.h`), o que também fecha a sessão que sobrevivia a uma conta apagada no painel ou na CLI; o ensaio aceita `users` e a página oferece **Aplicar agora** para contas |
 | A-05: soak longo do Air (3 dias ou mais) | A fazer, na bancada. O Air está parado desde 11/09 |
-| A-10: medir o login a 5.000 rodadas e escrever o número no `SECURITY.md` | #228: o custo e a troca escritos no `SECURITY.md`, com a medição na bancada (02/10, imagem de teste da v2.9.0, 133 MHz): uma verificação custa cerca de 645 ms. Três instrumentos, cada um contra um controle sem a verificação: `user pass` 646 ms × `user perm` 5 ms; `/metrics` com HTTP Basic 699 ms × com cookie 49 ms; login 740 ms do POST à resposta. O comentário de `PASSWORD_HMAC_ROUNDS` dizia ~400 ms, sem fonte, e passou a dizer o medido |
+| A-10: medir o login a 5.000 rodadas e escrever o número no `SECURITY.md` | Mergeado (#228): o custo e a troca escritos no `SECURITY.md`, com a medição na bancada (02/10, imagem de teste da v2.9.0, 133 MHz): uma verificação custa cerca de 645 ms. Três instrumentos, cada um contra um controle sem a verificação: `user pass` 646 ms × `user perm` 5 ms; `/metrics` com HTTP Basic 699 ms × com cookie 49 ms; login 740 ms do POST à resposta. O comentário de `PASSWORD_HMAC_ROUNDS` dizia ~400 ms, sem fonte, e passou a dizer o medido. A mesma medição achou que um nome sem conta era recusado sem derivar (103 × 732 ms): mergeado no #229, que deriva sempre |
 | As oito suítes nativas sob AddressSanitizer e UBSan | Mergeado (#206); achou uma referência pendurada no `min( )` do stub de teste |
 
 ## Fase 3 — o Pico W sem trocar de chip
@@ -138,8 +138,8 @@ slot e o histórico iria a cerca de 170 dias).
 
 | Item | Estado |
 |---|---|
-| A-15: README com cerca de 200 linhas; recursos em `docs/FEATURES.md`; a tabela de bancada em `docs/VERIFICATION.md` | #228: saiu do README o que a revisão apontou, nos três idiomas: a referência de recursos (para `docs/FEATURES.md`), as notas de versão (ficam no `CHANGELOG`) e a tabela de bancada (para `docs/VERIFICATION.md`). O README foi de 586 para 432 linhas (pt-BR 584 → 430, es-ES 588 → 434), não para 200: arquitetura, início rápido, compilação e testes ficaram |
-| A-07: mostrar o mapa núcleo × opcional que o `features.toml` já tem | #228: o núcleo descrito em `docs/FEATURES.md` e a tabela das chaves gerada do `features.toml` pelo `gen_features.py` (o CI confere com `--check`) |
+| A-15: README com cerca de 200 linhas; recursos em `docs/FEATURES.md`; a tabela de bancada em `docs/VERIFICATION.md` | Mergeado (#228): saiu do README o que a revisão apontou, nos três idiomas: a referência de recursos (para `docs/FEATURES.md`), as notas de versão (ficam no `CHANGELOG`) e a tabela de bancada (para `docs/VERIFICATION.md`). O README foi de 586 para 432 linhas (pt-BR 584 → 430, es-ES 588 → 434), não para 200: arquitetura, início rápido, compilação e testes ficaram |
+| A-07: mostrar o mapa núcleo × opcional que o `features.toml` já tem | Mergeado (#228): o núcleo descrito em `docs/FEATURES.md` e a tabela das chaves gerada do `features.toml` pelo `gen_features.py` (o CI confere com `--check`) |
 | A-13: resumo em inglês do essencial do `AGENTS.md`; registros de decisão (V5, OTA, modelo de recursos) | A fazer |
 | A-12: mover o `WebUI.h` (44 arquivos o citam), provando as imagens idênticas | Por último |
 

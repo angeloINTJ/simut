@@ -5878,7 +5878,7 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 <input type="text" id="u_pin" name="u_pin" maxlength="16" autocomplete="off" placeholder="Panel PIN (optional)" data-i18n="usr_pin">
                 <button type="submit" id="btnUser" data-i18n="usr_btn">Create User</button>
                 <p style="font-size:0.8rem; color:var(--tinta-2); margin-top:15px; text-align:center;" data-i18n="usr_warn">
-                    * A one-time password is shown after Save &amp; Restart. Copy it — it is displayed only once, and the user must change it on first login.
+                    * A one-time password is shown when you save. Copy it — it is displayed only once, and the user must change it on first login.
                 </p>
             </form>
         </div>
@@ -5984,7 +5984,7 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         }
 
         function delUsr(id) {
-            if (!confirm(window.t('usr_del_msg', 'Delete this user? It will be applied when you click Save & Restart.'))) return;
+            if (!confirm(window.t('usr_del_msg', 'Delete this user? It takes effect when you save.'))) return;
             Pending.pushUserAction({ type: 'del', id: id });
             loadUsers();
         }
@@ -5999,7 +5999,7 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         }
 
         function rstUsr(id) {
-            if (!confirm(window.t('usr_rst_msg', 'Force a password reset at next login? It will be applied when you click Save & Restart.'))) return;
+            if (!confirm(window.t('usr_rst_msg', 'Force a password reset at next login? It takes effect when you save.'))) return;
             Pending.pushUserAction({ type: 'reset', id: id });
             loadUsers();
         }
@@ -7778,8 +7778,9 @@ static const char LANG_JS[] PROGMEM = R"raw(
                JavaScript would be a second copy of it, and the copies would
                drift. Anything but a clear "reboot":false leaves the
                restart-only banner up: a dry run is refused outright for
-               sections that cannot be rehearsed (users, slots, calib), and
-               that refusal is the right answer here. */
+               sections that cannot be rehearsed (slots, calib), and that
+               refusal is the right answer here. Accounts can be rehearsed
+               since they apply live (A-08). */
             try {
                 const fd = new URLSearchParams();
                 fd.set('_payload', JSON.stringify(this.data));
@@ -7843,7 +7844,10 @@ static const char LANG_JS[] PROGMEM = R"raw(
             if (box) { box.classList.toggle('on', any); box.classList.toggle('live', live); }
             show('commit-btn', any);
             show('apply-btn', live);
-            show('try-btn', live);
+            /* Accounts are applied or not, never tried: one that exists until
+               the next restart, with a password shown once, is not a test.
+               The device refuses it too; hiding the button says so first. */
+            show('try-btn', live && !this.data.users);
             const note = document.getElementById('commit-note');
             if (note) {
                 note.style.display = any ? 'inline-block' : 'none';
@@ -7907,6 +7911,15 @@ static const char LANG_JS[] PROGMEM = R"raw(
             showToast(okMsg + ((j.applied && j.applied.length) ? ': ' + j.applied.join(', ') : ''), 'ok', 6000);
             if (j.rejected && j.rejected.length)
                 showToast(window.t('commit_rej', 'Fields not applied') + ': ' + j.rejected.join(', '), 'warn', 9000);
+            /* Accounts apply live since A-08, so the one-time passwords of the
+               accounts added or reset arrive HERE now — and they exist
+               nowhere else. Show them first, then reload: the list on the
+               page is the one from before the commit. */
+            if (j.creds && j.creds.length) {
+                showCredsModal(j.creds, () => { window.location.reload(); });
+            } else if ((j.applied || []).indexOf('users') >= 0) {
+                setTimeout(() => { window.location.reload(); }, 1500);
+            }
         } catch(e) {
             showToast(window.t('commit_err', 'Save failed.'), 'err', 9000);
         } finally {

@@ -104,8 +104,8 @@ telemetria, que é onde está o defeito.
   o carimbo antigo conta como enviado até a primeira entrega, que dá posição ao
   arquivo. A coleta decide registro a registro, então isso é a estimativa
   curta, nunca um registro retido.
-- **Custo:** +1.992 B de flash na release e cerca de 400 B de heap. A imagem
-  `pico_w_test_https` ficou 699 B abaixo do teto de OTA (B6 do
+- **Custo:** cerca de +2.000 B de flash por imagem e cerca de 400 B de heap. A
+  imagem `pico_w_test_https`, com o #230, ficou 35 B abaixo do teto de OTA (B6 do
   [PLANO_STABLE.md](PLANO_STABLE.md)).
 
 ## Como provar

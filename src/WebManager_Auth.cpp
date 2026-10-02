@@ -8,6 +8,7 @@
  */
 #include "WebManager.h"
 #include "PasswordCheck.h"
+#include "SessionCheck.h"
 #include "WebUI_GZ.h"
 #include "LogManager.h"
 #include "Themes.h"
@@ -71,11 +72,23 @@ uint16_t WebManager::getAuthPerms( ) {
 	if (bearer.length( ) == 0) return 0;
 
 	for (int i = 0; i < 3; i++) {
-		if (_activeSessions[i].token != "" && bearer.indexOf("SIMUTSESS=" + _activeSessions[i].token) != -1) {
-			_activeSessions[i].lastActivity = millis( );
-			_currentUserId = _activeSessions[i].userId;
-			_currentUserName = _activeSessions[i].username;
-			_currentUserPerms = _activeSessions[i].perms;
+		ActiveSession& s = _activeSessions[i];
+		if (s.token != "" && bearer.indexOf("SIMUTSESS=" + s.token) != -1) {
+			/* The account as it is NOW, not as the login saw it: accounts change
+			 * live — through the web since A-08, at the panel and the console
+			 * always — and a session that outlived its account, or a password
+			 * someone else set, ends here, at its next request. */
+			SystemConfig& cfg = _storageRef->getConfig( );
+			if (!sessionStillValid(cfg.users, MAX_USERS, s.userId, s.username.c_str( ), s.salt, s.perms)) {
+				LOG_CODE(LOG_WARN, "SEC", SEC_SESSION_REVOKED, s.userId, s.username);
+				memset((void*)s.token.begin( ), 0, s.token.length( ));
+				s.token = "";
+				return 0;
+			}
+			s.lastActivity = millis( );
+			_currentUserId = s.userId;
+			_currentUserName = s.username;
+			_currentUserPerms = s.perms;
 			if (_activityCb && !_quietRequest) _activityCb( );
 			return _currentUserPerms;
 		}
@@ -499,6 +512,7 @@ void WebManager::completeLogin(int slot, int foundId, int ls, const String& u) {
 	_activeSessions[slot].username = u;
 	_activeSessions[slot].perms = cfg.users[foundId].permissions;
 	_activeSessions[slot].lastActivity = millis( );
+	memcpy(_activeSessions[slot].salt, cfg.users[foundId].salt, sizeof(_activeSessions[slot].salt));
 
 	_currentUserId = foundId;
 	_currentUserName = u;
@@ -746,6 +760,14 @@ void WebManager::handleApiForceChpass( ) {
 	safeCopy(cfg.users[_currentUserId].password, hashedNewPass.c_str( ), sizeof(cfg.users[_currentUserId].password));
 	cfg.users[_currentUserId].hashVersion = 1;
 	cfg.users[_currentUserId].mustChangePassword = false;
+	/* The new salt would end this very session at its next request, as it
+	 * ends any session whose password someone else set (SessionCheck.h). The
+	 * one who changed it keeps theirs: re-stamp it. An account holds at most
+	 * one session — allocSessionSlot reuses it — so this is the caller's. */
+	for (int i = 0; i < 3; i++) {
+		if (_activeSessions[i].token != "" && _activeSessions[i].userId == _currentUserId)
+			memcpy(_activeSessions[i].salt, cfg.users[_currentUserId].salt, sizeof(_activeSessions[i].salt));
+	}
 	_storageRef->saveConfiguration( );
 
 	if (_soundRef->isWebSoundsEnabled( )) _soundRef->play(SND_CONFIRM);

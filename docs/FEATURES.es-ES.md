@@ -98,7 +98,7 @@ Todo lo que hace el firmware, en detalle. El [README](../README.es-ES.md) tiene 
   - el bloque abierto se guarda tras cada registro;
   - al superar el 86 % de ocupación, se borra el día más antiguo.
 - **Configuración** — con CRC32, escrita en un archivo temporal y renombrada, con un `.bak` de reserva. Los secretos se guardan ofuscados, no cifrados: el acceso físico a la flash queda fuera del modelo de amenazas ([SECURITY.md §3](../SECURITY.md#3-secret-storage)).
-- **Log de eventos** — 2 × 800 registros y 156 códigos de evento:
+- **Log de eventos** — 2 × 800 registros y 157 códigos de evento:
   - los eventos rutinarios se guardan en los cambios de estado, con un latido por hora y un recuento de lo suprimido;
   - los registros de seguridad, configuración y fallo fatal nunca se filtran.
 
