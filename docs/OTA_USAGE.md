@@ -27,7 +27,7 @@ curl -s -b cookies.txt \
      "http://<device-ip>/api/restore?op=stage&commit=1"
 ```
 
-Takes about 30 s for a ~1 MB image, about 2 s of it the signature check — do not power off. The response must report `"v":0` and `"committed":1` before apply will do anything.
+Takes about 30 s for a ~1 MB image, about 2 s of it the signature check — do not power off. The response must report `"v":0` and `"committed":1` before apply will do anything. The device's panel shows each step meanwhile — the bar while the image arrives, the check, and the reason when it refuses one (MANUAL chapter 11, "A tela de atualização").
 
 ### 3. Apply
 
@@ -35,7 +35,7 @@ Takes about 30 s for a ~1 MB image, about 2 s of it the signature check — do n
 curl -s -b cookies.txt -X POST http://<device-ip>/api/ota/apply
 ```
 
-Answers **202**, about 2 s later — the signature is checked again on what the staging area holds — and the device reboots. If it answers **503 "Display in use"**, retry after a few seconds. A **409** with `"v"` means the staged image no longer verifies (another stage was started after it): stage it again.
+Answers **202**, about 2 s later — the signature is checked again on what the staging area holds — and the device reboots. Until it does, the panel says it is installing. If it answers **503 "Display in use"**, retry after a few seconds. A **409** with `"v"` means the staged image no longer verifies (another stage was started after it): stage it again.
 
 ### 4. Verify
 

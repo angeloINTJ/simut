@@ -3,7 +3,7 @@
 Gerado por `tools/build_manual.py` — não edite à mão. Salve cada captura
 nesta pasta com o nome indicado e rode o script de novo.
 
-153 pendentes de 197.
+153 pendentes de 201.
 
 
 ## Capítulo 1 — O SIMUT em uma página
@@ -318,7 +318,7 @@ nesta pasta com o nome indicado e rode o script de novo.
 - [ ] `17-iniciar.png` (Página web) — rota /files; largura 1280; sessão admin; backup simut_pre-ota já baixado pelo navegador (barra de downloads visível); segunda janela de confirmação aberta
       A segunda confirmação, depois de o backup chegar ao computador. Cancelar aqui não muda nada no aparelho.
 - [ ] `17-enviando.png` (Página web) — rota /files; largura 1280; sessão admin; aviso Etapa 2/4: Enviando firmware (~30 s)... visível durante o envio
-      O envio da imagem. O painel do aparelho fica parado até o reinício.
+      O envio da imagem. Até a v2.8.x o painel do aparelho ficava parado até o reinício; agora ele mostra a etapa (capítulo 11).
 - [ ] `17-ota-linha-tempo.png` (Diagrama) — linha do tempo horizontal de uma atualização: 'backup .bkp baixado' (segundos, verde); 'envio e conferência da imagem, 35 a 36 s' (amarelo, rótulo 'sistema de arquivos já sobrescrito'); 'aplicação, cerca de 25 s' (vermelho, rótulo 'única janela em que um corte de energia exige BOOTSEL'); 'boot da imagem nova' (verde); marca 'interface web de volta, 52 a 56 s depois da aplicação'; embaixo, o que cada corte causa: arquivos perdidos com a configuração preservada, aparelho sem firmware, nada
       Legenda: as etapas de uma atualização e o que um corte de energia em cada uma custa.
 - [ ] `17-log-pos-ota.png` (Página web) — rota /history; largura 1280; sessão admin; logo depois de uma atualização; seção Eventos do Sistema carregada com INF, WRN e ERR marcados; os dois registros Config alterada do módulo OTA, WRN e INF, no fim da lista

@@ -26,6 +26,18 @@
 #include <time.h>
 #include <hardware/watchdog.h>
 
+/* The panel names a refusal by the validator's verdict (otaWhyFor, OtaScreen.h),
+ * by number; SigVerdict shares the numbers 7-12 (validation.cpp pins them). */
+static_assert(otaWhyFor((unsigned)ota::ValidationStatus::OK) == OTA_WHY_NONE &&
+              otaWhyFor((unsigned)ota::ValidationStatus::ENV_MISMATCH) == OTA_WHY_MODEL &&
+              otaWhyFor((unsigned)ota::ValidationStatus::SIG_MISSING) == OTA_WHY_UNSIGNED &&
+              otaWhyFor((unsigned)ota::ValidationStatus::SIG_INVALID) == OTA_WHY_SIGNATURE &&
+              otaWhyFor((unsigned)ota::ValidationStatus::SIG_REVOKED) == OTA_WHY_RETIRED_KEY &&
+              otaWhyFor((unsigned)ota::ValidationStatus::SIG_ROLLBACK) == OTA_WHY_BLOCKED_VERSION &&
+              otaWhyFor((unsigned)ota::ValidationStatus::SIG_SCOPE) == OTA_WHY_BENCH_KEY &&
+              otaWhyFor((unsigned)ota::ValidationStatus::BOOT2_BAD) == OTA_WHY_DAMAGED,
+              "the panel gives each verdict its own reason");
+
 /* Adapter Print → WebManager::safeSend (declared friend in WebManager.h). */
 struct OtaBackupPrintAdapter : public Print {
  WebManager* w;
@@ -164,6 +176,9 @@ void WebManager::handleApiRestoreUploadData( ) {
  * flash — only admin can trigger. Without perm, doesn't unmount LFS;
  * status stays IDLE; finish responds 403. */
  if (getAuthPerms( ) == PERM_FULL_ADMIN) {
+ /* The panel first (OtaScreen.h): from the next line on a flash pause
+  * holds Core 1 for the whole upload, and only the bar is left to draw. */
+ if (_displayRef) _displayRef->showOta(OTA_PH_RECEIVING);
  ota::stage_session_begin(_stageSession, _storageRef);
  } else {
  _stageSession.status = ota::StageStatus::IDLE;
@@ -229,6 +244,9 @@ void WebManager::handleApiRestoreUploadData( ) {
  if (_restoreRejected) return;
  if (is_stage) {
  ota::stage_session_feed(_stageSession, upload.buf, upload.currentSize);
+ /* Content-Length counts the multipart boundaries too; otaPercent stops at 99. */
+ if (_displayRef) _displayRef->otaProgress(_stageSession.bytes_received,
+                                           (uint32_t)_server->clientContentLength( ));
  } else {
  /* Core 1 already paused since START.
  * No RenderGuard recreated per chunk — saving hundreds of
@@ -253,6 +271,8 @@ void WebManager::handleApiRestoreUploadData( ) {
  } else if (upload.status == UPLOAD_FILE_ABORTED) {
  if (_restoreRejected) return;
  if (is_stage) {
+ /* Before the abort lets Core 1 go, so it comes back to this screen. */
+ if (_displayRef) _displayRef->showOta(OTA_PH_CUT);
  ota::stage_session_abort(_stageSession);
  _stageAbortRebuild = true;
  } else {
@@ -316,6 +336,8 @@ void WebManager::handleApiRestoreFinish( ) {
  memset(&vr, 0, sizeof(vr));
  bool valid = false;
  if (ok_staged) {
+ /* About 2 s of signature check: the panel says what it waits for. */
+ if (_displayRef) _displayRef->showOta(OTA_PH_CHECKING);
  valid = ota::ota_validate_staging(_stageSession, vr);
  }
 
@@ -344,18 +366,34 @@ void WebManager::handleApiRestoreFinish( ) {
  committed = ota::ota_metadata_write(m);
  _storageRef->exitFlashSafeMode( );
  }
- /* Do NOT remount LFS — staging preserved for apply. */
+ /* Do NOT remount LFS — staging preserved for apply. A metadata write
+  * that failed leaves nothing to apply: an interruption on the panel. */
+ if (_displayRef) _displayRef->showOta(committed ? OTA_PH_READY : OTA_PH_CUT);
  } else if (ok_staged) {
- /* Testing: remount. */
+ /* Testing: remount. Each screen goes up before Core 1 is let go
+  * below, so it comes back to it: refused and why, or — a valid image
+  * staged without commit=1 — the panel it had. */
+ if (_displayRef) _displayRef->showOta(valid ? OTA_PH_NONE : OTA_PH_REFUSED,
+                                       otaWhyFor((unsigned)vr.status));
  RenderGuard rg(_displayRef);
  ota::staging_session_end(_storageRef);
  _stageAbortRebuild = true;
  } else if (_stageSession.status == ota::StageStatus::STAGING ||
  _stageSession.status == ota::StageStatus::OVERFLOW_ERR ||
  _stageSession.status == ota::StageStatus::WRITE_FAILED) {
+ /* Larger than any image is a refusal; a write that failed, or an
+  * upload that never ended, an interruption. */
+ if (_displayRef) {
+ if (_stageSession.status == ota::StageStatus::OVERFLOW_ERR)
+ _displayRef->showOta(OTA_PH_REFUSED, OTA_WHY_DAMAGED);
+ else
+ _displayRef->showOta(OTA_PH_CUT);
+ }
  RenderGuard rg(_displayRef);
  ota::stage_session_abort(_stageSession);
  _stageAbortRebuild = true;
+ } else if (_stageSession.status == ota::StageStatus::BEGIN_FAILED) {
+ if (_displayRef) _displayRef->showOta(OTA_PH_CUT);
  }
 
  char buf[256];
@@ -531,6 +569,7 @@ void WebManager::handleApiOtaApply( ) {
  }
  LOG_CODE(LOG_WARN, "OTA", SEC_CONFIG_CHANGED, _currentUserId,
           String("apply refused: staged image no longer verifies, v=") + (int)sr.verdict);
+ if (_displayRef) _displayRef->showOta(OTA_PH_REFUSED, otaWhyFor((unsigned)sr.verdict));
  char buf[96];
  snprintf(buf, sizeof(buf),
           "{\"error\":\"staged image no longer verifies; stage it again\",\"v\":%u}",
@@ -551,8 +590,15 @@ void WebManager::handleApiOtaApply( ) {
  _server->client( ).flush( );
  delay(500); /* TCP flush before WiFi.end. */
 
+ /* The panel's last word before the install. showOta waits (800 ms at most)
+  * for it to be on the glass, and the ILI9341 keeps that frame through the
+  * copy — interrupts off, nothing drawing — until the reboot. */
+ if (_displayRef) _displayRef->showOta(OTA_PH_INSTALLING);
+
  /* Tear down + jump to SRAM applier — does not return on success. */
  auto result = ota::ota_apply_pending_update(_storageRef);
+ /* Back here, the install never started: the panel must not go on saying it did. */
+ if (_displayRef) _displayRef->showOta(OTA_PH_CUT);
 
  /* Only reached on pre-destructive error (rare). No response possible
  * — Wi-Fi already torn down. Log and proceed (next loop may attempt

@@ -105,7 +105,25 @@ static const char* const DICTIONARY_EN[TR_KEYS_COUNT] = {
  "Keypad",
  "Characters",
  "Choose a new PIN",
- "13. Date and time"
+ "13. Date and time",
+ "Firmware update",
+ "Receiving the new version",
+ "Checking the signature",
+ "Image verified",
+ "Installing the new version",
+ "The device restarts by itself in about 30 s",
+ "Do not switch the device off",
+ "Update refused",
+ "Update interrupted",
+ "Still on the current version",
+ "The image is for another model",
+ "The image is not signed",
+ "The signature does not match",
+ "Signed with a retired key",
+ "Below the installed security level",
+ "Signed with the bench key",
+ "Not a valid firmware image",
+ "Update installed"
 };
 
 /* Channel -> label key. The table in SensorChannelTable.h carries an i18nKey

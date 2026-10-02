@@ -160,6 +160,24 @@ Teclado
 Caracteres
 Elija un nuevo PIN
 13. Fecha y hora
+Actualización de firmware
+Recibiendo la nueva versión
+Comprobando la firma
+Imagen comprobada
+Instalando la nueva versión
+El equipo se reinicia solo en unos 30 s
+No apague el equipo
+Actualización rechazada
+Actualización interrumpida
+Sigue en la versión actual
+La imagen es de otro modelo
+La imagen no está firmada
+La firma no coincide
+Firmada con una clave retirada
+Por debajo del nivel de seguridad instalado
+Firmada con la clave del banco de pruebas
+No es una imagen de firmware válida
+Actualización instalada
 @LOGCODES
 0 OK
 1 Arranque del sistema

@@ -432,6 +432,20 @@ logs — the top bar shows the user holding it and **touch is rejected on the
 dashboard** until it finishes. The banner is deliberate: it tells you why
 before you touch rather than after.
 
+### During a firmware update
+
+An update takes the panel from whatever screen is up and shows each step under
+**Firmware update**: *Receiving the new version* with a bar and the percentage,
+*Checking the signature*, *Image verified*, then *Installing the new version*
+until the device restarts — each with **Do not switch the device off** in
+amber. Neither a tap nor the 30 s idle return takes it away. A refused image
+shows *Update refused*, the reason (the same verdicts `v=7` to `v=12` the web
+page names, and *Not a valid firmware image* for the rest) and *Still on the
+current version* for 12 s; an upload cut short, *Update interrupted* for 8 s. A
+tap leaves either early. After an install, the boot log shows
+`Update installed: v<version>`. The alpha's LCD prints the same steps in two
+lines of Portuguese. See [section 12](#12-firmware-updates).
+
 ---
 
 ## 6. The web interface
@@ -988,6 +1002,11 @@ while `dsize` and `dcrc` describe the bytes that actually arrived.
 | Apply | The signature again, over what the staging area holds at that moment: a stage started after the accepted one leaves its bytes there, and the applier copies whatever it finds. **409** with `v` if it no longer verifies |
 | Apply | The applier copies staging into the application slot from SRAM, with interrupts off |
 | Next boot | The installed image is CRC-checked against the metadata and the verdict logged |
+
+The panel follows the whole update — the steps, and the reason when an image is
+refused ([During a firmware update](#during-a-firmware-update)). Drawing it
+costs the upload about 0.6 s: 32.2 s against 31.6 s for a 1 MB image on the
+bench.
 
 The post-apply verdict appears on the serial console as
 `[INF][OTA] image verified, NNNNNN B`. It exists there and nowhere else — the
