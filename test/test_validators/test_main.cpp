@@ -38,6 +38,8 @@
 #include "sensors/CalibCurve.h"         /* calibration curve engine */
 #include "WebJsonSlice.h"               /* depth-aware JSON slicing */
 #include "SimutTime.h"                 /* fixed-offset localtime/mktime */
+#include "LangPackIndex.h"             /* where each section of a .lng is */
+#include <string>
 #include "display/ClockEntry.h"         /* the date and time set at the panel */
 #include "PemBlocks.h"                 /* the PEM splitting POST /api/tls does */
 #include "WebCommitSections.h"          /* per-section authz for /api/commit_all */
@@ -1624,6 +1626,199 @@ void test_langident_terminates_and_respects_cap(void) {
     /* Zero cap must not write. Nothing to assert but the absence of a crash;
      * ASAN in the fuzz job is what actually watches this one. */
     langIdentSanitize("abc", 3, out2, 0);
+}
+
+/* ===========================================================================
+ *  LANGUAGE-PACK INDEX — LangPackScanner (LangPackIndex.h)
+ *
+ *  The loader used to read every byte before @WEBDICT into one malloc just to
+ *  find the dictionary in it. It now seeks to the ranges this scanner reports,
+ *  so these cases pin the rules the in-buffer parser applied: what counts as a
+ *  directive, where a body starts and ends, which occurrence wins, and that
+ *  @WEBDICT is the file's suffix. The chunking case is the one a stream adds:
+ *  the loader reads 256 B at a time, and a directive split across two reads
+ *  must index exactly like one that is not.
+ * =========================================================================== */
+static LangPackIndex langIndex(const char* s, size_t len, size_t chunk) {
+    LangPackScanner sc;
+    for (size_t i = 0; i < len; i += chunk) {
+        sc.feed(s + i, (len - i < chunk) ? len - i : chunk);
+    }
+    LangPackIndex ix;
+    sc.finish(ix);
+    return ix;
+}
+
+static LangPackIndex langIndex(const char* s) {
+    return langIndex(s, strlen(s), strlen(s) ? strlen(s) : 1);
+}
+
+/* The bytes a range covers, so a failure prints text instead of offsets. */
+static std::string langRange(const char* s, const LangPackIndex& ix, LangSection sec) {
+    return std::string(s + ix.start[sec], s + ix.end[sec]);
+}
+
+static bool langSameIndex(const LangPackIndex& a, const LangPackIndex& b) {
+    for (int k = 0; k < LANG_SEC_COUNT; k++) {
+        if (a.start[k] != b.start[k] || a.end[k] != b.end[k] ||
+            a.present[k] != b.present[k]) return false;
+    }
+    return a.tailAfterWebDict == b.tailAfterWebDict;
+}
+
+/* The shipped layout, small. @LICENSE sits before @HELP here so that the
+ * section right before @WEBDICT is one every pack keeps. */
+static const char kLangPack[] =
+    "# SIMUT language pack\n"
+    "@NAME  Portugu\xc3\xaas (Brasil) \r\n"
+    "@CODE pt-BR\n"
+    "\n"
+    "@DICT\n"
+    "Ambiente\n"
+    "Configura\xc3\xa7\xc3\xb5" "es\n"
+    "@LOGCODES\n"
+    "100=Boot\n"
+    "@TRL\n"
+    "811c9dc5=Ol\xc3\xa1\n"
+    "@LICENSE\n"
+    "MIT\n"
+    "@HELP\n"
+    "ajuda linha 1\n"
+    "\n"
+    "@WEBDICT\n"
+    "{\"a\":\"b@c\"}";
+
+void test_langidx_finds_every_section(void) {
+    const LangPackIndex ix = langIndex(kLangPack);
+    TEST_ASSERT_FALSE(ix.tailAfterWebDict);
+    TEST_ASSERT_EQUAL_STRING("Portugu\xc3\xaas (Brasil)",
+                             langRange(kLangPack, ix, LANG_SEC_NAME).c_str());
+    TEST_ASSERT_EQUAL_STRING("pt-BR", langRange(kLangPack, ix, LANG_SEC_CODE).c_str());
+    TEST_ASSERT_EQUAL_STRING("Ambiente\nConfigura\xc3\xa7\xc3\xb5" "es\n",
+                             langRange(kLangPack, ix, LANG_SEC_DICT).c_str());
+    TEST_ASSERT_EQUAL_STRING("100=Boot\n", langRange(kLangPack, ix, LANG_SEC_LOGCODES).c_str());
+    TEST_ASSERT_EQUAL_STRING("811c9dc5=Ol\xc3\xa1\n", langRange(kLangPack, ix, LANG_SEC_TRL).c_str());
+    TEST_ASSERT_EQUAL_STRING("MIT\n", langRange(kLangPack, ix, LANG_SEC_LICENSE).c_str());
+    TEST_ASSERT_EQUAL_STRING("ajuda linha 1\n\n", langRange(kLangPack, ix, LANG_SEC_HELP).c_str());
+    TEST_ASSERT_EQUAL_STRING("{\"a\":\"b@c\"}", langRange(kLangPack, ix, LANG_SEC_WEBDICT).c_str());
+    for (int k = 0; k < LANG_SEC_COUNT; k++) TEST_ASSERT_TRUE(ix.present[k]);
+}
+
+void test_langidx_section_before_webdict_stops_at_the_marker(void) {
+    /* The old parser ran this body one byte long — it counted the newline it
+     * had appended to its own buffer — so reading it back from the file gave
+     * the '@' of "@WEBDICT" as its last character: the stray '@' at the foot
+     * of the License screen in pt-BR and es-ES. */
+    const LangPackIndex ix = langIndex(kLangPack);
+    TEST_ASSERT_EQUAL_CHAR('@', kLangPack[ix.end[LANG_SEC_HELP]]);
+    TEST_ASSERT_EQUAL_CHAR('\n', kLangPack[ix.end[LANG_SEC_HELP] - 1]);
+}
+
+void test_langidx_chunking_does_not_matter(void) {
+    const size_t len = sizeof(kLangPack) - 1;
+    const LangPackIndex whole = langIndex(kLangPack, len, len);
+    for (size_t chunk = 1; chunk < len; chunk++) {
+        if (!langSameIndex(whole, langIndex(kLangPack, len, chunk))) {
+            char msg[48];
+            snprintf(msg, sizeof(msg), "differs when fed %u bytes at a time", (unsigned)chunk);
+            TEST_FAIL_MESSAGE(msg);
+        }
+    }
+}
+
+void test_langidx_refuses_a_directive_after_webdict(void) {
+    TEST_ASSERT_TRUE(langIndex("@DICT\na\n@WEBDICT\n{}\n@HELP\nx\n").tailAfterWebDict);
+    TEST_ASSERT_TRUE(langIndex("@DICT\na\n@WEBDICT\n{}\n@WEBDICT\n{}").tailAfterWebDict);
+    /* Unknown directives count too: the rule is that the blob is the suffix. */
+    TEST_ASSERT_TRUE(langIndex("@DICT\na\n@WEBDICT\n{}\n@\n").tailAfterWebDict);
+    /* An '@' that does not start a line is the blob's own content, and text
+     * after the marker's name is ignored like on any directive line. */
+    const char* s = "@DICT\na\n@WEBDICT \r\n{\"k\":\"@x\"}\n {\"@\":1}";
+    const LangPackIndex ix = langIndex(s);
+    TEST_ASSERT_FALSE(ix.tailAfterWebDict);
+    TEST_ASSERT_EQUAL_STRING("{\"k\":\"@x\"}\n {\"@\":1}", langRange(s, ix, LANG_SEC_WEBDICT).c_str());
+}
+
+void test_langidx_directive_names_match_exactly(void) {
+    /* "@DICTX", "@DIC" and "@dict" are not the dictionary. Each is an unknown
+     * directive, which still ends the section before it. */
+    const char* s = "@DICT\na\n@DICTX\nb\n@DIC\nc\n@dict\nd\n@HELP\ne\n";
+    LangPackIndex ix = langIndex(s);
+    TEST_ASSERT_EQUAL_STRING("a\n", langRange(s, ix, LANG_SEC_DICT).c_str());
+    TEST_ASSERT_EQUAL_STRING("e\n", langRange(s, ix, LANG_SEC_HELP).c_str());
+    /* A name longer than any directive is unknown, not cut down into one. */
+    const char* t = "@DICT\na\n@WEBDICTIONARY\n{}\n";
+    ix = langIndex(t);
+    TEST_ASSERT_FALSE(ix.present[LANG_SEC_WEBDICT]);
+    TEST_ASSERT_FALSE(ix.tailAfterWebDict);
+    TEST_ASSERT_EQUAL_STRING("a\n", langRange(t, ix, LANG_SEC_DICT).c_str());
+}
+
+void test_langidx_an_at_sign_mid_line_is_content(void) {
+    const char* s = "@DICT\ne-mail a@b\n @recuado\n@HELP\nh\n";
+    const LangPackIndex ix = langIndex(s);
+    TEST_ASSERT_EQUAL_STRING("e-mail a@b\n @recuado\n", langRange(s, ix, LANG_SEC_DICT).c_str());
+}
+
+void test_langidx_directive_line_endings(void) {
+    /* CRLF: the body starts after the LF. Text after a directive's name is
+     * not part of anything, as it never was. */
+    const char* s = "@DICT\r\na\r\n@HELP extra words\nh\n";
+    const LangPackIndex ix = langIndex(s);
+    TEST_ASSERT_EQUAL_STRING("a\r\n", langRange(s, ix, LANG_SEC_DICT).c_str());
+    TEST_ASSERT_EQUAL_STRING("h\n", langRange(s, ix, LANG_SEC_HELP).c_str());
+}
+
+void test_langidx_name_and_code_values(void) {
+    /* Leading spaces and tabs, and trailing CR, spaces and tabs, are not the
+     * value; spaces inside it are. */
+    const char* s = "@NAME \t Espa\xc3\xb1ol (Espa\xc3\xb1" "a)\t \r\n@CODE\tes-ES\n@DICT\nx\n";
+    LangPackIndex ix = langIndex(s);
+    TEST_ASSERT_EQUAL_STRING("Espa\xc3\xb1ol (Espa\xc3\xb1" "a)", langRange(s, ix, LANG_SEC_NAME).c_str());
+    TEST_ASSERT_EQUAL_STRING("es-ES", langRange(s, ix, LANG_SEC_CODE).c_str());
+    /* A directive with no value is present and empty, and the loader names the
+     * pack "" as the old parser did. */
+    const char* t = "@NAME\n@CODE   \r\n@DICT\nx\n";
+    ix = langIndex(t);
+    TEST_ASSERT_TRUE(ix.present[LANG_SEC_NAME]);
+    TEST_ASSERT_EQUAL_UINT32(ix.start[LANG_SEC_NAME], ix.end[LANG_SEC_NAME]);
+    TEST_ASSERT_TRUE(ix.present[LANG_SEC_CODE]);
+    TEST_ASSERT_EQUAL_UINT32(ix.start[LANG_SEC_CODE], ix.end[LANG_SEC_CODE]);
+}
+
+void test_langidx_last_occurrence_wins(void) {
+    const char* s = "@NAME A\n@DICT\nold\n@NAME B\n@DICT\nnew\n";
+    const LangPackIndex ix = langIndex(s);
+    TEST_ASSERT_EQUAL_STRING("new\n", langRange(s, ix, LANG_SEC_DICT).c_str());
+    TEST_ASSERT_EQUAL_STRING("B", langRange(s, ix, LANG_SEC_NAME).c_str());
+}
+
+void test_langidx_absent_and_empty_sections(void) {
+    LangPackIndex ix = langIndex("@NAME X\n@HELP\nh\n");
+    TEST_ASSERT_FALSE(ix.present[LANG_SEC_DICT]);
+    ix = langIndex("@DICT\n@HELP\nh\n");
+    TEST_ASSERT_TRUE(ix.present[LANG_SEC_DICT]);
+    TEST_ASSERT_EQUAL_UINT32(ix.start[LANG_SEC_DICT], ix.end[LANG_SEC_DICT]);
+}
+
+void test_langidx_end_of_file(void) {
+    /* Without @WEBDICT the last body runs to the end of the file, newline or
+     * not. */
+    const char* s = "@DICT\na\nb";
+    LangPackIndex ix = langIndex(s);
+    TEST_ASSERT_EQUAL_STRING("a\nb", langRange(s, ix, LANG_SEC_DICT).c_str());
+    TEST_ASSERT_FALSE(ix.present[LANG_SEC_WEBDICT]);
+    /* A marker that is the last thing in the file has an empty body, and it
+     * still ends the section before it. */
+    const char* t = "@DICT\na\n@WEBDICT";
+    ix = langIndex(t);
+    TEST_ASSERT_EQUAL_STRING("a\n", langRange(t, ix, LANG_SEC_DICT).c_str());
+    TEST_ASSERT_EQUAL_UINT32(strlen(t), ix.start[LANG_SEC_WEBDICT]);
+    TEST_ASSERT_EQUAL_UINT32(strlen(t), ix.end[LANG_SEC_WEBDICT]);
+    /* A value on a last line that has no newline after it. */
+    const char* u = "@DICT\na\n@NAME X ";
+    ix = langIndex(u);
+    TEST_ASSERT_EQUAL_STRING("X", langRange(u, ix, LANG_SEC_NAME).c_str());
 }
 
 /* ===========================================================================
@@ -3532,6 +3727,17 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_langident_strips_json_breakers);
     RUN_TEST(test_langident_keeps_legitimate_names);
     RUN_TEST(test_langident_terminates_and_respects_cap);
+    RUN_TEST(test_langidx_finds_every_section);
+    RUN_TEST(test_langidx_section_before_webdict_stops_at_the_marker);
+    RUN_TEST(test_langidx_chunking_does_not_matter);
+    RUN_TEST(test_langidx_refuses_a_directive_after_webdict);
+    RUN_TEST(test_langidx_directive_names_match_exactly);
+    RUN_TEST(test_langidx_an_at_sign_mid_line_is_content);
+    RUN_TEST(test_langidx_directive_line_endings);
+    RUN_TEST(test_langidx_name_and_code_values);
+    RUN_TEST(test_langidx_last_occurrence_wins);
+    RUN_TEST(test_langidx_absent_and_empty_sections);
+    RUN_TEST(test_langidx_end_of_file);
     RUN_TEST(test_download_perm_gates_history_and_logs);
     RUN_TEST(test_download_perm_leaves_ordinary_files_alone);
 

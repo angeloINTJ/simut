@@ -30,21 +30,22 @@ HEADER = ROOT / "src" / "DisplayManager.h"
 PARSER = ROOT / "src" / "DisplayManager_LangParser.cpp"
 PACKS = sorted((ROOT / "data" / "lang").glob("*.lng"))
 
-# A pack over LANG_FILE_MAX is the same invisible failure as a short one:
+# A pack over a ceiling is the same invisible failure as a short one:
 # loadLangFile() returns false, setLanguage() reverts to English, and nothing
-# says so. es-ES already sits near the ceiling (it derives from pt-BR by
-# substitution and only fits because it omits @HELP/@LICENSE), so a warning
-# band gives notice before a routine addition tips it over the edge in a
+# says so. Two ceilings, both read from the parser source: LANG_FILE_MAX bounds
+# the file on flash, LANG_DICT_MAX the @DICT — the one section that is read
+# into RAM, and the one allocation a pack keeps for the whole uptime. A warning
+# band gives notice before a routine addition tips either over the edge in a
 # commit that "just adds a string".
 CEIL_WARN_FRAC = 0.95
 
 
 def lang_limits():
-    """(LANG_FILE_MAX, LANG_RESIDENT_MAX) read from the parser source, so this
+    """(LANG_FILE_MAX, LANG_DICT_MAX) read from the parser source, so this
     gate can never drift from what loadLangFile() actually enforces."""
     src = PARSER.read_text(encoding="utf-8")
     out = []
-    for name in ("LANG_FILE_MAX", "LANG_RESIDENT_MAX"):
+    for name in ("LANG_FILE_MAX", "LANG_DICT_MAX"):
         m = re.search(name + r"\s*=\s*(\d+)", src)
         if not m:
             raise SystemExit(f"check_lang_packs: {name} not found in "
@@ -53,30 +54,40 @@ def lang_limits():
     return tuple(out)
 
 
-def resident_split(path):
-    """(resident_bytes, has_webdict, tail_directives).
+BODY_SECTIONS = {b"DICT", b"HELP", b"LICENSE", b"LOGCODES", b"TRL", b"WEBDICT"}
 
-    resident_bytes is the byte offset of the @WEBDICT marker line — exactly
-    what loadLangFile() mallocs, since the blob is streamed from flash and
-    never read into RAM. tail_directives lists any @SECTION line found AFTER
-    the marker: the device rejects those packs because the blob must be the
-    file's suffix for the resident prefix to be contiguous."""
-    data = path.read_bytes()
-    off = 0
-    marker = -1
-    tail = []
-    for ln in data.split(b"\n"):
-        stripped = ln.rstrip(b"\r")
-        if marker < 0 and (stripped == b"@WEBDICT"
-                           or stripped.startswith(b"@WEBDICT ")
-                           or stripped.startswith(b"@WEBDICT\t")):
-            marker = off
-        elif marker >= 0 and off > marker and stripped.startswith(b"@"):
-            tail.append(stripped.decode("utf-8", "replace"))
-        off += len(ln) + 1
-    if marker < 0:
-        return len(data), False, []
-    return marker, True, tail
+
+def pack_index(data):
+    """({section: (start, end)}, tail_directives) for the bytes of a pack.
+
+    The rules of src/LangPackIndex.h, which is what loadLangFile() seeks by:
+    a directive is a line whose first byte is '@', its name runs to the first
+    space, tab or CR, and a body runs from the line after its directive to the
+    next directive of any kind, or to the end of the file. The last occurrence
+    of a section wins. tail_directives lists every directive found after the
+    @WEBDICT marker line: the device rejects those packs, because the blob
+    must be the file's suffix."""
+    idx, tail = {}, []
+    cur, in_wd, off = None, False, 0
+    lines = data.split(b"\n")
+    for i, ln in enumerate(lines):
+        nl = 1 if i < len(lines) - 1 else 0
+        if ln.startswith(b"@"):
+            if in_wd:
+                tail.append(ln.rstrip(b"\r").decode("utf-8", "replace"))
+            if cur is not None:
+                idx[cur] = (idx[cur][0], off)
+                cur = None
+            name = re.split(rb"[ \t\r]", ln[1:], maxsplit=1)[0]
+            if name in BODY_SECTIONS:
+                body = off + len(ln) + nl
+                cur = name.decode()
+                idx[cur] = (body, body)
+                in_wd = in_wd or name == b"WEBDICT"
+        off += len(ln) + nl
+    if cur is not None:
+        idx[cur] = (idx[cur][0], len(data))
+    return idx, tail
 
 
 def enum_keys():
@@ -263,15 +274,16 @@ def check_webdict(pack, keys, prefixes):
 def main():
     keys = enum_keys()
     want = len(keys)
-    ceil, res_ceil = lang_limits()
+    ceil, dict_ceil = lang_limits()
     warn_at = int(ceil * CEIL_WARN_FRAC)
-    res_warn_at = int(res_ceil * CEIL_WARN_FRAC)
+    dict_warn_at = int(dict_ceil * CEIL_WARN_FRAC)
     trl_live = trl_literals()
     wkeys, wprefixes = web_keys()
     failed = False
     for pack in PACKS:
         size = pack.stat().st_size
-        resident, has_wd, tail = resident_split(pack)
+        idx, tail = pack_index(pack.read_bytes())
+        dict_bytes = idx["DICT"][1] - idx["DICT"][0] if "DICT" in idx else 0
         if size > ceil:
             print(f"[lang-packs] FAIL {pack.name}: {size} B exceeds LANG_FILE_MAX "
                   f"({ceil}) — loadLangFile() rejects it and the UI silently "
@@ -288,21 +300,21 @@ def main():
                   f"rejects such a pack and the UI silently reverts to English",
                   file=sys.stderr)
             failed = True
-        if resident > res_ceil:
-            print(f"[lang-packs] FAIL {pack.name}: resident sections total "
-                  f"{resident} B, over LANG_RESIDENT_MAX ({res_ceil}) — that is "
-                  f"the part that lives on the heap for the whole uptime; "
+        if dict_bytes > dict_ceil:
+            print(f"[lang-packs] FAIL {pack.name}: @DICT is {dict_bytes} B, over "
+                  f"LANG_DICT_MAX ({dict_ceil}) — the dictionary is the part of a "
+                  f"pack that lives on the heap for the whole uptime; "
                   f"loadLangFile() rejects it", file=sys.stderr)
             failed = True
-        elif resident >= res_warn_at:
-            print(f"[lang-packs] WARN {pack.name}: resident sections are "
-                  f"{resident} B, {resident * 100 // res_ceil}% of the {res_ceil} B "
-                  f"RAM ceiling ({res_ceil - resident} B left)", file=sys.stderr)
+        elif dict_bytes >= dict_warn_at:
+            print(f"[lang-packs] WARN {pack.name}: @DICT is {dict_bytes} B, "
+                  f"{dict_bytes * 100 // dict_ceil}% of the {dict_ceil} B RAM "
+                  f"ceiling ({dict_ceil - dict_bytes} B left)", file=sys.stderr)
         else:
-            print(f"[lang-packs] OK {pack.name}: resident {resident} B "
-                  f"({resident * 100 // res_ceil}% of RAM ceiling), file {size} B "
+            print(f"[lang-packs] OK {pack.name}: @DICT {dict_bytes} B "
+                  f"({dict_bytes * 100 // dict_ceil}% of RAM ceiling), file {size} B "
                   f"({size * 100 // ceil}% of file ceiling)"
-                  + ("" if has_wd else " — no @WEBDICT"))
+                  + ("" if "WEBDICT" in idx else " — no @WEBDICT"))
         lines, blanks = dict_lines(pack)
         if blanks:
             print(f"[lang-packs] FAIL {pack.name}: blank line(s) inside @DICT at "
