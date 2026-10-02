@@ -41,45 +41,18 @@
  * The other 6 languages remain in git history. */
 
 
-/* LICENSE preferred from .lng (@LICENSE), unaccented
- * to ASCII for display. Without .lng or for EN: fallback /license_en.txt.
- * Loaded into RAM (_licenseBuf) when the user changes language.
- * setLanguage called only by Core 0 — LittleFS free of race conditions.
+/* The License screen draws LICENSE_TEXT_EN (HelpLicenseEN.h) in every
+ * language, straight from flash: the MIT text in its original English, the
+ * version with legal force, as the /license web page shows it. Until
+ * 2026-10-02 each language pack carried a translation of it in @LICENSE
+ * (1,942 B in pt-BR, 1,957 B in es-ES), which this screen read from LittleFS
+ * and folded to ASCII into a static 2,048 B buffer. The packs lost the
+ * section and the image lost the buffer.
  *
- * The whole licence-screen apparatus lives inside this guard, and the guard
- * starts here rather than three functions further down: the only reader of
- * _licenseBuf is the screen that draws it, so on an alphanumeric display it
- * sat next to two functions the compiler warned were unused.
- *
- * This costs nothing and saves nothing in the image — checked, because the
- * tempting claim is that it recovers 2 KB of RAM on the alpha build. It does
- * not: -fdata-sections with --gc-sections already dropped the buffer, and
- * arm-none-eabi-nm finds no _licenseBuf symbol in the alpha ELF either side of
- * this change, with .bss identical at 118,524 B. What the guard buys is the
- * warning going away and the intent being stated rather than left to the
- * linker to infer. */
+ * The two text helpers below have no caller but that screen, so they sit
+ * inside the guard: on an alphanumeric display the compiler warned that they
+ * were unused. */
 #if !SIMUT_DISPLAY_ALPHA
-static char _licenseBuf[2048];
-
-static void loadLicenseFromFs(int langIdx) {
-	/* PT (and any non-EN): try @LICENSE from active .lng. */
-	if (langIdx != LANG_EN) {
-		const char* langLic = DisplayManager::getActiveLicenseText( );
-		if (langLic) {
-			DisplayManager::unaccent(langLic, _licenseBuf, sizeof(_licenseBuf));
-			return;
-		}
-	}
-	/* EN always from PROGMEM (LICENSE_TEXT_EN), no FS dependency. */
-	size_t i = 0;
-	char c;
-	while (i + 1 < sizeof(_licenseBuf) &&
-	       (c = (char)pgm_read_byte(&LICENSE_TEXT_EN[i])) != '\0') {
-		_licenseBuf[i++] = c;
-	}
-	_licenseBuf[i] = '\0';
-}
-
 static int wrapLineCount(const char* text, int maxCols) {
 	int lines = 1;
 	int col = 0;
@@ -1981,9 +1954,6 @@ void DisplayManager::setWebNotification(const char* username) {
 
 #if !SIMUT_DISPLAY_ALPHA
 void DisplayManager::showSettingsLicense( ) {
-	/* License text is loaded from LittleFS only now, when the screen is
-	 * actually opened — the @LICENSE section is no longer resident. */
-	loadLicenseFromFs(_currentLangIdx);
 	mutex_enter_blocking(&_stateMutex);
 	_uiMode = MODE_SETTINGS_LICENSE;
 	_licensePage = 0;
@@ -1996,9 +1966,9 @@ void DisplayManager::showSettingsLicense( ) {
 void DisplayManager::drawSettingsLicense( ) {
 	bool fullRedraw = _forceSettingsRedraw;
 
-	/* licText comes from _licenseBuf (loaded in setLanguage
-	 * by Core 0). Fallback is generated in _licenseBuf itself if FS missing. */
-	const char* licText = _licenseBuf;
+	/* Read in place from flash. ASCII on purpose: this screen draws with the
+	 * classic CP437 font (see the note at LICENSE_TEXT_EN). */
+	const char* licText = LICENSE_TEXT_EN;
 
 	const int MAX_COLS = 50;
 	const int LINE_H = 9;

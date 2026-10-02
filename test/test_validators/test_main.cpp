@@ -1666,8 +1666,10 @@ static bool langSameIndex(const LangPackIndex& a, const LangPackIndex& b) {
     return a.tailAfterWebDict == b.tailAfterWebDict;
 }
 
-/* The shipped layout, small. @LICENSE sits before @HELP here so that the
- * section right before @WEBDICT is one every pack keeps. */
+/* The shipped layout, small, plus the @LICENSE section packs carried until
+ * 2026-10-02. The firmware no longer reads it, so here it is an unknown
+ * directive: it must end @TRL and leave everything else where it was, or a
+ * device given an older pack would lose its dictionary. */
 static const char kLangPack[] =
     "# SIMUT language pack\n"
     "@NAME  Portugu\xc3\xaas (Brasil) \r\n"
@@ -1698,7 +1700,6 @@ void test_langidx_finds_every_section(void) {
                              langRange(kLangPack, ix, LANG_SEC_DICT).c_str());
     TEST_ASSERT_EQUAL_STRING("100=Boot\n", langRange(kLangPack, ix, LANG_SEC_LOGCODES).c_str());
     TEST_ASSERT_EQUAL_STRING("811c9dc5=Ol\xc3\xa1\n", langRange(kLangPack, ix, LANG_SEC_TRL).c_str());
-    TEST_ASSERT_EQUAL_STRING("MIT\n", langRange(kLangPack, ix, LANG_SEC_LICENSE).c_str());
     TEST_ASSERT_EQUAL_STRING("ajuda linha 1\n\n", langRange(kLangPack, ix, LANG_SEC_HELP).c_str());
     TEST_ASSERT_EQUAL_STRING("{\"a\":\"b@c\"}", langRange(kLangPack, ix, LANG_SEC_WEBDICT).c_str());
     for (int k = 0; k < LANG_SEC_COUNT; k++) TEST_ASSERT_TRUE(ix.present[k]);

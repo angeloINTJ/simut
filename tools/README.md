@@ -27,7 +27,7 @@ or a release.
 | `arduino_pico_overrides/patch.sh` | patch.sh — aplica overrides SIMUT no framework arduino-pico do PlatformIO. | 2026-08-20 |
 | `build_release.sh` | build_release.sh — Generate Arduino IDE-compatible release zips for simut_tft and simut_alpha. | 2026-08-16 |
 | `check_authz.py` | check_authz.py — the authorization matrix, pinned so it cannot silently rot. | 2026-08-19 |
-| `check_license.py` | A licença diz a mesma coisa nas **cinco** cópias (LICENSE, página `/license`, string do firmware, um `@LICENSE` por pacote de idioma) e os **dois** scripts de release levam o arquivo. Nasceu de dois achados de 21/09: a página web dizia 2025 e o zip do Arduino IDE saía sem `LICENSE`. | 2026-09-21 |
+| `check_license.py` | A licença diz a mesma coisa nas **três** cópias (LICENSE, página `/license` e a string do firmware que a tela Licença do painel desenha, o texto MIT palavra por palavra nas duas telas), nenhum pacote de idioma volta a trazer `@LICENSE`, e os **dois** scripts de release levam o arquivo. Nasceu de dois achados de 21/09: a página web dizia 2025 e o zip do Arduino IDE saía sem `LICENSE`. | 2026-10-02 |
 | `release_manifest.py` | The manifest a fleet manager downloads before an OTA: version, per-image size and sha256. Written by `release-ota.yml` next to the assets. | 2026-09-13 |
 | `check_flash_budget.py` | Fails the build when a firmware image grows past its budget in tools/flash_budget.json. | 2026-09-08 |
 | `check_fsguard.py` | check_fsguard.py — the /config filesystem guards, pinned so they cannot silently rot. | 2026-08-29 |

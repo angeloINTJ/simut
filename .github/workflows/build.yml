@@ -49,11 +49,11 @@ jobs:
       - name: Check authorization matrix
         run: python3 tools/check_authz.py
 
-      # The MIT text lives in five places (LICENSE, the /license page, the
-      # firmware string, and one @LICENSE per language pack) and two release
-      # scripts are supposed to ship the file with the source. The web page
-      # said 2025 while everything else said 2026, and the Arduino zip went
-      # out with no LICENSE at all — neither is a compile error.
+      # The MIT text lives in three places (LICENSE, the /license page, and
+      # the firmware string the panel draws) and two release scripts are
+      # supposed to ship the file with the source. The web page said 2025
+      # while everything else said 2026, and the Arduino zip went out with no
+      # LICENSE at all — neither is a compile error.
       - name: Check licence consistency
         run: python3 tools/check_license.py
 

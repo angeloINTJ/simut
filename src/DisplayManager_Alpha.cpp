@@ -14,7 +14,7 @@ static SystemStatusData _netStatus;
 static uint32_t _lt = 0;
 
 /* Alpha: lightweight .lng locator (web translations only). No TFT UI means
- * @DICT/@HELP/@LICENSE/@LOGCODES/@TRL are never needed in RAM — only the file
+ * @DICT/@HELP/@LOGCODES/@TRL are never needed in RAM — only the file
  * path (so GET /api/lang can stream @WEBDICT to the browser) and @NAME/@CODE. */
 static char _alphaLangPath[40] = {0};
 static char _alphaLangName[16] = {0};
@@ -465,7 +465,7 @@ const char* DisplayManager::getActiveHelpText( ) {
 	if (!f) return nullptr;
 
 	/* Locate @HELP at column 0, then its body (up to the next column-0 '@',
-	 * which is @LICENSE). Byte-wise walk mirrors scanWebDictRange. */
+	 * @WEBDICT in a shipped pack). Byte-wise walk mirrors scanWebDictRange. */
 	static const char kDir[] = "@HELP";
 	const size_t kDirLen = sizeof(kDir) - 1;
 	uint8_t scan[128];
@@ -499,7 +499,7 @@ const char* DisplayManager::getActiveHelpText( ) {
 			atLineStart = (c == '\n');
 		}
 	}
-	if (inBlock && !found) bodyEnd = pos; /* @HELP runs to EOF (no @LICENSE) */
+	if (inBlock && !found) bodyEnd = pos; /* @HELP runs to EOF */
 
 	if (!inBlock || bodyEnd <= bodyStart) { f.close( ); return nullptr; }
 	size_t want = bodyEnd - bodyStart;
@@ -526,7 +526,6 @@ void DisplayManager::setTelemetryPending(uint16_t count) {
 	_sharedState.pendingPkts = count;
 }
 void DisplayManager::showSettingsLicense( ){}
-const char* DisplayManager::getActiveLicenseText( ){return "";}
 void DisplayManager::loadTouchCalibration(const TouchCalData*){}
 void DisplayManager::requestLoadingScreen( ){}
 void DisplayManager::showSettingsPassword(uint8_t){}
@@ -631,7 +630,7 @@ bool DisplayManager::findAndLoadLangFile( ) {
 	_alphaLangPath[sizeof(_alphaLangPath) - 1] = '\0';
 
 	/* Read only the leading bytes (header + @NAME + @CODE). The rest of the
-	 * pack (@DICT/@HELP/@LICENSE/@LOGCODES/@TRL/@WEBDICT) is never loaded. */
+	 * pack (@DICT/@HELP/@LOGCODES/@TRL/@WEBDICT) is never loaded. */
 	_alphaLangName[0] = '\0';
 	_alphaLangCode[0] = '\0';
 	File f = LittleFS.open(path, "r");

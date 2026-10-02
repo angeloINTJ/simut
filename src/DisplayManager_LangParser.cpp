@@ -16,17 +16,17 @@
  * <line N = last LangKey before TR_KEYS_COUNT>
  * @HELP
  * <free text, multiline>
- * @LICENSE
- * <free text, multiline>
  *
  * Memory strategy: @DICT is the only section that reaches the heap. The
  * loader streams the file once through a small stack chunk, and
  * LangPackScanner (LangPackIndex.h) records where every section starts and
  * ends; then it mallocs and reads @DICT alone, and _activeLang.strings point
  * into that buffer, null-terminated in place. Every other section stays on
- * flash as a byte range: @HELP and @LICENSE are read on demand,
+ * flash as a byte range: @HELP is read when the CLI asks for it,
  * GET /api/lang streams @WEBDICT and GET /api/logcodes scans for @LOGCODES on
- * its own. @TRL is read by nothing on the device.
+ * its own. @TRL is read by nothing on the device. Packs carried a @LICENSE
+ * section until 2026-10-02; the License screen draws the firmware's own text
+ * now, so in an older pack that section is an unknown directive and skipped.
  *
  * Until 2026-10-02 the loader read every byte before @WEBDICT into one malloc
  * (16,351 B for es-ES), copied @DICT out of it and freed the rest at once, so
@@ -217,14 +217,10 @@ bool DisplayManager::loadLangFile(const char* path) {
  TRL("Language pack is older than the firmware — missing strings show in English"));
  }
 
- /* @HELP / @LICENSE: byte ranges into the file, lazy-read on demand. */
+ /* @HELP: byte range into the file, lazy-read on demand. */
  if (ix.end[LANG_SEC_HELP] > ix.start[LANG_SEC_HELP]) {
  _activeLang.helpOffset = ix.start[LANG_SEC_HELP];
  _activeLang.helpLen = ix.end[LANG_SEC_HELP] - ix.start[LANG_SEC_HELP];
- }
- if (ix.end[LANG_SEC_LICENSE] > ix.start[LANG_SEC_LICENSE]) {
- _activeLang.licenseOffset = ix.start[LANG_SEC_LICENSE];
- _activeLang.licenseLen = ix.end[LANG_SEC_LICENSE] - ix.start[LANG_SEC_LICENSE];
  }
  /* @WEBDICT: opaque JSON blob, served via GET /api/lang to the browser
   * straight from flash. Its range runs to the end of the file, which is
@@ -305,8 +301,8 @@ bool DisplayManager::findAndLoadLangFile( ) {
  return ok;
 }
 
-/* Lazy-read scratch for @HELP / @LICENSE — these sections are no longer
- * resident, so they are read from LittleFS only when a consumer asks. */
+/* Lazy-read scratch for @HELP — the section is not resident, so it is read
+ * from LittleFS only when the CLI asks for it. */
 static char _lazyReadBuf[2048];
 
 static const char* lazyRead(const char* path, uint32_t offset, uint32_t len) {
@@ -326,10 +322,6 @@ static const char* lazyRead(const char* path, uint32_t offset, uint32_t len) {
 const char* DisplayManager::getActiveHelpText( ) {
  if (!_activeLangLoaded) return nullptr;
  return lazyRead(_activeLang.path, _activeLang.helpOffset, _activeLang.helpLen);
-}
-const char* DisplayManager::getActiveLicenseText( ) {
- if (!_activeLangLoaded) return nullptr;
- return lazyRead(_activeLang.path, _activeLang.licenseOffset, _activeLang.licenseLen);
 }
 bool DisplayManager::getActiveWebDictSource(const char** path, uint32_t* offset, uint32_t* len) {
  if (!_activeLangLoaded || _activeLang.webDictLen == 0) return false;

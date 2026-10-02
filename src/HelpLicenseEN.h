@@ -237,12 +237,13 @@ conf web port <1..65535>
 
 #if defined(SIMUT_LICENSE_STUB)
 /* Profiles that set license_stub in tools/features.toml (the two test images,
- * and SIMUT Air). The only reader is the touch display's License screen, when
- * it shows English or a language pack without @LICENSE: there it saves 1,728 B
- * against the full text below (SIMUT, measured 2026-09-26 by
- * tools/measure_savings.py --matrix). Without the touch display nothing reads
- * the string, so on Air the switch changes nothing. The release image always
- * carries the complete license below; the /license web page is separate. */
+ * and SIMUT Air). The only reader is the touch display's License screen, which
+ * draws this string in every language since 2026-10-02 (the language packs no
+ * longer carry a translation): there it saves 1,728 B against the full text
+ * below (SIMUT, measured 2026-09-26 by tools/measure_savings.py --matrix).
+ * Without the touch display nothing reads the string, so on Air the switch
+ * changes nothing. The release image always carries the complete license
+ * below; the /license web page is separate. */
 static const char LICENSE_TEXT_EN[] PROGMEM =
 "MIT License - full text ships in the release image\n"
 "and in the LICENSE file of the source repository.\n";

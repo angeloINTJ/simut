@@ -3,10 +3,12 @@
 
 WHY THIS EXISTS
 ---------------
-SIMUT carries the MIT text in four places — the LICENSE file, the /license web
-page inside WebUI.h, the firmware string in src/HelpLicenseEN.h, and the
-translated @LICENSE section of each .lng pack — plus two release scripts that
-are supposed to ship the file alongside the source.
+SIMUT carries the MIT text in three places — the LICENSE file, the /license
+web page inside WebUI.h, and the firmware string in src/HelpLicenseEN.h that
+the panel's License screen draws — plus two release scripts that are supposed
+to ship the file alongside the source. Until 2026-10-02 each .lng pack carried
+a fourth, translated, in @LICENSE; the panel now shows the original English
+text in every language, as the web page does, and the section is gone.
 
 On 2026-09-21 a sweep found two things that had been true for a long time and
 that nothing could have caught:
@@ -25,8 +27,11 @@ thing a person finds by reading, once, years late.
 WHAT IT CHECKS
 --------------
   1. every copyright line names the same year and the same holder;
-  2. the MIT body on the web page matches the LICENSE file word for word;
-  3. both release scripts copy LICENSE into what they package.
+  2. the MIT body on the web page and in the firmware string matches the
+     LICENSE file word for word: the two screens show the same text;
+  3. no language pack carries a @LICENSE section again — nothing reads it,
+     and it cost every device ~1.95 KB of each pack;
+  4. both release scripts copy LICENSE into what they package.
 
 The holder is compared without accents on purpose: the firmware string is drawn
 on the TFT with a CP437 font where "Ângelo Moisés" is unrelated symbols, and
@@ -79,16 +84,17 @@ def main() -> int:
     seen.append(find("WebUI.h (/license)", web))
 
     fw = (ROOT / "src" / "HelpLicenseEN.h").read_text(encoding="utf-8")
-    seen.append(find("src/HelpLicenseEN.h", fw[fw.index("#else"):]))
+    full = fw[fw.index("#else", fw.index("SIMUT_LICENSE_STUB")):]
+    seen.append(find("src/HelpLicenseEN.h", full))
 
     for pack in sorted((ROOT / "data" / "lang").glob("*.lng")):
-        t = pack.read_text(encoding="utf-8")
-        if "@LICENSE" in t:
-            seen.append(find(f"data/lang/{pack.name}", t[t.index("@LICENSE"):]))
+        if re.search(r"^@LICENSE\b", pack.read_text(encoding="utf-8"), re.M):
+            problems.append(f"  data/lang/{pack.name} traz @LICENSE: o painel "
+                            "nao le mais essa secao, mostra a string do firmware")
 
     missing = [s for s in seen if s is None]
     seen = [s for s in seen if s]
-    if missing or len(seen) < 4:
+    if missing or len(seen) < 3:
         problems.append("  nao achei a linha de copyright em alguma das copias")
 
     years = {s[0] for s in seen}
@@ -102,6 +108,9 @@ def main() -> int:
 
     if body(lic) != body(web):
         problems.append("  o texto MIT da pagina /license nao bate com o LICENSE")
+    if body(lic) != body(full):
+        problems.append("  o texto MIT da string do firmware (tela Licenca do "
+                        "painel) nao bate com o LICENSE")
 
     for script in ("build_release.sh", "build_release_pio.sh"):
         t = (ROOT / "tools" / script).read_text(encoding="utf-8")

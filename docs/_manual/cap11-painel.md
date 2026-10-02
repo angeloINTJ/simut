@@ -400,7 +400,7 @@ Uma calibração recusada: Toques imprecisos! Tente novamente.
 
 ### Licença {#cap-11-licenca}
 
-A tela **Licença MIT** (*MIT License*) mostra o texto da licença do software, 17 linhas por página, no idioma do pacote instalado. Pontos no título mostram a página. Um toque na metade de cima do texto volta uma página; na metade de baixo, avança. O rodapé tem seta para cima, seta para baixo e **SAIR**, que volta ao menu.
+A tela **Licença MIT** (*MIT License*) mostra o texto da licença do software, 17 linhas por página, em inglês em qualquer idioma: é o texto original, o que tem valor legal, o mesmo que a página **Licença** da interface web mostra ([capítulo 13](#cap-13-licenca)). Só o título e os botões seguem o idioma. Pontos no título mostram a página. Um toque na metade de cima do texto volta uma página; na metade de baixo, avança. O rodapé tem seta para cima, seta para baixo e **SAIR**, que volta ao menu.
 
 ::: {.figura #fig-11-licenca tipo="tft" arquivo="11-licenca.png" captura="screen lic; primeira página"}
 A primeira página da licença.

@@ -50,7 +50,6 @@ enum LangSection : uint8_t {
 	LANG_SEC_CODE,
 	LANG_SEC_DICT,
 	LANG_SEC_HELP,
-	LANG_SEC_LICENSE,
 	LANG_SEC_LOGCODES,
 	LANG_SEC_TRL,
 	LANG_SEC_WEBDICT,
@@ -147,8 +146,8 @@ private:
 		static const struct { const char* name; uint8_t len; LangSection sec; } kDirs[] = {
 			{ "NAME", 4, LANG_SEC_NAME },         { "CODE", 4, LANG_SEC_CODE },
 			{ "DICT", 4, LANG_SEC_DICT },         { "HELP", 4, LANG_SEC_HELP },
-			{ "LICENSE", 7, LANG_SEC_LICENSE },   { "LOGCODES", 8, LANG_SEC_LOGCODES },
-			{ "TRL", 3, LANG_SEC_TRL },           { "WEBDICT", 7, LANG_SEC_WEBDICT },
+			{ "LOGCODES", 8, LANG_SEC_LOGCODES }, { "TRL", 3, LANG_SEC_TRL },
+			{ "WEBDICT", 7, LANG_SEC_WEBDICT },
 		};
 		for (const auto& d : kDirs) {
 			if (_dirLen == d.len && memcmp(_dir, d.name, d.len) == 0) return (int8_t)d.sec;
