@@ -259,6 +259,18 @@ reporting a vulnerability.
 - **Expired nonce** counts as failure (same backoff).
 - **Failure log**: `LOG_WARN SEC SEC_LOGIN_FAIL` with reason (invalid
   nonce, expired nonce, invalid credential).
+- **A name with no account costs what a wrong password costs**
+  (2026-10-02). The check used to derive only once it had found the
+  account, so on v2.9.0 a name with no account was refused in about
+  106 ms and a wrong password in about 745 ms: the time of the answer
+  told anyone who can reach the login page which names exist, and
+  `/metrics` with Basic told the same (119 ms against 738 ms). The check
+  now derives once whatever the name (`src/PasswordCheck.h`, pinned by
+  six host tests), and on the rig the two refusals take the same time:
+  755 ms against 739 ms at the login, 762 ms against 765 ms at
+  `/metrics` (median of 6 each; a good login, 746 ms, is unchanged). A
+  legacy account (`hashVersion` 0, 2500 rounds) still answers in its own
+  time until its next good login migrates it.
 - **SEC-006/F15.1**: the LRU evict algorithm ignores slots under active
   lockout (`lockoutUntil > now`). Locked slots become "sticky" until the
   penalty expires — prevents an attacker from escaping backoff by cycling
