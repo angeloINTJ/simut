@@ -3,7 +3,7 @@
 Gerado por `tools/build_manual.py` — não edite à mão. Salve cada captura
 nesta pasta com o nome indicado e rode o script de novo.
 
-156 pendentes de 202.
+151 pendentes de 202.
 
 
 ## Capítulo 1 — O SIMUT em uma página
@@ -113,8 +113,6 @@ nesta pasta com o nome indicado e rode o script de novo.
       A janela Senha temporária, com a senha de uso único da conta criada.
 - [ ] `08-quem.png` (Tela do painel) — screen pin; contas admin, operador1 e manutencao com PIN; nenhuma bloqueada
       A tela Quem está usando o painel?, com as contas que têm PIN.
-- [ ] `08-menu-operador.png` (Tela do painel) — menu de configurações depois do PIN de uma conta que tem só permissões de painel; título Configurações > operador1
-      O menu de uma conta só com permissões de painel: Limites de Alarme, Status do Sistema, Alterar Senha e Licença, sem numeração, e o nome da conta no título.
 - [ ] `08-teclado-3.png` (Tela do painel) — screen pin e escolha de uma conta; política de fábrica: 0-9, 3 por tecla; dois caracteres já digitados
       O teclado embaralhado da política de fábrica: quatro cartões de três caracteres.
 - [ ] `08-teclado-alfa.png` (Tela do painel) — screen pin e escolha de uma conta; política 0-9 A-Z, 1 por tecla; grupo PQRS aberto
@@ -190,14 +188,6 @@ nesta pasta com o nome indicado e rode o script de novo.
       A página de umidade do detalhe.
 - [ ] `11-detalhe-pressao.png` (Tela do painel) — screen gra -> tap(160,120) -> tap(160,120) -> tap(160,120); mesmo BME280
       A página de pressão do detalhe.
-- [ ] `11-menu.png` (Tela do painel) — screen set; a ferramenta entra como administrador; primeira página, item 1 selecionado
-      O menu completo, primeira página: Limites de Alarme, Sons de Alarme, Status do Sistema e Data e hora, numerados de 1 a 4.
-- [ ] `11-menu-p2.png` (Tela do painel) — screen set -> tap(105,215) quatro vezes; a seta para baixo leva a seleção do item 1 ao item 5; segunda página
-      A segunda página do menu completo, com Alterar Senha, Usuários, Segurança do PIN e Modo de Configuração.
-- [ ] `11-menu-p3.png` (Tela do painel) — screen set -> tap(35,215) -> tap(35,215); a seta para cima dá a volta até o item 13, e o segundo toque seleciona o item 12; terceira página
-      A terceira página do menu completo, com Idioma do Sistema, Temas Visuais, Calibrar Touch e Alinhamento da Tela.
-- [ ] `11-menu-p4.png` (Tela do painel) — screen set -> tap(35,215); a seta para cima dá a volta e seleciona o item 13; quarta página
-      A quarta página do menu completo, só com Licença.
 - [ ] `11-mira.png` (Tela do painel) — screen touchcal e complete a etapa de sensibilidade com o dedo; capture a primeira mira, no canto de cima à esquerda; o toque simulado não completa a sensibilidade, porque não tem pressão
       A etapa de posição: a primeira mira, Toque na mira (1/4) e a volta [ 1 / 2 ].
 - [ ] `11-calib-ok.png` (Tela do painel) — depois do oitavo toque de uma calibração com as duas voltas coerentes
