@@ -48,6 +48,7 @@
 #include "display/ClockEntry.h"         /* the date and time set at the panel */
 #include "display/SettingsMenu.h"       /* the panel's Settings menu: rows, order */
 #include "PasswordCheck.h"             /* one derivation per password check */
+#include "SessionCheck.h"              /* a session against its live account */
 #include "PemBlocks.h"                 /* the PEM splitting POST /api/tls does */
 #include "WebCommitSections.h"          /* per-section authz for /api/commit_all */
 #include "FsSecretPath.h"               /* /config download guard (A-4) */
@@ -3692,6 +3693,94 @@ void test_password_check_a_legacy_account_derives_its_own_way(void) {
     TEST_ASSERT_EQUAL_INT(0, d3.legacyCalls);
 }
 
+/* ── A session against the live account (SessionCheck.h) ──
+ * A session used to keep the account as the login saw it, until it expired or
+ * the device restarted. These pin what ends one now — the account deleted, its
+ * slot taken by another name, its password set by someone else — and what
+ * does not: a change of bits, which the session takes on at its next request. */
+struct SessAccount {
+    bool active;
+    char username[16];
+    uint16_t permissions;
+    uint8_t salt[8];
+};
+
+static void sessAccounts(SessAccount (&u)[3]) {
+    memset(u, 0, sizeof(u));
+    const char* names[3] = { "admin", "ana", "bia" };
+    for (int i = 0; i < 3; i++) {
+        u[i].active = true;
+        strcpy(u[i].username, names[i]);
+        u[i].permissions = (uint16_t)(0x0100 << i);
+        u[i].salt[0] = (uint8_t)(40 + i);
+    }
+}
+
+void test_session_stays_with_an_unchanged_account(void) {
+    SessAccount u[3]; sessAccounts(u);
+    uint8_t salt[8]; memcpy(salt, u[1].salt, sizeof(salt));
+    uint16_t perms = u[1].permissions;
+    TEST_ASSERT_TRUE(sessionStillValid(u, 3, 1, "ana", salt, perms));
+    TEST_ASSERT_EQUAL_HEX16(0x0200, perms);
+}
+
+void test_session_takes_the_bits_the_account_has_now(void) {
+    SessAccount u[3]; sessAccounts(u);
+    uint8_t salt[8]; memcpy(salt, u[1].salt, sizeof(salt));
+    uint16_t perms = u[1].permissions;      /* what the login saw */
+    u[1].permissions = 0x0001;              /* narrowed since, at the panel or the console */
+    TEST_ASSERT_TRUE(sessionStillValid(u, 3, 1, "ana", salt, perms));
+    TEST_ASSERT_EQUAL_HEX16(0x0001, perms);
+}
+
+void test_session_ends_with_its_deleted_account(void) {
+    SessAccount u[3]; sessAccounts(u);
+    uint8_t salt[8]; memcpy(salt, u[1].salt, sizeof(salt));
+    uint16_t perms = u[1].permissions;
+    memset(&u[1], 0, sizeof(u[1]));         /* a delete wipes the whole record */
+    TEST_ASSERT_FALSE(sessionStillValid(u, 3, 1, "ana", salt, perms));
+}
+
+void test_session_ends_when_its_slot_holds_another_name(void) {
+    SessAccount u[3]; sessAccounts(u);
+    uint8_t salt[8]; memcpy(salt, u[1].salt, sizeof(salt));
+    uint16_t perms = u[1].permissions;
+    memset(&u[1], 0, sizeof(u[1]));         /* deleted, and the slot taken again */
+    u[1].active = true;
+    strcpy(u[1].username, "carla");
+    u[1].permissions = 0x0200;
+    memcpy(u[1].salt, salt, sizeof(salt));  /* even with the very same salt */
+    TEST_ASSERT_FALSE(sessionStillValid(u, 3, 1, "ana", salt, perms));
+}
+
+void test_session_ends_when_someone_else_sets_the_password(void) {
+    SessAccount u[3]; sessAccounts(u);
+    uint8_t salt[8]; memcpy(salt, u[1].salt, sizeof(salt));
+    uint16_t perms = u[1].permissions;
+    u[1].salt[0] = 77;                      /* an admin reset, `user pass`: a fresh salt */
+    TEST_ASSERT_FALSE(sessionStillValid(u, 3, 1, "ana", salt, perms));
+}
+
+void test_session_with_a_slot_out_of_range_is_invalid(void) {
+    SessAccount u[3]; sessAccounts(u);
+    uint8_t salt[8]; memcpy(salt, u[1].salt, sizeof(salt));
+    uint16_t perms = 0;
+    TEST_ASSERT_FALSE(sessionStillValid(u, 3, -1, "ana", salt, perms));
+    TEST_ASSERT_FALSE(sessionStillValid(u, 3, 3, "ana", salt, perms));
+}
+
+void test_panel_identity_outlives_a_password_reset_not_a_delete(void) {
+    SessAccount u[3]; sessAccounts(u);
+    uint16_t perms = 0;
+    /* The panel identified by PIN: a new web password is not its business. */
+    u[1].salt[0] = 77;
+    TEST_ASSERT_TRUE(panelAccountStillThere(u, 3, 1, "ana", perms));
+    TEST_ASSERT_EQUAL_HEX16(0x0200, perms);
+    memset(&u[1], 0, sizeof(u[1]));
+    TEST_ASSERT_FALSE(panelAccountStillThere(u, 3, 1, "ana", perms));
+    TEST_ASSERT_FALSE(panelAccountStillThere(u, 3, -1, "ana", perms));
+}
+
 
 void test_panel_pin_validator(void) {
     TEST_ASSERT_TRUE(isValidPanelPin("1234"));
@@ -4496,6 +4585,13 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_password_check_a_deleted_account_is_no_account);
     RUN_TEST(test_password_check_a_name_in_other_case_is_no_account);
     RUN_TEST(test_password_check_a_legacy_account_derives_its_own_way);
+    RUN_TEST(test_session_stays_with_an_unchanged_account);
+    RUN_TEST(test_session_takes_the_bits_the_account_has_now);
+    RUN_TEST(test_session_ends_with_its_deleted_account);
+    RUN_TEST(test_session_ends_when_its_slot_holds_another_name);
+    RUN_TEST(test_session_ends_when_someone_else_sets_the_password);
+    RUN_TEST(test_session_with_a_slot_out_of_range_is_invalid);
+    RUN_TEST(test_panel_identity_outlives_a_password_reset_not_a_delete);
     RUN_TEST(test_panel_pin_validator);
     RUN_TEST(test_pin_policy_rules);
     RUN_TEST(test_pin_keypad_deals_the_whole_set);

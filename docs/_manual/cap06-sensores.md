@@ -28,9 +28,9 @@ A seção Hardware com os valores de fábrica: resolução de 12 bits, amostra d
 | **Resolução DS18B20** (*DS18B20 Resolution*) | Resolução da conversão de temperatura das sondas DS18B20 | **9-bit**, `10-bit`, `11-bit`, **12-bit** | 12-bit | Sim |
 | **Amostra (ms)** (*Sample Interval (ms)*) | Gravado, mas sem efeito ([Amostra (ms)](#cap-06-amostra)) | 1000 a 60000 | 2000 | Não, desde a v2.7.4 |
 | **Intervalo Histórico (min)** (*History Recording Interval (min)*) | De quantos em quantos minutos o histórico grava um registro | 1 a 1440 | 1 | Sim |
-| **Teclado do painel: glifos por tecla** | Política de PIN do painel | 1, 2 ou 3 | 3 | Sim |
-| **Caracteres do PIN** | Política de PIN do painel | `0-9` ou `0-9 A-Z` | `0-9` | Sim |
-| **Tamanho mínimo do PIN** | Política de PIN do painel | 4 até o teto do teclado | 4 | Sim |
+| **Teclado do painel: glifos por tecla** | Política de PIN do painel | 1, 2 ou 3 | 3 | Não, depois da v2.9.0 |
+| **Caracteres do PIN** | Política de PIN do painel | `0-9` ou `0-9 A-Z` | `0-9` | Não, depois da v2.9.0 |
+| **Tamanho mínimo do PIN** | Política de PIN do painel | 4 até o teto do teclado | 4 | Não, depois da v2.9.0 |
 
 Os três campos de PIN estão explicados no [capítulo 8](#cap-08-politica). Nas imagens alpha e Air, que não têm painel com toque, a página esconde esses três campos.
 

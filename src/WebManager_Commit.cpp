@@ -171,8 +171,17 @@ void WebManager::handleSaveSystem( ) {
  * first login. The plaintext exists only long enough to reach the admin who
  * created the account — over the network here rather than on the serial line,
  * so it rides back in the commit response and nowhere else. */
-void WebManager::assignTempPassword(int slot, String& outCreds) {
-	SystemConfig& cfg = _storageRef->getConfig( );
+void WebManager::assignTempPassword(SystemConfig& cfg, int slot, String& outCreds, bool rehearse) {
+	/* A dry run only has to show that the slot changes — ConfigApply.h
+	 * classifies by comparing bytes — so it skips the minting, the ~645 ms
+	 * derivation and the credential. It used to write the LIVE configuration
+	 * whatever it was handed, which is why users could not be rehearsed. */
+	if (rehearse) {
+		_storageRef->generateSalt(cfg.users[slot].salt);
+		cfg.users[slot].hashVersion = 1;
+		cfg.users[slot].mustChangePassword = true;
+		return;
+	}
 
 	char temp[9];
 	_storageRef->generateInitialAdminPassword(temp, sizeof(temp));   /* 8 chars, [A-HJ-NP-Z2-9] */
@@ -286,7 +295,12 @@ void WebManager::applyConfigLive(uint32_t changeMask) {
 	}
 	/* CFG_ALARMS, CFG_MAINT e CFG_TELEMETRY: nada a fazer — ver o cabeçalho.
 	 * A ausência de código aqui é a afirmação de que os consumidores releem, e
-	 * os testes de bancada deste commit são o que a sustenta. */
+	 * os testes de bancada deste commit são o que a sustenta.
+	 *
+	 * CFG_USERS (A-08) também não precisa de nada: a sessão web confere a
+	 * conta viva a cada requisição (getAuthPerms) e o painel a cada ação
+	 * (AppManager::panelSessionCurrent), e é aí que uma conta apagada, um
+	 * slot reaproveitado ou uma senha redefinida encerram a sessão. */
 }
 
 void WebManager::handleApiCommitAll( ) {
@@ -342,9 +356,9 @@ void WebManager::handleApiCommitAll( ) {
 	 * nothing changes — no save, no reboot. A template a fleet manager is
 	 * about to push to forty devices gets validated forty times before the
 	 * first reboot, instead of costing forty reboots to find the one field
-	 * that was out of range on one of them. Only sys and net are dry-runnable:
-	 * users mint passwords, slots and calib touch files, alarms mutate runtime
-	 * state — none of that has a copy to run on. */
+	 * that was out of range on one of them. slots and calib touch files and
+	 * have no copy to run on; users can be rehearsed (classified, nothing
+	 * minted) but not tried — see the section check below. */
 	const bool dry = _server->hasArg("_dry") && _server->arg("_dry") == "1";
 	/* _nosave=1: apply to the RUNNING configuration and skip the flash write,
 	 * so a reboot puts the old value back. It is the "try a limit" button, and
@@ -368,14 +382,23 @@ void WebManager::handleApiCommitAll( ) {
 #endif
 	if (onCopy) {
 		/* sys, net and alarms are the sections whose parsers write ONLY into
-		 * `cfg` — so a copy is a faithful rehearsal. users mints passwords,
-		 * slots and calib touch files: those have nothing to run on a copy.
-		 * alarms joined the list on 2026-09-20; its two side effects outside
-		 * cfg (the maintenance actor note and the error-mute clear) are
-		 * suppressed under `onCopy`, one of which was already guarded. */
+		 * `cfg` — so a copy is a faithful rehearsal. slots and calib touch
+		 * files: those have nothing to run on a copy. alarms joined the list
+		 * on 2026-09-20; its two side effects outside cfg (the maintenance
+		 * actor note and the error-mute clear) are suppressed under `onCopy`,
+		 * one of which was already guarded.
+		 *
+		 * users joined the DRY run on 2026-10-02 (A-08): accounts apply live
+		 * now, and the page shows its "apply now" button only on a dry run
+		 * that answers reboot:false — refused here, every account change took
+		 * the restart button. A rehearsal mints no password (assignTempPassword)
+		 * and the one side effect outside cfg, the admin's factory-PIN flag, is
+		 * guarded by !dry. Not the "try" path: an account that exists until the
+		 * next restart, with a password shown once, is not a thing to try. */
 		for (int i = 0; i < SEC_COUNT; i++) {
-			if (i != SEC_SYS && i != SEC_NET && i != SEC_ALARMS && secStart[i] >= 0) {
-				_server->send(400, "application/json", "{\"error\":\"accepts sys, net and alarms only\"}");
+			const bool ok = i == SEC_SYS || i == SEC_NET || i == SEC_ALARMS || (i == SEC_USERS && dry);
+			if (!ok && secStart[i] >= 0) {
+				_server->send(400, "application/json", "{\"error\":\"accepts sys, net and alarms only, and users in a dry run\"}");
 				return;
 			}
 		}
@@ -1423,7 +1446,7 @@ void WebManager::handleApiCommitAll( ) {
 					/* Username must be set first — assignTempPassword salts and
 					 * hashes over it. Sets password + salt + hashVersion +
 					 * mustChangePassword and records the plaintext for the reply. */
-					assignTempPassword(slot, tempCreds);
+					assignTempPassword(cfg, slot, tempCreds, dry);
 					/* v24: an optional panel PIN in the same action, so the account
 					 * can act at the panel from its first boot. A malformed or
 					 * duplicate PIN rejects the field, not the account. */
@@ -1479,7 +1502,7 @@ void WebManager::handleApiCommitAll( ) {
 						 * lands there be opened with the deleted account's PIN. */
 						StorageManager::wipeUserAccount(cfg.users[id]);
 					} else { /* reset */
-						assignTempPassword(id, tempCreds);
+						assignTempPassword(cfg, id, tempCreds, dry);
 					}
 				}
 				else {

@@ -259,6 +259,16 @@ reporting a vulnerability.
 - **Expired nonce** counts as failure (same backoff).
 - **Failure log**: `LOG_WARN SEC SEC_LOGIN_FAIL` with reason (invalid
   nonce, expired nonce, invalid credential).
+- **A session follows its account** (2026-10-02, A-08). Every request
+  checks the session against the live account: deleted, its slot taken by
+  another name, or its password set by someone else (a new salt) ends the
+  session there, with `SEC_SESSION_REVOKED` (312) in the log, and a change
+  of permission bits applies at the next request. The panel checks the same
+  at every action, except the password, which is not its credential. Before
+  this, an account deleted at the panel or the console kept its web session,
+  with all its bits, until it expired (15 min idle); only the restart that
+  followed an account change made through the web cut it — and accounts now
+  apply without one.
 - **A name with no account costs what a wrong password costs**
   (2026-10-02). The check used to derive only once it had found the
   account, so on v2.9.0 a name with no account was refused in about

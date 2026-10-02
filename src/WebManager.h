@@ -174,6 +174,9 @@ private:
 		String username;
 		uint16_t perms;
 		uint32_t lastActivity;
+		/* The account's salt at login. A different one later means someone
+		 * else set the password, and the session ends (SessionCheck.h). */
+		uint8_t salt[8];
 	};
 	ActiveSession _activeSessions[3];
 
@@ -415,8 +418,10 @@ private:
 	 *  commit_all), stored as a normal V1 hash, and appends {"u":..,"p":..} to
 	 *  @p outCreds so the commit response shows it ONCE to the admin. Replaces
 	 *  the derivable Nome@DDMMYYYY scheme, whose secret was public by
-	 *  construction. Mirrors the CLI's admin-reset — the blessed serial path. */
-	void assignTempPassword(int slot, String& outCreds);
+	 *  construction. Mirrors the CLI's admin-reset — the blessed serial path.
+	 *  Writes @p cfg, which is the dry run's copy when @p rehearse is set:
+	 *  then it only marks the slot as reset, mints nothing and adds no creds. */
+	void assignTempPassword(SystemConfig& cfg, int slot, String& outCreds, bool rehearse);
 	/* handleSaveNetwork replaced by handleApiCommitAll */
 	void handleResetTouchCal( );
 	void handleApiHistoryRebind( ); /**< POST — rebind today's .sim4 to the saved slots */
