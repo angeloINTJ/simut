@@ -225,8 +225,11 @@ constexpr uint8_t LOGIN_STATE_SLOTS = 8;
 
 /** Number of HMAC-SHA256 iterations for password hashing.
  * OWASP 2023 recommends ≥600k; NIST recommends ≥10k. The RP2040
- * (Cortex-M0+ @133MHz) with 5000 rounds consumes ~400ms per operation —
- * acceptable for login (infrequent). Every 50 rounds feeds the WDT. */
+ * (Cortex-M0+ @133MHz) spends ~645 ms on 5000 rounds, with Core 0 held for
+ * all of it: on the rig on 2026-10-02 (v2.9.0), `user pass` took 646 ms
+ * against 5 ms for `user perm`, and a /metrics read with Basic 699 ms against
+ * 49 ms with a cookie. Acceptable for login (infrequent); SECURITY.md §3 has
+ * the trade-off. Every 50 rounds feeds the WDT. */
 constexpr uint16_t PASSWORD_HMAC_ROUNDS = 5000;
 
 /* ── Authentication lockout (web + Bluetooth) ── */

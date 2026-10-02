@@ -497,163 +497,206 @@ label.pt = "Sem mostrador"
 order    = 1
 label.en = "Network"
 label.pt = "Rede"
+label.es = "Red"
 
 [ui_groups.telemetry]
 order    = 2
 label.en = "Telemetry and integrations"
 label.pt = "Telemetria e integrações"
+label.es = "Telemetría e integraciones"
 
 [ui_groups.interface]
 order    = 3
 label.en = "Interface"
 label.pt = "Interface"
+label.es = "Interfaz"
 
 [ui_groups.sensors]
 order    = 4
 label.en = "Sensors"
 label.pt = "Sensores"
+label.es = "Sensores"
 
 [ui_groups.sound]
 order    = 5
 label.en = "Sound"
 label.pt = "Som"
+label.es = "Sonido"
 
 [ui_groups.power]
 order    = 6
 label.en = "Power"
 label.pt = "Energia"
+label.es = "Energía"
 
 [ui_groups.bench]
 order    = 7
 advanced = true
 label.en = "Bench and diagnostics"
 label.pt = "Bancada e diagnóstico"
+label.es = "Banco y diagnóstico"
 
 [ui_toggles.web_https]
 group    = "network"
 label.en = "HTTPS web server"
 label.pt = "Servidor web HTTPS"
+label.es = "Servidor web HTTPS"
 help.en  = "Serves the web interface over TLS. Without it the device answers plain HTTP only."
 help.pt  = "Serve a interface web por TLS. Sem ele o aparelho responde só em HTTP."
+help.es  = "Sirve la interfaz web por TLS. Sin él, el dispositivo responde solo en HTTP."
 
 [ui_toggles.mdns]
 group    = "network"
 label.en = "Find by name on the network (mDNS)"
 label.pt = "Achar pelo nome na rede (mDNS)"
+label.es = "Encontrarlo por nombre en la red (mDNS)"
 help.en  = "Answers to <device name>.local, so a browser finds it without the IP address."
 help.pt  = "Responde por <nome do aparelho>.local, para o navegador achá-lo sem o endereço IP."
+help.es  = "Responde a <nombre del dispositivo>.local, para que el navegador lo encuentre sin la dirección IP."
 
 [ui_toggles.bluetooth]
 group    = "network"
 label.en = "Bluetooth serial console"
 label.pt = "Console serial por Bluetooth"
+label.es = "Consola serie por Bluetooth"
 help.en  = "A password-protected console over classic Bluetooth (SPP). It advertises for the first 5 minutes after power-up, so it reaches a device whose Wi-Fi is not set up yet."
 help.pt  = "Um console protegido por senha, por Bluetooth clássico (SPP). Ele se anuncia nos primeiros 5 minutos depois de ligar e assim alcança um aparelho com o Wi-Fi ainda por configurar."
+help.es  = "Una consola protegida por contraseña, por Bluetooth clásico (SPP). Se anuncia durante los primeros 5 minutos después de encenderlo, así que llega a un dispositivo con el Wi-Fi aún sin configurar."
 
 [ui_toggles.tel_tls]
 group    = "telemetry"
 label.en = "Encrypted telemetry (HTTPS and MQTTS)"
 label.pt = "Telemetria criptografada (HTTPS e MQTTS)"
+label.es = "Telemetría cifrada (HTTPS y MQTTS)"
 help.en  = "Sends to the collector over TLS, and validates it against /cert.pem when one is uploaded. Without it telemetry goes over plain HTTP or MQTT only, and a configuration that asks for encryption is refused instead of being sent in the clear."
 help.pt  = "Envia ao coletor por TLS, e o valida contra o /cert.pem quando há um. Sem ela a telemetria vai só por HTTP ou MQTT sem criptografia, e uma configuração que pede criptografia é recusada em vez de ir em claro."
+help.es  = "Envía al colector por TLS, y lo valida contra /cert.pem cuando hay uno. Sin ella, la telemetría va solo por HTTP o MQTT sin cifrar, y una configuración que pide cifrado se rechaza en vez de enviarse en claro."
 
 [ui_toggles.tel_mqtt]
 group    = "telemetry"
 label.en = "MQTT and Home Assistant"
 label.pt = "MQTT e Home Assistant"
+label.es = "MQTT y Home Assistant"
 help.en  = "Publishes to an MQTT broker (MQTT, or MQTTS with the TLS switch), takes the alarm line's receipts on the ack topic, and announces the sensors to Home Assistant by MQTT Discovery. Without it telemetry goes by HTTP only."
 help.pt  = "Publica num broker MQTT (MQTT, ou MQTTS com a chave de TLS), recebe as confirmações da linha de alarmes no tópico de ack e anuncia os sensores ao Home Assistant pelo MQTT Discovery. Sem ele a telemetria vai só por HTTP."
+help.es  = "Publica en un broker MQTT (MQTT, o MQTTS con el interruptor de TLS), recibe las confirmaciones de la línea de alarmas en el tópico de ack y anuncia los sensores a Home Assistant por MQTT Discovery. Sin él, la telemetría va solo por HTTP."
 
 [ui_toggles.web_history]
 group    = "interface"
 label.en = "History page in the web interface"
 label.pt = "Página de histórico na interface web"
+label.es = "Página de histórico en la interfaz web"
 help.en  = "The /history page: charts, calendar, CSV export in the browser and the event log viewer. The device records history either way, and the history files stay downloadable from the Files page."
 help.pt  = "A página /history: gráficos, calendário, CSV no navegador e o visor de eventos. O aparelho grava o histórico do mesmo jeito, e os arquivos de histórico continuam na página Arquivos."
+help.es  = "La página /history: gráficos, calendario, exportación CSV en el navegador y el visor de eventos. El dispositivo graba el histórico igual, y los archivos de histórico siguen descargables desde la página Archivos."
 
 [ui_toggles.web_export_api]
 group    = "interface"
 label.en = "History export API"
 label.pt = "API de exportação do histórico"
+label.es = "API de exportación del histórico"
 help.en  = "Routes that return several sensors' history in one call (/api/history_multi) and export the history and the log as .simx. No page uses them; bench tools and integrations do."
 help.pt  = "Rotas que devolvem o histórico de vários sensores numa chamada (/api/history_multi) e exportam o histórico e o log em .simx. Nenhuma página as usa; ferramentas de bancada e integrações, sim."
+help.es  = "Rutas que devuelven el histórico de varios sensores en una llamada (/api/history_multi) y exportan el histórico y el log como .simx. Ninguna página las usa; las herramientas de banco y las integraciones, sí."
 
 [ui_toggles.web_metrics]
 group    = "telemetry"
 label.en = "Prometheus metrics (/metrics)"
 label.pt = "Métricas para o Prometheus (/metrics)"
+label.es = "Métricas para Prometheus (/metrics)"
 help.en  = "A /metrics endpoint in the Prometheus text format, with Basic authentication for the scraper."
 help.pt  = "Um endpoint /metrics no formato de texto do Prometheus, com autenticação Basic para o coletor."
+help.es  = "Un endpoint /metrics en el formato de texto de Prometheus, con autenticación Basic para el recolector."
 
 [ui_toggles.syslog]
 group    = "telemetry"
 label.en = "Remote syslog (audit trail)"
 label.pt = "Syslog remoto (trilha de auditoria)"
+label.es = "Syslog remoto (registro de auditoría)"
 help.en  = "Forwards log events to a syslog collector (RFC 5424 over UDP), so the audit trail survives outside the device."
 help.pt  = "Encaminha os eventos do log a um coletor syslog (RFC 5424 por UDP), para a trilha de auditoria sobreviver fora do aparelho."
+help.es  = "Reenvía los eventos del log a un colector syslog (RFC 5424 por UDP), para que el registro de auditoría sobreviva fuera del dispositivo."
 
 [ui_toggles.cli_full]
 group    = "interface"
 label.en = "Full command line"
 label.pt = "Linha de comando completa"
+label.es = "Línea de comandos completa"
 help.en  = "Every serial and Bluetooth command. Without it only the emergency console remains."
 help.pt  = "Todos os comandos por serial e Bluetooth. Sem ela fica só o console de emergência."
+help.es  = "Todos los comandos por serie y Bluetooth. Sin ella queda solo la consola de emergencia."
 
 [ui_toggles.tft_graph]
 group    = "interface"
 label.en = "Graph and calendar on the touch display"
 label.pt = "Gráfico e calendário na tela touch"
+label.es = "Gráfico y calendario en la pantalla táctil"
 help.en  = "The history graph opened from the min/max strip, its detail screen and the calendar to pick a day. Without it the strip has no graph button; the history is still recorded and stays on the web."
 help.pt  = "O gráfico do histórico aberto pela faixa de min/max, a tela de detalhe e o calendário para escolher o dia. Sem ele a faixa não tem o botão do gráfico; o histórico continua gravado e na web."
+help.es  = "El gráfico del histórico que se abre desde la franja de mín/máx, su pantalla de detalle y el calendario para elegir el día. Sin él, la franja no tiene el botón del gráfico; el histórico se sigue grabando y sigue en la web."
 
 [ui_toggles.sensor_ds18b20]
 group    = "sensors"
 label.en = "DS18B20 temperature probes"
 label.pt = "Sondas de temperatura DS18B20"
+label.es = "Sondas de temperatura DS18B20"
 help.en  = "1-Wire probes, one per pin, each recognized by its serial number."
 help.pt  = "Sondas 1-Wire, uma por pino, cada uma reconhecida pelo número de série."
+help.es  = "Sondas 1-Wire, una por pin, cada una reconocida por su número de serie."
 
 [ui_toggles.sensor_dht22]
 group    = "sensors"
 label.en = "DHT22 temperature and humidity"
 label.pt = "DHT22 temperatura e umidade"
+label.es = "DHT22 temperatura y humedad"
 help.en  = "One sensor per pin."
 help.pt  = "Um sensor por pino."
+help.es  = "Un sensor por pin."
 
 [ui_toggles.sensor_bme280]
 group    = "sensors"
 label.en = "BME280 / BMP280 temperature, humidity and pressure"
 label.pt = "BME280 / BMP280 temperatura, umidade e pressão"
+label.es = "BME280 / BMP280 temperatura, humedad y presión"
 help.en  = "I2C sensor on a pin pair; the BMP280 variant has no humidity."
 help.pt  = "Sensor I2C num par de pinos; a variante BMP280 não mede umidade."
+help.es  = "Sensor I2C en un par de pines; la variante BMP280 no mide humedad."
 
 [ui_toggles.sound_buzzer]
 group    = "sound"
 label.en = "Buzzer sounds"
 label.pt = "Sons no buzzer"
+label.es = "Sonidos en el zumbador"
 help.en  = "Touch clicks, confirmations and alarm sounds on the buzzer (GP22)."
 help.pt  = "Cliques de toque, confirmações e sons de alarme no buzzer (GP22)."
+help.es  = "Clics de toque, confirmaciones y sonidos de alarma en el zumbador (GP22)."
 
 [ui_toggles.air]
 group    = "power"
 label.en = "Hibernation between readings"
 label.pt = "Hibernação entre leituras"
+label.es = "Hibernación entre lecturas"
 help.en  = "The Air cycle: wake, read, send, sleep. Exists only without a display."
 help.pt  = "O ciclo do Air: acorda, lê, envia, dorme. Só existe sem mostrador."
+help.es  = "El ciclo del Air: despierta, lee, envía, duerme. Solo existe sin pantalla."
 
 [ui_toggles.license_stub]
 group    = "bench"
 label.en = "Short license text on the touch display"
 label.pt = "Texto curto da licença na tela touch"
+label.es = "Texto corto de la licencia en la pantalla táctil"
 help.en  = "The touch display's License screen shows two lines that point to the LICENSE file instead of the full MIT text and credits. The /license web page always keeps the full text."
 help.pt  = "A tela de Licença do mostrador touch mostra duas linhas que apontam para o arquivo LICENSE, em vez do texto MIT completo e dos créditos. A página web /license mantém sempre o texto completo."
+help.es  = "La pantalla de Licencia del panel táctil muestra dos líneas que remiten al archivo LICENSE, en vez del texto MIT completo y los créditos. La página web /license mantiene siempre el texto completo."
 
 [ui_toggles.concurrency_asserts]
 group    = "bench"
 label.en = "Concurrency tripwire"
 label.pt = "Armadilha de concorrência"
+label.es = "Trampa de concurrencia"
 help.en  = "Logs an error when a flash operation starts while the state mutex is held. For soak runs, not for field images."
 help.pt  = "Registra um erro quando uma operação de flash começa com o mutex de estado preso. Para soak, não para campo."
+help.es  = "Registra un error cuando una operación de flash empieza con el mutex de estado tomado. Para soaks, no para equipos en campo."
 
 # ---------------------------------------------------------------------------
 #  Regras entre escolhas. Cada uma foi MEDIDA em 2026-09-26 compilando a

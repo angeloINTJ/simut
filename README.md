@@ -47,10 +47,10 @@ They share one core:
 
 | | |
 |---|---|
-| **Current release** | **v2.9.0** (2026-10-02). SIMUT left beta with v2.7.0, on measurements: an 8.18 h soak with 0 reboots, and 6 of 6 over-the-air updates with nothing lost. v2.9.0 is the first signed release: over the air the device installs only images the project signed, and the panel shows an update while it happens. The setup access point opens only when asked, a unit with no network asks for the date and time, and the device keeps measuring with the access point up; v2.8.0 had kept the configuration when an update is cut off halfway. |
+| **Current release** | **v2.9.0** (2026-10-02), the first signed release; the [changelog](CHANGELOG.md) says what each version changed. SIMUT left beta with v2.7.0, on measurements: an 8.18 h soak with 0 reboots, and 6 of 6 over-the-air updates with nothing lost. |
 | **Published images** | Three images, each as `.uf2` and `.bin`: `release` (TFT touch panel), `alpha` (16×2 LCD with a Bluetooth console) and `air` (headless battery logger). The pt-BR and es-ES language packs and an OTA manifest ship alongside. An image with a different set of features comes from the [build configurator](https://angelointj.github.io/simut/configurador/), and CI builds it from `main`. |
 | **Maturity** | <ul><li>`release`: **stable**.</li><li>`alpha`: published and bench-tested, its 16×2 LCD included since 2026-09-26.</li><li>`air`: **experimental**. Its one long soak failed: a sleep in cycle 119 never woke (F28). A watchdog across the wake now mitigates it; the root cause is not confirmed.</li></ul> |
-| **Tests** | Every pull request runs 539 host test cases in 9 suites, 60 s of fuzzing and static analysis, and builds all seven firmware images from a cold cache. Behaviour on real hardware is verified on a bench — see [Verification](#verification-on-hardware). |
+| **Tests** | Every pull request runs 539 host test cases in 9 suites, 60 s of fuzzing and static analysis, and builds all seven firmware images from a cold cache. Behaviour on real hardware is verified on a bench — see [Verification on hardware](docs/VERIFICATION.md). |
 
 **Known limitations.** Each one is documented where it applies.
 - **Updates.** An update over the air reformats the filesystem:
@@ -144,147 +144,22 @@ See the **[wiring guide](docs/WIRING.md)** for the complete pinout and connectio
 
 > **SIMUT PCB — layout available for download** — the KiCad board design (`.kicad_pcb`, `.kicad_sch`) lives in [`PCB_test/`](PCB_test/), and the ready-to-fab package (Gerbers + PTH/NPTH drills, no paste layers) is published as a public release: **[simut-pcb-v1.1 — `simut_pcb_fabrication.zip`](https://github.com/angeloINTJ/simut/releases/tag/simut-pcb-v1.1)**.
 
-## Key features
+## Features
 
-### Sensing and alarms
-- **16 universal sensor slots** — GP0–GP15. Each slot takes a DS18B20, a DHT22 or a BMP280/BME280; a BMx280 is retyped automatically from its chip ID. Type and pins are assigned at runtime, with no recompile.
-- **Temperature, humidity and pressure** as first-class channels.
-- **Calibration** — per-sensor offsets and curves of up to 5 points per channel, linear or smooth.
-- **Sensor validation:**
-  - DS18B20 ROM verification, with a swapped probe quarantined until the right one returns;
-  - error hysteresis: 3 failures to enter, 5 successes to leave;
-  - out-of-range readings rejected.
-- **Alarms on every channel:**
-  - low and high limits per channel;
-  - a fault alarm that fires even when a sensor's limits are off;
-  - a 120 s silence and a global mute;
-  - buzzer melodies and visual feedback on the display.
-- **Maintenance windows** — per sensor, up to 30 days, set from the panel or by a server. While one is open, alarms are suppressed, and the window's start and end are reported as `maint_on` / `maint_off`.
-
-### Touch panel (`release`)
-- **320×240 ILI9341 touch panel** — dashboard, history graphs with a min/max band, statistics, calendar, settings.
-- **Identity at the panel** — the operator picks an account, then types that account's PIN:
-  - 32 accounts, each with its own PIN;
-  - a configurable PIN policy: minimum length, 1–3 glyphs per key, digits or 0-9A-Z;
-  - a keypad that is re-dealt after every tap;
-  - a lockout per account: the sixth failure locks the account, and 20 failures in total lock the panel.
-- **Administration on the glass:**
-  - a Users item creates accounts and sets their permission bits and PINs;
-  - the 13 settings rows are filtered by what the account may do;
-  - Settings → 8 starts the setup access point;
-  - Settings → 4 sets the date and time, and a unit with no network configured asks for them at the end of the boot.
-- **Top-panel gestures** — a tap toggles min/max, a 3 s hold pins the selection.
-- **DMA rendering fast path** — canvas compositing over 62.5 MHz SPI.
-- **4 px safe area everywhere** — the screen-alignment offset (±4 px per axis) can never crop content.
-- **Themes** — up to 8 loaded from LittleFS (11 ship in `data/themes/`); the editor in `tools/theme-editor/` previews on a live device.
-- **Sound system** — Touch, Confirmation, Error, Alarm and Attention classes, 6 melodies each, with separate system and alarm volumes.
-
-### Character LCD (`alpha`)
-- **Readings** — cycles every active slot and channel every 3 s, with big digits for temperature and humidity and an `S<n>` tag naming the slot.
-- **Setup access point** — shows the address, the SSID and the key, scrolling long values.
-- **Bluetooth console** — see the security note under [Environments](#environments).
-- **Pending telemetry** — with a single sensor, the bottom-left corner shows the pending telemetry count (`N`, or `Nk` from a thousand up), and the Wi-Fi icon fills left to right.
-
-### Web interface
-- **11 pages** — gzip-compressed (zopfli) in flash, with light and dark themes that follow the system preference, a file manager, and multi-user sessions that expire after 15 minutes idle.
-- **Live panel mirror** (`release`) — the panel's current frame in the browser, 213 ms per frame. A click on it is a touch on the glass.
-- **Changes say what they cost** — three buttons:
-  - *Test*: applied, not saved;
-  - *Apply now*: saved, no reboot;
-  - *Save and restart*.
-
-  The device classifies each change with a dry run before the page offers them.
-- **Restart without saving** — a button at the bottom of the Configuration page restarts the device and drops whatever the page has not saved; the saved configuration is what comes back.
-- **Version on the login page** — the firmware version shows under the name before anyone signs in.
-- **Wi-Fi scan** — pick the network from a list, even from inside the setup access point.
-- **History graphs and CSV export in the browser** — the page downloads the raw binary day files, then decodes, buckets (min/max/mean) and exports them itself. The recent, unsealed hour comes from `/api/history/open`. The chart renderer is embedded — no CDN.
+- **Sensing and alarms** — 16 universal sensor slots (DS18B20, DHT22, BMP280/BME280) assigned at runtime, calibration curves, per-channel limits, a fault alarm and maintenance windows.
+- **Touch panel** (`release`) — dashboard, history graphs and calendar, and identity at the glass: an account, then its PIN.
+- **Character LCD** (`alpha`) — every slot in turn, the setup access point and a Bluetooth console.
+- **Web interface** — 11 pages, a live panel mirror, history graphs and CSV export in the browser.
 - **HTTP API** — 62 routes. Each one is either gated by a permission or public by design, and CI checks it.
+- **Telemetry** — HTTP, HTTPS, MQTT and MQTTS, batched by quantity, and a second, acknowledged line for alarms; Home Assistant, Prometheus and syslog.
+- **Network and time** — Wi-Fi that reconnects itself, a setup access point opened on request, and NTP with a provisional clock until it syncs.
+- **Storage** — the V5 binary history (about 116 days in 1 MB), a configuration with CRC32 and a `.bak`, and an event log with 155 event codes.
+- **Security** — 32 accounts, 13 permission bits, salted HMAC-SHA256, lockouts and optional HTTPS.
+- **Updates** — signed over-the-air updates from the web page, and backup and restore of the whole filesystem.
+- **SIMUT Air** (experimental) — a battery logger that hibernates between readings.
+- **Languages** — English built in; pt-BR and es-ES as language packs.
 
-### Telemetry and integrations
-- **Four transports** — HTTP, HTTPS, MQTT and MQTTS:
-  - payloads in JSON, CSV or a custom template;
-  - TLS 1.2 (ECDHE with AES-GCM), with the server certificate checked against an uploaded `/cert.pem`.
-- **Batching by quantity:**
-  - `t_int` is the minimum batch: the radio stays off until that many records wait (0 = off);
-  - `t_bat` is the maximum per request, a ceiling that free memory can lower;
-  - the batch size adapts to successes and failures, and the server's response time paces the next one.
-- **A second line for alarms:**
-  - alarm, fault and maintenance events travel in their own queue (32 by default, up to 64);
-  - each event leaves the queue only when the server acknowledges it (HTTP 2xx or an MQTT ack);
-  - each carries the name of the account that acted.
-- **Integrations** — Home Assistant MQTT Discovery (opt-in), Prometheus `/metrics` (session or HTTP Basic), and remote syslog (RFC 5424 over UDP).
-- **Fleet hooks:**
-  - `X-SIMUT-*` identity headers on uploads;
-  - on the `release` image, an mDNS `_simut._tcp` service with id, version, image and TLS in its TXT record;
-  - Bearer tokens and a configurable CORS origin.
-
-### Network and time
-- **Wi-Fi that reconnects itself:**
-  - a retry ladder: 5 s, doubling to 120 s, then dormancy and a new round;
-  - hidden SSIDs and signal-quality checks;
-  - static IP, two DNS servers, a custom NTP server or a manual clock, and a configurable web port.
-- **Setup access point:**
-  - named `<device name>_SETUP` — `simut_SETUP` from the factory;
-  - WPA2, with a per-device key shown on the USB console and the TFT boot screen;
-  - a captive portal at `http://192.168.4.1`.
-
-  It opens only when someone asks. A unit whose network is away keeps measuring and keeps retrying it. Three ways in:
-  - Settings → 8 on the panel;
-  - the `ap` console command (USB, or Bluetooth on the alpha and the Air);
-  - a 3 s hold on the panel during boot.
-- **NTP** — the retry backoff grows from 20 s to 15 min, with a fallback to `pool.ntp.org`. Until NTP syncs or someone sets the clock, a provisional clock is seeded from the newest stored record. The panel marks it with `?` between the date and the time, and the first set after the boot, by NTP or by hand, corrects the history blocks that boot started.
-
-### Storage and history
-- **Compact binary history (V5)** — delta + anchor encoding at 5.38 bytes/record, about 116 days in the 1 MB filesystem (11 channels at a 1-minute cadence, measured on bench files on 2026-07-31):
-  - blocks of 60 records, each with its own CRC;
-  - the open block is saved after every record;
-  - past 86 % full, the oldest day is deleted.
-- **Configuration** — CRC32-checked, written to a temporary file and renamed, with a `.bak` fallback. Secrets are obfuscated at rest, not encrypted: physical access to the flash is outside the threat model ([SECURITY.md §3](SECURITY.md#3-secret-storage)).
-- **Event log** — 2 × 800 records and 155 event codes:
-  - routine events are persisted on state changes, with an hourly heartbeat and a count of what was suppressed;
-  - security, configuration and fatal records are never filtered.
-
-### Security
-- **Accounts and permissions:**
-  - 32 accounts, 13 permission bits;
-  - nobody can grant a bit they do not hold;
-  - backup, restore, OTA and certificate install require the full-admin mask.
-- **Passwords:**
-  - HMAC-SHA256, 5000 rounds, an 8-byte hardware-random salt per user and a board-bound pepper;
-  - a factory-fresh unit generates a random 8-character admin password, prints it once on the USB console and forces a change at the first login.
-- **Brute-force limits:**
-  - login lockout from 2 s to 300 s per client, with `429` once every lockout slot is taken;
-  - per-IP throttling on the heavy routes;
-  - the Bluetooth console has its own exponential lockout and stops advertising 5 minutes after boot.
-- **Sessions** — an `HttpOnly; SameSite=Strict` cookie (`Secure` over HTTPS), or a Bearer token.
-- **Uploads** — path traversal, percent-encoding, control bytes and reserved names are refused, and `/config` is out of the file manager's reach.
-- **Optional HTTPS** (`release`) — install the certificate pair with `POST /api/tls`. TLS 1.2, ECDHE with AES-GCM.
-- **Audits** — the audits of 2026-08-16, of v2.3.6-beta and of 2026-09-07 are closed. The last finding, V-09 (a restricted account could create one with more bits than it held), was fixed in v2.7.0, and both it and the 2026-09-07 fixes were verified on hardware. See **[SECURITY.md](SECURITY.md)**.
-
-### Resilience and forensics
-- **Crash autopsy on every boot** — the watchdog scratch registers name the stalled module on each core. Since v2.7.0, three more records also persist Core 1's module, the free heap and the uptime at the stall.
-- **Dual-core flash discipline** — Core 1 is paused around every flash write (measured, not assumed).
-- **Watchdog discipline** — the watchdog is fed around every filesystem operation, so slow HTTP clients cannot starve the loop.
-
-### Updates, backup and recovery
-- **OTA from the web page:**
-  - admin only;
-  - the image is checked before it is committed (size, boot2 CRC, image variant) and again on the next boot;
-  - Wi-Fi, accounts and sensor slots are carried across, and the rest of the filesystem is reformatted, so the page downloads a backup first;
-  - the device is back in under a minute: 52–56 s in the v2.7.0 campaign.
-- **Backup & restore** — the whole filesystem in one file, CRC32-checked and bound to the chip.
-- **[Recovery guide](docs/RECOVERY.md)** — BOOTSEL, picotool and 1200 bps paths for every failure mode.
-
-### SIMUT Air (experimental)
-- **Two modes, no display, no buzzer:**
-  - **M0** is awake: web, console, Bluetooth and sensors;
-  - **M1** is the cycle: sleep on the RTC alarm, wake, read, write history, and sleep again.
-- **The radio only when it pays** — it comes up only when `t_int` records are waiting. A reading wake takes 9.31 s with a DS18B20, and with a 60 s interval the device is awake about 13 % of the time.
-- **Charger pin** — a charger-detect pin (GP17 by default) keeps it awake while powered.
-- **Full console** — the only published image with the full console.
-
-### Internationalization
-- **3 interface languages** — English built in; Portuguese (pt-BR) and Spanish (es-ES) come as `.lng` packs on the filesystem. A device runs English plus the one pack installed.
+Every feature in detail, and which ones a custom build can leave out: **[docs/FEATURES.md](docs/FEATURES.md)**.
 
 ## Quick start
 
@@ -460,38 +335,7 @@ Every push and pull request to `main` runs four jobs:
 
 ### Verification on hardware
 
-**The bench:**
-- a Pico W with the TFT panel and touch;
-- a second Pico, the *PicoHand*, which works the target's RESET and BOOTSEL lines, times its awake/asleep line and fakes a charger (see [AGENTS.md](AGENTS.md), in Portuguese);
-- bench suites in `tools/` for the web API, the panel, telemetry, OTA, Wi-Fi outages and the Air cycle.
-
-What has been measured on real hardware, latest first:
-
-| Date | What | Result |
-|---|---|---|
-| 2026-10-02 | Release candidate (v2.9.0), signed by the CI | Web suite 87 passed, 0 failed on the test image; update from the published v2.8.0 over the air on release, Air and alpha: the configuration file identical byte for byte, every configuration value the web API reports unchanged, five sensors reading, the `.bkp` restored with 70 or 71 of 74 files identical (the others are the log and the history); the candidate over itself, checking its own signature; an unsigned image (8), the Air's (7) and v2.8.0 (8) refused; an upload cut at 400 kB and a reset, with and without the filesystem filled in between: configuration intact; 30 min without a restart |
-| 2026-09-30 | Release candidate (v2.8.0) | Web suite 87 passed, 0 failed; update from the published v2.7.4 over the air: the configuration file identical byte for byte except the version, five sensors reading, the `.bkp` restored 67 of 72 files identical (the other five expected to differ); an upload cut at 400 kB, then a reset: configuration intact; 10 min without a restart; Air and alpha updated over the air from v2.7.4 with their configuration (the Air's own options back from the `.bkp`) |
-| 2026-09-30 | An upload cut, then the filesystem filled (v2.8.0) | Same starting flash, upload cut at 400 kB, nothing changed, the filesystem filled to 100 % and emptied, reset: before #195 the device came back on factory defaults, after it with its configuration. The same cut on v2.7.3, without the filling: factory defaults (#192) |
-| 2026-09-30 | Custom telemetry Content-Type (v2.8.0) | Collector on a PC: the header received matches the field for `application/x-ndjson`, `text/csv` and `application/json; charset=utf-8`; empty sends `application/json`; the JSON format ignores the field; `bad value`, `aplicação/json` and `json` are refused at save |
-| 2026-09-26 | Release candidate (v2.7.4) | Web suite 87 passed, 0 failed; all five sensors across the three families; after a sensor scan the BMP280 kept reading for 90 s (before the fix it failed about 10 s after); a rehearsed commit of the sample interval answers `"reboot":false`; 10 min without a restart |
-| 2026-09-26 | The alpha's 16×2 LCD (v2.7.4) | On an HD44780 wired in parallel: the boot screen with the version and its progress bar, the connected screen with the IP, then each sensor in turn with its slot and the Wi-Fi level |
-| 2026-09-25 | Configuration page and login page (v2.7.3) | *Restart without saving*, on the `release` image and on the test build: offline 3.3 s after the click, back at 26.4 s, and a name edited but never saved did not survive the restart. The login page shows the version in both themes; 9 pages, 0 script errors |
-| 2026-09-24 | Panel: PIN security and setup mode (v2.7.2) | The footer arrows stay on the screen (v2.7.1 closed it); an unsaved tap no longer changes the stored policy; Confirm shows the network, the key and 192.168.4.1 (v2.7.1 stayed on the confirmation, AP already up) |
-| 2026-09-23 | Air clock across the sleep (v2.7.2) | Stamps within −0.085 … +0.030 s over 10 wakes (v2.7.1 lost 0.8 s per wake); the NTP correction fell from 9–10 s to 0.08 s |
-| 2026-09-23 | Long telemetry queues on the Air (v2.7.2) | 0 invalid bodies; 13,681 of 13,682 records delivered awake, 13,670 of 13,671 hibernating (v2.7.1: 68 of 69 bodies were invalid JSON) |
-| 2026-09-22 | v2.7.0 soak | 8.18 h, 0 reboots; the largest free heap block moved −42 B |
-| 2026-09-22 | v2.7.0 over-the-air updates | 6 of 6 applied; 57 files restored, 0 records missing |
-| 2026-09-22 | Setup access point (v2.7.1) | A client joins in 4.1 s, on `release` and on `alpha` with Bluetooth live, also with a randomised MAC. The automatic fallback opens after 6–7 min without a network (removed on 2026-10-01) |
-| 2026-09-22 | V-09 fix | 10 of 10 verdicts, with positive controls |
-| 2026-09-21 | Collector down for 3 h 58 min | 237 records queued, 0 reboots; drained in one round with 0 missing, plus 25 alarm-line records |
-| 2026-09-21 | Web suites | 67/67 as admin, 87/87 as a restricted account; 500 flash-writing commits, 0 reboots |
-| 2026-09-21 | Wi-Fi scan | 18 of 18, 0.94 s per sweep, also from inside the access point |
-| 2026-09-20 | Panel accounts, PINs and policy | 32/32 |
-| 2026-09-19 | Panel mirror | 613 → 213 ms per frame; pixel-exact against the framebuffer (0 of 76,800 differ) |
-| 2026-09-11 | Power cut during an update | Only the ~25 s apply window leaves the device needing BOOTSEL |
-| 2026-08-10 | History across resets | 10 of 10 hardware resets and 10 of 10 reboots lost 0 records |
-
-Two things on the 16×2 LCD have not been on glass: the single-sensor layout, with its pending telemetry count (the bench has five sensors), and the access-point pages, which by the code the LCD does not reach.
+Behaviour is checked on a bench: a Pico W with the TFT panel and touch, and a second Pico, the *PicoHand*, that works the target's RESET and BOOTSEL lines. Every measurement, dated, with its numbers: **[docs/VERIFICATION.md](docs/VERIFICATION.md)**.
 
 ## Documentation
 
@@ -506,8 +350,18 @@ Two things on the 16×2 LCD have not been on glass: the single-sensor layout, wi
 | [CLI manual](docs/CLI-Manual.md) | Full console reference, the Air's included (in Portuguese) |
 | [Authorization matrix](docs/AUTHORIZATION.md) | Every HTTP route and the permission it requires |
 | [Security policy](SECURITY.md) | Threat model, credential handling, incident response |
+| [Features](docs/FEATURES.md) | Every feature in detail |
+| [Verification on hardware](docs/VERIFICATION.md) | What has been measured on the bench, dated |
 | [Documentation index](docs/README.md) | Which documents are kept current and which are snapshots |
 | [Changelog](CHANGELOG.md) | Version history and feature changes |
+
+## How SIMUT is developed
+
+Most changes are written by an AI coding agent (Claude Code) in sessions the maintainer directs: from 1 September to 2 October 2026, 275 of the 371 commits on `main` carried a `Co-Authored-By: Claude` line. The instructions those sessions follow are [CLAUDE.md](CLAUDE.md) and [AGENTS.md](AGENTS.md) (in Portuguese). The rules are the same for every change, whoever typed it:
+- it reaches `main` only through a pull request, after nine required checks pass: the nine host test suites, also under AddressSanitizer and UBSan, 60 s of fuzzing, static analysis, and six firmware images built from a cold cache;
+- the tests come first: a fix carries a reproduction that fails before it and passes after, and a refactor shows that the behaviour did not change;
+- a claim about bytes, speed or a fix carries its measurement, and what was not checked on hardware says so;
+- product decisions, and the decision to merge, are the maintainer's.
 
 ## Contributing
 

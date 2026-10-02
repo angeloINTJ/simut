@@ -188,6 +188,41 @@ reporting a vulnerability.
     parallel. Transparent migration: v13/v14 configs are read,
     users are marked `hashVersion=0` (legacy), and will be
     auto-upgraded to v1 on the next valid login (F15.2.c).
+- **Why 5000 rounds, and what that leaves exposed.** OWASP (2023) asks
+  for 600,000 iterations of PBKDF2-HMAC-SHA256, and NIST SP 800-63B for
+  at least 10,000; SIMUT runs 5000 rounds of HMAC-SHA256. Every password
+  check runs them in software on Core 0, because the RP2040 has no
+  SHA-256 hardware, and while it runs, the web server, the sensor reads
+  and the alarm checks wait. Measured on the bench on 2026-10-02, with
+  a test build of v2.9.0 (the same derivation and compiler flags as the
+  release) at 133 MHz: one check costs about 645 ms. Three instruments
+  agree, each against a control that differs only in the check. At the
+  console, `user pass` took 646 ms against 5 ms for `user perm` (median
+  of 10 each). A `/metrics` read with HTTP Basic, which checks the
+  password on every read, took 699 ms against 49 ms with a session
+  cookie (median of 20 each, the same 4,112-byte body). A browser login
+  took 740 ms from the POST to the answer (median of 10). 600,000
+  rounds is 120 times the work: about 77 s per login, with the loop
+  stalled for all of it.
+  - What the stored hashes rely on instead: the random 8-byte salt per
+    account (no precomputed table applies, and two accounts with the
+    same password store different hashes); the lockouts (2 s to 300 s per
+    client, and per account at the panel), which make online guessing
+    slow; and keeping the hashes out of reach: `/config` is not served
+    by the file manager, and only a full-admin backup carries it.
+  - What they do not rely on: the pepper. It is the board's serial
+    number, which the device itself shows on the panel's status screen,
+    reports over the API and prints at the USB console, and which is
+    also its USB serial number, read by any computer it is plugged
+    into. It makes one password hash differently on two boards; it is
+    not a secret. Whoever holds the configuration file
+    and that serial number can try passwords offline at the speed of
+    their own hardware, 5000 HMAC rounds per guess. Physical access to
+    the flash is outside the threat model, and a backup file deserves
+    the care of a password list.
+  - The count can rise where there is a SHA-256 engine: the Pico 2 W's
+    RP2350 has one (`docs/analysis/PLANO_REVISAO_EXTERNA.md`, phase 4,
+    S3).
 - **Sensitive flash fields** (WiFi pass, telemetry API key):
   XOR obfuscation with a SHA-256(chipID + domain) keystream before
   writing. **Not strong encryption** — it is defense in depth

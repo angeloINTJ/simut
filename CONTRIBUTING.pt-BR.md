@@ -145,7 +145,7 @@ A flash está criticamente apertada. A imagem release usa 97,2 % do slot de prog
 
 ## Ferramentas de IA
 
-Usamos assistentes de IA (Claude, Copilot, etc.) como **ferramentas de engenharia**, não como substitutos de julgamento. IA ajuda com boilerplate, rascunhos de documentação e scaffolding de testes — mas decisões de arquitetura, temporização PIO, orçamento de flash e hardening de segurança são trabalho humano. Se você usar IA na sua contribuição, tudo bem — apenas revise o resultado. Código gerado é sua responsabilidade.
+O próprio SIMUT é escrito na maior parte por um agente de IA, dirigido pelo mantenedor; o README conta como ([Como o SIMUT é desenvolvido](README.pt-BR.md#como-o-simut-é-desenvolvido)). A régua não baixa por isso: pull request, os nove checks obrigatórios, testes que provam a mudança e uma medição por trás de cada afirmação. Se você usar um assistente de IA na sua contribuição, tudo bem. Revise o que ele produz como revisaria o seu próprio trabalho, porque a mudança é sua.
 
 ## Licença
 

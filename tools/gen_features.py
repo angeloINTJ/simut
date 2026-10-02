@@ -10,6 +10,10 @@ Le tools/features.toml (a fonte unica) e escreve, sem tocar em mais nada:
     src/FeatureBits.h               SIMUT_FEATURE_BITS, o "feat" do /api/status:
                                     um bit por chave, lido dos macros que o
                                     compilador ve (tools/test_feature_bits.py)
+    docs/FEATURES.md, .pt-BR, .es-ES
+                                    a tabela "nucleo e chaves", entre marcadores:
+                                    cada chave, o que faz e quais imagens
+                                    publicadas a ligam; o resto do arquivo e a mao
 
 Antes de gerar, confere o manifesto: toda chave tem rotulo, todo grupo existe,
 toda regra fala de chaves conhecidas — e nenhum dos sete perfis que o CI
@@ -45,6 +49,24 @@ OUT_HEADER = os.path.join(ROOT, "src", "FeatureBits.h")
 COSTS = os.path.join(ROOT, "tools", "feature_costs.json")
 BUDGET = os.path.join(ROOT, "tools", "flash_budget.json")
 LANGS = ("en", "pt")
+
+# A tabela das chaves nos tres FEATURES*.md — o A-07 da revisao externa da v2.7.3,
+# que pedia o mapa do que e nucleo e do que e opcional. Os textos sao os do
+# configurador; o espanhol, que a pagina nao mostra, mora no mesmo manifesto
+# (label.es / help.es). Sem o custo em flash, de proposito: ele e medido numa data
+# e sobre uma base, e quem o mostra com as duas e o configurador.
+OUT_FEATURES = {
+    "en": os.path.join(ROOT, "docs", "FEATURES.md"),
+    "pt": os.path.join(ROOT, "docs", "FEATURES.pt-BR.md"),
+    "es": os.path.join(ROOT, "docs", "FEATURES.es-ES.md"),
+}
+SWITCHES_BEGIN = "<!-- BEGIN generated: switches — tools/gen_features.py -->"
+SWITCHES_END = "<!-- END generated: switches -->"
+SWITCH_WORDS = {
+    "en": {"head": ("Group", "Switch", "What it does"), "on": "on", "off": "off"},
+    "pt": {"head": ("Grupo", "Chave", "O que faz"), "on": "sim", "off": "não"},
+    "es": {"head": ("Grupo", "Interruptor", "Qué hace"), "on": "sí", "off": "no"},
+}
 
 # Ordem canonica dos interruptores na emissao. So afeta a legibilidade do
 # profiles.ini; o portao compara conjuntos, nao ordem.
@@ -395,6 +417,55 @@ def build_feature_header(M: dict) -> str:
     return "\n".join(lines)
 
 
+def _md_cell(text: str) -> str:
+    """Texto do manifesto numa celula de tabela Markdown. O `<nome do aparelho>` do
+    mDNS sumiria como uma tag HTML desconhecida, e um `|` partiria a linha."""
+    return (text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                .replace("|", "\\|"))
+
+
+def build_switch_table(M: dict, lang: str) -> str:
+    """As chaves por grupo, na ordem do manifesto, com o que cada imagem publicada
+    liga — o mesmo `config_of` que as regras usam, entao chave ausente e desligada."""
+    ui_t, groups, ui_p = M["ui_toggles"], M["ui_groups"], M.get("ui_products", {})
+    pubs = [p for p, v in M["profiles"].items() if v.get("publish")]
+    words = SWITCH_WORDS[lang]
+
+    def text(entry: dict, key: str, where: str) -> str:
+        t = entry.get(key, {})
+        if not str(t.get(lang, "")).strip():
+            sys.exit(f"gen_features: {where}.{key} precisa de texto em '{lang}' para a "
+                     f"tabela de chaves dos FEATURES*.md")
+        return t[lang]
+
+    cfgs = {p: config_of(resolve_profile(p, M["profiles"])) for p in pubs}
+    head = list(words["head"]) + [ui_p[p]["label"].get(lang, ui_p[p]["label"]["en"]) for p in pubs]
+    lines = ["| " + " | ".join(head) + " |",
+             "|" + "---|" * len(words["head"]) + ":---:|" * len(pubs)]
+    for g in sorted(groups, key=lambda g: groups[g]["order"]):
+        first = True
+        for k, t in ui_t.items():
+            if t["group"] != g:
+                continue
+            cells = [_md_cell(text(groups[g], "label", f"ui_groups.{g}")) if first else "",
+                     _md_cell(text(t, "label", f"ui_toggles.{k}")),
+                     _md_cell(text(t, "help", f"ui_toggles.{k}"))]
+            cells += [words["on"] if cfgs[p][k] else words["off"] for p in pubs]
+            lines.append("| " + " | ".join(cells) + " |")
+            first = False
+    return "\n".join(lines)
+
+
+def with_switch_table(path: str, table: str) -> str:
+    """O FEATURES*.md com a tabela trocada entre os marcadores; o resto, intacto."""
+    text = open(path, encoding="utf-8").read() if os.path.exists(path) else ""
+    a, b = text.find(SWITCHES_BEGIN), text.find(SWITCHES_END)
+    if a < 0 or b < a:
+        sys.exit(f"gen_features: {os.path.relpath(path, ROOT)} nao tem os marcadores "
+                 f"da tabela de chaves ({SWITCHES_BEGIN} ... {SWITCHES_END})")
+    return text[:a + len(SWITCHES_BEGIN)] + "\n" + table + "\n" + text[b:]
+
+
 def build_outputs(M: dict) -> tuple[str, str]:
     ini_parts = [HEADER]
     for name in M["profiles"]:
@@ -418,7 +489,9 @@ def main() -> int:
         sys.stdout.write(ini)
         return 0
 
-    outputs = ((OUT_INI, ini), (OUT_MODEL, model), (OUT_HEADER, build_feature_header(M)))
+    outputs = ((OUT_INI, ini), (OUT_MODEL, model), (OUT_HEADER, build_feature_header(M))) + tuple(
+        (path, with_switch_table(path, build_switch_table(M, lang)))
+        for lang, path in OUT_FEATURES.items())
     if args.check:
         stale = []
         for path, want in outputs:
