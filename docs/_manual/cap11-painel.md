@@ -551,6 +551,53 @@ Uma mensagem de sucesso: PIN salvo! e ENTENDI.
 
 A figura de uma recusa está no [capítulo 8](#fig-08-pin-em-uso).
 
+## A tela de atualização {#cap-11-atualizacao}
+
+Uma atualização de firmware pela web ([capítulo 17](#cap-17-ota-passos)) toma o painel desde o primeiro byte da imagem, de qualquer tela em que ele esteja, e mostra cada etapa sob o título **Atualização de firmware**:
+
+| Etapa | O que a tela diz | Quanto dura |
+|---|---|---|
+| Recebendo | **Recebendo a nova versão**, a barra e a porcentagem | Cerca de 30 s para uma imagem de 1 MB |
+| Conferindo | **Conferindo a assinatura** e a barra cheia | Cerca de 2 s |
+| Conferida | **Imagem conferida** e a barra cheia | Cerca de 2 s: a página pede a instalação logo em seguida, e a assinatura é conferida de novo |
+| Instalando | **Instalando a nova versão** e **O aparelho reinicia sozinho em cerca de 30 s** | Cerca de 25 s de cópia e o reinício |
+| Recusada | **Atualização recusada**, o motivo e **Continua na versão atual** | 12 s, ou até um toque |
+| Interrompida | **Atualização interrompida** e **Continua na versão atual** | 8 s, ou até um toque |
+
+Da recepção à instalação, a linha de baixo diz, em âmbar, **Não desligue o aparelho**, e a tela não sai por toque nem pelos 30 s sem toque: um dedo no vidro não muda nada. A porcentagem para em 99 %: a contagem inclui os separadores do envio, e o fim de verdade só se sabe na conferência. Uma recusa ou uma interrupção sai sozinha para a tela inicial, ou antes, com um toque em qualquer ponto.
+
+Os motivos de uma recusa são os da página **Arquivos** ([capítulo 17](#cap-17-ota-passos)), pelo código `v` da resposta:
+
+| `v` | Motivo na tela |
+|---|---|
+| 7 | **A imagem é de outro modelo** |
+| 8 | **A imagem não é assinada** |
+| 9 | **A assinatura não confere** |
+| 10 | **Assinada com uma chave aposentada** |
+| 11 | **Abaixo do nível de segurança instalado** |
+| 12 | **Assinada com a chave de bancada** |
+| 1 a 6, ou um arquivo maior que o espaço da imagem | **Não é uma imagem de firmware válida** |
+
+A conferência roda de novo quando a página pede a instalação; se a imagem guardada não confere mais, a tela mostra a recusa com o motivo, e a instalação não começa. **Interrompida** aparece quando o envio para no meio, quando a gravação na memória falha ou quando a instalação não chega a começar. Nos dois casos o aparelho segue na versão que tinha.
+
+Depois da instalação, quando a imagem gravada confere com a recebida, a caixa do boot mostra **Update installed:** e a versão nova, em inglês: o envio da imagem apaga o pacote de idioma junto com os outros arquivos ([O que sobrevive e o que se perde](#cap-17-sobrevive)).
+
+::: {.figura #fig-11-ota-recebendo tipo="tft" arquivo="11-ota-recebendo.png" captura="screen otarx: a etapa Recebendo com a barra em 42 %; pacote pt-BR"}
+O envio da imagem: a barra, a porcentagem e o aviso para não desligar.
+:::
+
+::: {.figura #fig-11-ota-instalando tipo="tft" arquivo="11-ota-instalando.png" captura="screen otainst; pacote pt-BR"}
+A cópia da imagem: a tela fica assim até o aparelho reiniciar.
+:::
+
+::: {.figura #fig-11-ota-recusada tipo="tft" arquivo="11-ota-recusada.png" captura="screen otaref8, a recusa de uma imagem sem assinatura (v=8); pacote pt-BR; a recusa de um envio real tem os mesmos pixels"}
+Uma recusa: o motivo e a versão que fica.
+:::
+
+::: {.figura #fig-11-ota-interrompida tipo="tft" arquivo="11-ota-interrompida.png" captura="screen otacut; pacote pt-BR; um envio cortado no meio tem os mesmos pixels"}
+Um envio cortado no meio: nada mudou no aparelho.
+:::
+
 ## As telas de boot {#cap-11-boot}
 
 Ao ligar, o painel mostra `SIMUT` em letras grandes, a versão e uma caixa com `> system_init( )` e as cinco últimas etapas do boot, em letras pequenas e sem acentos. Cada etapa nova empurra as antigas para cima. As etapas, na ordem:
@@ -560,6 +607,7 @@ Ao ligar, o painel mostra `SIMUT` em letras grandes, a versão e uma caixa com `
 | **Montando Sistema de Arquivos...** | Sempre, primeiro |
 | **Mantenha a tela pressionada: Modo AP...** | Sempre; abre a janela do gesto do AP ([O gesto do AP no boot](#cap-11-boot-ap)) |
 | **Iniciando Gerenciador de Log...**, **Iniciando Interface de Comando...**, **Carregando Tema & Idioma...**, **Carregando Periféricos & Sensores...** | Sempre |
+| **Update installed:** e a versão | Na primeira partida depois de uma atualização pela web, entre **Iniciando Gerenciador de Log...** e **Iniciando Interface de Comando...**; em inglês ([A tela de atualização](#cap-11-atualizacao)) |
 | **Iniciando Ponto de Acesso (AP)...** e as linhas do AP | Só quando o gesto abre o AP no boot |
 | **Iniciando Interface Wi-Fi...** | Quando o aparelho não abre o AP |
 | **Aguardando roteador** e pontos | Até entrar na rede, com o botão **PULAR**; só com rede configurada |
@@ -620,13 +668,13 @@ O boot no AP: o nome da rede, a chave e AP Ativo!.
 
 ## A volta à tela inicial {#cap-11-ocioso}
 
-Depois de 30 s sem nenhum toque, qualquer tela volta à tela inicial, inclusive o menu, o gráfico, a tela de alarme e a tela **Data e hora**, também quando o boot a abriu. No mesmo prazo, um cartão em mínimo e máximo volta ao valor atual. As telas de boot não contam.
+Depois de 30 s sem nenhum toque, qualquer tela volta à tela inicial, inclusive o menu, o gráfico, a tela de alarme e a tela **Data e hora**, também quando o boot a abriu. No mesmo prazo, um cartão em mínimo e máximo volta ao valor atual. As telas de boot não contam, nem a de atualização, que fica enquanto a atualização corre e tem prazos próprios ([A tela de atualização](#cap-11-atualizacao)).
 
 Uma alteração ainda não aplicada numa tela de lista, como um tema selecionado sem **APLICAR**, se perde na volta. O que já foi gravado continua gravado. Para voltar ao menu depois disso, toque em **CFG** e se identifique de novo.
 
 ## Referência das telas {#cap-11-referencia}
 
-As 30 telas do painel, com o modo interno que o console e as ferramentas usam, o título em português, como chegar e a figura. A coluna **Tag** é o argumento do comando `screen` do console completo ([capítulo 14](#cap-14)), que existe só nas imagens de teste; `screen` entra como administrador.
+As 31 telas do painel, com o modo interno que o console e as ferramentas usam, o título em português, como chegar e a figura. A coluna **Tag** é o argumento do comando `screen` do console completo ([capítulo 14](#cap-14)), que existe só nas imagens de teste; `screen` entra como administrador.
 
 | Modo | Título na tela | Como chegar | Tag | Figura |
 |---|---|---|---|---|
@@ -660,5 +708,6 @@ As 30 telas do painel, com o modo interno que o console e as ferramentas usam, o
 | `MODE_SETTINGS_PIN_POLICY` | **Segurança do PIN** | Menu, item 11 | — | [08-politica](#fig-08-politica) |
 | `MODE_CONFIRM_AP` | **Modo de Configuração** | Menu, item 12 | — | [11-ap-confirmar](#fig-11-ap-confirmar) |
 | `MODE_SET_CLOCK` | **Data e hora** | Fim do boot, sem rede configurada e com o relógio provisório; menu, item 13 | `clk` | [04-painel-data-hora](#fig-04-painel-data-hora) |
+| `MODE_OTA_UPDATE` | **Atualização de firmware** | Uma atualização pela web | `otarx`, `otachk`, `otardy`, `otainst`, `otaref`, `otacut` | [11-ota-recebendo](#fig-11-ota-recebendo) |
 
-As tags `touchcal` e `touchsens` abrem as duas a etapa de sensibilidade; a de posição vem depois dela. A tela de boot e a de progresso do gesto do AP não são modos: o painel as desenha antes da tela inicial, e `GET /api/screenshot` não as captura.
+As tags `touchcal` e `touchsens` abrem as duas a etapa de sensibilidade; a de posição vem depois dela. As da atualização mostram a etapa sem atualizar nada: `otarx` com a barra em 42 %, `otaref` seguido do código `v` da recusa (`otaref8`, sem assinatura; sem número, imagem inválida); qualquer outra tag a tira da tela. A tela de boot e a de progresso do gesto do AP não são modos: o painel as desenha antes da tela inicial, e `GET /api/screenshot` não as captura.

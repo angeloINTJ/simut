@@ -15,6 +15,7 @@ O LCD só mostra; ele não tem botões nem toque. Tudo o que se configura num al
 | O sinal do Wi-Fi | Menus |
 | A contagem de pendentes da telemetria | |
 | O endereço, o nome e a chave do AP de configuração ([O ponto de acesso de configuração](#cap-12-ap)) | |
+| As etapas de uma atualização do firmware ([A atualização do firmware](#cap-12-atualizacao)) | |
 
 O LCD fala só português, seja qual for o idioma da interface web ou do console.
 
@@ -236,6 +237,19 @@ A página 2 do AP: o nome da rede.
 A página 3 do AP: a chave.
 :::
 
+## A atualização do firmware {#cap-12-atualizacao}
+
+Uma atualização pela web ([capítulo 17](#cap-17-ota-passos)) toma o LCD, à frente das leituras e das páginas do AP, com as etapas da tela do painel ([capítulo 11](#cap-11-atualizacao)) em duas linhas:
+
+| Etapa | Linha de cima | Linha de baixo |
+|---|---|---|
+| Recebendo e conferindo | `Atualizando...` | `Nao desligue!` |
+| Conferida | `Imagem conferida` | `aguarda instalar` |
+| Instalando | `Instalando...` | `Nao desligue!` |
+| Recusada | `Atualiz.recusada` | O motivo: `outro modelo`, `sem assinatura`, `assin. invalida`, `chave aposentada`, `versao bloqueada`, `chave de bancada` ou `imagem invalida` |
+| Interrompida | `Atualiz.cortada` | `versao mantida` |
+
+O LCD não tem barra nem porcentagem. Do primeiro byte ao fim da conferência, a parte do aparelho que escreve no LCD fica parada, por causa da gravação da imagem na memória, e o LCD guarda `Atualizando...`. Uma recusa fica 12 s, e uma interrupção 8 s; depois o LCD volta às leituras. Isso vem da leitura do código; estas linhas não foram conferidas num LCD.
 
 ## Referência dos estados {#cap-12-referencia}
 
@@ -254,3 +268,4 @@ A página 3 do AP: a chave.
 | AP, página 1 | `Modo AP  1 de 3` | `192.168.4.1` | [12-ap-1](#fig-12-ap-1) |
 | AP, página 2 | `Rede:    2 de 3` | O nome da rede | [12-ap-2](#fig-12-ap-2) |
 | AP, página 3 | `Senha:   3 de 3` | A chave | [12-ap-3](#fig-12-ap-3) |
+| Atualização | `Atualizando...` e as outras etapas | `Nao desligue!`, o motivo de uma recusa | — ([A atualização do firmware](#cap-12-atualizacao)) |

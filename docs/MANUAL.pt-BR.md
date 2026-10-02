@@ -488,6 +488,20 @@ histórico, exportando logs — a barra superior mostra o usuário que o está
 segurando e **o touch é rejeitado no dashboard** até que ela termine. O aviso é
 deliberado: ele conta o porquê antes de você tocar, não depois.
 
+### Durante uma atualização de firmware
+
+Uma atualização toma o painel de qualquer tela e mostra cada etapa sob
+**Atualização de firmware**: *Recebendo a nova versão*, com a barra e a
+porcentagem, *Conferindo a assinatura*, *Imagem conferida* e, até o aparelho
+reiniciar, *Instalando a nova versão* — sempre com **Não desligue o aparelho**
+em âmbar. Nem um toque nem os 30 s sem toque a tiram da tela. Uma imagem
+recusada mostra *Atualização recusada*, o motivo (os mesmos vereditos `v=7` a
+`v=12` que a página web nomeia, e *Não é uma imagem de firmware válida* para os
+demais) e *Continua na versão atual* por 12 s; um envio cortado,
+*Atualização interrompida* por 8 s. Um toque sai antes. Depois da instalação, a
+caixa do boot mostra `Update installed: v<versão>`. O LCD do alpha escreve as
+mesmas etapas em duas linhas. Ver a [seção 12](#12-atualizações-de-firmware).
+
 ---
 
 ## 6. A interface web
@@ -1027,6 +1041,11 @@ que fecha a última página de 256 bytes, que é o que o aplicador copia, enquan
 | Apply | A assinatura de novo, sobre o que a área de staging tiver naquele momento: um stage começado depois do aceito deixa os bytes dele ali, e o aplicador copia o que encontrar. **409** com `v` se ela não conferir mais |
 | Apply | O aplicador copia o staging para o slot de aplicação a partir da SRAM, com as interrupções desligadas |
 | Próximo boot | A imagem instalada tem o CRC conferido contra os metadados e o veredito é registrado no log |
+
+O painel acompanha a atualização inteira — as etapas, e o motivo quando uma
+imagem é recusada ([Durante uma atualização de firmware](#durante-uma-atualização-de-firmware)).
+Desenhá-lo custa ao envio cerca de 0,6 s: 32,2 s contra 31,6 s para uma imagem
+de 1 MB na bancada.
 
 O veredito pós-apply aparece no console serial como
 `[INF][OTA] image verified, NNNNNN B`. Ele existe ali e em nenhum outro lugar —

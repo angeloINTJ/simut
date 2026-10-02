@@ -238,7 +238,7 @@ Tudo o que se perde está no backup que a página baixa antes de começar. Resta
 10. Entre e confira a versão ([Conferir a versão](#cap-17-ota-conferir)).
 11. Restaure o backup ([Depois da atualização](#cap-17-ota-depois)).
 
-Não desligue o aparelho entre os passos 6 e 9.
+Não desligue o aparelho entre os passos 6 e 9. O painel acompanha: do passo 6 ao 8 ele mostra a etapa, com **Não desligue o aparelho**, e, numa recusa, o motivo ([capítulo 11](#cap-11-atualizacao)).
 
 O aviso do passo 2, na íntegra:
 
@@ -286,7 +286,7 @@ A segunda confirmação, depois de o backup chegar ao computador. Cancelar aqui 
 :::
 
 ::: {.figura #fig-17-enviando tipo="web" arquivo="17-enviando.png" captura="rota /files; largura 1280; sessão admin; aviso Etapa 2/4: Enviando firmware (~30 s)... visível durante o envio"}
-O envio da imagem. O painel do aparelho fica parado até o reinício.
+O envio da imagem. Até a v2.8.x o painel do aparelho ficava parado até o reinício; agora ele mostra a etapa ([capítulo 11](#cap-11-atualizacao)).
 :::
 
 ::: {.figura #fig-17-ota-linha-tempo tipo="diagrama" arquivo="17-ota-linha-tempo.png" captura="linha do tempo horizontal de uma atualização: 'backup .bkp baixado' (segundos, verde); 'envio e conferência da imagem, 35 a 36 s' (amarelo, rótulo 'sistema de arquivos já sobrescrito'); 'aplicação, cerca de 25 s' (vermelho, rótulo 'única janela em que um corte de energia exige BOOTSEL'); 'boot da imagem nova' (verde); marca 'interface web de volta, 52 a 56 s depois da aplicação'; embaixo, o que cada corte causa: arquivos perdidos com a configuração preservada, aparelho sem firmware, nada"}
