@@ -100,6 +100,14 @@ def main():
         check("prefix over the old 16 KB ceiling passes",
               not bad and before + len(pad) > 16384, err[-200:])
 
+        # the License screen's opening over its buffer: one of its five strings
+        # made longer inside @WEBDICT, so only that check can fire
+        grown = real.replace(b'"lic_summary":"', b'"lic_summary":"' + b"x" * 200, 1)
+        p.write_bytes(grown)
+        bad, err = run_gate([p])
+        check("gate fires: License opening over its buffer",
+              bad and "opening" in err, err[-200:])
+
         # whole file over LANG_FILE_MAX (pad inside the JSON blob: whitespace
         # is legal there, adds no key, and leaves @DICT alone)
         need = file_max - len(real) + 16

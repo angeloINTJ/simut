@@ -1444,6 +1444,10 @@ public:
 	 * to the browser — so it is deliberately NOT kept resident.
 	 * Returns false if no pack is loaded or the pack carries no @WEBDICT. */
 	static bool getActiveWebDictSource(const char** path, uint32_t* offset, uint32_t* len);
+	/** One string value of the active pack's @WEBDICT, read from flash, by
+	 * key. True when found and it fit in cap; *len is its length in bytes.
+	 * Core 0 only (LittleFS). */
+	static bool webDictValue(const char* key, char* out, size_t cap, size_t* len);
 	/** True if _activeLang is populated (any lookup may hit). */
 	static bool isLangLoaded( );
 	/** Active .lng meta info (name + code) for /api/perms to populate

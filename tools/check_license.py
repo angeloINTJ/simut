@@ -31,7 +31,8 @@ WHAT IT CHECKS
      LICENSE file word for word: the two screens show the same text;
   3. no language pack carries a @LICENSE section again — nothing reads it,
      and it cost every device ~1.95 KB of each pack;
-  4. both release scripts copy LICENSE into what they package.
+  4. both release scripts copy LICENSE, THIRD_PARTY_NOTICES.md and LICENSES/
+     into what they package. The list itself is tools/gen_notices.py's job.
 
 The holder is compared without accents on purpose: the firmware string is drawn
 on the TFT with a CP437 font where "Ângelo Moisés" is unrelated symbols, and
@@ -114,9 +115,11 @@ def main() -> int:
 
     for script in ("build_release.sh", "build_release_pio.sh"):
         t = (ROOT / "tools" / script).read_text(encoding="utf-8")
-        if not re.search(r"^\s*cp\s+LICENSE\b", t, re.M):
-            problems.append(
-                f"  tools/{script} empacota o codigo sem copiar o LICENSE")
+        for what, rx in (("o LICENSE", r"^\s*cp\s+LICENSE\b"),
+                         ("o THIRD_PARTY_NOTICES.md", r"^\s*cp\s+THIRD_PARTY_NOTICES\.md\b"),
+                         ("a pasta LICENSES", r"^\s*cp\s+-r\s+LICENSES\b")):
+            if not re.search(rx, t, re.M):
+                problems.append(f"  tools/{script} empacota o codigo sem copiar {what}")
 
     if problems:
         print("LICENSE GATE: divergencia.")
@@ -125,7 +128,7 @@ def main() -> int:
 
     y = years.pop()
     print(f"LICENSE GATE: clean ({len(seen)} copias, (c) {y} {seen[0][1]}; "
-          f"os dois scripts de release levam o arquivo)")
+          f"os dois scripts de release levam o LICENSE e os avisos de terceiros)")
     return 0
 
 

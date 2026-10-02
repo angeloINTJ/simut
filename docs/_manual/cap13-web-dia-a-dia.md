@@ -493,9 +493,9 @@ A página **Licença** (rota `/license`) exige a permissão **Painel** e fica no
 - **Licença de Software** (*Software License*), com a frase **Software livre. Abaixo, o que isso significa na prática.**;
 - **Em resumo** (*In short*): um resumo da licença em linguagem simples, com o aviso de que ele não substitui o texto da licença;
 - **Licença MIT** (*MIT License*): o texto da licença, em inglês, porque é a versão original e a que tem valor legal;
-- **Avisos de Terceiros** (*Third-Party Notices*): as 17 bibliotecas e componentes de terceiros usados no firmware, com autor, licença e endereço de cada um.
+- **Avisos de Terceiros** (*Third-Party Notices*): os 25 componentes de terceiros que entram nas imagens de firmware, com o titular do copyright, a licença, as imagens que levam cada um e o endereço. Os textos completos das licenças ficam no `THIRD_PARTY_NOTICES.md` e na pasta `LICENSES` do repositório, publicados com cada versão.
 
-Os avisos de terceiros incluem o BTstack, a pilha Bluetooth das imagens alpha e Air, cuja licença é gratuita para uso não comercial e exige uma licença separada da BlueKitchen GmbH para uso comercial. Confira a lista antes de distribuir o aparelho.
+Dois componentes têm licença própria em vez de uma licença livre comum: o driver do rádio (cyw43-driver), em todas as imagens, e o BTstack, a pilha Bluetooth das imagens alpha e Air. A Raspberry Pi concede os dois a quem monta produtos sobre o Pico W e o Pico 2 W, inclusive para uso comercial; fora desses chips eles não valem. Confira a lista antes de distribuir o aparelho.
 
 ::: {.figura #fig-13-licenca tipo="web" arquivo="13-licenca.png" captura="rota /license; largura 1280; sessão admin; página rolada até o início dos Avisos de Terceiros"}
 A página Licença, com o resumo em linguagem simples e o texto original da licença MIT.

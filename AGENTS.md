@@ -247,14 +247,17 @@ O CI cobre tudo isto, mas só em pull request — meça antes:
 pio run -e pico_w_release -e pico_w_test -e pico_w_test_https \
         -e pico_w_asserts -e pico_w_alpha -e pico_w_air
 pio test -e native -e native_history_v5 -e native_cli -e native_logpolicy \
-         -e native_alarmqueue -e native_network -e native_air -e native_sensors
+         -e native_alarmqueue -e native_network -e native_air -e native_sensors \
+         -e native_otasig
 ./tools/run_fuzz.sh                       # 60 s; NÃO está no pio test e já pegou defeito real
 PLATFORMIO_BUILD_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined" \
-  pio test -e native -e native_sensors …  # as oito de novo sob ASan/UBSan (apaga .pio/build); o relatório
+  pio test -e native -e native_sensors …  # as nove de novo sob ASan/UBSan (apaga .pio/build); o relatório
                                           # só aparece rodando .pio/build/<env>/program direto
 python3 tools/check_air_consistency.py
 python3 tools/check_angulo.py             # o padrão de interface (§7): site, marca, READMEs, docs Living
 python3 tools/check_readme_numbers.py     # os números que os três READMEs citam (testes, flash, códigos, rotas)
+python3 tools/check_license.py           # o texto MIT igual nas três cópias; os scripts de release levam os avisos
+python3 tools/gen_notices.py --check     # a lista de terceiros igual em THIRD_PARTY_NOTICES.md, /license e no painel
 python3 tools/check_flash_budget.py <env> build.log   # o CI roda assim; local, leia a linha "used"
 ```
 

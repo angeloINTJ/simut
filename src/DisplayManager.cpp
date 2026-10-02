@@ -23,6 +23,8 @@
 #endif
 #include "DisplayManager_FmtFloat.h"
 #include "HelpLicenseEN.h" /* LICENSE_TEXT_EN inline in PROGMEM */
+#include "TextWrap.h"
+#include "Utf8Fold.h"
 #include <LittleFS.h>
 
 #include "hardware/structs/timer.h"
@@ -41,66 +43,59 @@
  * The other 6 languages remain in git history. */
 
 
-/* The License screen draws LICENSE_TEXT_EN (HelpLicenseEN.h) in every
- * language, straight from flash: the MIT text in its original English, the
- * version with legal force, as the /license web page shows it. Until
- * 2026-10-02 each language pack carried a translation of it in @LICENSE
- * (1,942 B in pt-BR, 1,957 B in es-ES), which this screen read from LittleFS
- * and folded to ASCII into a static 2,048 B buffer. The packs lost the
- * section and the image lost the buffer.
+/* The License screen, since 2026-10-02, is the /license web page's three
+ * parts in the page's order: an opening in the language of the installed pack,
+ * the MIT text in its original English, the version with legal force, and
+ * every piece of third-party software in the images (HelpLicenseEN.h). Until
+ * then each pack carried a translation of the whole licence in @LICENSE
+ * (1,942 B in pt-BR, 1,957 B in es-ES), which the screen read from LittleFS
+ * into a static 2,048 B buffer.
  *
- * The two text helpers below have no caller but that screen, so they sit
- * inside the guard: on an alphanumeric display the compiler warned that they
- * were unused. */
+ * The opening is the pack's own @WEBDICT strings — the very sentences the page
+ * shows — so there is no second translation of them to drift. They are read
+ * from flash once per language, on Core 0 when the screen opens, into the
+ * buffer below; Core 1 draws it and then LICENSE_TEXT_EN straight from flash,
+ * as one text (TextWrap.h), folding each word to the CP437 font as it goes
+ * (Utf8Fold.h). The buffer holds 768 B: the pt-BR opening is 614 B and the
+ * es-ES one 623 B (measured 2026-10-02), and tools/check_lang_packs.py fails a
+ * pack whose opening would not fit, so a translation never silently gives way
+ * to English. Without a pack, or in English, the opening is the page's English
+ * text, which tools/gen_notices.py copies into HelpLicenseEN.h. */
 #if !SIMUT_DISPLAY_ALPHA
-static int wrapLineCount(const char* text, int maxCols) {
-	int lines = 1;
-	int col = 0;
-	while (*text) {
-		if (*text == '\n') { lines++; col = 0; text++; continue; }
-		if (*text == ' ') { if (col > 0 && col < maxCols) col++; text++; continue; }
+static char _licOpening[768];
+static int _licOpeningLang = -1;    /* the language _licOpening was composed for */
 
-		int wlen = 0;
-		const char* w = text;
-		while (*w && *w != ' ' && *w != '\n') { wlen++; w++; }
+/* What follows each of the five strings: the page's paragraphs. Mirrored by
+ * opening_bytes( ) in tools/check_lang_packs.py, which measures the fit. */
+static const char* const kLicOpeningSep[] = { "\n\n", "\n", "\n\n", "\n\n", "\n\n" };
 
-		if (col > 0 && col + wlen > maxCols) { lines++; col = 0; }
-		col += wlen;
-		text += wlen;
-	}
-	return lines;
+static bool licOpeningAppend(size_t& used, const char* s, size_t n) {
+	if (used + n + 1 > sizeof(_licOpening)) return false;
+	memcpy(_licOpening + used, s, n);
+	used += n;
+	_licOpening[used] = '\0';
+	return true;
 }
 
-
-static void renderWrapped(Adafruit_ILI9341* tft, const char* text,
-                           int x0, int y0, int maxCols, int lineH,
-                           int skip, int maxVis) {
-	int curLine = 0;
-	int col = 0;
-	while (*text) {
-		if (curLine >= skip + maxVis) break;
-		if (*text == '\n') { curLine++; col = 0; text++; continue; }
-		if (*text == ' ') { if (col > 0 && col < maxCols) col++; text++; continue; }
-
-		char word[52];
-		int wlen = 0;
-		while (*text && *text != ' ' && *text != '\n' && wlen < 50) {
-			word[wlen++] = *text++;
-		}
-		word[wlen] = '\0';
-
-		if (col > 0 && col + wlen > maxCols) { curLine++; col = 0; }
-		if (curLine >= skip + maxVis) break;
-
-		if (curLine >= skip) {
-			int sy = y0 + (curLine - skip) * lineH;
-			tft->setCursor(x0 + col * 6, sy);
-			tft->print(word);
-		}
-		col += wlen;
+static void composeLicenseOpening(int langIdx) {
+	size_t used = 0;
+	bool ok = (langIdx != LANG_EN);
+	for (int k = 0; ok && k < 5; k++) {
+		size_t n = 0;
+		ok = DisplayManager::webDictValue(LICENSE_OPENING_KEYS[k], _licOpening + used,
+		                                  sizeof(_licOpening) - used, &n);
+		used += n;
+		ok = ok && licOpeningAppend(used, kLicOpeningSep[k], strlen(kLicOpeningSep[k]));
 	}
+	if (!ok) {
+		used = 0;
+		for (int k = 0; k < 5; k++) {
+			licOpeningAppend(used, LICENSE_OPENING_EN[k], strlen(LICENSE_OPENING_EN[k]));
+			licOpeningAppend(used, kLicOpeningSep[k], strlen(kLicOpeningSep[k]));
+		}
+	}
+	_licOpeningLang = langIdx;
 }
-
 #endif // !SIMUT_DISPLAY_ALPHA
 
 DisplayManager* _instance = nullptr;
@@ -266,8 +261,9 @@ void DisplayManager::restartCore1( ) {
 void DisplayManager::setLanguage(int langId) {
 	if (langId >= 0 && langId < LANG_COUNT) _currentLangIdx = langId;
 	else _currentLangIdx = 1;
-	/* License is now loaded lazily from LittleFS when the license screen
-	 * opens (showSettingsLicense), not at language-change time. */
+	/* The License screen's opening follows the language too; it is read from
+	 * the pack when that screen next opens (showSettingsLicense), which sees
+	 * _currentLangIdx differ from the language it was composed for. */
 	/* Forces boot screen re-render to retranslate bootLogs already
 	 * shown in EN before .lng loaded. Render() boot path detects
 	 * the flag and sets fullRedraw. */
@@ -1954,6 +1950,9 @@ void DisplayManager::setWebNotification(const char* username) {
 
 #if !SIMUT_DISPLAY_ALPHA
 void DisplayManager::showSettingsLicense( ) {
+	/* The opening depends on the language alone, and a pack only loads at
+	 * boot: it is read once per language, not on every visit. */
+	if (_licOpeningLang != _currentLangIdx) composeLicenseOpening(_currentLangIdx);
 	mutex_enter_blocking(&_stateMutex);
 	_uiMode = MODE_SETTINGS_LICENSE;
 	_licensePage = 0;
@@ -1966,17 +1965,20 @@ void DisplayManager::showSettingsLicense( ) {
 void DisplayManager::drawSettingsLicense( ) {
 	bool fullRedraw = _forceSettingsRedraw;
 
-	/* Read in place from flash. ASCII on purpose: this screen draws with the
-	 * classic CP437 font (see the note at LICENSE_TEXT_EN). */
-	const char* licText = LICENSE_TEXT_EN;
+	/* The opening (RAM, composed on Core 0) and the licence with the list of
+	 * third-party software (flash), laid out as one text. */
+	const char* const parts[] = { _licOpening, LICENSE_TEXT_EN };
 
 	const int MAX_COLS = 50;
 	const int LINE_H = 9;
 	const int TEXT_Y0 = 36;
 	const int MAX_VIS = 17;
 
-	/* Count total lines (license + acknowledgments already integrated) */
-	int totalLines = wrapLineCount(licText, MAX_COLS);
+	TextWrap count;
+	for (const char* part : parts) {
+		count.walk(part, MAX_COLS, [](int, int, const char*, size_t) { return true; });
+	}
+	int totalLines = count.lines( );
 
 	/* Calculate total pages */
 	_licenseTotalPages = (totalLines + MAX_VIS - 1) / MAX_VIS;
@@ -2007,10 +2009,28 @@ void DisplayManager::drawSettingsLicense( ) {
 	_driver.tft->setFont(NULL); _driver.tft->setTextSize(1);
 	_driver.tft->setTextColor(C_TEXT_SUB);
 
-	/* Render current page */
-	int startLine = _licensePage * MAX_VIS;
-	renderWrapped(_driver.tft, licText, 10, TEXT_Y0, MAX_COLS, LINE_H,
-	              startLine, MAX_VIS);
+	/* Render current page: each word is folded to the CP437 font as it is
+	 * drawn, so the text itself can be UTF-8. */
+	const int startLine = _licensePage * MAX_VIS;
+	Adafruit_ILI9341* tft = _driver.tft;
+	TextWrap tw;
+	auto draw = [&](int line, int col, const char* w, size_t n) {
+		if (line >= startLine + MAX_VIS) return false;
+		if (line >= startLine) {
+			char raw[MAX_COLS * 4 + 1];
+			char word[MAX_COLS + 1];
+			const size_t m = (n < sizeof(raw) - 1) ? n : sizeof(raw) - 1;
+			memcpy(raw, w, m);
+			raw[m] = '\0';
+			utf8FoldAscii(raw, word, sizeof(word));
+			tft->setCursor(10 + col * 6, TEXT_Y0 + (line - startLine) * LINE_H);
+			tft->print(word);
+		}
+		return true;
+	};
+	for (const char* part : parts) {
+		if (!tw.walk(part, MAX_COLS, draw)) break;
+	}
 
 	/* Update page dots in header (without redrawing everything): repaint
 	 * only the dot strip region, then redraw the dots. */

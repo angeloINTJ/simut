@@ -4,6 +4,7 @@
 #include "display/BigFont_HD44780.h"
 #include "display/AlphaMarquee.h"
 #include "display/PendingLabel.h"
+#include "Utf8Fold.h"
 #include "sensors/SensorHelpers.h"
 #include <LittleFS.h>
 #include <string.h>
@@ -544,66 +545,7 @@ const char* DisplayManager::channelLabel(uint8_t){return "";}
 void DisplayManager::readRow(int16_t,uint16_t*,int16_t){}
 void DisplayManager::readRect(int16_t,int16_t,int16_t,int16_t,uint16_t*){}
 void DisplayManager::unaccent(const char* utf8, char* out, size_t outSize) {
-	if (!out || outSize == 0) return;
-	if (!utf8) { out[0] = '\0'; return; }
-
-	size_t o = 0;
-	const unsigned char* p = (const unsigned char*)utf8;
-	while (*p && o + 1 < outSize) {
-		unsigned char c = *p;
-		if (c < 0x80) { out[o++] = (char)c; p++; continue; }
-		unsigned char c2 = p[1];
-		char repl = '?';
-		if (c == 0xC3) {
-			switch (c2) {
-			case 0x80: case 0x81: case 0x82: case 0x83:
-			case 0x84: case 0x85: repl = 'A'; break;
-			case 0x86: repl = 'A'; break;
-			case 0x87: repl = 'C'; break;
-			case 0x88: case 0x89: case 0x8A:
-			case 0x8B: repl = 'E'; break;
-			case 0x8C: case 0x8D: case 0x8E:
-			case 0x8F: repl = 'I'; break;
-			case 0x91: repl = 'N'; break;
-			case 0x92: case 0x93: case 0x94:
-			case 0x95: case 0x96: case 0x98: repl = 'O'; break;
-			case 0x99: case 0x9A: case 0x9B:
-			case 0x9C: repl = 'U'; break;
-			case 0x9D: repl = 'Y'; break;
-			case 0xA0: case 0xA1: case 0xA2: case 0xA3:
-			case 0xA4: case 0xA5: repl = 'a'; break;
-			case 0xA6: repl = 'a'; break;
-			case 0xA7: repl = 'c'; break;
-			case 0xA8: case 0xA9: case 0xAA:
-			case 0xAB: repl = 'e'; break;
-			case 0xAC: case 0xAD: case 0xAE:
-			case 0xAF: repl = 'i'; break;
-			case 0xB1: repl = 'n'; break;
-			case 0xB2: case 0xB3: case 0xB4:
-			case 0xB5: case 0xB6: case 0xB8: repl = 'o'; break;
-			case 0xB9: case 0xBA: case 0xBB:
-			case 0xBC: repl = 'u'; break;
-			case 0xBD: case 0xBF: repl = 'y'; break;
-			default: repl = '?'; break;
-			}
-			out[o++] = repl; p += 2;
-		} else if (c == 0xC2) {
-			if (c2 == 0xA1 || c2 == 0xBF) { p += 2; continue; }
-			switch (c2) {
-			case 0xA9: repl = 'C'; break;
-			case 0xAE: repl = 'R'; break;
-			case 0xB0: repl = 'o'; break;
-			case 0xB1: repl = '+'; break;
-			case 0xB2: repl = '2'; break;
-			case 0xB3: repl = '3'; break;
-			default: repl = '?'; break;
-			}
-			out[o++] = repl; p += 2;
-		} else {
-			out[o++] = '?'; p++;
-		}
-	}
-	out[o] = '\0';
+	utf8FoldAscii(utf8, out, outSize);   /* the same table as the TFT build: Utf8Fold.h */
 }
 const char* DisplayManager::trlLookup(const char*){return "";}
 void DisplayManager::fillCalData(TouchCalData*)const{}

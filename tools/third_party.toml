@@ -1,0 +1,260 @@
+# Every piece of third-party software that ends up in a SIMUT image, and where
+# the text of its licence is. One list, three outputs, all written by
+# tools/gen_notices.py and checked by `gen_notices.py --check` in CI:
+#
+#   THIRD_PARTY_NOTICES.md     the complete notices; licence texts in LICENSES/
+#   WebUI.h                    the list under "Third-Party Notices" on /license
+#   src/HelpLicenseEN.h        the list at the end of the panel's License screen
+#
+# What belongs here is what the linker keeps in at least one image, measured
+# by the component's symbols in each firmware.elf (2026-10-02), plus fonts and
+# the code the web pages carry. `images` names the images that carry it, by
+# the suffix of their PlatformIO environment.
+#
+# Every `text` is a file in LICENSES/, copied verbatim: from the package the
+# build uses (~/.platformio/packages, .pio/libdeps), from the source file's own
+# header when the library has no licence file, or from the project's upstream
+# when the toolchain package does not carry one (newlib, the GCC runtime
+# exception, GNU FreeFont, the SHA-256 statement).
+
+all_images = ["release", "test", "test_https", "asserts", "alpha", "air", "pico2_release"]
+
+[[component]]
+name = "Arduino-Pico core"
+holder = "Earle F. Philhower, III"
+license = "LGPL-2.1"
+images = "all"
+url = "https://github.com/earlephilhower/arduino-pico"
+what = "The Arduino core for the RP2040 and RP2350, with its WiFi, WebServer, HTTPClient, DNSServer, Updater, PicoOTA, SPI and Wire libraries. Its networking and filesystem code comes from the ESP8266 Arduino core, under the same licence."
+note = "SIMUT publishes its complete source, so an image can be rebuilt against a modified core, as the LGPL requires."
+text = "arduino-pico-LGPL-2.1.txt"
+
+[[component]]
+name = "Raspberry Pi Pico SDK"
+holder = "Raspberry Pi (Trading) Ltd."
+license = "BSD-3-Clause"
+images = "all"
+url = "https://github.com/raspberrypi/pico-sdk"
+what = "Hardware access, multicore, flash and boot code for the RP2040 and RP2350."
+text = "pico-sdk-BSD-3-Clause.txt"
+
+[[component]]
+name = "TinyUSB"
+holder = "Ha Thach (tinyusb.org)"
+license = "MIT"
+images = "all"
+url = "https://github.com/hathach/tinyusb"
+what = "The USB stack behind the USB serial console."
+text = "tinyusb-MIT.txt"
+
+[[component]]
+name = "cyw43-driver"
+holder = "George Robotics Pty Ltd"
+license = "Raspberry Pi licence (LICENSE.RP)"
+images = "all"
+url = "https://github.com/georgerobotics/cyw43-driver"
+what = "Driver for the Infineon CYW43439 Wi-Fi and Bluetooth chip of the Pico W and the Pico 2 W."
+note = "Licensed by Raspberry Pi Ltd for use with its own chips only. The driver's other licence (its LICENSE file) is for non-commercial use; LICENSE.RP is the one that covers SIMUT, which runs on the Pico W and the Pico 2 W."
+text = "cyw43-driver-LICENSE.RP.txt"
+
+[[component]]
+name = "CYW43439 radio firmware"
+holder = "Infineon Technologies (Cypress)"
+license = "binary, shipped in cyw43-driver"
+images = "all"
+url = "https://github.com/georgerobotics/cyw43-driver/tree/main/firmware"
+what = "The firmware the radio chip loads at boot: Wi-Fi in every image, Bluetooth too in the alpha and Air images."
+note = "Shipped inside cyw43-driver; the Pico SDK carries no separate licence for it, so it travels under the driver's terms above."
+text = "cyw43-driver-LICENSE.RP.txt"
+
+[[component]]
+name = "lwIP"
+holder = "Swedish Institute of Computer Science"
+license = "BSD-3-Clause"
+images = "all"
+url = "https://savannah.nongnu.org/projects/lwip/"
+what = "The TCP/IP stack (Adam Dunkels and the lwIP contributors), bundled in the Arduino-Pico core."
+text = "lwip-BSD-3-Clause.txt"
+
+[[component]]
+name = "BearSSL"
+holder = "Thomas Pornin"
+license = "MIT"
+images = "all"
+url = "https://bearssl.org"
+what = "TLS for HTTPS and MQTTS, SHA-256, and the P-256 check of signed updates."
+text = "bearssl-MIT.txt"
+
+[[component]]
+name = "LittleFS"
+holder = "Arm Limited and the littlefs authors"
+license = "BSD-3-Clause"
+images = "all"
+url = "https://github.com/littlefs-project/littlefs"
+what = "The flash filesystem: configuration, history, language packs."
+text = "littlefs-BSD-3-Clause.txt"
+
+[[component]]
+name = "MicroPython DHCP server"
+holder = "Damien P. George"
+license = "MIT"
+images = "all"
+url = "https://micropython.org"
+what = "Hands out addresses on the setup access point; part of the Arduino-Pico WiFi library."
+text = "micropython-dhcpserver-MIT.txt"
+
+[[component]]
+name = "LEAmDNS"
+holder = "LaborEtArs"
+license = "MIT"
+images = ["release", "asserts", "pico2_release"]
+url = "https://github.com/LaborEtArs/ESP8266mDNS"
+what = "The mDNS responder that answers for the device name on the local network; part of the Arduino-Pico core."
+text = "leamdns-MIT.txt"
+
+[[component]]
+name = "newlib"
+holder = "Red Hat, Inc. and others"
+license = "BSD-style (COPYING.NEWLIB)"
+images = "all"
+url = "https://sourceware.org/newlib/"
+what = "The C library of the toolchain: memory allocation, strings, formatted output."
+text = "newlib-COPYING.NEWLIB.txt"
+
+[[component]]
+name = "GCC runtime libraries"
+holder = "Free Software Foundation, Inc."
+license = "GPL-3.0 with the GCC Runtime Library Exception"
+images = "all"
+url = "https://gcc.gnu.org"
+what = "libgcc and libstdc++, linked by the compiler. The exception lets them be combined with code under any licence."
+text = "gcc-runtime-exception-3.1.txt"
+also = ["GPL-3.0.txt"]
+
+[[component]]
+name = "Adafruit GFX Library"
+holder = "Adafruit Industries"
+license = "BSD-2-Clause"
+images = ["release", "test", "test_https", "asserts", "pico2_release"]
+url = "https://github.com/adafruit/Adafruit-GFX-Library"
+what = "Drawing primitives for the touch panel, and the classic 5x7 font of its text screens."
+text = "adafruit-gfx-BSD-2-Clause.txt"
+
+[[component]]
+name = "Adafruit ILI9341"
+holder = "Adafruit Industries (Limor Fried)"
+license = "BSD"
+images = ["release", "test", "test_https", "asserts", "pico2_release"]
+url = "https://github.com/adafruit/Adafruit_ILI9341"
+what = "Driver for the ILI9341 controller of the touch panel."
+note = "Its source files say \"BSD license, all text here must be included in any redistribution\", so the whole header is reproduced. Its README says MIT; the source is what this list follows."
+text = "adafruit-ili9341-BSD.txt"
+
+[[component]]
+name = "XPT2046_Touchscreen"
+holder = "Paul Stoffregen"
+license = "MIT"
+images = ["release", "test", "test_https", "asserts", "pico2_release"]
+url = "https://github.com/PaulStoffregen/XPT2046_Touchscreen"
+what = "Driver for the XPT2046 touch controller."
+text = "xpt2046-touchscreen-MIT.txt"
+
+[[component]]
+name = "PubSubClient"
+holder = "Nicholas O'Leary"
+license = "MIT"
+images = "all"
+url = "https://github.com/knolleary/pubsubclient"
+what = "The MQTT client behind MQTT and MQTTS telemetry."
+text = "pubsubclient-MIT.txt"
+
+[[component]]
+name = "OneWirePIO_RP2040"
+holder = "Ângelo Moisés Alves"
+license = "MIT"
+images = "all"
+url = "https://github.com/angeloINTJ/OneWirePIO_RP2040"
+what = "1-Wire on the PIO, for the DS18B20 probes."
+text = "OneWirePIO_RP2040-MIT.txt"
+
+[[component]]
+name = "DHT22PIO_RP2040"
+holder = "Ângelo Moisés Alves"
+license = "MIT"
+images = "all"
+url = "https://github.com/angeloINTJ/DHT22PIO_RP2040"
+what = "The DHT22 protocol on the PIO."
+text = "DHT22PIO_RP2040-MIT.txt"
+
+[[component]]
+name = "BuzzerPIO_RP2040"
+holder = "Ângelo Moisés Alves"
+license = "MIT"
+images = ["release", "test", "test_https", "asserts", "alpha", "pico2_release"]
+url = "https://github.com/angeloINTJ/BuzzerPIO_RP2040"
+what = "Tones and melodies for the buzzer on the PIO."
+text = "BuzzerPIO_RP2040-MIT.txt"
+
+[[component]]
+name = "TwoWirePIO_RP2040"
+holder = "Ângelo Moisés Alves"
+license = "MIT"
+images = "all"
+url = "https://github.com/angeloINTJ/TwoWirePIO_RP2040"
+what = "I2C on the PIO (the WirePIO library)."
+text = "TwoWirePIO_RP2040-MIT.txt"
+
+[[component]]
+name = "BMx280PIO_RP2040"
+holder = "Ângelo Moisés Alves"
+license = "MIT"
+images = "all"
+url = "https://github.com/angeloINTJ/BMx280PIO_RP2040"
+what = "BME280 and BMP280 driver."
+text = "BMx280PIO_RP2040-MIT.txt"
+
+[[component]]
+name = "BTstack"
+holder = "BlueKitchen GmbH"
+license = "Raspberry Pi licence (LICENSE.RP)"
+images = ["alpha", "air"]
+url = "https://github.com/bluekitchen/btstack"
+what = "The Bluetooth stack behind the Bluetooth console of the alpha and Air images."
+note = "Raspberry Pi Ltd licenses BTstack to the buyers of the Pico W and the Pico 2 W for use in the products they build on them. BTstack's own licence (non-commercial) does not apply to that use."
+text = "btstack-LICENSE.RP.txt"
+
+[[component]]
+name = "GNU FreeFont (FreeSans Bold)"
+holder = "GNU FreeFont contributors"
+license = "GPL-3.0-or-later with the font exception"
+images = ["release", "test", "test_https", "asserts", "pico2_release"]
+url = "https://www.gnu.org/software/freefont/"
+what = "The 9, 12 and 24 pt faces of the touch panel, converted to bitmaps and cut down to the glyphs SIMUT draws."
+text = "freefont-GPL-3.0-font-exception.txt"
+also = ["GPL-3.0.txt"]
+
+[[component]]
+name = "Liberation Sans Bold"
+holder = "Red Hat, Inc. (digitized data: Google, Arimo)"
+license = "SIL Open Font License 1.1"
+images = "all"
+url = "https://github.com/liberationfonts/liberation-fonts"
+what = "Five glyph outlines traced into the SIMUT wordmark of the web pages. No font file is embedded."
+text = "liberation-fonts-OFL-1.1.txt"
+
+[[component]]
+name = "SHA-256 for JavaScript"
+holder = "Geraint Luff"
+license = "public domain"
+images = "all"
+url = "https://github.com/geraintluff/sha256"
+what = "Hashes the password in the login page before it leaves the browser."
+text = "sha256-js-public-domain.txt"
+
+# Compiled during the build, then dropped by the linker in every image:
+# nothing of them reaches the device. Listed so that nobody adds them above by
+# reading platformio.ini or .pio/libdeps instead of the ELF.
+[not_linked]
+"Adafruit BusIO" = "compiled as a dependency of Adafruit GFX Library; no symbol survives the link"
+"http-parser" = "compiled with the Arduino-Pico WebServer library; no symbol survives the link"
+"Adafruit STMPE610, Adafruit TouchScreen, Adafruit TSC2007, Adafruit SH110X" = "downloaded as declared dependencies of Adafruit ILI9341; never compiled"

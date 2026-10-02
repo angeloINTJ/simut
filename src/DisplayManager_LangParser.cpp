@@ -45,6 +45,8 @@
 
 #include "DisplayManager.h"
 #include "LangPackIndex.h"
+#include "Utf8Fold.h"
+#include "WebDictValue.h"
 #include "LogManager.h"
 #include <LittleFS.h>
 #include <stdlib.h>
@@ -323,6 +325,33 @@ const char* DisplayManager::getActiveHelpText( ) {
  if (!_activeLangLoaded) return nullptr;
  return lazyRead(_activeLang.path, _activeLang.helpOffset, _activeLang.helpLen);
 }
+/* One string of the active pack's @WEBDICT, read from flash through a stack
+ * chunk (WebDictValue.h): the License screen opens with the sentences the
+ * /license page shows, and they are already in the pack. The whole blob is
+ * scanned, because the last occurrence of a key is the one the browser keeps.
+ * True only for a value that was found and fits. Core 0 only (LittleFS). */
+bool DisplayManager::webDictValue(const char* key, char* out, size_t cap, size_t* len) {
+ if (len) *len = 0;
+ if (!out || cap == 0) return false;
+ out[0] = '\0';
+ if (!_activeLangLoaded || _activeLang.webDictLen == 0) return false;
+ File f = LittleFS.open(_activeLang.path, "r");
+ if (!f) return false;
+ WebDictValue v(key, out, cap);
+ char chunk[256];
+ uint32_t left = _activeLang.webDictLen;
+ if (f.seek(_activeLang.webDictOffset)) {
+ while (left > 0) {
+ size_t got = f.readBytes(chunk, left < sizeof(chunk) ? left : sizeof(chunk));
+ if (got == 0) break;
+ v.feed(chunk, got);
+ left -= got;
+ }
+ }
+ f.close( );
+ if (len) *len = v.length( );
+ return v.done( ) && !v.clipped( );
+}
 bool DisplayManager::getActiveWebDictSource(const char** path, uint32_t* offset, uint32_t* len) {
  if (!_activeLangLoaded || _activeLang.webDictLen == 0) return false;
  if (path) *path = _activeLang.path;
@@ -347,81 +376,9 @@ const char* DisplayManager::getActiveLangCode( ) { return _activeLangLoaded ? _a
  * infinite loop) — acceptable behavior for the display's limited font.
  * ───────────────────────────────────────────────────────────────── */
 void DisplayManager::unaccent(const char* utf8, char* out, size_t outSize) {
- if (!out || outSize == 0) return;
- if (!utf8) { out[0] = '\0'; return; }
-
- size_t o = 0;
- const unsigned char* p = (const unsigned char*)utf8;
-
- while (*p && o + 1 < outSize) {
- unsigned char c = *p;
- if (c < 0x80) {
- out[o++] = (char)c;
- p++;
- continue;
- }
- unsigned char c2 = p[1];
- char repl = '?';
- if (c == 0xC3) { /* 0xC0..0xFF */
- switch (c2) {
- case 0x80: case 0x81: case 0x82: case 0x83:
- case 0x84: case 0x85: repl = 'A'; break;
- case 0x86: repl = 'A'; break; /* AE */
- case 0x87: repl = 'C'; break;
- case 0x88: case 0x89: case 0x8A:
- case 0x8B: repl = 'E'; break;
- case 0x8C: case 0x8D: case 0x8E:
- case 0x8F: repl = 'I'; break;
- case 0x91: repl = 'N'; break;
- case 0x92: case 0x93: case 0x94:
- case 0x95: case 0x96: case 0x98: repl = 'O'; break;
- case 0x99: case 0x9A: case 0x9B:
- case 0x9C: repl = 'U'; break;
- case 0x9D: repl = 'Y'; break;
- case 0xA0: case 0xA1: case 0xA2: case 0xA3:
- case 0xA4: case 0xA5: repl = 'a'; break;
- case 0xA6: repl = 'a'; break; /* ae */
- case 0xA7: repl = 'c'; break;
- case 0xA8: case 0xA9: case 0xAA:
- case 0xAB: repl = 'e'; break;
- case 0xAC: case 0xAD: case 0xAE:
- case 0xAF: repl = 'i'; break;
- case 0xB1: repl = 'n'; break;
- case 0xB2: case 0xB3: case 0xB4:
- case 0xB5: case 0xB6: case 0xB8: repl = 'o'; break;
- case 0xB9: case 0xBA: case 0xBB:
- case 0xBC: repl = 'u'; break;
- case 0xBD: case 0xBF: repl = 'y'; break;
- default: repl = '?'; break;
- }
- out[o++] = repl;
- p += 2;
- } else if (c == 0xC2) {
- /* Spanish opening marks have no 7-bit form worth printing. Dropping
- * them reads right ("Sistema Listo!"); the default '?' below did not
- * ("?Sistema Listo!"), and the closing mark already tells the reader
- * whether the sentence is a question or an exclamation. */
- if (c2 == 0xA1 || c2 == 0xBF) { p += 2; continue; }
- /* Latin-1 supplement (0x80..0xBF): symbols like degree, +-, squared, cubed, copyright.
- * Simple substitutions; remainder becomes '?'. */
- switch (c2) {
- case 0xA9: repl = 'C'; break; /* copyright */
- case 0xAE: repl = 'R'; break; /* registered */
- case 0xB0: repl = 'o'; break; /* degree */
- case 0xB1: repl = '+'; break; /* plus-minus */
- case 0xB2: repl = '2'; break; /* squared */
- case 0xB3: repl = '3'; break; /* cubed */
- default: repl = '?'; break;
- }
- out[o++] = repl;
- p += 2;
- } else {
- /* UTF-8 multi-byte outside target: advance 1 byte, mark '?' */
- out[o++] = '?';
- p++;
- }
- }
- out[o] = '\0';
+ /* One table for every 7-bit consumer (CLI, boot lines, the License screen):
+  * Utf8Fold.h, where the native tests reach it. */
+ utf8FoldAscii(utf8, out, outSize);
 }
 
 /* ─────────────────────────────────────────────────────────────────

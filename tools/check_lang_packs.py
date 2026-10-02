@@ -90,6 +90,35 @@ def pack_index(data):
     return idx, tail
 
 
+# The License screen opens with five strings of the pack's @WEBDICT, the
+# sentences the /license page shows, each followed by the page's paragraph
+# break; the firmware composes them into one 768 B buffer
+# (src/DisplayManager.cpp, _licOpening / kLicOpeningSep). A pack whose opening
+# does not fit shows the English one instead, silently — so it fails here.
+LIC_OPENING_KEYS = ["lic_sub", "lic_summary_title", "lic_summary", "lic_summary_note",
+                    "lic_legal_note"]
+LIC_OPENING_SEPS = ["\n\n", "\n", "\n\n", "\n\n", "\n\n"]
+LIC_OPENING_CAP = 768
+
+
+def opening_bytes(path):
+    """UTF-8 bytes of the License screen's opening for this pack, or None when
+    the pack has no @WEBDICT or lacks one of the five keys."""
+    data = path.read_bytes()
+    idx, _ = pack_index(data)
+    if "WEBDICT" not in idx:
+        return None
+    a, b = idx["WEBDICT"]
+    try:
+        wd = json.loads(data[a:b])
+    except ValueError:
+        return None
+    if any(k not in wd for k in LIC_OPENING_KEYS):
+        return None
+    return sum(len(wd[k].encode("utf-8")) + len(sep)
+               for k, sep in zip(LIC_OPENING_KEYS, LIC_OPENING_SEPS))
+
+
 def enum_keys():
     src = HEADER.read_text(encoding="utf-8")
     m = re.search(r"enum\s+LangKey\s*\{(.*?)\};", src, re.S)
@@ -315,6 +344,12 @@ def main():
                   f"({dict_bytes * 100 // dict_ceil}% of RAM ceiling), file {size} B "
                   f"({size * 100 // ceil}% of file ceiling)"
                   + ("" if "WEBDICT" in idx else " — no @WEBDICT"))
+        opening = opening_bytes(pack)
+        if opening is not None and opening + 1 > LIC_OPENING_CAP:
+            print(f"[lang-packs] FAIL {pack.name}: the License screen's opening is "
+                  f"{opening} B, over the {LIC_OPENING_CAP - 1} B the firmware holds — the "
+                  f"panel would show the English one instead", file=sys.stderr)
+            failed = True
         lines, blanks = dict_lines(pack)
         if blanks:
             print(f"[lang-packs] FAIL {pack.name}: blank line(s) inside @DICT at "

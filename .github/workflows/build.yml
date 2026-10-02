@@ -57,6 +57,13 @@ jobs:
       - name: Check licence consistency
         run: python3 tools/check_license.py
 
+      # One list of third-party software (tools/third_party.toml), three
+      # places that state it: THIRD_PARTY_NOTICES.md, the /license page and
+      # the panel's License screen. They had drifted apart: six components
+      # every image links were cited nowhere, and BTstack's terms were wrong.
+      - name: Check the third-party notices
+        run: python3 tools/gen_notices.py --check
+
       # The Ângulo interface standard (ANGULO.md), where a machine can see it:
       # the token copy is pinned, the site's CSS names no colour and stays on
       # the 4 px grid and the three radii, the brand uses token colours, and
