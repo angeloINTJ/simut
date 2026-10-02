@@ -2,7 +2,7 @@
 
 [English](FEATURES.md) | [Português](FEATURES.pt-BR.md) | [Español](FEATURES.es-ES.md)
 
-Everything the firmware does, in detail. The [README](../README.md) has the summary.
+Everything the firmware does, in detail. The [README](../README.md) has the summary, and [Core and switches](#core-and-switches) says which of these a custom build can leave out.
 
 ## Sensing and alarms
 - **16 universal sensor slots** — GP0–GP15. Each slot takes a DS18B20, a DHT22 or a BMP280/BME280; a BMx280 is retyped automatically from its chip ID. Type and pins are assigned at runtime, with no recompile.
@@ -143,3 +143,32 @@ Everything the firmware does, in detail. The [README](../README.md) has the summ
 
 ## Internationalization
 - **3 interface languages** — English built in; Portuguese (pt-BR) and Spanish (es-ES) come as `.lng` packs on the filesystem. A device runs English plus the one pack installed.
+
+## Core and switches
+
+Every image has what the table below does not list: the sensor slots, the alarms and the alarm line, the recorded history, the accounts and permissions, the web interface and the HTTP API over plain HTTP, telemetry over plain HTTP, the emergency console, the event log, backup and restore, and signed over-the-air updates. Two things are a choice rather than a switch: the display (touch panel, 16×2 LCD or none) and the chip (the Pico W's RP2040, or the Pico 2 W's RP2350, which CI builds and nothing runs on yet).
+
+Everything else is a switch in [`tools/features.toml`](../tools/features.toml). This table is generated from that file by `tools/gen_features.py`, and CI fails when it falls behind. The [build configurator](https://angelointj.github.io/simut/configurador/) compiles an image with any combination the rules allow, and shows what each switch costs in flash, measured.
+
+<!-- BEGIN generated: switches — tools/gen_features.py -->
+| Group | Switch | What it does | SIMUT | SIMUT Alpha | SIMUT Air |
+|---|---|---|:---:|:---:|:---:|
+| Network | HTTPS web server | Serves the web interface over TLS. Without it the device answers plain HTTP only. | on | off | off |
+|  | Find by name on the network (mDNS) | Answers to &lt;device name&gt;.local, so a browser finds it without the IP address. | on | off | off |
+|  | Bluetooth serial console | A password-protected console over classic Bluetooth (SPP). It advertises for the first 5 minutes after power-up, so it reaches a device whose Wi-Fi is not set up yet. | off | on | on |
+| Telemetry and integrations | Encrypted telemetry (HTTPS and MQTTS) | Sends to the collector over TLS, and validates it against /cert.pem when one is uploaded. Without it telemetry goes over plain HTTP or MQTT only, and a configuration that asks for encryption is refused instead of being sent in the clear. | on | on | on |
+|  | MQTT and Home Assistant | Publishes to an MQTT broker (MQTT, or MQTTS with the TLS switch), takes the alarm line's receipts on the ack topic, and announces the sensors to Home Assistant by MQTT Discovery. Without it telemetry goes by HTTP only. | on | on | on |
+|  | Prometheus metrics (/metrics) | A /metrics endpoint in the Prometheus text format, with Basic authentication for the scraper. | on | on | on |
+|  | Remote syslog (audit trail) | Forwards log events to a syslog collector (RFC 5424 over UDP), so the audit trail survives outside the device. | on | on | on |
+| Interface | History page in the web interface | The /history page: charts, calendar, CSV export in the browser and the event log viewer. The device records history either way, and the history files stay downloadable from the Files page. | on | on | on |
+|  | History export API | Routes that return several sensors' history in one call (/api/history_multi) and export the history and the log as .simx. No page uses them; bench tools and integrations do. | on | on | on |
+|  | Full command line | Every serial and Bluetooth command. Without it only the emergency console remains. | off | off | on |
+|  | Graph and calendar on the touch display | The history graph opened from the min/max strip, its detail screen and the calendar to pick a day. Without it the strip has no graph button; the history is still recorded and stays on the web. | on | off | off |
+| Sensors | DS18B20 temperature probes | 1-Wire probes, one per pin, each recognized by its serial number. | on | on | on |
+|  | DHT22 temperature and humidity | One sensor per pin. | on | on | on |
+|  | BME280 / BMP280 temperature, humidity and pressure | I2C sensor on a pin pair; the BMP280 variant has no humidity. | on | on | on |
+| Sound | Buzzer sounds | Touch clicks, confirmations and alarm sounds on the buzzer (GP22). | on | on | off |
+| Power | Hibernation between readings | The Air cycle: wake, read, send, sleep. Exists only without a display. | off | off | on |
+| Bench and diagnostics | Short license text on the touch display | The touch display's License screen shows two lines that point to the LICENSE file instead of the full MIT text and credits. The /license web page always keeps the full text. | off | off | on |
+|  | Concurrency tripwire | Logs an error when a flash operation starts while the state mutex is held. For soak runs, not for field images. | off | off | off |
+<!-- END generated: switches -->

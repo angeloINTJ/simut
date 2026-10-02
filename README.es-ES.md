@@ -159,7 +159,7 @@ Consulta la **[guía de cableado](docs/WIRING.md)** para el pinout completo y lo
 - **SIMUT Air** (experimental) — registrador a batería que hiberna entre lecturas.
 - **Idiomas** — inglés integrado; pt-BR y es-ES como packs de idioma.
 
-Cada característica en detalle: **[docs/FEATURES.es-ES.md](docs/FEATURES.es-ES.md)**.
+Cada característica en detalle, y cuáles puede dejar fuera una build propia: **[docs/FEATURES.es-ES.md](docs/FEATURES.es-ES.md)**.
 
 ## Inicio rápido
 

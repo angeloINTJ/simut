@@ -157,7 +157,7 @@ Veja o **[guia de fiação](docs/WIRING.md)** para a pinagem completa e os diagr
 - **SIMUT Air** (experimental) — registrador a bateria que hiberna entre as leituras.
 - **Idiomas** — inglês embutido; pt-BR e es-ES como packs de idioma.
 
-Cada recurso em detalhe: **[docs/FEATURES.pt-BR.md](docs/FEATURES.pt-BR.md)**.
+Cada recurso em detalhe, e quais uma build própria pode deixar de fora: **[docs/FEATURES.pt-BR.md](docs/FEATURES.pt-BR.md)**.
 
 ## Início rápido
 

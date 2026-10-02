@@ -159,7 +159,7 @@ See the **[wiring guide](docs/WIRING.md)** for the complete pinout and connectio
 - **SIMUT Air** (experimental) — a battery logger that hibernates between readings.
 - **Languages** — English built in; pt-BR and es-ES as language packs.
 
-Every feature in detail: **[docs/FEATURES.md](docs/FEATURES.md)**.
+Every feature in detail, and which ones a custom build can leave out: **[docs/FEATURES.md](docs/FEATURES.md)**.
 
 ## Quick start
 
