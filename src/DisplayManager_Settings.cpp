@@ -335,58 +335,23 @@ void DisplayManager::drawAlarmEdit( ) {
 void DisplayManager::showSettingsMain( ) {
  mutex_enter_blocking(&_stateMutex);
  _uiMode = MODE_SETTINGS_MAIN; _menuSelection = 0; _mainMenuPage = 0; _lastMainMenuPage = -1;
- /* v24: the menu lists what this session's bits can do. Item ids keep the
-  * historical table order (icon id = item id = EVT_MENU_SELECT id); only the
-  * VISIBLE list changes per account. Items with no bit are for everyone:
-  * the PIN (one's own), the license and the status screen. */
- static const uint16_t NEED[MENU_ITEM_COUNT] = {
- PERM_SYS_CONFIG,      /* 0 themes */
- PERM_PANEL_ALARM_ANY, /* 1 alarms */
- PERM_SYS_CONFIG,      /* 2 sounds */
- PERM_SYS_CONFIG,      /* 3 language */
- 0,                    /* 4 own PIN */
- PERM_SYS_CONFIG,      /* 5 touch calibration */
- 0,                    /* 6 license */
- 0,                    /* 7 status */
- PERM_SYS_CONFIG,      /* 8 display offset */
- PERM_USER_MGR,        /* 9 users */
- PERM_USER_MGR,        /* 10 PIN policy (v25) */
- PERM_NET_CONFIG,      /* 11 setup AP (2.7.1) */
- PERM_SYS_CONFIG       /* 12 date and time (2026-10-01) — /api/set_time's bit */
- };
- _menuCount = 0;
- for (uint8_t i = 0; i < MENU_ITEM_COUNT; i++) {
- if (NEED[i] == 0 || (_panelPerms & NEED[i])) _menuItems[_menuCount++] = i;
- }
+ /* v24: the menu lists what this session's bits can do. Which items, in
+  * what order, and who sees each one: display/SettingsMenu.h. */
+ _menuCount = settingsMenuBuild(_panelPerms, _menuItems);
  _forceSettingsRedraw = true; _repaintSettings = true;
  mutex_exit(&_stateMutex);
-}
-
-/* "3. Alarm Sounds" -> "Alarm Sounds": the numbers in the menu labels are
- * table positions, and a filtered menu would show "2." on its first row. */
-/* "11. PIN security" is one string doing two jobs: the menu row keeps its
- * number and the screen title drops it, which is the rule this menu already
- * had for a filtered list. One string instead of two matters here — the
- * es-ES pack is 87 B from its 16 KB resident ceiling, and a pack that
- * overflows is rejected whole and silently reverts the UI to English. */
-const char* DisplayManager::menuLabelNoNumber(const char* s) {
- const char* p = s;
- while (*p >= '0' && *p <= '9') p++;
- if (p != s && p[0] == '.' && p[1] == ' ') return p + 2;
- return s;
 }
 
 void DisplayManager::drawSettingsMain( ) {
  if(!_driver.canvas) return;
  bool fullRedraw = _forceSettingsRedraw; bool pageChanged = (_mainMenuPage != _lastMainMenuPage);
  const int TOTAL_ITEMS = _menuCount;
- /* TR_AP_MODE ("Configuration Mode" / "Modo de Configuração") is reused rather
-  * than a key being added: it already names this screen on the boot's AP
-  * progress bar, it is in all eight packs, and the es-ES pack has 111 B left of
-  * its 16 KB resident ceiling — a pack that overflows is rejected whole. It is the
-  * only row whose string carries no leading number, which is why the number is
-  * printed beside it instead of baked in. */
- static const LangKey menuItems[MENU_ITEM_COUNT] = {TR_MENU_THEMES, TR_MENU_ALARMS, TR_MENU_SOUNDS, TR_MENU_LANG, TR_MENU_PASSWORD, TR_MENU_TOUCH_CAL, TR_MENU_LICENSE, TR_MENU_STATUS, TR_MENU_DISPLAY_OFFSET, TR_MENU_USERS, TR_PIN_POLICY, TR_AP_MODE, TR_MENU_CLOCK};
+ /* Each item's label, by id. TR_AP_MODE ("Configuration Mode" / "Modo de
+  * Configuração") is reused rather than a key being added: it already names
+  * this screen on the boot's AP progress bar. */
+ static const LangKey menuLabels[] = {TR_MENU_THEMES, TR_MENU_ALARMS, TR_MENU_SOUNDS, TR_MENU_LANG, TR_MENU_PASSWORD, TR_MENU_TOUCH_CAL, TR_MENU_LICENSE, TR_MENU_STATUS, TR_MENU_DISPLAY_OFFSET, TR_MENU_USERS, TR_PIN_POLICY, TR_AP_MODE, TR_MENU_CLOCK};
+ static_assert(sizeof(menuLabels) / sizeof(menuLabels[0]) == MENU_ITEM_COUNT,
+  "every Settings item needs its label here");
  int totalPages = (TOTAL_ITEMS + 3) / 4; if (totalPages == 0) totalPages = 1;
  if (_mainMenuPage >= totalPages) _mainMenuPage = totalPages - 1;
  if (_mainMenuPage < 0) _mainMenuPage = 0;
@@ -443,27 +408,20 @@ void DisplayManager::drawSettingsMain( ) {
  uint16_t txt = isSelected ? C_BG_MAIN : C_TEXT_MAIN;
  _driver.canvas->fillRoundRect(0, 0, itemW, 34, 8, bg);
  if (!isSelected) _driver.canvas->drawRoundRect(0, 0, itemW, 34, 8, C_TEXT_SUB);
- /* Items keep their table order, so the icon id IS the item id:
-  * 0 themes, 1 alarms, 2 sounds, 3 lang, 4 PIN, 5 touch-cal,
-  * 6 license, 7 status, 8 display-offset, 9 users. The v25 item 10 (PIN
-  * policy) borrows the PIN icon: it is the same subject, and a new glyph is
-  * flash for a picture nobody would read differently. The 2.7.1 item 11 (setup
-  * AP) borrows the language globe for the same reason — it is the network
-  * glyph this set has. Item 12 (date and time) has a clock of its own, id 10:
-  * no glyph here reads as time. */
+ /* The icon id IS the item id for the first ten items: 0 themes,
+  * 1 alarms, 2 sounds, 3 lang, 4 PIN, 5 touch-cal, 6 license, 7 status,
+  * 8 display-offset, 9 users. The v25 MENU_PIN_POLICY borrows the PIN icon:
+  * it is the same subject, and a new glyph is flash for a picture nobody
+  * would read differently. The 2.7.1 MENU_SETUP_AP borrows the language globe
+  * for the same reason — it is the network glyph this set has. MENU_CLOCK has
+  * a clock of its own, icon 10: no glyph here reads as time. */
  uiMenuIcon(_driver.canvas, 10, 9,
- (item == 10) ? 4 : (item == 11) ? 3 : (item == 12) ? 10 : item,
+ (item == MENU_PIN_POLICY) ? 4 : (item == MENU_SETUP_AP) ? 3 : (item == MENU_CLOCK) ? 10 : item,
  isSelected ? C_BG_MAIN : C_ACCENT);
  _driver.canvas->setFont(&simutFont9pt); _driver.canvas->setTextColor(txt);
- const char* label = tr(menuItems[item]);
  char numbered[40];
- if (_menuCount < MENU_ITEM_COUNT) {
- label = menuLabelNoNumber(label);
- } else if (item == 11) {
- /* The only row whose translation has no number of its own. */
- snprintf(numbered, sizeof(numbered), "%d. %s", (int)item + 1, label);
- label = numbered;
- }
+ const char* label = settingsMenuRowText(tr(menuLabels[item]), (uint8_t)mapIdx,
+  _menuCount, numbered, sizeof(numbered));
  _driver.canvas->setCursor(34, 24); _driver.canvas->print(label);
  _driver.canvas->fillTriangle(itemW - 20, 11, itemW - 20, 23, itemW - 10, 17, isSelected ? C_BG_MAIN : C_TEXT_SUB);
  }
@@ -839,9 +797,9 @@ void DisplayManager::drawApConfirm( ) {
  _forceSettingsRedraw = false;
 
  const bool isPt = (_currentLangIdx == LANG_PT);
- /* The same string the menu row uses. It carries no number today — the row
-  * gets one at draw time — and the strip is here so that a pack which bakes
-  * one in cannot put "12. " in a screen title. */
+ /* The same string the menu row uses. It carries no number — the row gets
+  * one at draw time — and the strip is here so that a pack which bakes one
+  * in cannot put "N. " in a screen title. */
  const char* titleTxt = menuLabelNoNumber(tr(TR_AP_MODE));
  const char* msgL1 = isPt ? "O aparelho sai da rede" : "The device leaves the";
  const char* msgL2 = isPt ? "e abre a rede de setup." : "LAN and opens its setup";
@@ -895,9 +853,9 @@ void DisplayManager::drawApConfirm( ) {
  * screen at any time. The calendar arithmetic is display/ClockEntry.h, tested
  * on the host; this file only draws it.
  *
- * Strings: the title is TR_MENU_CLOCK without its number. The hint is
- * hardcoded EN/PT, the rule this file follows for confirmations — the es-ES
- * pack has 62 B left of its resident ceiling after the menu row.
+ * Strings: the title is TR_MENU_CLOCK, the menu row's own string, stripped of
+ * the number a pack installed before 2026-10-02 still bakes in. The hint is
+ * hardcoded EN/PT, the rule this file follows for confirmations.
  *
  * Nobody answering is the 30 s idle guard in handleTouch( ): back to the
  * dashboard, which is what SKIP does. A unit back from a power cut with nobody

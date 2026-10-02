@@ -26,10 +26,10 @@ MIN
 Temperatura
 Umidade
 GERAR GRÁFICO
-1. Temas Visuais
-2. Limites de Alarme
-3. Sons de Alarme
-4. Idioma do Sistema
+Temas Visuais
+Limites de Alarme
+Sons de Alarme
+Idioma do Sistema
 Aplicando Tema...
 SALVAR
 Limites de Alarme
@@ -39,9 +39,9 @@ Umid Min
 Umid Max
 ENTRAR
 PULAR
-5. Alterar Senha
+Alterar Senha
 Nova Senha
-6. Calibrar Touch
+Calibrar Touch
 Calibração do Touch
 Toque na mira
 Calibração Concluída!
@@ -63,7 +63,7 @@ SIM
 NÃO
 Acesso Web
 Melodia
-7. Licença
+Licença
 Licença MIT
 ATIVO
 Silenciar 120s
@@ -79,9 +79,9 @@ MÉDIA
 DESVIO
 Erro
 Modo de Configuração
-8. Status do Sistema
 Status do Sistema
-9. Alinhamento da Tela
+Status do Sistema
+Alinhamento da Tela
 Alinhamento da Tela
 Ajuste +/-4 px. Salvar reinicia calibração do touch.
 Mantenha a tela pressionada: Modo AP...
@@ -116,7 +116,7 @@ Aplicando configurações...
 Reiniciando o sistema...
 Pressão
 Luminosidade
-10. Usuários
+Usuários
 Usuários
 NOVO
 Nome do usuário
@@ -154,12 +154,12 @@ PIN inválido!
 Quem está usando o painel?
 Nenhuma conta tem PIN
 Conta bloqueada
-11. Segurança do PIN
+Segurança do PIN
 Tamanho mínimo
 Teclado
 Caracteres
 Escolha um novo PIN
-13. Data e hora
+Data e hora
 Atualização de firmware
 Recebendo a nova versão
 Conferindo a assinatura

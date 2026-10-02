@@ -26,10 +26,10 @@ MIN
 Temperatura
 Humedad
 GENERAR GRÁFICO
-1. Temas Visuales
-2. Límites de Alarma
-3. Sonidos de Alarma
-4. Idioma del Sistema
+Temas Visuales
+Límites de Alarma
+Sonidos de Alarma
+Idioma del Sistema
 Aplicando Tema...
 GUARDAR
 Límites de Alarma
@@ -39,9 +39,9 @@ Hum Min
 Hum Max
 ENTRAR
 OMITIR
-5. Cambiar Contraseña
+Cambiar Contraseña
 Nueva Contraseña
-6. Calibración Táctil
+Calibración Táctil
 Calibración Táctil
 Toque la mira
 ¡Calibración Completada!
@@ -63,7 +63,7 @@ SÍ
 NO
 Acceso Web
 Melodía
-7. Licencia
+Licencia
 Licencia MIT
 ACTIVO
 Silenciar 120s
@@ -79,9 +79,9 @@ MEDIA
 DESV.
 Error
 Modo de Configuración
-8. Estado del Sistema
 Estado del Sistema
-9. Alineación de Pantalla
+Estado del Sistema
+Alineación de Pantalla
 Alineación de Pantalla
 Ajuste +/-4 px. Guardar borra la calib. táctil.
 Mantenga pulsada la pantalla: Modo AP...
@@ -116,7 +116,7 @@ Aplicando configuración...
 Reiniciando el sistema...
 Presión
 Luminosidad
-10. Usuarios
+Usuarios
 Usuarios
 NUEVO
 Nombre de usuario
@@ -154,12 +154,12 @@ bloqueado
 ¿Quién usa el panel?
 Ninguna cuenta tiene PIN
 Cuenta bloqueada
-11. Seguridad del PIN
+Seguridad del PIN
 Tamaño mínimo
 Teclado
 Caracteres
 Elija un nuevo PIN
-13. Fecha y hora
+Fecha y hora
 Actualización de firmware
 Recibiendo la nueva versión
 Comprobando la firma
