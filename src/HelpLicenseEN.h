@@ -343,6 +343,5 @@ Licence texts: THIRD_PARTY_NOTICES.md and
 LICENSES/ in the source repository.
 )raw"
 /* END generated: third-party list */
-R"raw(
-SIMUT v3 - Made in Brazil)raw";
+;
 #endif /* SIMUT_LICENSE_STUB */
