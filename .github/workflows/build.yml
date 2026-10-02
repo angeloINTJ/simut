@@ -166,13 +166,16 @@ jobs:
       # signature verifies, and every blob gets the verdict the C++ tests expect.
       # gen-trust --check: src/ota/ota_trust.h, the roots and floors every image
       # compiles, is what keys/ says — a key changed without regenerating it
-      # would ship images that trust the old one.
+      # would ship images that trust the old one. check-keys: the certificate
+      # the release jobs sign with is signed by the release root and not revoked
+      # by the policy, so a bad rotation fails here and not at a release.
       - name: OTA signature tool and vectors
         run: |
           pip install cryptography
           python3 tools/ota_sign.py selftest
           python3 tools/ota_sign.py vectors --check
           python3 tools/ota_sign.py gen-trust --check
+          python3 tools/ota_sign.py check-keys
 
       # ALL NINE native environments. Separate steps rather than one
       # `pio test -e a -e b ...` so a failure names itself in the Actions UI

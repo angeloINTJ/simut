@@ -46,6 +46,8 @@ Subcommands
   root-new     a root key, encrypted with a passphrase typed here; writes the public key file
   signer-new   a signer key and its certificate, signed by a root
   gen-trust    src/ota/ota_trust.h from keys/ (--check: fail if it is stale)
+  check-keys   keys/ holds together: the roots parse, the policy is sane, and every signer
+               certificate there is signed by the root of its scope and not revoked by it
   sign         append the trailer to a .bin, after checking the image may carry it
   verify       check a signed .bin the way the device does
   inspect      what a .bin says it is, what it trusts, and how it is signed
@@ -290,6 +292,70 @@ def known_roots(keys_dir=KEYS_DIR):
             (read_pub(os.path.join(keys_dir, "ota_root_bench.pub")), SCOPES["bench"])}
 
 
+def read_cert(path):
+    """A certificate file: the 137 bytes `signer-new` writes, or the same in hex, which is
+    the form keys/ keeps so a review can read what changed."""
+    raw = open(path, "rb").read()
+    if len(raw) == CERT_LEN:
+        return raw
+    try:
+        cert = bytes.fromhex(raw.decode("ascii").strip())
+    except (UnicodeDecodeError, ValueError):
+        cert = b""
+    if len(cert) != CERT_LEN:
+        raise ValueError(f"{path}: not a certificate ({CERT_LEN} bytes, or their hex)")
+    return cert
+
+
+def check_keys(keys_dir=KEYS_DIR):
+    """What is wrong with keys/, as a list of lines; empty when it holds together. The CI
+    signs with the certificate kept there, so a certificate from another root, or one
+    the compiled policy already revokes, has to fail here rather than at a release."""
+    problems = []
+    roots = {}
+    for scope, name in ((SCOPES["release"], "ota_root_release.pub"), (SCOPES["bench"], "ota_root_bench.pub")):
+        try:
+            roots[scope] = read_pub(os.path.join(keys_dir, name))
+        except (OSError, ValueError) as e:
+            problems.append(f"{name}: {e}")
+    lowest = {}
+    try:
+        with open(os.path.join(keys_dir, "ota_policy.json"), encoding="utf-8") as f:
+            policy = json.load(f)
+        secver = policy["security_version"]
+        if type(secver) is not int or secver < 1:
+            problems.append("ota_policy.json: security_version must be an integer of 1 or more")
+        for name, scope in SCOPES.items():
+            v = policy["lowest_serial"][name]
+            if type(v) is not int or v < 0:
+                problems.append(f"ota_policy.json: lowest_serial.{name} must be a whole number")
+            lowest[scope] = v
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        problems.append(f"ota_policy.json: {e!r}")
+    certs = sorted(n for n in os.listdir(keys_dir) if n.startswith("ota_signer_") and n.endswith(".cert"))
+    for name in certs:
+        try:
+            cert = read_cert(os.path.join(keys_dir, name))
+        except ValueError as e:
+            problems.append(str(e))
+            continue
+        serial, scope = struct.unpack("<IB", cert[0:5])
+        if scope not in roots or cert[5:8] != b"\0\0\0":
+            problems.append(f"{name}: scope {scope} or reserved bytes are not a certificate's")
+            continue
+        try:
+            pub_from_bytes(cert[8:73])
+        except ValueError:
+            problems.append(f"{name}: the signer key is not a point on the curve")
+            continue
+        if not verify_digest(roots[scope], cert_digest(cert[:CERT_BODY_LEN]), cert[73:137]):
+            problems.append(f"{name}: not signed by the {'release' if scope == 1 else 'bench'} root in keys/")
+        if serial < lowest.get(scope, 0):
+            problems.append(f"{name}: serial {serial} is below the lowest the policy accepts "
+                            f"({lowest.get(scope)}): images built now would refuse it")
+    return problems, certs
+
+
 # What the self-check of `sign` means when it fails: the image, once installed, would refuse
 # the next image from this same signer. An update that ends the updates.
 SELF_CHECK_WHY = {
@@ -306,6 +372,10 @@ def sign_image(image, signer_key, cert, roots, env=None, security_version=None):
     an image never refuses itself; a lower one is for the rig's rollback case only."""
     if len(cert) != CERT_LEN:
         raise SignRefused("a certificate is 137 bytes")
+    if pub_bytes(signer_key) != cert[8:73]:
+        # A key rotated in one place and not the other (the CI secret, keys/): say so,
+        # instead of letting the self-check below call it an untrusted root.
+        raise SignRefused("the key is not the one this certificate certifies")
     if image[-len(MAGIC):] == MAGIC:
         raise SignRefused("the image is already signed")
     tag = env_tag(image)
@@ -395,7 +465,10 @@ def cmd_signer_new(a):
 
 def cmd_sign(a):
     image = open(a.input, "rb").read()
-    cert = open(a.cert, "rb").read()
+    try:
+        cert = read_cert(a.cert)
+    except ValueError as e:
+        sys.exit(str(e))
     try:
         roots = known_roots(a.keys)
         blob, info = sign_image(image, load_key(a.key), cert, roots, a.env, a.security_version)
@@ -423,6 +496,14 @@ def cmd_gen_trust(a):
         f.write(text)
     print(f"{os.path.relpath(a.out, ROOT)} written from keys/")
     return 0
+
+
+def cmd_check_keys(a):
+    problems, certs = check_keys(a.keys)
+    for p in problems:
+        print(f"keys/{p}")
+    print(f"keys/: {len(certs)} signer certificate(s), {len(problems)} problem(s)")
+    return 1 if problems else 0
 
 
 def cmd_verify(a):
@@ -786,6 +867,51 @@ def cmd_selftest(a):
               for m in re.finditer(r"static const uint8_t (\w+)\[\d+\] = \{(.*?)\};", text, re.S)}
     expect("gen-trust: the release block", arrays.get("kTrustRelease") == rel_trust)
     expect("gen-trust: the bench block", arrays.get("kTrustBench") == bench_trust)
+
+    # A key and a certificate that do not belong together (a rotation done in the CI
+    # secret and not in keys/, or the other way) are named as such.
+    try:
+        sign_image(image(), bench_signer, rel_cert, roots)
+        expect("sign: a key that is not the certificate's", False, "signed")
+    except SignRefused as e:
+        expect("sign: a key that is not the certificate's", "not the one this certificate" in str(e), f"refused: {e}")
+
+    # Certificates: keys/ keeps them in hex; signer-new writes the 137 bytes.
+    with tempfile.TemporaryDirectory() as d:
+        binp, hexp, badp = (os.path.join(d, n) for n in ("c.bin", "c.hex", "c.bad"))
+        open(binp, "wb").write(rel_cert)
+        open(hexp, "w").write(rel_cert.hex() + "\n")
+        open(badp, "w").write(rel_cert.hex()[:-2] + "\n")
+        expect("certificate: binary and hex read the same", read_cert(binp) == read_cert(hexp) == rel_cert)
+        try:
+            read_cert(badp)
+            expect("certificate: a short one is refused", False)
+        except ValueError:
+            expect("certificate: a short one is refused", True)
+
+    # check-keys: what the CI signs with has to be what keys/ vouches for.
+    def keys_dir(d, certs, lowest_release=1):
+        write_pub(os.path.join(d, "ota_root_release.pub"), root_pub)
+        write_pub(os.path.join(d, "ota_root_bench.pub"), bench_pub)
+        with open(os.path.join(d, "ota_policy.json"), "w") as f:
+            json.dump({"security_version": 1, "lowest_serial": {"release": lowest_release, "bench": 1}}, f)
+        for name, c in certs.items():
+            open(os.path.join(d, name), "w").write(c.hex() + "\n")
+
+    with tempfile.TemporaryDirectory() as d:
+        keys_dir(d, {"ota_signer_release.cert": rel_cert, "ota_signer_bench.cert": bench_cert})
+        problems, certs = check_keys(d)
+        expect("check-keys: a sound keys/", not problems and len(certs) == 2, f"{problems}")
+    with tempfile.TemporaryDirectory() as d:
+        keys_dir(d, {"ota_signer_release.cert": make_cert(bench_root, pub_bytes(signer), 5, 1)})
+        expect("check-keys: a release certificate from the bench root", len(check_keys(d)[0]) == 1)
+    with tempfile.TemporaryDirectory() as d:
+        keys_dir(d, {"ota_signer_release.cert": rel_cert}, lowest_release=6)
+        expect("check-keys: a certificate the policy revokes", len(check_keys(d)[0]) == 1)
+    with tempfile.TemporaryDirectory() as d:
+        keys_dir(d, {})
+        open(os.path.join(d, "ota_signer_release.cert"), "w").write("not hex\n")
+        expect("check-keys: a file that is not a certificate", len(check_keys(d)[0]) == 1)
     bad = [c for c in cases if not c[1]]
     for name, ok, got, want in cases:
         print(f"[{'ok' if ok else 'FAIL'}] {name}: {got}" + ("" if ok or not want else f" (wanted {want})"))
@@ -806,6 +932,7 @@ def main():
     s.add_argument("--no-encrypt", action="store_true", help="for a key that goes straight into a CI secret")
     s = sub.add_parser("gen-trust"); s.add_argument("--keys", default=KEYS_DIR)
     s.add_argument("--out", default=TRUST_HEADER); s.add_argument("--check", action="store_true")
+    s = sub.add_parser("check-keys"); s.add_argument("--keys", default=KEYS_DIR)
     s = sub.add_parser("sign")
     s.add_argument("--key", required=True); s.add_argument("--cert", required=True)
     s.add_argument("--in", dest="input", required=True); s.add_argument("--out", dest="output", required=True)
@@ -827,6 +954,7 @@ def main():
     sub.add_parser("selftest")
     a = p.parse_args()
     fn = {"root-new": cmd_root_new, "signer-new": cmd_signer_new, "gen-trust": cmd_gen_trust,
+          "check-keys": cmd_check_keys,
           "sign": cmd_sign, "verify": cmd_verify, "inspect": cmd_inspect,
           "vectors": cmd_vectors, "selftest": cmd_selftest}[a.cmd]
     sys.exit(fn(a) or 0)

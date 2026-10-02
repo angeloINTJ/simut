@@ -5,21 +5,33 @@
 # verifies the SHA-256, scans the file for the SIMUT-ENV tag, and only then
 # stages it. Every one of those checks needs this job to have run: without a
 # manifest the app has nothing to compare against, and it refuses to update.
+#
+# Since signed OTA (docs/analysis/OTA_ASSINADA.md, 2026-10-01) the images go
+# through three jobs. `build` compiles, with no secret in reach. `sign` runs in
+# the `release` Environment: GitHub hands it the signing key only after the
+# maintainer approves the run, and tools/ota_sign.py refuses an image that
+# trusts the bench root or would refuse its own successor, then every signed
+# file is verified again before it leaves the job. `publish` writes the
+# manifest, the checksums and the attestation over the signed images, so what
+# an operator verifies is what the device installs.
+#
+# workflow_dispatch builds and signs without publishing: the candidate the
+# release gate installs on the rig (AGENTS.md, "Retenção de dados no update"),
+# signed the way the release will be. It is the `signed-images` artifact of the
+# run.
 name: OTA release assets
 
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-  images:
+  build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      # Build provenance (the last step): the OIDC token signs the attestation,
-      # and attestations: write stores it against this repository.
-      id-token: write
-      attestations: write
     steps:
       - uses: actions/checkout@v7
       - name: Set up Python
@@ -59,7 +71,103 @@ jobs:
             mkdir -p "release/build/$env"
             cp ".pio/build/$env/firmware.bin" "release/build/$env/firmware.bin"
           done
+      - name: Hand the images to the signing job
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-images
+          path: release/build/
+          retention-days: 1
+          if-no-files-found: error
+
+  sign:
+    needs: build
+    runs-on: ubuntu-latest
+    # The Environment is the approval: its secret reaches this job only after
+    # the maintainer, its required reviewer, approves this run. It admits the
+    # `main` branch and `v*` tags and nothing else.
+    environment: release
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+      - name: Install the signing tool's one dependency
+        run: pip install cryptography
+      - uses: actions/download-artifact@v8
+        with:
+          name: unsigned-images
+          path: release/build
+      - name: Sign the images
+        # The key lives in a 0600 file for the length of this step and is
+        # shredded on the way out, whatever happens. `check-keys` first: the
+        # certificate signed with has to be one keys/ vouches for. `sign`
+        # refuses a key that is not the certificate's, an image that trusts the
+        # bench root, and one that would refuse the next image from this key;
+        # `verify --running` then checks each file the way the image it came
+        # from would, as the device running it will.
+        env:
+          OTA_SIGNER_KEY: ${{ secrets.OTA_SIGNER_KEY }}
+        run: |
+          set -euo pipefail
+          python3 tools/ota_sign.py check-keys
+          umask 077
+          key="$RUNNER_TEMP/signer.p8"
+          trap 'shred -u "$key" 2>/dev/null || rm -f "$key"' EXIT
+          printf '%s\n' "$OTA_SIGNER_KEY" > "$key"
+          for env in pico_w_release pico_w_alpha pico_w_air; do
+            bin="release/build/$env/firmware.bin"
+            python3 tools/ota_sign.py sign --key "$key" --cert keys/ota_signer_release.cert \
+              --in "$bin" --out "$bin.signed"
+            python3 tools/ota_sign.py verify --in "$bin.signed" --running "$bin"
+            mv "$bin.signed" "$bin"
+            python3 tools/ota_sign.py inspect --in "$bin"
+          done
+      - name: Hand the signed images on
+        uses: actions/upload-artifact@v7
+        with:
+          # On a dispatch, this is the release candidate: long enough to go
+          # through the retention test on the rig.
+          name: signed-images
+          path: release/build/
+          retention-days: 30
+          if-no-files-found: error
+
+  publish:
+    needs: sign
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      # Build provenance (the last step): the OIDC token signs the attestation,
+      # and attestations: write stores it against this repository.
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v8
+        with:
+          name: signed-images
+          path: release/build
+      - name: Refuse anything the release key did not sign
+        # The last check before the files are public, independent of how the
+        # signing job got there: each image verifies against the release root
+        # committed in keys/, for its own variant.
+        run: |
+          set -euo pipefail
+          pip install cryptography
+          for env in release alpha air; do
+            python3 tools/ota_sign.py verify --in "release/build/pico_w_$env/firmware.bin" \
+              --env "$env" --root-pub keys/ota_root_release.pub
+          done
       - name: Manifest
+        # The .uf2 is made from the signed .bin, trailer and all: the bytes
+        # in flash end up the same whether the image arrives over USB or over
+        # the air, and nothing on the USB path reads the trailer.
         run: python3 tools/release_manifest.py --out release/ota --build-dir release/build
       - name: Language packs
         # The .lng packs live in the device's LittleFS, NOT in the firmware
