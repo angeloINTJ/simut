@@ -12,7 +12,7 @@ substance lives there, not here.
 |---|---|
 | Firmware source | `src/` — ~56k lines, C++17, RP2040 / arduino-pico |
 | Web UI source | `WebUI.h` at the repository root, all 8 languages. `tools/build_webui_gz.py` compresses it into `src/WebUI_GZ.h` on every build — never edit the generated header |
-| Tools | `tools/` — [`tools/README.md`](tools/README.md) says which of the 141 scripts are live |
+| Tools | `tools/` — [`tools/README.md`](tools/README.md) says which of the 146 scripts are live |
 | Documentation | `docs/` — [`docs/README.md`](docs/README.md) marks each document **Living** or **Snapshot** |
 | Interface standard | [`ANGULO.md`](ANGULO.md) — the Ângulo guide for anything with a screen or a reader: web UI, site, README, docs, brand. [`AGENTS.md`](AGENTS.md) §7 says how it applies here and what `tools/check_angulo.py` enforces in CI |
 | Tests | `test/` — nine native environments, `pio test -e native…` |
@@ -51,7 +51,11 @@ locally. When one fires, it is usually right:
   after each image's build, and a local `pio run` passes an image that is over.
   Run `python3 tools/check_flash_budget.py <env> <build.log>` yourself — on
   2026-10-02 four images of a PR went to CI 64 to 624 B over, past a local
-  build that said nothing.
+  build that said nothing. It also holds each `firmware.bin` to the size
+  recorded as `"bin"`: an image that grows records the new size, and its row in
+  the OTA headroom table of `docs/analysis/PLANO_STABLE.md` §3.1, in the same
+  change (`--table` checks the two agree; the gate prints the numbers).
+  `pico_w_test_https` is exempt from the OTA ceiling (`ota_exempt`).
 - **Log codes** — a new `LogCode` means editing `tools/logcodes.tsv` and
   running `tools/gen_logcodes.py`, never the generated `.h`.
 - **Language packs** — a new `TRL("…")` literal must be added to the `@TRL`
