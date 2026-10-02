@@ -523,36 +523,36 @@
   "21,428. Against the published v2.7.4 .bin: release +1,376, alpha and air +32."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-10-02 feat/ota-panel-screen on main 93f069a: all seven measured with the firmware-update screen (src/OtaScreen.h, src/DisplayManager_Ota.cpp): each step of an update on the panel, drawn from Core 0 while the stage holds Core 1, the alpha's two LCD lines, the boot line after an install, and 18 new strings. Against main: release +3,272, test +3,592, test_https +3,600, asserts +3,272, alpha +1,032, air +584, pico2_w_release +2,976 B. By symbol, on the release: drawOtaScreen +1,020, the text layout (otaPrepare, otaDraw, otaCentred, otaPercentText, otaBar) +650, showOta, otaProgress, otaEnd and otaPaintFromCore0 +368, otaTick +240, the three OTA handlers' hooks +216, the constructor +96 (the new members), handleTouch +72, the boot line +60, the 18 English strings +416 of literals and +72 of table, the 4-byte compare-and-swap from libatomic +42. Static RAM +72 B (18 more slots in the resident pack's string table). Budgets raised by the growth, which keeps each margin where it was; air's stays, 632 B under it. measured is the zopfli image PlatformIO prints.",
+ "measured_on": "2026-10-02 feat/accounts-apply-live on main 35c9678: all seven measured with accounts applying live (A-08): a web session checked against its live account on every request (src/SessionCheck.h), the panel's identity checked at every action, the dry run that rehearses users, and log code 312. Against main: release +624, test +680, test_https +664, asserts +640, alpha +352, air +280, pico2_w_release +664 B. By symbol, on the release: getAuthPerms +204 and AppManager::panelSessionCurrent +184 (the check and the log line with the account's name), handleApiForceChpass +60 (re-stamping the caller's session), completeLogin +32, panelIdentify +20, assignTempPassword +24 net, the web UI +28 compressed. Budgets of release, test, asserts and pico2_w_release raised by the growth, which keeps each margin where it was; test_https, alpha and air stay under theirs. measured is the zopfli image PlatformIO prints.",
  "measured_at_commit": "2026-10-02 chore/v2.9.0 on main e5cd23b (#224 merged; SIMUT_VERSION 2.9.0, the only source change; budgets unchanged). All seven rebuilt here: test, alpha, air and pico2_w_release equal to the figures #224 recorded, release, test_https and asserts 8 B under them. measured is the zopfli image PlatformIO prints.",
  "envs": {
   "pico_w_release": {
-   "budget": 1013788,
-   "measured": 1013676
+   "budget": 1014444,
+   "measured": 1014332
   },
   "pico_w_test": {
-   "budget": 1018836,
-   "measured": 1018196
+   "budget": 1019540,
+   "measured": 1018900
   },
   "pico_w_test_https": {
    "budget": 1026084,
-   "measured": 1025388
+   "measured": 1026076
   },
   "pico_w_asserts": {
-   "budget": 1016012,
-   "measured": 1015972
+   "budget": 1016676,
+   "measured": 1016636
   },
   "pico_w_alpha": {
    "budget": 969108,
-   "measured": 968204
+   "measured": 968588
   },
   "pico_w_air": {
    "budget": 1012264,
-   "measured": 1011632
+   "measured": 1011952
   },
   "pico2_w_release": {
-   "budget": 986792,
-   "measured": 986560,
+   "budget": 987504,
+   "measured": 987272,
    "ceiling": 3141632
   }
  }

@@ -47,7 +47,11 @@ locally. When one fires, it is usually right:
 - **Flash budget** — `tools/check_flash_budget.py` against
   `tools/flash_budget.json`. The budget is a high-water mark, not the linker
   ceiling. Growing past it is allowed; doing so without editing the budget in
-  the same change is not.
+  the same change is not. ⚠️ This one is **not** an extra_script: CI runs it
+  after each image's build, and a local `pio run` passes an image that is over.
+  Run `python3 tools/check_flash_budget.py <env> <build.log>` yourself — on
+  2026-10-02 four images of a PR went to CI 64 to 624 B over, past a local
+  build that said nothing.
 - **Log codes** — a new `LogCode` means editing `tools/logcodes.tsv` and
   running `tools/gen_logcodes.py`, never the generated `.h`.
 - **Language packs** — a new `TRL("…")` literal must be added to the `@TRL`
