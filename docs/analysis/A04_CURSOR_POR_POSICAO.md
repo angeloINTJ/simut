@@ -47,7 +47,7 @@ pode voltar de verdade.
 |---|---|---|
 | O que muda | o formato do histórico (V6): +4 B por bloco | só o arquivo do cursor (`/tcursor`, hoje 4 B) |
 | Quem lê o que mudou | o firmware, `tools/history_v5.py`, o portão de paridade, o decodificador da página (caminho de envelope) e o `.wip` | a coleta e a contagem de pendentes da telemetria |
-| Dados que já existem | os arquivos V5 continuam com o cursor por tempo | o carimbo antigo segue valendo para os arquivos de dia até o do último envio, até a primeira entrega em cada um; o resto vai por posição desde a troca |
+| Dados que já existem | os arquivos V5 continuam com o cursor por tempo | o carimbo antigo segue valendo para os arquivos de dia até o do último envio, até a primeira entrega em cada um, e cede se estiver à frente do relógio; o resto vai por posição desde a troca |
 | O que continua pulando | nada | uma escrita atrasada num arquivo de mais de K dias. Um arquivo de dia apagado, ou trazido de volta por uma restauração de backup, sai de novo inteiro |
 
 **B em detalhe.**
@@ -99,14 +99,23 @@ telemetria, que é onde está o defeito.
   registros seguidos de um mesmo bloco. Um lote de 250 registros de blocos de
   uma hora são cinco trechos. Uma posição por registro seriam 4 KB de heap ao
   lado do handshake TLS; os 16 trechos custam 256 B.
+- **O cursor antigo adiantado cede.** O carimbo que o firmware antigo
+  entregou foi limitado ao relógio daquele momento, então ele só fica à frente
+  do relógio se o relógio voltou depois. Nesse caso a regra antiga seguraria
+  todo registro gravado depois, até o relógio alcançá-lo, e então os pularia: o
+  próprio defeito, vivo no dia da atualização. Com o relógio confiável (NTP ou
+  acerto à mão), a regra antiga sai e o arquivo do dia vai por posição, de novo
+  e inteiro, com o evento 554. Achado na bancada (abaixo).
 - **A contagem de pendentes lê só cabeçalhos.** Na transição, um arquivo ainda
   na regra antiga tem só o primeiro carimbo de cada bloco, e o bloco que cruza
   o carimbo antigo conta como enviado até a primeira entrega, que dá posição ao
   arquivo. A coleta decide registro a registro, então isso é a estimativa
   curta, nunca um registro retido.
-- **Custo:** cerca de +2.000 B de flash por imagem e cerca de 400 B de heap. A
-  imagem `pico_w_test_https`, com o #230, ficou 35 B abaixo do teto de OTA (B6 do
-  [PLANO_STABLE.md](PLANO_STABLE.md)).
+- **Custo:** +1.888 B de flash na release e cerca de 400 B de heap; a imagem
+  `pico_w_test_https`, com o #230, ficou 147 B abaixo do teto de OTA (B6 do
+  [PLANO_STABLE.md](PLANO_STABLE.md)). No rig, um envio no regime estável
+  levou +20 ms (69 → 89 ms do `tel sync` à chegada, n = 5); o ciclo de um
+  dreno ficou parecido (249–271 → 280–290 ms por lote cheio).
 
 ## Como provar
 
@@ -121,14 +130,23 @@ telemetria, que é onde está o defeito.
   Cada caso roda antes contra a regra por tempo e tem de falhar exatamente onde
   ela pula. No #232, 11 dos 12 primeiros falharam assim. Os da conferência e da
   tabela cheia vieram depois, cada um falhando contra a regra anterior.
-- **Ferro.** O roteiro:
-  1. adiantar o relógio à mão;
-  2. deixar gravar e enviar para o coletor de bancada;
-  3. voltar o relógio;
-  4. deixar gravar de novo.
-
-  Na `main`, os registros gravados depois da volta não chegam ao coletor; na
-  branch, chegam todos. A conferência é contra a flash, como no dreno de 23/09.
+- **Ferro (02/10/2026, `pico_w_test`, `main` 51dd1e6 × a branch, um coletor
+  HTTP nesta máquina).** A conferência é contra a flash: o arquivo do dia e o
+  bloco aberto, decodificados com `tools/history_v5.py`.
+  - **O defeito.** Relógio 40 min à frente por 4 min, depois de volta por 6. Na
+    `main`, 4 de 4 registros adiantados chegaram e **0 de 7** dos gravados
+    depois da volta, com o aparelho dizendo 0 pendentes. Na branch, 4 de 4 e
+    **7 de 7**.
+  - **Atualizar e voltar.** Da `main` para a branch: nada repetido, e 9 de 9
+    registros do intervalo da troca entregues. Da branch para a `main`: nada
+    repetido, 8 de 8.
+  - **Atualizar com o cursor antigo adiantado** (a `main` logo depois do
+    defeito, 31 min à frente). A branch ainda sem a regra acima: 0 requisições
+    em 180 s, 0 pendentes. Com ela: 13 s depois do boot, o arquivo do dia saiu
+    de novo (603 registros), os 7 que a `main` tinha pulado chegaram, e os 487
+    registros do dia estavam no coletor.
+  - **A imagem final** (depois dos cortes de flash): o dreno de 30 dias mandou
+    2.544 registros; os 2.541 já vistos antes, idênticos campo a campo.
 
 ## Decisões
 
