@@ -45,7 +45,7 @@ Como o console se comporta:
 
 ```text
 ===========================================
- SIMUT IoT CLI 2.8.0
+ SIMUT IoT CLI 2.9.0
  Digite 'help' (ou 'ajuda', '?')
  For English: 'language en'
 ===========================================
@@ -82,7 +82,7 @@ A senha do console por Bluetooth é a senha da conta `admin` da interface web.
 Senha do admin: **********
 
 ===========================================
- SIMUT IoT CLI 2.8.0
+ SIMUT IoT CLI 2.9.0
  Acesso concedido. Digite 'help'.
  (For English: 'language en')
 ===========================================
@@ -222,7 +222,7 @@ SIMUT> show system info
  [SISTEMA]
  Dispositivo:
  simut
- Firmware: 2.8.0
+ Firmware: 2.9.0
  Serial: E66138935F2C1A2B
  [SENSORES]
  Precisao DS18: 12-bit
