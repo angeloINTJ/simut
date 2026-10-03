@@ -81,7 +81,10 @@ anterior se a nova não se confirmar.
 - **O LittleFS e a EEPROM ficam onde o builder já os põe.** O builder da
   plataforma calcula `FS_START = 0x10000000 + flash − EEPROM − filesystem_size`
   (`builder/main.py:78-80`). Com `board_build.filesystem_size = 1020k`, isso
-  dá `0x10300000`. Muda só o tamanho, de 1 MB para 1.020 KB.
+  dá `0x10300000`. O fim fica onde estava, e o começo anda 4 KB, de
+  `0x2FF000` para `0x300000`. Uma placa que já rodava a imagem de antes perde
+  o LittleFS ao mudar de layout, se ele não for levado junto; a da bancada foi
+  migrada em 03/10/2026 (`tools/rp2350/README.md`, no passo 3).
 - **O teto de uma imagem passa a ser 1.532 KB.** O
   `flash_budget.json` e a tabela de folga da §3.1 do `PLANO_STABLE.md` mudam
   com ele. A imagem release do RP2350 hoje tem 1.005.352 B, ou 64 % de um slot.
