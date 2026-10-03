@@ -232,13 +232,45 @@ a byte depois, e os números estão em cada pull request. Entre elas:
   escrever nela: `"dev":"simuttft"`, o MAC da unidade, as leituras dos cinco
   sensores, e os dez códigos de alarme como um JSON que abre.
 
+O portão de release (`AGENTS.md` §2) rodou na candidata que o CI assinou no
+`main` (execução 37132567925), na mesma placa, a partir da v2.9.0 publicada com
+a configuração da bancada. As imagens publicadas trazem os mesmos bytes de
+imagem; a assinatura é delas, porque cada execução de assinatura faz uma nova.
+
+- **A atualização a partir da v2.9.0,** completa, pelo ar na porta 8080:
+  `2.10.0`, os cinco sensores lendo, todos os valores de configuração que a API
+  web informa iguais (567 na release), o arquivo de configuração idêntico byte a
+  byte, e o `.bkp` de volta com 69 de 74 arquivos idênticos. Os outros cinco
+  são o log, o histórico e o cursor da telemetria, que mudam enquanto o aparelho
+  roda. O mesmo no Air e no alpha (70 de 74 em cada), onde as opções próprias
+  do Air, que uma atualização apaga, voltaram com o `.bkp`.
+- **A candidata sobre ela mesma,** nas três, com a candidata conferindo a
+  assinatura (`v` 0): o mesmo.
+- **De volta à v2.9.0 e de novo para cima,** pelo ar: o `.bin` publicado da
+  v2.9.0 aceito (`v` 0), e a configuração igual nos dois sentidos.
+- **Recusadas,** com a configuração intacta antes e depois de um reinício: uma
+  imagem sem assinatura (8), a imagem do Air assinada (7) e a candidata com um
+  byte trocado (9).
+- **Um envio cortado aos 400 kB, seguido de um reinício,** e o mesmo com o
+  sistema de arquivos cheio até os últimos 8 KB e esvaziado entre o corte e o
+  reinício: a configuração intacta.
+- **30 minutos** sem reinício, os cinco sensores válidos em todas as amostras.
+  Uma das 120 leituras perdeu o enquadramento chunked (#189, em *Conhecido*). A
+  suíte web na imagem de teste: 87 aprovados, 0 falhas.
+- **O LCD do alpha,** um HD44780 posto na bancada no lugar do painel de toque:
+  cada passo de uma atualização (`Atualizando...`, `Conferindo a
+  assinatura...`, `Imagem conferida`, `Instalando...`), as três recusas pelo
+  nome, o envio cortado, e as três páginas do ponto de acesso depois do `ap`.
+  Depois da terceira recusa seguida o alpha reiniciou pelo watchdog, com a
+  configuração intacta (em *Conhecido*).
+
 ### Atualizando
 
 - **Da v2.9.0:** pelo ar, na página Arquivos, com o `.bin` desta release. A
   configuração e o cursor da telemetria passam sozinhos.
 - **Voltar para a v2.9.0:** pelo ar com o `.bin` assinado da v2.9.0 (as duas
-  levam o nível de segurança 1; lido no código), ou pelo USB. A configuração
-  fica, e a v2.9.0 lê o cursor que esta versão grava.
+  levam o nível de segurança 1; conferido na bancada), ou pelo USB. A
+  configuração fica, e a v2.9.0 lê o cursor que esta versão grava.
 - **Da v2.8.x ou anterior:** leia antes as notas de *Atualizando* da v2.9.0.
 - **O gerenciador de frota do simut-rx precisa da v1.9.1 ou posterior para
   restaurar um backup.** A aplicação agora exige antes uma conferência do mesmo
@@ -267,7 +299,16 @@ a byte depois, e os números estão em cada pull request. Entre elas:
 
 - **Uma resposta em partes (chunked) às vezes perde o enquadramento** (#189):
   0,15 a 0,6 % das leituras de `/api/status` num laço apertado. O pedido seguinte
-  dá certo.
+  dá certo. Na bancada ela também quebrou um de nove downloads do backup antes
+  de uma atualização; a página então diz que o download falhou e não começa a
+  atualização.
+- **No alpha, gravar a configuração pode reiniciar o aparelho pelo watchdog.** A
+  gravação escreve na flash como se o Core 1 estivesse estacionado, porque no
+  alpha o pedido para estacioná-lo responde sim sem estacionar, e o laço do LCD
+  continua rodando da flash que está sendo escrita. É assim desde a primeira
+  build do alpha, em todas as versões. Na bancada aconteceu uma vez, depois da
+  terceira de três atualizações recusadas seguidas, e a configuração voltou
+  intacta. O conserto vem depois desta release.
 - **No alpha, as mensagens do log em pt-BR ou es-ES saem vazias**, pelo código:
   as buscas de tradução dele devolvem um texto vazio em vez de nenhum.
 - **Linhas acentuadas da tela de boot mostram `?`**, pelo código: a caixa do boot
@@ -292,9 +333,8 @@ a byte depois, e os números estão em cada pull request. Entre elas:
   Ele deixa de fora `{MAINT}`, `{LO}`, `{HI}`, `{UNTIL}` e `{USER}`, que o
   aparelho e a prévia tratam, e os códigos `alarm_on` e `alarm_lim`. O capítulo
   22 do manual lista todos.
-- Não conferido no hardware: a tela de atualização no LCD do alpha, o LCD do
-  alpha com o ponto de acesso no ar, a linha de boot depois de uma instalação,
-  que o boot mostra antes de a web poder capturá-la, e o lado do painel da
+- Não conferido no hardware: a linha de boot depois de uma instalação, que o
+  boot mostra antes de a web poder capturá-la, e o lado do painel da
   conferência de sessão (#230), que os testes do host fixam.
 
 ## v2.9.0 (2026-10-02)

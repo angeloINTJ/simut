@@ -218,13 +218,45 @@ after, and the numbers are in each pull request. Among them:
   unit without writing to it: `"dev":"simuttft"`, the unit's MAC, its five
   sensors' readings, and the ten alarm codes as JSON that parses.
 
+The release gate (`AGENTS.md` §2) ran on the candidate the CI signed on `main`
+(run 37132567925), on the same board, from the published v2.9.0 with the bench's
+configuration. The published images carry the same image bytes; their signature
+is their own, because every signing run makes a new one.
+
+- **The update from v2.9.0,** complete, over the air on port 8080: `2.10.0`,
+  the five sensors reading, every configuration value the web API reports
+  unchanged (567 on the release), the configuration file identical byte for
+  byte, and the `.bkp` back with 69 of 74 files identical. The other five are
+  the log, the history and the telemetry cursor, which move while the device
+  runs. The same on the Air and the alpha (70 of 74 on each), where the Air's
+  own options, which an update erases, came back with the `.bkp`.
+- **The candidate over itself,** on all three, the candidate checking the
+  signature (`v` 0): the same.
+- **Back to v2.9.0 and up again,** over the air: v2.9.0's published `.bin`
+  accepted (`v` 0), and the configuration unchanged both ways.
+- **Refused,** with the configuration intact before and after a reset: an
+  unsigned image (8), the Air's signed image (7) and the candidate with one
+  byte changed (9).
+- **An upload cut at 400 kB, then a reset,** and the same with the filesystem
+  filled to its last 8 KB and emptied between the cut and the reset: the
+  configuration intact.
+- **30 minutes** without a restart, the five sensors valid in every sample. One
+  of the 120 reads lost its chunked framing (#189, under *Known*). The web suite
+  on the test image: 87 passed, 0 failed.
+- **The alpha's LCD,** an HD44780 put on the bench in place of the touch
+  display: each step of an update (`Atualizando...`, `Conferindo a
+  assinatura...`, `Imagem conferida`, `Instalando...`), the three refusals by
+  name, the cut upload, and the access point's three pages after `ap`. After
+  the third refusal in a row the alpha restarted through the watchdog, with the
+  configuration intact (under *Known*).
+
 ### Upgrading
 
 - **From v2.9.0:** over the air, from the Files page, with the `.bin` of this
   release. The configuration and the telemetry cursor carry over by themselves.
 - **Going back to v2.9.0:** over the air with v2.9.0's signed `.bin` (both
-  carry security version 1; read from the code), or over USB. The configuration
-  stays, and v2.9.0 reads the cursor this release writes.
+  carry security version 1; checked on the bench), or over USB. The
+  configuration stays, and v2.9.0 reads the cursor this release writes.
 - **From v2.8.x or older:** read the *Upgrading* notes of v2.9.0 first.
 - **The fleet manager in simut-rx needs v1.9.1 or later to restore a backup.**
   The apply now needs a validate of the same backup first. In v1.9.0,
@@ -250,7 +282,16 @@ after, and the numbers are in each pull request. Among them:
 ### Known, and not fixed here
 
 - **A chunked reply occasionally loses its framing** (#189): 0.15 to 0.6 % of
-  `/api/status` reads in a tight loop. The next request succeeds.
+  `/api/status` reads in a tight loop. The next request succeeds. On the bench
+  it also broke one of nine backup downloads before an update; the page then
+  says the download failed and does not start the update.
+- **On the alpha, saving the configuration can restart the device through the
+  watchdog.** The save writes the flash as if Core 1 were parked, because the
+  alpha's call to park it answers yes without parking it, so the LCD loop keeps
+  running from the flash being written. It has been so since the alpha's first
+  build, in every version. On the bench it happened once, after the third of
+  three refused updates in a row, and the configuration came back intact. The
+  fix follows this release.
 - **On the alpha, the log's messages in pt-BR or es-ES come out empty**, by the
   code: its translation lookups return an empty string instead of none.
 - **Accented lines on the boot screen print `?`**, by the code: the boot box
@@ -276,8 +317,7 @@ after, and the numbers are in each pull request. Among them:
   out `{MAINT}`, `{LO}`, `{HI}`, `{UNTIL}` and `{USER}`, which the device and
   the preview handle, and the `alarm_on` and `alarm_lim` codes. Chapter 22 of
   the manual lists them all.
-- Not checked on hardware: the update screen on the alpha's LCD, the alpha's
-  LCD with the access point up, the boot line after an install, which the boot
+- Not checked on hardware: the boot line after an install, which the boot
   shows before the web can capture it, and the panel's side of the session
   check (#230), which host tests pin.
 
