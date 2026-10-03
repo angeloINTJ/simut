@@ -11001,6 +11001,7 @@ python3 tools/history_v5.py --dump-csv 20260923.h5 --interval 300 &gt; 20260923.
 <ul>
 <li><strong>Para abrir uma pasta,</strong> toque no nome dela.</li>
 <li><strong>Para baixar um arquivo,</strong> toque no nome dele.</li>
+<li><strong>Para ler um arquivo de texto,</strong> toque no olho ao lado do nome (<a href="#cap-17-ver">Ver um arquivo de texto</a>).</li>
 <li><strong>Um cadeado</strong> no lugar da caixa de marcar indica um arquivo protegido: o firmware o reescreve a cada boot, e ele não pode ser apagado.</li>
 </ul>
 <h4 id="cap-17-botoes">Os botões</h4>
@@ -11123,6 +11124,19 @@ python3 tools/history_v5.py --dump-csv 20260923.h5 --interval 300 &gt; 20260923.
 <li>Toque em <strong>Baixar</strong>. Com mais de um arquivo, confirme a pergunta <strong>Baixar N?</strong>.</li>
 </ol>
 <p>O navegador baixa um arquivo de cada vez. Baixar da pasta <code>/history</code> exige também a permissão <strong>Histórico</strong>, e baixar o log de eventos exige também <strong>Logs</strong> (<a href="#cap-08-permissoes">capítulo 8</a>).</p>
+<h4 id="cap-17-ver">Ver um arquivo de texto</h4>
+<p>Um arquivo de texto de até 64 KB tem um olho ao lado do nome: <code>.json</code>, <code>.jsonl</code>, <code>.ndjson</code>, <code>.txt</code>, <code>.csv</code>, <code>.tsv</code>, <code>.lng</code>, <code>.thm</code>, <code>.log</code>, <code>.cfg</code>, <code>.conf</code>, <code>.ini</code>, <code>.pem</code>, <code>.crt</code>, <code>.md</code>, <code>.xml</code>, <code>.yml</code> e <code>.yaml</code>. Toque no olho para abrir o arquivo numa janela sobre a página. Ler exige as mesmas permissões que baixar.</p>
+<p>A janela abre em <strong>Organizado</strong> (<em>Organized</em>):</p>
+<ul>
+<li><strong>JSON</strong> aparece indentado. Cada objeto e cada lista de mais de uma linha tem uma marca à esquerda: ▾ quando está aberto, ▸ quando está recolhido. Toque na linha para abrir ou recolher. Recolhido, o bloco ocupa uma linha, com <code>{…}</code> ou <code>[…]</code> e o número de itens. A janela abre com os dois primeiros níveis abertos.</li>
+<li><strong>Um pacote de idioma ou de tema</strong> mostra as linhas numeradas, e cada seção (<code>@DICT</code>, <code>@COLORS</code>, ou <code>[nome]</code> num arquivo INI) se recolhe até a seção seguinte. Uma linha que é um JSON inteiro, como a do <code>@WEBDICT</code>, aparece como um bloco.</li>
+<li><strong>Um arquivo com um JSON por linha</strong> (NDJSON) mostra cada linha como um bloco.</li>
+<li><strong>Qualquer outro texto</strong> aparece com as linhas numeradas.</li>
+</ul>
+<p><strong>Expandir tudo</strong> (<em>Expand all</em>) abre todos os blocos. <strong>Recolher tudo</strong> (<em>Collapse all</em>) recolhe todos, menos o bloco de fora de um JSON.</p>
+<p><strong>Original</strong> mostra o texto exatamente como está no arquivo. O organizado só muda os espaços entre as partes do texto: um número continua escrito como está no arquivo. <strong>Baixar</strong> (<em>Download</em>) baixa o arquivo original.</p>
+<p>Um JSON cortado ou com erro também é organizado, pela posição das chaves e dos colchetes, e a janela avisa <strong>JSON incompleto ou inválido</strong>. Um arquivo que não é texto mostra <strong>Este arquivo não é texto</strong>: baixe-o para abrir.</p>
+<p>Feche a janela com o <strong>X</strong> ou com a tecla <strong>Esc</strong>.</p>
 <h4 id="cap-17-enviar">Enviar</h4>
 <ol type="1">
 <li>Abra a pasta de destino.</li>
@@ -25785,7 +25799,7 @@ O formato de arquivo que a placa aceita no modo BOOTSEL (<a href="#cap-03">capí
 </section>
 </main>
 <footer class="colofao">
-<p>Manual do SIMUT, gerado em 02/10/2026 por <code>tools/build_manual.py</code> a partir de <code>docs/_manual/</code>. Licença MIT, como o firmware.</p>
+<p>Manual do SIMUT, gerado em 03/10/2026 por <code>tools/build_manual.py</code> a partir de <code>docs/_manual/</code>. Licença MIT, como o firmware.</p>
 <p>Visual no padrão Ângulo. Fonte de títulos: Ângulo Display, recorte da Bricolage Grotesque SemiBold, SIL Open Font License 1.1.</p>
 </footer>
 </div>

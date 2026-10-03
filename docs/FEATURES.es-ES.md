@@ -44,7 +44,7 @@ Todo lo que hace el firmware, en detalle. El [README](../README.es-ES.md) tiene 
 - **Envíos pendientes** — con un único sensor, la esquina inferior izquierda muestra el número de envíos pendientes (`N`, o `Nk` a partir de mil), y el icono de Wi-Fi crece de izquierda a derecha.
 
 ## Interfaz web
-- **11 páginas** — comprimidas con gzip (zopfli) en la flash, con temas claro y oscuro que siguen la preferencia del sistema, gestor de archivos y sesiones multiusuario que caducan tras 15 minutos de inactividad.
+- **11 páginas** — comprimidas con gzip (zopfli) en la flash, con temas claro y oscuro que siguen la preferencia del sistema, gestor de archivos que también muestra un archivo de texto organizado para leerlo (JSON con sangría y bloques que se abren y se contraen) y sesiones multiusuario que caducan tras 15 minutos de inactividad.
 - **Espejo del panel en vivo** (`release`) — el fotograma actual del panel en el navegador, 213 ms por fotograma. Un clic sobre él es un toque en la pantalla.
 - **Cada cambio dice cuánto cuesta** — tres botones:
   - *Probar*: se aplica sin guardar;

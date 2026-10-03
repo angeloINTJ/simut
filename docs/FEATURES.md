@@ -44,7 +44,7 @@ Everything the firmware does, in detail. The [README](../README.md) has the summ
 - **Pending telemetry** — with a single sensor, the bottom-left corner shows the pending telemetry count (`N`, or `Nk` from a thousand up), and the Wi-Fi icon fills left to right.
 
 ## Web interface
-- **11 pages** — gzip-compressed (zopfli) in flash, with light and dark themes that follow the system preference, a file manager, and multi-user sessions that expire after 15 minutes idle.
+- **11 pages** — gzip-compressed (zopfli) in flash, with light and dark themes that follow the system preference, a file manager that also shows a text file organized for reading (JSON indented, with blocks that fold), and multi-user sessions that expire after 15 minutes idle.
 - **Live panel mirror** (`release`) — the panel's current frame in the browser, 213 ms per frame. A click on it is a touch on the glass.
 - **Changes say what they cost** — three buttons:
   - *Test*: applied, not saved;

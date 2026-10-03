@@ -517,7 +517,7 @@ dispositivo.
 | `/network` | Wi-Fi (com busca das redes ao alcance), endereçamento estático, mDNS, NTP |
 | `/alarms` | Limites e ações por sensor |
 | `/users` | Contas e permissões |
-| `/files` | Navegador do sistema de arquivos: upload, download, exclusão, criação de diretórios — mais backup completo, restauração e atualização de firmware (OTA) |
+| `/files` | Navegador do sistema de arquivos: upload, download, exclusão, criação de diretórios e um visor que mostra um arquivo de texto organizado (JSON indentado com blocos que abrem e recolhem, as seções de um pacote de idioma ou de tema, linhas numeradas) — mais backup completo, restauração e atualização de firmware (OTA) |
 | `/history` | Gráficos de histórico, exportação CSV e o visualizador do log de eventos do sistema |
 | `/license` | Texto da licença |
 
