@@ -12,11 +12,30 @@ mantenedor em 03/10/2026:
 - **Boot seguro e OTP:** sim nos aparelhos de produção; nunca na placa da
   bancada.
 
-Nada aqui foi rodado num RP2350 ainda. O que diz "pelo código" foi lido no
-framework instalado (`framework-arduinopico` 1.50601.0, arduino-pico 5.6.1,
-pico-sdk 2.2.1-develop), no `picotool` 2.1.1 em `/home/angelo/pico/picotool` e
-em quatro arquivos do repositório `raspberrypi/pico-bootrom-rp2350`; os números
+O que diz "pelo código" foi lido no framework instalado
+(`framework-arduinopico` 1.50601.0, arduino-pico 5.6.1, pico-sdk 2.2.1-develop),
+no `picotool` 2.1.1 em `/home/angelo/pico/picotool` e em quatro arquivos do
+repositório `raspberrypi/pico-bootrom-rp2350`, na versão atual dele. Os números
 de linha estão na pesquisa de 03/10/2026, guardada fora do repositório.
+
+## Na placa da bancada (03/10/2026)
+
+- **O chip é um RP2350 A2, não A4** (`picotool info -a`: `revision: A2`, ROM
+  `gitrev 0x312e22fa`). O A4 corrige o erratum E9, um vazamento nas entradas de
+  GPIO que impede o pull-down interno de segurar um nível baixo. As suítes de
+  bancada do S1 precisam conferir as entradas do SIMUT com ele. A ROM do A2 pode
+  diferir da versão atual do repositório da ROM, que é a fonte deste desenho, e
+  os testes do S2 conferem cada comportamento citado nesta placa.
+- **O boot seguro está desligado** (`secure boot: 0`), e fica assim.
+- **A `pico2_w_release` do `main` sobe.** Gravada pelo USB (`badb4a8`, 993.040 B),
+  ela cria a configuração de fábrica, inicia o buzzer, os sensores e a rede, pede
+  a data e a hora, porque não há rede configurada, e chega ao prompt do console.
+  O `picotool reboot` reinicia pelo watchdog, e a autópsia registra um falso
+  travamento (`ctx=455`, rastro vazio), o mesmo artefato do `picotool -x` no
+  RP2040.
+- **O IMAGE_DEF que a ROM enxerga é o do stub.** O `picotool info` da imagem
+  mostra um só bloco de imagem, em `0x10000124`, sem versão e sem a marca de
+  teste. O laço de blocos fecha nele mesmo, pelo bloco em `0x100027f8`.
 
 ## O problema
 

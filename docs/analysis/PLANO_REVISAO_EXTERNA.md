@@ -124,7 +124,7 @@ O que foi conferido no framework instalado (`framework-arduinopico`
 | Etapa | O que prova |
 |---|---|
 | S0, só no CI | Dimensão `chip` no `features.toml`; os registradores por `watchdog_hw`/`psm_hw`; as seis imagens do RP2040 idênticas byte a byte; os tamanhos das imagens do RP2350. **Mergeado (#215, 01/10/2026):** a release no RP2350 ocupa 972.928 B de um slot de 3.141.632 B e 123.184 B de RAM estática |
-| S1, uma placa A4 | As suítes de bancada existentes; o layout de 4 MB com staging própria, que já acaba com o reformatar |
+| S1, a placa da bancada (A2) | As suítes de bancada existentes; o layout de 4 MB com staging própria, que já acaba com o reformatar |
 | S2 | A/B com TBYB ([`OTA_AB_RP2350.md`](OTA_AB_RP2350.md)): imagem que nunca confirma volta em cerca de 17 s; corte de energia no meio da gravação sobe a anterior; 20 ciclos com config e histórico idênticos |
 | S3 | O que o chip compra a mais: ambiente de debug, RAM, KDF com SHA-256 em hardware, e o procedimento de boot seguro e OTP dos aparelhos de produção (o OTP é irreversível: nunca na placa da bancada) |
 | S4 | O Air no RP2350 |
@@ -158,8 +158,9 @@ slot e o histórico iria a cerca de 170 dias).
    03/10/2026: boot seguro e OTP nos aparelhos de produção, nunca na placa da
    bancada; a imagem nova se confirma com a web no ar e 60 s sem falha. O
    desenho do A/B está em [`OTA_AB_RP2350.md`](OTA_AB_RP2350.md). A placa
-   chegou em 03/10/2026; o S0 foi mergeado (#215). Falta conferir se a placa é
-   A4.
+   chegou em 03/10/2026 e é um RP2350 **A2**, não A4 (`picotool info`, 03/10):
+   o erratum E9 vale nela. A `pico2_w_release` do `main` sobe nela. O S0 foi
+   mergeado (#215).
 3. **#161** — decidida em 01/10/2026: opção (a). Só marcar o alarme como
    anunciado quando a fila o aceitou, e reanunciar o que segue ativo quando
    ela voltar a ter espaço. A fila continua guardando os mais antigos, e o
