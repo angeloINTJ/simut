@@ -84,12 +84,12 @@ de recebê-la pelo ar: o aparelho a recusa no stage, na validação e no aplicad
 <!-- ota-headroom:begin -->
 | Imagem | `.bin` assinado (B) | Folga (B) |
 |---|---:|---:|
-| `pico_w_release` | 1.028.325 | 12.059 |
+| `pico_w_release` | 1.028.429 | 11.955 |
 | `pico_w_air` | 1.027.389 | 12.995 |
 | `pico_w_alpha` | 986.525 | 53.859 |
-| `pico2_w_release` | 1.001.585 | 38.799 |
-| `pico_w_test` | 1.032.909 | 7.475 |
-| `pico_w_asserts` | 1.030.621 | 9.763 |
+| `pico2_w_release` | 1.001.505 | 38.879 |
+| `pico_w_test` | 1.033.005 | 7.379 |
+| `pico_w_asserts` | 1.030.733 | 9.651 |
 | `pico_w_test_https` | isenta | — |
 <!-- ota-headroom:end -->
 
