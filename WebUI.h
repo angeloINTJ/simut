@@ -7370,7 +7370,11 @@ input[type=range] { accent-color: var(--acento); }
 .sxb-dang:hover, .btn-dang:hover, .btn-fm-dang:hover { background: var(--perigo); color: var(--perigo-tinta); }
 .btn-fm-out { background: transparent; color: var(--acento); border-color: var(--acento); }
 .btn-fm-out:hover { background: var(--acento); color: var(--acento-tinta); }
-.sxb-on, .bottom-controls > button.active { background: var(--acento); color: var(--acento-tinta); border-color: var(--acento); }
+/* .sxb-on:hover is listed because .sxb:hover, a class and a pseudo-class,
+   outranks .sxb-on alone: an active toggle under the pointer took the hover
+   fill and kept the active text colour, pale on pale (the viewer's Organized
+   and Original, 2026-10-03). */
+.sxb-on, .sxb-on:hover, .bottom-controls > button.active { background: var(--acento); color: var(--acento-tinta); border-color: var(--acento); }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 /* Tabela */
 table { width: 100%; border-collapse: collapse; }
