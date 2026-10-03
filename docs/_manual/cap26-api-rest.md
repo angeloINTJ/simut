@@ -764,13 +764,13 @@ Para entrar na rota, a conta precisa de pelo menos uma entre **Sistema**, **Rede
 | `alarms`, `maint`, `alarm_tel`, `telemetry`, `display`, `users` | Aplicam sem reiniciar |
 | `net`, `identity`, `slots`, `sensing`, `mqtt`, `time`, `web`, `unclassified` | Reiniciam |
 
-Quatro campos sem efeito, `s_int`, `log` e dois que só o arquivo de configuração carrega, não entram em grupo nenhum e gravam sem reiniciar, desde a v2.7.4. Até a v2.7.3 eles caíam em `sensing`, `logging`, `net` e `display_pin`, e reiniciavam o aparelho. O que cada grupo inclui está em [Os grupos de configuração](#cap-05-grupos). Qualquer alteração de conta ou de PIN, e também da política de PIN, cai em `users`, que se aplica sem reiniciar desde a versão seguinte à v2.9.0 (até a v2.9.0, reiniciava). Não copie essa tabela para o seu cliente: use o ensaio, que responde pela regra do próprio aparelho.
+Quatro campos sem efeito, `s_int`, `log` e dois que só o arquivo de configuração carrega, não entram em grupo nenhum e gravam sem reiniciar, desde a v2.7.4. Até a v2.7.3 eles caíam em `sensing`, `logging`, `net` e `display_pin`, e reiniciavam o aparelho. O que cada grupo inclui está em [Os grupos de configuração](#cap-05-grupos). Qualquer alteração de conta ou de PIN, e também da política de PIN, cai em `users`, que se aplica sem reiniciar desde a v2.10.0 (até a v2.9.0, reiniciava). Não copie essa tabela para o seu cliente: use o ensaio, que responde pela regra do próprio aparelho.
 
 Quando há reinício, a resposta chega antes dele. O aparelho fica fora do ar por alguns segundos e encerra todas as sessões. Para saber quando ele voltou, repita `GET /api/login_init` a cada 3 s até ele responder, e entre de novo.
 
 **O ensaio.** Use `_dry=1` para validar uma configuração antes de gravá-la, por exemplo antes de mandá-la a vários aparelhos ([capítulo 27](#cap-27)). Ele roda numa cópia e não mexe no aparelho: não grava e não aplica nada.
 
-Até a v2.9.0, o ensaio tinha três limites, corrigidos na versão seguinte:
+Até a v2.9.0, o ensaio tinha três limites, corrigidos na v2.10.0:
 
 - não enxergava `h_int`, `ntp_enabled`, `slog_*`, `m_had`, `dns_auto`, `dns2` e `web_ka`, e respondia `"reboot":false` onde a gravação real reiniciava pelo grupo `web`;
 - aplicava o fuso horário de verdade;
@@ -860,7 +860,7 @@ A senha de uso único vem em `creds`, só nesta resposta: o aparelho guarda apen
 
 Para um PIN que funcione nos dois lados, use só algarismos, com um comprimento entre o maior de 4 e `pin_min` e o menor de 8 e `pin_max`, lidos em `GET /api/config`. Se a política exige mais de 8 caracteres, defina o PIN no próprio painel ([capítulo 8](#cap-08-proprio-pin)).
 
-**`users` se aplica sem reiniciar** desde a versão seguinte à v2.9.0. Criar, apagar, resetar e definir PIN valem na hora: a sessão de uma conta apagada ou resetada termina na requisição seguinte (`401`), e as outras continuam. A exceção é o primeiro PIN do `admin`, que também apaga a marca de troca obrigatória, na área de extensão: esse pedido reinicia pelo grupo `web`. Até a v2.9.0, toda gravação de contas reiniciava o aparelho e encerrava todas as sessões.
+**`users` se aplica sem reiniciar** desde a v2.10.0. Criar, apagar, resetar e definir PIN valem na hora: a sessão de uma conta apagada ou resetada termina na requisição seguinte (`401`), e as outras continuam. A exceção é o primeiro PIN do `admin`, que também apaga a marca de troca obrigatória, na área de extensão: esse pedido reinicia pelo grupo `web`. Até a v2.9.0, toda gravação de contas reiniciava o aparelho e encerrava todas as sessões.
 
 **Recusas.** Uma ação recusada não impede as outras. A resposta traz o motivo em `rejected`, com status 200:
 
@@ -1176,7 +1176,7 @@ curl -s -b jar -F bkp=@backup.bkp "$H/api/restore?op=validate"
 curl -s -b jar -F bkp=@backup.bkp "$H/api/restore?op=apply"
 ```
 
-O segundo passo só aceita o arquivo que passou no primeiro. Um `apply` sem `validate` antes, ou de outro arquivo, volta com `409` e `st` 11, sem gravar nada (desde a versão seguinte à v2.9.0; antes, aplicava assim mesmo).
+O segundo passo só aceita o arquivo que passou no primeiro. Um `apply` sem `validate` antes, ou de outro arquivo, volta com `409` e `st` 11, sem gravar nada (desde a v2.10.0; antes, aplicava assim mesmo).
 
 ```json
 {"st":0,"chip":"e6614c311b7a2f2d","fwv":132865,"psz":913408,"fc":57,"fsm":0}

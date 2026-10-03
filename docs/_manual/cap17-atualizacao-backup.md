@@ -196,7 +196,7 @@ Uma recusa aparece como **Validação falhou:** ou **Falha ao aplicar:**, seguid
 :::
 
 ::: nota
-**Até a v2.9.0, a falha no meio apagava tudo o que tinha gravado,** inclusive a configuração já restaurada, e o reinício seguinte subia com a configuração de fábrica. E a restauração gravava no máximo 200 arquivos: um backup maior passava pela validação e falhava na aplicação com `I/O error`. Desde a versão seguinte, nenhum dos dois acontece.
+**Até a v2.9.0, a falha no meio apagava tudo o que tinha gravado,** inclusive a configuração já restaurada, e o reinício seguinte subia com a configuração de fábrica. E a restauração gravava no máximo 200 arquivos: um backup maior passava pela validação e falhava na aplicação com `I/O error`. Desde a v2.10.0, nenhum dos dois acontece.
 :::
 
 ## Atualizar o firmware {#cap-17-ota}

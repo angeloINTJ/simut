@@ -60,7 +60,7 @@ A pergunta do fim do boot num aparelho sem rede: a data e a hora do relógio pro
 
 ### No LCD
 
-[alpha]{.img} O LCD mostra `SIMUT 2.9.0` e `Inicializando` e, depois, uma barra de progresso ([capítulo 12](#cap-12-boot)).
+[alpha]{.img} O LCD mostra `SIMUT 2.10.0` e `Inicializando` e, depois, uma barra de progresso ([capítulo 12](#cap-12-boot)).
 
 Num aparelho novo, o boot não espera a rede: no fim dele, o LCD mostra `Sem WiFi` e `Offline` por 3 s e passa às leituras ([capítulo 12](#cap-12-rede)):
 

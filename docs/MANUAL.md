@@ -1,6 +1,6 @@
 # SIMUT — User Manual
 
-**Firmware:** v2.9.0 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **License:** MIT
+**Firmware:** v2.10.0 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **License:** MIT
 **Repository:** https://github.com/angeloINTJ/simut
 
 > **This is not a certified metrological instrument.** It is tested on real
@@ -504,8 +504,9 @@ at the top says what can be done with it. How many buttons appear is the
 | **Test** | applies **without saving**: a restart undoes it, and the staged set stays so you can still save or discard it |
 
 The last two appear only when the change **can** be applied live — alarm
-limits, maintenance, the alarm line, telemetry over HTTP, theme and language.
-Network, accounts, sensor provisioning, timezone and the PIN policy itself
+limits, maintenance, the alarm line, telemetry over HTTP, theme and language,
+accounts and the PIN policy (since v2.10.0; accounts get only **Apply now**,
+because an account cannot be tested). Network, sensor provisioning and timezone
 still need a restart, and then the bar shows only "Save & restart" and says
 **why**.
 

@@ -99,22 +99,26 @@ O aparelho em blocos: os sensores entram pelo Core 0, a tela fica com o Core 1, 
 
 ## Versões {#cap-01-versoes}
 
-Este manual descreve a **v2.9.0**, de 02/10/2026, a versão publicada mais recente. A linha 2.7 saiu do beta com a v2.7.0.
+Este manual descreve a **v2.10.0**, de 03/10/2026, a versão publicada mais recente. A linha 2.7 saiu do beta com a v2.7.0.
 
-O que a v2.9.0 mudou para quem usa o aparelho:
+O que a v2.10.0 mudou para quem usa o aparelho:
+
+- a telemetria envia cada registro pelo lugar onde ele foi gravado, não pela hora: um relógio que volta, como o provisório do boot corrigido pelo NTP, não deixa mais registros para trás sem envio ([capítulo 21](#cap-21-fora-de-ordem));
+- gravar contas não reinicia mais o aparelho, e uma sessão web termina quando a conta dela é excluída ou tem a senha trocada por outra pessoa ([capítulo 8](#cap-08-pagina));
+- o ensaio da página de configuração não mexe mais no aparelho em funcionamento: preparar o silêncio geral não silencia, e preparar o fuso não o aplica ([capítulo 5](#cap-05-ensaio));
+- uma restauração que falha no meio fica com os arquivos que terminou, e a aplicação exige antes a conferência do mesmo backup ([capítulo 17](#cap-17-restauracao));
+- um limite de alarme que não é número, enviado pela API, é recusado em vez de virar 0 ([capítulo 26](#cap-26-commit));
+- o menu Configurações do painel segue a ordem de uso, um grupo por página ([capítulo 11](#cap-11-menu));
+- a página Arquivos abre arquivos de texto organizados, com o JSON que abre e recolhe ([capítulo 17](#cap-17-ver)), e a **Prévia ao Vivo** da telemetria é montada com os dados do aparelho ([capítulo 21](#cap-21-construtor)).
+
+A v2.9.0, de 02/10/2026, tinha trazido:
 
 - pelo ar, o aparelho só instala imagem assinada pelo projeto: o `.bin` de uma release ou uma build do configurador. Uma build feita na sua máquina vai pelo USB ([capítulo 17](#cap-17-ota-assinatura));
 - o painel mostra cada etapa de uma atualização e, numa recusa, o motivo ([capítulo 11](#cap-11-atualizacao));
 - o ponto de acesso de configuração só abre quando pedido: por Configurações → Modo de Configuração, pelo comando `ap` ou pelo gesto no boot. Com ele no ar, o aparelho continua medindo, gravando o histórico e alarmando ([capítulo 9](#cap-09-ap-quando));
 - uma unidade sem rede configurada pede a data e a hora no fim do boot, e Configurações → Data e hora abre a mesma tela a qualquer momento ([capítulo 10](#cap-10-painel)).
 
-A v2.8.0, de 30/09/2026, tinha trazido:
-
-- um envio de firmware cortado ou recusado não leva mais a configuração junto: a rede, as contas, os sensores e a telemetria voltam no boot seguinte. Os demais arquivos voltam pelo backup, como antes, e a proteção vale para as atualizações feitas a partir de um aparelho que já tem a v2.8.0 ([capítulo 17](#cap-17-sobrevive));
-- no formato **Dinâmico**, cada linha de telemetria tem o seu **Cabeçalho Content-Type**, que antes era sempre `text/plain`; vazio, vale `application/json` ([capítulo 21](#cap-21-dinamico));
-- a configuração passa a um formato novo, que as versões anteriores não leem: para voltar a uma delas, guarde o backup feito antes de atualizar ([capítulo 3](#cap-03-antigo)).
-
-Um aparelho com a v2.8.0 não tem os itens da v2.9.0, e o que as versões anteriores trouxeram está no apêndice [Histórico de versões](#ap-c). Onde este manual diz "na v2.7.1" ou "pelo código da v2.7.1", o texto vale também para as versões seguintes, salvo nas mudanças que o apêndice registra da v2.7.2 em diante. Como conferir a versão do seu aparelho está no [capítulo 17](#cap-17-ota-conferir).
+Um aparelho com a v2.9.0 não tem os itens da v2.10.0, e o que as versões anteriores trouxeram está no apêndice [Histórico de versões](#ap-c). Onde este manual diz "na v2.7.1" ou "pelo código da v2.7.1", o texto vale também para as versões seguintes, salvo nas mudanças que o apêndice registra da v2.7.2 em diante. Como conferir a versão do seu aparelho está no [capítulo 17](#cap-17-ota-conferir).
 
 ## Como ler este manual {#cap-01-como-ler}
 

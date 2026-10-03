@@ -195,7 +195,7 @@ Os códigos já vêm com aspas: escreva `"alarm":{alarm}`, e não `"alarm":"{ala
 No HTTP, o corpo sai com o `Content-Type` do campo **Cabeçalho Content-Type** da linha de alarmes, que vazio vale `application/json` ([Entrega por HTTP](#cap-22-http)).
 
 ::: nota
-**A página mostra só parte dos marcadores.** O quadro de tags da página lista `{TS}`, `{ID}`, `{HWID}`, `{SLOT}`, `{CH}`, `{VAL}`, `{ALARM}`, `{ERR}` e `{SEQ}`. O aparelho também aceita `{MAINT}`, `{LO}`, `{HI}`, `{UNTIL}` e `{USER}`: digite-os no **2. Linha**. Até a v2.9.0, a **Prévia ao Vivo** não os conhecia e os mostrava como texto, e o CSV dela tinha 4 colunas; desde a versão seguinte ela monta os marcadores e as 8 colunas como o aparelho.
+**A página mostra só parte dos marcadores.** O quadro de tags da página lista `{TS}`, `{ID}`, `{HWID}`, `{SLOT}`, `{CH}`, `{VAL}`, `{ALARM}`, `{ERR}` e `{SEQ}`. O aparelho também aceita `{MAINT}`, `{LO}`, `{HI}`, `{UNTIL}` e `{USER}`: digite-os no **2. Linha**. Até a v2.9.0, a **Prévia ao Vivo** não os conhecia e os mostrava como texto, e o CSV dela tinha 4 colunas; desde a v2.10.0 ela monta os marcadores e as 8 colunas como o aparelho.
 :::
 
 ::: atencao
