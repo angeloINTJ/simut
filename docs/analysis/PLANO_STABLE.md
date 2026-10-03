@@ -84,12 +84,12 @@ de recebê-la pelo ar: o aparelho a recusa no stage, na validação e no aplicad
 <!-- ota-headroom:begin -->
 | Imagem | `.bin` assinado (B) | Folga (B) |
 |---|---:|---:|
-| `pico_w_release` | 1.032.661 | 7.723 |
+| `pico_w_release` | 1.032.725 | 7.659 |
 | `pico_w_air` | 1.031.485 | 8.899 |
 | `pico_w_alpha` | 990.621 | 49.763 |
-| `pico2_w_release` | 1.005.593 | 34.791 |
-| `pico_w_test` | 1.037.237 | 3.147 |
-| `pico_w_asserts` | 1.034.957 | 5.427 |
+| `pico2_w_release` | 1.001.489 | 38.895 |
+| `pico_w_test` | 1.037.301 | 3.083 |
+| `pico_w_asserts` | 1.035.021 | 5.363 |
 | `pico_w_test_https` | isenta | — |
 <!-- ota-headroom:end -->
 
@@ -106,9 +106,11 @@ de recebê-la pelo ar: o aparelho a recusa no stage, na validação e no aplicad
   A-04.
 - **A `pico_w_test_https` é isenta** (B6): imagem de bancada, gravada pela USB.
 - **A `pico2_w_release` mede contra o mesmo teto** porque ainda compila o
-  `ota_layout.h` do Pico W. O layout próprio do RP2350 (1,5 + 1,5 + 1,0 MB)
-  chega com o S1 da Fase 4 do [PLANO_REVISAO_EXTERNA.md](PLANO_REVISAO_EXTERNA.md)
-  e muda a linha dela.
+  `ota_layout.h` do Pico W. Desde 03/10 ela não instala nada pelo ar (passo 2
+  do [OTA_AB_RP2350.md](OTA_AB_RP2350.md)), então a linha dela só compara
+  tamanhos. O layout próprio do RP2350 (slots de 1.532 KB e LittleFS de
+  1.020 KB) chega com o S1 da Fase 4 do
+  [PLANO_REVISAO_EXTERNA.md](PLANO_REVISAO_EXTERNA.md) e muda a linha dela.
 
 ---
 
