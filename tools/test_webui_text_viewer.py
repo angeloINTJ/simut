@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""The text viewer of the web UI's file manager, run under node.
+"""The text viewer of the web UI, run under node.
 
-The viewer (FILE_PAGE in WebUI.h) shows a text file organized for reading:
+The viewer (LANG_JS in WebUI.h, drawn by the file manager and by the two live
+previews of the telemetry page) shows a text organized for reading:
 JSON indented two spaces, with every object and array that spans lines
 foldable; the sections of a language or theme pack (`@SECTION` and
 `[section]` headers) foldable; each line of an NDJSON file laid out as a JSON
@@ -168,6 +169,13 @@ CASES = {
         "rows": [[0, "42", -1, 0, 1]],
     },
     "empty file": {"name": "z.txt", "text": "", "j": 0, "bad": False, "rows": []},
+    # A header is @ and a capital, as the packs write them; a mention or a
+    # number after the @ is a line like any other.
+    "an @ line that is not a header": {
+        "name": "notes.txt", "text": "@CODE\nx\n@mention\n@1\ny", "j": 0, "bad": False,
+        "rows": [[0, "@CODE", 4, 4, 1], [1, "x", -1, 0, 2], [1, "@mention", -1, 0, 3],
+                 [1, "@1", -1, 0, 4], [1, "y", -1, 0, 5]],
+    },
 }
 
 VIEWABLE = [
@@ -185,6 +193,8 @@ IS_TEXT = [
     # The threshold is 1 in 100: at it, still text; past it, not.
     ["x" * 99 + "\u0000", True], ["x" * 98 + "\u0000" * 2, False],
     ["x" * 95 + "\u0000" * 5, False],
+    # The vertical tab is not one of the five a text may carry.
+    ["x" * 98 + "\u000b" * 2, False],
 ]
 
 HARNESS = r"""
@@ -292,13 +302,52 @@ def served_copy():
         a = page.find("const TV_CAP")
         if a < 0:
             continue
-        b = page.find("function tvOpen", a)
+        b = page.find("window.tvView", a)
         if b < 0:
-            raise SystemExit(f"FAIL: {name} has the viewer but no tvOpen after "
+            raise SystemExit(f"FAIL: {name} has the viewer but no window.tvView after "
                              f"its pure part; this test cuts the served copy there")
         # Back to the start of that line, so an "async" before it stays out.
         return name, page[a:page.rfind("\n", a, b) + 1]
     raise SystemExit("FAIL: neither src/WebUI_GZ.h nor data/web/ carries the viewer")
+
+
+def block(src: str, name: str) -> str:
+    """One page or asset of WebUI.h: from its declaration to the end of its raw string."""
+    a = src.find(f"static const char {name}[] PROGMEM")
+    if a < 0:
+        raise SystemExit(f"FAIL: {name} is not in WebUI.h")
+    return src[a:src.find(')raw";', a)]
+
+
+def wiring(src: str) -> list:
+    """What node cannot see, read off the source: the views the pages draw.
+
+    The engine lives once, in LANG_JS, so a page that grew its own copy would
+    pay for it in every image and drift from the tested one. The telemetry
+    previews sit inside a form, so a button without type="button" would submit
+    it on every click of Organized or Collapse all."""
+    fails = []
+    lang, files, tel = block(src, "LANG_JS"), block(src, "FILE_PAGE"), block(src, "TEL_PAGE")
+    if "window.tvView = function" not in lang or "function tvParse" not in lang:
+        fails.append("LANG_JS does not define the engine and window.tvView")
+    for name, page in (("FILE_PAGE", files), ("TEL_PAGE", tel)):
+        if "function tvParse" in page or "function tvJson" in page:
+            fails.append(f"{name} carries its own copy of the engine")
+    if files.count("window.tvView(") != 1:
+        fails.append("FILE_PAGE does not draw its viewer through window.tvView")
+    if "window.tvView(" not in tel:
+        fails.append("TEL_PAGE does not draw its previews through window.tvView")
+    for pid in ("preview", "apreview"):
+        for b in "ORECN":
+            if f'id="{pid}{b}"' not in tel:
+                fails.append(f"TEL_PAGE has no #{pid}{b}")
+        for b in "OREC":
+            m = re.search(rf'<button[^>]*id="{pid}{b}"[^>]*>', tel)
+            if m and 'type="button"' not in m.group(0):
+                fails.append(f"TEL_PAGE #{pid}{b} is a submit button inside the form")
+        if not re.search(rf'<pre class="tv" id="{pid}"', tel):
+            fails.append(f"TEL_PAGE #{pid} is not a tv pre")
+    return fails
 
 
 def run(label: str, code: str) -> bool:
@@ -322,8 +371,15 @@ def run(label: str, code: str) -> bool:
 
 
 def main() -> int:
-    raw = extract(WEBUI.read_text(encoding="utf-8", errors="replace"), WEBUI.name)
-    ok = run("as written", raw)
+    src = WEBUI.read_text(encoding="utf-8", errors="replace")
+    raw = extract(src, WEBUI.name)
+    fails = wiring(src)
+    for f in fails:
+        print(f"  FAIL wiring: {f}")
+    if not fails:
+        print("  ok   wiring: one engine in LANG_JS, drawn by the file viewer and both telemetry previews")
+    ok = not fails
+    ok = run("as written", raw) and ok
     ok = run("minified by build_webui_gz.py", minifier()(raw)) and ok
     served = served_copy()
     if isinstance(served, tuple):
