@@ -18,6 +18,11 @@
 #include <hardware/watchdog.h>
 #include <pico/multicore.h>
 #include <string.h>
+#if defined(PICO_RP2350) && PICO_RP2350
+#include <pico/bootrom.h>
+#include <hardware/regs/addressmap.h>
+#include "slot_stage.h"
+#endif
 
 /* XIP_BASE = 0x10000000 — endereço onde a flash QSPI é mapeada para leitura. */
 #ifndef XIP_BASE
@@ -26,14 +31,54 @@
 
 namespace ota {
 
+#if !OTA_RP2040_MAP
+/* The RP2350's staging area is the slot the board did not boot from
+ * (slot_stage.h). Erases and programs run with interrupts off, by physical
+ * offset; the session keeps Core 1 parked, as on the RP2040. Reads go through
+ * the untranslated window, because the slot being written lies outside the
+ * window the boot ROM maps for the running one. */
+static bool __not_in_flash_func(slot_erase)(uint32_t phys) {
+    uint32_t saved_irq = save_and_disable_interrupts();
+    flash_range_erase(phys, OTA_FLASH_SECTOR_SIZE);
+    restore_interrupts(saved_irq);
+    watchdog_update();
+    return true;
+}
+
+static bool __not_in_flash_func(slot_program)(uint32_t phys, const uint8_t* data, uint32_t len) {
+    uint32_t saved_irq = save_and_disable_interrupts();
+    flash_range_program(phys, data, len);
+    restore_interrupts(saved_irq);
+    return true;
+}
+
+static void slot_read(uint32_t phys, uint8_t* dst, uint32_t len) {
+    memcpy(dst, (const void*)(XIP_NOCACHE_NOALLOC_NOTRANSLATE_BASE + phys), len);
+}
+
+static const SlotFlashOps kSlotOps = { slot_erase, slot_program, slot_read };
+static SlotStage s_slot;
+
+static uint32_t inactive_slot() {
+    boot_info_t bi;
+    const int part = rom_get_boot_info(&bi) ? bi.partition : -1;
+    return slot_inactive_offset(part, OTA_RP2350_SLOT_A_OFFSET, OTA_RP2350_SLOT_B_OFFSET);
+}
+
+bool staging_install_available() { return inactive_slot() != SLOT_NONE; }
+bool staging_mark_ready() { return slot_stage_mark_ready(s_slot); }
+bool staging_ready() { return s_slot.active && s_slot.ready && !s_slot.committed; }
+bool staging_commit() { return slot_stage_commit(s_slot); }
+uint32_t staging_slot_offset() { return s_slot.slot_off; }
+#endif
+
 /* ---------------------------------------------------------------------------
  * Erase
  * ------------------------------------------------------------------------- */
 
 bool __not_in_flash_func(staging_erase_sector)(uint32_t offset_in_staging) {
 #if !OTA_RP2040_MAP
-    (void)offset_in_staging;
-    return false;  /* the staging offsets lie in the slots on the RP2350 */
+    return slot_stage_erase(s_slot, offset_in_staging);
 #else
     if (offset_in_staging % OTA_FLASH_SECTOR_SIZE != 0) return false;
     if (offset_in_staging >= OTA_STAGING_MAX_SIZE) return false;
@@ -73,8 +118,7 @@ bool __not_in_flash_func(staging_erase_all)() {
 bool __not_in_flash_func(staging_write)(uint32_t offset_in_staging,
                                         const uint8_t* data, size_t len) {
 #if !OTA_RP2040_MAP
-    (void)offset_in_staging; (void)data; (void)len;
-    return false;
+    return slot_stage_write(s_slot, offset_in_staging, data, (uint32_t)len);
 #else
     if (!data || len == 0) return false;
     if (offset_in_staging % OTA_FLASH_PAGE_SIZE != 0) return false;
@@ -105,8 +149,7 @@ bool __not_in_flash_func(staging_write)(uint32_t offset_in_staging,
 
 void staging_read(uint32_t offset_in_staging, uint8_t* dst, size_t len) {
 #if !OTA_RP2040_MAP
-    (void)offset_in_staging;
-    if (dst && len) memset(dst, 0xFF, len);   /* as erased flash reads */
+    slot_stage_read(s_slot, offset_in_staging, dst, (uint32_t)len);
 #else
     if (!dst || len == 0) return;
     if (offset_in_staging + len > OTA_STAGING_MAX_SIZE) return;
@@ -122,7 +165,7 @@ void staging_read(uint32_t offset_in_staging, uint8_t* dst, size_t len) {
 bool staging_session_begin(StorageManager* storage) {
 #if !OTA_RP2040_MAP
     (void)storage;
-    return false;  /* LittleFS stays mounted: no stage on the RP2350 yet */
+    return false;  /* the RP2350 erases on demand: staging_session_begin_lite */
 #else
     if (!storage) return false;
 
@@ -177,8 +220,18 @@ bool staging_session_begin(StorageManager* storage) {
 /* v4.4.0: variante sem erase upfront — caller faz erase on-demand. */
 bool staging_session_begin_lite(StorageManager* storage) {
 #if !OTA_RP2040_MAP
-    (void)storage;
-    return false;
+    /* LittleFS stays mounted: the slot is not the filesystem. Whatever happens
+     * below, an image an earlier stage kept for the apply is gone. */
+    memset(&s_slot, 0, sizeof(s_slot));
+    if (!storage) return false;
+    const uint32_t off = inactive_slot();
+    if (off == SLOT_NONE) return false;
+    storage->enterFlashSafeMode();
+    if (!slot_stage_begin(s_slot, &kSlotOps, off, OTA_RP2350_SLOT_SIZE)) {
+        storage->exitFlashSafeMode();
+        return false;
+    }
+    return true;
 #else
     if (!storage) return false;
     storage->enterFlashSafeMode();
@@ -189,11 +242,17 @@ bool staging_session_begin_lite(StorageManager* storage) {
 
 bool staging_session_end(StorageManager* storage) {
     if (!storage) return false;
+#if !OTA_RP2040_MAP
+    /* The RP2350 never unmounted LittleFS: only Core 1 comes back. */
+    storage->exitFlashSafeMode();
+    return true;
+#else
     /* Tenta remontar; LittleFS.begin() vai ver "FS inválida" (apagada)
      * e formatar do zero. */
     bool mounted = LittleFS.begin();
     storage->exitFlashSafeMode();
     return mounted;
+#endif
 }
 
 } /* namespace ota */

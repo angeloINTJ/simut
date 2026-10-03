@@ -276,6 +276,13 @@ public:
  * Does: markCleanReboot + Serial.flush + Serial.end + delays +
  * watchdog_enable(500ms). Does NOT return. */
  [[noreturn]] void safeReboot( );
+#if defined(PICO_RP2350) && PICO_RP2350
+ /** safeReboot( ) into the slot an OTA just wrote: the same hook, mark and
+  * console detach, then the boot ROM's FLASH_UPDATE reboot at @p updateBase
+  * (XIP_BASE + the slot's offset). Falls back to safeReboot( ) if the ROM
+  * refuses the call. */
+ [[noreturn]] void safeRebootFlashUpdate(uint32_t updateBase);
+#endif
 
  /** Immediate flush of pending logs buffered during touch
  * priority. AppManager calls right after `isUserInteracting( )` transitions

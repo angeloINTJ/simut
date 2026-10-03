@@ -166,6 +166,11 @@ void WebManager::handleApiBackup( ) {
  * shared: the route URI decides the mode (VALIDATE vs APPLY).
  * ========================================================================= */
 
+/* The RP2040's stage writes over LittleFS, so one that ends short of the apply
+ * leaves it to be rebuilt (WebManager::update( )). The RP2350's stage writes the
+ * slot it did not boot from and never touches LittleFS. */
+static constexpr bool kStageWritesOverFs = OTA_RP2040_MAP;
+
 void WebManager::handleApiRestoreUploadData( ) {
  HTTPUpload& upload = _server->upload( );
  bool is_stage = (_server->arg("op") == "stage");
@@ -173,11 +178,12 @@ void WebManager::handleApiRestoreUploadData( ) {
  _restoreRejected = false;
  if (is_stage) {
  /* Pre-check ADMIN-ONLY permission: OTA stage erases 1 MB of
- * flash — only admin can trigger. Without perm, doesn't unmount LFS;
- * status stays IDLE; finish responds 403. On the RP2350 nobody stages
- * (OTA_INSTALL_AVAILABLE, ota_layout.h): nothing is erased, LittleFS stays
- * mounted, and the finish handler answers 501. */
- if (OTA_INSTALL_AVAILABLE && getAuthPerms( ) == PERM_FULL_ADMIN) {
+ * flash (on the RP2350, the slot it did not boot from) — only admin can
+ * trigger. Without perm, doesn't unmount LFS; status stays IDLE; finish
+ * responds 403. A board that cannot install over the air (an RP2350 that
+ * boots from no slot; staging_install_available, staging.h) stages
+ * nothing, and the finish handler answers 501. */
+ if (ota::staging_install_available( ) && getAuthPerms( ) == PERM_FULL_ADMIN) {
  /* The panel first (OtaScreen.h): from the next line on a flash pause
   * holds Core 1 for the whole upload, and only the bar is left to draw. */
  if (_displayRef) _displayRef->showOta(OTA_PH_RECEIVING);
@@ -242,7 +248,22 @@ void WebManager::handleApiRestoreUploadData( ) {
  /* Fed before the latch check on purpose: a refused upload still
   * streams its whole body through here, and starving the watchdog
   * would turn a 403 into a reboot. */
+#if OTA_RP2040_MAP
  feedWatchdog( );
+#else
+ /* A stage is fed without the light yield. On the RP2350 LittleFS stays
+  * mounted through it, so the yield's panel save would really run, and on
+  * the TFT that save kills and relaunches Core 1 (requestQuietMode): the
+  * park the stage holds is gone, and the next erase of the slot runs with
+  * Core 1 executing from flash. The sensors catch up at the next loop tick,
+  * as after a streamed download (AppManager_Boot.cpp). */
+ if (is_stage && !_restoreRejected) {
+ watchdog_update( );
+ TRACE_BEAT(0);
+ } else {
+ feedWatchdog( );
+ }
+#endif
  if (_restoreRejected) return;
  if (is_stage) {
  ota::stage_session_feed(_stageSession, upload.buf, upload.currentSize);
@@ -276,7 +297,7 @@ void WebManager::handleApiRestoreUploadData( ) {
  /* Before the abort lets Core 1 go, so it comes back to this screen. */
  if (_displayRef) _displayRef->showOta(OTA_PH_CUT);
  ota::stage_session_abort(_stageSession);
- _stageAbortRebuild = true;
+ if (kStageWritesOverFs) _stageAbortRebuild = true;
  } else {
  ota::restore_session_abort(_restoreSession);
  }
@@ -331,13 +352,13 @@ void WebManager::handleApiRestoreFinish( ) {
  _server->send(403, "text/plain", "Forbidden — admin only");
  return;
  }
-#if !OTA_INSTALL_AVAILABLE
+ if (!ota::staging_install_available( )) {
  /* The upload went through the callback untouched: no session began. */
  LOG_CODE(LOG_WARN, "OTA", WEB_UPLOAD, 0, "stage_unavailable");
  _server->send(501, "application/json",
                "{\"st\":0,\"committed\":0,\"error\":\"" OTA_UNAVAILABLE_TEXT "\"}");
  return;
-#endif
+ }
  bool ok_staged = (_stageSession.status == ota::StageStatus::STAGED);
  bool commit = (_server->arg("commit") == "1");
 
@@ -362,6 +383,7 @@ void WebManager::handleApiRestoreFinish( ) {
  * otherwise → remount LFS, no metadata. */
  bool committed = false;
  if (ok_staged && valid && commit) {
+#if OTA_RP2040_MAP
  ota::UpdateMetadata m;
  memset(&m, 0, sizeof(m));
  m.magic = ota::OTA_MAGIC_PENDING;
@@ -378,9 +400,20 @@ void WebManager::handleApiRestoreFinish( ) {
  committed = ota::ota_metadata_write(m);
  _storageRef->exitFlashSafeMode( );
  }
- /* Do NOT remount LFS — staging preserved for apply. A metadata write
-  * that failed leaves nothing to apply: an interruption on the panel. */
+#else
+ /* Nothing more goes to flash here. The image is kept for the apply with
+  * its first sector in RAM (staging_mark_ready, staging.h), so a reset
+  * before the apply leaves the ROM on this image, the way a reboot drops a
+  * COMMITTED stage on the RP2040. */
+ committed = ota::staging_mark_ready( );
+#endif
+ /* On the RP2040, do NOT remount LFS — staging preserved for apply. A
+  * commit that failed leaves nothing to apply: an interruption on the panel. */
  if (_displayRef) _displayRef->showOta(committed ? OTA_PH_READY : OTA_PH_CUT);
+#if !OTA_RP2040_MAP
+ /* LittleFS was never unmounted: only Core 1 comes back, to that screen. */
+ ota::staging_session_end(_storageRef);
+#endif
  } else if (ok_staged) {
  /* Testing: remount. Each screen goes up before Core 1 is let go
   * below, so it comes back to it: refused and why, or — a valid image
@@ -389,7 +422,7 @@ void WebManager::handleApiRestoreFinish( ) {
                                        otaWhyFor((unsigned)vr.status));
  RenderGuard rg(_displayRef);
  ota::staging_session_end(_storageRef);
- _stageAbortRebuild = true;
+ if (kStageWritesOverFs) _stageAbortRebuild = true;
  } else if (_stageSession.status == ota::StageStatus::STAGING ||
  _stageSession.status == ota::StageStatus::OVERFLOW_ERR ||
  _stageSession.status == ota::StageStatus::WRITE_FAILED) {
@@ -403,7 +436,7 @@ void WebManager::handleApiRestoreFinish( ) {
  }
  RenderGuard rg(_displayRef);
  ota::stage_session_abort(_stageSession);
- _stageAbortRebuild = true;
+ if (kStageWritesOverFs) _stageAbortRebuild = true;
  } else if (_stageSession.status == ota::StageStatus::BEGIN_FAILED) {
  if (_displayRef) _displayRef->showOta(OTA_PH_CUT);
  }
@@ -521,6 +554,12 @@ void WebManager::handleApiRestoreFinish( ) {
  * Anti-loop via OTA_MAX_APPLY_ATTEMPTS (already in orchestrator). There is
  * no time-based retry guard: a second apply within seconds is refused by the
  * metadata state, not by a clock.
+ *
+ * The RP2350 (docs/analysis/OTA_AB_RP2350.md, step 4) has no applier and no
+ * metadata: the stage wrote the slot the board did not boot from, all but its
+ * first sector. The apply checks the signature again, writes that sector, and
+ * reboots into the slot through the boot ROM (FLASH_UPDATE). ?test=1 is
+ * refused there: it exists to run the RP2040's applier.
  * ========================================================================= */
 void WebManager::handleApiOtaApply( ) {
  /* OTA apply: DESTRUCTIVE IRREVERSIBLE — ADMIN-ONLY. */
@@ -529,13 +568,66 @@ void WebManager::handleApiOtaApply( ) {
  return;
  }
  if (rejectIfTouchPriority( )) return;
-#if !OTA_INSTALL_AVAILABLE
+ if (!ota::staging_install_available( )) {
  /* Before test mode too: it injects metadata and runs the applier with no stage. */
  _server->send(501, "application/json", "{\"error\":\"" OTA_UNAVAILABLE_TEXT "\"}");
  return;
-#endif
+ }
 
  bool test_mode = (_server->arg("test") == "1");
+
+#if !OTA_RP2040_MAP
+ if (test_mode) {
+ /* Nothing here to exercise, and the real path in its place would install. */
+ _server->send(501, "application/json",
+               "{\"error\":\"test mode runs the RP2040's applier, and this board has none\"}");
+ return;
+ }
+ if (!ota::staging_ready( )) {
+ _server->send(409, "application/json",
+ "{\"error\":\"no committed update pending\"}");
+ return;
+ }
+ /* The signature again, over the slot as the ROM will read it: the first
+  * sector still in RAM, the rest in flash. Only a stage writes the slot, and
+  * a new one drops the kept image before its first byte, so this is the
+  * stage's check over the same bytes. It stays because the apply is the last
+  * point where a wrong image can be stopped, and it costs about 2 s. */
+ ota::SigReport sr;
+ if (!ota::ota_check_staged_signature(_stageSession.bytes_received, sr)) {
+ LOG_CODE(LOG_WARN, "OTA", SEC_CONFIG_CHANGED, _currentUserId,
+          String("apply refused: staged image no longer verifies, v=") + (int)sr.verdict);
+ if (_displayRef) _displayRef->showOta(OTA_PH_REFUSED, otaWhyFor((unsigned)sr.verdict));
+ char buf[96];
+ snprintf(buf, sizeof(buf),
+          "{\"error\":\"staged image no longer verifies; stage it again\",\"v\":%u}",
+          (unsigned)sr.verdict);
+ _server->send(409, "application/json", buf);
+ return;
+ }
+ /* The first sector, last: from here the slot boots. */
+ bool slotOk;
+ {
+ RenderGuard rg(_displayRef);
+ _storageRef->enterFlashSafeMode( );
+ slotOk = ota::staging_commit( );
+ _storageRef->exitFlashSafeMode( );
+ }
+ if (!slotOk) {
+ /* staging_commit erased the sector again: the slot cannot boot. */
+ LOG_CODE(LOG_ERROR, "OTA", SEC_CONFIG_CHANGED, _currentUserId, "apply_fw slot write failed");
+ if (_displayRef) _displayRef->showOta(OTA_PH_CUT);
+ _server->send(500, "application/json",
+ "{\"error\":\"the new slot could not be written; stage it again\"}");
+ return;
+ }
+ LOG_CODE(LOG_WARN, "OTA", SEC_CONFIG_CHANGED, _currentUserId, "apply_fw slot");
+ _server->send(202, "application/json", "{\"accepted\":true,\"mode\":\"apply\"}");
+ _server->client( ).flush( );
+ delay(500); /* TCP flush before the reboot, as below. */
+ if (_displayRef) _displayRef->showOta(OTA_PH_INSTALLING);
+ LogManager::instance( ).safeRebootFlashUpdate(XIP_BASE + ota::staging_slot_offset( ));
+#else
 
  if (test_mode) {
  /* Inject stub metadata. enterFlashSafeMode pauses Core 1
@@ -622,4 +714,5 @@ void WebManager::handleApiOtaApply( ) {
  * Wi-Fi recovery via reload, but state is likely bad). */
  LOG_CODE(LOG_ERROR, "OTA", SEC_CONFIG_CHANGED, _currentUserId,
  String("apply returned, result=") + (int)result);
+#endif
 }

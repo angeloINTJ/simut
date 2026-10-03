@@ -91,4 +91,28 @@ bool staging_session_begin_lite(StorageManager* storage);
  */
 bool staging_session_end(StorageManager* storage);
 
+/* Whether this board can take an update over the air. The RP2040 always can;
+ * the RP2350 only when it booted from a slot of a partition table, and then the
+ * staging area above is the other slot (slot_stage.h). */
+#if OTA_RP2040_MAP
+/* constexpr, not inline: the callers' gates then fold before the compiler lays
+ * out their branches, and the RP2040 images stay byte-identical to the ones
+ * built before the RP2350 could install (an inline function moved one block in
+ * the upload callback, +4 B, measured 2026-10-03). */
+constexpr bool staging_install_available() { return true; }
+#else
+bool staging_install_available();
+/* The RP2350's stage ends here when the image checked out and commit=1 asked
+ * for it: the image is kept for the apply, its first sector still in RAM, so
+ * a reset before the apply drops it the way a reboot drops a COMMITTED stage
+ * on the RP2040 (slot_stage.h). Any new stage drops it too. */
+bool staging_mark_ready();
+bool staging_ready();
+/* The apply's commit: the slot's first sector goes to flash, last, and only
+ * now can the slot boot. True once it reads back. Core 1 must be parked. */
+bool staging_commit();
+/* The physical offset of the slot the stage wrote. */
+uint32_t staging_slot_offset();
+#endif
+
 } /* namespace ota */

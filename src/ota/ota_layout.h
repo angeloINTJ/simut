@@ -34,30 +34,25 @@
 #pragma once
 #include <stdint.h>
 
-/* No install over the air on the RP2350 until its A/B slots exist
- * (docs/analysis/OTA_AB_RP2350.md, step 2). By the code, a stage there took a
- * signed RP2040 release — its boot2 CRC checks, and its env is "release" like
- * the RP2350 image's — and the applier would copy it over a program the
- * RP2350's ROM cannot boot: the board waits in BOOTSEL. On the bench board
- * (2026-10-03, main badb4a8) three such uploads began, and each dropped before
- * its end (9.8 to 28.7 s). The SDK defines PICO_RP2350=1 only on that chip
- * (lib/rp2350/platform_def.txt), so the RP2040 images keep their code. */
-#if defined(PICO_RP2350) && PICO_RP2350
-#define OTA_INSTALL_AVAILABLE 0
-#else
-#define OTA_INSTALL_AVAILABLE 1
-#endif
-/* What the stage and the apply answer instead (501); the Files page shows it. */
-#define OTA_UNAVAILABLE_TEXT "Over-the-air update is not available on the RP2350 yet. Install over USB."
+/* On the RP2350 an update goes into the slot the board did not boot from
+ * (docs/analysis/OTA_AB_RP2350.md, step 4; src/ota/slot_stage.h), and the
+ * apply reboots the ROM into it. A board that did not boot from a slot (no
+ * partition table, the layout before step 3) has none to write:
+ * staging_install_available( ) says so, and the stage and the apply answer 501
+ * with this text, which the Files page shows. Until step 4 the RP2350 image
+ * refused every update: by the code, a stage there took a signed RP2040
+ * release, and the applier would have copied it over a program the RP2350's
+ * ROM cannot boot. */
+#define OTA_UNAVAILABLE_TEXT "This board boots from no slot of a partition table. Install the factory image over USB."
 
 /* Everything after the RP2350's map below is the Pico W's 2 MB map: the
  * staging area, the config snapshot and the metadata. On the RP2350 those
  * offsets fall inside the slots (step 3), and with the program mapped from
  * slot A an XIP read there faults, because the window the boot ROM maps is the
- * slot's 1,532 KB. OTA_RP2040_MAP is 0 there: every function that reads or
- * writes them (metadata.cpp, config_snapshot.cpp, staging.cpp) answers
- * "absent" or refuses, so the boot finds no update in flight and no snapshot,
- * as on a board that never had one. */
+ * slot's 1,532 KB. OTA_RP2040_MAP is 0 there: the functions that read or
+ * write them (metadata.cpp, config_snapshot.cpp) answer "absent" or refuse,
+ * so the boot finds no update in flight and no snapshot, as on a board that
+ * never had one, and staging.cpp writes the inactive slot instead. */
 #if defined(PICO_RP2350) && PICO_RP2350
 #define OTA_RP2040_MAP 0
 #else
@@ -94,6 +89,19 @@ static_assert(OTA_RP2350_EEPROM_OFFSET + 4096u == 4u * 1024u * 1024u,
 static_assert((OTA_RP2350_SLOT_SIZE % 4096u) == 0u && (OTA_RP2350_FS_OFFSET % 4096u) == 0u,
               "slots and LittleFS must be sector-aligned");
 #endif
+#endif
+
+/* What an update may be, per chip. The RP2040's staging area is the LittleFS
+ * partition, and its last two sectors hold the config snapshot; the RP2350's
+ * is a whole slot. OTA_STAGE_AREA is what the stage's erase bitmap covers. */
+#if OTA_RP2040_MAP
+#define OTA_STAGE_AREA     OTA_STAGING_MAX_SIZE
+#define OTA_STAGE_CEILING  (OTA_STAGING_MAX_SIZE - 2u * OTA_FLASH_SECTOR_SIZE)
+#define OTA_IMAGE_MAX      OTA_APP_SAFE_MAX_SIZE
+#else
+#define OTA_STAGE_AREA     OTA_RP2350_SLOT_SIZE
+#define OTA_STAGE_CEILING  OTA_RP2350_SLOT_SIZE
+#define OTA_IMAGE_MAX      OTA_RP2350_SLOT_SIZE
 #endif
 
 /* Constantes de tamanho — em bytes. */

@@ -6371,9 +6371,9 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         /* fw: stage message — what the page says when the device did not commit a
            staged image (tools/test_webui_firmware_refusal.py runs it). A refusal by
            validation carries `v`, explained below. A refusal before any validation
-           carries only `error`, in the device's own words: the RP2350 image, which
-           takes no update over the air until its A/B slots exist, answers every
-           stage that way (501), and the page used to print "validation v=undefined". */
+           carries only `error`, in the device's own words: an RP2350 that boots from
+           no slot of a partition table answers every stage that way (501), and the
+           page used to print "validation v=undefined". */
         function fwStageMessage(status, v) {
             if (v.v === undefined)
                 return window.t('fil_fw_stage_refused', 'Upload refused (HTTP ') + status + ').' + (v.error ? ' ' + v.error : '');

@@ -455,15 +455,27 @@
  * The name is exposed in /api/perms ("env"), /api/status ("env"), the mDNS
  * TXT record, and the .rodata tag in BuildIdentity.cpp that
  * ota_validate_staging( ) compares against before a stage is accepted.
+ *
+ * The Pico 2 W's images add "two": "releasetwo" is the release on the
+ * RP2350. The variant alone said nothing of the chip, so a Pico 2 W took a
+ * Pico W's release for its own, and its signature too, which binds the env
+ * (docs/analysis/OTA_AB_RP2350.md, step 4). A suffix of letters, because the
+ * tag reads only a to z (BuildIdentity.cpp), and short, because the longest,
+ * "headlesstwo", fills the 11 characters the validator keeps.
  * ---------------------------------------------------------------------- */
-#if SIMUT_AIR
-#define SIMUT_ENV_NAME "air"
-#elif SIMUT_DISPLAY_ALPHA
-#define SIMUT_ENV_NAME "alpha"
-#elif SIMUT_DISPLAY_TFT
-#define SIMUT_ENV_NAME "release"
+#if defined(PICO_RP2350) && PICO_RP2350
+#define SIMUT_ENV_CHIP "two"
 #else
-#define SIMUT_ENV_NAME "headless"
+#define SIMUT_ENV_CHIP ""
+#endif
+#if SIMUT_AIR
+#define SIMUT_ENV_NAME "air" SIMUT_ENV_CHIP
+#elif SIMUT_DISPLAY_ALPHA
+#define SIMUT_ENV_NAME "alpha" SIMUT_ENV_CHIP
+#elif SIMUT_DISPLAY_TFT
+#define SIMUT_ENV_NAME "release" SIMUT_ENV_CHIP
+#else
+#define SIMUT_ENV_NAME "headless" SIMUT_ENV_CHIP
 #endif
 
 /* -------------------------------------------------------------------------
