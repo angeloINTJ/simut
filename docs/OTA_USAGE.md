@@ -43,7 +43,7 @@ Read the firmware version back from `/api/perms` (`version`) — or, from this b
 
 ## What survives, what doesn't
 
-A config snapshot carries **Wi-Fi credentials, users and sensor slots** across the apply. The LittleFS filesystem — **history, language packs, calibration** — is **REFORMATTED** by the apply. Take a backup first (web file manager → **Backup**).
+A config snapshot carries **Wi-Fi credentials, users and sensor slots** across the update. The image is received into the flash area of the LittleFS filesystem, so the rest of it — **history, language packs, calibration** — is lost once the stage starts writing, also when the upload is cut or the image refused (MANUAL chapter 17, "O que sobrevive e o que se perde"). Take a backup first (web file manager → **Backup**) and restore it afterwards.
 
 Without a pack in `/lang` the interface falls back to English, which is a real
 outcome of a normal upgrade and not a fault. Since v2.6.0-beta the `.lng` files
