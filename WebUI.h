@@ -4941,6 +4941,7 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
                     <div style="margin-top:15px;">
                         <label data-i18n="cfg_prev">Live Preview:</label>
+                        <p class="c-sub" id="previewL" data-i18n="tel_pv_live" style="display:none;margin:0 0 8px">Built from this device: its name, its MAC and the readings of now. The first record shows a sensor in failure.</p>
                         <div class="tv-bar">
                             <button type="button" class="sxb" id="previewO" data-i18n="tv_org">Organized</button>
                             <button type="button" class="sxb" id="previewR" data-i18n="tv_raw">Original</button>
@@ -5017,6 +5018,7 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
                     <div style="margin-top:15px;">
                         <label data-i18n="cfg_prev">Live Preview:</label>
+                        <p class="c-sub" id="apreviewL" data-i18n="al_pv_live" style="display:none;margin:0 0 8px">One record of each code, with this device's sensors, limits and account. The events themselves are examples.</p>
                         <div class="tv-bar">
                             <button type="button" class="sxb" id="apreviewO" data-i18n="tv_org">Organized</button>
                             <button type="button" class="sxb" id="apreviewR" data-i18n="tv_raw">Original</button>
@@ -5036,9 +5038,14 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
            Mesma máquina, mesma forma: modos 0/1/2, resolver de tokens, formas
            compostas "<chave>":{<token>}, limpeza de vírgulas órfãs e envelope
            {DEV}{MAC}{DATA}. Cada linha (JSON/CSV/custom) é resolvida pelo
-           domínio; o esqueleto é compartilhado. */
+           domínio; o esqueleto é compartilhado. Os registros saem DESTE
+           aparelho (_pvFrom), e tools/test_webui_payload_preview.py prende
+           cada formato ao firmware que o envia. */
 
-        function _resolveCustom(tpl, rec, resolver) {
+        /* absent: o que um marcador sem valor vira FORA da forma composta —
+           null na linha de medições (formatLineCustomBuf), vazio na de alarmes
+           (alarmFormatLine). */
+        function _resolveCustom(tpl, rec, resolver, absent) {
             let out = '', ti = 0;
             while (ti < tpl.length) {
                 const c = tpl[ti];
@@ -5057,12 +5064,12 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 }
                 if (mFull) {
                     out = out.substr(0, out.length - (compKey.length + 6));
-                    if (val !== null) out += '"' + compKey[0] + (hwid || '').trim() + '":' + val;
+                    if (val != null) out += '"' + compKey[0] + (hwid || '').trim() + '":' + val;
                 } else if (mBare) {
-                    if (val !== null) out += val;
+                    if (val != null) out += val;
                     else out = out.substr(0, out.length - (compKey.length + 3));
                 } else {
-                    out += (val !== null ? val : 'null');
+                    out += val != null ? val : absent;
                 }
                 ti += tc;
             }
@@ -5082,39 +5089,21 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             return w;
         }
 
-        /* Resolver da telemetria convencional — mirror do formatLineCustomBuf. */
+        /* Resolver da telemetria convencional — espelho do formatLineCustomBuf:
+           {TS}, {DHT_ID} (o serial da placa) e {t,u,p}<slot>. Dois dígitos só
+           de 10 a 15 em t e u, e qualquer par em p ({p09} é o slot 9, {t09}
+           fica como texto), sempre abaixo de 16. {pN} só vale no slot que mede
+           a pressão: o registro tem UMA. */
         function _sensorTokenResolver(rec, tpl, ti) {
-            let val = null, hwid = null, compKey = '', tc = 0;
-            if (tpl.substr(ti, 4) === '{TS}') { val = String(rec.ts); tc = 4; }
-            else if (tpl.substr(ti, 8) === '{DHT_ID}') { val = rec.serial; tc = 8; }
-            else {
-                const ch = tpl[ti+1];
-                if (ch === 't' || ch === 'u' || ch === 'p') {
-                    let digits = 0;
-                    if (tpl[ti+2] >= '0' && tpl[ti+2] <= '9') {
-                        if (tpl[ti+3] === '}') digits = 1;
-                        else if (tpl[ti+3] >= '0' && tpl[ti+3] <= '9' && tpl[ti+4] === '}') digits = 2;
-                    }
-                    if (digits) {
-                        const idx = parseInt(tpl.substr(ti + 2, digits), 10);
-                        if (idx < _devSensors.length || idx < 16) {
-                            const s = rec.slots[idx];
-                            let raw = null;
-                            if (s && s.active) {
-                                if (ch === 't') raw = s.val;
-                                else if (ch === 'u') raw = s.hum;
-                                else if (s.hasPress) raw = rec.press;
-                            }
-                            val = (raw === undefined) ? null : raw;
-                            hwid = s ? s.hwid : '';
-                            compKey = ch + idx; tc = 2 + digits + 1;
-                        }
-                    }
-                }
-            }
-            return tc ? { val, hwid, compKey, tc } : null;
+            if (tpl.substr(ti, 4) == '{TS}') return { val: String(rec.ts), tc: 4 };
+            if (tpl.substr(ti, 8) == '{DHT_ID}') return { val: rec.serial, tc: 8 };
+            const m = /^\{([tup])(\d\d?)\}/.exec(tpl.substr(ti, 5));
+            if (!m || (m[2].length == 2 && m[1] != 'p' && m[2][0] != '1') || +m[2] > 15) return null;
+            const c = m[1], i = +m[2], s = rec.slots[i];
+            const val = !s.active ? null : c == 't' ? s.val : c == 'u' ? s.hum : s.hasPress ? rec.press : null;
+            return { val, hwid: s.hwid, compKey: c + i, tc: m[0].length };
         }
-        function _previewCustomLine(tpl, rec) { return _resolveCustom(tpl, rec, _sensorTokenResolver); }
+        function _previewCustomLine(tpl, rec) { return _resolveCustom(tpl, rec, _sensorTokenResolver, 'null'); }
 
         /* Resolver da linha de alarmes — espelho do alarmFormatLine
            (src/AlarmPayload.h), token a token. Três domínios, strings ou
@@ -5146,7 +5135,7 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             else if (at('{USER}') || at('{user}')) { compKey = tpl.substr(ti + 1, 4); val = rec.user ? '"' + rec.user + '"' : null; tc = 6; }
             return tc ? { val, hwid: null, compKey, tc } : null;
         }
-        function _alarmCustomLine(tpl, rec) { return _resolveCustom(tpl, rec, _alarmTokenResolver); }
+        function _alarmCustomLine(tpl, rec) { return _resolveCustom(tpl, rec, _alarmTokenResolver, ''); }
 
         /* Mirror do firmware buildPayload global-template walker. */
         function _previewGlobal(gt, dev, mac, data) {
@@ -5173,102 +5162,155 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         }
         /* Esqueleto compartilhado dos dois builders. */
         function _renderPayloadPreview(o) {
-            const mode = document.getElementById(o.modeId).value;
-            const batch = o.demo();
-            let s = '';
-            if (batch && batch.length) {
-                if (mode == '0') {
-                    s = '[' + batch.map(o.jsonLine).join(',') + ']';
-                } else if (mode == '1') {
-                    s = o.csv(batch);
-                } else {
-                    const glob = document.getElementById(o.globId).value;
-                    const line = document.getElementById(o.lineId).value;
-                    let sep = document.getElementById(o.sepId).value;
-                    if (sep === '\\n') sep = '\n';
-                    const data = batch.map(r => o.customLine(line, r)).join(sep);
-                    s = _previewGlobal(glob, o.dev || 'SIMUT_Demo', o.mac || 'AA:BB:CC:DD:EE:FF', data);
-                }
+            const g = id => document.getElementById(id), mode = g(o.modeId).value, line = g(o.lineId).value;
+            const batch = o.batch(_pvDev);
+            let s;
+            if (mode == '0') {
+                s = '[' + batch.map(r => o.jsonLine(r, line)).join(',') + ']';
+            } else if (mode == '1') {
+                s = o.csv(batch);
+            } else {
+                let sep = g(o.sepId).value;
+                if (sep === '\\n') sep = '\n';
+                s = _previewGlobal(g(o.globId).value, _pvDev.name, _pvDev.mac, batch.map(r => o.customLine(line, r)).join(sep));
             }
-            const v = _pvOf(o.outId), n = document.getElementById(o.outId + 'N');
+            g(o.outId + 'L').style.display = _pvDev.live ? '' : 'none';
+            const v = _pvOf(o.outId), n = g(o.outId + 'N');
             const bad = s ? v.set('preview.json', s, 1).bad : (v.note(''), 0);
             n.textContent = window.t('tv_bad', 'Incomplete or invalid JSON: laid out by its brackets alone. Original shows the exact text.');
             n.style.display = bad ? '' : 'none';
         }
 
-        /* Device metadata (real serial + per-slot hwid/active) — populado por loadConfig. */
-        let _devSerial = 'RP2040_A1B2';
-        let _devSensors = Array.from({length:10}, (_,i) => ({
-            hwid: 'STM' + String(i+1).padStart(4,'0'),
-            active: true, hasHum: false, hasPress: false
-        }));
+        /* The device the previews are built from, out of the four answers the
+           page has: /api/config (name, clock, history interval, board serial,
+           the slots and their channels), /api/status (MAC and the readings of
+           now), /api/alarms (the limits) and the account of the session. JSON
+           numbers lose their trailing zeros, so 21.50 arrives as 21.5 and gets
+           its decimals back here: two for temperature, one for the rest, as
+           the device writes them. Without /api/status there are no readings:
+           live stays false, the configured sensors get stand-in values, and the
+           caption that promises real ones stays hidden. Without /api/alarms the
+           limits are the factory ones (SensorChannelTable.h). */
+        function _pvFrom(c, st, al, user) {
+            c = c || {};
+            if (!(st && st.sys)) st = null;
+            const y = st ? st.sys : {}, cs = c.sensors || [], ls = st && st.sensors || [], as = al && al.sensors || [];
+            const f = (v, n) => typeof v == 'number' ? v.toFixed(n) : null;
+            const d = { name: y.name || c.name || '', mac: y.mac || 'AA:BB:CC:DD:EE:FF', uid: y.uid || c.serial || '',
+                time: y.time || c.now_epoch || Math.floor(Date.now() / 1000), every: 60 * (c.h_int || y.hi || 1),
+                user: user || '', live: !!st, s: [] };
+            for (let i = 0; i < 16; i++) {
+                const k = cs[i] || {}, r = ls.find(x => x.slot == i) || {}, L = (as.find(x => x.idx == i) || {}).lim || {};
+                d.s.push({ hwid: k.hwid || '', active: !!k.active, hum: !!k.hum, press: !!k.press,
+                    t: st ? f(r.val, 2) : k.active ? (20 + i).toFixed(2) : null,
+                    u: st ? f(r.hum, 1) : k.active && k.hum ? (50 + i).toFixed(1) : null,
+                    p: st ? f(r.press, 1) : k.active && k.press ? '1013.2' : null,
+                    lim: { t: L.temp || [0, 40], u: L.hum || [20, 80], p: L.press || [0, 1638.3] } });
+            }
+            return d;
+        }
+        let _pvC = null, _pvS = null, _pvA = null, _pvU = '', _pvDev = _pvFrom(null, null, null, '');
 
-        function _sensorDemoBatch() {
-            const mk = (tBase) => _devSensors.map((s, i) => ({
-                hwid: s.hwid,
-                val: (20 + i + tBase).toFixed(2),
-                hum: s.hasHum ? (55 + i + tBase).toFixed(1) : null,
-                hasPress: !!s.hasPress,
-                active: s.active
-            }));
-            return [
-                { ts: 1700000000, serial: _devSerial, press: '1013.2', slots: mk(0.1) },
-                { ts: 1700000005, serial: _devSerial, press: '1013.1', slots: mk(0.2) }
-            ];
+        /* Two history records, one interval apart: the later is the readings
+           of now; the earlier has the first active sensor in failure, so the
+           body shows what a failed sensor sends (its key left out of the JSON,
+           an empty CSV column, null or nothing in a template). A record holds
+           ONE pressure, and takeRecord( ) lets the last pressure channel of
+           the history file win: here, the last active slot that has one. */
+        function _sensorBatch(d) {
+            const A = d.s.findIndex(s => s.active);
+            const mk = (ts, off) => {
+                let press = null;
+                const slots = d.s.map((s, i) => {
+                    const on = s.active && i != off;
+                    if (on && s.press && s.p != null) press = s.p;
+                    return { hwid: s.hwid, active: s.active, hasPress: s.press, val: on ? s.t : null, hum: on ? s.u : null };
+                });
+                return { ts, serial: d.uid, press, slots };
+            };
+            return [mk(d.time - d.every, A), mk(d.time, -1)];
         }
 
-        function _alarmDemoBatch() {
-            const hw = (_devSensors[0] && _devSensors[0].hwid) || 'SENSOR1';
-            return [
-                { ts: 1700000100, id: 't' + hw, hwid: hw, slot: 0, ch: 't', val: '25.30', alarm: 'alarm', err: null, seq: 1 },
-                { ts: 1700000200, id: 't' + hw, hwid: hw, slot: 0, ch: 't', val: null, alarm: null, err: 'err', seq: 2 },
-                { ts: 1700000300, id: 't' + hw, hwid: hw, slot: 0, ch: 't', val: null, alarm: 'alarm_sil', err: null, seq: 3 }
-            ];
-        }
-
-        /* JSON da telemetria convencional ignora templates (formato fixo, mirror do firmware). */
-        function _sensorJsonLine(r) {
-            let s = '{"ts":' + r.ts;
-            r.slots.forEach((sl, i) => {
-                if (!sl.active) return;
-                const id = sl.hwid ? sl.hwid : i;
-                s += ',"t' + id + '":' + sl.val;
-                if (sl.hum !== null) s += ',"u' + id + '":' + sl.hum;
+        /* One record of every code the firmware sends, a minute apart and
+           ending now, on this device's sensors, limits and account; the events
+           themselves are examples. Each code carries what it carries on the
+           wire (manual, chapter 22, "Os códigos"): val only on alarm, the
+           reading of now; lo and hi only on alarm_lim, on a humidity channel
+           when there is one; until only on maint_on, two hours ahead; the user
+           on the panel's actions, but not on a silence, and here on a
+           maint_off closed by someone (a deadline closes it with none). */
+        function _alarmBatch(d) {
+            let A = d.s.findIndex(s => s.active), B = d.s.findIndex(s => s.active && s.hum);
+            if (A < 0) A = 0;
+            if (B < 0) B = A;
+            const a = d.s[A], ch = d.s[B].hum ? 'u' : 't', n = ch == 't' ? 2 : 1, lim = d.s[B].lim[ch];
+            const R = [{ alarm: 'alarm', val: a.t || Number(a.lim.t[1]).toFixed(2) }, { alarm: 'alarm_sil' },
+                { alarm: 'alarm_off', user: 1 }, { alarm: 'alarm_on', user: 1 },
+                { alarm: 'alarm_lim', i: B, ch, lo: Number(lim[0]).toFixed(n), hi: Number(lim[1]).toFixed(n), user: 1 },
+                { err: 'err' }, { err: 'err_sil' }, { err: 'err_off', user: 1 },
+                { maint: 'maint_on', until: 1, user: 1 }, { maint: 'maint_off', user: 1 }];
+            return R.map((r, k) => {
+                const i = r.i == null ? A : r.i, c = r.ch || 't', h = d.s[i].hwid, ts = d.time - (R.length - 1 - k) * 60;
+                return { ts, seq: k + 1, slot: i, ch: c, hwid: h, id: c + (h || i), val: r.val || null,
+                    alarm: r.alarm || null, err: r.err || null, maint: r.maint || null, lo: r.lo || null, hi: r.hi || null,
+                    until: r.until ? ts + 7200 : null, user: r.user && d.user || null };
             });
-            const pSlot = r.slots.find(sl => sl.active && sl.hasPress && sl.hwid);
-            if (pSlot) s += ',"p' + pSlot.hwid + '":' + r.press;
+        }
+
+        /* JSON da telemetria convencional ignora templates — espelho do
+           formatLineJsonBuf: temperatura e umidade de cada slot ativo que não
+           falhou, pela chave do hwId (ou do número do slot); a pressão depois,
+           com a chave do PRIMEIRO slot ativo com hwId que mede pressão, ou "p"
+           quando nenhum mede. Sensor em falha: a chave some, não vai null. */
+        function _sensorJsonLine(r) {
+            let s = '{"ts":' + r.ts, k = r.slots.find(x => x.active && x.hwid && x.hasPress);
+            r.slots.forEach((x, i) => {
+                if (!x.active) return;
+                if (x.val != null) s += ',"t' + (x.hwid || i) + '":' + x.val;
+                if (x.hum != null) s += ',"u' + (x.hwid || i) + '":' + x.hum;
+            });
+            if (r.press != null) s += ',"p' + (k ? k.hwid : 'p') + '":' + r.press;
             return s + '}';
         }
-        function _sensorCsv(batch) {
-            let hdr = 'timestamp';
-            batch[0].slots.forEach((sl, i) => { if (sl.active) hdr += ';s' + i + '_' + sl.hwid; });
-            const lines = batch.map(r => {
-                let s = String(r.ts);
-                r.slots.forEach(sl => { s += ';' + (sl.active ? sl.val : ''); });
-                return s;
-            });
-            return hdr + '\n' + lines.join('\n') + '\n';
+        /* CSV — o cabeçalho do buildPayload nomeia os 16 slots (com o hwId só
+           no slot ativo que tem um), as 16 umidades e press; cada linha é o
+           toCsvLine: epoch;t0..t15;h0..h15;press, campo vazio onde não há
+           valor. 34 colunas, ativo ou não. */
+        function _sensorCsv(b) {
+            const col = p => b[0].slots.map((x, i) => ';' + p + i + (x.active && x.hwid ? '_' + x.hwid : '')).join('');
+            const v = x => ';' + (x == null ? '' : x);
+            return 'timestamp' + col('s') + col('h') + ';press\n' +
+                b.map(r => r.ts + r.slots.map(x => v(x.val)).join('') + r.slots.map(x => v(x.hum)).join('') + v(r.press) + '\n').join('');
         }
-        /* JSON da linha de alarmes USA o template de linha (mirror do firmware). */
-        function _alarmJsonLine(r) {
-            const tpl = document.getElementById('a_line').value ||
-                '{"ts":{TS},"id":"{ID}","val":{val},"err":"{err}","seq":{seq}}';
-            return _alarmCustomLine(tpl, r);
+        /* CSV da linha de alarmes — espelho do alarmFormatCsvLine:
+           seq;ts;id;v;user;lo;hi;until, com o código no lugar do valor quando
+           o registro é um marcador, e as colunas vazias onde não se aplicam. */
+        function _alarmCsvLine(r) {
+            return [r.seq, r.ts, r.id, r.alarm == 'alarm' ? r.val : r.alarm || r.err || r.maint, r.user, r.lo, r.hi, r.until]
+                .map(x => x == null ? '' : x).join(';');
         }
-        function _alarmCsv(batch) {
-            return 'seq;ts;id;v\n' + batch.map(r => {
-                const v = (r.alarm === 'alarm') ? r.val : (r.alarm || r.err || '');
-                return r.seq + ';' + r.ts + ';' + r.id + ';' + v;
-            }).join('\n') + '\n';
+        function _alarmCsv(b) { return 'seq;ts;id;v;user;lo;hi;until\n' + b.map(_alarmCsvLine).join('\n') + '\n'; }
+
+        /* The rest of the device, once the page has its configuration: what
+           the session already read (/api/perms and /api/status, no second
+           request) and the alarm limits. Either one missing leaves the
+           previews on what they have. */
+        async function _pvLoad() {
+            try { const s = await window.sessReady; if (s) { _pvS = s.status; _pvU = s.user; } } catch (e) { /* stays as it was */ }
+            try { const r = await fetchSafe('/api/alarms', { retries: 1 }); if (r.ok) _pvA = await r.json(); } catch (e) { /* factory limits */ }
+            _pvDev = _pvFrom(_pvC, _pvS, _pvA, _pvU);
+            renderPreview(); renderAlarmPreview();
         }
 
         function renderPreview() {
             _renderPayloadPreview({ outId:'preview', modeId:'t_mode', globId:'t_glob', lineId:'t_line', sepId:'t_sep',
-                demo:_sensorDemoBatch, jsonLine:_sensorJsonLine, csv:_sensorCsv, customLine:_previewCustomLine });
+                batch:_sensorBatch, jsonLine:_sensorJsonLine, csv:_sensorCsv, customLine:_previewCustomLine });
         }
         function renderAlarmPreview() {
+            /* JSON da linha de alarmes USA o template de linha, como o firmware
+               (buildAlarmPayload): o que estiver no campo, mesmo vazio. */
             _renderPayloadPreview({ outId:'apreview', modeId:'a_mode', globId:'a_glob', lineId:'a_line', sepId:'a_sep',
-                demo:_alarmDemoBatch, jsonLine:_alarmJsonLine, csv:_alarmCsv, customLine:_alarmCustomLine });
+                batch:_alarmBatch, jsonLine:(r, l) => _alarmCustomLine(l, r), csv:_alarmCsv, customLine:_alarmCustomLine });
         }
         function toggleBuilder() { let mode = document.getElementById('t_mode').value; document.getElementById('custom_tools').style.display = (mode == '2') ? 'block' : 'none'; renderPreview(); }
         function toggleAlarmBuilder() { let mode = document.getElementById('a_mode').value; document.getElementById('alarm_custom_tools').style.display = (mode == '2') ? 'block' : 'none'; renderAlarmPreview(); }
@@ -5364,6 +5406,7 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     if (d.error) { showLoadError('cfg_load_forbidden', 'The device refused to return the settings: ' + d.error); return; }
                     applyConfig(d);
                     clearLoadError();
+                    _pvLoad();
                     return;
                 } catch (e) { console.error('loadConfig attempt ' + attempt + ' failed:', e); }
             }
@@ -5426,13 +5469,7 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             document.getElementById('a_ct').value = val('a_ct', '');
             const _apSpan = document.getElementById('a_pending_span');
             if (_apSpan) _apSpan.textContent = val('a_pending', 0);
-            if (d.serial) _devSerial = d.serial;
-            if (Array.isArray(d.sensors)) {
-                for (let i = 0; i < 10 && i < d.sensors.length; i++) {
-                    _devSensors[i] = { hwid: d.sensors[i].hwid || '', active: !!d.sensors[i].active,
-                                       hasHum: !!d.sensors[i].hum, hasPress: !!d.sensors[i].press };
-                }
-            }
+            _pvC = d; _pvDev = _pvFrom(_pvC, _pvS, _pvA, _pvU);
             toggleTransport(); toggleBuilder(); toggleAlarmBuilder();
             wirePendingListeners();
         }
@@ -7797,10 +7834,15 @@ static const char LANG_JS[] PROGMEM = R"raw(
             let dot = document.getElementById('conn-dot');
             let ipEl = document.getElementById('status-ip');
             if (dot) dot.style.background = 'var(--positivo)';
-            if (ipEl) { try { let sr = await fetch('/api/status'); let sd = await sr.json(); if(sd.sys) ipEl.textContent = sd.sys.ip || '--'; } catch(e){} }
+            let sd = null;
+            if (ipEl) { try { let sr = await fetch('/api/status'); sd = await sr.json(); if(sd.sys) ipEl.textContent = sd.sys.ip || '--'; } catch(e){} }
+            return { user: user, status: sd };
         } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = 'var(--perigo)'; }
     };
-    document.addEventListener('DOMContentLoaded',function(){window.initSession();});
+    /* sessReady hands what the session read to a page that wants it: the
+       telemetry preview builds from this /api/status and this user instead of
+       asking the device a second time. */
+    document.addEventListener('DOMContentLoaded',function(){ window.sessReady = window.initSession(); });
 
     /* Keep the field you are typing in above the on-screen keyboard.
      *

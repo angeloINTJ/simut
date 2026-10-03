@@ -20,16 +20,6 @@ minifier has deleted shipped code before and reported success
 enough. When src/WebUI_GZ.h exists (any `pio run` writes it), the cases also
 run against the copy the device serves, cut out of the compressed page.
 
-A preview lays out the payload the telemetry page's template walker makes, so
-an organized preview is only as true as that walker. The alarm one had stopped
-at the v22 tokens: on 2026-10-03 the firmware's own default template came out
-with `"maint":{maint}` in it, and the view called it invalid JSON. So the test
-also cuts that walker out of TEL_PAGE, by the build's JS scanner, and holds it
-to the firmware: every token alarmFormatLine (src/AlarmPayload.h) matches is
-one the preview knows, the firmware's own vectors (test/test_alarm_queue) come
-out byte for byte, and the demo batch under the default template, read from
-src/StorageManager.cpp, parses as JSON.
-
 Run: python3 tools/test_webui_text_viewer.py
 Exit status is 0 on pass, 1 on failure.
 """
@@ -50,10 +40,6 @@ GZ_HEADER = REPO / "src" / "WebUI_GZ.h"
 GEN = REPO / "tools" / "build_webui_gz.py"
 START = "/* tv: the pure part"
 END = "/* tv: end of the pure part */"
-ALARM_H = REPO / "src" / "AlarmPayload.h"
-ALARM_TEST = REPO / "test" / "test_alarm_queue" / "test_main.cpp"
-STORAGE = REPO / "src" / "StorageManager.cpp"
-ALARM_FUNCS = ("_resolveCustom", "_alarmTokenResolver", "_alarmCustomLine", "_alarmDemoBatch")
 
 # The cases, as data: inputs travel to node through JSON, so no string here
 # has to survive two levels of escaping. A row is [depth, text, fold end,
@@ -279,51 +265,6 @@ eq('3000 levels: rows', md.rows.length, 5999);
 console.log(JSON.stringify(out));
 """
 
-# The alarm walker's vectors are the firmware's own, from
-# test/test_alarm_queue/test_main.cpp: 21 is fillDemoCfg's template, 24 its
-# V24_TEMPLATE, the default. Each record is written the way the preview's demo
-# writes one, its fields already formatted as src/AlarmPayload.h formats them:
-# lo and hi with the channel's decimals, until as an epoch, the codes and the
-# user bare. The expected lines are checked to still be in that file.
-ALARM_VECTORS = [
-    [21, {"ts": 1756250000, "id": "tSENSOR1", "val": "25.30", "alarm": "alarm", "seq": 1},
-     '{"ts":1756250000,"id":"tSENSOR1","val":25.30,"alarm":"alarm","seq":1}'],
-    [21, {"ts": 1756250100, "id": "tSENSOR1", "err": "err", "seq": 2},
-     '{"ts":1756250100,"id":"tSENSOR1","err":"err","seq":2}'],
-    [21, {"ts": 1756250500, "id": "tSENSOR1", "alarm": "alarm_sil", "seq": 6},
-     '{"ts":1756250500,"id":"tSENSOR1","alarm":"alarm_sil","seq":6}'],
-    [24, {"ts": 1700000000, "id": "tS2", "maint": "maint_on", "until": 1700007200, "user": "joao", "seq": 9},
-     '{"ts":1700000000,"id":"tS2","maint":"maint_on","until":1700007200,"user":"joao","seq":9}'],
-    [24, {"ts": 1700000000, "id": "tS2", "maint": "maint_off", "seq": 10},
-     '{"ts":1700000000,"id":"tS2","maint":"maint_off","seq":10}'],
-    [24, {"ts": 1700000100, "id": "tS2", "alarm": "alarm_lim", "lo": "-5.00", "hi": "30.50",
-          "user": "admin", "seq": 11},
-     '{"ts":1700000100,"id":"tS2","alarm":"alarm_lim","lo":-5.00,"hi":30.50,"user":"admin","seq":11}'],
-    [24, {"ts": 1700000100, "id": "uS2", "alarm": "alarm_lim", "lo": "30.0", "hi": "80.0",
-          "user": "admin", "seq": 11},
-     '{"ts":1700000100,"id":"uS2","alarm":"alarm_lim","lo":30.0,"hi":80.0,"user":"admin","seq":11}'],
-    [24, {"ts": 1700000100, "id": "tS2", "alarm": "alarm_on", "user": "admin", "seq": 12},
-     '{"ts":1700000100,"id":"tS2","alarm":"alarm_on","user":"admin","seq":12}'],
-]
-
-ALARM_HARNESS = r"""
-const D = __DATA__;
-let _devSensors = [];
-const out = [];
-for (const t of D.tokens) {
-  const r = _alarmTokenResolver({}, t, 0);
-  if (!r || r.tc !== t.length) out.push('the firmware resolves ' + t + ', the preview leaves it in the text');
-}
-for (const [v, rec, want] of D.vectors) {
-  const got = _alarmCustomLine(D.templates[v], rec);
-  if (got !== want) out.push('template ' + v + ' ' + JSON.stringify(rec) + '\n      want ' + want + '\n      got  ' + got);
-}
-const demo = '[' + _alarmDemoBatch().map(r => _alarmCustomLine(D.def, r)).join(',') + ']';
-try { JSON.parse(demo); } catch (e) { out.push('the demo under the default template is not JSON, and the preview says so: ' + demo); }
-console.log(JSON.stringify(out));
-"""
-
-
 def extract(src: str, where: str) -> str:
     a = src.find(START)
     b = src.find(END, a + 1)
@@ -345,63 +286,6 @@ def generator() -> dict:
 
 def minifier():
     return generator()["_minify_js"]
-
-
-def js_function(page: str, name: str) -> str:
-    """One function of a page, ended by the build's own JS scanner: a brace in
-    a string, and '{' is the alarm walker's whole subject, does not end it."""
-    a = page.find(f"function {name}(")
-    if a < 0:
-        raise SystemExit(f"FAIL: TEL_PAGE has no {name}. If the alarm walker moved, "
-                         f"move this test with it.")
-    depth, pos = 0, a
-    for kind, text in generator()["_js_tokens"](page[a:]):
-        if kind == "code":
-            for i, ch in enumerate(text):
-                depth += (ch == "{") - (ch == "}")
-                if ch == "}" and depth == 0:
-                    return page[a:pos + i + 1]
-        pos += len(text)
-    raise SystemExit(f"FAIL: {name} in TEL_PAGE has no end")
-
-
-def c_string(src: str, anchor: str, where: str) -> str:
-    """The C string literal right after `anchor`, its adjacent pieces joined."""
-    a = src.find(anchor)
-    m = re.match(r'\s*((?:"(?:[^"\\]|\\.)*"\s*)+)', src[a + len(anchor):]) if a >= 0 else None
-    if not m:
-        raise SystemExit(f"FAIL: no string after {anchor!r} in {where}; this test reads a template there")
-    return re.sub(r'\\(.)', r'\1', "".join(re.findall(r'"((?:[^"\\]|\\.)*)"', m.group(1))))
-
-
-def alarm_firmware():
-    """What the alarm walker is held to, read off the firmware and its test:
-    (data for the harness, failures found before node runs)."""
-    h = ALARM_H.read_text(encoding="utf-8")
-    test = ALARM_TEST.read_text(encoding="utf-8")
-    walker = h[h.find("inline int alarmFormatLine("):]
-    tokens = re.findall(r'memcmp\(tpl \+ ti, "(\{\w+\})", \d+\)', walker)
-    demo_cfg = test.find("static void fillDemoCfg")
-    data = {
-        "tokens": tokens, "vectors": ALARM_VECTORS,
-        "templates": {"21": c_string(test[max(demo_cfg, 0):], "strncpy(cfg.alarmTel.lineTemplate,",
-                                     ALARM_TEST.name),
-                      "24": c_string(test, "V24_TEMPLATE =", ALARM_TEST.name)},
-        "def": c_string(STORAGE.read_text(encoding="utf-8"), "ALARM_LINE_TEMPLATE_DEFAULT =",
-                        STORAGE.name),
-    }
-    fails = []
-    if len(tokens) < 20:
-        fails.append(f"only {len(tokens)} tokens read off alarmFormatLine; did AlarmPayload.h change shape?")
-    if demo_cfg < 0:
-        fails.append("test_alarm_queue has no fillDemoCfg, whose template the first vectors use")
-    if data["templates"]["24"] != data["def"]:
-        fails.append("the firmware's default alarm template is no longer test_alarm_queue's "
-                     "V24_TEMPLATE, so its vectors describe another template")
-    for _, _, want in ALARM_VECTORS:
-        if '"' + want.replace('"', '\\"') + '"' not in test:
-            fails.append(f"{want} is no longer a vector of test_alarm_queue; copy the new one here")
-    return data, fails
 
 
 def served_copy():
@@ -498,14 +382,6 @@ def run(label: str, code: str) -> bool:
     return ok
 
 
-def alarm_run(label: str, code: str, data: dict) -> bool:
-    ok = node_fails(label, code + "\n" + ALARM_HARNESS.replace("__DATA__", json.dumps(data)))
-    if ok:
-        print(f"  ok   {label}: {len(data['tokens'])} firmware tokens, "
-              f"{len(data['vectors'])} firmware vectors, the demo under the default template")
-    return ok
-
-
 def main() -> int:
     src = WEBUI.read_text(encoding="utf-8", errors="replace")
     raw = extract(src, WEBUI.name)
@@ -522,13 +398,6 @@ def main() -> int:
         ok = run(f"served ({served[0]})", served[1]) and ok
     else:
         print(f"  --   served copy: {served}")
-    data, fails = alarm_firmware()
-    for f in fails:
-        print(f"  FAIL alarm walker: {f}")
-    ok = not fails and ok
-    walker = "\n".join(js_function(block(src, "TEL_PAGE"), n) for n in ALARM_FUNCS)
-    ok = alarm_run("alarm walker as written", walker, data) and ok
-    ok = alarm_run("alarm walker minified", minifier()(walker), data) and ok
     print("PASS" if ok else "FAIL")
     return 0 if ok else 1
 
