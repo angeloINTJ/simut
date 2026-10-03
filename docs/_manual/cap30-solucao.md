@@ -118,7 +118,7 @@ Detalhes no [capítulo 10](#cap-10).
 | A data e a hora da barra de cima do painel estão em âmbar, com `?` no lugar do `-` | O relógio em uso é o provisório: nem o NTP nem uma pessoa o acertaram desde o boot | Acerte o relógio ou ponha o aparelho numa rede com NTP. O primeiro acerto corrige a hora dos blocos que o boot começou ([capítulo 10](#cap-10-correcao)) |
 | O log mostra **NTP corrigindo timestamps** com uma correção grande | O aparelho ficou desligado por esse tempo, ou o relógio provisório estava errado | Normal depois de uma falta de energia. Com o aparelho sempre ligado, investigue os eventos 524 anteriores |
 | A hora do painel é diferente da hora do **Painel de Controle** na web | A web mostra no fuso do computador; o painel, no fuso do aparelho | Confira o **Fuso Horário** do aparelho e o do computador |
-| A hora mudou em horas inteiras sozinha e voltou depois de um reinício | Alguém digitou no campo **Fuso Horário** e desistiu; o ensaio aplicou o fuso digitado | Reinicie o aparelho para voltar ao fuso gravado |
+| A hora mudou em horas inteiras sozinha e voltou depois de um reinício | Até a v2.9.0, digitar no campo **Fuso Horário** e desistir deixava o fuso digitado em uso: o ensaio o aplicava | Reinicie o aparelho para voltar ao fuso gravado. Desde a versão seguinte, isso não acontece |
 | A hora está errada em exatamente 1 h numa região com horário de verão | O aparelho não tem horário de verão | Ajuste o **Fuso Horário** nas datas de troca |
 | O fuso da minha região tem meia hora (+5:30, −3:30) | O aparelho só aceita horas inteiras | Use a hora inteira mais próxima e leve a diferença em conta ao ler os dados |
 | Medições gravadas antes de um acerto manual ficaram com a hora errada | Até a v2.8.0, o acerto manual não corrigia o histórico. Hoje só o primeiro acerto depois do boot corrige, e só os blocos que o boot começou | Acerte logo depois de ligar, com a hora certa já no primeiro acerto. Confira no log os eventos 408 e 409 ([capítulo 10](#cap-10-correcao)) |
@@ -156,9 +156,9 @@ Detalhes no [capítulo 5](#cap-05).
 
 | Sintoma | Causa provável | O que fazer |
 |---|---|---|
-| Só aparece **Salvar e reiniciar**, com o selo **Alterações não salvas** | O ensaio ainda não respondeu, ou o conjunto inclui contas, slots de sensor ou calibração, que não podem ser ensaiados. No Air, é sempre assim | Espere um segundo. Se continuar, a alteração só se grava reiniciando |
-| O selo mostra **Não exige reinício**, mas **Aplicar agora** reiniciou o aparelho | O conjunto tinha só campos da área de extensão (intervalo do histórico, NTP, syslog, Home Assistant, DNS automático ou secundário, conexões persistentes), que o ensaio não enxerga | Nada a corrigir: a alteração foi gravada. Para esses campos, use **Salvar e reiniciar** |
-| **Testar** diz que aplicou, mas nada mudou | Os campos testados são da área de extensão, que **Testar** não aplica | Use **Salvar e reiniciar** |
+| Só aparece **Salvar e reiniciar**, com o selo **Alterações não salvas** | O ensaio ainda não respondeu, ou o conjunto inclui slots de sensor ou calibração, que não podem ser ensaiados. No Air, é sempre assim | Espere um segundo. Se continuar, a alteração só se grava reiniciando |
+| O selo mostra **Não exige reinício**, mas **Aplicar agora** reiniciou o aparelho | Até a v2.9.0, o ensaio não enxergava os campos da área de extensão (intervalo do histórico, NTP, syslog, Home Assistant, DNS automático ou secundário, conexões persistentes) | Nada a corrigir: a alteração foi gravada. Desde a versão seguinte, o selo mostra **Reinicia por: web** |
+| **Testar** diz que aplicou, mas nada mudou | Até a v2.9.0, **Testar** não aplicava os campos da área de extensão | Use **Salvar e reiniciar**. Desde a versão seguinte, esses campos nem oferecem **Testar** |
 | Um valor alterado voltou ao anterior depois de **Salvar e reiniciar** | O valor estava fora da faixa e o aparelho o recusou; esse botão não mostra **Campos não aplicados** | Confira a faixa do campo neste capítulo e grave de novo com um valor válido |
 | **Falha ao salvar. — Forbidden (net)** (ou outra seção) | A conta não tem a permissão daquela seção, e a gravação inteira foi recusada | Peça a permissão, ou descarte as alterações daquela página (**Sair** e entrar de novo) |
 | **Falha ao salvar. — Display in use. Retry shortly.** | Alguém tocou no painel há menos de 5 s | Espere alguns segundos e toque de novo no botão |
@@ -187,7 +187,7 @@ Detalhes no [capítulo 6](#cap-06).
 | Umidade ou pressão somem de um BME280 | Valor fora de 0–100 % ou 300–1.100 hPa, descartado | Confira o sensor; um BMP280 não tem umidade |
 | **Amostra (ms)** não muda o ritmo de leitura | O campo não tem efeito na v2.7.1 | O ritmo é fixo por tipo (1 s, 2 s, 5 s) |
 | **Resolução DS18B20** não muda uma das sondas | A resolução só vai ao primeiro slot DS18B20 ativo | Nenhuma ação na v2.7.1; o ajuste não afeta o tempo de leitura |
-| Mudar **Intervalo Histórico** com **Aplicar agora** reiniciou o aparelho | O campo exige reinício, e a classificação prévia não o vê | Use **Salvar e reiniciar** para este campo |
+| Mudar **Intervalo Histórico** com **Aplicar agora** reiniciou o aparelho | O campo exige reinício, e até a v2.9.0 a classificação prévia não o via | Use **Salvar e reiniciar** para este campo. Desde a versão seguinte, só esse botão aparece |
 | Editor sem o bloco **Calibração** | Conta sem a permissão **Calibração**, ou slot novo ainda não gravado | Peça a permissão; grave o slot antes de calibrar |
 | **Erro na calibração:** `NTP not synced` | O relógio não foi acertado, nem por NTP nem à mão | Acerte o relógio ([capítulo 10](#cap-10)) e grave de novo |
 | **Erro na calibração:** `rate limited` | Duas gravações de calibração em menos de 5 s | Espere 5 s e grave de novo |
@@ -205,7 +205,8 @@ Detalhes no [capítulo 7](#cap-07).
 | Linha do menu do sensor apagada, com cadeado | A conta não tem a permissão daquela linha | Peça a permissão: **Limites (painel)**, **Bloqueio (painel)** ou **Manut. (painel)** |
 | Item **Limites de Alarme** não aparece no menu do painel | A conta não tem nenhuma das três permissões de painel | Conceda pelo menos uma na página **Usuários** ou no item **Usuários** do painel |
 | **Falha ao salvar.** — `Alarm limit outside channel range` | Um limite fora da faixa plausível da grandeza | Corrija o valor; a gravação inteira foi recusada |
-| Mudei um som na página e o aparelho mudou antes de gravar | A consulta prévia da página aplica os sons na memória (v2.7.1) | Grave ou descarte a mudança; um reinício volta ao que está gravado |
+| **Falha ao salvar.** — `Alarm limit is not a number` | Um cliente da API mandou um limite que não é número | Mande números, ou `null` para manter um limite; a gravação inteira foi recusada |
+| Mudei um som na página e o aparelho mudou antes de gravar | Até a v2.9.0, a consulta prévia da página aplicava os sons na memória | Grave ou descarte a mudança; um reinício volta ao que está gravado. Desde a versão seguinte, isso não acontece |
 | Mudança de som pela web pede **Salvar e reiniciar** | Os sons ficam numa área da configuração que exige reinício | Use **Salvar e reiniciar**; pelo painel, a mudança vale sem reiniciar |
 | Alarme novo não tocou | Estava dentro de um silêncio de 120 s, que vale para todos os sensores | Espere o fim do silêncio; a cigarra volta se o alarme persistir |
 | Imagem alpha: cigarra toca sem parar | O alpha não tem como silenciar no aparelho | Desligue os alarmes do sensor em **Alarmes e Sons** ou ligue **Mudo Global**, e corrija a causa |

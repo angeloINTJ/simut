@@ -535,45 +535,45 @@
   "(ota_exempt, with the reason) and records no 'bin'; its budget still holds."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-10-02 fix/dry-run-applies-nothing on main e8eb091 (#233): all seven measured with the dry run writing only into its copy (findings 5, 6, 17, 18, 21, 38 and 69 of PLANO_REVISAO_EXTERNA). The reserved[] overlay writers and the sound packing moved to ConfigOverlays.h and SoundConfigPack.h, one noinline copy each, shared by the commit and StorageManager (inlined, handleApiCommitAll grew 344 B and the release .bin 64 B); the parse-time applyTimezone( ) and applySettingsState( ) are gone. Against main, 'used': release -168, test -144, test_https -144, asserts -176, alpha -120, air +32, pico2_w_release +16 B; the .bin: -168, -144, -144, -176, 0, 0 and +16. Budgets moved by the same amounts, which keeps each margin where it was; 'bin' recorded for the four that moved, and their rows in PLANO_STABLE 3.1 with them. measured is the zopfli image PlatformIO prints.",
+ "measured_on": "2026-10-02 fix/null-limit-refused on main bf87680 (#234): all seven measured with alarm limits read strictly (finding 44 of PLANO_REVISAO_EXTERNA): jsonLimitValue( ) and jsonLimitPair( ) in WebJsonSlice.h replace the commit's getPair( ) and its two parseFloat( ) readers, which read null, 'abc' or true as a bound of 0; a limit that is not a number is a 400 in the alarms section and a 'rejected' entry in the slots one. Against main, 'used': release +104, test +96, test_https +88, asserts +112, alpha +8, air -56, pico2_w_release -80 B; the .bin: +104, +96, +88, +112, 0, 0 and -80. A first version, with a quote-aware comma scan and a lambda per element, cost the release +168 B; a string element holding a comma makes a second comma and is refused anyway, so the scan went. Budgets moved by the 'used' deltas, which keeps each margin where it was; 'bin' recorded for the four that moved, and their rows in PLANO_STABLE 3.1 with them. measured is the zopfli image PlatformIO prints.",
  "measured_at_commit": "2026-10-02 chore/v2.9.0 on main e5cd23b (#224 merged; SIMUT_VERSION 2.9.0, the only source change; budgets unchanged). All seven rebuilt here: test, alpha, air and pico2_w_release equal to the figures #224 recorded, release, test_https and asserts 8 B under them. measured is the zopfli image PlatformIO prints.",
  "ota_exempt": {
   "pico_w_test_https": "A bench image: the one with the full console and the TLS server together, for the HTTPS suites (AGENTS.md). It reaches the rig over USB, and release-ota.yml does not publish it. #232 (2026-10-02) left it 147 B under OTA_APP_SAFE_MAX_SIZE, and keeping it there meant cutting code the product images ship too, or moving more of its pages to LittleFS. Over the ceiling the device refuses to stage it, which costs only installing this image over the air; its flash budget still holds. Exempt since 2026-10-02 (docs/analysis/PLANO_STABLE.md, B6)."
  },
  "envs": {
   "pico_w_release": {
-   "budget": 1016164,
-   "measured": 1016052,
-   "bin": 1028084
+   "budget": 1016268,
+   "measured": 1016156,
+   "bin": 1028188
   },
   "pico_w_test": {
-   "budget": 1021276,
-   "measured": 1020636,
-   "bin": 1032668
+   "budget": 1021372,
+   "measured": 1020732,
+   "bin": 1032764
   },
   "pico_w_test_https": {
-   "budget": 1027828,
-   "measured": 1027820
+   "budget": 1027916,
+   "measured": 1027908
   },
   "pico_w_asserts": {
-   "budget": 1018388,
-   "measured": 1018348,
-   "bin": 1030380
+   "budget": 1018500,
+   "measured": 1018460,
+   "bin": 1030492
   },
   "pico_w_alpha": {
-   "budget": 970852,
-   "measured": 970332,
+   "budget": 970860,
+   "measured": 970340,
    "bin": 986284
   },
   "pico_w_air": {
-   "budget": 1014160,
-   "measured": 1013848,
+   "budget": 1014104,
+   "measured": 1013792,
    "bin": 1027148
   },
   "pico2_w_release": {
-   "budget": 989264,
-   "measured": 989032,
-   "bin": 1001344,
+   "budget": 989184,
+   "measured": 988952,
+   "bin": 1001264,
    "ceiling": 3141632
   }
  }

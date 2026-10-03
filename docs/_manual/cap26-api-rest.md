@@ -790,8 +790,9 @@ O `_nosave=1` tinha os mesmos três efeitos. Com um desses campos e outro que ex
 | 400 | `{"error":"Bad payload"}` | `_payload` vazio ou acima de 6.144 bytes |
 | 400 | `{"error":"No section"}` | Nenhuma seção reconhecida no corpo |
 | 400 | `{"error":"Alarm limit outside channel range"}` | Um limite fora da faixa possível do canal ([capítulo 7](#cap-07-limites)) |
+| 400 | `{"error":"Alarm limit is not a number"}` | Um limite de alarme que não é número, como `"abc"` ou `true`. `null` não é recusado: mantém o limite |
 | 400 | O slot e o GPIO, como `slot 4: GP2 already used by slot 2` | Conflito de GPIO na seção `slots` ([capítulo 6](#cap-06-erros-gravar)) |
-| 400 | `{"error":"accepts sys, net and alarms only"}` | `_dry` ou `_nosave` com outra seção |
+| 400 | `{"error":"accepts sys, net and alarms only, and users in a dry run"}` | `_dry` ou `_nosave` com outra seção (`users` só no `_dry`) |
 | 403 | `{"error":"Forbidden"}` | A conta não tem nenhuma das três permissões de entrada |
 | 403 | `{"error":"Forbidden","section":"users"}` | A conta não tem a permissão da seção indicada |
 | 409 | `{"error":"Password change required","next":"/api/force_chpass"}` | Troca de senha pendente |
@@ -900,7 +901,7 @@ A seção `alarms` exige **Sistema** [PERM_SYS_CONFIG]{.perm}, e tudo nela se ap
 |---|---|
 | `idx` | Slot, de 0 a 15. Obrigatório. Um slot inativo é ignorado em silêncio |
 | `active` | Liga ou desliga os alarmes de limite do slot (bloquear) |
-| `temp`, `hum`, `press`, `lux` | Limites `[mínimo, máximo]` do canal. Mande sempre os dois números: `null` vira 0 |
+| `temp`, `hum`, `press`, `lux` | Limites `[mínimo, máximo]` do canal. `null` num dos dois mantém aquele limite como está; um valor que não é número recusa a gravação inteira com `400` (até a v2.9.0, os dois viravam 0) |
 | `tmin`, `tmax`, `hmin`, `hmax` | Nomes antigos dos limites de temperatura e umidade. Se os dois estilos vierem, vale o de canal |
 | `maint` | Janela de manutenção em segundos a partir de agora. `0` encerra |
 

@@ -2502,6 +2502,106 @@ void test_jsonFlag_tristate(void) {
     TEST_ASSERT_TRUE(jsonFlag(String("{\"log\":2}"), "log") < 0);
 }
 
+/* --- limites de alarme: null nao e 0 (achado 44, 2026-10-02) ---------------- */
+
+/* WebManager_Commit.cpp: getPair, ate 2026-10-02. Copiado aqui para mostrar o
+ * defeito: parseFloat( ) para no primeiro caractere que nao usa e devolve o que
+ * tinha, entao `null` virava um limite de 0 — e "abc" tambem — sob 200; e a
+ * chave sem par lia o par da chave seguinte. */
+static bool legacyGetPair(const String& o, const char* key, float& lo, float& hi) {
+    String needle = String("\"") + key + "\":";
+    int p = o.indexOf(needle.c_str( ));   /* o stub nativo nao tem indexOf(String) */
+    if (p < 0) return false;
+    int s = o.indexOf('[', p);
+    int e = (s >= 0) ? o.indexOf(']', s) : -1;
+    if (s < 0 || e <= s) return false;
+    int comma = o.indexOf(',', s + 1);
+    if (comma < 0 || comma > e) return false;
+    String a = o.substring(s + 1, comma); a.trim( );
+    String b = o.substring(comma + 1, e); b.trim( );
+    if (a.length( )) lo = parseFloat(a.c_str( ));
+    if (b.length( )) hi = parseFloat(b.c_str( ));
+    return true;
+}
+
+void test_legacy_getPair_read_null_as_zero(void) {
+    float lo = NAN, hi = NAN;
+    TEST_ASSERT_TRUE(legacyGetPair(String("{\"temp\":[null,8]}"), "temp", lo, hi));
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, lo);              /* o achado: null virou 0 */
+    lo = NAN;
+    TEST_ASSERT_TRUE(legacyGetPair(String("{\"temp\":[\"abc\",8]}"), "temp", lo, hi));
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, lo);              /* e lixo tambem */
+    lo = NAN;
+    TEST_ASSERT_TRUE(legacyGetPair(String("{\"temp\":5,\"hum\":[30,70]}"), "temp", lo, hi));
+    TEST_ASSERT_EQUAL_FLOAT(30.0f, lo);             /* o par era o da umidade */
+}
+
+void test_jsonLimitValue_reads_a_limit(void) {
+    float v = -99.0f;
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_NUMBER, jsonLimitValue(String("12.5"), v)); TEST_ASSERT_EQUAL_FLOAT(12.5f, v);
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_NUMBER, jsonLimitValue(String("-3"), v));   TEST_ASSERT_EQUAL_FLOAT(-3.0f, v);
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_NUMBER, jsonLimitValue(String("0"), v));    TEST_ASSERT_EQUAL_FLOAT(0.0f, v);
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_NUMBER, jsonLimitValue(String(" 8 "), v));  TEST_ASSERT_EQUAL_FLOAT(8.0f, v);
+    /* null, ou nada, mantem o limite gravado: nada e escrito */
+    v = -99.0f;
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_ABSENT, jsonLimitValue(String("null"), v));
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_ABSENT, jsonLimitValue(String(" null "), v));
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_ABSENT, jsonLimitValue(String(""), v));
+    TEST_ASSERT_EQUAL_FLOAT(-99.0f, v);
+    /* as chaves fixas (tmin...) chegam por jsonRawToken */
+    String o("{\"tmin\":null,\"tmax\": 8,\"hmin\":\"40\"}");
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_ABSENT, jsonLimitValue(jsonRawToken(o, "tmin"), v));
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_NUMBER, jsonLimitValue(jsonRawToken(o, "tmax"), v)); TEST_ASSERT_EQUAL_FLOAT(8.0f, v);
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_NUMBER, jsonLimitValue(jsonRawToken(o, "hmin"), v)); TEST_ASSERT_EQUAL_FLOAT(40.0f, v);
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_ABSENT, jsonLimitValue(jsonRawToken(o, "hmax"), v));
+    /* o resto nao e limite, e nada e escrito */
+    const char* bad[] = { "abc", "true", "nul", "1.2.3", "5x", "Infinity", "NaN", "--1" };
+    for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+        v = -99.0f;
+        TEST_ASSERT_EQUAL_INT_MESSAGE(JSON_LIMIT_BAD, jsonLimitValue(String(bad[i]), v), bad[i]);
+        TEST_ASSERT_EQUAL_FLOAT_MESSAGE(-99.0f, v, bad[i]);
+    }
+}
+
+void test_jsonLimitPair_null_keeps_the_bound(void) {
+    float lo = -99.0f, hi = -99.0f;
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_NUMBER, jsonLimitPair(String("{\"temp\":[null,8]}"), "temp", lo, hi));
+    TEST_ASSERT_TRUE(isnan(lo));                    /* o minimo gravado fica */
+    TEST_ASSERT_EQUAL_FLOAT(8.0f, hi);
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_NUMBER, jsonLimitPair(String("{\"temp\": [ -5 , 8 ]}"), "temp", lo, hi));
+    TEST_ASSERT_EQUAL_FLOAT(-5.0f, lo);
+    TEST_ASSERT_EQUAL_FLOAT(8.0f, hi);
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_NUMBER, jsonLimitPair(String("{\"temp\":[null,null]}"), "temp", lo, hi));
+    TEST_ASSERT_TRUE(isnan(lo));
+    TEST_ASSERT_TRUE(isnan(hi));
+    /* entre aspas, como jsonRawToken le os campos de sys */
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_NUMBER, jsonLimitPair(String("{\"temp\":[\"2\",\"8\"]}"), "temp", lo, hi));
+    TEST_ASSERT_EQUAL_FLOAT(2.0f, lo);
+    TEST_ASSERT_EQUAL_FLOAT(8.0f, hi);
+    /* o elemento vazio, que nao e JSON, sempre quis dizer "mantem" aqui */
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_NUMBER, jsonLimitPair(String("{\"temp\":[,8]}"), "temp", lo, hi));
+    TEST_ASSERT_TRUE(isnan(lo));
+    TEST_ASSERT_EQUAL_FLOAT(8.0f, hi);
+    /* o par certo, com outra chave antes */
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_NUMBER, jsonLimitPair(String("{\"hum\":[30,70],\"temp\":[2,8]}"), "temp", lo, hi));
+    TEST_ASSERT_EQUAL_FLOAT(2.0f, lo);
+}
+
+void test_jsonLimitPair_refuses_what_is_not_a_pair(void) {
+    const char* bad[] = {
+        "{\"temp\":[\"abc\",8]}", "{\"temp\":[true,8]}", "{\"temp\":[5]}", "{\"temp\":[1,2,3]}",
+        "{\"temp\":5,\"hum\":[30,70]}", "{\"temp\":[1,2}", "{\"temp\":{\"a\":1}}" };
+    for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+        float lo = -99.0f, hi = -99.0f;
+        TEST_ASSERT_EQUAL_INT_MESSAGE(JSON_LIMIT_BAD, jsonLimitPair(String(bad[i]), "temp", lo, hi), bad[i]);
+        TEST_ASSERT_EQUAL_FLOAT_MESSAGE(-99.0f, lo, bad[i]);   /* nada escrito */
+        TEST_ASSERT_EQUAL_FLOAT_MESSAGE(-99.0f, hi, bad[i]);
+    }
+    float lo = -99.0f, hi = -99.0f;
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_ABSENT, jsonLimitPair(String("{\"hum\":[30,70]}"), "temp", lo, hi));
+    TEST_ASSERT_EQUAL_FLOAT(-99.0f, lo);
+}
+
 /* --- o round-trip que estava quebrado ------------------------------------- */
 
 /* Recorte literal do que /api/config emite (WebManager_Api.cpp): todos os
@@ -4739,6 +4839,10 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_jsonRawToken_shapes);
     RUN_TEST(test_jsonValuePos_no_prefix_overmatch);
     RUN_TEST(test_jsonFlag_tristate);
+    RUN_TEST(test_legacy_getPair_read_null_as_zero);
+    RUN_TEST(test_jsonLimitValue_reads_a_limit);
+    RUN_TEST(test_jsonLimitPair_null_keeps_the_bound);
+    RUN_TEST(test_jsonLimitPair_refuses_what_is_not_a_pair);
     RUN_TEST(test_config_roundtrip_no_longer_inverts);
     RUN_TEST(test_legacy_getNum_inverted_json_booleans);
     RUN_TEST(test_legacy_getN_broke_twice_over);

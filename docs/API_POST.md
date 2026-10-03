@@ -351,7 +351,10 @@ reboot.
 
 Limite fora da faixa plausível do canal → **400**
 `{"error":"Alarm limit outside channel range"}`, e *nenhuma* seção é aplicada —
-o commit é atômico. Banda invertida (min ≥ max) é corrigida automaticamente.
+o commit é atômico. Um limite que não é número (`"abc"`, `true`) → **400**
+`{"error":"Alarm limit is not a number"}`, do mesmo jeito; até a v2.9.0 ele virava
+0. `null` num elemento do par mantém aquele limite. Banda invertida (min ≥ max) é
+corrigida automaticamente.
 
 #### O modo manutenção
 

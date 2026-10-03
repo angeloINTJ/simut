@@ -130,6 +130,7 @@ Alguns erros recusam a gravação inteira, e nada muda. O aviso é **Falha ao sa
 | Resposta | Motivo |
 |---|---|
 | `Alarm limit outside channel range` | Um limite de alarme fora da faixa possível do canal ([capítulo 7](#cap-07)) |
+| `Alarm limit is not a number` | Um limite de alarme que não é número. Só chega por um cliente da API: a página sempre manda números |
 | O slot e o GPIO recusados, como `slot 4: GP2 already used by slot 2` | Conflito na atribuição de GPIO ([capítulo 6](#cap-06)) |
 | `Forbidden (<seção>)` | A conta não tem a permissão daquela seção (tabela abaixo) |
 | `Password change required` | A conta ainda precisa trocar a senha ([capítulo 13](#cap-13-troca-obrigatoria)) |

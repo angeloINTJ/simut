@@ -1804,22 +1804,26 @@ SIMUT# reload confirm</code></pre>
 <td>Um limite de alarme fora da faixa possível do canal (<a href="#cap-07">capítulo 7</a>)</td>
 </tr>
 <tr class="even">
+<td><code>Alarm limit is not a number</code></td>
+<td>Um limite de alarme que não é número. Só chega por um cliente da API: a página sempre manda números</td>
+</tr>
+<tr class="odd">
 <td>O slot e o GPIO recusados, como <code>slot 4: GP2 already used by slot 2</code></td>
 <td>Conflito na atribuição de GPIO (<a href="#cap-06">capítulo 6</a>)</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>Forbidden (&lt;seção&gt;)</code></td>
 <td>A conta não tem a permissão daquela seção (tabela abaixo)</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>Password change required</code></td>
 <td>A conta ainda precisa trocar a senha (<a href="#cap-13-troca-obrigatoria">capítulo 13</a>)</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>Display in use. Retry shortly.</code></td>
 <td>Alguém tocou no painel há menos de 5 s. Espere e tente de novo</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>Bad payload</code></td>
 <td>O conjunto preparado passou de 6.144 bytes. Grave em partes</td>
 </tr>
@@ -19032,40 +19036,45 @@ async function status(token) {
 </tr>
 <tr class="odd">
 <td>400</td>
-<td>O slot e o GPIO, como <code>slot 4: GP2 already used by slot 2</code></td>
-<td>Conflito de GPIO na seção <code>slots</code> (<a href="#cap-06-erros-gravar">capítulo 6</a>)</td>
+<td><code>{"error":"Alarm limit is not a number"}</code></td>
+<td>Um limite de alarme que não é número, como <code>"abc"</code> ou <code>true</code>. <code>null</code> não é recusado: mantém o limite</td>
 </tr>
 <tr class="even">
 <td>400</td>
-<td><code>{"error":"accepts sys, net and alarms only"}</code></td>
-<td><code>_dry</code> ou <code>_nosave</code> com outra seção</td>
+<td>O slot e o GPIO, como <code>slot 4: GP2 already used by slot 2</code></td>
+<td>Conflito de GPIO na seção <code>slots</code> (<a href="#cap-06-erros-gravar">capítulo 6</a>)</td>
 </tr>
 <tr class="odd">
+<td>400</td>
+<td><code>{"error":"accepts sys, net and alarms only, and users in a dry run"}</code></td>
+<td><code>_dry</code> ou <code>_nosave</code> com outra seção (<code>users</code> só no <code>_dry</code>)</td>
+</tr>
+<tr class="even">
 <td>403</td>
 <td><code>{"error":"Forbidden"}</code></td>
 <td>A conta não tem nenhuma das três permissões de entrada</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>403</td>
 <td><code>{"error":"Forbidden","section":"users"}</code></td>
 <td>A conta não tem a permissão da seção indicada</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>409</td>
 <td><code>{"error":"Password change required","next":"/api/force_chpass"}</code></td>
 <td>Troca de senha pendente</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>409</td>
 <td><code>{"error":"needs a restart; cannot be applied without saving","reboot_for":["time"]}</code></td>
 <td><code>_nosave=1</code> com uma mudança que exige reinício</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>500</td>
 <td><code>{"error":"save failed"}</code></td>
 <td>A gravação na flash falhou. Tente de novo</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>503</td>
 <td><code>{"error":"Display in use. Retry shortly."}</code></td>
 <td>Alguém tocou no painel há menos de 5 s</td>
@@ -19239,7 +19248,7 @@ async function status(token) {
 </tr>
 <tr class="odd">
 <td><code>temp</code>, <code>hum</code>, <code>press</code>, <code>lux</code></td>
-<td>Limites <code>[mínimo, máximo]</code> do canal. Mande sempre os dois números: <code>null</code> vira 0</td>
+<td>Limites <code>[mínimo, máximo]</code> do canal. <code>null</code> num dos dois mantém aquele limite como está; um valor que não é número recusa a gravação inteira com <code>400</code> (até a v2.9.0, os dois viravam 0)</td>
 </tr>
 <tr class="even">
 <td><code>tmin</code>, <code>tmax</code>, <code>hmin</code>, <code>hmax</code></td>
@@ -23208,8 +23217,8 @@ echo</code></pre>
 </tr>
 <tr class="odd">
 <td>A hora mudou em horas inteiras sozinha e voltou depois de um reinício</td>
-<td>Alguém digitou no campo <strong>Fuso Horário</strong> e desistiu; o ensaio aplicou o fuso digitado</td>
-<td>Reinicie o aparelho para voltar ao fuso gravado</td>
+<td>Até a v2.9.0, digitar no campo <strong>Fuso Horário</strong> e desistir deixava o fuso digitado em uso: o ensaio o aplicava</td>
+<td>Reinicie o aparelho para voltar ao fuso gravado. Desde a versão seguinte, isso não acontece</td>
 </tr>
 <tr class="even">
 <td>A hora está errada em exatamente 1 h numa região com horário de verão</td>
@@ -23364,18 +23373,18 @@ echo</code></pre>
 <tbody>
 <tr class="odd">
 <td>Só aparece <strong>Salvar e reiniciar</strong>, com o selo <strong>Alterações não salvas</strong></td>
-<td>O ensaio ainda não respondeu, ou o conjunto inclui contas, slots de sensor ou calibração, que não podem ser ensaiados. No Air, é sempre assim</td>
+<td>O ensaio ainda não respondeu, ou o conjunto inclui slots de sensor ou calibração, que não podem ser ensaiados. No Air, é sempre assim</td>
 <td>Espere um segundo. Se continuar, a alteração só se grava reiniciando</td>
 </tr>
 <tr class="even">
 <td>O selo mostra <strong>Não exige reinício</strong>, mas <strong>Aplicar agora</strong> reiniciou o aparelho</td>
-<td>O conjunto tinha só campos da área de extensão (intervalo do histórico, NTP, syslog, Home Assistant, DNS automático ou secundário, conexões persistentes), que o ensaio não enxerga</td>
-<td>Nada a corrigir: a alteração foi gravada. Para esses campos, use <strong>Salvar e reiniciar</strong></td>
+<td>Até a v2.9.0, o ensaio não enxergava os campos da área de extensão (intervalo do histórico, NTP, syslog, Home Assistant, DNS automático ou secundário, conexões persistentes)</td>
+<td>Nada a corrigir: a alteração foi gravada. Desde a versão seguinte, o selo mostra <strong>Reinicia por: web</strong></td>
 </tr>
 <tr class="odd">
 <td><strong>Testar</strong> diz que aplicou, mas nada mudou</td>
-<td>Os campos testados são da área de extensão, que <strong>Testar</strong> não aplica</td>
-<td>Use <strong>Salvar e reiniciar</strong></td>
+<td>Até a v2.9.0, <strong>Testar</strong> não aplicava os campos da área de extensão</td>
+<td>Use <strong>Salvar e reiniciar</strong>. Desde a versão seguinte, esses campos nem oferecem <strong>Testar</strong></td>
 </tr>
 <tr class="even">
 <td>Um valor alterado voltou ao anterior depois de <strong>Salvar e reiniciar</strong></td>
@@ -23502,8 +23511,8 @@ echo</code></pre>
 </tr>
 <tr class="odd">
 <td>Mudar <strong>Intervalo Histórico</strong> com <strong>Aplicar agora</strong> reiniciou o aparelho</td>
-<td>O campo exige reinício, e a classificação prévia não o vê</td>
-<td>Use <strong>Salvar e reiniciar</strong> para este campo</td>
+<td>O campo exige reinício, e até a v2.9.0 a classificação prévia não o via</td>
+<td>Use <strong>Salvar e reiniciar</strong> para este campo. Desde a versão seguinte, só esse botão aparece</td>
 </tr>
 <tr class="even">
 <td>Editor sem o bloco <strong>Calibração</strong></td>
@@ -23574,36 +23583,41 @@ echo</code></pre>
 <td>Corrija o valor; a gravação inteira foi recusada</td>
 </tr>
 <tr class="even">
-<td>Mudei um som na página e o aparelho mudou antes de gravar</td>
-<td>A consulta prévia da página aplica os sons na memória (v2.7.1)</td>
-<td>Grave ou descarte a mudança; um reinício volta ao que está gravado</td>
+<td><strong>Falha ao salvar.</strong> — <code>Alarm limit is not a number</code></td>
+<td>Um cliente da API mandou um limite que não é número</td>
+<td>Mande números, ou <code>null</code> para manter um limite; a gravação inteira foi recusada</td>
 </tr>
 <tr class="odd">
+<td>Mudei um som na página e o aparelho mudou antes de gravar</td>
+<td>Até a v2.9.0, a consulta prévia da página aplicava os sons na memória</td>
+<td>Grave ou descarte a mudança; um reinício volta ao que está gravado. Desde a versão seguinte, isso não acontece</td>
+</tr>
+<tr class="even">
 <td>Mudança de som pela web pede <strong>Salvar e reiniciar</strong></td>
 <td>Os sons ficam numa área da configuração que exige reinício</td>
 <td>Use <strong>Salvar e reiniciar</strong>; pelo painel, a mudança vale sem reiniciar</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Alarme novo não tocou</td>
 <td>Estava dentro de um silêncio de 120 s, que vale para todos os sensores</td>
 <td>Espere o fim do silêncio; a cigarra volta se o alarme persistir</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Imagem alpha: cigarra toca sem parar</td>
 <td>O alpha não tem como silenciar no aparelho</td>
 <td>Desligue os alarmes do sensor em <strong>Alarmes e Sons</strong> ou ligue <strong>Mudo Global</strong>, e corrija a causa</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Janela de manutenção não inicia pelo painel</td>
 <td>0 h e 0 min, ou conta sem <strong>Manut. (painel)</strong></td>
 <td>Ajuste pelo menos 5 min; use uma conta com a permissão</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>A janela terminou antes do esperado</td>
 <td>O pedido passava de 30 dias e foi cortado, ou alguém tocou em <strong>FECHAR</strong></td>
 <td>Confira o log (códigos 454 e 455) e a lista <code>rejected</code> da resposta do servidor</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Limite mudado pela web não aparece no servidor de alarmes</td>
 <td>Só mudanças feitas no painel geram <code>alarm_lim</code></td>
 <td>Consulte <code>/api/alarms</code> ou mude pelo painel quando precisar do registro</td>
