@@ -48,5 +48,17 @@ files here say where everything is, to `picotool` and to the linker.
 Before step 3, `pico2_w_release` kept LittleFS at `0x2FF000`. The table moves
 it 4 KB up and makes it 4 KB smaller, so a board that boots the new layout
 finds no filesystem where it looks, and formats one. Its configuration, packs
-and history have to come back from a backup. The only board on the old layout
-is the bench's (2026-10-03).
+and history have to come back from a backup.
+
+The only board on the old layout was the bench's. It was migrated on
+2026-10-03 without losing anything:
+
+- `picotool save` read its whole flash, and the old LittleFS came out of that
+  dump;
+- littlefs-python rebuilt it in 255 blocks, with arduino-pico's parameters, and
+  every file read back identical (sha256);
+- one `picotool load --ignore-partitions` wrote the table, the program in
+  slot A and the new LittleFS, and erased the second sector of the table's
+  area and the first sector of slot B, which held old bytes.
+
+It booted from slot A with its configuration and packs.

@@ -60,11 +60,14 @@ def check(cond, msg):
 
 
 def kb(v):
-    """A partition_table.json size or start: an integer, or a string like "1532K"."""
+    """A size or a start as partition_table.json or PlatformIO writes it: an
+    integer, or a string like "1532K", "1020k" or "1m"."""
     if isinstance(v, int):
         return v
-    m = re.fullmatch(r"(\d+)[kK]", str(v))
-    return int(m.group(1)) * 1024 if m else None
+    m = re.fullmatch(r"(\d+(?:\.\d+)?)([kKmM]?)", str(v).strip())
+    if not m:
+        return None
+    return int(float(m.group(1)) * {"": 1, "k": 1024, "m": 1024 * 1024}[m.group(2).lower()])
 
 
 def partitions():
@@ -142,7 +145,8 @@ def test_header():
         "OTA_RP2350_EEPROM_OFFSET": EXPECT["EEPROM"][0],
     }
     for k, w in want.items():
-        check(v.get(k) == w, f"ota_layout.h: {k} is {v.get(k)!r}, want {w:#x}")
+        got = f"{v[k]:#x}" if k in v else "missing"
+        check(v.get(k) == w, f"ota_layout.h: {k} is {got}, want {w:#x}")
 
 
 def test_ldscript():
