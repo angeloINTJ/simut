@@ -72,13 +72,18 @@ cp -v "$ORIG/lwipopts.h" "$FW/include/"
 # segura o Core 0 por 15 s e o watchdog reinicia o aparelho.
 [ -f "$ORIG/CYW43shim.cpp" ] && \
     cp -v "$ORIG/CYW43shim.cpp" "$FW/libraries/lwIP_CYW43/src/utility/"
+# Leitura do LittleFS pela janela sem traducao (patch 2k). Sem ela, a imagem do
+# RP2350 em slot cai ao montar o LittleFS; o RP2040 nao muda.
+[ -f "$ORIG/LittleFS.cpp" ] && \
+    cp -v "$ORIG/LittleFS.cpp" "$FW/libraries/LittleFS/src/"
 
 # Invalida cache PIO — FrameworkArduino (lwip) + os .o das libs patchadas, senao
 # o build "passa" religando os objetos antigos ainda patchados.
 for obj in "$ROOT/.pio/build"/*/lib*/WiFi/*.o \
            "$ROOT/.pio/build"/*/lib*/HTTPClient/HTTPClient.cpp.o \
            "$ROOT/.pio/build"/*/lib*/WebServer/*.o \
-           $(find "$ROOT/.pio/build" -path "*/lwIP_CYW43/*" -name "*.o" 2>/dev/null); do
+           $(find "$ROOT/.pio/build" -path "*/lwIP_CYW43/*" -name "*.o" 2>/dev/null) \
+           $(find "$ROOT/.pio/build" -path "*/LittleFS/*" -name "*.o" 2>/dev/null); do
     [ -f "$obj" ] && { rm -f "$obj"; echo "[restore] cache invalidado: $obj"; }
 done
 for build in "$ROOT/.pio/build"/*/FrameworkArduino/lwip; do

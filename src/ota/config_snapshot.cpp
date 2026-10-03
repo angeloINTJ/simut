@@ -44,6 +44,7 @@ namespace ota {
  * Helpers privados
  * ------------------------------------------------------------------------- */
 
+#if OTA_RP2040_MAP   /* the RP2350 has no snapshot region (ota_layout.h) */
 static const uint8_t* snapshot_region_xip() {
     return (const uint8_t*)(XIP_BASE + OTA_SNAPSHOT_OFFSET);
 }
@@ -71,6 +72,7 @@ static uint32_t valid_payload_size(const uint8_t* base) {
     memcpy(&stored, base + sizeof(hdr) + hdr.payload_size, sizeof(stored));
     return (crc == stored) ? hdr.payload_size : 0;
 }
+#endif
 
 /* ---------------------------------------------------------------------------
  * API pública
@@ -122,10 +124,17 @@ bool ota_snapshot_commit(uint16_t total_len) {
 }
 
 bool ota_snapshot_present() {
+#if !OTA_RP2040_MAP
+    return false;  /* no snapshot region on the RP2350 (ota_layout.h) */
+#else
     return valid_payload_size(snapshot_region_xip()) != 0;
+#endif
 }
 
 uint32_t ota_snapshot_stash() {
+#if !OTA_RP2040_MAP
+    return 0;      /* no snapshot region on the RP2350 (ota_layout.h) */
+#else
     /* The restore reads this copy, never the region. The region is the last
      * two blocks of the LittleFS partition, and it is only ever needed on a
      * freshly formatted filesystem — where the allocator starts at a block
@@ -137,6 +146,7 @@ uint32_t ota_snapshot_stash() {
      * it. */
     memcpy(s_applier_buf, snapshot_region_xip(), CONFIG_SNAPSHOT_REGION_SIZE);
     return valid_payload_size(s_applier_buf);
+#endif
 }
 
 bool ota_snapshot_restore_stash(uint32_t payload_size) {

@@ -35,21 +35,13 @@
 #include <stdint.h>
 
 /* No install over the air on the RP2350 until its A/B slots exist
- * (docs/analysis/OTA_AB_RP2350.md, step 2). Everything below is the Pico W's
- * 2 MB map, and on a Pico 2 W it is not the filesystem: that image keeps
- * LittleFS at 0x2FF000 of its 4 MB (_FS_start = 0x102FF000), so the staging
- * offset 0x0FF000 is the free tail of its own program slot. On the bench board
- * (2026-10-03, main badb4a8) the stage took a signed RP2040 release three
- * times: LittleFS came back intact each time, and each upload dropped before
- * its end (9.8 to 28.7 s). By the code, one that finished would validate — its
- * boot2 CRC checks, and its env is "release" like the RP2350 image's — and the
- * applier would copy it over a program the RP2350's ROM cannot boot: the board
- * waits in BOOTSEL. The SDK defines PICO_RP2350=1 only on that chip
- * (lib/rp2350/platform_def.txt), so the RP2040 images keep their code.
- *
- * The boot still reads the metadata and clears a snapshot at these offsets on
- * the RP2350. With the program ending below them that is harmless; the A/B
- * layout must move them, since both land in its slot B. */
+ * (docs/analysis/OTA_AB_RP2350.md, step 2). By the code, a stage there took a
+ * signed RP2040 release — its boot2 CRC checks, and its env is "release" like
+ * the RP2350 image's — and the applier would copy it over a program the
+ * RP2350's ROM cannot boot: the board waits in BOOTSEL. On the bench board
+ * (2026-10-03, main badb4a8) three such uploads began, and each dropped before
+ * its end (9.8 to 28.7 s). The SDK defines PICO_RP2350=1 only on that chip
+ * (lib/rp2350/platform_def.txt), so the RP2040 images keep their code. */
 #if defined(PICO_RP2350) && PICO_RP2350
 #define OTA_INSTALL_AVAILABLE 0
 #else
@@ -57,6 +49,52 @@
 #endif
 /* What the stage and the apply answer instead (501); the Files page shows it. */
 #define OTA_UNAVAILABLE_TEXT "Over-the-air update is not available on the RP2350 yet. Install over USB."
+
+/* Everything after the RP2350's map below is the Pico W's 2 MB map: the
+ * staging area, the config snapshot and the metadata. On the RP2350 those
+ * offsets fall inside the slots (step 3), and with the program mapped from
+ * slot A an XIP read there faults, because the window the boot ROM maps is the
+ * slot's 1,532 KB. OTA_RP2040_MAP is 0 there: every function that reads or
+ * writes them (metadata.cpp, config_snapshot.cpp, staging.cpp) answers
+ * "absent" or refuses, so the boot finds no update in flight and no snapshot,
+ * as on a board that never had one. */
+#if defined(PICO_RP2350) && PICO_RP2350
+#define OTA_RP2040_MAP 0
+#else
+#define OTA_RP2040_MAP 1
+#endif
+
+#if defined(PICO_RP2350) && PICO_RP2350
+/* The RP2350's map (step 3): what tools/rp2350/partition_table.json writes
+ * for the boot ROM, in offsets from the start of the flash.
+ * tools/test_rp2350_layout.py holds these numbers to that table, to
+ * tools/rp2350/memmap_slot.ld and to the PlatformIO profile. One image runs in
+ * either slot, because the ROM maps the slot it boots at 0x10000000. LittleFS,
+ * outside the slot, is read through the untranslated window
+ * (tools/arduino_pico_overrides/patches/littlefs_rp2350_untranslated.patch). */
+#define OTA_RP2350_PT_OFFSET      0x000000u
+#define OTA_RP2350_PT_SIZE        0x002000u
+#define OTA_RP2350_SLOT_A_OFFSET  0x002000u
+#define OTA_RP2350_SLOT_B_OFFSET  0x181000u
+#define OTA_RP2350_SLOT_SIZE      0x17F000u   /* 1,532 KB: the largest image */
+#define OTA_RP2350_FS_OFFSET      0x300000u
+#define OTA_RP2350_FS_SIZE        0x0FF000u
+#define OTA_RP2350_EEPROM_OFFSET  0x3FF000u   /* arduino-pico's 4 KB, unused by SIMUT */
+#ifdef __cplusplus
+static_assert(OTA_RP2350_PT_OFFSET + OTA_RP2350_PT_SIZE == OTA_RP2350_SLOT_A_OFFSET,
+              "slot A must follow the partition table");
+static_assert(OTA_RP2350_SLOT_A_OFFSET + OTA_RP2350_SLOT_SIZE == OTA_RP2350_SLOT_B_OFFSET,
+              "slot B must follow slot A");
+static_assert(OTA_RP2350_SLOT_B_OFFSET + OTA_RP2350_SLOT_SIZE == OTA_RP2350_FS_OFFSET,
+              "LittleFS must follow slot B");
+static_assert(OTA_RP2350_FS_OFFSET + OTA_RP2350_FS_SIZE == OTA_RP2350_EEPROM_OFFSET,
+              "the EEPROM sector must follow LittleFS");
+static_assert(OTA_RP2350_EEPROM_OFFSET + 4096u == 4u * 1024u * 1024u,
+              "the map must cover the Pico 2 W's 4 MB");
+static_assert((OTA_RP2350_SLOT_SIZE % 4096u) == 0u && (OTA_RP2350_FS_OFFSET % 4096u) == 0u,
+              "slots and LittleFS must be sector-aligned");
+#endif
+#endif
 
 /* Constantes de tamanho — em bytes. */
 #define OTA_FLASH_TOTAL          (2u * 1024u * 1024u)          /* 2 MB Pico W */

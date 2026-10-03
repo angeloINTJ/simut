@@ -201,6 +201,15 @@ jobs:
       - name: Web UI firmware refusal (every stage refusal in words)
         run: python3 tools/test_webui_firmware_refusal.py
 
+      # The Pico 2 W boots from slot A of a partition table, and four files say
+      # where everything is: the table picotool writes, the map in
+      # ota_layout.h, the slot's linker script and the PlatformIO profile. A
+      # number changed in one and not the others is a board that boots one
+      # layout and reads another. What only a build can show is
+      # tools/check_rp2350_image.py's, after every pico2_w_release link.
+      - name: RP2350 flash layout (one map in four places)
+        run: python3 tools/test_rp2350_layout.py
+
       # OTA applies reformat the LittleFS, so benches restore /history from
       # backup — and the current-day file can only be given back by MERGING
       # with what the device wrote meanwhile. This is the tool that hole

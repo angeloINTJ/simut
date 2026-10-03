@@ -177,6 +177,11 @@ def compose(prof: dict, M: dict) -> dict:
         "custom_fs_pages": prof.get("custom_fs_pages"),
         "build_type": prof.get("build_type"),
         "board": chip.get("board", ""),
+        # A chip that boots its program from a slot of a partition table links
+        # it with a script of its own, and gives LittleFS the size its table does
+        # (the RP2350: tools/rp2350/, docs/analysis/OTA_AB_RP2350.md step 3).
+        "ldscript": chip.get("ldscript", ""),
+        "filesystem_size": chip.get("filesystem_size", ""),
     }
 
 
@@ -184,6 +189,10 @@ def emit_env(name: str, c: dict) -> str:
     lines = [f"[env:{name}]", "extends = pico_base"]
     if c.get("board"):
         lines.append(f"board = {c['board']}")
+    if c.get("ldscript"):
+        lines.append(f"board_build.ldscript = {c['ldscript']}")
+    if c.get("filesystem_size"):
+        lines.append(f"board_build.filesystem_size = {c['filesystem_size']}")
     if c["build_type"]:
         lines.append(f"build_type = {c['build_type']}")
     # build_flags

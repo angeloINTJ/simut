@@ -46,6 +46,12 @@ flags = []
 # passo 2 de docs/analysis/OTA_AB_RP2350.md), ate os slots A/B existirem.
 board = "rpipico2w"
 flags = ["-Wno-error=overloaded-virtual"]
+# O programa sobe de um slot da tabela de particoes (passo 3 de
+# docs/analysis/OTA_AB_RP2350.md): linker script proprio, sem o stub de OTA do
+# arduino-pico, e o LittleFS com os 1.020 KB que a tabela da a ele, em 0x300000.
+# tools/test_rp2350_layout.py confere os quatro lugares que dizem esse layout.
+ldscript        = "tools/rp2350/memmap_slot.ld"
+filesystem_size = "1020k"
 
 # ---------------------------------------------------------------------------
 #  A escolha do mostrador. Exatamente um valor por perfil.

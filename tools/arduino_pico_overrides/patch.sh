@@ -409,6 +409,30 @@ else
     patch -p1 -d "$FW" < "$JOIN_PATCH"
 fi
 
+# 2k. Leitura do LittleFS pela janela sem traducao, so no RP2350 (LittleFS.cpp)
+#
+#   Num slot da tabela de particoes, a ROM do RP2350 mapeia o programa em
+#   0x10000000 com uma janela do tamanho do slot, e uma leitura XIP alem dela
+#   da falha de barramento. O LittleFS do SIMUT fica fora dos slots (0x300000,
+#   depois de A e B: tools/rp2350/partition_table.json), e o framework o le por
+#   memcpy do endereco mapeado. Sem este patch a imagem em slot cai antes de
+#   montar o sistema de arquivos (docs/analysis/OTA_AB_RP2350.md, passo 3).
+#
+#   O patch: no RP2350, a leitura vai ao offset fisico pela janela
+#   XIP_NOCACHE_NOALLOC_NOTRANSLATE_BASE (0x1C000000), que a ROM nunca traduz.
+#   Gravacao e apagamento ja usam o offset fisico. No RP2040 o codigo nao muda
+#   (#if PICO_RP2350), e tools/check_rp2350_image.py recusa a imagem do RP2350
+#   linkada sem ele.
+LFS_CPP="$FW/libraries/LittleFS/src/LittleFS.cpp"
+LFS_PATCH="$OVR/patches/littlefs_rp2350_untranslated.patch"
+save_original "$LFS_CPP" "LittleFS.cpp"
+if grep -q "SIMUT override — on the RP2350, read through the untranslated window" "$LFS_CPP"; then
+    echo "[patch] LittleFS ja le pela janela sem traducao no RP2350 — nada a fazer"
+else
+    echo "[patch] aplicando leitura do LittleFS pela janela sem traducao (RP2350)"
+    patch -p1 -d "$FW" < "$LFS_PATCH"
+fi
+
 # 3. Invalida cache PIO (lwip src + lib WiFi)
 #    A lib WiFi tem cache próprio em lib*/WiFi/ — sem apagá-lo o .cpp patchado
 #    não recompila e o build "passa" ainda com o handshake sem prazo.
@@ -450,6 +474,12 @@ done
 for cywobj in $(find "$ROOT/.pio/build" -path "*/lwIP_CYW43/*" -name "*.o" 2>/dev/null); do
     rm -f "$cywobj"
     echo "[patch] cache invalidado: $cywobj"
+done
+# LittleFS tem cache proprio (lib*/LittleFS): sem apagar o objeto, a imagem do
+# RP2350 "passa" ainda lendo pela janela traduzida.
+for lfsobj in $(find "$ROOT/.pio/build" -path "*/LittleFS/*" -name "*.o" 2>/dev/null); do
+    rm -f "$lfsobj"
+    echo "[patch] cache invalidado: $lfsobj"
 done
 
 echo ""
