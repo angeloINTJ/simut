@@ -291,8 +291,11 @@ void WebManager::handleApiRestoreUploadData( ) {
 static void emit_restore_json(HTTPServer& srv, const ota::RestoreSession& s,
  bool fs_modified) {
  char buf[224];
+ /* 409 for an apply of a backup that is not the one validated last: the
+  * request is in the wrong order, not the backup bad (2026-10-02). */
  int code = (s.status == ota::BackupStatus::OK) ? 200 :
- (s.status == ota::BackupStatus::IO_ERROR ? 500 : 422);
+ (s.status == ota::BackupStatus::IO_ERROR ? 500 :
+  s.status == ota::BackupStatus::NOT_VALIDATED ? 409 : 422);
  if (s.header.magic == OTA_BACKUP_MAGIC) {
  char chip_hex[17];
  for (int i = 0; i < 8; i++) {

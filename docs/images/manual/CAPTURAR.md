@@ -374,7 +374,7 @@ nesta pasta com o nome indicado e rode o script de novo.
 
 - [ ] `26-entrada.png` (Diagrama) — diagrama de sequência entre um cliente e o aparelho: GET /api/login_init devolve nonce; o cliente calcula SHA-256 da senha; POST /api/login com user, pass e nonce; o aparelho confere e devolve Set-Cookie SIMUTSESS e o corpo {ok, redirect}; pedidos seguintes levam o cookie ou Authorization: Bearer; GET /logout encerra
       A entrada em dois pedidos. O código de uso único vale 60 s e serve para uma única tentativa.
-- [ ] `26-ota.png` (Diagrama) — diagrama de sequência entre um cliente e o aparelho: GET /api/backup e conferência do CRC; POST /api/restore?op=stage&commit=1 com o .bin, resposta com v=0 e committed=1; POST /api/ota/apply, resposta 202; o aparelho reinicia; o cliente repete GET /api/login_init até responder; entra e lê a versão em /api/status; restaura o .bkp com op=apply
+- [ ] `26-ota.png` (Diagrama) — diagrama de sequência entre um cliente e o aparelho: GET /api/backup e conferência do CRC; POST /api/restore?op=stage&commit=1 com o .bin, resposta com v=0 e committed=1; POST /api/ota/apply, resposta 202; o aparelho reinicia; o cliente repete GET /api/login_init até responder; entra e lê a versão em /api/status; confere o .bkp com op=validate e o restaura com op=apply
       A atualização pela API. O único comprovante de sucesso é a versão nova informada pelo próprio aparelho.
 
 ## Capítulo 27 — Gestão de frota

@@ -456,7 +456,7 @@ A sequência é a do [capítulo 26](#cap-26-ota), com dois passos a mais no fim:
 2. Envie a imagem com `POST /api/restore?op=stage&commit=1` e confira `"v":0` e `"committed":1`.
 3. Aplique com `POST /api/ota/apply`.
 4. Espere o aparelho voltar e confirme a versão nova em `sys.ver`.
-5. Restaure o backup com `POST /api/restore?op=apply` e espere o reinício.
+5. Confira o backup com `POST /api/restore?op=validate` e restaure-o com `POST /api/restore?op=apply`; espere o reinício. O aparelho só aplica o backup que acabou de conferir ([capítulo 26](#cap-26-ota)).
 6. Envie os pacotes de idioma da release nova para `/lang` e reinicie, para que os textos novos apareçam traduzidos ([capítulo 13](#cap-13-idioma)).
 
 ::: atencao

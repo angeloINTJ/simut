@@ -6214,7 +6214,7 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             document.body.appendChild(link); link.click(); document.body.removeChild(link);
             showToast(window.t('fil_backup_started','Backup download started.'), 'ok');
         }
-        const RST_MSG = {0:'OK',1:'magic invalid',2:'unsupported schema',3:'header CRC mismatch',4:'payload truncated',5:'payload CRC mismatch',6:'chip ID mismatch (backup is from another device)',7:'invalid path',8:'path too long',9:'I/O error',10:'internal error'};
+        const RST_MSG = {0:'OK',1:'magic invalid',2:'unsupported schema',3:'header CRC mismatch',4:'payload truncated',5:'payload CRC mismatch',6:'chip ID mismatch (backup is from another device)',7:'invalid path',8:'path too long',9:'I/O error',10:'internal error',11:'not the backup validated last, try again'};
         function fmRestore() { document.getElementById('restoreFile').click(); }
         async function doRestore() {
             let inp = document.getElementById('restoreFile');

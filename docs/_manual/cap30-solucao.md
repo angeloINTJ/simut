@@ -346,7 +346,7 @@ Detalhes no [capítulo 17](#cap-17).
 | **Validação falhou: chip ID mismatch (backup is from another device)** | O backup é de outro aparelho | Use um backup deste aparelho |
 | A restauração trouxe de volta uma senha antiga do administrador | A restauração devolve a configuração da data do backup | Troque a senha depois de restaurar |
 | Faltam as medições entre a atualização e a restauração | A restauração substituiu o arquivo do dia pela cópia do backup | Restaure logo depois de atualizar ([capítulo 15](#cap-15-ota)) |
-| **Falha ao aplicar: I/O error** | Falha de gravação, ou um backup com mais de 200 arquivos | Não reinicie; repita a restauração. Se persistir, veja o limite de 200 arquivos |
+| **Falha ao aplicar: I/O error** | Falha de gravação (até a v2.9.0, também um backup com mais de 200 arquivos) | Não reinicie; repita a restauração: os arquivos já gravados ficam, e ela completa o resto |
 | A página diz **Upload concluído.**, mas o arquivo não aparece | O aparelho recusou o envio (nome inválido, sem espaço ou destino proibido) | Confira o nome, o espaço livre e a pasta |
 | Um pacote de idioma enviado não fez efeito | O pacote só é lido no boot | Reinicie o aparelho |
 | [air]{.img} A página do Air parou de responder durante a atualização | O Air hibernou | Ligue o carregador durante a atualização, ou ponha o Air em M0 com `air stop` |

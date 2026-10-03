@@ -57,7 +57,7 @@ falha antes (`CLAUDE.md`, *Tests first*).
 | Linha de alarmes por MQTT: ACK nunca lido com a telemetria desligada; a fila não cabe no buffer de 2.048 B (achados 28 e 29) | Mergeado (#208, 01/10), na v2.9.0. Provado na bancada: fila presa em 5/16 e maior lote de 2.001 B na main; fila 0 e lote de 2.794 B com o PR |
 | `isTimeSynced( )` sempre verdadeiro (achado 66) | Mergeado (#209, 01/10), na v2.9.0. Provado na bancada: com o NTP desligado a main diz `ntp=1` com o relógio em 1970; o PR diz 0 |
 | Com NTP ligado e sem servidor alcançável, o aparelho nunca chega a `NET_READY`, e telemetria e linha de alarmes esperam para sempre (achado 20). Documentado no manual, cap. 10, mas é armadilha para a LAN sem internet que o README promete | A fazer: desenho (sair para `NET_READY` depois de N falhas e seguir tentando o NTP). Presente na v2.9.0: `NET_CONNECTED_WAIT_NTP` só sai com o NTP respondendo |
-| Os achados de severidade alta que restam: 8 dos 17 (tabela abaixo; 28, 29, 48, 63 e 64 corrigidos, 6, 18 e 38 no #234, e 44 no #235) | Um PR por grupo. O #235 fecha o 44, do grupo API: `null` num limite mantém o limite, e o que não é número é recusado; o 41, do mesmo grupo, é a limitação conhecida do HTTP e fica documentada. O #234 fecha o grupo do ensaio inteiro: os três altos e os quatro médios (5, 17, 21, 69). O ensaio e o **Testar** escrevem só na cópia; fuso e sons valem com o reinício da gravação |
+| Os achados de severidade alta que restam: 7 dos 17 (tabela abaixo; 28, 29, 48, 63 e 64 corrigidos, 6, 18 e 38 no #234, 44 no #235 e 58 no #236) | Um PR por grupo. O #236 fecha o 58: uma restauração que falha no meio mantém os arquivos que terminou e apaga só o incompleto, não há mais limite de 200 arquivos, e o `apply` exige a validação do mesmo arquivo. O #235 fecha o 44, do grupo API: `null` num limite mantém o limite, e o que não é número é recusado; o 41, do mesmo grupo, é a limitação conhecida do HTTP e fica documentada. O #234 fecha o grupo do ensaio inteiro: os três altos e os quatro médios (5, 17, 21, 69). O ensaio e o **Testar** escrevem só na cópia; fuso e sons valem com o reinício da gravação |
 
 ## Fase 2 — os itens de firmware da revisão
 
@@ -178,7 +178,7 @@ Achados da redação do manual da v2.7.1, feitos lendo o código. Conferidos em
 01/10 contra `origin/main` (`2721eb2`): **72 presentes, 3 corrigidos** (56,
 59, 75). Nenhum foi reproduzido no ferro. Até a v2.9.0 (02/10), mais seis
 corrigidos, cada um com a prova no PR: 28 e 29 (#208), 48 (#204), 63 e 64
-(#203) e 66 (#209). Depois dela, os sete do grupo do ensaio: 5, 6, 17, 18, 21, 38 e 69 (#234), e o 44 (#235). Restam 58. Severidade do ponto de vista de um
+(#203) e 66 (#209). Depois dela, os sete do grupo do ensaio: 5, 6, 17, 18, 21, 38 e 69 (#234), o 44 (#235) e o 58 (#236). Restam 57. Severidade do ponto de vista de um
 monitor de cadeia fria: **alta** perde ou corrompe medição, alarme ou config,
 trava o boot ou abre brecha de segurança; **média** é comportamento errado que
 o usuário nota ou contrato de API quebrado; **baixa** é cosmético, de
@@ -200,7 +200,7 @@ documentação ou de comentário.
 | 41 | API | `WebManager_Auth.cpp` | Por HTTP, o SHA-256 da senha é a senha para quem o captura (limitação conhecida) |
 | 44 | API | `WebManager_Commit.cpp` | `null` num limite grava 0, com resposta 200. Corrigido (#235): `null` mantém o limite, e o que não é número é recusado |
 | 48 | AP | `AppManager_Loop.cpp` | Com o AP aberto, o aparelho não mede. Corrigido (#204) |
-| 58 | OTA | `ota/restore.cpp` | Restauração: o limite de caminhos só existe ao aplicar; a falha apaga o que já gravou, inclusive `/config` |
+| 58 | OTA | `ota/restore.cpp` | Restauração: o limite de caminhos só existe ao aplicar; a falha apaga o que já gravou, inclusive `/config`. Corrigido (#236): a falha mantém o que terminou e apaga só o incompleto; sem limite de arquivos; o `apply` exige a validação |
 | 63 | I2C | `sensors/SensorHelpers.h` | SDA e SCL trocados travam todo boot. Corrigido (#203) |
 | 64 | I2C | `sensors/BME280SensorDriver.h` | Segundo BME/BMP no mesmo periférico lê o primeiro. Corrigido (#203) |
 | 65 | busca | `SensorManager.cpp` | A busca de sondas não devolve o GP16, que no Air é a energia dos sensores |

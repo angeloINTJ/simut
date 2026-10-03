@@ -18,7 +18,7 @@ Protocolo:
      wifi … + end + write memory). O script espera ENTER.
   3. Verifica rede (IP obtido), uptime sem reboot inesperado, login web com
      a senha OTP capturada e /api/status.
-  4. Restaura o .bkp (POST /api/restore?op=apply) e verifica login com a
+  4. Restaura o .bkp (op=validate, depois op=apply) e verifica login com a
      credencial original da bancada + config íntegra.
 
 AVISO: apaga TODO o /config (cert TLS, usuários, sensores, telemetria) —
@@ -194,10 +194,14 @@ def main():
     # 5. Restauração do .bkp (higiene da bancada)
     print('\n=== RESTAURAÇÃO DO BACKUP ===')
     if ok_otp:
-        with open(bkp, 'rb') as fh:
-            r = wotp.post('/api/restore?op=apply',
-                          files={'restore': (bkp.name, fh.read())},
-                          timeout=60)
+        dados = bkp.read_bytes()
+        # Desde 2026-10-02 (achado 58) o apply só aceita o .bkp que o último
+        # validate aprovou; sem ele, 409 com st 11.
+        r = wotp.post('/api/restore?op=validate',
+                      files={'restore': (bkp.name, dados)}, timeout=60)
+        print(f'  validate -> HTTP {r.status_code}: {r.text[:120]}')
+        r = wotp.post('/api/restore?op=apply',
+                      files={'restore': (bkp.name, dados)}, timeout=60)
         print(f'  restore -> HTTP {r.status_code}: {r.text[:120]}')
         time.sleep(6)
         w2 = Web(host=host, timeout=15, scheme='http')
