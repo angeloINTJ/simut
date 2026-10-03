@@ -50,8 +50,10 @@ Step 4 of the design. `firmware.bin`, signed with `tools/ota_sign.py`, goes
 through the Files page like the Pico W's, and lands in the slot the board did
 not boot from (`src/ota/slot_stage.h`):
 
-- the stage erases that slot's first sector before anything else, writes the
-  rest as it arrives, and keeps the image's first 4 KB in RAM;
+- the stage erases that slot's first sector before anything else, then what
+  the image will cover, from the request's length (64 KB blocks where aligned;
+  ~1 MB in 1.4 s), writes the rest as it arrives, and keeps the image's first
+  4 KB in RAM;
 - the image is checked: its env tag (`releasetwo`), its image definition, its
   size, its signature;
 - the apply checks the signature again, writes the first sector, and reboots

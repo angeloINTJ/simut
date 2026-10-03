@@ -45,6 +45,16 @@ static bool __not_in_flash_func(slot_erase)(uint32_t phys) {
     return true;
 }
 
+/* One 64 KB block: the ROM's range erase takes the block command for an
+ * aligned 64 KB (flash_range_erase), several times faster than 16 sectors. */
+static bool __not_in_flash_func(slot_erase_block)(uint32_t phys) {
+    uint32_t saved_irq = save_and_disable_interrupts();
+    flash_range_erase(phys, SLOT_BLOCK);
+    restore_interrupts(saved_irq);
+    watchdog_update();
+    return true;
+}
+
 static bool __not_in_flash_func(slot_program)(uint32_t phys, const uint8_t* data, uint32_t len) {
     uint32_t saved_irq = save_and_disable_interrupts();
     flash_range_program(phys, data, len);
@@ -56,7 +66,7 @@ static void slot_read(uint32_t phys, uint8_t* dst, uint32_t len) {
     memcpy(dst, (const void*)(XIP_NOCACHE_NOALLOC_NOTRANSLATE_BASE + phys), len);
 }
 
-static const SlotFlashOps kSlotOps = { slot_erase, slot_program, slot_read };
+static const SlotFlashOps kSlotOps = { slot_erase, slot_erase_block, slot_program, slot_read };
 static SlotStage s_slot;
 
 static uint32_t inactive_slot() {
@@ -66,6 +76,7 @@ static uint32_t inactive_slot() {
 }
 
 bool staging_install_available() { return inactive_slot() != SLOT_NONE; }
+bool staging_prepare(uint32_t len) { return slot_stage_prepare(s_slot, len); }
 bool staging_mark_ready() { return slot_stage_mark_ready(s_slot); }
 bool staging_ready() { return s_slot.active && s_slot.ready && !s_slot.committed; }
 bool staging_commit() { return slot_stage_commit(s_slot); }

@@ -102,6 +102,10 @@ bool staging_session_end(StorageManager* storage);
 constexpr bool staging_install_available() { return true; }
 #else
 bool staging_install_available();
+/* Erases what an upload of @p len bytes will cover, before its body is read
+ * (slot_stage_prepare): the upload is then page programs alone. Core 1 must be
+ * parked, as for every write here. */
+bool staging_prepare(uint32_t len);
 /* The RP2350's stage ends here when the image checked out and commit=1 asked
  * for it: the image is kept for the apply, its first sector still in RAM, so
  * a reset before the apply drops it the way a reboot drops a COMMITTED stage

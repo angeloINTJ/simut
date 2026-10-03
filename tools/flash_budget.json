@@ -571,9 +571,9 @@
    "bin": 1031244
   },
   "pico2_w_release": {
-   "budget": 993592,
-   "measured": 993368,
-   "bin": 993392,
+   "budget": 993760,
+   "measured": 993536,
+   "bin": 993560,
    "ceiling": 3145728,
    "slot": 1568768
   }

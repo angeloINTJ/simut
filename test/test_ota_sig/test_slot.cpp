@@ -103,7 +103,8 @@ static void test_the_inactive_slot_is_the_other_one(void) {
 /* ---- the writer, on a simulated NOR flash ------------------------------- */
 
 static std::vector<uint8_t> g_flash;
-static uint32_t g_erases, g_programs, g_corrupt_at = 0xFFFFFFFFu;
+static uint32_t g_erases, g_blocks, g_programs, g_corrupt_at = 0xFFFFFFFFu;
+static bool g_block_misaligned;
 static bool g_program_on_unerased;
 
 static bool f_erase(uint32_t phys) {
@@ -122,14 +123,22 @@ static bool f_program(uint32_t phys, const uint8_t* d, uint32_t n) {
 	g_programs++;
 	return true;
 }
+static bool f_erase_block(uint32_t phys) {
+	if (phys % SLOT_BLOCK) { g_block_misaligned = true; return false; }   /* the 0xD8 command erases the block it falls in */
+	if (phys + SLOT_BLOCK > g_flash.size( )) return false;
+	memset(&g_flash[phys], 0xFF, SLOT_BLOCK);
+	g_blocks++;
+	return true;
+}
 static void f_read(uint32_t phys, uint8_t* dst, uint32_t n) { memcpy(dst, &g_flash[phys], n); }
-static const SlotFlashOps kOps = { f_erase, f_program, f_read };
+static const SlotFlashOps kOps = { f_erase, f_erase_block, f_program, f_read };
 
 static const uint32_t SLOT_OFF = 0x181000, SLOT_SIZE = 0x17F000;
 
 static void flash_reset(uint8_t fill) {
 	g_flash.assign(0x400000, fill);
-	g_erases = g_programs = 0;
+	g_erases = g_blocks = g_programs = 0;
+	g_block_misaligned = false;
 	g_corrupt_at = 0xFFFFFFFFu;
 	g_program_on_unerased = false;
 }
@@ -301,6 +310,78 @@ static void test_nothing_is_written_without_a_begin(void) {
 	TEST_ASSERT_FALSE(slot_stage_begin(g_s, &kOps, SLOT_NONE, SLOT_SIZE));
 }
 
+/* ---- erasing before the upload ------------------------------------------ */
+
+static bool all_bytes(uint32_t from, uint32_t to, uint8_t v) {
+	for (uint32_t i = from; i < to; i++) if (g_flash[i] != v) return false;
+	return true;
+}
+
+/* Erasing as the upload goes held interrupts off for a sector erase every
+ * 4 KB and held the Pico 2 W's stage to ~47 KB/s (2026-10-03). prepare erases
+ * what the image will cover first, in 64 KB blocks where the flash allows, and
+ * leaves the upload nothing but page programs. */
+static void test_prepare_erases_what_the_image_covers(void) {
+	const uint32_t A = 0x002000, B = 0x181000;
+	const uint32_t slots[] = { A, B };
+	for (uint32_t k = 0; k < 2; k++) {
+		const uint32_t off = slots[k];
+		flash_reset(0x00);   /* nothing erased: every erase shows */
+		TEST_ASSERT_TRUE(slot_stage_begin(g_s, &kOps, off, SLOT_SIZE));
+		const uint32_t len = 0x100000;                      /* an image and its multipart, about */
+		const uint32_t end = (len + SLOT_SECTOR - 1) / SLOT_SECTOR * SLOT_SECTOR;
+		TEST_ASSERT_TRUE(slot_stage_prepare(g_s, len));
+		TEST_ASSERT_FALSE(g_block_misaligned);
+		TEST_ASSERT_TRUE(all_bytes(off, off + end, 0xFF));                     /* covered, sector 0 by begin */
+		TEST_ASSERT_TRUE(all_bytes(off + end, off + SLOT_SIZE, 0x00));          /* nothing past the image */
+		TEST_ASSERT_TRUE(all_bytes(off - 0x1000, off, 0x00));                   /* nothing before the slot */
+		/* Blocks where aligned. From slot B: 14 sectors up to 0x190000, 15
+		 * blocks, 1 sector. From slot A: 13 sectors up to 0x10000, 15 blocks,
+		 * 2 sectors. Fifteen sectors either way, and begin's first one. */
+		TEST_ASSERT_EQUAL_UINT32(15, g_blocks);
+		TEST_ASSERT_EQUAL_UINT32(1 + 15, g_erases);           /* begin's first sector, then 14 + 1 */
+	}
+}
+
+static void test_after_prepare_the_upload_erases_nothing(void) {
+	flash_reset(0x00);
+	std::vector<uint8_t> img = image_with_block(200 * 1024);
+	TEST_ASSERT_TRUE(slot_stage_begin(g_s, &kOps, SLOT_OFF, SLOT_SIZE));
+	TEST_ASSERT_TRUE(slot_stage_prepare(g_s, (uint32_t)img.size( ) + 300));
+	const uint32_t erases = g_erases, blocks = g_blocks;
+	feed(g_s, img);
+	TEST_ASSERT_EQUAL_UINT32(erases, g_erases);
+	TEST_ASSERT_EQUAL_UINT32(blocks, g_blocks);
+	TEST_ASSERT_FALSE(g_program_on_unerased);
+	TEST_ASSERT_FALSE(slot_has_image_definition( ));      /* a cut here still leaves nothing to boot */
+	TEST_ASSERT_TRUE(slot_stage_mark_ready(g_s));
+	TEST_ASSERT_TRUE(slot_stage_commit(g_s));
+	TEST_ASSERT_EQUAL_UINT32(erases + 1, g_erases);       /* the commit's own erase of sector 0 */
+	TEST_ASSERT_EQUAL_MEMORY(img.data( ), &g_flash[SLOT_OFF], img.size( ));
+	TEST_ASSERT_TRUE(slot_has_image_definition( ));
+}
+
+static void test_prepare_stays_inside_the_slot_and_before_ready(void) {
+	flash_reset(0x00);
+	TEST_ASSERT_TRUE(slot_stage_begin(g_s, &kOps, SLOT_OFF, SLOT_SIZE));
+	TEST_ASSERT_TRUE(slot_stage_prepare(g_s, 0xFFFFFFF0u));   /* longer than the slot: the slot */
+	TEST_ASSERT_TRUE(all_bytes(SLOT_OFF, SLOT_OFF + SLOT_SIZE, 0xFF));
+	TEST_ASSERT_EQUAL_HEX8(0x00, g_flash[SLOT_OFF + SLOT_SIZE]);
+	TEST_ASSERT_FALSE(g_block_misaligned);
+	/* Upload past what was prepared still erases as it goes. */
+	flash_reset(0x00);
+	std::vector<uint8_t> img = image_with_block(64 * 1024);
+	TEST_ASSERT_TRUE(slot_stage_begin(g_s, &kOps, SLOT_OFF, SLOT_SIZE));
+	TEST_ASSERT_TRUE(slot_stage_prepare(g_s, 20 * 1024));
+	feed(g_s, img);
+	TEST_ASSERT_FALSE(g_program_on_unerased);
+	TEST_ASSERT_TRUE(slot_stage_mark_ready(g_s));
+	TEST_ASSERT_FALSE(slot_stage_prepare(g_s, 1));          /* a ready image is not erased under */
+	SlotStage idle;
+	memset(&idle, 0, sizeof(idle));
+	TEST_ASSERT_FALSE(slot_stage_prepare(idle, 4096));
+}
+
 void run_slot_tests(void) {
 	RUN_TEST(test_picobin_finds_the_image_definition_of_the_rp2350_image);
 	RUN_TEST(test_picobin_masks_the_trial_bit);
@@ -318,5 +399,8 @@ void run_slot_tests(void) {
 	RUN_TEST(test_only_a_ready_image_gets_its_first_sector);
 	RUN_TEST(test_a_ready_image_takes_no_more_bytes);
 	RUN_TEST(test_a_new_begin_drops_a_ready_image);
+	RUN_TEST(test_prepare_erases_what_the_image_covers);
+	RUN_TEST(test_after_prepare_the_upload_erases_nothing);
+	RUN_TEST(test_prepare_stays_inside_the_slot_and_before_ready);
 	RUN_TEST(test_nothing_is_written_without_a_begin);
 }

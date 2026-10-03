@@ -188,6 +188,14 @@ void WebManager::handleApiRestoreUploadData( ) {
   * holds Core 1 for the whole upload, and only the bar is left to draw. */
  if (_displayRef) _displayRef->showOta(OTA_PH_RECEIVING);
  ota::stage_session_begin(_stageSession, _storageRef);
+#if !OTA_RP2040_MAP
+ /* The slot is erased for the whole upload before its first byte is read,
+  * from the request's length, so the upload is page programs alone: ~79 KB/s
+  * against ~47 erasing as the bytes came (staging_prepare, staging.h).
+  * Erasing as they come is still there, for a length that undercounts. */
+ if (_stageSession.status == ota::StageStatus::STAGING)
+ (void)ota::staging_prepare((uint32_t)_server->clientContentLength( ));
+#endif
  } else {
  _stageSession.status = ota::StageStatus::IDLE;
  _restoreRejected = true;
