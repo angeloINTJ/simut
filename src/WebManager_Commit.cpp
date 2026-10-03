@@ -102,24 +102,9 @@ using ReadGuard = StorageManager::ReadGuard;
  * Used for dashboard theme switching (immediate application, no reboot).
  */
 /* "<key>":[lo,hi] — the shape channel limits arrive in, under "lim" for the
- * sensors section and inline for the alarms one. Either element may be empty,
- * which leaves that bound alone. File scope because both sections parse it;
- * as a lambda it lived in the sensors block and was invisible to the other. */
-static bool getPair(const String& o, const char* key, float& lo, float& hi) {
-	String needle = String("\"") + key + "\":";
-	int p = o.indexOf(needle);
-	if (p < 0) return false;
-	int s = o.indexOf('[', p);
-	int e = (s >= 0) ? o.indexOf(']', s) : -1;
-	if (s < 0 || e <= s) return false;
-	int comma = o.indexOf(',', s + 1);
-	if (comma < 0 || comma > e) return false;
-	String a = o.substring(s + 1, comma); a.trim( );
-	String b = o.substring(comma + 1, e); b.trim( );
-	if (a.length( )) lo = parseFloat(a.c_str( ));
-	if (b.length( )) hi = parseFloat(b.c_str( ));
-	return true;
-}
+ * sensors section and inline for the alarms one — is read by jsonLimitPair( )
+ * (WebJsonSlice.h), with the host tests: `null` or an empty element keeps that
+ * bound, anything else that is not a number is refused (finding 44). */
 
 /* "key": true|false — the boolean cousin of the extractFloat/
  * jsonExtractStringValue scars above, found the same way: a spaced payload
@@ -499,25 +484,29 @@ void WebManager::handleApiCommitAll( ) {
 					const ChannelInfo& ci = channelInfo(ch);
 					return v >= ci.saneMin && v <= ci.saneMax;
 				};
-				/* Same reader shape as the apply-pass, so both passes see the
-				 * same value (whitespace after the colon included). */
+				/* The same readers as the apply-pass, so both passes see the same
+				 * value. A value that is not a number — `true`, "abc" — is as bad
+				 * as one out of range, and refused the same way; it used to be
+				 * read as 0 (finding 44). `null` keeps the stored bound. */
+				bool notNumber = false;
 				auto exf = [&](const char* key) -> float {
-					int kp = obj.indexOf(key);
-					if (kp < 0) return NAN;
-					int cp = obj.indexOf(':', kp + strlen(key));
-					if (cp < 0) return NAN;
-					int vs = cp + 1;
-					while (vs < (int)obj.length( ) && (obj[vs] == ' ' || obj[vs] == '\t' ||
-					       obj[vs] == '\r' || obj[vs] == '\n')) vs++;
-					return parseFloat(obj.substring(vs).c_str( ));
+					float v = NAN;
+					if (jsonLimitValue(jsonRawToken(obj, key), v) == JSON_LIMIT_BAD) notNumber = true;
+					return v;
 				};
-				bool bad = !limOk(CH_TEMP, exf("\"tmin\"")) || !limOk(CH_TEMP, exf("\"tmax\"")) ||
-				           !limOk(CH_HUM, exf("\"hmin\"")) || !limOk(CH_HUM, exf("\"hmax\""));
-				for (uint8_t c = 0; !bad && c < MAX_SENSOR_CHANNELS; c++) {
+				bool bad = !limOk(CH_TEMP, exf("tmin")) || !limOk(CH_TEMP, exf("tmax")) ||
+				           !limOk(CH_HUM, exf("hmin")) || !limOk(CH_HUM, exf("hmax"));
+				for (uint8_t c = 0; !bad && !notNumber && c < MAX_SENSOR_CHANNELS; c++) {
 					if (!channelValid(c)) continue;
 					float lo = NAN, hi = NAN;
-					if (!getPair(obj, channelInfo(c).key, lo, hi)) continue;
-					if (!limOk(c, lo) || !limOk(c, hi)) bad = true;
+					const int r = jsonLimitPair(obj, channelInfo(c).key, lo, hi);
+					if (r == JSON_LIMIT_BAD) notNumber = true;
+					else if (r == JSON_LIMIT_NUMBER && (!limOk(c, lo) || !limOk(c, hi))) bad = true;
+				}
+				if (notNumber) {
+					_server->send(400, "application/json",
+					             "{\"error\":\"Alarm limit is not a number\"}");
+					return;
 				}
 				if (bad) {
 					_server->send(400, "application/json",
@@ -852,7 +841,11 @@ void WebManager::handleApiCommitAll( ) {
 							if (!channelValid(c)) continue;
 							const ChannelInfo& ci = channelInfo(c);
 							float lo = NAN, hi = NAN;
-							if (!getPair(lim, ci.key, lo, hi)) continue;
+							const int rl = jsonLimitPair(lim, ci.key, lo, hi);
+							/* Not a number: nothing written, and the caller is told —
+							 * it used to be a bound of 0 (finding 44). */
+							if (rl == JSON_LIMIT_BAD) { rejectField("slots.lim"); continue; }
+							if (rl != JSON_LIMIT_NUMBER) continue;
 							if (!isnan(lo)) r.chMin[c] = constrain(lo, ci.saneMin, ci.saneMax);
 							if (!isnan(hi)) r.chMax[c] = constrain(hi, ci.saneMin, ci.saneMax);
 						}
@@ -1223,27 +1216,21 @@ void WebManager::handleApiCommitAll( ) {
 				if (idx >= 0 && idx < MAX_SENSORS && cfg.sensors[idx].active) rec = &cfg.sensors[idx];
 
 				if (rec) {
+					/* jsonLimitValue( ): NAN — keep the stored bound — for an
+					 * absent key or a `null`. The pre-validation above refused the
+					 * whole commit for anything else that is not a number, which
+					 * parseFloat( ) used to read as 0. (Whitespace after the colon,
+					 * which once made `"hmax": 80` a 0 bound, is skipped by
+					 * jsonValuePos( ).) */
 					auto extractFloat = [&](const char* key) -> float {
-						int kp = obj.indexOf(key);
-						if (kp < 0) return NAN;
-						int cp = obj.indexOf(':', kp + strlen(key));
-						if (cp < 0) return NAN;
-						/* Whitespace after the colon is legal JSON that the page's
-						 * JSON.stringify never emits — but any other client can.
-						 * parseFloat answers 0.0 for it, not NAN, so `"hmax": 80`
-						 * wrote a 0 bound and the inverted-band fixer below then
-						 * rewrote the pair to [min, min+0.1] — under a 200 OK.
-						 * getNum in the sys section and jsonExtractFloat both
-						 * already skip it; this reader was the one left behind. */
-						int vs = cp + 1;
-						while (vs < (int)obj.length( ) && (obj[vs] == ' ' || obj[vs] == '\t' ||
-						       obj[vs] == '\r' || obj[vs] == '\n')) vs++;
-						return parseFloat(obj.substring(vs).c_str( ));
+						float v = NAN;
+						jsonLimitValue(jsonRawToken(obj, key), v);
+						return v;
 					};
-					float tmin = extractFloat("\"tmin\"");
-					float tmax = extractFloat("\"tmax\"");
-					float hmin = extractFloat("\"hmin\"");
-					float hmax = extractFloat("\"hmax\"");
+					float tmin = extractFloat("tmin");
+					float tmax = extractFloat("tmax");
+					float hmin = extractFloat("hmin");
+					float hmax = extractFloat("hmax");
 					if (!isnan(tmin)) rec->chMin[CH_TEMP] = tmin;
 					if (!isnan(tmax)) rec->chMax[CH_TEMP] = tmax;
 					if (!isnan(hmin)) rec->chMin[CH_HUM] = hmin;
@@ -1255,7 +1242,7 @@ void WebManager::handleApiCommitAll( ) {
 					for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
 						if (!channelValid(c)) continue;
 						float lo = NAN, hi = NAN;
-						if (!getPair(obj, channelInfo(c).key, lo, hi)) continue;
+						if (jsonLimitPair(obj, channelInfo(c).key, lo, hi) != JSON_LIMIT_NUMBER) continue;
 						if (!isnan(lo)) rec->chMin[c] = lo;
 						if (!isnan(hi)) rec->chMax[c] = hi;
 					}
