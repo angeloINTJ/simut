@@ -260,7 +260,7 @@ simut/
 > The setup access point is WPA2 on every image, with a per-device key shown on
 > the console and, where there is one, on the display. See [SECURITY.md](SECURITY.md) §2 and §8.
 
-> There is no debug environment. `pico_w_debug` was removed in v2.4.1 after never once linking: at `-Og` the image overflowed the 1020 KB app slot by ~100 KB. Flash is tight. The release image uses 97.6 % of the 1,044,480 B program slot (`tools/flash_budget.json` keeps the measured value), and CI checks every `.bin`, with its 241 B signature, against the 1,040,384 B over-the-air ceiling. A GDB target would have to be built by cutting features. For the concurrency tripwire on hardware, use `pico_w_asserts`.
+> There is no debug environment. `pico_w_debug` was removed in v2.4.1 after never once linking: at `-Og` the image overflowed the 1020 KB app slot by ~100 KB. Flash is tight. The release image uses 97.7 % of the 1,044,480 B program slot (`tools/flash_budget.json` keeps the measured value), and CI checks every `.bin`, with its 241 B signature, against the 1,040,384 B over-the-air ceiling. A GDB target would have to be built by cutting features. For the concurrency tripwire on hardware, use `pico_w_asserts`.
 
 ### Build flags
 - `-Os` — optimize for size
