@@ -1709,13 +1709,13 @@ SIMUT# reload confirm</code></pre>
 <td><code>users</code></td>
 <td>Política de PIN do painel</td>
 <td><strong>Configurações</strong> (<a href="#cap-05-hardware">Hardware</a>)</td>
-<td>Não: reinicia (pelo painel, vale sem reinício)</td>
+<td>Sim</td>
 </tr>
 <tr class="even">
 <td><code>users</code></td>
 <td>Contas</td>
 <td><strong>Usuários</strong> (<a href="#cap-08">capítulo 8</a>)</td>
-<td>Não: o ensaio é recusado</td>
+<td>Sim, sem <strong>Testar</strong></td>
 </tr>
 <tr class="odd">
 <td><code>display</code></td>
@@ -1777,8 +1777,8 @@ SIMUT# reload confirm</code></pre>
 <aside class="faixa faixa-nota"><span class="selo selo-neutro"><i></i>Nota</span>
 <p><strong>Por que esses grupos reiniciam.</strong> Vários subsistemas leem a configuração uma única vez, ao ligar: o servidor web fixa porta e protocolo ao subir, o cliente MQTT fixa o servidor, o certificado da telemetria é lido uma vez e os slots de sensor montam o circuito de leitura inteiro. Reiniciar é o único jeito de todos relerem o valor novo.</p>
 </aside>
-<aside class="faixa faixa-atencao"><span class="selo selo-alerta"><i></i>Atenção</span>
-<p><strong>O ensaio não enxerga alguns campos.</strong> O intervalo do histórico, o interruptor do NTP, os campos do syslog, o Home Assistant Discovery, o DNS automático, o DNS secundário e as conexões persistentes são gravados na área de extensão, e o ensaio não os escreve na cópia que compara. Se o conjunto preparado só tem esses campos, o selo pode mostrar <strong>Não exige reinício</strong>. Nesse caso, <strong>Aplicar agora</strong> grava e reinicia o aparelho mesmo assim, e <strong>Testar</strong> não aplica esses campos. Para alterá-los, use <strong>Salvar e reiniciar</strong>.</p>
+<aside class="faixa faixa-nota"><span class="selo selo-neutro"><i></i>Nota</span>
+<p><strong>Até a v2.9.0, o ensaio não enxergava a área de extensão.</strong> O intervalo do histórico, o interruptor do NTP, os campos do syslog, o Home Assistant Discovery, o DNS automático, o DNS secundário e as conexões persistentes ficavam fora da cópia que ele compara: o selo podia mostrar <strong>Não exige reinício</strong>, e <strong>Aplicar agora</strong> reiniciava mesmo assim. Desde a versão seguinte, esses campos entram no ensaio pelo grupo <code>web</code>, e o selo mostra <strong>Reinicia por: web</strong>.</p>
 </aside>
 <h4 id="cap-05-recusados">Valores recusados</h4>
 <p>O aparelho confere cada campo antes de gravar. Um valor fora da faixa ou com formato errado é descartado: o campo mantém o valor anterior, e o resto da gravação continua.</p>
@@ -3495,8 +3495,8 @@ E6614103E7512B29,uSALA-1,Sala,55.00,52.00</code></pre>
 </table></div>
 <p>O botão de teste toca a melodia escolhida no navegador, não na cigarra do aparelho, no volume do controle correspondente. Os detalhes de cada som estão em <a href="#cap-07-sons">Sons</a>.</p>
 <p>Ligar <strong>Mudo Global</strong> desliga as outras seis chaves; ligar qualquer uma delas desliga <strong>Mudo Global</strong>.</p>
-<aside class="faixa faixa-atencao"><span class="selo selo-alerta"><i></i>Atenção</span>
-<p><strong>Uma mudança de som preparada já vale no aparelho.</strong> Na v2.7.1, a consulta que a página faz ao aparelho para decidir se a mudança exige reinício aplica os sons na memória do aparelho antes da gravação. Ligar <strong>Mudo Global</strong> na página, por exemplo, pode calar a cigarra antes de você gravar, e continua assim até um reinício se você desistir. Grave ou descarte as mudanças de som logo em seguida.</p>
+<aside class="faixa faixa-nota"><span class="selo selo-neutro"><i></i>Nota</span>
+<p><strong>Até a v2.9.0, uma mudança de som preparada já valia no aparelho.</strong> O ensaio que a página faz para decidir se a mudança exige reinício aplicava os sons à cigarra antes da gravação: ligar <strong>Mudo Global</strong> na página calava até um alarme tocando, mesmo que você desistisse. Desde a versão seguinte, o ensaio não mexe no som em uso, e a mudança vale depois do reinício que <strong>Salvar e reiniciar</strong> faz.</p>
 </aside>
 <h3 id="cap-07-painel">O menu de alarmes do painel</h3>
 <p><span class="selo selo-img">release</span> No painel, os alarmes ficam no item <strong>Limites de Alarme</strong> do menu de configurações. O item aparece para contas com pelo menos uma das três permissões de painel:</p>
@@ -5751,8 +5751,8 @@ reload confirm</code></pre>
 <li>a conversão da data e da hora digitadas no acerto manual pela web.</li>
 </ul>
 <p>Os registros do histórico guardam o instante em UTC. Mudar o fuso não altera os registros já gravados.</p>
-<aside class="faixa faixa-atencao"><span class="selo selo-alerta"><i></i>Atenção</span>
-<p><strong>Digitar no campo Fuso Horário já muda o fuso em uso.</strong> Cerca de 0,6 s depois de você digitar, a página pede ao aparelho o ensaio da alteração (<a href="#cap-05-ensaio">capítulo 5</a>), e esse ensaio aplica o fuso novo à hora em uso sem gravá-lo. O painel e o histórico passam a usar o fuso digitado até o próximo reinício, ou até a próxima reconexão à rede com o NTP ligado, mesmo que você desista da alteração. Se isso acontecer, reinicie o aparelho para voltar ao fuso gravado. No Air isso não acontece, porque ele recusa o ensaio.</p>
+<aside class="faixa faixa-nota"><span class="selo selo-neutro"><i></i>Nota</span>
+<p><strong>Até a v2.9.0, digitar no campo Fuso Horário já mudava o fuso em uso.</strong> O ensaio da alteração (<a href="#cap-05-ensaio">capítulo 5</a>) aplicava o fuso novo à hora em uso, sem gravá-lo, mesmo que você desistisse. Desde a versão seguinte, o fuso só muda com o reinício que a gravação faz.</p>
 </aside>
 <h3 id="cap-10-manual">Acerto manual</h3>
 <p>Com o NTP desligado, ou sem rede, a hora do aparelho vem do acerto manual. Há três caminhos: a interface web, o painel da release e o console, em todas as imagens. Os três valem na hora, sem reinício, e o primeiro acerto depois do boot corrige a hora dos blocos do histórico que o boot começou sob o relógio provisório (<a href="#cap-10-correcao">Quando o primeiro acerto corrige o relógio</a>).</p>
@@ -18903,7 +18903,7 @@ async function status(token) {
 </tr>
 </tbody>
 </table></div>
-<p><code>_dry</code> e <code>_nosave</code> só aceitam as seções <code>sys</code>, <code>net</code> e <code>alarms</code>. Com qualquer outra, a resposta é <code>400</code> <code>{"error":"accepts sys, net and alarms only"}</code>. <span class="selo selo-img">air</span> O Air recusa os dois com <code>400</code> <code>{"error":"dry run not available on this build"}</code>: no Air, toda gravação é real e reinicia (<a href="#cap-05-air">capítulo 5</a>).</p>
+<p><code>_dry</code> aceita as seções <code>sys</code>, <code>net</code>, <code>alarms</code> e <code>users</code>; <code>_nosave</code>, só <code>sys</code>, <code>net</code> e <code>alarms</code>. Com outra, a resposta é <code>400</code> <code>{"error":"accepts sys, net and alarms only, and users in a dry run"}</code>. <span class="selo selo-img">air</span> O Air recusa os dois com <code>400</code> <code>{"error":"dry run not available on this build"}</code>: no Air, toda gravação é real e reinicia (<a href="#cap-05-air">capítulo 5</a>).</p>
 <p><strong>A resposta.</strong> Ela diz o que aconteceu. Leia sempre o corpo: um campo recusado volta com status 200.</p>
 <pre class="json"><code>{&quot;status&quot;:&quot;ok&quot;,&quot;reboot&quot;:false,&quot;applied&quot;:[&quot;alarms&quot;,&quot;maint&quot;]}
 {&quot;status&quot;:&quot;ok&quot;,&quot;reboot&quot;:true,&quot;reboot_for&quot;:[&quot;identity&quot;]}
@@ -18912,7 +18912,7 @@ async function status(token) {
 {&quot;status&quot;:&quot;ok&quot;,&quot;reboot&quot;:false,&quot;applied&quot;:[],&quot;rejected&quot;:[&quot;t_port&quot;]}
 {&quot;status&quot;:&quot;ok&quot;,&quot;reboot&quot;:false,&quot;saved&quot;:false,&quot;applied&quot;:[&quot;alarms&quot;]}
 {&quot;status&quot;:&quot;dry&quot;,&quot;reboot&quot;:true,&quot;applied&quot;:[&quot;time&quot;],&quot;reboot_for&quot;:[&quot;time&quot;]}
-{&quot;status&quot;:&quot;ok&quot;,&quot;reboot&quot;:true,&quot;reboot_for&quot;:[&quot;users&quot;],&quot;creds&quot;:[{&quot;u&quot;:&quot;operador1&quot;,&quot;p&quot;:&quot;K7M2QX9A&quot;}]}</code></pre>
+{&quot;status&quot;:&quot;ok&quot;,&quot;reboot&quot;:false,&quot;applied&quot;:[&quot;users&quot;],&quot;creds&quot;:[{&quot;u&quot;:&quot;operador1&quot;,&quot;p&quot;:&quot;K7M2QX9A&quot;}]}</code></pre>
 <div class="tw"><table>
 <colgroup>
 <col style="width: 50%" />
@@ -18973,23 +18973,25 @@ async function status(token) {
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>alarms</code>, <code>maint</code>, <code>alarm_tel</code>, <code>telemetry</code>, <code>display</code></td>
+<td><code>alarms</code>, <code>maint</code>, <code>alarm_tel</code>, <code>telemetry</code>, <code>display</code>, <code>users</code></td>
 <td>Aplicam sem reiniciar</td>
 </tr>
 <tr class="even">
-<td><code>net</code>, <code>identity</code>, <code>users</code>, <code>slots</code>, <code>sensing</code>, <code>mqtt</code>, <code>time</code>, <code>web</code>, <code>unclassified</code></td>
+<td><code>net</code>, <code>identity</code>, <code>slots</code>, <code>sensing</code>, <code>mqtt</code>, <code>time</code>, <code>web</code>, <code>unclassified</code></td>
 <td>Reiniciam</td>
 </tr>
 </tbody>
 </table></div>
-<p>Quatro campos sem efeito, <code>s_int</code>, <code>log</code> e dois que só o arquivo de configuração carrega, não entram em grupo nenhum e gravam sem reiniciar, desde a v2.7.4. Até a v2.7.3 eles caíam em <code>sensing</code>, <code>logging</code>, <code>net</code> e <code>display_pin</code>, e reiniciavam o aparelho. O que cada grupo inclui está em <a href="#cap-05-grupos">Os grupos de configuração</a>. Qualquer alteração de conta ou de PIN, e também da política de PIN, cai em <code>users</code> e reinicia. Não copie essa tabela para o seu cliente: use o ensaio, que responde pela regra do próprio aparelho.</p>
+<p>Quatro campos sem efeito, <code>s_int</code>, <code>log</code> e dois que só o arquivo de configuração carrega, não entram em grupo nenhum e gravam sem reiniciar, desde a v2.7.4. Até a v2.7.3 eles caíam em <code>sensing</code>, <code>logging</code>, <code>net</code> e <code>display_pin</code>, e reiniciavam o aparelho. O que cada grupo inclui está em <a href="#cap-05-grupos">Os grupos de configuração</a>. Qualquer alteração de conta ou de PIN, e também da política de PIN, cai em <code>users</code>, que se aplica sem reiniciar desde a versão seguinte à v2.9.0 (até a v2.9.0, reiniciava). Não copie essa tabela para o seu cliente: use o ensaio, que responde pela regra do próprio aparelho.</p>
 <p>Quando há reinício, a resposta chega antes dele. O aparelho fica fora do ar por alguns segundos e encerra todas as sessões. Para saber quando ele voltou, repita <code>GET /api/login_init</code> a cada 3 s até ele responder, e entre de novo.</p>
-<p><strong>O ensaio.</strong> Use <code>_dry=1</code> para validar uma configuração antes de gravá-la, por exemplo antes de mandá-la a vários aparelhos (<a href="#cap-27">capítulo 27</a>). O ensaio tem três limites:</p>
+<p><strong>O ensaio.</strong> Use <code>_dry=1</code> para validar uma configuração antes de gravá-la, por exemplo antes de mandá-la a vários aparelhos (<a href="#cap-27">capítulo 27</a>). Ele roda numa cópia e não mexe no aparelho: não grava e não aplica nada.</p>
+<p>Até a v2.9.0, o ensaio tinha três limites, corrigidos na versão seguinte:</p>
 <ul>
-<li><strong>Não enxerga alguns campos.</strong> <code>h_int</code>, <code>ntp_enabled</code>, <code>slog_en</code>, <code>slog_srv</code>, <code>slog_port</code>, <code>slog_lvl</code>, <code>m_had</code>, <code>dns_auto</code>, <code>dns2</code> e <code>web_ka</code> ficam de fora da cópia que ele compara. Um ensaio só com esses campos responde <code>"reboot":false</code> e <code>"applied":[]</code>, mas a gravação real reinicia pelo grupo <code>web</code>. O <code>_nosave=1</code> também não os aplica.</li>
-<li><strong>Aplica o fuso horário de verdade.</strong> Um <code>tz</code> no ensaio muda na hora a hora local que o aparelho mostra, até o próximo reinício ou a próxima gravação de fuso.</li>
-<li><strong>Aplica os sons de verdade.</strong> Um objeto <code>sounds</code> no ensaio muda na hora volume, melodias e silêncio do aparelho, sem gravar.</li>
+<li>não enxergava <code>h_int</code>, <code>ntp_enabled</code>, <code>slog_*</code>, <code>m_had</code>, <code>dns_auto</code>, <code>dns2</code> e <code>web_ka</code>, e respondia <code>"reboot":false</code> onde a gravação real reiniciava pelo grupo <code>web</code>;</li>
+<li>aplicava o fuso horário de verdade;</li>
+<li>aplicava os sons de verdade, inclusive o silêncio.</li>
 </ul>
+<p>O <code>_nosave=1</code> tinha os mesmos três efeitos. Com um desses campos e outro que exigisse reinício, ele respondia <code>409</code> com a memória já alterada.</p>
 <aside class="faixa faixa-atencao"><span class="selo selo-alerta"><i></i>Atenção</span>
 <p><strong>A origem CORS é gravada na hora, mas só vale depois de um reinício.</strong> A chave <code>cors</code> grava o arquivo da origem em qualquer modo, menos no ensaio, e não altera nenhum grupo: a resposta não pede reinício. Para ativá-la, mande a mesma gravação com <code>_reboot=1</code> ou reinicie depois com <code>POST /api/action?op=reboot</code>.</p>
 </aside>
@@ -19150,7 +19152,7 @@ async function status(token) {
 <p><strong>Criar.</strong></p>
 <pre class="bash"><code>curl -s -b jar -X POST &quot;$H/api/commit_all&quot; --data-urlencode \
   &#39;_payload={&quot;users&quot;:{&quot;actions&quot;:[{&quot;type&quot;:&quot;add&quot;,&quot;name&quot;:&quot;operador1&quot;,&quot;perms&quot;:6144,&quot;pin&quot;:&quot;482913&quot;}]}}&#39;</code></pre>
-<pre class="json"><code>{&quot;status&quot;:&quot;ok&quot;,&quot;reboot&quot;:true,&quot;reboot_for&quot;:[&quot;users&quot;],&quot;creds&quot;:[{&quot;u&quot;:&quot;operador1&quot;,&quot;p&quot;:&quot;K7M2QX9A&quot;}]}</code></pre>
+<pre class="json"><code>{&quot;status&quot;:&quot;ok&quot;,&quot;reboot&quot;:false,&quot;applied&quot;:[&quot;users&quot;],&quot;creds&quot;:[{&quot;u&quot;:&quot;operador1&quot;,&quot;p&quot;:&quot;K7M2QX9A&quot;}]}</code></pre>
 <p>A senha de uso único vem em <code>creds</code>, só nesta resposta: o aparelho guarda apenas o resumo. Guarde-a ou entregue-a na hora. Ela tem 8 caracteres, entre letras maiúsculas e algarismos, sem <code>O</code>, <code>0</code>, <code>I</code> e <code>1</code>. Na primeira entrada, a conta nova precisa trocar a senha (<a href="#cap-26-troca">Troca de senha</a>).</p>
 <p><strong>Apagar e resetar</strong> são sempre por <code>id</code>. Uma ação com <code>name</code> no lugar do <code>id</code> não apaga nada e volta com <code>"rejected":["users.id"]</code>. A conta <code>admin</code>, <code>id</code> 0, não pode ser apagada nem resetada pela API.</p>
 <p><strong>Definir o PIN.</strong> O PIN pela API segue sempre a regra fixa de 4 a 8 algarismos, qualquer que seja a política de PIN do aparelho. Esse é um defeito conhecido, e o comportamento é este:</p>
@@ -19159,7 +19161,7 @@ async function status(token) {
 <li>um PIN mais curto que o mínimo da política é aceito pela API, mas o painel o recusa na hora de entrar.</li>
 </ul>
 <p>Para um PIN que funcione nos dois lados, use só algarismos, com um comprimento entre o maior de 4 e <code>pin_min</code> e o menor de 8 e <code>pin_max</code>, lidos em <code>GET /api/config</code>. Se a política exige mais de 8 caracteres, defina o PIN no próprio painel (<a href="#cap-08-proprio-pin">capítulo 8</a>).</p>
-<p><strong>Tudo em <code>users</code> reinicia.</strong> Criar, apagar, resetar e definir PIN mudam o grupo <code>users</code>, e o aparelho reinicia depois de responder. Agrupe as ações num único pedido: três criações em pedidos separados custam três reinícios. Depois de cada gravação de contas, entre de novo.</p>
+<p><strong><code>users</code> se aplica sem reiniciar</strong> desde a versão seguinte à v2.9.0. Criar, apagar, resetar e definir PIN valem na hora: a sessão de uma conta apagada ou resetada termina na requisição seguinte (<code>401</code>), e as outras continuam. A exceção é o primeiro PIN do <code>admin</code>, que também apaga a marca de troca obrigatória, na área de extensão: esse pedido reinicia pelo grupo <code>web</code>. Até a v2.9.0, toda gravação de contas reiniciava o aparelho e encerrava todas as sessões.</p>
 <p><strong>Recusas.</strong> Uma ação recusada não impede as outras. A resposta traz o motivo em <code>rejected</code>, com status 200:</p>
 <div class="tw"><table>
 <colgroup>
@@ -20400,7 +20402,7 @@ curl -s -b jar -X POST &quot;$H/api/force_chpass&quot; \
 <li>Guarde o novo <code>cfg</code> de <code>GET /api/status</code>. Ele passa a ser a referência daquele aparelho.</li>
 </ol>
 <aside class="faixa faixa-atencao"><span class="selo selo-alerta"><i></i>Atenção</span>
-<p><strong>O ensaio tem pontos cegos.</strong> Ele aceita só as seções <code>sys</code>, <code>net</code> e <code>alarms</code>; não enxerga <code>h_int</code>, <code>ntp_enabled</code>, <code>slog_*</code>, <code>m_had</code>, <code>dns_auto</code>, <code>dns2</code> e <code>web_ka</code>; e aplica de verdade o fuso e os sons (<a href="#cap-26-commit">capítulo 26</a>). <span class="selo selo-img">air</span> O Air recusa o ensaio: nele, cada gravação é real e reinicia. Teste o modelo primeiro num aparelho de bancada da mesma imagem.</p>
+<p><strong>O ensaio aceita só as seções <code>sys</code>, <code>net</code>, <code>alarms</code> e <code>users</code></strong> (<a href="#cap-26-commit">capítulo 26</a>). Até a v2.9.0, ele também não enxergava <code>h_int</code>, <code>ntp_enabled</code>, <code>slog_*</code>, <code>m_had</code>, <code>dns_auto</code>, <code>dns2</code> e <code>web_ka</code>, e aplicava de verdade o fuso e os sons. <span class="selo selo-img">air</span> O Air recusa o ensaio: nele, cada gravação é real e reinicia. Teste o modelo primeiro num aparelho de bancada da mesma imagem.</p>
 </aside>
 <h4 id="cap-27-exemplo-lote">Um exemplo em Python</h4>
 <p>O script usa a classe <code>Simut</code> do <a href="#cap-26-python">capítulo 26</a>, salva como <code>simut_status.py</code>. O inventário é um arquivo JSON com o endereço, o <code>uid</code> esperado e os campos próprios de cada aparelho. A senha da conta de serviço vem do ambiente.</p>

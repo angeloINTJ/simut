@@ -8,6 +8,7 @@
  */
 #include "WebManager.h"
 #include "ConfigApply.h"
+#include "ConfigOverlays.h" /* the reserved[] overlays, written into cfg — the copy on a dry run */
 #include "CorsOrigin.h"   /* isValidCorsOrigin — a mesma regra do CLI e do boot */
 #include "TelContentType.h" /* isValidMediaType — o Content-Type vira header HTTP */
 #include "ParseFloat.h"
@@ -388,13 +389,25 @@ void WebManager::handleApiCommitAll( ) {
 		 * actor note and the error-mute clear) are suppressed under `onCopy`,
 		 * one of which was already guarded.
 		 *
+		 * "ONLY into cfg" was the claim before it was true. Until 2026-10-02
+		 * the time zone was set, the sound settings went to the running
+		 * SoundManager and the reserved[] overlays (h_int, ntp_enabled,
+		 * slog_*, m_had, dns_auto, dns2, web_ka) were written into the live
+		 * configuration — and the page sends a dry run 600 ms after every
+		 * staged edit, so staging the global mute muted the device. They now
+		 * write into `cfg` like every other field (ConfigOverlays.h,
+		 * SoundConfigPack.h), and what reaches the running device is decided
+		 * after the classification, by the save — findings 5, 6, 17, 18, 21,
+		 * 38 and 69 of docs/analysis/PLANO_REVISAO_EXTERNA.md.
+		 *
 		 * users joined the DRY run on 2026-10-02 (A-08): accounts apply live
 		 * now, and the page shows its "apply now" button only on a dry run
 		 * that answers reboot:false — refused here, every account change took
-		 * the restart button. A rehearsal mints no password (assignTempPassword)
-		 * and the one side effect outside cfg, the admin's factory-PIN flag, is
-		 * guarded by !dry. Not the "try" path: an account that exists until the
-		 * next restart, with a password shown once, is not a thing to try. */
+		 * the restart button. A rehearsal mints no password (assignTempPassword),
+		 * and the admin's factory-PIN flag is cleared in `cfg` like the rest — it
+		 * sits in reserved[], so a dry run of the admin's first PIN says the
+		 * restart its save takes. Not the "try" path: an account that exists until
+		 * the next restart, with a password shown once, is not a thing to try. */
 		for (int i = 0; i < SEC_COUNT; i++) {
 			const bool ok = i == SEC_SYS || i == SEC_NET || i == SEC_ALARMS || (i == SEC_USERS && dry);
 			if (!ok && secStart[i] >= 0) {
@@ -979,8 +992,10 @@ void WebManager::handleApiCommitAll( ) {
 			if (has("tz")) {
 				int v;
 				if (parseIntStrict(getNum("tz"), v) && v >= -12 && v <= 14) {
+					/* Into cfg only. The zone is CFG_TIME, a restart class: a save
+					 * restarts and the boot applies it. Setting it here set it on
+					 * every dry run and on a try that was then refused. */
 					cfg.timezoneOffset = (int8_t)v;
-					NetworkManager::applyTimezone(cfg.timezoneOffset);
 				} else rejectField("tz");
 			}
 			/* Boolean fields. These read `getNum(k) != "0"`, which answered
@@ -1054,7 +1069,9 @@ void WebManager::handleApiCommitAll( ) {
 					 * policy had drifted and the log could not say who moved it.
 					 * Same ctx encoding as the other two (min*100 + kb*10 + alpha)
 					 * so one query answers for all three. */
-					if (vMin != oMin || vKb != oKb || vAlpha != oAlpha) {
+					/* Not on a copy: a rehearsal changed no policy, and the audit
+					 * log is the record of who did (finding 21). */
+					if (!onCopy && (vMin != oMin || vKb != oKb || vAlpha != oAlpha)) {
 						/* ONE translated string for both sources; which surface
 						 * did it is an untranslated marker. Two strings cost
 						 * the es-ES pack ~70 resident bytes it does not have. */
@@ -1113,7 +1130,7 @@ void WebManager::handleApiCommitAll( ) {
 			 * commit_all reboots, and the MQTT connect after the reboot
 			 * reconciles — publish when freshly on, clear when freshly off
 			 * (FLAG_HA_PUBLISHED remembers there is something to clear). */
-			fl = readFlag("m_had"); if (fl >= 0 && !dry) _storageRef->setHaDiscoveryEnabled(fl == 1);
+			fl = readFlag("m_had"); if (fl >= 0) cfgSetHaDiscovery(cfg, fl == 1);
 			if (has("t_glob")) setStr("t_glob", cfg.telGlobalTemplate, sizeof(cfg.telGlobalTemplate));
 			if (has("t_line")) setStr("t_line", cfg.telLineTemplate, sizeof(cfg.telLineTemplate));
 			if (has("t_sep")) setStr("t_sep", cfg.telLineSeparator, sizeof(cfg.telLineSeparator));
@@ -1129,11 +1146,11 @@ void WebManager::handleApiCommitAll( ) {
 			if (has("a_sep")) setStr("a_sep", cfg.alarmTel.lineSeparator, sizeof(cfg.alarmTel.lineSeparator));
 			if (has("a_ct")) setContentType("a_ct", cfg.telCustom.alarmCustomContentType, sizeof(cfg.telCustom.alarmCustomContentType));
 			/* NTP enable/disable flag (overlay NetworkTimeData). */
-			fl = readFlag("ntp_enabled"); if (fl >= 0 && !dry) _storageRef->setNtpEnabled(fl == 1);
-			if (has("h_int")) { int v; if (parseIntStrict(getNum("h_int"), v) && isInRange(v, 1, 1440)) { if (!dry) _storageRef->setHistoryIntervalMin((uint16_t)v); } else rejectField("h_int"); }
+			fl = readFlag("ntp_enabled"); if (fl >= 0) cfgSetNtpEnabled(cfg, fl == 1);
+			if (has("h_int")) { int v; if (parseIntStrict(getNum("h_int"), v) && isInRange(v, 1, 1440)) cfgSetHistoryIntervalMin(cfg, (uint16_t)v); else rejectField("h_int"); }
 
 			/* Syslog forwarder (overlay SyslogConfigData). The four fields read
-			 * together so setSyslogConfig writes the overlay once; any absent
+			 * together so cfgSetSyslog writes the overlay once; any absent
 			 * field keeps its stored value. The enable is read RAW (intent),
 			 * not effective, so "enable now, set server next commit" does not
 			 * clear the toggle. The server is a dotted quad validated by the
@@ -1156,7 +1173,7 @@ void WebManager::handleApiCommitAll( ) {
 				}
 				if (has("slog_port")) { int v; if (parseIntStrict(getNum("slog_port"), v) && isInRange(v, 1, 65535)) { slPort = (uint16_t)v; touched = true; } else rejectField("slog_port"); }
 				if (has("slog_lvl")) { int v; if (parseIntStrict(getNum("slog_lvl"), v) && isInRange(v, 0, 4)) { slLvl = (uint8_t)v; touched = true; } else rejectField("slog_lvl"); }
-				if (touched && !dry) _storageRef->setSyslogConfig(slEn, slIp, slPort, slLvl);
+				if (touched) cfgSetSyslog(cfg, slEn, slIp, slPort, slLvl);
 			}
 			(void)getInt; /* lambda kept for future fields, suppress -Wunused */
 		}
@@ -1352,11 +1369,15 @@ void WebManager::handleApiCommitAll( ) {
 				if (sHas("\"melAlarm\"")) snd.alarmMelody = extractMelIdx("\"melAlarm\"");
 				if (sHas("\"melAttention\"")) snd.attentionMelody = extractMelIdx("\"melAttention\"");
 
+				/* Into cfg only. Sounds sit in reserved[] (CFG_RESERVED, a
+				 * restart class): a save restarts and loadConfig( ) applies
+				 * them at boot. This applied them to the running SoundManager
+				 * first and serialised the result — on every dry run, and
+				 * setMuted( ) stops an alarm that is sounding. */
 				if (_soundRef) {
-					_soundRef->applySettingsState(snd);
 					SoundConfigData* sndCfg = reinterpret_cast<SoundConfigData*>(
 					                           cfg.reserved + sizeof(TouchCalData));
-					_soundRef->fillConfig(sndCfg);
+					SoundManager::stateToConfig(snd, sndCfg);
 				}
 			}
 		}
@@ -1480,7 +1501,7 @@ void WebManager::handleApiCommitAll( ) {
 					}
 					String pinS = jsonExtractStringValue(obj, "pin");
 					if (!cfgSetUserPin(cfg, id, pinS.c_str( ))) rejectField("users.pin");
-					else if (id == 0 && pinS.length( ) && pinS != "1234" && !dry) _storageRef->clearMustChangePin( );
+					else if (id == 0 && pinS.length( ) && pinS != "1234") cfgClearMustChangePin(cfg);
 #else
 					/* No panel to prove it to. Refused rather than ignored: a
 					 * payload that asks for something this image cannot do
@@ -1592,12 +1613,12 @@ void WebManager::handleApiCommitAll( ) {
 			/* dns_auto + dns2 (primary manual reuses cfg.staticDns).
 			 * Also accepts dns1 as shortcut for staticDns when user is in
 			 * manual mode with DHCP=true (without the other staticIp/mask/gw fields). */
-			nf = readFlagN("dns_auto"); if (nf >= 0 && !dry) _storageRef->setDnsAuto(nf == 1);
+			nf = readFlagN("dns_auto"); if (nf >= 0) cfgSetDnsAuto(cfg, nf == 1);
 			if (has("dns1")) { String s = getS("dns1"); if (isValidIpv4(s.c_str( ))) safeCopy(cfg.staticDns, s.c_str( ), sizeof(cfg.staticDns)); }
 			if (has("dns2")) {
 				String s = getS("dns2"); s.trim( );
 				/* Empty is valid (clears secondary). Any other value must be IPv4. */
-				if (s.length( ) == 0 || isValidIpv4(s.c_str( ))) { if (!dry) _storageRef->setSecondaryDns(s.c_str( )); }
+				if (s.length( ) == 0 || isValidIpv4(s.c_str( ))) cfgSetSecondaryDns(cfg, s.c_str( ));
 				else rejectField("net.dns2");
 			}
 			if (has("ntp_server")) {
@@ -1622,7 +1643,7 @@ void WebManager::handleApiCommitAll( ) {
 			}
 			/* Keep-alive opt-out (SetupFlagsData overlay). No live hook:
 			 * commit_all reboots and beginServer( ) reads the flag at boot. */
-			nf = readFlagN("web_ka"); if (nf >= 0 && !dry) _storageRef->setWebKeepAliveEnabled(nf == 1);
+			nf = readFlagN("web_ka"); if (nf >= 0) cfgSetWebKeepAlive(cfg, nf == 1);
 		}
 	}
 

@@ -270,7 +270,8 @@ python3 tools/test_flash_budget.py                   # as duas regras que mantê
   caminho. Não é imagem de campo e a `release-ota.yml` não a publica. **Isenta do
   teto de OTA desde 02/10** (`ota_exempt`, B6 do `PLANO_STABLE.md`): acima dele o
   aparelho a recusa no stage, e ela entra pela USB. O limite que sobra é o do
-  slot do programa, onde o linker a recusa: 4.484 B adiante em 02/10.
+  slot do programa, onde o linker a recusa: 4.484 B adiante quando a isenção
+  entrou (#233).
 - O `pio run` já roda os portões de fonte como *extra scripts*: `-Werror` em
   `src/`, códigos de log, packs de idioma, matriz de autorização, ajuda da CLI,
   sondas de flash em SRAM.

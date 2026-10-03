@@ -23,6 +23,8 @@
 #include "ConfigApply.h"
 #include "ConfigMigrate.h" /* v24: legacy config blobs by segment, sizes frozen */
 #include "SystemDefs_Validate.h" /* v25: clampPinPolicy — a migrated v24 blob carries no policy */
+#include "ConfigOverlays.h"  /* the reserved[] overlays, written into the config handed in */
+#include "SoundConfigPack.h" /* the six bytes the sound settings are stored as */
 
 /* ── FIFO e push básico ─────────────────────────────────────────────────── */
 static void test_push_fifo_order(void) {
@@ -1304,6 +1306,150 @@ static void test_161_the_slot_latch_is_sixteen_bits_wide(void) {
 }
 
 
+/* ── A dry run writes only into its copy (2026-10-02; findings 5, 6, 17, 18,
+ * 21, 38 and 69 of PLANO_REVISAO_EXTERNA). The page sends a dry run 600 ms
+ * after every staged edit, and the parsers reached past the copy: the sound
+ * settings went to the running SoundManager (setMuted( ) silences an alarm
+ * that is sounding), and the reserved[] overlays were written into the live
+ * configuration under !dry — so the dry run classified them as nothing, and
+ * a try (_nosave) changed the RAM and then answered 409. What the handler now
+ * relies on is pinned here: the writers take the configuration they are
+ * handed, they write the bytes they always wrote, and what they write into a
+ * copy classifies as the restart a real save of it needs. ── */
+
+static void test_dry_sound_pack_is_the_stored_layout(void) {
+    SoundSettingsState s{};
+    s.touchEnabled = true;  s.confirmEnabled = false; s.errorEnabled = true;
+    s.alarmEnabled = true;  s.webEnabled = false;     s.muted = true;
+    s.attentionEnabled = true;
+    s.volume = 55; s.alarmVolume = 90;
+    s.touchMelody = 1; s.confirmMelody = 2; s.errorMelody = 3;
+    s.alarmMelody = 4; s.attentionMelody = 5;
+    SoundConfigData d; memset(&d, 0xEE, sizeof(d));
+    soundStateToConfig(s, &d);
+    /* Literals, not the SND_FLAG_ names: these bytes are in every device's
+     * flash, and fillConfig( ) has written exactly them since magic 0xAC. */
+    TEST_ASSERT_EQUAL_HEX8(0xAC, d.magic);
+    TEST_ASSERT_EQUAL_HEX8(0x5D, d.flags);          /* touch|error|alarm|mute|attention */
+    TEST_ASSERT_EQUAL_UINT8(55, d.volume);
+    TEST_ASSERT_EQUAL_HEX8(0xD1, d.melLow);         /* 1 | 2<<3 | 3<<6 | 4<<9 | 5<<12 = 0x58D1 */
+    TEST_ASSERT_EQUAL_HEX8(0x58, d.melHigh);
+    TEST_ASSERT_EQUAL_UINT8(90, d.alarmVolume);
+}
+
+static void test_dry_sound_pack_clamps_as_apply_does(void) {
+    /* applySettingsState( ) clamps before fillConfig( ) reads the members back;
+     * packing straight from a state has to give the bytes those two gave. */
+    SoundSettingsState s{};
+    s.volume = 101; s.alarmVolume = 255;
+    s.touchMelody = 6; s.confirmMelody = 7; s.errorMelody = 5;
+    SoundConfigData d{};
+    soundStateToConfig(s, &d);
+    TEST_ASSERT_EQUAL_UINT8(100, d.volume);
+    TEST_ASSERT_EQUAL_UINT8(100, d.alarmVolume);
+    TEST_ASSERT_EQUAL_HEX8(0x40, d.melLow);         /* touch 6 and confirm 7 → 0; error 5<<6 */
+    TEST_ASSERT_EQUAL_HEX8(0x01, d.melHigh);
+}
+
+static void test_dry_sound_mute_is_one_bit(void) {
+    SoundSettingsState s{};
+    s.alarmEnabled = true; s.volume = 70; s.alarmVolume = 70; s.alarmMelody = 2;
+    SoundConfigData a{}, b{};
+    soundStateToConfig(s, &a);
+    s.muted = true;
+    soundStateToConfig(s, &b);
+    TEST_ASSERT_EQUAL_HEX8(0x10, a.flags ^ b.flags);
+    TEST_ASSERT_EQUAL_HEX8(a.magic, b.magic);
+    TEST_ASSERT_EQUAL_MEMORY(reinterpret_cast<const uint8_t*>(&a) + 2,
+                             reinterpret_cast<const uint8_t*>(&b) + 2, sizeof(a) - 2);
+}
+
+static void test_dry_sound_into_the_copy_is_a_restart(void) {
+    SystemConfig live; memset(&live, 0, sizeof(live));
+    SystemConfig copy = live;
+    SoundSettingsState s{};
+    s.muted = true; s.volume = 70; s.alarmVolume = 70;
+    soundStateToConfig(s, reinterpret_cast<SoundConfigData*>(copy.reserved + sizeof(TouchCalData)));
+    SystemConfig zero; memset(&zero, 0, sizeof(zero));
+    TEST_ASSERT_EQUAL_MEMORY(&zero, &live, sizeof(live));   /* the running config: untouched */
+    /* Sounds live in reserved[]: a restart class. The dry run says so, and the
+     * try refuses it with 409 having changed nothing. */
+    expectOnly(live, copy, CFG_RESERVED);
+    TEST_ASSERT_TRUE(configNeedsReboot(CFG_RESERVED));
+}
+
+static void test_dry_overlay_writes_only_the_given_config(void) {
+    SystemConfig live; memset(&live, 0, sizeof(live));
+    SystemConfig copy = live;
+    cfgSetHistoryIntervalMin(copy, 7);
+    SystemConfig zero; memset(&zero, 0, sizeof(zero));
+    TEST_ASSERT_EQUAL_MEMORY(&zero, &live, sizeof(live));
+    /* What a dry run of h_int answers: the restart the real save takes. It
+     * answered "none" (findings 5 and 17), so the page offered "apply now"
+     * and the device restarted anyway. */
+    expectOnly(live, copy, CFG_RESERVED);
+}
+
+static void test_dry_overlay_bytes_are_the_stored_layout(void) {
+    SystemConfig c; memset(&c, 0, sizeof(c));
+
+    cfgSetSyslog(c, true, 0x0A00000Au, 514, 3);
+    const SyslogConfigData* sl =
+        reinterpret_cast<const SyslogConfigData*>(c.reserved + SYSLOG_CONFIG_OFFSET);
+    TEST_ASSERT_EQUAL_HEX8(0x57, sl->magic);
+    TEST_ASSERT_EQUAL_HEX8(0x07, sl->flags);        /* enabled | level 3 << 1 */
+    TEST_ASSERT_EQUAL_UINT16(514, sl->port);
+    TEST_ASSERT_EQUAL_HEX32(0x0A00000Au, sl->serverIp);
+
+    /* The network-time overlay comes up with its defaults — DNS by DHCP, NTP
+     * on — before the one bit is changed, as ensureNetworkTimeOverlay( ) did. */
+    cfgSetDnsAuto(c, false);
+    const NetworkTimeData* nt =
+        reinterpret_cast<const NetworkTimeData*>(c.reserved + NETTIME_OFFSET);
+    TEST_ASSERT_EQUAL_HEX8(0xCE, nt->magic);
+    TEST_ASSERT_EQUAL_HEX8(0x02, nt->flags);        /* NTP on, DNS manual */
+    TEST_ASSERT_EQUAL_STRING("", nt->dns2);
+    cfgSetSecondaryDns(c, "1.1.1.1");
+    TEST_ASSERT_EQUAL_STRING("1.1.1.1", nt->dns2);
+    cfgSetNtpEnabled(c, false);
+    TEST_ASSERT_EQUAL_HEX8(0x00, nt->flags);
+
+    const HistoryConfigData* hc =
+        reinterpret_cast<const HistoryConfigData*>(c.reserved + HISTORY_CONFIG_OFFSET);
+    cfgSetHistoryIntervalMin(c, 0);
+    TEST_ASSERT_EQUAL_HEX8(0xDC, hc->magic);
+    TEST_ASSERT_EQUAL_UINT16(1, hc->intervalMin);   /* clamped, as the setter did */
+    cfgSetHistoryIntervalMin(c, 60000);
+    TEST_ASSERT_EQUAL_UINT16(1440, hc->intervalMin);
+
+    const SetupFlagsData* sf =
+        reinterpret_cast<const SetupFlagsData*>(c.reserved + SETUP_FLAGS_OFFSET);
+    cfgSetWebKeepAlive(c, false);
+    TEST_ASSERT_EQUAL_HEX8(0xBE, sf->magic);
+    TEST_ASSERT_EQUAL_HEX8(0x02, sf->flags);        /* the stored bit is the opt-out */
+    cfgSetWebKeepAlive(c, true);
+    TEST_ASSERT_EQUAL_HEX8(0x00, sf->flags);
+
+    const HaDiscoveryData* ha =
+        reinterpret_cast<const HaDiscoveryData*>(c.reserved + HA_DISCOVERY_OFFSET);
+    cfgSetHaDiscovery(c, true);
+    TEST_ASSERT_EQUAL_HEX8(0xAD, ha->magic);
+    TEST_ASSERT_EQUAL_HEX8(0x01, ha->flags);
+
+    /* The admin's first PIN clears the must-change bit and only that bit; a
+     * legacy overlay (no magic) comes up empty, as clearMustChangePin( ) did. */
+    SystemConfig f; memset(&f, 0, sizeof(f));
+    const SetupFlagsData* ff =
+        reinterpret_cast<const SetupFlagsData*>(f.reserved + SETUP_FLAGS_OFFSET);
+    cfgClearMustChangePin(f);
+    TEST_ASSERT_EQUAL_HEX8(0xBE, ff->magic);
+    TEST_ASSERT_EQUAL_HEX8(0x00, ff->flags);
+    cfgSetWebKeepAlive(f, false);                   /* 0x02 */
+    reinterpret_cast<SetupFlagsData*>(f.reserved + SETUP_FLAGS_OFFSET)->flags |= 0x01;
+    cfgClearMustChangePin(f);
+    TEST_ASSERT_EQUAL_HEX8(0x02, ff->flags);
+}
+
 int main(int argc, char** argv) {
     (void)argc;
     (void)argv;
@@ -1356,5 +1502,11 @@ int main(int argc, char** argv) {
     RUN_TEST(test_161_an_edge_that_ends_while_refused_is_not_announced);
     RUN_TEST(test_161_room_offers_only_the_refused_edges);
     RUN_TEST(test_161_the_slot_latch_is_sixteen_bits_wide);
+    RUN_TEST(test_dry_sound_pack_is_the_stored_layout);
+    RUN_TEST(test_dry_sound_pack_clamps_as_apply_does);
+    RUN_TEST(test_dry_sound_mute_is_one_bit);
+    RUN_TEST(test_dry_sound_into_the_copy_is_a_restart);
+    RUN_TEST(test_dry_overlay_writes_only_the_given_config);
+    RUN_TEST(test_dry_overlay_bytes_are_the_stored_layout);
     return UNITY_END();
 }

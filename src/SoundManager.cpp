@@ -411,7 +411,7 @@ void SoundManager::setMuted(bool muted) {
 
 
 /* =========================================================================== */
-/* FLASH PERSISTENCE — reserved[10..15] */
+/* FLASH PERSISTENCE — reserved[12..17] */
 /* =========================================================================== */
 /**
  * @brief Load sound configuration from Flash (6-byte packed struct).
@@ -476,33 +476,10 @@ void SoundManager::loadConfig(const SoundConfigData* data) {
 }
 
 void SoundManager::fillConfig(SoundConfigData* data) const {
- if (!data) return;
-
- /* Schema gained ATTENTION bit (flags) + 3 bits melAttention
- * (mp 12..14). Magic bumped 0xAB → 0xAC to distinguish layouts. */
- data->magic = 0xAC;
-
- data->flags = 0;
- if (_enableTouch) data->flags |= SND_FLAG_TOUCH;
- if (_enableConfirm) data->flags |= SND_FLAG_CONFIRM;
- if (_enableError) data->flags |= SND_FLAG_ERROR;
- if (_enableAlarm) data->flags |= SND_FLAG_ALARM;
- if (_muted) data->flags |= SND_FLAG_MUTE;
- if (_enableWeb) data->flags |= SND_FLAG_WEB;
- if (_enableAttention) data->flags |= SND_FLAG_ATTENTION;
-
- data->volume = _volume;
-
-
- uint16_t mp = ((uint16_t)(_melTouch & 0x07))
- | ((uint16_t)(_melConfirm & 0x07) << 3)
- | ((uint16_t)(_melError & 0x07) << 6)
- | ((uint16_t)(_melAlarm & 0x07) << 9)
- | ((uint16_t)(_melAttention & 0x07) << 12);
- data->melLow = (uint8_t)(mp & 0xFF);
- data->melHigh = (uint8_t)((mp >> 8) & 0xFF);
-
- data->alarmVolume = _alarmVolume;
+ /* One packer for both paths: the commit stores a state through the same
+ * function (SoundConfigPack.h), so what a save writes and what this writes
+ * cannot drift. */
+ soundStateToConfig(getSettingsState( ), data);
 }
 
 

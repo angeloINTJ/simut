@@ -30,6 +30,7 @@
 #include <bearssl/bearssl_hash.h>
 #include <bearssl/bearssl_hmac.h>
 #include "ConfigMigrate.h"      /* v24: legacy schemas by segment, sizes frozen */
+#include "ConfigOverlays.h"     /* the reserved[] overlay writes, on a given config */
 #include "SystemDefs_Validate.h" /* isValidPanelPin */
 
 /* CONFIG_MAGIC moved to SystemDefs_Records.h (v24): ConfigMigrate.h checks it
@@ -1228,15 +1229,7 @@ bool StorageManager::mustChangePin( ) const {
 }
 
 void StorageManager::clearMustChangePin( ) {
- SetupFlagsData* sf = reinterpret_cast<SetupFlagsData*>(
- _currentConfig.reserved + SETUP_FLAGS_OFFSET);
- if (sf->magic != SETUP_FLAGS_MAGIC) {
- /* Initialize overlay if not yet. */
- sf->magic = SETUP_FLAGS_MAGIC;
- sf->flags = 0;
- } else {
- sf->flags &= ~FLAG_MUST_CHANGE_PIN;
- }
+ cfgClearMustChangePin(_currentConfig);
 }
 
 void StorageManager::setMustChangePinIn(SystemConfig& cfg) {
@@ -1261,14 +1254,7 @@ bool StorageManager::isWebKeepAliveEnabled( ) const {
 }
 
 void StorageManager::setWebKeepAliveEnabled(bool enabled) {
- SetupFlagsData* sf = reinterpret_cast<SetupFlagsData*>(
- _currentConfig.reserved + SETUP_FLAGS_OFFSET);
- if (sf->magic != SETUP_FLAGS_MAGIC) {
- sf->magic = SETUP_FLAGS_MAGIC;
- sf->flags = 0;
- }
- if (enabled) sf->flags &= ~FLAG_WEB_KEEPALIVE_OFF;
- else sf->flags |= FLAG_WEB_KEEPALIVE_OFF;
+ cfgSetWebKeepAlive(_currentConfig, enabled);
 }
 
 /* ===========================================================================
@@ -1276,15 +1262,7 @@ void StorageManager::setWebKeepAliveEnabled(bool enabled) {
  * =========================================================================== */
 
 NetworkTimeData* StorageManager::ensureNetworkTimeOverlay( ) {
- NetworkTimeData* nt = reinterpret_cast<NetworkTimeData*>(
- _currentConfig.reserved + NETTIME_OFFSET);
- if (nt->magic != NETTIME_MAGIC) {
- nt->magic = NETTIME_MAGIC;
- nt->flags = FLAG_DNS_AUTO | FLAG_NTP_ENABLED;
- nt->dns2[0] = '\0';
- nt->pad[0] = nt->pad[1] = 0;
- }
- return nt;
+ return cfgNetworkTimeOverlay(_currentConfig);
 }
 
 bool StorageManager::isDnsAuto( ) const {
@@ -1295,9 +1273,7 @@ bool StorageManager::isDnsAuto( ) const {
 }
 
 void StorageManager::setDnsAuto(bool auto_) {
- NetworkTimeData* nt = ensureNetworkTimeOverlay( );
- if (auto_) nt->flags |= FLAG_DNS_AUTO;
- else nt->flags &= ~FLAG_DNS_AUTO;
+ cfgSetDnsAuto(_currentConfig, auto_);
 }
 
 bool StorageManager::isNtpEnabled( ) const {
@@ -1308,9 +1284,7 @@ bool StorageManager::isNtpEnabled( ) const {
 }
 
 void StorageManager::setNtpEnabled(bool enabled) {
- NetworkTimeData* nt = ensureNetworkTimeOverlay( );
- if (enabled) nt->flags |= FLAG_NTP_ENABLED;
- else nt->flags &= ~FLAG_NTP_ENABLED;
+ cfgSetNtpEnabled(_currentConfig, enabled);
 }
 
 const char* StorageManager::getSecondaryDns( ) const {
@@ -1321,8 +1295,7 @@ const char* StorageManager::getSecondaryDns( ) const {
 }
 
 void StorageManager::setSecondaryDns(const char* ip) {
- NetworkTimeData* nt = ensureNetworkTimeOverlay( );
- safeCopy(nt->dns2, ip ? ip : "", sizeof(nt->dns2));
+ cfgSetSecondaryDns(_currentConfig, ip);
 }
 
 uint16_t StorageManager::getHistoryIntervalMin( ) const {
@@ -1336,13 +1309,7 @@ uint16_t StorageManager::getHistoryIntervalMin( ) const {
 }
 
 void StorageManager::setHistoryIntervalMin(uint16_t minutes) {
- if (minutes < HISTORY_INTERVAL_MIN_MIN) minutes = HISTORY_INTERVAL_MIN_MIN;
- if (minutes > HISTORY_INTERVAL_MAX_MIN) minutes = HISTORY_INTERVAL_MAX_MIN;
- HistoryConfigData* hc = reinterpret_cast<HistoryConfigData*>(
- _currentConfig.reserved + HISTORY_CONFIG_OFFSET);
- hc->magic = HISTORY_CONFIG_MAGIC;
- hc->pad = 0;
- hc->intervalMin = minutes;
+ cfgSetHistoryIntervalMin(_currentConfig, minutes);
 }
 
 bool StorageManager::isHaDiscoveryEnabled( ) const {
@@ -1353,11 +1320,7 @@ bool StorageManager::isHaDiscoveryEnabled( ) const {
 }
 
 void StorageManager::setHaDiscoveryEnabled(bool enabled) {
- HaDiscoveryData* ha = reinterpret_cast<HaDiscoveryData*>(
- _currentConfig.reserved + HA_DISCOVERY_OFFSET);
- if (ha->magic != HA_DISCOVERY_MAGIC) { ha->magic = HA_DISCOVERY_MAGIC; ha->flags = 0; }
- if (enabled) ha->flags |= FLAG_HA_DISCOVERY;
- else ha->flags &= ~FLAG_HA_DISCOVERY;
+ cfgSetHaDiscovery(_currentConfig, enabled);
 }
 
 bool StorageManager::wasHaDiscoveryPublished( ) const {
@@ -1419,12 +1382,7 @@ uint8_t StorageManager::getSyslogMinLevel( ) const {
 
 void StorageManager::setSyslogConfig(bool enabled, uint32_t serverIp,
                                      uint16_t port, uint8_t minLevel) {
- SyslogConfigData* sl = reinterpret_cast<SyslogConfigData*>(
- _currentConfig.reserved + SYSLOG_CONFIG_OFFSET);
- sl->magic = SYSLOG_CONFIG_MAGIC;
- sl->flags = syslogPackFlags(enabled, minLevel);
- sl->port = port;
- sl->serverIp = serverIp;
+ cfgSetSyslog(_currentConfig, enabled, serverIp, port, minLevel);
 }
 
 SensorRecord* StorageManager::getSensorByGpio(uint8_t gpio) {
