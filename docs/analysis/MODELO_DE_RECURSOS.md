@@ -1680,7 +1680,7 @@ código é defeito). Nenhuma foi corrigida nesta análise; o P0 as leva.
 | `docs/adding-a-new-sensor.md:34` | a flag vai em `SensorConfig.h` | esse arquivo só inclui `simut_config.h`; o `SensorManager` não está na lista |
 | `docs/analysis/PLANO_DIVIDA_TECNICA.md` (topo) | "F08, PR #103 em draft" | `84de35b` está na `main` (v2.4.4-beta) |
 | `CHANGELOG.md` | sem v2.4.2, v2.4.3, v2.4.4 | as três tags existem |
-| `CLAUDE.md:14` | `WebUI.h` "all 8 languages" | não há blocos `@LANG`; o produto tem três idiomas |
+| ~~`CLAUDE.md:14`~~ **corrigido em 2026-10-03** | `WebUI.h` "all 8 languages" | não há blocos `@LANG`; o produto tem três idiomas |
 | `docs/WIRING.md:212` | "0–15 = slots" | GP8/9 são também a UART1 de boot no TFT (R-H5) |
 | `docs/OTA_USAGE.md:46` | "o LittleFS é reformatado pelo apply" | é o stage que grava por cima do FS; um stage confirmado deixa o FS desmontado (R-F7) |
 | `platformio.ini:146-147` | "repeat SerialBT there (see pico_w_alpha)" | o alpha não repete, e não pode: usa Bluetooth; a regra certa é repetir só num ambiente sem BT |

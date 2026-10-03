@@ -11,7 +11,7 @@ substance lives there, not here.
 | | |
 |---|---|
 | Firmware source | `src/` — ~56k lines, C++17, RP2040 / arduino-pico |
-| Web UI source | `WebUI.h` at the repository root, all 8 languages. `tools/build_webui_gz.py` compresses it into `src/WebUI_GZ.h` on every build — never edit the generated header |
+| Web UI source | `WebUI.h` at the repository root, written in English. The other language comes from the device: `GET /api/lang` serves the `@WEBDICT` of the active `.lng` pack (`data/lang/` has pt-BR and es-ES), and a key the pack lacks shows the English text. `tools/build_webui_gz.py` compresses it into `src/WebUI_GZ.h` on every build — never edit the generated header |
 | Tools | `tools/` — [`tools/README.md`](tools/README.md) says which of the 146 scripts are live |
 | Documentation | `docs/` — [`docs/README.md`](docs/README.md) marks each document **Living** or **Snapshot** |
 | Interface standard | [`ANGULO.md`](ANGULO.md) — the Ângulo guide for anything with a screen or a reader: web UI, site, README, docs, brand. [`AGENTS.md`](AGENTS.md) §7 says how it applies here and what `tools/check_angulo.py` enforces in CI |
