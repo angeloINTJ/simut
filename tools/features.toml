@@ -42,6 +42,8 @@ flags = []
 # (medido em 2026-10-01 com o framework 1.50601.0) — e o -Werror vale para o que
 # src/ inclui. O layout da flash, o OTA e o Air no RP2350 ainda nao existem: o
 # pico_base continua dando 1 MB de LittleFS, e o OTA de hoje supoe a flash do Pico W.
+# Por isso a imagem do RP2350 recusa o OTA desde 2026-10-03 (src/ota/ota_layout.h,
+# passo 2 de docs/analysis/OTA_AB_RP2350.md), ate os slots A/B existirem.
 board = "rpipico2w"
 flags = ["-Wno-error=overloaded-virtual"]
 
@@ -415,8 +417,9 @@ syslog        = true
 publish       = true
 
 # pico2_w_release — a release do Pico W compilada para o Pico 2 W (RP2350). Nao publicada.
-#   S0 da fase 4: o CI prova que compila e mede o tamanho; nada disto rodou numa
-#   placa ainda (o primeiro boot e o S1, numa placa de stepping A4). Os registradores do
+#   S0 da fase 4: o CI prova que compila e mede o tamanho. Rodou numa placa pela
+#   primeira vez em 2026-10-03 (S1): a placa da bancada, de stepping A2, gravada por
+#   USB. Recusa o OTA ate os slots A/B existirem. Os registradores do
 #   watchdog e do PSM vem do SDK do chip desde 2026-10-01; sem isso a imagem
 #   compilava e escrevia nos enderecos do RP2040.
 [profiles.pico2_w_release]
@@ -482,8 +485,8 @@ order    = 7
 bench    = true
 label.en = "Pico 2 W build check"
 label.pt = "Verificação de build do Pico 2 W"
-desc.en  = "The release image compiled for the RP2350, so CI sees it build. Not run on a board yet; not published."
-desc.pt  = "A imagem de release compilada para o RP2350, para o CI vê-la compilar. Ainda não rodou numa placa; não publicada."
+desc.en  = "The release image compiled for the RP2350, so CI sees it build. It boots on the bench board and refuses updates over the air until its A/B slots exist; not published."
+desc.pt  = "A imagem de release compilada para o RP2350, para o CI vê-la compilar. Sobe na placa da bancada e recusa atualizar pelo ar até os slots A/B existirem; não publicada."
 
 [ui_displays.tft]
 label.en = "Touch display (ILI9341, 320x240)"

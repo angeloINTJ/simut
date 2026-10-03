@@ -246,7 +246,7 @@ simut/
 | `pico_w_test` | Imagem de bancada: o console completo para as suítes de teste; sem HTTPS, sem mDNS | — |
 | `pico_w_test_https` | `pico_w_test` mais o servidor HTTPS, para validar TLS; três das páginas vêm da LittleFS para caber | — |
 | `pico_w_asserts` | Release + asserções de concorrência | — |
-| `pico2_w_release` | A release compilada para o Pico 2 W (RP2350), para o CI vê-la compilar. Ainda não rodou numa placa | — |
+| `pico2_w_release` | A release compilada para o Pico 2 W (RP2350), para o CI vê-la compilar. Sobe na placa da bancada; recusa atualizar pelo ar até os slots A/B existirem | — |
 | oito ambientes `native*` | Testes unitários no host — ver [Testes](#testes) | — |
 
 > **Nota de segurança para `pico_w_alpha` e `pico_w_air`:** as duas compilam o
