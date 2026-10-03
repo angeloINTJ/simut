@@ -1,6 +1,6 @@
 # tools/
 
-146 scripts. This file exists because until 2026-09-08 there was no way
+147 scripts. This file exists because until 2026-09-08 there was no way
 to tell a live bench tool from a leftover, and one of them —
 `compressor.py` — had been superseded for three months while still looking
 usable: it regenerated `WebUI_GZ.h` into the repository root, where nothing
@@ -16,7 +16,7 @@ wrong, the description is the bug.
 
 ---
 
-## Called by CI (29)
+## Called by CI (30)
 
 Invoked from `.github/workflows/build.yml` — or, for the release manifest, from
 `release-ota.yml` when a tag is pushed. Breaking one of these fails a pull request
@@ -45,6 +45,7 @@ or a release.
 | `test_build_custom.py` | A porta do `build_custom.py`: 34 perfis hostis têm de ser recusados antes de qualquer build (quebra de linha no nome do produto, chave repetida, `NaN`, `__proto__`, `display` no conjunto…), cada produto sem mudanças tem de compor o mesmo ambiente que o manifesto, as regras têm de sair com exit 2 pela linha de comando, e um perfil com `\n::warning::` embutido não pode injetar comando no log do Actions. Job `gates`. Sabe reprovar: sem o bloqueio de chave repetida e com a versão frouxa, reprova quatro casos; sem o escape do log, acusa o comando injetado (26/09). | 2026-09-26 |
 | `test_configurator_page.py` | Roda as contas da página do configurador (`docs/configurador/logic.js`) no `node`, contra o `model.json` gerado, e confere cada resposta com o lado Python: o perfil que a página escreve é o que o `build_custom.py` aceita, com a mesma grafia (468 perfis e links); com uma chave mudada, a estimativa é exatamente a medida da matriz; chave travada é a que o `rule_violations` proíbe; `same` é o da matriz; 9 links hostis são recusados; a precisão que a página diz ter é a recalculada aqui. Job `gates`. Sabe reprovar: perfil com as chaves fora de ordem, trava que nunca trava e link que aceita chave desconhecida, os três pegos (26/09). | 2026-09-26 |
 | `test_webui_feature_routes.py` | Rota que só as imagens com painel registram (`registerScreenRoutes( )`, lida do C++) tem de ser chamada de dentro de um bloco `@IF tft` do `WebUI.h`, ou a alpha e o Air levam um botão que responde 404 — a seção de calibração do toque que o #184 deixou para trás. Casos sintéticos (fora é recusado, dentro passa, `?` e prefixo de rota, comentário não conta) e o `WebUI.h` de verdade. Job `gates`; a mesma conferência roda em todo `pio run`, dentro do `build_webui_gz.py`. Sabe reprovar: no `WebUI.h` de antes do conserto acusa `/api/reset_touch_cal` e só ela (26/09). | 2026-09-26 |
+| `test_webui_text_viewer.py` | O visor de texto da página Arquivos (`FILE_PAGE` do `WebUI.h`): tira a parte pura dele, entre os comentários `tv:`, e a roda no `node` como escrita e como o minificador do build a deixa, e ainda contra a cópia servida quando o `src/WebUI_GZ.h` saiu do `WebUI.h` atual. Confere o JSON indentado com os blocos que dobram, o JSON cortado ou inválido sem exceção, as seções `@NOME` e `[nome]`, o NDJSON, as linhas numeradas, o teto de 64 KB, a detecção de binário, e 300 JSON aleatórios que têm de voltar ao mesmo valor. Job `gates`. Sabe reprovar: 20 de 20 mutações pegas (03/10). | 2026-10-03 |
 | `check_features.py` | Prova, pelo resolvedor do próprio PlatformIO, que os sete ambientes de firmware que o build usa (o `platformio.ini` inclui `tools/generated/profiles.ini` via `extra_configs`) resolvem para o que o manifesto `tools/features.toml` descreve — flag a flag e unidade de tradução a unidade. A troca foi validada por build byte-a-byte contra a imagem anterior (P1). Sabe reprovar: mutação no manifesto é pega, controle conferido em 25/09. | 2026-09-25 |
 | `h5_day_merge.py` | Merge V5 history day files (same day, same schema) into one file. | 2026-08-21 |
 | `run_cppcheck.sh` | run_cppcheck.sh — static-analysis gate over src/ (issue #35). | 2026-08-18 |

@@ -172,6 +172,14 @@ jobs:
       - name: Web UI feature routes (panel-only routes stay inside @IF tft)
         run: python3 tools/test_webui_feature_routes.py
 
+      # The /files text viewer lays a text file out for reading: JSON indented
+      # with blocks that fold, the sections of a pack, NDJSON, numbered lines.
+      # Its pure part is pulled out of WebUI.h and run under node twice, as
+      # written and as the build's minifier leaves it, because the minifier
+      # has deleted shipped code before and reported success.
+      - name: Web UI text viewer (as written and minified)
+        run: python3 tools/test_webui_text_viewer.py
+
       # OTA applies reformat the LittleFS, so benches restore /history from
       # backup — and the current-day file can only be given back by MERGING
       # with what the device wrote meanwhile. This is the tool that hole
