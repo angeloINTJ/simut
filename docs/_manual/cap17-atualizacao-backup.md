@@ -10,6 +10,7 @@ A página lista o conteúdo do sistema de arquivos do aparelho, pasta por pasta.
 
 - **Para abrir uma pasta,** toque no nome dela.
 - **Para baixar um arquivo,** toque no nome dele.
+- **Para ler um arquivo de texto,** toque no olho ao lado do nome ([Ver um arquivo de texto](#cap-17-ver)).
 - **Um cadeado** no lugar da caixa de marcar indica um arquivo protegido: o firmware o reescreve a cada boot, e ele não pode ser apagado.
 
 ### Os botões {#cap-17-botoes}
@@ -57,6 +58,25 @@ A pasta `/config` guarda as senhas e as chaves. A página não a lista, e o apar
 2. Toque em **Baixar**. Com mais de um arquivo, confirme a pergunta **Baixar N?**.
 
 O navegador baixa um arquivo de cada vez. Baixar da pasta `/history` exige também a permissão **Histórico**, e baixar o log de eventos exige também **Logs** ([capítulo 8](#cap-08-permissoes)).
+
+### Ver um arquivo de texto {#cap-17-ver}
+
+Um arquivo de texto de até 64 KB tem um olho ao lado do nome: `.json`, `.jsonl`, `.ndjson`, `.txt`, `.csv`, `.tsv`, `.lng`, `.thm`, `.log`, `.cfg`, `.conf`, `.ini`, `.pem`, `.crt`, `.md`, `.xml`, `.yml` e `.yaml`. Toque no olho para abrir o arquivo numa janela sobre a página. Ler exige as mesmas permissões que baixar.
+
+A janela abre em **Organizado** (*Organized*):
+
+- **JSON** aparece indentado. Cada objeto e cada lista de mais de uma linha tem uma marca à esquerda: ▾ quando está aberto, ▸ quando está recolhido. Toque na linha para abrir ou recolher. Recolhido, o bloco ocupa uma linha, com `{…}` ou `[…]` e o número de itens. A janela abre com os dois primeiros níveis abertos.
+- **Um pacote de idioma ou de tema** mostra as linhas numeradas, e cada seção (`@DICT`, `@COLORS`, ou `[nome]` num arquivo INI) se recolhe até a seção seguinte. Uma linha que é um JSON inteiro, como a do `@WEBDICT`, aparece como um bloco.
+- **Um arquivo com um JSON por linha** (NDJSON) mostra cada linha como um bloco.
+- **Qualquer outro texto** aparece com as linhas numeradas.
+
+**Expandir tudo** (*Expand all*) abre todos os blocos. **Recolher tudo** (*Collapse all*) recolhe todos, menos o bloco de fora de um JSON.
+
+**Original** mostra o texto exatamente como está no arquivo. O organizado só muda os espaços entre as partes do texto: um número continua escrito como está no arquivo. **Baixar** (*Download*) baixa o arquivo original.
+
+Um JSON cortado ou com erro também é organizado, pela posição das chaves e dos colchetes, e a janela avisa **JSON incompleto ou inválido**. Um arquivo que não é texto mostra **Este arquivo não é texto**: baixe-o para abrir.
+
+Feche a janela com o **X** ou com a tecla **Esc**.
 
 ### Enviar {#cap-17-enviar}
 

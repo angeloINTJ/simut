@@ -535,45 +535,45 @@
   "(ota_exempt, with the reason) and records no 'bin'; its budget still holds."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-10-02 fix/restore-keeps-what-it-had on main 0b30c7a (#235): all seven measured with a restore that keeps what it wrote (finding 58 of PLANO_REVISAO_EXTERNA). An APPLY that fails now deletes only the file it left incomplete, where it deleted every file it had written, /config included; it accepts only the backup the last VALIDATE passed (NOT_VALIDATED, 409), so the 200-path limit VALIDATE enforces holds for it; and a backup whose last file is empty no longer fails as truncated. The list of written paths went with the old policy, and 4,488 B of static RAM with it (4,484 on air and pico2_w_release). Against main, 'used': release +176, test +184, test_https +168, asserts +176, alpha and air +168, pico2_w_release +32; the .bin: +176, +184, +168, +176, 0, 0 and +32. Of that, 0 to 16 B is the gzipped files page, which names status 11. A first version, which closed an empty file from on_path_complete( ), cost the release +200 B. Budgets moved by the 'used' deltas, which keeps each margin where it was; 'bin' recorded for the four that moved, and their rows in PLANO_STABLE 3.1 with them. measured is the zopfli image PlatformIO prints.",
+ "measured_on": "2026-10-03 feat/webui-text-viewer on main 7bdbecf (#236): all seven measured with the text viewer's engine moved from FILE_PAGE to lang.js, so the two payload previews on the telemetry page draw the same organized view as the file manager, and with the alarm preview's walker taught the v23 and v24 tokens, without which that view called the firmware's default payload invalid JSON. The zopfli arrays, from tools/build_webui_gz.py run on the source before and after: LANG_JS 10,566 to 12,398 B (+1,832), FILE_PAGE 8,454 to 6,556 (-1,898), TEL_PAGE 7,845 to 8,223 (+378), STYLE_CSS 2,937 to 3,074 (+137: the viewer's rules are shared now, and an active toggle keeps its colors under the pointer). Every page also moves by a few bytes with the ?v= stamp of lang.js and style.css, which hashes their raw text: a comment added there alone cost 16 B of 'used'. Against the previous record, 'used': release, test, asserts and pico2_w_release +448; test_https +1,968, because it keeps FILE_PAGE and TEL_PAGE on LittleFS and pays only for lang.js and style.css; alpha and air 0, their .rodata still 434,176 and 454,656 B, the whole pages the viewer took. The .bin moves by the same amounts. Budgets moved by the 'used' deltas, which keeps each margin where it was; 'bin' recorded for the four that moved, and their rows in PLANO_STABLE 3.1 with them. measured is the zopfli image PlatformIO prints.",
  "measured_at_commit": "2026-10-02 chore/v2.9.0 on main e5cd23b (#224 merged; SIMUT_VERSION 2.9.0, the only source change; budgets unchanged). All seven rebuilt here: test, alpha, air and pico2_w_release equal to the figures #224 recorded, release, test_https and asserts 8 B under them. measured is the zopfli image PlatformIO prints.",
  "ota_exempt": {
   "pico_w_test_https": "A bench image: the one with the full console and the TLS server together, for the HTTPS suites (AGENTS.md). It reaches the rig over USB, and release-ota.yml does not publish it. #232 (2026-10-02) left it 147 B under OTA_APP_SAFE_MAX_SIZE, and keeping it there meant cutting code the product images ship too, or moving more of its pages to LittleFS. Over the ceiling the device refuses to stage it, which costs only installing this image over the air; its flash budget still holds. Exempt since 2026-10-02 (docs/analysis/PLANO_STABLE.md, B6)."
  },
  "envs": {
   "pico_w_release": {
-   "budget": 1016444,
-   "measured": 1016332,
-   "bin": 1028364
+   "budget": 1019772,
+   "measured": 1019660,
+   "bin": 1031692
   },
   "pico_w_test": {
-   "budget": 1021556,
-   "measured": 1020916,
-   "bin": 1032948
+   "budget": 1024884,
+   "measured": 1024244,
+   "bin": 1036276
   },
   "pico_w_test_https": {
-   "budget": 1028084,
-   "measured": 1028076
+   "budget": 1030052,
+   "measured": 1030044
   },
   "pico_w_asserts": {
-   "budget": 1018676,
-   "measured": 1018636,
-   "bin": 1030668
+   "budget": 1022004,
+   "measured": 1021964,
+   "bin": 1033996
   },
   "pico_w_alpha": {
-   "budget": 971028,
-   "measured": 970508,
-   "bin": 986284
+   "budget": 975124,
+   "measured": 974604,
+   "bin": 990380
   },
   "pico_w_air": {
-   "budget": 1014272,
-   "measured": 1013960,
-   "bin": 1027148
+   "budget": 1018368,
+   "measured": 1018056,
+   "bin": 1031244
   },
   "pico2_w_release": {
-   "budget": 989216,
-   "measured": 988984,
-   "bin": 1001296,
+   "budget": 992544,
+   "measured": 992312,
+   "bin": 1004624,
    "ceiling": 3141632
   }
  }

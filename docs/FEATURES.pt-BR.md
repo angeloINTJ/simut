@@ -44,7 +44,7 @@ Tudo o que o firmware faz, em detalhe. O [README](../README.pt-BR.md) tem o resu
 - **Pendentes de telemetria** — com um único sensor, o canto inferior esquerdo mostra a contagem de pendentes de telemetria (`N`, ou `Nk` a partir de mil), e o ícone de Wi-Fi cresce da esquerda para a direita.
 
 ## Interface web
-- **11 páginas** — comprimidas com gzip (zopfli) na flash, com temas claro e escuro que seguem a preferência do sistema, gerenciador de arquivos e sessões multiusuário que expiram após 15 minutos ociosas.
+- **11 páginas** — comprimidas com gzip (zopfli) na flash, com temas claro e escuro que seguem a preferência do sistema, gerenciador de arquivos que também mostra um arquivo de texto organizado para leitura (JSON indentado, com blocos que abrem e recolhem) e sessões multiusuário que expiram após 15 minutos ociosas.
 - **Espelho do painel ao vivo** (`release`) — o quadro atual do painel no navegador, 213 ms por quadro. Um clique nele é um toque na tela.
 - **Cada mudança diz quanto custa** — três botões:
   - *Testar*: aplica sem salvar;
@@ -60,7 +60,7 @@ Tudo o que o firmware faz, em detalhe. O [README](../README.pt-BR.md) tem o resu
 
 ## Telemetria e integrações
 - **Quatro transportes** — HTTP, HTTPS, MQTT e MQTTS:
-  - payload em JSON, CSV ou template customizado;
+  - payload em JSON, CSV ou template customizado, com uma prévia ao vivo que mostra o JSON indentado, com blocos que abrem e recolhem;
   - TLS 1.2 (ECDHE com AES-GCM), com o certificado do servidor conferido contra um `/cert.pem` enviado ao aparelho.
 - **Lote por quantidade:**
   - `t_int` é o lote mínimo: o rádio fica desligado até essa quantidade de registros esperar (0 = desligado);

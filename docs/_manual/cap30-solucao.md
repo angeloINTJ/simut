@@ -449,7 +449,7 @@ Detalhes nos capítulos [20](#cap-20), [21](#cap-21) e [22](#cap-22).
 | `maint_on` e `alarm_lim` chegam sem `until`, `lo`, `hi` ou `user` | Modelo próprio antigo | Acrescente `"maint":{maint}`, `"lo":{lo}`, `"hi":{hi}`, `"until":{until}` e `"user":{user}` ao **2. Linha** |
 | JSON inválido com `"valor":,` | Marcador fora da forma composta, sem valor naquele registro | Use a forma composta, como `"val":{val}` |
 | O JSON da linha não é o do manual | O **2. Linha** foi editado e vale também no formato JSON | Confira o **2. Linha** no formato **Dinâmico** |
-| A **Prévia ao Vivo** mostra `{maint}` ou `{user}` como texto | A prévia não conhece os marcadores novos | Ignore a prévia para esses marcadores; confira o corpo recebido |
+| A **Prévia ao Vivo** mostra `{maint}` ou `{user}` como texto | Até a v2.9.0, a prévia não conhecia os marcadores novos | Confira o corpo recebido; desde a versão seguinte a prévia os monta como o aparelho |
 | **Pendentes:** não muda | O número é lido ao abrir a página | Recarregue a página |
 
 ## Home Assistant, Prometheus e syslog {#cap-30-ha}

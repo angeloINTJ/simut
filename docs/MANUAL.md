@@ -460,7 +460,7 @@ Served from the device itself. Log in at `http://simut.local` or the device IP.
 | `/network` | Wi-Fi (with a scan that lists the networks in range), static addressing, mDNS, NTP |
 | `/alarms` | Per-sensor thresholds and actions |
 | `/users` | Accounts and permissions |
-| `/files` | Filesystem browser: upload, download, delete, create directories — plus full backup, restore and firmware update (OTA) |
+| `/files` | Filesystem browser: upload, download, delete, create directories, and a viewer that shows a text file organized (JSON indented with blocks that fold, the sections of a language or theme pack, numbered lines) — plus full backup, restore and firmware update (OTA) |
 | `/history` | History graphs, CSV export, and the system event log viewer |
 | `/license` | License text |
 

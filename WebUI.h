@@ -4747,7 +4747,6 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .builder-box { padding: 16px; margin-top: 14px; }
         .highlight { background: var(--superficie-2); color: var(--tinta); padding: 1px 6px; border-radius: 6px; font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace; font-size: 13px; }
         .page-title { margin: 0 0 8px; border: none; }
-        #preview, #apreview { word-break: break-all; }
     </style>
     <script>
         /* window.t/applyLang/setLang/showToast/fetchSafe/Pending/commitAll vem de /lang.js */
@@ -4942,7 +4941,14 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
                     <div style="margin-top:15px;">
                         <label data-i18n="cfg_prev">Live Preview:</label>
-                        <div id="preview"></div>
+                        <div class="tv-bar">
+                            <button type="button" class="sxb" id="previewO" data-i18n="tv_org">Organized</button>
+                            <button type="button" class="sxb" id="previewR" data-i18n="tv_raw">Original</button>
+                            <button type="button" class="sxb" id="previewE" data-i18n="tv_exp">Expand all</button>
+                            <button type="button" class="sxb" id="previewC" data-i18n="tv_col">Collapse all</button>
+                        </div>
+                        <p class="faixa faixa-alerta" id="previewN" style="display:none;margin:8px 0 0"></p>
+                        <pre class="tv" id="preview" style="margin-top:8px"></pre>
                     </div>
                 </div>
 
@@ -5011,7 +5017,14 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
                     <div style="margin-top:15px;">
                         <label data-i18n="cfg_prev">Live Preview:</label>
-                        <div id="apreview"></div>
+                        <div class="tv-bar">
+                            <button type="button" class="sxb" id="apreviewO" data-i18n="tv_org">Organized</button>
+                            <button type="button" class="sxb" id="apreviewR" data-i18n="tv_raw">Original</button>
+                            <button type="button" class="sxb" id="apreviewE" data-i18n="tv_exp">Expand all</button>
+                            <button type="button" class="sxb" id="apreviewC" data-i18n="tv_col">Collapse all</button>
+                        </div>
+                        <p class="faixa faixa-alerta" id="apreviewN" style="display:none;margin:8px 0 0"></p>
+                        <pre class="tv" id="apreview" style="margin-top:8px"></pre>
                     </div>
                 </div>
             </form>
@@ -5103,11 +5116,17 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         }
         function _previewCustomLine(tpl, rec) { return _resolveCustom(tpl, rec, _sensorTokenResolver); }
 
-        /* Resolver da linha de alarmes — mirror do alarmFormatLine (firmware).
-           Dois domínios: rec.alarm (limite) e rec.err (falha), strings ou
-           null. {VAL} só na borda de limite; {ALARM}/{ERR} emitem o código
-           COM aspas JSON (forma composta remove a chave do outro domínio);
-           compKey segue a GRAFIA do token. */
+        /* Resolver da linha de alarmes — espelho do alarmFormatLine
+           (src/AlarmPayload.h), token a token. Três domínios, strings ou
+           ausentes: rec.alarm (limite), rec.err (falha) e rec.maint
+           (manutenção, v23). {VAL} só na borda de limite; {ALARM}/{ERR}/
+           {MAINT} e {USER} emitem COM aspas JSON, e a forma composta remove a
+           chave do campo ausente; compKey segue a GRAFIA do token. Os campos
+           da v24 chegam formatados: rec.lo/rec.hi com os decimais do canal,
+           rec.until em epoch. Parou nos tokens da v22 até 03/10/2026, e o
+           default do firmware saía com "maint":{maint} na prévia;
+           tools/test_webui_text_viewer.py agora confere os tokens contra o
+           firmware e as linhas contra os vetores do test_alarm_queue. */
         function _alarmTokenResolver(rec, tpl, ti) {
             let val = null, compKey = '', tc = 0;
             const at = (s) => tpl.substr(ti, s.length) === s;
@@ -5120,6 +5139,11 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             else if (at('{ALARM}') || at('{alarm}')) { compKey = tpl.substr(ti + 1, 5); val = rec.alarm ? '"' + rec.alarm + '"' : null; tc = 7; }
             else if (at('{ERR}') || at('{err}')) { compKey = tpl.substr(ti + 1, 3); val = rec.err ? '"' + rec.err + '"' : null; tc = 5; }
             else if (at('{SEQ}') || at('{seq}')) { compKey = tpl.substr(ti + 1, 3); val = String(rec.seq); tc = 5; }
+            else if (at('{MAINT}') || at('{maint}')) { compKey = tpl.substr(ti + 1, 5); val = rec.maint ? '"' + rec.maint + '"' : null; tc = 7; }
+            else if (at('{LO}') || at('{lo}')) { compKey = tpl.substr(ti + 1, 2); val = rec.lo || null; tc = 4; }
+            else if (at('{HI}') || at('{hi}')) { compKey = tpl.substr(ti + 1, 2); val = rec.hi || null; tc = 4; }
+            else if (at('{UNTIL}') || at('{until}')) { compKey = tpl.substr(ti + 1, 5); val = rec.until ? String(rec.until) : null; tc = 7; }
+            else if (at('{USER}') || at('{user}')) { compKey = tpl.substr(ti + 1, 4); val = rec.user ? '"' + rec.user + '"' : null; tc = 6; }
             return tc ? { val, hwid: null, compKey, tc } : null;
         }
         function _alarmCustomLine(tpl, rec) { return _resolveCustom(tpl, rec, _alarmTokenResolver); }
@@ -5137,24 +5161,39 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             return out;
         }
 
+        /* The previews are text views (window.tvView in lang.js). Organized
+           lays a JSON payload out by its brackets, with blocks that fold, and
+           says when the templates make JSON that does not parse; Original is
+           the payload as it goes on the wire. Each view is made the first time
+           its preview draws. */
+        const _pv = {};
+        function _pvOf(id) {
+            const g = x => document.getElementById(id + x);
+            return _pv[id] || (_pv[id] = window.tvView(g(''), { o: g('O'), r: g('R'), e: g('E'), c: g('C') }));
+        }
         /* Esqueleto compartilhado dos dois builders. */
         function _renderPayloadPreview(o) {
             const mode = document.getElementById(o.modeId).value;
-            const pre = document.getElementById(o.outId);
             const batch = o.demo();
-            if (!batch || !batch.length) { pre.innerText = ''; return; }
-            if (mode == '0') {
-                pre.innerText = '[' + batch.map(o.jsonLine).join(',') + ']';
-            } else if (mode == '1') {
-                pre.innerText = o.csv(batch);
-            } else {
-                const glob = document.getElementById(o.globId).value;
-                const line = document.getElementById(o.lineId).value;
-                let sep = document.getElementById(o.sepId).value;
-                if (sep === '\\n') sep = '\n';
-                const data = batch.map(r => o.customLine(line, r)).join(sep);
-                pre.innerText = _previewGlobal(glob, o.dev || 'SIMUT_Demo', o.mac || 'AA:BB:CC:DD:EE:FF', data);
+            let s = '';
+            if (batch && batch.length) {
+                if (mode == '0') {
+                    s = '[' + batch.map(o.jsonLine).join(',') + ']';
+                } else if (mode == '1') {
+                    s = o.csv(batch);
+                } else {
+                    const glob = document.getElementById(o.globId).value;
+                    const line = document.getElementById(o.lineId).value;
+                    let sep = document.getElementById(o.sepId).value;
+                    if (sep === '\\n') sep = '\n';
+                    const data = batch.map(r => o.customLine(line, r)).join(sep);
+                    s = _previewGlobal(glob, o.dev || 'SIMUT_Demo', o.mac || 'AA:BB:CC:DD:EE:FF', data);
+                }
             }
+            const v = _pvOf(o.outId), n = document.getElementById(o.outId + 'N');
+            const bad = s ? v.set('preview.json', s, 1).bad : (v.note(''), 0);
+            n.textContent = window.t('tv_bad', 'Incomplete or invalid JSON: laid out by its brackets alone. Original shows the exact text.');
+            n.style.display = bad ? '' : 'none';
         }
 
         /* Device metadata (real serial + per-slot hwid/active) — populado por loadConfig. */
@@ -6068,6 +6107,17 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .fm-name-dir { color:var(--acento); font-weight:700; }
         .fm-size { font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace; color: var(--tinta-2); font-size: 13px; }
         .fm-empty, .fm-loading { text-align:center; padding:30px; color:var(--tinta-2); }
+        .fm-view { background:none; border:0; padding:4px; margin:-4px 0 -4px 8px; color:var(--tinta-2); border-radius:6px; vertical-align:middle; }
+        .fm-view:hover { color:var(--acento); background:var(--superficie-2); }
+        /* Text viewer. The box takes the screen less the veil padding and the
+           text scrolls inside it, so the buttons stay in reach. The rows, the
+           fold marks and the toolbar are the shared .tv rules of style.css,
+           which the telemetry previews draw too. */
+        .tv-box { width:960px; max-height:calc(100vh - 40px); max-height:calc(100dvh - 40px); display:flex; flex-direction:column; gap:12px; }
+        .tv-box .tv { flex:1; min-height:0; }
+        .tv-hd { display:flex; align-items:center; gap:12px; }
+        .tv-hd h3 { flex:1; min-width:0; margin:0; padding:0; border:0; overflow-wrap:anywhere; }
+        .tv-bar a { text-decoration:none; }
     </style>
     <script>
         /* window.t/applyLang/setLang/showToast/fetchSafe vem de /lang.js */
@@ -6108,6 +6158,24 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     </tbody>
                 </table>
             </div>
+        </div>
+    </div>
+
+    <div class="ov" id="tvOv" style="display:none">
+        <div class="ov-box tv-box" role="dialog" aria-modal="true" aria-labelledby="tvT">
+            <div class="tv-hd">
+                <h3 id="tvT"></h3>
+                <button class="sxb" id="tvX" onclick="tvClose()"><svg class="ic"><use href="#i-close"/></svg></button>
+            </div>
+            <div class="tv-bar">
+                <button class="sxb" id="tvO" data-i18n="tv_org">Organized</button>
+                <button class="sxb" id="tvR" data-i18n="tv_raw">Original</button>
+                <button class="sxb" id="tvE" data-i18n="tv_exp">Expand all</button>
+                <button class="sxb" id="tvC" data-i18n="tv_col">Collapse all</button>
+                <a class="sxb" id="tvD" download><svg class="ic"><use href="#i-down"/></svg><span data-i18n="fil_down">Download</span></a>
+            </div>
+            <p class="faixa faixa-alerta" id="tvN" style="display:none;margin:0"></p>
+            <pre class="tv" id="tvB" tabindex="0"></pre>
         </div>
     </div>
 
@@ -6175,7 +6243,10 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                                protected file — the one with no box — impossible to open at
                                all. Folders were already clickable; files now match. */
                             let href = '/download?file=' + encodeURIComponent(fullPath);
-                            html += `<tr class="fm-row"><td>${cell}</td><td><span class="fm-icon"><svg class="ic"><use href="#i-doc"/></svg></span><a class="fm-name" href="${href}">${escHtml(e.n)}</a></td><td class="fm-size">${fmFormatSize(e.s)}</td></tr>`;
+                            /* A text file also gets the viewer, beside the link. */
+                            let vw = window.t('fil_view', 'View');
+                            let view = tvViewable(e.n, e.s) ? `<button class="fm-view" data-view="${escAttr(fullPath)}" title="${escAttr(vw)}" aria-label="${escAttr(vw)}"><svg class="ic"><use href="#i-eye"/></svg></button>` : '';
+                            html += `<tr class="fm-row"><td>${cell}</td><td><span class="fm-icon"><svg class="ic"><use href="#i-doc"/></svg></span><a class="fm-name" href="${href}">${escHtml(e.n)}</a>${view}</td><td class="fm-size">${fmFormatSize(e.s)}</td></tr>`;
                         }
                     }
                 }
@@ -6325,6 +6396,35 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             }
             setTimeout(() => location.href = '/login', 5000);
         }
+
+
+        /* The viewer reads the file through the same /download the name links
+           to, so the same permission check applies. tvSeq drops a reply that
+           arrives after the viewer closed or moved to another file. The view
+           itself, its folds and its two modes, is window.tvView in lang.js: the
+           telemetry page's previews draw the same one. */
+        let tvSeq = 0, tvBack = 0;
+        const tvEl = id => document.getElementById(id);
+        const tvV = window.tvView(tvEl('tvB'), { o: tvEl('tvO'), r: tvEl('tvR'), e: tvEl('tvE'), c: tvEl('tvC') });
+        async function tvOpen(p) {
+            const n = tvEl('tvN'), x = tvEl('tvX'), u = '/download?file=' + encodeURIComponent(p), my = ++tvSeq;
+            tvBack = document.activeElement; tvV.raw = 0;
+            tvEl('tvT').textContent = p.slice(p.lastIndexOf('/') + 1); tvEl('tvD').href = u;
+            x.title = window.t('tv_close', 'Close'); x.setAttribute('aria-label', x.title);
+            n.style.display = 'none'; tvV.note(window.t('fil_loading', 'Loading...'));
+            tvEl('tvOv').style.display = ''; x.focus();
+            try {
+                let r = await fetchSafe(u, { retries: 1 });
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                let s = await r.text();
+                if (my != tvSeq) return;
+                if (!tvIsText(s)) { tvV.note(window.t('tv_bin', 'This file is not text. Download it to open it.')); return; }
+                if (tvV.set(p, s).bad) { n.textContent = window.t('tv_bad', 'Incomplete or invalid JSON: laid out by its brackets alone. Original shows the exact text.'); n.style.display = ''; }
+            } catch (err) { if (my == tvSeq) tvV.note(window.t('tv_err', 'Could not read the file.') + ' ' + (err.message || '')); }
+        }
+        function tvClose() { tvSeq++; tvEl('tvOv').style.display = 'none'; if (tvBack && tvBack.focus) tvBack.focus(); }
+        document.addEventListener('keydown', ev => { if (ev.key == 'Escape' && tvEl('tvOv').style.display == '') tvClose(); });
+        tvEl('fileBody').addEventListener('click', ev => { let v = ev.target.closest('[data-view]'); if (v) tvOpen(v.getAttribute('data-view')); });
 
         window.onLangChange = function() { fmNavigate(currentDir); };
 
@@ -7281,7 +7381,11 @@ input[type=range] { accent-color: var(--acento); }
 .sxb-dang:hover, .btn-dang:hover, .btn-fm-dang:hover { background: var(--perigo); color: var(--perigo-tinta); }
 .btn-fm-out { background: transparent; color: var(--acento); border-color: var(--acento); }
 .btn-fm-out:hover { background: var(--acento); color: var(--acento-tinta); }
-.sxb-on, .bottom-controls > button.active { background: var(--acento); color: var(--acento-tinta); border-color: var(--acento); }
+/* .sxb-on:hover is listed because .sxb:hover, a class and a pseudo-class,
+   outranks .sxb-on alone: an active toggle under the pointer took the hover
+   fill and kept the active text colour, pale on pale (the viewer's Organized
+   and Original, 2026-10-03). */
+.sxb-on, .sxb-on:hover, .bottom-controls > button.active { background: var(--acento); color: var(--acento-tinta); border-color: var(--acento); }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 /* Tabela */
 table { width: 100%; border-collapse: collapse; }
@@ -7310,7 +7414,7 @@ tr.pending-add { background: var(--positivo-suave); }
 .bar-fg, .progress-fill, .exp-overlay-fill { height: 100%; width: 0; background: var(--acento); border-radius: 999px; transition: width 0.3s; }
 .bar-fg.warn { background: var(--alerta); } .bar-fg.crit { background: var(--perigo); }
 /* Codigo */
-pre, #preview, #apreview { background: var(--superficie-2); color: var(--tinta); border: 1px solid var(--linha); border-radius: 6px; padding: 12px 16px; font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace; font-size: 13px; line-height: 20px; overflow-x: auto; white-space: pre-wrap; }
+pre { background: var(--superficie-2); color: var(--tinta); border: 1px solid var(--linha); border-radius: 6px; padding: 12px 16px; font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace; font-size: 13px; line-height: 20px; overflow-x: auto; white-space: pre-wrap; }
 /* Veu e caixa flutuante (modal): uma das tres sombras da interface. */
 .ov, .exp-overlay, .sx-ov { position: fixed; inset: 0; background: var(--veu); z-index: 9000; display: flex; align-items: center; justify-content: center; padding: 20px; }
 .ov-box, .exp-overlay-box, .sx-ov-box { background: var(--superficie); border: 1px solid var(--linha); border-radius: 12px; padding: 24px; box-shadow: var(--sombra-flutuante); max-width: 100%; box-sizing: border-box; }
@@ -7414,6 +7518,23 @@ pre, #preview, #apreview { background: var(--superficie-2); color: var(--tinta);
      correta que seja a conta de quem manda rolar. Sai no focusout. */
   body.typing { padding-bottom: 60vh; }
 }
+/* The text views (window.tvView in lang.js): the file manager's viewer and
+   the telemetry previews. A row is a flex line: the gutter with the line
+   number, the fold slot, and the text, indented by padding rather than by
+   spaces so a wrapped line keeps its indentation on a phone. */
+.tv-bar { display: flex; flex-wrap: wrap; gap: 8px; }
+.tv { overflow: auto; overflow-wrap: anywhere; margin: 0; padding: 8px 0 8px 8px; }
+.tv-raw { padding: 8px 16px; }
+.tv-r { display: flex; }
+.tv-f { cursor: pointer; }
+.tv-f:hover { background: var(--superficie); }
+.tv-g { flex: none; min-width: 4ch; padding: 0 8px; text-align: right; color: var(--tinta-2); user-select: none; }
+.tv-j .tv-g { display: none; }
+.tv-k { flex: none; width: 2ch; min-height: 0; background: none; border: 0; padding: 0; color: var(--tinta-2); font: inherit; user-select: none; }
+.tv-c { flex: 1; min-width: 0; padding-right: 16px; }
+.tv-n { color: var(--tinta-2); }
+/* A finger lands on the whole row, so the row grows instead of the fold mark. */
+@media (pointer: coarse) { .tv { line-height: 28px; } }
 )raw";
 
 static const char LANG_JS[] PROGMEM = R"raw(
@@ -8163,6 +8284,155 @@ static const char LANG_JS[] PROGMEM = R"raw(
 
     /* Ordem importa: install PRIMEIRO (cria botões), depois init
      * (Pending.refreshUI encontra o botão e mostra/esconde). */
+    /* tv: the pure part of the text viewer. It lives in lang.js because two
+       pages draw it, the file manager's viewer and the telemetry page's
+       previews, and each page is its own gz blob. No DOM here, so
+       tools/test_webui_text_viewer.py runs it under node, as written and as
+       the minifier leaves it. A row is {d depth, t text, ln line number or
+       0, f index of the last row it folds or -1, n members or lines it
+       folds, c 1 when that last row is its closing bracket}. The code is
+       dense on purpose: the minifier keeps the spaces inside a line, and
+       lang.js is paid for in every image.
+
+       The cap is 64 KiB: the largest text the firmware keeps is a language
+       pack, held under LANG_FILE_MAX (48 KiB), and the viewer draws one
+       element per row, so a bigger file is downloaded instead. */
+    const TV_CAP = 65536, TV_EXT = ' json jsonl ndjson txt csv tsv lng thm log cfg conf ini pem crt md xml yml yaml ';
+    function tvExt(n) { let i = n.lastIndexOf('.'); return i < 0 ? '' : n.slice(i + 1).toLowerCase(); }
+    function tvViewable(n, s) { return s <= TV_CAP && TV_EXT.indexOf(' ' + tvExt(n) + ' ') >= 0; }
+    /* Text unless more than 1 in 100 of the first 4096 characters is a
+       control code other than tab, line feed, form feed, carriage return
+       and escape. An invalid UTF-8 byte decodes to U+FFFD and does not
+       count: a Latin-1 file is still worth reading. */
+    function tvIsText(s) {
+        let m = Math.min(s.length, 4096), b = 0;
+        for (let i = 0; i < m; i++) { let c = s.charCodeAt(i); if (c < 32 && (c < 9 || c > 13 || c == 11) && c != 27) b++; }
+        return b * 100 <= m;
+    }
+    function tvOk(s) { try { JSON.parse(s); return 1; } catch (e) { return 0; } }
+    /* JSON laid out by its brackets alone. Every token keeps its spelling,
+       only the whitespace between tokens changes, and nothing throws: a cut
+       or broken text is still indented, and the caller asks JSON.parse
+       whether to say so. An open block folds to the last row that arrived.
+       Iterative, so a deep nesting costs a stack entry, not a frame. */
+    function tvJson(s, d, ln, R) {
+        let st = [], cur = 0, nl = 1, i = 0, L = s.length, top = () => st[st.length - 1];
+        const row = t => { R.push(cur = { d: d + st.length, t, ln, f: -1, n: 0, c: 0 }); ln = 0; };
+        const put = t => { if (nl || !cur) row(t); else cur.t += ' ' + t; nl = 1; let o = top(); if (o && !o.n) o.n = 1; };
+        while (i < L) {
+            let c = s[i], j = i + 1;
+            if (c <= ' ') { i++; continue; }
+            if (c == '{' || c == '[') {
+                while (j < L && s[j] <= ' ') j++;
+                if (s[j] == '}' || s[j] == ']') { put(c + s[j]); i = j + 1; }
+                else { put(c); st.push({ r: R.length - 1, n: 0 }); i++; }
+            } else if (c == '}' || c == ']') {
+                let o = st.pop(); row(c); nl = 1; i++;
+                if (o) Object.assign(R[o.r], { f: R.length - 1, n: o.n, c: 1 });
+            } else if (c == ',' || c == ':') {
+                if (cur) cur.t += c; else row(c);
+                let o = top(); if (c == ',' && o) o.n++;
+                nl = c == ','; i++;
+            } else {
+                if (c == '\x22') { while (j < L && s[j] != '\x22') j += s[j] == '\\' ? 2 : 1; j++; }
+                else while (j < L && s[j] > ' ' && '{}[],:\x22'.indexOf(s[j]) < 0) j++;
+                put(s.slice(i, j)); i = j;
+            }
+        }
+        for (let o of st) if (R.length - 1 > o.r) Object.assign(R[o.r], { f: R.length - 1, n: o.n });
+    }
+    /* A section header folds every line down to the next header: @NAME as
+       in the .lng and .thm packs, or [name] as in an INI file, unless that
+       [name] is a JSON array. */
+    function tvHead(e) {
+        let k = e.trim();
+        return e[0] == '@' ? e[1] >= 'A' && e[1] <= 'Z' : e[0] == '[' && k.indexOf(']') == k.length - 1 && !tvOk(k);
+    }
+    function tvEnd(R, h) { if (h >= 0 && R[h].n && R.length - 1 > h) R[h].f = R.length - 1; }
+    /* The line view: numbered lines, sections that fold, and a line that is
+       a whole JSON value laid out as a block, the NDJSON case. A section
+       counts the lines with text, and one with none has nothing to fold:
+       the .lng packs put a blank line after @CODE. */
+    function tvLines(s, R) {
+        let ls = s.split('\n'), h = -1;
+        if (ls[ls.length - 1] == '') ls.pop();
+        ls.forEach((x, i) => {
+            let e = x[x.length - 1] == '\r' ? x.slice(0, -1) : x, k = e.trim(), d = h < 0 ? 0 : 1;
+            if (tvHead(e)) { tvEnd(R, h); h = R.length; R.push({ d: 0, t: e, ln: i + 1, f: -1, n: 0, c: 0 }); return; }
+            if ((k[0] == '{' || k[0] == '[') && tvOk(k)) tvJson(k, d, i + 1, R);
+            else R.push({ d, t: e, ln: i + 1, f: -1, n: 0, c: 0 });
+            if (h >= 0 && k) R[h].n++;
+        });
+        tvEnd(R, h);
+    }
+    function tvNd(s) { let n = 0; for (let x of s.split('\n')) if (x = x.trim()) { if (!tvOk(x)) return 0; n++; } return n > 1; }
+    /* One JSON document when it parses, or when a .json file is cut or
+       broken and is not NDJSON; the line view for everything else. */
+    function tvParse(name, s) {
+        let R = [], k = s.trim(), j = k[0] == '{' || k[0] == '[', ok = j && !!tvOk(k);
+        if (ok || (j && tvExt(name) == 'json' && !tvNd(s))) { tvJson(k, 0, 1, R); return { j: 1, bad: !ok, rows: R }; }
+        tvLines(s, R);
+        return { j: 0, bad: false, rows: R };
+    }
+    /* The folds closed when a file opens, every block from depth 2 down;
+       and the ones Collapse all closes, every fold but the outermost JSON
+       block, which closed would leave a single line. */
+    function tvInit(m) { let c = {}; m.rows.forEach((r, i) => { if (r.f > i && r.d > 1) c[i] = 1; }); return c; }
+    function tvAll(m) { let c = {}; m.rows.forEach((r, i) => { if (r.f > i && (r.d || !m.j)) c[i] = 1; }); return c; }
+    /* The rows on screen, k 0 plain, 1 open, 2 closed: a closed fold shows
+       its first row ending in an ellipsis and the closing bracket. */
+    function tvVis(m, c) {
+        let R = m.rows, V = [];
+        for (let i = 0; i < R.length; i++) {
+            let r = R[i], f = r.f > i, v = { i, d: r.d, ln: r.ln, k: f ? 1 : 0, t: r.t };
+            if (f && c[i]) { v.k = 2; v.n = r.n; v.t += r.c ? '…' + R[r.f].t : ' …'; i = r.f; }
+            V.push(v);
+        }
+        return V;
+    }
+    /* tv: end of the pure part */
+
+    /* tv: a view over a <pre>, with its folds and its two modes, Organized and
+       Original. bar holds the buttons: o Organized, r Original, e Expand all,
+       c Collapse all. set(name, text) lays a text out with the folds a file
+       opens with; set(name, text, 1) keeps the folds while the row count
+       stays, the case of a preview redrawn on every keystroke, and opens
+       everything when it changes. A click on a fold row toggles it, unless it
+       ends a text selection; the mark itself, by mouse or by keyboard, always
+       toggles, and gets the focus back after the redraw. */
+    window.tvView = function(pre, bar) {
+        const v = { m: 0, c: {}, s: '', raw: 0 };
+        v.draw = () => {
+            [[bar.o, !v.raw], [bar.r, !!v.raw]].forEach(([b, on]) => { b.classList.toggle('sxb-on', on); b.setAttribute('aria-pressed', on); });
+            bar.e.disabled = bar.c.disabled = v.raw || !v.m || !v.m.rows.some((r, i) => r.f > i);
+            if (!v.m) return;
+            if (v.raw) { pre.className = 'tv tv-raw'; pre.textContent = v.s; return; }
+            pre.className = v.m.j ? 'tv tv-j' : 'tv';
+            pre.innerHTML = tvVis(v.m, v.c).map(w => '<span class="tv-r' + (w.k ? ' tv-f" data-i="' + w.i : '') + '"><span class="tv-g">' + (w.ln || '') + '</span>' +
+                (w.k ? '<button type="button" class="tv-k" aria-expanded="' + (w.k == 1) + '">' + (w.k == 1 ? '▾' : '▸') + '</button>' : '') +
+                '<span class="tv-c" style="padding-left:' + (2 * w.d + (w.k ? 0 : 2)) + 'ch">' + escHtml(w.t) + (w.k == 2 ? ' <span class="tv-n">' + w.n + '</span>' : '') + '</span></span>').join('');
+        };
+        v.note = t => { v.m = 0; pre.className = 'tv tv-raw'; pre.textContent = t; v.draw(); };
+        v.set = (name, s, keep) => {
+            let m = tvParse(name, s);
+            v.c = !keep ? tvInit(m) : v.m && v.m.rows.length == m.rows.length ? v.c : {};
+            v.m = m; v.s = s; v.draw();
+            return m;
+        };
+        bar.o.onclick = () => { v.raw = 0; v.draw(); };
+        bar.r.onclick = () => { v.raw = 1; v.draw(); };
+        bar.e.onclick = () => { if (v.m) { v.c = {}; v.draw(); } };
+        bar.c.onclick = () => { if (v.m) { v.c = tvAll(v.m); v.draw(); } };
+        pre.addEventListener('click', ev => {
+            let r = ev.target.closest('[data-i]'), i = r && r.getAttribute('data-i');
+            if (!r || (!ev.target.closest('button') && !getSelection().isCollapsed)) return;
+            if (v.c[i]) delete v.c[i]; else v.c[i] = 1;
+            v.draw();
+            if (r = pre.querySelector('[data-i=\x22' + i + '\x22] button')) r.focus();
+        });
+        return v;
+    };
+
     document.addEventListener('DOMContentLoaded', () => {
         if (window.installCommitInfra) installCommitInfra();
         if (window.Pending) Pending.init();

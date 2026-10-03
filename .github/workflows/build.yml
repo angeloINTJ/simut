@@ -172,6 +172,18 @@ jobs:
       - name: Web UI feature routes (panel-only routes stay inside @IF tft)
         run: python3 tools/test_webui_feature_routes.py
 
+      # The text viewer lays a text out for reading: JSON indented with blocks
+      # that fold, the sections of a pack, NDJSON, numbered lines. It lives in
+      # lang.js and draws the /files viewer and the telemetry page's two
+      # payload previews. Its pure part is pulled out of WebUI.h and run under
+      # node twice, as written and as the build's minifier leaves it, because
+      # the minifier has deleted shipped code before and reported success. The
+      # alarm preview's template walker is held to the firmware's tokens and
+      # vectors: it had stopped at v22, and the view called the default
+      # payload invalid JSON.
+      - name: Web UI text viewer (as written and minified)
+        run: python3 tools/test_webui_text_viewer.py
+
       # OTA applies reformat the LittleFS, so benches restore /history from
       # backup — and the current-day file can only be given back by MERGING
       # with what the device wrote meanwhile. This is the tool that hole
