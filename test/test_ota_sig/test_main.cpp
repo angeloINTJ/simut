@@ -647,6 +647,8 @@ void test_restore_an_empty_last_file(void) {
 	TEST_ASSERT_EQUAL_STRING("x", fakefs::files( )["/a"].c_str( ));
 }
 
+void run_slot_tests(void);   /* test_slot.cpp: the RP2350's update into the inactive slot */
+
 int main(int, char**) {
 	UNITY_BEGIN( );
 	RUN_TEST(test_sha256_reference_matches_fips);
@@ -691,5 +693,6 @@ int main(int, char**) {
 	RUN_TEST(test_restore_more_than_200_files);
 	RUN_TEST(test_restore_apply_needs_the_validated_backup);
 	RUN_TEST(test_restore_an_empty_last_file);
+	run_slot_tests( );
 	return UNITY_END( );
 }
