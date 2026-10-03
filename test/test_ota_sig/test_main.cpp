@@ -1,6 +1,7 @@
 /**
  * @file    test/test_ota_sig/test_main.cpp
- * @brief   Host tests for the OTA signature check (src/ota/signature.cpp).
+ * @brief   Host tests for the OTA signature check (src/ota/signature.cpp) and,
+ *          since 2026-10-02, the backup restore (src/ota/restore.cpp).
  * @details Runs via `pio test -e native_otasig`. The vectors come from
  *          `tools/ota_sign.py vectors`, signed with a fixed TEST key set that no
  *          image trusts. The device binds BearSSL; here SHA-256 is a plain
@@ -19,6 +20,10 @@
  *          blocks tools/ota_sign.py gen-trust wrote into src/ota/ota_trust.h — the
  *          bytes every image carries — so the generator and the parser agree.
  *
+ *          The restore cases (finding 58) run the real state machine against
+ *          test/native_stubs/LittleFS.h, an in-memory filesystem whose writes
+ *          can be made to fail.
+ *
  * @project SIMUT — signed OTA (docs/analysis/OTA_ASSINADA.md)
  * @license MIT License
  */
@@ -30,6 +35,9 @@
 #include "ota/ota_trust.h"
 #include "sha256_ref.h"
 #include "vectors.h"
+#include <stdint.h>
+#include <string>
+#include "ota/restore.h"   /* the restore state machine, on the in-memory LittleFS stub */
 
 using ota::SigVerdict;
 
@@ -448,6 +456,197 @@ static void test_a_malformed_trust_block_is_refused(void) {
 	TEST_ASSERT_FALSE_MESSAGE(ota::sigTrustParse(nullptr, 0, a, 4, p), "no block at all");
 }
 
+/* ── The restore (src/ota/restore.cpp), on test/native_stubs/LittleFS.h ──────────
+ *
+ * Finding 58 of docs/analysis/PLANO_REVISAO_EXTERNA.md (2026-10-02): an apply
+ * writes each file over the original, and when it failed half way the rollback
+ * DELETED every file it had written — whose old content was already gone, so a
+ * cut connection took /config/system.bin with it and the next boot came up at
+ * factory settings. And the 200 paths the rollback could track were counted
+ * only in the apply: a backup with more files validated, then the apply stopped
+ * at the 201st and deleted the 200 before it.
+ *
+ * backup.cpp is not compiled here (it walks the real filesystem); these two are
+ * what restore.cpp takes from it: the same reflected CRC-32, bit by bit instead
+ * of by table, and a chip id. */
+namespace ota {
+uint32_t crc32_update(uint32_t crc, const uint8_t* data, size_t len) {
+	while (len--) {
+		crc ^= *data++;
+		for (int k = 0; k < 8; k++) crc = (crc >> 1) ^ (0xEDB88320u & (0u - (crc & 1u)));
+	}
+	return crc;
+}
+void read_chip_id(uint8_t out[8]) {
+	static const uint8_t id[8] = { 0xE6, 0x64, 0x28, 0x15, 0xE3, 0x4C, 0x18, 0x24 };
+	memcpy(out, id, 8);
+}
+}
+
+struct BkpFile { std::string path, content; };
+
+/* A .bkp as backup.cpp writes one: the 40-byte header, then per file a 6-byte
+ * entry header, the path and the content. `stamp` tells two backups apart. */
+static std::vector<uint8_t> makeBackup(const std::vector<BkpFile>& files, uint32_t stamp) {
+	std::vector<uint8_t> payload;
+	for (const auto& f : files) {
+		const uint16_t pl = (uint16_t)f.path.size( );
+		const uint32_t cl = (uint32_t)f.content.size( );
+		const uint8_t eh[6] = { (uint8_t)pl, (uint8_t)(pl >> 8), (uint8_t)cl, (uint8_t)(cl >> 8),
+		                        (uint8_t)(cl >> 16), (uint8_t)(cl >> 24) };
+		payload.insert(payload.end( ), eh, eh + 6);
+		payload.insert(payload.end( ), f.path.begin( ), f.path.end( ));
+		payload.insert(payload.end( ), f.content.begin( ), f.content.end( ));
+	}
+	BackupHeader h;
+	memset(&h, 0, sizeof(h));
+	h.magic = OTA_BACKUP_MAGIC;
+	h.schema_version = OTA_BACKUP_SCHEMA;
+	ota::read_chip_id(h.chip_id);
+	h.firmware_version = (2u << 16) | (9u << 8);
+	h.timestamp = stamp;
+	h.payload_size = (uint32_t)payload.size( );
+	h.payload_crc32 = ota::crc32_update(OTA_CRC32_INIT, payload.data( ), payload.size( )) ^ 0xFFFFFFFFu;
+	h.header_crc32 = ota::crc32_update(OTA_CRC32_INIT, (const uint8_t*)&h, sizeof(h) - 4) ^ 0xFFFFFFFFu;
+	std::vector<uint8_t> out((const uint8_t*)&h, (const uint8_t*)&h + sizeof(h));
+	out.insert(out.end( ), payload.begin( ), payload.end( ));
+	return out;
+}
+
+/* One request: begin, the body in 512-byte chunks as the web upload hands it
+ * over — or only its first `cut` bytes, a .bkp that ends early — and finish.
+ * With `aborted`, the client went away instead: the upload's
+ * UPLOAD_FILE_ABORTED, which calls the abort and not the finish. */
+static uint8_t runRestore(ota::RestoreMode mode, const std::vector<uint8_t>& bkp,
+                          size_t cut = SIZE_MAX, bool* fsm = nullptr, bool aborted = false) {
+	static ota::RestoreSession s;
+	ota::restore_session_begin(s, mode);
+	const size_t n = (cut < bkp.size( )) ? cut : bkp.size( );
+	for (size_t off = 0; off < n; off += 512)
+		ota::restore_session_feed(s, bkp.data( ) + off, (n - off < 512) ? n - off : 512);
+	if (aborted) {
+		ota::restore_session_abort(s);
+		return (uint8_t)s.status;
+	}
+	bool f = false;
+	const uint8_t st = (uint8_t)ota::restore_session_finish(s, &f);
+	if (fsm) *fsm = f;
+	return st;
+}
+
+static const uint8_t RST_OK = 0, RST_TRUNCATED = 4, RST_IO_ERROR = 9, RST_NOT_VALIDATED = 11;
+static const ota::RestoreMode VALIDATE = ota::RestoreMode::VALIDATE, APPLY = ota::RestoreMode::APPLY;
+
+void test_restore_validate_writes_nothing(void) {
+	fakefs::reset( );
+	auto& F = fakefs::files( );
+	F["/keep"] = "mine";
+	auto b = makeBackup({ { "/config/system.bin", "NEW-CONFIG" }, { "/h/1.h5", "new1" } }, 1001);
+	TEST_ASSERT_EQUAL_UINT8(RST_OK, runRestore(VALIDATE, b));
+	TEST_ASSERT_EQUAL_UINT32(1, (uint32_t)F.size( ));
+	TEST_ASSERT_EQUAL_STRING("mine", F["/keep"].c_str( ));
+}
+
+void test_restore_apply_writes_the_backup(void) {
+	fakefs::reset( );
+	auto& F = fakefs::files( );
+	F["/config/system.bin"] = "OLD";
+	F["/other"] = "untouched";
+	auto b = makeBackup({ { "/config/system.bin", "NEW-CONFIG" }, { "/h/1.h5", "new1" } }, 1002);
+	TEST_ASSERT_EQUAL_UINT8(RST_OK, runRestore(VALIDATE, b));
+	bool fsm = false;
+	TEST_ASSERT_EQUAL_UINT8(RST_OK, runRestore(APPLY, b, SIZE_MAX, &fsm));
+	TEST_ASSERT_TRUE(fsm);
+	TEST_ASSERT_EQUAL_STRING("NEW-CONFIG", F["/config/system.bin"].c_str( ));
+	TEST_ASSERT_EQUAL_STRING("new1", F["/h/1.h5"].c_str( ));
+	TEST_ASSERT_EQUAL_STRING("untouched", F["/other"].c_str( ));
+}
+
+void test_restore_cut_apply_keeps_the_files_it_finished(void) {
+	fakefs::reset( );
+	auto& F = fakefs::files( );
+	F["/config/system.bin"] = "OLD-CONFIG";
+	F["/h/1.h5"] = "old1";
+	auto b = makeBackup({ { "/config/system.bin", "NEW-CONFIG" }, { "/h/1.h5", "new1" },
+	                      { "/h/2.h5", std::string(3000, 'x') } }, 1003);
+	TEST_ASSERT_EQUAL_UINT8(RST_OK, runRestore(VALIDATE, b));
+	bool fsm = false;
+	/* 1000 bytes short: a .bkp that ends inside /h/2.h5 */
+	TEST_ASSERT_EQUAL_UINT8(RST_TRUNCATED, runRestore(APPLY, b, b.size( ) - 1000, &fsm));
+	TEST_ASSERT_EQUAL_STRING("NEW-CONFIG", F["/config/system.bin"].c_str( ));   /* it was deleted */
+	TEST_ASSERT_EQUAL_STRING("new1", F["/h/1.h5"].c_str( ));                    /* so was this */
+	TEST_ASSERT_FALSE(F.count("/h/2.h5"));                                       /* the partial one goes */
+	TEST_ASSERT_TRUE(fsm);                                                       /* and the answer says so */
+}
+
+void test_restore_aborted_upload_keeps_the_files_it_finished(void) {
+	/* The connection that drops half way, which is how finding 58 lost /config. */
+	fakefs::reset( );
+	auto& F = fakefs::files( );
+	F["/config/system.bin"] = "OLD-CONFIG";
+	auto b = makeBackup({ { "/config/system.bin", "NEW-CONFIG" }, { "/h/1.h5", "new1" },
+	                      { "/h/2.h5", std::string(3000, 'z') } }, 1009);
+	TEST_ASSERT_EQUAL_UINT8(RST_OK, runRestore(VALIDATE, b));
+	TEST_ASSERT_EQUAL_UINT8(RST_IO_ERROR, runRestore(APPLY, b, b.size( ) - 1000, nullptr, true));
+	TEST_ASSERT_EQUAL_STRING("NEW-CONFIG", F["/config/system.bin"].c_str( ));
+	TEST_ASSERT_EQUAL_STRING("new1", F["/h/1.h5"].c_str( ));
+	TEST_ASSERT_FALSE(F.count("/h/2.h5"));
+}
+
+void test_restore_write_error_keeps_the_files_it_finished(void) {
+	fakefs::reset( );
+	auto& F = fakefs::files( );
+	F["/config/system.bin"] = "OLD-CONFIG";
+	auto b = makeBackup({ { "/config/system.bin", "NEW-CONFIG" }, { "/h/1.h5", "new1" },
+	                      { "/h/2.h5", std::string(3000, 'y') } }, 1004);
+	TEST_ASSERT_EQUAL_UINT8(RST_OK, runRestore(VALIDATE, b));
+	fakefs::writes_until_failure( ) = 2;   /* the first write into /h/2.h5 fails */
+	TEST_ASSERT_EQUAL_UINT8(RST_IO_ERROR, runRestore(APPLY, b));
+	fakefs::writes_until_failure( ) = -1;
+	TEST_ASSERT_EQUAL_STRING("NEW-CONFIG", F["/config/system.bin"].c_str( ));
+	TEST_ASSERT_EQUAL_STRING("new1", F["/h/1.h5"].c_str( ));
+	TEST_ASSERT_FALSE(F.count("/h/2.h5"));
+}
+
+void test_restore_more_than_200_files(void) {
+	fakefs::reset( );
+	std::vector<BkpFile> many;
+	for (int i = 0; i < 230; i++) many.push_back({ "/h/" + std::to_string(i) + ".h5", "r" + std::to_string(i) });
+	auto b = makeBackup(many, 1005);
+	TEST_ASSERT_EQUAL_UINT8(RST_OK, runRestore(VALIDATE, b));
+	TEST_ASSERT_EQUAL_UINT8(RST_OK, runRestore(APPLY, b));   /* stopped at the 201st, deleting 200 */
+	TEST_ASSERT_EQUAL_UINT32(230, (uint32_t)fakefs::files( ).size( ));
+}
+
+void test_restore_apply_needs_the_validated_backup(void) {
+	fakefs::reset( );
+	auto& F = fakefs::files( );
+	F["/config/system.bin"] = "OLD";
+	auto a = makeBackup({ { "/config/system.bin", "A" } }, 1006);
+	auto b = makeBackup({ { "/config/system.bin", "B" } }, 1007);
+	/* nothing validated matches it: refused before a byte is written */
+	TEST_ASSERT_EQUAL_UINT8(RST_NOT_VALIDATED, runRestore(APPLY, a));
+	TEST_ASSERT_EQUAL_STRING("OLD", F["/config/system.bin"].c_str( ));
+	/* another backup validated: refused */
+	TEST_ASSERT_EQUAL_UINT8(RST_OK, runRestore(VALIDATE, a));
+	TEST_ASSERT_EQUAL_UINT8(RST_NOT_VALIDATED, runRestore(APPLY, b));
+	TEST_ASSERT_EQUAL_STRING("OLD", F["/config/system.bin"].c_str( ));
+	/* the validated one goes through */
+	TEST_ASSERT_EQUAL_UINT8(RST_OK, runRestore(APPLY, a));
+	TEST_ASSERT_EQUAL_STRING("A", F["/config/system.bin"].c_str( ));
+}
+
+void test_restore_an_empty_last_file(void) {
+	/* An empty file at the end of the payload: the path is the last byte fed,
+	 * and the content phase it opens has nothing left to wait for. */
+	fakefs::reset( );
+	auto b = makeBackup({ { "/a", "x" }, { "/empty", "" } }, 1008);
+	TEST_ASSERT_EQUAL_UINT8(RST_OK, runRestore(VALIDATE, b));
+	TEST_ASSERT_EQUAL_UINT8(RST_OK, runRestore(APPLY, b));
+	TEST_ASSERT_TRUE(fakefs::files( ).count("/empty"));
+	TEST_ASSERT_EQUAL_STRING("x", fakefs::files( )["/a"].c_str( ));
+}
+
 int main(int, char**) {
 	UNITY_BEGIN( );
 	RUN_TEST(test_sha256_reference_matches_fips);
@@ -483,5 +682,14 @@ int main(int, char**) {
 	RUN_TEST(test_the_compiled_trust_blocks_parse);
 	RUN_TEST(test_a_trust_block_drives_the_check);
 	RUN_TEST(test_a_malformed_trust_block_is_refused);
+
+	RUN_TEST(test_restore_validate_writes_nothing);
+	RUN_TEST(test_restore_apply_writes_the_backup);
+	RUN_TEST(test_restore_cut_apply_keeps_the_files_it_finished);
+	RUN_TEST(test_restore_aborted_upload_keeps_the_files_it_finished);
+	RUN_TEST(test_restore_write_error_keeps_the_files_it_finished);
+	RUN_TEST(test_restore_more_than_200_files);
+	RUN_TEST(test_restore_apply_needs_the_validated_backup);
+	RUN_TEST(test_restore_an_empty_last_file);
 	return UNITY_END( );
 }

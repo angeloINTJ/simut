@@ -84,6 +84,10 @@ enum class BackupStatus : uint8_t {
     PATH_TOO_LONG = 8,
     IO_ERROR = 9,
     INTERNAL_ERROR = 10,
+    /** An apply of a backup that is not the last one validated (2026-10-02).
+     *  An apply writes over the originals as it reads, so a file it has
+     *  finished is only known good if the same bytes were validated first. */
+    NOT_VALIDATED = 11,
 };
 
 /* Validação de .bkp em produção é feita pelo state machine em ota::RestoreSession

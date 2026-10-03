@@ -173,6 +173,13 @@ public:
 
     size_t write(const uint8_t *buf, size_t len) {
         if (mode_ != 'w' && mode_ != 'a') return 0;
+        if (backing_) {                       /* opened through the LittleFS stub */
+            long& left = writesUntilFailure();
+            if (left == 0) return 0;
+            if (left > 0) left--;
+            backing_->append((const char*)buf, len);
+            return len;
+        }
         data_.insert(data_.end(), buf, buf + len);
         pos_ = data_.size();
         return len;
@@ -191,7 +198,15 @@ public:
     size_t position() const { return pos_; }
     int available() const { return (int)(data_.size() - pos_); }
     size_t size() const { return data_.size(); }
-    void close() { mode_ = 0; }
+    void close() { mode_ = 0; backing_ = nullptr; }
+    /* Open, as the firmware tests it (`if (f)`); a default File is not. */
+    explicit operator bool() const { return mode_ != 0; }
+    /* The LittleFS stub (test/native_stubs/LittleFS.h) opens a File for writing
+     * into one of its in-memory files, truncating it as "w" does. */
+    void openInto(std::string* backing) { backing_ = backing; backing_->clear(); pos_ = 0; mode_ = 'w'; }
+    /* Writes left before one fails, across every backed File; negative = never.
+     * How a test makes a restore hit an I/O error part of the way through. */
+    static long& writesUntilFailure() { static long n = -1; return n; }
 
     /* Test helpers */
     void openForWrite() { data_.clear(); pos_ = 0; mode_ = 'w'; }
@@ -203,6 +218,7 @@ private:
     std::vector<uint8_t> data_;
     size_t pos_;
     char mode_;
+    std::string* backing_ = nullptr;
 };
 
 /* ── String concatenation ────────────────────────────────────────────────
