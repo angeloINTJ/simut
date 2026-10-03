@@ -262,7 +262,7 @@ simut/
 > clave por dispositivo que se muestra en la consola y, donde la hay, en la
 > pantalla. Ver [SECURITY.md](SECURITY.md) §2 y §8.
 
-> No hay entorno de depuración. `pico_w_debug` se eliminó en la v2.4.1 tras no enlazar nunca: en `-Og` la imagen desbordaba el slot de 1020 KB en ~100 KB. La flash va justa. La imagen release usa el 97,3 % del slot de programa de 1.044.480 B (el valor medido vive en `tools/flash_budget.json`), y el CI comprueba cada `.bin`, con sus 241 B de firma, contra el techo de actualización por el aire, de 1.040.384 B. Un objetivo de GDB habría que montarlo recortando funcionalidades. Para el tripwire de concurrencia en hardware, usa `pico_w_asserts`.
+> No hay entorno de depuración. `pico_w_debug` se eliminó en la v2.4.1 tras no enlazar nunca: en `-Og` la imagen desbordaba el slot de 1020 KB en ~100 KB. La flash va justa. La imagen release usa el 97,6 % del slot de programa de 1.044.480 B (el valor medido vive en `tools/flash_budget.json`), y el CI comprueba cada `.bin`, con sus 241 B de firma, contra el techo de actualización por el aire, de 1.040.384 B. Un objetivo de GDB habría que montarlo recortando funcionalidades. Para el tripwire de concurrencia en hardware, usa `pico_w_asserts`.
 
 ### Flags de compilación
 - `-Os` — optimización por tamaño

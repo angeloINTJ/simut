@@ -535,45 +535,45 @@
   "(ota_exempt, with the reason) and records no 'bin'; its budget still holds."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-10-02 fix/restore-keeps-what-it-had on main 0b30c7a (#235): all seven measured with a restore that keeps what it wrote (finding 58 of PLANO_REVISAO_EXTERNA). An APPLY that fails now deletes only the file it left incomplete, where it deleted every file it had written, /config included; it accepts only the backup the last VALIDATE passed (NOT_VALIDATED, 409), so the 200-path limit VALIDATE enforces holds for it; and a backup whose last file is empty no longer fails as truncated. The list of written paths went with the old policy, and 4,488 B of static RAM with it (4,484 on air and pico2_w_release). Against main, 'used': release +176, test +184, test_https +168, asserts +176, alpha and air +168, pico2_w_release +32; the .bin: +176, +184, +168, +176, 0, 0 and +32. Of that, 0 to 16 B is the gzipped files page, which names status 11. A first version, which closed an empty file from on_path_complete( ), cost the release +200 B. Budgets moved by the 'used' deltas, which keeps each margin where it was; 'bin' recorded for the four that moved, and their rows in PLANO_STABLE 3.1 with them. measured is the zopfli image PlatformIO prints.",
+ "measured_on": "2026-10-03 feat/webui-text-viewer on main 7bdbecf (#236): all seven measured with a text viewer in the file manager. A text file on /files gets an eye button, and the viewer shows it organized: JSON indented with blocks that fold, the sections of the .lng and .thm packs, NDJSON as blocks, numbered lines. It is all in FILE_PAGE, whose zopfli array goes from 5,564 to 8,443 B (+2,879). Against main, 'used': release, test, asserts and pico2_w_release +2,880; alpha and air +4,096; test_https 0, because it keeps FILE_PAGE on LittleFS. The .bin moves by the same amounts. On alpha and air .text and .data are identical to main and .rodata, laid out in whole pages there, grows by one page: 430,080 to 434,176 B and 450,560 to 454,656 B, measured against main built alongside, whose 'used' equals the recorded one. Writing the viewer densely saved 43 B and reusing the shared pre style 48 B more; the rest is logic. Budgets moved by the 'used' deltas, which keeps each margin where it was; 'bin' recorded for the six that moved, and their rows in PLANO_STABLE 3.1 with them. measured is the zopfli image PlatformIO prints.",
  "measured_at_commit": "2026-10-02 chore/v2.9.0 on main e5cd23b (#224 merged; SIMUT_VERSION 2.9.0, the only source change; budgets unchanged). All seven rebuilt here: test, alpha, air and pico2_w_release equal to the figures #224 recorded, release, test_https and asserts 8 B under them. measured is the zopfli image PlatformIO prints.",
  "ota_exempt": {
   "pico_w_test_https": "A bench image: the one with the full console and the TLS server together, for the HTTPS suites (AGENTS.md). It reaches the rig over USB, and release-ota.yml does not publish it. #232 (2026-10-02) left it 147 B under OTA_APP_SAFE_MAX_SIZE, and keeping it there meant cutting code the product images ship too, or moving more of its pages to LittleFS. Over the ceiling the device refuses to stage it, which costs only installing this image over the air; its flash budget still holds. Exempt since 2026-10-02 (docs/analysis/PLANO_STABLE.md, B6)."
  },
  "envs": {
   "pico_w_release": {
-   "budget": 1016444,
-   "measured": 1016332,
-   "bin": 1028364
+   "budget": 1019324,
+   "measured": 1019212,
+   "bin": 1031244
   },
   "pico_w_test": {
-   "budget": 1021556,
-   "measured": 1020916,
-   "bin": 1032948
+   "budget": 1024436,
+   "measured": 1023796,
+   "bin": 1035828
   },
   "pico_w_test_https": {
    "budget": 1028084,
    "measured": 1028076
   },
   "pico_w_asserts": {
-   "budget": 1018676,
-   "measured": 1018636,
-   "bin": 1030668
+   "budget": 1021556,
+   "measured": 1021516,
+   "bin": 1033548
   },
   "pico_w_alpha": {
-   "budget": 971028,
-   "measured": 970508,
-   "bin": 986284
+   "budget": 975124,
+   "measured": 974604,
+   "bin": 990380
   },
   "pico_w_air": {
-   "budget": 1014272,
-   "measured": 1013960,
-   "bin": 1027148
+   "budget": 1018368,
+   "measured": 1018056,
+   "bin": 1031244
   },
   "pico2_w_release": {
-   "budget": 989216,
-   "measured": 988984,
-   "bin": 1001296,
+   "budget": 992096,
+   "measured": 991864,
+   "bin": 1004176,
    "ceiling": 3141632
   }
  }
