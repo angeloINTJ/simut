@@ -14843,7 +14843,7 @@ simut/data {&quot;ts&quot;:1790168400,&quot;tSTM0001&quot;:4.25,&quot;tBME28001&
 <p>Os códigos já vêm com aspas: escreva <code>"alarm":{alarm}</code>, e não <code>"alarm":"{alarm}"</code>.</p>
 <p>No HTTP, o corpo sai com o <code>Content-Type</code> do campo <strong>Cabeçalho Content-Type</strong> da linha de alarmes, que vazio vale <code>application/json</code> (<a href="#cap-22-http">Entrega por HTTP</a>).</p>
 <aside class="faixa faixa-nota"><span class="selo selo-neutro"><i></i>Nota</span>
-<p><strong>A página mostra só parte dos marcadores.</strong> O quadro de tags da página lista <code>{TS}</code>, <code>{ID}</code>, <code>{HWID}</code>, <code>{SLOT}</code>, <code>{CH}</code>, <code>{VAL}</code>, <code>{ALARM}</code>, <code>{ERR}</code> e <code>{SEQ}</code>. O aparelho também aceita <code>{MAINT}</code>, <code>{LO}</code>, <code>{HI}</code>, <code>{UNTIL}</code> e <code>{USER}</code>, mas a <strong>Prévia ao Vivo</strong> não os conhece e os mostra como texto. A prévia do CSV também está desatualizada: mostra 4 colunas, e o aparelho envia 8.</p>
+<p><strong>A página mostra só parte dos marcadores.</strong> O quadro de tags da página lista <code>{TS}</code>, <code>{ID}</code>, <code>{HWID}</code>, <code>{SLOT}</code>, <code>{CH}</code>, <code>{VAL}</code>, <code>{ALARM}</code>, <code>{ERR}</code> e <code>{SEQ}</code>. O aparelho também aceita <code>{MAINT}</code>, <code>{LO}</code>, <code>{HI}</code>, <code>{UNTIL}</code> e <code>{USER}</code>: digite-os no <strong>2. Linha</strong>. Até a v2.9.0, a <strong>Prévia ao Vivo</strong> não os conhecia e os mostrava como texto; desde a versão seguinte ela os monta como o aparelho. Os três registros da demonstração, uma borda de limite, uma falha e um limite silenciado, não carregam esses campos, então as chaves somem da prévia como somem do corpo. A prévia do CSV continua desatualizada: mostra 4 colunas, e o aparelho envia 8.</p>
 </aside>
 <aside class="faixa faixa-atencao"><span class="selo selo-alerta"><i></i>Atenção</span>
 <p><strong>Modelos próprios antigos não têm os campos novos.</strong> A manutenção (<code>{MAINT}</code>) entrou na versão 23 do formato de configuração, e <code>{LO}</code>, <code>{HI}</code>, <code>{UNTIL}</code> e <code>{USER}</code> na versão 24. Um modelo próprio escrito antes disso envia <code>maint_on</code>, <code>maint_off</code> e <code>alarm_lim</code> sem esses campos. Um modelo que era exatamente um dos de fábrica antigos foi trocado pelo novo na atualização; um modelo editado foi mantido como estava.</p>
@@ -24670,8 +24670,8 @@ echo</code></pre>
 </tr>
 <tr class="odd">
 <td>A <strong>Prévia ao Vivo</strong> mostra <code>{maint}</code> ou <code>{user}</code> como texto</td>
-<td>A prévia não conhece os marcadores novos</td>
-<td>Ignore a prévia para esses marcadores; confira o corpo recebido</td>
+<td>Até a v2.9.0, a prévia não conhecia os marcadores novos</td>
+<td>Confira o corpo recebido; desde a versão seguinte a prévia os monta como o aparelho</td>
 </tr>
 <tr class="even">
 <td><strong>Pendentes:</strong> não muda</td>

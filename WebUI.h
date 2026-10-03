@@ -5116,11 +5116,17 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         }
         function _previewCustomLine(tpl, rec) { return _resolveCustom(tpl, rec, _sensorTokenResolver); }
 
-        /* Resolver da linha de alarmes — mirror do alarmFormatLine (firmware).
-           Dois domínios: rec.alarm (limite) e rec.err (falha), strings ou
-           null. {VAL} só na borda de limite; {ALARM}/{ERR} emitem o código
-           COM aspas JSON (forma composta remove a chave do outro domínio);
-           compKey segue a GRAFIA do token. */
+        /* Resolver da linha de alarmes — espelho do alarmFormatLine
+           (src/AlarmPayload.h), token a token. Três domínios, strings ou
+           ausentes: rec.alarm (limite), rec.err (falha) e rec.maint
+           (manutenção, v23). {VAL} só na borda de limite; {ALARM}/{ERR}/
+           {MAINT} e {USER} emitem COM aspas JSON, e a forma composta remove a
+           chave do campo ausente; compKey segue a GRAFIA do token. Os campos
+           da v24 chegam formatados: rec.lo/rec.hi com os decimais do canal,
+           rec.until em epoch. Parou nos tokens da v22 até 03/10/2026, e o
+           default do firmware saía com "maint":{maint} na prévia;
+           tools/test_webui_text_viewer.py agora confere os tokens contra o
+           firmware e as linhas contra os vetores do test_alarm_queue. */
         function _alarmTokenResolver(rec, tpl, ti) {
             let val = null, compKey = '', tc = 0;
             const at = (s) => tpl.substr(ti, s.length) === s;
@@ -5133,6 +5139,11 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             else if (at('{ALARM}') || at('{alarm}')) { compKey = tpl.substr(ti + 1, 5); val = rec.alarm ? '"' + rec.alarm + '"' : null; tc = 7; }
             else if (at('{ERR}') || at('{err}')) { compKey = tpl.substr(ti + 1, 3); val = rec.err ? '"' + rec.err + '"' : null; tc = 5; }
             else if (at('{SEQ}') || at('{seq}')) { compKey = tpl.substr(ti + 1, 3); val = String(rec.seq); tc = 5; }
+            else if (at('{MAINT}') || at('{maint}')) { compKey = tpl.substr(ti + 1, 5); val = rec.maint ? '"' + rec.maint + '"' : null; tc = 7; }
+            else if (at('{LO}') || at('{lo}')) { compKey = tpl.substr(ti + 1, 2); val = rec.lo || null; tc = 4; }
+            else if (at('{HI}') || at('{hi}')) { compKey = tpl.substr(ti + 1, 2); val = rec.hi || null; tc = 4; }
+            else if (at('{UNTIL}') || at('{until}')) { compKey = tpl.substr(ti + 1, 5); val = rec.until ? String(rec.until) : null; tc = 7; }
+            else if (at('{USER}') || at('{user}')) { compKey = tpl.substr(ti + 1, 4); val = rec.user ? '"' + rec.user + '"' : null; tc = 6; }
             return tc ? { val, hwid: null, compKey, tc } : null;
         }
         function _alarmCustomLine(tpl, rec) { return _resolveCustom(tpl, rec, _alarmTokenResolver); }
