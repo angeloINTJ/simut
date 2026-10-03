@@ -125,12 +125,14 @@ O que foi conferido no framework instalado (`framework-arduinopico`
 |---|---|
 | S0, só no CI | Dimensão `chip` no `features.toml`; os registradores por `watchdog_hw`/`psm_hw`; as seis imagens do RP2040 idênticas byte a byte; os tamanhos das imagens do RP2350. **Mergeado (#215, 01/10/2026):** a release no RP2350 ocupa 972.928 B de um slot de 3.141.632 B e 123.184 B de RAM estática |
 | S1, uma placa A4 | As suítes de bancada existentes; o layout de 4 MB com staging própria, que já acaba com o reformatar |
-| S2 | A/B com TBYB: imagem que nunca confirma volta em cerca de 17 s; corte de energia no meio da gravação sobe a anterior; 20 ciclos com config e histórico idênticos |
-| S3 | O que o chip compra a mais: ambiente de debug, RAM, KDF com SHA-256 em hardware, boot assinado numa placa de teste (o OTP é irreversível) |
+| S2 | A/B com TBYB ([`OTA_AB_RP2350.md`](OTA_AB_RP2350.md)): imagem que nunca confirma volta em cerca de 17 s; corte de energia no meio da gravação sobe a anterior; 20 ciclos com config e histórico idênticos |
+| S3 | O que o chip compra a mais: ambiente de debug, RAM, KDF com SHA-256 em hardware, e o procedimento de boot seguro e OTP dos aparelhos de produção (o OTP é irreversível: nunca na placa da bancada) |
 | S4 | O Air no RP2350 |
 
 Layout decidido em 01/10/2026: **1,5 MB + 1,5 MB de código e 1,0 MB de
-LittleFS** — mais espaço para código, e o histórico nos 116 dias de hoje. A
+LittleFS** — mais espaço para código, e o histórico nos 116 dias de hoje.
+Corrigido em 03/10/2026 para 1.532 + 1.532 KB e 1.020 KB, com a tabela de
+partições e a EEPROM (decisão 2). A
 outra proposta era 1,25 + 1,25 + cerca de 1,5 MB (a release ocuparia 77 % do
 slot e o histórico iria a cerca de 170 dias).
 
@@ -149,9 +151,15 @@ slot e o histórico iria a cerca de 170 dias).
    README põe no roteiro: trilha de auditoria completa (mudança de limite pela
    web não gera `alarm_lim`, achado 31), origem da hora por registro,
    exportação que acuse adulteração e relatório de lacunas.
-2. **Pico 2 W** — layout decidido em 01/10/2026: 1,5 + 1,5 + 1,0 MB. A placa
-   chega até 03/10/2026 e abre o S1; o S0 foi mergeado (#215). Falta conferir
-   se a placa é A4.
+2. **Pico 2 W** — layout decidido em 01/10/2026 como 1,5 + 1,5 + 1,0 MB e
+   corrigido em 03/10/2026: a soma era os 4.096 KB inteiros, sem lugar para a
+   tabela de partições (8 KB) nem para a EEPROM do arduino-pico (4 KB). Fica
+   tabela de 8 KB, slots A e B de 1.532 KB e LittleFS de 1.020 KB. Também em
+   03/10/2026: boot seguro e OTP nos aparelhos de produção, nunca na placa da
+   bancada; a imagem nova se confirma com a web no ar e 60 s sem falha. O
+   desenho do A/B está em [`OTA_AB_RP2350.md`](OTA_AB_RP2350.md). A placa
+   chegou em 03/10/2026; o S0 foi mergeado (#215). Falta conferir se a placa é
+   A4.
 3. **#161** — decidida em 01/10/2026: opção (a). Só marcar o alarme como
    anunciado quando a fila o aceitou, e reanunciar o que segue ativo quando
    ela voltar a ter espaço. A fila continua guardando os mais antigos, e o
