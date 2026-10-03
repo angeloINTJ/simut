@@ -801,7 +801,7 @@ private:
 	/* T1.1 quiesce protocol (stability wave 1): Core 0 raises
 	 * _quiescePlease; Core 1 parks at the top of loopCore1 (guaranteed
 	 * outside malloc/free, the event-queue spinlock and any SPI burst)
-	 * and ACKs via _core1Parked. Only then — or after a 200 ms timeout,
+	 * and ACKs via _core1Parked. Only then — or after CORE1_QUIESCE_MS,
 	 * preserving the old behavior as fallback — does Core 0 hard-reset.
 	 * This closes the "reset while holding a lock" class (R1 in
 	 * docs/CONCURRENCY.md). _quietSince feeds the leak watchdog in

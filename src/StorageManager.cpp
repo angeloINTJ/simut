@@ -1095,10 +1095,11 @@ bool StorageManager::saveConfiguration( ) {
  */
  LogManager::WdtWindow _wdt(30000);
 
- /* Enter cooperative quiet mode. Core 1 is signaled
- * to freeze in a RAM-only loop with IRQs off; Core 0 then does all
- * flash ops without attempting IRQ-based multicore_lockout per chunk (which
- * could stuck and cascade). RAII releases on any return path. */
+ /* Enter quiet mode: on the TFT, Core 1 parks and is then hard-reset for the
+ * whole save (DisplayManager::requestQuietMode), so no flash op has to lock
+ * it out by IRQ. The alpha has no quiet mode and answers false; the Air
+ * launches nothing on Core 1 and answers true. RAII releases on any return
+ * path. */
  struct BigSaveGuard {
  bool& inBigSaveRef;
  BigSaveQuietCallback cb;
@@ -1119,10 +1120,16 @@ bool StorageManager::saveConfiguration( ) {
  }
  } _bigSave(_inBigSave, _bigSaveQuietCb);
 
- /* With _inBigSave active, enterFlashSafeMode/exitFlashSafeMode skip the
- * IRQ-based lockCb (see method in StorageManager.cpp), so each
- * FLASH_OP becomes just watchdog_update + BLOCK + watchdog_update — without
- * pausing Core 1 per op (Core 1 is already frozen in the quiet loop). */
+ /* FLASH_OP never pauses Core 1 (see Core1FlashPause): this save is safe only
+ * because Core 1 is stopped for all of it. With quiet mode on, _inBigSave
+ * makes this pause a no-op — Core 1 is already down. Without it (the alpha,
+ * whose display has no quiet mode) it locks Core 1 out for the whole save.
+ * The alpha's request used to answer yes without stopping anything, and every
+ * save ran with Core 1 executing from XIP: on the bench (2026-10-03), 6
+ * watchdog resets in 30 cut uploads, each C0=[SAVE_CONFIG] C1=[DISPLAY], and
+ * metr.fx counting ~38 unguarded flash operations per save. Declared after
+ * _bigSave, so it ends first, while _inBigSave still says what it began with. */
+ Core1FlashPause _c1(this);
 
  /* Flush cursor to flash (if pending) */
  if (_tcurLoaded) {
