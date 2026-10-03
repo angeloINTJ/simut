@@ -60,7 +60,7 @@ Todo lo que hace el firmware, en detalle. El [README](../README.es-ES.md) tiene 
 
 ## Telemetría e integraciones
 - **Cuatro transportes** — HTTP, HTTPS, MQTT y MQTTS:
-  - payload en JSON, CSV o una plantilla personalizada, con una vista previa en vivo que muestra el JSON con sangría y bloques que se abren y se contraen;
+  - payload en JSON, CSV o una plantilla personalizada, con una vista previa en vivo construida con el nombre, la MAC y las lecturas del propio equipo, un registro de cada tipo, y el JSON con sangría y bloques que se abren y se contraen;
   - TLS 1.2 (ECDHE con AES-GCM), con el certificado del servidor comprobado contra un `/cert.pem` subido al dispositivo.
 - **Lotes por cantidad:**
   - `t_int` es el lote mínimo: la radio sigue apagada hasta que esperan tantos registros (0 = desactivado);

@@ -118,6 +118,14 @@ Os exemplos usam seis eventos de um aparelho com dois sensores: um DS18B20 com o
 5. A conta `joao` mudou os limites de umidade do slot 1 para 30,0 e 70,0.
 6. A janela do slot 0 venceu.
 
+Na página, a **Prévia ao Vivo** da linha mostra os três formatos com os dados deste aparelho: um registro de cada um dos dez códigos, na ordem da tabela [Os códigos](#cap-22-codigos), com os sensores, os limites, a conta e a hora dele.
+
+- O `alarm` traz a leitura de agora do primeiro sensor ativo.
+- O `alarm_lim` traz os limites de umidade de um sensor que mede umidade, ou os de temperatura quando nenhum mede.
+- O `maint_on` abre uma janela de 2 h.
+
+Os eventos são exemplos. Os campos e o formato são os que o coletor recebe.
+
 ### JSON {#cap-22-json}
 
 O corpo é um array, com um objeto por registro, montado pelo modelo **2. Linha** da linha de alarmes. Com o modelo de fábrica:
@@ -187,7 +195,7 @@ Os códigos já vêm com aspas: escreva `"alarm":{alarm}`, e não `"alarm":"{ala
 No HTTP, o corpo sai com o `Content-Type` do campo **Cabeçalho Content-Type** da linha de alarmes, que vazio vale `application/json` ([Entrega por HTTP](#cap-22-http)).
 
 ::: nota
-**A página mostra só parte dos marcadores.** O quadro de tags da página lista `{TS}`, `{ID}`, `{HWID}`, `{SLOT}`, `{CH}`, `{VAL}`, `{ALARM}`, `{ERR}` e `{SEQ}`. O aparelho também aceita `{MAINT}`, `{LO}`, `{HI}`, `{UNTIL}` e `{USER}`: digite-os no **2. Linha**. Até a v2.9.0, a **Prévia ao Vivo** não os conhecia e os mostrava como texto; desde a versão seguinte ela os monta como o aparelho. Os três registros da demonstração, uma borda de limite, uma falha e um limite silenciado, não carregam esses campos, então as chaves somem da prévia como somem do corpo. A prévia do CSV continua desatualizada: mostra 4 colunas, e o aparelho envia 8.
+**A página mostra só parte dos marcadores.** O quadro de tags da página lista `{TS}`, `{ID}`, `{HWID}`, `{SLOT}`, `{CH}`, `{VAL}`, `{ALARM}`, `{ERR}` e `{SEQ}`. O aparelho também aceita `{MAINT}`, `{LO}`, `{HI}`, `{UNTIL}` e `{USER}`: digite-os no **2. Linha**. Até a v2.9.0, a **Prévia ao Vivo** não os conhecia e os mostrava como texto, e o CSV dela tinha 4 colunas; desde a versão seguinte ela monta os marcadores e as 8 colunas como o aparelho.
 :::
 
 ::: atencao

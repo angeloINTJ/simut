@@ -60,7 +60,7 @@ Everything the firmware does, in detail. The [README](../README.md) has the summ
 
 ## Telemetry and integrations
 - **Four transports** — HTTP, HTTPS, MQTT and MQTTS:
-  - payloads in JSON, CSV or a custom template, with a live preview that shows the JSON indented, with blocks that fold;
+  - payloads in JSON, CSV or a custom template, with a live preview built from the device's own name, MAC and readings, one record of every kind, and the JSON indented with blocks that fold;
   - TLS 1.2 (ECDHE with AES-GCM), with the server certificate checked against an uploaded `/cert.pem`.
 - **Batching by quantity:**
   - `t_int` is the minimum batch: the radio stays off until that many records wait (0 = off);
