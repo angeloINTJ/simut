@@ -290,7 +290,11 @@ três vezes à `main` (badb4a8):
   porta 8080;
 - o aparelho não reiniciou, e o LittleFS voltou intacto, com o pacote pt-BR.
 
-A causa da queda não foi encontrada.
+A causa da queda não foi encontrada. A imagem do passo 2 recusa o mesmo envio
+sem gravar nada, e esse foi até o fim: 1,03 MB em 9,3 s. Isso aponta a queda
+para as gravações do stage no RP2350, sem provar. O stage da etapa 4 também
+grava a flash, no slot inativo, então essa etapa precisa mostrar um envio
+inteiro sem queda.
 
 As releases não publicam a imagem do RP2350, então ninguém a tem em campo. Mesmo
 assim, a primeira etapa de código fecha isso: a imagem do RP2350 recusa toda OTA
@@ -315,6 +319,8 @@ a etapa 3 os tira do RP2350.
 
 **No ferro (S2):**
 
+- um envio inteiro de imagem pelo stage, sem a conexão cair (os três envios ao
+  stage de hoje caíram);
 - uma imagem que nunca confirma volta em cerca de 17 s;
 - um corte de energia no meio da gravação sobe a anterior;
 - o histórico e os pacotes **ficam** numa atualização, sem `.bkp`;
