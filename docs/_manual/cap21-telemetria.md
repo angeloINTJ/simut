@@ -161,14 +161,19 @@ Use o reset depois que o coletor perdeu dados, ou ao apontar o aparelho para um 
 
 Os três modelos e o **Cabeçalho Content-Type** só aparecem, e só valem, no formato **Dinâmico** ([O cabeçalho Content-Type](#cap-21-content-type)). As opções do **Formato** têm, em inglês, os nomes *JSON Array (Standard)*, *CSV Raw (Standard)* e *Dynamic Builder (Advanced)*.
 
-A **Prévia ao Vivo** (*Live Preview*) mostra um exemplo montado com valores de demonstração, não com as suas medições. No CSV, a prévia não mostra as 34 colunas que o aparelho envia de verdade ([Formato CSV](#cap-21-csv)).
+A **Prévia ao Vivo** (*Live Preview*) mostra o corpo que o aparelho envia, montado com os dados dele: o nome em `{DEV}`, o MAC em `{MAC}`, o número de série da placa em `{DHT_ID}`, os sensores configurados com as leituras de agora e a hora do aparelho. São dois registros, um **Intervalo Histórico** um do outro:
+
+- o segundo traz as leituras atuais;
+- o primeiro mostra o primeiro sensor ativo em falha, para você ver o que o coletor recebe quando um sensor para. No JSON, a chave dele some. No CSV, a coluna fica vazia. Num modelo do **Dinâmico**, a forma composta tira a chave, e um marcador solto vira `null`.
+
+Os três formatos saem como o aparelho os monta, inclusive as 34 colunas do CSV ([Formato CSV](#cap-21-csv)). Uma legenda acima da prévia diz quando ela usa os dados do aparelho. Uma conta sem a permissão de ver o painel não lê o estado dele: aí a prévia usa valores de exemplo nos sensores configurados, e a legenda não aparece.
 
 A prévia abre em **Organizado** (*Organized*), o mesmo visor da página Arquivos ([Ver um arquivo de texto](#cap-17-ver)). Um JSON aparece indentado, e cada objeto e cada lista de mais de uma linha abre e recolhe ao toque na linha; **Expandir tudo** (*Expand all*) e **Recolher tudo** (*Collapse all*) fazem isso com todos. O que não é JSON, como o CSV, aparece com as linhas numeradas. **Original** mostra o corpo exatamente como o aparelho o envia. Os blocos recolhidos continuam recolhidos enquanto você edita os modelos, até o corpo ganhar ou perder linhas; aí tudo abre de novo.
 
 Quando o corpo parece JSON mas não é válido, a prévia o organiza pela posição das chaves e dos colchetes e avisa **JSON incompleto ou inválido**.
 
 ::: {.figura #fig-21-construtor tipo="web" arquivo="21-construtor.png" captura="rota /telemetry; largura 1280; sessão admin; bloco Construtor com Formato Dinâmico; quadro de tags visível; 1. Global com o modelo de fábrica; 2. Linha com o modelo de dois sensores da seção Exemplos deste capítulo (t0_ID, t1_ID, u1_ID e p1_ID); 3. Separador vírgula; Cabeçalho Content-Type vazio; Prévia ao Vivo preenchida"}
-Legenda: o construtor no formato **Dinâmico**, com o quadro de tags e a prévia. A prévia usa valores de demonstração.
+Legenda: o construtor no formato **Dinâmico**, com o quadro de tags e a prévia, montada com os dados do aparelho.
 :::
 
 ## Quando o aparelho envia {#cap-21-quando}
@@ -432,7 +437,7 @@ Um texto simples, uma linha por registro: **1. Global** = `{DATA}`, **2. Linha**
 Nesse último, a última linha não termina com quebra de linha: o separador só vai entre os registros.
 
 ::: atencao
-**Um modelo mal escrito produz um corpo inválido, e o aparelho envia assim mesmo.** O aparelho não valida o resultado. Confira a **Prévia ao Vivo** antes de gravar: ela avisa **JSON incompleto ou inválido** quando o exemplo não é JSON válido. Como o exemplo usa valores de demonstração, confira também o primeiro corpo que chegar ao coletor.
+**Um modelo mal escrito produz um corpo inválido, e o aparelho envia assim mesmo.** O aparelho não valida o resultado. Confira a **Prévia ao Vivo** antes de gravar: ela avisa **JSON incompleto ou inválido** quando o corpo não é JSON válido. A prévia usa as leituras de agora, e o aparelho envia as de cada registro, então confira também o primeiro corpo que chegar ao coletor.
 :::
 
 ## MQTT {#cap-21-mqtt}
