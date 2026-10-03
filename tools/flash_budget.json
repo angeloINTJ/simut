@@ -535,45 +535,45 @@
   "(ota_exempt, with the reason) and records no 'bin'; its budget still holds."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-10-03 feat/telemetry-preview-real on main 64a4457 (#237): all seven measured with the Live Preview built from this device. lang.js hands its session (the user and /api/status) to the page, and TEL_PAGE builds both lines from /api/config, /api/status, /api/alarms and that user, mirroring formatLineJsonBuf, toCsvLine under its 34-column header, formatLineCustomBuf and the alarm CSV's 8 columns, with one alarm record of every code. The zopfli arrays, from tools/build_webui_gz.py on the source before and after: TEL_PAGE 8,223 to 8,928 B (+705), LANG_JS 12,398 to 12,422 (+24); the other pages move by a byte or two with the ?v= stamp. 'used': release, test, asserts and pico2_w_release +704; test_https 0, which keeps TEL_PAGE on LittleFS; alpha and air 0, their .rodata still 434,176 and 454,656 B. The .bin moves by the same amounts. Budgets moved by the 'used' deltas, which keeps each margin; 'bin' recorded for the four that moved, and their rows in PLANO_STABLE 3.1. measured is the zopfli image PlatformIO prints.",
- "measured_at_commit": "2026-10-03 chore/v2.10.0 on main b55f588 (#239 merged; SIMUT_VERSION 2.10.0, the only source change; budgets unchanged). All seven rebuilt here: the version is one character longer, so release, test, test_https, asserts and pico2_w_release measure 8 B over the figures #239 recorded, their .bin 8 B larger too; alpha and air equal, .bin included, because the 8 B land in the padding of their page-aligned .rodata. test_https now sits exactly on its budget. measured is the zopfli image PlatformIO prints.",
+ "measured_on": "2026-10-03 fix/alpha-save-parks-core1 on main 098a470 (v2.10.0): all seven measured with saveConfiguration holding a Core1FlashPause, a no-op under the TFT's quiet mode, and the alpha's Core 1 loop answering the park. 'used': release, air and pico2_w_release +16; test, test_https and asserts +8; alpha +152 (the park, the sleeps a park cuts short, and the pause). The .bin moves by 16 on release and pico2_w_release and by 8 on test and asserts; alpha and air keep theirs, inside the padding of their page-aligned .rodata. Budgets moved by the 'used' deltas, which keeps each margin; 'bin' recorded for the four that moved, and their rows in PLANO_STABLE 3.1. measured is the zopfli image PlatformIO prints.",
+ "measured_at_commit": "2026-10-03 fix/alpha-save-parks-core1 on main 098a470: the seven images built from this branch's source, the release's and the Air's against the v2.10.0 tag's by the same build. measured is the zopfli image PlatformIO prints.",
  "ota_exempt": {
   "pico_w_test_https": "A bench image: the one with the full console and the TLS server together, for the HTTPS suites (AGENTS.md). It reaches the rig over USB, and release-ota.yml does not publish it. #232 (2026-10-02) left it 147 B under OTA_APP_SAFE_MAX_SIZE, and keeping it there meant cutting code the product images ship too, or moving more of its pages to LittleFS. Over the ceiling the device refuses to stage it, which costs only installing this image over the air; its flash budget still holds. Exempt since 2026-10-02 (docs/analysis/PLANO_STABLE.md, B6)."
  },
  "envs": {
   "pico_w_release": {
-   "budget": 1020476,
-   "measured": 1020372,
-   "bin": 1032404
+   "budget": 1020492,
+   "measured": 1020388,
+   "bin": 1032420
   },
   "pico_w_test": {
-   "budget": 1025588,
-   "measured": 1024956,
-   "bin": 1036988
+   "budget": 1025596,
+   "measured": 1024964,
+   "bin": 1036996
   },
   "pico_w_test_https": {
-   "budget": 1030052,
-   "measured": 1030052
+   "budget": 1030060,
+   "measured": 1030060
   },
   "pico_w_asserts": {
-   "budget": 1022708,
-   "measured": 1022676,
-   "bin": 1034708
+   "budget": 1022716,
+   "measured": 1022684,
+   "bin": 1034716
   },
   "pico_w_alpha": {
-   "budget": 975124,
-   "measured": 974604,
+   "budget": 975276,
+   "measured": 974756,
    "bin": 990380
   },
   "pico_w_air": {
-   "budget": 1018368,
-   "measured": 1018056,
+   "budget": 1018384,
+   "measured": 1018072,
    "bin": 1031244
   },
   "pico2_w_release": {
-   "budget": 993248,
-   "measured": 993024,
-   "bin": 1005336,
+   "budget": 993264,
+   "measured": 993040,
+   "bin": 1005352,
    "ceiling": 3141632
   }
  }
