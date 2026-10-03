@@ -57,7 +57,7 @@ falha antes (`CLAUDE.md`, *Tests first*).
 | Linha de alarmes por MQTT: ACK nunca lido com a telemetria desligada; a fila não cabe no buffer de 2.048 B (achados 28 e 29) | Mergeado (#208, 01/10), na v2.9.0. Provado na bancada: fila presa em 5/16 e maior lote de 2.001 B na main; fila 0 e lote de 2.794 B com o PR |
 | `isTimeSynced( )` sempre verdadeiro (achado 66) | Mergeado (#209, 01/10), na v2.9.0. Provado na bancada: com o NTP desligado a main diz `ntp=1` com o relógio em 1970; o PR diz 0 |
 | Com NTP ligado e sem servidor alcançável, o aparelho nunca chega a `NET_READY`, e telemetria e linha de alarmes esperam para sempre (achado 20). Documentado no manual, cap. 10, mas é armadilha para a LAN sem internet que o README promete | A fazer: desenho (sair para `NET_READY` depois de N falhas e seguir tentando o NTP). Presente na v2.9.0: `NET_CONNECTED_WAIT_NTP` só sai com o NTP respondendo |
-| Os achados de severidade alta que restam: 12 dos 17 (tabela abaixo; 28, 29, 48, 63 e 64 corrigidos) | Um PR por grupo |
+| Os achados de severidade alta que restam: 9 dos 17 (tabela abaixo; 28, 29, 48, 63 e 64 corrigidos, e 6, 18 e 38 no #234) | Um PR por grupo. O #234 fecha o grupo do ensaio inteiro: os três altos e os quatro médios (5, 17, 21, 69). O ensaio e o **Testar** escrevem só na cópia; fuso e sons valem com o reinício da gravação |
 
 ## Fase 2 — os itens de firmware da revisão
 
@@ -178,7 +178,7 @@ Achados da redação do manual da v2.7.1, feitos lendo o código. Conferidos em
 01/10 contra `origin/main` (`2721eb2`): **72 presentes, 3 corrigidos** (56,
 59, 75). Nenhum foi reproduzido no ferro. Até a v2.9.0 (02/10), mais seis
 corrigidos, cada um com a prova no PR: 28 e 29 (#208), 48 (#204), 63 e 64
-(#203) e 66 (#209). Restam 66. Severidade do ponto de vista de um
+(#203) e 66 (#209). Depois dela, os sete do grupo do ensaio: 5, 6, 17, 18, 21, 38 e 69 (#234). Restam 59. Severidade do ponto de vista de um
 monitor de cadeia fria: **alta** perde ou corrompe medição, alarme ou config,
 trava o boot ou abre brecha de segurança; **média** é comportamento errado que
 o usuário nota ou contrato de API quebrado; **baixa** é cosmético, de
@@ -189,10 +189,10 @@ documentação ou de comentário.
 | # | Grupo | Onde | O que acontece |
 |---|---|---|---|
 | 1 | slot | `WebManager_Calib.cpp` | "Adotar a sonda" lê o GPIO de número igual ao slot e grava `pins[0]=slot`; sem reload, a divergência volta a cada 5 leituras |
-| 6, 38 | ensaio | `WebManager_Commit.cpp` | Sons e mudo aplicados ao vivo durante o ensaio (`_dry`) que a página manda a cada edição |
+| 6, 38 | ensaio | `WebManager_Commit.cpp` | Sons e mudo aplicados ao vivo durante o ensaio (`_dry`) que a página manda a cada edição. Corrigido (#234) |
 | 8 | PIN | `AppManager_Panel.cpp` | No painel, quem tem Usuários concede bits que não tem, inclusive a si mesmo |
 | 9 | PIN | `AppManager_Panel.cpp` | A troca obrigatória de PIN é pulada com SAIR, inclusive o `1234` de fábrica |
-| 18 | ensaio | `WebManager_Commit.cpp` | O ensaio aplica o fuso de verdade |
+| 18 | ensaio | `WebManager_Commit.cpp` | O ensaio aplica o fuso de verdade. Corrigido (#234) |
 | 20 | NTP | `NetworkManager.cpp` | Com NTP ligado e sem servidor, nunca `NET_READY`: telemetria e alarmes esperam |
 | 25 | AP | `NetworkManager.cpp` | O AP aberto no boot nunca expira |
 | 28 | alarmes | `TelemetryManager.cpp` | ACK do MQTT nunca lido com a telemetria desligada. Corrigido (#208) |
@@ -211,7 +211,7 @@ documentação ou de comentário.
 |---|---|---|
 | 2 | busca | A busca pela web varre GP0–GP16, inclusive pinos ativos, e não recarrega os sensores |
 | 3, 19, 60 | campo morto | `s_int`, `log` e "Resetar época" são gravados e ninguém lê |
-| 5, 17, 21, 69 | ensaio | Campos de overlay fora do ensaio; o ensaio grava auditoria; `_nosave` muda a RAM |
+| 5, 17, 21, 69 | ensaio | Campos de overlay fora do ensaio; o ensaio grava auditoria; `_nosave` muda a RAM. Corrigidos (#234) |
 | 7, 10, 12, 13 | PIN | PIN pela web ignora a política; recusas somem da página; política de PIN pela web reinicia; a web não edita permissões |
 | 14, 31 | alarmes | "Dois ciclos" não são 10 s; mudança de limite pela web não gera `alarm_lim` |
 | 26, 46 | OTA | O par TLS e a origem CORS não atravessam a OTA |

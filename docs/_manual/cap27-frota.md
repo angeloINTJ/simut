@@ -245,7 +245,7 @@ Monte o `_payload` de cada aparelho juntando o modelo com os campos dele. Mande 
 7. Guarde o novo `cfg` de `GET /api/status`. Ele passa a ser a referência daquele aparelho.
 
 ::: atencao
-**O ensaio tem pontos cegos.** Ele aceita só as seções `sys`, `net` e `alarms`; não enxerga `h_int`, `ntp_enabled`, `slog_*`, `m_had`, `dns_auto`, `dns2` e `web_ka`; e aplica de verdade o fuso e os sons ([capítulo 26](#cap-26-commit)). [air]{.img} O Air recusa o ensaio: nele, cada gravação é real e reinicia. Teste o modelo primeiro num aparelho de bancada da mesma imagem.
+**O ensaio aceita só as seções `sys`, `net`, `alarms` e `users`** ([capítulo 26](#cap-26-commit)). Até a v2.9.0, ele também não enxergava `h_int`, `ntp_enabled`, `slog_*`, `m_had`, `dns_auto`, `dns2` e `web_ka`, e aplicava de verdade o fuso e os sons. [air]{.img} O Air recusa o ensaio: nele, cada gravação é real e reinicia. Teste o modelo primeiro num aparelho de bancada da mesma imagem.
 :::
 
 ### Um exemplo em Python {#cap-27-exemplo-lote}

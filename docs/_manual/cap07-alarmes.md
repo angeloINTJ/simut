@@ -196,8 +196,8 @@ O botão de teste toca a melodia escolhida no navegador, não na cigarra do apar
 
 Ligar **Mudo Global** desliga as outras seis chaves; ligar qualquer uma delas desliga **Mudo Global**.
 
-::: atencao
-**Uma mudança de som preparada já vale no aparelho.** Na v2.7.1, a consulta que a página faz ao aparelho para decidir se a mudança exige reinício aplica os sons na memória do aparelho antes da gravação. Ligar **Mudo Global** na página, por exemplo, pode calar a cigarra antes de você gravar, e continua assim até um reinício se você desistir. Grave ou descarte as mudanças de som logo em seguida.
+::: nota
+**Até a v2.9.0, uma mudança de som preparada já valia no aparelho.** O ensaio que a página faz para decidir se a mudança exige reinício aplicava os sons à cigarra antes da gravação: ligar **Mudo Global** na página calava até um alarme tocando, mesmo que você desistisse. Desde a versão seguinte, o ensaio não mexe no som em uso, e a mudança vale depois do reinício que **Salvar e reiniciar** faz.
 :::
 
 ## O menu de alarmes do painel {#cap-07-painel}

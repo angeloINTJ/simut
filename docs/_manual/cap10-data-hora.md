@@ -106,8 +106,8 @@ O fuso decide:
 
 Os registros do histórico guardam o instante em UTC. Mudar o fuso não altera os registros já gravados.
 
-::: atencao
-**Digitar no campo Fuso Horário já muda o fuso em uso.** Cerca de 0,6 s depois de você digitar, a página pede ao aparelho o ensaio da alteração ([capítulo 5](#cap-05-ensaio)), e esse ensaio aplica o fuso novo à hora em uso sem gravá-lo. O painel e o histórico passam a usar o fuso digitado até o próximo reinício, ou até a próxima reconexão à rede com o NTP ligado, mesmo que você desista da alteração. Se isso acontecer, reinicie o aparelho para voltar ao fuso gravado. No Air isso não acontece, porque ele recusa o ensaio.
+::: nota
+**Até a v2.9.0, digitar no campo Fuso Horário já mudava o fuso em uso.** O ensaio da alteração ([capítulo 5](#cap-05-ensaio)) aplicava o fuso novo à hora em uso, sem gravá-lo, mesmo que você desistisse. Desde a versão seguinte, o fuso só muda com o reinício que a gravação faz.
 :::
 
 ## Acerto manual {#cap-10-manual}

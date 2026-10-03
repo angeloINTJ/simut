@@ -731,7 +731,7 @@ Para entrar na rota, a conta precisa de pelo menos uma entre **Sistema**, **Rede
 | `_nosave=1` | Aplica na memória, sem gravar. Um reinício desfaz. Recusa com `409` se a mudança exigir reinício | **Testar** |
 | `_reboot=1` | Grava e reinicia sempre, mesmo sem necessidade | **Salvar e reiniciar** |
 
-`_dry` e `_nosave` só aceitam as seções `sys`, `net` e `alarms`. Com qualquer outra, a resposta é `400` `{"error":"accepts sys, net and alarms only"}`. [air]{.img} O Air recusa os dois com `400` `{"error":"dry run not available on this build"}`: no Air, toda gravação é real e reinicia ([capítulo 5](#cap-05-air)).
+`_dry` aceita as seções `sys`, `net`, `alarms` e `users`; `_nosave`, só `sys`, `net` e `alarms`. Com outra, a resposta é `400` `{"error":"accepts sys, net and alarms only, and users in a dry run"}`. [air]{.img} O Air recusa os dois com `400` `{"error":"dry run not available on this build"}`: no Air, toda gravação é real e reinicia ([capítulo 5](#cap-05-air)).
 
 **A resposta.** Ela diz o que aconteceu. Leia sempre o corpo: um campo recusado volta com status 200.
 
@@ -743,7 +743,7 @@ Para entrar na rota, a conta precisa de pelo menos uma entre **Sistema**, **Rede
 {"status":"ok","reboot":false,"applied":[],"rejected":["t_port"]}
 {"status":"ok","reboot":false,"saved":false,"applied":["alarms"]}
 {"status":"dry","reboot":true,"applied":["time"],"reboot_for":["time"]}
-{"status":"ok","reboot":true,"reboot_for":["users"],"creds":[{"u":"operador1","p":"K7M2QX9A"}]}
+{"status":"ok","reboot":false,"applied":["users"],"creds":[{"u":"operador1","p":"K7M2QX9A"}]}
 ```
 
 | Campo | Significado |
@@ -761,18 +761,22 @@ Para entrar na rota, a conta precisa de pelo menos uma entre **Sistema**, **Rede
 
 | Grupos | Efeito |
 |---|---|
-| `alarms`, `maint`, `alarm_tel`, `telemetry`, `display` | Aplicam sem reiniciar |
-| `net`, `identity`, `users`, `slots`, `sensing`, `mqtt`, `time`, `web`, `unclassified` | Reiniciam |
+| `alarms`, `maint`, `alarm_tel`, `telemetry`, `display`, `users` | Aplicam sem reiniciar |
+| `net`, `identity`, `slots`, `sensing`, `mqtt`, `time`, `web`, `unclassified` | Reiniciam |
 
-Quatro campos sem efeito, `s_int`, `log` e dois que só o arquivo de configuração carrega, não entram em grupo nenhum e gravam sem reiniciar, desde a v2.7.4. Até a v2.7.3 eles caíam em `sensing`, `logging`, `net` e `display_pin`, e reiniciavam o aparelho. O que cada grupo inclui está em [Os grupos de configuração](#cap-05-grupos). Qualquer alteração de conta ou de PIN, e também da política de PIN, cai em `users` e reinicia. Não copie essa tabela para o seu cliente: use o ensaio, que responde pela regra do próprio aparelho.
+Quatro campos sem efeito, `s_int`, `log` e dois que só o arquivo de configuração carrega, não entram em grupo nenhum e gravam sem reiniciar, desde a v2.7.4. Até a v2.7.3 eles caíam em `sensing`, `logging`, `net` e `display_pin`, e reiniciavam o aparelho. O que cada grupo inclui está em [Os grupos de configuração](#cap-05-grupos). Qualquer alteração de conta ou de PIN, e também da política de PIN, cai em `users`, que se aplica sem reiniciar desde a versão seguinte à v2.9.0 (até a v2.9.0, reiniciava). Não copie essa tabela para o seu cliente: use o ensaio, que responde pela regra do próprio aparelho.
 
 Quando há reinício, a resposta chega antes dele. O aparelho fica fora do ar por alguns segundos e encerra todas as sessões. Para saber quando ele voltou, repita `GET /api/login_init` a cada 3 s até ele responder, e entre de novo.
 
-**O ensaio.** Use `_dry=1` para validar uma configuração antes de gravá-la, por exemplo antes de mandá-la a vários aparelhos ([capítulo 27](#cap-27)). O ensaio tem três limites:
+**O ensaio.** Use `_dry=1` para validar uma configuração antes de gravá-la, por exemplo antes de mandá-la a vários aparelhos ([capítulo 27](#cap-27)). Ele roda numa cópia e não mexe no aparelho: não grava e não aplica nada.
 
-- **Não enxerga alguns campos.** `h_int`, `ntp_enabled`, `slog_en`, `slog_srv`, `slog_port`, `slog_lvl`, `m_had`, `dns_auto`, `dns2` e `web_ka` ficam de fora da cópia que ele compara. Um ensaio só com esses campos responde `"reboot":false` e `"applied":[]`, mas a gravação real reinicia pelo grupo `web`. O `_nosave=1` também não os aplica.
-- **Aplica o fuso horário de verdade.** Um `tz` no ensaio muda na hora a hora local que o aparelho mostra, até o próximo reinício ou a próxima gravação de fuso.
-- **Aplica os sons de verdade.** Um objeto `sounds` no ensaio muda na hora volume, melodias e silêncio do aparelho, sem gravar.
+Até a v2.9.0, o ensaio tinha três limites, corrigidos na versão seguinte:
+
+- não enxergava `h_int`, `ntp_enabled`, `slog_*`, `m_had`, `dns_auto`, `dns2` e `web_ka`, e respondia `"reboot":false` onde a gravação real reiniciava pelo grupo `web`;
+- aplicava o fuso horário de verdade;
+- aplicava os sons de verdade, inclusive o silêncio.
+
+O `_nosave=1` tinha os mesmos três efeitos. Com um desses campos e outro que exigisse reinício, ele respondia `409` com a memória já alterada.
 
 ::: atencao
 **A origem CORS é gravada na hora, mas só vale depois de um reinício.** A chave `cors` grava o arquivo da origem em qualquer modo, menos no ensaio, e não altera nenhum grupo: a resposta não pede reinício. Para ativá-la, mande a mesma gravação com `_reboot=1` ou reinicie depois com `POST /api/action?op=reboot`.
@@ -841,7 +845,7 @@ curl -s -b jar -X POST "$H/api/commit_all" --data-urlencode \
 ```
 
 ```json
-{"status":"ok","reboot":true,"reboot_for":["users"],"creds":[{"u":"operador1","p":"K7M2QX9A"}]}
+{"status":"ok","reboot":false,"applied":["users"],"creds":[{"u":"operador1","p":"K7M2QX9A"}]}
 ```
 
 A senha de uso único vem em `creds`, só nesta resposta: o aparelho guarda apenas o resumo. Guarde-a ou entregue-a na hora. Ela tem 8 caracteres, entre letras maiúsculas e algarismos, sem `O`, `0`, `I` e `1`. Na primeira entrada, a conta nova precisa trocar a senha ([Troca de senha](#cap-26-troca)).
@@ -855,7 +859,7 @@ A senha de uso único vem em `creds`, só nesta resposta: o aparelho guarda apen
 
 Para um PIN que funcione nos dois lados, use só algarismos, com um comprimento entre o maior de 4 e `pin_min` e o menor de 8 e `pin_max`, lidos em `GET /api/config`. Se a política exige mais de 8 caracteres, defina o PIN no próprio painel ([capítulo 8](#cap-08-proprio-pin)).
 
-**Tudo em `users` reinicia.** Criar, apagar, resetar e definir PIN mudam o grupo `users`, e o aparelho reinicia depois de responder. Agrupe as ações num único pedido: três criações em pedidos separados custam três reinícios. Depois de cada gravação de contas, entre de novo.
+**`users` se aplica sem reiniciar** desde a versão seguinte à v2.9.0. Criar, apagar, resetar e definir PIN valem na hora: a sessão de uma conta apagada ou resetada termina na requisição seguinte (`401`), e as outras continuam. A exceção é o primeiro PIN do `admin`, que também apaga a marca de troca obrigatória, na área de extensão: esse pedido reinicia pelo grupo `web`. Até a v2.9.0, toda gravação de contas reiniciava o aparelho e encerrava todas as sessões.
 
 **Recusas.** Uma ação recusada não impede as outras. A resposta traz o motivo em `rejected`, com status 200:
 

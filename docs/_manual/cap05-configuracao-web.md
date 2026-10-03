@@ -96,8 +96,8 @@ O aparelho classifica cada alteração comparando a configuração de antes com 
 | `maint` | Janelas de manutenção | **Alarmes e Sons** ([capítulo 7](#cap-07)) | Sim |
 | `alarm_tel` | Linha de alarmes: ligada, fila, formato, modelos, `Content-Type` e caminho | **Telemetria** ([capítulo 22](#cap-22)) | Sim |
 | `telemetry` | Telemetria pelo lado HTTP: servidor, porta, caminho, chave, lote mínimo e máximo, formato, modelos e `Content-Type` | **Telemetria** ([capítulo 21](#cap-21)) | Sim |
-| `users` | Política de PIN do painel | **Configurações** ([Hardware](#cap-05-hardware)) | Não: reinicia (pelo painel, vale sem reinício) |
-| `users` | Contas | **Usuários** ([capítulo 8](#cap-08)) | Não: o ensaio é recusado |
+| `users` | Política de PIN do painel | **Configurações** ([Hardware](#cap-05-hardware)) | Sim |
+| `users` | Contas | **Usuários** ([capítulo 8](#cap-08)) | Sim, sem **Testar** |
 | `display` | Tema e idioma do painel | Nenhuma página grava estes campos por aqui | Sim |
 | `identity` | Nome do aparelho | **Configurações** | Não |
 | `time` | Fuso horário e servidor NTP | **Configurações**, **Rede** | Não |
@@ -114,8 +114,8 @@ O tema do painel tem gravação própria, pelo **Painel de Controle**, e não pa
 **Por que esses grupos reiniciam.** Vários subsistemas leem a configuração uma única vez, ao ligar: o servidor web fixa porta e protocolo ao subir, o cliente MQTT fixa o servidor, o certificado da telemetria é lido uma vez e os slots de sensor montam o circuito de leitura inteiro. Reiniciar é o único jeito de todos relerem o valor novo.
 :::
 
-::: atencao
-**O ensaio não enxerga alguns campos.** O intervalo do histórico, o interruptor do NTP, os campos do syslog, o Home Assistant Discovery, o DNS automático, o DNS secundário e as conexões persistentes são gravados na área de extensão, e o ensaio não os escreve na cópia que compara. Se o conjunto preparado só tem esses campos, o selo pode mostrar **Não exige reinício**. Nesse caso, **Aplicar agora** grava e reinicia o aparelho mesmo assim, e **Testar** não aplica esses campos. Para alterá-los, use **Salvar e reiniciar**.
+::: nota
+**Até a v2.9.0, o ensaio não enxergava a área de extensão.** O intervalo do histórico, o interruptor do NTP, os campos do syslog, o Home Assistant Discovery, o DNS automático, o DNS secundário e as conexões persistentes ficavam fora da cópia que ele compara: o selo podia mostrar **Não exige reinício**, e **Aplicar agora** reiniciava mesmo assim. Desde a versão seguinte, esses campos entram no ensaio pelo grupo `web`, e o selo mostra **Reinicia por: web**.
 :::
 
 ### Valores recusados {#cap-05-recusados}
