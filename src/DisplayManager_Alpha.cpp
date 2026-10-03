@@ -108,9 +108,31 @@ void DisplayManager::loopCore1( ) {
 	uint8_t  showNetCnt = 0;
 	bool     showNetwork = false;
 
+	/* Every sleep of this loop, cut short when Core 0 asks for the park below:
+	 * pauseRendering( ) spins until the ACK, and a plain delay( ) made it wait
+	 * out the rest of a 100, 300 or 500 ms sleep first. */
+	auto sleepUnlessParking = [this](uint32_t ms) {
+		const uint32_t t0 = millis( );
+		while (!__atomic_load_n(&_quiescePlease, __ATOMIC_ACQUIRE) && millis( ) - t0 < ms) delay(1);
+	};
+
 	while (true) {
 		TRACE_MOD(1, MOD_DISPLAY);
 		TRACE_BEAT(1);
+
+		/* The park a flash pause waits for, the T1.1 handshake the TFT's loop
+		 * answers: here, at the top of the loop, this core holds no lock and is
+		 * in no LCD write, so the IRQ lockout that follows freezes it where it
+		 * can do no harm. Until 2026-10-03 this loop never answered, so every
+		 * pause on the alpha (the history each minute, the log, the boot's
+		 * writes) spun CORE1_QUIESCE_MS, 1.2 s, before the lockout. */
+		if (__atomic_load_n(&_quiescePlease, __ATOMIC_ACQUIRE)) {
+			__atomic_store_n(&_core1Parked, true, __ATOMIC_RELEASE);
+			while (__atomic_load_n(&_quiescePlease, __ATOMIC_ACQUIRE)) {
+				_lastHeartbeat = millis( );
+			}
+			__atomic_store_n(&_core1Parked, false, __ATOMIC_RELEASE);
+		}
 		_lastHeartbeat = millis( );
 
 		/* Update WiFi signal icon (slot 7) based on RSSI */
@@ -118,8 +140,8 @@ void DisplayManager::loopCore1( ) {
 
 		/* ── FIRMWARE UPDATE (OtaScreen.h) ───────────────────────────
 		 * Ahead of every screen but a reboot's. Core 0 publishes each step
-		 * and never writes this LCD itself: this loop does not park for a
-		 * flash pause, so a pause can freeze it halfway through a write.
+		 * and never writes this LCD itself: a pause whose park times out
+		 * freezes this loop wherever it is, halfway through a write too.
 		 * Before a step that freezes the panel, Core 0 waits for this pass
 		 * to have printed the phase (_otaDrawnSeq); the stage then holds
 		 * "Atualizando..." on the glass for the whole upload. */
@@ -140,7 +162,7 @@ void DisplayManager::loopCore1( ) {
 				_lcd.setCursor(0, 1); _lcd.print(row1);
 				_lcd.blit( );
 				__atomic_store_n(&_otaDrawnSeq, otaSeqOf(otaSt), __ATOMIC_RELEASE);
-				delay(100);
+				sleepUnlessParking(100);
 				continue;
 			}
 		}
@@ -279,7 +301,7 @@ void DisplayManager::loopCore1( ) {
 			alphaMarquee(_lcd, 1, apVal, apStep);
 			apStep++;
 			_lcd.blit( );
-			delay(AP_SCROLL_MS);
+			sleepUnlessParking(AP_SCROLL_MS);
 			continue;
 
 		} else {
@@ -383,7 +405,7 @@ void DisplayManager::loopCore1( ) {
 		}
 
 		_lcd.blit( );
-		delay(500);
+		sleepUnlessParking(500);
 	}
 }
 /* The update screen is this core's to print (the branch at the top of the loop). */
@@ -483,8 +505,15 @@ bool DisplayManager::getActiveWebDictSource(const char** path, uint32_t* offset,
 	if (len) *len = 0;
 	return true;
 }
+/* No quiet mode on the alpha, and the answer says so: false tells
+ * saveConfiguration( ) that Core 1 was NOT parked, so each of its flash writes
+ * pauses Core 1 by itself (FLASH_OP, pauseRendering( )), as the history and the
+ * log already do. This answered true from the alpha's first build (8dd2bcf,
+ * 2026-06-06) with Core 1 still drawing the LCD from the flash being written.
+ * On the bench (2026-10-03) the third of three refused updates in a row ended
+ * in a watchdog reset inside that save: C0=[SAVE_CONFIG] C1=[DISPLAY]. */
 void DisplayManager::releaseQuietMode( ){}
-bool DisplayManager::requestQuietMode(uint32_t){return true;}
+bool DisplayManager::requestQuietMode(uint32_t){return false;}
 void DisplayManager::setTopSlotMinMax(float,float,float,float){}
 void DisplayManager::showSettingsLang(int){}
 void DisplayManager::showSystemStatus( ){}
