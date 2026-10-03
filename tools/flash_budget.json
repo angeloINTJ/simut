@@ -536,29 +536,29 @@
  ],
  "ceiling": 1044480,
  "measured_on": "2026-10-03 feat/telemetry-preview-real on main 64a4457 (#237): all seven measured with the Live Preview built from this device. lang.js hands its session (the user and /api/status) to the page, and TEL_PAGE builds both lines from /api/config, /api/status, /api/alarms and that user, mirroring formatLineJsonBuf, toCsvLine under its 34-column header, formatLineCustomBuf and the alarm CSV's 8 columns, with one alarm record of every code. The zopfli arrays, from tools/build_webui_gz.py on the source before and after: TEL_PAGE 8,223 to 8,928 B (+705), LANG_JS 12,398 to 12,422 (+24); the other pages move by a byte or two with the ?v= stamp. 'used': release, test, asserts and pico2_w_release +704; test_https 0, which keeps TEL_PAGE on LittleFS; alpha and air 0, their .rodata still 434,176 and 454,656 B. The .bin moves by the same amounts. Budgets moved by the 'used' deltas, which keeps each margin; 'bin' recorded for the four that moved, and their rows in PLANO_STABLE 3.1. measured is the zopfli image PlatformIO prints.",
- "measured_at_commit": "2026-10-02 chore/v2.9.0 on main e5cd23b (#224 merged; SIMUT_VERSION 2.9.0, the only source change; budgets unchanged). All seven rebuilt here: test, alpha, air and pico2_w_release equal to the figures #224 recorded, release, test_https and asserts 8 B under them. measured is the zopfli image PlatformIO prints.",
+ "measured_at_commit": "2026-10-03 chore/v2.10.0 on main b55f588 (#239 merged; SIMUT_VERSION 2.10.0, the only source change; budgets unchanged). All seven rebuilt here: the version is one character longer, so release, test, test_https, asserts and pico2_w_release measure 8 B over the figures #239 recorded, their .bin 8 B larger too; alpha and air equal, .bin included, because the 8 B land in the padding of their page-aligned .rodata. test_https now sits exactly on its budget. measured is the zopfli image PlatformIO prints.",
  "ota_exempt": {
   "pico_w_test_https": "A bench image: the one with the full console and the TLS server together, for the HTTPS suites (AGENTS.md). It reaches the rig over USB, and release-ota.yml does not publish it. #232 (2026-10-02) left it 147 B under OTA_APP_SAFE_MAX_SIZE, and keeping it there meant cutting code the product images ship too, or moving more of its pages to LittleFS. Over the ceiling the device refuses to stage it, which costs only installing this image over the air; its flash budget still holds. Exempt since 2026-10-02 (docs/analysis/PLANO_STABLE.md, B6)."
  },
  "envs": {
   "pico_w_release": {
    "budget": 1020476,
-   "measured": 1020364,
-   "bin": 1032396
+   "measured": 1020372,
+   "bin": 1032404
   },
   "pico_w_test": {
    "budget": 1025588,
-   "measured": 1024948,
-   "bin": 1036980
+   "measured": 1024956,
+   "bin": 1036988
   },
   "pico_w_test_https": {
    "budget": 1030052,
-   "measured": 1030044
+   "measured": 1030052
   },
   "pico_w_asserts": {
    "budget": 1022708,
-   "measured": 1022668,
-   "bin": 1034700
+   "measured": 1022676,
+   "bin": 1034708
   },
   "pico_w_alpha": {
    "budget": 975124,
@@ -572,8 +572,8 @@
   },
   "pico2_w_release": {
    "budget": 993248,
-   "measured": 993016,
-   "bin": 1005328,
+   "measured": 993024,
+   "bin": 1005336,
    "ceiling": 3141632
   }
  }

@@ -30,7 +30,7 @@ O selo da barra de topo mostra a resposta:
 | **Reinicia por:** (*Restarts for*) seguido dos grupos | O ensaio respondeu que algum grupo exige reinício | Só **Salvar e reiniciar** |
 | **Não exige reinício** (*No restart needed*) | O ensaio respondeu que tudo se aplica sem reiniciar | **Testar**, **Aplicar agora** e **Salvar e reiniciar** |
 
-O aparelho recusa o ensaio quando o conjunto inclui slots de sensor ou calibração ([capítulo 6](#cap-06)). Essas alterações só se gravam com **Salvar e reiniciar**. Contas ([capítulo 8](#cap-08)) passam pelo ensaio desde a versão seguinte à v2.9.0, mas sem **Testar**: uma conta não se testa. No SIMUT Air, o ensaio é sempre recusado ([No SIMUT Air](#cap-05-air)).
+O aparelho recusa o ensaio quando o conjunto inclui slots de sensor ou calibração ([capítulo 6](#cap-06)). Essas alterações só se gravam com **Salvar e reiniciar**. Contas ([capítulo 8](#cap-08)) passam pelo ensaio desde a v2.10.0, mas sem **Testar**: uma conta não se testa. No SIMUT Air, o ensaio é sempre recusado ([No SIMUT Air](#cap-05-air)).
 
 Os grupos aparecem com o nome curto que o aparelho usa, em inglês, como `time` ou `alarms`. Com **Não exige reinício**, pare o ponteiro sobre o selo para ver a lista dos grupos. A tabela de [Os grupos de configuração](#cap-05-grupos) diz o que cada nome inclui.
 
@@ -115,7 +115,7 @@ O tema do painel tem gravação própria, pelo **Painel de Controle**, e não pa
 :::
 
 ::: nota
-**Até a v2.9.0, o ensaio não enxergava a área de extensão.** O intervalo do histórico, o interruptor do NTP, os campos do syslog, o Home Assistant Discovery, o DNS automático, o DNS secundário e as conexões persistentes ficavam fora da cópia que ele compara: o selo podia mostrar **Não exige reinício**, e **Aplicar agora** reiniciava mesmo assim. Desde a versão seguinte, esses campos entram no ensaio pelo grupo `web`, e o selo mostra **Reinicia por: web**.
+**Até a v2.9.0, o ensaio não enxergava a área de extensão.** O intervalo do histórico, o interruptor do NTP, os campos do syslog, o Home Assistant Discovery, o DNS automático, o DNS secundário e as conexões persistentes ficavam fora da cópia que ele compara: o selo podia mostrar **Não exige reinício**, e **Aplicar agora** reiniciava mesmo assim. Desde a v2.10.0, esses campos entram no ensaio pelo grupo `web`, e o selo mostra **Reinicia por: web**.
 :::
 
 ### Valores recusados {#cap-05-recusados}

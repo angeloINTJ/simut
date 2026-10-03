@@ -246,7 +246,7 @@ aparelho no dia em que um campo mudar de classe.
 
 **O que aplica ao vivo** — alarmes · manutenção · 2ª linha de alarmes ·
 telemetria pelo lado HTTP · tema e idioma · contas, PIN do painel e política de
-PIN (depois da v2.9.0). Uma sessão web cuja conta foi apagada, cujo slot passou a
+PIN (desde a v2.10.0). Uma sessão web cuja conta foi apagada, cujo slot passou a
 outro nome ou cuja senha outra pessoa definiu termina no pedido seguinte, com 401
 e o código 312 no log.
 

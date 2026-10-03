@@ -4,6 +4,283 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.10.0 (2026-10-03)
+
+**Telemetry no longer loses records when the clock goes back, and saving
+accounts no longer restarts the device. The configuration page's dry run no
+longer changes the running device, a restore cut off halfway keeps the files it
+finished, and an alarm limit that is not a number is refused instead of
+becoming 0.**
+
+`CONFIG_VERSION` stays at 26: the configuration file is the same, and v2.9.0
+reads it. Most of this release answers the outside review of v2.7.3
+(`docs/analysis/PLANO_REVISAO_EXTERNA.md`): items A-04, A-07, A-08, A-10, A-14
+and A-15, and nine of its code findings, five of them high. Seven high findings
+remain.
+
+### Telemetry sends a record by where it was written (#232)
+
+Until v2.9.0 the telemetry cursor was one timestamp: a record went out when it
+was newer than the newest one sent. A block written after another but stamped
+before it stayed behind the mark and was never sent, while the page said nothing
+was pending. A clock that goes back does exactly that: the boot's provisional
+clock corrected by NTP, or a clock set by hand. On the bench it lost 6 of 75,778
+records on 2026-09-21 and 1 of 13,671 in an Air's drain on 2026-09-23. With the
+clock 40 minutes ahead and then put back, the code before this release sent none
+of the 7 records written after the change and showed 0 pending; this release
+sent all 7.
+
+The cursor is now a write position: for each day file, the position of the next
+record not yet sent. The history format does not change. When a position can no
+longer be trusted (records sent out of RAM and then lost with the power, a seal
+that failed, a day file deleted or put back by a restore), the whole day file
+goes again, logged as code 554: duplicates, never a gap.
+
+The cursor file grows from 4 to 148 B. Its first 4 bytes are still the old
+cursor, so v2.9.0 reads it after a downgrade. On the bench nothing was lost and
+nothing was sent twice across an update (9 of 9 records) or a downgrade (8 of
+8). A device updated with its old cursor ahead of the clock, which the defect
+itself leaves behind, would have sent nothing until the clock caught up and then
+skipped those records. With a trusted clock the old cursor now gives way, and on
+the bench all 487 records of the day reached the collector.
+
+It costs a send in steady state 89 ms instead of 69, a full batch of a drain
+280–290 ms instead of 249–271, and about 400 B of heap, taken once at boot.
+
+### Saving accounts no longer restarts the device (#230)
+
+Every save of the accounts restarted the device, about 25 s each. On 2026-09-22
+three additions and three deletions cost seven restarts, and the client had to
+log in again after each one. Accounts now apply at once. **Apply now** appears
+for them and shows the one-time password of each new account, which it used to
+drop. **Test** is hidden while accounts are staged, because an account cannot be
+tried out. The dry run (`_dry=1`) accepts the `users` section.
+
+### A session ends with its account (#230)
+
+A web session kept the account as the login saw it, until it expired (15
+minutes idle) or the device restarted. An account deleted at the panel or with
+`user del` kept its session, and every permission it had, for up to 15 minutes.
+Every request now checks the session against the live account:
+
+- a deleted account, or its slot now holding another name, ends the session;
+- a password set by someone else (an admin's reset, `user pass`, a change made
+  from another browser) ends it;
+- otherwise the session acts with the permissions the account holds now.
+
+A revoked session is logged as code 312. The panel runs the same check at each
+action, by name, because it identifies by PIN.
+
+### A name with no account costs the same check as a wrong password (#229)
+
+A login with a name that has no account was refused without the 5,000 rounds of
+HMAC-SHA256 that a wrong password costs (about 645 ms). The time of the answer
+told which names exist, and `/metrics` with Basic credentials told the same.
+Both now run the check whatever the name. The per-client lockout (2 s, doubling
+up to 300 s) still bounds how often anyone can ask.
+
+### The dry run no longer changes the running device (#234)
+
+The configuration page sends a dry run (`_dry=1`) about 0.6 s after every staged
+edit. That dry run reached past the copy it promises to work on:
+
+- staging the global mute muted the device, and muting stops an alarm that is
+  sounding;
+- staging a time zone applied it;
+- the history interval, the NTP switch, syslog, Home Assistant Discovery, the
+  automatic and secondary DNS and the persistent connections were written into
+  the live configuration, so the dry run answered "no restart" where the save
+  restarts;
+- a try (`_nosave=1`) of those fields answered 409 with the RAM already changed;
+- a dry run or a try of the PIN policy wrote its audit line.
+
+Nothing reaches the running device before the save now. Those fields and the
+sounds are classified as needing a restart, which is what the save does: the
+page offers **Save & restart** for them instead of **Apply now**, and a try
+refuses them with 409, having changed nothing.
+
+### An alarm limit that is not a number is not 0 (#235)
+
+`/api/commit_all` read alarm limits with a parser that stops at the first
+character it cannot use, so `null`, `"abc"` or `true` became a bound of 0,
+answered with 200. In `"temp":5,"hum":[30,70]` it also took humidity's pair as
+temperature's. Now `null`, which the page sends for a side left as it was, keeps
+the stored bound. Anything else that is not a number is refused: in the `alarms`
+section with 400 `Alarm limit is not a number`, before any of the commit is
+applied, and in the `slots` section as `"rejected":["slots.lim"]`.
+
+### A restore that fails halfway keeps the files it finished (#236)
+
+A restore writes each file over the original as it reads the upload, because
+the filesystem has no room for a whole restore in temporary files. When an apply
+failed halfway, it deleted every file it had written. A dropped connection took
+the already restored configuration with it, and the next boot came up on factory
+settings. A backup with more than 200 files passed the validate, then lost the
+first 200 at the 201st.
+
+A failed apply now deletes only the file it left incomplete. Every finished file
+keeps the backup's content, and repeating the apply completes the rest. The
+200-file limit is gone, and its 4,488 B of static RAM with it.
+
+Because finished files now stay, the apply takes only the backup the last
+validate passed, whose payload CRC was checked to the end. Any other apply gets
+409 with status 11 and writes nothing. `fsm` is 1 once the apply has opened a
+file, whether it failed or not.
+
+### The panel's Settings menu, in order of use (#227)
+
+The thirteen rows sat in the order they were written. Each page of four is now a
+group:
+
+1. day to day: Alarm Limits, Alarm Sounds, System Status, Date and time;
+2. access: Change Password, Users, PIN security, Configuration Mode;
+3. the screen, set once: System Language, Visual Themes, Touch Calibration,
+   Display Alignment;
+4. License.
+
+Date and time is row 4. Configuration Mode, which opens the setup access point,
+is row 8. An alarm operator's account sees one page.
+
+### Text files and the telemetry previews, organized (#237, #239)
+
+- **The Files page has a viewer.** A text file gets an eye button that opens it
+  organized. JSON is indented, and its objects and arrays fold. Language packs,
+  themes and INI files fold by section, every line is numbered, and files up to
+  64 KiB open. **Original** shows the text as it is, because nothing is
+  rewritten. It reads through `/download`, with the same permission.
+- **The telemetry page's two Live Previews** use the same view and are built
+  from this device: its name, MAC and serial, its readings of now, its alarm
+  limits and the session's account, such as `"dev":"simuttft"` on the bench's
+  unit. The measurement line shows two records, the earlier one with a sensor in
+  failure. The alarm line shows one record of each of its ten codes. The page
+  makes one more request for it, `/api/alarms`.
+- **The previews now match what the firmware sends.** The measurement CSV has
+  its 34 columns and the alarm CSV its 8. A failed sensor's key is left out of
+  the JSON instead of sent as `null`, and all 16 slots appear. The alarm preview
+  builds the `{MAINT}`, `{LO}`, `{HI}`, `{UNTIL}` and `{USER}` tokens of the
+  device's default template; it used to leave them as text and call a valid body
+  invalid.
+
+### Under the hood
+
+- **`pico_w_test_https` is exempt from the over-the-air ceiling** (#233): it
+  reaches the bench over USB, and no release publishes it. Each image's `.bin`
+  is now recorded in `tools/flash_budget.json`, and a CI gate holds the headroom
+  table of `docs/analysis/PLANO_STABLE.md` to that record.
+- **Documentation** (#228, #238): the READMEs say how SIMUT is developed. From
+  2026-09-01 to 2026-10-02, 275 of the 371 commits on `main` carried a
+  `Co-Authored-By: Claude` trailer, in sessions the maintainer directs. The
+  READMEs are shorter: the feature reference moved to `docs/FEATURES.md`, with
+  a table of the 18 build switches, and the bench to `docs/VERIFICATION.md`.
+  `SECURITY.md` gives the measured cost of a password check.
+- **Host tests:** 589 cases in 9 suites, up from 533.
+
+### Flash
+
+Against the published v2.9.0, signed `.bin` (the image plus its 241-byte
+signature): release 1,025,949 → 1,032,645 B (+6,696), alpha 982,429 → 990,621 B
+(+8,192), Air 1,027,389 → 1,031,485 B (+4,096). Slack under the 1,040,384 B
+over-the-air ceiling: release 7,739, alpha 49,763, Air 8,899. On the release,
+the viewer (#237, +3,328) and the cursor (#232, +1,888) are most of it. The
+alpha and the Air grow in whole 4 KiB pages, because their `.rodata` is
+page-aligned.
+
+### The bench
+
+The changes that run on the device were checked on the bench board (touch
+display, two DS18B20, two DHT22, a BMP280 on hardware I2C) against `main` just
+before them. The board's flash was dumped first and restored byte for byte
+after, and the numbers are in each pull request. Among them:
+
+- **#232:** above. After its last change, a drain of 30 days gave back the 2,541
+  records seen before, field by field.
+- **#230:** narrowing an open session's account to one permission gave 403 on
+  the next request, and deleting the account gave 401 (before: 200 on both). A
+  new account saved without a restart: the uptime kept counting, the answer
+  carried its one-time password, and the admin's session lived (before: a
+  restart, and the admin logged out).
+- **#229:** medians of six refusals, `/api/login` with no such name 106 → 755 ms
+  and `/metrics` with Basic 119 → 762 ms; a wrong password 745 → 739 ms.
+- **#234:** a dry run of the mute left the device unmuted (before: muted). A dry
+  run of zone −5 left −3 in use (before: −5 at once). A dry run of a looser PIN
+  policy wrote no audit line (before: one).
+- **#235:** five payloads that set a bound to 0 before left it at 1.9, and seven
+  valid ones wrote what they said.
+- **#236:** an apply of the backup cut short inside the fourth of its 73 files
+  kept the three before it, the configuration among them (before: 0 of 3). An
+  apply whose connection closed inside the fifth kept four (before: 0 of 4). An
+  apply with no validate first got 409 with status 11 (before: 200 and a
+  restart).
+- **#227:** each of the 13 rows opens the screen it names, and an account with
+  only the panel's permissions gets one page.
+- **#237 and #239:** in Chrome, on the bench unit. #237 ran the viewer and the
+  previews on the release image. #239 served its previews from the branch to the
+  unit without writing to it: `"dev":"simuttft"`, the unit's MAC, its five
+  sensors' readings, and the ten alarm codes as JSON that parses.
+
+### Upgrading
+
+- **From v2.9.0:** over the air, from the Files page, with the `.bin` of this
+  release. The configuration and the telemetry cursor carry over by themselves.
+- **Going back to v2.9.0:** over the air with v2.9.0's signed `.bin` (both
+  carry security version 1; read from the code), or over USB. The configuration
+  stays, and v2.9.0 reads the cursor this release writes.
+- **From v2.8.x or older:** read the *Upgrading* notes of v2.9.0 first.
+- **The fleet manager in simut-rx needs v1.9.1 or later to restore a backup.**
+  The apply now needs a validate of the same backup first. In v1.9.0,
+  **Restaurar e reiniciar** without **Conferir** first is refused with status
+  11, and the app reports a flash write failure instead. The device's own pages
+  always validated first.
+- **Scripts that call the API:**
+  - `POST /api/restore?op=apply` has to follow `?op=validate` of the same
+    backup, or it gets 409 with status 11;
+  - an alarm limit that is not a number is refused, and `null` keeps the stored
+    bound instead of setting 0;
+  - `_dry=1` accepts `users`, which no longer restarts the device;
+  - a try (`_nosave=1`) of the sounds or of the fields listed under #234 is
+    refused with 409.
+
+  `docs/API_POST.md` has the details.
+- **Settings menu:** v2.9.0's notes name Settings → 12 for the access point and
+  Settings → 13 for the date and time. They are rows 8 and 4 now.
+- **Language packs:** upload the two attached to this release on the Files page
+  and reboot. With the v2.9.0 packs everything works: the menu drops the row
+  numbers their labels carry, and the new strings read in English.
+
+### Known, and not fixed here
+
+- **A chunked reply occasionally loses its framing** (#189): 0.15 to 0.6 % of
+  `/api/status` reads in a tight loop. The next request succeeds.
+- **On the alpha, the log's messages in pt-BR or es-ES come out empty**, by the
+  code: its translation lookups return an empty string instead of none.
+- **Accented lines on the boot screen print `?`**, by the code: the boot box
+  folds text that is already Latin-1 as if it were UTF-8. English boot lines,
+  which an update leaves, are unaffected.
+- **The web page does not retry an install refused with 503** (a touch on the
+  panel in the 5 s before), by the code. The device then waits with its
+  filesystem unmounted until it restarts, and the restart discards the staged
+  image.
+- **`configure terminal` does not need `enable`**: it enters configuration mode
+  from user mode, although the console's command table says it needs privileged
+  mode. It opens nothing, because `enable` asks for no password on the USB
+  console and the Bluetooth console authenticates the whole session, but the
+  table and the behaviour disagree.
+- **A try (`_nosave=1`) of a stricter PIN policy** applies it without marking
+  the PINs below it for a change, because that step reads the live policy. A try
+  also writes the CORS origin file. Both are read from the code; the bench does
+  not tighten its PIN policy.
+- **With two pressure sensors, the measurement line sends the pressure under the
+  first one's key and with the last one's value**, by the code. The Live Preview
+  shows it the way the device sends it.
+- **The Telemetry page's token list for the alarm line stops at v22.** It leaves
+  out `{MAINT}`, `{LO}`, `{HI}`, `{UNTIL}` and `{USER}`, which the device and
+  the preview handle, and the `alarm_on` and `alarm_lim` codes. Chapter 22 of
+  the manual lists them all.
+- Not checked on hardware: the update screen on the alpha's LCD, the alpha's
+  LCD with the access point up, the boot line after an install, which the boot
+  shows before the web can capture it, and the panel's side of the session
+  check (#230), which host tests pin.
+
 ## v2.9.0 (2026-10-02)
 
 **Updates over the air take only images the project signed, and the panel

@@ -1,6 +1,6 @@
 # SIMUT — Manual do Usuário
 
-**Firmware:** v2.9.0 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **Licença:** MIT
+**Firmware:** v2.10.0 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **Licença:** MIT
 **Repositório:** https://github.com/angeloINTJ/simut
 
 [English](MANUAL.md) | **Português**
@@ -562,7 +562,7 @@ resposta do **aparelho**, não da página.
 
 Os dois últimos só aparecem quando a mudança **pode** ser aplicada ao vivo —
 limites de alarme, manutenção, 2ª linha de alarmes, telemetria pelo lado HTTP,
-tema e idioma, contas e a política de PIN (depois da v2.9.0; para contas só
+tema e idioma, contas e a política de PIN (desde a v2.10.0; para contas só
 **Aplicar agora**, porque conta não se testa). Rede, provisionamento de sensor e
 fuso continuam exigindo reinício, e nesse caso a barra mostra só "Salvar e
 reiniciar" e diz **por quê**.

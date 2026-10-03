@@ -107,7 +107,7 @@ O fuso decide:
 Os registros do histórico guardam o instante em UTC. Mudar o fuso não altera os registros já gravados.
 
 ::: nota
-**Até a v2.9.0, digitar no campo Fuso Horário já mudava o fuso em uso.** O ensaio da alteração ([capítulo 5](#cap-05-ensaio)) aplicava o fuso novo à hora em uso, sem gravá-lo, mesmo que você desistisse. Desde a versão seguinte, o fuso só muda com o reinício que a gravação faz.
+**Até a v2.9.0, digitar no campo Fuso Horário já mudava o fuso em uso.** O ensaio da alteração ([capítulo 5](#cap-05-ensaio)) aplicava o fuso novo à hora em uso, sem gravá-lo, mesmo que você desistisse. Desde a v2.10.0, o fuso só muda com o reinício que a gravação faz.
 :::
 
 ## Acerto manual {#cap-10-manual}

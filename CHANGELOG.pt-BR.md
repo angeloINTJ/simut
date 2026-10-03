@@ -4,6 +4,299 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.10.0 (2026-10-03)
+
+**A telemetria não perde mais registros quando o relógio volta, e gravar contas
+não reinicia mais o aparelho. O ensaio da página de configuração não muda mais o
+aparelho em funcionamento, uma restauração cortada no meio fica com os arquivos
+que terminou, e um limite de alarme que não é número é recusado em vez de
+virar 0.**
+
+O `CONFIG_VERSION` continua 26: o arquivo de configuração é o mesmo, e a v2.9.0
+o lê. Quase tudo nesta versão responde à revisão externa da v2.7.3
+(`docs/analysis/PLANO_REVISAO_EXTERNA.md`): os itens A-04, A-07, A-08, A-10,
+A-14 e A-15, e nove dos achados de código dela, cinco deles altos. Restam sete
+achados altos.
+
+### A telemetria envia um registro pelo lugar onde ele foi gravado (#232)
+
+Até a v2.9.0, o cursor da telemetria era um carimbo de tempo: um registro saía
+quando era mais novo que o mais novo já enviado. Um bloco gravado depois de
+outro, mas carimbado antes dele, ficava atrás da marca e nunca era enviado,
+enquanto a página dizia que nada estava pendente. É exatamente o que um relógio
+que volta faz: o relógio provisório do boot corrigido pelo NTP, ou um relógio
+acertado à mão. Na bancada, isso perdeu 6 de 75.778 registros em 21/09/2026 e 1
+de 13.671 no esvaziamento de um Air em 23/09/2026. Com o relógio 40 minutos
+adiantado e depois corrigido, o código anterior a esta versão não enviou nenhum
+dos 7 registros gravados depois da correção e mostrou 0 pendentes; esta versão
+enviou os 7.
+
+O cursor agora é uma posição de gravação: para cada arquivo do dia, a posição do
+próximo registro ainda não enviado. O formato do histórico não muda. Quando uma
+posição deixa de ser confiável (registros enviados da RAM e depois perdidos com
+a energia, um selo que falhou, um arquivo do dia apagado ou devolvido por uma
+restauração), o arquivo do dia inteiro vai de novo, registrado como código 554:
+duplicatas, nunca um buraco.
+
+O arquivo do cursor passa de 4 para 148 B. Os 4 primeiros bytes continuam sendo
+o cursor antigo, então a v2.9.0 o lê depois de uma volta de versão. Na bancada,
+nada se perdeu e nada foi enviado duas vezes numa atualização (9 de 9
+registros) nem numa volta de versão (8 de 8). Um aparelho atualizado com o
+cursor antigo à frente do relógio, que o próprio defeito deixa, não enviaria
+nada até o relógio alcançá-lo e depois pularia esses registros. Com o relógio
+confiável, o cursor antigo agora cede, e na bancada todos os 487 registros do
+dia chegaram ao coletor.
+
+Custa a um envio em regime 89 ms em vez de 69, a um lote cheio de esvaziamento
+280–290 ms em vez de 249–271, e cerca de 400 B de heap, tomados uma vez no boot.
+
+### Gravar contas não reinicia mais o aparelho (#230)
+
+Toda gravação das contas reiniciava o aparelho, cerca de 25 s cada. Em
+22/09/2026, três inclusões e três exclusões custaram sete reinícios, e o cliente
+teve de entrar de novo depois de cada um. As contas agora se aplicam na hora.
+**Aplicar agora** aparece para elas e mostra a senha de uso único de cada conta
+nova, que ele descartava. **Testar** fica escondido enquanto há contas
+preparadas, porque uma conta não se testa. O ensaio (`_dry=1`) aceita a seção
+`users`.
+
+### Uma sessão termina com a conta dela (#230)
+
+Uma sessão web guardava a conta como o login a viu, até expirar (15 minutos sem
+uso) ou o aparelho reiniciar. Uma conta excluída no painel ou com `user del`
+mantinha a sessão, e todas as permissões que tinha, por até 15 minutos. Agora
+cada requisição confere a sessão com a conta como ela está:
+
+- uma conta excluída, ou o slot dela agora com outro nome, encerra a sessão;
+- uma senha definida por outra pessoa (o reset de um administrador,
+  `user pass`, uma troca feita em outro navegador) a encerra;
+- fora isso, a sessão age com as permissões que a conta tem agora.
+
+Uma sessão revogada é registrada como código 312. O painel faz a mesma
+conferência a cada ação, pelo nome, porque identifica por PIN.
+
+### Um nome sem conta custa a mesma conferência que uma senha errada (#229)
+
+Um login com um nome que não tem conta era recusado sem as 5.000 rodadas de
+HMAC-SHA256 que uma senha errada custa (cerca de 645 ms). O tempo da resposta
+dizia quais nomes existem, e o `/metrics` com credenciais Basic dizia o mesmo.
+Os dois agora fazem a conferência qualquer que seja o nome. O bloqueio por
+cliente (2 s, dobrando até 300 s) continua limitando quantas vezes alguém pode
+perguntar.
+
+### O ensaio não muda mais o aparelho em funcionamento (#234)
+
+A página de configuração envia um ensaio (`_dry=1`) cerca de 0,6 s depois de
+cada alteração preparada. Esse ensaio ia além da cópia em que promete
+trabalhar:
+
+- preparar o silêncio geral silenciava o aparelho, e silenciar interrompe um
+  alarme que está tocando;
+- preparar um fuso horário o aplicava;
+- o intervalo do histórico, o interruptor do NTP, o syslog, o Home Assistant
+  Discovery, o DNS automático e o secundário e as conexões persistentes eram
+  escritos na configuração em uso, então o ensaio respondia "sem reinício" onde
+  a gravação reinicia;
+- um teste (`_nosave=1`) desses campos respondia 409 com a RAM já mudada;
+- um ensaio ou um teste da política de PIN escrevia a linha de auditoria dela.
+
+Agora nada chega ao aparelho em funcionamento antes da gravação. Esses campos e
+os sons são classificados como exigindo reinício, que é o que a gravação faz: a
+página oferece **Salvar e reiniciar** para eles em vez de **Aplicar agora**, e
+um teste os recusa com 409, sem ter mudado nada.
+
+### Um limite de alarme que não é número não é 0 (#235)
+
+O `/api/commit_all` lia os limites de alarme com um leitor que para no primeiro
+caractere que não sabe usar, então `null`, `"abc"` ou `true` viravam um limite
+de 0, respondido com 200. Em `"temp":5,"hum":[30,70]`, ele também tomava o par
+da umidade como o da temperatura. Agora `null`, que a página envia para o lado
+deixado como estava, mantém o limite gravado. Qualquer outra coisa que não seja
+número é recusada: na seção `alarms` com 400 `Alarm limit is not a number`,
+antes de qualquer parte da gravação ser aplicada, e na seção `slots` como
+`"rejected":["slots.lim"]`.
+
+### Uma restauração que falha no meio fica com os arquivos que terminou (#236)
+
+Uma restauração grava cada arquivo por cima do original enquanto lê o envio,
+porque o sistema de arquivos não tem espaço para a restauração inteira em
+arquivos temporários. Quando uma aplicação falhava no meio, ela apagava todos os
+arquivos que tinha gravado. Uma conexão que caía levava junto a configuração já
+restaurada, e o boot seguinte subia nos padrões de fábrica. Um backup com mais
+de 200 arquivos passava na conferência e depois perdia os 200 primeiros no
+201º.
+
+Uma aplicação que falha agora apaga só o arquivo que deixou incompleto. Cada
+arquivo terminado fica com o conteúdo do backup, e repetir a aplicação completa
+o resto. O limite de 200 arquivos acabou, e os 4.488 B de RAM estática dele
+junto.
+
+Como os arquivos terminados agora ficam, a aplicação só aceita o backup que a
+última conferência aprovou, cujo CRC foi conferido até o fim. Qualquer outra
+aplicação recebe 409 com o status 11 e não grava nada. O `fsm` é 1 quando a
+aplicação chegou a abrir um arquivo, tenha falhado ou não.
+
+### O menu Configurações do painel, na ordem de uso (#227)
+
+As treze linhas estavam na ordem em que foram escritas. Agora cada página de
+quatro é um grupo:
+
+1. o dia a dia: Limites de Alarme, Sons de Alarme, Status do Sistema, Data e
+   hora;
+2. o acesso: Alterar Senha, Usuários, Segurança do PIN, Modo de Configuração;
+3. a tela, ajustada uma vez: Idioma do Sistema, Temas Visuais, Calibrar Touch,
+   Alinhamento da Tela;
+4. Licença.
+
+Data e hora é a linha 4. Modo de Configuração, que abre o ponto de acesso de
+configuração, é a linha 8. A conta de um operador de alarmes vê uma página só.
+
+### Arquivos de texto e as prévias da telemetria, organizados (#237, #239)
+
+- **A página Arquivos tem um visualizador.** Um arquivo de texto ganha um botão
+  de olho que o abre organizado. O JSON aparece indentado, e os objetos e as
+  listas dele se recolhem. Pacotes de idioma, temas e arquivos INI se recolhem
+  por seção, toda linha é numerada, e abrem arquivos de até 64 KiB. **Original**
+  mostra o texto como ele é, porque nada é reescrito. Ele lê pelo `/download`,
+  com a mesma permissão.
+- **As duas Prévias ao Vivo da página Telemetria** usam a mesma vista e são
+  montadas com os dados deste aparelho: o nome, o MAC e o serial, as leituras de
+  agora, os limites de alarme e a conta da sessão, como `"dev":"simuttft"` na
+  unidade da bancada. A linha de medições mostra dois registros, o primeiro com
+  um sensor em falha. A linha de alarmes mostra um registro de cada um dos dez
+  códigos. A página faz um pedido a mais para isso, o `/api/alarms`.
+- **As prévias agora casam com o que o firmware envia.** O CSV de medições tem
+  as 34 colunas dele, e o de alarmes as 8. A chave de um sensor em falha fica de
+  fora do JSON em vez de ir como `null`, e os 16 slots aparecem. A prévia de
+  alarmes monta os marcadores `{MAINT}`, `{LO}`, `{HI}`, `{UNTIL}` e `{USER}` do
+  modelo padrão do aparelho; antes ela os deixava como texto e chamava de
+  inválido um corpo válido.
+
+### Por dentro
+
+- **A `pico_w_test_https` fica isenta do teto da atualização pelo ar** (#233):
+  ela chega à bancada pelo USB, e nenhuma release a publica. O `.bin` de cada
+  imagem agora fica registrado em `tools/flash_budget.json`, e um portão do CI
+  mantém a tabela de folga do `docs/analysis/PLANO_STABLE.md` igual a esse
+  registro.
+- **Documentação** (#228, #238): os READMEs dizem como o SIMUT é desenvolvido.
+  De 01/09/2026 a 02/10/2026, 275 dos 371 commits da `main` levaram a linha
+  `Co-Authored-By: Claude`, em sessões que o mantenedor dirige. Os READMEs
+  ficaram mais curtos: a referência de recursos foi para `docs/FEATURES.md`, com
+  uma tabela das 18 chaves de build, e a bancada para `docs/VERIFICATION.md`. O
+  `SECURITY.md` dá o custo medido de uma conferência de senha.
+- **Testes no host:** 589 casos em 9 suítes, eram 533.
+
+### Flash
+
+Contra a v2.9.0 publicada, `.bin` assinado (a imagem e a assinatura de 241
+bytes): release 1.025.949 → 1.032.645 B (+6.696), alpha 982.429 → 990.621 B
+(+8.192), Air 1.027.389 → 1.031.485 B (+4.096). Folga sob o teto de 1.040.384 B
+da atualização pelo ar: release 7.739, alpha 49.763, Air 8.899. Na release, o
+visualizador (#237, +3.328) e o cursor (#232, +1.888) são quase tudo. O alpha e
+o Air crescem em páginas inteiras de 4 KiB, porque o `.rodata` deles é alinhado
+à página.
+
+### A bancada
+
+As mudanças que rodam no aparelho foram conferidas na placa da bancada (painel
+de toque, dois DS18B20, dois DHT22, um BMP280 no I2C de hardware) contra a
+`main` logo antes delas. A flash da placa foi despejada antes e restaurada byte
+a byte depois, e os números estão em cada pull request. Entre elas:
+
+- **#232:** acima. Depois da última mudança dele, um esvaziamento de 30 dias
+  devolveu os 2.541 registros vistos antes, campo a campo.
+- **#230:** restringir a uma permissão a conta de uma sessão aberta deu 403 no
+  pedido seguinte, e excluir a conta deu 401 (antes: 200 nos dois). Uma conta
+  nova gravada sem reinício: o tempo ligado continuou contando, a resposta
+  trouxe a senha de uso único, e a sessão do administrador continuou viva
+  (antes: um reinício, e o administrador deslogado).
+- **#229:** medianas de seis recusas, `/api/login` com um nome que não existe
+  106 → 755 ms e `/metrics` com Basic 119 → 762 ms; uma senha errada
+  745 → 739 ms.
+- **#234:** um ensaio do silêncio geral não silenciou o aparelho (antes:
+  silenciou). Um ensaio do fuso −5 deixou o −3 em uso (antes: −5 na hora). Um
+  ensaio de uma política de PIN mais frouxa não escreveu linha de auditoria
+  (antes: uma).
+- **#235:** cinco envios que antes punham um limite em 0 o deixaram em 1,9, e
+  sete válidos gravaram o que diziam.
+- **#236:** uma aplicação do backup truncado dentro do quarto dos 73 arquivos
+  dele ficou com os três anteriores, a configuração entre eles (antes: 0 de 3).
+  Uma aplicação cuja conexão fechou no quinto ficou com quatro (antes: 0 de 4).
+  Uma aplicação sem conferência antes recebeu 409 com o status 11 (antes: 200 e
+  um reinício).
+- **#227:** cada uma das 13 linhas abre a tela que nomeia, e uma conta só com as
+  permissões do painel recebe uma página.
+- **#237 e #239:** no Chrome, na unidade da bancada. O #237 rodou o visualizador
+  e as prévias na imagem release. O #239 serviu as prévias do ramo à unidade sem
+  escrever nela: `"dev":"simuttft"`, o MAC da unidade, as leituras dos cinco
+  sensores, e os dez códigos de alarme como um JSON que abre.
+
+### Atualizando
+
+- **Da v2.9.0:** pelo ar, na página Arquivos, com o `.bin` desta release. A
+  configuração e o cursor da telemetria passam sozinhos.
+- **Voltar para a v2.9.0:** pelo ar com o `.bin` assinado da v2.9.0 (as duas
+  levam o nível de segurança 1; lido no código), ou pelo USB. A configuração
+  fica, e a v2.9.0 lê o cursor que esta versão grava.
+- **Da v2.8.x ou anterior:** leia antes as notas de *Atualizando* da v2.9.0.
+- **O gerenciador de frota do simut-rx precisa da v1.9.1 ou posterior para
+  restaurar um backup.** A aplicação agora exige antes uma conferência do mesmo
+  backup. Na v1.9.0, **Restaurar e reiniciar** sem **Conferir** antes é recusado
+  com o status 11, e o app diz que a gravação na flash falhou. As páginas do
+  próprio aparelho sempre conferiram antes.
+- **Scripts que usam a API:**
+  - o `POST /api/restore?op=apply` tem de vir depois de um `?op=validate` do
+    mesmo backup, ou recebe 409 com o status 11;
+  - um limite de alarme que não é número é recusado, e `null` mantém o limite
+    gravado em vez de pôr 0;
+  - o `_dry=1` aceita `users`, que não reinicia mais o aparelho;
+  - um teste (`_nosave=1`) dos sons ou dos campos listados no #234 é recusado
+    com 409.
+
+  O `docs/API_POST.md` tem os detalhes.
+- **Menu Configurações:** as notas da v2.9.0 citam Configurações → 12 para o
+  ponto de acesso e Configurações → 13 para a data e a hora. Agora são as linhas
+  8 e 4.
+- **Pacotes de idioma:** suba os dois que acompanham esta release na página
+  Arquivos e reinicie. Com os pacotes da v2.9.0 tudo funciona: o menu tira os
+  números de linha que os rótulos deles trazem, e os textos novos aparecem em
+  inglês.
+
+### Conhecido, e não consertado aqui
+
+- **Uma resposta em partes (chunked) às vezes perde o enquadramento** (#189):
+  0,15 a 0,6 % das leituras de `/api/status` num laço apertado. O pedido seguinte
+  dá certo.
+- **No alpha, as mensagens do log em pt-BR ou es-ES saem vazias**, pelo código:
+  as buscas de tradução dele devolvem um texto vazio em vez de nenhum.
+- **Linhas acentuadas da tela de boot mostram `?`**, pelo código: a caixa do boot
+  dobra como UTF-8 um texto que já é Latin-1. As linhas de boot em inglês, que
+  uma atualização deixa, não são afetadas.
+- **A página web não repete uma instalação recusada com 503** (um toque no painel
+  nos 5 s antes), pelo código. O aparelho fica então esperando, com o sistema de
+  arquivos desmontado, até reiniciar, e o reinício descarta a imagem enviada.
+- **`configure terminal` não precisa de `enable`**: ele entra no modo de
+  configuração a partir do modo usuário, embora a tabela de comandos do console
+  diga que ele exige o modo privilegiado. Não abre nada, porque o `enable` não
+  pede senha no console USB e o console Bluetooth autentica a sessão inteira,
+  mas a tabela e o comportamento discordam.
+- **Um teste (`_nosave=1`) de uma política de PIN mais rígida** a aplica sem
+  marcar para troca os PINs abaixo dela, porque esse passo lê a política em uso.
+  Um teste também grava o arquivo da origem CORS. Os dois foram lidos no código;
+  a bancada não aperta a política de PIN dela.
+- **Com dois sensores de pressão, a linha de medições envia a pressão com a
+  chave do primeiro e o valor do último**, pelo código. A Prévia ao Vivo a
+  mostra como o aparelho a envia.
+- **O quadro de tags da linha de alarmes, na página Telemetria, para na v22.**
+  Ele deixa de fora `{MAINT}`, `{LO}`, `{HI}`, `{UNTIL}` e `{USER}`, que o
+  aparelho e a prévia tratam, e os códigos `alarm_on` e `alarm_lim`. O capítulo
+  22 do manual lista todos.
+- Não conferido no hardware: a tela de atualização no LCD do alpha, o LCD do
+  alpha com o ponto de acesso no ar, a linha de boot depois de uma instalação,
+  que o boot mostra antes de a web poder capturá-la, e o lado do painel da
+  conferência de sessão (#230), que os testes do host fixam.
+
 ## v2.9.0 (2026-10-02)
 
 **As atualizações pelo ar só aceitam imagens assinadas pelo projeto, e o painel

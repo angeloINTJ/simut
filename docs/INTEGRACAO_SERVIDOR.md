@@ -442,7 +442,7 @@ PERM_ALARM_BLOCK (0x0800) + PERM_MAINT (0x1000)                    = 6144
 1. **A senha só existe nessa resposta.** Não há como relê-la depois. Se o seu
    fluxo é "a plataforma cria e mostra ao usuário", mostre `creds` e siga; se é
    "a plataforma guarda", guarde **na hora**.
-2. **Criar conta não reinicia o aparelho** (depois da v2.9.0; até ela,
+2. **Criar conta não reinicia o aparelho** (desde a v2.10.0; até a v2.9.0,
    `reboot_for:["users"]` e ~30 s fora do ar). A conta vale na hora. Uma sessão
    aberta de uma conta apagada, ou cuja senha foi resetada, termina no pedido
    seguinte, com 401 — inclusive a da sua conta de serviço, se alguém a apagar.
@@ -601,9 +601,9 @@ curl -b j -s http://$IP/api/config | python3 -c \
 curl -b j -s -X POST http://$IP/api/commit_all --data-urlencode \
   '_payload={"users":{"actions":[{"type":"add","name":"joao","perms":6144,"pin":"482913"}]}}'
 # → {"status":"ok","reboot":false,"applied":["users"],"creds":[{"u":"joao","p":"…"}]}
-#   GUARDE creds AGORA. A conta já vale: o aparelho não reinicia (depois da v2.9.0).
+#   GUARDE creds AGORA. A conta já vale: o aparelho não reinicia (desde a v2.10.0).
 
-# 4. conferir (depois do reboot, com sessão nova)
+# 4. conferir, com a mesma sessão
 curl -b j -s http://$IP/api/users
 ```
 
@@ -629,19 +629,19 @@ desta própria nota, porque ela citava a linha reprovada.)
 | 5 | **4 s de timeout** | responda rápido; processe depois se precisar |
 | 6 | **Fila de alarmes é RAM** | um reinício perde o que não foi confirmado — confirme com 2xx rápido |
 | 7 | **`seq` reinicia a cada boot** | não use `seq` como chave global; use `(uid, ts, seq)` |
-| 8 | **Criar conta reiniciava** (até a v2.9.0) | depois dela, aplica ao vivo: `"reboot":false,"applied":["users"]` |
+| 8 | **Criar conta reiniciava** (até a v2.9.0) | desde a v2.10.0, aplica ao vivo: `"reboot":false,"applied":["users"]` |
 | 9 | **Senha de conta nova só aparece uma vez** | guarde no momento |
 | 10 | **Segredos voltam mascarados** (`"Bobi***"`) no `GET /api/config` | nunca reenvie a máscara; omita o campo para manter |
 | 11 | **Fluxo grande na porta 80 morre em alguns roteadores** (>12–15 s) | para upload/OTA use a porta alternativa (`web_port`) |
 | 12 | **`Too Fast`** | espaçar requisições; não faça polling agressivo |
-| 13 | **Um arquivo de dia pode chegar de novo, inteiro** — quando o aparelho não consegue saber o que já saiu dele: perdeu energia logo depois de enviar registros que só estavam na RAM, o arquivo foi apagado, uma restauração de backup o trouxe de volta, ou a atualização da v2.9.0 encontrou o cursor antigo à frente do relógio (evento 554). Até a v2.9.0 o cursor era uma hora e pulava registro de bloco fora de ordem: **6 em 75.778 (0,0079%)** | grave de forma idempotente por (`uid`, `ts`, canal); a duplicata não estraga nada, e não há mais lacuna |
+| 13 | **Um arquivo de dia pode chegar de novo, inteiro** — quando o aparelho não consegue saber o que já saiu dele: perdeu energia logo depois de enviar registros que só estavam na RAM, o arquivo foi apagado, uma restauração de backup o trouxe de volta, ou a atualização da v2.9.0 para a v2.10.0 encontrou o cursor antigo à frente do relógio (evento 554). Até a v2.9.0 o cursor era uma hora e pulava registro de bloco fora de ordem: **6 em 75.778 (0,0079%)** | grave de forma idempotente por (`uid`, `ts`, canal); a duplicata não estraga nada, e não há mais lacuna |
 | 14 | **A CLI serial corta template em 63 caracteres em silêncio** | configure templates **pela web**, nunca pela serial |
 | 15 | **Manutenção some do histórico de alarmes** (não gera limite nem falha) | trate `maint_on`/`maint_off` como o par que explica o silêncio |
 | 16 | **Campo que o parser não conhece é ignorado em silêncio** — `tmin` em `slots` foi o caso encontrado | confira o efeito lendo o estado de volta (`GET /api/alarms`), não o `applied` |
 | 17 | **Uma conta só concede as permissões que ela tem** (desde 22/09/2026) | dê à conta de serviço **todos** os bits que ela vai distribuir — `7433`, não `265` (§5.2); `perms` com bit de fora volta `rejected:["users.perms"]` e não cria nada |
 | 18 | **`del` e `reset` são por `id`, nunca por nome** | `{"type":"del","name":"joao"}` volta **200 e não apaga nada**; leia o `id` em `GET /api/users` primeiro. Medido: o `add` seguinte deu `rejected:["users.dup"]` e me custou uma corrida |
 | 19 | **O destino do login vem no CORPO, não em `Location`** | `{"ok":true,"redirect":"/force_chpass"}` — quem lê o header `Location` recebe vazio **sempre** e passa batido pela troca de senha obrigatória da conta nova |
-| 20 | **Até a v2.9.0, toda escrita em `users` reiniciava** | medido em 22/09: 3 `add` + 3 `del` custaram **7 reboots** (~25 s cada). Depois da v2.9.0 aplica ao vivo; o *relogin no 401* continua necessário quando a **sua** conta é apagada ou tem a senha resetada — a sessão termina no pedido seguinte |
+| 20 | **Até a v2.9.0, toda escrita em `users` reiniciava** | medido em 22/09: 3 `add` + 3 `del` custaram **7 reboots** (~25 s cada). Desde a v2.10.0 aplica ao vivo; o *relogin no 401* continua necessário quando a **sua** conta é apagada ou tem a senha resetada — a sessão termina no pedido seguinte |
 
 ---
 

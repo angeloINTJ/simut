@@ -2,6 +2,12 @@
 
 O que cada versão da linha 2.x trouxe para quem usa o aparelho, da mais nova para a mais antiga. O registro completo, com as medições de cada mudança, está no `CHANGELOG.pt-BR.md` do repositório.
 
+## Linha 2.10 — estável
+
+| Versão | Data | O que trouxe |
+|---|---|---|
+| v2.10.0 | 03/10/2026 | A telemetria envia cada registro pelo lugar onde ele foi gravado, não pela hora: um relógio que volta não deixa mais registros sem envio, e um arquivo do dia cuja posição deixou de ser confiável vai inteiro de novo ([capítulo 21](#cap-21-fora-de-ordem)). Gravar contas não reinicia mais o aparelho, e uma sessão web termina quando a conta dela é excluída ou tem a senha trocada por outra pessoa ([capítulo 8](#cap-08-pagina)). Um nome sem conta custa na entrada o mesmo tempo que uma senha errada. O ensaio da página de configuração não mexe mais no aparelho em funcionamento: o silêncio geral, o fuso e os campos da área de extensão só valem depois de gravados ([capítulo 5](#cap-05-ensaio)). Uma restauração que falha no meio fica com os arquivos que terminou, sem o limite de 200 arquivos, e a aplicação exige antes a conferência do mesmo backup ([capítulo 17](#cap-17-restauracao)). Um limite de alarme que não é número é recusado em vez de virar 0 ([capítulo 26](#cap-26-commit)). O menu Configurações do painel segue a ordem de uso, um grupo por página ([capítulo 11](#cap-11-menu)). A página Arquivos abre arquivos de texto organizados ([capítulo 17](#cap-17-ver)), e a **Prévia ao Vivo** da telemetria é montada com os dados do aparelho, com um registro de cada tipo ([capítulo 21](#cap-21-construtor) e [capítulo 22](#cap-22-codigos)) |
+
 ## Linha 2.9 — estável
 
 | Versão | Data | O que trouxe |
