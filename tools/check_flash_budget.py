@@ -38,6 +38,9 @@ table that follows from it. Two checks hold them true:
     record makes of it.
 
 An image listed under "ota_exempt" is held to neither, and its row says so.
+An image with a "slot" updates into the other slot of a partition table (the
+RP2350 since step 4 of docs/analysis/OTA_AB_RP2350.md): its ceiling over the
+air is that slot, and its row measures the margin against it.
 
 USAGE
 -----
@@ -116,6 +119,14 @@ def ota_bin_max():
     return safe - trailer if safe and trailer else None
 
 
+def ota_ceiling(env_cfg, safe_max):
+    """The size an image may have over the air, signature included: the Pico
+    W's OTA_APP_SAFE_MAX_SIZE, or, for a chip that updates into the other slot
+    of a partition table, that slot ("slot"; the stage refuses more, with
+    OTA_IMAGE_MAX in src/ota/ota_layout.h)."""
+    return env_cfg.get("slot") or safe_max
+
+
 def held_ceiling(env_cfg, printed):
     """The size an image is held to. PlatformIO prints the sketch area its
     builder computes, flash minus LittleFS and EEPROM. A chip that boots from a
@@ -147,7 +158,8 @@ def headroom_rows(cfg, safe_max, trailer):
             rows[env] = f"| `{env}` | {EXEMPT_CELL} | — |"
         elif "bin" in entry:
             signed = entry["bin"] + trailer
-            rows[env] = f"| `{env}` | {pt_int(signed)} | {pt_int(safe_max - signed)} |"
+            room = ota_ceiling(entry, safe_max) - signed
+            rows[env] = f"| `{env}` | {pt_int(signed)} | {pt_int(room)} |"
     return rows
 
 
@@ -193,9 +205,10 @@ def headroom_table_errors(text, cfg, safe_max, trailer):
                             f"tools/flash_budget.json, so its row reads  {want}")
             continue
         signed = entry["bin"] + trailer
-        if got != (signed, safe_max - signed):
+        ceiling = ota_ceiling(entry, safe_max)
+        if got != (signed, ceiling - signed):
             errs.append(f"{env}: the row disagrees with \"bin\" {entry['bin']} "
-                        f"(+ {trailer} B of signature, under {safe_max}); it "
+                        f"(+ {trailer} B of signature, under {ceiling}); it "
                         f"should read  {want}")
     for env in rows:
         if env not in cfg["envs"]:
@@ -222,7 +235,7 @@ def bin_vs_record(actual, recorded):
     return False, None
 
 
-def check_ota_bin(env, safe_max, exempt=None, recorded_bin=None):
+def check_ota_bin(env, ceiling, exempt=None, recorded_bin=None):
     """The budget above measures what PlatformIO prints, which is the SUM OF
     SECTIONS. What OTA refuses is the .bin, and the two differ by the padding
     the linker puts before .data's load address — so the .bin moves in 4 KiB
@@ -231,7 +244,9 @@ def check_ota_bin(env, safe_max, exempt=None, recorded_bin=None):
     cannot see: the device refuses an image over OTA_APP_SAFE_MAX_SIZE — the
     stage stops short of the config snapshot's sectors, validation answers
     SIZE_TOO_LARGE, the applier will not copy it (src/ota/) — so it installs
-    only over USB, and a fleet on it stops updating over the air."""
+    only over USB, and a fleet on it stops updating over the air. @p ceiling
+    is ota_ceiling( )'s: the RP2350's is its slot, which the stage holds the
+    same way (OTA_IMAGE_MAX)."""
     if exempt:
         print(f"[flash-budget] SKIP {env}: not held to the OTA ceiling on "
               f"purpose — {exempt}")
@@ -249,16 +264,16 @@ def check_ota_bin(env, safe_max, exempt=None, recorded_bin=None):
              "ceiling cannot be checked against what is staged.")
     raw = os.path.getsize(path)
     size = raw + trailer
-    slack = safe_max - size
+    slack = ceiling - size
     if slack < 0:
         fail(f"{env}: firmware.bin + {trailer} B of signature is {size} B, "
-             f"OTA_APP_SAFE_MAX_SIZE is {safe_max} B — over by {-slack} B. The "
+             f"the OTA ceiling is {ceiling} B — over by {-slack} B. The "
              f"device refuses an image this large (stage, validation, applier): "
              f"it would install only over USB.")
     band = 4096
     if slack < band:
         print(f"[flash-budget] WARN {env}: firmware.bin signed is {size} B, only "
-              f"{slack} B under the OTA ceiling of {safe_max} B — less than one "
+              f"{slack} B under the OTA ceiling of {ceiling} B — less than one "
               f"flash sector. The next addition may make this image refuse to "
               f"update over the air while every other number still looks fine.")
     else:
@@ -368,7 +383,7 @@ def main():
         print(f"[flash-budget] NOTE {env}: could not read OTA_APP_SAFE_MAX_SIZE "
               f"out of src/ota/ota_layout.h — the OTA ceiling was not checked.")
     else:
-        check_ota_bin(env, safe_max,
+        check_ota_bin(env, ota_ceiling(cfg["envs"][env], safe_max),
                       cfg.get("ota_exempt", {}).get(env),
                       cfg["envs"][env].get("bin"))
 
