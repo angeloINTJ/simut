@@ -1240,7 +1240,7 @@ void DisplayManager::drawPinPolicy( ) {
 	}
 
 	/* The values are glyphs and numbers, not sentences: "2" glyphs per key,
-	 * "0-9 A-Z" for the alphabet. They read the same in all eight languages,
+	 * "0-9 A-Z" for the alphabet. They read the same in every language,
 	 * they are what the web page shows, and they are five strings that do not
 	 * have to fit under the es-ES pack's 16 KB resident ceiling. The keypad
 	 * row carries the length ceiling it imposes, because choosing 3 silently
