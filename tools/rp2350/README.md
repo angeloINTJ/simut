@@ -1,6 +1,6 @@
 # tools/rp2350/ — the Pico 2 W's flash layout
 
-The RP2350 image boots from slot A of a partition table, step 3 of
+The RP2350 image boots from slot A or B of a partition table, steps 3 and 4 of
 [`docs/analysis/OTA_AB_RP2350.md`](../../docs/analysis/OTA_AB_RP2350.md). The
 files here say where everything is, to `picotool` and to the linker.
 
@@ -29,7 +29,8 @@ files here say where everything is, to `picotool` and to the linker.
     `tools/arduino_pico_overrides/`);
   - the stub is gone, and the image fits its slot;
   - the first block in the image's first 4 KB is its own image definition:
-    Arm, secure, RP2350, without the try-before-you-buy bit.
+    Arm, secure, RP2350, without the try-before-you-buy bit;
+  - the image carries one env tag, ending in `two` (`releasetwo`).
 
   Then it writes two files next to `firmware.uf2`.
 
@@ -42,6 +43,24 @@ files here say where everything is, to `picotool` and to the linker.
   in the absolute family, for a board whose flash holds nothing. `picotool load`
   reads it as such. Dragging it onto the BOOTSEL drive of an A2 board has not
   been tried.
+
+## An update over the air
+
+Step 4 of the design. `firmware.bin`, signed with `tools/ota_sign.py`, goes
+through the Files page like the Pico W's, and lands in the slot the board did
+not boot from (`src/ota/slot_stage.h`):
+
+- the stage erases that slot's first sector before anything else, writes the
+  rest as it arrives, and keeps the image's first 4 KB in RAM;
+- the image is checked: its env tag (`releasetwo`), its image definition, its
+  size, its signature;
+- the apply checks the signature again, writes the first sector, and reboots
+  into the slot through the boot ROM (`FLASH_UPDATE`).
+
+Until the apply the slot has no image definition, so a cut or a reset leaves
+the board on the image it runs. Going to B, the ROM erases A's first sector
+when the new image starts; going to A it erases nothing, and B keeps the image
+it had. LittleFS is not touched.
 
 ## A board on the old layout
 

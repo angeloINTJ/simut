@@ -121,6 +121,17 @@ assim:
   do comando.
 - **O `/api/status` diz de que slot ela subiu:** `sys.slot` vale `A`, `B`, ou
   `-` numa placa sem tabela.
+- **Pelo ar (passo 4),** a página Arquivos grava a imagem no slot de onde a placa
+  não subiu e reinicia nele. Do A para o B a ROM apaga o primeiro setor do A
+  quando a imagem nova sobe; do B para o A não apaga nada, e o B guarda a
+  imagem anterior. Por isso um reset depois do envio e antes do apply precisa
+  deixar a placa onde está: o primeiro setor da imagem só vai à flash no apply.
+  O `env` dela é `releasetwo`, e uma release do Pico W é recusada como de outro
+  modelo (`v=7`). Ainda sem volta automática (TBYB, passo 5): uma imagem que
+  sobe e trava fica, e a saída é o USB.
+- **A imagem assinada para a bancada:** a `pico2_w_release` confia na chave de
+  bancada (`ota_trust_bench`). Assine só com ela:
+  `python3 tools/ota_sign.py sign --key ~/.simut-ota/signer-bench.p8 --cert ~/.simut-ota/signer-bench.cert --in firmware.bin --out firmware.signed.bin`.
 - **Antes de compilar,** rode `bash tools/arduino_pico_overrides/patch.sh`. Sem o
   patch 2k, o `check_rp2350_image.py` recusa a imagem, que cairia ao montar o
   LittleFS.
