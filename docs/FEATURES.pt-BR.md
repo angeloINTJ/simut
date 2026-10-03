@@ -60,7 +60,7 @@ Tudo o que o firmware faz, em detalhe. O [README](../README.pt-BR.md) tem o resu
 
 ## Telemetria e integrações
 - **Quatro transportes** — HTTP, HTTPS, MQTT e MQTTS:
-  - payload em JSON, CSV ou template customizado;
+  - payload em JSON, CSV ou template customizado, com uma prévia ao vivo que mostra o JSON indentado, com blocos que abrem e recolhem;
   - TLS 1.2 (ECDHE com AES-GCM), com o certificado do servidor conferido contra um `/cert.pem` enviado ao aparelho.
 - **Lote por quantidade:**
   - `t_int` é o lote mínimo: o rádio fica desligado até essa quantidade de registros esperar (0 = desligado);
