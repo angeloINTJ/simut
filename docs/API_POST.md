@@ -502,10 +502,13 @@ Atenção: pacote `.lng` só passa a valer **no boot seguinte**.
 | `op` | permissão | efeito |
 |---|---|---|
 | `validate` | `PERM_FILE_READ` | confere o `.bkp` sem gravar |
-| `apply` | **`== PERM_FULL_ADMIN`** | sobrescreve o LittleFS inteiro |
+| `apply` | **`== PERM_FULL_ADMIN`** | sobrescreve o LittleFS inteiro; só aceita o `.bkp` que o último `validate` aprovou |
 | `stage` | **`== PERM_FULL_ADMIN`** | prepara uma imagem de firmware |
 
 A permissão é conferida no **primeiro byte** do fluxo, não só no fim.
+Um `apply` sem o `validate` do mesmo arquivo antes é `409` com `"st":11`, sem gravar nada.
+Uma falha no meio mantém os arquivos que o `apply` terminou e apaga só o incompleto (`"fsm":1`):
+repita o `apply`, que completa o que faltou.
 
 ### `POST /api/ota/apply` · **`== PERM_FULL_ADMIN`**
 `test=1` para um ensaio sem aplicar.
@@ -534,7 +537,7 @@ Atenção: `br_rsa_compute_pubexp` exige `p ≡ 3 mod 4` e recusa ~metade das ch
 | **400** | corpo/parâmetro inválido — nada foi aplicado |
 | **401** | sem sessão |
 | **403** | sessão sem o bit necessário |
-| **409** | senha pendente de troca → `/api/force_chpass` |
+| **409** | senha pendente de troca → `/api/force_chpass`; no `restore?op=apply`, backup não validado |
 | **413** | corpo acima do teto |
 | **429** | limite de taxa (login, calib, tls) |
 | **500** | falha ao gravar |

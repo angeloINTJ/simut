@@ -369,7 +369,7 @@ O filtro vale só para a flash: o console com `debug on` e o syslog recebem todo
 | Pasta `/config` | Nenhum envio, exclusão nem criação | [cap. 29](#cap-29-abuso) |
 | Backup | Um arquivo `.bkp`, só para o administrador completo | [cap. 17](#cap-17-backup) |
 | Proteções do backup | Cabeçalho de 40 bytes com CRC32 próprio, CRC32 do conteúdo e a identidade do chip | [cap. 17](#cap-17-backup) |
-| Restauração | Só no mesmo aparelho; no máximo 200 arquivos, com até 4 KiB de nomes somados | [cap. 17](#cap-17-restauracao-recusa) |
+| Restauração | Só no mesmo aparelho, e só o arquivo validado antes; sem limite de arquivos (até a v2.9.0, 200 arquivos e 4 KiB de nomes) | [cap. 17](#cap-17-restauracao-recusa) |
 | Atualização: tamanho da imagem | De 100 KiB a 1.016 KiB (1.040.384 B) | [cap. 17](#cap-17-ota-conferencias) |
 | Atualização: assinatura | 241 B no fim do `.bin`, P-256; conferida no fim do envio (1,87 s) e de novo na instalação (1,94 s), desde a v2.9.0 | [cap. 17](#cap-17-ota-assinatura) |
 | Atualização: outras conferências | Início de imagem válido para o RP2040 nos primeiros 256 bytes; etiqueta da variante igual à do aparelho | [cap. 17](#cap-17-ota-conferencias) |

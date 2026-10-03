@@ -172,11 +172,11 @@ Uma recusa aparece como **Validação falhou:** ou **Falha ao aplicar:**, seguid
 | `internal error` | Erro inesperado | Tente de novo; se persistir, veja o log de eventos |
 
 ::: atencao
-**Uma aplicação que falha no meio apaga o que já gravou.** A restauração grava cada arquivo direto no lugar do antigo. Se ela falha no meio, o aparelho apaga os arquivos que já tinha gravado e não reinicia. A configuração continua na RAM. Repita a restauração com o mesmo arquivo antes de reiniciar o aparelho.
+**Uma aplicação que falha no meio mantém o que já gravou.** A restauração grava cada arquivo direto no lugar do antigo. Se ela falha no meio, porque a conexão caiu ou a gravação falhou, o aparelho mantém os arquivos que terminou, apaga só o que ficou pela metade e não reinicia. A configuração continua na RAM. Repita a restauração com o mesmo arquivo antes de reiniciar o aparelho: ela completa o que faltou.
 :::
 
-::: atencao
-**A restauração grava no máximo 200 arquivos, com até 4 KiB de nomes somados.** Um backup acima disso passa pela validação e falha na aplicação com `I/O error`. Isso só acontece com muitos dias de histórico, num aparelho com poucos canais. Antes de fazer o backup, apague pela página **Arquivos** os dias mais antigos de `/history` que não precisa restaurar, depois de baixá-los.
+::: nota
+**Até a v2.9.0, a falha no meio apagava tudo o que tinha gravado,** inclusive a configuração já restaurada, e o reinício seguinte subia com a configuração de fábrica. E a restauração gravava no máximo 200 arquivos: um backup maior passava pela validação e falhava na aplicação com `I/O error`. Desde a versão seguinte, nenhum dos dois acontece.
 :::
 
 ## Atualizar o firmware {#cap-17-ota}

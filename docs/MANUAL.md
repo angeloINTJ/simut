@@ -916,7 +916,9 @@ cannot be restored onto a different board by accident.
 
 Restore is `POST /api/restore` — `op=validate` checks an image without writing,
 `op=apply` writes it. A successful apply reboots the device so nothing keeps a
-stale cache of what was on flash.
+stale cache of what was on flash. The apply takes only the image the last
+validate passed (`409` otherwise). If it fails half-way, it keeps the files it
+finished and deletes only the one it left incomplete: run it again.
 
 **Take a backup before every firmware update.** §12 explains why.
 

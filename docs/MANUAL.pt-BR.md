@@ -953,7 +953,9 @@ que uma imagem não pode ser restaurada numa placa diferente por acidente.
 
 A restauração é `POST /api/restore` — `op=validate` confere uma imagem sem
 escrever, `op=apply` a escreve. Um apply bem-sucedido reinicia o dispositivo
-para que nada guarde um cache velho do que havia na flash.
+para que nada guarde um cache velho do que havia na flash. O apply só aceita a
+imagem que o último validate aprovou (senão, `409`). Se falhar no meio, ele
+mantém os arquivos que terminou e apaga só o que ficou incompleto: repita.
 
 **Faça um backup antes de toda atualização de firmware.** A §12 explica por
 quê.

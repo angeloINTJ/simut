@@ -682,8 +682,10 @@ requires `PERM_SYS_CONFIG`.
 4. **Copy UF2** to the mounted drive. Pico reboots automatically.
 5. **Verify version** after boot via `GET /api/perms` (`version`
    field) or Serial banner: must match the published release.
-6. **Restore config** if step 1 downloaded a `.bkp`: apply it via
-   `POST /api/restore?op=apply` (**`PERM_FULL_ADMIN`**). Direct upload
+6. **Restore config** if step 1 downloaded a `.bkp`: check it with
+   `POST /api/restore?op=validate`, then apply it via
+   `POST /api/restore?op=apply` (**`PERM_FULL_ADMIN`**), which takes only
+   the backup the last validate passed. Direct upload
    to `/config/system.bin` via `/api/upload` is no longer allowed — that
    path was the ACH-02 vulnerability, now closed.
 

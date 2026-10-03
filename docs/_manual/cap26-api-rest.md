@@ -1176,6 +1176,8 @@ curl -s -b jar -F bkp=@backup.bkp "$H/api/restore?op=validate"
 curl -s -b jar -F bkp=@backup.bkp "$H/api/restore?op=apply"
 ```
 
+O segundo passo só aceita o arquivo que passou no primeiro. Um `apply` sem `validate` antes, ou de outro arquivo, volta com `409` e `st` 11, sem gravar nada (desde a versão seguinte à v2.9.0; antes, aplicava assim mesmo).
+
 ```json
 {"st":0,"chip":"e6614c311b7a2f2d","fwv":132865,"psz":913408,"fc":57,"fsm":0}
 ```
@@ -1200,14 +1202,15 @@ curl -s -b jar -F bkp=@backup.bkp "$H/api/restore?op=apply"
 | 8 | Caminho longo demais |
 | 9 | Erro de leitura ou gravação |
 | 10 | Erro interno |
+| 11 | O arquivo não é o validado por último: valide antes |
 
-Um resultado ruim volta com `422`; um erro de gravação, com `500`. Um backup só restaura no mesmo aparelho que o gerou. A restauração bem-sucedida reinicia o aparelho logo depois de responder, e a conexão pode cair antes de a resposta chegar: confirme depois do reinício.
+Um resultado ruim volta com `422`; um erro de gravação, com `500`; um `apply` sem a validação, com `409`. Um `apply` que falha no meio mantém os arquivos que terminou e apaga só o que ficou pela metade; `fsm` volta `1` quando algum arquivo mudou, e repetir o `apply` completa o resto. Até a v2.9.0, a falha apagava tudo o que tinha gravado, inclusive a configuração. Um backup só restaura no mesmo aparelho que o gerou. A restauração bem-sucedida reinicia o aparelho logo depois de responder, e a conexão pode cair antes de a resposta chegar: confirme depois do reinício.
 
 ### Atualização de firmware pela API {#cap-26-ota}
 
 A atualização exige o administrador completo e segue quatro passos. A interface web faz exatamente estes passos ([capítulo 17](#cap-17)).
 
-::: {.figura #fig-26-ota tipo="diagrama" arquivo="26-ota.png" captura="diagrama de sequência entre um cliente e o aparelho: GET /api/backup e conferência do CRC; POST /api/restore?op=stage&commit=1 com o .bin, resposta com v=0 e committed=1; POST /api/ota/apply, resposta 202; o aparelho reinicia; o cliente repete GET /api/login_init até responder; entra e lê a versão em /api/status; restaura o .bkp com op=apply"}
+::: {.figura #fig-26-ota tipo="diagrama" arquivo="26-ota.png" captura="diagrama de sequência entre um cliente e o aparelho: GET /api/backup e conferência do CRC; POST /api/restore?op=stage&commit=1 com o .bin, resposta com v=0 e committed=1; POST /api/ota/apply, resposta 202; o aparelho reinicia; o cliente repete GET /api/login_init até responder; entra e lê a versão em /api/status; confere o .bkp com op=validate e o restaura com op=apply"}
 A atualização pela API. O único comprovante de sucesso é a versão nova informada pelo próprio aparelho.
 :::
 
