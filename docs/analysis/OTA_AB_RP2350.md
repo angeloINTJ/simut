@@ -266,17 +266,40 @@ do RP2040 saem idênticas byte a byte, como no S0 (#215).
 
 ## Hoje: um risco a fechar primeiro
 
-Uma Pico 2 W com a `pico2_w_release` atual aceitaria pelo ar uma release
-**assinada** do RP2040:
+As constantes de `src/ota/ota_layout.h` são o mapa de 2 MB do Pico W. Na Pico
+2 W o LittleFS fica em `0x2FF000` dos 4 MB (`_FS_start` = `0x102FF000`). Por
+isso o stage grava a imagem recebida em `0x0FF000`, na sobra do slot do próprio
+programa, e só desmonta o LittleFS durante o envio.
+
+Uma Pico 2 W com a `pico2_w_release` atual aceita pelo ar uma release
+**assinada** do RP2040. Pelo código, um envio que chegasse ao fim seria
+validado:
 
 - o CRC do boot2 dela confere;
 - o `env` das duas é `release` (`simut_config.h:459-467`);
 - a assinatura é válida.
 
-O applier a instalaria, e a ROM do RP2350, sem IMAGE_DEF, cairia no BOOTSEL. As
-releases não publicam a imagem do RP2350, então ninguém a tem em campo. Mesmo
+O applier a copiaria sobre o programa em execução, e a ROM do RP2350, sem
+IMAGE_DEF, cairia no BOOTSEL.
+
+**Na placa da bancada (03/10/2026).** A release v2.10.0 assinada foi enviada
+três vezes à `main` (badb4a8):
+
+- o aparelho aceitou o começo dos três envios;
+- cada um caiu antes do fim: aos 28,7 s, duas vezes na porta 80, e aos 9,8 s na
+  porta 8080;
+- o aparelho não reiniciou, e o LittleFS voltou intacto, com o pacote pt-BR.
+
+A causa da queda não foi encontrada.
+
+As releases não publicam a imagem do RP2350, então ninguém a tem em campo. Mesmo
 assim, a primeira etapa de código fecha isso: a imagem do RP2350 recusa toda OTA
-até o A/B existir, e ganha um `env` próprio.
+até o A/B existir.
+
+**Dois endereços para a etapa 3.** O boot ainda lê os metadados em `0x1FF000` e
+apaga a cópia da configuração em `0x1FD000`. Hoje esses endereços ficam depois
+do fim do programa, e isso não faz mal. No layout A/B eles caem no slot B, então
+a etapa 3 os tira do RP2350.
 
 ## Testes, antes do código
 
@@ -301,11 +324,13 @@ até o A/B existir, e ganha um `env` próprio.
 ## Etapas
 
 1. **Este desenho.**
-2. **Fechar o risco de hoje:** a imagem do RP2350 recusa OTA e ganha `env`
-   próprio.
+2. **Fechar o risco de hoje:** a imagem do RP2350 recusa OTA. O `env` próprio
+   fica para a etapa 4. A etiqueta `SIMUT-ENV` aceita só letras de `a` a `z`
+   (`BuildIdentity.cpp`), e, com o OTA recusado, o `env` não protege nada antes
+   disso.
 3. **A imagem em slot (S1).** Linker script sem o stub, tabela de partições,
-   `.uf2` de fábrica, o LittleFS pela janela sem tradução, e o boot conferido
-   na placa.
+   `.uf2` de fábrica, o LittleFS pela janela sem tradução, os endereços de
+   `ota_layout.h` por chip, e o boot conferido na placa.
 4. **O stage no slot inativo** e o reinício `FLASH_UPDATE`, ainda sem TBYB.
 5. **TBYB:** a marca de teste, a confirmação em 60 s, a volta e o relato.
 6. **A autópsia** com os registradores que a ROM não usa.
