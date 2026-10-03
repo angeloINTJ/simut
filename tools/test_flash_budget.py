@@ -23,9 +23,11 @@ import check_flash_budget as cfb             # noqa: E402
 SAFE = 1040384
 TRAILER = 241
 FAILS = []
+RAN = []
 
 
 def check(name, cond, detail=""):
+    RAN.append(name)
     tag = "ok  " if cond else "FAIL"
     print(f"[{tag}] {name}" + (f" — {detail}" if detail and not cond else ""))
     if not cond:
@@ -40,6 +42,13 @@ CFG = {
     },
     "ota_exempt": {"pico_w_test_https": "bench image, flashed over USB"},
 }
+
+
+# The ceiling an image is held to: the slot, when the chip boots from one.
+check("an image with a slot is held to the slot, not to the sketch area printed",
+      cfb.held_ceiling({"budget": 1, "slot": 1568768}, 3145728) == 1568768)
+check("an image without a slot is held to what PlatformIO prints",
+      cfb.held_ceiling({"budget": 1}, 1044480) == 1044480)
 
 
 def doc(*rows):
@@ -117,5 +126,5 @@ check("an image over the ceiling gets a row with a negative margin, and it reads
       row.endswith("| -5 |") and cfb.headroom_table_errors(doc(row), over, SAFE, TRAILER) == [],
       row)
 
-print(f"{14 - len(FAILS)} ok, {len(FAILS)} falha(s)")
+print(f"{len(RAN) - len(FAILS)} ok, {len(FAILS)} falha(s)")
 sys.exit(1 if FAILS else 0)

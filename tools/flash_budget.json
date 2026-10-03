@@ -535,9 +535,10 @@
   "(ota_exempt, with the reason) and records no 'bin'; its budget still holds."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-10-03 fix/rp2350-refuses-ota on main badb4a8: all seven measured with the RP2350 image refusing OTA (OTA_INSTALL_AVAILABLE 0) and the Files page's fwStageMessage( ). The page's gzip grows by 61 B (FILE_PAGE_GZ) in every image that carries it: 'used' and .bin +64 on release, test and asserts; alpha and air keep both, inside the padding of their page-aligned .rodata; test_https is byte-identical to main's. pico2_w_release -4,104 in both: with the stage and the apply answering 501, the linker drops the stage, the validator, the signature check and the applier. Budgets moved by the 'used' deltas, which keeps each margin; 'bin' recorded for the four that moved, and their rows in PLANO_STABLE 3.1. measured is the zopfli image PlatformIO prints.",
- "measured_at_commit": "2026-10-03 fix/rp2350-refuses-ota on main badb4a8: the seven images built from this branch's source and from main's by the same build, compared symbol by symbol; on the RP2040 images WebManager_Ota.cpp compiles to the same code. measured is the zopfli image PlatformIO prints.",
+ "measured_on": "2026-10-03 feat/rp2350-slot-image on fix/rp2350-refuses-ota (#244): pico2_w_release boots from slot A of a partition table, linked by tools/rp2350/memmap_slot.ld without arduino-pico's OTA stub. Its .bin is 12,536 B smaller (988,712), 'used' 248 B smaller; PlatformIO now prints a 3,145,728 B sketch area (LittleFS of 1,020 KB), and the image is held to its 1,568,768 B slot ('slot'). Budget moved by the 'used' delta, which keeps its margin. The six RP2040 images are byte-identical to #244's. measured is the zopfli image PlatformIO prints.",
+ "measured_at_commit": "2026-10-03 feat/rp2350-slot-image on fix/rp2350-refuses-ota (#244): the seven images built from this branch; the six RP2040 ones compared by sha256 with #244's build. measured is the zopfli image PlatformIO prints.",
  "ota_exempt": {
+  "pico2_w_release": "Refuses every update over the air until its A/B slots exist (docs/analysis/OTA_AB_RP2350.md, step 2), so the Pico W's OTA ceiling does not apply to it. It boots from slot A of a partition table, and its ceiling is that slot, 1,568,768 B ('slot' below), which its linker script and tools/check_rp2350_image.py hold. Exempt since 2026-10-03.",
   "pico_w_test_https": "A bench image: the one with the full console and the TLS server together, for the HTTPS suites (AGENTS.md). It reaches the rig over USB, and release-ota.yml does not publish it. #232 (2026-10-02) left it 147 B under OTA_APP_SAFE_MAX_SIZE, and keeping it there meant cutting code the product images ship too, or moving more of its pages to LittleFS. Over the ceiling the device refuses to stage it, which costs only installing this image over the air; its flash budget still holds. Exempt since 2026-10-02 (docs/analysis/PLANO_STABLE.md, B6)."
  },
  "envs": {
@@ -571,10 +572,11 @@
    "bin": 1031244
   },
   "pico2_w_release": {
-   "budget": 989160,
-   "measured": 988936,
-   "bin": 1001248,
-   "ceiling": 3141632
+   "budget": 988912,
+   "measured": 988688,
+   "bin": 988712,
+   "ceiling": 3145728,
+   "slot": 1568768
   }
  }
 }
