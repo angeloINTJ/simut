@@ -318,7 +318,7 @@ O aparelho também se anuncia como um serviço `_simut._tcp`, para que um progra
 | Campo | Conteúdo |
 |---|---|
 | `uid` | Identidade do chip, 16 algarismos hexadecimais |
-| `ver` | Versão do firmware, como `2.10.0` |
+| `ver` | Versão do firmware, como `2.11.0` |
 | `env` | Imagem: `release` |
 | `tls` | `1` com HTTPS, `0` com HTTP |
 

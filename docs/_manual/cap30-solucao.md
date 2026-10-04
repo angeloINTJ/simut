@@ -543,7 +543,7 @@ Detalhes nos capítulos [26](#cap-26) e [27](#cap-27).
 | O envio da imagem responde `422` com `"v":7` | A imagem é de outra variante (release, alpha ou Air) | Envie a imagem com o mesmo `env` que `/api/status` informa |
 | O envio da imagem responde `422` com `"v"` de 8 a 12 | A assinatura da imagem foi recusada ([capítulo 26](#cap-26-ota)) | Envie o `.bin` assinado da release, sem alterá-lo |
 | `POST /api/ota/apply` responde `409` | Nenhuma imagem preparada com `commit=1`, o aparelho reiniciou depois do envio, ou, com `"v"`, outro envio começou depois e a imagem gravada não confere mais com a assinatura | Envie a imagem de novo com `op=stage&commit=1` |
-| Um envio longo cai no meio | Algum equipamento da rede corta conexões longas na porta 80 | Configure outra porta web ([capítulo 9](#cap-09-servidor-web)) |
+| Um envio longo cai no meio, até a v2.10.0 | Outra página do aparelho estava aberta no navegador: o aparelho cortava a conexão mais antiga para admitir as consultas dela. A porta não fazia diferença | Feche as outras abas do aparelho e envie de novo, ou atualize para a v2.11.0 ([capítulo 18](#cap-18-sem-web)) |
 | `avahi-browse` não acha alguns aparelhos | São alpha ou Air, que não têm mDNS; ou estão em outra rede ou VLAN | Descubra-os pelos cabeçalhos `X-SIMUT-*` da telemetria no coletor |
 | Dois aparelhos respondem pelo mesmo `<nome>.local` | Os dois têm o mesmo **Nome** | Dê um nome único a cada aparelho |
 | O gestor gravou a configuração no aparelho errado | O DHCP deu ao aparelho o IP que era de outro | Compare `sys.uid` com o cadastro antes de cada gravação |

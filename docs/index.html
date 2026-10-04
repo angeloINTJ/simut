@@ -205,9 +205,10 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
       <div>
         <p class="release-line">
           <span class="selo selo-positivo" data-i18n="tag.stable">Stable</span>
-          <span class="selo">v2.10.0</span>
+          <span class="selo">v2.11.0</span>
           <span class="selo">MIT</span>
           <span class="selo">RP2040</span>
+          <span class="selo">RP2350</span>
         </p>
         <h1>
           <span data-i18n="hero.h1">Temperature monitoring that answers to nobody's cloud.</span>
@@ -284,14 +285,32 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
     <p class="eyebrow" data-i18n="new.eyebrow">This generation</p>
     <h2 data-i18n="new.h2">What changed recently</h2>
     <p class="lede antes" data-i18n="new.lede">
-      The line left beta in September 2026, on measurements rather than a decision. Since then an update cut off halfway stopped costing the configuration, an update over the air takes only an image the project signed, and telemetry no longer loses records when the clock goes back. Every number below was measured on real hardware.
+      The line left beta in September 2026, on measurements rather than a decision. Since then an update cut off halfway stopped costing the configuration, an update over the air takes only an image the project signed, telemetry no longer loses records when the clock goes back, and the Pico 2 W joined the Pico W, with updates that go back by themselves. Every number below was measured on real hardware.
     </p>
     <div class="releases">
       <article class="release">
-        <div><div class="ver">v2.10.0</div><div class="date" data-i18n="new.d0">Oct 2026</div></div>
+        <div><div class="ver">v2.11.0</div><div class="date" data-i18n="new.d0">Oct 2026</div></div>
         <div>
-          <h3 data-i18n="new.t0">Telemetry that loses nothing when the clock goes back, and accounts without a restart</h3>
+          <h3 data-i18n="new.t0">The Pico 2 W joins, with an update that comes back by itself</h3>
           <p data-i18n="new.b0">
+            The Pico 2 W (RP2350) gets published images: a factory <code>.uf2</code> with
+            its partition table, and an update that goes into the slot the board did not
+            boot from, leaving the file system alone. The update boots on trial and keeps
+            itself after a healthy minute. On the bench, an image that never became
+            healthy was back on the previous version <strong>338 s</strong> after its
+            install, with no hand on the board. A long upload no longer dies when a page
+            of the device is open: the board itself was cutting it at 12 to 15 s, and now
+            the same upload ends. On the alpha, saving the configuration no longer
+            restarts the device: <strong>0 of 30</strong> rounds reset it, where
+            v2.10.0 reset in 6.
+          </p>
+        </div>
+      </article>
+      <article class="release">
+        <div><div class="ver">v2.10.0</div><div class="date" data-i18n="new.d1">Oct 2026</div></div>
+        <div>
+          <h3 data-i18n="new.t1">Telemetry that loses nothing when the clock goes back, and accounts without a restart</h3>
+          <p data-i18n="new.b1">
             The telemetry cursor is now where a record was written, not its
             timestamp: with the clock ahead and then put back, the code before sent
             <strong>0 of 7</strong> records written after the change, and this release
@@ -305,10 +324,10 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
         </div>
       </article>
       <article class="release">
-        <div><div class="ver">v2.9.0</div><div class="date" data-i18n="new.d1">Oct 2026</div></div>
+        <div><div class="ver">v2.9.0</div><div class="date" data-i18n="new.d2">Oct 2026</div></div>
         <div>
-          <h3 data-i18n="new.t1">Only signed images over the air, and an update you can see</h3>
-          <p data-i18n="new.b1">
+          <h3 data-i18n="new.t2">Only signed images over the air, and an update you can see</h3>
+          <p data-i18n="new.b2">
             Over the air the device now installs only an image the project signed: a
             <strong>P-256 signature</strong> over every byte, from a key the CI uses only
             after the maintainer approves the run. It checks it at the end of the upload
@@ -318,21 +337,6 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
             date and time, and the device keeps measuring with the access point up: on
             the bench, <strong>219 sensor reads in 90 s</strong> where the code before
             made none.
-          </p>
-        </div>
-      </article>
-      <article class="release">
-        <div><div class="ver">v2.8.0</div><div class="date" data-i18n="new.d2">Sep 2026</div></div>
-        <div>
-          <h3 data-i18n="new.t2">An update cut off halfway keeps the configuration</h3>
-          <p data-i18n="new.b2">
-            An update whose upload is cut before the end no longer brings the device
-            back on factory settings: the configuration is saved before the first byte
-            of the image is written, and restored at boot whenever it is missing. On the
-            bench the same cut sent v2.7.3 back to factory defaults and left v2.8.0 with
-            its configuration <strong>byte for byte</strong>. The custom telemetry
-            format now sends the <strong>Content-Type</strong> you set, so a server
-            that expects JSON accepts it.
           </p>
         </div>
       </article>
@@ -581,7 +585,7 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
       <a class="doc" href="RECOVERY.html"><h3 data-i18n="d4.t">Recovery</h3><p data-i18n="d4.b">Getting a board back after a failed update, and what BOOTSEL rescue involves.</p></a>
       <a class="doc" href="GLOSSARY.html"><h3 data-i18n="d5.t">Glossary</h3><p data-i18n="d5.b">The terms used across the interface and the documentation, defined once.</p></a>
       <a class="doc" href="https://github.com/angeloINTJ/simut/blob/main/SECURITY.md"><h3 data-i18n="d6.t">Security policy</h3><p data-i18n="d6.b">Threat model, how credentials are handled, and how to report a vulnerability.</p></a>
-      <a class="doc doc-larga" href="MANUAL.pt-BR.html"><h3 data-i18n="d7.t">Complete manual, in Portuguese</h3><p data-i18n="d7.b">Thirty-one chapters for v2.10.0: installation, configuration, daily use and server integration. Screenshots are being recaptured.</p></a>
+      <a class="doc doc-larga" href="MANUAL.pt-BR.html"><h3 data-i18n="d7.t">Complete manual, in Portuguese</h3><p data-i18n="d7.b">Thirty-one chapters for v2.11.0: installation, configuration, daily use and server integration. Screenshots are being recaptured.</p></a>
     </div>
   </div>
 </section>
@@ -609,7 +613,7 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
   <div class="moldura">
     <div class="colophon" data-i18n="ft.colophon">
         SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria<br />
-        MIT licensed · built for the Raspberry Pi Pico W · v2.10.0
+        MIT licensed · built for the Raspberry Pi Pico W and Pico 2 W · v2.11.0
       </div>
     <nav aria-label="Project">
         <a href="https://github.com/angeloINTJ/simut">GitHub</a>
@@ -648,16 +652,16 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
     'beta.3': 'Uma atualização <strong>reformata o sistema de arquivos</strong>. Credenciais de Wi-Fi, usuários e slots de sensor são preservados automaticamente; pacotes de idioma, <code>calib.csv</code> e o histórico gravado não. A página de atualização baixa um backup antes de começar — restaure-o depois.',
     'beta.4': '<strong>Não há um segundo slot de firmware para reverter</strong>. A imagem é checada antes de ser efetivada e verificada de novo no boot seguinte, mas a recuperação de uma gravação ruim é o botão BOOTSEL e um cabo USB.',
     'new.eyebrow': 'Esta geração', 'new.h2': 'O que mudou recentemente',
-    'new.lede': 'A linha saiu do beta em setembro de 2026, por medições e não por decisão. Desde então uma atualização cortada no meio deixou de custar a configuração, uma atualização pelo ar só aceita imagem que o projeto assinou, e a telemetria não perde mais registros quando o relógio volta. Todo número abaixo foi medido em hardware real.',
+    'new.lede': 'A linha saiu do beta em setembro de 2026, por medições e não por decisão. Desde então uma atualização cortada no meio deixou de custar a configuração, uma atualização pelo ar só aceita imagem que o projeto assinou, a telemetria não perde mais registros quando o relógio volta. Todo número abaixo foi medido em hardware real.',
     'new.d0': 'out 2026',
     'new.d1': 'out 2026',
-    'new.d2': 'set 2026',
-    'new.t0': 'Telemetria que não perde nada quando o relógio volta, e contas sem reinício',
-    'new.b0': 'O cursor da telemetria agora é o lugar onde o registro foi gravado, não o carimbo de tempo dele: com o relógio adiantado e depois corrigido, o código anterior enviou <strong>0 de 7</strong> registros gravados depois da correção, e esta versão envia os 7. Gravar contas não reinicia mais o aparelho, e uma sessão termina com a conta dela. O ensaio da página de configuração não silencia mais o aparelho nem muda o fuso dele, uma restauração cortada no meio fica com os arquivos que terminou, e um limite de alarme que não é número é recusado em vez de virar 0. Arquivos de texto abrem organizados na página Arquivos, e as prévias da telemetria são montadas com os dados do próprio aparelho.',
-    'new.t1': 'Só imagem assinada pelo ar, e uma atualização que dá para ver',
-    'new.b1': 'Pelo ar, o aparelho agora só instala imagem que o projeto assinou: uma <strong>assinatura P-256</strong> sobre cada byte, de uma chave que o CI só usa depois que o mantenedor aprova a execução. Ele a confere no fim do envio e de novo antes de instalar, e diz o motivo quando recusa uma. O painel mostra cada etapa da atualização e avisa quando uma imagem foi recusada. O ponto de acesso de configuração só abre quando pedido, uma unidade sem rede pede a data e a hora, e o aparelho continua medindo com o ponto de acesso no ar: na bancada, <strong>219 leituras em 90 s</strong> onde o código anterior não fazia nenhuma.',
-    'new.t2': 'Uma atualização cortada no meio mantém a configuração',
-    'new.b2': 'Uma atualização cujo envio é cortado antes do fim não devolve mais o aparelho às configurações de fábrica: a configuração é salva antes de o primeiro byte da imagem ser gravado, e restaurada no boot sempre que faltar. Na bancada o mesmo corte devolveu a v2.7.3 aos padrões de fábrica e deixou a v2.8.0 com a configuração <strong>byte a byte</strong>. O formato de telemetria personalizado agora manda o <strong>Content-Type</strong> que você define, e um servidor que espera JSON o aceita.',
+    'new.d2': 'out 2026',
+    'new.t0': 'O Pico 2 W chega, com uma atualização que volta sozinha',
+    'new.b0': 'O Pico 2 W (RP2350) ganha imagens publicadas: um <code>.uf2</code> de fábrica com a tabela de partições, e uma atualização que vai para o slot de onde a placa não subiu, sem tocar no sistema de arquivos. A atualização sobe em teste e se confirma depois de um minuto saudável. Na bancada, uma imagem que nunca ficou saudável estava de volta na versão anterior <strong>338 s</strong> depois da instalação, sem ninguém tocar na placa. Um envio longo não cai mais quando uma página do aparelho está aberta: a própria placa o cortava aos 12 a 15 s, e agora o mesmo envio termina. Na alpha, gravar a configuração não reinicia mais o aparelho: <strong>0 de 30</strong> rodadas o reiniciaram, onde a v2.10.0 reiniciava em 6.',
+    'new.t1': 'Telemetria que não perde nada quando o relógio volta, e contas sem reinício',
+    'new.b1': 'O cursor da telemetria agora é o lugar onde o registro foi gravado, não o carimbo de tempo dele: com o relógio adiantado e depois corrigido, o código anterior enviou <strong>0 de 7</strong> registros gravados depois da correção, e esta versão envia os 7. Gravar contas não reinicia mais o aparelho, e uma sessão termina com a conta dela. O ensaio da página de configuração não silencia mais o aparelho nem muda o fuso dele, uma restauração cortada no meio fica com os arquivos que terminou, e um limite de alarme que não é número é recusado em vez de virar 0. Arquivos de texto abrem organizados na página Arquivos, e as prévias da telemetria são montadas com os dados do próprio aparelho.',
+    'new.t2': 'Só imagem assinada pelo ar, e uma atualização que dá para ver',
+    'new.b2': 'Pelo ar, o aparelho agora só instala imagem que o projeto assinou: uma <strong>assinatura P-256</strong> sobre cada byte, de uma chave que o CI só usa depois que o mantenedor aprova a execução. Ele a confere no fim do envio e de novo antes de instalar, e diz o motivo quando recusa uma. O painel mostra cada etapa da atualização e avisa quando uma imagem foi recusada. O ponto de acesso de configuração só abre quando pedido, uma unidade sem rede pede a data e a hora, e o aparelho continua medindo com o ponto de acesso no ar: na bancada, <strong>219 leituras em 90 s</strong> onde o código anterior não fazia nenhuma.',
     'new.changelog': 'Changelog completo',
     'cap.eyebrow': 'Recursos', 'cap.h2': 'O que o firmware faz',
     'cap.lede': 'Tudo abaixo roda no dispositivo. Nada liga para casa.',
@@ -748,12 +752,12 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
     'd4.t': 'Recuperação', 'd4.b': 'Como trazer uma placa de volta depois de uma atualização falha, e o que envolve o resgate por BOOTSEL.',
     'd5.t': 'Glossário', 'd5.b': 'Os termos usados na interface e na documentação, definidos uma vez.',
     'd6.t': 'Política de segurança', 'd6.b': 'Modelo de ameaças, como as credenciais são tratadas e como relatar uma vulnerabilidade.',
-    'd7.t': 'Manual completo', 'd7.b': 'Trinta e um capítulos para a v2.10.0: instalação, configuração, uso no dia a dia e integração com servidores. As telas estão sendo recapturadas.',
+    'd7.t': 'Manual completo', 'd7.b': 'Trinta e um capítulos para a v2.11.0: instalação, configuração, uso no dia a dia e integração com servidores. As telas estão sendo recapturadas.',
     'co.eyebrow': 'Contribuir', 'co.h2': 'É código aberto',
     'co.lede': 'Relatos de bug vindos de instalações reais são a coisa mais útil que você pode mandar — especialmente os que vêm com log anexado.',
     'co.bug': 'Relatar um bug', 'co.feat': 'Pedir um recurso',
     'co.guide': 'Ler o guia de contribuição', 'co.vuln': 'Relatar vulnerabilidade',
-    'ft.colophon': 'SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria<br />Licença MIT · feito para o Raspberry Pi Pico W · v2.10.0',
+    'ft.colophon': 'SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria<br />Licença MIT · feito para o Raspberry Pi Pico W e o Pico 2 W · v2.11.0',
     'ft.releases': 'Releases', 'ft.changelog': 'Changelog', 'ft.license': 'Licença',
     'ft.edit': 'Editar esta página'
   },
@@ -779,16 +783,16 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
     'beta.3': 'Una actualización <strong>reformatea el sistema de archivos</strong>. Las credenciales de Wi-Fi, los usuarios y las ranuras de sensor se conservan automáticamente; los paquetes de idioma, <code>calib.csv</code> y el historial guardado no. La página de actualización descarga una copia de seguridad antes de empezar — restáurala después.',
     'beta.4': '<strong>No hay una segunda ranura de firmware a la que volver</strong>. La imagen se comprueba antes de aplicarse y se verifica de nuevo en el siguiente arranque, pero la recuperación de una grabación defectuosa es el botón BOOTSEL y un cable USB.',
     'new.eyebrow': 'Esta generación', 'new.h2': 'Qué cambió recientemente',
-    'new.lede': 'La línea salió de beta en septiembre de 2026, por mediciones y no por decisión. Desde entonces una actualización cortada a mitad dejó de costar la configuración, una actualización por el aire solo acepta una imagen que el proyecto firmó, y la telemetría ya no pierde registros cuando el reloj vuelve atrás. Cada número de abajo se midió en hardware real.',
+    'new.lede': 'La línea salió de beta en septiembre de 2026, por mediciones y no por decisión. Desde entonces una actualización cortada a mitad dejó de costar la configuración, una actualización por el aire solo acepta una imagen que el proyecto firmó, la telemetría ya no pierde registros cuando el reloj vuelve atrás. Cada número de abajo se midió en hardware real.',
     'new.d0': 'oct 2026',
     'new.d1': 'oct 2026',
-    'new.d2': 'sep 2026',
-    'new.t0': 'Telemetría que no pierde nada cuando el reloj vuelve atrás, y cuentas sin reinicio',
-    'new.b0': 'El cursor de la telemetría es ahora el lugar donde se escribió el registro, no su marca de tiempo: con el reloj adelantado y luego corregido, el código anterior envió <strong>0 de 7</strong> registros escritos después de la corrección, y esta versión envía los 7. Guardar cuentas ya no reinicia el dispositivo, y una sesión termina con su cuenta. El ensayo de la página de configuración ya no silencia el dispositivo ni cambia su zona horaria, una restauración cortada a mitad conserva los archivos que terminó, y un límite de alarma que no es un número se rechaza en lugar de convertirse en 0. Los archivos de texto se abren organizados en la página Archivos, y las vistas previas de la telemetría se construyen con los datos del propio dispositivo.',
-    'new.t1': 'Solo imágenes firmadas por el aire, y una actualización que se ve',
-    'new.b1': 'Por el aire, el dispositivo ahora solo instala una imagen que el proyecto firmó: una <strong>firma P-256</strong> sobre cada byte, de una clave que el CI solo usa después de que el mantenedor aprueba la ejecución. La comprueba al final del envío y de nuevo antes de instalar, y dice el motivo cuando rechaza una. El panel muestra cada etapa de la actualización y avisa cuando una imagen fue rechazada. El punto de acceso de configuración solo se abre cuando se pide, una unidad sin red pide la fecha y la hora, y el dispositivo sigue midiendo con el punto de acceso activo: en el banco, <strong>219 lecturas en 90 s</strong> donde el código anterior no hacía ninguna.',
-    'new.t2': 'Una actualización cortada a mitad conserva la configuración',
-    'new.b2': 'Una actualización cuyo envío se corta antes del final ya no devuelve el dispositivo a la configuración de fábrica: la configuración se guarda antes de que se escriba el primer byte de la imagen, y se restaura al arrancar siempre que falte. En el banco el mismo corte devolvió la v2.7.3 a los valores de fábrica y dejó la v2.8.0 con su configuración <strong>byte a byte</strong>. El formato de telemetría personalizado envía ahora el <strong>Content-Type</strong> que defines, y un servidor que espera JSON lo acepta.',
+    'new.d2': 'oct 2026',
+    'new.t0': 'Llega la Pico 2 W, con una actualización que vuelve sola',
+    'new.b0': 'La Pico 2 W (RP2350) tiene imágenes publicadas: un <code>.uf2</code> de fábrica con su tabla de particiones, y una actualización que va al slot desde el que la placa no arrancó, sin tocar el sistema de archivos. La actualización arranca a prueba y se confirma tras un minuto sano. En el banco, una imagen que nunca quedó sana estaba de vuelta en la versión anterior <strong>338 s</strong> después de instalarla, sin que nadie tocara la placa. Un envío largo ya no se corta cuando hay una página del dispositivo abierta: la propia placa lo cortaba a los 12 a 15 s, y ahora el mismo envío termina. En el alpha, guardar la configuración ya no reinicia el dispositivo: <strong>0 de 30</strong> rondas lo reiniciaron, donde la v2.10.0 lo reiniciaba en 6.',
+    'new.t1': 'Telemetría que no pierde nada cuando el reloj vuelve atrás, y cuentas sin reinicio',
+    'new.b1': 'El cursor de la telemetría es ahora el lugar donde se escribió el registro, no su marca de tiempo: con el reloj adelantado y luego corregido, el código anterior envió <strong>0 de 7</strong> registros escritos después de la corrección, y esta versión envía los 7. Guardar cuentas ya no reinicia el dispositivo, y una sesión termina con su cuenta. El ensayo de la página de configuración ya no silencia el dispositivo ni cambia su zona horaria, una restauración cortada a mitad conserva los archivos que terminó, y un límite de alarma que no es un número se rechaza en lugar de convertirse en 0. Los archivos de texto se abren organizados en la página Archivos, y las vistas previas de la telemetría se construyen con los datos del propio dispositivo.',
+    'new.t2': 'Solo imágenes firmadas por el aire, y una actualización que se ve',
+    'new.b2': 'Por el aire, el dispositivo ahora solo instala una imagen que el proyecto firmó: una <strong>firma P-256</strong> sobre cada byte, de una clave que el CI solo usa después de que el mantenedor aprueba la ejecución. La comprueba al final del envío y de nuevo antes de instalar, y dice el motivo cuando rechaza una. El panel muestra cada etapa de la actualización y avisa cuando una imagen fue rechazada. El punto de acceso de configuración solo se abre cuando se pide, una unidad sin red pide la fecha y la hora, y el dispositivo sigue midiendo con el punto de acceso activo: en el banco, <strong>219 lecturas en 90 s</strong> donde el código anterior no hacía ninguna.',
     'new.changelog': 'Changelog completo',
     'cap.eyebrow': 'Funciones', 'cap.h2': 'Qué hace el firmware',
     'cap.lede': 'Todo lo de abajo corre en el dispositivo. Nada llama a casa.',
@@ -879,12 +883,12 @@ td:first-child { color: var(--tinta); font-weight: 600; white-space: nowrap; }
     'd4.t': 'Recuperación', 'd4.b': 'Cómo recuperar una placa tras una actualización fallida, y qué implica el rescate por BOOTSEL.',
     'd5.t': 'Glosario', 'd5.b': 'Los términos usados en la interfaz y la documentación, definidos una vez.',
     'd6.t': 'Política de seguridad', 'd6.b': 'Modelo de amenazas, cómo se tratan las credenciales y cómo informar de una vulnerabilidad.',
-    'd7.t': 'Manual completo, en portugués', 'd7.b': 'Treinta y un capítulos para la v2.10.0: instalación, configuración, uso diario e integración con servidores. Las pantallas se están recapturando.',
+    'd7.t': 'Manual completo, en portugués', 'd7.b': 'Treinta y un capítulos para la v2.11.0: instalación, configuración, uso diario e integración con servidores. Las pantallas se están recapturando.',
     'co.eyebrow': 'Contribuir', 'co.h2': 'Es código abierto',
     'co.lede': 'Los informes de error de instalaciones reales son lo más útil que puedes enviar — sobre todo los que vienen con un log adjunto.',
     'co.bug': 'Informar de un error', 'co.feat': 'Pedir una función',
     'co.guide': 'Leer la guía de contribución', 'co.vuln': 'Informar de vulnerabilidad',
-    'ft.colophon': 'SIMUT — Sistema Integrado de Monitorización Universal y Telemetría<br />Licencia MIT · hecho para la Raspberry Pi Pico W · v2.10.0',
+    'ft.colophon': 'SIMUT — Sistema Integrado de Monitorización Universal y Telemetría<br />Licencia MIT · hecho para la Raspberry Pi Pico W y la Pico 2 W · v2.11.0',
     'ft.releases': 'Releases', 'ft.changelog': 'Changelog', 'ft.license': 'Licencia',
     'ft.edit': 'Editar esta página'
   }

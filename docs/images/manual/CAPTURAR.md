@@ -32,7 +32,7 @@ nesta pasta com o nome indicado e rode o script de novo.
 
 ## Capítulo 3 — Instalar o firmware
 
-- [ ] `03-arquivos.png` (Diagrama) — os dez arquivos de uma versão e para onde vai cada um: .uf2 → cabo USB com BOOTSEL (aparelho novo ou recuperação); .bin → página Arquivos, atualização pela rede; language_pt-BR.lng → página Arquivos, pasta /lang; manifest.json → gestor de frota; SHA256SUMS → conferência do download; três colunas coloridas por imagem (release, alpha, air)
+- [ ] `03-arquivos.png` (Diagrama) — os doze arquivos de uma versão e para onde vai cada um: .uf2 → cabo USB com BOOTSEL (aparelho novo ou recuperação); .bin → página Arquivos, atualização pela rede; language_pt-BR.lng → página Arquivos, pasta /lang; manifest.json → gestor de frota; SHA256SUMS → conferência do download; quatro colunas coloridas por imagem (release, alpha, air, releasetwo)
       Os arquivos de uma versão e o caminho de cada um até o aparelho.
 - [ ] `03-bootsel.png` (Foto) — mão segurando o botão BOOTSEL de um Pico W enquanto o cabo USB é ligado; o botão bem visível, ao lado do chip RP2040
       O botão BOOTSEL, segurado enquanto o cabo USB é ligado.

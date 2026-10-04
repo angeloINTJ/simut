@@ -1272,7 +1272,7 @@ A atualização pela API. O único comprovante de sucesso é a versão nova info
 **Não desligue o aparelho durante a aplicação.** No Pico W existe um único espaço de firmware. Uma queda de energia na janela de gravação deixa o aparelho sem firmware, e a recuperação exige o cabo USB ([capítulo 18](#cap-18)).
 :::
 
-Se a conexão cair no meio do envio de uma imagem grande, um equipamento da rede pode estar cortando conexões longas na porta 80. Configure outra porta web e tente de novo ([capítulo 9](#cap-09-servidor-web)).
+Até a v2.10.0, o envio de uma imagem grande caía aos 12–15 s quando outra página do aparelho estava aberta no navegador: o próprio aparelho cortava a conexão mais antiga para admitir as consultas da página. Não era a rede nem a porta 80. Nessas versões, feche as outras abas do aparelho antes de enviar ([capítulo 18](#cap-18-sem-web)).
 
 ### Certificado HTTPS {#cap-26-tls}
 
