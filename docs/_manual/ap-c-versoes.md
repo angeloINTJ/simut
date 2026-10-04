@@ -2,6 +2,12 @@
 
 O que cada versão da linha 2.x trouxe para quem usa o aparelho, da mais nova para a mais antiga. O registro completo, com as medições de cada mudança, está no `CHANGELOG.pt-BR.md` do repositório.
 
+## Linha 2.11 — estável
+
+| Versão | Data | O que trouxe |
+|---|---|---|
+| v2.11.0 | 04/10/2026 | O Pico 2 W (RP2350) passa a ter imagens publicadas: o `.uf2` de fábrica, com a tabela de partições, e o `.bin` de atualização ([capítulo 3](#cap-03-arquivos)). Pela rede, ele grava a imagem nova no slot de onde não subiu, sem tocar no sistema de arquivos, e a imagem sobe em teste: fica depois de um minuto saudável, e volta sozinha para a anterior se não se confirmar em cinco minutos ou se o aparelho reiniciar antes. O painel e a página **Arquivos** dizem quando a versão está em teste e quando voltou ([capítulo 26](#cap-26-ota)). Uma transferência longa não cai mais com outra página do aparelho aberta no navegador ([capítulo 18](#cap-18-sem-web)), e gravar a configuração da alpha não a reinicia mais pelo watchdog |
+
 ## Linha 2.10 — estável
 
 | Versão | Data | O que trouxe |

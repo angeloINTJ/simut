@@ -4,6 +4,177 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.11.0 (2026-10-04)
+
+**O Pico 2 W ganha imagens publicadas. A atualização dele vai para o slot de onde
+ele não subiu, sobe em teste e volta sozinha quando não se confirma. Um envio
+longo não cai mais quando uma página do aparelho está aberta, e gravar a
+configuração da alpha não a reinicia mais.**
+
+O `CONFIG_VERSION` continua em 26: o arquivo de configuração é o mesmo, e a
+v2.10.0 o lê. O trabalho do Pico 2 W é a etapa S2 da fase 4 do plano da revisão
+externa (`docs/analysis/PLANO_REVISAO_EXTERNA.md`). Foi desenhado em
+`docs/analysis/OTA_AB_RP2350.md` (#243) e construído nas sete etapas daquele
+documento.
+
+### O Pico 2 W, com dois slots (#243–#246, #248–#251)
+
+O Pico 2 W roda a mesma release do Pico W, compilada para o RP2350 dele, como a
+imagem `releasetwo`. Os 4 MB de flash guardam uma tabela de partições, dois
+slots de programa de 1.532 KB cada, um LittleFS de 1.020 KB e o setor de 4 KB da
+EEPROM do arduino-pico.
+
+- **A atualização vai para o outro slot.** O envio grava o slot de onde a placa
+  não subiu, e guarda na RAM o primeiro setor da imagem até a aplicação. A
+  aplicação confere a assinatura de novo, grava esse setor e reinicia no slot
+  pela ROM de boot. Um corte ou um reset antes da aplicação deixam a placa na
+  imagem dela. O LittleFS não é tocado: sem cópia, sem reconstrução, nada a
+  restaurar.
+- **Ela sobe em teste.** A imagem nova se confirma depois de rodar saudável por
+  um minuto: sistema de arquivos e configuração lidos, a rede no ar como
+  configurada e o Core 1 nunca relançado. Um reset, uma falta de energia ou o
+  watchdog antes disso, ou cinco minutos sem esse minuto, trazem de volta a
+  imagem que ela substituiu. Essa imagem grava o código 613 com a versão
+  recusada, e a informa em `sys.reverted`. O `sys.trial` vale 1 enquanto a nova
+  espera.
+- **As páginas dizem isso** (#251). O painel e a página Arquivos mostram uma
+  nota enquanto a atualização está em teste, e depois da volta. Nesta placa a
+  página Arquivos diz que os arquivos ficam como estão; o aviso do Pico W sobre
+  reformatar não vale para ela.
+- **A autópsia de travamento foi medida no RP2350** (#249). Os registradores de
+  rascunho do watchdog bastam, e saíram dois consertos:
+  - um `setup( )` que trava em teste deixa agora o tempo ligado certo na
+    autópsia;
+  - um teste cujo Core 1 vive sendo relançado não se confirma mais.
+- **A release publica dois arquivos para ele** (#250):
+  - `simut_v2.11.0_releasetwo.bin`, a atualização, marcada para teste;
+  - `simut_v2.11.0_releasetwo.uf2`, uma imagem de fábrica com a tabela de
+    partições, para uma placa cuja flash não tem nada.
+- **Códigos de log novos:** 610 teste começou, 611 confirmada, 612 prazo
+  esgotado, 613 voltou, 614 a ROM de boot recusou confirmar a imagem.
+
+Medido na placa da bancada, um Pico 2 W com um RP2350 de stepping A2. O pull
+request de cada etapa traz os números.
+- O envio de uma imagem de 1 MB leva de 17 a 20 s. A placa responde de 25 a 45 s
+  depois da aplicação, e se confirma de 41 a 51 s depois disso.
+- Uma release do Pico W enviada a ela é recusada como de outro modelo (`v=7`).
+- Cada um destes voltou sozinho para a imagem anterior, no máximo seis minutos
+  depois da aplicação: uma imagem que nunca fica saudável, um `setup( )` que
+  trava, um `loop( )` que trava, e o Core 1 parado ou em falha.
+- Em toda atualização e toda volta na bancada desde a etapa 5, a configuração
+  (CRC `AC385271`) nunca mudou.
+
+### Um envio longo não é mais cortado pela própria placa (#247)
+
+Todo envio ou download que passava de 12 a 15 s caía sempre que uma página da
+interface web estava aberta num navegador. Desde agosto isso era atribuído ao
+roteador e à porta 80, e a documentação mandava usar a porta 8080. A porta nunca
+fez diferença. A pilha de rede da placa tem cinco vagas de conexão. Para admitir
+a consulta seguinte da página aberta, ela matava a conexão mais antiga, que era
+a transferência.
+
+O patch 2l de `tools/arduino_pico_overrides/` impede que uma conexão aceita seja
+despejada. No Pico 2 W da bancada, um envio com uma consulta a cada 3 s,
+reenviada na hora depois de um reset como o navegador faz:
+- antes: reset aos 13,1 s, duas vezes em duas;
+- depois: terminou aos 19,9 s, duas vezes em duas.
+
+As sete imagens levam o patch. Ele não foi conferido num Pico W, que estava fora
+da bancada.
+
+### Gravar a configuração da alpha não a reinicia mais (#242)
+
+O portão da v2.10.0 viu a alpha reiniciar pelo watchdog depois de uma
+atualização recusada, e a lista registrou isso em *Conhecido*. A gravação
+escrevia a flash com o Core 1 desenhando o LCD a partir dela. A chamada da alpha
+que devia parar o Core 1 antes respondia sim sem parar nada, desde o primeiro
+build da alpha. A gravação agora tira o Core 1 da flash, e o laço da alpha
+estaciona quando pedido.
+
+O teste foi de 30 rodadas de um envio cortado e da gravação que vem depois:
+- a v2.10.0 reiniciou pelo watchdog em 6 delas;
+- esta release, em 0;
+- a configuração, 558 valores, voltou intacta depois de cada rodada.
+
+As imagens com tela de toque ganham de 8 a 16 B, e a pausa não faz nada nelas.
+
+### Por dentro
+
+- **O manifesto da release** (`tools/release_manifest.py`) escreve a entrada do
+  Pico 2 W, `releasetwo`, e recusa uma atualização sem a marca de teste.
+  `tools/rp2350/` guarda o layout, as conferências da imagem e o escritor do
+  `.uf2` de fábrica, que todo build compara com a saída do picotool.
+- **A `pico2_w_release` confia só na raiz de release.** Uma imagem de bancada
+  sai do mesmo perfil com `PLATFORMIO_BUILD_FLAGS=-DSIMUT_OTA_TRUST_BENCH=1`.
+- **Testes no host:** 632 casos em 9 suítes, eram 589.
+- **Conferências novas no CI:** o layout da flash do RP2350, a marca de teste, o
+  manifesto da release, as recusas da página Arquivos e a nota do teste.
+
+### Flash
+
+Contra a v2.10.0 publicada, `.bin` assinado (a imagem mais os 241 bytes da
+assinatura):
+- release 1.032.645 → 1.032.933 B (+288);
+- alpha 990.621 → 990.621 B;
+- Air 1.031.485 → 1.031.485 B.
+
+Folga abaixo do teto de 1.040.384 B pelo ar: release 7.451, alpha 49.763, Air
+8.899. A imagem do Pico 2 W tem 997.001 B, assinada, num slot de 1.568.768 B. A
+maior parte do aumento da release são os cinco códigos de log novos (176 B). A
+alpha e o Air crescem em páginas inteiras de 4 KiB, e ficaram dentro das deles.
+
+### Atualizando
+
+- **Um Pico W, a partir da v2.10.0:** pelo ar, na página Arquivos, com o `.bin`
+  desta release. A configuração vem junto.
+- **De volta à v2.10.0:** pelo ar, com o `.bin` assinado da v2.10.0 (as duas
+  têm o nível de segurança 1), ou pelo USB.
+- **Um Pico 2 W instala pelo USB da primeira vez:**
+  - copie o `simut_v2.11.0_releasetwo.uf2` para a unidade que aparece com o
+    BOOTSEL apertado, ou rode `picotool load -x` com ele;
+  - ele grava a tabela de partições e o programa no slot A;
+  - daí em diante, as atualizações vão pelo ar com o `.bin`.
+
+  Uma placa que rodou o SIMUT no layout antigo do Pico 2 W formata o LittleFS
+  nesse primeiro boot, então baixe antes um `.bkp` da página Arquivos. Uma
+  imagem compilada do código antes desta release pode recusar a atualização pelo
+  ar.
+- **Pacotes de idioma:** envie os dois anexados a esta release pela página
+  Arquivos, e reinicie. Com os pacotes da v2.10.0 tudo funciona, e os textos
+  novos saem em inglês.
+- **O simut-rx** ainda não conhece o `releasetwo`, então não oferece atualização
+  a um Pico 2 W.
+
+### Conhecido, e não consertado aqui
+
+- **O configurador de builds não compila para o Pico 2 W.** O `build_custom.py`
+  ainda entrega o `firmware.uf2` e o `firmware.bin` simples, e as estimativas da
+  página são as do Pico W.
+- **Num build com painel, uma falha de hardware do Core 1 não deixa o contador de
+  programa no log**, nos dois chips. O laço principal relança o Core 1 com 10 s
+  sem batimento, antes do pânico que o registraria (medido no #249).
+- **No Pico W, uma gravação da configuração pelo painel durante um envio relança
+  o Core 1 no meio do envio**, pelo código. O envio segue gravando a flash com o
+  Core 1 rodando a partir dela. Não foi visto na bancada. O envio do Pico 2 W
+  não roda essa gravação.
+- **Uma resposta chunked às vezes perde o enquadramento** (#189): de 0,15 a 0,6 %
+  das leituras do `/api/status` num laço apertado. O pedido seguinte dá certo.
+- **Na alpha, as mensagens do log em pt-BR ou es-ES saem vazias**, pelo código: a
+  busca de tradução dela devolve um texto vazio em vez de nenhum.
+- **Linhas acentuadas na tela de boot imprimem `?`**, pelo código: a caixa do
+  boot converte como UTF-8 um texto que já é Latin-1.
+- **A página web não tenta de novo uma instalação recusada com 503** (um toque no
+  painel nos 5 s antes), pelo código.
+- **`configure terminal` não exige `enable`**, embora a tabela de comandos do
+  console diga que exige o modo privilegiado. Não abre nada, mas a tabela e o
+  comportamento discordam.
+- **Um teste (`_nosave=1`) de uma política de PIN mais estrita** a aplica sem
+  marcar para troca os PINs abaixo dela, pelo código.
+- **Com dois sensores de pressão, a linha de medições manda a pressão na chave do
+  primeiro e com o valor do último**, pelo código.
+- **A lista de marcadores da linha de alarmes na página Telemetria para na
+  v22.** O capítulo 22 do manual lista todos.
+
 ## v2.10.0 (2026-10-03)
 
 **A telemetria não perde mais registros quando o relógio volta, e gravar contas

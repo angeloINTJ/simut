@@ -415,7 +415,7 @@ O exemplo mostra só a entrada `release`; as entradas `alpha` e `air` têm a mes
 |---|---|
 | `version` | A versão desta release |
 | `min_from` | A versão mais antiga que consegue receber esta release pela rede |
-| `images.<env>` | A imagem de cada variante, com a mesma chave que `sys.env` do aparelho: `release`, `alpha` ou `air`, e, a partir da versão seguinte à v2.10.0, `releasetwo` (o Pico 2 W) |
+| `images.<env>` | A imagem de cada variante, com a mesma chave que `sys.env` do aparelho: `release`, `alpha` ou `air`, e, desde a v2.11.0, `releasetwo` (o Pico 2 W) |
 | `file`, `size`, `sha256` | Nome do `.bin`, tamanho em bytes e SHA-256 em hexadecimal |
 | `uf2` | O mesmo firmware em `.uf2`, para gravar pelo cabo com o botão BOOTSEL ([capítulo 3](#cap-03)). Não serve para a atualização pela rede. No `releasetwo`, é a imagem de fábrica: a tabela de partições e o programa, sem a marca de teste que o `.bin` leva |
 

@@ -4,6 +4,173 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.11.0 (2026-10-04)
+
+**The Pico 2 W gets published images. Its update goes into the slot it did not
+boot from, boots on trial, and comes back by itself when it does not keep
+itself. A long upload no longer dies when a page of the device is open, and
+saving the alpha's configuration no longer restarts it.**
+
+`CONFIG_VERSION` stays at 26: the configuration file is the same, and v2.10.0
+reads it. The Pico 2 W work is stage S2 of phase 4 of the outside review's plan
+(`docs/analysis/PLANO_REVISAO_EXTERNA.md`). It was designed in
+`docs/analysis/OTA_AB_RP2350.md` (#243) and built in that document's seven
+steps.
+
+### The Pico 2 W, with two slots (#243–#246, #248–#251)
+
+The Pico 2 W runs the same release as the Pico W, compiled for its RP2350, as
+the image `releasetwo`. Its 4 MB of flash hold a partition table, two program
+slots of 1,532 KB each, a LittleFS of 1,020 KB and arduino-pico's 4 KB EEPROM
+sector.
+
+- **An update goes into the other slot.** The stage writes the slot the board
+  did not boot from, and keeps the image's first sector in RAM until the apply.
+  The apply checks the signature again, writes that sector, and reboots into the
+  slot through the boot ROM. A cut or a reset before the apply leaves the board
+  on its image. LittleFS is not touched: no snapshot, no rebuild, nothing to
+  restore.
+- **It boots on trial.** The new image keeps itself once it has run healthy for
+  a minute: filesystem and configuration read, the network up as configured,
+  and Core 1 never restarted. A reset, a power cut or the watchdog before that,
+  or five minutes without that minute, bring back the image it replaced. That
+  image logs code 613 with the refused version, and reports it in
+  `sys.reverted`. `sys.trial` is 1 while the new one waits.
+- **The pages say so** (#251). The dashboard and the Files page show a note while
+  the update is on trial, and after the way back. On this board the Files page
+  says the files stay where they are; the Pico W's warning about a reformat does
+  not apply to it.
+- **The crash autopsy was measured on the RP2350** (#249). The watchdog's
+  scratch registers suffice, and two fixes came out of it:
+  - a `setup( )` that hangs on trial now leaves the right uptime in the
+    autopsy;
+  - a trial whose Core 1 keeps restarting is no longer kept.
+- **The release publishes two files for it** (#250):
+  - `simut_v2.11.0_releasetwo.bin`, the update, flagged for trial;
+  - `simut_v2.11.0_releasetwo.uf2`, a factory image with the partition table,
+    for a board whose flash holds nothing.
+- **New log codes:** 610 trial started, 611 kept, 612 deadline passed, 613 went
+  back, 614 the boot ROM refused to keep the image.
+
+Measured on the bench board, a Pico 2 W with an RP2350 of stepping A2. Each
+step's pull request has the numbers.
+- The stage of a 1 MB image takes 17 to 20 s. The board answers 25 to 45 s after
+  the apply, and keeps the image 41 to 51 s after that.
+- A Pico W release sent to it is refused as another model (`v=7`).
+- Each of these came back to the previous image by itself, at most six minutes
+  after the apply: an image that is never healthy, a `setup( )` that hangs, a
+  `loop( )` that hangs, and Core 1 stopped or faulting.
+- Through every update and every way back on the bench from step 5 on, the
+  configuration (CRC `AC385271`) never changed.
+
+### A long upload is no longer cut by the board itself (#247)
+
+Every upload or download that outlived 12 to 15 s died whenever a page of the
+web UI was open in a browser. Since August that was blamed on the router and on
+port 80, and the docs sent people to port 8080. The port never mattered. The
+board's network stack has five connection slots. To admit the open page's next
+poll it killed the oldest connection, which was the transfer.
+
+Patch 2l of `tools/arduino_pico_overrides/` keeps an accepted connection from
+being evicted. On the bench Pico 2 W, an upload with a poll every 3 s, re-sent
+at once on a reset as a browser does:
+- before: reset at 13.1 s, twice in two runs;
+- after: finished at 19.9 s, twice in two runs.
+
+All seven images carry the patch. It was not checked on a Pico W, which was off
+the bench.
+
+### Saving the alpha's configuration no longer restarts it (#242)
+
+The v2.10.0 release gate found the alpha restarting through the watchdog after a
+refused update, and listed it under *Known*. The save wrote the flash while
+Core 1 kept drawing the LCD from it. The alpha's call that should stop Core 1
+first answered yes without stopping anything, from the alpha's first build. The
+save now locks Core 1 out, and the alpha's loop parks when asked.
+
+The test was 30 rounds of a cut upload and the save that follows:
+- v2.10.0 reset through the watchdog in 6 of them;
+- this release, in 0;
+- the configuration, 558 values, came back intact after each round.
+
+The touch-display images gain 8 to 16 B, and the pause is a no-op there.
+
+### Under the hood
+
+- **The release manifest** (`tools/release_manifest.py`) writes the Pico 2 W's
+  entry, `releasetwo`, and refuses an update without the trial flag.
+  `tools/rp2350/` holds the layout, the image checks and the writer of the
+  factory `.uf2`, which every build holds to picotool's output.
+- **`pico2_w_release` trusts the release root alone.** A bench image comes from
+  the same profile with `PLATFORMIO_BUILD_FLAGS=-DSIMUT_OTA_TRUST_BENCH=1`.
+- **Host tests:** 632 cases in 9 suites, up from 589.
+- **New CI checks:** the RP2350 flash layout, the trial flag, the release
+  manifest, the Files page's refusals and the trial note.
+
+### Flash
+
+Against the published v2.10.0, signed `.bin` (the image plus its 241-byte
+signature):
+- release 1,032,645 → 1,032,933 B (+288);
+- alpha 990,621 → 990,621 B;
+- Air 1,031,485 → 1,031,485 B.
+
+Slack under the 1,040,384 B over-the-air ceiling: release 7,451, alpha 49,763,
+Air 8,899. The Pico 2 W's image is 997,001 B, signed, in a slot of 1,568,768 B.
+Most of the release's growth is the five new log codes (176 B). The alpha and the
+Air grow in whole 4 KiB pages, and stayed inside theirs.
+
+### Upgrading
+
+- **A Pico W, from v2.10.0:** over the air, from the Files page, with this
+  release's `.bin`. The configuration carries over.
+- **Back to v2.10.0:** over the air with v2.10.0's signed `.bin` (both carry
+  security version 1), or over USB.
+- **A Pico 2 W installs over USB the first time:**
+  - copy `simut_v2.11.0_releasetwo.uf2` to the drive that appears with BOOTSEL
+    held, or run `picotool load -x` on it;
+  - it writes the partition table and the program in slot A;
+  - after that, updates go over the air with the `.bin`.
+
+  A board that ran SIMUT on the old Pico 2 W layout formats LittleFS on that
+  first boot, so take a `.bkp` from the Files page before. An image built from
+  source before this release may refuse the update over the air.
+- **Language packs:** upload the two attached to this release on the Files page,
+  and reboot. With the v2.10.0 packs everything works, and the new strings read
+  in English.
+- **simut-rx** does not know `releasetwo` yet, so it offers no update to a Pico
+  2 W.
+
+### Known, and not fixed here
+
+- **The build configurator does not build for the Pico 2 W.** `build_custom.py`
+  still hands out the plain `firmware.uf2` and `firmware.bin`, and the page's
+  estimates are the Pico W's.
+- **On a build with a panel, a Core 1 hard fault leaves no program counter in
+  the log**, on both chips. The main loop restarts Core 1 after 10 s without its
+  heartbeat, before the soft panic that would record it (measured in #249).
+- **On the Pico W, a configuration save from the panel during an upload restarts
+  Core 1 in the middle of the stage**, by the code. The stage then writes the
+  flash with Core 1 running from it. It has not been seen on the bench. The Pico
+  2 W's stage does not run that save.
+- **A chunked reply occasionally loses its framing** (#189): 0.15 to 0.6 % of
+  `/api/status` reads in a tight loop. The next request succeeds.
+- **On the alpha, the log's messages in pt-BR or es-ES come out empty**, by the
+  code: its translation lookups return an empty string instead of none.
+- **Accented lines on the boot screen print `?`**, by the code: the boot box
+  folds text that is already Latin-1 as if it were UTF-8.
+- **The web page does not retry an install refused with 503** (a touch on the
+  panel in the 5 s before), by the code.
+- **`configure terminal` does not need `enable`**, although the console's
+  command table says it needs privileged mode. It opens nothing, but the table
+  and the behaviour disagree.
+- **A try (`_nosave=1`) of a stricter PIN policy** applies it without marking
+  the PINs below it for a change, by the code.
+- **With two pressure sensors, the measurement line sends the pressure under the
+  first one's key and with the last one's value**, by the code.
+- **The Telemetry page's token list for the alarm line stops at v22.** Chapter 22
+  of the manual lists them all.
+
 ## v2.10.0 (2026-10-03)
 
 **Telemetry no longer loses records when the clock goes back, and saving
