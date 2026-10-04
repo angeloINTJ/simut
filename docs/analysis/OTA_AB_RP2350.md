@@ -293,11 +293,28 @@ três vezes à `main` (badb4a8):
   porta 8080;
 - o aparelho não reiniciou, e o LittleFS voltou intacto, com o pacote pt-BR.
 
-A causa da queda não foi encontrada. A imagem do passo 2 recusa o mesmo envio
-sem gravar nada, e esse foi até o fim: 1,03 MB em 9,3 s. Isso aponta a queda
-para as gravações do stage no RP2350, sem provar. O stage da etapa 4 também
-grava a flash, no slot inativo, então essa etapa precisa mostrar um envio
-inteiro sem queda.
+A queda não vem das gravações. A recusa do passo 2, que não grava nada, chegou
+ao fim só porque durou 9,3 s. Na etapa 4 (03/10/2026, à noite), o mesmo tipo de
+envio recusado caiu oito vezes em oito, entre 12,4 e 14,8 s, a 50 KB/s. Uma aba
+da interface da placa estava aberta no navegador.
+
+Quem corta é o lwIP da própria placa:
+
+- o servidor web atende um cliente por vez, e as consultas da página esperam na
+  fila;
+- cada consulta ocupa um dos 5 PCBs TCP (`MEMP_NUM_TCP_PCB` do arduino-pico);
+- com o pool cheio, o `tcp_alloc` mata a conexão de prioridade menor mais
+  ociosa, e o arduino-pico põe todas em `TCP_PRIO_MIN` (`ClientContext.h`);
+- o navegador refaz na hora a consulta que levou reset; as da fila ficam todas
+  recentes, empatam com o upload, e no empate a vítima é a mais antiga: o
+  upload.
+
+O RST sai com o TTL da placa, 255: um filtro de TTL mínimo no socket não o
+barra, e nenhum pacote com TTL menor chegou. O roteador não entra nisso. Com a
+bancada quieta, o mesmo envio vai até o fim, 403 aos 19,9 s, duas vezes em
+duas. Um script que consulta a cada 3 s sem refazer não corta. Refazendo, como o
+navegador, corta aos 13,1 s, duas vezes em duas. A prova da etapa 4 roda com a
+bancada quieta, e o conserto do servidor é um PR à parte.
 
 As releases não publicam a imagem do RP2350, então ninguém a tem em campo. Mesmo
 assim, a primeira etapa de código fecha isso: a imagem do RP2350 recusa toda OTA
@@ -322,8 +339,9 @@ a etapa 3 os tira do RP2350.
 
 **No ferro (S2):**
 
-- um envio inteiro de imagem pelo stage, sem a conexão cair (os três envios ao
-  stage de hoje caíram);
+- um envio inteiro de imagem pelo stage, sem a conexão cair, com a bancada
+  quieta (os três envios de 03/10 caíram por uma aba da interface aberta no
+  navegador, não pelo stage; ver acima);
 - uma imagem que nunca confirma volta em cerca de 17 s;
 - um corte de energia no meio da gravação sobe a anterior;
 - o histórico e os pacotes **ficam** numa atualização, sem `.bkp`;
