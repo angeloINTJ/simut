@@ -187,7 +187,7 @@ pio run -e pico_w_release -t upload
 pio run -e pico_w_release -t uploadfs
 ```
 
-Prefere não compilar? Todo [release](https://github.com/angeloINTJ/simut/releases/latest) traz `simut_vX.Y.Z_release.uf2`, `_alpha.uf2` e `_air.uf2` (arrastar e soltar com BOOTSEL segurado), o `.bin` correspondente para atualização pelo ar e os packs de idioma pt-BR e es-ES. Uma imagem com outro conjunto de recursos sai do [configurador de build](https://angelointj.github.io/simut/configurador/).
+Prefere não compilar? Todo [release](https://github.com/angeloINTJ/simut/releases/latest) traz `simut_vX.Y.Z_release.uf2`, `_alpha.uf2` e `_air.uf2` para o Pico W e, desde a v2.11.0, `_releasetwo.uf2` para o Pico 2 W (arrastar e soltar com BOOTSEL segurado), o `.bin` correspondente para atualização pelo ar e os packs de idioma pt-BR e es-ES. Uma imagem com outro conjunto de recursos sai do [configurador de build](https://angelointj.github.io/simut/configurador/).
 
 ### Primeiro boot
 1. **Anote a senha do admin.** Uma unidade recém-saída de fábrica imprime uma senha de admin aleatória de 8 caracteres **uma única vez no console serial USB** (115200 baud). Ela nunca é gravada em texto puro. Se você perder, `system admin reset confirm` pela USB imprime uma nova.

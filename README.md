@@ -189,7 +189,7 @@ pio run -e pico_w_release -t upload
 pio run -e pico_w_release -t uploadfs
 ```
 
-Prefer not to build? Every [release](https://github.com/angeloINTJ/simut/releases/latest) ships `simut_vX.Y.Z_release.uf2`, `_alpha.uf2` and `_air.uf2` (drag-and-drop with BOOTSEL held), the matching `.bin` for over-the-air updates, and the pt-BR and es-ES language packs. An image with a different set of features comes from the [build configurator](https://angelointj.github.io/simut/configurador/).
+Prefer not to build? Every [release](https://github.com/angeloINTJ/simut/releases/latest) ships `simut_vX.Y.Z_release.uf2`, `_alpha.uf2` and `_air.uf2` for the Pico W and, since v2.11.0, `_releasetwo.uf2` for the Pico 2 W (drag-and-drop with BOOTSEL held), the matching `.bin` for over-the-air updates, and the pt-BR and es-ES language packs. An image with a different set of features comes from the [build configurator](https://angelointj.github.io/simut/configurador/).
 
 ### First boot
 1. **Capture the admin password.** A factory-fresh unit prints a random 8-character admin password **once on the USB serial console** (115200 baud). It is never stored in plain text. If you miss it, `system admin reset confirm` over USB prints a new one.

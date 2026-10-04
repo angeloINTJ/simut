@@ -51,12 +51,13 @@ what a release publishes.
 - **`partition_table.uf2`**: the table alone.
 - **`firmware_factory.uf2`**: the table and the program in slot A, every block
   in the absolute family, for a board whose flash holds nothing. `picotool load`
-  reads it as such. Dragging it onto the BOOTSEL drive of an A2 board has not
-  been tried. On the A2, erratum RP2350-E10 fails a drag-and-drop onto a flash
-  that already holds a partition table. `picotool` works around it with a block
-  in the last sector, but only in a file whose blocks go to a partition by
+  reads it as such. On the A2, erratum RP2350-E10 fails a drag-and-drop onto a
+  flash that already holds a partition table. `picotool` works around it with a
+  block in the last sector, but only in a file whose blocks go to a partition by
   family (`elf2uf2.cpp`). This file is absolute throughout and carries no such
-  block. The release gate drags it onto the bench board, an A2.
+  block, and dragging it works: on 2026-10-04 the v2.11.0 release gate dragged
+  the candidate's onto the bench board, an A2 whose flash held a partition
+  table, and the board came up from slot A.
 - **`firmware_ota.bin`**: `firmware.bin` flagged try-before-you-buy, one byte
   apart: the image an update installs. The ROM boots it only right after the
   apply's reboot, never from USB.
