@@ -81,6 +81,39 @@ static void test_the_minute_and_the_deadline_are_the_decided_ones(void) {
 	TEST_ASSERT_EQUAL_UINT32(300000, TRIAL_DEADLINE_MS);
 }
 
+static void test_a_counter_that_kept_still_is_healthy(void) {
+	/* Core 1's restarts by the health check (AppManager_Loop.cpp): none since
+	 * the last look is health; one or more is a failure that breaks the minute,
+	 * and the next look starts from the new count. */
+	uint32_t last = 0;
+	TEST_ASSERT_TRUE(trial_count_still(0, last));
+	TEST_ASSERT_TRUE(trial_count_still(0, last));
+	TEST_ASSERT_FALSE(trial_count_still(1, last));
+	TEST_ASSERT_TRUE(trial_count_still(1, last));
+	TEST_ASSERT_FALSE(trial_count_still(4, last));
+	TEST_ASSERT_EQUAL_UINT32(4, last);
+}
+
+static void test_a_counter_that_wrapped_is_not_still(void) {
+	uint32_t last = 0xFFFFFFFFu;
+	TEST_ASSERT_FALSE(trial_count_still(0, last));
+	TEST_ASSERT_TRUE(trial_count_still(0, last));
+}
+
+static void test_restarts_every_ten_seconds_never_buy(void) {
+	/* The bench's T7 (2026-10-04): Core 1 stops at 30 s and is restarted every
+	 * ~10 s from 40 s on. Each restart breaks the healthy run, so the image
+	 * reaches the deadline instead of the buy. */
+	TrialClock c = on_trial( );
+	uint32_t last = 0, kills = 0;
+	TrialAction a = TrialAction::NONE;
+	for (uint32_t t = 20000; t <= TRIAL_DEADLINE_MS && a == TrialAction::NONE; t += 1000) {
+		if (t >= 40000 && t % 10000 == 0) kills++;
+		a = trial_step(c, trial_count_still(kills, last), t);
+	}
+	TEST_ASSERT_EQUAL(TrialAction::REVERT, a);
+}
+
 /* ---- the image on trial, and the one the ROM went back from --------------- */
 
 /* The first block of pico2_w_release (test_slot.cpp), at 0x124 of a 4 KB sector. */
@@ -228,6 +261,9 @@ void run_trial_tests(void) {
 	RUN_TEST(test_never_healthy_goes_back_at_the_deadline);
 	RUN_TEST(test_health_has_to_begin_a_minute_before_the_deadline);
 	RUN_TEST(test_the_minute_and_the_deadline_are_the_decided_ones);
+	RUN_TEST(test_a_counter_that_kept_still_is_healthy);
+	RUN_TEST(test_a_counter_that_wrapped_is_not_still);
+	RUN_TEST(test_restarts_every_ten_seconds_never_buy);
 	RUN_TEST(test_the_trial_bit_marks_a_trial);
 	RUN_TEST(test_no_image_definition_is_no_trial);
 	RUN_TEST(test_the_running_slot_is_the_one_booted);

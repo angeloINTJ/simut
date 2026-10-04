@@ -1,7 +1,7 @@
 # OTA de slot duplo no Pico 2 W — desenho
 
-Estado: etapas 1 a 5 **feitas** (a lista está em [Etapas](#etapas)); a 6 e a 7
-por fazer. Etapa S2 da Fase 4 de
+Estado: etapas 1 a 6 **feitas** (a lista está em [Etapas](#etapas)); a 7 por
+fazer. Etapa S2 da Fase 4 de
 [`PLANO_REVISAO_EXTERNA.md`](PLANO_REVISAO_EXTERNA.md). Decisões do
 mantenedor em 03/10/2026:
 
@@ -213,7 +213,9 @@ volta para a imagem anterior. Os outros boots não mudam.
   rede não conta: ela funciona desconectada, e o AP só abre quando uma pessoa
   pede;
 - o `loop( )` rodando e alimentando o watchdog. O servidor web começa no
-  `setup( )`, então já escuta.
+  `setup( )`, então já escuta;
+- o Core 1 sem relançamento pela checagem de saúde do painel (etapa 6). Uma
+  imagem com o Core 1 morrendo a cada ~10 s se confirmava sem isso.
 
 Não se exige que a web tenha respondido a um pedido: isso precisa de um cliente,
 e uma atualização aplicada por um roteiro que não consulta a placa depois nunca
@@ -291,9 +293,49 @@ Também, depois de um `FLASH_UPDATE`, `watchdog_caused_reboot( )` responde falso
 no RP2350 (`watchdog.c:116-123`). A autópsia veria o reinício da instalação como
 um boot limpo.
 
-Proposta: no RP2350, a autópsia passa para os registradores de rascunho do
-POWMAN ou para uma área de RAM que o reset não limpa. A escolha fica para a
-etapa 6, com uma medição no ferro.
+Este desenho propunha levar a autópsia para os registradores de rascunho do
+POWMAN, ou para uma área de RAM que o reset não limpa, e deixava a escolha para
+a etapa 6, com uma medição. **A medição (04/10/2026) mostrou que não é preciso:**
+
+- o reinício da ROM só acontece quando o próprio SIMUT o pede (o apply, um
+  reinício durante o teste). A sessão que termina ali não tem o que relatar, e
+  no boot seguinte o SDK não conta o watchdog, porque o boot foi
+  `FLASH_UPDATE`: a autópsia fica calada, como deve;
+- a ROM apaga a assinatura do vetor (`scratch[4]`) ao usá-la
+  (`varm_boot_path.c`). Nada do que ela deixou é lido depois como um pedido de
+  reinício novo;
+- um travamento reinicia pelo contador do watchdog, que não escreve nada, e os
+  valores do SIMUT chegam inteiros: o `loop( )` travado voltou como
+  200 + módulo, Core 1, minutos e posição na web certos (203 / 1008 / 4000 /
+  2740).
+
+**O que estava errado, e foi consertado:** um `setup( )` travado em teste, que
+só a guarda da etapa 5 pega, saía com o tempo ligado e a posição na web
+deixados pela ROM: 200 / 1008 / **4000 / 2999** (zero minuto, e uma posição fora
+da faixa), onde a imagem tinha rodado 300 s sem atender pedido nenhum. Agora a
+guarda zera `scratch[6]` e `[7]` no começo do boot em teste e carimba o tempo
+ligado a cada alimentação: **4004 / 2000** (a última alimentação vem antes dos
+300 s, então os minutos arredondam para 4).
+
+| Reinício | O que a autópsia registra | |
+|---|---|---|
+| Reset pelo pino RUN | nada | certo |
+| `reload`, um commit, o prazo do teste | nada | certo |
+| Instalação, marcada ou não, e o reinício durante o teste | nada | certo |
+| `loop( )` travado | 203 / 1008 / 4000 / 2740 | certo |
+| `setup( )` travado em teste | era 200 / 1008 / 4000 / 2999; agora 200 / 1008 / 4004 / 2000 | consertado |
+| Core 1 parado, ou numa falha de hardware | `APP_CORE1_DEAD` e o Core 1 relançado, a cada ~10 s | é o desenho, nos dois chips |
+| `picotool reboot` | FATAL 455, falso | artefato conhecido, nos dois chips |
+
+O pânico com as bandas do Core 1 (1xx, 3xx, 400) quase não aparece num build
+com painel: o laço principal declara o Core 1 morto com 10 s sem batimento e o
+relança (`APP_CORE1_DEAD`), antes dos 15 s do pânico. Isso vale nos dois chips.
+Na bancada, uma imagem em teste com o Core 1 parado aos 30 s foi relançada 76
+vezes em 13 minutos, e mesmo assim se confirmou aos 81 s, porque a saúde do teste
+não olhava o Core 1. Agora um relançamento pela checagem de saúde quebra o
+minuto saudável (ver "A confirmação"): a mesma imagem, e uma com o Core 1 numa
+falha de hardware (`udf`), foram relançadas 14 vezes cada e voltaram no prazo,
+com o 612 e o 613.
 
 ## Boot seguro e OTP
 
@@ -321,7 +363,7 @@ volta atrás.
 |---|---|---|
 | O stage em fluxo (`firmware_stage`) | O applier e o teardown do orquestrador | O conferidor de imagem: IMAGE_DEF e chip no lugar do boot2 |
 | A assinatura: `sigCheck`, `ota_trust`, `ota_sign.py` | O estado APPLYING e o contador de tentativas | A ordem de gravação: o primeiro setor por último |
-| A etiqueta `env` | A cópia da configuração nos blocos 254–255 | A autópsia: outros registradores de rascunho |
+| A etiqueta `env` | A cópia da configuração nos blocos 254–255 | A autópsia: os mesmos registradores; o boot em teste zera e carimba o tempo ligado e a posição na web (etapa 6) |
 | A reconferência antes do reinício (`WebManager_Ota.cpp:555-582`) | Desmontar e formatar o LittleFS no stage | O `setup( )` em teste, guardado por um watchdog de 16 s que um timer alimenta |
 | | O CRC da imagem instalada no boot seguinte | O LittleFS: leitura pela janela sem tradução |
 
@@ -457,7 +499,9 @@ depois do boot.
 5. **TBYB:** a marca de teste, a confirmação em 60 s, a volta e o relato.
    Feita em 04/10/2026. A página Arquivos e o gerenciador de frota ainda não
    mostram o `trial` e o `reverted`.
-6. **A autópsia** com os registradores que a ROM não usa.
+6. **A autópsia** com os registradores que a ROM não usa. Feita em 04/10/2026:
+   a medição mostrou que os registradores do watchdog bastam, e consertou o que
+   faltava (o `setup( )` travado em teste; o Core 1 na saúde do teste).
 7. **A primeira release** com as imagens do RP2350 publicadas (`.uf2` de fábrica
    e `.bin` de OTA).
 8. **S3:** o procedimento de boot seguro e OTP para produção, nunca na bancada.

@@ -25,6 +25,7 @@
 #include "WebManager.h"
 #include <hardware/watchdog.h>
 #include "ota/staging.h"     /* trial_poll: the RP2350's update on trial */
+#include "ota/trial.h"       /* trial_count_still */
 
 void AppManager::loop( ) {
  /* First marker of the iteration. Everything from here to the MOD_CLI below —
@@ -250,8 +251,16 @@ void AppManager::loop( ) {
   * network counts as the configuration asks for it: joined, when a Wi-Fi
   * network is configured, since an update that lost the Wi-Fi is the one to
   * send back; not at all when none is, because such a unit runs offline and
-  * its AP opens only when a person asks for it. */
- ota::trial_poll(_storageMgr.get( ), _storageMgr->getConfig( ).wifiSsid[0] == '\0' || _netMgr->isLinkUp( ));
+  * its AP opens only when a person asks for it. A restart of Core 1 by the
+  * health check above breaks the minute too: an image whose display core died
+  * every ten seconds, 76 restarts in 13 minutes, was bought 81 s after its
+  * boot on the bench (2026-10-04), because nothing else here looked at it. */
+ {
+  static uint32_t s_trialC1Kills = 0;
+  const bool core1Ok = ota::trial_count_still(g_core1KillsHealth, s_trialC1Kills);
+  ota::trial_poll(_storageMgr.get( ), core1Ok &&
+                  (_storageMgr->getConfig( ).wifiSsid[0] == '\0' || _netMgr->isLinkUp( )));
+ }
 #endif
 
  /*

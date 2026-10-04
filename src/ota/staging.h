@@ -140,9 +140,9 @@ void trial_guard_end();
  * sector, so that is said once. */
 void trial_boot(StorageManager* storage, bool fsOk);
 /* From loop( ), every pass: buys after a healthy minute, goes back at the
- * deadline (trial_step). @p networkOk is the network as the configuration asks
- * for it. */
-void trial_poll(StorageManager* storage, bool networkOk);
+ * deadline (trial_step). @p loopOk is what loop( ) sees: the network as the
+ * configuration asks for it, and Core 1 not restarted since the last pass. */
+void trial_poll(StorageManager* storage, bool loopOk);
 /* Whether this image still waits for its buy. No stage until then: it would
  * erase the image the ROM goes back to. */
 bool trial_pending();

@@ -535,8 +535,8 @@
   "(ota_exempt, with the reason) and records no 'bin'; its budget still holds."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-10-04 feat/rp2350-tbyb (step 5 of docs/analysis/OTA_AB_RP2350.md, the update on trial): the five log codes 610-614, in the table every image carries, are the only change to the RP2040 images (main 56a3a9c with that table alone builds all six byte-identical to this branch). 'measured' +176 B on release, test and asserts, +184 on test_https, +72 on alpha and air; the .bin +176 B on release, test and asserts, and the same on alpha and air (inside the 4 KiB pad before .data). pico2_w_release +2,600 B, measured and .bin: the trial in src/ota/staging.cpp, the guard of setup( ), the report, the configuration held until the buy, and the log codes. The budgets of release, test_https, asserts and pico2_w_release move by their growth, which keeps their margins.",
- "measured_at_commit": "2026-10-04 feat/rp2350-tbyb on main 56a3a9c (#247): the seven images built from this branch. measured is the zopfli image PlatformIO prints.",
+ "measured_on": "2026-10-04 feat/rp2350-autopsy (step 6 of docs/analysis/OTA_AB_RP2350.md): pico2_w_release +64 B, measured and .bin — the guard of a trial boot zeroes and stamps the autopsy's scratch[6] and [7], and a restart of Core 1 breaks the healthy minute. Inside its budget, which does not move. The RP2040 images do not change: all of it is behind the chip's #if, and they build byte-identical to main.",
+ "measured_at_commit": "2026-10-04 feat/rp2350-autopsy on main 6b0ec6d (#248): pico2_w_release built from this branch; the six RP2040 images are those of 6b0ec6d. measured is the zopfli image PlatformIO prints.",
  "ota_exempt": {
   "pico_w_test_https": "A bench image: the one with the full console and the TLS server together, for the HTTPS suites (AGENTS.md). It reaches the rig over USB, and release-ota.yml does not publish it. #232 (2026-10-02) left it 147 B under OTA_APP_SAFE_MAX_SIZE, and keeping it there meant cutting code the product images ship too, or moving more of its pages to LittleFS. Over the ceiling the device refuses to stage it, which costs only installing this image over the air; its flash budget still holds. Exempt since 2026-10-02 (docs/analysis/PLANO_STABLE.md, B6)."
  },
@@ -572,8 +572,8 @@
   },
   "pico2_w_release": {
    "budget": 996360,
-   "measured": 996168,
-   "bin": 996192,
+   "measured": 996232,
+   "bin": 996256,
    "ceiling": 3145728,
    "slot": 1568768
   }

@@ -54,6 +54,15 @@ inline TrialAction trial_step(TrialClock& c, bool healthy, uint32_t now_ms) {
 	return TrialAction::NONE;
 }
 
+/** Whether a failure counter kept still since the last look, remembering @p now
+ *  for the next one. loop( ) feeds it Core 1's restarts by the health check: a
+ *  restart is a failure, and it breaks the healthy minute. */
+inline bool trial_count_still(uint32_t now, uint32_t& last) {
+	const bool still = (now == last);
+	last = now;
+	return still;
+}
+
 inline bool trial_version_char(uint8_t c) {
 	return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
 	       c == '.' || c == '+' || c == '-';
