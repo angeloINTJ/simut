@@ -952,7 +952,7 @@ lost.** Download a backup first.
 
 Since v2.8.0 the snapshot is written when the upload **starts** and is used
 once: the next boot restores it if it finds no `/config/system.bin`, and erases
-it. An upload that is cut half-way (a router reset) or refused at the end makes
+it. An upload that is cut half-way (the connection drops) or refused at the end makes
 the device write the configuration back at once; a power cut in the middle of
 the upload brings it back from the snapshot on the next boot. The rest of the
 filesystem is gone either way. Up to v2.7.4

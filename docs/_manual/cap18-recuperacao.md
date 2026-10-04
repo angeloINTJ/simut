@@ -40,7 +40,7 @@ Siga a lista na ordem. Cada item descarta uma causa.
    - **Limite de sessões atingido. Tente mais tarde.**: três contas já têm sessão; espere 15 min sem uso de uma delas, ou reinicie o aparelho;
    - **Usuário ou senha incorretos.**: veja [Senha do administrador esquecida](#cap-18-senha).
 6. **Entrou, e a página mostra só `Access Denied`?** A conta não tem a permissão **Painel** ([capítulo 13](#cap-13-permissoes)).
-7. **As páginas abrem, mas o backup ou a atualização caem no meio?** Alguns roteadores cortam transferências longas na porta 80. Use uma porta alternativa do servidor web ([capítulo 9](#cap-09-servidor-web)).
+7. **As páginas abrem, mas o backup ou a atualização caem no meio?** Até a v2.10.0, isso acontecia com outra página do aparelho aberta no navegador: feche as outras abas do aparelho e tente de novo. A porta do servidor web não faz diferença.
 
 ## Senha do administrador esquecida {#cap-18-senha}
 

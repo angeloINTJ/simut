@@ -69,9 +69,10 @@ bool stage_session_begin(StageSession& s, StorageManager* storage) {
      *
      * A staging area É a partição do LittleFS: begin_lite já desmontou a FS e
      * a partir daqui cada página gravada apaga a FS por baixo. Se o upload for
-     * cortado no meio — o que o RST do roteador em fluxos porta-80 sustentados
-     * (~12-15 s; a imagem leva ~30 s) torna ROTINA, ver
-     * [[roteador-mata-fluxos-porta-80]] — o abort remonta e a FS é
+     * cortado no meio — ROTINA até 04/10/2026 com qualquer página do aparelho
+     * aberta no navegador: o lwIP matava o upload aos ~12-15 s, e a imagem
+     * leva ~30 s; parecia o roteador (tools/arduino_pico_overrides, patch 2l)
+     * — o abort remonta e a FS é
      * reformatada, e o snapshot que só era gravado no END nunca existiu: o
      * aparelho voltava de fábrica (WiFi, contas, sensores perdidos). Gravado no
      * begin, ele sobrevive a um stage interrompido e até a uma queda de energia,
