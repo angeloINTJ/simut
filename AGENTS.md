@@ -134,7 +134,8 @@ assim:
   (LittleFS e configuração lidos, Wi-Fi conectado, Core 1 sem relançamento): na
   bancada, aos 79 s do boot. Antes disso, um `hand RESET`, um corte de energia ou o watchdog trazem a
   imagem anterior, que põe a versão recusada em `sys.reverted` e grava o código
-  613. **Espere `trial` 0 antes de um RESET que deva manter a imagem.** Um
+  613. O painel e a página Arquivos mostram os dois numa faixa acima do primeiro
+  cartão. **Espere `trial` 0 antes de um RESET que deva manter a imagem.** Um
   `reload` ou um commit que reinicia voltam para a imagem em teste, e um stage
   durante o teste é recusado (409). Sem a marca, o `firmware.bin` instala como no
   passo 4, sem teste: é o caminho de volta para uma imagem anterior ao passo 5,

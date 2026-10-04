@@ -18570,6 +18570,10 @@ async function status(token) {
 <td><code>feat</code></td>
 <td>Com que chaves do configurador a imagem foi compilada: um bit por chave, ligado se a chave está ligada. O número de cada chave é o campo <code>bit</code> dela no <a href="https://angelointj.github.io/simut/configurador/model.json"><code>model.json</code> do configurador</a> e nunca muda. Serve para não chamar o que a imagem não tem — a página de histórico (<code>web_history</code>, bit 13), a API de exportação (<code>web_export_api</code>, bit 14), o <code>/metrics</code> (<code>web_metrics</code>, bit 15), o MQTT (<code>tel_mqtt</code>, bit 12), o TLS da telemetria (<code>tel_tls</code>, bit 11). O SIMUT publicado responde 262026. Um firmware anterior ao campo não o manda: trate a ausência como “tudo o que a variante sempre teve”</td>
 </tr>
+<tr class="odd">
+<td><code>slot</code>, <code>trial</code>, <code>reverted</code></td>
+<td>Só no Pico 2 W. <code>slot</code>: de que slot da tabela de partições a imagem subiu, <code>A</code> ou <code>B</code>, ou <code>-</code> numa placa sem a tabela. <code>trial</code>: <code>1</code> enquanto a atualização instalada está em teste. Ela se confirma depois de rodar saudável por um minuto; se reiniciar antes disso, ou não tiver esse minuto em cinco, o aparelho volta para a imagem anterior. <code>reverted</code>: a versão de uma atualização que não se confirmou, e da qual o aparelho voltou neste boot; vazio no resto do tempo. O painel e a página <strong>Arquivos</strong> mostram os dois últimos</td>
+</tr>
 </tbody>
 </table></div>
 <p>O bloco <code>metr</code> traz contadores de diagnóstico, zerados a cada boot:</p>
@@ -19859,8 +19863,11 @@ curl -s -b jar -F bkp=@backup.bkp &quot;$H/api/restore?op=apply&quot;</code></pr
 <p>A resposta <code>202</code> chega antes de o aparelho desligar o Wi-Fi. Sem imagem preparada, a resposta é <code>409</code> <code>{"error":"no committed update pending"}</code>; com o painel em uso, <code>503</code>. Antes de aplicar, o aparelho confere a assinatura de novo, sobre a imagem gravada naquele momento: se outro envio começou depois do passo 2, a resposta é <code>409</code> com <code>"v"</code>, e a imagem é descartada.</p></li>
 <li><p><strong>Confirme.</strong> Espere o aparelho voltar, repetindo <code>GET /api/login_init</code> a cada 3 s. Entre e leia <code>ver</code> em <code>GET /api/status</code>, ou <code>version</code> em <code>GET /api/perms</code>. Um status HTTP ou um tempo decorrido não provam nada: só a versão nova informada pelo aparelho prova a atualização. Depois, restaure o backup para recuperar o histórico e o resto (<a href="#cap-26-backup">Backup e restauração</a>).</p></li>
 </ol>
+<aside class="faixa faixa-nota"><span class="selo selo-neutro"><i></i>Nota</span>
+<p><strong>No Pico 2 W</strong> a imagem vai para o slot de onde o aparelho não subiu, e o sistema de arquivos fica intocado: o backup do passo 1 é só precaução. O passo 4 termina quando <code>trial</code> volta a <code>0</code>, cerca de um minuto depois do boot. Até lá, um reinício traz de volta a versão anterior. Se a imagem não se confirmar, o aparelho volta sozinho e diz a versão recusada em <code>reverted</code>.</p>
+</aside>
 <aside class="faixa faixa-perigo"><span class="selo selo-perigo"><i></i>Perigo</span>
-<p><strong>Não desligue o aparelho durante a aplicação.</strong> Existe um único espaço de firmware. Uma queda de energia na janela de gravação deixa o aparelho sem firmware, e a recuperação exige o cabo USB (<a href="#cap-18">capítulo 18</a>).</p>
+<p><strong>Não desligue o aparelho durante a aplicação.</strong> No Pico W existe um único espaço de firmware. Uma queda de energia na janela de gravação deixa o aparelho sem firmware, e a recuperação exige o cabo USB (<a href="#cap-18">capítulo 18</a>).</p>
 </aside>
 <p>Se a conexão cair no meio do envio de uma imagem grande, um equipamento da rede pode estar cortando conexões longas na porta 80. Configure outra porta web e tente de novo (<a href="#cap-09-servidor-web">capítulo 9</a>).</p>
 <h4 id="cap-26-tls">Certificado HTTPS</h4>
