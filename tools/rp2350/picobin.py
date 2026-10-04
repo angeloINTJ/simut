@@ -15,6 +15,12 @@ air image alone, after the link and before the signature, which covers it: the
 .uf2 a board takes over USB stays unflagged. check_rp2350_image.py writes the
 flagged copy next to the build, as firmware_ota.bin.
 
+When the image buys itself, the boot ROM rewrites the sector that holds the
+flag and clears it (`explicit_buy`, pico/bootrom.h). clear_trial does the same
+to a file: the release makes the factory .uf2 from the signed update that way
+(step 7, tools/release_manifest.py), so a board flashed over USB holds what a
+board updated over the air holds once it has bought itself.
+
 Project: SIMUT
 License: MIT
 """
@@ -86,10 +92,10 @@ def loop_blocks(image, first):
     raise ValueError(f"the block loop from {first:#x} does not come back within {MAX_LOOP} blocks")
 
 
-def mark_trial(image):
-    """The image with the TBYB bit set in its image definition. Refuses an
-    image whose first block is not the one image definition of its loop, one
-    already flagged, and one whose blocks are hashed or signed."""
+def _image_type(image):
+    """(position, word) of the IMAGE_TYPE item of the image definition, which
+    has to be the first block, and the one image definition of its loop.
+    Refuses an image whose blocks are hashed or signed."""
     off, items = first_block(image)
     if off is None or items is None:
         raise ValueError("no complete PICOBIN block in the first 4 KB")
@@ -102,10 +108,29 @@ def mark_trial(image):
         sealed = sorted(SEALED[t] for t in its if t in SEALED)
         if sealed:
             raise ValueError(f"the block at {b:#x} carries {', '.join(sealed)}: a sealed image "
-                             "is not marked here")
-    pos, word = blocks[0][1][ITEM_IMAGE_TYPE][0]
+                             "is not changed here")
+    return blocks[0][1][ITEM_IMAGE_TYPE][0]
+
+
+def mark_trial(image):
+    """The image with the TBYB bit set in its image definition. Refuses one
+    already flagged, and what _image_type( ) refuses."""
+    pos, word = _image_type(image)
     if (word >> 16) & TBYB:
         raise ValueError("the image is already flagged for trial")
     out = bytearray(image)
     struct.pack_into("<I", out, pos, word | (TBYB << 16))
+    return bytes(out)
+
+
+def clear_trial(image):
+    """The image with the TBYB bit cleared, and every other byte as it was: a
+    signature trailer after the program is kept, though it was taken over the
+    flagged bytes. Refuses an image that is not flagged, and what
+    _image_type( ) refuses."""
+    pos, word = _image_type(image)
+    if not (word >> 16) & TBYB:
+        raise ValueError("the image is not flagged for trial")
+    out = bytearray(image)
+    struct.pack_into("<I", out, pos, word & ~(TBYB << 16))
     return bytes(out)
