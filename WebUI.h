@@ -483,6 +483,9 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 /* @IF tft */
                 if (d.theme !== undefined && document.activeElement.id !== "themeSel") document.getElementById('themeSel').value = d.theme;
                 /* @ENDIF */
+                /* @IF slot */
+                window.fwSlotShow(d);
+                /* @ENDIF */
 
                 let s = Math.floor(d.uptime / 1000); let days = Math.floor(s / 86400); s %= 86400; let hrs = Math.floor(s / 3600); s %= 3600; let mins = Math.floor(s / 60); let secs = s % 60;
                 let upStr = (days > 0 ? days + "d " : "") + (hrs > 0 || days > 0 ? fmt(hrs) + "h " : "") + fmt(mins) + "m " + fmt(secs) + "s";
@@ -6445,6 +6448,18 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             }
             setTimeout(() => location.href = '/login', 5000);
         }
+        /* @IF slot */
+        /* The Pico 2 W writes the update into the slot it did not boot from:
+           its file system is not reformatted, and the update boots on trial
+           (docs/analysis/OTA_AB_RP2350.md). The warning in fmFirmware( ) above
+           is the Pico W's, and this one replaces it on the Pico 2 W. The page
+           also shows the note the dashboard shows. */
+        fmFirmware = function() {
+            if (!confirm(window.t('fil_fw_warn_slot', 'Firmware OTA update.\n\nThe new image goes into the slot this device did not start from. The files on the device stay as they are.\n\nAfter the restart the new version runs on trial. It stays once it has run healthy for a minute. If it has not within five minutes, or the device restarts before that, the device goes back to the version it runs now.\n\nA .bkp backup is downloaded first.\n\nProceed?'))) return;
+            document.getElementById('fwFile').click();
+        };
+        fetchSafe('/api/status').then(r => r.ok ? r.json() : null).then(j => { if (j) window.fwSlotShow(j.sys); }).catch(() => {});
+        /* @ENDIF */
 
 
         /* The viewer reads the file through the same /download the name links
@@ -8486,6 +8501,39 @@ static const char LANG_JS[] PROGMEM = R"raw(
         });
         return v;
     };
+    /* @IF slot */
+    /* fw: slot note. The Pico 2 W's update goes into the slot the board did not
+       boot from and boots on trial (docs/analysis/OTA_AB_RP2350.md, step 5), and
+       /api/status says so in three fields only that chip sends: slot, trial (1
+       until the update has run healthy for a minute and kept itself) and
+       reverted (the version of an update the boot ROM went back from). The
+       Pico W sends none of the three, and its images cut this block anyway
+       (web_omit of [chip.rp2040], tools/features.toml).
+       tools/test_webui_trial_note.py runs it. */
+    window.fwSlotNote = function(sys) {
+        if (!sys) return '';
+        let n = [];
+        if (sys.trial == 1) n.push(window.t('fw_trial', 'This version is on trial: it stays once it has run healthy for a minute. Restarting the device before that brings back the previous version.'));
+        if (sys.reverted) n.push(window.t('fw_reverted', 'The update to v{v} did not confirm itself, and the device went back to this version (code 613 in the event log).').replace('{v}', sys.reverted));
+        return n.join(' ');
+    };
+    /* fw: end of slot note */
+    /* The note above the page's first card, while there is something to say.
+       The dashboard calls this on every status poll, so the note goes away
+       once the update has kept itself; the text is only rewritten when it
+       changes, or a screen reader would hear it again on every poll. */
+    window.fwSlotShow = function(sys) {
+        let n = window.fwSlotNote(sys), el = document.getElementById('fwNote'), c = document.querySelector('.container');
+        if (!el) {
+            if (!n || !c) return;
+            el = document.createElement('p');
+            el.id = 'fwNote'; el.className = 'faixa faixa-alerta'; el.setAttribute('role', 'status');
+            c.insertBefore(el, c.firstChild);
+        }
+        if (el.textContent !== n) el.textContent = n;
+        el.style.display = n ? '' : 'none';
+    };
+    /* @ENDIF */
 
     document.addEventListener('DOMContentLoaded', () => {
         if (window.installCommitInfra) installCommitInfra();

@@ -590,6 +590,7 @@ O bloco `sys`:
 | `hi` | Intervalo do histórico, em minutos |
 | `cap` | `1` se a imagem tem painel |
 | `feat` | Com que chaves do configurador a imagem foi compilada: um bit por chave, ligado se a chave está ligada. O número de cada chave é o campo `bit` dela no [`model.json` do configurador](https://angelointj.github.io/simut/configurador/model.json) e nunca muda. Serve para não chamar o que a imagem não tem — a página de histórico (`web_history`, bit 13), a API de exportação (`web_export_api`, bit 14), o `/metrics` (`web_metrics`, bit 15), o MQTT (`tel_mqtt`, bit 12), o TLS da telemetria (`tel_tls`, bit 11). O SIMUT publicado responde 262026. Um firmware anterior ao campo não o manda: trate a ausência como "tudo o que a variante sempre teve" |
+| `slot`, `trial`, `reverted` | Só no Pico 2 W. `slot`: de que slot da tabela de partições a imagem subiu, `A` ou `B`, ou `-` numa placa sem a tabela. `trial`: `1` enquanto a atualização instalada está em teste. Ela se confirma depois de rodar saudável por um minuto; se reiniciar antes disso, ou não tiver esse minuto em cinco, o aparelho volta para a imagem anterior. `reverted`: a versão de uma atualização que não se confirmou, e da qual o aparelho voltou neste boot; vazio no resto do tempo. O painel e a página **Arquivos** mostram os dois últimos |
 
 O bloco `metr` traz contadores de diagnóstico, zerados a cada boot:
 
@@ -1263,8 +1264,12 @@ A atualização pela API. O único comprovante de sucesso é a versão nova info
 
 4. **Confirme.** Espere o aparelho voltar, repetindo `GET /api/login_init` a cada 3 s. Entre e leia `ver` em `GET /api/status`, ou `version` em `GET /api/perms`. Um status HTTP ou um tempo decorrido não provam nada: só a versão nova informada pelo aparelho prova a atualização. Depois, restaure o backup para recuperar o histórico e o resto ([Backup e restauração](#cap-26-backup)).
 
+::: nota
+**No Pico 2 W** a imagem vai para o slot de onde o aparelho não subiu, e o sistema de arquivos fica intocado: o backup do passo 1 é só precaução. O passo 4 termina quando `trial` volta a `0`, cerca de um minuto depois do boot. Até lá, um reinício traz de volta a versão anterior. Se a imagem não se confirmar, o aparelho volta sozinho e diz a versão recusada em `reverted`.
+:::
+
 ::: perigo
-**Não desligue o aparelho durante a aplicação.** Existe um único espaço de firmware. Uma queda de energia na janela de gravação deixa o aparelho sem firmware, e a recuperação exige o cabo USB ([capítulo 18](#cap-18)).
+**Não desligue o aparelho durante a aplicação.** No Pico W existe um único espaço de firmware. Uma queda de energia na janela de gravação deixa o aparelho sem firmware, e a recuperação exige o cabo USB ([capítulo 18](#cap-18)).
 :::
 
 Se a conexão cair no meio do envio de uma imagem grande, um equipamento da rede pode estar cortando conexões longas na porta 80. Configure outra porta web e tente de novo ([capítulo 9](#cap-09-servidor-web)).

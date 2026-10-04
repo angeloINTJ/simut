@@ -262,8 +262,13 @@ uma de que a ROM voltou:
 
 A imagem em teste registra o 610 ao subir, o 611 no *buy* (com os segundos
 desde o boot), o 612 no prazo e o 614 se a ROM recusar o *buy*. O
-`sys.trial` vale 1 enquanto ela espera. A página Arquivos e o gerenciador de
-frota ainda não mostram esses campos.
+`sys.trial` vale 1 enquanto ela espera. O painel e a página Arquivos mostram
+os dois campos numa faixa acima do primeiro cartão, desde 04/10/2026: "esta
+versão está em teste" enquanto `trial` é 1, e a volta com a versão recusada
+enquanto `reverted` a traz. A página Arquivos avisa, antes do envio, que os
+arquivos ficam como estão e que a imagem nova sobe em teste. Tudo isso fica em
+blocos `@IF slot` que as imagens do Pico W cortam. O gerenciador de frota
+ainda não mostra os campos.
 
 **A configuração.** Uma imagem anterior recusa uma configuração de outro
 `CONFIG_VERSION` (`StorageManager.cpp:106`, `:748`). Num boot em teste que migra
@@ -561,8 +566,8 @@ depois do boot.
 4. **O stage no slot inativo** e o reinício `FLASH_UPDATE`, ainda sem TBYB.
    Feita (#246).
 5. **TBYB:** a marca de teste, a confirmação em 60 s, a volta e o relato.
-   Feita em 04/10/2026. A página Arquivos e o gerenciador de frota ainda não
-   mostram o `trial` e o `reverted`.
+   Feita em 04/10/2026. O painel e a página Arquivos mostram o `trial` e o
+   `reverted` desde 04/10/2026; o gerenciador de frota ainda não.
 6. **A autópsia** com os registradores que a ROM não usa. Feita em 04/10/2026:
    a medição mostrou que os registradores do watchdog bastam, e consertou o que
    faltava (o `setup( )` travado em teste; o Core 1 na saúde do teste).
