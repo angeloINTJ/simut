@@ -131,8 +131,8 @@ assim:
 - **A imagem pelo ar sobe em teste (passo 5).** Envie o `firmware_ota.bin`, que
   o build escreve ao lado do `firmware.bin` com a marca de teste. A placa volta
   com `sys.trial` 1 no `/api/status` e se confirma depois de um minuto saudável
-  (LittleFS e configuração lidos, Wi-Fi conectado): na bancada, aos 79 s do
-  boot. Antes disso, um `hand RESET`, um corte de energia ou o watchdog trazem a
+  (LittleFS e configuração lidos, Wi-Fi conectado, Core 1 sem relançamento): na
+  bancada, aos 79 s do boot. Antes disso, um `hand RESET`, um corte de energia ou o watchdog trazem a
   imagem anterior, que põe a versão recusada em `sys.reverted` e grava o código
   613. **Espere `trial` 0 antes de um RESET que deva manter a imagem.** Um
   `reload` ou um commit que reinicia voltam para a imagem em teste, e um stage
