@@ -543,12 +543,12 @@
       "bench": true,
       "publish": false,
       "label": {
-        "en": "Pico 2 W build check",
-        "pt": "Verificação de build do Pico 2 W"
+        "en": "SIMUT for the Pico 2 W",
+        "pt": "SIMUT para o Pico 2 W"
       },
       "desc": {
-        "en": "The release image compiled for the RP2350, so CI sees it build. It boots from slot A or B on the bench board and updates over the air into the other; not published.",
-        "pt": "A imagem de release compilada para o RP2350, para o CI vê-la compilar. Sobe do slot A ou B na placa da bancada e atualiza pelo ar no outro; não publicada."
+        "en": "The release image for the Pico 2 W (RP2350). It boots from slot A or B and updates over the air into the other, on trial. The release publishes its images; this page has not measured it.",
+        "pt": "A imagem de release do Pico 2 W (RP2350). Sobe do slot A ou B e atualiza pelo ar no outro, em teste. A release publica as imagens dela; esta página ainda não a mediu."
       },
       "config": {
         "display": "tft",
