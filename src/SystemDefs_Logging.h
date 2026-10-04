@@ -292,6 +292,17 @@ enum LogCode {
  /* ── Display (600–604) ── */
  DSP_FORCE_UNPAUSE = 600,
 
+ /* ── OTA on the RP2350: the update on trial (610–619) ──
+  * docs/analysis/OTA_AB_RP2350.md, step 5. The context carries what the text
+  * cannot, since the binary log keeps no text: the version as M*10000+m*100+p
+  * (ota/trial.h) for STARTED and REVERTED, the seconds since boot for
+  * CONFIRMED and EXPIRED, the boot ROM's code for BUY_FAILED. */
+ OTA_TRIAL_STARTED = 610,
+ OTA_TRIAL_CONFIRMED = 611,
+ OTA_TRIAL_EXPIRED = 612,
+ OTA_TRIAL_REVERTED = 613,
+ OTA_TRIAL_BUY_FAILED = 614,
+
  ERR_UNKNOWN = 999
 };
 

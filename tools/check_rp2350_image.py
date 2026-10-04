@@ -21,6 +21,10 @@ simut_config.h). Then it writes, next to firmware.uf2:
   * partition_table.uf2: the table alone, for `picotool load`;
   * firmware_factory.uf2: the table and the program in slot A, every block in
     the absolute family, for a board whose flash holds nothing.
+  * firmware_ota.bin: firmware.bin flagged try-before-you-buy, the image an
+    update installs (step 5; tools/rp2350/picobin.py). The ROM boots it only
+    right after the apply's FLASH_UPDATE reboot, so firmware.bin and the
+    .uf2 files stay unflagged: a board never boots a flagged image from USB.
 
 Every other image is left alone. Run with `pio run -e pico2_w_release`.
 
@@ -39,15 +43,13 @@ Import("env")
 ROOT = env.subst("$PROJECT_DIR")
 sys.path.insert(0, os.path.join(ROOT, "tools", "rp2350"))
 import gen_memmap  # noqa: E402  (tools/rp2350/gen_memmap.py)
+from picobin import ITEM_IMAGE_TYPE, TBYB, first_block, mark_trial  # noqa: E402  (tools/rp2350/picobin.py)
 
 LDSCRIPT = "tools/rp2350/memmap_slot.ld"
 XIP = 0x10000000
-MARK_START, MARK_END = 0xFFFFDED3, 0xAB123579
-ITEM_IMAGE_TYPE, ITEM_LAST = 0x42, 0x7F
 # EXE | security S | CPU Arm | chip RP2350, and no try-before-you-buy bit: an
 # image flagged for trial never starts from a plain load (picobin.h).
 IMAGE_TYPE_WANT = 0x1 | (0x2 << 4) | (0x0 << 8) | (0x1 << 12)
-TBYB = 0x8000
 UF2_MAGIC = (0x0A324655, 0x9E5D5157, 0x0AB16F30)
 # BuildIdentity.cpp; the env is [a-z], and the RP2350's ends in the chip's suffix.
 ENV_TAG = re.compile(rb"SIMUT-ENV:([a-z]+);")
@@ -81,32 +83,6 @@ def symbols(elf):
         if len(parts) == 3:
             syms[parts[2]] = int(parts[0], 16)
     return syms
-
-
-def first_block(image):
-    """(offset, items) of the first PICOBIN block in the first 4 KB, the way
-    the boot ROM looks for it; items maps an item type to its first word."""
-    for off in range(0, min(len(image), 4096) - 8, 4):
-        if struct.unpack_from("<I", image, off)[0] != MARK_START:
-            continue
-        items, i = {}, off + 4
-        while i + 4 <= len(image):
-            word = struct.unpack_from("<I", image, i)[0]
-            typ = word & 0x7F
-            size = (word >> 8) & (0xFFFF if word & 0x80 else 0xFF)
-            if typ == ITEM_LAST:
-                # LAST carries the block's length; the end marker follows its
-                # second word, the link to the next block.
-                end = i + 8
-                if end + 4 <= len(image) and struct.unpack_from("<I", image, end)[0] == MARK_END:
-                    return off, items
-                break
-            if size == 0:
-                break
-            items.setdefault(typ, word)
-            i += size * 4
-        return off, None
-    return None, None
 
 
 def uf2_blocks(path):
@@ -206,9 +182,22 @@ def check_and_package(source, target, env):
             fail(f"{' '.join(cmd)}: {r.stdout}{r.stderr}")
     n = merge_uf2([pt_uf2, app_uf2], factory)
     os.remove(app_uf2)
+
+    # 6. The image an update installs, flagged for trial. One bit differs from
+    # firmware.bin; the signature is taken over this file, so it covers the bit.
+    try:
+        ota = mark_trial(image)
+    except ValueError as e:
+        fail(f"firmware.bin cannot be flagged for trial: {e}")
+    diff = [i for i in range(end) if ota[i] != image[i]]
+    if len(ota) != end or len(diff) != 1 or first_block(ota)[1].get(ITEM_IMAGE_TYPE, 0) >> 16 != flags | TBYB:
+        fail(f"the trial flag changed the bytes at {[hex(d) for d in diff[:8]]}, want the IMAGE_TYPE flags alone")
+    with open(os.path.join(build, "firmware_ota.bin"), "wb") as fh:
+        fh.write(ota)
     print(f"[rp2350-image] OK: image definition first (at {off:#x}, type {flags:#06x}), no OTA stub, "
           f"env {envs[0]}, {end} of {slot} B of slot, LittleFS at {syms['_FS_start']:#x}; "
-          f"wrote partition_table.uf2 and firmware_factory.uf2 ({n} blocks)")
+          f"wrote partition_table.uf2, firmware_factory.uf2 ({n} blocks) and firmware_ota.bin "
+          f"(type {flags | TBYB:#06x} at {diff[0]:#x})")
 
 
 if is_slot_image():

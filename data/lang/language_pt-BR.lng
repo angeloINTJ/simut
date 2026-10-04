@@ -335,6 +335,11 @@ Atualização instalada
 585 Comando desconhecido
 590 Sensores em runtime carregados
 600 Forçar despausar
+610 Atualização em teste
+611 Atualização confirmada
+612 Atualização não confirmada a tempo
+613 Atualização revertida
+614 Falha ao confirmar a atualização
 999 Erro desconhecido
 @TRL
 016eef1e DS18B20 pareado ao seu número de série

@@ -62,6 +62,14 @@ inline uint32_t slot_inactive_offset(int booted_partition, uint32_t slot_a_off, 
 	return SLOT_NONE;
 }
 
+/** The slot the board runs from: A (0) or B (1). A reboot that has to come back
+ *  to the image on trial names it to the ROM (step 5). */
+inline uint32_t slot_active_offset(int booted_partition, uint32_t slot_a_off, uint32_t slot_b_off) {
+	if (booted_partition == 0) return slot_a_off;
+	if (booted_partition == 1) return slot_b_off;
+	return SLOT_NONE;
+}
+
 /** Starts a slot: erases its first sector, so from here on it has no image. */
 inline bool slot_stage_begin(SlotStage& s, const SlotFlashOps* ops, uint32_t slot_off, uint32_t slot_size) {
 	memset(&s, 0, sizeof(s));

@@ -282,6 +282,11 @@ public:
   * (XIP_BASE + the slot's offset). Falls back to safeReboot( ) if the ROM
   * refuses the call. */
  [[noreturn]] void safeRebootFlashUpdate(uint32_t updateBase);
+ /** While an update is on trial (ota/trial.h), safeReboot( ) comes back to it
+  *  through the ROM, at @p updateBase (XIP_BASE + the running slot's offset),
+  *  where a plain reboot would make the ROM go back to the previous image.
+  *  0 makes reboots plain again: after the buy, and for going back. */
+ void setRebootSlot(uint32_t updateBase) { _rebootSlot = updateBase; }
 #endif
 
  /** Immediate flush of pending logs buffered during touch
@@ -334,6 +339,9 @@ private:
 
  bool (*_isHeavyTaskFn)( ) = nullptr;
  void (*_preRebootFn)( ) = nullptr;
+#if defined(PICO_RP2350) && PICO_RP2350
+ uint32_t _rebootSlot = 0;   /**< setRebootSlot( ) */
+#endif
 
  /* Uses TouchPriority::isActive( ) directly. */
 

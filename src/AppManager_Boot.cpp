@@ -23,6 +23,7 @@
 #include "ota/config_snapshot.h"
 #include "ota/backup.h"      /* crc32_update — verificação da imagem pós-apply */
 #include "ota/ota_layout.h"
+#include "ota/staging.h"     /* trial_boot: the RP2350's update on trial */
 #include "TelemetryManager.h"
 #include "Themes.h"
 #include "TouchPriority.h"
@@ -819,6 +820,13 @@ void AppManager::setup( ) {
  _storageMgr->exitFlashSafeMode( );
  BLOG("[BOOT] OTA config snapshot erased after use"); BLOG_NL( );
  }
+
+#if !OTA_RP2040_MAP
+ /* The RP2350 has no applier and no metadata: what an update has to say at
+  * boot comes from the ROM (docs/analysis/OTA_AB_RP2350.md, step 5) — this
+  * image is on trial, or the ROM just went back from one. */
+ ota::trial_boot(_storageMgr.get( ), fsOk);
+#endif
 
  BLOG("[BOOT step] 7: pos OTA detect @ "); BLOG_U(millis( )); BLOG_NL( );
 

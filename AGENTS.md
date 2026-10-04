@@ -127,11 +127,25 @@ assim:
   imagem anterior. Por isso um reset depois do envio e antes do apply precisa
   deixar a placa onde está: o primeiro setor da imagem só vai à flash no apply.
   O `env` dela é `releasetwo`, e uma release do Pico W é recusada como de outro
-  modelo (`v=7`). Ainda sem volta automática (TBYB, passo 5): uma imagem que
-  sobe e trava fica, e a saída é o USB.
+  modelo (`v=7`).
+- **A imagem pelo ar sobe em teste (passo 5).** Envie o `firmware_ota.bin`, que
+  o build escreve ao lado do `firmware.bin` com a marca de teste. A placa volta
+  com `sys.trial` 1 no `/api/status` e se confirma depois de um minuto saudável
+  (LittleFS e configuração lidos, Wi-Fi conectado): na bancada, aos 79 s do
+  boot. Antes disso, um `hand RESET`, um corte de energia ou o watchdog trazem a
+  imagem anterior, que põe a versão recusada em `sys.reverted` e grava o código
+  613. **Espere `trial` 0 antes de um RESET que deva manter a imagem.** Um
+  `reload` ou um commit que reinicia voltam para a imagem em teste, e um stage
+  durante o teste é recusado (409). Sem a marca, o `firmware.bin` instala como no
+  passo 4, sem teste: é o caminho de volta para uma imagem anterior ao passo 5,
+  que não se confirma.
+- **Uma conta tem uma sessão só** (`allocSessionSlot`): um segundo login da
+  mesma conta encerra o primeiro. Um roteiro que espera a confirmação consultando
+  o `/api/status` perde a sessão se outro processo entrar com a mesma conta no
+  meio, e para de ver a placa.
 - **A imagem assinada para a bancada:** a `pico2_w_release` confia na chave de
   bancada (`ota_trust_bench`). Assine só com ela:
-  `python3 tools/ota_sign.py sign --key ~/.simut-ota/signer-bench.p8 --cert ~/.simut-ota/signer-bench.cert --in firmware.bin --out firmware.signed.bin`.
+  `python3 tools/ota_sign.py sign --key ~/.simut-ota/signer-bench.p8 --cert ~/.simut-ota/signer-bench.cert --in firmware_ota.bin --out firmware_ota.signed.bin`.
 - **Antes de compilar,** rode `bash tools/arduino_pico_overrides/patch.sh`. Sem o
   patch 2k, o `check_rp2350_image.py` recusa a imagem, que cairia ao montar o
   LittleFS.

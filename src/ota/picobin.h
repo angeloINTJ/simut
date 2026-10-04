@@ -93,4 +93,12 @@ inline bool picobin_is_rp2350_arm_exe(const PicobinBlock& b) {
 	       (uint16_t)(b.image_type & (uint16_t)~PICOBIN_TBYB) == PICOBIN_RP2350_ARM_EXE;
 }
 
+/** Whether that block's image is flagged for trial: the ROM boots it only right
+ *  after the FLASH_UPDATE reboot that installs it, and clears the flag when the
+ *  image buys itself (docs/analysis/OTA_AB_RP2350.md, step 5). A flagged image
+ *  in the slot the board did not boot from is an update the ROM went back from. */
+inline bool picobin_is_trial(const PicobinBlock& b) {
+	return b.found && b.has_image_type && (b.image_type & PICOBIN_TBYB) != 0;
+}
+
 } /* namespace ota */

@@ -843,6 +843,18 @@ void LogManager::markCleanReboot( ) {
 }
 
 void LogManager::safeReboot( ) {
+#if defined(PICO_RP2350) && PICO_RP2350
+ /* An update on trial is kept only by its buy (ota/trial.h): a plain reboot
+  * now would boot the image it replaced. A reboot asked for during the trial —
+  * a commit, a restore, `reload` — is not a verdict on the update, so it goes
+  * back into the same slot as a FLASH_UPDATE, on trial again. Cleared first:
+  * if the ROM refuses, safeRebootFlashUpdate( ) comes back here for a plain one. */
+ if (_rebootSlot) {
+  const uint32_t base = _rebootSlot;
+  _rebootSlot = 0;
+  safeRebootFlashUpdate(base);
+ }
+#endif
  /* Persist before anything else: below this point the console detaches and
   * the chip resets, and the history block still open lives in RAM. Cleared
   * before the call so a hook that somehow reaches safeReboot again cannot
@@ -1339,6 +1351,13 @@ static const char* translateCodeEn(uint16_t code) {
 
  /* ── Display (600) ── */
  case DSP_FORCE_UNPAUSE: return "Force unpause";
+
+ /* ── OTA on the RP2350, the update on trial (610–614) ── */
+ case OTA_TRIAL_STARTED: return "Update on trial";
+ case OTA_TRIAL_CONFIRMED: return "Update confirmed";
+ case OTA_TRIAL_EXPIRED: return "Update not confirmed in time";
+ case OTA_TRIAL_REVERTED: return "Update reverted";
+ case OTA_TRIAL_BUY_FAILED: return "Update confirmation failed";
 
  case ERR_UNKNOWN: return "Unknown error";
  default: return "?";
