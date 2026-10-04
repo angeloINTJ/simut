@@ -135,7 +135,10 @@ def compose(prof: dict, M: dict) -> dict:
         lib_ignore += M["libs"]["display"]
     # The web builder's @IF blocks to cut (tools/build_webui_gz.py): the display
     # choice may name one, and a switch that is off names its own (off_web_omit).
+    # So may the chip: what only another chip has does not reach this one's pages.
     web_omit = [disp["web_omit"]] if disp.get("web_omit") else []
+    if chip.get("web_omit"):
+        web_omit.append(chip["web_omit"])
 
     for tname in TOGGLE_ORDER:
         t = M["toggles"][tname]

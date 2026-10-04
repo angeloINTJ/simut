@@ -35,6 +35,10 @@ common_flags = ["-DNDEBUG"]   # as sete imagens carregam NDEBUG (release ganhou 
 [chip.rp2040]
 board = ""
 flags = []
+# `slot` (2026-10-04): o que a pagina diz da atualizacao em teste e da volta, que so
+# o RP2350 tem (passo 5 de docs/analysis/OTA_AB_RP2350.md). O Pico W corta esses
+# blocos @IF e sai com as paginas de antes.
+web_omit = "slot"
 
 [chip.rp2350]
 # Pico 2 W: RP2350, 4 MB de flash, o mesmo CYW43439. -Wno-error=overloaded-virtual

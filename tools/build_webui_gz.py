@@ -246,6 +246,7 @@ WEB_FEATURES = {
     "syslog": "a secao Syslog remoto da pagina de configuracao",
     "tel_tls": "a chave de TLS da telemetria e o aviso de certificado",
     "tel_mqtt": "o seletor de transporte e os campos do MQTT na pagina de telemetria",
+    "slot": "a atualizacao em teste e a volta do Pico 2 W, no painel e na pagina Arquivos",
 }
 
 # Onde cada feature registra as rotas que só ela tem. A página que chama uma
