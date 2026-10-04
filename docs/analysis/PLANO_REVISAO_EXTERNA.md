@@ -4,9 +4,10 @@
 quando o código mudar. Marque aqui, no PR que o fechou.
 
 Levantado em 2026-10-01 contra `main` = `2721eb2` (v2.8.0 mais os PRs #197 a
-#202). Conferido de novo em 2026-10-02 contra `main` = `11d3822` (v2.9.0),
-item a item, no código e na release publicada: as colunas de estado abaixo são
-as dessa conferência.
+#202). Conferido de novo item a item, no código e na release publicada, em
+2026-10-02 contra `main` = `11d3822` (v2.9.0) e em 2026-10-04 contra `main` =
+`8e48cd8` (v2.11.0): as colunas de estado abaixo são as dessa última
+conferência.
 
 ## De onde vem
 
@@ -44,7 +45,7 @@ falha antes (`CLAUDE.md`, *Tests first*).
 | Tom: "zero-trust", "signed audit trail" e "obfuscated at rest" sem a ressalva | Mergeado (#205) |
 | A-03 dividido: o `ctx=209` real, o `ctx=455` do `picotool -x` explicado | Mergeado (#205) |
 | `SHA256SUMS` e atestado de proveniência (Sigstore) em cada release | Mergeado (#207). Exercido na v2.9.0: o sha256 da `release.bin` publicada está no `SHA256SUMS` e tem um atestado (conferido em 02/10) |
-| Descrição do repositório no GitHub ("Professional-grade") | Decisão do mantenedor (01/10): esperar. Em 02/10 ainda começa com "Professional-grade" |
+| Descrição do repositório no GitHub ("Professional-grade") | Decisão do mantenedor (01/10): esperar. Em 04/10 ainda começa com "Professional-grade" e fala só do Pico W, que deixou de ser a única placa na v2.11.0 |
 | Nota "como o SIMUT é desenvolvido" (A-14): agentes de IA ajudam, nada entra sem PR, nove checks e prova | Mergeado (#228): a seção *How SIMUT is developed* nos três READMEs, e a seção *AI Tools* do `CONTRIBUTING.md` reescrita para o fluxo de verdade |
 
 ## Fase 1 — o que contradiz a promessa
@@ -56,20 +57,20 @@ falha antes (`CLAUDE.md`, *Tests first*).
 | Alarme recusado com a fila cheia nunca é anunciado (#161) | Mergeado (#217, 01/10), na v2.9.0: opção (a), latch só com push aceito e reanúncio do que segue ativo |
 | Linha de alarmes por MQTT: ACK nunca lido com a telemetria desligada; a fila não cabe no buffer de 2.048 B (achados 28 e 29) | Mergeado (#208, 01/10), na v2.9.0. Provado na bancada: fila presa em 5/16 e maior lote de 2.001 B na main; fila 0 e lote de 2.794 B com o PR |
 | `isTimeSynced( )` sempre verdadeiro (achado 66) | Mergeado (#209, 01/10), na v2.9.0. Provado na bancada: com o NTP desligado a main diz `ntp=1` com o relógio em 1970; o PR diz 0 |
-| Com NTP ligado e sem servidor alcançável, o aparelho nunca chega a `NET_READY`, e telemetria e linha de alarmes esperam para sempre (achado 20). Documentado no manual, cap. 10, mas é armadilha para a LAN sem internet que o README promete | A fazer: desenho (sair para `NET_READY` depois de N falhas e seguir tentando o NTP). Presente na v2.9.0: `NET_CONNECTED_WAIT_NTP` só sai com o NTP respondendo |
-| Os achados de severidade alta que restam: 7 dos 17 (tabela abaixo; 28, 29, 48, 63 e 64 corrigidos, 6, 18 e 38 no #234, 44 no #235 e 58 no #236) | Um PR por grupo. O #236 fecha o 58: uma restauração que falha no meio mantém os arquivos que terminou e apaga só o incompleto, não há mais limite de 200 arquivos, e o `apply` exige a validação do mesmo arquivo. O #235 fecha o 44, do grupo API: `null` num limite mantém o limite, e o que não é número é recusado; o 41, do mesmo grupo, é a limitação conhecida do HTTP e fica documentada. O #234 fecha o grupo do ensaio inteiro: os três altos e os quatro médios (5, 17, 21, 69). O ensaio e o **Testar** escrevem só na cópia; fuso e sons valem com o reinício da gravação |
+| Com NTP ligado e sem servidor alcançável, o aparelho nunca chega a `NET_READY`, e telemetria e linha de alarmes esperam para sempre (achado 20). Documentado no manual, cap. 10, mas é armadilha para a LAN sem internet que o README promete | A fazer: desenho (sair para `NET_READY` depois de N falhas e seguir tentando o NTP). Presente na v2.11.0: `NET_CONNECTED_WAIT_NTP` só sai com o NTP respondendo, e a telemetria e a linha de alarmes conferem `isNetworkHealthy( )`, que exige `NET_READY`. Só o Air envia antes disso, com `isLinkUp( )` (F08) |
+| Os achados de severidade alta que restam: 7 dos 17 (tabela abaixo; 28, 29, 48, 63 e 64 corrigidos, 6, 18 e 38 no #234, 44 no #235 e 58 no #236) | Um PR por grupo. O #236 fecha o 58: uma restauração que falha no meio mantém os arquivos que terminou e apaga só o incompleto, não há mais limite de 200 arquivos, e o `apply` exige a validação do mesmo arquivo. O #235 fecha o 44, do grupo API: `null` num limite mantém o limite, e o que não é número é recusado; o 41, do mesmo grupo, é a limitação conhecida do HTTP e fica documentada. O #234 fecha o grupo do ensaio inteiro: os três altos e os quatro médios (5, 17, 21, 69). O ensaio e o **Testar** escrevem só na cópia; fuso e sons valem com o reinício da gravação. Em 04/10, na v2.11.0, os seis que pedem código continuam lá: 1, 8, 9, 20, 25 e 65. O 25 é o AP aberto pelo gesto do boot: esse caminho não chama o `begin( )` da rede, que carrega o nome dela, e o prazo de 15 min do AP só vale com um nome |
 
 ## Fase 2 — os itens de firmware da revisão
 
 | Item | Estado |
 |---|---|
 | A-03: o `ctx=209` com um laço dirigido (os cinco comandos de 21/09, painel desenhando) | A fazer, na bancada. À parte, um watchdog de campo foi corrigido no #218 (01/10, na v2.9.0): um join de Wi-Fi recusado segurava o Core 0 |
-| A-04: cursor de telemetria por posição de escrita, com o codec de referência em Python e o portão de paridade junto | #232: o cursor é a posição de gravação, pela opção B do [A04_CURSOR_POR_POSICAO.md](A04_CURSOR_POR_POSICAO.md) (#231): uma posição por arquivo de dia, janela de 3 dias. O formato do histórico não muda, então o codec de referência e o portão de paridade ficam como estão. No host, 19 casos novos no `test_validators`, os de antes rodados contra a regra por tempo e falhando onde ela pulava. Na bancada (02/10, `pico_w_test`): com o relógio adiantado e depois de volta, a `main` entregou 0 de 7 registros gravados depois da volta, dizendo 0 pendentes, e a branch 7 de 7; atualizar e voltar sem repetir nem perder; e a bancada achou a atualização com o cursor antigo adiantado, que a branch agora corrige |
-| A-06 e #189: respostas truncadas e o enquadramento chunked | A fazer: soak que conta e relê; reprodução no host. O #189 está entre os conhecidos da v2.9.0 |
+| A-04: cursor de telemetria por posição de escrita, com o codec de referência em Python e o portão de paridade junto | Mergeado (#232, 02/10), na v2.10.0. O cursor é a posição de gravação, pela opção B do [A04_CURSOR_POR_POSICAO.md](A04_CURSOR_POR_POSICAO.md) (#231): uma posição por arquivo de dia, janela de 3 dias. O formato do histórico não muda, então o codec de referência e o portão de paridade ficam como estão. No host, 19 casos novos no `test_validators`, os de antes rodados contra a regra por tempo e falhando onde ela pulava. Na bancada (02/10, `pico_w_test`): com o relógio adiantado e depois de volta, a `main` entregou 0 de 7 registros gravados depois da volta, dizendo 0 pendentes, e a branch 7 de 7; atualizar e voltar sem repetir nem perder; e a bancada achou a atualização com o cursor antigo adiantado, que a branch agora corrige |
+| A-06 e #189: respostas truncadas e o enquadramento chunked | A fazer: soak que conta e relê; reprodução no host. O #189 segue entre os conhecidos da v2.11.0; no portão dela (04/10), 4 das 720 leituras do soak perderam o enquadramento |
 | A-08: contas sem reinício | #230, mergeado em 02/10 (`51dd1e6`) depois de conferido no ferro contra a `main`: `CFG_USERS` sai de `CFG_REBOOT_CLASSES`; a sessão web confere a conta viva a cada requisição e o painel a cada ação (`SessionCheck.h`), o que também fecha a sessão que sobrevivia a uma conta apagada no painel ou na CLI; o ensaio aceita `users` e a página oferece **Aplicar agora** para contas |
 | A-05: soak longo do Air (3 dias ou mais) | A fazer, na bancada. O Air está parado desde 11/09 |
 | A-10: medir o login a 5.000 rodadas e escrever o número no `SECURITY.md` | Mergeado (#228): o custo e a troca escritos no `SECURITY.md`, com a medição na bancada (02/10, imagem de teste da v2.9.0, 133 MHz): uma verificação custa cerca de 645 ms. Três instrumentos, cada um contra um controle sem a verificação: `user pass` 646 ms × `user perm` 5 ms; `/metrics` com HTTP Basic 699 ms × com cookie 49 ms; login 740 ms do POST à resposta. O comentário de `PASSWORD_HMAC_ROUNDS` dizia ~400 ms, sem fonte, e passou a dizer o medido. A mesma medição achou que um nome sem conta era recusado sem derivar (103 × 732 ms): mergeado no #229, que deriva sempre |
-| As oito suítes nativas sob AddressSanitizer e UBSan | Mergeado (#206); achou uma referência pendurada no `min( )` do stub de teste |
+| As oito suítes nativas sob AddressSanitizer e UBSan | Mergeado (#206); achou uma referência pendurada no `min( )` do stub de teste. Hoje o CI roda as nove assim |
 
 ## Fase 3 — o Pico W sem trocar de chip
 
@@ -79,7 +80,7 @@ comprimida deixaria o histórico de pé.
 
 | Item | Estado |
 |---|---|
-| OTA assistida: a página e o simut-rx restauram o `.bkp` sozinhos depois do apply, mesclando o dia corrente | A fazer. Na v2.9.0 a página ainda pede a restauração à mão (o passo 6 do fluxo da OTA no `WebUI.h`) |
+| OTA assistida: a página e o simut-rx restauram o `.bkp` sozinhos depois do apply, mesclando o dia corrente | A fazer. Na v2.11.0 a página ainda baixa o `.bkp` antes do envio e manda para o login depois do apply: a restauração é à mão. No Pico 2 W não faz falta, porque a atualização vai para o outro slot e não toca o LittleFS |
 | Imagem assinada, verificada no stage | Feito: #219 a #222 (01/10); a v2.9.0 (02/10) é a primeira release assinada. Desenho e medidas em [`OTA_ASSINADA.md`](OTA_ASSINADA.md) |
 | README e `RECOVERY.md` dizendo por que o slot é único, com os números acima, e a janela de cerca de 26 s do applier | A fazer |
 
@@ -124,8 +125,8 @@ O que foi conferido no framework instalado (`framework-arduinopico`
 | Etapa | O que prova |
 |---|---|
 | S0, só no CI | Dimensão `chip` no `features.toml`; os registradores por `watchdog_hw`/`psm_hw`; as seis imagens do RP2040 idênticas byte a byte; os tamanhos das imagens do RP2350. **Mergeado (#215, 01/10/2026):** a release no RP2350 ocupa 972.928 B de um slot de 3.141.632 B e 123.184 B de RAM estática |
-| S1, a placa da bancada (A2) | As suítes de bancada existentes; o layout de 4 MB com staging própria, que já acaba com o reformatar |
-| S2 | A/B com TBYB ([`OTA_AB_RP2350.md`](OTA_AB_RP2350.md)): imagem que nunca confirma volta em cerca de 17 s; corte de energia no meio da gravação sobe a anterior; 20 ciclos com config e histórico idênticos |
+| S1, a placa da bancada (A2) | As suítes de bancada existentes; o layout de 4 MB com staging própria, que já acaba com o reformatar. **O layout: feito** (#245, #246, 03/10): a atualização vai para o slot inativo e não toca o LittleFS. **As suítes:** a web passou na candidata da v2.11.0 (67 aprovados, 0 falhas, 04/10); as do painel, da telemetria e das quedas de Wi-Fi não rodaram no Pico 2 W |
+| S2 | A/B com TBYB ([`OTA_AB_RP2350.md`](OTA_AB_RP2350.md)): imagem que nunca confirma volta em cerca de 17 s; corte de energia no meio da gravação sobe a anterior; 20 ciclos com config e histórico idênticos. **Na v2.11.0 (04/10), as etapas 1 a 7 do desenho**, com três critérios a acertar. Os cerca de 17 s eram o watchdog da ROM, que o `setup( )` desliga: no lugar, um minuto saudável e um prazo de 300 s, e cada imagem ruim das etapas 5 e 6 voltou sozinha em até seis minutos do apply. A gravação interrompida foi medida com RESET pelo pino e com o envio cortado, não com corte de energia. Os 20 ciclos não rodaram: a configuração (CRC `AC385271`) ficou igual em toda ida e volta desde a etapa 5, e o histórico não foi comparado |
 | S3 | O que o chip compra a mais: ambiente de debug, RAM, KDF com SHA-256 em hardware, e o procedimento de boot seguro e OTP dos aparelhos de produção (o OTP é irreversível: nunca na placa da bancada) |
 | S4 | O Air no RP2350 |
 
@@ -160,7 +161,8 @@ slot e o histórico iria a cerca de 170 dias).
    desenho do A/B está em [`OTA_AB_RP2350.md`](OTA_AB_RP2350.md). A placa
    chegou em 03/10/2026 e é um RP2350 **A2**, não A4 (`picotool info`, 03/10):
    o erratum E9 vale nela. A `pico2_w_release` do `main` sobe nela. O S0 foi
-   mergeado (#215).
+   mergeado (#215). A v2.11.0 (04/10/2026) é a primeira release com as imagens
+   dele: a atualização marcada para teste e o `.uf2` de fábrica (etapa 7).
 3. **#161** — decidida em 01/10/2026: opção (a). Só marcar o alarme como
    anunciado quando a fila o aceitou, e reanunciar o que segue ativo quando
    ela voltar a ter espaço. A fila continua guardando os mais antigos, e o
@@ -184,14 +186,17 @@ slot e o histórico iria a cerca de 170 dias).
 ## Triagem dos 75 achados de 23/09
 
 Achados da redação do manual da v2.7.1, feitos lendo o código. Conferidos em
-01/10 contra `origin/main` (`2721eb2`): **72 presentes, 3 corrigidos** (56,
-59, 75). Nenhum foi reproduzido no ferro. Até a v2.9.0 (02/10), mais seis
-corrigidos, cada um com a prova no PR: 28 e 29 (#208), 48 (#204), 63 e 64
-(#203) e 66 (#209). Depois dela, os sete do grupo do ensaio: 5, 6, 17, 18, 21, 38 e 69 (#234), o 44 (#235) e o 58 (#236). Restam 57. Severidade do ponto de vista de um
-monitor de cadeia fria: **alta** perde ou corrompe medição, alarme ou config,
-trava o boot ou abre brecha de segurança; **média** é comportamento errado que
-o usuário nota ou contrato de API quebrado; **baixa** é cosmético, de
-documentação ou de comentário.
+01/10 contra `origin/main` (`2721eb2`): **72 presentes, 3 corrigidos** (56, 59,
+75). Nenhum foi reproduzido no ferro. Até a v2.9.0 (02/10), mais seis
+corrigidos, cada um com a prova no PR: 28 e 29 (#208), 48 (#204), 63 e 64 (#203)
+e 66 (#209). Depois dela, os sete do grupo do ensaio: 5, 6, 17, 18, 21, 38 e 69
+(#234), o 44 (#235) e o 58 (#236). O 12 fechou junto com o #230 (02/10): o
+`pinAuth` mora em `CFG_USERS`, que saiu das classes que reiniciam. Só foi
+marcado aqui em 04/10. Restam 56. Severidade do ponto de vista de um monitor de
+cadeia fria: **alta** perde ou corrompe medição, alarme ou config, trava o boot
+ou abre brecha de segurança; **média** é comportamento errado que o usuário nota
+ou contrato de API quebrado; **baixa** é cosmético, de documentação ou de
+comentário.
 
 ### Severidade alta
 
@@ -221,10 +226,10 @@ documentação ou de comentário.
 | 2 | busca | A busca pela web varre GP0–GP16, inclusive pinos ativos, e não recarrega os sensores |
 | 3, 19, 60 | campo morto | `s_int`, `log` e "Resetar época" são gravados e ninguém lê |
 | 5, 17, 21, 69 | ensaio | Campos de overlay fora do ensaio; o ensaio grava auditoria; `_nosave` muda a RAM. Corrigidos (#234) |
-| 7, 10, 12, 13 | PIN | PIN pela web ignora a política; recusas somem da página; política de PIN pela web reinicia; a web não edita permissões |
+| 7, 10, 12, 13 | PIN | PIN pela web ignora a política; recusas somem da página; política de PIN pela web reinicia (corrigido no #230); a web não edita permissões |
 | 14, 31 | alarmes | "Dois ciclos" não são 10 s; mudança de limite pela web não gera `alarm_lim` |
 | 26, 46 | OTA | O par TLS e a origem CORS não atravessam a OTA |
-| 32, 33, 35, 68 | telemetria | Servidor MQTT "ao vivo" que só vale no boot; prévias velhas; pressão com rótulo trocado; HA sempre `http://` |
+| 32, 33, 35, 68 | telemetria | Servidor MQTT "ao vivo" que só vale no boot; prévias velhas (as prévias, corrigidas no #239; a lista de marcadores da linha de alarmes, não); pressão com rótulo trocado; HA sempre `http://` |
 | 37, 39, 40, 42, 43, 45, 57 | API | 403 sem sessão; `\uXXXX` literal; cookie vence o Bearer; um relógio de limite por IP; nonce por IP; ordem do multipart; "Upload concluído" com 400 |
 | 47 | doc | Avisos e documentos de API velhos |
 | 49 | AP | Alpha: o boot no AP nunca chama `endBoot( )` |
