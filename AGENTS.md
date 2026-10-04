@@ -101,6 +101,30 @@ hand_release_all
   Air) e restaura os clocks. Serve para recuperar; **não serve de prova** de que
   o caminho do sono funciona (ver §3).
 
+### O Pico 2 W (RP2350)
+
+Desde o passo 3 do [`OTA_AB_RP2350.md`](docs/analysis/OTA_AB_RP2350.md), a
+`pico2_w_release` sobe do slot A de uma tabela de partições (o layout e as
+ferramentas estão em [`tools/rp2350/`](tools/rp2350/README.md)). Gravar fica
+assim:
+
+- **Placa virgem:** `picotool load -v -x .pio/build/pico2_w_release/firmware_factory.uf2`
+  grava a tabela e o programa no slot A, tudo na família absolute.
+- **Placa que já tem a tabela:** `picotool load -v -x -p 0 .pio/build/pico2_w_release/firmware.uf2`
+  grava só o programa, no slot A.
+- **Placa do layout antigo** (LittleFS em `0x2FF000`): a imagem nova procura o
+  LittleFS em `0x300000` e formata outro. Antes de gravar, guarde o `.bkp` da
+  página Arquivos, ou leia o LittleFS com `picotool save` e o reconstrua em 255
+  blocos, como a bancada fez em 03/10/2026.
+- **`picotool ... --ser <serial> -f` funciona** na Pico 2 W rodando o SIMUT: em
+  BOOTSEL o RP2350 enumera com o mesmo serial. `-F` a deixa em BOOTSEL depois
+  do comando.
+- **O `/api/status` diz de que slot ela subiu:** `sys.slot` vale `A`, `B`, ou
+  `-` numa placa sem tabela.
+- **Antes de compilar,** rode `bash tools/arduino_pico_overrides/patch.sh`. Sem o
+  patch 2k, o `check_rp2350_image.py` recusa a imagem, que cairia ao montar o
+  LittleFS.
+
 ### Dirigir o painel de fora
 
 - **Sequências de toque vão por `POST /api/touch`, não por `touch sim`.** Um

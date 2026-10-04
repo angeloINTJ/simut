@@ -747,6 +747,29 @@ void WebManager::handleApiLogcodes( ) {
 	if (used) safeSend(buf, used);
 }
 
+#if defined(PICO_RP2350) && PICO_RP2350
+#include <pico/bootrom.h>
+/* "slot": the partition the boot ROM started this image from, A or B of
+ * tools/rp2350/partition_table.json, or "-" on a board with no partition table
+ * (docs/analysis/OTA_AB_RP2350.md). The A/B update is checked by this value
+ * changing; nothing on the RP2040 has it. */
+static const char* bootSlot( ) {
+	boot_info_t bi;
+	if (!rom_get_boot_info(&bi)) return "?";
+	switch (bi.partition) {
+	case 0: return "A";
+	case 1: return "B";
+	case BOOT_PARTITION_NONE: return "-";
+	default: return "?";
+	}
+}
+#define STATUS_SLOT_FMT ",\"slot\":\"%s\""
+#define STATUS_SLOT_ARG , bootSlot( )
+#else
+#define STATUS_SLOT_FMT ""
+#define STATUS_SLOT_ARG
+#endif
+
 void WebManager::handleApiStatus( ) {
 	/* ?quiet=1: read without touching the Air hibernation timer. A fleet
 	 * manager polling twenty devices must not hold each one awake by doing
@@ -827,7 +850,7 @@ void WebManager::handleApiStatus( ) {
 	 * device. The same bits for every account: they describe the build. */
 	char macBuf[20];
 	_netRef->getMacAddress(macBuf, sizeof(macBuf));
-	snprintf(buffer, sizeof(buffer), "{\"sys\":{\"name\":\"%s\",\"ver\":\"%s\",\"env\":\"%s\",\"uid\":\"%s\",\"mac\":\"%s\",\"cfg\":\"%08lX\",\"uptime\":%lu,\"rssi\":%d,\"ip\":\"%s\",\"theme\":%d,\"heap_f\":%lu,\"heap_t\":%lu,\"heap_lb\":%lu,\"fs_u\":%lu,\"fs_t\":%lu,\"time\":%lu,\"ntp\":%d,\"pending\":%d,\"tel\":%d,\"hi\":%u,\"cap\":%d,\"feat\":%lu},",
+	snprintf(buffer, sizeof(buffer), "{\"sys\":{\"name\":\"%s\",\"ver\":\"%s\",\"env\":\"%s\",\"uid\":\"%s\",\"mac\":\"%s\",\"cfg\":\"%08lX\",\"uptime\":%lu,\"rssi\":%d,\"ip\":\"%s\",\"theme\":%d,\"heap_f\":%lu,\"heap_t\":%lu,\"heap_lb\":%lu,\"fs_u\":%lu,\"fs_t\":%lu,\"time\":%lu,\"ntp\":%d,\"pending\":%d,\"tel\":%d,\"hi\":%u,\"cap\":%d,\"feat\":%lu" STATUS_SLOT_FMT "},",
 	         devName.c_str( ), SIMUT_VERSION, simut_env_name( ),
 	         StorageManager::getBoardSerialNumber( ).c_str( ), macBuf,
 	         (unsigned long)_storageRef->getConfigCrc( ),
@@ -841,7 +864,7 @@ void WebManager::handleApiStatus( ) {
 	          * browser decoding .h5 would place every record after the first
 	          * at the wrong instant on any device not sampling once a minute. */
 	         (unsigned)_storageRef->getHistoryIntervalMin( ), SIMUT_DISPLAY_TFT,
-	         (unsigned long)SIMUT_FEATURE_BITS);
+	         (unsigned long)SIMUT_FEATURE_BITS STATUS_SLOT_ARG);
 
 	if (!safeSend(buffer)) return;
 

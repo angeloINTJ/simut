@@ -31,6 +31,10 @@ namespace ota {
  * ------------------------------------------------------------------------- */
 
 bool __not_in_flash_func(staging_erase_sector)(uint32_t offset_in_staging) {
+#if !OTA_RP2040_MAP
+    (void)offset_in_staging;
+    return false;  /* the staging offsets lie in the slots on the RP2350 */
+#else
     if (offset_in_staging % OTA_FLASH_SECTOR_SIZE != 0) return false;
     if (offset_in_staging >= OTA_STAGING_MAX_SIZE) return false;
 
@@ -39,9 +43,13 @@ bool __not_in_flash_func(staging_erase_sector)(uint32_t offset_in_staging) {
     flash_range_erase(flash_offs, OTA_FLASH_SECTOR_SIZE);
     restore_interrupts(saved_irq);
     return true;
+#endif
 }
 
 bool __not_in_flash_func(staging_erase_all)() {
+#if !OTA_RP2040_MAP
+    return false;
+#else
     /* Apaga setor por setor (4 KB cada) com WDT feed entre cada um.
      * Apagar 1 MB inteiro de uma vez levaria ~5-10s e estouraria WDT
      * se ele estivesse muito apertado. Setor isolado: ~50ms. */
@@ -55,6 +63,7 @@ bool __not_in_flash_func(staging_erase_all)() {
     }
     watchdog_update();
     return true;
+#endif
 }
 
 /* ---------------------------------------------------------------------------
@@ -63,6 +72,10 @@ bool __not_in_flash_func(staging_erase_all)() {
 
 bool __not_in_flash_func(staging_write)(uint32_t offset_in_staging,
                                         const uint8_t* data, size_t len) {
+#if !OTA_RP2040_MAP
+    (void)offset_in_staging; (void)data; (void)len;
+    return false;
+#else
     if (!data || len == 0) return false;
     if (offset_in_staging % OTA_FLASH_PAGE_SIZE != 0) return false;
     if (len % OTA_FLASH_PAGE_SIZE != 0) return false;
@@ -83,6 +96,7 @@ bool __not_in_flash_func(staging_write)(uint32_t offset_in_staging,
     }
     watchdog_update();
     return true;
+#endif
 }
 
 /* ---------------------------------------------------------------------------
@@ -90,10 +104,15 @@ bool __not_in_flash_func(staging_write)(uint32_t offset_in_staging,
  * ------------------------------------------------------------------------- */
 
 void staging_read(uint32_t offset_in_staging, uint8_t* dst, size_t len) {
+#if !OTA_RP2040_MAP
+    (void)offset_in_staging;
+    if (dst && len) memset(dst, 0xFF, len);   /* as erased flash reads */
+#else
     if (!dst || len == 0) return;
     if (offset_in_staging + len > OTA_STAGING_MAX_SIZE) return;
     const uint8_t* src = (const uint8_t*)(XIP_BASE + OTA_STAGING_OFFSET + offset_in_staging);
     memcpy(dst, src, len);
+#endif
 }
 
 /* ---------------------------------------------------------------------------
@@ -101,6 +120,10 @@ void staging_read(uint32_t offset_in_staging, uint8_t* dst, size_t len) {
  * ------------------------------------------------------------------------- */
 
 bool staging_session_begin(StorageManager* storage) {
+#if !OTA_RP2040_MAP
+    (void)storage;
+    return false;  /* LittleFS stays mounted: no stage on the RP2350 yet */
+#else
     if (!storage) return false;
 
     /* Fase 9 — captura snapshot da config ANTES de qualquer flash safe mode.
@@ -148,14 +171,20 @@ bool staging_session_begin(StorageManager* storage) {
     /* NÃO sai do safe mode aqui — o caller (upload/apply) controla
      * o ciclo de vida. Chamar staging_session_end pra liberar. */
     return true;
+#endif
 }
 
 /* v4.4.0: variante sem erase upfront — caller faz erase on-demand. */
 bool staging_session_begin_lite(StorageManager* storage) {
+#if !OTA_RP2040_MAP
+    (void)storage;
+    return false;
+#else
     if (!storage) return false;
     storage->enterFlashSafeMode();
     LittleFS.end();
     return true;
+#endif
 }
 
 bool staging_session_end(StorageManager* storage) {

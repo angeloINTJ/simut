@@ -116,6 +116,15 @@ def ota_bin_max():
     return safe - trailer if safe and trailer else None
 
 
+def held_ceiling(env_cfg, printed):
+    """The size an image is held to. PlatformIO prints the sketch area its
+    builder computes, flash minus LittleFS and EEPROM. A chip that boots from a
+    slot of a partition table holds its program to the slot instead, recorded
+    as "slot" (the RP2350: 1,568,768 B, tools/rp2350/partition_table.json),
+    and the slot's linker script is that long too."""
+    return env_cfg.get("slot") or printed
+
+
 def table_int(cell):
     """A number as the table writes it — 1.028.493 (pt-BR), 1,028,493 or bare,
     negative for an image over the ceiling — or None for anything else."""
@@ -335,6 +344,10 @@ def main():
         print(f"[flash-budget] NOTE {env}: slot is {ceiling} B, but "
               f"flash_budget.json records a ceiling of {declared_ceiling} B — "
               f"the layout moved, so re-measure the budgets.")
+
+    ceiling = held_ceiling(cfg["envs"][env], ceiling)
+    if used > ceiling:
+        fail(f"{env}: {used} B used, and its slot holds {ceiling} B.")
 
     delta = used - budget
     pct = 100.0 * used / ceiling

@@ -82,7 +82,8 @@ arduino_pico_overrides/
     ├── webserver_parse_deadline.patch
     ├── webserver_keepalive.patch
     ├── webserver_cors_origin.patch
-    └── cyw43_join_budget.patch          ← 2026-10-01, the join wait bounded
+    ├── cyw43_join_budget.patch          ← 2026-10-01, the join wait bounded
+    └── littlefs_rp2350_untranslated.patch  ← 2026-10-03, RP2350 only: LittleFS from a slot
 ```
 
 ## TLS handshake deadline (2026-07-25)
@@ -137,6 +138,28 @@ refused (`false`, which `WiFi.begin( )` answers as `WL_IDLE_STATUS`).
 `NetworkManager::takeJoinAnswer( )` counts the refusals and plans the restart a
 radio that keeps refusing needs (`SystemDefs_Network.h`). The library has its own
 object cache (`lib*/lwIP_CYW43/`), which `patch.sh` and `restore.sh` invalidate.
+
+## LittleFS read from a slot, RP2350 only (2026-10-03)
+
+> **Lets the RP2350 image run from a slot of a partition table and still read its filesystem.**
+
+On the RP2350 SIMUT boots from slot A of a partition table (step 3 of
+`docs/analysis/OTA_AB_RP2350.md`; the layout is `tools/rp2350/`). The boot ROM
+maps the slot at `0x10000000` with a window the size of the slot, 1,532 KB, and
+an XIP read past that window faults. LittleFS sits outside the slots, at
+`0x300000`, and `LittleFS.cpp` reads it by `memcpy` from its mapped address,
+`_FS_start`. Without the patch the image of a slot faults the first time it
+mounts LittleFS.
+
+`littlefs_rp2350_untranslated.patch` makes that read, on the RP2350 only, go to
+the physical offset through `XIP_NOCACHE_NOALLOC_NOTRANSLATE_BASE`
+(`0x1C000000`), which the ROM never translates. On a board without a partition
+table the read is the same, because both windows show the same bytes.
+Programs and erases already used the physical offset. The RP2040 code is not
+touched (`#if defined(PICO_RP2350) && PICO_RP2350`). The window bypasses the
+XIP cache. `tools/check_rp2350_image.py` stops the RP2350 build when this
+framework lacks the patch. The library has its own object cache
+(`lib*/LittleFS/`), which `patch.sh` and `restore.sh` invalidate.
 
 ## Changes Applied
 
