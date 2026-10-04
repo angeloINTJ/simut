@@ -535,30 +535,30 @@
   "(ota_exempt, with the reason) and records no 'bin'; its budget still holds."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-10-03 fix/alpha-save-parks-core1 on main 098a470 (v2.10.0): all seven measured with saveConfiguration holding a Core1FlashPause, a no-op under the TFT's quiet mode, and the alpha's Core 1 loop answering the park. 'used': release, air and pico2_w_release +16; test, test_https and asserts +8; alpha +152 (the park, the sleeps a park cuts short, and the pause). The .bin moves by 16 on release and pico2_w_release and by 8 on test and asserts; alpha and air keep theirs, inside the padding of their page-aligned .rodata. Budgets moved by the 'used' deltas, which keeps each margin; 'bin' recorded for the four that moved, and their rows in PLANO_STABLE 3.1. measured is the zopfli image PlatformIO prints.",
- "measured_at_commit": "2026-10-03 fix/alpha-save-parks-core1 on main 098a470: the seven images built from this branch's source, the release's and the Air's against the v2.10.0 tag's by the same build. measured is the zopfli image PlatformIO prints.",
+ "measured_on": "2026-10-03 fix/rp2350-refuses-ota on main badb4a8: all seven measured with the RP2350 image refusing OTA (OTA_INSTALL_AVAILABLE 0) and the Files page's fwStageMessage( ). The page's gzip grows by 61 B (FILE_PAGE_GZ) in every image that carries it: 'used' and .bin +64 on release, test and asserts; alpha and air keep both, inside the padding of their page-aligned .rodata; test_https is byte-identical to main's. pico2_w_release -4,104 in both: with the stage and the apply answering 501, the linker drops the stage, the validator, the signature check and the applier. Budgets moved by the 'used' deltas, which keeps each margin; 'bin' recorded for the four that moved, and their rows in PLANO_STABLE 3.1. measured is the zopfli image PlatformIO prints.",
+ "measured_at_commit": "2026-10-03 fix/rp2350-refuses-ota on main badb4a8: the seven images built from this branch's source and from main's by the same build, compared symbol by symbol; on the RP2040 images WebManager_Ota.cpp compiles to the same code. measured is the zopfli image PlatformIO prints.",
  "ota_exempt": {
   "pico_w_test_https": "A bench image: the one with the full console and the TLS server together, for the HTTPS suites (AGENTS.md). It reaches the rig over USB, and release-ota.yml does not publish it. #232 (2026-10-02) left it 147 B under OTA_APP_SAFE_MAX_SIZE, and keeping it there meant cutting code the product images ship too, or moving more of its pages to LittleFS. Over the ceiling the device refuses to stage it, which costs only installing this image over the air; its flash budget still holds. Exempt since 2026-10-02 (docs/analysis/PLANO_STABLE.md, B6)."
  },
  "envs": {
   "pico_w_release": {
-   "budget": 1020492,
-   "measured": 1020388,
-   "bin": 1032420
+   "budget": 1020556,
+   "measured": 1020452,
+   "bin": 1032484
   },
   "pico_w_test": {
-   "budget": 1025596,
-   "measured": 1024964,
-   "bin": 1036996
+   "budget": 1025660,
+   "measured": 1025028,
+   "bin": 1037060
   },
   "pico_w_test_https": {
    "budget": 1030060,
    "measured": 1030060
   },
   "pico_w_asserts": {
-   "budget": 1022716,
-   "measured": 1022684,
-   "bin": 1034716
+   "budget": 1022780,
+   "measured": 1022748,
+   "bin": 1034780
   },
   "pico_w_alpha": {
    "budget": 975276,
@@ -571,9 +571,9 @@
    "bin": 1031244
   },
   "pico2_w_release": {
-   "budget": 993264,
-   "measured": 993040,
-   "bin": 1005352,
+   "budget": 989160,
+   "measured": 988936,
+   "bin": 1001248,
    "ceiling": 3141632
   }
  }

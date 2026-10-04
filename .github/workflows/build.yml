@@ -193,6 +193,14 @@ jobs:
       - name: Web UI payload preview (held to the firmware)
         run: python3 tools/test_webui_payload_preview.py
 
+      # The Files page explains a stage the device did not commit. A refusal
+      # before any validation carries no `v`, only the device's own words:
+      # the RP2350 image answers every stage that way (501) until its A/B
+      # slots exist, and the page printed "validation v=undefined" for it.
+      # fwStageMessage( ) runs under node, as written and minified.
+      - name: Web UI firmware refusal (every stage refusal in words)
+        run: python3 tools/test_webui_firmware_refusal.py
+
       # OTA applies reformat the LittleFS, so benches restore /history from
       # backup — and the current-day file can only be given back by MERGING
       # with what the device wrote meanwhile. This is the tool that hole

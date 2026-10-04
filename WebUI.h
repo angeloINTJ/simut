@@ -6368,6 +6368,26 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             if (!confirm(window.t('fil_fw_warn','Firmware OTA update.\n\nThe filesystem is REFORMATTED — the staging area shares the partition with it.\n\nOnly the configuration survives (captured before, restored after):\n  • Wi-Fi, admin password, telemetry\n  • Sensor mapping and alarm limits\n\nEverything else on the device is lost:\n  • Reading history (/history)\n  • Language packs (/lang)\n  • Custom themes (/themes)\n  • Touch calibration (/calib)\n  • Files in /web\n  • The event log\n\nA .bkp backup is downloaded automatically — restore it later to recover everything.\n\nProceed?'))) return;
             document.getElementById('fwFile').click();
         }
+        /* fw: stage message — what the page says when the device did not commit a
+           staged image (tools/test_webui_firmware_refusal.py runs it). A refusal by
+           validation carries `v`, explained below. A refusal before any validation
+           carries only `error`, in the device's own words: the RP2350 image, which
+           takes no update over the air until its A/B slots exist, answers every
+           stage that way (501), and the page used to print "validation v=undefined". */
+        function fwStageMessage(status, v) {
+            if (v.v === undefined)
+                return window.t('fil_fw_stage_refused', 'Upload refused (HTTP ') + status + ').' + (v.error ? ' ' + v.error : '');
+            let why = {
+                7: window.t('fil_fw_v7','The image is for another model (env ') + v.env + ').',
+                8: window.t('fil_fw_v8','The image is not signed. Use a release .bin from GitHub or a build from the configurator.'),
+                9: window.t('fil_fw_v9','The signature does not match: the file changed after it was signed, or a key this device does not trust signed it. Download the .bin again.'),
+                10: window.t('fil_fw_v10','It was signed with a retired key. Use a newer release.'),
+                11: window.t('fil_fw_v11','It is below the security level installed, and going back to it over the air is blocked. Use this version or a newer one.'),
+                12: window.t('fil_fw_v12','It was signed with the bench key, which this device does not accept. Use a release .bin from GitHub.')
+            }[v.v];
+            return window.t('fil_fw_stage_fail','Upload failed (validation v=') + v.v + '). Cancelled.' + (why ? ' ' + why : '');
+        }
+        /* fw: end of stage message */
         async function doFirmware() {
             let f = document.getElementById('fwFile').files[0];
             document.getElementById('fwFile').value = '';
@@ -6401,15 +6421,7 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 let r2 = await fetch('/api/restore?op=stage&commit=1', {method:'POST', body:fd});
                 let v = await r2.json();
                 if (r2.status !== 200 || v.committed !== 1) {
-                    let why = {
-                        7: window.t('fil_fw_v7','The image is for another model (env ') + v.env + ').',
-                        8: window.t('fil_fw_v8','The image is not signed. Use a release .bin from GitHub or a build from the configurator.'),
-                        9: window.t('fil_fw_v9','The signature does not match: the file changed after it was signed, or a key this device does not trust signed it. Download the .bin again.'),
-                        10: window.t('fil_fw_v10','It was signed with a retired key. Use a newer release.'),
-                        11: window.t('fil_fw_v11','It is below the security level installed, and going back to it over the air is blocked. Use this version or a newer one.'),
-                        12: window.t('fil_fw_v12','It was signed with the bench key, which this device does not accept. Use a release .bin from GitHub.')
-                    }[v.v];
-                    showToast(window.t('fil_fw_stage_fail','Upload failed (validation v=')+v.v+'). Cancelled.' + (why ? ' ' + why : ''), 'err', 12000);
+                    showToast(fwStageMessage(r2.status, v), 'err', 12000);
                     return;
                 }
                 showToast(window.t('fil_fw_app','Step 3/4: Applying firmware...'), 'ok');

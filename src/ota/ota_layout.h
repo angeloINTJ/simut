@@ -34,6 +34,30 @@
 #pragma once
 #include <stdint.h>
 
+/* No install over the air on the RP2350 until its A/B slots exist
+ * (docs/analysis/OTA_AB_RP2350.md, step 2). Everything below is the Pico W's
+ * 2 MB map, and on a Pico 2 W it is not the filesystem: that image keeps
+ * LittleFS at 0x2FF000 of its 4 MB (_FS_start = 0x102FF000), so the staging
+ * offset 0x0FF000 is the free tail of its own program slot. On the bench board
+ * (2026-10-03, main badb4a8) the stage took a signed RP2040 release three
+ * times: LittleFS came back intact each time, and each upload dropped before
+ * its end (9.8 to 28.7 s). By the code, one that finished would validate — its
+ * boot2 CRC checks, and its env is "release" like the RP2350 image's — and the
+ * applier would copy it over a program the RP2350's ROM cannot boot: the board
+ * waits in BOOTSEL. The SDK defines PICO_RP2350=1 only on that chip
+ * (lib/rp2350/platform_def.txt), so the RP2040 images keep their code.
+ *
+ * The boot still reads the metadata and clears a snapshot at these offsets on
+ * the RP2350. With the program ending below them that is harmless; the A/B
+ * layout must move them, since both land in its slot B. */
+#if defined(PICO_RP2350) && PICO_RP2350
+#define OTA_INSTALL_AVAILABLE 0
+#else
+#define OTA_INSTALL_AVAILABLE 1
+#endif
+/* What the stage and the apply answer instead (501); the Files page shows it. */
+#define OTA_UNAVAILABLE_TEXT "Over-the-air update is not available on the RP2350 yet. Install over USB."
+
 /* Constantes de tamanho — em bytes. */
 #define OTA_FLASH_TOTAL          (2u * 1024u * 1024u)          /* 2 MB Pico W */
 #define OTA_EEPROM_RESERVED      (4u * 1024u)                  /* 4 KB EEPROM emulada — reivindicada */

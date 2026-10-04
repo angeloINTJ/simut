@@ -248,7 +248,7 @@ simut/
 | `pico_w_test` | Imagen de banco: la consola completa para las suites de prueba; sin HTTPS, sin mDNS | — |
 | `pico_w_test_https` | `pico_w_test` más el servidor HTTPS, para validar TLS; tres de sus páginas se sirven desde LittleFS para que quepa | — |
 | `pico_w_asserts` | Release + aserciones de concurrencia | — |
-| `pico2_w_release` | La release compilada para el Pico 2 W (RP2350), para que el CI la vea compilar. Aún no ha corrido en una placa | — |
+| `pico2_w_release` | La release compilada para el Pico 2 W (RP2350), para que el CI la vea compilar. Arranca en la placa del banco; rechaza actualizar por el aire hasta que existan sus slots A/B | — |
 | ocho entornos `native*` | Tests unitarios en el host — ver [Pruebas](#pruebas) | — |
 
 > **Nota de seguridad para `pico_w_alpha` y `pico_w_air`:** las dos compilan la

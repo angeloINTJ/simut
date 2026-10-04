@@ -174,8 +174,10 @@ void WebManager::handleApiRestoreUploadData( ) {
  if (is_stage) {
  /* Pre-check ADMIN-ONLY permission: OTA stage erases 1 MB of
  * flash — only admin can trigger. Without perm, doesn't unmount LFS;
- * status stays IDLE; finish responds 403. */
- if (getAuthPerms( ) == PERM_FULL_ADMIN) {
+ * status stays IDLE; finish responds 403. On the RP2350 nobody stages
+ * (OTA_INSTALL_AVAILABLE, ota_layout.h): nothing is erased, LittleFS stays
+ * mounted, and the finish handler answers 501. */
+ if (OTA_INSTALL_AVAILABLE && getAuthPerms( ) == PERM_FULL_ADMIN) {
  /* The panel first (OtaScreen.h): from the next line on a flash pause
   * holds Core 1 for the whole upload, and only the bar is left to draw. */
  if (_displayRef) _displayRef->showOta(OTA_PH_RECEIVING);
@@ -329,6 +331,13 @@ void WebManager::handleApiRestoreFinish( ) {
  _server->send(403, "text/plain", "Forbidden — admin only");
  return;
  }
+#if !OTA_INSTALL_AVAILABLE
+ /* The upload went through the callback untouched: no session began. */
+ LOG_CODE(LOG_WARN, "OTA", WEB_UPLOAD, 0, "stage_unavailable");
+ _server->send(501, "application/json",
+               "{\"st\":0,\"committed\":0,\"error\":\"" OTA_UNAVAILABLE_TEXT "\"}");
+ return;
+#endif
  bool ok_staged = (_stageSession.status == ota::StageStatus::STAGED);
  bool commit = (_server->arg("commit") == "1");
 
@@ -520,6 +529,11 @@ void WebManager::handleApiOtaApply( ) {
  return;
  }
  if (rejectIfTouchPriority( )) return;
+#if !OTA_INSTALL_AVAILABLE
+ /* Before test mode too: it injects metadata and runs the applier with no stage. */
+ _server->send(501, "application/json", "{\"error\":\"" OTA_UNAVAILABLE_TEXT "\"}");
+ return;
+#endif
 
  bool test_mode = (_server->arg("test") == "1");
 
