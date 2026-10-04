@@ -535,45 +535,45 @@
   "(ota_exempt, with the reason) and records no 'bin'; its budget still holds."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-10-04 fix/web-request-not-evicted (patch 2l of tools/arduino_pico_overrides, wifiserver_accepted_not_evicted.patch): WiFiServer raises the connections it accepts to TCP_PRIO_NORMAL and refuses the null pcb lwIP hands it when it cannot allocate one; ClientContext lowers a connection the app closes back to TCP_PRIO_MIN and frees the request of one lwIP dropped while it waited in the queue. 'measured' +32 B on release, air and pico2_w_release, +40 B on test, test_https, asserts and alpha; the .bin +32 B on release and pico2_w_release, +40 B on test and asserts, and the same on alpha and air (inside the 4 KiB pad before .data). The budgets of test_https and asserts move by their +40, which keeps their margins.",
- "measured_at_commit": "2026-10-04 fix/web-request-not-evicted on main c155eb0 (#246): the seven images built from this branch. measured is the zopfli image PlatformIO prints.",
+ "measured_on": "2026-10-04 feat/rp2350-tbyb (step 5 of docs/analysis/OTA_AB_RP2350.md, the update on trial): the five log codes 610-614, in the table every image carries, are the only change to the RP2040 images (main 56a3a9c with that table alone builds all six byte-identical to this branch). 'measured' +176 B on release, test and asserts, +184 on test_https, +72 on alpha and air; the .bin +176 B on release, test and asserts, and the same on alpha and air (inside the 4 KiB pad before .data). pico2_w_release +2,600 B, measured and .bin: the trial in src/ota/staging.cpp, the guard of setup( ), the report, the configuration held until the buy, and the log codes. The budgets of release, test_https, asserts and pico2_w_release move by their growth, which keeps their margins.",
+ "measured_at_commit": "2026-10-04 feat/rp2350-tbyb on main 56a3a9c (#247): the seven images built from this branch. measured is the zopfli image PlatformIO prints.",
  "ota_exempt": {
   "pico_w_test_https": "A bench image: the one with the full console and the TLS server together, for the HTTPS suites (AGENTS.md). It reaches the rig over USB, and release-ota.yml does not publish it. #232 (2026-10-02) left it 147 B under OTA_APP_SAFE_MAX_SIZE, and keeping it there meant cutting code the product images ship too, or moving more of its pages to LittleFS. Over the ceiling the device refuses to stage it, which costs only installing this image over the air; its flash budget still holds. Exempt since 2026-10-02 (docs/analysis/PLANO_STABLE.md, B6)."
  },
  "envs": {
   "pico_w_release": {
-   "budget": 1020556,
-   "measured": 1020484,
-   "bin": 1032516
+   "budget": 1020732,
+   "measured": 1020660,
+   "bin": 1032692
   },
   "pico_w_test": {
    "budget": 1025660,
-   "measured": 1025068,
-   "bin": 1037100
+   "measured": 1025244,
+   "bin": 1037276
   },
   "pico_w_test_https": {
-   "budget": 1030100,
-   "measured": 1030100
+   "budget": 1030284,
+   "measured": 1030284
   },
   "pico_w_asserts": {
-   "budget": 1022820,
-   "measured": 1022788,
-   "bin": 1034820
+   "budget": 1022996,
+   "measured": 1022964,
+   "bin": 1034996
   },
   "pico_w_alpha": {
    "budget": 975276,
-   "measured": 974796,
+   "measured": 974868,
    "bin": 990380
   },
   "pico_w_air": {
    "budget": 1018384,
-   "measured": 1018104,
+   "measured": 1018176,
    "bin": 1031244
   },
   "pico2_w_release": {
-   "budget": 993760,
-   "measured": 993568,
-   "bin": 993592,
+   "budget": 996360,
+   "measured": 996168,
+   "bin": 996192,
    "ceiling": 3145728,
    "slot": 1568768
   }
