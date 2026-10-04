@@ -6,6 +6,11 @@
 # stages it. Every one of those checks needs this job to have run: without a
 # manifest the app has nothing to compare against, and it refuses to update.
 #
+# Four hardware variants: the Pico W's release, alpha and Air, and, since step
+# 7 of docs/analysis/OTA_AB_RP2350.md, the Pico 2 W's release (env
+# `releasetwo`). The Pico 2 W's .bin is its update, flagged for trial, and its
+# .uf2 is a factory image with the partition table in front (the manifest step).
+#
 # Since signed OTA (docs/analysis/OTA_ASSINADA.md, 2026-10-01) the images go
 # through three jobs. `build` compiles, with no secret in reach. `sign` runs in
 # the `release` Environment: GitHub hands it the signing key only after the
@@ -55,8 +60,9 @@ jobs:
           pio pkg install -e pico_w_release
           pio pkg install -e pico_w_alpha
           pio pkg install -e pico_w_air
+          pio pkg install -e pico2_w_release
           bash tools/arduino_pico_overrides/patch.sh
-      - name: Build the three hardware variants
+      - name: Build the four hardware variants
         # Harvest each image the moment it is built, before the next variant
         # runs. Observed locally: by the time a single manifest pass runs at
         # the end, only the last-built env still has firmware.bin under
@@ -64,12 +70,23 @@ jobs:
         # absent, so the release went out with one variant instead of three.
         # Copying each .bin out as soon as it exists sidesteps that, whatever
         # the later builds do to the tree.
+        #
+        # release/build/<env>/firmware.bin is, for every variant, the image an
+        # update installs, the one the next jobs sign and verify. For the Pico
+        # 2 W that is firmware_ota.bin, flagged for trial
+        # (tools/check_rp2350_image.py); its partition table goes along, for
+        # the factory .uf2.
         run: |
           set -euo pipefail
-          for env in pico_w_release pico_w_alpha pico_w_air; do
+          for env in pico_w_release pico_w_alpha pico_w_air pico2_w_release; do
             pio run -e "$env"
             mkdir -p "release/build/$env"
-            cp ".pio/build/$env/firmware.bin" "release/build/$env/firmware.bin"
+            if [ "$env" = pico2_w_release ]; then
+              cp ".pio/build/$env/firmware_ota.bin" "release/build/$env/firmware.bin"
+              cp ".pio/build/$env/partition_table.uf2" "release/build/$env/partition_table.uf2"
+            else
+              cp ".pio/build/$env/firmware.bin" "release/build/$env/firmware.bin"
+            fi
           done
       - name: Hand the images to the signing job
         uses: actions/upload-artifact@v7
@@ -115,7 +132,7 @@ jobs:
           key="$RUNNER_TEMP/signer.p8"
           trap 'shred -u "$key" 2>/dev/null || rm -f "$key"' EXIT
           printf '%s\n' "$OTA_SIGNER_KEY" > "$key"
-          for env in pico_w_release pico_w_alpha pico_w_air; do
+          for env in pico_w_release pico_w_alpha pico_w_air pico2_w_release; do
             bin="release/build/$env/firmware.bin"
             python3 tools/ota_sign.py sign --key "$key" --cert keys/ota_signer_release.cert \
               --in "$bin" --out "$bin.signed"
@@ -160,14 +177,17 @@ jobs:
         run: |
           set -euo pipefail
           pip install cryptography
-          for env in release alpha air; do
-            python3 tools/ota_sign.py verify --in "release/build/pico_w_$env/firmware.bin" \
-              --env "$env" --root-pub keys/ota_root_release.pub
+          for img in pico_w_release:release pico_w_alpha:alpha pico_w_air:air pico2_w_release:releasetwo; do
+            python3 tools/ota_sign.py verify --in "release/build/${img%%:*}/firmware.bin" \
+              --env "${img##*:}" --root-pub keys/ota_root_release.pub
           done
       - name: Manifest
         # The .uf2 is made from the signed .bin, trailer and all: the bytes
         # in flash end up the same whether the image arrives over USB or over
-        # the air, and nothing on the USB path reads the trailer.
+        # the air, and nothing on the USB path reads the trailer. The Pico 2
+        # W's is its factory image: the partition table, then the signed update
+        # with the trial flag cleared, which is what the boot ROM leaves in
+        # flash once the update buys itself (tools/release_manifest.py).
         run: python3 tools/release_manifest.py --out release/ota --build-dir release/build
       - name: Language packs
         # The .lng packs live in the device's LittleFS, NOT in the firmware

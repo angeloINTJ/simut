@@ -20,7 +20,9 @@ simut_config.h). Then it writes, next to firmware.uf2:
 
   * partition_table.uf2: the table alone, for `picotool load`;
   * firmware_factory.uf2: the table and the program in slot A, every block in
-    the absolute family, for a board whose flash holds nothing.
+    the absolute family, for a board whose flash holds nothing. The release
+    writes it again without picotool (step 7), with tools/rp2350/uf2.py; the
+    build writes it with the same code and holds it to picotool's output.
   * firmware_ota.bin: firmware.bin flagged try-before-you-buy, the image an
     update installs (step 5; tools/rp2350/picobin.py). The ROM boots it only
     right after the apply's FLASH_UPDATE reboot, so firmware.bin and the
@@ -34,7 +36,6 @@ License: MIT
 
 import os
 import re
-import struct
 import subprocess
 import sys
 
@@ -43,6 +44,7 @@ Import("env")
 ROOT = env.subst("$PROJECT_DIR")
 sys.path.insert(0, os.path.join(ROOT, "tools", "rp2350"))
 import gen_memmap  # noqa: E402  (tools/rp2350/gen_memmap.py)
+import uf2  # noqa: E402  (tools/rp2350/uf2.py)
 from picobin import ITEM_IMAGE_TYPE, TBYB, first_block, mark_trial  # noqa: E402  (tools/rp2350/picobin.py)
 
 LDSCRIPT = "tools/rp2350/memmap_slot.ld"
@@ -50,7 +52,6 @@ XIP = 0x10000000
 # EXE | security S | CPU Arm | chip RP2350, and no try-before-you-buy bit: an
 # image flagged for trial never starts from a plain load (picobin.h).
 IMAGE_TYPE_WANT = 0x1 | (0x2 << 4) | (0x0 << 8) | (0x1 << 12)
-UF2_MAGIC = (0x0A324655, 0x9E5D5157, 0x0AB16F30)
 # BuildIdentity.cpp; the env is [a-z], and the RP2350's ends in the chip's suffix.
 ENV_TAG = re.compile(rb"SIMUT-ENV:([a-z]+);")
 ENV_CHIP = "two"
@@ -83,27 +84,6 @@ def symbols(elf):
         if len(parts) == 3:
             syms[parts[2]] = int(parts[0], 16)
     return syms
-
-
-def uf2_blocks(path):
-    data = open(path, "rb").read()
-    if len(data) % 512:
-        fail(f"{path} is not a whole number of UF2 blocks")
-    return [bytearray(data[i:i + 512]) for i in range(0, len(data), 512)]
-
-
-def merge_uf2(paths, out):
-    """One UF2 file from several: the blocks in order, numbered 0..n-1 of n."""
-    blocks = [b for p in paths for b in uf2_blocks(p)]
-    for n, b in enumerate(blocks):
-        m0, m1 = struct.unpack_from("<2I", b, 0)
-        if (m0, m1) != UF2_MAGIC[:2] or struct.unpack_from("<I", b, 508)[0] != UF2_MAGIC[2]:
-            fail(f"{out}: block {n} is not a UF2 block")
-        struct.pack_into("<2I", b, 20, n, len(blocks))
-    with open(out, "wb") as fh:
-        for b in blocks:
-            fh.write(b)
-    return len(blocks)
 
 
 def check_and_package(source, target, env):
@@ -180,8 +160,24 @@ def check_and_package(source, target, env):
         r = subprocess.run(cmd, capture_output=True, text=True)
         if r.returncode != 0:
             fail(f"{' '.join(cmd)}: {r.stdout}{r.stderr}")
-    n = merge_uf2([pt_uf2, app_uf2], factory)
+    # The release writes this file from the signed update, where picotool is
+    # not at hand (tools/release_manifest.py). Its writer has to give what
+    # picotool gives: the table's blocks, then the program's, as one download.
+    table = open(pt_uf2, "rb").read()
+    try:
+        made = uf2.factory(table, image, slot_a)
+        ref = uf2.join(uf2.blocks(table) + uf2.blocks(open(app_uf2, "rb").read()))
+    except ValueError as e:
+        fail(f"firmware_factory.uf2: {e}")
     os.remove(app_uf2)
+    if made != ref:
+        at = next((i for i, (a, b) in enumerate(zip(made, ref)) if a != b), min(len(made), len(ref)))
+        fail(f"tools/rp2350/uf2.py writes firmware_factory.uf2 unlike picotool ({len(made)} B against "
+             f"{len(ref)} B, first difference at byte {at}): the release's factory image would "
+             "not be the bench's. Read the new picotool's output, then fix the writer.")
+    with open(factory, "wb") as fh:
+        fh.write(made)
+    n = len(made) // uf2.BLOCK
 
     # 6. The image an update installs, flagged for trial. One bit differs from
     # firmware.bin; the signature is taken over this file, so it covers the bit.

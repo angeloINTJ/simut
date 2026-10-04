@@ -143,9 +143,21 @@ assim:
   mesma conta encerra o primeiro. Um roteiro que espera a confirmação consultando
   o `/api/status` perde a sessão se outro processo entrar com a mesma conta no
   meio, e para de ver a placa.
-- **A imagem assinada para a bancada:** a `pico2_w_release` confia na chave de
-  bancada (`ota_trust_bench`). Assine só com ela:
+- **A imagem de bancada sai de uma variável (passo 7):** a release publica a
+  imagem do Pico 2 W, então a `pico2_w_release` confia só na raiz de release,
+  como as imagens de campo. Para a bancada, compile com
+  `PLATFORMIO_BUILD_FLAGS=-DSIMUT_OTA_TRUST_BENCH=1 pio run -e pico2_w_release`.
+  Em 04/10/2026 isso deu, byte a byte, a imagem que a `main` compilava antes do
+  passo 7. Depois assine só com a chave de bancada:
   `python3 tools/ota_sign.py sign --key ~/.simut-ota/signer-bench.p8 --cert ~/.simut-ota/signer-bench.cert --in firmware_ota.bin --out firmware_ota.signed.bin`.
+  Sem a variável, o `sign` recusa: "the image trusts no root for this signer's
+  scope". A variável vale para todo ambiente daquele comando, então não a
+  exporte no shell.
+- **Uma placa que roda imagem sem a raiz de bancada recusa toda imagem da
+  bancada** (`v=12`). Isso vale para uma release ou para um build sem a variável.
+  A volta é pelo USB (`picotool load`, que o mantenedor grava) ou por uma imagem
+  assinada pelo CI. O portão de release instala o candidato assinado pelo CI
+  numa placa que roda a imagem de bancada, e depois disso ela fica nesse caso.
 - **Antes de compilar,** rode `bash tools/arduino_pico_overrides/patch.sh`. Sem o
   patch 2k, o `check_rp2350_image.py` recusa a imagem, que cairia ao montar o
   LittleFS.
@@ -396,6 +408,19 @@ Antes de publicar, no rig, com os números no PR:
    sistema de arquivos cheio o aparelho voltava de fábrica.
 4. **Devolver a bancada** ao estado de origem e conferir byte a byte (o slot da app
    e o `system.bin`).
+5. **O Pico 2 W**, desde que a release publica a imagem dele (etapa 7 de
+   [OTA_AB_RP2350.md](docs/analysis/OTA_AB_RP2350.md#a-release-etapa-7)):
+   - o mesmo apply com a candidata `releasetwo`, na placa da bancada rodando a
+     imagem de bancada: ela sobe em teste, se confirma (`sys.trial` 0) e guarda
+     a configuração. No artefato `signed-images`, a candidata é
+     `pico2_w_release/firmware.bin`, que é o `firmware_ota.bin` assinado;
+   - o `.uf2` de fábrica da candidata arrastado para a unidade do BOOTSEL dessa
+     placa, que é A2 e tem tabela, pelo mantenedor (errata RP2350-E10). O
+     artefato não traz o `.uf2`; ele sai do artefato com
+     `python3 tools/release_manifest.py --build-dir <artefato> --out <pasta>`.
+
+   O passo 3 não se aplica do mesmo jeito: no Pico 2 W a imagem vai para o slot
+   inativo, e o LittleFS fica intocado.
 
 É um portão de release, não de todo push, e a suíte nativa não o substitui: some da
 imagem publicada se for pulado.

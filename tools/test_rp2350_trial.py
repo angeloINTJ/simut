@@ -14,6 +14,10 @@ only it, and set exactly that bit:
     loop holds a second image definition, and one with a hashed or signed block;
   * check_rp2350_image.py marks the copy, never firmware.bin, and still refuses
     a flagged firmware.bin;
+  * clear_trial gives back what mark_trial took, trailer and all: the bytes the
+    boot ROM leaves in flash when an update buys itself, which the release's
+    factory .uf2 is made of (step 7, tools/release_manifest.py). It refuses an
+    image that is not flagged, and what mark_trial refuses;
   * first_block, moved from check_rp2350_image.py to picobin.py, still reads
     what the boot ROM reads.
 
@@ -77,12 +81,12 @@ def with_type(img, flags):
     return bytes(out)
 
 
-def refused(img, why):
+def refused(img, why, fn=picobin.mark_trial):
     try:
-        picobin.mark_trial(img)
+        fn(img)
     except ValueError as e:
-        return check(why in str(e), f"mark_trial refused, but said '{e}', want '{why}'")
-    return check(False, f"mark_trial accepted an image it must refuse ({why})")
+        return check(why in str(e), f"{fn.__name__} refused, but said '{e}', want '{why}'")
+    return check(False, f"{fn.__name__} accepted an image it must refuse ({why})")
 
 
 def test_one_bit_changes():
@@ -112,6 +116,29 @@ def test_refusals():
     refused(bytes(broken), "no block starts")
 
 
+def test_clear_is_the_inverse():
+    trailer = bytes(range(241))   # the signature's length; nothing in it is read
+    for img in (with_type(image(), EXE_RP2350),
+                with_type(image(second_items=[(0x7E, [0])]), EXE_RP2350)):
+        marked = picobin.mark_trial(img)
+        check(picobin.clear_trial(marked) == img, "clear_trial(mark_trial(x)) is not x")
+        check(picobin.clear_trial(marked + trailer) == img + trailer,
+              "clear_trial on a signed image changed more than the flag")
+
+
+def test_clear_refusals():
+    clear = picobin.clear_trial
+    refused(with_type(image(), EXE_RP2350), "not flagged", clear)
+    refused(bytes(0x8000), "no complete PICOBIN block", clear)
+    flagged = EXE_RP2350 | picobin.TBYB
+    refused(with_type(image(second_items=[(picobin.ITEM_IMAGE_TYPE, [])]), flagged),
+            "image definitions of the loop", clear)
+    for typ, name in ((0x47, "HASH_DEF"), (0x09, "SIGNATURE"), (0x4B, "HASH_VALUE")):
+        refused(with_type(image(first_items=[(picobin.ITEM_IMAGE_TYPE, []), (typ, [0, 0])]), flagged),
+                name, clear)
+        refused(with_type(image(second_items=[(typ, [0])]), flagged), name, clear)
+
+
 def test_first_block_reads_what_the_rom_reads():
     off, items = picobin.first_block(with_type(image(), EXE_RP2350))
     check(off == 0x124 and items == {picobin.ITEM_IMAGE_TYPE: picobin.ITEM_IMAGE_TYPE | (1 << 8) | (EXE_RP2350 << 16)},
@@ -133,11 +160,14 @@ def test_the_build_marks_the_copy():
     check("mark_trial(" in text, "check_rp2350_image.py does not mark the OTA image")
     check("firmware_ota.bin" in text, "check_rp2350_image.py does not write firmware_ota.bin")
     check("flags & TBYB" in text, "check_rp2350_image.py no longer refuses a flagged firmware.bin")
+    check("uf2.factory(" in text,
+          "check_rp2350_image.py does not write firmware_factory.uf2 with the release's writer "
+          "(tools/rp2350/uf2.py)")
 
 
 def main():
-    for t in (test_one_bit_changes, test_refusals, test_first_block_reads_what_the_rom_reads,
-              test_the_build_marks_the_copy):
+    for t in (test_one_bit_changes, test_refusals, test_clear_is_the_inverse, test_clear_refusals,
+              test_first_block_reads_what_the_rom_reads, test_the_build_marks_the_copy):
         before = len(fails)
         try:
             t()

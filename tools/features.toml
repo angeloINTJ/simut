@@ -422,19 +422,23 @@ web_metrics   = true
 syslog        = true
 publish       = true
 
-# pico2_w_release — a release do Pico W compilada para o Pico 2 W (RP2350). Nao publicada.
+# pico2_w_release — a release do Pico W compilada para o Pico 2 W (RP2350).
 #   S0 da fase 4: o CI prova que compila e mede o tamanho. Rodou numa placa pela
 #   primeira vez em 2026-10-03 (S1): a placa da bancada, de stepping A2, gravada por
 #   USB. Os registradores do watchdog e do PSM vem do SDK do chip desde 2026-10-01;
 #   sem isso a imagem compilava e escrevia nos enderecos do RP2040.
-#   ota_trust_bench: o OTA de slot (passo 4) so se prova com uma imagem assinada, e a
-#   bancada so assina com a chave de bancada. Sai quando o perfil for publicado
-#   (passo 7): o gerador recusa os dois juntos.
+#   A release publica as imagens dela desde o passo 7 de OTA_AB_RP2350.md
+#   (release-ota.yml): o .bin em teste e o .uf2 de fabrica. Por isso ela nao confia
+#   mais na raiz de bancada, e tools/test_release_manifest.py confere que nenhuma
+#   imagem publicada pela release confia. A imagem de bancada sai deste perfil com
+#   PLATFORMIO_BUILD_FLAGS=-DSIMUT_OTA_TRUST_BENCH=1 (AGENTS.md).
+#   `publish = false` aqui e o do configurador e das tabelas FEATURES*.md. O Pico 2 W
+#   entra la quando o build_custom.py entregar o .uf2 de fabrica e o .bin em teste, e
+#   a pagina tiver os tetos do slot.
 [profiles.pico2_w_release]
 extends = "pico_w_release"
 chip    = "rp2350"
 publish = false
-ota_trust_bench = true
 
 # ===========================================================================
 #  O configurador (docs/configurador/): como cada escolha aparece na árvore.
@@ -492,10 +496,10 @@ desc.pt  = "A imagem de release com a armadilha de concorrência armada. Não pu
 [ui_products.pico2_w_release]
 order    = 7
 bench    = true
-label.en = "Pico 2 W build check"
-label.pt = "Verificação de build do Pico 2 W"
-desc.en  = "The release image compiled for the RP2350, so CI sees it build. It boots from slot A or B on the bench board and updates over the air into the other; not published."
-desc.pt  = "A imagem de release compilada para o RP2350, para o CI vê-la compilar. Sobe do slot A ou B na placa da bancada e atualiza pelo ar no outro; não publicada."
+label.en = "SIMUT for the Pico 2 W"
+label.pt = "SIMUT para o Pico 2 W"
+desc.en  = "The release image for the Pico 2 W (RP2350). It boots from slot A or B and updates over the air into the other, on trial. The release publishes its images; this page has not measured it."
+desc.pt  = "A imagem de release do Pico 2 W (RP2350). Sobe do slot A ou B e atualiza pelo ar no outro, em teste. A release publica as imagens dela; esta página ainda não a mediu."
 
 [ui_displays.tft]
 label.en = "Touch display (ILI9341, 320x240)"

@@ -1,7 +1,7 @@
 # OTA de slot duplo no Pico 2 W — desenho
 
-Estado: etapas 1 a 6 **feitas** (a lista está em [Etapas](#etapas)); a 7 por
-fazer. Etapa S2 da Fase 4 de
+Estado: etapas 1 a 6 **feitas** (a lista está em [Etapas](#etapas)). Da 7,
+o workflow e o manifesto estão prontos; falta a release. Etapa S2 da Fase 4 de
 [`PLANO_REVISAO_EXTERNA.md`](PLANO_REVISAO_EXTERNA.md). Decisões do
 mantenedor em 03/10/2026:
 
@@ -136,7 +136,7 @@ escreve o `firmware_ota.bin` ao lado do `firmware.bin`: o mesmo arquivo, com o
 bit ligado pelo `mark_trial` de `tools/rp2350/picobin.py`. O passo confere que
 um byte só mudou e recusa um bloco com hash ou assinatura (o boot seguro, na
 etapa S3, decide como marcar uma imagem selada). O `release-ota.yml` publica os
-dois a partir da etapa 7.
+dois desde a etapa 7 (ver [A release](#a-release-etapa-7)).
 
 **Item de versão no IMAGE_DEF.** Com versões iguais, ou sem elas, a ROM prefere
 o slot A. B só vence com versão estritamente maior e sem a marca de teste
@@ -337,6 +337,70 @@ minuto saudável (ver "A confirmação"): a mesma imagem, e uma com o Core 1 num
 falha de hardware (`udf`), foram relançadas 14 vezes cada e voltaram no prazo,
 com o 612 e o 613.
 
+## A release (etapa 7)
+
+Desde a etapa 7, o `release-ota.yml` publica duas imagens do Pico 2 W, com
+`releasetwo` no nome:
+
+- **O `.bin` é a atualização.** É o `firmware_ota.bin` assinado pela chave de
+  release, marcado para teste. O manifesto recusa uma atualização sem a marca:
+  ela instalaria sem teste, e uma imagem ruim não voltaria.
+- **O `.uf2` é a imagem de fábrica.** É a tabela de partições que o build
+  escreveu e, no slot A, a atualização assinada com a marca apagada
+  (`clear_trial`). Quando a imagem se confirma, a ROM apaga a marca na flash
+  (`explicit_buy`). Assim uma placa gravada pelo USB guarda os mesmos bytes que
+  uma atualizada pelo ar, trailer da assinatura incluído. Os dois arquivos
+  diferem na tabela e num byte, em `0x12b`.
+
+O job que publica não tem o `picotool`. O `.uf2` sai de `tools/rp2350/uf2.py`,
+o mesmo código com que o build escreve o `firmware_factory.uf2`, e o build falha
+se ele não der byte a byte o que o `picotool` dá. Conferências de 04/10/2026:
+
+- quatro builds das etapas 4 a 6 deram o mesmo `.uf2` de fábrica pelos dois
+  caminhos;
+- de ponta a ponta, com a atualização assinada pela chave de bancada, o `.uf2`
+  trouxe o `firmware.bin` inteiro e depois os 241 B da assinatura;
+- o manifesto deste ramo deu, para as três imagens do Pico W, as mesmas entradas
+  e os mesmos arquivos que o da `main`.
+
+**A confiança na bancada sai do perfil.** Uma imagem que a release publica
+confia só na raiz de release. O job de assinatura recusaria outra, e
+`tools/test_release_manifest.py` confere isso a cada push. A imagem de bancada
+sai do mesmo perfil com `PLATFORMIO_BUILD_FLAGS=-DSIMUT_OTA_TRUST_BENCH=1`. Em
+04/10/2026 isso deu, byte a byte, a imagem que a `main` compilava antes da etapa
+7, e a imagem sem a raiz de bancada ficou 64 B menor.
+
+**A errata RP2350-E10.** No A2, arrastar um `.uf2` para a unidade do BOOTSEL de
+uma placa que já tem tabela de partições falha. O `picotool` contorna isso com
+um bloco no último setor, mas só num arquivo que vai a uma partição pela família
+(`elf2uf2.cpp`). O `.uf2` de fábrica é todo na família absoluta e não leva esse
+bloco. Na bancada ele só foi gravado pelo `picotool load`. Arrastá-lo para a
+placa da bancada, que é A2, fica para o portão da release.
+
+**O que fica de fora:**
+
+- **O configurador.** O perfil continua com `publish = false` em
+  `tools/features.toml`: o `build_custom.py` ainda entrega o `firmware.uf2` e o
+  `firmware.bin`, e a página usa os tetos do Pico W.
+- **O simut-rx.** Ele ignora de propósito uma variante que não conhece
+  (`decodeManifest`), então não oferece atualização a um Pico 2 W até aprender o
+  `releasetwo`. O teto de tamanho dele, 1016 KiB, também é o do Pico W.
+- **Um `min_from` próprio.** O manifesto tem um só. Num Pico 2 W, a primeira
+  versão publicada entra pelo USB: as imagens compiladas antes da etapa 5
+  recusam a atualização marcada (a da etapa 4 com `v=6`; as anteriores, pelo
+  `env` ou por recusarem toda OTA).
+
+**O portão da primeira release**, além do de sempre (`AGENTS.md`):
+
+1. O candidato assinado pelo CI (`workflow_dispatch`) vai pelo ar para a placa
+   da bancada, que roda a imagem de bancada. Ele sobe em teste e se confirma, e
+   a configuração e o histórico ficam.
+2. O mantenedor arrasta o `.uf2` de fábrica do candidato para a unidade do
+   BOOTSEL da mesma placa, que é A2 e tem tabela.
+
+Depois disso a placa roda uma imagem sem a raiz de bancada. Ela recusa o que a
+bancada assina (`v=12`), e a volta é pelo USB.
+
 ## Boot seguro e OTP
 
 Decisão de 03/10/2026: os aparelhos de produção saem com boot seguro e
@@ -422,8 +486,8 @@ duas. Um script que consulta a cada 3 s sem refazer não corta. Refazendo, como 
 navegador, corta aos 13,1 s, duas vezes em duas. A prova da etapa 4 roda com a
 bancada quieta, e o conserto do servidor é um PR à parte.
 
-As releases não publicam a imagem do RP2350, então ninguém a tem em campo. Mesmo
-assim, a primeira etapa de código fecha isso: a imagem do RP2350 recusa toda OTA
+Até a etapa 7, as releases não publicavam a imagem do RP2350, então ninguém a
+tinha em campo. Mesmo assim, a primeira etapa de código fechou isso: a imagem do RP2350 recusa toda OTA
 até o A/B existir.
 
 **Dois endereços para a etapa 3.** O boot ainda lê os metadados em `0x1FF000` e
@@ -503,5 +567,7 @@ depois do boot.
    a medição mostrou que os registradores do watchdog bastam, e consertou o que
    faltava (o `setup( )` travado em teste; o Core 1 na saúde do teste).
 7. **A primeira release** com as imagens do RP2350 publicadas (`.uf2` de fábrica
-   e `.bin` de OTA).
+   e `.bin` de OTA). O workflow e o manifesto ficaram prontos em 04/10/2026 (ver
+   [A release](#a-release-etapa-7)). Falta a release em si, com o portão no
+   ferro.
 8. **S3:** o procedimento de boot seguro e OTP para produção, nunca na bancada.

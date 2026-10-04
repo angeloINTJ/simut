@@ -217,6 +217,16 @@ jobs:
       - name: RP2350 trial flag (the OTA image alone)
         run: python3 tools/test_rp2350_trial.py
 
+      # The release publishes the Pico 2 W's images since step 7 of
+      # OTA_AB_RP2350.md: the update, flagged for trial, and a factory .uf2 made
+      # from it with the flag cleared and the partition table in front.
+      # tools/release_manifest.py writes both in the publish job, which has no
+      # picotool and runs only at a tag. This holds its output and its refusals
+      # on synthetic images, and holds the workflow's loops to the manifest's
+      # list, on every push.
+      - name: Release manifest (the Pico 2 W's update and factory image)
+        run: python3 tools/test_release_manifest.py
+
       # OTA applies reformat the LittleFS, so benches restore /history from
       # backup — and the current-day file can only be given back by MERGING
       # with what the device wrote meanwhile. This is the tool that hole
