@@ -7,9 +7,10 @@ A stage the device refuses comes back in one of two shapes:
     signature that does not match, 10 a retired key, 11 below the security
     level, 12 the bench key), and the page explains each code;
   * refused before any validation: no `v`, only `error`, in the device's own
-    words. The RP2350 image answers every stage this way (501) until its A/B
-    slots exist (docs/analysis/OTA_AB_RP2350.md, step 2). Before this test the
-    page printed "validation v=undefined" for it.
+    words. An RP2350 that boots from no slot of a partition table answers
+    every stage this way (501; docs/analysis/OTA_AB_RP2350.md, step 4), as
+    every RP2350 image did from step 2 until step 4. Before this test the page
+    printed "validation v=undefined" for it.
 
 The message is built by `fwStageMessage( )` in FILES_PAGE, between the
 `fw: stage message` and `fw: end of stage message` comments. This test takes
@@ -37,7 +38,7 @@ PACKS = [REPO / "data" / "lang" / "language_pt-BR.lng", REPO / "data" / "lang" /
 START = "/* fw: stage message"
 END = "/* fw: end of stage message */"
 
-UNAVAILABLE = "Over-the-air update is not available on the RP2350 yet. Install over USB."
+UNAVAILABLE = "This board boots from no slot of a partition table. Install the factory image over USB."
 
 # [HTTP status, reply, texts the message must contain, texts it must not]
 CASES = [
@@ -55,7 +56,7 @@ CASES = [
     # known for it, and the page says only the code, as before.
     [200, {"st": 5, "v": 0, "committed": 0, "env": "release"},
      ["Upload failed (validation v=0). Cancelled."], ["undefined"]],
-    # The RP2350 image, refusing before any validation.
+    # An RP2350 with no slot to write, refusing before any validation.
     [501, {"st": 0, "committed": 0, "error": UNAVAILABLE},
      ["Upload refused (HTTP 501). " + UNAVAILABLE], ["undefined", "validation v="]],
     # An error without text still names the status, and nothing reads "undefined".

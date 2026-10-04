@@ -126,5 +126,22 @@ check("an image over the ceiling gets a row with a negative margin, and it reads
       row.endswith("| -5 |") and cfb.headroom_table_errors(doc(row), over, SAFE, TRAILER) == [],
       row)
 
+# An image that updates into the other slot of a partition table (the RP2350
+# since step 4 of docs/analysis/OTA_AB_RP2350.md) is held to that slot over the
+# air, not to the Pico W's staging ceiling: its row measures the slot.
+SLOT = 1568768
+slotted = {"envs": {"pico2_w_release": {"budget": 1, "measured": 1, "bin": 993392, "slot": SLOT}}}
+row = cfb.headroom_rows(slotted, SAFE, TRAILER)["pico2_w_release"]
+check("an image with a slot gets its margin against the slot",
+      row == f"| `pico2_w_release` | {cfb.pt_int(993392 + TRAILER)} | {cfb.pt_int(SLOT - 993392 - TRAILER)} |"
+      and cfb.headroom_table_errors(doc(row), slotted, SAFE, TRAILER) == [], row)
+errs = cfb.headroom_table_errors(
+    doc(f"| `pico2_w_release` | {cfb.pt_int(993392 + TRAILER)} | {cfb.pt_int(SAFE - 993392 - TRAILER)} |"),
+    slotted, SAFE, TRAILER)
+check("a slotted image's row measured against the Pico W's ceiling fails",
+      len(errs) == 1 and "pico2_w_release" in errs[0], str(errs))
+check("the OTA ceiling is the slot when there is one, the Pico W's otherwise",
+      cfb.ota_ceiling({"slot": SLOT}, SAFE) == SLOT and cfb.ota_ceiling({}, SAFE) == SAFE)
+
 print(f"{len(RAN) - len(FAILS)} ok, {len(FAILS)} falha(s)")
 sys.exit(1 if FAILS else 0)

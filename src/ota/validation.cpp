@@ -8,6 +8,9 @@
  * @license MIT License
  */
 #include "validation.h"
+#if defined(PICO_RP2350) && PICO_RP2350
+#include "picobin.h"
+#endif
 #include "staging.h"
 #include "ota_layout.h"
 #include "ota_trust.h"   /* kTrustRelease / kTrustBench, generated from keys/ */
@@ -28,6 +31,12 @@
  * (gzip header não bate com layout RP2040 boot2). Mensagem de erro v=6. */
 
 namespace ota {
+
+/* The running env, read back from this image's tag, has to fit the report's
+ * field: one that did not would read as no tag at all, and every update would
+ * be checked against the macro instead (running_env). */
+static_assert(sizeof(SIMUT_ENV_NAME) <= sizeof(ValidationReport::image_env),
+              "SIMUT_ENV_NAME does not fit ValidationReport::image_env");
 
 static_assert((uint8_t)SigVerdict::ENV == (uint8_t)ValidationStatus::ENV_MISMATCH &&
               (uint8_t)SigVerdict::MISSING == (uint8_t)ValidationStatus::SIG_MISSING &&
@@ -63,6 +72,7 @@ static const char* running_env(char* buf, unsigned len);
  * seguintes; se não bater, BOOT FALHA. Validar isto pré-apply pega 99 %
  * dos casos de "imagem não é firmware RP2040 válido" (zip aleatório,
  * tar, gzip de outro arquivo). */
+#if OTA_RP2040_MAP
 static uint32_t boot2_crc32(const uint8_t* data, size_t len) {
     uint32_t crc = 0xFFFFFFFFu;
     for (size_t i = 0; i < len; i++) {
@@ -73,6 +83,7 @@ static uint32_t boot2_crc32(const uint8_t* data, size_t len) {
     }
     return crc;
 }
+#endif
 
 bool ota_validate_staging(const StageSession& s, ValidationReport& report) {
     memset(&report, 0, sizeof(report));
@@ -101,11 +112,12 @@ bool ota_validate_staging(const StageSession& s, ValidationReport& report) {
         report.status = ValidationStatus::SIZE_TOO_SMALL;
         return false;
     }
-    if (s.bytes_written > OTA_APP_SAFE_MAX_SIZE) {
+    if (s.bytes_written > OTA_IMAGE_MAX) {
         report.status = ValidationStatus::SIZE_TOO_LARGE;
         return false;
     }
 
+#if OTA_RP2040_MAP
     uint8_t boot2[256];
     staging_read(0, boot2, 256);
     uint32_t expected = boot2_crc32(boot2, 252);
@@ -117,10 +129,12 @@ bool ota_validate_staging(const StageSession& s, ValidationReport& report) {
         report.status = ValidationStatus::BOOT2_BAD;
         return false;
     }
+#endif
 
     /* Variant check. Size and boot2 CRC prove the file is *a* Pico image;
      * nothing proved it was an image for THIS hardware, and staging the
-     * wrong variant formats the file system on the way in. The staged
+     * wrong variant formats the file system on the way in (on the RP2040;
+     * the RP2350 checks its image after this, below). The staged
      * image is scanned for the SIMUT-ENV tag (BuildIdentity.cpp) in 4 KiB
      * windows with an overlap of one tag length, so a tag straddling two
      * windows is still found. ~1 MiB of XIP-speed reads, once per stage.
@@ -147,6 +161,24 @@ bool ota_validate_staging(const StageSession& s, ValidationReport& report) {
             return false;
         }
     }
+
+#if !OTA_RP2040_MAP
+    /* The RP2350 has no boot2: what the boot ROM needs is an image definition
+     * in the first 4 KB, for an Arm executable of this chip (picobin.h). It
+     * comes after the variant, not before as the boot2 check does: the likely
+     * wrong file here is a Pico W's release, and its tag names another model,
+     * where this check could only call it damaged. An RP2040 image too old
+     * for the tag stops here, with the code the boot2 check gives. Step 4
+     * installs no trial: an image flagged try-before-you-buy is refused too,
+     * since nothing in this build would confirm it, and the ROM would go back
+     * to the old slot. */
+    staging_read(0, s_win, 4096);
+    const PicobinBlock blk = picobin_first_block(s_win, 4096);
+    if (!picobin_is_rp2350_arm_exe(blk) || (blk.image_type & PICOBIN_TBYB)) {
+        report.status = ValidationStatus::BOOT2_BAD;
+        return false;
+    }
+#endif
 
     /* The signature, last: it is the expensive check (1.87 s for a 1 MB image,
      * measured on the rig 2026-10-01: the SHA-256 and two ECDSA verifies), and
@@ -207,7 +239,7 @@ static bool read_staged(void*, uint32_t off, uint8_t* buf, uint32_t len) {
 bool ota_check_staged_signature(uint32_t staged_len, SigReport& report) {
     /* The apply passes a length out of the metadata sector: never read past
      * what a stage can have written. */
-    if (staged_len > OTA_APP_SAFE_MAX_SIZE) {
+    if (staged_len > OTA_IMAGE_MAX) {
         memset(&report, 0, sizeof(report));
         report.verdict = SigVerdict::INVALID;
         return false;

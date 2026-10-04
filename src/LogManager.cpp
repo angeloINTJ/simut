@@ -25,6 +25,9 @@
 #include <hardware/regs/watchdog.h>
 #include <hardware/regs/psm.h>
 #include <stdio.h>
+#if defined(PICO_RP2350) && PICO_RP2350
+#include <pico/bootrom.h>   /* rom_reboot */
+#endif
 
 /* Black-box profiler state — tracks per-core activity for crash forensics. */
 volatile uint32_t _coreHeartbeat[2] = {0, 0};
@@ -921,6 +924,42 @@ void LogManager::safeReboot( ) {
  __asm volatile("dsb");
  while (1) tight_loop_contents( );
 }
+
+#if defined(PICO_RP2350) && PICO_RP2350
+void LogManager::safeRebootFlashUpdate(uint32_t updateBase) {
+ if (_preRebootFn) {
+ void (*fn)( ) = _preRebootFn;
+ _preRebootFn = nullptr;
+ fn( );
+ }
+ markCleanReboot( );
+ Serial.println("[SYS] Rebooting into the new slot...");
+ Serial.flush( );
+ delay(50);
+ Serial.end( );
+ delay(100);
+
+ /* The ROM's own reboot, not the watchdog sequence above: a FLASH_UPDATE
+  * boot tells the ROM which slot was just written, and it boots that one. A
+  * plain reboot would choose by the slots alone, and with both whole and no
+  * versions it takes A. Going to B, the ROM also erases A's first sector when
+  * the new image launches (the implicit buy of an image with no
+  * try-before-you-buy flag), so later boots stay on B; going to A it erases
+  * nothing, since A wins anyway, and B keeps the image it had (boot ROM,
+  * varm_flash_boot.c:237-318 and varm_launch_image.c:446-453). The ROM
+  * writes the watchdog's scratch registers for this boot, scratch[5] with the
+  * clean-reboot mark among them: step 6 of docs/analysis/OTA_AB_RP2350.md
+  * gives the autopsy registers of its own. */
+ /* REBOOT2_FLAG_REBOOT_TYPE_FLASH_UPDATE and REBOOT2_FLAG_NO_RETURN_ON_SUCCESS,
+  * from the SDK's boot/picoboot_constants.h, which arduino-pico leaves off the
+  * include path. They are the boot ROM's interface, fixed in the silicon. */
+ constexpr uint32_t LM_REBOOT_FLASH_UPDATE = 0x4u;
+ constexpr uint32_t LM_REBOOT_NO_RETURN    = 0x100u;
+ (void)rom_reboot(LM_REBOOT_FLASH_UPDATE | LM_REBOOT_NO_RETURN, 10, updateBase, 0);
+ /* Here only if the ROM refused the call. */
+ safeReboot( );
+}
+#endif
 
 /**
  * @brief Analyze watchdog scratch registers after a crash-triggered reboot.

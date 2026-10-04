@@ -14,8 +14,9 @@ still succeeds, and each one is a board that does not start:
   * tools/rp2350/memmap_slot.ld is derived from the framework's template, and
     a framework update changes the template under it.
 
-After the link this checks each of those, and the symbols the layout rests on.
-Then it writes, next to firmware.uf2:
+After the link this checks each of those, the symbols the layout rests on, and
+the variant tag an update is checked against (step 4: its env ends in "two",
+simut_config.h). Then it writes, next to firmware.uf2:
 
   * partition_table.uf2: the table alone, for `picotool load`;
   * firmware_factory.uf2: the table and the program in slot A, every block in
@@ -28,6 +29,7 @@ License: MIT
 """
 
 import os
+import re
 import struct
 import subprocess
 import sys
@@ -47,6 +49,9 @@ ITEM_IMAGE_TYPE, ITEM_LAST = 0x42, 0x7F
 IMAGE_TYPE_WANT = 0x1 | (0x2 << 4) | (0x0 << 8) | (0x1 << 12)
 TBYB = 0x8000
 UF2_MAGIC = (0x0A324655, 0x9E5D5157, 0x0AB16F30)
+# BuildIdentity.cpp; the env is [a-z], and the RP2350's ends in the chip's suffix.
+ENV_TAG = re.compile(rb"SIMUT-ENV:([a-z]+);")
+ENV_CHIP = "two"
 
 
 def is_slot_image():
@@ -178,6 +183,15 @@ def check_and_package(source, target, env):
     if flags != IMAGE_TYPE_WANT:
         fail(f"the image type is {flags:#06x}, want {IMAGE_TYPE_WANT:#06x} (Arm, secure, RP2350, executable)")
 
+    # 4b. The variant tag. The stage on this board checks a staged image's tag
+    # against its own, and the signature binds it: with the chip's suffix, a
+    # Pico W's release is another model here. The validator is what keeps the
+    # tag in the link; an image without one could not install a signed update.
+    envs = sorted({m.group(1).decode() for m in ENV_TAG.finditer(image)})
+    if len(envs) != 1 or not envs[0].endswith(ENV_CHIP):
+        fail(f"firmware.bin carries the env tags {envs}, want one ending in '{ENV_CHIP}' "
+             "(SIMUT_ENV_NAME, src/simut_config.h)")
+
     # 5. The table, and the image a blank board takes from BOOTSEL.
     pt_json = os.path.join(ROOT, "tools", "rp2350", "partition_table.json")
     pt_uf2 = os.path.join(build, "partition_table.uf2")
@@ -193,7 +207,7 @@ def check_and_package(source, target, env):
     n = merge_uf2([pt_uf2, app_uf2], factory)
     os.remove(app_uf2)
     print(f"[rp2350-image] OK: image definition first (at {off:#x}, type {flags:#06x}), no OTA stub, "
-          f"{end} of {slot} B of slot, LittleFS at {syms['_FS_start']:#x}; "
+          f"env {envs[0]}, {end} of {slot} B of slot, LittleFS at {syms['_FS_start']:#x}; "
           f"wrote partition_table.uf2 and firmware_factory.uf2 ({n} blocks)")
 
 

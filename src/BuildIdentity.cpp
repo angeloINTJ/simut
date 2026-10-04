@@ -25,13 +25,11 @@
  * procurar a etiqueta no .bin, e é o que tools/release_manifest.py faz antes
  * de publicar qualquer imagem.
  *
- * No RP2350 essa leitura não existe. A imagem recusa o OTA até os slots A/B
- * existirem (src/ota/ota_layout.h), o validador fica fora do link, e o .bin sai
- * sem a etiqueta: medido em 2026-10-03, a pico2_w_release do passo 2 não a tem.
- * Nada a lê nessa imagem, porque o `env` de /api/perms, /api/status e do mDNS
- * vem do macro. E nada a assina ou publica por engano: tools/ota_sign.py e
- * tools/release_manifest.py recusam uma imagem sem etiqueta. Ela volta com o
- * stage no slot inativo (docs/analysis/OTA_AB_RP2350.md, etapa 4). */
+ * No RP2350 essa leitura faltou nos passos 2 e 3, quando a imagem recusava o
+ * OTA e o validador ficava fora do link: o .bin saía sem a etiqueta (medido em
+ * 2026-10-03). Com o stage no slot inativo (docs/analysis/OTA_AB_RP2350.md,
+ * etapa 4) o validador volta, e a etiqueta com ele, com o env "releasetwo"
+ * (simut_config.h). tools/check_rp2350_image.py confere que ela está no .bin. */
 const char SIMUT_ENV_TAG[] __attribute__((used)) =
     SIMUT_ENV_TAG_PREFIX SIMUT_ENV_NAME ";v=" SIMUT_VERSION ";";
 

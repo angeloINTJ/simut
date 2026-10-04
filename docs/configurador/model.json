@@ -547,8 +547,8 @@
         "pt": "Verificação de build do Pico 2 W"
       },
       "desc": {
-        "en": "The release image compiled for the RP2350, so CI sees it build. It boots on the bench board and refuses updates over the air until its A/B slots exist; not published.",
-        "pt": "A imagem de release compilada para o RP2350, para o CI vê-la compilar. Sobe na placa da bancada e recusa atualizar pelo ar até os slots A/B existirem; não publicada."
+        "en": "The release image compiled for the RP2350, so CI sees it build. It boots from slot A or B on the bench board and updates over the air into the other; not published.",
+        "pt": "A imagem de release compilada para o RP2350, para o CI vê-la compilar. Sobe do slot A ou B na placa da bancada e atualiza pelo ar no outro; não publicada."
       },
       "config": {
         "display": "tft",

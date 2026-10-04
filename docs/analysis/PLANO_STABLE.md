@@ -87,7 +87,7 @@ de recebê-la pelo ar: o aparelho a recusa no stage, na validação e no aplicad
 | `pico_w_release` | 1.032.725 | 7.659 |
 | `pico_w_air` | 1.031.485 | 8.899 |
 | `pico_w_alpha` | 990.621 | 49.763 |
-| `pico2_w_release` | isenta | — |
+| `pico2_w_release` | 993.801 | 574.967 |
 | `pico_w_test` | 1.037.301 | 3.083 |
 | `pico_w_asserts` | 1.035.021 | 5.363 |
 | `pico_w_test_https` | isenta | — |
@@ -105,12 +105,11 @@ de recebê-la pelo ar: o aparelho a recusa no stage, na validação e no aplicad
   de OTA no painel 3,3 KB. A folga da release cabia três telas dessas, ou seis
   A-04.
 - **A `pico_w_test_https` é isenta** (B6): imagem de bancada, gravada pela USB.
-- **A `pico2_w_release` é isenta desde 03/10.** Ela não instala nada pelo ar
-  até os slots A/B existirem (passo 2 do [OTA_AB_RP2350.md](OTA_AB_RP2350.md)),
-  e sobe do slot A de uma tabela de partições (passo 3). O teto dela é o slot,
-  1.568.768 B (`"slot"` no `flash_budget.json`), que o linker script do slot e o
-  `check_rp2350_image.py` seguram. A linha volta, com esse teto, quando o stage
-  no slot inativo existir (passo 4).
+- **A folga da `pico2_w_release` é contra o slot, não contra o teto acima.**
+  Desde o passo 4 do [OTA_AB_RP2350.md](OTA_AB_RP2350.md) ela atualiza pelo ar
+  no outro slot de uma tabela de partições, e o teto dela é esse slot,
+  1.568.768 B (`"slot"` no `flash_budget.json`; `OTA_IMAGE_MAX` no stage). Entre
+  os passos 2 e 4 (03/10) ela foi isenta, porque recusava todo OTA.
 
 ---
 
