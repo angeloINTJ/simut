@@ -535,45 +535,45 @@
   "(ota_exempt, with the reason) and records no 'bin'; its budget still holds."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-10-03 feat/rp2350-slot-update on feat/rp2350-slot-image (#245): pico2_w_release stages an update into the slot it did not boot from and reboots into it through the boot ROM. It links the image validator again (the env tag, \"releasetwo\", the image definition, the signature) and the slot writer: 'used' 4,680 B larger (993,368), the .bin 4,680 B larger (993,392). Budget moved by that delta, which keeps its margin. The six RP2040 images are byte-identical to #245's (sha256).",
- "measured_at_commit": "2026-10-03 feat/rp2350-slot-update on feat/rp2350-slot-image (#245): the seven images built from this branch; the six RP2040 ones compared by sha256 with #245's build. measured is the zopfli image PlatformIO prints.",
+ "measured_on": "2026-10-04 fix/web-request-not-evicted (patch 2l of tools/arduino_pico_overrides, wifiserver_accepted_not_evicted.patch): WiFiServer raises the connections it accepts to TCP_PRIO_NORMAL and refuses the null pcb lwIP hands it when it cannot allocate one; ClientContext lowers a connection the app closes back to TCP_PRIO_MIN and frees the request of one lwIP dropped while it waited in the queue. 'measured' +32 B on release, air and pico2_w_release, +40 B on test, test_https, asserts and alpha; the .bin +32 B on release and pico2_w_release, +40 B on test and asserts, and the same on alpha and air (inside the 4 KiB pad before .data). The budgets of test_https and asserts move by their +40, which keeps their margins.",
+ "measured_at_commit": "2026-10-04 fix/web-request-not-evicted on main c155eb0 (#246): the seven images built from this branch. measured is the zopfli image PlatformIO prints.",
  "ota_exempt": {
   "pico_w_test_https": "A bench image: the one with the full console and the TLS server together, for the HTTPS suites (AGENTS.md). It reaches the rig over USB, and release-ota.yml does not publish it. #232 (2026-10-02) left it 147 B under OTA_APP_SAFE_MAX_SIZE, and keeping it there meant cutting code the product images ship too, or moving more of its pages to LittleFS. Over the ceiling the device refuses to stage it, which costs only installing this image over the air; its flash budget still holds. Exempt since 2026-10-02 (docs/analysis/PLANO_STABLE.md, B6)."
  },
  "envs": {
   "pico_w_release": {
    "budget": 1020556,
-   "measured": 1020452,
-   "bin": 1032484
+   "measured": 1020484,
+   "bin": 1032516
   },
   "pico_w_test": {
    "budget": 1025660,
-   "measured": 1025028,
-   "bin": 1037060
+   "measured": 1025068,
+   "bin": 1037100
   },
   "pico_w_test_https": {
-   "budget": 1030060,
-   "measured": 1030060
+   "budget": 1030100,
+   "measured": 1030100
   },
   "pico_w_asserts": {
-   "budget": 1022780,
-   "measured": 1022748,
-   "bin": 1034780
+   "budget": 1022820,
+   "measured": 1022788,
+   "bin": 1034820
   },
   "pico_w_alpha": {
    "budget": 975276,
-   "measured": 974756,
+   "measured": 974796,
    "bin": 990380
   },
   "pico_w_air": {
    "budget": 1018384,
-   "measured": 1018072,
+   "measured": 1018104,
    "bin": 1031244
   },
   "pico2_w_release": {
    "budget": 993760,
-   "measured": 993536,
-   "bin": 993560,
+   "measured": 993568,
+   "bin": 993592,
    "ceiling": 3145728,
    "slot": 1568768
   }
