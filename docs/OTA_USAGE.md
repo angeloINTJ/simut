@@ -54,4 +54,12 @@ at boot and nowhere else.
 
 ## Network note
 
-If uploads on port 80 stall on your network, some routers kill long port-80 flows; using an alternate HTTP port works around it.
+Up to v2.10.0, a long transfer (an update, a backup, a restore) was cut after
+12 to 15 s whenever a page of the device was open in a browser. The web server
+serves one client at a time, so the page's polls waited, each holding one of
+the device's five TCP connections, and when a newcomer found none free the
+device's network stack killed one to make room: the transfer, once the
+browser's at-once retries had made it the oldest. It was blamed on routers and
+on port 80 for months; neither was the cause, and the port makes no difference.
+With those versions, close the device's other pages before a transfer. Later
+versions let the polls wait instead.

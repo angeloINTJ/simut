@@ -544,7 +544,7 @@ Não impedem o build; são o que o painel de maturidade mostra.
 | R-R5 | Fila de alarmes cheia: a borda recusada some e a fila guarda os mais antigos | `tel.alarm_line` | issue #161, aberta |
 | R-R6 | A CLI corta em 63 caracteres e responde OK: templates de payload e da linha de alarmes só inteiros pela web | `cli.full` × `tel.custom_payload`, `tel.alarm_line` | B12, `PLANO_STABLE.md` |
 | R-R7 | O keep-alive ocioso corta ~7,1 % das respostas | `web` | B13, `PLANO_STABLE.md` |
-| R-R8 | Roteadores matam fluxos longos na porta 80: OTA e uploads grandes vão pela porta alternativa | `ota.web`, `web.files` | `docs/OTA_USAGE.md`; memória da bancada |
+| R-R8 | Até a v2.10.0, um envio longo pela web caía com outra página do aparelho aberta: o lwIP matava a conexão mais antiga para admitir as consultas. Não era o roteador nem a porta 80; o patch 2l do framework conserta | `ota.web`, `web.files` | `docs/OTA_USAGE.md`; `tools/arduino_pico_overrides/README.md` |
 | R-R9 | No Air, alarmes, OTA, web e Bluetooth só existem em M0; um `air stop` pelo Bluetooth não funciona em M1 | `power.air` | manual cap. 20; `CLI-Manual.md` §9.1 |
 | R-R10 | 6 falhas de PIN trancam a conta e 20 trancam o painel até o reboot; 8 toques ocupam ~360 ms do Core 0 | `panel.pin` | `AGENTS.md` §1; `AUTHORIZATION.md` |
 | R-R11 | Três sessões web; a quarta pessoa é recusada; um login novo da mesma conta derruba o token anterior | `web` | `src/WebManager_Auth.cpp:20-72`; `INTEGRACAO_SERVIDOR.md` §5.1 |

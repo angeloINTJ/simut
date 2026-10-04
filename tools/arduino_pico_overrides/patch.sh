@@ -433,6 +433,40 @@ else
     patch -p1 -d "$FW" < "$LFS_PATCH"
 fi
 
+# 2l. Conexao aceita pelo servidor nao e morta para admitir outra
+#     (WiFiServer.cpp, ClientContext.h)
+#
+#   O ClientContext poe toda conexao em TCP_PRIO_MIN. Com o pool de PCBs
+#   esgotado (MEMP_NUM_TCP_PCB = 5), o tcp_alloc( ) admite quem chega matando a
+#   conexao mais ociosa de prioridade menor; no empate, a mais antiga. Durante
+#   um upload longo, cada consulta de uma pagina aberta espera na fila do
+#   accept, um PCB cada, e o navegador refaz na hora a consulta que levou
+#   reset: as da fila ficam tao recentes quanto o upload, e o upload, o mais
+#   antigo, morre. Medido na Pico 2 W da bancada (03/10/2026): 1 MB a 50 KB/s
+#   cortado aos 13,1 s, 2 de 2, por um poller de 3 s que refaz no reset; com a
+#   bancada quieta, completo. Era a "queda do roteador" desde agosto.
+#
+#   O patch: o WiFiServer poe em TCP_PRIO_NORMAL toda conexao que aceita, e o
+#   ClientContext a devolve a TCP_PRIO_MIN quando o app a fecha. Com o pool
+#   cheio, o SYN novo fica sem resposta e o cliente o reenvia — sem reset, nao
+#   ha o que o navegador refazer. O lwIP chama o accept com pcb nulo quando nao
+#   consegue alocar (tcp_in.c); o upstream construia um ClientContext sobre o
+#   nulo, caminho que so passa a rodar com esta prioridade, e o patch o recusa.
+#   Um primeiro desenho protegia so a requisicao em atendimento: o upload
+#   sobrevivia aos 13 s, mas cada consulta morta na fila segurava o seu pbuf do
+#   pool (24) ate o fim do upload, e o retry do navegador encheu o pool (38
+#   falhas): o upload parou aos ~704 KB e caiu aos 19,9 s.
+WIFI_DIR="$FW/libraries/WiFi/src"
+EVICT_PATCH="$OVR/patches/wifiserver_accepted_not_evicted.patch"
+save_original "$WIFI_DIR/WiFiServer.cpp" "WiFiServer.cpp"
+# ClientContext.h: original ja salvo pelo bloco 2e.
+if grep -q "SIMUT override — a connection this server accepted is not killed" "$WIFI_DIR/WiFiServer.cpp"; then
+    echo "[patch] WiFiServer ja protege as conexoes aceitas — nada a fazer"
+else
+    echo "[patch] aplicando prioridade das conexoes aceitas (WiFiServer + ClientContext)"
+    patch -p1 -d "$FW" < "$EVICT_PATCH"
+fi
+
 # 3. Invalida cache PIO (lwip src + lib WiFi)
 #    A lib WiFi tem cache próprio em lib*/WiFi/ — sem apagá-lo o .cpp patchado
 #    não recompila e o build "passa" ainda com o handshake sem prazo.

@@ -352,14 +352,17 @@ partição do LittleFS (`src/ota/ota_layout.h`), então só o ferro o exercita. 
 essa cegueira que deixou um stage de OTA interrompido reformatar o sistema de
 arquivos e o aparelho voltar de fábrica sem ninguém ver, até 2026-09-30 (PR #192: o
 snapshot da config só era gravado no fim do stage, e um upload cortado nunca chegava
-lá — e nesta bancada o roteador corta fluxos porta-80 com mais de ~12-15 s, enquanto
-a imagem leva ~30 s).
+lá — e um envio com uma página do aparelho aberta no navegador era cortado aos
+~12-15 s, enquanto a imagem leva ~30 s; isso foi atribuído ao roteador até
+2026-10-03, e era o próprio lwIP da placa, consertado no patch 2l de
+`tools/arduino_pico_overrides/`).
 
 Antes de publicar, no rig, com os números no PR:
 
 1. **Backup datado** da config (dump íntegro da flash, ou `GET /api/config` mais o
    `.bkp` que a página baixa sozinha).
-2. **Apply completo** pela OTA na **:8080** — a porta que o roteador não corta: a
+2. **Apply completo** pela OTA, com nenhuma página do aparelho aberta no navegador
+   (até a v2.10.0 uma página aberta cortava o envio; a porta não muda nada): a
    versão lida de volta (`GET /api/perms`) bate **e** a config confere campo a campo
    (contas logam, sensores lendo, servidor de telemetria e nome do aparelho
    intactos). Receita em [docs/OTA_USAGE.md](docs/OTA_USAGE.md). Desde a OTA

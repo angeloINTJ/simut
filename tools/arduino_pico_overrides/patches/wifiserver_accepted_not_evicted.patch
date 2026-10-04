@@ -1,0 +1,72 @@
+--- a/libraries/WiFi/src/include/ClientContext.h
++++ b/libraries/WiFi/src/include/ClientContext.h
+@@ -113,6 +113,11 @@
+             tcp_recv(_pcb, nullptr);
+             tcp_err(_pcb, nullptr);
+             tcp_poll(_pcb, nullptr, 0);
++            /* SIMUT override — evictable again once WE close it. WiFiServer::_accept
++             * raises the connections a server accepts to TCP_PRIO_NORMAL; what is
++             * left of a closed one in lwIP (FIN_WAIT, up to TCP_FIN_WAIT_TIMEOUT)
++             * may make room for a newcomer, as every connection could before. */
++            tcp_setprio(_pcb, TCP_PRIO_MIN);
+             err = tcp_close(_pcb);
+             if (err != ERR_OK) {
+                 DEBUGV(":tc err %d\r\n", (int) err);
+@@ -717,6 +722,18 @@
+         tcp_err(_pcb, nullptr);
+         _pcb = nullptr;
+         _notify_error();
++        /* SIMUT override — a connection lwIP dropped while it still waited in
++         * the server's queue (refcount 0: no WiFiClient ever took it) will never
++         * be answered, yet the request it buffered held a pbuf of the pool until
++         * the server reached it, after the long request ahead of it. On the bench
++         * Pico 2 W (2026-10-04), a 62 s upload with a poll every 3 s that its
++         * client reset after 2 s took the pool to 24 of 24, with 5 failed
++         * allocations; with this, to 6 of 24 and none. Only the never-claimed:
++         * an app that holds the connection can still read what arrived before a
++         * reset. */
++        if (_refcnt == 0) {
++            discard_received();
++        }
+     }
+ 
+     err_t _connected(struct tcp_pcb *pcb, err_t err) {
+--- a/libraries/WiFi/src/WiFiServer.cpp
++++ b/libraries/WiFi/src/WiFiServer.cpp
+@@ -192,10 +192,36 @@
+     (void) err;
+     DEBUGV("WS:ac\r\n");
+ 
++    /* SIMUT override — lwIP calls this with no pcb when it could not allocate
++     * one for a new connection (tcp_listen_input, tcp_in.c): there is nothing
++     * to accept; the SYN goes unanswered and the peer sends it again. Upstream
++     * built a ClientContext on the null pcb. That never ran while every
++     * connection could be killed to make room; with the priority below it can. */
++    if (!apcb) {
++        return ERR_MEM;
++    }
++
+     // always accept new PCB so incoming data can be stored in our buffers even before
+     // user calls ::available()
+     ClientContext* client = new ClientContext(apcb, &WiFiServer::_s_discard, this);
+ 
++    /* SIMUT override — a connection this server accepted is not killed to admit
++     * another. ClientContext puts every connection at TCP_PRIO_MIN, and with the
++     * PCB pool full (MEMP_NUM_TCP_PCB is 5) tcp_alloc( ) admits a newcomer, at
++     * TCP_PRIO_NORMAL, by killing the most idle connection below that; a tie
++     * goes to the oldest. A web server serves one client at a time, so during a
++     * long request each poll of an open page waits here, a PCB each. A browser
++     * re-sends at once a poll that was reset, the queued ones stay as fresh as
++     * the request being served, and that request, the oldest, was the one
++     * killed: on the bench Pico 2 W (2026-10-03), a 1 MB upload at 50 KB/s was
++     * reset at 13.1 s, two times out of two, by a poller every 3 s that re-sent
++     * on a reset. At TCP_PRIO_NORMAL nothing here is killed for a newcomer: with
++     * the pool full, the newcomer's SYN goes unanswered (above) and is sent
++     * again, and no reset reaches a browser to be re-sent. With this, the same
++     * upload under the same poller ends in its answer at 19.9 s, two times out
++     * of two, as on a quiet bench. */
++    tcp_setprio(apcb, TCP_PRIO_NORMAL);
++
+     // backlog doc:
+     // http://lwip.100.n7.nabble.com/Problem-re-opening-listening-pbc-tt32484.html#a32494
+     // https://www.nongnu.org/lwip/2_1_x/group__tcp__raw.html#gaeff14f321d1eecd0431611f382fcd338

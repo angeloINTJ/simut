@@ -450,12 +450,14 @@ bool StorageManager::begin( ) {
   * the config gone. One is a real apply. The other — which this broadened
   * check adds — is an OTA stage that did not complete: the staging area IS the
   * filesystem partition, so a stage overwrites the FS from its first page, and
-  * if the upload is cut (the router's RST on sustained port-80 flows, ~12-15 s,
-  * makes this routine) the abort path remounts and LittleFS.format()s, taking
-  * WiFi, users and every sensor slot with it. The snapshot is now written at
-  * stage BEGIN (firmware_stage.cpp), so it is on flash even for an interrupted
-  * stage or a power cut; keyed on "no system.bin" it is restored here, and
-  * loadConfiguration then loads it as usual. The gate used to require
+  * if the upload is cut (routine until 2026-10-04 with a page of the device
+  * open: lwIP killed the upload ~12-15 s in, which passed for the router;
+  * patch 2l in tools/arduino_pico_overrides) the abort path remounts and
+  * LittleFS.format()s, taking WiFi, users and every sensor slot with it. The
+  * snapshot is now written at stage BEGIN (firmware_stage.cpp), so it is on
+  * flash even for an interrupted stage or a power cut; keyed on "no
+  * system.bin" it is restored here, and loadConfiguration then loads it as
+  * usual. The gate used to require
   * metadata.state == APPLYING, which an interrupted stage never sets — that was
   * the whole gap. The copy was taken above, before the directories. A snapshot
   * is used once: AppManager_Boot.cpp erases it after this boot, because a

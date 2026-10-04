@@ -632,7 +632,7 @@ desta própria nota, porque ela citava a linha reprovada.)
 | 8 | **Criar conta reiniciava** (até a v2.9.0) | desde a v2.10.0, aplica ao vivo: `"reboot":false,"applied":["users"]` |
 | 9 | **Senha de conta nova só aparece uma vez** | guarde no momento |
 | 10 | **Segredos voltam mascarados** (`"Bobi***"`) no `GET /api/config` | nunca reenvie a máscara; omita o campo para manter |
-| 11 | **Fluxo grande na porta 80 morre em alguns roteadores** (>12–15 s) | para upload/OTA use a porta alternativa (`web_port`) |
+| 11 | **Até a v2.10.0, um envio longo caía aos 12–15 s com outra página do aparelho aberta** (o próprio aparelho cortava; não era o roteador nem a porta) | nessas versões, feche as outras páginas do aparelho antes de OTA, backup ou restauração |
 | 12 | **`Too Fast`** | espaçar requisições; não faça polling agressivo |
 | 13 | **Um arquivo de dia pode chegar de novo, inteiro** — quando o aparelho não consegue saber o que já saiu dele: perdeu energia logo depois de enviar registros que só estavam na RAM, o arquivo foi apagado, uma restauração de backup o trouxe de volta, ou a atualização da v2.9.0 para a v2.10.0 encontrou o cursor antigo à frente do relógio (evento 554). Até a v2.9.0 o cursor era uma hora e pulava registro de bloco fora de ordem: **6 em 75.778 (0,0079%)** | grave de forma idempotente por (`uid`, `ts`, canal); a duplicata não estraga nada, e não há mais lacuna |
 | 14 | **A CLI serial corta template em 63 caracteres em silêncio** | configure templates **pela web**, nunca pela serial |

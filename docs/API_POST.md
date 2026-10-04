@@ -513,7 +513,7 @@ repita o `apply`, que completa o que faltou.
 ### `POST /api/ota/apply` · **`== PERM_FULL_ADMIN`**
 `test=1` para um ensaio sem aplicar.
 **O apply zera o `/history` e o LittleFS** — faça backup antes.
-Atenção: transferência grande na porta 80 cai (RST do roteador): use `:8080`.
+Até a v2.10.0, um envio longo caía aos 12–15 s com outra página do aparelho aberta no navegador (não era o roteador nem a porta 80): nessas versões, feche as outras páginas antes. Depois dela, as consultas esperam e o envio vai até o fim.
 
 ### `POST /api/tls` · **`== PERM_FULL_ADMIN`** · só onde há HTTPS
 Corpo cru com os **dois blocos PEM concatenados** (certificado + chave privada),

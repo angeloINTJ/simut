@@ -991,7 +991,7 @@ armazenado se perdem.** Baixe um backup antes.
 
 Desde a v2.8.0 o snapshot é gravado quando o envio **começa** e vale uma vez: o
 boot seguinte o restaura se não encontrar o `/config/system.bin`, e o apaga. Um
-envio cortado no meio (um reset do roteador) ou recusado no fim faz o aparelho
+envio cortado no meio (a conexão cai) ou recusado no fim faz o aparelho
 gravar a configuração de volta na hora; uma queda de energia no meio do envio a
 devolve pelo snapshot no boot seguinte. O resto do sistema de arquivos se perde
 do mesmo jeito. Até a

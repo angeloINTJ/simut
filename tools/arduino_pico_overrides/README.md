@@ -83,7 +83,8 @@ arduino_pico_overrides/
     ├── webserver_keepalive.patch
     ├── webserver_cors_origin.patch
     ├── cyw43_join_budget.patch          ← 2026-10-01, the join wait bounded
-    └── littlefs_rp2350_untranslated.patch  ← 2026-10-03, RP2350 only: LittleFS from a slot
+    ├── littlefs_rp2350_untranslated.patch  ← 2026-10-03, RP2350 only: LittleFS from a slot
+    └── wifiserver_accepted_not_evicted.patch ← 2026-10-04, a long transfer is not killed for a newcomer
 ```
 
 ## TLS handshake deadline (2026-07-25)
@@ -160,6 +161,56 @@ touched (`#if defined(PICO_RP2350) && PICO_RP2350`). The window bypasses the
 XIP cache. `tools/check_rp2350_image.py` stops the RP2350 build when this
 framework lacks the patch. The library has its own object cache
 (`lib*/LittleFS/`), which `patch.sh` and `restore.sh` invalidate.
+
+## Accepted connections are not killed for a newcomer (2026-10-04)
+
+> **Keeps a long upload or download alive while a page of the device is open in a browser.**
+
+`ClientContext` puts every connection at `TCP_PRIO_MIN`. When lwIP's PCB pool
+runs out (`MEMP_NUM_TCP_PCB` is 5), `tcp_alloc( )` admits a newcomer, at
+`TCP_PRIO_NORMAL`, by killing the most idle connection below that, and a tie
+goes to the oldest. The web server serves one client at a time, so during a
+long request each poll of an open page waits in `WiFiServer`'s queue, a PCB
+each. A browser re-sends at once a poll that was reset; the queued ones stay as
+fresh as the request being served, and that request, the oldest, is the one
+killed. The reset leaves with the board's own TTL, and it passed for a router
+cutting port 80 from August until 2026-10-03.
+
+Measured on the bench Pico 2 W with a refused upload of 993,801 B (no session,
+so nothing is written), 2026-10-03 and 04:
+
+| Load during the upload | Before | After |
+|---|---|---|
+| none, at 50 KB/s | answer at 19.9 s | answer at 19.9 s |
+| a poll every 3 s, re-sent at once on a reset (`poller_repro.py --retry`), at 50 KB/s | reset at 13.1 s, 2 of 2 | answer at 19.9 s, 2 of 2 |
+| a tab of the web UI open in Firefox, at 50 KB/s | reset at 12.4–14.8 s, 8 of 8 | not run |
+| a poll every 3 s that its client resets after 2 s, at 16 KB/s (62 s) | — | answer at 62.1 s; pbuf pool 6 of 24, 0 failures |
+
+`wifiserver_accepted_not_evicted.patch` does four things:
+
+- `WiFiServer::_accept` raises every connection it accepts to
+  `TCP_PRIO_NORMAL`, so nothing in the queue is killed for a newcomer. With the
+  pool full, the newcomer's SYN goes unanswered and is sent again, and no reset
+  reaches a browser to be re-sent.
+- lwIP calls that callback with a null pcb when it cannot allocate one
+  (`tcp_in.c`); upstream built a `ClientContext` on it. That path never ran
+  while every connection could be killed to make room, and runs now: refused.
+- `ClientContext::close( )` lowers a connection the app closes back to
+  `TCP_PRIO_MIN`, so what lwIP keeps of it (FIN_WAIT) can make room as before.
+- A connection lwIP drops while it still waits in the queue (reference count
+  0: no `WiFiClient` ever took it) frees the request it buffered, since nothing
+  will answer it. Without this, the 62 s run above took the pbuf pool to 24 of
+  24 with 5 failed allocations.
+
+A first design raised only the request being served. The upload got past 13 s,
+but every queued poll killed in its place kept its pbuf until the upload
+ended; the browser's retries filled the pool (24 of 24, 38 failures) and the
+upload stalled at about 704 KB.
+
+Outbound connections (telemetry, MQTT) keep `TCP_PRIO_MIN`. Cost: +32 B on
+`pico_w_release`, `pico_w_air` and `pico2_w_release`, +40 B on the rest. The
+WiFi library has its own object cache (`lib*/WiFi/`), which `patch.sh` and
+`restore.sh` invalidate.
 
 ## Changes Applied
 
