@@ -480,7 +480,8 @@ inline constexpr int16_t autopsyBandCore1(uint8_t c1Valid, uint8_t c1Mod) {
 	return (int16_t)(1000 + (c1Valid == 0x80 ? c1Mod : 0xFF));
 }
 /** The web server's position trace at the stall (`hp=`, scratch[7]): 0 as the
- *  server starts on a request (and at boot), the handlers' HPOS( ) marks as
+ *  server starts on a request (and from the top of a boot on trial, on the
+ *  RP2350: ota/staging.cpp), the handlers' HPOS( ) marks as
  *  they walk their stages (721 after a send, 901 on an abort), 740 once the
  *  server has returned. Until 2026-10-01 this band read scratch[7] as free
  *  heap and divided by 1024, so every position, all of them under 1024, came

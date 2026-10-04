@@ -124,11 +124,21 @@ static bool trial_guard_feed(repeating_timer_t*) {
         return false;
     }
     watchdog_update();
+    watchdog_hw->scratch[6] = millis();   /* the uptime at the last feed, as loop( ) stamps it */
     return true;
 }
 
 void trial_guard_begin() {
     if (!trial_boot_pending()) return;
+    /* A boot on trial follows the ROM's FLASH_UPDATE reboot, which leaves its
+     * parameters in the watchdog's scratch[6] (the reboot type) and scratch[7]
+     * (0xB007C0D3), varm_apis.c. Those are the uptime at the last feed and the
+     * web position the autopsy reads, and only loop( ) writes them: a setup( )
+     * hung on trial read up 0 min and hp out of range (bands 4000 and 2999, on
+     * the bench 2026-10-04) where it had run 300 s and served no request. The
+     * session that ended in that reboot asked for it, so nothing is lost. */
+    watchdog_hw->scratch[6] = 0;
+    watchdog_hw->scratch[7] = 0;
     watchdog_enable(TRIAL_GUARD_WDT_MS, 1);
     s_guardOn = true;
     if (!add_repeating_timer_ms(-1000, trial_guard_feed, nullptr, &s_guardTimer)) {
