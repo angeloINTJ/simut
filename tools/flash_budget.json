@@ -535,8 +535,8 @@
   "(ota_exempt, with the reason) and records no 'bin'; its budget still holds."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-10-04 feat/rp2350-release (step 7 of docs/analysis/OTA_AB_RP2350.md): pico2_w_release -64 B, measured and .bin — the release publishes its image now, so its profile no longer trusts the bench root, and the trust block carries the release root alone. Inside its budget, which does not move. The RP2040 images do not change: no source and no RP2040 profile changed.",
- "measured_at_commit": "2026-10-04 feat/rp2350-release on main cb21168 (#249): pico2_w_release built from this branch; the six RP2040 images are those of cb21168. measured is the zopfli image PlatformIO prints.",
+ "measured_on": "2026-10-04 feat/rp2350-files-trial: pico2_w_release +568 B, measured and .bin — the dashboard and the Files page say when the update is on trial and when it went back (@IF slot blocks), and the Files page warns without the Pico W's reformat. Budget raised from 996,360 to 996,864. The RP2040 images do not change: every one cuts the slot blocks, and all six build byte-identical to main 8317b24.",
+ "measured_at_commit": "2026-10-04 feat/rp2350-files-trial on main 8317b24 (#250): pico2_w_release built from this branch; the six RP2040 images are those of 8317b24. measured is the zopfli image PlatformIO prints.",
  "ota_exempt": {
   "pico_w_test_https": "A bench image: the one with the full console and the TLS server together, for the HTTPS suites (AGENTS.md). It reaches the rig over USB, and release-ota.yml does not publish it. #232 (2026-10-02) left it 147 B under OTA_APP_SAFE_MAX_SIZE, and keeping it there meant cutting code the product images ship too, or moving more of its pages to LittleFS. Over the ceiling the device refuses to stage it, which costs only installing this image over the air; its flash budget still holds. Exempt since 2026-10-02 (docs/analysis/PLANO_STABLE.md, B6)."
  },
@@ -571,9 +571,9 @@
    "bin": 1031244
   },
   "pico2_w_release": {
-   "budget": 996360,
-   "measured": 996168,
-   "bin": 996192,
+   "budget": 996864,
+   "measured": 996736,
+   "bin": 996760,
    "ceiling": 3145728,
    "slot": 1568768
   }

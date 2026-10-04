@@ -201,6 +201,15 @@ jobs:
       - name: Web UI firmware refusal (every stage refusal in words)
         run: python3 tools/test_webui_firmware_refusal.py
 
+      # The Pico 2 W's update boots on trial and can go back by itself, and
+      # /api/status says so (slot, trial, reverted). The dashboard and the Files
+      # page show it, from @IF slot blocks every RP2040 image cuts. fwSlotNote( )
+      # runs under node, as written and minified; the cut is held per chip; the
+      # Pico 2 W's Files page warns without "reformatted", which its update is
+      # not; both packs carry the keys.
+      - name: Web UI trial note (the Pico 2 W's update on trial, and the way back)
+        run: python3 tools/test_webui_trial_note.py
+
       # The Pico 2 W boots from slot A of a partition table, and four files say
       # where everything is: the table picotool writes, the map in
       # ota_layout.h, the slot's linker script and the PlatformIO profile. A
