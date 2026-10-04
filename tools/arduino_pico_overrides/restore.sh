@@ -76,6 +76,9 @@ cp -v "$ORIG/lwipopts.h" "$FW/include/"
 # RP2350 em slot cai ao montar o LittleFS; o RP2040 nao muda.
 [ -f "$ORIG/LittleFS.cpp" ] && \
     cp -v "$ORIG/LittleFS.cpp" "$FW/libraries/LittleFS/src/"
+# Conexao aceita pelo servidor nao e morta para admitir outra (patch 2l).
+[ -f "$ORIG/WiFiServer.cpp" ] && \
+    cp -v "$ORIG/WiFiServer.cpp" "$FW/libraries/WiFi/src/"
 
 # Invalida cache PIO — FrameworkArduino (lwip) + os .o das libs patchadas, senao
 # o build "passa" religando os objetos antigos ainda patchados.
