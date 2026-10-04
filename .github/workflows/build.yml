@@ -210,6 +210,13 @@ jobs:
       - name: RP2350 flash layout (one map in four places)
         run: python3 tools/test_rp2350_layout.py
 
+      # An update to the Pico 2 W boots on trial and stays only if it buys
+      # itself: tools/rp2350/picobin.py flags the over-the-air image for it,
+      # one bit of IMAGE_TYPE, and the board never boots a flagged image from
+      # USB. The bit, only it, and only in firmware_ota.bin.
+      - name: RP2350 trial flag (the OTA image alone)
+        run: python3 tools/test_rp2350_trial.py
+
       # OTA applies reformat the LittleFS, so benches restore /history from
       # backup — and the current-day file can only be given back by MERGING
       # with what the device wrote meanwhile. This is the tool that hole

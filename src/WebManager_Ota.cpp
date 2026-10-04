@@ -182,8 +182,10 @@ void WebManager::handleApiRestoreUploadData( ) {
  * trigger. Without perm, doesn't unmount LFS; status stays IDLE; finish
  * responds 403. A board that cannot install over the air (an RP2350 that
  * boots from no slot; staging_install_available, staging.h) stages
- * nothing, and the finish handler answers 501. */
- if (ota::staging_install_available( ) && getAuthPerms( ) == PERM_FULL_ADMIN) {
+ * nothing, and the finish handler answers 501; nor does an RP2350 whose
+ * update is still on trial (trial_pending), and the answer is 409. */
+ if (ota::staging_install_available( ) && !ota::trial_pending( ) &&
+     getAuthPerms( ) == PERM_FULL_ADMIN) {
  /* The panel first (OtaScreen.h): from the next line on a flash pause
   * holds Core 1 for the whole upload, and only the bar is left to draw. */
  if (_displayRef) _displayRef->showOta(OTA_PH_RECEIVING);
@@ -367,6 +369,17 @@ void WebManager::handleApiRestoreFinish( ) {
                "{\"st\":0,\"committed\":0,\"error\":\"" OTA_UNAVAILABLE_TEXT "\"}");
  return;
  }
+#if !OTA_RP2040_MAP
+ if (ota::trial_pending( )) {
+ /* Nothing staged either: the other slot holds the image the ROM goes back to
+  * if this update is not kept, and a stage would erase it (ota/staging.h). */
+ LOG_CODE(LOG_WARN, "OTA", WEB_UPLOAD, 0, "stage_on_trial");
+ _server->send(409, "application/json",
+               "{\"st\":0,\"committed\":0,\"error\":\"the update running is on trial until it is "
+               "kept or reverted, within five minutes of its boot; stage again then\"}");
+ return;
+ }
+#endif
  bool ok_staged = (_stageSession.status == ota::StageStatus::STAGED);
  bool commit = (_server->arg("commit") == "1");
 

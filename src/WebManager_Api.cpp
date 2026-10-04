@@ -749,6 +749,7 @@ void WebManager::handleApiLogcodes( ) {
 
 #if defined(PICO_RP2350) && PICO_RP2350
 #include <pico/bootrom.h>
+#include "ota/staging.h"   /* trial_pending, trial_reverted_version */
 /* "slot": the partition the boot ROM started this image from, A or B of
  * tools/rp2350/partition_table.json, or "-" on a board with no partition table
  * (docs/analysis/OTA_AB_RP2350.md). The A/B update is checked by this value
@@ -763,8 +764,12 @@ static const char* bootSlot( ) {
 	default: return "?";
 	}
 }
-#define STATUS_SLOT_FMT ",\"slot\":\"%s\""
-#define STATUS_SLOT_ARG , bootSlot( )
+/* "trial": 1 while the update running waits for its buy (docs/analysis/
+ * OTA_AB_RP2350.md, step 5). "reverted": the version of an update the ROM went
+ * back from at this boot, "?" when its tag could not be read, "" otherwise; the
+ * log keeps it as OTA_TRIAL_REVERTED. */
+#define STATUS_SLOT_FMT ",\"slot\":\"%s\",\"trial\":%d,\"reverted\":\"%s\""
+#define STATUS_SLOT_ARG , bootSlot( ), ota::trial_pending( ) ? 1 : 0, ota::trial_reverted_version( )
 #else
 #define STATUS_SLOT_FMT ""
 #define STATUS_SLOT_ARG

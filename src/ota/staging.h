@@ -119,4 +119,35 @@ bool staging_commit();
 uint32_t staging_slot_offset();
 #endif
 
+/* The first boot of an update, on trial (trial.h; docs/analysis/OTA_AB_RP2350.md,
+ * step 5). The RP2040 has none: its applier writes over the program it runs. */
+#if OTA_RP2040_MAP
+constexpr bool trial_pending() { return false; }
+#else
+/* Whether the boot ROM started this image on trial: it waits for the buy, and
+ * any reset before that boots the image the update replaced. Asks the ROM. */
+bool trial_boot_pending();
+/* At the top of setup( ): on a boot on trial, the watchdog guards setup( ) as
+ * well, fed from a timer until loop( ) arms its own or the trial's deadline
+ * passes. Nothing on any other boot. */
+void trial_guard_begin();
+/* From loop( ), before it arms its own watchdog: the timer stops feeding. */
+void trial_guard_end();
+/* In setup( ), once the log is up, with what the boot found: LittleFS mounted.
+ * On trial, logs it and makes SIMUT's own reboots come back to this image.
+ * Otherwise, an image flagged for trial in the other slot is one the ROM went
+ * back from: logs its version, keeps it for /api/status and erases its first
+ * sector, so that is said once. */
+void trial_boot(StorageManager* storage, bool fsOk);
+/* From loop( ), every pass: buys after a healthy minute, goes back at the
+ * deadline (trial_step). @p networkOk is the network as the configuration asks
+ * for it. */
+void trial_poll(StorageManager* storage, bool networkOk);
+/* Whether this image still waits for its buy. No stage until then: it would
+ * erase the image the ROM goes back to. */
+bool trial_pending();
+/* The version of the update the ROM went back from at this boot, or "". */
+const char* trial_reverted_version();
+#endif
+
 } /* namespace ota */

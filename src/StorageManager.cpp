@@ -18,6 +18,7 @@
 #include <hardware/uart.h>
 #include "ota/metadata.h"
 #include "ota/config_snapshot.h"
+#include "ota/staging.h"     /* trial_boot_pending: the RP2350 update on trial */
 #include <time.h>
 #include <algorithm>
 #include "LogManager.h"
@@ -959,6 +960,9 @@ bool StorageManager::loadConfiguration( ) {
  SystemConfig* tempConfig = new (std::nothrow) SystemConfig;
  bool loaded = false;
  bool fromBackup = false;
+#if defined(PICO_RP2350) && PICO_RP2350
+ const bool anyFile = LittleFS.exists(FILE_CONFIG) || LittleFS.exists(FILE_BACKUP);
+#endif
  if (tempConfig) {
  if (LittleFS.exists(FILE_CONFIG) && attemptLoad(FILE_CONFIG, *tempConfig)) {
  _currentConfig = *tempConfig;
@@ -1002,6 +1006,13 @@ bool StorageManager::loadConfiguration( ) {
   * was never seen once. _rejectedConfigSize survives for the caller to
   * report after the logger exists; see AppManager::setup( ). */
  loadDefaults( );
+#if defined(PICO_RP2350) && PICO_RP2350
+ /* An update on trial that cannot read the configuration does not write the
+  * defaults over it: the image the ROM goes back to still can (docs/analysis/
+  * OTA_AB_RP2350.md, step 5). */
+ _configDiscarded = anyFile;
+ if (anyFile && ota::trial_boot_pending( )) _holdForTrial = true;
+#endif
  return false;
  }
 
@@ -1047,10 +1058,23 @@ bool StorageManager::loadConfiguration( ) {
  _migratedFromV23 = false;
  _migratedFromV24 = false;
  _migratedFromV25 = false;
+#if defined(PICO_RP2350) && PICO_RP2350
+ /* On trial, what this boot changed stays in RAM until the buy: a migrated
+  * schema is one the image the ROM would go back to refuses (step 5). */
+ if (ota::trial_boot_pending( )) _holdForTrial = true;
+#endif
  saveConfiguration( );
  }
  return true;
 }
+
+#if defined(PICO_RP2350) && PICO_RP2350
+void StorageManager::releaseTrialHold( ) {
+ if (!_holdForTrial) return;
+ _holdForTrial = false;
+ saveConfiguration( );
+}
+#endif
 
 /**
  * @brief Atomic configuration save: write to temp file, then rename.
@@ -1058,6 +1082,11 @@ bool StorageManager::loadConfiguration( ) {
  * CRC32 appended after the binary blob for integrity verification.
  */
 bool StorageManager::saveConfiguration( ) {
+#if defined(PICO_RP2350) && PICO_RP2350
+ /* Held by an update on trial until its buy (releaseTrialHold): refused, not
+  * deferred, so a caller that reports the save reports that it did not happen. */
+ if (_holdForTrial) return false;
+#endif
  /* Granular instrumentation — autopsy distinguishes if stuck here
  * vs in LOG_CODE audit or webMgr handler. */
  LogManager::TraceScope _tr(0, MOD_SAVE_CONFIG);

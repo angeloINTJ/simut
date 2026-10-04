@@ -163,4 +163,9 @@
 585	CLI_UNKNOWN_CMD	Unknown command	Comando desconhecido	Comando desconocido
 590	SENSOR_RUNTIME_LOADED	Runtime sensors loaded	Sensores em runtime carregados	Sensores en runtime cargados
 600	DSP_FORCE_UNPAUSE	Force unpause	Forçar despausar	Forzar reanudación
+610	OTA_TRIAL_STARTED	Update on trial	Atualização em teste	Actualización en prueba
+611	OTA_TRIAL_CONFIRMED	Update confirmed	Atualização confirmada	Actualización confirmada
+612	OTA_TRIAL_EXPIRED	Update not confirmed in time	Atualização não confirmada a tempo	Actualización no confirmada a tiempo
+613	OTA_TRIAL_REVERTED	Update reverted	Atualização revertida	Actualización revertida
+614	OTA_TRIAL_BUY_FAILED	Update confirmation failed	Falha ao confirmar a atualização	Fallo al confirmar la actualización
 999	ERR_UNKNOWN	Unknown error	Erro desconhecido	Error desconocido

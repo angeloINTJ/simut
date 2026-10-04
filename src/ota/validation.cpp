@@ -168,13 +168,14 @@ bool ota_validate_staging(const StageSession& s, ValidationReport& report) {
      * comes after the variant, not before as the boot2 check does: the likely
      * wrong file here is a Pico W's release, and its tag names another model,
      * where this check could only call it damaged. An RP2040 image too old
-     * for the tag stops here, with the code the boot2 check gives. Step 4
-     * installs no trial: an image flagged try-before-you-buy is refused too,
-     * since nothing in this build would confirm it, and the ROM would go back
-     * to the old slot. */
+     * for the tag stops here, with the code the boot2 check gives. Flagged
+     * try-before-you-buy or not, the image installs (step 5): the flagged one,
+     * firmware_ota.bin, boots on trial and buys itself (staging.h); the ROM
+     * keeps an unflagged one as it launches, the only way back to an image
+     * from before step 5, which has no buy and would never be kept. */
     staging_read(0, s_win, 4096);
     const PicobinBlock blk = picobin_first_block(s_win, 4096);
-    if (!picobin_is_rp2350_arm_exe(blk) || (blk.image_type & PICOBIN_TBYB)) {
+    if (!picobin_is_rp2350_arm_exe(blk)) {
         report.status = ValidationStatus::BOOT2_BAD;
         return false;
     }

@@ -648,6 +648,7 @@ void test_restore_an_empty_last_file(void) {
 }
 
 void run_slot_tests(void);   /* test_slot.cpp: the RP2350's update into the inactive slot */
+void run_trial_tests(void);  /* test_trial.cpp: its first boot, on trial */
 
 int main(int, char**) {
 	UNITY_BEGIN( );
@@ -694,5 +695,6 @@ int main(int, char**) {
 	RUN_TEST(test_restore_apply_needs_the_validated_backup);
 	RUN_TEST(test_restore_an_empty_last_file);
 	run_slot_tests( );
+	run_trial_tests( );
 	return UNITY_END( );
 }
