@@ -1,6 +1,7 @@
 # OTA de slot duplo no Pico 2 W — desenho
 
-Estado: **proposta**, etapa S2 da Fase 4 de
+Estado: etapas 1 a 5 **feitas** (a lista está em [Etapas](#etapas)); a 6 e a 7
+por fazer. Etapa S2 da Fase 4 de
 [`PLANO_REVISAO_EXTERNA.md`](PLANO_REVISAO_EXTERNA.md). Decisões do
 mantenedor em 03/10/2026:
 
@@ -130,7 +131,12 @@ com TBYB gravada pelo USB e iniciada num boot normal nunca sobe. Por isso:
 - o `.uf2` de fábrica e de USB sai **sem** a marca;
 - o `.bin` de OTA sai **com** ela.
 
-São dois artefatos por variante, e o `release-ota.yml` publica os dois.
+São dois artefatos por variante. Desde a etapa 5, o `check_rp2350_image.py`
+escreve o `firmware_ota.bin` ao lado do `firmware.bin`: o mesmo arquivo, com o
+bit ligado pelo `mark_trial` de `tools/rp2350/picobin.py`. O passo confere que
+um byte só mudou e recusa um bloco com hash ou assinatura (o boot seguro, na
+etapa S3, decide como marcar uma imagem selada). O `release-ota.yml` publica os
+dois a partir da etapa 7.
 
 **Item de versão no IMAGE_DEF.** Com versões iguais, ou sem elas, a ROM prefere
 o slot A. B só vence com versão estritamente maior e sem a marca de teste
@@ -172,6 +178,10 @@ sobe.
 
 ## O primeiro boot, em teste
 
+Feito na etapa 5. As peças: `src/ota/trial.h` (a regra, pura, nas suítes
+nativas), `src/ota/staging.cpp` (o que roda na placa) e
+`tools/rp2350/picobin.py` (a marca).
+
 **O que a ROM faz** (`varm_launch_image.c:208-458`):
 
 - marca a confirmação como pendente;
@@ -181,36 +191,87 @@ sobe.
 Se o watchdog vencer antes da confirmação, o boot seguinte é normal, e a ROM
 recusa a imagem ainda marcada e sobe a outra.
 
-**A armadilha, pelo código.** O `watchdog_update( )` do SDK escreve o
-`load_value`, que fica 0 até alguém chamar `watchdog_enable` (`watchdog.c:24-28`,
-`:68`). O SIMUT só chama `watchdog_enable` no `loop( )` (`main.cpp:48-55`). Mas
-a `FLASH_OP` já alimenta o watchdog dentro do `setup( )`. Com o reinício de
-teste armado, essa primeira alimentação põe o contador em 0 e reinicia o chip
-na hora, e toda atualização voltaria para a anterior. Conserto: chamar
-`watchdog_enable` no começo do `setup( )` quando a confirmação estiver
-pendente.
+**O watchdog no `setup( )`.** Este desenho previa uma armadilha: a primeira
+alimentação do watchdog dentro do `setup( )`, com o `load_value` do SDK ainda em
+0, reiniciaria o chip na hora. Ela não acontece. A primeira linha do `setup( )`
+desliga o watchdog em todo boot (`main.cpp`), porque o `setup( )` leva dezenas
+de segundos e só o `loop( )` o alimenta. O reinício de teste da ROM morre ali
+também, e uma imagem que travasse no `setup( )` ficaria travada até alguém
+reiniciar a placa.
 
-**A confirmação** (decisão de 03/10/2026) acontece com:
+Por isso, num boot em teste, `trial_guard_begin( )` religa o watchdog com 16 s,
+e um timer o alimenta a cada segundo até o `loop( )` armar o dele (8,4 s) ou o
+prazo do teste passar. Passado o prazo, o timer para, o watchdog vence, e a ROM
+volta para a imagem anterior. Os outros boots não mudam.
 
-- o boot completo e a configuração lida;
-- o servidor web respondendo;
-- 60 s sem falha, com o watchdog alimentado o tempo todo.
+**A confirmação** (decisão de 03/10/2026) acontece depois de 60 s seguidos com:
 
-Então o SIMUT chama `rom_explicit_buy( )`, que desliga o reinício de teste, tira
-a marca da imagem (relê, apaga e regrava aquele setor, com um buffer de pelo
-menos 4 KB) e apaga o primeiro setor do outro slot, se for o caso
-(`varm_launch_image.c:147-188`). Se a imagem travar antes, o watchdog reinicia e
-a ROM volta.
+- o LittleFS montado e a configuração lida. Uma configuração que estava na
+  flash e que esta imagem não conseguiu ler conta contra ela;
+- a rede como a configuração pede: conectada, quando há Wi-Fi configurado. Uma
+  atualização que perdeu o Wi-Fi é a que deve voltar. Numa unidade sem Wi-Fi a
+  rede não conta: ela funciona desconectada, e o AP só abre quando uma pessoa
+  pede;
+- o `loop( )` rodando e alimentando o watchdog. O servidor web começa no
+  `setup( )`, então já escuta.
 
-**Quem voltou conta.** A imagem anterior, ao subir depois de um teste que falhou,
-registra um código de log novo e põe no `/api/status` a versão recusada. A
-página de arquivos e o gerenciador de frota mostram isso. Os detalhes ficam para
-a etapa 5.
+Não se exige que a web tenha respondido a um pedido: isso precisa de um cliente,
+e uma atualização aplicada por um roteiro que não consulta a placa depois nunca
+seria confirmada.
+
+O prazo é de 300 s desde o boot, e o minuto saudável tem de começar até os
+240 s. Sem isso, o SIMUT registra o código 612 e reinicia de forma normal, e a
+ROM volta.
+
+**O *buy*.** O SIMUT chama o `explicit_buy` da ROM pela tabela de funções, não
+pelo `rom_explicit_buy( )` do SDK, que passa pelo `flash_safe_execute( )`. Esse
+caminho pede o Core 1 preparado como vítima do `multicore_lockout`, e o SIMUT
+estaciona o Core 1 do jeito dele (`enterFlashSafeMode`). A chamada roda com as
+interrupções desligadas e um buffer de 4 KB.
+
+A ROM tira a marca da imagem (relê o setor no buffer, apaga e regrava) e apaga
+o primeiro setor do outro slot quando ele venceria a escolha
+(`varm_launch_image.c:147-188`). **A primeira linha do `explicit_buy` desliga o
+watchdog**, e a ROM do A2 da bancada faz o mesmo: o `CTRL` tinha o `ENABLE`
+ligado antes da chamada e desligado logo depois (S9, abaixo). O SIMUT religa o
+watchdog logo em seguida. Sem isso, quem o religaria seria a próxima `WdtWindow`,
+que toda gravação de log na flash abre: na bancada, uma imagem sem o religar
+travada 20 s depois do *buy* reiniciou pelo watchdog do mesmo jeito. Mas um log
+guardado na RAM (durante um toque no painel ou uma tarefa pesada) não abre
+nenhuma, e a placa ficaria sem watchdog até a próxima.
+
+**Reiniciar durante o teste.** Um reinício que o SIMUT pede (um commit, uma
+restauração, o `reload`) não é um veredito sobre a atualização. Ele vira um
+`FLASH_UPDATE` para o mesmo slot, e a imagem sobe em teste de novo, com o prazo
+recomeçado. Um reset, um corte de energia, o watchdog e o prazo voltam para a
+imagem anterior.
+
+**Nenhum stage durante o teste.** O outro slot guarda a imagem para onde a ROM
+volta, e um stage a apagaria. O stage responde 409 até o *buy* ou a volta.
+
+**Quem voltou conta.** No boot, uma imagem marcada para teste no outro slot é
+uma de que a ROM voltou:
+
+- o SIMUT lê a versão dela na etiqueta `SIMUT-ENV`;
+- registra o código 613, com a versão no contexto (`M*10000+m*100+p`, porque o
+  log binário guarda um número de 16 bits e não o texto: 2.10.9 vira 21009);
+- põe a versão em `sys.reverted` no `/api/status`;
+- apaga o primeiro setor daquela imagem, então isso é dito uma vez só.
+
+A imagem em teste registra o 610 ao subir, o 611 no *buy* (com os segundos
+desde o boot), o 612 no prazo e o 614 se a ROM recusar o *buy*. O
+`sys.trial` vale 1 enquanto ela espera. A página Arquivos e o gerenciador de
+frota ainda não mostram esses campos.
 
 **A configuração.** Uma imagem anterior recusa uma configuração de outro
-`CONFIG_VERSION` (`StorageManager.cpp:106`, `:748`). Regra: nenhuma migração
-grava antes da confirmação. Uma versão que mude o formato migra só depois do
-*buy*.
+`CONFIG_VERSION` (`StorageManager.cpp:106`, `:748`). Num boot em teste que migra
+a configuração, a recupera do `.bak` ou a descarta, o `saveConfiguration( )`
+recusa gravar até o *buy*, e o *buy* grava. Assim, uma versão que mude o formato
+só migra na flash depois de confirmada.
+
+**A imagem sem a marca.** O `firmware.bin` sem a marca ainda instala pelo ar,
+como na etapa 4: a ROM o confirma ao subir, sem teste. É o caminho de volta para
+uma imagem anterior à etapa 5, que não tem o *buy* e nunca seria confirmada.
 
 ## Os registradores de rascunho do watchdog
 
@@ -261,11 +322,14 @@ volta atrás.
 | O stage em fluxo (`firmware_stage`) | O applier e o teardown do orquestrador | O conferidor de imagem: IMAGE_DEF e chip no lugar do boot2 |
 | A assinatura: `sigCheck`, `ota_trust`, `ota_sign.py` | O estado APPLYING e o contador de tentativas | A ordem de gravação: o primeiro setor por último |
 | A etiqueta `env` | A cópia da configuração nos blocos 254–255 | A autópsia: outros registradores de rascunho |
-| A reconferência antes do reinício (`WebManager_Ota.cpp:555-582`) | Desmontar e formatar o LittleFS no stage | O watchdog no começo do `setup( )` em teste |
+| A reconferência antes do reinício (`WebManager_Ota.cpp:555-582`) | Desmontar e formatar o LittleFS no stage | O `setup( )` em teste, guardado por um watchdog de 16 s que um timer alimenta |
 | | O CRC da imagem instalada no boot seguinte | O LittleFS: leitura pela janela sem tradução |
 
 O RP2040 não muda: tudo isso entra atrás de um `#if` do chip, e as seis imagens
-do RP2040 saem idênticas byte a byte, como no S0 (#215).
+do RP2040 saem idênticas byte a byte, como no S0 (#215). A exceção da etapa 5 é a
+tabela dos códigos de log, comum a todas as imagens: os cinco códigos novos
+custam 176 B na `pico_w_release`. Compiladas da `main` com só essa tabela, as
+seis imagens do RP2040 saem idênticas byte a byte às do ramo da etapa 5.
 
 ## Hoje: um risco a fechar primeiro
 
@@ -337,29 +401,62 @@ a etapa 3 os tira do RP2350.
 - o gravador com uma flash simulada, para garantir que o primeiro setor é o
   último e que um corte em qualquer ponto deixa o slot sem IMAGE_DEF.
 
+Na etapa 5, a regra do teste (`src/ota/trial.h`) ganhou 20 casos na
+`native_otasig` (`test_trial.cpp`): o minuto saudável, a quebra que o recomeça,
+o prazo, a versão lida da etiqueta e o código dela no log, a marca no bloco e o
+slot em execução. Antes do código a suíte não compilava; depois, 75 de 75. O
+`tools/test_rp2350_trial.py` (CI, job `gates`) prende a marca: um byte só, e só
+no `firmware_ota.bin`.
+
 **No ferro (S2):**
 
 - um envio inteiro de imagem pelo stage, sem a conexão cair, com a bancada
   quieta (os três envios de 03/10 caíram por uma aba da interface aberta no
   navegador, não pelo stage; ver acima);
-- uma imagem que nunca confirma volta em cerca de 17 s;
+- uma imagem que nunca confirma volta no prazo de 300 s (decidido na etapa 5; a
+  ROM sozinha voltaria em cerca de 17 s, mas o `setup( )` desliga o watchdog
+  dela);
 - um corte de energia no meio da gravação sobe a anterior;
 - o histórico e os pacotes **ficam** numa atualização, sem `.bkp`;
 - 20 ciclos A→B→A com a configuração e o histórico idênticos;
-- o watchdog em teste não reinicia o `setup( )`.
+- o `setup( )` em teste, travado, volta pela guarda do watchdog.
+
+**A etapa 5 na bancada (04/10/2026).** A Pico 2 W, RP2350 A2, com a
+configuração da Pico W. Imagens assinadas com a chave de bancada; T1 a T6 são o
+mesmo código com um gancho de teste só local. O roteiro e os resultados ficam
+fora do repositório (`bancada_20261003_pico2w/etapa5/`).
+
+| Passo | O que | Resultado |
+|---|---|---|
+| SB | A imagem sem marca, instalada pela imagem da etapa 4 | Sobe sem teste (`trial` 0): a ROM a confirma ao subir |
+| S1 | A imagem marcada (2.10.0) | Volta em teste (610 = 21000), se confirma aos 79 s do boot (611 = 79); um RESET a mantém |
+| S2 | 2.10.9, e um RESET antes do *buy* | A 2.10.0 volta do slot de onde saiu, com `reverted` "2.10.9" e o 613 = 21009; o RESET seguinte não repete o relato |
+| S3 | 2.10.9, e um stage durante o teste | 409, nada gravado; um RESET traz a 2.10.0 inteira de volta |
+| S4 | 2.10.9, e `reload confirm` no console durante o teste | Volta à 2.10.9, em teste de novo (uptime 24,7 s); se confirma; um RESET a mantém |
+| S6 | T1: nunca saudável | 612 aos 300 s; a 2.10.0 volta com o 613 = 21001 |
+| S7 | T2: o `setup( )` trava | A guarda alimenta o watchdog até o prazo e para; a 2.10.0 volta 358 s depois do apply, com a autópsia de watchdog (200) e o 613 = 21002 |
+| S8 | T3: o `loop( )` trava aos 40 s | O watchdog do SIMUT reinicia; a 2.10.0 volta cerca de 50 s depois do apply, com a autópsia 203 e o 613 = 21003 |
+| S9 | T5: travada 20 s depois do *buy*, sem religar o watchdog; T6: o `CTRL` antes e depois da ROM | T5 reinicia pelo watchdog mesmo assim (uma `WdtWindow` o religou); em T6, o `ENABLE` estava ligado antes do `explicit_buy` e desligado depois |
+| S10 | De volta à 2.10.0 | A configuração igual à do início (CRC `AC385271`); o histórico só cresceu |
+
+Do apply até a imagem em teste responder: 25 a 42 s. O *buy* saiu entre 79 e 83 s
+depois do boot.
 
 ## Etapas
 
-1. **Este desenho.**
+1. **Este desenho.** Feito (#243).
 2. **Fechar o risco de hoje:** a imagem do RP2350 recusa OTA. O `env` próprio
    fica para a etapa 4. A etiqueta `SIMUT-ENV` aceita só letras de `a` a `z`
    (`BuildIdentity.cpp`), e, com o OTA recusado, o `env` não protege nada antes
-   disso.
+   disso. Feita (#244).
 3. **A imagem em slot (S1).** Linker script sem o stub, tabela de partições,
    `.uf2` de fábrica, o LittleFS pela janela sem tradução, os endereços de
-   `ota_layout.h` por chip, e o boot conferido na placa.
+   `ota_layout.h` por chip, e o boot conferido na placa. Feita (#245).
 4. **O stage no slot inativo** e o reinício `FLASH_UPDATE`, ainda sem TBYB.
+   Feita (#246).
 5. **TBYB:** a marca de teste, a confirmação em 60 s, a volta e o relato.
+   Feita em 04/10/2026. A página Arquivos e o gerenciador de frota ainda não
+   mostram o `trial` e o `reverted`.
 6. **A autópsia** com os registradores que a ROM não usa.
 7. **A primeira release** com as imagens do RP2350 publicadas (`.uf2` de fábrica
    e `.bin` de OTA).

@@ -1,6 +1,6 @@
 # tools/rp2350/ — the Pico 2 W's flash layout
 
-The RP2350 image boots from slot A or B of a partition table, steps 3 and 4 of
+The RP2350 image boots from slot A or B of a partition table, steps 3 to 5 of
 [`docs/analysis/OTA_AB_RP2350.md`](../../docs/analysis/OTA_AB_RP2350.md). The
 files here say where everything is, to `picotool` and to the linker.
 
@@ -17,6 +17,7 @@ files here say where everything is, to `picotool` and to the linker.
 | `partition_table.json` | The table, in `picotool`'s format. **The source of the layout:** A and B are a linked pair, LittleFS and the EEPROM sector are data partitions the boot ROM skips, and unpartitioned space takes the absolute family (`picotool`'s fix for the RP2350-E10 erratum needs it, and the bench board is an A2). |
 | `memmap_slot.ld` | The linker script of `pico2_w_release`. **Generated:** never edit it. |
 | `gen_memmap.py` | Writes `memmap_slot.ld` from arduino-pico's `lib/rp2350/memmap_default.ld`. It drops the framework's 12 KB OTA stub, whose image definition the ROM would otherwise take and whose LittleFS read faults outside a slot, and puts in the slot's numbers from `partition_table.json`. `--check` says whether the file still is what the template gives. |
+| `picobin.py` | An image's PICOBIN blocks as the boot ROM reads them, and `mark_trial`, which sets the try-before-you-buy bit (0x8000 of IMAGE_TYPE) in the image an update installs. |
 
 ## What holds it together
 
@@ -32,7 +33,9 @@ files here say where everything is, to `picotool` and to the linker.
     Arm, secure, RP2350, without the try-before-you-buy bit;
   - the image carries one env tag, ending in `two` (`releasetwo`).
 
-  Then it writes two files next to `firmware.uf2`.
+  Then it writes three files next to `firmware.uf2`.
+- **`tools/test_rp2350_trial.py`** (CI, gates job): `mark_trial` changes that
+  one bit and nothing else, and refuses what it must.
 
 ## What a build leaves in `.pio/build/pico2_w_release/`
 
@@ -43,12 +46,15 @@ files here say where everything is, to `picotool` and to the linker.
   in the absolute family, for a board whose flash holds nothing. `picotool load`
   reads it as such. Dragging it onto the BOOTSEL drive of an A2 board has not
   been tried.
+- **`firmware_ota.bin`**: `firmware.bin` flagged try-before-you-buy, one byte
+  apart: the image an update installs. The ROM boots it only right after the
+  apply's reboot, never from USB.
 
 ## An update over the air
 
-Step 4 of the design. `firmware.bin`, signed with `tools/ota_sign.py`, goes
-through the Files page like the Pico W's, and lands in the slot the board did
-not boot from (`src/ota/slot_stage.h`):
+Steps 4 and 5 of the design. `firmware_ota.bin`, signed with
+`tools/ota_sign.py`, goes through the Files page like the Pico W's, and lands in
+the slot the board did not boot from (`src/ota/slot_stage.h`):
 
 - the stage erases that slot's first sector before anything else, then what
   the image will cover, from the request's length (64 KB blocks where aligned;
@@ -60,9 +66,15 @@ not boot from (`src/ota/slot_stage.h`):
   into the slot through the boot ROM (`FLASH_UPDATE`).
 
 Until the apply the slot has no image definition, so a cut or a reset leaves
-the board on the image it runs. Going to B, the ROM erases A's first sector
-when the new image starts; going to A it erases nothing, and B keeps the image
-it had. LittleFS is not touched.
+the board on the image it runs. LittleFS is not touched.
+
+The new image boots on trial (step 5, `src/ota/trial.h`): `sys.trial` is 1 in
+`/api/status` until it has been healthy for a minute and buys itself. A reset,
+a power cut or the watchdog before that, or five minutes without that minute,
+bring back the image it replaced, which logs code 613 and reports the version in
+`sys.reverted`. After the buy, going to B the ROM erases A's first sector; going
+to A it erases nothing, and B keeps the image it had. An unflagged
+`firmware.bin` still installs, without a trial, as in step 4.
 
 ## A board on the old layout
 
