@@ -248,7 +248,7 @@ simut/
 | `pico_w_test` | Bench image: the full console for the test suites; no HTTPS, no mDNS | — |
 | `pico_w_test_https` | `pico_w_test` plus the HTTPS server, for TLS validation; three of its pages are served from LittleFS to fit | — |
 | `pico_w_asserts` | Release + concurrency assertions | — |
-| `pico2_w_release` | The release compiled for the Pico 2 W (RP2350), so CI sees it build. It boots on the bench board; it refuses updates over the air until its A/B slots exist | — |
+| `pico2_w_release` | The release for the Pico 2 W (RP2350): it boots from slot A or B of a partition table and updates over the air into the other, on trial ([OTA_AB_RP2350.md](docs/analysis/OTA_AB_RP2350.md)). Its `.uf2` is a factory image, with the partition table | `…_releasetwo` |
 | eight `native*` envs | Host-side unit tests — see [Testing](#testing) | — |
 
 > **Security note for `pico_w_alpha` and `pico_w_air`:** both compile the

@@ -246,7 +246,7 @@ simut/
 | `pico_w_test` | Imagem de bancada: o console completo para as suítes de teste; sem HTTPS, sem mDNS | — |
 | `pico_w_test_https` | `pico_w_test` mais o servidor HTTPS, para validar TLS; três das páginas vêm da LittleFS para caber | — |
 | `pico_w_asserts` | Release + asserções de concorrência | — |
-| `pico2_w_release` | A release compilada para o Pico 2 W (RP2350), para o CI vê-la compilar. Sobe na placa da bancada; recusa atualizar pelo ar até os slots A/B existirem | — |
+| `pico2_w_release` | A release do Pico 2 W (RP2350): sobe do slot A ou B de uma tabela de partições e atualiza pelo ar no outro, em teste ([OTA_AB_RP2350.md](docs/analysis/OTA_AB_RP2350.md)). O `.uf2` dela é uma imagem de fábrica, com a tabela de partições | `…_releasetwo` |
 | oito ambientes `native*` | Testes unitários no host — ver [Testes](#testes) | — |
 
 > **Nota de segurança para `pico_w_alpha` e `pico_w_air`:** as duas compilam o

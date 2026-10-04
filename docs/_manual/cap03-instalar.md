@@ -19,9 +19,11 @@ Cada versão publicada, na página de versões do projeto no GitHub (`github.com
 | `manifest.json` | Tamanho, soma SHA-256 e tipo de cada imagem, para um gestor de frota ([capítulo 27](#cap-27-manifest)) |
 | `SHA256SUMS` | A soma SHA-256 de cada arquivo acima, para conferir um download com `sha256sum -c SHA256SUMS` |
 
+A partir da versão seguinte à v2.10.0, a página da versão traz também as duas imagens do Pico 2 W (RP2350), com `releasetwo` no nome: `simut_v<versão>_releasetwo.uf2`, para gravar pelo USB, e `simut_v<versão>_releasetwo.bin`, para atualizar pela página **Arquivos**.
+
 Desde a v2.9.0, cada arquivo publicado também tem um atestado de procedência, que liga o arquivo à execução do CI que o gerou e ao commit de onde veio; quem tem o `gh` confere um download com `gh attestation verify <arquivo> --repo angeloINTJ/simut`. Os `.bin` e os `.uf2` vêm assinados: a assinatura são os 241 bytes do fim do arquivo ([capítulo 17](#cap-17-ota-assinatura)).
 
-O `.uf2` e o `.bin` de uma mesma imagem têm o mesmo firmware: o `.uf2` é o `.bin` embrulhado no formato que o Pico W aceita pelo USB. Não troque um pelo outro: a página **Arquivos** recusa o `.uf2` ([capítulo 17](#cap-17-ota-conferencias)), e a unidade do BOOTSEL ignora o `.bin`.
+O `.uf2` e o `.bin` de uma mesma imagem têm o mesmo firmware: o `.uf2` é o `.bin` embrulhado no formato que o Pico W aceita pelo USB. No Pico 2 W os dois arquivos diferem, embora o programa seja o mesmo. O `.uf2` traz também a tabela de partições, que um Pico 2 W virgem não tem. O `.bin` traz a marca que faz a imagem nova subir em teste: se ela não se confirmar em cinco minutos, o aparelho volta sozinho para a imagem anterior. Não troque um pelo outro: a página **Arquivos** recusa o `.uf2` ([capítulo 17](#cap-17-ota-conferencias)), e a unidade do BOOTSEL ignora o `.bin`.
 
 Os pacotes de idioma não vão dentro do firmware. Eles ficam no sistema de arquivos do aparelho e entram por outro caminho ([O pacote de idioma](#cap-03-idioma)). Os 11 temas do painel (arquivos `.thm`) não vêm na página da versão: estão na pasta `data/themes` do código-fonte, e são opcionais ([capítulo 11](#cap-11-temas)).
 
