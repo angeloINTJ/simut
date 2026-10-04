@@ -200,8 +200,8 @@ static int __not_in_flash_func(trial_buy_rom)(rom_explicit_buy_fn fn) {
     return rc;
 }
 
-void trial_poll(StorageManager* storage, bool networkOk) {
-    const TrialAction a = trial_step(s_trial, s_trialBootOk && networkOk, millis());
+void trial_poll(StorageManager* storage, bool loopOk) {
+    const TrialAction a = trial_step(s_trial, s_trialBootOk && loopOk, millis());
     if (a == TrialAction::NONE || !storage) return;
     if (a == TrialAction::BUY) {
         /* The ROM's explicit_buy, without the SDK's rom_explicit_buy( ): that
