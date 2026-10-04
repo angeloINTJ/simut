@@ -120,12 +120,69 @@ Air 8,899. The Pico 2 W's image is 997,001 B, signed, in a slot of 1,568,768 B.
 Most of the release's growth is the five new log codes (176 B). The alpha and the
 Air grow in whole 4 KiB pages, and stayed inside theirs.
 
+### The bench
+
+The release gate (`AGENTS.md` §2) ran on the candidate the CI signed on `main`
+(run 37213954233). The published images carry the same image bytes; their
+signature is their own, because every signing run makes a new one.
+
+**On the Pico 2 W,** the bench board (an RP2350 A2), from a bench build of
+v2.10.0 in slot A that trusts both roots:
+- **The update, over the air:** stage 200 in 20.8 s, the board back 42.4 s
+  later from slot B on trial, and kept 48.6 s after that. All 555 configuration
+  values the web API reports unchanged.
+- **Refused,** the board left running on its slot: the candidate with one byte
+  changed (9), and an image signed by the bench key (12), because the candidate
+  trusts the release root alone.
+- **The factory `.uf2`,** dragged by the maintainer onto the BOOTSEL drive of
+  the board, whose flash already held a partition table: the board came up on
+  2.11.0 from slot A, not on trial, with its configuration.
+- **The candidate over itself,** from slot A to slot B: stage 16.8 s, back
+  25.0 s later, kept 65.5 s after that, the configuration unchanged.
+- **30 minutes** without a restart, the five sensors valid in every sample. The
+  web suite on the candidate, as its admin: 67 passed, 0 failed.
+
+**On the Pico W,** the bench board with the touch display and five sensors (two
+DS18B20, two DHT22, a BMP280), from the published v2.10.0 with the bench's
+configuration, a throwaway admin account and the web on port 8080. The board's
+flash was dumped first, two equal reads, and written back at the end.
+- **The update from v2.10.0,** complete, over the air: stage 200 (`v` 0) in
+  34.2 s, the board back 47.3 s after the apply, `2.11.0`, the five sensors
+  reading, all 567 configuration values the web API reports unchanged, the
+  configuration file identical byte for byte, and the `.bkp` back with 70 of 74
+  files identical. The other four are the log, the history and the telemetry
+  cursor, which move while the device runs. The same on the alpha and the Air
+  (558 values, and 70 of 74 files on each), where the Air's own options, which
+  an update erases, came back with the `.bkp`.
+- **The candidate over itself,** on all three, the candidate checking the
+  signature (`v` 0): the same.
+- **Back to v2.10.0 and up again,** over the air, both at security version 1:
+  accepted (`v` 0) both ways, the configuration unchanged, and the telemetry
+  queue rebuilt at each boot from the cursor the other version wrote. Neither
+  version sent within 13 minutes of its boot, the queue holding 4 records of a
+  batch of 10, and neither failed a send.
+- **Refused** with 422, the configuration intact before and after a reset: an
+  unsigned image (8), the Air's signed image (7), the Pico 2 W's signed update
+  (6, under *Known*) and the candidate with one byte changed (9).
+- **An upload cut at 400 kB, then a reset,** and the same with the filesystem
+  filled to its last 8 KB and emptied between the cut and the reset: the
+  configuration intact.
+- **The soak.** On the day's wiring the board restarted itself three times in
+  two hours of the candidate, each 4 to 16 minutes after a boot, with nothing in
+  the log and no line on the serial. A diagnostic build, the candidate plus a
+  boot record of the chip's own reset cause, caught the next one as the RUN pin,
+  which on the bench only the PicoHand's RESET wire reaches. With that wire off:
+  60 minutes without a restart, the five sensors valid in every sample. Thirty
+  minutes of the published v2.10.0 on the same wiring had none. Four of the
+  candidate's 720 reads lost their chunked framing (#189, under *Known*).
+- **The web suite on the candidate,** as an admin account: 67 passed, 0 failed.
+
 ### Upgrading
 
 - **A Pico W, from v2.10.0:** over the air, from the Files page, with this
   release's `.bin`. The configuration carries over.
 - **Back to v2.10.0:** over the air with v2.10.0's signed `.bin` (both carry
-  security version 1), or over USB.
+  security version 1; checked on the bench), or over USB.
 - **A Pico 2 W installs over USB the first time:**
   - copy `simut_v2.11.0_releasetwo.uf2` to the drive that appears with BOOTSEL
     held, or run `picotool load -x` on it;
@@ -146,6 +203,11 @@ Air grow in whole 4 KiB pages, and stayed inside theirs.
 - **The build configurator does not build for the Pico 2 W.** `build_custom.py`
   still hands out the plain `firmware.uf2` and `firmware.bin`, and the page's
   estimates are the Pico W's.
+- **A Pico W refuses the Pico 2 W's `.bin` with `v` 6, and the Files page gives
+  no reason for 6.** The image's first 256 bytes are not an RP2040 boot stage,
+  and the page says only that the upload failed. As with every refusal on a Pico
+  W, the upload has overwritten the filesystem by then, and the `.bkp` the page
+  downloads first is the way back. Seen on the bench.
 - **On a build with a panel, a Core 1 hard fault leaves no program counter in
   the log**, on both chips. The main loop restarts Core 1 after 10 s without its
   heartbeat, before the soft panic that would record it (measured in #249).

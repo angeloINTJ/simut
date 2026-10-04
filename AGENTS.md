@@ -34,6 +34,16 @@ acordado/dormindo, não como power-gating; o GP3 da mão vai ao GP17 do alvo e
 **finge o carregador** (3,3 V direto, sem o divisor da placa real). Detalhes,
 comandos e o analisador lógico: `tools/PicoHand/MANUAL_CLAUDE_CODE.pt-BR.md`.
 
+**Num soak, solte do RUN do alvo o fio RESET da mão.** O RUN é uma entrada de
+alta impedância, segura só pelo pull-up fraco do alvo e pelo `INPUT_PULLUP` da
+mão. Em 04/10/2026, depois de uma troca de placas, o Pico W reiniciou sozinho
+três vezes em duas horas, de 4 a 16 minutos depois de um boot, sem autópsia no
+log e sem nada na serial. Uma imagem de diagnóstico que grava no boot o motivo
+de reset do chip (`CHIP_RESET`) pegou o seguinte como o pino RUN (`HAD_RUN`), e
+com o fio solto foram 60 minutos sem reinício. Religue o fio depois: gravar e o
+RESET dos roteiros precisam dele. O `hand VERIFY` não acusa um pulso que já
+passou, porque só imprime a contagem enquanto a falha está ativa.
+
 **O alvo tem um painel TFT ligado** (ILI9341 + XPT2046, pinagem do
 `simut_config.h`), o que esta lista não dizia até 22/09/2026 — `/api/screenshot`
 devolve o dashboard renderizado e `POST /api/touch` dirige o painel. Vale para

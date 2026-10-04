@@ -123,12 +123,73 @@ Folga abaixo do teto de 1.040.384 B pelo ar: release 7.451, alpha 49.763, Air
 maior parte do aumento da release são os cinco códigos de log novos (176 B). A
 alpha e o Air crescem em páginas inteiras de 4 KiB, e ficaram dentro das deles.
 
+### A bancada
+
+O portão de release (`AGENTS.md` §2) rodou na candidata que o CI assinou no
+`main` (execução 37213954233). As imagens publicadas trazem os mesmos bytes de
+imagem; a assinatura é delas, porque cada execução de assinatura faz uma nova.
+
+**No Pico 2 W,** a placa da bancada (um RP2350 A2), a partir de um build de
+bancada da v2.10.0 no slot A, que confia nas duas raízes:
+- **A atualização, pelo ar:** envio 200 em 20,8 s, a placa de volta 42,4 s
+  depois, do slot B e em teste, e confirmada 48,6 s depois disso. Os 555 valores
+  de configuração que a API web informa, iguais.
+- **Recusadas,** com a placa rodando no slot dela: a candidata com um byte
+  trocado (9) e uma imagem assinada pela chave de bancada (12), porque a
+  candidata confia só na raiz de release.
+- **O `.uf2` de fábrica,** arrastado pelo mantenedor para a unidade do BOOTSEL
+  da placa, cuja flash já tinha tabela de partições: a placa subiu na 2.11.0 do
+  slot A, fora de teste, com a configuração dela.
+- **A candidata sobre ela mesma,** do slot A para o B: envio em 16,8 s, de volta
+  25,0 s depois, confirmada 65,5 s depois disso, a configuração igual.
+- **30 minutos** sem reinício, os cinco sensores válidos em todas as amostras. A
+  suíte web na candidata, como o admin dela: 67 aprovados, 0 falhas.
+
+**No Pico W,** a placa da bancada com o painel de toque e cinco sensores (dois
+DS18B20, dois DHT22, um BMP280), a partir da v2.10.0 publicada com a
+configuração da bancada, uma conta de administrador descartável e a web na porta
+8080. A flash da placa foi copiada antes, em duas leituras iguais, e regravada
+no fim.
+- **A atualização a partir da v2.10.0,** completa, pelo ar: envio 200 (`v` 0)
+  em 34,2 s, a placa de volta 47,3 s depois da aplicação, `2.11.0`, os cinco
+  sensores lendo, os 567 valores de configuração que a API web informa iguais, o
+  arquivo de configuração idêntico byte a byte, e o `.bkp` de volta com 70 de 74
+  arquivos idênticos. Os outros quatro são o log, o histórico e o cursor da
+  telemetria, que mudam enquanto o aparelho roda. O mesmo no alpha e no Air
+  (558 valores, e 70 de 74 arquivos em cada), onde as opções próprias do Air,
+  que uma atualização apaga, voltaram com o `.bkp`.
+- **A candidata sobre ela mesma,** nas três, com a candidata conferindo a
+  assinatura (`v` 0): o mesmo.
+- **De volta à v2.10.0 e de novo para cima,** pelo ar, as duas no nível de
+  segurança 1: aceitas (`v` 0) nos dois sentidos, a configuração igual, e a fila
+  da telemetria refeita em cada boot a partir do cursor que a outra versão
+  gravou. Nenhuma das duas enviou nos 13 minutos depois do boot, com a fila em 4
+  registros de um lote de 10, e nenhuma falhou um envio.
+- **Recusadas** com 422, com a configuração intacta antes e depois de um
+  reinício: uma imagem sem assinatura (8), a imagem do Air assinada (7), a
+  atualização assinada do Pico 2 W (6, em *Conhecido*) e a candidata com um
+  byte trocado (9).
+- **Um envio cortado aos 400 kB, seguido de um reinício,** e o mesmo com o
+  sistema de arquivos cheio até os últimos 8 KB e esvaziado entre o corte e o
+  reinício: a configuração intacta.
+- **O soak.** Com a fiação do dia, a placa reiniciou sozinha três vezes em duas
+  horas da candidata, cada vez de 4 a 16 minutos depois de um boot, sem nada no
+  log e sem nenhuma linha na serial. Um build de diagnóstico, a candidata com um
+  registro no boot do motivo de reset que o próprio chip guarda, pegou o
+  seguinte como o pino RUN, que na bancada só o fio do RESET da PicoHand
+  alcança. Com esse fio desligado: 60 minutos sem reinício, os cinco sensores
+  válidos em todas as amostras. Trinta minutos da v2.10.0 publicada na mesma
+  fiação não tiveram nenhum. Quatro das 720 leituras da candidata perderam o
+  enquadramento chunked (#189, em *Conhecido*).
+- **A suíte web na candidata,** com uma conta de administrador: 67 aprovados, 0
+  falhas.
+
 ### Atualizando
 
 - **Um Pico W, a partir da v2.10.0:** pelo ar, na página Arquivos, com o `.bin`
   desta release. A configuração vem junto.
 - **De volta à v2.10.0:** pelo ar, com o `.bin` assinado da v2.10.0 (as duas
-  têm o nível de segurança 1), ou pelo USB.
+  têm o nível de segurança 1; conferido na bancada), ou pelo USB.
 - **Um Pico 2 W instala pelo USB da primeira vez:**
   - copie o `simut_v2.11.0_releasetwo.uf2` para a unidade que aparece com o
     BOOTSEL apertado, ou rode `picotool load -x` com ele;
@@ -150,6 +211,11 @@ alpha e o Air crescem em páginas inteiras de 4 KiB, e ficaram dentro das deles.
 - **O configurador de builds não compila para o Pico 2 W.** O `build_custom.py`
   ainda entrega o `firmware.uf2` e o `firmware.bin` simples, e as estimativas da
   página são as do Pico W.
+- **Um Pico W recusa o `.bin` do Pico 2 W com `v` 6, e a página Arquivos não
+  diz o motivo do 6.** Os primeiros 256 bytes da imagem não são um estágio de
+  boot do RP2040, e a página diz só que o envio falhou. Como em toda recusa num
+  Pico W, o envio já sobrescreveu o sistema de arquivos a essa altura, e o
+  `.bkp` que a página baixa antes é o caminho de volta. Visto na bancada.
 - **Num build com painel, uma falha de hardware do Core 1 não deixa o contador de
   programa no log**, nos dois chips. O laço principal relança o Core 1 com 10 s
   sem batimento, antes do pânico que o registraria (medido no #249).

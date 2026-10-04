@@ -1,7 +1,7 @@
 # OTA de slot duplo no Pico 2 W — desenho
 
-Estado: etapas 1 a 6 **feitas** (a lista está em [Etapas](#etapas)). Da 7,
-o workflow e o manifesto estão prontos; falta a release. Etapa S2 da Fase 4 de
+Estado: etapas 1 a 7 **feitas** (a lista está em [Etapas](#etapas)); a 7 é a
+v2.11.0, a primeira release com as imagens do Pico 2 W. Etapa S2 da Fase 4 de
 [`PLANO_REVISAO_EXTERNA.md`](PLANO_REVISAO_EXTERNA.md). Decisões do
 mantenedor em 03/10/2026:
 
@@ -379,8 +379,9 @@ sai do mesmo perfil com `PLATFORMIO_BUILD_FLAGS=-DSIMUT_OTA_TRUST_BENCH=1`. Em
 uma placa que já tem tabela de partições falha. O `picotool` contorna isso com
 um bloco no último setor, mas só num arquivo que vai a uma partição pela família
 (`elf2uf2.cpp`). O `.uf2` de fábrica é todo na família absoluta e não leva esse
-bloco. Na bancada ele só foi gravado pelo `picotool load`. Arrastá-lo para a
-placa da bancada, que é A2, fica para o portão da release.
+bloco, e arrastá-lo funciona: em 04/10/2026 o portão da v2.11.0 arrastou o da
+candidata para a placa da bancada, um A2 com tabela de partições na flash, e a
+placa subiu do slot A.
 
 **O que fica de fora:**
 
@@ -572,7 +573,7 @@ depois do boot.
    a medição mostrou que os registradores do watchdog bastam, e consertou o que
    faltava (o `setup( )` travado em teste; o Core 1 na saúde do teste).
 7. **A primeira release** com as imagens do RP2350 publicadas (`.uf2` de fábrica
-   e `.bin` de OTA). O workflow e o manifesto ficaram prontos em 04/10/2026 (ver
-   [A release](#a-release-etapa-7)). Falta a release em si, com o portão no
-   ferro.
+   e `.bin` de OTA). Feita na v2.11.0, em 04/10/2026, com o portão no ferro: a
+   candidata pelo ar, as recusas e o `.uf2` de fábrica arrastado para a placa da
+   bancada (ver [A release](#a-release-etapa-7)).
 8. **S3:** o procedimento de boot seguro e OTP para produção, nunca na bancada.
