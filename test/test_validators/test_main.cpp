@@ -51,6 +51,7 @@
 #include "display/SettingsMenu.h"       /* the panel's Settings menu: rows, order */
 #include "PasswordCheck.h"             /* one derivation per password check */
 #include "SessionCheck.h"              /* a session against its live account */
+#include "display/CountInText.h"        /* a number inside a translated line */
 #include "PemBlocks.h"                 /* the PEM splitting POST /api/tls does */
 #include "WebCommitSections.h"          /* per-section authz for /api/commit_all */
 #include "FsSecretPath.h"               /* /config download guard (A-4) */
@@ -4269,6 +4270,65 @@ static void test_alpha_marquee_blanks_nothing(void) {
  * The TFT top bar's format, now shared with the 16x2. The property that lets
  * the alpha show it at all: nothing a uint16_t holds is wider than the three
  * free columns of its second line. */
+/* ══ the PIN keypad's shortest entry ══════════════════════════════════════
+ *
+ * A stricter policy marks every account holding a PIN to choose a new one
+ * (markPinsBelowPolicy), so that an account whose PIN is now shorter than the
+ * minimum identifies with it and is sent to the change. The keypad refused
+ * that entry as too short before Core 0 saw it: on the rig on 2026-10-04, a
+ * 4-digit PIN under a minimum of 5 could not identify at all. Proving a PIN
+ * takes any length a PIN may still have; choosing one follows the policy.
+ */
+static void test_identification_takes_a_pin_shorter_than_the_policy(void) {
+    using namespace PinKb;
+    for (uint8_t m = PIN_LEN_MIN; m <= 8; m++) {
+        TEST_ASSERT_EQUAL_UINT8_MESSAGE(PIN_LEN_MIN, entryMinLen(true, m), "identifying");
+        TEST_ASSERT_EQUAL_UINT8_MESSAGE(m, entryMinLen(false, m), "choosing");
+    }
+}
+
+/* Proving a shorter PIN must not be the way around the policy. The keypad's
+ * refusal used to be the one thing that held a PIN the web set below the
+ * minimum to the policy (the web does not check it: finding 7 of
+ * docs/analysis/PLANO_REVISAO_EXTERNA.md), and no tightening marks such a
+ * PIN. A tap is a character, so the entry's length is the PIN's: a PIN
+ * shorter than the policy identifies and is sent straight to the change. */
+static void test_a_pin_below_the_policy_is_changed_once_it_proves(void) {
+    using namespace PinKb;
+    TEST_ASSERT_TRUE_MESSAGE(changeAfterProof(true, 6, 4), "marked by a tightening");
+    TEST_ASSERT_TRUE_MESSAGE(changeAfterProof(false, 4, 5), "shorter than the policy, unmarked");
+    TEST_ASSERT_TRUE_MESSAGE(changeAfterProof(true, 4, 5), "both");
+    TEST_ASSERT_FALSE_MESSAGE(changeAfterProof(false, 5, 5), "at the minimum");
+    TEST_ASSERT_FALSE_MESSAGE(changeAfterProof(false, 8, 4), "above it");
+}
+
+/* "PIN too short (min 4)" said 4 whatever the policy's minimum was: the
+ * number was written into the line, in the firmware and in both packs. The
+ * line carries "{n}" now, and the number is put there, never by handing the
+ * pack's line to printf. */
+static void test_count_in_text_puts_the_number_where_the_line_says(void) {
+    char b[48];
+    countInText("PIN too short (min {n})", 5, b, sizeof(b));
+    TEST_ASSERT_EQUAL_STRING("PIN too short (min 5)", b);
+    countInText("PIN muito curto (m\xC3\xADn. {n})", 12, b, sizeof(b));
+    TEST_ASSERT_EQUAL_STRING("PIN muito curto (m\xC3\xADn. 12)", b);
+    /* a pack older than the marker: its line as it is */
+    countInText("PIN muito curto (m\xC3\xADn. 4)", 5, b, sizeof(b));
+    TEST_ASSERT_EQUAL_STRING("PIN muito curto (m\xC3\xADn. 4)", b);
+    /* a pack line is not a format string */
+    countInText("%s%n {n} %d", 7, b, sizeof(b));
+    TEST_ASSERT_EQUAL_STRING("%s%n 7 %d", b);
+    /* the first marker only */
+    countInText("{n}{n}", 3, b, sizeof(b));
+    TEST_ASSERT_EQUAL_STRING("3{n}", b);
+    /* cut to the buffer, and terminated */
+    char s[8];
+    countInText("PIN too short (min {n})", 5, s, sizeof(s));
+    TEST_ASSERT_EQUAL_STRING("PIN too", s);
+    countInText(nullptr, 5, s, sizeof(s));
+    TEST_ASSERT_EQUAL_STRING("", s);
+}
+
 static void test_pending_label_reads_like_the_top_bar(void) {
     char b[PENDING_LABEL_MAX];
     pendingLabel(1, b, sizeof(b));     TEST_ASSERT_EQUAL_STRING("1", b);
@@ -5065,6 +5125,9 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_alpha_marquee_fills_exactly_at_the_width);
     RUN_TEST(test_alpha_marquee_scrolls_and_wraps_through_the_gap);
     RUN_TEST(test_alpha_marquee_blanks_nothing);
+    RUN_TEST(test_identification_takes_a_pin_shorter_than_the_policy);
+    RUN_TEST(test_a_pin_below_the_policy_is_changed_once_it_proves);
+    RUN_TEST(test_count_in_text_puts_the_number_where_the_line_says);
     RUN_TEST(test_pending_label_reads_like_the_top_bar);
     RUN_TEST(test_pending_label_fits_three_columns);
     RUN_TEST(test_alpha_wifi_grows_left_to_right);

@@ -10,6 +10,11 @@ packs now breaks the build with the count named.
 
 Also refuses a key inserted anywhere but the end while packs are unchanged,
 since that shifts every string after it without changing any line count.
+
+And a line whose marker does not match the firmware's own: the panel puts a
+number where a line says "{n}" (display/CountInText.h), so a pack line that
+drops the marker shows no number, or a stale one written into the text, which
+is how "PIN too short (min 4)" said 4 under any policy until 2026-10-04.
 """
 import json
 import os
@@ -27,6 +32,7 @@ except NameError:
     ROOT = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 HEADER = ROOT / "src" / "DisplayManager.h"
+I18N = ROOT / "src" / "DisplayManager_i18n.cpp"
 PARSER = ROOT / "src" / "DisplayManager_LangParser.cpp"
 PACKS = sorted((ROOT / "data" / "lang").glob("*.lng"))
 
@@ -130,6 +136,46 @@ def enum_keys():
     if keys[-1] != "TR_KEYS_COUNT":
         raise SystemExit("check_lang_packs: TR_KEYS_COUNT must be the last enumerator")
     return keys[:-1]
+
+
+def english_dict():
+    """DICTIONARY_EN, the firmware's own lines, in LangKey order. An entry is
+    every literal up to the next comma, so adjacent literals join as the
+    compiler joins them. The markers are all this is read for, so escapes are
+    left as they are written."""
+    src = I18N.read_text(encoding="utf-8")
+    m = re.search(r"DICTIONARY_EN\[TR_KEYS_COUNT\]\s*=\s*\{(.*?)\n\};", src, re.S)
+    if not m:
+        raise SystemExit("check_lang_packs: DICTIONARY_EN not found in DisplayManager_i18n.cpp")
+    body = re.sub(r"/\*.*?\*/", "", m.group(1), flags=re.S)
+    body = re.sub(r"//[^\n]*", "", body)
+    out, cur = [], None
+    for tok in re.finditer(r'"((?:[^"\\]|\\.)*)"|,', body):
+        if tok.group(0) == ",":
+            if cur is not None:
+                out.append(cur)
+            cur = None
+        else:
+            cur = (cur or "") + tok.group(1)
+    if cur is not None:
+        out.append(cur)
+    return out
+
+
+MARKER = re.compile(r"\{[a-z]+\}")
+
+
+def check_markers(pack, lines, english, keys):
+    ok = True
+    for i, key in enumerate(keys):
+        want, have = sorted(MARKER.findall(english[i])), sorted(MARKER.findall(lines[i]))
+        if want != have:
+            print(f"[lang-packs] FAIL {pack.name}: {key} carries {have or 'no marker'}, "
+                  f"the firmware's line {want or 'none'} — the panel puts the number "
+                  f"where the marker is, so this line would show none, or a stale one",
+                  file=sys.stderr)
+            ok = False
+    return ok
 
 
 def dict_lines(path):
@@ -308,6 +354,10 @@ def main():
     dict_warn_at = int(dict_ceil * CEIL_WARN_FRAC)
     trl_live = trl_literals()
     wkeys, wprefixes = web_keys()
+    english = english_dict()
+    if len(english) != want:
+        raise SystemExit(f"check_lang_packs: read {len(english)} lines out of DICTIONARY_EN, "
+                         f"TR_KEYS_COUNT is {want}: the reader is wrong, not the table")
     failed = False
     for pack in PACKS:
         size = pack.stat().st_size
@@ -365,6 +415,8 @@ def main():
             failed = True
         else:
             print(f"[lang-packs] OK {pack.name}: {len(lines)} strings")
+            if not check_markers(pack, lines, english, keys):
+                failed = True
         # @DICT is the only section the count check can see. @TRL and
         # @WEBDICT rot differently — a key goes missing and just that one
         # string falls back to English, which no count catches.

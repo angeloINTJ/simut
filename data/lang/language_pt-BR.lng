@@ -131,7 +131,7 @@ SEGUIR
 Digite seu PIN
 Novo PIN
 Confirme o PIN
-PIN muito curto (mín. 4)
+PIN muito curto (mín. {n})
 Os PINs não coincidem!
 PIN já em uso!
 PIN salvo!

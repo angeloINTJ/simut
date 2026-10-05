@@ -139,7 +139,8 @@ Detalhes no [capítulo 8](#cap-08).
 | Entro na web e vejo só `Access Denied` | A conta não tem a permissão **Painel** | Digite o endereço de uma página permitida, ou recrie a conta com **Painel** |
 | Backup e atualização de firmware recusados para uma conta com todas as permissões | Essas ações exigem o nível de administrador completo | Use a conta `admin` |
 | Minha conta não aparece em **Quem está usando o painel?** | A conta não tem PIN | Defina um PIN pelo botão **PIN** da página **Usuários** ou no item **Usuários** do painel |
-| **PIN muito curto (mín. 4)** com um PIN definido pela web | A política exige mais caracteres que o PIN tem; a web aceita 4 a 8 dígitos sem olhar a política | Defina o PIN no painel, no item **Alterar Senha** ou em **Usuários** |
+| O painel pede **Novo PIN** logo depois de um PIN definido pela web | O PIN é mais curto que o mínimo da política; a web aceita 4 a 8 dígitos sem olhar a política | Escolha um PIN que siga a política. Até a v2.11.0, o painel recusava esse PIN com **PIN muito curto (mín. 4)** |
+| Um PIN antigo não pode mais ser digitado depois de mudar a política | A política tirou as letras dos cartões, ou o teto ficou menor que o PIN | Defina um PIN novo para a conta no item **Usuários** do painel, na página **Usuários** ou no console |
 | **PIN já em uso!** | Outra conta tem esse PIN | Escolha outro PIN |
 | Conta aparece com **bloqueado** no painel | Seis PINs errados seguidos dessa conta | Reinicie o aparelho ou use outra conta |
 | Tela vermelha **ACESSO BLOQUEADO** | 20 PINs errados desde a última entrada certa | Reinicie o aparelho |

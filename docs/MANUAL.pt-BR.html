@@ -4065,7 +4065,7 @@ E6614103E7512B29,uSALA-1,Sala,55.00,52.00</code></pre>
 </ol>
 <p>Pela web, o PIN tem sempre de 4 a 8 dígitos, qualquer que seja a política de PIN do aparelho. O aparelho recusa um PIN que outra conta já use.</p>
 <aside class="faixa faixa-atencao"><span class="selo selo-alerta"><i></i>Atenção</span>
-<p><strong>Um PIN definido pela web pode não servir no painel.</strong> Com uma política de mínimo acima de 4, um PIN mais curto que o mínimo é aceito pela web, mas o teclado do painel o recusa com <strong>PIN muito curto (mín. 4)</strong> antes de conferir. Com a política de letras ou de mais de 8 caracteres, defina o PIN no painel (<a href="#cap-08-proprio-pin">O próprio PIN</a>).</p>
+<p><strong>Um PIN definido pela web pode não seguir a política do painel.</strong> Com uma política de mínimo acima de 4, a web aceita um PIN mais curto que o mínimo. Ele identifica a conta no painel, e o painel pede um PIN novo logo em seguida, como na troca obrigatória (<a href="#cap-08-pin-fabrica">O PIN de fábrica</a>). Até a v2.11.0, o teclado do painel recusava esse PIN com <strong>PIN muito curto (mín. 4)</strong> antes de conferir. Com a política de letras ou de mais de 8 caracteres, defina o PIN no painel (<a href="#cap-08-proprio-pin">O próprio PIN</a>).</p>
 </aside>
 <h4 id="cap-08-recusas">Motivos de recusa</h4>
 <p>A página não mostra estas recusas: a gravação continua e a ação recusada não aparece. Um script que grava contas pela interface de programação recebe a lista em <code>rejected</code> (<a href="#cap-26">capítulo 26</a>).</p>
@@ -4213,7 +4213,7 @@ E6614103E7512B29,uSALA-1,Sala,55.00,52.00</code></pre>
 <figure id="fig-08-teclado-alfa" class="fig fig-tft"><div class="pendente pendente-tft" role="img" aria-label="Imagem a capturar: O teclado ordenado alfanumérico, com a janela de um grupo aberta."><span class="selo selo-alerta"><i></i>Imagem a capturar</span><span class="pend-tipo">Tela do painel · <code>08-teclado-alfa.png</code></span><span class="pend-como">screen pin e escolha de uma conta; política 0-9 A-Z, 1 por tecla; grupo PQRS aberto</span></div><figcaption><b>Figura 60.</b> O teclado ordenado alfanumérico, com a janela de um grupo aberta.</figcaption></figure>
 <figure id="fig-08-teclado-numerico" class="fig fig-tft"><div class="pendente pendente-tft" role="img" aria-label="Imagem a capturar: O teclado numérico ordenado, usado para definir um PIN."><span class="selo selo-alerta"><i></i>Imagem a capturar</span><span class="pend-tipo">Tela do painel · <code>08-teclado-numerico.png</code></span><span class="pend-como">menu &gt; Alterar Senha, sessão admin; política de fábrica; tela Novo PIN com três dígitos digitados</span></div><figcaption><b>Figura 61.</b> O teclado numérico ordenado, usado para definir um PIN.</figcaption></figure>
 <h4 id="cap-08-bloqueios">PIN errado e bloqueios</h4>
-<p>Um PIN errado faz o painel mostrar <strong>PIN inválido!</strong>, tocar o som de erro e distribuir os cartões de novo. Um PIN mais curto que o mínimo da política não chega a ser conferido: o painel mostra <strong>PIN muito curto (mín. 4)</strong>.</p>
+<p>Um PIN errado faz o painel mostrar <strong>PIN inválido!</strong>, tocar o som de erro e distribuir os cartões de novo. Para identificar, o painel confere qualquer PIN a partir de 4 caracteres, mesmo abaixo do mínimo da política: um PIN assim pode ter sido definido antes de a política mudar, ou pela web. Se ele estiver certo, a conta vai direto para a troca (<a href="#cap-08-pin-fabrica">O PIN de fábrica</a>). Com menos de 4 caracteres, o painel mostra <strong>PIN muito curto (mín. 4)</strong> e não confere. Até a v2.11.0, um PIN mais curto que o mínimo da política nunca era conferido, e a conta ficava sem o painel.</p>
 <p>As tentativas erradas são contadas por conta:</p>
 <div class="tw"><table>
 <thead>
@@ -4283,8 +4283,8 @@ E6614103E7512B29,uSALA-1,Sala,55.00,52.00</code></pre>
 <td>As duas digitações diferem; o painel volta a <strong>Novo PIN</strong></td>
 </tr>
 <tr class="odd">
-<td><strong>PIN muito curto (mín. 4)</strong></td>
-<td>Menos caracteres que o mínimo da política</td>
+<td><strong>PIN muito curto (mín. N)</strong></td>
+<td>Menos caracteres que o mínimo da política, que a mensagem diz no lugar de N. Até a v2.11.0, ela dizia 4 com qualquer mínimo</td>
 </tr>
 <tr class="even">
 <td><strong>PIN inválido!</strong></td>
@@ -4356,7 +4356,11 @@ E6614103E7512B29,uSALA-1,Sala,55.00,52.00</code></pre>
 </ol>
 <p>Ao mudar um ajuste, o painel corrige os outros para uma combinação possível. <strong>SAIR</strong> descarta. A política vale na próxima tela de PIN, sem reiniciar, e o log registra o código 459, <strong>Política de PIN alterada pelo painel</strong>.</p>
 <p><strong>Na web.</strong> Os três campos ficam na seção <strong>Hardware</strong> da página <strong>Configurações</strong>, que exige a permissão <strong>Sistema</strong> (<a href="#cap-06-hardware">capítulo 6</a>). A dica do tamanho mínimo mostra a faixa permitida, como <code>4 – 8</code>. Pela web, a mudança vale com <strong>Aplicar agora</strong>, sem reiniciar (até a v2.9.0, exigia <strong>Salvar e reiniciar</strong>). O log registra o mesmo código 459, com a marca <code>[web]</code>.</p>
-<p>Quando a política fica mais exigente em qualquer ajuste (mínimo maior, alfabeto menor ou teto menor), toda conta com PIN é marcada para trocá-lo. A conta continua se identificando com o PIN antigo e é levada a <strong>Novo PIN</strong> logo depois (<a href="#cap-08-pin-fabrica">O PIN de fábrica</a>). Afrouxar a política não marca ninguém.</p>
+<p>Quando a política fica mais exigente em qualquer ajuste (mínimo maior, alfabeto menor ou teto menor), toda conta com PIN é marcada para trocá-lo, e é levada a <strong>Novo PIN</strong> logo depois de se identificar (<a href="#cap-08-pin-fabrica">O PIN de fábrica</a>). Afrouxar a política não marca ninguém.</p>
+<ul>
+<li><strong>Mínimo maior:</strong> a conta se identifica com o PIN antigo, mesmo mais curto que o mínimo novo. Até a v2.11.0, o teclado recusava esse PIN como curto, e a conta ficava sem o painel.</li>
+<li><strong>Alfabeto menor ou teto menor:</strong> um PIN antigo com uma letra que saiu dos cartões, ou mais longo que o teto novo, não pode mais ser digitado: o teto não sobe para um PIN antigo, porque é o tempo de conferir. Defina um PIN novo para essa conta no item <strong>Usuários</strong> do painel, na página <strong>Usuários</strong> da web ou no console.</li>
+</ul>
 <figure id="fig-08-politica" class="fig fig-tft"><div class="pendente pendente-tft" role="img" aria-label="Imagem a capturar: A tela Segurança do PIN, com a política de fábrica: tamanho mínimo 4, 3 caracteres por tecla (máximo 8) e só dígitos."><span class="selo selo-alerta"><i></i>Imagem a capturar</span><span class="pend-tipo">Tela do painel · <code>08-politica.png</code></span><span class="pend-como">menu &gt; Segurança do PIN, sessão admin; política de fábrica; linha Teclado selecionada</span></div><figcaption><b>Figura 66.</b> A tela Segurança do PIN, com a política de fábrica: tamanho mínimo 4, 3 caracteres por tecla (máximo 8) e só dígitos.</figcaption></figure>
 <figure id="fig-08-politica-web" class="fig fig-web"><div class="pendente pendente-web" role="img" aria-label="Imagem a capturar: Os campos da política de PIN na página Configurações."><span class="selo selo-alerta"><i></i>Imagem a capturar</span><span class="pend-tipo">Página web · <code>08-politica-web.png</code></span><span class="pend-como">rota /config; largura 1280; sessão admin; imagem release; recorte dos três campos de PIN da seção Hardware, com 2 glifos por tecla e 0-9 A-Z escolhidos</span></div><figcaption><b>Figura 67.</b> Os campos da política de PIN na página Configurações.</figcaption></figure>
 <h4 id="cap-08-usuarios-painel">Usuários no painel</h4>
@@ -23363,51 +23367,56 @@ echo</code></pre>
 <td>Defina um PIN pelo botão <strong>PIN</strong> da página <strong>Usuários</strong> ou no item <strong>Usuários</strong> do painel</td>
 </tr>
 <tr class="even">
-<td><strong>PIN muito curto (mín. 4)</strong> com um PIN definido pela web</td>
-<td>A política exige mais caracteres que o PIN tem; a web aceita 4 a 8 dígitos sem olhar a política</td>
-<td>Defina o PIN no painel, no item <strong>Alterar Senha</strong> ou em <strong>Usuários</strong></td>
+<td>O painel pede <strong>Novo PIN</strong> logo depois de um PIN definido pela web</td>
+<td>O PIN é mais curto que o mínimo da política; a web aceita 4 a 8 dígitos sem olhar a política</td>
+<td>Escolha um PIN que siga a política. Até a v2.11.0, o painel recusava esse PIN com <strong>PIN muito curto (mín. 4)</strong></td>
 </tr>
 <tr class="odd">
+<td>Um PIN antigo não pode mais ser digitado depois de mudar a política</td>
+<td>A política tirou as letras dos cartões, ou o teto ficou menor que o PIN</td>
+<td>Defina um PIN novo para a conta no item <strong>Usuários</strong> do painel, na página <strong>Usuários</strong> ou no console</td>
+</tr>
+<tr class="even">
 <td><strong>PIN já em uso!</strong></td>
 <td>Outra conta tem esse PIN</td>
 <td>Escolha outro PIN</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Conta aparece com <strong>bloqueado</strong> no painel</td>
 <td>Seis PINs errados seguidos dessa conta</td>
 <td>Reinicie o aparelho ou use outra conta</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Tela vermelha <strong>ACESSO BLOQUEADO</strong></td>
 <td>20 PINs errados desde a última entrada certa</td>
 <td>Reinicie o aparelho</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Contagem <strong>Aguarde N segundos…</strong> no teclado</td>
 <td>Terceira, quarta ou quinta tentativa errada de uma conta</td>
 <td>Espere; a espera vale para qualquer conta nesse período</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>O painel pede <strong>Novo PIN</strong> logo depois de entrar</td>
 <td>PIN de fábrica <code>1234</code> do <code>admin</code>, ou política de PIN mais exigente</td>
 <td>Escolha um PIN novo que atenda à política</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Depois de mudar a política pela web, a mudança não valeu</td>
 <td>A política pela web só vale depois de <strong>Salvar e reiniciar</strong></td>
 <td>Grave com <strong>Salvar e reiniciar</strong>, ou mude no painel, que aplica na hora</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Operador conseguiu se dar permissões de painel</td>
 <td>No painel, quem tem <strong>Usuários</strong> concede as três permissões de painel sem ter todas</td>
 <td>Dê <strong>Usuários</strong> só a quem pode ter também as permissões de painel</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Bloqueio de 300 s ao entrar pela web</td>
 <td>Nove ou mais senhas erradas seguidas a partir do mesmo computador</td>
 <td>Espere a contagem; ela zera numa entrada certa</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><strong>Limite de sessões atingido. Tente mais tarde.</strong></td>
 <td>Três outras contas com sessão aberta</td>
 <td>Feche uma sessão com <strong>Sair</strong> ou espere 15 min de ociosidade dela</td>

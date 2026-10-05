@@ -606,6 +606,9 @@ public:
 	uint8_t pinKeypadMode( ) const;
 	uint8_t pinAlphabet( ) const;
 	uint8_t pinMinLen( ) const;
+	/** The shortest entry this screen takes: the policy's minimum to choose
+	 *  a PIN, PIN_LEN_MIN to prove one (PinKb::entryMinLen). */
+	uint8_t pinEntryMinLen( ) const;
 	/** The policy editor (PERM_USER_MGR): length, keypad, alphabet. */
 	void showPinPolicy( );
 #endif /* SIMUT_PANEL_PIN — an image with no touch panel proves nobody */
