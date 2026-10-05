@@ -190,11 +190,12 @@ uint8_t DisplayManager::pinKeyFace(int key, char* out, size_t cap) const {
 	return (uint8_t)n;
 }
 
-void DisplayManager::showPinEntry(uint8_t purpose, int8_t targetUser) {
+void DisplayManager::showPinEntry(uint8_t purpose, int8_t targetUser, bool forced) {
 	mutex_enter_blocking(&_stateMutex);
 	_uiMode = MODE_AUTH;
 	_pinPurpose = purpose;
 	_pinTarget = targetUser;
+	_pinForced = forced;
 	_pinLen = 0; _pinBuf[0] = '\0';
 	memset(_pinTaps, 0, sizeof(_pinTaps));
 	_pinPhase = 0; _pinFirst[0] = '\0';
@@ -293,11 +294,16 @@ void DisplayManager::setPanelSession(int8_t user, uint16_t perms) {
 	mutex_exit(&_stateMutex);
 }
 
-/* Cancel from the keypad: back to wherever this PIN was asked from. */
+/* Cancel from the keypad: back to wherever this PIN was asked from. A change
+ * the account was sent to by force was asked from nowhere: the menu used to
+ * open behind it, with the session's every bit and the PIN still the one the
+ * policy or the factory left (finding 9 of docs/analysis/PLANO_REVISAO_EXTERNA.md).
+ * It leaves to the dashboard, and Settings asks for the PIN again from there,
+ * which sends the account back to the change. */
 void DisplayManager::pinCancel( ) {
 	clearEnteredPin( );
 	switch (_pinPurpose) {
-		case PIN_FOR_OWN:          showSettingsMain( ); break;
+		case PIN_FOR_OWN:          if (_pinForced) forceDashboard( ); else showSettingsMain( ); break;
 		case PIN_FOR_USER:         showUserEdit(_pinTarget, false); break;
 		case PIN_FOR_NEW_ACCOUNT:  showUserEdit(-1, true); break;
 		default:                   forceDashboard( ); break;

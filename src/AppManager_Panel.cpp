@@ -156,13 +156,13 @@ void AppManager::panelIdentify( ) {
   * the first thing it does is choose a PIN that complies. The admin's factory
   * "1234" arrives here the same way. */
  if (_storageMgr->pinMustChange(slot)) {
- _displayMgr->showPinEntry(DisplayManager::PIN_FOR_OWN);
+ _displayMgr->showPinEntry(DisplayManager::PIN_FOR_OWN, -1, true);
  LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, (int)slot,
  TRL("PIN does not meet the policy; forcing change."));
  return;
  }
  if (slot == 0 && _storageMgr->mustChangePin( )) {
- _displayMgr->showPinEntry(DisplayManager::PIN_FOR_OWN);
+ _displayMgr->showPinEntry(DisplayManager::PIN_FOR_OWN, -1, true);
  LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, 0,
  TRL("Default PIN detected; forcing change."));
  return;

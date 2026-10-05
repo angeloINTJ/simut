@@ -335,7 +335,7 @@ A conta `admin` sai de fábrica com o PIN `1234`. Na primeira identificação co
 
 Da mesma forma, quando a política de PIN fica mais exigente, toda conta com PIN é marcada para trocá-lo, e o painel abre **Novo PIN** na próxima identificação de cada uma ([A política de PIN](#cap-08-politica)).
 
-Nos dois casos, a conta já está identificada quando a tela **Novo PIN** abre. **SAIR** leva ao menu sem trocar, e a tela volta na identificação seguinte.
+Nos dois casos, a conta já está identificada quando a tela **Novo PIN** abre, mas o menu só abre depois da troca. **SAIR** volta à tela inicial sem trocar, e a tela volta na identificação seguinte. Até a v2.11.0, **SAIR** levava ao menu sem trocar, inclusive com o `1234` de fábrica.
 
 ### O próprio PIN {#cap-08-proprio-pin}
 

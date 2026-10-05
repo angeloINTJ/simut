@@ -4251,7 +4251,7 @@ E6614103E7512B29,uSALA-1,Sala,55.00,52.00</code></pre>
 <h4 id="cap-08-pin-fabrica">O PIN de fábrica</h4>
 <p>A conta <code>admin</code> sai de fábrica com o PIN <code>1234</code>. Na primeira identificação com ele, o painel abre direto a tela <strong>Novo PIN</strong>, e o log registra o código 302 com o texto <strong>PIN padrão detectado; forçando troca.</strong> A troca fica pendente até o <code>admin</code> escolher um PIN diferente de <code>1234</code>; escolher <code>1234</code> de novo não a desfaz.</p>
 <p>Da mesma forma, quando a política de PIN fica mais exigente, toda conta com PIN é marcada para trocá-lo, e o painel abre <strong>Novo PIN</strong> na próxima identificação de cada uma (<a href="#cap-08-politica">A política de PIN</a>).</p>
-<p>Nos dois casos, a conta já está identificada quando a tela <strong>Novo PIN</strong> abre. <strong>SAIR</strong> leva ao menu sem trocar, e a tela volta na identificação seguinte.</p>
+<p>Nos dois casos, a conta já está identificada quando a tela <strong>Novo PIN</strong> abre, mas o menu só abre depois da troca. <strong>SAIR</strong> volta à tela inicial sem trocar, e a tela volta na identificação seguinte. Até a v2.11.0, <strong>SAIR</strong> levava ao menu sem trocar, inclusive com o <code>1234</code> de fábrica.</p>
 <h4 id="cap-08-proprio-pin">O próprio PIN</h4>
 <p>Qualquer conta identificada troca o próprio PIN pelo item <strong>Alterar Senha</strong> do menu (o 5º, <em>Change Password</em>).</p>
 <ol type="1">
