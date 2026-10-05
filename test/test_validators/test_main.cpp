@@ -1290,6 +1290,33 @@ void test_commit_pin_target_protects_the_admin_slot(void) {
     TEST_ASSERT_TRUE(commitPinTargetAllowed(31, 4, P_USERMGR_ONLY));
 }
 
+/* Finding 8 of the manual's triage (23/09): the panel granted Limits, Block
+ * and Maintenance to any account, the caller's own included, without asking
+ * whether the caller held them. The web closed the same hole in V-09, just
+ * above. A change may only ADD bits the caller holds; taking one away, or
+ * leaving one the caller lacks where it was, is no escalation. */
+void test_panel_grant_adds_only_bits_the_caller_holds(void) {
+    const uint16_t L = PERM_ALARM_LIMITS, B = PERM_ALARM_BLOCK, M = PERM_MAINT;
+    /* Users and no panel bit: nothing to give, to a new account or an old one. */
+    TEST_ASSERT_FALSE(panelGrantAllowed(0, L | M, P_USERMGR_ONLY));
+    TEST_ASSERT_FALSE(panelGrantAllowed(0, B, P_USERMGR_ONLY));
+    /* Nor to itself: its own bits are `before`, and the new ones are not its. */
+    TEST_ASSERT_FALSE(panelGrantAllowed(P_USERMGR_ONLY & PERM_PANEL_ALARM_ANY, L, P_USERMGR_ONLY));
+    /* Holding a bit, it may pass that bit on. */
+    TEST_ASSERT_TRUE(panelGrantAllowed(0, L, P_USERMGR_ONLY | L));
+    /* But not a second one alongside it. */
+    TEST_ASSERT_FALSE(panelGrantAllowed(0, L | B, P_USERMGR_ONLY | L));
+    /* Taking away is allowed, even a bit it lacks. */
+    TEST_ASSERT_TRUE(panelGrantAllowed(L | B, L, P_USERMGR_ONLY));
+    TEST_ASSERT_TRUE(panelGrantAllowed(B, 0, P_USERMGR_ONLY));
+    /* A bit it lacks, already there and left alone, while it adds one it holds. */
+    TEST_ASSERT_TRUE(panelGrantAllowed(B, B | L, P_USERMGR_ONLY | L));
+    /* No change is no grant. */
+    TEST_ASSERT_TRUE(panelGrantAllowed(L | M, L | M, P_USERMGR_ONLY));
+    /* The full admin gives anything. */
+    TEST_ASSERT_TRUE(panelGrantAllowed(0, L | B | M, PERM_FULL_ADMIN));
+}
+
 void test_commit_netonly_can_commit_net_only(void) {
     int st[SEC_COUNT];
     String net("{\"net\":{\"ssid\":\"lab\",\"use_dhcp\":1}}");
@@ -4856,6 +4883,7 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_commit_usermgr_can_commit_users_only);
     RUN_TEST(test_commit_grant_refuses_bits_the_caller_lacks);
     RUN_TEST(test_commit_pin_target_protects_the_admin_slot);
+    RUN_TEST(test_panel_grant_adds_only_bits_the_caller_holds);
     RUN_TEST(test_commit_netonly_can_commit_net_only);
     RUN_TEST(test_commit_admin_passes_everything);
     RUN_TEST(test_commit_entry_perms_exclude_viewer);

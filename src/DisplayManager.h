@@ -564,7 +564,10 @@ public:
 		PIN_FOR_USER,         /**< an admin sets another account's PIN */
 		PIN_FOR_NEW_ACCOUNT   /**< last step of creating an account */
 	};
-	void showPinEntry(uint8_t purpose, int8_t targetUser = -1);
+	/** `forced`: PIN_FOR_OWN because the account's PIN must change (policy
+	 *  or factory PIN), so the session may not go on without it: SAIR leaves
+	 *  to the dashboard, and Settings asks for the PIN again from there. */
+	void showPinEntry(uint8_t purpose, int8_t targetUser = -1, bool forced = false);
 	/** Forces repaint of the keypad after another screen (the license)
 	 * covered it. State (typed digits, lockout) is untouched. */
 	/** Core 0's verdict on the PIN of the last EVT_AUTH_PIN. Runs the lockout
@@ -1185,6 +1188,11 @@ private:
 	uint8_t _pinPhase = 0;          /**< 0 typing, 1 confirming (new PIN) */
 	uint8_t _pinPurpose = 0;        /**< PinPurpose */
 	int8_t _pinTarget = -1;         /**< PIN_FOR_USER: whose */
+	/** PIN_FOR_OWN that the session must not skip. No initializer: only
+	 *  pinCancel( ) reads it, on the PIN screen, and the one way onto that
+	 *  screen, showPinEntry( ), writes it first. Zeroing it cost the
+	 *  constructor 16 B (pico_w_release, 2026-10-04). */
+	bool _pinForced;
 	LangKey _pinMsg = TR_KEYS_COUNT;/**< transient line under the dots */
 	/* What each key on screen carries. Under KB_SET2/KB_SET3 it is a DEAL:
 	 * the alphabet plus decoys over cards of S slots, re-dealt on every entry,

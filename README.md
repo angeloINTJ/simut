@@ -50,7 +50,7 @@ They share one core:
 | **Current release** | **v2.11.0** (2026-10-04); the [changelog](CHANGELOG.md) says what each version changed. SIMUT left beta with v2.7.0, on measurements: an 8.18 h soak with 0 reboots, and 6 of 6 over-the-air updates with nothing lost. |
 | **Published images** | Four images, each as `.uf2` and `.bin`. For the Pico W: `release` (TFT touch panel), `alpha` (16×2 LCD with a Bluetooth console) and `air` (headless battery logger). For the Pico 2 W (RP2350): `releasetwo`, the release, whose `.uf2` carries its partition table and whose `.bin` boots on trial. The pt-BR and es-ES language packs and an OTA manifest ship alongside. An image with a different set of features comes from the [build configurator](https://angelointj.github.io/simut/configurador/), and CI builds it from `main`; the configurator does not build for the Pico 2 W yet. |
 | **Maturity** | <ul><li>`release`: **stable**.</li><li>`alpha`: published and bench-tested, its 16×2 LCD included since 2026-09-26.</li><li>`air`: **experimental**. Its one long soak failed: a sleep in cycle 119 never woke (F28). A watchdog across the wake now mitigates it; the root cause is not confirmed.</li><li>`releasetwo`: **new** in v2.11.0, bench-tested on one Pico 2 W (RP2350 A2). It updates over the air into its other slot, on trial, and goes back by itself when the update does not keep itself.</li></ul> |
-| **Tests** | Every pull request runs 632 host test cases in 9 suites, 60 s of fuzzing and static analysis, and builds all seven firmware images from a cold cache. Behaviour on real hardware is verified on a bench — see [Verification on hardware](docs/VERIFICATION.md). |
+| **Tests** | Every pull request runs 636 host test cases in 9 suites, 60 s of fuzzing and static analysis, and builds all seven firmware images from a cold cache. Behaviour on real hardware is verified on a bench — see [Verification on hardware](docs/VERIFICATION.md). |
 
 **Known limitations.** Each one is documented where it applies.
 - **Updates.** An update over the air reformats the filesystem:
@@ -301,12 +301,12 @@ The device exposes a REST API at `http://<device-ip>/api/`:
 ### Host tests
 
 ```bash
-pio test -e native             # validators, telemetry cursor, labels, parsers, language packs, the License and update screens, the Settings menu, the password check, the web session (283 cases)
+pio test -e native             # validators, telemetry cursor, labels, parsers, language packs, the License and update screens, the Settings menu, the password check, the web session (284 cases)
 pio test -e native_history_v5  # V5 history codec (62)
 pio test -e native_cli         # CLI parser (33)
 pio test -e native_logpolicy   # edge-triggered log persistence, autopsy bands, touch wake (57)
 pio test -e native_alarmqueue  # alarm telemetry queue (54)
-pio test -e native_network     # Wi-Fi reconnect state machine (36)
+pio test -e native_network     # Wi-Fi reconnect state machine (39)
 pio test -e native_air         # SIMUT Air persistent config (16)
 pio test -e native_sensors     # sensor type table (13)
 pio test -e native_otasig      # OTA image signature check, the backup restore, and the RP2350's slot writer and update on trial (78)

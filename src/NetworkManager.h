@@ -47,8 +47,11 @@ public:
  bool ntpEnabled = true,
  const char* dns2 = "");
  /** Bring up the setup Access Point. False when the radio refused it —
-  * the caller must not tell anyone to join a network that is not there. */
- bool beginAP(const char* deviceName);
+  * the caller must not tell anyone to join a network that is not there.
+  * `stationSsid` is the network the unit is configured for, empty when it
+  * has none: with one, the AP gives way to it after AP_MODE_TIMEOUT_MS by
+  * restarting into the station. */
+ bool beginAP(const char* deviceName, const char* stationSsid = "");
  void update( );
 
  /** The WPA2 key of the setup AP, derived from the board id (V-05).

@@ -2953,7 +2953,7 @@ SIMUT# reload confirm</code></pre>
 <li>Abra o editor do slot.</li>
 <li>Toque em <strong>Adotar a sonda ligada aqui</strong> (<em>Adopt the probe wired here</em>).</li>
 </ol>
-<p>O aparelho lê a ROM da sonda, liga o slot a ela e grava. Se a ROM já constar do arquivo <code>calib.csv</code>, o slot recebe o ID de hardware e o nome guardados para ela; se não constar, recebe o ID <code>LIB_SENS</code>. Quando o ID muda, o aparelho grava a data como a época do slot (<a href="#cap-06-epoca">Resetar época do histórico</a>).</p>
+<p>O aparelho lê a ROM da sonda no GPIO do slot, liga o slot a ela, grava e recarrega os sensores: a leitura segue com a sonda nova na hora, sem reiniciar. O GPIO do slot não muda. Se a ROM já constar do arquivo <code>calib.csv</code>, o slot recebe o ID de hardware e o nome guardados para ela; se não constar, recebe o ID <code>LIB_SENS</code>. Quando o ID muda, o aparelho grava a data como a época do slot (<a href="#cap-06-epoca">Resetar época do histórico</a>).</p>
 <div class="tw"><table>
 <colgroup>
 <col style="width: 50%" />
@@ -2972,18 +2972,21 @@ SIMUT# reload confirm</code></pre>
 </tr>
 <tr class="even">
 <td><strong>Nenhuma sonda respondeu neste GPIO.</strong></td>
-<td>Nada respondeu no pino lido</td>
+<td>Nada respondeu no GPIO do slot</td>
 </tr>
 <tr class="odd">
 <td><strong>A sonda respondeu com uma ROM inválida.</strong></td>
 <td>A ROM lida falhou na conferência</td>
 </tr>
+<tr class="even">
+<td><strong>Salve antes este slot como um DS18B20 ativo.</strong></td>
+<td>O slot gravado no aparelho não é um DS18B20 ativo: por exemplo, o tipo foi escolhido no editor e ainda não foi salvo</td>
+</tr>
 </tbody>
 </table></div>
-<aside class="faixa faixa-atencao"><span class="selo selo-alerta"><i></i>Atenção</span>
-<p><strong>A adoção lê o GPIO de mesmo número que o slot.</strong> Para o slot 3, o aparelho lê a sonda em GP3 e grava GP3 como pino do slot. Com o slot num GPIO de outro número, a adoção lê o pino errado e muda o pino do slot. Nesse caso, em vez de adotar, libere o slot e crie-o de novo no mesmo GPIO: o aparelho lê a ROM nova na partida.</p>
+<aside class="faixa faixa-nota"><span class="selo selo-neutro"><i></i>Nota</span>
+<p><strong>Até a v2.11.0, a adoção lia o GPIO de mesmo número que o slot</strong> e gravava esse número como pino do slot. Num slot ligado a um GPIO de outro número, ela lia o pino errado e mudava o pino do slot. E a leitura em andamento seguia com a ROM antiga: a cada 5 leituras a divergência voltava, até o aparelho reiniciar.</p>
 </aside>
-<p>A adoção é gravada na hora, mas a leitura em andamento continua com a sonda antiga até o aparelho reiniciar. Reinicie depois de adotar.</p>
 <h4 id="cap-06-epoca">Resetar época do histórico</h4>
 <p>Grava o instante atual como a época do slot: a data em que o sensor atual começou nele. Use quando trocar o sensor físico de um slot, para registrar a troca.</p>
 <ol type="1">
@@ -4251,7 +4254,7 @@ E6614103E7512B29,uSALA-1,Sala,55.00,52.00</code></pre>
 <h4 id="cap-08-pin-fabrica">O PIN de fábrica</h4>
 <p>A conta <code>admin</code> sai de fábrica com o PIN <code>1234</code>. Na primeira identificação com ele, o painel abre direto a tela <strong>Novo PIN</strong>, e o log registra o código 302 com o texto <strong>PIN padrão detectado; forçando troca.</strong> A troca fica pendente até o <code>admin</code> escolher um PIN diferente de <code>1234</code>; escolher <code>1234</code> de novo não a desfaz.</p>
 <p>Da mesma forma, quando a política de PIN fica mais exigente, toda conta com PIN é marcada para trocá-lo, e o painel abre <strong>Novo PIN</strong> na próxima identificação de cada uma (<a href="#cap-08-politica">A política de PIN</a>).</p>
-<p>Nos dois casos, a conta já está identificada quando a tela <strong>Novo PIN</strong> abre. <strong>SAIR</strong> leva ao menu sem trocar, e a tela volta na identificação seguinte.</p>
+<p>Nos dois casos, a conta já está identificada quando a tela <strong>Novo PIN</strong> abre, mas o menu só abre depois da troca. <strong>SAIR</strong> volta à tela inicial sem trocar, e a tela volta na identificação seguinte. Até a v2.11.0, <strong>SAIR</strong> levava ao menu sem trocar, inclusive com o <code>1234</code> de fábrica.</p>
 <h4 id="cap-08-proprio-pin">O próprio PIN</h4>
 <p>Qualquer conta identificada troca o próprio PIN pelo item <strong>Alterar Senha</strong> do menu (o 5º, <em>Change Password</em>).</p>
 <ol type="1">
@@ -4399,7 +4402,7 @@ E6614103E7512B29,uSALA-1,Sala,55.00,52.00</code></pre>
 </tr>
 <tr class="even">
 <td><strong>Sem permissão</strong></td>
-<td>A conta identificada não tem mais a permissão <strong>Usuários</strong></td>
+<td>A conta identificada não tem mais a permissão <strong>Usuários</strong>, ou marcou uma permissão de painel que ela mesma não tem</td>
 </tr>
 </tbody>
 </table></div>
@@ -4442,7 +4445,8 @@ E6614103E7512B29,uSALA-1,Sala,55.00,52.00</code></pre>
 </tr>
 </tbody>
 </table></div>
-<p>As três primeiras linhas só mudam na tela; <strong>SALVAR</strong> grava, e o painel mostra <strong>Usuário salvo!</strong> (código 453, <strong>Permissões alteradas pelo painel</strong>). As permissões web da conta ficam como estavam. <strong>Definir PIN</strong> grava ao fim da confirmação (código 452, <strong>PIN do painel definido</strong>).</p>
+<p>As três primeiras linhas só mudam na tela; <strong>SALVAR</strong> grava, e o painel mostra <strong>Usuário salvo!</strong> (código 453, <strong>Permissões alteradas pelo painel</strong>). As permissões web da conta ficam como estavam.</p>
+<p><strong>O painel só concede as permissões de painel que a conta identificada tem.</strong> Marcar, numa conta nova ou numa existente, uma permissão que ela não tem é recusado com <strong>Sem permissão</strong>, e nada é gravado: o log registra o código 458, <strong>Ação do painel recusada: sem permissão</strong>. Desmarcar é sempre possível, e uma permissão que a conta editada já tinha pode ficar. A regra é a mesma da página <strong>Usuários</strong> da web, e vale também para a própria conta. Até a v2.11.0, quem tinha a permissão <strong>Usuários</strong> concedia as três a qualquer conta, inclusive a si mesmo. <strong>Definir PIN</strong> grava ao fim da confirmação (código 452, <strong>PIN do painel definido</strong>).</p>
 <p><strong>Excluir uma conta no painel:</strong></p>
 <ol type="1">
 <li>No editor da conta, toque em <strong>Excluir usuário</strong>.</li>
@@ -5236,8 +5240,9 @@ E6614103E7512B29,uSALA-1,Sala,55.00,52.00</code></pre>
 <ul>
 <li>A telemetria e o syslog esperam a rede voltar.</li>
 <li>O aparelho não tenta a rede configurada enquanto o AP está aberto.</li>
-<li>Um AP aberto com o aparelho em operação, pelo painel ou pelo comando <code>ap</code>, num aparelho com rede configurada, dura 15 min. Depois disso o aparelho reinicia para tentar a rede de novo, com ou sem alguém conectado ao AP. O evento é <strong>Timeout na conexão WiFi</strong> (525) com o texto <code>AP mode timeout, rebooting to STA</code>. Se a rede ainda não estiver lá, o aparelho segue a escada de reconexão, e o AP só volta se alguém o abrir de novo.</li>
-<li>Um AP aberto no boot, pelo gesto, ou num aparelho sem rede configurada, fica aberto até alguém gravar uma rede ou reiniciar o aparelho.</li>
+<li>Num aparelho com rede configurada, o AP dura 15 min, aberto pelo painel, pelo comando <code>ap</code> ou pelo gesto no boot. Depois disso o aparelho reinicia para tentar a rede de novo, com ou sem alguém conectado ao AP. O evento é <strong>Timeout na conexão WiFi</strong> (525) com o texto <code>AP mode timeout, rebooting to STA</code>. Se a rede ainda não estiver lá, o aparelho segue a escada de reconexão, e o AP só volta se alguém o abrir de novo.</li>
+<li>Num aparelho sem rede configurada, o AP fica aberto até alguém gravar uma rede ou reiniciar o aparelho.</li>
+<li>Até a v2.11.0, o prazo do AP aberto pelo gesto no boot lia um nome de rede que nada tinha gravado. Esse AP podia ficar aberto para sempre num aparelho com rede, ou fechar em 15 min num aparelho sem rede, conforme o que estivesse na memória. Na bancada, em 04/10/2026, ele fechou em 15 min num aparelho com rede.</li>
 </ul>
 <p>Para sair do AP com a rede certa:</p>
 <ol type="1">
@@ -11511,8 +11516,8 @@ Total: ~80 s. Não desligue o dispositivo durante o processo.</code></pre>
 </tbody>
 </table></div>
 <p>Até a v2.8.x, o aparelho aceitava uma imagem sem assinatura e uma sem etiqueta de variante, anterior à etiqueta. Hoje as duas são recusadas com <code>v=8</code>.</p>
-<p>Uma recusa aparece como <strong>Falha no envio (validação v=N). Cancelled.</strong>, seguida do motivo de <code>v=7</code> a <code>v=12</code>. Um arquivo maior que 1016 KiB não chega a ser conferido e aparece como <code>v=undefined</code>.</p>
-<p>O <code>.bin</code> do Pico 2 W (<code>simut_vX.Y.Z_releasetwo.bin</code>, desde a v2.11.0), mandado a um Pico W, é recusado com <code>v=6</code>, sem motivo na página: os primeiros 256 bytes dele não são um início de imagem do RP2040. Visto na bancada em 04/10/2026.</p>
+<p>Uma recusa aparece como <strong>Falha no envio (validação v=N). Cancelled.</strong>, seguida do motivo de <code>v=6</code> a <code>v=12</code>. Um arquivo maior que 1016 KiB não chega a ser conferido e aparece como <code>v=undefined</code>.</p>
+<p>O <code>.bin</code> do Pico 2 W (<code>simut_vX.Y.Z_releasetwo.bin</code>, desde a v2.11.0), mandado a um Pico W, é recusado com <code>v=6</code>: os primeiros 256 bytes dele não são um início de imagem do RP2040. A página diz <strong>A imagem é de outro chip, ou está danificada. O Pico 2 W usa o .bin releasetwo, e o Pico W os outros.</strong> Até a v2.11.0, ela não dava motivo para o <code>v=6</code>.</p>
 <aside class="faixa faixa-perigo"><span class="selo selo-perigo"><i></i>Perigo</span>
 <p><strong>Uma recusa no envio também apaga o sistema de arquivos.</strong> A imagem é gravada sobre o sistema de arquivos enquanto chega, e a conferência só acontece no fim. Quando o aparelho recusa a imagem, ele reformata o sistema de arquivos e continua funcionando com a configuração que está na RAM; desde a v2.8.0 ele grava a configuração de volta logo em seguida, e até a v2.7.4 o arquivo dela simplesmente deixava de existir. <strong>Restaure o backup do passo 4</strong>: ele devolve o histórico, os pacotes de idioma e os demais arquivos. Até a v2.7.4, um reinício antes disso voltava com a configuração de fábrica (<a href="#cap-18-fabrica">capítulo 18</a>).</p>
 </aside>

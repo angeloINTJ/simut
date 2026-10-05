@@ -28,6 +28,7 @@
 
 #include <unity.h>
 #include <string.h>
+#include <new>
 #include "NetworkManager.h"
 #include "MetricsManager.h"
 #include <lwip/dns.h>
@@ -713,6 +714,58 @@ static void test_a_refused_ap_is_reported_and_not_latched(void) {
     WiFi.softApFails = false;
 }
 
+/* ══ the access point gives way to the configured network ════════════════
+ *
+ * An AP opened on a unit that has a network gives way to it after
+ * AP_MODE_TIMEOUT_MS, by restarting into the station. The one the boot
+ * gesture opened did not always (finding 25 of
+ * docs/analysis/PLANO_REVISAO_EXTERNA.md): the limit asks for the network by
+ * its name, which only begin( ) used to hand over, and that boot never calls
+ * begin( ). beginAP( ) takes the name now. Built here over a zeroed stack
+ * object, which is how main failed this case.
+ */
+static void test_an_ap_given_the_network_gives_way_to_it(void) {
+    NetworkManager net;
+    TEST_ASSERT_TRUE(net.beginAP("simut-test", "bench-ap"));
+    pump(net, AP_MODE_TIMEOUT_MS - 5000, 1000);
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(0, g_safeReboots, "gave way before the limit");
+    bool restarted = false;
+    try { pump(net, 10000, 1000); } catch (const SafeRebootCalled&) { restarted = true; }
+    TEST_ASSERT_TRUE_MESSAGE(restarted, "the AP outlived its limit on a unit with a network");
+}
+
+/* A unit with no network keeps its AP: there is nothing to give way to, and
+ * the AP is the only way to give it one. */
+static void test_an_ap_with_no_network_stays_open(void) {
+    NetworkManager net;
+    TEST_ASSERT_TRUE(net.beginAP("simut-test"));
+    pump(net, AP_MODE_TIMEOUT_MS * 2, 5000);
+    TEST_ASSERT_EQUAL_UINT(0, g_safeReboots);
+    TEST_ASSERT_TRUE(net.isApConfig( ));
+    NetworkManager blank;
+    TEST_ASSERT_TRUE(blank.beginAP("simut-test", ""));
+    pump(blank, AP_MODE_TIMEOUT_MS * 2, 5000);
+    TEST_ASSERT_EQUAL_UINT(0, g_safeReboots);
+}
+
+/* The limit asked for the network by a name nothing had written on that
+ * boot, so whatever the heap held there decided it: zeros kept the AP of a
+ * unit with a network up for good, and anything else closed the AP of a unit
+ * with none, the one way to give it a network. On the rig, main's gesture AP
+ * closed at exactly 900 s (2026-10-04): those bytes were not zero that time.
+ * Built over memory that holds 0x01 everywhere, a value no bool or string
+ * reading of it can object to, a unit with no network keeps its AP. */
+static void test_the_ap_limit_reads_no_leftover_bytes(void) {
+    alignas(NetworkManager) static unsigned char mem[sizeof(NetworkManager)];
+    memset(mem, 0x01, sizeof(mem));
+    NetworkManager* net = new (mem) NetworkManager( );
+    TEST_ASSERT_TRUE(net->beginAP("simut-test", ""));
+    bool restarted = false;
+    try { pump(*net, AP_MODE_TIMEOUT_MS * 2, 5000); } catch (const SafeRebootCalled&) { restarted = true; }
+    TEST_ASSERT_FALSE_MESSAGE(restarted, "leftover bytes closed the AP of a unit with no network");
+    net->~NetworkManager( );
+}
+
 /* ══ a radio that will not take the join ═════════════════════════════════
  *
  * WiFi.begin( ) queues the join and returns; it answers WL_IDLE_STATUS only
@@ -925,6 +978,9 @@ int main(int, char**) {
     RUN_TEST(test_no_planned_restart_in_the_first_half_hour);
     RUN_TEST(test_a_provisional_clock_is_not_a_synced_one);
     RUN_TEST(test_a_refused_ap_is_reported_and_not_latched);
+    RUN_TEST(test_an_ap_given_the_network_gives_way_to_it);
+    RUN_TEST(test_an_ap_with_no_network_stays_open);
+    RUN_TEST(test_the_ap_limit_reads_no_leftover_bytes);
 
     RUN_TEST(test_a_manual_clock_corrects_what_the_provisional_one_stamped);
     RUN_TEST(test_a_second_manual_set_moves_nothing);

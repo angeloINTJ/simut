@@ -20,37 +20,45 @@ void AppManager::checkAndAutoHealSensors( ) {
  if (_sensorMgr->isScanning( )) return;
  SystemConfig &cfg = _storageMgr->getConfig( );
 
- for (uint8_t gpio = 0; gpio < MAX_SENSORS; gpio++) {
- if (!cfg.sensors[gpio].active) continue;
+ for (uint8_t slot = 0; slot < MAX_SENSORS; slot++) {
+ if (!cfg.sensors[slot].active) continue;
 
  /* 1-Wire ROM check only applies to DS18B20 sensors.
   * DHT22, BME280, and other types use their own driver-specific
   * error detection — don't flag them as missing here. */
- if (cfg.sensors[gpio].sensorType != TYPE_DS18B20) continue;
+ if (cfg.sensors[slot].sensorType != TYPE_DS18B20) continue;
 
  /* Skip ROM verification if config ROM is all zeros — unpaired sensor
   * accepts any DS18B20 on the bus (no hardware mismatch possible). */
  bool romIsZero = true;
- for (int k = 0; k < 8; k++) if (cfg.sensors[gpio].rom[k] != 0) romIsZero = false;
+ for (int k = 0; k < 8; k++) if (cfg.sensors[slot].rom[k] != 0) romIsZero = false;
  if (romIsZero) continue;
 
 #if SIMUT_SENSOR_DS18B20
+ /* The probe sits on the slot's GPIO, not on the GPIO of the slot's number.
+  * This loop read the latter, as the web's "Adopt" did (finding 1 of
+  * docs/analysis/PLANO_REVISAO_EXTERNA.md): a probe in slot 7 on GP1 was
+  * checked on GP7, where an empty pin reads as missing, or as a ROM that
+  * fails its CRC and is skipped (the rig's GP7, 2026-10-04), and a probe
+  * there as a mismatch of the sensor wired to GP7. Logged with the GPIO, as
+  * the read path logs. */
+ const uint8_t pin = cfg.sensors[slot].pins[0];
  uint8_t foundRom[8];
- if (_sensorMgr->identifyPhysicalSensor(gpio, foundRom)) {
+ if (_sensorMgr->identifyPhysicalSensor(pin, foundRom)) {
  if (foundRom[0] == 0x00 || dallasCrc8(foundRom, 7) != foundRom[7]) continue;
 
- if (memcmp(cfg.sensors[gpio].rom, foundRom, 8) != 0) {
- _sensorMgr->setHardwareMismatch(gpio, true);
+ if (memcmp(cfg.sensors[slot].rom, foundRom, 8) != 0) {
+ _sensorMgr->setHardwareMismatch(pin, true);
  } else {
- _sensorMgr->setHardwareMismatch(gpio, false);
+ _sensorMgr->setHardwareMismatch(pin, false);
  }
  } else {
  /* DS18B20 configured but not found on the 1-Wire bus */
  static uint32_t lastMissingLog[MAX_SENSORS] = {0};
- if (timeSince(lastMissingLog[gpio], 60000)) {
- lastMissingLog[gpio] = millis( );
- LOG_CODE(LOG_WARN, "SENSOR", ERR_SENSOR_MISSING, gpio,
- String(cfg.sensors[gpio].friendlyName));
+ if (timeSince(lastMissingLog[slot], 60000)) {
+ lastMissingLog[slot] = millis( );
+ LOG_CODE(LOG_WARN, "SENSOR", ERR_SENSOR_MISSING, pin,
+ String(cfg.sensors[slot].friendlyName));
  }
  }
 #endif /* SIMUT_SENSOR_DS18B20 */

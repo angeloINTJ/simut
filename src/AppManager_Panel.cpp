@@ -43,6 +43,7 @@ bool AppManager::handlePanelEvent(const UiEvent& ev) { (void)ev; return false; }
 void AppManager::panelSaveAlarmLimits(int slot) { (void)slot; }
 void AppManager::panelSetUserPin(int slot, const char* pin, UiMode returnTo) { (void)slot; (void)pin; (void)returnTo; }
 bool AppManager::panelAllowed(uint16_t bit, int8_t slot) { (void)bit; (void)slot; return false; }
+bool AppManager::panelAllowed(uint16_t bit, int8_t slot, uint16_t before, uint16_t after) { (void)bit; (void)slot; (void)before; (void)after; return false; }
 bool AppManager::panelSessionCurrent( ) { return false; }
 #else
 
@@ -78,12 +79,22 @@ bool AppManager::panelSessionCurrent( ) {
 }
 
 /* Every action passes through here first. A missing bit is a refusal the
- * operator hears (error tone) and the log keeps, with who tried what. */
-bool AppManager::panelAllowed(uint16_t bit, int8_t slot) {
- if (panelSessionCurrent( ) && (_panelPerms & bit)) return true;
+ * operator hears (error tone) and the log keeps, with who tried what. So is
+ * changing an account's panel bits from `before` to `after` by adding one the
+ * session lacks (panelGrantAllowed, SessionCheck.h), which the two account
+ * events ask. noinline: inlined into the overload below, the body would be
+ * there twice. */
+__attribute__((noinline))
+bool AppManager::panelAllowed(uint16_t bit, int8_t slot, uint16_t before, uint16_t after) {
+ if (panelSessionCurrent( ) && (_panelPerms & bit) &&
+     panelGrantAllowed(before, after, _panelPerms)) return true;
  LOG_CODE(LOG_WARN, "APP", APP_UI_PERM_DENIED, panelCtx(_panelUser, slot), "");
  _soundMgr->play(SND_ERROR);
  return false;
+}
+
+bool AppManager::panelAllowed(uint16_t bit, int8_t slot) {
+ return panelAllowed(bit, slot, 0, 0);
 }
 
 const char* AppManager::panelUserName( ) const {
@@ -156,13 +167,13 @@ void AppManager::panelIdentify( ) {
   * the first thing it does is choose a PIN that complies. The admin's factory
   * "1234" arrives here the same way. */
  if (_storageMgr->pinMustChange(slot)) {
- _displayMgr->showPinEntry(DisplayManager::PIN_FOR_OWN);
+ _displayMgr->showPinEntry(DisplayManager::PIN_FOR_OWN, -1, true);
  LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, (int)slot,
  TRL("PIN does not meet the policy; forcing change."));
  return;
  }
  if (slot == 0 && _storageMgr->mustChangePin( )) {
- _displayMgr->showPinEntry(DisplayManager::PIN_FOR_OWN);
+ _displayMgr->showPinEntry(DisplayManager::PIN_FOR_OWN, -1, true);
  LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, 0,
  TRL("Default PIN detected; forcing change."));
  return;
@@ -371,7 +382,11 @@ bool AppManager::handlePanelEvent(const UiEvent& ev) {
  }
 
  case UiEvent::EVT_USER_ADD: {
- if (!panelAllowed(PERM_USER_MGR, -1)) {
+ /* Users, and no panel bit the session lacks: a new account starts from 0
+  * (finding 8 of docs/analysis/PLANO_REVISAO_EXTERNA.md; the web's V-09).
+  * Refused whole, not trimmed: an account other than the one asked for,
+  * under a success, is what the web's rule refuses too. */
+ if (!panelAllowed(PERM_USER_MGR, -1, 0, (uint16_t)(ev.param & PERM_PANEL_ALARM_ANY))) {
  _displayMgr->clearEnteredPin( );
  _displayMgr->showPanelMessage(false, TR_NO_PERMISSION, MODE_SETTINGS_USERS);
  return true;
@@ -461,17 +476,24 @@ bool AppManager::handlePanelEvent(const UiEvent& ev) {
 
  case UiEvent::EVT_USER_PERMS: {
  const int slot = ev.id;
- if (!panelAllowed(PERM_USER_MGR, -1)) {
+ const bool known = slot > 0 && slot < MAX_USERS && cfg.users[slot].active;
+ /* only the three panel bits move; whatever the web granted stays. And only
+  * by adding bits the session holds: an account with Users and no panel bit
+  * gave all three to anyone, itself included (finding 8 of
+  * docs/analysis/PLANO_REVISAO_EXTERNA.md). */
+ const uint16_t after = (uint16_t)(ev.param & PERM_PANEL_ALARM_ANY);
+ if (!panelAllowed(PERM_USER_MGR, -1,
+                   known ? (uint16_t)(cfg.users[slot].permissions & PERM_PANEL_ALARM_ANY) : 0,
+                   after)) {
  _displayMgr->showPanelMessage(false, TR_NO_PERMISSION, MODE_SETTINGS_USERS);
  return true;
  }
- if (slot <= 0 || slot >= MAX_USERS || !cfg.users[slot].active) {
+ if (!known) {
  _displayMgr->showPanelMessage(false, TR_NAME_INVALID, MODE_SETTINGS_USERS);
  return true;
  }
- /* only the three panel bits move; whatever the web granted stays */
  const uint16_t keep = (uint16_t)(cfg.users[slot].permissions & ~PERM_PANEL_ALARM_ANY);
- cfg.users[slot].permissions = (uint16_t)(keep | (ev.param & PERM_PANEL_ALARM_ANY));
+ cfg.users[slot].permissions = (uint16_t)(keep | after);
  _storageMgr->saveConfiguration( );
  _soundMgr->play(SND_CONFIRM);
  LOG_CODE(LOG_WARN, "APP", APP_UI_USER_PERMS, slot, cfg.users[slot].username);

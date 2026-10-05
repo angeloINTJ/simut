@@ -1103,7 +1103,7 @@ void AppManager::setup( ) {
  _displayMgr->setBootStatusKey(TR_BOOT_START_AP);
  /* beginAP first: the network line now carries the WPA2 key, and the key
   * does not exist until the AP has been brought up (V-05). */
- _netMgr->beginAP(cfg.deviceName);
+ _netMgr->beginAP(cfg.deviceName, cfg.wifiSsid);
  {
   /* Appended as a suffix rather than added as a new translation key. "PSK" is
    * an acronym and the value is random, so there is nothing here to translate.

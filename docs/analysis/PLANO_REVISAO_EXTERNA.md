@@ -58,7 +58,7 @@ falha antes (`CLAUDE.md`, *Tests first*).
 | Linha de alarmes por MQTT: ACK nunca lido com a telemetria desligada; a fila não cabe no buffer de 2.048 B (achados 28 e 29) | Mergeado (#208, 01/10), na v2.9.0. Provado na bancada: fila presa em 5/16 e maior lote de 2.001 B na main; fila 0 e lote de 2.794 B com o PR |
 | `isTimeSynced( )` sempre verdadeiro (achado 66) | Mergeado (#209, 01/10), na v2.9.0. Provado na bancada: com o NTP desligado a main diz `ntp=1` com o relógio em 1970; o PR diz 0 |
 | Com NTP ligado e sem servidor alcançável, o aparelho nunca chega a `NET_READY`, e telemetria e linha de alarmes esperam para sempre (achado 20). Documentado no manual, cap. 10, mas é armadilha para a LAN sem internet que o README promete | A fazer: desenho (sair para `NET_READY` depois de N falhas e seguir tentando o NTP). Presente na v2.11.0: `NET_CONNECTED_WAIT_NTP` só sai com o NTP respondendo, e a telemetria e a linha de alarmes conferem `isNetworkHealthy( )`, que exige `NET_READY`. Só o Air envia antes disso, com `isLinkUp( )` (F08) |
-| Os achados de severidade alta que restam: 7 dos 17 (tabela abaixo; 28, 29, 48, 63 e 64 corrigidos, 6, 18 e 38 no #234, 44 no #235 e 58 no #236) | Um PR por grupo. O #236 fecha o 58: uma restauração que falha no meio mantém os arquivos que terminou e apaga só o incompleto, não há mais limite de 200 arquivos, e o `apply` exige a validação do mesmo arquivo. O #235 fecha o 44, do grupo API: `null` num limite mantém o limite, e o que não é número é recusado; o 41, do mesmo grupo, é a limitação conhecida do HTTP e fica documentada. O #234 fecha o grupo do ensaio inteiro: os três altos e os quatro médios (5, 17, 21, 69). O ensaio e o **Testar** escrevem só na cópia; fuso e sons valem com o reinício da gravação. Em 04/10, na v2.11.0, os seis que pedem código continuam lá: 1, 8, 9, 20, 25 e 65. O 25 é o AP aberto pelo gesto do boot: esse caminho não chama o `begin( )` da rede, que carrega o nome dela, e o prazo de 15 min do AP só vale com um nome |
+| Os achados de severidade alta que restam: 3 dos 17 (tabela abaixo; 28, 29, 48, 63 e 64 corrigidos, 6, 18 e 38 no #234, 44 no #235, 58 no #236, e 1, 8, 9 e 25 no #255) | Um PR por grupo. O #255 fecha o 1, o 8, o 9 e o 25, cada um provado na bancada contra a `main` (04/10): a adoção da sonda lê o GPIO do slot e recarrega os sensores (depois de adotar, 0 de 15 leituras válidas em 90 s na `main`, 14 de 14 com o PR); o painel só concede as permissões que a conta identificada tem; o **SAIR** da troca obrigatória de PIN volta à tela inicial; e o AP do gesto segue o prazo de 15 min. O prazo desse AP lia 32 bytes que nada tinha escrito: na bancada, o da `main` fechou em 900 s, porque naquele boot os bytes não eram zero. O #236 fecha o 58: uma restauração que falha no meio mantém os arquivos que terminou e apaga só o incompleto, não há mais limite de 200 arquivos, e o `apply` exige a validação do mesmo arquivo. O #235 fecha o 44, do grupo API: `null` num limite mantém o limite, e o que não é número é recusado; o 41, do mesmo grupo, é a limitação conhecida do HTTP e fica documentada. O #234 fecha o grupo do ensaio inteiro: os três altos e os quatro médios (5, 17, 21, 69). O ensaio e o **Testar** escrevem só na cópia; fuso e sons valem com o reinício da gravação. Pedem código ainda o 20 e o 65; o 41 é a limitação documentada |
 
 ## Fase 2 — os itens de firmware da revisão
 
@@ -192,7 +192,7 @@ corrigidos, cada um com a prova no PR: 28 e 29 (#208), 48 (#204), 63 e 64 (#203)
 e 66 (#209). Depois dela, os sete do grupo do ensaio: 5, 6, 17, 18, 21, 38 e 69
 (#234), o 44 (#235) e o 58 (#236). O 12 fechou junto com o #230 (02/10): o
 `pinAuth` mora em `CFG_USERS`, que saiu das classes que reiniciam. Só foi
-marcado aqui em 04/10. Restam 56. Severidade do ponto de vista de um monitor de
+marcado aqui em 04/10. No mesmo dia, o 1, o 8, o 9 e o 25 (#255). Restam 52. Severidade do ponto de vista de um monitor de
 cadeia fria: **alta** perde ou corrompe medição, alarme ou config, trava o boot
 ou abre brecha de segurança; **média** é comportamento errado que o usuário nota
 ou contrato de API quebrado; **baixa** é cosmético, de documentação ou de
@@ -202,13 +202,13 @@ comentário.
 
 | # | Grupo | Onde | O que acontece |
 |---|---|---|---|
-| 1 | slot | `WebManager_Calib.cpp` | "Adotar a sonda" lê o GPIO de número igual ao slot e grava `pins[0]=slot`; sem reload, a divergência volta a cada 5 leituras |
+| 1 | slot | `WebManager_Calib.cpp` | "Adotar a sonda" lê o GPIO de número igual ao slot e grava `pins[0]=slot`; sem reload, a divergência volta a cada 5 leituras. Corrigido (#255): lê e mantém o GPIO do slot e recarrega os sensores; um slot que não é DS18B20 ativo responde 409 |
 | 6, 38 | ensaio | `WebManager_Commit.cpp` | Sons e mudo aplicados ao vivo durante o ensaio (`_dry`) que a página manda a cada edição. Corrigido (#234) |
-| 8 | PIN | `AppManager_Panel.cpp` | No painel, quem tem Usuários concede bits que não tem, inclusive a si mesmo |
-| 9 | PIN | `AppManager_Panel.cpp` | A troca obrigatória de PIN é pulada com SAIR, inclusive o `1234` de fábrica |
+| 8 | PIN | `AppManager_Panel.cpp` | No painel, quem tem Usuários concede bits que não tem, inclusive a si mesmo. Corrigido (#255): só acrescenta o que a conta identificada tem, a regra V-09 da web |
+| 9 | PIN | `AppManager_Panel.cpp` | A troca obrigatória de PIN é pulada com SAIR, inclusive o `1234` de fábrica. Corrigido (#255): o SAIR volta à tela inicial, e Configurações pede o PIN de novo |
 | 18 | ensaio | `WebManager_Commit.cpp` | O ensaio aplica o fuso de verdade. Corrigido (#234) |
 | 20 | NTP | `NetworkManager.cpp` | Com NTP ligado e sem servidor, nunca `NET_READY`: telemetria e alarmes esperam |
-| 25 | AP | `NetworkManager.cpp` | O AP aberto no boot nunca expira |
+| 25 | AP | `NetworkManager.cpp` | O AP aberto no boot nunca expira. Corrigido (#255): o prazo lia 32 bytes que nada tinha escrito, então o AP expirava ou não conforme a memória (na bancada, o da `main` expirou); o `beginAP( )` recebe o nome da rede |
 | 28 | alarmes | `TelemetryManager.cpp` | ACK do MQTT nunca lido com a telemetria desligada. Corrigido (#208) |
 | 29 | alarmes | `TelemetryManager.cpp` | A fila não cabe no buffer de 2.048 B. Corrigido (#208) |
 | 41 | API | `WebManager_Auth.cpp` | Por HTTP, o SHA-256 da senha é a senha para quem o captura (limitação conhecida) |

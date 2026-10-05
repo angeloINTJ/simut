@@ -289,8 +289,9 @@ Esses números vêm da leitura do código da v2.7.1. O log de eventos mostra qua
 
 - A telemetria e o syslog esperam a rede voltar.
 - O aparelho não tenta a rede configurada enquanto o AP está aberto.
-- Um AP aberto com o aparelho em operação, pelo painel ou pelo comando `ap`, num aparelho com rede configurada, dura 15 min. Depois disso o aparelho reinicia para tentar a rede de novo, com ou sem alguém conectado ao AP. O evento é **Timeout na conexão WiFi** (525) com o texto `AP mode timeout, rebooting to STA`. Se a rede ainda não estiver lá, o aparelho segue a escada de reconexão, e o AP só volta se alguém o abrir de novo.
-- Um AP aberto no boot, pelo gesto, ou num aparelho sem rede configurada, fica aberto até alguém gravar uma rede ou reiniciar o aparelho.
+- Num aparelho com rede configurada, o AP dura 15 min, aberto pelo painel, pelo comando `ap` ou pelo gesto no boot. Depois disso o aparelho reinicia para tentar a rede de novo, com ou sem alguém conectado ao AP. O evento é **Timeout na conexão WiFi** (525) com o texto `AP mode timeout, rebooting to STA`. Se a rede ainda não estiver lá, o aparelho segue a escada de reconexão, e o AP só volta se alguém o abrir de novo.
+- Num aparelho sem rede configurada, o AP fica aberto até alguém gravar uma rede ou reiniciar o aparelho.
+- Até a v2.11.0, o prazo do AP aberto pelo gesto no boot lia um nome de rede que nada tinha gravado. Esse AP podia ficar aberto para sempre num aparelho com rede, ou fechar em 15 min num aparelho sem rede, conforme o que estivesse na memória. Na bancada, em 04/10/2026, ele fechou em 15 min num aparelho com rede.
 
 Para sair do AP com a rede certa:
 

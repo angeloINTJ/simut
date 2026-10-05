@@ -3,9 +3,12 @@
 
 A stage the device refuses comes back in one of two shapes:
 
-  * refused by validation: `v` says why (7 another model, 8 unsigned, 9 a
-    signature that does not match, 10 a retired key, 11 below the security
-    level, 12 the bench key), and the page explains each code;
+  * refused by validation: `v` says why (6 another chip or a damaged file,
+    7 another model, 8 unsigned, 9 a signature that does not match, 10 a
+    retired key, 11 below the security level, 12 the bench key), and the page
+    explains each code. Until v2.11.1 it gave no reason for 6, the code a
+    Pico W answers to the Pico 2 W's .bin, which v2.11.0 put on the release
+    page beside its own;
   * refused before any validation: no `v`, only `error`, in the device's own
     words. An RP2350 that boots from no slot of a partition table answers
     every stage this way (501; docs/analysis/OTA_AB_RP2350.md, step 4), as
@@ -16,8 +19,8 @@ The message is built by `fwStageMessage( )` in FILES_PAGE, between the
 `fw: stage message` and `fw: end of stage message` comments. This test takes
 it out of WebUI.h and runs it under node, as written and as the build's own
 minifier leaves it, with window.t answering the English default. It also
-checks that doFirmware( ) uses it, and that both language packs carry the key
-the new shape needs.
+checks that doFirmware( ) uses it, and that both language packs carry the keys
+the newer messages need.
 
 Run: python3 tools/test_webui_firmware_refusal.py
 Exit status is 0 on pass, 1 on failure.
@@ -42,6 +45,11 @@ UNAVAILABLE = "This board boots from no slot of a partition table. Install the f
 
 # [HTTP status, reply, texts the message must contain, texts it must not]
 CASES = [
+    # The Pico 2 W's .bin sent to a Pico W: its first 256 bytes are no RP2040
+    # boot stage. A damaged file answers the same.
+    [422, {"st": 5, "v": 6, "committed": 0, "env": "release"},
+     ["Upload failed (validation v=6). Cancelled.", "another chip, or it is damaged", "releasetwo"],
+     ["undefined"]],
     [422, {"st": 5, "v": 8, "committed": 0, "env": "release"},
      ["Upload failed (validation v=8). Cancelled.", "is not signed"], ["undefined"]],
     [422, {"st": 5, "v": 7, "committed": 0, "env": "air"},
@@ -128,8 +136,9 @@ def wiring(src: str) -> list:
         fails.append("doFirmware( ) still builds a 'validation v=' message of its own")
     for pack in PACKS:
         text = pack.read_text(encoding="utf-8")
-        if '"fil_fw_stage_refused":' not in text:
-            fails.append(f"{pack.name}: @WEBDICT has no fil_fw_stage_refused")
+        for key in ("fil_fw_stage_refused", "fil_fw_v6"):
+            if f'"{key}":' not in text:
+                fails.append(f"{pack.name}: @WEBDICT has no {key}")
     return fails
 
 
@@ -140,7 +149,7 @@ def main() -> int:
     for f in fails:
         print(f"  FAIL wiring: {f}")
     if not fails:
-        print("  ok   wiring: doFirmware( ) uses fwStageMessage( ), and both packs carry the key")
+        print("  ok   wiring: doFirmware( ) uses fwStageMessage( ), and both packs carry the keys")
     ok = not fails
     ok = run("as written", raw) and ok
     ok = run("minified by build_webui_gz.py", generator()["_minify_js"](raw)) and ok

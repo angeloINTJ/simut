@@ -48,7 +48,7 @@ Os três compartilham o mesmo núcleo:
 | **Release atual** | **v2.11.0** (04/10/2026); o [changelog](CHANGELOG.pt-BR.md) diz o que cada versão mudou. O SIMUT saiu do beta com a v2.7.0, com base em medições: soak de 8,18 h sem nenhum reboot e 6 de 6 atualizações pelo ar sem perder nada. |
 | **Imagens publicadas** | Quatro imagens, cada uma em `.uf2` e `.bin`. Para o Pico W: `release` (painel touch TFT), `alpha` (LCD 16×2 com console Bluetooth) e `air` (registrador a bateria sem display). Para o Pico 2 W (RP2350): `releasetwo`, a release, cujo `.uf2` traz a tabela de partições e cujo `.bin` sobe em teste. Junto vêm os packs de idioma pt-BR e es-ES e um manifesto de OTA. Uma imagem com outro conjunto de recursos sai do [configurador de build](https://angelointj.github.io/simut/configurador/), e o CI a compila da `main`; o configurador ainda não compila para o Pico 2 W. |
 | **Maturidade** | <ul><li>`release`: **estável**.</li><li>`alpha`: publicado e testado na bancada, com o LCD 16×2 incluído desde 26/09/2026.</li><li>`air`: **experimental**. O único soak longo dele falhou: um sono no ciclo 119 nunca acordou (F28). Um watchdog ao longo do wake hoje mitiga o problema; a causa raiz não foi confirmada.</li><li>`releasetwo`: **nova** na v2.11.0, testada na bancada num Pico 2 W (RP2350 A2). Atualiza pelo ar no outro slot, em teste, e volta sozinha quando a atualização não se confirma.</li></ul> |
-| **Testes** | Todo pull request roda 632 casos de teste no host em 9 suítes, 60 s de fuzzing e análise estática, e compila as sete imagens de firmware com o cache frio. O comportamento no hardware real é verificado numa bancada — ver [Verificação no hardware](docs/VERIFICATION.pt-BR.md). |
+| **Testes** | Todo pull request roda 636 casos de teste no host em 9 suítes, 60 s de fuzzing e análise estática, e compila as sete imagens de firmware com o cache frio. O comportamento no hardware real é verificado numa bancada — ver [Verificação no hardware](docs/VERIFICATION.pt-BR.md). |
 
 **Limitações conhecidas.** Cada uma está documentada onde se aplica.
 - **Atualização.** A atualização pelo ar reformata o sistema de arquivos:
@@ -299,12 +299,12 @@ O aparelho expõe uma API REST em `http://<ip-do-dispositivo>/api/`:
 ### Testes no host
 
 ```bash
-pio test -e native             # validadores, cursor de telemetria, rótulos, parsers, pacotes de idioma, as telas Licença e de atualização, o menu de Configurações, a verificação de senha, a sessão web (283 casos)
+pio test -e native             # validadores, cursor de telemetria, rótulos, parsers, pacotes de idioma, as telas Licença e de atualização, o menu de Configurações, a verificação de senha, a sessão web (284 casos)
 pio test -e native_history_v5  # codec do histórico V5 (62)
 pio test -e native_cli         # parser do CLI (33)
 pio test -e native_logpolicy   # persistência de log por transição, faixas da autópsia, leitura do toque (57)
 pio test -e native_alarmqueue  # fila da telemetria de alarmes (54)
-pio test -e native_network     # máquina de estados da reconexão Wi-Fi (36)
+pio test -e native_network     # máquina de estados da reconexão Wi-Fi (39)
 pio test -e native_air         # config persistente do SIMUT Air (16)
 pio test -e native_sensors     # tabela de tipos de sensor (13)
 pio test -e native_otasig      # assinatura da imagem de OTA, a restauração do backup, e o gravador de slot e a atualização em teste do RP2350 (78)
