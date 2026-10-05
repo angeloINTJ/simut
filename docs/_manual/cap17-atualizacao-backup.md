@@ -340,9 +340,9 @@ Os tempos dependem do tamanho da imagem e da rede. Para confirmar uma atualizaç
 
 Até a v2.8.x, o aparelho aceitava uma imagem sem assinatura e uma sem etiqueta de variante, anterior à etiqueta. Hoje as duas são recusadas com `v=8`.
 
-Uma recusa aparece como **Falha no envio (validação v=N). Cancelled.**, seguida do motivo de `v=7` a `v=12`. Um arquivo maior que 1016 KiB não chega a ser conferido e aparece como `v=undefined`.
+Uma recusa aparece como **Falha no envio (validação v=N). Cancelled.**, seguida do motivo de `v=6` a `v=12`. Um arquivo maior que 1016 KiB não chega a ser conferido e aparece como `v=undefined`.
 
-O `.bin` do Pico 2 W (`simut_vX.Y.Z_releasetwo.bin`, desde a v2.11.0), mandado a um Pico W, é recusado com `v=6`, sem motivo na página: os primeiros 256 bytes dele não são um início de imagem do RP2040. Visto na bancada em 04/10/2026.
+O `.bin` do Pico 2 W (`simut_vX.Y.Z_releasetwo.bin`, desde a v2.11.0), mandado a um Pico W, é recusado com `v=6`: os primeiros 256 bytes dele não são um início de imagem do RP2040. A página diz **A imagem é de outro chip, ou está danificada. O Pico 2 W usa o .bin releasetwo, e o Pico W os outros.** Até a v2.11.0, ela não dava motivo para o `v=6`.
 
 ::: perigo
 **Uma recusa no envio também apaga o sistema de arquivos.** A imagem é gravada sobre o sistema de arquivos enquanto chega, e a conferência só acontece no fim. Quando o aparelho recusa a imagem, ele reformata o sistema de arquivos e continua funcionando com a configuração que está na RAM; desde a v2.8.0 ele grava a configuração de volta logo em seguida, e até a v2.7.4 o arquivo dela simplesmente deixava de existir. **Restaure o backup do passo 4**: ele devolve o histórico, os pacotes de idioma e os demais arquivos. Até a v2.7.4, um reinício antes disso voltava com a configuração de fábrica ([capítulo 18](#cap-18-fabrica)).

@@ -6383,6 +6383,7 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             if (v.v === undefined)
                 return window.t('fil_fw_stage_refused', 'Upload refused (HTTP ') + status + ').' + (v.error ? ' ' + v.error : '');
             let why = {
+                6: window.t('fil_fw_v6','The image is for another chip, or it is damaged. The Pico 2 W takes the releasetwo .bin, and the Pico W the others.'),
                 7: window.t('fil_fw_v7','The image is for another model (env ') + v.env + ').',
                 8: window.t('fil_fw_v8','The image is not signed. Use a release .bin from GitHub or a build from the configurator.'),
                 9: window.t('fil_fw_v9','The signature does not match: the file changed after it was signed, or a key this device does not trust signed it. Download the .bin again.'),
