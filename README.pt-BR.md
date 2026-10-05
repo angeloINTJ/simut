@@ -258,7 +258,7 @@ simut/
 > O ponto de acesso de configuração é WPA2 em todas as imagens, com chave por
 > aparelho mostrada no console e, onde houver, no display. Ver [SECURITY.md](SECURITY.md) §2 e §8.
 
-> Não há ambiente de depuração. O `pico_w_debug` foi removido na v2.4.1 depois de nunca ter linkado: em `-Og` a imagem estourava o slot de 1020 KB em ~100 KB. A flash é apertada. A imagem release usa 97,7 % do slot de programa de 1.044.480 B (o valor medido mora em `tools/flash_budget.json`), e o CI confere cada `.bin`, com os 241 B da assinatura, contra o teto de atualização pelo ar, de 1.040.384 B. Um alvo de GDB teria de ser montado cortando funcionalidades. Para o tripwire de concorrência no hardware, use `pico_w_asserts`.
+> Não há ambiente de depuração. O `pico_w_debug` foi removido na v2.4.1 depois de nunca ter linkado: em `-Og` a imagem estourava o slot de 1020 KB em ~100 KB. A flash é apertada. A imagem release usa 97,8 % do slot de programa de 1.044.480 B (o valor medido mora em `tools/flash_budget.json`), e o CI confere cada `.bin`, com os 241 B da assinatura, contra o teto de atualização pelo ar, de 1.040.384 B. Um alvo de GDB teria de ser montado cortando funcionalidades. Para o tripwire de concorrência no hardware, use `pico_w_asserts`.
 
 ### Flags de build
 - `-Os` — otimização por tamanho
