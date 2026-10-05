@@ -4,7 +4,7 @@ Este capítulo reúne em tabelas os números do SIMUT: faixas, valores de fábri
 
 ## Como ler as tabelas {#cap-28-como-ler}
 
-- Os valores são os da v2.11.0.
+- Os valores são os da v2.11.1.
 - Quando um número muda de uma imagem para outra, a célula traz o selo da imagem: [release]{.img}, [alpha]{.img} ou [air]{.img}.
 - Uma medição traz a data e a versão em que foi feita. Os demais números vêm do código.
 - A coluna **Onde** leva ao capítulo que explica o item. Lá estão o efeito de cada valor e o que fazer quando um limite é atingido.
@@ -188,6 +188,7 @@ O filtro vale só para a flash: o console com `debug on` e o syslog recebem todo
 | Alfabeto | `0-9` ou `0-9 A-Z`; fábrica `0-9` | [cap. 8](#cap-08-politica) |
 | Tamanho mínimo | De 4 até o teto; fábrica 4 | [cap. 8](#cap-08-politica) |
 | Teto do tamanho | 8 com 3 caracteres por tecla, 12 com 2, 16 com 1 | [cap. 8](#cap-08-politica) |
+| Identificação no painel | Confere qualquer PIN a partir de 4 caracteres; um certo mais curto que a política leva direto à troca | [cap. 8](#cap-08-bloqueios) |
 | PIN pela web ou pela API | Sempre de 4 a 8 dígitos | [cap. 8](#cap-08-pin-web) |
 | PIN de fábrica do `admin` | `1234`, com troca obrigatória | [cap. 8](#cap-08-pin-fabrica) |
 
@@ -249,8 +250,8 @@ O filtro vale só para a flash: o console com `debug on` e o syslog recebem todo
 | Nome da rede | `<nome>_SETUP` | [cap. 9](#cap-09-ap) |
 | Chave | 10 caracteres, letras maiúsculas e algarismos sem `O`, `0`, `I` e `1`; sempre a mesma naquele aparelho, mesmo depois de um reset de fábrica | [cap. 9](#cap-09-ap) |
 | Endereço do aparelho | `http://192.168.4.1` | [cap. 9](#cap-09-ap) |
-| AP aberto em operação, com rede configurada | Dura 15 min; depois o aparelho reinicia para tentar a rede | [cap. 9](#cap-09-ap-aberto) |
-| AP aberto no boot pelo gesto, ou num aparelho sem rede configurada | Fica aberto até alguém gravar uma rede ou reiniciar o aparelho | [cap. 9](#cap-09-ap-aberto) |
+| AP aberto num aparelho com rede configurada, pelo painel, pelo comando `ap` ou pelo gesto no boot | Dura 15 min; depois o aparelho reinicia para tentar a rede. Até a v2.11.0, o aberto pelo gesto não seguia esse prazo | [cap. 9](#cap-09-ap-aberto) |
+| AP aberto num aparelho sem rede configurada | Fica aberto até alguém gravar uma rede ou reiniciar o aparelho | [cap. 9](#cap-09-ap-aberto) |
 | Medição com o AP aberto | Continua: lê sensores, confere alarmes e grava histórico; telemetria e syslog esperam a rede | [cap. 9](#cap-09-ap-aberto) |
 
 ::: perigo

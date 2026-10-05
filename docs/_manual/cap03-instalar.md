@@ -8,14 +8,14 @@ Cada versão publicada, na página de versões do projeto no GitHub (`github.com
 
 | Arquivo | Para que serve |
 |---|---|
-| `simut_v2.11.0_release.uf2` | Gravar a imagem release pelo USB |
-| `simut_v2.11.0_alpha.uf2` | Gravar a imagem alpha pelo USB |
-| `simut_v2.11.0_air.uf2` | Gravar a imagem do Air pelo USB |
-| `simut_v2.11.0_releasetwo.uf2` | Gravar a release do Pico 2 W pelo USB, com a tabela de partições |
-| `simut_v2.11.0_release.bin` | Atualizar a release pela página **Arquivos** ([capítulo 17](#cap-17-ota)) |
-| `simut_v2.11.0_alpha.bin` | Atualizar a alpha pela página **Arquivos** |
-| `simut_v2.11.0_air.bin` | Atualizar o Air pela página **Arquivos** |
-| `simut_v2.11.0_releasetwo.bin` | Atualizar a release do Pico 2 W pela página **Arquivos**; a imagem nova sobe em teste ([capítulo 26](#cap-26-ota)) |
+| `simut_v2.11.1_release.uf2` | Gravar a imagem release pelo USB |
+| `simut_v2.11.1_alpha.uf2` | Gravar a imagem alpha pelo USB |
+| `simut_v2.11.1_air.uf2` | Gravar a imagem do Air pelo USB |
+| `simut_v2.11.1_releasetwo.uf2` | Gravar a release do Pico 2 W pelo USB, com a tabela de partições |
+| `simut_v2.11.1_release.bin` | Atualizar a release pela página **Arquivos** ([capítulo 17](#cap-17-ota)) |
+| `simut_v2.11.1_alpha.bin` | Atualizar a alpha pela página **Arquivos** |
+| `simut_v2.11.1_air.bin` | Atualizar o Air pela página **Arquivos** |
+| `simut_v2.11.1_releasetwo.bin` | Atualizar a release do Pico 2 W pela página **Arquivos**; a imagem nova sobe em teste ([capítulo 26](#cap-26-ota)) |
 | `language_pt-BR.lng` | Pacote de idioma português do Brasil |
 | `language_es-ES.lng` | Pacote de idioma espanhol |
 | `manifest.json` | Tamanho, soma SHA-256 e tipo de cada imagem, para um gestor de frota ([capítulo 27](#cap-27-manifest)) |
@@ -82,7 +82,7 @@ O `picotool` é a ferramenta de linha de comando do Raspberry Pi para o RP2040. 
 
 ```bash
 picotool info
-picotool load -x simut_v2.11.0_release.uf2
+picotool load -x simut_v2.11.1_release.uf2
 ```
 
 O `picotool info` confirma que a placa está no modo BOOTSEL. O `load -x` grava e reinicia a placa no fim.
@@ -191,7 +191,7 @@ PLATFORMIO_BUILD_FLAGS="-DSIMUT_TFT_SPI_HZ=31250000u" pio run -e pico_w_release
 
 As versões anteriores à 1.6.2-beta tinham um defeito na atualização pela rede: diziam que tinham aplicado a imagem sem aplicá-la. Por isso, a primeira atualização de um aparelho desses é pelo USB.
 
-Um aparelho na versão 1.x perde duas coisas no primeiro boot da 2.11.0:
+Um aparelho na versão 1.x perde duas coisas no primeiro boot da 2.11.1:
 
 - **A configuração.** O firmware não lê configurações das versões 1.x. O aparelho começa com a configuração de fábrica e uma senha nova para o `admin`, mostrada no console USB ([capítulo 4](#cap-04-senha)). Anote a rede, as contas e os sensores antes de atualizar.
 - **O histórico no formato antigo.** Os arquivos `.sim4` da pasta `/history` são apagados no primeiro boot. Baixe-os antes de atualizar e converta-os no computador, com a ferramenta `tools/history_v5.py` do código-fonte:
@@ -203,7 +203,7 @@ python3 tools/history_v5.py --convert-v4 AAAAMMDD.sim4 AAAAMMDD.h5
 Um aparelho na versão 2.x mantém a configuração: o firmware novo a converte no boot.
 
 ::: atencao
-**A conversão só vai para a frente.** A v2.8.0 passou a gravar a configuração num formato novo, que as versões anteriores não leem; a v2.9.0, a v2.10.0 e a v2.11.0 usam o mesmo. Uma versão anterior à v2.8.0 gravada depois dela, pelo USB, pode voltar com a configuração de fábrica; pela página **Arquivos**, desde a v2.9.0, só entra imagem assinada, e nenhuma versão anterior é. Para voltar a uma versão anterior à v2.8.0 sem perder a configuração, grave-a e restaure o backup feito antes de atualizar para a v2.8.0, como o `simut_pre-ota_<número>.bkp` que a página **Arquivos** baixa ([capítulo 17](#cap-17-restauracao)). O que mudou no aparelho depois desse backup se perde.
+**A conversão só vai para a frente.** A v2.8.0 passou a gravar a configuração num formato novo, que as versões anteriores não leem; a v2.9.0, a v2.10.0, a v2.11.0 e a v2.11.1 usam o mesmo. Uma versão anterior à v2.8.0 gravada depois dela, pelo USB, pode voltar com a configuração de fábrica; pela página **Arquivos**, desde a v2.9.0, só entra imagem assinada, e nenhuma versão anterior é. Para voltar a uma versão anterior à v2.8.0 sem perder a configuração, grave-a e restaure o backup feito antes de atualizar para a v2.8.0, como o `simut_pre-ota_<número>.bkp` que a página **Arquivos** baixa ([capítulo 17](#cap-17-restauracao)). O que mudou no aparelho depois desse backup se perde.
 :::
 
 ## Depois de gravar {#cap-03-depois}

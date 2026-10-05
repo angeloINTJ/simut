@@ -535,21 +535,21 @@
   "(ota_exempt, with the reason) and records no 'bin'; its budget still holds."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-10-04 fix/pin-entry-below-policy: a PIN shorter than a stricter policy identifies at the panel and is sent to the change, and the too-short line says the policy's minimum. 'measured' and the .bin +152 B on release, test and asserts, +160 B on test_https and pico2_w_release; alpha and air do not change (no panel PIN). The budgets of release, test, test_https, asserts and pico2_w_release move by their growth, which keeps their margins.",
- "measured_at_commit": "2026-10-04 fix/pin-entry-below-policy on main 8388f32 (#255): the seven images built from this branch. measured is the zopfli image PlatformIO prints.",
+ "measured_on": "2026-10-05 chore/v2.11.1: SIMUT_VERSION 2.11.1, the only source change. All seven rebuilt here. The version has as many characters as 2.11.0, but the login page carries it, and its gzip came out 5 B smaller in every image: measured and .bin 8 B under the record on release, test, asserts and pico2_w_release; alpha, air and test_https equal, their alignment absorbing it. Budgets unchanged.",
+ "measured_at_commit": "2026-10-05 chore/v2.11.1 on main de13562 (#256 merged). measured is the zopfli image PlatformIO prints.",
  "ota_exempt": {
   "pico_w_test_https": "A bench image: the one with the full console and the TLS server together, for the HTTPS suites (AGENTS.md). It reaches the rig over USB, and release-ota.yml does not publish it. #232 (2026-10-02) left it 147 B under OTA_APP_SAFE_MAX_SIZE, and keeping it there meant cutting code the product images ship too, or moving more of its pages to LittleFS. Over the ceiling the device refuses to stage it, which costs only installing this image over the air; its flash budget still holds. Exempt since 2026-10-02 (docs/analysis/PLANO_STABLE.md, B6)."
  },
  "envs": {
   "pico_w_release": {
    "budget": 1021164,
-   "measured": 1021092,
-   "bin": 1033124
+   "measured": 1021084,
+   "bin": 1033116
   },
   "pico_w_test": {
    "budget": 1025812,
-   "measured": 1025668,
-   "bin": 1037700
+   "measured": 1025660,
+   "bin": 1037692
   },
   "pico_w_test_https": {
    "budget": 1030652,
@@ -557,8 +557,8 @@
   },
   "pico_w_asserts": {
    "budget": 1023420,
-   "measured": 1023388,
-   "bin": 1035420
+   "measured": 1023380,
+   "bin": 1035412
   },
   "pico_w_alpha": {
    "budget": 975276,
@@ -572,8 +572,8 @@
   },
   "pico2_w_release": {
    "budget": 997288,
-   "measured": 997160,
-   "bin": 997184,
+   "measured": 997152,
+   "bin": 997176,
    "ceiling": 3145728,
    "slot": 1568768
   }

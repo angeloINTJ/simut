@@ -4,6 +4,131 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.11.1 (2026-10-05)
+
+**Four high-severity defects of the manual's review are fixed: the panel's
+forced PIN change could be skipped, its account editor granted bits the
+account at it did not hold, "Adopt the probe" read the wrong GPIO, and the
+setup access point of the boot gesture lived by leftover memory. A stricter
+PIN policy no longer locks shorter PINs out of the panel, and the Files page
+says why a refusal has code 6.**
+
+`CONFIG_VERSION` stays at 26 and the security version at 1: v2.11.0 reads the
+configuration, and an update goes over the air both ways. The four findings are
+1, 8, 9 and 25 of `docs/analysis/PLANO_REVISAO_EXTERNA.md`; 52 remain, of which
+two high ones need code (20 and 65).
+
+### The panel's accounts (#255, #256)
+
+- **The forced PIN change can no longer be skipped.** An account whose PIN must
+  change (a stricter policy, or the admin's factory `1234`) is sent to Novo PIN
+  once it identifies. SAIR there opened the Settings menu with the PIN
+  unchanged. It leaves to the dashboard now, and Settings asks for the account
+  again.
+- **The panel grants only what the account at it holds.** An account with Users
+  gave Limits, Block and Maintenance to any account, a new one or its own. It
+  adds only bits it holds now, as the web has since V-09; taking one away is
+  still allowed. A refusal says "Sem permissão" and logs code 458.
+- **A stricter PIN minimum no longer locks shorter PINs out of the panel.** The
+  keypad refused a PIN shorter than the new minimum before checking it, so the
+  change the policy asked for could not be reached. Identification checks any
+  PIN from 4 characters now, and a right one shorter than the policy goes
+  straight to Novo PIN, marked or not. That also covers a PIN the web set below
+  the policy, and a stricter policy only tried with `_nosave=1`, which marks no
+  one. A wrong entry of 4 characters or more counts as a failed attempt.
+- **"PIN too short" says the policy's minimum.** It said 4 under any policy. The
+  packs carry the number as a `{n}` marker, and the build checks it.
+
+### Sensors (#255)
+
+- **"Adopt the probe wired here" reads the slot's own GPIO, and the sensor reads
+  at once.** It read the GPIO whose number is the slot's, wrote that number as
+  the slot's pin, and saved the new ROM without reloading the running sensor,
+  which stayed in quarantine. Now it reads and keeps the slot's GPIO and reloads
+  the sensors. A slot that is not saved as an active DS18B20 answers 409, and
+  the page says to save it first. The 3 s health check had the same mistake, and
+  reads the slot's GPIO too.
+
+### The setup access point (#255)
+
+- **The access point the boot gesture opens follows the 15-minute limit.** The
+  limit asks for the configured network by its name, and on that boot nothing
+  had written it: whatever the memory held decided. With a network, the access
+  point now gives way to it after 15 minutes; with none, it stays open.
+
+### Updates (#255)
+
+- **The Files page says why a refusal has code 6.** A Pico W refuses the Pico 2
+  W's `.bin` with `v=6`. The page now says the image is for another chip, or
+  damaged, and which `.bin` each board takes.
+
+### Under the hood
+
+- **Host tests:** 639 cases in 9 suites, up from 632.
+- **The language-pack check** refuses a panel line whose `{n}` marker does not
+  match the firmware's.
+
+### Flash
+
+Against the published v2.11.0, signed `.bin` (the image plus its 241-byte
+signature):
+- release 1,032,933 → 1,033,357 B (+424);
+- alpha 990,621 → 990,621 B;
+- Air 1,031,485 → 1,031,485 B;
+- Pico 2 W 997,001 → 997,417 B (+416).
+
+Slack under the 1,040,384 B over-the-air ceiling: release 7,027, alpha 49,763,
+Air 8,899. The Pico 2 W's slot is 1,568,768 B. Neither the alpha nor the Air has
+a panel, and neither grew past its 4 KiB page.
+
+### Upgrading
+
+- **From v2.11.0, on either board:** over the air, from the Files page, with
+  this release's `.bin`. The configuration carries over. On the Pico 2 W the
+  update goes to the other slot and boots on trial, as since v2.11.0.
+- **Back to v2.11.0:** over the air with its signed `.bin` (both carry security
+  version 1), or over USB.
+- **From an older version, or a Pico 2 W's first install:** as for v2.11.0,
+  below.
+- **Language packs:** upload the two attached to this release on the Files page,
+  and reboot. With the v2.11.0 packs everything works: two new web strings read
+  in English, and the panel's "PIN too short" line keeps saying 4.
+- **simut-rx** does not know `releasetwo` yet, so it offers no update to a Pico
+  2 W.
+
+### Known, and not fixed here
+
+- **The build configurator does not build for the Pico 2 W.** `build_custom.py`
+  still hands out the plain `firmware.uf2` and `firmware.bin`, and the page's
+  estimates are the Pico W's.
+- **Narrowing the PIN alphabet or lowering the length ceiling still strands an
+  old PIN** that uses a letter no longer on the cards, or is longer than the new
+  ceiling: the cards cannot offer the one, and Core 0 cannot check the other in
+  time. The account needs a new PIN from the panel's Users, the web or the
+  console.
+- **On a build with a panel, a Core 1 hard fault leaves no program counter in
+  the log**, on both chips. The main loop restarts Core 1 after 10 s without its
+  heartbeat, before the soft panic that would record it (measured in #249).
+- **On the Pico W, a configuration save from the panel during an upload restarts
+  Core 1 in the middle of the stage**, by the code. The stage then writes the
+  flash with Core 1 running from it. It has not been seen on the bench. The Pico
+  2 W's stage does not run that save.
+- **A chunked reply occasionally loses its framing** (#189): 0.15 to 0.6 % of
+  `/api/status` reads in a tight loop. The next request succeeds.
+- **On the alpha, the log's messages in pt-BR or es-ES come out empty**, by the
+  code: its translation lookups return an empty string instead of none.
+- **Accented lines on the boot screen print `?`**, by the code: the boot box
+  folds text that is already Latin-1 as if it were UTF-8.
+- **The web page does not retry an install refused with 503** (a touch on the
+  panel in the 5 s before), by the code.
+- **`configure terminal` does not need `enable`**, although the console's
+  command table says it needs privileged mode. It opens nothing, but the table
+  and the behaviour disagree.
+- **With two pressure sensors, the measurement line sends the pressure under the
+  first one's key and with the last one's value**, by the code.
+- **The Telemetry page's token list for the alarm line stops at v22.** Chapter 22
+  of the manual lists them all.
+
 ## v2.11.0 (2026-10-04)
 
 **The Pico 2 W gets published images. Its update goes into the slot it did not

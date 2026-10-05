@@ -4,6 +4,135 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.11.1 (2026-10-05)
+
+**Quatro defeitos de severidade alta da revisão do manual estão consertados: a
+troca obrigatória de PIN do painel podia ser pulada, o editor de contas do
+painel concedia permissões que a conta identificada não tinha, "Adotar a sonda"
+lia o GPIO errado, e o AP de configuração do gesto no boot durava conforme o
+lixo da memória. Uma política de PIN mais exigente não tranca mais do painel
+quem tem PIN mais curto, e a página Arquivos diz o motivo de uma recusa com
+código 6.**
+
+O `CONFIG_VERSION` continua 26, e o nível de segurança continua 1: a v2.11.0 lê
+a configuração, e a atualização vai pelo ar nos dois sentidos. Os quatro achados
+são o 1, o 8, o 9 e o 25 do `docs/analysis/PLANO_REVISAO_EXTERNA.md`; restam 52,
+e dois dos altos pedem código (o 20 e o 65).
+
+### As contas no painel (#255, #256)
+
+- **A troca obrigatória de PIN não pode mais ser pulada.** Uma conta que precisa
+  trocar o PIN (uma política mais exigente, ou o `1234` de fábrica do admin) vai
+  para Novo PIN assim que se identifica. O **SAIR** dali abria o menu de
+  Configurações com o PIN de antes. Agora ele volta à tela inicial, e
+  Configurações pede a conta de novo.
+- **O painel só concede o que a conta identificada tem.** Uma conta com Usuários
+  dava Limites, Bloqueio e Manutenção a qualquer conta, nova ou a dela mesma.
+  Agora ela só acrescenta permissões que tem, como a web desde o V-09; tirar uma
+  continua permitido. A recusa diz **Sem permissão** e o log registra o código
+  458.
+- **Um mínimo de PIN mais exigente não tranca mais do painel quem tem PIN mais
+  curto.** O teclado recusava um PIN mais curto que o mínimo novo antes de
+  conferi-lo, e a troca que a política pedia nunca chegava. A identificação
+  confere agora qualquer PIN a partir de 4 caracteres, e um certo mais curto que
+  a política vai direto para Novo PIN, marcado ou não. Isso cobre também um PIN
+  que a web definiu abaixo da política e uma política mais exigente só testada
+  com `_nosave=1`, que não marca ninguém. Uma tentativa errada com 4 caracteres
+  ou mais conta como falha.
+- **"PIN muito curto" diz o mínimo da política.** Dizia 4 com qualquer política.
+  Os pacotes levam o número como um marcador `{n}`, e a compilação confere.
+
+### Sensores (#255)
+
+- **"Adotar a sonda ligada aqui" lê o GPIO do próprio slot, e o sensor lê na
+  hora.** A adoção lia o GPIO de mesmo número que o slot, gravava esse número
+  como pino do slot e salvava a ROM nova sem recarregar o sensor em
+  funcionamento, que seguia em quarentena. Agora ela lê e mantém o GPIO do slot
+  e recarrega os sensores. Um slot que não está gravado como DS18B20 ativo
+  responde 409, e a página pede para salvá-lo antes. A checagem de saúde de 3 s
+  tinha o mesmo erro, e também lê o GPIO do slot.
+
+### O AP de configuração (#255)
+
+- **O AP que o gesto no boot abre segue o prazo de 15 minutos.** O prazo pede a
+  rede configurada pelo nome, e nesse boot nada o tinha gravado: o que a memória
+  tivesse decidia. Com rede, o AP cede a ela depois de 15 minutos; sem rede,
+  fica aberto.
+
+### Atualização (#255)
+
+- **A página Arquivos diz o motivo de uma recusa com código 6.** Um Pico W
+  recusa o `.bin` do Pico 2 W com `v=6`. A página agora diz que a imagem é de
+  outro chip, ou está danificada, e qual `.bin` cada placa usa.
+
+### Por dentro
+
+- **Testes no host:** 639 casos em 9 suítes, eram 632.
+- **A conferência dos pacotes de idioma** recusa uma linha do painel cujo
+  marcador `{n}` não bate com o do firmware.
+
+### Flash
+
+Contra a v2.11.0 publicada, `.bin` assinado (a imagem mais a assinatura de 241
+bytes):
+- release 1.032.933 → 1.033.357 B (+424);
+- alpha 990.621 → 990.621 B;
+- Air 1.031.485 → 1.031.485 B;
+- Pico 2 W 997.001 → 997.417 B (+416).
+
+Folga sob o teto de 1.040.384 B da atualização pelo ar: release 7.027, alpha
+49.763, Air 8.899. O slot do Pico 2 W tem 1.568.768 B. Nem a alpha nem o Air têm
+painel, e nenhum dos dois passou da sua página de 4 KiB.
+
+### Atualizando
+
+- **A partir da v2.11.0, nas duas placas:** pelo ar, na página Arquivos, com o
+  `.bin` desta release. A configuração vem junto. No Pico 2 W a atualização vai
+  para o outro slot e sobe em teste, como desde a v2.11.0.
+- **De volta à v2.11.0:** pelo ar, com o `.bin` assinado dela (as duas têm o
+  nível de segurança 1), ou pelo USB.
+- **A partir de uma versão mais antiga, ou a primeira instalação de um Pico 2
+  W:** como na v2.11.0, abaixo.
+- **Pacotes de idioma:** envie os dois anexados a esta release pela página
+  Arquivos, e reinicie. Com os pacotes da v2.11.0 tudo funciona: dois textos
+  novos da web saem em inglês, e a linha "PIN muito curto" do painel continua
+  dizendo 4.
+- **O simut-rx** ainda não conhece o `releasetwo`, então não oferece atualização
+  a um Pico 2 W.
+
+### Conhecido, e não consertado aqui
+
+- **O configurador de builds não compila para o Pico 2 W.** O `build_custom.py`
+  ainda entrega o `firmware.uf2` e o `firmware.bin` simples, e as estimativas da
+  página são as do Pico W.
+- **Reduzir o alfabeto do PIN ou baixar o teto de tamanho ainda prende um PIN
+  antigo** que use uma letra que saiu dos cartões, ou que passe do teto novo: os
+  cartões não oferecem a letra, e o Core 0 não confere a tempo o PIN longo. A
+  conta precisa de um PIN novo pelo item Usuários do painel, pela web ou pelo
+  console.
+- **Num build com painel, uma falha de hardware do Core 1 não deixa o contador de
+  programa no log**, nos dois chips. O laço principal relança o Core 1 com 10 s
+  sem batimento, antes do pânico que o registraria (medido no #249).
+- **No Pico W, uma gravação da configuração pelo painel durante um envio relança
+  o Core 1 no meio do envio**, pelo código. O envio segue gravando a flash com o
+  Core 1 rodando a partir dela. Não foi visto na bancada. O envio do Pico 2 W
+  não roda essa gravação.
+- **Uma resposta chunked às vezes perde o enquadramento** (#189): de 0,15 a 0,6 %
+  das leituras do `/api/status` num laço apertado. O pedido seguinte dá certo.
+- **Na alpha, as mensagens do log em pt-BR ou es-ES saem vazias**, pelo código: a
+  busca de tradução dela devolve um texto vazio em vez de nenhum.
+- **Linhas acentuadas na tela de boot imprimem `?`**, pelo código: a caixa do
+  boot converte como UTF-8 um texto que já é Latin-1.
+- **A página web não tenta de novo uma instalação recusada com 503** (um toque no
+  painel nos 5 s antes), pelo código.
+- **`configure terminal` não exige `enable`**, embora a tabela de comandos do
+  console diga que exige o modo privilegiado. Não abre nada, mas a tabela e o
+  comportamento discordam.
+- **Com dois sensores de pressão, a linha de medições manda a pressão na chave do
+  primeiro e com o valor do último**, pelo código.
+- **A lista de marcadores da linha de alarmes na página Telemetria para na
+  v22.** O capítulo 22 do manual lista todos.
+
 ## v2.11.0 (2026-10-04)
 
 **O Pico 2 W ganha imagens publicadas. A atualização dele vai para o slot de onde
