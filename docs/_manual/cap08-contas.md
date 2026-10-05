@@ -349,7 +349,7 @@ Qualquer conta identificada troca o próprio PIN pelo item **Alterar Senha** do 
 |---|---|
 | **PIN salvo!** | Gravado; vale na próxima identificação |
 | **Os PINs não coincidem!** | As duas digitações diferem; o painel volta a **Novo PIN** |
-| **PIN muito curto (mín. 4)** | Menos caracteres que o mínimo da política |
+| **PIN muito curto (mín. N)** | Menos caracteres que o mínimo da política, que a mensagem diz no lugar de N. Até a v2.11.0, ela dizia 4 com qualquer mínimo |
 | **PIN inválido!** | Fora da política |
 | **PIN já em uso!** | Outra conta já tem esse PIN. Nada é gravado |
 

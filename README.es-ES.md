@@ -50,7 +50,7 @@ Los tres comparten el mismo núcleo:
 | **Release actual** | **v2.11.0** (04/10/2026); el [changelog](CHANGELOG.md) dice qué cambió cada versión. SIMUT salió de beta con la v2.7.0, sobre mediciones: un soak de 8,18 h sin ningún reinicio y 6 de 6 actualizaciones por el aire sin perder nada. |
 | **Imágenes publicadas** | Cuatro imágenes, cada una en `.uf2` y `.bin`. Para la Pico W: `release` (panel táctil TFT), `alpha` (LCD 16×2 con consola Bluetooth) y `air` (registrador a batería sin pantalla). Para la Pico 2 W (RP2350): `releasetwo`, la release, cuyo `.uf2` lleva su tabla de particiones y cuyo `.bin` arranca a prueba. Junto a ellas van los packs de idioma pt-BR y es-ES y un manifiesto de OTA. Una imagen con otro conjunto de funciones sale del [configurador de build](https://angelointj.github.io/simut/configurador/), y el CI la compila desde `main`; el configurador todavía no compila para la Pico 2 W. |
 | **Madurez** | <ul><li>`release`: **estable**.</li><li>`alpha`: publicado y probado en el banco, con su LCD 16×2 incluido desde el 26/09/2026.</li><li>`air`: **experimental**. Su único soak largo falló: un sueño en el ciclo 119 nunca despertó (F28). Hoy lo mitiga un watchdog a lo largo del despertar; la causa raíz no está confirmada.</li><li>`releasetwo`: **nueva** en la v2.11.0, probada en el banco en una Pico 2 W (RP2350 A2). Se actualiza por el aire en el otro slot, a prueba, y vuelve sola cuando la actualización no se confirma.</li></ul> |
-| **Pruebas** | Cada pull request ejecuta 638 casos de test en el host en 9 suites, 60 s de fuzzing y análisis estático, y compila las siete imágenes de firmware con la caché fría. El comportamiento en hardware real se verifica en un banco — ver [Verificación en hardware](docs/VERIFICATION.es-ES.md). |
+| **Pruebas** | Cada pull request ejecuta 639 casos de test en el host en 9 suites, 60 s de fuzzing y análisis estático, y compila las siete imágenes de firmware con la caché fría. El comportamiento en hardware real se verifica en un banco — ver [Verificación en hardware](docs/VERIFICATION.es-ES.md). |
 
 **Limitaciones conocidas.** Cada una está documentada donde aplica.
 - **Actualización.** La actualización por el aire reformatea el sistema de archivos:
@@ -303,7 +303,7 @@ El dispositivo expone una API REST en `http://<ip-del-dispositivo>/api/`:
 ### Tests en el host
 
 ```bash
-pio test -e native             # validadores, cursor de telemetría, etiquetas, parsers, paquetes de idioma, las pantallas Licencia y de actualización, el menú de Ajustes, la verificación de contraseña, la sesión web (286 casos)
+pio test -e native             # validadores, cursor de telemetría, etiquetas, parsers, paquetes de idioma, las pantallas Licencia y de actualización, el menú de Ajustes, la verificación de contraseña, la sesión web (287 casos)
 pio test -e native_history_v5  # códec del histórico V5 (62)
 pio test -e native_cli         # parser de la CLI (33)
 pio test -e native_logpolicy   # persistencia de log por transición, franjas de la autopsia, lectura del táctil (57)

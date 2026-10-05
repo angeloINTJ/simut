@@ -51,6 +51,7 @@
 #include "display/SettingsMenu.h"       /* the panel's Settings menu: rows, order */
 #include "PasswordCheck.h"             /* one derivation per password check */
 #include "SessionCheck.h"              /* a session against its live account */
+#include "display/CountInText.h"        /* a number inside a translated line */
 #include "PemBlocks.h"                 /* the PEM splitting POST /api/tls does */
 #include "WebCommitSections.h"          /* per-section authz for /api/commit_all */
 #include "FsSecretPath.h"               /* /config download guard (A-4) */
@@ -4301,6 +4302,33 @@ static void test_a_pin_below_the_policy_is_changed_once_it_proves(void) {
     TEST_ASSERT_FALSE_MESSAGE(changeAfterProof(false, 8, 4), "above it");
 }
 
+/* "PIN too short (min 4)" said 4 whatever the policy's minimum was: the
+ * number was written into the line, in the firmware and in both packs. The
+ * line carries "{n}" now, and the number is put there, never by handing the
+ * pack's line to printf. */
+static void test_count_in_text_puts_the_number_where_the_line_says(void) {
+    char b[48];
+    countInText("PIN too short (min {n})", 5, b, sizeof(b));
+    TEST_ASSERT_EQUAL_STRING("PIN too short (min 5)", b);
+    countInText("PIN muito curto (m\xC3\xADn. {n})", 12, b, sizeof(b));
+    TEST_ASSERT_EQUAL_STRING("PIN muito curto (m\xC3\xADn. 12)", b);
+    /* a pack older than the marker: its line as it is */
+    countInText("PIN muito curto (m\xC3\xADn. 4)", 5, b, sizeof(b));
+    TEST_ASSERT_EQUAL_STRING("PIN muito curto (m\xC3\xADn. 4)", b);
+    /* a pack line is not a format string */
+    countInText("%s%n {n} %d", 7, b, sizeof(b));
+    TEST_ASSERT_EQUAL_STRING("%s%n 7 %d", b);
+    /* the first marker only */
+    countInText("{n}{n}", 3, b, sizeof(b));
+    TEST_ASSERT_EQUAL_STRING("3{n}", b);
+    /* cut to the buffer, and terminated */
+    char s[8];
+    countInText("PIN too short (min {n})", 5, s, sizeof(s));
+    TEST_ASSERT_EQUAL_STRING("PIN too", s);
+    countInText(nullptr, 5, s, sizeof(s));
+    TEST_ASSERT_EQUAL_STRING("", s);
+}
+
 static void test_pending_label_reads_like_the_top_bar(void) {
     char b[PENDING_LABEL_MAX];
     pendingLabel(1, b, sizeof(b));     TEST_ASSERT_EQUAL_STRING("1", b);
@@ -5099,6 +5127,7 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_alpha_marquee_blanks_nothing);
     RUN_TEST(test_identification_takes_a_pin_shorter_than_the_policy);
     RUN_TEST(test_a_pin_below_the_policy_is_changed_once_it_proves);
+    RUN_TEST(test_count_in_text_puts_the_number_where_the_line_says);
     RUN_TEST(test_pending_label_reads_like_the_top_bar);
     RUN_TEST(test_pending_label_fits_three_columns);
     RUN_TEST(test_alpha_wifi_grows_left_to_right);

@@ -74,7 +74,7 @@ static const char* const DICTIONARY_EN[TR_KEYS_COUNT] = {
  "Enter your PIN",
  "New PIN",
  "Confirm PIN",
- "PIN too short (min 4)",
+ "PIN too short (min {n})",
  "PINs don't match!",
  "PIN already in use!",
  "PIN saved!",

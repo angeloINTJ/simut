@@ -30,6 +30,7 @@
 #include "UiWidgets.h"
 #include "SystemDefs_Validate.h"     /* PIN_MIN_LEN / PIN_MAX_LEN */
 #include "StorageManager.h"          /* userHasPin */
+#include "display/CountInText.h"     /* the minimum inside the too-short line */
 #include "sensors/SensorChannelTable.h"
 
 /* Geometry and character set: PinKeypad.h, shared with the CLI readout. */
@@ -490,6 +491,13 @@ void DisplayManager::drawPinDotsInto(GFXcanvas16* cv, int16_t oy) {
 		cv->setFont(&simutFont9pt);
 		cv->setTextColor(err ? C_TEMP_HOT : C_TEXT_SUB);
 		String m = tr(err ? _pinMsg : TR_LOADING);
+		if (_pinMsg == TR_PIN_TOO_SHORT) {
+			/* The line says where its minimum goes ("{n}"); it used to carry a
+			 * 4 that no policy could change. */
+			char line[64];
+			countInText(m.c_str( ), pinEntryMinLen( ), line, sizeof(line));
+			m = line;
+		}
 		cv->getTextBounds(m, 0, 0, &bx, &by, &bw, &bh);
 		cv->setCursor((320 - bw) / 2, (int16_t)(y + 19));
 		cv->print(m);
