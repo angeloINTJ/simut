@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Manual do SIMUT</title>
-<meta name="description" content="Manual do produto SIMUT v2.11.0: instalação, configuração, interface e integração com servidores.">
+<meta name="description" content="Manual do produto SIMUT v2.11.1: instalação, configuração, interface e integração com servidores.">
 <script>(function(){try{var s=localStorage.getItem('angulo:tema');if(s==='claro'||s==='escuro'){document.documentElement.dataset.theme=s;}}catch(e){}})();</script>
 <style>
 /* Ângulo — tokens copiados de simut-rx/web/angulo.css (gerado de design/tokens*.json). */
@@ -142,7 +142,7 @@ figcaption b{color:var(--tinta);font-weight:600}
 <h1>Manual do SIMUT</h1>
 <p class="sub">Instalação, configuração, uso no dia a dia e integração com servidores, para as três imagens publicadas: o painel (release), o LCD (alpha) e o registrador a bateria (Air).</p>
 <ul class="fatos">
-<li><span class="selo">Firmware v2.11.0</span></li>
+<li><span class="selo">Firmware v2.11.1</span></li>
 <li><span class="selo">31 capítulos e 3 apêndices</span></li>
 <li><span class="selo selo-alerta"><i></i>151 imagens a capturar</span></li>
 </ul>
@@ -370,25 +370,24 @@ figcaption b{color:var(--tinta);font-weight:600}
 <p>O mapa completo do sistema de arquivos está no <a href="#cap-17-conteudo">capítulo 17</a>.</p>
 <figure id="fig-01-arquitetura" class="fig fig-diagrama"><div class="pendente pendente-diagrama" role="img" aria-label="Imagem a capturar: O aparelho em blocos: os sensores entram pelo Core 0, a tela fica com o Core 1, e a flash se divide entre o programa e o sistema de arquivos."><span class="selo selo-alerta"><i></i>Imagem a capturar</span><span class="pend-tipo">Diagrama · <code>01-arquitetura.png</code></span><span class="pend-como">diagrama de blocos do aparelho: à esquerda, os sensores (DS18B20, DHT22, BME280/BMP280) ligados a GP0–GP15; no centro, o RP2040 com dois blocos, Core 0 (sensores, alarmes, histórico, rede, web, console, telemetria) e Core 1 (painel TFT e toque na release; LCD na alpha; sem uso no Air); abaixo, a flash de 2 MB em duas faixas, &#x27;programa 1 MB&#x27; e &#x27;LittleFS 1 MB&#x27; com as pastas /config, /history, /lang, /themes e o log de eventos; à direita, as saídas: navegador (interface web), servidor de telemetria (HTTP/MQTT), linha de alarmes, Home Assistant, Prometheus e syslog; embaixo à direita, o cabo USB e o Bluetooth levando ao console</span></div><figcaption><b>Figura 1.</b> O aparelho em blocos: os sensores entram pelo Core 0, a tela fica com o Core 1, e a flash se divide entre o programa e o sistema de arquivos.</figcaption></figure>
 <h3 id="cap-01-versoes">Versões</h3>
-<p>Este manual descreve a <strong>v2.11.0</strong>, de 04/10/2026, a versão publicada mais recente. A linha 2.7 saiu do beta com a v2.7.0.</p>
-<p>O que a v2.11.0 mudou para quem usa o aparelho:</p>
+<p>Este manual descreve a <strong>v2.11.1</strong>, de 05/10/2026, a versão publicada mais recente. A linha 2.7 saiu do beta com a v2.7.0.</p>
+<p>O que a v2.11.1 mudou para quem usa o aparelho:</p>
+<ul>
+<li>a troca obrigatória de PIN não pode mais ser pulada: <strong>SAIR</strong> volta à tela inicial, e o menu só abre depois da troca (<a href="#cap-08-pin-fabrica">capítulo 8</a>);</li>
+<li>no painel, uma conta com a permissão <strong>Usuários</strong> só concede as permissões de painel que ela mesma tem (<a href="#cap-08-usuarios-painel">capítulo 8</a>);</li>
+<li>uma política de PIN mais exigente não tranca mais do painel quem tem um PIN mais curto: a conta se identifica com o PIN antigo e vai para a troca, e a mensagem de PIN curto diz o mínimo da política (<a href="#cap-08-politica">capítulo 8</a>);</li>
+<li><strong>Adotar a sonda ligada aqui</strong> lê o GPIO do próprio slot, e a leitura segue com a sonda nova na hora (<a href="#cap-06-adotar">capítulo 6</a>);</li>
+<li>o AP aberto pelo gesto no boot segue o prazo de 15 min num aparelho com rede configurada (<a href="#cap-09-ap-aberto">capítulo 9</a>);</li>
+<li>a página <strong>Arquivos</strong> explica a recusa <code>v=6</code>, a de uma imagem de outro chip (<a href="#cap-17-ota-conferencias">capítulo 17</a>).</li>
+</ul>
+<p>A v2.11.0, de 04/10/2026, tinha trazido:</p>
 <ul>
 <li>o Pico 2 W (RP2350) passa a ter imagens publicadas: o <code>.uf2</code> de fábrica, que traz a tabela de partições, e o <code>.bin</code> de atualização (<a href="#cap-03-arquivos">capítulo 3</a>);</li>
 <li>no Pico 2 W, a atualização pela rede vai para o outro slot, sem tocar no sistema de arquivos, e sobe em teste. Se não se confirmar em cinco minutos, ou se o aparelho reiniciar antes, ele volta sozinho para a versão anterior, e o painel e a página <strong>Arquivos</strong> dizem isso (<a href="#cap-26-ota">capítulo 26</a>);</li>
 <li>uma transferência longa, como uma atualização, um backup ou uma restauração, não cai mais quando outra página do aparelho está aberta no navegador (<a href="#cap-18-sem-web">capítulo 18</a>);</li>
 <li>na alpha, gravar a configuração não reinicia mais o aparelho pelo watchdog.</li>
 </ul>
-<p>A v2.10.0, de 03/10/2026, tinha trazido:</p>
-<ul>
-<li>a telemetria envia cada registro pelo lugar onde ele foi gravado, não pela hora: um relógio que volta, como o provisório do boot corrigido pelo NTP, não deixa mais registros para trás sem envio (<a href="#cap-21-fora-de-ordem">capítulo 21</a>);</li>
-<li>gravar contas não reinicia mais o aparelho, e uma sessão web termina quando a conta dela é excluída ou tem a senha trocada por outra pessoa (<a href="#cap-08-pagina">capítulo 8</a>);</li>
-<li>o ensaio da página de configuração não mexe mais no aparelho em funcionamento: preparar o silêncio geral não silencia, e preparar o fuso não o aplica (<a href="#cap-05-ensaio">capítulo 5</a>);</li>
-<li>uma restauração que falha no meio fica com os arquivos que terminou, e a aplicação exige antes a conferência do mesmo backup (<a href="#cap-17-restauracao">capítulo 17</a>);</li>
-<li>um limite de alarme que não é número, enviado pela API, é recusado em vez de virar 0 (<a href="#cap-26-commit">capítulo 26</a>);</li>
-<li>o menu Configurações do painel segue a ordem de uso, um grupo por página (<a href="#cap-11-menu">capítulo 11</a>);</li>
-<li>a página Arquivos abre arquivos de texto organizados, com o JSON que abre e recolhe (<a href="#cap-17-ver">capítulo 17</a>), e a <strong>Prévia ao Vivo</strong> da telemetria é montada com os dados do aparelho (<a href="#cap-21-construtor">capítulo 21</a>).</li>
-</ul>
-<p>Um aparelho com a v2.10.0 não tem os itens da v2.11.0, e o que as versões anteriores trouxeram está no apêndice <a href="#ap-c">Histórico de versões</a>. Onde este manual diz “na v2.7.1” ou “pelo código da v2.7.1”, o texto vale também para as versões seguintes, salvo nas mudanças que o apêndice registra da v2.7.2 em diante. Como conferir a versão do seu aparelho está no <a href="#cap-17-ota-conferir">capítulo 17</a>.</p>
+<p>Um aparelho com a v2.11.0 não tem os itens da v2.11.1, e o que as versões anteriores trouxeram está no apêndice <a href="#ap-c">Histórico de versões</a>. Onde este manual diz “na v2.7.1” ou “pelo código da v2.7.1”, o texto vale também para as versões seguintes, salvo nas mudanças que o apêndice registra da v2.7.2 em diante. Como conferir a versão do seu aparelho está no <a href="#cap-17-ota-conferir">capítulo 17</a>.</p>
 <h3 id="cap-01-como-ler">Como ler este manual</h3>
 <h4>Selos de imagem</h4>
 <p>Uma seção que vale só para algumas imagens começa com selos:</p>
@@ -1149,35 +1148,35 @@ figcaption b{color:var(--tinta);font-weight:600}
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>simut_v2.11.0_release.uf2</code></td>
+<td><code>simut_v2.11.1_release.uf2</code></td>
 <td>Gravar a imagem release pelo USB</td>
 </tr>
 <tr class="even">
-<td><code>simut_v2.11.0_alpha.uf2</code></td>
+<td><code>simut_v2.11.1_alpha.uf2</code></td>
 <td>Gravar a imagem alpha pelo USB</td>
 </tr>
 <tr class="odd">
-<td><code>simut_v2.11.0_air.uf2</code></td>
+<td><code>simut_v2.11.1_air.uf2</code></td>
 <td>Gravar a imagem do Air pelo USB</td>
 </tr>
 <tr class="even">
-<td><code>simut_v2.11.0_releasetwo.uf2</code></td>
+<td><code>simut_v2.11.1_releasetwo.uf2</code></td>
 <td>Gravar a release do Pico 2 W pelo USB, com a tabela de partições</td>
 </tr>
 <tr class="odd">
-<td><code>simut_v2.11.0_release.bin</code></td>
+<td><code>simut_v2.11.1_release.bin</code></td>
 <td>Atualizar a release pela página <strong>Arquivos</strong> (<a href="#cap-17-ota">capítulo 17</a>)</td>
 </tr>
 <tr class="even">
-<td><code>simut_v2.11.0_alpha.bin</code></td>
+<td><code>simut_v2.11.1_alpha.bin</code></td>
 <td>Atualizar a alpha pela página <strong>Arquivos</strong></td>
 </tr>
 <tr class="odd">
-<td><code>simut_v2.11.0_air.bin</code></td>
+<td><code>simut_v2.11.1_air.bin</code></td>
 <td>Atualizar o Air pela página <strong>Arquivos</strong></td>
 </tr>
 <tr class="even">
-<td><code>simut_v2.11.0_releasetwo.bin</code></td>
+<td><code>simut_v2.11.1_releasetwo.bin</code></td>
 <td>Atualizar a release do Pico 2 W pela página <strong>Arquivos</strong>; a imagem nova sobe em teste (<a href="#cap-26-ota">capítulo 26</a>)</td>
 </tr>
 <tr class="odd">
@@ -1256,7 +1255,7 @@ figcaption b{color:var(--tinta);font-weight:600}
 <h4>Com o picotool</h4>
 <p>O <code>picotool</code> é a ferramenta de linha de comando do Raspberry Pi para o RP2040. Com o Pico W no modo BOOTSEL (passos 1 a 4 acima):</p>
 <pre class="bash"><code>picotool info
-picotool load -x simut_v2.11.0_release.uf2</code></pre>
+picotool load -x simut_v2.11.1_release.uf2</code></pre>
 <p>O <code>picotool info</code> confirma que a placa está no modo BOOTSEL. O <code>load -x</code> grava e reinicia a placa no fim.</p>
 <aside class="faixa faixa-perigo"><span class="selo selo-perigo"><i></i>Perigo</span>
 <p><strong><code>picotool erase</code> apaga tudo.</strong> O comando apaga a flash inteira, com o sistema de arquivos: configuração, contas, histórico e calibração. Ele serve para a recuperação de um aparelho que não liga mais (<a href="#cap-18">capítulo 18</a>), não para uma gravação comum.</p>
@@ -1354,7 +1353,7 @@ pio run -e pico_w_release</code></pre>
 </tbody>
 </table></div>
 <p>As versões anteriores à 1.6.2-beta tinham um defeito na atualização pela rede: diziam que tinham aplicado a imagem sem aplicá-la. Por isso, a primeira atualização de um aparelho desses é pelo USB.</p>
-<p>Um aparelho na versão 1.x perde duas coisas no primeiro boot da 2.11.0:</p>
+<p>Um aparelho na versão 1.x perde duas coisas no primeiro boot da 2.11.1:</p>
 <ul>
 <li><strong>A configuração.</strong> O firmware não lê configurações das versões 1.x. O aparelho começa com a configuração de fábrica e uma senha nova para o <code>admin</code>, mostrada no console USB (<a href="#cap-04-senha">capítulo 4</a>). Anote a rede, as contas e os sensores antes de atualizar.</li>
 <li><strong>O histórico no formato antigo.</strong> Os arquivos <code>.sim4</code> da pasta <code>/history</code> são apagados no primeiro boot. Baixe-os antes de atualizar e converta-os no computador, com a ferramenta <code>tools/history_v5.py</code> do código-fonte:</li>
@@ -1362,7 +1361,7 @@ pio run -e pico_w_release</code></pre>
 <pre class="bash"><code>python3 tools/history_v5.py --convert-v4 AAAAMMDD.sim4 AAAAMMDD.h5</code></pre>
 <p>Um aparelho na versão 2.x mantém a configuração: o firmware novo a converte no boot.</p>
 <aside class="faixa faixa-atencao"><span class="selo selo-alerta"><i></i>Atenção</span>
-<p><strong>A conversão só vai para a frente.</strong> A v2.8.0 passou a gravar a configuração num formato novo, que as versões anteriores não leem; a v2.9.0, a v2.10.0 e a v2.11.0 usam o mesmo. Uma versão anterior à v2.8.0 gravada depois dela, pelo USB, pode voltar com a configuração de fábrica; pela página <strong>Arquivos</strong>, desde a v2.9.0, só entra imagem assinada, e nenhuma versão anterior é. Para voltar a uma versão anterior à v2.8.0 sem perder a configuração, grave-a e restaure o backup feito antes de atualizar para a v2.8.0, como o <code>simut_pre-ota_&lt;número&gt;.bkp</code> que a página <strong>Arquivos</strong> baixa (<a href="#cap-17-restauracao">capítulo 17</a>). O que mudou no aparelho depois desse backup se perde.</p>
+<p><strong>A conversão só vai para a frente.</strong> A v2.8.0 passou a gravar a configuração num formato novo, que as versões anteriores não leem; a v2.9.0, a v2.10.0, a v2.11.0 e a v2.11.1 usam o mesmo. Uma versão anterior à v2.8.0 gravada depois dela, pelo USB, pode voltar com a configuração de fábrica; pela página <strong>Arquivos</strong>, desde a v2.9.0, só entra imagem assinada, e nenhuma versão anterior é. Para voltar a uma versão anterior à v2.8.0 sem perder a configuração, grave-a e restaure o backup feito antes de atualizar para a v2.8.0, como o <code>simut_pre-ota_&lt;número&gt;.bkp</code> que a página <strong>Arquivos</strong> baixa (<a href="#cap-17-restauracao">capítulo 17</a>). O que mudou no aparelho depois desse backup se perde.</p>
 </aside>
 <h3 id="cap-03-depois">Depois de gravar</h3>
 <p>O primeiro boot de um aparelho novo mostra a senha do administrador uma única vez, no console USB. Deixe o console aberto antes de o aparelho reiniciar (<a href="#cap-04-senha">capítulo 4</a>). Para conferir a versão gravada, veja o <a href="#cap-17-ota-conferir">capítulo 17</a>.</p>
@@ -1406,7 +1405,7 @@ pio run -e pico_w_release</code></pre>
 <p>A pergunta não pede conta nem PIN, e volta a cada boot enquanto o aparelho não tiver rede: o acerto à mão não sobrevive a um reinício. Enquanto o relógio for o provisório, a barra de cima da tela inicial mostra a data e a hora em âmbar, com <code>?</code> no lugar do <code>-</code>. Tudo isso está no <a href="#cap-10-painel">capítulo 10</a>.</p>
 <figure id="fig-04-painel-data-hora" class="fig fig-tft"><div class="pendente pendente-tft" role="img" aria-label="Imagem a capturar: A pergunta do fim do boot num aparelho sem rede: a data e a hora do relógio provisório, prontas para acertar."><span class="selo selo-alerta"><i></i>Imagem a capturar</span><span class="pend-tipo">Tela do painel · <code>04-painel-data-hora.png</code></span><span class="pend-como">release recém-gravada, sem rede configurada, logo depois do boot; tela Data e hora com as cinco colunas e as setas, a linha Sem Wi-Fi, os dados levam esta hora. em âmbar e os botões PULAR e SALVAR; sem rede, GET /api/screenshot não alcança o aparelho: use foto da tela, antes dos 30 s sem toque que levam o painel à tela inicial</span></div><figcaption><b>Figura 13.</b> A pergunta do fim do boot num aparelho sem rede: a data e a hora do relógio provisório, prontas para acertar.</figcaption></figure>
 <h4>No LCD</h4>
-<p><span class="selo selo-img">alpha</span> O LCD mostra <code>SIMUT 2.11.0</code> e <code>Inicializando</code> e, depois, uma barra de progresso (<a href="#cap-12-boot">capítulo 12</a>).</p>
+<p><span class="selo selo-img">alpha</span> O LCD mostra <code>SIMUT 2.11.1</code> e <code>Inicializando</code> e, depois, uma barra de progresso (<a href="#cap-12-boot">capítulo 12</a>).</p>
 <p>Num aparelho novo, o boot não espera a rede: no fim dele, o LCD mostra <code>Sem WiFi</code> e <code>Offline</code> por 3 s e passa às leituras (<a href="#cap-12-rede">capítulo 12</a>):</p>
 <pre class="text"><code> Sem WiFi
     Offline</code></pre>
@@ -5278,7 +5277,7 @@ E6614103E7512B29,uSALA-1,Sala,55.00,52.00</code></pre>
 </tr>
 <tr class="even">
 <td><code>ver</code></td>
-<td>Versão do firmware, como <code>2.11.0</code></td>
+<td>Versão do firmware, como <code>2.11.1</code></td>
 </tr>
 <tr class="odd">
 <td><code>env</code></td>
@@ -7852,7 +7851,7 @@ K7PX4MRW2A</code></pre>
 <p>A página mostra, de cima para baixo:</p>
 <ul>
 <li>o logotipo SIMUT e a legenda “Sistema de Monitoramento Universal e Telemetria”, sempre em português;</li>
-<li>a versão do firmware, como <code>v2.11.0</code>, abaixo da legenda (desde a v2.7.3);</li>
+<li>a versão do firmware, como <code>v2.11.1</code>, abaixo da legenda (desde a v2.7.3);</li>
 <li><strong>Usuário</strong> (<em>Username</em>): o nome da conta;</li>
 <li><strong>Senha</strong> (<em>Password</em>);</li>
 <li><strong>Mostrar senha</strong> (<em>Show password</em>): mostra a senha digitada;</li>
@@ -8615,7 +8614,7 @@ screen /dev/cu.usbmodem1101 115200</code></pre>
 <li><strong>Boot:</strong> com o terminal aberto durante o boot, aparecem algumas linhas de diagnóstico que começam por <code>[DBG]</code>. Elas não são erros.</li>
 </ul>
 <pre class="text"><code>===========================================
- SIMUT IoT CLI 2.11.0
+ SIMUT IoT CLI 2.11.1
  Digite &#39;help&#39; (ou &#39;ajuda&#39;, &#39;?&#39;)
  For English: &#39;language en&#39;
 ===========================================
@@ -8643,7 +8642,7 @@ SIMUT&gt; </code></pre>
 Senha do admin: **********
 
 ===========================================
- SIMUT IoT CLI 2.11.0
+ SIMUT IoT CLI 2.11.1
  Acesso concedido. Digite &#39;help&#39;.
  (For English: &#39;language en&#39;)
 ===========================================
@@ -8868,7 +8867,7 @@ show system info
  [SISTEMA]
  Dispositivo:
  simut
- Firmware: 2.11.0
+ Firmware: 2.11.1
  Serial: E66138935F2C1A2B
  [SENSORES]
  Precisao DS18: 12-bit
@@ -20806,7 +20805,7 @@ echo</code></pre>
 <p class="volta"><a href="#sumario-t">Voltar ao sumário</a></p></section><div class="parte" id="parte-28"><p>Parte VI</p><h2>Referência</h2></div><section class="capitulo" id="cap-28"><p class="rotulo-cap">Capítulo 28</p><h2>Especificações e limites</h2><p class="lede">Este capítulo reúne em tabelas os números do SIMUT: faixas, valores de fábrica, capacidades, tempos e tamanhos. É a página de consulta de quem instala, configura e integra o aparelho, e cada linha aponta para o capítulo que explica o assunto.</p>
 <h3 id="cap-28-como-ler">Como ler as tabelas</h3>
 <ul>
-<li>Os valores são os da v2.11.0.</li>
+<li>Os valores são os da v2.11.1.</li>
 <li>Quando um número muda de uma imagem para outra, a célula traz o selo da imagem: <span class="selo selo-img">release</span>, <span class="selo selo-img">alpha</span> ou <span class="selo selo-img">air</span>.</li>
 <li>Uma medição traz a data e a versão em que foi feita. Os demais números vêm do código.</li>
 <li>A coluna <strong>Onde</strong> leva ao capítulo que explica o item. Lá estão o efeito de cada valor e o que fazer quando um limite é atingido.</li>
@@ -21620,11 +21619,16 @@ echo</code></pre>
 <td><a href="#cap-08-politica">cap. 8</a></td>
 </tr>
 <tr class="odd">
+<td>Identificação no painel</td>
+<td>Confere qualquer PIN a partir de 4 caracteres; um certo mais curto que a política leva direto à troca</td>
+<td><a href="#cap-08-bloqueios">cap. 8</a></td>
+</tr>
+<tr class="even">
 <td>PIN pela web ou pela API</td>
 <td>Sempre de 4 a 8 dígitos</td>
 <td><a href="#cap-08-pin-web">cap. 8</a></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>PIN de fábrica do <code>admin</code></td>
 <td><code>1234</code>, com troca obrigatória</td>
 <td><a href="#cap-08-pin-fabrica">cap. 8</a></td>
@@ -21866,12 +21870,12 @@ echo</code></pre>
 <td><a href="#cap-09-ap">cap. 9</a></td>
 </tr>
 <tr class="odd">
-<td>AP aberto em operação, com rede configurada</td>
-<td>Dura 15 min; depois o aparelho reinicia para tentar a rede</td>
+<td>AP aberto num aparelho com rede configurada, pelo painel, pelo comando <code>ap</code> ou pelo gesto no boot</td>
+<td>Dura 15 min; depois o aparelho reinicia para tentar a rede. Até a v2.11.0, o aberto pelo gesto não seguia esse prazo</td>
 <td><a href="#cap-09-ap-aberto">cap. 9</a></td>
 </tr>
 <tr class="even">
-<td>AP aberto no boot pelo gesto, ou num aparelho sem rede configurada</td>
+<td>AP aberto num aparelho sem rede configurada</td>
 <td>Fica aberto até alguém gravar uma rede ou reiniciar o aparelho</td>
 <td><a href="#cap-09-ap-aberto">cap. 9</a></td>
 </tr>
@@ -25551,6 +25555,11 @@ O formato de arquivo que a placa aceita no modo BOOTSEL (<a href="#cap-03">capí
 </thead>
 <tbody>
 <tr class="odd">
+<td>v2.11.1</td>
+<td>05/10/2026</td>
+<td>Correções de quatro achados altos da revisão e da política de PIN. A troca obrigatória de PIN não é mais pulada com <strong>SAIR</strong> (<a href="#cap-08-pin-fabrica">capítulo 8</a>), e o painel só concede as permissões que a conta identificada tem (<a href="#cap-08-usuarios-painel">capítulo 8</a>). Uma política de PIN mais exigente não tranca mais um PIN mais curto: ele identifica e leva à troca, e a mensagem de PIN curto diz o mínimo (<a href="#cap-08-politica">capítulo 8</a>). <strong>Adotar a sonda ligada aqui</strong> lê o GPIO do slot e recarrega os sensores (<a href="#cap-06-adotar">capítulo 6</a>). O AP aberto pelo gesto no boot segue o prazo de 15 min (<a href="#cap-09-ap-aberto">capítulo 9</a>), e a página <strong>Arquivos</strong> explica a recusa <code>v=6</code> (<a href="#cap-17-ota-conferencias">capítulo 17</a>).</td>
+</tr>
+<tr class="even">
 <td>v2.11.0</td>
 <td>04/10/2026</td>
 <td>O Pico 2 W (RP2350) passa a ter imagens publicadas: o <code>.uf2</code> de fábrica, com a tabela de partições, e o <code>.bin</code> de atualização (<a href="#cap-03-arquivos">capítulo 3</a>). Pela rede, ele grava a imagem nova no slot de onde não subiu, sem tocar no sistema de arquivos, e a imagem sobe em teste: fica depois de um minuto saudável, e volta sozinha para a anterior se não se confirmar em cinco minutos ou se o aparelho reiniciar antes. O painel e a página <strong>Arquivos</strong> dizem quando a versão está em teste e quando voltou (<a href="#cap-26-ota">capítulo 26</a>). Uma transferência longa não cai mais com outra página do aparelho aberta no navegador (<a href="#cap-18-sem-web">capítulo 18</a>), e gravar a configuração da alpha não a reinicia mais pelo watchdog</td>
@@ -25892,7 +25901,7 @@ O formato de arquivo que a placa aceita no modo BOOTSEL (<a href="#cap-03">capí
 </section>
 </main>
 <footer class="colofao">
-<p>Manual do SIMUT, gerado em 04/10/2026 por <code>tools/build_manual.py</code> a partir de <code>docs/_manual/</code>. Licença MIT, como o firmware.</p>
+<p>Manual do SIMUT, gerado em 05/10/2026 por <code>tools/build_manual.py</code> a partir de <code>docs/_manual/</code>. Licença MIT, como o firmware.</p>
 <p>Visual no padrão Ângulo. Fonte de títulos: Ângulo Display, recorte da Bricolage Grotesque SemiBold, SIL Open Font License 1.1.</p>
 </footer>
 </div>

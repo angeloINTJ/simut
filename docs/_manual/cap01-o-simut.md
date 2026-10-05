@@ -99,26 +99,25 @@ O aparelho em blocos: os sensores entram pelo Core 0, a tela fica com o Core 1, 
 
 ## Versões {#cap-01-versoes}
 
-Este manual descreve a **v2.11.0**, de 04/10/2026, a versão publicada mais recente. A linha 2.7 saiu do beta com a v2.7.0.
+Este manual descreve a **v2.11.1**, de 05/10/2026, a versão publicada mais recente. A linha 2.7 saiu do beta com a v2.7.0.
 
-O que a v2.11.0 mudou para quem usa o aparelho:
+O que a v2.11.1 mudou para quem usa o aparelho:
+
+- a troca obrigatória de PIN não pode mais ser pulada: **SAIR** volta à tela inicial, e o menu só abre depois da troca ([capítulo 8](#cap-08-pin-fabrica));
+- no painel, uma conta com a permissão **Usuários** só concede as permissões de painel que ela mesma tem ([capítulo 8](#cap-08-usuarios-painel));
+- uma política de PIN mais exigente não tranca mais do painel quem tem um PIN mais curto: a conta se identifica com o PIN antigo e vai para a troca, e a mensagem de PIN curto diz o mínimo da política ([capítulo 8](#cap-08-politica));
+- **Adotar a sonda ligada aqui** lê o GPIO do próprio slot, e a leitura segue com a sonda nova na hora ([capítulo 6](#cap-06-adotar));
+- o AP aberto pelo gesto no boot segue o prazo de 15 min num aparelho com rede configurada ([capítulo 9](#cap-09-ap-aberto));
+- a página **Arquivos** explica a recusa `v=6`, a de uma imagem de outro chip ([capítulo 17](#cap-17-ota-conferencias)).
+
+A v2.11.0, de 04/10/2026, tinha trazido:
 
 - o Pico 2 W (RP2350) passa a ter imagens publicadas: o `.uf2` de fábrica, que traz a tabela de partições, e o `.bin` de atualização ([capítulo 3](#cap-03-arquivos));
 - no Pico 2 W, a atualização pela rede vai para o outro slot, sem tocar no sistema de arquivos, e sobe em teste. Se não se confirmar em cinco minutos, ou se o aparelho reiniciar antes, ele volta sozinho para a versão anterior, e o painel e a página **Arquivos** dizem isso ([capítulo 26](#cap-26-ota));
 - uma transferência longa, como uma atualização, um backup ou uma restauração, não cai mais quando outra página do aparelho está aberta no navegador ([capítulo 18](#cap-18-sem-web));
 - na alpha, gravar a configuração não reinicia mais o aparelho pelo watchdog.
 
-A v2.10.0, de 03/10/2026, tinha trazido:
-
-- a telemetria envia cada registro pelo lugar onde ele foi gravado, não pela hora: um relógio que volta, como o provisório do boot corrigido pelo NTP, não deixa mais registros para trás sem envio ([capítulo 21](#cap-21-fora-de-ordem));
-- gravar contas não reinicia mais o aparelho, e uma sessão web termina quando a conta dela é excluída ou tem a senha trocada por outra pessoa ([capítulo 8](#cap-08-pagina));
-- o ensaio da página de configuração não mexe mais no aparelho em funcionamento: preparar o silêncio geral não silencia, e preparar o fuso não o aplica ([capítulo 5](#cap-05-ensaio));
-- uma restauração que falha no meio fica com os arquivos que terminou, e a aplicação exige antes a conferência do mesmo backup ([capítulo 17](#cap-17-restauracao));
-- um limite de alarme que não é número, enviado pela API, é recusado em vez de virar 0 ([capítulo 26](#cap-26-commit));
-- o menu Configurações do painel segue a ordem de uso, um grupo por página ([capítulo 11](#cap-11-menu));
-- a página Arquivos abre arquivos de texto organizados, com o JSON que abre e recolhe ([capítulo 17](#cap-17-ver)), e a **Prévia ao Vivo** da telemetria é montada com os dados do aparelho ([capítulo 21](#cap-21-construtor)).
-
-Um aparelho com a v2.10.0 não tem os itens da v2.11.0, e o que as versões anteriores trouxeram está no apêndice [Histórico de versões](#ap-c). Onde este manual diz "na v2.7.1" ou "pelo código da v2.7.1", o texto vale também para as versões seguintes, salvo nas mudanças que o apêndice registra da v2.7.2 em diante. Como conferir a versão do seu aparelho está no [capítulo 17](#cap-17-ota-conferir).
+Um aparelho com a v2.11.0 não tem os itens da v2.11.1, e o que as versões anteriores trouxeram está no apêndice [Histórico de versões](#ap-c). Onde este manual diz "na v2.7.1" ou "pelo código da v2.7.1", o texto vale também para as versões seguintes, salvo nas mudanças que o apêndice registra da v2.7.2 em diante. Como conferir a versão do seu aparelho está no [capítulo 17](#cap-17-ota-conferir).
 
 ## Como ler este manual {#cap-01-como-ler}
 
