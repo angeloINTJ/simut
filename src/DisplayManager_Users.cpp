@@ -163,6 +163,9 @@ uint8_t DisplayManager::pinAlphabet( ) const {
 uint8_t DisplayManager::pinMinLen( ) const {
 	uint8_t minLen, keypad, alphabet; pinPolicy(minLen, keypad, alphabet); return minLen;
 }
+uint8_t DisplayManager::pinEntryMinLen( ) const {
+	return PinKb::entryMinLen(pinIsIdentifying( ), pinMinLen( ));
+}
 
 /* The four cards, for `show display keypad`. The bench drives the panel from
  * outside and cannot find a digit whose position it was never told; the cards
@@ -313,7 +316,7 @@ void DisplayManager::pinCancel( ) {
 /* OK from the keypad. For identification the PIN goes to Core 0 as is; for a
  * new PIN it is typed twice, compared here, and only then handed over. */
 void DisplayManager::pinSubmit( ) {
-	if (_pinLen < pinMinLen( )) {
+	if (_pinLen < pinEntryMinLen( )) {
 		_pinMsg = TR_PIN_TOO_SHORT;
 		_errorSoundPending = true;
 		_repaintSettings = true;
@@ -492,11 +495,13 @@ void DisplayManager::drawPinDotsInto(GFXcanvas16* cv, int16_t oy) {
 		cv->print(m);
 		return;
 	}
-	/* The row is as wide as the policy's minimum, or as what has been typed
-	 * past it. Sixteen dots at the old 20-px pitch is 320 px, one wider than
-	 * the safe area allows (measured 2026-09-20), so both pitch and radius
-	 * step down past fourteen. */
-	const int floorLen = (int)pinMinLen( );
+	/* The row is as wide as the shortest entry this screen takes, or as what
+	 * has been typed past it: the policy's minimum to choose a PIN, the
+	 * absolute floor to prove one, which a PIN set under an older policy may
+	 * be. Sixteen dots at the old 20-px pitch is 320 px, one wider than the
+	 * safe area allows (measured 2026-09-20), so both pitch and radius step
+	 * down past fourteen. */
+	const int floorLen = (int)pinEntryMinLen( );
 	const int n = (_pinLen > floorLen) ? _pinLen : floorLen;
 	const int spacing = dotSpacing(n);
 	const int16_t r = dotRadius(n);

@@ -201,7 +201,7 @@ O reset troca só a senha. As permissões e o PIN continuam como estavam. Uma se
 Pela web, o PIN tem sempre de 4 a 8 dígitos, qualquer que seja a política de PIN do aparelho. O aparelho recusa um PIN que outra conta já use.
 
 ::: atencao
-**Um PIN definido pela web pode não servir no painel.** Com uma política de mínimo acima de 4, um PIN mais curto que o mínimo é aceito pela web, mas o teclado do painel o recusa com **PIN muito curto (mín. 4)** antes de conferir. Com a política de letras ou de mais de 8 caracteres, defina o PIN no painel ([O próprio PIN](#cap-08-proprio-pin)).
+**Um PIN definido pela web pode não seguir a política do painel.** Com uma política de mínimo acima de 4, a web aceita um PIN mais curto que o mínimo. Ele identifica a conta no painel, e o painel pede um PIN novo logo em seguida, como na troca obrigatória ([O PIN de fábrica](#cap-08-pin-fabrica)). Até a v2.11.0, o teclado do painel recusava esse PIN com **PIN muito curto (mín. 4)** antes de conferir. Com a política de letras ou de mais de 8 caracteres, defina o PIN no painel ([O próprio PIN](#cap-08-proprio-pin)).
 :::
 
 ### Motivos de recusa {#cap-08-recusas}
@@ -299,7 +299,7 @@ O teclado numérico ordenado, usado para definir um PIN.
 
 ### PIN errado e bloqueios {#cap-08-bloqueios}
 
-Um PIN errado faz o painel mostrar **PIN inválido!**, tocar o som de erro e distribuir os cartões de novo. Um PIN mais curto que o mínimo da política não chega a ser conferido: o painel mostra **PIN muito curto (mín. 4)**.
+Um PIN errado faz o painel mostrar **PIN inválido!**, tocar o som de erro e distribuir os cartões de novo. Para identificar, o painel confere qualquer PIN a partir de 4 caracteres, mesmo abaixo do mínimo da política: um PIN assim pode ter sido definido antes de a política mudar, ou pela web. Se ele estiver certo, a conta vai direto para a troca ([O PIN de fábrica](#cap-08-pin-fabrica)). Com menos de 4 caracteres, o painel mostra **PIN muito curto (mín. 4)** e não confere. Até a v2.11.0, um PIN mais curto que o mínimo da política nunca era conferido, e a conta ficava sem o painel.
 
 As tentativas erradas são contadas por conta:
 
@@ -388,7 +388,10 @@ Ao mudar um ajuste, o painel corrige os outros para uma combinação possível. 
 
 **Na web.** Os três campos ficam na seção **Hardware** da página **Configurações**, que exige a permissão **Sistema** ([capítulo 6](#cap-06-hardware)). A dica do tamanho mínimo mostra a faixa permitida, como `4 – 8`. Pela web, a mudança vale com **Aplicar agora**, sem reiniciar (até a v2.9.0, exigia **Salvar e reiniciar**). O log registra o mesmo código 459, com a marca `[web]`.
 
-Quando a política fica mais exigente em qualquer ajuste (mínimo maior, alfabeto menor ou teto menor), toda conta com PIN é marcada para trocá-lo. A conta continua se identificando com o PIN antigo e é levada a **Novo PIN** logo depois ([O PIN de fábrica](#cap-08-pin-fabrica)). Afrouxar a política não marca ninguém.
+Quando a política fica mais exigente em qualquer ajuste (mínimo maior, alfabeto menor ou teto menor), toda conta com PIN é marcada para trocá-lo, e é levada a **Novo PIN** logo depois de se identificar ([O PIN de fábrica](#cap-08-pin-fabrica)). Afrouxar a política não marca ninguém.
+
+- **Mínimo maior:** a conta se identifica com o PIN antigo, mesmo mais curto que o mínimo novo. Até a v2.11.0, o teclado recusava esse PIN como curto, e a conta ficava sem o painel.
+- **Alfabeto menor ou teto menor:** um PIN antigo com uma letra que saiu dos cartões, ou mais longo que o teto novo, não pode mais ser digitado: o teto não sobe para um PIN antigo, porque é o tempo de conferir. Defina um PIN novo para essa conta no item **Usuários** do painel, na página **Usuários** da web ou no console.
 
 ::: {.figura #fig-08-politica tipo="tft" arquivo="08-politica.png" captura="menu > Segurança do PIN, sessão admin; política de fábrica; linha Teclado selecionada"}
 A tela Segurança do PIN, com a política de fábrica: tamanho mínimo 4, 3 caracteres por tecla (máximo 8) e só dígitos.

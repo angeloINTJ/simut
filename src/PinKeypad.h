@@ -116,6 +116,28 @@ inline uint8_t maxLenFor(uint8_t keypad) {
 	return (keypad >= KB_MIN && keypad <= KB_MAX) ? LEN_MAX[keypad] : LEN_MAX[KB_SET3];
 }
 
+/** The shortest entry the keypad takes. Choosing a PIN follows the policy.
+ *  Proving one takes any length a PIN may still have, from PIN_LEN_MIN up:
+ *  a stricter policy marks every PIN to be changed (markPinsBelowPolicy) so
+ *  that an account whose PIN is now too short identifies with it and is sent
+ *  to the change, and Core 0 resolves any length from PIN_LEN_MIN. The
+ *  keypad refused that entry as too short instead, and the account was out
+ *  of the panel (on the rig, 2026-10-04: 4 digits under a minimum of 5). */
+inline uint8_t entryMinLen(bool identifying, uint8_t policyMin) {
+	return identifying ? PIN_LEN_MIN : policyMin;
+}
+
+/** After a PIN is proved, must the account choose a new one before it goes
+ *  on? When a stricter policy marked it, and whenever the PIN just proved is
+ *  shorter than the policy's minimum: a tap is a character, so the entry's
+ *  length is the PIN's. The second covers a PIN no tightening marked, as one
+ *  the web set below the policy (the web does not check it), which the
+ *  keypad's refusal used to hold to the policy and entryMinLen( ) now lets
+ *  through. */
+inline bool changeAfterProof(bool marked, uint8_t entryLen, uint8_t policyMin) {
+	return marked || entryLen < policyMin;
+}
+
 /* ── The lockout ladder ──────────────────────────────────────────────────
  * Six failures take the ACCOUNT out until reboot; PANEL_FAIL_CEILING failures
  * across all accounts take the PANEL out. Both are needed: only-per-panel is

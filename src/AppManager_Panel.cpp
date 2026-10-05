@@ -165,8 +165,11 @@ void AppManager::panelIdentify( ) {
   * shorter than the new minimum or it uses characters the new alphabet does
   * not have. The account still identifies (its digest did not change), and
   * the first thing it does is choose a PIN that complies. The admin's factory
-  * "1234" arrives here the same way. */
- if (_storageMgr->pinMustChange(slot)) {
+  * "1234" arrives here the same way. So does a PIN that proved shorter than
+  * the policy without a mark, as one the web set (PinKb::changeAfterProof):
+  * the keypad takes any length since 2026-10-04, and this is what still holds
+  * it to the policy. */
+ if (PinKb::changeAfterProof(_storageMgr->pinMustChange(slot), n, _displayMgr->pinMinLen( ))) {
  _displayMgr->showPinEntry(DisplayManager::PIN_FOR_OWN, -1, true);
  LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, (int)slot,
  TRL("PIN does not meet the policy; forcing change."));
