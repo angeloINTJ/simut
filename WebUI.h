@@ -4350,6 +4350,8 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     showToast(window.t('sens_accept_none', 'No probe answered on this GPIO.'), 'err');
                 } else if (r.status === 422) {
                     showToast(window.t('sens_accept_bad', 'The probe answered with an invalid ROM.'), 'err');
+                } else if (r.status === 409) {
+                    showToast(window.t('sens_accept_unsaved', 'Save this slot as an active DS18B20 first.'), 'err');
                 } else {
                     showToast(window.t('act_fail', 'Action failed.'), 'err');
                 }

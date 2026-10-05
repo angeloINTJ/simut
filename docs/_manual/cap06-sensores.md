@@ -329,19 +329,18 @@ Só aparece em slots DS18B20. Use depois de trocar uma sonda, quando o slot est�
 1. Abra o editor do slot.
 2. Toque em **Adotar a sonda ligada aqui** (*Adopt the probe wired here*).
 
-O aparelho lê a ROM da sonda, liga o slot a ela e grava. Se a ROM já constar do arquivo `calib.csv`, o slot recebe o ID de hardware e o nome guardados para ela; se não constar, recebe o ID `LIB_SENS`. Quando o ID muda, o aparelho grava a data como a época do slot ([Resetar época do histórico](#cap-06-epoca)).
+O aparelho lê a ROM da sonda no GPIO do slot, liga o slot a ela, grava e recarrega os sensores: a leitura segue com a sonda nova na hora, sem reiniciar. O GPIO do slot não muda. Se a ROM já constar do arquivo `calib.csv`, o slot recebe o ID de hardware e o nome guardados para ela; se não constar, recebe o ID `LIB_SENS`. Quando o ID muda, o aparelho grava a data como a época do slot ([Resetar época do histórico](#cap-06-epoca)).
 
 | Mensagem | Significado |
 |---|---|
 | **Slot vinculado à sonda encontrada nele.** | A sonda foi adotada |
-| **Nenhuma sonda respondeu neste GPIO.** | Nada respondeu no pino lido |
+| **Nenhuma sonda respondeu neste GPIO.** | Nada respondeu no GPIO do slot |
 | **A sonda respondeu com uma ROM inválida.** | A ROM lida falhou na conferência |
+| **Salve antes este slot como um DS18B20 ativo.** | O slot gravado no aparelho não é um DS18B20 ativo: por exemplo, o tipo foi escolhido no editor e ainda não foi salvo |
 
-::: atencao
-**A adoção lê o GPIO de mesmo número que o slot.** Para o slot 3, o aparelho lê a sonda em GP3 e grava GP3 como pino do slot. Com o slot num GPIO de outro número, a adoção lê o pino errado e muda o pino do slot. Nesse caso, em vez de adotar, libere o slot e crie-o de novo no mesmo GPIO: o aparelho lê a ROM nova na partida.
+::: nota
+**Até a v2.11.0, a adoção lia o GPIO de mesmo número que o slot** e gravava esse número como pino do slot. Num slot ligado a um GPIO de outro número, ela lia o pino errado e mudava o pino do slot. E a leitura em andamento seguia com a ROM antiga: a cada 5 leituras a divergência voltava, até o aparelho reiniciar.
 :::
-
-A adoção é gravada na hora, mas a leitura em andamento continua com a sonda antiga até o aparelho reiniciar. Reinicie depois de adotar.
 
 ### Resetar época do histórico {#cap-06-epoca}
 

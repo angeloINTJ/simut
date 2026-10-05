@@ -2953,7 +2953,7 @@ SIMUT# reload confirm</code></pre>
 <li>Abra o editor do slot.</li>
 <li>Toque em <strong>Adotar a sonda ligada aqui</strong> (<em>Adopt the probe wired here</em>).</li>
 </ol>
-<p>O aparelho lê a ROM da sonda, liga o slot a ela e grava. Se a ROM já constar do arquivo <code>calib.csv</code>, o slot recebe o ID de hardware e o nome guardados para ela; se não constar, recebe o ID <code>LIB_SENS</code>. Quando o ID muda, o aparelho grava a data como a época do slot (<a href="#cap-06-epoca">Resetar época do histórico</a>).</p>
+<p>O aparelho lê a ROM da sonda no GPIO do slot, liga o slot a ela, grava e recarrega os sensores: a leitura segue com a sonda nova na hora, sem reiniciar. O GPIO do slot não muda. Se a ROM já constar do arquivo <code>calib.csv</code>, o slot recebe o ID de hardware e o nome guardados para ela; se não constar, recebe o ID <code>LIB_SENS</code>. Quando o ID muda, o aparelho grava a data como a época do slot (<a href="#cap-06-epoca">Resetar época do histórico</a>).</p>
 <div class="tw"><table>
 <colgroup>
 <col style="width: 50%" />
@@ -2972,18 +2972,21 @@ SIMUT# reload confirm</code></pre>
 </tr>
 <tr class="even">
 <td><strong>Nenhuma sonda respondeu neste GPIO.</strong></td>
-<td>Nada respondeu no pino lido</td>
+<td>Nada respondeu no GPIO do slot</td>
 </tr>
 <tr class="odd">
 <td><strong>A sonda respondeu com uma ROM inválida.</strong></td>
 <td>A ROM lida falhou na conferência</td>
 </tr>
+<tr class="even">
+<td><strong>Salve antes este slot como um DS18B20 ativo.</strong></td>
+<td>O slot gravado no aparelho não é um DS18B20 ativo: por exemplo, o tipo foi escolhido no editor e ainda não foi salvo</td>
+</tr>
 </tbody>
 </table></div>
-<aside class="faixa faixa-atencao"><span class="selo selo-alerta"><i></i>Atenção</span>
-<p><strong>A adoção lê o GPIO de mesmo número que o slot.</strong> Para o slot 3, o aparelho lê a sonda em GP3 e grava GP3 como pino do slot. Com o slot num GPIO de outro número, a adoção lê o pino errado e muda o pino do slot. Nesse caso, em vez de adotar, libere o slot e crie-o de novo no mesmo GPIO: o aparelho lê a ROM nova na partida.</p>
+<aside class="faixa faixa-nota"><span class="selo selo-neutro"><i></i>Nota</span>
+<p><strong>Até a v2.11.0, a adoção lia o GPIO de mesmo número que o slot</strong> e gravava esse número como pino do slot. Num slot ligado a um GPIO de outro número, ela lia o pino errado e mudava o pino do slot. E a leitura em andamento seguia com a ROM antiga: a cada 5 leituras a divergência voltava, até o aparelho reiniciar.</p>
 </aside>
-<p>A adoção é gravada na hora, mas a leitura em andamento continua com a sonda antiga até o aparelho reiniciar. Reinicie depois de adotar.</p>
 <h4 id="cap-06-epoca">Resetar época do histórico</h4>
 <p>Grava o instante atual como a época do slot: a data em que o sensor atual começou nele. Use quando trocar o sensor físico de um slot, para registrar a troca.</p>
 <ol type="1">

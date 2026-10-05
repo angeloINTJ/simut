@@ -998,8 +998,21 @@ void WebManager::handleApiAction( ) {
 
 	if (op == "sensor_accept") {
 #if SIMUT_SENSOR_DS18B20
+		/* The probe is read on the slot's own GPIO, and the slot keeps that GPIO.
+		 * This read the GPIO whose number is the slot's and wrote that number into
+		 * pins[0], which is right only while the two match, and a slot is not a
+		 * pin (chapter 6 of the manual; finding 1 of docs/analysis/PLANO_REVISAO_EXTERNA.md).
+		 * On the rig, slot 7 on GP1 read GP7 and answered 422 for the probe that
+		 * GP1 was reading fine (2026-10-04). Only a slot saved as an active
+		 * DS18B20 has a GPIO to read: any other answers 409, and the page says to
+		 * save it first. */
+		if (!cfg.sensors[slot].active || cfg.sensors[slot].sensorType != TYPE_DS18B20) {
+			_server->send(409, "application/json", "{\"error\":\"notds18b20\"}");
+			return;
+		}
+		const uint8_t pin = cfg.sensors[slot].pins[0];
 		uint8_t foundRom[8];
-		if (!_sensorRef || !_sensorRef->identifyPhysicalSensor((uint8_t)slot, foundRom)) {
+		if (!_sensorRef || !_sensorRef->identifyPhysicalSensor(pin, foundRom)) {
 			_server->send(404, "application/json", "{\"error\":\"nosensor\"}");
 			return;
 		}
@@ -1011,9 +1024,6 @@ void WebManager::handleApiAction( ) {
 		_storageRef->getCalibrationData(foundRom, dbId, dbCurve, dbName);
 
 		String currentId = String(cfg.sensors[slot].hwId);
-		cfg.sensors[slot].active = true;
-		cfg.sensors[slot].pins[0] = (uint8_t)slot;
-		cfg.sensors[slot].sensorType = TYPE_DS18B20;
 		memcpy(cfg.sensors[slot].rom, foundRom, 8);
 		safeCopy(cfg.sensors[slot].hwId,
 		         dbId.length( ) ? dbId.c_str( ) : "LIB_SENS", sizeof(cfg.sensors[slot].hwId));
@@ -1027,7 +1037,16 @@ void WebManager::handleApiAction( ) {
 		if (epochMoved) {
 			cfg.sensors[slot].provisionEpoch = _netRef ? (uint32_t)_netRef->getEpoch( ) : 0;
 		}
+		/* The running sensor keeps its own copy of the ROM and checks the probe
+		 * against it every fifth read: saved without a reload, the slot stayed in
+		 * the mismatch quarantine. Measured on the rig, 2026-10-04, after adopting
+		 * a swapped probe: 0 valid reads of 15 in the next 90 s without the
+		 * reload, 14 of 14 with it. Saved and reloaded under quiet mode, as the
+		 * calibration commit above and the console's accept do. */
+		_displayRef->requestQuietMode( );
 		_storageRef->saveConfiguration( );
+		app.loadAndCalibrateSensors( );
+		_displayRef->releaseQuietMode( );
 		LOG_CODE(LOG_WARN, "WEB", SEC_CONFIG_CHANGED, _currentUserId,
 		         TRL("Hardware match restored"));
 		char resp[64];
