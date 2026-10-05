@@ -5240,8 +5240,9 @@ E6614103E7512B29,uSALA-1,Sala,55.00,52.00</code></pre>
 <ul>
 <li>A telemetria e o syslog esperam a rede voltar.</li>
 <li>O aparelho não tenta a rede configurada enquanto o AP está aberto.</li>
-<li>Um AP aberto com o aparelho em operação, pelo painel ou pelo comando <code>ap</code>, num aparelho com rede configurada, dura 15 min. Depois disso o aparelho reinicia para tentar a rede de novo, com ou sem alguém conectado ao AP. O evento é <strong>Timeout na conexão WiFi</strong> (525) com o texto <code>AP mode timeout, rebooting to STA</code>. Se a rede ainda não estiver lá, o aparelho segue a escada de reconexão, e o AP só volta se alguém o abrir de novo.</li>
-<li>Um AP aberto no boot, pelo gesto, ou num aparelho sem rede configurada, fica aberto até alguém gravar uma rede ou reiniciar o aparelho.</li>
+<li>Num aparelho com rede configurada, o AP dura 15 min, aberto pelo painel, pelo comando <code>ap</code> ou pelo gesto no boot. Depois disso o aparelho reinicia para tentar a rede de novo, com ou sem alguém conectado ao AP. O evento é <strong>Timeout na conexão WiFi</strong> (525) com o texto <code>AP mode timeout, rebooting to STA</code>. Se a rede ainda não estiver lá, o aparelho segue a escada de reconexão, e o AP só volta se alguém o abrir de novo.</li>
+<li>Num aparelho sem rede configurada, o AP fica aberto até alguém gravar uma rede ou reiniciar o aparelho.</li>
+<li>Até a v2.11.0, o prazo do AP aberto pelo gesto no boot lia um nome de rede que nada tinha gravado. Esse AP podia ficar aberto para sempre num aparelho com rede, ou fechar em 15 min num aparelho sem rede, conforme o que estivesse na memória. Na bancada, em 04/10/2026, ele fechou em 15 min num aparelho com rede.</li>
 </ul>
 <p>Para sair do AP com a rede certa:</p>
 <ol type="1">

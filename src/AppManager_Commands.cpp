@@ -52,7 +52,7 @@ void AppManager::startApMode(uint8_t why) {
   * this sets would hide the LCD's own AP pages. */
  _displayMgr->setBootStatusKey(TR_BOOT_START_AP);
 #endif
- if (!_netMgr->beginAP(cfg.deviceName)) {
+ if (!_netMgr->beginAP(cfg.deviceName, cfg.wifiSsid)) {
   /* beginAP( ) logged SYS_AP_START -1 and gave the radio back to the
    * reconnect ladder. _isApMode stays false so the loop keeps measuring: it
    * used to be set regardless, which left a device with no AP, nothing

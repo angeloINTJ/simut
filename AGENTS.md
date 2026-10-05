@@ -51,7 +51,13 @@ validar UI de verdade; o que **não** dá para exercitar de fora é o PENIRQ, qu
 nenhum fio da mão alcança. O contorno é uma imagem só de bancada com
 `-DTOUCH_IRQ=17 -DTOUCH_CS=21`: o PENIRQ passa a ser a linha CHARGER da mão, e
 `CHARGER OFF` (nível baixo) é "dedo na tela". Foi assim que o gesto de AP do
-boot foi medido nos quatro casos em 22/09.
+boot foi medido nos quatro casos em 22/09. **Em 04/10/2026, com a mão em
+`CHARGER HIZ`, essa linha ficou em nível baixo depois do boot** (`CHARGER
+STATUS: HIZ (GP3 level=L)`), e todo boot dessa imagem abriu o AP sem dedo
+nenhum, inclusive o que segue ao prazo de 15 min do AP. Para um boot sem dedo,
+segure a linha em alto com `CHARGER ON`: nessa imagem o GP17 é só entrada, e
+não há duas saídas no fio. Um `hand_release_all` (o fim de um roteiro) devolve
+a linha a HIZ.
 
 **No build TFT, o GP16 e o GP17 do alvo são o MISO da tela e o `TOUCH_CS` —
 e estão ligados à mão (PROBE e CHARGER).** Um `CHARGER ON/OFF` ou um

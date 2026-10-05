@@ -101,7 +101,17 @@ void NetworkManager::begin(const SystemConfig &cfg,
  * mechanism — whoever can see the device can read it, and whoever is merely in
  * radio range cannot.
  */
-bool NetworkManager::beginAP(const char* deviceName) {
+bool NetworkManager::beginAP(const char* deviceName, const char* stationSsid) {
+ /* The AP's time limit gives way to the configured network, and asks for it
+  * by its name (update( ), NET_AP_CONFIG). The name came only from begin( ),
+  * and the boot that the gesture sends into AP mode never calls begin( ): its
+  * limit read 32 bytes nothing had written, and what the heap held decided.
+  * Zeros kept the AP of a unit with a network up for good; anything else
+  * closed the AP of a unit with none, the one way to give it a network
+  * (finding 25 of docs/analysis/PLANO_REVISAO_EXTERNA.md). On the rig, on
+  * 2026-10-04, main's gesture AP closed at 900 s: not zeros, that boot.
+  * Written here every time, empty for a unit with none. */
+ safeCopy(_ssid, stationSsid, sizeof(_ssid));
  /* Take the radio away from the station FIRST, and wait for it to let go.
   *
   * Measured on the rig 2026-09-22: `ap` issued while the station was hunting
