@@ -426,7 +426,7 @@ O painel mostra **Usuário salvo!** e grava na hora, sem reiniciar. O log regist
 | **Nome inválido ou repetido** | Nome com aspas, barra invertida ou caractere de controle, já usado por outra conta, ou `admin` |
 | **Sem vaga para conta nova** | As 32 posições estão ocupadas |
 | **PIN já em uso!** | Outra conta tem esse PIN; a conta não é criada |
-| **Sem permissão** | A conta identificada não tem mais a permissão **Usuários** |
+| **Sem permissão** | A conta identificada não tem mais a permissão **Usuários**, ou marcou uma permissão de painel que ela mesma não tem |
 
 Uma conta criada no painel tem só as três permissões de painel e uma senha web aleatória que ninguém conhece. Ela não abre nenhuma página web até um administrador recriá-la pela página **Usuários** com permissões web e entregar a senha de uso único ([Mudar as permissões de uma conta](#cap-08-mudar)).
 
@@ -452,7 +452,9 @@ O PIN da conta nova, digitado duas vezes no teclado ordenado.
 | **Definir PIN** | Define um PIN novo para a conta, digitado duas vezes |
 | **Excluir usuário** | Exclui a conta, depois de confirmar |
 
-As três primeiras linhas só mudam na tela; **SALVAR** grava, e o painel mostra **Usuário salvo!** (código 453, **Permissões alteradas pelo painel**). As permissões web da conta ficam como estavam. **Definir PIN** grava ao fim da confirmação (código 452, **PIN do painel definido**).
+As três primeiras linhas só mudam na tela; **SALVAR** grava, e o painel mostra **Usuário salvo!** (código 453, **Permissões alteradas pelo painel**). As permissões web da conta ficam como estavam.
+
+**O painel só concede as permissões de painel que a conta identificada tem.** Marcar, numa conta nova ou numa existente, uma permissão que ela não tem é recusado com **Sem permissão**, e nada é gravado: o log registra o código 458, **Ação do painel recusada: sem permissão**. Desmarcar é sempre possível, e uma permissão que a conta editada já tinha pode ficar. A regra é a mesma da página **Usuários** da web, e vale também para a própria conta. Até a v2.11.0, quem tinha a permissão **Usuários** concedia as três a qualquer conta, inclusive a si mesmo. **Definir PIN** grava ao fim da confirmação (código 452, **PIN do painel definido**).
 
 **Excluir uma conta no painel:**
 

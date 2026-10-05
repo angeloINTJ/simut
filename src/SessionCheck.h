@@ -52,6 +52,24 @@ inline bool panelAccountStillThere(const UserT* users, int count, int slot,
 }
 
 /**
+ * May a panel session holding `caller` change an account's panel bits from
+ * `before` to `after`? Only by ADDING bits the caller holds itself.
+ *
+ * The web refuses to grant what the caller lacks since V-09
+ * (commitGrantAllowed in WebCommitSections.h); the panel did not, so an
+ * account with Users and no panel bit gave Limits, Block and Maintenance to
+ * any account, its own included (finding 8 of
+ * docs/analysis/PLANO_REVISAO_EXTERNA.md).
+ * Taking a bit away is not escalation, and neither is leaving one the caller
+ * lacks where it already was: deleting the account outright needs no more than
+ * Users. A new account is `before` 0. Its own account is no exception: what it
+ * adds to itself it already holds.
+ */
+inline constexpr bool panelGrantAllowed(uint16_t before, uint16_t after, uint16_t caller) {
+	return ((after & (uint16_t)~before) & (uint16_t)~caller) == 0;
+}
+
+/**
  * Is the account in `slot` still the one this web session was opened for —
  * same name, and a password nobody else has set since (`salt`, stamped at
  * login)? On true, `perms` becomes what the account holds now.

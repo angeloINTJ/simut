@@ -191,6 +191,11 @@ private:
  uint8_t _panelAuthFor = PAUTH_SETTINGS;
  bool handlePanelEvent(const UiEvent& ev);
  bool panelAllowed(uint16_t bit, int8_t slot);
+ /** panelAllowed( ), and an account's panel bits going from `before` to
+  *  `after` add none the session lacks (panelGrantAllowed, SessionCheck.h).
+  *  An overload, not two default arguments: those cost each of the other
+  *  call sites 4 B, 56 B in all (pico_w_release, 2026-10-04). */
+ bool panelAllowed(uint16_t bit, int8_t slot, uint16_t before, uint16_t after);
  bool panelSessionCurrent( );
  const char* panelUserName( ) const;
  void panelIdentify( );

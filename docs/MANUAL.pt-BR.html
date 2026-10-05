@@ -4399,7 +4399,7 @@ E6614103E7512B29,uSALA-1,Sala,55.00,52.00</code></pre>
 </tr>
 <tr class="even">
 <td><strong>Sem permissão</strong></td>
-<td>A conta identificada não tem mais a permissão <strong>Usuários</strong></td>
+<td>A conta identificada não tem mais a permissão <strong>Usuários</strong>, ou marcou uma permissão de painel que ela mesma não tem</td>
 </tr>
 </tbody>
 </table></div>
@@ -4442,7 +4442,8 @@ E6614103E7512B29,uSALA-1,Sala,55.00,52.00</code></pre>
 </tr>
 </tbody>
 </table></div>
-<p>As três primeiras linhas só mudam na tela; <strong>SALVAR</strong> grava, e o painel mostra <strong>Usuário salvo!</strong> (código 453, <strong>Permissões alteradas pelo painel</strong>). As permissões web da conta ficam como estavam. <strong>Definir PIN</strong> grava ao fim da confirmação (código 452, <strong>PIN do painel definido</strong>).</p>
+<p>As três primeiras linhas só mudam na tela; <strong>SALVAR</strong> grava, e o painel mostra <strong>Usuário salvo!</strong> (código 453, <strong>Permissões alteradas pelo painel</strong>). As permissões web da conta ficam como estavam.</p>
+<p><strong>O painel só concede as permissões de painel que a conta identificada tem.</strong> Marcar, numa conta nova ou numa existente, uma permissão que ela não tem é recusado com <strong>Sem permissão</strong>, e nada é gravado: o log registra o código 458, <strong>Ação do painel recusada: sem permissão</strong>. Desmarcar é sempre possível, e uma permissão que a conta editada já tinha pode ficar. A regra é a mesma da página <strong>Usuários</strong> da web, e vale também para a própria conta. Até a v2.11.0, quem tinha a permissão <strong>Usuários</strong> concedia as três a qualquer conta, inclusive a si mesmo. <strong>Definir PIN</strong> grava ao fim da confirmação (código 452, <strong>PIN do painel definido</strong>).</p>
 <p><strong>Excluir uma conta no painel:</strong></p>
 <ol type="1">
 <li>No editor da conta, toque em <strong>Excluir usuário</strong>.</li>
