@@ -8,34 +8,60 @@ A tabela nasceu de uma contagem feita em 2026-10-12 (instruções e máquinas de
 cada programa que o boot carrega). Este teste a segura de três lados, sem compilar
 firmware:
   - a colocação (`place`) contra os conjuntos de recursos de que o projeto já sabe a
-    resposta, mais uma varredura das 32 combinações dos dois chips contra invariantes
-    (nenhum bloco acima de 32 instruções ou 4 máquinas, a soma do que coube é a soma dos
-    programas) e um controle negativo: a recusa vem do espaço que falta, não do nome;
-  - os pinos (`pin_conflicts`);
+    resposta, mais uma varredura das 32 combinações de chaves em cada um dos dois chips
+    contra invariantes (nenhum bloco acima de 32 instruções ou 4 máquinas, a soma do que
+    coube é a soma dos programas) e um controle negativo: a recusa vem do espaço que
+    falta, não do nome. O rádio tenta os blocos como o pico-sdk os tenta, do mais alto
+    ao mais baixo, e cai no seguinte quando o primeiro não tem lugar;
+  - os pinos: `pin_conflicts`, o INT padrão de cada mostrador e a validação do
+    `enc_int_pin`; e a tabela `PINS` contra as máscaras que o `src/simut_config.h` confere
+    (SIMUT_PINS_DISPLAY, SIMUT_PINS_ENC, SIMUT_PINS_BUZZER), pedidas ao pré-processador do
+    host para cada mostrador do `tools/features.toml`, com e sem buzzer;
   - as fontes: o `.length` de cada `.pio.h` e as instruções do `.pio` do rádio têm de
     ser o que a tabela diz. Onde a fonte não existe o teste a pula e avisa: o job `gates`
     do CI não tem as bibliotecas. O leitor das fontes é provado à parte, em arquivos
     sintéticos, porque é a única prova dele que o CI roda.
 
-O número no início de cada rótulo diz de que grupo a falha é: 1 a 8, os conjuntos de recursos;
-2r, a recusa de um programa de bloco fixo; 9, os limites de todo resultado; 10, os pinos;
-11, as fontes reais; 12, o controle negativo; 13, o leitor das fontes.
+O número no início de cada rótulo diz de que grupo a falha é: 1 a 8, os conjuntos de
+recursos; 2r, os programas de lista de blocos com a tabela mudada (a recusa, a ordem em que
+tentam os blocos, o rádio que cai no seguinte); 9, os limites de todo resultado; 10, os
+pinos e o INT; 11, as fontes reais; 12, o controle negativo; 13, o leitor das fontes e a
+variável SIMUT_PIO_SOURCES; 14, a tabela de pinos contra o simut_config.h.
+
+O grupo 14 precisa do `cpp` do host, o mesmo do test_pin_masks.py, de onde vêm o
+`preprocess` e o `judge`; sem ele o teste falha, não pula: uma tabela de pinos que ninguém
+conferiu não é uma tabela conferida.
 
 Variáveis de ambiente (as fontes reais):
   SIMUT_LIBDEPS    <repo>/.pio/libdeps/pico_w_release
   ENC_PIO_HEADER   ~/Documentos/pico-enc28j60/PicoENC28J60/src/enc28j60-spi.pio.h
   CYW43_PIO        ~/.platformio/packages/framework-arduinopico/pico-sdk/src/rp2_common/
                    pico_cyw43_driver/cyw43_bus_pio_spi.pio
+  SIMUT_PIO_SOURCES
+                   vazio (o padrão): uma fonte que não existe é pulada, com um aviso.
+                   `require`: pular vira falha para onewire, dht22, buzzer, cyw43 e o
+                   WirePIO do BME280, as fontes que um job que compila o firmware tem (as
+                   bibliotecas em .pio/libdeps e o pico-sdk do framework). O enc28j60
+                   continua podendo faltar: a biblioteca ainda não é dependência de nenhuma
+                   imagem. Qualquer outro valor reprova, para que um erro de digitação não
+                   desligue o portão.
+                   O grupo 13 prova as duas pontas rodando este mesmo arquivo como processo
+                   filho, sem nenhuma fonte, e olhando o código de saída.
 """
 import copy
 import itertools
 import os
+import re
+import shutil
+import subprocess
 import sys
 import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
+import gen_features as gf  # noqa: E402
 import pio_budget as pb  # noqa: E402
+import test_pin_masks as tpm  # noqa: E402
 
 casos = 0
 falhas = []
@@ -118,8 +144,10 @@ CASOS = [
      False, None, {"pio0": (0, 0), "pio1": (0, 0)}),
     ("6 rádio, buzzer, DHT22 e LAN", "rp2040", ("radio", "sound_buzzer", "sensor_dht22", "lan"),
      True, "pio0", {"pio0": (17, 1), "pio1": (27, 4)}),
+    # O rádio não fica no pio1 como no RP2040: o pico-sdk tenta os blocos do mais alto ao mais
+    # baixo (pio_claim_free_sm_and_add_program_for_gpio_range), e no RP2350 o mais alto é o pio2.
     ("7 release no RP2350", "rp2350", RELEASE_PICO_W, True, None,
-     {"pio0": (27, 1), "pio1": (27, 4), "pio2": (0, 0)}),
+     {"pio0": (27, 1), "pio1": (21, 3), "pio2": (6, 1)}),
     ("8 LAN, DS18B20 e DHT22 no RP2350", "rp2350", LAN_E_DOIS_SENSORES, True, "pio2",
      {"pio0": (27, 1), "pio1": (21, 3), "pio2": (17, 1)}),
     # O pio2 só entra quando é preciso: o mesmo conjunto do caso 1 fica no pio0.
@@ -210,14 +238,60 @@ r = coloca("2r DHT22 só no pio2, RP2040", "rp2040", ("sensor_dht22",), tabela_c
 check(not r["ok"] and "none of the blocks it can use (pio2)" in r["reason"] and uma_frase(r["reason"]),
       f"2r: um programa só do pio2 não tem onde ficar no RP2040: {r['ok']} {r['reason']!r}")
 
+# O rádio não escolhe o bloco: o pico-sdk o põe no primeiro, do mais alto ao mais baixo, com uma
+# máquina livre e lugar para o programa (cyw43_spi_init chama
+# pio_claim_free_sm_and_add_program_for_gpio_range). A lista dele é a dos blocos do chip de trás
+# para a frente, e `place` deixa de fora o bloco que o chip não tem. Com a tabela de hoje e sem a
+# LAN o pio1 sempre tem lugar para o rádio (o buzzer e o DHT22 deixam 11 instruções e uma
+# máquina), então levá-lo ao pio0 ou à recusa pede uma tabela mudada.
+check(pb.PROGRAMS["cyw43"]["blocks"] == sorted(pb.CHIPS["rp2350"], reverse=True),
+      f"2r: o rádio deveria tentar os blocos do mais alto ao mais baixo, tenta {pb.PROGRAMS['cyw43']['blocks']}")
+r = coloca("2r rádio sozinho, RP2040", "rp2040", ("radio",))
+check(r["ok"] and uso(r) == {"pio0": (0, 0), "pio1": (6, 1)},
+      f"2r: o rádio sozinho no RP2040 deveria ir para o pio1, o mais alto que o chip tem: {r['ok']} {uso(r)}")
+r = coloca("2r rádio sozinho, RP2350", "rp2350", ("radio",))
+check(r["ok"] and uso(r) == {"pio0": (0, 0), "pio1": (0, 0), "pio2": (6, 1)},
+      f"2r: o rádio sozinho no RP2350 deveria ir para o pio2: {r['ok']} {uso(r)}")
+# O pio1 sem lugar para o rádio, por instruções (o buzzer e o DHT22 deixam 11 e o rádio pede 12)
+# ou por máquinas (as 4 tomadas): nos dois o rádio cai no pio0.
+r = coloca("2r rádio de 12 instruções, pio1 com 11 livres", "rp2040", ("sound_buzzer", "sensor_dht22", "radio"),
+           tabela_com("cyw43", instr=12))
+check(r["ok"] and uso(r) == {"pio0": (12, 1), "pio1": (21, 3)},
+      f"2r: sem lugar no pio1 por instruções o rádio deveria cair no pio0: {r['ok']} {uso(r)}")
+r = coloca("2r rádio com o pio1 sem máquina livre", "rp2040", ("sound_buzzer", "sensor_dht22", "radio"),
+           tabela_com("dht22", sm=2))
+check(r["ok"] and uso(r) == {"pio0": (6, 1), "pio1": (21, 4)},
+      f"2r: sem máquina livre no pio1 o rádio deveria cair no pio0: {r['ok']} {uso(r)}")
+# Nenhum bloco com lugar: a release do RP2040 (o 1-Wire deixa 5 instruções no pio0, o buzzer e o
+# DHT22 deixam 11 no pio1) com um rádio de 12 é recusada, e o motivo lista os blocos na ordem em
+# que o rádio os tenta. O RP2350 tem o pio2 vazio, e nele o mesmo rádio cabe.
+radio12 = tabela_com("cyw43", instr=12)
+r = coloca("2r release do RP2040 com rádio de 12 instruções", "rp2040", RELEASE_PICO_W, radio12)
+check(not r["ok"] and r["enc_block"] is None and uso(r) == {"pio0": (27, 1), "pio1": (21, 3)},
+      f"2r: o rádio de 12 não cabe em nenhum bloco do RP2040, que ficam como estavam: {r['ok']} {uso(r)}")
+check(r["reason"].startswith("cyw43 needs 12 instructions and 1 state machine and no block it can use has that much free")
+      and "pio1 has 11 instructions and 1 state machine free; pio0 has 5 instructions and 3 state machines free" in r["reason"]
+      and uma_frase(r["reason"]),
+      f"2r: o motivo deveria nomear o rádio e listar o pio1 e depois o pio0 com o que sobra: {r['reason']!r}")
+r = coloca("2r release do RP2350 com rádio de 12 instruções", "rp2350", RELEASE_PICO_W, radio12)
+check(r["ok"] and uso(r) == {"pio0": (27, 1), "pio1": (21, 3), "pio2": (12, 1)},
+      f"2r: o RP2350 tem o pio2 vazio para o rádio de 12: {r['ok']} {uso(r)}")
+
 # A conta do que vem depois do enc28j60 inclui o que os próprios programas de depois tiram
-# uns dos outros: com o rádio em 20 instruções o DHT22 e o rádio não cabem juntos no pio1,
-# cada um cabe sozinho, e quem recusa é o enc28j60 (a simulação) e não o rádio (a regra 2,
-# que só pegaria depois de o enc28j60 já estar no lugar).
-r = coloca("12 rádio de 20 instruções", "rp2040", ("lan", "sensor_dht22", "radio"),
-           tabela_com("cyw43", instr=20))
-check(not r["ok"] and r["reason"].startswith("enc28j60 needs") and "but then cyw43 would not fit" in r["reason"],
-      f"12 o DHT22 e o rádio de 20 não cabem juntos no pio1, e quem recusa é o enc28j60: {r['reason']!r}")
+# uns dos outros. Sem a LAN, o DHT22 (só no pio1) e um rádio de 20 instruções cabem juntos: o
+# rádio não cabe no pio1 com ele e cai no pio0. O enc28j60 desfaz esse arranjo: no pio0 deixa o
+# rádio sem bloco (17 + 20 > 32), no pio1 deixa o DHT22 sem o dele. Quem recusa é o enc28j60 (a
+# simulação) e não o rádio (a regra 2, que só pegaria depois de o enc28j60 já estar no lugar).
+radio20 = tabela_com("cyw43", instr=20)
+r = coloca("12 rádio de 20 instruções, sem a LAN", "rp2040", ("sensor_dht22", "radio"), radio20)
+check(r["ok"] and uso(r) == {"pio0": (20, 1), "pio1": (17, 1)},
+      f"12 sem a LAN o DHT22 e o rádio de 20 cabem juntos, o rádio no pio0: {r['ok']} {uso(r)}")
+r = coloca("12 rádio de 20 instruções", "rp2040", ("lan", "sensor_dht22", "radio"), radio20)
+check(not r["ok"] and r["reason"].startswith("enc28j60 needs")
+      and "pio0 has 32 instructions and 4 state machines free, but then cyw43 would not fit" in r["reason"]
+      and "pio1 has 32 instructions and 4 state machines free, but then dht22 would not fit" in r["reason"],
+      f"12 o enc28j60 tira o lugar do rádio de 20 no pio0 e o do DHT22 no pio1, e quem recusa é ele: "
+      f"{r['reason']!r}")
 # Um enc28j60 maior que um bloco, ou com mais máquinas do que ele tem, não cabe em lugar nenhum.
 for campo, valor in (("instr", 33), ("sm", 5)):
     r = coloca(f"12 enc28j60 com {campo} {valor}", "rp2350", ("lan",),
@@ -230,8 +304,8 @@ msg = levanta(pb.place, {}, "rp9999")
 check(msg is not None and "rp9999" in msg, f"um chip desconhecido deveria levantar ValueError nomeando o chip: {msg!r}")
 
 # ---------------------------------------------------------------------------------
-# Varredura: as 32 combinações de chaves nos dois chips contra invariantes que não dependem
-# de saber a resposta de cada uma.
+# Varredura: as 32 combinações de chaves em cada um dos dois chips contra invariantes que não
+# dependem de saber a resposta de cada uma.
 # ---------------------------------------------------------------------------------
 CHAVES = [k for _, k in pb.ORDER]
 cabe_em = {}
@@ -288,38 +362,78 @@ def pinos(display, lan=False, int_pin=None, buzzer=False):
     return {"display": display, "lan": lan, "enc_int_pin": int_pin, "sound_buzzer": buzzer}
 
 
+def erro_de(fn, *args):
+    """A exceção, de qualquer tipo, que fn(*args) levanta, ou None se não levantar. Um valor
+    que não pode ser um pino tem de dar ValueError; um TypeError escapando não é isso."""
+    try:
+        fn(*args)
+    except Exception as e:  # noqa: BLE001
+        return e
+    return None
+
+
 CONFLITOS = [
-    ("alpha_parallel + LAN com INT 21", pinos("alpha_parallel", True, 21), [(21, "display:alpha_parallel", "lan")]),
-    ("alpha_parallel + LAN com INT 28", pinos("alpha_parallel", True, 28), []),
+    ("alpha_paralelo + LAN com INT 21", pinos("alpha_paralelo", True, 21), [(21, "display:alpha_paralelo", "lan")]),
+    ("alpha_paralelo + LAN com INT 28", pinos("alpha_paralelo", True, 28), []),
     ("tft + LAN com INT 21", pinos("tft", True, 21), []),
     ("tft + LAN com INT 28", pinos("tft", True, 28), [(28, "display:tft", "lan")]),
-    ("alpha_i2c + LAN com INT 22 + buzzer", pinos("alpha_i2c", True, 22, True), [(22, "buzzer", "lan")]),
-    ("alpha_i2c + LAN com INT 22, sem buzzer", pinos("alpha_i2c", True, 22, False), []),
-    ("LAN desligada não reivindica o INT 21", pinos("alpha_parallel", False, 21), []),
-    ("nenhum mostrador + LAN com INT 22 + buzzer", pinos("none", True, 22, True), [(22, "buzzer", "lan")]),
+    ("alpha_paralelo + LAN com INT 22 + buzzer", pinos("alpha_paralelo", True, 22, True), [(22, "buzzer", "lan")]),
+    ("alpha_paralelo + LAN com INT 22, sem buzzer", pinos("alpha_paralelo", True, 22, False), []),
+    ("LAN desligada não reivindica o INT 21", pinos("alpha_paralelo", False, 21), []),
+    ("nenhum mostrador + LAN com INT 22 + buzzer", pinos("nenhum", True, 22, True), [(22, "buzzer", "lan")]),
+    # O INT que o simut_config.h escolhe quando a build não escolhe (GP21 com a TFT, GP28 com o
+    # LCD) não colide com o mostrador nem com o buzzer de fábrica.
+    ("tft + LAN + buzzer, INT pelo padrão", pinos("tft", True, None, True), []),
+    ("alpha_paralelo + LAN + buzzer, INT pelo padrão", pinos("alpha_paralelo", True, None, True), []),
 ]
 for rotulo, cfg, esperado in CONFLITOS:
     got = pb.pin_conflicts(cfg)
     check(got == esperado, f"10 {rotulo}: deveria dar {esperado}, deu {got}")
 
-# Sem pino de INT (None ou -1) a LAN reivindica só os quatro dela, com qualquer mostrador;
-# com a LAN desligada não reivindica nada. A leitura é pelo dono, porque um pino -1 ou None
-# reivindicado a mais não colidiria com ninguém e passaria despercebido pelas colisões.
+# Com INT -1 ("sem pino": o driver consulta o módulo) a LAN reivindica só os quatro dela, com
+# qualquer mostrador; com a LAN desligada não reivindica nada. A leitura é pelo dono, porque um
+# pino -1 reivindicado a mais não colidiria com ninguém e passaria despercebido pelas colisões.
 for display in pb.DISPLAYS:
-    for sem_int in (None, -1):
-        dono = pb.pin_owners(pinos(display, True, sem_int))
-        check(dono["lan"] == set(pb.PINS["lan"]),
-              f"10 {display} + LAN com INT {sem_int!r}: a LAN deveria reivindicar só {sorted(pb.PINS['lan'])}, "
-              f"reivindica {dono['lan']}")
-        check(pb.pin_conflicts(pinos(display, True, sem_int)) == [],
-              f"10 {display} + LAN sem pino de INT ({sem_int!r}) não colide com ninguém")
+    dono = pb.pin_owners(pinos(display, True, -1))
+    check(dono["lan"] == set(pb.PINS["lan"]),
+          f"10 {display} + LAN com INT -1: a LAN deveria reivindicar só {sorted(pb.PINS['lan'])}, "
+          f"reivindica {dono['lan']}")
+    check(pb.pin_conflicts(pinos(display, True, -1)) == [],
+          f"10 {display} + LAN sem pino de INT (-1) não colide com ninguém")
     check("lan" not in pb.pin_owners(pinos(display, False, 21)),
           f"10 {display}: com a LAN desligada ela não reivindica nada")
-check(0 in pb.pin_owners(pinos("none", True, 0))["lan"], "10 o GP0 é um pino de INT válido (0 não é 'sem pino')")
+check(0 in pb.pin_owners(pinos("nenhum", True, 0))["lan"], "10 o GP0 é um pino de INT válido (0 não é 'sem pino')")
+check(29 in pb.pin_owners(pinos("nenhum", True, 29))["lan"], "10 o GP29 é o último pino de INT válido")
+
+# Sem enc_int_pin (a chave ausente, ou None) o INT é o que o simut_config.h escolhe para o
+# mostrador: GP21 com a TFT, GP28 com o LCD e nenhum sem mostrador.
+for display, padrao in (("tft", 21), ("alpha_paralelo", 28), ("nenhum", None)):
+    quer = set(pb.PINS["lan"]) | (set() if padrao is None else {padrao})
+    for como, cfg in (("com enc_int_pin None", pinos(display, True, None)),
+                      ("sem a chave enc_int_pin", {"display": display, "lan": True})):
+        dono = pb.pin_owners(cfg)
+        check(dono["lan"] == quer,
+              f"10 {display} + LAN {como}: o INT padrão é {padrao!r}, a LAN deveria reivindicar "
+              f"{sorted(quer)} e reivindica {sorted(dono['lan'])}")
 check(pb.pin_owners({"lan": True})["lan"] == set(pb.PINS["lan"]),
-      "10 sem enc_int_pin na config, a LAN reivindica só os quatro")
+      "10 sem mostrador nem enc_int_pin na config, a LAN reivindica só os quatro")
+
+# O que não pode ser um pino é recusa, com o valor no texto: só None, -1 ou um int de 0 a 29. Um
+# bool não conta (True seria o GP1 e False o GP0), e a LAN desligada não livra o valor da conta.
+for valor in ("21", True, False, 30, -2, 21.0, [21]):
+    for lan in (True, False):
+        e = erro_de(pb.pin_owners, pinos("tft", lan, valor))
+        check(type(e) is ValueError and repr(valor) in str(e),
+              f"10 enc_int_pin={valor!r} com a LAN {'ligada' if lan else 'desligada'} deveria levantar "
+              f"ValueError com o valor no texto: {e!r}")
+
 check(levanta(pb.pin_conflicts, {"display": "lcd"}) is not None,
       "10 um mostrador desconhecido deveria levantar ValueError")
+# Os ids são os do manifesto (grupo 14); os que o módulo usava antes deixaram de valer.
+for velho in ("alpha_i2c", "alpha_parallel", "none"):
+    msg = levanta(pb.pin_conflicts, {"display": velho})
+    check(msg is not None and velho in msg,
+          f"10 o mostrador {velho!r} não é um id do manifesto: deveria levantar ValueError nomeando-o: {msg!r}")
 
 # Os pares saem em ordem alfabética e a lista, em ordem de pino. Com a tabela mudada para
 # um buzzer em dois pinos (21 e 14), cada um colide com um dono: o 14 com a LAN e o 21 com o
@@ -327,10 +441,10 @@ check(levanta(pb.pin_conflicts, {"display": "lcd"}) is not None,
 PINS_ORIGINAIS = pb.PINS
 try:
     pb.PINS = dict(PINS_ORIGINAIS, buzzer=(21, 14))
-    got = pb.pin_conflicts(pinos("alpha_parallel", True, None, True))
+    got = pb.pin_conflicts(pinos("alpha_paralelo", True, None, True))
 finally:
     pb.PINS = PINS_ORIGINAIS
-check(got == [(14, "buzzer", "lan"), (21, "buzzer", "display:alpha_parallel")],
+check(got == [(14, "buzzer", "lan"), (21, "buzzer", "display:alpha_paralelo")],
       f"10 três donos: deveria dar as colisões do 14 e do 21, nessa ordem, deu {got}")
 
 # ---------------------------------------------------------------------------------
@@ -347,14 +461,40 @@ fontes = {nome: os.path.join(libdeps, rel) for nome, rel in pb.LIBDEPS_FILES.ite
 fontes["enc28j60"] = enc_header
 fontes["cyw43"] = cyw43_pio
 check(sorted(fontes) == sorted(pb.PROGRAMS), f"11 há programa sem fonte (ou fonte sem programa): {sorted(fontes)}")
+# SIMUT_PIO_SOURCES=require: o job que compila o firmware tem as fontes, e uma que sumiu (uma pasta
+# de libdeps que mudou de lugar) não pode virar um "pulado" que ninguém lê. O enc28j60 fica de
+# fora: a biblioteca dele ainda não é dependência de nenhuma imagem. Um valor que não seja
+# "require" nem vazio também reprova, porque um erro de digitação desligaria o portão sem aviso.
+modo_fontes = os.environ.get("SIMUT_PIO_SOURCES", "")
+check(modo_fontes in ("", "require"),
+      f"11 SIMUT_PIO_SOURCES={modo_fontes!r}: os valores são vazio (a fonte que falta é pulada) e "
+      f"'require' (a fonte que falta é falha)")
+exigidas = set(fontes) - {"enc28j60"} if modo_fontes == "require" else set()
 lidos = pb.program_lengths(libdeps, enc_header, cyw43_pio)
 for nome, caminho in fontes.items():
     if not os.path.exists(caminho):
-        print(f"pulado: {caminho} não existe")
+        if nome in exigidas:
+            check(False, f"11 {nome}: {caminho} não existe, e SIMUT_PIO_SOURCES=require não deixa pular")
+        else:
+            print(f"pulado: {caminho} não existe")
         check(nome not in lidos, f"11 {nome}: {caminho} não existe e mesmo assim foi lido")
         continue
     check(lidos.get(nome) == pb.PROGRAMS[nome]["instr"],
           f"11 {nome}: {caminho} diz {lidos.get(nome)} instruções, a tabela diz {pb.PROGRAMS[nome]['instr']}")
+
+# O WirePIO do BME280 fica fora da tabela, e o motivo é o tamanho dele, um bloco inteiro (ver o
+# docstring do pio_budget): esse número também é conferido contra a fonte, com as mesmas regras.
+wirepio = os.path.join(libdeps, pb.WIREPIO_FILE)
+texto_wirepio = pb._read(wirepio)
+if texto_wirepio is None:
+    if modo_fontes == "require":
+        check(False, f"11 wirepio: {wirepio} não existe, e SIMUT_PIO_SOURCES=require não deixa pular")
+    else:
+        print(f"pulado: {wirepio} não existe")
+else:
+    n_wirepio = pb._length_in(texto_wirepio, wirepio)
+    check(n_wirepio == pb.WIREPIO_INSTR,
+          f"11 wirepio: {wirepio} diz {n_wirepio} instruções, o pio_budget diz {pb.WIREPIO_INSTR}")
 
 # ---------------------------------------------------------------------------------
 # 13. O leitor das fontes, em arquivos sintéticos: é a única prova dele que o CI roda.
@@ -447,10 +587,147 @@ with tempfile.TemporaryDirectory() as tmp:
     check(levanta(pb.program_lengths, lib, enc_sem, pio) is not None,
           "13 cabeçalho do ENC28J60 sem .length: deveria levantar ValueError")
 
+
+# SIMUT_PIO_SOURCES de ponta a ponta: este arquivo rodando como processo filho, sem nenhuma fonte
+# (todo caminho aponta para o que não existe), e o código de saída dele. O padrão pula e passa;
+# `require` reprova nomeando as cinco fontes que um job de firmware tem (as quatro da tabela e o
+# WirePIO do BME280), sem nomear o enc28j60
+# (que pode faltar); um valor desconhecido reprova. O filho não gera filhos (SIMUT_PIO_FILHO).
+if not os.environ.get("SIMUT_PIO_FILHO"):
+    with tempfile.TemporaryDirectory() as tmp:
+        sem_fontes = {"SIMUT_LIBDEPS": os.path.join(tmp, "libdeps"),
+                      "ENC_PIO_HEADER": os.path.join(tmp, "enc.pio.h"),
+                      "CYW43_PIO": os.path.join(tmp, "radio.pio"),
+                      "SIMUT_PIO_FILHO": "1"}
+
+        def filho(modo):
+            r = subprocess.run([sys.executable, os.path.abspath(__file__)], capture_output=True, text=True,
+                               env=dict(os.environ, SIMUT_PIO_SOURCES=modo, **sem_fontes))
+            return r.returncode, r.stdout + r.stderr
+
+        code, saida = filho("")
+        check(code == 0 and saida.count("pulado:") == len(pb.PROGRAMS) + 1,
+              f"13 SIMUT_PIO_SOURCES vazio, sem nenhuma fonte: deveria passar pulando as "
+              f"{len(pb.PROGRAMS)}; saiu {code}: {saida!r}")
+        code, saida = filho("require")
+        nomeadas = {n for n in pb.PROGRAMS if re.search(rf"^  11 {n}: .*SIMUT_PIO_SOURCES=require", saida, re.M)}
+        check(code == 1 and nomeadas == set(pb.PROGRAMS) - {"enc28j60"} and saida.count("pulado:") == 1
+              and re.search(r"^  11 wirepio: .*SIMUT_PIO_SOURCES=require", saida, re.M),
+              f"13 SIMUT_PIO_SOURCES=require, sem nenhuma fonte: deveria reprovar nomeando todas menos o "
+              f"enc28j60, que só é pulado; saiu {code} e nomeou {sorted(nomeadas)}: {saida!r}")
+        code, saida = filho("requer")
+        check(code == 1 and "SIMUT_PIO_SOURCES='requer'" in saida,
+              f"13 SIMUT_PIO_SOURCES=requer (erro de digitação): deveria reprovar dizendo o valor; "
+              f"saiu {code}: {saida!r}")
+
+# ---------------------------------------------------------------------------------
+# 14. A tabela de pinos contra o simut_config.h, pelo pré-processador do host.
+# O cabeçalho confere máscaras de pinos (SIMUT_PINS_DISPLAY, SIMUT_PINS_ENC e SIMUT_PINS_BUZZER, só
+# com SIMUT_NET_LAN=1) e as desdefine no fim da seção 10b. Este grupo as lê de uma cópia do
+# cabeçalho sem os #undef, com o `cpp` do test_pin_masks.py, e exige que sejam os GPIOs que o
+# pio_budget dá para cada mostrador do manifesto, com e sem buzzer e com o INT padrão.
+# ---------------------------------------------------------------------------------
+M = gf.load_manifest()
+check(set(pb.DISPLAYS) == set(M["display"]),
+      f"14 os mostradores do módulo {sorted(pb.DISPLAYS)} não são os [display.*] do features.toml "
+      f"{sorted(M['display'])}")
+check(set(pb.PINS) == set(M["display"]) | {"lan", "buzzer"},
+      f"14 PINS deveria ter um mostrador por [display.*] do features.toml, a LAN e o buzzer: {sorted(pb.PINS)}")
+check(set(pb.ENC_INT_DEFAULT) == set(M["display"]),
+      f"14 ENC_INT_DEFAULT deveria ter um INT padrão por [display.*] do features.toml: {sorted(pb.ENC_INT_DEFAULT)}")
+
+SONDA_MASCARAS = (
+    '#include "simut_config.h"\n'
+    "#define SONDA_STR_(x) #x\n"
+    "#define SONDA_STR(x) SONDA_STR_(x)\n"
+    'PROBE_ENV SONDA_STR(SIMUT_PINS_DISPLAY) "@" SONDA_STR(SIMUT_PINS_ENC) "@" SONDA_STR(SIMUT_PINS_BUZZER)\n'
+)
+NOME_NA_OTA = {"tft": "wiretft", "alpha_paralelo": "wire"}   # o que test_pin_masks.py fixa para a LAN
+MASCARAS = ("display", "enc", "buzzer")
+TERMO = re.compile(r"1ull\s*<<\s*(\d+)")
+
+
+def pinos_da_mascara(expansao):
+    """Os GPIOs de uma máscara como o pré-processador a expandiu: só `1ull << N` ligados por `|`
+    (ou `0ull`) são aceitos, e qualquer outra forma levanta ValueError em vez de ser lida errado."""
+    if re.sub(r"[\s()|]", "", TERMO.sub("", expansao)) not in ("", "0ull"):
+        raise ValueError(f"máscara de forma inesperada: {expansao!r}")
+    return {int(n) for n in TERMO.findall(expansao)}
+
+
+def le_mascaras(flags, inc_dirs, sonda):
+    """(código de saída, textos dos #error, {máscara: GPIOs}) do cabeçalho com estas flags; as
+    máscaras são None quando a sonda não as devolveu ou elas têm forma inesperada."""
+    code, texto, erros = tpm.preprocess(flags, sonda, inc_dirs)
+    erros = [e.split("error: ", 1)[-1] for e in erros]
+    partes = texto.split("@")
+    try:
+        return code, erros, dict(zip(MASCARAS, map(pinos_da_mascara, partes))) if len(partes) == 3 else None
+    except ValueError as e:
+        return code, erros, str(e)
+
+
+montagens = 0
+if shutil.which("cpp") is None:
+    check(False, "14 não há `cpp` no host: o grupo lê as máscaras do simut_config.h pelo pré-processador "
+                 "(instale o gcc)")
+else:
+    with tempfile.TemporaryDirectory() as tmp:
+        with open(os.path.join(tpm.SRC, "simut_config.h"), encoding="utf-8") as fh:
+            linhas = fh.read().split("\n")
+        desdefinidas = sorted(ln.split()[1] for ln in linhas if ln.startswith("#undef SIMUT_PINS_"))
+        check(desdefinidas == ["SIMUT_PINS_BUZZER", "SIMUT_PINS_DISPLAY", "SIMUT_PINS_ENC", "SIMUT_PINS_ENC_SPI"],
+              f"14 o cabeçalho deveria desdefinir as quatro máscaras no fim da seção 10b, desdefine {desdefinidas}")
+        copia = os.path.dirname(grava(os.path.join(tmp, "copia"), "simut_config.h",
+                                      "\n".join(ln for ln in linhas if not ln.startswith("#undef SIMUT_PINS_"))))
+        padrao = grava(tmp, "padrao.c", tpm.PROBE)
+        sonda = grava(tmp, "mascaras.c", SONDA_MASCARAS)
+
+        for disp, definicao in M["display"].items():
+            for buzzer in (True, False):
+                montagens += 1
+                rotulo = f"{disp} + LAN, {'com' if buzzer else 'sem'} buzzer"
+                flags = [tpm.TARGET, tpm.LAN, f"-DSIMUT_SOUND_BUZZER={int(buzzer)}"] + list(definicao["flags"])
+                # O que o cabeçalho de verdade diz da montagem: aceita (e com que nome), ou, para a
+                # LAN sem mostrador, o #error que a recusa por falta de nome de variante. Esse
+                # #error é o esperado, e as máscaras dele vêm do ramo que antecede o erro.
+                quer = ("erro", tpm.ERR_NO_NAME) if disp == "nenhum" else ("ok", NOME_NA_OTA[disp])
+                why = tpm.judge(rotulo, flags, quer, padrao, [tpm.SRC])
+                check(why is None, f"14 {rotulo}: o cabeçalho deveria dar {quer}: {why}")
+                # A cópia sem os #undef diz o mesmo que o cabeçalho de verdade, e dela saem as máscaras.
+                code, erros, got = le_mascaras(flags, [copia, tpm.SRC], sonda)
+                code_real, _nome, erros_real = tpm.preprocess(flags, padrao, [tpm.SRC])
+                check((code, erros) == (code_real, [e.split("error: ", 1)[-1] for e in erros_real]),
+                      f"14 {rotulo}: a cópia do cabeçalho sem os #undef disse {code} {erros}, o cabeçalho "
+                      f"de verdade disse {code_real} {erros_real}")
+                if not isinstance(got, dict):
+                    check(False, f"14 {rotulo}: a sonda não devolveu as três máscaras: {got!r}")
+                    continue
+                dono = pb.pin_owners({"display": disp, "lan": True, "sound_buzzer": buzzer})
+                modulo = {"display": dono["display:" + disp], "enc": dono["lan"], "buzzer": dono.get("buzzer", set())}
+                for m in MASCARAS:
+                    check(got[m] == modulo[m],
+                          f"14 {rotulo}: SIMUT_PINS_{m.upper()} é {sorted(got[m])} no cabeçalho e "
+                          f"{sorted(modulo[m])} no pio_budget")
+                if disp != "nenhum":
+                    check(pb.pin_conflicts({"display": disp, "lan": True, "sound_buzzer": buzzer}) == [],
+                          f"14 {rotulo}: o cabeçalho aceita a montagem e o pio_budget acusa pino repetido")
+
+        # O leitor enxerga o cabeçalho, não a tabela do módulo (por isso o esperado aqui é escrito por
+        # extenso): um pino movido por -D anda com a máscara.
+        lcd = [tpm.TARGET, tpm.LAN] + list(M["display"]["alpha_paralelo"]["flags"])
+        for rotulo, extra, m, quer in (("buzzer no GP5", "-DBUZZER_PIN=5", "buzzer", {5}),
+                                       ("INT no GP27", "-DSIMUT_ENC_INT_PIN=27", "enc", {12, 13, 14, 15, 27})):
+            code, erros, got = le_mascaras(lcd + [extra], [copia, tpm.SRC], sonda)
+            check(code == 0 and isinstance(got, dict) and got[m] == quer,
+                  f"14 leitor com {rotulo} (alpha_paralelo + LAN): a máscara {m} deveria ser {sorted(quer)}, "
+                  f"deu {got!r} (saída {code}, {erros})")
+
 # ---------------------------------------------------------------------------------
 if falhas:
     print("test_pio_budget: FALHOU")
     for msg in falhas:
         print("  " + msg)
     sys.exit(1)
-print(f"test_pio_budget: {casos} casos.")
+print(f"test_pio_budget: {casos} casos ({len(CASOS)} conjuntos de resposta conhecida, "
+      f"{2 ** len(CHAVES)} combinações de chaves por chip, {montagens} montagens de pinos lidas do cabeçalho).")

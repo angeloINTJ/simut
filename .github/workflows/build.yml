@@ -441,6 +441,18 @@ jobs:
       - name: Check flash budget
         run: python3 tools/check_flash_budget.py ${{ matrix.env }} build.log
 
+      # The sizes tools/pio_budget.py counts with, held to the programs' own
+      # sources. The gates job has neither the libraries nor the framework and
+      # skips that part of the test; after a build both are on disk, and
+      # `require` makes a source that went missing a failure instead of a skip
+      # nobody reads. One image is enough: the libraries are pico_base's, the
+      # same in all eight.
+      - name: PIO program sizes match their sources
+        if: matrix.env == 'pico_w_release'
+        env:
+          SIMUT_PIO_SOURCES: require
+        run: python3 tools/test_pio_budget.py
+
   # Same reasoning as static-analysis: its own job costs no wall clock next
   # to the firmware build, and a finding names itself in the Actions UI.
   # The harness checks contract oracles, not "didn't crash" — the validators

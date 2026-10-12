@@ -11,14 +11,34 @@ module is the table of those programs and the walk the boot makes over it, so th
 configurator and CI can say before compiling that a combination does not fit (place)
 and that two features want one pin (pin_conflicts).
 
+The radio goes last in that walk (ORDER) because its bus comes up late, and it does not
+choose its block; the SDK does:
+  - The bus is not up after cyw43_arch_init( ), which initVariant( ) of the Pico W
+    variants runs. The first use brings it up (cyw43_ensure_up( ) -> cyw43_ll_bus_init( ),
+    pico-sdk lib/cyw43-driver/src/cyw43_ctrl.c), and in the SIMUT the first use is the
+    WiFi.mode( WIFI_STA ) of NetworkManager::begin( ), which AppManager_Boot.cpp calls
+    after the buzzer's begin( ) and after loadAndCalibrateSensors( ) (DS18B20, DHT22,
+    BME280). Bluetooth comes up after the Wi-Fi.
+  - cyw43_spi_init( ) (pico_cyw43_driver/cyw43_bus_pio_spi.c) takes the block with
+    pio_claim_free_sm_and_add_program_for_gpio_range( ) (hardware_pio/pio.c), which walks
+    the blocks from the highest down and keeps the first with a free SM and room for the
+    program: pio1, then pio0 on an RP2040; pio2, pio1, then pio0 on an RP2350.
+
 The sizes in PROGRAMS were counted from the programs' own sources on 2026-10-12.
 program_lengths( ) reads them again, and tools/test_pio_budget.py holds the table to
 them wherever those sources exist, so a library update that grows a program fails
-there and not as a full block on a board.
+there and not as a full block on a board. The pins in PINS are held the same way: the
+test asks the host preprocessor for the masks src/simut_config.h checks
+(SIMUT_PINS_DISPLAY, SIMUT_PINS_ENC, SIMUT_PINS_BUZZER) and compares them with the table.
 
-Left out on purpose: the BME280's PIO I2C (WirePIO, 31 instructions). It takes a block
-only when one is free and falls back to plain GPIO, so it never makes a build fail,
-and counting it would refuse builds that work.
+Left out on purpose: the BME280's PIO I2C (WirePIO, `.length = 32` in its i2c.pio.h). That
+is a whole block, so it fits only in a pio0 that is empty: the driver (BME280Driver.h) calls
+beginPIO( ), whose default is pio0, and when pio0 holds anything it falls back to plain
+GPIO. A build that cannot give it the block still works, so it never makes a build fail,
+and counting it would refuse builds that work. It is also why the wired network has to
+come up before the sensors: the ENC28J60 can have pio0 as its only room (in the SIMUT Wire
+the buzzer and the DHT22 leave pio1 with 11 instructions free, and the ENC28J60 needs 17),
+and a BME280 that reached pio0 first would take the whole block.
 
 Standard library only.
 """
@@ -54,9 +74,13 @@ PROGRAMS = {
     # (src/sensors/DHT22Driver.h:41).
     "dht22": {"instr": 17, "sm": 1, "blocks": ["pio1"]},
     # The Wi-Fi radio, on the boards that have one: the program spi_gap01_sample0 of the
-    # pico-sdk, src/rp2_common/pico_cyw43_driver/cyw43_bus_pio_spi.pio, 6 instructions,
-    # on pio1.
-    "cyw43": {"instr": 6, "sm": 1, "blocks": ["pio1"]},
+    # pico-sdk, src/rp2_common/pico_cyw43_driver/cyw43_bus_pio_spi.pio, 6 instructions. The
+    # SDK picks its block, not the firmware: cyw43_spi_init( ) (cyw43_bus_pio_spi.c) calls
+    # pio_claim_free_sm_and_add_program_for_gpio_range( ) (hardware_pio/pio.c), whose loop
+    # `int pio_num = NUM_PIOS; while (pio_num--)` goes from the highest block down and keeps
+    # the first with a free SM and room for the program. So the list runs pio2, pio1, pio0,
+    # and _may_use( ) drops the block a chip lacks: an RP2040 tries pio1, then pio0.
+    "cyw43": {"instr": 6, "sm": 1, "blocks": ["pio2", "pio1", "pio0"]},
 }
 
 # The order the boot claims them in, with the config key that switches each one on. A
@@ -80,23 +104,37 @@ LIBDEPS_FILES = {
 }
 CYW43_PROGRAM = "spi_gap01_sample0"
 
-# The GPIOs each owner takes, from src/simut_config.h unless said otherwise:
+# The BME280's PIO I2C stays out of PROGRAMS (the docstring says why), but the reason it
+# stays out is its size, a whole block, so that size is held to its source as well. The
+# TwoWirePIO_RP2040 library installs as WirePIO under the libdeps folder.
+WIREPIO_FILE = "WirePIO/src/i2c.pio.h"
+WIREPIO_INSTR = 32
+
+# The GPIOs each owner takes, from section 10b of src/simut_config.h (the SIMUT_PINS_*
+# masks and the pins they are made of). The display keys are the ids of the [display.*]
+# tables of tools/features.toml; tools/test_pio_budget.py holds this table to both.
 #   tft             SPI0 MISO 16, touch CS 17, SCK 18, MOSI 19, touch IRQ 20; then the
 #                   panel's RST 26, DC 27 and CS 28
-#   alpha_parallel  HD44780 in 4-bit parallel: RS 16, EN 17, D4..D7 18..21
-#   alpha_i2c       HD44780 backpack on I2C1: SDA 26, SCL 27
-#   lan             the ENC28J60 on SPI1, wired to the group GP12..GP15; its INT pin is
-#                   separate and comes from the config (enc_int_pin)
+#   alpha_paralelo  HD44780 in 4-bit parallel: RS 16, EN 17, D4..D7 18..21
+#   nenhum          no display, no pin
+#   lan             the ENC28J60 on SPI1: SIMUT_ENC_MISO 12, _CS 13, _SCK 14, _MOSI 15; its
+#                   INT pin is separate (ENC_INT_DEFAULT, or enc_int_pin in the config)
 #   buzzer          BUZZER_PIN 22
 PINS = {
     "tft": (16, 17, 18, 19, 20, 26, 27, 28),
-    "alpha_parallel": (16, 17, 18, 19, 20, 21),
-    "alpha_i2c": (26, 27),
-    "none": (),
+    "alpha_paralelo": (16, 17, 18, 19, 20, 21),
+    "nenhum": (),
     "lan": (12, 13, 14, 15),
     "buzzer": (22,),
 }
-DISPLAYS = ("tft", "alpha_parallel", "alpha_i2c", "none")
+DISPLAYS = ("tft", "alpha_paralelo", "nenhum")
+
+# SIMUT_ENC_INT_PIN when a build does not set it, by display (section 10b of
+# src/simut_config.h): the GPIO each layout can spare outside the sensor slots, GP21 beside
+# the TFT and GP28 beside the 16x2 LCD. -1 is no INT pin, the driver polls the module (the
+# default with no display).
+ENC_INT_DEFAULT = {"tft": 21, "alpha_paralelo": 28, "nenhum": -1}
+GPIO_MAX = 29      # GP0..GP29, the pins an RP2040 exposes
 
 
 # ----------------------------------------------------------------------------------
@@ -241,19 +279,34 @@ def place(cfg, chip, programs=None):
 # Pins
 # ----------------------------------------------------------------------------------
 
+def _enc_int_pin(kind, value):
+    """The GPIO of the ENC28J60's INT line in a build with display `kind`, or -1 for none.
+    None is "the config does not say", so the default of simut_config.h for that display
+    (ENC_INT_DEFAULT); -1 is "no INT pin, the driver polls"; anything else has to be a GPIO,
+    an int from 0 to GPIO_MAX (a bool is not one: True would be GP1 and False GP0)."""
+    if value is None:
+        return ENC_INT_DEFAULT[kind]
+    if isinstance(value, int) and not isinstance(value, bool) and (value == -1 or 0 <= value <= GPIO_MAX):
+        return value
+    raise ValueError(f"enc_int_pin must be None (the default of the display), -1 (no INT pin) or a "
+                     f"GPIO from 0 to {GPIO_MAX}, not {value!r}")
+
+
 def pin_owners(cfg):
-    """{owner: set of GPIOs} for what `cfg` switches on. Keys: display ("tft",
-    "alpha_parallel", "alpha_i2c" or "none"), lan (bool), enc_int_pin (a GPIO, or None
-    or -1 when the ENC28J60 has no INT pin and the driver polls) and sound_buzzer (bool).
-    The LAN claims its INT pin only when the LAN is on and there is such a pin."""
-    kind = cfg.get("display") or "none"
+    """{owner: set of GPIOs} for what `cfg` switches on. Keys: display (an id of the
+    [display.*] tables of tools/features.toml: "tft", "alpha_paralelo" or "nenhum"), lan
+    (bool), enc_int_pin (None, the INT pin simut_config.h gives that display; -1, no INT pin
+    and the driver polls; or a GPIO from 0 to GPIO_MAX) and sound_buzzer (bool). The LAN
+    claims its INT pin only when the LAN is on and there is such a pin. A display or an
+    enc_int_pin it does not know is a ValueError, whether or not the LAN is on."""
+    kind = cfg.get("display") or "nenhum"
     if kind not in DISPLAYS:
         raise ValueError(f"unknown display {kind!r}; known: {', '.join(DISPLAYS)}")
+    int_pin = _enc_int_pin(kind, cfg.get("enc_int_pin"))
     owners = {"display:" + kind: set(PINS[kind])}
     if cfg.get("lan"):
         pins = set(PINS["lan"])
-        int_pin = cfg.get("enc_int_pin")
-        if int_pin is not None and int_pin >= 0:
+        if int_pin >= 0:
             pins.add(int_pin)
         owners["lan"] = pins
     if cfg.get("sound_buzzer"):
