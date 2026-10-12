@@ -140,6 +140,12 @@ jobs:
       - name: Pin masks and variant names of the wired build
         run: python3 tools/test_pin_masks.py
 
+      # Whether a combination fits in the PIO blocks, and which GPIO two owners
+      # claim, before anything compiles: the firmware finds out only at boot,
+      # when it logs "pio0 full" and drops a sensor.
+      - name: PIO budget (blocks, state machines and pins a build asks for)
+        run: python3 tools/test_pio_budget.py
+
       # The entanglement watermark (MODELO_DE_RECURSOS.md, P2): the count of
       # `#if SIMUT_` sites per feature macro and per file, held to a high-water
       # mark in tools/feature_sprawl.json. A site added to a shared file fails;

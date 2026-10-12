@@ -1,6 +1,6 @@
 # tools/
 
-158 scripts. This file exists because until 2026-09-08 there was no way
+160 scripts. This file exists because until 2026-09-08 there was no way
 to tell a live bench tool from a leftover, and one of them —
 `compressor.py` — had been superseded for three months while still looking
 usable: it regenerated `WebUI_GZ.h` into the repository root, where nothing
@@ -16,7 +16,7 @@ wrong, the description is the bug.
 
 ---
 
-## Called by CI (37)
+## Called by CI (39)
 
 Invoked from `.github/workflows/build.yml` — or, for the release manifest, from
 `release-ota.yml` when a tag is pushed. Breaking one of these fails a pull request
@@ -60,6 +60,8 @@ or a release.
 | `test_h5_day_merge.py` | Testa o mesclador de arquivos-dia V5 (tools/h5_day_merge.py). | 2026-08-21 |
 | `test_feature_bits.py` | Testa o "feat" do `/api/status`: para cada perfil, e para cada chave invertida a partir dele, pede ao pré-processador do host o `SIMUT_FEATURE_BITS` que os flags do build dão, e o compara com a máscara das chaves ligadas — sem compilar firmware. | 2026-09-30 |
 | `test_pin_masks.py` | Testa as guardas de compilação da rede por cabo (`SIMUT_NET_LAN`, o SIMUT Wire) em `src/simut_config.h`, com o pré-processador do host e sem compilar firmware: o módulo ENC28J60 no pino do mostrador ou do buzzer, o buzzer no pino do mostrador, o Bluetooth e o Air com a LAN, um build Wi-Fi sem o CYW43 e um de LAN que ainda o tem param num `#error`; o nome da variante é `wire` com o LCD e `wiretft` com a TFT, e o das imagens que já existem não muda. Morde sozinho: tira cada `#error` de uma cópia do cabeçalho e exige que exatamente um caso falhe. | 2026-10-12 |
+| `pio_budget.py` | O orçamento de PIO e de pinos de uma combinação, antes de compilar: `place(cfg, chip)` diz em que bloco entra cada programa que o boot carrega, ou a recusa numa frase; `pin_conflicts(cfg)` lista os GPIOs que dois donos pedem; `program_lengths(...)` lê o tamanho de cada programa da fonte. Importado pelo `test_pio_budget.py`. | 2026-10-12 |
+| `test_pio_budget.py` | Quanto cabe nos blocos de PIO e quem disputa um pino, antes de compilar. O `pio_budget.py` guarda os cinco programas que o boot carrega (buzzer, ENC28J60, 1-Wire do DS18B20, DHT22 e o rádio CYW43), com instruções, máquinas de estado e blocos possíveis de cada um, contados das fontes em 12/10, e a ordem em que o boot os pede; `place( )` diz se um conjunto de chaves cabe no RP2040 (dois blocos de 32 instruções e 4 máquinas) ou no RP2350 (três), pondo o ENC28J60 no primeiro bloco que o recebe sem tirar o lugar de quem carrega depois, e `pin_conflicts( )` acusa o pino que dois recursos pedem. O teste confere nove conjuntos de resposta conhecida (o SIMUT Wire, a release do Pico W e os conjuntos em que o ENC28J60 deixaria o 1-Wire ou o DHT22 sem lugar), as 64 combinações dos dois chips contra invariantes, os pinos, um controle negativo (a recusa é por espaço, não por nome: com o ENC28J60 em 15 instruções o conjunto ainda não cabe, e a fronteira está em 5 e 11 instruções) e, onde as fontes existem, cada tamanho da tabela contra o `.length` do `.pio.h` ou a contagem do `.pio` do rádio. Job `gates`; ali não há as bibliotecas, então essa parte é pulada com um aviso e o leitor das fontes é provado em arquivos sintéticos. Sabe reprovar (12/10): 71 de 71 mutações pegas, com as fontes e sem elas. | 2026-10-12 |
 | `ota_sign.py` | Chaves, certificados e assinaturas da OTA que só aceita imagem assinada (`docs/analysis/OTA_ASSINADA.md`): `root-new` (raiz cifrada com senha digitada no terminal de quem gera; `--no-encrypt` só para a de bancada), `signer-new` (chave de assinatura e o certificado dela pela raiz), `gen-trust` (`src/ota/ota_trust.h` a partir de `keys/`), `check-keys` (as raízes, a política e todo certificado de `keys/` se sustentam), `sign` (acrescenta o trailer de 241 B ao `.bin`, depois de ler no próprio `.bin` a etiqueta e o bloco de confiança: recusa uma chave que não é a do certificado, a chave de produção numa imagem que confia na bancada, uma raiz que `keys/` não nomeia, e a imagem que, instalada, recusaria a próxima desta chave; o certificado pode vir em hex, a forma de `keys/`), `verify` (decide como o aparelho decide, na mesma ordem; `--running` toma a política de uma imagem), `inspect` (o que um `.bin` diz ser, no que confia e como foi assinado). `vectors` escreve os vetores de `test/test_ota_sig` com um jogo fixo de chaves de TESTE que nenhuma imagem aceita; `selftest`, `vectors --check`, `gen-trust --check` e `check-keys` rodam no job `gates`, e `sign`/`verify` nos jobs de assinatura do `release-ota.yml` e do `build-custom.yml`. Nunca imprime chave privada. Sabe reprovar: o selftest pega cada campo adulterado, a raiz forjada, o escopo trocado, a série revogada, o rollback, cada recusa do `sign`, o bloco de confiança malformado e o `keys/` incoerente (61 casos); doze mutações das regras do `sign` e do `check-keys` são pegas (01/10). | 2026-10-01 |
 
 ## Called by the build (15)
