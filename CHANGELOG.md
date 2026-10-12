@@ -4,7 +4,7 @@
 
 All notable changes to SIMUT firmware.
 
-## v2.11.1 (2026-10-05)
+## v2.11.1 (2026-10-12)
 
 **Four high-severity defects of the manual's review are fixed: the panel's
 forced PIN change could be skipped, its account editor granted bits the
@@ -81,13 +81,76 @@ Slack under the 1,040,384 B over-the-air ceiling: release 7,027, alpha 49,763,
 Air 8,899. The Pico 2 W's slot is 1,568,768 B. Neither the alpha nor the Air has
 a panel, and neither grew past its 4 KiB page.
 
+### The bench
+
+The release gate (`AGENTS.md` §2) ran on the candidate the CI signed on `main`
+(run 37259233322). The published images carry the same image bytes; their
+signature is their own, because every signing run makes a new one.
+
+**On the Pico 2 W,** the bench board (an RP2350 A2), from the published v2.11.0
+in slot B, which trusts the release root alone:
+- **The update, over the air:** stage 200 in 16.7 s, the board back 39.3 s
+  later from slot A on trial, and kept 50.4 s after that. All 555 configuration
+  values the web API reports unchanged.
+- **Refused,** the board left running on its slot: the candidate with one byte
+  changed (9), and an image signed by the bench key (12).
+- **The candidate over itself,** from slot A to slot B: stage 16.7 s, back
+  24.9 s later, kept 60.4 s after that, the configuration unchanged.
+- **The factory `.uf2`,** dragged by the maintainer onto the BOOTSEL drive of
+  the board: up on 2.11.1 from slot A, not on trial, with its configuration.
+  At the buy of the update over itself the ROM erases slot A's first sector,
+  so the board could come up from A only if the drag had written it.
+- **A week later, back on the bench** (2026-10-12), still on 2.11.1 from slot A:
+  30 minutes without a restart, the five sensors valid in every sample. Four of
+  the 119 reads lost their chunked framing (#189, under *Known*). The probe on
+  GP0 had been swapped while the board was away, so its slot sat in quarantine
+  until *Adopt the probe wired here* bound it to the new one, which read 0.1 s
+  later. The PicoHand's RESET wire stayed on the RUN pin this time, against
+  `AGENTS.md` §1, and no restart came. The web suite on the candidate, as its
+  admin: 67 passed, 0 failed.
+
+**On the Pico W,** the bench board with the touch display and five sensors, from
+the published v2.11.0 with the bench's configuration, a throwaway admin account
+and the web on port 8080. That start is the v2.11.0 gate's own, written by USB
+and read back, then updated over the air to v2.11.0 with its `.bkp` put back.
+The board's flash was dumped first, two equal reads, and written back at the
+end.
+- **The update from v2.11.0,** complete, over the air: stage 200 (`v` 0) in
+  35.6 s, the board back 50.0 s after the apply, `2.11.1`, the five sensors
+  reading, all 567 configuration values the web API reports unchanged, the
+  configuration file identical byte for byte, and the `.bkp` back with 71 of 75
+  files identical. The other four are the log, its previous file and two of the
+  history's, which move while the device runs. The same on the alpha and the
+  Air (558 values, and 71 of 75 files on each), where the Air's own options,
+  which an update erases, came back with the `.bkp`.
+- **The candidate over itself,** on all three, the candidate checking the
+  signature (`v` 0): the same.
+- **Back to v2.11.0 and up again,** over the air, both at security version 1:
+  accepted (`v` 0) both ways, the configuration unchanged, and the telemetry
+  queue rebuilt at each boot from the cursor the other version wrote.
+- **Refused** with 422, the configuration intact before and after a reset: an
+  unsigned image (8), the Air's signed image (7), the Pico 2 W's signed update
+  (6, which the Files page now explains) and the candidate with one byte changed
+  (9).
+- **An upload cut at 400 kB, then a reset,** and the same with the filesystem
+  filled to its last 8 KB and emptied between the cut and the reset: the
+  configuration intact.
+- **30 minutes** without a restart, the five sensors valid in every sample, with
+  the PicoHand's RESET wire off the RUN pin, as `AGENTS.md` §1 says. With the
+  wire on, the board restarted itself four times in six hours, with no watchdog
+  behind any of them. One of those restarts came 33.8 s into an update from the
+  board's arrival state, on v2.10.0. The board came back on v2.10.0 with its
+  configuration identical byte for byte, and the same update passed on the next
+  try.
+- **The web suite on the candidate,** as an admin account: 67 passed, 0 failed.
+
 ### Upgrading
 
 - **From v2.11.0, on either board:** over the air, from the Files page, with
   this release's `.bin`. The configuration carries over. On the Pico 2 W the
   update goes to the other slot and boots on trial, as since v2.11.0.
 - **Back to v2.11.0:** over the air with its signed `.bin` (both carry security
-  version 1), or over USB.
+  version 1; checked on the bench, on the Pico W), or over USB.
 - **From an older version, or a Pico 2 W's first install:** as for v2.11.0,
   below.
 - **Language packs:** upload the two attached to this release on the Files page,
@@ -128,6 +191,16 @@ a panel, and neither grew past its 4 KiB page.
   first one's key and with the last one's value**, by the code.
 - **The Telemetry page's token list for the alarm line stops at v22.** Chapter 22
   of the manual lists them all.
+- **Adopting a probe, or `sensor_wipe`, does not start the slot's history
+  anew.** Both stamp the slot's provisioning epoch, and nothing reads it: the
+  history serves every record of a slot under the slot's current id. On the
+  bench, after slot 0 adopted another probe, its readings of 4 October came back
+  under the new probe's id.
+- **After a boot, a probe that is not the slot's can have its first reading
+  recorded.** The read path checks the ROM on every fifth read, from the fifth
+  on. On the bench, with another probe on the slot's GPIO, the reading of 20 s
+  after the boot went into the history as the slot's, and the quarantine began
+  within the next minute.
 
 ## v2.11.0 (2026-10-04)
 

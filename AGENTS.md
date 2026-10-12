@@ -17,16 +17,32 @@ deste manual antes do primeiro estilo ou da primeira frase.** Parte das regras
 
 ## 1. A bancada
 
-Um Pico W (o **alvo**, que roda o SIMUT) e um Pico comum (a **PicoHand**, ou
-"mão") que aciona as linhas RESET (GP0) e BOOTSEL (GP1) do alvo por comando
-serial, mede a sonda e finge o carregador. O rig está em `192.168.3.24`.
+Desde 12/10/2026, um Pico 2 W (o **alvo**, que roda o SIMUT, com os cinco
+sensores e o painel TFT) e um Pico W (a **PicoHand**, ou "mão") que aciona as
+linhas RESET (GP0) e BOOTSEL (GP1) do alvo por comando serial, mede a sonda e
+finge o carregador. A mão roda na placa que foi o alvo até 05/10; o Pico comum
+que era a mão foi para outro projeto e pode continuar ligada a este PC: não
+mande nada a ela. O alvo está em `192.168.3.33`, com a web na porta 8080.
 
 **Identifique as portas pelo serial, nunca pela ordem de enumeração:**
 
 | Placa | USB | Serial (udev) |
 |---|---|---|
-| PicoHand (mão) | `2e8a:000a` | `ID_SERIAL_SHORT=E660C062131E3E27` |
-| Alvo SIMUT (Pico W) | `2e8a:f00a` | `ID_SERIAL_SHORT=E6642815E34C1824` |
+| PicoHand (mão), num Pico W | `2e8a:f00a` | `ID_SERIAL_SHORT=E6642815E34C1824` |
+| Alvo SIMUT (Pico 2 W) | `2e8a:f00f` | `ID_SERIAL_SHORT=6A73539D612923CA` |
+| A mão antiga, fora da bancada | `2e8a:000a` | `ID_SERIAL_SHORT=E660C062131E3E27` |
+
+**Os roteiros de `tools/` ainda conhecem a bancada de antes.** Dez deles
+procuram o alvo como Pico W, pelo serial `E6642815E34C1824` ou pelo glob
+`usb-Raspberry_Pi_Pico_W_*`, e os dois agora dão na mão: um toque de 1200 bps
+ali põe a mão em BOOTSEL. Três (`air_test_suite.py`, `bt_auth_test.py` e
+`rig_validate_history_clock.py`) procuram a mão pelo serial da mão antiga. Até
+eles aprenderem a bancada nova, não os rode. Definir `SIMUT_TARGET_SERIAL` e
+`PICO_HAND_SERIAL` não basta: eles montam o caminho `by-id` com o modelo de
+antes (`Pico_W_` no alvo, `Pico_` na mão), e o da bancada nova não existe. O
+`pico_hand.sh` acha a mão por `PING` em toda porta, e a mão antiga responde se
+ainda tiver o firmware da mão: fixe `PICO_HAND_PORT` no caminho `by-id` da mão
+nova.
 
 **Fiação real** (confirmada em 06/09/2026): DS18B20 no GP0, sem chaveamento de
 energia — a linha GP16 do alvo vai ao GP2 da mão como **sonda** de
@@ -43,6 +59,16 @@ de reset do chip (`CHIP_RESET`) pegou o seguinte como o pino RUN (`HAD_RUN`), e
 com o fio solto foram 60 minutos sem reinício. Religue o fio depois: gravar e o
 RESET dos roteiros precisam dele. O `hand VERIFY` não acusa um pulso que já
 passou, porque só imprime a contagem enquanto a falha está ativa.
+
+**Não é só no soak.** Em 05/10/2026, no portão da v2.11.1, com o fio ligado, o
+Pico W reiniciou sozinho quatro vezes em seis horas, de 7 minutos a 2,5 horas
+depois de um boot. Uma delas cortou uma atualização pelo ar aos 33,8 s do
+envio: a placa voltou na versão de antes, com a configuração idêntica byte a
+byte, como o passo do corte espera, e o mesmo envio passou na tentativa
+seguinte. Um passo que falha sem a linha `WATCHDOG_REBOOT detected` na serial e
+sem `SYS_BOOT` no log foi reiniciado por fora: repita-o antes de culpar o
+firmware. Com o fio solto, o BOOTSEL vem pelo toque de 1200 bps na serial do
+alvo, e o `picotool reboot` o tira de lá.
 
 **O alvo tem um painel TFT ligado** (ILI9341 + XPT2046, pinagem do
 `simut_config.h`), o que esta lista não dizia até 22/09/2026 — `/api/screenshot`
