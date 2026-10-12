@@ -76,6 +76,7 @@ TOGGLE_ORDER = [
     "tel_tls", "tel_mqtt",
     "web_history", "web_export_api", "web_metrics", "syslog",
     "tft_graph",
+    "lan",
 ]
 
 HEADER = """; profiles.ini — GERADO por tools/gen_features.py a partir de tools/features.toml.
@@ -114,17 +115,43 @@ def dedup(seq: list) -> list:
     return out
 
 
+def toggle_refusal(prof: dict, M: dict) -> str | None:
+    """Por que uma chave LIGADA nao se compila no chip do perfil, ou None.
+
+    Uma chave pode trocar a placa do ambiente (`on_board`: chip -> placa, a placa
+    daquele chip com a chave ligada). Um chip sem entrada nao tem placa para a
+    chave, e o gerador a recusa em vez de compor a placa do chip sem a chave --
+    uma imagem que diria uma coisa e seria outra. compose( ) a aplica; o
+    build_custom.py e o measure_savings.py a perguntam antes, porque a entrada
+    deles nao e so os perfis do manifesto."""
+    chip = prof.get("chip", "rp2040")
+    for tname in TOGGLE_ORDER:
+        boards = M["toggles"][tname].get("on_board")
+        if boards is not None and prof.get(tname, False) and chip not in boards:
+            return (f"{tname} ligada nao tem placa para o chip {chip}: "
+                    f"[toggles.{tname}].on_board so conhece {', '.join(sorted(boards))}")
+    return None
+
+
 def compose(prof: dict, M: dict) -> dict:
     """Deriva a config do PlatformIO a partir dos recursos de um perfil."""
     flags = list(M["base"]["common_flags"])
     excludes: list[str] = []
     includes: list[str] = []
     lib_ignore: list[str] = []
+    unflags: list[str] = []
+
+    why = toggle_refusal(prof, M)
+    if why:
+        sys.exit(f"gen_features: o perfil nao compoe: {why}")
 
     # The chip first: it decides the board, and its flags are about the
     # toolchain, not about a feature. A profile without the key is the Pico W.
-    chip = M["chip"][prof.get("chip", "rp2040")]
+    chip_name = prof.get("chip", "rp2040")
+    chip = M["chip"][chip_name]
     flags += chip.get("flags", [])
+    board = chip.get("board", "")
+    board_owner = None
 
     disp = M["display"][prof["display"]]
     flags += disp.get("flags", [])
@@ -158,6 +185,17 @@ def compose(prof: dict, M: dict) -> dict:
         if val:
             flags += t.get("on_flags", [])
             includes += t.get("on_include", [])
+            # A flag of the base that this switch takes back out (build_unflags),
+            # and the board it asks for on this chip (toggle_refusal( ) above
+            # guarantees the entry). Two switches asking for different boards
+            # cannot both be obeyed: refuse, never let the later one win.
+            unflags += t.get("on_unflags", [])
+            if "on_board" in t:
+                asked = t["on_board"][chip_name]
+                if board_owner is not None and asked != board:
+                    sys.exit(f"gen_features: {board_owner} e {tname} pedem placas diferentes "
+                             f"para o chip {chip_name}: {board} e {asked}")
+                board, board_owner = asked, tname
         else:
             excludes += t.get("off_exclude", [])
             lib_ignore += t.get("off_lib_ignore", [])
@@ -178,7 +216,8 @@ def compose(prof: dict, M: dict) -> dict:
         "web_omit": ", ".join(web_omit) or None,
         "custom_fs_pages": prof.get("custom_fs_pages"),
         "build_type": prof.get("build_type"),
-        "board": chip.get("board", ""),
+        "board": board,
+        "unflags": dedup(unflags),
         # A chip that boots its program from a slot of a partition table links
         # it with a script of its own, and gives LittleFS the size its table does
         # (the RP2350: tools/rp2350/, docs/analysis/OTA_AB_RP2350.md step 3).
@@ -201,6 +240,11 @@ def emit_env(name: str, c: dict) -> str:
     fl = ["build_flags = ${pico_base.build_flags}"]
     fl += [f"    {f}" for f in c["flags"]]
     lines += fl
+    # Flags of pico_base that this environment takes back out. Absent, and not an
+    # empty `build_unflags =`, when there is none: the environments that have no
+    # use for it keep the text they always had.
+    if c.get("unflags"):
+        lines += ["build_unflags ="] + [f"    {f}" for f in c["unflags"]]
     # build_src_filter
     bf = ["build_src_filter = ${pico_base.build_src_filter}"]
     bf += [f"    -<{f}>" for f in c["excludes"]]
@@ -295,6 +339,21 @@ def check_manifest(M: dict) -> None:
         chip = resolve_profile(name, M["profiles"]).get("chip", "rp2040")
         if chip not in M.get("chip", {}):
             sys.exit(f"gen_features: o perfil {name} pede o chip '{chip}', que nao tem [chip.{chip}]")
+    # on_board e on_unflags mexem no ambiente do PlatformIO, nao so numa macro:
+    # um chip que nao existe, ou uma lista que nao e de flags, so apareceria
+    # como uma build que falha ou, pior, que compila outra coisa.
+    for t in TOGGLE_ORDER:
+        boards = toggles[t].get("on_board")
+        if boards is not None:
+            if (not isinstance(boards, dict) or not boards
+                    or any(c not in M.get("chip", {}) or not isinstance(b, str) or not b
+                           for c, b in boards.items())):
+                sys.exit(f"gen_features: [toggles.{t}].on_board tem de ser {{chip = \"placa\"}} "
+                         f"com chips que tem [chip.*]")
+        unflags = toggles[t].get("on_unflags")
+        if unflags is not None and (not isinstance(unflags, list)
+                                    or any(not isinstance(f, str) or not f.startswith("-") for f in unflags)):
+            sys.exit(f"gen_features: [toggles.{t}].on_unflags tem de ser uma lista de flags (-D...)")
     known = set(TOGGLE_ORDER) | {"display"}
     for kind, parts in (("rules", ("when", "require")), ("hazards", ("when",))):
         ids = set()

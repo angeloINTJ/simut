@@ -458,6 +458,12 @@ def measure_matrix():
             if bad:
                 plan.append((p, t, None, bad[0]["id"]))
                 continue
+            # A chave pede uma placa que o chip do produto nao tem (a rede por cabo
+            # no RP2350): nao ha imagem a medir, e a pagina a trata como sem medida.
+            no_board = gf.toggle_refusal(flipped, M)
+            if no_board:
+                plan.append((p, t, None, {"unsupported": no_board}))
+                continue
             env = f"_cost_{p}_{t}"
             blocks.append(gf.emit_env(env, gf.compose(flipped, M)))
             plan.append((p, t, env, None))
@@ -471,7 +477,7 @@ def measure_matrix():
             result["products"][p] = {"base": base, "flips": {}}
         for p, t, env, rule in plan:
             if rule:
-                result["products"][p]["flips"][t] = {"rule": rule}
+                result["products"][p]["flips"][t] = rule if isinstance(rule, dict) else {"rule": rule}
                 continue
             r = pio_build_full(env)
             # A mesma imagem, byte a byte: a chave nao tem consumidor neste
@@ -514,6 +520,10 @@ def cmd_matrix_partial(toggles):
             if bad:
                 plan.append((p, t, None, bad[0]["id"]))
                 continue
+            no_board = gf.toggle_refusal(flipped, M)
+            if no_board:
+                plan.append((p, t, None, {"unsupported": no_board}))
+                continue
             env = f"_cost_{p}_{t}"
             blocks.append(gf.emit_env(env, gf.compose(flipped, M)))
             plan.append((p, t, env, None))
@@ -531,7 +541,7 @@ def cmd_matrix_partial(toggles):
             bases[p] = b
         for p, t, env, rule in plan:
             if rule:
-                doc["products"][p]["flips"][t] = {"rule": rule}
+                doc["products"][p]["flips"][t] = rule if isinstance(rule, dict) else {"rule": rule}
                 continue
             r = pio_build_full(env)
             if r.pop("sha256", None) == bases[p]["sha256"]:
@@ -558,6 +568,8 @@ def cmd_matrix_partial(toggles):
                 print(f"{p:<15} {t:<12} flash {r['used'] - b['used']:+8} B  ram {r['ram'] - b['ram']:+7} B")
             elif "rule" in r:
                 print(f"{p:<15} {t:<12} proibida pela regra {r['rule']}")
+            elif "unsupported" in r:
+                print(f"{p:<15} {t:<12} nao se aplica: {r['unsupported']}")
             elif "overflow" in r:
                 print(f"{p:<15} {t:<12} NAO CABE: estoura o slot em {r['overflow']} B")
             else:
@@ -576,7 +588,9 @@ def cmd_matrix():
             "publicado: `base` e a imagem como o manifesto a define, e cada `flips.<chave>`",
             "e a MESMA imagem com so aquela chave invertida — used/bin/ram medidos, ou",
             "`overflow` (o excesso que o linker reporta quando nao cabe no slot), ou",
-            "`rule` (a regra do manifesto que proibe a combinacao; nao foi compilada).",
+            "`rule` (a regra do manifesto que proibe a combinacao; nao foi compilada), ou",
+            "`unsupported` (a chave pede uma placa que o chip do produto nao tem: nao ha",
+            "imagem a medir, e a pagina a conta como sem medida).",
             "`same: true` diz que a imagem saiu identica a base, byte a byte: a chave nao",
             "tem consumidor naquele produto, e a pagina diz isso em vez de mostrar +0 B.",
             "A pagina SOMA as diferencas quando mais de uma chave muda: estimativa, e ela",
@@ -608,6 +622,8 @@ def cmd_matrix():
                 print(f"  {t:<20} NAO CABE: estoura o slot em {r['overflow']} B")
             elif "rule" in r:
                 print(f"  {t:<20} proibida pela regra {r['rule']}")
+            elif "unsupported" in r:
+                print(f"  {t:<20} nao se aplica: {r['unsupported']}")
             else:
                 errors += 1
                 print(f"  {t:<20} ERRO: {r['error']}")

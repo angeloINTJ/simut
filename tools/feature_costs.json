@@ -16,7 +16,10 @@
   "measured_at": {
     "date": "2026-10-12",
     "src_commit": "f1bfd13",
-    "src_dirty": false
+    "src_dirty": true,
+    "partial": [
+      "lan"
+    ]
   },
   "products": {
     "pico_w_release": {
@@ -109,6 +112,11 @@
           "used": 1000660,
           "bin": 1012692,
           "ram": 109200
+        },
+        "lan": {
+          "used": 777264,
+          "bin": 789296,
+          "ram": 107884
         }
       }
     },
@@ -204,6 +212,9 @@
         },
         "tft_graph": {
           "rule": "graph-needs-tft"
+        },
+        "lan": {
+          "rule": "lan-no-bluetooth"
         }
       }
     },
@@ -293,6 +304,9 @@
         },
         "tft_graph": {
           "rule": "graph-needs-tft"
+        },
+        "lan": {
+          "rule": "lan-no-bluetooth"
         }
       }
     },
@@ -390,6 +404,9 @@
           "used": 977080,
           "bin": 977104,
           "ram": 123012
+        },
+        "lan": {
+          "unsupported": "lan ligada nao tem placa para o chip rp2350: [toggles.lan].on_board so conhece rp2040"
         }
       }
     }

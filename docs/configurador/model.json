@@ -300,6 +300,19 @@
         "en": "The history graph opened from the min/max strip, its detail screen and the calendar to pick a day. Without it the strip has no graph button; the history is still recorded and stays on the web.",
         "pt": "O gráfico do histórico aberto pela faixa de min/max, a tela de detalhe e o calendário para escolher o dia. Sem ele a faixa não tem o botão do gráfico; o histórico continua gravado e na web."
       }
+    },
+    {
+      "id": "lan",
+      "group": "network",
+      "bit": 18,
+      "label": {
+        "en": "Wired network (ENC28J60) instead of Wi-Fi",
+        "pt": "Rede por cabo (ENC28J60) no lugar do Wi-Fi"
+      },
+      "help": {
+        "en": "Builds for a plain Raspberry Pi Pico, which has no radio, and takes the network from an ENC28J60 module on the cable. Bluetooth and hibernation run on the radio, so they cannot be on with it. The cable driver is not in the firmware yet: an image built with this switch has no network.",
+        "pt": "Compila para um Raspberry Pi Pico comum, que não tem rádio, e pega a rede de um módulo ENC28J60 no cabo. O Bluetooth e a hibernação rodam no rádio, então não podem ficar ligados com ela. O driver do cabo ainda não está no firmware: uma imagem compilada com esta chave não tem rede."
+      }
     }
   ],
   "displays": {
@@ -360,7 +373,8 @@
         "web_export_api": true,
         "web_metrics": true,
         "syslog": true,
-        "tft_graph": true
+        "tft_graph": true,
+        "lan": false
       }
     },
     {
@@ -400,7 +414,8 @@
         "web_export_api": true,
         "web_metrics": true,
         "syslog": true,
-        "tft_graph": false
+        "tft_graph": false,
+        "lan": false
       }
     },
     {
@@ -440,7 +455,8 @@
         "web_export_api": true,
         "web_metrics": true,
         "syslog": true,
-        "tft_graph": false
+        "tft_graph": false,
+        "lan": false
       }
     },
     {
@@ -480,7 +496,8 @@
         "web_export_api": true,
         "web_metrics": true,
         "syslog": true,
-        "tft_graph": true
+        "tft_graph": true,
+        "lan": false
       }
     },
     {
@@ -520,7 +537,8 @@
         "web_export_api": true,
         "web_metrics": true,
         "syslog": true,
-        "tft_graph": true
+        "tft_graph": true,
+        "lan": false
       }
     },
     {
@@ -560,7 +578,8 @@
         "web_export_api": true,
         "web_metrics": true,
         "syslog": true,
-        "tft_graph": true
+        "tft_graph": true,
+        "lan": false
       }
     },
     {
@@ -600,7 +619,49 @@
         "web_export_api": true,
         "web_metrics": true,
         "syslog": true,
-        "tft_graph": true
+        "tft_graph": true,
+        "lan": false
+      }
+    },
+    {
+      "id": "pico_wire",
+      "order": 8,
+      "bench": true,
+      "publish": false,
+      "chip": "rp2040",
+      "ceilings": {
+        "flash_region": 1044480,
+        "ota_bin": 1040143
+      },
+      "label": {
+        "en": "SIMUT Wire",
+        "pt": "SIMUT Wire"
+      },
+      "desc": {
+        "en": "A plain Raspberry Pi Pico with no radio: the network comes through an ENC28J60 module on the cable. Not published.",
+        "pt": "Um Raspberry Pi Pico comum, sem rádio: a rede vem por um módulo ENC28J60, no cabo. Não publicada."
+      },
+      "config": {
+        "display": "alpha_paralelo",
+        "cli_full": false,
+        "web_https": false,
+        "license_stub": false,
+        "mdns": false,
+        "concurrency_asserts": false,
+        "bluetooth": false,
+        "air": false,
+        "sound_buzzer": true,
+        "sensor_ds18b20": false,
+        "sensor_dht22": true,
+        "sensor_bme280": true,
+        "tel_tls": true,
+        "tel_mqtt": true,
+        "web_history": true,
+        "web_export_api": true,
+        "web_metrics": true,
+        "syslog": true,
+        "tft_graph": false,
+        "lan": true
       }
     }
   ],
@@ -660,6 +721,34 @@
         "pt": "A build que hiberna não leva o buzzer: o código de som não compila com a hibernação ligada."
       },
       "evidence": "air+sound_buzzer fails to compile: SoundManager.cpp: 'BuzzerNote' does not name a type. SIMUT_AIR turns SoundManager.h into the no-op class, and SoundManager.cpp has no guard of its own."
+    },
+    {
+      "id": "lan-no-bluetooth",
+      "when": {
+        "lan": true
+      },
+      "require": {
+        "bluetooth": false
+      },
+      "why": {
+        "en": "Bluetooth runs on the Wi-Fi radio, which a wired build does not have.",
+        "pt": "O Bluetooth roda no rádio do Wi-Fi, que uma build por cabo não tem."
+      },
+      "evidence": "SIMUT_NET_LAN with SIMUT_BLUETOOTH stops at an #error in simut_config.h, pinned by tools/test_pin_masks.py (2026-10-12). Not compiled past that #error: the Bluetooth stack (SerialBT, BTstack) rides on the CYW43, and board = rpipico has none."
+    },
+    {
+      "id": "lan-no-air",
+      "when": {
+        "lan": true
+      },
+      "require": {
+        "air": false
+      },
+      "why": {
+        "en": "Hibernation is built around the Wi-Fi radio, which it powers down between wakes. A wired build has none.",
+        "pt": "A hibernação é feita em torno do rádio do Wi-Fi, que ela desliga entre os despertares. Uma build por cabo não tem rádio."
+      },
+      "evidence": "SIMUT_NET_LAN with SIMUT_AIR stops at an #error in simut_config.h, pinned by tools/test_pin_masks.py (2026-10-12). Not compiled past that #error: AppManager_Air.cpp powers the CYW43 down through GPIO23 (WL_REG_ON) before every sleep, and board = rpipico has no CYW43."
     }
   ],
   "hazards": [
@@ -694,7 +783,10 @@
     "measured_at": {
       "date": "2026-10-12",
       "src_commit": "f1bfd13",
-      "src_dirty": false
+      "src_dirty": true,
+      "partial": [
+        "lan"
+      ]
     },
     "products": {
       "pico_w_release": {
@@ -787,6 +879,11 @@
             "used": 1000660,
             "bin": 1012692,
             "ram": 109200
+          },
+          "lan": {
+            "used": 777264,
+            "bin": 789296,
+            "ram": 107884
           }
         }
       },
@@ -882,6 +979,9 @@
           },
           "tft_graph": {
             "rule": "graph-needs-tft"
+          },
+          "lan": {
+            "rule": "lan-no-bluetooth"
           }
         }
       },
@@ -971,6 +1071,9 @@
           },
           "tft_graph": {
             "rule": "graph-needs-tft"
+          },
+          "lan": {
+            "rule": "lan-no-bluetooth"
           }
         }
       },
@@ -1068,6 +1171,9 @@
             "used": 977080,
             "bin": 977104,
             "ram": 123012
+          },
+          "lan": {
+            "unsupported": "lan ligada nao tem placa para o chip rp2350: [toggles.lan].on_board so conhece rp2040"
           }
         }
       }

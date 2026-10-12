@@ -22,7 +22,8 @@
  *
  * @section gpio GPIO Reference (Raspberry Pi Pico W)
  * ```
- * GP0–GP15   → Sensor slots (runtime-configurable via CLI)
+ * GP0–GP15   → Sensor slots (runtime-configurable via CLI); in a LAN build
+ *              GP12–GP15 are the ENC28J60 on SPI1 (section 10b)
  * GP16       → SPI0 MISO (TFT) / HD44780 RS (Alpha parallel)
  * GP17       → SPI0 CS (Touch) / HD44780 EN (Alpha parallel)
  * GP18       → SPI0 SCK / HD44780 D4 (Alpha parallel)
@@ -32,6 +33,7 @@
  * GP22       → Buzzer (PIO-driven)
  * GP26–GP27  → I2C1 (HD44780 backpack in Alpha I2C mode)
  * GP28       → TFT CS
+ *              (LAN build: the ENC28J60 INT is GP21 with the TFT, GP28 with the LCD)
  * ```
  *
  * @project SIMUT — Integrated Universal Monitoring and Telemetry System
@@ -443,6 +445,137 @@
 #define SIMUT_AIR 0              // 1 = SIMUT Air (headless hibernating build)
 #endif
 
+/* =========================================================================
+ * SECTION 10b: THE NETWORK — Wi-Fi (CYW43) or LAN (ENC28J60)
+ *
+ * SIMUT_NET_LAN   0 = the network is the CYW43 radio of the Pico W and the
+ *                 Pico 2 W, as in every image up to v2.11.1. 1 = a plain
+ *                 Raspberry Pi Pico, the RP2040 without the radio (PlatformIO
+ *                 `board = rpipico`), with the network on the cable through an
+ *                 ENC28J60 module. The `lan` switch of tools/features.toml sets
+ *                 it, picks that board and takes -DPICO_CYW43_SUPPORTED=1 out of
+ *                 the flags (build_unflags).
+ * SIMUT_NET_WIFI  the same choice read the other way, for `#if` sites.
+ *
+ * This is the switch and its compile-time checks. The wired driver is not in
+ * the firmware yet: an image built with SIMUT_NET_LAN=1 links (2026-09-26 study,
+ * docs/analysis/SIMUT_WIRE_VIABILIDADE.md on the study/simut-wire branch: the
+ * release links for board = rpipico once the one cyw43_arch_enable_sta_mode( )
+ * call is out) and has no network.
+ * ========================================================================= */
+
+#ifndef SIMUT_NET_LAN
+#define SIMUT_NET_LAN 0          // 1 = plain Pico, network by ENC28J60 (no CYW43)
+#endif
+#define SIMUT_NET_WIFI (!SIMUT_NET_LAN)
+
+// The two builds are told apart by whether the toolchain was handed the CYW43:
+// the Pico W / Pico 2 W boards pass -DPICO_CYW43_SUPPORTED=1 (boards.txt, the
+// board JSONs, and pico_base in platformio.ini), the plain Pico does not. A Wi-Fi
+// image without it would compile against the framework's no-radio stub and boot
+// with a network that cannot exist; a LAN image with it would still link the
+// CYW43 control code and its firmware blob (225,240 B, 2026-09-26 study). Both are
+// refused where the macro is looked at. Only on the firmware's toolchain
+// (ARDUINO_ARCH_RP2040 comes with every arduino-pico board): the host test
+// builds compile this header with neither macro.
+#if defined(ARDUINO_ARCH_RP2040)
+#if SIMUT_NET_WIFI && !defined(PICO_CYW43_SUPPORTED)
+#error "A Wi-Fi build needs the CYW43: PICO_CYW43_SUPPORTED is not defined (a plain Pico builds with SIMUT_NET_LAN=1)"
+#endif
+#if SIMUT_NET_LAN && defined(PICO_CYW43_SUPPORTED)
+#error "SIMUT_NET_LAN=1 is a build without the CYW43, and PICO_CYW43_SUPPORTED is still defined (build_unflags it)"
+#endif
+#endif
+
+// Bluetooth and the Air cycle both run on the CYW43 (tools/features.toml rules
+// lan-no-bluetooth and lan-no-air); a wired build has no radio to give them.
+#if SIMUT_NET_LAN && SIMUT_BLUETOOTH
+#error "SIMUT_NET_LAN and SIMUT_BLUETOOTH cannot be combined: Bluetooth runs on the CYW43, which a wired build does not have"
+#endif
+#if SIMUT_NET_LAN && SIMUT_AIR
+#error "SIMUT_NET_LAN and SIMUT_AIR cannot be combined: the Air cycle is built around the CYW43, which a wired build does not have"
+#endif
+
+/* ENC28J60 on SPI1 (the TFT owns SPI0). MISO, SCK and MOSI have to be pins SPI1
+ * can take (RX GP8/12/28, SCK GP10/14/26, TX GP11/15/27); the module's CS can be
+ * any. GP12–GP15 are four of the sixteen sensor slots, so a LAN build has twelve.
+ *
+ * INT is the one pin there is no room for in both layouts, so it follows the
+ * display: GP21 is the only GPIO a TFT build leaves free outside the sensor
+ * slots (the TFT takes GP16–GP20 and GP26–GP28); with the 16x2 LCD GP16–GP21 are
+ * the LCD in parallel mode, GP22 is the buzzer and GP26/GP27 the LCD in I2C
+ * mode, which leaves GP28. -1 = no INT pin: the driver polls the module. */
+#ifndef SIMUT_ENC_MISO
+#define SIMUT_ENC_MISO 12
+#endif
+#ifndef SIMUT_ENC_CS
+#define SIMUT_ENC_CS 13
+#endif
+#ifndef SIMUT_ENC_SCK
+#define SIMUT_ENC_SCK 14
+#endif
+#ifndef SIMUT_ENC_MOSI
+#define SIMUT_ENC_MOSI 15
+#endif
+#ifndef SIMUT_ENC_INT_PIN
+#if SIMUT_DISPLAY_TFT
+#define SIMUT_ENC_INT_PIN 21
+#elif SIMUT_DISPLAY_ALPHA
+#define SIMUT_ENC_INT_PIN 28
+#else
+#define SIMUT_ENC_INT_PIN (-1)
+#endif
+#endif
+
+// Who owns which GPIO, checked by the preprocessor so a layout that cannot work
+// stops the build instead of the board: the display, the module and the buzzer
+// may share none. `#if (A & B) != 0` is all it takes; the masks are 64 bits wide
+// because the RP2350B has pins past 31. A mask lives only inside this check.
+#if SIMUT_NET_LAN
+#if SIMUT_DISPLAY_TFT
+// SPI0 is fixed by the peripheral (MISO GP16, SCK GP18, MOSI GP19); the rest are the
+// TFT_* and TOUCH_* pins of section 2.
+#define SIMUT_PINS_DISPLAY ((1ull << 16) | (1ull << 18) | (1ull << 19) | (1ull << TFT_CS) | \
+                            (1ull << TFT_DC) | (1ull << TFT_RST) | (1ull << TOUCH_CS) | (1ull << TOUCH_IRQ))
+#elif SIMUT_DISPLAY_ALPHA && HD44780_MODE_PARALLEL
+#define SIMUT_PINS_DISPLAY ((1ull << HD44780_RS) | (1ull << HD44780_EN) | (1ull << HD44780_D4) | \
+                            (1ull << HD44780_D5) | (1ull << HD44780_D6) | (1ull << HD44780_D7))
+#elif SIMUT_DISPLAY_ALPHA && HD44780_MODE_I2C
+#define SIMUT_PINS_DISPLAY ((1ull << HD44780_I2C_SDA) | (1ull << HD44780_I2C_SCL))
+#else
+#define SIMUT_PINS_DISPLAY 0ull
+#endif
+
+#define SIMUT_PINS_ENC_SPI ((1ull << SIMUT_ENC_MISO) | (1ull << SIMUT_ENC_CS) | \
+                            (1ull << SIMUT_ENC_SCK) | (1ull << SIMUT_ENC_MOSI))
+#if SIMUT_ENC_INT_PIN >= 0
+#define SIMUT_PINS_ENC (SIMUT_PINS_ENC_SPI | (1ull << SIMUT_ENC_INT_PIN))
+#else
+#define SIMUT_PINS_ENC SIMUT_PINS_ENC_SPI
+#endif
+
+#if SIMUT_SOUND_BUZZER
+#define SIMUT_PINS_BUZZER (1ull << BUZZER_PIN)
+#else
+#define SIMUT_PINS_BUZZER 0ull
+#endif
+
+#if (SIMUT_PINS_ENC & SIMUT_PINS_DISPLAY) != 0
+#error "SIMUT_NET_LAN: a GPIO of the ENC28J60 (SIMUT_ENC_MISO, _CS, _SCK, _MOSI or _INT_PIN) is also a pin of the display"
+#endif
+#if (SIMUT_PINS_ENC & SIMUT_PINS_BUZZER) != 0
+#error "SIMUT_NET_LAN: a GPIO of the ENC28J60 (SIMUT_ENC_MISO, _CS, _SCK, _MOSI or _INT_PIN) is also BUZZER_PIN"
+#endif
+#if (SIMUT_PINS_DISPLAY & SIMUT_PINS_BUZZER) != 0
+#error "SIMUT_NET_LAN: BUZZER_PIN is also a pin of the display"
+#endif
+
+#undef SIMUT_PINS_DISPLAY
+#undef SIMUT_PINS_ENC_SPI
+#undef SIMUT_PINS_ENC
+#undef SIMUT_PINS_BUZZER
+#endif /* SIMUT_NET_LAN */
+
 /* -------------------------------------------------------------------------
  * SIMUT_ENV_NAME — the hardware variant this image was built for, as a
  * string the image itself carries: "release" (TFT), "alpha" (16x2 LCD) or
@@ -462,13 +595,29 @@
  * (docs/analysis/OTA_AB_RP2350.md, step 4). A suffix of letters, because the
  * tag reads only a to z (BuildIdentity.cpp), and short, because the longest,
  * "headlesstwo", fills the 11 characters the validator keeps.
+ *
+ * A LAN build is "wire" with the 16x2 LCD and "wiretft" with the touch display
+ * (SIMUT Wire, 2026-10-12): it shares no variant with the Pico W's images, so a
+ * Wi-Fi image cannot be staged on a board with no radio, nor the other way round
+ * (the staging check compares the tag, and the signature binds it). "wiretfttwo"
+ * would be 10 characters, inside the 11. A LAN build with no display at all has
+ * no name, and stops here: no product is one, and a name chosen now would be one
+ * more OTA identity to keep apart.
  * ---------------------------------------------------------------------- */
 #if defined(PICO_RP2350) && PICO_RP2350
 #define SIMUT_ENV_CHIP "two"
 #else
 #define SIMUT_ENV_CHIP ""
 #endif
-#if SIMUT_AIR
+#if SIMUT_NET_LAN
+#if SIMUT_DISPLAY_TFT
+#define SIMUT_ENV_NAME "wiretft" SIMUT_ENV_CHIP
+#elif SIMUT_DISPLAY_ALPHA
+#define SIMUT_ENV_NAME "wire" SIMUT_ENV_CHIP
+#else
+#error "SIMUT_NET_LAN has a variant name for the TFT and for the 16x2 LCD only: a wired build with no display has none"
+#endif
+#elif SIMUT_AIR
 #define SIMUT_ENV_NAME "air" SIMUT_ENV_CHIP
 #elif SIMUT_DISPLAY_ALPHA
 #define SIMUT_ENV_NAME "alpha" SIMUT_ENV_CHIP

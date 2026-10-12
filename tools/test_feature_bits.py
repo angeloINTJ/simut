@@ -16,7 +16,10 @@ configurador monte; o tft_graph, cujo default segue o mostrador, e coberto pelos
 perfis de cada mostrador.
 
 Uma combinacao que quebra regra e pulada: o configurador e o build_custom.py a
-recusam antes de compilar, e algumas param num #error do simut_config.h.
+recusam antes de compilar, e algumas param num #error do simut_config.h. O mesmo
+vale para uma chave que pede uma placa que o chip do perfil nao tem (a rede por
+cabo no RP2350, gen_features.toggle_refusal): o gerador a recusa, entao nao ha
+flags para pre-processar.
 """
 import copy
 import os
@@ -114,7 +117,7 @@ else:
             variants.append((f"{name} {t}={'on' if flip[t] else 'off'}", flip))
         for label, prof in variants:
             cfg = gf.config_of(prof)
-            if gf.rule_violations(cfg, M):
+            if gf.rule_violations(cfg, M) or gf.toggle_refusal(prof, M):
                 continue
             flags = gf.compose(prof, M)["flags"]
             got, err = host_bits(flags, tmp)
