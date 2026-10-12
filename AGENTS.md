@@ -751,8 +751,9 @@ ficar na fila e executar vários inputs depois.
 
 **Tudo o que tem tela ou vira documento neste repositório segue o
 `ANGULO.md`.** Não é gosto da ocasião: é o padrão de todos os sistemas do dono,
-e a casa dele é o repo `simut-rx` — lá ficam os anexos §11–§13 e a fonte da
-verdade dos valores. Vale para a UI web do aparelho, o site e a landing em
+e a casa dele é o repo `simut-rx` — lá fica a fonte da verdade dos valores, e o
+`ANGULO.md` daqui é cópia idêntica do de lá, com os anexos §11–§13. Vale para a
+UI web do aparelho, o site e a landing em
 `docs/`, o manual, os três READMEs, os documentos Living, a marca e as
 mensagens que o usuário lê no console. Antes de escrever, leia o §2 (as oito
 regras), o §7 (microcopy) e o §8 (o checklist) do guia.
@@ -886,8 +887,8 @@ sustente.
 
 ## 8. O que este manual não guarda, e onde está
 
-- O padrão de interface por inteiro: `ANGULO.md` (o guia, §1–§10); os anexos
-  §11–§13 e os tokens estão no repo `simut-rx`.
+- O padrão de interface por inteiro: `ANGULO.md` (o guia, §1–§10, e os anexos
+  §11–§13), cópia idêntica à do `simut-rx`; os tokens estão no repo `simut-rx`.
 
 - A história dos achados do Air (F01–F28), com medições e retratações:
   `docs/analysis/SIMUT_AIR_PLANO_FIX.md` (snapshot) e o `CHANGELOG.md`.
