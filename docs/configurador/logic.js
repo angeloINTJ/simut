@@ -120,6 +120,13 @@ export function refusalsIn(model, productId, config) {
     .filter(Boolean);
 }
 
+/* Everything that stops a build of this choice: the rules it breaks, then the
+ * switches the generator refuses for the product's chip. The page's warnings and
+ * its build button read this one list, so a refusal cannot be shown and built. */
+export function blockersOf(model, productId, config) {
+  return [...ruleViolations(model, config), ...refusalsIn(model, productId, config)];
+}
+
 /* The switch has no reader in this product: flipped, the image came out
  * byte-identical to the shipped one. */
 export function noEffect(model, productId, toggleId) {

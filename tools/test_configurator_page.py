@@ -14,6 +14,9 @@ com o lado Python, que é a autoridade:
   - uma chave travada na página é uma que gen_features.rule_violations
     proibiria, ou que o gerador recusa naquele chip (gen_features.toggle_refusal:
     a rede por cabo no RP2350), e vice-versa -- com o motivo que o manifesto dá;
+  - o que impede a build é uma lista só (L.blockersOf: as regras quebradas e as
+    recusas do chip), e o app.js, que nenhum teste executa, a usa: o texto dele
+    é conferido, porque sem o produto a trava e o botão perdem a recusa calados;
   - "não muda nada neste produto" é exatamente o `same` que a matriz mediu;
   - o erro que a página diz ter é o erro recalculado aqui.
 
@@ -25,6 +28,7 @@ com o lado Python, que é a autoridade:
 import itertools
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -63,7 +67,7 @@ const input = JSON.parse(await new Promise((ok) => {
   let s = ""; process.stdin.on("data", (d) => (s += d)); process.stdin.on("end", () => ok(s));
 }));
 const model = input.model;
-const out = { profiles: [], hashes: [], hostile: [], singles: [], locks: [], refusals: [], accuracy: null,
+const out = { profiles: [], hashes: [], hostile: [], singles: [], locks: [], refusals: [], blockers: [], accuracy: null,
               margin: null, ceilings: null, overflow: null, slot: null, anchors: null };
 for (const [p, set] of input.sets) {
   out.profiles.push(L.profileJson(p, set));
@@ -80,6 +84,9 @@ for (const p of input.products) {
     // A link can carry the switch already on: what the choice has on that the
     // generator refuses for the product's chip.
     out.refusals.push({ p, t, ids: L.refusalsIn(model, p, { ...product.config, [t]: true }).map((r) => r.id) });
+    const on = { ...product.config, [t]: true };
+    out.blockers.push({ p, t, ids: L.blockersOf(model, p, on).map((r) => r.id),
+                        rules: ruleViolations(model, on).map((r) => r.id) });
   }
 }
 out.accuracy = L.accuracy(model);
@@ -231,6 +238,28 @@ for r in js["refusals"]:
     refused = gf.toggle_refusal(dict(prof, **{r["t"]: True}), M)
     check(r["ids"] == ([f"unsupported-{r['t']}"] if refused else []),
           f"{r['p']}/{r['t']}: ligada, a página acusa {r['ids']}, o gerador {refused!r}")
+
+# 5d. O que impede a build é uma lista só: as regras quebradas e, depois, as recusas do chip.
+refusals_by = {(r["p"], r["t"]): r["ids"] for r in js["refusals"]}
+for b in js["blockers"]:
+    check(b["ids"] == b["rules"] + refusals_by[(b["p"], b["t"])],
+          f"{b['p']}/{b['t']}: ligada, blockersOf dá {b['ids']}, as regras {b['rules']} e as recusas "
+          f"{refusals_by[(b['p'], b['t'])]}")
+check(any("unsupported-lan" in b["ids"] for b in js["blockers"] if (b["p"], b["t"]) == ("pico2_w_release", "lan")),
+      "pico2_w_release/lan: ligada por um link, blockersOf não a acusa e o botão de compilar ficaria livre")
+
+# 5e. O app.js, que nenhum teste executa, usa essas contas. Os avisos e o botão de compilar vêm de
+#     L.blockersOf, e não de ruleViolations sozinho; toda trava passa o produto, sem o qual lockOf
+#     devolve só as regras e a recusa do chip some sem erro nenhum.
+with open(os.path.join(PAGE, "app.js"), encoding="utf-8") as fh:
+    APP = fh.read()
+check(APP.count("const violations = L.blockersOf(m, state.productId, config);") == 1,
+      "app.js: os avisos e o botão de compilar deveriam vir de L.blockersOf(m, state.productId, config)")
+check("ruleViolations(" not in APP,
+      "app.js: chama ruleViolations por conta própria, e o que ele monta pode deixar a recusa do chip de fora")
+lock_calls = re.findall(r"L\.lockOf\(([^()]*)\)", APP)
+check(lock_calls and all(len([a for a in c.split(",") if a.strip()]) == 4 for c in lock_calls),
+      f"app.js: toda chamada de L.lockOf deveria passar o produto (4 argumentos): {lock_calls}")
 
 # 6. O erro que a página diz ter.
 import check_flash_budget as cfb  # noqa: E402

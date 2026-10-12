@@ -14,7 +14,7 @@
  * token stays in this browser and is sent to api.github.com only; the page's
  * Content-Security-Policy allows no other destination. */
 
-import { ruleViolations, hazardHits } from "./rules.js";
+import { hazardHits } from "./rules.js";
 import * as L from "./logic.js";
 
 const REPO = "angeloINTJ/simut";
@@ -505,7 +505,7 @@ function renderResult() {
   const config = L.effectiveConfig(m, state.productId, state.set);
   // What the generator refuses for this chip counts like a broken rule: a link can
   // carry the switch already on, and the build would only be refused later.
-  const violations = [...ruleViolations(m, config), ...L.refusalsIn(m, state.productId, config)];
+  const violations = L.blockersOf(m, state.productId, config);
   const hazards = hazardHits(m, config);
   const est = L.estimate(m, state.productId, state.set);
   const nChanges = Object.keys(state.set).length;

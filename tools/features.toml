@@ -473,9 +473,9 @@ publish = true
 #   (HD44780 em paralelo, GP16-21), a rede cabeada, o DHT22 e o buzzer, sem DS18B20, sem
 #   Bluetooth e sem o Air (os dois rodam no CYW43; as regras lan-no-bluetooth e
 #   lan-no-air). Estende o pico_w_alpha e tira dele o que o Wire nao tem. O BME280 fica,
-#   como no alpha: o I2C por PIO dele (31 instrucoes) so toma um bloco que esteja livre e
-#   cai para GPIO sem ele, entao nao disputa o PIO do modulo se a rede subir antes dos
-#   sensores (o que o driver tem de garantir).
+#   como no alpha: o I2C por PIO dele (WirePIO, 32 instrucoes, um bloco inteiro) so entra
+#   num pio0 vazio e cai para GPIO sem ele, entao nao disputa o PIO do modulo se a rede
+#   subir antes dos sensores (o que o driver tem de garantir).
 #   Pinos do modulo (simut_config.h): MISO GP12, CS GP13, SCK GP14, MOSI GP15, na spi1;
 #   o INT e o GP28 com o mostrador alfanumerico e o GP21 com a TFT. Nesta etapa so o
 #   interruptor, as regras e as checagens de compilacao existem: o driver do ENC28J60
