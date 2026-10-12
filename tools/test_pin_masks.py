@@ -9,8 +9,8 @@ cabo num modulo ENC28J60 (a chave `lan` de tools/features.toml). Uma montagem qu
 pode funcionar tem de parar o BUILD, nao a placa, e e o pre-processador que para: o
 simut_config.h compara mascaras de pinos (`#if (A & B) != 0`) e recusa, com um #error que
 nomeia os dois donos, o modulo no pino do mostrador ou do buzzer, o buzzer no pino do
-mostrador, o Bluetooth e o Air (os dois rodam no CYW43) com a LAN, um build Wi-Fi sem o
-CYW43 e um build de LAN que ainda o tem. O nome da variante (SIMUT_ENV_NAME, o que a OTA
+mostrador, dois fios do proprio modulo no mesmo pino, o Bluetooth e o Air (os dois rodam
+no CYW43) com a LAN, um build Wi-Fi sem o CYW43 e um build de LAN que ainda o tem. O nome da variante (SIMUT_ENV_NAME, o que a OTA
 compara e a assinatura amarra) e "wire" com o LCD e "wiretft" com a TFT.
 
 Este teste pede ao pre-processador do host, o mesmo `cpp` do test_feature_bits.py e sem
@@ -52,8 +52,9 @@ ERR_ENC_DISPLAY = "_INT_PIN) is also a pin of the display"
 ERR_ENC_BUZZER = "_INT_PIN) is also BUZZER_PIN"
 ERR_BUZZER_DISPLAY = ": BUZZER_PIN is also a pin of the display"
 ERR_NO_NAME = "has a variant name"
+ERR_ENC_SAME = "are on the same GPIO"
 OWNED = [ERR_NO_CYW43, ERR_CYW43_LEFT, ERR_BLUETOOTH, ERR_AIR, ERR_ENC_DISPLAY, ERR_ENC_BUZZER,
-         ERR_BUZZER_DISPLAY, ERR_NO_NAME]
+         ERR_BUZZER_DISPLAY, ERR_NO_NAME, ERR_ENC_SAME]
 
 # (rotulo, flags, veredito). O veredito e ("ok", nome da variante) ou ("erro", trecho).
 CASES = [
@@ -65,6 +66,7 @@ CASES = [
     ("TFT + LAN, INT pelo padrao (GP21)", [TARGET, LAN], ("ok", "wiretft")),
     ("LCD em I2C + LAN, INT pelo padrao (GP28)", [TARGET, LAN] + LCD_I2C, ("ok", "wire")),
     ("LCD paralelo + LAN, sem INT (-1): o driver consulta o modulo", [TARGET, LAN] + LCD + ["-DSIMUT_ENC_INT_PIN=-1"], ("ok", "wire")),
+    ("LCD paralelo + LAN + INT 12 (o MISO do proprio modulo)", [TARGET, LAN] + LCD + ["-DSIMUT_ENC_INT_PIN=12"], ("erro", ERR_ENC_SAME)),
     # -- o buzzer: GP22 de fabrica, e so conta ligado ------------------------------------
     ("LCD paralelo + LAN + buzzer no GP13 (o CS do modulo)", [TARGET, LAN] + LCD + ["-DBUZZER_PIN=13"], ("erro", ERR_ENC_BUZZER)),
     ("LCD paralelo + LAN + buzzer no GP13, buzzer desligado", [TARGET, LAN] + LCD + ["-DBUZZER_PIN=13", "-DSIMUT_SOUND_BUZZER=0"], ("ok", "wire")),

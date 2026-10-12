@@ -117,7 +117,7 @@ WIREPIO_INSTR = 32
 #                   panel's RST 26, DC 27 and CS 28
 #   alpha_paralelo  HD44780 in 4-bit parallel: RS 16, EN 17, D4..D7 18..21
 #   nenhum          no display, no pin
-#   lan             the ENC28J60 on SPI1: SIMUT_ENC_MISO 12, _CS 13, _SCK 14, _MOSI 15; its
+#   lan             the ENC28J60 (an SPI in PIO): SIMUT_ENC_MISO 12, _CS 13, _SCK 14, _MOSI 15; its
 #                   INT pin is separate (ENC_INT_DEFAULT, or enc_int_pin in the config)
 #   buzzer          BUZZER_PIN 22
 PINS = {

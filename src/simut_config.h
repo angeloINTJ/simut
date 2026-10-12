@@ -23,7 +23,7 @@
  * @section gpio GPIO Reference (Raspberry Pi Pico W)
  * ```
  * GP0–GP15   → Sensor slots (runtime-configurable via CLI); in a LAN build
- *              GP12–GP15 are the ENC28J60 on SPI1 (section 10b)
+ *              GP12–GP15 are the ENC28J60, on an SPI made in PIO (section 10b)
  * GP16       → SPI0 MISO (TFT) / HD44780 RS (Alpha parallel)
  * GP17       → SPI0 CS (Touch) / HD44780 EN (Alpha parallel)
  * GP18       → SPI0 SCK / HD44780 D4 (Alpha parallel)
@@ -496,9 +496,11 @@
 #error "SIMUT_NET_LAN and SIMUT_AIR cannot be combined: the Air cycle is built around the CYW43, which a wired build does not have"
 #endif
 
-/* ENC28J60 on SPI1 (the TFT owns SPI0). MISO, SCK and MOSI have to be pins SPI1
- * can take (RX GP8/12/28, SCK GP10/14/26, TX GP11/15/27); the module's CS can be
- * any. GP12–GP15 are four of the sixteen sensor slots, so a LAN build has twelve.
+/* The ENC28J60's pins. The PicoENC28J60 library talks to it over an SPI made in
+ * PIO (tools/pio_budget.py counts its 17 instructions), so any GPIO would do; the
+ * four chosen are also SPI1's (RX GP12, SCK GP14, TX GP15), which leaves room for a
+ * hardware SPI without rewiring. GP12–GP15 are four of the sixteen sensor slots,
+ * so a LAN build has twelve.
  *
  * INT is the one pin there is no room for in both layouts, so it follows the
  * display: GP21 is the only GPIO a TFT build leaves free outside the sensor
@@ -568,6 +570,15 @@
 #endif
 #if (SIMUT_PINS_DISPLAY & SIMUT_PINS_BUZZER) != 0
 #error "SIMUT_NET_LAN: BUZZER_PIN is also a pin of the display"
+#endif
+// The masks cannot see two of the module's own lines on one GPIO: OR-ed together
+// they only lose a bit. Each pair is compared instead.
+#if SIMUT_ENC_MISO == SIMUT_ENC_CS || SIMUT_ENC_MISO == SIMUT_ENC_SCK || \
+    SIMUT_ENC_MISO == SIMUT_ENC_MOSI || SIMUT_ENC_CS == SIMUT_ENC_SCK || \
+    SIMUT_ENC_CS == SIMUT_ENC_MOSI || SIMUT_ENC_SCK == SIMUT_ENC_MOSI || \
+    (SIMUT_ENC_INT_PIN >= 0 && (SIMUT_ENC_INT_PIN == SIMUT_ENC_MISO || SIMUT_ENC_INT_PIN == SIMUT_ENC_CS || \
+                                SIMUT_ENC_INT_PIN == SIMUT_ENC_SCK || SIMUT_ENC_INT_PIN == SIMUT_ENC_MOSI))
+#error "SIMUT_NET_LAN: two lines of the ENC28J60 (SIMUT_ENC_MISO, _CS, _SCK, _MOSI, _INT_PIN) are on the same GPIO"
 #endif
 
 #undef SIMUT_PINS_DISPLAY

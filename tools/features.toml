@@ -476,7 +476,7 @@ publish = true
 #   como no alpha: o I2C por PIO dele (WirePIO, 32 instrucoes, um bloco inteiro) so entra
 #   num pio0 vazio e cai para GPIO sem ele, entao nao disputa o PIO do modulo se a rede
 #   subir antes dos sensores (o que o driver tem de garantir).
-#   Pinos do modulo (simut_config.h): MISO GP12, CS GP13, SCK GP14, MOSI GP15, na spi1;
+#   Pinos do modulo (simut_config.h): MISO GP12, CS GP13, SCK GP14, MOSI GP15 (SPI por PIO);
 #   o INT e o GP28 com o mostrador alfanumerico e o GP21 com a TFT. Nesta etapa so o
 #   interruptor, as regras e as checagens de compilacao existem: o driver do ENC28J60
 #   vem depois, e a imagem nao tem rede ate la. Medido em 2026-10-12 (pio run -e
