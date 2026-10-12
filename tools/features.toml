@@ -23,7 +23,7 @@ generates = ["tools/generated/profiles.ini", "docs/configurador/model.json", "sr
 
 # Flags que todo perfil de firmware acrescenta sobre ${pico_base.build_flags}.
 [base]
-common_flags = ["-DNDEBUG"]   # as sete imagens carregam NDEBUG (release ganhou em 2026-09-18)
+common_flags = ["-DNDEBUG"]   # as oito imagens carregam NDEBUG (release ganhou em 2026-09-18)
 
 # ---------------------------------------------------------------------------
 #  O chip. Um valor por perfil; sem a chave, rp2040 (o Pico W, que o pico_base
@@ -282,8 +282,8 @@ macro = "SIMUT_SENSOR_BME280"
 emit  = "off_is_0"
 
 # ---------------------------------------------------------------------------
-#  Os perfis. Os sete ambientes de firmware que o CI constroi hoje, e o pico_wire
-#  (2026-10-12), que o CI ainda nao constroi.
+#  Os perfis. Os oito ambientes de firmware que o CI constroi; o oitavo, o
+#  pico_wire, desde 2026-10-12.
 #  `extends` herda o dicionario de recursos do pai e sobrescreve.
 #
 #  `ota_trust_bench = true` (2026-10-01): a imagem aceita pelo ar tambem o que a
@@ -472,7 +472,10 @@ publish = true
 #   rede por cabo, num modulo ENC28J60. O produto oficial e o mostrador alfanumerico
 #   (HD44780 em paralelo, GP16-21), a rede cabeada, o DHT22 e o buzzer, sem DS18B20, sem
 #   Bluetooth e sem o Air (os dois rodam no CYW43; as regras lan-no-bluetooth e
-#   lan-no-air). Estende o pico_w_alpha e tira dele o que o Wire nao tem.
+#   lan-no-air). Estende o pico_w_alpha e tira dele o que o Wire nao tem. O BME280 fica,
+#   como no alpha: o I2C por PIO dele (31 instrucoes) so toma um bloco que esteja livre e
+#   cai para GPIO sem ele, entao nao disputa o PIO do modulo se a rede subir antes dos
+#   sensores (o que o driver tem de garantir).
 #   Pinos do modulo (simut_config.h): MISO GP12, CS GP13, SCK GP14, MOSI GP15, na spi1;
 #   o INT e o GP28 com o mostrador alfanumerico e o GP21 com a TFT. Nesta etapa so o
 #   interruptor, as regras e as checagens de compilacao existem: o driver do ENC28J60

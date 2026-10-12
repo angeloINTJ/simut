@@ -370,6 +370,11 @@ jobs:
           # yet; building it here is what keeps the code from drifting back to
           # RP2040-only addresses with nobody noticing.
           - pico2_w_release
+          # The SIMUT Wire (2026-10-12): a plain Pico, without the radio, its
+          # network on an ENC28J60 module. The switch is in and the wired driver
+          # is not, so the image links and has no network yet; building it here
+          # keeps the guards of src/simut_config.h section 10b honest.
+          - pico_wire
     name: firmware (${{ matrix.env }})
     steps:
       - uses: actions/checkout@v7

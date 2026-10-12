@@ -26,7 +26,7 @@ pio run -e pico_w_air          # the hibernating build; least flash headroom
 pio test -e native_logpolicy   # one suite; eight exist
 ```
 
-**Seven** firmware environments and nine native suites, all of them built and
+**Eight** firmware environments and nine native suites, all of them built and
 run by CI — `pico_w_asserts` is the one that is easy to forget, because it is
 not in the table above and nothing local reminds you of it. This line said
 "five" until 2026-09-20, and a change that raised the other five budgets went
@@ -34,7 +34,10 @@ to CI with that one over its own. The seventh, since 2026-10-01, is
 `pico2_w_release`: the release compiled for the Pico 2 W's RP2350, which CI
 builds and nothing runs on a board yet. **`pio run` with no `-e` builds only
 `pico_w_release`** — `default_envs` in `platformio.ini` says so, and this line
-claimed the opposite until 2026-09-22. Name the seven.
+claimed the opposite until 2026-09-22. The eighth, since 2026-10-12, is
+`pico_wire`: the SIMUT Wire, a plain Pico without the radio, its network on an
+ENC28J60 module; the wired driver is not in yet, so it links and has no
+network, and nothing runs it on a board. Name the eight.
 There is no debug environment — see the note in `platformio.ini` for why.
 
 ## What will fail your build before CI does
@@ -78,7 +81,7 @@ locally. When one fires, it is usually right:
 
 - `main` is protected. Every change goes through a pull request, and the nine
   required checks must pass: every CI job except the `pico_w_test_https`
-  image (`firmware (pico2_w_release)` joined on 2026-10-01).
+  and `pico_wire` images (`firmware (pico2_w_release)` joined on 2026-10-01).
 - Commit messages and pull requests are written in English; conversation with
   the maintainer is in Portuguese.
 - Measure before claiming. If a change is described as saving bytes, making

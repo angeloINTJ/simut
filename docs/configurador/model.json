@@ -795,8 +795,8 @@
     ],
     "measured_at": {
       "date": "2026-10-12",
-      "src_commit": "f1bfd13",
-      "src_dirty": true,
+      "src_commit": "0bed04b",
+      "src_dirty": false,
       "partial": [
         "lan"
       ]
