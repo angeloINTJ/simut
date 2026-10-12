@@ -388,7 +388,7 @@ function watchResult() {
 /* The verdict in one word, as a selo: the fill of the flash slot decides it. */
 function fitSelo(est) {
   if (!est) return h("span", { class: "selo", text: t("selo.none") });
-  const fit = L.fitOf(est.used, L.ceilingsOf(state.model, state.productId).flash_region, L.nearMargin(state.model));
+  const fit = L.slotFit(state.model, state.productId, est);
   const tone = { ok: "selo-positivo", near: "selo-alerta", over: "selo-perigo" }[fit];
   return h("span", { class: `selo ${tone}`, text: t(`fit.${fit}`) });
 }
@@ -401,7 +401,7 @@ function renderFixa() {
   return h("div", { class: "cfg-fixa" },
     fitSelo(est),
     est ? h("span", { class: "cfg-fixa-valor",
-                      text: t("meter.of", { a: num(est.used), b: num(L.ceilingsOf(m, state.productId).flash_region) }) }) : null,
+                      text: t("meter.of", { a: num(est.bin), b: num(L.ceilingsOf(m, state.productId).flash_region) }) }) : null,
     h("a", { href: "#resultado", text: t("fixa.link") }));
 }
 
@@ -515,7 +515,7 @@ function renderResult() {
   const margin = L.nearMargin(m);
   const ceil = L.ceilingsOf(m, state.productId);
   if (est) {
-    slotFit = L.fitOf(est.used, ceil.flash_region, margin);
+    slotFit = L.slotFit(m, state.productId, est);
     otaFit = L.fitOf(est.bin, ceil.ota_bin, margin);
     if (slotFit === "over") warnings.push(["perigo", t("warn.over")]);
     else if (otaFit === "over") warnings.push(["alerta", t("warn.otaOver")]);
@@ -530,7 +530,7 @@ function renderResult() {
   for (const hz of hazards) warnings.push(["alerta", t("warn.hazard", { why: label(hz.why) })]);
 
   const blocked = violations.length > 0 || slotFit === "over";
-  announce(est ? `${summary}. ${t("meter.of", { a: num(est.used), b: num(ceil.flash_region) })}` : summary);
+  announce(est ? `${summary}. ${t("meter.of", { a: num(est.bin), b: num(ceil.flash_region) })}` : summary);
 
   return h("aside", { class: "cfg-secao cfg-resultado", id: "resultado", "aria-labelledby": "h-resultado" },
     h("h2", { class: "cfg-secao-titulo", id: "h-resultado", text: t("sec.result") }),
@@ -541,7 +541,7 @@ function renderResult() {
       h("p", { class: "cfg-apoio cfg-resumo-texto", text: summary }),
       p.chip === "rp2350" ? h("p", { class: "cfg-apoio", text: t("two.files") }) : null,
       est ? [
-        meter(t("meter.flash"), est.used, ceil.flash_region),
+        meter(t("meter.flash"), est.bin, ceil.flash_region),
         meter(t("meter.ota"), est.bin, ceil.ota_bin),
         h("p", { class: "cfg-apoio", text: est.ramKnown ? t("ram", { n: num(est.ram) }) : t("ram.unknown") }),
       ] : null,
@@ -630,7 +630,7 @@ function issueUrl() {
     lines.length ? "Changes:" : "Changes: none (the published image)",
     ...lines,
     "",
-    est ? `Estimate: ${est.used} of ${L.ceilingsOf(m, state.productId).flash_region} B of flash; `
+    est ? `Estimate: ${est.bin} of ${L.ceilingsOf(m, state.productId).flash_region} B of flash; `
       + `.bin ${est.bin} of ${L.ceilingsOf(m, state.productId).ota_bin} B for OTA.` : "Estimate: none (bench image).",
     "",
     "Profile for `tools/build_custom.py`:",

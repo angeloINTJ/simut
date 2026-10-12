@@ -57,7 +57,14 @@ export function flipOf(model, productId, toggleId) {
 }
 
 /* Bytes of flash the flip adds (negative: saves). An overflow is measured
- * too: the linker reports by how much the FLASH region was exceeded. */
+ * too: the linker reports by how much the image's extent passed its FLASH
+ * region, and that extent is the .bin. On the Pico W the .bin is 12 to 15 KB
+ * more than `used` (the boot stage, the OTA stub, Bluetooth's 4 KiB page), so
+ * the flip's .bin is the region plus the overflow, and its `used` is taken to
+ * move by as much. Measured 2026-10-12: mDNS alone on the Air overflowed by
+ * 3,148 B, and 1,044,480 + 3,148 - 1,031,244 = 16,384, the four 4 KiB pages
+ * its 15,936 B take; counted from `used`, the sum missed a real build by
+ * 31,352 B. */
 function flipDelta(model, productId, f) {
   const base = costsOf(model, productId).base;
   if (!f) return null;
@@ -65,8 +72,8 @@ function flipDelta(model, productId, f) {
     return { used: f.used - base.used, bin: f.bin - base.bin, ram: f.ram - base.ram };
   }
   if ("overflow" in f) {
-    const used = ceilingsOf(model, productId).flash_region + f.overflow - base.used;
-    return { used, bin: used, ram: null };
+    const bin = ceilingsOf(model, productId).flash_region + f.overflow - base.bin;
+    return { used: bin, bin, ram: null };
   }
   return null;
 }
@@ -143,6 +150,13 @@ export function fitOf(value, ceiling, margin) {
   if (value > ceiling) return "over";
   if (ceiling - value < margin) return "near";
   return "ok";
+}
+
+/* Whether an estimate links: the linker holds the image's extent, the .bin, to
+ * the product's FLASH region, not `used`. An estimate between the two, under
+ * the region by `used` and over it by the .bin, does not link. */
+export function slotFit(model, productId, est) {
+  return fitOf(est.bin, ceilingsOf(model, productId).flash_region, nearMargin(model));
 }
 
 /* The profile tools/build_custom.py accepts, in its canonical spelling: the

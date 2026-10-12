@@ -406,11 +406,24 @@ def measure_checks():
 
 
 def print_checks(doc):
-    """Console apenas: a mesma soma da pagina, para quem roda ver o erro ja."""
+    """Console apenas: a mesma soma da pagina (docs/configurador/logic.js,
+    flipDelta), para quem roda ver o erro ja. Uma inversao que estourou conta
+    pela extensao que o linker mediu, a regiao mais o estouro, contra o .bin da
+    base; ate 2026-10-12 ela ficava de fora daqui e a conferencia do Air com
+    HTTPS e mDNS saia com +39.744 B de um erro que nao existia."""
+    import check_flash_budget  # os mesmos tetos que a pagina usa
     for c in doc.get("checks", []):
         base = doc["products"][c["base"]]["base"]
         flips = doc["products"][c["base"]]["flips"]
-        est = base["used"] + sum(flips[k]["used"] - base["used"] for k in c["set"] if "used" in flips[k])
+        region = check_flash_budget.ceilings(c["base"])["flash_region"]
+
+        def delta(f):
+            if "used" in f:
+                return f["used"] - base["used"]
+            if "overflow" in f:
+                return region + f["overflow"] - base["bin"]
+            return 0
+        est = base["used"] + sum(delta(flips[k]) for k in c["set"])
         what = ", ".join(f"{k}={'on' if v else 'off'}" for k, v in c["set"].items())
         if "used" in c:
             print(f"  {c['base']:<15} {what}: real {c['used']}, soma {est}, erro {c['used'] - est:+} B")
