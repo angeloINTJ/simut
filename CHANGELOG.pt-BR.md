@@ -4,7 +4,7 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
-## v2.11.1 (2026-10-05)
+## v2.11.1 (2026-10-12)
 
 **Quatro defeitos de severidade alta da revisão do manual estão consertados: a
 troca obrigatória de PIN do painel podia ser pulada, o editor de contas do
@@ -84,13 +84,78 @@ Folga sob o teto de 1.040.384 B da atualização pelo ar: release 7.027, alpha
 49.763, Air 8.899. O slot do Pico 2 W tem 1.568.768 B. Nem a alpha nem o Air têm
 painel, e nenhum dos dois passou da sua página de 4 KiB.
 
+### A bancada
+
+O portão de release (`AGENTS.md` §2) rodou na candidata que o CI assinou no
+`main` (execução 37259233322). As imagens publicadas trazem os mesmos bytes de
+imagem; a assinatura é delas, porque cada execução de assinatura faz uma nova.
+
+**No Pico 2 W,** a placa da bancada (um RP2350 A2), a partir da v2.11.0
+publicada no slot B, que confia só na raiz de release:
+- **A atualização, pelo ar:** envio 200 em 16,7 s, a placa de volta 39,3 s
+  depois, do slot A e em teste, e confirmada 50,4 s depois disso. Os 555 valores
+  de configuração que a API web informa, iguais.
+- **Recusadas,** com a placa rodando no slot dela: a candidata com um byte
+  trocado (9) e uma imagem assinada pela chave de bancada (12).
+- **A candidata sobre ela mesma,** do slot A para o B: envio em 16,7 s, de volta
+  24,9 s depois, confirmada 60,4 s depois disso, a configuração igual.
+- **O `.uf2` de fábrica,** arrastado pelo mantenedor para a unidade do BOOTSEL
+  da placa: ela subiu na 2.11.1 do slot A, fora de teste, com a configuração
+  dela. Na confirmação da atualização sobre ela mesma a ROM apaga o primeiro
+  setor do slot A, então a placa só subiria do A se o arrasto o tivesse gravado.
+- **Uma semana depois, de volta à bancada** (12/10/2026), ainda na 2.11.1 do
+  slot A: 30 minutos sem reinício, os cinco sensores válidos em todas as
+  amostras. Quatro das 119 leituras perderam o enquadramento chunked (#189, em
+  *Conhecido*). A sonda do GP0 tinha sido trocada enquanto a placa estava fora,
+  e o slot dela ficou em quarentena até o *Adotar a sonda ligada aqui* ligá-lo à
+  nova, que leu 0,1 s depois. Desta vez o fio do RESET da PicoHand ficou no pino
+  RUN, contra o `AGENTS.md` §1, e nenhum reinício veio. A suíte web na
+  candidata, como o admin dela: 67 aprovados, 0 falhas.
+
+**No Pico W,** a placa da bancada com o painel de toque e cinco sensores, a
+partir da v2.11.0 publicada com a configuração da bancada, uma conta de
+administrador descartável e a web na porta 8080. Esse começo é o do próprio
+portão da v2.11.0, gravado pelo USB e relido, depois atualizado pelo ar para a
+v2.11.0 com o `.bkp` de volta. A flash da placa foi copiada antes, em duas
+leituras iguais, e regravada no fim.
+- **A atualização a partir da v2.11.0,** completa, pelo ar: envio 200 (`v` 0)
+  em 35,6 s, a placa de volta 50,0 s depois da aplicação, `2.11.1`, os cinco
+  sensores lendo, os 567 valores de configuração que a API web informa iguais, o
+  arquivo de configuração idêntico byte a byte, e o `.bkp` de volta com 71 de 75
+  arquivos idênticos. Os outros quatro são o log, o arquivo anterior dele e dois
+  do histórico, que mudam enquanto o aparelho roda. O mesmo no alpha e no Air
+  (558 valores, e 71 de 75 arquivos em cada), onde as opções próprias do Air,
+  que uma atualização apaga, voltaram com o `.bkp`.
+- **A candidata sobre ela mesma,** nas três, com a candidata conferindo a
+  assinatura (`v` 0): o mesmo.
+- **De volta à v2.11.0 e de novo para cima,** pelo ar, as duas no nível de
+  segurança 1: aceitas (`v` 0) nos dois sentidos, a configuração igual, e a fila
+  da telemetria refeita em cada boot a partir do cursor que a outra versão
+  gravou.
+- **Recusadas** com 422, com a configuração intacta antes e depois de um
+  reinício: uma imagem sem assinatura (8), a imagem do Air assinada (7), a
+  atualização assinada do Pico 2 W (6, que a página Arquivos agora explica) e a
+  candidata com um byte trocado (9).
+- **Um envio cortado aos 400 kB, seguido de um reinício,** e o mesmo com o
+  sistema de arquivos cheio até os últimos 8 KB e esvaziado entre o corte e o
+  reinício: a configuração intacta.
+- **30 minutos** sem reinício, os cinco sensores válidos em todas as amostras,
+  com o fio do RESET da PicoHand fora do pino RUN, como diz o `AGENTS.md` §1.
+  Com o fio ligado, a placa reiniciou sozinha quatro vezes em seis horas, sem
+  watchdog por trás de nenhuma. Uma delas veio aos 33,8 s de uma atualização a
+  partir do estado em que a placa chegou, na v2.10.0. A placa voltou na v2.10.0
+  com a configuração idêntica byte a byte, e a mesma atualização passou na
+  tentativa seguinte.
+- **A suíte web na candidata,** com uma conta de administrador: 67 aprovados, 0
+  falhas.
+
 ### Atualizando
 
 - **A partir da v2.11.0, nas duas placas:** pelo ar, na página Arquivos, com o
   `.bin` desta release. A configuração vem junto. No Pico 2 W a atualização vai
   para o outro slot e sobe em teste, como desde a v2.11.0.
 - **De volta à v2.11.0:** pelo ar, com o `.bin` assinado dela (as duas têm o
-  nível de segurança 1), ou pelo USB.
+  nível de segurança 1; conferido na bancada, no Pico W), ou pelo USB.
 - **A partir de uma versão mais antiga, ou a primeira instalação de um Pico 2
   W:** como na v2.11.0, abaixo.
 - **Pacotes de idioma:** envie os dois anexados a esta release pela página
@@ -132,6 +197,16 @@ painel, e nenhum dos dois passou da sua página de 4 KiB.
   primeiro e com o valor do último**, pelo código.
 - **A lista de marcadores da linha de alarmes na página Telemetria para na
   v22.** O capítulo 22 do manual lista todos.
+- **Adotar uma sonda, ou o `sensor_wipe`, não recomeça o histórico do slot.** Os
+  dois carimbam a época de provisionamento do slot, e nada a lê: o histórico
+  entrega todo registro de um slot sob o id atual dele. Na bancada, depois que o
+  slot 0 adotou outra sonda, as leituras dele de 4 de outubro voltaram sob o id
+  da sonda nova.
+- **Depois de um boot, uma sonda que não é a do slot pode ter a primeira leitura
+  gravada.** O caminho de leitura confere a ROM a cada cinco leituras, a partir
+  da quinta. Na bancada, com outra sonda no GPIO do slot, a leitura de 20 s
+  depois do boot entrou no histórico como a do slot, e a quarentena começou no
+  minuto seguinte.
 
 ## v2.11.0 (2026-10-04)
 
