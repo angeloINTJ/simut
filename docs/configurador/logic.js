@@ -20,6 +20,15 @@ export function productById(model, id) {
   return model.products.find((p) => p.id === id) || null;
 }
 
+/* The two ceilings a product is held to: its flash slot, and the largest .bin
+ * that still fits over the air once signed. Each product has its own, the
+ * figures tools/check_flash_budget.py holds the images to: the Pico 2 W's slot
+ * is 1,568,768 B for both, the Pico W's sketch area and OTA ceiling are
+ * smaller. */
+export function ceilingsOf(model, productId) {
+  return productById(model, productId).ceilings;
+}
+
 /* The choice on screen: the product's configuration with `set` on top. */
 export function effectiveConfig(model, productId, set) {
   const p = productById(model, productId);
@@ -48,7 +57,14 @@ export function flipOf(model, productId, toggleId) {
 }
 
 /* Bytes of flash the flip adds (negative: saves). An overflow is measured
- * too: the linker reports by how much the FLASH region was exceeded. */
+ * too: the linker reports by how much the image's extent passed its FLASH
+ * region, and that extent is the .bin. On the Pico W the .bin is 12 to 15 KB
+ * more than `used` (the boot stage, the OTA stub, Bluetooth's 4 KiB page), so
+ * the flip's .bin is the region plus the overflow, and its `used` is taken to
+ * move by as much. Measured 2026-10-12: mDNS alone on the Air overflowed by
+ * 3,148 B, and 1,044,480 + 3,148 - 1,031,244 = 16,384, the four 4 KiB pages
+ * its 15,936 B take; counted from `used`, the sum missed a real build by
+ * 31,352 B. */
 function flipDelta(model, productId, f) {
   const base = costsOf(model, productId).base;
   if (!f) return null;
@@ -56,8 +72,8 @@ function flipDelta(model, productId, f) {
     return { used: f.used - base.used, bin: f.bin - base.bin, ram: f.ram - base.ram };
   }
   if ("overflow" in f) {
-    const used = model.ceilings.flash_region + f.overflow - base.used;
-    return { used, bin: used, ram: null };
+    const bin = ceilingsOf(model, productId).flash_region + f.overflow - base.bin;
+    return { used: bin, bin, ram: null };
   }
   return null;
 }
@@ -136,6 +152,13 @@ export function fitOf(value, ceiling, margin) {
   return "ok";
 }
 
+/* Whether an estimate links: the linker holds the image's extent, the .bin, to
+ * the product's FLASH region, not `used`. An estimate between the two, under
+ * the region by `used` and over it by the .bin, does not link. */
+export function slotFit(model, productId, est) {
+  return fitOf(est.bin, ceilingsOf(model, productId).flash_region, nearMargin(model));
+}
+
 /* The profile tools/build_custom.py accepts, in its canonical spelling: the
  * same choice always gives the same bytes, so the same file name. */
 export function profileOf(productId, set) {
@@ -168,6 +191,17 @@ export function formatHash(productId, set) {
 /* Strict: a link names a product and switches this model knows, or it is
  * refused with the first thing that is wrong. The page shows the refusal as
  * text (never as HTML) and opens the default product. */
+/* Whether a hash is a place on the page rather than a build: a bare id (no
+ * "=") of an element that exists. The bar's "#resultado" and the skip link's
+ * "#main" are such places, and the hashchange that following them fires read
+ * as a hash with no product: the page went back to the default product with
+ * nothing changed (a choice on the Pico 2 W came back as SIMUT, Chrome,
+ * 2026-10-12). `exists` is the page's own lookup, so this stays testable. */
+export function isAnchorHash(hash, exists) {
+  const id = String(hash || "").replace(/^#/, "");
+  return id !== "" && !id.includes("=") && Boolean(exists(id));
+}
+
 export function parseHash(model, hash) {
   const text = String(hash || "").replace(/^#/, "");
   if (!text) return { productId: null, set: {} };

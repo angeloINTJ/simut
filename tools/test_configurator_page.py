@@ -62,7 +62,8 @@ const input = JSON.parse(await new Promise((ok) => {
   let s = ""; process.stdin.on("data", (d) => (s += d)); process.stdin.on("end", () => ok(s));
 }));
 const model = input.model;
-const out = { profiles: [], hashes: [], hostile: [], singles: [], locks: [], accuracy: null, margin: null };
+const out = { profiles: [], hashes: [], hostile: [], singles: [], locks: [], accuracy: null, margin: null,
+              ceilings: null, overflow: null, slot: null, anchors: null };
 for (const [p, set] of input.sets) {
   out.profiles.push(L.profileJson(p, set));
   out.hashes.push(L.parseHash(model, L.formatHash(p, L.normalizeSet(model, p, set))));
@@ -79,6 +80,35 @@ for (const p of input.products) {
 }
 out.accuracy = L.accuracy(model);
 out.margin = L.nearMargin(model);
+out.ceilings = {};
+out.overflow = {};
+out.slot = {};
+for (const p of input.products) {
+  out.ceilings[p] = L.ceilingsOf(model, p);
+  // A flip the linker refused, made up: the linker measures the image's extent
+  // in its FLASH region, which is the .bin, so the estimate's .bin is the
+  // product's own region plus the overflow it reported, whatever the product.
+  const costs = model.costs && model.costs.products && model.costs.products[p];
+  if (!costs) continue;
+  const t = input.toggles[0];
+  const fake = JSON.parse(JSON.stringify(model));
+  fake.costs.products[p].flips[t] = { overflow: 100 };
+  const product = L.productById(fake, p);
+  const e = L.estimate(fake, p, { [t]: !product.config[t] });
+  out.overflow[p] = { used: e.used, bin: e.bin };
+  // The slot verdict follows the .bin: an image whose `used` is under the
+  // region and whose .bin is over it does not link.
+  const region = L.ceilingsOf(model, p).flash_region;
+  out.slot[p] = {
+    usedUnderBinOver: L.slotFit(model, p, { used: region - 1000, bin: region + 1000 }),
+    bothUnder: L.slotFit(model, p, { used: region - 200000, bin: region - 190000 }),
+  };
+}
+// An in-page anchor is not a build: the bar's "#resultado" and the skip link's
+// "#main" used to reset the page to the default product (2026-10-12).
+const here = (id) => id === "resultado" || id === "main";
+out.anchors = ["#resultado", "#main", "#b=pico_w_air&on=mdns", "#nada", "", "#b=pico_w_air"]
+  .map((h) => L.isAnchorHash(h, here));
 process.stdout.write(JSON.stringify(out));
 """
 
@@ -170,6 +200,7 @@ for lk in js["locks"]:
     check(lk["lock"] == (new[0] if new else None), f"{p}/{t}: trava da página {lk['lock']} != regras {new}")
 
 # 6. O erro que a página diz ter.
+import check_flash_budget as cfb  # noqa: E402
 checks = MODEL["costs"].get("checks", []) if MODEL.get("costs") else []
 miss_used = miss_bin = n = 0
 for c in checks:
@@ -177,10 +208,20 @@ for c in checks:
         continue
     b = costs[c["base"]]["base"]
     flips = costs[c["base"]]["flips"]
-    if any("used" not in flips[k] for k in c["set"]):
+    if any("used" not in flips[k] and "overflow" not in flips[k] for k in c["set"]):
         continue
-    est_used = b["used"] + sum(flips[k]["used"] - b["used"] for k in c["set"])
-    est_bin = b["bin"] + sum(flips[k]["bin"] - b["bin"] for k in c["set"])
+    # A flip the linker refused counts too (2026-10-12): its .bin is the region
+    # plus the overflow, the extent the linker measured, and its `used` moves by
+    # the same amount. The Air grew past the room for HTTPS or mDNS alone, and a
+    # check that frees Bluetooth's 140 KB and turns both on is what it exists for.
+    region = cfb.ceilings(c["base"])["flash_region"]
+
+    def delta(f, key):
+        if "used" in f:
+            return f[key] - b[key]
+        return region + f["overflow"] - b["bin"]
+    est_used = b["used"] + sum(delta(flips[k], "used") for k in c["set"])
+    est_bin = b["bin"] + sum(delta(flips[k], "bin") for k in c["set"])
     miss_used = max(miss_used, abs(c["used"] - est_used))
     miss_bin = max(miss_bin, abs(c["bin"] - est_bin))
     n += 1
@@ -188,6 +229,39 @@ check(js["accuracy"] == {"n": n, "used": miss_used, "bin": miss_bin},
       f"precisão da página {js['accuracy']} != recalculada {(n, miss_used, miss_bin)}")
 check(js["margin"] >= 4096 and js["margin"] >= max(miss_used, miss_bin),
       f"margem {js['margin']} menor que o erro medido ({miss_used}, {miss_bin})")
+
+# 7. Os tetos são de cada produto (2026-10-05): o Pico 2 W é segurado ao slot de
+#    1.568.768 B, nos dois números, e o Pico W ao que o portão de flash usa.
+#    Os mesmos que tools/build_custom.py põe no build.json.
+import check_flash_budget as cfb  # noqa: E402
+check("ceilings" not in MODEL, "o model.json ainda tem um teto só para todos os produtos")
+for p in MODEL["products"]:
+    want = cfb.ceilings(p["id"])
+    check(p.get("ceilings") == want, f"{p['id']}: tetos {p.get('ceilings')} != os do portão {want}")
+    check(js["ceilings"].get(p["id"]) == want, f"{p['id']}: a página usa os tetos {js['ceilings'].get(p['id'])}")
+    chip = gf.resolve_profile(p["id"], M["profiles"]).get("chip") or "rp2040"
+    check(p.get("chip") == chip, f"{p['id']}: chip {p.get('chip')} != o do manifesto {chip}")
+    if p["id"] in costs:
+        got = js["overflow"].get(p["id"]) or {}
+        base = costs[p["id"]]["base"]
+        check(got.get("bin") == want["flash_region"] + 100,
+              f"{p['id']}: um estouro de 100 B virou um .bin de {got.get('bin')}, "
+              f"a região dele tem {want['flash_region']} B")
+        check(got.get("used") == want["flash_region"] + 100 - (base["bin"] - base["used"]),
+              f"{p['id']}: o used de um estouro de 100 B não anda com o .bin: {got}")
+        slot = js["slot"].get(p["id"]) or {}
+        check(slot.get("usedUnderBinOver") == "over",
+              f"{p['id']}: used abaixo da região e .bin acima dela deu {slot.get('usedUnderBinOver')}, não 'over'")
+        check(slot.get("bothUnder") == "ok", f"{p['id']}: uma imagem bem abaixo da região deu {slot.get('bothUnder')}")
+# 7b. Uma âncora da própria página não é uma build (2026-10-12): seguir o
+#     "Ver o resultado" ou o "Pular para o conteúdo" voltava ao produto padrão.
+check(js["anchors"] == [True, True, False, False, False, False],
+      f"âncoras da página lidas como build: {js['anchors']}")
+# 8. Todo produto publicado tem custo medido: a página não diz "sem estimativa"
+#    para uma imagem que a release publica.
+for p in MODEL["products"]:
+    if p["publish"]:
+        check(p["id"] in costs, f"{p['id']} é publicado e não tem custo medido")
 
 if failures:
     print("test_configurator_page: FALHOU")

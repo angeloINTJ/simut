@@ -112,6 +112,59 @@ def resolve(base, changes, M):
     return prof
 
 
+def chip_of(base, M):
+    """O chip do produto, como o manifesto o diz; sem a chave, o do Pico W."""
+    return gf.resolve_profile(base, M["profiles"]).get("chip") or "rp2040"
+
+
+def outputs_for(base, M):
+    """Os arquivos da pasta de build que viram o .bin e o .uf2 entregues.
+
+    No Pico W, uma imagem em dois embrulhos. No Pico 2 W (RP2350), duas imagens,
+    as mesmas que a release publica (tools/release_manifest.py): o .bin é a
+    atualização marcada para teste, que vai para o outro slot e sobe em teste, e
+    o .uf2 é o de fábrica, com a tabela de partições na frente. A tabela vai
+    junto para o job de assinatura, que refaz o .uf2 a partir do .bin assinado
+    (--finish-signed). tools/check_rp2350_image.py escreve os três depois do
+    link."""
+    if chip_of(base, M) == "rp2350":
+        return {"bin": "firmware_ota.bin", "uf2": "firmware_factory.uf2", "table": "partition_table.uf2"}
+    return {"bin": "firmware.bin", "uf2": "firmware.uf2"}
+
+
+def finish_signed(out_dir):
+    """Depois da assinatura: o build.json passa a descrever o .bin assinado e,
+    no Pico 2 W, o .uf2 de fábrica é refeito a partir dele, como a release o
+    faz, e a tabela sai da pasta. Devolve o código de saída; nada é marcado como
+    assinado se faltar o que o .uf2 precisa."""
+    import release_manifest  # o mesmo .uf2 de fábrica da release
+    path = os.path.join(out_dir, "build.json")
+    with open(path, encoding="utf-8") as fh:
+        report = json.load(fh)
+    bin_path = os.path.join(out_dir, report["files"]["bin"]["file"])
+    with open(bin_path, "rb") as fh:
+        data = fh.read()
+    if report.get("chip") == "rp2350":
+        table = os.path.join(out_dir, "partition_table.uf2")
+        try:
+            uf2 = release_manifest.rp2350_factory(data, table)
+        except ValueError as e:
+            say(f"o .uf2 de fábrica não saiu — {e}", error=True)
+            return 1
+        uf2_path = os.path.join(out_dir, report["files"]["uf2"]["file"])
+        with open(uf2_path, "wb") as fh:
+            fh.write(uf2)
+        os.remove(table)
+        report["files"]["uf2"].update(sha256=hashlib.sha256(uf2).hexdigest(), bytes=len(uf2))
+    report["files"]["bin"].update(sha256=hashlib.sha256(data).hexdigest(), bytes=len(data))
+    report["signed"] = True
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(report, fh, indent=2, ensure_ascii=False)
+        fh.write("\n")
+    say(f"assinado — .bin {len(data)} B" + (", .uf2 de fábrica refeito dele" if report.get("chip") == "rp2350" else ""))
+    return 0
+
+
 def sha256(path):
     h = hashlib.sha256()
     with open(path, "rb") as fh:
@@ -151,7 +204,12 @@ def main():
     ap.add_argument("--out", default="build-custom", help="pasta de saída")
     ap.add_argument("--validate-only", action="store_true",
                     help="só valida formato e regras; não compila")
+    ap.add_argument("--finish-signed", metavar="PASTA",
+                    help="depois da assinatura (job sign do build-custom.yml): o build.json "
+                         "descreve o .bin assinado, e o .uf2 do Pico 2 W é refeito dele")
     args = ap.parse_args()
+    if args.finish_signed:
+        return finish_signed(args.finish_signed)
 
     M = gf.load_manifest()
     text = args.profile if args.profile is not None else os.environ.get("SIMUT_PROFILE", "")
@@ -189,22 +247,38 @@ def main():
     build_dir = os.path.join(ROOT, ".pio", "build", ENV)
     os.makedirs(args.out, exist_ok=True)
     name = f"simut_{base}_{tag}"
+    outs = outputs_for(base, M)
+    chip = chip_of(base, M)
+    if chip == "rp2350":
+        # A atualização tem de sair marcada para teste: sem a marca, ela
+        # instalaria sem teste, e uma ruim não voltaria (OTA_AB_RP2350.md).
+        sys.path.insert(0, os.path.join(HERE, "rp2350"))
+        import picobin  # noqa: E402  (tools/rp2350/picobin.py)
+        with open(os.path.join(build_dir, outs["bin"]), "rb") as fh:
+            _, items = picobin.first_block(fh.read())
+        if not (items and (items.get(picobin.ITEM_IMAGE_TYPE, 0) >> 16) & picobin.TBYB):
+            say(f"{outs['bin']} não saiu marcado para teste", error=True)
+            gh_output(result="error")
+            return 1
+        shutil.copyfile(os.path.join(build_dir, outs["table"]), os.path.join(args.out, "partition_table.uf2"))
     files = {}
     for ext in ("uf2", "bin"):
         dst = os.path.join(args.out, f"{name}.{ext}")
-        shutil.copyfile(os.path.join(build_dir, f"firmware.{ext}"), dst)
+        shutil.copyfile(os.path.join(build_dir, outs[ext]), dst)
         files[ext] = {"file": os.path.basename(dst), "sha256": sha256(dst),
                       "bytes": os.path.getsize(dst)}
-    import check_flash_budget  # o mesmo teto de OTA que o portão usa
-    ota_max = check_flash_budget.ota_bin_max()   # o maior .bin que ainda cabe assinado
+    import check_flash_budget  # os mesmos tetos que o portão de flash usa
+    ceil = check_flash_budget.ceilings(base)
+    ota_max = ceil["ota_bin"]   # o maior .bin que ainda cabe assinado
     fits_ota = ota_max is None or res["bin"] <= ota_max
     report = {
         "profile": json.loads(spec),
+        "chip": chip,
         "config": gf.config_of(prof),
         "flags": c["flags"],
         "excludes": c["excludes"],
         "sizes": {"flash_used": res["used"], "bin": res["bin"], "ram_used": res["ram"]},
-        "ceilings": {"ota_bin": ota_max},
+        "ceilings": ceil,
         "fits_ota": fits_ota,
         "files": files,
         # O commit de onde a build saiu, não o último que tocou em src/: o

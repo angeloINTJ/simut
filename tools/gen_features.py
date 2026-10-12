@@ -47,7 +47,6 @@ OUT_INI = os.path.join(ROOT, "tools", "generated", "profiles.ini")
 OUT_MODEL = os.path.join(ROOT, "docs", "configurador", "model.json")
 OUT_HEADER = os.path.join(ROOT, "src", "FeatureBits.h")
 COSTS = os.path.join(ROOT, "tools", "feature_costs.json")
-BUDGET = os.path.join(ROOT, "tools", "flash_budget.json")
 LANGS = ("en", "pt")
 
 # A tabela das chaves nos tres FEATURES*.md — o A-07 da revisao externa da v2.7.3,
@@ -321,11 +320,9 @@ def check_manifest(M: dict) -> None:
 
 def build_model(M: dict) -> dict:
     """A arvore do configurador, na forma que a pagina (docs/configurador/) le."""
-    import check_flash_budget  # o mesmo teto de OTA que o portao de flash usa
+    import check_flash_budget  # os mesmos tetos que o portao de flash usa
 
     check_manifest(M)
-    with open(BUDGET, encoding="utf-8") as fh:
-        flash_region = json.load(fh)["ceiling"]
     costs = None
     if os.path.exists(COSTS):
         with open(COSTS, encoding="utf-8") as fh:
@@ -348,9 +345,14 @@ def build_model(M: dict) -> dict:
     for name in M["profiles"]:
         u = M["ui_products"][name]
         prof = resolve_profile(name, M["profiles"])
+        # Os tetos sao de cada produto (2026-10-05): o Pico 2 W e segurado ao
+        # slot dele, 1.568.768 B, e o Pico W ao que o portao usa. Ate entao um
+        # teto so, o do Pico W, valia para todos.
         products.append({"id": name, "order": u["order"],
                          "bench": bool(u.get("bench", False)),
                          "publish": bool(prof.get("publish", False)),
+                         "chip": prof.get("chip") or "rp2040",
+                         "ceilings": check_flash_budget.ceilings(name),
                          "label": _texts(u, "label", f"ui_products.{name}"),
                          "desc": _texts(u, "desc", f"ui_products.{name}"),
                          "config": config_of(prof)})
@@ -367,9 +369,6 @@ def build_model(M: dict) -> dict:
     return {
         "version": M["meta"]["version"],
         "source": "tools/features.toml",
-        "ceilings": {"flash_region": flash_region,
-                     # the largest .bin that still fits once signed
-                     "ota_bin": check_flash_budget.ota_bin_max()},
         "groups": groups,
         "toggles": toggles,
         "displays": displays,

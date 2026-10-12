@@ -385,9 +385,10 @@ placa subiu do slot A.
 
 **O que fica de fora:**
 
-- **O configurador.** O perfil continua com `publish = false` em
-  `tools/features.toml`: o `build_custom.py` ainda entrega o `firmware.uf2` e o
-  `firmware.bin`, e a página usa os tetos do Pico W.
+- **O configurador.** Feito em 05/10/2026: o perfil tem `publish = true` em
+  `tools/features.toml`, o `build_custom.py` entrega o `.bin` em teste e o `.uf2`
+  de fábrica (refeito do `.bin` assinado, como a release), a matriz de custo mede
+  o produto e a página o segura ao slot.
 - **O simut-rx.** Ele ignora de propósito uma variante que não conhece
   (`decodeManifest`), então não oferece atualização a um Pico 2 W até aprender o
   `releasetwo`. O teto de tamanho dele, 1016 KiB, também é o do Pico W.

@@ -133,10 +133,10 @@ A pasta `data/` leva os dois pacotes de idioma e os 11 temas. Depois de um `uplo
 
 O [configurador de build](https://angelointj.github.io/simut/configurador/) monta uma imagem com outro conjunto de recursos, pelo navegador. Ele tem português e inglês, tema claro e escuro, e pode ser instalado como aplicativo.
 
-1. Em **Produto**, escolha SIMUT (a imagem release), SIMUT Alpha ou SIMUT Air.
+1. Em **Produto**, escolha SIMUT (a imagem release), SIMUT Alpha, SIMUT Air ou SIMUT para o Pico 2 W.
 2. Em **Recursos**, ligue ou desligue o que a imagem leva. Cada recurso mostra quanto a imagem daquele produto cresce ou encolhe, medido compilando. Uma combinação que o firmware não compila aparece **Bloqueada**, com o motivo.
-3. Em **Resultado**, a página soma as mudanças e diz se a imagem **Cabe**, está **No limite** ou **Não cabe**, no espaço do programa e no teto da atualização pela rede.
-4. Toque em **Compilar esta build**. A integração contínua do projeto compila a imagem e entrega o `.uf2`, para o USB, e o `.bin`, para a página **Arquivos** ([capítulo 17](#cap-17-ota)).
+3. Em **Resultado**, a página soma as mudanças e diz se a imagem **Cabe**, está **No limite** ou **Não cabe**, no espaço do programa e no teto da atualização pela rede. No Pico 2 W os dois tetos são o slot de 1.568.768 B.
+4. Toque em **Compilar esta build**. A integração contínua do projeto compila a imagem e entrega o `.uf2`, para o USB, e o `.bin`, para a página **Arquivos** ([capítulo 17](#cap-17-ota)). No Pico 2 W são as duas imagens que a release publica para ele: o `.uf2` de fábrica, com a tabela de partições, e o `.bin`, uma atualização que vai para o outro slot e roda em teste.
 
 **Compilar esta build** exige um token do GitHub com acesso de escrita ao repositório. Sem ele, **Pedir esta build** abre um pedido no GitHub com a configuração preenchida.
 
