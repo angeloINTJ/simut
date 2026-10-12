@@ -63,7 +63,7 @@ const input = JSON.parse(await new Promise((ok) => {
 }));
 const model = input.model;
 const out = { profiles: [], hashes: [], hostile: [], singles: [], locks: [], accuracy: null, margin: null,
-              ceilings: null, overflow: null, slot: null };
+              ceilings: null, overflow: null, slot: null, anchors: null };
 for (const [p, set] of input.sets) {
   out.profiles.push(L.profileJson(p, set));
   out.hashes.push(L.parseHash(model, L.formatHash(p, L.normalizeSet(model, p, set))));
@@ -104,6 +104,11 @@ for (const p of input.products) {
     bothUnder: L.slotFit(model, p, { used: region - 200000, bin: region - 190000 }),
   };
 }
+// An in-page anchor is not a build: the bar's "#resultado" and the skip link's
+// "#main" used to reset the page to the default product (2026-10-12).
+const here = (id) => id === "resultado" || id === "main";
+out.anchors = ["#resultado", "#main", "#b=pico_w_air&on=mdns", "#nada", "", "#b=pico_w_air"]
+  .map((h) => L.isAnchorHash(h, here));
 process.stdout.write(JSON.stringify(out));
 """
 
@@ -248,6 +253,10 @@ for p in MODEL["products"]:
         check(slot.get("usedUnderBinOver") == "over",
               f"{p['id']}: used abaixo da região e .bin acima dela deu {slot.get('usedUnderBinOver')}, não 'over'")
         check(slot.get("bothUnder") == "ok", f"{p['id']}: uma imagem bem abaixo da região deu {slot.get('bothUnder')}")
+# 7b. Uma âncora da própria página não é uma build (2026-10-12): seguir o
+#     "Ver o resultado" ou o "Pular para o conteúdo" voltava ao produto padrão.
+check(js["anchors"] == [True, True, False, False, False, False],
+      f"âncoras da página lidas como build: {js['anchors']}")
 # 8. Todo produto publicado tem custo medido: a página não diz "sem estimativa"
 #    para uma imagem que a release publica.
 for p in MODEL["products"]:

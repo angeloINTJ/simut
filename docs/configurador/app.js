@@ -425,7 +425,8 @@ function renderProducts() {
           h("span", { class: "cfg-produto-nome", text: label(p.label) }),
           h("span", { class: "cfg-produto-desc", text: label(p.desc) }),
           h("span", { class: "cfg-produto-num",
-                      text: costs ? t("product.size", { n: num(costs.base.used) }) : t("product.nosize") }));
+                      // The .bin, the number the meters hold to the slot (2026-10-12).
+                      text: costs ? t("product.size", { n: num(costs.base.bin) }) : t("product.nosize") }));
       })),
     h("label", { class: "cfg-bancada", for: "mostrar-bancada" },
       h("input", { type: "checkbox", id: "mostrar-bancada", checked: state.showBench,
@@ -907,7 +908,12 @@ async function start() {
   readHash();
   writeHash();
   render();
-  window.addEventListener("hashchange", () => { state.notice = null; readHash(); render(); });
+  window.addEventListener("hashchange", () => {
+    // An in-page anchor scrolls (and the skip link moves the focus); the build
+    // stays, and the address goes back to carrying it.
+    if (L.isAnchorHash(location.hash, (id) => document.getElementById(id))) { writeHash(); return; }
+    state.notice = null; readHash(); render();
+  });
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").catch(() => { /* the page works without it */ });
   }

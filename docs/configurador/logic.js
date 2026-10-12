@@ -191,6 +191,17 @@ export function formatHash(productId, set) {
 /* Strict: a link names a product and switches this model knows, or it is
  * refused with the first thing that is wrong. The page shows the refusal as
  * text (never as HTML) and opens the default product. */
+/* Whether a hash is a place on the page rather than a build: a bare id (no
+ * "=") of an element that exists. The bar's "#resultado" and the skip link's
+ * "#main" are such places, and the hashchange that following them fires read
+ * as a hash with no product: the page went back to the default product with
+ * nothing changed (a choice on the Pico 2 W came back as SIMUT, Chrome,
+ * 2026-10-12). `exists` is the page's own lookup, so this stays testable. */
+export function isAnchorHash(hash, exists) {
+  const id = String(hash || "").replace(/^#/, "");
+  return id !== "" && !id.includes("=") && Boolean(exists(id));
+}
+
 export function parseHash(model, hash) {
   const text = String(hash || "").replace(/^#/, "");
   if (!text) return { productId: null, set: {} };
