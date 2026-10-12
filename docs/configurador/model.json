@@ -1,10 +1,6 @@
 {
   "version": 1,
   "source": "tools/features.toml",
-  "ceilings": {
-    "flash_region": 1044480,
-    "ota_bin": 1040143
-  },
   "groups": [
     {
       "id": "network",
@@ -332,6 +328,11 @@
       "order": 1,
       "bench": false,
       "publish": true,
+      "chip": "rp2040",
+      "ceilings": {
+        "flash_region": 1044480,
+        "ota_bin": 1040143
+      },
       "label": {
         "en": "SIMUT",
         "pt": "SIMUT"
@@ -367,6 +368,11 @@
       "order": 2,
       "bench": false,
       "publish": true,
+      "chip": "rp2040",
+      "ceilings": {
+        "flash_region": 1044480,
+        "ota_bin": 1040143
+      },
       "label": {
         "en": "SIMUT Alpha",
         "pt": "SIMUT Alpha"
@@ -402,6 +408,11 @@
       "order": 3,
       "bench": false,
       "publish": true,
+      "chip": "rp2040",
+      "ceilings": {
+        "flash_region": 1044480,
+        "ota_bin": 1040143
+      },
       "label": {
         "en": "SIMUT Air",
         "pt": "SIMUT Air"
@@ -433,10 +444,55 @@
       }
     },
     {
-      "id": "pico_w_test",
+      "id": "pico2_w_release",
       "order": 4,
+      "bench": false,
+      "publish": true,
+      "chip": "rp2350",
+      "ceilings": {
+        "flash_region": 1568768,
+        "ota_bin": 1568527
+      },
+      "label": {
+        "en": "SIMUT for the Pico 2 W",
+        "pt": "SIMUT para o Pico 2 W"
+      },
+      "desc": {
+        "en": "The touch display product on the Pico 2 W (RP2350), with twice the flash: it boots from slot A or B, and an update over the air goes into the other slot and runs on trial.",
+        "pt": "O produto com tela touch no Pico 2 W (RP2350), com o dobro de flash: sobe do slot A ou B, e uma atualização pelo ar vai para o outro slot e roda em teste."
+      },
+      "config": {
+        "display": "tft",
+        "cli_full": false,
+        "web_https": true,
+        "license_stub": false,
+        "mdns": true,
+        "concurrency_asserts": false,
+        "bluetooth": false,
+        "air": false,
+        "sound_buzzer": true,
+        "sensor_ds18b20": true,
+        "sensor_dht22": true,
+        "sensor_bme280": true,
+        "tel_tls": true,
+        "tel_mqtt": true,
+        "web_history": true,
+        "web_export_api": true,
+        "web_metrics": true,
+        "syslog": true,
+        "tft_graph": true
+      }
+    },
+    {
+      "id": "pico_w_test",
+      "order": 5,
       "bench": true,
       "publish": false,
+      "chip": "rp2040",
+      "ceilings": {
+        "flash_region": 1044480,
+        "ota_bin": 1040143
+      },
       "label": {
         "en": "Bench image",
         "pt": "Imagem de bancada"
@@ -469,9 +525,14 @@
     },
     {
       "id": "pico_w_test_https",
-      "order": 5,
+      "order": 6,
       "bench": true,
       "publish": false,
+      "chip": "rp2040",
+      "ceilings": {
+        "flash_region": 1044480,
+        "ota_bin": 1040143
+      },
       "label": {
         "en": "Bench image with HTTPS",
         "pt": "Imagem de bancada com HTTPS"
@@ -504,9 +565,14 @@
     },
     {
       "id": "pico_w_asserts",
-      "order": 6,
+      "order": 7,
       "bench": true,
       "publish": false,
+      "chip": "rp2040",
+      "ceilings": {
+        "flash_region": 1044480,
+        "ota_bin": 1040143
+      },
       "label": {
         "en": "Concurrency soak image",
         "pt": "Imagem de soak de concorrência"
@@ -522,41 +588,6 @@
         "license_stub": false,
         "mdns": true,
         "concurrency_asserts": true,
-        "bluetooth": false,
-        "air": false,
-        "sound_buzzer": true,
-        "sensor_ds18b20": true,
-        "sensor_dht22": true,
-        "sensor_bme280": true,
-        "tel_tls": true,
-        "tel_mqtt": true,
-        "web_history": true,
-        "web_export_api": true,
-        "web_metrics": true,
-        "syslog": true,
-        "tft_graph": true
-      }
-    },
-    {
-      "id": "pico2_w_release",
-      "order": 7,
-      "bench": true,
-      "publish": false,
-      "label": {
-        "en": "SIMUT for the Pico 2 W",
-        "pt": "SIMUT para o Pico 2 W"
-      },
-      "desc": {
-        "en": "The release image for the Pico 2 W (RP2350). It boots from slot A or B and updates over the air into the other, on trial. The release publishes its images; this page has not measured it.",
-        "pt": "A imagem de release do Pico 2 W (RP2350). Sobe do slot A ou B e atualiza pelo ar no outro, em teste. A release publica as imagens dela; esta página ainda não a mediu."
-      },
-      "config": {
-        "display": "tft",
-        "cli_full": false,
-        "web_https": true,
-        "license_stub": false,
-        "mdns": true,
-        "concurrency_asserts": false,
         "bluetooth": false,
         "air": false,
         "sound_buzzer": true,

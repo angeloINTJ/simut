@@ -136,6 +136,23 @@ def held_ceiling(env_cfg, printed):
     return env_cfg.get("slot") or printed
 
 
+def ceilings(env):
+    """What the configurator (docs/configurador/) and build_custom.py hold a
+    build of `env` to: {"flash_region": the program's room, "ota_bin": the
+    largest unsigned .bin that still fits over the air once signed}. The Pico
+    W's are the sketch area this record keeps and OTA_APP_SAFE_MAX_SIZE; a chip
+    that boots from a slot ("slot", the Pico 2 W's 1,568,768 B) is held to the
+    slot for both, as held_ceiling( ) and ota_ceiling( ) hold it here. One
+    product, one pair: until 2026-10-05 the page held every product to the Pico
+    W's. None for a number this cannot read."""
+    with open(BUDGET_FILE, encoding="utf-8") as fh:
+        cfg = json.load(fh)
+    env_cfg = cfg["envs"].get(env, {})
+    safe, trailer = ota_ceiling(env_cfg, ota_safe_max()), sig_trailer_len()
+    return {"flash_region": held_ceiling(env_cfg, cfg["ceiling"]),
+            "ota_bin": safe - trailer if safe and trailer else None}
+
+
 def table_int(cell):
     """A number as the table writes it — 1.028.493 (pt-BR), 1,028,493 or bare,
     negative for an image over the ceiling — or None for anything else."""

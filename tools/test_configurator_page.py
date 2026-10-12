@@ -62,7 +62,8 @@ const input = JSON.parse(await new Promise((ok) => {
   let s = ""; process.stdin.on("data", (d) => (s += d)); process.stdin.on("end", () => ok(s));
 }));
 const model = input.model;
-const out = { profiles: [], hashes: [], hostile: [], singles: [], locks: [], accuracy: null, margin: null };
+const out = { profiles: [], hashes: [], hostile: [], singles: [], locks: [], accuracy: null, margin: null,
+              ceilings: null, overflow: null };
 for (const [p, set] of input.sets) {
   out.profiles.push(L.profileJson(p, set));
   out.hashes.push(L.parseHash(model, L.formatHash(p, L.normalizeSet(model, p, set))));
@@ -79,6 +80,20 @@ for (const p of input.products) {
 }
 out.accuracy = L.accuracy(model);
 out.margin = L.nearMargin(model);
+out.ceilings = {};
+out.overflow = {};
+for (const p of input.products) {
+  out.ceilings[p] = L.ceilingsOf(model, p);
+  // A flip the linker refused, made up: the estimate is the product's own slot
+  // plus the overflow the linker reported, whatever the product.
+  const costs = model.costs && model.costs.products && model.costs.products[p];
+  if (!costs) continue;
+  const t = input.toggles[0];
+  const fake = JSON.parse(JSON.stringify(model));
+  fake.costs.products[p].flips[t] = { overflow: 100 };
+  const product = L.productById(fake, p);
+  out.overflow[p] = L.estimate(fake, p, { [t]: !product.config[t] }).used;
+}
 process.stdout.write(JSON.stringify(out));
 """
 
@@ -188,6 +203,27 @@ check(js["accuracy"] == {"n": n, "used": miss_used, "bin": miss_bin},
       f"precisão da página {js['accuracy']} != recalculada {(n, miss_used, miss_bin)}")
 check(js["margin"] >= 4096 and js["margin"] >= max(miss_used, miss_bin),
       f"margem {js['margin']} menor que o erro medido ({miss_used}, {miss_bin})")
+
+# 7. Os tetos são de cada produto (2026-10-05): o Pico 2 W é segurado ao slot de
+#    1.568.768 B, nos dois números, e o Pico W ao que o portão de flash usa.
+#    Os mesmos que tools/build_custom.py põe no build.json.
+import check_flash_budget as cfb  # noqa: E402
+check("ceilings" not in MODEL, "o model.json ainda tem um teto só para todos os produtos")
+for p in MODEL["products"]:
+    want = cfb.ceilings(p["id"])
+    check(p.get("ceilings") == want, f"{p['id']}: tetos {p.get('ceilings')} != os do portão {want}")
+    check(js["ceilings"].get(p["id"]) == want, f"{p['id']}: a página usa os tetos {js['ceilings'].get(p['id'])}")
+    chip = gf.resolve_profile(p["id"], M["profiles"]).get("chip") or "rp2040"
+    check(p.get("chip") == chip, f"{p['id']}: chip {p.get('chip')} != o do manifesto {chip}")
+    if p["id"] in costs:
+        check(js["overflow"].get(p["id"]) == want["flash_region"] + 100,
+              f"{p['id']}: um estouro de 100 B virou {js['overflow'].get(p['id'])}, "
+              f"o slot dele tem {want['flash_region']} B")
+# 8. Todo produto publicado tem custo medido: a página não diz "sem estimativa"
+#    para uma imagem que a release publica.
+for p in MODEL["products"]:
+    if p["publish"]:
+        check(p["id"] in costs, f"{p['id']} é publicado e não tem custo medido")
 
 if failures:
     print("test_configurator_page: FALHOU")

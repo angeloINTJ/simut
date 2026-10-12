@@ -20,6 +20,15 @@ export function productById(model, id) {
   return model.products.find((p) => p.id === id) || null;
 }
 
+/* The two ceilings a product is held to: its flash slot, and the largest .bin
+ * that still fits over the air once signed. Each product has its own, the
+ * figures tools/check_flash_budget.py holds the images to: the Pico 2 W's slot
+ * is 1,568,768 B for both, the Pico W's sketch area and OTA ceiling are
+ * smaller. */
+export function ceilingsOf(model, productId) {
+  return productById(model, productId).ceilings;
+}
+
 /* The choice on screen: the product's configuration with `set` on top. */
 export function effectiveConfig(model, productId, set) {
   const p = productById(model, productId);
@@ -56,7 +65,7 @@ function flipDelta(model, productId, f) {
     return { used: f.used - base.used, bin: f.bin - base.bin, ram: f.ram - base.ram };
   }
   if ("overflow" in f) {
-    const used = model.ceilings.flash_region + f.overflow - base.used;
+    const used = ceilingsOf(model, productId).flash_region + f.overflow - base.used;
     return { used, bin: used, ram: null };
   }
   return null;

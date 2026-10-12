@@ -81,7 +81,7 @@ MANIFEST_FEATURES = [
     ("sound_buzzer",        "pico_w_release"),
     # O Air e a base porque e onde a chave rende tudo: sem o servidor HTTPS, o
     # cliente da telemetria e o unico que liga o motor TLS do BearSSL. No SIMUT o
-    # servidor segura a maior parte dele (a matriz mede os tres produtos).
+    # servidor segura a maior parte dele (a matriz mede os quatro produtos).
     ("tel_tls",             "pico_w_air"),
     ("tel_mqtt",            "pico_w_air"),
     ("web_history",         "pico_w_air"),
@@ -373,6 +373,10 @@ CHECKS = [
     ("pico_w_air", {"tel_tls": False, "tel_mqtt": False}),
     ("pico_w_air", {"web_history": False, "web_export_api": False, "web_metrics": False,
                     "syslog": False}),
+    # O Pico 2 W (2026-10-05): a mesma primeira conferencia do SIMUT, e o
+    # Bluetooth com a linha de comando completa, que no slot dele cabem.
+    ("pico2_w_release", {"mdns": False, "sound_buzzer": False, "sensor_bme280": False}),
+    ("pico2_w_release", {"bluetooth": True, "cli_full": True}),
 ]
 
 
@@ -475,9 +479,11 @@ def cmd_matrix_partial(toggles):
 
     Vale quando a chave nova nasce desligavel sem mudar nada ligada: as bases
     e as outras inversoes continuam as mesmas imagens. Isso nao se supoe — as
-    tres bases sao reconstruidas e comparadas com o que o arquivo guarda (used,
+    bases sao reconstruidas e comparadas com o que o arquivo guarda (used,
     bin, ram); qualquer diferenca recusa, e a matriz inteira e o caminho. Custa
-    3 builds de base + 3 por chave, contra ~45 da matriz inteira."""
+    uma build de base e uma por chave em cada produto publicado (quatro desde
+    que o Pico 2 W entrou, 2026-10-05), contra 69 e mais 12 conferencias da
+    matriz inteira."""
     M = gf.load_manifest()
     unknown = [t for t in toggles if t not in gf.TOGGLE_ORDER]
     if unknown:

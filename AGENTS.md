@@ -401,11 +401,17 @@ python3 tools/test_flash_budget.py                   # as duas regras que mantê
   `tools/build_custom.py --profile '{"v":1,"base":"pico_w_air","set":{"bluetooth":false}}'`
   reaplica as regras do manifesto (exit 2 se quebra uma), compila e deixa em
   `--out` o `.uf2`, o `.bin` e um `build.json` com tamanhos e sha256; exit 3 é
-  "não cabe no slot". `.github/workflows/build-custom.yml` faz o mesmo por
-  `workflow_dispatch` (só quem tem escrita dispara) e publica o artefato. A
-  estimativa da página vem de `tools/feature_costs.json`, que envelhece com o
-  código: quando uma mudança mexe no tamanho de um recurso, rode
-  `measure_savings.py --matrix` (32 builds e 8 conferências, cada uma completa) e depois
+  "não cabe no slot". No Pico 2 W (`pico2_w_release`, desde 05/10/2026) são as
+  duas imagens que a release publica: o `.bin` é a atualização marcada para
+  teste e o `.uf2` é o de fábrica, com a tabela de partições, e os dois tetos
+  são o slot de 1.568.768 B (`check_flash_budget.ceilings( )`).
+  `.github/workflows/build-custom.yml` faz o mesmo por `workflow_dispatch` (só
+  quem tem escrita dispara), assina e publica o artefato; depois da assinatura,
+  o `build_custom.py --finish-signed` refaz o `.uf2` do Pico 2 W a partir do
+  `.bin` assinado, como a release faz. A estimativa da página vem de
+  `tools/feature_costs.json`, que envelhece com o código: quando uma mudança
+  mexe no tamanho de um recurso, rode `measure_savings.py --matrix` (69 builds
+  e 12 conferências nos quatro produtos publicados, cada uma completa) e depois
   `gen_features.py`, que leva os números ao `docs/configurador/model.json`.
 - `PLATFORMIO_BUILD_FLAGS` muda o checksum do projeto e **apaga `.pio/build`
   inteiro**, todos os ambientes. Cada experimento por flag é uma build completa.

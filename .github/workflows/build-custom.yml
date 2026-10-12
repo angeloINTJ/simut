@@ -14,6 +14,13 @@ name: SIMUT custom build
 # GitHub Actions injection path. build_custom.py validates the profile strictly
 # before anything is downloaded or built.
 #
+# On the Pico 2 W (pico2_w_release, since 2026-10-05) the two files are the
+# images a release publishes for it, not one image in two wrappings: the .bin is
+# the update, flagged for trial, which installs into the other slot; the .uf2 is
+# the factory image, the partition table in front. After signing, the .uf2 is
+# made again from the signed .bin, as the release makes it
+# (tools/release_manifest.py), so both carry the same bytes.
+#
 # The .bin is signed (docs/analysis/OTA_ASSINADA.md): a device installs only a
 # signed image over the air. `build` compiles with no secret in reach; `sign`
 # runs in the `release` Environment, which waits for the maintainer's approval
@@ -86,10 +93,13 @@ jobs:
         run: pip install platformio zopfli
 
       # The same patched framework every firmware build uses: a factory
-      # arduino-pico has not compiled since v2.3.0 (see build.yml).
+      # arduino-pico has not compiled since v2.3.0 (see build.yml). The Pico 2
+      # W's packages go in before the patch too, as release-ota.yml installs
+      # them, so a build for either chip finds the framework patched.
       - name: Apply framework overrides
         run: |
           pio pkg install -e pico_w_release
+          pio pkg install -e pico2_w_release
           bash tools/arduino_pico_overrides/patch.sh
 
       - name: Build
@@ -158,8 +168,10 @@ jobs:
       # The same steps as the release's (release-ota.yml): keys/ checked, the
       # key in a 0600 file shredded on the way out, the image refused if it
       # trusts the bench root, each result verified the way the image it came
-      # from would. build.json gets the signed file's size and sha256, since
-      # that is the .bin it hands over.
+      # from would. Then build_custom.py --finish-signed: build.json gets the
+      # signed file's size and sha256, since that is the .bin it hands over,
+      # and a Pico 2 W's factory .uf2 is made again from it, its partition table
+      # leaving the folder.
       - name: Sign the image
         env:
           OTA_SIGNER_KEY: ${{ secrets.OTA_SIGNER_KEY }}
@@ -182,17 +194,7 @@ jobs:
           python3 tools/ota_sign.py verify --in "$bin.signed" --running "$bin"
           mv "$bin.signed" "$bin"
           python3 tools/ota_sign.py inspect --in "$bin"
-          python3 - "$bin" <<'PY'
-          import hashlib, json, sys
-          path = sys.argv[1]
-          report = json.load(open("build-custom/build.json", encoding="utf-8"))
-          data = open(path, "rb").read()
-          report["files"]["bin"].update(sha256=hashlib.sha256(data).hexdigest(), bytes=len(data))
-          report["signed"] = True
-          with open("build-custom/build.json", "w", encoding="utf-8") as fh:
-              json.dump(report, fh, indent=2, ensure_ascii=False)
-              fh.write("\n")
-          PY
+          python3 tools/build_custom.py --finish-signed build-custom
 
       - name: Publish the firmware
         uses: actions/upload-artifact@v7

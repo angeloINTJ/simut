@@ -436,13 +436,13 @@ publish       = true
 #   mais na raiz de bancada, e tools/test_release_manifest.py confere que nenhuma
 #   imagem publicada pela release confia. A imagem de bancada sai deste perfil com
 #   PLATFORMIO_BUILD_FLAGS=-DSIMUT_OTA_TRUST_BENCH=1 (AGENTS.md).
-#   `publish = false` aqui e o do configurador e das tabelas FEATURES*.md. O Pico 2 W
-#   entra la quando o build_custom.py entregar o .uf2 de fabrica e o .bin em teste, e
-#   a pagina tiver os tetos do slot.
+#   `publish` e o do configurador e das tabelas FEATURES*.md: desde 2026-10-05 o
+#   build_custom.py entrega o .bin em teste e o .uf2 de fabrica dele, a pagina o segura
+#   aos tetos do slot (check_flash_budget.ceilings) e a matriz de custo o mede.
 [profiles.pico2_w_release]
 extends = "pico_w_release"
 chip    = "rp2350"
-publish = false
+publish = true
 
 # ===========================================================================
 #  O configurador (docs/configurador/): como cada escolha aparece na árvore.
@@ -473,8 +473,16 @@ label.pt = "SIMUT Air"
 desc.en  = "No display: wakes, reads, sends and sleeps again, to run on battery."
 desc.pt  = "Sem mostrador: acorda, lê, envia e volta a dormir, para rodar na bateria."
 
-[ui_products.pico_w_test]
+[ui_products.pico2_w_release]
 order    = 4
+label.en = "SIMUT for the Pico 2 W"
+label.pt = "SIMUT para o Pico 2 W"
+label.es = "SIMUT para la Pico 2 W"   # a coluna dele no FEATURES.es-ES.md
+desc.en  = "The touch display product on the Pico 2 W (RP2350), with twice the flash: it boots from slot A or B, and an update over the air goes into the other slot and runs on trial."
+desc.pt  = "O produto com tela touch no Pico 2 W (RP2350), com o dobro de flash: sobe do slot A ou B, e uma atualização pelo ar vai para o outro slot e roda em teste."
+
+[ui_products.pico_w_test]
+order    = 5
 bench    = true
 label.en = "Bench image"
 label.pt = "Imagem de bancada"
@@ -482,7 +490,7 @@ desc.en  = "Full command line for the test suites. Not published."
 desc.pt  = "Linha de comando completa para as suítes de teste. Não publicada."
 
 [ui_products.pico_w_test_https]
-order    = 5
+order    = 6
 bench    = true
 label.en = "Bench image with HTTPS"
 label.pt = "Imagem de bancada com HTTPS"
@@ -490,20 +498,12 @@ desc.en  = "The only image with the full command line and the TLS server togethe
 desc.pt  = "A única imagem com linha de comando completa e servidor TLS juntos. Não publicada."
 
 [ui_products.pico_w_asserts]
-order    = 6
+order    = 7
 bench    = true
 label.en = "Concurrency soak image"
 label.pt = "Imagem de soak de concorrência"
 desc.en  = "The release image with the concurrency tripwire armed. Not published."
 desc.pt  = "A imagem de release com a armadilha de concorrência armada. Não publicada."
-
-[ui_products.pico2_w_release]
-order    = 7
-bench    = true
-label.en = "SIMUT for the Pico 2 W"
-label.pt = "SIMUT para o Pico 2 W"
-desc.en  = "The release image for the Pico 2 W (RP2350). It boots from slot A or B and updates over the air into the other, on trial. The release publishes its images; this page has not measured it."
-desc.pt  = "A imagem de release do Pico 2 W (RP2350). Sobe do slot A ou B e atualiza pelo ar no outro, em teste. A release publica as imagens dela; esta página ainda não a mediu."
 
 [ui_displays.tft]
 label.en = "Touch display (ILI9341, 320x240)"

@@ -63,6 +63,7 @@ const STR = {
     "warn.bench": "No estimate: the cost matrix measures the published products only. The build gives the figure.",
     "warn.stock": "No changes. This product's published image is in the latest release; compiling here builds today's main, which can be ahead of it.",
     "warn.stockLink": "Open the latest release",
+    "two.files": "On the Pico 2 W the two files are different images. The .bin is an update: it installs into the other slot and runs on trial until it keeps itself. The .uf2 is the factory image, with the partition table, for the drive that appears as RP2350 when BOOTSEL is held.",
     "action.build": "Compile this build", "action.building": "Compiling…",
     "action.copy": "Copy link", "action.copied": "Link copied",
     "action.copyFailed": "The browser did not allow copying. The link is the address in the address bar.",
@@ -89,6 +90,7 @@ const STR = {
     "run.ok": "Compiled: .bin {bin} B, RAM {ram} B.",
     "run.okOta": "It fits the OTA ceiling: install the .bin through the web interface, or the .uf2 over USB.",
     "run.okUsb": "The .bin is over the OTA ceiling: install the .uf2 over USB.",
+    "run.okOtaTwo": "It fits its slot: install the .bin through the web interface, into the other slot and on trial, or the .uf2 over USB, onto the RP2350 drive.",
     "run.download": "Download .uf2 and .bin",
     "run.page": "Open the run",
     "run.failed": "The build failed at step “{step}”.",
@@ -141,6 +143,7 @@ const STR = {
     "warn.bench": "Sem estimativa: a matriz de custo mede só os produtos publicados. A build dá o número.",
     "warn.stock": "Sem mudanças. A imagem publicada deste produto está na última release; compilar aqui gera o main de hoje, que pode estar à frente dela.",
     "warn.stockLink": "Abrir a última release",
+    "two.files": "No Pico 2 W os dois arquivos são imagens diferentes. O .bin é uma atualização: vai para o outro slot e roda em teste até se confirmar. O .uf2 é a imagem de fábrica, com a tabela de partições, para a unidade que aparece como RP2350 com o BOOTSEL apertado.",
     "action.build": "Compilar esta build", "action.building": "Compilando…",
     "action.copy": "Copiar link", "action.copied": "Link copiado",
     "action.copyFailed": "O navegador não deixou copiar. O link é o endereço na barra do navegador.",
@@ -167,6 +170,7 @@ const STR = {
     "run.ok": "Compilada: .bin {bin} B, RAM {ram} B.",
     "run.okOta": "Cabe no teto de OTA: instale o .bin pela interface web, ou o .uf2 pelo USB.",
     "run.okUsb": "O .bin passa do teto de OTA: grave o .uf2 pelo USB.",
+    "run.okOtaTwo": "Cabe no slot: instale o .bin pela interface web, no outro slot e em teste, ou o .uf2 pelo USB, na unidade RP2350.",
     "run.download": "Baixar .uf2 e .bin",
     "run.page": "Abrir a execução",
     "run.failed": "A build falhou no passo “{step}”.",
@@ -384,7 +388,7 @@ function watchResult() {
 /* The verdict in one word, as a selo: the fill of the flash slot decides it. */
 function fitSelo(est) {
   if (!est) return h("span", { class: "selo", text: t("selo.none") });
-  const fit = L.fitOf(est.used, state.model.ceilings.flash_region, L.nearMargin(state.model));
+  const fit = L.fitOf(est.used, L.ceilingsOf(state.model, state.productId).flash_region, L.nearMargin(state.model));
   const tone = { ok: "selo-positivo", near: "selo-alerta", over: "selo-perigo" }[fit];
   return h("span", { class: `selo ${tone}`, text: t(`fit.${fit}`) });
 }
@@ -396,7 +400,8 @@ function renderFixa() {
   const est = L.estimate(m, state.productId, state.set);
   return h("div", { class: "cfg-fixa" },
     fitSelo(est),
-    est ? h("span", { class: "cfg-fixa-valor", text: t("meter.of", { a: num(est.used), b: num(m.ceilings.flash_region) }) }) : null,
+    est ? h("span", { class: "cfg-fixa-valor",
+                      text: t("meter.of", { a: num(est.used), b: num(L.ceilingsOf(m, state.productId).flash_region) }) }) : null,
     h("a", { href: "#resultado", text: t("fixa.link") }));
 }
 
@@ -508,9 +513,10 @@ function renderResult() {
   for (const r of violations) warnings.push(["perigo", t("warn.rule", { why: label(r.why) })]);
   let slotFit = null, otaFit = null;
   const margin = L.nearMargin(m);
+  const ceil = L.ceilingsOf(m, state.productId);
   if (est) {
-    slotFit = L.fitOf(est.used, m.ceilings.flash_region, margin);
-    otaFit = L.fitOf(est.bin, m.ceilings.ota_bin, margin);
+    slotFit = L.fitOf(est.used, ceil.flash_region, margin);
+    otaFit = L.fitOf(est.bin, ceil.ota_bin, margin);
     if (slotFit === "over") warnings.push(["perigo", t("warn.over")]);
     else if (otaFit === "over") warnings.push(["alerta", t("warn.otaOver")]);
     if (slotFit === "near" || (slotFit === "ok" && otaFit === "near")) warnings.push(["alerta", t("warn.near")]);
@@ -524,7 +530,7 @@ function renderResult() {
   for (const hz of hazards) warnings.push(["alerta", t("warn.hazard", { why: label(hz.why) })]);
 
   const blocked = violations.length > 0 || slotFit === "over";
-  announce(est ? `${summary}. ${t("meter.of", { a: num(est.used), b: num(m.ceilings.flash_region) })}` : summary);
+  announce(est ? `${summary}. ${t("meter.of", { a: num(est.used), b: num(ceil.flash_region) })}` : summary);
 
   return h("aside", { class: "cfg-secao cfg-resultado", id: "resultado", "aria-labelledby": "h-resultado" },
     h("h2", { class: "cfg-secao-titulo", id: "h-resultado", text: t("sec.result") }),
@@ -533,9 +539,10 @@ function renderResult() {
         h("h3", { class: "cfg-bloco-titulo", text: t("result.title") }),
         h("span", { class: "cfg-selos" }, fitSelo(est), est ? h("span", { class: "selo", text: t("selo.estimate") }) : null)),
       h("p", { class: "cfg-apoio cfg-resumo-texto", text: summary }),
+      p.chip === "rp2350" ? h("p", { class: "cfg-apoio", text: t("two.files") }) : null,
       est ? [
-        meter(t("meter.flash"), est.used, m.ceilings.flash_region),
-        meter(t("meter.ota"), est.bin, m.ceilings.ota_bin),
+        meter(t("meter.flash"), est.used, ceil.flash_region),
+        meter(t("meter.ota"), est.bin, ceil.ota_bin),
         h("p", { class: "cfg-apoio", text: est.ramKnown ? t("ram", { n: num(est.ram) }) : t("ram.unknown") }),
       ] : null,
       warnings.length ? h("ul", { class: "cfg-avisos" },
@@ -623,7 +630,8 @@ function issueUrl() {
     lines.length ? "Changes:" : "Changes: none (the published image)",
     ...lines,
     "",
-    est ? `Estimate: ${est.used} of ${m.ceilings.flash_region} B of flash; .bin ${est.bin} of ${m.ceilings.ota_bin} B for OTA.` : "Estimate: none (bench image).",
+    est ? `Estimate: ${est.used} of ${L.ceilingsOf(m, state.productId).flash_region} B of flash; `
+      + `.bin ${est.bin} of ${L.ceilingsOf(m, state.productId).ota_bin} B for OTA.` : "Estimate: none (bench image).",
     "",
     "Profile for `tools/build_custom.py`:",
     "```json",
@@ -863,7 +871,9 @@ function renderRun() {
   else if (r.phase === "success") {
     if (r.bin !== null && r.bin !== undefined) {
       say(t("run.ok", { bin: num(r.bin), ram: num(r.ram) }), "positivo");
-      say(r.bin <= state.model.ceilings.ota_bin ? t("run.okOta") : t("run.okUsb"));
+      const two = L.productById(state.model, r.forProduct).chip === "rp2350";
+      say(r.bin > L.ceilingsOf(state.model, r.forProduct).ota_bin ? t("run.okUsb")
+        : two ? t("run.okOtaTwo") : t("run.okOta"));
     }
     if (r.download) kids.push(h("div", { class: "cfg-acoes" },
       h("a", { class: "botao botao-secundario", href: r.download, text: t("run.download") })));
