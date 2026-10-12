@@ -646,15 +646,6 @@ help.en  = "A password-protected console over classic Bluetooth (SPP). It advert
 help.pt  = "Um console protegido por senha, por Bluetooth clássico (SPP). Ele se anuncia nos primeiros 5 minutos depois de ligar e assim alcança um aparelho com o Wi-Fi ainda por configurar."
 help.es  = "Una consola protegida por contraseña, por Bluetooth clásico (SPP). Se anuncia durante los primeros 5 minutos después de encenderlo, así que llega a un dispositivo con el Wi-Fi aún sin configurar."
 
-[ui_toggles.lan]
-group    = "network"
-label.en = "Wired network (ENC28J60) instead of Wi-Fi"
-label.pt = "Rede por cabo (ENC28J60) no lugar do Wi-Fi"
-label.es = "Red por cable (ENC28J60) en lugar de Wi-Fi"
-help.en  = "Builds for a plain Raspberry Pi Pico, which has no radio, and takes the network from an ENC28J60 module on the cable. Bluetooth and hibernation run on the radio, so they cannot be on with it. The cable driver is not in the firmware yet: an image built with this switch has no network."
-help.pt  = "Compila para um Raspberry Pi Pico comum, que não tem rádio, e pega a rede de um módulo ENC28J60 no cabo. O Bluetooth e a hibernação rodam no rádio, então não podem ficar ligados com ela. O driver do cabo ainda não está no firmware: uma imagem compilada com esta chave não tem rede."
-help.es  = "Compila para una Raspberry Pi Pico común, que no tiene radio, y toma la red de un módulo ENC28J60 por el cable. El Bluetooth y la hibernación funcionan con el radio, así que no pueden estar activos con ella. El driver del cable aún no está en el firmware: una imagen compilada con este interruptor no tiene red."
-
 [ui_toggles.tel_tls]
 group    = "telemetry"
 label.en = "Encrypted telemetry (HTTPS and MQTTS)"
@@ -789,6 +780,21 @@ label.es = "Trampa de concurrencia"
 help.en  = "Logs an error when a flash operation starts while the state mutex is held. For soak runs, not for field images."
 help.pt  = "Registra um erro quando uma operação de flash começa com o mutex de estado preso. Para soak, não para campo."
 help.es  = "Registra un error cuando una operación de flash empieza con el mutex de estado tomado. Para soaks, no para equipos en campo."
+
+# A rede por cabo fica no grupo da bancada ate o driver existir (2026-10-12): sem ele a
+# imagem nao tem rede nenhuma, e nao e coisa para oferecer a um produto publicado. No
+# Pico 2 W o gerador a recusa (nao ha placa para ela), e a pagina trava a chave com o
+# motivo de `unsupported`.
+[ui_toggles.lan]
+group    = "bench"
+label.en = "Wired network (ENC28J60) instead of Wi-Fi"
+label.pt = "Rede por cabo (ENC28J60) no lugar do Wi-Fi"
+label.es = "Red por cable (ENC28J60) en lugar de Wi-Fi"
+help.en  = "Builds for a plain Raspberry Pi Pico, which has no radio, and takes the network from an ENC28J60 module on the cable. Bluetooth and hibernation run on the radio, so they cannot be on with it. The cable driver is not in the firmware yet: an image built with this switch has no network."
+help.pt  = "Compila para um Raspberry Pi Pico comum, que não tem rádio, e pega a rede de um módulo ENC28J60 no cabo. O Bluetooth e a hibernação rodam no rádio, então não podem ficar ligados com ela. O driver do cabo ainda não está no firmware: uma imagem compilada com esta chave não tem rede."
+help.es  = "Compila para una Raspberry Pi Pico común, que no tiene radio, y toma la red de un módulo ENC28J60 por el cable. El Bluetooth y la hibernación funcionan con el radio, así que no pueden estar activos con ella. El driver del cable aún no está en el firmware: una imagen compilada con este interruptor no tiene red."
+unsupported.en = "The wired network exists only for the plain Pico (RP2040) so far: the Pico 2 W (RP2350) has no board for it."
+unsupported.pt = "A rede por cabo só existe, por enquanto, para o Pico comum (RP2040): o Pico 2 W (RP2350) não tem placa para ela."
 
 # ---------------------------------------------------------------------------
 #  Regras entre escolhas. Cada uma foi MEDIDA em 2026-09-26 compilando a

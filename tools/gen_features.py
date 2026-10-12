@@ -6,7 +6,8 @@ Le tools/features.toml (a fonte unica) e escreve, sem tocar em mais nada:
     tools/generated/profiles.ini    um [env:*] por perfil, para o PlatformIO
     docs/configurador/model.json    a arvore do configurador: produtos, chaves,
                                     regras medidas, avisos, tetos e custos por
-                                    produto (tools/feature_costs.json)
+                                    produto (tools/feature_costs.json), e as chaves
+                                    que o gerador recusa em cada produto
     src/FeatureBits.h               SIMUT_FEATURE_BITS, o "feat" do /api/status:
                                     um bit por chave, lido dos macros que o
                                     compilador ve (tools/test_feature_bits.py)
@@ -115,22 +116,30 @@ def dedup(seq: list) -> list:
     return out
 
 
-def toggle_refusal(prof: dict, M: dict) -> str | None:
-    """Por que uma chave LIGADA nao se compila no chip do perfil, ou None.
+def toggle_refusals(prof: dict, M: dict) -> list[tuple[str, str]]:
+    """As chaves LIGADAS que o chip do perfil nao pode compilar: [(chave, motivo)].
 
     Uma chave pode trocar a placa do ambiente (`on_board`: chip -> placa, a placa
     daquele chip com a chave ligada). Um chip sem entrada nao tem placa para a
     chave, e o gerador a recusa em vez de compor a placa do chip sem a chave --
-    uma imagem que diria uma coisa e seria outra. compose( ) a aplica; o
-    build_custom.py e o measure_savings.py a perguntam antes, porque a entrada
-    deles nao e so os perfis do manifesto."""
+    uma imagem que diria uma coisa e seria outra."""
     chip = prof.get("chip", "rp2040")
+    out = []
     for tname in TOGGLE_ORDER:
         boards = M["toggles"][tname].get("on_board")
         if boards is not None and prof.get(tname, False) and chip not in boards:
-            return (f"{tname} ligada nao tem placa para o chip {chip}: "
-                    f"[toggles.{tname}].on_board so conhece {', '.join(sorted(boards))}")
-    return None
+            out.append((tname, f"{tname} ligada nao tem placa para o chip {chip}: "
+                               f"[toggles.{tname}].on_board so conhece {', '.join(sorted(boards))}"))
+    return out
+
+
+def toggle_refusal(prof: dict, M: dict) -> str | None:
+    """O primeiro motivo de toggle_refusals( ), ou None. compose( ) o aplica; o
+    build_custom.py e o measure_savings.py o perguntam antes, porque a entrada deles
+    nao e so os perfis do manifesto; e o model.json leva, por produto, as chaves
+    cuja inversao ele recusa, para a pagina travar a chave como trava uma regra."""
+    refused = toggle_refusals(prof, M)
+    return refused[0][1] if refused else None
 
 
 def compose(prof: dict, M: dict) -> dict:
@@ -350,6 +359,10 @@ def check_manifest(M: dict) -> None:
                            for c, b in boards.items())):
                 sys.exit(f"gen_features: [toggles.{t}].on_board tem de ser {{chip = \"placa\"}} "
                          f"com chips que tem [chip.*]")
+        # A chave que o gerador recusa em algum chip tem de dizer por que, nas duas linguas
+        # da pagina: e o motivo da trava (model.json, products[].refused).
+        if boards is not None:
+            _texts(ui_t[t], "unsupported", f"ui_toggles.{t}")
         unflags = toggles[t].get("on_unflags")
         if unflags is not None and (not isinstance(unflags, list)
                                     or any(not isinstance(f, str) or not f.startswith("-") for f in unflags)):
@@ -407,10 +420,20 @@ def build_model(M: dict) -> dict:
         # Os tetos sao de cada produto (2026-10-05): o Pico 2 W e segurado ao
         # slot dele, 1.568.768 B, e o Pico W ao que o portao usa. Ate entao um
         # teto so, o do Pico W, valia para todos.
+        # As chaves cuja inversao o gerador recusa neste produto (a rede por cabo no
+        # RP2350, que nao tem placa para ela), com o motivo em en e pt: a pagina as
+        # trava como trava uma chave que uma regra proibe.
+        refused = {}
+        for t in TOGGLE_ORDER:
+            flipped = dict(prof)
+            flipped[t] = not bool(prof.get(t, False))
+            if any(name_ == t for name_, _ in toggle_refusals(flipped, M)):
+                refused[t] = _texts(M["ui_toggles"][t], "unsupported", f"ui_toggles.{t}")
         products.append({"id": name, "order": u["order"],
                          "bench": bool(u.get("bench", False)),
                          "publish": bool(prof.get("publish", False)),
                          "chip": prof.get("chip") or "rp2040",
+                         "refused": refused,
                          "ceilings": check_flash_budget.ceilings(name),
                          "label": _texts(u, "label", f"ui_products.{name}"),
                          "desc": _texts(u, "desc", f"ui_products.{name}"),

@@ -303,7 +303,7 @@
     },
     {
       "id": "lan",
-      "group": "network",
+      "group": "bench",
       "bit": 18,
       "label": {
         "en": "Wired network (ENC28J60) instead of Wi-Fi",
@@ -342,6 +342,7 @@
       "bench": false,
       "publish": true,
       "chip": "rp2040",
+      "refused": {},
       "ceilings": {
         "flash_region": 1044480,
         "ota_bin": 1040143
@@ -383,6 +384,7 @@
       "bench": false,
       "publish": true,
       "chip": "rp2040",
+      "refused": {},
       "ceilings": {
         "flash_region": 1044480,
         "ota_bin": 1040143
@@ -424,6 +426,7 @@
       "bench": false,
       "publish": true,
       "chip": "rp2040",
+      "refused": {},
       "ceilings": {
         "flash_region": 1044480,
         "ota_bin": 1040143
@@ -465,6 +468,12 @@
       "bench": false,
       "publish": true,
       "chip": "rp2350",
+      "refused": {
+        "lan": {
+          "en": "The wired network exists only for the plain Pico (RP2040) so far: the Pico 2 W (RP2350) has no board for it.",
+          "pt": "A rede por cabo só existe, por enquanto, para o Pico comum (RP2040): o Pico 2 W (RP2350) não tem placa para ela."
+        }
+      },
       "ceilings": {
         "flash_region": 1568768,
         "ota_bin": 1568527
@@ -506,6 +515,7 @@
       "bench": true,
       "publish": false,
       "chip": "rp2040",
+      "refused": {},
       "ceilings": {
         "flash_region": 1044480,
         "ota_bin": 1040143
@@ -547,6 +557,7 @@
       "bench": true,
       "publish": false,
       "chip": "rp2040",
+      "refused": {},
       "ceilings": {
         "flash_region": 1044480,
         "ota_bin": 1040143
@@ -588,6 +599,7 @@
       "bench": true,
       "publish": false,
       "chip": "rp2040",
+      "refused": {},
       "ceilings": {
         "flash_region": 1044480,
         "ota_bin": 1040143
@@ -629,6 +641,7 @@
       "bench": true,
       "publish": false,
       "chip": "rp2040",
+      "refused": {},
       "ceilings": {
         "flash_region": 1044480,
         "ota_bin": 1040143

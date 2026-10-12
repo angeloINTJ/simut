@@ -12,7 +12,8 @@ com o lado Python, que é a autoridade:
   - com uma chave mudada, a estimativa é EXATAMENTE a medida da matriz — a
     soma só é soma a partir de duas;
   - uma chave travada na página é uma que gen_features.rule_violations
-    proibiria, e vice-versa;
+    proibiria, ou que o gerador recusa naquele chip (gen_features.toggle_refusal:
+    a rede por cabo no RP2350), e vice-versa -- com o motivo que o manifesto dá;
   - "não muda nada neste produto" é exatamente o `same` que a matriz mediu;
   - o erro que a página diz ter é o erro recalculado aqui.
 
@@ -62,8 +63,8 @@ const input = JSON.parse(await new Promise((ok) => {
   let s = ""; process.stdin.on("data", (d) => (s += d)); process.stdin.on("end", () => ok(s));
 }));
 const model = input.model;
-const out = { profiles: [], hashes: [], hostile: [], singles: [], locks: [], accuracy: null, margin: null,
-              ceilings: null, overflow: null, slot: null, anchors: null };
+const out = { profiles: [], hashes: [], hostile: [], singles: [], locks: [], refusals: [], accuracy: null,
+              margin: null, ceilings: null, overflow: null, slot: null, anchors: null };
 for (const [p, set] of input.sets) {
   out.profiles.push(L.profileJson(p, set));
   out.hashes.push(L.parseHash(model, L.formatHash(p, L.normalizeSet(model, p, set))));
@@ -74,8 +75,11 @@ for (const p of input.products) {
   for (const t of input.toggles) {
     const set = { [t]: !product.config[t] };
     out.singles.push({ p, t, est: L.estimate(model, p, set), same: L.noEffect(model, p, t) });
-    const lock = L.lockOf(model, product.config, t);
-    out.locks.push({ p, t, lock: lock ? lock.id : null });
+    const lock = L.lockOf(model, product.config, t, p);
+    out.locks.push({ p, t, lock: lock ? lock.id : null, why: lock ? lock.why : null });
+    // A link can carry the switch already on: what the choice has on that the
+    // generator refuses for the product's chip.
+    out.refusals.push({ p, t, ids: L.refusalsIn(model, p, { ...product.config, [t]: true }).map((r) => r.id) });
   }
 }
 out.accuracy = L.accuracy(model);
@@ -190,14 +194,43 @@ for s in js["singles"]:
     else:
         check(t in est["missing"] or "overflow" in flip, f"{p}/{t}: sem medida mas fora de missing")
 
-# 5. As travas da página são as regras do Python.
+# 5. As travas da página são as regras do Python -- e, onde nenhuma regra trava, a recusa
+#    do gerador: uma chave que pede uma placa que o chip do produto não tem (a rede por
+#    cabo no RP2350) trava como uma regra, com o motivo à vista. A regra vem primeiro.
 for lk in js["locks"]:
     p, t = lk["p"], lk["t"]
-    cfg = gf.config_of(gf.resolve_profile(p, M["profiles"]))
+    prof = gf.resolve_profile(p, M["profiles"])
+    cfg = gf.config_of(prof)
     now = {r["id"] for r in gf.rule_violations(cfg, M)}
     flipped = dict(cfg, **{t: not cfg[t]})
     new = [r["id"] for r in gf.rule_violations(flipped, M) if r["id"] not in now]
-    check(lk["lock"] == (new[0] if new else None), f"{p}/{t}: trava da página {lk['lock']} != regras {new}")
+    refused = gf.toggle_refusal(dict(prof, **{t: not bool(prof.get(t, False))}), M)
+    want = new[0] if new else (f"unsupported-{t}" if refused else None)
+    check(lk["lock"] == want, f"{p}/{t}: trava da página {lk['lock']} != regras {new} / recusa do gerador {refused!r}")
+
+# 5b. A rede por cabo no Pico 2 W: o gerador a recusa (o RP2350 não tem placa para ela), e a
+#     página trava a chave com o motivo do manifesto, em inglês e em português. Nos produtos
+#     do Pico W ela não é travada por isso -- só pelas regras dela, onde valem.
+lan_texts = {lang: M["ui_toggles"]["lan"]["unsupported"][lang] for lang in ("en", "pt")}
+locks = {(lk["p"], lk["t"]): lk for lk in js["locks"]}
+two = locks[("pico2_w_release", "lan")]
+check(two["lock"] == "unsupported-lan", f"pico2_w_release/lan: a página não trava a chave que o gerador recusa: {two}")
+check(two["why"] == lan_texts, f"pico2_w_release/lan: o motivo da trava {two['why']} != o do manifesto {lan_texts}")
+check(all(lan_texts.values()), "o manifesto não dá os dois textos da recusa da rede por cabo")
+for p in PRODUCTS:
+    if p != "pico2_w_release":
+        check(locks[(p, "lan")]["lock"] != "unsupported-lan", f"{p}/lan: travada pela recusa do gerador, que é do RP2350")
+check(locks[("pico_w_release", "lan")]["lock"] is None, "pico_w_release/lan: travada, sem regra nenhuma que a proíba")
+check(locks[("pico_w_alpha", "lan")]["lock"] == "lan-no-bluetooth", "pico_w_alpha/lan: devia travar pela regra lan-no-bluetooth")
+check(locks[("pico_w_air", "lan")]["lock"] == "lan-no-bluetooth", "pico_w_air/lan: a primeira regra que ela quebra é lan-no-bluetooth")
+
+# 5c. Um link pode trazer a chave já ligada: a escolha diz quais ligadas o gerador recusa
+#     (a página as soma às regras quebradas e não deixa compilar).
+for r in js["refusals"]:
+    prof = gf.resolve_profile(r["p"], M["profiles"])
+    refused = gf.toggle_refusal(dict(prof, **{r["t"]: True}), M)
+    check(r["ids"] == ([f"unsupported-{r['t']}"] if refused else []),
+          f"{r['p']}/{r['t']}: ligada, a página acusa {r['ids']}, o gerador {refused!r}")
 
 # 6. O erro que a página diz ter.
 import check_flash_budget as cfb  # noqa: E402
@@ -262,6 +295,21 @@ check(js["anchors"] == [True, True, False, False, False, False],
 for p in MODEL["products"]:
     if p["publish"]:
         check(p["id"] in costs, f"{p['id']} é publicado e não tem custo medido")
+
+# 9. O model.json diz, por produto, as chaves cuja inversão o gerador recusa, com o motivo
+#    em inglês e em português: a página trava por ele, e quem o escreve é o gerador.
+for p in MODEL["products"]:
+    prof = gf.resolve_profile(p["id"], M["profiles"])
+    want = {}
+    for t in gf.TOGGLE_ORDER:
+        if gf.toggle_refusal(dict(prof, **{t: not bool(prof.get(t, False))}), M):
+            want[t] = {lang: M["ui_toggles"][t]["unsupported"][lang] for lang in ("en", "pt")}
+    check(p.get("refused") == want, f"{p['id']}: refused {p.get('refused')!r} != o que o gerador recusa {want!r}")
+by_id = {p["id"]: p for p in MODEL["products"]}
+check(list(by_id["pico2_w_release"].get("refused", {})) == ["lan"],
+      f"pico2_w_release deveria recusar só a rede por cabo: {by_id['pico2_w_release'].get('refused')!r}")
+check(all(p.get("refused") == {} for p in MODEL["products"] if p["chip"] == "rp2040"),
+      "um produto do Pico W recusa uma chave que o gerador aceita nele")
 
 if failures:
     print("test_configurator_page: FALHOU")

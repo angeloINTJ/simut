@@ -77,6 +77,59 @@ m2["toggles"]["syslog"]["bit"] = 32
 v = refused(m2)
 check("bit fora de 0..31 e recusado", v is not None and "syslog" in v, repr(v))
 
+# 1b. Uma chave que pede uma placa (on_board) e tira um flag do pico_base (on_unflags), a
+#     rede por cabo: o gerador a aplica, recusa o chip que nao tem placa para ela e o
+#     manifesto que nao diz por que. Nenhuma outra imagem muda de placa nem perde flag.
+def composed(name, **over):
+    return gf.compose(dict(gf.resolve_profile(name, M["profiles"]), **over), M)
+
+
+def exits(fn):
+    try:
+        fn()
+        return None
+    except SystemExit as e:
+        return str(e)
+
+
+wire = composed("pico_wire")
+check("pico_wire usa a placa do Pico comum e tira o CYW43 do pico_base",
+      wire["board"] == "rpipico" and wire["unflags"] == ["-DPICO_CYW43_SUPPORTED=1"], repr((wire["board"], wire["unflags"])))
+for name in M["profiles"]:
+    if name == "pico_wire":
+        continue
+    c = composed(name)
+    chip = gf.resolve_profile(name, M["profiles"]).get("chip", "rp2040")
+    check(f"{name}: a placa e o flag do pico_base ficam como eram",
+          c["board"] == M["chip"][chip].get("board", "") and c["unflags"] == [], repr((c["board"], c["unflags"])))
+why = exits(lambda: composed("pico2_w_release", lan=True))
+check("lan no RP2350 e recusada pelo compose, nomeando a chave e o chip",
+      why is not None and "lan" in why and "rp2350" in why, repr(why))
+check("toggle_refusal diz o mesmo sem sair, e nada recusa o RP2350 sem a chave",
+      gf.toggle_refusal(dict(gf.resolve_profile("pico2_w_release", M["profiles"]), lan=True), M) is not None
+      and gf.toggle_refusal(gf.resolve_profile("pico2_w_release", M["profiles"]), M) is None)
+m2 = copy.deepcopy(M)
+m2["toggles"]["air"]["on_board"] = {"rp2040": "outra"}
+why = exits(lambda: gf.compose(dict(gf.resolve_profile("pico_wire", M["profiles"]), air=True), m2))
+check("duas chaves que pedem placas diferentes sao recusadas, nao desempatadas", why is not None and "placas" in why, repr(why))
+m2 = copy.deepcopy(M)
+del m2["ui_toggles"]["lan"]["unsupported"]
+v = refused(m2)
+check("chave com on_board sem o motivo (en e pt) e recusada pelo gerador",
+      v is not None and "lan" in v and "unsupported" in v, repr(v))
+m2 = copy.deepcopy(M)
+m2["ui_toggles"]["lan"]["unsupported"] = {"en": "so em ingles"}
+v = refused(m2)
+check("e o motivo so em ingles tambem", v is not None and "unsupported" in v, repr(v))
+m2 = copy.deepcopy(M)
+m2["toggles"]["lan"]["on_board"] = {"rp9999": "rpipico"}
+v = refused(m2)
+check("on_board com um chip que nao existe e recusado", v is not None and "on_board" in v, repr(v))
+m2 = copy.deepcopy(M)
+m2["toggles"]["lan"]["on_unflags"] = ["PICO_CYW43_SUPPORTED"]
+v = refused(m2)
+check("on_unflags que nao e flag e recusado", v is not None and "on_unflags" in v, repr(v))
+
 # 2. O cabecalho gerado e o do manifesto (o --check do gerador tambem cobra).
 header = open(os.path.join(ROOT, "src", "FeatureBits.h"), encoding="utf-8").read()
 check("o FeatureBits.h commitado e o que o gerador escreve",

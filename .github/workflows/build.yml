@@ -127,6 +127,19 @@ jobs:
       - name: Feature bits /api/status reports
         run: python3 tools/test_feature_bits.py
 
+      # The wired build (SIMUT_NET_LAN, the SIMUT Wire: a plain Pico with the
+      # network on an ENC28J60 module) is held, by the preprocessor, to the pins
+      # it may use, the radio it does not have and the name it takes in the OTA.
+      # The module on the display's or the buzzer's pin, Bluetooth or the Air
+      # beside it, a Wi-Fi build without the CYW43 and a wired one that still
+      # has it all stop at an #error in src/simut_config.h, and the names are
+      # "wire" and "wiretft", apart from every Pico W image. The test also takes
+      # each of those #error lines out of a copy of the header in turn and
+      # requires exactly one case to fail, so a guard that stopped guarding is
+      # seen; a layout that cannot work has to stop the build and not the board.
+      - name: Pin masks and variant names of the wired build
+        run: python3 tools/test_pin_masks.py
+
       # The entanglement watermark (MODELO_DE_RECURSOS.md, P2): the count of
       # `#if SIMUT_` sites per feature macro and per file, held to a high-water
       # mark in tools/feature_sprawl.json. A site added to a shared file fails;
