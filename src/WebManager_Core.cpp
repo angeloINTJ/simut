@@ -146,7 +146,11 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
  #endif
  _server->on("/api/perms", HTTP_GET, std::bind(&WebManager::handleApiPerms, this));
  _server->on("/api/network", HTTP_GET, std::bind(&WebManager::handleApiNetwork, this));
+#if SIMUT_NET_WIFI
+ /* The radio's sweep; a wired build has nothing to scan with
+  * (tools/build_webui_gz.py ties it to the pages' `@IF wifi` blocks). */
  _server->on("/api/wifi/scan", HTTP_GET, std::bind(&WebManager::handleApiWifiScan, this));
+#endif
  _server->on("/api/config", HTTP_GET, std::bind(&WebManager::handleApiConfig, this));
  _server->on("/api/users", HTTP_GET, std::bind(&WebManager::handleApiUsers, this));
  _server->on("/api/alarms", HTTP_GET, std::bind(&WebManager::handleApiAlarms, this));

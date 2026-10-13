@@ -55,6 +55,7 @@ void WebManager::handleApiPerms( ) {
 	_server->send(200, "application/json", json);
 }
 
+#if SIMUT_NET_WIFI
 /* GET /api/wifi/scan -> the networks in radio range, for the "pick one" list.
  *
  * Asks once and POLLS: a sweep takes seconds and this runs on the core that
@@ -117,6 +118,7 @@ void WebManager::handleApiWifiScan( ) {
 	out += "]}";
 	_server->send(200, "application/json", out);
 }
+#endif
 
 void WebManager::handleApiNetwork( ) {
 	if (!requirePerm(PERM_NET_CONFIG)) return;
@@ -146,7 +148,11 @@ void WebManager::handleApiNetwork( ) {
 	_netRef->getMacAddress(macBuf, sizeof(macBuf));
 	int wrote = snprintf(json, sizeof(json),
 	         "{\"connected\":%s,\"ip\":\"%s\",\"mask\":\"%s\",\"gw\":\"%s\","
-	         "\"dns\":\"%s\",\"mac\":\"%s\",\"ssid\":\"%s\",\"use_dhcp\":%s,"
+	         "\"dns\":\"%s\",\"mac\":\"%s\","
+#if SIMUT_NET_WIFI
+	         "\"ssid\":\"%s\","
+#endif
+	         "\"use_dhcp\":%s,"
 	         "\"static_ip\":\"%s\",\"static_mask\":\"%s\",\"static_gw\":\"%s\","
 	         "\"static_dns\":\"%s\",\"dns_auto\":%s,\"dns2\":\"%s\","
 	         "\"ntp_server\":\"%s\",\"ntp_enabled\":%s,\"web_port\":%u,"
@@ -157,7 +163,9 @@ void WebManager::handleApiNetwork( ) {
 	         _netRef->getGateway( ).c_str( ),
 	         _netRef->getDns( ).c_str( ),
 	         macBuf,
+#if SIMUT_NET_WIFI
 	         jsonEscape(cfg.wifiSsid).c_str( ),
+#endif
 	         cfg.useDhcp ? "true" : "false",
 	         jsonEscape(cfg.staticIp).c_str( ),
 	         jsonEscape(cfg.staticMask).c_str( ),
@@ -827,9 +835,13 @@ void WebManager::handleApiStatus( ) {
 	mm.sampleHeap( );
 	mm.sampleLargestBlock( );
 	HPOS(811);
+#if SIMUT_NET_WIFI
 	const int liveRssi = _netRef->getRssi( ); /* one live ioctl, bracketed */
+#endif
 	HPOS(812);
+#if SIMUT_NET_WIFI
 	mm.observeRssi(liveRssi);
+#endif
 	const SystemMetrics& mt = mm.data( );
 
 	uint32_t heapLargest = mt.heapLargestBlock;
@@ -855,11 +867,26 @@ void WebManager::handleApiStatus( ) {
 	 * device. The same bits for every account: they describe the build. */
 	char macBuf[20];
 	_netRef->getMacAddress(macBuf, sizeof(macBuf));
-	snprintf(buffer, sizeof(buffer), "{\"sys\":{\"name\":\"%s\",\"ver\":\"%s\",\"env\":\"%s\",\"uid\":\"%s\",\"mac\":\"%s\",\"cfg\":\"%08lX\",\"uptime\":%lu,\"rssi\":%d,\"ip\":\"%s\",\"theme\":%d,\"heap_f\":%lu,\"heap_t\":%lu,\"heap_lb\":%lu,\"fs_u\":%lu,\"fs_t\":%lu,\"time\":%lu,\"ntp\":%d,\"pending\":%d,\"tel\":%d,\"hi\":%u,\"cap\":%d,\"feat\":%lu" STATUS_SLOT_FMT "},",
+	/* rssi on the radio; on the cable (2026-10-13) `link` instead: 1 with the
+	 * link up and an address (NetworkManager::isLinkUp( )), 0 without. A cable
+	 * has no signal strength, and a stand-in number would read as one. */
+	snprintf(buffer, sizeof(buffer), "{\"sys\":{\"name\":\"%s\",\"ver\":\"%s\",\"env\":\"%s\",\"uid\":\"%s\",\"mac\":\"%s\",\"cfg\":\"%08lX\",\"uptime\":%lu,"
+#if SIMUT_NET_WIFI
+	         "\"rssi\":%d,"
+#else
+	         "\"link\":%d,"
+#endif
+	         "\"ip\":\"%s\",\"theme\":%d,\"heap_f\":%lu,\"heap_t\":%lu,\"heap_lb\":%lu,\"fs_u\":%lu,\"fs_t\":%lu,\"time\":%lu,\"ntp\":%d,\"pending\":%d,\"tel\":%d,\"hi\":%u,\"cap\":%d,\"feat\":%lu" STATUS_SLOT_FMT "},",
 	         devName.c_str( ), SIMUT_VERSION, simut_env_name( ),
 	         StorageManager::getBoardSerialNumber( ).c_str( ), macBuf,
 	         (unsigned long)_storageRef->getConfigCrc( ),
-	         millis( ), liveRssi, ipStr.c_str( ), cfg.themeIndex,
+	         millis( ),
+#if SIMUT_NET_WIFI
+	         liveRssi,
+#else
+	         _netRef->isLinkUp( ) ? 1 : 0,
+#endif
+	         ipStr.c_str( ), cfg.themeIndex,
 	         (unsigned long)heapFree, (unsigned long)heapTot, (unsigned long)heapLargest,
 	         (unsigned long)_cachedFsUsedBytes, (unsigned long)_cachedFsTotalBytes,
 	         (unsigned long)now, ntp ? 1 : 0, pending, telOn,
@@ -874,9 +901,11 @@ void WebManager::handleApiStatus( ) {
 	if (!safeSend(buffer)) return;
 
 
+#if SIMUT_NET_WIFI
 	/* "Never sampled" sentinel for min/max RSSI: serializes 0 when invalid. */
 	int32_t rmn = (mt.rssiMin == 127) ? 0 : mt.rssiMin;
 	int32_t rmx = (mt.rssiMax == -127) ? 0 : mt.rssiMax;
+#endif
 	uint32_t hmin = (mt.heapMinSeen == 0xFFFFFFFFU) ? mt.heapFreeNow : mt.heapMinSeen;
 	uint32_t lbmin = (mt.heapLargestMin == 0xFFFFFFFFU) ? mt.heapLargestBlock : mt.heapLargestMin;
 
@@ -912,13 +941,19 @@ void WebManager::handleApiStatus( ) {
 	 * health watchdog. */
 	const uint32_t c1BeatAge = millis( ) - g_core1HeartbeatMs;
 	snprintf(buffer, sizeof(buffer),
-	         "\"metr\":{\"lb\":%lu,\"lbm\":%lu,\"hm\":%lu,\"wf\":%lu,\"mq\":%lu,\"rmn\":%ld,\"rmx\":%ld,\"ts\":%lu,\"tf\":%lu,\"tr\":%lu,\"tb\":%lu,\"tl\":%lu,\"so\":%lu,\"se\":%lu,\"cs\":%lu,"
+	         "\"metr\":{\"lb\":%lu,\"lbm\":%lu,\"hm\":%lu,\"wf\":%lu,\"mq\":%lu,"
+#if SIMUT_NET_WIFI
+	         "\"rmn\":%ld,\"rmx\":%ld,"
+#endif
+	         "\"ts\":%lu,\"tf\":%lu,\"tr\":%lu,\"tb\":%lu,\"tl\":%lu,\"so\":%lu,\"se\":%lu,\"cs\":%lu,"
 	         "\"fo\":%lu,\"fom\":%lu,\"fot\":%lu,\"f50\":%lu,\"fx\":%lu,\"ad\":%lu,"
 	         "\"c1a\":%lu,\"c1n\":%lu,\"c1kl\":%lu,\"c1kh\":%lu,\"c1kq\":%lu,\"c1s\":%lu,"
 	         "\"cgd\":%lu,\"cgg\":%lu,\"cgx\":%lu},",
 	         (unsigned long)mt.heapLargestBlock, (unsigned long)lbmin, (unsigned long)hmin,
 	         (unsigned long)mt.wifiReconnects, (unsigned long)mt.mqttReconnects,
+#if SIMUT_NET_WIFI
 	         (long)rmn, (long)rmx,
+#endif
 	         (unsigned long)mt.telSent, (unsigned long)mt.telFailed, (unsigned long)mt.telRetries,
 	         (unsigned long)mt.telTotalBytes, (unsigned long)mt.telLastLatencyMs,
 	         (unsigned long)mt.sensorReadsOk, (unsigned long)mt.sensorReadsErr,

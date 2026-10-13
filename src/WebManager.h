@@ -456,7 +456,9 @@ private:
 
 	void handleApiPerms( );
 	void handleApiNetwork( );
+#if SIMUT_NET_WIFI
 	void handleApiWifiScan( );  /**< the networks in range, for the picker */
+#endif
 	void handleApiConfig( );
 	void handleApiUsers( );
 	void handleApiThemes( );
