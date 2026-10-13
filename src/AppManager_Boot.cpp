@@ -530,8 +530,11 @@ void AppManager::setup( ) {
 
  /* A wired build has no AP to hold the screen for (2026-10-13), and skips the
   * gesture with its 3.5 s window. The pin setup above stays in every TFT
-  * build: it is the only pull-up PENIRQ gets (DisplayManager::beginTouch( )
-  * has no caller), and the touch library leaves the pin without one. */
+  * build, as it was: it is one of the two gpio_pull_up(TOUCH_IRQ) in src/,
+  * and the other, DisplayManager::beginTouch( ), has no caller. The touch
+  * library's begin( ) on Core 1 sets the same pin INPUT, which in arduino-pico
+  * disables its pulls, so whichever of the two runs last decides; leaving
+  * this line where it was keeps that as it was on every image. */
 #if SIMUT_NET_WIFI
 
  /* Ask, then WAIT until the panel has actually drawn the asking.

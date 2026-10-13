@@ -20,6 +20,7 @@
  */
 
 #include "CommandParser.h"
+#include "simut_config.h"   /* SIMUT_NET_WIFI: without it the radio's commands would compile out of every image */
 #include "SystemDefs_Validate.h"
 #include "SystemDefs_Records.h"
 #include "sensors/SensorChannelTable.h" /* channelByKey — which fields name a quantity */
