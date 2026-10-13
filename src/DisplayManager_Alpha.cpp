@@ -427,7 +427,7 @@ void DisplayManager::setAlarmErrState(uint16_t errMask) {
 	_alarmErrMask = errMask;
 }
 bool DisplayManager::isSlotErrAlarming(int slotIdx) const {
-	return (slotIdx >= 0 && slotIdx < 16) && (_alarmErrMask & (1 << slotIdx));
+	return (slotIdx >= 0 && slotIdx < MAX_SENSORS) && (_alarmErrMask & (1 << slotIdx));
 }
 void DisplayManager::setAlarmSilenced(bool,uint32_t){}
 void DisplayManager::setAlarmErrMuted(int8_t,bool){}

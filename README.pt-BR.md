@@ -48,7 +48,7 @@ Os três compartilham o mesmo núcleo:
 | **Release atual** | **v2.11.1** (12/10/2026); o [changelog](CHANGELOG.pt-BR.md) diz o que cada versão mudou. O SIMUT saiu do beta com a v2.7.0, com base em medições: soak de 8,18 h sem nenhum reboot e 6 de 6 atualizações pelo ar sem perder nada. |
 | **Imagens publicadas** | Quatro imagens, cada uma em `.uf2` e `.bin`. Para o Pico W: `release` (painel touch TFT), `alpha` (LCD 16×2 com console Bluetooth) e `air` (registrador a bateria sem display). Para o Pico 2 W (RP2350): `releasetwo`, a release, cujo `.uf2` traz a tabela de partições e cujo `.bin` sobe em teste. Junto vêm os packs de idioma pt-BR e es-ES e um manifesto de OTA. Uma imagem com outro conjunto de recursos sai do [configurador de build](https://angelointj.github.io/simut/configurador/), e o CI a compila da `main`, também para o Pico 2 W. |
 | **Maturidade** | <ul><li>`release`: **estável**.</li><li>`alpha`: publicado e testado na bancada, com o LCD 16×2 incluído desde 26/09/2026.</li><li>`air`: **experimental**. O único soak longo dele falhou: um sono no ciclo 119 nunca acordou (F28). Um watchdog ao longo do wake hoje mitiga o problema; a causa raiz não foi confirmada.</li><li>`releasetwo`: **nova** na v2.11.0, testada na bancada num Pico 2 W (RP2350 A2). Atualiza pelo ar no outro slot, em teste, e volta sozinha quando a atualização não se confirma.</li></ul> |
-| **Testes** | Todo pull request roda 639 casos de teste no host em 9 suítes, 60 s de fuzzing e análise estática, e compila as sete imagens de firmware com o cache frio. O comportamento no hardware real é verificado numa bancada — ver [Verificação no hardware](docs/VERIFICATION.pt-BR.md). |
+| **Testes** | Todo pull request roda 644 casos de teste no host em 9 suítes, 60 s de fuzzing e análise estática, e compila as oito imagens de firmware com o cache frio. O comportamento no hardware real é verificado numa bancada — ver [Verificação no hardware](docs/VERIFICATION.pt-BR.md). |
 
 **Limitações conhecidas.** Cada uma está documentada onde se aplica.
 - **Atualização.** A atualização pelo ar reformata o sistema de arquivos:
@@ -307,7 +307,7 @@ pio test -e native_alarmqueue  # fila da telemetria de alarmes (54)
 pio test -e native_network     # máquina de estados da reconexão Wi-Fi (39)
 pio test -e native_air         # config persistente do SIMUT Air (16)
 pio test -e native_sensors     # tabela de tipos de sensor (13)
-pio test -e native_otasig      # assinatura da imagem de OTA, a restauração do backup, e o gravador de slot e a atualização em teste do RP2350 (78)
+pio test -e native_otasig      # assinatura da imagem de OTA, a restauração do backup, e o gravador de slot e a atualização em teste do RP2350 (83)
 
 # Checagens de referência do codec V5 (Python vs C++, 20 mil casos aleatórios)
 python3 tools/check_history_v5_parity.py --cases 20000
@@ -321,17 +321,17 @@ Todo push e pull request para a `main` roda quatro jobs:
   - varredura de segredos, tabelas de códigos de log, matriz de autorização;
   - consistência da licença, guarda do sistema de arquivos, consistência do Air;
   - testes da fusão de dias do histórico.
-- **firmware** — as sete imagens, compiladas com o cache frio:
+- **firmware** — as oito imagens, compiladas com o cache frio:
   - cada uma é conferida contra o seu orçamento de flash e o teto de atualização pelo ar;
   - o próprio build aplica o `-Werror` e os portões da interface web, da ajuda do CLI, dos códigos de log, da tabela de canais e dos packs de idioma.
 - **fuzz** — 60 s de libFuzzer contra os validadores da API web, com oráculos de contrato.
 - **análise estática** — cppcheck, em versão fixa.
 
-A `main` é protegida: nove dessas checagens precisam passar antes de qualquer merge, todos os jobs menos a imagem `pico_w_test_https`.
+A `main` é protegida: nove dessas checagens precisam passar antes de qualquer merge, todos os jobs menos as imagens `pico_w_test_https` e `pico_wire`.
 
 ### Verificação no hardware
 
-O comportamento é conferido numa bancada: um Pico W com o painel TFT e o touch, e um segundo Pico, a *PicoHand*, que aciona as linhas de RESET e BOOTSEL do alvo. Cada medição, com data e números: **[docs/VERIFICATION.pt-BR.md](docs/VERIFICATION.pt-BR.md)**.
+O comportamento é conferido numa bancada: um Pico 2 W com o painel TFT e o touch, e um Pico W, a *PicoHand*, que aciona as linhas de RESET e BOOTSEL do alvo. Cada medição, com data e números: **[docs/VERIFICATION.pt-BR.md](docs/VERIFICATION.pt-BR.md)**.
 
 ## Documentação
 

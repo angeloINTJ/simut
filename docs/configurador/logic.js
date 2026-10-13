@@ -89,12 +89,42 @@ export function priceOn(model, productId, toggleId) {
   return { flash: onByDefault ? -d.used : d.used, overflow: "overflow" in f };
 }
 
+/* A switch the generator refuses for this product's chip: it asks for a board
+ * the chip does not have (the wired network on the Pico 2 W). model.json lists
+ * them per product, `refused`, with the reason in each language, the way a rule
+ * carries `why`; the lock has the same shape as a rule's, `id` and `why`. */
+function refusalOf(model, productId, toggleId) {
+  const p = productId ? productById(model, productId) : null;
+  const why = p && p.refused ? p.refused[toggleId] : null;
+  return why ? { id: `unsupported-${toggleId}`, why } : null;
+}
+
 /* Why a switch cannot move: flipping it would break a rule that the current
- * choice does not already break. Returns the rule, or null. */
-export function lockOf(model, config, toggleId) {
+ * choice does not already break, or turn on a switch the generator refuses for
+ * the product's chip. The rule comes first. Returns {id, why}, or null. */
+export function lockOf(model, config, toggleId, productId) {
   const now = new Set(ruleViolations(model, config).map((r) => r.id));
   const flipped = { ...config, [toggleId]: !config[toggleId] };
-  return ruleViolations(model, flipped).find((r) => !now.has(r.id)) || null;
+  const rule = ruleViolations(model, flipped).find((r) => !now.has(r.id));
+  if (rule) return rule;
+  return flipped[toggleId] === true ? refusalOf(model, productId, toggleId) : null;
+}
+
+/* The switches this choice has ON that the generator refuses for the product's
+ * chip. The page cannot turn one on, but a link can carry one, and the build
+ * would be refused: they count with the broken rules and stop the build button. */
+export function refusalsIn(model, productId, config) {
+  return model.toggles
+    .filter((t) => config[t.id] === true)
+    .map((t) => refusalOf(model, productId, t.id))
+    .filter(Boolean);
+}
+
+/* Everything that stops a build of this choice: the rules it breaks, then the
+ * switches the generator refuses for the product's chip. The page's warnings and
+ * its build button read this one list, so a refusal cannot be shown and built. */
+export function blockersOf(model, productId, config) {
+  return [...ruleViolations(model, config), ...refusalsIn(model, productId, config)];
 }
 
 /* The switch has no reader in this product: flipped, the image came out

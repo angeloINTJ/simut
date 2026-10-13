@@ -22,7 +22,9 @@
 #include "pico/unique_id.h"           /* the setup AP key is derived from the board id */
 #include "BuildIdentity.h"            /* SIMUT_VERSION / env for the mDNS TXT record */
 #include <bearssl/bearssl_hash.h>     /* br_sha256_* for that derivation (V-05) */
+#if SIMUT_NET_WIFI
 #include "pico/cyw43_arch.h"           /* enable_sta_mode: scanning needs the STA itf */
+#endif
 
 NetworkManager::NetworkManager( ) {
  _state = NET_OFFLINE;
@@ -292,7 +294,15 @@ bool NetworkManager::startScan( ) {
   * stuck at 1 for the rest of the boot. Bring it up first; the AP stays up
   * beside it, because the browser asking for this list is connected to it. */
  if (_state == NET_AP_CONFIG && !_scanStaForced) {
+/* The one call into the CYW43 control code that this file makes outside the
+ * framework's WiFi class. In a build for board = rpipico (SIMUT_NET_LAN) the
+ * radio's driver is not linked, and this call alone pulls cyw43_ctrl.c.o in,
+ * which wants the __wrap_cyw43_cb_* that only the Pico W's libraries provide
+ * (2026-09-26 study: guarded, the release links for the plain Pico). Without
+ * the radio there is no STA interface to bring up for a scan. */
+#if SIMUT_NET_WIFI
   cyw43_arch_enable_sta_mode( );
+#endif
   WiFi.mode(WIFI_AP_STA);
   _scanStaForced = true;
  }

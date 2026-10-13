@@ -224,6 +224,13 @@ def main():
         for r in bad:
             say(f"perfil recusado — regra {r['id']}: {r['why']['en']}", error=True)
         return 2
+    # Uma chave que pede uma placa (a rede por cabo) num chip que nao tem uma: o
+    # gerador a recusaria em compose( ) com um sys.exit; aqui e perfil invalido
+    # (exit 2), e --validate-only ja o diz, antes de qualquer compilacao.
+    why = gf.toggle_refusal(prof, M)
+    if why:
+        say(f"perfil recusado — {why}", error=True)
+        return 2
     spec = canonical(base, changes)
     tag = hashlib.sha256(spec.encode()).hexdigest()[:8]
     for h in gf.hazard_hits(gf.config_of(prof), M):

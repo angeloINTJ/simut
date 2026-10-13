@@ -23,7 +23,7 @@ generates = ["tools/generated/profiles.ini", "docs/configurador/model.json", "sr
 
 # Flags que todo perfil de firmware acrescenta sobre ${pico_base.build_flags}.
 [base]
-common_flags = ["-DNDEBUG"]   # as sete imagens carregam NDEBUG (release ganhou em 2026-09-18)
+common_flags = ["-DNDEBUG"]   # as oito imagens carregam NDEBUG (release ganhou em 2026-09-18)
 
 # ---------------------------------------------------------------------------
 #  O chip. Um valor por perfil; sem a chave, rp2040 (o Pico W, que o pico_base
@@ -105,6 +105,13 @@ display = ["Adafruit ILI9341", "Adafruit GFX Library", "XPT2046_Touchscreen"]
 #    off_is_0   -> ligado nada (default do config), desligado -D<macro>=0
 #    bare       -> ligado -D<macro>, desligado nada
 #    none       -> sem macro; so mexe em arquivo e biblioteca
+#
+#  Chaves que mexem no AMBIENTE do PlatformIO quando ligadas (2026-10-12), alem do
+#  macro e dos arquivos:
+#    on_board    -> {chip = "placa"}: a placa daquele chip com a chave ligada. Um chip sem
+#                   entrada nao tem placa para a chave, e o gerador recusa o perfil
+#                   (gen_features.toggle_refusal) em vez de compor a placa de sempre.
+#    on_unflags  -> flags do pico_base que o ambiente tira com build_unflags.
 #
 #  `bit` e a posicao da chave no "feat" do /api/status (2026-09-30): o firmware diz
 #  com que chaves foi compilado, no vocabulario deste manifesto, e o cliente — o app
@@ -238,6 +245,26 @@ macro       = "SIMUT_TFT_GRAPH"
 emit        = "off_is_0"
 off_exclude = ["DisplayManager_Graph.cpp", "AppManager_Graph.cpp", "DisplayManager_Calendar.cpp"]
 
+# A rede por cabo no lugar do Wi-Fi (2026-10-12): um Raspberry Pi Pico comum, o RP2040
+# sem o radio CYW43, com a rede num modulo ENC28J60. O estudo de 2026-09-26 (ramo
+# study/simut-wire, docs/analysis/SIMUT_WIRE_VIABILIDADE.md) mediu a release linkando
+# para board = rpipico guardando uma unica chamada, a cyw43_arch_enable_sta_mode( ) da
+# busca de redes do NetworkManager.cpp. Esta chave so liga o interruptor: a placa
+# (on_board), o -DPICO_CYW43_SUPPORTED=1 que o pico_base poe e que aqui sai
+# (on_unflags), o macro e as regras. O driver cabeado e outra mudanca; ate la a
+# imagem compila e linka, e nao tem rede nenhuma. O RP2350 nao tem placa aqui: o
+# gerador recusa a chave nele ate ter.
+[toggles.lan]
+bit        = 18
+macro      = "SIMUT_NET_LAN"
+emit       = "on_is_1"        # #if SIMUT_NET_LAN: o default 0 mora no simut_config.h
+on_board   = { rp2040 = "rpipico" }
+on_unflags = ["-DPICO_CYW43_SUPPORTED=1"]
+# O modulo fica com GP11-GP15 (o INT e o SPI), que eram cinco dos dezesseis slots de
+# sensor: a build com LAN tem onze, GP0-GP10 (o simut_config.h recusa um pino do modulo
+# nessa faixa). O INT no GP11 com qualquer mostrador e decisao de 2026-10-12: uma fiacao so.
+on_flags   = ["-DMAX_SENSORS=11"]
+
 # Os três drivers de sensor (2026-09-26). O default do simut_config.h é 1, então
 # ligado não emite nada e o profiles.ini não muda; desligado emite -D<macro>=0,
 # que o #178 provou compilar e encolher a imagem (drivers por classe, #172-175).
@@ -259,7 +286,8 @@ macro = "SIMUT_SENSOR_BME280"
 emit  = "off_is_0"
 
 # ---------------------------------------------------------------------------
-#  Os perfis. Os sete ambientes de firmware que o CI constroi hoje.
+#  Os perfis. Os oito ambientes de firmware que o CI constroi; o oitavo, o
+#  pico_wire, desde 2026-10-12.
 #  `extends` herda o dicionario de recursos do pai e sobrescreve.
 #
 #  `ota_trust_bench = true` (2026-10-01): a imagem aceita pelo ar tambem o que a
@@ -444,6 +472,34 @@ extends = "pico_w_release"
 chip    = "rp2350"
 publish = true
 
+# pico_wire — o SIMUT Wire: um Raspberry Pi Pico comum (RP2040 sem o radio CYW43) com a
+#   rede por cabo, num modulo ENC28J60. O produto oficial e o mostrador alfanumerico
+#   (HD44780 em paralelo, GP16-21), a rede cabeada, o DHT22 e o buzzer, sem DS18B20, sem
+#   Bluetooth e sem o Air (os dois rodam no CYW43; as regras lan-no-bluetooth e
+#   lan-no-air). Estende o pico_w_alpha e tira dele o que o Wire nao tem. O BME280 fica,
+#   como no alpha: o I2C por PIO dele (WirePIO, 32 instrucoes, um bloco inteiro) so entra
+#   num pio0 vazio e cai para GPIO sem ele, entao nao disputa o PIO do modulo se a rede
+#   subir antes dos sensores (o que o driver tem de garantir).
+#   Pinos do modulo (simut_config.h): MISO GP12, CS GP13, SCK GP14, MOSI GP15 (SPI por PIO);
+#   o INT e o GP11, com qualquer mostrador. Nesta etapa so o
+#   interruptor, as regras e as checagens de compilacao existem: o driver do ENC28J60
+#   vem depois, e a imagem nao tem rede ate la. Medido em 2026-10-12 (pio run -e
+#   pico_wire, arduino-pico 5.6.1): linka, 587.972 B de flash, .bin de 600.008 B, 101.980 B
+#   de RAM, com onze slots; sem a guarda do NetworkManager.cpp o link morre em __wrap_cyw43_cb_*. Nao
+#   publicada; confia na raiz de bancada, como as outras imagens de bancada (o gerador
+#   recusa a marca numa publica).
+[profiles.pico_wire]
+extends         = "pico_w_alpha"
+lan             = true
+bluetooth       = false
+air             = false
+sensor_ds18b20  = false
+sensor_dht22    = true
+sensor_bme280   = true
+sound_buzzer    = true
+publish         = false
+ota_trust_bench = true
+
 # ===========================================================================
 #  O configurador (docs/configurador/): como cada escolha aparece na árvore.
 #  Nada daqui muda o build — compose( ) não lê as tabelas ui_*, rules nem
@@ -504,6 +560,16 @@ label.en = "Concurrency soak image"
 label.pt = "Imagem de soak de concorrência"
 desc.en  = "The release image with the concurrency tripwire armed. Not published."
 desc.pt  = "A imagem de release com a armadilha de concorrência armada. Não publicada."
+
+[ui_products.pico_wire]
+order    = 8
+bench    = true
+label.en = "SIMUT Wire"
+label.pt = "SIMUT Wire"
+label.es = "SIMUT Wire"
+desc.en  = "A plain Raspberry Pi Pico with no radio: the network comes through an ENC28J60 module on the cable. Not published."
+desc.pt  = "Um Raspberry Pi Pico comum, sem rádio: a rede vem por um módulo ENC28J60, no cabo. Não publicada."
+desc.es  = "Una Raspberry Pi Pico común, sin radio: la red llega por un módulo ENC28J60, por el cable. No publicada."
 
 [ui_displays.tft]
 label.en = "Touch display (ILI9341, 320x240)"
@@ -722,6 +788,21 @@ help.en  = "Logs an error when a flash operation starts while the state mutex is
 help.pt  = "Registra um erro quando uma operação de flash começa com o mutex de estado preso. Para soak, não para campo."
 help.es  = "Registra un error cuando una operación de flash empieza con el mutex de estado tomado. Para soaks, no para equipos en campo."
 
+# A rede por cabo fica no grupo da bancada ate o driver existir (2026-10-12): sem ele a
+# imagem nao tem rede nenhuma, e nao e coisa para oferecer a um produto publicado. No
+# Pico 2 W o gerador a recusa (nao ha placa para ela), e a pagina trava a chave com o
+# motivo de `unsupported`.
+[ui_toggles.lan]
+group    = "bench"
+label.en = "Wired network (ENC28J60) instead of Wi-Fi"
+label.pt = "Rede por cabo (ENC28J60) no lugar do Wi-Fi"
+label.es = "Red por cable (ENC28J60) en lugar de Wi-Fi"
+help.en  = "Builds for a plain Raspberry Pi Pico, which has no radio, and takes the network from an ENC28J60 module on the cable. Bluetooth and hibernation run on the radio, so they cannot be on with it. The cable driver is not in the firmware yet: an image built with this switch has no network."
+help.pt  = "Compila para um Raspberry Pi Pico comum, que não tem rádio, e pega a rede de um módulo ENC28J60 no cabo. O Bluetooth e a hibernação rodam no rádio, então não podem ficar ligados com ela. O driver do cabo ainda não está no firmware: uma imagem compilada com esta chave não tem rede."
+help.es  = "Compila para una Raspberry Pi Pico común, que no tiene radio, y toma la red de un módulo ENC28J60 por el cable. El Bluetooth y la hibernación funcionan con el radio, así que no pueden estar activos con ella. El driver del cable aún no está en el firmware: una imagen compilada con este interruptor no tiene red."
+unsupported.en = "The wired network exists only for the plain Pico (RP2040) so far: the Pico 2 W (RP2350) has no board for it."
+unsupported.pt = "A rede por cabo só existe, por enquanto, para o Pico comum (RP2040): o Pico 2 W (RP2350) não tem placa para ela."
+
 # ---------------------------------------------------------------------------
 #  Regras entre escolhas. Cada uma foi MEDIDA em 2026-09-26 compilando a
 #  combinação proibida; "evidence" guarda o erro. A página as usa para travar
@@ -760,6 +841,24 @@ require  = { sound_buzzer = false }
 why.en   = "The hibernating build carries no buzzer: its sound code does not compile with hibernation on."
 why.pt   = "A build que hiberna não leva o buzzer: o código de som não compila com a hibernação ligada."
 evidence = "air+sound_buzzer fails to compile: SoundManager.cpp: 'BuzzerNote' does not name a type. SIMUT_AIR turns SoundManager.h into the no-op class, and SoundManager.cpp has no guard of its own."
+
+[[rules]]
+id       = "lan-no-bluetooth"
+when     = { lan = true }
+require  = { bluetooth = false }
+why.en   = "Bluetooth runs on the Wi-Fi radio, which a wired build does not have."
+why.pt   = "O Bluetooth roda no rádio do Wi-Fi, que uma build por cabo não tem."
+why.es   = "El Bluetooth funciona en el radio del Wi-Fi, que una build por cable no tiene."
+evidence = "SIMUT_NET_LAN with SIMUT_BLUETOOTH stops at an #error in simut_config.h, pinned by tools/test_pin_masks.py (2026-10-12). Not compiled past that #error: the Bluetooth stack (SerialBT, BTstack) rides on the CYW43, and board = rpipico has none."
+
+[[rules]]
+id       = "lan-no-air"
+when     = { lan = true }
+require  = { air = false }
+why.en   = "Hibernation is built around the Wi-Fi radio, which it powers down between wakes. A wired build has none."
+why.pt   = "A hibernação é feita em torno do rádio do Wi-Fi, que ela desliga entre os despertares. Uma build por cabo não tem rádio."
+why.es   = "La hibernación gira en torno al radio del Wi-Fi, que apaga entre los despertares. Una build por cable no tiene radio."
+evidence = "SIMUT_NET_LAN with SIMUT_AIR stops at an #error in simut_config.h, pinned by tools/test_pin_masks.py (2026-10-12). Not compiled past that #error: AppManager_Air.cpp powers the CYW43 down through GPIO23 (WL_REG_ON) before every sleep, and board = rpipico has no CYW43."
 
 # Avisos: combinações que compilam mas carregam um risco conhecido. Não travam
 # nada; a página mostra o motivo e de onde vem a evidência.

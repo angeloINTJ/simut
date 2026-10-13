@@ -6,7 +6,8 @@ Le tools/features.toml (a fonte unica) e escreve, sem tocar em mais nada:
     tools/generated/profiles.ini    um [env:*] por perfil, para o PlatformIO
     docs/configurador/model.json    a arvore do configurador: produtos, chaves,
                                     regras medidas, avisos, tetos e custos por
-                                    produto (tools/feature_costs.json)
+                                    produto (tools/feature_costs.json), e as chaves
+                                    que o gerador recusa em cada produto
     src/FeatureBits.h               SIMUT_FEATURE_BITS, o "feat" do /api/status:
                                     um bit por chave, lido dos macros que o
                                     compilador ve (tools/test_feature_bits.py)
@@ -76,12 +77,13 @@ TOGGLE_ORDER = [
     "tel_tls", "tel_mqtt",
     "web_history", "web_export_api", "web_metrics", "syslog",
     "tft_graph",
+    "lan",
 ]
 
 HEADER = """; profiles.ini — GERADO por tools/gen_features.py a partir de tools/features.toml.
 ; NAO EDITE A MAO. Rode `python3 tools/gen_features.py` depois de mudar o manifesto.
 ;
-; Este arquivo E a fonte dos sete ambientes de firmware: o platformio.ini o inclui
+; Este arquivo E a fonte dos oito ambientes de firmware: o platformio.ini o inclui
 ; via `extra_configs` e nao define mais [env:pico_w_*] nem [env:pico2_w_*].
 ; tools/gen_features.py --check garante que ele esta em dia com o manifesto, e
 ; tools/check_features.py prova que ele resolve, flag a flag e unidade de traducao a
@@ -114,17 +116,51 @@ def dedup(seq: list) -> list:
     return out
 
 
+def toggle_refusals(prof: dict, M: dict) -> list[tuple[str, str]]:
+    """As chaves LIGADAS que o chip do perfil nao pode compilar: [(chave, motivo)].
+
+    Uma chave pode trocar a placa do ambiente (`on_board`: chip -> placa, a placa
+    daquele chip com a chave ligada). Um chip sem entrada nao tem placa para a
+    chave, e o gerador a recusa em vez de compor a placa do chip sem a chave --
+    uma imagem que diria uma coisa e seria outra."""
+    chip = prof.get("chip", "rp2040")
+    out = []
+    for tname in TOGGLE_ORDER:
+        boards = M["toggles"][tname].get("on_board")
+        if boards is not None and prof.get(tname, False) and chip not in boards:
+            out.append((tname, f"{tname} ligada nao tem placa para o chip {chip}: "
+                               f"[toggles.{tname}].on_board so conhece {', '.join(sorted(boards))}"))
+    return out
+
+
+def toggle_refusal(prof: dict, M: dict) -> str | None:
+    """O primeiro motivo de toggle_refusals( ), ou None. compose( ) o aplica; o
+    build_custom.py e o measure_savings.py o perguntam antes, porque a entrada deles
+    nao e so os perfis do manifesto; e o model.json leva, por produto, as chaves
+    cuja inversao ele recusa, para a pagina travar a chave como trava uma regra."""
+    refused = toggle_refusals(prof, M)
+    return refused[0][1] if refused else None
+
+
 def compose(prof: dict, M: dict) -> dict:
     """Deriva a config do PlatformIO a partir dos recursos de um perfil."""
     flags = list(M["base"]["common_flags"])
     excludes: list[str] = []
     includes: list[str] = []
     lib_ignore: list[str] = []
+    unflags: list[str] = []
+
+    why = toggle_refusal(prof, M)
+    if why:
+        sys.exit(f"gen_features: o perfil nao compoe: {why}")
 
     # The chip first: it decides the board, and its flags are about the
     # toolchain, not about a feature. A profile without the key is the Pico W.
-    chip = M["chip"][prof.get("chip", "rp2040")]
+    chip_name = prof.get("chip", "rp2040")
+    chip = M["chip"][chip_name]
     flags += chip.get("flags", [])
+    board = chip.get("board", "")
+    board_owner = None
 
     disp = M["display"][prof["display"]]
     flags += disp.get("flags", [])
@@ -158,6 +194,17 @@ def compose(prof: dict, M: dict) -> dict:
         if val:
             flags += t.get("on_flags", [])
             includes += t.get("on_include", [])
+            # A flag of the base that this switch takes back out (build_unflags),
+            # and the board it asks for on this chip (toggle_refusal( ) above
+            # guarantees the entry). Two switches asking for different boards
+            # cannot both be obeyed: refuse, never let the later one win.
+            unflags += t.get("on_unflags", [])
+            if "on_board" in t:
+                asked = t["on_board"][chip_name]
+                if board_owner is not None and asked != board:
+                    sys.exit(f"gen_features: {board_owner} e {tname} pedem placas diferentes "
+                             f"para o chip {chip_name}: {board} e {asked}")
+                board, board_owner = asked, tname
         else:
             excludes += t.get("off_exclude", [])
             lib_ignore += t.get("off_lib_ignore", [])
@@ -178,7 +225,8 @@ def compose(prof: dict, M: dict) -> dict:
         "web_omit": ", ".join(web_omit) or None,
         "custom_fs_pages": prof.get("custom_fs_pages"),
         "build_type": prof.get("build_type"),
-        "board": chip.get("board", ""),
+        "board": board,
+        "unflags": dedup(unflags),
         # A chip that boots its program from a slot of a partition table links
         # it with a script of its own, and gives LittleFS the size its table does
         # (the RP2350: tools/rp2350/, docs/analysis/OTA_AB_RP2350.md step 3).
@@ -201,6 +249,11 @@ def emit_env(name: str, c: dict) -> str:
     fl = ["build_flags = ${pico_base.build_flags}"]
     fl += [f"    {f}" for f in c["flags"]]
     lines += fl
+    # Flags of pico_base that this environment takes back out. Absent, and not an
+    # empty `build_unflags =`, when there is none: the environments that have no
+    # use for it keep the text they always had.
+    if c.get("unflags"):
+        lines += ["build_unflags ="] + [f"    {f}" for f in c["unflags"]]
     # build_src_filter
     bf = ["build_src_filter = ${pico_base.build_src_filter}"]
     bf += [f"    -<{f}>" for f in c["excludes"]]
@@ -295,6 +348,25 @@ def check_manifest(M: dict) -> None:
         chip = resolve_profile(name, M["profiles"]).get("chip", "rp2040")
         if chip not in M.get("chip", {}):
             sys.exit(f"gen_features: o perfil {name} pede o chip '{chip}', que nao tem [chip.{chip}]")
+    # on_board e on_unflags mexem no ambiente do PlatformIO, nao so numa macro:
+    # um chip que nao existe, ou uma lista que nao e de flags, so apareceria
+    # como uma build que falha ou, pior, que compila outra coisa.
+    for t in TOGGLE_ORDER:
+        boards = toggles[t].get("on_board")
+        if boards is not None:
+            if (not isinstance(boards, dict) or not boards
+                    or any(c not in M.get("chip", {}) or not isinstance(b, str) or not b
+                           for c, b in boards.items())):
+                sys.exit(f"gen_features: [toggles.{t}].on_board tem de ser {{chip = \"placa\"}} "
+                         f"com chips que tem [chip.*]")
+        # A chave que o gerador recusa em algum chip tem de dizer por que, nas duas linguas
+        # da pagina: e o motivo da trava (model.json, products[].refused).
+        if boards is not None:
+            _texts(ui_t[t], "unsupported", f"ui_toggles.{t}")
+        unflags = toggles[t].get("on_unflags")
+        if unflags is not None and (not isinstance(unflags, list)
+                                    or any(not isinstance(f, str) or not f.startswith("-") for f in unflags)):
+            sys.exit(f"gen_features: [toggles.{t}].on_unflags tem de ser uma lista de flags (-D...)")
     known = set(TOGGLE_ORDER) | {"display"}
     for kind, parts in (("rules", ("when", "require")), ("hazards", ("when",))):
         ids = set()
@@ -348,10 +420,20 @@ def build_model(M: dict) -> dict:
         # Os tetos sao de cada produto (2026-10-05): o Pico 2 W e segurado ao
         # slot dele, 1.568.768 B, e o Pico W ao que o portao usa. Ate entao um
         # teto so, o do Pico W, valia para todos.
+        # As chaves cuja inversao o gerador recusa neste produto (a rede por cabo no
+        # RP2350, que nao tem placa para ela), com o motivo em en e pt: a pagina as
+        # trava como trava uma chave que uma regra proibe.
+        refused = {}
+        for t in TOGGLE_ORDER:
+            flipped = dict(prof)
+            flipped[t] = not bool(prof.get(t, False))
+            if any(name_ == t for name_, _ in toggle_refusals(flipped, M)):
+                refused[t] = _texts(M["ui_toggles"][t], "unsupported", f"ui_toggles.{t}")
         products.append({"id": name, "order": u["order"],
                          "bench": bool(u.get("bench", False)),
                          "publish": bool(prof.get("publish", False)),
                          "chip": prof.get("chip") or "rp2040",
+                         "refused": refused,
                          "ceilings": check_flash_budget.ceilings(name),
                          "label": _texts(u, "label", f"ui_products.{name}"),
                          "desc": _texts(u, "desc", f"ui_products.{name}"),

@@ -920,6 +920,19 @@ void StorageManager::finishMigrationV24(SystemConfig& cfg) {
  upgradeDefaultAlarmTemplate(cfg.alarmTel);
 }
 
+#if MAX_SENSORS < CONFIG_SENSOR_SLOTS
+/* The file has room for CONFIG_SENSOR_SLOTS slots and this build has MAX_SENSORS:
+ * the lan switch gives GP12-GP15 to the ENC28J60. A file written by another image,
+ * a .bkp put back or a migrated legacy blob can carry an active slot past the end,
+ * and its pins would be the module's: whatever the file says, it never runs here. */
+static void retireSlotsPastMax(SystemConfig& cfg) {
+	for (int i = MAX_SENSORS; i < CONFIG_SENSOR_SLOTS; i++) {
+		cfg.sensors[i].active = false;
+		cfg.sensors[i].sensorType = TYPE_NONE;
+	}
+}
+#endif
+
 bool StorageManager::attemptLoad(const char* path, SystemConfig& outCfg) {
  File f = LittleFS.open(path, "r");
  if (!f) return false;
@@ -937,6 +950,9 @@ bool StorageManager::attemptLoad(const char* path, SystemConfig& outCfg) {
  if (fileSize == expected) {
  bool ok = loadCurrentBlob(f, outCfg, &_migratedFromV21);
  f.close( );
+#if MAX_SENSORS < CONFIG_SENSOR_SLOTS
+ if (ok) retireSlotsPastMax(outCfg);
+#endif
  return ok;
  }
 
@@ -944,6 +960,9 @@ bool StorageManager::attemptLoad(const char* path, SystemConfig& outCfg) {
  if (kind != CFG_LEGACY_NONE) {
  bool ok = loadMigrateLegacyBlob(f, fileSize, (uint8_t)kind, outCfg);
  f.close( );
+#if MAX_SENSORS < CONFIG_SENSOR_SLOTS
+ if (ok) retireSlotsPastMax(outCfg);
+#endif
  return ok;
  }
 

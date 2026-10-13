@@ -297,9 +297,9 @@ constexpr uint32_t MAINT_MAX_SEC = 30u * 24u * 3600u;
  * uma janela de uma hora numa de anos.
  */
 struct __attribute__((packed)) MaintConfig {
-	uint32_t until[MAX_SENSORS];
+	uint32_t until[CONFIG_SENSOR_SLOTS];
 };
-static_assert(sizeof(MaintConfig) == 4 * MAX_SENSORS,
+static_assert(sizeof(MaintConfig) == 4 * CONFIG_SENSOR_SLOTS,
               "MaintConfig v23 must be 4 bytes per slot (packed)");
 
 /* ────────────────────────────────────────────────────────────────────────
@@ -407,7 +407,7 @@ struct __attribute__((packed)) SystemConfig {
  bool loggingEnabled;
  uint8_t ds18Resolution;
 
- SensorRecord sensors[MAX_SENSORS]; /**< Universal slots GPIO0–GPIO15 */
+ SensorRecord sensors[CONFIG_SENSOR_SLOTS]; /**< The file's slots; this build uses 0..MAX_SENSORS-1 */
 
  int8_t themeIndex;
  /* v24: LEGACY, kept only so nothing after it moves. The panel PIN became
@@ -849,7 +849,7 @@ struct SystemStatusData {
 #define HIST_NAN_SENTINEL INT16_MIN /* -32768 */
 
 /**
- * @brief In-RAM history record — one sample across all 16 slots.
+ * @brief In-RAM history record — one sample across all MAX_SENSORS slots.
  *
  * NOT a file format. History on disk is V5 (.h5) — see HistoryV5.h. This
  * struct is the flat carrier the V5 reader decodes INTO so that telemetry and

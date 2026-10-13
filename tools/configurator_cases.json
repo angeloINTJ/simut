@@ -23,7 +23,14 @@
     {"name": "Air with the full CLI off",      "base": "pico_w_air",     "set": {"cli_full": false},                                      "violates": []},
     {"name": "Alpha with the panel graph",     "base": "pico_w_alpha",   "set": {"tft_graph": true},                                      "violates": ["graph-needs-tft"]},
     {"name": "Air with the panel graph",       "base": "pico_w_air",     "set": {"tft_graph": true},                                      "violates": ["graph-needs-tft"]},
-    {"name": "SIMUT without the panel graph",  "base": "pico_w_release", "set": {"tft_graph": false},                                     "violates": []}
+    {"name": "SIMUT without the panel graph",  "base": "pico_w_release", "set": {"tft_graph": false},                                     "violates": []},
+    {"name": "SIMUT on the cable",             "base": "pico_w_release", "set": {"lan": true},                                            "violates": []},
+    {"name": "Alpha on the cable",             "base": "pico_w_alpha",   "set": {"lan": true},                                            "violates": ["lan-no-bluetooth"]},
+    {"name": "Air on the cable",               "base": "pico_w_air",     "set": {"lan": true},                                            "violates": ["lan-no-air", "lan-no-bluetooth"]},
+    {"name": "Air on the cable, no Bluetooth", "base": "pico_w_air",     "set": {"lan": true, "bluetooth": false},                        "violates": ["lan-no-air"]},
+    {"name": "SIMUT Wire as shipped",          "base": "pico_wire",      "set": {},                                                       "violates": []},
+    {"name": "SIMUT Wire with Bluetooth",      "base": "pico_wire",      "set": {"bluetooth": true},                                      "violates": ["lan-no-bluetooth"]},
+    {"name": "SIMUT Wire with the Wi-Fi back", "base": "pico_wire",      "set": {"lan": false},                                           "violates": []}
   ],
   "hazard_cases": [
     {"name": "SIMUT as shipped",               "base": "pico_w_release", "set": {},                  "hazards": []},

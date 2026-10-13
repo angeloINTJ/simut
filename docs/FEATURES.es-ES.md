@@ -171,4 +171,5 @@ Todo lo demás es un interruptor en [`tools/features.toml`](../tools/features.to
 | Energía | Hibernación entre lecturas | El ciclo del Air: despierta, lee, envía, duerme. Solo existe sin pantalla. | no | no | sí | no |
 | Banco y diagnóstico | Texto corto de la licencia en la pantalla táctil | La pantalla de Licencia del panel táctil muestra dos líneas que remiten al archivo LICENSE, en vez del texto MIT completo y los créditos. La página web /license mantiene siempre el texto completo. | no | no | sí | no |
 |  | Trampa de concurrencia | Registra un error cuando una operación de flash empieza con el mutex de estado tomado. Para soaks, no para equipos en campo. | no | no | no | no |
+|  | Red por cable (ENC28J60) en lugar de Wi-Fi | Compila para una Raspberry Pi Pico común, que no tiene radio, y toma la red de un módulo ENC28J60 por el cable. El Bluetooth y la hibernación funcionan con el radio, así que no pueden estar activos con ella. El driver del cable aún no está en el firmware: una imagen compilada con este interruptor no tiene red. | no | no | no | no |
 <!-- END generated: switches -->

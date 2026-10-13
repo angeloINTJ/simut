@@ -38,6 +38,7 @@
 #include <stdint.h>
 #include <string>
 #include "ota/restore.h"   /* the restore state machine, on the in-memory LittleFS stub */
+#include "BuildIdentity.h"  /* simut_env_tag_scan: the scanner that reads a variant tag back */
 
 using ota::SigVerdict;
 
@@ -305,6 +306,84 @@ static void test_an_image_signed_for_another_variant_is_refused(void) {
 	p.runningEnv = "pico_w_release";
 	Staged s = staged(kVecGood, kGoodLen);
 	TEST_ASSERT_EQUAL_UINT8((uint8_t)SigVerdict::ENV, (uint8_t)run(s, p));
+}
+
+/* ============================================================================
+ *  The SIMUT Wire's variants (2026-10-12): a plain Pico with the network on the
+ *  cable is "wire" with the 16x2 LCD and "wiretft" with the touch display
+ *  (simut_config.h). Each must stay apart from the Pico W's images and from the
+ *  other, on both checks the device makes: the tag the staging scan reads, and
+ *  the env the signature binds. "wire" is a prefix of "wiretft", which is what
+ *  makes the pair worth pinning: a comparison that stopped at the shorter name
+ *  would let a TFT image into an LCD board.
+ * ============================================================================ */
+
+/* An image's bytes with a tag in them, built the way test_trial.cpp builds one. */
+static std::vector<uint8_t> image_with_tag(const char* tag) {
+	std::vector<uint8_t> v(4096);
+	for (size_t i = 0; i < v.size( ); i++) v[i] = (uint8_t)(i * 13u + 5u);
+	memcpy(&v[1000], tag, strlen(tag) + 1);
+	return v;
+}
+
+/* The env the scanner reads, in a buffer the size ValidationReport::image_env has. */
+static std::string scanned_env(const char* tag, bool* found) {
+	const std::vector<uint8_t> img = image_with_tag(tag);
+	char env[12];
+	memset(env, 'x', sizeof(env));
+	*found = simut_env_tag_scan(img.data( ), (unsigned)img.size( ), env, sizeof(env));
+	return std::string(env);
+}
+
+static void test_an_image_tagged_wire_scans_as_wire(void) {
+	bool found = false;
+	const std::string env = scanned_env("SIMUT-ENV:wire;v=2.11.1;", &found);
+	TEST_ASSERT_TRUE(found);
+	TEST_ASSERT_EQUAL_STRING("wire", env.c_str( ));
+}
+
+static void test_an_image_tagged_wiretft_scans_whole_not_as_wire(void) {
+	bool found = false;
+	const std::string env = scanned_env("SIMUT-ENV:wiretft;v=2.11.1;", &found);
+	TEST_ASSERT_TRUE(found);
+	TEST_ASSERT_EQUAL_STRING("wiretft", env.c_str( ));
+}
+
+static void test_the_longest_wire_env_fits_the_validators_buffer(void) {
+	/* "wiretfttwo" is the TFT variant on the RP2350's chip: 10 letters, inside the
+	 * 11 that image_env[12] keeps. A name past 11 does not scan at all, and the
+	 * staging check reads that as an image with no tag. */
+	bool found = false;
+	TEST_ASSERT_EQUAL_STRING("wiretfttwo", scanned_env("SIMUT-ENV:wiretfttwo;v=2.11.1;", &found).c_str( ));
+	TEST_ASSERT_TRUE(found);
+	scanned_env("SIMUT-ENV:wiretftwiretft;v=2.11.1;", &found);   /* 14 letters */
+	TEST_ASSERT_FALSE(found);
+}
+
+static ota::SigPolicy runningAs(const char* env) {
+	ota::SigPolicy p = releasePolicy( );
+	p.runningEnv = env;
+	return p;
+}
+
+static void test_a_release_trailer_is_refused_by_a_wire_image(void) {
+	/* The control comes first: the same genuine bytes are accepted by an image
+	 * that IS "release", so the refusal below is the env and nothing else. */
+	Staged ok = staged(kVecEnvRelease, sizeof(kVecEnvRelease));
+	TEST_ASSERT_EQUAL_UINT8((uint8_t)SigVerdict::OK, (uint8_t)run(ok, runningAs("release")));
+	Staged s = staged(kVecEnvRelease, sizeof(kVecEnvRelease));
+	TEST_ASSERT_EQUAL_UINT8((uint8_t)SigVerdict::ENV, (uint8_t)run(s, runningAs("wire")));
+	Staged t = staged(kVecEnvRelease, sizeof(kVecEnvRelease));
+	TEST_ASSERT_EQUAL_UINT8((uint8_t)SigVerdict::ENV, (uint8_t)run(t, runningAs("wiretft")));
+}
+
+static void test_a_wiretft_trailer_is_refused_by_a_wire_image(void) {
+	Staged ok = staged(kVecEnvWiretft, sizeof(kVecEnvWiretft));
+	TEST_ASSERT_EQUAL_UINT8((uint8_t)SigVerdict::OK, (uint8_t)run(ok, runningAs("wiretft")));
+	Staged s = staged(kVecEnvWiretft, sizeof(kVecEnvWiretft));
+	TEST_ASSERT_EQUAL_UINT8((uint8_t)SigVerdict::ENV, (uint8_t)run(s, runningAs("wire")));
+	Staged t = staged(kVecEnvWiretft, sizeof(kVecEnvWiretft));
+	TEST_ASSERT_EQUAL_UINT8((uint8_t)SigVerdict::ENV, (uint8_t)run(t, runningAs("release")));
 }
 
 static void test_a_tampered_image_is_invalid_before_it_is_a_rollback(void) {
@@ -677,6 +756,11 @@ int main(int, char**) {
 	RUN_TEST(test_the_bench_serial_does_not_revoke_release_signers);
 	RUN_TEST(test_an_older_security_version_is_a_rollback);
 	RUN_TEST(test_an_image_signed_for_another_variant_is_refused);
+	RUN_TEST(test_an_image_tagged_wire_scans_as_wire);
+	RUN_TEST(test_an_image_tagged_wiretft_scans_whole_not_as_wire);
+	RUN_TEST(test_the_longest_wire_env_fits_the_validators_buffer);
+	RUN_TEST(test_a_release_trailer_is_refused_by_a_wire_image);
+	RUN_TEST(test_a_wiretft_trailer_is_refused_by_a_wire_image);
 	RUN_TEST(test_a_tampered_image_is_invalid_before_it_is_a_rollback);
 
 	RUN_TEST(test_the_chunk_size_does_not_change_the_verdict);

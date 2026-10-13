@@ -14,7 +14,7 @@
  * token stays in this browser and is sent to api.github.com only; the page's
  * Content-Security-Policy allows no other destination. */
 
-import { ruleViolations, hazardHits } from "./rules.js";
+import { hazardHits } from "./rules.js";
 import * as L from "./logic.js";
 
 const REPO = "angeloINTJ/simut";
@@ -456,7 +456,7 @@ function renderFeatures() {
 function renderToggle(x, config) {
   const m = state.model;
   const id = `t-${x.id}`;
-  const lock = L.lockOf(m, config, x.id);
+  const lock = L.lockOf(m, config, x.id, state.productId);
   const same = L.noEffect(m, state.productId, x.id) && !(x.id in state.set);
   const price = L.priceOn(m, state.productId, x.id);
   const changed = x.id in state.set;
@@ -503,7 +503,9 @@ function renderResult() {
   const m = state.model;
   const p = L.productById(m, state.productId);
   const config = L.effectiveConfig(m, state.productId, state.set);
-  const violations = ruleViolations(m, config);
+  // What the generator refuses for this chip counts like a broken rule: a link can
+  // carry the switch already on, and the build would only be refused later.
+  const violations = L.blockersOf(m, state.productId, config);
   const hazards = hazardHits(m, config);
   const est = L.estimate(m, state.productId, state.set);
   const nChanges = Object.keys(state.set).length;

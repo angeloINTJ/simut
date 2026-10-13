@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """check_features.py — o portao de fidelidade do modelo de recursos (P1).
 
-Prova que os sete ambientes de firmware que o build usa (o platformio.ini inclui
+Prova que os oito ambientes de firmware que o build usa (o platformio.ini inclui
 tools/generated/profiles.ini via extra_configs) resolvem para EXATAMENTE o que o
 manifesto features.toml descreve, gerado na hora. Se o profiles.ini commitado ou
 o platformio.ini divergirem do manifesto, o portao pega. Compara, por ambiente:
 
     - o conjunto de macros -D e demais flags de compilacao;
     - o conjunto de unidades de traducao compiladas (o filtro resolvido contra src/);
-    - o lib_ignore;
+    - o lib_ignore e o lib_deps;
+    - a placa (`board`) e o build_unflags (o -DPICO_CYW43_SUPPORTED=1 que um
+      ambiente de LAN tira do pico_base);
     - custom_web_omit, custom_fs_pages e build_type.
 
 A resolucao dos dois lados e feita pelo proprio PlatformIO
@@ -162,6 +164,17 @@ def tokens(values: list) -> list[str]:
     return " ".join(str(v) for v in values).split()
 
 
+def entries(value) -> frozenset:
+    """Um lib_deps do PlatformIO: uma entrada por linha, e uma entrada tem
+    espaco ("adafruit/Adafruit GFX Library@1.12.6"), entao nao se achata como os
+    flags. O resolvedor devolve lista; um valor solto vira uma lista de um."""
+    if value is None:
+        return frozenset()
+    if isinstance(value, str):
+        value = value.splitlines()
+    return frozenset(str(v).strip() for v in value if str(v).strip())
+
+
 def facet(opts: dict, units: list[str]) -> dict:
     macros, other = parse_flags(tokens(opts.get("build_flags", [])))
     return {
@@ -169,6 +182,13 @@ def facet(opts: dict, units: list[str]) -> dict:
         "other_flags": other,
         "units": resolve_filter(tokens(opts.get("build_src_filter", [])), units),
         "lib_ignore": frozenset(opts.get("lib_ignore", [])),
+        # A placa, o que o ambiente tira do pico_base e as bibliotecas: um
+        # ambiente de LAN muda os dois primeiros, e o terceiro e o que um driver
+        # cabeado vai acrescentar. Sem comparar, o gerado e o platformio.ini
+        # poderiam discordar numa placa e o portao dizer que estao iguais.
+        "board": opts.get("board") or None,
+        "build_unflags": frozenset(tokens(opts.get("build_unflags", []))),
+        "lib_deps": entries(opts.get("lib_deps")),
         "web_omit": opts.get("custom_web_omit") or None,
         "fs_pages": norm_fs_pages(opts.get("custom_fs_pages")),
         "build_type": opts.get("build_type") or None,
@@ -190,10 +210,10 @@ def diff_facets(g: dict, x: dict) -> list[str]:
     if g["units"] != x["units"]:
         out.append(f"    unidades so no platformio.ini: {sorted(g['units'] - x['units'])}")
         out.append(f"    unidades so no gerado:         {sorted(x['units'] - g['units'])}")
-    for key in ("lib_ignore", "fs_pages"):
+    for key in ("lib_ignore", "fs_pages", "build_unflags", "lib_deps"):
         if g[key] != x[key]:
             out.append(f"    {key}: platformio={sorted(g[key])} gerado={sorted(x[key])}")
-    for key in ("web_omit", "build_type"):
+    for key in ("web_omit", "build_type", "board"):
         if g[key] != x[key]:
             out.append(f"    {key}: platformio={g[key]!r} gerado={x[key]!r}")
     return out
@@ -237,8 +257,10 @@ def main() -> int:
 
     ground = pio_config(ROOT)
     # os perfis do manifesto devem ser exatamente os ambientes de firmware de hoje:
-    # pico_w_* (o Pico W) e, desde 2026-10-01, pico2_w_* (o Pico 2 W, fase 4)
-    ground_fw = {s[4:] for s in ground if s.startswith(("env:pico_w_", "env:pico2_w_"))}
+    # pico_w_* (o Pico W), desde 2026-10-01 pico2_w_* (o Pico 2 W, fase 4) e, desde
+    # 2026-10-12, pico_wire (o Pico comum, sem radio, com a rede por cabo)
+    ground_fw = {s[4:] for s in ground
+                 if s.startswith(("env:pico_w_", "env:pico2_w_", "env:pico_wire"))}
     missing = ground_fw - set(profiles)
     extra = set(profiles) - ground_fw
     if missing or extra:

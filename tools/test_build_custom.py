@@ -80,6 +80,14 @@ CLI = [
     ('{"v":1,"base":"pico_w_release","set":{"air":true}}', 2, "regra air-needs-headless"),
     ('{"v":1,"base":"pico_w_air","set":{"air":false}}', 2, "regra headless-needs-air"),
     ('{"v":1,"base":"pico_w_air","set":{"sound_buzzer":true}}', 2, "regra air-no-buzzer"),
+    # A rede por cabo (2026-10-12): vale no Pico W sem Bluetooth e sem Air, e o
+    # SIMUT Wire e o produto dela; o RP2350 nao tem placa para ela.
+    ('{"v":1,"base":"pico_wire","set":{}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico_w_release","set":{"lan":true}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico_w_alpha","set":{"lan":true}}', 2, "regra lan-no-bluetooth"),
+    ('{"v":1,"base":"pico_w_air","set":{"lan":true,"bluetooth":false}}', 2, "regra lan-no-air"),
+    ('{"v":1,"base":"pico_wire","set":{"bluetooth":true}}', 2, "regra lan-no-bluetooth"),
+    ('{"v":1,"base":"pico2_w_release","set":{"lan":true}}', 2, "ligada nao tem placa para o chip rp2350"),
     ('{"v":1,"base":"pico_w_air","set":{"wifi":true}}', 2, "chave desconhecida"),
     ("", 2, "perfil vazio"),
 ]

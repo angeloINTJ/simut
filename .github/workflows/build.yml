@@ -127,6 +127,26 @@ jobs:
       - name: Feature bits /api/status reports
         run: python3 tools/test_feature_bits.py
 
+      # The wired build (SIMUT_NET_LAN, the SIMUT Wire: a plain Pico with the
+      # network on an ENC28J60 module) is held, by the preprocessor, to the pins
+      # it may use, the radio it does not have and the name it takes in the OTA.
+      # The module on the display's or the buzzer's pin, two of its own lines on
+      # one GPIO, Bluetooth or the Air beside it, a Wi-Fi build without the CYW43
+      # and a wired one that still has it all stop at an #error in
+      # src/simut_config.h, and the names are "wire" and "wiretft", apart from
+      # every Pico W image. The test also takes each of those #error lines out of
+      # a copy of the header in turn and requires exactly one case to fail, so a
+      # guard that stopped guarding is seen; a layout that cannot work has to
+      # stop the build and not the board.
+      - name: Pin masks and variant names of the wired build
+        run: python3 tools/test_pin_masks.py
+
+      # Whether a combination fits in the PIO blocks, and which GPIO two owners
+      # claim, before anything compiles: the firmware finds out only at boot,
+      # when it logs "pio0 full" and drops a sensor.
+      - name: PIO budget (blocks, state machines and pins a build asks for)
+        run: python3 tools/test_pio_budget.py
+
       # The entanglement watermark (MODELO_DE_RECURSOS.md, P2): the count of
       # `#if SIMUT_` sites per feature macro and per file, held to a high-water
       # mark in tools/feature_sprawl.json. A site added to a shared file fails;
@@ -357,6 +377,11 @@ jobs:
           # yet; building it here is what keeps the code from drifting back to
           # RP2040-only addresses with nobody noticing.
           - pico2_w_release
+          # The SIMUT Wire (2026-10-12): a plain Pico, without the radio, its
+          # network on an ENC28J60 module. The switch is in and the wired driver
+          # is not, so the image links and has no network yet; building it here
+          # keeps the guards of src/simut_config.h section 10b honest.
+          - pico_wire
     name: firmware (${{ matrix.env }})
     steps:
       - uses: actions/checkout@v7
@@ -416,6 +441,18 @@ jobs:
       # it ("bin"); an image under "ota_exempt" is held to neither.
       - name: Check flash budget
         run: python3 tools/check_flash_budget.py ${{ matrix.env }} build.log
+
+      # The sizes tools/pio_budget.py counts with, held to the programs' own
+      # sources. The gates job has neither the libraries nor the framework and
+      # skips that part of the test; after a build both are on disk, and
+      # `require` makes a source that went missing a failure instead of a skip
+      # nobody reads. One image is enough: the libraries are pico_base's, the
+      # same in all eight.
+      - name: PIO program sizes match their sources
+        if: matrix.env == 'pico_w_release'
+        env:
+          SIMUT_PIO_SOURCES: require
+        run: python3 tools/test_pio_budget.py
 
   # Same reasoning as static-analysis: its own job costs no wall clock next
   # to the firmware build, and a finding names itself in the Actions UI.
