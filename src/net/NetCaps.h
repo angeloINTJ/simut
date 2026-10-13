@@ -15,9 +15,11 @@
  *     SIMUT_NET_ENC28J60  an ENC28J60 module on a plain Pico. The manifest passes
  *                         -DSIMUT_NET_ENC28J60=1 (`net = "enc28j60"` in
  *                         tools/features.toml); the CYW43 passes nothing.
- *     Only src/net/, src/simut_config.h (the module's pins) and this file read
- *     an identity macro; tools/check_net_boundary.py holds it in CI, with the
- *     radio's API and the driver libraries.
+ *     Only src/net/, src/simut_config.h (the module's pins), this file and
+ *     src/NetworkManager.cpp read an identity macro: the last is the radio's
+ *     driver until it moves to src/net/, and reads SIMUT_NET_CYW43 twice, with
+ *     the reason in tools/net_boundary.json. tools/check_net_boundary.py holds
+ *     it in CI, with the radio's API and the driver libraries.
  *
  *   CLASS     what the link is, derived below from the identity and read by
  *             every other file.

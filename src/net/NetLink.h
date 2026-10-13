@@ -1,17 +1,23 @@
 /**
  * @file NetLink.h
- * @brief The two things the rest of the firmware asks of whatever network the
- *        image has, answered by the driver the image names:
+ * @brief What the rest of the firmware asks of whatever network the image has,
+ *        answered by the driver the image names:
  *
- *   net::linkUp( )        the link carries traffic: a datagram sent now can leave.
- *   net::stopForFlash( )  the network stops, so nothing reaches the chip while the
- *                         flash is written (the OTA's teardown, ota/orchestrator.cpp).
+ *   net::linkUp( )            the link carries traffic: a datagram sent now can leave.
+ *   net::stopForFlash( )      the network stops, so nothing reaches the chip while the
+ *                             flash is written (the OTA's teardown, ota/orchestrator.cpp).
+ *   net::powerDownForSleep( ) the radio is stopped and powered off before the Air
+ *                             sleeps (AppManager_Air.cpp). The CYW43's alone, and the
+ *                             one that has no entry on a cable: the Air exists only
+ *                             with that chip.
  *
  * The syslog asked the first and the OTA the second, each with an `#if` of its
  * own and the radio's API on one arm (SyslogManager.cpp and ota/orchestrator.cpp,
  * until 2026-10-13). A third driver would have been a third arm in each of them,
  * and in the next file that asks. They ask here, once, and neither includes
- * <WiFi.h> or WiredLink.h for it.
+ * <WiFi.h> or WiredLink.h for it. The Air powered the radio down by hand, with the
+ * radio's API and its power pin outside src/net/ (until the same day), and asks
+ * the third here the same way.
  *
  * The entry is chosen by the image's driver, as the display's is in
  * src/display/DisplayDriver.h: the CYW43 by its identity, a cable by its class,
@@ -43,6 +49,7 @@
 #if SIMUT_NET_CYW43
 
 #include <WiFi.h>
+#include <hardware/gpio.h>
 
 namespace net {
 
@@ -51,6 +58,23 @@ inline __attribute__((always_inline)) bool linkUp( ) { return WiFi.status( ) == 
 
 /** WiFi.end( ), the radio's own stop. */
 inline __attribute__((always_inline)) void stopForFlash( ) { WiFi.end( ); }
+
+/** Stops the radio and powers the CYW43 down via WL_REG_ON (GPIO23), the last
+ *  thing the Air does with it before every sleep (AppManager::airEnterDormant( )).
+ *
+ *  Do NOT call cyw43_arch_deinit( ): it hangs on the second call and leaves the
+ *  CYW43 in a state only a power cycle recovers (see ota/orchestrator.cpp "Fix #2
+ *  ... REVERTIDO"). The next boot power-cycles the CYW43 anyway, so the driver
+ *  does not need a clean teardown: pulling WL_REG_ON LOW is the hardware
+ *  power-down that actually saves the current. */
+inline __attribute__((always_inline)) void powerDownForSleep( ) {
+	const uint wlRegOn = 23;
+	WiFi.disconnect(true);
+	WiFi.end( );
+	gpio_init(wlRegOn);
+	gpio_set_dir(wlRegOn, GPIO_OUT);
+	gpio_put(wlRegOn, 0);   /* WL_REG_ON LOW -> CYW43 powered off */
+}
 
 }  // namespace net
 
@@ -72,6 +96,11 @@ inline __attribute__((always_inline)) bool linkUp( ) {
  *  for the ENC28J60 its PIO state machine and its INT handler are released), so
  *  nothing reaches it while the flash is written. */
 inline __attribute__((always_inline)) void stopForFlash( ) { WiredLink::end( ); }
+
+/* net::powerDownForSleep( ) has no definition here, on purpose: the Air exists only
+ * with the CYW43 (the rule air-needs-cyw43 of tools/features.toml, and the #error in
+ * simut_config.h that stops a build with another driver), so nothing on a cable
+ * sleeps dormant. A call that gets here fails to compile, at the name. */
 
 }  // namespace net
 

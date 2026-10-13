@@ -462,8 +462,10 @@
  *                       (`net = "enc28j60"` in tools/features.toml) passes
  *                       -DSIMUT_NET_ENC28J60=1, picks that board and takes
  *                       -DPICO_CYW43_SUPPORTED=1 out of the flags (build_unflags).
- *   Only src/net/, this file (the module's pins, below) and src/net/NetCaps.h
- *   read an identity macro.
+ *   Only src/net/, this file (the module's pins, below), src/net/NetCaps.h and
+ *   src/NetworkManager.cpp read an identity macro: the last is the radio's
+ *   driver until it moves to src/net/ (tools/net_boundary.json says what it
+ *   reads and why).
  *
  * CLASS  what the link is, derived from the identity in src/net/NetCaps.h
  * (included just below) and never passed with -D:

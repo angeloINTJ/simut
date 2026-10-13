@@ -42,7 +42,7 @@
 #include <lwip/dns.h>
 
 #if !SIMUT_NET_LAN
-#error "test_wired runs the wired path: build it with -DSIMUT_NET_LAN=1 (see [env:native_wired])"
+#error "test_wired runs the wired path: build it with -DSIMUT_NET_ENC28J60=1 (see [env:native_wired]); SIMUT_NET_LAN is derived from it in src/net/NetCaps.h and never passed"
 #endif
 
 /* ── the radio, and the handful of symbols NetworkManager links against ──── */
@@ -383,6 +383,65 @@ static void test_a_module_stopped_for_an_update_that_will_not_start_again_is_ret
     TEST_ASSERT_EQUAL_UINT_MESSAGE(8, g_mod.beginCalls, "a module that has started must not be started again");
 }
 
+/* The two cases above stop a unit that was READY, and the stop is not only
+ * that. The first fix looked for a module that was no longer started where a
+ * link or a lease is lost, in the NTP wait and in READY, and a unit still on its
+ * way up never looked: in NET_CONNECTING (which shares its arm with
+ * NET_CONNECTED_WAIT_IP) the wait for a link and an address went on for a module
+ * nobody started again, so the Wire stayed off the network until a reboot (the
+ * review of 2026-10-13). Two units are there when the teardown stops the
+ * module: one that booted with the cable out, and one whose lease has not come.
+ * Both have a module that is started and a manager that is waiting. */
+static void test_a_module_stopped_while_the_cable_is_out_starts_again(void) {
+    NetworkManager net;
+    net.begin(makeConfig( ), /*dnsAuto=*/true, /*ntpEnabled=*/false, "");   /* the fake starts; nothing links it */
+    pump(net, 3000);
+    TEST_ASSERT_TRUE_MESSAGE(g_mod.started, "setup: the module did not start");
+    TEST_ASSERT_FALSE_MESSAGE(net.isConnected( ), "setup: connected with the cable out");
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(1, g_mod.beginCalls, "setup: the module was started more than once");
+
+    WiredLink::end( );                      /* the OTA's teardown, with the cable still out */
+    TEST_ASSERT_FALSE_MESSAGE(g_mod.started, "setup: the fake was not stopped");
+    pump(net, 2UL * 60UL * 1000UL, 500);
+
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(2, g_mod.beginCalls, "the module was never started again");
+    TEST_ASSERT_TRUE(g_mod.started);
+    TEST_ASSERT_FALSE_MESSAGE(net.isConnected( ), "connected with the cable still out");
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(0, g_moduleFailLogs, "a stop was logged as a module that did not start");
+
+    g_mod.linked = g_mod.hasAddress = true; /* the cable goes in */
+    g_mod.ip = IPAddress(192, 168, 3, 40);
+    pump(net, 3000);
+
+    TEST_ASSERT_TRUE_MESSAGE(net.isConnected( ), "the unit never came on the network when the cable went in");
+    TEST_ASSERT_EQUAL_STRING("192.168.3.40", net.getIpAddress( ).c_str( ));
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(2, g_mod.beginCalls, "restarted the module when the cable came in");
+}
+
+static void test_a_module_stopped_while_the_lease_is_pending_starts_again(void) {
+    g_mod.linked = true;                    /* the cable is in; the DHCP server has not answered */
+    NetworkManager net;
+    net.begin(makeConfig( ), /*dnsAuto=*/true, /*ntpEnabled=*/false, "");
+    pump(net, 3000);
+    TEST_ASSERT_TRUE_MESSAGE(g_mod.started, "setup: the module did not start");
+    TEST_ASSERT_FALSE_MESSAGE(net.isConnected( ), "setup: connected without a lease");
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(1, g_mod.beginCalls, "setup: the module was started more than once");
+
+    WiredLink::end( );
+    pump(net, 2UL * 60UL * 1000UL, 500);
+
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(2, g_mod.beginCalls, "the module was never started again");
+    TEST_ASSERT_TRUE(g_mod.started);
+    TEST_ASSERT_FALSE_MESSAGE(net.isConnected( ), "connected with no lease");
+
+    g_mod.hasAddress = true;                /* the lease arrives */
+    g_mod.ip = IPAddress(192, 168, 3, 40);
+    pump(net, 3000);
+
+    TEST_ASSERT_TRUE_MESSAGE(net.isConnected( ), "the unit never came on the network when the lease arrived");
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(2, g_mod.beginCalls, "restarted the module when the lease arrived");
+}
+
 /* ══ what a cable has instead of a radio ═════════════════════════════════ */
 
 /* A cable has no signal strength. A link that is up answers with a stand-in,
@@ -567,6 +626,8 @@ int main(int, char**) {
 
     RUN_TEST(test_a_module_stopped_by_an_update_that_did_not_happen_starts_again);
     RUN_TEST(test_a_module_stopped_for_an_update_that_will_not_start_again_is_retried_on_the_ladder);
+    RUN_TEST(test_a_module_stopped_while_the_cable_is_out_starts_again);
+    RUN_TEST(test_a_module_stopped_while_the_lease_is_pending_starts_again);
 
     RUN_TEST(test_signal_stand_in_is_minus_40_when_ready_and_minus_100_otherwise);
     RUN_TEST(test_no_access_point_and_no_scan_on_a_cable);

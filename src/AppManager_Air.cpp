@@ -30,6 +30,7 @@
 #include "TelemetryManager.h"
 #include "air/AirConfig.h"
 #include "air/pico_sleep.h"
+#include "net/NetLink.h"   /* net::powerDownForSleep( ): the radio's power-down, whatever its API */
 #include <hardware/clocks.h>
 
 #include <LittleFS.h>
@@ -37,7 +38,6 @@
 #include <time.h>
 #include <sys/time.h> /* settimeofday */
 
-#include <pico/cyw43_arch.h>
 #include <hardware/gpio.h>
 #include <hardware/rtc.h>
 #include <hardware/structs/scb.h>
@@ -541,17 +541,10 @@ void AppManager::airEnterDormant( ) {
  airSetLed(false);
  airSensorPower(_airCfg.sensorPowerPin, false);
 
- /* Stop WiFi and power the CYW43 down via WL_REG_ON (GPIO23).
-  * Do NOT call cyw43_arch_deinit(): it hangs on the second call and leaves the
-  * CYW43 in a state only a power cycle recovers (see ota/orchestrator.cpp
-  * "Fix #2 ... REVERTIDO"). The next boot power-cycles the CYW43 anyway, so the
-  * driver does not need a clean teardown — pulling WL_REG_ON LOW is the
-  * hardware power-down that actually saves the current. */
- WiFi.disconnect(true);
- WiFi.end( );
- gpio_init(23);
- gpio_set_dir(23, GPIO_OUT);
- gpio_put(23, 0); /* WL_REG_ON LOW -> CYW43 powered off */
+ /* Stop WiFi and power the CYW43 down via WL_REG_ON (GPIO23): the driver's
+  * net::powerDownForSleep( ), in src/net/NetLink.h, which also says why it is
+  * not cyw43_arch_deinit( ). */
+ net::powerDownForSleep( );
 
  /* Anchor the RTC to a valid base and arm the wake alarm interval ahead of it.
   * The RTC is only a wake timer here, so a fixed date is fine. */
