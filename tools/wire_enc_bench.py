@@ -126,6 +126,35 @@ def set_pins(copy, pins):
         fh.write(text)
 
 
+# Duas sondagens do BenchTest supoem a fiacao padrao da biblioteca, e nos pinos do Wire
+# mediriam outra coisa. A do "sem chip" poe o CS no GP15, que la nao vai a lugar nenhum e
+# aqui e o MOSI: o begin( ) recusaria a configuracao (dois sinais num pino) em vez de dizer
+# que nao ha chip. E o caso "INT na linha de reset" faz irq_pin = rst_pin, que com o RST do
+# Wire (-1) vira "sem INT e sem RST", uma configuracao valida. Na copia, a primeira vai para
+# o GP27 e a segunda ganha um RST (GP26): com o LCD em paralelo, os dois sao os pinos do
+# modo I2C dele e nao estao ligados a nada.
+FREE_PINS = (27, 26)
+PROBE_FIXES = (
+    ("    wrong.cs_pin = 15;\n",
+     f"    wrong.cs_pin = {FREE_PINS[0]};  // SIMUT Wire: um pino ligado a nada\n"),
+    ("{[](ENC28J60Config& c) { c.irq_pin = c.rst_pin; }},",
+     f"{{[](ENC28J60Config& c) {{ c.rst_pin = {FREE_PINS[1]}; c.irq_pin = c.rst_pin; }}}},"),
+)
+
+
+def fix_probes(copy):
+    """As duas sondagens do BenchTest, ajustadas aos pinos do Wire; cada ancora, uma vez so."""
+    sketch = os.path.join(copy, "extras", "bench", "BenchTest", "BenchTest.ino")
+    with open(sketch, encoding="utf-8") as fh:
+        text = fh.read()
+    for old, new in PROBE_FIXES:
+        if text.count(old) != 1:
+            die(f"{sketch}: {old.strip()!r} aparece {text.count(old)} vezes; a bancada da biblioteca mudou")
+        text = text.replace(old, new)
+    with open(sketch, "w", encoding="utf-8") as fh:
+        fh.write(text)
+
+
 def target_port(serial, hand_serial):
     """O /dev/serial/by-id da placa com esse numero de serie, e so ela."""
     if not serial:
@@ -193,6 +222,7 @@ def main():
         copy = os.path.join(tmp, "pico-enc28j60")
         library_copy(copy)
         set_pins(copy, pins)
+        fix_probes(copy)
 
         if args.build_only:
             for sketch, _ in SUITES.values():
