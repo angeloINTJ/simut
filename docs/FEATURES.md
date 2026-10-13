@@ -156,6 +156,7 @@ Everything else is a switch in [`tools/features.toml`](../tools/features.toml). 
 | Network | HTTPS web server | Serves the web interface over TLS. Without it the device answers plain HTTP only. | on | off | off | on |
 |  | Find by name on the network (mDNS) | Answers to &lt;device name&gt;.local, so a browser finds it without the IP address. | on | off | off | on |
 |  | Bluetooth serial console | A password-protected console over classic Bluetooth (SPP). It advertises for the first 5 minutes after power-up, so it reaches a device whose Wi-Fi is not set up yet. | off | on | on | off |
+|  | Wired network (ENC28J60) instead of Wi-Fi | Builds for a plain Raspberry Pi Pico, which has no radio, and takes the network from an ENC28J60 module on the cable. Bluetooth and hibernation run on the radio, so they cannot be on with it. | off | off | off | off |
 | Telemetry and integrations | Encrypted telemetry (HTTPS and MQTTS) | Sends to the collector over TLS, and validates it against /cert.pem when one is uploaded. Without it telemetry goes over plain HTTP or MQTT only, and a configuration that asks for encryption is refused instead of being sent in the clear. | on | on | on | on |
 |  | MQTT and Home Assistant | Publishes to an MQTT broker (MQTT, or MQTTS with the TLS switch), takes the alarm line's receipts on the ack topic, and announces the sensors to Home Assistant by MQTT Discovery. Without it telemetry goes by HTTP only. | on | on | on | on |
 |  | Prometheus metrics (/metrics) | A /metrics endpoint in the Prometheus text format, with Basic authentication for the scraper. | on | on | on | on |
@@ -171,5 +172,4 @@ Everything else is a switch in [`tools/features.toml`](../tools/features.toml). 
 | Power | Hibernation between readings | The Air cycle: wake, read, send, sleep. Exists only without a display. | off | off | on | off |
 | Bench and diagnostics | Short license text on the touch display | The touch display's License screen shows two lines that point to the LICENSE file instead of the full MIT text and credits. The /license web page always keeps the full text. | off | off | on | off |
 |  | Concurrency tripwire | Logs an error when a flash operation starts while the state mutex is held. For soak runs, not for field images. | off | off | off | off |
-|  | Wired network (ENC28J60) instead of Wi-Fi | Builds for a plain Raspberry Pi Pico, which has no radio, and takes the network from an ENC28J60 module on the cable. Bluetooth and hibernation run on the radio, so they cannot be on with it. | off | off | off | off |
 <!-- END generated: switches -->

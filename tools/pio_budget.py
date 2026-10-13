@@ -335,6 +335,10 @@ BUDGET_KEYS = tuple(key for _, key in ORDER if key != "radio")
 # The switch each pin owner of pin_owners( ) stands for; a display is chosen, not switched.
 _OWNER_KEY = {"lan": "lan", "buzzer": "sound_buzzer"}
 
+# Every id refusals( ) can return. tools/gen_features.py wants words for each one in the
+# manifest ([ui_budget.<id>]) before it generates, including the ones no image hits today.
+REFUSAL_IDS = ("pio-budget", "pin-conflict")
+
 
 def _walk(cfg):
     """The config place( ) walks: `cfg` with the radio following the cable."""

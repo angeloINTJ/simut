@@ -37,6 +37,7 @@ Nao ha dependencia externa: tomllib e da biblioteca padrao (Python 3.11+).
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
 import os
 import re
@@ -314,6 +315,85 @@ def _texts(entry: dict, key: str, where: str) -> dict:
     return {lang: t[lang] for lang in LANGS}
 
 
+def budget_why(r: dict, M: dict, without: str | None = None) -> dict:
+    """As palavras de um bloqueio do orcamento (tools/pio_budget.py refusals( )), em cada
+    lingua: o problema ([ui_budget.<id>] `why`) e o remedio, as chaves de `fix` (as que,
+    desligadas uma de cada vez, fazem caber) pelos rotulos de [ui_toggles], em `fix` ou,
+    com um item so, em `fix_one`. `without` e a trava de uma chave: ela sai da lista,
+    porque desligar a chave que se quer ligar nao e remedio (a trava do DS18B20 no SIMUT
+    Wire mandava desligar o proprio DS18B20, 2026-10-13); sem nenhuma, fica o problema."""
+    entry = M.get("ui_budget", {}).get(r["id"])
+    if entry is None:
+        sys.exit(f"gen_features: o orcamento recusa com '{r['id']}', e o manifesto nao tem [ui_budget.{r['id']}]")
+    where = f"ui_budget.{r['id']}"
+    why, fix, one = (_texts(entry, k, where) for k in ("why", "fix", "fix_one"))
+    keys = [k for k in r["fix"] if k != without]
+    out = {}
+    for lang in LANGS:
+        names = [M["ui_toggles"][k]["label"][lang] for k in keys]
+        text = why[lang]
+        if names:
+            text += " " + (fix if len(names) > 1 else one)[lang].replace("{list}", "; ".join(names))
+        if "pin" in r:
+            text = text.replace("{pin}", str(r["pin"]))
+        if "{" in text:
+            sys.exit(f"gen_features: {where} deixou um marcador sem valor: {text!r}")
+        out[lang] = text
+    return out
+
+
+def blockers(prof: dict, M: dict) -> list[dict]:
+    """Tudo o que impede a build de um perfil, na ordem em que a pagina e o CI o dizem:
+    as regras que ele quebra, as chaves ligadas que o chip dele recusa (unsupported-<chave>)
+    e o orcamento de PIO e de pinos (tools/pio_budget.py: pio-budget, pin-conflict). Cada
+    item e {"id", "kind": "rule" | "unsupported" | "budget", "why": {en, pt}, "detail"}.
+
+    Uma lista so (2026-10-13), onde o build_custom.py, o measure_savings.py e este gerador
+    perguntavam cada um a sua parte. A pagina tem a mesma, docs/configurador/logic.js
+    blockersOf( ), e tools/test_configurator_rules.py segura as duas na mesma tabela."""
+    import pio_budget as pb  # so aqui: o resto do gerador nao precisa dele
+
+    cfg = config_of(prof)
+    out = [{"id": r["id"], "kind": "rule", "why": _texts(r, "why", f"rules.{r['id']}"), "detail": ""}
+           for r in rule_violations(cfg, M)]
+    for t, reason in toggle_refusals(prof, M):
+        out.append({"id": f"unsupported-{t}", "kind": "unsupported",
+                    "why": _texts(M["ui_toggles"][t], "unsupported", f"ui_toggles.{t}"), "detail": reason})
+    for r in pb.refusals(cfg, prof.get("chip") or "rp2040"):
+        out.append({"id": r["id"], "kind": "budget", "why": budget_why(r, M), "detail": r["reason"]})
+    return out
+
+
+def budget_table(M: dict) -> list[dict]:
+    """O orcamento de PIO e de pinos para a pagina, como dado: cada combinacao das chaves
+    que tools/pio_budget.py le (BUDGET_KEYS, e o mostrador para os pinos) que nao cabe num
+    chip, com o motivo. A pagina so casa `when` com a escolha, como casa uma regra
+    (rules.js matches), e nao conta bloco nenhum: o algoritmo mora num lugar so."""
+    import pio_budget as pb
+
+    out, seen = [], set()
+    for chip in pb.CHIPS:
+        for display in M["display"]:
+            for bits in itertools.product((False, True), repeat=len(pb.BUDGET_KEYS)):
+                cfg = dict(zip(pb.BUDGET_KEYS, bits), display=display)
+                for r in pb.refusals(cfg, chip):
+                    # Os blocos PIO nao dependem do mostrador; os pinos dependem.
+                    when = dict(zip(pb.BUDGET_KEYS, bits))
+                    if r["id"] != "pio-budget":
+                        when["display"] = display
+                    # Uma entrada por recusa: dois pinos em conflito na mesma combinacao sao
+                    # duas, e o motivo (o GPIO) as separa; sem ele a pagina mostrava uma so.
+                    key = (chip, r["id"], json.dumps(when, sort_keys=True), r["reason"])
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    # `lock`: o texto da trava de cada chave do remedio, sem ela na lista.
+                    out.append({"id": r["id"], "chip": chip, "when": when,
+                                "why": budget_why(r, M), "detail": r["reason"], "fix": r["fix"],
+                                "lock": {k: budget_why(r, M, without=k) for k in r["fix"]}})
+    return out
+
+
 def check_manifest(M: dict) -> None:
     """Confere o manifesto antes de gerar. Um erro aqui e uma arvore que a pagina
     nao saberia desenhar, ou uma regra que reprova uma imagem que o CI constroi."""
@@ -416,6 +496,40 @@ def check_manifest(M: dict) -> None:
         bad = rule_violations(config_of(resolve_profile(name, M["profiles"])), M)
         if bad:
             sys.exit(f"gen_features: o perfil {name} quebra a regra {bad[0]['id']}")
+    # Nem cair num bloqueio do chip ou do orcamento de PIO e de pinos (2026-10-13): uma
+    # imagem que compila e nao cabe nos blocos PIO sobe com um sensor sem programa.
+    import pio_budget as pb
+    for name in M["profiles"]:
+        prof = resolve_profile(name, M["profiles"])
+        chip = prof.get("chip") or "rp2040"
+        if chip not in pb.CHIPS:
+            sys.exit(f"gen_features: o perfil {name} diz chip {chip!r}; tools/pio_budget.py conhece "
+                     + ", ".join(pb.CHIPS))
+        bad = blockers(prof, M)
+        if bad:
+            sys.exit(f"gen_features: o perfil {name} e bloqueado por {bad[0]['id']}: {bad[0]['detail'] or bad[0]['why']['en']}")
+    # As palavras de cada recusa do orcamento, inclusive a que nenhuma imagem acende hoje: o
+    # texto de um id so era conferido quando uma combinacao da tabela o produzia.
+    ub = M.get("ui_budget", {})
+    for k in pb.BUDGET_KEYS:
+        if k not in M["toggles"] or k not in M.get("ui_toggles", {}):
+            sys.exit(f"gen_features: tools/pio_budget.py le a chave {k}, que o manifesto nao tem com rotulo")
+    for rid in pb.REFUSAL_IDS:
+        if rid not in ub:
+            sys.exit(f"gen_features: tools/pio_budget.py recusa com '{rid}', e o manifesto nao tem [ui_budget.{rid}]")
+        if any("{list}" in s for s in _texts(ub[rid], "why", f"ui_budget.{rid}").values()):
+            sys.exit(f"gen_features: ui_budget.{rid}.why e o problema; a lista vai em fix")
+        for k in ("fix", "fix_one"):
+            if any("{list}" not in s for s in _texts(ub[rid], k, f"ui_budget.{rid}").values()):
+                sys.exit(f"gen_features: ui_budget.{rid}.{k} precisa de {{list}}, onde entram as chaves a desligar")
+        # Montado com uma, duas e nenhuma chave, nada pode sobrar entre chaves: o pin-conflict
+        # so aparece numa tabela de pinos que o firmware recusaria, e nunca seria montado.
+        for fix in (pb.BUDGET_KEYS[:1], pb.BUDGET_KEYS[:2], ()):
+            budget_why({"id": rid, "fix": list(fix), "pin": 0}, M)
+    for rid in ub:
+        if rid not in pb.REFUSAL_IDS:
+            sys.exit(f"gen_features: [ui_budget.{rid}] nao e uma recusa de tools/pio_budget.py: "
+                     + ", ".join(pb.REFUSAL_IDS))
 
 
 def build_model(M: dict) -> dict:
@@ -485,6 +599,7 @@ def build_model(M: dict) -> dict:
         "products": products,
         "rules": [public(r, "rules") for r in M.get("rules", [])],
         "hazards": [public(h, "hazards") for h in M.get("hazards", [])],
+        "budget": budget_table(M),
         "costs": costs,
     }
 

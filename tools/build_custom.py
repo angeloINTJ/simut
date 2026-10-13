@@ -219,17 +219,20 @@ def main():
         say(f"perfil recusado — {e}", error=True)
         return 2
     prof = resolve(base, changes, M)
-    bad = gf.rule_violations(gf.config_of(prof), M)
+    # Tudo o que impede a build, na ordem da pagina (gen_features.blockers): as regras;
+    # uma chave que pede uma placa que o chip nao tem (a rede por cabo no RP2350), que o
+    # gerador recusaria em compose( ) com um sys.exit; e, desde 2026-10-13, o orcamento
+    # de PIO e de pinos (tools/pio_budget.py), sem o qual uma build que compila subia com
+    # um sensor sem programa. E perfil invalido (exit 2), e --validate-only ja o diz.
+    bad = gf.blockers(prof, M)
     if bad:
-        for r in bad:
-            say(f"perfil recusado — regra {r['id']}: {r['why']['en']}", error=True)
-        return 2
-    # Uma chave que pede uma placa (a rede por cabo) num chip que nao tem uma: o
-    # gerador a recusaria em compose( ) com um sys.exit; aqui e perfil invalido
-    # (exit 2), e --validate-only ja o diz, antes de qualquer compilacao.
-    why = gf.toggle_refusal(prof, M)
-    if why:
-        say(f"perfil recusado — {why}", error=True)
+        for b in bad:
+            if b["kind"] == "rule":
+                say(f"perfil recusado — regra {b['id']}: {b['why']['en']}", error=True)
+            elif b["kind"] == "unsupported":
+                say(f"perfil recusado — {b['detail']}", error=True)
+            else:
+                say(f"perfil recusado — {b['id']}: {b['why']['en']} ({b['detail']})", error=True)
         return 2
     spec = canonical(base, changes)
     tag = hashlib.sha256(spec.encode()).hexdigest()[:8]

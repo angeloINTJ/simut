@@ -14,9 +14,10 @@ com o lado Python, que é a autoridade:
   - uma chave travada na página é uma que gen_features.rule_violations
     proibiria, ou que o gerador recusa naquele chip (gen_features.toggle_refusal:
     a rede por cabo no RP2350), e vice-versa -- com o motivo que o manifesto dá;
-  - o que impede a build é uma lista só (L.blockersOf: as regras quebradas e as
-    recusas do chip), e o app.js, que nenhum teste executa, a usa: o texto dele
-    é conferido, porque sem o produto a trava e o botão perdem a recusa calados;
+  - o que impede a build é uma lista só (L.blockersOf: as regras quebradas, as
+    recusas do chip e, desde 2026-10-13, o orçamento de PIO e de pinos do
+    model.json), e o app.js, que nenhum teste executa, a usa: o texto dele é
+    conferido, porque sem o produto a trava e o botão perdem a recusa calados;
   - "não muda nada neste produto" é exatamente o `same` que a matriz mediu;
   - o erro que a página diz ter é o erro recalculado aqui.
 
@@ -38,6 +39,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import gen_features as gf  # noqa: E402
+import pio_budget as pb  # noqa: E402
 import build_custom as bc  # noqa: E402
 
 PAGE = os.path.join(ROOT, "docs", "configurador")
@@ -85,8 +87,12 @@ for (const p of input.products) {
     // generator refuses for the product's chip.
     out.refusals.push({ p, t, ids: L.refusalsIn(model, p, { ...product.config, [t]: true }).map((r) => r.id) });
     const on = { ...product.config, [t]: true };
+    const estOn = L.estimate(model, p, { [t]: true });
     out.blockers.push({ p, t, ids: L.blockersOf(model, p, on).map((r) => r.id),
-                        rules: ruleViolations(model, on).map((r) => r.id) });
+                        rules: ruleViolations(model, on).map((r) => r.id),
+                        budget: L.budgetIn(model, p, on).map((r) => r.id),
+                        verdict: typeof L.verdictOf === "function" ? L.verdictOf(model, p, { [t]: true }) : "sem verdictOf",
+                        fit: estOn ? L.slotFit(model, p, estOn) : null });
   }
 }
 out.accuracy = L.accuracy(model);
@@ -203,7 +209,8 @@ for s in js["singles"]:
 
 # 5. As travas da página são as regras do Python -- e, onde nenhuma regra trava, a recusa
 #    do gerador: uma chave que pede uma placa que o chip do produto não tem (a rede por
-#    cabo no RP2350) trava como uma regra, com o motivo à vista. A regra vem primeiro.
+#    cabo no RP2350) trava como uma regra, com o motivo à vista. A regra vem primeiro, e o
+#    orçamento de PIO e de pinos (gen_features.blockers, 2026-10-13) por último.
 for lk in js["locks"]:
     p, t = lk["p"], lk["t"]
     prof = gf.resolve_profile(p, M["profiles"])
@@ -211,9 +218,21 @@ for lk in js["locks"]:
     now = {r["id"] for r in gf.rule_violations(cfg, M)}
     flipped = dict(cfg, **{t: not cfg[t]})
     new = [r["id"] for r in gf.rule_violations(flipped, M) if r["id"] not in now]
-    refused = gf.toggle_refusal(dict(prof, **{t: not bool(prof.get(t, False))}), M)
-    want = new[0] if new else (f"unsupported-{t}" if refused else None)
-    check(lk["lock"] == want, f"{p}/{t}: trava da página {lk['lock']} != regras {new} / recusa do gerador {refused!r}")
+    fprof = dict(prof, **{t: not bool(prof.get(t, False))})
+    refused = gf.toggle_refusal(fprof, M)
+    budget_now = {b["id"] for b in gf.blockers(prof, M) if b["kind"] == "budget"}
+    budget = [b["id"] for b in gf.blockers(fprof, M) if b["kind"] == "budget" and b["id"] not in budget_now]
+    want = new[0] if new else (f"unsupported-{t}" if refused else (budget[0] if budget else None))
+    check(lk["lock"] == want, f"{p}/{t}: trava da página {lk['lock']} != regras {new} / recusa do gerador "
+                              f"{refused!r} / orçamento {budget}")
+    # A trava do orçamento diz o que desligar para ligar ESTA chave: as outras da lista, sem ela.
+    if lk["lock"] == want and want in budget:
+        r = next(x for x in pb.refusals(gf.config_of(fprof), fprof.get("chip") or "rp2040") if x["id"] == want)
+        esperado = gf.budget_why(r, M, without=t)
+        check(lk["why"] == esperado, f"{p}/{t}: o texto da trava {lk['why']} != o do gerador sem a chave {esperado}")
+        for lang in gf.LANGS:
+            check(M["ui_toggles"][t]["label"][lang] not in (lk["why"] or {}).get(lang, ""),
+                  f"{p}/{t}: a trava manda desligar a própria chave ({lang}): {lk['why']}")
 
 # 5b. A rede por cabo no Pico 2 W: o gerador a recusa (o RP2350 não tem placa para ela), e a
 #     página trava a chave com o motivo do manifesto, em inglês e em português. Nos produtos
@@ -227,9 +246,94 @@ check(all(lan_texts.values()), "o manifesto não dá os dois textos da recusa da
 for p in PRODUCTS:
     if p != "pico2_w_release":
         check(locks[(p, "lan")]["lock"] != "unsupported-lan", f"{p}/lan: travada pela recusa do gerador, que é do RP2350")
-check(locks[("pico_w_release", "lan")]["lock"] is None, "pico_w_release/lan: travada, sem regra nenhuma que a proíba")
+# Sem regra que a proíba, a rede por cabo no SIMUT trava pelo orçamento de PIO: com o DS18B20 e o
+# DHT22 ligados, o ENC28J60 não cabe nos dois blocos do RP2040 (tools/pio_budget.py).
+check(locks[("pico_w_release", "lan")]["lock"] == "pio-budget",
+      f"pico_w_release/lan: devia travar pelo orçamento de PIO, trava por {locks[('pico_w_release', 'lan')]['lock']}")
 check(locks[("pico_w_alpha", "lan")]["lock"] == "lan-no-bluetooth", "pico_w_alpha/lan: devia travar pela regra lan-no-bluetooth")
 check(locks[("pico_w_air", "lan")]["lock"] == "lan-no-bluetooth", "pico_w_air/lan: a primeira regra que ela quebra é lan-no-bluetooth")
+
+# 5b2. O texto do orçamento: o problema (why) e o remédio (fix, com a lista; fix_one, com um item
+#      só). A trava não manda desligar a chave que ela trava, e uma lista que fica vazia não deixa
+#      "Desligue um destes: ." no fim (13/10: a trava do DS18B20 no SIMUT Wire mandava desligar o
+#      próprio DS18B20, que estava desligado).
+ub = M.get("ui_budget", {})
+for rid in pb.REFUSAL_IDS:
+    for campo in ("why", "fix", "fix_one"):
+        for lang in gf.LANGS:
+            check(str(ub.get(rid, {}).get(campo, {}).get(lang, "")).strip(),
+                  f"[ui_budget.{rid}] sem {campo}.{lang}")
+if all(isinstance(ub.get(rid, {}).get(c), dict) for rid in pb.REFUSAL_IDS for c in ("why", "fix", "fix_one")):
+    def rot(k, lang):
+        return M["ui_toggles"][k]["label"][lang]
+    tres = {"id": "pio-budget", "fix": ["lan", "sensor_ds18b20", "sensor_dht22"]}
+    for lang in gf.LANGS:
+        w = ub["pio-budget"]
+        casos = {
+            "a lista inteira": (gf.budget_why(tres, M)[lang],
+                                w["why"][lang] + " " + w["fix"][lang].replace(
+                                    "{list}", "; ".join(rot(k, lang) for k in tres["fix"]))),
+            "a trava do DS18B20": (gf.budget_why(tres, M, without="sensor_ds18b20")[lang],
+                                   w["why"][lang] + " " + w["fix"][lang].replace(
+                                       "{list}", rot("lan", lang) + "; " + rot("sensor_dht22", lang))),
+            "sobra um": (gf.budget_why({"id": "pio-budget", "fix": ["lan", "sensor_dht22"]}, M, without="lan")[lang],
+                         w["why"][lang] + " " + w["fix_one"][lang].replace("{list}", rot("sensor_dht22", lang))),
+            "não sobra nenhum": (gf.budget_why({"id": "pin-conflict", "fix": ["sound_buzzer"], "pin": 16}, M,
+                                               without="sound_buzzer")[lang],
+                                 ub["pin-conflict"]["why"][lang].replace("{pin}", "16")),
+            "um só, sem trava": (gf.budget_why({"id": "pin-conflict", "fix": ["sound_buzzer"], "pin": 16}, M)[lang],
+                                 ub["pin-conflict"]["why"][lang].replace("{pin}", "16") + " "
+                                 + ub["pin-conflict"]["fix_one"][lang].replace("{list}", rot("sound_buzzer", lang))),
+        }
+        # O conflito diz qual pino: sem o número, "dois recursos querem o mesmo pino" não deixa
+        # ninguém achar o fio (sugestão da revisão, 13/10).
+        check("{pin}" in ub["pin-conflict"]["why"][lang] and "GP16" in casos["não sobra nenhum"][0],
+              f"[ui_budget.pin-conflict] why.{lang} devia dizer o pino ({{pin}}): {ub['pin-conflict']['why'][lang]!r}")
+        for nome, (got, esperado) in casos.items():
+            check(got == esperado, f"budget_why, {nome} ({lang}): {got!r} != {esperado!r}")
+            check("{" not in got and "}" not in got, f"budget_why, {nome} ({lang}): sobrou um marcador em {got!r}")
+# O model.json leva, por bloqueio, as chaves do remédio e a trava de cada uma.
+for b in MODEL.get("budget", []):
+    check(isinstance(b.get("fix"), list) and set(b["fix"]) <= set(pb.BUDGET_KEYS),
+          f"model.json: o bloqueio {b['id']} {b.get('when')} sem a lista fix: {b.get('fix')}")
+    check(set((b.get("lock") or {})) == set(b.get("fix") or []),
+          f"model.json: o bloqueio {b['id']} {b.get('when')} tem trava para {sorted(b.get('lock') or {})}, "
+          f"o remédio é {b.get('fix')}")
+    for k, txt in (b.get("lock") or {}).items():
+        check(txt == gf.budget_why(b, M, without=k), f"model.json: a trava de {k} em {b['id']} {b['when']} != gerador")
+
+# 5b3. A tabela da página (gen_features.budget_table) tem uma entrada por recusa do pio_budget. Com
+#      o buzzer em dois pinos, um do módulo (GP12) e outro dos dois mostradores (GP16, da TFT e do
+#      LCD), são dois conflitos com a mesma condição, e a página mostrava um só: o `seen` juntava os
+#      dois pelo `when`, e desligar o cabo, o único remédio que ela dava, não soltava o GP16 (achado
+#      da revisão, 13/10). O model.json de hoje não tem conflito de pino; este caso o fabrica.
+guardado = pb.PINS["buzzer"]
+diverge, mais = [], 0
+try:
+    pb.PINS["buzzer"] = (12, 16)
+    try:
+        tabela = gf.budget_table(M)
+    except SystemExit as e:  # o gerador recusa com sys.exit; aqui é uma falha, não o fim do teste
+        tabela = None
+        check(False, f"gen_features.budget_table( ) saiu com o buzzer em (12, 16): {e}")
+    for chip in pb.CHIPS:
+        for display in M["display"]:
+            for bits in itertools.product((False, True), repeat=len(pb.BUDGET_KEYS)):
+                cfg = dict(zip(pb.BUDGET_KEYS, bits), display=display)
+                rs = pb.refusals(cfg, chip)
+                mais = max(mais, sum(x["id"] == "pin-conflict" for x in rs))
+                if tabela is None:
+                    continue
+                quer = sorted(x["reason"] for x in rs)
+                tem = sorted(e["detail"] for e in tabela if e["chip"] == chip
+                             and all(cfg.get(k) == v for k, v in e["when"].items()))
+                if tem != quer:
+                    diverge.append((chip, display, bits, tem, quer))
+finally:
+    pb.PINS["buzzer"] = guardado
+check(mais >= 2, f"o buzzer em (12, 16) devia dar dois conflitos numa combinação, deu no máximo {mais}")
+check(not diverge, f"a tabela da página devia ter uma entrada por recusa; {len(diverge)} combinações "
+                   f"divergem, a primeira {diverge[:1]}")
 
 # 5c. Um link pode trazer a chave já ligada: a escolha diz quais ligadas o gerador recusa
 #     (a página as soma às regras quebradas e não deixa compilar).
@@ -239,12 +343,21 @@ for r in js["refusals"]:
     check(r["ids"] == ([f"unsupported-{r['t']}"] if refused else []),
           f"{r['p']}/{r['t']}: ligada, a página acusa {r['ids']}, o gerador {refused!r}")
 
-# 5d. O que impede a build é uma lista só: as regras quebradas e, depois, as recusas do chip.
+# 5d. O que impede a build é uma lista só: as regras quebradas, as recusas do chip e o orçamento,
+#     nessa ordem -- e é a mesma do Python.
 refusals_by = {(r["p"], r["t"]): r["ids"] for r in js["refusals"]}
 for b in js["blockers"]:
-    check(b["ids"] == b["rules"] + refusals_by[(b["p"], b["t"])],
-          f"{b['p']}/{b['t']}: ligada, blockersOf dá {b['ids']}, as regras {b['rules']} e as recusas "
-          f"{refusals_by[(b['p'], b['t'])]}")
+    check(b["ids"] == b["rules"] + refusals_by[(b["p"], b["t"])] + b["budget"],
+          f"{b['p']}/{b['t']}: ligada, blockersOf dá {b['ids']}, as regras {b['rules']}, as recusas "
+          f"{refusals_by[(b['p'], b['t'])]} e o orçamento {b['budget']}")
+    prof = dict(gf.resolve_profile(b["p"], M["profiles"]), **{b["t"]: True})
+    want = [x["id"] for x in gf.blockers(prof, M)]
+    check(b["ids"] == want, f"{b['p']}/{b['t']}: ligada, blockersOf dá {b['ids']}, gen_features.blockers {want}")
+    # O veredito do selo: o que impede a build vem antes do slot. Uma build bloqueada que caberia
+    # no slot continua bloqueada (o selo dizia "Cabe" acima de "não cabe nos blocos PIO", 13/10).
+    check(b["verdict"] == ("blocked" if want else b["fit"]),
+          f"{b['p']}/{b['t']}: ligada, o veredito é {b['verdict']!r}; com os bloqueios {want} e o slot "
+          f"{b['fit']!r} devia ser {'blocked' if want else b['fit']!r}")
 check(any("unsupported-lan" in b["ids"] for b in js["blockers"] if (b["p"], b["t"]) == ("pico2_w_release", "lan")),
       "pico2_w_release/lan: ligada por um link, blockersOf não a acusa e o botão de compilar ficaria livre")
 
@@ -257,6 +370,13 @@ check(APP.count("const violations = L.blockersOf(m, state.productId, config);") 
       "app.js: os avisos e o botão de compilar deveriam vir de L.blockersOf(m, state.productId, config)")
 check("ruleViolations(" not in APP,
       "app.js: chama ruleViolations por conta própria, e o que ele monta pode deixar a recusa do chip de fora")
+selo = re.search(r"\nfunction fitSelo\(\) \{\n(.*?)\n\}\n", APP, re.S)
+check(selo and "L.verdictOf(state.model, state.productId, state.set)" in selo.group(1)
+      and "slotFit" not in selo.group(1),
+      "app.js: o selo do veredito (fitSelo) deveria vir de L.verdictOf, que põe o bloqueio antes do slot, "
+      "e não do L.slotFit sozinho")
+check(APP.count('"fit.blocked":') == 2,
+      f"app.js: o texto fit.blocked deveria existir em en e em pt, existe {APP.count(chr(34) + 'fit.blocked' + chr(34) + ':')} vez(es)")
 lock_calls = re.findall(r"L\.lockOf\(([^()]*)\)", APP)
 check(lock_calls and all(len([a for a in c.split(",") if a.strip()]) == 4 for c in lock_calls),
       f"app.js: toda chamada de L.lockOf deveria passar o produto (4 argumentos): {lock_calls}")

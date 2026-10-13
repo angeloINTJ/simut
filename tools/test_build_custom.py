@@ -81,9 +81,14 @@ CLI = [
     ('{"v":1,"base":"pico_w_air","set":{"air":false}}', 2, "regra headless-needs-air"),
     ('{"v":1,"base":"pico_w_air","set":{"sound_buzzer":true}}', 2, "regra air-no-buzzer"),
     # A rede por cabo (2026-10-12): vale no Pico W sem Bluetooth e sem Air, e o
-    # SIMUT Wire e o produto dela; o RP2350 nao tem placa para ela.
+    # SIMUT Wire e o produto dela; o RP2350 nao tem placa para ela. Desde
+    # 2026-10-13 o orcamento de PIO tambem decide: com o DS18B20 e o DHT22, o
+    # ENC28J60 nao cabe nos dois blocos do RP2040 (tools/pio_budget.py).
     ('{"v":1,"base":"pico_wire","set":{}}', 0, "perfil válido"),
-    ('{"v":1,"base":"pico_w_release","set":{"lan":true}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico_wiretft","set":{}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico_w_release","set":{"lan":true}}', 2, "pio-budget"),
+    ('{"v":1,"base":"pico_wire","set":{"sensor_ds18b20":true}}', 2, "pio-budget"),
+    ('{"v":1,"base":"pico_wire","set":{"sensor_ds18b20":true,"sensor_dht22":false}}', 0, "perfil válido"),
     ('{"v":1,"base":"pico_w_alpha","set":{"lan":true}}', 2, "regra lan-no-bluetooth"),
     ('{"v":1,"base":"pico_w_air","set":{"lan":true,"bluetooth":false}}', 2, "regra lan-no-air"),
     ('{"v":1,"base":"pico_wire","set":{"bluetooth":true}}', 2, "regra lan-no-bluetooth"),
