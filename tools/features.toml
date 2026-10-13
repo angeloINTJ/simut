@@ -837,12 +837,14 @@ help.en  = "Logs an error when a flash operation starts while the state mutex is
 help.pt  = "Registra um erro quando uma operação de flash começa com o mutex de estado preso. Para soak, não para campo."
 help.es  = "Registra un error cuando una operación de flash empieza con el mutex de estado tomado. Para soaks, no para equipos en campo."
 
-# A rede por cabo fica no grupo da bancada (2026-10-12): o driver existe e respondeu na
-# bancada, mas nenhuma imagem com ela passou ainda por um soak, e um produto publicado
-# nao a oferece antes disso. No Pico 2 W o gerador a recusa (nao ha placa para ela), e a
-# pagina trava a chave com o motivo de `unsupported`.
+# A rede por cabo e uma escolha de rede como as outras (2026-10-13, pedido do mantenedor de
+# um configurador "o mais modular possivel"): fica no grupo Rede, e o aviso lan-unsoaked diz
+# que nenhuma imagem com ela passou ainda por um soak. Ate entao morava no grupo da bancada,
+# fechado. No Pico 2 W o gerador a recusa (nao ha placa para ela), e a pagina trava a chave
+# com o motivo de `unsupported`; com o DS18B20 e o DHT22 juntos, no RP2040, o orcamento de
+# PIO a trava ([ui_budget], tools/pio_budget.py).
 [ui_toggles.lan]
-group    = "bench"
+group    = "network"
 label.en = "Wired network (ENC28J60) instead of Wi-Fi"
 label.pt = "Rede por cabo (ENC28J60) no lugar do Wi-Fi"
 label.es = "Red por cable (ENC28J60) en lugar de Wi-Fi"
@@ -909,8 +911,40 @@ why.pt   = "A hibernação é feita em torno do rádio do Wi-Fi, que ela desliga
 why.es   = "La hibernación gira en torno al radio del Wi-Fi, que apaga entre los despertares. Una build por cable no tiene radio."
 evidence = "SIMUT_NET_LAN with SIMUT_AIR stops at an #error in simut_config.h, pinned by tools/test_pin_masks.py (2026-10-12). Not compiled past that #error: AppManager_Air.cpp powers the CYW43 down through GPIO23 (WL_REG_ON) before every sleep, and board = rpipico has no CYW43."
 
+# O que o orcamento de PIO e de pinos recusa (tools/pio_budget.py, 2026-10-13), com as
+# palavras que a pagina mostra: `why` e o problema; `fix`, o remedio, com {list} trocado
+# pelos rotulos de [ui_toggles] das chaves que, desligadas uma de cada vez, fazem caber,
+# separados por "; "; `fix_one`, o mesmo remedio quando a lista tem um item so. A trava de
+# uma chave a tira da lista (desligar a chave que se quer ligar nao e remedio) e, se nao
+# sobra nenhuma, fica so o problema. {pin} e o GPIO de um pin-conflict. O mesmo texto vale no
+# CI (tools/build_custom.py), e o model.json leva, por chip, cada recusa. Todo id de
+# pio_budget.REFUSAL_IDS precisa dos tres, nas duas linguas, mesmo o que nenhuma imagem acende
+# hoje.
+[ui_budget.pio-budget]
+why.en     = "This does not fit the PIO blocks of this chip."
+why.pt     = "Isto não cabe nos blocos PIO deste chip."
+fix.en     = "Turn off one of these: {list}."
+fix.pt     = "Desligue um destes: {list}."
+fix_one.en = "Turn off: {list}."
+fix_one.pt = "Desligue: {list}."
+
+[ui_budget.pin-conflict]
+why.en     = "Two features claim GP{pin}."
+why.pt     = "Dois recursos disputam o GP{pin}."
+fix.en     = "Turn off one of these: {list}."
+fix.pt     = "Desligue um destes: {list}."
+fix_one.en = "Turn off: {list}."
+fix_one.pt = "Desligue: {list}."
+
 # Avisos: combinações que compilam mas carregam um risco conhecido. Não travam
 # nada; a página mostra o motivo e de onde vem a evidência.
+[[hazards]]
+id       = "lan-unsoaked"
+when     = { lan = true }
+why.en   = "The wired network has run on the bench, not yet through a soak: a build with it is a bench build."
+why.pt   = "A rede por cabo rodou na bancada, mas ainda não passou por um soak: uma build com ela é de bancada."
+evidence = "2026-10-13: pico_wiretft on the Wire rig, web and console over the cable for hours; no image with lan has run a 72 h soak."
+
 [[hazards]]
 id       = "bt-flash-core1"
 when     = { bluetooth = true, display = "tft" }

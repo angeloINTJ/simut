@@ -325,6 +325,56 @@ def pin_conflicts(cfg):
 
 
 # ----------------------------------------------------------------------------------
+# What the configurator and CI read
+# ----------------------------------------------------------------------------------
+
+# The switches of ORDER a person can turn off. The radio is not one: it is on exactly when
+# the cable is off, so a config from tools/gen_features.py config_of( ) has no "radio" key.
+BUDGET_KEYS = tuple(key for _, key in ORDER if key != "radio")
+
+# The switch each pin owner of pin_owners( ) stands for; a display is chosen, not switched.
+_OWNER_KEY = {"lan": "lan", "buzzer": "sound_buzzer"}
+
+# Every id refusals( ) can return. tools/gen_features.py wants words for each one in the
+# manifest ([ui_budget.<id>]) before it generates, including the ones no image hits today.
+REFUSAL_IDS = ("pio-budget", "pin-conflict")
+
+
+def _walk(cfg):
+    """The config place( ) walks: `cfg` with the radio following the cable."""
+    walk = dict(cfg)
+    walk["radio"] = not cfg.get("lan")
+    return walk
+
+
+def refusals(cfg, chip, programs=None):
+    """Why a build of `cfg` on `chip` cannot run, as a list the page and CI both read: []
+    when it fits. Each item is {"id", "reason", "fix"}:
+
+    - "pio-budget": place( ) finds no room, with its sentence as the reason. `fix` is every
+      switch of BUDGET_KEYS that is on and whose turning off ALONE makes it fit, in that
+      order; when none alone does, every one of them that is on.
+    - "pin-conflict": one per GPIO two owners claim (pin_conflicts( )), with the switches of
+      those owners as `fix`, in BUDGET_KEYS order, and the GPIO as "pin", so the words the
+      page shows can say which one.
+
+    `cfg` is what tools/gen_features.py config_of( ) gives (the display, and a bool per
+    switch); it is not modified. The budget comes first: it is the one a person meets on a
+    real config, and a pin conflict needs a pin table the firmware would refuse to compile."""
+    out = []
+    r = place(_walk(cfg), chip, programs)
+    if not r["ok"]:
+        on = [k for k in BUDGET_KEYS if cfg.get(k)]
+        fix = [k for k in on if place(_walk(dict(cfg, **{k: False})), chip, programs)["ok"]]
+        out.append({"id": "pio-budget", "reason": r["reason"], "fix": fix or on})
+    for pin, a, b in pin_conflicts(cfg):
+        keys = {_OWNER_KEY[o] for o in (a, b) if o in _OWNER_KEY}
+        out.append({"id": "pin-conflict", "reason": f"GP{pin} is claimed by {a} and by {b}.",
+                    "fix": [k for k in BUDGET_KEYS if k in keys], "pin": pin})
+    return out
+
+
+# ----------------------------------------------------------------------------------
 # The sources the table was counted from
 # ----------------------------------------------------------------------------------
 

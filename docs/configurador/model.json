@@ -303,7 +303,7 @@
     },
     {
       "id": "lan",
-      "group": "bench",
+      "group": "network",
       "bit": 18,
       "label": {
         "en": "Wired network (ENC28J60) instead of Wi-Fi",
@@ -808,6 +808,17 @@
   ],
   "hazards": [
     {
+      "id": "lan-unsoaked",
+      "when": {
+        "lan": true
+      },
+      "why": {
+        "en": "The wired network has run on the bench, not yet through a soak: a build with it is a bench build.",
+        "pt": "A rede por cabo rodou na bancada, mas ainda não passou por um soak: uma build com ela é de bancada."
+      },
+      "evidence": "2026-10-13: pico_wiretft on the Wire rig, web and console over the cable for hours; no image with lan has run a 72 h soak."
+    },
+    {
       "id": "bt-flash-core1",
       "when": {
         "bluetooth": true,
@@ -818,6 +829,76 @@
         "pt": "O Bluetooth grava os dados de pareamento no flash sem pausar o Core 1, que desenha a tela touch. Inferido do código do framework, nunca reproduzido."
       },
       "evidence": "MODELO_DE_RECURSOS.md R-H24 (inferred): btstack_flash_bank.cpp:53-56 writes the TLV without Core1FlashPause."
+    }
+  ],
+  "budget": [
+    {
+      "id": "pio-budget",
+      "chip": "rp2040",
+      "when": {
+        "sound_buzzer": false,
+        "lan": true,
+        "sensor_ds18b20": true,
+        "sensor_dht22": true
+      },
+      "why": {
+        "en": "This does not fit the PIO blocks of this chip. Turn off one of these: Wired network (ENC28J60) instead of Wi-Fi; DS18B20 temperature probes; DHT22 temperature and humidity.",
+        "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Rede por cabo (ENC28J60) no lugar do Wi-Fi; Sondas de temperatura DS18B20; DHT22 temperatura e umidade."
+      },
+      "detail": "enc28j60 needs 17 instructions and 1 state machine and finds no block where it leaves room for the programs that load after it: pio0 has 32 instructions and 4 state machines free, but then onewire would not fit; pio1 has 32 instructions and 4 state machines free, but then dht22 would not fit.",
+      "fix": [
+        "lan",
+        "sensor_ds18b20",
+        "sensor_dht22"
+      ],
+      "lock": {
+        "lan": {
+          "en": "This does not fit the PIO blocks of this chip. Turn off one of these: DS18B20 temperature probes; DHT22 temperature and humidity.",
+          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Sondas de temperatura DS18B20; DHT22 temperatura e umidade."
+        },
+        "sensor_ds18b20": {
+          "en": "This does not fit the PIO blocks of this chip. Turn off one of these: Wired network (ENC28J60) instead of Wi-Fi; DHT22 temperature and humidity.",
+          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Rede por cabo (ENC28J60) no lugar do Wi-Fi; DHT22 temperatura e umidade."
+        },
+        "sensor_dht22": {
+          "en": "This does not fit the PIO blocks of this chip. Turn off one of these: Wired network (ENC28J60) instead of Wi-Fi; DS18B20 temperature probes.",
+          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Rede por cabo (ENC28J60) no lugar do Wi-Fi; Sondas de temperatura DS18B20."
+        }
+      }
+    },
+    {
+      "id": "pio-budget",
+      "chip": "rp2040",
+      "when": {
+        "sound_buzzer": true,
+        "lan": true,
+        "sensor_ds18b20": true,
+        "sensor_dht22": true
+      },
+      "why": {
+        "en": "This does not fit the PIO blocks of this chip. Turn off one of these: Wired network (ENC28J60) instead of Wi-Fi; DS18B20 temperature probes; DHT22 temperature and humidity.",
+        "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Rede por cabo (ENC28J60) no lugar do Wi-Fi; Sondas de temperatura DS18B20; DHT22 temperatura e umidade."
+      },
+      "detail": "enc28j60 needs 17 instructions and 1 state machine and finds no block where it leaves room for the programs that load after it: pio0 has 32 instructions and 4 state machines free, but then onewire would not fit; pio1 has 28 instructions and 2 state machines free, but then dht22 would not fit.",
+      "fix": [
+        "lan",
+        "sensor_ds18b20",
+        "sensor_dht22"
+      ],
+      "lock": {
+        "lan": {
+          "en": "This does not fit the PIO blocks of this chip. Turn off one of these: DS18B20 temperature probes; DHT22 temperature and humidity.",
+          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Sondas de temperatura DS18B20; DHT22 temperatura e umidade."
+        },
+        "sensor_ds18b20": {
+          "en": "This does not fit the PIO blocks of this chip. Turn off one of these: Wired network (ENC28J60) instead of Wi-Fi; DHT22 temperature and humidity.",
+          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Rede por cabo (ENC28J60) no lugar do Wi-Fi; DHT22 temperatura e umidade."
+        },
+        "sensor_dht22": {
+          "en": "This does not fit the PIO blocks of this chip. Turn off one of these: Wired network (ENC28J60) instead of Wi-Fi; DS18B20 temperature probes.",
+          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Rede por cabo (ENC28J60) no lugar do Wi-Fi; Sondas de temperatura DS18B20."
+        }
+      }
     }
   ],
   "costs": {

@@ -460,12 +460,22 @@ jobs:
       # sources. The gates job has neither the libraries nor the framework and
       # skips that part of the test; after a build both are on disk, and
       # `require` makes a source that went missing a failure instead of a skip
-      # nobody reads. One image is enough: the libraries are pico_base's, the
-      # same in all nine.
+      # nobody reads. Two images are enough: the libraries are pico_base's, the
+      # same in all nine, except the ENC28J60's, which only the wired images
+      # pull. pico_w_release is a required check and holds the other four;
+      # pico_wire names the ENC28J60 header, and a named header is required.
       - name: PIO program sizes match their sources
         if: matrix.env == 'pico_w_release'
         env:
           SIMUT_PIO_SOURCES: require
+        run: python3 tools/test_pio_budget.py
+
+      - name: PIO program sizes match their sources (with the ENC28J60)
+        if: matrix.env == 'pico_wire'
+        env:
+          SIMUT_PIO_SOURCES: require
+          SIMUT_LIBDEPS: .pio/libdeps/pico_wire
+          ENC_PIO_HEADER: .pio/libdeps/pico_wire/PicoENC28J60/src/enc28j60-spi.pio.h
         run: python3 tools/test_pio_budget.py
 
   # Same reasoning as static-analysis: its own job costs no wall clock next

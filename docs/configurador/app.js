@@ -46,7 +46,8 @@ const STR = {
     "price.less": "With it on, this product's image is {n} B smaller (measured).",
     "price.over": "With it on, this product no longer fits the flash slot (measured).",
     "result.title": "This build", "selo.estimate": "Estimate", "selo.none": "No estimate",
-    "fit.ok": "Fits", "fit.near": "Tight", "fit.over": "Does not fit", "fixa.link": "See the result",
+    "fit.ok": "Fits", "fit.near": "Tight", "fit.over": "Does not fit", "fit.blocked": "Blocked",
+    "fixa.link": "See the result",
     "result.stock": "{p}, as shipped",
     "result.changes1": "{p}, 1 change", "result.changesN": "{p}, {n} changes",
     "meter.flash": "Flash slot", "meter.ota": ".bin for OTA",
@@ -126,7 +127,8 @@ const STR = {
     "price.less": "Ligada, a imagem deste produto fica {n} B menor (medido).",
     "price.over": "Ligada, este produto deixa de caber no slot de flash (medido).",
     "result.title": "Esta build", "selo.estimate": "Estimativa", "selo.none": "Sem estimativa",
-    "fit.ok": "Cabe", "fit.near": "No limite", "fit.over": "Não cabe", "fixa.link": "Ver o resultado",
+    "fit.ok": "Cabe", "fit.near": "No limite", "fit.over": "Não cabe", "fit.blocked": "Bloqueada",
+    "fixa.link": "Ver o resultado",
     "result.stock": "{p}, como publicado",
     "result.changes1": "{p}, 1 mudança", "result.changesN": "{p}, {n} mudanças",
     "meter.flash": "Slot de flash", "meter.ota": ".bin para OTA",
@@ -385,12 +387,13 @@ function watchResult() {
   resultObserver.observe(card);
 }
 
-/* The verdict in one word, as a selo: the fill of the flash slot decides it. */
-function fitSelo(est) {
-  if (!est) return h("span", { class: "selo", text: t("selo.none") });
-  const fit = L.slotFit(state.model, state.productId, est);
-  const tone = { ok: "selo-positivo", near: "selo-alerta", over: "selo-perigo" }[fit];
-  return h("span", { class: `selo ${tone}`, text: t(`fit.${fit}`) });
+/* The verdict in one word, as a selo (L.verdictOf): what stops the build first,
+ * then the fill of the flash slot. */
+function fitSelo() {
+  const v = L.verdictOf(state.model, state.productId, state.set);
+  if (!v) return h("span", { class: "selo", text: t("selo.none") });
+  const tone = { blocked: "selo-perigo", ok: "selo-positivo", near: "selo-alerta", over: "selo-perigo" }[v];
+  return h("span", { class: `selo ${tone}`, text: t(`fit.${v}`) });
 }
 
 /* On a phone the result card is below the tree; this bar keeps its figure in
@@ -399,7 +402,7 @@ function renderFixa() {
   const m = state.model;
   const est = L.estimate(m, state.productId, state.set);
   return h("div", { class: "cfg-fixa" },
-    fitSelo(est),
+    fitSelo(),
     est ? h("span", { class: "cfg-fixa-valor",
                       text: t("meter.of", { a: num(est.bin), b: num(L.ceilingsOf(m, state.productId).flash_region) }) }) : null,
     h("a", { href: "#resultado", text: t("fixa.link") }));
@@ -540,7 +543,7 @@ function renderResult() {
     h("div", { class: "cfg-bloco" },
       h("div", { class: "cfg-resultado-cabeca" },
         h("h3", { class: "cfg-bloco-titulo", text: t("result.title") }),
-        h("span", { class: "cfg-selos" }, fitSelo(est), est ? h("span", { class: "selo", text: t("selo.estimate") }) : null)),
+        h("span", { class: "cfg-selos" }, fitSelo(), est ? h("span", { class: "selo", text: t("selo.estimate") }) : null)),
       h("p", { class: "cfg-apoio cfg-resumo-texto", text: summary }),
       p.chip === "rp2350" ? h("p", { class: "cfg-apoio", text: t("two.files") }) : null,
       est ? [

@@ -454,15 +454,16 @@ def measure_matrix():
         for t in gf.TOGGLE_ORDER:
             flipped = dict(prof)
             flipped[t] = not bool(prof.get(t, False))
-            bad = gf.rule_violations(gf.config_of(flipped), M)
-            if bad:
+            # O que impede a build (gen_features.blockers): uma regra fica pelo id; a
+            # chave que pede uma placa que o chip do produto nao tem (a rede por cabo no
+            # RP2350) e o orcamento de PIO e de pinos (2026-10-13) nao tem imagem a medir,
+            # e a pagina a trata como sem medida.
+            bad = gf.blockers(flipped, M)
+            if bad and bad[0]["kind"] == "rule":
                 plan.append((p, t, None, bad[0]["id"]))
                 continue
-            # A chave pede uma placa que o chip do produto nao tem (a rede por cabo
-            # no RP2350): nao ha imagem a medir, e a pagina a trata como sem medida.
-            no_board = gf.toggle_refusal(flipped, M)
-            if no_board:
-                plan.append((p, t, None, {"unsupported": no_board}))
+            if bad:
+                plan.append((p, t, None, {"unsupported": bad[0]["detail"]}))
                 continue
             env = f"_cost_{p}_{t}"
             blocks.append(gf.emit_env(env, gf.compose(flipped, M)))
@@ -516,13 +517,12 @@ def cmd_matrix_partial(toggles):
         for t in toggles:
             flipped = dict(prof)
             flipped[t] = not bool(prof.get(t, False))
-            bad = gf.rule_violations(gf.config_of(flipped), M)
-            if bad:
+            bad = gf.blockers(flipped, M)
+            if bad and bad[0]["kind"] == "rule":
                 plan.append((p, t, None, bad[0]["id"]))
                 continue
-            no_board = gf.toggle_refusal(flipped, M)
-            if no_board:
-                plan.append((p, t, None, {"unsupported": no_board}))
+            if bad:
+                plan.append((p, t, None, {"unsupported": bad[0]["detail"]}))
                 continue
             env = f"_cost_{p}_{t}"
             blocks.append(gf.emit_env(env, gf.compose(flipped, M)))
@@ -589,8 +589,9 @@ def cmd_matrix():
             "e a MESMA imagem com so aquela chave invertida — used/bin/ram medidos, ou",
             "`overflow` (o excesso que o linker reporta quando nao cabe no slot), ou",
             "`rule` (a regra do manifesto que proibe a combinacao; nao foi compilada), ou",
-            "`unsupported` (a chave pede uma placa que o chip do produto nao tem: nao ha",
-            "imagem a medir, e a pagina a conta como sem medida).",
+            "`unsupported` (a chave pede uma placa que o chip do produto nao tem, ou a",
+            "combinacao nao cabe nos blocos de PIO ou nos pinos: nao ha imagem a medir,",
+            "e a pagina a conta como sem medida).",
             "`same: true` diz que a imagem saiu identica a base, byte a byte: a chave nao",
             "tem consumidor naquele produto, e a pagina diz isso em vez de mostrar +0 B.",
             "A pagina SOMA as diferencas quando mais de uma chave muda: estimativa, e ela",

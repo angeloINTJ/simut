@@ -10,7 +10,7 @@
  * Two or more changes are SUMMED, which is an estimate and is labelled one;
  * the build measures the real image. */
 
-import { ruleViolations } from "./rules.js";
+import { matches, ruleViolations } from "./rules.js";
 
 /* With Bluetooth linked, the .bin grows in 4 KB steps (its flash bank is
  * page-aligned), so no margin is smaller than one step. */
@@ -99,15 +99,17 @@ function refusalOf(model, productId, toggleId) {
   return why ? { id: `unsupported-${toggleId}`, why } : null;
 }
 
-/* Why a switch cannot move: flipping it would break a rule that the current
- * choice does not already break, or turn on a switch the generator refuses for
- * the product's chip. The rule comes first. Returns {id, why}, or null. */
+/* Why a switch cannot move: flipping it would add something that stops the
+ * build, which the current choice does not already have. The first such thing,
+ * in blockersOf's order: a rule, then a switch the generator refuses for the
+ * product's chip, then the PIO and pin budget. Returns {id, why}, or null. A
+ * budget lock says what else to turn off: its words leave this switch out of
+ * the list (the generator writes them, model.json `lock`). */
 export function lockOf(model, config, toggleId, productId) {
-  const now = new Set(ruleViolations(model, config).map((r) => r.id));
+  const now = new Set(blockersOf(model, productId, config).map((b) => b.id));
   const flipped = { ...config, [toggleId]: !config[toggleId] };
-  const rule = ruleViolations(model, flipped).find((r) => !now.has(r.id));
-  if (rule) return rule;
-  return flipped[toggleId] === true ? refusalOf(model, productId, toggleId) : null;
+  const b = blockersOf(model, productId, flipped).find((x) => !now.has(x.id)) || null;
+  return b && b.lock && b.lock[toggleId] ? { id: b.id, why: b.lock[toggleId] } : b;
 }
 
 /* The switches this choice has ON that the generator refuses for the product's
@@ -120,11 +122,27 @@ export function refusalsIn(model, productId, config) {
     .filter(Boolean);
 }
 
-/* Everything that stops a build of this choice: the rules it breaks, then the
- * switches the generator refuses for the product's chip. The page's warnings and
- * its build button read this one list, so a refusal cannot be shown and built. */
+/* The PIO and pin budget (tools/pio_budget.py), as data: model.json lists, for
+ * each chip, every combination of the switches the budget reads that does not
+ * fit, with the reason in each language. The page matches the choice against
+ * them the way it matches a rule, and counts no block: the counting lives in one
+ * place, and tools/test_configurator_rules.py holds this to the Python. */
+export function budgetIn(model, productId, config) {
+  const p = productId ? productById(model, productId) : null;
+  if (!p) return [];
+  return (model.budget || [])
+    .filter((b) => b.chip === p.chip && matches(config, b.when))
+    .map((b) => ({ id: b.id, why: b.why, lock: b.lock }));
+}
+
+/* Everything that stops a build of this choice: the rules it breaks, the
+ * switches the generator refuses for the product's chip, then the PIO and pin
+ * budget. The page's warnings and its build button read this one list, so a
+ * refusal cannot be shown and built. tools/gen_features.py blockers( ) is the
+ * same list, in the same order. */
 export function blockersOf(model, productId, config) {
-  return [...ruleViolations(model, config), ...refusalsIn(model, productId, config)];
+  return [...ruleViolations(model, config), ...refusalsIn(model, productId, config),
+          ...budgetIn(model, productId, config)];
 }
 
 /* The switch has no reader in this product: flipped, the image came out
@@ -187,6 +205,16 @@ export function fitOf(value, ceiling, margin) {
  * the region by `used` and over it by the .bin, does not link. */
 export function slotFit(model, productId, est) {
   return fitOf(est.bin, ceilingsOf(model, productId).flash_region, nearMargin(model));
+}
+
+/* The verdict in one word, the result's selo: what stops the build comes first
+ * (blockersOf: a broken rule, a switch the chip refuses, the PIO and pin
+ * budget), then the fill of the flash slot. A blocked build that would fit the
+ * slot is still blocked; null when no estimate judges the slot. */
+export function verdictOf(model, productId, set) {
+  if (blockersOf(model, productId, effectiveConfig(model, productId, set)).length) return "blocked";
+  const est = estimate(model, productId, set);
+  return est ? slotFit(model, productId, est) : null;
 }
 
 /* The profile tools/build_custom.py accepts, in its canonical spelling: the
