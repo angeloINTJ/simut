@@ -40,7 +40,10 @@ calls on the `WiFi` object are.
 ALLOWANCES. A file that has to break a rule today is listed in tools/net_boundary.json, by hand,
 with the reason it may and what ends it:
 
-    {"radio-api": {"src/NetworkManager.cpp": {"count": 70, "reason": "..."}}}
+    {"radio-api": {"src/SomeFile.cpp": {"count": 3, "reason": "..."}}}
+
+Since 2026-10-13 the file lists nothing: the last allowance, the radio's state machine in
+src/NetworkManager.cpp, ended when it moved into its own unit, src/net/NetworkManager_Cyw43.cpp.
 
 The number stays tight, like tools/feature_sprawl.json: a file with MORE findings than its count
 fails ("grew"), a file with FEWER fails too ("lower the allowance"), and an allowed file with none
@@ -413,7 +416,7 @@ def update_allowances(root: str, allowances: dict, found) -> list[str]:
 
 HINTS = {
     "identity": "ask the class (SIMUT_NET_WIFI / SIMUT_NET_LAN), net/NetLink.h or net/NetBoot.h, or move the code into src/net/",
-    "radio-api": "ask net::linkUp( ) / net::stopForFlash( ) (net/NetLink.h) or NetworkManager, or move the code into src/net/",
+    "radio-api": "ask net/NetLink.h (net::linkUp( ), net::stopForFlash( ), net::powerDownForSleep( )) or NetworkManager, or move the code into src/net/",
     "driver-library": "a driver library is included by its own unit in src/net/ and nowhere else",
     "class-include": 'add #include "simut_config.h" (or "net/NetCaps.h") to the file itself, before the first use',
 }

@@ -134,14 +134,15 @@ display = ["Adafruit ILI9341", "Adafruit GFX Library", "XPT2046_Touchscreen"]
 macro    = "SIMUT_NET_LAN"   # derivado no src/net/NetCaps.h (= SIMUT_NET_ENC28J60); nunca vai por -D
 bit      = 18
 web_omit = "wifi"
-# Os dois arquivos da classe: as maquinas de estado cabeadas do NetworkManager e o enlace
-# que toda placa cabeada divide (LwipIntfDev: hostname, endereco fixo, begin, getters, end), com o
-# cabecalho do chip por baixo (src/net/Enc28j60Device.h, que e cabecalho e nao entra aqui).
+# Os dois arquivos da classe: a unidade do cabo no NetworkManager (o contrato de NetworkManager.h:
+# as maquinas de estado cabeadas) e o enlace que toda placa cabeada divide (LwipIntfDev: hostname,
+# endereco fixo, begin, getters, end), com o cabecalho do chip por baixo
+# (src/net/Enc28j60Device.h, que e cabecalho e nao entra aqui).
 # Nem entram nas imagens Wi-Fi. Vazios ali (tudo sob #if SIMUT_NET_LAN), ainda assim mudavam
 # os bytes: os dois objetos no link trocavam a ordem de 56 veneers do linker (mesmo codigo,
 # mesmos tamanhos, alvos de BL deslocados em 16 a 32 B), e o pico_w_release saia 55ce740c em
 # vez de 1fe54a67 (2026-10-13). Fora do filtro, as sete voltam byte a byte.
-units    = ["NetworkManager_Wired.cpp", "net/WiredLink.cpp"]
+units    = ["net/NetworkManager_Wired.cpp", "net/WiredLink.cpp"]
 
 # Os drivers. `class` e a classe do driver; as outras chaves sao o que o ambiente do
 # PlatformIO ganha com ele, e quem escolhe outro driver nao as recebe:
@@ -152,9 +153,10 @@ units    = ["NetworkManager_Wired.cpp", "net/WiredLink.cpp"]
 #   unflags   flags do pico_base que o ambiente tira com build_unflags.
 #   flags     flags que o driver soma aos do perfil.
 #   units     as unidades de traducao do driver: as de um chip que traz um .cpp proprio
-#             (o ENC28J60 nao traz: o chip dele e um cabecalho, e as unidades da build
-#             cabeada sao da classe `lan`). Toda unidade de um driver que NAO e o do perfil
-#             sai do build (-<unidade> no build_src_filter).
+#             (o CYW43 traz o do radio, o NetworkManager_Cyw43.cpp; o ENC28J60 nao traz: o
+#             chip dele e um cabecalho, e as unidades da build cabeada sao da classe `lan`).
+#             Toda unidade de um driver que NAO e o do perfil sai do build (-<unidade> no
+#             build_src_filter).
 #   lib_deps  as bibliotecas que so ele traz, fixadas por commit.
 #   web_omit  os blocos /* @IF <nome> */ do WebUI.h que so este driver corta, depois dos da
 #             classe (2026-10-13). A classe corta o que o radio e (`wifi`); o driver, o que o
@@ -165,13 +167,21 @@ units    = ["NetworkManager_Wired.cpp", "net/WiredLink.cpp"]
 # O radio CYW43439 do Pico W e do Pico 2 W: o default do pico_base e a identidade padrao do
 # src/net/NetCaps.h (SIMUT_NET_CYW43), nada a emitir.
 class = "wifi"
+# A unidade do radio no NetworkManager (o contrato de NetworkManager.h): a busca, a associacao, a
+# escada de reconexao com a dormencia, o AP de configuracao, a busca sob demanda, os getters e o
+# sinal. Estava no src/NetworkManager.cpp, que desde 2026-10-13 e so o hospedeiro (NTP, relogio,
+# mDNS, fuso, saude). Fora das imagens cabeadas: la a unidade chama cyw43_arch_enable_sta_mode( )
+# e o link morre em __wrap_cyw43_cb_* numa placa sem o radio, e o codigo do radio era codigo morto
+# nas duas (a guarda que a unidade tinha para isso e esta exclusao).
+units = ["net/NetworkManager_Cyw43.cpp"]
 
 [net.enc28j60]
 # Um Raspberry Pi Pico comum, o RP2040 sem o radio CYW43, com a rede num modulo ENC28J60.
 # O estudo de 2026-09-26 (ramo study/simut-wire, docs/analysis/SIMUT_WIRE_VIABILIDADE.md)
 # mediu a release linkando para board = rpipico guardando uma unica chamada, a
-# cyw43_arch_enable_sta_mode( ) da busca de redes do NetworkManager.cpp. O driver e o
-# src/net/Enc28j60Device.h, o chip, sobre o src/net/WiredLink.cpp e o src/NetworkManager_Wired.cpp,
+# cyw43_arch_enable_sta_mode( ) da busca de redes do NetworkManager (hoje na unidade do radio,
+# src/net/NetworkManager_Cyw43.cpp, que a build cabeada nao compila). O driver e o
+# src/net/Enc28j60Device.h, o chip, sobre o src/net/WiredLink.cpp e o src/net/NetworkManager_Wired.cpp,
 # que sao da classe `lan` (2026-10-12; o chip virou um cabecalho em 2026-10-13).
 class    = "lan"
 # O RP2350 nao tem placa aqui: o gerador recusa o perfil nele, e a pagina trava a escolha
@@ -568,12 +578,12 @@ publish = true
 #   subir antes dos sensores (o que o driver tem de garantir).
 #   Pinos do modulo (simut_config.h): MISO GP12, CS GP13, SCK GP14, MOSI GP15 (SPI por PIO);
 #   o INT e o GP11, com qualquer mostrador. O driver (src/net/WiredLink.cpp sobre o
-#   src/net/Enc28j60Device.h, e o src/NetworkManager_Wired.cpp) pega o endereco por DHCP
+#   src/net/Enc28j60Device.h, e o src/net/NetworkManager_Wired.cpp) pega o endereco por DHCP
 #   ou o fixo da configuracao;
 #   na bancada de 2026-10-12 a web respondeu pelo cabo. Medido em 2026-10-13 (pio run -e
 #   pico_wire, arduino-pico 5.6.1, com o driver): 598.560 B de flash, .bin de 610.592 B,
 #   104.688 B de RAM, com onze slots; o driver custou 10.588 B de flash e 2.708 B de RAM.
-#   Sem a guarda do NetworkManager.cpp o link morre em __wrap_cyw43_cb_*. Nao
+#   Com a unidade do radio (src/net/NetworkManager_Cyw43.cpp) no link, ele morre em __wrap_cyw43_cb_*. Nao
 #   publicada; confia na raiz de bancada, como as outras imagens de bancada (o gerador
 #   recusa a marca numa publica).
 [profiles.pico_wire]

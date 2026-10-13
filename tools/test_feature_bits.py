@@ -161,9 +161,16 @@ for name in M["profiles"]:
     # e so as imagens que nao sao cabeadas as perdem.
     lan_units = M["net_class"]["lan"].get("units", [])
     check(f"{name}: as unidades da classe cabeada ficam so na imagem cabeada",
-          {"NetworkManager_Wired.cpp", "net/WiredLink.cpp"} <= set(lan_units)
+          {"net/NetworkManager_Wired.cpp", "net/WiredLink.cpp"} <= set(lan_units)
           and (meu["class"] == "lan") == (not any(u in c["excludes"] for u in lan_units)),
           repr((meu["class"], lan_units, c["excludes"])))
+    # O CYW43 tem a unidade do radio no NetworkManager (2026-10-13), e so as imagens que nao sao dele a perdem:
+    # nas cabeadas ela seria codigo morto, e o link morreria em __wrap_cyw43_cb_* numa placa sem o radio.
+    cyw_units = M["net"]["cyw43"].get("units", [])
+    check(f"{name}: a unidade do radio fica so na imagem com o radio",
+          "net/NetworkManager_Cyw43.cpp" in cyw_units
+          and (prof["net"] == "cyw43") == (not any(u in c["excludes"] for u in cyw_units)),
+          repr((prof["net"], cyw_units, c["excludes"])))
     check(f"{name}: a biblioteca do driver so vem com ele",
           c["lib_deps"] == meu.get("lib_deps", []), repr(c["lib_deps"]))
 P2 = gf.resolve_profile("pico2_w_release", M["profiles"])
@@ -192,7 +199,7 @@ recusa_com("unflags que nao e flag e recusado",
 recusa_com("flags que nao e -D e recusado",
            lambda m: m["net"]["enc28j60"].update(flags=["MAX_SENSORS=11"]), "flags")
 recusa_com("units que nao e lista e recusado",
-           lambda m: m["net"]["enc28j60"].update(units="NetworkManager_Wired.cpp"), "units")
+           lambda m: m["net"]["enc28j60"].update(units="net/NetworkManager_Wired.cpp"), "units")
 recusa_com("unit com espaco (quebraria o build_src_filter) e recusada",
            lambda m: m["net"]["enc28j60"].update(units=["net/Wired Link.cpp"]), "units")
 # `units` de um driver continua valendo, para um chip que traz um .cpp proprio: sai das imagens dos outros
@@ -206,11 +213,11 @@ check("a unidade de um driver (um chip com .cpp proprio) sai das imagens dos out
       "net/Enc28j60Extra.cpp" in radio_c["excludes"] and "net/Enc28j60Extra.cpp" not in cabo_c["excludes"],
       repr((radio_c["excludes"], cabo_c["excludes"])))
 recusa_com("units de classe que nao e lista e recusado",
-           lambda m: m["net_class"]["lan"].update(units="NetworkManager_Wired.cpp"), "units", "lan")
+           lambda m: m["net_class"]["lan"].update(units="net/NetworkManager_Wired.cpp"), "units", "lan")
 recusa_com("unit de classe com espaco (quebraria o build_src_filter) e recusada",
            lambda m: m["net_class"]["lan"].update(units=["net/Wired Link.cpp"]), "units", "lan")
 recusa_com("units de classe com um item que nao e texto e recusado",
-           lambda m: m["net_class"]["lan"].update(units=["NetworkManager_Wired.cpp", 3]), "units", "lan")
+           lambda m: m["net_class"]["lan"].update(units=["net/NetworkManager_Wired.cpp", 3]), "units", "lan")
 recusa_com("lib_deps que anda (um ramo) e recusado",
            lambda m: m["net"]["enc28j60"].update(lib_deps=["https://github.com/angeloINTJ/pico-enc28j60.git#main"]),
            "lib_deps", "enc28j60")

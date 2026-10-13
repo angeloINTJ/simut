@@ -4,7 +4,9 @@
  * @details Handles the complete network lifecycle: WiFi STA/AP modes, exponential
  * backoff reconnection, NTP time sync, mDNS, and a Virtual RTC that
  * provides provisional timestamps from the last flash-stored epoch
- * until real NTP synchronization completes.
+ * until real NTP synchronization completes. NetworkManager.cpp is the host
+ * of what every network needs; the link, the radio's or the cable's, is a
+ * unit of src/net/ that follows the contract in the private section.
  *
  * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
@@ -349,8 +351,54 @@ private:
 
  void pollScan( );
 
+ /* ── The contract a network unit implements ───────────────────────────
+  *
+  * NetworkManager.cpp is the host: the NTP wait and its backoff, the clocks,
+  * mDNS, the timezone and the health, what any network needs. The link, how
+  * this image joins a network and stays on it, is a unit of src/net/ that
+  * defines the three methods below. An image has one, and the manifest leaves
+  * the others out of the build (`units` of [net.cyw43] and of [net_class.lan]
+  * in tools/features.toml, as it leaves out the display's):
+  *
+  *   net/NetworkManager_Cyw43.cpp   the radio: scan, join, the reconnect ladder
+  *                                  with dormancy, the setup AP, the on-demand
+  *                                  scan, the addresses and the signal level
+  *   net/NetworkManager_Wired.cpp   a cable, whatever chip is behind
+  *                                  net/WiredLink.h
+  *
+  * A third driver that is not a cable is a third unit that defines them. The
+  * unit also defines the public getters (getIpAddress( ), getMacAddress( ),
+  * getSubnetMask( ), getGateway( ), getDns( ), getRssi( )) and the three that
+  * answer for a link with no radio (beginAP( ), startScan( ), scanResults( )).
+  * The host calls the three in this order, the same for every unit:
+  *
+  *   begin( )   the shared settings, then beginLink( ).
+  *   update( )  updateLinkFirst( ), and on LINK_DONE_NOW it returns; the mDNS
+  *              update (NET_READY); on LINK_DONE_AFTER_MDNS it returns; the NTP
+  *              wait, when _state is NET_CONNECTED_WAIT_NTP, and it returns;
+  *              updateLinkStates( ).
+  *
+  * _state is the host's vocabulary and the unit moves it: a unit takes the link
+  * up to NET_CONNECTED_WAIT_NTP (or to NET_READY when NTP is off), the host
+  * takes it from there to NET_READY, and a unit takes it down again.
+  */
+ enum LinkFirst : uint8_t {
+  LINK_GO_ON,            /**< nothing more for the unit this pass: mDNS, the NTP wait, updateLinkStates( ) */
+  LINK_DONE_AFTER_MDNS,  /**< the unit handled the pass; update( ) returns after the mDNS update */
+  LINK_DONE_NOW          /**< the unit handled the pass; update( ) returns at once, mDNS included */
+ };
+ /** Start the link from the settings begin( ) copied into the members. Leaves
+  *  _state at NET_CONNECTING, or at NET_OFFLINE when there is nothing to join
+  *  or the module did not start (the unit's own retry takes it from there). */
+ void beginLink(const SystemConfig& cfg);
+ /** What the unit does before everything else in update( ), and what update( )
+  *  does next. */
+ LinkFirst updateLinkFirst( );
+ /** The unit's states, after the NTP wait the host runs for every driver. */
+ void updateLinkStates( );
+
 #if SIMUT_NET_LAN
- /* The SIMUT Wire (NetworkManager_Wired.cpp): the ENC28J60 in place of the
+ /* The SIMUT Wire (net/NetworkManager_Wired.cpp): the ENC28J60 in place of the
   * radio. No SSID, no scan, no join and no AP: the module starts, takes its
   * address, and from there the NTP wait of update( ) is shared. The static
   * address begin( ) parsed is kept for the retries of a module that did not

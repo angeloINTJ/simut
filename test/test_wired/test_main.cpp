@@ -5,7 +5,7 @@
  *
  * WHY THIS SUITE EXISTS
  * ---------------------
- * src/NetworkManager_Wired.cpp holds the NetworkManager methods a build with
+ * src/net/NetworkManager_Wired.cpp holds the NetworkManager methods a build with
  * SIMUT_NET_LAN=1 runs, and no test ran them: test_network compiles the Wi-Fi
  * path and test_lan the wired console. What the unit does when the chip never
  * answers, when the cable is pulled or when the lease changes was not exercised
@@ -47,9 +47,10 @@
 
 /* ── the radio, and the handful of symbols NetworkManager links against ──── */
 
-/* NetworkManager.cpp compiles its radio functions in this build too, so the
- * Wi-Fi stub is still linked. A wired unit never reaches it: here it is the
- * witness that nothing asked a radio that is not on the board. */
+/* The radio's unit (net/NetworkManager_Cyw43.cpp) is not built here, as in a
+ * wired image, and NetworkManager.h still includes <WiFi.h> for the radio's
+ * members, so the Wi-Fi stub stays defined: the witness that nothing in the
+ * wired path asks a radio that is not on the board. */
 FakeWiFiClass WiFi;
 FakeSerial Serial;
 
@@ -199,7 +200,7 @@ void tearDown(void) {}
 /* ══ the module that does not start ══════════════════════════════════════ */
 
 /* A missing or miswired ENC28J60 answers begin( ) in milliseconds, so a minute
- * between tries costs nothing (NetworkManager_Wired.cpp). The unit keeps
+ * between tries costs nothing (net/NetworkManager_Wired.cpp). The unit keeps
  * trying for as long as it takes, on a ladder that starts at 10 s, doubles on
  * every failure and stops growing at that minute. The gaps are what is pinned:
  * the ladder must neither stay at its first step nor stop, because a unit that
@@ -289,7 +290,7 @@ static void test_link_and_address_reach_ready(void) {
 /* ══ the cable comes and goes ════════════════════════════════════════════ */
 
 /* A cable out is not a module gone. The interface stays up and lwIP renews the
- * lease when the link returns (NetworkManager_Wired.cpp), so the manager goes
+ * lease when the link returns (net/NetworkManager_Wired.cpp), so the manager goes
  * back to waiting and nothing more: starting the module again is for a module
  * that did not start, and the real driver would ignore it anyway. The count of
  * begin( ) calls is what tells a unit that waited from one that restarted. */

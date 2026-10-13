@@ -15,11 +15,10 @@
  *     SIMUT_NET_ENC28J60  an ENC28J60 module on a plain Pico. The manifest passes
  *                         -DSIMUT_NET_ENC28J60=1 (`net = "enc28j60"` in
  *                         tools/features.toml); the CYW43 passes nothing.
- *     Only src/net/, src/simut_config.h (the module's pins), this file and
- *     src/NetworkManager.cpp read an identity macro: the last is the radio's
- *     driver until it moves to src/net/, and reads SIMUT_NET_CYW43 twice, with
- *     the reason in tools/net_boundary.json. tools/check_net_boundary.py holds
- *     it in CI, with the radio's API and the driver libraries.
+ *     Only src/net/, src/simut_config.h (the module's pins) and this file read
+ *     an identity macro; tools/check_net_boundary.py holds it in CI, with the
+ *     radio's API and the driver libraries, and allows no file outside src/net/
+ *     since the radio's state machine moved in (2026-10-13).
  *
  *   CLASS     what the link is, derived below from the identity and read by
  *             every other file.
@@ -54,8 +53,12 @@
  * simut_config.h, and its OTA variant names (simut_config.h refuses a wired
  * driver that has none). A driver that is not a cable also needs its entry in
  * src/net/NetLink.h (linkUp( ), stopForFlash( ); a cable of any chip is covered
- * by the SIMUT_NET_LAN one), and a chip that is reset at boot, its arm in
- * src/net/NetBoot.h. For a cable, also its device header,
+ * by the SIMUT_NET_LAN one), its unit of NetworkManager's link contract, as the
+ * radio has src/net/NetworkManager_Cyw43.cpp (NetworkManager.h says what a unit
+ * defines; the unit goes in the `units` of its [net.<id>], so no other image
+ * builds it), and a chip that is reset at boot, its arm in src/net/NetBoot.h.
+ * A cable needs no unit of its own: src/net/NetworkManager_Wired.cpp is the
+ * class's, over WiredLink. For a cable, also its device header,
  * src/net/<Chip>Device.h: the WiredEth type and the four functions wiredEth( ),
  * wiredLinked( ), wiredErrorText( ) and wiredChipName( ) (Enc28j60Device.h says
  * what each is for), with its `#elif SIMUT_NET_<ID>` before the `#else` of the

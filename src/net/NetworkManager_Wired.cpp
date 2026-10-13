@@ -1,12 +1,14 @@
 /**
  * @file NetworkManager_Wired.cpp
  * @brief The SIMUT Wire's side of NetworkManager: a wired module in place of the
- *        CYW43 (SIMUT_NET_LAN).
+ *        CYW43 (SIMUT_NET_LAN). The cable's unit of the contract in NetworkManager.h
+ *        (beginLink( ), updateLinkFirst( ), updateLinkStates( )), as
+ *        net/NetworkManager_Cyw43.cpp is the radio's; an image has one of the two.
  *
  * The Wi-Fi path finds an SSID, joins it and waits for an address. This one
  * starts the module (net/WiredLink) and waits for the link and the address,
  * by DHCP or the static one of the configuration. From the address on the two
- * paths meet: the NTP wait is the NET_CONNECTED_WAIT_NTP case of update( ),
+ * paths meet: the NTP wait is the host's, in update( ) (NetworkManager.cpp),
  * which updateWired( ) leaves to it.
  *
  * The states are the Wi-Fi's, and only four of them happen here: NET_OFFLINE
@@ -20,12 +22,12 @@
  * @project SIMUT
  * @license MIT License
  */
-#include "NetworkManager.h"
-#include "simut_config.h"   /* SIMUT_NET_LAN is tested below: included here, not left to another header */
+#include "../NetworkManager.h"
+#include "../simut_config.h"   /* SIMUT_NET_LAN is tested below: included here, not left to another header */
 
 #if SIMUT_NET_LAN
-#include "MetricsManager.h"
-#include "net/WiredLink.h"
+#include "../MetricsManager.h"
+#include "WiredLink.h"
 
 namespace {
 
@@ -47,6 +49,33 @@ constexpr uint32_t WIRED_RETRY_MAX_MS = 60000;
 constexpr uint32_t WIRED_ADDRESS_WAIT_MS = 30000;
 
 }  // namespace
+
+/** The contract's start (NetworkManager.h): the cable's is beginWired( ). */
+void NetworkManager::beginLink(const SystemConfig& cfg) { beginWired(cfg); }
+
+/**
+ * The contract's first word of update( ): the wired states. What updateWired( )
+ * handled is done once the mDNS update has run, which the same NET_READY gives
+ * the cable; what it leaves, the NTP wait, is the host's, for both drivers.
+ */
+NetworkManager::LinkFirst NetworkManager::updateLinkFirst( ) {
+ return updateWired( ) ? LINK_DONE_AFTER_MDNS : LINK_GO_ON;
+}
+
+/** The cable has no states of its own after the NTP wait: updateWired( ) took them all. */
+void NetworkManager::updateLinkStates( ) { }
+
+/* No radio, no AP and no scan: the Wire is configured over the cable or the console.
+ * The answers the radio's unit gives with a radio that is not on the board. */
+bool NetworkManager::beginAP(const char* deviceName, const char* stationSsid) {
+ (void)deviceName; (void)stationSsid;
+ return false;
+}
+bool NetworkManager::startScan( ) { return false; }   /* nothing to scan with */
+uint8_t NetworkManager::scanResults(WifiNet* out, uint8_t cap) const {
+ (void)out; (void)cap;
+ return 0;
+}
 
 void NetworkManager::beginWired(const SystemConfig& cfg) {
  _wiredStatic = !cfg.useDhcp && strlen(cfg.staticIp) > 7;
@@ -87,7 +116,7 @@ void NetworkManager::startWired( ) {
 
 /**
  * One pass of the wired states. True when it handled the state; false leaves
- * it to the switch of update( ), which is the NTP wait both paths share.
+ * it to the host's NTP wait in update( ), which both drivers share.
  */
 bool NetworkManager::updateWired( ) {
  /* A module that is no longer started is neither a cable out nor a lease gone.
