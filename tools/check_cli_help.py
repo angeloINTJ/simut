@@ -29,7 +29,9 @@ it, because it walked the mask rather than the parser. That is how `touch hold`
 was merged in #159 accepted at every prompt, user EXEC included, and listed at
 none, and how the five `air` commands went unlisted on the Air from the day it
 got this CLI (2026-09-18). The walk now starts from what the parser can
-produce, minus comments and, outside the Air, the Air-only block.
+produce, minus comments and the branches this image does not compile: the
+Air-only block outside the Air and, since 2026-10-13, the radio's commands on a
+wired build (tools/cli_gates.py evaluates the `#if`).
 
 Navigation commands are exempt: printModeHelp writes them as literal
 consolePrintln lines rather than through showIf, and they are verified by
@@ -46,33 +48,35 @@ import sys
 Import("env")
 
 PROJECT = env.subst("$PROJECT_DIR")
+sys.path.insert(0, os.path.join(PROJECT, "tools"))
+import cli_gates  # noqa: E402
+
+
+def _flag(name, default):
+    """The value the compiler sees for -D<name>=<n>, or the header's default.
+    The env still carries build_flags as raw strings at pre: time (CPPDEFINES
+    is only populated later), and several -D land joined in one entry; the
+    last -D wins, as it does for the compiler."""
+    flags = " ".join(str(f) for f in env.get("BUILD_FLAGS", []))
+    m = re.findall(rf'-D{name}=(\d+)', flags)
+    return int(m[-1]) if m else default
+
 
 # The image ships one of two CLIs (SIMUT_CLI_FULL in SystemDefs_Cli.h), and the
 # invariant is the same for both: a user at the prompt must be able to discover
 # every command that prompt accepts. What differs is where the help comes from
 # — printModeHelp( ) for the full CLI, the short HELP_TEXT_EN block for the
-# emergency one — so the check picks its source from the build flags.
-def _cli_full():
-    # The env still carries build_flags as raw strings at pre: time (CPPDEFINES
-    # is only populated later), and several -D land joined in one entry.
-    flags = " ".join(str(f) for f in env.get("BUILD_FLAGS", []))
-    m = re.findall(r'-DSIMUT_CLI_FULL=(\d+)', flags)
-    if m:
-        return m[-1] != "0"       # last -D wins, as it does for the compiler
-    return True                   # header default
-
-
-CLI_FULL = _cli_full()
-
-
-def _air():
-    """SIMUT_AIR from the build flags, same reading as _cli_full( )."""
-    flags = " ".join(str(f) for f in env.get("BUILD_FLAGS", []))
-    m = re.findall(r'-DSIMUT_AIR=(\d+)', flags)
-    return bool(m) and m[-1] != "0"
-
-
-AIR = _air()
+# emergency one — so the check picks its source from the build flags. The
+# defaults are the headers': SystemDefs_Cli.h for the CLI, simut_config.h for
+# the network.
+FLAGS = {
+    'SIMUT_CLI_FULL': _flag('SIMUT_CLI_FULL', 1),
+    'SIMUT_AIR': _flag('SIMUT_AIR', 0),
+    'SIMUT_NET_LAN': _flag('SIMUT_NET_LAN', 0),
+}
+CLI_FULL = FLAGS['SIMUT_CLI_FULL'] != 0
+AIR = FLAGS['SIMUT_AIR'] != 0
+LAN = FLAGS['SIMUT_NET_LAN'] != 0
 
 # Commands the emergency image is expected to reach. Keeping this list here —
 # rather than deriving it — is the point: gating or ungating a command in
@@ -102,29 +106,26 @@ if AIR:
     EMERGENCY_EXPECTED |= {'CMD_AIR_STOP', 'CMD_AIR_IDLE', 'CMD_AIR_CHARGER',
                            'CMD_AIR_HIBERNATE', 'CMD_AIR_STATUS'}
 
+# A wired build (SIMUT_NET_LAN, 2026-10-13) has no radio: no `ap`, no network
+# name or key to set. Its address takes their place — `ip` and `dns`, the full
+# CLI's own commands — because a Wire on a network without DHCP has no other
+# way in from this console.
+if LAN:
+    EMERGENCY_EXPECTED -= {'CMD_AP', 'CMD_SET_WIFI_SSID', 'CMD_SET_WIFI_PASS'}
+    EMERGENCY_EXPECTED |= {'CMD_IP_CFG', 'CMD_SET_DNS_CFG'}
 
-def strip_gated(src, full=False):
-    """Drop the blocks this image does not compile.
 
-    `#if SIMUT_CLI_FULL` for the emergency image (`full` false), and
-    `#if SIMUT_AIR` when this is not an Air build — otherwise the CMD_AIR_* the
-    Air-only parser block produces would read as reachable in every image.
+def strip_gated(src):
+    """The source as this image compiles it, line count unchanged.
+
+    Until 2026-10-13 this knew two guards by the start of a line — `#if
+    SIMUT_CLI_FULL` for the emergency image, `#if SIMUT_AIR` outside the Air —
+    and dropped the whole block, `#else` included. A wired build adds `#if
+    SIMUT_NET_WIFI` and `#if SIMUT_CLI_FULL || SIMUT_NET_LAN`, so the
+    expression is evaluated now (tools/cli_gates.py); a guard over any other
+    macro is kept, as it always was.
     """
-    out, depth = [], 0
-    for line in src.splitlines():
-        s = line.lstrip()
-        if (not full and s.startswith('#if SIMUT_CLI_FULL')) or \
-           (not AIR and s.startswith('#if SIMUT_AIR')):
-            depth += 1
-            continue
-        if depth:
-            if s.startswith('#if'):
-                depth += 1
-            elif s.startswith('#endif'):
-                depth -= 1
-            continue
-        out.append(line)
-    return '\n'.join(out)
+    return cli_gates.strip_gated(src, FLAGS)
 
 
 def strip_comments(src):
@@ -147,10 +148,12 @@ def check_emergency_cli(parser_src):
         for c in sorted(missing):
             print(f'[cli-help]   documented but unreachable: {c}')
         print('[cli-help] Update the short HELP_TEXT_EN block in HelpLicenseEN.h')
-        print('[cli-help] and the @HELP section of both data/lang/*.lng to match,')
+        print('[cli-help] and the @HELP section (@HELPWIRE on a wired build) of')
+        print('[cli-help] both data/lang/*.lng to match,')
         print('[cli-help] then update EMERGENCY_EXPECTED in this file.')
         sys.exit(1)
-    print(f'[cli-help] OK emergency CLI: {len(reachable)} commands, help in sync')
+    print(f'[cli-help] OK emergency CLI{" (wired)" if LAN else ""}: '
+          f'{len(reachable)} commands, help in sync')
 
 
 # Written as literal lines in the navigation block, not via showIf.
@@ -212,6 +215,9 @@ def check_cli_help(*args, **kwargs):
     if not CLI_FULL:
         check_emergency_cli(parser)
         return
+    # The help too: a showIf( ) under `#if SIMUT_NET_WIFI` is not on a wired
+    # build's screen.
+    mgr = strip_gated(mgr)
 
     # The mode mask lives in the CLI_COMMANDS table now (was a switch in
     # getCommandModeMask). Each row is `{ CMD_X, MASK },`; a command with no row
@@ -228,7 +234,7 @@ def check_cli_help(*args, **kwargs):
     m = re.search(r'return\s+(CLI_VALID_[A-Z_ |]+);', fnbody)
     default = m.group(1) if m else None
     reachable = set(re.findall(r'(CMD_[A-Z0-9_]+)',
-                               strip_comments(strip_gated(parser, full=True))))
+                               strip_comments(strip_gated(parser))))
 
     start = mgr.find('void CommandManager::printModeHelp')
     if start < 0:

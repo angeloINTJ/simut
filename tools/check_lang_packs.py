@@ -15,6 +15,10 @@ And a line whose marker does not match the firmware's own: the panel puts a
 number where a line says "{n}" (display/CountInText.h), so a pack line that
 drops the marker shows no number, or a stale one written into the text, which
 is how "PIN too short (min 4)" said 4 under any policy until 2026-10-04.
+
+And a @HELPWIRE ahead of @HELP: the alpha finds its console help by the prefix
+"@HELP" (DisplayManager_Alpha.cpp), so a radio alpha would print the wired
+build's help, `ip` and no `ap`, from such a pack (2026-10-13).
 """
 import json
 import os
@@ -60,7 +64,23 @@ def lang_limits():
     return tuple(out)
 
 
-BODY_SECTIONS = {b"DICT", b"HELP", b"LICENSE", b"LOGCODES", b"TRL", b"WEBDICT"}
+BODY_SECTIONS = {b"DICT", b"HELP", b"HELPWIRE", b"LICENSE", b"LOGCODES", b"TRL",
+                 b"WEBDICT"}
+
+
+def help_order_problem(data):
+    """The name of the directive a radio alpha would take for @HELP, or None.
+
+    The alpha reads its help from the first line that starts with "@HELP" —
+    a prefix, not a name (DisplayManager_Alpha.cpp) — so that line must be
+    @HELP itself. A wired build's @HELPWIRE (2026-10-13) goes after it; the
+    other readers (src/LangPackIndex.h) match the whole name and do not care
+    about the order."""
+    for ln in data.split(b"\n"):
+        if ln.startswith(b"@HELP"):
+            name = re.split(rb"[ \t\r]", ln[1:], maxsplit=1)[0]
+            return None if name == b"HELP" else name.decode("utf-8", "replace")
+    return None
 
 
 def pack_index(data):
@@ -377,6 +397,13 @@ def main():
             print(f"[lang-packs] FAIL {pack.name}: section(s) {tail} appear AFTER "
                   f"@WEBDICT — the blob must be the file's suffix; the device "
                   f"rejects such a pack and the UI silently reverts to English",
+                  file=sys.stderr)
+            failed = True
+        first_help = help_order_problem(pack.read_bytes())
+        if first_help:
+            print(f"[lang-packs] FAIL {pack.name}: @{first_help} comes before @HELP — "
+                  f"the alpha finds its help by the prefix \"@HELP\", so a radio "
+                  f"alpha would print this section instead; move it after @HELP",
                   file=sys.stderr)
             failed = True
         if dict_bytes > dict_ceil:

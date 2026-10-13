@@ -321,6 +321,7 @@ void AppManager::core0Yield( ) {
  }
  }
 #if SIMUT_DISPLAY_TFT
+#if SIMUT_NET_WIFI
  else if (uiEv.type == UiEvent::EVT_START_AP) {
  /* The bit is checked HERE and not only when the row was drawn: the menu
   * is filtered by the session's bits, but the event arrives from Core 1
@@ -328,6 +329,7 @@ void AppManager::core0Yield( ) {
   * panel event follows. */
  if (panelAllowed(PERM_NET_CONFIG, -1)) startApMode( );
  }
+#endif
  else if (uiEv.type == UiEvent::EVT_SET_CLOCK) {
  /* Who may set the clock from the panel. A session with PERM_SYS_CONFIG —
   * the bit /api/set_time asks for — always. Without a session, only while

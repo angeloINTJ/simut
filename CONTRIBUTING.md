@@ -52,7 +52,7 @@ docker compose run test
 | Command | Equivalent PlatformIO command |
 |---|---|
 | `docker compose run build` | `pio run -e pico_w_release` |
-| `docker compose run test` | `pio test -e native -e native_history_v5 -e native_cli -e native_logpolicy -e native_alarmqueue -e native_air -e native_network` |
+| `docker compose run test` | `pio test -e native -e native_history_v5 -e native_cli -e native_lan -e native_logpolicy -e native_alarmqueue -e native_air -e native_network -e native_sensors -e native_otasig` |
 
 ---
 
@@ -127,25 +127,27 @@ Every image has a budget in `tools/flash_budget.json`, checked by CI. The budget
 2. Fork the repository and create a branch (`feature/my-feature`)
 3. Write your code and test on hardware if possible
 4. Ensure the firmware builds. Warnings in `src/` are errors, so a build that succeeds already has none
-5. Ensure all eight native suites pass (see Testing below)
+5. Ensure all ten native suites pass (see Testing below)
 6. Update documentation in `docs/` if your change affects user-facing behavior
 7. Submit the PR with a clear description, referencing the issue number
 8. The PR template checklist will guide you through remaining steps
 
 ## Testing
 
-Unit tests use the [Unity](http://www.throwtheswitch.org/unity) framework. Eight native environments, all of them run by CI:
+Unit tests use the [Unity](http://www.throwtheswitch.org/unity) framework. Ten native environments, all of them run by CI:
 
 | environment | what it covers |
 |---|---|
 | `native` | validators — IP validation, CRC8, float encoding |
 | `native_history_v5` | HistoryCodec roundtrip |
 | `native_cli` | CLI parser — tokenizing and routing |
+| `native_lan` | the same parser built for the SIMUT Wire (no `ap`, no SSID; `ip` and `dns` instead), and its pack help, `@HELPWIRE` |
 | `native_logpolicy` | the edge-triggered log-persistence filter |
 | `native_alarmqueue` | the alarm queue's invariants |
 | `native_air` | SIMUT Air configuration and bounds |
 | `native_network` | the WiFi reconnect state machine, against a controllable radio |
 | `native_sensors` | the sensor type table — names, channel masks, pins per driver type |
+| `native_otasig` | the OTA image signature check, the backup restore, and the RP2350's slot writer and update on trial |
 
 The web-API validators also have a fuzz target — `./tools/run_fuzz.sh`, 60 s under libFuzzer with contract oracles — that CI runs on every pull request and `pio test` does not. Run it whenever you touch a validator or a parser: it found a one-ulp defect in `parseFloat( )` within a minute of the change that introduced it.
 

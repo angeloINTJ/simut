@@ -192,6 +192,22 @@ void test_wifi_ssid_utf8_bytes(void) {
     TEST_ASSERT_TRUE(strlen(d.strVal1) > 0);
 }
 
+/* ---- the radio's commands, where there is a radio ----
+ * The control for test/test_lan: the wired build answers "unknown" to these,
+ * and the guard that does it (`#if SIMUT_NET_WIFI`) must keep them here. */
+
+void test_radio_commands_parse(void) {
+    TEST_ASSERT_EQUAL(CMD_AP, parse("ap").type);
+    TEST_ASSERT_EQUAL(CMD_AP, parse("apmode").type);
+    TEST_ASSERT_EQUAL(CMD_AP, parse("ap-mode").type);
+    CliDemand d = parse("wifi ssid MyNet");
+    TEST_ASSERT_EQUAL(CMD_SET_WIFI_SSID, d.type);
+    assertStr1(d, "MyNet");
+    TEST_ASSERT_EQUAL(CMD_SET_WIFI_PASS, parse("wifi pass secret123").type);
+    TEST_ASSERT_EQUAL(CMD_SET_WIFI_SSID, parse("system ssid MyNet").type);
+    TEST_ASSERT_EQUAL(CMD_SET_WIFI_PASS, parse("system pass secret123").type);
+}
+
 /* ---- sensor define: optional trailing explicit type ---- */
 
 void test_sensor_define_explicit_bme280(void) {
@@ -305,5 +321,6 @@ int main(int argc, char** argv) {
     RUN_TEST(test_long_line_still_parses_help_prefix);
     RUN_TEST(test_touch_hold_with_ms);
     RUN_TEST(test_touch_hold_without_ms_marks_intval_invalid);
+    RUN_TEST(test_radio_commands_parse);
     return UNITY_END();
 }

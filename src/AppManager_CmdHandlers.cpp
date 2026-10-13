@@ -617,7 +617,9 @@ void AppManager::cmdHandleSetTime(const CliDemand& cmd) {
  : "Time applied (immediate; not persisted across reboot)");
 }
 
-#if SIMUT_CLI_FULL
+/* The addressing pair is the wired build's way onto a network without DHCP,
+ * so it compiles into that build's emergency console too (2026-10-13). */
+#if SIMUT_CLI_FULL || SIMUT_NET_LAN
 
 void AppManager::cmdHandleIpCfg(const CliDemand& cmd, SystemConfig& cfg, bool& changed) {
  const bool pt = _cmdMgr->isPt( );
@@ -682,6 +684,9 @@ void AppManager::cmdHandleDnsCfg(const CliDemand& cmd, SystemConfig& cfg, bool& 
  }
  changed = true;
 }
+
+#endif /* SIMUT_CLI_FULL || SIMUT_NET_LAN */
+#if SIMUT_CLI_FULL
 
 void AppManager::cmdHandleUserPass(const CliDemand& cmd, SystemConfig& cfg, bool& changed) {
  const bool pt = _cmdMgr->isPt( );

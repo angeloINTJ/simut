@@ -50,7 +50,7 @@ They share one core:
 | **Current release** | **v2.11.1** (2026-10-12); the [changelog](CHANGELOG.md) says what each version changed. SIMUT left beta with v2.7.0, on measurements: an 8.18 h soak with 0 reboots, and 6 of 6 over-the-air updates with nothing lost. |
 | **Published images** | Four images, each as `.uf2` and `.bin`. For the Pico W: `release` (TFT touch panel), `alpha` (16×2 LCD with a Bluetooth console) and `air` (headless battery logger). For the Pico 2 W (RP2350): `releasetwo`, the release, whose `.uf2` carries its partition table and whose `.bin` boots on trial. The pt-BR and es-ES language packs and an OTA manifest ship alongside. An image with a different set of features comes from the [build configurator](https://angelointj.github.io/simut/configurador/), and CI builds it from `main`, for the Pico 2 W too. |
 | **Maturity** | <ul><li>`release`: **stable**.</li><li>`alpha`: published and bench-tested, its 16×2 LCD included since 2026-09-26.</li><li>`air`: **experimental**. Its one long soak failed: a sleep in cycle 119 never woke (F28). A watchdog across the wake now mitigates it; the root cause is not confirmed.</li><li>`releasetwo`: **new** in v2.11.0, bench-tested on one Pico 2 W (RP2350 A2). It updates over the air into its other slot, on trial, and goes back by itself when the update does not keep itself.</li></ul> |
-| **Tests** | Every pull request runs 644 host test cases in 9 suites, 60 s of fuzzing and static analysis, and builds all nine firmware images from a cold cache. Behaviour on real hardware is verified on a bench — see [Verification on hardware](docs/VERIFICATION.md). |
+| **Tests** | Every pull request runs 656 host test cases in 10 suites, 60 s of fuzzing and static analysis, and builds all nine firmware images from a cold cache. Behaviour on real hardware is verified on a bench — see [Verification on hardware](docs/VERIFICATION.md). |
 
 **Known limitations.** Each one is documented where it applies.
 - **Updates.** An update over the air reformats the filesystem:
@@ -228,7 +228,7 @@ simut/
 │   └── SystemDefs*.h       # System constants and limits
 ├── data/                   # LittleFS assets (language packs, themes, favicon)
 ├── PCB_test/               # KiCad PCB design + Gerber/DRL fabrication files
-├── test/                   # Native unit tests (Unity), nine suites
+├── test/                   # Native unit tests (Unity), ten suites
 ├── tools/                  # Build gates, bench suites, PicoHand, release scripts, theme editor
 ├── docs/                   # Documentation + GitHub Pages site
 ├── WebUI.h                 # Web UI source (gzipped into src/WebUI_GZ.h at build)
@@ -301,9 +301,10 @@ The device exposes a REST API at `http://<device-ip>/api/`:
 ### Host tests
 
 ```bash
-pio test -e native             # validators, telemetry cursor, labels, parsers, language packs, the License and update screens, the Settings menu, the password check, the web session (287 cases)
+pio test -e native             # validators, telemetry cursor, labels, parsers, language packs, the License and update screens, the Settings menu, the password check, the web session (288 cases)
 pio test -e native_history_v5  # V5 history codec (62)
-pio test -e native_cli         # CLI parser (33)
+pio test -e native_cli         # CLI parser (34)
+pio test -e native_lan         # CLI parser and pack help of a wired build (10)
 pio test -e native_logpolicy   # edge-triggered log persistence, autopsy bands, touch wake (57)
 pio test -e native_alarmqueue  # alarm telemetry queue (54)
 pio test -e native_network     # Wi-Fi reconnect state machine (39)
@@ -356,7 +357,7 @@ Behaviour is checked on a bench: a Pico 2 W with the TFT panel and touch, and a 
 ## How SIMUT is developed
 
 Most changes are written by an AI coding agent (Claude Code) in sessions the maintainer directs: from 1 September to 2 October 2026, 275 of the 371 commits on `main` carried a `Co-Authored-By: Claude` line. The instructions those sessions follow are [CLAUDE.md](CLAUDE.md) and [AGENTS.md](AGENTS.md) (in Portuguese). The rules are the same for every change, whoever typed it:
-- it reaches `main` only through a pull request, after nine required checks pass: the nine host test suites, also under AddressSanitizer and UBSan, 60 s of fuzzing, static analysis, and six firmware images built from a cold cache;
+- it reaches `main` only through a pull request, after nine required checks pass: the ten host test suites, also under AddressSanitizer and UBSan, 60 s of fuzzing, static analysis, and six firmware images built from a cold cache;
 - the tests come first: a fix carries a reproduction that fails before it and passes after, and a refactor shows that the behaviour did not change;
 - a claim about bytes, speed or a fix carries its measurement, and what was not checked on hardware says so;
 - product decisions, and the decision to merge, are the maintainer's.

@@ -537,8 +537,16 @@ const char* DisplayManager::getActiveHelpText( ) {
 	if (!f) return nullptr;
 
 	/* Locate @HELP at column 0, then its body (up to the next column-0 '@',
-	 * @WEBDICT in a shipped pack). Byte-wise walk mirrors scanWebDictRange. */
+	 * @WEBDICT in a shipped pack). Byte-wise walk mirrors scanWebDictRange.
+	 * The name is matched as a prefix, so a radio build would take @HELPWIRE
+	 * for its help if it came first: the packs put it after @HELP, and
+	 * tools/check_lang_packs.py refuses the other order. A wired build looks
+	 * for @HELPWIRE, which "@HELP" alone does not match (LangPackIndex.h). */
+#if SIMUT_NET_LAN
+	static const char kDir[] = "@HELPWIRE";
+#else
 	static const char kDir[] = "@HELP";
+#endif
 	const size_t kDirLen = sizeof(kDir) - 1;
 	uint8_t scan[128];
 	uint32_t pos = 0;

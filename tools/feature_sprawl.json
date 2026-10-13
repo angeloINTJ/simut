@@ -29,13 +29,13 @@
   "SystemDefs_Limits.h": 1
  },
  "SIMUT_CLI_FULL": {
-  "AppManager.h": 1,
-  "AppManager_CmdHandlers.cpp": 2,
-  "AppManager_Commands.cpp": 11,
+  "AppManager.h": 2,
+  "AppManager_CmdHandlers.cpp": 3,
+  "AppManager_Commands.cpp": 12,
   "AppManager_Sensors.cpp": 1,
   "CommandManager.cpp": 6,
   "CommandManager.h": 4,
-  "CommandParser.cpp": 6,
+  "CommandParser.cpp": 9,
   "HelpLicenseEN.h": 1,
   "SystemDefs_Cli.h": 1
  },
@@ -83,9 +83,16 @@
   "WebManager_History.cpp": 1
  },
  "SIMUT_NET_LAN": {
+  "AppManager.h": 1,
   "AppManager_Boot.cpp": 5,
-  "DisplayManager_Alpha.cpp": 3,
+  "AppManager_CmdHandlers.cpp": 1,
+  "AppManager_Commands.cpp": 2,
+  "CommandManager.cpp": 2,
+  "CommandParser.cpp": 2,
+  "DisplayManager_Alpha.cpp": 4,
   "DisplayManager_Dashboard.cpp": 1,
+  "HelpLicenseEN.h": 3,
+  "LangPackIndex.h": 1,
   "NetworkManager.cpp": 8,
   "NetworkManager.h": 1,
   "NetworkManager_Wired.cpp": 1,
@@ -96,7 +103,17 @@
   "ota/orchestrator.cpp": 1
  },
  "SIMUT_NET_WIFI": {
-  "NetworkManager.cpp": 2
+  "AppManager.h": 1,
+  "AppManager_Commands.cpp": 3,
+  "AppManager_Events.cpp": 1,
+  "CommandManager.cpp": 2,
+  "CommandParser.cpp": 3,
+  "NetworkManager.cpp": 2,
+  "WebManager.h": 1,
+  "WebManager_Api.cpp": 10,
+  "WebManager_Commit.cpp": 1,
+  "WebManager_Core.cpp": 1,
+  "WebManager_Metrics.cpp": 2
  },
  "SIMUT_PANEL_PIN": {
   "AppManager.h": 1,

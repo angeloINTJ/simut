@@ -285,7 +285,7 @@ jobs:
           python3 tools/ota_sign.py gen-trust --check
           python3 tools/ota_sign.py check-keys
 
-      # ALL NINE native environments. Separate steps rather than one
+      # ALL TEN native environments. Separate steps rather than one
       # `pio test -e a -e b ...` so a failure names itself in the Actions UI
       # instead of hiding behind the first environment that broke.
       #
@@ -301,6 +301,12 @@ jobs:
 
       - name: Run unit tests (CLI parser)
         run: pio test -e native_cli
+
+      # The same parser compiled for a wired build (2026-10-13): no `ap`, no
+      # SSID, and `ip`/`dns` in the emergency console; its pack help is
+      # @HELPWIRE.
+      - name: Run unit tests (CLI parser, wired build)
+        run: pio test -e native_lan
 
       - name: Run unit tests (LogPolicy)
         run: pio test -e native_logpolicy
@@ -330,7 +336,7 @@ jobs:
       - name: Run unit tests (OTA signature)
         run: pio test -e native_otasig
 
-      # The same nine suites again, under AddressSanitizer and UBSan, with
+      # The same ten suites again, under AddressSanitizer and UBSan, with
       # undefined behaviour made fatal. The plain runs above are the contract;
       # this run sees what a passing assertion cannot - a read past a buffer, a
       # reference to a dead frame that still holds the right bytes. Its first
@@ -345,7 +351,7 @@ jobs:
           PLATFORMIO_BUILD_FLAGS: -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined
         run: |
           rc=0
-          for e in native native_history_v5 native_cli native_logpolicy \
+          for e in native native_history_v5 native_cli native_lan native_logpolicy \
                    native_alarmqueue native_air native_sensors native_network native_otasig; do
             if ! pio test -e "$e"; then
               rc=1
