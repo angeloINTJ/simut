@@ -120,12 +120,12 @@ void NetworkManager::startWired( ) {
  */
 bool NetworkManager::updateWired( ) {
  /* A module that is no longer started is neither a cable out nor a lease gone.
-  * It was stopped under the manager, by the OTA's teardown (ota/orchestrator.cpp
+  * It was stopped under the manager, as the OTA's teardown does (ota/orchestrator.cpp
   * calls net::stopForFlash( ), which is WiredLink::end( ), before it writes the
-  * flash), and the applier returned from an error that came before anything was
-  * written. Waiting for a link and an address would be waiting for a module
-  * nobody starts again, and the Wire stayed off the network until a reboot
-  * (2026-10-13; the radio does not: its ladder calls WiFi.begin( ) again).
+  * flash). Today's applier reboots on every path, its errors included, so this
+  * guards a caller that stops the module and hands control back: waiting for a
+  * link and an address would be waiting for a module nobody starts again, where
+  * the radio's ladder calls WiFi.begin( ) again (latent, found 2026-10-13).
   * Asked here, first and in every state, because a unit still on its way up
   * (NET_CONNECTING: booted with the cable out, or a lease pending) never
   * reaches wiredLost( ). NET_OFFLINE with the timer set is the retry that starts

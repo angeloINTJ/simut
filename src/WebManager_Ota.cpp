@@ -730,9 +730,9 @@ void WebManager::handleApiOtaApply( ) {
  /* Back here, the install never started: the panel must not go on saying it did. */
  if (_displayRef) _displayRef->showOta(OTA_PH_CUT);
 
- /* Only reached on pre-destructive error (rare). No response possible
- * — Wi-Fi already torn down. Log and proceed (next loop may attempt
- * Wi-Fi recovery via reload, but state is likely bad). */
+ /* Reached only by the orchestrator's returns BEFORE its teardown (nothing
+ * pending, too many attempts, the metadata not written): the applier reboots
+ * on every path, its errors included, so the network is still up. Log it. */
  LOG_CODE(LOG_ERROR, "OTA", SEC_CONFIG_CHANGED, _currentUserId,
  String("apply returned, result=") + (int)result);
 #endif

@@ -336,14 +336,14 @@ static void test_a_lease_change_under_a_live_link_is_followed(void) {
 /* ══ the module stopped under the manager ════════════════════════════════ */
 
 /* The OTA tears the network down before it writes the flash (the orchestrator's
- * net::stopForFlash( ) is WiredLink::end( ) on the cable, WiFi.end( ) on the radio), and its
- * applier can return from an error that came before anything was written, with
- * the unit running on (WebManager_Ota.cpp: "Only reached on pre-destructive
- * error"). The radio recovers by itself: READY finds the radio down and the
- * reconnect ladder joins again. The cable did not (found 2026-10-13, reading
- * the wired path for the network driver): READY found the link down, went to
- * waiting for a link and an address, and nothing in that wait starts a module
- * that is no longer started, so the Wire stayed off the network until a reboot.
+ * net::stopForFlash( ) is WiredLink::end( ) on the cable, WiFi.end( ) on the radio).
+ * Today's applier reboots on every path, its errors included (src/ota/applier.cpp),
+ * so no unit runs on after that stop: the case is latent, pinned for a caller
+ * that hands control back. The radio would recover by itself: READY finds the
+ * radio down and the reconnect ladder joins again. The cable would not (found
+ * 2026-10-13, reading the wired path for the network driver): READY found the
+ * link down, went to waiting for a link and an address, and nothing in that wait
+ * starts a module that is no longer started, so the Wire would stay off the network.
  * This is not the pulled cable of the case above, where the module stays up and
  * a second begin( ) would be the bug: a module that is stopped is started again,
  * through the retry that already starts one that did not start. */
@@ -389,8 +389,8 @@ static void test_a_module_stopped_for_an_update_that_will_not_start_again_is_ret
  * link or a lease is lost, in the NTP wait and in READY, and a unit still on its
  * way up never looked: in NET_CONNECTING (which shares its arm with
  * NET_CONNECTED_WAIT_IP) the wait for a link and an address went on for a module
- * nobody started again, so the Wire stayed off the network until a reboot (the
- * review of 2026-10-13). Two units are there when the teardown stops the
+ * nobody started again, so the Wire would stay off the network (the review of
+ * 2026-10-13; latent, as above). Two units are there when the teardown stops the
  * module: one that booted with the cable out, and one whose lease has not come.
  * Both have a module that is started and a manager that is waiting. */
 static void test_a_module_stopped_while_the_cable_is_out_starts_again(void) {

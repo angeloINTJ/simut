@@ -81,12 +81,12 @@ OrchestratorResult ota_apply_pending_update(StorageManager* storage) {
     /* (5) IRQs globais OFF + jump pra applier SRAM. */
     uint32_t saved_irq = save_and_disable_interrupts();
 
-    /* applier_run NÃO RETORNA em sucesso (reboota). Em 7a sempre reboota.
-     * Em 7b real, retorna false só em erro pré-destrutivo. */
+    /* applier_run NÃO RETORNA: reinicia no sucesso e também nos erros que acha
+     * antes de gravar (meta inválida, tamanho fora do slot; applier.cpp). */
     bool ok = ota_applier_run(&meta);
     (void)ok;
 
-    /* (6) Apenas alcançado se applier retornar (erro). Restaura IRQs e
+    /* (6) Defensivo: só se um applier futuro retornar. Restaura IRQs e
      * Core 1, devolve controle ao caller. App slot ainda íntegra. */
     restore_interrupts(saved_irq);
     if (storage) storage->exitFlashSafeMode();
