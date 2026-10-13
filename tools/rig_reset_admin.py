@@ -50,6 +50,7 @@ License: MIT
 """
 
 import argparse
+import glob
 import os
 import re
 import stat
@@ -59,6 +60,9 @@ import time
 ENV_PATH = os.path.expanduser('~/.simut-bench.env')
 TARGET_SERIAL = os.environ.get('SIMUT_TARGET_SERIAL', 'E6642815E34C1824')
 PORT = f'/dev/serial/by-id/usb-Raspberry_Pi_Pico_W_{TARGET_SERIAL}-if00'
+# The port is found by the serial alone: an image for a Pico W board enumerates as
+# "Pico_W", the SIMUT Wire's (a plain-Pico board, 2026-10-12) as "Pico".
+PORT_GLOB = f'/dev/serial/by-id/usb-Raspberry_Pi_*_{TARGET_SERIAL}-if00'
 
 # The generator's alphabet, from StorageManager::generateInitialAdminPassword:
 # capitals and digits with the ambiguous ones removed, eight of them, printed
@@ -68,9 +72,12 @@ OTP_RE = re.compile(r'^\s*([A-Z2-9]{8})\s*$', re.M)
 
 def wait_for_port(timeout=420):
     """Air sleeps; wait for a wake window rather than assume one."""
+    global PORT
     deadline = time.time() + timeout
     while time.time() < deadline:
-        if os.path.exists(PORT):
+        hits = glob.glob(PORT_GLOB)
+        if hits:
+            PORT = hits[0]
             time.sleep(1.2)          # let the CDC finish enumerating
             return True
         time.sleep(0.25)
