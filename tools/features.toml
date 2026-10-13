@@ -494,8 +494,8 @@ publish = true
 #   o INT e o GP11, com qualquer mostrador. O driver (src/net/WiredLink.cpp,
 #   src/NetworkManager_Wired.cpp) pega o endereco por DHCP ou o fixo da configuracao;
 #   na bancada de 2026-10-12 a web respondeu pelo cabo. Medido em 2026-10-13 (pio run -e
-#   pico_wire, arduino-pico 5.6.1, com o driver): 597.448 B de flash, .bin de 609.480 B,
-#   104.680 B de RAM, com onze slots; o driver custou 9.476 B de flash e 2.700 B de RAM.
+#   pico_wire, arduino-pico 5.6.1, com o driver): 598.560 B de flash, .bin de 610.592 B,
+#   104.688 B de RAM, com onze slots; o driver custou 10.588 B de flash e 2.708 B de RAM.
 #   Sem a guarda do NetworkManager.cpp o link morre em __wrap_cyw43_cb_*. Nao
 #   publicada; confia na raiz de bancada, como as outras imagens de bancada (o gerador
 #   recusa a marca numa publica).

@@ -236,7 +236,11 @@ void DisplayManager::loopCore1( ) {
 					_lcd.setCursor(0, 1);
 					_lcd.print("  Obtendo IP... ");
 				} else {
+#if SIMUT_NET_LAN
+					_lcd.print(" Sem rede       ");
+#else
 					_lcd.print(" Sem WiFi       ");
+#endif
 					_lcd.setCursor(0, 1);
 					_lcd.print("    Offline     ");
 				}
@@ -342,7 +346,11 @@ void DisplayManager::loopCore1( ) {
 			if (_sharedState.apMode) {
 				_lcd.print("AP");
 			} else {
+#if SIMUT_NET_LAN
+				_lcd.write(' ');       /* the cell is the cable glyph, no "W" for Wi-Fi */
+#else
 				_lcd.write('W');
+#endif
 				_lcd.write(BFS_WIFI);
 			}
 
