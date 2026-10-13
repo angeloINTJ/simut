@@ -260,6 +260,10 @@ macro      = "SIMUT_NET_LAN"
 emit       = "on_is_1"        # #if SIMUT_NET_LAN: o default 0 mora no simut_config.h
 on_board   = { rp2040 = "rpipico" }
 on_unflags = ["-DPICO_CYW43_SUPPORTED=1"]
+# As paginas web perdem o que so o radio tem (2026-10-13, pedido do mantenedor): os blocos
+# /* @IF wifi */ do WebUI.h (tools/build_webui_gz.py) saem desta imagem, e os
+# /* @IF !wifi */, o que so o cabo tem, entram.
+on_web_omit = "wifi"
 # Os dois arquivos do driver nem entram nas imagens Wi-Fi. Vazios ali (tudo sob
 # #if SIMUT_NET_LAN), ainda assim mudavam os bytes: os dois objetos no link trocavam a
 # ordem de 56 veneers do linker (mesmo codigo, mesmos tamanhos, alvos de BL deslocados

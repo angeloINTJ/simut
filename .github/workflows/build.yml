@@ -141,6 +141,11 @@ jobs:
       - name: Pin masks and variant names of the wired build
         run: python3 tools/test_pin_masks.py
 
+      # A wired build cuts the radio's parts of the web pages (on_web_omit =
+      # "wifi" on the lan switch), and a Wi-Fi build keeps them.
+      - name: Web pages per network
+        run: python3 tools/test_web_omit_network.py
+
       # Whether a combination fits in the PIO blocks, and which GPIO two owners
       # claim, before anything compiles: the firmware finds out only at boot,
       # when it logs "pio0 full" and drops a sensor.

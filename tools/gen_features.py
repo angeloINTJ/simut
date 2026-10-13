@@ -171,8 +171,10 @@ def compose(prof: dict, M: dict) -> dict:
     if disp.get("ignore_display_libs"):
         lib_ignore += M["libs"]["display"]
     # The web builder's @IF blocks to cut (tools/build_webui_gz.py): the display
-    # choice may name one, and a switch that is off names its own (off_web_omit).
-    # So may the chip: what only another chip has does not reach this one's pages.
+    # choice may name one, a switch that is off names its own (off_web_omit), and
+    # a switch that is on names what only its other side has (on_web_omit: the
+    # radio's fields on a wired build). So may the chip: what only another chip has
+    # does not reach this one's pages.
     web_omit = [disp["web_omit"]] if disp.get("web_omit") else []
     if chip.get("web_omit"):
         web_omit.append(chip["web_omit"])
@@ -202,6 +204,8 @@ def compose(prof: dict, M: dict) -> dict:
             # cannot both be obeyed: refuse, never let the later one win.
             unflags += t.get("on_unflags", [])
             lib_deps += t.get("on_lib_deps", [])
+            if t.get("on_web_omit"):
+                web_omit.append(t["on_web_omit"])
             if "on_board" in t:
                 asked = t["on_board"][chip_name]
                 if board_owner is not None and asked != board:
@@ -379,6 +383,14 @@ def check_manifest(M: dict) -> None:
                                                      for d in deps):
                 sys.exit(f"gen_features: [toggles.{t}].on_lib_deps tem de ser uma lista de bibliotecas "
                          f"fixadas por commit (url#<sha de 40 hexadecimais>)")
+        # One @IF name each, as build_webui_gz.py reads custom_web_omit: a list or a
+        # comma would cut more than the switch means, and a name it does not know
+        # stops the build there, far from the manifest line that caused it.
+        for k in ("on_web_omit", "off_web_omit"):
+            v = toggles[t].get(k)
+            if v is not None and not (isinstance(v, str) and re.fullmatch(r"[a-z][a-z0-9_]*", v)):
+                sys.exit(f"gen_features: [toggles.{t}].{k} tem de ser um nome de @IF do "
+                         f"build_webui_gz.py (minusculas, digitos e _), nao {v!r}")
         unflags = toggles[t].get("on_unflags")
         if unflags is not None and (not isinstance(unflags, list)
                                     or any(not isinstance(f, str) or not f.startswith("-") for f in unflags)):
