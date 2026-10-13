@@ -266,6 +266,7 @@ WEB_FEATURES = {
 # no bloco @IF do menu; o navMap e uma tabela de permissao, nao uma chamada.
 WEB_FEATURE_ROUTES = {
     "tft": (os.path.join("src", "WebManager_History.cpp"), "registerScreenRoutes"),
+    "wifi": (os.path.join("src", "WebManager_Core.cpp"), "#if SIMUT_NET_WIFI"),
     "web_history": (os.path.join("src", "WebManager_Core.cpp"), "#if SIMUT_WEB_HISTORY"),
     # Sem bloco na interface: nenhuma pagina as chama, e a conferencia garante
     # que continue assim — a imagem sem elas nao pode ter um botao que da 404.
@@ -426,6 +427,10 @@ def _strip_web_features(content: str) -> str:
                 problems.append(
                     f"  {name}( ) e definida dentro de @IF {feature} e nunca usada")
         ids = set(re.findall(r'\bid="([\w-]+)"', body))
+        # Um id dos DOIS lados do par (`x` e `!x`) esta em toda imagem, uma vez
+        # so, como a funcao definida dos dois lados: o codigo comum pode busca-lo.
+        # E o card que so troca o rotulo numa build sem o radio (2026-10-13).
+        ids -= set(re.findall(r'\bid="([\w-]+)"', "\n".join(b for _, _, b in other_spans)))
         # A busca que confere o nulo antes de usar nao vira TypeError: e o
         # `var w = getElementById(...); if (!w) return;` que o arquivo ja usa, e
         # o que o toggleTransport( ) faz com o rotulo do TLS numa imagem com
