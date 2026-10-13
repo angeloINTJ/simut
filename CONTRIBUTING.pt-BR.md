@@ -53,7 +53,7 @@ docker compose run test
 | Comando | Comando PlatformIO equivalente |
 |---|---|
 | `docker compose run build` | `pio run -e pico_w_release` |
-| `docker compose run test` | `pio test -e native -e native_history_v5 -e native_cli -e native_logpolicy -e native_alarmqueue -e native_air -e native_network` |
+| `docker compose run test` | `pio test -e native -e native_history_v5 -e native_cli -e native_lan -e native_logpolicy -e native_alarmqueue -e native_air -e native_network -e native_sensors -e native_otasig` |
 
 ---
 
@@ -117,7 +117,7 @@ A flash está criticamente apertada. A imagem release usa 97,2 % do slot de prog
 2. Faça um fork do repositório e crie um branch (`feature/minha-funcionalidade`)
 3. Escreva seu código e teste em hardware se possível
 4. Garanta que `pio run -e pico_w_release` compila com **zero warnings**
-5. Garanta que todas as suítes passam: `pio test -e native -e native_history_v5 -e native_cli -e native_logpolicy -e native_alarmqueue -e native_air -e native_network`
+5. Garanta que todas as suítes passam: `pio test -e native -e native_history_v5 -e native_cli -e native_lan -e native_logpolicy -e native_alarmqueue -e native_air -e native_network -e native_sensors -e native_otasig`
 6. Atualize a documentação em `docs/` se sua mudança afetar o comportamento do usuário
 7. Envie o PR com uma descrição clara, referenciando o número da issue
 8. O checklist do template de PR guiará os passos restantes
@@ -125,14 +125,17 @@ A flash está criticamente apertada. A imagem release usa 97,2 % do slot de prog
 ## Testes
 
 - Testes unitários usam o framework [Unity](http://www.throwtheswitch.org/unity)
-- Sete ambientes nativos, todos rodados pelo CI:
+- Dez ambientes nativos, todos rodados pelo CI:
   - `pio test -e native` — validadores: validação de IP, CRC8, codificação de float, cursor de telemetria, rótulos
   - `pio test -e native_history_v5` — ida e volta do codec do histórico V5
   - `pio test -e native_cli` — parser da CLI (tokenização e roteamento de comandos)
+  - `pio test -e native_lan` — o mesmo parser compilado para o SIMUT Wire (sem `ap` nem SSID; `ip` e `dns` no lugar), a ajuda do pacote, `@HELPWIRE`, o menu de Configurações e os códigos de log no filtro por transição
   - `pio test -e native_logpolicy` — filtro de persistência de logs por transição
   - `pio test -e native_alarmqueue` — invariantes da fila de alarmes
   - `pio test -e native_air` — configuração e limites do SIMUT Air
   - `pio test -e native_network` — máquina de estados da reconexão Wi-Fi, contra um rádio controlável
+  - `pio test -e native_sensors` — tabela de tipos de sensor: nomes, máscaras de canal, pinos por tipo
+  - `pio test -e native_otasig` — assinatura da imagem de OTA, a restauração do backup, e o gravador de slot e a atualização em teste do RP2350
 - Adicione testes para nova lógica de validação, encoding/decoding, mudanças de parser e caminhos críticos de segurança
 - Teste em hardware é obrigatório para mudanças em display, sensores, WiFi e OTA
 

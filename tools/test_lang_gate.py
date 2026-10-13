@@ -108,6 +108,23 @@ def main():
         check("gate fires: License opening over its buffer",
               bad and "opening" in err, err[-200:])
 
+        # @HELPWIRE ahead of @HELP: the alpha's prefix match would take it
+        wire = real.index(b"\n@HELPWIRE\n") + 1
+        web = real.index(b"\n@WEBDICT\n") + 1
+        helpat = real.index(b"\n@HELP\n") + 1
+        swapped = real[:helpat] + real[wire:web] + real[helpat:wire] + real[web:]
+        check("swap keeps the bytes", sorted(swapped) == sorted(real))
+        p.write_bytes(swapped)
+        bad, err = run_gate([p])
+        check("gate fires: @HELPWIRE before @HELP",
+              bad and "@HELPWIRE comes before @HELP" in err, err[-200:])
+        check("help_order_problem: the shipped order is fine",
+              gate.help_order_problem(real) is None)
+        check("help_order_problem: no help at all is fine",
+              gate.help_order_problem(b"@DICT\na\n@WEBDICT\n{}") is None)
+        check("help_order_problem: @HELPWIRE alone is not",
+              gate.help_order_problem(b"@DICT\na\n@HELPWIRE\nw\n") == "HELPWIRE")
+
         # whole file over LANG_FILE_MAX (pad inside the JSON blob: whitespace
         # is legal there, adds no key, and leaves @DICT alone)
         need = file_max - len(real) + 16

@@ -398,7 +398,12 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 <div class="compact-info">
                     <div class="c-item"><div class="c-lbl" data-i18n="dash_dt">System Date & Time</div><div class="c-val" id="sys-time">--/--/---- --:--:--</div><div class="c-sub" id="ntp-stat" data-i18n="dash_ntp_wait">Waiting NTP...</div></div>
                     <div class="c-item"><div class="c-lbl" data-i18n="dash_up">System Uptime</div><div class="c-val" id="up">--d --h --m --s</div></div>
+                    /* @IF wifi */
                     <div class="c-item"><div class="c-lbl" data-i18n="dash_wifi">WiFi Signal</div><div class="c-val" id="rssi">-- dBm</div><div class="c-sub" id="rssi-mm">min --/-- max</div></div>
+                    /* @ENDIF */
+                    /* @IF !wifi */
+                    <div class="c-item"><div class="c-lbl" data-i18n="dash_net_wired">Wired network</div><div class="c-val" id="net-link">--</div><div class="c-sub" id="net-ip">--</div></div>
+                    /* @ENDIF */
                     <div class="c-item"><div class="c-lbl" data-i18n="dash_pend">Pending Records</div><div class="c-val" id="pending">-- pkts</div><div class="c-sub" id="pending-sub">Waiting telemetry sync</div></div>
                     <div class="c-item">
                         <div style="display:flex; justify-content:space-between;"><div class="c-lbl" data-i18n="dash_ram">RAM Usage</div><div class="c-val" style="font-size:0.85rem;" id="ram-pct">--%</div></div>
@@ -414,7 +419,12 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 <div class="compact-info">
                     <div class="c-item"><div class="c-lbl" data-i18n="dash_metr_lblk">Largest Block</div><div class="c-val" id="m-lblk">-- KB</div><div class="c-sub" id="m-lblk-min" data-i18n-sub="dash_metr_min">min --</div></div>
                     <div class="c-item"><div class="c-lbl" data-i18n="dash_metr_hmin">Heap Min Seen</div><div class="c-val" id="m-hmin">-- KB</div><div class="c-sub" data-i18n="dash_metr_hmin_sub">lowest free</div></div>
+                    /* @IF wifi */
                     <div class="c-item"><div class="c-lbl" data-i18n="dash_metr_net">Net Reconnects</div><div class="c-val" id="m-net">-- / --</div><div class="c-sub" data-i18n="dash_metr_net_sub">wifi / mqtt</div></div>
+                    /* @ENDIF */
+                    /* @IF !wifi */
+                    <div class="c-item"><div class="c-lbl" data-i18n="dash_metr_net">Net Reconnects</div><div class="c-val" id="m-net">-- / --</div><div class="c-sub" data-i18n="dash_metr_net_sub_lan">cable / mqtt</div></div>
+                    /* @ENDIF */
                     <div class="c-item"><div class="c-lbl" data-i18n="dash_metr_tel">Telemetry Sent</div><div class="c-val" id="m-tel">-- ok</div><div class="c-sub" id="m-tel-sub">-- fail · -- retry</div></div>
                     <div class="c-item"><div class="c-lbl" data-i18n="dash_metr_data">Telemetry Data</div><div class="c-val" id="m-data">-- KB</div><div class="c-sub" id="m-lat">last -- ms</div></div>
                     <div class="c-item"><div class="c-lbl" data-i18n="dash_metr_snr">Sensor Reads</div><div class="c-val" id="m-snr">-- ok</div><div class="c-sub" id="m-snr-err">-- err</div></div>
@@ -501,7 +511,13 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     st.innerText = window.t('dash_ntp_conn', "Waiting connection..."); st.style.color = "var(--perigo)";
                 }
 
+                /* @IF wifi */
                 document.getElementById('rssi').innerText = d.rssi + ' dBm';
+                /* @ENDIF */
+                /* @IF !wifi */
+                document.getElementById('net-link').innerText = d.link ? window.t('dash_link_up', 'Connected') : window.t('dash_link_down', 'No link');
+                document.getElementById('net-ip').innerText = d.ip || '--';
+                /* @ENDIF */
                 let pend = document.getElementById('pending');
                 if (d.pending === -1) pend.innerText = window.t('dash_eval', "Evaluating..."); else pend.innerText = d.pending + " pkts";
                 /* The sub-line used to be static markup carrying data-i18n, so
@@ -520,8 +536,10 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
                 const m = sysData.metr;
                 if (m) {
+                    /* @IF wifi */
                     let rmm = document.getElementById('rssi-mm');
                     if (rmm && m.rmn !== undefined && m.rmx !== undefined) rmm.innerText = window.t('dash_metr_min','min') + ' ' + m.rmn + ' / ' + m.rmx + ' ' + window.t('dash_metr_max','max');
+                    /* @ENDIF */
                     const kb = (n) => (n / 1024).toFixed(1) + ' KB';
                     const fmtN = (n) => { if (n >= 1e6) return (n/1e6).toFixed(2)+'M'; if (n >= 1e3) return (n/1e3).toFixed(1)+'k'; return String(n); };
                     let el;
@@ -3625,7 +3643,12 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 <h3 data-i18n="sens_title">Sensors &amp; GPIO</h3>
                 <div class="grp">
                     <div id="sens_err" class="sx-warn" style="margin-top:0;margin-bottom:10px"></div>
+                    /* @IF wifi */
                     <div class="sxn" style="margin-bottom:12px;margin-top:0" data-i18n="sens_hint">GP0-GP15 are available to sensors; GP16 and above belong to the display, touch and buzzer.</div>
+                    /* @ENDIF */
+                    /* @IF !wifi */
+                    <div class="sxn" style="margin-bottom:12px;margin-top:0" data-i18n="sens_hint_lan">GP0-GP10 are available to sensors; GP11-GP15 belong to the network module, and GP16 and above to the display, touch and buzzer.</div>
+                    /* @ENDIF */
                     <div id="sens_map" class="sxg-map"></div>
                     <div class="tbl-scroll">
                     <table id="sens_tbl">
@@ -3643,7 +3666,12 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <button type="button" class="sxb" id="sens_add" onclick="sensAdd()" style="margin-top:14px" data-i18n="sens_add">+ Add sensor slot</button>
                     <button type="button" class="sxb" id="sens_scan" onclick="sensScan()" style="margin-top:14px;margin-left:8px" data-i18n="sens_scan">Scan for probes</button>
                     <div class="sxn" id="sens_scan_out" style="margin-top:10px"></div>
+                    /* @IF wifi */
                     <div class="sxn" id="sens_full" style="display:none" data-i18n="sens_no_free">All 16 slots are in use. Free one to add another.</div>
+                    /* @ENDIF */
+                    /* @IF !wifi */
+                    <div class="sxn" id="sens_full" style="display:none" data-i18n="sens_no_free_lan">All 11 slots are in use. Free one to add another.</div>
+                    /* @ENDIF */
                     <div id="sens_ov" class="sx-ov" style="display:none" onclick="sensBackdrop(event)">
                         <div id="sens_ed" class="sx-ov-box"></div>
                     </div>
@@ -4920,9 +4948,16 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                                 <b style="color:var(--tinta);" data-i18n="cfg_leg2">Data Row Tags:</b><br>
                                 <span class="highlight">{TS}</span> - Unix Epoch<br>
                                 <span class="highlight">{DHT_ID}</span> - Board Serial<br>
+                                /* @IF wifi */
                                 <span class="highlight">{t0}</span> to <span class="highlight">{t15}</span> - Temperature<br>
                                 <span class="highlight">{u0}</span> to <span class="highlight">{u15}</span> - Humidity<br>
                                 <span class="highlight">{p0}</span> to <span class="highlight">{p15}</span> - Pressure<br>
+                                /* @ENDIF */
+                                /* @IF !wifi */
+                                <span class="highlight">{t0}</span> to <span class="highlight">{t10}</span> - Temperature<br>
+                                <span class="highlight">{u0}</span> to <span class="highlight">{u10}</span> - Humidity<br>
+                                <span class="highlight">{p0}</span> to <span class="highlight">{p10}</span> - Pressure<br>
+                                /* @ENDIF */
                             </div>
                         </div>
                         <div style="font-size:0.8rem; color:var(--tinta); margin-bottom:15px; border-left:3px solid var(--acento); padding-left:10px;">
@@ -4992,7 +5027,12 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                                 <span class="highlight">{TS}</span> - Unix Epoch<br>
                                 <span class="highlight">{ID}</span> - Full id (t/u/p/l + hwid)<br>
                                 <span class="highlight">{HWID}</span> - Sensor id<br>
+                                /* @IF wifi */
                                 <span class="highlight">{SLOT}</span> - Slot index (0-15)<br>
+                                /* @ENDIF */
+                                /* @IF !wifi */
+                                <span class="highlight">{SLOT}</span> - Slot index (0-10)<br>
+                                /* @ENDIF */
                             </div>
                             <div class="col">
                                 <span class="highlight">{CH}</span> - Channel letter<br>
@@ -5103,7 +5143,12 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             if (tpl.substr(ti, 4) == '{TS}') return { val: String(rec.ts), tc: 4 };
             if (tpl.substr(ti, 8) == '{DHT_ID}') return { val: rec.serial, tc: 8 };
             const m = /^\{([tup])(\d\d?)\}/.exec(tpl.substr(ti, 5));
+            /* @IF wifi */
             if (!m || (m[2].length == 2 && m[1] != 'p' && m[2][0] != '1') || +m[2] > 15) return null;
+            /* @ENDIF */
+            /* @IF !wifi */
+            if (!m || (m[2].length == 2 && m[1] != 'p' && m[2][0] != '1') || +m[2] >= rec.slots.length) return null;
+            /* @ENDIF */
             const c = m[1], i = +m[2], s = rec.slots[i];
             const val = !s.active ? null : c == 't' ? s.val : c == 'u' ? s.hum : s.hasPress ? rec.press : null;
             return { val, hwid: s.hwid, compKey: c + i, tc: m[0].length };
@@ -5204,7 +5249,12 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             const d = { name: y.name || c.name || '', mac: y.mac || 'AA:BB:CC:DD:EE:FF', uid: y.uid || c.serial || '',
                 time: y.time || c.now_epoch || Math.floor(Date.now() / 1000), every: 60 * (c.h_int || y.hi || 1),
                 user: user || '', live: !!st, s: [] };
+            /* @IF wifi */
             for (let i = 0; i < 16; i++) {
+            /* @ENDIF */
+            /* @IF !wifi */
+            for (let i = 0, n = cs.length || 11; i < n; i++) {
+            /* @ENDIF */
                 const k = cs[i] || {}, r = ls.find(x => x.slot == i) || {}, L = (as.find(x => x.idx == i) || {}).lim || {};
                 d.s.push({ hwid: k.hwid || '', active: !!k.active, hum: !!k.hum, press: !!k.press,
                     t: st ? f(r.val, 2) : k.active ? (20 + i).toFixed(2) : null,
@@ -5524,6 +5574,7 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .row { display: flex; gap: 20px; }
         .col { flex: 1; }
         @media(max-width: 600px) { .row { flex-direction: column; gap: 0; } }
+        /* @IF wifi */
         /* Busca de redes. O botao fica na MESMA linha do SSID: no celular a
            caixa encolhe, mas 108px de botao continuam legiveis em 320px. */
         /* A caixa e o botao na mesma linha. O `margin: 0 0 16px` que todo input
@@ -5562,6 +5613,7 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .sig span:nth-child(4) { height: 14px; }
         .sig span.on { background: var(--acento); }
         .scan-note { padding: 11px 12px; font-size: 14px; color: var(--tinta-2); }
+        /* @ENDIF */
         .net-stat { margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--linha); }
         .net-stat:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
         .net-stat .val { font-size: 15px; color: var(--tinta); font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace; margin-top: 4px; }
@@ -5594,6 +5646,7 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <h2 class="page-title" data-i18n="net_cfg">Network Configuration</h2>
                     <form id="netForm" onsubmit="event.preventDefault()">
 
+                        /* @IF wifi */
                         <h3 data-i18n="net_wifi">Wireless Network (Wi-Fi)</h3>
                         <div class="grp">
                             <label data-i18n="net_ssid">SSID (Network Name)</label>
@@ -5609,6 +5662,7 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                                 <button type="button" class="btn-inline btn-eye" id="btnPass" onclick="toggleNetPass()" aria-pressed="false"><svg class="ic"><use id="eyeUse" href="#i-eye"/></svg></button>
                             </div>
                         </div>
+                        /* @ENDIF */
 
                         <h3 data-i18n="net_ipv4">IPv4 Configuration</h3>
                         <div class="grp">
@@ -5707,6 +5761,7 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         function toggleIpFields()  { _toggleGroup('static_fields', document.getElementById('dhcp').checked); }
         function toggleDnsFields() { _toggleGroup('dns_fields',    document.getElementById('dns_auto').checked); }
 
+        /* @IF wifi */
         /* Busca de redes. Em modo AP o radio passa a AP_STA durante a
          * varredura, entao o poll tolera ate SCAN_MISS falhas seguidas de
          * rede em vez de desistir na primeira: desistir ali daria "falhou"
@@ -5818,6 +5873,7 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             document.getElementById('scanBox').style.display = 'none';
             document.getElementById('pass').focus();
         }
+        /* @ENDIF */
 
         async function loadNet() {
             try {
@@ -5838,7 +5894,9 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 const p = Pending.getSection('net');
                 const val = (k, def) => (p[k] !== undefined ? p[k] : def);
                 const bool = (k, def) => (p[k] !== undefined) ? (p[k] !== '0') : !!def;
+                /* @IF wifi */
                 document.getElementById('ssid').value = val('ssid', data.ssid || '');
+                /* @ENDIF */
                 document.getElementById('dhcp').checked = bool('use_dhcp', data.use_dhcp);
                 document.getElementById('ip').value = val('ip', data.static_ip || '');
                 document.getElementById('mask').value = val('mask', data.static_mask || '');
@@ -5879,7 +5937,12 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         }
 
         document.addEventListener('DOMContentLoaded', () => {
+            /* @IF wifi */
             setTimeout(() => { applyLang(); setEyeLabel(); }, 50);
+            /* @ENDIF */
+            /* @IF !wifi */
+            setTimeout(() => { applyLang(); }, 50);
+            /* @ENDIF */
             loadNet();
         });
     </script>
@@ -6340,7 +6403,12 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 let r = await fetch('/api/restore?op=validate', { method:'POST', body: fd });
                 let v = await r.json();
                 if (v.st !== 0) { showToast(window.t('fil_rst_val_fail','Validation failed: ') + (RST_MSG[v.st] || ('st='+v.st)), 'err'); return; }
+                /* @IF wifi */
                 let msg = window.t('fil_rst_confirm','Backup valid — N files (X bytes).\n\nThis OVERWRITES current device files (history, configs, sensors, themes).\nWi-Fi config and admin password from the backup will be restored.\n\nProceed with the restore?').replace('N', v.fc).replace('X', v.psz);
+                /* @ENDIF */
+                /* @IF !wifi */
+                let msg = window.t('fil_rst_confirm_lan','Backup valid — N files (X bytes).\n\nThis OVERWRITES current device files (history, configs, sensors, themes).\nThe network settings and the admin password from the backup will be restored.\n\nProceed with the restore?').replace('N', v.fc).replace('X', v.psz);
+                /* @ENDIF */
                 if (!confirm(msg)) return;
                 showToast(window.t('fil_rst_app','Step 2/3: Applying restore (may take ~15 s)...'), 'ok');
                 let fd2 = new FormData(); fd2.append('bkp', file);
@@ -6370,7 +6438,12 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
          *   6. Restore manual do .bkp pra recuperar history/sensores
          */
         function fmFirmware() {
+            /* @IF wifi */
             if (!confirm(window.t('fil_fw_warn','Firmware OTA update.\n\nThe filesystem is REFORMATTED — the staging area shares the partition with it.\n\nOnly the configuration survives (captured before, restored after):\n  • Wi-Fi, admin password, telemetry\n  • Sensor mapping and alarm limits\n\nEverything else on the device is lost:\n  • Reading history (/history)\n  • Language packs (/lang)\n  • Custom themes (/themes)\n  • Touch calibration (/calib)\n  • Files in /web\n  • The event log\n\nA .bkp backup is downloaded automatically — restore it later to recover everything.\n\nProceed?'))) return;
+            /* @ENDIF */
+            /* @IF !wifi */
+            if (!confirm(window.t('fil_fw_warn_lan','Firmware OTA update.\n\nThe filesystem is REFORMATTED — the staging area shares the partition with it.\n\nOnly the configuration survives (captured before, restored after):\n  • Network settings, admin password, telemetry\n  • Sensor mapping and alarm limits\n\nEverything else on the device is lost:\n  • Reading history (/history)\n  • Language packs (/lang)\n  • Custom themes (/themes)\n  • Touch calibration (/calib)\n  • Files in /web\n  • The event log\n\nA .bkp backup is downloaded automatically — restore it later to recover everything.\n\nProceed?'))) return;
+            /* @ENDIF */
             document.getElementById('fwFile').click();
         }
         /* fw: stage message — what the page says when the device did not commit a
@@ -7106,7 +7179,8 @@ SOFTWARE.</pre>
         </div>
         <div class="card">
             <h3 data-i18n="lic_notice">Third-Party Notices</h3>
-            <pre>================================================================================
+            <pre>/* @IF wifi */
+================================================================================
 SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
 Third-Party Software Notices
 ================================================================================
@@ -7376,7 +7450,237 @@ repository, published with every release: https://github.com/angeloINTJ/simut
 
 ================================================================================
 
-END OF THIRD-PARTY NOTICES</pre>
+END OF THIRD-PARTY NOTICES/* @ENDIF */
+/* @IF !wifi */
+================================================================================
+SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
+Third-Party Software Notices
+================================================================================
+
+SIMUT is distributed under the MIT License above. Its SIMUT Wire images,
+pico_wire and pico_wiretft, also carry the third-party software listed here, and
+&quot;all images&quot; below means those two. The licence text of each one is reproduced
+in full in THIRD_PARTY_NOTICES.md and the LICENSES directory of the source
+repository, published with every release: https://github.com/angeloINTJ/simut
+
+================================================================================
+1. Arduino-Pico core
+================================================================================
+   Description:   The Arduino core for the RP2040 and RP2350, with its WiFi,
+                  WebServer, HTTPClient, DNSServer, Updater, PicoOTA, SPI and
+                  Wire libraries. Its networking and filesystem code comes from
+                  the ESP8266 Arduino core, under the same licence.
+   Holder:        Earle F. Philhower, III
+   License:       LGPL-2.1
+   Images:        all images
+   URL:           https://github.com/earlephilhower/arduino-pico
+   Note:          SIMUT publishes its complete source, so an image can be
+                  rebuilt against a modified core, as the LGPL requires.
+
+================================================================================
+2. Raspberry Pi Pico SDK
+================================================================================
+   Description:   Hardware access, multicore, flash and boot code for the RP2040
+                  and RP2350.
+   Holder:        Raspberry Pi (Trading) Ltd.
+   License:       BSD-3-Clause
+   Images:        all images
+   URL:           https://github.com/raspberrypi/pico-sdk
+
+================================================================================
+3. TinyUSB
+================================================================================
+   Description:   The USB stack behind the USB serial console.
+   Holder:        Ha Thach (tinyusb.org)
+   License:       MIT
+   Images:        all images
+   URL:           https://github.com/hathach/tinyusb
+
+================================================================================
+4. lwIP
+================================================================================
+   Description:   The TCP/IP stack (Adam Dunkels and the lwIP contributors),
+                  bundled in the Arduino-Pico core.
+   Holder:        Swedish Institute of Computer Science
+   License:       BSD-3-Clause
+   Images:        all images
+   URL:           https://savannah.nongnu.org/projects/lwip/
+
+================================================================================
+5. BearSSL
+================================================================================
+   Description:   TLS for HTTPS and MQTTS, SHA-256, and the P-256 check of
+                  signed updates.
+   Holder:        Thomas Pornin
+   License:       MIT
+   Images:        all images
+   URL:           https://bearssl.org
+
+================================================================================
+6. LittleFS
+================================================================================
+   Description:   The flash filesystem: configuration, history, language packs.
+   Holder:        Arm Limited and the littlefs authors
+   License:       BSD-3-Clause
+   Images:        all images
+   URL:           https://github.com/littlefs-project/littlefs
+
+================================================================================
+7. LEAmDNS
+================================================================================
+   Description:   The mDNS responder that answers for the device name on the
+                  local network; part of the Arduino-Pico core.
+   Holder:        LaborEtArs
+   License:       MIT
+   Images:        all images but pico_wire
+   URL:           https://github.com/LaborEtArs/ESP8266mDNS
+
+================================================================================
+8. newlib
+================================================================================
+   Description:   The C library of the toolchain: memory allocation, strings,
+                  formatted output.
+   Holder:        Red Hat, Inc. and others
+   License:       BSD-style (COPYING.NEWLIB)
+   Images:        all images
+   URL:           https://sourceware.org/newlib/
+
+================================================================================
+9. GCC runtime libraries
+================================================================================
+   Description:   libgcc and libstdc++, linked by the compiler. The exception
+                  lets them be combined with code under any licence.
+   Holder:        Free Software Foundation, Inc.
+   License:       GPL-3.0 with the GCC Runtime Library Exception
+   Images:        all images
+   URL:           https://gcc.gnu.org
+
+================================================================================
+10. Adafruit GFX Library
+================================================================================
+   Description:   Drawing primitives for the touch panel, and the classic 5x7
+                  font of its text screens.
+   Holder:        Adafruit Industries
+   License:       BSD-2-Clause
+   Images:        all images but pico_wire
+   URL:           https://github.com/adafruit/Adafruit-GFX-Library
+
+================================================================================
+11. Adafruit ILI9341
+================================================================================
+   Description:   Driver for the ILI9341 controller of the touch panel.
+   Holder:        Adafruit Industries (Limor Fried)
+   License:       BSD
+   Images:        all images but pico_wire
+   URL:           https://github.com/adafruit/Adafruit_ILI9341
+   Note:          Its source files say &quot;BSD license, all text here must be
+                  included in any redistribution&quot;, so the whole header is
+                  reproduced. Its README says MIT; the source is what this list
+                  follows.
+
+================================================================================
+12. XPT2046_Touchscreen
+================================================================================
+   Description:   Driver for the XPT2046 touch controller.
+   Holder:        Paul Stoffregen
+   License:       MIT
+   Images:        all images but pico_wire
+   URL:           https://github.com/PaulStoffregen/XPT2046_Touchscreen
+
+================================================================================
+13. PubSubClient
+================================================================================
+   Description:   The MQTT client behind MQTT and MQTTS telemetry.
+   Holder:        Nicholas O'Leary
+   License:       MIT
+   Images:        all images
+   URL:           https://github.com/knolleary/pubsubclient
+
+================================================================================
+14. DHT22PIO_RP2040
+================================================================================
+   Description:   The DHT22 protocol on the PIO.
+   Holder:        Ângelo Moisés Alves
+   License:       MIT
+   Images:        all images
+   URL:           https://github.com/angeloINTJ/DHT22PIO_RP2040
+
+================================================================================
+15. BuzzerPIO_RP2040
+================================================================================
+   Description:   Tones and melodies for the buzzer on the PIO.
+   Holder:        Ângelo Moisés Alves
+   License:       MIT
+   Images:        all images
+   URL:           https://github.com/angeloINTJ/BuzzerPIO_RP2040
+
+================================================================================
+16. TwoWirePIO_RP2040
+================================================================================
+   Description:   I2C on the PIO (the WirePIO library).
+   Holder:        Ângelo Moisés Alves
+   License:       MIT
+   Images:        all images
+   URL:           https://github.com/angeloINTJ/TwoWirePIO_RP2040
+
+================================================================================
+17. BMx280PIO_RP2040
+================================================================================
+   Description:   BME280 and BMP280 driver.
+   Holder:        Ângelo Moisés Alves
+   License:       MIT
+   Images:        all images
+   URL:           https://github.com/angeloINTJ/BMx280PIO_RP2040
+
+================================================================================
+18. PicoENC28J60
+================================================================================
+   Description:   Driver for the ENC28J60 Ethernet controller of the SIMUT Wire,
+                  plugged into the lwIP stack of the Arduino-Pico core; its SPI
+                  is a PIO program.
+   Holder:        Lukasz Janyst and Ângelo Moisés Alves
+   License:       MIT
+   Images:        all images
+   URL:           https://github.com/angeloINTJ/pico-enc28j60
+   Note:          A fork of Lukasz Janyst's pico-enc28j60
+                  (https://github.com/ljanyst/pico-enc28j60), whose PIO SPI
+                  program and C driver it keeps; the build fixes it at commit
+                  fb16ec1.
+
+================================================================================
+19. GNU FreeFont (FreeSans Bold)
+================================================================================
+   Description:   The 9, 12 and 24 pt faces of the touch panel, converted to
+                  bitmaps and cut down to the glyphs SIMUT draws.
+   Holder:        GNU FreeFont contributors
+   License:       GPL-3.0-or-later with the font exception
+   Images:        all images but pico_wire
+   URL:           https://www.gnu.org/software/freefont/
+
+================================================================================
+20. Liberation Sans Bold
+================================================================================
+   Description:   Five glyph outlines traced into the SIMUT wordmark of the web
+                  pages. No font file is embedded.
+   Holder:        Red Hat, Inc. (digitized data: Google, Arimo)
+   License:       SIL Open Font License 1.1
+   Images:        all images
+   URL:           https://github.com/liberationfonts/liberation-fonts
+
+================================================================================
+21. SHA-256 for JavaScript
+================================================================================
+   Description:   Hashes the password in the login page before it leaves the
+                  browser.
+   Holder:        Geraint Luff
+   License:       public domain
+   Images:        all images
+   URL:           https://github.com/geraintluff/sha256
+
+================================================================================
+
+END OF THIRD-PARTY NOTICES/* @ENDIF */
+</pre>
         </div>
     </div>
     <script>

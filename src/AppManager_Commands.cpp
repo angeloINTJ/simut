@@ -31,6 +31,7 @@
 #include "lwip/memp.h"
 #endif
 
+#if SIMUT_NET_WIFI   /* the wired build has no radio to open an AP with */
 /* ctx says WHO asked, because the callers are different stories in a log read
  * months later: 0 a person (CLI, Bluetooth or the panel's menu), 1 the boot
  * touch gesture, logged at its own site in AppManager_Boot.cpp, which runs
@@ -89,6 +90,7 @@ void AppManager::startApMode(uint8_t why) {
   ? "Conecte-se ao AP e acesse http://192.168.4.1"
   : "Join the AP and open http://192.168.4.1");
 }
+#endif /* SIMUT_NET_WIFI */
 
 /* What an operator standing at the panel needs, as the last four lines of the
  * boot terminal: the network, its key, where to point the browser, and that
@@ -381,7 +383,15 @@ void AppManager::executeCommand(CliDemand cmd) {
  ? "--- Status da Rede ---"
  : "--- Network Status ---");
  _cmdMgr->consolePrintf (" IP: %s\n", ip.c_str( ));
+#if SIMUT_NET_LAN
+ /* getRssi( ) on the cable is a constant standing in for "connected" (see
+  * NetworkManager_Wired.cpp); printed as dBm it would read as a measurement. */
+ _cmdMgr->consolePrintf (pt ? " Cabo: %s\n" : " Cable: %s\n",
+                         _netMgr->isLinkUp( ) ? (pt ? "conectado" : "connected")
+                                              : (pt ? "sem link" : "no link"));
+#else
  _cmdMgr->consolePrintf (" RSSI: %ld dBm\n", (long)_netMgr->getRssi( ));
+#endif
 #if LWIP_STATS && MEMP_STATS
  /* T0.3: PBUF pool watermark — decides T2.2 (pool 12→16). */
  {
@@ -585,6 +595,7 @@ void AppManager::executeCommand(CliDemand cmd) {
 
 #endif /* SIMUT_CLI_FULL */
 
+#if SIMUT_NET_WIFI
  /* WiFi SSID/pass live here (outside SIMUT_CLI_FULL) so the headless Air build
   * can change the network from the emergency serial console. */
  case CMD_SET_WIFI_SSID: {
@@ -617,6 +628,33 @@ void AppManager::executeCommand(CliDemand cmd) {
   : "Pass saved. Run 'reload confirm' to reconnect.");
  break;
  }
+#endif /* SIMUT_NET_WIFI */
+#if SIMUT_NET_LAN && !SIMUT_CLI_FULL
+ /* What the SSID pair is to a radio build, the address is to the wired one:
+  * with no network name to type and no AP to open, a Wire on a network
+  * without DHCP has no other way in from this console. Saved here for the same
+  * reason the SSID is (no `write memory` in this image), and applied by the
+  * reload, because the module takes its address when it starts (2026-10-13).
+  * The handlers print what they set, or the error, and leave `set` false on
+  * an error. */
+ case CMD_IP_CFG:
+ case CMD_SET_DNS_CFG: {
+ bool set = false;
+ if (cmd.type == CMD_IP_CFG) cmdHandleIpCfg(cmd, cfg, set);
+ else cmdHandleDnsCfg(cmd, cfg, set);
+ if (!set) break;
+ if (!_storageMgr->saveConfiguration( )) {
+  _cmdMgr->printError(pt
+   ? "Nao foi salvo na flash. Repita o comando."
+   : "Not saved to flash. Run the command again.");
+  break;
+ }
+ _cmdMgr->printSuccess(pt
+  ? "Salvo. Use 'reload confirm' para aplicar."
+  : "Saved. Run 'reload confirm' to apply.");
+ break;
+ }
+#endif /* SIMUT_NET_LAN && !SIMUT_CLI_FULL */
 
  /* 'system cors <origem>' / 'system cors off' — libera a pagina do gerenciador
   * de frota a falar com este aparelho pelo navegador. Sem isso o navegador
@@ -998,9 +1036,11 @@ void AppManager::executeCommand(CliDemand cmd) {
  LogManager::instance( ).safeReboot( );
  break;
 
+#if SIMUT_NET_WIFI
  case CMD_AP:
  startApMode( );
  break;
+#endif
 
 #if SIMUT_AIR
  case CMD_AIR_HIBERNATE:
@@ -1659,7 +1699,8 @@ void AppManager::executeCommand(CliDemand cmd) {
   * silent non-persisting password reset invisible to review for a day. Anything
   * reaching this console that must outlive the boot saves for itself, next to
   * the change — CMD_SET_WIFI_SSID, CMD_SET_WIFI_PASS and CMD_RESET_ADMIN all
-  * call saveConfiguration( ) — and does not set `changed`. */
+  * call saveConfiguration( ), and so do CMD_IP_CFG and CMD_SET_DNS_CFG on a
+  * wired build — and does not set `changed`. */
  if (changed) _cmdMgr->printInfo(_cmdMgr->isPt( )
  ? "Vale para esta sessao; nao persiste apos reiniciar."
  : "Applies to this session; does not persist across reboot.");

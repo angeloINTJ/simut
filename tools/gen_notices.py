@@ -34,6 +34,18 @@ OUTPUTS
                            and the English opening of that screen, copied from
                            the /license page so both say the same words
 
+TWO FAMILIES (2026-10-13)
+-------------------------
+The SIMUT Wire images (pico_wire, pico_wiretft) carry no radio: no cyw43-driver,
+no CYW43439 firmware, no DHCP server, no BTstack, and they carry the ENC28J60
+driver the others do not. The page and the panel of an image list the
+components of its own family: a /* @IF wifi */ block of WebUI.h and an `#if
+SIMUT_NET_LAN` of HelpLicenseEN.h. "all images" on them means all images of
+that family, which the Wire's intro says and the radio's, written before there
+was a second family, does not; its text is left as it was, so the seven radio
+images keep their bytes. THIRD_PARTY_NOTICES.md lists both families, with the
+images named against all nine.
+
 USAGE
 -----
     python3 tools/gen_notices.py            # rewrite the outputs
@@ -57,10 +69,14 @@ WEBUI = ROOT / "WebUI.h"
 FWH = ROOT / "src" / "HelpLicenseEN.h"
 REPO = "https://github.com/angeloINTJ/simut"
 
-PANEL = ["release", "test", "test_https", "asserts", "pico2_release"]
+PANEL = {"release", "test", "test_https", "asserts", "pico2_release", "wiretft"}
 ENV = {"release": "pico_w_release", "test": "pico_w_test", "test_https": "pico_w_test_https",
        "asserts": "pico_w_asserts", "alpha": "pico_w_alpha", "air": "pico_w_air",
-       "pico2_release": "pico2_w_release"}
+       "pico2_release": "pico2_w_release", "wire": "pico_wire", "wiretft": "pico_wiretft"}
+WIRED = ["wire", "wiretft"]
+WORDS = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine"}
+
+WEB_IF_RADIO, WEB_IF_WIRED, WEB_ENDIF = "/* @IF wifi */", "/* @IF !wifi */", "/* @ENDIF */"
 
 # The opening of the License screen, in the order the /license page shows it.
 INTRO_KEYS = ["lic_sub", "lic_summary_title", "lic_summary", "lic_summary_note", "lic_legal_note"]
@@ -90,14 +106,30 @@ def load():
 
 
 def images_label(imgs, every):
+    """Which of the images in `every` carry a component, in words."""
+    imgs = [i for i in imgs if i in every]
     if set(imgs) == set(every):
         return "all images"
-    if set(imgs) == set(PANEL):
-        return "the five images with the touch panel"
+    panel = PANEL & set(every)
+    if len(panel) > 1 and set(imgs) == panel:
+        return f"the {WORDS[len(panel)]} images with the touch panel"
     rest = [i for i in every if i not in imgs]
     if len(rest) == 1:
         return f"all images but {ENV[rest[0]]}"
+    if len(rest) == 2:
+        return f"all images but {ENV[rest[0]]} and {ENV[rest[1]]}"
     return ", ".join(ENV[i] for i in imgs)
+
+
+def families(data):
+    """(radio images, wired images): the two lists a page or a panel shows."""
+    every = data["all_images"]
+    return [i for i in every if i not in WIRED], [i for i in every if i in WIRED]
+
+
+def of_family(data, family):
+    """The components at least one image of `family` carries, in TOML order."""
+    return [c for c in data["component"] if set(c["images"]) & set(family)]
 
 
 def notices_md(data):
@@ -108,9 +140,11 @@ def notices_md(data):
            "the licence, which images carry it, and the file in [LICENSES/](LICENSES) that holds",
            "the licence text, reproduced verbatim as those licences ask of a binary distribution.",
            "",
-           "The panel's License screen and the `/license` web page list the same components.",
-           "This file is written by `tools/gen_notices.py` from `tools/third_party.toml`: edit",
-           "those, run the script, and CI checks that the three lists still agree.",
+           "The panel's License screen and the `/license` web page of an image list the same",
+           "components: those of its family, the seven images with the radio or the two SIMUT",
+           "Wire images (`pico_wire`, `pico_wiretft`). This file is written by",
+           "`tools/gen_notices.py` from `tools/third_party.toml`: edit those, run the script,",
+           "and CI checks that the lists still agree.",
            "",
            "| Component | Copyright holder | Licence | Images |",
            "|---|---|---|---|"]
@@ -139,19 +173,25 @@ def anchor(name):
     return a.replace(" ", "-")
 
 
-def web_block(data):
-    every = data["all_images"]
+def web_block(data, family):
+    every = family
     w = 80
     bar = "=" * w
     lines = [bar, "SIMUT \u2014 Sistema Integrado de Monitoramento Universal e Telemetria",
              "Third-Party Software Notices", bar, ""]
-    intro = ("SIMUT is distributed under the MIT License above. Its firmware images also carry "
-             "the third-party software listed here. The licence text of each one is reproduced "
+    if set(family) == set(WIRED):
+        carry = ("Its SIMUT Wire images, " + " and ".join(ENV[i] for i in family)
+                 + ", also carry the third-party software listed here, and \"all images\" "
+                 "below means those two.")
+    else:
+        carry = "Its firmware images also carry the third-party software listed here."
+    intro = (f"SIMUT is distributed under the MIT License above. {carry} The licence text of "
+             "each one is reproduced "
              f"in full in THIRD_PARTY_NOTICES.md and the LICENSES directory of the source "
              f"repository, published with every release: {REPO}")
     lines += textwrap.wrap(intro, w) + [""]
     lab = 15
-    for n, c in enumerate(data["component"], 1):
+    for n, c in enumerate(of_family(data, family), 1):
         lines += [bar, f"{n}. {c['name']}", bar]
         fields = [("Description:", c["what"]), ("Holder:", c["holder"]),
                   ("License:", c["license"]), ("Images:", images_label(c["images"], every)),
@@ -167,9 +207,9 @@ def web_block(data):
     return html.escape("\n".join(lines), quote=True).replace("&#x27;", "'")
 
 
-def fw_list(data):
+def fw_list(data, family):
     out = ["--- Third-party software ---", ""]
-    for c in data["component"]:
+    for c in of_family(data, family):
         out += [c["name"], f"  {c['holder']} - {c['license']}"]
     out += ["", "Licence texts: THIRD_PARTY_NOTICES.md and",
             "LICENSES/ in the source repository."]
@@ -218,15 +258,23 @@ def replace_between(text, begin, end, inner, what):
 
 
 def new_webui(webui, data):
+    """The <pre> of /license holds one block per family. Each @ENDIF closes the
+    last line of its block, so the cut (tools/build_webui_gz.py) leaves
+    <pre>block</pre> with no newline the single-family page did not have."""
+    radio, wired = families(data)
     i = webui.index('data-i18n="lic_notice"')
     a = webui.index("<pre>", i) + len("<pre>")
     b = webui.index("</pre>", a)
-    return webui[:a] + web_block(data) + webui[b:]
+    pre = (f"{WEB_IF_RADIO}\n{web_block(data, radio)}{WEB_ENDIF}\n"
+           f"{WEB_IF_WIRED}\n{web_block(data, wired)}{WEB_ENDIF}\n")
+    return webui[:a] + pre + webui[b:]
 
 
 def new_fwh(fwh, webui, data):
+    radio, wired = families(data)
     fwh = replace_between(fwh, FW_INTRO_BEGIN, FW_INTRO_END, fw_intro(web_intro(webui)), "the opening")
-    body = (FW_LIST_BEGIN + "\nR\"raw(" + fw_list(data) + ")raw\"\n" + FW_LIST_END)
+    body = (FW_LIST_BEGIN + "\n#if SIMUT_NET_LAN\nR\"raw(" + fw_list(data, wired) + ")raw\"\n"
+            "#else\nR\"raw(" + fw_list(data, radio) + ")raw\"\n#endif\n" + FW_LIST_END)
     return replace_between(fwh, FW_LIST_BEGIN, FW_LIST_END, body, "the list")
 
 

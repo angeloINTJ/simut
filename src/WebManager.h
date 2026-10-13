@@ -445,18 +445,22 @@ private:
 	/* handleApiUserAdd/Del/Reset replaced by handleApiCommitAll */
 
 	void handleNotFound( );
+#if SIMUT_NET_WIFI
 	/** Answer OS captive-portal probes while in AP mode. Returning the exact
 	 *  success the OS expects keeps iOS/Android from opening their restricted
 	 *  captive web view (CNA), which blocks <input type=file> — the reason the
 	 *  Restore file picker never opened. @return true when a probe was answered. */
 	bool handleCaptiveProbe( );
+#endif
 	void handleLangJs( );
 	void handleStyleCss( ); /**< Common cacheable CSS. */
 	void handleFavicon( ); /**< Serve /favicon.ico from the firmware image, 7-day cache. */
 
 	void handleApiPerms( );
 	void handleApiNetwork( );
+#if SIMUT_NET_WIFI
 	void handleApiWifiScan( );  /**< the networks in range, for the picker */
+#endif
 	void handleApiConfig( );
 	void handleApiUsers( );
 	void handleApiThemes( );

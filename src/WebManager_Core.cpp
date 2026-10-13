@@ -146,7 +146,11 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
  #endif
  _server->on("/api/perms", HTTP_GET, std::bind(&WebManager::handleApiPerms, this));
  _server->on("/api/network", HTTP_GET, std::bind(&WebManager::handleApiNetwork, this));
+#if SIMUT_NET_WIFI
+ /* The radio's sweep; a wired build has nothing to scan with
+  * (tools/build_webui_gz.py ties it to the pages' `@IF wifi` blocks). */
  _server->on("/api/wifi/scan", HTTP_GET, std::bind(&WebManager::handleApiWifiScan, this));
+#endif
  _server->on("/api/config", HTTP_GET, std::bind(&WebManager::handleApiConfig, this));
  _server->on("/api/users", HTTP_GET, std::bind(&WebManager::handleApiUsers, this));
  _server->on("/api/alarms", HTTP_GET, std::bind(&WebManager::handleApiAlarms, this));
@@ -622,6 +626,7 @@ void WebManager::update( ) {
  _handlerDeadline = 0;
 }
 
+#if SIMUT_NET_WIFI   /* the captive portal is the setup AP's (2026-10-13) */
 bool WebManager::handleCaptiveProbe( ) {
  if (!_netRef || !_netRef->isApConfig( )) return false;
 
@@ -650,14 +655,15 @@ bool WebManager::handleCaptiveProbe( ) {
  }
  return false;
 }
+#endif
 
 void WebManager::handleNotFound( ) {
  /* CORS preflight, and it lands here by design rather than by accident: no
   * route is registered for OPTIONS, so every OPTIONS falls through to the
   * not-found handler, which makes this the one place that answers all of them.
   *
-  * It has to be the FIRST thing in the function. Below, an unknown Host is
-  * answered with a 302 to /network (the captive-portal path), and a browser
+  * It has to be the FIRST thing in the function. Below, on a radio build, an
+  * unknown Host is answered with a 302 to /network (the captive-portal path), and a browser
   * reading a redirect where it asked for a preflight treats the preflight as
   * failed — every request the page makes would die before being sent.
   *
@@ -688,6 +694,12 @@ void WebManager::handleNotFound( ) {
   return;
  }
 
+ /* The captive-portal half, radio builds only. A wired build has no setup AP
+  * whose DNS sends every name here, so an unknown path is a 404. On the bench
+  * (2026-10-13, pico_wiretft at :8080) the redirect answered every unknown path
+  * with a 302 to http://192.168.3.40/network: the Host header carries the port,
+  * so it never equals the bare IP, and the Location drops the port. */
+#if SIMUT_NET_WIFI
  if (handleCaptiveProbe( )) return;
 
  String host = _server->hostHeader( );
@@ -701,5 +713,6 @@ void WebManager::handleNotFound( ) {
  _server->send(302, "text/plain", "Redirecting...");
  return;
  }
+#endif
  _server->send(404, "text/plain", "404: Not Found");
 }

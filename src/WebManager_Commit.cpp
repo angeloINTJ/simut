@@ -1554,6 +1554,7 @@ void WebManager::handleApiCommitAll( ) {
 			 * request carried, control bytes included, and wrote it to flash.
 			 * A rejected field is echoed in "rejected":[...] rather than
 			 * silently dropped, so the page can say which edit did not take. */
+#if SIMUT_NET_WIFI   /* a wired build ignores both: a Wi-Fi backup restores without an error */
 			if (has("ssid")) {
 				String s = getS("ssid"); s.trim( );
 				if (s.length( ) > 0) {
@@ -1570,6 +1571,7 @@ void WebManager::handleApiCommitAll( ) {
 					else rejectField("net.pass");
 				}
 			}
+#endif
 			/* Same `!= "0"` inversion as the sys section, doubled: this copy of
 			 * the reader never learned to skip whitespace either, so a spaced
 			 * `{"use_dhcp": 0}` produced the token " 0" and forced DHCP on for

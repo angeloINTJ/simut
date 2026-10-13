@@ -312,6 +312,16 @@ def block(src: str, name: str) -> str:
     return src[a:src.find(')raw";', a)]
 
 
+def as_built(page: str) -> str:
+    """The page as an image with nothing omitted (the release) gets it: each
+    `/* @IF x */` block kept, each `/* @IF !x */` dropped, by the build's own
+    _IF_RE and _in_image( ). Since 2026-10-13 TEL_PAGE carries both sides of a
+    few blocks (the 16-slot and the wired variants of one loop opening), and the
+    raw text has two `{` for one `}`: cut from it, _pvFrom never ended."""
+    g = generator()
+    return g["_IF_RE"].sub(lambda m: m.group(2) if g["_in_image"](m.group(1)) else "", page)
+
+
 def js_function(page: str, name: str) -> str:
     """One function of a page, ended by the build's own JS scanner: a brace in
     a string does not end it."""
@@ -458,7 +468,7 @@ def main() -> int:
     ok = not fails and not ffails
     if not fails:
         print("  ok   wiring: the session and /api/alarms reach the page, captions in both packs")
-    tel = block(src, "TEL_PAGE")
+    tel = as_built(block(src, "TEL_PAGE"))
     code = "\n".join(js_function(tel, n) for n in FUNCS)
     ok = run("as written", code, data) and ok
     ok = run("minified by build_webui_gz.py", generator()["_minify_js"](code), data) and ok

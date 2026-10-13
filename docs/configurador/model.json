@@ -676,6 +676,48 @@
         "tft_graph": false,
         "lan": true
       }
+    },
+    {
+      "id": "pico_wiretft",
+      "order": 9,
+      "bench": true,
+      "publish": false,
+      "chip": "rp2040",
+      "refused": {},
+      "ceilings": {
+        "flash_region": 1044480,
+        "ota_bin": 1040143
+      },
+      "label": {
+        "en": "SIMUT Wire TFT",
+        "pt": "SIMUT Wire TFT"
+      },
+      "desc": {
+        "en": "The SIMUT Wire with the touch display: a plain Raspberry Pi Pico with no radio, the network coming through an ENC28J60 module on the cable. Not published.",
+        "pt": "O SIMUT Wire com a tela touch: um Raspberry Pi Pico comum, sem rádio, com a rede por um módulo ENC28J60, no cabo. Não publicada."
+      },
+      "config": {
+        "display": "tft",
+        "cli_full": false,
+        "web_https": true,
+        "license_stub": false,
+        "mdns": true,
+        "concurrency_asserts": false,
+        "bluetooth": false,
+        "air": false,
+        "sound_buzzer": true,
+        "sensor_ds18b20": false,
+        "sensor_dht22": true,
+        "sensor_bme280": true,
+        "tel_tls": true,
+        "tel_mqtt": true,
+        "web_history": true,
+        "web_export_api": true,
+        "web_metrics": true,
+        "syslog": true,
+        "tft_graph": true,
+        "lan": true
+      }
     }
   ],
   "rules": [

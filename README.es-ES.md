@@ -50,7 +50,7 @@ Los tres comparten el mismo núcleo:
 | **Release actual** | **v2.11.1** (12/10/2026); el [changelog](CHANGELOG.md) dice qué cambió cada versión. SIMUT salió de beta con la v2.7.0, sobre mediciones: un soak de 8,18 h sin ningún reinicio y 6 de 6 actualizaciones por el aire sin perder nada. |
 | **Imágenes publicadas** | Cuatro imágenes, cada una en `.uf2` y `.bin`. Para la Pico W: `release` (panel táctil TFT), `alpha` (LCD 16×2 con consola Bluetooth) y `air` (registrador a batería sin pantalla). Para la Pico 2 W (RP2350): `releasetwo`, la release, cuyo `.uf2` lleva su tabla de particiones y cuyo `.bin` arranca a prueba. Junto a ellas van los packs de idioma pt-BR y es-ES y un manifiesto de OTA. Una imagen con otro conjunto de funciones sale del [configurador de build](https://angelointj.github.io/simut/configurador/), y el CI la compila desde `main`, también para la Pico 2 W. |
 | **Madurez** | <ul><li>`release`: **estable**.</li><li>`alpha`: publicado y probado en el banco, con su LCD 16×2 incluido desde el 26/09/2026.</li><li>`air`: **experimental**. Su único soak largo falló: un sueño en el ciclo 119 nunca despertó (F28). Hoy lo mitiga un watchdog a lo largo del despertar; la causa raíz no está confirmada.</li><li>`releasetwo`: **nueva** en la v2.11.0, probada en el banco en una Pico 2 W (RP2350 A2). Se actualiza por el aire en el otro slot, a prueba, y vuelve sola cuando la actualización no se confirma.</li></ul> |
-| **Pruebas** | Cada pull request ejecuta 644 casos de test en el host en 9 suites, 60 s de fuzzing y análisis estático, y compila las ocho imágenes de firmware con la caché fría. El comportamiento en hardware real se verifica en un banco — ver [Verificación en hardware](docs/VERIFICATION.es-ES.md). |
+| **Pruebas** | Cada pull request ejecuta 660 casos de test en el host en 10 suites, 60 s de fuzzing y análisis estático, y compila las nueve imágenes de firmware con la caché fría. El comportamiento en hardware real se verifica en un banco — ver [Verificación en hardware](docs/VERIFICATION.es-ES.md). |
 
 **Limitaciones conocidas.** Cada una está documentada donde aplica.
 - **Actualización.** La actualización por el aire reformatea el sistema de archivos:
@@ -151,7 +151,7 @@ Consulta la **[guía de cableado](docs/WIRING.md)** para el pinout completo y lo
 - **API HTTP** — 62 rutas. Cada una está protegida por un permiso o es pública por diseño, y el CI lo comprueba.
 - **Telemetría** — HTTP, HTTPS, MQTT y MQTTS, en lotes por cantidad, y una segunda línea, con confirmación, para las alarmas; Home Assistant, Prometheus y syslog.
 - **Red y hora** — Wi-Fi que se reconecta solo, punto de acceso de configuración abierto a pedido, y NTP con un reloj provisional hasta sincronizar.
-- **Almacenamiento** — el histórico binario V5 (unos 116 días en 1 MB), la configuración con CRC32 y `.bak`, y un log de eventos con 162 códigos de evento.
+- **Almacenamiento** — el histórico binario V5 (unos 116 días en 1 MB), la configuración con CRC32 y `.bak`, y un log de eventos con 166 códigos de evento.
 - **Seguridad** — 32 cuentas, 13 bits de permiso, HMAC-SHA256 con salt, bloqueos por intentos y HTTPS opcional.
 - **Actualización** — actualización por el aire firmada, desde la página web, y backup y restauración de todo el sistema de archivos.
 - **SIMUT Air** (experimental) — registrador a batería que hiberna entre lecturas.
@@ -228,7 +228,7 @@ simut/
 │   └── SystemDefs*.h       # Constantes y límites del sistema
 ├── data/                   # Assets de LittleFS (packs de idioma, temas, favicon)
 ├── PCB_test/               # Diseño de la PCB en KiCad + archivos de fabricación (Gerber/DRL)
-├── test/                   # Tests unitarios nativos (Unity), nueve suites
+├── test/                   # Tests unitarios nativos (Unity), diez suites
 ├── tools/                  # Puertas de build, suites de banco, PicoHand, scripts de release, editor de temas
 ├── docs/                   # Documentación + sitio GitHub Pages
 ├── WebUI.h                 # Fuente de la web UI (se convierte en src/WebUI_GZ.h al compilar)
@@ -303,9 +303,10 @@ El dispositivo expone una API REST en `http://<ip-del-dispositivo>/api/`:
 ### Tests en el host
 
 ```bash
-pio test -e native             # validadores, cursor de telemetría, etiquetas, parsers, paquetes de idioma, las pantallas Licencia y de actualización, el menú de Ajustes, la verificación de contraseña, la sesión web (287 casos)
+pio test -e native             # validadores, cursor de telemetría, etiquetas, parsers, paquetes de idioma, las pantallas Licencia y de actualización, el menú de Ajustes, la verificación de contraseña, la sesión web (288 casos)
 pio test -e native_history_v5  # códec del histórico V5 (62)
-pio test -e native_cli         # parser de la CLI (33)
+pio test -e native_cli         # parser de la CLI (34)
+pio test -e native_lan         # parser de la CLI, ayuda del paquete, menú de Ajustes y códigos de log en una build cableada (14)
 pio test -e native_logpolicy   # persistencia de log por transición, franjas de la autopsia, lectura del táctil (57)
 pio test -e native_alarmqueue  # cola de la telemetría de alarmas (54)
 pio test -e native_network     # máquina de estados de la reconexión Wi-Fi (39)
@@ -325,13 +326,13 @@ Cada push y pull request a `main` ejecuta cuatro jobs:
   - escaneo de secretos, tablas de códigos de log, matriz de autorización;
   - consistencia de la licencia, guarda del sistema de archivos, consistencia del Air;
   - tests de la fusión de días del histórico.
-- **firmware** — las ocho imágenes, compiladas con la caché fría:
+- **firmware** — las nueve imágenes, compiladas con la caché fría:
   - cada una se comprueba contra su presupuesto de flash y el techo de actualización por el aire;
   - la propia compilación aplica el `-Werror` y las puertas de la interfaz web, la ayuda de la CLI, los códigos de log, la tabla de canales y los packs de idioma.
 - **fuzz** — 60 s de libFuzzer contra los validadores de la API web, con oráculos de contrato.
 - **análisis estático** — cppcheck, en una versión fijada.
 
-`main` está protegida: nueve de estas comprobaciones tienen que pasar antes de cualquier merge, todos los jobs salvo las imágenes `pico_w_test_https` y `pico_wire`.
+`main` está protegida: nueve de estas comprobaciones tienen que pasar antes de cualquier merge, todos los jobs salvo las imágenes `pico_w_test_https`, `pico_wire` y `pico_wiretft`.
 
 ### Verificación en hardware
 
@@ -358,7 +359,7 @@ El comportamiento se comprueba en un banco: una Pico 2 W con el panel TFT y el t
 ## Cómo se desarrolla SIMUT
 
 La mayor parte de los cambios la escribe un agente de IA (Claude Code) en sesiones que dirige el mantenedor: del 1 de septiembre al 2 de octubre de 2026, 275 de los 371 commits de `main` llevaban una línea `Co-Authored-By: Claude`. Las instrucciones que siguen esas sesiones son [CLAUDE.md](CLAUDE.md) y [AGENTS.md](AGENTS.md) (en portugués). Las reglas son las mismas para todo cambio, lo escriba quien lo escriba:
-- llega a `main` solo por pull request, después de nueve checks obligatorios: las nueve suites de test en el host, también bajo AddressSanitizer y UBSan, 60 s de fuzzing, análisis estático y seis imágenes de firmware compiladas con la caché fría;
+- llega a `main` solo por pull request, después de nueve checks obligatorios: las diez suites de test en el host, también bajo AddressSanitizer y UBSan, 60 s de fuzzing, análisis estático y seis imágenes de firmware compiladas con la caché fría;
 - los tests van primero: una corrección trae una reproducción que falla antes y pasa después, y una refactorización muestra que el comportamiento no cambió;
 - una afirmación sobre bytes, velocidad o una corrección trae su medición, y lo que no se comprobó en el hardware lo dice;
 - las decisiones de producto, y la de hacer merge, son del mantenedor.

@@ -349,13 +349,14 @@ O CI cobre tudo isto, mas só em pull request — meça antes:
 
 ```bash
 pio run -e pico_w_release -e pico_w_test -e pico_w_test_https \
-        -e pico_w_asserts -e pico_w_alpha -e pico_w_air -e pico2_w_release
-pio test -e native -e native_history_v5 -e native_cli -e native_logpolicy \
-         -e native_alarmqueue -e native_network -e native_air -e native_sensors \
-         -e native_otasig
+        -e pico_w_asserts -e pico_w_alpha -e pico_w_air -e pico2_w_release \
+        -e pico_wire -e pico_wiretft
+pio test -e native -e native_history_v5 -e native_cli -e native_lan \
+         -e native_logpolicy -e native_alarmqueue -e native_network -e native_air \
+         -e native_sensors -e native_otasig
 ./tools/run_fuzz.sh                       # 60 s; NÃO está no pio test e já pegou defeito real
 PLATFORMIO_BUILD_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined" \
-  pio test -e native -e native_sensors …  # as nove de novo sob ASan/UBSan (apaga .pio/build); o relatório
+  pio test -e native -e native_sensors …  # as dez de novo sob ASan/UBSan (apaga .pio/build); o relatório
                                           # só aparece rodando .pio/build/<env>/program direto
 python3 tools/check_air_consistency.py
 python3 tools/check_angulo.py             # o padrão de interface (§7): site, marca, READMEs, docs Living

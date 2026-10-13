@@ -100,6 +100,19 @@ The admin web password is regenerated automatically — find it in the
 serial boot output (line `SEC-003: FACTORY DEFAULTS ATIVADO` + one-time
 password).
 
+A SIMUT Wire (`pico_wire`, `pico_wiretft`) has no Wi-Fi to set up: it takes its
+address from DHCP on the cable. On a network without DHCP, give it one from the
+console, where each command saves at once:
+
+```
+ip static
+ip addr <IPv4>
+ip mask <IPv4>
+ip gateway <IPv4>
+dns manual <IPv4> [IPv4]
+reload confirm
+```
+
 ---
 
 ## Software BOOTSEL Trigger (1200 bps Trick)

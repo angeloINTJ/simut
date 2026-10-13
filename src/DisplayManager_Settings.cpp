@@ -778,6 +778,7 @@ void DisplayManager::showSettingsSounds(const SoundSettingsState& state) {
 }
 
 
+#if SIMUT_NET_WIFI   /* a wired build has no setup AP to ask about */
 /* Starting the setup AP takes the device off the LAN for up to 15 minutes, so
  * it asks first — the same two-button screen the Global Mute confirmation
  * uses, and the same hardcoded EN/PT strings, which is the rule this file
@@ -845,6 +846,7 @@ void DisplayManager::drawApConfirm( ) {
  }
  endScreenRender( );
 }
+#endif /* SIMUT_NET_WIFI */
 
 /* The date and time (2026-10-01). A unit with no network configured asks for
  * them when it boots — the maintainer's decision, replacing the setup AP that
@@ -1399,6 +1401,14 @@ void DisplayManager::drawSystemStatus( ) {
  addRow("Timezone", buf);
  }
  else if (_statusPage == 1) {
+#if SIMUT_NET_LAN
+ /* The cable (2026-10-13): no SSID, and no signal level — getRssi( ) is a
+  * constant there. The state reads like the radio's row, isConnected( ). */
+ addRow("Cable", d.wifiConnected ? "Connected" : "Disconnected",
+ d.wifiConnected ? C_TEMP_OK : C_TEMP_HOT);
+ addRow("IP", d.ip);
+ addRow("MAC", d.mac);
+#else
  addRow("WiFi", d.wifiConnected ? "Connected" : "Disconnected",
  d.wifiConnected ? C_TEMP_OK : C_TEMP_HOT);
  addRow("SSID", d.ssid);
@@ -1407,6 +1417,7 @@ void DisplayManager::drawSystemStatus( ) {
  snprintf(buf, sizeof(buf), "%ld dBm", (long)d.rssi);
  uint16_t rc = (d.rssi > -60) ? C_TEMP_OK : (d.rssi > -80) ? C_ACCENT : C_TEMP_HOT;
  addRow("RSSI", buf, rc);
+#endif
  addRow("NTP", d.ntpSynced ? "Synced" : "Not synced",
  d.ntpSynced ? C_TEMP_OK : C_TEMP_HOT);
  addRow("NTP Server", d.ntpServer);

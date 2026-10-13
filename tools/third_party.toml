@@ -7,9 +7,13 @@
 #   src/HelpLicenseEN.h        the list at the end of the panel's License screen
 #
 # What belongs here is what the linker keeps in at least one image, measured
-# by the component's symbols in each firmware.elf (2026-10-02), plus fonts and
-# the code the web pages carry. `images` names the images that carry it, by
-# the suffix of their PlatformIO environment.
+# by the component's symbols in each firmware.elf (2026-10-02; the two SIMUT
+# Wire images, pico_wire and pico_wiretft, on 2026-10-13, by one symbol per
+# component, the same probe agreeing with every line below on the seven
+# others), plus fonts and the code the web pages carry. `images` names the
+# images that carry it, by the suffix of their PlatformIO environment. A
+# page or a panel lists the components of its own family, radio or Wire
+# (tools/gen_notices.py).
 #
 # Every `text` is a file in LICENSES/, copied verbatim: from the package the
 # build uses (~/.platformio/packages, .pio/libdeps), from the source file's own
@@ -17,7 +21,8 @@
 # when the toolchain package does not carry one (newlib, the GCC runtime
 # exception, GNU FreeFont, the SHA-256 statement).
 
-all_images = ["release", "test", "test_https", "asserts", "alpha", "air", "pico2_release"]
+all_images = ["release", "test", "test_https", "asserts", "alpha", "air", "pico2_release",
+              "wire", "wiretft"]
 
 [[component]]
 name = "Arduino-Pico core"
@@ -51,7 +56,7 @@ text = "tinyusb-MIT.txt"
 name = "cyw43-driver"
 holder = "George Robotics Pty Ltd"
 license = "Raspberry Pi licence (LICENSE.RP)"
-images = "all"
+images = ["release", "test", "test_https", "asserts", "alpha", "air", "pico2_release"]
 url = "https://github.com/georgerobotics/cyw43-driver"
 what = "Driver for the Infineon CYW43439 Wi-Fi and Bluetooth chip of the Pico W and the Pico 2 W."
 note = "Licensed by Raspberry Pi Ltd for use with its own chips only. The driver's other licence (its LICENSE file) is for non-commercial use; LICENSE.RP is the one that covers SIMUT, which runs on the Pico W and the Pico 2 W."
@@ -61,7 +66,7 @@ text = "cyw43-driver-LICENSE.RP.txt"
 name = "CYW43439 radio firmware"
 holder = "Infineon Technologies (Cypress)"
 license = "binary, shipped in cyw43-driver"
-images = "all"
+images = ["release", "test", "test_https", "asserts", "alpha", "air", "pico2_release"]
 url = "https://github.com/georgerobotics/cyw43-driver/tree/main/firmware"
 what = "The firmware the radio chip loads at boot: Wi-Fi in every image, Bluetooth too in the alpha and Air images."
 note = "Shipped inside cyw43-driver; the Pico SDK carries no separate licence for it, so it travels under the driver's terms above."
@@ -98,7 +103,7 @@ text = "littlefs-BSD-3-Clause.txt"
 name = "MicroPython DHCP server"
 holder = "Damien P. George"
 license = "MIT"
-images = "all"
+images = ["release", "test", "test_https", "asserts", "alpha", "air", "pico2_release"]
 url = "https://micropython.org"
 what = "Hands out addresses on the setup access point; part of the Arduino-Pico WiFi library."
 text = "micropython-dhcpserver-MIT.txt"
@@ -107,7 +112,7 @@ text = "micropython-dhcpserver-MIT.txt"
 name = "LEAmDNS"
 holder = "LaborEtArs"
 license = "MIT"
-images = ["release", "asserts", "pico2_release"]
+images = ["release", "asserts", "pico2_release", "wiretft"]
 url = "https://github.com/LaborEtArs/ESP8266mDNS"
 what = "The mDNS responder that answers for the device name on the local network; part of the Arduino-Pico core."
 text = "leamdns-MIT.txt"
@@ -135,7 +140,7 @@ also = ["GPL-3.0.txt"]
 name = "Adafruit GFX Library"
 holder = "Adafruit Industries"
 license = "BSD-2-Clause"
-images = ["release", "test", "test_https", "asserts", "pico2_release"]
+images = ["release", "test", "test_https", "asserts", "pico2_release", "wiretft"]
 url = "https://github.com/adafruit/Adafruit-GFX-Library"
 what = "Drawing primitives for the touch panel, and the classic 5x7 font of its text screens."
 text = "adafruit-gfx-BSD-2-Clause.txt"
@@ -144,7 +149,7 @@ text = "adafruit-gfx-BSD-2-Clause.txt"
 name = "Adafruit ILI9341"
 holder = "Adafruit Industries (Limor Fried)"
 license = "BSD"
-images = ["release", "test", "test_https", "asserts", "pico2_release"]
+images = ["release", "test", "test_https", "asserts", "pico2_release", "wiretft"]
 url = "https://github.com/adafruit/Adafruit_ILI9341"
 what = "Driver for the ILI9341 controller of the touch panel."
 note = "Its source files say \"BSD license, all text here must be included in any redistribution\", so the whole header is reproduced. Its README says MIT; the source is what this list follows."
@@ -154,7 +159,7 @@ text = "adafruit-ili9341-BSD.txt"
 name = "XPT2046_Touchscreen"
 holder = "Paul Stoffregen"
 license = "MIT"
-images = ["release", "test", "test_https", "asserts", "pico2_release"]
+images = ["release", "test", "test_https", "asserts", "pico2_release", "wiretft"]
 url = "https://github.com/PaulStoffregen/XPT2046_Touchscreen"
 what = "Driver for the XPT2046 touch controller."
 text = "xpt2046-touchscreen-MIT.txt"
@@ -172,7 +177,7 @@ text = "pubsubclient-MIT.txt"
 name = "OneWirePIO_RP2040"
 holder = "Ângelo Moisés Alves"
 license = "MIT"
-images = "all"
+images = ["release", "test", "test_https", "asserts", "alpha", "air", "pico2_release"]
 url = "https://github.com/angeloINTJ/OneWirePIO_RP2040"
 what = "1-Wire on the PIO, for the DS18B20 probes."
 text = "OneWirePIO_RP2040-MIT.txt"
@@ -190,7 +195,7 @@ text = "DHT22PIO_RP2040-MIT.txt"
 name = "BuzzerPIO_RP2040"
 holder = "Ângelo Moisés Alves"
 license = "MIT"
-images = ["release", "test", "test_https", "asserts", "alpha", "pico2_release"]
+images = ["release", "test", "test_https", "asserts", "alpha", "pico2_release", "wire", "wiretft"]
 url = "https://github.com/angeloINTJ/BuzzerPIO_RP2040"
 what = "Tones and melodies for the buzzer on the PIO."
 text = "BuzzerPIO_RP2040-MIT.txt"
@@ -214,6 +219,16 @@ what = "BME280 and BMP280 driver."
 text = "BMx280PIO_RP2040-MIT.txt"
 
 [[component]]
+name = "PicoENC28J60"
+holder = "Lukasz Janyst and Ângelo Moisés Alves"
+license = "MIT"
+images = ["wire", "wiretft"]
+url = "https://github.com/angeloINTJ/pico-enc28j60"
+what = "Driver for the ENC28J60 Ethernet controller of the SIMUT Wire, plugged into the lwIP stack of the Arduino-Pico core; its SPI is a PIO program."
+note = "A fork of Lukasz Janyst's pico-enc28j60 (https://github.com/ljanyst/pico-enc28j60), whose PIO SPI program and C driver it keeps; the build fixes it at commit fb16ec1."
+text = "pico-enc28j60-MIT.txt"
+
+[[component]]
 name = "BTstack"
 holder = "BlueKitchen GmbH"
 license = "Raspberry Pi licence (LICENSE.RP)"
@@ -227,7 +242,7 @@ text = "btstack-LICENSE.RP.txt"
 name = "GNU FreeFont (FreeSans Bold)"
 holder = "GNU FreeFont contributors"
 license = "GPL-3.0-or-later with the font exception"
-images = ["release", "test", "test_https", "asserts", "pico2_release"]
+images = ["release", "test", "test_https", "asserts", "pico2_release", "wiretft"]
 url = "https://www.gnu.org/software/freefont/"
 what = "The 9, 12 and 24 pt faces of the touch panel, converted to bitmaps and cut down to the glyphs SIMUT draws."
 text = "freefont-GPL-3.0-font-exception.txt"

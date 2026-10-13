@@ -1674,9 +1674,11 @@ void DisplayManager::loopCore1( ) {
 
 			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawMuteConfirm( ); }
 		}
+#if SIMUT_NET_WIFI
 		else if (_uiMode == MODE_CONFIRM_AP) {
 			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawApConfirm( ); }
 		}
+#endif
 		else if (_uiMode == MODE_SET_CLOCK) {
 			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawClockEntry( ); }
 		}

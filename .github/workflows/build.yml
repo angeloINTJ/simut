@@ -141,6 +141,11 @@ jobs:
       - name: Pin masks and variant names of the wired build
         run: python3 tools/test_pin_masks.py
 
+      # A wired build cuts the radio's parts of the web pages (on_web_omit =
+      # "wifi" on the lan switch), and a Wi-Fi build keeps them.
+      - name: Web pages per network
+        run: python3 tools/test_web_omit_network.py
+
       # Whether a combination fits in the PIO blocks, and which GPIO two owners
       # claim, before anything compiles: the firmware finds out only at boot,
       # when it logs "pio0 full" and drops a sensor.
@@ -280,7 +285,7 @@ jobs:
           python3 tools/ota_sign.py gen-trust --check
           python3 tools/ota_sign.py check-keys
 
-      # ALL NINE native environments. Separate steps rather than one
+      # ALL TEN native environments. Separate steps rather than one
       # `pio test -e a -e b ...` so a failure names itself in the Actions UI
       # instead of hiding behind the first environment that broke.
       #
@@ -296,6 +301,12 @@ jobs:
 
       - name: Run unit tests (CLI parser)
         run: pio test -e native_cli
+
+      # The same parser compiled for a wired build (2026-10-13): no `ap`, no
+      # SSID, and `ip`/`dns` in the emergency console; its pack help is
+      # @HELPWIRE.
+      - name: Run unit tests (CLI parser, wired build)
+        run: pio test -e native_lan
 
       - name: Run unit tests (LogPolicy)
         run: pio test -e native_logpolicy
@@ -325,7 +336,7 @@ jobs:
       - name: Run unit tests (OTA signature)
         run: pio test -e native_otasig
 
-      # The same nine suites again, under AddressSanitizer and UBSan, with
+      # The same ten suites again, under AddressSanitizer and UBSan, with
       # undefined behaviour made fatal. The plain runs above are the contract;
       # this run sees what a passing assertion cannot - a read past a buffer, a
       # reference to a dead frame that still holds the right bytes. Its first
@@ -340,7 +351,7 @@ jobs:
           PLATFORMIO_BUILD_FLAGS: -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined
         run: |
           rc=0
-          for e in native native_history_v5 native_cli native_logpolicy \
+          for e in native native_history_v5 native_cli native_lan native_logpolicy \
                    native_alarmqueue native_air native_sensors native_network native_otasig; do
             if ! pio test -e "$e"; then
               rc=1
@@ -382,6 +393,9 @@ jobs:
           # Building it here keeps the guards of src/simut_config.h section 10b
           # and the wired side of NetworkManager compiling.
           - pico_wire
+          # The SIMUT Wire with the TFT panel (2026-10-13): pico_wire with the
+          # touch display, so the TFT side of a wired build compiles here too.
+          - pico_wiretft
     name: firmware (${{ matrix.env }})
     steps:
       - uses: actions/checkout@v7
@@ -447,7 +461,7 @@ jobs:
       # skips that part of the test; after a build both are on disk, and
       # `require` makes a source that went missing a failure instead of a skip
       # nobody reads. One image is enough: the libraries are pico_base's, the
-      # same in all eight.
+      # same in all nine.
       - name: PIO program sizes match their sources
         if: matrix.env == 'pico_w_release'
         env:

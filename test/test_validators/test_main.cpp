@@ -1793,6 +1793,20 @@ void test_langidx_directive_names_match_exactly(void) {
     TEST_ASSERT_EQUAL_STRING("a\n", langRange(t, ix, LANG_SEC_DICT).c_str());
 }
 
+/* A wired build's console help is @HELPWIRE (2026-10-13). In a radio build it
+ * is a directive like any unknown one: it ends @HELP and its body is nobody's,
+ * in either order. The mirror — @HELPWIRE is the help, @HELP is unknown — runs
+ * in test/test_lan, the one suite built with SIMUT_NET_LAN. */
+void test_langidx_helpwire_is_not_a_radio_builds_help(void) {
+    const char* s = "@DICT\na\n@HELP\nradio\n@HELPWIRE\ncable\n@WEBDICT\n{}";
+    LangPackIndex ix = langIndex(s);
+    TEST_ASSERT_EQUAL_STRING("radio\n", langRange(s, ix, LANG_SEC_HELP).c_str());
+    const char* t = "@DICT\na\n@HELPWIRE\ncable\n@HELP\nradio\n@WEBDICT\n{}";
+    ix = langIndex(t);
+    TEST_ASSERT_EQUAL_STRING("radio\n", langRange(t, ix, LANG_SEC_HELP).c_str());
+    TEST_ASSERT_EQUAL_STRING("a\n", langRange(t, ix, LANG_SEC_DICT).c_str());
+}
+
 void test_langidx_an_at_sign_mid_line_is_content(void) {
     const char* s = "@DICT\ne-mail a@b\n @recuado\n@HELP\nh\n";
     const LangPackIndex ix = langIndex(s);
@@ -3621,6 +3635,9 @@ void test_settings_menu_item_ids_are_the_historical_ones(void) {
     TEST_ASSERT_EQUAL_INT(11, MENU_SETUP_AP);
     TEST_ASSERT_EQUAL_INT(12, MENU_CLOCK);
     TEST_ASSERT_EQUAL_INT(13, MENU_ITEM_COUNT);
+    /* A radio build has every item; a wired one drops MENU_SETUP_AP's row
+     * and keeps the ids (test/test_lan). */
+    TEST_ASSERT_EQUAL_INT(MENU_ITEM_COUNT, MENU_BUILD_COUNT);
 }
 
 void test_settings_menu_order_lists_every_item_once(void) {
@@ -4993,6 +5010,7 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_langidx_chunking_does_not_matter);
     RUN_TEST(test_langidx_refuses_a_directive_after_webdict);
     RUN_TEST(test_langidx_directive_names_match_exactly);
+    RUN_TEST(test_langidx_helpwire_is_not_a_radio_builds_help);
     RUN_TEST(test_langidx_an_at_sign_mid_line_is_content);
     RUN_TEST(test_langidx_directive_line_endings);
     RUN_TEST(test_langidx_name_and_code_values);

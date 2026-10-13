@@ -12,7 +12,9 @@ check_authz / check_fsguard.
   C2  the emergency help block (HelpLicenseEN.h, #if !SIMUT_CLI_FULL) may only
       advertise `air …` under an #if SIMUT_AIR guard (F15).
   C3  every command line of the EN emergency help exists in the @HELP section
-      of every language pack (F15/F20).
+      of every language pack (F15/F20), and the pack lists none the help does
+      not; a wired build's help (SIMUT_NET_LAN) is held to @HELPWIRE the same
+      way (2026-10-13).
   C4  tools/check_cli_help.py must not expect CMD_AIR_* unconditionally: the
       list has to depend on SIMUT_AIR (F15).
   C5  every Air method declared in AppManager.h has a definition (F17).
@@ -36,6 +38,8 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, 'src')
+sys.path.insert(0, os.path.join(ROOT, 'tools'))
+import cli_gates  # noqa: E402
 
 AIR_ONLY_FILES = {'AppManager_Air.cpp', 'DisplayManager_None.cpp'}
 
@@ -115,10 +119,29 @@ def emergency_help_block(src):
     as commands. Preprocessor lines inside the block are kept so C2 can see
     an #if SIMUT_AIR guard around the air commands (two adjacent raw literals).
     """
-    m = re.search(r'#if\s+!SIMUT_CLI_FULL(.*?)\n#else', src, re.DOTALL)
+    m = re.search(r'^#if\s+!SIMUT_CLI_FULL\b[^\n]*\n', src, re.MULTILINE)
     if not m:
         return '', 0
-    block = m.group(1)
+    # The #else that closes it, found by depth: the block holds #if/#else pairs
+    # of its own since 2026-10-13 (the wired build's lines), and taking the
+    # first "\n#else" cut C3 down to two commands without a word.
+    depth, off, end = 0, m.end(), None
+    for line in src[m.end():].split('\n'):
+        s = line.strip()
+        if s.startswith('#if'):
+            depth += 1
+        elif s.startswith('#endif'):
+            if depth == 0:
+                end = off
+                break
+            depth -= 1
+        elif s.startswith(('#else', '#elif')) and depth == 0:
+            end = off
+            break
+        off += len(line) + 1
+    if end is None:
+        return '', 0
+    block = src[m.end():end]
     first = block.find('R"raw(')
     last = block.rfind(')raw"')
     if first < 0 or last < 0:
@@ -157,9 +180,30 @@ def help_commands(text):
     return cmds
 
 
-def pack_help_section(text):
-    m = re.search(r'^@HELP\s*$(.*?)(?=^@[A-Z]+\s*$|\Z)', text, re.DOTALL | re.MULTILINE)
+def pack_help_section(text, name='HELP'):
+    m = re.search(rf'^@{name}\s*$(.*?)(?=^@[A-Z]+\s*$|\Z)', text, re.DOTALL | re.MULTILINE)
     return m.group(1) if m else ''
+
+
+def emergency_help_text(src, lan):
+    """The emergency help as an image with this network compiles it, Air off.
+
+    tools/cli_gates.py blanks the branches of HelpLicenseEN.h such an image does
+    not build — the full CLI's text, the Air lines (C2's business), the other
+    network's lines — and the raw literals left in HELP_TEXT_EN are joined the
+    way the compiler joins adjacent ones."""
+    kept = cli_gates.strip_gated(src, {'SIMUT_CLI_FULL': 0, 'SIMUT_AIR': 0,
+                                       'SIMUT_NET_LAN': int(lan)})
+    start = kept.find('HELP_TEXT_EN[] PROGMEM =')
+    end = kept.find(')raw";', start)
+    if start < 0 or end < 0:
+        return ''
+    return ''.join(re.findall(r'R"raw\((.*?)\)raw"', kept[start:end + len(')raw"')], re.DOTALL))
+
+
+# The section of a pack that holds each build's emergency help: a radio build
+# reads @HELP, a wired one @HELPWIRE (src/LangPackIndex.h).
+HELP_PROFILES = (('HELP', False), ('HELPWIRE', True))
 
 
 def key_of(cmd_line):
@@ -178,22 +222,31 @@ def c3_packs_have_every_command():
     firmware-side marker before a shared pack can carry them (plan F15).
     """
     src = read(os.path.join(SRC, 'HelpLicenseEN.h'))
-    block, _ = emergency_help_block(src)
-    universal = '\n'.join(line for _n, line, guarded
-                          in guarded_lines(blank_comments(block)) if not guarded)
-    en_cmds = help_commands(universal)
-    en_keys = {key_of(c): c for c in en_cmds}
-    for pack in sorted(glob.glob(os.path.join(ROOT, 'data', 'lang', '*.lng'))):
-        sect = pack_help_section(read(pack))
-        if not sect:
-            problem('C3', f'{os.path.relpath(pack, ROOT)}: no @HELP section')
+    for name, lan in HELP_PROFILES:
+        en_cmds = help_commands(emergency_help_text(src, lan))
+        if not en_cmds:
+            problem('C3', f'src/HelpLicenseEN.h: no emergency help read for @{name}')
             continue
-        keys = {key_of(c) for c in help_commands(sect)}
-        for k, c in sorted(en_keys.items()):
-            if k not in keys:
-                problem('C3', f'{os.path.relpath(pack, ROOT)}: @HELP lacks "{c}"')
-    if verbose:
-        print(f'[air-consistency] C3: EN emergency help lists {len(en_cmds)} commands')
+        en_keys = {key_of(c): c for c in en_cmds}
+        for pack in sorted(glob.glob(os.path.join(ROOT, 'data', 'lang', '*.lng'))):
+            rel = os.path.relpath(pack, ROOT)
+            sect = pack_help_section(read(pack), name)
+            if not sect:
+                problem('C3', f'{rel}: no @{name} section')
+                continue
+            pack_cmds = {key_of(c): c for c in help_commands(sect)}
+            for k, c in sorted(en_keys.items()):
+                if k not in pack_cmds:
+                    problem('C3', f'{rel}: @{name} lacks "{c}"')
+            # And the other way: a command the pack advertises that this
+            # image does not have answers "unknown" — `ap` on a wired build.
+            for k, c in sorted(pack_cmds.items()):
+                if k not in en_keys:
+                    problem('C3', f'{rel}: @{name} lists "{c}", which the EN help of '
+                                  f'that build does not')
+        if verbose:
+            print(f'[air-consistency] C3: EN emergency help for @{name} lists '
+                  f'{len(en_cmds)} commands')
 
 
 # C4 — check_cli_help.py expects CMD_AIR_* regardless of SIMUT_AIR ------

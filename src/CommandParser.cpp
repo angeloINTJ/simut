@@ -20,6 +20,7 @@
  */
 
 #include "CommandParser.h"
+#include "simut_config.h"   /* SIMUT_NET_WIFI: without it the radio's commands would compile out of every image */
 #include "SystemDefs_Validate.h"
 #include "SystemDefs_Records.h"
 #include "sensors/SensorChannelTable.h" /* channelByKey — which fields name a quantity */
@@ -113,7 +114,9 @@ CliDemand parseCliCommand(String input) {
 	/* ── Global shortcuts ── */
 	if (t0 == "help" || t0 == "ajuda" || t0 == "?") { cmd.type = CMD_HELP; return cmd; }
 	if (t0 == "reload") { cmd.type = CMD_RELOAD; return cmd; }
+#if SIMUT_NET_WIFI   /* no radio, no access point: a wired build has no `ap` */
 	if (t0 == "ap" || t0 == "apmode" || t0 == "ap-mode") { cmd.type = CMD_AP; return cmd; }
+#endif
 	/* `time` on every image, not only the full CLI (2026-10-01): a unit with no
 	 * network configured says at boot that its clock is provisional and names
 	 * this command, and on the alpha the console is the only way in. */
@@ -207,11 +210,13 @@ CliDemand parseCliCommand(String input) {
 #endif
 	}
 
-#if SIMUT_CLI_FULL
+#if SIMUT_CLI_FULL || SIMUT_NET_LAN
 
 	/* ── Network addressing (global-config family) ──
 	 * Bare forms as advertised by help; 'conf'-prefixed forms arrive
-	 * here too via prefix normalization. */
+	 * here too via prefix normalization. A wired build's emergency console
+	 * has them too (2026-10-13): with no SSID to set and no AP to open, they
+	 * are how a unit on a network without DHCP gets an address. */
 	if (t0 == "ip") {
 		if (t1 == "dhcp")    { cmd.type = CMD_IP_CFG; cmd.intVal1 = 0; return cmd; }
 		if (t1 == "static")  { cmd.type = CMD_IP_CFG; cmd.intVal1 = 1; return cmd; }
@@ -220,10 +225,14 @@ CliDemand parseCliCommand(String input) {
 		if (t1 == "gateway") { cmd.type = CMD_IP_CFG; cmd.intVal1 = 4; cmd.setStrVal1(r2.c_str( )); return cmd; }
 		if (t1 == "dns")     { cmd.type = CMD_IP_CFG; cmd.intVal1 = 5; cmd.setStrVal1(r2.c_str( )); return cmd; }
 	}
+#endif
+#if SIMUT_CLI_FULL
 	if (t0 == "ntp") {
 		if (t1 == "on")  { cmd.type = CMD_SET_NTP_ENABLED; cmd.intVal1 = 1; return cmd; }
 		if (t1 == "off") { cmd.type = CMD_SET_NTP_ENABLED; cmd.intVal1 = 0; return cmd; }
 	}
+#endif
+#if SIMUT_CLI_FULL || SIMUT_NET_LAN
 	/* 'dns auto|manual ...' (bare, per help) and legacy 'net dns ...'
 	 * (reached as 'conf net dns ...' before normalization). */
 	if (t0 == "dns" || (t0 == "net" && t1 == "dns")) {
@@ -239,6 +248,8 @@ CliDemand parseCliCommand(String input) {
 			return cmd;
 		}
 	}
+#endif
+#if SIMUT_CLI_FULL
 
 	/* ── Web users (RBAC) ── */
 	if (t0 == "user") {
@@ -309,9 +320,11 @@ CliDemand parseCliCommand(String input) {
 		if (t1 == "https" && t2 == "off")    { cmd.type = CMD_HTTPS_OFF;     return cmd; }
 		/* WiFi SSID/pass survive into the emergency image: the headless Air
 		 * build otherwise has no way to change the network (needed to simulate
-		 * a missing network). */
+		 * a missing network). A wired build has neither. */
+#if SIMUT_NET_WIFI
 		if (t1 == "ssid")     { cmd.type = CMD_SET_WIFI_SSID; cmd.setStrVal1(r2.c_str( )); return cmd; }
 		if (t1 == "pass")     { cmd.type = CMD_SET_WIFI_PASS; cmd.setStrVal1(r2.c_str( )); return cmd; }
+#endif
 		/* 'system cors' lives outside SIMUT_CLI_FULL for the same reason ssid
 		 * and pass do, and for one more: it is the only way in. The origin has
 		 * to be set BEFORE the manager page can reach the device at all, so a
@@ -338,10 +351,12 @@ CliDemand parseCliCommand(String input) {
 
 #if SIMUT_CLI_FULL
 	/* ── Wi-Fi aliases (same handlers as 'system ssid/pass') ── */
+#if SIMUT_NET_WIFI
 	if (t0 == "wifi") {
 		if (t1 == "ssid") { cmd.type = CMD_SET_WIFI_SSID; cmd.setStrVal1(r2.c_str( )); return cmd; }
 		if (t1 == "pass") { cmd.type = CMD_SET_WIFI_PASS; cmd.setStrVal1(r2.c_str( )); return cmd; }
 	}
+#endif
 	if (t0 == "ds18b20" && t1 == "resolution") {
 		cmd.type = CMD_SET_DS_RES;
 		cmd.intVal1Valid = parseIntStrict(t2, cmd.intVal1);

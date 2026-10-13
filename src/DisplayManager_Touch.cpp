@@ -1608,6 +1608,7 @@ void DisplayManager::handleTouch( ) {
  }
  }
  }
+#if SIMUT_NET_WIFI   /* the wired build has no setup AP (2026-10-13) */
  else if (_uiMode == MODE_CONFIRM_AP) {
  /* Same two buttons, same rects as the mute confirmation above. */
  if (y >= 190 && y <= 230) {
@@ -1626,6 +1627,7 @@ void DisplayManager::handleTouch( ) {
  }
  }
  }
+#endif
  else if (_uiMode == MODE_SET_CLOCK) {
  /* The two buttons are the AP confirmation's rects. SKIP (at boot) or BACK
   * stays on this core — nothing changes but the screen. SAVE hands the fields

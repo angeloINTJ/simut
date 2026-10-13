@@ -108,8 +108,10 @@ private:
  void processBackgroundScan( );
 
  void executeCommand(CliDemand cmd);
+#if SIMUT_NET_WIFI
  /** Starts Access Point mode at runtime (192.168.4.1) — the 'ap' CLI/BT command. */
  void startApMode(uint8_t why = 0);
+#endif
  /** Network, key, address and "AP active" as the boot terminal's last lines. */
  void showApOnPanel( );
 
@@ -131,9 +133,11 @@ private:
  void cmdHandleUserPin(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
  void cmdHandleUserPolicy(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
 #endif
+ void cmdHandleUserPass(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
+#endif
+#if SIMUT_CLI_FULL || SIMUT_NET_LAN
  void cmdHandleIpCfg(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
  void cmdHandleDnsCfg(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
- void cmdHandleUserPass(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
 #endif
 
  void checkAndAutoHealSensors( );

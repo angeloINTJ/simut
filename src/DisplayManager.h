@@ -667,7 +667,9 @@ public:
 
 	void showSettingsSounds(const SoundSettingsState& state);
 	void showMuteConfirm( );
+#if SIMUT_NET_WIFI   /* the wired build has no setup AP (2026-10-13) */
 	void showApConfirm( ); /**< "start the setup access point?" (2.7.1) */
+#endif
 	/** The date and time, starting from @p start. @p atBoot: asked by the boot
 	 *  of a unit with no network — the left button is SKIP, and a hint says why
 	 *  the question is there; otherwise it is BACK, to the settings menu. */
@@ -1330,7 +1332,9 @@ private:
 	void drawSettingsSounds( );
 	void drawMelodySelect( );
 	void drawMuteConfirm( );
+#if SIMUT_NET_WIFI
 	void drawApConfirm( );
+#endif
 	void drawClockEntry( );
 	void drawClockValues(Adafruit_GFX* g, int16_t yOff);
 	ClockEntry _clockEntry = { 2026, 1, 1, 0, 0 };
