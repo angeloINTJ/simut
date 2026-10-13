@@ -523,6 +523,12 @@
 #ifndef SIMUT_ENC_INT_PIN
 #define SIMUT_ENC_INT_PIN 11
 #endif
+/* The PIO block of the module's SPI. tools/pio_budget.py places it: in the Wire
+ * (16x2 LCD, DHT22, buzzer) the buzzer and the DHT22 hold pio1, so pio0. Never
+ * "any block": started late, the driver would take a sensor family's. */
+#ifndef SIMUT_ENC_PIO
+#define SIMUT_ENC_PIO 0
+#endif
 
 // Who owns which GPIO, checked by the preprocessor so a layout that cannot work
 // stops the build instead of the board: the display, the module and the buzzer
