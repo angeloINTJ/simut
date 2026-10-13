@@ -26,7 +26,8 @@ O número no início de cada rótulo diz de que grupo a falha é: 1 a 8, os conj
 recursos; 2r, os programas de lista de blocos com a tabela mudada (a recusa, a ordem em que
 tentam os blocos, o rádio que cai no seguinte); 9, os limites de todo resultado; 10, os
 pinos e o INT; 11, as fontes reais; 12, o controle negativo; 13, o leitor das fontes e a
-variável SIMUT_PIO_SOURCES; 14, a tabela de pinos contra o simut_config.h.
+variável SIMUT_PIO_SOURCES; 14, a tabela de pinos contra o simut_config.h; 15, o bloco do
+ENC28J60 no cabeçalho; 16, `refusals( )`, o bloqueio que a página e o CI leem.
 
 O grupo 14 precisa do `cpp` do host, o mesmo do test_pin_masks.py, de onde vêm o
 `preprocess` e o `judge`; sem ele o teste falha, não pula: uma tabela de pinos que ninguém
@@ -41,10 +42,11 @@ Variáveis de ambiente (as fontes reais):
                    vazio (o padrão): uma fonte que não existe é pulada, com um aviso.
                    `require`: pular vira falha para onewire, dht22, buzzer, cyw43 e o
                    WirePIO do BME280, as fontes que um job que compila o firmware tem (as
-                   bibliotecas em .pio/libdeps e o pico-sdk do framework). O enc28j60
-                   continua podendo faltar: a biblioteca ainda não é dependência de nenhuma
-                   imagem. Qualquer outro valor reprova, para que um erro de digitação não
-                   desligue o portão.
+                   bibliotecas em .pio/libdeps e o pico-sdk do framework), e para o
+                   enc28j60 quando ENC_PIO_HEADER diz onde ele está: a biblioteca só é
+                   dependência das imagens com cabo, e o job do pico_wire diz; sem a
+                   variável o enc28j60 continua podendo faltar. Qualquer outro valor
+                   reprova, para que um erro de digitação não desligue o portão.
                    O grupo 13 prova as duas pontas rodando este mesmo arquivo como processo
                    filho, sem nenhuma fonte, e olhando o código de saída.
 """
@@ -462,14 +464,17 @@ fontes["enc28j60"] = enc_header
 fontes["cyw43"] = cyw43_pio
 check(sorted(fontes) == sorted(pb.PROGRAMS), f"11 há programa sem fonte (ou fonte sem programa): {sorted(fontes)}")
 # SIMUT_PIO_SOURCES=require: o job que compila o firmware tem as fontes, e uma que sumiu (uma pasta
-# de libdeps que mudou de lugar) não pode virar um "pulado" que ninguém lê. O enc28j60 fica de
-# fora: a biblioteca dele ainda não é dependência de nenhuma imagem. Um valor que não seja
+# de libdeps que mudou de lugar) não pode virar um "pulado" que ninguém lê. O enc28j60 é exigido
+# quando o job diz onde ele está (ENC_PIO_HEADER): a biblioteca só é dependência das imagens com
+# cabo, e o job do pico_wire diz; o do pico_w_release não a tem e não diz. Um valor que não seja
 # "require" nem vazio também reprova, porque um erro de digitação desligaria o portão sem aviso.
 modo_fontes = os.environ.get("SIMUT_PIO_SOURCES", "")
 check(modo_fontes in ("", "require"),
       f"11 SIMUT_PIO_SOURCES={modo_fontes!r}: os valores são vazio (a fonte que falta é pulada) e "
       f"'require' (a fonte que falta é falha)")
-exigidas = set(fontes) - {"enc28j60"} if modo_fontes == "require" else set()
+exigidas = set()
+if modo_fontes == "require":
+    exigidas = set(fontes) if os.environ.get("ENC_PIO_HEADER") else set(fontes) - {"enc28j60"}
 lidos = pb.program_lengths(libdeps, enc_header, cyw43_pio)
 for nome, caminho in fontes.items():
     if not os.path.exists(caminho):
@@ -590,9 +595,10 @@ with tempfile.TemporaryDirectory() as tmp:
 
 # SIMUT_PIO_SOURCES de ponta a ponta: este arquivo rodando como processo filho, sem nenhuma fonte
 # (todo caminho aponta para o que não existe), e o código de saída dele. O padrão pula e passa;
-# `require` reprova nomeando as cinco fontes que um job de firmware tem (as quatro da tabela e o
-# WirePIO do BME280), sem nomear o enc28j60
-# (que pode faltar); um valor desconhecido reprova. O filho não gera filhos (SIMUT_PIO_FILHO).
+# `require` reprova nomeando as fontes que um job de firmware tem: as quatro da tabela e o WirePIO
+# do BME280 sempre, e o enc28j60 quando ENC_PIO_HEADER diz onde ele está (o job do pico_wire diz;
+# sem a variável ele só é pulado). Um valor desconhecido reprova. O filho não gera filhos
+# (SIMUT_PIO_FILHO).
 if not os.environ.get("SIMUT_PIO_FILHO"):
     with tempfile.TemporaryDirectory() as tmp:
         sem_fontes = {"SIMUT_LIBDEPS": os.path.join(tmp, "libdeps"),
@@ -600,21 +606,37 @@ if not os.environ.get("SIMUT_PIO_FILHO"):
                       "CYW43_PIO": os.path.join(tmp, "radio.pio"),
                       "SIMUT_PIO_FILHO": "1"}
 
-        def filho(modo):
+        def filho(modo, enc_dito=True):
+            env = dict(os.environ, SIMUT_PIO_SOURCES=modo, **sem_fontes)
+            if not enc_dito:
+                # Sem ENC_PIO_HEADER vale o caminho padrão, debaixo do HOME: um HOME vazio garante que
+                # ele não existe também na máquina que tem o pico-enc28j60 ao lado do simut.
+                del env["ENC_PIO_HEADER"]
+                env["HOME"] = tmp
             r = subprocess.run([sys.executable, os.path.abspath(__file__)], capture_output=True, text=True,
-                               env=dict(os.environ, SIMUT_PIO_SOURCES=modo, **sem_fontes))
+                               env=env)
             return r.returncode, r.stdout + r.stderr
+
+        def nomeadas_em(saida):
+            return {n for n in pb.PROGRAMS if re.search(rf"^  11 {n}: .*SIMUT_PIO_SOURCES=require", saida, re.M)}
 
         code, saida = filho("")
         check(code == 0 and saida.count("pulado:") == len(pb.PROGRAMS) + 1,
               f"13 SIMUT_PIO_SOURCES vazio, sem nenhuma fonte: deveria passar pulando as "
               f"{len(pb.PROGRAMS)}; saiu {code}: {saida!r}")
         code, saida = filho("require")
-        nomeadas = {n for n in pb.PROGRAMS if re.search(rf"^  11 {n}: .*SIMUT_PIO_SOURCES=require", saida, re.M)}
+        nomeadas = nomeadas_em(saida)
+        check(code == 1 and nomeadas == set(pb.PROGRAMS) and saida.count("pulado:") == 0
+              and re.search(r"^  11 wirepio: .*SIMUT_PIO_SOURCES=require", saida, re.M),
+              f"13 SIMUT_PIO_SOURCES=require com ENC_PIO_HEADER, sem nenhuma fonte: deveria reprovar "
+              f"nomeando todas, o enc28j60 também; saiu {code} e nomeou {sorted(nomeadas)}: {saida!r}")
+        code, saida = filho("require", enc_dito=False)
+        nomeadas = nomeadas_em(saida)
         check(code == 1 and nomeadas == set(pb.PROGRAMS) - {"enc28j60"} and saida.count("pulado:") == 1
               and re.search(r"^  11 wirepio: .*SIMUT_PIO_SOURCES=require", saida, re.M),
-              f"13 SIMUT_PIO_SOURCES=require, sem nenhuma fonte: deveria reprovar nomeando todas menos o "
-              f"enc28j60, que só é pulado; saiu {code} e nomeou {sorted(nomeadas)}: {saida!r}")
+              f"13 SIMUT_PIO_SOURCES=require sem ENC_PIO_HEADER, sem nenhuma fonte: deveria reprovar "
+              f"nomeando todas menos o enc28j60, que só é pulado; saiu {code} e nomeou {sorted(nomeadas)}: "
+              f"{saida!r}")
         code, saida = filho("requer")
         check(code == 1 and "SIMUT_PIO_SOURCES='requer'" in saida,
               f"13 SIMUT_PIO_SOURCES=requer (erro de digitação): deveria reprovar dizendo o valor; "
@@ -758,6 +780,63 @@ else:
                   f"15 DS18B20={int(ds18)} DHT22={int(dht)} buzzer={int(buz)}: o place( ) põe o ENC28J60 no "
                   f"{r['enc_block']}, e o cabeçalho diz SIMUT_ENC_PIO={nome!r} (saída {code}, {erros})")
         check(lidas == 6, f"15 deveriam ser 6 combinações aceitas no RP2040 (DS18B20 com DHT22 não cabe), foram {lidas}")
+
+# ---------------------------------------------------------------------------------
+# 16. refusals( ) (2026-10-13): o que a página e o CI leem do orçamento. Recebe a config
+# como o gen_features.config_of( ) a monta, sem chave "radio": o rádio é o contrário do
+# cabo. Uma recusa diz o que não cabe e quais chaves, desligadas uma de cada vez, fazem
+# caber; os pinos repetidos também, pelas chaves dos donos.
+def cfg_do(produto, **muda):
+    c = gf.config_of(gf.resolve_profile(produto, M["profiles"]))
+    c.update(muda)
+    return c
+
+
+def recusas(cfg, chip, programas=None):
+    antes = copy.deepcopy(cfg)
+    r = pb.refusals(cfg, chip, programas)
+    check(cfg == antes, f"16 refusals( ) mexeu na config que recebeu: {antes} -> {cfg}")
+    return r
+
+
+check(getattr(pb, "BUDGET_KEYS", None) == tuple(k for _, k in pb.ORDER if k != "radio"),
+      f"16 BUDGET_KEYS {getattr(pb, 'BUDGET_KEYS', None)} não são as chaves do ORDER sem o rádio")
+if hasattr(pb, "refusals"):
+    check(recusas(cfg_do("pico_w_release"), "rp2040") == [], "16 o SIMUT como sai é recusado")
+    for p in ("pico_wire", "pico_wiretft"):
+        check(recusas(cfg_do(p), "rp2040") == [], f"16 o {p} como sai é recusado")
+    r = recusas(cfg_do("pico_w_release", lan=True), "rp2040")
+    caminho = dict(cfg_do("pico_w_release", lan=True), radio=False)
+    check(len(r) == 1 and r[0]["id"] == "pio-budget"
+          and r[0]["fix"] == ["lan", "sensor_ds18b20", "sensor_dht22"]
+          and r[0]["reason"] == pb.place(caminho, "rp2040")["reason"] and r[0]["reason"],
+          f"16 o SIMUT no cabo, RP2040: devia ser um pio-budget com fix lan, DS18B20 e DHT22 e o motivo "
+          f"do place( ), foi {r}")
+    check(recusas(cfg_do("pico_w_release", lan=True), "rp2350") == [],
+          "16 o SIMUT no cabo, RP2350: três blocos, devia caber")
+    grande = tabela_com("cyw43", instr=20)
+    r = recusas(cfg_do("pico_w_release"), "rp2040", grande)
+    check(len(r) == 1 and r[0]["id"] == "pio-budget",
+          f"16 rádio de 20 instruções no SIMUT: devia ser recusado, foi {r}")
+    check(recusas(cfg_do("pico_wire"), "rp2040", grande) == [],
+          "16 rádio de 20 instruções no Wire: o cabo desliga o rádio, devia caber")
+    apertada = {nome: {"instr": 30, "sm": 1, "blocks": ["pio0"]} for nome, _ in pb.ORDER}
+    c = cfg_do("pico_w_release")
+    r = recusas(c, "rp2040", apertada)
+    todas = [k for k in pb.BUDGET_KEYS if c.get(k)]
+    check(len(r) == 1 and r[0]["id"] == "pio-budget" and r[0]["fix"] == todas,
+          f"16 nenhuma chave sozinha resolve: o fix devia ser todas as ligadas {todas}, foi {r}")
+    guardado = pb.PINS["buzzer"]
+    try:
+        pb.PINS["buzzer"] = (12,)
+        r = recusas(cfg_do("pico_wire"), "rp2040")
+    finally:
+        pb.PINS["buzzer"] = guardado
+    check(len(r) == 1 and r[0]["id"] == "pin-conflict" and "GP12" in r[0]["reason"]
+          and r[0].get("pin") == 12 and r[0]["fix"] == ["sound_buzzer", "lan"],
+          f"16 o buzzer no GP12 do módulo: devia ser um pin-conflict no pino 12 com fix buzzer e lan, foi {r}")
+else:
+    check(False, "16 pio_budget.refusals( ) não existe")
 
 # ---------------------------------------------------------------------------------
 if falhas:
