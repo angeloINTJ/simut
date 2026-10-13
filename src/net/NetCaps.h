@@ -49,9 +49,15 @@
  * Outside this file: a [net.<id>] in tools/features.toml whose `flags` pass the
  * identity macro, its pins and PIO program under their own `#if` in
  * simut_config.h, and its OTA variant names (simut_config.h refuses a wired
- * driver that has none). tools/test_net_caps.py applies these four edits to a
- * toy W5500 and holds what they must give, so a change here that breaks the
- * recipe breaks the test.
+ * driver that has none). For a cable, also its device header,
+ * src/net/<Chip>Device.h: the WiredEth type and the four functions wiredEth( ),
+ * wiredLinked( ), wiredErrorText( ) and wiredChipName( ) (Enc28j60Device.h says
+ * what each is for), with its `#elif SIMUT_NET_<ID>` before the `#else` of the
+ * include chain in src/net/WiredLink.cpp, which stops at an #error naming this
+ * step for a wired driver that has none. tools/test_net_caps.py applies the four
+ * edits to a toy W5500, and the device header with its #elif, and holds what
+ * they must give, so a change here or there that breaks the recipe breaks the
+ * test.
  *
  * @project SIMUT
  * @license MIT License

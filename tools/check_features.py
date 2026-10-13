@@ -98,9 +98,10 @@ def check_manifest(M: dict) -> tuple[list[str], list[str]]:
         referenced |= set(disp.get("exclude", [])) | set(disp.get("include", []))
     for t in M["toggles"].values():
         referenced |= set(t.get("off_exclude", [])) | set(t.get("on_include", []))
-    # As unidades de cada driver de rede ([net.<id>].units): sao excluidas das imagens dos outros
-    # drivers, e um nome errado nao exclui nada, em silencio.
-    for n in M.get("net", {}).values():
+    # As unidades de cada classe de rede ([net_class.<id>].units, as da build cabeada) e de cada driver
+    # ([net.<id>].units): sao excluidas das imagens das outras classes e dos outros drivers, e um nome
+    # errado nao exclui nada, em silencio.
+    for n in list(M.get("net_class", {}).values()) + list(M.get("net", {}).values()):
         referenced |= set(n.get("units", []))
     for ref in sorted(referenced):
         if "*" in ref:

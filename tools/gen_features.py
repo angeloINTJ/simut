@@ -231,13 +231,18 @@ def compose(prof: dict, M: dict) -> dict:
     # The class gives the pages it cuts; the driver gives the rest, its identity macro among
     # its flags (-DSIMUT_NET_ENC28J60=1). The class macro itself is never emitted
     # (2026-10-13): src/net/NetCaps.h derives it from the identity and refuses a build that
-    # passes it. Every unit of a driver that is NOT the profile's leaves the build: empty
-    # there, those objects still reordered the linker's veneers and changed the Wi-Fi images'
-    # bytes.
+    # passes it. Every unit of a class that is NOT the profile's leaves the build, and so does
+    # every unit of a driver that is not the profile's (the units of the wired build are the
+    # class's: the chip is a header): empty there, those objects still reordered the linker's
+    # veneers and changed the Wi-Fi images' bytes. The class first, the driver after, which is
+    # the order the file always had.
     net_id = prof["net"]
     net = M["net"][net_id]
     net_class = M["net_class"][net["class"]]
     flags += net.get("flags", [])
+    for other_id, other in M["net_class"].items():
+        if other_id != net["class"]:
+            excludes += other.get("units", [])
     for other_id, other in M["net"].items():
         if other_id != net_id:
             excludes += other.get("units", [])
@@ -429,6 +434,16 @@ def budget_table(M: dict) -> list[dict]:
     return out
 
 
+def _units_check(units, where: str) -> None:
+    """`units` de uma classe ou de um driver de rede: uma lista de nomes de arquivo de src/. Um nome com
+    espaco quebraria o build_src_filter; um que nao e lista, ou um typo, sairia do build em silencio."""
+    if units is not None and (not isinstance(units, list)
+                              or any(not isinstance(u, str) or not re.fullmatch(r"[A-Za-z0-9_./*+-]+", u)
+                                     for u in units)):
+        sys.exit(f"gen_features: [{where}].units tem de ser uma lista de unidades de traducao "
+                 f"de src/ (nomes de arquivo, sem espacos)")
+
+
 def check_manifest(M: dict) -> None:
     """Confere o manifesto antes de gerar. Um erro aqui e uma arvore que a pagina
     nao saberia desenhar, ou uma regra que reprova uma imagem que o CI constroi."""
@@ -489,10 +504,11 @@ def check_manifest(M: dict) -> None:
     # "feat", nao so numa macro: um chip que nao existe, uma lista que nao e de flags ou uma
     # chave que ninguem le so apareceria como uma build que falha ou, pior, que compila outra coisa.
     for c, v in classes.items():
-        extra = sorted(set(v) - {"macro", "bit", "web_omit"})
+        extra = sorted(set(v) - {"macro", "bit", "web_omit", "units"})
         if extra:
             sys.exit(f"gen_features: [net_class.{c}] tem chave que ninguem le: {', '.join(extra)} "
-                     f"(so macro, bit e web_omit)")
+                     f"(so macro, bit, web_omit e units)")
+        _units_check(v.get("units"), f"net_class.{c}")
         macro = v.get("macro")
         if macro is not None and not (isinstance(macro, str) and re.fullmatch(r"SIMUT_[A-Za-z0-9_]+", macro)):
             sys.exit(f"gen_features: [net_class.{c}].macro tem de ser um macro SIMUT_ (letras, digitos "
@@ -532,12 +548,7 @@ def check_manifest(M: dict) -> None:
         if flags is not None and (not isinstance(flags, list)
                                   or any(not isinstance(f, str) or not f.startswith("-D") for f in flags)):
             sys.exit(f"gen_features: [net.{n}].flags tem de ser uma lista de flags -D...")
-        units = v.get("units")
-        if units is not None and (not isinstance(units, list)
-                                  or any(not isinstance(u, str) or not re.fullmatch(r"[A-Za-z0-9_./*+-]+", u)
-                                         for u in units)):
-            sys.exit(f"gen_features: [net.{n}].units tem de ser uma lista de unidades de traducao "
-                     f"de src/ (nomes de arquivo, sem espacos)")
+        _units_check(v.get("units"), f"net.{n}")
         deps = v.get("lib_deps")
         if deps is not None:
             # Fixada por commit: um ramo ou uma tag que anda faria a mesma imagem

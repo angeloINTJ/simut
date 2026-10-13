@@ -25,7 +25,9 @@
  * net/WiredLink.h is all that stands between NetworkManager and the chip, so
  * this file DEFINES its functions: the module becomes a few knobs (what the
  * cable and the DHCP server are doing) and a few counters (what the manager
- * asked of it). WiredLink.cpp is not built here.
+ * asked of it). WiredLink.cpp is not built here; the one pure part of it,
+ * net/StaticAddress.h (the check of a static address before the module is told),
+ * is included and has its own cases at the end.
  *
  * @project SIMUT
  * @license MIT License
@@ -36,6 +38,7 @@
 #include "NetworkManager.h"
 #include "MetricsManager.h"
 #include "net/WiredLink.h"
+#include "net/StaticAddress.h"
 #include <lwip/dns.h>
 
 #if !SIMUT_NET_LAN
@@ -53,9 +56,19 @@ FakeSerial Serial;
 namespace simut_native { uint32_t fake_millis_value = 0; }
 
 /* The log is not under test here; these keep the linker happy and record
- * nothing, because asserting on log text would tie the suite to wording. */
+ * nothing, because asserting on log text would tie the suite to wording.
+ * Except for one line: the one that says a module did not start. Its text is
+ * made of the driver's name and the reason the driver gave, both from
+ * net/WiredLink.h, and a literal in their place would pass every other case. */
+static unsigned g_moduleFailLogs = 0;
+static String g_moduleFailText;
 LogManager::LogManager( ) {}
-void LogManager::logCode(LogLevel, const char*, LogCode, int, String) {}
+void LogManager::logCode(LogLevel, const char*, LogCode code, int, String extra) {
+    if (code == NET_WIRED_MODULE_FAIL) {
+        g_moduleFailLogs++;
+        g_moduleFailText = extra;
+    }
+}
 const char* LogManager::tr(const char* en) const { return en; }
 /* safeReboot( ) is [[noreturn]], so this stub must not return either (the same
  * stub in test_network records why: a return is undefined behaviour). In
@@ -111,6 +124,7 @@ IPAddress gatewayIP( ) { return g_mod.gw; }
 IPAddress dnsIP( ) { return g_mod.dns; }
 void macAddress(uint8_t mac[6]) { memcpy(mac, g_mod.mac, 6); }
 const char* lastError( ) { return g_mod.beginFails ? "the chip does not answer" : ""; }
+const char* chipName( ) { return "FAKE"; }
 void end( ) { g_mod.started = false; }
 
 }  // namespace WiredLink
@@ -176,6 +190,8 @@ void setUp(void) {
     set_native_millis(100000);   /* away from 0: the constructor's timers are 0, and must not look fresh */
     WiFi.reset( );
     g_mod = FakeModule( );
+    g_moduleFailLogs = 0;
+    g_moduleFailText = "";
     MetricsManager::instance( ).data( ).wifiReconnects = 0;
 }
 void tearDown(void) {}
@@ -220,6 +236,25 @@ static void test_a_module_that_does_not_start_is_retried_with_doubling_gaps(void
     TEST_ASSERT_TRUE_MESSAGE(net.isConnected( ), "the retry never brought the unit up");
     TEST_ASSERT_EQUAL_UINT_MESSAGE(startsBefore + 1, g_mod.beginCalls,
         "a module that has started must not be started again");
+}
+
+/* The line that says a module did not start is "<chip>: <reason>", the chip's
+ * name from the driver (WiredLink::chipName( )) and the reason it gave
+ * (WiredLink::lastError( )), and it comes once per episode of failures, however
+ * many times the ladder tries again: a minute between tries over a night would
+ * otherwise fill the log with one line. The fake's name is not the ENC28J60's
+ * on purpose: a literal of the first driver in the message would still read
+ * right in front of it. */
+static void test_a_module_that_does_not_start_is_logged_once_with_the_chip_and_the_reason(void) {
+    g_mod.beginFails = true;
+
+    NetworkManager net;
+    net.begin(makeConfig( ), /*dnsAuto=*/true, /*ntpEnabled=*/false, "");
+    pump(net, 4UL * 60UL * 1000UL, 500);
+
+    TEST_ASSERT_GREATER_THAN_UINT_MESSAGE(3, g_mod.beginCalls, "setup: the module was not retried");
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(1, g_moduleFailLogs, "the failure was not logged exactly once");
+    TEST_ASSERT_EQUAL_STRING("FAKE: the chip does not answer", g_moduleFailText.c_str( ));
 }
 
 /* ══ the way up ══════════════════════════════════════════════════════════ */
@@ -295,6 +330,57 @@ static void test_a_lease_change_under_a_live_link_is_followed(void) {
     TEST_ASSERT_EQUAL_UINT32_MESSAGE(announcedBefore + 1,
         MetricsManager::instance( ).data( ).wifiReconnects,
         "the new address was not announced exactly once");
+}
+
+/* ══ the module stopped under the manager ════════════════════════════════ */
+
+/* The OTA tears the network down before it writes the flash (the orchestrator
+ * calls WiredLink::end( ) on the cable, WiFi.end( ) on the radio), and its
+ * applier can return from an error that came before anything was written, with
+ * the unit running on (WebManager_Ota.cpp: "Only reached on pre-destructive
+ * error"). The radio recovers by itself: READY finds the radio down and the
+ * reconnect ladder joins again. The cable did not (found 2026-10-13, reading
+ * the wired path for the network driver): READY found the link down, went to
+ * waiting for a link and an address, and nothing in that wait starts a module
+ * that is no longer started, so the Wire stayed off the network until a reboot.
+ * This is not the pulled cable of the case above, where the module stays up and
+ * a second begin( ) would be the bug: a module that is stopped is started again,
+ * through the retry that already starts one that did not start. */
+static void test_a_module_stopped_by_an_update_that_did_not_happen_starts_again(void) {
+    NetworkManager net;
+    bringUp(net);
+
+    WiredLink::end( );                      /* the OTA's teardown */
+    TEST_ASSERT_FALSE_MESSAGE(g_mod.started, "setup: the fake was not stopped");
+    pump(net, 2UL * 60UL * 1000UL, 500);    /* the applier returned; the unit runs on, cable in, lease valid */
+
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(2, g_mod.beginCalls, "the module was never started again");
+    TEST_ASSERT_TRUE(g_mod.started);
+    TEST_ASSERT_TRUE_MESSAGE(net.isConnected( ), "the unit never came back on the network");
+    TEST_ASSERT_EQUAL_STRING("192.168.3.40", net.getIpAddress( ).c_str( ));
+}
+
+/* And a module that does not answer when it is asked again is what the retry
+ * already knows how to treat: the ladder, which starts at its base of 5 s after
+ * a unit that had reached READY and doubles up to a minute, the failure said
+ * once, and a start that succeeds when the chip answers at last. */
+static void test_a_module_stopped_for_an_update_that_will_not_start_again_is_retried_on_the_ladder(void) {
+    NetworkManager net;
+    bringUp(net);
+
+    WiredLink::end( );
+    g_mod.beginFails = true;
+    pump(net, 4UL * 60UL * 1000UL, 500);
+
+    TEST_ASSERT_FALSE(net.isConnected( ));
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(7, g_mod.beginCalls,
+        "four minutes of failures should hold seven starts: the first of bringUp( ), then 5, 15, 35, 75, 135 and 195 s after the stop");
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(1, g_moduleFailLogs, "the failure was not logged exactly once");
+
+    g_mod.beginFails = false;               /* the chip answers at last */
+    pump(net, 60000, 500);
+    TEST_ASSERT_TRUE_MESSAGE(net.isConnected( ), "the retry never brought the unit back");
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(8, g_mod.beginCalls, "a module that has started must not be started again");
 }
 
 /* ══ what a cable has instead of a radio ═════════════════════════════════ */
@@ -415,21 +501,84 @@ static void test_the_mac_is_upper_case_colon_separated(void) {
     TEST_ASSERT_EQUAL_STRING("2A:15:E3:4E:18:24", buf);
 }
 
+/* ══ the static address the module is refused ════════════════════════════ */
+
+/* What lwIP refuses or silently rearranges in a static address, checked before
+ * the module is told (net/StaticAddress.h; WiredLink::begin( ) calls it). One
+ * case per rule, and each one changes only what its rule looks at, so a rule
+ * that is taken out fails exactly its own case: the other three stay valid in
+ * every case but theirs. A result is the reason, in words, or nullptr; the
+ * cases pin WHICH rule spoke (a word of the reason), not the sentence. */
+static const IPAddress kIp(192, 168, 3, 40);
+static const IPAddress kGateway(192, 168, 3, 1);
+static const IPAddress kMask(255, 255, 255, 0);
+
+static void expectRefusedFor(const char* reason, const IPAddress& ip, const IPAddress& gw,
+                             const IPAddress& mask, const char* what) {
+    const char* err = staticAddressError(ip, gw, mask);
+    TEST_ASSERT_NOT_NULL_MESSAGE(err, what);
+    TEST_ASSERT_NOT_NULL_MESSAGE(strstr(err, reason), err);
+}
+
+static void test_a_static_address_with_no_ip_is_refused(void) {
+    expectRefusedFor("no IP", IPAddress( ), kGateway, kMask, "no IP was taken");
+}
+
+static void test_a_mask_with_a_hole_in_it_is_refused(void) {
+    /* 255.0.255.0 starts with 255 and is still no netmask: its ones are not
+     * all on the left. */
+    expectRefusedFor("netmask", kIp, kGateway, IPAddress(255, 0, 255, 0), "255.0.255.0 was taken");
+}
+
+static void test_a_mask_whose_first_byte_is_not_255_is_refused(void) {
+    /* 254.0.0.0 IS a netmask (/7), so only the first-byte rule can refuse it.
+     * lwIP's argument reorder takes such a mask for the DNS of the Arduino
+     * order and the DNS becomes the mask (see staticAddressError( )). The
+     * gateway sits in the mask's own subnet: nothing else is wrong with it. */
+    expectRefusedFor("netmask", IPAddress(10, 1, 2, 3), IPAddress(10, 1, 2, 1), IPAddress(254, 0, 0, 0),
+                     "254.0.0.0 was taken");
+}
+
+static void test_a_gateway_outside_the_subnet_is_refused(void) {
+    expectRefusedFor("gateway", kIp, IPAddress(192, 168, 4, 1), kMask, "a gateway on another subnet was taken");
+    /* The mask decides what is inside: on a /16 the same gateway is. */
+    TEST_ASSERT_NULL_MESSAGE(staticAddressError(kIp, IPAddress(192, 168, 4, 1), IPAddress(255, 255, 0, 0)),
+                             "the mask decides what is inside the subnet");
+}
+
+static void test_a_valid_static_address_is_taken(void) {
+    TEST_ASSERT_NULL(staticAddressError(kIp, kGateway, kMask));
+    /* No gateway is an isolated segment, not a mistake. */
+    TEST_ASSERT_NULL_MESSAGE(staticAddressError(kIp, IPAddress( ), kMask), "a static address with no gateway");
+    /* The widest netmask the first-byte rule allows. */
+    TEST_ASSERT_NULL(staticAddressError(IPAddress(10, 9, 8, 7), IPAddress(10, 9, 0, 1), IPAddress(255, 0, 0, 0)));
+}
+
 int main(int, char**) {
     UNITY_BEGIN( );
 
     RUN_TEST(test_a_module_that_does_not_start_is_retried_with_doubling_gaps);
+    RUN_TEST(test_a_module_that_does_not_start_is_logged_once_with_the_chip_and_the_reason);
 
     RUN_TEST(test_link_and_address_reach_ready);
 
     RUN_TEST(test_a_pulled_cable_goes_back_to_waiting_and_returns_without_restarting_the_module);
     RUN_TEST(test_a_lease_change_under_a_live_link_is_followed);
 
+    RUN_TEST(test_a_module_stopped_by_an_update_that_did_not_happen_starts_again);
+    RUN_TEST(test_a_module_stopped_for_an_update_that_will_not_start_again_is_retried_on_the_ladder);
+
     RUN_TEST(test_signal_stand_in_is_minus_40_when_ready_and_minus_100_otherwise);
     RUN_TEST(test_no_access_point_and_no_scan_on_a_cable);
 
     RUN_TEST(test_a_static_address_reaches_the_module_in_order);
     RUN_TEST(test_the_mac_is_upper_case_colon_separated);
+
+    RUN_TEST(test_a_static_address_with_no_ip_is_refused);
+    RUN_TEST(test_a_mask_with_a_hole_in_it_is_refused);
+    RUN_TEST(test_a_mask_whose_first_byte_is_not_255_is_refused);
+    RUN_TEST(test_a_gateway_outside_the_subnet_is_refused);
+    RUN_TEST(test_a_valid_static_address_is_taken);
 
     return UNITY_END( );
 }

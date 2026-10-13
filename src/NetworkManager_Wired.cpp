@@ -1,6 +1,6 @@
 /**
  * @file NetworkManager_Wired.cpp
- * @brief The SIMUT Wire's side of NetworkManager: the ENC28J60 in place of the
+ * @brief The SIMUT Wire's side of NetworkManager: a wired module in place of the
  *        CYW43 (SIMUT_NET_LAN).
  *
  * The Wi-Fi path finds an SSID, joins it and waits for an address. This one
@@ -10,10 +10,12 @@
  * which updateWired( ) leaves to it.
  *
  * The states are the Wi-Fi's, and only four of them happen here: NET_OFFLINE
- * (the module did not start; retried on the reconnect ladder), NET_CONNECTING
- * (started, waiting for the link and an address), NET_CONNECTED_WAIT_NTP and
- * NET_READY. A cable pulled out goes back to NET_CONNECTING and nothing more:
- * the interface stays up, and lwIP renews the lease when the link returns.
+ * (the module did not start, or was stopped under the manager; retried on the
+ * reconnect ladder), NET_CONNECTING (started, waiting for the link and an
+ * address), NET_CONNECTED_WAIT_NTP and NET_READY. A cable pulled out goes back
+ * to NET_CONNECTING and nothing more: the interface stays up, and lwIP renews
+ * the lease when the link returns. A module that is no longer started goes to
+ * NET_OFFLINE instead (wiredLost( ) says why).
  *
  * @project SIMUT
  * @license MIT License
@@ -75,7 +77,7 @@ void NetworkManager::startWired( ) {
   return;
  }
  if (!_wiredFailLogged) {
-  LOG_CODE(LOG_ERROR, "NET", NET_WIRED_MODULE_FAIL, 0, String("ENC28J60: ") + WiredLink::lastError( ));
+  LOG_CODE(LOG_ERROR, "NET", NET_WIRED_MODULE_FAIL, 0, String(WiredLink::chipName( )) + ": " + WiredLink::lastError( ));
   _wiredFailLogged = true;
  }
  _state = NET_OFFLINE;
@@ -153,11 +155,30 @@ void NetworkManager::wiredUp( ) {
  }
 }
 
-/** The cable came out, or the address went away: wait for both again. */
+/**
+ * The cable came out, or the address went away: wait for both again.
+ *
+ * Unless the module is not started. That is no cable and no lease: it was
+ * stopped under the manager, by the OTA's teardown (ota/orchestrator.cpp calls
+ * WiredLink::end( ) before it writes the flash), and the applier returned from
+ * an error that came before anything was written. Waiting for a link and an
+ * address in NET_CONNECTING would be waiting for a module nobody starts again,
+ * and the Wire stayed off the network until a reboot (2026-10-13; the radio
+ * does not: its ladder calls WiFi.begin( ) again). It goes to NET_OFFLINE with
+ * the timer set, and startWired( ) runs on the retry that starts a module that
+ * did not start, which says a failure once per episode.
+ */
 void NetworkManager::wiredLost( ) {
+ const bool stopped = !WiredLink::started( );
  LOG_CODE(LOG_WARN, "NET", NET_WIRED_LOST, 0,
-          WiredLink::linkUp( ) ? "Wired network: address lost" : "Wired network: link down");
+          stopped ? "Wired network: module stopped"
+          : WiredLink::linkUp( ) ? "Wired network: address lost" : "Wired network: link down");
  resetNtpBackoff( );
+ if (stopped) {
+  _state = NET_OFFLINE;
+  _reconnectTimer = millis( );
+  return;
+ }
  _state = NET_CONNECTING;
  _stateTimer = millis( );
 }

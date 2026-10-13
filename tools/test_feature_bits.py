@@ -142,18 +142,28 @@ for name in M["profiles"]:
               c["board"] == M["chip"][chip].get("board", "") and c["unflags"] == [], repr((c["board"], c["unflags"])))
     # A classe da rede (o macro de [net_class.*]) nunca vai por -D: o src/net/NetCaps.h a deriva da identidade
     # do driver e recusa quem a passa (tools/test_net_caps.py). O que vai por -D da rede e a identidade, nos
-    # `flags` do driver. As unidades de um driver que nao e o do perfil saem do build, e as do driver do
-    # perfil ficam; a biblioteca e dele.
+    # `flags` do driver. As unidades de uma classe que nao e a do perfil e as de um driver que nao e o do
+    # perfil saem do build, e as da classe do perfil e as do driver dele ficam; a biblioteca e dele.
     meu = M["net"][prof["net"]]
+    minha_classe = M["net_class"][meu["class"]]
     da_classe = {f"-D{v['macro']}" for v in M["net_class"].values() if "macro" in v}
     macros_de_rede = [f for f in c["flags"] if f.startswith("-DSIMUT_NET_")]
     check(f"{name}: a classe da rede nao vai por -D; so a identidade do driver (os `flags` dele)",
           macros_de_rede == [f for f in meu.get("flags", []) if f.startswith("-DSIMUT_NET_")]
           and not any(f.split("=")[0] in da_classe for f in c["flags"]), repr(c["flags"]))
     dos_outros = [u for n, d in M["net"].items() if n != prof["net"] for u in d.get("units", [])]
-    check(f"{name}: sai do build toda unidade dos outros drivers de rede, e nenhuma do dele",
-          all(u in c["excludes"] for u in dos_outros) and not any(u in c["excludes"] for u in meu.get("units", [])),
-          repr((c["excludes"], dos_outros)))
+    das_outras_classes = [u for n, d in M["net_class"].items() if n != meu["class"] for u in d.get("units", [])]
+    check(f"{name}: sai do build toda unidade das outras classes de rede e dos outros drivers, e nenhuma da dele",
+          all(u in c["excludes"] for u in dos_outros + das_outras_classes)
+          and not any(u in c["excludes"] for u in meu.get("units", []) + minha_classe.get("units", [])),
+          repr((c["excludes"], dos_outros, das_outras_classes)))
+    # A classe cabeada (`lan`) tem as duas unidades da build cabeada (o ENC28J60 e um cabecalho, nao uma unidade),
+    # e so as imagens que nao sao cabeadas as perdem.
+    lan_units = M["net_class"]["lan"].get("units", [])
+    check(f"{name}: as unidades da classe cabeada ficam so na imagem cabeada",
+          {"NetworkManager_Wired.cpp", "net/WiredLink.cpp"} <= set(lan_units)
+          and (meu["class"] == "lan") == (not any(u in c["excludes"] for u in lan_units)),
+          repr((meu["class"], lan_units, c["excludes"])))
     check(f"{name}: a biblioteca do driver so vem com ele",
           c["lib_deps"] == meu.get("lib_deps", []), repr(c["lib_deps"]))
 P2 = gf.resolve_profile("pico2_w_release", M["profiles"])
@@ -185,6 +195,22 @@ recusa_com("units que nao e lista e recusado",
            lambda m: m["net"]["enc28j60"].update(units="NetworkManager_Wired.cpp"), "units")
 recusa_com("unit com espaco (quebraria o build_src_filter) e recusada",
            lambda m: m["net"]["enc28j60"].update(units=["net/Wired Link.cpp"]), "units")
+# `units` de um driver continua valendo, para um chip que traz um .cpp proprio: sai das imagens dos outros
+# drivers e fica na dele, como a unidade de uma classe.
+m2 = copy.deepcopy(M)
+m2["net"]["enc28j60"]["units"] = ["net/Enc28j60Extra.cpp"]
+gf.check_manifest(m2)
+radio_c = gf.compose(gf.resolve_profile("pico_w_release", m2["profiles"]), m2)
+cabo_c = gf.compose(gf.resolve_profile("pico_wire", m2["profiles"]), m2)
+check("a unidade de um driver (um chip com .cpp proprio) sai das imagens dos outros e fica na dele",
+      "net/Enc28j60Extra.cpp" in radio_c["excludes"] and "net/Enc28j60Extra.cpp" not in cabo_c["excludes"],
+      repr((radio_c["excludes"], cabo_c["excludes"])))
+recusa_com("units de classe que nao e lista e recusado",
+           lambda m: m["net_class"]["lan"].update(units="NetworkManager_Wired.cpp"), "units", "lan")
+recusa_com("unit de classe com espaco (quebraria o build_src_filter) e recusada",
+           lambda m: m["net_class"]["lan"].update(units=["net/Wired Link.cpp"]), "units", "lan")
+recusa_com("units de classe com um item que nao e texto e recusado",
+           lambda m: m["net_class"]["lan"].update(units=["NetworkManager_Wired.cpp", 3]), "units", "lan")
 recusa_com("lib_deps que anda (um ramo) e recusado",
            lambda m: m["net"]["enc28j60"].update(lib_deps=["https://github.com/angeloINTJ/pico-enc28j60.git#main"]),
            "lib_deps", "enc28j60")

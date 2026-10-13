@@ -27,7 +27,7 @@
 #include "pico/cyw43_arch.h"           /* enable_sta_mode: scanning needs the STA itf */
 #endif
 #if SIMUT_NET_LAN
-#include "net/WiredLink.h"             /* the ENC28J60 behind the getters below */
+#include "net/WiredLink.h"             /* the wired module behind the getters below */
 #endif
 
 NetworkManager::NetworkManager( ) {

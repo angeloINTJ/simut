@@ -11,7 +11,7 @@
 #include "StorageManager.h"
 #include <WiFi.h>
 #include <string.h>
-#include "net/WiredLink.h"   /* declares nothing unless the ENC28J60 driver is built */
+#include "net/WiredLink.h"   /* declares nothing unless a wired driver is built */
 
 SyslogManager::SyslogManager( ) {
 	mutex_init(&_ringMutex);

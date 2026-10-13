@@ -479,8 +479,8 @@
  * below, and its OTA variant names in the SIMUT_ENV_NAME block at the end of
  * this section (the #error there stops a wired driver that has none).
  *
- * The wired driver is src/net/WiredLink.cpp (the ENC28J60 through the
- * PicoENC28J60 library's lwIP interface) and src/NetworkManager_Wired.cpp
+ * The wired side is src/net/WiredLink.cpp over the chip's device header (the
+ * ENC28J60: src/net/Enc28j60Device.h) and src/NetworkManager_Wired.cpp
  * (NetworkManager's wired states), since 2026-10-12. The 2026-09-26 study
  * (docs/analysis/SIMUT_WIRE_VIABILIDADE.md, study/simut-wire branch) found the
  * release linking for board = rpipico once the one cyw43_arch_enable_sta_mode( )

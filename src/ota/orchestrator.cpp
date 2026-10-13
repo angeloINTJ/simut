@@ -16,7 +16,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <LittleFS.h>
-#include "../net/WiredLink.h"   /* declares nothing unless the ENC28J60 driver is built */
+#include "../net/WiredLink.h"   /* declares nothing unless a wired driver is built */
 #include <hardware/sync.h>
 #include <hardware/regs/addressmap.h> /* WATCHDOG_BASE */
 #include <hardware/regs/watchdog.h>   /* WATCHDOG_SCRATCH5_OFFSET */
