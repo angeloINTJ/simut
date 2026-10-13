@@ -134,7 +134,12 @@ def set_pins(copy, pins):
 # o GP27 e a segunda ganha um RST (GP26): com o LCD em paralelo, os dois sao os pinos do
 # modo I2C dele e nao estao ligados a nada.
 FREE_PINS = (27, 26)
+# E o PIOSHARE cria sete seriais por PIO (so TX) nos GP10 a GP16, livres na fiacao padrao e,
+# no Wire, o SPI do modulo (GP12-15), o DHT22 (GP10) e o RS do LCD (GP16): a serial no MISO
+# fazia a revisao ler 0xFF. Na copia elas vao para os GP0 a GP6, slots de sensor sem nada.
 PROBE_FIXES = (
+    ("users[i] = new (storage[i]) SerialPIO(10 + i, NOPIN);",
+     "users[i] = new (storage[i]) SerialPIO(0 + i, NOPIN);  // SIMUT Wire: GP0-6, ligados a nada"),
     ("    wrong.cs_pin = 15;\n",
      f"    wrong.cs_pin = {FREE_PINS[0]};  // SIMUT Wire: um pino ligado a nada\n"),
     ("{[](ENC28J60Config& c) { c.irq_pin = c.rst_pin; }},",
