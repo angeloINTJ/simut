@@ -141,8 +141,8 @@ jobs:
       - name: Pin masks and variant names of the wired build
         run: python3 tools/test_pin_masks.py
 
-      # A wired build cuts the radio's parts of the web pages (on_web_omit =
-      # "wifi" on the lan switch), and a Wi-Fi build keeps them.
+      # A wired build cuts the radio's parts of the web pages (web_omit =
+      # "wifi" on the lan class of the network choice), and a Wi-Fi build keeps them.
       - name: Web pages per network
         run: python3 tools/test_web_omit_network.py
 

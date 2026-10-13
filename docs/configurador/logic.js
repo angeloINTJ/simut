@@ -2,8 +2,13 @@
  *
  * Everything here is a pure function of model.json (tools/gen_features.py
  * writes it from tools/features.toml) and of the choice on screen: which
- * product, and which switches differ from that product's defaults. No DOM, no
- * network, so tools/test_configurator_page.py runs it under node.
+ * product, and which switches and which network driver differ from that
+ * product's defaults. No DOM, no network, so tools/test_configurator_page.py
+ * runs it under node.
+ *
+ * The network is not a switch but a choice of driver (2026-10-13): `net` rides
+ * in `set` next to the switches, as the driver's id ("cyw43", "enc28j60"), and
+ * the cost matrix names it "net=<id>", the way model.json names a refusal.
  *
  * The estimate is the measured cost matrix (tools/measure_savings.py --matrix):
  * each published product built once as shipped and once per switch flipped.
@@ -36,10 +41,12 @@ export function effectiveConfig(model, productId, set) {
 }
 
 /* `set` keeps only what differs from the product: a switch set back to its
- * default is not a change, and the link and the profile should not carry it. */
+ * default is not a change, and neither is the product's own network driver;
+ * the link and the profile should not carry either. */
 export function normalizeSet(model, productId, set) {
   const base = productById(model, productId).config;
   const out = {};
+  if (Object.prototype.hasOwnProperty.call(set, "net") && set.net !== base.net) out.net = set.net;
   for (const t of model.toggles) {
     if (Object.prototype.hasOwnProperty.call(set, t.id) && set[t.id] !== base[t.id]) out[t.id] = set[t.id];
   }
@@ -54,6 +61,13 @@ function costsOf(model, productId) {
 export function flipOf(model, productId, toggleId) {
   const c = costsOf(model, productId);
   return c ? c.flips[toggleId] || null : null;
+}
+
+/* The cost matrix's name for one entry of `set`: a switch is its own id (every
+ * entry is the product's switch turned over), and a choice is "key=value", as
+ * model.json names a refusal and the manifest a condition ("net=enc28j60"). */
+function flipKey(key, value) {
+  return typeof value === "boolean" ? key : `${key}=${value}`;
 }
 
 /* Bytes of flash the flip adds (negative: saves). An overflow is measured
@@ -89,22 +103,36 @@ export function priceOn(model, productId, toggleId) {
   return { flash: onByDefault ? -d.used : d.used, overflow: "overflow" in f };
 }
 
-/* A switch the generator refuses for this product's chip: it asks for a board
- * the chip does not have (the wired network on the Pico 2 W). model.json lists
- * them per product, `refused`, with the reason in each language, the way a rule
- * carries `why`; the lock has the same shape as a rule's, `id` and `why`. */
-function refusalOf(model, productId, toggleId) {
+/* The price of choosing a network driver over the product's own, as the matrix
+ * measured it ("net=<id>"): bytes of flash the choice adds, negative when it
+ * saves. null when there is nothing to show: it is the product's own driver, no
+ * measurement, or the matrix found a rule, an error or no board there. */
+export function priceNet(model, productId, netId) {
+  if (netId === productById(model, productId).config.net) return null;
+  const f = flipOf(model, productId, flipKey("net", netId));
+  if (!f || f.same || f.rule || f.error || f.unsupported) return null;
+  const d = flipDelta(model, productId, f);
+  if (!d) return null;
+  return { flash: d.used, overflow: "overflow" in f };
+}
+
+/* A choice the generator refuses for this product's chip: it asks for a board
+ * the chip does not have (the cable module on the Pico 2 W). model.json lists
+ * them per product, `refused`, keyed "key=value" ("net=enc28j60") with the
+ * reason in each language, the way a rule carries `why`; the lock has the same
+ * shape as a rule's, `id` and `why`. */
+function refusalOf(model, productId, key, value) {
   const p = productId ? productById(model, productId) : null;
-  const why = p && p.refused ? p.refused[toggleId] : null;
-  return why ? { id: `unsupported-${toggleId}`, why } : null;
+  const why = p && p.refused ? p.refused[`${key}=${value}`] : null;
+  return why ? { id: `unsupported-${key}`, why } : null;
 }
 
 /* Why a switch cannot move: flipping it would add something that stops the
  * build, which the current choice does not already have. The first such thing,
- * in blockersOf's order: a rule, then a switch the generator refuses for the
- * product's chip, then the PIO and pin budget. Returns {id, why}, or null. A
- * budget lock says what else to turn off: its words leave this switch out of
- * the list (the generator writes them, model.json `lock`). */
+ * in blockersOf's order: a rule, then the network driver the generator refuses
+ * for the product's chip, then the PIO and pin budget. Returns {id, why}, or
+ * null. A budget lock says what else to turn off: its words leave this switch
+ * out of the list (the generator writes them, model.json `lock`). */
 export function lockOf(model, config, toggleId, productId) {
   const now = new Set(blockersOf(model, productId, config).map((b) => b.id));
   const flipped = { ...config, [toggleId]: !config[toggleId] };
@@ -112,14 +140,26 @@ export function lockOf(model, config, toggleId, productId) {
   return b && b.lock && b.lock[toggleId] ? { id: b.id, why: b.lock[toggleId] } : b;
 }
 
-/* The switches this choice has ON that the generator refuses for the product's
- * chip. The page cannot turn one on, but a link can carry one, and the build
- * would be refused: they count with the broken rules and stop the build button. */
+/* Why a network driver cannot be chosen: the same question as lockOf, asked of
+ * the choice of driver. The first blocker of this choice with `net` set to
+ * netId that the current choice does not already have, in blockersOf's order;
+ * {id, why} or null. The chosen driver is never locked (it adds nothing). A
+ * budget blocker's remedy is a list of switches to turn off and the network is
+ * never in it, so the lock shows the generator's whole text. */
+export function netLockOf(model, config, netId, productId) {
+  const now = new Set(blockersOf(model, productId, config).map((b) => b.id));
+  const b = blockersOf(model, productId, { ...config, net: netId }).find((x) => !now.has(x.id)) || null;
+  return b ? { id: b.id, why: b.why } : null;
+}
+
+/* The network driver this choice has that the generator refuses for the
+ * product's chip. The page cannot choose one that is locked, but a link can
+ * carry it, and the build would be refused: it counts with the broken rules and
+ * stops the build button. No switch is refused any more: a chip lacks a board,
+ * and the board belongs to the driver. */
 export function refusalsIn(model, productId, config) {
-  return model.toggles
-    .filter((t) => config[t.id] === true)
-    .map((t) => refusalOf(model, productId, t.id))
-    .filter(Boolean);
+  const r = refusalOf(model, productId, "net", config.net);
+  return r ? [r] : [];
 }
 
 /* The PIO and pin budget (tools/pio_budget.py), as data: model.json lists, for
@@ -136,8 +176,8 @@ export function budgetIn(model, productId, config) {
 }
 
 /* Everything that stops a build of this choice: the rules it breaks, the
- * switches the generator refuses for the product's chip, then the PIO and pin
- * budget. The page's warnings and its build button read this one list, so a
+ * network driver the generator refuses for the product's chip, then the PIO and
+ * pin budget. The page's warnings and its build button read this one list, so a
  * refusal cannot be shown and built. tools/gen_features.py blockers( ) is the
  * same list, in the same order. */
 export function blockersOf(model, productId, config) {
@@ -152,14 +192,15 @@ export function noEffect(model, productId, toggleId) {
   return Boolean(f && f.same);
 }
 
-/* The sum. `missing` names the changes with no measurement behind them. */
+/* The sum. `missing` names the changes with no measurement behind them: the
+ * key of `set` ("net" for the network, whose flip is "net=<id>"). */
 export function estimate(model, productId, set) {
   const c = costsOf(model, productId);
   if (!c) return null;
   const est = { used: c.base.used, bin: c.base.bin, ram: c.base.ram, ramKnown: true, missing: [] };
-  for (const [t] of Object.entries(set)) {
-    const d = flipDelta(model, productId, c.flips[t]);
-    if (!d) { est.missing.push(t); continue; }
+  for (const [key, value] of Object.entries(set)) {
+    const d = flipDelta(model, productId, c.flips[flipKey(key, value)]);
+    if (!d) { est.missing.push(key); continue; }
     est.used += d.used;
     est.bin += d.bin;
     if (d.ram === null) est.ramKnown = false; else est.ram += d.ram;
@@ -208,9 +249,9 @@ export function slotFit(model, productId, est) {
 }
 
 /* The verdict in one word, the result's selo: what stops the build comes first
- * (blockersOf: a broken rule, a switch the chip refuses, the PIO and pin
- * budget), then the fill of the flash slot. A blocked build that would fit the
- * slot is still blocked; null when no estimate judges the slot. */
+ * (blockersOf: a broken rule, a network driver the chip refuses, the PIO and
+ * pin budget), then the fill of the flash slot. A blocked build that would fit
+ * the slot is still blocked; null when no estimate judges the slot. */
 export function verdictOf(model, productId, set) {
   if (blockersOf(model, productId, effectiveConfig(model, productId, set)).length) return "blocked";
   const est = estimate(model, productId, set);
@@ -218,7 +259,8 @@ export function verdictOf(model, productId, set) {
 }
 
 /* The profile tools/build_custom.py accepts, in its canonical spelling: the
- * same choice always gives the same bytes, so the same file name. */
+ * same choice always gives the same bytes, so the same file name. `net` is a
+ * key of `set` like the switches, and sorts among them. */
 export function profileOf(productId, set) {
   const sorted = {};
   for (const k of Object.keys(set).sort()) sorted[k] = set[k];
@@ -232,23 +274,25 @@ export function profileJson(productId, set) {
   return `{"base":${JSON.stringify(p.base)},"set":${JSON.stringify(p.set)},"v":1}`;
 }
 
-/* ---- the link: #b=<product>&on=<ids>&off=<ids> -------------------------- */
+/* ---- the link: #b=<product>&net=<driver>&on=<ids>&off=<ids> ------------- */
 
 const ID = /^[a-z0-9_]{1,40}$/;
 const MAX_HASH = 1024;
 
 export function formatHash(productId, set) {
-  const on = Object.keys(set).filter((k) => set[k]).sort();
-  const off = Object.keys(set).filter((k) => !set[k]).sort();
+  const switches = Object.keys(set).filter((k) => k !== "net");
+  const on = switches.filter((k) => set[k]).sort();
+  const off = switches.filter((k) => !set[k]).sort();
   let h = `b=${productId}`;
+  if (set.net) h += `&net=${set.net}`;
   if (on.length) h += `&on=${on.join(",")}`;
   if (off.length) h += `&off=${off.join(",")}`;
   return `#${h}`;
 }
 
-/* Strict: a link names a product and switches this model knows, or it is
- * refused with the first thing that is wrong. The page shows the refusal as
- * text (never as HTML) and opens the default product. */
+/* Strict: a link names a product, at most one network driver and switches this
+ * model knows, or it is refused with the first thing that is wrong. The page
+ * shows the refusal as text (never as HTML) and opens the default product. */
 /* Whether a hash is a place on the page rather than a build: a bare id (no
  * "=") of an element that exists. The bar's "#resultado" and the skip link's
  * "#main" are such places, and the hashchange that following them fires read
@@ -271,6 +315,13 @@ export function parseHash(model, hash) {
   if (!ID.test(b) || !productById(model, b)) return { error: "product", value: b };
   const known = new Set(model.toggles.map((t) => t.id));
   const set = {};
+  // The network: a driver id of this model, once. Not a switch, so on=net is refused below.
+  if (params.has("net")) {
+    if (params.getAll("net").length > 1) return { error: "twice", value: "net" };
+    const n = params.get("net");
+    if (!ID.test(n) || !model.net.options.some((o) => o.id === n)) return { error: "net", value: n };
+    set.net = n;
+  }
   for (const [key, value] of [["on", true], ["off", false]]) {
     const list = params.get(key);
     if (list === null || list === "") continue;

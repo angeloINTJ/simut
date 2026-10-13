@@ -538,7 +538,7 @@ do preâmbulo — as duas coisas juntas são a assinatura de "o aparelho reinici
 
 ### 9.2 SIMUT Wire (`pico_wire` e `pico_wiretft`)
 
-A build cabeada (`lan`, rede por um módulo ENC28J60) não tem rádio, e o console de
+A build cabeada (`net = "enc28j60"`, a rede por um módulo ENC28J60) não tem rádio, e o console de
 emergência dela perde, na compilação, o que só o rádio tinha: `ap` (e `apmode`,
 `ap-mode`), `system ssid`, `system pass` e os apelidos `wifi ssid`/`wifi pass`. No
 lugar, para que um aparelho numa rede sem DHCP tenha por onde entrar, ela ganha os

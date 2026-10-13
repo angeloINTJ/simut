@@ -9,8 +9,9 @@ Le tools/features.toml (a fonte unica) e escreve, sem tocar em mais nada:
                                     produto (tools/feature_costs.json), e as chaves
                                     que o gerador recusa em cada produto
     src/FeatureBits.h               SIMUT_FEATURE_BITS, o "feat" do /api/status:
-                                    um bit por chave, lido dos macros que o
-                                    compilador ve (tools/test_feature_bits.py)
+                                    um bit por chave e por classe de rede que
+                                    tem `bit`, lido dos macros que o compilador
+                                    ve (tools/test_feature_bits.py)
     docs/FEATURES.md, .pt-BR, .es-ES
                                     a tabela "nucleo e chaves", entre marcadores:
                                     cada chave, o que faz e quais imagens
@@ -20,6 +21,11 @@ Antes de gerar, confere o manifesto: toda chave tem rotulo, todo grupo existe,
 toda regra fala de chaves conhecidas — e nenhum dos sete perfis que o CI
 constroi quebra uma regra. rule_violations( ) e a semantica das regras que
 tools/build_custom.py reaplica antes de compilar e que a pagina espelha.
+
+A rede e uma escolha por perfil, como o mostrador (2026-10-13): `net = "<id>"`
+nomeia um [net.<id>], o driver, que traz a placa, os flags, as unidades e a
+biblioteca dele; a classe dele ([net_class.<classe>]) diz o macro, o bit do "feat"
+e o que as paginas cortam. Ate entao a rede era o interruptor `lan`.
 
 Cada [env:*] gerado herda `pico_base` do platformio.ini e acrescenta apenas os
 flags, o filtro de fontes e o lib_ignore que o manifesto deriva dos recursos
@@ -79,8 +85,21 @@ TOGGLE_ORDER = [
     "tel_tls", "tel_mqtt",
     "web_history", "web_export_api", "web_metrics", "syslog",
     "tft_graph",
-    "lan",
 ]
+
+# Chaves que eram de um interruptor e passaram para o driver de rede em 2026-10-13: onde
+# moram agora. check_manifest( ) recusa o interruptor que ainda as tenha, porque uma chave
+# velha ignorada em silencio comporia outra imagem.
+MOVED_TO_NET = {
+    "on_board": "[net.<id>].board",
+    "on_unflags": "[net.<id>].unflags",
+    "on_lib_deps": "[net.<id>].lib_deps",
+    "on_web_omit": "[net_class.<classe>].web_omit",
+}
+# O que um perfil pode dizer, alem dos interruptores: se o nome fosse outro, compose( ) o
+# ignoraria em silencio (um `lan = true` esquecido compora uma imagem Wi-Fi).
+PROFILE_KEYS = {"extends", "display", "net", "chip", "build_type", "publish", "ota_trust_bench",
+                "custom_fs_pages"}
 
 HEADER = """; profiles.ini — GERADO por tools/gen_features.py a partir de tools/features.toml.
 ; NAO EDITE A MAO. Rode `python3 tools/gen_features.py` depois de mudar o manifesto.
@@ -118,30 +137,24 @@ def dedup(seq: list) -> list:
     return out
 
 
-def toggle_refusals(prof: dict, M: dict) -> list[tuple[str, str]]:
-    """As chaves LIGADAS que o chip do perfil nao pode compilar: [(chave, motivo)].
+def net_refusal(prof: dict, M: dict) -> str | None:
+    """Por que o driver de rede do perfil nao compoe no chip dele, ou None.
 
-    Uma chave pode trocar a placa do ambiente (`on_board`: chip -> placa, a placa
-    daquele chip com a chave ligada). Um chip sem entrada nao tem placa para a
-    chave, e o gerador a recusa em vez de compor a placa do chip sem a chave --
-    uma imagem que diria uma coisa e seria outra."""
+    Um driver pode trazer a placa do ambiente (`board` de [net.<id>]: chip -> placa, a
+    placa daquele chip com o driver). Um chip sem entrada nao tem placa para ele, e o
+    gerador recusa em vez de compor a placa do chip sem o driver -- uma imagem que diria
+    uma coisa e seria outra. Um driver sem `board` fica com a placa do chip. compose( ) a
+    aplica; o build_custom.py e o measure_savings.py a perguntam antes (por blockers( )),
+    porque a entrada deles nao e so os perfis do manifesto; e o model.json leva, por
+    produto, os drivers cuja escolha ele recusa, para a pagina travar a opcao como trava
+    uma regra."""
     chip = prof.get("chip", "rp2040")
-    out = []
-    for tname in TOGGLE_ORDER:
-        boards = M["toggles"][tname].get("on_board")
-        if boards is not None and prof.get(tname, False) and chip not in boards:
-            out.append((tname, f"{tname} ligada nao tem placa para o chip {chip}: "
-                               f"[toggles.{tname}].on_board so conhece {', '.join(sorted(boards))}"))
-    return out
-
-
-def toggle_refusal(prof: dict, M: dict) -> str | None:
-    """O primeiro motivo de toggle_refusals( ), ou None. compose( ) o aplica; o
-    build_custom.py e o measure_savings.py o perguntam antes, porque a entrada deles
-    nao e so os perfis do manifesto; e o model.json leva, por produto, as chaves
-    cuja inversao ele recusa, para a pagina travar a chave como trava uma regra."""
-    refused = toggle_refusals(prof, M)
-    return refused[0][1] if refused else None
+    net = prof["net"]
+    boards = M["net"][net].get("board")
+    if boards is not None and chip not in boards:
+        return (f"a rede {net} nao tem placa para o chip {chip}: "
+                f"[net.{net}].board so conhece {', '.join(sorted(boards))}")
+    return None
 
 
 def compose(prof: dict, M: dict) -> dict:
@@ -150,10 +163,15 @@ def compose(prof: dict, M: dict) -> dict:
     excludes: list[str] = []
     includes: list[str] = []
     lib_ignore: list[str] = []
-    lib_deps: list[str] = []      # bibliotecas que so uma chave ligada traz (on_lib_deps)
+    lib_deps: list[str] = []      # bibliotecas que so o driver de rede escolhido traz ([net.<id>].lib_deps)
     unflags: list[str] = []
 
-    why = toggle_refusal(prof, M)
+    # The network driver must exist and have a board for the chip before anything else is
+    # composed: an image that says one thing and is another is worse than no image.
+    if prof.get("net") not in M["net"]:
+        sys.exit(f"gen_features: o perfil nao compoe: net = {prof.get('net')!r} nao e um "
+                 f"[net.*] ({', '.join(M['net'])})")
+    why = net_refusal(prof, M)
     if why:
         sys.exit(f"gen_features: o perfil nao compoe: {why}")
 
@@ -163,7 +181,6 @@ def compose(prof: dict, M: dict) -> dict:
     chip = M["chip"][chip_name]
     flags += chip.get("flags", [])
     board = chip.get("board", "")
-    board_owner = None
 
     disp = M["display"][prof["display"]]
     flags += disp.get("flags", [])
@@ -173,9 +190,9 @@ def compose(prof: dict, M: dict) -> dict:
         lib_ignore += M["libs"]["display"]
     # The web builder's @IF blocks to cut (tools/build_webui_gz.py): the display
     # choice may name one, a switch that is off names its own (off_web_omit), and
-    # a switch that is on names what only its other side has (on_web_omit: the
-    # radio's fields on a wired build). So may the chip: what only another chip has
-    # does not reach this one's pages.
+    # the network class names what only its other side has (web_omit of [net_class]:
+    # the radio's fields on a wired build). So may the chip: what only another chip
+    # has does not reach this one's pages.
     web_omit = [disp["web_omit"]] if disp.get("web_omit") else []
     if chip.get("web_omit"):
         web_omit.append(chip["web_omit"])
@@ -199,25 +216,34 @@ def compose(prof: dict, M: dict) -> dict:
         if val:
             flags += t.get("on_flags", [])
             includes += t.get("on_include", [])
-            # A flag of the base that this switch takes back out (build_unflags),
-            # and the board it asks for on this chip (toggle_refusal( ) above
-            # guarantees the entry). Two switches asking for different boards
-            # cannot both be obeyed: refuse, never let the later one win.
-            unflags += t.get("on_unflags", [])
-            lib_deps += t.get("on_lib_deps", [])
-            if t.get("on_web_omit"):
-                web_omit.append(t["on_web_omit"])
-            if "on_board" in t:
-                asked = t["on_board"][chip_name]
-                if board_owner is not None and asked != board:
-                    sys.exit(f"gen_features: {board_owner} e {tname} pedem placas diferentes "
-                             f"para o chip {chip_name}: {board} e {asked}")
-                board, board_owner = asked, tname
         else:
             excludes += t.get("off_exclude", [])
             lib_ignore += t.get("off_lib_ignore", [])
             if t.get("off_web_omit"):
                 web_omit.append(t["off_web_omit"])
+
+    # The network (2026-10-13): one driver per profile, like the display, applied AFTER the
+    # switches. The cable was the last of them, so its flags, its excludes and its web_omit
+    # came last in profiles.ini, and this order keeps that file byte for byte what it was.
+    # The class gives the macro (-D<macro>=1, only when it has one: the Wi-Fi class is the
+    # default of simut_config.h) and the pages it cuts; the driver gives the rest. Every
+    # unit of a driver that is NOT the profile's leaves the build: empty there, those
+    # objects still reordered the linker's veneers and changed the Wi-Fi images' bytes.
+    net_id = prof["net"]
+    net = M["net"][net_id]
+    net_class = M["net_class"][net["class"]]
+    if net_class.get("macro"):
+        flags.append(f"-D{net_class['macro']}=1")
+    flags += net.get("flags", [])
+    for other_id, other in M["net"].items():
+        if other_id != net_id:
+            excludes += other.get("units", [])
+    unflags += net.get("unflags", [])
+    lib_deps += net.get("lib_deps", [])
+    if net_class.get("web_omit"):
+        web_omit.append(net_class["web_omit"])
+    if "board" in net:
+        board = net["board"][chip_name]   # net_refusal( ) above guarantees the entry
 
     # Not a switch: which roots the image trusts for its next update. Only an
     # unpublished profile asks for the bench root, and check_manifest( ) refuses
@@ -272,8 +298,8 @@ def emit_env(name: str, c: dict) -> str:
     lib = ["lib_ignore ="]
     lib += [f"    {x}" for x in c["lib_ignore"]]
     lines += lib
-    # Bibliotecas que uma chave traz: as do pico_base e mais estas. Ausente quando
-    # nenhuma chave pede, e as imagens sem a chave nem baixam a biblioteca.
+    # Bibliotecas que o driver de rede traz: as do pico_base e mais estas. Ausente quando
+    # o driver nao pede nenhuma, e as imagens com outro driver nem baixam a biblioteca.
     if c.get("lib_deps"):
         lines += ["lib_deps = ${pico_base.lib_deps}"] + [f"    {x}" for x in c["lib_deps"]]
     if c["web_omit"]:
@@ -284,8 +310,8 @@ def emit_env(name: str, c: dict) -> str:
 
 
 def config_of(prof: dict) -> dict:
-    """O que as regras enxergam de um perfil: o mostrador e cada chave, em bool."""
-    cfg = {"display": prof["display"]}
+    """O que as regras enxergam de um perfil: o mostrador, o driver da rede e cada chave, em bool."""
+    cfg = {"display": prof["display"], "net": prof["net"]}
     for t in TOGGLE_ORDER:
         cfg[t] = bool(prof.get(t, False))
     return cfg
@@ -344,7 +370,7 @@ def budget_why(r: dict, M: dict, without: str | None = None) -> dict:
 
 def blockers(prof: dict, M: dict) -> list[dict]:
     """Tudo o que impede a build de um perfil, na ordem em que a pagina e o CI o dizem:
-    as regras que ele quebra, as chaves ligadas que o chip dele recusa (unsupported-<chave>)
+    as regras que ele quebra, o driver de rede que o chip dele recusa (unsupported-net)
     e o orcamento de PIO e de pinos (tools/pio_budget.py: pio-budget, pin-conflict). Cada
     item e {"id", "kind": "rule" | "unsupported" | "budget", "why": {en, pt}, "detail"}.
 
@@ -356,9 +382,11 @@ def blockers(prof: dict, M: dict) -> list[dict]:
     cfg = config_of(prof)
     out = [{"id": r["id"], "kind": "rule", "why": _texts(r, "why", f"rules.{r['id']}"), "detail": ""}
            for r in rule_violations(cfg, M)]
-    for t, reason in toggle_refusals(prof, M):
-        out.append({"id": f"unsupported-{t}", "kind": "unsupported",
-                    "why": _texts(M["ui_toggles"][t], "unsupported", f"ui_toggles.{t}"), "detail": reason})
+    reason = net_refusal(prof, M)
+    if reason:
+        net = prof["net"]
+        out.append({"id": "unsupported-net", "kind": "unsupported",
+                    "why": _texts(M["ui_nets"][net], "unsupported", f"ui_nets.{net}"), "detail": reason})
     for r in pb.refusals(cfg, prof.get("chip") or "rp2040"):
         out.append({"id": r["id"], "kind": "budget", "why": budget_why(r, M), "detail": r["reason"]})
     return out
@@ -366,31 +394,33 @@ def blockers(prof: dict, M: dict) -> list[dict]:
 
 def budget_table(M: dict) -> list[dict]:
     """O orcamento de PIO e de pinos para a pagina, como dado: cada combinacao das chaves
-    que tools/pio_budget.py le (BUDGET_KEYS, e o mostrador para os pinos) que nao cabe num
-    chip, com o motivo. A pagina so casa `when` com a escolha, como casa uma regra
-    (rules.js matches), e nao conta bloco nenhum: o algoritmo mora num lugar so."""
+    que tools/pio_budget.py le (BUDGET_KEYS, o driver da rede e, para os pinos, o mostrador)
+    que nao cabe num chip, com o motivo. A pagina so casa `when` com a escolha, como casa uma
+    regra (rules.js matches), e nao conta bloco nenhum: o algoritmo mora num lugar so."""
     import pio_budget as pb
 
     out, seen = [], set()
     for chip in pb.CHIPS:
         for display in M["display"]:
-            for bits in itertools.product((False, True), repeat=len(pb.BUDGET_KEYS)):
-                cfg = dict(zip(pb.BUDGET_KEYS, bits), display=display)
-                for r in pb.refusals(cfg, chip):
-                    # Os blocos PIO nao dependem do mostrador; os pinos dependem.
-                    when = dict(zip(pb.BUDGET_KEYS, bits))
-                    if r["id"] != "pio-budget":
-                        when["display"] = display
-                    # Uma entrada por recusa: dois pinos em conflito na mesma combinacao sao
-                    # duas, e o motivo (o GPIO) as separa; sem ele a pagina mostrava uma so.
-                    key = (chip, r["id"], json.dumps(when, sort_keys=True), r["reason"])
-                    if key in seen:
-                        continue
-                    seen.add(key)
-                    # `lock`: o texto da trava de cada chave do remedio, sem ela na lista.
-                    out.append({"id": r["id"], "chip": chip, "when": when,
-                                "why": budget_why(r, M), "detail": r["reason"], "fix": r["fix"],
-                                "lock": {k: budget_why(r, M, without=k) for k in r["fix"]}})
+            for net in M["net"]:
+                for bits in itertools.product((False, True), repeat=len(pb.BUDGET_KEYS)):
+                    cfg = dict(zip(pb.BUDGET_KEYS, bits), display=display, net=net)
+                    for r in pb.refusals(cfg, chip):
+                        # O driver da rede decide o PIO e os pinos, entao vai em todo `when`; os
+                        # blocos PIO nao dependem do mostrador, os pinos dependem.
+                        when = dict(zip(pb.BUDGET_KEYS, bits), net=net)
+                        if r["id"] != "pio-budget":
+                            when["display"] = display
+                        # Uma entrada por recusa: dois pinos em conflito na mesma combinacao sao
+                        # duas, e o motivo (o GPIO) as separa; sem ele a pagina mostrava uma so.
+                        key = (chip, r["id"], json.dumps(when, sort_keys=True), r["reason"])
+                        if key in seen:
+                            continue
+                        seen.add(key)
+                        # `lock`: o texto da trava de cada chave do remedio, sem ela na lista.
+                        out.append({"id": r["id"], "chip": chip, "when": when,
+                                    "why": budget_why(r, M), "detail": r["reason"], "fix": r["fix"],
+                                    "lock": {k: budget_why(r, M, without=k) for k in r["fix"]}})
     return out
 
 
@@ -399,6 +429,7 @@ def check_manifest(M: dict) -> None:
     nao saberia desenhar, ou uma regra que reprova uma imagem que o CI constroi."""
     toggles, ui_t = M["toggles"], M.get("ui_toggles", {})
     groups, ui_d, ui_p = M.get("ui_groups", {}), M.get("ui_displays", {}), M.get("ui_products", {})
+    nets, classes, ui_n = M.get("net", {}), M.get("net_class", {}), M.get("ui_nets", {})
     for t in TOGGLE_ORDER:
         if t not in toggles:
             sys.exit(f"gen_features: {t} esta no TOGGLE_ORDER sem [toggles.{t}]")
@@ -407,19 +438,39 @@ def check_manifest(M: dict) -> None:
     for t in toggles:
         if t not in TOGGLE_ORDER:
             sys.exit(f"gen_features: [toggles.{t}] fora do TOGGLE_ORDER: nunca seria emitida")
+    # A placa, os flags que saem do pico_base, a biblioteca e o corte das paginas sairam do
+    # interruptor em 2026-10-13: sao do driver de rede. Uma chave velha ignorada em silencio
+    # comporia a imagem de sempre no lugar da que o manifesto diz.
+    for t in TOGGLE_ORDER:
+        for k, now in MOVED_TO_NET.items():
+            if k in toggles[t]:
+                sys.exit(f"gen_features: [toggles.{t}].{k} mudou de lugar em 2026-10-13: a rede e uma "
+                         f"escolha de driver, e isto mora em {now}")
+    # One @IF name each, as build_webui_gz.py reads custom_web_omit: a list or a comma would cut
+    # more than the switch means, and a name it does not know stops the build there, far from
+    # the manifest line that caused it.
+    for t in TOGGLE_ORDER:
+        v = toggles[t].get("off_web_omit")
+        if v is not None and not (isinstance(v, str) and re.fullmatch(r"[a-z][a-z0-9_]*", v)):
+            sys.exit(f"gen_features: [toggles.{t}].off_web_omit tem de ser um nome de @IF do "
+                     f"build_webui_gz.py (minusculas, digitos e _), nao {v!r}")
     # O bit e contrato com quem le o /api/status: um app instalado decodifica o
     # numero, entao dois nomes no mesmo bit, ou um bit que nao cabe no uint32 que
-    # o firmware imprime, e um cliente lendo a chave errada.
+    # o firmware imprime, e um cliente lendo a chave errada. Vale para o bit de uma
+    # classe de rede tambem (SIMUT_FEAT_<CLASSE>): as chaves e as classes dividem os 32.
     owner = {}
-    for t in TOGGLE_ORDER:
-        b = toggles[t].get("bit")
+
+    def claim(b, where):
         if type(b) is not int or not 0 <= b < 32:
-            sys.exit(f"gen_features: [toggles.{t}] precisa de um bit inteiro de 0 a 31 "
+            sys.exit(f"gen_features: [{where}] precisa de um bit inteiro de 0 a 31 "
                      f"(o \"feat\" do /api/status), e tem {b!r}")
         if b in owner:
-            sys.exit(f"gen_features: bit {b} repetido em [toggles.{owner[b]}] e [toggles.{t}]: "
-                     f"um bit e de uma chave so, para sempre")
-        owner[b] = t
+            sys.exit(f"gen_features: bit {b} repetido em [{owner[b]}] e [{where}]: "
+                     f"um bit e de uma chave ou de uma classe de rede so, para sempre")
+        owner[b] = where
+
+    for t in TOGGLE_ORDER:
+        claim(toggles[t].get("bit"), f"toggles.{t}")
     for t, u in ui_t.items():
         if t not in toggles:
             sys.exit(f"gen_features: [ui_toggles.{t}] sem [toggles.{t}]")
@@ -428,9 +479,92 @@ def check_manifest(M: dict) -> None:
     for d in M["display"]:
         if d not in ui_d:
             sys.exit(f"gen_features: [display.{d}] sem [ui_displays.{d}]")
+    # A rede (2026-10-13). A classe diz o que as paginas, o console e os paineis sabem dela; o
+    # driver, a placa que a faz. Tudo isto mexe no ambiente do PlatformIO ou no cabecalho do
+    # "feat", nao so numa macro: um chip que nao existe, uma lista que nao e de flags ou uma
+    # chave que ninguem le so apareceria como uma build que falha ou, pior, que compila outra coisa.
+    for c, v in classes.items():
+        extra = sorted(set(v) - {"macro", "bit", "web_omit"})
+        if extra:
+            sys.exit(f"gen_features: [net_class.{c}] tem chave que ninguem le: {', '.join(extra)} "
+                     f"(so macro, bit e web_omit)")
+        macro = v.get("macro")
+        if macro is not None and not (isinstance(macro, str) and re.fullmatch(r"SIMUT_[A-Za-z0-9_]+", macro)):
+            sys.exit(f"gen_features: [net_class.{c}].macro tem de ser um macro SIMUT_ (letras, digitos "
+                     f"e _), nao {macro!r}")
+        if "bit" in v:
+            # O bit sai do macro que o compilador viu (src/FeatureBits.h): sem macro nao ha o que ler.
+            if macro is None:
+                sys.exit(f"gen_features: [net_class.{c}] tem bit e nao tem macro: o \"feat\" le o macro "
+                         f"que o compilador viu")
+            claim(v["bit"], f"net_class.{c}")
+        w = v.get("web_omit")
+        if w is not None and not (isinstance(w, str) and re.fullmatch(r"[a-z][a-z0-9_]*", w)):
+            sys.exit(f"gen_features: [net_class.{c}].web_omit tem de ser um nome de @IF do "
+                     f"build_webui_gz.py (minusculas, digitos e _), nao {w!r}")
+    for n, v in nets.items():
+        extra = sorted(set(v) - {"class", "board", "unflags", "flags", "units", "lib_deps"})
+        if extra:
+            sys.exit(f"gen_features: [net.{n}] tem chave que ninguem le: {', '.join(extra)} "
+                     f"(so class, board, unflags, flags, units e lib_deps)")
+        if v.get("class") not in classes:
+            sys.exit(f"gen_features: [net.{n}].class '{v.get('class')}' nao e um [net_class]")
+        boards = v.get("board")
+        if boards is not None and (not isinstance(boards, dict) or not boards
+                                   or any(c not in M.get("chip", {}) or not isinstance(b, str) or not b
+                                          for c, b in boards.items())):
+            sys.exit(f"gen_features: [net.{n}].board tem de ser {{chip = \"placa\"}} "
+                     f"com chips que tem [chip.*]")
+        unflags = v.get("unflags")
+        if unflags is not None and (not isinstance(unflags, list)
+                                    or any(not isinstance(f, str) or not f.startswith("-") for f in unflags)):
+            sys.exit(f"gen_features: [net.{n}].unflags tem de ser uma lista de flags (-D...)")
+        flags = v.get("flags")
+        if flags is not None and (not isinstance(flags, list)
+                                  or any(not isinstance(f, str) or not f.startswith("-D") for f in flags)):
+            sys.exit(f"gen_features: [net.{n}].flags tem de ser uma lista de flags -D...")
+        units = v.get("units")
+        if units is not None and (not isinstance(units, list)
+                                  or any(not isinstance(u, str) or not re.fullmatch(r"[A-Za-z0-9_./*+-]+", u)
+                                         for u in units)):
+            sys.exit(f"gen_features: [net.{n}].units tem de ser uma lista de unidades de traducao "
+                     f"de src/ (nomes de arquivo, sem espacos)")
+        deps = v.get("lib_deps")
+        if deps is not None:
+            # Fixada por commit: um ramo ou uma tag que anda faria a mesma imagem
+            # sair diferente amanha, e o CI nao reproduziria o build de hoje.
+            if not isinstance(deps, list) or not all(isinstance(d, str) and re.search(r"#[0-9a-f]{40}$", d)
+                                                     for d in deps):
+                sys.exit(f"gen_features: [net.{n}].lib_deps tem de ser uma lista de bibliotecas "
+                         f"fixadas por commit (url#<sha de 40 hexadecimais>)")
+        # Cada driver tem as palavras da pagina, e o que o gerador recusa em algum chip (uma
+        # placa que nao cobre todo [chip.*]) diz por que nas duas linguas: e o motivo da trava
+        # (model.json, products[].refused).
+        if n not in ui_n:
+            sys.exit(f"gen_features: [net.{n}] sem [ui_nets.{n}]: a arvore nao saberia rotula-lo")
+        for k in ("label", "help"):
+            _texts(ui_n[n], k, f"ui_nets.{n}")
+        if type(ui_n[n].get("order")) is not int:
+            sys.exit(f"gen_features: [ui_nets.{n}] precisa de um order inteiro: a ordem das opcoes da pagina")
+        if boards is not None and any(c not in boards for c in M.get("chip", {})):
+            _texts(ui_n[n], "unsupported", f"ui_nets.{n}")
+    for n in ui_n:
+        if n not in nets:
+            sys.exit(f"gen_features: [ui_nets.{n}] sem [net.{n}]")
+    ui_net = M.get("ui_net")
+    if not isinstance(ui_net, dict):
+        sys.exit("gen_features: falta [ui_net]: o grupo e o rotulo da escolha da rede")
+    if ui_net.get("group") not in groups:
+        sys.exit(f"gen_features: ui_net.group '{ui_net.get('group')}' nao e um [ui_groups]")
+    _texts(ui_net, "label", "ui_net")
     for name in M["profiles"]:
         if name not in ui_p:
             sys.exit(f"gen_features: [profiles.{name}] sem [ui_products.{name}]")
+        # Uma chave de perfil que compose( ) nao le seria ignorada em silencio: o `lan = true` de
+        # antes de 2026-10-13, esquecido num perfil, comporia uma imagem Wi-Fi.
+        extra = sorted(set(M["profiles"][name]) - PROFILE_KEYS - set(TOGGLE_ORDER))
+        if extra:
+            sys.exit(f"gen_features: [profiles.{name}] tem chave que ninguem le: {', '.join(extra)}")
         # Uma imagem publicada que confia na raiz de bancada aceitaria pelo ar o que
         # a chave menos guardada assina: no campo, isso e porta dos fundos.
         prof = resolve_profile(name, M["profiles"])
@@ -440,42 +574,10 @@ def check_manifest(M: dict) -> None:
         chip = resolve_profile(name, M["profiles"]).get("chip", "rp2040")
         if chip not in M.get("chip", {}):
             sys.exit(f"gen_features: o perfil {name} pede o chip '{chip}', que nao tem [chip.{chip}]")
-    # on_board e on_unflags mexem no ambiente do PlatformIO, nao so numa macro:
-    # um chip que nao existe, ou uma lista que nao e de flags, so apareceria
-    # como uma build que falha ou, pior, que compila outra coisa.
-    for t in TOGGLE_ORDER:
-        boards = toggles[t].get("on_board")
-        if boards is not None:
-            if (not isinstance(boards, dict) or not boards
-                    or any(c not in M.get("chip", {}) or not isinstance(b, str) or not b
-                           for c, b in boards.items())):
-                sys.exit(f"gen_features: [toggles.{t}].on_board tem de ser {{chip = \"placa\"}} "
-                         f"com chips que tem [chip.*]")
-        # A chave que o gerador recusa em algum chip tem de dizer por que, nas duas linguas
-        # da pagina: e o motivo da trava (model.json, products[].refused).
-        if boards is not None:
-            _texts(ui_t[t], "unsupported", f"ui_toggles.{t}")
-        deps = toggles[t].get("on_lib_deps")
-        if deps is not None:
-            # Fixada por commit: um ramo ou uma tag que anda faria a mesma imagem
-            # sair diferente amanha, e o CI nao reproduziria o build de hoje.
-            if not isinstance(deps, list) or not all(isinstance(d, str) and re.search(r"#[0-9a-f]{40}$", d)
-                                                     for d in deps):
-                sys.exit(f"gen_features: [toggles.{t}].on_lib_deps tem de ser uma lista de bibliotecas "
-                         f"fixadas por commit (url#<sha de 40 hexadecimais>)")
-        # One @IF name each, as build_webui_gz.py reads custom_web_omit: a list or a
-        # comma would cut more than the switch means, and a name it does not know
-        # stops the build there, far from the manifest line that caused it.
-        for k in ("on_web_omit", "off_web_omit"):
-            v = toggles[t].get(k)
-            if v is not None and not (isinstance(v, str) and re.fullmatch(r"[a-z][a-z0-9_]*", v)):
-                sys.exit(f"gen_features: [toggles.{t}].{k} tem de ser um nome de @IF do "
-                         f"build_webui_gz.py (minusculas, digitos e _), nao {v!r}")
-        unflags = toggles[t].get("on_unflags")
-        if unflags is not None and (not isinstance(unflags, list)
-                                    or any(not isinstance(f, str) or not f.startswith("-") for f in unflags)):
-            sys.exit(f"gen_features: [toggles.{t}].on_unflags tem de ser uma lista de flags (-D...)")
-    known = set(TOGGLE_ORDER) | {"display"}
+        if prof.get("net") not in nets:
+            sys.exit(f"gen_features: o perfil {name} escolhe a rede {prof.get('net')!r}, que nao e um "
+                     f"[net.*] ({', '.join(nets)})")
+    known = set(TOGGLE_ORDER) | {"display", "net"}
     for kind, parts in (("rules", ("when", "require")), ("hazards", ("when",))):
         ids = set()
         for r in M.get(kind, []):
@@ -488,7 +590,9 @@ def check_manifest(M: dict) -> None:
                         sys.exit(f"gen_features: {kind} {r['id']}.{part}: chave desconhecida '{k}'")
                     if k == "display" and v not in M["display"]:
                         sys.exit(f"gen_features: {kind} {r['id']}.{part}: mostrador desconhecido '{v}'")
-                    if k != "display" and not isinstance(v, bool):
+                    if k == "net" and not (isinstance(v, str) and v in nets):
+                        sys.exit(f"gen_features: {kind} {r['id']}.{part}: rede desconhecida '{v}'")
+                    if k not in ("display", "net") and not isinstance(v, bool):
                         sys.exit(f"gen_features: {kind} {r['id']}.{part}.{k} tem de ser true/false")
     # Nenhuma imagem que o CI constroi pode quebrar uma regra: se quebrasse, ou a
     # regra esta errada, ou o CI estaria compilando algo que nao linka.
@@ -499,6 +603,14 @@ def check_manifest(M: dict) -> None:
     # Nem cair num bloqueio do chip ou do orcamento de PIO e de pinos (2026-10-13): uma
     # imagem que compila e nao cabe nos blocos PIO sobe com um sensor sem programa.
     import pio_budget as pb
+    # O ORDER de tools/pio_budget.py escreve a rede como `net=<id>`: o <id> tem de ser de um driver
+    # do manifesto, ou o programa PIO de um driver que nao existe entraria na conta.
+    for program, key in pb.ORDER:
+        if "=" in key:
+            choice, _, value = key.partition("=")
+            if choice != "net" or value not in nets:
+                sys.exit(f"gen_features: tools/pio_budget.py (ORDER) liga o programa {program} pela chave "
+                         f"{key!r}, que nao e net=<id> de um [net.*] do manifesto ({', '.join(nets)})")
     for name in M["profiles"]:
         prof = resolve_profile(name, M["profiles"])
         chip = prof.get("chip") or "rp2040"
@@ -555,6 +667,15 @@ def build_model(M: dict) -> dict:
                         "help": _texts(u, "help", f"ui_toggles.{t}")})
     displays = {d: {"label": _texts(M["ui_displays"][d], "label", f"ui_displays.{d}")}
                 for d in M["display"]}
+    # A escolha da rede (2026-10-13): o grupo da pagina onde ela fica, o rotulo dela e uma
+    # opcao por driver, na ordem de [ui_nets.<id>].order. `class` e a classe do driver, para
+    # a pagina que precise dela; o produto diz qual driver e o dele em `config.net`.
+    ui_net = M["ui_net"]
+    net = {"group": ui_net["group"], "label": _texts(ui_net, "label", "ui_net"),
+           "options": [{"id": n, "class": M["net"][n]["class"],
+                        "label": _texts(M["ui_nets"][n], "label", f"ui_nets.{n}"),
+                        "help": _texts(M["ui_nets"][n], "help", f"ui_nets.{n}")}
+                       for n in sorted(M["net"], key=lambda n: M["ui_nets"][n]["order"])]}
     products = []
     for name in M["profiles"]:
         u = M["ui_products"][name]
@@ -562,15 +683,14 @@ def build_model(M: dict) -> dict:
         # Os tetos sao de cada produto (2026-10-05): o Pico 2 W e segurado ao
         # slot dele, 1.568.768 B, e o Pico W ao que o portao usa. Ate entao um
         # teto so, o do Pico W, valia para todos.
-        # As chaves cuja inversao o gerador recusa neste produto (a rede por cabo no
-        # RP2350, que nao tem placa para ela), com o motivo em en e pt: a pagina as
-        # trava como trava uma chave que uma regra proibe.
+        # As escolhas que o gerador recusa neste produto (o ENC28J60 no RP2350, que nao tem
+        # placa para ele), com o motivo em en e pt: a pagina as trava como trava uma opcao que
+        # uma regra proibe. A chave e "chave=valor" (net=enc28j60), para que uma escolha futura
+        # caiba no mesmo mapa.
         refused = {}
-        for t in TOGGLE_ORDER:
-            flipped = dict(prof)
-            flipped[t] = not bool(prof.get(t, False))
-            if any(name_ == t for name_, _ in toggle_refusals(flipped, M)):
-                refused[t] = _texts(M["ui_toggles"][t], "unsupported", f"ui_toggles.{t}")
+        for n in M["net"]:
+            if net_refusal(dict(prof, net=n), M):
+                refused[f"net={n}"] = _texts(M["ui_nets"][n], "unsupported", f"ui_nets.{n}")
         products.append({"id": name, "order": u["order"],
                          "bench": bool(u.get("bench", False)),
                          "publish": bool(prof.get("publish", False)),
@@ -596,6 +716,7 @@ def build_model(M: dict) -> dict:
         "groups": groups,
         "toggles": toggles,
         "displays": displays,
+        "net": net,
         "products": products,
         "rules": [public(r, "rules") for r in M.get("rules", [])],
         "hazards": [public(h, "hazards") for h in M.get("hazards", [])],
@@ -605,12 +726,14 @@ def build_model(M: dict) -> dict:
 
 
 def build_feature_header(M: dict) -> str:
-    """src/FeatureBits.h: SIMUT_FEATURE_BITS, uma chave por bit.
+    """src/FeatureBits.h: SIMUT_FEATURE_BITS, uma chave (ou classe de rede) por bit.
 
     Cada bit sai do macro da chave com o mesmo teste para todos os modos de
     emissao: `defined(M) && M`. Le o macro de presenca (web_https, license_stub,
     concurrency_asserts: definido ligado, ausente desligado) e o 0/1 com default
-    no simut_config.h do mesmo jeito, para todo flag que este gerador escreve."""
+    no simut_config.h do mesmo jeito, para todo flag que este gerador escreve. O bit
+    de uma classe de rede (o 18, a classe lan) le o macro da classe, que compose( )
+    escreve quando o perfil escolhe um driver dela."""
     check_manifest(M)
     lines = [
         "/**",
@@ -636,10 +759,15 @@ def build_feature_header(M: dict) -> str:
         '#include "simut_config.h"',
         "",
     ]
+    # Um bit por chave e por classe de rede que tem `bit` (SIMUT_FEAT_<CLASSE>: a classe lan e a
+    # SIMUT_FEAT_LAN, o bit 18, o macro SIMUT_NET_LAN, as mesmas linhas da chave que era dela).
+    # Os bits sao unicos entre as duas (check_manifest), entao a ordem por bit e total.
+    entries = [(M["toggles"][t]["bit"], M["toggles"][t]["macro"], "SIMUT_FEAT_" + t.upper())
+               for t in TOGGLE_ORDER]
+    entries += [(c["bit"], c["macro"], "SIMUT_FEAT_" + n.upper())
+                for n, c in M["net_class"].items() if "bit" in c]
     names = []
-    for t in sorted(TOGGLE_ORDER, key=lambda x: M["toggles"][x]["bit"]):
-        b, macro = M["toggles"][t]["bit"], M["toggles"][t]["macro"]
-        name = "SIMUT_FEAT_" + t.upper()
+    for b, macro, name in sorted(entries):
         names.append(name)
         lines += [f"#if defined({macro}) && {macro}",
                   f"#define {name} (1ul << {b})",
@@ -662,7 +790,9 @@ def _md_cell(text: str) -> str:
 
 def build_switch_table(M: dict, lang: str) -> str:
     """As chaves por grupo, na ordem do manifesto, com o que cada imagem publicada
-    liga — o mesmo `config_of` que as regras usam, entao chave ausente e desligada."""
+    liga — o mesmo `config_of` que as regras usam, entao chave ausente e desligada. No
+    grupo da escolha da rede ([ui_net].group), antes das chaves, uma linha por driver, na
+    ordem de [ui_nets.<id>].order, ligada na imagem que escolhe aquele driver."""
     ui_t, groups, ui_p = M["ui_toggles"], M["ui_groups"], M.get("ui_products", {})
     pubs = [p for p, v in M["profiles"].items() if v.get("publish")]
     words = SWITCH_WORDS[lang]
@@ -680,6 +810,15 @@ def build_switch_table(M: dict, lang: str) -> str:
              "|" + "---|" * len(words["head"]) + ":---:|" * len(pubs)]
     for g in sorted(groups, key=lambda g: groups[g]["order"]):
         first = True
+        if g == M["ui_net"]["group"]:
+            for n in sorted(M["net"], key=lambda n: M["ui_nets"][n]["order"]):
+                u = M["ui_nets"][n]
+                cells = [_md_cell(text(groups[g], "label", f"ui_groups.{g}")) if first else "",
+                         _md_cell(text(u, "label", f"ui_nets.{n}")),
+                         _md_cell(text(u, "help", f"ui_nets.{n}"))]
+                cells += [words["on"] if cfgs[p]["net"] == n else words["off"] for p in pubs]
+                lines.append("| " + " | ".join(cells) + " |")
+                first = False
         for k, t in ui_t.items():
             if t["group"] != g:
                 continue
@@ -703,11 +842,13 @@ def with_switch_table(path: str, table: str) -> str:
 
 
 def build_outputs(M: dict) -> tuple[str, str]:
+    # O modelo primeiro: build_model( ) confere o manifesto (check_manifest), e um perfil sem
+    # rede valida e recusado por esse nome, antes de compose( ) tropecar nele sem saber qual e.
+    model = json.dumps(build_model(M), indent=2, ensure_ascii=False) + "\n"
     ini_parts = [HEADER]
     for name in M["profiles"]:
         ini_parts.append(emit_env(name, compose(resolve_profile(name, M["profiles"]), M)))
     ini = "\n".join(ini_parts)
-    model = json.dumps(build_model(M), indent=2, ensure_ascii=False) + "\n"
     return ini, model
 
 

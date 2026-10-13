@@ -1,9 +1,10 @@
 /* app.js — the SIMUT build configurator (docs/configurador/).
  *
- * The page draws what model.json says: the products, the switches grouped as a
- * tree, the rules (each measured by compiling the combination it forbids) and
- * the per-product cost of every switch. Nothing about the firmware is typed in
- * this file; tools/features.toml is the one source, and logic.js does the sums.
+ * The page draws what model.json says: the products, the network drivers as a
+ * choice and the switches grouped as a tree, the rules (each measured by
+ * compiling the combination it forbids) and the per-product cost of every
+ * switch. Nothing about the firmware is typed in this file; tools/features.toml
+ * is the one source, and logic.js does the sums.
  *
  * The page is not the authority on what builds. It locks what a rule forbids so
  * nobody asks for it, and tools/build_custom.py applies the same rules again
@@ -45,6 +46,9 @@ const STR = {
     "price.more": "With it on, this product's image is {n} B larger (measured).",
     "price.less": "With it on, this product's image is {n} B smaller (measured).",
     "price.over": "With it on, this product no longer fits the flash slot (measured).",
+    "price.net.more": "Chosen over this product's own connection, the image is {n} B larger (measured).",
+    "price.net.less": "Chosen over this product's own connection, the image is {n} B smaller (measured).",
+    "price.net.over": "Chosen over this product's own connection, it no longer fits the flash slot (measured).",
     "result.title": "This build", "selo.estimate": "Estimate", "selo.none": "No estimate",
     "fit.ok": "Fits", "fit.near": "Tight", "fit.over": "Does not fit", "fit.blocked": "Blocked",
     "fixa.link": "See the result",
@@ -126,6 +130,9 @@ const STR = {
     "price.more": "Ligada, a imagem deste produto fica {n} B maior (medido).",
     "price.less": "Ligada, a imagem deste produto fica {n} B menor (medido).",
     "price.over": "Ligada, este produto deixa de caber no slot de flash (medido).",
+    "price.net.more": "Escolhida no lugar da conexão deste produto, a imagem fica {n} B maior (medido).",
+    "price.net.less": "Escolhida no lugar da conexão deste produto, a imagem fica {n} B menor (medido).",
+    "price.net.over": "Escolhida no lugar da conexão deste produto, ele deixa de caber no slot de flash (medido).",
     "result.title": "Esta build", "selo.estimate": "Estimativa", "selo.none": "Sem estimativa",
     "fit.ok": "Cabe", "fit.near": "No limite", "fit.over": "Não cabe", "fit.blocked": "Bloqueada",
     "fixa.link": "Ver o resultado",
@@ -355,6 +362,16 @@ function flip(toggleId, value) {
   render();
 }
 
+/* The network is a choice of driver, not a switch: it rides in `set` as the
+ * driver's id, and goes again when it is the product's own. */
+function chooseNet(netId) {
+  const next = { ...state.set, net: netId };
+  state.set = L.normalizeSet(state.model, state.productId, next);
+  dropFinishedRun();
+  writeHash();
+  render();
+}
+
 /* ---- rendering ------------------------------------------------------------ */
 
 function render() {
@@ -442,15 +459,17 @@ function renderFeatures() {
   const config = L.effectiveConfig(m, state.productId, state.set);
   const groups = m.groups.map((g) => {
     const rows = m.toggles.filter((x) => x.group === g.id).map((x) => renderToggle(x, config));
+    // The choice of network driver sits in the group the model names, above its switches.
+    const net = g.id === m.net.group ? renderNet(config) : null;
     const title = label(g.label);
     if (g.advanced) {
-      const changed = m.toggles.some((x) => x.group === g.id && x.id in state.set);
+      const changed = m.toggles.some((x) => x.group === g.id && x.id in state.set) || (net !== null && "net" in state.set);
       const open = g.id in state.open ? state.open[g.id] : changed;
       return h("details", { class: "cfg-bloco cfg-detalhes", open,
                             ontoggle: (e) => { state.open[g.id] = e.target.open; } },
-        h("summary", {}, h("h3", { class: "cfg-bloco-titulo", text: title })), rows);
+        h("summary", {}, h("h3", { class: "cfg-bloco-titulo", text: title })), net, rows);
     }
-    return h("div", { class: "cfg-bloco" }, h("h3", { class: "cfg-bloco-titulo", text: title }), rows);
+    return h("div", { class: "cfg-bloco" }, h("h3", { class: "cfg-bloco-titulo", text: title }), net, rows);
   });
   return h("section", { class: "cfg-secao", "aria-labelledby": "h-recursos" },
     h("h2", { class: "cfg-secao-titulo", id: "h-recursos", text: t("sec.features") }), groups);
@@ -484,6 +503,43 @@ function renderToggle(x, config) {
                    "aria-describedby": helpId, checked: config[x.id] === true,
                    disabled: Boolean(lock) || same,
                    onchange: (e) => flip(x.id, e.target.checked) })));
+}
+
+/* The connection: one radio per network driver of the model, as rows of the
+ * network group (the way the switches below are), divided by linha. Rows, not
+ * cards: the group is already a card, and ANGULO.md 4.4 allows none inside one.
+ * A driver the choice cannot take is disabled with its reason on the row, as a
+ * locked switch has it (L.netLockOf, which asks the same question lockOf does).
+ * Native radios in one fieldset: the arrow keys move between them. */
+function renderNet(config) {
+  const m = state.model;
+  const changed = "net" in state.set;
+  return h("fieldset", { class: "cfg-rede" },
+    h("legend", { class: "cfg-rede-titulo" }, label(m.net.label),
+      changed ? [" ", h("span", { class: "selo", text: t("changed") })] : null),
+    m.net.options.map((o) => {
+      const id = `n-${o.id}`;
+      const lock = L.netLockOf(m, config, o.id, state.productId);
+      const price = L.priceNet(m, state.productId, o.id);
+      let priceText = null, priceTitle = null;
+      if (price && !lock) {
+        priceText = kb(price.flash);
+        priceTitle = price.overflow ? t("price.net.over")
+          : t(price.flash >= 0 ? "price.net.more" : "price.net.less", { n: num(Math.abs(price.flash)) });
+      }
+      const helpId = `${id}-ajuda`, lockId = `${id}-trava`;
+      return h("label", { class: "cfg-chave cfg-rede-opcao", for: id },
+        h("span", { class: "cfg-chave-texto" },
+          h("span", { class: "cfg-chave-nome", id: `${id}-nome`, text: label(o.label) }),
+          h("span", { class: "cfg-apoio", id: helpId, text: label(o.help) }),
+          lock ? h("span", { class: "cfg-chave-trava", id: lockId, text: t("locked", { why: label(lock.why) }) }) : null),
+        h("span", { class: "cfg-chave-lado" },
+          priceText ? h("span", { class: "cfg-chave-custo", title: priceTitle, text: priceText }) : null,
+          h("input", { type: "radio", class: "cfg-radio", name: "rede", id, value: o.id,
+                       "aria-labelledby": `${id}-nome`, "aria-describedby": lock ? `${helpId} ${lockId}` : helpId,
+                       checked: config.net === o.id, disabled: Boolean(lock),
+                       onchange: () => chooseNet(o.id) })));
+    }));
 }
 
 function meter(labelText, value, ceiling) {
@@ -527,7 +583,7 @@ function renderResult() {
     else if (otaFit === "over") warnings.push(["alerta", t("warn.otaOver")]);
     if (slotFit === "near" || (slotFit === "ok" && otaFit === "near")) warnings.push(["alerta", t("warn.near")]);
     if (est.missing.length) {
-      const names = est.missing.map((id) => label(m.toggles.find((x) => x.id === id).label));
+      const names = est.missing.map(missingName);
       warnings.push(["alerta", t("warn.missing", { list: names.join(", ") })]);
     }
   } else {
@@ -568,6 +624,18 @@ function renderResult() {
       state.tokenOpen || state.token ? renderToken() : null,
       state.run ? renderRun() : null,
       renderLocal()));
+}
+
+/* What a change with no measurement is called: a switch by its label, the
+ * network by the driver that was chosen (`net` is not one of the switches). */
+function missingName(id) {
+  const m = state.model;
+  if (id === "net") {
+    const o = m.net.options.find((x) => x.id === state.set.net);
+    return label(o ? o.label : m.net.label);
+  }
+  const sw = m.toggles.find((x) => x.id === id);
+  return label(sw.label);
 }
 
 let lastAnnounced = "";
@@ -618,15 +686,26 @@ async function onCopy() {
   }
 }
 
+/* The changes, one line each: a switch by its state, the connection by the
+ * driver chosen. English, because the issue is. */
+function changeLines() {
+  const m = state.model;
+  return Object.entries(state.set).map(([id, v]) => {
+    if (id === "net") {
+      const o = m.net.options.find((y) => y.id === v);
+      return `- ${m.net.label.en}: ${o ? o.label.en : v}`;
+    }
+    const x = m.toggles.find((y) => y.id === id);
+    return `- ${x.label.en}: ${v ? "on" : "off"}`;
+  });
+}
+
 /* The issue is in English whatever the page's language: the repository's
  * working language, and the one its maintainer triages in. */
 function issueUrl() {
   const m = state.model;
   const p = L.productById(m, state.productId);
-  const lines = Object.entries(state.set).map(([id, v]) => {
-    const x = m.toggles.find((y) => y.id === id);
-    return `- ${x.label.en}: ${v ? "on" : "off"}`;
-  });
+  const lines = changeLines();
   const est = L.estimate(m, state.productId, state.set);
   const page = `https://angelointj.github.io/simut/configurador/${L.formatHash(state.productId, state.set)}`;
   const body = [

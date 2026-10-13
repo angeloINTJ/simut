@@ -5,7 +5,8 @@ quem pode usar qual pino, que radio a imagem tem, e como a imagem se chama.
 Rodar: python3 tools/test_pin_masks.py
 
 O SIMUT Wire e o SIMUT num Raspberry Pi Pico comum, sem o radio CYW43, com a rede por
-cabo num modulo ENC28J60 (a chave `lan` de tools/features.toml). Uma montagem que nao
+cabo num modulo ENC28J60 (o driver `enc28j60` de tools/features.toml, `net = "enc28j60"`
+no perfil, da classe `lan`). Uma montagem que nao
 pode funcionar tem de parar o BUILD, nao a placa, e e o pre-processador que para: o
 simut_config.h compara mascaras de pinos (`#if (A & B) != 0`) e recusa, com um #error que
 nomeia os dois donos, o modulo no pino do mostrador ou do buzzer, o buzzer no pino do
@@ -37,8 +38,8 @@ import gen_features as gf  # noqa: E402
 
 TARGET = "-DARDUINO_ARCH_RP2040"        # toda placa arduino-pico: sem ele o cabecalho e o do host
 CYW43 = "-DPICO_CYW43_SUPPORTED=1"      # as placas W passam; o pico_base tambem
-# Um build com a chave `lan`: o macro e o que a chave passa junto (on_flags do manifesto),
-# hoje os onze slots. main( ) confere que esta lista e a do manifesto.
+# Um build com o driver enc28j60 (classe lan): o macro da classe e o que o driver passa junto
+# (`flags` do [net.enc28j60]), hoje os onze slots. main( ) confere que esta lista e a do manifesto.
 LAN = ["-DSIMUT_NET_LAN=1", "-DMAX_SENSORS=11"]
 LCD = ["-DSIMUT_DISPLAY_TFT=0", "-DSIMUT_DISPLAY_ALPHA=1", "-DHD44780_MODE_PARALLEL=1"]
 LCD_I2C = ["-DSIMUT_DISPLAY_TFT=0", "-DSIMUT_DISPLAY_ALPHA=1"]    # o modo I2C e o padrao do LCD
@@ -163,10 +164,12 @@ def main():
     M = gf.load_manifest()
     fails = []
 
-    # 0. O build LAN deste teste e o que a chave `lan` do manifesto da: o macro e os on_flags.
-    lan_manifest = ["-DSIMUT_NET_LAN=1"] + list(M["toggles"]["lan"].get("on_flags", []))
+    # 0. O build LAN deste teste e o que o driver enc28j60 do manifesto da: o macro da classe dele
+    #    (-D<macro>=1) e os `flags` do driver.
+    enc = M["net"]["enc28j60"]
+    lan_manifest = [f"-D{M['net_class'][enc['class']]['macro']}=1"] + list(enc.get("flags", []))
     if LAN != lan_manifest:
-        fails.append(f"o LAN do teste {LAN} nao e o que a chave lan do manifesto passa {lan_manifest}")
+        fails.append(f"o LAN do teste {LAN} nao e o que o driver enc28j60 do manifesto passa {lan_manifest}")
 
     # 0. O teste conhece o nome de todo perfil, e nenhum a mais.
     if set(EXPECT_NAME) != set(M["profiles"]):

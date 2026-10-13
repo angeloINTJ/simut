@@ -401,8 +401,8 @@ python3 tools/test_flash_budget.py                   # as duas regras que mantê
 - **Build sob medida** (o configurador, P7 de `MODELO_DE_RECURSOS.md`):
   `tools/build_custom.py --profile '{"v":1,"base":"pico_w_air","set":{"bluetooth":false}}'`
   reaplica tudo o que impede a build (`gen_features.blockers( )`: as regras do
-  manifesto, a chave que o chip recusa e, desde 13/10/2026, o orçamento de PIO e de
-  pinos do `tools/pio_budget.py`; exit 2 se algum vale), compila e deixa em
+  manifesto, o driver de rede que o chip recusa e, desde 13/10/2026, o orçamento de
+  PIO e de pinos do `tools/pio_budget.py`; exit 2 se algum vale), compila e deixa em
   `--out` o `.uf2`, o `.bin` e um `build.json` com tamanhos e sha256; exit 3 é
   "não cabe no slot". No Pico 2 W (`pico2_w_release`, desde 05/10/2026) são as
   duas imagens que a release publica: o `.bin` é a atualização marcada para

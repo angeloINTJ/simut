@@ -9,8 +9,8 @@ o platformio.ini divergirem do manifesto, o portao pega. Compara, por ambiente:
     - o conjunto de macros -D e demais flags de compilacao;
     - o conjunto de unidades de traducao compiladas (o filtro resolvido contra src/);
     - o lib_ignore e o lib_deps;
-    - a placa (`board`) e o build_unflags (o -DPICO_CYW43_SUPPORTED=1 que um
-      ambiente de LAN tira do pico_base);
+    - a placa (`board`) e o build_unflags (o -DPICO_CYW43_SUPPORTED=1 que o driver
+      de rede por cabo tira do pico_base);
     - custom_web_omit, custom_fs_pages e build_type.
 
 A resolucao dos dois lados e feita pelo proprio PlatformIO
@@ -68,13 +68,18 @@ def check_manifest(M: dict) -> tuple[list[str], list[str]]:
     errors, notes = [], []
     text = src_text()
 
-    # macros SIMUT_ declaradas -> {macro: dead?}
+    # macros SIMUT_ declaradas -> {macro: dead?}. As do interruptores, as das classes de rede
+    # ([net_class.*].macro, que o compose( ) escreve por -D) e as dos flags de mostrador e de driver.
     simut: dict[str, bool] = {}
     for t in M["toggles"].values():
         mac = t.get("macro", "")
         if mac.startswith("SIMUT_"):
             simut[mac] = bool(t.get("dead"))
-    for disp in M["display"].values():
+    for cls in M.get("net_class", {}).values():
+        mac = cls.get("macro", "")
+        if mac.startswith("SIMUT_"):
+            simut.setdefault(mac, False)
+    for disp in list(M["display"].values()) + list(M.get("net", {}).values()):
         for fl in disp.get("flags", []):
             if fl.startswith("-DSIMUT_"):
                 simut.setdefault(fl[2:].split("=")[0], False)
@@ -92,6 +97,10 @@ def check_manifest(M: dict) -> tuple[list[str], list[str]]:
         referenced |= set(disp.get("exclude", [])) | set(disp.get("include", []))
     for t in M["toggles"].values():
         referenced |= set(t.get("off_exclude", [])) | set(t.get("on_include", []))
+    # As unidades de cada driver de rede ([net.<id>].units): sao excluidas das imagens dos outros
+    # drivers, e um nome errado nao exclui nada, em silencio.
+    for n in M.get("net", {}).values():
+        referenced |= set(n.get("units", []))
     for ref in sorted(referenced):
         if "*" in ref:
             import glob

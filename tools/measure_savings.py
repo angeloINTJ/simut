@@ -24,6 +24,7 @@ economia cai e o portao reprova: o recurso vazou para o caminho sempre-ligado.
   tools/measure_savings.py --check         # reprova se a economia caiu abaixo do piso
   tools/measure_savings.py --matrix        # custos POR PRODUTO p/ o configurador
   tools/measure_savings.py --matrix --only tel_mqtt   # so as inversoes desta chave
+  tools/measure_savings.py --matrix --only net        # so as trocas de rede (net=<id>)
   tools/measure_savings.py --checks        # so as combinacoes de conferencia
 
 --matrix mede, para cada produto publicado, o que muda ao inverter CADA chave a
@@ -33,6 +34,9 @@ buzzer devolve 5.016 B no SIMUT e 8.224 B no Alpha, e o Bluetooth, que devolve
 140.196 B no Alpha, nem cabe no SIMUT (estoura o slot em 105.964 B; medido
 2026-09-26). Inversao que quebra uma regra do manifesto nao compila e fica
 anotada; inversao que estoura o flash registra o excesso que o linker da.
+A rede e uma escolha de driver, nao um interruptor (2026-10-13): alem das chaves,
+a matriz troca o driver de cada produto por cada outro [net.<id>] do manifesto, e
+a chave da inversao e `net=<id>` (um texto com "=", que nenhum interruptor tem).
 Depois das inversoes, compila as combinacoes de CHECKS de verdade: a pagina
 soma as diferencas, e e contra estas builds que ela mede o quanto a soma erra.
 
@@ -423,8 +427,9 @@ def print_checks(doc):
             if "overflow" in f:
                 return region + f["overflow"] - base["bin"]
             return 0
-        est = base["used"] + sum(delta(flips[k]) for k in c["set"])
-        what = ", ".join(f"{k}={'on' if v else 'off'}" for k, v in c["set"].items())
+        est = base["used"] + sum(delta(flips[flip_key(k, v)]) for k, v in c["set"].items())
+        what = ", ".join(flip_key(k, v) if k == "net" else f"{k}={'on' if v else 'off'}"
+                         for k, v in c["set"].items())
         if "used" in c:
             print(f"  {c['base']:<15} {what}: real {c['used']}, soma {est}, erro {c['used'] - est:+} B")
         else:
@@ -443,31 +448,65 @@ def cmd_checks():
     return 0
 
 
+def flip_key(key, value):
+    """A chave de `flips` (tools/feature_costs.json) de uma mudanca de `set`, a de um perfil ou a
+    de CHECKS: um interruptor e o proprio nome, e a rede e `net=<id>`, um texto com "=" que
+    nenhum interruptor tem, entao os dois nunca colidem."""
+    return f"{key}={value}" if key == "net" else key
+
+
+def cost_env(product, key):
+    """O ambiente temporario que mede uma inversao. O PlatformIO so aceita letras, digitos, "_" e
+    "-" num nome de ambiente (ENVNAME_RE de platformio/project/config.py, conferido na fonte em
+    2026-10-13), e `validate( )` olha TODOS os [env:*] a cada `pio run`: um "=" no nome
+    derrubaria a medicao inteira, nao so a dele. A chave da rede, `net=<id>`, tem um."""
+    return f"_cost_{product}_{key}".replace("=", "_")
+
+
+def flips_of(prof, M, names=None):
+    """As mudancas simples que a matriz mede a partir de um produto: [(chave em `flips`, o perfil
+    com ela)]. Um interruptor vira ao contrario; a rede vira para cada [net.<id>] do manifesto
+    que nao e o do produto (flip_key: `net=<id>`). `names`: so estas (interruptores e/ou "net"),
+    na ordem dada; sem elas, todas, na ordem da pagina."""
+    if names is None:
+        names = [*gf.TOGGLE_ORDER, "net"]
+    out = []
+    for name in names:
+        if name == "net":
+            out += [(flip_key("net", n), dict(prof, net=n)) for n in M["net"] if n != prof["net"]]
+        else:
+            out.append((name, dict(prof, **{name: not bool(prof.get(name, False))})))
+    return out
+
+
+def plan_flip(blocks, plan, p, key, flipped, M):
+    """Poe uma inversao no plano, (produto, chave, ambiente, impedimento), e, quando ha o que
+    medir, o ambiente nos blocos. O que impede a build (gen_features.blockers) nao tem imagem a
+    medir, e a pagina o trata como sem medida: uma regra fica pelo id; o resto -- o driver de
+    rede sem placa para o chip do produto (o ENC28J60 no RP2350) e o orcamento de PIO e de pinos
+    (2026-10-13) -- vira `unsupported`, com o motivo. Vale para a troca de rede como para um
+    interruptor."""
+    bad = gf.blockers(flipped, M)
+    if bad and bad[0]["kind"] == "rule":
+        plan.append((p, key, None, bad[0]["id"]))
+    elif bad:
+        plan.append((p, key, None, {"unsupported": bad[0]["detail"]}))
+    else:
+        env = cost_env(p, key)
+        blocks.append(gf.emit_env(env, gf.compose(flipped, M)))
+        plan.append((p, key, env, None))
+
+
 def measure_matrix():
-    """Para cada produto publicado: a base, e cada chave invertida a partir dela."""
+    """Para cada produto publicado: a base, e cada mudanca simples a partir dela (flips_of)."""
     M = gf.load_manifest()
     products = [p for p in M["profiles"]
                 if gf.resolve_profile(p, M["profiles"]).get("publish")]
     blocks, plan = [], []
     for p in products:
         prof = gf.resolve_profile(p, M["profiles"])
-        for t in gf.TOGGLE_ORDER:
-            flipped = dict(prof)
-            flipped[t] = not bool(prof.get(t, False))
-            # O que impede a build (gen_features.blockers): uma regra fica pelo id; a
-            # chave que pede uma placa que o chip do produto nao tem (a rede por cabo no
-            # RP2350) e o orcamento de PIO e de pinos (2026-10-13) nao tem imagem a medir,
-            # e a pagina a trata como sem medida.
-            bad = gf.blockers(flipped, M)
-            if bad and bad[0]["kind"] == "rule":
-                plan.append((p, t, None, bad[0]["id"]))
-                continue
-            if bad:
-                plan.append((p, t, None, {"unsupported": bad[0]["detail"]}))
-                continue
-            env = f"_cost_{p}_{t}"
-            blocks.append(gf.emit_env(env, gf.compose(flipped, M)))
-            plan.append((p, t, env, None))
+        for key, flipped in flips_of(prof, M):
+            plan_flip(blocks, plan, p, key, flipped, M)
 
     result = {"products": {}}
     with TempEnvs(blocks):
@@ -476,9 +515,9 @@ def measure_matrix():
             if "used" not in base:
                 sys.exit(f"measure_savings: a base {p} nao compilou: {base}")
             result["products"][p] = {"base": base, "flips": {}}
-        for p, t, env, rule in plan:
+        for p, key, env, rule in plan:
             if rule:
-                result["products"][p]["flips"][t] = rule if isinstance(rule, dict) else {"rule": rule}
+                result["products"][p]["flips"][key] = rule if isinstance(rule, dict) else {"rule": rule}
                 continue
             r = pio_build_full(env)
             # A mesma imagem, byte a byte: a chave nao tem consumidor neste
@@ -486,7 +525,7 @@ def measure_matrix():
             # mostra isso em vez de um "+0 B" que parece economia.
             if r.pop("sha256", None) == result["products"][p]["base"]["sha256"]:
                 r["same"] = True
-            result["products"][p]["flips"][t] = r
+            result["products"][p]["flips"][key] = r
             # uma pasta de build inteira por inversao: nao guardar dezenas delas
             shutil.rmtree(os.path.join(ROOT, ".pio", "build", env), ignore_errors=True)
     for v in result["products"].values():
@@ -496,6 +535,8 @@ def measure_matrix():
 
 def cmd_matrix_partial(toggles):
     """So as inversoes de `toggles`, gravadas no feature_costs.json que existe.
+    Cada nome e uma chave do TOGGLE_ORDER ou "net", que vale por toda troca de
+    rede de cada produto (as chaves `net=<id>` de flips_of).
 
     Vale quando a chave nova nasce desligavel sem mudar nada ligada: as bases
     e as outras inversoes continuam as mesmas imagens. Isso nao se supoe — as
@@ -503,9 +544,9 @@ def cmd_matrix_partial(toggles):
     bin, ram); qualquer diferenca recusa, e a matriz inteira e o caminho. Custa
     uma build de base e uma por chave em cada produto publicado (quatro desde
     que o Pico 2 W entrou, 2026-10-05), contra 69 e mais 12 conferencias da
-    matriz inteira."""
+    matriz inteira; `net` custa uma por driver que nao e o do produto."""
     M = gf.load_manifest()
-    unknown = [t for t in toggles if t not in gf.TOGGLE_ORDER]
+    unknown = [t for t in toggles if t != "net" and t not in gf.TOGGLE_ORDER]
     if unknown:
         sys.exit(f"measure_savings: chave desconhecida: {', '.join(unknown)}")
     with open(COSTS_PATH, encoding="utf-8") as fh:
@@ -514,19 +555,8 @@ def cmd_matrix_partial(toggles):
     blocks, plan = [], []
     for p in products:
         prof = gf.resolve_profile(p, M["profiles"])
-        for t in toggles:
-            flipped = dict(prof)
-            flipped[t] = not bool(prof.get(t, False))
-            bad = gf.blockers(flipped, M)
-            if bad and bad[0]["kind"] == "rule":
-                plan.append((p, t, None, bad[0]["id"]))
-                continue
-            if bad:
-                plan.append((p, t, None, {"unsupported": bad[0]["detail"]}))
-                continue
-            env = f"_cost_{p}_{t}"
-            blocks.append(gf.emit_env(env, gf.compose(flipped, M)))
-            plan.append((p, t, env, None))
+        for key, flipped in flips_of(prof, M, toggles):
+            plan_flip(blocks, plan, p, key, flipped, M)
     with TempEnvs(blocks):
         bases = {}
         for p in products:
@@ -539,14 +569,14 @@ def cmd_matrix_partial(toggles):
                          f"ram={b['ram']}, o arquivo diz {stored}). As outras inversoes podem ter "
                          "mudado junto: rode --matrix inteiro.")
             bases[p] = b
-        for p, t, env, rule in plan:
+        for p, key, env, rule in plan:
             if rule:
-                doc["products"][p]["flips"][t] = rule if isinstance(rule, dict) else {"rule": rule}
+                doc["products"][p]["flips"][key] = rule if isinstance(rule, dict) else {"rule": rule}
                 continue
             r = pio_build_full(env)
             if r.pop("sha256", None) == bases[p]["sha256"]:
                 r["same"] = True
-            doc["products"][p]["flips"][t] = r
+            doc["products"][p]["flips"][key] = r
             shutil.rmtree(os.path.join(ROOT, ".pio", "build", env), ignore_errors=True)
     doc["measured_at"] = {
         "date": datetime.date.today().isoformat(),
@@ -558,23 +588,22 @@ def cmd_matrix_partial(toggles):
         json.dump(doc, fh, indent=2, ensure_ascii=False)
         fh.write("\n")
     errors = 0
-    for p in products:
+    for p, key, _env, _rule in plan:   # a ordem do plano: por produto, e por chave de inversao
         b = doc["products"][p]["base"]
-        for t in toggles:
-            r = doc["products"][p]["flips"][t]
-            if r.get("same"):
-                print(f"{p:<15} {t:<12} a mesma imagem")
-            elif "used" in r:
-                print(f"{p:<15} {t:<12} flash {r['used'] - b['used']:+8} B  ram {r['ram'] - b['ram']:+7} B")
-            elif "rule" in r:
-                print(f"{p:<15} {t:<12} proibida pela regra {r['rule']}")
-            elif "unsupported" in r:
-                print(f"{p:<15} {t:<12} nao se aplica: {r['unsupported']}")
-            elif "overflow" in r:
-                print(f"{p:<15} {t:<12} NAO CABE: estoura o slot em {r['overflow']} B")
-            else:
-                errors += 1
-                print(f"{p:<15} {t:<12} ERRO: {r['error']}")
+        r = doc["products"][p]["flips"][key]
+        if r.get("same"):
+            print(f"{p:<15} {key:<12} a mesma imagem")
+        elif "used" in r:
+            print(f"{p:<15} {key:<12} flash {r['used'] - b['used']:+8} B  ram {r['ram'] - b['ram']:+7} B")
+        elif "rule" in r:
+            print(f"{p:<15} {key:<12} proibida pela regra {r['rule']}")
+        elif "unsupported" in r:
+            print(f"{p:<15} {key:<12} nao se aplica: {r['unsupported']}")
+        elif "overflow" in r:
+            print(f"{p:<15} {key:<12} NAO CABE: estoura o slot em {r['overflow']} B")
+        else:
+            errors += 1
+            print(f"{p:<15} {key:<12} ERRO: {r['error']}")
     print(f"gravado: {os.path.relpath(COSTS_PATH, ROOT)} — rode python3 tools/gen_features.py")
     return 1 if errors else 0
 
@@ -589,9 +618,13 @@ def cmd_matrix():
             "e a MESMA imagem com so aquela chave invertida — used/bin/ram medidos, ou",
             "`overflow` (o excesso que o linker reporta quando nao cabe no slot), ou",
             "`rule` (a regra do manifesto que proibe a combinacao; nao foi compilada), ou",
-            "`unsupported` (a chave pede uma placa que o chip do produto nao tem, ou a",
-            "combinacao nao cabe nos blocos de PIO ou nos pinos: nao ha imagem a medir,",
-            "e a pagina a conta como sem medida).",
+            "`unsupported` (o driver de rede pede uma placa que o chip do produto nao tem,",
+            "ou a combinacao nao cabe nos blocos de PIO ou nos pinos: nao ha imagem a",
+            "medir, e a pagina a conta como sem medida).",
+            "`flips.net=<id>` e a mesma coisa para a rede, que e uma escolha de driver e",
+            "nao um interruptor: a MESMA imagem com o driver de rede trocado para <id>,",
+            "uma entrada por driver que nao e o do produto, medida ou anotada do mesmo",
+            "jeito.",
             "`same: true` diz que a imagem saiu identica a base, byte a byte: a chave nao",
             "tem consumidor naquele produto, e a pagina diz isso em vez de mostrar +0 B.",
             "A pagina SOMA as diferencas quando mais de uma chave muda: estimativa, e ela",

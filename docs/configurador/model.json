@@ -300,19 +300,6 @@
         "en": "The history graph opened from the min/max strip, its detail screen and the calendar to pick a day. Without it the strip has no graph button; the history is still recorded and stays on the web.",
         "pt": "O gráfico do histórico aberto pela faixa de min/max, a tela de detalhe e o calendário para escolher o dia. Sem ele a faixa não tem o botão do gráfico; o histórico continua gravado e na web."
       }
-    },
-    {
-      "id": "lan",
-      "group": "network",
-      "bit": 18,
-      "label": {
-        "en": "Wired network (ENC28J60) instead of Wi-Fi",
-        "pt": "Rede por cabo (ENC28J60) no lugar do Wi-Fi"
-      },
-      "help": {
-        "en": "Builds for a plain Raspberry Pi Pico, which has no radio, and takes the network from an ENC28J60 module on the cable. Bluetooth and hibernation run on the radio, so they cannot be on with it.",
-        "pt": "Compila para um Raspberry Pi Pico comum, que não tem rádio, e pega a rede de um módulo ENC28J60 no cabo. O Bluetooth e a hibernação rodam no rádio, então não podem ficar ligados com ela."
-      }
     }
   ],
   "displays": {
@@ -334,6 +321,39 @@
         "pt": "Sem mostrador"
       }
     }
+  },
+  "net": {
+    "group": "network",
+    "label": {
+      "en": "Connection",
+      "pt": "Conexão"
+    },
+    "options": [
+      {
+        "id": "cyw43",
+        "class": "wifi",
+        "label": {
+          "en": "Wi-Fi (the board's CYW43 radio)",
+          "pt": "Wi-Fi (o rádio CYW43 da placa)"
+        },
+        "help": {
+          "en": "The radio of the Pico W and the Pico 2 W: the device joins a network by its name and password, and offers a setup access point.",
+          "pt": "O rádio do Pico W e do Pico 2 W: o aparelho entra numa rede pelo nome e pela senha, e oferece um ponto de acesso para a configuração."
+        }
+      },
+      {
+        "id": "enc28j60",
+        "class": "lan",
+        "label": {
+          "en": "Network cable (ENC28J60 module)",
+          "pt": "Cabo de rede (módulo ENC28J60)"
+        },
+        "help": {
+          "en": "Builds for a plain Raspberry Pi Pico, which has no radio, with an ENC28J60 module on GP11 to GP15: sensor slots go from 16 to 11. Bluetooth and hibernation run on the radio, so they are not available.",
+          "pt": "Compila para um Raspberry Pi Pico comum, que não tem rádio, com um módulo ENC28J60 nos GP11 a GP15: os slots de sensor caem de 16 para 11. O Bluetooth e a hibernação rodam no rádio, então não ficam disponíveis."
+        }
+      }
+    ]
   },
   "products": [
     {
@@ -357,6 +377,7 @@
       },
       "config": {
         "display": "tft",
+        "net": "cyw43",
         "cli_full": false,
         "web_https": true,
         "license_stub": false,
@@ -374,8 +395,7 @@
         "web_export_api": true,
         "web_metrics": true,
         "syslog": true,
-        "tft_graph": true,
-        "lan": false
+        "tft_graph": true
       }
     },
     {
@@ -399,6 +419,7 @@
       },
       "config": {
         "display": "alpha_paralelo",
+        "net": "cyw43",
         "cli_full": false,
         "web_https": false,
         "license_stub": false,
@@ -416,8 +437,7 @@
         "web_export_api": true,
         "web_metrics": true,
         "syslog": true,
-        "tft_graph": false,
-        "lan": false
+        "tft_graph": false
       }
     },
     {
@@ -441,6 +461,7 @@
       },
       "config": {
         "display": "nenhum",
+        "net": "cyw43",
         "cli_full": true,
         "web_https": false,
         "license_stub": true,
@@ -458,8 +479,7 @@
         "web_export_api": true,
         "web_metrics": true,
         "syslog": true,
-        "tft_graph": false,
-        "lan": false
+        "tft_graph": false
       }
     },
     {
@@ -469,9 +489,9 @@
       "publish": true,
       "chip": "rp2350",
       "refused": {
-        "lan": {
-          "en": "The wired network exists only for the plain Pico (RP2040) so far: the Pico 2 W (RP2350) has no board for it.",
-          "pt": "A rede por cabo só existe, por enquanto, para o Pico comum (RP2040): o Pico 2 W (RP2350) não tem placa para ela."
+        "net=enc28j60": {
+          "en": "The ENC28J60 exists only for the plain Pico (RP2040) so far: the Pico 2 W (RP2350) has no board for it.",
+          "pt": "O ENC28J60 só existe, por enquanto, para o Pico comum (RP2040): o Pico 2 W (RP2350) não tem placa para ele."
         }
       },
       "ceilings": {
@@ -488,6 +508,7 @@
       },
       "config": {
         "display": "tft",
+        "net": "cyw43",
         "cli_full": false,
         "web_https": true,
         "license_stub": false,
@@ -505,8 +526,7 @@
         "web_export_api": true,
         "web_metrics": true,
         "syslog": true,
-        "tft_graph": true,
-        "lan": false
+        "tft_graph": true
       }
     },
     {
@@ -530,6 +550,7 @@
       },
       "config": {
         "display": "tft",
+        "net": "cyw43",
         "cli_full": true,
         "web_https": false,
         "license_stub": true,
@@ -547,8 +568,7 @@
         "web_export_api": true,
         "web_metrics": true,
         "syslog": true,
-        "tft_graph": true,
-        "lan": false
+        "tft_graph": true
       }
     },
     {
@@ -572,6 +592,7 @@
       },
       "config": {
         "display": "tft",
+        "net": "cyw43",
         "cli_full": true,
         "web_https": true,
         "license_stub": true,
@@ -589,8 +610,7 @@
         "web_export_api": true,
         "web_metrics": true,
         "syslog": true,
-        "tft_graph": true,
-        "lan": false
+        "tft_graph": true
       }
     },
     {
@@ -614,6 +634,7 @@
       },
       "config": {
         "display": "tft",
+        "net": "cyw43",
         "cli_full": false,
         "web_https": true,
         "license_stub": false,
@@ -631,8 +652,7 @@
         "web_export_api": true,
         "web_metrics": true,
         "syslog": true,
-        "tft_graph": true,
-        "lan": false
+        "tft_graph": true
       }
     },
     {
@@ -656,6 +676,7 @@
       },
       "config": {
         "display": "alpha_paralelo",
+        "net": "enc28j60",
         "cli_full": false,
         "web_https": false,
         "license_stub": false,
@@ -673,8 +694,7 @@
         "web_export_api": true,
         "web_metrics": true,
         "syslog": true,
-        "tft_graph": false,
-        "lan": true
+        "tft_graph": false
       }
     },
     {
@@ -698,6 +718,7 @@
       },
       "config": {
         "display": "tft",
+        "net": "enc28j60",
         "cli_full": false,
         "web_https": true,
         "license_stub": false,
@@ -715,8 +736,7 @@
         "web_export_api": true,
         "web_metrics": true,
         "syslog": true,
-        "tft_graph": true,
-        "lan": true
+        "tft_graph": true
       }
     }
   ],
@@ -778,45 +798,45 @@
       "evidence": "air+sound_buzzer fails to compile: SoundManager.cpp: 'BuzzerNote' does not name a type. SIMUT_AIR turns SoundManager.h into the no-op class, and SoundManager.cpp has no guard of its own."
     },
     {
-      "id": "lan-no-bluetooth",
+      "id": "bluetooth-needs-cyw43",
       "when": {
-        "lan": true
+        "bluetooth": true
       },
       "require": {
-        "bluetooth": false
+        "net": "cyw43"
       },
       "why": {
-        "en": "Bluetooth runs on the Wi-Fi radio, which a wired build does not have.",
-        "pt": "O Bluetooth roda no rádio do Wi-Fi, que uma build por cabo não tem."
+        "en": "Bluetooth runs on the CYW43 radio, so it needs the Wi-Fi connection.",
+        "pt": "O Bluetooth roda no rádio CYW43, então precisa da conexão Wi-Fi."
       },
-      "evidence": "SIMUT_NET_LAN with SIMUT_BLUETOOTH stops at an #error in simut_config.h, pinned by tools/test_pin_masks.py (2026-10-12). Not compiled past that #error: the Bluetooth stack (SerialBT, BTstack) rides on the CYW43, and board = rpipico has none."
+      "evidence": "With net = enc28j60, SIMUT_NET_LAN with SIMUT_BLUETOOTH stops at an #error in simut_config.h, pinned by tools/test_pin_masks.py (2026-10-12). Not compiled past that #error: the Bluetooth stack (SerialBT, BTstack) rides on the CYW43, and board = rpipico has none. The rule asks for the radio, not for the absence of the cable: a wired board added later has no CYW43 either."
     },
     {
-      "id": "lan-no-air",
+      "id": "air-needs-cyw43",
       "when": {
-        "lan": true
+        "air": true
       },
       "require": {
-        "air": false
+        "net": "cyw43"
       },
       "why": {
-        "en": "Hibernation is built around the Wi-Fi radio, which it powers down between wakes. A wired build has none.",
-        "pt": "A hibernação é feita em torno do rádio do Wi-Fi, que ela desliga entre os despertares. Uma build por cabo não tem rádio."
+        "en": "Hibernation is built around the CYW43 radio, which it powers down between wakes, so it needs the Wi-Fi connection.",
+        "pt": "A hibernação é feita em torno do rádio CYW43, que ela desliga entre os despertares, então precisa da conexão Wi-Fi."
       },
-      "evidence": "SIMUT_NET_LAN with SIMUT_AIR stops at an #error in simut_config.h, pinned by tools/test_pin_masks.py (2026-10-12). Not compiled past that #error: AppManager_Air.cpp powers the CYW43 down through GPIO23 (WL_REG_ON) before every sleep, and board = rpipico has no CYW43."
+      "evidence": "With net = enc28j60, SIMUT_NET_LAN with SIMUT_AIR stops at an #error in simut_config.h, pinned by tools/test_pin_masks.py (2026-10-12). Not compiled past that #error: AppManager_Air.cpp powers the CYW43 down through GPIO23 (WL_REG_ON) before every sleep, and board = rpipico has no CYW43. The rule asks for the radio, not for the absence of the cable: a wired board added later has no CYW43 either."
     }
   ],
   "hazards": [
     {
-      "id": "lan-unsoaked",
+      "id": "enc28j60-unsoaked",
       "when": {
-        "lan": true
+        "net": "enc28j60"
       },
       "why": {
-        "en": "The wired network has run on the bench, not yet through a soak: a build with it is a bench build.",
-        "pt": "A rede por cabo rodou na bancada, mas ainda não passou por um soak: uma build com ela é de bancada."
+        "en": "The ENC28J60 connection has run on the bench, not yet through a soak: a build with it is a bench build.",
+        "pt": "A conexão ENC28J60 rodou na bancada, mas ainda não passou por um soak: uma build com ela é de bancada."
       },
-      "evidence": "2026-10-13: pico_wiretft on the Wire rig, web and console over the cable for hours; no image with lan has run a 72 h soak."
+      "evidence": "2026-10-13: pico_wiretft on the Wire rig, web and console over the cable for hours; no image with the ENC28J60 has run a 72 h soak."
     },
     {
       "id": "bt-flash-core1",
@@ -837,32 +857,27 @@
       "chip": "rp2040",
       "when": {
         "sound_buzzer": false,
-        "lan": true,
         "sensor_ds18b20": true,
-        "sensor_dht22": true
+        "sensor_dht22": true,
+        "net": "enc28j60"
       },
       "why": {
-        "en": "This does not fit the PIO blocks of this chip. Turn off one of these: Wired network (ENC28J60) instead of Wi-Fi; DS18B20 temperature probes; DHT22 temperature and humidity.",
-        "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Rede por cabo (ENC28J60) no lugar do Wi-Fi; Sondas de temperatura DS18B20; DHT22 temperatura e umidade."
+        "en": "This does not fit the PIO blocks of this chip. Turn off one of these: DS18B20 temperature probes; DHT22 temperature and humidity.",
+        "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Sondas de temperatura DS18B20; DHT22 temperatura e umidade."
       },
       "detail": "enc28j60 needs 17 instructions and 1 state machine and finds no block where it leaves room for the programs that load after it: pio0 has 32 instructions and 4 state machines free, but then onewire would not fit; pio1 has 32 instructions and 4 state machines free, but then dht22 would not fit.",
       "fix": [
-        "lan",
         "sensor_ds18b20",
         "sensor_dht22"
       ],
       "lock": {
-        "lan": {
-          "en": "This does not fit the PIO blocks of this chip. Turn off one of these: DS18B20 temperature probes; DHT22 temperature and humidity.",
-          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Sondas de temperatura DS18B20; DHT22 temperatura e umidade."
-        },
         "sensor_ds18b20": {
-          "en": "This does not fit the PIO blocks of this chip. Turn off one of these: Wired network (ENC28J60) instead of Wi-Fi; DHT22 temperature and humidity.",
-          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Rede por cabo (ENC28J60) no lugar do Wi-Fi; DHT22 temperatura e umidade."
+          "en": "This does not fit the PIO blocks of this chip. Turn off: DHT22 temperature and humidity.",
+          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue: DHT22 temperatura e umidade."
         },
         "sensor_dht22": {
-          "en": "This does not fit the PIO blocks of this chip. Turn off one of these: Wired network (ENC28J60) instead of Wi-Fi; DS18B20 temperature probes.",
-          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Rede por cabo (ENC28J60) no lugar do Wi-Fi; Sondas de temperatura DS18B20."
+          "en": "This does not fit the PIO blocks of this chip. Turn off: DS18B20 temperature probes.",
+          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue: Sondas de temperatura DS18B20."
         }
       }
     },
@@ -871,32 +886,27 @@
       "chip": "rp2040",
       "when": {
         "sound_buzzer": true,
-        "lan": true,
         "sensor_ds18b20": true,
-        "sensor_dht22": true
+        "sensor_dht22": true,
+        "net": "enc28j60"
       },
       "why": {
-        "en": "This does not fit the PIO blocks of this chip. Turn off one of these: Wired network (ENC28J60) instead of Wi-Fi; DS18B20 temperature probes; DHT22 temperature and humidity.",
-        "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Rede por cabo (ENC28J60) no lugar do Wi-Fi; Sondas de temperatura DS18B20; DHT22 temperatura e umidade."
+        "en": "This does not fit the PIO blocks of this chip. Turn off one of these: DS18B20 temperature probes; DHT22 temperature and humidity.",
+        "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Sondas de temperatura DS18B20; DHT22 temperatura e umidade."
       },
       "detail": "enc28j60 needs 17 instructions and 1 state machine and finds no block where it leaves room for the programs that load after it: pio0 has 32 instructions and 4 state machines free, but then onewire would not fit; pio1 has 28 instructions and 2 state machines free, but then dht22 would not fit.",
       "fix": [
-        "lan",
         "sensor_ds18b20",
         "sensor_dht22"
       ],
       "lock": {
-        "lan": {
-          "en": "This does not fit the PIO blocks of this chip. Turn off one of these: DS18B20 temperature probes; DHT22 temperature and humidity.",
-          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Sondas de temperatura DS18B20; DHT22 temperatura e umidade."
-        },
         "sensor_ds18b20": {
-          "en": "This does not fit the PIO blocks of this chip. Turn off one of these: Wired network (ENC28J60) instead of Wi-Fi; DHT22 temperature and humidity.",
-          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Rede por cabo (ENC28J60) no lugar do Wi-Fi; DHT22 temperatura e umidade."
+          "en": "This does not fit the PIO blocks of this chip. Turn off: DHT22 temperature and humidity.",
+          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue: DHT22 temperatura e umidade."
         },
         "sensor_dht22": {
-          "en": "This does not fit the PIO blocks of this chip. Turn off one of these: Wired network (ENC28J60) instead of Wi-Fi; DS18B20 temperature probes.",
-          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Rede por cabo (ENC28J60) no lugar do Wi-Fi; Sondas de temperatura DS18B20."
+          "en": "This does not fit the PIO blocks of this chip. Turn off: DS18B20 temperature probes.",
+          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue: Sondas de temperatura DS18B20."
         }
       }
     }

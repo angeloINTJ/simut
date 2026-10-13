@@ -11,10 +11,12 @@ ou da outra. Também reprova se alguma regra ou aviso não tem caso que o acenda
 regra sem teste é regra que ninguém sabe se ainda funciona.
 
 Desde 2026-10-13 a mesma tabela diz também, em `blocks`, tudo o que impede a build
-de cada caso: as regras, a chave que o chip recusa e o orçamento de PIO e de pinos
-(tools/pio_budget.py). O Python é gen_features.blockers( ), o que o CI aplica; o JS é
-logic.js blockersOf( ), o que a página aplica, e os dois têm de dar a mesma lista, na
-mesma ordem. Todo bloqueio de orçamento que o model.json carrega precisa de um caso.
+de cada caso: as regras, o driver de rede que o chip recusa (unsupported-net) e o
+orçamento de PIO e de pinos (tools/pio_budget.py). O Python é gen_features.blockers( ), o
+que o CI aplica; o JS é logic.js blockersOf( ), o que a página aplica, e os dois têm de
+dar a mesma lista, na mesma ordem. Todo bloqueio de orçamento e toda recusa de chip que
+o model.json carrega precisa de um caso. A rede é uma escolha de driver: um caso a troca
+com `"set": {"net": "<id>"}`, e as regras a leem como `net = "<id>"`.
 
 O lado JS precisa de node (o runner ubuntu-latest do CI traz). Fora do CI, sem
 node, só o lado Python roda, e a saída diz isso.
@@ -89,12 +91,15 @@ def main():
     with open(CASES, encoding="utf-8") as fh:
         table = json.load(fh)
 
-    # A própria tabela tem de falar de produtos e chaves que existem.
+    # A própria tabela tem de falar de produtos, chaves e drivers de rede que existem.
     for c in table["cases"] + table["hazard_cases"]:
         if c["base"] not in M["profiles"]:
             fails.append(f"caso '{c['name']}': produto desconhecido {c['base']}")
         for k, v in c["set"].items():
-            if k not in gf.TOGGLE_ORDER or not isinstance(v, bool):
+            if k == "net":
+                if v not in M["net"]:
+                    fails.append(f"caso '{c['name']}': net={v!r} não é um driver de rede ({', '.join(M['net'])})")
+            elif k not in gf.TOGGLE_ORDER or not isinstance(v, bool):
                 fails.append(f"caso '{c['name']}': {k}={v!r} não é uma chave true/false")
     for c in table["cases"]:
         if not isinstance(c.get("blocks"), list):
@@ -144,6 +149,15 @@ def main():
             for b in model.get("budget", []):
                 if b["id"] not in lit_blocks:
                     fails.append(f"o bloqueio de orçamento {b['id']} ({b['chip']}, {b['when']}) não tem caso que o acenda")
+            # Cada recusa de chip que o model.json carrega ("net=enc28j60" no Pico 2 W) tem um caso do
+            # produto que a faz, e o caso a acusa como unsupported-net: uma recusa sem caso é uma trava
+            # que ninguém sabe se ainda trava.
+            for p in model["products"]:
+                for key in p.get("refused", {}):
+                    k, _, v = key.partition("=")
+                    if not any(c["base"] == p["id"] and c["set"].get(k) == v and "unsupported-" + k in c["blocks"]
+                               for c in table["cases"]):
+                        fails.append(f"a recusa {key} de {p['id']} não tem caso que a acenda (unsupported-{k})")
             for c in table["hazard_cases"]:
                 got = js["hazards"][c["name"]]
                 if got != pyh[c["name"]]:

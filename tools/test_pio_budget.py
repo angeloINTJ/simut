@@ -27,7 +27,16 @@ recursos; 2r, os programas de lista de blocos com a tabela mudada (a recusa, a o
 tentam os blocos, o rádio que cai no seguinte); 9, os limites de todo resultado; 10, os
 pinos e o INT; 11, as fontes reais; 12, o controle negativo; 13, o leitor das fontes e a
 variável SIMUT_PIO_SOURCES; 14, a tabela de pinos contra o simut_config.h; 15, o bloco do
-ENC28J60 no cabeçalho; 16, `refusals( )`, o bloqueio que a página e o CI leem.
+ENC28J60 no cabeçalho; 16, `refusals( )`, o bloqueio que a página e o CI leem; 17, a rede
+como escolha.
+
+A rede é uma escolha de driver (`net = "cyw43"` ou `"enc28j60"`, os [net.*] do manifesto, desde
+2026-10-13) e não uma chave: o ORDER a escreve `net=<id>`, e uma config sem `net` não coloca
+programa de rede nenhum. Uma config de verdade nunca leva os dois programas de rede, mas
+`place( )` é o mesmo algoritmo para qualquer lista; os casos que provam a conta do que vem
+DEPOIS do enc28j60 quando o que vem depois é o rádio (5, 6 e dois do 12) e a varredura "e se"
+rodam com um ORDER trocado de propósito (ORDEM_DOIS_PROGRAMAS: o cabo e o rádio como duas
+chaves independentes, o que o pb.ORDER era até aquele dia), como o grupo 10 já troca o pb.PINS.
 
 O grupo 14 precisa do `cpp` do host, o mesmo do test_pin_masks.py, de onde vêm o
 `preprocess` e o `judge`; sem ele o teste falha, não pula: uma tabela de pinos que ninguém
@@ -77,15 +86,39 @@ def check(cond, msg):
 
 
 def cfg_de(*chaves):
-    """Uma config só com essas chaves ligadas; chave ausente vale desligada."""
-    return {k: True for k in chaves}
+    """Uma config só com essas chaves ligadas; chave ausente vale desligada. 'a=b' escolhe b em a,
+    como a rede ('net=enc28j60'): a mesma grafia das chaves do pb.ORDER."""
+    cfg = {}
+    for k in chaves:
+        nome, igual, valor = k.partition("=")
+        cfg[nome] = valor if igual else True
+    return cfg
 
+
+# O ORDER de "e se": o cabo e o rádio como duas chaves independentes, o que o pb.ORDER era até
+# 2026-10-13. Nenhuma config de verdade liga os dois (a rede é uma escolha só), mas o place( ) é o mesmo
+# para qualquer lista, e estes são os casos que provam a conta do que carrega DEPOIS do enc28j60 quando
+# é o rádio.
+ORDEM_DOIS_PROGRAMAS = (
+    ("buzzer", "sound_buzzer"),
+    ("enc28j60", "lan"),
+    ("onewire", "sensor_ds18b20"),
+    ("dht22", "sensor_dht22"),
+    ("cyw43", "radio"),
+)
 
 resultados = []   # (rótulo, chip, resultado) de toda colocação, para o caso 9
 
 
-def coloca(rotulo, chip, chaves, programas=None):
-    r = pb.place(cfg_de(*chaves), chip, programs=programas)
+def coloca(rotulo, chip, chaves, programas=None, ordem=None):
+    """place( ) sobre a config das `chaves`. `ordem` troca o pb.ORDER só durante a chamada."""
+    guardado = pb.ORDER
+    try:
+        if ordem is not None:
+            pb.ORDER = ordem
+        r = pb.place(cfg_de(*chaves), chip, programs=programas)
+    finally:
+        pb.ORDER = guardado
     resultados.append((rotulo, chip, r))
     return r
 
@@ -127,12 +160,14 @@ check(nomeados <= set(pb.CHIPS["rp2350"]), f"a tabela nomeia um bloco que nenhum
 # ---------------------------------------------------------------------------------
 # 1 a 8. Os conjuntos de recursos cuja resposta já se sabe.
 # ---------------------------------------------------------------------------------
-WIRE = ("sound_buzzer", "lan", "sensor_dht22")
-RELEASE_PICO_W = ("sound_buzzer", "sensor_ds18b20", "sensor_dht22", "radio")
-LAN_E_DOIS_SENSORES = ("sound_buzzer", "lan", "sensor_ds18b20", "sensor_dht22")
+WIRE = ("sound_buzzer", "net=enc28j60", "sensor_dht22")
+RELEASE_PICO_W = ("sound_buzzer", "sensor_ds18b20", "sensor_dht22", "net=cyw43")
+LAN_E_DOIS_SENSORES = ("sound_buzzer", "net=enc28j60", "sensor_ds18b20", "sensor_dht22")
 
 # (rótulo, chip, chaves ligadas, cabe?, bloco do enc28j60, uso esperado {bloco: (instr, sm)})
-# Numa recusa o uso é o dos blocos como estavam quando a colocação parou.
+# Numa recusa o uso é o dos blocos como estavam quando a colocação parou. Os casos 5 e 6 ligam
+# o cabo E o rádio, o que a rede de hoje (uma escolha só) não deixa uma config fazer: rodam com o
+# ORDEM_DOIS_PROGRAMAS (ORDEM_DE).
 CASOS = [
     ("1 SIMUT Wire", "rp2040", WIRE, True, "pio0",
      {"pio0": (17, 1), "pio1": (21, 3)}),
@@ -140,7 +175,7 @@ CASOS = [
      {"pio0": (27, 1), "pio1": (27, 4)}),
     ("3 LAN, DS18B20 e DHT22", "rp2040", LAN_E_DOIS_SENSORES, False, None,
      {"pio0": (0, 0), "pio1": (4, 2)}),
-    ("4 LAN e DS18B20", "rp2040", ("sound_buzzer", "lan", "sensor_ds18b20"), True, "pio1",
+    ("4 LAN e DS18B20", "rp2040", ("sound_buzzer", "net=enc28j60", "sensor_ds18b20"), True, "pio1",
      {"pio0": (27, 1), "pio1": (21, 3)}),
     ("5 rádio, LAN, DS18B20 e DHT22", "rp2040", ("radio", "lan", "sensor_ds18b20", "sensor_dht22"),
      False, None, {"pio0": (0, 0), "pio1": (0, 0)}),
@@ -156,9 +191,11 @@ CASOS = [
     ("8b SIMUT Wire no RP2350", "rp2350", WIRE, True, "pio0",
      {"pio0": (17, 1), "pio1": (21, 3), "pio2": (0, 0)}),
 ]
+ORDEM_DE = {"5 rádio, LAN, DS18B20 e DHT22": ORDEM_DOIS_PROGRAMAS,
+            "6 rádio, buzzer, DHT22 e LAN": ORDEM_DOIS_PROGRAMAS}
 por_rotulo = {}
 for rotulo, chip, chaves, cabe, bloco_enc, usos in CASOS:
-    r = coloca(rotulo, chip, chaves)
+    r = coloca(rotulo, chip, chaves, ordem=ORDEM_DE.get(rotulo))
     por_rotulo[rotulo] = r
     check(r["ok"] is cabe, f"{rotulo}: ok deveria ser {cabe}, é {r['ok']} ({r['reason']})")
     check(r["enc_block"] == bloco_enc, f"{rotulo}: enc_block deveria ser {bloco_enc!r}, é {r['enc_block']!r}")
@@ -189,7 +226,7 @@ r = coloca("12 enc28j60 com 15 instruções, conjunto do caso 3", "rp2040", LAN_
 check(not r["ok"], f"12: com o enc28j60 em 15 instruções o conjunto do caso 3 ainda não cabe: {uso(r)}")
 check("enc28j60" in r["reason"], f"12: a recusa deveria nomear o enc28j60: {r['reason']!r}")
 r = coloca("12 enc28j60 com 15 instruções, sem o DHT22", "rp2040",
-           ("sound_buzzer", "lan", "sensor_ds18b20"), com15)
+           ("sound_buzzer", "net=enc28j60", "sensor_ds18b20"), com15)
 check(r["ok"] and r["enc_block"] == "pio1" and uso(r) == {"pio0": (27, 1), "pio1": (19, 3)},
       f"12: sem o DHT22 o enc28j60 de 15 deveria caber no pio1 com 19 instruções: {r['ok']} {uso(r)}")
 fronteira = {}
@@ -248,19 +285,19 @@ check(not r["ok"] and "none of the blocks it can use (pio2)" in r["reason"] and 
 # máquina), então levá-lo ao pio0 ou à recusa pede uma tabela mudada.
 check(pb.PROGRAMS["cyw43"]["blocks"] == sorted(pb.CHIPS["rp2350"], reverse=True),
       f"2r: o rádio deveria tentar os blocos do mais alto ao mais baixo, tenta {pb.PROGRAMS['cyw43']['blocks']}")
-r = coloca("2r rádio sozinho, RP2040", "rp2040", ("radio",))
+r = coloca("2r rádio sozinho, RP2040", "rp2040", ("net=cyw43",))
 check(r["ok"] and uso(r) == {"pio0": (0, 0), "pio1": (6, 1)},
       f"2r: o rádio sozinho no RP2040 deveria ir para o pio1, o mais alto que o chip tem: {r['ok']} {uso(r)}")
-r = coloca("2r rádio sozinho, RP2350", "rp2350", ("radio",))
+r = coloca("2r rádio sozinho, RP2350", "rp2350", ("net=cyw43",))
 check(r["ok"] and uso(r) == {"pio0": (0, 0), "pio1": (0, 0), "pio2": (6, 1)},
       f"2r: o rádio sozinho no RP2350 deveria ir para o pio2: {r['ok']} {uso(r)}")
 # O pio1 sem lugar para o rádio, por instruções (o buzzer e o DHT22 deixam 11 e o rádio pede 12)
 # ou por máquinas (as 4 tomadas): nos dois o rádio cai no pio0.
-r = coloca("2r rádio de 12 instruções, pio1 com 11 livres", "rp2040", ("sound_buzzer", "sensor_dht22", "radio"),
+r = coloca("2r rádio de 12 instruções, pio1 com 11 livres", "rp2040", ("sound_buzzer", "sensor_dht22", "net=cyw43"),
            tabela_com("cyw43", instr=12))
 check(r["ok"] and uso(r) == {"pio0": (12, 1), "pio1": (21, 3)},
       f"2r: sem lugar no pio1 por instruções o rádio deveria cair no pio0: {r['ok']} {uso(r)}")
-r = coloca("2r rádio com o pio1 sem máquina livre", "rp2040", ("sound_buzzer", "sensor_dht22", "radio"),
+r = coloca("2r rádio com o pio1 sem máquina livre", "rp2040", ("sound_buzzer", "sensor_dht22", "net=cyw43"),
            tabela_com("dht22", sm=2))
 check(r["ok"] and uso(r) == {"pio0": (6, 1), "pio1": (21, 4)},
       f"2r: sem máquina livre no pio1 o rádio deveria cair no pio0: {r['ok']} {uso(r)}")
@@ -285,10 +322,11 @@ check(r["ok"] and uso(r) == {"pio0": (27, 1), "pio1": (21, 3), "pio2": (12, 1)},
 # rádio sem bloco (17 + 20 > 32), no pio1 deixa o DHT22 sem o dele. Quem recusa é o enc28j60 (a
 # simulação) e não o rádio (a regra 2, que só pegaria depois de o enc28j60 já estar no lugar).
 radio20 = tabela_com("cyw43", instr=20)
-r = coloca("12 rádio de 20 instruções, sem a LAN", "rp2040", ("sensor_dht22", "radio"), radio20)
+r = coloca("12 rádio de 20 instruções, sem a LAN", "rp2040", ("sensor_dht22", "net=cyw43"), radio20)
 check(r["ok"] and uso(r) == {"pio0": (20, 1), "pio1": (17, 1)},
       f"12 sem a LAN o DHT22 e o rádio de 20 cabem juntos, o rádio no pio0: {r['ok']} {uso(r)}")
-r = coloca("12 rádio de 20 instruções", "rp2040", ("lan", "sensor_dht22", "radio"), radio20)
+r = coloca("12 rádio de 20 instruções", "rp2040", ("lan", "sensor_dht22", "radio"), radio20,
+           ordem=ORDEM_DOIS_PROGRAMAS)
 check(not r["ok"] and r["reason"].startswith("enc28j60 needs")
       and "pio0 has 32 instructions and 4 state machines free, but then cyw43 would not fit" in r["reason"]
       and "pio1 has 32 instructions and 4 state machines free, but then dht22 would not fit" in r["reason"],
@@ -296,7 +334,7 @@ check(not r["ok"] and r["reason"].startswith("enc28j60 needs")
       f"{r['reason']!r}")
 # Um enc28j60 maior que um bloco, ou com mais máquinas do que ele tem, não cabe em lugar nenhum.
 for campo, valor in (("instr", 33), ("sm", 5)):
-    r = coloca(f"12 enc28j60 com {campo} {valor}", "rp2350", ("lan",),
+    r = coloca(f"12 enc28j60 com {campo} {valor}", "rp2350", ("net=enc28j60",),
                tabela_com("enc28j60", **{campo: valor}))
     check(not r["ok"] and r["reason"].count("not enough for it") == 3,
           f"12 enc28j60 com {campo} {valor} não cabe em nenhum dos três blocos: {r['ok']} {r['reason']!r}")
@@ -306,42 +344,63 @@ msg = levanta(pb.place, {}, "rp9999")
 check(msg is not None and "rp9999" in msg, f"um chip desconhecido deveria levantar ValueError nomeando o chip: {msg!r}")
 
 # ---------------------------------------------------------------------------------
-# Varredura: as 32 combinações de chaves em cada um dos dois chips contra invariantes que não
-# dependem de saber a resposta de cada uma.
+# Varredura: toda combinação de chaves e de rede em cada um dos dois chips contra invariantes que
+# não dependem de saber a resposta de cada uma. Dois universos. As configs de verdade: as três
+# chaves de BUDGET_KEYS e a rede, que é uma escolha (nenhuma, cyw43 ou enc28j60): 24 por chip. E as
+# de "e se", com o ORDEM_DOIS_PROGRAMAS: as cinco chaves independentes, as 32 de sempre, porque o
+# place( ) é o mesmo algoritmo para qualquer lista.
 # ---------------------------------------------------------------------------------
-CHAVES = [k for _, k in pb.ORDER]
+def combinacoes_reais():
+    for rede in (None, "cyw43", "enc28j60"):
+        for bits in itertools.product((False, True), repeat=len(pb.BUDGET_KEYS)):
+            yield (tuple(k for k, b in zip(pb.BUDGET_KEYS, bits) if b)
+                   + ((f"net={rede}",) if rede else ()))
+
+
+def combinacoes_e_se():
+    chaves = [k for _, k in ORDEM_DOIS_PROGRAMAS]
+    for bits in itertools.product((False, True), repeat=len(chaves)):
+        yield tuple(k for k, b in zip(chaves, bits) if b)
+
+
+UNIVERSOS = (("config", None, pb.ORDER, combinacoes_reais),
+             ("e se", ORDEM_DOIS_PROGRAMAS, ORDEM_DOIS_PROGRAMAS, combinacoes_e_se))
 cabe_em = {}
-for chip in pb.CHIPS:
-    for bits in itertools.product((False, True), repeat=len(CHAVES)):
-        ligadas = tuple(k for k, b in zip(CHAVES, bits) if b)
-        rotulo = f"varredura {chip} {'+'.join(ligadas) or '(nada)'}"
-        r = coloca(rotulo, chip, ligadas)
-        cabe_em[(ligadas, chip)] = r["ok"]
-        problemas = []
-        if r["ok"]:
-            if r["reason"] != "":
-                problemas.append(f"cabe mas reason = {r['reason']!r}")
-            pedido = [pb.PROGRAMS[n] for n, k in pb.ORDER if k in ligadas]
-            soma = (sum(v["instr"] for v in r["blocks"].values()), sum(v["sm"] for v in r["blocks"].values()))
-            esperado = (sum(p["instr"] for p in pedido), sum(p["sm"] for p in pedido))
-            if soma != esperado:
-                problemas.append(f"os blocos somam {soma} (instr, sm), os programas ligados somam {esperado}")
-            if ("lan" in ligadas) != (r["enc_block"] is not None):
-                problemas.append(f"enc_block = {r['enc_block']!r} com a LAN "
-                                 f"{'ligada' if 'lan' in ligadas else 'desligada'}")
-            if r["enc_block"] is not None and r["enc_block"] not in pb.CHIPS[chip]:
-                problemas.append(f"enc_block {r['enc_block']!r} não é bloco do {chip}")
-        else:
-            if not uma_frase(r["reason"]):
-                problemas.append(f"a recusa deveria ser uma frase só: {r['reason']!r}")
-            if not any(r["reason"].startswith(n + " ") for n, k in pb.ORDER if k in ligadas):
-                problemas.append(f"a recusa deveria começar pelo programa recusado, que está ligado: "
-                                 f"{r['reason']!r}")
-        check(not problemas, f"{rotulo}: " + "; ".join(problemas))
+varridas = {}
+for universo, ordem_troca, ordem, combinacoes in UNIVERSOS:
+    chave_enc = next(k for n, k in ordem if n == "enc28j60")
+    varridas[universo] = len(list(combinacoes()))
+    for chip in pb.CHIPS:
+        for ligadas in combinacoes():
+            rotulo = f"varredura {universo} {chip} {'+'.join(ligadas) or '(nada)'}"
+            r = coloca(rotulo, chip, ligadas, ordem=ordem_troca)
+            cabe_em[(universo, ligadas, chip)] = r["ok"]
+            problemas = []
+            if r["ok"]:
+                if r["reason"] != "":
+                    problemas.append(f"cabe mas reason = {r['reason']!r}")
+                pedido = [pb.PROGRAMS[n] for n, k in ordem if k in ligadas]
+                soma = (sum(v["instr"] for v in r["blocks"].values()), sum(v["sm"] for v in r["blocks"].values()))
+                esperado = (sum(p["instr"] for p in pedido), sum(p["sm"] for p in pedido))
+                if soma != esperado:
+                    problemas.append(f"os blocos somam {soma} (instr, sm), os programas ligados somam {esperado}")
+                if (chave_enc in ligadas) != (r["enc_block"] is not None):
+                    problemas.append(f"enc_block = {r['enc_block']!r} com o enc28j60 "
+                                     f"{'ligado' if chave_enc in ligadas else 'desligado'}")
+                if r["enc_block"] is not None and r["enc_block"] not in pb.CHIPS[chip]:
+                    problemas.append(f"enc_block {r['enc_block']!r} não é bloco do {chip}")
+            else:
+                if not uma_frase(r["reason"]):
+                    problemas.append(f"a recusa deveria ser uma frase só: {r['reason']!r}")
+                if not any(r["reason"].startswith(n + " ") for n, k in ordem if k in ligadas):
+                    problemas.append(f"a recusa deveria começar pelo programa recusado, que está ligado: "
+                                     f"{r['reason']!r}")
+            check(not problemas, f"{rotulo}: " + "; ".join(problemas))
 # O que cabe no RP2040 cabe no RP2350, que só tem um bloco a mais.
-for (ligadas, chip), cabe in cabe_em.items():
+for (universo, ligadas, chip), cabe in cabe_em.items():
     if chip == "rp2040" and cabe:
-        check(cabe_em[(ligadas, "rp2350")], f"cabe no rp2040 e não no rp2350: {'+'.join(ligadas)}")
+        check(cabe_em[(universo, ligadas, "rp2350")],
+              f"cabe no rp2040 e não no rp2350 ({universo}): {'+'.join(ligadas)}")
 
 # ---------------------------------------------------------------------------------
 # 9. Todo resultado de cima tem os blocos do seu chip e nenhum estoura.
@@ -361,7 +420,10 @@ check((pb.BLOCK_INSTR, pb.BLOCK_SM) == (32, 4), "um bloco de PIO tem 32 instruç
 # 10. Pinos.
 # ---------------------------------------------------------------------------------
 def pinos(display, lan=False, int_pin=None, buzzer=False):
-    return {"display": display, "lan": lan, "enc_int_pin": int_pin, "sound_buzzer": buzzer}
+    """A config de pinos; `lan` escolhe o driver da rede (True: enc28j60, False: o rádio, que não tem
+    pino na tabela)."""
+    return {"display": display, "net": "enc28j60" if lan else "cyw43", "enc_int_pin": int_pin,
+            "sound_buzzer": buzzer}
 
 
 def erro_de(fn, *args):
@@ -375,14 +437,14 @@ def erro_de(fn, *args):
 
 
 CONFLITOS = [
-    ("alpha_paralelo + LAN com INT 21", pinos("alpha_paralelo", True, 21), [(21, "display:alpha_paralelo", "lan")]),
+    ("alpha_paralelo + LAN com INT 21", pinos("alpha_paralelo", True, 21), [(21, "display:alpha_paralelo", "enc28j60")]),
     ("alpha_paralelo + LAN com INT 28", pinos("alpha_paralelo", True, 28), []),
     ("tft + LAN com INT 21", pinos("tft", True, 21), []),
-    ("tft + LAN com INT 28", pinos("tft", True, 28), [(28, "display:tft", "lan")]),
-    ("alpha_paralelo + LAN com INT 22 + buzzer", pinos("alpha_paralelo", True, 22, True), [(22, "buzzer", "lan")]),
+    ("tft + LAN com INT 28", pinos("tft", True, 28), [(28, "display:tft", "enc28j60")]),
+    ("alpha_paralelo + LAN com INT 22 + buzzer", pinos("alpha_paralelo", True, 22, True), [(22, "buzzer", "enc28j60")]),
     ("alpha_paralelo + LAN com INT 22, sem buzzer", pinos("alpha_paralelo", True, 22, False), []),
     ("LAN desligada não reivindica o INT 21", pinos("alpha_paralelo", False, 21), []),
-    ("nenhum mostrador + LAN com INT 22 + buzzer", pinos("nenhum", True, 22, True), [(22, "buzzer", "lan")]),
+    ("nenhum mostrador + LAN com INT 22 + buzzer", pinos("nenhum", True, 22, True), [(22, "buzzer", "enc28j60")]),
     # O INT que o simut_config.h escolhe quando a build não escolhe (GP11, com qualquer mostrador)
     # não colide com o mostrador nem com o buzzer de fábrica.
     ("tft + LAN + buzzer, INT pelo padrão", pinos("tft", True, None, True), []),
@@ -397,27 +459,27 @@ for rotulo, cfg, esperado in CONFLITOS:
 # pino -1 reivindicado a mais não colidiria com ninguém e passaria despercebido pelas colisões.
 for display in pb.DISPLAYS:
     dono = pb.pin_owners(pinos(display, True, -1))
-    check(dono["lan"] == set(pb.PINS["lan"]),
-          f"10 {display} + LAN com INT -1: a LAN deveria reivindicar só {sorted(pb.PINS['lan'])}, "
-          f"reivindica {dono['lan']}")
+    check(dono["enc28j60"] == set(pb.PINS["enc28j60"]),
+          f"10 {display} + LAN com INT -1: a LAN deveria reivindicar só {sorted(pb.PINS['enc28j60'])}, "
+          f"reivindica {dono['enc28j60']}")
     check(pb.pin_conflicts(pinos(display, True, -1)) == [],
           f"10 {display} + LAN sem pino de INT (-1) não colide com ninguém")
-    check("lan" not in pb.pin_owners(pinos(display, False, 21)),
-          f"10 {display}: com a LAN desligada ela não reivindica nada")
-check(0 in pb.pin_owners(pinos("nenhum", True, 0))["lan"], "10 o GP0 é um pino de INT válido (0 não é 'sem pino')")
-check(29 in pb.pin_owners(pinos("nenhum", True, 29))["lan"], "10 o GP29 é o último pino de INT válido")
+    check(set(pb.pin_owners(pinos(display, False, 21))) == {"display:" + display},
+          f"10 {display}: com o rádio no lugar do cabo nenhum driver de rede reivindica pino")
+check(0 in pb.pin_owners(pinos("nenhum", True, 0))["enc28j60"], "10 o GP0 é um pino de INT válido (0 não é 'sem pino')")
+check(29 in pb.pin_owners(pinos("nenhum", True, 29))["enc28j60"], "10 o GP29 é o último pino de INT válido")
 
 # Sem enc_int_pin (a chave ausente, ou None) o INT é o que o simut_config.h escolhe: o GP11, com
 # qualquer mostrador e sem mostrador (2026-10-12; até então seguia o mostrador).
 for display, padrao in (("tft", 11), ("alpha_paralelo", 11), ("nenhum", 11)):
-    quer = set(pb.PINS["lan"]) | {padrao}
+    quer = set(pb.PINS["enc28j60"]) | {padrao}
     for como, cfg in (("com enc_int_pin None", pinos(display, True, None)),
-                      ("sem a chave enc_int_pin", {"display": display, "lan": True})):
+                      ("sem a chave enc_int_pin", {"display": display, "net": "enc28j60"})):
         dono = pb.pin_owners(cfg)
-        check(dono["lan"] == quer,
+        check(dono["enc28j60"] == quer,
               f"10 {display} + LAN {como}: o INT padrão é {padrao!r}, a LAN deveria reivindicar "
-              f"{sorted(quer)} e reivindica {sorted(dono['lan'])}")
-check(pb.pin_owners({"lan": True})["lan"] == set(pb.PINS["lan"]) | {11},
+              f"{sorted(quer)} e reivindica {sorted(dono['enc28j60'])}")
+check(pb.pin_owners({"net": "enc28j60"})["enc28j60"] == set(pb.PINS["enc28j60"]) | {11},
       "10 sem mostrador nem enc_int_pin na config, a LAN reivindica os quatro e o INT padrão (GP11)")
 
 # O que não pode ser um pino é recusa, com o valor no texto: só None, -1 ou um int de 0 a 29. Um
@@ -446,7 +508,7 @@ try:
     got = pb.pin_conflicts(pinos("alpha_paralelo", True, None, True))
 finally:
     pb.PINS = PINS_ORIGINAIS
-check(got == [(14, "buzzer", "lan"), (21, "buzzer", "display:alpha_paralelo")],
+check(got == [(14, "buzzer", "enc28j60"), (21, "buzzer", "display:alpha_paralelo")],
       f"10 três donos: deveria dar as colisões do 14 e do 21, nessa ordem, deu {got}")
 
 # ---------------------------------------------------------------------------------
@@ -653,8 +715,15 @@ M = gf.load_manifest()
 check(set(pb.DISPLAYS) == set(M["display"]),
       f"14 os mostradores do módulo {sorted(pb.DISPLAYS)} não são os [display.*] do features.toml "
       f"{sorted(M['display'])}")
-check(set(pb.PINS) == set(M["display"]) | {"lan", "buzzer"},
-      f"14 PINS deveria ter um mostrador por [display.*] do features.toml, a LAN e o buzzer: {sorted(pb.PINS)}")
+check(set(pb.PINS) == set(M["display"]) | {"enc28j60", "buzzer"},
+      f"14 PINS deveria ter um mostrador por [display.*] do features.toml, o driver de rede com pinos "
+      f"(enc28j60) e o buzzer: {sorted(pb.PINS)}")
+# Um id de PINS é de um dono só: o driver de rede com pinos é um [net.*] do manifesto, e nenhum [net.*]
+# tem o id de um mostrador ou do buzzer (pin_owners( ) lê o PINS pelo `net` da config).
+check(all(k in M["net"] for k in pb.PINS if k not in M["display"] and k != "buzzer"),
+      f"14 PINS tem uma chave que não é mostrador, buzzer nem [net.*] do manifesto: {sorted(pb.PINS)}")
+check(not (set(M["net"]) & (set(M["display"]) | {"buzzer"})),
+      f"14 um [net.*] tem o id de um mostrador ou do buzzer: {sorted(set(M['net']) & (set(M['display']) | {'buzzer'}))}")
 check(type(pb.ENC_INT_DEFAULT) is int,
       f"14 ENC_INT_DEFAULT deveria ser um pino só, o mesmo com todo mostrador: {pb.ENC_INT_DEFAULT!r}")
 
@@ -725,14 +794,15 @@ else:
                 if not isinstance(got, dict):
                     check(False, f"14 {rotulo}: a sonda não devolveu as três máscaras: {got!r}")
                     continue
-                dono = pb.pin_owners({"display": disp, "lan": True, "sound_buzzer": buzzer})
-                modulo = {"display": dono["display:" + disp], "enc": dono["lan"], "buzzer": dono.get("buzzer", set())}
+                dono = pb.pin_owners({"display": disp, "net": "enc28j60", "sound_buzzer": buzzer})
+                modulo = {"display": dono["display:" + disp], "enc": dono["enc28j60"],
+                          "buzzer": dono.get("buzzer", set())}
                 for m in MASCARAS:
                     check(got[m] == modulo[m],
                           f"14 {rotulo}: SIMUT_PINS_{m.upper()} é {sorted(got[m])} no cabeçalho e "
                           f"{sorted(modulo[m])} no pio_budget")
                 if disp != "nenhum":
-                    check(pb.pin_conflicts({"display": disp, "lan": True, "sound_buzzer": buzzer}) == [],
+                    check(pb.pin_conflicts({"display": disp, "net": "enc28j60", "sound_buzzer": buzzer}) == [],
                           f"14 {rotulo}: o cabeçalho aceita a montagem e o pio_budget acusa pino repetido")
 
         # O leitor enxerga o cabeçalho, não a tabela do módulo (por isso o esperado aqui é escrito por
@@ -765,7 +835,7 @@ else:
         sonda = grava(tmp, "enc_pio.c", SONDA_ENC_PIO)
         lidas = 0
         for ds18, dht, buz in itertools.product((False, True), repeat=3):
-            cfg = {"display": "alpha_paralelo", "lan": True, "sensor_ds18b20": ds18,
+            cfg = {"display": "alpha_paralelo", "net": "enc28j60", "sensor_ds18b20": ds18,
                    "sensor_dht22": dht, "sound_buzzer": buz}
             r = pb.place(cfg, "rp2040")
             if not r["ok"]:
@@ -783,9 +853,10 @@ else:
 
 # ---------------------------------------------------------------------------------
 # 16. refusals( ) (2026-10-13): o que a página e o CI leem do orçamento. Recebe a config
-# como o gen_features.config_of( ) a monta, sem chave "radio": o rádio é o contrário do
-# cabo. Uma recusa diz o que não cabe e quais chaves, desligadas uma de cada vez, fazem
-# caber; os pinos repetidos também, pelas chaves dos donos.
+# como o gen_features.config_of( ) a monta: o mostrador, o driver da rede (`net`) e uma chave
+# por interruptor. Uma recusa diz o que não cabe e quais chaves, desligadas uma de cada vez,
+# fazem caber; os pinos repetidos também, pelas chaves dos donos. A rede nunca entra nessa
+# lista: ver o grupo 17.
 def cfg_do(produto, **muda):
     c = gf.config_of(gf.resolve_profile(produto, M["profiles"]))
     c.update(muda)
@@ -799,20 +870,21 @@ def recusas(cfg, chip, programas=None):
     return r
 
 
-check(getattr(pb, "BUDGET_KEYS", None) == tuple(k for _, k in pb.ORDER if k != "radio"),
-      f"16 BUDGET_KEYS {getattr(pb, 'BUDGET_KEYS', None)} não são as chaves do ORDER sem o rádio")
+check(getattr(pb, "BUDGET_KEYS", None) == ("sound_buzzer", "sensor_ds18b20", "sensor_dht22"),
+      f"16 BUDGET_KEYS {getattr(pb, 'BUDGET_KEYS', None)} não são os interruptores do ORDER que uma pessoa "
+      f"desliga (o buzzer e os dois sensores de PIO)")
 if hasattr(pb, "refusals"):
     check(recusas(cfg_do("pico_w_release"), "rp2040") == [], "16 o SIMUT como sai é recusado")
     for p in ("pico_wire", "pico_wiretft"):
         check(recusas(cfg_do(p), "rp2040") == [], f"16 o {p} como sai é recusado")
-    r = recusas(cfg_do("pico_w_release", lan=True), "rp2040")
-    caminho = dict(cfg_do("pico_w_release", lan=True), radio=False)
+    no_cabo = cfg_do("pico_w_release", net="enc28j60")
+    r = recusas(no_cabo, "rp2040")
     check(len(r) == 1 and r[0]["id"] == "pio-budget"
-          and r[0]["fix"] == ["lan", "sensor_ds18b20", "sensor_dht22"]
-          and r[0]["reason"] == pb.place(caminho, "rp2040")["reason"] and r[0]["reason"],
-          f"16 o SIMUT no cabo, RP2040: devia ser um pio-budget com fix lan, DS18B20 e DHT22 e o motivo "
-          f"do place( ), foi {r}")
-    check(recusas(cfg_do("pico_w_release", lan=True), "rp2350") == [],
+          and r[0]["fix"] == ["sensor_ds18b20", "sensor_dht22"]
+          and r[0]["reason"] == pb.place(no_cabo, "rp2040")["reason"] and r[0]["reason"],
+          f"16 o SIMUT no cabo, RP2040: devia ser um pio-budget com fix DS18B20 e DHT22 (a rede é a escolha, "
+          f"não o remédio) e o motivo do place( ), foi {r}")
+    check(recusas(no_cabo, "rp2350") == [],
           "16 o SIMUT no cabo, RP2350: três blocos, devia caber")
     grande = tabela_com("cyw43", instr=20)
     r = recusas(cfg_do("pico_w_release"), "rp2040", grande)
@@ -833,10 +905,79 @@ if hasattr(pb, "refusals"):
     finally:
         pb.PINS["buzzer"] = guardado
     check(len(r) == 1 and r[0]["id"] == "pin-conflict" and "GP12" in r[0]["reason"]
-          and r[0].get("pin") == 12 and r[0]["fix"] == ["sound_buzzer", "lan"],
-          f"16 o buzzer no GP12 do módulo: devia ser um pin-conflict no pino 12 com fix buzzer e lan, foi {r}")
+          and r[0].get("pin") == 12 and r[0]["fix"] == ["sound_buzzer"]
+          and "buzzer" in r[0]["reason"] and "enc28j60" in r[0]["reason"],
+          f"16 o buzzer no GP12 do módulo: devia ser um pin-conflict no pino 12 entre o buzzer e o enc28j60, "
+          f"com fix só o buzzer (o driver não se desliga), foi {r}")
 else:
     check(False, "16 pio_budget.refusals( ) não existe")
+
+# ---------------------------------------------------------------------------------
+# 17. A rede como escolha (2026-10-13). O ORDER a escreve `net=<id>`, e a config diz qual driver
+# é o da imagem: `_on( )` lê as duas grafias do ORDER. Uma config sem `net` não coloca programa de
+# rede nenhum (antes, `refusals( )` supunha o rádio sempre que o cabo estava desligado), e a rede
+# nunca é remédio: o driver é a premissa da build (a placa, o chip), e o remédio está entre os
+# interruptores.
+# ---------------------------------------------------------------------------------
+for cfg, chave, esperado in (({"net": "cyw43"}, "net=cyw43", True), ({"net": "enc28j60"}, "net=cyw43", False),
+                             ({}, "net=cyw43", False), ({"net": None}, "net=cyw43", False),
+                             ({"net": "cyw43"}, "net=enc28j60", False),
+                             ({"sound_buzzer": True}, "sound_buzzer", True),
+                             ({"sound_buzzer": False}, "sound_buzzer", False), ({}, "sound_buzzer", False)):
+    got = pb._on(cfg, chave)
+    check(got is esperado, f"17 _on({cfg}, {chave!r}) deveria dar {esperado}, deu {got!r}")
+
+for chip in pb.CHIPS:
+    vazio = {b: (0, 0) for b in pb.CHIPS[chip]}
+    for rotulo, cfg in (("sem a chave net", {"sound_buzzer": True, "sensor_dht22": True}),
+                        ("net = None", {"net": None}),
+                        ("um driver que o ORDER não conhece", {"net": "w5500"}),
+                        ("uma config vazia", {})):
+        r = pb.place(cfg, chip)
+        extra = {"pio1": (21, 3)} if cfg.get("sound_buzzer") else {}
+        check(r["ok"] and r["enc_block"] is None and uso(r) == dict(vazio, **extra),
+              f"17 {chip}, {rotulo}: nenhum programa de rede, só o que as chaves pedem: {r['ok']} {uso(r)}")
+    r = pb.place({"net": "cyw43"}, chip)
+    radio_em = {"rp2040": "pio1", "rp2350": "pio2"}[chip]
+    check(uso(r) == dict(vazio, **{radio_em: (6, 1)}) and r["enc_block"] is None,
+          f"17 {chip}: net = cyw43 coloca só o rádio, no {radio_em}: {uso(r)} {r['enc_block']}")
+    r = pb.place({"net": "enc28j60"}, chip)
+    check(uso(r) == dict(vazio, pio0=(17, 1)) and r["enc_block"] == "pio0",
+          f"17 {chip}: net = enc28j60 coloca só o enc28j60, no pio0: {uso(r)} {r['enc_block']}")
+
+# O ORDER nomeia redes que o manifesto tem, e as chaves de BUDGET_KEYS são as simples.
+escolhas = [k for _, k in pb.ORDER if "=" in k]
+check(sorted(escolhas) == sorted(f"net={n}" for n in ("cyw43", "enc28j60")),
+      f"17 as escolhas do ORDER deviam ser net=cyw43 e net=enc28j60: {escolhas}")
+for k in escolhas:
+    nome, _, rede = k.partition("=")
+    check(nome == "net" and rede in M["net"], f"17 a chave {k!r} do ORDER não nomeia um [net.*] do manifesto")
+check(all("=" not in k and k in M["toggles"] for k in pb.BUDGET_KEYS)
+      and set(pb.BUDGET_KEYS) == {k for _, k in pb.ORDER if "=" not in k},
+      f"17 BUDGET_KEYS deviam ser os interruptores simples do ORDER, todos do manifesto: {pb.BUDGET_KEYS}")
+
+# A rede nunca está no `fix`: em todo produto do manifesto, com cada driver e em cada chip, e com
+# a tabela apertada que não deixa nenhum interruptor sozinho resolver (aí o fix é "todos os ligados").
+apertada17 = {nome: {"instr": 30, "sm": 1, "blocks": ["pio0"]} for nome, _ in pb.ORDER}
+for produto in M["profiles"]:
+    for rede in M["net"]:
+        for chip in pb.CHIPS:
+            for programas in (None, apertada17):
+                cfg = cfg_do(produto, net=rede)
+                for r in recusas(cfg, chip, programas):
+                    check(all(k in pb.BUDGET_KEYS for k in r["fix"]) and "net" not in r["fix"],
+                          f"17 {produto} com net={rede} no {chip}: o fix só pode ter interruptores de "
+                          f"BUDGET_KEYS, e tem {r['fix']}")
+# Sem a chave `net`, o `refusals( )` não inventa um rádio: o rádio de 20 instruções (a tabela mudada)
+# recusa o SIMUT com `net = cyw43`, e a mesma config sem a chave cabe.
+grande17 = tabela_com("cyw43", instr=20)
+check(len(recusas(cfg_do("pico_w_release"), "rp2040", grande17)) == 1
+      and recusas(dict(cfg_do("pico_w_release"), net=None), "rp2040", grande17) == [],
+      "17 o rádio só entra na conta quando a config o escolhe: sem net o SIMUT cabe, com net = cyw43 não")
+# Toda imagem que o CI constrói cabe nos blocos do chip dela e não disputa pino.
+for produto in M["profiles"]:
+    chip = gf.resolve_profile(produto, M["profiles"]).get("chip") or "rp2040"
+    check(recusas(cfg_do(produto), chip) == [], f"17 o {produto} como sai é recusado pelo orçamento")
 
 # ---------------------------------------------------------------------------------
 if falhas:
@@ -845,4 +986,5 @@ if falhas:
         print("  " + msg)
     sys.exit(1)
 print(f"test_pio_budget: {casos} casos ({len(CASOS)} conjuntos de resposta conhecida, "
-      f"{2 ** len(CHAVES)} combinações de chaves por chip, {montagens} montagens de pinos lidas do cabeçalho).")
+      f"{varridas['config']} combinações de chaves e rede por chip e {varridas['e se']} do \"e se\" de dois "
+      f"programas de rede, {montagens} montagens de pinos lidas do cabeçalho).")
