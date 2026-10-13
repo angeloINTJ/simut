@@ -339,7 +339,7 @@ void AppManager::core0Yield( ) {
   * Core 0, from state Core 0 owns, rather than taken from the screen. */
  SystemConfig &cfg = _storageMgr->getConfig( );
  ClockEntry c;
- const bool bootQuestion = clockEntryAtBoot(cfg.wifiSsid[0] != '\0', _netMgr->isTimeTrusted( ));
+ const bool bootQuestion = clockEntryAtBoot(SIMUT_NET_LAN || cfg.wifiSsid[0] != '\0', _netMgr->isTimeTrusted( ));
  if (!clockEntryUnpack(uiEv.id, uiEv.param, c)) {
  /* The screen cannot build such fields (clockEntryStep keeps them a date);
   * refused anyway, because this side does not take the screen's word. */

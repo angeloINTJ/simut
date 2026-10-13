@@ -348,4 +348,19 @@ private:
  WifiNet  _scanNets[WIFI_SCAN_MAX_NETS];
 
  void pollScan( );
+
+#if SIMUT_NET_LAN
+ /* The SIMUT Wire (NetworkManager_Wired.cpp): the ENC28J60 in place of the
+  * radio. No SSID, no scan, no join and no AP: the module starts, takes its
+  * address, and from there the NTP wait of update( ) is shared. The static
+  * address begin( ) parsed is kept for the retries of a module that did not
+  * start. */
+ bool _wiredStatic = false;
+ IPAddress _wiredIp, _wiredGw, _wiredMask, _wiredDns;
+ void beginWired(const SystemConfig& cfg);
+ void startWired( );
+ bool updateWired( );
+ void wiredUp( );
+ void wiredLost( );
+#endif
 };

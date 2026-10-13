@@ -260,6 +260,12 @@ macro      = "SIMUT_NET_LAN"
 emit       = "on_is_1"        # #if SIMUT_NET_LAN: o default 0 mora no simut_config.h
 on_board   = { rp2040 = "rpipico" }
 on_unflags = ["-DPICO_CYW43_SUPPORTED=1"]
+# Os dois arquivos do driver nem entram nas imagens Wi-Fi. Vazios ali (tudo sob
+# #if SIMUT_NET_LAN), ainda assim mudavam os bytes: os dois objetos no link trocavam a
+# ordem de 56 veneers do linker (mesmo codigo, mesmos tamanhos, alvos de BL deslocados
+# em 16 a 32 B), e o pico_w_release saia 55ce740c em vez de 1fe54a67 (2026-10-13).
+# Fora do filtro, as sete voltam byte a byte.
+off_exclude = ["NetworkManager_Wired.cpp", "net/WiredLink.cpp"]
 # O modulo fica com GP11-GP15 (o INT e o SPI), que eram cinco dos dezesseis slots de
 # sensor: a build com LAN tem onze, GP0-GP10 (o simut_config.h recusa um pino do modulo
 # nessa faixa). O INT no GP11 com qualquer mostrador e decisao de 2026-10-12: uma fiacao so.

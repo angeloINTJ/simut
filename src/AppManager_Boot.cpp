@@ -213,6 +213,9 @@ void AppManager::setup( ) {
 	 * preserve compatibility with POST_OTA_APPLY_MAGIC diagnostics. */
  {
  alpha30_write_scratch5(0); /* always clear; magic is no longer a gate */
+#if !SIMUT_NET_LAN
+ /* Not on the Wire: no CYW43 to reset, and on a Pico W board running the Wire
+  * image GP23 is that radio's power pin, which this image leaves alone. */
 #if SIMUT_AIR
  /* Every reboot path this cycle exists for leaves the radio in an unknown
   * state: UF2 flash, OTA apply, watchdog, hand RESET, picotool. A dormant
@@ -233,6 +236,7 @@ void AppManager::setup( ) {
  busy_wait_ms(100);
  _uart_mark('*'); /* power-cycle done */
  }
+#endif
  }
  _uart_mark('$'); /* pre Serial.begin */
 
@@ -1086,6 +1090,9 @@ void AppManager::setup( ) {
  _sensorMgr->setDs18Resolution((DS18B20PIO::Resolution)cfg.ds18Resolution);
 #endif
 
+#if SIMUT_NET_LAN
+ forceAP = false;   /* no radio, no AP: the Wire is set up over the cable or the console */
+#endif
  BLOG("[BOOT step] 9: pre _netMgr (forceAP="); BLOG_U(forceAP ? 1 : 0);
  BLOG(") @ "); BLOG_U(millis( )); BLOG_NL( );
  if (Serial) { Serial.println("[DBG] network begin..."); Serial.flush(); }
@@ -1157,10 +1164,12 @@ void AppManager::setup( ) {
   * 2.7.1 to 2.8.0 hid it behind the boot AP; with the AP no longer opening by
   * itself (2026-10-01) the wait was back in front of the clock question.
   * TR_BOOT_WIFI_SKIPPED says why the line moved on. */
+#if !SIMUT_NET_LAN   /* the cable needs no SSID */
  if (cfg.wifiSsid[0] == '\0') {
   _displayMgr->setBootStatusKey(TR_BOOT_WIFI_SKIPPED);
   skipped = true;
  }
+#endif
 #if SIMUT_AIR
  if (!_airActive)
 #endif
@@ -1473,7 +1482,7 @@ void AppManager::setup( ) {
   * also says it on the console, which is the only channel the alpha and the
   * Air have for it. Not in an AP boot — the gesture asked for something
   * else — and not on an Air wake, where nobody is there to answer. */
- if (!forceAP && clockEntryAtBoot(cfg.wifiSsid[0] != '\0', _netMgr->isTimeTrusted( ))
+ if (!forceAP && clockEntryAtBoot(SIMUT_NET_LAN || cfg.wifiSsid[0] != '\0', _netMgr->isTimeTrusted( ))
 #if SIMUT_AIR
      && !_airActive
 #endif
