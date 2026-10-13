@@ -69,7 +69,8 @@ def check_manifest(M: dict) -> tuple[list[str], list[str]]:
     text = src_text()
 
     # macros SIMUT_ declaradas -> {macro: dead?}. As do interruptores, as das classes de rede
-    # ([net_class.*].macro, que o compose( ) escreve por -D) e as dos flags de mostrador e de driver.
+    # ([net_class.*].macro, que o src/net/NetCaps.h define: nao vao por -D) e as dos flags de mostrador
+    # e de driver (a identidade, -DSIMUT_NET_ENC28J60=1, tambem tem de existir em src/).
     simut: dict[str, bool] = {}
     for t in M["toggles"].values():
         mac = t.get("macro", "")

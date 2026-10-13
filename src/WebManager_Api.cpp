@@ -7,6 +7,7 @@
  * @license MIT License
  */
 #include "WebManager.h"
+#include "simut_config.h"   /* SIMUT_NET_WIFI is tested below: included here, not left to another header */
 #include "WebUI_GZ.h"
 #include "LogManager.h"
 #include "MetricsManager.h"

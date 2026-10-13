@@ -9,6 +9,7 @@
  */
 
 #include "AppManager.h"
+#include "simut_config.h"   /* SIMUT_NET_LAN and SIMUT_NET_WIFI are tested below: included here, not left to another header */
 #include "CommandManager.h"
 #include "DisplayManager.h"
 #include "LogManager.h"
@@ -213,9 +214,10 @@ void AppManager::setup( ) {
 	 * preserve compatibility with POST_OTA_APPLY_MAGIC diagnostics. */
  {
  alpha30_write_scratch5(0); /* always clear; magic is no longer a gate */
-#if !SIMUT_NET_LAN
- /* Not on the Wire: no CYW43 to reset, and on a Pico W board running the Wire
-  * image GP23 is that radio's power pin, which this image leaves alone. */
+#if SIMUT_NET_CYW43
+ /* The chip's guard, not the class's (2026-10-13): only the CYW43 driver has a
+  * CYW43 to reset. Any other driver leaves GP23 alone, and on a Pico W board
+  * running the Wire image GP23 is that radio's power pin. */
 #if SIMUT_AIR
  /* Every reboot path this cycle exists for leaves the radio in an unknown
   * state: UF2 flash, OTA apply, watchdog, hand RESET, picotool. A dormant

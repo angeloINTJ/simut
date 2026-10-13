@@ -9,6 +9,7 @@
  */
 
 #include "AppManager.h"
+#include "simut_config.h"   /* SIMUT_NET_LAN and SIMUT_NET_WIFI are tested below: included here, not left to another header */
 #include "DisplayManager.h"
 #include "LogManager.h"
 #include "NetworkManager.h"

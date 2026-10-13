@@ -18,6 +18,7 @@
 #include <Arduino.h>
 #include <memory>
 #include "SystemDefs.h"
+#include "simut_config.h"   /* SIMUT_NET_LAN and SIMUT_NET_WIFI are tested below: included here, not left to another header */
 #include "AlarmEdgeLatch.h"
 #if SIMUT_AIR
 #include "air/AirConfig.h"

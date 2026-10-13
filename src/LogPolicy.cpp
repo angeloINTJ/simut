@@ -10,6 +10,8 @@
 
 #include "LogPolicy.h"
 #include "SystemDefs_Logging.h"
+#include "net/NetCaps.h"   /* SIMUT_NET_LAN, tested in the table: nothing else here includes a project header
+                              that does, and an undefined macro reads as 0, which drops the cable's rows */
 #include <string.h>
 
 /* ===========================================================================

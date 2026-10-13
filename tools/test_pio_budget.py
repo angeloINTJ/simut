@@ -707,7 +707,7 @@ if not os.environ.get("SIMUT_PIO_FILHO"):
 # ---------------------------------------------------------------------------------
 # 14. A tabela de pinos contra o simut_config.h, pelo pré-processador do host.
 # O cabeçalho confere máscaras de pinos (SIMUT_PINS_DISPLAY, SIMUT_PINS_ENC e SIMUT_PINS_BUZZER, só
-# com SIMUT_NET_LAN=1) e as desdefine no fim da seção 10b. Este grupo as lê de uma cópia do
+# com o driver ENC28J60, SIMUT_NET_ENC28J60=1) e as desdefine no fim da seção 10b. Este grupo as lê de uma cópia do
 # cabeçalho sem os #undef, com o `cpp` do test_pin_masks.py, e exige que sejam os GPIOs que o
 # pio_budget dá para cada mostrador do manifesto, com e sem buzzer e com o INT padrão.
 # ---------------------------------------------------------------------------------

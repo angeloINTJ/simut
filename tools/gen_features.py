@@ -23,9 +23,11 @@ constroi quebra uma regra. rule_violations( ) e a semantica das regras que
 tools/build_custom.py reaplica antes de compilar e que a pagina espelha.
 
 A rede e uma escolha por perfil, como o mostrador (2026-10-13): `net = "<id>"`
-nomeia um [net.<id>], o driver, que traz a placa, os flags, as unidades e a
-biblioteca dele; a classe dele ([net_class.<classe>]) diz o macro, o bit do "feat"
-e o que as paginas cortam. Ate entao a rede era o interruptor `lan`.
+nomeia um [net.<id>], o driver, que traz a placa, os flags (a identidade dele, o
+-DSIMUT_NET_ENC28J60=1), as unidades e a biblioteca dele; a classe dele
+([net_class.<classe>]) diz o nome do macro de classe, o bit do "feat" e o que as
+paginas cortam. O macro de classe nao vai por -D: o src/net/NetCaps.h o deriva da
+identidade. Ate entao a rede era o interruptor `lan`.
 
 Cada [env:*] gerado herda `pico_base` do platformio.ini e acrescenta apenas os
 flags, o filtro de fontes e o lib_ignore que o manifesto deriva dos recursos
@@ -191,8 +193,9 @@ def compose(prof: dict, M: dict) -> dict:
     # The web builder's @IF blocks to cut (tools/build_webui_gz.py): the display
     # choice may name one, a switch that is off names its own (off_web_omit), and
     # the network class names what only its other side has (web_omit of [net_class]:
-    # the radio's fields on a wired build). So may the chip: what only another chip
-    # has does not reach this one's pages.
+    # the radio's fields on a wired build), then the network driver what only its
+    # chip causes (web_omit of [net.<id>]: the ENC28J60's eleven sensor slots). So
+    # may the chip: what only another chip has does not reach this one's pages.
     web_omit = [disp["web_omit"]] if disp.get("web_omit") else []
     if chip.get("web_omit"):
         web_omit.append(chip["web_omit"])
@@ -225,15 +228,15 @@ def compose(prof: dict, M: dict) -> dict:
     # The network (2026-10-13): one driver per profile, like the display, applied AFTER the
     # switches. The cable was the last of them, so its flags, its excludes and its web_omit
     # came last in profiles.ini, and this order keeps that file byte for byte what it was.
-    # The class gives the macro (-D<macro>=1, only when it has one: the Wi-Fi class is the
-    # default of simut_config.h) and the pages it cuts; the driver gives the rest. Every
-    # unit of a driver that is NOT the profile's leaves the build: empty there, those
-    # objects still reordered the linker's veneers and changed the Wi-Fi images' bytes.
+    # The class gives the pages it cuts; the driver gives the rest, its identity macro among
+    # its flags (-DSIMUT_NET_ENC28J60=1). The class macro itself is never emitted
+    # (2026-10-13): src/net/NetCaps.h derives it from the identity and refuses a build that
+    # passes it. Every unit of a driver that is NOT the profile's leaves the build: empty
+    # there, those objects still reordered the linker's veneers and changed the Wi-Fi images'
+    # bytes.
     net_id = prof["net"]
     net = M["net"][net_id]
     net_class = M["net_class"][net["class"]]
-    if net_class.get("macro"):
-        flags.append(f"-D{net_class['macro']}=1")
     flags += net.get("flags", [])
     for other_id, other in M["net"].items():
         if other_id != net_id:
@@ -242,6 +245,8 @@ def compose(prof: dict, M: dict) -> dict:
     lib_deps += net.get("lib_deps", [])
     if net_class.get("web_omit"):
         web_omit.append(net_class["web_omit"])
+    if net.get("web_omit"):
+        web_omit.append(net["web_omit"])   # what only this chip causes, after what the class cuts
     if "board" in net:
         board = net["board"][chip_name]   # net_refusal( ) above guarantees the entry
 
@@ -503,10 +508,14 @@ def check_manifest(M: dict) -> None:
             sys.exit(f"gen_features: [net_class.{c}].web_omit tem de ser um nome de @IF do "
                      f"build_webui_gz.py (minusculas, digitos e _), nao {w!r}")
     for n, v in nets.items():
-        extra = sorted(set(v) - {"class", "board", "unflags", "flags", "units", "lib_deps"})
+        extra = sorted(set(v) - {"class", "board", "unflags", "flags", "units", "lib_deps", "web_omit"})
         if extra:
             sys.exit(f"gen_features: [net.{n}] tem chave que ninguem le: {', '.join(extra)} "
-                     f"(so class, board, unflags, flags, units e lib_deps)")
+                     f"(so class, board, unflags, flags, units, lib_deps e web_omit)")
+        w = v.get("web_omit")
+        if w is not None and not (isinstance(w, str) and re.fullmatch(r"[a-z][a-z0-9_]*", w)):
+            sys.exit(f"gen_features: [net.{n}].web_omit tem de ser um nome de @IF do "
+                     f"build_webui_gz.py (minusculas, digitos e _), nao {w!r}")
         if v.get("class") not in classes:
             sys.exit(f"gen_features: [net.{n}].class '{v.get('class')}' nao e um [net_class]")
         boards = v.get("board")
@@ -732,8 +741,8 @@ def build_feature_header(M: dict) -> str:
     emissao: `defined(M) && M`. Le o macro de presenca (web_https, license_stub,
     concurrency_asserts: definido ligado, ausente desligado) e o 0/1 com default
     no simut_config.h do mesmo jeito, para todo flag que este gerador escreve. O bit
-    de uma classe de rede (o 18, a classe lan) le o macro da classe, que compose( )
-    escreve quando o perfil escolhe um driver dela."""
+    de uma classe de rede (o 18, a classe lan) le o macro da classe, que o
+    src/net/NetCaps.h deriva da identidade do driver (compose( ) nao o escreve)."""
     check_manifest(M)
     lines = [
         "/**",
@@ -760,7 +769,8 @@ def build_feature_header(M: dict) -> str:
         "",
     ]
     # Um bit por chave e por classe de rede que tem `bit` (SIMUT_FEAT_<CLASSE>: a classe lan e a
-    # SIMUT_FEAT_LAN, o bit 18, o macro SIMUT_NET_LAN, as mesmas linhas da chave que era dela).
+    # SIMUT_FEAT_LAN, o bit 18, o macro SIMUT_NET_LAN, as mesmas linhas da chave que era dela; o
+    # macro vem do NetCaps.h por simut_config.h, nao da linha de comando).
     # Os bits sao unicos entre as duas (check_manifest), entao a ordem por bit e total.
     entries = [(M["toggles"][t]["bit"], M["toggles"][t]["macro"], "SIMUT_FEAT_" + t.upper())
                for t in TOGGLE_ORDER]

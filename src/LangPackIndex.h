@@ -48,6 +48,8 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include "net/NetCaps.h"   /* SIMUT_NET_LAN, tested in identify( ): this header includes no other project header,
+                              and an undefined macro reads as 0, so a wired build would take @HELP for its help */
 
 /** The sections the firmware tells apart. The order here means nothing; in a
  *  file the order is free, except that @WEBDICT comes last. */

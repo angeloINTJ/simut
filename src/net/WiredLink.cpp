@@ -6,8 +6,9 @@
  * @license MIT License
  */
 #include "WiredLink.h"
+#include "../simut_config.h"   /* SIMUT_NET_LAN is tested below: included here, not left to another header */
 
-#if SIMUT_NET_LAN
+#if SIMUT_NET_ENC28J60
 #include <PicoENC28J60lwIP.h>
 
 namespace {

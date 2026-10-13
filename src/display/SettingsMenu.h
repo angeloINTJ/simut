@@ -31,6 +31,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include "../net/NetCaps.h"   /* SIMUT_NET_LAN, tested below: this header stands alone, and an undefined macro reads as 0 */
 
 /* Normally these come from SystemDefs_Limits.h, which pulls the sensor headers
  * with it — the same standalone-header trick as FsSecretPath.h, so the host

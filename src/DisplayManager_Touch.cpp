@@ -13,6 +13,7 @@
  */
 
 #include "DisplayManager.h"
+#include "simut_config.h"   /* SIMUT_NET_WIFI is tested below: included here, not left to another header */
 #include "SensorManager.h"
 #include "DisplayManager_Fonts.h"
 #include "DisplayManager_FmtFloat.h"

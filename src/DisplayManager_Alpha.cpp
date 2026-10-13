@@ -1,4 +1,5 @@
 #include "DisplayManager.h"
+#include "simut_config.h"   /* SIMUT_NET_LAN and SIMUT_NET_WIFI are tested below: included here, not left to another header */
 #include "LogManager.h"
 #include "display/HD44780_16x2.h"
 #include "display/BigFont_HD44780.h"

@@ -6,11 +6,12 @@
  */
 
 #include "SyslogManager.h"
+#include "simut_config.h"   /* SIMUT_NET_LAN is tested below: included here, not left to another header */
 #include "Syslog5424.h"
 #include "StorageManager.h"
 #include <WiFi.h>
 #include <string.h>
-#include "net/WiredLink.h"   /* empty unless SIMUT_NET_LAN */
+#include "net/WiredLink.h"   /* declares nothing unless the ENC28J60 driver is built */
 
 SyslogManager::SyslogManager( ) {
 	mutex_init(&_ringMutex);

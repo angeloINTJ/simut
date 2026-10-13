@@ -13,6 +13,7 @@
  */
 
 #include "DisplayManager.h"
+#include "simut_config.h"   /* SIMUT_NET_LAN is tested below: included here, not left to another header */
 #include "DisplayManager_Fonts.h"
 #include "LogManager.h"
 #include "StorageManager.h"

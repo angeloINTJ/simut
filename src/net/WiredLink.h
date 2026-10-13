@@ -1,8 +1,8 @@
 /**
  * @file WiredLink.h
  * @brief The SIMUT Wire's network: the ENC28J60 module on the cable, through the
- *        PicoENC28J60 library's lwIP interface. Only a build with the `lan`
- *        switch (SIMUT_NET_LAN) has it.
+ *        PicoENC28J60 library's lwIP interface. Only a build with that driver
+ *        (SIMUT_NET_ENC28J60, `net = "enc28j60"` in the manifest) has it.
  *
  * WiredLink.cpp is the one unit that includes <PicoENC28J60lwIP.h>, so the images
  * with the radio keep the dependency graph they always had. The pins, the INT line
@@ -15,7 +15,7 @@
 
 #include "../simut_config.h"
 
-#if SIMUT_NET_LAN
+#if SIMUT_NET_ENC28J60
 #include <Arduino.h>
 #include <IPAddress.h>
 

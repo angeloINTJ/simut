@@ -268,8 +268,22 @@ check("id de um lado so, buscado fora: recusado", v is not None and "#cnt" in v,
 #     e o build recusa uma chamada a ela fora de um bloco `@IF wifi`.
 check("a rota da busca de redes e da feature wifi", feature_routes("wifi") == {"/api/wifi/scan"},
       f"obtido {sorted(feature_routes('wifi'))}")
+# O que a imagem cabeada corta vem do manifesto: "wifi" pela classe lan e "slots16" pelo driver enc28j60
+# (os onze slots que sobram do GP11-GP15 do modulo, 2026-10-13). A tabela do teste nao repete os nomes.
+sys.path.insert(0, os.path.join(ROOT, "tools"))
+import gen_features as gf  # noqa: E402
+
+_M = gf.load_manifest()
+_cabo = gf.compose(gf.resolve_profile("pico_wire", _M["profiles"]), _M)["web_omit"]
+cabo_omit = {n.strip() for n in _cabo.split(",")} & {"wifi", "slots16"}
+check("a imagem cabeada corta wifi (a classe) e slots16 (o driver)", cabo_omit == {"wifi", "slots16"}, repr(_cabo))
 com_radio = cut(real, set())
-sem_radio = cut(real, {"wifi"})
+sem_radio = cut(real, cabo_omit)
+# Um modulo cabeado que nao toma o GP11-GP15 cortaria so o radio: a pagina continuaria com os dezesseis slots.
+cabo_de_16 = cut(real, {"wifi"})
+check("so o radio cortado: a pagina segue com os dezesseis slots e sem o texto de onze",
+      "All 16 slots" in cabo_de_16 and "sens_no_free_lan" not in cabo_de_16 and "sens_hint_lan" not in cabo_de_16
+      and 'id="ssid"' not in cabo_de_16)
 for marca in ('id="btnScan"', "/api/wifi/scan", 'id="ssid"', 'id="pass"', 'id="rssi"', 'id="rssi-mm"',
               "function wifiScan", "setEyeLabel"):
     check(f"com o radio a pagina tem {marca}", marca in com_radio)

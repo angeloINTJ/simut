@@ -72,7 +72,10 @@ def _flag(name, default):
 FLAGS = {
     'SIMUT_CLI_FULL': _flag('SIMUT_CLI_FULL', 1),
     'SIMUT_AIR': _flag('SIMUT_AIR', 0),
-    'SIMUT_NET_LAN': _flag('SIMUT_NET_LAN', 0),
+    # The class is never on the command line (src/net/NetCaps.h derives it and refuses it): the image's
+    # flags carry the driver, and the cable is the ENC28J60 (2026-10-13). tools/test_net_caps.py runs this
+    # script on every profile's flags and holds the answer.
+    'SIMUT_NET_LAN': _flag('SIMUT_NET_ENC28J60', 0),
 }
 CLI_FULL = FLAGS['SIMUT_CLI_FULL'] != 0
 AIR = FLAGS['SIMUT_AIR'] != 0

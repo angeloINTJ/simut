@@ -11,11 +11,12 @@
 #include "metadata.h"
 #include "applier.h"
 #include "../StorageManager.h"
+#include "../simut_config.h"   /* SIMUT_NET_LAN is tested below: included here, not left to another header */
 
 #include <Arduino.h>
 #include <WiFi.h>
 #include <LittleFS.h>
-#include "../net/WiredLink.h"   /* empty unless SIMUT_NET_LAN */
+#include "../net/WiredLink.h"   /* declares nothing unless the ENC28J60 driver is built */
 #include <hardware/sync.h>
 #include <hardware/regs/addressmap.h> /* WATCHDOG_BASE */
 #include <hardware/regs/watchdog.h>   /* WATCHDOG_SCRATCH5_OFFSET */

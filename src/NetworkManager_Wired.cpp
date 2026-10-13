@@ -19,6 +19,7 @@
  * @license MIT License
  */
 #include "NetworkManager.h"
+#include "simut_config.h"   /* SIMUT_NET_LAN is tested below: included here, not left to another header */
 
 #if SIMUT_NET_LAN
 #include "MetricsManager.h"

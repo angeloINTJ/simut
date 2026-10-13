@@ -137,16 +137,19 @@ for name in M["profiles"]:
     prof = gf.resolve_profile(name, M["profiles"])
     c = composed(name)
     chip = prof.get("chip", "rp2040")
-    classe = M["net_class"][M["net"][prof["net"]]["class"]]
     if name not in ("pico_wire", "pico_wiretft"):
         check(f"{name}: a placa e o flag do pico_base ficam como eram",
               c["board"] == M["chip"][chip].get("board", "") and c["unflags"] == [], repr((c["board"], c["unflags"])))
-    # O macro da classe vai por -D quando a classe tem um; as unidades de um driver que nao e o do
-    # perfil saem do build, e as do driver do perfil ficam; a biblioteca e dele.
-    macros_de_rede = [f for f in c["flags"] if f.startswith("-DSIMUT_NET_")]
-    check(f"{name}: o macro da classe da rede (-D<macro>=1) vai so quando ela tem um",
-          macros_de_rede == ([f"-D{classe['macro']}=1"] if "macro" in classe else []), repr(c["flags"]))
+    # A classe da rede (o macro de [net_class.*]) nunca vai por -D: o src/net/NetCaps.h a deriva da identidade
+    # do driver e recusa quem a passa (tools/test_net_caps.py). O que vai por -D da rede e a identidade, nos
+    # `flags` do driver. As unidades de um driver que nao e o do perfil saem do build, e as do driver do
+    # perfil ficam; a biblioteca e dele.
     meu = M["net"][prof["net"]]
+    da_classe = {f"-D{v['macro']}" for v in M["net_class"].values() if "macro" in v}
+    macros_de_rede = [f for f in c["flags"] if f.startswith("-DSIMUT_NET_")]
+    check(f"{name}: a classe da rede nao vai por -D; so a identidade do driver (os `flags` dele)",
+          macros_de_rede == [f for f in meu.get("flags", []) if f.startswith("-DSIMUT_NET_")]
+          and not any(f.split("=")[0] in da_classe for f in c["flags"]), repr(c["flags"]))
     dos_outros = [u for n, d in M["net"].items() if n != prof["net"] for u in d.get("units", [])]
     check(f"{name}: sai do build toda unidade dos outros drivers de rede, e nenhuma do dele",
           all(u in c["excludes"] for u in dos_outros) and not any(u in c["excludes"] for u in meu.get("units", [])),

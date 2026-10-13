@@ -127,7 +127,17 @@ jobs:
       - name: Feature bits /api/status reports
         run: python3 tools/test_feature_bits.py
 
-      # The wired build (SIMUT_NET_LAN, the SIMUT Wire: a plain Pico with the
+      # The network driver is the image's identity (SIMUT_NET_CYW43, the default,
+      # or SIMUT_NET_ENC28J60) and the Wi-Fi / cable class (SIMUT_NET_WIFI,
+      # SIMUT_NET_LAN) is derived from it in src/net/NetCaps.h and never passed
+      # with -D. The preprocessor answers for each driver, the build that passes
+      # the class or two drivers or none stops at an #error, a second wired driver
+      # added by the recipe in that header's comment is held to its own OTA names,
+      # and every #error is taken out in turn to see exactly its cases fail.
+      - name: Network driver and class
+        run: python3 tools/test_net_caps.py
+
+      # The wired build (the ENC28J60 driver, the SIMUT Wire: a plain Pico with the
       # network on an ENC28J60 module) is held, by the preprocessor, to the pins
       # it may use, the radio it does not have and the name it takes in the OTA.
       # The module on the display's or the buzzer's pin, two of its own lines on
@@ -141,8 +151,9 @@ jobs:
       - name: Pin masks and variant names of the wired build
         run: python3 tools/test_pin_masks.py
 
-      # A wired build cuts the radio's parts of the web pages (web_omit =
-      # "wifi" on the lan class of the network choice), and a Wi-Fi build keeps them.
+      # A wired build cuts the radio's parts of the web pages (web_omit = "wifi"
+      # of the lan class) and, with the ENC28J60, its 16-slot texts ("slots16" of
+      # the driver); a Wi-Fi build keeps both.
       - name: Web pages per network
         run: python3 tools/test_web_omit_network.py
 

@@ -7,6 +7,7 @@
  * @license MIT License
  */
 #include "WebManager.h"
+#include "simut_config.h"   /* SIMUT_NET_WIFI is tested below: included here, not left to another header */
 #include "ConfigApply.h"
 #include "ConfigOverlays.h" /* the reserved[] overlays, written into cfg — the copy on a dry run */
 #include "CorsOrigin.h"   /* isValidCorsOrigin — a mesma regra do CLI e do boot */
