@@ -203,9 +203,9 @@ void test_radio_commands_parse(void) {
     CliDemand d = parse("wifi ssid MyNet");
     TEST_ASSERT_EQUAL(CMD_SET_WIFI_SSID, d.type);
     assertStr1(d, "MyNet");
-    TEST_ASSERT_EQUAL(CMD_SET_WIFI_PASS, parse("wifi pass secret123").type);
+    TEST_ASSERT_EQUAL(CMD_SET_WIFI_PASS, parse("wifi pass benchsecret").type);
     TEST_ASSERT_EQUAL(CMD_SET_WIFI_SSID, parse("system ssid MyNet").type);
-    TEST_ASSERT_EQUAL(CMD_SET_WIFI_PASS, parse("system pass secret123").type);
+    TEST_ASSERT_EQUAL(CMD_SET_WIFI_PASS, parse("system pass benchsecret").type);
 }
 
 /* ---- sensor define: optional trailing explicit type ---- */

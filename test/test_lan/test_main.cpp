@@ -59,10 +59,10 @@ void test_ap_is_unknown(void) {
 
 void test_ssid_and_pass_are_unknown(void) {
     TEST_ASSERT_EQUAL(CMD_UNKNOWN, parse("system ssid MyNet").type);
-    TEST_ASSERT_EQUAL(CMD_UNKNOWN, parse("system pass secret123").type);
+    TEST_ASSERT_EQUAL(CMD_UNKNOWN, parse("system pass benchsecret").type);
     TEST_ASSERT_EQUAL(CMD_UNKNOWN, parse("conf system ssid MyNet").type);
     TEST_ASSERT_EQUAL(CMD_UNKNOWN, parse("wifi ssid MyNet").type);
-    TEST_ASSERT_EQUAL(CMD_UNKNOWN, parse("wifi pass secret123").type);
+    TEST_ASSERT_EQUAL(CMD_UNKNOWN, parse("wifi pass benchsecret").type);
 }
 
 /* ---- the address, from the emergency console ---- */
