@@ -317,6 +317,56 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 )raw"
 /* BEGIN generated: third-party list — tools/gen_notices.py */
+#if SIMUT_NET_LAN
+R"raw(--- Third-party software ---
+
+Arduino-Pico core
+  Earle F. Philhower, III - LGPL-2.1
+Raspberry Pi Pico SDK
+  Raspberry Pi (Trading) Ltd. - BSD-3-Clause
+TinyUSB
+  Ha Thach (tinyusb.org) - MIT
+lwIP
+  Swedish Institute of Computer Science - BSD-3-Clause
+BearSSL
+  Thomas Pornin - MIT
+LittleFS
+  Arm Limited and the littlefs authors - BSD-3-Clause
+LEAmDNS
+  LaborEtArs - MIT
+newlib
+  Red Hat, Inc. and others - BSD-style (COPYING.NEWLIB)
+GCC runtime libraries
+  Free Software Foundation, Inc. - GPL-3.0 with the GCC Runtime Library Exception
+Adafruit GFX Library
+  Adafruit Industries - BSD-2-Clause
+Adafruit ILI9341
+  Adafruit Industries (Limor Fried) - BSD
+XPT2046_Touchscreen
+  Paul Stoffregen - MIT
+PubSubClient
+  Nicholas O'Leary - MIT
+DHT22PIO_RP2040
+  Ângelo Moisés Alves - MIT
+BuzzerPIO_RP2040
+  Ângelo Moisés Alves - MIT
+TwoWirePIO_RP2040
+  Ângelo Moisés Alves - MIT
+BMx280PIO_RP2040
+  Ângelo Moisés Alves - MIT
+PicoENC28J60
+  Lukasz Janyst and Ângelo Moisés Alves - MIT
+GNU FreeFont (FreeSans Bold)
+  GNU FreeFont contributors - GPL-3.0-or-later with the font exception
+Liberation Sans Bold
+  Red Hat, Inc. (digitized data: Google, Arimo) - SIL Open Font License 1.1
+SHA-256 for JavaScript
+  Geraint Luff - public domain
+
+Licence texts: THIRD_PARTY_NOTICES.md and
+LICENSES/ in the source repository.
+)raw"
+#else
 R"raw(--- Third-party software ---
 
 Arduino-Pico core
@@ -373,6 +423,7 @@ SHA-256 for JavaScript
 Licence texts: THIRD_PARTY_NOTICES.md and
 LICENSES/ in the source repository.
 )raw"
+#endif
 /* END generated: third-party list */
 R"raw(
 SIMUT v3 - Made in Brazil)raw";
