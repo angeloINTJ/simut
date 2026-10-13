@@ -357,6 +357,11 @@ private:
   * start. */
  bool _wiredStatic = false;
  IPAddress _wiredIp, _wiredGw, _wiredMask, _wiredDns;
+ /* Once per episode: a module that keeps failing to start, or a link that
+  * waits for an address, says so once, not on every retry. */
+ bool _wiredFailLogged = false;
+ bool _wiredWaitLogged = false;
+ IPAddress _wiredAnnounced;   /* the address wiredUp( ) last logged and served mDNS on */
  void beginWired(const SystemConfig& cfg);
  void startWired( );
  bool updateWired( );

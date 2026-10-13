@@ -34,9 +34,14 @@ namespace {
 constexpr int32_t RSSI_WIRED = -40;
 
 /* The reconnect ladder's top for a module that does not start: a missing or
- * miswired ENC28J60 answers begin( ) in milliseconds, and a minute between
- * tries keeps the log readable. */
+ * miswired ENC28J60 answers begin( ) in milliseconds, so a minute between tries
+ * costs nothing. The log says it once per episode (_wiredFailLogged). */
 constexpr uint32_t WIRED_RETRY_MAX_MS = 60000;
+
+/* A link that has no address after this long says so, once: a cable into a
+ * network with no DHCP server, or a static address on the wrong subnet, would
+ * otherwise wait in silence. */
+constexpr uint32_t WIRED_ADDRESS_WAIT_MS = 30000;
 
 }  // namespace
 
@@ -62,11 +67,16 @@ void NetworkManager::startWired( ) {
   ? WiredLink::begin(_deviceName, _wiredIp, _wiredGw, _wiredMask, _wiredDns)
   : WiredLink::begin(_deviceName, none, none, none, none);
  if (ok) {
+  _wiredFailLogged = false;
+  _wiredWaitLogged = false;
   _state = NET_CONNECTING;
   _stateTimer = millis( );
   return;
  }
- LOG_CODE(LOG_ERROR, "NET", NET_CONNECT_TIMEOUT, 0, String("ENC28J60: ") + WiredLink::lastError( ));
+ if (!_wiredFailLogged) {
+  LOG_CODE(LOG_ERROR, "NET", NET_CONNECT_TIMEOUT, 0, String("ENC28J60: ") + WiredLink::lastError( ));
+  _wiredFailLogged = true;
+ }
  _state = NET_OFFLINE;
  _reconnectTimer = millis( );
  _reconnectDelay = min(_reconnectDelay * 2, WIRED_RETRY_MAX_MS);
@@ -84,7 +94,14 @@ bool NetworkManager::updateWired( ) {
   return true;
  case NET_CONNECTING:
  case NET_CONNECTED_WAIT_IP:
-  if (online) wiredUp( );
+  if (online) {
+   wiredUp( );
+  } else if (!_wiredWaitLogged && timeSince(_stateTimer, WIRED_ADDRESS_WAIT_MS)) {
+   LOG_CODE(LOG_WARN, "NET", NET_CONNECT_TIMEOUT, (int)(WIRED_ADDRESS_WAIT_MS / 1000),
+            WiredLink::linkUp( ) ? "Wired network: link up, no address yet"
+                                 : "Wired network: no link (cable?)");
+   _wiredWaitLogged = true;
+  }
   return true;
  case NET_CONNECTED_WAIT_NTP:
   if (!online) {
@@ -93,7 +110,14 @@ bool NetworkManager::updateWired( ) {
   }
   return false;
  case NET_READY:
-  if (!online) wiredLost( );
+  if (!online) {
+   wiredLost( );
+  } else if (WiredLink::localIP( ) != _wiredAnnounced) {
+   /* The lease changed under a link that stayed up, or the cable came back
+    * on another network after lwIP had kept the old address: announce the
+    * new one (log, mDNS, the clock) as if it had just arrived. */
+   wiredUp( );
+  }
   return true;
  default:
   return true;
@@ -105,7 +129,9 @@ bool NetworkManager::updateWired( ) {
  * update( ), in its order: the log line, the manual DNS, mDNS, then the clock.
  */
 void NetworkManager::wiredUp( ) {
- LOG_CODE(LOG_INFO, "NET", SYS_IP_ACQUIRED, 0, "IP: " + WiredLink::localIP( ).toString( ));
+ _wiredAnnounced = WiredLink::localIP( );
+ _wiredWaitLogged = false;
+ LOG_CODE(LOG_INFO, "NET", SYS_IP_ACQUIRED, 0, "IP: " + _wiredAnnounced.toString( ));
  MetricsManager::instance( ).data( ).wifiReconnects++;
  applyManualDnsIfNeeded( );
 #if SIMUT_MDNS
