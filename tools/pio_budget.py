@@ -11,6 +11,13 @@ module is the table of those programs and the walk the boot makes over it, so th
 configurator and CI can say before compiling that a combination does not fit (place)
 and that two features want one pin (pin_conflicts).
 
+The walk reads a config as tools/gen_features.py config_of( ) makes it: a bool per switch,
+the display, and `net`, the network driver the profile chose ("cyw43" or "enc28j60", the
+[net.*] tables of tools/features.toml). The network is a choice and not a switch, so ORDER
+writes it `net=<id>`: that program is on when the config's `net` is that driver, and a
+config without `net` loads neither (until 2026-10-13 the walk assumed the radio whenever the
+cable was off).
+
 The radio goes last in that walk (ORDER) because its bus comes up late, and it does not
 choose its block; the SDK does:
   - The bus is not up after cyw43_arch_init( ), which initVariant( ) of the Pico W
@@ -39,6 +46,10 @@ and counting it would refuse builds that work. It is also why the wired network 
 come up before the sensors: the ENC28J60 can have pio0 as its only room (in the SIMUT Wire
 the buzzer and the DHT22 leave pio1 with 11 instructions free, and the ENC28J60 needs 17),
 and a BME280 that reached pio0 first would take the whole block.
+
+A network board added later brings its own entry in PROGRAMS and ORDER (`net=<id>`), its pins
+in PINS under its id, and the [net.<id>] of the manifest; tools/gen_features.py refuses an
+ORDER key that names a driver the manifest does not have.
 
 Standard library only.
 """
@@ -83,14 +94,16 @@ PROGRAMS = {
     "cyw43": {"instr": 6, "sm": 1, "blocks": ["pio2", "pio1", "pio0"]},
 }
 
-# The order the boot claims them in, with the config key that switches each one on. A
-# key a config does not have is off.
+# The order the boot claims them in, with the config key that switches each one on: a plain
+# key (a switch) is on when the config has it true, and "a=b" (a choice, the network as
+# `net=<id>`) is on when the config's `a` is `b`. A key a config does not have is off, so a
+# config without `net` places neither network program.
 ORDER = (
     ("buzzer", "sound_buzzer"),
-    ("enc28j60", "lan"),
+    ("enc28j60", "net=enc28j60"),
     ("onewire", "sensor_ds18b20"),
     ("dht22", "sensor_dht22"),
-    ("cyw43", "radio"),
+    ("cyw43", "net=cyw43"),
 )
 
 # Where program_lengths( ) finds three of the programs, under the libdeps folder of an
@@ -112,19 +125,21 @@ WIREPIO_INSTR = 32
 
 # The GPIOs each owner takes, from section 10b of src/simut_config.h (the SIMUT_PINS_*
 # masks and the pins they are made of). The display keys are the ids of the [display.*]
-# tables of tools/features.toml; tools/test_pio_budget.py holds this table to both.
+# tables of tools/features.toml, and a network driver's key is its id in [net.*] (a driver
+# without pins in this table, the CYW43 radio, owns none); tools/test_pio_budget.py holds
+# this table to both.
 #   tft             SPI0 MISO 16, touch CS 17, SCK 18, MOSI 19, touch IRQ 20; then the
 #                   panel's RST 26, DC 27 and CS 28
 #   alpha_paralelo  HD44780 in 4-bit parallel: RS 16, EN 17, D4..D7 18..21
 #   nenhum          no display, no pin
-#   lan             the ENC28J60 (an SPI in PIO): SIMUT_ENC_MISO 12, _CS 13, _SCK 14, _MOSI 15; its
+#   enc28j60        the ENC28J60 (an SPI in PIO): SIMUT_ENC_MISO 12, _CS 13, _SCK 14, _MOSI 15; its
 #                   INT pin is separate (ENC_INT_DEFAULT, or enc_int_pin in the config)
 #   buzzer          BUZZER_PIN 22
 PINS = {
     "tft": (16, 17, 18, 19, 20, 26, 27, 28),
     "alpha_paralelo": (16, 17, 18, 19, 20, 21),
     "nenhum": (),
-    "lan": (12, 13, 14, 15),
+    "enc28j60": (12, 13, 14, 15),
     "buzzer": (22,),
 }
 DISPLAYS = ("tft", "alpha_paralelo", "nenhum")
@@ -139,6 +154,16 @@ GPIO_MAX = 29      # GP0..GP29, the pins an RP2040 exposes
 # ----------------------------------------------------------------------------------
 # Placement
 # ----------------------------------------------------------------------------------
+
+def _on(cfg, key):
+    """Whether the ORDER key `key` is on in `cfg`. "a=b" is a choice: on when cfg.get("a") == "b"
+    (the network, "net=enc28j60"). A plain key is a switch: on when truthy. A key the config
+    does not have is off."""
+    if "=" in key:
+        name, _, value = key.partition("=")
+        return cfg.get(name) == value
+    return bool(cfg.get(key))
+
 
 def _plural(n, noun):
     return f"{n} {noun}" + ("" if n == 1 else "s")
@@ -228,10 +253,12 @@ def place(cfg, chip, programs=None):
 
     Returns {"ok", "blocks", "enc_block", "reason"}: "blocks" maps every block of the chip
     to {"instr": used, "sm": used}; "enc_block" is where the enc28j60 went (None when the
-    LAN is off); "reason" is "" when everything fits and one sentence when something does
-    not, in which case "blocks" is as the walk left it when it stopped.
+    config's network is not the enc28j60); "reason" is "" when everything fits and one
+    sentence when something does not, in which case "blocks" is as the walk left it when it
+    stopped.
 
-    1. ORDER is walked as the boot walks it, skipping what the config switches off.
+    1. ORDER is walked as the boot walks it, skipping what the config switches off (`_on`).
+       The network is the config's `net`: a config without it loads no network program.
     2. A program with a list of blocks goes in the first one with room for both its
        instructions and its SMs. If none has, the walk stops there.
     3. A program that may go anywhere (the enc28j60) goes in the first block of the chip,
@@ -246,7 +273,7 @@ def place(cfg, chip, programs=None):
     if chip not in CHIPS:
         raise ValueError(f"unknown chip {chip!r}; known: {', '.join(CHIPS)}")
     blocks = {b: {"instr": 0, "sm": 0} for b in CHIPS[chip]}
-    wanted = [name for name, key in ORDER if cfg.get(key)]
+    wanted = [name for name, key in ORDER if _on(cfg, key)]
     enc_block = None
     for i, name in enumerate(wanted):
         prog = table[name]
@@ -293,21 +320,25 @@ def _enc_int_pin(value):
 
 def pin_owners(cfg):
     """{owner: set of GPIOs} for what `cfg` switches on. Keys: display (an id of the
-    [display.*] tables of tools/features.toml: "tft", "alpha_paralelo" or "nenhum"), lan
-    (bool), enc_int_pin (None, the INT pin simut_config.h gives every build; -1, no INT pin
-    and the driver polls; or a GPIO from 0 to GPIO_MAX) and sound_buzzer (bool). The LAN
-    claims its INT pin only when the LAN is on and there is such a pin. A display or an
-    enc_int_pin it does not know is a ValueError, whether or not the LAN is on."""
+    [display.*] tables of tools/features.toml: "tft", "alpha_paralelo" or "nenhum"), net (the
+    network driver, an id of the [net.*] tables), enc_int_pin (None, the INT pin
+    simut_config.h gives every build; -1, no INT pin and the driver polls; or a GPIO from 0
+    to GPIO_MAX) and sound_buzzer (bool). A network driver that has an entry in PINS owns
+    those pins, under its own id as the owner ("enc28j60"); one that has none (the CYW43
+    radio), or a config without `net`, owns none. The ENC28J60 claims its INT pin only when
+    it is the driver and there is such a pin. A display or an enc_int_pin it does not know is
+    a ValueError, whichever the network is."""
     kind = cfg.get("display") or "nenhum"
     if kind not in DISPLAYS:
         raise ValueError(f"unknown display {kind!r}; known: {', '.join(DISPLAYS)}")
     int_pin = _enc_int_pin(cfg.get("enc_int_pin"))
     owners = {"display:" + kind: set(PINS[kind])}
-    if cfg.get("lan"):
-        pins = set(PINS["lan"])
-        if int_pin >= 0:
+    net = cfg.get("net")
+    if net in PINS:
+        pins = set(PINS[net])
+        if net == "enc28j60" and int_pin >= 0:
             pins.add(int_pin)
-        owners["lan"] = pins
+        owners[net] = pins
     if cfg.get("sound_buzzer"):
         owners["buzzer"] = set(PINS["buzzer"])
     return owners
@@ -328,23 +359,20 @@ def pin_conflicts(cfg):
 # What the configurator and CI read
 # ----------------------------------------------------------------------------------
 
-# The switches of ORDER a person can turn off. The radio is not one: it is on exactly when
-# the cable is off, so a config from tools/gen_features.py config_of( ) has no "radio" key.
-BUDGET_KEYS = tuple(key for _, key in ORDER if key != "radio")
+# The switches of ORDER a person can turn off: the plain keys, not the "net=<id>" ones. The
+# network is a choice, not a remedy: the driver is the premise of the build (the board, the
+# chip it runs on), and what makes a combination fit is among the switches, so refusals( )
+# never lists the network in `fix`. A config from tools/gen_features.py config_of( ) has one
+# `net` and a bool per switch.
+BUDGET_KEYS = tuple(key for _, key in ORDER if "=" not in key)
 
-# The switch each pin owner of pin_owners( ) stands for; a display is chosen, not switched.
-_OWNER_KEY = {"lan": "lan", "buzzer": "sound_buzzer"}
+# The switch each pin owner of pin_owners( ) stands for; a display is chosen, not switched, and
+# neither is a network driver.
+_OWNER_KEY = {"buzzer": "sound_buzzer"}
 
 # Every id refusals( ) can return. tools/gen_features.py wants words for each one in the
 # manifest ([ui_budget.<id>]) before it generates, including the ones no image hits today.
 REFUSAL_IDS = ("pio-budget", "pin-conflict")
-
-
-def _walk(cfg):
-    """The config place( ) walks: `cfg` with the radio following the cable."""
-    walk = dict(cfg)
-    walk["radio"] = not cfg.get("lan")
-    return walk
 
 
 def refusals(cfg, chip, programs=None):
@@ -358,14 +386,15 @@ def refusals(cfg, chip, programs=None):
       those owners as `fix`, in BUDGET_KEYS order, and the GPIO as "pin", so the words the
       page shows can say which one.
 
-    `cfg` is what tools/gen_features.py config_of( ) gives (the display, and a bool per
-    switch); it is not modified. The budget comes first: it is the one a person meets on a
-    real config, and a pin conflict needs a pin table the firmware would refuse to compile."""
+    `cfg` is what tools/gen_features.py config_of( ) gives (the display, the network driver
+    as `net`, and a bool per switch); it is not modified. The network is never in `fix`
+    (BUDGET_KEYS says why). The budget comes first: it is the one a person meets on a real
+    config, and a pin conflict needs a pin table the firmware would refuse to compile."""
     out = []
-    r = place(_walk(cfg), chip, programs)
+    r = place(cfg, chip, programs)
     if not r["ok"]:
         on = [k for k in BUDGET_KEYS if cfg.get(k)]
-        fix = [k for k in on if place(_walk(dict(cfg, **{k: False})), chip, programs)["ok"]]
+        fix = [k for k in on if place(dict(cfg, **{k: False}), chip, programs)["ok"]]
         out.append({"id": "pio-budget", "reason": r["reason"], "fix": fix or on})
     for pin, a, b in pin_conflicts(cfg):
         keys = {_OWNER_KEY[o] for o in (a, b) if o in _OWNER_KEY}

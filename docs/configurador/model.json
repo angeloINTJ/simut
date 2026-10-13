@@ -300,19 +300,6 @@
         "en": "The history graph opened from the min/max strip, its detail screen and the calendar to pick a day. Without it the strip has no graph button; the history is still recorded and stays on the web.",
         "pt": "O gráfico do histórico aberto pela faixa de min/max, a tela de detalhe e o calendário para escolher o dia. Sem ele a faixa não tem o botão do gráfico; o histórico continua gravado e na web."
       }
-    },
-    {
-      "id": "lan",
-      "group": "network",
-      "bit": 18,
-      "label": {
-        "en": "Wired network (ENC28J60) instead of Wi-Fi",
-        "pt": "Rede por cabo (ENC28J60) no lugar do Wi-Fi"
-      },
-      "help": {
-        "en": "Builds for a plain Raspberry Pi Pico, which has no radio, and takes the network from an ENC28J60 module on the cable. Bluetooth and hibernation run on the radio, so they cannot be on with it.",
-        "pt": "Compila para um Raspberry Pi Pico comum, que não tem rádio, e pega a rede de um módulo ENC28J60 no cabo. O Bluetooth e a hibernação rodam no rádio, então não podem ficar ligados com ela."
-      }
     }
   ],
   "displays": {
@@ -334,6 +321,39 @@
         "pt": "Sem mostrador"
       }
     }
+  },
+  "net": {
+    "group": "network",
+    "label": {
+      "en": "Connection",
+      "pt": "Conexão"
+    },
+    "options": [
+      {
+        "id": "cyw43",
+        "class": "wifi",
+        "label": {
+          "en": "Wi-Fi (the board's CYW43 radio)",
+          "pt": "Wi-Fi (o rádio CYW43 da placa)"
+        },
+        "help": {
+          "en": "The radio of the Pico W and the Pico 2 W: the device joins a network by its name and password, and offers a setup access point.",
+          "pt": "O rádio do Pico W e do Pico 2 W: o aparelho entra numa rede pelo nome e pela senha, e oferece um ponto de acesso para a configuração."
+        }
+      },
+      {
+        "id": "enc28j60",
+        "class": "lan",
+        "label": {
+          "en": "Network cable (ENC28J60 module)",
+          "pt": "Cabo de rede (módulo ENC28J60)"
+        },
+        "help": {
+          "en": "Builds for a plain Raspberry Pi Pico, which has no radio, with an ENC28J60 module on GP11 to GP15: sensor slots go from 16 to 11. Bluetooth and hibernation run on the radio, so they are not available.",
+          "pt": "Compila para um Raspberry Pi Pico comum, que não tem rádio, com um módulo ENC28J60 nos GP11 a GP15: os slots de sensor caem de 16 para 11. O Bluetooth e a hibernação rodam no rádio, então não ficam disponíveis."
+        }
+      }
+    ]
   },
   "products": [
     {
@@ -357,6 +377,7 @@
       },
       "config": {
         "display": "tft",
+        "net": "cyw43",
         "cli_full": false,
         "web_https": true,
         "license_stub": false,
@@ -374,8 +395,7 @@
         "web_export_api": true,
         "web_metrics": true,
         "syslog": true,
-        "tft_graph": true,
-        "lan": false
+        "tft_graph": true
       }
     },
     {
@@ -399,6 +419,7 @@
       },
       "config": {
         "display": "alpha_paralelo",
+        "net": "cyw43",
         "cli_full": false,
         "web_https": false,
         "license_stub": false,
@@ -416,8 +437,7 @@
         "web_export_api": true,
         "web_metrics": true,
         "syslog": true,
-        "tft_graph": false,
-        "lan": false
+        "tft_graph": false
       }
     },
     {
@@ -441,6 +461,7 @@
       },
       "config": {
         "display": "nenhum",
+        "net": "cyw43",
         "cli_full": true,
         "web_https": false,
         "license_stub": true,
@@ -458,8 +479,7 @@
         "web_export_api": true,
         "web_metrics": true,
         "syslog": true,
-        "tft_graph": false,
-        "lan": false
+        "tft_graph": false
       }
     },
     {
@@ -469,9 +489,9 @@
       "publish": true,
       "chip": "rp2350",
       "refused": {
-        "lan": {
-          "en": "The wired network exists only for the plain Pico (RP2040) so far: the Pico 2 W (RP2350) has no board for it.",
-          "pt": "A rede por cabo só existe, por enquanto, para o Pico comum (RP2040): o Pico 2 W (RP2350) não tem placa para ela."
+        "net=enc28j60": {
+          "en": "The ENC28J60 exists only for the plain Pico (RP2040) so far: the Pico 2 W (RP2350) has no board for it.",
+          "pt": "O ENC28J60 só existe, por enquanto, para o Pico comum (RP2040): o Pico 2 W (RP2350) não tem placa para ele."
         }
       },
       "ceilings": {
@@ -488,6 +508,7 @@
       },
       "config": {
         "display": "tft",
+        "net": "cyw43",
         "cli_full": false,
         "web_https": true,
         "license_stub": false,
@@ -505,8 +526,7 @@
         "web_export_api": true,
         "web_metrics": true,
         "syslog": true,
-        "tft_graph": true,
-        "lan": false
+        "tft_graph": true
       }
     },
     {
@@ -530,6 +550,7 @@
       },
       "config": {
         "display": "tft",
+        "net": "cyw43",
         "cli_full": true,
         "web_https": false,
         "license_stub": true,
@@ -547,8 +568,7 @@
         "web_export_api": true,
         "web_metrics": true,
         "syslog": true,
-        "tft_graph": true,
-        "lan": false
+        "tft_graph": true
       }
     },
     {
@@ -572,6 +592,7 @@
       },
       "config": {
         "display": "tft",
+        "net": "cyw43",
         "cli_full": true,
         "web_https": true,
         "license_stub": true,
@@ -589,8 +610,7 @@
         "web_export_api": true,
         "web_metrics": true,
         "syslog": true,
-        "tft_graph": true,
-        "lan": false
+        "tft_graph": true
       }
     },
     {
@@ -614,6 +634,7 @@
       },
       "config": {
         "display": "tft",
+        "net": "cyw43",
         "cli_full": false,
         "web_https": true,
         "license_stub": false,
@@ -631,8 +652,7 @@
         "web_export_api": true,
         "web_metrics": true,
         "syslog": true,
-        "tft_graph": true,
-        "lan": false
+        "tft_graph": true
       }
     },
     {
@@ -656,6 +676,7 @@
       },
       "config": {
         "display": "alpha_paralelo",
+        "net": "enc28j60",
         "cli_full": false,
         "web_https": false,
         "license_stub": false,
@@ -673,8 +694,7 @@
         "web_export_api": true,
         "web_metrics": true,
         "syslog": true,
-        "tft_graph": false,
-        "lan": true
+        "tft_graph": false
       }
     },
     {
@@ -698,6 +718,7 @@
       },
       "config": {
         "display": "tft",
+        "net": "enc28j60",
         "cli_full": false,
         "web_https": true,
         "license_stub": false,
@@ -715,8 +736,7 @@
         "web_export_api": true,
         "web_metrics": true,
         "syslog": true,
-        "tft_graph": true,
-        "lan": true
+        "tft_graph": true
       }
     }
   ],
@@ -778,45 +798,45 @@
       "evidence": "air+sound_buzzer fails to compile: SoundManager.cpp: 'BuzzerNote' does not name a type. SIMUT_AIR turns SoundManager.h into the no-op class, and SoundManager.cpp has no guard of its own."
     },
     {
-      "id": "lan-no-bluetooth",
+      "id": "bluetooth-needs-cyw43",
       "when": {
-        "lan": true
+        "bluetooth": true
       },
       "require": {
-        "bluetooth": false
+        "net": "cyw43"
       },
       "why": {
-        "en": "Bluetooth runs on the Wi-Fi radio, which a wired build does not have.",
-        "pt": "O Bluetooth roda no rádio do Wi-Fi, que uma build por cabo não tem."
+        "en": "Bluetooth runs on the CYW43 radio, so it needs the Wi-Fi connection.",
+        "pt": "O Bluetooth roda no rádio CYW43, então precisa da conexão Wi-Fi."
       },
-      "evidence": "SIMUT_NET_LAN with SIMUT_BLUETOOTH stops at an #error in simut_config.h, pinned by tools/test_pin_masks.py (2026-10-12). Not compiled past that #error: the Bluetooth stack (SerialBT, BTstack) rides on the CYW43, and board = rpipico has none."
+      "evidence": "With net = enc28j60, SIMUT_NET_LAN with SIMUT_BLUETOOTH stops at an #error in simut_config.h, pinned by tools/test_pin_masks.py (2026-10-12). Not compiled past that #error: the Bluetooth stack (SerialBT, BTstack) rides on the CYW43, and board = rpipico has none. The rule asks for the radio, not for the absence of the cable: a wired board added later has no CYW43 either."
     },
     {
-      "id": "lan-no-air",
+      "id": "air-needs-cyw43",
       "when": {
-        "lan": true
+        "air": true
       },
       "require": {
-        "air": false
+        "net": "cyw43"
       },
       "why": {
-        "en": "Hibernation is built around the Wi-Fi radio, which it powers down between wakes. A wired build has none.",
-        "pt": "A hibernação é feita em torno do rádio do Wi-Fi, que ela desliga entre os despertares. Uma build por cabo não tem rádio."
+        "en": "Hibernation is built around the CYW43 radio, which it powers down between wakes, so it needs the Wi-Fi connection.",
+        "pt": "A hibernação é feita em torno do rádio CYW43, que ela desliga entre os despertares, então precisa da conexão Wi-Fi."
       },
-      "evidence": "SIMUT_NET_LAN with SIMUT_AIR stops at an #error in simut_config.h, pinned by tools/test_pin_masks.py (2026-10-12). Not compiled past that #error: AppManager_Air.cpp powers the CYW43 down through GPIO23 (WL_REG_ON) before every sleep, and board = rpipico has no CYW43."
+      "evidence": "With net = enc28j60, SIMUT_NET_LAN with SIMUT_AIR stops at an #error in simut_config.h, pinned by tools/test_pin_masks.py (2026-10-12). Not compiled past that #error: AppManager_Air.cpp powers the CYW43 down through GPIO23 (WL_REG_ON) before every sleep, and board = rpipico has no CYW43. The rule asks for the radio, not for the absence of the cable: a wired board added later has no CYW43 either."
     }
   ],
   "hazards": [
     {
-      "id": "lan-unsoaked",
+      "id": "enc28j60-unsoaked",
       "when": {
-        "lan": true
+        "net": "enc28j60"
       },
       "why": {
-        "en": "The wired network has run on the bench, not yet through a soak: a build with it is a bench build.",
-        "pt": "A rede por cabo rodou na bancada, mas ainda não passou por um soak: uma build com ela é de bancada."
+        "en": "The ENC28J60 connection has run on the bench, not yet through a soak: a build with it is a bench build.",
+        "pt": "A conexão ENC28J60 rodou na bancada, mas ainda não passou por um soak: uma build com ela é de bancada."
       },
-      "evidence": "2026-10-13: pico_wiretft on the Wire rig, web and console over the cable for hours; no image with lan has run a 72 h soak."
+      "evidence": "2026-10-13: pico_wiretft on the Wire rig, web and console over the cable for hours; no image with the ENC28J60 has run a 72 h soak."
     },
     {
       "id": "bt-flash-core1",
@@ -837,32 +857,27 @@
       "chip": "rp2040",
       "when": {
         "sound_buzzer": false,
-        "lan": true,
         "sensor_ds18b20": true,
-        "sensor_dht22": true
+        "sensor_dht22": true,
+        "net": "enc28j60"
       },
       "why": {
-        "en": "This does not fit the PIO blocks of this chip. Turn off one of these: Wired network (ENC28J60) instead of Wi-Fi; DS18B20 temperature probes; DHT22 temperature and humidity.",
-        "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Rede por cabo (ENC28J60) no lugar do Wi-Fi; Sondas de temperatura DS18B20; DHT22 temperatura e umidade."
+        "en": "This does not fit the PIO blocks of this chip. Turn off one of these: DS18B20 temperature probes; DHT22 temperature and humidity.",
+        "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Sondas de temperatura DS18B20; DHT22 temperatura e umidade."
       },
       "detail": "enc28j60 needs 17 instructions and 1 state machine and finds no block where it leaves room for the programs that load after it: pio0 has 32 instructions and 4 state machines free, but then onewire would not fit; pio1 has 32 instructions and 4 state machines free, but then dht22 would not fit.",
       "fix": [
-        "lan",
         "sensor_ds18b20",
         "sensor_dht22"
       ],
       "lock": {
-        "lan": {
-          "en": "This does not fit the PIO blocks of this chip. Turn off one of these: DS18B20 temperature probes; DHT22 temperature and humidity.",
-          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Sondas de temperatura DS18B20; DHT22 temperatura e umidade."
-        },
         "sensor_ds18b20": {
-          "en": "This does not fit the PIO blocks of this chip. Turn off one of these: Wired network (ENC28J60) instead of Wi-Fi; DHT22 temperature and humidity.",
-          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Rede por cabo (ENC28J60) no lugar do Wi-Fi; DHT22 temperatura e umidade."
+          "en": "This does not fit the PIO blocks of this chip. Turn off: DHT22 temperature and humidity.",
+          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue: DHT22 temperatura e umidade."
         },
         "sensor_dht22": {
-          "en": "This does not fit the PIO blocks of this chip. Turn off one of these: Wired network (ENC28J60) instead of Wi-Fi; DS18B20 temperature probes.",
-          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Rede por cabo (ENC28J60) no lugar do Wi-Fi; Sondas de temperatura DS18B20."
+          "en": "This does not fit the PIO blocks of this chip. Turn off: DS18B20 temperature probes.",
+          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue: Sondas de temperatura DS18B20."
         }
       }
     },
@@ -871,32 +886,27 @@
       "chip": "rp2040",
       "when": {
         "sound_buzzer": true,
-        "lan": true,
         "sensor_ds18b20": true,
-        "sensor_dht22": true
+        "sensor_dht22": true,
+        "net": "enc28j60"
       },
       "why": {
-        "en": "This does not fit the PIO blocks of this chip. Turn off one of these: Wired network (ENC28J60) instead of Wi-Fi; DS18B20 temperature probes; DHT22 temperature and humidity.",
-        "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Rede por cabo (ENC28J60) no lugar do Wi-Fi; Sondas de temperatura DS18B20; DHT22 temperatura e umidade."
+        "en": "This does not fit the PIO blocks of this chip. Turn off one of these: DS18B20 temperature probes; DHT22 temperature and humidity.",
+        "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Sondas de temperatura DS18B20; DHT22 temperatura e umidade."
       },
       "detail": "enc28j60 needs 17 instructions and 1 state machine and finds no block where it leaves room for the programs that load after it: pio0 has 32 instructions and 4 state machines free, but then onewire would not fit; pio1 has 28 instructions and 2 state machines free, but then dht22 would not fit.",
       "fix": [
-        "lan",
         "sensor_ds18b20",
         "sensor_dht22"
       ],
       "lock": {
-        "lan": {
-          "en": "This does not fit the PIO blocks of this chip. Turn off one of these: DS18B20 temperature probes; DHT22 temperature and humidity.",
-          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Sondas de temperatura DS18B20; DHT22 temperatura e umidade."
-        },
         "sensor_ds18b20": {
-          "en": "This does not fit the PIO blocks of this chip. Turn off one of these: Wired network (ENC28J60) instead of Wi-Fi; DHT22 temperature and humidity.",
-          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Rede por cabo (ENC28J60) no lugar do Wi-Fi; DHT22 temperatura e umidade."
+          "en": "This does not fit the PIO blocks of this chip. Turn off: DHT22 temperature and humidity.",
+          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue: DHT22 temperatura e umidade."
         },
         "sensor_dht22": {
-          "en": "This does not fit the PIO blocks of this chip. Turn off one of these: Wired network (ENC28J60) instead of Wi-Fi; DS18B20 temperature probes.",
-          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue um destes: Rede por cabo (ENC28J60) no lugar do Wi-Fi; Sondas de temperatura DS18B20."
+          "en": "This does not fit the PIO blocks of this chip. Turn off: DS18B20 temperature probes.",
+          "pt": "Isto não cabe nos blocos PIO deste chip. Desligue: Sondas de temperatura DS18B20."
         }
       }
     }
@@ -908,7 +918,14 @@
       "publicado: `base` e a imagem como o manifesto a define, e cada `flips.<chave>`",
       "e a MESMA imagem com so aquela chave invertida — used/bin/ram medidos, ou",
       "`overflow` (o excesso que o linker reporta quando nao cabe no slot), ou",
-      "`rule` (a regra do manifesto que proibe a combinacao; nao foi compilada).",
+      "`rule` (a regra do manifesto que proibe a combinacao; nao foi compilada), ou",
+      "`unsupported` (o driver de rede pede uma placa que o chip do produto nao tem,",
+      "ou a combinacao nao cabe nos blocos de PIO ou nos pinos: nao ha imagem a",
+      "medir, e a pagina a conta como sem medida).",
+      "`flips.net=<id>` e a mesma coisa para a rede, que e uma escolha de driver e",
+      "nao um interruptor: a MESMA imagem com o driver de rede trocado para <id>,",
+      "uma entrada por driver que nao e o do produto, medida ou anotada do mesmo",
+      "jeito.",
       "`same: true` diz que a imagem saiu identica a base, byte a byte: a chave nao",
       "tem consumidor naquele produto, e a pagina diz isso em vez de mostrar +0 B.",
       "A pagina SOMA as diferencas quando mais de uma chave muda: estimativa, e ela",
@@ -917,42 +934,39 @@
       "e usa o maior erro como margem de \"perto do limite\"."
     ],
     "measured_at": {
-      "date": "2026-10-12",
-      "src_commit": "0bed04b",
-      "src_dirty": false,
-      "partial": [
-        "lan"
-      ]
+      "date": "2026-10-13",
+      "src_commit": "32d0d67",
+      "src_dirty": false
     },
     "products": {
       "pico_w_release": {
         "base": {
-          "used": 1021084,
-          "bin": 1033116,
+          "used": 1021132,
+          "bin": 1033164,
           "ram": 111432
         },
         "flips": {
           "cli_full": {
-            "overflow": 36724
+            "overflow": 36772
           },
           "web_https": {
-            "used": 996596,
-            "bin": 1008628,
+            "used": 996644,
+            "bin": 1008676,
             "ram": 111424
           },
           "license_stub": {
-            "used": 1018516,
-            "bin": 1030548,
+            "used": 1018564,
+            "bin": 1030596,
             "ram": 111432
           },
           "mdns": {
-            "used": 1004500,
-            "bin": 1016532,
+            "used": 1004548,
+            "bin": 1016580,
             "ram": 111264
           },
           "concurrency_asserts": {
-            "used": 1023316,
-            "bin": 1035348,
+            "used": 1023364,
+            "bin": 1035396,
             "ram": 111432
           },
           "bluetooth": {
@@ -962,174 +976,172 @@
             "rule": "air-needs-headless"
           },
           "sound_buzzer": {
-            "used": 1016092,
-            "bin": 1028124,
+            "used": 1016140,
+            "bin": 1028172,
             "ram": 111432
           },
           "sensor_ds18b20": {
-            "used": 1015572,
-            "bin": 1027604,
+            "used": 1015620,
+            "bin": 1027652,
             "ram": 111368
           },
           "sensor_dht22": {
-            "used": 1017644,
-            "bin": 1029676,
+            "used": 1017692,
+            "bin": 1029724,
             "ram": 111432
           },
           "sensor_bme280": {
-            "used": 1003296,
-            "bin": 1015332,
+            "used": 1003344,
+            "bin": 1015380,
             "ram": 111212
           },
           "tel_tls": {
-            "used": 1019844,
-            "bin": 1031876,
+            "used": 1019892,
+            "bin": 1031924,
             "ram": 111432
           },
           "tel_mqtt": {
-            "used": 1011788,
-            "bin": 1023820,
+            "used": 1011836,
+            "bin": 1023868,
             "ram": 111432
           },
           "web_history": {
-            "used": 997236,
-            "bin": 1009268,
+            "used": 997284,
+            "bin": 1009316,
             "ram": 111432
           },
           "web_export_api": {
-            "used": 1008796,
-            "bin": 1020828,
+            "used": 1008844,
+            "bin": 1020876,
             "ram": 109380
           },
           "web_metrics": {
-            "used": 1016164,
-            "bin": 1028196,
+            "used": 1016212,
+            "bin": 1028244,
             "ram": 111432
           },
           "syslog": {
-            "used": 1019324,
-            "bin": 1031356,
+            "used": 1019372,
+            "bin": 1031404,
             "ram": 111432
           },
           "tft_graph": {
-            "used": 1000660,
-            "bin": 1012692,
+            "used": 1000708,
+            "bin": 1012740,
             "ram": 109200
           },
-          "lan": {
-            "used": 777264,
-            "bin": 789296,
-            "ram": 107884
+          "net=enc28j60": {
+            "unsupported": "enc28j60 needs 17 instructions and 1 state machine and finds no block where it leaves room for the programs that load after it: pio0 has 32 instructions and 4 state machines free, but then onewire would not fit; pio1 has 28 instructions and 2 state machines free, but then dht22 would not fit."
           }
         }
       },
       "pico_w_alpha": {
         "base": {
-          "used": 974908,
+          "used": 974972,
           "bin": 990380,
           "ram": 125680
         },
         "flips": {
           "cli_full": {
-            "used": 1022724,
+            "used": 1022788,
             "bin": 1035436,
             "ram": 123752
           },
           "web_https": {
-            "used": 1000764,
+            "used": 1000828,
             "bin": 1014956,
             "ram": 125688
           },
           "license_stub": {
-            "used": 974908,
+            "used": 974972,
             "bin": 990380,
             "ram": 125680
           },
           "mdns": {
-            "used": 991308,
+            "used": 991372,
             "bin": 1006764,
             "ram": 125848
           },
           "concurrency_asserts": {
-            "used": 977092,
+            "used": 977156,
             "bin": 990380,
             "ram": 125680
           },
           "bluetooth": {
-            "used": 837184,
-            "bin": 849220,
+            "used": 837248,
+            "bin": 849284,
             "ram": 106332
           },
           "air": {
             "rule": "air-needs-headless"
           },
           "sound_buzzer": {
-            "used": 970796,
+            "used": 970860,
             "bin": 986284,
             "ram": 125680
           },
           "sensor_ds18b20": {
-            "used": 970340,
+            "used": 970404,
             "bin": 986284,
             "ram": 125616
           },
           "sensor_dht22": {
-            "used": 973332,
+            "used": 973396,
             "bin": 986284,
             "ram": 125680
           },
           "sensor_bme280": {
-            "used": 960024,
+            "used": 960088,
             "bin": 973972,
             "ram": 125460
           },
           "tel_tls": {
-            "used": 917020,
+            "used": 917084,
             "bin": 933036,
             "ram": 125664
           },
           "tel_mqtt": {
-            "used": 967068,
+            "used": 967132,
             "bin": 982188,
             "ram": 125680
           },
           "web_history": {
-            "used": 953140,
+            "used": 953204,
             "bin": 965804,
             "ram": 125680
           },
           "web_export_api": {
-            "used": 963660,
+            "used": 963724,
             "bin": 978092,
             "ram": 123628
           },
           "web_metrics": {
-            "used": 971540,
+            "used": 971604,
             "bin": 986284,
             "ram": 125680
           },
           "syslog": {
-            "used": 973652,
+            "used": 973716,
             "bin": 986284,
             "ram": 125680
           },
           "tft_graph": {
             "rule": "graph-needs-tft"
           },
-          "lan": {
-            "rule": "lan-no-bluetooth"
+          "net=enc28j60": {
+            "rule": "bluetooth-needs-cyw43"
           }
         }
       },
       "pico_w_air": {
         "base": {
-          "used": 1018224,
+          "used": 1018256,
           "bin": 1031244,
           "ram": 115904
         },
         "flips": {
           "cli_full": {
-            "used": 969984,
+            "used": 970016,
             "bin": 982092,
             "ram": 117776
           },
@@ -1137,7 +1149,7 @@
             "overflow": 15436
           },
           "license_stub": {
-            "used": 1018224,
+            "used": 1018256,
             "bin": 1031244,
             "ram": 115904
           },
@@ -1145,13 +1157,13 @@
             "overflow": 3148
           },
           "concurrency_asserts": {
-            "used": 1020416,
+            "used": 1020448,
             "bin": 1035340,
             "ram": 115904
           },
           "bluetooth": {
-            "used": 878372,
-            "bin": 890404,
+            "used": 878404,
+            "bin": 890436,
             "ram": 96588
           },
           "air": {
@@ -1161,92 +1173,92 @@
             "rule": "air-no-buzzer"
           },
           "sensor_ds18b20": {
-            "used": 1013216,
+            "used": 1013248,
             "bin": 1027148,
             "ram": 115840
           },
           "sensor_dht22": {
-            "used": 1016648,
+            "used": 1016680,
             "bin": 1031244,
             "ram": 115904
           },
           "sensor_bme280": {
-            "used": 1003332,
+            "used": 1003364,
             "bin": 1018932,
             "ram": 115684
           },
           "tel_tls": {
-            "used": 960384,
+            "used": 960416,
             "bin": 973900,
             "ram": 115888
           },
           "tel_mqtt": {
-            "used": 1010376,
+            "used": 1010408,
             "bin": 1023052,
             "ram": 115904
           },
           "web_history": {
-            "used": 992352,
+            "used": 992384,
             "bin": 1006668,
             "ram": 115904
           },
           "web_export_api": {
-            "used": 1007328,
+            "used": 1007360,
             "bin": 1023052,
             "ram": 113856
           },
           "web_metrics": {
-            "used": 1014856,
+            "used": 1014888,
             "bin": 1027148,
             "ram": 115904
           },
           "syslog": {
-            "used": 1016976,
+            "used": 1017008,
             "bin": 1031244,
             "ram": 115904
           },
           "tft_graph": {
             "rule": "graph-needs-tft"
           },
-          "lan": {
-            "rule": "lan-no-bluetooth"
+          "net=enc28j60": {
+            "rule": "bluetooth-needs-cyw43"
           }
         }
       },
       "pico2_w_release": {
         "base": {
-          "used": 997152,
-          "bin": 997176,
+          "used": 997208,
+          "bin": 997232,
           "ram": 125516
         },
         "flips": {
           "cli_full": {
-            "used": 1044088,
-            "bin": 1044112,
+            "used": 1044144,
+            "bin": 1044168,
             "ram": 123468
           },
           "web_https": {
-            "used": 973976,
-            "bin": 974000,
+            "used": 974032,
+            "bin": 974056,
             "ram": 125500
           },
           "license_stub": {
-            "used": 994584,
-            "bin": 994608,
+            "used": 994640,
+            "bin": 994664,
             "ram": 125516
           },
           "mdns": {
-            "used": 981216,
-            "bin": 981240,
+            "used": 981272,
+            "bin": 981296,
             "ram": 125348
           },
           "concurrency_asserts": {
-            "used": 999240,
-            "bin": 999264,
+            "used": 999296,
+            "bin": 999320,
             "ram": 125516
           },
           "bluetooth": {
-            "used": 1133060,
+            "used": 1133116,
             "bin": 1136272,
             "ram": 144832
           },
@@ -1254,62 +1266,62 @@
             "rule": "air-needs-headless"
           },
           "sound_buzzer": {
-            "used": 992400,
-            "bin": 992424,
+            "used": 992456,
+            "bin": 992480,
             "ram": 125516
           },
           "sensor_ds18b20": {
-            "used": 991800,
-            "bin": 991824,
+            "used": 991856,
+            "bin": 991880,
             "ram": 125452
           },
           "sensor_dht22": {
-            "used": 993752,
-            "bin": 993776,
+            "used": 993808,
+            "bin": 993832,
             "ram": 125516
           },
           "sensor_bme280": {
-            "used": 979732,
-            "bin": 979752,
+            "used": 979788,
+            "bin": 979808,
             "ram": 125296
           },
           "tel_tls": {
-            "used": 996096,
-            "bin": 996120,
+            "used": 996152,
+            "bin": 996176,
             "ram": 125516
           },
           "tel_mqtt": {
-            "used": 988152,
-            "bin": 988176,
+            "used": 988208,
+            "bin": 988232,
             "ram": 125516
           },
           "web_history": {
-            "used": 973272,
-            "bin": 973296,
+            "used": 973328,
+            "bin": 973352,
             "ram": 125516
           },
           "web_export_api": {
-            "used": 985080,
-            "bin": 985104,
+            "used": 985136,
+            "bin": 985160,
             "ram": 123464
           },
           "web_metrics": {
-            "used": 992328,
-            "bin": 992352,
+            "used": 992384,
+            "bin": 992408,
             "ram": 125516
           },
           "syslog": {
-            "used": 995464,
-            "bin": 995488,
+            "used": 995520,
+            "bin": 995544,
             "ram": 125516
           },
           "tft_graph": {
-            "used": 977080,
-            "bin": 977104,
+            "used": 977128,
+            "bin": 977152,
             "ram": 123012
           },
-          "lan": {
-            "unsupported": "lan ligada nao tem placa para o chip rp2350: [toggles.lan].on_board so conhece rp2040"
+          "net=enc28j60": {
+            "unsupported": "a rede enc28j60 nao tem placa para o chip rp2350: [net.enc28j60].board so conhece rp2040"
           }
         }
       }
@@ -1322,8 +1334,8 @@
           "sound_buzzer": false,
           "sensor_bme280": false
         },
-        "used": 981720,
-        "bin": 993756,
+        "used": 981768,
+        "bin": 993804,
         "ram": 111044
       },
       {
@@ -1333,8 +1345,8 @@
           "license_stub": true,
           "concurrency_asserts": true
         },
-        "used": 996260,
-        "bin": 1008292,
+        "used": 996308,
+        "bin": 1008340,
         "ram": 111424
       },
       {
@@ -1345,8 +1357,8 @@
           "web_https": true,
           "cli_full": true
         },
-        "used": 923216,
-        "bin": 935252,
+        "used": 923280,
+        "bin": 935316,
         "ram": 104612
       },
       {
@@ -1356,7 +1368,7 @@
           "sensor_dht22": false,
           "sensor_bme280": false
         },
-        "used": 954264,
+        "used": 954328,
         "bin": 969876,
         "ram": 125460
       },
@@ -1366,7 +1378,7 @@
           "cli_full": true,
           "sensor_ds18b20": false
         },
-        "used": 1017764,
+        "used": 1017828,
         "bin": 1031340,
         "ram": 123688
       },
@@ -1377,8 +1389,8 @@
           "web_https": true,
           "mdns": true
         },
-        "used": 918116,
-        "bin": 930148,
+        "used": 918148,
+        "bin": 930180,
         "ram": 96764
       },
       {
@@ -1388,7 +1400,7 @@
           "concurrency_asserts": true,
           "sensor_bme280": false
         },
-        "used": 957284,
+        "used": 957316,
         "bin": 969780,
         "ram": 117556
       },
@@ -1399,7 +1411,7 @@
           "sensor_dht22": false,
           "sensor_bme280": false
         },
-        "used": 992084,
+        "used": 992116,
         "bin": 1006644,
         "ram": 115620
       },
@@ -1409,7 +1421,7 @@
           "tel_tls": false,
           "tel_mqtt": false
         },
-        "used": 948560,
+        "used": 948592,
         "bin": 961612,
         "ram": 115888
       },
@@ -1421,7 +1433,7 @@
           "web_metrics": false,
           "syslog": false
         },
-        "used": 976848,
+        "used": 976880,
         "bin": 990284,
         "ram": 113856
       },
@@ -1432,8 +1444,8 @@
           "sound_buzzer": false,
           "sensor_bme280": false
         },
-        "used": 959044,
-        "bin": 959064,
+        "used": 959100,
+        "bin": 959120,
         "ram": 125128
       },
       {
@@ -1442,7 +1454,7 @@
           "bluetooth": true,
           "cli_full": true
         },
-        "used": 1181836,
+        "used": 1181892,
         "bin": 1185424,
         "ram": 142784
       }

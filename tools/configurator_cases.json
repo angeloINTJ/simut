@@ -8,9 +8,11 @@
     "precisa de pelo menos um caso que o acenda. Estes casos são de LÓGICA; se a imagem",
     "cabe no flash é outra pergunta, respondida pela estimativa e, de fato, pela build.",
     "`blocks` (2026-10-13) é tudo o que impede a build, na ordem em que a página e o CI o",
-    "dizem: as regras quebradas, a chave que o chip do produto recusa (unsupported-<chave>) e",
-    "o orçamento de PIO e de pinos (pio-budget, pin-conflict; tools/pio_budget.py). O Python",
-    "(gen_features.blockers) e o JS (logic.js blockersOf) têm de dar exatamente essa lista."
+    "dizem: as regras quebradas, o driver de rede que o chip do produto recusa (unsupported-net)",
+    "e o orçamento de PIO e de pinos (pio-budget, pin-conflict; tools/pio_budget.py). O Python",
+    "(gen_features.blockers) e o JS (logic.js blockersOf) têm de dar exatamente essa lista.",
+    "A rede é uma escolha, não um interruptor: `\"set\": {\"net\": \"<id>\"}` troca o driver do",
+    "produto (cyw43, o rádio da placa; enc28j60, o módulo de cabo), como `config.net` do model.json."
   ],
   "cases": [
     {"name": "SIMUT as shipped",               "base": "pico_w_release", "set": {},                                                       "violates": [], "blocks": []},
@@ -28,22 +30,28 @@
     {"name": "Alpha with the panel graph",     "base": "pico_w_alpha",   "set": {"tft_graph": true},                                      "violates": ["graph-needs-tft"], "blocks": ["graph-needs-tft"]},
     {"name": "Air with the panel graph",       "base": "pico_w_air",     "set": {"tft_graph": true},                                      "violates": ["graph-needs-tft"], "blocks": ["graph-needs-tft"]},
     {"name": "SIMUT without the panel graph",  "base": "pico_w_release", "set": {"tft_graph": false},                                     "violates": [], "blocks": []},
-    {"name": "SIMUT on the cable",             "base": "pico_w_release", "set": {"lan": true},                                            "violates": [], "blocks": ["pio-budget"]},
-    {"name": "Alpha on the cable",             "base": "pico_w_alpha",   "set": {"lan": true},                                            "violates": ["lan-no-bluetooth"], "blocks": ["lan-no-bluetooth", "pio-budget"]},
-    {"name": "Air on the cable",               "base": "pico_w_air",     "set": {"lan": true},                                            "violates": ["lan-no-air", "lan-no-bluetooth"], "blocks": ["lan-no-air", "lan-no-bluetooth", "pio-budget"]},
-    {"name": "Air on the cable, no Bluetooth", "base": "pico_w_air",     "set": {"lan": true, "bluetooth": false},                        "violates": ["lan-no-air"], "blocks": ["lan-no-air", "pio-budget"]},
+    {"name": "SIMUT on the cable",             "base": "pico_w_release", "set": {"net": "enc28j60"},                                      "violates": [], "blocks": ["pio-budget"]},
+    {"name": "SIMUT on the cable, no DS18B20", "base": "pico_w_release", "set": {"net": "enc28j60", "sensor_ds18b20": false},              "violates": [], "blocks": []},
+    {"name": "Alpha on the cable",             "base": "pico_w_alpha",   "set": {"net": "enc28j60"},                                      "violates": ["bluetooth-needs-cyw43"], "blocks": ["bluetooth-needs-cyw43", "pio-budget"]},
+    {"name": "Air on the cable",               "base": "pico_w_air",     "set": {"net": "enc28j60"},                                      "violates": ["air-needs-cyw43", "bluetooth-needs-cyw43"], "blocks": ["bluetooth-needs-cyw43", "air-needs-cyw43", "pio-budget"]},
+    {"name": "Air on the cable, no Bluetooth", "base": "pico_w_air",     "set": {"net": "enc28j60", "bluetooth": false},                  "violates": ["air-needs-cyw43"], "blocks": ["air-needs-cyw43", "pio-budget"]},
     {"name": "SIMUT Wire as shipped",          "base": "pico_wire",      "set": {},                                                       "violates": [], "blocks": []},
-    {"name": "SIMUT Wire with Bluetooth",      "base": "pico_wire",      "set": {"bluetooth": true},                                      "violates": ["lan-no-bluetooth"], "blocks": ["lan-no-bluetooth"]},
-    {"name": "SIMUT Wire with the Wi-Fi back", "base": "pico_wire",      "set": {"lan": false},                                           "violates": [], "blocks": []},
+    {"name": "SIMUT Wire with Bluetooth",      "base": "pico_wire",      "set": {"bluetooth": true},                                      "violates": ["bluetooth-needs-cyw43"], "blocks": ["bluetooth-needs-cyw43"]},
+    {"name": "SIMUT Wire with the Wi-Fi back", "base": "pico_wire",      "set": {"net": "cyw43"},                                         "violates": [], "blocks": []},
+    {"name": "SIMUT Wire TFT with the Wi-Fi back", "base": "pico_wiretft", "set": {"net": "cyw43"},                                       "violates": [], "blocks": []},
     {"name": "SIMUT Wire TFT as shipped",      "base": "pico_wiretft",   "set": {},                                                       "violates": [], "blocks": []},
     {"name": "SIMUT Wire with DS18B20",        "base": "pico_wire",      "set": {"sensor_ds18b20": true},                                 "violates": [], "blocks": ["pio-budget"]},
     {"name": "SIMUT Wire with DS18B20, without DHT22", "base": "pico_wire", "set": {"sensor_ds18b20": true, "sensor_dht22": false},       "violates": [], "blocks": []},
-    {"name": "Pico 2 W on the cable",          "base": "pico2_w_release", "set": {"lan": true},                                           "violates": [], "blocks": ["unsupported-lan"]}
+    {"name": "Pico 2 W as shipped",            "base": "pico2_w_release", "set": {},                                                      "violates": [], "blocks": []},
+    {"name": "Pico 2 W on the cable",          "base": "pico2_w_release", "set": {"net": "enc28j60"},                                     "violates": [], "blocks": ["unsupported-net"]},
+    {"name": "Pico 2 W on the cable, with Bluetooth", "base": "pico2_w_release", "set": {"net": "enc28j60", "bluetooth": true},          "violates": ["bluetooth-needs-cyw43"], "blocks": ["bluetooth-needs-cyw43", "unsupported-net"]}
   ],
   "hazard_cases": [
     {"name": "SIMUT as shipped",               "base": "pico_w_release", "set": {},                  "hazards": []},
     {"name": "SIMUT with Bluetooth",           "base": "pico_w_release", "set": {"bluetooth": true}, "hazards": ["bt-flash-core1"]},
     {"name": "SIMUT Alpha as shipped",         "base": "pico_w_alpha",   "set": {},                  "hazards": []},
-    {"name": "SIMUT Wire as shipped",          "base": "pico_wire",      "set": {},                  "hazards": ["lan-unsoaked"]}
+    {"name": "SIMUT on the cable",             "base": "pico_w_release", "set": {"net": "enc28j60"}, "hazards": ["enc28j60-unsoaked"]},
+    {"name": "SIMUT Wire as shipped",          "base": "pico_wire",      "set": {},                  "hazards": ["enc28j60-unsoaked"]},
+    {"name": "SIMUT Wire with the Wi-Fi back", "base": "pico_wire",      "set": {"net": "cyw43"},    "hazards": []}
   ]
 }

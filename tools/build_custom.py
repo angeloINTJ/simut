@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """build_custom.py — compila a build montada no configurador, com as regras reaplicadas.
 
-A entrada é um perfil — o produto e as chaves que mudaram —, o formato que o
-configurador (docs/configurador/) escreve:
+A entrada é um perfil — o produto e o que mudou —, o formato que o configurador
+(docs/configurador/) escreve. Em `set`, uma chave é um interruptor do manifesto
+(true ou false) ou `net`, a rede, que leva o id de um driver ([net.*] do manifesto):
 
-    {"v": 1, "base": "pico_w_air", "set": {"mdns": true, "sensor_dht22": false}}
+    {"v": 1, "base": "pico_w_release", "set": {"net": "enc28j60", "sensor_ds18b20": false}}
 
 A saída, em --out (padrão build-custom/), é o firmware em dois formatos — o
 .uf2, que se grava por USB (arrastar para a unidade RPI-RP2), e o .bin, que se
@@ -14,9 +15,11 @@ tamanhos medidos e os sha256.
 A entrada é NÃO CONFIÁVEL: chega por um workflow_dispatch que a página preenche,
 e qualquer string que alcançasse o profiles.ini viraria configuração do
 PlatformIO. Por isso a validação é estrita e vem antes de tudo: só as chaves do
-manifesto, só true/false, só produtos que existem, tamanho limitado — e as
-regras entre recursos (gen_features.rule_violations) reaplicadas aqui, porque a
-página não é a autoridade.
+manifesto, true/false nos interruptores e, em `net`, só o id de um driver que o
+manifesto tem, só produtos que existem, tamanho limitado — e tudo o que impede a
+build (gen_features.blockers: as regras entre recursos, o driver que o chip não
+tem, o orçamento de PIO e de pinos) reaplicado aqui, porque a página não é a
+autoridade.
 
 Códigos de saída: 0 compilou; 2 perfil inválido (formato ou regra — nada foi
 compilado); 3 não cabe no slot de flash; 1 falha de build.
@@ -84,6 +87,16 @@ def parse_spec(text, M):
     if not isinstance(changes, dict):
         raise SpecError("`set` tem de ser um objeto")
     for key, value in changes.items():
+        if key == "net":
+            # A rede é uma escolha, não um interruptor: o id de um [net.*] do manifesto, em
+            # texto. O tipo vem antes do `in`: um valor em lista ou em objeto não é hashável
+            # e daria TypeError, e um bool ou um número nunca é id.
+            if not isinstance(value, str):
+                raise SpecError(f"net tem de ser o id de um driver de rede ({', '.join(M['net'])}), "
+                                f"não {value!r}")
+            if value not in M["net"]:
+                raise SpecError(f"rede desconhecida: {value!r} (as do manifesto: {', '.join(M['net'])})")
+            continue
         if key not in gf.TOGGLE_ORDER:
             raise SpecError(f"chave desconhecida: {key!r}")
         if not isinstance(value, bool):
@@ -104,10 +117,12 @@ def canonical(base, changes):
 
 def resolve(base, changes, M):
     prof = gf.resolve_profile(base, M["profiles"])
+    # `changes` traz chaves do TOGGLE_ORDER e `net`, o id do driver de rede (parse_spec
+    # conferiu os dois): o update poe as duas no perfil, onde compose( ) as le.
     prof.update(changes)
     # Uma build do configurador vai para o campo, seja qual for o produto de base:
     # nunca confia na raiz de bancada, nem partindo de uma imagem de bancada
-    # (docs/analysis/OTA_ASSINADA.md). `changes` so traz chaves do TOGGLE_ORDER.
+    # (docs/analysis/OTA_ASSINADA.md).
     prof.pop("ota_trust_bench", None)
     return prof
 
@@ -220,7 +235,7 @@ def main():
         return 2
     prof = resolve(base, changes, M)
     # Tudo o que impede a build, na ordem da pagina (gen_features.blockers): as regras;
-    # uma chave que pede uma placa que o chip nao tem (a rede por cabo no RP2350), que o
+    # o driver de rede sem placa para o chip (o ENC28J60 no RP2350: net_refusal), que o
     # gerador recusaria em compose( ) com um sys.exit; e, desde 2026-10-13, o orcamento
     # de PIO e de pinos (tools/pio_budget.py), sem o qual uma build que compila subia com
     # um sensor sem programa. E perfil invalido (exit 2), e --validate-only ja o diz.

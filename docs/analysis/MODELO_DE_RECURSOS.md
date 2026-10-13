@@ -329,6 +329,19 @@ Uma escolha por perfil, como o display, que o gerador traduz no `board` do Platf
 
 Para o RP2350 compilar sem escrever no lugar errado, os endereços do watchdog e do PSM e o número da IRQ do timer passaram a vir do SDK do chip (as seis imagens do RP2040 saíram idênticas, byte a byte). O layout de 4 MB, o OTA com partições A/B e o Air no RP2350 são etapas seguintes; o `pico2_w_release` herda hoje o LittleFS de 1 MB do `pico_base` e um OTA que supõe a flash do Pico W.
 
+### 2.17 A rede (desde 13/10/2026)
+
+Uma escolha por perfil, como o display e o chip: `net = "<id>"` nomeia um `[net.<id>]` de `tools/features.toml`, o **driver** da rede da imagem, e o configurador a mostra como "Conexão", no grupo Rede. De 12/10 a 13/10/2026 a rede por cabo era a chave `lan` ("cabo no lugar do Wi-Fi"), que não tinha onde pôr uma terceira placa. Não conta entre as chaves: não liga recurso, troca a placa que leva a imagem à rede.
+
+| Valor | Classe | `board` | O que muda | Estado |
+|---|---|---|---|---|
+| `cyw43` (padrão) | `wifi` | o do chip (`rpipicow`, `rpipico2w`) | nada: é o rádio do Pico W e do Pico 2 W, em todas as imagens publicadas | as sete imagens com rádio |
+| `enc28j60` | `lan` | `rpipico` no RP2040; sem placa no RP2350 (o gerador recusa, `unsupported-net`) | tira `-DPICO_CYW43_SUPPORTED=1`, passa `-DMAX_SENSORS=11` (o módulo fica com GP11–GP15), traz a biblioteca do mantenedor (fixada por commit) e as duas unidades do driver; as páginas perdem os blocos `@IF wifi` | `pico_wire` e `pico_wiretft`, de bancada, sem soak (aviso `enc28j60-unsoaked`) |
+
+A **classe** (`[net_class]`) é o que as páginas, o console e os painéis sabem da rede: `wifi` entra numa rede por nome e senha, com busca de redes, ponto de acesso de configuração e nível de sinal; `lan` é um cabo, com endereço por DHCP ou fixo. A classe `lan` carrega o bit 18 do `feat` do `/api/status`, que era da chave `lan`. O **driver** é a placa: o `board` por chip, os flags, as unidades de tradução (as de um driver que não é o do perfil saem do build), as bibliotecas, e o programa PIO e os pinos em `tools/pio_budget.py` (`net=<id>` no `ORDER`, o id no `PINS`).
+
+Regras que a escolha traz: `bluetooth-needs-cyw43` e `air-needs-cyw43` pedem o CYW43, e não "nenhum cabo", porque uma placa de rede acrescentada depois também não teria o rádio; o orçamento de PIO recusa o ENC28J60 com o DS18B20 e o DHT22 juntos no RP2040, e nunca sugere trocar a rede como remédio (a placa é a premissa da build). Uma placa nova (W5500, W5100, W6100: todas `LwipIntfDev` no arduino-pico, como o ENC28J60) é um `[net.<id>]`, um `[ui_nets.<id>]`, o driver em `src/net/` e, se usar PIO ou pinos, as linhas dela no `pio_budget.py`.
+
 ---
 
 ## 3. As magnitudes: o que se escolhe em tamanho, não em sim ou não
@@ -928,7 +941,7 @@ elimina.
 > - **A saída é um perfil JSON, e o botão dispara `build-custom.yml`**, que
 >   roda o `build_custom.py`: reaplica as regras (a página não é a
 >   autoridade), recusa perfil malformado antes de baixar qualquer coisa
->   (`tools/test_build_custom.py` tenta 34 formas) e publica o `.uf2` e o
+>   (`tools/test_build_custom.py` tenta 54 formas desde 13/10/2026) e publica o `.uf2` e o
 >   `.bin` com os tamanhos medidos. Só quem tem escrita no repositório dispara
 >   um workflow; o token dessa pessoa fica no navegador dela e só vai para
 >   `api.github.com`, que é o único destino que a política de conteúdo da página

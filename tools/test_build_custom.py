@@ -65,6 +65,30 @@ HOSTILE = [
     ("valor numérico", AIR % '{"mdns":1}'),
     ("valor null", AIR % '{"mdns":null}'),
     ("valor objeto", AIR % '{"mdns":{"on":true}}'),
+    # A rede e uma escolha, nao um interruptor (2026-10-13): `net` leva o id de um [net.*]
+    # do manifesto, como texto, e nada mais. O que passasse daqui chegaria a gf.blockers( ),
+    # que indexa o manifesto pelo id, e a um [env] do PlatformIO. Os valores em lista e em
+    # objeto pegam o TypeError de um `in` sobre um dict antes de o tipo ser conferido.
+    ("lan, a chave que a rede substituiu", AIR % '{"lan":true}'),
+    ("lan com o id da rede", AIR % '{"lan":"enc28j60"}'),
+    ("net em outra caixa", AIR % '{"NET":"cyw43"}'),
+    ("net com espaço", AIR % '{"net ":"cyw43"}'),
+    ("net fora do set", '{"v":1,"base":"pico_w_air","net":"enc28j60","set":{}}'),
+    ("rede desconhecida", AIR % '{"net":"w5500"}'),
+    ("rede em outra caixa", AIR % '{"net":"CYW43"}'),
+    ("rede com espaço", AIR % '{"net":"cyw43 "}'),
+    ("rede vazia", AIR % '{"net":""}'),
+    ("rede com quebra de linha", AIR % '{"net":"cyw43\\n[env:x]\\nbuild_flags = -DX"}'),
+    ("rede com comando embutido", AIR % '{"net":"cyw43\\n::warning::injetado"}'),
+    ("classe no lugar do driver", AIR % '{"net":"lan"}'),
+    ("classe wifi no lugar do driver", AIR % '{"net":"wifi"}'),
+    ("rede true", AIR % '{"net":true}'),
+    ("rede false", AIR % '{"net":false}'),
+    ("rede numérica", AIR % '{"net":1}'),
+    ("rede null", AIR % '{"net":null}'),
+    ("rede em lista", AIR % '{"net":["cyw43"]}'),
+    ("rede em objeto", AIR % '{"net":{"cyw43":true}}'),
+    ("rede repetida no set", AIR % '{"net":"cyw43","net":"enc28j60"}'),
     ("grande demais", '{"v":1,"base":"pico_w_air","set":{}}' + " " * bc.MAX_SPEC),
 ]
 
@@ -83,16 +107,34 @@ CLI = [
     # A rede por cabo (2026-10-12): vale no Pico W sem Bluetooth e sem Air, e o
     # SIMUT Wire e o produto dela; o RP2350 nao tem placa para ela. Desde
     # 2026-10-13 o orcamento de PIO tambem decide: com o DS18B20 e o DHT22, o
-    # ENC28J60 nao cabe nos dois blocos do RP2040 (tools/pio_budget.py).
+    # ENC28J60 nao cabe nos dois blocos do RP2040 (tools/pio_budget.py). E, no
+    # mesmo dia, a rede deixou de ser o interruptor `lan` e virou a escolha de um
+    # driver, `net` ("cyw43" ou "enc28j60", os [net.*] do manifesto).
     ('{"v":1,"base":"pico_wire","set":{}}', 0, "perfil válido"),
     ('{"v":1,"base":"pico_wiretft","set":{}}', 0, "perfil válido"),
-    ('{"v":1,"base":"pico_w_release","set":{"lan":true}}', 2, "pio-budget"),
+    ('{"v":1,"base":"pico_w_release","set":{"net":"enc28j60"}}', 2, "pio-budget"),
     ('{"v":1,"base":"pico_wire","set":{"sensor_ds18b20":true}}', 2, "pio-budget"),
     ('{"v":1,"base":"pico_wire","set":{"sensor_ds18b20":true,"sensor_dht22":false}}', 0, "perfil válido"),
-    ('{"v":1,"base":"pico_w_alpha","set":{"lan":true}}', 2, "regra lan-no-bluetooth"),
-    ('{"v":1,"base":"pico_w_air","set":{"lan":true,"bluetooth":false}}', 2, "regra lan-no-air"),
-    ('{"v":1,"base":"pico_wire","set":{"bluetooth":true}}', 2, "regra lan-no-bluetooth"),
-    ('{"v":1,"base":"pico2_w_release","set":{"lan":true}}', 2, "ligada nao tem placa para o chip rp2350"),
+    ('{"v":1,"base":"pico_w_alpha","set":{"net":"enc28j60"}}', 2, "regra bluetooth-needs-cyw43"),
+    ('{"v":1,"base":"pico_w_air","set":{"net":"enc28j60","bluetooth":false}}', 2, "regra air-needs-cyw43"),
+    ('{"v":1,"base":"pico_wire","set":{"bluetooth":true}}', 2, "regra bluetooth-needs-cyw43"),
+    ('{"v":1,"base":"pico2_w_release","set":{"net":"enc28j60"}}', 2,
+     "a rede enc28j60 nao tem placa para o chip rp2350"),
+    # O cabo no SIMUT cabe sem o DS18B20 (o ENC28J60 fica com o pio0, que era dele), e a
+    # build avisa que o cabo ainda nao passou por um soak.
+    ('{"v":1,"base":"pico_w_release","set":{"net":"enc28j60","sensor_ds18b20":false}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico_w_release","set":{"net":"enc28j60","sensor_ds18b20":false}}', 0,
+     "aviso enc28j60-unsoaked"),
+    # Escolher o driver que o produto ja tem nao muda nada, e o Wire volta para o Wi-Fi.
+    ('{"v":1,"base":"pico_w_release","set":{"net":"cyw43"}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico2_w_release","set":{"net":"cyw43"}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico_wire","set":{"net":"enc28j60"}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico_wire","set":{"net":"cyw43"}}', 0, "perfil válido"),
+    # Um valor que nao e o id de um driver do manifesto, ou a chave de antes da escolha.
+    ('{"v":1,"base":"pico_w_release","set":{"net":"w5500"}}', 2, "rede desconhecida: 'w5500'"),
+    ('{"v":1,"base":"pico_w_release","set":{"net":true}}', 2, "net tem de ser o id de um driver de rede"),
+    ('{"v":1,"base":"pico_w_release","set":{"net":1}}', 2, "net tem de ser o id de um driver de rede"),
+    ('{"v":1,"base":"pico_w_release","set":{"lan":true}}', 2, "chave desconhecida: 'lan'"),
     ('{"v":1,"base":"pico_w_air","set":{"wifi":true}}', 2, "chave desconhecida"),
     ("", 2, "perfil vazio"),
 ]
@@ -140,12 +182,68 @@ shipped = gf.resolve_profile("pico_w_air", M["profiles"])
 diff = {k for k in gf.TOGGLE_ORDER if bool(flipped.get(k)) != bool(shipped.get(k))}
 check(diff == {"bluetooth"}, f"mudou mais que o pedido: {sorted(diff)}")
 
+# A rede é a outra metade disso, e uma escolha, não um interruptor (2026-10-13): `net` chega
+# ao perfil resolvido como o id do driver, muda o ambiente composto pelo que o manifesto diz
+# dele ([net.<id>]: a placa e o macro da classe), e não mexe em nenhuma chave. Os valores
+# saem do manifesto, não de uma tabela copiada aqui.
+
+
+def parsed(text):
+    """O que parse_spec devolve, ou a recusa dele: onde o perfil tem de ser aceito, uma
+    recusa é uma falha da lista, e não um traceback que esconde as outras."""
+    try:
+        return bc.parse_spec(text, M)
+    except bc.SpecError as e:
+        return e
+
+
+check("net" not in gf.TOGGLE_ORDER, "net entrou no TOGGLE_ORDER: deixou de ser uma escolha de driver")
+for n in M["net"]:   # cada driver do manifesto entra, e só ele
+    got = parsed(AIR % json.dumps({"net": n}))
+    check(got == ("pico_w_air", {"net": n}), f"parse_spec recusou ou mudou o driver {n!r}: {got!r}")
+cable = M["net"]["enc28j60"]
+macro = f"-D{M['net_class'][cable['class']]['macro']}=1"
+chip_board = M["chip"]["rp2040"]["board"]
+asked = {"net": "enc28j60", "sensor_ds18b20": False}
+got = parsed(json.dumps({"v": 1, "base": "pico_w_release", "set": asked}))
+check(got == ("pico_w_release", asked), f"parse_spec mudou a rede e o sensor pedidos: {got!r}")
+flipped = bc.resolve("pico_w_release", asked, M)
+shipped = gf.resolve_profile("pico_w_release", M["profiles"])
+check(shipped["net"] == "cyw43" and flipped["net"] == "enc28j60",
+      f"net não chegou ao perfil resolvido: {shipped['net']!r} -> {flipped['net']!r}")
+diff = {k for k in gf.TOGGLE_ORDER if bool(flipped.get(k)) != bool(shipped.get(k))}
+check(diff == {"sensor_ds18b20"}, f"a rede mexeu em chave que ninguém pediu: {sorted(diff)}")
+built, was = gf.compose(flipped, M), gf.compose(shipped, M)
+check(was["board"] == chip_board, f"o SIMUT de fábrica não tem a placa do chip: {was['board']!r}")
+check(built["board"] == cable["board"]["rp2040"] and built["board"] != was["board"],
+      f"a placa não seguiu o driver: {was['board']!r} -> {built['board']!r}")
+check(macro in built["flags"] and macro not in was["flags"],
+      f"o macro da classe {macro} não foi só para a build com o cabo")
+# No sentido contrário, o Wire volta ao Wi-Fi e perde tudo o que era do cabo; e escolher o
+# driver que o produto já tem compõe o mesmo ambiente que não escolher.
+wire = bc.resolve("pico_wire", {"net": "cyw43"}, M)
+back = gf.compose(wire, M)
+check(wire["net"] == "cyw43" and back["board"] == chip_board and macro not in back["flags"],
+      f"o Wire com net=cyw43 não voltou ao Wi-Fi: {back['board']!r}")
+for prof in M["profiles"]:
+    own = gf.resolve_profile(prof, M["profiles"])["net"]
+    check(gf.compose(bc.resolve(prof, {"net": own}, M), M) == gf.compose(bc.resolve(prof, {}, M), M),
+          f"{prof}: escolher o próprio driver ({own}) mudou o ambiente")
+
 # Forma canônica: a ordem em que as chaves chegam não muda o nome da build.
 a = bc.canonical("pico_w_alpha", {"mdns": True, "bluetooth": False})
 b = bc.canonical("pico_w_alpha", {"bluetooth": False, "mdns": True})
 check(a == b, "canonical depende da ordem das chaves")
 check(a == '{"base":"pico_w_alpha","set":{"bluetooth":false,"mdns":true},"v":1}',
       f"canonical mudou de grafia (a página escreve a mesma): {a}")
+# `net` ordena com as outras chaves, e é texto, não booleano: a grafia que a página escreve.
+a = bc.canonical("pico_w_release", {"sensor_ds18b20": False, "net": "enc28j60", "mdns": True})
+b = bc.canonical("pico_w_release", {"net": "enc28j60", "mdns": True, "sensor_ds18b20": False})
+check(a == b, "canonical depende da ordem de `net` entre as chaves")
+check(a == '{"base":"pico_w_release","set":{"mdns":true,"net":"enc28j60","sensor_ds18b20":false},"v":1}',
+      f"canonical mudou a grafia de `net` (a página escreve a mesma): {a}")
+check(bc.canonical("pico_w_release", {"net": "enc28j60"}) != bc.canonical("pico_w_release", {"net": "cyw43"}),
+      "canonical dá o mesmo nome a duas redes diferentes")
 
 for text, want, needle in CLI:
     r = subprocess.run([sys.executable, os.path.join(HERE, "build_custom.py"), "--validate-only"],
@@ -156,16 +254,18 @@ for text, want, needle in CLI:
 
 # No Actions, uma linha de log que começa com :: é um comando. Um perfil cuja
 # chave carrega uma quebra de linha e um comando não pode emitir esse comando;
-# a recusa sai como UMA anotação de erro, escapada.
-evil = AIR % '{"mdns\\n::warning::injetado":true}'
-r = subprocess.run([sys.executable, os.path.join(HERE, "build_custom.py"), "--validate-only"],
-                   env={**os.environ, "SIMUT_PROFILE": evil, "GITHUB_ACTIONS": "true"},
-                   capture_output=True, text=True)
-lines = r.stdout.splitlines()
-check(r.returncode == 2, f"perfil com comando embutido saiu {r.returncode}, esperado 2")
-check(not any(ln.startswith("::warning") for ln in lines), f"comando injetado no log:\n{r.stdout}")
-check(sum(ln.startswith("::error title=build_custom::") for ln in lines) == 1,
-      f"a recusa não virou uma anotação de erro:\n{r.stdout}")
+# a recusa sai como UMA anotação de erro, escapada. Vale para a chave e, desde que a
+# rede é uma escolha de texto (2026-10-13), para o valor de `net`.
+for where, evil in (("na chave", AIR % '{"mdns\\n::warning::injetado":true}'),
+                    ("no valor de net", AIR % '{"net":"cyw43\\n::warning::injetado"}')):
+    r = subprocess.run([sys.executable, os.path.join(HERE, "build_custom.py"), "--validate-only"],
+                       env={**os.environ, "SIMUT_PROFILE": evil, "GITHUB_ACTIONS": "true"},
+                       capture_output=True, text=True)
+    lines = r.stdout.splitlines()
+    check(r.returncode == 2, f"perfil com comando embutido {where} saiu {r.returncode}, esperado 2")
+    check(not any(ln.startswith("::warning") for ln in lines), f"comando injetado {where} no log:\n{r.stdout}")
+    check(sum(ln.startswith("::error title=build_custom::") for ln in lines) == 1,
+          f"a recusa {where} não virou uma anotação de erro:\n{r.stdout}")
 
 # ── O Pico 2 W (RP2350), no configurador desde 2026-10-05 ───────────────────
 # As duas imagens dele não são o firmware.bin e o firmware.uf2 do Pico W. O .bin
@@ -288,6 +388,7 @@ if failures:
         print("  -", f)
     sys.exit(1)
 print(f"test_build_custom: {len(HOSTILE)} perfis hostis recusados, {len(M['profiles'])} produtos "
-      f"iguais ao manifesto, {len(CLI)} casos pela linha de comando, log sem comando injetado; "
+      f"iguais ao manifesto, {len(CLI)} casos pela linha de comando, a rede como escolha de "
+      f"driver ({len(M['net'])} do manifesto: {', '.join(M['net'])}), log sem comando injetado; "
       f"imagens e tetos de cada chip, e o acabamento depois da assinatura (Pico 2 W, Pico W, "
       f"Pico 2 W sem tabela).")

@@ -153,10 +153,11 @@ Todo o resto é uma chave no [`tools/features.toml`](../tools/features.toml). Es
 <!-- BEGIN generated: switches — tools/gen_features.py -->
 | Grupo | Chave | O que faz | SIMUT | SIMUT Alpha | SIMUT Air | SIMUT para o Pico 2 W |
 |---|---|---|:---:|:---:|:---:|:---:|
-| Rede | Servidor web HTTPS | Serve a interface web por TLS. Sem ele o aparelho responde só em HTTP. | sim | não | não | sim |
+| Rede | Wi-Fi (o rádio CYW43 da placa) | O rádio do Pico W e do Pico 2 W: o aparelho entra numa rede pelo nome e pela senha, e oferece um ponto de acesso para a configuração. | sim | sim | sim | sim |
+|  | Cabo de rede (módulo ENC28J60) | Compila para um Raspberry Pi Pico comum, que não tem rádio, com um módulo ENC28J60 nos GP11 a GP15: os slots de sensor caem de 16 para 11. O Bluetooth e a hibernação rodam no rádio, então não ficam disponíveis. | não | não | não | não |
+|  | Servidor web HTTPS | Serve a interface web por TLS. Sem ele o aparelho responde só em HTTP. | sim | não | não | sim |
 |  | Achar pelo nome na rede (mDNS) | Responde por &lt;nome do aparelho&gt;.local, para o navegador achá-lo sem o endereço IP. | sim | não | não | sim |
 |  | Console serial por Bluetooth | Um console protegido por senha, por Bluetooth clássico (SPP). Ele se anuncia nos primeiros 5 minutos depois de ligar e assim alcança um aparelho com o Wi-Fi ainda por configurar. | não | sim | sim | não |
-|  | Rede por cabo (ENC28J60) no lugar do Wi-Fi | Compila para um Raspberry Pi Pico comum, que não tem rádio, e pega a rede de um módulo ENC28J60 no cabo. O Bluetooth e a hibernação rodam no rádio, então não podem ficar ligados com ela. | não | não | não | não |
 | Telemetria e integrações | Telemetria criptografada (HTTPS e MQTTS) | Envia ao coletor por TLS, e o valida contra o /cert.pem quando há um. Sem ela a telemetria vai só por HTTP ou MQTT sem criptografia, e uma configuração que pede criptografia é recusada em vez de ir em claro. | sim | sim | sim | sim |
 |  | MQTT e Home Assistant | Publica num broker MQTT (MQTT, ou MQTTS com a chave de TLS), recebe as confirmações da linha de alarmes no tópico de ack e anuncia os sensores ao Home Assistant pelo MQTT Discovery. Sem ele a telemetria vai só por HTTP. | sim | sim | sim | sim |
 |  | Métricas para o Prometheus (/metrics) | Um endpoint /metrics no formato de texto do Prometheus, com autenticação Basic para o coletor. | sim | sim | sim | sim |

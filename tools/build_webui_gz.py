@@ -247,7 +247,7 @@ WEB_FEATURES = {
     "tel_tls": "a chave de TLS da telemetria e o aviso de certificado",
     "tel_mqtt": "o seletor de transporte e os campos do MQTT na pagina de telemetria",
     "slot": "a atualizacao em teste e a volta do Pico 2 W, no painel e na pagina Arquivos",
-    "wifi": "o radio: SSID, senha e busca de redes na pagina de rede, o sinal no painel; a build com a rede por cabo (a chave lan) nao os tem",
+    "wifi": "o radio: SSID, senha e busca de redes na pagina de rede, o sinal no painel; a build com a rede por cabo (a classe lan, web_omit de [net_class.lan]) nao os tem",
 }
 
 # Onde cada feature registra as rotas que só ela tem. A página que chama uma
