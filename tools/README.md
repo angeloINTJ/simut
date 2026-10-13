@@ -1,6 +1,6 @@
 # tools/
 
-160 scripts. This file exists because until 2026-09-08 there was no way
+161 scripts. This file exists because until 2026-09-08 there was no way
 to tell a live bench tool from a leftover, and one of them —
 `compressor.py` — had been superseded for three months while still looking
 usable: it regenerated `WebUI_GZ.h` into the repository root, where nothing
@@ -147,7 +147,7 @@ step in a bench procedure. Run by hand, but with instructions somewhere.
 | `theme-editor/server.py` | SIMUT Theme Editor — launcher. | 2026-06-03 |
 | `validate_top_pin_alarm.py` | SIMUT v21 — Validação visual da correção do painel superior fixado (pin). | 2026-08-23 |
 
-## Standalone (55)
+## Standalone (56)
 
 Nothing in the repository names these. That is a statement about
 discoverability, **not** a verdict: several are ordinary bench and recovery
@@ -161,6 +161,7 @@ from a document. Anything genuinely dead should leave the tree, as
 
 | script | what it does | last touched |
 |---|---|---|
+| `wire_enc_bench.py` | O ENC28J60 do SIMUT Wire na bancada, antes de o SIMUT o dirigir: roda a bancada da própria biblioteca PicoENC28J60 (`extras/bench`: `--suite raw` é o BenchTest com o `bench.py`, do SPI por PIO ao chip perdido; `--suite lwip` é o BenchLwip com o `benchlwip.py`, do DHCP ao TCP em massa e ao cabo puxado) nos pinos que o `src/simut_config.h` dá à `pico_wire`, lidos pelo pré-processador, e no commit fb16ec1 da biblioteca. Copia a biblioteca para uma pasta temporária e troca ali os cinco pinos padrão do `ENC28J60Config` (cada um tem de aparecer uma vez só). Acha a placa só pelo número de série e recusa a mão antiga; `--build-only` compila os dois sketches para gravar à mão. | 2026-10-12 |
 | `rig_reset_admin.py` | Resets the bench device's admin password over the emergency console and writes it into ~/.simut-bench.env (mode 600, never printed). Verifies it AFTER the reboot, which is the distinction finding F27 turned on. | 2026-09-08 |
 | `bt_auth_test.py` | Bluetooth surface of the CLI against the real device: the lockout survives a dropped link (V-01a), and the discovery window closes without taking connectability with it (V-01b). | 2026-09-08 |
 | `bt_reconnect_probe.py` | Bluetooth reconnect-auth probe: authenticate, drop the link, reconnect, and confirm the new client gets a password prompt rather than the previous session. Regression for the `_authenticated`-across-disconnect bypass measured and fixed 2026-09-10. Reuses `bt_auth_test.py`'s helpers. | 2026-09-10 |
