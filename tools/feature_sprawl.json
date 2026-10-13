@@ -117,10 +117,10 @@
   "DisplayManager_Settings.cpp": 1,
   "DisplayManager_Touch.cpp": 1,
   "NetworkManager.cpp": 2,
-  "WebManager.h": 1,
+  "WebManager.h": 2,
   "WebManager_Api.cpp": 10,
   "WebManager_Commit.cpp": 1,
-  "WebManager_Core.cpp": 1,
+  "WebManager_Core.cpp": 3,
   "WebManager_Metrics.cpp": 2
  },
  "SIMUT_PANEL_PIN": {
