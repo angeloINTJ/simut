@@ -3635,6 +3635,9 @@ void test_settings_menu_item_ids_are_the_historical_ones(void) {
     TEST_ASSERT_EQUAL_INT(11, MENU_SETUP_AP);
     TEST_ASSERT_EQUAL_INT(12, MENU_CLOCK);
     TEST_ASSERT_EQUAL_INT(13, MENU_ITEM_COUNT);
+    /* A radio build has every item; a wired one drops MENU_SETUP_AP's row
+     * and keeps the ids (test/test_lan). */
+    TEST_ASSERT_EQUAL_INT(MENU_ITEM_COUNT, MENU_BUILD_COUNT);
 }
 
 void test_settings_menu_order_lists_every_item_once(void) {

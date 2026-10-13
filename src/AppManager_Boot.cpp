@@ -528,6 +528,12 @@ void AppManager::setup( ) {
  gpio_init(TOUCH_IRQ); gpio_set_dir(TOUCH_IRQ, GPIO_IN); gpio_pull_up(TOUCH_IRQ);
  Serial.print("[TCH] c="); Serial.println(gpio_get(TOUCH_IRQ));
 
+ /* A wired build has no AP to hold the screen for (2026-10-13), and skips the
+  * gesture with its 3.5 s window. The pin setup above stays in every TFT
+  * build: it is the only pull-up PENIRQ gets (DisplayManager::beginTouch( )
+  * has no caller), and the touch library leaves the pin without one. */
+#if SIMUT_NET_WIFI
+
  /* Ask, then WAIT until the panel has actually drawn the asking.
   * isCore1Ready( ) is set before the TFT is initialised: measured 2026-09-22,
   * Core 1 reports ready at once and its first boot frame lands 757 ms later.
@@ -607,6 +613,7 @@ void AppManager::setup( ) {
  }
 
  _displayMgr->setApProgress(-1);
+#endif /* SIMUT_NET_WIFI */
  AIR_BOOT_MARK("ap-detect ok");
 #endif // SIMUT_DISPLAY_TFT
 
@@ -1083,7 +1090,11 @@ void AppManager::setup( ) {
   * program in the block SIMUT_ENC_PIO names, and a sensor that came first could
   * take it: a BME280's PIO I2C takes an empty pio0 whole (WirePIO, 32
   * instructions), and the module would then fail to start on every retry. The
-  * address comes in the background (DHCP); the wait further down is the same. */
+  * address comes in the background (DHCP); the wait further down is the same.
+  * The boot line is a raw one, translated through @TRL: the dictionary's
+  * TR_BOOT_START_WIFI names the radio, and a new key would cost every pack
+  * already installed its dictionary. */
+ _displayMgr->setBootStatusKey((LangKey)TR_KEYS_COUNT, TRL("Starting the wired network..."));
  _netMgr->begin(cfg,
  _storageMgr->isDnsAuto( ),
  _storageMgr->isNtpEnabled( ),
@@ -1101,9 +1112,6 @@ void AppManager::setup( ) {
  _sensorMgr->setDs18Resolution((DS18B20PIO::Resolution)cfg.ds18Resolution);
 #endif
 
-#if SIMUT_NET_LAN
- forceAP = false;   /* no radio, no AP: the Wire is set up over the cable or the console */
-#endif
  BLOG("[BOOT step] 9: pre _netMgr (forceAP="); BLOG_U(forceAP ? 1 : 0);
  BLOG(") @ "); BLOG_U(millis( )); BLOG_NL( );
  if (Serial) { Serial.println("[DBG] network begin..."); Serial.flush(); }
@@ -1153,7 +1161,9 @@ void AppManager::setup( ) {
  }
 #endif
  else {
+#if !SIMUT_NET_LAN
  _displayMgr->setBootStatusKey(TR_BOOT_START_WIFI);
+#endif
  BLOG("[BOOT step] 10: pre _netMgr->begin( ) @ "); BLOG_U(millis( )); BLOG_NL( );
  watchdog_update();
 #if !SIMUT_NET_LAN   /* a wired build started it before the sensors */

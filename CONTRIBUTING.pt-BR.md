@@ -129,7 +129,7 @@ A flash está criticamente apertada. A imagem release usa 97,2 % do slot de prog
   - `pio test -e native` — validadores: validação de IP, CRC8, codificação de float, cursor de telemetria, rótulos
   - `pio test -e native_history_v5` — ida e volta do codec do histórico V5
   - `pio test -e native_cli` — parser da CLI (tokenização e roteamento de comandos)
-  - `pio test -e native_lan` — o mesmo parser compilado para o SIMUT Wire (sem `ap` nem SSID; `ip` e `dns` no lugar), e a ajuda do pacote, `@HELPWIRE`
+  - `pio test -e native_lan` — o mesmo parser compilado para o SIMUT Wire (sem `ap` nem SSID; `ip` e `dns` no lugar), a ajuda do pacote, `@HELPWIRE`, e o menu de Configurações
   - `pio test -e native_logpolicy` — filtro de persistência de logs por transição
   - `pio test -e native_alarmqueue` — invariantes da fila de alarmes
   - `pio test -e native_air` — configuração e limites do SIMUT Air

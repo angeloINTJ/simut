@@ -63,6 +63,7 @@ static float alphaChannelValue(const SlotSnapshot& s, uint8_t ch) {
 	}
 }
 
+#if SIMUT_NET_WIFI   /* the setup AP's page is its only caller */
 /* Write one window of `s` on `row`. The arithmetic and the reason for it are
  * in display/AlphaMarquee.h, where a host test can reach them. */
 static void alphaMarquee(Hd44780_16x2 &lcd, uint8_t row, const char* s, uint16_t step) {
@@ -71,6 +72,7 @@ static void alphaMarquee(Hd44780_16x2 &lcd, uint8_t row, const char* s, uint16_t
 	lcd.setCursor(0, row);
 	lcd.print(win);
 }
+#endif
 
 /* Core 0 hands the setup network over once, when it comes up. */
 void DisplayManager::setApInfo(const char* ssid, const char* psk) {
@@ -257,6 +259,7 @@ void DisplayManager::loopCore1( ) {
 				}
 			}
 
+#if SIMUT_NET_WIFI   /* the wired build has no setup AP (2026-10-13) */
 		} else if (_sharedState.apMode) {
 			/* ── SETUP AP: the network, the key, the address ─────────
 			 *
@@ -311,6 +314,7 @@ void DisplayManager::loopCore1( ) {
 			_lcd.blit( );
 			sleepUnlessParking(AP_SCROLL_MS);
 			continue;
+#endif
 
 		} else {
 			/* ── SENSOR VALUES (cycle active slots × channels) ───── */
@@ -341,18 +345,20 @@ void DisplayManager::loopCore1( ) {
 			}
 
 			_lcd.clear( );
-			/* Status top-left: "AP" in Access Point mode, else WiFi icon. */
+			/* Status top-left: "AP" in Access Point mode, else WiFi icon. A
+			 * wired build has no AP, and its cell is the cable glyph, no "W". */
 			_lcd.setCursor(0, 0);
+#if SIMUT_NET_LAN
+			_lcd.write(' ');
+			_lcd.write(BFS_WIFI);
+#else
 			if (_sharedState.apMode) {
 				_lcd.print("AP");
 			} else {
-#if SIMUT_NET_LAN
-				_lcd.write(' ');       /* the cell is the cable glyph, no "W" for Wi-Fi */
-#else
 				_lcd.write('W');
-#endif
 				_lcd.write(BFS_WIFI);
 			}
+#endif
 
 			if (n == 0) {
 				/* No active sensors — show big ERRO. */

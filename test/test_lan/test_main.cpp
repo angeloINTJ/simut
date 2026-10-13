@@ -8,7 +8,8 @@
  *          on a network without DHCP an address, so `ip` and `dns` reach it
  *          (2026-10-13). The rest of the emergency console is unchanged.
  *          The translated help follows: a pack's @HELPWIRE is this build's
- *          help, and its @HELP, written for the radio, is not.
+ *          help, and its @HELP, written for the radio, is not. So does the
+ *          panel's Settings menu: no Configuration Mode row.
  *          Runs via `pio test -e native_lan`.
  *
  * @project SIMUT
@@ -20,8 +21,10 @@
 #include "SystemDefs_Records.h"
 #include "SystemDefs_Network.h"
 #include "LangPackIndex.h"
+#include "display/SettingsMenu.h"
 #include <cstring>
 #include <string>
+#include <vector>
 
 namespace simut_native {
     uint32_t fake_millis_value = 0;
@@ -158,6 +161,51 @@ void test_pack_without_helpwire_has_no_help(void) {
                                                 s + ix.end[LANG_SEC_DICT]).c_str());
 }
 
+/* ---- the panel's Settings menu: no setup access point ---- */
+
+static std::vector<int> menuFor(uint16_t perms) {
+    uint8_t out[MENU_ITEM_COUNT];
+    const uint8_t n = settingsMenuBuild(perms, out);
+    return std::vector<int>(out, out + n);
+}
+
+static void assertMenu(const std::vector<int>& want, uint16_t perms) {
+    const std::vector<int> got = menuFor(perms);
+    TEST_ASSERT_EQUAL_UINT(want.size( ), got.size( ));
+    TEST_ASSERT_EQUAL_INT_ARRAY(want.data( ), got.data( ), want.size( ));
+}
+
+void test_menu_has_no_setup_ap(void) {
+    /* The ids are the radio build's: EVT_MENU_SELECT and the row icon key on
+     * them. Only the row goes. */
+    TEST_ASSERT_EQUAL_INT(11, MENU_SETUP_AP);
+    TEST_ASSERT_EQUAL_INT(12, MENU_CLOCK);
+    TEST_ASSERT_EQUAL_INT(13, MENU_ITEM_COUNT);
+    TEST_ASSERT_EQUAL_INT(12, MENU_BUILD_COUNT);
+    const std::vector<int> all = {
+        MENU_ALARMS, MENU_SOUNDS, MENU_STATUS, MENU_CLOCK,
+        MENU_OWN_PIN, MENU_USERS, MENU_PIN_POLICY,
+        MENU_LANG, MENU_THEMES, MENU_TOUCH_CAL, MENU_DISPLAY_OFFSET,
+        MENU_LICENSE,
+    };
+    assertMenu(all, 0xFFFF);
+    assertMenu(all, 0x1FFF);
+    /* The bit that opened only the setup AP opens nothing here. */
+    assertMenu({ MENU_STATUS, MENU_OWN_PIN, MENU_LICENSE }, PERM_NET_CONFIG);
+}
+
+void test_menu_numbers_every_row_this_build_has(void) {
+    char buf[40];
+    /* Twelve rows are the whole menu here, so they are numbered, 1 to 12... */
+    TEST_ASSERT_EQUAL_STRING("1. Alarm Limits",
+        settingsMenuRowText("Alarm Limits", 0, MENU_BUILD_COUNT, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING("12. License",
+        settingsMenuRowText("License", 11, MENU_BUILD_COUNT, buf, sizeof(buf)));
+    /* ...and a list filtered by the session's bits still numbers nothing. */
+    TEST_ASSERT_EQUAL_STRING("License",
+        settingsMenuRowText("License", 2, 3, buf, sizeof(buf)));
+}
+
 int main(int, char**) {
     UNITY_BEGIN( );
     RUN_TEST(test_build_is_a_wired_emergency_console);
@@ -170,5 +218,7 @@ int main(int, char**) {
     RUN_TEST(test_emergency_commands_unchanged);
     RUN_TEST(test_pack_help_is_helpwire);
     RUN_TEST(test_pack_without_helpwire_has_no_help);
+    RUN_TEST(test_menu_has_no_setup_ap);
+    RUN_TEST(test_menu_numbers_every_row_this_build_has);
     return UNITY_END( );
 }

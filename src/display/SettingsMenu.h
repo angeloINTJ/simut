@@ -122,6 +122,16 @@ inline constexpr uint8_t MENU_ORDER[] = {
 static_assert(sizeof(MENU_ORDER) / sizeof(MENU_ORDER[0]) == MENU_ITEM_COUNT,
               "every Settings item needs its place in MENU_ORDER");
 
+/* How many items this build has. A wired build (SIMUT_NET_LAN, 2026-10-13) has
+ * no radio, so no setup access point: settingsMenuBuild( ) leaves MENU_SETUP_AP
+ * out, and the id stays, because the event and the icon key on it. Its access
+ * page holds three rows, and the pages after it start one item earlier. */
+#if SIMUT_NET_LAN
+inline constexpr uint8_t MENU_BUILD_COUNT = MENU_ITEM_COUNT - 1;
+#else
+inline constexpr uint8_t MENU_BUILD_COUNT = MENU_ITEM_COUNT;
+#endif
+
 /** Fills `out` with the ids a session holding `perms` sees, in menu order, and
  *  returns how many. `out` has room for every item: an account holding every
  *  bit sees them all. */
@@ -129,6 +139,9 @@ inline uint8_t settingsMenuBuild(uint16_t perms, uint8_t out[MENU_ITEM_COUNT]) {
 	uint8_t n = 0;
 	for (uint8_t i = 0; i < MENU_ITEM_COUNT; i++) {
 		const uint8_t item = MENU_ORDER[i];
+#if SIMUT_NET_LAN
+		if (item == MENU_SETUP_AP) continue;
+#endif
 		if (MENU_NEED[item] == 0 || (perms & MENU_NEED[item])) out[n++] = item;
 	}
 	return n;
@@ -147,12 +160,12 @@ inline __attribute__((noinline)) const char* menuLabelNoNumber(const char* s) {
 }
 
 /** What row `row` (from 0) of a list of `count` items reads: the label, with
- *  the row's number in front when the list holds every item. Returns either
- *  a tail of `label` or `buf`. */
+ *  the row's number in front when the list holds every item this build has.
+ *  Returns either a tail of `label` or `buf`. */
 inline const char* settingsMenuRowText(const char* label, uint8_t row, uint8_t count,
                                        char* buf, size_t size) {
 	label = menuLabelNoNumber(label);
-	if (count < MENU_ITEM_COUNT) return label;
+	if (count < MENU_BUILD_COUNT) return label;
 	snprintf(buf, size, "%u. %s", (unsigned)row + 1u, label);
 	return buf;
 }

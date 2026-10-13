@@ -344,6 +344,7 @@ Atualização instalada
 @TRL
 016eef1e DS18B20 pareado ao seu número de série
 018a9730 Factory defaults ativos; senha admin via USB/serial.
+05939b2f Iniciando a rede cabeada...
 08676d6a Falha de MQTT: 
 0bd7e96f Falha ao interpretar o pacote de idioma: 
 0f3af34a Senha redefinida com sucesso: 
