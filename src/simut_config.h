@@ -23,7 +23,7 @@
  * @section gpio GPIO Reference (Raspberry Pi Pico W)
  * ```
  * GP0–GP15   → Sensor slots (runtime-configurable via CLI); in a LAN build
- *              GP12–GP15 are the ENC28J60, on an SPI made in PIO (section 10b)
+ *              GP11–GP15 are the ENC28J60: its INT and an SPI made in PIO (10b)
  * GP16       → SPI0 MISO (TFT) / HD44780 RS (Alpha parallel)
  * GP17       → SPI0 CS (Touch) / HD44780 EN (Alpha parallel)
  * GP18       → SPI0 SCK / HD44780 D4 (Alpha parallel)
@@ -33,7 +33,6 @@
  * GP22       → Buzzer (PIO-driven)
  * GP26–GP27  → I2C1 (HD44780 backpack in Alpha I2C mode)
  * GP28       → TFT CS
- *              (LAN build: the ENC28J60 INT is GP21 with the TFT, GP28 with the LCD)
  * ```
  *
  * @project SIMUT — Integrated Universal Monitoring and Telemetry System
@@ -416,7 +415,7 @@
  * ========================================================================= */
 
 #ifndef MAX_SENSORS
-#define MAX_SENSORS 16           // Sensor slots, GPIO0–GPIO15 (the lan switch: 12, GPIO0–GPIO11)
+#define MAX_SENSORS 16           // Sensor slots, GPIO0–GPIO15 (the lan switch: 11, GPIO0–GPIO10)
 #endif
 
 #ifndef MAX_SENSOR_PINS
@@ -499,15 +498,16 @@
 /* The ENC28J60's pins. The PicoENC28J60 library talks to it over an SPI made in
  * PIO (tools/pio_budget.py counts its 17 instructions), so any GPIO would do; the
  * four chosen are also SPI1's (RX GP12, SCK GP14, TX GP15), which leaves room for a
- * hardware SPI without rewiring. GP12–GP15 were four of the sixteen sensor slots:
- * a LAN build has twelve, GP0–GP11 (the `lan` switch passes -DMAX_SENSORS=12, and
- * the check below keeps every line of the module out of the slots' range).
+ * hardware SPI without rewiring.
  *
- * INT is the one pin there is no room for in both layouts, so it follows the
- * display: GP21 is the only GPIO a TFT build leaves free outside the sensor
- * slots (the TFT takes GP16–GP20 and GP26–GP28); with the 16x2 LCD GP16–GP21 are
- * the LCD in parallel mode, GP22 is the buzzer and GP26/GP27 the LCD in I2C
- * mode, which leaves GP28. -1 = no INT pin: the driver polls the module. */
+ * INT is GP11 with every display (2026-10-12). Outside the sensor slots, GP21 is
+ * free beside the TFT (which takes GP16–GP20 and GP26–GP28) and GP28 beside the
+ * 16x2 LCD (GP16–GP21 in parallel mode, GP26/GP27 in I2C mode; GP22 is the
+ * buzzer), but no GPIO is free beside both: one wiring for both displays costs a
+ * slot. GP11–GP15 were five of the sixteen sensor slots, so a LAN build has
+ * eleven, GP0–GP10 (the `lan` switch passes -DMAX_SENSORS=11, and the check below
+ * keeps every line of the module out of the slots' range). -1 = no INT pin: the
+ * driver polls the module. */
 #ifndef SIMUT_ENC_MISO
 #define SIMUT_ENC_MISO 12
 #endif
@@ -521,13 +521,7 @@
 #define SIMUT_ENC_MOSI 15
 #endif
 #ifndef SIMUT_ENC_INT_PIN
-#if SIMUT_DISPLAY_TFT
-#define SIMUT_ENC_INT_PIN 21
-#elif SIMUT_DISPLAY_ALPHA
-#define SIMUT_ENC_INT_PIN 28
-#else
-#define SIMUT_ENC_INT_PIN (-1)
-#endif
+#define SIMUT_ENC_INT_PIN 11
 #endif
 
 // Who owns which GPIO, checked by the preprocessor so a layout that cannot work
@@ -582,10 +576,10 @@
 #error "SIMUT_NET_LAN: two lines of the ENC28J60 (SIMUT_ENC_MISO, _CS, _SCK, _MOSI, _INT_PIN) are on the same GPIO"
 #endif
 // A sensor slot can take any GPIO below MAX_SENSORS, so no line of the module may
-// be one: GP12–GP15 stop being slots only because MAX_SENSORS is 12 here.
+// be one: GP11–GP15 stop being slots only because MAX_SENSORS is 11 here.
 #if SIMUT_ENC_MISO < MAX_SENSORS || SIMUT_ENC_CS < MAX_SENSORS || SIMUT_ENC_SCK < MAX_SENSORS || \
     SIMUT_ENC_MOSI < MAX_SENSORS || (SIMUT_ENC_INT_PIN >= 0 && SIMUT_ENC_INT_PIN < MAX_SENSORS)
-#error "SIMUT_NET_LAN: a GPIO of the ENC28J60 is also a sensor slot's (below MAX_SENSORS); the lan switch passes -DMAX_SENSORS=12"
+#error "SIMUT_NET_LAN: a GPIO of the ENC28J60 is also a sensor slot's (below MAX_SENSORS); the lan switch passes -DMAX_SENSORS=11"
 #endif
 
 #undef SIMUT_PINS_DISPLAY

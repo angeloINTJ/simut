@@ -38,14 +38,14 @@ import gen_features as gf  # noqa: E402
 TARGET = "-DARDUINO_ARCH_RP2040"        # toda placa arduino-pico: sem ele o cabecalho e o do host
 CYW43 = "-DPICO_CYW43_SUPPORTED=1"      # as placas W passam; o pico_base tambem
 # Um build com a chave `lan`: o macro e o que a chave passa junto (on_flags do manifesto),
-# hoje os doze slots. main( ) confere que esta lista e a do manifesto.
-LAN = ["-DSIMUT_NET_LAN=1", "-DMAX_SENSORS=12"]
+# hoje os onze slots. main( ) confere que esta lista e a do manifesto.
+LAN = ["-DSIMUT_NET_LAN=1", "-DMAX_SENSORS=11"]
 LCD = ["-DSIMUT_DISPLAY_TFT=0", "-DSIMUT_DISPLAY_ALPHA=1", "-DHD44780_MODE_PARALLEL=1"]
 LCD_I2C = ["-DSIMUT_DISPLAY_TFT=0", "-DSIMUT_DISPLAY_ALPHA=1"]    # o modo I2C e o padrao do LCD
 NO_DISPLAY = ["-DSIMUT_DISPLAY_TFT=0", "-DSIMUT_DISPLAY_ALPHA=0"]
 
 # Cada #error da secao 10b do simut_config.h, por um trecho do texto que so ele tem. Cada
-# um tem de ter UM caso que o provoque (`error=` abaixo) e uma linha so no cabecalho.
+# um tem de ter ao menos um caso que o provoque e uma linha so no cabecalho.
 ERR_NO_CYW43 = "needs the CYW43"
 ERR_CYW43_LEFT = "still defined"
 ERR_BLUETOOTH = "SIMUT_BLUETOOTH cannot be combined"
@@ -61,17 +61,21 @@ OWNED = [ERR_NO_CYW43, ERR_CYW43_LEFT, ERR_BLUETOOTH, ERR_AIR, ERR_ENC_DISPLAY, 
 
 # (rotulo, flags, veredito). O veredito e ("ok", nome da variante) ou ("erro", trecho).
 CASES = [
-    # -- os pinos: o INT do modulo segue o mostrador -------------------------------------
+    # -- os pinos: o INT do modulo e o GP11 com qualquer mostrador ------------------------
     ("LCD paralelo + LAN + INT 21 (o D7 do LCD)", [TARGET] + LAN + LCD + ["-DSIMUT_ENC_INT_PIN=21"], ("erro", ERR_ENC_DISPLAY)),
     ("TFT + LAN + INT 21", [TARGET] + LAN + ["-DSIMUT_ENC_INT_PIN=21"], ("ok", "wiretft")),
     ("LCD paralelo + LAN + INT 28", [TARGET] + LAN + LCD + ["-DSIMUT_ENC_INT_PIN=28"], ("ok", "wire")),
-    ("LCD paralelo + LAN, INT pelo padrao (GP28)", [TARGET] + LAN + LCD, ("ok", "wire")),
-    ("TFT + LAN, INT pelo padrao (GP21)", [TARGET] + LAN, ("ok", "wiretft")),
-    ("LCD em I2C + LAN, INT pelo padrao (GP28)", [TARGET] + LAN + LCD_I2C, ("ok", "wire")),
+    ("TFT + LAN + INT 28 (o CS da TFT)", [TARGET] + LAN + ["-DSIMUT_ENC_INT_PIN=28"], ("erro", ERR_ENC_DISPLAY)),
+    ("LCD paralelo + LAN, INT pelo padrao (GP11)", [TARGET] + LAN + LCD, ("ok", "wire")),
+    ("TFT + LAN, INT pelo padrao (GP11)", [TARGET] + LAN, ("ok", "wiretft")),
+    ("LCD em I2C + LAN, INT pelo padrao (GP11)", [TARGET] + LAN + LCD_I2C, ("ok", "wire")),
     ("LCD paralelo + LAN, sem INT (-1): o driver consulta o modulo", [TARGET] + LAN + LCD + ["-DSIMUT_ENC_INT_PIN=-1"], ("ok", "wire")),
     ("LCD paralelo + LAN + INT 12 (o MISO do proprio modulo)", [TARGET] + LAN + LCD + ["-DSIMUT_ENC_INT_PIN=12"], ("erro", ERR_ENC_SAME)),
-    # -- os slots: com 16, os GP12-GP15 do modulo seriam slots de sensor -------------------
-    ("LCD paralelo + LAN com os 16 slots", [TARGET, LAN[0]] + LCD, ("erro", ERR_ENC_SLOT)),
+    # -- os slots: nenhum pino do modulo abaixo de MAX_SENSORS -----------------------------
+    ("LCD paralelo + LAN com os 16 slots, sem INT (-1): o SPI do modulo cai nos slots",
+     [TARGET, LAN[0], "-DSIMUT_ENC_INT_PIN=-1"] + LCD, ("erro", ERR_ENC_SLOT)),
+    ("TFT + LAN com doze slots: o INT padrao (GP11) seria o slot 11", [TARGET, LAN[0], "-DMAX_SENSORS=12"], ("erro", ERR_ENC_SLOT)),
+    ("TFT + LAN + INT 10 (o slot do DHT22 da bancada)", [TARGET] + LAN + ["-DSIMUT_ENC_INT_PIN=10"], ("erro", ERR_ENC_SLOT)),
     # -- o buzzer: GP22 de fabrica, e so conta ligado ------------------------------------
     ("LCD paralelo + LAN + buzzer no GP13 (o CS do modulo)", [TARGET] + LAN + LCD + ["-DBUZZER_PIN=13"], ("erro", ERR_ENC_BUZZER)),
     ("LCD paralelo + LAN + buzzer no GP13, buzzer desligado", [TARGET] + LAN + LCD + ["-DBUZZER_PIN=13", "-DSIMUT_SOUND_BUZZER=0"], ("ok", "wire")),
@@ -183,7 +187,7 @@ def main():
                 baseline_ok = False
                 fails.append(f"{label}: {why}")
 
-        # 2. Cada #error da secao tem uma linha so e um caso so que o fixa; e todo #error
+        # 2. Cada #error da secao tem uma linha so e ao menos um caso que o fixa; e todo #error
         #    que fala da LAN ou do CYW43 e um deles.
         header = os.path.join(SRC, "simut_config.h")
         with open(header, encoding="utf-8") as fh:
@@ -197,14 +201,14 @@ def main():
             else:
                 owned_at[token] = hit[0]
             pinned = [label for label, _flags, want in cases if want == ("erro", token)]
-            if len(pinned) != 1:
-                fails.append(f"o #error de {token!r} tem {len(pinned)} casos, esperava 1: {pinned}")
+            if not pinned:
+                fails.append(f"o #error de {token!r} nao tem caso que o provoque")
         strangers = [i + 1 for i in error_lines
                      if re.search(r"SIMUT_NET_LAN|CYW43", lines[i]) and i not in owned_at.values()]
         if strangers:
             fails.append(f"#error sobre a LAN ou o CYW43 sem caso, nas linhas {strangers} do simut_config.h")
 
-        # 3. O teste morde: sem um #error, exatamente o caso dele falha. Com o cabecalho ja
+        # 3. O teste morde: sem um #error, exatamente os casos dele falham. Com o cabecalho ja
         #    reprovado no passo 1 a prova nao diz nada, e so atrapalharia a leitura.
         bitten = 0
         for token, at in (owned_at.items() if baseline_ok else []):
@@ -230,7 +234,7 @@ def main():
         return 1
     print(f"test_pin_masks: {len(cases)} montagens ({len(CASES)} escolhidas, {len(M['profiles'])} do manifesto) "
           f"julgadas pelo pre-processador; {bitten} de {len(OWNED)} #error mordem (sem a linha, "
-          f"exatamente o caso dele falha).")
+          f"exatamente os casos dele falham).")
     return 0
 
 

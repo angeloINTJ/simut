@@ -17,21 +17,21 @@
 
 /* Hardware and system limits — defaults in src/simut_config.h */
 #ifndef MAX_SENSORS
-#define MAX_SENSORS 16 /* Sensor slots, GPIO0–GPIO15 (the lan switch passes 12: GPIO0–GPIO11) */
+#define MAX_SENSORS 16 /* Sensor slots, GPIO0–GPIO15 (the lan switch passes 11: GPIO0–GPIO10) */
 #endif
 
 /* The slots' range as the console prints it. A literal, so the text costs nothing,
  * and an unknown count stops the build instead of printing the wrong range. */
 #if MAX_SENSORS == 16
 #define SLOT_RANGE_TEXT "0-15"
-#elif MAX_SENSORS == 12
-#define SLOT_RANGE_TEXT "0-11"
+#elif MAX_SENSORS == 11
+#define SLOT_RANGE_TEXT "0-10"
 #else
 #error "MAX_SENSORS: give SLOT_RANGE_TEXT its range"
 #endif
 
 /* What the configuration file holds, in every image: sixteen slots. A build with
- * fewer (the lan switch: 12) keeps the file's layout, so one format reads in every
+ * fewer (the lan switch: 11) keeps the file's layout, so one format reads in every
  * image and the literals of ConfigMigrate.h still hold, and leaves the slots it
  * does not have inactive: StorageManager::attemptLoad( ) clears them on every load. */
 #define CONFIG_SENSOR_SLOTS 16

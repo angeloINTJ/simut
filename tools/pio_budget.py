@@ -129,11 +129,10 @@ PINS = {
 }
 DISPLAYS = ("tft", "alpha_paralelo", "nenhum")
 
-# SIMUT_ENC_INT_PIN when a build does not set it, by display (section 10b of
-# src/simut_config.h): the GPIO each layout can spare outside the sensor slots, GP21 beside
-# the TFT and GP28 beside the 16x2 LCD. -1 is no INT pin, the driver polls the module (the
-# default with no display).
-ENC_INT_DEFAULT = {"tft": 21, "alpha_paralelo": 28, "nenhum": -1}
+# SIMUT_ENC_INT_PIN when a build does not set it (section 10b of src/simut_config.h): GP11
+# with every display, one wiring for the TFT and the 16x2 LCD alike, at the cost of sensor
+# slot 11. -1 is no INT pin, the driver polls the module.
+ENC_INT_DEFAULT = 11
 GPIO_MAX = 29      # GP0..GP29, the pins an RP2040 exposes
 
 
@@ -279,30 +278,30 @@ def place(cfg, chip, programs=None):
 # Pins
 # ----------------------------------------------------------------------------------
 
-def _enc_int_pin(kind, value):
-    """The GPIO of the ENC28J60's INT line in a build with display `kind`, or -1 for none.
-    None is "the config does not say", so the default of simut_config.h for that display
-    (ENC_INT_DEFAULT); -1 is "no INT pin, the driver polls"; anything else has to be a GPIO,
-    an int from 0 to GPIO_MAX (a bool is not one: True would be GP1 and False GP0)."""
+def _enc_int_pin(value):
+    """The GPIO of the ENC28J60's INT line, or -1 for none. None is "the config does not
+    say", so the default of simut_config.h (ENC_INT_DEFAULT, the same with every display);
+    -1 is "no INT pin, the driver polls"; anything else has to be a GPIO, an int from 0 to
+    GPIO_MAX (a bool is not one: True would be GP1 and False GP0)."""
     if value is None:
-        return ENC_INT_DEFAULT[kind]
+        return ENC_INT_DEFAULT
     if isinstance(value, int) and not isinstance(value, bool) and (value == -1 or 0 <= value <= GPIO_MAX):
         return value
-    raise ValueError(f"enc_int_pin must be None (the default of the display), -1 (no INT pin) or a "
+    raise ValueError(f"enc_int_pin must be None (the default, GP{ENC_INT_DEFAULT}), -1 (no INT pin) or a "
                      f"GPIO from 0 to {GPIO_MAX}, not {value!r}")
 
 
 def pin_owners(cfg):
     """{owner: set of GPIOs} for what `cfg` switches on. Keys: display (an id of the
     [display.*] tables of tools/features.toml: "tft", "alpha_paralelo" or "nenhum"), lan
-    (bool), enc_int_pin (None, the INT pin simut_config.h gives that display; -1, no INT pin
+    (bool), enc_int_pin (None, the INT pin simut_config.h gives every build; -1, no INT pin
     and the driver polls; or a GPIO from 0 to GPIO_MAX) and sound_buzzer (bool). The LAN
     claims its INT pin only when the LAN is on and there is such a pin. A display or an
     enc_int_pin it does not know is a ValueError, whether or not the LAN is on."""
     kind = cfg.get("display") or "nenhum"
     if kind not in DISPLAYS:
         raise ValueError(f"unknown display {kind!r}; known: {', '.join(DISPLAYS)}")
-    int_pin = _enc_int_pin(kind, cfg.get("enc_int_pin"))
+    int_pin = _enc_int_pin(cfg.get("enc_int_pin"))
     owners = {"display:" + kind: set(PINS[kind])}
     if cfg.get("lan"):
         pins = set(PINS["lan"])

@@ -8,8 +8,8 @@ modulo e no commit da biblioteca que o Wire vai usar. E a prova de que a fiacao,
 e a biblioteca funcionam juntos nesses pinos; o firmware do SIMUT nao entra.
 
 Os pinos nao sao copiados: saem do src/simut_config.h (secao 10b), pelo pre-processador do
-host, com os flags que o manifesto da a imagem pico_wire (o mostrador alfanumerico, entao
-o INT e o GP28). Os sketches da bancada usam os pinos padrao do ENC28J60Config; este
+host, com os flags que o manifesto da a imagem pico_wire (o INT e o GP11 com qualquer
+mostrador). Os sketches da bancada usam os pinos padrao do ENC28J60Config; este
 roteiro copia a biblioteca daquele commit para uma pasta temporaria, troca ali os cinco
 padroes (MOSI, MISO, SCK, CS e o RESET, que o Wire nao liga: -1) e roda os roteiros da
 biblioteca a partir da copia, que compilam contra ela. Cada troca tem de achar a sua linha
@@ -131,9 +131,10 @@ def set_pins(copy, pins):
 # aqui e o MOSI: o begin( ) recusaria a configuracao (dois sinais num pino) em vez de dizer
 # que nao ha chip. E o caso "INT na linha de reset" faz irq_pin = rst_pin, que com o RST do
 # Wire (-1) vira "sem INT e sem RST", uma configuracao valida. Na copia, a primeira vai para
-# o GP27 e a segunda ganha um RST (GP26): com o LCD em paralelo, os dois sao os pinos do
-# modo I2C dele e nao estao ligados a nada.
-FREE_PINS = (27, 26)
+# o GP8 e a segunda ganha um RST (GP9): slots de sensor sem nada na bancada (o DHT22 e o
+# GP10), livres com qualquer mostrador. Ate 2026-10-12 eram o GP27 e o GP26, os pinos do
+# modo I2C do LCD, que com a TFT sao o DC e o RST dela.
+FREE_PINS = (8, 9)
 # E o PIOSHARE cria sete seriais por PIO (so TX) nos GP10 a GP16, livres na fiacao padrao e,
 # no Wire, o SPI do modulo (GP12-15), o DHT22 (GP10) e o RS do LCD (GP16): a serial no MISO
 # fazia a revisao ler 0xFF. Na copia elas vao para os GP0 a GP6, slots de sensor sem nada.

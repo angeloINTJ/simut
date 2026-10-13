@@ -260,9 +260,10 @@ macro      = "SIMUT_NET_LAN"
 emit       = "on_is_1"        # #if SIMUT_NET_LAN: o default 0 mora no simut_config.h
 on_board   = { rp2040 = "rpipico" }
 on_unflags = ["-DPICO_CYW43_SUPPORTED=1"]
-# O modulo fica com GP12-GP15, que eram quatro dos dezesseis slots de sensor: a build
-# com LAN tem doze, GP0-GP11 (o simut_config.h recusa um pino do modulo nessa faixa).
-on_flags   = ["-DMAX_SENSORS=12"]
+# O modulo fica com GP11-GP15 (o INT e o SPI), que eram cinco dos dezesseis slots de
+# sensor: a build com LAN tem onze, GP0-GP10 (o simut_config.h recusa um pino do modulo
+# nessa faixa). O INT no GP11 com qualquer mostrador e decisao de 2026-10-12: uma fiacao so.
+on_flags   = ["-DMAX_SENSORS=11"]
 
 # Os três drivers de sensor (2026-09-26). O default do simut_config.h é 1, então
 # ligado não emite nada e o profiles.ini não muda; desligado emite -D<macro>=0,
@@ -480,7 +481,7 @@ publish = true
 #   num pio0 vazio e cai para GPIO sem ele, entao nao disputa o PIO do modulo se a rede
 #   subir antes dos sensores (o que o driver tem de garantir).
 #   Pinos do modulo (simut_config.h): MISO GP12, CS GP13, SCK GP14, MOSI GP15 (SPI por PIO);
-#   o INT e o GP28 com o mostrador alfanumerico e o GP21 com a TFT. Nesta etapa so o
+#   o INT e o GP11, com qualquer mostrador. Nesta etapa so o
 #   interruptor, as regras e as checagens de compilacao existem: o driver do ENC28J60
 #   vem depois, e a imagem nao tem rede ate la. Medido em 2026-10-12 (pio run -e
 #   pico_wire, arduino-pico 5.6.1): linka, 588.020 B de flash, .bin de 600.056 B, 102.064 B

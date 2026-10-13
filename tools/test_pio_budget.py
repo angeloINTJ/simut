@@ -381,8 +381,8 @@ CONFLITOS = [
     ("alpha_paralelo + LAN com INT 22, sem buzzer", pinos("alpha_paralelo", True, 22, False), []),
     ("LAN desligada não reivindica o INT 21", pinos("alpha_paralelo", False, 21), []),
     ("nenhum mostrador + LAN com INT 22 + buzzer", pinos("nenhum", True, 22, True), [(22, "buzzer", "lan")]),
-    # O INT que o simut_config.h escolhe quando a build não escolhe (GP21 com a TFT, GP28 com o
-    # LCD) não colide com o mostrador nem com o buzzer de fábrica.
+    # O INT que o simut_config.h escolhe quando a build não escolhe (GP11, com qualquer mostrador)
+    # não colide com o mostrador nem com o buzzer de fábrica.
     ("tft + LAN + buzzer, INT pelo padrão", pinos("tft", True, None, True), []),
     ("alpha_paralelo + LAN + buzzer, INT pelo padrão", pinos("alpha_paralelo", True, None, True), []),
 ]
@@ -405,18 +405,18 @@ for display in pb.DISPLAYS:
 check(0 in pb.pin_owners(pinos("nenhum", True, 0))["lan"], "10 o GP0 é um pino de INT válido (0 não é 'sem pino')")
 check(29 in pb.pin_owners(pinos("nenhum", True, 29))["lan"], "10 o GP29 é o último pino de INT válido")
 
-# Sem enc_int_pin (a chave ausente, ou None) o INT é o que o simut_config.h escolhe para o
-# mostrador: GP21 com a TFT, GP28 com o LCD e nenhum sem mostrador.
-for display, padrao in (("tft", 21), ("alpha_paralelo", 28), ("nenhum", None)):
-    quer = set(pb.PINS["lan"]) | (set() if padrao is None else {padrao})
+# Sem enc_int_pin (a chave ausente, ou None) o INT é o que o simut_config.h escolhe: o GP11, com
+# qualquer mostrador e sem mostrador (2026-10-12; até então seguia o mostrador).
+for display, padrao in (("tft", 11), ("alpha_paralelo", 11), ("nenhum", 11)):
+    quer = set(pb.PINS["lan"]) | {padrao}
     for como, cfg in (("com enc_int_pin None", pinos(display, True, None)),
                       ("sem a chave enc_int_pin", {"display": display, "lan": True})):
         dono = pb.pin_owners(cfg)
         check(dono["lan"] == quer,
               f"10 {display} + LAN {como}: o INT padrão é {padrao!r}, a LAN deveria reivindicar "
               f"{sorted(quer)} e reivindica {sorted(dono['lan'])}")
-check(pb.pin_owners({"lan": True})["lan"] == set(pb.PINS["lan"]),
-      "10 sem mostrador nem enc_int_pin na config, a LAN reivindica só os quatro")
+check(pb.pin_owners({"lan": True})["lan"] == set(pb.PINS["lan"]) | {11},
+      "10 sem mostrador nem enc_int_pin na config, a LAN reivindica os quatro e o INT padrão (GP11)")
 
 # O que não pode ser um pino é recusa, com o valor no texto: só None, -1 ou um int de 0 a 29. Um
 # bool não conta (True seria o GP1 e False o GP0), e a LAN desligada não livra o valor da conta.
@@ -633,8 +633,8 @@ check(set(pb.DISPLAYS) == set(M["display"]),
       f"{sorted(M['display'])}")
 check(set(pb.PINS) == set(M["display"]) | {"lan", "buzzer"},
       f"14 PINS deveria ter um mostrador por [display.*] do features.toml, a LAN e o buzzer: {sorted(pb.PINS)}")
-check(set(pb.ENC_INT_DEFAULT) == set(M["display"]),
-      f"14 ENC_INT_DEFAULT deveria ter um INT padrão por [display.*] do features.toml: {sorted(pb.ENC_INT_DEFAULT)}")
+check(type(pb.ENC_INT_DEFAULT) is int,
+      f"14 ENC_INT_DEFAULT deveria ser um pino só, o mesmo com todo mostrador: {pb.ENC_INT_DEFAULT!r}")
 
 SONDA_MASCARAS = (
     '#include "simut_config.h"\n'
