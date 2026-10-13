@@ -171,5 +171,5 @@ Todo o resto é uma chave no [`tools/features.toml`](../tools/features.toml). Es
 | Energia | Hibernação entre leituras | O ciclo do Air: acorda, lê, envia, dorme. Só existe sem mostrador. | não | não | sim | não |
 | Bancada e diagnóstico | Texto curto da licença na tela touch | A tela de Licença do mostrador touch mostra duas linhas que apontam para o arquivo LICENSE, em vez do texto MIT completo e dos créditos. A página web /license mantém sempre o texto completo. | não | não | sim | não |
 |  | Armadilha de concorrência | Registra um erro quando uma operação de flash começa com o mutex de estado preso. Para soak, não para campo. | não | não | não | não |
-|  | Rede por cabo (ENC28J60) no lugar do Wi-Fi | Compila para um Raspberry Pi Pico comum, que não tem rádio, e pega a rede de um módulo ENC28J60 no cabo. O Bluetooth e a hibernação rodam no rádio, então não podem ficar ligados com ela. O driver do cabo ainda não está no firmware: uma imagem compilada com esta chave não tem rede. | não | não | não | não |
+|  | Rede por cabo (ENC28J60) no lugar do Wi-Fi | Compila para um Raspberry Pi Pico comum, que não tem rádio, e pega a rede de um módulo ENC28J60 no cabo. O Bluetooth e a hibernação rodam no rádio, então não podem ficar ligados com ela. | não | não | não | não |
 <!-- END generated: switches -->

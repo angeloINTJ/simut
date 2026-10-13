@@ -535,52 +535,52 @@
   "(ota_exempt, with the reason) and records no 'bin'; its budget still holds."
  ],
  "ceiling": 1044480,
- "measured_on": "2026-10-05 chore/v2.11.1: SIMUT_VERSION 2.11.1, the only source change. All seven rebuilt here. The version has as many characters as 2.11.0, but the login page carries it, and its gzip came out 5 B smaller in every image: measured and .bin 8 B under the record on release, test, asserts and pico2_w_release; alpha, air and test_https equal, their alignment absorbing it. Budgets unchanged. 2026-10-12 feat/lan-switch: pico_wire joins (the SIMUT Wire, a plain Pico with the network on an ENC28J60, no driver yet), measured 587,980 B and a .bin of 600,016 B; the seven others are byte for byte what main 2a391da builds. Then twelve sensor slots (-DMAX_SENSORS=12, GP12-GP15 are the module's): 588,020 B and a .bin of 600,056 B, +40 B for clearing the slots past the twelfth on every config load; RAM 102,416 -> 102,064 B. Then eleven (the module's INT moved to GP11, 2026-10-12): 587,972 B and a .bin of 600,008 B, RAM 101,980 B, measured on 28a54c8.",
- "measured_at_commit": "2026-10-05 chore/v2.11.1 on main de13562 (#256 merged). measured is the zopfli image PlatformIO prints.",
+ "measured_on": "2026-10-05 chore/v2.11.1: SIMUT_VERSION 2.11.1, the only source change. All seven rebuilt here. The version has as many characters as 2.11.0, but the login page carries it, and its gzip came out 5 B smaller in every image: measured and .bin 8 B under the record on release, test, asserts and pico2_w_release; alpha, air and test_https equal, their alignment absorbing it. Budgets unchanged. 2026-10-12 feat/lan-switch: pico_wire joins (the SIMUT Wire, a plain Pico with the network on an ENC28J60, no driver yet), measured 587,980 B and a .bin of 600,016 B; the seven others are byte for byte what main 2a391da builds. Then twelve sensor slots (-DMAX_SENSORS=12, GP12-GP15 are the module's): 588,020 B and a .bin of 600,056 B, +40 B for clearing the slots past the twelfth on every config load; RAM 102,416 -> 102,064 B. Then eleven (the module's INT moved to GP11, 2026-10-12): 587,972 B and a .bin of 600,008 B, RAM 101,980 B, measured on 28a54c8. 2026-10-13 feat/wire-driver: the wired driver takes pico_wire to 597,448 B and a .bin of 609,480 B (RAM 104,680 B); the seven Wi-Fi images stay byte for byte what dd7efdc builds until the top-panel fix, which grows them by 32 to 64 B (release, test, test_https and asserts +48, alpha +64, air +32, pico2_w_release +56; .bin +48 on release, test and asserts, +56 on pico2_w_release, unchanged on alpha and air). All eight measured at 4912762's tree plus this change. The review's fixes (module before the sensors, the static address checks, the MAC before the start, syslog and the OTA teardown on the cable, the log latches): pico_wire 598,560 B (+1,112 B), .bin 610,592 B, RAM 104,688 B; the seven Wi-Fi images compile none of it.",
+ "measured_at_commit": "2026-10-13 feat/wire-driver 4912762 (the eight images; the budgets only move here). measured is the zopfli image PlatformIO prints.",
  "ota_exempt": {
   "pico_w_test_https": "A bench image: the one with the full console and the TLS server together, for the HTTPS suites (AGENTS.md). It reaches the rig over USB, and release-ota.yml does not publish it. #232 (2026-10-02) left it 147 B under OTA_APP_SAFE_MAX_SIZE, and keeping it there meant cutting code the product images ship too, or moving more of its pages to LittleFS. Over the ceiling the device refuses to stage it, which costs only installing this image over the air; its flash budget still holds. Exempt since 2026-10-02 (docs/analysis/PLANO_STABLE.md, B6)."
  },
  "envs": {
   "pico_w_release": {
    "budget": 1021164,
-   "measured": 1021084,
-   "bin": 1033116
+   "measured": 1021132,
+   "bin": 1033164
   },
   "pico_w_test": {
    "budget": 1025812,
-   "measured": 1025660,
-   "bin": 1037692
+   "measured": 1025708,
+   "bin": 1037740
   },
   "pico_w_test_https": {
-   "budget": 1030652,
-   "measured": 1030652
+   "budget": 1030700,
+   "measured": 1030700
   },
   "pico_w_asserts": {
-   "budget": 1023420,
-   "measured": 1023380,
-   "bin": 1035412
+   "budget": 1023428,
+   "measured": 1023428,
+   "bin": 1035460
   },
   "pico_w_alpha": {
    "budget": 975276,
-   "measured": 974908,
+   "measured": 974972,
    "bin": 990380
   },
   "pico_w_air": {
    "budget": 1018384,
-   "measured": 1018224,
+   "measured": 1018256,
    "bin": 1031244
   },
   "pico2_w_release": {
    "budget": 997288,
-   "measured": 997152,
-   "bin": 997176,
+   "measured": 997208,
+   "bin": 997232,
    "ceiling": 3145728,
    "slot": 1568768
   },
   "pico_wire": {
-   "budget": 587972,
-   "measured": 587972,
-   "bin": 600008
+   "budget": 598560,
+   "measured": 598560,
+   "bin": 610592
   }
  }
 }

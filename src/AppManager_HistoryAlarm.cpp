@@ -73,14 +73,24 @@ void AppManager::refreshSelectedSlot( ) {
  /* Fixed panels: override with pinned sensor data when panel is fixed elsewhere */
  {
  int topIdx = _displayMgr->getTopSlotIdx( );
- if (topIdx != _currentSensorIdx && topIdx >= 0 && topIdx < MAX_SENSORS && cfg.sensors[topIdx].active) {
+ if (topIdx != _currentSensorIdx && topIdx >= 0 && topIdx < MAX_SENSORS) {
+ bool topFound = false;
+ if (cfg.sensors[topIdx].active) {
  uint8_t tgpio = cfg.sensors[topIdx].pins[0];
  for (const auto &s : sensors) {
  if (s.config.pins[0] == tgpio) {
  _displayMgr->setTopSlotData(s.avgValue[0], s.avgValue[1], s.avgValue[2], s.type, !s.inErrorState, topIdx, String(s.config.friendlyName));
+ topFound = true;
  break;
  }
  }
+ }
+ /* The bottom panel's fallback, which this one lacked. A slot pinned on top
+  * with no running sensor (inactive, or of a type whose driver the image
+  * does not have, as the DS18B20 of a configuration brought to a Wire) never
+  * reached setTopSlotData( ), and the panel drew its name from bytes nothing
+  * had written: the Wire bench's TFT on 2026-10-12. */
+ if (!topFound) _displayMgr->setTopSlotData(NAN, NAN, NAN, TYPE_NONE, false, topIdx, "Empty / Inactive");
  }
  }
 }

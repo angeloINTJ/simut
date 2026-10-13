@@ -39,6 +39,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import tomllib
 
@@ -148,6 +149,7 @@ def compose(prof: dict, M: dict) -> dict:
     excludes: list[str] = []
     includes: list[str] = []
     lib_ignore: list[str] = []
+    lib_deps: list[str] = []      # bibliotecas que so uma chave ligada traz (on_lib_deps)
     unflags: list[str] = []
 
     why = toggle_refusal(prof, M)
@@ -199,6 +201,7 @@ def compose(prof: dict, M: dict) -> dict:
             # guarantees the entry). Two switches asking for different boards
             # cannot both be obeyed: refuse, never let the later one win.
             unflags += t.get("on_unflags", [])
+            lib_deps += t.get("on_lib_deps", [])
             if "on_board" in t:
                 asked = t["on_board"][chip_name]
                 if board_owner is not None and asked != board:
@@ -222,6 +225,7 @@ def compose(prof: dict, M: dict) -> dict:
         "excludes": dedup(excludes),   # a switch may name a unit its display already drops
         "includes": includes,
         "lib_ignore": dedup(lib_ignore),
+        "lib_deps": dedup(lib_deps),
         "web_omit": ", ".join(web_omit) or None,
         "custom_fs_pages": prof.get("custom_fs_pages"),
         "build_type": prof.get("build_type"),
@@ -263,6 +267,10 @@ def emit_env(name: str, c: dict) -> str:
     lib = ["lib_ignore ="]
     lib += [f"    {x}" for x in c["lib_ignore"]]
     lines += lib
+    # Bibliotecas que uma chave traz: as do pico_base e mais estas. Ausente quando
+    # nenhuma chave pede, e as imagens sem a chave nem baixam a biblioteca.
+    if c.get("lib_deps"):
+        lines += ["lib_deps = ${pico_base.lib_deps}"] + [f"    {x}" for x in c["lib_deps"]]
     if c["web_omit"]:
         lines.append(f"custom_web_omit = {c['web_omit']}")
     if c["custom_fs_pages"]:
@@ -363,6 +371,14 @@ def check_manifest(M: dict) -> None:
         # da pagina: e o motivo da trava (model.json, products[].refused).
         if boards is not None:
             _texts(ui_t[t], "unsupported", f"ui_toggles.{t}")
+        deps = toggles[t].get("on_lib_deps")
+        if deps is not None:
+            # Fixada por commit: um ramo ou uma tag que anda faria a mesma imagem
+            # sair diferente amanha, e o CI nao reproduziria o build de hoje.
+            if not isinstance(deps, list) or not all(isinstance(d, str) and re.search(r"#[0-9a-f]{40}$", d)
+                                                     for d in deps):
+                sys.exit(f"gen_features: [toggles.{t}].on_lib_deps tem de ser uma lista de bibliotecas "
+                         f"fixadas por commit (url#<sha de 40 hexadecimais>)")
         unflags = toggles[t].get("on_unflags")
         if unflags is not None and (not isinstance(unflags, list)
                                     or any(not isinstance(f, str) or not f.startswith("-") for f in unflags)):

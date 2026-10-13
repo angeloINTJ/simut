@@ -36,8 +36,8 @@ builds and nothing runs on a board yet. **`pio run` with no `-e` builds only
 `pico_w_release`** — `default_envs` in `platformio.ini` says so, and this line
 claimed the opposite until 2026-09-22. The eighth, since 2026-10-12, is
 `pico_wire`: the SIMUT Wire, a plain Pico without the radio, its network on an
-ENC28J60 module; the wired driver is not in yet, so it links and has no
-network, and nothing runs it on a board. Name the eight.
+ENC28J60 module (the driver: `src/net/`, `src/NetworkManager_Wired.cpp`; on the
+bench since 2026-10-12). Name the eight.
 There is no debug environment — see the note in `platformio.ini` for why.
 
 ## What will fail your build before CI does

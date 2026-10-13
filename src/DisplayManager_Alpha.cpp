@@ -136,7 +136,11 @@ void DisplayManager::loopCore1( ) {
 		_lastHeartbeat = millis( );
 
 		/* Update WiFi signal icon (slot 7) based on RSSI */
+#if SIMUT_NET_LAN
+		_big.showWired(_lcd, _sharedState.wifiRssi > -100);
+#else
 		_big.showWiFi(_lcd, _sharedState.wifiRssi);
+#endif
 
 		/* ── FIRMWARE UPDATE (OtaScreen.h) ───────────────────────────
 		 * Ahead of every screen but a reboot's. Core 0 publishes each step
@@ -232,7 +236,11 @@ void DisplayManager::loopCore1( ) {
 					_lcd.setCursor(0, 1);
 					_lcd.print("  Obtendo IP... ");
 				} else {
+#if SIMUT_NET_LAN
+					_lcd.print(" Sem rede       ");
+#else
 					_lcd.print(" Sem WiFi       ");
+#endif
 					_lcd.setCursor(0, 1);
 					_lcd.print("    Offline     ");
 				}
@@ -338,7 +346,11 @@ void DisplayManager::loopCore1( ) {
 			if (_sharedState.apMode) {
 				_lcd.print("AP");
 			} else {
+#if SIMUT_NET_LAN
+				_lcd.write(' ');       /* the cell is the cable glyph, no "W" for Wi-Fi */
+#else
 				_lcd.write('W');
+#endif
 				_lcd.write(BFS_WIFI);
 			}
 

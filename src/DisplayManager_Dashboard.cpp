@@ -714,6 +714,22 @@ void DisplayManager::drawTopBar(const SystemState& state) {
  }
 
 
+#if SIMUT_NET_LAN
+ /* The SIMUT Wire has a cable, not a signal (2026-10-12): in the bars' 11x10
+  * box, a network glyph, one box over two joined by a bus. The bars' green
+  * with the link up and an address (NetworkManager::getRssi( ) answers its
+  * wired stand-in, anything above -100), their grey without. */
+ {
+  const uint16_t c = (state.wifiRssi > -100) ? C_TEMP_OK : C_BAR_BG;
+  _driver.canvas->fillRect(xIcon + 4, 10, 3, 2, c);      /* the box on top */
+  _driver.canvas->drawFastVLine(xIcon + 5, 12, 2, c);    /* its stem       */
+  _driver.canvas->drawFastHLine(xIcon + 1, 14, 9, c);    /* the bus        */
+  _driver.canvas->drawFastVLine(xIcon + 1, 15, 2, c);
+  _driver.canvas->drawFastVLine(xIcon + 9, 15, 2, c);
+  _driver.canvas->fillRect(xIcon, 17, 3, 3, c);          /* the two below  */
+  _driver.canvas->fillRect(xIcon + 8, 17, 3, 3, c);
+ }
+#else
  int barras = 0;
  if (state.wifiRssi > -100) {
  if (state.wifiRssi > -55) barras = 4;
@@ -725,6 +741,7 @@ void DisplayManager::drawTopBar(const SystemState& state) {
  _driver.canvas->fillRect(xIcon + (i * 3), 20 - (4 + (i * 2)), 2, 4 + (i * 2),
  (i < barras) ? C_TEMP_OK : C_BAR_BG);
  }
+#endif
 
  blitCanvas(_driver.canvas, 0, 0, W, H);
 }

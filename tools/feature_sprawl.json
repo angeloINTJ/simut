@@ -74,12 +74,26 @@
  "SIMUT_MDNS": {
   "NetworkManager.cpp": 3,
   "NetworkManager.h": 3,
+  "NetworkManager_Wired.cpp": 1,
   "SystemDefs_Network.h": 1
  },
  "SIMUT_MIRROR_PROBE": {
   "CommandManager.cpp": 1,
   "DisplayManager_Auth.cpp": 6,
   "WebManager_History.cpp": 1
+ },
+ "SIMUT_NET_LAN": {
+  "AppManager_Boot.cpp": 5,
+  "DisplayManager_Alpha.cpp": 3,
+  "DisplayManager_Dashboard.cpp": 1,
+  "NetworkManager.cpp": 8,
+  "NetworkManager.h": 1,
+  "NetworkManager_Wired.cpp": 1,
+  "SyslogManager.cpp": 1,
+  "display/BigFont_HD44780.h": 2,
+  "net/WiredLink.cpp": 1,
+  "net/WiredLink.h": 1,
+  "ota/orchestrator.cpp": 1
  },
  "SIMUT_NET_WIFI": {
   "NetworkManager.cpp": 2

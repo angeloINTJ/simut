@@ -724,6 +724,42 @@ else:
                   f"deu {got!r} (saída {code}, {erros})")
 
 # ---------------------------------------------------------------------------------
+# 15. O bloco do ENC28J60 no cabeçalho é o que o place( ) escolhe (2026-10-13). O módulo sobe
+# antes dos sensores (AppManager_Boot.cpp), e o place( ) o põe no primeiro bloco que deixa
+# lugar para o que vem depois; SIMUT_ENC_PIO no simut_config.h tem de dizer o mesmo, ou o
+# driver pede um bloco e o orçamento conta outro. Lido pelo pré-processador do host, em cada
+# combinação das chaves com PIO que o RP2040 aceita.
+# ---------------------------------------------------------------------------------
+SONDA_ENC_PIO = (
+    '#include "simut_config.h"\n'
+    "#define SONDA_STR_(x) #x\n"
+    "#define SONDA_STR(x) SONDA_STR_(x)\n"
+    "PROBE_ENV SONDA_STR(SIMUT_ENC_PIO)\n"
+)
+if shutil.which("cpp") is None:
+    check(False, "15 sem o cpp do host para ler SIMUT_ENC_PIO")
+else:
+    with tempfile.TemporaryDirectory() as tmp:
+        sonda = grava(tmp, "enc_pio.c", SONDA_ENC_PIO)
+        lidas = 0
+        for ds18, dht, buz in itertools.product((False, True), repeat=3):
+            cfg = {"display": "alpha_paralelo", "lan": True, "sensor_ds18b20": ds18,
+                   "sensor_dht22": dht, "sound_buzzer": buz}
+            r = pb.place(cfg, "rp2040")
+            if not r["ok"]:
+                continue
+            quer = r["enc_block"][len("pio"):]
+            flags = ([tpm.TARGET] + tpm.LAN + list(M["display"]["alpha_paralelo"]["flags"])
+                     + [f"-DSIMUT_SENSOR_DS18B20={int(ds18)}", f"-DSIMUT_SENSOR_DHT22={int(dht)}",
+                        f"-DSIMUT_SOUND_BUZZER={int(buz)}"])
+            code, nome, erros = tpm.preprocess(flags, sonda, [tpm.SRC])
+            lidas += 1
+            check(code == 0 and nome == quer,
+                  f"15 DS18B20={int(ds18)} DHT22={int(dht)} buzzer={int(buz)}: o place( ) põe o ENC28J60 no "
+                  f"{r['enc_block']}, e o cabeçalho diz SIMUT_ENC_PIO={nome!r} (saída {code}, {erros})")
+        check(lidas == 6, f"15 deveriam ser 6 combinações aceitas no RP2040 (DS18B20 com DHT22 não cabe), foram {lidas}")
+
+# ---------------------------------------------------------------------------------
 if falhas:
     print("test_pio_budget: FALHOU")
     for msg in falhas:

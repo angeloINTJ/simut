@@ -112,6 +112,15 @@ DisplayManager::DisplayManager( ) {
 	_sharedState.slotTemp = NAN;
 	_sharedState.slotValid = false;
 	_sharedState.topSlotTemp = NAN; _sharedState.topSlotValid = false;
+	/* The rest of both panels, the AP flag and the alarm mask: this is a heap
+	 * object, and a top panel pinned to a slot no sensor fills drew its name
+	 * from whatever the heap held (the Wire bench, 2026-10-12). */
+	_sharedState.slotHum = NAN; _sharedState.slotPres = NAN; _sharedState.slotType = TYPE_NONE;
+	_sharedState.topSlotHum = NAN; _sharedState.topSlotPres = NAN; _sharedState.topSlotType = TYPE_NONE;
+	_sharedState.topSlotIdx = 0;
+	_sharedState.topSlotName[0] = '\0';
+	_sharedState.apMode = false;
+	_sharedState.alarmSlotMask = 0;
 	_sharedState.selectedSlotIdx = 0;
 	_sharedState.wifiRssi = -100;
 	_sharedState.pendingPkts = 0;   /* heap object: nothing zeroes it but this */

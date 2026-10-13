@@ -456,11 +456,12 @@
  *                 the flags (build_unflags).
  * SIMUT_NET_WIFI  the same choice read the other way, for `#if` sites.
  *
- * This is the switch and its compile-time checks. The wired driver is not in
- * the firmware yet: an image built with SIMUT_NET_LAN=1 links (2026-09-26 study,
- * docs/analysis/SIMUT_WIRE_VIABILIDADE.md on the study/simut-wire branch: the
- * release links for board = rpipico once the one cyw43_arch_enable_sta_mode( )
- * call is out) and has no network.
+ * The wired driver is src/net/WiredLink.cpp (the ENC28J60 through the
+ * PicoENC28J60 library's lwIP interface) and src/NetworkManager_Wired.cpp
+ * (NetworkManager's wired states), since 2026-10-12. The 2026-09-26 study
+ * (docs/analysis/SIMUT_WIRE_VIABILIDADE.md, study/simut-wire branch) found the
+ * release linking for board = rpipico once the one cyw43_arch_enable_sta_mode( )
+ * call was out.
  * ========================================================================= */
 
 #ifndef SIMUT_NET_LAN
@@ -522,6 +523,20 @@
 #endif
 #ifndef SIMUT_ENC_INT_PIN
 #define SIMUT_ENC_INT_PIN 11
+#endif
+/* The PIO block of the module's SPI, where tools/pio_budget.py's place( ) puts
+ * it (tools/test_pio_budget.py holds this line to it). The module starts before
+ * the sensors (AppManager_Boot.cpp), so it takes the block that leaves room for
+ * what comes after it: the DS18B20's 1-Wire fits only pio0 (27 instructions), so
+ * with it the module goes to pio1, beside the buzzer; without it, pio0, and the
+ * buzzer and the DHT22 share pio1. Never "any block": the driver would take the
+ * first, a sensor family's. */
+#ifndef SIMUT_ENC_PIO
+#if SIMUT_SENSOR_DS18B20
+#define SIMUT_ENC_PIO 1
+#else
+#define SIMUT_ENC_PIO 0
+#endif
 #endif
 
 // Who owns which GPIO, checked by the preprocessor so a layout that cannot work

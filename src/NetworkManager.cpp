@@ -25,6 +25,9 @@
 #if SIMUT_NET_WIFI
 #include "pico/cyw43_arch.h"           /* enable_sta_mode: scanning needs the STA itf */
 #endif
+#if SIMUT_NET_LAN
+#include "net/WiredLink.h"             /* the ENC28J60 behind the getters below */
+#endif
 
 NetworkManager::NetworkManager( ) {
  _state = NET_OFFLINE;
@@ -61,6 +64,9 @@ void NetworkManager::begin(const SystemConfig &cfg,
  /* Apply timezone globally so localtime_r works */
  applyTimezone(_tzOffset);
 
+#if SIMUT_NET_LAN
+ beginWired(cfg);
+#else
  WiFi.mode(WIFI_STA);
 
  if (!cfg.useDhcp && strlen(cfg.staticIp) > 7) {
@@ -89,6 +95,7 @@ void NetworkManager::begin(const SystemConfig &cfg,
  _state = NET_CONNECTING;
  _stateTimer = millis( );
  }
+#endif
 }
 
 /**
@@ -104,6 +111,11 @@ void NetworkManager::begin(const SystemConfig &cfg,
  * radio range cannot.
  */
 bool NetworkManager::beginAP(const char* deviceName, const char* stationSsid) {
+#if SIMUT_NET_LAN
+ /* No radio, no AP: the Wire is configured over the cable or the console. */
+ (void)deviceName; (void)stationSsid;
+ return false;
+#endif
  /* The AP's time limit gives way to the configured network, and asks for it
   * by its name (update( ), NET_AP_CONFIG). The name came only from begin( ),
   * and the boot that the gesture sends into AP mode never calls begin( ): its
@@ -286,6 +298,9 @@ void NetworkManager::endProvisional(uint32_t realNow) {
  * waiting to collide. Two in flight is the documented way to wedge this chip.
  */
 bool NetworkManager::startScan( ) {
+#if SIMUT_NET_LAN
+ return false;   /* nothing to scan with */
+#endif
  if (_scanState == SCAN_RUNNING) return false;
  if (_state == NET_SCANNING_RETRY) return false;   /* the other scanner owns it */
 
@@ -391,10 +406,16 @@ uint8_t NetworkManager::scanResults(WifiNet* out, uint8_t cap) const {
  * Must be called frequently from the main loop.
  */
 void NetworkManager::update( ) {
+#if SIMUT_NET_LAN
+ /* The wired states, except the NTP wait, which the switch below runs for
+  * both. mDNS, between the two, runs on the same NET_READY. */
+ const bool wiredHandled = updateWired( );
+#else
  /* BEFORE the AP branch, which returns. Scanning from the setup portal is
   * the case this exists for, and a poll placed after that return would run
   * in every mode except the one that needs it. */
  pollScan( );
+#endif
 
  if (_state == NET_AP_CONFIG) {
  _dnsServer.processNextRequest( );
@@ -426,6 +447,9 @@ void NetworkManager::update( ) {
  }
 #endif
 
+#if SIMUT_NET_LAN
+ if (wiredHandled) return;
+#endif
  switch (_state) {
  case NET_OFFLINE:
 
@@ -863,12 +887,14 @@ bool NetworkManager::isLinkHealthy( ) {
  return isLinkUp( ) && getRssi( ) > RSSI_MIN_THRESHOLD;
 }
 
+#if !SIMUT_NET_LAN   /* the Wire's are in NetworkManager_Wired.cpp */
 String NetworkManager::getIpAddress( ) { return (_state == NET_AP_CONFIG) ? WiFi.softAPIP( ).toString( ) : WiFi.localIP( ).toString( ); }
 void NetworkManager::getIpAddress(char* buf, size_t len) {
  IPAddress ip = (_state == NET_AP_CONFIG) ? WiFi.softAPIP( ) : WiFi.localIP( );
  snprintf(buf, len, "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
 }
 String NetworkManager::getMacAddress( ) { return WiFi.macAddress( ); }
+#endif
 #if SIMUT_MDNS && !SIMUT_AIR
 /**
  * Registra `_simut._tcp` com uid/ver/env/tls no TXT — descoberta por browse,
@@ -906,6 +932,7 @@ void NetworkManager::announceService( ) {
 }
 #endif
 
+#if !SIMUT_NET_LAN   /* the Wire's are in NetworkManager_Wired.cpp */
 void NetworkManager::getMacAddress(char* buf, size_t len) {
  String mac = WiFi.macAddress( );
  strncpy(buf, mac.c_str( ), len - 1);
@@ -923,6 +950,7 @@ int32_t NetworkManager::getRssi( ) {
  if (rssi >= RSSI_IMPLAUSIBLE_HIGH || rssi < RSSI_IMPLAUSIBLE_LOW) return -100;
  return rssi;
 }
+#endif
 
 String NetworkManager::getFormattedTime( ) {
  time_t now = getEpoch( );

@@ -310,8 +310,8 @@
         "pt": "Rede por cabo (ENC28J60) no lugar do Wi-Fi"
       },
       "help": {
-        "en": "Builds for a plain Raspberry Pi Pico, which has no radio, and takes the network from an ENC28J60 module on the cable. Bluetooth and hibernation run on the radio, so they cannot be on with it. The cable driver is not in the firmware yet: an image built with this switch has no network.",
-        "pt": "Compila para um Raspberry Pi Pico comum, que não tem rádio, e pega a rede de um módulo ENC28J60 no cabo. O Bluetooth e a hibernação rodam no rádio, então não podem ficar ligados com ela. O driver do cabo ainda não está no firmware: uma imagem compilada com esta chave não tem rede."
+        "en": "Builds for a plain Raspberry Pi Pico, which has no radio, and takes the network from an ENC28J60 module on the cable. Bluetooth and hibernation run on the radio, so they cannot be on with it.",
+        "pt": "Compila para um Raspberry Pi Pico comum, que não tem rádio, e pega a rede de um módulo ENC28J60 no cabo. O Bluetooth e a hibernação rodam no rádio, então não podem ficar ligados com ela."
       }
     }
   ],
