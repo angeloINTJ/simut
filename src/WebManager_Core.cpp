@@ -8,6 +8,7 @@
  */
 
 #include "WebManager.h"
+#include "simut_config.h"   /* SIMUT_NET_WIFI is tested below: included here, not left to another header */
 #include "CorsOrigin.h"   /* isValidCorsOrigin — a mesma regra que o CLI usa */
 #include "WebUI_GZ.h"
 #include "LogManager.h"

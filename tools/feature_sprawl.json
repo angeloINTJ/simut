@@ -82,9 +82,21 @@
   "DisplayManager_Auth.cpp": 6,
   "WebManager_History.cpp": 1
  },
+ "SIMUT_NET_BOOT_RESET": {
+  "AppManager_Boot.cpp": 1
+ },
+ "SIMUT_NET_CYW43": {
+  "NetworkManager.cpp": 2,
+  "net/NetBoot.h": 1,
+  "net/NetLink.h": 1
+ },
+ "SIMUT_NET_ENC28J60": {
+  "net/Enc28j60Device.h": 1,
+  "net/WiredLink.cpp": 1
+ },
  "SIMUT_NET_LAN": {
   "AppManager.h": 1,
-  "AppManager_Boot.cpp": 5,
+  "AppManager_Boot.cpp": 4,
   "AppManager_CmdHandlers.cpp": 1,
   "AppManager_Commands.cpp": 2,
   "CommandManager.cpp": 2,
@@ -99,12 +111,11 @@
   "NetworkManager.cpp": 8,
   "NetworkManager.h": 1,
   "NetworkManager_Wired.cpp": 1,
-  "SyslogManager.cpp": 1,
   "display/BigFont_HD44780.h": 2,
   "display/SettingsMenu.h": 2,
+  "net/NetLink.h": 1,
   "net/WiredLink.cpp": 1,
-  "net/WiredLink.h": 1,
-  "ota/orchestrator.cpp": 1
+  "net/WiredLink.h": 1
  },
  "SIMUT_NET_WIFI": {
   "AppManager.h": 1,
@@ -118,7 +129,6 @@
   "DisplayManager_Alpha.cpp": 2,
   "DisplayManager_Settings.cpp": 1,
   "DisplayManager_Touch.cpp": 1,
-  "NetworkManager.cpp": 2,
   "WebManager.h": 2,
   "WebManager_Api.cpp": 10,
   "WebManager_Commit.cpp": 1,

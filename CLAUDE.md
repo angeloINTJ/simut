@@ -15,7 +15,7 @@ substance lives there, not here.
 | Tools | `tools/` — [`tools/README.md`](tools/README.md) says which of the 146 scripts are live |
 | Documentation | `docs/` — [`docs/README.md`](docs/README.md) marks each document **Living** or **Snapshot** |
 | Interface standard | [`ANGULO.md`](ANGULO.md) — the Ângulo guide for anything with a screen or a reader: web UI, site, README, docs, brand. [`AGENTS.md`](AGENTS.md) §7 says how it applies here and what `tools/check_angulo.py` enforces in CI |
-| Tests | `test/` — ten native environments, `pio test -e native…` |
+| Tests | `test/` — eleven native environments, `pio test -e native…` |
 | OTA keys | `keys/` — the public roots and the floors every image compiles (`keys/README.md`). Private keys never enter the repository; the bench ones live in `~/.simut-ota/` |
 
 ## Building and testing
@@ -23,10 +23,10 @@ substance lives there, not here.
 ```bash
 pio run -e pico_w_release      # the shipping image
 pio run -e pico_w_air          # the hibernating build; least flash headroom
-pio test -e native_logpolicy   # one suite; ten exist
+pio test -e native_logpolicy   # one suite; eleven exist
 ```
 
-**Nine** firmware environments and ten native suites, all of them built and
+**Nine** firmware environments and eleven native suites, all of them built and
 run by CI — `pico_w_asserts` is the one that is easy to forget, because it is
 not in the table above and nothing local reminds you of it. This line said
 "five" until 2026-09-20, and a change that raised the other five budgets went
@@ -98,5 +98,5 @@ locally. When one fires, it is usually right:
   run them and put the result in the PR. A refactor's proof is that behaviour is
   unchanged (a normalized diff, an identical sha256, or a before/after on
   hardware); a fix's is a reproduction that fails before and passes after. New
-  host-testable behaviour earns a new case in `test/`; there are ten native
+  host-testable behaviour earns a new case in `test/`; there are eleven native
   suites for a reason.

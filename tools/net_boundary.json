@@ -1,0 +1,14 @@
+{
+ "identity": {
+  "src/NetworkManager.cpp": {
+   "count": 2,
+   "reason": "The two `#if SIMUT_NET_CYW43` are the chip's guards, not the class's: the include of pico/cyw43_arch.h, and the one call into the CYW43's control code this file makes outside the framework's WiFi class, cyw43_arch_enable_sta_mode( ) in startScan( ), which a build for board = rpipico cannot link (2026-09-26 study). Both leave with the radio's state machine, when it moves into its own unit in src/net/."
+  }
+ },
+ "radio-api": {
+  "src/NetworkManager.cpp": {
+   "count": 47,
+   "reason": "NetworkManager.cpp is still the CYW43's driver: the join and the reconnect ladder, both scanners, the setup access point, the signal level and the address getters are WiFi.* calls here (the wired build has its own states in NetworkManager_Wired.cpp). Ends when the radio's state machine moves into src/net/ and NetworkManager asks it, as it asks the wired link."
+  }
+ }
+}

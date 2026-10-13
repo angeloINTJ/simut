@@ -5,7 +5,8 @@
  * @details Sequência:
  *           1. Lê metadata; se magic ausente ou state != COMMITTED, sai.
  *           2. Marca state=APPLYING + attempts++; persiste em flash.
- *           3. Tear down: WiFi.end(), LittleFS.end(), enterFlashSafeMode
+ *           3. Tear down: net::stopForFlash() (WiFi.end() no rádio, o
+ *              módulo no cabo), LittleFS.end(), enterFlashSafeMode
  *              (Core 1 lockout).
  *           4. save_and_disable_interrupts.
  *           5. Salta pra applier (SRAM). Não retorna em sucesso.

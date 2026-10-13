@@ -20,6 +20,7 @@
 #include <WebServerSecure.h>
 #include <functional>
 #include "SystemDefs.h"
+#include "simut_config.h"   /* SIMUT_NET_WIFI is tested below: included here, not left to another header */
 
 /* SendGuard shared state — defined in WebManager_Core.cpp */
 extern volatile bool _sendGuardExpired;

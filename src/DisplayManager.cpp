@@ -15,6 +15,7 @@
  */
 
 #include "DisplayManager.h"
+#include "simut_config.h"   /* SIMUT_NET_WIFI is tested below: included here, not left to another header */
 #include "LogManager.h"
 #include "UiWidgets.h"
 #include "FlashIrqProbe.h" /* Core-1 exposure flags for the flash probe */

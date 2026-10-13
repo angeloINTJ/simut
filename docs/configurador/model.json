@@ -809,7 +809,7 @@
         "en": "Bluetooth runs on the CYW43 radio, so it needs the Wi-Fi connection.",
         "pt": "O Bluetooth roda no rádio CYW43, então precisa da conexão Wi-Fi."
       },
-      "evidence": "With net = enc28j60, SIMUT_NET_LAN with SIMUT_BLUETOOTH stops at an #error in simut_config.h, pinned by tools/test_pin_masks.py (2026-10-12). Not compiled past that #error: the Bluetooth stack (SerialBT, BTstack) rides on the CYW43, and board = rpipico has none. The rule asks for the radio, not for the absence of the cable: a wired board added later has no CYW43 either."
+      "evidence": "With net = enc28j60, SIMUT_BLUETOOTH stops at an #error in simut_config.h, pinned by tools/test_pin_masks.py (2026-10-12). The test of that #error was SIMUT_NET_LAN && SIMUT_BLUETOOTH, the cable; since 2026-10-13 it is SIMUT_BLUETOOTH && !SIMUT_NET_CYW43, the chip. Not compiled past that #error: the Bluetooth stack (SerialBT, BTstack) rides on the CYW43, and board = rpipico has none. The rule asks for the radio, not for the absence of the cable: a wired board added later has no CYW43 either, and the #error already refuses it."
     },
     {
       "id": "air-needs-cyw43",
@@ -823,7 +823,7 @@
         "en": "Hibernation is built around the CYW43 radio, which it powers down between wakes, so it needs the Wi-Fi connection.",
         "pt": "A hibernação é feita em torno do rádio CYW43, que ela desliga entre os despertares, então precisa da conexão Wi-Fi."
       },
-      "evidence": "With net = enc28j60, SIMUT_NET_LAN with SIMUT_AIR stops at an #error in simut_config.h, pinned by tools/test_pin_masks.py (2026-10-12). Not compiled past that #error: AppManager_Air.cpp powers the CYW43 down through GPIO23 (WL_REG_ON) before every sleep, and board = rpipico has no CYW43. The rule asks for the radio, not for the absence of the cable: a wired board added later has no CYW43 either."
+      "evidence": "With net = enc28j60, SIMUT_AIR stops at an #error in simut_config.h, pinned by tools/test_pin_masks.py (2026-10-12). The test of that #error was SIMUT_NET_LAN && SIMUT_AIR, the cable; since 2026-10-13 it is SIMUT_AIR && !SIMUT_NET_CYW43, the chip. Not compiled past that #error: AppManager_Air.cpp powers the CYW43 down through GPIO23 (WL_REG_ON) before every sleep, and board = rpipico has no CYW43. The rule asks for the radio, not for the absence of the cable: a wired board added later has no CYW43 either, and the #error already refuses it."
     }
   ],
   "hazards": [

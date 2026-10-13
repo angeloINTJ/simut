@@ -69,7 +69,8 @@ def check_manifest(M: dict) -> tuple[list[str], list[str]]:
     text = src_text()
 
     # macros SIMUT_ declaradas -> {macro: dead?}. As do interruptores, as das classes de rede
-    # ([net_class.*].macro, que o compose( ) escreve por -D) e as dos flags de mostrador e de driver.
+    # ([net_class.*].macro, que o src/net/NetCaps.h define: nao vao por -D) e as dos flags de mostrador
+    # e de driver (a identidade, -DSIMUT_NET_ENC28J60=1, tambem tem de existir em src/).
     simut: dict[str, bool] = {}
     for t in M["toggles"].values():
         mac = t.get("macro", "")
@@ -97,9 +98,10 @@ def check_manifest(M: dict) -> tuple[list[str], list[str]]:
         referenced |= set(disp.get("exclude", [])) | set(disp.get("include", []))
     for t in M["toggles"].values():
         referenced |= set(t.get("off_exclude", [])) | set(t.get("on_include", []))
-    # As unidades de cada driver de rede ([net.<id>].units): sao excluidas das imagens dos outros
-    # drivers, e um nome errado nao exclui nada, em silencio.
-    for n in M.get("net", {}).values():
+    # As unidades de cada classe de rede ([net_class.<id>].units, as da build cabeada) e de cada driver
+    # ([net.<id>].units): sao excluidas das imagens das outras classes e dos outros drivers, e um nome
+    # errado nao exclui nada, em silencio.
+    for n in list(M.get("net_class", {}).values()) + list(M.get("net", {}).values()):
         referenced |= set(n.get("units", []))
     for ref in sorted(referenced):
         if "*" in ref:

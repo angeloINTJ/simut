@@ -13,6 +13,7 @@
  */
 
 #include "LogManager.h"
+#include "net/NetCaps.h"   /* SIMUT_NET_LAN, tested below: included here, not left to another header */
 #include "FlashIrqProbe.h"   /* g_core1WaitAlarm — tw= fingerprint */
 #include <hardware/timer.h>
 #include "DisplayManager.h" /* logcodeLookup / trlLookup from .lng */

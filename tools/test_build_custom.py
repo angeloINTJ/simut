@@ -184,7 +184,7 @@ check(diff == {"bluetooth"}, f"mudou mais que o pedido: {sorted(diff)}")
 
 # A rede é a outra metade disso, e uma escolha, não um interruptor (2026-10-13): `net` chega
 # ao perfil resolvido como o id do driver, muda o ambiente composto pelo que o manifesto diz
-# dele ([net.<id>]: a placa e o macro da classe), e não mexe em nenhuma chave. Os valores
+# dele ([net.<id>]: a placa e o macro do driver), e não mexe em nenhuma chave. Os valores
 # saem do manifesto, não de uma tabela copiada aqui.
 
 
@@ -202,7 +202,10 @@ for n in M["net"]:   # cada driver do manifesto entra, e só ele
     got = parsed(AIR % json.dumps({"net": n}))
     check(got == ("pico_w_air", {"net": n}), f"parse_spec recusou ou mudou o driver {n!r}: {got!r}")
 cable = M["net"]["enc28j60"]
-macro = f"-D{M['net_class'][cable['class']]['macro']}=1"
+# O macro que a build passa é o do driver (a identidade): a classe sai dele em src/net/NetCaps.h,
+# que recusa a classe passada de fora (2026-10-13). Lido dos flags do driver, não copiado aqui.
+macro = next(f for f in cable.get("flags", []) if f.startswith("-DSIMUT_NET_"))
+class_macro = f"-D{M['net_class'][cable['class']]['macro']}"
 chip_board = M["chip"]["rp2040"]["board"]
 asked = {"net": "enc28j60", "sensor_ds18b20": False}
 got = parsed(json.dumps({"v": 1, "base": "pico_w_release", "set": asked}))
@@ -218,7 +221,9 @@ check(was["board"] == chip_board, f"o SIMUT de fábrica não tem a placa do chip
 check(built["board"] == cable["board"]["rp2040"] and built["board"] != was["board"],
       f"a placa não seguiu o driver: {was['board']!r} -> {built['board']!r}")
 check(macro in built["flags"] and macro not in was["flags"],
-      f"o macro da classe {macro} não foi só para a build com o cabo")
+      f"o macro do driver {macro} não foi só para a build com o cabo")
+check(not any(f.startswith(class_macro) for f in built["flags"] + was["flags"]),
+      f"a classe ({class_macro}) foi passada por -D: ela sai do driver em src/net/NetCaps.h")
 # No sentido contrário, o Wire volta ao Wi-Fi e perde tudo o que era do cabo; e escolher o
 # driver que o produto já tem compõe o mesmo ambiente que não escolher.
 wire = bc.resolve("pico_wire", {"net": "cyw43"}, M)

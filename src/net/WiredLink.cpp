@@ -1,35 +1,33 @@
 /**
  * @file WiredLink.cpp
- * @brief The ENC28J60 behind the SIMUT Wire's network (see WiredLink.h).
+ * @brief The wired link of a build with a cable (see WiredLink.h): what every
+ *        LwipIntfDev Ethernet driver of arduino-pico has in common, over the
+ *        one chip the image names.
+ *
+ * The chip's own part, its library, its object and its pins, is in the device
+ * header chosen by the image's identity below (Enc28j60Device.h says what a
+ * device header provides). Nothing here names a chip.
  *
  * @project SIMUT
  * @license MIT License
  */
 #include "WiredLink.h"
+#include "../simut_config.h"   /* SIMUT_NET_LAN is tested below: included here, not left to another header */
 
 #if SIMUT_NET_LAN
-#include <PicoENC28J60lwIP.h>
+#include "StaticAddress.h"
+
+/* The device header is the one place a chip's library is included. A wired
+ * driver without one stops here, naming what is missing, and not at a
+ * `wiredEth` the compiler cannot find. */
+#if SIMUT_NET_ENC28J60
+#include "Enc28j60Device.h"
+#else
+#error "a wired driver needs its device header here: src/net/<Chip>Device.h and its #elif (\"Adding a driver\" in src/net/NetCaps.h)"
+#endif
 
 namespace {
 
-ENC28J60Config makeConfig( ) {
-	ENC28J60Config c;
-	c.miso_pin = SIMUT_ENC_MISO;
-	c.cs_pin   = SIMUT_ENC_CS;
-	c.sclk_pin = SIMUT_ENC_SCK;
-	c.mosi_pin = SIMUT_ENC_MOSI;
-	/* No reset line: the chip resets over SPI. */
-	c.rst_pin = -1;
-	c.irq_pin = SIMUT_ENC_INT_PIN;
-	c.pio_instance = SIMUT_ENC_PIO;
-	/* The library's largest receive buffer, 6.5 KB of the chip's 8 KB: four
-	 * full-size frames wait in the chip while a flash write holds the
-	 * interrupts off. */
-	c.rx_buffer_size = 0x1A00;
-	return c;
-}
-
-PicoENC28J60lwIP eth(makeConfig( ));
 bool isStarted = false;
 const char* lastErr = "";
 
@@ -53,20 +51,6 @@ const uint8_t* boardMac( ) {
 	return mac;
 }
 
-/* What lwIP refuses or silently rearranges in a static address
- * (LwipIntf::ipAddressReorder: a mask whose first byte is not 255 is taken
- * for the DNS of the Arduino argument order, and the DNS becomes the mask),
- * checked before the module is told. */
-const char* staticAddressError(const IPAddress& ip, const IPAddress& gateway, const IPAddress& mask) {
-	if (!ip.isSet( )) return "static address: no IP";
-	const uint32_t m = (uint32_t)mask[0] << 24 | (uint32_t)mask[1] << 16 | (uint32_t)mask[2] << 8 | mask[3];
-	if (mask[0] != 255 || ((~m + 1) & ~m) != 0) return "static address: the mask is not a netmask";
-	for (int i = 0; i < 4; i++) {
-		if (gateway.isSet( ) && ((ip[i] ^ gateway[i]) & mask[i])) return "static address: the gateway is outside the subnet";
-	}
-	return nullptr;
-}
-
 }  // namespace
 
 namespace WiredLink {
@@ -74,42 +58,44 @@ namespace WiredLink {
 bool begin(const char* hostname, const IPAddress& ip, const IPAddress& gateway,
            const IPAddress& mask, const IPAddress& dns) {
 	if (isStarted) return true;
-	if (hostname && *hostname) eth.hostname(hostname);
+	if (hostname && *hostname) wiredEth( ).hostname(hostname);
 	if (ip.isSet( )) {
 		const char* bad = staticAddressError(ip, gateway, mask);
 		/* config( ) answers false for what lwIP will not take (a gateway outside
 		 * the subnet), and begin( ) would then run on 0.0.0.0, never connected and
 		 * never saying why. The ESP order: ip, gateway, mask, dns. */
-		if (bad || !eth.config(ip, gateway, mask, dns)) {
+		if (bad || !wiredEth( ).config(ip, gateway, mask, dns)) {
 			lastErr = bad ? bad : "static address refused by lwIP";
 			return false;
 		}
 	}
-	isStarted = eth.begin(boardMac( ));
-	lastErr = isStarted ? "" : PicoENC28J60::errorString(eth.lastError( ));
+	isStarted = wiredEth( ).begin(boardMac( ));
+	lastErr = isStarted ? "" : wiredErrorText( );
 	return isStarted;
 }
 
 bool started( ) { return isStarted; }
 
-bool linkUp( ) { return isStarted && eth.isLinked( ); }
+bool linkUp( ) { return isStarted && wiredLinked( ); }
 
-bool connected( ) { return isStarted && eth.connected( ); }
+bool connected( ) { return isStarted && wiredEth( ).connected( ); }
 
-IPAddress localIP( ) { return isStarted ? eth.localIP( ) : IPAddress( ); }
-IPAddress subnetMask( ) { return isStarted ? eth.subnetMask( ) : IPAddress( ); }
-IPAddress gatewayIP( ) { return isStarted ? eth.gatewayIP( ) : IPAddress( ); }
-IPAddress dnsIP( ) { return isStarted ? eth.dnsIP( ) : IPAddress( ); }
+IPAddress localIP( ) { return isStarted ? wiredEth( ).localIP( ) : IPAddress( ); }
+IPAddress subnetMask( ) { return isStarted ? wiredEth( ).subnetMask( ) : IPAddress( ); }
+IPAddress gatewayIP( ) { return isStarted ? wiredEth( ).gatewayIP( ) : IPAddress( ); }
+IPAddress dnsIP( ) { return isStarted ? wiredEth( ).dnsIP( ) : IPAddress( ); }
 
 void macAddress(uint8_t out[6]) {
 	memcpy(out, boardMac( ), 6);
 }
 
+const char* chipName( ) { return wiredChipName( ); }
+
 const char* lastError( ) { return lastErr; }
 
 void end( ) {
 	if (!isStarted) return;
-	eth.end( );
+	wiredEth( ).end( );
 	isStarted = false;
 }
 

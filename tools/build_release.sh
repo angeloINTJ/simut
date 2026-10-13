@@ -49,6 +49,12 @@ for VARIANT in simut_tft simut_alpha; do
   cp src/display/*.h   "${DST}/" 2>/dev/null || true
   cp src/ota/*.h       "${DST}/" 2>/dev/null || true
   cp src/ota/*.cpp     "${DST}/" 2>/dev/null || true
+  # The network drivers (src/net, since 2026-10-12): net/NetCaps.h, which
+  # simut_config.h includes since 2026-10-13, and WiredLink, whose unit is
+  # empty in the radio images these zips hold. Missing from this list, every
+  # `#include "net/..."` below was left pointing at a folder that is not there.
+  cp src/net/*.h       "${DST}/" 2>/dev/null || true
+  cp src/net/*.cpp     "${DST}/" 2>/dev/null || true
 
   # Copy WebUI_GZ.h (both variants — Alpha still serves web pages)
   cp src/WebUI_GZ.h "${DST}/WebUI_GZ.h"
@@ -84,6 +90,11 @@ for VARIANT in simut_tft simut_alpha; do
   # Fix ../ relative includes
   find "release/${VARIANT}" -maxdepth 1 -name '*.cpp' -o -name '*.h' -o -name '*.ino' | \
     xargs sed -i 's|#include "../|#include "|g' 2>/dev/null || true
+  # Rewrite #include "net/xxx.h" -> #include "xxx.h". After the ../ one, on
+  # purpose: display/SettingsMenu.h and ota/orchestrator.cpp say "../net/xxx.h",
+  # which the line above turns into "net/xxx.h".
+  find "release/${VARIANT}" -maxdepth 1 -name '*.cpp' -o -name '*.h' -o -name '*.ino' | \
+    xargs sed -i 's|#include "net/|#include "|g' 2>/dev/null || true
 done
 
 # --- Remove empty subdirs ---

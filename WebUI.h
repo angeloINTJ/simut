@@ -3643,10 +3643,10 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 <h3 data-i18n="sens_title">Sensors &amp; GPIO</h3>
                 <div class="grp">
                     <div id="sens_err" class="sx-warn" style="margin-top:0;margin-bottom:10px"></div>
-                    /* @IF wifi */
+                    /* @IF slots16 */
                     <div class="sxn" style="margin-bottom:12px;margin-top:0" data-i18n="sens_hint">GP0-GP15 are available to sensors; GP16 and above belong to the display, touch and buzzer.</div>
                     /* @ENDIF */
-                    /* @IF !wifi */
+                    /* @IF !slots16 */
                     <div class="sxn" style="margin-bottom:12px;margin-top:0" data-i18n="sens_hint_lan">GP0-GP10 are available to sensors; GP11-GP15 belong to the network module, and GP16 and above to the display, touch and buzzer.</div>
                     /* @ENDIF */
                     <div id="sens_map" class="sxg-map"></div>
@@ -3666,10 +3666,10 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <button type="button" class="sxb" id="sens_add" onclick="sensAdd()" style="margin-top:14px" data-i18n="sens_add">+ Add sensor slot</button>
                     <button type="button" class="sxb" id="sens_scan" onclick="sensScan()" style="margin-top:14px;margin-left:8px" data-i18n="sens_scan">Scan for probes</button>
                     <div class="sxn" id="sens_scan_out" style="margin-top:10px"></div>
-                    /* @IF wifi */
+                    /* @IF slots16 */
                     <div class="sxn" id="sens_full" style="display:none" data-i18n="sens_no_free">All 16 slots are in use. Free one to add another.</div>
                     /* @ENDIF */
-                    /* @IF !wifi */
+                    /* @IF !slots16 */
                     <div class="sxn" id="sens_full" style="display:none" data-i18n="sens_no_free_lan">All 11 slots are in use. Free one to add another.</div>
                     /* @ENDIF */
                     <div id="sens_ov" class="sx-ov" style="display:none" onclick="sensBackdrop(event)">
@@ -4948,12 +4948,12 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                                 <b style="color:var(--tinta);" data-i18n="cfg_leg2">Data Row Tags:</b><br>
                                 <span class="highlight">{TS}</span> - Unix Epoch<br>
                                 <span class="highlight">{DHT_ID}</span> - Board Serial<br>
-                                /* @IF wifi */
+                                /* @IF slots16 */
                                 <span class="highlight">{t0}</span> to <span class="highlight">{t15}</span> - Temperature<br>
                                 <span class="highlight">{u0}</span> to <span class="highlight">{u15}</span> - Humidity<br>
                                 <span class="highlight">{p0}</span> to <span class="highlight">{p15}</span> - Pressure<br>
                                 /* @ENDIF */
-                                /* @IF !wifi */
+                                /* @IF !slots16 */
                                 <span class="highlight">{t0}</span> to <span class="highlight">{t10}</span> - Temperature<br>
                                 <span class="highlight">{u0}</span> to <span class="highlight">{u10}</span> - Humidity<br>
                                 <span class="highlight">{p0}</span> to <span class="highlight">{p10}</span> - Pressure<br>
@@ -5027,10 +5027,10 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                                 <span class="highlight">{TS}</span> - Unix Epoch<br>
                                 <span class="highlight">{ID}</span> - Full id (t/u/p/l + hwid)<br>
                                 <span class="highlight">{HWID}</span> - Sensor id<br>
-                                /* @IF wifi */
+                                /* @IF slots16 */
                                 <span class="highlight">{SLOT}</span> - Slot index (0-15)<br>
                                 /* @ENDIF */
-                                /* @IF !wifi */
+                                /* @IF !slots16 */
                                 <span class="highlight">{SLOT}</span> - Slot index (0-10)<br>
                                 /* @ENDIF */
                             </div>
@@ -5143,10 +5143,10 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             if (tpl.substr(ti, 4) == '{TS}') return { val: String(rec.ts), tc: 4 };
             if (tpl.substr(ti, 8) == '{DHT_ID}') return { val: rec.serial, tc: 8 };
             const m = /^\{([tup])(\d\d?)\}/.exec(tpl.substr(ti, 5));
-            /* @IF wifi */
+            /* @IF slots16 */
             if (!m || (m[2].length == 2 && m[1] != 'p' && m[2][0] != '1') || +m[2] > 15) return null;
             /* @ENDIF */
-            /* @IF !wifi */
+            /* @IF !slots16 */
             if (!m || (m[2].length == 2 && m[1] != 'p' && m[2][0] != '1') || +m[2] >= rec.slots.length) return null;
             /* @ENDIF */
             const c = m[1], i = +m[2], s = rec.slots[i];
@@ -5249,10 +5249,10 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             const d = { name: y.name || c.name || '', mac: y.mac || 'AA:BB:CC:DD:EE:FF', uid: y.uid || c.serial || '',
                 time: y.time || c.now_epoch || Math.floor(Date.now() / 1000), every: 60 * (c.h_int || y.hi || 1),
                 user: user || '', live: !!st, s: [] };
-            /* @IF wifi */
+            /* @IF slots16 */
             for (let i = 0; i < 16; i++) {
             /* @ENDIF */
-            /* @IF !wifi */
+            /* @IF !slots16 */
             for (let i = 0, n = cs.length || 11; i < n; i++) {
             /* @ENDIF */
                 const k = cs[i] || {}, r = ls.find(x => x.slot == i) || {}, L = (as.find(x => x.idx == i) || {}).lim || {};

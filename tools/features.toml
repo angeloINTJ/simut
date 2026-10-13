@@ -109,24 +109,39 @@ display = ["Adafruit ILI9341", "Adafruit GFX Library", "XPT2046_Touchscreen"]
 # A classe e o que as paginas, o console e os paineis sabem da rede, e cada driver
 # nomeia a sua.
 #   wifi  entra numa rede por nome e senha: busca de redes, ponto de acesso de
-#         configuracao e nivel de sinal. E o default do simut_config.h
-#         (SIMUT_NET_LAN = 0): nada a emitir.
-#   lan   um cabo: o endereco vem por DHCP ou e o fixo da configuracao.
-#   macro     vai por -D (-D<macro>=1) porque cabecalhos puros (src/LangPackIndex.h,
-#             src/display/SettingsMenu.h) nao veem o simut_config.h. Conferido com
-#             grep em 2026-10-13: os dois so incluem cabecalhos da biblioteca padrao.
+#         configuracao e nivel de sinal. E a classe do driver padrao, o CYW43
+#         (src/net/NetCaps.h: SIMUT_NET_WIFI = SIMUT_NET_CYW43).
+#   lan   um cabo: o endereco vem por DHCP ou e o fixo da configuracao
+#         (SIMUT_NET_LAN = SIMUT_NET_ENC28J60).
+#   macro     o nome do macro da classe, que o src/FeatureBits.h le para o bit. Ele NAO
+#             vai por -D: sai da identidade do driver no src/net/NetCaps.h, que recusa
+#             quem o passa (2026-10-13; ia por -D porque os cabecalhos puros nao viam o
+#             simut_config.h, e hoje eles incluem o NetCaps.h). O que vai por -D e a
+#             identidade, nos `flags` do driver ([net.enc28j60]: -DSIMUT_NET_ENC28J60=1).
 #   bit       o bit "feat" do /api/status (src/FeatureBits.h, SIMUT_FEAT_<CLASSE>),
 #             PERMANENTE como o de um interruptor: um app instalado le o numero. O 18
 #             era da chave `lan` e passou para a classe sem mudar.
 #   web_omit  os blocos /* @IF <nome> */ do WebUI.h (tools/build_webui_gz.py) que a
 #             classe corta: a lan nao tem radio, e os /* @IF !wifi */, o que so o cabo
 #             tem, entram (2026-10-13, pedido do mantenedor).
+#   units     as unidades de traducao da classe: o que toda placa dela divide, e nao o
+#             que e de um chip. Toda unidade de uma classe que NAO e a do perfil sai do
+#             build (-<unidade> no build_src_filter), como a de um driver que nao e o
+#             do perfil (a chave `units` de [net.<id>], abaixo).
 [net_class.wifi]
 
 [net_class.lan]
-macro    = "SIMUT_NET_LAN"   # #if SIMUT_NET_LAN: o default 0 mora no simut_config.h
+macro    = "SIMUT_NET_LAN"   # derivado no src/net/NetCaps.h (= SIMUT_NET_ENC28J60); nunca vai por -D
 bit      = 18
 web_omit = "wifi"
+# Os dois arquivos da classe: as maquinas de estado cabeadas do NetworkManager e o enlace
+# que toda placa cabeada divide (LwipIntfDev: hostname, endereco fixo, begin, getters, end), com o
+# cabecalho do chip por baixo (src/net/Enc28j60Device.h, que e cabecalho e nao entra aqui).
+# Nem entram nas imagens Wi-Fi. Vazios ali (tudo sob #if SIMUT_NET_LAN), ainda assim mudavam
+# os bytes: os dois objetos no link trocavam a ordem de 56 veneers do linker (mesmo codigo,
+# mesmos tamanhos, alvos de BL deslocados em 16 a 32 B), e o pico_w_release saia 55ce740c em
+# vez de 1fe54a67 (2026-10-13). Fora do filtro, as sete voltam byte a byte.
+units    = ["NetworkManager_Wired.cpp", "net/WiredLink.cpp"]
 
 # Os drivers. `class` e a classe do driver; as outras chaves sao o que o ambiente do
 # PlatformIO ganha com ele, e quem escolhe outro driver nao as recebe:
@@ -136,12 +151,19 @@ web_omit = "wifi"
 #             placa de sempre -- uma imagem que diria uma coisa e seria outra.
 #   unflags   flags do pico_base que o ambiente tira com build_unflags.
 #   flags     flags que o driver soma aos do perfil.
-#   units     as unidades de traducao do driver. Toda unidade de um driver que NAO e o
-#             do perfil sai do build (-<unidade> no build_src_filter).
+#   units     as unidades de traducao do driver: as de um chip que traz um .cpp proprio
+#             (o ENC28J60 nao traz: o chip dele e um cabecalho, e as unidades da build
+#             cabeada sao da classe `lan`). Toda unidade de um driver que NAO e o do perfil
+#             sai do build (-<unidade> no build_src_filter).
 #   lib_deps  as bibliotecas que so ele traz, fixadas por commit.
+#   web_omit  os blocos /* @IF <nome> */ do WebUI.h que so este driver corta, depois dos da
+#             classe (2026-10-13). A classe corta o que o radio e (`wifi`); o driver, o que o
+#             chip toma: o ENC28J60 fica com o GP11-GP15, e a pagina de sensores diz onze
+#             slots em vez de dezesseis (`slots16`). Outro modulo cabeado nao tomaria esses
+#             pinos, e por isso isto nao e da classe.
 [net.cyw43]
-# O radio CYW43439 do Pico W e do Pico 2 W: o default do pico_base e do simut_config.h,
-# nada a emitir.
+# O radio CYW43439 do Pico W e do Pico 2 W: o default do pico_base e a identidade padrao do
+# src/net/NetCaps.h (SIMUT_NET_CYW43), nada a emitir.
 class = "wifi"
 
 [net.enc28j60]
@@ -149,29 +171,33 @@ class = "wifi"
 # O estudo de 2026-09-26 (ramo study/simut-wire, docs/analysis/SIMUT_WIRE_VIABILIDADE.md)
 # mediu a release linkando para board = rpipico guardando uma unica chamada, a
 # cyw43_arch_enable_sta_mode( ) da busca de redes do NetworkManager.cpp. O driver e o
-# src/net/WiredLink.cpp com o src/NetworkManager_Wired.cpp (2026-10-12).
+# src/net/Enc28j60Device.h, o chip, sobre o src/net/WiredLink.cpp e o src/NetworkManager_Wired.cpp,
+# que sao da classe `lan` (2026-10-12; o chip virou um cabecalho em 2026-10-13).
 class    = "lan"
 # O RP2350 nao tem placa aqui: o gerador recusa o perfil nele, e a pagina trava a escolha
 # com o motivo de [ui_nets.enc28j60].unsupported, ate haver uma.
 board    = { rp2040 = "rpipico" }
 # O pico_base poe o -DPICO_CYW43_SUPPORTED=1 (as placas W o passam). Sem radio ele sai
-# (build_unflags); se ficasse, o simut_config.h pararia num #error (SIMUT_NET_LAN com o
-# CYW43).
+# (build_unflags); se ficasse, o simut_config.h pararia num #error (um driver que nao e o
+# CYW43 com o PICO_CYW43_SUPPORTED).
 unflags  = ["-DPICO_CYW43_SUPPORTED=1"]
 # O modulo fica com GP11-GP15 (o INT e o SPI), que eram cinco dos dezesseis slots de
 # sensor: a build com ele tem onze, GP0-GP10 (o simut_config.h recusa um pino do modulo
 # nessa faixa). O INT no GP11 com qualquer mostrador e decisao de 2026-10-12: uma
 # fiacao so.
-flags    = ["-DMAX_SENSORS=11"]
-# Os dois arquivos do driver nem entram nas imagens Wi-Fi. Vazios ali (tudo sob
-# #if SIMUT_NET_LAN), ainda assim mudavam os bytes: os dois objetos no link trocavam a
-# ordem de 56 veneers do linker (mesmo codigo, mesmos tamanhos, alvos de BL deslocados
-# em 16 a 32 B), e o pico_w_release saia 55ce740c em vez de 1fe54a67 (2026-10-13). Fora
-# do filtro, as sete voltam byte a byte.
-units    = ["NetworkManager_Wired.cpp", "net/WiredLink.cpp"]
+# O driver passa tambem a identidade dele, -DSIMUT_NET_ENC28J60=1, primeiro (2026-10-13): a
+# classe lan sai dela no src/net/NetCaps.h, e a classe nunca vai por -D.
+flags    = ["-DSIMUT_NET_ENC28J60=1", "-DMAX_SENSORS=11"]
+# Os textos da pagina que dizem dezesseis slots saem, e os de onze entram: os doze blocos
+# `@IF slots16` e `@IF !slots16` do WebUI.h. Eram `@IF wifi` ate 2026-10-13, e "tem radio" e
+# "tem dezesseis slots" eram a mesma pergunta so porque so havia um modulo cabeado.
+web_omit = "slots16"
+# Sem `units`: o chip nao traz .cpp, so o cabecalho, e as duas unidades da build cabeada sao da
+# classe `lan` (acima).
 # O driver do modulo: a biblioteca do mantenedor, fixada no commit que ele escolheu em
 # 2026-10-12 (a main de entao). So a build com este driver a baixa; o
-# src/net/WiredLink.cpp e a unica unidade que a inclui.
+# src/net/Enc28j60Device.h e o unico arquivo que a inclui, e o src/net/WiredLink.cpp a unica
+# unidade que inclui esse.
 lib_deps = ["https://github.com/angeloINTJ/pico-enc28j60.git#fb16ec132baab989b5921075dd1f1503dd8149d4"]
 
 # ---------------------------------------------------------------------------
@@ -541,8 +567,9 @@ publish = true
 #   num pio0 vazio e cai para GPIO sem ele, entao nao disputa o PIO do modulo se a rede
 #   subir antes dos sensores (o que o driver tem de garantir).
 #   Pinos do modulo (simut_config.h): MISO GP12, CS GP13, SCK GP14, MOSI GP15 (SPI por PIO);
-#   o INT e o GP11, com qualquer mostrador. O driver (src/net/WiredLink.cpp,
-#   src/NetworkManager_Wired.cpp) pega o endereco por DHCP ou o fixo da configuracao;
+#   o INT e o GP11, com qualquer mostrador. O driver (src/net/WiredLink.cpp sobre o
+#   src/net/Enc28j60Device.h, e o src/NetworkManager_Wired.cpp) pega o endereco por DHCP
+#   ou o fixo da configuracao;
 #   na bancada de 2026-10-12 a web respondeu pelo cabo. Medido em 2026-10-13 (pio run -e
 #   pico_wire, arduino-pico 5.6.1, com o driver): 598.560 B de flash, .bin de 610.592 B,
 #   104.688 B de RAM, com onze slots; o driver custou 10.588 B de flash e 2.708 B de RAM.
@@ -966,7 +993,7 @@ require  = { net = "cyw43" }
 why.en   = "Bluetooth runs on the CYW43 radio, so it needs the Wi-Fi connection."
 why.pt   = "O Bluetooth roda no rádio CYW43, então precisa da conexão Wi-Fi."
 why.es   = "El Bluetooth funciona en la radio CYW43, así que necesita la conexión Wi-Fi."
-evidence = "With net = enc28j60, SIMUT_NET_LAN with SIMUT_BLUETOOTH stops at an #error in simut_config.h, pinned by tools/test_pin_masks.py (2026-10-12). Not compiled past that #error: the Bluetooth stack (SerialBT, BTstack) rides on the CYW43, and board = rpipico has none. The rule asks for the radio, not for the absence of the cable: a wired board added later has no CYW43 either."
+evidence = "With net = enc28j60, SIMUT_BLUETOOTH stops at an #error in simut_config.h, pinned by tools/test_pin_masks.py (2026-10-12). The test of that #error was SIMUT_NET_LAN && SIMUT_BLUETOOTH, the cable; since 2026-10-13 it is SIMUT_BLUETOOTH && !SIMUT_NET_CYW43, the chip. Not compiled past that #error: the Bluetooth stack (SerialBT, BTstack) rides on the CYW43, and board = rpipico has none. The rule asks for the radio, not for the absence of the cable: a wired board added later has no CYW43 either, and the #error already refuses it."
 
 [[rules]]
 id       = "air-needs-cyw43"
@@ -975,7 +1002,7 @@ require  = { net = "cyw43" }
 why.en   = "Hibernation is built around the CYW43 radio, which it powers down between wakes, so it needs the Wi-Fi connection."
 why.pt   = "A hibernação é feita em torno do rádio CYW43, que ela desliga entre os despertares, então precisa da conexão Wi-Fi."
 why.es   = "La hibernación gira en torno a la radio CYW43, que apaga entre los despertares, así que necesita la conexión Wi-Fi."
-evidence = "With net = enc28j60, SIMUT_NET_LAN with SIMUT_AIR stops at an #error in simut_config.h, pinned by tools/test_pin_masks.py (2026-10-12). Not compiled past that #error: AppManager_Air.cpp powers the CYW43 down through GPIO23 (WL_REG_ON) before every sleep, and board = rpipico has no CYW43. The rule asks for the radio, not for the absence of the cable: a wired board added later has no CYW43 either."
+evidence = "With net = enc28j60, SIMUT_AIR stops at an #error in simut_config.h, pinned by tools/test_pin_masks.py (2026-10-12). The test of that #error was SIMUT_NET_LAN && SIMUT_AIR, the cable; since 2026-10-13 it is SIMUT_AIR && !SIMUT_NET_CYW43, the chip. Not compiled past that #error: AppManager_Air.cpp powers the CYW43 down through GPIO23 (WL_REG_ON) before every sleep, and board = rpipico has no CYW43. The rule asks for the radio, not for the absence of the cable: a wired board added later has no CYW43 either, and the #error already refuses it."
 
 # O que o orcamento de PIO e de pinos recusa (tools/pio_budget.py, 2026-10-13), com as
 # palavras que a pagina mostra: `why` e o problema; `fix`, o remedio, com {list} trocado

@@ -248,6 +248,7 @@ WEB_FEATURES = {
     "tel_mqtt": "o seletor de transporte e os campos do MQTT na pagina de telemetria",
     "slot": "a atualizacao em teste e a volta do Pico 2 W, no painel e na pagina Arquivos",
     "wifi": "o radio: SSID, senha e busca de redes na pagina de rede, o sinal no painel; a build com a rede por cabo (a classe lan, web_omit de [net_class.lan]) nao os tem",
+    "slots16": "os dezesseis slots de sensor (GP0-GP15) nos textos da pagina de sensores, nas legendas de tags e no preview da telemetria; um driver de rede que toma o GP11-GP15 (web_omit de [net.enc28j60]) corta esses textos e a pagina fica com os onze que sobram",
 }
 
 # Onde cada feature registra as rotas que só ela tem. A página que chama uma

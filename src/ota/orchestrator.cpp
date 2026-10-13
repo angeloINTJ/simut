@@ -13,9 +13,8 @@
 #include "../StorageManager.h"
 
 #include <Arduino.h>
-#include <WiFi.h>
 #include <LittleFS.h>
-#include "../net/WiredLink.h"   /* empty unless SIMUT_NET_LAN */
+#include "../net/NetLink.h"   /* net::stopForFlash( ): the network's stop, whatever the driver */
 #include <hardware/sync.h>
 #include <hardware/regs/addressmap.h> /* WATCHDOG_BASE */
 #include <hardware/regs/watchdog.h>   /* WATCHDOG_SCRATCH5_OFFSET */
@@ -60,14 +59,7 @@ OrchestratorResult ota_apply_pending_update(StorageManager* storage) {
      * enumera mas CLI mudo). Hipótese: deinit deixa o chip CYW43 em
      * estado que requer power cycle pra recuperar, mesmo no boot novo.
      * Investigação continua. */
-#if SIMUT_NET_LAN
-    /* A wired build has no radio to stop: the ENC28J60 stops instead, its PIO
-     * state machine and its INT handler released, so nothing reaches the
-     * module while the flash is written. */
-    WiredLink::end();
-#else
-    WiFi.end();
-#endif
+    net::stopForFlash();
 
     /* LittleFS desmontada — staging é acessível via XIP cru. */
     LittleFS.end();

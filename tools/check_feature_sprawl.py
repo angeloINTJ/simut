@@ -35,7 +35,12 @@ BASELINE = os.path.join(ROOT, "tools", "feature_sprawl.json")
 # por construcao, para compor o "feat" do /api/status — e a tabela que o
 # manifesto ja e, nao codigo espalhado. Contado, cada chave nova subiria a marca
 # em um sitio sem que nada tivesse se emaranhado.
-SKIP_FILES = {"simut_config.h", "FeatureBits.h"}
+#
+# O net/NetCaps.h (2026-10-13) tambem: e onde as macros da REDE sao definidas, a identidade
+# (SIMUT_NET_CYW43, SIMUT_NET_ENC28J60) com o `#ifndef X / #define X` e a classe (SIMUT_NET_WIFI,
+# SIMUT_NET_LAN) derivada dela. Contado, o cabecalho que separa a identidade da classe subiria as duas
+# marcas em sitios que nao espalham nada: so definem.
+SKIP_FILES = {"simut_config.h", "FeatureBits.h", "NetCaps.h"}
 EXTS = (".cpp", ".c", ".h", ".hpp", ".ino")
 
 COND = re.compile(r"^\s*#\s*(?:if|ifdef|ifndef|elif)\b(.*)$")

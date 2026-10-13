@@ -22,6 +22,7 @@
  */
 
 #include "WebManager.h"
+#include "simut_config.h"   /* SIMUT_NET_WIFI is tested below: included here, not left to another header */
 #include "MetricsManager.h"
 #include "FlashIrqProbe.h"
 #include "B64Decode.h"

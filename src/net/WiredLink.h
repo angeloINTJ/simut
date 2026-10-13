@@ -1,12 +1,16 @@
 /**
  * @file WiredLink.h
- * @brief The SIMUT Wire's network: the ENC28J60 module on the cable, through the
- *        PicoENC28J60 library's lwIP interface. Only a build with the `lan`
- *        switch (SIMUT_NET_LAN) has it.
+ * @brief The network of a build with a cable (the SIMUT Wire): a wired module
+ *        on the framework's lwIP Ethernet interface (LwipIntfDev). Only an image
+ *        whose network driver is a cable (SIMUT_NET_LAN, `net = "enc28j60"` in
+ *        the manifest) has it.
  *
- * WiredLink.cpp is the one unit that includes <PicoENC28J60lwIP.h>, so the images
- * with the radio keep the dependency graph they always had. The pins, the INT line
- * and the PIO block come from src/simut_config.h, section 10b.
+ * The API is the class's: any wired driver answers it. WiredLink.cpp holds what
+ * the drivers share and includes, by the image's identity, the device header of
+ * its chip (src/net/Enc28j60Device.h), which is the one place that includes the
+ * chip's library, so the images with the radio keep the dependency graph they
+ * always had. The pins, the INT line and the PIO block come from
+ * src/simut_config.h, section 10b.
  *
  * @project SIMUT
  * @license MIT License
@@ -46,9 +50,12 @@ void macAddress(uint8_t mac[6]);
 /** Why the last begin( ) failed ("" after a success). */
 const char* lastError( );
 
+/** The driver's name, for the log ("ENC28J60"): the chip of the image. */
+const char* chipName( );
+
 /** Stops the interface: the PIO state machine and the INT and poll workers go,
  *  so nothing touches the chip while the flash is written for an update (the
- *  OTA's teardown, src/ota/orchestrator.cpp, calls it). */
+ *  OTA's teardown calls it through net::stopForFlash( ), src/net/NetLink.h). */
 void end( );
 
 }  // namespace WiredLink

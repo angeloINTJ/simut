@@ -353,7 +353,7 @@ pio run -e pico_w_release -e pico_w_test -e pico_w_test_https \
         -e pico_wire -e pico_wiretft
 pio test -e native -e native_history_v5 -e native_cli -e native_lan \
          -e native_logpolicy -e native_alarmqueue -e native_network -e native_air \
-         -e native_sensors -e native_otasig
+         -e native_sensors -e native_wired -e native_otasig
 ./tools/run_fuzz.sh                       # 60 s; NÃO está no pio test e já pegou defeito real
 PLATFORMIO_BUILD_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined" \
   pio test -e native -e native_sensors …  # as dez de novo sob ASan/UBSan (apaga .pio/build); o relatório

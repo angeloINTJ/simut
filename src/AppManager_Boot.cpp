@@ -9,6 +9,8 @@
  */
 
 #include "AppManager.h"
+#include "simut_config.h"   /* SIMUT_NET_LAN and SIMUT_NET_WIFI are tested below: included here, not left to another header */
+#include "net/NetBoot.h"    /* SIMUT_NET_BOOT_RESET is tested below: included here, not left to another header */
 #include "CommandManager.h"
 #include "DisplayManager.h"
 #include "LogManager.h"
@@ -213,9 +215,9 @@ void AppManager::setup( ) {
 	 * preserve compatibility with POST_OTA_APPLY_MAGIC diagnostics. */
  {
  alpha30_write_scratch5(0); /* always clear; magic is no longer a gate */
-#if !SIMUT_NET_LAN
- /* Not on the Wire: no CYW43 to reset, and on a Pico W board running the Wire
-  * image GP23 is that radio's power pin, which this image leaves alone. */
+#if SIMUT_NET_BOOT_RESET
+ /* A capability of the network driver, not its identity: which chip is reset,
+  * and how, is net/NetBoot.h's. */
 #if SIMUT_AIR
  /* Every reboot path this cycle exists for leaves the radio in an unknown
   * state: UF2 flash, OTA apply, watchdog, hand RESET, picotool. A dormant
@@ -227,13 +229,7 @@ void AppManager::setup( ) {
 #endif
  {
  _uart_mark('#'); /* power-cycle entry marker */
- gpio_init(23);
- gpio_set_dir(23, GPIO_OUT);
- gpio_put(23, 0);
- busy_wait_ms(500);
- gpio_set_dir(23, GPIO_IN);
- gpio_disable_pulls(23);
- busy_wait_ms(100);
+ net::bootReset( );
  _uart_mark('*'); /* power-cycle done */
  }
 #endif

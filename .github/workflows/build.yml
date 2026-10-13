@@ -127,7 +127,17 @@ jobs:
       - name: Feature bits /api/status reports
         run: python3 tools/test_feature_bits.py
 
-      # The wired build (SIMUT_NET_LAN, the SIMUT Wire: a plain Pico with the
+      # The network driver is the image's identity (SIMUT_NET_CYW43, the default,
+      # or SIMUT_NET_ENC28J60) and the Wi-Fi / cable class (SIMUT_NET_WIFI,
+      # SIMUT_NET_LAN) is derived from it in src/net/NetCaps.h and never passed
+      # with -D. The preprocessor answers for each driver, the build that passes
+      # the class or two drivers or none stops at an #error, a second wired driver
+      # added by the recipe in that header's comment is held to its own OTA names,
+      # and every #error is taken out in turn to see exactly its cases fail.
+      - name: Network driver and class
+        run: python3 tools/test_net_caps.py
+
+      # The wired build (the ENC28J60 driver, the SIMUT Wire: a plain Pico with the
       # network on an ENC28J60 module) is held, by the preprocessor, to the pins
       # it may use, the radio it does not have and the name it takes in the OTA.
       # The module on the display's or the buzzer's pin, two of its own lines on
@@ -141,8 +151,9 @@ jobs:
       - name: Pin masks and variant names of the wired build
         run: python3 tools/test_pin_masks.py
 
-      # A wired build cuts the radio's parts of the web pages (web_omit =
-      # "wifi" on the lan class of the network choice), and a Wi-Fi build keeps them.
+      # A wired build cuts the radio's parts of the web pages (web_omit = "wifi"
+      # of the lan class) and, with the ENC28J60, its 16-slot texts ("slots16" of
+      # the driver); a Wi-Fi build keeps both.
       - name: Web pages per network
         run: python3 tools/test_web_omit_network.py
 
@@ -159,6 +170,21 @@ jobs:
       # lowers the mark. Same idea as the flash budget, for entanglement.
       - name: Feature entanglement watermark
         run: python3 tools/check_feature_sprawl.py
+
+      # The network is one driver per image, and the rest of src/ must not know which:
+      # outside src/net/ no identity macro (SIMUT_NET_CYW43, SIMUT_NET_ENC28J60, the
+      # module's SIMUT_ENC_* pins), no call on the radio (WiFi., cyw43_), no driver
+      # library included (...lwIP.h, LwipIntfDev.h), and a file that tests the class
+      # (SIMUT_NET_WIFI, SIMUT_NET_LAN) includes simut_config.h or net/NetCaps.h
+      # itself. What still breaks a rule is listed in tools/net_boundary.json, each
+      # with its reason, and the counts only go down. Adding a board is then a driver
+      # in src/net/ and a manifest entry, and this is what makes it so. The test puts
+      # one violation of each rule into a clean tree, and into a copy of the real one,
+      # and requires exactly one finding.
+      - name: Network boundary (the chip stays in src/net/)
+        run: |
+          python3 tools/test_net_boundary.py
+          python3 tools/check_net_boundary.py
 
       # The configurator's rules (tools/features.toml [[rules]], each measured
       # by compiling the forbidden combination). They are applied twice: by
@@ -285,7 +311,7 @@ jobs:
           python3 tools/ota_sign.py gen-trust --check
           python3 tools/ota_sign.py check-keys
 
-      # ALL TEN native environments. Separate steps rather than one
+      # ALL ELEVEN native environments. Separate steps rather than one
       # `pio test -e a -e b ...` so a failure names itself in the Actions UI
       # instead of hiding behind the first environment that broke.
       #
@@ -331,6 +357,12 @@ jobs:
       - name: Run unit tests (network state machine)
         run: pio test -e native_network
 
+      # The wired network's states (NetworkManager_Wired.cpp) against a fake
+      # ENC28J60 (2026-10-13): no host test ran them before, and they are pinned
+      # here before the network becomes a driver.
+      - name: Run unit tests (wired network state machine)
+        run: pio test -e native_wired
+
       # The signature check of a staged OTA image, against the vectors above:
       # every refusal, and every trailer byte covered.
       - name: Run unit tests (OTA signature)
@@ -352,7 +384,7 @@ jobs:
         run: |
           rc=0
           for e in native native_history_v5 native_cli native_lan native_logpolicy \
-                   native_alarmqueue native_air native_sensors native_network native_otasig; do
+                   native_alarmqueue native_air native_sensors native_network native_wired native_otasig; do
             if ! pio test -e "$e"; then
               rc=1
               echo "::group::$e, run directly for the sanitizer report"

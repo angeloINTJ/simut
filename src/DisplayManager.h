@@ -31,6 +31,7 @@ class Adafruit_GFX;
 #include "pico/multicore.h"
 #include "pico/util/queue.h"
 #include "SystemDefs.h"
+#include "simut_config.h"   /* SIMUT_NET_WIFI is tested below: included here, not left to another header */
 #include "PinKeypad.h"   /* PinKb:: — geometry of the scrambled PIN keypad */
 #include "display/ClockEntry.h" /* the date and time set at the panel */
 #include "display/SettingsMenu.h" /* the Settings menu: items, order, rows */

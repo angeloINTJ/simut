@@ -16,6 +16,7 @@
  */
 #pragma once
 #include <Arduino.h>
+#include "../net/NetCaps.h"   /* SIMUT_NET_LAN, tested below; an undefined macro reads as 0 and the wired cell would go */
 
 /* ═══ Bitmaps CGRAM 5×8 pixels ═══════════════════════════════════════ */
 

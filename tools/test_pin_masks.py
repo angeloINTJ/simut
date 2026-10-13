@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
-"""Testa as guardas de compilacao da rede por cabo (SIMUT_NET_LAN) em src/simut_config.h:
-quem pode usar qual pino, que radio a imagem tem, e como a imagem se chama.
+"""Testa as guardas de compilacao da rede por cabo (o driver ENC28J60, SIMUT_NET_ENC28J60) em
+src/simut_config.h: quem pode usar qual pino, que radio a imagem tem, e como a imagem se chama.
 
 Rodar: python3 tools/test_pin_masks.py
 
 O SIMUT Wire e o SIMUT num Raspberry Pi Pico comum, sem o radio CYW43, com a rede por
 cabo num modulo ENC28J60 (o driver `enc28j60` de tools/features.toml, `net = "enc28j60"`
-no perfil, da classe `lan`). Uma montagem que nao
+no perfil, da classe `lan`). O driver passa a IDENTIDADE dele por -D (-DSIMUT_NET_ENC28J60=1, nos
+`flags` do [net.enc28j60], que este teste le do manifesto); a CLASSE (SIMUT_NET_LAN) sai dela no
+src/net/NetCaps.h e nunca vai por -D (tools/test_net_caps.py). Uma montagem que nao
 pode funcionar tem de parar o BUILD, nao a placa, e e o pre-processador que para: o
 simut_config.h compara mascaras de pinos (`#if (A & B) != 0`) e recusa, com um #error que
 nomeia os dois donos, o modulo no pino do mostrador ou do buzzer, o buzzer no pino do
 mostrador, dois fios do proprio modulo no mesmo pino, o Bluetooth e o Air (os dois rodam
-no CYW43) com a LAN, um build Wi-Fi sem o CYW43 e um build de LAN que ainda o tem. O nome da variante (SIMUT_ENV_NAME, o que a OTA
+no CYW43) com um driver que nao e o CYW43, um build do CYW43 sem o radio e um build de outro driver que ainda o tem. O nome da variante (SIMUT_ENV_NAME, o que a OTA
 compara e a assinatura amarra) e "wire" com o LCD e "wiretft" com a TFT.
 
 Este teste pede ao pre-processador do host, o mesmo `cpp` do test_feature_bits.py e sem
@@ -38,9 +40,10 @@ import gen_features as gf  # noqa: E402
 
 TARGET = "-DARDUINO_ARCH_RP2040"        # toda placa arduino-pico: sem ele o cabecalho e o do host
 CYW43 = "-DPICO_CYW43_SUPPORTED=1"      # as placas W passam; o pico_base tambem
-# Um build com o driver enc28j60 (classe lan): o macro da classe e o que o driver passa junto
-# (`flags` do [net.enc28j60]), hoje os onze slots. main( ) confere que esta lista e a do manifesto.
-LAN = ["-DSIMUT_NET_LAN=1", "-DMAX_SENSORS=11"]
+# Um build com o driver enc28j60 (classe lan): o que o driver passa, lido do manifesto (`flags` do
+# [net.enc28j60]) -- a identidade dele e os onze slots. A classe nao vai: o src/net/NetCaps.h a deriva
+# e recusa quem a passa de fora. main( ) confere o que os casos supoem dessa lista.
+LAN = list(gf.load_manifest()["net"]["enc28j60"].get("flags", []))
 LCD = ["-DSIMUT_DISPLAY_TFT=0", "-DSIMUT_DISPLAY_ALPHA=1", "-DHD44780_MODE_PARALLEL=1"]
 LCD_I2C = ["-DSIMUT_DISPLAY_TFT=0", "-DSIMUT_DISPLAY_ALPHA=1"]    # o modo I2C e o padrao do LCD
 NO_DISPLAY = ["-DSIMUT_DISPLAY_TFT=0", "-DSIMUT_DISPLAY_ALPHA=0"]
@@ -164,12 +167,14 @@ def main():
     M = gf.load_manifest()
     fails = []
 
-    # 0. O build LAN deste teste e o que o driver enc28j60 do manifesto da: o macro da classe dele
-    #    (-D<macro>=1) e os `flags` do driver.
-    enc = M["net"]["enc28j60"]
-    lan_manifest = [f"-D{M['net_class'][enc['class']]['macro']}=1"] + list(enc.get("flags", []))
-    if LAN != lan_manifest:
-        fails.append(f"o LAN do teste {LAN} nao e o que o driver enc28j60 do manifesto passa {lan_manifest}")
+    # 0. O build LAN deste teste e o que o driver enc28j60 do manifesto passa. Os casos supoem duas coisas
+    #    dele: a identidade vem primeiro (os que querem "a LAN com os 16 slots" usam LAN[0] sozinho) e os
+    #    onze slots vem junto. A classe nunca vem: o NetCaps.h a recusa de fora.
+    if LAN[:1] != ["-DSIMUT_NET_ENC28J60=1"] or "-DMAX_SENSORS=11" not in LAN:
+        fails.append(f"os flags do driver enc28j60 do manifesto {LAN} deviam ter -DSIMUT_NET_ENC28J60=1 primeiro "
+                     f"e -DMAX_SENSORS=11: os casos deste teste supoem os dois")
+    if any(re.match(r"-DSIMUT_NET_(LAN|WIFI)\b", f) for f in LAN):
+        fails.append(f"os flags do driver enc28j60 {LAN} passam a classe da rede: ela se deriva da identidade (src/net/NetCaps.h)")
 
     # 0. O teste conhece o nome de todo perfil, e nenhum a mais.
     if set(EXPECT_NAME) != set(M["profiles"]):
@@ -207,9 +212,9 @@ def main():
             if not pinned:
                 fails.append(f"o #error de {token!r} nao tem caso que o provoque")
         strangers = [i + 1 for i in error_lines
-                     if re.search(r"SIMUT_NET_LAN|CYW43", lines[i]) and i not in owned_at.values()]
+                     if re.search(r"SIMUT_NET_LAN|SIMUT_NET_ENC28J60|CYW43", lines[i]) and i not in owned_at.values()]
         if strangers:
-            fails.append(f"#error sobre a LAN ou o CYW43 sem caso, nas linhas {strangers} do simut_config.h")
+            fails.append(f"#error sobre a LAN, o ENC28J60 ou o CYW43 sem caso, nas linhas {strangers} do simut_config.h")
 
         # 3. O teste morde: sem um #error, exatamente os casos dele falham. Com o cabecalho ja
         #    reprovado no passo 1 a prova nao diz nada, e so atrapalharia a leitura.

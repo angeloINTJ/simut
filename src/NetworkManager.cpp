@@ -13,6 +13,7 @@
  */
 
 #include "NetworkManager.h"
+#include "simut_config.h"   /* SIMUT_NET_LAN and SIMUT_NET_WIFI are tested below: included here, not left to another header */
 #include "MetricsManager.h"
 #include "SimutTime.h"   /* simutTimeSetOffset — the zone this applies */
 #include <stdlib.h>
@@ -22,11 +23,11 @@
 #include "pico/unique_id.h"           /* the setup AP key is derived from the board id */
 #include "BuildIdentity.h"            /* SIMUT_VERSION / env for the mDNS TXT record */
 #include <bearssl/bearssl_hash.h>     /* br_sha256_* for that derivation (V-05) */
-#if SIMUT_NET_WIFI
+#if SIMUT_NET_CYW43
 #include "pico/cyw43_arch.h"           /* enable_sta_mode: scanning needs the STA itf */
 #endif
 #if SIMUT_NET_LAN
-#include "net/WiredLink.h"             /* the ENC28J60 behind the getters below */
+#include "net/WiredLink.h"             /* the wired module behind the getters below */
 #endif
 
 NetworkManager::NetworkManager( ) {
@@ -310,12 +311,13 @@ bool NetworkManager::startScan( ) {
   * beside it, because the browser asking for this list is connected to it. */
  if (_state == NET_AP_CONFIG && !_scanStaForced) {
 /* The one call into the CYW43 control code that this file makes outside the
- * framework's WiFi class. In a build for board = rpipico (SIMUT_NET_LAN) the
- * radio's driver is not linked, and this call alone pulls cyw43_ctrl.c.o in,
- * which wants the __wrap_cyw43_cb_* that only the Pico W's libraries provide
- * (2026-09-26 study: guarded, the release links for the plain Pico). Without
- * the radio there is no STA interface to bring up for a scan. */
-#if SIMUT_NET_WIFI
+ * framework's WiFi class. In a build for board = rpipico (any driver but the
+ * CYW43) the radio's driver is not linked, and this call alone pulls
+ * cyw43_ctrl.c.o in, which wants the __wrap_cyw43_cb_* that only the Pico W's
+ * libraries provide (2026-09-26 study: guarded, the release links for the plain
+ * Pico). Without the radio there is no STA interface to bring up for a scan.
+ * The chip's guard, not the class's (2026-10-13). */
+#if SIMUT_NET_CYW43
   cyw43_arch_enable_sta_mode( );
 #endif
   WiFi.mode(WIFI_AP_STA);

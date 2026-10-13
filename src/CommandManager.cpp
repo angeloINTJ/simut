@@ -13,6 +13,7 @@
  */
 
 #include "CommandManager.h"
+#include "simut_config.h"   /* SIMUT_NET_LAN and SIMUT_NET_WIFI are tested below: included here, not left to another header */
 #include "CommandParser.h"
 #include "LogManager.h"
 #include "DisplayManager.h" /* F-LANGPACK Etapa 3: getActiveHelpText */

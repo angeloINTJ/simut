@@ -19,11 +19,20 @@
  */
 
 #include <unity.h>
+/* The two pure headers that test SIMUT_NET_LAN come FIRST, before anything that
+ * brings simut_config.h (CommandParser.h and the SystemDefs_*.h do). Each has to
+ * include net/NetCaps.h itself: an undefined macro reads as 0, and a wired build
+ * would be given the radio's help and the radio's menu with nothing to say so.
+ * Whatever comes earlier defines the macros for the headers after it and hides
+ * the loss, which is how no suite noticed one. That also limits this order to
+ * the first of the two: it is LangPackIndex.h that the pack cases below can
+ * catch. display/SettingsMenu.h is first in a unit of its own,
+ * standalone_settings_menu.cpp. */
+#include "LangPackIndex.h"
+#include "display/SettingsMenu.h"
 #include "CommandParser.h"
 #include "SystemDefs_Records.h"
 #include "SystemDefs_Network.h"
-#include "LangPackIndex.h"
-#include "display/SettingsMenu.h"
 #include "LogPolicy.h"
 #include "SystemDefs_Logging.h"
 #include <cstring>
