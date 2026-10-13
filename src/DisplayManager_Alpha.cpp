@@ -136,7 +136,11 @@ void DisplayManager::loopCore1( ) {
 		_lastHeartbeat = millis( );
 
 		/* Update WiFi signal icon (slot 7) based on RSSI */
+#if SIMUT_NET_LAN
+		_big.showWired(_lcd, _sharedState.wifiRssi > -100);
+#else
 		_big.showWiFi(_lcd, _sharedState.wifiRssi);
+#endif
 
 		/* ── FIRMWARE UPDATE (OtaScreen.h) ───────────────────────────
 		 * Ahead of every screen but a reboot's. Core 0 publishes each step

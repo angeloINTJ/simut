@@ -26,10 +26,11 @@
 
 namespace {
 
-/* A cable has no signal strength. Until the screens draw a cable, a link that
- * is up answers getRssi( ) with this stand-in: four bars on the panel (above
- * -55), five on the 16x2 LCD (from -50), past RSSI_MIN_THRESHOLD (-78), which
- * isNetworkHealthy( ) applies, and inside the implausibility bounds. */
+/* A cable has no signal strength. A link that is up answers getRssi( ) with
+ * this stand-in, and -100 means no network, as on Wi-Fi: the screens draw a
+ * cable from it (above -100, the network glyph lit; DisplayManager_Dashboard.cpp,
+ * BigFont_HD44780.h), and it clears RSSI_MIN_THRESHOLD (-78), which
+ * isNetworkHealthy( ) applies, inside the implausibility bounds. */
 constexpr int32_t RSSI_WIRED = -40;
 
 /* The reconnect ladder's top for a module that does not start: a missing or

@@ -45,6 +45,12 @@ const uint8_t BF_WIFI2[8] = { 0b00000, 0b00000, 0b00000, 0b00000, 0b01000, 0b110
 const uint8_t BF_WIFI3[8] = { 0b00000, 0b00000, 0b00000, 0b00100, 0b01100, 0b11100, 0b00000, 0b00000 };
 const uint8_t BF_WIFI4[8] = { 0b00000, 0b00000, 0b00010, 0b00110, 0b01110, 0b11110, 0b00000, 0b00000 };
 const uint8_t BF_WIFI5[8] = { 0b00000, 0b00001, 0b00011, 0b00111, 0b01111, 0b11111, 0b00000, 0b00000 };
+#if SIMUT_NET_LAN
+/* The SIMUT Wire's cell (2026-10-12): the network glyph the TFT's top bar
+   draws, one box over two joined by a bus, with the cable up; without it the
+   cell shows BF_WIFI0, the X of no network. */
+const uint8_t BF_WIRED[8] = { 0b01110, 0b01110, 0b00100, 0b11111, 0b10001, 0b11011, 0b11011, 0b00000 };
+#endif
 
 enum BigFontSlot : uint8_t {
 	BFS_LT  = 0, BFS_UB = 1, BFS_RT = 2, BFS_LL = 3,
@@ -237,6 +243,20 @@ public:
 		lcd.createChar(BFS_WIFI, const_cast<uint8_t*>(bm));
 		return true;
 	}
+
+#if SIMUT_NET_LAN
+	/** The SIMUT Wire's showWiFi( ): BF_WIRED with the cable up, the X
+	 *  without. @returns true se o CGRAM foi alterado. */
+	template <typename LCD>
+	bool showWired(LCD& lcd, bool up) {
+		if (!_loaded) return false;
+		const int8_t level = up ? 6 : 0;   /* 6: past the Wi-Fi levels */
+		if (level == _lastLevel) return false;
+		_lastLevel = level;
+		lcd.createChar(BFS_WIFI, const_cast<uint8_t*>(up ? BF_WIRED : BF_WIFI0));
+		return true;
+	}
+#endif
 
 	/** Exibe "ERRO" em letras grandes (3 colunas por letra).
 	 *  Ocupa colunas 3-14, centralizado no display. */
