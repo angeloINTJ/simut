@@ -484,8 +484,8 @@ publish = true
 #   o INT e o GP11, com qualquer mostrador. Nesta etapa so o
 #   interruptor, as regras e as checagens de compilacao existem: o driver do ENC28J60
 #   vem depois, e a imagem nao tem rede ate la. Medido em 2026-10-12 (pio run -e
-#   pico_wire, arduino-pico 5.6.1): linka, 588.020 B de flash, .bin de 600.056 B, 102.064 B
-#   de RAM, com doze slots; sem a guarda do NetworkManager.cpp o link morre em __wrap_cyw43_cb_*. Nao
+#   pico_wire, arduino-pico 5.6.1): linka, 587.972 B de flash, .bin de 600.008 B, 101.980 B
+#   de RAM, com onze slots; sem a guarda do NetworkManager.cpp o link morre em __wrap_cyw43_cb_*. Nao
 #   publicada; confia na raiz de bancada, como as outras imagens de bancada (o gerador
 #   recusa a marca numa publica).
 [profiles.pico_wire]
