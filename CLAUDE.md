@@ -26,7 +26,7 @@ pio run -e pico_w_air          # the hibernating build; least flash headroom
 pio test -e native_logpolicy   # one suite; eight exist
 ```
 
-**Eight** firmware environments and nine native suites, all of them built and
+**Nine** firmware environments and nine native suites, all of them built and
 run by CI — `pico_w_asserts` is the one that is easy to forget, because it is
 not in the table above and nothing local reminds you of it. This line said
 "five" until 2026-09-20, and a change that raised the other five budgets went
@@ -37,7 +37,10 @@ builds and nothing runs on a board yet. **`pio run` with no `-e` builds only
 claimed the opposite until 2026-09-22. The eighth, since 2026-10-12, is
 `pico_wire`: the SIMUT Wire, a plain Pico without the radio, its network on an
 ENC28J60 module (the driver: `src/net/`, `src/NetworkManager_Wired.cpp`; on the
-bench since 2026-10-12). Name the eight.
+bench since 2026-10-12). The ninth, since 2026-10-13, is `pico_wiretft`: the same
+Wire with the TFT panel and touch in place of the 16x2 LCD (the module's INT is
+GP11 with either display); CI builds it, and a build of the same switches
+(`build_custom.py`) ran on the bench on 2026-10-12. Name the nine.
 There is no debug environment — see the note in `platformio.ini` for why.
 
 ## What will fail your build before CI does
@@ -80,8 +83,9 @@ locally. When one fires, it is usually right:
 ## Working agreements
 
 - `main` is protected. Every change goes through a pull request, and the nine
-  required checks must pass: every CI job except the `pico_w_test_https`
-  and `pico_wire` images (`firmware (pico2_w_release)` joined on 2026-10-01).
+  required checks must pass: every CI job except the `pico_w_test_https`,
+  `pico_wire` and `pico_wiretft` images (`firmware (pico2_w_release)` joined on
+  2026-10-01).
 - Commit messages and pull requests are written in English; conversation with
   the maintainer is in Portuguese.
 - Measure before claiming. If a change is described as saving bytes, making

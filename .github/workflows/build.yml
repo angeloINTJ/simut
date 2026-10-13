@@ -382,6 +382,9 @@ jobs:
           # Building it here keeps the guards of src/simut_config.h section 10b
           # and the wired side of NetworkManager compiling.
           - pico_wire
+          # The SIMUT Wire with the TFT panel (2026-10-13): pico_wire with the
+          # touch display, so the TFT side of a wired build compiles here too.
+          - pico_wiretft
     name: firmware (${{ matrix.env }})
     steps:
       - uses: actions/checkout@v7
@@ -447,7 +450,7 @@ jobs:
       # skips that part of the test; after a build both are on disk, and
       # `require` makes a source that went missing a failure instead of a skip
       # nobody reads. One image is enough: the libraries are pico_base's, the
-      # same in all eight.
+      # same in all nine.
       - name: PIO program sizes match their sources
         if: matrix.env == 'pico_w_release'
         env:

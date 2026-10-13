@@ -102,7 +102,7 @@ CASES = [
 EXPECT_NAME = {
     "pico_w_release": "release", "pico_w_test": "release", "pico_w_test_https": "release",
     "pico_w_asserts": "release", "pico_w_alpha": "alpha", "pico_w_air": "air",
-    "pico2_w_release": "releasetwo", "pico_wire": "wire",
+    "pico2_w_release": "releasetwo", "pico_wire": "wire", "pico_wiretft": "wiretft",
 }
 
 ERR_LINE = re.compile(r"error: #error")

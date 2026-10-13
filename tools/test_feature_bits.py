@@ -95,8 +95,11 @@ def exits(fn):
 wire = composed("pico_wire")
 check("pico_wire usa a placa do Pico comum e tira o CYW43 do pico_base",
       wire["board"] == "rpipico" and wire["unflags"] == ["-DPICO_CYW43_SUPPORTED=1"], repr((wire["board"], wire["unflags"])))
+wiretft = composed("pico_wiretft")
+check("pico_wiretft (a TFT no lugar do LCD) usa a mesma placa e tira o mesmo CYW43",
+      wiretft["board"] == "rpipico" and wiretft["unflags"] == ["-DPICO_CYW43_SUPPORTED=1"], repr((wiretft["board"], wiretft["unflags"])))
 for name in M["profiles"]:
-    if name == "pico_wire":
+    if name in ("pico_wire", "pico_wiretft"):
         continue
     c = composed(name)
     chip = gf.resolve_profile(name, M["profiles"]).get("chip", "rp2040")

@@ -23,7 +23,7 @@ generates = ["tools/generated/profiles.ini", "docs/configurador/model.json", "sr
 
 # Flags que todo perfil de firmware acrescenta sobre ${pico_base.build_flags}.
 [base]
-common_flags = ["-DNDEBUG"]   # as oito imagens carregam NDEBUG (release ganhou em 2026-09-18)
+common_flags = ["-DNDEBUG"]   # as nove imagens carregam NDEBUG (release ganhou em 2026-09-18)
 
 # ---------------------------------------------------------------------------
 #  O chip. Um valor por perfil; sem a chave, rp2040 (o Pico W, que o pico_base
@@ -296,8 +296,8 @@ macro = "SIMUT_SENSOR_BME280"
 emit  = "off_is_0"
 
 # ---------------------------------------------------------------------------
-#  Os perfis. Os oito ambientes de firmware que o CI constroi; o oitavo, o
-#  pico_wire, desde 2026-10-12.
+#  Os perfis. Os nove ambientes de firmware que o CI constroi; o oitavo, o
+#  pico_wire, desde 2026-10-12, e o nono, o pico_wiretft, desde 2026-10-13.
 #  `extends` herda o dicionario de recursos do pai e sobrescreve.
 #
 #  `ota_trust_bench = true` (2026-10-01): a imagem aceita pelo ar tambem o que a
@@ -511,6 +511,30 @@ sound_buzzer    = true
 publish         = false
 ota_trust_bench = true
 
+# pico_wiretft — o SIMUT Wire com o painel TFT e o toque: o mesmo Pico comum (sem o radio
+#   CYW43) e o mesmo modulo ENC28J60 do pico_wire, com a tela do pico_w_release no lugar do
+#   LCD. Estende o pico_w_release e repete o que o pico_wire escolhe: o DHT22, o BME280 e o
+#   buzzer, sem DS18B20, sem Bluetooth e sem o Air (lan-no-bluetooth e lan-no-air). Difere do
+#   pico_wire so em quatro chaves, as que o pico_w_release liga: a tela (a TFT, nao o LCD), o
+#   grafico dela, o servidor web HTTPS e o mDNS. O INT do modulo e o GP11 com qualquer dos
+#   dois mostradores (simut_config.h, secao 10b), e o nome da variante, o que a OTA compara,
+#   e `wiretft` (o do pico_wire e `wire`). Imagem de bancada, nao publicada; confia na raiz de
+#   bancada, como o pico_wire. Medido em 2026-10-13 (pio run -e pico_wiretft, arduino-pico
+#   5.6.1, com o driver): 780.628 B de flash, .bin de 792.664 B, 109.784 B de RAM, com onze
+#   slots; contra o pico_wire, na mesma arvore, +183.180 B de flash e +5.104 B de RAM. Nenhuma
+#   placa a rodou ainda.
+[profiles.pico_wiretft]
+extends         = "pico_w_release"
+lan             = true
+bluetooth       = false
+air             = false
+sensor_ds18b20  = false
+sensor_dht22    = true
+sensor_bme280   = true
+sound_buzzer    = true
+publish         = false
+ota_trust_bench = true
+
 # ===========================================================================
 #  O configurador (docs/configurador/): como cada escolha aparece na árvore.
 #  Nada daqui muda o build — compose( ) não lê as tabelas ui_*, rules nem
@@ -581,6 +605,16 @@ label.es = "SIMUT Wire"
 desc.en  = "A plain Raspberry Pi Pico with no radio: the network comes through an ENC28J60 module on the cable. Not published."
 desc.pt  = "Um Raspberry Pi Pico comum, sem rádio: a rede vem por um módulo ENC28J60, no cabo. Não publicada."
 desc.es  = "Una Raspberry Pi Pico común, sin radio: la red llega por un módulo ENC28J60, por el cable. No publicada."
+
+[ui_products.pico_wiretft]
+order    = 9
+bench    = true
+label.en = "SIMUT Wire TFT"
+label.pt = "SIMUT Wire TFT"
+label.es = "SIMUT Wire TFT"
+desc.en  = "The SIMUT Wire with the touch display: a plain Raspberry Pi Pico with no radio, the network coming through an ENC28J60 module on the cable. Not published."
+desc.pt  = "O SIMUT Wire com a tela touch: um Raspberry Pi Pico comum, sem rádio, com a rede por um módulo ENC28J60, no cabo. Não publicada."
+desc.es  = "El SIMUT Wire con el panel táctil: una Raspberry Pi Pico común, sin radio, con la red por un módulo ENC28J60, por el cable. No publicada."
 
 [ui_displays.tft]
 label.en = "Touch display (ILI9341, 320x240)"

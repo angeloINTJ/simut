@@ -91,6 +91,7 @@ de recebê-la pelo ar: o aparelho a recusa no stage, na validação e no aplicad
 | `pico_w_test` | 1.037.981 | 2.403 |
 | `pico_w_asserts` | 1.035.701 | 4.683 |
 | `pico_wire` | 610.833 | 429.551 |
+| `pico_wiretft` | 792.905 | 247.479 |
 | `pico_w_test_https` | isenta | — |
 <!-- ota-headroom:end -->
 
