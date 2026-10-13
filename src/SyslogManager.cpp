@@ -6,12 +6,10 @@
  */
 
 #include "SyslogManager.h"
-#include "simut_config.h"   /* SIMUT_NET_LAN is tested below: included here, not left to another header */
 #include "Syslog5424.h"
 #include "StorageManager.h"
-#include <WiFi.h>
 #include <string.h>
-#include "net/WiredLink.h"   /* declares nothing unless a wired driver is built */
+#include "net/NetLink.h"   /* net::linkUp( ): whether the network can carry a datagram */
 
 SyslogManager::SyslogManager( ) {
 	mutex_init(&_ringMutex);
@@ -67,18 +65,8 @@ bool SyslogManager::popLine(char* out) {
 	return got;
 }
 
-/* The network cannot carry a datagram. On the radio, the CYW43's own state; a
- * wired build's WiFi.status( ) is the radio's that is not there, and never says
- * WL_CONNECTED, so it asks the module (2026-10-13, review of the wired driver). A
- * macro, so a Wi-Fi image compiles the very test it always had. */
-#if SIMUT_NET_LAN
-#define SYSLOG_NET_DOWN( ) (!(WiredLink::linkUp( ) && WiredLink::connected( )))
-#else
-#define SYSLOG_NET_DOWN( ) (WiFi.status( ) != WL_CONNECTED)
-#endif
-
 bool SyslogManager::sendLine(const char* line, size_t len) {
-	if (SYSLOG_NET_DOWN( )) return false;
+	if (!net::linkUp( )) return false;
 	if (!_udpReady) {
 		/* Allocate an ephemeral local socket once. begin() returning 0 means
 		 * no socket was available; retry next pump. */
@@ -93,7 +81,7 @@ bool SyslogManager::sendLine(const char* line, size_t len) {
 
 void SyslogManager::pump( ) {
 	if (!_enabled) return;
-	if (SYSLOG_NET_DOWN( )) return; /* AP mode / offline: hold in ring */
+	if (!net::linkUp( )) return; /* AP mode / offline: hold in ring */
 
 	/* Drain the whole ring per pump: at most SLOTS small datagrams, cheap next
 	 * to one telemetry POST, and it keeps SIEM latency to one loop tick. */
@@ -112,7 +100,7 @@ void SyslogManager::pump( ) {
 
 void SyslogManager::flushBlocking( ) {
 	if (!_enabled) return;
-	if (SYSLOG_NET_DOWN( )) return;
+	if (!net::linkUp( )) return;
 
 	char line[LINE_MAX];
 	int guard = SLOTS * 2; /* bound: enqueue could add from Core 1 during flush */

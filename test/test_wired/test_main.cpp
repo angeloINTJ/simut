@@ -334,8 +334,8 @@ static void test_a_lease_change_under_a_live_link_is_followed(void) {
 
 /* ══ the module stopped under the manager ════════════════════════════════ */
 
-/* The OTA tears the network down before it writes the flash (the orchestrator
- * calls WiredLink::end( ) on the cable, WiFi.end( ) on the radio), and its
+/* The OTA tears the network down before it writes the flash (the orchestrator's
+ * net::stopForFlash( ) is WiredLink::end( ) on the cable, WiFi.end( ) on the radio), and its
  * applier can return from an error that came before anything was written, with
  * the unit running on (WebManager_Ota.cpp: "Only reached on pre-destructive
  * error"). The radio recovers by itself: READY finds the radio down and the

@@ -160,13 +160,14 @@ void NetworkManager::wiredUp( ) {
  *
  * Unless the module is not started. That is no cable and no lease: it was
  * stopped under the manager, by the OTA's teardown (ota/orchestrator.cpp calls
- * WiredLink::end( ) before it writes the flash), and the applier returned from
- * an error that came before anything was written. Waiting for a link and an
- * address in NET_CONNECTING would be waiting for a module nobody starts again,
- * and the Wire stayed off the network until a reboot (2026-10-13; the radio
- * does not: its ladder calls WiFi.begin( ) again). It goes to NET_OFFLINE with
- * the timer set, and startWired( ) runs on the retry that starts a module that
- * did not start, which says a failure once per episode.
+ * net::stopForFlash( ), which is WiredLink::end( ), before it writes the
+ * flash), and the applier returned from an error that came before anything was
+ * written. Waiting for a link and an address in NET_CONNECTING would be waiting
+ * for a module nobody starts again, and the Wire stayed off the network until a
+ * reboot (2026-10-13; the radio does not: its ladder calls WiFi.begin( ) again).
+ * It goes to NET_OFFLINE with the timer set, and startWired( ) runs on the retry
+ * that starts a module that did not start, which says a failure once per
+ * episode.
  */
 void NetworkManager::wiredLost( ) {
  const bool stopped = !WiredLink::started( );

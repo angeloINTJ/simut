@@ -171,6 +171,21 @@ jobs:
       - name: Feature entanglement watermark
         run: python3 tools/check_feature_sprawl.py
 
+      # The network is one driver per image, and the rest of src/ must not know which:
+      # outside src/net/ no identity macro (SIMUT_NET_CYW43, SIMUT_NET_ENC28J60, the
+      # module's SIMUT_ENC_* pins), no call on the radio (WiFi., cyw43_), no driver
+      # library included (...lwIP.h, LwipIntfDev.h), and a file that tests the class
+      # (SIMUT_NET_WIFI, SIMUT_NET_LAN) includes simut_config.h or net/NetCaps.h
+      # itself. What still breaks a rule is listed in tools/net_boundary.json, each
+      # with its reason, and the counts only go down. Adding a board is then a driver
+      # in src/net/ and a manifest entry, and this is what makes it so. The test puts
+      # one violation of each rule into a clean tree, and into a copy of the real one,
+      # and requires exactly one finding.
+      - name: Network boundary (the chip stays in src/net/)
+        run: |
+          python3 tools/test_net_boundary.py
+          python3 tools/check_net_boundary.py
+
       # The configurator's rules (tools/features.toml [[rules]], each measured
       # by compiling the forbidden combination). They are applied twice: by
       # docs/configurador/rules.js, so the page can lock an option, and by

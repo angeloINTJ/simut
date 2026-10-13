@@ -55,7 +55,7 @@ const char* chipName( );
 
 /** Stops the interface: the PIO state machine and the INT and poll workers go,
  *  so nothing touches the chip while the flash is written for an update (the
- *  OTA's teardown, src/ota/orchestrator.cpp, calls it). */
+ *  OTA's teardown calls it through net::stopForFlash( ), src/net/NetLink.h). */
 void end( );
 
 }  // namespace WiredLink

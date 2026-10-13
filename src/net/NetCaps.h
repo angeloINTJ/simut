@@ -16,7 +16,8 @@
  *                         -DSIMUT_NET_ENC28J60=1 (`net = "enc28j60"` in
  *                         tools/features.toml); the CYW43 passes nothing.
  *     Only src/net/, src/simut_config.h (the module's pins) and this file read
- *     an identity macro.
+ *     an identity macro; tools/check_net_boundary.py holds it in CI, with the
+ *     radio's API and the driver libraries.
  *
  *   CLASS     what the link is, derived below from the identity and read by
  *             every other file.
@@ -49,7 +50,10 @@
  * Outside this file: a [net.<id>] in tools/features.toml whose `flags` pass the
  * identity macro, its pins and PIO program under their own `#if` in
  * simut_config.h, and its OTA variant names (simut_config.h refuses a wired
- * driver that has none). For a cable, also its device header,
+ * driver that has none). A driver that is not a cable also needs its entry in
+ * src/net/NetLink.h (linkUp( ), stopForFlash( ); a cable of any chip is covered
+ * by the SIMUT_NET_LAN one), and a chip that is reset at boot, its arm in
+ * src/net/NetBoot.h. For a cable, also its device header,
  * src/net/<Chip>Device.h: the WiredEth type and the four functions wiredEth( ),
  * wiredLinked( ), wiredErrorText( ) and wiredChipName( ) (Enc28j60Device.h says
  * what each is for), with its `#elif SIMUT_NET_<ID>` before the `#else` of the
