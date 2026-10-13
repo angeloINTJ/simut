@@ -296,7 +296,7 @@ jobs:
           python3 tools/ota_sign.py gen-trust --check
           python3 tools/ota_sign.py check-keys
 
-      # ALL TEN native environments. Separate steps rather than one
+      # ALL ELEVEN native environments. Separate steps rather than one
       # `pio test -e a -e b ...` so a failure names itself in the Actions UI
       # instead of hiding behind the first environment that broke.
       #
@@ -342,6 +342,12 @@ jobs:
       - name: Run unit tests (network state machine)
         run: pio test -e native_network
 
+      # The wired network's states (NetworkManager_Wired.cpp) against a fake
+      # ENC28J60 (2026-10-13): no host test ran them before, and they are pinned
+      # here before the network becomes a driver.
+      - name: Run unit tests (wired network state machine)
+        run: pio test -e native_wired
+
       # The signature check of a staged OTA image, against the vectors above:
       # every refusal, and every trailer byte covered.
       - name: Run unit tests (OTA signature)
@@ -363,7 +369,7 @@ jobs:
         run: |
           rc=0
           for e in native native_history_v5 native_cli native_lan native_logpolicy \
-                   native_alarmqueue native_air native_sensors native_network native_otasig; do
+                   native_alarmqueue native_air native_sensors native_network native_wired native_otasig; do
             if ! pio test -e "$e"; then
               rc=1
               echo "::group::$e, run directly for the sanitizer report"
