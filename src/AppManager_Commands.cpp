@@ -804,8 +804,8 @@ void AppManager::executeCommand(CliDemand cmd) {
  break;
  }
  if (cmd.intVal1 < 0 || cmd.intVal1 >= MAX_SENSORS) {
- _cmdMgr->printError(pt ? "Slot fora de range (0-15)"
- : "Slot out of range (0-15)");
+ _cmdMgr->printError(pt ? "Slot fora de range (" SLOT_RANGE_TEXT ")"
+ : "Slot out of range (" SLOT_RANGE_TEXT ")");
  break;
  }
  SensorRecord &r = cfg.sensors[cmd.intVal1];
@@ -852,8 +852,8 @@ void AppManager::executeCommand(CliDemand cmd) {
  break;
  }
  if (cmd.intVal1 < 0 || cmd.intVal1 >= MAX_SENSORS) {
- _cmdMgr->printError(pt ? "Slot fora de range (0-15)"
- : "Slot out of range (0-15)");
+ _cmdMgr->printError(pt ? "Slot fora de range (" SLOT_RANGE_TEXT ")"
+ : "Slot out of range (" SLOT_RANGE_TEXT ")");
  break;
  }
  cfg.sensors[cmd.intVal1].provisionEpoch = _netMgr->getEpoch( );
@@ -878,8 +878,8 @@ void AppManager::executeCommand(CliDemand cmd) {
  break;
  }
  if (cmd.intVal1 < 0 || cmd.intVal1 >= MAX_SENSORS) {
- _cmdMgr->printError(pt ? "Slot fora de range (0-15)"
- : "Slot out of range (0-15)");
+ _cmdMgr->printError(pt ? "Slot fora de range (" SLOT_RANGE_TEXT ")"
+ : "Slot out of range (" SLOT_RANGE_TEXT ")");
  break;
  }
  {
@@ -1591,7 +1591,7 @@ void AppManager::executeCommand(CliDemand cmd) {
 
  case CMD_SENSOR_ENTER: {
   /* Enter sensor sub-config mode — 'sensor <N>' from global config.
-   * cmd.intVal1 = slot index (already validated by parser: 0-15). */
+   * cmd.intVal1 = slot index (already validated by parser: 0..MAX_SENSORS-1). */
   if (_cmdMgr->cliMode( ) != CLI_MODE_GLOBAL_CONFIG && _cmdMgr->cliMode( ) != CLI_MODE_PRIV_EXEC) {
    _cmdMgr->printError(pt ? "Use 'sensor <N>' no modo configuracao ou privilegiado."
                           : "Use 'sensor <N>' from config or privileged mode.");

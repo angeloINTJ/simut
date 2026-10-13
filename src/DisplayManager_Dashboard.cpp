@@ -1028,7 +1028,7 @@ int DisplayManager::buildDashLayout(DashBtn out[5], int *totalPages, bool *hasPa
 
  if (!_sysConfigPtr) return 0;
  SystemConfig &cfg = *_sysConfigPtr;
- DashBtn all[MAX_SENSORS + 2]; /* 16 slots + 1 CFG + 1 margin */
+ DashBtn all[MAX_SENSORS + 2]; /* the slots + 1 CFG + 1 margin */
  int total = 0;
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (cfg.sensors[i].active) {

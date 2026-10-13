@@ -260,6 +260,9 @@ macro      = "SIMUT_NET_LAN"
 emit       = "on_is_1"        # #if SIMUT_NET_LAN: o default 0 mora no simut_config.h
 on_board   = { rp2040 = "rpipico" }
 on_unflags = ["-DPICO_CYW43_SUPPORTED=1"]
+# O modulo fica com GP12-GP15, que eram quatro dos dezesseis slots de sensor: a build
+# com LAN tem doze, GP0-GP11 (o simut_config.h recusa um pino do modulo nessa faixa).
+on_flags   = ["-DMAX_SENSORS=12"]
 
 # Os três drivers de sensor (2026-09-26). O default do simut_config.h é 1, então
 # ligado não emite nada e o profiles.ini não muda; desligado emite -D<macro>=0,
@@ -480,8 +483,8 @@ publish = true
 #   o INT e o GP28 com o mostrador alfanumerico e o GP21 com a TFT. Nesta etapa so o
 #   interruptor, as regras e as checagens de compilacao existem: o driver do ENC28J60
 #   vem depois, e a imagem nao tem rede ate la. Medido em 2026-10-12 (pio run -e
-#   pico_wire, arduino-pico 5.6.1): linka, 587.980 B de flash, .bin de 600.016 B, 102.416 B
-#   de RAM; sem a guarda do NetworkManager.cpp o link morre em __wrap_cyw43_cb_*. Nao
+#   pico_wire, arduino-pico 5.6.1): linka, 588.020 B de flash, .bin de 600.056 B, 102.064 B
+#   de RAM, com doze slots; sem a guarda do NetworkManager.cpp o link morre em __wrap_cyw43_cb_*. Nao
 #   publicada; confia na raiz de bancada, como as outras imagens de bancada (o gerador
 #   recusa a marca numa publica).
 [profiles.pico_wire]

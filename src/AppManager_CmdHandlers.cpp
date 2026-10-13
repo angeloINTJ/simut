@@ -32,7 +32,7 @@ void AppManager::cmdHandleSensorField(const CliDemand& cmd, SystemConfig& cfg, b
  return;
  }
  if (cmd.intVal1 < 0 || cmd.intVal1 >= MAX_SENSORS) {
- _cmdMgr->printError(pt ? "Slot fora de range (0-15)" : "Slot out of range (0-15)");
+ _cmdMgr->printError(pt ? "Slot fora de range (" SLOT_RANGE_TEXT ")" : "Slot out of range (" SLOT_RANGE_TEXT ")");
  return;
  }
  if (cmd.strVal2[0] == '\0') {
@@ -58,8 +58,8 @@ void AppManager::cmdHandleSensorField(const CliDemand& cmd, SystemConfig& cfg, b
   if(pinComma<0||!parseIntStrict(pinSpec.substring(0,pinComma),pinIdx)
      ||!parseIntStrict(pinSpec.substring(pinComma+1),gpio)
      ||pinIdx<0||gpio<0||gpio>15){
-   _cmdMgr->printError(pt?"Uso: sensor <slot> pin <idx>,<gpio> (0-15)"
-                         :"Usage: sensor <slot> pin <idx>,<gpio> (0-15)");
+   _cmdMgr->printError(pt?"Uso: sensor <slot> pin <idx>,<gpio> (" SLOT_RANGE_TEXT ")"
+                         :"Usage: sensor <slot> pin <idx>,<gpio> (" SLOT_RANGE_TEXT ")");
    return;
   }
   if(pinIdx>=MAX_SENSOR_PINS){
@@ -388,7 +388,7 @@ void AppManager::cmdHandleAcceptSensor(const CliDemand& cmd, SystemConfig& cfg, 
  return;
  }
  if (cmd.intVal1 < 0 || cmd.intVal1 >= MAX_SENSORS) {
- _cmdMgr->printError(pt ? "Slot fora de range (0-15)" : "Slot out of range (0-15)");
+ _cmdMgr->printError(pt ? "Slot fora de range (" SLOT_RANGE_TEXT ")" : "Slot out of range (" SLOT_RANGE_TEXT ")");
  return;
  }
  uint8_t gpio = (uint8_t)cmd.intVal1;

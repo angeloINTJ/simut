@@ -687,7 +687,7 @@ else:
             for buzzer in (True, False):
                 montagens += 1
                 rotulo = f"{disp} + LAN, {'com' if buzzer else 'sem'} buzzer"
-                flags = [tpm.TARGET, tpm.LAN, f"-DSIMUT_SOUND_BUZZER={int(buzzer)}"] + list(definicao["flags"])
+                flags = [tpm.TARGET] + tpm.LAN + [f"-DSIMUT_SOUND_BUZZER={int(buzzer)}"] + list(definicao["flags"])
                 # O que o cabeçalho de verdade diz da montagem: aceita (e com que nome), ou, para a
                 # LAN sem mostrador, o #error que a recusa por falta de nome de variante. Esse
                 # #error é o esperado, e as máscaras dele vêm do ramo que antecede o erro.
@@ -715,7 +715,7 @@ else:
 
         # O leitor enxerga o cabeçalho, não a tabela do módulo (por isso o esperado aqui é escrito por
         # extenso): um pino movido por -D anda com a máscara.
-        lcd = [tpm.TARGET, tpm.LAN] + list(M["display"]["alpha_paralelo"]["flags"])
+        lcd = [tpm.TARGET] + tpm.LAN + list(M["display"]["alpha_paralelo"]["flags"])
         for rotulo, extra, m, quer in (("buzzer no GP5", "-DBUZZER_PIN=5", "buzzer", {5}),
                                        ("INT no GP27", "-DSIMUT_ENC_INT_PIN=27", "enc", {12, 13, 14, 15, 27})):
             code, erros, got = le_mascaras(lcd + [extra], [copia, tpm.SRC], sonda)

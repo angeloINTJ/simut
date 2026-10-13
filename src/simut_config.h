@@ -416,7 +416,7 @@
  * ========================================================================= */
 
 #ifndef MAX_SENSORS
-#define MAX_SENSORS 16           // Configurable sensor slots (GPIO0–GPIO15)
+#define MAX_SENSORS 16           // Sensor slots, GPIO0–GPIO15 (the lan switch: 12, GPIO0–GPIO11)
 #endif
 
 #ifndef MAX_SENSOR_PINS
@@ -499,8 +499,9 @@
 /* The ENC28J60's pins. The PicoENC28J60 library talks to it over an SPI made in
  * PIO (tools/pio_budget.py counts its 17 instructions), so any GPIO would do; the
  * four chosen are also SPI1's (RX GP12, SCK GP14, TX GP15), which leaves room for a
- * hardware SPI without rewiring. GP12–GP15 are four of the sixteen sensor slots,
- * so a LAN build has twelve.
+ * hardware SPI without rewiring. GP12–GP15 were four of the sixteen sensor slots:
+ * a LAN build has twelve, GP0–GP11 (the `lan` switch passes -DMAX_SENSORS=12, and
+ * the check below keeps every line of the module out of the slots' range).
  *
  * INT is the one pin there is no room for in both layouts, so it follows the
  * display: GP21 is the only GPIO a TFT build leaves free outside the sensor
@@ -579,6 +580,12 @@
     (SIMUT_ENC_INT_PIN >= 0 && (SIMUT_ENC_INT_PIN == SIMUT_ENC_MISO || SIMUT_ENC_INT_PIN == SIMUT_ENC_CS || \
                                 SIMUT_ENC_INT_PIN == SIMUT_ENC_SCK || SIMUT_ENC_INT_PIN == SIMUT_ENC_MOSI))
 #error "SIMUT_NET_LAN: two lines of the ENC28J60 (SIMUT_ENC_MISO, _CS, _SCK, _MOSI, _INT_PIN) are on the same GPIO"
+#endif
+// A sensor slot can take any GPIO below MAX_SENSORS, so no line of the module may
+// be one: GP12–GP15 stop being slots only because MAX_SENSORS is 12 here.
+#if SIMUT_ENC_MISO < MAX_SENSORS || SIMUT_ENC_CS < MAX_SENSORS || SIMUT_ENC_SCK < MAX_SENSORS || \
+    SIMUT_ENC_MOSI < MAX_SENSORS || (SIMUT_ENC_INT_PIN >= 0 && SIMUT_ENC_INT_PIN < MAX_SENSORS)
+#error "SIMUT_NET_LAN: a GPIO of the ENC28J60 is also a sensor slot's (below MAX_SENSORS); the lan switch passes -DMAX_SENSORS=12"
 #endif
 
 #undef SIMUT_PINS_DISPLAY

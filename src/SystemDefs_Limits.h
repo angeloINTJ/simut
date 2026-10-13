@@ -17,8 +17,28 @@
 
 /* Hardware and system limits — defaults in src/simut_config.h */
 #ifndef MAX_SENSORS
-#define MAX_SENSORS 16 /* Maximum number of configurable sensor slots (GPIO0–GPIO15) */
+#define MAX_SENSORS 16 /* Sensor slots, GPIO0–GPIO15 (the lan switch passes 12: GPIO0–GPIO11) */
 #endif
+
+/* The slots' range as the console prints it. A literal, so the text costs nothing,
+ * and an unknown count stops the build instead of printing the wrong range. */
+#if MAX_SENSORS == 16
+#define SLOT_RANGE_TEXT "0-15"
+#elif MAX_SENSORS == 12
+#define SLOT_RANGE_TEXT "0-11"
+#else
+#error "MAX_SENSORS: give SLOT_RANGE_TEXT its range"
+#endif
+
+/* What the configuration file holds, in every image: sixteen slots. A build with
+ * fewer (the lan switch: 12) keeps the file's layout, so one format reads in every
+ * image and the literals of ConfigMigrate.h still hold, and leaves the slots it
+ * does not have inactive: StorageManager::attemptLoad( ) clears them on every load. */
+#define CONFIG_SENSOR_SLOTS 16
+#if MAX_SENSORS > CONFIG_SENSOR_SLOTS
+#error "MAX_SENSORS cannot exceed CONFIG_SENSOR_SLOTS, the slots of the configuration file"
+#endif
+
 /* v24 (2026-09-19): 5 -> 32. An account is 70 B of config (62 + the 8-byte
  * panel-PIN digest), so the table costs 2,240 B in the config file, in the
  * heap copy of SystemConfig and in every transient copy a commit makes. The
