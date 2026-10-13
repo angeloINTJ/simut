@@ -1078,6 +1078,17 @@ void AppManager::setup( ) {
 #endif // SIMUT_DISPLAY_TFT
  
 
+#if SIMUT_NET_LAN
+ /* The wired network starts BEFORE the sensors. The module's SPI is a PIO
+  * program in the block SIMUT_ENC_PIO names, and a sensor that came first could
+  * take it: a BME280's PIO I2C takes an empty pio0 whole (WirePIO, 32
+  * instructions), and the module would then fail to start on every retry. The
+  * address comes in the background (DHCP); the wait further down is the same. */
+ _netMgr->begin(cfg,
+ _storageMgr->isDnsAuto( ),
+ _storageMgr->isNtpEnabled( ),
+ _storageMgr->getSecondaryDns( ));
+#endif
  _displayMgr->setBootStatusKey(TR_BOOT_LOAD_PERIPH);
 
  if (Serial) { Serial.println("[DBG] sensor begin..."); Serial.flush(); }
@@ -1145,10 +1156,12 @@ void AppManager::setup( ) {
  _displayMgr->setBootStatusKey(TR_BOOT_START_WIFI);
  BLOG("[BOOT step] 10: pre _netMgr->begin( ) @ "); BLOG_U(millis( )); BLOG_NL( );
  watchdog_update();
+#if !SIMUT_NET_LAN   /* a wired build started it before the sensors */
  _netMgr->begin(cfg,
  _storageMgr->isDnsAuto( ),
  _storageMgr->isNtpEnabled( ),
  _storageMgr->getSecondaryDns( ));
+#endif
  AIR_BOOT_MARK("net ok");
  BLOG("[BOOT step] 11: pos _netMgr->begin( ) @ "); BLOG_U(millis( )); BLOG_NL( );
 

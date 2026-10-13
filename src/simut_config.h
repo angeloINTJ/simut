@@ -524,11 +524,19 @@
 #ifndef SIMUT_ENC_INT_PIN
 #define SIMUT_ENC_INT_PIN 11
 #endif
-/* The PIO block of the module's SPI. tools/pio_budget.py places it: in the Wire
- * (16x2 LCD, DHT22, buzzer) the buzzer and the DHT22 hold pio1, so pio0. Never
- * "any block": started late, the driver would take a sensor family's. */
+/* The PIO block of the module's SPI, where tools/pio_budget.py's place( ) puts
+ * it (tools/test_pio_budget.py holds this line to it). The module starts before
+ * the sensors (AppManager_Boot.cpp), so it takes the block that leaves room for
+ * what comes after it: the DS18B20's 1-Wire fits only pio0 (27 instructions), so
+ * with it the module goes to pio1, beside the buzzer; without it, pio0, and the
+ * buzzer and the DHT22 share pio1. Never "any block": the driver would take the
+ * first, a sensor family's. */
 #ifndef SIMUT_ENC_PIO
+#if SIMUT_SENSOR_DS18B20
+#define SIMUT_ENC_PIO 1
+#else
 #define SIMUT_ENC_PIO 0
+#endif
 #endif
 
 // Who owns which GPIO, checked by the preprocessor so a layout that cannot work
