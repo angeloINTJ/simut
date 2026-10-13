@@ -12,12 +12,13 @@ para --out, com data.
          --admin-reset, `system admin reset confirm` gera a senha do admin, que vai para
          ~/.simut-bench.env (o arquivo antigo fica em .bak, a senha nunca na tela): o
          console desta imagem nao configura sensor, e o DHT22 do GP10 so se configura
-         pela web, depois do driver. Ate la nenhum slot esta ativo, e o DHT22 nao pede
-         PIO: a checagem de PIO desta etapa so cobre o buzzer.
+         pela web (commit_all). Sem slot ativo o DHT22 nao pede PIO: a checagem de PIO
+         desta etapa so cobre o buzzer.
 
 As etapas de rede (o link e o DHCP, o /api/status com `link`, o DHT22 do GP10, o IP
 fixo pelo console, o cabo puxado, a OTA pelo cabo, o TCP em massa, a suite web e o
-soak) entram com o driver do ENC28J60.
+soak) ainda nao estao aqui: o driver do ENC28J60 chegou em 2026-10-12, e elas sao o
+proximo passo deste roteiro.
 
 A placa e achada so pelo numero de serie (--target-serial ou SIMUT_TARGET_SERIAL; a mao,
 por PICO_HAND_SERIAL), nunca por modelo: a imagem do Pico comum enumera como "Pico".

@@ -251,9 +251,9 @@ off_exclude = ["DisplayManager_Graph.cpp", "AppManager_Graph.cpp", "DisplayManag
 # para board = rpipico guardando uma unica chamada, a cyw43_arch_enable_sta_mode( ) da
 # busca de redes do NetworkManager.cpp. Esta chave so liga o interruptor: a placa
 # (on_board), o -DPICO_CYW43_SUPPORTED=1 que o pico_base poe e que aqui sai
-# (on_unflags), o macro e as regras. O driver cabeado e outra mudanca; ate la a
-# imagem compila e linka, e nao tem rede nenhuma. O RP2350 nao tem placa aqui: o
-# gerador recusa a chave nele ate ter.
+# (on_unflags), o macro, as regras e a biblioteca do driver (on_lib_deps); o driver
+# e o src/net/WiredLink.cpp com o src/NetworkManager_Wired.cpp (2026-10-12). O RP2350
+# nao tem placa aqui: o gerador recusa a chave nele ate ter.
 [toggles.lan]
 bit        = 18
 macro      = "SIMUT_NET_LAN"
@@ -491,11 +491,12 @@ publish = true
 #   num pio0 vazio e cai para GPIO sem ele, entao nao disputa o PIO do modulo se a rede
 #   subir antes dos sensores (o que o driver tem de garantir).
 #   Pinos do modulo (simut_config.h): MISO GP12, CS GP13, SCK GP14, MOSI GP15 (SPI por PIO);
-#   o INT e o GP11, com qualquer mostrador. Nesta etapa so o
-#   interruptor, as regras e as checagens de compilacao existem: o driver do ENC28J60
-#   vem depois, e a imagem nao tem rede ate la. Medido em 2026-10-12 (pio run -e
-#   pico_wire, arduino-pico 5.6.1): linka, 587.972 B de flash, .bin de 600.008 B, 101.980 B
-#   de RAM, com onze slots; sem a guarda do NetworkManager.cpp o link morre em __wrap_cyw43_cb_*. Nao
+#   o INT e o GP11, com qualquer mostrador. O driver (src/net/WiredLink.cpp,
+#   src/NetworkManager_Wired.cpp) pega o endereco por DHCP ou o fixo da configuracao;
+#   na bancada de 2026-10-12 a web respondeu pelo cabo. Medido em 2026-10-13 (pio run -e
+#   pico_wire, arduino-pico 5.6.1, com o driver): 597.448 B de flash, .bin de 609.480 B,
+#   104.680 B de RAM, com onze slots; o driver custou 9.476 B de flash e 2.700 B de RAM.
+#   Sem a guarda do NetworkManager.cpp o link morre em __wrap_cyw43_cb_*. Nao
 #   publicada; confia na raiz de bancada, como as outras imagens de bancada (o gerador
 #   recusa a marca numa publica).
 [profiles.pico_wire]
@@ -798,18 +799,18 @@ help.en  = "Logs an error when a flash operation starts while the state mutex is
 help.pt  = "Registra um erro quando uma operação de flash começa com o mutex de estado preso. Para soak, não para campo."
 help.es  = "Registra un error cuando una operación de flash empieza con el mutex de estado tomado. Para soaks, no para equipos en campo."
 
-# A rede por cabo fica no grupo da bancada ate o driver existir (2026-10-12): sem ele a
-# imagem nao tem rede nenhuma, e nao e coisa para oferecer a um produto publicado. No
-# Pico 2 W o gerador a recusa (nao ha placa para ela), e a pagina trava a chave com o
-# motivo de `unsupported`.
+# A rede por cabo fica no grupo da bancada (2026-10-12): o driver existe e respondeu na
+# bancada, mas nenhuma imagem com ela passou ainda por um soak, e um produto publicado
+# nao a oferece antes disso. No Pico 2 W o gerador a recusa (nao ha placa para ela), e a
+# pagina trava a chave com o motivo de `unsupported`.
 [ui_toggles.lan]
 group    = "bench"
 label.en = "Wired network (ENC28J60) instead of Wi-Fi"
 label.pt = "Rede por cabo (ENC28J60) no lugar do Wi-Fi"
 label.es = "Red por cable (ENC28J60) en lugar de Wi-Fi"
-help.en  = "Builds for a plain Raspberry Pi Pico, which has no radio, and takes the network from an ENC28J60 module on the cable. Bluetooth and hibernation run on the radio, so they cannot be on with it. The cable driver is not in the firmware yet: an image built with this switch has no network."
-help.pt  = "Compila para um Raspberry Pi Pico comum, que não tem rádio, e pega a rede de um módulo ENC28J60 no cabo. O Bluetooth e a hibernação rodam no rádio, então não podem ficar ligados com ela. O driver do cabo ainda não está no firmware: uma imagem compilada com esta chave não tem rede."
-help.es  = "Compila para una Raspberry Pi Pico común, que no tiene radio, y toma la red de un módulo ENC28J60 por el cable. El Bluetooth y la hibernación funcionan con el radio, así que no pueden estar activos con ella. El driver del cable aún no está en el firmware: una imagen compilada con este interruptor no tiene red."
+help.en  = "Builds for a plain Raspberry Pi Pico, which has no radio, and takes the network from an ENC28J60 module on the cable. Bluetooth and hibernation run on the radio, so they cannot be on with it."
+help.pt  = "Compila para um Raspberry Pi Pico comum, que não tem rádio, e pega a rede de um módulo ENC28J60 no cabo. O Bluetooth e a hibernação rodam no rádio, então não podem ficar ligados com ela."
+help.es  = "Compila para una Raspberry Pi Pico común, que no tiene radio, y toma la red de un módulo ENC28J60 por el cable. El Bluetooth y la hibernación funcionan con el radio, así que no pueden estar activos con ella."
 unsupported.en = "The wired network exists only for the plain Pico (RP2040) so far: the Pico 2 W (RP2350) has no board for it."
 unsupported.pt = "A rede por cabo só existe, por enquanto, para o Pico comum (RP2040): o Pico 2 W (RP2350) não tem placa para ela."
 

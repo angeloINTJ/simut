@@ -171,5 +171,5 @@ Everything else is a switch in [`tools/features.toml`](../tools/features.toml). 
 | Power | Hibernation between readings | The Air cycle: wake, read, send, sleep. Exists only without a display. | off | off | on | off |
 | Bench and diagnostics | Short license text on the touch display | The touch display's License screen shows two lines that point to the LICENSE file instead of the full MIT text and credits. The /license web page always keeps the full text. | off | off | on | off |
 |  | Concurrency tripwire | Logs an error when a flash operation starts while the state mutex is held. For soak runs, not for field images. | off | off | off | off |
-|  | Wired network (ENC28J60) instead of Wi-Fi | Builds for a plain Raspberry Pi Pico, which has no radio, and takes the network from an ENC28J60 module on the cable. Bluetooth and hibernation run on the radio, so they cannot be on with it. The cable driver is not in the firmware yet: an image built with this switch has no network. | off | off | off | off |
+|  | Wired network (ENC28J60) instead of Wi-Fi | Builds for a plain Raspberry Pi Pico, which has no radio, and takes the network from an ENC28J60 module on the cable. Bluetooth and hibernation run on the radio, so they cannot be on with it. | off | off | off | off |
 <!-- END generated: switches -->

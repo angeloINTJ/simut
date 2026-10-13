@@ -456,11 +456,12 @@
  *                 the flags (build_unflags).
  * SIMUT_NET_WIFI  the same choice read the other way, for `#if` sites.
  *
- * This is the switch and its compile-time checks. The wired driver is not in
- * the firmware yet: an image built with SIMUT_NET_LAN=1 links (2026-09-26 study,
- * docs/analysis/SIMUT_WIRE_VIABILIDADE.md on the study/simut-wire branch: the
- * release links for board = rpipico once the one cyw43_arch_enable_sta_mode( )
- * call is out) and has no network.
+ * The wired driver is src/net/WiredLink.cpp (the ENC28J60 through the
+ * PicoENC28J60 library's lwIP interface) and src/NetworkManager_Wired.cpp
+ * (NetworkManager's wired states), since 2026-10-12. The 2026-09-26 study
+ * (docs/analysis/SIMUT_WIRE_VIABILIDADE.md, study/simut-wire branch) found the
+ * release linking for board = rpipico once the one cyw43_arch_enable_sta_mode( )
+ * call was out.
  * ========================================================================= */
 
 #ifndef SIMUT_NET_LAN
