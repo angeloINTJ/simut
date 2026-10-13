@@ -237,6 +237,13 @@ enum LogCode {
  NET_DORMANT_MODE = 526,
  NET_SHOW_IP = 527,
  NET_MDNS_FAIL = 528,   /* was logged as LOG_ERROR + SYS_OK, i.e. persisted as "OK" */
+ /* The SIMUT Wire's own (2026-10-13), where it had logged the radio's codes
+  * and its log read "WiFi manager starting" and "WiFi disconnected". Named in
+  * the wired build only (translateCodeEn, LogPolicy.cpp). */
+ NET_WIRED_STARTING = 529,
+ NET_WIRED_MODULE_FAIL = 530,
+ NET_WIRED_NO_ADDRESS = 531,
+ NET_WIRED_LOST = 532,
 
  /* ── Telemetry extended (540–559) ── */
  TEL_HTTP_INIT = 540,

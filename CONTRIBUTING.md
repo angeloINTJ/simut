@@ -141,7 +141,7 @@ Unit tests use the [Unity](http://www.throwtheswitch.org/unity) framework. Ten n
 | `native` | validators — IP validation, CRC8, float encoding |
 | `native_history_v5` | HistoryCodec roundtrip |
 | `native_cli` | CLI parser — tokenizing and routing |
-| `native_lan` | the same parser built for the SIMUT Wire (no `ap`, no SSID; `ip` and `dns` instead), its pack help, `@HELPWIRE`, and its Settings menu |
+| `native_lan` | the same parser built for the SIMUT Wire (no `ap`, no SSID; `ip` and `dns` instead), its pack help, `@HELPWIRE`, its Settings menu, and its log codes through the edge filter |
 | `native_logpolicy` | the edge-triggered log-persistence filter |
 | `native_alarmqueue` | the alarm queue's invariants |
 | `native_air` | SIMUT Air configuration and bounds |

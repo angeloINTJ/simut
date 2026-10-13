@@ -94,6 +94,8 @@
   "DisplayManager_Settings.cpp": 1,
   "HelpLicenseEN.h": 4,
   "LangPackIndex.h": 1,
+  "LogManager.cpp": 1,
+  "LogPolicy.cpp": 1,
   "NetworkManager.cpp": 8,
   "NetworkManager.h": 1,
   "NetworkManager_Wired.cpp": 1,

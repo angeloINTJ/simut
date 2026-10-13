@@ -128,7 +128,7 @@ El espacio en la memoria flash es críticamente ajustado. La imagen release usa 
   - `pio test -e native` — validadores: validación de IP, CRC8, codificación de float, cursor de telemetría, etiquetas
   - `pio test -e native_history_v5` — ida y vuelta del códec del histórico V5
   - `pio test -e native_cli` — analizador de la CLI (tokenización y enrutamiento de comandos)
-  - `pio test -e native_lan` — el mismo analizador compilado para el SIMUT Wire (sin `ap` ni SSID; `ip` y `dns` en su lugar), la ayuda del paquete, `@HELPWIRE`, y el menú de Ajustes
+  - `pio test -e native_lan` — el mismo analizador compilado para el SIMUT Wire (sin `ap` ni SSID; `ip` y `dns` en su lugar), la ayuda del paquete, `@HELPWIRE`, el menú de Ajustes y los códigos de log en el filtro por transición
   - `pio test -e native_logpolicy` — filtro de persistencia de logs por transición
   - `pio test -e native_alarmqueue` — invariantes de la cola de alarmas
   - `pio test -e native_air` — configuración y límites del SIMUT Air

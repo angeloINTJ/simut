@@ -48,7 +48,7 @@ Os três compartilham o mesmo núcleo:
 | **Release atual** | **v2.11.1** (12/10/2026); o [changelog](CHANGELOG.pt-BR.md) diz o que cada versão mudou. O SIMUT saiu do beta com a v2.7.0, com base em medições: soak de 8,18 h sem nenhum reboot e 6 de 6 atualizações pelo ar sem perder nada. |
 | **Imagens publicadas** | Quatro imagens, cada uma em `.uf2` e `.bin`. Para o Pico W: `release` (painel touch TFT), `alpha` (LCD 16×2 com console Bluetooth) e `air` (registrador a bateria sem display). Para o Pico 2 W (RP2350): `releasetwo`, a release, cujo `.uf2` traz a tabela de partições e cujo `.bin` sobe em teste. Junto vêm os packs de idioma pt-BR e es-ES e um manifesto de OTA. Uma imagem com outro conjunto de recursos sai do [configurador de build](https://angelointj.github.io/simut/configurador/), e o CI a compila da `main`, também para o Pico 2 W. |
 | **Maturidade** | <ul><li>`release`: **estável**.</li><li>`alpha`: publicado e testado na bancada, com o LCD 16×2 incluído desde 26/09/2026.</li><li>`air`: **experimental**. O único soak longo dele falhou: um sono no ciclo 119 nunca acordou (F28). Um watchdog ao longo do wake hoje mitiga o problema; a causa raiz não foi confirmada.</li><li>`releasetwo`: **nova** na v2.11.0, testada na bancada num Pico 2 W (RP2350 A2). Atualiza pelo ar no outro slot, em teste, e volta sozinha quando a atualização não se confirma.</li></ul> |
-| **Testes** | Todo pull request roda 658 casos de teste no host em 10 suítes, 60 s de fuzzing e análise estática, e compila as nove imagens de firmware com o cache frio. O comportamento no hardware real é verificado numa bancada — ver [Verificação no hardware](docs/VERIFICATION.pt-BR.md). |
+| **Testes** | Todo pull request roda 660 casos de teste no host em 10 suítes, 60 s de fuzzing e análise estática, e compila as nove imagens de firmware com o cache frio. O comportamento no hardware real é verificado numa bancada — ver [Verificação no hardware](docs/VERIFICATION.pt-BR.md). |
 
 **Limitações conhecidas.** Cada uma está documentada onde se aplica.
 - **Atualização.** A atualização pelo ar reformata o sistema de arquivos:
@@ -149,7 +149,7 @@ Veja o **[guia de fiação](docs/WIRING.md)** para a pinagem completa e os diagr
 - **API HTTP** — 62 rotas. Cada uma é protegida por uma permissão ou pública por projeto, e o CI confere isso.
 - **Telemetria** — HTTP, HTTPS, MQTT e MQTTS, em lotes por quantidade, e uma segunda linha, com confirmação, para os alarmes; Home Assistant, Prometheus e syslog.
 - **Rede e horário** — Wi-Fi que se reconecta sozinho, ponto de acesso de configuração aberto a pedido, e NTP com um relógio provisório até sincronizar.
-- **Armazenamento** — o histórico binário V5 (cerca de 116 dias em 1 MB), a configuração com CRC32 e `.bak`, e um log de eventos com 162 códigos de evento.
+- **Armazenamento** — o histórico binário V5 (cerca de 116 dias em 1 MB), a configuração com CRC32 e `.bak`, e um log de eventos com 166 códigos de evento.
 - **Segurança** — 32 contas, 13 bits de permissão, HMAC-SHA256 com salt, bloqueios por tentativa e HTTPS opcional.
 - **Atualização** — atualização pelo ar assinada, pela página web, e backup e restauração do sistema de arquivos inteiro.
 - **SIMUT Air** (experimental) — registrador a bateria que hiberna entre as leituras.
@@ -302,7 +302,7 @@ O aparelho expõe uma API REST em `http://<ip-do-dispositivo>/api/`:
 pio test -e native             # validadores, cursor de telemetria, rótulos, parsers, pacotes de idioma, as telas Licença e de atualização, o menu de Configurações, a verificação de senha, a sessão web (288 casos)
 pio test -e native_history_v5  # codec do histórico V5 (62)
 pio test -e native_cli         # parser do CLI (34)
-pio test -e native_lan         # parser do CLI, ajuda do pacote e menu de Configurações numa build cabeada (12)
+pio test -e native_lan         # parser do CLI, ajuda do pacote, menu de Configurações e códigos de log numa build cabeada (14)
 pio test -e native_logpolicy   # persistência de log por transição, faixas da autópsia, leitura do toque (57)
 pio test -e native_alarmqueue  # fila da telemetria de alarmes (54)
 pio test -e native_network     # máquina de estados da reconexão Wi-Fi (39)

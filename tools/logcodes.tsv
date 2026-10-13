@@ -123,6 +123,10 @@
 526	NET_DORMANT_MODE	WiFi dormant mode	WiFi em modo dormente	WiFi en modo inactivo
 527	NET_SHOW_IP	Show IP	Mostrar IP	Mostrar IP
 528	NET_MDNS_FAIL	mDNS start failed	Falha ao iniciar mDNS	Fallo al iniciar mDNS
+529	NET_WIRED_STARTING	Wired network starting	Rede cabeada iniciando	Red cableada iniciando
+530	NET_WIRED_MODULE_FAIL	Network module did not start	Módulo de rede não iniciou	El módulo de red no arrancó
+531	NET_WIRED_NO_ADDRESS	No address on the cable	Sem endereço no cabo	Sin dirección en el cable
+532	NET_WIRED_LOST	Wired network lost	Rede cabeada perdida	Red cableada perdida
 540	TEL_HTTP_INIT	HTTP transport initialized	Transporte HTTP inicializado	Transporte HTTP inicializado
 541	TEL_MQTT_INIT	MQTT transport initialized	Transporte MQTT inicializado	Transporte MQTT inicializado
 542	TEL_MQTT_CONNECTING	MQTT connecting	MQTT conectando	MQTT conectando

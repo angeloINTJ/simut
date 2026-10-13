@@ -61,7 +61,7 @@ void NetworkManager::beginWired(const SystemConfig& cfg) {
 
 /** Start the module: NET_CONNECTING, or NET_OFFLINE to try again later. */
 void NetworkManager::startWired( ) {
- LOG_CODE(LOG_INFO, "NET", NET_STARTING, 0, "");
+ LOG_CODE(LOG_INFO, "NET", NET_WIRED_STARTING, 0, "");
  const IPAddress none;
  const bool ok = _wiredStatic
   ? WiredLink::begin(_deviceName, _wiredIp, _wiredGw, _wiredMask, _wiredDns)
@@ -74,7 +74,7 @@ void NetworkManager::startWired( ) {
   return;
  }
  if (!_wiredFailLogged) {
-  LOG_CODE(LOG_ERROR, "NET", NET_CONNECT_TIMEOUT, 0, String("ENC28J60: ") + WiredLink::lastError( ));
+  LOG_CODE(LOG_ERROR, "NET", NET_WIRED_MODULE_FAIL, 0, String("ENC28J60: ") + WiredLink::lastError( ));
   _wiredFailLogged = true;
  }
  _state = NET_OFFLINE;
@@ -97,7 +97,7 @@ bool NetworkManager::updateWired( ) {
   if (online) {
    wiredUp( );
   } else if (!_wiredWaitLogged && timeSince(_stateTimer, WIRED_ADDRESS_WAIT_MS)) {
-   LOG_CODE(LOG_WARN, "NET", NET_CONNECT_TIMEOUT, (int)(WIRED_ADDRESS_WAIT_MS / 1000),
+   LOG_CODE(LOG_WARN, "NET", NET_WIRED_NO_ADDRESS, (int)(WIRED_ADDRESS_WAIT_MS / 1000),
             WiredLink::linkUp( ) ? "Wired network: link up, no address yet"
                                  : "Wired network: no link (cable?)");
    _wiredWaitLogged = true;
@@ -154,7 +154,7 @@ void NetworkManager::wiredUp( ) {
 
 /** The cable came out, or the address went away: wait for both again. */
 void NetworkManager::wiredLost( ) {
- LOG_CODE(LOG_WARN, "NET", SYS_WIFI_DISCONNECT, 0,
+ LOG_CODE(LOG_WARN, "NET", NET_WIRED_LOST, 0,
           WiredLink::linkUp( ) ? "Wired network: address lost" : "Wired network: link down");
  resetNtpBackoff( );
  _state = NET_CONNECTING;

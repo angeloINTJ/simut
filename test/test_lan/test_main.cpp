@@ -9,7 +9,9 @@
  *          (2026-10-13). The rest of the emergency console is unchanged.
  *          The translated help follows: a pack's @HELPWIRE is this build's
  *          help, and its @HELP, written for the radio, is not. So does the
- *          panel's Settings menu: no Configuration Mode row.
+ *          panel's Settings menu: no Configuration Mode row. And the log
+ *          names the cable's events with codes of their own, which the
+ *          edge-triggered filter treats as the radio's network family.
  *          Runs via `pio test -e native_lan`.
  *
  * @project SIMUT
@@ -22,6 +24,8 @@
 #include "SystemDefs_Network.h"
 #include "LangPackIndex.h"
 #include "display/SettingsMenu.h"
+#include "LogPolicy.h"
+#include "SystemDefs_Logging.h"
 #include <cstring>
 #include <string>
 #include <vector>
@@ -206,6 +210,41 @@ void test_menu_numbers_every_row_this_build_has(void) {
         settingsMenuRowText("License", 2, 3, buf, sizeof(buf)));
 }
 
+/* ---- the cable's log codes, through the edge-triggered filter ----
+ * A fault is persisted when the family was healthy, its repeats are filtered,
+ * and the first routine record after it is the recovery. The fault has to be
+ * listed in the filter's table for that last part: a code it does not know is
+ * persisted every time and arms nothing, so the address that comes back would
+ * read as routine and be dropped. */
+
+static const uint8_t LVL_INFO = 1;   /* LogLevel, as test/test_log_policy mirrors it */
+static const uint8_t LVL_WARN = 2;
+static const uint8_t LVL_ERROR = 3;
+
+static void assertNetFault(uint16_t fault, uint8_t level) {
+    LogPolicy pol;
+    TEST_ASSERT_TRUE(pol.shouldPersist(SYS_IP_ACQUIRED, LVL_INFO, 1000));
+    TEST_ASSERT_TRUE(pol.shouldPersist(fault, level, 2000));
+    TEST_ASSERT_FALSE(pol.shouldPersist(fault, level, 3000));
+    TEST_ASSERT_TRUE(pol.shouldPersist(SYS_IP_ACQUIRED, LVL_INFO, 4000));
+    TEST_ASSERT_FALSE(pol.shouldPersist(SYS_IP_ACQUIRED, LVL_INFO, 5000));
+}
+
+void test_cable_faults_are_network_faults(void) {
+    assertNetFault(NET_WIRED_LOST, LVL_WARN);
+    assertNetFault(NET_WIRED_NO_ADDRESS, LVL_WARN);
+    assertNetFault(NET_WIRED_MODULE_FAIL, LVL_ERROR);
+}
+
+/* The codes sit in the network range, next to the radio's, and are new ones:
+ * a code is never reused, because a log already on a device reads by it. */
+void test_cable_codes_are_their_own(void) {
+    TEST_ASSERT_EQUAL(529, NET_WIRED_STARTING);
+    TEST_ASSERT_EQUAL(530, NET_WIRED_MODULE_FAIL);
+    TEST_ASSERT_EQUAL(531, NET_WIRED_NO_ADDRESS);
+    TEST_ASSERT_EQUAL(532, NET_WIRED_LOST);
+}
+
 int main(int, char**) {
     UNITY_BEGIN( );
     RUN_TEST(test_build_is_a_wired_emergency_console);
@@ -220,5 +259,7 @@ int main(int, char**) {
     RUN_TEST(test_pack_without_helpwire_has_no_help);
     RUN_TEST(test_menu_has_no_setup_ap);
     RUN_TEST(test_menu_numbers_every_row_this_build_has);
+    RUN_TEST(test_cable_faults_are_network_faults);
+    RUN_TEST(test_cable_codes_are_their_own);
     return UNITY_END( );
 }

@@ -1294,6 +1294,12 @@ static const char* translateCodeEn(uint16_t code) {
  case NET_DORMANT_MODE: return "WiFi dormant mode";
  case NET_SHOW_IP: return "Show IP";
  case NET_MDNS_FAIL: return "mDNS start failed";
+#if SIMUT_NET_LAN   /* the cable's codes, logged by the wired build only */
+ case NET_WIRED_STARTING: return "Wired network starting";
+ case NET_WIRED_MODULE_FAIL: return "Network module did not start";
+ case NET_WIRED_NO_ADDRESS: return "No address on the cable";
+ case NET_WIRED_LOST: return "Wired network lost";
+#endif
 
  /* ── Telemetry extended (540–547) ── */
  case TEL_HTTP_INIT: return "HTTP transport initialized";

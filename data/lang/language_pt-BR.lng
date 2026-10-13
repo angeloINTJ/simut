@@ -295,6 +295,10 @@ Atualização instalada
 526 WiFi em modo dormente
 527 Mostrar IP
 528 Falha ao iniciar mDNS
+529 Rede cabeada iniciando
+530 Módulo de rede não iniciou
+531 Sem endereço no cabo
+532 Rede cabeada perdida
 540 Transporte HTTP inicializado
 541 Transporte MQTT inicializado
 542 MQTT conectando
