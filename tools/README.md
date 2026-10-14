@@ -1,6 +1,6 @@
 # tools/
 
-166 scripts. This file exists because until 2026-09-08 there was no way
+167 scripts. This file exists because until 2026-09-08 there was no way
 to tell a live bench tool from a leftover, and one of them —
 `compressor.py` — had been superseded for three months while still looking
 usable: it regenerated `WebUI_GZ.h` into the repository root, where nothing
@@ -92,7 +92,7 @@ local build before CI ever sees it.
 | `sensor_soak.py` | Sensor soak — protocol item #4 of docs/analysis/SIMUT-Plano-Estabilidade-Concorrencia.md. | 2026-08-14 |
 | `web_test_suite.py` | End-to-end test suite for the SIMUT web interface. | 2026-08-17 |
 
-## Referenced elsewhere (51)
+## Referenced elsewhere (52)
 
 Named by a document, a workflow, or another script — a recipe in `docs/` or a
 step in a bench procedure. Run by hand, but with instructions somewhere.
@@ -108,6 +108,7 @@ step in a bench procedure. Run by hand, but with instructions somewhere.
 | `build_release_pio.sh` | build_release_pio.sh — Generate PlatformIO / VS Code compatible release zip. | 2026-08-29 |
 | `check_air_consistency.py` | Static consistency gate for the SIMUT Air build (no hardware, no PlatformIO). | 2026-10-13 |
 | `check_history_v5_parity.py` | Bit-exact parity gate between the firmware V5 codec and the reference. | 2026-08-22 |
+| `chunked_probe.py` | Reads `/api/status` in a loop on one keep-alive socket, with its own chunked parser, and says how each reply ended: whole, with a hole (bytes missing mid-stream, #189), cut short honestly, or closed before its first byte. Keeps the raw bytes of every reply that is not whole and reports how far the device's abort counters (`metr.cgd`/`cgg`/`cgx`/`cgw`) moved. Proven against a fake server that serves each of the four endings, then on the bench. Cited by `arduino_pico_overrides/README.md` (override 2m). | 2026-10-14 |
 | `cleanup_comments.py` | Clean version history references and Portuguese markers from source files. | 2026-06-06 |
 | `commit_bool_cases.py` | Boolean round-trip cases for POST /api/commit_all, run against the real device. | 2026-08-18 |
 | `configure_and_test.py` | Configure WiFi and test Pico stability after lockout fixes. | 2026-08-16 |

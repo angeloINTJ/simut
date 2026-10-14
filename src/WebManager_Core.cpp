@@ -596,6 +596,7 @@ void WebManager::update( ) {
     * hp= sent one investigation down a stale trail already. */
    watchdog_hw->scratch[7] = 0;
    _chunkedResponse = false;
+   _shortWritesAtStart = _server->shortWrites( );
    pumpServer( );
    /* 740: handleClient RETURNED. Together with 722 (end of safeSendN) this
     * splits the storm residual three ways instead of lumping it all under

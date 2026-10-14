@@ -644,7 +644,7 @@ void WebManager::handleApiLang( ) {
 
 	_server->setContentLength(len);
 	_server->send(200, "application/json", "");
-	_server->client( ).setTimeout(500);
+	_server->client( ).setTimeout(WEB_WRITE_TIMEOUT_MS);
 
 	char buf[WEB_STREAM_CHUNK_SOFT];
 	uint32_t sent = 0;
@@ -720,7 +720,7 @@ void WebManager::handleApiLogcodes( ) {
 	_server->sendHeader("Cache-Control", "private, max-age=300");
 	_server->setContentLength(packLen + enLen);
 	_server->send(200, "text/plain; charset=utf-8", "");
-	_server->client( ).setTimeout(500);
+	_server->client( ).setTimeout(WEB_WRITE_TIMEOUT_MS);
 
 	char buf[WEB_STREAM_CHUNK_SOFT];
 	uint32_t sent = 0;
@@ -927,6 +927,10 @@ void WebManager::handleApiStatus( ) {
 	 * full-CLI image, so from the network they were indistinguishable —
 	 * a truncated download and a client that walked away read the same.
 	 * They are what makes an abort diagnosable while a storm is running.
+	 * cgw is the fourth (2026-10-14): a write the client's timeout cut short,
+	 * after which the framework ends the response (override 2m). Before it,
+	 * those replies reached the client with a hole in them and moved none of
+	 * the other three: #189, and the half of B13 that had no explanation.
 	 *
 	 * c1a/c1n/c1kl/c1kh/c1kq/c1s are the Core-1 lifecycle, and they are here
 	 * for the third time the same lesson has had to be learned: a STALLED
@@ -949,7 +953,7 @@ void WebManager::handleApiStatus( ) {
 	         "\"ts\":%lu,\"tf\":%lu,\"tr\":%lu,\"tb\":%lu,\"tl\":%lu,\"so\":%lu,\"se\":%lu,\"cs\":%lu,"
 	         "\"fo\":%lu,\"fom\":%lu,\"fot\":%lu,\"f50\":%lu,\"fx\":%lu,\"ad\":%lu,"
 	         "\"c1a\":%lu,\"c1n\":%lu,\"c1kl\":%lu,\"c1kh\":%lu,\"c1kq\":%lu,\"c1s\":%lu,"
-	         "\"cgd\":%lu,\"cgg\":%lu,\"cgx\":%lu},",
+	         "\"cgd\":%lu,\"cgg\":%lu,\"cgx\":%lu,\"cgw\":%lu},",
 	         (unsigned long)mt.heapLargestBlock, (unsigned long)lbmin, (unsigned long)hmin,
 	         (unsigned long)mt.wifiReconnects, (unsigned long)mt.mqttReconnects,
 #if SIMUT_NET_WIFI
@@ -966,7 +970,7 @@ void WebManager::handleApiStatus( ) {
 	         (unsigned long)g_core1KillsLockout, (unsigned long)g_core1KillsHealth,
 	         (unsigned long)g_core1KillsQuiet, (unsigned long)g_core1LockoutStuck,
 	         (unsigned long)_cgDeadlineHits, (unsigned long)_cgGuardHits,
-	         (unsigned long)_cgDisconnHits);
+	         (unsigned long)_cgDisconnHits, (unsigned long)shortWrites( ));
 
 	if (!safeSend(buffer)) return;
 	if (!safeSend("\"sensors\":[")) return;

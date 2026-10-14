@@ -84,7 +84,8 @@ arduino_pico_overrides/
     ├── webserver_cors_origin.patch
     ├── cyw43_join_budget.patch          ← 2026-10-01, the join wait bounded
     ├── littlefs_rp2350_untranslated.patch  ← 2026-10-03, RP2350 only: LittleFS from a slot
-    └── wifiserver_accepted_not_evicted.patch ← 2026-10-04, a long transfer is not killed for a newcomer
+    ├── wifiserver_accepted_not_evicted.patch ← 2026-10-04, a long transfer is not killed for a newcomer
+    └── webserver_short_write.patch      ← 2026-10-14, a write cut short ends the response (#189)
 ```
 
 ## TLS handshake deadline (2026-07-25)
@@ -210,6 +211,57 @@ upload stalled at about 704 KB.
 Outbound connections (telemetry, MQTT) keep `TCP_PRIO_MIN`. Cost: +32 B on
 `pico_w_release`, `pico_w_air` and `pico2_w_release`, +40 B on the rest. The
 WiFi library has its own object cache (`lib*/WiFi/`), which `patch.sh` and
+`restore.sh` invalidate.
+
+## A short write ends the response (2026-10-14)
+
+> **A reply the device could not finish reaches the client cut short, not
+> with a hole in the middle.**
+
+`WiFiClient::write( )` gives up when it cannot hand all its bytes to lwIP
+within the client's timeout (`ClientContext::_timeout_ms`; SIMUT sets
+`WEB_WRITE_TIMEOUT_MS`, 500 ms, before every streamed body), waiting for the
+peer's ACKs to free room, and returns what it took. `HTTPServer` dropped that count on every write of a response: the
+header, and each chunk's size line, data and CRLF. It went on with the next
+write, so the bytes one did not take left a hole in the stream, framed as if
+nothing had happened.
+
+Measured with `tools/chunked_probe.py` (2026-10-14, release 2.11.1, GET
+/api/status every 0.2 s on one keep-alive connection): 24 of 2,000 replies at
+night, and 1 of 2,000 the next morning, came with one or two whole writes
+missing, a chunk's size line followed directly by the next chunk's, for
+example. Each of them took 1.2 to 1.8 s more than the 0.04 s of a good one,
+and none moved a SIMUT counter: the deadline, latch and disconnect counts all
+stayed at 0. A client cannot tell such a reply from a server that lies;
+requests raises `InvalidChunkLength`, a browser
+`ERR_INVALID_CHUNKED_ENCODING`. This is #189, and it explains the hole in the
+half of B13 (`docs/analysis/PLANO_STABLE.md`) that had no explanation. Why a
+write stalls is still open; `show net status` now says whether lwIP ran out
+of segments or memory.
+
+`webserver_short_write.patch` sends every write of `send( )` and
+`sendContent( )` through `_writeAll( )`, and `streamFile( )` checks its own
+count. The first write that comes back short ends the response: nothing more
+of it is written, the client is closed, and `shortWrites( )` counts it. The
+client sees a reply cut short, which every HTTP client reports as such. A
+write to a peer that has already gone is not counted, because that is a
+disconnect, and SIMUT counts those itself. `_handleRequest( )` and
+`_prepareHeader( )` clear the state for the next response, and
+`_parseRequest( )` clears `_chunked` for the next request, as it always has.
+
+The close is `stopClient(1)`, which `WebServerTemplate` overrides to stop the
+client as its real type. `WiFiClient::stop(unsigned)` is not virtual, and a
+`WiFiClientSecure` keeps its connection in its own context with the base's
+left empty: `stop(1)` through the `WiFiClient*` the server holds closed
+nothing over TLS. SIMUT's own abort of a TLS stream (`dropAbortedStream( )`)
+had called it that way since the TLS server existed, and calls `stopClient(1)`
+now.
+
+SIMUT reads the count as `metr.cgw` in `/api/status`,
+`simut_web_aborts_total{cause="short_write"}` in `/metrics`, and the
+`escrita curta` field of `show net status`. Its disconnect counter leaves
+those responses out (`WebManager::isClientGone( )`). The WebServer library
+has its own object cache (`lib*/WebServer/`), which `patch.sh` and
 `restore.sh` invalidate.
 
 ## Changes Applied

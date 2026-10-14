@@ -200,7 +200,12 @@ show system info
 
 ### show net status {#cap-14-show-net}
 
-Mostra o endereço IP e o sinal. Sem conexão, o sinal aparece como `-100 dBm`; com o AP aberto, o endereço é `192.168.4.1`. A linha `Abortos de envio` conta respostas da interface web interrompidas desde o boot, por prazo, por trava ou por desconexão do navegador; serve para diagnóstico. O comando também registra o endereço no log (código 527, **Mostrar IP**).
+Mostra o endereço IP e o sinal. Sem conexão, o sinal aparece como `-100 dBm`; com o AP aberto, o endereço é `192.168.4.1`. O comando também registra o endereço no log (código 527, **Mostrar IP**).
+
+As outras linhas servem para diagnóstico e contam desde o boot:
+
+- **PBUF pool** e **Segmentos TCP:** a memória da pilha de rede para receber e para enviar: quanto está em uso, o pico e as falhas de alocação. `tcp_write sem memoria` conta os envios que a pilha recusou por falta de memória.
+- **Abortos de envio:** respostas da interface web interrompidas, por prazo, por trava, por desconexão do navegador ou por escrita curta. Escrita curta é um envio que não terminou dentro do prazo: o aparelho encerra a resposta ali, e o navegador a vê cortada. Até a v2.11.1, essas respostas chegavam com um trecho faltando no meio, sem mexer em contador nenhum.
 
 ```text
 SIMUT> show net status
@@ -208,7 +213,9 @@ SIMUT> show net status
 --- Status da Rede ---
  IP: 192.0.2.10
  RSSI: -58 dBm
- Abortos de envio: prazo 0 | latch 0 | desconexao 0
+ PBUF pool: 1 em uso / pico 3 / 24 total, 0 falhas
+ Segmentos TCP: 0 em uso / pico 4 / 32 total, 0 falhas | tcp_write sem memoria 0
+ Abortos de envio: prazo 0 | latch 0 | desconexao 0 | escrita curta 0
 -------------------------------------------
 ```
 

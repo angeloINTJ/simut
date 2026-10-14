@@ -8861,13 +8861,20 @@ show system info
   Nome, firmware, serial, SSID do WiFi
 ...</code></pre>
 <h4 id="cap-14-show-net">show net status</h4>
-<p>Mostra o endereço IP e o sinal. Sem conexão, o sinal aparece como <code>-100 dBm</code>; com o AP aberto, o endereço é <code>192.168.4.1</code>. A linha <code>Abortos de envio</code> conta respostas da interface web interrompidas desde o boot, por prazo, por trava ou por desconexão do navegador; serve para diagnóstico. O comando também registra o endereço no log (código 527, <strong>Mostrar IP</strong>).</p>
+<p>Mostra o endereço IP e o sinal. Sem conexão, o sinal aparece como <code>-100 dBm</code>; com o AP aberto, o endereço é <code>192.168.4.1</code>. O comando também registra o endereço no log (código 527, <strong>Mostrar IP</strong>).</p>
+<p>As outras linhas servem para diagnóstico e contam desde o boot:</p>
+<ul>
+<li><strong>PBUF pool</strong> e <strong>Segmentos TCP:</strong> a memória da pilha de rede para receber e para enviar: quanto está em uso, o pico e as falhas de alocação. <code>tcp_write sem memoria</code> conta os envios que a pilha recusou por falta de memória.</li>
+<li><strong>Abortos de envio:</strong> respostas da interface web interrompidas, por prazo, por trava, por desconexão do navegador ou por escrita curta. Escrita curta é um envio que não terminou dentro do prazo: o aparelho encerra a resposta ali, e o navegador a vê cortada. Até a v2.11.1, essas respostas chegavam com um trecho faltando no meio, sem mexer em contador nenhum.</li>
+</ul>
 <pre class="text"><code>SIMUT&gt; show net status
 
 --- Status da Rede ---
  IP: 192.0.2.10
  RSSI: -58 dBm
- Abortos de envio: prazo 0 | latch 0 | desconexao 0
+ PBUF pool: 1 em uso / pico 3 / 24 total, 0 falhas
+ Segmentos TCP: 0 em uso / pico 4 / 32 total, 0 falhas | tcp_write sem memoria 0
+ Abortos de envio: prazo 0 | latch 0 | desconexao 0 | escrita curta 0
 -------------------------------------------</code></pre>
 <p>O comando não mostra o estado do NTP, embora o texto de ajuda diga “hora”. Para ver se o relógio está acertado, use a interface web (<a href="#cap-10">capítulo 10</a>).</p>
 <h4 id="cap-14-show-info">show system info</h4>
@@ -16326,8 +16333,8 @@ simut_uptime_seconds 86412</code></pre>
 <tr class="even">
 <td><code>simut_web_aborts_total</code></td>
 <td>counter</td>
-<td><code>cause</code>: <code>deadline</code>, <code>guard</code>, <code>disconnect</code></td>
-<td>Respostas web interrompidas, por motivo</td>
+<td><code>cause</code>: <code>deadline</code>, <code>guard</code>, <code>disconnect</code>, <code>short_write</code></td>
+<td>Respostas web interrompidas, por motivo. <code>short_write</code> é um envio que não terminou dentro do prazo</td>
 </tr>
 </tbody>
 </table></div>
@@ -16509,6 +16516,7 @@ simut_core1_kills_total{cause=&quot;quiet&quot;} 0
 simut_web_aborts_total{cause=&quot;deadline&quot;} 0
 simut_web_aborts_total{cause=&quot;guard&quot;} 0
 simut_web_aborts_total{cause=&quot;disconnect&quot;} 0
+simut_web_aborts_total{cause=&quot;short_write&quot;} 0
 # TYPE simut_sensor_ok gauge
 simut_sensor_ok{slot=&quot;0&quot;,hwid=&quot;STM0001&quot;,name=&quot;Câmara 1&quot;} 1
 simut_sensor_ok{slot=&quot;1&quot;,hwid=&quot;BME28001&quot;,name=&quot;Sala&quot;} 1
@@ -18497,7 +18505,7 @@ async function status(token) {
  &quot;metr&quot;:{&quot;lb&quot;:40960,&quot;lbm&quot;:33792,&quot;hm&quot;:52112,&quot;wf&quot;:0,&quot;mq&quot;:0,&quot;rmn&quot;:-63,&quot;rmx&quot;:-55,
  &quot;ts&quot;:135,&quot;tf&quot;:0,&quot;tr&quot;:0,&quot;tb&quot;:412345,&quot;tl&quot;:180,&quot;so&quot;:24000,&quot;se&quot;:2,&quot;cs&quot;:3,
  &quot;fo&quot;:210,&quot;fom&quot;:38,&quot;fot&quot;:2100,&quot;f50&quot;:0,&quot;fx&quot;:0,&quot;ad&quot;:0,&quot;c1a&quot;:12,&quot;c1n&quot;:1,
- &quot;c1kl&quot;:0,&quot;c1kh&quot;:0,&quot;c1kq&quot;:0,&quot;c1s&quot;:0,&quot;cgd&quot;:0,&quot;cgg&quot;:0,&quot;cgx&quot;:0},
+ &quot;c1kl&quot;:0,&quot;c1kh&quot;:0,&quot;c1kq&quot;:0,&quot;c1s&quot;:0,&quot;cgd&quot;:0,&quot;cgg&quot;:0,&quot;cgx&quot;:0,&quot;cgw&quot;:0},
  &quot;sensors&quot;:[
   {&quot;slot&quot;:0,&quot;gpio&quot;:2,&quot;id&quot;:&quot;FRIDGE&quot;,&quot;name&quot;:&quot;Geladeira&quot;,&quot;type&quot;:&quot;DS18B20&quot;,&quot;ch&quot;:1,
    &quot;pc&quot;:1,&quot;pr&quot;:&quot;1-Wire&quot;,&quot;val&quot;:4.25},
@@ -18668,8 +18676,8 @@ async function status(token) {
 <td>Partidas desse núcleo e interrupções por três causas diferentes; <code>c1s</code> conta travamentos na pausa</td>
 </tr>
 <tr class="even">
-<td><code>cgd</code>, <code>cgg</code>, <code>cgx</code></td>
-<td>Respostas cortadas por prazo, por proteção e por desconexão do cliente</td>
+<td><code>cgd</code>, <code>cgg</code>, <code>cgx</code>, <code>cgw</code></td>
+<td>Respostas cortadas por prazo, por proteção, por desconexão do cliente e por escrita curta: um envio que não terminou dentro do prazo, e o aparelho encerrou a resposta ali</td>
 </tr>
 </tbody>
 </table></div>
@@ -25910,7 +25918,7 @@ O formato de arquivo que a placa aceita no modo BOOTSEL (<a href="#cap-03">capí
 </section>
 </main>
 <footer class="colofao">
-<p>Manual do SIMUT, gerado em 13/10/2026 por <code>tools/build_manual.py</code> a partir de <code>docs/_manual/</code>. Licença MIT, como o firmware.</p>
+<p>Manual do SIMUT, gerado em 14/10/2026 por <code>tools/build_manual.py</code> a partir de <code>docs/_manual/</code>. Licença MIT, como o firmware.</p>
 <p>Visual no padrão Ângulo. Fonte de títulos: Ângulo Display, recorte da Bricolage Grotesque SemiBold, SIL Open Font License 1.1.</p>
 </footer>
 </div>

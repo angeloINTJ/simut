@@ -400,14 +400,25 @@ void AppManager::executeCommand(CliDemand cmd) {
  _cmdMgr->consolePrintf(" PBUF pool: %u em uso / pico %u / %u total, %u falhas\n",
                         (unsigned)ps->used, (unsigned)ps->max,
                         (unsigned)ps->avail, (unsigned)ps->err);
+ /* #189: what a write cut short by its timeout ran into, if anything: a full
+  * segment pool, or tcp_write( ) refused for memory or queue length
+  * (tcp.memerr). Both still at 0 while writes come back short points at the
+  * peer's ACKs, not at this side. */
+ const struct stats_mem* sg = lwip_stats.memp[MEMP_TCP_SEG];
+ _cmdMgr->consolePrintf(" Segmentos TCP: %u em uso / pico %u / %u total, %u falhas | tcp_write sem memoria %u\n",
+                        (unsigned)sg->used, (unsigned)sg->max, (unsigned)sg->avail,
+                        (unsigned)sg->err, (unsigned)lwip_stats.tcp.memerr);
  }
 #endif
- /* Why chunked responses were cut short. All three surface in the log as
-  * WEB_CLIENT_DISCONNECT but call for opposite fixes, so keep them apart. */
- _cmdMgr->consolePrintf(" Abortos de envio: prazo %lu | latch %lu | desconexao %lu\n",
+ /* Why chunked responses were cut short. The first three surface in the log
+  * as WEB_CLIENT_DISCONNECT but call for opposite fixes, so keep them apart;
+  * the fourth is a write the client's timeout cut short, which the framework
+  * ends the response on (override 2m, #189). */
+ _cmdMgr->consolePrintf(" Abortos de envio: prazo %lu | latch %lu | desconexao %lu | escrita curta %lu\n",
                         (unsigned long)_cgDeadlineHits,
                         (unsigned long)_cgGuardHits,
-                        (unsigned long)_cgDisconnHits);
+                        (unsigned long)_cgDisconnHits,
+                        (unsigned long)_webMgr->shortWrites( ));
  _cmdMgr->printDivider( );
  break;
  }

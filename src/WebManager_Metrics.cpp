@@ -241,6 +241,8 @@ void WebManager::handleMetrics( ) {
 	                             "cause=\"guard\"", _cgGuardHits));
 	add(ln, PromMetrics::lineU32(ln, sizeof(ln), "simut_web_aborts_total",
 	                             "cause=\"disconnect\"", _cgDisconnHits));
+	add(ln, PromMetrics::lineU32(ln, sizeof(ln), "simut_web_aborts_total",
+	                             "cause=\"short_write\"", shortWrites( )));
 
 	/* ── per-slot readings — same source and slot resolution as /api/status ── */
 	const auto& sensors = _sensorRef->getRuntimeSensors( );
