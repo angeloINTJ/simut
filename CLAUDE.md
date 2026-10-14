@@ -36,7 +36,7 @@ builds and nothing runs on a board yet. **`pio run` with no `-e` builds only
 `pico_w_release`** — `default_envs` in `platformio.ini` says so, and this line
 claimed the opposite until 2026-09-22. The eighth, since 2026-10-12, is
 `pico_wire`: the SIMUT Wire, a plain Pico without the radio, its network on an
-ENC28J60 module (the driver: `src/net/`, `src/NetworkManager_Wired.cpp`; on the
+ENC28J60 module (the driver: `src/net/`, `src/net/NetworkManager_Wired.cpp`; on the
 bench since 2026-10-12). The ninth, since 2026-10-13, is `pico_wiretft`: the same
 Wire with the TFT panel and touch in place of the 16x2 LCD (the module's INT is
 GP11 with either display); CI builds it, and a build of the same switches

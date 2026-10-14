@@ -10,8 +10,8 @@
  *              (Core 1 lockout).
  *           4. save_and_disable_interrupts.
  *           5. Salta pra applier (SRAM). Não retorna em sucesso.
- *           6. Em retorno (erro pré-destrutivo), restore IRQs + Core 1 +
- *              report.
+ *           6. O applier de hoje não retorna (reinicia até nos erros, applier.cpp);
+ *              se um futuro retornar: restore IRQs + Core 1 + report.
  *
  *          Anti-loop: se attempts >= OTA_MAX_APPLY_ATTEMPTS, recusa
  *          apply e deixa user ir pra BOOTSEL recovery.
@@ -36,7 +36,7 @@ enum class OrchestratorResult : uint8_t {
     NOT_PENDING       = 0,  /**< Sem update válido em metadata. */
     MAX_ATTEMPTS      = 1,  /**< Excedeu OTA_MAX_APPLY_ATTEMPTS. */
     METADATA_FAIL     = 2,  /**< Não conseguiu persistir state=APPLYING. */
-    APPLIER_RETURNED  = 3,  /**< Erro pré-destrutivo dentro do applier. */
+    APPLIER_RETURNED  = 3,  /**< Reservado: o applier de hoje reinicia em todo caminho, erros incluídos. */
     /* Sucesso = não retorna (watchdog_reboot dentro do applier). */
 };
 

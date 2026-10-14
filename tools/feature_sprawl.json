@@ -10,14 +10,15 @@
   "DisplayManager.h": 1,
   "DisplayManager_None.cpp": 1,
   "HelpLicenseEN.h": 1,
-  "NetworkManager.cpp": 3,
+  "NetworkManager.cpp": 2,
   "NetworkManager.h": 1,
   "SoundManager.h": 1,
   "WebManager_Commit.cpp": 1,
-  "air/AirConfig.h": 2
+  "air/AirConfig.h": 2,
+  "net/NetworkManager_Cyw43.cpp": 1
  },
  "SIMUT_AP_OPEN": {
-  "NetworkManager.cpp": 1
+  "net/NetworkManager_Cyw43.cpp": 1
  },
  "SIMUT_BLUETOOTH": {
   "AppManager_Boot.cpp": 1,
@@ -72,10 +73,11 @@
   "HelpLicenseEN.h": 1
  },
  "SIMUT_MDNS": {
-  "NetworkManager.cpp": 3,
+  "NetworkManager.cpp": 2,
   "NetworkManager.h": 3,
-  "NetworkManager_Wired.cpp": 1,
-  "SystemDefs_Network.h": 1
+  "SystemDefs_Network.h": 1,
+  "net/NetworkManager_Cyw43.cpp": 1,
+  "net/NetworkManager_Wired.cpp": 1
  },
  "SIMUT_MIRROR_PROBE": {
   "CommandManager.cpp": 1,
@@ -86,9 +88,9 @@
   "AppManager_Boot.cpp": 1
  },
  "SIMUT_NET_CYW43": {
-  "NetworkManager.cpp": 2,
   "net/NetBoot.h": 1,
-  "net/NetLink.h": 1
+  "net/NetLink.h": 1,
+  "net/NetworkManager_Cyw43.cpp": 1
  },
  "SIMUT_NET_ENC28J60": {
   "net/Enc28j60Device.h": 1,
@@ -108,12 +110,11 @@
   "LangPackIndex.h": 1,
   "LogManager.cpp": 1,
   "LogPolicy.cpp": 1,
-  "NetworkManager.cpp": 8,
   "NetworkManager.h": 1,
-  "NetworkManager_Wired.cpp": 1,
   "display/BigFont_HD44780.h": 2,
   "display/SettingsMenu.h": 2,
   "net/NetLink.h": 1,
+  "net/NetworkManager_Wired.cpp": 1,
   "net/WiredLink.cpp": 1,
   "net/WiredLink.h": 1
  },

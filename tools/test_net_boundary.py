@@ -14,9 +14,11 @@ gives none; and what is fine on any lwIP interface (WiFiClient, WiFiUDP, ...) gi
     allowances (over, under, stale, no reason, unknown rule), --update, --report, the
     manifest as the source of the identity macros, and the output format.
   * The real tree: it passes, and one violation of each rule appended to a copy of it gives
-    exactly one finding. The counts in tools/net_boundary.json are held tight on the real
-    files too: one site more in an allowed file fails ("grew"), one less fails ("lower the
-    allowance").
+    exactly one finding. The counts are held tight on the real files too: one site more in an
+    allowed file fails ("grew"), one less fails ("lower the allowance"), and --update lowers
+    it. The real tools/net_boundary.json allows nothing since 2026-10-13, so the copy is given
+    an allowance of its own (two radio calls in a surface file, allowed two); while the real
+    file lists one, its largest is used as it is.
   * The gate never writes under src/: the sha256 of every scanned file is the same before and
     after every run, --update included (it writes tools/net_boundary.json and nothing else).
 """
@@ -601,40 +603,53 @@ def real_tree_cases():
             mutated(bare, "\n#if SIMUT_NET_LAN\n#endif\n", "class-include",
                     f"real tree + a class test in {bare} (which includes neither): one finding")
 
-        # the counts are tight on the real files
-        with open(os.path.join(root, "tools", "net_boundary.json"), encoding="utf-8") as fh:
-            allowed = json.load(fh)
-        ra = allowed.get("radio-api", {})
-        if ra:
-            rel = max(ra, key=lambda p: ra[p]["count"])
-            short = rel[len("src/"):]
-            path = os.path.join(root, "src", short)
-            with open(path, encoding="utf-8", newline="") as fh:
-                original = fh.read()
+        # the counts are tight on the real files. The real tools/net_boundary.json allows nothing
+        # since 2026-10-13 (the radio's state machine, the last file it listed, moved into src/net/),
+        # so the copy is given an allowance: two radio calls in a surface file, allowed two. While
+        # the real file lists one, the file with the largest allowance is used as it is.
+        apath = os.path.join(root, "tools", "net_boundary.json")
+        with open(apath, encoding="utf-8") as fh:
+            allowances_text = fh.read()
+        allowed = json.loads(allowances_text)
+        ra = allowed.get("radio-api") or {}
+        rel = max(ra, key=lambda p: ra[p]["count"]) if ra else "src/SyslogManager.cpp"
+        path = os.path.join(root, "src", rel[len("src/"):])
+        with open(path, encoding="utf-8", newline="") as fh:
+            original = fh.read()
+        base = original
+        if not ra:
+            base = original + "\nstatic int boundary_seed_a = WiFi.RSSI( );\nstatic int boundary_seed_b = WiFi.RSSI( );\n"
             with open(path, "w", encoding="utf-8", newline="") as fh:
-                fh.write(original + "\nstatic int boundary_probe = WiFi.RSSI( );\n")
+                fh.write(base)
+            allowed.setdefault("radio-api", {})[rel] = {"count": 2, "reason": "the test's own: two radio calls, allowed two"}
+            with open(apath, "w", encoding="utf-8") as fh:
+                json.dump(allowed, fh)
             rc, out, _e = run(root)
-            check(f"real tree: one radio call more in {rel}, which is allowed, fails: grew",
-                  rc == 1 and any("grew" in l and l.startswith(rel + ":") for l in out), f"{out[-3:]}")
-            lines = original.split("\n")
-            code_lines = cnb.strip_source(original)[0].split("\n")
-            for i, l in enumerate(code_lines):
-                if re.search(r"\bWiFi\s*\.", l):
-                    lines[i] = "int removed_site = 0;"
-                    break
-            with open(path, "w", encoding="utf-8", newline="") as fh:
-                fh.write("\n".join(lines))
-            rc, out, _e = run(root)
-            check(f"real tree: one radio call fewer in {rel}, which is allowed, fails: lower the allowance",
-                  rc == 1 and any("lower the allowance" in l and l.startswith(rel + ":") for l in out), f"{out[-3:]}")
-            rc, out, _e = run(root, "--update")
-            rc2, out2, _e2 = run(root)
-            check("real tree: --update takes the lower count and the gate passes again", rc == 0 and rc2 == 0,
-                  f"{out[-3:]} {out2[-3:]}")
-            with open(path, "w", encoding="utf-8", newline="") as fh:
-                fh.write(original)
-        else:
-            check("the real tools/net_boundary.json allows some radio calls (NetworkManager.cpp)", False)
+            check(f"real tree + two radio calls in {rel} and an allowance of two: passes", rc == 0, f"{out[-3:]}")
+        with open(path, "w", encoding="utf-8", newline="") as fh:
+            fh.write(base + "\nstatic int boundary_probe = WiFi.RSSI( );\n")
+        rc, out, _e = run(root)
+        check(f"real tree: one radio call more in {rel}, which is allowed, fails: grew",
+              rc == 1 and any("grew" in l and l.startswith(rel + ":") for l in out), f"{out[-3:]}")
+        lines = base.split("\n")
+        code_lines = cnb.strip_source(base)[0].split("\n")
+        for i, l in enumerate(code_lines):
+            if re.search(r"\bWiFi\s*\.", l):
+                lines[i] = "int removed_site = 0;"
+                break
+        with open(path, "w", encoding="utf-8", newline="") as fh:
+            fh.write("\n".join(lines))
+        rc, out, _e = run(root)
+        check(f"real tree: one radio call fewer in {rel}, which is allowed, fails: lower the allowance",
+              rc == 1 and any("lower the allowance" in l and l.startswith(rel + ":") for l in out), f"{out[-3:]}")
+        rc, out, _e = run(root, "--update")
+        rc2, out2, _e2 = run(root)
+        check("real tree: --update takes the lower count and the gate passes again", rc == 0 and rc2 == 0,
+              f"{out[-3:]} {out2[-3:]}")
+        with open(path, "w", encoding="utf-8", newline="") as fh:
+            fh.write(original)
+        with open(apath, "w", encoding="utf-8") as fh:
+            fh.write(allowances_text)
         after = tree_hashes(os.path.join(root, "src"))
         check("the copy's sources are back as they were after the mutations (the instrument is sound)",
               {k: v for k, v in after.items() if k in base_hashes} == base_hashes)

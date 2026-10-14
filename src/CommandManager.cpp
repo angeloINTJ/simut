@@ -919,7 +919,7 @@ void CommandManager::renderMetrics( ) {
  consolePrintln(pt ? " [REDE]" : " [NETWORK]");
 #if SIMUT_NET_LAN
  /* The wired link counts its reconnects in the same field (see wiredUp( ),
-  * NetworkManager_Wired.cpp) and samples no signal level. */
+  * net/NetworkManager_Wired.cpp) and samples no signal level. */
  consolePrintf (pt ? " Cabo conns: %lu\n" : " Cable conns: %lu\n",
  (unsigned long)m.wifiReconnects);
  consolePrintf (pt ? " MQTT conns: %lu\n" : " MQTT conns: %lu\n",

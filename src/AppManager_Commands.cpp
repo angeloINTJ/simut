@@ -386,7 +386,7 @@ void AppManager::executeCommand(CliDemand cmd) {
  _cmdMgr->consolePrintf (" IP: %s\n", ip.c_str( ));
 #if SIMUT_NET_LAN
  /* getRssi( ) on the cable is a constant standing in for "connected" (see
-  * NetworkManager_Wired.cpp); printed as dBm it would read as a measurement. */
+  * net/NetworkManager_Wired.cpp); printed as dBm it would read as a measurement. */
  _cmdMgr->consolePrintf (pt ? " Cabo: %s\n" : " Cable: %s\n",
                          _netMgr->isLinkUp( ) ? (pt ? "conectado" : "connected")
                                               : (pt ? "sem link" : "no link"));

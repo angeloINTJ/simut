@@ -462,10 +462,9 @@
  *                       (`net = "enc28j60"` in tools/features.toml) passes
  *                       -DSIMUT_NET_ENC28J60=1, picks that board and takes
  *                       -DPICO_CYW43_SUPPORTED=1 out of the flags (build_unflags).
- *   Only src/net/, this file (the module's pins, below), src/net/NetCaps.h and
- *   src/NetworkManager.cpp read an identity macro: the last is the radio's
- *   driver until it moves to src/net/ (tools/net_boundary.json says what it
- *   reads and why).
+ *   Only src/net/, this file (the module's pins, below) and src/net/NetCaps.h
+ *   read an identity macro (tools/check_net_boundary.py, with no allowance
+ *   since the radio's state machine moved into src/net/ on 2026-10-13).
  *
  * CLASS  what the link is, derived from the identity in src/net/NetCaps.h
  * (included just below) and never passed with -D:
@@ -482,8 +481,11 @@
  * this section (the #error there stops a wired driver that has none).
  *
  * The wired side is src/net/WiredLink.cpp over the chip's device header (the
- * ENC28J60: src/net/Enc28j60Device.h) and src/NetworkManager_Wired.cpp
- * (NetworkManager's wired states), since 2026-10-12. The 2026-09-26 study
+ * ENC28J60: src/net/Enc28j60Device.h) and src/net/NetworkManager_Wired.cpp
+ * (NetworkManager's wired unit), since 2026-10-12. The radio's side is
+ * src/net/NetworkManager_Cyw43.cpp (NetworkManager's radio unit, since
+ * 2026-10-13); NetworkManager.cpp is the host both units share (NTP, the
+ * clocks, mDNS), and NetworkManager.h has the contract a unit implements. The 2026-09-26 study
  * (docs/analysis/SIMUT_WIRE_VIABILIDADE.md, study/simut-wire branch) found the
  * release linking for board = rpipico once the one cyw43_arch_enable_sta_mode( )
  * call was out.
