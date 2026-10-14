@@ -221,6 +221,34 @@ static void test_a_drop_inside_the_ntp_wait_is_noticed(void) {
     TEST_ASSERT_TRUE_MESSAGE(net.isConnected( ), "the access point came back and the device did not");
 }
 
+/* The link's level inside the wait. getRssi( ) answered -100 outside NET_READY,
+ * so isLinkHealthy( ) (isLinkUp( ) and the RSSI floor, the gate F08 gave the
+ * Air's FLUSH phase) was false for the whole wait on a live link, and the
+ * phase marked the network lost as soon as it began. Found by the review of the
+ * NTP-wait fix on 2026-10-13. An implausible reading is still a dead link. */
+static void test_the_link_level_is_read_inside_the_ntp_wait(void) {
+    NetworkManager net;
+    g_clockNow = 1000;                                   /* no NTP answer yet */
+    net.begin(makeConfig( ), true, /*ntpEnabled=*/true, "");
+    pump(net, 3000);
+    TEST_ASSERT_TRUE_MESSAGE(net.isLinkUp( ) && !net.isConnected( ),
+        "setup: not in the NTP wait with the link up");
+
+    WiFi.rssi = -60;
+    TEST_ASSERT_EQUAL_INT32_MESSAGE(-60, net.getRssi( ), "the level of a live link in the NTP wait");
+    TEST_ASSERT_TRUE_MESSAGE(net.isLinkHealthy( ), "a live link in the NTP wait read as unhealthy");
+    TEST_ASSERT_FALSE_MESSAGE(net.isNetworkHealthy( ), "isNetworkHealthy( ) waits for NET_READY, as before");
+
+    WiFi.rssi = -90;                                     /* below RSSI_MIN_THRESHOLD */
+    TEST_ASSERT_FALSE(net.isLinkHealthy( ));
+
+    WiFi.rssi = 4;                                       /* the chip no longer answers with real data */
+    TEST_ASSERT_EQUAL_INT32(-100, net.getRssi( ));
+    TEST_ASSERT_FALSE_MESSAGE(net.isLinkHealthy( ), "an implausible reading in the NTP wait passed as health");
+    WiFi.rssi = RSSI_IMPLAUSIBLE_LOW - 1;
+    TEST_ASSERT_EQUAL_INT32(-100, net.getRssi( ));
+}
+
 /* And the wait leaves a live link alone. A network with no way to a time server
  * never answers NTP, and its link has to stay as it is (the web works over it),
  * not be dropped on a timer by a check that cannot tell the two cases apart. */
@@ -1197,6 +1225,7 @@ int main(int, char**) {
     RUN_TEST(test_a_drop_is_noticed_without_being_told);
 
     RUN_TEST(test_a_drop_inside_the_ntp_wait_is_noticed);
+    RUN_TEST(test_the_link_level_is_read_inside_the_ntp_wait);
     RUN_TEST(test_the_ntp_wait_leaves_a_live_link_alone);
 
     RUN_TEST(test_a_scan_that_never_finishes_does_not_park_the_device);

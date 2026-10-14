@@ -1807,7 +1807,7 @@ As constantes de capacidade que o levantamento encontrou e que ficam fora do mod
 | `bt` | `BT_AUTH_BUFFER_MAX` / `BT_DISCOVERABLE_MS` / `_timeoutMs` | 64 / 300000 / 300000 | Bluetooth (alpha e air) | src/SystemDefs_Network.h:253, :274; src/BluetoothManager.h:50 |
 | `cli` | `CLI_LINE_MAX` / `strVal1/2[64]`, `strVal3[32]` / `parts[6]` | 256 / 63 / 31 / 6 tokens | linha e argumentos da CLI | src/SystemDefs_Network.h:280; src/SystemDefs_Cli.h:180-182; src/CommandParser.cpp:80 |
 | `air-wake` | `AIR_WAKE_INTERVAL_MIN` | 5 | período de wake quando `h_int` lê 0 | src/simut_config.h:403 |
-| `air-phases` | `AIR_STAB_TIMEOUT_MS` / `AIR_CONNECT_TIMEOUT_MS` / `AIR_FLUSH_TIMEOUT_MS` / `AIR_FLUSH_TAIL_MS` | 30000 / 30000 / 30000 / 5000 | duração das fases do wake | src/simut_config.h:409, :415, :418, :427; src/air/AirConfig.h:139, :153-154 |
+| `air-phases` | `AIR_STAB_TIMEOUT_MS` / `AIR_CONNECT_TIMEOUT_MS` / `AIR_FLUSH_TIMEOUT_MS` / `AIR_FLUSH_TAIL_MS` / `AIR_FLUSH_NTP_WAIT_MS` | 30000 / 30000 / 30000 / 5000 / 10000 | duração das fases do wake; a última é quanto a FLUSH espera o NTP | src/simut_config.h:713, :719, :722, :731, :740; src/air/AirConfig.h:139, :153-154 |
 | `air-scan-dead` | `AIR_WIFI_SCAN_TIMEOUT_MS` | 4000 | nada (o campo virou `chargerPin`) | src/simut_config.h:412; src/air/AirConfig.h:140-150 |
 | `air-attempts` | `AIR_MAX_CONNECT_ATTEMPTS` | 2 | tentativas de Wi-Fi por wake | src/simut_config.h:451 |
 | `air-sleep` | `AIR_MIN_SLEEP_SEC` / `AIR_MAX_SLEEP_SEC` | 5 / 86399 | limites do alarme de RTC | src/simut_config.h:459; src/air/AirConfig.h:269 |

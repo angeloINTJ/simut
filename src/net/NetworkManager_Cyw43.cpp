@@ -696,10 +696,17 @@ String NetworkManager::getSubnetMask( ) { return WiFi.subnetMask( ).toString( );
 String NetworkManager::getGateway( ) { return WiFi.gatewayIP( ).toString( ); }
 String NetworkManager::getDns( ) { return WiFi.dnsIP( ).toString( ); }
 int32_t NetworkManager::getRssi( ) {
- if (!isConnected( )) return -100;
+ /* The level of any link that is up, the NTP wait included. Until 2026-10-14
+  * this read isConnected( ) (NET_READY only), so isLinkHealthy( ) was false for
+  * the whole wait on a live link, and the SIMUT Air's FLUSH phase, which F08
+  * put on it, gave up as soon as it began whenever it began before the NTP
+  * answer, a few seconds after the address. The upload itself still waits
+  * for NET_READY (TelemetryManager::update( ) reads isNetworkHealthy( )). */
+ if (!isLinkUp( )) return -100;
  /* An implausible reading means the radio is not answering with real data, so
   * report it as a dead link rather than letting a positive dBm pass the
-  * RSSI_MIN_THRESHOLD gate in isNetworkHealthy( ). See the NET_READY case. */
+  * RSSI_MIN_THRESHOLD gate in isNetworkHealthy( ) and isLinkHealthy( ). See
+  * the NET_READY case. */
  const int32_t rssi = WiFi.RSSI( );
  if (rssi >= RSSI_IMPLAUSIBLE_HIGH || rssi < RSSI_IMPLAUSIBLE_LOW) return -100;
  return rssi;

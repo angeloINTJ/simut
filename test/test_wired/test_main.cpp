@@ -40,6 +40,7 @@
 #include "net/WiredLink.h"
 #include "net/StaticAddress.h"
 #include <lwip/dns.h>
+#include <sys/time.h>   /* gettimeofday, for the time( ) below */
 
 #if !SIMUT_NET_LAN
 #error "test_wired runs the wired path: build it with -DSIMUT_NET_ENC28J60=1 (see [env:native_wired]); SIMUT_NET_LAN is derived from it in src/net/NetCaps.h and never passed"
@@ -80,6 +81,19 @@ struct SafeRebootCalled {};
 void LogManager::safeReboot( ) { throw SafeRebootCalled{ }; }
 void MetricsManager::observeRssi(int32_t) {}
 void dns_setserver(uint8_t, const ip_addr_t*) {}
+
+/* time( ), for the NTP wait, as test_network has it: NetworkManager leaves
+ * NET_CONNECTED_WAIT_NTP when time(nullptr) passes 1600000000, and this host's
+ * clock is always past it. A test that needs the wait to hold sets g_clockNow
+ * to an epoch before 2020; 0 is the host's real clock, read without time( ). */
+static time_t g_clockNow = 0;
+extern "C" time_t time(time_t* t) noexcept {
+    struct timeval tv;
+    gettimeofday(&tv, nullptr);
+    const time_t now = g_clockNow ? g_clockNow : (time_t)tv.tv_sec;
+    if (t) *t = now;
+    return now;
+}
 
 /* ── the module: a fake of net/WiredLink.h ───────────────────────────────── */
 
@@ -194,6 +208,7 @@ void setUp(void) {
     g_moduleFailLogs = 0;
     g_moduleFailText = "";
     MetricsManager::instance( ).data( ).wifiReconnects = 0;
+    g_clockNow = 0;
 }
 void tearDown(void) {}
 
@@ -450,7 +465,7 @@ static void test_a_module_stopped_while_the_lease_is_pending_starts_again(void) 
  * The stand-in has to clear RSSI_MIN_THRESHOLD, the floor isNetworkHealthy( )
  * applies, or a wired unit on a good cable would be refused the heavy work
  * (telemetry, uploads) that gate guards. */
-static void test_signal_stand_in_is_minus_40_when_ready_and_minus_100_otherwise(void) {
+static void test_signal_stand_in_is_minus_40_with_the_link_up_and_minus_100_without(void) {
     NetworkManager net;
     TEST_ASSERT_EQUAL_INT32_MESSAGE(-100, net.getRssi( ), "before begin( )");
 
@@ -472,6 +487,25 @@ static void test_signal_stand_in_is_minus_40_when_ready_and_minus_100_otherwise(
     pump(net, 2000);
     TEST_ASSERT_EQUAL_INT32_MESSAGE(-100, net.getRssi( ), "after the cable is pulled");
     TEST_ASSERT_FALSE(net.isNetworkHealthy( ));
+}
+
+/* The link is up in the NTP wait too, and the stand-in says so. It answered
+ * -100 outside NET_READY, which made isLinkHealthy( ) (isLinkUp( ) and the RSSI
+ * floor) false for the whole wait on a good cable, as on the radio, where the
+ * Air's FLUSH phase gave up on a live link because of it (2026-10-13). */
+static void test_the_stand_in_answers_inside_the_ntp_wait(void) {
+    NetworkManager net;
+    g_clockNow = 1000;                     /* no NTP answer yet */
+    g_mod.linked = true;
+    g_mod.hasAddress = true;
+    g_mod.ip = IPAddress(192, 168, 3, 40);
+    net.begin(makeConfig( ), /*dnsAuto=*/true, /*ntpEnabled=*/true, "");
+    pump(net, 3000);
+    TEST_ASSERT_TRUE_MESSAGE(net.isLinkUp( ) && !net.isConnected( ),
+        "setup: not in the NTP wait with the link up");
+    TEST_ASSERT_EQUAL_INT32_MESSAGE(-40, net.getRssi( ), "the stand-in in the NTP wait");
+    TEST_ASSERT_TRUE_MESSAGE(net.isLinkHealthy( ), "a good cable in the NTP wait read as unhealthy");
+    TEST_ASSERT_FALSE_MESSAGE(net.isNetworkHealthy( ), "isNetworkHealthy( ) waits for NET_READY, as before");
 }
 
 /* The Wire is configured over the cable or the console, so a request for the
@@ -630,7 +664,8 @@ int main(int, char**) {
     RUN_TEST(test_a_module_stopped_while_the_cable_is_out_starts_again);
     RUN_TEST(test_a_module_stopped_while_the_lease_is_pending_starts_again);
 
-    RUN_TEST(test_signal_stand_in_is_minus_40_when_ready_and_minus_100_otherwise);
+    RUN_TEST(test_signal_stand_in_is_minus_40_with_the_link_up_and_minus_100_without);
+    RUN_TEST(test_the_stand_in_answers_inside_the_ntp_wait);
     RUN_TEST(test_no_access_point_and_no_scan_on_a_cable);
 
     RUN_TEST(test_a_static_address_reaches_the_module_in_order);

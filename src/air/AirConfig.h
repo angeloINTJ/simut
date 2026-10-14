@@ -150,7 +150,7 @@ struct __attribute__((packed)) AirConfig {
    * it — the version is deliberately NOT bumped, so nothing else would. */
   uint8_t  chargerPin;        /* GPIO that reads high while charging; PIN_UNUSED = off */
   uint8_t  chargerRsv;        /* was the high byte of wifiScanTimeoutMs */
-  uint16_t connectTimeoutMs;  /* connect + NTP cap */
+  uint16_t connectTimeoutMs;  /* CONNECT cap: the link (DHCP), not NTP */
   uint16_t flushTimeoutMs;    /* telemetry flush cap */
   uint8_t  sensorPowerPin;    /* GPIO power-gating for sensors; PIN_UNUSED = off */
   uint8_t  flags;             /* AIR_FLAG_* below (bit 0) + dirty-resume count (bits 4..7) */
@@ -267,6 +267,15 @@ inline bool airIdleSecValid(long sec) {
  * that turns the interval into an alarm. One second short of a day is the
  * longest value the alarm can name unambiguously. */
 #define AIR_MAX_SLEEP_SEC 86399UL
+
+/** The FLUSH phase's "the network is lost": the link is not healthy, or it is
+ *  but NTP has not answered `ntpWaitMs` into the phase. The upload waits for
+ *  NET_READY (TelemetryManager::update( ) reads isNetworkHealthy( )), so a
+ *  network that never answers NTP would hold the radio until the phase's whole
+ *  budget and send nothing; AIR_FLUSH_NTP_WAIT_MS says how long it may wait. */
+inline bool airFlushNetLost(bool linkHealthy, bool ntpReady, uint32_t inPhaseMs, uint32_t ntpWaitMs) {
+  return !linkHealthy || (!ntpReady && inPhaseMs >= ntpWaitMs);
+}
 
 /* Sleep seconds the alarm can actually represent: at least one, at most a
  * second under a day. Same shape as airIdleSecValid( ) and tested the same
