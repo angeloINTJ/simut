@@ -2,12 +2,20 @@
  * 2m and 2n), on the host, against a client that records every write( ).
  * Built and run by tools/test_webserver_out.py, which says why it exists.
  *
- * Each scenario runs a handler twice: inside _handleRequest( ), where override
- * 2n collects the writes in _out, and outside it, where they go straight out
- * as upstream wrote them. The second run is the oracle: the bytes on the wire
- * must be the same, and only the write( ) boundaries may differ. Then each
- * scenario checks the rule it is named for, at the moment the rule is about
- * (right after send( ) returns, after the body's last byte, ...).
+ * Two references, because one is not enough:
+ * - The bytes spelled out. The response shapes SIMUT serves are written here
+ *   in full, header included, as the device sent them before override 2n:
+ *   the header lines of a reply with a Content-Length and of a chunked one
+ *   are those `main` (686a1de, override 2m only) answered on the bench on
+ *   2026-10-14 (tools/route_sweep.py; /api/perms, /api/status). A mistake in
+ *   a line the override edited shows here even when it breaks both of the
+ *   runs below the same way.
+ * - The same handler run outside _handleRequest( ), where every write goes
+ *   straight out: the bytes must be the same as inside, and only the write( )
+ *   boundaries may differ. That run shares the code under test, so it holds
+ *   the buffer to "the same bytes", not the code to "the right bytes".
+ * Then each scenario checks the rule it is named for, at the moment the rule
+ * is about: right after send( ) returns, after a body's last byte, and so on.
  *
  * Output: one "RESULT <scenario> PASS|FAIL" line each; exit 1 on any FAIL. */
 #include <Arduino.h>
@@ -115,7 +123,7 @@ public:
         _handleRequest();
     }
     /* The same handler outside _handleRequest( ), then what it would finalize:
-     * every write straight out, as upstream wrote them. */
+     * every write straight out. */
     void direct(FakeClient& c, THandlerFunction fn, uint8_t version = 1) {
         attach(c, version);
         fn();
@@ -135,9 +143,22 @@ static void check(bool ok, const std::string& what) {
 static std::string str(size_t n) {
     return std::to_string(n);
 }
+/* Where two byte strings first part, for the failure message. */
+static void same(const std::string& got, const std::string& want, const std::string& what) {
+    if (got == want) {
+        return;
+    }
+    size_t i = 0;
+    while (i < got.size() && i < want.size() && got[i] == want[i]) {
+        i++;
+    }
+    check(false, what + ": " + str(got.size()) + " B against " + str(want.size()) + " B, first difference at byte " + str(i));
+}
 
 static int failed = 0;
+static int scenarios = 0;
 static void report(const char* name) {
+    scenarios++;
     if (failures.empty()) {
         printf("RESULT %s PASS\n", name);
     } else {
@@ -150,10 +171,11 @@ static void report(const char* name) {
     failures.clear();
 }
 
-/* Runs `body` both ways and checks the bytes are the oracle's. `during` is
- * filled by the handler with what the wire held at the moment the scenario
- * cares about. Returns the served client, for the scenario's own checks. */
-static FakeClient run(TestServer& s, std::function<void(TestServer&, FakeClient&)> body, uint8_t version = 1) {
+using Body = std::function<void(TestServer&, FakeClient&)>;
+
+/* Runs `body` both ways and holds the served bytes to the direct run's.
+ * Returns the served client, for the scenario's own checks. */
+static FakeClient run(TestServer& s, Body body, uint8_t version = 1) {
     FakeClient want;
     s.direct(want, [&]() {
         body(s, want);
@@ -162,34 +184,38 @@ static FakeClient run(TestServer& s, std::function<void(TestServer&, FakeClient&
     s.serve(got, [&]() {
         body(s, got);
     }, version);
-    check(got.wire == want.wire, "the bytes differ from the unbuffered run (" + str(got.wire.size()) + " B against " + str(want.wire.size()) + " B)");
+    same(got.wire, want.wire, "the bytes differ from the run with every write straight out");
     check(s.held() == 0, "_out still holds " + str(s.held()) + " B after the request");
     return got;
 }
 
-static std::string oracle(TestServer& s, std::function<void(TestServer&, FakeClient&)> body, uint8_t version = 1) {
-    FakeClient want;
-    s.direct(want, [&]() {
-        body(s, want);
-    }, version);
-    return want.wire;
+/* The header lines `main` answered with on 2026-10-14 (see the top). */
+static std::string withLength(const char* type, size_t n, const char* extra = "") {
+    return std::string("HTTP/1.1 200 OK\r\nContent-Type: ") + type + "\r\n" + extra +
+           "Content-Length: " + str(n) + "\r\nConnection: keep-alive\r\n\r\n";
+}
+static std::string chunkedHeader(const char* type, const char* extra = "") {
+    return std::string("HTTP/1.1 200 OK\r\nContent-Type: ") + type + "\r\n" + extra +
+           "Accept-Ranges: none\r\nTransfer-Encoding: chunked\r\nConnection: keep-alive\r\n\r\n";
 }
 
 int main() {
     TestServer s;
+    s.enableKeepAlive(true);  /* as SIMUT runs it */
 
     /* 1. send( ) with a C string: the whole response is out when it returns,
      * in one write. /api/action's reboot sends {"ok":true} this way, then
-     * stops the client and resets. */
+     * stops the client and resets; the device sent these 106 B. */
     {
         size_t atReturn = 0;
         auto body = [&](TestServer& srv, FakeClient& c) {
             srv.send(200, "application/json", "{\"ok\":true}");
             atReturn = c.wire.size();
         };
-        const std::string all = oracle(s, body);
+        const std::string want = withLength("application/json", 11) + "{\"ok\":true}";
         FakeClient got = run(s, body);
-        check(atReturn == all.size(), "send( ) returned with " + str(atReturn) + " of " + str(all.size()) + " B out");
+        same(got.wire, want, "not the bytes spelled out");
+        check(atReturn == want.size(), "send( ) returned with " + str(atReturn) + " of " + str(want.size()) + " B out");
         check(got.writes.size() == 1, "header and body took " + str(got.writes.size()) + " writes, not 1");
         report("send_whole_cstr");
     }
@@ -201,18 +227,21 @@ int main() {
             srv.send(200, "text/plain", String("hello"));
             atReturn = c.wire.size();
         };
-        const std::string all = oracle(s, body);
+        const std::string want = withLength("text/plain", 5) + "hello";
         FakeClient got = run(s, body);
-        check(atReturn == all.size(), "send( ) returned with " + str(atReturn) + " of " + str(all.size()) + " B out");
+        same(got.wire, want, "not the bytes spelled out");
+        check(atReturn == want.size(), "send( ) returned with " + str(atReturn) + " of " + str(want.size()) + " B out");
         check(got.writes.size() == 1, "header and body took " + str(got.writes.size()) + " writes, not 1");
         report("send_whole_string");
     }
 
-    /* 3. A chunked reply of a few small pieces, the shape of /api/status:
-     * nothing leaves while the handler runs, and then all of it in one write. */
+    /* 3. A chunked reply of a few small pieces, the shape of /api/status, with
+     * its header: nothing leaves while the handler runs, and then all of it in
+     * one write. */
     {
         size_t whileRunning = 99;
         auto body = [&](TestServer& srv, FakeClient& c) {
+            srv.sendHeader("Cache-Control", "no-cache");
             srv.setContentLength(CONTENT_LENGTH_UNKNOWN);
             srv.send(200, "application/json", "");
             srv.sendContent("{\"sys\":");
@@ -221,7 +250,10 @@ int main() {
             srv.sendContent("\"metr\":2}");
             whileRunning = c.wire.size();
         };
+        const std::string want = chunkedHeader("application/json", "Cache-Control: no-cache\r\n") +
+                                 "7\r\n{\"sys\":\r\n1\r\n1\r\n1\r\n,\r\n9\r\n\"metr\":2}\r\n0\r\n\r\n";
         FakeClient got = run(s, body);
+        same(got.wire, want, "not the bytes spelled out");
         check(whileRunning == 0, "the reply started leaving while the handler ran (" + str(whileRunning) + " B)");
         check(got.writes.size() == 1, "the reply took " + str(got.writes.size()) + " writes, not 1");
         report("chunked_one_write");
@@ -261,9 +293,10 @@ int main() {
             srv.sendContent(c3.c_str(), c3.size());
             atLastByte = c.wire.size();
         };
-        const std::string all = oracle(s, body);
-        run(s, body);
-        check(atLastByte == all.size(), "after the body's last byte, " + str(atLastByte) + " of " + str(all.size()) + " B were out");
+        const std::string want = withLength("application/octet-stream", 3000) + a + b + c3;
+        FakeClient got = run(s, body);
+        same(got.wire, want, "not the bytes spelled out");
+        check(atLastByte == want.size(), "after the body's last byte, " + str(atLastByte) + " of " + str(want.size()) + " B were out");
         report("content_length_last_byte");
     }
 
@@ -278,9 +311,10 @@ int main() {
             srv.chunkedResponseFinalize();
             atEnd = c.wire.size();
         };
-        const std::string all = oracle(s, body);
-        run(s, body);
-        check(atEnd == all.size(), "after the terminating chunk, " + str(atEnd) + " of " + str(all.size()) + " B were out");
+        const std::string want = chunkedHeader("text/plain") + "3\r\nabc\r\n0\r\n\r\n";
+        FakeClient got = run(s, body);
+        same(got.wire, want, "not the bytes spelled out");
+        check(atEnd == want.size(), "after the terminating chunk, " + str(atEnd) + " of " + str(want.size()) + " B were out");
         report("terminator_flushes");
     }
 
@@ -292,7 +326,8 @@ int main() {
             srv.send(200, "text/plain", "");
             srv.sendContent("abc");
         };
-        run(s, body, 0);
+        FakeClient got = run(s, body, 0);
+        same(got.wire, "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nabc", "not the bytes spelled out");
         report("http10_tail_at_finalize");
     }
 
@@ -362,22 +397,94 @@ int main() {
             File f(data, "/x.bin");
             srv.streamFile(f, "application/octet-stream");
         };
-        run(s, body);
+        FakeClient got = run(s, body);
+        same(got.wire, withLength("application/octet-stream", 3000) + data, "not the bytes spelled out");
         report("stream_file_order");
     }
 
-    /* 12. A send( ) larger than a segment: the header and the first 1,460 B
-     * together, the rest straight out. */
+    /* 12. A send( ) larger than a segment: the header and the first bytes of
+     * the body fill one segment, and the rest, a segment or more with nothing
+     * held, goes straight out in one write, uncopied. */
     {
-        const String big(std::string(6000, 'h').c_str());
+        const std::string text(6000, 'h');
+        const String big(text.c_str());
         auto body = [&](TestServer& srv, FakeClient&) {
             srv.send(200, "text/html", big);
         };
         FakeClient got = run(s, body);
-        check(!got.writes.empty() && got.writes[0].size() == 1460, "the first write was " + str(got.writes.empty() ? 0 : got.writes[0].size()) + " B, not a segment");
+        same(got.wire, withLength("text/html", 6000) + text, "not the bytes spelled out");
+        check(got.writes.size() == 2 && got.writes[0].size() == 1460,
+              "the reply took " + str(got.writes.size()) + " writes, the first of " + str(got.writes.empty() ? 0 : got.writes[0].size()) + " B; expected a segment, then the rest at once");
         report("big_send");
     }
 
-    printf("%d of 12 scenarios failed\n", failed);
+    /* 13. send_P( ) with a PROGMEM string: the whole response out when it
+     * returns. SIMUT does not call it; the framework's own handlers might. */
+    {
+        size_t atReturn = 0;
+        auto body = [&](TestServer& srv, FakeClient& c) {
+            srv.send_P(200, "text/plain", "hello");
+            atReturn = c.wire.size();
+        };
+        const std::string want = withLength("text/plain", 5) + "hello";
+        FakeClient got = run(s, body);
+        same(got.wire, want, "not the bytes spelled out");
+        check(atReturn == want.size(), "send_P( ) returned with " + str(atReturn) + " of " + str(want.size()) + " B out");
+        check(got.writes.size() == 1, "header and body took " + str(got.writes.size()) + " writes, not 1");
+        report("send_p_whole");
+    }
+
+    /* 14. send_P( ) with a length: the same rule, the other overload. */
+    {
+        size_t atReturn = 0;
+        auto body = [&](TestServer& srv, FakeClient& c) {
+            srv.send_P(200, "text/plain", "hello", 5);
+            atReturn = c.wire.size();
+        };
+        const std::string want = withLength("text/plain", 5) + "hello";
+        FakeClient got = run(s, body);
+        same(got.wire, want, "not the bytes spelled out");
+        check(atReturn == want.size(), "send_P( ) returned with " + str(atReturn) + " of " + str(want.size()) + " B out");
+        check(got.writes.size() == 1, "header and body took " + str(got.writes.size()) + " writes, not 1");
+        report("send_p_len_whole");
+    }
+
+    /* 15. A chunked reply in PROGMEM pieces ended by sendContent_P(""): all of
+     * it out at the terminating chunk. */
+    {
+        size_t atEnd = 0;
+        auto body = [&](TestServer& srv, FakeClient& c) {
+            srv.setContentLength(CONTENT_LENGTH_UNKNOWN);
+            srv.send(200, "text/plain", "");
+            srv.sendContent_P("abc");
+            srv.sendContent_P("");
+            atEnd = c.wire.size();
+        };
+        const std::string want = chunkedHeader("text/plain") + "3\r\nabc\r\n0\r\n\r\n";
+        FakeClient got = run(s, body);
+        same(got.wire, want, "not the bytes spelled out");
+        check(atEnd == want.size(), "after the terminating chunk, " + str(atEnd) + " of " + str(want.size()) + " B were out");
+        report("content_p_terminator");
+    }
+
+    /* 16. A body with a Content-Length sent with sendContent_P( ): out with
+     * its last byte. */
+    {
+        size_t atLastByte = 0;
+        auto body = [&](TestServer& srv, FakeClient& c) {
+            srv.setContentLength(6);
+            srv.send(200, "text/plain", "");
+            srv.sendContent_P("abcdef", 6);
+            atLastByte = c.wire.size();
+        };
+        const std::string want = withLength("text/plain", 6) + "abcdef";
+        FakeClient got = run(s, body);
+        same(got.wire, want, "not the bytes spelled out");
+        check(atLastByte == want.size(), "after the body's last byte, " + str(atLastByte) + " of " + str(want.size()) + " B were out");
+        report("content_p_length_last_byte");
+    }
+
+    printf("SCENARIOS %d\n", scenarios);
+    printf("%d of %d scenarios failed\n", failed, scenarios);
     return failed ? 1 : 0;
 }

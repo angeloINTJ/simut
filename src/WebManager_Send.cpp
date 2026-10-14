@@ -115,9 +115,11 @@ bool WebManager::waitSendRoom(size_t need, const char* origin) {
  * exists, sendContent( ) is a copy into the server's buffer and, each time a
  * segment's worth has gathered there (override 2n), a copy into lwIP's plus a
  * tcp_output: bounded milliseconds. Room in bytes is not room in lwIP's heap:
- * a flush that finds the heap full waits for an ACK to free some, and since
- * tcp_write( ) takes a segment whole or not at all, the first room ends the
- * wait, or WEB_WRITE_TIMEOUT_MS does and the write comes back short (#189).
+ * a flush that finds the heap full waits for an ACK to free some. tcp_write( )
+ * takes a call's bytes whole or not at all, and a flush is at most one
+ * segment's worth, so the wait ends once lwIP has room for it, or once
+ * WEB_WRITE_TIMEOUT_MS passes without progress and the write comes back short
+ * (#189).
  * The write itself never parks in lwIP again.
  *
  * That parking was the reboot: a client that trickled its reads kept a

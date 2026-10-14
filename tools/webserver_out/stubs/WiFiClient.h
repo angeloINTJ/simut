@@ -12,8 +12,10 @@ public:
     size_t write(const char* buf, size_t size) {
         return write(reinterpret_cast<const uint8_t*>(buf), size);
     }
-    /* streamFile( ): the framework's write(Stream&) copies the source through
-     * a small buffer, one write( ) per read. */
+    /* streamFile( ): the framework's is write(Stream&), through ClientContext;
+     * this copies the source through a small buffer instead, one write( ) per
+     * read. Only the order of the bytes is under test there, and SIMUT does
+     * not call streamFile( ). */
     template <typename T>
     size_t write(T& source) {
         uint8_t b[256];

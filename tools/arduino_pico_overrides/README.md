@@ -337,15 +337,31 @@ route whose content does not change between two reads: the pages, `lang.js`,
 a record of its own, so the buffer cuts the records per reply as well; that is
 not measured, because the bench serves HTTP.
 
-**On the host, every rule bites.** `tools/test_webserver_out.py` compiles the
-patched `HTTPServer.cpp` with stand-ins for the board, against a client that
-records every `write( )`, and runs twelve scenarios, each held to the same
-handler run with every write straight out. Then it takes each rule out of a
-copy of the source, eight mutants, and each must fail exactly the scenarios
-named for its rule: 8 of 8 on 2026-10-14. The `pico_w_release` job of CI runs
-it after `patch.sh`. The reboot of `/api/action` was the same test on the
-bench: the release answered `{"ok":true}` before the reset, and a build without
-the flush at the end of `send( )` answered 0 B.
+**On the host, each flush point bites.** `tools/test_webserver_out.py`
+compiles the patched `HTTPServer.cpp` with stand-ins for the board, against a
+client that records every `write( )`, and runs sixteen scenarios: `send( )`
+and `send_P( )` in both overloads, chunked and Content-Length bodies through
+`sendContent( )` and `sendContent_P( )`, HTTP/1.0, a short write,
+`stopClient( )`, `streamFile( )`, a write bigger than a segment, and a write
+from outside `_handleRequest( )`. Each scenario is held to two references: the
+bytes spelled out, header included, as `main` answered on the bench before
+this override (the same header lines `tools/route_sweep.py` read from
+`/api/perms` and `/api/status`), and the same handler run with every write
+straight out. The second shares the code under test, so only the first catches
+a byte this override's lines get wrong in both runs. Then fifteen mutants each
+take one rule out of a copy of the source: the flush at the end of each
+`send( )` and `send_P( )`, at a body's last byte, at the terminating chunk and
+in `_finalizeResponse( )`, the buffer left on outside a request, a big write
+copied instead of sent, a write that goes on after a short one, two that
+corrupt the CRLF of a chunk and the header, and the buffer off altogether.
+Each fails exactly the scenarios named for it: 15 of 15 on 2026-10-14. The
+`pico_w_release` job of CI runs it after `patch.sh`. Two guards have no
+mutant, because no output shows them: `_outAppend( )`'s own `_writeBroken`
+check (`_writeAll( )` refuses the same bytes later) and the reset of `_out` at
+the start of `_handleRequest( )`, which every request finds empty already. The
+reboot of `/api/action` was the same test on the bench: the release answered
+`{"ok":true}` before the reset, and a build without the flush at the end of
+`send( )` answered 0 B.
 
 The buffer is allocated once, with the server: 1,460 B, plus the allocator's
 header and 16 B of new members in the server. The free heap, read once on

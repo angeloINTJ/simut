@@ -14,8 +14,11 @@ that arrive, not the moment the server let them go, which is what two of those
 rules are about. So this compiles the patched HTTPServer.cpp itself, from where
 PlatformIO keeps the framework (PLATFORMIO_CORE_DIR, else ~/.platformio) after
 patch.sh, with host stand-ins for the board (webserver_out/stubs/), and runs
-webserver_out/test_out.cpp: twelve scenarios, each held to the same handler run
-with every write straight out, as upstream wrote them.
+webserver_out/test_out.cpp: sixteen scenarios, each held to the bytes spelled
+out, as `main` answered on the bench before 2n, and to the same handler run with
+every write straight out. That second run shares the code under test, so it
+holds the buffer to "the same bytes" only; the spelled-out bytes catch a line
+2n got wrong in both.
 
 Then the mutants. Each takes one rule out of a copy of HTTPServer.cpp and must
 make exactly the scenarios listed for it fail; "no_buffer" turns the buffer off
@@ -64,7 +67,7 @@ MUTANTS = {
     "body_last_byte": ("""        if (!_outBodyLeft) {
             _outFlush();
         }""", """        if (!_outBodyLeft) {
-        }""", {"content_length_last_byte"}),
+        }""", {"content_length_last_byte", "content_p_length_last_byte"}),  # the helper both share
     "terminator_flush": ("""        if (contentLength == 0) {
             _chunked = false;
             _outFlush();  /* SIMUT override — the response ended (_outAppend) */
@@ -83,9 +86,50 @@ MUTANTS = {
     "short_write_goes_on": ("""    _writeBroken = true;
     if (_currentClient->connected()) {""", """    if (_currentClient->connected()) {""",
                             {"short_write_ends_response"}),
+    "send_p_flush": ("""    _outAppend(header.c_str(), header.length());
+    sendContent_P(content);
+    if (!_chunked) {
+        _outFlush();  /* SIMUT override — see send( ) above */
+    }
+}""", """    _outAppend(header.c_str(), header.length());
+    sendContent_P(content);
+}""", {"send_p_whole"}),
+    "send_p_len_flush": ("""    sendContent_P(content, contentLength);
+    if (!_chunked) {
+        _outFlush();  /* SIMUT override — see send( ) above */
+    }
+}""", """    sendContent_P(content, contentLength);
+}""", {"send_p_len_whole"}),
+    "terminator_flush_p": ("""        if (size == 0) {
+            _chunked = false;
+            _outFlush();  /* SIMUT override — the response ended (_outAppend) */
+        }""", """        if (size == 0) {
+            _chunked = false;
+        }""", {"content_p_terminator"}),
+    "body_last_byte_p": ("""        _outBodySent(size);  /* SIMUT override */""", "", {"content_p_length_last_byte"}),
+    "big_write_copied": ("""        if (_outLen == 0 && l >= OUT_BUF_SIZE) {
+            /* A segment's worth or more and nothing held: no copy to make. */
+            return _writeAll(b, l);
+        }""", "", {"big_send"}),
+    # Two that corrupt the bytes in a line 2n edited, which the run with every
+    # write straight out shares: only the bytes spelled out catch them.
+    "chunk_crlf_short": ("""        if (!_outAppend(footer, 2)) {
+            return;
+        }
+        if (contentLength == 0) {""", """        if (!_outAppend(footer, 1)) {
+            return;
+        }
+        if (contentLength == 0) {""", {"chunked_one_write", "terminator_flushes"}),
+    "header_short": ("""    _prepareHeader(header, code, content_type, contentLength);
+    _outAppend(header.c_str(), header.length());
+    if (contentLength) {""", """    _prepareHeader(header, code, content_type, contentLength);
+    _outAppend(header.c_str(), header.length() - 1);
+    if (contentLength) {""", {"send_whole_cstr", "chunked_one_write", "content_length_last_byte",
+                              "terminator_flushes", "http10_tail_at_finalize", "content_p_terminator",
+                              "content_p_length_last_byte"}),
     "no_buffer": ("""    _outHold = (_out != nullptr);""", """    _outHold = false;""",
                   {"send_whole_cstr", "send_whole_string", "chunked_one_write",
-                   "chunked_full_segments", "big_send"}),
+                   "chunked_full_segments", "big_send", "send_p_whole", "send_p_len_whole"}),
 }
 
 
@@ -117,7 +161,7 @@ def run(flags, objs, ws, cpp_text, build, tag):
     d = os.path.join(build, tag)
     os.makedirs(d, exist_ok=True)
     src = os.path.join(d, "HTTPServer.cpp")
-    with open(src, "w") as f:
+    with open(src, "w", encoding="utf-8") as f:
         f.write(cpp_text)
     exe = os.path.join(d, "test_out")
     r = subprocess.run(["g++", *flags, "-I" + ws, src, *objs, "-o", exe], capture_output=True, text=True)
@@ -125,6 +169,9 @@ def run(flags, objs, ws, cpp_text, build, tag):
         return None, r.stderr[-2000:]
     r = subprocess.run([exe], capture_output=True, text=True, timeout=60)
     results = dict(re.findall(r"^RESULT (\S+) (PASS|FAIL)$", r.stdout, re.M))
+    m = re.search(r"^SCENARIOS (\d+)$", r.stdout, re.M)
+    if not m or int(m.group(1)) != len(results):
+        return None, "the scenarios did not all report:\n" + r.stdout[-2000:]
     return results, r.stdout
 
 
@@ -138,7 +185,7 @@ def main():
         return 0
     ws = os.path.join(fw, "libraries", "WebServer", "src")
     cpp_path = os.path.join(ws, "HTTPServer.cpp")
-    cpp = open(cpp_path).read()
+    cpp = open(cpp_path, encoding="utf-8").read()
     for marker, which in ((MARKER_2M, "2m"), (MARKER_2N, "2n")):
         if marker not in cpp:
             sys.exit(f"FAIL: {cpp_path} does not carry override {which}; run tools/arduino_pico_overrides/patch.sh")
@@ -153,7 +200,8 @@ def main():
         if results is None:
             sys.exit(f"FAIL: the patched HTTPServer.cpp did not build:\n{out}")
         print(out.rstrip())
-        if len(results) != 12 or any(v != "PASS" for v in results.values()):
+        scenarios = len(results)
+        if any(v != "PASS" for v in results.values()):
             print("FAIL: the patched server does not pass its own scenarios")
             bad += 1
 
@@ -175,7 +223,7 @@ def main():
                 print(f"[webserver-out] MISSED mutant {name}: failed {sorted(failed) or 'nothing'}, "
                       f"expected {sorted(want)}")
                 bad += 1
-    print(f"[webserver-out] {'OK' if not bad else 'FAIL'}: 12 scenarios, {len(MUTANTS)} mutants, {bad} problem(s)")
+    print(f"[webserver-out] {'OK' if not bad else 'FAIL'}: {scenarios} scenarios, {len(MUTANTS)} mutants, {bad} problem(s)")
     return 1 if bad else 0
 
 
