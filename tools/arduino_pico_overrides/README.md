@@ -235,9 +235,16 @@ and none moved a SIMUT counter: the deadline, latch and disconnect counts all
 stayed at 0. A client cannot tell such a reply from a server that lies;
 requests raises `InvalidChunkLength`, a browser
 `ERR_INVALID_CHUNKED_ENCODING`. This is #189, and it explains the hole in the
-half of B13 (`docs/analysis/PLANO_STABLE.md`) that had no explanation. Why a
-write stalls is still open; `show net status` now says whether lwIP ran out
-of segments or memory.
+half of B13 (`docs/analysis/PLANO_STABLE.md`) that had no explanation.
+
+Why a write stalls, measured with this override on the same bench (5,000
+replies per run, 2026-10-14). lwIP refused `tcp_write( )` for queue length or
+memory 13,100 times in one run and 16,345 in the other, and no segment ever
+failed to allocate. A reply goes out in dozens of small writes, three per
+chunk, which wait behind Nagle for the client's ACK to free room. With the
+override, the 500 ms run had 0 holes and 4 clean cuts, each counted in
+`cgw`, all in one 15 s burst of slow ACKs. A run at 2,000 ms had no cut, but
+no such burst came either.
 
 `webserver_short_write.patch` sends every write of `send( )` and
 `sendContent( )` through `_writeAll( )`, and `streamFile( )` checks its own
