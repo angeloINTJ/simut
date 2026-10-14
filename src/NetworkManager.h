@@ -159,7 +159,8 @@ public:
   */
  bool isLinkUp( ) const { return _state == NET_READY || _state == NET_CONNECTED_WAIT_NTP; }
 
- /** isLinkUp( ) with the same RSSI floor isNetworkHealthy( ) applies (F08). */
+ /** isLinkUp( ) with the same RSSI floor isNetworkHealthy( ) applies (F08).
+  *  getRssi( ) reads the level whenever the link is up, the NTP wait included. */
  bool isLinkHealthy( );
  int32_t getRssi( );
 

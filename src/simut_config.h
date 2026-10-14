@@ -730,6 +730,15 @@
 // interval with the flat 30 s cap gave a 57 s wake and an OVERRUN).
 #define AIR_FLUSH_TAIL_MS 5000
 #endif
+#ifndef AIR_FLUSH_NTP_WAIT_MS
+// How long the FLUSH waits for NTP on a link that already has its address. The
+// upload waits for NET_READY, which needs the NTP answer, and the phase starts
+// as soon as the address is there: NTP answered 0 to 5 s after it in five
+// boots on the bench (2026-10-13). A network that never answers NTP would hold the radio
+// on for the phase's whole budget, sending nothing. 10 s, the maintainer's
+// choice of 2026-10-14 (airFlushNetLost( ), src/air/AirConfig.h).
+#define AIR_FLUSH_NTP_WAIT_MS 10000
+#endif
 #ifndef AIR_SENSOR_POWER_PIN
 #define AIR_SENSOR_POWER_PIN 16 // GPIO power-gating for sensors (also the awake/sleep probe)
 #endif

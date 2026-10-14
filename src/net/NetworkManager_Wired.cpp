@@ -235,6 +235,8 @@ void NetworkManager::getMacAddress(char* buf, size_t len) {
 String NetworkManager::getSubnetMask( ) { return WiredLink::subnetMask( ).toString( ); }
 String NetworkManager::getGateway( ) { return WiredLink::gatewayIP( ).toString( ); }
 String NetworkManager::getDns( ) { return WiredLink::dnsIP( ).toString( ); }
-int32_t NetworkManager::getRssi( ) { return isConnected( ) ? RSSI_WIRED : -100; }
+/* isLinkUp( ), the NTP wait included, as on the radio (2026-10-14): a good cable is a
+ * healthy link for isLinkHealthy( ) before NTP answers. */
+int32_t NetworkManager::getRssi( ) { return isLinkUp( ) ? RSSI_WIRED : -100; }
 
 #endif /* SIMUT_NET_LAN */
