@@ -402,7 +402,10 @@ void AppManager::executeCommand(CliDemand cmd) {
                         (unsigned)ps->avail, (unsigned)ps->err);
  /* #189: what a write cut short by its timeout ran into, if anything: a full
   * segment pool, or tcp_write( ) refused for memory or queue length
-  * (tcp.memerr). Both still at 0 while writes come back short points at the
+  * (tcp.memerr). Every segment takes a whole MSS of lwIP's 16 KB heap, so
+  * small writes run it out: 4.4 refusals per /api/status while a reply went
+  * out in 24 writes, 0 once override 2n sent its small writes together (bench,
+  * 2026-10-14). Both still at 0 while writes come back short points at the
   * peer's ACKs, not at this side. */
  const struct stats_mem* sg = lwip_stats.memp[MEMP_TCP_SEG];
  _cmdMgr->consolePrintf(" Segmentos TCP: %u em uso / pico %u / %u total, %u falhas | tcp_write sem memoria %u\n",
