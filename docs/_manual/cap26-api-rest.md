@@ -558,7 +558,7 @@ curl -s -b jar "$H/api/status"
  "metr":{"lb":40960,"lbm":33792,"hm":52112,"wf":0,"mq":0,"rmn":-63,"rmx":-55,
  "ts":135,"tf":0,"tr":0,"tb":412345,"tl":180,"so":24000,"se":2,"cs":3,
  "fo":210,"fom":38,"fot":2100,"f50":0,"fx":0,"ad":0,"c1a":12,"c1n":1,
- "c1kl":0,"c1kh":0,"c1kq":0,"c1s":0,"cgd":0,"cgg":0,"cgx":0},
+ "c1kl":0,"c1kh":0,"c1kq":0,"c1s":0,"cgd":0,"cgg":0,"cgx":0,"cgw":0},
  "sensors":[
   {"slot":0,"gpio":2,"id":"FRIDGE","name":"Geladeira","type":"DS18B20","ch":1,
    "pc":1,"pr":"1-Wire","val":4.25},
@@ -609,7 +609,7 @@ O bloco `metr` traz contadores de diagnóstico, zerados a cada boot:
 | `ad` | Respostas longas interrompidas e fechadas à força |
 | `c1a` | Idade, em ms, do último sinal de vida do núcleo que desenha o painel. Dezenas de ms é normal; segundos indicam o núcleo parado |
 | `c1n`, `c1kl`, `c1kh`, `c1kq`, `c1s` | Partidas desse núcleo e interrupções por três causas diferentes; `c1s` conta travamentos na pausa |
-| `cgd`, `cgg`, `cgx` | Respostas cortadas por prazo, por proteção e por desconexão do cliente |
+| `cgd`, `cgg`, `cgx`, `cgw` | Respostas cortadas por prazo, por proteção, por desconexão do cliente e por escrita curta: um envio que não terminou dentro do prazo, e o aparelho encerrou a resposta ali |
 
 O bloco `sensors` lista só os slots ativos:
 

@@ -467,6 +467,37 @@ else
     patch -p1 -d "$FW" < "$EVICT_PATCH"
 fi
 
+# 2m. Escrita curta encerra a resposta (HTTPServer.h + HTTPServer.cpp) — #189
+#
+#   O write( ) do cliente desiste quando o par nao confirma (ACK) dentro do
+#   prazo do cliente, e devolve o que levou. O upstream jogava esse numero fora
+#   em toda escrita da resposta, o cabecalho e a linha de tamanho, os dados e o
+#   CRLF de cada chunk, e seguia com a proxima: o que uma escrita nao levou
+#   virava um buraco no meio do fluxo, enquadrado como se nada tivesse havido.
+#   Medido na bancada (14/10/2026, release 2.11.1, GET /api/status a cada
+#   0,2 s numa conexao keep-alive): 24 de 2.000 respostas chegaram sem uma ou
+#   duas escritas inteiras, e cada uma levou 1,2 a 1,8 s a mais que os 0,04 s
+#   de uma resposta boa.
+#
+#   O patch: a primeira escrita curta encerra a resposta. Nada mais dela sai, a
+#   conexao fecha e shortWrites( ) conta. O cliente ve uma resposta cortada,
+#   que todo cliente HTTP reporta como tal, onde antes recebia um fluxo que
+#   mentia. Escrita para um par que ja foi embora nao conta: e desconexao, e o
+#   sketch conta essas. O fechamento e stopClient(1), que o WebServerTemplate
+#   faz pelo tipo real do cliente: WiFiClient::stop(unsigned) nao e virtual e,
+#   pelo WiFiClient* do servidor, nao fechava nada sobre TLS.
+WSRV_DIR="$FW/libraries/WebServer/src"
+SW_PATCH="$OVR/patches/webserver_short_write.patch"
+save_original "$WSRV_DIR/HTTPServer.h"        "HTTPServer.h"
+save_original "$WSRV_DIR/HTTPServer.cpp"      "HTTPServer.cpp"
+save_original "$WSRV_DIR/WebServerTemplate.h" "WebServerTemplate.h"
+if grep -q "SIMUT override — a short write ends the response" "$WSRV_DIR/HTTPServer.cpp"; then
+    echo "[patch] WebServer ja encerra a resposta na escrita curta — nada a fazer"
+else
+    echo "[patch] aplicando fim da resposta na escrita curta (WebServer)"
+    patch -p1 -d "$FW" < "$SW_PATCH"
+fi
+
 # 3. Invalida cache PIO (lwip src + lib WiFi)
 #    A lib WiFi tem cache próprio em lib*/WiFi/ — sem apagá-lo o .cpp patchado
 #    não recompila e o build "passa" ainda com o handshake sem prazo.

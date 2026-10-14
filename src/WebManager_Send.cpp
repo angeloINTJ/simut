@@ -141,7 +141,7 @@ bool WebManager::safeSendN(const char* data, size_t len, const char* origin) {
  if (len == 0 || data == nullptr) return !isClientGone( );
  if (isClientGone( )) { maybeLogClientDisconnect(origin); return false; }
 
- _server->client( ).setTimeout(500);
+ _server->client( ).setTimeout(WEB_WRITE_TIMEOUT_MS);
  feedWatchdog( );
 
  size_t off = 0;
@@ -288,8 +288,11 @@ void WebManager::dropAbortedStream(const char* origin) {
  (void)origin;
  /* Over TLS, the availableForWrite terminator-room test below is meaningless
   * (BearSSL out buffer, not lwIP), so just stop the secure client — its close
-  * tears down the TLS session and the underlying pcb. See drainOrDrop. */
- if (_serverIsHttps) { _server->client( ).stop(1); _drainPending = false; return; }
+  * tears down the TLS session and the underlying pcb. See drainOrDrop.
+  * stopClient( ), not client( ).stop(1): WiFiClient::stop(unsigned) is not
+  * virtual, and through the WiFiClient& that client( ) returns it reached the
+  * secure client's empty base half and closed nothing (override 2m). */
+ if (_serverIsHttps) { _server->stopClient(1); _drainPending = false; return; }
  /* Pointer, not a copy — same reason as drainOrDrop: &_server->client( ) folds to
   * _currentClient with no dereference, so a client the framework already retired
   * (null) is caught by the guard instead of read through. This path runs inside
@@ -361,7 +364,7 @@ void WebManager::safeStreamFile(File& f, const String& contentType) {
  _server->setContentLength(f.size( ));
  _server->send(200, contentType, "");
 
- _server->client( ).setTimeout(500);
+ _server->client( ).setTimeout(WEB_WRITE_TIMEOUT_MS);
 
  bool hasMore = true;
  while (hasMore) {

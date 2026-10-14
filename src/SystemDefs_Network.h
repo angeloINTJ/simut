@@ -417,6 +417,26 @@ constexpr size_t   SCREEN_SEND_COALESCE     = 1024;
  * the device rebooted mid-response. Now the stalled client is the one that
  * pays. */
 constexpr uint32_t WEB_SEND_STALL_MS          = 4000;
+
+/* WEB_WRITE_TIMEOUT_MS — how long one write of a response may go without
+ * handing lwIP any of its bytes (ClientContext::_timeout_ms, set before every
+ * streamed body). Over plain TCP, WEB_SEND_STALL_MS above has already waited
+ * for the send buffer's room, so this runs out when the room is there and
+ * the write still cannot finish; over TLS nothing waits for room first. A
+ * write that runs out comes back short, and the framework now ends that
+ * response (override 2m, webserver_short_write.patch). On the bench
+ * (2026-10-14, release 2.11.1, /api/status every 0.2 s) 24 of 2,000 replies
+ * lost whole writes that way at night, each one 1.2 to 1.8 s late, and 1 of
+ * 2,000 in the morning. Why a write stalls, measured on the same bench with
+ * this override (5,000 replies each, 2026-10-14): lwIP refused tcp_write( )
+ * for queue length or memory 13,100 times at 500 ms and 16,345 at 2,000 ms,
+ * with no segment ever failing to allocate. A reply goes out in dozens of
+ * small writes, three per chunk, and they queue behind Nagle until the
+ * client's ACK frees room. At 500 ms, 4 of 5,000 replies were cut, all in a
+ * 15 s burst of slow ACKs; at 2,000 ms, none, but no such burst came. The
+ * 500 ms dates from v1.0.0, when the wait did not feed the watchdog; the
+ * override 2d-bis feeds on both sides of it now. */
+constexpr uint32_t WEB_WRITE_TIMEOUT_MS       = 500;
 constexpr uint32_t WEB_STREAM_BREATH_RECORDS  = 64;
 
 /* Largest history answer served in one response, in estimated payload
