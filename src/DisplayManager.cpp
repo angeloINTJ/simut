@@ -899,10 +899,10 @@ void DisplayManager::setApMode(bool ap) {
 }
 
 #if !SIMUT_DISPLAY_ALPHA
-/* The TFT publishes the network and the key as lines of the boot terminal
- * (AppManager::showApOnPanel), so there is nothing to keep here. */
-void DisplayManager::setApInfo(const char* ssid, const char* psk) {
-	(void)ssid; (void)psk;
+/* The TFT publishes the network, the key and the address as lines of the
+ * boot terminal (AppManager::showApOnPanel), so there is nothing to keep here. */
+void DisplayManager::setApInfo(const char* ssid, const char* psk, const char* addr) {
+	(void)ssid; (void)psk; (void)addr;
 }
 #endif
 

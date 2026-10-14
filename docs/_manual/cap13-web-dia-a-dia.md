@@ -54,7 +54,7 @@ Toda consulta feita com uma sessão aberta reinicia a contagem de ociosidade do 
 
 Sem sessão aberta, o aparelho leva você para a página de entrada.
 
-O nome também serve, se o mDNS estiver ativo: é o nome do aparelho seguido de `.local`, como `http://simut.local`. Onde descobrir o endereço está no [capítulo 4](#cap-04) e no [capítulo 9](#cap-09). No ponto de acesso de configuração, o endereço é `http://192.168.4.1`, e qualquer outro endereço digitado leva à página **Rede** ([capítulo 4](#cap-04)).
+O nome também serve, se o mDNS estiver ativo: é o nome do aparelho seguido de `.local`, como `http://simut.local`. Onde descobrir o endereço está no [capítulo 4](#cap-04) e no [capítulo 9](#cap-09). No ponto de acesso de configuração, o endereço é `http://192.168.4.1`, com a porta se ela foi mudada, e, com o servidor web na porta 80, qualquer outro endereço digitado leva à página **Rede** ([capítulo 4](#cap-04)).
 
 Um caminho que não existe responde `404: Not Found`.
 

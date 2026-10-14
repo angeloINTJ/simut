@@ -76,10 +76,11 @@ static void alphaMarquee(Hd44780_16x2 &lcd, uint8_t row, const char* s, uint16_t
 #endif
 
 /* Core 0 hands the setup network over once, when it comes up. */
-void DisplayManager::setApInfo(const char* ssid, const char* psk) {
+void DisplayManager::setApInfo(const char* ssid, const char* psk, const char* addr) {
 	mutex_enter_blocking(&_stateMutex);
 	safeCopy(_apSsidLcd, ssid ? ssid : "", sizeof(_apSsidLcd));
 	safeCopy(_apPskLcd,  psk  ? psk  : "", sizeof(_apPskLcd));
+	safeCopy(_apAddrLcd, addr ? addr : "", sizeof(_apAddrLcd));
 	mutex_exit(&_stateMutex);
 }
 
@@ -278,16 +279,19 @@ void DisplayManager::loopCore1( ) {
 			 *
 			 * Three pages of 3 s. The value gets the whole second line, so a
 			 * long device name still has sixteen columns to scroll through. */
-			char ssid[sizeof(_apSsidLcd)], psk[sizeof(_apPskLcd)];
+			char ssid[sizeof(_apSsidLcd)], psk[sizeof(_apPskLcd)], addr[sizeof(_apAddrLcd)];
 			{
 				mutex_enter_blocking(&_stateMutex);
 				safeCopy(ssid, _apSsidLcd, sizeof(ssid));
 				safeCopy(psk,  _apPskLcd,  sizeof(psk));
+				safeCopy(addr, _apAddrLcd, sizeof(addr));
 				mutex_exit(&_stateMutex);
 			}
 			static uint8_t  apPage = 0;
 			static uint16_t apStep = 0;
-			const char* apVal = (apPage == 0) ? "192.168.4.1"
+			/* The address with the web port when it is not 80: 16 columns
+			 * hold "192.168.4.1:8080", and a longer one scrolls. */
+			const char* apVal = (apPage == 0) ? (addr[0] ? addr : "192.168.4.1")
 			                  : (apPage == 1) ? (ssid[0] ? ssid : "?")
 			                                  : (psk[0]  ? psk  : "(aberta)");
 			/* A page lasts 3 s, or one whole scroll when its value is wider

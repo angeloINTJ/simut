@@ -16,6 +16,7 @@
 #include "DisplayManager.h"
 #include "LogManager.h"
 #include "NetworkManager.h"
+#include "WebAddress.h" /* o endereço do AP leva a porta do servidor web */
 #include "SensorManager.h"
 #include "StorageManager.h"
 #include "SystemDefs.h"
@@ -78,7 +79,9 @@ void AppManager::startApMode(uint8_t why) {
  const char* psk = _netMgr->getApPsk( );
  /* And to the display, for the build where the display is the only channel
   * the operator has (alpha; a no-op elsewhere). */
- _displayMgr->setApInfo(_netMgr->getApSsid( ), psk);
+ char addr[28];
+ webAddress(addr, sizeof(addr), SIMUT_AP_IP_TEXT, _netMgr->getServicePort( ), _netMgr->isServiceTls( ), WEB_ADDR_TYPED);
+ _displayMgr->setApInfo(_netMgr->getApSsid( ), psk, addr);
  if (psk && *psk) {
   _cmdMgr->printSuccess(String(_cmdMgr->isPt( )
    ? "Modo AP iniciado (WPA2). Senha: " : "AP mode started (WPA2). Key: ") + psk);
@@ -87,9 +90,13 @@ void AppManager::startApMode(uint8_t why) {
    ? "Modo AP iniciado (rede ABERTA — build SIMUT_AP_OPEN)"
    : "AP mode started (OPEN network — SIMUT_AP_OPEN build)");
  }
- _cmdMgr->printInfo(_cmdMgr->isPt( )
-  ? "Conecte-se ao AP e acesse http://192.168.4.1"
-  : "Join the AP and open http://192.168.4.1");
+ /* The server keeps its port and its protocol in AP mode: the address says
+  * both (WebAddress.h). */
+ char line[72];
+ safeCopy(line, _cmdMgr->isPt( ) ? "Conecte-se ao AP e acesse " : "Join the AP and open ", sizeof(line));
+ const size_t k = strlen(line);
+ webAddress(line + k, sizeof(line) - k, SIMUT_AP_IP_TEXT, _netMgr->getServicePort( ), _netMgr->isServiceTls( ));
+ _cmdMgr->printInfo(line);
 }
 #endif /* SIMUT_NET_WIFI */
 
@@ -117,7 +124,8 @@ void AppManager::showApOnPanel( ) {
  _displayMgr->setBootStatusKey((LangKey)TR_KEYS_COUNT, apLine, false);
  snprintf(apLine, sizeof(apLine), "PSK %s", (apPsk && *apPsk) ? apPsk : "(open)");
  _displayMgr->setBootStatusKey((LangKey)TR_KEYS_COUNT, apLine, false);
- _displayMgr->setBootStatusKey(TR_BOOT_AP_IP);
+ webAddress(apLine, sizeof(apLine), nullptr, _netMgr->getServicePort( ), _netMgr->isServiceTls( ), WEB_ADDR_SUFFIX);
+ _displayMgr->setBootStatusKey(TR_BOOT_AP_IP, apLine);
  _displayMgr->setBootStatusKey(TR_BOOT_AP_ACTIVE, nullptr, false);
 }
 

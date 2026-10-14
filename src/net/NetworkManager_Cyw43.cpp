@@ -31,6 +31,7 @@
 #include "pico/unique_id.h"           /* the setup AP key is derived from the board id */
 #include <bearssl/bearssl_hash.h>     /* br_sha256_* for that derivation (V-05) */
 #include "pico/cyw43_arch.h"           /* enable_sta_mode: scanning needs the STA itf */
+#include "../WebAddress.h"            /* the [AP] URL line carries the web port */
 
 /**
  * @brief The radio's half of begin( ): the station mode, the static address or DHCP, and the
@@ -171,7 +172,12 @@ bool NetworkManager::beginAP(const char* deviceName, const char* stationSsid) {
   Serial.printf("\n[AP] SSID: %s\n", apName.c_str( ));
   if (_apPsk[0]) Serial.printf("[AP] PSK : %s   (WPA2)\n", _apPsk);
   else Serial.println("[AP] PSK : (none — OPEN network, SIMUT_AP_OPEN build)");
-  Serial.println("[AP] URL : http://192.168.4.1");
+  /* With the web server's port: it listens on the configured one here too,
+   * and on the rig, configured for 8080 and with the AP up, the address
+   * without it refused the connection (2026-10-13). CR LF, as the println( )
+   * this line used to be sent, so the default port's line is the same bytes. */
+  char url[40];
+  Serial.printf("[AP] URL : %s\r\n", webAddress(url, sizeof(url), SIMUT_AP_IP_TEXT, _advPort, _advTls));
   Serial.flush( );
  }
  LOG_CODE(LOG_INFO, "NET", SYS_AP_START, _apPsk[0] ? 1 : 0,

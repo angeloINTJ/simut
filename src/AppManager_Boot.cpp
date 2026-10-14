@@ -16,6 +16,7 @@
 #include "LogManager.h"
 #include "MetricsManager.h"
 #include "NetworkManager.h"
+#include "WebAddress.h"      /* the setup AP's address carries the web port */
 #include "SensorManager.h"
 #include "SoundManager.h"
 #include "SyslogManager.h"
@@ -1126,6 +1127,14 @@ void AppManager::setup( ) {
  if (forceAP) {
  LOG_CODE(LOG_WARN, "APP", APP_AP_MODE_TRIGGERED, 1, TRL("AP mode started."));
  _displayMgr->setBootStatusKey(TR_BOOT_START_AP);
+ /* The AP's address lines name the web port, and the server that knows it
+  * starts only at step 12. In AP mode it serves HTTP on the configured port
+  * (WebManager::loadServerCert), so that is what it will announce; it says
+  * the same again when it starts. */
+ {
+  const WebConfigData* w = reinterpret_cast<const WebConfigData*>(cfg.reserved + WEB_CONFIG_OFFSET);
+  _netMgr->setServiceAdvert((w->port > 0) ? w->port : WEB_DEFAULT_PORT, false);
+ }
  /* beginAP first: the network line now carries the WPA2 key, and the key
   * does not exist until the AP has been brought up (V-05). */
  _netMgr->beginAP(cfg.deviceName, cfg.wifiSsid);
@@ -1138,12 +1147,15 @@ void AppManager::setup( ) {
    * pack keeps translating what it knows. check_lang_packs still demands
    * exactly TR_KEYS_COUNT lines of the packs IN THIS REPO.) */
   const char* psk = _netMgr->getApPsk( );
-  _displayMgr->setApInfo(_netMgr->getApSsid( ), psk);
+  char addr[28];
+  webAddress(addr, sizeof(addr), SIMUT_AP_IP_TEXT, _netMgr->getServicePort( ), _netMgr->isServiceTls( ), WEB_ADDR_TYPED);
+  _displayMgr->setApInfo(_netMgr->getApSsid( ), psk, addr);
   char suffix[24];
   snprintf(suffix, sizeof(suffix), "  PSK %s", (psk && *psk) ? psk : "-");
   _displayMgr->setBootStatusKey(TR_BOOT_AP_NETWORK, suffix);
+  webAddress(suffix, sizeof(suffix), nullptr, _netMgr->getServicePort( ), _netMgr->isServiceTls( ), WEB_ADDR_SUFFIX);
+  _displayMgr->setBootStatusKey(TR_BOOT_AP_IP, suffix);
  }
- _displayMgr->setBootStatusKey(TR_BOOT_AP_IP);
  for (int i = 0; i < 35; i++) { delay(100); feedWdt( ); }
  }
 #if SIMUT_AIR

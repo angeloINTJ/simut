@@ -251,8 +251,10 @@ A rede do AP:
 |---|---|
 | Nome da rede | O nome do aparelho seguido de `_SETUP`, como `simut_SETUP` |
 | Segurança | WPA2, com uma chave de 10 caracteres |
-| Endereço do aparelho | `http://192.168.4.1` |
-| Qualquer outro endereço | Leva ao aparelho ([capítulo 13](#cap-13-abrir)) |
+| Endereço do aparelho | `http://192.168.4.1`, com a porta do servidor web se ela não for a 80, como `http://192.168.4.1:8080` |
+| Qualquer outro endereço | Leva ao aparelho, com o servidor web na porta 80 ([capítulo 13](#cap-13-abrir)) |
+
+O AP atende na porta configurada em [Servidor Web](#cap-09-servidor-web). O console, a resposta do comando `ap`, o painel e o LCD do alpha mostram o endereço com a porta sempre que ela não é a do protocolo: 80 no HTTP, 443 no HTTPS. Até a v2.11.1, os quatro mostravam `192.168.4.1` sem a porta, e esse endereço recusava a conexão num aparelho com outra porta (medido em bancada em 13/10/2026, com o AP aberto e a porta 8080).
 
 A chave é derivada da identidade do chip e é sempre a mesma para aquele aparelho, mesmo depois de um reset de fábrica. Ela usa letras maiúsculas e algarismos, sem `O`, `0`, `I` e `1`, para ser lida em voz alta sem confusão. A chave aparece:
 
@@ -312,7 +314,7 @@ Para sair do AP com a rede certa:
 O aparelho reinicia e tenta a rede nova.
 
 ::: atencao
-**HTTP ou HTTPS no AP.** Um aparelho que liga já no AP, pelo gesto no boot, atende sempre em HTTP, mesmo com certificado instalado: é a porta de recuperação para um certificado com defeito. Um AP aberto com o aparelho já em operação, pelo painel ou pelo comando `ap`, mantém o protocolo que o servidor web escolheu no boot. Numa release com certificado instalado, use `https://192.168.4.1`.
+**HTTP ou HTTPS no AP.** Um aparelho que liga já no AP, pelo gesto no boot, atende sempre em HTTP, mesmo com certificado instalado: é a porta de recuperação para um certificado com defeito. Um AP aberto com o aparelho já em operação, pelo painel ou pelo comando `ap`, mantém o protocolo que o servidor web escolheu no boot. Numa release com certificado instalado, use `https://192.168.4.1`: o console e a resposta do `ap` mostram o endereço com `https://`, e o painel acrescenta `(https)` à linha do endereço.
 :::
 
 [air]{.img} O Air não tem painel: o AP dele só abre pelo comando `ap`, e ele nunca o abriu sozinho, nem da v2.7.1 à v2.8.0. O rádio do Air só existe durante um despertar, e ninguém está diante de um aparelho hibernando para usar o AP. O jeito indicado de configurar a rede do Air é o console, por USB ou Bluetooth ([capítulo 19](#cap-19)).

@@ -80,6 +80,11 @@ public:
   * 0 = announce nothing. The TXT record carries uid/ver/env so a browser of
   * the service learns who the device is without opening a session. */
  void setServiceAdvert(uint16_t port, bool tls) { _advPort = port; _advTls = tls; }
+ /** The same two, read back: the port the web server listens on (0 = not
+  * started yet) and whether it speaks TLS. The setup AP's address is written
+  * with them (WebAddress.h). */
+ uint16_t getServicePort( ) const { return _advPort; }
+ bool isServiceTls( ) const { return _advTls; }
 
 #if SIMUT_MDNS && !SIMUT_AIR
  /** Idempotente: anuncia `_simut._tcp` quando der, e uma vez só. */

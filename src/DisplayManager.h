@@ -470,11 +470,11 @@ public:
 	void setSystemStatus(int rssi, bool bt, String timeStr);
 	/** Tells the alpha LCD whether the device is serving the Access Point. */
 	void setApMode(bool ap);
-	/** SSID and WPA2 key of the setup AP, for a build whose display is the
-	 * only channel its operator has. Real on the alpha, a no-op everywhere
-	 * else: the TFT already prints the key on its boot line and the
-	 * headless builds have no glass to print it on. */
-	void setApInfo(const char* ssid, const char* psk);
+	/** SSID, WPA2 key and web address of the setup AP, for a build whose
+	 * display is the only channel its operator has. Real on the alpha, a
+	 * no-op everywhere else: the TFT already prints them on its boot lines
+	 * and the headless builds have no glass to print them on. */
+	void setApInfo(const char* ssid, const char* psk, const char* addr);
 
 	/** Boot status: stores a TR key (resolved at render via tr()) plus
 	 * optional suffix. Use for messages that should follow the active language.
@@ -770,10 +770,11 @@ private:
 	/* What the setup network is called and what opens it. Alpha only: this is
 	 * the build with no touch panel to start AP mode from and no TFT to print
 	 * the key on, so the 16x2 is the whole distribution mechanism for an
-	 * operator who is standing in front of the device with a phone. 40 + 16 B
-	 * of RAM, in the one image that has room for them. */
+	 * operator who is standing in front of the device with a phone. 40 + 16
+	 * + 28 B of RAM, in the one image that has room for them. */
 	char _apSsidLcd[40] = {0};
 	char _apPskLcd[16] = {0};
+	char _apAddrLcd[28] = {0};
 #endif
 	bool _isDirty;
 	mutex_t _stateMutex;
