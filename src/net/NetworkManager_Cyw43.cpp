@@ -332,7 +332,19 @@ void NetworkManager::updateLinkStates( ) {
  if (timeSince(_reconnectTimer, _reconnectDelay)) {
  if (strlen(_ssid) > 0) {
  LOG_CODE(LOG_INFO, "NET", SYS_WIFI_SCAN, 0, String(TRL("Scanning for SSID (backoff=")) + (_reconnectDelay/1000) + "s)");
+ /* Timed, because the return value cannot tell a silent radio from a
+  * working one (CYW43lwIP::scanNetworks answers -1 for any async start,
+  * and 0 for a refusal the driver already swallowed). The duration can:
+  * the "escan" iovar is one synchronous round trip, milliseconds on a chip
+  * that answers and the driver's full timeout on one that does not. The
+  * value is only read if this scan never finishes — see
+  * WIFI_SCAN_START_SILENT_MS for the field log that fixed the threshold. */
+ const uint32_t scanAskedAt = millis( );
  WiFi.scanNetworks(true);
+ _scanStartTookMs = millis( ) - scanAskedAt;
+ if (_scanStartTookMs < WIFI_SCAN_START_SILENT_MS) {
+ _silentScans = 0; /* the radio answered: a silent streak, if any, is over */
+ }
  _state = NET_SCANNING_RETRY;
  _stateTimer = millis( ); /* the scan deadline starts here */
  } else { _reconnectTimer = millis( ); }
@@ -361,13 +373,32 @@ void NetworkManager::updateLinkStates( ) {
   * scanComplete( ) keeps answering -1 for the rest of the boot. */
  if (n == -1) {
  if (timeSince(_stateTimer, WIFI_SCAN_TIMEOUT_MS)) {
- LOG_CODE(LOG_WARN, "NET", SYS_WIFI_SCAN, (int)(_blindScans + 1),
- TRL("Scan never finished — abandoning it"));
+ /* Two radios reach this line and only one of them may be joined. A
+  * start the chip answered (milliseconds) and a completion it lost is
+  * the wedge above: the chip is fine, and the blind join is the escape.
+  * A start the chip did NOT answer (the driver's own timeout) is a
+  * silent radio, and WiFi.begin( ) on it is up to 15 synchronous ioctl
+  * timeouts of 1 s before any bounded wait — the HW-watchdog reboots of
+  * 2026-09-30 and 2026-10-11 09:28 (WIFI_SCAN_START_SILENT_MS). The ctx
+  * counts the streak the record belongs to: misses toward the blind
+  * join, or silent starts toward the planned restart. */
+ const bool silent = (_scanStartTookMs >= WIFI_SCAN_START_SILENT_MS);
+ /* The duration rides on the console text only (the TRL literal and
+  * its pack entries are untouched): it is the number that says which
+  * of the two radios this was, and the bench will want to read it. */
+ LOG_CODE(LOG_WARN, "NET", SYS_WIFI_SCAN,
+ (int)((silent ? _silentScans : _blindScans) + 1),
+ String(TRL("Scan never finished — abandoning it")) +
+ " (start took " + _scanStartTookMs + " ms)");
  WiFi.scanDelete( );
- afterFruitlessScan( );
+ if (silent) afterSilentScan( );
+ else afterFruitlessScan( );
  }
  return;
  }
+
+ /* The scan came back, with or without the SSID: the radio answered. */
+ _silentScans = 0;
 
  if (n < -1) { afterFruitlessScan( ); return; }
 
@@ -523,6 +554,43 @@ void NetworkManager::afterFruitlessScan( ) {
  _state = NET_OFFLINE;
  _reconnectTimer = millis( );
  }
+}
+
+/**
+ * @brief Leave a scan that never finished on a radio that did not answer it.
+ *
+ * Kept apart from afterFruitlessScan( ) on purpose. A miss is a radio that
+ * answered without the SSID, and associating anyway is the right escape. A
+ * silent radio is one that did not answer the scan's own ioctl, and
+ * WiFi.begin( ) on it holds Core 0 through up to 15 synchronous ioctl timeouts
+ * of 1 s before any bounded wait: the HW-watchdog reboots of 2026-09-30 and
+ * 2026-10-11 09:28 (WIFI_SCAN_START_SILENT_MS has the log and the count). So
+ * no join from here, ever. The second silent scan in a row restarts the radio
+ * by the planned path — log persisted, Core 1 parked — under the same
+ * half-hour guard as the refused joins (takeJoinAnswer); inside the guard the
+ * ladder keeps scanning, one bounded ioctl per attempt, the streak keeps
+ * counting, and the restart comes on the first silent scan past the guard.
+ */
+void NetworkManager::afterSilentScan( ) {
+ if (_silentScans < 255) _silentScans++; /* saturates, like the other counters */
+
+ if (_silentScans >= WIFI_SILENT_SCANS_BEFORE_RESTART &&
+     millis( ) >= WIFI_RADIO_RESTART_MIN_UPTIME_MS) {
+ _silentScans = 0;
+ /* Fixed English like the ctx 2/3 lines of takeJoinAnswer: an operator's
+  * line, and the language packs are at their RAM ceiling. The duration is
+  * the evidence the bench will want — it survives on the console only. */
+ LOG_CODE(LOG_WARN, "NET", SYS_WIFI_CONNECT, 4,
+          String("Radio silent on two scans (start took ") + _scanStartTookMs +
+          " ms) - restarting to recover it");
+ watchdog_update( );
+ LogManager::instance( ).safeReboot( ); /* [[noreturn]] */
+ }
+
+ /* Back to the ladder. Deliberately NOT afterFruitlessScan( ): a silent
+  * start must never count toward the blind join. */
+ _state = NET_OFFLINE;
+ _reconnectTimer = millis( );
 }
 
 /**

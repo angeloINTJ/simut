@@ -234,6 +234,7 @@ void NetworkManager::resetReconnectLadder( ) {
  _backoffCycles = 0;
  _dormantWaits = 0;
  _blindScans = 0;
+ _silentScans = 0; /* a new episode starts with the radio presumed to answer */
 }
 
 /**
