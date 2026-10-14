@@ -17,7 +17,8 @@
  *
  * The radio states of update( ) are the switch of updateLinkStates( ) below, in the
  * order they had in NetworkManager.cpp; the AP branch and the scan poll that came
- * before that switch are updateLinkFirst( ). The NTP wait between them is the host's.
+ * before that switch are updateLinkFirst( ), and so, since 2026-10-13, is the look at
+ * the link inside the NTP wait. The NTP wait itself, between them, is the host's.
  *
  * @project SIMUT
  * @license MIT License
@@ -287,8 +288,9 @@ uint8_t NetworkManager::scanResults(WifiNet* out, uint8_t cap) const {
 }
 
 /**
- * @brief The radio's first word in update( ): the on-demand scan, then the setup AP.
- * LINK_DONE_NOW in AP mode (update( ) has nothing more to do), LINK_GO_ON otherwise.
+ * @brief The radio's first word in update( ): the on-demand scan, the setup AP, and
+ * the link inside the NTP wait. LINK_DONE_NOW in AP mode (update( ) has nothing more
+ * to do), LINK_GO_ON otherwise.
  */
 NetworkManager::LinkFirst NetworkManager::updateLinkFirst( ) {
  /* BEFORE the AP branch, which returns. Scanning from the setup portal is
@@ -306,6 +308,15 @@ NetworkManager::LinkFirst NetworkManager::updateLinkFirst( ) {
  }
  return LINK_DONE_NOW;
  }
+ /* The NTP wait is the host's and does not look at the link, so the radio
+  * watches it here, as the cable's updateWired( ) does. Only NET_READY used to:
+  * on the bench on 2026-10-13 the access point went away 1.1 s after the
+  * address, before the first NTP answer, and the device sat in the wait for
+  * 371 s with no network record at all, three and a half minutes of them with
+  * the access point back, until a reboot. An NTP answer is what ends the
+  * wait, and none comes without a link. The record is NET_READY's: an address
+  * and no SYS_NTP_SYNC before it in the log say which state it came from. */
+ if (_state == NET_CONNECTED_WAIT_NTP && WiFi.status( ) != WL_CONNECTED) wifiLost( );
  return LINK_GO_ON;
 }
 
@@ -407,14 +418,7 @@ void NetworkManager::updateLinkStates( ) {
 
  case NET_READY:
  if (WiFi.status( ) != WL_CONNECTED) {
- LOG_CODE(LOG_WARN, "NET", SYS_WIFI_DISCONNECT, 0, TRL("WiFi signal lost, entering stealth scan"));
-
-
- WiFi.disconnect(false);
- resetReconnectLadder( );
- resetNtpBackoff( ); /* Next reconnection starts from initial delay */
- _state = NET_DISCONNECT_PENDING;
- _stateTimer = millis( );
+ wifiLost( );
  } else {
  /* Sample RSSI once per minute when connected. */
  static uint32_t _rssiSampleAt = 0;
@@ -472,6 +476,20 @@ void NetworkManager::updateLinkStates( ) {
  break;
  default: break;
  }
+}
+
+/**
+ * @brief The link is gone, from NET_READY or from the NTP wait: say so, let go of
+ * the association, and start the ladder from its first rung (the cable's is
+ * wiredLost( )).
+ */
+void NetworkManager::wifiLost( ) {
+ LOG_CODE(LOG_WARN, "NET", SYS_WIFI_DISCONNECT, 0, TRL("WiFi signal lost, entering stealth scan"));
+ WiFi.disconnect(false);
+ resetReconnectLadder( );
+ resetNtpBackoff( ); /* Next reconnection starts from initial delay */
+ _state = NET_DISCONNECT_PENDING;
+ _stateTimer = millis( );
 }
 
 /**

@@ -66,6 +66,21 @@ void LogManager::safeReboot( ) { g_safeReboots++; throw SafeRebootCalled{ }; }
 void MetricsManager::observeRssi(int32_t) {}
 void dns_setserver(uint8_t, const ip_addr_t*) {}
 
+/* time( ), for the NTP wait. NetworkManager leaves NET_CONNECTED_WAIT_NTP when
+ * time(nullptr) passes 1600000000, and this host's clock is always past it, so
+ * every wait would end on its first pass. A test that needs the wait to hold
+ * sets g_clockNow to an epoch before 2020 (no NTP answer yet); 0 is the host's
+ * real clock, read here without calling time( ). Defined in this file, it is
+ * found before libc's, the way settimeofday( ) is below. */
+static time_t g_clockNow = 0;
+extern "C" time_t time(time_t* t) noexcept {
+    struct timeval tv;
+    gettimeofday(&tv, nullptr);
+    const time_t now = g_clockNow ? g_clockNow : (time_t)tv.tv_sec;
+    if (t) *t = now;
+    return now;
+}
+
 /* ── driving the machine ─────────────────────────────────────────────────── */
 
 /** Advance the clock by `ms`, calling update( ) every `stepMs` on the way.
@@ -125,6 +140,7 @@ void setUp(void) {
     WiFi.reset( );
     g_cyw43StaModeEnables = 0;
     g_safeReboots = 0;
+    g_clockNow = 0;
 }
 void tearDown(void) {}
 
@@ -172,6 +188,55 @@ static void test_a_drop_is_noticed_without_being_told(void) {
     WiFi.disconnect( );
     pump(net, 10000);
     TEST_ASSERT_GREATER_THAN_UINT(0, WiFi.scanStarts);
+}
+
+/* ══ a drop inside the NTP wait ══════════════════════════════════════════ */
+
+/* The NTP wait is the host's, and only NET_READY looked at the link. On the
+ * bench on 2026-10-13 the access point went away 1.1 s after the address,
+ * before the first NTP answer, and the device spent 371 s in
+ * NET_CONNECTED_WAIT_NTP with no network record at all, three and a half
+ * minutes of them with the access point back; only a reboot brought it home.
+ * Without a link the wait cannot end, since an NTP answer is what ends it, and
+ * isLinkUp( ) said "up" the whole time. */
+static void test_a_drop_inside_the_ntp_wait_is_noticed(void) {
+    NetworkManager net;
+    g_clockNow = 1000;                                   /* no NTP answer yet */
+    net.begin(makeConfig( ), true, /*ntpEnabled=*/true, "");
+    pump(net, 3000);
+    TEST_ASSERT_TRUE_MESSAGE(net.isLinkUp( ) && !net.isConnected( ),
+        "setup: not in the NTP wait with the link up");
+
+    WiFi.visible = WiFi.joinable = false;                /* the access point goes away */
+    WiFi.disconnect( );
+    const unsigned scans = WiFi.scanStarts;
+    pump(net, 60000);
+    TEST_ASSERT_GREATER_THAN_UINT_MESSAGE(scans, WiFi.scanStarts,
+        "the NTP wait never looked at the link");
+    TEST_ASSERT_FALSE_MESSAGE(net.isLinkUp( ), "a dead link is still reported up");
+
+    WiFi.visible = WiFi.joinable = true;                 /* it comes back, and NTP with it */
+    g_clockNow = 0;
+    pump(net, 180000);
+    TEST_ASSERT_TRUE_MESSAGE(net.isConnected( ), "the access point came back and the device did not");
+}
+
+/* And the wait leaves a live link alone. A network with no way to a time server
+ * never answers NTP, and its link has to stay as it is (the web works over it),
+ * not be dropped on a timer by a check that cannot tell the two cases apart. */
+static void test_the_ntp_wait_leaves_a_live_link_alone(void) {
+    NetworkManager net;
+    g_clockNow = 1000;                                   /* and no NTP answer, ever */
+    net.begin(makeConfig( ), true, /*ntpEnabled=*/true, "");
+    pump(net, 3000);
+    const unsigned joins = WiFi.joinAttempts, scans = WiFi.scanStarts, drops = WiFi.disconnects;
+
+    pump(net, 10UL * 60UL * 1000UL, 500);
+
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(drops, WiFi.disconnects, "a live link was dropped");
+    TEST_ASSERT_EQUAL_UINT(scans, WiFi.scanStarts);
+    TEST_ASSERT_EQUAL_UINT(joins, WiFi.joinAttempts);
+    TEST_ASSERT_TRUE(net.isLinkUp( ));
 }
 
 /* ══ the 2026-09-08 field failure ════════════════════════════════════════ */
@@ -943,6 +1008,9 @@ int main(int, char**) {
 
     RUN_TEST(test_a_dropped_link_comes_back_on_its_own);
     RUN_TEST(test_a_drop_is_noticed_without_being_told);
+
+    RUN_TEST(test_a_drop_inside_the_ntp_wait_is_noticed);
+    RUN_TEST(test_the_ntp_wait_leaves_a_live_link_alone);
 
     RUN_TEST(test_a_scan_that_never_finishes_does_not_park_the_device);
     RUN_TEST(test_it_reconnects_even_while_the_scanner_stays_wedged);

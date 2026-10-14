@@ -278,6 +278,9 @@ private:
  void endProvisional(uint32_t realNow);
 
  void handleConnecting( );
+ /** The radio's link is gone (NET_READY, or the NTP wait since 2026-10-13): log
+  *  SYS_WIFI_DISCONNECT, disconnect, first rung of the ladder, NET_DISCONNECT_PENDING. */
+ void wifiLost( );
  void syncNtp( );
  void resetNtpBackoff( ); /**< Reset backoff after success/reconnect */
 
@@ -380,7 +383,11 @@ private:
   *
   * _state is the host's vocabulary and the unit moves it: a unit takes the link
   * up to NET_CONNECTED_WAIT_NTP (or to NET_READY when NTP is off), the host
-  * takes it from there to NET_READY, and a unit takes it down again.
+  * takes it from there to NET_READY, and a unit takes it down again. The NTP
+  * wait does not look at the link, and nothing ends it without one, so a unit
+  * watches its link in that state too, in updateLinkFirst( ): the cable in
+  * updateWired( ), the radio since 2026-10-13, when an access point lost inside
+  * the wait left a bench device off the network until a reboot.
   */
  enum LinkFirst : uint8_t {
   LINK_GO_ON,            /**< nothing more for the unit this pass: mDNS, the NTP wait, updateLinkStates( ) */
