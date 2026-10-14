@@ -1106,6 +1106,21 @@ static void test_the_web_address_forms(void) {
     TEST_ASSERT_EQUAL_STRING(":8443 (", webAddress(s, sizeof(s), ip, 8443, true, WEB_ADDR_SUFFIX));
 }
 
+/* The captive redirect asks whether a request named this device. The Host
+ * header carries the port whenever the server is not on its scheme's own, so
+ * the device's own address at :8080 never matched the bare IP and every
+ * unknown path was redirected, to an address without the port (the rig,
+ * 2026-10-14). */
+static void test_a_host_header_is_compared_without_its_port(void) {
+    TEST_ASSERT_EQUAL_UINT(11, webHostLen("192.168.4.1:8080"));
+    TEST_ASSERT_EQUAL_UINT(11, webHostLen("192.168.4.1"));
+    TEST_ASSERT_EQUAL_UINT(14, webHostLen("simuttft.local:8080"));
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(9, webHostLen("[fe80::1]:8080"), "cut an IPv6 literal at its own colons");
+    TEST_ASSERT_EQUAL_UINT(9, webHostLen("[fe80::1]"));
+    TEST_ASSERT_EQUAL_UINT(0, webHostLen(""));
+    TEST_ASSERT_EQUAL_UINT(0, webHostLen(nullptr));
+}
+
 /* ══ a radio that will not take the join ═════════════════════════════════
  *
  * WiFi.begin( ) queues the join and returns; it answers WL_IDLE_STATUS only
@@ -1334,6 +1349,7 @@ int main(int, char**) {
     RUN_TEST(test_the_ap_limit_reads_no_leftover_bytes);
     RUN_TEST(test_the_ap_console_line_names_the_web_port);
     RUN_TEST(test_the_web_address_forms);
+    RUN_TEST(test_a_host_header_is_compared_without_its_port);
 
     RUN_TEST(test_a_manual_clock_corrects_what_the_provisional_one_stamped);
     RUN_TEST(test_a_second_manual_set_moves_nothing);

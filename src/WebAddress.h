@@ -48,3 +48,8 @@ enum WebAddrForm : uint8_t {
  * inside it. Always terminated; returns `out`. */
 const char* webAddress(char* out, size_t n, const char* ip, uint16_t port, bool tls,
                        WebAddrForm form = WEB_ADDR_URL);
+
+/** How much of a Host header is the host. A browser sends the port whenever
+ * it is not the scheme's own ("192.168.4.1:8080"); a bracketed IPv6 literal
+ * keeps the colons inside its brackets. 0 for none. */
+size_t webHostLen(const char* host);

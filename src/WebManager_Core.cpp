@@ -13,6 +13,7 @@
 #include "WebUI_GZ.h"
 #include "LogManager.h"
 #include "TouchPriority.h"
+#include "WebAddress.h"     /* the captive redirect names the web port */
 #include <LittleFS.h>
 #include <hardware/watchdog.h>
 
@@ -699,18 +700,24 @@ void WebManager::handleNotFound( ) {
   * whose DNS sends every name here, so an unknown path is a 404. On the bench
   * (2026-10-13, pico_wiretft at :8080) the redirect answered every unknown path
   * with a 302 to http://192.168.3.40/network: the Host header carries the port,
-  * so it never equals the bare IP, and the Location drops the port. */
+  * so it never equals the bare IP, and the Location drops the port. The radio
+  * build did the same: on the rig (2026-10-14, release 2.11.1 at :8080) an
+  * unknown path answered a 302 to http://192.168.3.24/network, which refused
+  * the connection. So the host is compared without its port, and the redirect
+  * names the port (WebAddress.h). */
 #if SIMUT_NET_WIFI
  if (handleCaptiveProbe( )) return;
 
  String host = _server->hostHeader( );
+ host.remove(webHostLen(host.c_str( )));
  String myIP = _netRef->getIpAddress( );
 
  if (host != myIP && !host.endsWith(".local")) {
  /* Match the redirect scheme to the transport: an https:// page that redirects
   * to http:// trips mixed-content and downgrades the session. */
- const char* scheme = _serverIsHttps ? "https://" : "http://";
- _server->sendHeader("Location", String(scheme) + myIP + "/network", true);
+ char loc[40];
+ webAddress(loc, sizeof(loc), myIP.c_str( ), _netRef->getServicePort( ), _serverIsHttps);
+ _server->sendHeader("Location", String(loc) + "/network", true);
  _server->send(302, "text/plain", "Redirecting...");
  return;
  }

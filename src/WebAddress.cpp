@@ -7,6 +7,7 @@
  */
 #include "WebAddress.h"
 #include <stdio.h>
+#include <string.h>
 
 const char* webAddress(char* out, size_t n, const char* ip, uint16_t port, bool tls, WebAddrForm form) {
 	if (!out || n == 0) return out;
@@ -16,4 +17,11 @@ const char* webAddress(char* out, size_t n, const char* ip, uint16_t port, bool 
 	if (port != 0 && port != (tls ? 443 : 80)) snprintf(p, sizeof(p), ":%u", (unsigned)port);
 	snprintf(out, n, "%s%s%s%s", pre, suffix ? "" : ip, p, (suffix && tls) ? " (https)" : "");
 	return out;
+}
+
+size_t webHostLen(const char* host) {
+	if (!host) return 0;
+	const char* colon = strrchr(host, ':');
+	if (!colon || strchr(colon, ']')) return strlen(host);
+	return (size_t)(colon - host);
 }
