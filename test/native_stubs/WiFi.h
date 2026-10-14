@@ -12,6 +12,15 @@
  *     fails, and nothing in the SDK times the state out. The device sat in
  *     NET_SCANNING_RETRY for 3 h 41 min and came back only on a power cycle.
  *
+ *   - `scanStartTakesMs` — how long scanNetworks( ) holds the caller before
+ *     returning. A chip that answers the "escan" iovar holds it for
+ *     milliseconds; one that does not holds it for the driver's own timeout
+ *     (1 s here, the response timeout and the credit stall alike). This is the
+ *     2026-10-11 field failure: two scans that never completed, the first of
+ *     them measured starting 1 s late, and the blind join that followed sat
+ *     through up to 15 more such timeouts and reset the device by the watchdog. Set together with scanNeverCompletes
+ *     it is a silent radio; alone, scanNeverCompletes is the 2026-09-08 wedge.
+ *
  *   - `visible` — whether the access point is listed by a scan, kept separate
  *     from `joinable`, whether the device can actually associate with it.
  *     Splitting them is the whole point: at the edge of a cell, and for a
@@ -73,6 +82,9 @@ public:
                                              does when cyw43_wifi_join( ) keeps failing */
     bool     scanNeverCompletes = false;/**< the wedge: scanComplete( ) stays -1 */
     bool     scanFailsToStart = false;  /**< scanComplete( ) answers -2 */
+    uint32_t scanStartTakesMs = 0;      /**< how long scanNetworks( ) holds the caller:
+                                             0 is a chip that answers, the driver's
+                                             timeout is one that does not */
     uint32_t scanDurationMs   = 1000;   /**< how long a healthy scan takes */
     uint32_t joinDurationMs   = 500;    /**< how long a successful join takes */
     int32_t  rssi             = -60;
@@ -90,6 +102,7 @@ public:
     void reset( ) {
         visible = joinable = true; joinRefused = false;
         scanNeverCompletes = scanFailsToStart = false;
+        scanStartTakesMs = 0;
         scanDurationMs = 1000; joinDurationMs = 500;
         rssi = -60; apSsid = "bench-ap";
         nets.clear( ); scanRefusesToStart = false;
@@ -141,6 +154,10 @@ public:
 
     int8_t scanNetworks(bool /*async*/ = false) {
         scanStarts++;
+        /* The caller is held for as long as the chip takes to answer the start
+         * — the one thing that separates a silent radio from a wedged scanner,
+         * and the only thing the state machine measures (see the header). */
+        delay(scanStartTakesMs);
         /* 0, not an error code: this is the shape of the refusal that matters,
          * and the caller that reads it as "started" waits out the deadline. */
         if (scanRefusesToStart) return 0;

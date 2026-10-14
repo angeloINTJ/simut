@@ -297,6 +297,13 @@ private:
  /** Handle a scan that did not produce the SSID — count it, and after
   *  WIFI_SCANS_BEFORE_BLIND_JOIN misses associate without one. */
  void afterFruitlessScan( );
+ /** Handle a scan that never finished on a radio that did not answer its
+  *  start (the start took WIFI_SCAN_START_SILENT_MS or longer). Counted apart
+  *  from the misses and never blind-joined: after
+  *  WIFI_SILENT_SCANS_BEFORE_RESTART in a row, past the first half hour, the
+  *  radio is restarted by safeReboot( ) (SYS_WIFI_CONNECT ctx 4).
+  *  SystemDefs_Network.h says why a join here is a watchdog reset. */
+ void afterSilentScan( );
  /** WiFi.begin( ), and what to do when the radio will not take the join
   *  (WIFI_JOIN_REFUSALS_BEFORE_RESTART in SystemDefs_Network.h). */
  void beginJoin( );
@@ -328,6 +335,15 @@ private:
  uint8_t _blindScans = 0;
  /** Joins in a row the radio refused outright; reset by one it takes. */
  uint8_t _joinRefusals = 0;
+ /** How long WiFi.scanNetworks(true) took to return, for the scan in flight
+  *  (ms). Milliseconds when the chip answered the "escan" iovar; the driver's
+  *  own timeout when it did not. Read when that scan never finishes, to tell
+  *  a lost completion from a silent radio — see WIFI_SCAN_START_SILENT_MS. */
+ uint32_t _scanStartTookMs = 0;
+ /** Scans in a row whose start the radio did not answer; reset by a start it
+  *  answers, by a scan that finishes, and by the ladder. See
+  *  WIFI_SILENT_SCANS_BEFORE_RESTART. */
+ uint8_t _silentScans = 0;
 
  /* ── NTP retry with exponential backoff + fallback ── */
  uint32_t _ntpRetryDelay = 20000; /**< Current delay between retries (ms) */

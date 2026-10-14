@@ -201,6 +201,14 @@ Três recusas seguidas, com o aparelho ligado há mais de 30 min, fazem o aparel
 
 Até a v2.8.0, uma recusa prendia o aparelho por até 15 s dentro do pedido, e o watchdog, que reinicia o aparelho depois de 8,4 s sem resposta, o reiniciava. O log mostrava só a autópsia de um travamento no módulo `WIFI`, contexto 202 ([Como ler um travamento](#cap-16-travamento)).
 
+### Quando o rádio não responde à busca {#cap-09-mudo}
+
+A escada mede quanto tempo o pedido de busca leva para voltar. Num rádio que responde, ele volta em milissegundos. Num rádio que parou de responder, só volta depois do tempo-limite do driver, perto de 1 s. Uma busca assim que passa do prazo de 15 s é de um rádio mudo, e depois dela a escada não tenta entrar na rede às cegas: num rádio mudo, esse pedido de conexão prendia o aparelho além dos 8,4 s do watchdog.
+
+Duas buscas seguidas de um rádio mudo, com o aparelho ligado há mais de 30 min, fazem o aparelho reiniciar para recuperar o rádio. Antes, ele grava o evento 10 com contexto 4. Nos primeiros 30 min depois de um boot, ele segue buscando, sem reiniciar e sem tentar entrar na rede.
+
+Até a v2.11.1, a escada tentava entrar às cegas depois de duas buscas sem resposta, e o watchdog reiniciava o aparelho. O log mostrava só a autópsia de um travamento no módulo `WIFI`, contexto 202 ([Como ler um travamento](#cap-16-travamento)).
+
 ### Outros motivos para reconectar {#cap-09-vigilancia}
 
 Conectado, o aparelho confere o sinal uma vez por minuto. Um sinal impossível, 0 dBm ou mais, ou abaixo de −120 dBm, indica que o rádio parou de responder de verdade, mesmo que o Wi-Fi ainda se diga conectado. Duas leituras impossíveis seguidas fazem o aparelho derrubar a conexão e entrar na escada, com o evento **Implausible RSSI twice — link presumed dead, reconnecting**.
@@ -219,13 +227,14 @@ A página **Histórico e Logs** mostra os eventos ([capítulo 16](#cap-16)). Os 
 | 10 | `SSID not in scan — associating anyway` | Tentativa sem ver a rede, depois de duas buscas |
 | 10 | `The radio refused the join` | O rádio recusou o pedido; o contexto é 2 ([Quando o rádio recusa o pedido](#cap-09-recusa)) |
 | 10 | `The radio refused 3 joins in a row - restarting to recover it` | Três recusas seguidas: o aparelho reinicia; o contexto é 3 |
+| 10 | `Radio silent on two scans (start took <n> ms) - restarting to recover it` | Duas buscas seguidas sem resposta do rádio: o aparelho reinicia; o contexto é 4 ([Quando o rádio não responde à busca](#cap-09-mudo)) |
 | 525 | `Retry in <n>s` | Uma tentativa falhou; o contexto é o número de falhas seguidas |
 | 526 | `Dormant: retry in 600s` | Início de uma dormência |
 | 526 | `Dormancy over — back to fast retries` | Fim das três dormências |
 | 14 | `IP: <endereço>` | Entrou na rede |
 | 11 | `WiFi signal lost, entering stealth scan` | A conexão caiu |
 | 11 | `Implausible RSSI twice — link presumed dead, reconnecting` | O rádio parou de responder; o contexto é a leitura |
-| 12 | `Scan never finished — abandoning it` | Uma busca passou do prazo de 15 s |
+| 12 | `Scan never finished — abandoning it (start took <n> ms)` | Uma busca passou do prazo de 15 s; o tempo é o que o pedido da busca levou para voltar |
 | 403 | **AP iniciado** | O AP de configuração abriu ([O AP durante a operação](#cap-09-ap)) |
 
 O log de eventos não grava cada repetição. Uma falha que se repete, como `Retry in <n>s`, é gravada na primeira vez e depois só a cada hora, enquanto durar. A volta da rede (`IP: ...`) é gravada porque encerra a falha. Por isso, uma escada longa aparece no log como poucas linhas. O filtro está explicado no [capítulo 16](#cap-16).
