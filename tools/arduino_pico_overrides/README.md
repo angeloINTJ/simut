@@ -85,7 +85,8 @@ arduino_pico_overrides/
     ├── cyw43_join_budget.patch          ← 2026-10-01, the join wait bounded
     ├── littlefs_rp2350_untranslated.patch  ← 2026-10-03, RP2350 only: LittleFS from a slot
     ├── wifiserver_accepted_not_evicted.patch ← 2026-10-04, a long transfer is not killed for a newcomer
-    └── webserver_short_write.patch      ← 2026-10-14, a write cut short ends the response (#189)
+    ├── webserver_short_write.patch      ← 2026-10-14, a write cut short ends the response (#189)
+    └── webserver_fewer_writes.patch     ← 2026-10-14, a response's small writes leave together (#189)
 ```
 
 ## TLS handshake deadline (2026-07-25)
@@ -237,14 +238,11 @@ requests raises `InvalidChunkLength`, a browser
 `ERR_INVALID_CHUNKED_ENCODING`. This is #189, and it explains the hole in the
 half of B13 (`docs/analysis/PLANO_STABLE.md`) that had no explanation.
 
-Why a write stalls, measured with this override on the same bench (5,000
-replies per run, 2026-10-14). lwIP refused `tcp_write( )` for queue length or
-memory 13,100 times in one run and 16,345 in the other, and no segment ever
-failed to allocate. A reply goes out in dozens of small writes, three per
-chunk, which wait behind Nagle for the client's ACK to free room. With the
-override, the 500 ms run had 0 holes and 4 clean cuts, each counted in
-`cgw`, all in one 15 s burst of slow ACKs. A run at 2,000 ms had no cut, but
-no such burst came either.
+With this override on the same bench (5,000 replies per run, 2026-10-14),
+the 500 ms run had 0 holes and 4 clean cuts, each counted in `cgw`, all in one
+15 s burst. A run at 2,000 ms had no cut, but no such burst came either. Why a
+write stalls is the next section's: every segment took a whole MSS of lwIP's
+heap, and a reply went out as dozens of them.
 
 `webserver_short_write.patch` sends every write of `send( )` and
 `sendContent( )` through `_writeAll( )`, and `streamFile( )` checks its own
@@ -270,6 +268,92 @@ SIMUT reads the count as `metr.cgw` in `/api/status`,
 those responses out (`WebManager::isClientGone( )`). The WebServer library
 has its own object cache (`lib*/WebServer/`), which `patch.sh` and
 `restore.sh` invalidate.
+
+## A response's small writes leave together (2026-10-14)
+
+`lwipopts.h` sets `LWIP_NETIF_TX_SINGLE_PBUF`, so `tcp_write( )` gives every
+new segment a pbuf of a whole MSS, 1,540 B of lwIP's 16 KB heap with its
+headers, however few bytes the segment carries. The server also sends with no
+delay (`WebServerTemplate::begin( )` calls `setNoDelay(true)`), so every
+`write( )` leaves as a segment of its own. Upstream wrote a response as one
+write for the header and three for each chunk: the size line, the data and the
+CRLF. SIMUT's `/api/status`, a header, 7 chunks and the terminator in 1,039 B,
+went out as 24 segments, and the heap holds about ten.
+
+A write that finds the heap full waits for the client's ACKs to free some.
+Past the write timeout the response was cut: the stall the previous section
+could only count. What held the ACKs back that long was not measured; a lost
+segment waiting for lwIP to retransmit it would.
+
+Measured on the bench (2026-10-14, Pico W, `GET /api/status` every 0.2 s on
+one keep-alive connection, `tools/chunked_probe.py`, the lwIP counters read
+from the console before and after each run):
+
+| Image | Replies | Segments sent per reply | `tcp_write( )` out of memory | TCP_SEG peak | Cut (`cgw`) | Median |
+|---|---:|---:|---:|---:|---:|---:|
+| A: `main` with override 2m | 1,000 | 24.2 | 4,390 (4.4 per reply) | 11 of 32 | 3 | 38 ms |
+| B: the same with this override | 1,000 | 1.22 | 0 | 3 of 32 | 0 | 24 ms |
+| B, the next run | 5,000 | 1.21 | 0 | 7 of 32 | 0 | 23 ms |
+
+The peak of 7 in the 5,000-read run was already there when it started, left
+by the route sweeps between the two runs (below); in the 1,000-read run before
+them, the status loop peaked at 3. In those 5,000 replies the device closed one
+keep-alive connection between two replies (`cgx` +1, log code 575 at
+11:10:30). The reply before it had arrived whole, and so did the next one,
+asked again on a new connection. The log does not keep which path dropped it;
+of those that count in `cgx`, only one fits, by elimination: the drain after a
+response (SIMUT's `drainOrDrop( )`), a rule older than this override, which
+waits `WEB_SEND_STALL_MS` (4 s) for the client to acknowledge the reply. The
+room check before a reply needs more than 5.8 KB in flight, and a reply is
+1 KB; a client that went away would not have asked again on the same socket.
+
+`webserver_fewer_writes.patch` gives `HTTPServer` a buffer of one segment
+(1,460 B, `TCP_MSS`, which a `static_assert` checks against `lwipopts.h`).
+Inside `_handleRequest( )` every write of `send( )` and `sendContent( )`
+collects there, and the buffer goes out when it is full and when a response
+is whole: at the end of `send( )`, with the last byte of a body sent after
+`setContentLength( )`, and at the end of the response (the terminating chunk,
+`_finalizeResponse( )`). Two of those are about what a handler does next.
+`send( )` writes its response before it returns because some handlers reboot
+right after it (`/api/commit_all`, the reboot of `/api/action`), and a body
+with a `Content-Length` leaves with its last byte because SIMUT's
+`safeStreamFile( )` drains the socket right after it, inside the handler, to
+keep a slow reader from parking the framework's close. Writes outside
+`_handleRequest( )`, from an upload handler or a hook, go straight out as
+upstream wrote them. `streamFile( )` empties the buffer before it writes the
+file to the client; any other write to `client( )` behind the server's back
+would overtake what the buffer holds, and SIMUT makes none. A write of a
+segment or more, with nothing held, goes straight out: lwIP cuts it into whole
+segments itself. After a short write nothing more of the response is written
+(2m), and after `stopClient( )` the client takes nothing more: its writes
+return 0, and a client that is gone is not counted.
+
+The bytes on the wire are the same, chunk for chunk. A sweep of the 34
+read-only GET routes on images A and B (`tools/route_sweep.py`) returned the
+same status, the same headers and the same chunk count on every route, and the
+same body on every
+route whose content does not change between two reads: the pages, `lang.js`,
+`style.css`, `/api/lang`, `/api/sensors` and the rest. Over TLS every write is
+a record of its own, so the buffer cuts the records per reply as well; that is
+not measured, because the bench serves HTTP.
+
+**On the host, every rule bites.** `tools/test_webserver_out.py` compiles the
+patched `HTTPServer.cpp` with stand-ins for the board, against a client that
+records every `write( )`, and runs twelve scenarios, each held to the same
+handler run with every write straight out. Then it takes each rule out of a
+copy of the source, eight mutants, and each must fail exactly the scenarios
+named for its rule: 8 of 8 on 2026-10-14. The `pico_w_release` job of CI runs
+it after `patch.sh`. The reboot of `/api/action` was the same test on the
+bench: the release answered `{"ok":true}` before the reset, and a build without
+the flush at the end of `send( )` answered 0 B.
+
+The buffer is allocated once, with the server: 1,460 B, plus the allocator's
+header and 16 B of new members in the server. The free heap, read once on
+each image at different uptimes, was 58,752 B on image A and 57,224 B on image
+B, 1,528 B apart. It sits behind a pointer at the end of the class. As an
+array among the members it pushed every member after it past the Cortex-M0+'s
+short load/store offsets: the release grew 1,152 B, against 352 B for the same
+code behind a pointer.
 
 ## Changes Applied
 

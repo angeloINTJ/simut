@@ -511,6 +511,19 @@ jobs:
           ENC_PIO_HEADER: .pio/libdeps/pico_wire/PicoENC28J60/src/enc28j60-spi.pio.h
         run: python3 tools/test_pio_budget.py
 
+      # Override 2n's write buffer decides when a response's bytes leave the
+      # server, which no host suite sees: they do not compile the framework.
+      # After patch.sh it is on disk, and the test compiles the patched
+      # HTTPServer.cpp on the host against a client that records every write,
+      # then takes each rule out of a copy and expects the scenario named for
+      # it to fail. `require` makes a missing framework a failure, not a skip.
+      # One image is enough: the WebServer library is the same in all nine.
+      - name: WebServer write buffer (override 2n), on the host
+        if: matrix.env == 'pico_w_release'
+        env:
+          SIMUT_WEBSERVER_OUT: require
+        run: python3 tools/test_webserver_out.py
+
   # Same reasoning as static-analysis: its own job costs no wall clock next
   # to the firmware build, and a finding names itself in the Actions UI.
   # The harness checks contract oracles, not "didn't crash" — the validators
