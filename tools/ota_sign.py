@@ -607,11 +607,17 @@ def build_vectors():
     # Sixteen env bytes and no terminator, signed for real: the format check, not the
     # signature, has to be what refuses it.
     env_full = image + build_trailer(image, signer, cert, 3, None, raw_env=b"pico_w_test_long")
+    # The SIMUT Wire's variants (2026-10-12), genuinely signed for "release" and for "wiretft":
+    # the host test shows an image running as "wire" refusing both, and each accepted by the
+    # image that is what it says. "wire" is a prefix of "wiretft", which is why that pair.
+    env_release = image + build_trailer(image, signer, cert, 3, "release")
+    env_wiretft = image + build_trailer(image, signer, cert, 3, "wiretft")
     # Every genuine signature in these blobs, as (pub, digest, sig): the host's verify
     # answers true for exactly these, so a module that hashes the wrong bytes fails.
     valid = []
     for blob, root_pub in ((good, pub_bytes(root)), (bench, pub_bytes(bench_root)), (rogue_blob, pub_bytes(rogue)),
-                           (forged, pub_bytes(bench_root)), (env_full, pub_bytes(root))):
+                           (forged, pub_bytes(bench_root)), (env_full, pub_bytes(root)),
+                           (env_release, pub_bytes(root)), (env_wiretft, pub_bytes(root))):
         t = blob[-TRAILER_LEN:]
         c = t[24:161]
         valid.append((root_pub, cert_digest(c[:CERT_BODY_LEN]), c[73:137]))
@@ -619,7 +625,8 @@ def build_vectors():
     for pub, dig, sig in valid:
         assert verify_digest(pub, dig, sig), "a vector that does not verify"
     return dict(root_pub=pub_bytes(root), bench_root_pub=pub_bytes(bench_root), good=good, bench=bench,
-                rogue=rogue_blob, forged=forged, env_full=env_full, image_len=len(image), valid=valid)
+                rogue=rogue_blob, forged=forged, env_full=env_full, env_release=env_release,
+                env_wiretft=env_wiretft, image_len=len(image), valid=valid)
 
 
 def c_array(name, data):
@@ -686,6 +693,8 @@ def cmd_vectors(a):
         c_array("kVecRogue", v["rogue"]),
         c_array("kVecScopeForged", v["forged"]),
         c_array("kVecEnvFull", v["env_full"]),
+        c_array("kVecEnvRelease", v["env_release"]),
+        c_array("kVecEnvWiretft", v["env_wiretft"]),
         "struct VecSig { uint8_t pub[65]; uint8_t digest[32]; uint8_t sig[64]; };",
         "static const VecSig kVecValidSigs[] = {",
     ]
@@ -729,8 +738,12 @@ def check_vectors_file(path):
                 check(arrays["kVecBench"], prod, {}, 0, "pico_w_test")[0] == V_SCOPE,
                 check(arrays["kVecRogue"], prod, {}, 0, "pico_w_test")[0] == V_INVALID,
                 check(arrays["kVecScopeForged"], both, {}, 0, "pico_w_test")[0] == V_INVALID,
-                check(arrays["kVecEnvFull"], prod, {}, 0, "pico_w_test")[0] == V_INVALID]
-    ok = not bad and len(sigs) == 10 and all(verdicts)
+                check(arrays["kVecEnvFull"], prod, {}, 0, "pico_w_test")[0] == V_INVALID,
+                check(arrays["kVecEnvRelease"], prod, {}, 0, "release")[0] == V_OK,
+                check(arrays["kVecEnvRelease"], prod, {}, 0, "wire")[0] == V_ENV,
+                check(arrays["kVecEnvWiretft"], prod, {}, 0, "wiretft")[0] == V_OK,
+                check(arrays["kVecEnvWiretft"], prod, {}, 0, "wire")[0] == V_ENV]
+    ok = not bad and len(sigs) == 14 and all(verdicts)
     print(f"vectors: {len(sigs)} signatures, {len(bad)} bad; verdicts {verdicts}: {'OK' if ok else 'STALE'}")
     return 0 if ok else 1
 
@@ -781,6 +794,13 @@ def cmd_selftest(a):
     case("rollback", good, prod, V_ROLLBACK, min_sec=4)
     case("security at the minimum", good, prod, V_OK, min_sec=3)
     case("env mismatch", good, prod, V_ENV, env="pico_w_release")
+    # The SIMUT Wire's variants: the cases test/test_ota_sig runs on the host, here with the
+    # same bytes. Each trailer is accepted by the image that is what it says, and refused by
+    # the others, "wire" among them.
+    case("release trailer, release image", v["env_release"], prod, V_OK, env="release")
+    case("release trailer, wire image", v["env_release"], prod, V_ENV, env="wire")
+    case("wiretft trailer, wiretft image", v["env_wiretft"], prod, V_OK, env="wiretft")
+    case("wiretft trailer, wire image", v["env_wiretft"], prod, V_ENV, env="wire")
     case("extra byte after", good + b"\0", prod, V_MISSING)
     case("truncated", good[-100:], prod, V_MISSING)
 

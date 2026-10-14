@@ -20,6 +20,7 @@
 #include <WebServerSecure.h>
 #include <functional>
 #include "SystemDefs.h"
+#include "simut_config.h"   /* SIMUT_NET_WIFI is tested below: included here, not left to another header */
 
 /* SendGuard shared state — defined in WebManager_Core.cpp */
 extern volatile bool _sendGuardExpired;
@@ -174,6 +175,9 @@ private:
 		String username;
 		uint16_t perms;
 		uint32_t lastActivity;
+		/* The account's salt at login. A different one later means someone
+		 * else set the password, and the session ends (SessionCheck.h). */
+		uint8_t salt[8];
 	};
 	ActiveSession _activeSessions[3];
 
@@ -415,8 +419,10 @@ private:
 	 *  commit_all), stored as a normal V1 hash, and appends {"u":..,"p":..} to
 	 *  @p outCreds so the commit response shows it ONCE to the admin. Replaces
 	 *  the derivable Nome@DDMMYYYY scheme, whose secret was public by
-	 *  construction. Mirrors the CLI's admin-reset — the blessed serial path. */
-	void assignTempPassword(int slot, String& outCreds);
+	 *  construction. Mirrors the CLI's admin-reset — the blessed serial path.
+	 *  Writes @p cfg, which is the dry run's copy when @p rehearse is set:
+	 *  then it only marks the slot as reset, mints nothing and adds no creds. */
+	void assignTempPassword(SystemConfig& cfg, int slot, String& outCreds, bool rehearse);
 	/* handleSaveNetwork replaced by handleApiCommitAll */
 	void handleResetTouchCal( );
 	void handleApiHistoryRebind( ); /**< POST — rebind today's .sim4 to the saved slots */
@@ -440,18 +446,22 @@ private:
 	/* handleApiUserAdd/Del/Reset replaced by handleApiCommitAll */
 
 	void handleNotFound( );
+#if SIMUT_NET_WIFI
 	/** Answer OS captive-portal probes while in AP mode. Returning the exact
 	 *  success the OS expects keeps iOS/Android from opening their restricted
 	 *  captive web view (CNA), which blocks <input type=file> — the reason the
 	 *  Restore file picker never opened. @return true when a probe was answered. */
 	bool handleCaptiveProbe( );
+#endif
 	void handleLangJs( );
 	void handleStyleCss( ); /**< Common cacheable CSS. */
 	void handleFavicon( ); /**< Serve /favicon.ico from the firmware image, 7-day cache. */
 
 	void handleApiPerms( );
 	void handleApiNetwork( );
+#if SIMUT_NET_WIFI
 	void handleApiWifiScan( );  /**< the networks in range, for the picker */
+#endif
 	void handleApiConfig( );
 	void handleApiUsers( );
 	void handleApiThemes( );

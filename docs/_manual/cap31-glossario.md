@@ -120,7 +120,7 @@ mDNS
 :   O endereço pelo nome, como `http://simut.local`. Só existe na imagem release ([capítulo 9](#cap-09-mdns)).
 
 Modo de Configuração
-:   O item 12 das Configurações do painel, que abre o ponto de acesso de configuração ([capítulo 11](#cap-11-ap)).
+:   O item 8 das Configurações do painel, que abre o ponto de acesso de configuração ([capítulo 11](#cap-11-ap)).
 
 Pacote de idioma
 :   Arquivo `.lng` que traduz o painel, a interface web e o log. Só é carregado no boot ([capítulo 13](#cap-13-idioma)).

@@ -13,6 +13,7 @@
  */
 
 #include "LogManager.h"
+#include "net/NetCaps.h"   /* SIMUT_NET_LAN, tested below: included here, not left to another header */
 #include "FlashIrqProbe.h"   /* g_core1WaitAlarm — tw= fingerprint */
 #include <hardware/timer.h>
 #include "DisplayManager.h" /* logcodeLookup / trlLookup from .lng */
@@ -25,6 +26,9 @@
 #include <hardware/regs/watchdog.h>
 #include <hardware/regs/psm.h>
 #include <stdio.h>
+#if defined(PICO_RP2350) && PICO_RP2350
+#include <pico/bootrom.h>   /* rom_reboot */
+#endif
 
 /* Black-box profiler state — tracks per-core activity for crash forensics. */
 volatile uint32_t _coreHeartbeat[2] = {0, 0};
@@ -840,6 +844,18 @@ void LogManager::markCleanReboot( ) {
 }
 
 void LogManager::safeReboot( ) {
+#if defined(PICO_RP2350) && PICO_RP2350
+ /* An update on trial is kept only by its buy (ota/trial.h): a plain reboot
+  * now would boot the image it replaced. A reboot asked for during the trial —
+  * a commit, a restore, `reload` — is not a verdict on the update, so it goes
+  * back into the same slot as a FLASH_UPDATE, on trial again. Cleared first:
+  * if the ROM refuses, safeRebootFlashUpdate( ) comes back here for a plain one. */
+ if (_rebootSlot) {
+  const uint32_t base = _rebootSlot;
+  _rebootSlot = 0;
+  safeRebootFlashUpdate(base);
+ }
+#endif
  /* Persist before anything else: below this point the console detaches and
   * the chip resets, and the history block still open lives in RAM. Cleared
   * before the call so a hook that somehow reaches safeReboot again cannot
@@ -921,6 +937,42 @@ void LogManager::safeReboot( ) {
  __asm volatile("dsb");
  while (1) tight_loop_contents( );
 }
+
+#if defined(PICO_RP2350) && PICO_RP2350
+void LogManager::safeRebootFlashUpdate(uint32_t updateBase) {
+ if (_preRebootFn) {
+ void (*fn)( ) = _preRebootFn;
+ _preRebootFn = nullptr;
+ fn( );
+ }
+ markCleanReboot( );
+ Serial.println("[SYS] Rebooting into the new slot...");
+ Serial.flush( );
+ delay(50);
+ Serial.end( );
+ delay(100);
+
+ /* The ROM's own reboot, not the watchdog sequence above: a FLASH_UPDATE
+  * boot tells the ROM which slot was just written, and it boots that one. A
+  * plain reboot would choose by the slots alone, and with both whole and no
+  * versions it takes A. Going to B, the ROM also erases A's first sector when
+  * the new image launches (the implicit buy of an image with no
+  * try-before-you-buy flag), so later boots stay on B; going to A it erases
+  * nothing, since A wins anyway, and B keeps the image it had (boot ROM,
+  * varm_flash_boot.c:237-318 and varm_launch_image.c:446-453). The ROM
+  * writes the watchdog's scratch registers for this boot, scratch[5] with the
+  * clean-reboot mark among them: step 6 of docs/analysis/OTA_AB_RP2350.md
+  * gives the autopsy registers of its own. */
+ /* REBOOT2_FLAG_REBOOT_TYPE_FLASH_UPDATE and REBOOT2_FLAG_NO_RETURN_ON_SUCCESS,
+  * from the SDK's boot/picoboot_constants.h, which arduino-pico leaves off the
+  * include path. They are the boot ROM's interface, fixed in the silicon. */
+ constexpr uint32_t LM_REBOOT_FLASH_UPDATE = 0x4u;
+ constexpr uint32_t LM_REBOOT_NO_RETURN    = 0x100u;
+ (void)rom_reboot(LM_REBOOT_FLASH_UPDATE | LM_REBOOT_NO_RETURN, 10, updateBase, 0);
+ /* Here only if the ROM refused the call. */
+ safeReboot( );
+}
+#endif
 
 /**
  * @brief Analyze watchdog scratch registers after a crash-triggered reboot.
@@ -1161,6 +1213,7 @@ static const char* translateCodeEn(uint16_t code) {
  case SEC_PIN_FAIL: return "Panel PIN rejected";
  case SEC_PIN_LOCKOUT: return "Panel PIN lockout";
  case SEC_PIN_AMBIGUOUS: return "Keypad entry fits two accounts";
+ case SEC_SESSION_REVOKED: return "Session ended: account changed";
 
  /* ── App lifecycle (400–410) ── */
  case APP_DISPLAY_LAUNCHED: return "Display launched on Core 1";
@@ -1242,6 +1295,12 @@ static const char* translateCodeEn(uint16_t code) {
  case NET_DORMANT_MODE: return "WiFi dormant mode";
  case NET_SHOW_IP: return "Show IP";
  case NET_MDNS_FAIL: return "mDNS start failed";
+#if SIMUT_NET_LAN   /* the cable's codes, logged by the wired build only */
+ case NET_WIRED_STARTING: return "Wired network starting";
+ case NET_WIRED_MODULE_FAIL: return "Network module did not start";
+ case NET_WIRED_NO_ADDRESS: return "No address on the cable";
+ case NET_WIRED_LOST: return "Wired network lost";
+#endif
 
  /* ── Telemetry extended (540–547) ── */
  case TEL_HTTP_INIT: return "HTTP transport initialized";
@@ -1258,6 +1317,7 @@ static const char* translateCodeEn(uint16_t code) {
  case TEL_ALARM_FAIL: return "Alarm send failed";
  case TEL_ALARM_ACK: return "Alarm receipt confirmed";
  case TEL_ALARM_DROP: return "Alarm queue overflow";
+ case TEL_CURSOR_RESENT: return "Telemetry day file sent again";
 
  /* ── Storage extended (560–565) ── */
  case STO_WRITE_FAILED: return "History write failed";
@@ -1298,6 +1358,13 @@ static const char* translateCodeEn(uint16_t code) {
 
  /* ── Display (600) ── */
  case DSP_FORCE_UNPAUSE: return "Force unpause";
+
+ /* ── OTA on the RP2350, the update on trial (610–614) ── */
+ case OTA_TRIAL_STARTED: return "Update on trial";
+ case OTA_TRIAL_CONFIRMED: return "Update confirmed";
+ case OTA_TRIAL_EXPIRED: return "Update not confirmed in time";
+ case OTA_TRIAL_REVERTED: return "Update reverted";
+ case OTA_TRIAL_BUY_FAILED: return "Update confirmation failed";
 
  case ERR_UNKNOWN: return "Unknown error";
  default: return "?";

@@ -144,6 +144,9 @@ enum LogCode {
  SEC_PIN_FAIL = 309,
  SEC_PIN_LOCKOUT = 310,
  SEC_PIN_AMBIGUOUS = 311,
+ /* A web session whose account was deleted, renamed or given a password by
+  * someone else since its login (SessionCheck.h). ctx = the account slot. */
+ SEC_SESSION_REVOKED = 312,
 
 
  /* ── Application lifecycle (400–439) ── */
@@ -234,6 +237,13 @@ enum LogCode {
  NET_DORMANT_MODE = 526,
  NET_SHOW_IP = 527,
  NET_MDNS_FAIL = 528,   /* was logged as LOG_ERROR + SYS_OK, i.e. persisted as "OK" */
+ /* The SIMUT Wire's own (2026-10-13), where it had logged the radio's codes
+  * and its log read "WiFi manager starting" and "WiFi disconnected". Named in
+  * the wired build only (translateCodeEn, LogPolicy.cpp). */
+ NET_WIRED_STARTING = 529,
+ NET_WIRED_MODULE_FAIL = 530,
+ NET_WIRED_NO_ADDRESS = 531,
+ NET_WIRED_LOST = 532,
 
  /* ── Telemetry extended (540–559) ── */
  TEL_HTTP_INIT = 540,
@@ -250,6 +260,7 @@ enum LogCode {
  TEL_ALARM_FAIL = 551,        /* ciclo de envio de alarmes falhou; ctx = motivo/código */
  TEL_ALARM_ACK = 552,         /* confirmação de recebimento aplicada; ctx = registros */
  TEL_ALARM_DROP = 553,        /* estouro da fila de alarmes (drop-newest); ctx = total descartado */
+ TEL_CURSOR_RESENT = 554,     /* a day file's telemetry position no longer held (TelemetryPosition.h): sent again from its start; ctx = MMDD */
 
  /* ── Storage extended (560–569) ── */
  STO_WRITE_FAILED = 560,
@@ -287,6 +298,17 @@ enum LogCode {
 
  /* ── Display (600–604) ── */
  DSP_FORCE_UNPAUSE = 600,
+
+ /* ── OTA on the RP2350: the update on trial (610–619) ──
+  * docs/analysis/OTA_AB_RP2350.md, step 5. The context carries what the text
+  * cannot, since the binary log keeps no text: the version as M*10000+m*100+p
+  * (ota/trial.h) for STARTED and REVERTED, the seconds since boot for
+  * CONFIRMED and EXPIRED, the boot ROM's code for BUY_FAILED. */
+ OTA_TRIAL_STARTED = 610,
+ OTA_TRIAL_CONFIRMED = 611,
+ OTA_TRIAL_EXPIRED = 612,
+ OTA_TRIAL_REVERTED = 613,
+ OTA_TRIAL_BUY_FAILED = 614,
 
  ERR_UNKNOWN = 999
 };
@@ -465,7 +487,8 @@ inline constexpr int16_t autopsyBandCore1(uint8_t c1Valid, uint8_t c1Mod) {
 	return (int16_t)(1000 + (c1Valid == 0x80 ? c1Mod : 0xFF));
 }
 /** The web server's position trace at the stall (`hp=`, scratch[7]): 0 as the
- *  server starts on a request (and at boot), the handlers' HPOS( ) marks as
+ *  server starts on a request (and from the top of a boot on trial, on the
+ *  RP2350: ota/staging.cpp), the handlers' HPOS( ) marks as
  *  they walk their stages (721 after a send, 901 on an abort), 740 once the
  *  server has returned. Until 2026-10-01 this band read scratch[7] as free
  *  heap and divided by 1024, so every position, all of them under 1024, came

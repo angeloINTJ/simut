@@ -1,9 +1,10 @@
 /* app.js — the SIMUT build configurator (docs/configurador/).
  *
- * The page draws what model.json says: the products, the switches grouped as a
- * tree, the rules (each measured by compiling the combination it forbids) and
- * the per-product cost of every switch. Nothing about the firmware is typed in
- * this file; tools/features.toml is the one source, and logic.js does the sums.
+ * The page draws what model.json says: the products, the network drivers as a
+ * choice and the switches grouped as a tree, the rules (each measured by
+ * compiling the combination it forbids) and the per-product cost of every
+ * switch. Nothing about the firmware is typed in this file; tools/features.toml
+ * is the one source, and logic.js does the sums.
  *
  * The page is not the authority on what builds. It locks what a rule forbids so
  * nobody asks for it, and tools/build_custom.py applies the same rules again
@@ -14,7 +15,7 @@
  * token stays in this browser and is sent to api.github.com only; the page's
  * Content-Security-Policy allows no other destination. */
 
-import { ruleViolations, hazardHits } from "./rules.js";
+import { hazardHits } from "./rules.js";
 import * as L from "./logic.js";
 
 const REPO = "angeloINTJ/simut";
@@ -45,8 +46,12 @@ const STR = {
     "price.more": "With it on, this product's image is {n} B larger (measured).",
     "price.less": "With it on, this product's image is {n} B smaller (measured).",
     "price.over": "With it on, this product no longer fits the flash slot (measured).",
+    "price.net.more": "Chosen over this product's own connection, the image is {n} B larger (measured).",
+    "price.net.less": "Chosen over this product's own connection, the image is {n} B smaller (measured).",
+    "price.net.over": "Chosen over this product's own connection, it no longer fits the flash slot (measured).",
     "result.title": "This build", "selo.estimate": "Estimate", "selo.none": "No estimate",
-    "fit.ok": "Fits", "fit.near": "Tight", "fit.over": "Does not fit", "fixa.link": "See the result",
+    "fit.ok": "Fits", "fit.near": "Tight", "fit.over": "Does not fit", "fit.blocked": "Blocked",
+    "fixa.link": "See the result",
     "result.stock": "{p}, as shipped",
     "result.changes1": "{p}, 1 change", "result.changesN": "{p}, {n} changes",
     "meter.flash": "Flash slot", "meter.ota": ".bin for OTA",
@@ -63,6 +68,7 @@ const STR = {
     "warn.bench": "No estimate: the cost matrix measures the published products only. The build gives the figure.",
     "warn.stock": "No changes. This product's published image is in the latest release; compiling here builds today's main, which can be ahead of it.",
     "warn.stockLink": "Open the latest release",
+    "two.files": "On the Pico 2 W the two files are different images. The .bin is an update: it installs into the other slot and runs on trial until it keeps itself. The .uf2 is the factory image, with the partition table, for the drive that appears as RP2350 when BOOTSEL is held.",
     "action.build": "Compile this build", "action.building": "Compiling…",
     "action.copy": "Copy link", "action.copied": "Link copied",
     "action.copyFailed": "The browser did not allow copying. The link is the address in the address bar.",
@@ -89,6 +95,7 @@ const STR = {
     "run.ok": "Compiled: .bin {bin} B, RAM {ram} B.",
     "run.okOta": "It fits the OTA ceiling: install the .bin through the web interface, or the .uf2 over USB.",
     "run.okUsb": "The .bin is over the OTA ceiling: install the .uf2 over USB.",
+    "run.okOtaTwo": "It fits its slot: install the .bin through the web interface, into the other slot and on trial, or the .uf2 over USB, onto the RP2350 drive.",
     "run.download": "Download .uf2 and .bin",
     "run.page": "Open the run",
     "run.failed": "The build failed at step “{step}”.",
@@ -123,8 +130,12 @@ const STR = {
     "price.more": "Ligada, a imagem deste produto fica {n} B maior (medido).",
     "price.less": "Ligada, a imagem deste produto fica {n} B menor (medido).",
     "price.over": "Ligada, este produto deixa de caber no slot de flash (medido).",
+    "price.net.more": "Escolhida no lugar da conexão deste produto, a imagem fica {n} B maior (medido).",
+    "price.net.less": "Escolhida no lugar da conexão deste produto, a imagem fica {n} B menor (medido).",
+    "price.net.over": "Escolhida no lugar da conexão deste produto, ele deixa de caber no slot de flash (medido).",
     "result.title": "Esta build", "selo.estimate": "Estimativa", "selo.none": "Sem estimativa",
-    "fit.ok": "Cabe", "fit.near": "No limite", "fit.over": "Não cabe", "fixa.link": "Ver o resultado",
+    "fit.ok": "Cabe", "fit.near": "No limite", "fit.over": "Não cabe", "fit.blocked": "Bloqueada",
+    "fixa.link": "Ver o resultado",
     "result.stock": "{p}, como publicado",
     "result.changes1": "{p}, 1 mudança", "result.changesN": "{p}, {n} mudanças",
     "meter.flash": "Slot de flash", "meter.ota": ".bin para OTA",
@@ -141,6 +152,7 @@ const STR = {
     "warn.bench": "Sem estimativa: a matriz de custo mede só os produtos publicados. A build dá o número.",
     "warn.stock": "Sem mudanças. A imagem publicada deste produto está na última release; compilar aqui gera o main de hoje, que pode estar à frente dela.",
     "warn.stockLink": "Abrir a última release",
+    "two.files": "No Pico 2 W os dois arquivos são imagens diferentes. O .bin é uma atualização: vai para o outro slot e roda em teste até se confirmar. O .uf2 é a imagem de fábrica, com a tabela de partições, para a unidade que aparece como RP2350 com o BOOTSEL apertado.",
     "action.build": "Compilar esta build", "action.building": "Compilando…",
     "action.copy": "Copiar link", "action.copied": "Link copiado",
     "action.copyFailed": "O navegador não deixou copiar. O link é o endereço na barra do navegador.",
@@ -167,6 +179,7 @@ const STR = {
     "run.ok": "Compilada: .bin {bin} B, RAM {ram} B.",
     "run.okOta": "Cabe no teto de OTA: instale o .bin pela interface web, ou o .uf2 pelo USB.",
     "run.okUsb": "O .bin passa do teto de OTA: grave o .uf2 pelo USB.",
+    "run.okOtaTwo": "Cabe no slot: instale o .bin pela interface web, no outro slot e em teste, ou o .uf2 pelo USB, na unidade RP2350.",
     "run.download": "Baixar .uf2 e .bin",
     "run.page": "Abrir a execução",
     "run.failed": "A build falhou no passo “{step}”.",
@@ -349,6 +362,16 @@ function flip(toggleId, value) {
   render();
 }
 
+/* The network is a choice of driver, not a switch: it rides in `set` as the
+ * driver's id, and goes again when it is the product's own. */
+function chooseNet(netId) {
+  const next = { ...state.set, net: netId };
+  state.set = L.normalizeSet(state.model, state.productId, next);
+  dropFinishedRun();
+  writeHash();
+  render();
+}
+
 /* ---- rendering ------------------------------------------------------------ */
 
 function render() {
@@ -381,12 +404,13 @@ function watchResult() {
   resultObserver.observe(card);
 }
 
-/* The verdict in one word, as a selo: the fill of the flash slot decides it. */
-function fitSelo(est) {
-  if (!est) return h("span", { class: "selo", text: t("selo.none") });
-  const fit = L.fitOf(est.used, state.model.ceilings.flash_region, L.nearMargin(state.model));
-  const tone = { ok: "selo-positivo", near: "selo-alerta", over: "selo-perigo" }[fit];
-  return h("span", { class: `selo ${tone}`, text: t(`fit.${fit}`) });
+/* The verdict in one word, as a selo (L.verdictOf): what stops the build first,
+ * then the fill of the flash slot. */
+function fitSelo() {
+  const v = L.verdictOf(state.model, state.productId, state.set);
+  if (!v) return h("span", { class: "selo", text: t("selo.none") });
+  const tone = { blocked: "selo-perigo", ok: "selo-positivo", near: "selo-alerta", over: "selo-perigo" }[v];
+  return h("span", { class: `selo ${tone}`, text: t(`fit.${v}`) });
 }
 
 /* On a phone the result card is below the tree; this bar keeps its figure in
@@ -395,8 +419,9 @@ function renderFixa() {
   const m = state.model;
   const est = L.estimate(m, state.productId, state.set);
   return h("div", { class: "cfg-fixa" },
-    fitSelo(est),
-    est ? h("span", { class: "cfg-fixa-valor", text: t("meter.of", { a: num(est.used), b: num(m.ceilings.flash_region) }) }) : null,
+    fitSelo(),
+    est ? h("span", { class: "cfg-fixa-valor",
+                      text: t("meter.of", { a: num(est.bin), b: num(L.ceilingsOf(m, state.productId).flash_region) }) }) : null,
     h("a", { href: "#resultado", text: t("fixa.link") }));
 }
 
@@ -420,7 +445,8 @@ function renderProducts() {
           h("span", { class: "cfg-produto-nome", text: label(p.label) }),
           h("span", { class: "cfg-produto-desc", text: label(p.desc) }),
           h("span", { class: "cfg-produto-num",
-                      text: costs ? t("product.size", { n: num(costs.base.used) }) : t("product.nosize") }));
+                      // The .bin, the number the meters hold to the slot (2026-10-12).
+                      text: costs ? t("product.size", { n: num(costs.base.bin) }) : t("product.nosize") }));
       })),
     h("label", { class: "cfg-bancada", for: "mostrar-bancada" },
       h("input", { type: "checkbox", id: "mostrar-bancada", checked: state.showBench,
@@ -433,15 +459,17 @@ function renderFeatures() {
   const config = L.effectiveConfig(m, state.productId, state.set);
   const groups = m.groups.map((g) => {
     const rows = m.toggles.filter((x) => x.group === g.id).map((x) => renderToggle(x, config));
+    // The choice of network driver sits in the group the model names, above its switches.
+    const net = g.id === m.net.group ? renderNet(config) : null;
     const title = label(g.label);
     if (g.advanced) {
-      const changed = m.toggles.some((x) => x.group === g.id && x.id in state.set);
+      const changed = m.toggles.some((x) => x.group === g.id && x.id in state.set) || (net !== null && "net" in state.set);
       const open = g.id in state.open ? state.open[g.id] : changed;
       return h("details", { class: "cfg-bloco cfg-detalhes", open,
                             ontoggle: (e) => { state.open[g.id] = e.target.open; } },
-        h("summary", {}, h("h3", { class: "cfg-bloco-titulo", text: title })), rows);
+        h("summary", {}, h("h3", { class: "cfg-bloco-titulo", text: title })), net, rows);
     }
-    return h("div", { class: "cfg-bloco" }, h("h3", { class: "cfg-bloco-titulo", text: title }), rows);
+    return h("div", { class: "cfg-bloco" }, h("h3", { class: "cfg-bloco-titulo", text: title }), net, rows);
   });
   return h("section", { class: "cfg-secao", "aria-labelledby": "h-recursos" },
     h("h2", { class: "cfg-secao-titulo", id: "h-recursos", text: t("sec.features") }), groups);
@@ -450,7 +478,7 @@ function renderFeatures() {
 function renderToggle(x, config) {
   const m = state.model;
   const id = `t-${x.id}`;
-  const lock = L.lockOf(m, config, x.id);
+  const lock = L.lockOf(m, config, x.id, state.productId);
   const same = L.noEffect(m, state.productId, x.id) && !(x.id in state.set);
   const price = L.priceOn(m, state.productId, x.id);
   const changed = x.id in state.set;
@@ -477,6 +505,43 @@ function renderToggle(x, config) {
                    onchange: (e) => flip(x.id, e.target.checked) })));
 }
 
+/* The connection: one radio per network driver of the model, as rows of the
+ * network group (the way the switches below are), divided by linha. Rows, not
+ * cards: the group is already a card, and ANGULO.md 4.4 allows none inside one.
+ * A driver the choice cannot take is disabled with its reason on the row, as a
+ * locked switch has it (L.netLockOf, which asks the same question lockOf does).
+ * Native radios in one fieldset: the arrow keys move between them. */
+function renderNet(config) {
+  const m = state.model;
+  const changed = "net" in state.set;
+  return h("fieldset", { class: "cfg-rede" },
+    h("legend", { class: "cfg-rede-titulo" }, label(m.net.label),
+      changed ? [" ", h("span", { class: "selo", text: t("changed") })] : null),
+    m.net.options.map((o) => {
+      const id = `n-${o.id}`;
+      const lock = L.netLockOf(m, config, o.id, state.productId);
+      const price = L.priceNet(m, state.productId, o.id);
+      let priceText = null, priceTitle = null;
+      if (price && !lock) {
+        priceText = kb(price.flash);
+        priceTitle = price.overflow ? t("price.net.over")
+          : t(price.flash >= 0 ? "price.net.more" : "price.net.less", { n: num(Math.abs(price.flash)) });
+      }
+      const helpId = `${id}-ajuda`, lockId = `${id}-trava`;
+      return h("label", { class: "cfg-chave cfg-rede-opcao", for: id },
+        h("span", { class: "cfg-chave-texto" },
+          h("span", { class: "cfg-chave-nome", id: `${id}-nome`, text: label(o.label) }),
+          h("span", { class: "cfg-apoio", id: helpId, text: label(o.help) }),
+          lock ? h("span", { class: "cfg-chave-trava", id: lockId, text: t("locked", { why: label(lock.why) }) }) : null),
+        h("span", { class: "cfg-chave-lado" },
+          priceText ? h("span", { class: "cfg-chave-custo", title: priceTitle, text: priceText }) : null,
+          h("input", { type: "radio", class: "cfg-radio", name: "rede", id, value: o.id,
+                       "aria-labelledby": `${id}-nome`, "aria-describedby": lock ? `${helpId} ${lockId}` : helpId,
+                       checked: config.net === o.id, disabled: Boolean(lock),
+                       onchange: () => chooseNet(o.id) })));
+    }));
+}
+
 function meter(labelText, value, ceiling) {
   const fit = L.fitOf(value, ceiling, L.nearMargin(state.model));
   const pct = Math.max(0, Math.min(100, (value / ceiling) * 100));
@@ -497,7 +562,9 @@ function renderResult() {
   const m = state.model;
   const p = L.productById(m, state.productId);
   const config = L.effectiveConfig(m, state.productId, state.set);
-  const violations = ruleViolations(m, config);
+  // What the generator refuses for this chip counts like a broken rule: a link can
+  // carry the switch already on, and the build would only be refused later.
+  const violations = L.blockersOf(m, state.productId, config);
   const hazards = hazardHits(m, config);
   const est = L.estimate(m, state.productId, state.set);
   const nChanges = Object.keys(state.set).length;
@@ -508,14 +575,15 @@ function renderResult() {
   for (const r of violations) warnings.push(["perigo", t("warn.rule", { why: label(r.why) })]);
   let slotFit = null, otaFit = null;
   const margin = L.nearMargin(m);
+  const ceil = L.ceilingsOf(m, state.productId);
   if (est) {
-    slotFit = L.fitOf(est.used, m.ceilings.flash_region, margin);
-    otaFit = L.fitOf(est.bin, m.ceilings.ota_bin, margin);
+    slotFit = L.slotFit(m, state.productId, est);
+    otaFit = L.fitOf(est.bin, ceil.ota_bin, margin);
     if (slotFit === "over") warnings.push(["perigo", t("warn.over")]);
     else if (otaFit === "over") warnings.push(["alerta", t("warn.otaOver")]);
     if (slotFit === "near" || (slotFit === "ok" && otaFit === "near")) warnings.push(["alerta", t("warn.near")]);
     if (est.missing.length) {
-      const names = est.missing.map((id) => label(m.toggles.find((x) => x.id === id).label));
+      const names = est.missing.map(missingName);
       warnings.push(["alerta", t("warn.missing", { list: names.join(", ") })]);
     }
   } else {
@@ -524,18 +592,19 @@ function renderResult() {
   for (const hz of hazards) warnings.push(["alerta", t("warn.hazard", { why: label(hz.why) })]);
 
   const blocked = violations.length > 0 || slotFit === "over";
-  announce(est ? `${summary}. ${t("meter.of", { a: num(est.used), b: num(m.ceilings.flash_region) })}` : summary);
+  announce(est ? `${summary}. ${t("meter.of", { a: num(est.bin), b: num(ceil.flash_region) })}` : summary);
 
   return h("aside", { class: "cfg-secao cfg-resultado", id: "resultado", "aria-labelledby": "h-resultado" },
     h("h2", { class: "cfg-secao-titulo", id: "h-resultado", text: t("sec.result") }),
     h("div", { class: "cfg-bloco" },
       h("div", { class: "cfg-resultado-cabeca" },
         h("h3", { class: "cfg-bloco-titulo", text: t("result.title") }),
-        h("span", { class: "cfg-selos" }, fitSelo(est), est ? h("span", { class: "selo", text: t("selo.estimate") }) : null)),
+        h("span", { class: "cfg-selos" }, fitSelo(), est ? h("span", { class: "selo", text: t("selo.estimate") }) : null)),
       h("p", { class: "cfg-apoio cfg-resumo-texto", text: summary }),
+      p.chip === "rp2350" ? h("p", { class: "cfg-apoio", text: t("two.files") }) : null,
       est ? [
-        meter(t("meter.flash"), est.used, m.ceilings.flash_region),
-        meter(t("meter.ota"), est.bin, m.ceilings.ota_bin),
+        meter(t("meter.flash"), est.bin, ceil.flash_region),
+        meter(t("meter.ota"), est.bin, ceil.ota_bin),
         h("p", { class: "cfg-apoio", text: est.ramKnown ? t("ram", { n: num(est.ram) }) : t("ram.unknown") }),
       ] : null,
       warnings.length ? h("ul", { class: "cfg-avisos" },
@@ -555,6 +624,18 @@ function renderResult() {
       state.tokenOpen || state.token ? renderToken() : null,
       state.run ? renderRun() : null,
       renderLocal()));
+}
+
+/* What a change with no measurement is called: a switch by its label, the
+ * network by the driver that was chosen (`net` is not one of the switches). */
+function missingName(id) {
+  const m = state.model;
+  if (id === "net") {
+    const o = m.net.options.find((x) => x.id === state.set.net);
+    return label(o ? o.label : m.net.label);
+  }
+  const sw = m.toggles.find((x) => x.id === id);
+  return label(sw.label);
 }
 
 let lastAnnounced = "";
@@ -605,15 +686,26 @@ async function onCopy() {
   }
 }
 
+/* The changes, one line each: a switch by its state, the connection by the
+ * driver chosen. English, because the issue is. */
+function changeLines() {
+  const m = state.model;
+  return Object.entries(state.set).map(([id, v]) => {
+    if (id === "net") {
+      const o = m.net.options.find((y) => y.id === v);
+      return `- ${m.net.label.en}: ${o ? o.label.en : v}`;
+    }
+    const x = m.toggles.find((y) => y.id === id);
+    return `- ${x.label.en}: ${v ? "on" : "off"}`;
+  });
+}
+
 /* The issue is in English whatever the page's language: the repository's
  * working language, and the one its maintainer triages in. */
 function issueUrl() {
   const m = state.model;
   const p = L.productById(m, state.productId);
-  const lines = Object.entries(state.set).map(([id, v]) => {
-    const x = m.toggles.find((y) => y.id === id);
-    return `- ${x.label.en}: ${v ? "on" : "off"}`;
-  });
+  const lines = changeLines();
   const est = L.estimate(m, state.productId, state.set);
   const page = `https://angelointj.github.io/simut/configurador/${L.formatHash(state.productId, state.set)}`;
   const body = [
@@ -623,7 +715,8 @@ function issueUrl() {
     lines.length ? "Changes:" : "Changes: none (the published image)",
     ...lines,
     "",
-    est ? `Estimate: ${est.used} of ${m.ceilings.flash_region} B of flash; .bin ${est.bin} of ${m.ceilings.ota_bin} B for OTA.` : "Estimate: none (bench image).",
+    est ? `Estimate: ${est.bin} of ${L.ceilingsOf(m, state.productId).flash_region} B of flash; `
+      + `.bin ${est.bin} of ${L.ceilingsOf(m, state.productId).ota_bin} B for OTA.` : "Estimate: none (bench image).",
     "",
     "Profile for `tools/build_custom.py`:",
     "```json",
@@ -863,7 +956,9 @@ function renderRun() {
   else if (r.phase === "success") {
     if (r.bin !== null && r.bin !== undefined) {
       say(t("run.ok", { bin: num(r.bin), ram: num(r.ram) }), "positivo");
-      say(r.bin <= state.model.ceilings.ota_bin ? t("run.okOta") : t("run.okUsb"));
+      const two = L.productById(state.model, r.forProduct).chip === "rp2350";
+      say(r.bin > L.ceilingsOf(state.model, r.forProduct).ota_bin ? t("run.okUsb")
+        : two ? t("run.okOtaTwo") : t("run.okOta"));
     }
     if (r.download) kids.push(h("div", { class: "cfg-acoes" },
       h("a", { class: "botao botao-secundario", href: r.download, text: t("run.download") })));
@@ -897,7 +992,12 @@ async function start() {
   readHash();
   writeHash();
   render();
-  window.addEventListener("hashchange", () => { state.notice = null; readHash(); render(); });
+  window.addEventListener("hashchange", () => {
+    // An in-page anchor scrolls (and the skip link moves the focus); the build
+    // stays, and the address goes back to carrying it.
+    if (L.isAnchorHash(location.hash, (id) => document.getElementById(id))) { writeHash(); return; }
+    state.notice = null; readHash(); render();
+  });
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").catch(() => { /* the page works without it */ });
   }

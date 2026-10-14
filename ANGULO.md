@@ -4,23 +4,24 @@ Guia de referência do padrão de interface para web e celular. Versão 0.1, set
 
 Guarde este arquivo na raiz de cada projeto (`ANGULO.md`) ou em `docs/`. Ele serve a quem desenha e a quem codifica. A versão navegável, com previews ao vivo, fica em <https://claude.ai/artifact/ErR2dYNRpubhB1LULPFYLe>.
 
-> **Esta é a cópia do `simut`: o guia compartilhado, §1 a §10.** A casa canônica
-> do Ângulo é o repo **`simut-rx`**, e é lá que ficam os três anexos (§11 a §13:
-> o que foi corrigido em relação à v0.1, o que aquele projeto estende, e como a
-> regra é feita valer por máquina).
+> **Este arquivo é o mesmo, byte a byte, no `simut-rx` e no `simut`.** A casa
+> canônica do Ângulo é o `simut-rx`: mude lá e recopie para o `simut`. Ele traz o
+> guia compartilhado (§1 a §10) e três anexos (§11 a §13): o que foi corrigido em
+> relação à v0.1, o que o SIMUT estende (o app, no `simut-rx`, e a interface
+> embarcada do firmware, no `simut`) e como a regra é feita valer por máquina.
 >
 > **Os valores não moram neste arquivo.** A fonte da verdade é
-> `simut-rx/design/tokens.cor.json` + `tokens.comum.json`, de onde
-> `design/build-tokens.mjs` (`npm run tokens`) gera `web/angulo.css` e
-> `src/theme/angulo.ts`. O `simut` **consome** esses valores: o site copia o
-> `angulo.css` byte a byte em `docs/assets/angulo.css`, com a face de display em
+> `simut-rx/design/tokens.cor.json` + `tokens.comum.json`, e `web/angulo.css` e
+> `src/theme/angulo.ts` são **gerados** deles por `design/build-tokens.mjs`
+> (`npm run tokens`): editar os arquivos gerados é editar o que o próximo build
+> sobrescreve. O `simut` **consome** esses valores: o site copia o `angulo.css`
+> byte a byte em `docs/assets/angulo.css`, com a face de display em
 > `docs/assets/fonts/`; a UI do aparelho (`WebUI.h`, no `LANG_JS` e no
 > `LOGIN_PAGE`) e o manual (`tools/build_manual.py`) carregam cópias dos tokens;
 > e `tools/gen_logo.py` desenha a marca lendo as cores do `angulo.css`. Onde
-> cada cópia mora, o que nunca se edita à mão e o que é conferido por máquina
-> está no `AGENTS.md`, §7. O texto do §5 descreve a tradução manual da v0.1 e
-> fica como referência de formato — no `simut`, mexer nas cores é mexer nos
-> tokens do `simut-rx` e recopiar.
+> cada cópia mora, o que nunca se edita à mão e o que é conferido por máquina lá
+> está no `AGENTS.md` do `simut`, §7. O texto do §5 descreve a tradução manual da
+> v0.1 e fica como referência de formato.
 
 ## Sumário
 
@@ -34,8 +35,9 @@ Guarde este arquivo na raiz de cada projeto (`ANGULO.md`) ou em `docs/`. Ele ser
 8. [Checklist de revisão de tela](#8-checklist-de-revisão-de-tela)
 9. [Direções alternativas](#9-direções-alternativas)
 10. [Nomes alternativos e licenças](#10-nomes-alternativos-e-licenças)
-
-> Os anexos §11–§13 (correções da v0.1, extensões e enforcement por máquina) ficam na cópia do `simut-rx`.
+11. [O que foi corrigido em relação à v0.1](#11-o-que-foi-corrigido-em-relação-à-v01) *(anexo)*
+12. [O que este projeto estende](#12-o-que-este-projeto-estende) *(anexo)*
+13. [Como a regra é feita valer](#13-como-a-regra-é-feita-valer) *(anexo)*
 
 ## 1. Em uma frase
 
@@ -68,7 +70,7 @@ Os tokens são nomeados pela função, nunca pela cor: `acento` sobrevive a uma 
 
 ### 3.1 Cor
 
-Dois temas, `claro` (padrão) e `escuro`. Todos os pares texto/fundo da tabela de combinações passam de 4,5:1 nos dois temas — e isso é **medido no build**, não afirmado: `design/build-tokens.mjs` confere os 52 pares e se recusa a gerar se algum cair abaixo. Na v0.1 dois caíam (§11, na cópia do `simut-rx`).
+Dois temas, `claro` (padrão) e `escuro`. Todos os pares texto/fundo da tabela de combinações passam de 4,5:1 nos dois temas — e isso é **medido no build**, não afirmado: `design/build-tokens.mjs` confere os 52 pares e se recusa a gerar se algum cair abaixo. Na v0.1 dois caíam (§11).
 
 | Token | Claro | Escuro | Uso |
 | --- | --- | --- | --- |
@@ -82,7 +84,7 @@ Dois temas, `claro` (padrão) e `escuro`. Todos os pares texto/fundo da tabela d
 | `acento` | `#1f6355` | `#5fb39a` | A única cor de destaque: botão primário, link, aba ativa, anel de foco. |
 | `acento-forte` | `#174d42` | `#7cc7b2` | Hover e pressionado do que usa `acento`. |
 | `acento-tinta` | `#f1faf6` | `#0e211b` | Texto e ícone sobre `acento` e `acento-forte`. |
-| `positivo` | `#20784e` | `#6fbe8e` | Sucesso: texto de selo, check, mensagem de êxito. **Corrigido — ver §11 na cópia do `simut-rx`.** |
+| `positivo` | `#20784e` | `#6fbe8e` | Sucesso: texto de selo, check, mensagem de êxito. **Corrigido — ver §11.** |
 | `positivo-suave` | `#e1f0e7` | `#24352b` | Fundo de selo e faixa de sucesso, com texto em `positivo`. |
 | `alerta` | `#8a6116` | `#d9a84e` | Atenção e pendência: texto de selo e ícone. |
 | `alerta-suave` | `#f3ead2` | `#38301c` | Fundo de selo e faixa de atenção, com texto em `alerta`. |
@@ -590,3 +592,104 @@ A direção deste guia é a recomendada: neutra o bastante para qualquer projeto
 | Cerne | O núcleo duro da madeira, a parte que sustenta. Bom nome para uma biblioteca-base. |
 
 Licenças do que o sistema usa: Bricolage Grotesque, SIL Open Font License 1.1; Lucide, ISC; Tabler Icons, MIT; Style Dictionary, Apache 2.0. Todos gratuitos para uso comercial.
+
+## 11. O que foi corrigido em relação à v0.1
+
+Duas cores e uma afirmação. Tudo medido antes de implementar, com a fórmula de
+contraste do WCAG 2.1.
+
+**O `positivo` não passava, e o §3.1 dizia que todos passavam.** Com `#217a50`:
+
+| par | contraste | exigido |
+| --- | --- | --- |
+| `positivo` sobre `positivo-suave` | 4,49:1 | 4,5:1 |
+| `positivo` sobre `superficie-2` | 4,44:1 | 4,5:1 |
+
+O segundo par não estava na tabela de combinações, e devia: o `positivo` é
+"texto de selo, check, **mensagem de êxito**", e mensagem de êxito aparece sobre
+faixa, que é `superficie-2`.
+
+Corrigido para **`#20784e`** — o escurecimento mínimo que passa. A folga
+resultante (4,62:1) é a mesma que o par `alerta` já tinha (4,61:1), então a
+correção alinha o `positivo` com os irmãos em vez de fazê-lo destoar. E ela
+melhora todos os outros usos do token, não só o que falhava.
+
+**A tabela de combinações ficou explícita e executável.** Ela agora vive em
+`design/tokens.cor.json`, com os pares de texto (4,5:1) separados dos de
+não-texto (3:1), e o gerador a percorre inteira nos dois temas. Uma regra que
+vive só em prosa é uma regra que ninguém mede: foi assim que os dois pares acima
+sobreviveram à v0.1.
+
+## 12. O que este projeto estende
+
+Extensão não é desvio: é papel que o padrão não prevê e o produto precisa. Cada
+uma fica aqui, com o motivo, para não virar exceção que ninguém lembra.
+
+**`sleeping` — um quinto tom semântico** (`src/theme/ThemeContext.tsx`). O SIMUT
+Air funciona a bateria e **hiberna de propósito**, acordando em janelas. Nenhum
+dos quatro tons serve: `positivo` diria que está respondendo, `tinta-2` diria
+que não sabemos, `alerta` diria que há problema. Hibernar é o comportamento
+esperado dele, e o operador precisa distinguir isso de um aparelho mudo. O tom é
+derivado do acento por rotação de matiz, para pertencer à família.
+
+**O seletor de cor de acento** (`ACCENT_COLORS`, em `preferences.ts`) contraria
+a regra 1 — "uma cor manda" —, e fica **em aberto**: ele existe desde antes do
+padrão, seis cores à escolha do usuário. Remover é decisão de produto, não de
+implementação. Enquanto existir, o padrão do app é o `acento` do Ângulo, e as
+alternativas não passaram pela verificação de contraste desta paleta.
+
+**`overlay` e `statusBar`** não são cor de conteúdo: um é a ausência dele (véu
+de modal), o outro é um modo do sistema operacional. Ficam derivados no mapa,
+não como token.
+
+**A interface embarcada do firmware** (repo `simut`, `WebUI.h`) segue o padrão
+com quatro desvios, todos pagos em bytes: a imagem de release tem cerca de
+3 kB de folga sob o teto do OTA, e a reforma inteira teve que caber nela.
+
+- **Sem fonte embutida.** Os 13 kB da display não cabem; a pilha cai para
+  `"Bricolage Grotesque", "Segoe UI", system-ui`, a 600 e com o espaçamento
+  do guia — quem tiver a fonte instalada a vê, o resto vê a do sistema.
+- **Valores em px, não `var(--espaco-N)`.** A grade é a mesma de 4px; cada
+  `var()` custa bytes que a imagem não tem. Quem confere é o olho, não o
+  teste da folha do produto, que lá não roda.
+- **Os tokens viajam no `/lang.js`**, não na folha: a folha comum chega por
+  `fetch` depois da primeira pintura, e o `lang.js` é síncrono no `<head>`.
+  Uma cópia para as nove páginas autenticadas, e duas cópias inline nas
+  páginas sem sessão (login e primeira senha), que não o carregam. Há um
+  décimo oitavo papel, `--veu`, para o fundo escurecido de modal e gaveta —
+  o `color-mix()` que o dispensaria não existe nos navegadores do hospital.
+- **A paleta das séries do gráfico** (vermelhos para temperatura, azul para
+  umidade, roxo para pressão) fica: é codificação de dado, não cromo — a
+  mesma exceção que a regra 1 abre para gráfico.
+
+Os ícones são um sprite SVG de traço injetado com a barra de topo, o tema é
+`data-theme` com a preferência do sistema como padrão, e o cache de sete dias
+dos assets é vencido pelo `?v=<hash>` que o build carimba. Para ver a
+interface sem gravar o firmware: `tools/webui_preview.py`, que serve as
+páginas do arquivo em edição com a API de um aparelho real por trás.
+
+## 13. Como a regra é feita valer
+
+Um guia que só existe em prosa é um guia que se descobre violado na tela de
+alguém. Aqui cada regra verificável por máquina é teste ou build.
+
+| Regra | Onde ela morde |
+| --- | --- |
+| Contraste de todos os pares | `design/build-tokens.mjs` — 52 pares, os dois temas; **recusa gerar** se algum falhar |
+| Tokens e alvos em dia | `npm run tokens:check`, e o `web:test` o roda sozinho — arquivo gerado editado à mão para o build |
+| Nenhuma cor literal | teste `ângulo: a folha do produto não tem cor literal` — hex, `rgb()` e `hsl()` |
+| Toda distância na escala de 4px | teste sobre `padding`, `margin` e `gap` da folha do produto |
+| Só os três raios | teste sobre todo `border-radius` |
+| Cartão nunca tem sombra | teste sobre todo `box-shadow` fora do token `--sombra-flutuante` |
+| Fonte embutida, não buscada | teste no artefato: `data:font/woff2`, e nenhum `url(fonts/…)` |
+| Tema por `data-theme`, sem troca visível | teste de ordem: o bootstrap vem antes do corpo |
+
+Cada um desses testes foi conferido por **mutação** — devolver a violação ao
+código deixa exatamente um vermelho. Um teste que passa com a regra quebrada não
+é teste.
+
+O que **não** dá para verificar por máquina fica no checklist do §8, que é para
+pessoa: hierarquia visual, microcopy, estados desenhados.
+
+No `simut`, o portão equivalente é o `tools/check_angulo.py`, no job `gates` do
+CI: o que ele confere, e o que fica para pessoa, está no `AGENTS.md` de lá, §7.

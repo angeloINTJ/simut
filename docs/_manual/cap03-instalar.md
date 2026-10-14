@@ -4,28 +4,32 @@ Este capítulo mostra quais arquivos cada versão publica, como escolher a image
 
 ## Os arquivos de cada versão {#cap-03-arquivos}
 
-Cada versão publicada, na página de versões do projeto no GitHub (`github.com/angeloINTJ/simut/releases`), traz dez arquivos:
+Cada versão publicada, na página de versões do projeto no GitHub (`github.com/angeloINTJ/simut/releases`), traz doze arquivos:
 
 | Arquivo | Para que serve |
 |---|---|
-| `simut_v2.9.0_release.uf2` | Gravar a imagem release pelo USB |
-| `simut_v2.9.0_alpha.uf2` | Gravar a imagem alpha pelo USB |
-| `simut_v2.9.0_air.uf2` | Gravar a imagem do Air pelo USB |
-| `simut_v2.9.0_release.bin` | Atualizar a release pela página **Arquivos** ([capítulo 17](#cap-17-ota)) |
-| `simut_v2.9.0_alpha.bin` | Atualizar a alpha pela página **Arquivos** |
-| `simut_v2.9.0_air.bin` | Atualizar o Air pela página **Arquivos** |
+| `simut_v2.11.1_release.uf2` | Gravar a imagem release pelo USB |
+| `simut_v2.11.1_alpha.uf2` | Gravar a imagem alpha pelo USB |
+| `simut_v2.11.1_air.uf2` | Gravar a imagem do Air pelo USB |
+| `simut_v2.11.1_releasetwo.uf2` | Gravar a release do Pico 2 W pelo USB, com a tabela de partições |
+| `simut_v2.11.1_release.bin` | Atualizar a release pela página **Arquivos** ([capítulo 17](#cap-17-ota)) |
+| `simut_v2.11.1_alpha.bin` | Atualizar a alpha pela página **Arquivos** |
+| `simut_v2.11.1_air.bin` | Atualizar o Air pela página **Arquivos** |
+| `simut_v2.11.1_releasetwo.bin` | Atualizar a release do Pico 2 W pela página **Arquivos**; a imagem nova sobe em teste ([capítulo 26](#cap-26-ota)) |
 | `language_pt-BR.lng` | Pacote de idioma português do Brasil |
 | `language_es-ES.lng` | Pacote de idioma espanhol |
 | `manifest.json` | Tamanho, soma SHA-256 e tipo de cada imagem, para um gestor de frota ([capítulo 27](#cap-27-manifest)) |
 | `SHA256SUMS` | A soma SHA-256 de cada arquivo acima, para conferir um download com `sha256sum -c SHA256SUMS` |
 
+As imagens do Pico 2 W (RP2350), com `releasetwo` no nome, são publicadas desde a v2.11.0.
+
 Desde a v2.9.0, cada arquivo publicado também tem um atestado de procedência, que liga o arquivo à execução do CI que o gerou e ao commit de onde veio; quem tem o `gh` confere um download com `gh attestation verify <arquivo> --repo angeloINTJ/simut`. Os `.bin` e os `.uf2` vêm assinados: a assinatura são os 241 bytes do fim do arquivo ([capítulo 17](#cap-17-ota-assinatura)).
 
-O `.uf2` e o `.bin` de uma mesma imagem têm o mesmo firmware: o `.uf2` é o `.bin` embrulhado no formato que o Pico W aceita pelo USB. Não troque um pelo outro: a página **Arquivos** recusa o `.uf2` ([capítulo 17](#cap-17-ota-conferencias)), e a unidade do BOOTSEL ignora o `.bin`.
+O `.uf2` e o `.bin` de uma mesma imagem têm o mesmo firmware: o `.uf2` é o `.bin` embrulhado no formato que o Pico W aceita pelo USB. No Pico 2 W os dois arquivos diferem, embora o programa seja o mesmo. O `.uf2` traz também a tabela de partições, que um Pico 2 W virgem não tem. O `.bin` traz a marca que faz a imagem nova subir em teste: se ela não se confirmar em cinco minutos, o aparelho volta sozinho para a imagem anterior. Não troque um pelo outro: a página **Arquivos** recusa o `.uf2` ([capítulo 17](#cap-17-ota-conferencias)), e a unidade do BOOTSEL ignora o `.bin`.
 
 Os pacotes de idioma não vão dentro do firmware. Eles ficam no sistema de arquivos do aparelho e entram por outro caminho ([O pacote de idioma](#cap-03-idioma)). Os 11 temas do painel (arquivos `.thm`) não vêm na página da versão: estão na pasta `data/themes` do código-fonte, e são opcionais ([capítulo 11](#cap-11-temas)).
 
-::: {.figura #fig-03-arquivos tipo="diagrama" arquivo="03-arquivos.png" captura="os dez arquivos de uma versão e para onde vai cada um: .uf2 → cabo USB com BOOTSEL (aparelho novo ou recuperação); .bin → página Arquivos, atualização pela rede; language_pt-BR.lng → página Arquivos, pasta /lang; manifest.json → gestor de frota; SHA256SUMS → conferência do download; três colunas coloridas por imagem (release, alpha, air)"}
+::: {.figura #fig-03-arquivos tipo="diagrama" arquivo="03-arquivos.png" captura="os doze arquivos de uma versão e para onde vai cada um: .uf2 → cabo USB com BOOTSEL (aparelho novo ou recuperação); .bin → página Arquivos, atualização pela rede; language_pt-BR.lng → página Arquivos, pasta /lang; manifest.json → gestor de frota; SHA256SUMS → conferência do download; quatro colunas coloridas por imagem (release, alpha, air, releasetwo)"}
 Os arquivos de uma versão e o caminho de cada um até o aparelho.
 :::
 
@@ -78,7 +82,7 @@ O `picotool` é a ferramenta de linha de comando do Raspberry Pi para o RP2040. 
 
 ```bash
 picotool info
-picotool load -x simut_v2.9.0_release.uf2
+picotool load -x simut_v2.11.1_release.uf2
 ```
 
 O `picotool info` confirma que a placa está no modo BOOTSEL. O `load -x` grava e reinicia a placa no fim.
@@ -129,10 +133,10 @@ A pasta `data/` leva os dois pacotes de idioma e os 11 temas. Depois de um `uplo
 
 O [configurador de build](https://angelointj.github.io/simut/configurador/) monta uma imagem com outro conjunto de recursos, pelo navegador. Ele tem português e inglês, tema claro e escuro, e pode ser instalado como aplicativo.
 
-1. Em **Produto**, escolha SIMUT (a imagem release), SIMUT Alpha ou SIMUT Air.
+1. Em **Produto**, escolha SIMUT (a imagem release), SIMUT Alpha, SIMUT Air ou SIMUT para o Pico 2 W.
 2. Em **Recursos**, ligue ou desligue o que a imagem leva. Cada recurso mostra quanto a imagem daquele produto cresce ou encolhe, medido compilando. Uma combinação que o firmware não compila aparece **Bloqueada**, com o motivo.
-3. Em **Resultado**, a página soma as mudanças e diz se a imagem **Cabe**, está **No limite** ou **Não cabe**, no espaço do programa e no teto da atualização pela rede.
-4. Toque em **Compilar esta build**. A integração contínua do projeto compila a imagem e entrega o `.uf2`, para o USB, e o `.bin`, para a página **Arquivos** ([capítulo 17](#cap-17-ota)).
+3. Em **Resultado**, a página soma as mudanças e diz se a imagem **Cabe**, está **No limite** ou **Não cabe**, no espaço do programa e no teto da atualização pela rede. No Pico 2 W os dois tetos são o slot de 1.568.768 B.
+4. Toque em **Compilar esta build**. A integração contínua do projeto compila a imagem e entrega o `.uf2`, para o USB, e o `.bin`, para a página **Arquivos** ([capítulo 17](#cap-17-ota)). No Pico 2 W são as duas imagens que a release publica para ele: o `.uf2` de fábrica, com a tabela de partições, e o `.bin`, uma atualização que vai para o outro slot e roda em teste.
 
 **Compilar esta build** exige um token do GitHub com acesso de escrita ao repositório. Sem ele, **Pedir esta build** abre um pedido no GitHub com a configuração preenchida.
 
@@ -187,7 +191,7 @@ PLATFORMIO_BUILD_FLAGS="-DSIMUT_TFT_SPI_HZ=31250000u" pio run -e pico_w_release
 
 As versões anteriores à 1.6.2-beta tinham um defeito na atualização pela rede: diziam que tinham aplicado a imagem sem aplicá-la. Por isso, a primeira atualização de um aparelho desses é pelo USB.
 
-Um aparelho na versão 1.x perde duas coisas no primeiro boot da 2.9.0:
+Um aparelho na versão 1.x perde duas coisas no primeiro boot da 2.11.1:
 
 - **A configuração.** O firmware não lê configurações das versões 1.x. O aparelho começa com a configuração de fábrica e uma senha nova para o `admin`, mostrada no console USB ([capítulo 4](#cap-04-senha)). Anote a rede, as contas e os sensores antes de atualizar.
 - **O histórico no formato antigo.** Os arquivos `.sim4` da pasta `/history` são apagados no primeiro boot. Baixe-os antes de atualizar e converta-os no computador, com a ferramenta `tools/history_v5.py` do código-fonte:
@@ -199,7 +203,7 @@ python3 tools/history_v5.py --convert-v4 AAAAMMDD.sim4 AAAAMMDD.h5
 Um aparelho na versão 2.x mantém a configuração: o firmware novo a converte no boot.
 
 ::: atencao
-**A conversão só vai para a frente.** A v2.8.0 passou a gravar a configuração num formato novo, que as versões anteriores não leem; a v2.9.0 usa o mesmo. Uma versão anterior à v2.8.0 gravada depois dela, pelo USB, pode voltar com a configuração de fábrica; pela página **Arquivos**, desde a v2.9.0, só entra imagem assinada, e nenhuma versão anterior é. Para voltar a uma versão anterior à v2.8.0 sem perder a configuração, grave-a e restaure o backup feito antes de atualizar para a v2.8.0, como o `simut_pre-ota_<número>.bkp` que a página **Arquivos** baixa ([capítulo 17](#cap-17-restauracao)). O que mudou no aparelho depois desse backup se perde.
+**A conversão só vai para a frente.** A v2.8.0 passou a gravar a configuração num formato novo, que as versões anteriores não leem; a v2.9.0, a v2.10.0, a v2.11.0 e a v2.11.1 usam o mesmo. Uma versão anterior à v2.8.0 gravada depois dela, pelo USB, pode voltar com a configuração de fábrica; pela página **Arquivos**, desde a v2.9.0, só entra imagem assinada, e nenhuma versão anterior é. Para voltar a uma versão anterior à v2.8.0 sem perder a configuração, grave-a e restaure o backup feito antes de atualizar para a v2.8.0, como o `simut_pre-ota_<número>.bkp` que a página **Arquivos** baixa ([capítulo 17](#cap-17-restauracao)). O que mudou no aparelho depois desse backup se perde.
 :::
 
 ## Depois de gravar {#cap-03-depois}

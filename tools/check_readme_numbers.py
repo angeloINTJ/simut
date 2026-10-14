@@ -25,7 +25,10 @@ longer matches the code as a defect.
 WHAT IT CHECKS, in README.md, README.pt-BR.md and README.es-ES.md
 ----------------------------------------------------------------
   1. the total of host test cases and the number of suites, against the
-     RUN_TEST( ) lines of each native environment's suite in platformio.ini;
+     RUN_TEST( ) lines of each native environment's suite in platformio.ini,
+     in every .cpp of its folder (test_ota_sig keeps the slot writer's cases
+     in test_slot.cpp since 2026-10-03, and counting test_main.cpp alone
+     left them out);
   2. the "Host tests" block: every native environment listed once, each with
      its own count;
   3. the release image's share of the program slot, against "measured" and
@@ -92,8 +95,8 @@ def native_suites():
         filt = cfg[sec].get("test_filter", "").strip()
         if not filt:
             continue
-        src = ROOT / "test" / filt / "test_main.cpp"
-        out[env] = len(RUN_TEST.findall(src.read_text(encoding="utf-8")))
+        out[env] = sum(len(RUN_TEST.findall(src.read_text(encoding="utf-8")))
+                       for src in sorted((ROOT / "test" / filt).glob("*.cpp")))
     return out
 
 

@@ -4,6 +4,780 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.11.1 (2026-10-12)
+
+**Quatro defeitos de severidade alta da revisão do manual estão consertados: a
+troca obrigatória de PIN do painel podia ser pulada, o editor de contas do
+painel concedia permissões que a conta identificada não tinha, "Adotar a sonda"
+lia o GPIO errado, e o AP de configuração do gesto no boot durava conforme o
+lixo da memória. Uma política de PIN mais exigente não tranca mais do painel
+quem tem PIN mais curto, e a página Arquivos diz o motivo de uma recusa com
+código 6.**
+
+O `CONFIG_VERSION` continua 26, e o nível de segurança continua 1: a v2.11.0 lê
+a configuração, e a atualização vai pelo ar nos dois sentidos. Os quatro achados
+são o 1, o 8, o 9 e o 25 do `docs/analysis/PLANO_REVISAO_EXTERNA.md`; restam 52,
+e dois dos altos pedem código (o 20 e o 65).
+
+### As contas no painel (#255, #256)
+
+- **A troca obrigatória de PIN não pode mais ser pulada.** Uma conta que precisa
+  trocar o PIN (uma política mais exigente, ou o `1234` de fábrica do admin) vai
+  para Novo PIN assim que se identifica. O **SAIR** dali abria o menu de
+  Configurações com o PIN de antes. Agora ele volta à tela inicial, e
+  Configurações pede a conta de novo.
+- **O painel só concede o que a conta identificada tem.** Uma conta com Usuários
+  dava Limites, Bloqueio e Manutenção a qualquer conta, nova ou a dela mesma.
+  Agora ela só acrescenta permissões que tem, como a web desde o V-09; tirar uma
+  continua permitido. A recusa diz **Sem permissão** e o log registra o código
+  458.
+- **Um mínimo de PIN mais exigente não tranca mais do painel quem tem PIN mais
+  curto.** O teclado recusava um PIN mais curto que o mínimo novo antes de
+  conferi-lo, e a troca que a política pedia nunca chegava. A identificação
+  confere agora qualquer PIN a partir de 4 caracteres, e um certo mais curto que
+  a política vai direto para Novo PIN, marcado ou não. Isso cobre também um PIN
+  que a web definiu abaixo da política e uma política mais exigente só testada
+  com `_nosave=1`, que não marca ninguém. Uma tentativa errada com 4 caracteres
+  ou mais conta como falha.
+- **"PIN muito curto" diz o mínimo da política.** Dizia 4 com qualquer política.
+  Os pacotes levam o número como um marcador `{n}`, e a compilação confere.
+
+### Sensores (#255)
+
+- **"Adotar a sonda ligada aqui" lê o GPIO do próprio slot, e o sensor lê na
+  hora.** A adoção lia o GPIO de mesmo número que o slot, gravava esse número
+  como pino do slot e salvava a ROM nova sem recarregar o sensor em
+  funcionamento, que seguia em quarentena. Agora ela lê e mantém o GPIO do slot
+  e recarrega os sensores. Um slot que não está gravado como DS18B20 ativo
+  responde 409, e a página pede para salvá-lo antes. A checagem de saúde de 3 s
+  tinha o mesmo erro, e também lê o GPIO do slot.
+
+### O AP de configuração (#255)
+
+- **O AP que o gesto no boot abre segue o prazo de 15 minutos.** O prazo pede a
+  rede configurada pelo nome, e nesse boot nada o tinha gravado: o que a memória
+  tivesse decidia. Com rede, o AP cede a ela depois de 15 minutos; sem rede,
+  fica aberto.
+
+### Atualização (#255)
+
+- **A página Arquivos diz o motivo de uma recusa com código 6.** Um Pico W
+  recusa o `.bin` do Pico 2 W com `v=6`. A página agora diz que a imagem é de
+  outro chip, ou está danificada, e qual `.bin` cada placa usa.
+
+### Por dentro
+
+- **Testes no host:** 639 casos em 9 suítes, eram 632.
+- **A conferência dos pacotes de idioma** recusa uma linha do painel cujo
+  marcador `{n}` não bate com o do firmware.
+
+### Flash
+
+Contra a v2.11.0 publicada, `.bin` assinado (a imagem mais a assinatura de 241
+bytes):
+- release 1.032.933 → 1.033.357 B (+424);
+- alpha 990.621 → 990.621 B;
+- Air 1.031.485 → 1.031.485 B;
+- Pico 2 W 997.001 → 997.417 B (+416).
+
+Folga sob o teto de 1.040.384 B da atualização pelo ar: release 7.027, alpha
+49.763, Air 8.899. O slot do Pico 2 W tem 1.568.768 B. Nem a alpha nem o Air têm
+painel, e nenhum dos dois passou da sua página de 4 KiB.
+
+### A bancada
+
+O portão de release (`AGENTS.md` §2) rodou na candidata que o CI assinou no
+`main` (execução 37259233322). As imagens publicadas trazem os mesmos bytes de
+imagem; a assinatura é delas, porque cada execução de assinatura faz uma nova.
+
+**No Pico 2 W,** a placa da bancada (um RP2350 A2), a partir da v2.11.0
+publicada no slot B, que confia só na raiz de release:
+- **A atualização, pelo ar:** envio 200 em 16,7 s, a placa de volta 39,3 s
+  depois, do slot A e em teste, e confirmada 50,4 s depois disso. Os 555 valores
+  de configuração que a API web informa, iguais.
+- **Recusadas,** com a placa rodando no slot dela: a candidata com um byte
+  trocado (9) e uma imagem assinada pela chave de bancada (12).
+- **A candidata sobre ela mesma,** do slot A para o B: envio em 16,7 s, de volta
+  24,9 s depois, confirmada 60,4 s depois disso, a configuração igual.
+- **O `.uf2` de fábrica,** arrastado pelo mantenedor para a unidade do BOOTSEL
+  da placa: ela subiu na 2.11.1 do slot A, fora de teste, com a configuração
+  dela. Na confirmação da atualização sobre ela mesma a ROM apaga o primeiro
+  setor do slot A, então a placa só subiria do A se o arrasto o tivesse gravado.
+- **Uma semana depois, de volta à bancada** (12/10/2026), ainda na 2.11.1 do
+  slot A: 30 minutos sem reinício, os cinco sensores válidos em todas as
+  amostras. Quatro das 119 leituras perderam o enquadramento chunked (#189, em
+  *Conhecido*). A sonda do GP0 tinha sido trocada enquanto a placa estava fora,
+  e o slot dela ficou em quarentena até o *Adotar a sonda ligada aqui* ligá-lo à
+  nova, que leu 0,1 s depois. Desta vez o fio do RESET da PicoHand ficou no pino
+  RUN, contra o `AGENTS.md` §1, e nenhum reinício veio. A suíte web na
+  candidata, como o admin dela: 67 aprovados, 0 falhas.
+
+**No Pico W,** a placa da bancada com o painel de toque e cinco sensores, a
+partir da v2.11.0 publicada com a configuração da bancada, uma conta de
+administrador descartável e a web na porta 8080. Esse começo é o do próprio
+portão da v2.11.0, gravado pelo USB e relido, depois atualizado pelo ar para a
+v2.11.0 com o `.bkp` de volta. A flash da placa foi copiada antes, em duas
+leituras iguais, e regravada no fim.
+- **A atualização a partir da v2.11.0,** completa, pelo ar: envio 200 (`v` 0)
+  em 35,6 s, a placa de volta 50,0 s depois da aplicação, `2.11.1`, os cinco
+  sensores lendo, os 567 valores de configuração que a API web informa iguais, o
+  arquivo de configuração idêntico byte a byte, e o `.bkp` de volta com 71 de 75
+  arquivos idênticos. Os outros quatro são o log, o arquivo anterior dele e dois
+  do histórico, que mudam enquanto o aparelho roda. O mesmo no alpha e no Air
+  (558 valores, e 71 de 75 arquivos em cada), onde as opções próprias do Air,
+  que uma atualização apaga, voltaram com o `.bkp`.
+- **A candidata sobre ela mesma,** nas três, com a candidata conferindo a
+  assinatura (`v` 0): o mesmo.
+- **De volta à v2.11.0 e de novo para cima,** pelo ar, as duas no nível de
+  segurança 1: aceitas (`v` 0) nos dois sentidos, a configuração igual, e a fila
+  da telemetria refeita em cada boot a partir do cursor que a outra versão
+  gravou.
+- **Recusadas** com 422, com a configuração intacta antes e depois de um
+  reinício: uma imagem sem assinatura (8), a imagem do Air assinada (7), a
+  atualização assinada do Pico 2 W (6, que a página Arquivos agora explica) e a
+  candidata com um byte trocado (9).
+- **Um envio cortado aos 400 kB, seguido de um reinício,** e o mesmo com o
+  sistema de arquivos cheio até os últimos 8 KB e esvaziado entre o corte e o
+  reinício: a configuração intacta.
+- **30 minutos** sem reinício, os cinco sensores válidos em todas as amostras,
+  com o fio do RESET da PicoHand fora do pino RUN, como diz o `AGENTS.md` §1.
+  Com o fio ligado, a placa reiniciou sozinha quatro vezes em seis horas, sem
+  watchdog por trás de nenhuma. Uma delas veio aos 33,8 s de uma atualização a
+  partir do estado em que a placa chegou, na v2.10.0. A placa voltou na v2.10.0
+  com a configuração idêntica byte a byte, e a mesma atualização passou na
+  tentativa seguinte.
+- **A suíte web na candidata,** com uma conta de administrador: 67 aprovados, 0
+  falhas.
+
+### Atualizando
+
+- **A partir da v2.11.0, nas duas placas:** pelo ar, na página Arquivos, com o
+  `.bin` desta release. A configuração vem junto. No Pico 2 W a atualização vai
+  para o outro slot e sobe em teste, como desde a v2.11.0.
+- **De volta à v2.11.0:** pelo ar, com o `.bin` assinado dela (as duas têm o
+  nível de segurança 1; conferido na bancada, no Pico W), ou pelo USB.
+- **A partir de uma versão mais antiga, ou a primeira instalação de um Pico 2
+  W:** como na v2.11.0, abaixo.
+- **Pacotes de idioma:** envie os dois anexados a esta release pela página
+  Arquivos, e reinicie. Com os pacotes da v2.11.0 tudo funciona: dois textos
+  novos da web saem em inglês, e a linha "PIN muito curto" do painel continua
+  dizendo 4.
+- **O simut-rx** ainda não conhece o `releasetwo`, então não oferece atualização
+  a um Pico 2 W.
+
+### Conhecido, e não consertado aqui
+
+- **O configurador de builds não compila para o Pico 2 W.** O `build_custom.py`
+  ainda entrega o `firmware.uf2` e o `firmware.bin` simples, e as estimativas da
+  página são as do Pico W.
+- **Reduzir o alfabeto do PIN ou baixar o teto de tamanho ainda prende um PIN
+  antigo** que use uma letra que saiu dos cartões, ou que passe do teto novo: os
+  cartões não oferecem a letra, e o Core 0 não confere a tempo o PIN longo. A
+  conta precisa de um PIN novo pelo item Usuários do painel, pela web ou pelo
+  console.
+- **Num build com painel, uma falha de hardware do Core 1 não deixa o contador de
+  programa no log**, nos dois chips. O laço principal relança o Core 1 com 10 s
+  sem batimento, antes do pânico que o registraria (medido no #249).
+- **No Pico W, uma gravação da configuração pelo painel durante um envio relança
+  o Core 1 no meio do envio**, pelo código. O envio segue gravando a flash com o
+  Core 1 rodando a partir dela. Não foi visto na bancada. O envio do Pico 2 W
+  não roda essa gravação.
+- **Uma resposta chunked às vezes perde o enquadramento** (#189): de 0,15 a 0,6 %
+  das leituras do `/api/status` num laço apertado. O pedido seguinte dá certo.
+- **Na alpha, as mensagens do log em pt-BR ou es-ES saem vazias**, pelo código: a
+  busca de tradução dela devolve um texto vazio em vez de nenhum.
+- **Linhas acentuadas na tela de boot imprimem `?`**, pelo código: a caixa do
+  boot converte como UTF-8 um texto que já é Latin-1.
+- **A página web não tenta de novo uma instalação recusada com 503** (um toque no
+  painel nos 5 s antes), pelo código.
+- **`configure terminal` não exige `enable`**, embora a tabela de comandos do
+  console diga que exige o modo privilegiado. Não abre nada, mas a tabela e o
+  comportamento discordam.
+- **Com dois sensores de pressão, a linha de medições manda a pressão na chave do
+  primeiro e com o valor do último**, pelo código.
+- **A lista de marcadores da linha de alarmes na página Telemetria para na
+  v22.** O capítulo 22 do manual lista todos.
+- **Adotar uma sonda, ou o `sensor_wipe`, não recomeça o histórico do slot.** Os
+  dois carimbam a época de provisionamento do slot, e nada a lê: o histórico
+  entrega todo registro de um slot sob o id atual dele. Na bancada, depois que o
+  slot 0 adotou outra sonda, as leituras dele de 4 de outubro voltaram sob o id
+  da sonda nova.
+- **Depois de um boot, uma sonda que não é a do slot pode ter a primeira leitura
+  gravada.** O caminho de leitura confere a ROM a cada cinco leituras, a partir
+  da quinta. Na bancada, com outra sonda no GPIO do slot, a leitura de 20 s
+  depois do boot entrou no histórico como a do slot, e a quarentena começou no
+  minuto seguinte.
+
+## v2.11.0 (2026-10-04)
+
+**O Pico 2 W ganha imagens publicadas. A atualização dele vai para o slot de onde
+ele não subiu, sobe em teste e volta sozinha quando não se confirma. Um envio
+longo não cai mais quando uma página do aparelho está aberta, e gravar a
+configuração da alpha não a reinicia mais.**
+
+O `CONFIG_VERSION` continua em 26: o arquivo de configuração é o mesmo, e a
+v2.10.0 o lê. O trabalho do Pico 2 W é a etapa S2 da fase 4 do plano da revisão
+externa (`docs/analysis/PLANO_REVISAO_EXTERNA.md`). Foi desenhado em
+`docs/analysis/OTA_AB_RP2350.md` (#243) e construído nas sete etapas daquele
+documento.
+
+### O Pico 2 W, com dois slots (#243–#246, #248–#251)
+
+O Pico 2 W roda a mesma release do Pico W, compilada para o RP2350 dele, como a
+imagem `releasetwo`. Os 4 MB de flash guardam uma tabela de partições, dois
+slots de programa de 1.532 KB cada, um LittleFS de 1.020 KB e o setor de 4 KB da
+EEPROM do arduino-pico.
+
+- **A atualização vai para o outro slot.** O envio grava o slot de onde a placa
+  não subiu, e guarda na RAM o primeiro setor da imagem até a aplicação. A
+  aplicação confere a assinatura de novo, grava esse setor e reinicia no slot
+  pela ROM de boot. Um corte ou um reset antes da aplicação deixam a placa na
+  imagem dela. O LittleFS não é tocado: sem cópia, sem reconstrução, nada a
+  restaurar.
+- **Ela sobe em teste.** A imagem nova se confirma depois de rodar saudável por
+  um minuto: sistema de arquivos e configuração lidos, a rede no ar como
+  configurada e o Core 1 nunca relançado. Um reset, uma falta de energia ou o
+  watchdog antes disso, ou cinco minutos sem esse minuto, trazem de volta a
+  imagem que ela substituiu. Essa imagem grava o código 613 com a versão
+  recusada, e a informa em `sys.reverted`. O `sys.trial` vale 1 enquanto a nova
+  espera.
+- **As páginas dizem isso** (#251). O painel e a página Arquivos mostram uma
+  nota enquanto a atualização está em teste, e depois da volta. Nesta placa a
+  página Arquivos diz que os arquivos ficam como estão; o aviso do Pico W sobre
+  reformatar não vale para ela.
+- **A autópsia de travamento foi medida no RP2350** (#249). Os registradores de
+  rascunho do watchdog bastam, e saíram dois consertos:
+  - um `setup( )` que trava em teste deixa agora o tempo ligado certo na
+    autópsia;
+  - um teste cujo Core 1 vive sendo relançado não se confirma mais.
+- **A release publica dois arquivos para ele** (#250):
+  - `simut_v2.11.0_releasetwo.bin`, a atualização, marcada para teste;
+  - `simut_v2.11.0_releasetwo.uf2`, uma imagem de fábrica com a tabela de
+    partições, para uma placa cuja flash não tem nada.
+- **Códigos de log novos:** 610 teste começou, 611 confirmada, 612 prazo
+  esgotado, 613 voltou, 614 a ROM de boot recusou confirmar a imagem.
+
+Medido na placa da bancada, um Pico 2 W com um RP2350 de stepping A2. O pull
+request de cada etapa traz os números.
+- O envio de uma imagem de 1 MB leva de 17 a 20 s. A placa responde de 25 a 45 s
+  depois da aplicação, e se confirma de 41 a 51 s depois disso.
+- Uma release do Pico W enviada a ela é recusada como de outro modelo (`v=7`).
+- Cada um destes voltou sozinho para a imagem anterior, no máximo seis minutos
+  depois da aplicação: uma imagem que nunca fica saudável, um `setup( )` que
+  trava, um `loop( )` que trava, e o Core 1 parado ou em falha.
+- Em toda atualização e toda volta na bancada desde a etapa 5, a configuração
+  (CRC `AC385271`) nunca mudou.
+
+### Um envio longo não é mais cortado pela própria placa (#247)
+
+Todo envio ou download que passava de 12 a 15 s caía sempre que uma página da
+interface web estava aberta num navegador. Desde agosto isso era atribuído ao
+roteador e à porta 80, e a documentação mandava usar a porta 8080. A porta nunca
+fez diferença. A pilha de rede da placa tem cinco vagas de conexão. Para admitir
+a consulta seguinte da página aberta, ela matava a conexão mais antiga, que era
+a transferência.
+
+O patch 2l de `tools/arduino_pico_overrides/` impede que uma conexão aceita seja
+despejada. No Pico 2 W da bancada, um envio com uma consulta a cada 3 s,
+reenviada na hora depois de um reset como o navegador faz:
+- antes: reset aos 13,1 s, duas vezes em duas;
+- depois: terminou aos 19,9 s, duas vezes em duas.
+
+As sete imagens levam o patch. Ele não foi conferido num Pico W, que estava fora
+da bancada.
+
+### Gravar a configuração da alpha não a reinicia mais (#242)
+
+O portão da v2.10.0 viu a alpha reiniciar pelo watchdog depois de uma
+atualização recusada, e a lista registrou isso em *Conhecido*. A gravação
+escrevia a flash com o Core 1 desenhando o LCD a partir dela. A chamada da alpha
+que devia parar o Core 1 antes respondia sim sem parar nada, desde o primeiro
+build da alpha. A gravação agora tira o Core 1 da flash, e o laço da alpha
+estaciona quando pedido.
+
+O teste foi de 30 rodadas de um envio cortado e da gravação que vem depois:
+- a v2.10.0 reiniciou pelo watchdog em 6 delas;
+- esta release, em 0;
+- a configuração, 558 valores, voltou intacta depois de cada rodada.
+
+As imagens com tela de toque ganham de 8 a 16 B, e a pausa não faz nada nelas.
+
+### Por dentro
+
+- **O manifesto da release** (`tools/release_manifest.py`) escreve a entrada do
+  Pico 2 W, `releasetwo`, e recusa uma atualização sem a marca de teste.
+  `tools/rp2350/` guarda o layout, as conferências da imagem e o escritor do
+  `.uf2` de fábrica, que todo build compara com a saída do picotool.
+- **A `pico2_w_release` confia só na raiz de release.** Uma imagem de bancada
+  sai do mesmo perfil com `PLATFORMIO_BUILD_FLAGS=-DSIMUT_OTA_TRUST_BENCH=1`.
+- **Testes no host:** 632 casos em 9 suítes, eram 589.
+- **Conferências novas no CI:** o layout da flash do RP2350, a marca de teste, o
+  manifesto da release, as recusas da página Arquivos e a nota do teste.
+
+### Flash
+
+Contra a v2.10.0 publicada, `.bin` assinado (a imagem mais os 241 bytes da
+assinatura):
+- release 1.032.645 → 1.032.933 B (+288);
+- alpha 990.621 → 990.621 B;
+- Air 1.031.485 → 1.031.485 B.
+
+Folga abaixo do teto de 1.040.384 B pelo ar: release 7.451, alpha 49.763, Air
+8.899. A imagem do Pico 2 W tem 997.001 B, assinada, num slot de 1.568.768 B. A
+maior parte do aumento da release são os cinco códigos de log novos (176 B). A
+alpha e o Air crescem em páginas inteiras de 4 KiB, e ficaram dentro das deles.
+
+### A bancada
+
+O portão de release (`AGENTS.md` §2) rodou na candidata que o CI assinou no
+`main` (execução 37213954233). As imagens publicadas trazem os mesmos bytes de
+imagem; a assinatura é delas, porque cada execução de assinatura faz uma nova.
+
+**No Pico 2 W,** a placa da bancada (um RP2350 A2), a partir de um build de
+bancada da v2.10.0 no slot A, que confia nas duas raízes:
+- **A atualização, pelo ar:** envio 200 em 20,8 s, a placa de volta 42,4 s
+  depois, do slot B e em teste, e confirmada 48,6 s depois disso. Os 555 valores
+  de configuração que a API web informa, iguais.
+- **Recusadas,** com a placa rodando no slot dela: a candidata com um byte
+  trocado (9) e uma imagem assinada pela chave de bancada (12), porque a
+  candidata confia só na raiz de release.
+- **O `.uf2` de fábrica,** arrastado pelo mantenedor para a unidade do BOOTSEL
+  da placa, cuja flash já tinha tabela de partições: a placa subiu na 2.11.0 do
+  slot A, fora de teste, com a configuração dela.
+- **A candidata sobre ela mesma,** do slot A para o B: envio em 16,8 s, de volta
+  25,0 s depois, confirmada 65,5 s depois disso, a configuração igual.
+- **30 minutos** sem reinício, os cinco sensores válidos em todas as amostras. A
+  suíte web na candidata, como o admin dela: 67 aprovados, 0 falhas.
+
+**No Pico W,** a placa da bancada com o painel de toque e cinco sensores (dois
+DS18B20, dois DHT22, um BMP280), a partir da v2.10.0 publicada com a
+configuração da bancada, uma conta de administrador descartável e a web na porta
+8080. A flash da placa foi copiada antes, em duas leituras iguais, e regravada
+no fim.
+- **A atualização a partir da v2.10.0,** completa, pelo ar: envio 200 (`v` 0)
+  em 34,2 s, a placa de volta 47,3 s depois da aplicação, `2.11.0`, os cinco
+  sensores lendo, os 567 valores de configuração que a API web informa iguais, o
+  arquivo de configuração idêntico byte a byte, e o `.bkp` de volta com 70 de 74
+  arquivos idênticos. Os outros quatro são o log, o histórico e o cursor da
+  telemetria, que mudam enquanto o aparelho roda. O mesmo no alpha e no Air
+  (558 valores, e 70 de 74 arquivos em cada), onde as opções próprias do Air,
+  que uma atualização apaga, voltaram com o `.bkp`.
+- **A candidata sobre ela mesma,** nas três, com a candidata conferindo a
+  assinatura (`v` 0): o mesmo.
+- **De volta à v2.10.0 e de novo para cima,** pelo ar, as duas no nível de
+  segurança 1: aceitas (`v` 0) nos dois sentidos, a configuração igual, e a fila
+  da telemetria refeita em cada boot a partir do cursor que a outra versão
+  gravou. Nenhuma das duas enviou nos 13 minutos depois do boot, com a fila em 4
+  registros de um lote de 10, e nenhuma falhou um envio.
+- **Recusadas** com 422, com a configuração intacta antes e depois de um
+  reinício: uma imagem sem assinatura (8), a imagem do Air assinada (7), a
+  atualização assinada do Pico 2 W (6, em *Conhecido*) e a candidata com um
+  byte trocado (9).
+- **Um envio cortado aos 400 kB, seguido de um reinício,** e o mesmo com o
+  sistema de arquivos cheio até os últimos 8 KB e esvaziado entre o corte e o
+  reinício: a configuração intacta.
+- **O soak.** Com a fiação do dia, a placa reiniciou sozinha três vezes em duas
+  horas da candidata, cada vez de 4 a 16 minutos depois de um boot, sem nada no
+  log e sem nenhuma linha na serial. Um build de diagnóstico, a candidata com um
+  registro no boot do motivo de reset que o próprio chip guarda, pegou o
+  seguinte como o pino RUN, que na bancada só o fio do RESET da PicoHand
+  alcança. Com esse fio desligado: 60 minutos sem reinício, os cinco sensores
+  válidos em todas as amostras. Trinta minutos da v2.10.0 publicada na mesma
+  fiação não tiveram nenhum. Quatro das 720 leituras da candidata perderam o
+  enquadramento chunked (#189, em *Conhecido*).
+- **A suíte web na candidata,** com uma conta de administrador: 67 aprovados, 0
+  falhas.
+
+### Atualizando
+
+- **Um Pico W, a partir da v2.10.0:** pelo ar, na página Arquivos, com o `.bin`
+  desta release. A configuração vem junto.
+- **De volta à v2.10.0:** pelo ar, com o `.bin` assinado da v2.10.0 (as duas
+  têm o nível de segurança 1; conferido na bancada), ou pelo USB.
+- **Um Pico 2 W instala pelo USB da primeira vez:**
+  - copie o `simut_v2.11.0_releasetwo.uf2` para a unidade que aparece com o
+    BOOTSEL apertado, ou rode `picotool load -x` com ele;
+  - ele grava a tabela de partições e o programa no slot A;
+  - daí em diante, as atualizações vão pelo ar com o `.bin`.
+
+  Uma placa que rodou o SIMUT no layout antigo do Pico 2 W formata o LittleFS
+  nesse primeiro boot, então baixe antes um `.bkp` da página Arquivos. Uma
+  imagem compilada do código antes desta release pode recusar a atualização pelo
+  ar.
+- **Pacotes de idioma:** envie os dois anexados a esta release pela página
+  Arquivos, e reinicie. Com os pacotes da v2.10.0 tudo funciona, e os textos
+  novos saem em inglês.
+- **O simut-rx** ainda não conhece o `releasetwo`, então não oferece atualização
+  a um Pico 2 W.
+
+### Conhecido, e não consertado aqui
+
+- **O configurador de builds não compila para o Pico 2 W.** O `build_custom.py`
+  ainda entrega o `firmware.uf2` e o `firmware.bin` simples, e as estimativas da
+  página são as do Pico W.
+- **Um Pico W recusa o `.bin` do Pico 2 W com `v` 6, e a página Arquivos não
+  diz o motivo do 6.** Os primeiros 256 bytes da imagem não são um estágio de
+  boot do RP2040, e a página diz só que o envio falhou. Como em toda recusa num
+  Pico W, o envio já sobrescreveu o sistema de arquivos a essa altura, e o
+  `.bkp` que a página baixa antes é o caminho de volta. Visto na bancada.
+- **Num build com painel, uma falha de hardware do Core 1 não deixa o contador de
+  programa no log**, nos dois chips. O laço principal relança o Core 1 com 10 s
+  sem batimento, antes do pânico que o registraria (medido no #249).
+- **No Pico W, uma gravação da configuração pelo painel durante um envio relança
+  o Core 1 no meio do envio**, pelo código. O envio segue gravando a flash com o
+  Core 1 rodando a partir dela. Não foi visto na bancada. O envio do Pico 2 W
+  não roda essa gravação.
+- **Uma resposta chunked às vezes perde o enquadramento** (#189): de 0,15 a 0,6 %
+  das leituras do `/api/status` num laço apertado. O pedido seguinte dá certo.
+- **Na alpha, as mensagens do log em pt-BR ou es-ES saem vazias**, pelo código: a
+  busca de tradução dela devolve um texto vazio em vez de nenhum.
+- **Linhas acentuadas na tela de boot imprimem `?`**, pelo código: a caixa do
+  boot converte como UTF-8 um texto que já é Latin-1.
+- **A página web não tenta de novo uma instalação recusada com 503** (um toque no
+  painel nos 5 s antes), pelo código.
+- **`configure terminal` não exige `enable`**, embora a tabela de comandos do
+  console diga que exige o modo privilegiado. Não abre nada, mas a tabela e o
+  comportamento discordam.
+- **Um teste (`_nosave=1`) de uma política de PIN mais estrita** a aplica sem
+  marcar para troca os PINs abaixo dela, pelo código.
+- **Com dois sensores de pressão, a linha de medições manda a pressão na chave do
+  primeiro e com o valor do último**, pelo código.
+- **A lista de marcadores da linha de alarmes na página Telemetria para na
+  v22.** O capítulo 22 do manual lista todos.
+
+## v2.10.0 (2026-10-03)
+
+**A telemetria não perde mais registros quando o relógio volta, e gravar contas
+não reinicia mais o aparelho. O ensaio da página de configuração não muda mais o
+aparelho em funcionamento, uma restauração cortada no meio fica com os arquivos
+que terminou, e um limite de alarme que não é número é recusado em vez de
+virar 0.**
+
+O `CONFIG_VERSION` continua 26: o arquivo de configuração é o mesmo, e a v2.9.0
+o lê. Quase tudo nesta versão responde à revisão externa da v2.7.3
+(`docs/analysis/PLANO_REVISAO_EXTERNA.md`): os itens A-04, A-07, A-08, A-10,
+A-14 e A-15, e nove dos achados de código dela, cinco deles altos. Restam sete
+achados altos.
+
+### A telemetria envia um registro pelo lugar onde ele foi gravado (#232)
+
+Até a v2.9.0, o cursor da telemetria era um carimbo de tempo: um registro saía
+quando era mais novo que o mais novo já enviado. Um bloco gravado depois de
+outro, mas carimbado antes dele, ficava atrás da marca e nunca era enviado,
+enquanto a página dizia que nada estava pendente. É exatamente o que um relógio
+que volta faz: o relógio provisório do boot corrigido pelo NTP, ou um relógio
+acertado à mão. Na bancada, isso perdeu 6 de 75.778 registros em 21/09/2026 e 1
+de 13.671 no esvaziamento de um Air em 23/09/2026. Com o relógio 40 minutos
+adiantado e depois corrigido, o código anterior a esta versão não enviou nenhum
+dos 7 registros gravados depois da correção e mostrou 0 pendentes; esta versão
+enviou os 7.
+
+O cursor agora é uma posição de gravação: para cada arquivo do dia, a posição do
+próximo registro ainda não enviado. O formato do histórico não muda. Quando uma
+posição deixa de ser confiável (registros enviados da RAM e depois perdidos com
+a energia, um selo que falhou, um arquivo do dia apagado ou devolvido por uma
+restauração), o arquivo do dia inteiro vai de novo, registrado como código 554:
+duplicatas, nunca um buraco.
+
+O arquivo do cursor passa de 4 para 148 B. Os 4 primeiros bytes continuam sendo
+o cursor antigo, então a v2.9.0 o lê depois de uma volta de versão. Na bancada,
+nada se perdeu e nada foi enviado duas vezes numa atualização (9 de 9
+registros) nem numa volta de versão (8 de 8). Um aparelho atualizado com o
+cursor antigo à frente do relógio, que o próprio defeito deixa, não enviaria
+nada até o relógio alcançá-lo e depois pularia esses registros. Com o relógio
+confiável, o cursor antigo agora cede, e na bancada todos os 487 registros do
+dia chegaram ao coletor.
+
+Custa a um envio em regime 89 ms em vez de 69, a um lote cheio de esvaziamento
+280–290 ms em vez de 249–271, e cerca de 400 B de heap, tomados uma vez no boot.
+
+### Gravar contas não reinicia mais o aparelho (#230)
+
+Toda gravação das contas reiniciava o aparelho, cerca de 25 s cada. Em
+22/09/2026, três inclusões e três exclusões custaram sete reinícios, e o cliente
+teve de entrar de novo depois de cada um. As contas agora se aplicam na hora.
+**Aplicar agora** aparece para elas e mostra a senha de uso único de cada conta
+nova, que ele descartava. **Testar** fica escondido enquanto há contas
+preparadas, porque uma conta não se testa. O ensaio (`_dry=1`) aceita a seção
+`users`.
+
+### Uma sessão termina com a conta dela (#230)
+
+Uma sessão web guardava a conta como o login a viu, até expirar (15 minutos sem
+uso) ou o aparelho reiniciar. Uma conta excluída no painel ou com `user del`
+mantinha a sessão, e todas as permissões que tinha, por até 15 minutos. Agora
+cada requisição confere a sessão com a conta como ela está:
+
+- uma conta excluída, ou o slot dela agora com outro nome, encerra a sessão;
+- uma senha definida por outra pessoa (o reset de um administrador,
+  `user pass`, uma troca feita em outro navegador) a encerra;
+- fora isso, a sessão age com as permissões que a conta tem agora.
+
+Uma sessão revogada é registrada como código 312. O painel faz a mesma
+conferência a cada ação, pelo nome, porque identifica por PIN.
+
+### Um nome sem conta custa a mesma conferência que uma senha errada (#229)
+
+Um login com um nome que não tem conta era recusado sem as 5.000 rodadas de
+HMAC-SHA256 que uma senha errada custa (cerca de 645 ms). O tempo da resposta
+dizia quais nomes existem, e o `/metrics` com credenciais Basic dizia o mesmo.
+Os dois agora fazem a conferência qualquer que seja o nome. O bloqueio por
+cliente (2 s, dobrando até 300 s) continua limitando quantas vezes alguém pode
+perguntar.
+
+### O ensaio não muda mais o aparelho em funcionamento (#234)
+
+A página de configuração envia um ensaio (`_dry=1`) cerca de 0,6 s depois de
+cada alteração preparada. Esse ensaio ia além da cópia em que promete
+trabalhar:
+
+- preparar o silêncio geral silenciava o aparelho, e silenciar interrompe um
+  alarme que está tocando;
+- preparar um fuso horário o aplicava;
+- o intervalo do histórico, o interruptor do NTP, o syslog, o Home Assistant
+  Discovery, o DNS automático e o secundário e as conexões persistentes eram
+  escritos na configuração em uso, então o ensaio respondia "sem reinício" onde
+  a gravação reinicia;
+- um teste (`_nosave=1`) desses campos respondia 409 com a RAM já mudada;
+- um ensaio ou um teste da política de PIN escrevia a linha de auditoria dela.
+
+Agora nada chega ao aparelho em funcionamento antes da gravação. Esses campos e
+os sons são classificados como exigindo reinício, que é o que a gravação faz: a
+página oferece **Salvar e reiniciar** para eles em vez de **Aplicar agora**, e
+um teste os recusa com 409, sem ter mudado nada.
+
+### Um limite de alarme que não é número não é 0 (#235)
+
+O `/api/commit_all` lia os limites de alarme com um leitor que para no primeiro
+caractere que não sabe usar, então `null`, `"abc"` ou `true` viravam um limite
+de 0, respondido com 200. Em `"temp":5,"hum":[30,70]`, ele também tomava o par
+da umidade como o da temperatura. Agora `null`, que a página envia para o lado
+deixado como estava, mantém o limite gravado. Qualquer outra coisa que não seja
+número é recusada: na seção `alarms` com 400 `Alarm limit is not a number`,
+antes de qualquer parte da gravação ser aplicada, e na seção `slots` como
+`"rejected":["slots.lim"]`.
+
+### Uma restauração que falha no meio fica com os arquivos que terminou (#236)
+
+Uma restauração grava cada arquivo por cima do original enquanto lê o envio,
+porque o sistema de arquivos não tem espaço para a restauração inteira em
+arquivos temporários. Quando uma aplicação falhava no meio, ela apagava todos os
+arquivos que tinha gravado. Uma conexão que caía levava junto a configuração já
+restaurada, e o boot seguinte subia nos padrões de fábrica. Um backup com mais
+de 200 arquivos passava na conferência e depois perdia os 200 primeiros no
+201º.
+
+Uma aplicação que falha agora apaga só o arquivo que deixou incompleto. Cada
+arquivo terminado fica com o conteúdo do backup, e repetir a aplicação completa
+o resto. O limite de 200 arquivos acabou, e os 4.488 B de RAM estática dele
+junto.
+
+Como os arquivos terminados agora ficam, a aplicação só aceita o backup que a
+última conferência aprovou, cujo CRC foi conferido até o fim. Qualquer outra
+aplicação recebe 409 com o status 11 e não grava nada. O `fsm` é 1 quando a
+aplicação chegou a abrir um arquivo, tenha falhado ou não.
+
+### O menu Configurações do painel, na ordem de uso (#227)
+
+As treze linhas estavam na ordem em que foram escritas. Agora cada página de
+quatro é um grupo:
+
+1. o dia a dia: Limites de Alarme, Sons de Alarme, Status do Sistema, Data e
+   hora;
+2. o acesso: Alterar Senha, Usuários, Segurança do PIN, Modo de Configuração;
+3. a tela, ajustada uma vez: Idioma do Sistema, Temas Visuais, Calibrar Touch,
+   Alinhamento da Tela;
+4. Licença.
+
+Data e hora é a linha 4. Modo de Configuração, que abre o ponto de acesso de
+configuração, é a linha 8. A conta de um operador de alarmes vê uma página só.
+
+### Arquivos de texto e as prévias da telemetria, organizados (#237, #239)
+
+- **A página Arquivos tem um visualizador.** Um arquivo de texto ganha um botão
+  de olho que o abre organizado. O JSON aparece indentado, e os objetos e as
+  listas dele se recolhem. Pacotes de idioma, temas e arquivos INI se recolhem
+  por seção, toda linha é numerada, e abrem arquivos de até 64 KiB. **Original**
+  mostra o texto como ele é, porque nada é reescrito. Ele lê pelo `/download`,
+  com a mesma permissão.
+- **As duas Prévias ao Vivo da página Telemetria** usam a mesma vista e são
+  montadas com os dados deste aparelho: o nome, o MAC e o serial, as leituras de
+  agora, os limites de alarme e a conta da sessão, como `"dev":"simuttft"` na
+  unidade da bancada. A linha de medições mostra dois registros, o primeiro com
+  um sensor em falha. A linha de alarmes mostra um registro de cada um dos dez
+  códigos. A página faz um pedido a mais para isso, o `/api/alarms`.
+- **As prévias agora casam com o que o firmware envia.** O CSV de medições tem
+  as 34 colunas dele, e o de alarmes as 8. A chave de um sensor em falha fica de
+  fora do JSON em vez de ir como `null`, e os 16 slots aparecem. A prévia de
+  alarmes monta os marcadores `{MAINT}`, `{LO}`, `{HI}`, `{UNTIL}` e `{USER}` do
+  modelo padrão do aparelho; antes ela os deixava como texto e chamava de
+  inválido um corpo válido.
+
+### Por dentro
+
+- **A `pico_w_test_https` fica isenta do teto da atualização pelo ar** (#233):
+  ela chega à bancada pelo USB, e nenhuma release a publica. O `.bin` de cada
+  imagem agora fica registrado em `tools/flash_budget.json`, e um portão do CI
+  mantém a tabela de folga do `docs/analysis/PLANO_STABLE.md` igual a esse
+  registro.
+- **Documentação** (#228, #238): os READMEs dizem como o SIMUT é desenvolvido.
+  De 01/09/2026 a 02/10/2026, 275 dos 371 commits da `main` levaram a linha
+  `Co-Authored-By: Claude`, em sessões que o mantenedor dirige. Os READMEs
+  ficaram mais curtos: a referência de recursos foi para `docs/FEATURES.md`, com
+  uma tabela das 18 chaves de build, e a bancada para `docs/VERIFICATION.md`. O
+  `SECURITY.md` dá o custo medido de uma conferência de senha.
+- **Testes no host:** 589 casos em 9 suítes, eram 533.
+
+### Flash
+
+Contra a v2.9.0 publicada, `.bin` assinado (a imagem e a assinatura de 241
+bytes): release 1.025.949 → 1.032.645 B (+6.696), alpha 982.429 → 990.621 B
+(+8.192), Air 1.027.389 → 1.031.485 B (+4.096). Folga sob o teto de 1.040.384 B
+da atualização pelo ar: release 7.739, alpha 49.763, Air 8.899. Na release, o
+visualizador (#237, +3.328) e o cursor (#232, +1.888) são quase tudo. O alpha e
+o Air crescem em páginas inteiras de 4 KiB, porque o `.rodata` deles é alinhado
+à página.
+
+### A bancada
+
+As mudanças que rodam no aparelho foram conferidas na placa da bancada (painel
+de toque, dois DS18B20, dois DHT22, um BMP280 no I2C de hardware) contra a
+`main` logo antes delas. A flash da placa foi despejada antes e restaurada byte
+a byte depois, e os números estão em cada pull request. Entre elas:
+
+- **#232:** acima. Depois da última mudança dele, um esvaziamento de 30 dias
+  devolveu os 2.541 registros vistos antes, campo a campo.
+- **#230:** restringir a uma permissão a conta de uma sessão aberta deu 403 no
+  pedido seguinte, e excluir a conta deu 401 (antes: 200 nos dois). Uma conta
+  nova gravada sem reinício: o tempo ligado continuou contando, a resposta
+  trouxe a senha de uso único, e a sessão do administrador continuou viva
+  (antes: um reinício, e o administrador deslogado).
+- **#229:** medianas de seis recusas, `/api/login` com um nome que não existe
+  106 → 755 ms e `/metrics` com Basic 119 → 762 ms; uma senha errada
+  745 → 739 ms.
+- **#234:** um ensaio do silêncio geral não silenciou o aparelho (antes:
+  silenciou). Um ensaio do fuso −5 deixou o −3 em uso (antes: −5 na hora). Um
+  ensaio de uma política de PIN mais frouxa não escreveu linha de auditoria
+  (antes: uma).
+- **#235:** cinco envios que antes punham um limite em 0 o deixaram em 1,9, e
+  sete válidos gravaram o que diziam.
+- **#236:** uma aplicação do backup truncado dentro do quarto dos 73 arquivos
+  dele ficou com os três anteriores, a configuração entre eles (antes: 0 de 3).
+  Uma aplicação cuja conexão fechou no quinto ficou com quatro (antes: 0 de 4).
+  Uma aplicação sem conferência antes recebeu 409 com o status 11 (antes: 200 e
+  um reinício).
+- **#227:** cada uma das 13 linhas abre a tela que nomeia, e uma conta só com as
+  permissões do painel recebe uma página.
+- **#237 e #239:** no Chrome, na unidade da bancada. O #237 rodou o visualizador
+  e as prévias na imagem release. O #239 serviu as prévias do ramo à unidade sem
+  escrever nela: `"dev":"simuttft"`, o MAC da unidade, as leituras dos cinco
+  sensores, e os dez códigos de alarme como um JSON que abre.
+
+O portão de release (`AGENTS.md` §2) rodou na candidata que o CI assinou no
+`main` (execução 37132567925), na mesma placa, a partir da v2.9.0 publicada com
+a configuração da bancada. As imagens publicadas trazem os mesmos bytes de
+imagem; a assinatura é delas, porque cada execução de assinatura faz uma nova.
+
+- **A atualização a partir da v2.9.0,** completa, pelo ar na porta 8080:
+  `2.10.0`, os cinco sensores lendo, todos os valores de configuração que a API
+  web informa iguais (567 na release), o arquivo de configuração idêntico byte a
+  byte, e o `.bkp` de volta com 69 de 74 arquivos idênticos. Os outros cinco
+  são o log, o histórico e o cursor da telemetria, que mudam enquanto o aparelho
+  roda. O mesmo no Air e no alpha (70 de 74 em cada), onde as opções próprias
+  do Air, que uma atualização apaga, voltaram com o `.bkp`.
+- **A candidata sobre ela mesma,** nas três, com a candidata conferindo a
+  assinatura (`v` 0): o mesmo.
+- **De volta à v2.9.0 e de novo para cima,** pelo ar: o `.bin` publicado da
+  v2.9.0 aceito (`v` 0), e a configuração igual nos dois sentidos.
+- **Recusadas,** com a configuração intacta antes e depois de um reinício: uma
+  imagem sem assinatura (8), a imagem do Air assinada (7) e a candidata com um
+  byte trocado (9).
+- **Um envio cortado aos 400 kB, seguido de um reinício,** e o mesmo com o
+  sistema de arquivos cheio até os últimos 8 KB e esvaziado entre o corte e o
+  reinício: a configuração intacta.
+- **30 minutos** sem reinício, os cinco sensores válidos em todas as amostras.
+  Uma das 120 leituras perdeu o enquadramento chunked (#189, em *Conhecido*). A
+  suíte web na imagem de teste: 87 aprovados, 0 falhas.
+- **O LCD do alpha,** um HD44780 posto na bancada no lugar do painel de toque:
+  cada passo de uma atualização (`Atualizando...`, `Conferindo a
+  assinatura...`, `Imagem conferida`, `Instalando...`), as três recusas pelo
+  nome, o envio cortado, e as três páginas do ponto de acesso depois do `ap`.
+  Depois da terceira recusa seguida o alpha reiniciou pelo watchdog, com a
+  configuração intacta (em *Conhecido*).
+
+### Atualizando
+
+- **Da v2.9.0:** pelo ar, na página Arquivos, com o `.bin` desta release. A
+  configuração e o cursor da telemetria passam sozinhos.
+- **Voltar para a v2.9.0:** pelo ar com o `.bin` assinado da v2.9.0 (as duas
+  levam o nível de segurança 1; conferido na bancada), ou pelo USB. A
+  configuração fica, e a v2.9.0 lê o cursor que esta versão grava.
+- **Da v2.8.x ou anterior:** leia antes as notas de *Atualizando* da v2.9.0.
+- **O gerenciador de frota do simut-rx precisa da v1.9.1 ou posterior para
+  restaurar um backup.** A aplicação agora exige antes uma conferência do mesmo
+  backup. Na v1.9.0, **Restaurar e reiniciar** sem **Conferir** antes é recusado
+  com o status 11, e o app diz que a gravação na flash falhou. As páginas do
+  próprio aparelho sempre conferiram antes.
+- **Scripts que usam a API:**
+  - o `POST /api/restore?op=apply` tem de vir depois de um `?op=validate` do
+    mesmo backup, ou recebe 409 com o status 11;
+  - um limite de alarme que não é número é recusado, e `null` mantém o limite
+    gravado em vez de pôr 0;
+  - o `_dry=1` aceita `users`, que não reinicia mais o aparelho;
+  - um teste (`_nosave=1`) dos sons ou dos campos listados no #234 é recusado
+    com 409.
+
+  O `docs/API_POST.md` tem os detalhes.
+- **Menu Configurações:** as notas da v2.9.0 citam Configurações → 12 para o
+  ponto de acesso e Configurações → 13 para a data e a hora. Agora são as linhas
+  8 e 4.
+- **Pacotes de idioma:** suba os dois que acompanham esta release na página
+  Arquivos e reinicie. Com os pacotes da v2.9.0 tudo funciona: o menu tira os
+  números de linha que os rótulos deles trazem, e os textos novos aparecem em
+  inglês.
+
+### Conhecido, e não consertado aqui
+
+- **Uma resposta em partes (chunked) às vezes perde o enquadramento** (#189):
+  0,15 a 0,6 % das leituras de `/api/status` num laço apertado. O pedido seguinte
+  dá certo. Na bancada ela também quebrou um de nove downloads do backup antes
+  de uma atualização; a página então diz que o download falhou e não começa a
+  atualização.
+- **No alpha, gravar a configuração pode reiniciar o aparelho pelo watchdog.** A
+  gravação escreve na flash como se o Core 1 estivesse estacionado, porque no
+  alpha o pedido para estacioná-lo responde sim sem estacionar, e o laço do LCD
+  continua rodando da flash que está sendo escrita. É assim desde a primeira
+  build do alpha, em todas as versões. Na bancada aconteceu uma vez, depois da
+  terceira de três atualizações recusadas seguidas, e a configuração voltou
+  intacta. O conserto vem depois desta release.
+- **No alpha, as mensagens do log em pt-BR ou es-ES saem vazias**, pelo código:
+  as buscas de tradução dele devolvem um texto vazio em vez de nenhum.
+- **Linhas acentuadas da tela de boot mostram `?`**, pelo código: a caixa do boot
+  dobra como UTF-8 um texto que já é Latin-1. As linhas de boot em inglês, que
+  uma atualização deixa, não são afetadas.
+- **A página web não repete uma instalação recusada com 503** (um toque no painel
+  nos 5 s antes), pelo código. O aparelho fica então esperando, com o sistema de
+  arquivos desmontado, até reiniciar, e o reinício descarta a imagem enviada.
+- **`configure terminal` não precisa de `enable`**: ele entra no modo de
+  configuração a partir do modo usuário, embora a tabela de comandos do console
+  diga que ele exige o modo privilegiado. Não abre nada, porque o `enable` não
+  pede senha no console USB e o console Bluetooth autentica a sessão inteira,
+  mas a tabela e o comportamento discordam.
+- **Um teste (`_nosave=1`) de uma política de PIN mais rígida** a aplica sem
+  marcar para troca os PINs abaixo dela, porque esse passo lê a política em uso.
+  Um teste também grava o arquivo da origem CORS. Os dois foram lidos no código;
+  a bancada não aperta a política de PIN dela.
+- **Com dois sensores de pressão, a linha de medições envia a pressão com a
+  chave do primeiro e o valor do último**, pelo código. A Prévia ao Vivo a
+  mostra como o aparelho a envia.
+- **O quadro de tags da linha de alarmes, na página Telemetria, para na v22.**
+  Ele deixa de fora `{MAINT}`, `{LO}`, `{HI}`, `{UNTIL}` e `{USER}`, que o
+  aparelho e a prévia tratam, e os códigos `alarm_on` e `alarm_lim`. O capítulo
+  22 do manual lista todos.
+- Não conferido no hardware: a linha de boot depois de uma instalação, que o
+  boot mostra antes de a web poder capturá-la, e o lado do painel da
+  conferência de sessão (#230), que os testes do host fixam.
+
 ## v2.9.0 (2026-10-02)
 
 **As atualizações pelo ar só aceitam imagens assinadas pelo projeto, e o painel

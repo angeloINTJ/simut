@@ -4,6 +4,750 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.11.1 (2026-10-12)
+
+**Four high-severity defects of the manual's review are fixed: the panel's
+forced PIN change could be skipped, its account editor granted bits the
+account at it did not hold, "Adopt the probe" read the wrong GPIO, and the
+setup access point of the boot gesture lived by leftover memory. A stricter
+PIN policy no longer locks shorter PINs out of the panel, and the Files page
+says why a refusal has code 6.**
+
+`CONFIG_VERSION` stays at 26 and the security version at 1: v2.11.0 reads the
+configuration, and an update goes over the air both ways. The four findings are
+1, 8, 9 and 25 of `docs/analysis/PLANO_REVISAO_EXTERNA.md`; 52 remain, of which
+two high ones need code (20 and 65).
+
+### The panel's accounts (#255, #256)
+
+- **The forced PIN change can no longer be skipped.** An account whose PIN must
+  change (a stricter policy, or the admin's factory `1234`) is sent to Novo PIN
+  once it identifies. SAIR there opened the Settings menu with the PIN
+  unchanged. It leaves to the dashboard now, and Settings asks for the account
+  again.
+- **The panel grants only what the account at it holds.** An account with Users
+  gave Limits, Block and Maintenance to any account, a new one or its own. It
+  adds only bits it holds now, as the web has since V-09; taking one away is
+  still allowed. A refusal says "Sem permissão" and logs code 458.
+- **A stricter PIN minimum no longer locks shorter PINs out of the panel.** The
+  keypad refused a PIN shorter than the new minimum before checking it, so the
+  change the policy asked for could not be reached. Identification checks any
+  PIN from 4 characters now, and a right one shorter than the policy goes
+  straight to Novo PIN, marked or not. That also covers a PIN the web set below
+  the policy, and a stricter policy only tried with `_nosave=1`, which marks no
+  one. A wrong entry of 4 characters or more counts as a failed attempt.
+- **"PIN too short" says the policy's minimum.** It said 4 under any policy. The
+  packs carry the number as a `{n}` marker, and the build checks it.
+
+### Sensors (#255)
+
+- **"Adopt the probe wired here" reads the slot's own GPIO, and the sensor reads
+  at once.** It read the GPIO whose number is the slot's, wrote that number as
+  the slot's pin, and saved the new ROM without reloading the running sensor,
+  which stayed in quarantine. Now it reads and keeps the slot's GPIO and reloads
+  the sensors. A slot that is not saved as an active DS18B20 answers 409, and
+  the page says to save it first. The 3 s health check had the same mistake, and
+  reads the slot's GPIO too.
+
+### The setup access point (#255)
+
+- **The access point the boot gesture opens follows the 15-minute limit.** The
+  limit asks for the configured network by its name, and on that boot nothing
+  had written it: whatever the memory held decided. With a network, the access
+  point now gives way to it after 15 minutes; with none, it stays open.
+
+### Updates (#255)
+
+- **The Files page says why a refusal has code 6.** A Pico W refuses the Pico 2
+  W's `.bin` with `v=6`. The page now says the image is for another chip, or
+  damaged, and which `.bin` each board takes.
+
+### Under the hood
+
+- **Host tests:** 639 cases in 9 suites, up from 632.
+- **The language-pack check** refuses a panel line whose `{n}` marker does not
+  match the firmware's.
+
+### Flash
+
+Against the published v2.11.0, signed `.bin` (the image plus its 241-byte
+signature):
+- release 1,032,933 → 1,033,357 B (+424);
+- alpha 990,621 → 990,621 B;
+- Air 1,031,485 → 1,031,485 B;
+- Pico 2 W 997,001 → 997,417 B (+416).
+
+Slack under the 1,040,384 B over-the-air ceiling: release 7,027, alpha 49,763,
+Air 8,899. The Pico 2 W's slot is 1,568,768 B. Neither the alpha nor the Air has
+a panel, and neither grew past its 4 KiB page.
+
+### The bench
+
+The release gate (`AGENTS.md` §2) ran on the candidate the CI signed on `main`
+(run 37259233322). The published images carry the same image bytes; their
+signature is their own, because every signing run makes a new one.
+
+**On the Pico 2 W,** the bench board (an RP2350 A2), from the published v2.11.0
+in slot B, which trusts the release root alone:
+- **The update, over the air:** stage 200 in 16.7 s, the board back 39.3 s
+  later from slot A on trial, and kept 50.4 s after that. All 555 configuration
+  values the web API reports unchanged.
+- **Refused,** the board left running on its slot: the candidate with one byte
+  changed (9), and an image signed by the bench key (12).
+- **The candidate over itself,** from slot A to slot B: stage 16.7 s, back
+  24.9 s later, kept 60.4 s after that, the configuration unchanged.
+- **The factory `.uf2`,** dragged by the maintainer onto the BOOTSEL drive of
+  the board: up on 2.11.1 from slot A, not on trial, with its configuration.
+  At the buy of the update over itself the ROM erases slot A's first sector,
+  so the board could come up from A only if the drag had written it.
+- **A week later, back on the bench** (2026-10-12), still on 2.11.1 from slot A:
+  30 minutes without a restart, the five sensors valid in every sample. Four of
+  the 119 reads lost their chunked framing (#189, under *Known*). The probe on
+  GP0 had been swapped while the board was away, so its slot sat in quarantine
+  until *Adopt the probe wired here* bound it to the new one, which read 0.1 s
+  later. The PicoHand's RESET wire stayed on the RUN pin this time, against
+  `AGENTS.md` §1, and no restart came. The web suite on the candidate, as its
+  admin: 67 passed, 0 failed.
+
+**On the Pico W,** the bench board with the touch display and five sensors, from
+the published v2.11.0 with the bench's configuration, a throwaway admin account
+and the web on port 8080. That start is the v2.11.0 gate's own, written by USB
+and read back, then updated over the air to v2.11.0 with its `.bkp` put back.
+The board's flash was dumped first, two equal reads, and written back at the
+end.
+- **The update from v2.11.0,** complete, over the air: stage 200 (`v` 0) in
+  35.6 s, the board back 50.0 s after the apply, `2.11.1`, the five sensors
+  reading, all 567 configuration values the web API reports unchanged, the
+  configuration file identical byte for byte, and the `.bkp` back with 71 of 75
+  files identical. The other four are the log, its previous file and two of the
+  history's, which move while the device runs. The same on the alpha and the
+  Air (558 values, and 71 of 75 files on each), where the Air's own options,
+  which an update erases, came back with the `.bkp`.
+- **The candidate over itself,** on all three, the candidate checking the
+  signature (`v` 0): the same.
+- **Back to v2.11.0 and up again,** over the air, both at security version 1:
+  accepted (`v` 0) both ways, the configuration unchanged, and the telemetry
+  queue rebuilt at each boot from the cursor the other version wrote.
+- **Refused** with 422, the configuration intact before and after a reset: an
+  unsigned image (8), the Air's signed image (7), the Pico 2 W's signed update
+  (6, which the Files page now explains) and the candidate with one byte changed
+  (9).
+- **An upload cut at 400 kB, then a reset,** and the same with the filesystem
+  filled to its last 8 KB and emptied between the cut and the reset: the
+  configuration intact.
+- **30 minutes** without a restart, the five sensors valid in every sample, with
+  the PicoHand's RESET wire off the RUN pin, as `AGENTS.md` §1 says. With the
+  wire on, the board restarted itself four times in six hours, with no watchdog
+  behind any of them. One of those restarts came 33.8 s into an update from the
+  board's arrival state, on v2.10.0. The board came back on v2.10.0 with its
+  configuration identical byte for byte, and the same update passed on the next
+  try.
+- **The web suite on the candidate,** as an admin account: 67 passed, 0 failed.
+
+### Upgrading
+
+- **From v2.11.0, on either board:** over the air, from the Files page, with
+  this release's `.bin`. The configuration carries over. On the Pico 2 W the
+  update goes to the other slot and boots on trial, as since v2.11.0.
+- **Back to v2.11.0:** over the air with its signed `.bin` (both carry security
+  version 1; checked on the bench, on the Pico W), or over USB.
+- **From an older version, or a Pico 2 W's first install:** as for v2.11.0,
+  below.
+- **Language packs:** upload the two attached to this release on the Files page,
+  and reboot. With the v2.11.0 packs everything works: two new web strings read
+  in English, and the panel's "PIN too short" line keeps saying 4.
+- **simut-rx** does not know `releasetwo` yet, so it offers no update to a Pico
+  2 W.
+
+### Known, and not fixed here
+
+- **The build configurator does not build for the Pico 2 W.** `build_custom.py`
+  still hands out the plain `firmware.uf2` and `firmware.bin`, and the page's
+  estimates are the Pico W's.
+- **Narrowing the PIN alphabet or lowering the length ceiling still strands an
+  old PIN** that uses a letter no longer on the cards, or is longer than the new
+  ceiling: the cards cannot offer the one, and Core 0 cannot check the other in
+  time. The account needs a new PIN from the panel's Users, the web or the
+  console.
+- **On a build with a panel, a Core 1 hard fault leaves no program counter in
+  the log**, on both chips. The main loop restarts Core 1 after 10 s without its
+  heartbeat, before the soft panic that would record it (measured in #249).
+- **On the Pico W, a configuration save from the panel during an upload restarts
+  Core 1 in the middle of the stage**, by the code. The stage then writes the
+  flash with Core 1 running from it. It has not been seen on the bench. The Pico
+  2 W's stage does not run that save.
+- **A chunked reply occasionally loses its framing** (#189): 0.15 to 0.6 % of
+  `/api/status` reads in a tight loop. The next request succeeds.
+- **On the alpha, the log's messages in pt-BR or es-ES come out empty**, by the
+  code: its translation lookups return an empty string instead of none.
+- **Accented lines on the boot screen print `?`**, by the code: the boot box
+  folds text that is already Latin-1 as if it were UTF-8.
+- **The web page does not retry an install refused with 503** (a touch on the
+  panel in the 5 s before), by the code.
+- **`configure terminal` does not need `enable`**, although the console's
+  command table says it needs privileged mode. It opens nothing, but the table
+  and the behaviour disagree.
+- **With two pressure sensors, the measurement line sends the pressure under the
+  first one's key and with the last one's value**, by the code.
+- **The Telemetry page's token list for the alarm line stops at v22.** Chapter 22
+  of the manual lists them all.
+- **Adopting a probe, or `sensor_wipe`, does not start the slot's history
+  anew.** Both stamp the slot's provisioning epoch, and nothing reads it: the
+  history serves every record of a slot under the slot's current id. On the
+  bench, after slot 0 adopted another probe, its readings of 4 October came back
+  under the new probe's id.
+- **After a boot, a probe that is not the slot's can have its first reading
+  recorded.** The read path checks the ROM on every fifth read, from the fifth
+  on. On the bench, with another probe on the slot's GPIO, the reading of 20 s
+  after the boot went into the history as the slot's, and the quarantine began
+  within the next minute.
+
+## v2.11.0 (2026-10-04)
+
+**The Pico 2 W gets published images. Its update goes into the slot it did not
+boot from, boots on trial, and comes back by itself when it does not keep
+itself. A long upload no longer dies when a page of the device is open, and
+saving the alpha's configuration no longer restarts it.**
+
+`CONFIG_VERSION` stays at 26: the configuration file is the same, and v2.10.0
+reads it. The Pico 2 W work is stage S2 of phase 4 of the outside review's plan
+(`docs/analysis/PLANO_REVISAO_EXTERNA.md`). It was designed in
+`docs/analysis/OTA_AB_RP2350.md` (#243) and built in that document's seven
+steps.
+
+### The Pico 2 W, with two slots (#243–#246, #248–#251)
+
+The Pico 2 W runs the same release as the Pico W, compiled for its RP2350, as
+the image `releasetwo`. Its 4 MB of flash hold a partition table, two program
+slots of 1,532 KB each, a LittleFS of 1,020 KB and arduino-pico's 4 KB EEPROM
+sector.
+
+- **An update goes into the other slot.** The stage writes the slot the board
+  did not boot from, and keeps the image's first sector in RAM until the apply.
+  The apply checks the signature again, writes that sector, and reboots into the
+  slot through the boot ROM. A cut or a reset before the apply leaves the board
+  on its image. LittleFS is not touched: no snapshot, no rebuild, nothing to
+  restore.
+- **It boots on trial.** The new image keeps itself once it has run healthy for
+  a minute: filesystem and configuration read, the network up as configured,
+  and Core 1 never restarted. A reset, a power cut or the watchdog before that,
+  or five minutes without that minute, bring back the image it replaced. That
+  image logs code 613 with the refused version, and reports it in
+  `sys.reverted`. `sys.trial` is 1 while the new one waits.
+- **The pages say so** (#251). The dashboard and the Files page show a note while
+  the update is on trial, and after the way back. On this board the Files page
+  says the files stay where they are; the Pico W's warning about a reformat does
+  not apply to it.
+- **The crash autopsy was measured on the RP2350** (#249). The watchdog's
+  scratch registers suffice, and two fixes came out of it:
+  - a `setup( )` that hangs on trial now leaves the right uptime in the
+    autopsy;
+  - a trial whose Core 1 keeps restarting is no longer kept.
+- **The release publishes two files for it** (#250):
+  - `simut_v2.11.0_releasetwo.bin`, the update, flagged for trial;
+  - `simut_v2.11.0_releasetwo.uf2`, a factory image with the partition table,
+    for a board whose flash holds nothing.
+- **New log codes:** 610 trial started, 611 kept, 612 deadline passed, 613 went
+  back, 614 the boot ROM refused to keep the image.
+
+Measured on the bench board, a Pico 2 W with an RP2350 of stepping A2. Each
+step's pull request has the numbers.
+- The stage of a 1 MB image takes 17 to 20 s. The board answers 25 to 45 s after
+  the apply, and keeps the image 41 to 51 s after that.
+- A Pico W release sent to it is refused as another model (`v=7`).
+- Each of these came back to the previous image by itself, at most six minutes
+  after the apply: an image that is never healthy, a `setup( )` that hangs, a
+  `loop( )` that hangs, and Core 1 stopped or faulting.
+- Through every update and every way back on the bench from step 5 on, the
+  configuration (CRC `AC385271`) never changed.
+
+### A long upload is no longer cut by the board itself (#247)
+
+Every upload or download that outlived 12 to 15 s died whenever a page of the
+web UI was open in a browser. Since August that was blamed on the router and on
+port 80, and the docs sent people to port 8080. The port never mattered. The
+board's network stack has five connection slots. To admit the open page's next
+poll it killed the oldest connection, which was the transfer.
+
+Patch 2l of `tools/arduino_pico_overrides/` keeps an accepted connection from
+being evicted. On the bench Pico 2 W, an upload with a poll every 3 s, re-sent
+at once on a reset as a browser does:
+- before: reset at 13.1 s, twice in two runs;
+- after: finished at 19.9 s, twice in two runs.
+
+All seven images carry the patch. It was not checked on a Pico W, which was off
+the bench.
+
+### Saving the alpha's configuration no longer restarts it (#242)
+
+The v2.10.0 release gate found the alpha restarting through the watchdog after a
+refused update, and listed it under *Known*. The save wrote the flash while
+Core 1 kept drawing the LCD from it. The alpha's call that should stop Core 1
+first answered yes without stopping anything, from the alpha's first build. The
+save now locks Core 1 out, and the alpha's loop parks when asked.
+
+The test was 30 rounds of a cut upload and the save that follows:
+- v2.10.0 reset through the watchdog in 6 of them;
+- this release, in 0;
+- the configuration, 558 values, came back intact after each round.
+
+The touch-display images gain 8 to 16 B, and the pause is a no-op there.
+
+### Under the hood
+
+- **The release manifest** (`tools/release_manifest.py`) writes the Pico 2 W's
+  entry, `releasetwo`, and refuses an update without the trial flag.
+  `tools/rp2350/` holds the layout, the image checks and the writer of the
+  factory `.uf2`, which every build holds to picotool's output.
+- **`pico2_w_release` trusts the release root alone.** A bench image comes from
+  the same profile with `PLATFORMIO_BUILD_FLAGS=-DSIMUT_OTA_TRUST_BENCH=1`.
+- **Host tests:** 632 cases in 9 suites, up from 589.
+- **New CI checks:** the RP2350 flash layout, the trial flag, the release
+  manifest, the Files page's refusals and the trial note.
+
+### Flash
+
+Against the published v2.10.0, signed `.bin` (the image plus its 241-byte
+signature):
+- release 1,032,645 → 1,032,933 B (+288);
+- alpha 990,621 → 990,621 B;
+- Air 1,031,485 → 1,031,485 B.
+
+Slack under the 1,040,384 B over-the-air ceiling: release 7,451, alpha 49,763,
+Air 8,899. The Pico 2 W's image is 997,001 B, signed, in a slot of 1,568,768 B.
+Most of the release's growth is the five new log codes (176 B). The alpha and the
+Air grow in whole 4 KiB pages, and stayed inside theirs.
+
+### The bench
+
+The release gate (`AGENTS.md` §2) ran on the candidate the CI signed on `main`
+(run 37213954233). The published images carry the same image bytes; their
+signature is their own, because every signing run makes a new one.
+
+**On the Pico 2 W,** the bench board (an RP2350 A2), from a bench build of
+v2.10.0 in slot A that trusts both roots:
+- **The update, over the air:** stage 200 in 20.8 s, the board back 42.4 s
+  later from slot B on trial, and kept 48.6 s after that. All 555 configuration
+  values the web API reports unchanged.
+- **Refused,** the board left running on its slot: the candidate with one byte
+  changed (9), and an image signed by the bench key (12), because the candidate
+  trusts the release root alone.
+- **The factory `.uf2`,** dragged by the maintainer onto the BOOTSEL drive of
+  the board, whose flash already held a partition table: the board came up on
+  2.11.0 from slot A, not on trial, with its configuration.
+- **The candidate over itself,** from slot A to slot B: stage 16.8 s, back
+  25.0 s later, kept 65.5 s after that, the configuration unchanged.
+- **30 minutes** without a restart, the five sensors valid in every sample. The
+  web suite on the candidate, as its admin: 67 passed, 0 failed.
+
+**On the Pico W,** the bench board with the touch display and five sensors (two
+DS18B20, two DHT22, a BMP280), from the published v2.10.0 with the bench's
+configuration, a throwaway admin account and the web on port 8080. The board's
+flash was dumped first, two equal reads, and written back at the end.
+- **The update from v2.10.0,** complete, over the air: stage 200 (`v` 0) in
+  34.2 s, the board back 47.3 s after the apply, `2.11.0`, the five sensors
+  reading, all 567 configuration values the web API reports unchanged, the
+  configuration file identical byte for byte, and the `.bkp` back with 70 of 74
+  files identical. The other four are the log, the history and the telemetry
+  cursor, which move while the device runs. The same on the alpha and the Air
+  (558 values, and 70 of 74 files on each), where the Air's own options, which
+  an update erases, came back with the `.bkp`.
+- **The candidate over itself,** on all three, the candidate checking the
+  signature (`v` 0): the same.
+- **Back to v2.10.0 and up again,** over the air, both at security version 1:
+  accepted (`v` 0) both ways, the configuration unchanged, and the telemetry
+  queue rebuilt at each boot from the cursor the other version wrote. Neither
+  version sent within 13 minutes of its boot, the queue holding 4 records of a
+  batch of 10, and neither failed a send.
+- **Refused** with 422, the configuration intact before and after a reset: an
+  unsigned image (8), the Air's signed image (7), the Pico 2 W's signed update
+  (6, under *Known*) and the candidate with one byte changed (9).
+- **An upload cut at 400 kB, then a reset,** and the same with the filesystem
+  filled to its last 8 KB and emptied between the cut and the reset: the
+  configuration intact.
+- **The soak.** On the day's wiring the board restarted itself three times in
+  two hours of the candidate, each 4 to 16 minutes after a boot, with nothing in
+  the log and no line on the serial. A diagnostic build, the candidate plus a
+  boot record of the chip's own reset cause, caught the next one as the RUN pin,
+  which on the bench only the PicoHand's RESET wire reaches. With that wire off:
+  60 minutes without a restart, the five sensors valid in every sample. Thirty
+  minutes of the published v2.10.0 on the same wiring had none. Four of the
+  candidate's 720 reads lost their chunked framing (#189, under *Known*).
+- **The web suite on the candidate,** as an admin account: 67 passed, 0 failed.
+
+### Upgrading
+
+- **A Pico W, from v2.10.0:** over the air, from the Files page, with this
+  release's `.bin`. The configuration carries over.
+- **Back to v2.10.0:** over the air with v2.10.0's signed `.bin` (both carry
+  security version 1; checked on the bench), or over USB.
+- **A Pico 2 W installs over USB the first time:**
+  - copy `simut_v2.11.0_releasetwo.uf2` to the drive that appears with BOOTSEL
+    held, or run `picotool load -x` on it;
+  - it writes the partition table and the program in slot A;
+  - after that, updates go over the air with the `.bin`.
+
+  A board that ran SIMUT on the old Pico 2 W layout formats LittleFS on that
+  first boot, so take a `.bkp` from the Files page before. An image built from
+  source before this release may refuse the update over the air.
+- **Language packs:** upload the two attached to this release on the Files page,
+  and reboot. With the v2.10.0 packs everything works, and the new strings read
+  in English.
+- **simut-rx** does not know `releasetwo` yet, so it offers no update to a Pico
+  2 W.
+
+### Known, and not fixed here
+
+- **The build configurator does not build for the Pico 2 W.** `build_custom.py`
+  still hands out the plain `firmware.uf2` and `firmware.bin`, and the page's
+  estimates are the Pico W's.
+- **A Pico W refuses the Pico 2 W's `.bin` with `v` 6, and the Files page gives
+  no reason for 6.** The image's first 256 bytes are not an RP2040 boot stage,
+  and the page says only that the upload failed. As with every refusal on a Pico
+  W, the upload has overwritten the filesystem by then, and the `.bkp` the page
+  downloads first is the way back. Seen on the bench.
+- **On a build with a panel, a Core 1 hard fault leaves no program counter in
+  the log**, on both chips. The main loop restarts Core 1 after 10 s without its
+  heartbeat, before the soft panic that would record it (measured in #249).
+- **On the Pico W, a configuration save from the panel during an upload restarts
+  Core 1 in the middle of the stage**, by the code. The stage then writes the
+  flash with Core 1 running from it. It has not been seen on the bench. The Pico
+  2 W's stage does not run that save.
+- **A chunked reply occasionally loses its framing** (#189): 0.15 to 0.6 % of
+  `/api/status` reads in a tight loop. The next request succeeds.
+- **On the alpha, the log's messages in pt-BR or es-ES come out empty**, by the
+  code: its translation lookups return an empty string instead of none.
+- **Accented lines on the boot screen print `?`**, by the code: the boot box
+  folds text that is already Latin-1 as if it were UTF-8.
+- **The web page does not retry an install refused with 503** (a touch on the
+  panel in the 5 s before), by the code.
+- **`configure terminal` does not need `enable`**, although the console's
+  command table says it needs privileged mode. It opens nothing, but the table
+  and the behaviour disagree.
+- **A try (`_nosave=1`) of a stricter PIN policy** applies it without marking
+  the PINs below it for a change, by the code.
+- **With two pressure sensors, the measurement line sends the pressure under the
+  first one's key and with the last one's value**, by the code.
+- **The Telemetry page's token list for the alarm line stops at v22.** Chapter 22
+  of the manual lists them all.
+
+## v2.10.0 (2026-10-03)
+
+**Telemetry no longer loses records when the clock goes back, and saving
+accounts no longer restarts the device. The configuration page's dry run no
+longer changes the running device, a restore cut off halfway keeps the files it
+finished, and an alarm limit that is not a number is refused instead of
+becoming 0.**
+
+`CONFIG_VERSION` stays at 26: the configuration file is the same, and v2.9.0
+reads it. Most of this release answers the outside review of v2.7.3
+(`docs/analysis/PLANO_REVISAO_EXTERNA.md`): items A-04, A-07, A-08, A-10, A-14
+and A-15, and nine of its code findings, five of them high. Seven high findings
+remain.
+
+### Telemetry sends a record by where it was written (#232)
+
+Until v2.9.0 the telemetry cursor was one timestamp: a record went out when it
+was newer than the newest one sent. A block written after another but stamped
+before it stayed behind the mark and was never sent, while the page said nothing
+was pending. A clock that goes back does exactly that: the boot's provisional
+clock corrected by NTP, or a clock set by hand. On the bench it lost 6 of 75,778
+records on 2026-09-21 and 1 of 13,671 in an Air's drain on 2026-09-23. With the
+clock 40 minutes ahead and then put back, the code before this release sent none
+of the 7 records written after the change and showed 0 pending; this release
+sent all 7.
+
+The cursor is now a write position: for each day file, the position of the next
+record not yet sent. The history format does not change. When a position can no
+longer be trusted (records sent out of RAM and then lost with the power, a seal
+that failed, a day file deleted or put back by a restore), the whole day file
+goes again, logged as code 554: duplicates, never a gap.
+
+The cursor file grows from 4 to 148 B. Its first 4 bytes are still the old
+cursor, so v2.9.0 reads it after a downgrade. On the bench nothing was lost and
+nothing was sent twice across an update (9 of 9 records) or a downgrade (8 of
+8). A device updated with its old cursor ahead of the clock, which the defect
+itself leaves behind, would have sent nothing until the clock caught up and then
+skipped those records. With a trusted clock the old cursor now gives way, and on
+the bench all 487 records of the day reached the collector.
+
+It costs a send in steady state 89 ms instead of 69, a full batch of a drain
+280–290 ms instead of 249–271, and about 400 B of heap, taken once at boot.
+
+### Saving accounts no longer restarts the device (#230)
+
+Every save of the accounts restarted the device, about 25 s each. On 2026-09-22
+three additions and three deletions cost seven restarts, and the client had to
+log in again after each one. Accounts now apply at once. **Apply now** appears
+for them and shows the one-time password of each new account, which it used to
+drop. **Test** is hidden while accounts are staged, because an account cannot be
+tried out. The dry run (`_dry=1`) accepts the `users` section.
+
+### A session ends with its account (#230)
+
+A web session kept the account as the login saw it, until it expired (15
+minutes idle) or the device restarted. An account deleted at the panel or with
+`user del` kept its session, and every permission it had, for up to 15 minutes.
+Every request now checks the session against the live account:
+
+- a deleted account, or its slot now holding another name, ends the session;
+- a password set by someone else (an admin's reset, `user pass`, a change made
+  from another browser) ends it;
+- otherwise the session acts with the permissions the account holds now.
+
+A revoked session is logged as code 312. The panel runs the same check at each
+action, by name, because it identifies by PIN.
+
+### A name with no account costs the same check as a wrong password (#229)
+
+A login with a name that has no account was refused without the 5,000 rounds of
+HMAC-SHA256 that a wrong password costs (about 645 ms). The time of the answer
+told which names exist, and `/metrics` with Basic credentials told the same.
+Both now run the check whatever the name. The per-client lockout (2 s, doubling
+up to 300 s) still bounds how often anyone can ask.
+
+### The dry run no longer changes the running device (#234)
+
+The configuration page sends a dry run (`_dry=1`) about 0.6 s after every staged
+edit. That dry run reached past the copy it promises to work on:
+
+- staging the global mute muted the device, and muting stops an alarm that is
+  sounding;
+- staging a time zone applied it;
+- the history interval, the NTP switch, syslog, Home Assistant Discovery, the
+  automatic and secondary DNS and the persistent connections were written into
+  the live configuration, so the dry run answered "no restart" where the save
+  restarts;
+- a try (`_nosave=1`) of those fields answered 409 with the RAM already changed;
+- a dry run or a try of the PIN policy wrote its audit line.
+
+Nothing reaches the running device before the save now. Those fields and the
+sounds are classified as needing a restart, which is what the save does: the
+page offers **Save & restart** for them instead of **Apply now**, and a try
+refuses them with 409, having changed nothing.
+
+### An alarm limit that is not a number is not 0 (#235)
+
+`/api/commit_all` read alarm limits with a parser that stops at the first
+character it cannot use, so `null`, `"abc"` or `true` became a bound of 0,
+answered with 200. In `"temp":5,"hum":[30,70]` it also took humidity's pair as
+temperature's. Now `null`, which the page sends for a side left as it was, keeps
+the stored bound. Anything else that is not a number is refused: in the `alarms`
+section with 400 `Alarm limit is not a number`, before any of the commit is
+applied, and in the `slots` section as `"rejected":["slots.lim"]`.
+
+### A restore that fails halfway keeps the files it finished (#236)
+
+A restore writes each file over the original as it reads the upload, because
+the filesystem has no room for a whole restore in temporary files. When an apply
+failed halfway, it deleted every file it had written. A dropped connection took
+the already restored configuration with it, and the next boot came up on factory
+settings. A backup with more than 200 files passed the validate, then lost the
+first 200 at the 201st.
+
+A failed apply now deletes only the file it left incomplete. Every finished file
+keeps the backup's content, and repeating the apply completes the rest. The
+200-file limit is gone, and its 4,488 B of static RAM with it.
+
+Because finished files now stay, the apply takes only the backup the last
+validate passed, whose payload CRC was checked to the end. Any other apply gets
+409 with status 11 and writes nothing. `fsm` is 1 once the apply has opened a
+file, whether it failed or not.
+
+### The panel's Settings menu, in order of use (#227)
+
+The thirteen rows sat in the order they were written. Each page of four is now a
+group:
+
+1. day to day: Alarm Limits, Alarm Sounds, System Status, Date and time;
+2. access: Change Password, Users, PIN security, Configuration Mode;
+3. the screen, set once: System Language, Visual Themes, Touch Calibration,
+   Display Alignment;
+4. License.
+
+Date and time is row 4. Configuration Mode, which opens the setup access point,
+is row 8. An alarm operator's account sees one page.
+
+### Text files and the telemetry previews, organized (#237, #239)
+
+- **The Files page has a viewer.** A text file gets an eye button that opens it
+  organized. JSON is indented, and its objects and arrays fold. Language packs,
+  themes and INI files fold by section, every line is numbered, and files up to
+  64 KiB open. **Original** shows the text as it is, because nothing is
+  rewritten. It reads through `/download`, with the same permission.
+- **The telemetry page's two Live Previews** use the same view and are built
+  from this device: its name, MAC and serial, its readings of now, its alarm
+  limits and the session's account, such as `"dev":"simuttft"` on the bench's
+  unit. The measurement line shows two records, the earlier one with a sensor in
+  failure. The alarm line shows one record of each of its ten codes. The page
+  makes one more request for it, `/api/alarms`.
+- **The previews now match what the firmware sends.** The measurement CSV has
+  its 34 columns and the alarm CSV its 8. A failed sensor's key is left out of
+  the JSON instead of sent as `null`, and all 16 slots appear. The alarm preview
+  builds the `{MAINT}`, `{LO}`, `{HI}`, `{UNTIL}` and `{USER}` tokens of the
+  device's default template; it used to leave them as text and call a valid body
+  invalid.
+
+### Under the hood
+
+- **`pico_w_test_https` is exempt from the over-the-air ceiling** (#233): it
+  reaches the bench over USB, and no release publishes it. Each image's `.bin`
+  is now recorded in `tools/flash_budget.json`, and a CI gate holds the headroom
+  table of `docs/analysis/PLANO_STABLE.md` to that record.
+- **Documentation** (#228, #238): the READMEs say how SIMUT is developed. From
+  2026-09-01 to 2026-10-02, 275 of the 371 commits on `main` carried a
+  `Co-Authored-By: Claude` trailer, in sessions the maintainer directs. The
+  READMEs are shorter: the feature reference moved to `docs/FEATURES.md`, with
+  a table of the 18 build switches, and the bench to `docs/VERIFICATION.md`.
+  `SECURITY.md` gives the measured cost of a password check.
+- **Host tests:** 589 cases in 9 suites, up from 533.
+
+### Flash
+
+Against the published v2.9.0, signed `.bin` (the image plus its 241-byte
+signature): release 1,025,949 → 1,032,645 B (+6,696), alpha 982,429 → 990,621 B
+(+8,192), Air 1,027,389 → 1,031,485 B (+4,096). Slack under the 1,040,384 B
+over-the-air ceiling: release 7,739, alpha 49,763, Air 8,899. On the release,
+the viewer (#237, +3,328) and the cursor (#232, +1,888) are most of it. The
+alpha and the Air grow in whole 4 KiB pages, because their `.rodata` is
+page-aligned.
+
+### The bench
+
+The changes that run on the device were checked on the bench board (touch
+display, two DS18B20, two DHT22, a BMP280 on hardware I2C) against `main` just
+before them. The board's flash was dumped first and restored byte for byte
+after, and the numbers are in each pull request. Among them:
+
+- **#232:** above. After its last change, a drain of 30 days gave back the 2,541
+  records seen before, field by field.
+- **#230:** narrowing an open session's account to one permission gave 403 on
+  the next request, and deleting the account gave 401 (before: 200 on both). A
+  new account saved without a restart: the uptime kept counting, the answer
+  carried its one-time password, and the admin's session lived (before: a
+  restart, and the admin logged out).
+- **#229:** medians of six refusals, `/api/login` with no such name 106 → 755 ms
+  and `/metrics` with Basic 119 → 762 ms; a wrong password 745 → 739 ms.
+- **#234:** a dry run of the mute left the device unmuted (before: muted). A dry
+  run of zone −5 left −3 in use (before: −5 at once). A dry run of a looser PIN
+  policy wrote no audit line (before: one).
+- **#235:** five payloads that set a bound to 0 before left it at 1.9, and seven
+  valid ones wrote what they said.
+- **#236:** an apply of the backup cut short inside the fourth of its 73 files
+  kept the three before it, the configuration among them (before: 0 of 3). An
+  apply whose connection closed inside the fifth kept four (before: 0 of 4). An
+  apply with no validate first got 409 with status 11 (before: 200 and a
+  restart).
+- **#227:** each of the 13 rows opens the screen it names, and an account with
+  only the panel's permissions gets one page.
+- **#237 and #239:** in Chrome, on the bench unit. #237 ran the viewer and the
+  previews on the release image. #239 served its previews from the branch to the
+  unit without writing to it: `"dev":"simuttft"`, the unit's MAC, its five
+  sensors' readings, and the ten alarm codes as JSON that parses.
+
+The release gate (`AGENTS.md` §2) ran on the candidate the CI signed on `main`
+(run 37132567925), on the same board, from the published v2.9.0 with the bench's
+configuration. The published images carry the same image bytes; their signature
+is their own, because every signing run makes a new one.
+
+- **The update from v2.9.0,** complete, over the air on port 8080: `2.10.0`,
+  the five sensors reading, every configuration value the web API reports
+  unchanged (567 on the release), the configuration file identical byte for
+  byte, and the `.bkp` back with 69 of 74 files identical. The other five are
+  the log, the history and the telemetry cursor, which move while the device
+  runs. The same on the Air and the alpha (70 of 74 on each), where the Air's
+  own options, which an update erases, came back with the `.bkp`.
+- **The candidate over itself,** on all three, the candidate checking the
+  signature (`v` 0): the same.
+- **Back to v2.9.0 and up again,** over the air: v2.9.0's published `.bin`
+  accepted (`v` 0), and the configuration unchanged both ways.
+- **Refused,** with the configuration intact before and after a reset: an
+  unsigned image (8), the Air's signed image (7) and the candidate with one
+  byte changed (9).
+- **An upload cut at 400 kB, then a reset,** and the same with the filesystem
+  filled to its last 8 KB and emptied between the cut and the reset: the
+  configuration intact.
+- **30 minutes** without a restart, the five sensors valid in every sample. One
+  of the 120 reads lost its chunked framing (#189, under *Known*). The web suite
+  on the test image: 87 passed, 0 failed.
+- **The alpha's LCD,** an HD44780 put on the bench in place of the touch
+  display: each step of an update (`Atualizando...`, `Conferindo a
+  assinatura...`, `Imagem conferida`, `Instalando...`), the three refusals by
+  name, the cut upload, and the access point's three pages after `ap`. After
+  the third refusal in a row the alpha restarted through the watchdog, with the
+  configuration intact (under *Known*).
+
+### Upgrading
+
+- **From v2.9.0:** over the air, from the Files page, with the `.bin` of this
+  release. The configuration and the telemetry cursor carry over by themselves.
+- **Going back to v2.9.0:** over the air with v2.9.0's signed `.bin` (both
+  carry security version 1; checked on the bench), or over USB. The
+  configuration stays, and v2.9.0 reads the cursor this release writes.
+- **From v2.8.x or older:** read the *Upgrading* notes of v2.9.0 first.
+- **The fleet manager in simut-rx needs v1.9.1 or later to restore a backup.**
+  The apply now needs a validate of the same backup first. In v1.9.0,
+  **Restaurar e reiniciar** without **Conferir** first is refused with status
+  11, and the app reports a flash write failure instead. The device's own pages
+  always validated first.
+- **Scripts that call the API:**
+  - `POST /api/restore?op=apply` has to follow `?op=validate` of the same
+    backup, or it gets 409 with status 11;
+  - an alarm limit that is not a number is refused, and `null` keeps the stored
+    bound instead of setting 0;
+  - `_dry=1` accepts `users`, which no longer restarts the device;
+  - a try (`_nosave=1`) of the sounds or of the fields listed under #234 is
+    refused with 409.
+
+  `docs/API_POST.md` has the details.
+- **Settings menu:** v2.9.0's notes name Settings → 12 for the access point and
+  Settings → 13 for the date and time. They are rows 8 and 4 now.
+- **Language packs:** upload the two attached to this release on the Files page
+  and reboot. With the v2.9.0 packs everything works: the menu drops the row
+  numbers their labels carry, and the new strings read in English.
+
+### Known, and not fixed here
+
+- **A chunked reply occasionally loses its framing** (#189): 0.15 to 0.6 % of
+  `/api/status` reads in a tight loop. The next request succeeds. On the bench
+  it also broke one of nine backup downloads before an update; the page then
+  says the download failed and does not start the update.
+- **On the alpha, saving the configuration can restart the device through the
+  watchdog.** The save writes the flash as if Core 1 were parked, because the
+  alpha's call to park it answers yes without parking it, so the LCD loop keeps
+  running from the flash being written. It has been so since the alpha's first
+  build, in every version. On the bench it happened once, after the third of
+  three refused updates in a row, and the configuration came back intact. The
+  fix follows this release.
+- **On the alpha, the log's messages in pt-BR or es-ES come out empty**, by the
+  code: its translation lookups return an empty string instead of none.
+- **Accented lines on the boot screen print `?`**, by the code: the boot box
+  folds text that is already Latin-1 as if it were UTF-8. English boot lines,
+  which an update leaves, are unaffected.
+- **The web page does not retry an install refused with 503** (a touch on the
+  panel in the 5 s before), by the code. The device then waits with its
+  filesystem unmounted until it restarts, and the restart discards the staged
+  image.
+- **`configure terminal` does not need `enable`**: it enters configuration mode
+  from user mode, although the console's command table says it needs privileged
+  mode. It opens nothing, because `enable` asks for no password on the USB
+  console and the Bluetooth console authenticates the whole session, but the
+  table and the behaviour disagree.
+- **A try (`_nosave=1`) of a stricter PIN policy** applies it without marking
+  the PINs below it for a change, because that step reads the live policy. A try
+  also writes the CORS origin file. Both are read from the code; the bench does
+  not tighten its PIN policy.
+- **With two pressure sensors, the measurement line sends the pressure under the
+  first one's key and with the last one's value**, by the code. The Live Preview
+  shows it the way the device sends it.
+- **The Telemetry page's token list for the alarm line stops at v22.** It leaves
+  out `{MAINT}`, `{LO}`, `{HI}`, `{UNTIL}` and `{USER}`, which the device and
+  the preview handle, and the `alarm_on` and `alarm_lim` codes. Chapter 22 of
+  the manual lists them all.
+- Not checked on hardware: the boot line after an install, which the boot
+  shows before the web can capture it, and the panel's side of the session
+  check (#230), which host tests pin.
+
 ## v2.9.0 (2026-10-02)
 
 **Updates over the air take only images the project signed, and the panel

@@ -26,7 +26,8 @@
 /** The tag itself. Referenced by the staging validator, so the linker keeps it. */
 extern const char SIMUT_ENV_TAG[];
 
-/** "release" | "alpha" | "air" — the variant this image was built for. */
+/** "release" | "alpha" | "air" — the variant this image was built for; on
+ *  the Pico 2 W with "two" after it (simut_config.h). */
 inline const char* simut_env_name( ) { return SIMUT_ENV_NAME; }
 
 /**

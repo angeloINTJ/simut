@@ -99,7 +99,7 @@ void SensorManager::begin( ) {
 
 /**
  * @brief Build runtime sensor list from persistent configuration.
- * Iterates all 16 universal slots (GPIO0–GPIO15). Each active slot
+ * Iterates all MAX_SENSORS universal slots (GPIO0 up). Each active slot
  * becomes a RuntimeSensor with proper type, interval, and GPIO setup.
  *
  * GPIO pins are configured via gpioInitForRole() using driver metadata

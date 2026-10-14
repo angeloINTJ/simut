@@ -13,8 +13,8 @@
 #include "../StorageManager.h"
 
 #include <Arduino.h>
-#include <WiFi.h>
 #include <LittleFS.h>
+#include "../net/NetLink.h"   /* net::stopForFlash( ): the network's stop, whatever the driver */
 #include <hardware/sync.h>
 #include <hardware/regs/addressmap.h> /* WATCHDOG_BASE */
 #include <hardware/regs/watchdog.h>   /* WATCHDOG_SCRATCH5_OFFSET */
@@ -59,7 +59,7 @@ OrchestratorResult ota_apply_pending_update(StorageManager* storage) {
      * enumera mas CLI mudo). Hipótese: deinit deixa o chip CYW43 em
      * estado que requer power cycle pra recuperar, mesmo no boot novo.
      * Investigação continua. */
-    WiFi.end();
+    net::stopForFlash();
 
     /* LittleFS desmontada — staging é acessível via XIP cru. */
     LittleFS.end();
@@ -81,12 +81,12 @@ OrchestratorResult ota_apply_pending_update(StorageManager* storage) {
     /* (5) IRQs globais OFF + jump pra applier SRAM. */
     uint32_t saved_irq = save_and_disable_interrupts();
 
-    /* applier_run NÃO RETORNA em sucesso (reboota). Em 7a sempre reboota.
-     * Em 7b real, retorna false só em erro pré-destrutivo. */
+    /* applier_run NÃO RETORNA: reinicia no sucesso e também nos erros que acha
+     * antes de gravar (meta inválida, tamanho fora do slot; applier.cpp). */
     bool ok = ota_applier_run(&meta);
     (void)ok;
 
-    /* (6) Apenas alcançado se applier retornar (erro). Restaura IRQs e
+    /* (6) Defensivo: só se um applier futuro retornar. Restaura IRQs e
      * Core 1, devolve controle ao caller. App slot ainda íntegra. */
     restore_interrupts(saved_irq);
     if (storage) storage->exitFlashSafeMode();

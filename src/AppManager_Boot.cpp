@@ -9,6 +9,8 @@
  */
 
 #include "AppManager.h"
+#include "simut_config.h"   /* SIMUT_NET_LAN and SIMUT_NET_WIFI are tested below: included here, not left to another header */
+#include "net/NetBoot.h"    /* SIMUT_NET_BOOT_RESET is tested below: included here, not left to another header */
 #include "CommandManager.h"
 #include "DisplayManager.h"
 #include "LogManager.h"
@@ -23,6 +25,7 @@
 #include "ota/config_snapshot.h"
 #include "ota/backup.h"      /* crc32_update — verificação da imagem pós-apply */
 #include "ota/ota_layout.h"
+#include "ota/staging.h"     /* trial_boot: the RP2350's update on trial */
 #include "TelemetryManager.h"
 #include "Themes.h"
 #include "TouchPriority.h"
@@ -212,6 +215,9 @@ void AppManager::setup( ) {
 	 * preserve compatibility with POST_OTA_APPLY_MAGIC diagnostics. */
  {
  alpha30_write_scratch5(0); /* always clear; magic is no longer a gate */
+#if SIMUT_NET_BOOT_RESET
+ /* A capability of the network driver, not its identity: which chip is reset,
+  * and how, is net/NetBoot.h's. */
 #if SIMUT_AIR
  /* Every reboot path this cycle exists for leaves the radio in an unknown
   * state: UF2 flash, OTA apply, watchdog, hand RESET, picotool. A dormant
@@ -223,15 +229,10 @@ void AppManager::setup( ) {
 #endif
  {
  _uart_mark('#'); /* power-cycle entry marker */
- gpio_init(23);
- gpio_set_dir(23, GPIO_OUT);
- gpio_put(23, 0);
- busy_wait_ms(500);
- gpio_set_dir(23, GPIO_IN);
- gpio_disable_pulls(23);
- busy_wait_ms(100);
+ net::bootReset( );
  _uart_mark('*'); /* power-cycle done */
  }
+#endif
  }
  _uart_mark('$'); /* pre Serial.begin */
 
@@ -523,6 +524,15 @@ void AppManager::setup( ) {
  gpio_init(TOUCH_IRQ); gpio_set_dir(TOUCH_IRQ, GPIO_IN); gpio_pull_up(TOUCH_IRQ);
  Serial.print("[TCH] c="); Serial.println(gpio_get(TOUCH_IRQ));
 
+ /* A wired build has no AP to hold the screen for (2026-10-13), and skips the
+  * gesture with its 3.5 s window. The pin setup above stays in every TFT
+  * build, as it was: it is one of the two gpio_pull_up(TOUCH_IRQ) in src/,
+  * and the other, DisplayManager::beginTouch( ), has no caller. The touch
+  * library's begin( ) on Core 1 sets the same pin INPUT, which in arduino-pico
+  * disables its pulls, so whichever of the two runs last decides; leaving
+  * this line where it was keeps that as it was on every image. */
+#if SIMUT_NET_WIFI
+
  /* Ask, then WAIT until the panel has actually drawn the asking.
   * isCore1Ready( ) is set before the TFT is initialised: measured 2026-09-22,
   * Core 1 reports ready at once and its first boot frame lands 757 ms later.
@@ -602,6 +612,7 @@ void AppManager::setup( ) {
  }
 
  _displayMgr->setApProgress(-1);
+#endif /* SIMUT_NET_WIFI */
  AIR_BOOT_MARK("ap-detect ok");
 #endif // SIMUT_DISPLAY_TFT
 
@@ -819,6 +830,13 @@ void AppManager::setup( ) {
  _storageMgr->exitFlashSafeMode( );
  BLOG("[BOOT] OTA config snapshot erased after use"); BLOG_NL( );
  }
+
+#if !OTA_RP2040_MAP
+ /* The RP2350 has no applier and no metadata: what an update has to say at
+  * boot comes from the ROM (docs/analysis/OTA_AB_RP2350.md, step 5) — this
+  * image is on trial, or the ROM just went back from one. */
+ ota::trial_boot(_storageMgr.get( ), fsOk);
+#endif
 
  BLOG("[BOOT step] 7: pos OTA detect @ "); BLOG_U(millis( )); BLOG_NL( );
 
@@ -1066,6 +1084,21 @@ void AppManager::setup( ) {
 #endif // SIMUT_DISPLAY_TFT
  
 
+#if SIMUT_NET_LAN
+ /* The wired network starts BEFORE the sensors. The module's SPI is a PIO
+  * program in the block SIMUT_ENC_PIO names, and a sensor that came first could
+  * take it: a BME280's PIO I2C takes an empty pio0 whole (WirePIO, 32
+  * instructions), and the module would then fail to start on every retry. The
+  * address comes in the background (DHCP); the wait further down is the same.
+  * The boot line is a raw one, translated through @TRL: the dictionary's
+  * TR_BOOT_START_WIFI names the radio, and a new key would cost every pack
+  * already installed its dictionary. */
+ _displayMgr->setBootStatusKey((LangKey)TR_KEYS_COUNT, TRL("Starting the wired network..."));
+ _netMgr->begin(cfg,
+ _storageMgr->isDnsAuto( ),
+ _storageMgr->isNtpEnabled( ),
+ _storageMgr->getSecondaryDns( ));
+#endif
  _displayMgr->setBootStatusKey(TR_BOOT_LOAD_PERIPH);
 
  if (Serial) { Serial.println("[DBG] sensor begin..."); Serial.flush(); }
@@ -1083,7 +1116,7 @@ void AppManager::setup( ) {
  if (Serial) { Serial.println("[DBG] network begin..."); Serial.flush(); }
  /* An unconfigured device does NOT boot into AP mode. It did from 2.7.1
   * (2026-09-22) to 2026-10-01, when the maintainer decided the AP opens only
-  * when a person asks for it — Settings → 12 on the panel, `ap` on the
+  * when a person asks for it — the panel's Configuration Mode, `ap` on the
   * console, the hold gesture above — and that a unit with no network asks for
   * the date and time instead, because with no network there is no NTP and the
   * records it keeps would carry the provisional clock (see the end of setup( )
@@ -1095,7 +1128,7 @@ void AppManager::setup( ) {
  _displayMgr->setBootStatusKey(TR_BOOT_START_AP);
  /* beginAP first: the network line now carries the WPA2 key, and the key
   * does not exist until the AP has been brought up (V-05). */
- _netMgr->beginAP(cfg.deviceName);
+ _netMgr->beginAP(cfg.deviceName, cfg.wifiSsid);
  {
   /* Appended as a suffix rather than added as a new translation key. "PSK" is
    * an acronym and the value is random, so there is nothing here to translate.
@@ -1127,13 +1160,17 @@ void AppManager::setup( ) {
  }
 #endif
  else {
+#if !SIMUT_NET_LAN
  _displayMgr->setBootStatusKey(TR_BOOT_START_WIFI);
+#endif
  BLOG("[BOOT step] 10: pre _netMgr->begin( ) @ "); BLOG_U(millis( )); BLOG_NL( );
  watchdog_update();
+#if !SIMUT_NET_LAN   /* a wired build started it before the sensors */
  _netMgr->begin(cfg,
  _storageMgr->isDnsAuto( ),
  _storageMgr->isNtpEnabled( ),
  _storageMgr->getSecondaryDns( ));
+#endif
  AIR_BOOT_MARK("net ok");
  BLOG("[BOOT step] 11: pos _netMgr->begin( ) @ "); BLOG_U(millis( )); BLOG_NL( );
 
@@ -1149,10 +1186,12 @@ void AppManager::setup( ) {
   * 2.7.1 to 2.8.0 hid it behind the boot AP; with the AP no longer opening by
   * itself (2026-10-01) the wait was back in front of the clock question.
   * TR_BOOT_WIFI_SKIPPED says why the line moved on. */
+#if !SIMUT_NET_LAN   /* the cable needs no SSID */
  if (cfg.wifiSsid[0] == '\0') {
   _displayMgr->setBootStatusKey(TR_BOOT_WIFI_SKIPPED);
   skipped = true;
  }
+#endif
 #if SIMUT_AIR
  if (!_airActive)
 #endif
@@ -1465,7 +1504,7 @@ void AppManager::setup( ) {
   * also says it on the console, which is the only channel the alpha and the
   * Air have for it. Not in an AP boot — the gesture asked for something
   * else — and not on an Air wake, where nobody is there to answer. */
- if (!forceAP && clockEntryAtBoot(cfg.wifiSsid[0] != '\0', _netMgr->isTimeTrusted( ))
+ if (!forceAP && clockEntryAtBoot(SIMUT_NET_LAN || cfg.wifiSsid[0] != '\0', _netMgr->isTimeTrusted( ))
 #if SIMUT_AIR
      && !_airActive
 #endif

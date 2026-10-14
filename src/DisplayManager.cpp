@@ -15,6 +15,7 @@
  */
 
 #include "DisplayManager.h"
+#include "simut_config.h"   /* SIMUT_NET_WIFI is tested below: included here, not left to another header */
 #include "LogManager.h"
 #include "UiWidgets.h"
 #include "FlashIrqProbe.h" /* Core-1 exposure flags for the flash probe */
@@ -112,6 +113,15 @@ DisplayManager::DisplayManager( ) {
 	_sharedState.slotTemp = NAN;
 	_sharedState.slotValid = false;
 	_sharedState.topSlotTemp = NAN; _sharedState.topSlotValid = false;
+	/* The rest of both panels, the AP flag and the alarm mask: this is a heap
+	 * object, and a top panel pinned to a slot no sensor fills drew its name
+	 * from whatever the heap held (the Wire bench, 2026-10-12). */
+	_sharedState.slotHum = NAN; _sharedState.slotPres = NAN; _sharedState.slotType = TYPE_NONE;
+	_sharedState.topSlotHum = NAN; _sharedState.topSlotPres = NAN; _sharedState.topSlotType = TYPE_NONE;
+	_sharedState.topSlotIdx = 0;
+	_sharedState.topSlotName[0] = '\0';
+	_sharedState.apMode = false;
+	_sharedState.alarmSlotMask = 0;
 	_sharedState.selectedSlotIdx = 0;
 	_sharedState.wifiRssi = -100;
 	_sharedState.pendingPkts = 0;   /* heap object: nothing zeroes it but this */
@@ -481,7 +491,7 @@ void DisplayManager::pauseRendering(bool pause) {
 			 * NO shared lock. A lockout landing mid-malloc/mid-log leaves
 			 * that lock frozen-held; any later Core-0 attempt to take it
 			 * inside the flash section blocks forever with the WDT unfed
-			 * (autopsy: C0=[HIST_FLASH] C1=[DISPLAY]). Timeout 200 ms:
+			 * (autopsy: C0=[HIST_FLASH] C1=[DISPLAY]). Timeout CORE1_QUIESCE_MS:
 			 * the fallback is exactly the previous behavior (freeze
 			 * wherever Core 1 happens to be). */
 			if (__atomic_load_n(&_core1Ready, __ATOMIC_ACQUIRE)) {
@@ -1034,7 +1044,7 @@ bool DisplayManager::requestQuietMode(uint32_t /*timeoutMs*/) {
 	 * hard reset. A reset landing inside malloc leaves the allocator
 	 * mutex held forever (Core 0 hangs on its next allocation → WDT);
 	 * inside queue_try_add it leaks a spinlock (both cores hang).
-	 * Timeout 200 ms: the fallback is exactly the previous behavior
+	 * Timeout CORE1_QUIESCE_MS: the fallback is exactly the previous behavior
 	 * (reset wherever Core 1 is), so this can never be worse. */
 	if (__atomic_load_n(&_core1Ready, __ATOMIC_ACQUIRE)) {
 		__atomic_store_n(&_quiescePlease, true, __ATOMIC_RELEASE);
@@ -1303,7 +1313,7 @@ void DisplayManager::loopCore1( ) {
 		 * guaranteed outside malloc/free, the event-queue spinlock and
 		 * any SPI transaction. Core 0 will hard-reset us while we spin
 		 * here; the heartbeat keeps the Core-1 health watchdog quiet
-		 * during the (sub-200 ms) wait. */
+		 * during the wait (at most CORE1_QUIESCE_MS). */
 		if (__atomic_load_n(&_quiescePlease, __ATOMIC_ACQUIRE)) {
 			C1_PHASE(C1P_PARK);
 			__atomic_store_n(&_core1Parked, true, __ATOMIC_RELEASE);
@@ -1665,9 +1675,11 @@ void DisplayManager::loopCore1( ) {
 
 			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawMuteConfirm( ); }
 		}
+#if SIMUT_NET_WIFI
 		else if (_uiMode == MODE_CONFIRM_AP) {
 			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawApConfirm( ); }
 		}
+#endif
 		else if (_uiMode == MODE_SET_CLOCK) {
 			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawClockEntry( ); }
 		}

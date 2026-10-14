@@ -188,6 +188,41 @@ reporting a vulnerability.
     parallel. Transparent migration: v13/v14 configs are read,
     users are marked `hashVersion=0` (legacy), and will be
     auto-upgraded to v1 on the next valid login (F15.2.c).
+- **Why 5000 rounds, and what that leaves exposed.** OWASP (2023) asks
+  for 600,000 iterations of PBKDF2-HMAC-SHA256, and NIST SP 800-63B for
+  at least 10,000; SIMUT runs 5000 rounds of HMAC-SHA256. Every password
+  check runs them in software on Core 0, because the RP2040 has no
+  SHA-256 hardware, and while it runs, the web server, the sensor reads
+  and the alarm checks wait. Measured on the bench on 2026-10-02, with
+  a test build of v2.9.0 (the same derivation and compiler flags as the
+  release) at 133 MHz: one check costs about 645 ms. Three instruments
+  agree, each against a control that differs only in the check. At the
+  console, `user pass` took 646 ms against 5 ms for `user perm` (median
+  of 10 each). A `/metrics` read with HTTP Basic, which checks the
+  password on every read, took 699 ms against 49 ms with a session
+  cookie (median of 20 each, the same 4,112-byte body). A browser login
+  took 740 ms from the POST to the answer (median of 10). 600,000
+  rounds is 120 times the work: about 77 s per login, with the loop
+  stalled for all of it.
+  - What the stored hashes rely on instead: the random 8-byte salt per
+    account (no precomputed table applies, and two accounts with the
+    same password store different hashes); the lockouts (2 s to 300 s per
+    client, and per account at the panel), which make online guessing
+    slow; and keeping the hashes out of reach: `/config` is not served
+    by the file manager, and only a full-admin backup carries it.
+  - What they do not rely on: the pepper. It is the board's serial
+    number, which the device itself shows on the panel's status screen,
+    reports over the API and prints at the USB console, and which is
+    also its USB serial number, read by any computer it is plugged
+    into. It makes one password hash differently on two boards; it is
+    not a secret. Whoever holds the configuration file
+    and that serial number can try passwords offline at the speed of
+    their own hardware, 5000 HMAC rounds per guess. Physical access to
+    the flash is outside the threat model, and a backup file deserves
+    the care of a password list.
+  - The count can rise where there is a SHA-256 engine: the Pico 2 W's
+    RP2350 has one (`docs/analysis/PLANO_REVISAO_EXTERNA.md`, phase 4,
+    S3).
 - **Sensitive flash fields** (WiFi pass, telemetry API key):
   XOR obfuscation with a SHA-256(chipID + domain) keystream before
   writing. **Not strong encryption** — it is defense in depth
@@ -224,6 +259,28 @@ reporting a vulnerability.
 - **Expired nonce** counts as failure (same backoff).
 - **Failure log**: `LOG_WARN SEC SEC_LOGIN_FAIL` with reason (invalid
   nonce, expired nonce, invalid credential).
+- **A session follows its account** (2026-10-02, A-08). Every request
+  checks the session against the live account: deleted, its slot taken by
+  another name, or its password set by someone else (a new salt) ends the
+  session there, with `SEC_SESSION_REVOKED` (312) in the log, and a change
+  of permission bits applies at the next request. The panel checks the same
+  at every action, except the password, which is not its credential. Before
+  this, an account deleted at the panel or the console kept its web session,
+  with all its bits, until it expired (15 min idle); only the restart that
+  followed an account change made through the web cut it — and accounts now
+  apply without one.
+- **A name with no account costs what a wrong password costs**
+  (2026-10-02). The check used to derive only once it had found the
+  account, so on v2.9.0 a name with no account was refused in about
+  106 ms and a wrong password in about 745 ms: the time of the answer
+  told anyone who can reach the login page which names exist, and
+  `/metrics` with Basic told the same (119 ms against 738 ms). The check
+  now derives once whatever the name (`src/PasswordCheck.h`, pinned by
+  six host tests), and on the rig the two refusals take the same time:
+  755 ms against 739 ms at the login, 762 ms against 765 ms at
+  `/metrics` (median of 6 each; a good login, 746 ms, is unchanged). A
+  legacy account (`hashVersion` 0, 2500 rounds) still answers in its own
+  time until its next good login migrates it.
 - **SEC-006/F15.1**: the LRU evict algorithm ignores slots under active
   lockout (`lockoutUntil > now`). Locked slots become "sticky" until the
   penalty expires — prevents an attacker from escaping backoff by cycling
@@ -625,8 +682,10 @@ requires `PERM_SYS_CONFIG`.
 4. **Copy UF2** to the mounted drive. Pico reboots automatically.
 5. **Verify version** after boot via `GET /api/perms` (`version`
    field) or Serial banner: must match the published release.
-6. **Restore config** if step 1 downloaded a `.bkp`: apply it via
-   `POST /api/restore?op=apply` (**`PERM_FULL_ADMIN`**). Direct upload
+6. **Restore config** if step 1 downloaded a `.bkp`: check it with
+   `POST /api/restore?op=validate`, then apply it via
+   `POST /api/restore?op=apply` (**`PERM_FULL_ADMIN`**), which takes only
+   the backup the last validate passed. Direct upload
    to `/config/system.bin` via `/api/upload` is no longer allowed — that
    path was the ACH-02 vulnerability, now closed.
 

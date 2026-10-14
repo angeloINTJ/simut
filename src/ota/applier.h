@@ -8,7 +8,7 @@
  *          executar mesmo enquanto a flash está sendo erased/programmed.
  *
  *          PRECONDIÇÕES (caller orchestrator garante):
- *           - WiFi/CYW43 desligado (`WiFi.end()`).
+ *           - Rede parada (`net::stopForFlash()`: `WiFi.end()` no CYW43).
  *           - LittleFS desmontada (`LittleFS.end()`).
  *           - Core 1 pausado via `multicore_lockout_start_blocking()`.
  *           - IRQs globais desabilitadas (`save_and_disable_interrupts`).

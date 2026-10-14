@@ -245,7 +245,7 @@ Monte o `_payload` de cada aparelho juntando o modelo com os campos dele. Mande 
 7. Guarde o novo `cfg` de `GET /api/status`. Ele passa a ser a referência daquele aparelho.
 
 ::: atencao
-**O ensaio tem pontos cegos.** Ele aceita só as seções `sys`, `net` e `alarms`; não enxerga `h_int`, `ntp_enabled`, `slog_*`, `m_had`, `dns_auto`, `dns2` e `web_ka`; e aplica de verdade o fuso e os sons ([capítulo 26](#cap-26-commit)). [air]{.img} O Air recusa o ensaio: nele, cada gravação é real e reinicia. Teste o modelo primeiro num aparelho de bancada da mesma imagem.
+**O ensaio aceita só as seções `sys`, `net`, `alarms` e `users`** ([capítulo 26](#cap-26-commit)). Até a v2.9.0, ele também não enxergava `h_int`, `ntp_enabled`, `slog_*`, `m_had`, `dns_auto`, `dns2` e `web_ka`, e aplicava de verdade o fuso e os sons. [air]{.img} O Air recusa o ensaio: nele, cada gravação é real e reinicia. Teste o modelo primeiro num aparelho de bancada da mesma imagem.
 :::
 
 ### Um exemplo em Python {#cap-27-exemplo-lote}
@@ -415,9 +415,9 @@ O exemplo mostra só a entrada `release`; as entradas `alpha` e `air` têm a mes
 |---|---|
 | `version` | A versão desta release |
 | `min_from` | A versão mais antiga que consegue receber esta release pela rede |
-| `images.<env>` | A imagem de cada variante, com a mesma chave que `sys.env` do aparelho: `release`, `alpha` ou `air` |
+| `images.<env>` | A imagem de cada variante, com a mesma chave que `sys.env` do aparelho: `release`, `alpha` ou `air`, e, desde a v2.11.0, `releasetwo` (o Pico 2 W) |
 | `file`, `size`, `sha256` | Nome do `.bin`, tamanho em bytes e SHA-256 em hexadecimal |
-| `uf2` | O mesmo firmware em `.uf2`, para gravar pelo cabo com o botão BOOTSEL ([capítulo 3](#cap-03)). Não serve para a atualização pela rede |
+| `uf2` | O mesmo firmware em `.uf2`, para gravar pelo cabo com o botão BOOTSEL ([capítulo 3](#cap-03)). Não serve para a atualização pela rede. No `releasetwo`, é a imagem de fábrica: a tabela de partições e o programa, sem a marca de teste que o `.bin` leva |
 
 Os pacotes de idioma da mesma release, como `language_pt-BR.lng`, vêm nos mesmos ativos.
 
@@ -431,7 +431,7 @@ Para cada aparelho, o gestor confere:
 2. **O arquivo inteiro.** Calcule o SHA-256 do `.bin` baixado e compare com `sha256`. Confira também `size`.
 3. **A etiqueta.** O `.bin` contém o texto `SIMUT-ENV:<env>;v=<versão>;`. Confira que `<env>` é o do aparelho e `<versão>` é a do manifesto.
 4. **A assinatura.** O `.bin` termina com os 8 bytes `SIMUTSIG`. Sem eles, o aparelho recusa a imagem com `"v":8`, depois de o envio já ter sobrescrito o sistema de arquivos.
-5. **A versão de partida.** A versão atual do aparelho precisa ser igual ou mais nova que `min_from`. Firmwares anteriores à 1.6.2 tinham um aplicador que dizia ter atualizado sem instalar nada; eles precisam de uma gravação pelo cabo uma vez.
+5. **A versão de partida.** A versão atual do aparelho precisa ser igual ou mais nova que `min_from`. Firmwares anteriores à 1.6.2 tinham um aplicador que dizia ter atualizado sem instalar nada; eles precisam de uma gravação pelo cabo uma vez. No Pico 2 W, a primeira versão publicada entra pelo cabo: uma imagem compilada antes dela pode recusar a atualização pela rede.
 6. **A conta.** A atualização exige o administrador completo ([O que só o administrador completo faz](#cap-27-admin)).
 
 ```python
@@ -456,7 +456,7 @@ A sequência é a do [capítulo 26](#cap-26-ota), com dois passos a mais no fim:
 2. Envie a imagem com `POST /api/restore?op=stage&commit=1` e confira `"v":0` e `"committed":1`.
 3. Aplique com `POST /api/ota/apply`.
 4. Espere o aparelho voltar e confirme a versão nova em `sys.ver`.
-5. Restaure o backup com `POST /api/restore?op=apply` e espere o reinício.
+5. Confira o backup com `POST /api/restore?op=validate` e restaure-o com `POST /api/restore?op=apply`; espere o reinício. O aparelho só aplica o backup que acabou de conferir ([capítulo 26](#cap-26-ota)).
 6. Envie os pacotes de idioma da release nova para `/lang` e reinicie, para que os textos novos apareçam traduzidos ([capítulo 13](#cap-13-idioma)).
 
 ::: atencao

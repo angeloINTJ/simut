@@ -13,6 +13,7 @@
  */
 
 #include "CommandManager.h"
+#include "simut_config.h"   /* SIMUT_NET_LAN and SIMUT_NET_WIFI are tested below: included here, not left to another header */
 #include "CommandParser.h"
 #include "LogManager.h"
 #include "DisplayManager.h" /* F-LANGPACK Etapa 3: getActiveHelpText */
@@ -485,8 +486,10 @@ void CommandManager::printModeHelp( ) {
                                   : "  write memory          Save config to Flash");
   showIf(CMD_RELOAD,           pt ? "  reload [confirm]      Reiniciar sistema"
                                   : "  reload [confirm]      Reboot system");
+#if SIMUT_NET_WIFI   /* the rows stay in CLI_COMMANDS: a wired build never parses them */
   showIf(CMD_AP,               pt ? "  ap                    Iniciar modo AP (ponto de acesso)"
                                   : "  ap                    Start AP mode (access point)");
+#endif
   showIf(CMD_CLEAR_LOGS,       pt ? "  clear log [confirm]   Apagar logs"
                                   : "  clear log [confirm]   Clear system logs");
   showIf(CMD_DEBUG,            pt ? "  debug <on|off>        Stream logs no console"
@@ -536,8 +539,10 @@ void CommandManager::printModeHelp( ) {
   showIf(CMD_SET_HISTORY_INTERVAL, "  system history_interval <min>");
   showIf(CMD_SET_DS_RES,        "  ds18b20 resolution <9-12>");
   consolePrintln(pt ? "  --- Rede ---" : "  --- Network ---");
+#if SIMUT_NET_WIFI
   showIf(CMD_SET_WIFI_SSID,     "  wifi ssid <nome>");
   showIf(CMD_SET_WIFI_PASS,     "  wifi pass <senha>");
+#endif
   showIf(CMD_IP_CFG,            "  ip <dhcp|static|addr|mask|gateway|dns>");
   showIf(CMD_SET_DNS_CFG,       "  dns <auto|manual> [ip1] [ip2]");
   showIf(CMD_SET_NTP_ENABLED,   "  ntp <on|off>");
@@ -858,9 +863,18 @@ void CommandManager::renderSystemInfo(const SystemConfig &cfg) {
  consolePrintf (pt ? " Precisao DS18: %d-bit\n" : " DS18 Precision: %d-bit\n",
  cfg.ds18Resolution);
  consolePrintln(pt ? " [CONECTIVIDADE]" : " [CONNECTIVITY]");
+#if SIMUT_NET_LAN
+ /* A wired build has no SSID to show; what it was told is how to get its
+  * address. A Wi-Fi backup restored onto it keeps a wifiSsid it never reads. */
+ consolePrintln(pt ? " Rede: cabo" : " Network: cable");
+ consolePrintf (pt ? " Endereco: %s\n" : " Address: %s\n",
+ cfg.useDhcp ? "DHCP" : (cfg.staticIp[0] ? cfg.staticIp
+ : (pt ? "<nao configurado>" : "<not configured>")));
+#else
  consolePrintln(" WiFi SSID:");
  consolePrintf (" %s\n", (strlen(cfg.wifiSsid) > 0 ? cfg.wifiSsid
  : (pt ? "<nao configurado>" : "<not configured>")));
+#endif
  consolePrintf (pt ? " Fuso: GMT%s%d\n" : " Timezone: GMT%s%d\n",
  (cfg.timezoneOffset >= 0 ? "+" : ""), cfg.timezoneOffset);
  consolePrintln(pt ? " Servidor NTP:" : " NTP Server:");
@@ -903,6 +917,14 @@ void CommandManager::renderMetrics( ) {
  (unsigned long)(m.heapLargestMin == 0xFFFFFFFF ? 0 : m.heapLargestMin));
 
  consolePrintln(pt ? " [REDE]" : " [NETWORK]");
+#if SIMUT_NET_LAN
+ /* The wired link counts its reconnects in the same field (see wiredUp( ),
+  * net/NetworkManager_Wired.cpp) and samples no signal level. */
+ consolePrintf (pt ? " Cabo conns: %lu\n" : " Cable conns: %lu\n",
+ (unsigned long)m.wifiReconnects);
+ consolePrintf (pt ? " MQTT conns: %lu\n" : " MQTT conns: %lu\n",
+ (unsigned long)m.mqttReconnects);
+#else
  consolePrintf (pt ? " WiFi conns: %lu\n" : " WiFi conns: %lu\n",
  (unsigned long)m.wifiReconnects);
  consolePrintf (pt ? " MQTT conns: %lu\n" : " MQTT conns: %lu\n",
@@ -914,6 +936,7 @@ void CommandManager::renderMetrics( ) {
  } else {
  consolePrintln(pt ? " RSSI: (nao amostrado)" : " RSSI: (not sampled yet)");
  }
+#endif
 
  consolePrintln(pt ? " [TELEMETRIA]" : " [TELEMETRY]");
  consolePrintf (pt ? " Enviadas: %lu\n" : " Sent OK: %lu\n",

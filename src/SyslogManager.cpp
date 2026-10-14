@@ -8,8 +8,8 @@
 #include "SyslogManager.h"
 #include "Syslog5424.h"
 #include "StorageManager.h"
-#include <WiFi.h>
 #include <string.h>
+#include "net/NetLink.h"   /* net::linkUp( ): whether the network can carry a datagram */
 
 SyslogManager::SyslogManager( ) {
 	mutex_init(&_ringMutex);
@@ -66,7 +66,7 @@ bool SyslogManager::popLine(char* out) {
 }
 
 bool SyslogManager::sendLine(const char* line, size_t len) {
-	if (WiFi.status( ) != WL_CONNECTED) return false;
+	if (!net::linkUp( )) return false;
 	if (!_udpReady) {
 		/* Allocate an ephemeral local socket once. begin() returning 0 means
 		 * no socket was available; retry next pump. */
@@ -81,7 +81,7 @@ bool SyslogManager::sendLine(const char* line, size_t len) {
 
 void SyslogManager::pump( ) {
 	if (!_enabled) return;
-	if (WiFi.status( ) != WL_CONNECTED) return; /* AP mode / offline: hold in ring */
+	if (!net::linkUp( )) return; /* AP mode / offline: hold in ring */
 
 	/* Drain the whole ring per pump: at most SLOTS small datagrams, cheap next
 	 * to one telemetry POST, and it keeps SIEM latency to one loop tick. */
@@ -100,7 +100,7 @@ void SyslogManager::pump( ) {
 
 void SyslogManager::flushBlocking( ) {
 	if (!_enabled) return;
-	if (WiFi.status( ) != WL_CONNECTED) return;
+	if (!net::linkUp( )) return;
 
 	char line[LINE_MAX];
 	int guard = SLOTS * 2; /* bound: enqueue could add from Core 1 during flush */

@@ -91,4 +91,63 @@ bool staging_session_begin_lite(StorageManager* storage);
  */
 bool staging_session_end(StorageManager* storage);
 
+/* Whether this board can take an update over the air. The RP2040 always can;
+ * the RP2350 only when it booted from a slot of a partition table, and then the
+ * staging area above is the other slot (slot_stage.h). */
+#if OTA_RP2040_MAP
+/* constexpr, not inline: the callers' gates then fold before the compiler lays
+ * out their branches, and the RP2040 images stay byte-identical to the ones
+ * built before the RP2350 could install (an inline function moved one block in
+ * the upload callback, +4 B, measured 2026-10-03). */
+constexpr bool staging_install_available() { return true; }
+#else
+bool staging_install_available();
+/* Erases what an upload of @p len bytes will cover, before its body is read
+ * (slot_stage_prepare): the upload is then page programs alone. Core 1 must be
+ * parked, as for every write here. */
+bool staging_prepare(uint32_t len);
+/* The RP2350's stage ends here when the image checked out and commit=1 asked
+ * for it: the image is kept for the apply, its first sector still in RAM, so
+ * a reset before the apply drops it the way a reboot drops a COMMITTED stage
+ * on the RP2040 (slot_stage.h). Any new stage drops it too. */
+bool staging_mark_ready();
+bool staging_ready();
+/* The apply's commit: the slot's first sector goes to flash, last, and only
+ * now can the slot boot. True once it reads back. Core 1 must be parked. */
+bool staging_commit();
+/* The physical offset of the slot the stage wrote. */
+uint32_t staging_slot_offset();
+#endif
+
+/* The first boot of an update, on trial (trial.h; docs/analysis/OTA_AB_RP2350.md,
+ * step 5). The RP2040 has none: its applier writes over the program it runs. */
+#if OTA_RP2040_MAP
+constexpr bool trial_pending() { return false; }
+#else
+/* Whether the boot ROM started this image on trial: it waits for the buy, and
+ * any reset before that boots the image the update replaced. Asks the ROM. */
+bool trial_boot_pending();
+/* At the top of setup( ): on a boot on trial, the watchdog guards setup( ) as
+ * well, fed from a timer until loop( ) arms its own or the trial's deadline
+ * passes. Nothing on any other boot. */
+void trial_guard_begin();
+/* From loop( ), before it arms its own watchdog: the timer stops feeding. */
+void trial_guard_end();
+/* In setup( ), once the log is up, with what the boot found: LittleFS mounted.
+ * On trial, logs it and makes SIMUT's own reboots come back to this image.
+ * Otherwise, an image flagged for trial in the other slot is one the ROM went
+ * back from: logs its version, keeps it for /api/status and erases its first
+ * sector, so that is said once. */
+void trial_boot(StorageManager* storage, bool fsOk);
+/* From loop( ), every pass: buys after a healthy minute, goes back at the
+ * deadline (trial_step). @p loopOk is what loop( ) sees: the network as the
+ * configuration asks for it, and Core 1 not restarted since the last pass. */
+void trial_poll(StorageManager* storage, bool loopOk);
+/* Whether this image still waits for its buy. No stage until then: it would
+ * erase the image the ROM goes back to. */
+bool trial_pending();
+/* The version of the update the ROM went back from at this boot, or "". */
+const char* trial_reverted_version();
+#endif
+
 } /* namespace ota */

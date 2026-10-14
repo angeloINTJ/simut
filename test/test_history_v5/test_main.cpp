@@ -1154,53 +1154,35 @@ void test_seed_from_snapshot_refuses_junk_and_short_reads(void) {
 }
 
 /* ============================================================================
- *  THE PENDING COUNT OVER A SNAPSHOT (h5CountAfter)
+ *  THE OPEN BLOCK FROM ITS SNAPSHOT (h5SnapshotBlock)
  *
  *  The open block spends its whole life in /history/.wip and reaches a day
  *  file only when it seals. On a SIMUT Air, where every wake is a boot and the
  *  radio decision is taken before the snapshot is back in RAM, a counter that
  *  cannot read the .wip reads zero forever — which is exactly what stopped the
- *  wakes from ever sending.
+ *  wakes from ever sending. Which of its records are still to send is a
+ *  question for the telemetry cursor, by position (test_validators); this is
+ *  what the snapshot hands it.
  * ============================================================================ */
 
-void test_count_after_counts_only_what_is_newer(void) {
+void test_snapshot_block_gives_its_first_stamp_and_count(void) {
     const uint32_t t0 = DAY_START + 6u * 3600u;
     uint8_t buf[H5_BLOCK_MAX_BYTES];
     const size_t len = sealBlockAt(t0, 10, 60, buf, sizeof(buf));
     TEST_ASSERT_TRUE(len > 0);
     buildSchema(1);
 
-    /* Cursor on the 4th record (index 3): six left. Equality is "already sent",
-     * the same rule collectBatch uses, or the last record of every batch would
-     * be sent twice. */
-    TEST_ASSERT_EQUAL_UINT16(6, h5CountAfter(buf, len, g_schema, 1,
-                                             t0 + 3u * 60u, 60));
-    /* A cursor before the block: the whole block is waiting. */
-    TEST_ASSERT_EQUAL_UINT16(10, h5CountAfter(buf, len, g_schema, 1, t0 - 1u, 60));
-    TEST_ASSERT_EQUAL_UINT16(10, h5CountAfter(buf, len, g_schema, 1, 0, 60));
-    /* t0 itself is the first record, and it counts as sent. */
-    TEST_ASSERT_EQUAL_UINT16(9, h5CountAfter(buf, len, g_schema, 1, t0, 60));
+    uint32_t first = 0;
+    uint8_t count = 0;
+    TEST_ASSERT_TRUE(h5SnapshotBlock(buf, len, g_schema, 1, 60, first, count));
+    TEST_ASSERT_EQUAL_UINT32(t0, first);
+    TEST_ASSERT_EQUAL_UINT8(10, count);
 }
 
-void test_count_after_is_zero_once_the_block_is_drained(void) {
-    /* The state every wake right after a successful send is in: the snapshot
-     * still holds the records, the cursor is past all of them, and the radio
-     * must NOT come up for them a second time. */
-    const uint32_t t0 = DAY_START + 6u * 3600u;
-    uint8_t buf[H5_BLOCK_MAX_BYTES];
-    const size_t len = sealBlockAt(t0, 10, 60, buf, sizeof(buf));
-    buildSchema(1);
-
-    TEST_ASSERT_EQUAL_UINT16(0, h5CountAfter(buf, len, g_schema, 1,
-                                             t0 + 9u * 60u, 60));
-    TEST_ASSERT_EQUAL_UINT16(0, h5CountAfter(buf, len, g_schema, 1,
-                                             t0 + 86400u, 60));
-}
-
-void test_count_after_follows_a_block_that_grows_one_wake_at_a_time(void) {
+void test_snapshot_block_follows_a_block_that_grows_one_wake_at_a_time(void) {
     /* The Air cycle itself: one record per wake into the same open block, the
-     * count rising by one each time. Before the fix this sequence read zero at
-     * every step, because the block was in the .wip and nowhere else. */
+     * count rising by one each time. Before the F23 fix the counter read zero
+     * at every step, because the block was in the .wip and nowhere else. */
     buildSchema(1);
     const uint32_t t0 = DAY_START + 9u * 3600u;
     uint8_t buf[H5_BLOCK_MAX_BYTES];
@@ -1208,33 +1190,38 @@ void test_count_after_follows_a_block_that_grows_one_wake_at_a_time(void) {
     for (uint8_t n = 1; n <= 8; n++) {
         const size_t len = sealBlockAt(t0, n, 60, buf, sizeof(buf));
         TEST_ASSERT_TRUE(len > 0);
-        TEST_ASSERT_EQUAL_UINT16(n, h5CountAfter(buf, len, g_schema, 1, 0, 60));
+        uint32_t first = 0;
+        uint8_t count = 0;
+        TEST_ASSERT_TRUE(h5SnapshotBlock(buf, len, g_schema, 1, 60, first, count));
+        TEST_ASSERT_EQUAL_UINT8(n, count);
+        TEST_ASSERT_EQUAL_UINT32(t0, first);
     }
 }
 
-void test_count_after_refuses_a_corrupt_or_foreign_snapshot(void) {
-    /* A count is a batch size, not a clock, so there is no plausibility window
-     * here — but the CRC still has to pass, or a flipped bit would report a
-     * wild number of pending records and hold the radio up for nothing. */
+void test_snapshot_block_refuses_a_corrupt_or_foreign_snapshot(void) {
+    /* The CRC has to pass, or a flipped bit would report a wild number of
+     * pending records and hold the radio up for nothing. */
     const uint32_t t0 = DAY_START + 3600u;
     uint8_t buf[H5_BLOCK_MAX_BYTES];
     const size_t len = sealBlockAt(t0, 20, 60, buf, sizeof(buf));
     buildSchema(1);
-    TEST_ASSERT_EQUAL_UINT16(20, h5CountAfter(buf, len, g_schema, 1, 0, 60));
+    uint32_t first = 0;
+    uint8_t count = 0;
+    TEST_ASSERT_TRUE(h5SnapshotBlock(buf, len, g_schema, 1, 60, first, count));
+    TEST_ASSERT_EQUAL_UINT8(20, count);
 
     buf[len - 1] ^= 0xFF;
-    TEST_ASSERT_EQUAL_UINT16(0, h5CountAfter(buf, len, g_schema, 1, 0, 60));
+    TEST_ASSERT_FALSE(h5SnapshotBlock(buf, len, g_schema, 1, 60, first, count));
 
-    /* Junk, short reads, and a missing schema all answer 0 rather than
+    /* Junk, short reads, and a missing schema all answer false rather than
      * reading a header out of whatever the buffer happened to hold. */
     const size_t good = sealBlockAt(t0, 5, 60, buf, sizeof(buf));
-    TEST_ASSERT_EQUAL_UINT16(0, h5CountAfter(nullptr, good, g_schema, 1, 0, 60));
-    TEST_ASSERT_EQUAL_UINT16(0, h5CountAfter(buf, sizeof(H5DataHeader) - 1,
-                                             g_schema, 1, 0, 60));
-    TEST_ASSERT_EQUAL_UINT16(0, h5CountAfter(buf, good, g_schema, 0, 0, 60));
+    TEST_ASSERT_FALSE(h5SnapshotBlock(nullptr, good, g_schema, 1, 60, first, count));
+    TEST_ASSERT_FALSE(h5SnapshotBlock(buf, sizeof(H5DataHeader) - 1, g_schema, 1, 60, first, count));
+    TEST_ASSERT_FALSE(h5SnapshotBlock(buf, good, g_schema, 0, 60, first, count));
     uint8_t junk[64];
     memset(junk, 0xA5, sizeof(junk));
-    TEST_ASSERT_EQUAL_UINT16(0, h5CountAfter(junk, sizeof(junk), g_schema, 1, 0, 60));
+    TEST_ASSERT_FALSE(h5SnapshotBlock(junk, sizeof(junk), g_schema, 1, 60, first, count));
 }
 
 void test_seed_walk_stops_at_the_ceiling(void) {
@@ -1641,10 +1628,9 @@ int main(void) {
     RUN_TEST(test_seed_from_snapshot_refuses_junk_and_short_reads);
     RUN_TEST(test_seed_walk_stops_at_the_ceiling);
 
-    RUN_TEST(test_count_after_counts_only_what_is_newer);
-    RUN_TEST(test_count_after_is_zero_once_the_block_is_drained);
-    RUN_TEST(test_count_after_follows_a_block_that_grows_one_wake_at_a_time);
-    RUN_TEST(test_count_after_refuses_a_corrupt_or_foreign_snapshot);
+    RUN_TEST(test_snapshot_block_gives_its_first_stamp_and_count);
+    RUN_TEST(test_snapshot_block_follows_a_block_that_grows_one_wake_at_a_time);
+    RUN_TEST(test_snapshot_block_refuses_a_corrupt_or_foreign_snapshot);
     RUN_TEST(test_scan_floor_reaches_back_across_midnight);
     RUN_TEST(test_synced_snapshot_seeds_past_the_stale_window);
     RUN_TEST(test_synced_snapshot_seeds_from_before_the_window);

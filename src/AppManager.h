@@ -18,6 +18,7 @@
 #include <Arduino.h>
 #include <memory>
 #include "SystemDefs.h"
+#include "simut_config.h"   /* SIMUT_NET_LAN and SIMUT_NET_WIFI are tested below: included here, not left to another header */
 #include "AlarmEdgeLatch.h"
 #if SIMUT_AIR
 #include "air/AirConfig.h"
@@ -108,8 +109,10 @@ private:
  void processBackgroundScan( );
 
  void executeCommand(CliDemand cmd);
+#if SIMUT_NET_WIFI
  /** Starts Access Point mode at runtime (192.168.4.1) — the 'ap' CLI/BT command. */
  void startApMode(uint8_t why = 0);
+#endif
  /** Network, key, address and "AP active" as the boot terminal's last lines. */
  void showApOnPanel( );
 
@@ -131,9 +134,11 @@ private:
  void cmdHandleUserPin(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
  void cmdHandleUserPolicy(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
 #endif
+ void cmdHandleUserPass(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
+#endif
+#if SIMUT_CLI_FULL || SIMUT_NET_LAN
  void cmdHandleIpCfg(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
  void cmdHandleDnsCfg(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
- void cmdHandleUserPass(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
 #endif
 
  void checkAndAutoHealSensors( );
@@ -183,9 +188,20 @@ private:
  enum PanelAuthFor : uint8_t { PAUTH_SETTINGS = 0, PAUTH_DEACTIVATE };
  int8_t _panelUser = -1;      /**< account the last accepted PIN identified, -1 none */
  uint16_t _panelPerms = 0;
+ /** The name the PIN identified. A slot is reusable, so the slot alone does
+  *  not say the account is still the same one (panelSessionCurrent). No
+  *  initializer: it is read only while _panelUser >= 0, and both places that
+  *  set _panelUser write it first — zeroing it cost the constructor 32 B. */
+ char _panelName[sizeof(UserAccount::username)];
  uint8_t _panelAuthFor = PAUTH_SETTINGS;
  bool handlePanelEvent(const UiEvent& ev);
  bool panelAllowed(uint16_t bit, int8_t slot);
+ /** panelAllowed( ), and an account's panel bits going from `before` to
+  *  `after` add none the session lacks (panelGrantAllowed, SessionCheck.h).
+  *  An overload, not two default arguments: those cost each of the other
+  *  call sites 4 B, 56 B in all (pico_w_release, 2026-10-04). */
+ bool panelAllowed(uint16_t bit, int8_t slot, uint16_t before, uint16_t after);
+ bool panelSessionCurrent( );
  const char* panelUserName( ) const;
  void panelIdentify( );
  void panelDeactivateAlarm( );

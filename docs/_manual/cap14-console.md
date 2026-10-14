@@ -45,7 +45,7 @@ Como o console se comporta:
 
 ```text
 ===========================================
- SIMUT IoT CLI 2.9.0
+ SIMUT IoT CLI 2.11.1
  Digite 'help' (ou 'ajuda', '?')
  For English: 'language en'
 ===========================================
@@ -82,7 +82,7 @@ A senha do console por Bluetooth é a senha da conta `admin` da interface web.
 Senha do admin: **********
 
 ===========================================
- SIMUT IoT CLI 2.9.0
+ SIMUT IoT CLI 2.11.1
  Acesso concedido. Digite 'help'.
  (For English: 'language en')
 ===========================================
@@ -222,7 +222,7 @@ SIMUT> show system info
  [SISTEMA]
  Dispositivo:
  simut
- Firmware: 2.9.0
+ Firmware: 2.11.1
  Serial: E66138935F2C1A2B
  [SENSORES]
  Precisao DS18: 12-bit
@@ -332,7 +332,7 @@ Sem argumento, o comando só mostra o uso: `system cors` vazio não apaga a orig
 
 ### ap {#cap-14-ap}
 
-Abre o ponto de acesso de configuração na hora e responde com a chave da rede. É, com o item 12 do menu e o gesto no boot da release, o único jeito de abrir o AP: o aparelho não o abre sozinho ([capítulo 9](#cap-09-ap-quando)).
+Abre o ponto de acesso de configuração na hora e responde com a chave da rede. É, com o item 8 do menu e o gesto no boot da release, o único jeito de abrir o AP: o aparelho não o abre sozinho ([capítulo 9](#cap-09-ap-quando)).
 
 ```text
 SIMUT> ap

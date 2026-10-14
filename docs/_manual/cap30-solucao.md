@@ -60,7 +60,7 @@ Detalhes nos capítulos [2](#cap-02), [3](#cap-03) e [4](#cap-04).
 | [air]{.img} A porta serial do Air some e o toque de 1200 baud não funciona | O Air dorme e solta o USB | Grave com o Air acordado, em M0, ou pelo botão BOOTSEL |
 | A senha do `admin` não apareceu no console | O programa serial abriu depois da moldura, ou o aparelho já reiniciou uma vez | Rode `system admin reset confirm` pelo cabo USB ([capítulo 4](#cap-04-senha)) |
 | O console da release não mostra nada | O console de emergência só mostra o prompt depois de uma tecla Enter | Tecle Enter ([capítulo 14](#cap-14-usb)) |
-| O aparelho novo não abre o ponto de acesso de configuração | O ponto de acesso só abre a pedido | Abra-o com o comando `ap` no console ou, na release, pelo item 12 do menu do painel ([capítulo 4](#cap-04-rede)) |
+| O aparelho novo não abre o ponto de acesso de configuração | O ponto de acesso só abre a pedido | Abra-o com o comando `ap` no console ou, na release, pelo item 8 do menu do painel ([capítulo 4](#cap-04-rede)) |
 | [release]{.img} O painel abre a tela **Data e hora** no fim do boot | Aparelho sem rede configurada, com o relógio provisório | Acerte a data e a hora e toque em **SALVAR**, ou toque em **PULAR** ([capítulo 10](#cap-10-painel)) |
 | O console escreve `Sem rede, relogio provisorio: conf time AAAA-MM-DD HH:MM:SS` no fim do boot | Aparelho sem rede configurada, com o relógio provisório | Responda com `conf time` e a data e a hora locais, pelo console USB ou pelo Bluetooth; na release, o painel também serve ([capítulo 10](#cap-10-console)) |
 | O aparelho novo não mostra leituras nem grava histórico | Da v2.7.1 à v2.8.0: o ponto de acesso de configuração abria sozinho no boot, e com ele aberto essas versões não medem | Atualize o firmware, ou ponha o aparelho na rede ([capítulo 4](#cap-04-rede)) |
@@ -86,7 +86,7 @@ Detalhes no [capítulo 9](#cap-09).
 | A rede não aparece em **Buscar** | Rede de 5 GHz, rede oculta ou sinal fora de alcance | O aparelho só opera em 2,4 GHz. Para rede oculta, digite o nome no campo **SSID** |
 | **Rádio ocupado — tente de novo em instantes** | O aparelho está buscando a própria rede para se reconectar | Espere alguns segundos e toque de novo em **Buscar** |
 | A gravação recusa `net.pass` | A senha da rede tem mais de 31 caracteres, ou tem caractere de controle | Use uma senha de até 31 caracteres na rede dos aparelhos |
-| O aparelho não entra na rede depois de trocar o roteador ou a senha | Rede configurada errada. O AP não abre sozinho | Abra o AP pelo comando `ap` no console ou pelo item 12 do menu do painel, e configure a rede pelo AP; ou grave a rede pelo console ([capítulo 18](#cap-18-ap-volta)) |
+| O aparelho não entra na rede depois de trocar o roteador ou a senha | Rede configurada errada. O AP não abre sozinho | Abra o AP pelo comando `ap` no console ou pelo item 8 do menu do painel, e configure a rede pelo AP; ou grave a rede pelo console ([capítulo 18](#cap-18-ap-volta)) |
 | Da v2.7.1 à v2.8.0: o aparelho sumiu da rede e só voltou mais de uma hora depois, pelo AP | Ele tinha IP e perdeu a rede; nessas versões, o AP abria sozinho ao fim de uma volta da escada (~68 min) | Atualize o firmware: o AP não abre mais sozinho |
 | O AP some sozinho depois de 15 min | AP aberto com o aparelho em operação e rede configurada: o aparelho reinicia depois de 15 min para tentar a rede de novo | Grave a rede nova antes dos 15 min. Se a rede continuar fora, abra o AP de novo |
 | Não sei a chave do AP | A chave é derivada do chip e não muda | Veja no console serial ao abrir o AP, na tela de boot do painel ou na resposta do comando `ap` |
@@ -114,11 +114,11 @@ Detalhes no [capítulo 10](#cap-10).
 |---|---|---|
 | A página **Rede** mostra **Desconectado** com IP, e a telemetria não sai | NTP ligado sem servidor alcançável: o aparelho espera o primeiro acerto | Libere a porta UDP 123, aponte um servidor NTP da rede local, ou desligue o NTP e acerte o relógio à mão |
 | O log mostra `NTP fallback: <servidor> -> pool.ntp.org` | O servidor configurado não respondeu três vezes seguidas | Confira o nome, o DNS e o firewall. A troca vale até o próximo reinício |
-| A hora do painel está atrasada depois de uma falta de energia, com o NTP desligado | O relógio provisório parte do último registro e não conta o tempo desligado | Acerte o relógio depois de cada reinício, pela seção **Data e Hora** da web, pelo item 13 do menu do painel ou com `time` no console, ou ligue o NTP |
+| A hora do painel está atrasada depois de uma falta de energia, com o NTP desligado | O relógio provisório parte do último registro e não conta o tempo desligado | Acerte o relógio depois de cada reinício, pela seção **Data e Hora** da web, pelo item 4 do menu do painel ou com `time` no console, ou ligue o NTP |
 | A data e a hora da barra de cima do painel estão em âmbar, com `?` no lugar do `-` | O relógio em uso é o provisório: nem o NTP nem uma pessoa o acertaram desde o boot | Acerte o relógio ou ponha o aparelho numa rede com NTP. O primeiro acerto corrige a hora dos blocos que o boot começou ([capítulo 10](#cap-10-correcao)) |
 | O log mostra **NTP corrigindo timestamps** com uma correção grande | O aparelho ficou desligado por esse tempo, ou o relógio provisório estava errado | Normal depois de uma falta de energia. Com o aparelho sempre ligado, investigue os eventos 524 anteriores |
 | A hora do painel é diferente da hora do **Painel de Controle** na web | A web mostra no fuso do computador; o painel, no fuso do aparelho | Confira o **Fuso Horário** do aparelho e o do computador |
-| A hora mudou em horas inteiras sozinha e voltou depois de um reinício | Alguém digitou no campo **Fuso Horário** e desistiu; o ensaio aplicou o fuso digitado | Reinicie o aparelho para voltar ao fuso gravado |
+| A hora mudou em horas inteiras sozinha e voltou depois de um reinício | Até a v2.9.0, digitar no campo **Fuso Horário** e desistir deixava o fuso digitado em uso: o ensaio o aplicava | Reinicie o aparelho para voltar ao fuso gravado. Desde a v2.10.0, isso não acontece |
 | A hora está errada em exatamente 1 h numa região com horário de verão | O aparelho não tem horário de verão | Ajuste o **Fuso Horário** nas datas de troca |
 | O fuso da minha região tem meia hora (+5:30, −3:30) | O aparelho só aceita horas inteiras | Use a hora inteira mais próxima e leve a diferença em conta ao ler os dados |
 | Medições gravadas antes de um acerto manual ficaram com a hora errada | Até a v2.8.0, o acerto manual não corrigia o histórico. Hoje só o primeiro acerto depois do boot corrige, e só os blocos que o boot começou | Acerte logo depois de ligar, com a hora certa já no primeiro acerto. Confira no log os eventos 408 e 409 ([capítulo 10](#cap-10-correcao)) |
@@ -139,7 +139,8 @@ Detalhes no [capítulo 8](#cap-08).
 | Entro na web e vejo só `Access Denied` | A conta não tem a permissão **Painel** | Digite o endereço de uma página permitida, ou recrie a conta com **Painel** |
 | Backup e atualização de firmware recusados para uma conta com todas as permissões | Essas ações exigem o nível de administrador completo | Use a conta `admin` |
 | Minha conta não aparece em **Quem está usando o painel?** | A conta não tem PIN | Defina um PIN pelo botão **PIN** da página **Usuários** ou no item **Usuários** do painel |
-| **PIN muito curto (mín. 4)** com um PIN definido pela web | A política exige mais caracteres que o PIN tem; a web aceita 4 a 8 dígitos sem olhar a política | Defina o PIN no painel, no item **Alterar Senha** ou em **Usuários** |
+| O painel pede **Novo PIN** logo depois de um PIN definido pela web | O PIN é mais curto que o mínimo da política; a web aceita 4 a 8 dígitos sem olhar a política | Escolha um PIN que siga a política. Até a v2.11.0, o painel recusava esse PIN com **PIN muito curto (mín. 4)** |
+| Um PIN antigo não pode mais ser digitado depois de mudar a política | A política tirou as letras dos cartões, ou o teto ficou menor que o PIN | Defina um PIN novo para a conta no item **Usuários** do painel, na página **Usuários** ou no console |
 | **PIN já em uso!** | Outra conta tem esse PIN | Escolha outro PIN |
 | Conta aparece com **bloqueado** no painel | Seis PINs errados seguidos dessa conta | Reinicie o aparelho ou use outra conta |
 | Tela vermelha **ACESSO BLOQUEADO** | 20 PINs errados desde a última entrada certa | Reinicie o aparelho |
@@ -156,9 +157,9 @@ Detalhes no [capítulo 5](#cap-05).
 
 | Sintoma | Causa provável | O que fazer |
 |---|---|---|
-| Só aparece **Salvar e reiniciar**, com o selo **Alterações não salvas** | O ensaio ainda não respondeu, ou o conjunto inclui contas, slots de sensor ou calibração, que não podem ser ensaiados. No Air, é sempre assim | Espere um segundo. Se continuar, a alteração só se grava reiniciando |
-| O selo mostra **Não exige reinício**, mas **Aplicar agora** reiniciou o aparelho | O conjunto tinha só campos da área de extensão (intervalo do histórico, NTP, syslog, Home Assistant, DNS automático ou secundário, conexões persistentes), que o ensaio não enxerga | Nada a corrigir: a alteração foi gravada. Para esses campos, use **Salvar e reiniciar** |
-| **Testar** diz que aplicou, mas nada mudou | Os campos testados são da área de extensão, que **Testar** não aplica | Use **Salvar e reiniciar** |
+| Só aparece **Salvar e reiniciar**, com o selo **Alterações não salvas** | O ensaio ainda não respondeu, ou o conjunto inclui slots de sensor ou calibração, que não podem ser ensaiados. No Air, é sempre assim | Espere um segundo. Se continuar, a alteração só se grava reiniciando |
+| O selo mostra **Não exige reinício**, mas **Aplicar agora** reiniciou o aparelho | Até a v2.9.0, o ensaio não enxergava os campos da área de extensão (intervalo do histórico, NTP, syslog, Home Assistant, DNS automático ou secundário, conexões persistentes) | Nada a corrigir: a alteração foi gravada. Desde a v2.10.0, o selo mostra **Reinicia por: web** |
+| **Testar** diz que aplicou, mas nada mudou | Até a v2.9.0, **Testar** não aplicava os campos da área de extensão | Use **Salvar e reiniciar**. Desde a v2.10.0, esses campos nem oferecem **Testar** |
 | Um valor alterado voltou ao anterior depois de **Salvar e reiniciar** | O valor estava fora da faixa e o aparelho o recusou; esse botão não mostra **Campos não aplicados** | Confira a faixa do campo neste capítulo e grave de novo com um valor válido |
 | **Falha ao salvar. — Forbidden (net)** (ou outra seção) | A conta não tem a permissão daquela seção, e a gravação inteira foi recusada | Peça a permissão, ou descarte as alterações daquela página (**Sair** e entrar de novo) |
 | **Falha ao salvar. — Display in use. Retry shortly.** | Alguém tocou no painel há menos de 5 s | Espere alguns segundos e toque de novo no botão |
@@ -187,7 +188,7 @@ Detalhes no [capítulo 6](#cap-06).
 | Umidade ou pressão somem de um BME280 | Valor fora de 0–100 % ou 300–1.100 hPa, descartado | Confira o sensor; um BMP280 não tem umidade |
 | **Amostra (ms)** não muda o ritmo de leitura | O campo não tem efeito na v2.7.1 | O ritmo é fixo por tipo (1 s, 2 s, 5 s) |
 | **Resolução DS18B20** não muda uma das sondas | A resolução só vai ao primeiro slot DS18B20 ativo | Nenhuma ação na v2.7.1; o ajuste não afeta o tempo de leitura |
-| Mudar **Intervalo Histórico** com **Aplicar agora** reiniciou o aparelho | O campo exige reinício, e a classificação prévia não o vê | Use **Salvar e reiniciar** para este campo |
+| Mudar **Intervalo Histórico** com **Aplicar agora** reiniciou o aparelho | O campo exige reinício, e até a v2.9.0 a classificação prévia não o via | Use **Salvar e reiniciar** para este campo. Desde a v2.10.0, só esse botão aparece |
 | Editor sem o bloco **Calibração** | Conta sem a permissão **Calibração**, ou slot novo ainda não gravado | Peça a permissão; grave o slot antes de calibrar |
 | **Erro na calibração:** `NTP not synced` | O relógio não foi acertado, nem por NTP nem à mão | Acerte o relógio ([capítulo 10](#cap-10)) e grave de novo |
 | **Erro na calibração:** `rate limited` | Duas gravações de calibração em menos de 5 s | Espere 5 s e grave de novo |
@@ -205,7 +206,8 @@ Detalhes no [capítulo 7](#cap-07).
 | Linha do menu do sensor apagada, com cadeado | A conta não tem a permissão daquela linha | Peça a permissão: **Limites (painel)**, **Bloqueio (painel)** ou **Manut. (painel)** |
 | Item **Limites de Alarme** não aparece no menu do painel | A conta não tem nenhuma das três permissões de painel | Conceda pelo menos uma na página **Usuários** ou no item **Usuários** do painel |
 | **Falha ao salvar.** — `Alarm limit outside channel range` | Um limite fora da faixa plausível da grandeza | Corrija o valor; a gravação inteira foi recusada |
-| Mudei um som na página e o aparelho mudou antes de gravar | A consulta prévia da página aplica os sons na memória (v2.7.1) | Grave ou descarte a mudança; um reinício volta ao que está gravado |
+| **Falha ao salvar.** — `Alarm limit is not a number` | Um cliente da API mandou um limite que não é número | Mande números, ou `null` para manter um limite; a gravação inteira foi recusada |
+| Mudei um som na página e o aparelho mudou antes de gravar | Até a v2.9.0, a consulta prévia da página aplicava os sons na memória | Grave ou descarte a mudança; um reinício volta ao que está gravado. Desde a v2.10.0, isso não acontece |
 | Mudança de som pela web pede **Salvar e reiniciar** | Os sons ficam numa área da configuração que exige reinício | Use **Salvar e reiniciar**; pelo painel, a mudança vale sem reiniciar |
 | Alarme novo não tocou | Estava dentro de um silêncio de 120 s, que vale para todos os sensores | Espere o fim do silêncio; a cigarra volta se o alarme persistir |
 | Imagem alpha: cigarra toca sem parar | O alpha não tem como silenciar no aparelho | Desligue os alarmes do sensor em **Alarmes e Sons** ou ligue **Mudo Global**, e corrija a causa |
@@ -345,7 +347,7 @@ Detalhes no [capítulo 17](#cap-17).
 | **Validação falhou: chip ID mismatch (backup is from another device)** | O backup é de outro aparelho | Use um backup deste aparelho |
 | A restauração trouxe de volta uma senha antiga do administrador | A restauração devolve a configuração da data do backup | Troque a senha depois de restaurar |
 | Faltam as medições entre a atualização e a restauração | A restauração substituiu o arquivo do dia pela cópia do backup | Restaure logo depois de atualizar ([capítulo 15](#cap-15-ota)) |
-| **Falha ao aplicar: I/O error** | Falha de gravação, ou um backup com mais de 200 arquivos | Não reinicie; repita a restauração. Se persistir, veja o limite de 200 arquivos |
+| **Falha ao aplicar: I/O error** | Falha de gravação (até a v2.9.0, também um backup com mais de 200 arquivos) | Não reinicie; repita a restauração: os arquivos já gravados ficam, e ela completa o resto |
 | A página diz **Upload concluído.**, mas o arquivo não aparece | O aparelho recusou o envio (nome inválido, sem espaço ou destino proibido) | Confira o nome, o espaço livre e a pasta |
 | Um pacote de idioma enviado não fez efeito | O pacote só é lido no boot | Reinicie o aparelho |
 | [air]{.img} A página do Air parou de responder durante a atualização | O Air hibernou | Ligue o carregador durante a atualização, ou ponha o Air em M0 com `air stop` |
@@ -448,7 +450,7 @@ Detalhes nos capítulos [20](#cap-20), [21](#cap-21) e [22](#cap-22).
 | `maint_on` e `alarm_lim` chegam sem `until`, `lo`, `hi` ou `user` | Modelo próprio antigo | Acrescente `"maint":{maint}`, `"lo":{lo}`, `"hi":{hi}`, `"until":{until}` e `"user":{user}` ao **2. Linha** |
 | JSON inválido com `"valor":,` | Marcador fora da forma composta, sem valor naquele registro | Use a forma composta, como `"val":{val}` |
 | O JSON da linha não é o do manual | O **2. Linha** foi editado e vale também no formato JSON | Confira o **2. Linha** no formato **Dinâmico** |
-| A **Prévia ao Vivo** mostra `{maint}` ou `{user}` como texto | A prévia não conhece os marcadores novos | Ignore a prévia para esses marcadores; confira o corpo recebido |
+| A **Prévia ao Vivo** mostra `{maint}` ou `{user}` como texto | Até a v2.9.0, a prévia não conhecia os marcadores novos | Confira o corpo recebido; desde a v2.10.0 a prévia os monta como o aparelho |
 | **Pendentes:** não muda | O número é lido ao abrir a página | Recarregue a página |
 
 ## Home Assistant, Prometheus e syslog {#cap-30-ha}
@@ -542,7 +544,7 @@ Detalhes nos capítulos [26](#cap-26) e [27](#cap-27).
 | O envio da imagem responde `422` com `"v":7` | A imagem é de outra variante (release, alpha ou Air) | Envie a imagem com o mesmo `env` que `/api/status` informa |
 | O envio da imagem responde `422` com `"v"` de 8 a 12 | A assinatura da imagem foi recusada ([capítulo 26](#cap-26-ota)) | Envie o `.bin` assinado da release, sem alterá-lo |
 | `POST /api/ota/apply` responde `409` | Nenhuma imagem preparada com `commit=1`, o aparelho reiniciou depois do envio, ou, com `"v"`, outro envio começou depois e a imagem gravada não confere mais com a assinatura | Envie a imagem de novo com `op=stage&commit=1` |
-| Um envio longo cai no meio | Algum equipamento da rede corta conexões longas na porta 80 | Configure outra porta web ([capítulo 9](#cap-09-servidor-web)) |
+| Um envio longo cai no meio, até a v2.10.0 | Outra página do aparelho estava aberta no navegador: o aparelho cortava a conexão mais antiga para admitir as consultas dela. A porta não fazia diferença | Feche as outras abas do aparelho e envie de novo, ou atualize para a v2.11.0 ([capítulo 18](#cap-18-sem-web)) |
 | `avahi-browse` não acha alguns aparelhos | São alpha ou Air, que não têm mDNS; ou estão em outra rede ou VLAN | Descubra-os pelos cabeçalhos `X-SIMUT-*` da telemetria no coletor |
 | Dois aparelhos respondem pelo mesmo `<nome>.local` | Os dois têm o mesmo **Nome** | Dê um nome único a cada aparelho |
 | O gestor gravou a configuração no aparelho errado | O DHCP deu ao aparelho o IP que era de outro | Compare `sys.uid` com o cadastro antes de cada gravação |

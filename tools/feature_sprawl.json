@@ -10,14 +10,15 @@
   "DisplayManager.h": 1,
   "DisplayManager_None.cpp": 1,
   "HelpLicenseEN.h": 1,
-  "NetworkManager.cpp": 3,
+  "NetworkManager.cpp": 2,
   "NetworkManager.h": 1,
   "SoundManager.h": 1,
   "WebManager_Commit.cpp": 1,
-  "air/AirConfig.h": 2
+  "air/AirConfig.h": 2,
+  "net/NetworkManager_Cyw43.cpp": 1
  },
  "SIMUT_AP_OPEN": {
-  "NetworkManager.cpp": 1
+  "net/NetworkManager_Cyw43.cpp": 1
  },
  "SIMUT_BLUETOOTH": {
   "AppManager_Boot.cpp": 1,
@@ -29,13 +30,13 @@
   "SystemDefs_Limits.h": 1
  },
  "SIMUT_CLI_FULL": {
-  "AppManager.h": 1,
-  "AppManager_CmdHandlers.cpp": 2,
-  "AppManager_Commands.cpp": 11,
+  "AppManager.h": 2,
+  "AppManager_CmdHandlers.cpp": 3,
+  "AppManager_Commands.cpp": 12,
   "AppManager_Sensors.cpp": 1,
   "CommandManager.cpp": 6,
   "CommandManager.h": 4,
-  "CommandParser.cpp": 6,
+  "CommandParser.cpp": 9,
   "HelpLicenseEN.h": 1,
   "SystemDefs_Cli.h": 1
  },
@@ -72,14 +73,68 @@
   "HelpLicenseEN.h": 1
  },
  "SIMUT_MDNS": {
-  "NetworkManager.cpp": 3,
+  "NetworkManager.cpp": 2,
   "NetworkManager.h": 3,
-  "SystemDefs_Network.h": 1
+  "SystemDefs_Network.h": 1,
+  "net/NetworkManager_Cyw43.cpp": 1,
+  "net/NetworkManager_Wired.cpp": 1
  },
  "SIMUT_MIRROR_PROBE": {
   "CommandManager.cpp": 1,
   "DisplayManager_Auth.cpp": 6,
   "WebManager_History.cpp": 1
+ },
+ "SIMUT_NET_BOOT_RESET": {
+  "AppManager_Boot.cpp": 1
+ },
+ "SIMUT_NET_CYW43": {
+  "net/NetBoot.h": 1,
+  "net/NetLink.h": 1,
+  "net/NetworkManager_Cyw43.cpp": 1
+ },
+ "SIMUT_NET_ENC28J60": {
+  "net/Enc28j60Device.h": 1,
+  "net/WiredLink.cpp": 1
+ },
+ "SIMUT_NET_LAN": {
+  "AppManager.h": 1,
+  "AppManager_Boot.cpp": 4,
+  "AppManager_CmdHandlers.cpp": 1,
+  "AppManager_Commands.cpp": 2,
+  "CommandManager.cpp": 2,
+  "CommandParser.cpp": 2,
+  "DisplayManager_Alpha.cpp": 4,
+  "DisplayManager_Dashboard.cpp": 1,
+  "DisplayManager_Settings.cpp": 1,
+  "HelpLicenseEN.h": 4,
+  "LangPackIndex.h": 1,
+  "LogManager.cpp": 1,
+  "LogPolicy.cpp": 1,
+  "NetworkManager.h": 1,
+  "display/BigFont_HD44780.h": 2,
+  "display/SettingsMenu.h": 2,
+  "net/NetLink.h": 1,
+  "net/NetworkManager_Wired.cpp": 1,
+  "net/WiredLink.cpp": 1,
+  "net/WiredLink.h": 1
+ },
+ "SIMUT_NET_WIFI": {
+  "AppManager.h": 1,
+  "AppManager_Boot.cpp": 1,
+  "AppManager_Commands.cpp": 3,
+  "AppManager_Events.cpp": 2,
+  "CommandManager.cpp": 2,
+  "CommandParser.cpp": 3,
+  "DisplayManager.cpp": 1,
+  "DisplayManager.h": 2,
+  "DisplayManager_Alpha.cpp": 2,
+  "DisplayManager_Settings.cpp": 1,
+  "DisplayManager_Touch.cpp": 1,
+  "WebManager.h": 2,
+  "WebManager_Api.cpp": 10,
+  "WebManager_Commit.cpp": 1,
+  "WebManager_Core.cpp": 3,
+  "WebManager_Metrics.cpp": 2
  },
  "SIMUT_PANEL_PIN": {
   "AppManager.h": 1,

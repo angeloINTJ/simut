@@ -246,5 +246,60 @@ real = open(os.path.join(ROOT, "WebUI.h"), encoding="utf-8").read()
 v = verdict(real)
 check("WebUI.h: nenhuma rota de feature chamada fora do seu @IF", v is None, v)
 
+# 10b. Um id dos dois lados do par existe em toda imagem: o codigo comum pode busca-lo. So
+#      de um lado, continua recusado.
+par_id = """
+/* @IF tft */
+<div id="cnt">painel</div>
+/* @ENDIF */
+/* @IF !tft */
+<div id="cnt">sem painel</div>
+/* @ENDIF */
+<script>document.getElementById('cnt').innerText = 'x';</script>
+"""
+check("id dos dois lados do par, buscado fora: passa", verdict(par_id) is None, repr(verdict(par_id)))
+um_lado = par_id.replace('<div id="cnt">sem painel</div>', '<div id="outro">sem painel</div>')
+v = verdict(um_lado)
+check("id de um lado so, buscado fora: recusado", v is not None and "#cnt" in v, repr(v))
+
+# 11. O radio (2026-10-13): a build com a rede por cabo corta "wifi". Sem o corte, a pagina de
+#     rede tem o SSID, a senha e a busca, e o painel tem o sinal; com ele, nada disso, e o
+#     painel ganha o card da rede cabeada. A rota da busca so existe sob `#if SIMUT_NET_WIFI`,
+#     e o build recusa uma chamada a ela fora de um bloco `@IF wifi`.
+check("a rota da busca de redes e da feature wifi", feature_routes("wifi") == {"/api/wifi/scan"},
+      f"obtido {sorted(feature_routes('wifi'))}")
+# O que a imagem cabeada corta vem do manifesto: "wifi" pela classe lan e "slots16" pelo driver enc28j60
+# (os onze slots que sobram do GP11-GP15 do modulo, 2026-10-13). A tabela do teste nao repete os nomes.
+sys.path.insert(0, os.path.join(ROOT, "tools"))
+import gen_features as gf  # noqa: E402
+
+_M = gf.load_manifest()
+_cabo = gf.compose(gf.resolve_profile("pico_wire", _M["profiles"]), _M)["web_omit"]
+cabo_omit = {n.strip() for n in _cabo.split(",")} & {"wifi", "slots16"}
+check("a imagem cabeada corta wifi (a classe) e slots16 (o driver)", cabo_omit == {"wifi", "slots16"}, repr(_cabo))
+com_radio = cut(real, set())
+sem_radio = cut(real, cabo_omit)
+# Um modulo cabeado que nao toma o GP11-GP15 cortaria so o radio: a pagina continuaria com os dezesseis slots.
+cabo_de_16 = cut(real, {"wifi"})
+check("so o radio cortado: a pagina segue com os dezesseis slots e sem o texto de onze",
+      "All 16 slots" in cabo_de_16 and "sens_no_free_lan" not in cabo_de_16 and "sens_hint_lan" not in cabo_de_16
+      and 'id="ssid"' not in cabo_de_16)
+for marca in ('id="btnScan"', "/api/wifi/scan", 'id="ssid"', 'id="pass"', 'id="rssi"', 'id="rssi-mm"',
+              "function wifiScan", "setEyeLabel"):
+    check(f"com o radio a pagina tem {marca}", marca in com_radio)
+    check(f"sem o radio a pagina nao tem {marca}", marca not in sem_radio)
+for marca in ('id="net-link"', "dash_net_wired", "dash_metr_net_sub_lan", "fil_rst_confirm_lan",
+              "fil_fw_warn_lan", "sens_hint_lan", "sens_no_free_lan"):
+    check(f"sem o radio a pagina tem {marca}", marca in sem_radio)
+    check(f"com o radio a pagina nao tem {marca}", marca not in com_radio)
+check("o texto visivel sem radio nao fala de wifi nem de 16 slots",
+      ">wifi / mqtt<" not in sem_radio and "Wi-Fi config" not in sem_radio and "All 16 slots" not in sem_radio
+      and "{t15}" not in sem_radio and "Slot index (0-15)" not in sem_radio and "i < 16; i++" not in sem_radio)
+fora = real.replace("        async function loadNet() {",
+                    "        fetch('/api/wifi/scan');\n        async function loadNet() {", 1)
+v = verdict(fora)
+check("uma chamada a busca fora do @IF wifi e recusada pelo nome da rota",
+      v is not None and "/api/wifi/scan" in v, repr(v))
+
 print(f"{ok} ok, {fail} falha(s)")
 sys.exit(1 if fail else 0)

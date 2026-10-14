@@ -55,65 +55,52 @@ static bool ensure_parent_dirs(const char* path) {
 }
 
 /* ---------------------------------------------------------------------------
- * Walk + commit/cleanup unificado.
+ * Falha no meio de um APPLY: o que fica e o que sai (achado 58, 2026-10-02).
  *
- * Mantemos uma lista in-memory dos paths .restore_tmp criados durante a
- * sessão. Evita walk recursivo da LittleFS (que duplicaria código de
- * backup.cpp/walk_dir e puxaria mais símbolos da lib).
+ * O APPLY escreve cada arquivo direto no caminho final, sem .tmp e rename: o
+ * sistema de arquivos vive perto de 86% cheio, e um restore inteiro em
+ * arquivos temporários precisaria do dobro do espaço. Então o original de cada
+ * arquivo some no momento em que ele é aberto para escrita, e um rollback não
+ * tem o que devolver.
+ *
+ * Até 2026-10-02 o rollback APAGAVA todo arquivo que o APPLY tinha escrito.
+ * Uma conexão que caía no meio levava junto o /config/system.bin já restaurado,
+ * e o boot seguinte subia com a configuração de fábrica. E a lista que o
+ * rollback usava cabia 200 caminhos, contados só no APPLY: um backup com mais
+ * arquivos passava na validação e parava no 201º, apagando os 200 de antes.
+ *
+ * Agora um arquivo terminado fica, com o conteúdo do backup, e só o que ficou
+ * pela metade é apagado: o original dele já foi truncado, e meio arquivo é
+ * pior que nenhum. Sem lista, não há limite de arquivos, e repetir o APPLY
+ * completa o que faltou.
+ *
+ * Manter o que terminou só é seguro com bytes conferidos, e o CRC da carga só
+ * fecha no fim. Por isso o APPLY só aceita o backup validado por último
+ * (s_validated, abaixo): um .bkp cortado no download ou estragado no disco
+ * para na validação, antes de qualquer escrita. A impressão é o cabeçalho, não
+ * os bytes — um arquivo trocado entre as duas chamadas ainda só falha no fim —
+ * e não é barreira de segurança: o APPLY já exige o administrador pleno.
  * ------------------------------------------------------------------------- */
 
-/* Pool global; dimensionado para o estado estacionário do FS: com a poda
- * em 86% o /history estabiliza em ~70-90 arquivos .h5 (~20 B de path cada).
- * O dimensionamento original (~32 arquivos) fazia o restore do PRÓPRIO
- * snapshot falhar com IO_ERROR assim que o histórico passava de 64 arquivos
- * (D-232-RESTORE: 76 entradas, estouro do pool, st=9). */
-static constexpr size_t TMP_POOL_BYTES = 4096;
-static char     s_tmp_pool[TMP_POOL_BYTES];
-static uint16_t s_tmp_offsets[200];
-static uint16_t s_tmp_count;
-static uint16_t s_tmp_used;
+/* A impressão do último backup validado com sucesso: o APPLY só aceita um
+ * cabeçalho igual. O cabeçalho carrega o CRC e o tamanho da carga, e o seu
+ * próprio CRC cobre o resto (chip, versão, carimbo). */
+static bool     s_validated = false;
+static uint32_t s_val_header_crc, s_val_payload_crc, s_val_payload_size;
 
-static void tmp_list_reset() {
-    s_tmp_count = 0;
-    s_tmp_used = 0;
+static bool header_was_validated(const BackupHeader& h) {
+    return s_validated && h.header_crc32 == s_val_header_crc &&
+           h.payload_crc32 == s_val_payload_crc && h.payload_size == s_val_payload_size;
 }
 
-static bool tmp_list_add(const char* path) {
-    size_t plen = strlen(path);
-    if (s_tmp_count >= sizeof(s_tmp_offsets) / sizeof(s_tmp_offsets[0])) return false;
-    if (s_tmp_used + plen + 1 > TMP_POOL_BYTES) return false;
-    s_tmp_offsets[s_tmp_count++] = s_tmp_used;
-    memcpy(s_tmp_pool + s_tmp_used, path, plen + 1);
-    s_tmp_used += plen + 1;
-    return true;
-}
-
-static const char* tmp_list_get(uint16_t i) {
-    return s_tmp_pool + s_tmp_offsets[i];
-}
-
-uint32_t restore_cleanup_orphan_tmps() {
-    uint32_t removed = 0;
-    for (uint16_t i = 0; i < s_tmp_count; i++) {
+/* O arquivo que o APPLY deixou pela metade, se houver: fecha e apaga. */
+static void drop_incomplete(RestoreSession& s) {
+    if (s.cur_file) s.cur_file.close();
+    if (s.cur_incomplete) {
         watchdog_update();
-        if (LittleFS.remove(tmp_list_get(i))) removed++;
+        LittleFS.remove(s.cur_path);
+        s.cur_incomplete = false;
     }
-    tmp_list_reset();
-    return removed;
-}
-
-/* Strategy v2: sem rename. Escrevemos direto no path final em APPLY mode.
- * commit é no-op. rollback (em failure) deleta arquivos parcialmente escritos.
- *
- * Trade-off vs plano §6 ("estratégia atômica via .tmp + rename"): se CRC
- * falhar no final do upload, arquivos finais já foram tocados. Mitigação:
- * cliente DEVE chamar /api/restore/validate antes de /api/restore/apply para
- * garantir integridade prévia. Sem essa chamada, falha de integridade aplica
- * dano parcial. Económia: ~16 KB de flash que LittleFS.rename puxava. */
-static uint32_t commit_all_tmps() {
-    uint32_t n = s_tmp_count;
-    tmp_list_reset();
-    return n;  /* arquivos já estão no path final desde a escrita */
 }
 
 /* ---------------------------------------------------------------------------
@@ -134,23 +121,19 @@ static void session_reset(RestoreSession& s) {
     s.cur_path[0] = '\0';
     s.cur_path_filled = 0;
     s.cur_content_remaining = 0;
+    s.cur_incomplete = false;
+    s.wrote_any = false;
     if (s.cur_file) s.cur_file.close();
 }
 
 void restore_session_begin(RestoreSession& s, RestoreMode mode) {
     s.mode = mode;
-    if (mode == RestoreMode::APPLY) {
-        /* Limpa qualquer .restore_tmp órfão de runs anteriores antes de começar. */
-        restore_cleanup_orphan_tmps();
-    }
     session_reset(s);
 }
 
 void restore_session_abort(RestoreSession& s) {
-    if (s.cur_file) s.cur_file.close();
-    if (s.mode == RestoreMode::APPLY) {
-        restore_cleanup_orphan_tmps();
-    }
+    if (s.mode == RestoreMode::APPLY) drop_incomplete(s);
+    else if (s.cur_file) s.cur_file.close();
     s.phase = RestorePhase::FAILED;
     s.status = BackupStatus::IO_ERROR;
 }
@@ -184,6 +167,12 @@ static void on_header_complete(RestoreSession& s) {
     read_chip_id(my_chip);
     if (memcmp(my_chip, s.header.chip_id, 8) != 0) {
         fail(s, BackupStatus::CHIP_ID_MISMATCH); return;
+    }
+    /* Antes de qualquer escrita: um APPLY só grava o backup validado por
+     * último, e é isso que faz um arquivo terminado ser confiável numa falha
+     * adiante. A página sempre validou antes; agora o aparelho exige. */
+    if (s.mode == RestoreMode::APPLY && !header_was_validated(s.header)) {
+        fail(s, BackupStatus::NOT_VALIDATED); return;
     }
 
     s.payload_remaining = s.header.payload_size;
@@ -224,7 +213,8 @@ static void on_path_complete(RestoreSession& s) {
         fail(s, BackupStatus::PATH_INVALID); return;
     }
     if (s.mode == RestoreMode::APPLY) {
-        /* Escreve direto no path final (sem rename). Ver commit_all_tmps.
+        /* Escreve direto no path final (sem rename): ver "Falha no meio de um
+         * APPLY", no começo deste arquivo.
          *
          * F-RESTORE fix: feed WDT antes de cada operação que pode triggerar
          * GC do LittleFS (mkdir, open com truncate). Sob LFS fragmentado
@@ -237,9 +227,9 @@ static void on_path_complete(RestoreSession& s) {
         if (s.cur_file) s.cur_file.close();
         s.cur_file = LittleFS.open(s.cur_path, "w");
         watchdog_update();
+        s.wrote_any = true;   /* "w" já truncou o original */
         if (!s.cur_file) { fail(s, BackupStatus::IO_ERROR); return; }
-        /* Tracking: para rollback em CRC mismatch deletamos os escritos. */
-        if (!tmp_list_add(s.cur_path)) { fail(s, BackupStatus::IO_ERROR); return; }
+        s.cur_incomplete = true;
     }
     s.cur_content_remaining = s.cur_content_len;
     s.phase = RestorePhase::CONTENT;
@@ -249,6 +239,7 @@ static void on_content_complete(RestoreSession& s) {
     if (s.mode == RestoreMode::APPLY && s.cur_file) {
         s.cur_file.close();
     }
+    s.cur_incomplete = false;
     s.file_count++;
     s.entry_filled = 0;
     if (s.payload_remaining == 0) {
@@ -263,7 +254,12 @@ static void on_content_complete(RestoreSession& s) {
 }
 
 bool restore_session_feed(RestoreSession& s, const uint8_t* data, size_t len) {
-    while (len > 0 &&
+    /* Um arquivo vazio não traz byte nenhum para a fase CONTENT, então o laço
+     * gira mais uma vez por ele mesmo sem bytes por ler. Sem isso, um vazio no
+     * fim da carga deixava a sessão em CONTENT, e o finish marcava como
+     * truncado um backup inteiro — nem a validação passava (achado ao escrever
+     * os testes, 2026-10-02). */
+    while ((len > 0 || (s.phase == RestorePhase::CONTENT && s.cur_content_remaining == 0)) &&
            s.phase != RestorePhase::FAILED &&
            s.phase != RestorePhase::DONE) {
         watchdog_update();
@@ -335,13 +331,17 @@ BackupStatus restore_session_finish(RestoreSession& s, bool* fs_modified) {
         fail(s, BackupStatus::PAYLOAD_TRUNCATED);
     }
 
-    if (s.mode == RestoreMode::APPLY) {
-        if (s.phase == RestorePhase::DONE && s.status == BackupStatus::OK) {
-            commit_all_tmps();
-            if (fs_modified) *fs_modified = true;
-        } else {
-            restore_cleanup_orphan_tmps();
+    const bool ok = (s.phase == RestorePhase::DONE && s.status == BackupStatus::OK);
+    if (s.mode == RestoreMode::VALIDATE) {
+        if (ok) {
+            s_validated = true;
+            s_val_header_crc = s.header.header_crc32;
+            s_val_payload_crc = s.header.payload_crc32;
+            s_val_payload_size = s.header.payload_size;
         }
+    } else {
+        if (!ok) drop_incomplete(s);
+        if (fs_modified) *fs_modified = s.wrote_any;
     }
     return s.status;
 }

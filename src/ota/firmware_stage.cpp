@@ -28,7 +28,9 @@ namespace ota {
  * Statics em vez de struct members pra evitar recompile cascade via
  * firmware_stage.h (WebManager.h inclui). OTA stage é serial — só uma
  * sessão de cada vez. */
-static uint8_t  s_sectors_erased[32];   /* 256 setores ÷ 8 bits */
+/* One bit per sector of the staging area: 256 on the RP2040 (1 MB), 383 on the
+ * RP2350 (a slot of 1,532 KB). */
+static uint8_t  s_sectors_erased[(OTA_STAGE_AREA / OTA_FLASH_SECTOR_SIZE + 7) / 8];
 static uint16_t s_snapshot_len;
 
 static bool ensure_sector_erased(uint32_t off) {
@@ -52,8 +54,11 @@ bool stage_session_begin(StageSession& s, StorageManager* storage) {
 
     if (!storage) { s.status = StageStatus::BEGIN_FAILED; return false; }
 
-    /* Snapshot ANTES de unmount LFS (precisa LFS-readable). */
+#if OTA_RP2040_MAP
+    /* Snapshot ANTES de unmount LFS (precisa LFS-readable). The RP2350 keeps
+     * LittleFS mounted and its slot holds no config: no snapshot there. */
     s_snapshot_len = ota_snapshot_serialize();
+#endif
 
     if (!staging_session_begin_lite(storage)) {
         s.status = StageStatus::BEGIN_FAILED;
@@ -64,9 +69,10 @@ bool stage_session_begin(StageSession& s, StorageManager* storage) {
      *
      * A staging area É a partição do LittleFS: begin_lite já desmontou a FS e
      * a partir daqui cada página gravada apaga a FS por baixo. Se o upload for
-     * cortado no meio — o que o RST do roteador em fluxos porta-80 sustentados
-     * (~12-15 s; a imagem leva ~30 s) torna ROTINA, ver
-     * [[roteador-mata-fluxos-porta-80]] — o abort remonta e a FS é
+     * cortado no meio — ROTINA até 04/10/2026 com qualquer página do aparelho
+     * aberta no navegador: o lwIP matava o upload aos ~12-15 s, e a imagem
+     * leva ~30 s; parecia o roteador (tools/arduino_pico_overrides, patch 2l)
+     * — o abort remonta e a FS é
      * reformatada, e o snapshot que só era gravado no END nunca existiu: o
      * aparelho voltava de fábrica (WiFi, contas, sensores perdidos). Gravado no
      * begin, ele sobrevive a um stage interrompido e até a uma queda de energia,
@@ -90,12 +96,12 @@ bool stage_session_begin(StageSession& s, StorageManager* storage) {
 }
 
 static bool flush_page(StageSession& s) {
-    /* Teto é OTA_SNAPSHOT_OFFSET, não OTA_STAGING_MAX_SIZE: os dois últimos
-     * setores da staging guardam o snapshot da config (gravado no begin) e o
-     * upload nunca pode escrever neles. Coincide com OTA_APP_SAFE_MAX_SIZE
-     * (1016 KiB), o mesmo teto que a validação e o applier já impõem. */
-    if (s.bytes_written + OTA_FLASH_PAGE_SIZE >
-        OTA_STAGING_MAX_SIZE - 2u * OTA_FLASH_SECTOR_SIZE) {
+    /* No RP2040 o teto é OTA_SNAPSHOT_OFFSET, não OTA_STAGING_MAX_SIZE: os dois
+     * últimos setores da staging guardam o snapshot da config (gravado no begin)
+     * e o upload nunca pode escrever neles. Coincide com OTA_APP_SAFE_MAX_SIZE
+     * (1016 KiB), o mesmo teto que a validação e o applier já impõem. No RP2350
+     * o teto é o slot inteiro (OTA_STAGE_CEILING, ota_layout.h). */
+    if (s.bytes_written + OTA_FLASH_PAGE_SIZE > OTA_STAGE_CEILING) {
         s.status = StageStatus::OVERFLOW_ERR;
         return false;
     }

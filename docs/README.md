@@ -1,6 +1,6 @@
 # docs/
 
-Forty-two documents, and until now no way to tell which ones describe the firmware
+Forty-five documents, and until now no way to tell which ones describe the firmware
 you are holding and which ones describe a moment in its past. Both kinds are
 worth keeping. Confusing them is what costs an afternoon.
 
@@ -23,7 +23,9 @@ A snapshot is not stale. A **living** document that has fallen behind is.
 | document | state | about |
 |---|---|---|
 | [MANUAL.md](MANUAL.md) · [pt-BR](MANUAL.pt-BR.md) | Living | The user manual: screens, web UI, CLI, telemetry, OTA. |
-| [MANUAL.pt-BR.html](MANUAL.pt-BR.html) | Living | The complete product manual, in Portuguese: 31 chapters for v2.9.0. Generated from the chapter sources in [_manual/](_manual/) by `tools/build_manual.py` — edit those, never the HTML. Screenshots still to capture are listed in its Appendix A and in [images/manual/CAPTURAR.md](images/manual/CAPTURAR.md). |
+| [MANUAL.pt-BR.html](MANUAL.pt-BR.html) | Living | The complete product manual, in Portuguese: 31 chapters for v2.11.1. Generated from the chapter sources in [_manual/](_manual/) by `tools/build_manual.py` — edit those, never the HTML. Screenshots still to capture are listed in its Appendix A and in [images/manual/CAPTURAR.md](images/manual/CAPTURAR.md). |
+| [FEATURES.md](FEATURES.md) · [pt-BR](FEATURES.pt-BR.md) · [es-ES](FEATURES.es-ES.md) | Living | Every feature in detail, moved out of the README on 2026-10-02. |
+| [VERIFICATION.md](VERIFICATION.md) · [pt-BR](VERIFICATION.pt-BR.md) · [es-ES](VERIFICATION.es-ES.md) | Living | What has been measured on the bench, dated, newest first. Moved out of the README on 2026-10-02. |
 | [CLI-Manual.md](CLI-Manual.md) | Living | Every serial/Bluetooth command, for the `pico_w_test` profile. |
 | [WIRING.md](WIRING.md) | Living | Pinout and bench wiring, including the PicoHand rig. |
 | [RECOVERY.md](RECOVERY.md) | Living | Getting a Pico W back after a bad OTA. Read before you need it. |
@@ -58,6 +60,8 @@ fixed, which is exactly what makes them useful when it comes back.
 | [analysis/PLANO_DIVIDA_TECNICA.md](analysis/PLANO_DIVIDA_TECNICA.md) | **Living** | The debt still owed and the order to pay it in, with the dependencies that set that order. |
 | [analysis/PLANO_REVISAO_EXTERNA.md](analysis/PLANO_REVISAO_EXTERNA.md) | **Living** | O plano que seguiu uma revisão externa da v2.7.3: o que ela acertou, o que os números velhos do README fizeram parecer pior, os 75 achados de leitura de código triados contra a `main` (72 presentes, 17 de severidade alta), e o Pico 2 W como segunda plataforma, com o que foi conferido no framework (pt-BR). |
 | [analysis/OTA_ASSINADA.md](analysis/OTA_ASSINADA.md) | **Living** | OTA só com imagem assinada: o que a assinatura garante e o que não, as duas camadas de chave (raiz offline e assinatura no CI com aprovação), o trailer, o bloco de confiança compilado de `keys/`, a verificação no stage e de novo no apply medida no rig (1,87 s e 1,94 s; 5,6 KB de pilha no Core 0), o anti-rollback, a cerimônia das chaves, os jobs de assinatura do CI, a transição a partir da v2.8.x e as cinco etapas (pt-BR). |
+| [analysis/OTA_AB_RP2350.md](analysis/OTA_AB_RP2350.md) | **Living** | OTA de slot duplo no Pico 2 W (etapa S2): o layout de 4 MB com tabela de partições, slots A e B de 1.532 KB e LittleFS de 1.020 KB, a imagem sem o stub de OTA do arduino-pico, o stage no slot inativo com o primeiro setor por último, o primeiro boot em teste (etapa 5: a marca no `firmware_ota.bin`, a confirmação depois de um minuto saudável, o prazo de 300 s, a guarda do `setup( )`, o watchdog que o *buy* da ROM desliga, a volta e o relato no log e no `/api/status`; etapa 6: a autópsia medida em cada tipo de reinício, e o Core 1 na saúde do teste), a release (etapa 7: a atualização marcada e o `.uf2` de fábrica feito dela, a confiança na bancada fora do perfil, a errata E10), os registradores de rascunho que a ROM usa, boot seguro e OTP só em produção, e as oito etapas (pt-BR). |
+| [analysis/A04_CURSOR_POR_POSICAO.md](analysis/A04_CURSOR_POR_POSICAO.md) | **Living** | A-04 and B10: why the telemetry cursor, a single timestamp, skipped a block written out of order (6 of 75,778 records on 2026-09-21), the two ways to make it a write position, and the one built in #232 — a position per day file, no format change — with what the implementation added (pt-BR). |
 | [analysis/PLANO_STABLE.md](analysis/PLANO_STABLE.md) | **Living** | O que precisa ser verdade para a linha sair de beta, a matriz de testes que prova cada item, e os três bloqueios abertos (pt-BR). |
 | [analysis/DIETA_FLASH.md](analysis/DIETA_FLASH.md) | **Living** | Where the 1 MB release image goes and what gives bytes back without dropping a feature: attributed from the linker map, six levers measured by A/B builds, −53,848 B in one image (pt-BR). |
 | [analysis/ESPELHO_DELTA.md](analysis/ESPELHO_DELTA.md) | **Living** | Sending only the blocks that changed in the panel mirror: measured on the rig, and what stands in the way (pt-BR). |

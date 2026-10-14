@@ -23,7 +23,13 @@
  * provar que ninguém a usa, então o endereço é materializado e o linker
  * mantém. A conferência que pega uma regressão disto não é de compilação: é
  * procurar a etiqueta no .bin, e é o que tools/release_manifest.py faz antes
- * de publicar qualquer imagem. */
+ * de publicar qualquer imagem.
+ *
+ * No RP2350 essa leitura faltou nos passos 2 e 3, quando a imagem recusava o
+ * OTA e o validador ficava fora do link: o .bin saía sem a etiqueta (medido em
+ * 2026-10-03). Com o stage no slot inativo (docs/analysis/OTA_AB_RP2350.md,
+ * etapa 4) o validador volta, e a etiqueta com ele, com o env "releasetwo"
+ * (simut_config.h). tools/check_rp2350_image.py confere que ela está no .bin. */
 const char SIMUT_ENV_TAG[] __attribute__((used)) =
     SIMUT_ENV_TAG_PREFIX SIMUT_ENV_NAME ";v=" SIMUT_VERSION ";";
 

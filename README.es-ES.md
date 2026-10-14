@@ -47,10 +47,10 @@ Los tres comparten el mismo núcleo:
 
 | | |
 |---|---|
-| **Release actual** | **v2.9.0** (02/10/2026). SIMUT salió de beta con la v2.7.0, sobre mediciones: un soak de 8,18 h sin ningún reinicio y 6 de 6 actualizaciones por el aire sin perder nada. La v2.9.0 es la primera release firmada: por el aire, el dispositivo solo instala imágenes que el proyecto firmó, y el panel muestra la actualización mientras ocurre. El punto de acceso de configuración solo se abre cuando se pide, una unidad sin red pide la fecha y la hora, y el dispositivo sigue midiendo con el punto de acceso activo; la v2.8.0 había pasado a conservar la configuración cuando una actualización se corta a mitad. |
-| **Imágenes publicadas** | Tres imágenes, cada una en `.uf2` y `.bin`: `release` (panel táctil TFT), `alpha` (LCD 16×2 con consola Bluetooth) y `air` (registrador a batería sin pantalla). Junto a ellas van los packs de idioma pt-BR y es-ES y un manifiesto de OTA. Una imagen con otro conjunto de funciones sale del [configurador de build](https://angelointj.github.io/simut/configurador/), y el CI la compila desde `main`. |
-| **Madurez** | <ul><li>`release`: **estable**.</li><li>`alpha`: publicado y probado en el banco, con su LCD 16×2 incluido desde el 26/09/2026.</li><li>`air`: **experimental**. Su único soak largo falló: un sueño en el ciclo 119 nunca despertó (F28). Hoy lo mitiga un watchdog a lo largo del despertar; la causa raíz no está confirmada.</li></ul> |
-| **Pruebas** | Cada pull request ejecuta 533 casos de test en el host en 9 suites, 60 s de fuzzing y análisis estático, y compila las siete imágenes de firmware con la caché fría. El comportamiento en hardware real se verifica en un banco — ver [Verificación en hardware](#verificación-en-hardware). |
+| **Release actual** | **v2.11.1** (12/10/2026); el [changelog](CHANGELOG.md) dice qué cambió cada versión. SIMUT salió de beta con la v2.7.0, sobre mediciones: un soak de 8,18 h sin ningún reinicio y 6 de 6 actualizaciones por el aire sin perder nada. |
+| **Imágenes publicadas** | Cuatro imágenes, cada una en `.uf2` y `.bin`. Para la Pico W: `release` (panel táctil TFT), `alpha` (LCD 16×2 con consola Bluetooth) y `air` (registrador a batería sin pantalla). Para la Pico 2 W (RP2350): `releasetwo`, la release, cuyo `.uf2` lleva su tabla de particiones y cuyo `.bin` arranca a prueba. Junto a ellas van los packs de idioma pt-BR y es-ES y un manifiesto de OTA. Una imagen con otro conjunto de funciones sale del [configurador de build](https://angelointj.github.io/simut/configurador/), y el CI la compila desde `main`, también para la Pico 2 W. |
+| **Madurez** | <ul><li>`release`: **estable**.</li><li>`alpha`: publicado y probado en el banco, con su LCD 16×2 incluido desde el 26/09/2026.</li><li>`air`: **experimental**. Su único soak largo falló: un sueño en el ciclo 119 nunca despertó (F28). Hoy lo mitiga un watchdog a lo largo del despertar; la causa raíz no está confirmada.</li><li>`releasetwo`: **nueva** en la v2.11.0, probada en el banco en una Pico 2 W (RP2350 A2). Se actualiza por el aire en el otro slot, a prueba, y vuelve sola cuando la actualización no se confirma.</li></ul> |
+| **Pruebas** | Cada pull request ejecuta 689 casos de test en el host en 11 suites, 60 s de fuzzing y análisis estático, y compila las nueve imágenes de firmware con la caché fría. El comportamiento en hardware real se verifica en un banco — ver [Verificación en hardware](docs/VERIFICATION.es-ES.md). |
 
 **Limitaciones conocidas.** Cada una está documentada donde aplica.
 - **Actualización.** La actualización por el aire reformatea el sistema de archivos:
@@ -60,8 +60,6 @@ Los tres comparten el mismo núcleo:
 - **Reinicios sin explicación.** Un reinicio de watchdog (`ctx=209` o `ctx=455`) apareció tres veces en la imagen de prueba el 20–21 de septiembre, y no desde entonces; el que se capturó con su contexto tenía el Core 0 en la consola (`ctx=209`). Los dos núcleos están ahora instrumentados para explicar el siguiente. Un `ctx=455` (traza vacía) en el primer arranque después de `picotool load -x` no es esto: ese reinicio pasa por el watchdog, y el registro apareció tras 11 de 11 grabaciones así y tras ninguno de 7 reinicios por el pin (30/09/2026).
 - **Conexiones inactivas.** Durante el soak de la v2.7.0, el 7,1 % de las respuestas en una conexión keep-alive inactiva llegaron cortadas. El dispositivo corta un flujo que no puede enviar durante 4 s.
 - **Respuestas chunked.** Leído en un bucle cerrado, el 0,15–0,6 % de las respuestas de `/api/status` llega con el encuadre chunked roto ([#189](https://github.com/angeloINTJ/simut/issues/189)). El dispositivo no se reinicia y la petición siguiente funciona; la página pierde una actualización.
-- **Lista de usuarios.** Cada guardado de la lista de usuarios reinicia el dispositivo, unos 25 s cada vez.
-- **Cursor de telemetría.** El cursor es una única marca de tiempo, así que un registro grabado fuera de orden en la flash se salta: 6 de 75.778 registros en una medición.
 - **No es un instrumento certificado.** SIMUT no es un instrumento metrológico certificado. Valídalo contra tu propia referencia antes de confiar en él para almacenamiento regulado.
 
 ## ¿Por qué SIMUT?
@@ -144,147 +142,22 @@ Consulta la **[guía de cableado](docs/WIRING.md)** para el pinout completo y lo
 
 > **PCB del SIMUT — diseño disponible para descarga** — el diseño de la placa en KiCad (`.kicad_pcb`, `.kicad_sch`) está en [`PCB_test/`](PCB_test/), y el paquete de fabricación listo para enviar a la fábrica (Gerbers + taladros PTH/NPTH, sin capas de pasta) está publicado como release público: **[simut-pcb-v1.1 — `simut_pcb_fabrication.zip`](https://github.com/angeloINTJ/simut/releases/tag/simut-pcb-v1.1)**.
 
-## Características principales
+## Características
 
-### Sensores y alarmas
-- **16 slots universales de sensor** — GP0–GP15. Cada slot acepta DS18B20, DHT22 o BMP280/BME280; el BMx280 se reclasifica solo por el ID del chip. Tipo y pines se asignan en tiempo de ejecución, sin recompilar.
-- **Temperatura, humedad y presión** como canales de primera clase.
-- **Calibración** — offsets por sensor y curvas de hasta 5 puntos por canal, lineales o suaves.
-- **Validación de los sensores:**
-  - verificación de la ROM del DS18B20, con la sonda cambiada en cuarentena hasta que vuelva la correcta;
-  - histéresis de error: 3 fallos para entrar, 5 éxitos para salir;
-  - lecturas fuera de rango descartadas.
-- **Alarmas en todos los canales:**
-  - límites mínimo y máximo por canal;
-  - una alarma de fallo que salta aunque los límites del sensor estén desactivados;
-  - un silencio de 120 s y un silencio global;
-  - melodías en el zumbador y aviso visual en la pantalla.
-- **Ventanas de mantenimiento** — por sensor, hasta 30 días, fijadas desde el panel o por un servidor. Mientras una está abierta, las alarmas quedan suprimidas, y su inicio y su fin se notifican como `maint_on` / `maint_off`.
-
-### Panel táctil (`release`)
-- **Panel táctil ILI9341 320×240** — dashboard, gráficos de histórico con banda mín/máx, estadísticas, calendario, ajustes.
-- **Identidad en el panel** — el operador elige una cuenta y luego teclea el PIN de esa cuenta:
-  - 32 cuentas, cada una con su PIN;
-  - política de PIN configurable: longitud mínima, 1 a 3 glifos por tecla, dígitos o 0-9A-Z;
-  - un teclado que se vuelve a barajar tras cada toque;
-  - bloqueo por cuenta: el sexto fallo bloquea la cuenta, y 20 fallos en total bloquean el panel.
-- **Administración en la pantalla:**
-  - un elemento Usuarios crea cuentas y fija sus bits de permiso y sus PIN;
-  - las 13 filas de Ajustes se filtran según lo que la cuenta puede hacer;
-  - Ajustes → 12 arranca el punto de acceso de configuración;
-  - Ajustes → 13 fija la fecha y la hora, y una unidad sin red configurada las pide al final del arranque.
-- **Gestos en el panel superior** — un toque alterna mín/máx, mantener 3 s fija la selección.
-- **Renderizado rápido con DMA** — composición en canvas sobre SPI a 62,5 MHz.
-- **Área segura de 4 px en toda la UI** — el offset de alineación de pantalla (±4 px por eje) nunca recorta contenido.
-- **Temas** — hasta 8 cargados desde LittleFS (11 vienen en `data/themes/`); el editor en `tools/theme-editor/` muestra la vista previa en un dispositivo real.
-- **Sistema de sonidos** — clases Toque, Confirmación, Error, Alarma y Atención, 6 melodías cada una, con volúmenes separados para sistema y alarma.
-
-### LCD de caracteres (`alpha`)
-- **Lecturas** — recorre todos los slots y canales activos cada 3 s, con dígitos grandes para temperatura y humedad y una etiqueta `S<n>` que nombra el slot.
-- **Punto de acceso de configuración** — muestra la dirección, el SSID y la clave, desplazando los valores largos.
-- **Consola Bluetooth** — ver la nota de seguridad en [Entornos](#entornos).
-- **Envíos pendientes** — con un único sensor, la esquina inferior izquierda muestra el número de envíos pendientes (`N`, o `Nk` a partir de mil), y el icono de Wi-Fi crece de izquierda a derecha.
-
-### Interfaz web
-- **11 páginas** — comprimidas con gzip (zopfli) en la flash, con temas claro y oscuro que siguen la preferencia del sistema, gestor de archivos y sesiones multiusuario que caducan tras 15 minutos de inactividad.
-- **Espejo del panel en vivo** (`release`) — el fotograma actual del panel en el navegador, 213 ms por fotograma. Un clic sobre él es un toque en la pantalla.
-- **Cada cambio dice cuánto cuesta** — tres botones:
-  - *Probar*: se aplica sin guardar;
-  - *Aplicar ahora*: se guarda sin reiniciar;
-  - *Guardar y reiniciar*.
-
-  El propio dispositivo clasifica cada cambio con un ensayo (dry run) antes de que la página ofrezca los botones.
-- **Reiniciar sin guardar** — un botón al final de la página de configuración reinicia el dispositivo y descarta lo que la página no guardó; vuelve la configuración grabada.
-- **Versión en la página de inicio de sesión** — la versión del firmware aparece bajo el nombre antes de iniciar sesión.
-- **Búsqueda de redes Wi-Fi** — elige la red de una lista, incluso desde dentro del punto de acceso de configuración.
-- **Gráficos de histórico y exportación CSV en el navegador** — la página descarga los archivos binarios crudos de cada día y ella misma los decodifica, agrupa en cubetas (mín/máx/media) y exporta. La hora reciente, aún sin sellar, viene de `/api/history/open`. El renderizador de gráficos va embebido — sin CDN.
+- **Sensores y alarmas** — 16 slots universales de sensor (DS18B20, DHT22, BMP280/BME280) asignados en tiempo de ejecución, curvas de calibración, límites por canal, alarma de fallo y ventanas de mantenimiento.
+- **Panel táctil** (`release`) — panel principal, gráficos del histórico y calendario, e identidad en el panel: la cuenta y luego su PIN.
+- **LCD de caracteres** (`alpha`) — cada slot por turno, el punto de acceso de configuración y una consola Bluetooth.
+- **Interfaz web** — 11 páginas, el espejo del panel en vivo, gráficos del histórico y exportación CSV en el navegador.
 - **API HTTP** — 62 rutas. Cada una está protegida por un permiso o es pública por diseño, y el CI lo comprueba.
+- **Telemetría** — HTTP, HTTPS, MQTT y MQTTS, en lotes por cantidad, y una segunda línea, con confirmación, para las alarmas; Home Assistant, Prometheus y syslog.
+- **Red y hora** — Wi-Fi que se reconecta solo, punto de acceso de configuración abierto a pedido, y NTP con un reloj provisional hasta sincronizar.
+- **Almacenamiento** — el histórico binario V5 (unos 116 días en 1 MB), la configuración con CRC32 y `.bak`, y un log de eventos con 166 códigos de evento.
+- **Seguridad** — 32 cuentas, 13 bits de permiso, HMAC-SHA256 con salt, bloqueos por intentos y HTTPS opcional.
+- **Actualización** — actualización por el aire firmada, desde la página web, y backup y restauración de todo el sistema de archivos.
+- **SIMUT Air** (experimental) — registrador a batería que hiberna entre lecturas.
+- **Idiomas** — inglés integrado; pt-BR y es-ES como packs de idioma.
 
-### Telemetría e integraciones
-- **Cuatro transportes** — HTTP, HTTPS, MQTT y MQTTS:
-  - payload en JSON, CSV o una plantilla personalizada;
-  - TLS 1.2 (ECDHE con AES-GCM), con el certificado del servidor comprobado contra un `/cert.pem` subido al dispositivo.
-- **Lotes por cantidad:**
-  - `t_int` es el lote mínimo: la radio sigue apagada hasta que esperan tantos registros (0 = desactivado);
-  - `t_bat` es el máximo por petición, un techo que la memoria libre puede bajar;
-  - el tamaño del lote se adapta a éxitos y fallos, y el tiempo de respuesta del servidor marca el ritmo del siguiente.
-- **Una segunda línea para alarmas:**
-  - los eventos de alarma, fallo y mantenimiento viajan en su propia cola (32 por defecto, hasta 64);
-  - cada evento sale de la cola solo cuando el servidor lo confirma (HTTP 2xx o un ack MQTT);
-  - cada uno lleva el nombre de la cuenta que actuó.
-- **Integraciones** — MQTT Discovery de Home Assistant (opcional), `/metrics` de Prometheus (sesión o HTTP Basic) y syslog remoto (RFC 5424 sobre UDP).
-- **Enganches de flota:**
-  - cabeceras de identidad `X-SIMUT-*` en los envíos;
-  - en la imagen `release`, un servicio mDNS `_simut._tcp` con id, versión, imagen y TLS en su registro TXT;
-  - tokens Bearer y un origen CORS configurable.
-
-### Red y hora
-- **Wi-Fi que se reconecta solo:**
-  - una escalera de reintentos: 5 s, doblando hasta 120 s, luego latencia y una nueva ronda;
-  - SSID ocultos y comprobaciones de la calidad de la señal;
-  - IP estática, dos servidores DNS, un servidor NTP propio o un reloj manual, y puerto web configurable.
-- **Punto de acceso de configuración:**
-  - se llama `<nombre del dispositivo>_SETUP` — `simut_SETUP` de fábrica;
-  - WPA2, con una clave por dispositivo que se muestra en la consola USB y en la pantalla de arranque del TFT;
-  - portal cautivo en `http://192.168.4.1`.
-
-  Solo se abre cuando alguien lo pide. Una unidad con la red caída sigue midiendo y reintentando la red. Tres formas de entrar:
-  - Ajustes → 12 en el panel;
-  - el comando `ap` de la consola (USB, o Bluetooth en el alpha y el Air);
-  - mantener el panel pulsado 3 s durante el arranque.
-- **NTP** — el intervalo entre reintentos crece de 20 s a 15 min, con fallback a `pool.ntp.org`. Hasta que el NTP sincroniza o alguien fija el reloj, un reloj provisional parte del registro más reciente guardado. El panel lo marca con `?` entre la fecha y la hora, y el primer ajuste después del arranque, por NTP o a mano, corrige los bloques del histórico que ese arranque empezó.
-
-### Almacenamiento e histórico
-- **Histórico binario compacto (V5)** — codificación delta + ancla a 5,38 bytes/registro, unos 116 días en el sistema de archivos de 1 MB (11 canales con cadencia de 1 minuto, medido en archivos de banco el 31/07/2026):
-  - bloques de 60 registros, cada uno con su CRC;
-  - el bloque abierto se guarda tras cada registro;
-  - al superar el 86 % de ocupación, se borra el día más antiguo.
-- **Configuración** — con CRC32, escrita en un archivo temporal y renombrada, con un `.bak` de reserva. Los secretos se guardan ofuscados, no cifrados: el acceso físico a la flash queda fuera del modelo de amenazas ([SECURITY.md §3](SECURITY.md#3-secret-storage)).
-- **Log de eventos** — 2 × 800 registros y 155 códigos de evento:
-  - los eventos rutinarios se guardan en los cambios de estado, con un latido por hora y un recuento de lo suprimido;
-  - los registros de seguridad, configuración y fallo fatal nunca se filtran.
-
-### Seguridad
-- **Cuentas y permisos:**
-  - 32 cuentas, 13 bits de permiso;
-  - nadie puede conceder un bit que no tiene;
-  - backup, restauración, OTA e instalación de certificado exigen la máscara de admin completa.
-- **Contraseñas:**
-  - HMAC-SHA256, 5000 rondas, un salt aleatorio de hardware de 8 bytes por usuario y un pepper ligado a la placa;
-  - una unidad recién salida de fábrica genera una contraseña de admin aleatoria de 8 caracteres, la imprime una sola vez en la consola USB y obliga a cambiarla en el primer inicio de sesión.
-- **Límites contra fuerza bruta:**
-  - bloqueo de login de 2 s a 300 s por cliente, con `429` cuando todos los slots de bloqueo están ocupados;
-  - limitación por IP en las rutas pesadas;
-  - la consola Bluetooth tiene su propio bloqueo exponencial y deja de anunciarse 5 minutos después del arranque.
-- **Sesiones** — una cookie `HttpOnly; SameSite=Strict` (`Secure` sobre HTTPS), o un token Bearer.
-- **Subidas** — path traversal, percent-encoding, bytes de control y nombres reservados se rechazan, y `/config` queda fuera del alcance del gestor de archivos.
-- **HTTPS opcional** (`release`) — el par de certificado se instala con `POST /api/tls`. TLS 1.2, ECDHE con AES-GCM.
-- **Auditorías** — las auditorías del 16/08/2026, de la v2.3.6-beta y del 07/09/2026 están cerradas. El último hallazgo, V-09 (una cuenta restringida podía crear otra con más bits de los que tenía), se corrigió en la v2.7.0, y tanto él como las correcciones del 07/09 se verificaron en hardware. Ver **[SECURITY.md](SECURITY.md)**.
-
-### Resiliencia y forense
-- **Autopsia de cuelgues en cada arranque** — los registros scratch del watchdog indican qué módulo se colgó en cada núcleo. Desde la v2.7.0, tres registros más guardan también el módulo del Core 1, el heap libre y el tiempo en marcha en el momento del cuelgue.
-- **Disciplina de flash entre núcleos** — el Core 1 se pausa en cada escritura de flash (medido, no supuesto).
-- **Disciplina de watchdog** — el watchdog se alimenta en cada operación de archivos, así que los clientes HTTP lentos no bloquean el bucle.
-
-### Actualización, backup y recuperación
-- **OTA desde la página web:**
-  - solo admin;
-  - la imagen se comprueba antes de grabarla (tamaño, CRC del boot2, variante de imagen) y de nuevo en el arranque siguiente;
-  - Wi-Fi, cuentas y slots de sensor se conservan, y el resto del sistema de archivos se reformatea, así que la página descarga antes un backup;
-  - el dispositivo vuelve en menos de un minuto: 52–56 s en la campaña de la v2.7.0.
-- **Backup y restauración** — todo el sistema de archivos en un archivo, con CRC32 y ligado al chip.
-- **[Guía de recuperación](docs/RECOVERY.md)** — rutas por BOOTSEL, picotool y 1200 bps para cada modo de fallo.
-
-### SIMUT Air (experimental)
-- **Dos modos, sin pantalla ni zumbador:**
-  - **M0** es el despierto: web, consola, Bluetooth y sensores;
-  - **M1** es el ciclo: duerme hasta la alarma del RTC, despierta, lee, graba el histórico y vuelve a dormir.
-- **La radio solo cuando compensa** — solo se enciende cuando esperan `t_int` registros. Un despertar de lectura tarda 9,31 s con un DS18B20, y con un intervalo de 60 s el dispositivo está despierto cerca del 13 % del tiempo.
-- **Pin del cargador** — un pin de detección de cargador (GP17 por defecto) lo mantiene despierto mientras está enchufado.
-- **Consola completa** — es la única imagen publicada con la consola completa.
-
-### Internacionalización
-- **3 idiomas de interfaz** — inglés integrado; portugués (pt-BR) y español (es-ES) llegan como packs `.lng` en el sistema de archivos. Un dispositivo funciona en inglés más el pack instalado.
+Cada característica en detalle, y cuáles puede dejar fuera una build propia: **[docs/FEATURES.es-ES.md](docs/FEATURES.es-ES.md)**.
 
 ## Inicio rápido
 
@@ -316,18 +189,18 @@ pio run -e pico_w_release -t upload
 pio run -e pico_w_release -t uploadfs
 ```
 
-¿Prefieres no compilar? Cada [release](https://github.com/angeloINTJ/simut/releases/latest) incluye `simut_vX.Y.Z_release.uf2`, `_alpha.uf2` y `_air.uf2` (arrastrar y soltar con BOOTSEL presionado), el `.bin` correspondiente para la actualización por el aire y los packs de idioma pt-BR y es-ES. Una imagen con otro conjunto de funciones sale del [configurador de build](https://angelointj.github.io/simut/configurador/).
+¿Prefieres no compilar? Cada [release](https://github.com/angeloINTJ/simut/releases/latest) incluye `simut_vX.Y.Z_release.uf2`, `_alpha.uf2` y `_air.uf2` para la Pico W y, desde la v2.11.0, `_releasetwo.uf2` para la Pico 2 W (arrastrar y soltar con BOOTSEL presionado), el `.bin` correspondiente para la actualización por el aire y los packs de idioma pt-BR y es-ES. Una imagen con otro conjunto de funciones sale del [configurador de build](https://angelointj.github.io/simut/configurador/).
 
 ### Primer arranque
 1. **Apunta la contraseña del admin.** Una unidad recién salida de fábrica imprime una contraseña de admin aleatoria de 8 caracteres **una sola vez en la consola serie USB** (115200 baudios). Nunca se guarda en texto plano. Si la pierdes, `system admin reset confirm` por USB imprime una nueva.
-2. **Conéctalo a tu red.** El punto de acceso de configuración se abre cuando lo pides: escribe `ap` en la consola (en el Air, después de `enable`), o usa Ajustes → 12 en el panel táctil. De la v2.7.1 a la v2.8.0, una unidad sin red configurada lo abría sola; ya no lo hace.
+2. **Conéctalo a tu red.** El punto de acceso de configuración se abre cuando lo pides: escribe `ap` en la consola (en el Air, después de `enable`), o usa Ajustes → 8 en el panel táctil. De la v2.7.1 a la v2.8.0, una unidad sin red configurada lo abría sola; ya no lo hace.
    - Conéctate a `<nombre>_SETUP` (`simut_SETUP` de fábrica). Es WPA2, y su clave por dispositivo está en la respuesta de `ap`, en la consola USB y en el terminal de arranque del TFT.
    - El portal se abre en `http://192.168.4.1`.
    - El dispositivo sigue midiendo con el punto de acceso activo; solo la telemetría y el syslog esperan a la red. De la v2.7.1 a la v2.8.0 no leía sensores, no comprobaba alarmas ni grababa histórico mientras el punto de acceso estaba activo.
 
    Sin pantalla, puedes usar la consola: `system ssid <nombre>`, `system pass <clave>` y luego `reload confirm`. La consola corta en el primer espacio: una red o una clave con espacio solo por la página web.
 
-   Sin red configurada, la unidad pide la fecha y la hora al final del arranque, porque sin red no hay NTP: el panel táctil abre una pantalla de fecha y hora (**OMITIR** la cierra, y Ajustes → 13 fija el reloj después), y cada imagen escribe en la consola una línea con `conf time AAAA-MM-DD HH:MM:SS`. Ese comando funciona en la consola de todas las imágenes, por USB o por Bluetooth: en el alpha y el Air, que no tienen panel, es la forma de responder a la pregunta. La sección **Date & Time** de la página web también fija el reloj.
+   Sin red configurada, la unidad pide la fecha y la hora al final del arranque, porque sin red no hay NTP: el panel táctil abre una pantalla de fecha y hora (**OMITIR** la cierra, y Ajustes → 4 fija el reloj después), y cada imagen escribe en la consola una línea con `conf time AAAA-MM-DD HH:MM:SS`. Ese comando funciona en la consola de todas las imágenes, por USB o por Bluetooth: en el alpha y el Air, que no tienen panel, es la forma de responder a la pregunta. La sección **Date & Time** de la página web también fija el reloj.
 3. **Abre la interfaz web** en la dirección que obtuvo el dispositivo — en la imagen `release`, también en `http://simut.local` — y entra como `admin` con la contraseña del paso 1. Se te pedirá elegir una nueva.
 4. **Añade sensores** en **Config → Sensors & GPIO**, o deja que *Scan for probes* los encuentre.
 5. **En el panel táctil**, Ajustes pide una cuenta y su PIN. El PIN de fábrica del admin es `1234`, y hay que cambiarlo en el primer uso.
@@ -355,7 +228,7 @@ simut/
 │   └── SystemDefs*.h       # Constantes y límites del sistema
 ├── data/                   # Assets de LittleFS (packs de idioma, temas, favicon)
 ├── PCB_test/               # Diseño de la PCB en KiCad + archivos de fabricación (Gerber/DRL)
-├── test/                   # Tests unitarios nativos (Unity), nueve suites
+├── test/                   # Tests unitarios nativos (Unity), diez suites
 ├── tools/                  # Puertas de build, suites de banco, PicoHand, scripts de release, editor de temas
 ├── docs/                   # Documentación + sitio GitHub Pages
 ├── WebUI.h                 # Fuente de la web UI (se convierte en src/WebUI_GZ.h al compilar)
@@ -375,7 +248,7 @@ simut/
 | `pico_w_test` | Imagen de banco: la consola completa para las suites de prueba; sin HTTPS, sin mDNS | — |
 | `pico_w_test_https` | `pico_w_test` más el servidor HTTPS, para validar TLS; tres de sus páginas se sirven desde LittleFS para que quepa | — |
 | `pico_w_asserts` | Release + aserciones de concurrencia | — |
-| `pico2_w_release` | La release compilada para el Pico 2 W (RP2350), para que el CI la vea compilar. Aún no ha corrido en una placa | — |
+| `pico2_w_release` | La release del Pico 2 W (RP2350): arranca desde el slot A o B de una tabla de particiones y se actualiza por el aire en el otro, a prueba ([OTA_AB_RP2350.md](docs/analysis/OTA_AB_RP2350.md)). Su `.uf2` es una imagen de fábrica, con la tabla de particiones | `…_releasetwo` |
 | ocho entornos `native*` | Tests unitarios en el host — ver [Pruebas](#pruebas) | — |
 
 > **Nota de seguridad para `pico_w_alpha` y `pico_w_air`:** las dos compilan la
@@ -389,7 +262,7 @@ simut/
 > clave por dispositivo que se muestra en la consola y, donde la hay, en la
 > pantalla. Ver [SECURITY.md](SECURITY.md) §2 y §8.
 
-> No hay entorno de depuración. `pico_w_debug` se eliminó en la v2.4.1 tras no enlazar nunca: en `-Og` la imagen desbordaba el slot de 1020 KB en ~100 KB. La flash va justa. La imagen release usa el 97,1 % del slot de programa de 1.044.480 B (el valor medido vive en `tools/flash_budget.json`), y el CI comprueba cada `.bin`, con sus 241 B de firma, contra el techo de actualización por el aire, de 1.040.384 B. Un objetivo de GDB habría que montarlo recortando funcionalidades. Para el tripwire de concurrencia en hardware, usa `pico_w_asserts`.
+> No hay entorno de depuración. `pico_w_debug` se eliminó en la v2.4.1 tras no enlazar nunca: en `-Og` la imagen desbordaba el slot de 1020 KB en ~100 KB. La flash va justa. La imagen release usa el 97,8 % del slot de programa de 1.044.480 B (el valor medido vive en `tools/flash_budget.json`), y el CI comprueba cada `.bin`, con sus 241 B de firma, contra el techo de actualización por el aire, de 1.040.384 B. Un objetivo de GDB habría que montarlo recortando funcionalidades. Para el tripwire de concurrencia en hardware, usa `pico_w_asserts`.
 
 ### Flags de compilación
 - `-Os` — optimización por tamaño
@@ -430,15 +303,17 @@ El dispositivo expone una API REST en `http://<ip-del-dispositivo>/api/`:
 ### Tests en el host
 
 ```bash
-pio test -e native             # validadores, cursor de telemetría, etiquetas, parsers, paquetes de idioma, las pantallas Licencia y de actualización (241 casos)
-pio test -e native_history_v5  # códec del histórico V5 (63)
-pio test -e native_cli         # parser de la CLI (33)
+pio test -e native             # validadores, cursor de telemetría, etiquetas, parsers, paquetes de idioma, las pantallas Licencia y de actualización, el menú de Ajustes, la verificación de contraseña, la sesión web (288 casos)
+pio test -e native_history_v5  # códec del histórico V5 (62)
+pio test -e native_cli         # parser de la CLI (34)
+pio test -e native_lan         # parser de la CLI, ayuda del paquete, menú de Ajustes y códigos de log en una build cableada (14)
 pio test -e native_logpolicy   # persistencia de log por transición, franjas de la autopsia, lectura del táctil (57)
-pio test -e native_alarmqueue  # cola de la telemetría de alarmas (47)
-pio test -e native_network     # máquina de estados de la reconexión Wi-Fi (36)
-pio test -e native_air         # configuración persistente del SIMUT Air (16)
+pio test -e native_alarmqueue  # cola de la telemetría de alarmas (54)
+pio test -e native_network     # máquina de estados de la reconexión Wi-Fi (48)
+pio test -e native_wired       # máquina de estados de la red por cable, contra un ENC28J60 simulado (19)
+pio test -e native_air         # configuración persistente del SIMUT Air (17)
 pio test -e native_sensors     # tabla de tipos de sensor (13)
-pio test -e native_otasig      # firma de la imagen de OTA (27)
+pio test -e native_otasig      # firma de la imagen de OTA, la restauración del backup, y el grabador de slot y la actualización en prueba del RP2350 (83)
 
 # Comprobaciones de referencia del códec V5 (Python vs C++, 20 mil casos aleatorios)
 python3 tools/check_history_v5_parity.py --cases 20000
@@ -452,48 +327,17 @@ Cada push y pull request a `main` ejecuta cuatro jobs:
   - escaneo de secretos, tablas de códigos de log, matriz de autorización;
   - consistencia de la licencia, guarda del sistema de archivos, consistencia del Air;
   - tests de la fusión de días del histórico.
-- **firmware** — las siete imágenes, compiladas con la caché fría:
+- **firmware** — las nueve imágenes, compiladas con la caché fría:
   - cada una se comprueba contra su presupuesto de flash y el techo de actualización por el aire;
   - la propia compilación aplica el `-Werror` y las puertas de la interfaz web, la ayuda de la CLI, los códigos de log, la tabla de canales y los packs de idioma.
 - **fuzz** — 60 s de libFuzzer contra los validadores de la API web, con oráculos de contrato.
 - **análisis estático** — cppcheck, en una versión fijada.
 
-`main` está protegida: nueve de estas comprobaciones tienen que pasar antes de cualquier merge, todos los jobs salvo la imagen `pico_w_test_https`.
+`main` está protegida: nueve de estas comprobaciones tienen que pasar antes de cualquier merge, todos los jobs salvo las imágenes `pico_w_test_https`, `pico_wire` y `pico_wiretft`.
 
 ### Verificación en hardware
 
-**El banco:**
-- una Pico W con el panel TFT y el táctil;
-- una segunda Pico, la *PicoHand*, que acciona las líneas RESET y BOOTSEL del objetivo, cronometra su línea de despierto/dormido y simula un cargador (ver [AGENTS.md](AGENTS.md), en portugués);
-- suites de banco en `tools/` para la API web, el panel, la telemetría, la OTA, las caídas de Wi-Fi y el ciclo del Air.
-
-Lo que se ha medido en hardware real, de lo más reciente a lo más antiguo:
-
-| Fecha | Qué | Resultado |
-|---|---|---|
-| 02/10/2026 | Candidato a release (v2.9.0), firmado por el CI | Suite web con 87 aprobados y 0 fallos en la imagen de prueba; actualización por el aire desde la v2.8.0 publicada en la release, el Air y el alpha: el archivo de configuración idéntico byte a byte, todos los valores de configuración que informa la API web iguales, cinco sensores leyendo, el `.bkp` restaurado con 70 o 71 de 74 archivos idénticos (los otros son el log y el historial); el candidato sobre sí mismo, comprobando su propia firma; una imagen sin firma (8), la del Air (7) y la v2.8.0 (8) rechazadas; un envío cortado a 400 kB y un reinicio, con y sin el sistema de archivos lleno en medio: configuración intacta; 30 min sin reinicio |
-| 30/09/2026 | Candidato a release (v2.8.0) | Suite web con 87 aprobados y 0 fallos; actualización por el aire desde la v2.7.4 publicada: el archivo de configuración idéntico byte a byte, salvo la versión, cinco sensores leyendo, el `.bkp` restaurado con 67 de 72 archivos idénticos (los otros cinco debían diferir); un envío cortado a 400 kB y un reinicio: configuración intacta; 10 min sin reinicio; Air y alpha actualizados por el aire desde la v2.7.4 con su configuración (las opciones propias del Air de vuelta con el `.bkp`) |
-| 30/09/2026 | Un envío cortado y luego el sistema de archivos lleno (v2.8.0) | Misma flash de partida, envío cortado a 400 kB, nada cambiado, el sistema de archivos llenado al 100 % y vaciado, reinicio: antes del #195 el dispositivo volvió con los valores de fábrica, después con su configuración. El mismo corte en la v2.7.3, sin llenar: valores de fábrica (#192) |
-| 30/09/2026 | Content-Type de la telemetría personalizada (v2.8.0) | Colector en un PC: la cabecera recibida coincide con el campo para `application/x-ndjson`, `text/csv` y `application/json; charset=utf-8`; vacío envía `application/json`; el formato JSON ignora el campo; `bad value`, `aplicação/json` y `json` se rechazan al guardar |
-| 26/09/2026 | Candidato a release (v2.7.4) | Suite web con 87 aprobados y 0 fallos; los cinco sensores de las tres familias; tras una búsqueda de sensores el BMP280 siguió leyendo durante 90 s (antes de la corrección fallaba unos 10 s después); un commit ensayado del intervalo de muestreo responde `"reboot":false`; 10 min sin reiniciarse |
-| 26/09/2026 | El LCD 16×2 del alpha (v2.7.4) | En un HD44780 conectado en paralelo: la pantalla de arranque con la versión y su barra de progreso, la pantalla de conectado con la IP, y después cada sensor por turno, con su slot y el nivel del Wi-Fi |
-| 25/09/2026 | Página de configuración e inicio de sesión (v2.7.3) | *Reiniciar sin guardar*, en la imagen release y en el build de prueba: sin conexión 3,3 s después del clic, de vuelta a los 26,4 s, y un nombre editado y nunca guardado no sobrevivió al reinicio. La página de inicio de sesión muestra la versión en los dos temas; 9 páginas, 0 errores de script |
-| 24/09/2026 | Panel: Seguridad del PIN y Modo de Configuración (v2.7.2) | Las flechas del pie se quedan en la pantalla (la v2.7.1 la cerraba); un toque sin guardar ya no cambia la política grabada; Confirmar muestra la red, la clave y 192.168.4.1 (la v2.7.1 se quedaba en la confirmación, con el AP ya activo) |
-| 23/09/2026 | Reloj del Air a través del sueño (v2.7.2) | Marcas de tiempo entre −0,085 y +0,030 s en 10 despertares (la v2.7.1 perdía 0,8 s por despertar); la corrección del NTP bajó de 9–10 s a 0,08 s |
-| 23/09/2026 | Colas largas de telemetría en el Air (v2.7.2) | 0 cuerpos inválidos; 13.681 de 13.682 registros entregados despierto, 13.670 de 13.671 hibernando (v2.7.1: 68 de 69 cuerpos eran JSON inválido) |
-| 22/09/2026 | Soak de la v2.7.0 | 8,18 h, 0 reinicios; el mayor bloque libre del heap varió −42 B |
-| 22/09/2026 | Actualizaciones por el aire de la v2.7.0 | 6 de 6 aplicadas; 57 archivos restaurados, 0 registros perdidos |
-| 22/09/2026 | Punto de acceso de configuración (v2.7.1) | Un cliente entra en 4,1 s, en `release` y en `alpha` con el Bluetooth activo, también con MAC aleatoria. El fallback automático se abre tras 6–7 min sin red (eliminado el 01/10/2026) |
-| 22/09/2026 | Corrección del V-09 | 10 de 10 veredictos, con controles positivos |
-| 21/09/2026 | Colector caído durante 3 h 58 min | 237 registros en cola, 0 reinicios; vaciada en una ronda con 0 perdidos, más 25 registros de la línea de alarmas |
-| 21/09/2026 | Suites web | 67/67 como admin, 87/87 como cuenta restringida; 500 commits que escriben en la flash, 0 reinicios |
-| 21/09/2026 | Búsqueda de redes Wi-Fi | 18 de 18, 0,94 s por barrido, también desde dentro del punto de acceso |
-| 20/09/2026 | Cuentas, PIN y política en el panel | 32/32 |
-| 19/09/2026 | Espejo del panel | 613 → 213 ms por fotograma; idéntico al framebuffer píxel a píxel (0 de 76.800 distintos) |
-| 11/09/2026 | Corte de corriente durante una actualización | Solo la ventana de aplicación, de ~25 s, deja el dispositivo necesitando BOOTSEL |
-| 10/08/2026 | Histórico a través de reinicios | 10 de 10 reinicios por hardware y 10 de 10 reinicios perdieron 0 registros |
-
-Dos cosas del LCD 16×2 no han pasado por la pantalla real: la disposición con un solo sensor, con su contador de telemetría pendiente (el banco tiene cinco sensores), y las páginas del punto de acceso, a las que, según el código, el LCD no llega.
+El comportamiento se comprueba en un banco: una Pico 2 W con el panel TFT y el táctil, y una Pico W, la *PicoHand*, que acciona las líneas RESET y BOOTSEL del objetivo. Cada medición, con fecha y números: **[docs/VERIFICATION.es-ES.md](docs/VERIFICATION.es-ES.md)**.
 
 ## Documentación
 
@@ -501,15 +345,25 @@ Dos cosas del LCD 16×2 no han pasado por la pantalla real: la disposición con 
 |----------|-------------|
 | [Manual de usuario (EN)](docs/MANUAL.md) | Montaje, pantalla/web/consola, OTA, referencia de la API, resolución de problemas — mantenido al día |
 | [Manual do usuário (pt-BR)](docs/MANUAL.pt-BR.md) | El mismo manual, en portugués |
-| [Manual completo (pt-BR)](docs/MANUAL.pt-BR.html) | El manual del producto en portugués, actualizado para la v2.9.0: 31 capítulos sobre instalación, configuración, uso diario e integración con servidores. Las pantallas se están recapturando; cada una que falta está marcada en su lugar |
+| [Manual completo (pt-BR)](docs/MANUAL.pt-BR.html) | El manual del producto en portugués, actualizado para la v2.11.1: 31 capítulos sobre instalación, configuración, uso diario e integración con servidores. Las pantallas se están recapturando; cada una que falta está marcada en su lugar |
 | [Guía de cableado](docs/WIRING.md) | Pinout completo y diagramas de conexión |
 | [Actualización por el aire](docs/OTA_USAGE.md) | Actualizar desde la página web, y lo que sobrevive |
 | [Guía de recuperación](docs/RECOVERY.md) | Recuperación de brick — BOOTSEL, picotool, reset 1200 bps |
 | [Manual de la CLI](docs/CLI-Manual.md) | Referencia completa de la consola, la del Air incluida (en portugués) |
 | [Matriz de autorización](docs/AUTHORIZATION.md) | Cada ruta HTTP y el permiso que exige |
 | [Política de seguridad](SECURITY.md) | Modelo de amenazas, manejo de credenciales, respuesta a incidentes |
+| [Características](docs/FEATURES.es-ES.md) | Cada característica en detalle |
+| [Verificación en hardware](docs/VERIFICATION.es-ES.md) | Lo medido en el banco, con fecha |
 | [Índice de la documentación](docs/README.md) | Qué documentos se mantienen al día y cuáles son instantáneas |
 | [Changelog](CHANGELOG.md) | Historial de versiones y cambios |
+
+## Cómo se desarrolla SIMUT
+
+La mayor parte de los cambios la escribe un agente de IA (Claude Code) en sesiones que dirige el mantenedor: del 1 de septiembre al 2 de octubre de 2026, 275 de los 371 commits de `main` llevaban una línea `Co-Authored-By: Claude`. Las instrucciones que siguen esas sesiones son [CLAUDE.md](CLAUDE.md) y [AGENTS.md](AGENTS.md) (en portugués). Las reglas son las mismas para todo cambio, lo escriba quien lo escriba:
+- llega a `main` solo por pull request, después de nueve checks obligatorios: las diez suites de test en el host, también bajo AddressSanitizer y UBSan, 60 s de fuzzing, análisis estático y seis imágenes de firmware compiladas con la caché fría;
+- los tests van primero: una corrección trae una reproducción que falla antes y pasa después, y una refactorización muestra que el comportamiento no cambió;
+- una afirmación sobre bytes, velocidad o una corrección trae su medición, y lo que no se comprobó en el hardware lo dice;
+- las decisiones de producto, y la de hacer merge, son del mantenedor.
 
 ## Contribuir
 

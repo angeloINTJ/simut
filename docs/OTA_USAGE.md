@@ -43,7 +43,7 @@ Read the firmware version back from `/api/perms` (`version`) — or, from this b
 
 ## What survives, what doesn't
 
-A config snapshot carries **Wi-Fi credentials, users and sensor slots** across the apply. The LittleFS filesystem — **history, language packs, calibration** — is **REFORMATTED** by the apply. Take a backup first (web file manager → **Backup**).
+A config snapshot carries **Wi-Fi credentials, users and sensor slots** across the update. The image is received into the flash area of the LittleFS filesystem, so the rest of it — **history, language packs, calibration** — is lost once the stage starts writing, also when the upload is cut or the image refused (MANUAL chapter 17, "O que sobrevive e o que se perde"). Take a backup first (web file manager → **Backup**) and restore it afterwards.
 
 Without a pack in `/lang` the interface falls back to English, which is a real
 outcome of a normal upgrade and not a fault. Since v2.6.0-beta the `.lng` files
@@ -54,4 +54,12 @@ at boot and nowhere else.
 
 ## Network note
 
-If uploads on port 80 stall on your network, some routers kill long port-80 flows; using an alternate HTTP port works around it.
+Up to v2.10.0, a long transfer (an update, a backup, a restore) was cut after
+12 to 15 s whenever a page of the device was open in a browser. The web server
+serves one client at a time, so the page's polls waited, each holding one of
+the device's five TCP connections, and when a newcomer found none free the
+device's network stack killed one to make room: the transfer, once the
+browser's at-once retries had made it the oldest. It was blamed on routers and
+on port 80 for months; neither was the cause, and the port makes no difference.
+With those versions, close the device's other pages before a transfer. Later
+versions let the polls wait instead.

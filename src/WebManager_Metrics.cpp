@@ -22,6 +22,7 @@
  */
 
 #include "WebManager.h"
+#include "simut_config.h"   /* SIMUT_NET_WIFI is tested below: included here, not left to another header */
 #include "MetricsManager.h"
 #include "FlashIrqProbe.h"
 #include "B64Decode.h"
@@ -99,8 +100,10 @@ void WebManager::handleMetrics( ) {
 	MetricsManager& mm = MetricsManager::instance( );
 	mm.sampleHeap( );
 	mm.sampleLargestBlock( );
+#if SIMUT_NET_WIFI
 	const int liveRssi = _netRef->getRssi( );
 	mm.observeRssi(liveRssi);
+#endif
 	const SystemMetrics& mt = mm.data( );
 
 	if (timeSince(_lastFsInfoRefresh, 10000) || _cachedFsTotalBytes == 0) {
@@ -169,10 +172,17 @@ void WebManager::handleMetrics( ) {
 	emitU32("simut_fs_total_bytes", "gauge", _cachedFsTotalBytes);
 
 	/* ── network ── */
+#if SIMUT_NET_WIFI
 	emitU32("simut_wifi_connected", "gauge", _netRef->isNetworkHealthy( ) ? 1 : 0);
 	emitType("simut_wifi_rssi_dbm", "gauge");
 	add(ln, PromMetrics::lineI32(ln, sizeof(ln), "simut_wifi_rssi_dbm", "", liveRssi));
 	emitU32("simut_wifi_reconnects_total", "counter", mt.wifiReconnects);
+#else
+	/* The cable (2026-10-13): the link with an address, and how many times it
+	 * came up; no signal strength to report. */
+	emitU32("simut_link_up", "gauge", _netRef->isLinkUp( ) ? 1 : 0);
+	emitU32("simut_net_reconnects_total", "counter", mt.wifiReconnects);
+#endif
 	emitU32("simut_mqtt_reconnects_total", "counter", mt.mqttReconnects);
 	emitU32("simut_mqtt_connected", "gauge",
 	        (_telemetryRef && _telemetryRef->isMqttConnected( )) ? 1 : 0);

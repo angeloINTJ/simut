@@ -4,7 +4,7 @@ Este capítulo reúne em tabelas os números do SIMUT: faixas, valores de fábri
 
 ## Como ler as tabelas {#cap-28-como-ler}
 
-- Os valores são os da v2.9.0.
+- Os valores são os da v2.11.1.
 - Quando um número muda de uma imagem para outra, a célula traz o selo da imagem: [release]{.img}, [alpha]{.img} ou [air]{.img}.
 - Uma medição traz a data e a versão em que foi feita. Os demais números vêm do código.
 - A coluna **Onde** leva ao capítulo que explica o item. Lá estão o efeito de cada valor e o que fazer quando um limite é atingido.
@@ -138,7 +138,7 @@ A luminosidade existe na tabela de grandezas, mas nenhum dos quatro tipos de sen
 | Tamanho de um registro | 12 bytes | [cap. 16](#cap-16-o-que) |
 | Arquivos | `/system.blog` e `/system.old.blog`, de 800 registros cada | [cap. 16](#cap-16-guarda) |
 | Registros guardados | Entre 800 e 1.600, os mais recentes | [cap. 16](#cap-16-guarda) |
-| Códigos de evento | 155 | [ap. B](#ap-b) |
+| Códigos de evento | 157 | [ap. B](#ap-b) |
 | Tempo ligado gravado no registro | Até cerca de 194 dias | [cap. 16](#cap-16-o-que) |
 | Registros segurados na RAM durante toque ou operação pesada | Até 32; o excedente se perde | [cap. 16](#cap-16-ram) |
 | Filtro por transição | Vai para a flash o primeiro sucesso de cada família depois do boot, a primeira falha, o primeiro sucesso depois de uma falha e um registro por família a cada hora | [cap. 16](#cap-16-transicao) |
@@ -188,6 +188,7 @@ O filtro vale só para a flash: o console com `debug on` e o syslog recebem todo
 | Alfabeto | `0-9` ou `0-9 A-Z`; fábrica `0-9` | [cap. 8](#cap-08-politica) |
 | Tamanho mínimo | De 4 até o teto; fábrica 4 | [cap. 8](#cap-08-politica) |
 | Teto do tamanho | 8 com 3 caracteres por tecla, 12 com 2, 16 com 1 | [cap. 8](#cap-08-politica) |
+| Identificação no painel | Confere qualquer PIN a partir de 4 caracteres; um certo mais curto que a política leva direto à troca | [cap. 8](#cap-08-bloqueios) |
 | PIN pela web ou pela API | Sempre de 4 a 8 dígitos | [cap. 8](#cap-08-pin-web) |
 | PIN de fábrica do `admin` | `1234`, com troca obrigatória | [cap. 8](#cap-08-pin-fabrica) |
 
@@ -245,12 +246,12 @@ O filtro vale só para a flash: o console com `debug on` e o syslog recebem todo
 
 | Item | Valor | Onde |
 |---|---|---|
-| Abertura | Só a pedido: o comando `ap`, em todas as imagens; [release]{.img} o item 12 do menu do painel, com a permissão **Rede**, e o gesto no boot. Da v2.7.1 à v2.8.0, a release e o alpha também abriam sozinhos, no boot sem rede configurada e pela escada de reconexão | [cap. 9](#cap-09-ap-quando) |
+| Abertura | Só a pedido: o comando `ap`, em todas as imagens; [release]{.img} o item 8 do menu do painel, com a permissão **Rede**, e o gesto no boot. Da v2.7.1 à v2.8.0, a release e o alpha também abriam sozinhos, no boot sem rede configurada e pela escada de reconexão | [cap. 9](#cap-09-ap-quando) |
 | Nome da rede | `<nome>_SETUP` | [cap. 9](#cap-09-ap) |
 | Chave | 10 caracteres, letras maiúsculas e algarismos sem `O`, `0`, `I` e `1`; sempre a mesma naquele aparelho, mesmo depois de um reset de fábrica | [cap. 9](#cap-09-ap) |
 | Endereço do aparelho | `http://192.168.4.1` | [cap. 9](#cap-09-ap) |
-| AP aberto em operação, com rede configurada | Dura 15 min; depois o aparelho reinicia para tentar a rede | [cap. 9](#cap-09-ap-aberto) |
-| AP aberto no boot pelo gesto, ou num aparelho sem rede configurada | Fica aberto até alguém gravar uma rede ou reiniciar o aparelho | [cap. 9](#cap-09-ap-aberto) |
+| AP aberto num aparelho com rede configurada, pelo painel, pelo comando `ap` ou pelo gesto no boot | Dura 15 min; depois o aparelho reinicia para tentar a rede. Até a v2.11.0, o aberto pelo gesto não seguia esse prazo | [cap. 9](#cap-09-ap-aberto) |
+| AP aberto num aparelho sem rede configurada | Fica aberto até alguém gravar uma rede ou reiniciar o aparelho | [cap. 9](#cap-09-ap-aberto) |
 | Medição com o AP aberto | Continua: lê sensores, confere alarmes e grava histórico; telemetria e syslog esperam a rede | [cap. 9](#cap-09-ap-aberto) |
 
 ::: perigo
@@ -266,7 +267,7 @@ O filtro vale só para a flash: o console com `debug on` e o syslog recebem todo
 | Correção do relógio no log de eventos | No primeiro acerto depois do boot, pelo NTP ou à mão: acima de 5 s (evento 408); acima de 1 h, como aviso | [cap. 10](#cap-10-log) |
 | [release]{.img} Pergunta da data e da hora no boot | Num aparelho sem rede configurada e com o relógio provisório; **PULAR**, ou 30 s sem toque, levam à tela inicial | [cap. 10](#cap-10-painel) |
 | Acerto à mão pelo painel e pelo console | Ano de 2026 a 2099; o dia tem de existir no mês; segundos em zero no painel. O `time` vale no console de todas as imagens | [cap. 10](#cap-10-manual) |
-| Contexto do evento 13 num acerto à mão | 1 interface web, 2 console, 3 painel (item 13 do menu), 4 painel (pergunta do boot) | [cap. 10](#cap-10-log) |
+| Contexto do evento 13 num acerto à mão | 1 interface web, 2 console, 3 painel (item 4 do menu), 4 painel (pergunta do boot) | [cap. 10](#cap-10-log) |
 | **Fuso Horário** | −12 a +14, em horas inteiras, sem horário de verão; fábrica −3 | [cap. 10](#cap-10-fuso) |
 
 ### Servidor web, HTTPS e CORS {#cap-28-servidor-web}
@@ -369,7 +370,7 @@ O filtro vale só para a flash: o console com `debug on` e o syslog recebem todo
 | Pasta `/config` | Nenhum envio, exclusão nem criação | [cap. 29](#cap-29-abuso) |
 | Backup | Um arquivo `.bkp`, só para o administrador completo | [cap. 17](#cap-17-backup) |
 | Proteções do backup | Cabeçalho de 40 bytes com CRC32 próprio, CRC32 do conteúdo e a identidade do chip | [cap. 17](#cap-17-backup) |
-| Restauração | Só no mesmo aparelho; no máximo 200 arquivos, com até 4 KiB de nomes somados | [cap. 17](#cap-17-restauracao-recusa) |
+| Restauração | Só no mesmo aparelho, e só o arquivo validado antes; sem limite de arquivos (até a v2.9.0, 200 arquivos e 4 KiB de nomes) | [cap. 17](#cap-17-restauracao-recusa) |
 | Atualização: tamanho da imagem | De 100 KiB a 1.016 KiB (1.040.384 B) | [cap. 17](#cap-17-ota-conferencias) |
 | Atualização: assinatura | 241 B no fim do `.bin`, P-256; conferida no fim do envio (1,87 s) e de novo na instalação (1,94 s), desde a v2.9.0 | [cap. 17](#cap-17-ota-assinatura) |
 | Atualização: outras conferências | Início de imagem válido para o RP2040 nos primeiros 256 bytes; etiqueta da variante igual à do aparelho | [cap. 17](#cap-17-ota-conferencias) |

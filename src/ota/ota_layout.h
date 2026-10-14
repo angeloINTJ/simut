@@ -34,6 +34,76 @@
 #pragma once
 #include <stdint.h>
 
+/* On the RP2350 an update goes into the slot the board did not boot from
+ * (docs/analysis/OTA_AB_RP2350.md, step 4; src/ota/slot_stage.h), and the
+ * apply reboots the ROM into it. A board that did not boot from a slot (no
+ * partition table, the layout before step 3) has none to write:
+ * staging_install_available( ) says so, and the stage and the apply answer 501
+ * with this text, which the Files page shows. Until step 4 the RP2350 image
+ * refused every update: by the code, a stage there took a signed RP2040
+ * release, and the applier would have copied it over a program the RP2350's
+ * ROM cannot boot. */
+#define OTA_UNAVAILABLE_TEXT "This board boots from no slot of a partition table. Install the factory image over USB."
+
+/* Everything after the RP2350's map below is the Pico W's 2 MB map: the
+ * staging area, the config snapshot and the metadata. On the RP2350 those
+ * offsets fall inside the slots (step 3), and with the program mapped from
+ * slot A an XIP read there faults, because the window the boot ROM maps is the
+ * slot's 1,532 KB. OTA_RP2040_MAP is 0 there: the functions that read or
+ * write them (metadata.cpp, config_snapshot.cpp) answer "absent" or refuse,
+ * so the boot finds no update in flight and no snapshot, as on a board that
+ * never had one, and staging.cpp writes the inactive slot instead. */
+#if defined(PICO_RP2350) && PICO_RP2350
+#define OTA_RP2040_MAP 0
+#else
+#define OTA_RP2040_MAP 1
+#endif
+
+#if defined(PICO_RP2350) && PICO_RP2350
+/* The RP2350's map (step 3): what tools/rp2350/partition_table.json writes
+ * for the boot ROM, in offsets from the start of the flash.
+ * tools/test_rp2350_layout.py holds these numbers to that table, to
+ * tools/rp2350/memmap_slot.ld and to the PlatformIO profile. One image runs in
+ * either slot, because the ROM maps the slot it boots at 0x10000000. LittleFS,
+ * outside the slot, is read through the untranslated window
+ * (tools/arduino_pico_overrides/patches/littlefs_rp2350_untranslated.patch). */
+#define OTA_RP2350_PT_OFFSET      0x000000u
+#define OTA_RP2350_PT_SIZE        0x002000u
+#define OTA_RP2350_SLOT_A_OFFSET  0x002000u
+#define OTA_RP2350_SLOT_B_OFFSET  0x181000u
+#define OTA_RP2350_SLOT_SIZE      0x17F000u   /* 1,532 KB: the largest image */
+#define OTA_RP2350_FS_OFFSET      0x300000u
+#define OTA_RP2350_FS_SIZE        0x0FF000u
+#define OTA_RP2350_EEPROM_OFFSET  0x3FF000u   /* arduino-pico's 4 KB, unused by SIMUT */
+#ifdef __cplusplus
+static_assert(OTA_RP2350_PT_OFFSET + OTA_RP2350_PT_SIZE == OTA_RP2350_SLOT_A_OFFSET,
+              "slot A must follow the partition table");
+static_assert(OTA_RP2350_SLOT_A_OFFSET + OTA_RP2350_SLOT_SIZE == OTA_RP2350_SLOT_B_OFFSET,
+              "slot B must follow slot A");
+static_assert(OTA_RP2350_SLOT_B_OFFSET + OTA_RP2350_SLOT_SIZE == OTA_RP2350_FS_OFFSET,
+              "LittleFS must follow slot B");
+static_assert(OTA_RP2350_FS_OFFSET + OTA_RP2350_FS_SIZE == OTA_RP2350_EEPROM_OFFSET,
+              "the EEPROM sector must follow LittleFS");
+static_assert(OTA_RP2350_EEPROM_OFFSET + 4096u == 4u * 1024u * 1024u,
+              "the map must cover the Pico 2 W's 4 MB");
+static_assert((OTA_RP2350_SLOT_SIZE % 4096u) == 0u && (OTA_RP2350_FS_OFFSET % 4096u) == 0u,
+              "slots and LittleFS must be sector-aligned");
+#endif
+#endif
+
+/* What an update may be, per chip. The RP2040's staging area is the LittleFS
+ * partition, and its last two sectors hold the config snapshot; the RP2350's
+ * is a whole slot. OTA_STAGE_AREA is what the stage's erase bitmap covers. */
+#if OTA_RP2040_MAP
+#define OTA_STAGE_AREA     OTA_STAGING_MAX_SIZE
+#define OTA_STAGE_CEILING  (OTA_STAGING_MAX_SIZE - 2u * OTA_FLASH_SECTOR_SIZE)
+#define OTA_IMAGE_MAX      OTA_APP_SAFE_MAX_SIZE
+#else
+#define OTA_STAGE_AREA     OTA_RP2350_SLOT_SIZE
+#define OTA_STAGE_CEILING  OTA_RP2350_SLOT_SIZE
+#define OTA_IMAGE_MAX      OTA_RP2350_SLOT_SIZE
+#endif
+
 /* Constantes de tamanho — em bytes. */
 #define OTA_FLASH_TOTAL          (2u * 1024u * 1024u)          /* 2 MB Pico W */
 #define OTA_EEPROM_RESERVED      (4u * 1024u)                  /* 4 KB EEPROM emulada — reivindicada */

@@ -263,6 +263,9 @@ executar qualquer comando do modo privilegiado sem sair do config.
 | `ntp off` | Não sincronizar relógio | — |
 | `web port <porta>` | Porta do servidor web (aplica após reload) | 1–65535 |
 
+Numa build cabeada (SIMUT Wire, ver §9.2) `wifi ssid` e `wifi pass` não existem:
+o parser responde "comando desconhecido".
+
 ### Telemetria
 
 | Comando | Descrição | Range |
@@ -532,3 +535,35 @@ do preâmbulo — as duas coisas juntas são a assinatura de "o aparelho reinici
 > aceitava até 86400 e convertia: 86400 virava 20864 e **65536 virava 0**, e um ocioso de zero
 > manda o aparelho dormir na passada seguinte do laço — de onde só se volta pegando uma janela de
 > wake pelo console.
+
+### 9.2 SIMUT Wire (`pico_wire` e `pico_wiretft`)
+
+A build cabeada (`net = "enc28j60"`, a rede por um módulo ENC28J60) não tem rádio, e o console de
+emergência dela perde, na compilação, o que só o rádio tinha: `ap` (e `apmode`,
+`ap-mode`), `system ssid`, `system pass` e os apelidos `wifi ssid`/`wifi pass`. No
+lugar, para que um aparelho numa rede sem DHCP tenha por onde entrar, ela ganha os
+comandos de endereço do perfil completo (desde 13/10/2026):
+
+| Comando | Efeito |
+|---|---|
+| `ip dhcp` \| `ip static` | como o cabo obtém o endereço |
+| `ip addr <ipv4>` | o endereço fixo |
+| `ip mask <ipv4>` | a máscara |
+| `ip gateway <ipv4>` | o gateway |
+| `ip dns <ipv4>` | o DNS do endereço fixo |
+| `dns auto` \| `dns manual <ip1> [ip2]` | DNS do DHCP, ou estes servidores |
+
+Cada um grava na hora, como o SSID numa imagem com rádio (este console não tem `write
+memory`), e responde `Salvo. Use 'reload confirm' para aplicar.`: o módulo toma o
+endereço quando sobe. Se a gravação falhar, a resposta diz isso, e o comando pode ser
+repetido.
+
+O que muda no resto do console:
+
+- `show net status` mostra `Cabo: conectado` ou `Cabo: sem link` no lugar do RSSI;
+- `show system info` mostra `Rede: cabo` e o modo do endereço (`DHCP` ou o IP fixo) no
+  lugar do SSID;
+- `help`, num pacote de idioma, vem da seção `@HELPWIRE` do pacote, e não da `@HELP`;
+  um pacote sem ela deixa o `help` em inglês, que é o texto do Wire.
+
+Os testes deste console são a suíte `native_lan` (`pio test -e native_lan`).

@@ -1,0 +1,25 @@
+--- a/libraries/LittleFS/src/LittleFS.cpp
++++ b/libraries/LittleFS/src/LittleFS.cpp
+@@ -174,7 +174,22 @@
+                                  lfs_block_t block, lfs_off_t off, void *dst, lfs_size_t size) {
+     LittleFSImpl *me = reinterpret_cast<LittleFSImpl*>(c->context);
+     //    Serial.printf(" READ: %p, %d\n", me->_start + (block * me->_blockSize) + off, size);
++#if defined(PICO_RP2350) && PICO_RP2350
++    /* SIMUT override — on the RP2350, read through the untranslated window.
++     *
++     * In a slot of a partition table the boot ROM maps the program at
++     * 0x10000000, with a window the size of the slot, and an XIP read past it
++     * faults. SIMUT keeps LittleFS outside the slots (0x300000, after A and B:
++     * tools/rp2350/partition_table.json), so the read goes to its physical
++     * offset through XIP_NOCACHE_NOALLOC_NOTRANSLATE_BASE, which the ROM never
++     * translates. Without a partition table the read is the same: translation
++     * is off, and both windows show the same bytes. This window bypasses the
++     * XIP cache. Programs and erases already go by physical offset, below. */
++    const intptr_t phys = (intptr_t)(me->_start + (block * me->_blockSize) + off) - (intptr_t)XIP_BASE;
++    memcpy(dst, (const void *)(XIP_NOCACHE_NOALLOC_NOTRANSLATE_BASE + phys), size);
++#else
+     memcpy(dst, me->_start + (block * me->_blockSize) + off, size);
++#endif
+     return 0;
+ }
+ 

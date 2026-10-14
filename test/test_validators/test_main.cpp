@@ -34,6 +34,8 @@
 #include "display/PendingLabel.h"    /* pending count as both displays print it */
 #include "display/BigFont_HD44780.h" /* the alpha LCD glyphs */
 #include "TelemetryCursor.h"  /* what the telemetry cursor may advance to */
+#include "TelemetryPosition.h" /* the cursor as a write position (A-04) */
+#include <algorithm>
 #include "TelContentType.h"   /* the Content-Type header of a telemetry line */
 #include "sensors/CalibCurve.h"         /* calibration curve engine */
 #include "WebJsonSlice.h"               /* depth-aware JSON slicing */
@@ -46,6 +48,10 @@
 #include <string>
 #include <vector>
 #include "display/ClockEntry.h"         /* the date and time set at the panel */
+#include "display/SettingsMenu.h"       /* the panel's Settings menu: rows, order */
+#include "PasswordCheck.h"             /* one derivation per password check */
+#include "SessionCheck.h"              /* a session against its live account */
+#include "display/CountInText.h"        /* a number inside a translated line */
 #include "PemBlocks.h"                 /* the PEM splitting POST /api/tls does */
 #include "WebCommitSections.h"          /* per-section authz for /api/commit_all */
 #include "FsSecretPath.h"               /* /config download guard (A-4) */
@@ -1285,6 +1291,33 @@ void test_commit_pin_target_protects_the_admin_slot(void) {
     TEST_ASSERT_TRUE(commitPinTargetAllowed(31, 4, P_USERMGR_ONLY));
 }
 
+/* Finding 8 of the manual's triage (23/09): the panel granted Limits, Block
+ * and Maintenance to any account, the caller's own included, without asking
+ * whether the caller held them. The web closed the same hole in V-09, just
+ * above. A change may only ADD bits the caller holds; taking one away, or
+ * leaving one the caller lacks where it was, is no escalation. */
+void test_panel_grant_adds_only_bits_the_caller_holds(void) {
+    const uint16_t L = PERM_ALARM_LIMITS, B = PERM_ALARM_BLOCK, M = PERM_MAINT;
+    /* Users and no panel bit: nothing to give, to a new account or an old one. */
+    TEST_ASSERT_FALSE(panelGrantAllowed(0, L | M, P_USERMGR_ONLY));
+    TEST_ASSERT_FALSE(panelGrantAllowed(0, B, P_USERMGR_ONLY));
+    /* Nor to itself: its own bits are `before`, and the new ones are not its. */
+    TEST_ASSERT_FALSE(panelGrantAllowed(P_USERMGR_ONLY & PERM_PANEL_ALARM_ANY, L, P_USERMGR_ONLY));
+    /* Holding a bit, it may pass that bit on. */
+    TEST_ASSERT_TRUE(panelGrantAllowed(0, L, P_USERMGR_ONLY | L));
+    /* But not a second one alongside it. */
+    TEST_ASSERT_FALSE(panelGrantAllowed(0, L | B, P_USERMGR_ONLY | L));
+    /* Taking away is allowed, even a bit it lacks. */
+    TEST_ASSERT_TRUE(panelGrantAllowed(L | B, L, P_USERMGR_ONLY));
+    TEST_ASSERT_TRUE(panelGrantAllowed(B, 0, P_USERMGR_ONLY));
+    /* A bit it lacks, already there and left alone, while it adds one it holds. */
+    TEST_ASSERT_TRUE(panelGrantAllowed(B, B | L, P_USERMGR_ONLY | L));
+    /* No change is no grant. */
+    TEST_ASSERT_TRUE(panelGrantAllowed(L | M, L | M, P_USERMGR_ONLY));
+    /* The full admin gives anything. */
+    TEST_ASSERT_TRUE(panelGrantAllowed(0, L | B | M, PERM_FULL_ADMIN));
+}
+
 void test_commit_netonly_can_commit_net_only(void) {
     int st[SEC_COUNT];
     String net("{\"net\":{\"ssid\":\"lab\",\"use_dhcp\":1}}");
@@ -1757,6 +1790,20 @@ void test_langidx_directive_names_match_exactly(void) {
     ix = langIndex(t);
     TEST_ASSERT_FALSE(ix.present[LANG_SEC_WEBDICT]);
     TEST_ASSERT_FALSE(ix.tailAfterWebDict);
+    TEST_ASSERT_EQUAL_STRING("a\n", langRange(t, ix, LANG_SEC_DICT).c_str());
+}
+
+/* A wired build's console help is @HELPWIRE (2026-10-13). In a radio build it
+ * is a directive like any unknown one: it ends @HELP and its body is nobody's,
+ * in either order. The mirror — @HELPWIRE is the help, @HELP is unknown — runs
+ * in test/test_lan, the one suite built with SIMUT_NET_LAN. */
+void test_langidx_helpwire_is_not_a_radio_builds_help(void) {
+    const char* s = "@DICT\na\n@HELP\nradio\n@HELPWIRE\ncable\n@WEBDICT\n{}";
+    LangPackIndex ix = langIndex(s);
+    TEST_ASSERT_EQUAL_STRING("radio\n", langRange(s, ix, LANG_SEC_HELP).c_str());
+    const char* t = "@DICT\na\n@HELPWIRE\ncable\n@HELP\nradio\n@WEBDICT\n{}";
+    ix = langIndex(t);
+    TEST_ASSERT_EQUAL_STRING("radio\n", langRange(t, ix, LANG_SEC_HELP).c_str());
     TEST_ASSERT_EQUAL_STRING("a\n", langRange(t, ix, LANG_SEC_DICT).c_str());
 }
 
@@ -2495,6 +2542,106 @@ void test_jsonFlag_tristate(void) {
      * segundo entra em "rejected":[...] na resposta do commit. */
     TEST_ASSERT_TRUE(jsonFlag(String("{\"x\":1}"), "log") < 0);
     TEST_ASSERT_TRUE(jsonFlag(String("{\"log\":2}"), "log") < 0);
+}
+
+/* --- limites de alarme: null nao e 0 (achado 44, 2026-10-02) ---------------- */
+
+/* WebManager_Commit.cpp: getPair, ate 2026-10-02. Copiado aqui para mostrar o
+ * defeito: parseFloat( ) para no primeiro caractere que nao usa e devolve o que
+ * tinha, entao `null` virava um limite de 0 — e "abc" tambem — sob 200; e a
+ * chave sem par lia o par da chave seguinte. */
+static bool legacyGetPair(const String& o, const char* key, float& lo, float& hi) {
+    String needle = String("\"") + key + "\":";
+    int p = o.indexOf(needle.c_str( ));   /* o stub nativo nao tem indexOf(String) */
+    if (p < 0) return false;
+    int s = o.indexOf('[', p);
+    int e = (s >= 0) ? o.indexOf(']', s) : -1;
+    if (s < 0 || e <= s) return false;
+    int comma = o.indexOf(',', s + 1);
+    if (comma < 0 || comma > e) return false;
+    String a = o.substring(s + 1, comma); a.trim( );
+    String b = o.substring(comma + 1, e); b.trim( );
+    if (a.length( )) lo = parseFloat(a.c_str( ));
+    if (b.length( )) hi = parseFloat(b.c_str( ));
+    return true;
+}
+
+void test_legacy_getPair_read_null_as_zero(void) {
+    float lo = NAN, hi = NAN;
+    TEST_ASSERT_TRUE(legacyGetPair(String("{\"temp\":[null,8]}"), "temp", lo, hi));
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, lo);              /* o achado: null virou 0 */
+    lo = NAN;
+    TEST_ASSERT_TRUE(legacyGetPair(String("{\"temp\":[\"abc\",8]}"), "temp", lo, hi));
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, lo);              /* e lixo tambem */
+    lo = NAN;
+    TEST_ASSERT_TRUE(legacyGetPair(String("{\"temp\":5,\"hum\":[30,70]}"), "temp", lo, hi));
+    TEST_ASSERT_EQUAL_FLOAT(30.0f, lo);             /* o par era o da umidade */
+}
+
+void test_jsonLimitValue_reads_a_limit(void) {
+    float v = -99.0f;
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_NUMBER, jsonLimitValue(String("12.5"), v)); TEST_ASSERT_EQUAL_FLOAT(12.5f, v);
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_NUMBER, jsonLimitValue(String("-3"), v));   TEST_ASSERT_EQUAL_FLOAT(-3.0f, v);
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_NUMBER, jsonLimitValue(String("0"), v));    TEST_ASSERT_EQUAL_FLOAT(0.0f, v);
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_NUMBER, jsonLimitValue(String(" 8 "), v));  TEST_ASSERT_EQUAL_FLOAT(8.0f, v);
+    /* null, ou nada, mantem o limite gravado: nada e escrito */
+    v = -99.0f;
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_ABSENT, jsonLimitValue(String("null"), v));
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_ABSENT, jsonLimitValue(String(" null "), v));
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_ABSENT, jsonLimitValue(String(""), v));
+    TEST_ASSERT_EQUAL_FLOAT(-99.0f, v);
+    /* as chaves fixas (tmin...) chegam por jsonRawToken */
+    String o("{\"tmin\":null,\"tmax\": 8,\"hmin\":\"40\"}");
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_ABSENT, jsonLimitValue(jsonRawToken(o, "tmin"), v));
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_NUMBER, jsonLimitValue(jsonRawToken(o, "tmax"), v)); TEST_ASSERT_EQUAL_FLOAT(8.0f, v);
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_NUMBER, jsonLimitValue(jsonRawToken(o, "hmin"), v)); TEST_ASSERT_EQUAL_FLOAT(40.0f, v);
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_ABSENT, jsonLimitValue(jsonRawToken(o, "hmax"), v));
+    /* o resto nao e limite, e nada e escrito */
+    const char* bad[] = { "abc", "true", "nul", "1.2.3", "5x", "Infinity", "NaN", "--1" };
+    for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+        v = -99.0f;
+        TEST_ASSERT_EQUAL_INT_MESSAGE(JSON_LIMIT_BAD, jsonLimitValue(String(bad[i]), v), bad[i]);
+        TEST_ASSERT_EQUAL_FLOAT_MESSAGE(-99.0f, v, bad[i]);
+    }
+}
+
+void test_jsonLimitPair_null_keeps_the_bound(void) {
+    float lo = -99.0f, hi = -99.0f;
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_NUMBER, jsonLimitPair(String("{\"temp\":[null,8]}"), "temp", lo, hi));
+    TEST_ASSERT_TRUE(isnan(lo));                    /* o minimo gravado fica */
+    TEST_ASSERT_EQUAL_FLOAT(8.0f, hi);
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_NUMBER, jsonLimitPair(String("{\"temp\": [ -5 , 8 ]}"), "temp", lo, hi));
+    TEST_ASSERT_EQUAL_FLOAT(-5.0f, lo);
+    TEST_ASSERT_EQUAL_FLOAT(8.0f, hi);
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_NUMBER, jsonLimitPair(String("{\"temp\":[null,null]}"), "temp", lo, hi));
+    TEST_ASSERT_TRUE(isnan(lo));
+    TEST_ASSERT_TRUE(isnan(hi));
+    /* entre aspas, como jsonRawToken le os campos de sys */
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_NUMBER, jsonLimitPair(String("{\"temp\":[\"2\",\"8\"]}"), "temp", lo, hi));
+    TEST_ASSERT_EQUAL_FLOAT(2.0f, lo);
+    TEST_ASSERT_EQUAL_FLOAT(8.0f, hi);
+    /* o elemento vazio, que nao e JSON, sempre quis dizer "mantem" aqui */
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_NUMBER, jsonLimitPair(String("{\"temp\":[,8]}"), "temp", lo, hi));
+    TEST_ASSERT_TRUE(isnan(lo));
+    TEST_ASSERT_EQUAL_FLOAT(8.0f, hi);
+    /* o par certo, com outra chave antes */
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_NUMBER, jsonLimitPair(String("{\"hum\":[30,70],\"temp\":[2,8]}"), "temp", lo, hi));
+    TEST_ASSERT_EQUAL_FLOAT(2.0f, lo);
+}
+
+void test_jsonLimitPair_refuses_what_is_not_a_pair(void) {
+    const char* bad[] = {
+        "{\"temp\":[\"abc\",8]}", "{\"temp\":[true,8]}", "{\"temp\":[5]}", "{\"temp\":[1,2,3]}",
+        "{\"temp\":5,\"hum\":[30,70]}", "{\"temp\":[1,2}", "{\"temp\":{\"a\":1}}" };
+    for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+        float lo = -99.0f, hi = -99.0f;
+        TEST_ASSERT_EQUAL_INT_MESSAGE(JSON_LIMIT_BAD, jsonLimitPair(String(bad[i]), "temp", lo, hi), bad[i]);
+        TEST_ASSERT_EQUAL_FLOAT_MESSAGE(-99.0f, lo, bad[i]);   /* nada escrito */
+        TEST_ASSERT_EQUAL_FLOAT_MESSAGE(-99.0f, hi, bad[i]);
+    }
+    float lo = -99.0f, hi = -99.0f;
+    TEST_ASSERT_EQUAL_INT(JSON_LIMIT_ABSENT, jsonLimitPair(String("{\"hum\":[30,70]}"), "temp", lo, hi));
+    TEST_ASSERT_EQUAL_FLOAT(-99.0f, lo);
 }
 
 /* --- o round-trip que estava quebrado ------------------------------------- */
@@ -3444,6 +3591,343 @@ void test_clock_prompt_only_without_a_network_or_a_real_clock(void) {
     TEST_ASSERT_FALSE(clockEntryAtBoot(true,  true));
 }
 
+/* ──────────────────────────────────────────────────────────────────────────
+ * The panel's Settings menu: which rows a session sees, in what order, and
+ * what each row reads (display/SettingsMenu.h).
+ *
+ * The menu is filtered by the bits of the account the PIN identified, so the
+ * rows are not the items: these cases pin both the order and the filter for
+ * every kind of account the panel has.
+ *
+ * 2026-10-02: the maintainer asked for the items in order of importance and of
+ * how often each is used, where they had sat in the order they were written.
+ * With four rows a page, each page of the full menu is a group: day to day,
+ * access, the screen itself, the licence.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/* The rows a session holding `perms` sees, as item ids. */
+static std::vector<int> settingsMenuFor(uint16_t perms) {
+    uint8_t out[MENU_ITEM_COUNT];
+    const uint8_t n = settingsMenuBuild(perms, out);
+    return std::vector<int>(out, out + n);
+}
+
+static void assertSettingsMenu(const std::vector<int>& want, uint16_t perms) {
+    const std::vector<int> got = settingsMenuFor(perms);
+    TEST_ASSERT_EQUAL_UINT(want.size( ), got.size( ));
+    TEST_ASSERT_EQUAL_INT_ARRAY(want.data( ), got.data( ), want.size( ));
+}
+
+void test_settings_menu_item_ids_are_the_historical_ones(void) {
+    /* The id, not the row, is what EVT_MENU_SELECT carries to Core 0 and
+     * which icon a row draws: ordering the menu moves rows, never ids. */
+    TEST_ASSERT_EQUAL_INT(0,  MENU_THEMES);
+    TEST_ASSERT_EQUAL_INT(1,  MENU_ALARMS);
+    TEST_ASSERT_EQUAL_INT(2,  MENU_SOUNDS);
+    TEST_ASSERT_EQUAL_INT(3,  MENU_LANG);
+    TEST_ASSERT_EQUAL_INT(4,  MENU_OWN_PIN);
+    TEST_ASSERT_EQUAL_INT(5,  MENU_TOUCH_CAL);
+    TEST_ASSERT_EQUAL_INT(6,  MENU_LICENSE);
+    TEST_ASSERT_EQUAL_INT(7,  MENU_STATUS);
+    TEST_ASSERT_EQUAL_INT(8,  MENU_DISPLAY_OFFSET);
+    TEST_ASSERT_EQUAL_INT(9,  MENU_USERS);
+    TEST_ASSERT_EQUAL_INT(10, MENU_PIN_POLICY);
+    TEST_ASSERT_EQUAL_INT(11, MENU_SETUP_AP);
+    TEST_ASSERT_EQUAL_INT(12, MENU_CLOCK);
+    TEST_ASSERT_EQUAL_INT(13, MENU_ITEM_COUNT);
+    /* A radio build has every item; a wired one drops MENU_SETUP_AP's row
+     * and keeps the ids (test/test_lan). */
+    TEST_ASSERT_EQUAL_INT(MENU_ITEM_COUNT, MENU_BUILD_COUNT);
+}
+
+void test_settings_menu_order_lists_every_item_once(void) {
+    int seen[MENU_ITEM_COUNT] = {0};
+    for (uint8_t i = 0; i < MENU_ITEM_COUNT; i++) {
+        TEST_ASSERT_TRUE(MENU_ORDER[i] < MENU_ITEM_COUNT);
+        seen[MENU_ORDER[i]]++;
+    }
+    for (uint8_t i = 0; i < MENU_ITEM_COUNT; i++) TEST_ASSERT_EQUAL_INT(1, seen[i]);
+}
+
+void test_settings_menu_full_admin_sees_every_item_in_order(void) {
+    const std::vector<int> all = {
+        MENU_ALARMS, MENU_SOUNDS, MENU_STATUS, MENU_CLOCK,               /* day to day */
+        MENU_OWN_PIN, MENU_USERS, MENU_PIN_POLICY, MENU_SETUP_AP,        /* access */
+        MENU_LANG, MENU_THEMES, MENU_TOUCH_CAL, MENU_DISPLAY_OFFSET,     /* the screen */
+        MENU_LICENSE,
+    };
+    assertSettingsMenu(all, 0xFFFF);   /* PERM_FULL_ADMIN: admin, and `screen set` */
+    assertSettingsMenu(all, 0x1FFF);   /* PERM_ALL_BITS: every bit the users page sets */
+}
+
+void test_settings_menu_follows_the_session_bits(void) {
+    /* Any one of the three panel bits makes an alarm operator, whose menu is
+     * one page with the alarms on top. */
+    const std::vector<int> op = { MENU_ALARMS, MENU_STATUS, MENU_OWN_PIN, MENU_LICENSE };
+    assertSettingsMenu(op, PERM_ALARM_LIMITS);
+    assertSettingsMenu(op, PERM_ALARM_BLOCK);
+    assertSettingsMenu(op, PERM_MAINT);
+    assertSettingsMenu(op, PERM_PANEL_ALARM_ANY);
+    /* No bit: the three items that are everyone's... */
+    const std::vector<int> none = { MENU_STATUS, MENU_OWN_PIN, MENU_LICENSE };
+    assertSettingsMenu(none, 0);
+    /* ...and bits that open nothing at the panel add nothing: dashboard,
+     * history, logs, the three file bits and calibration. */
+    assertSettingsMenu(none, 0x0001 | 0x0002 | 0x0004 | 0x0020 | 0x0040 | 0x0080 | 0x0200);
+    assertSettingsMenu({ MENU_SOUNDS, MENU_STATUS, MENU_CLOCK, MENU_OWN_PIN, MENU_LANG,
+                         MENU_THEMES, MENU_TOUCH_CAL, MENU_DISPLAY_OFFSET, MENU_LICENSE },
+                       PERM_SYS_CONFIG);
+    assertSettingsMenu({ MENU_STATUS, MENU_OWN_PIN, MENU_USERS, MENU_PIN_POLICY, MENU_LICENSE },
+                       PERM_USER_MGR);
+    assertSettingsMenu({ MENU_STATUS, MENU_OWN_PIN, MENU_SETUP_AP, MENU_LICENSE },
+                       PERM_NET_CONFIG);
+}
+
+void test_settings_menu_label_without_its_number(void) {
+    TEST_ASSERT_EQUAL_STRING("PIN security", menuLabelNoNumber("11. PIN security"));
+    TEST_ASSERT_EQUAL_STRING("Visual Themes", menuLabelNoNumber("1. Visual Themes"));
+    /* anything that is not "digits, dot, space" is left as it is */
+    const char* plain = "Configuration Mode";
+    TEST_ASSERT_EQUAL_PTR(plain, menuLabelNoNumber(plain));
+    const char* decimal = "12.5 V";
+    TEST_ASSERT_EQUAL_PTR(decimal, menuLabelNoNumber(decimal));
+    const char* noDigits = ". x";
+    TEST_ASSERT_EQUAL_PTR(noDigits, menuLabelNoNumber(noDigits));
+    const char* empty = "";
+    TEST_ASSERT_EQUAL_PTR(empty, menuLabelNoNumber(empty));
+}
+
+void test_settings_menu_numbers_a_row_by_where_it_sits(void) {
+    char buf[40];
+    /* With every item listed, a row is numbered by its position... */
+    TEST_ASSERT_EQUAL_STRING("1. Alarm Limits",
+        settingsMenuRowText("Alarm Limits", 0, MENU_ITEM_COUNT, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING("13. License",
+        settingsMenuRowText("License", 12, MENU_ITEM_COUNT, buf, sizeof(buf)));
+    /* ...whatever number its label carries: a pack installed before the menu
+     * computed its numbers still has the old ones in every label. */
+    TEST_ASSERT_EQUAL_STRING("1. Limites de Alarme",
+        settingsMenuRowText("2. Limites de Alarme", 0, MENU_ITEM_COUNT, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING("4. Data e hora",
+        settingsMenuRowText("13. Data e hora", 3, MENU_ITEM_COUNT, buf, sizeof(buf)));
+    /* A filtered list numbers nothing: its numbers would skip. */
+    TEST_ASSERT_EQUAL_STRING("Limites de Alarme",
+        settingsMenuRowText("2. Limites de Alarme", 0, 4, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING("Configuration Mode",
+        settingsMenuRowText("Configuration Mode", 2, 4, buf, sizeof(buf)));
+    /* A buffer too short truncates and stays a string. */
+    char tiny[6];
+    TEST_ASSERT_EQUAL_STRING("10. V",
+        settingsMenuRowText("Visual Themes", 9, MENU_ITEM_COUNT, tiny, sizeof(tiny)));
+}
+
+/* ── The password check: one derivation, whatever the name (PasswordCheck.h) ──
+ * On the device a derivation costs ~645 ms. What these pin is that every check
+ * pays for exactly one, so the time of the answer says nothing about which
+ * names have an account. The stand-in hashes are cheap strings that depend on
+ * the password and the salt, which is all the check needs from them. */
+struct PwAccount {
+    bool active;
+    char username[16];
+    char password[33];
+    uint8_t salt[8];
+    uint8_t hashVersion;
+};
+
+struct CountingDerive {
+    int v1Calls = 0;
+    int legacyCalls = 0;
+    const uint8_t* lastSalt = nullptr;
+    String v1(const String& user, const String& pass, const uint8_t* salt) {
+        (void)user;
+        v1Calls++;
+        lastSalt = salt;
+        return String("v1:") + pass + ":" + String((unsigned)salt[0]);
+    }
+    /* A legacy hash is 30 characters; the check tells it apart by that. */
+    String legacy(const String& user, const String& pass) {
+        (void)user;
+        legacyCalls++;
+        return (String("lg:") + pass + "..............................").substring(0, 30);
+    }
+    bool same(const String& a, const String& b) { return a == b; }
+};
+
+/* ana and bia have current hashes, leg a legacy one, and old was deleted:
+ * its record still holds the right hash, as a deleted slot does. */
+static void pwAccounts(PwAccount (&u)[4]) {
+    memset(u, 0, sizeof(u));
+    CountingDerive d;
+    const char* names[4] = { "ana", "bia", "leg", "old" };
+    for (int i = 0; i < 4; i++) {
+        u[i].active = (i != 3);
+        strcpy(u[i].username, names[i]);
+        u[i].salt[0] = (uint8_t)(10 + i);
+        u[i].hashVersion = 1;
+        strcpy(u[i].password, d.v1(names[i], "right", u[i].salt).c_str( ));
+    }
+    u[2].hashVersion = 0;
+    strcpy(u[2].password, d.legacy("leg", "right").c_str( ));
+}
+
+void test_password_check_a_name_without_an_account_still_derives(void) {
+    PwAccount u[4]; pwAccounts(u);
+    CountingDerive d; bool legacy = true;
+    TEST_ASSERT_EQUAL_INT(-1, passwordCheck(u, 4, "zoe", "right", d, legacy));
+    TEST_ASSERT_EQUAL_INT(1, d.v1Calls);
+    TEST_ASSERT_EQUAL_INT(0, d.legacyCalls);
+    TEST_ASSERT_TRUE(d.lastSalt == PASSWORD_CHECK_NO_ACCOUNT_SALT);
+    TEST_ASSERT_FALSE(legacy);
+}
+
+void test_password_check_a_wrong_password_derives_once(void) {
+    PwAccount u[4]; pwAccounts(u);
+    CountingDerive d; bool legacy = true;
+    TEST_ASSERT_EQUAL_INT(-1, passwordCheck(u, 4, "bia", "wrong", d, legacy));
+    TEST_ASSERT_EQUAL_INT(1, d.v1Calls);
+    TEST_ASSERT_TRUE(d.lastSalt == u[1].salt);
+    TEST_ASSERT_FALSE(legacy);
+}
+
+void test_password_check_the_right_password_derives_once(void) {
+    PwAccount u[4]; pwAccounts(u);
+    CountingDerive d; bool legacy = true;
+    TEST_ASSERT_EQUAL_INT(1, passwordCheck(u, 4, "bia", "right", d, legacy));
+    TEST_ASSERT_EQUAL_INT(1, d.v1Calls);
+    TEST_ASSERT_FALSE(legacy);
+    CountingDerive d2;
+    TEST_ASSERT_EQUAL_INT(0, passwordCheck(u, 4, "ana", "right", d2, legacy));
+    TEST_ASSERT_EQUAL_INT(1, d2.v1Calls);
+}
+
+void test_password_check_a_deleted_account_is_no_account(void) {
+    PwAccount u[4]; pwAccounts(u);
+    CountingDerive d; bool legacy = true;
+    TEST_ASSERT_EQUAL_INT(-1, passwordCheck(u, 4, "old", "right", d, legacy));
+    TEST_ASSERT_EQUAL_INT(1, d.v1Calls);
+    TEST_ASSERT_TRUE(d.lastSalt == PASSWORD_CHECK_NO_ACCOUNT_SALT);
+}
+
+void test_password_check_a_name_in_other_case_is_no_account(void) {
+    PwAccount u[4]; pwAccounts(u);
+    CountingDerive d; bool legacy = true;
+    /* The name compares exactly, as it always did at the web login. */
+    TEST_ASSERT_EQUAL_INT(-1, passwordCheck(u, 4, "Ana", "right", d, legacy));
+    TEST_ASSERT_EQUAL_INT(1, d.v1Calls);
+    TEST_ASSERT_TRUE(d.lastSalt == PASSWORD_CHECK_NO_ACCOUNT_SALT);
+}
+
+void test_password_check_a_legacy_account_derives_its_own_way(void) {
+    PwAccount u[4]; pwAccounts(u);
+    bool legacy = false;
+    CountingDerive d;
+    TEST_ASSERT_EQUAL_INT(2, passwordCheck(u, 4, "leg", "right", d, legacy));
+    TEST_ASSERT_TRUE(legacy);
+    TEST_ASSERT_EQUAL_INT(1, d.legacyCalls);
+    TEST_ASSERT_EQUAL_INT(0, d.v1Calls);
+    CountingDerive d2;
+    TEST_ASSERT_EQUAL_INT(-1, passwordCheck(u, 4, "leg", "wrong", d2, legacy));
+    TEST_ASSERT_FALSE(legacy);
+    TEST_ASSERT_EQUAL_INT(1, d2.legacyCalls);
+    TEST_ASSERT_EQUAL_INT(0, d2.v1Calls);
+    /* A version-0 record whose hash is not 30 characters is checked as v1. */
+    CountingDerive d3;
+    strcpy(u[2].password, d3.v1("leg", "right", u[2].salt).c_str( ));
+    d3.v1Calls = 0;
+    TEST_ASSERT_EQUAL_INT(2, passwordCheck(u, 4, "leg", "right", d3, legacy));
+    TEST_ASSERT_FALSE(legacy);
+    TEST_ASSERT_EQUAL_INT(1, d3.v1Calls);
+    TEST_ASSERT_EQUAL_INT(0, d3.legacyCalls);
+}
+
+/* ── A session against the live account (SessionCheck.h) ──
+ * A session used to keep the account as the login saw it, until it expired or
+ * the device restarted. These pin what ends one now — the account deleted, its
+ * slot taken by another name, its password set by someone else — and what
+ * does not: a change of bits, which the session takes on at its next request. */
+struct SessAccount {
+    bool active;
+    char username[16];
+    uint16_t permissions;
+    uint8_t salt[8];
+};
+
+static void sessAccounts(SessAccount (&u)[3]) {
+    memset(u, 0, sizeof(u));
+    const char* names[3] = { "admin", "ana", "bia" };
+    for (int i = 0; i < 3; i++) {
+        u[i].active = true;
+        strcpy(u[i].username, names[i]);
+        u[i].permissions = (uint16_t)(0x0100 << i);
+        u[i].salt[0] = (uint8_t)(40 + i);
+    }
+}
+
+void test_session_stays_with_an_unchanged_account(void) {
+    SessAccount u[3]; sessAccounts(u);
+    uint8_t salt[8]; memcpy(salt, u[1].salt, sizeof(salt));
+    uint16_t perms = u[1].permissions;
+    TEST_ASSERT_TRUE(sessionStillValid(u, 3, 1, "ana", salt, perms));
+    TEST_ASSERT_EQUAL_HEX16(0x0200, perms);
+}
+
+void test_session_takes_the_bits_the_account_has_now(void) {
+    SessAccount u[3]; sessAccounts(u);
+    uint8_t salt[8]; memcpy(salt, u[1].salt, sizeof(salt));
+    uint16_t perms = u[1].permissions;      /* what the login saw */
+    u[1].permissions = 0x0001;              /* narrowed since, at the panel or the console */
+    TEST_ASSERT_TRUE(sessionStillValid(u, 3, 1, "ana", salt, perms));
+    TEST_ASSERT_EQUAL_HEX16(0x0001, perms);
+}
+
+void test_session_ends_with_its_deleted_account(void) {
+    SessAccount u[3]; sessAccounts(u);
+    uint8_t salt[8]; memcpy(salt, u[1].salt, sizeof(salt));
+    uint16_t perms = u[1].permissions;
+    memset(&u[1], 0, sizeof(u[1]));         /* a delete wipes the whole record */
+    TEST_ASSERT_FALSE(sessionStillValid(u, 3, 1, "ana", salt, perms));
+}
+
+void test_session_ends_when_its_slot_holds_another_name(void) {
+    SessAccount u[3]; sessAccounts(u);
+    uint8_t salt[8]; memcpy(salt, u[1].salt, sizeof(salt));
+    uint16_t perms = u[1].permissions;
+    memset(&u[1], 0, sizeof(u[1]));         /* deleted, and the slot taken again */
+    u[1].active = true;
+    strcpy(u[1].username, "carla");
+    u[1].permissions = 0x0200;
+    memcpy(u[1].salt, salt, sizeof(salt));  /* even with the very same salt */
+    TEST_ASSERT_FALSE(sessionStillValid(u, 3, 1, "ana", salt, perms));
+}
+
+void test_session_ends_when_someone_else_sets_the_password(void) {
+    SessAccount u[3]; sessAccounts(u);
+    uint8_t salt[8]; memcpy(salt, u[1].salt, sizeof(salt));
+    uint16_t perms = u[1].permissions;
+    u[1].salt[0] = 77;                      /* an admin reset, `user pass`: a fresh salt */
+    TEST_ASSERT_FALSE(sessionStillValid(u, 3, 1, "ana", salt, perms));
+}
+
+void test_session_with_a_slot_out_of_range_is_invalid(void) {
+    SessAccount u[3]; sessAccounts(u);
+    uint8_t salt[8]; memcpy(salt, u[1].salt, sizeof(salt));
+    uint16_t perms = 0;
+    TEST_ASSERT_FALSE(sessionStillValid(u, 3, -1, "ana", salt, perms));
+    TEST_ASSERT_FALSE(sessionStillValid(u, 3, 3, "ana", salt, perms));
+}
+
+void test_panel_identity_outlives_a_password_reset_not_a_delete(void) {
+    SessAccount u[3]; sessAccounts(u);
+    uint16_t perms = 0;
+    /* The panel identified by PIN: a new web password is not its business. */
+    u[1].salt[0] = 77;
+    TEST_ASSERT_TRUE(panelAccountStillThere(u, 3, 1, "ana", perms));
+    TEST_ASSERT_EQUAL_HEX16(0x0200, perms);
+    memset(&u[1], 0, sizeof(u[1]));
+    TEST_ASSERT_FALSE(panelAccountStillThere(u, 3, 1, "ana", perms));
+    TEST_ASSERT_FALSE(panelAccountStillThere(u, 3, -1, "ana", perms));
+}
+
 
 void test_panel_pin_validator(void) {
     TEST_ASSERT_TRUE(isValidPanelPin("1234"));
@@ -3803,6 +4287,65 @@ static void test_alpha_marquee_blanks_nothing(void) {
  * The TFT top bar's format, now shared with the 16x2. The property that lets
  * the alpha show it at all: nothing a uint16_t holds is wider than the three
  * free columns of its second line. */
+/* ══ the PIN keypad's shortest entry ══════════════════════════════════════
+ *
+ * A stricter policy marks every account holding a PIN to choose a new one
+ * (markPinsBelowPolicy), so that an account whose PIN is now shorter than the
+ * minimum identifies with it and is sent to the change. The keypad refused
+ * that entry as too short before Core 0 saw it: on the rig on 2026-10-04, a
+ * 4-digit PIN under a minimum of 5 could not identify at all. Proving a PIN
+ * takes any length a PIN may still have; choosing one follows the policy.
+ */
+static void test_identification_takes_a_pin_shorter_than_the_policy(void) {
+    using namespace PinKb;
+    for (uint8_t m = PIN_LEN_MIN; m <= 8; m++) {
+        TEST_ASSERT_EQUAL_UINT8_MESSAGE(PIN_LEN_MIN, entryMinLen(true, m), "identifying");
+        TEST_ASSERT_EQUAL_UINT8_MESSAGE(m, entryMinLen(false, m), "choosing");
+    }
+}
+
+/* Proving a shorter PIN must not be the way around the policy. The keypad's
+ * refusal used to be the one thing that held a PIN the web set below the
+ * minimum to the policy (the web does not check it: finding 7 of
+ * docs/analysis/PLANO_REVISAO_EXTERNA.md), and no tightening marks such a
+ * PIN. A tap is a character, so the entry's length is the PIN's: a PIN
+ * shorter than the policy identifies and is sent straight to the change. */
+static void test_a_pin_below_the_policy_is_changed_once_it_proves(void) {
+    using namespace PinKb;
+    TEST_ASSERT_TRUE_MESSAGE(changeAfterProof(true, 6, 4), "marked by a tightening");
+    TEST_ASSERT_TRUE_MESSAGE(changeAfterProof(false, 4, 5), "shorter than the policy, unmarked");
+    TEST_ASSERT_TRUE_MESSAGE(changeAfterProof(true, 4, 5), "both");
+    TEST_ASSERT_FALSE_MESSAGE(changeAfterProof(false, 5, 5), "at the minimum");
+    TEST_ASSERT_FALSE_MESSAGE(changeAfterProof(false, 8, 4), "above it");
+}
+
+/* "PIN too short (min 4)" said 4 whatever the policy's minimum was: the
+ * number was written into the line, in the firmware and in both packs. The
+ * line carries "{n}" now, and the number is put there, never by handing the
+ * pack's line to printf. */
+static void test_count_in_text_puts_the_number_where_the_line_says(void) {
+    char b[48];
+    countInText("PIN too short (min {n})", 5, b, sizeof(b));
+    TEST_ASSERT_EQUAL_STRING("PIN too short (min 5)", b);
+    countInText("PIN muito curto (m\xC3\xADn. {n})", 12, b, sizeof(b));
+    TEST_ASSERT_EQUAL_STRING("PIN muito curto (m\xC3\xADn. 12)", b);
+    /* a pack older than the marker: its line as it is */
+    countInText("PIN muito curto (m\xC3\xADn. 4)", 5, b, sizeof(b));
+    TEST_ASSERT_EQUAL_STRING("PIN muito curto (m\xC3\xADn. 4)", b);
+    /* a pack line is not a format string */
+    countInText("%s%n {n} %d", 7, b, sizeof(b));
+    TEST_ASSERT_EQUAL_STRING("%s%n 7 %d", b);
+    /* the first marker only */
+    countInText("{n}{n}", 3, b, sizeof(b));
+    TEST_ASSERT_EQUAL_STRING("3{n}", b);
+    /* cut to the buffer, and terminated */
+    char s[8];
+    countInText("PIN too short (min {n})", 5, s, sizeof(s));
+    TEST_ASSERT_EQUAL_STRING("PIN too", s);
+    countInText(nullptr, 5, s, sizeof(s));
+    TEST_ASSERT_EQUAL_STRING("", s);
+}
+
 static void test_pending_label_reads_like_the_top_bar(void) {
     char b[PENDING_LABEL_MAX];
     pendingLabel(1, b, sizeof(b));     TEST_ASSERT_EQUAL_STRING("1", b);
@@ -3889,6 +4432,336 @@ static void test_tel_cursor_takes_the_newest_and_clamps_the_future(void) {
     TEST_ASSERT_EQUAL_UINT32(CUR_NOW + 3600u, telDeliveredCursor(ahead, 2, 0, 1000u, HIST_EPOCH_MIN));
     /* Never backwards, even when the clamp lands below the floor. */
     TEST_ASSERT_EQUAL_UINT32(CUR_NOW + 10u, telDeliveredCursor(ahead, 2, CUR_NOW + 10u, CUR_NOW, HIST_EPOCH_MIN));
+}
+
+/* ── The telemetry cursor as a write position (TelemetryPosition.h, A-04) ──
+ * A day file only grows at its end, so (day, block offset, record) is where a
+ * record was written, whatever its stamp says. These play a small flash, blocks
+ * in write order, through collection and delivery the way TelemetryManager
+ * does, and count what reaches the server. Epochs run e0, e0+1, … in a block. */
+struct SimBlock { uint32_t day; uint32_t off; uint8_t n; uint32_t e0; };
+
+/* Collect every unsent record — files in day order, blocks in offset order —
+ * and deliver all of it. Returns how many went; their epochs land in got[].
+ * First, what TelemetryManager::collectBatch does before trusting a slot: the
+ * first block at or past its offset must start AT it and still hold the record
+ * it counted last. */
+static size_t simSend(TelCursorState& c, const SimBlock* b, size_t nb, uint32_t* got) {
+    for (uint8_t i = 0; i < TEL_POS_SLOTS; i++) {
+        const TelPos p = c.pos[i];
+        if (!p.day) continue;
+        const SimBlock* first = nullptr;
+        for (size_t k = 0; k < nb; k++) {
+            if (b[k].day == p.day && b[k].off >= p.off && (!first || b[k].off < first->off)) first = &b[k];
+        }
+        if (!first) continue;
+        const uint32_t e = (p.rec && p.rec <= first->n) ? first->e0 + p.rec - 1u : 0;
+        if (!telSlotHolds(p, first->off == p.off, first->n, e)) telForgetDay(c, p.day);
+    }
+    std::vector<size_t> order(nb);
+    for (size_t i = 0; i < nb; i++) order[i] = i;
+    std::sort(order.begin( ), order.end( ), [&](size_t x, size_t y) {
+        return b[x].day != b[y].day ? b[x].day < b[y].day : b[x].off < b[y].off;
+    });
+    std::vector<TelRecPos> pos;
+    for (size_t k : order) {
+        if (telFileDone(c, b[k].day)) continue;
+        for (uint16_t r = 0; r < b[k].n; r++) {
+            const uint32_t ep = b[k].e0 + r;
+            if (telUnsent(c, b[k].day, b[k].off, r, ep)) {
+                if (got) got[pos.size( )] = ep;
+                pos.push_back(TelRecPos{ b[k].day, b[k].off, r, ep });
+            }
+        }
+    }
+    telAdvance(c, pos.data( ), pos.size( ));
+    return pos.size( );
+}
+
+/* 2 October 2026, as StorageManager::historyDayOf( ) hands it over. */
+static const TelToday TEL_OCT2 = { 20261002, 20260929, 20261003, false };
+static const TelToday TEL_OCT2_TRUSTED = { 20261002, 20260929, 20261003, true };
+
+/* No clock at all: the floor stays where it is. */
+void test_telpos_no_clock_moves_no_floor(void) {
+    TelCursorState c; telCursorReset(c, 20260920);
+    const TelToday none = { 0, 0, 0, false };
+    telAdvanceFloor(c, none, 0);
+    TEST_ASSERT_EQUAL_UINT32(20260920, c.floorDay);
+}
+
+void test_telpos_a_late_block_in_the_same_file_is_sent(void) {
+    TelCursorState c; telCursorReset(c, 20261001);
+    uint32_t got[64];
+    SimBlock f[] = { {20261002, 100, 5, 1000}, {20261002, 300, 5, 2000},
+                     {20261002, 500, 5, 1500} };          /* written after the clock went back */
+    TEST_ASSERT_EQUAL(10, simSend(c, f, 2, got));
+    TEST_ASSERT_EQUAL(5, simSend(c, f, 3, got));
+    TEST_ASSERT_EQUAL_UINT32(1500, got[0]);
+    TEST_ASSERT_EQUAL(0, simSend(c, f, 3, got));          /* and nothing twice */
+}
+
+void test_telpos_a_late_block_in_yesterdays_file_is_sent(void) {
+    TelCursorState c; telCursorReset(c, 20260930);
+    uint32_t got[64];
+    SimBlock f[] = { {20261001, 100, 5, 1000}, {20261002, 100, 5, 2000},
+                     {20261001, 300, 5, 1500} };          /* a stamp from yesterday, written today */
+    TEST_ASSERT_EQUAL(10, simSend(c, f, 2, got));
+    telAdvanceFloor(c, TEL_OCT2, 0);
+    TEST_ASSERT_EQUAL(5, simSend(c, f, 3, got));
+    TEST_ASSERT_EQUAL_UINT32(1500, got[0]);
+}
+
+void test_telpos_the_open_block_sent_in_part_is_finished_once_sealed(void) {
+    TelCursorState c; telCursorReset(c, 20261001);
+    uint32_t got[64];
+    /* Three records went out of the encoder at the position the block will
+     * have once sealed: the end of its day file. */
+    TelRecPos ram[3] = { {20261002, 700, 0, 3000}, {20261002, 700, 1, 3001}, {20261002, 700, 2, 3002} };
+    telAdvance(c, ram, 3);
+    SimBlock f[] = { {20261002, 700, 5, 3000} };
+    TEST_ASSERT_EQUAL(2, simSend(c, f, 1, got));
+    TEST_ASSERT_EQUAL_UINT32(3003, got[0]);
+}
+
+void test_telpos_the_floor_trails_today_and_waits_for_the_unsent(void) {
+    TelCursorState c; telCursorReset(c, 20260920);
+    SimBlock f[13];
+    for (int d = 0; d < 13; d++) f[d] = SimBlock{ (uint32_t)(20260920 + d), 100, 2, (uint32_t)(1000 + 10 * d) };
+    /* Nothing sent yet: the floor stays on the first file that has anything. */
+    telAdvanceFloor(c, TEL_OCT2, 20260920);
+    TEST_ASSERT_EQUAL_UINT32(20260920, c.floorDay);
+    TEST_ASSERT_EQUAL(26, simSend(c, f, 13, nullptr));
+    /* All sent: the floor comes up to three days behind today, no further. */
+    telAdvanceFloor(c, TEL_OCT2, 0);
+    TEST_ASSERT_EQUAL_UINT32(20260929, c.floorDay);
+}
+
+void test_telpos_a_file_older_than_the_window_stays_closed(void) {
+    TelCursorState c; telCursorReset(c, 20260920);
+    uint32_t got[64];
+    SimBlock f[] = { {20260925, 100, 2, 1000}, {20261002, 100, 2, 2000},
+                     {20260925, 300, 2, 1500},             /* behind the floor: the known limit */
+                     {20260930, 100, 2, 1600} };           /* inside the window */
+    TEST_ASSERT_EQUAL(4, simSend(c, f, 2, got));
+    telAdvanceFloor(c, TEL_OCT2, 0);
+    TEST_ASSERT_EQUAL(2, simSend(c, f, 4, got));
+    TEST_ASSERT_EQUAL_UINT32(1600, got[0]);
+}
+
+void test_telpos_the_old_cursor_keeps_its_rule_for_its_own_files(void) {
+    TelCursorState c;
+    /* Migrated from the 4-byte epoch 1999, whose block is in 20261002's file. */
+    telCursorLegacy(c, 1999, 20261002, 20261001);
+    uint32_t got[64];
+    SimBlock f[] = { {20261002, 100, 5, 1000}, {20261002, 300, 5, 1995},   /* sent under the old cursor */
+                     {20261002, 500, 5, 2000},                             /* after it */
+                     {20261003, 100, 5, 1500} };                           /* a new file, stamped behind it */
+    TEST_ASSERT_EQUAL(5, simSend(c, f, 3, got));
+    TEST_ASSERT_EQUAL_UINT32(2000, got[0]);
+    TEST_ASSERT_EQUAL(5, simSend(c, f, 4, got));
+    TEST_ASSERT_EQUAL_UINT32(1500, got[0]);
+}
+
+/* An update while the old cursor is ahead of the clock: the clock went back
+ * after its last delivery, by less than the hour that resets it. Its rule held
+ * back every record written since, until the clock would catch up, and then
+ * skipped them. On the rig, 2026-10-02: 0 requests in 180 s, 0 pending. */
+void test_telpos_an_old_cursor_ahead_of_the_clock_gives_way(void) {
+    SimBlock f[] = { {20261002, 100, 5, 1000},     /* sent under the old cursor */
+                     {20261002, 300, 5, 1500} };   /* written after the clock went back */
+    TelCursorState kept; telCursorLegacy(kept, 2000, 20261002, 20261002);
+    TEST_ASSERT_FALSE(telDropLegacyAhead(kept, 1600, false));  /* a provisional clock may be the one behind */
+    TEST_ASSERT_FALSE(telDropLegacyAhead(kept, 2000, true));   /* not ahead */
+    TEST_ASSERT_EQUAL(0, simSend(kept, f, 2, nullptr));        /* the defect, kept: nothing goes */
+    TelCursorState c; telCursorLegacy(c, 2000, 20261002, 20261002);
+    TEST_ASSERT_TRUE(telDropLegacyAhead(c, 1600, true));
+    TEST_ASSERT_EQUAL(10, simSend(c, f, 2, nullptr));          /* the day goes again, held-back records with it */
+    TEST_ASSERT_EQUAL(0, simSend(c, f, 2, nullptr));
+}
+
+void test_telpos_saves_loads_and_an_older_firmware_reads_its_epoch(void) {
+    TelCursorState c; telCursorReset(c, 20261001);
+    TelRecPos p[2] = { {20261002, 100, 0, 1790958342}, {20261002, 100, 1, 1790958402} };
+    telAdvance(c, p, 2);
+    c.lastEpoch = 1790958402;
+    uint8_t buf[sizeof(TelCursorState)];
+    memcpy(buf, &c, sizeof(buf));
+    /* The first four bytes are what v2.9.0 reads as its whole cursor. */
+    uint32_t first; memcpy(&first, buf, 4);
+    TEST_ASSERT_EQUAL_UINT32(1790958402, first);
+    TelCursorState d; bool legacy = true;
+    TEST_ASSERT_TRUE(telCursorLoad(d, buf, sizeof(buf), legacy));
+    TEST_ASSERT_FALSE(legacy);
+    TEST_ASSERT_EQUAL_MEMORY(&c, &d, sizeof(c));
+    /* A length or a mark it does not know is no cursor at all. */
+    TEST_ASSERT_FALSE(telCursorLoad(d, buf, 7, legacy));
+    buf[4] ^= 0xFF;
+    TEST_ASSERT_FALSE(telCursorLoad(d, buf, sizeof(buf), legacy));
+    TEST_ASSERT_EQUAL_UINT32(0, d.floorDay);
+}
+
+void test_telpos_a_full_table_closes_its_oldest_file(void) {
+    TelCursorState c; telCursorReset(c, 20260901);
+    SimBlock f[TEL_POS_SLOTS + 1];
+    for (int d = 0; d <= TEL_POS_SLOTS; d++) f[d] = SimBlock{ (uint32_t)(20260901 + d), 100, 2, (uint32_t)(1000 + 10 * d) };
+    TEST_ASSERT_EQUAL(2 * (TEL_POS_SLOTS + 1), simSend(c, f, TEL_POS_SLOTS + 1, nullptr));
+    /* Nine files, eight slots. The oldest was drained by the very batch that
+     * needed its slot, so it is closed, not sent again. */
+    TEST_ASSERT_EQUAL_UINT32(20260902, c.floorDay);
+    TEST_ASSERT_EQUAL(0, simSend(c, f, TEL_POS_SLOTS + 1, nullptr));
+    /* A late block in an old file, the table full of newer ones: the newest
+     * cannot be closed, so the oldest of them goes again — a duplicate. */
+    TelCursorState d; telCursorReset(d, 20260901);
+    TelRecPos newer[TEL_POS_SLOTS];
+    for (int i = 0; i < TEL_POS_SLOTS; i++) newer[i] = TelRecPos{ (uint32_t)(20260910 + i), 100, 0, 5000u + i };
+    telAdvance(d, newer, TEL_POS_SLOTS);
+    TelRecPos late = { 20260905, 100, 0, 4000 };
+    telAdvance(d, &late, 1);
+    TEST_ASSERT_EQUAL_UINT32(20260901, d.floorDay);
+    TEST_ASSERT_NULL(telFind(d, 20260910));
+    TEST_ASSERT_NOT_NULL(telFind(d, 20260905));
+}
+
+/* A slow device's backlog: one batch spans more days than there are slots.
+ * Forgetting the oldest sent it again next batch, and that batch forgot the
+ * next one — a file of duplicates per batch, for ever. */
+void test_telpos_a_drain_longer_than_the_table_ends(void) {
+    TelCursorState c; telCursorReset(c, 20260901);
+    SimBlock f[20];
+    for (int d = 0; d < 20; d++) f[d] = SimBlock{ (uint32_t)(20260901 + d), 100, 3, (uint32_t)(1000 + 10 * d) };
+    TEST_ASSERT_EQUAL(60, simSend(c, f, 20, nullptr));
+    for (int i = 0; i < 3; i++) TEST_ASSERT_EQUAL(0, simSend(c, f, 20, nullptr));
+}
+
+/* What a slot checks before it is trusted. */
+void test_telpos_a_slot_holds_only_while_its_records_are_there(void) {
+    TelCursorState c; telCursorReset(c, 20261001);
+    TelRecPos ram[5] = { {20261002, 700, 0, 3000}, {20261002, 700, 1, 3001}, {20261002, 700, 2, 3002},
+                         {20261002, 700, 3, 3003}, {20261002, 700, 4, 3004} };
+    telAdvance(c, ram, 5);
+    const TelPos* p = telFind(c, 20261002);
+    TEST_ASSERT_NOT_NULL(p);
+    TEST_ASSERT_TRUE(telSlotHolds(*p, true, 5, 3004));      /* the same block, sealed */
+    TEST_ASSERT_TRUE(telSlotHolds(*p, true, 60, 3004));     /* ... and filled on */
+    /* The power went before the .wip caught up: the snapshot kept three, and
+     * the next readings took indices 3 and 4. */
+    TEST_ASSERT_FALSE(telSlotHolds(*p, true, 5, 3060));
+    TEST_ASSERT_FALSE(telSlotHolds(*p, true, 2, 0));        /* a shorter block took the offset */
+    TEST_ASSERT_FALSE(telSlotHolds(*p, false, 0, 0));       /* no block starts there any more */
+    TelPos none = {};
+    TEST_ASSERT_TRUE(telSlotHolds(none, false, 0, 0));      /* nothing counted, nothing to lose */
+}
+
+void test_telpos_readings_that_take_a_lost_position_are_sent(void) {
+    TelCursorState c; telCursorReset(c, 20261001);
+    uint32_t got[64];
+    /* Five records went out of the encoder at the end of today's file, and
+     * the power went before the snapshot had them all. */
+    TelRecPos ram[5] = { {20261002, 700, 0, 3000}, {20261002, 700, 1, 3001}, {20261002, 700, 2, 3002},
+                         {20261002, 700, 3, 3003}, {20261002, 700, 4, 3004} };
+    telAdvance(c, ram, 5);
+    /* What sealed at 700 holds other records at those indices. The position
+     * cannot say which went, so the whole file goes again. */
+    SimBlock f[] = { {20261002, 100, 5, 1000}, {20261002, 700, 5, 2998} };
+    TEST_ASSERT_EQUAL(10, simSend(c, f, 2, got));
+    TEST_ASSERT_EQUAL(0, simSend(c, f, 2, got));
+}
+
+void test_telpos_a_batch_kept_as_runs_advances_what_went(void) {
+    TelRun runs[TEL_RUNS_MAX]; uint8_t n = 0;
+    uint8_t k = 0;
+    for (uint8_t idx = 3; idx <= 7; idx++) TEST_ASSERT_TRUE(telRunPush(runs, n, 20261002, 100, idx, k++, 1000u + idx));
+    for (uint8_t idx = 0; idx <= 1; idx++) TEST_ASSERT_TRUE(telRunPush(runs, n, 20261002, 300, idx, k++, 2000u + idx));
+    TEST_ASSERT_TRUE(telRunPush(runs, n, 20261002, 300, 3, k++, 2003));   /* index 2 skipped: a new run */
+    TEST_ASSERT_EQUAL(3, n);
+    /* The broker took six of the eight. */
+    telRunsTrim(runs, n, 6, 2000);
+    TEST_ASSERT_EQUAL(2, n);
+    TEST_ASSERT_EQUAL(1, runs[1].len);
+    TelCursorState c; telCursorReset(c, 20261001);
+    telAdvanceRuns(c, runs, n);
+    const TelPos* p = telFind(c, 20261002);
+    TEST_ASSERT_NOT_NULL(p);
+    TEST_ASSERT_EQUAL_UINT32(300, p->off);
+    TEST_ASSERT_EQUAL(1, p->rec);
+    TEST_ASSERT_EQUAL_UINT32(2000, p->epoch);
+    /* A batch that would need one run too many ends before that record; one
+     * that extends the last run still fits. */
+    TelRun many[TEL_RUNS_MAX]; uint8_t m = 0;
+    for (uint8_t i = 0; i < TEL_RUNS_MAX; i++) TEST_ASSERT_TRUE(telRunPush(many, m, 20261002, 100u * (i + 1u), 0, i, 1));
+    TEST_ASSERT_FALSE(telRunPush(many, m, 20261002, 99999, 0, TEL_RUNS_MAX, 1));
+    TEST_ASSERT_TRUE(telRunPush(many, m, 20261002, 100u * TEL_RUNS_MAX, 1, TEL_RUNS_MAX, 2));
+}
+
+void test_telpos_a_trusted_clock_drops_the_days_ahead_of_it(void) {
+    TelCursorState c; telCursorReset(c, 20261001);
+    TelRecPos ahead[2] = { {20261003, 100, 0, 8000}, {20261010, 100, 0, 9000} };
+    telAdvance(c, ahead, 2);
+    telAdvanceFloor(c, TEL_OCT2, 0);           /* provisional: it may be the one behind */
+    TEST_ASSERT_NOT_NULL(telFind(c, 20261010));
+    telAdvanceFloor(c, TEL_OCT2_TRUSTED, 0);
+    TEST_ASSERT_NULL(telFind(c, 20261010));
+    TEST_ASSERT_NOT_NULL(telFind(c, 20261003));   /* tomorrow stays */
+}
+
+void test_telpos_a_rewritten_file_is_sent_again(void) {
+    TelCursorState c; telCursorReset(c, 20261001);
+    SimBlock f[] = { {20261002, 100, 5, 1000}, {20261002, 300, 5, 1010} };
+    TEST_ASSERT_EQUAL(10, simSend(c, f, 2, nullptr));
+    /* The day file was put back by a backup restore: it is now shorter than
+     * the position kept for it, so the position means nothing. */
+    telForgetIfBeyond(c, 20261002, 200);
+    SimBlock g[] = { {20261002, 100, 10, 1000} };
+    TEST_ASSERT_EQUAL(10, simSend(c, g, 1, nullptr));
+    /* A file that only grew keeps its place. */
+    telForgetIfBeyond(c, 20261002, 4000);
+    TEST_ASSERT_EQUAL(0, simSend(c, g, 1, nullptr));
+}
+
+void test_telpos_block_count_agrees_with_the_record_rule(void) {
+    TelCursorState c; telCursorReset(c, 20261001);
+    TelRecPos p[2] = { {20261002, 300, 0, 5000}, {20261002, 300, 1, 5001} };
+    telAdvance(c, p, 2);
+    TEST_ASSERT_EQUAL_UINT8(0, telBlockUnsent(c, 20261002, 100, 5, 9000));  /* before the position */
+    TEST_ASSERT_EQUAL_UINT8(3, telBlockUnsent(c, 20261002, 300, 5, 5000));  /* the block it is in */
+    TEST_ASSERT_EQUAL_UINT8(5, telBlockUnsent(c, 20261002, 500, 5, 100));   /* after it, however stamped */
+    TEST_ASSERT_EQUAL_UINT8(5, telBlockUnsent(c, 20261003, 100, 5, 100));   /* a file it has not reached */
+    TEST_ASSERT_EQUAL_UINT8(0, telBlockUnsent(c, 20260930, 100, 5, 9000));  /* behind the floor */
+    /* Under the old cursor's rule a header has only its first stamp: a block
+     * that starts after the epoch counts whole, one that starts at or before
+     * it counts as sent — the one straddling it is short of its tail. */
+    TelCursorState l; telCursorLegacy(l, 1999, 20261002, 20261001);
+    TEST_ASSERT_EQUAL_UINT8(5, telBlockUnsent(l, 20261002, 100, 5, 2000));
+    TEST_ASSERT_EQUAL_UINT8(0, telBlockUnsent(l, 20261002, 100, 5, 1998));
+}
+
+/* The open block on a SIMUT Air wake, counted from its snapshot before the
+ * boot puts it back in RAM (StorageManager::h5WipBlock): what the cursor has
+ * not taken of it, and nothing once a wake has sent it all. The F23 pins
+ * h5CountAfter held until the count became a position. */
+void test_telpos_the_snapshot_counts_what_no_wake_has_sent(void) {
+    TelCursorState c; telCursorReset(c, 20261001);
+    /* Nothing sent from it yet: every record waits, and one more each wake. */
+    for (uint8_t n = 1; n <= 8; n++) TEST_ASSERT_EQUAL_UINT8(n, telBlockUnsent(c, 20261002, 700, n, 3000));
+    /* A wake sent four of the eight. */
+    TelRecPos sent[4] = { {20261002, 700, 0, 3000}, {20261002, 700, 1, 3060},
+                          {20261002, 700, 2, 3120}, {20261002, 700, 3, 3180} };
+    telAdvance(c, sent, 4);
+    TEST_ASSERT_EQUAL_UINT8(4, telBlockUnsent(c, 20261002, 700, 8, 3000));
+    /* The next wakes add records; the count follows them. */
+    TEST_ASSERT_EQUAL_UINT8(6, telBlockUnsent(c, 20261002, 700, 10, 3000));
+    /* All of it went: the radio must not come up for it a second time. */
+    TelRecPos rest[6];
+    for (uint16_t i = 0; i < 6; i++) rest[i] = TelRecPos{ 20261002, 700, (uint16_t)(4 + i), 3240u + 60u * i };
+    telAdvance(c, rest, 6);
+    TEST_ASSERT_EQUAL_UINT8(0, telBlockUnsent(c, 20261002, 700, 10, 3000));
+}
+
+void test_telpos_a_clock_gone_back_pulls_the_floor_back(void) {
+    TelCursorState c; telCursorReset(c, 20301001);   /* the clock had run to 2030 */
+    telAdvanceFloor(c, TEL_OCT2, 0);
+    TEST_ASSERT_EQUAL_UINT32(20260929, c.floorDay);
 }
 
 /* ── Content-Type of a telemetry line (TelContentType.h) ──────────────────
@@ -4070,6 +4943,10 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_jsonRawToken_shapes);
     RUN_TEST(test_jsonValuePos_no_prefix_overmatch);
     RUN_TEST(test_jsonFlag_tristate);
+    RUN_TEST(test_legacy_getPair_read_null_as_zero);
+    RUN_TEST(test_jsonLimitValue_reads_a_limit);
+    RUN_TEST(test_jsonLimitPair_null_keeps_the_bound);
+    RUN_TEST(test_jsonLimitPair_refuses_what_is_not_a_pair);
     RUN_TEST(test_config_roundtrip_no_longer_inverts);
     RUN_TEST(test_legacy_getNum_inverted_json_booleans);
     RUN_TEST(test_legacy_getN_broke_twice_over);
@@ -4083,6 +4960,7 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_commit_usermgr_can_commit_users_only);
     RUN_TEST(test_commit_grant_refuses_bits_the_caller_lacks);
     RUN_TEST(test_commit_pin_target_protects_the_admin_slot);
+    RUN_TEST(test_panel_grant_adds_only_bits_the_caller_holds);
     RUN_TEST(test_commit_netonly_can_commit_net_only);
     RUN_TEST(test_commit_admin_passes_everything);
     RUN_TEST(test_commit_entry_perms_exclude_viewer);
@@ -4132,6 +5010,7 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_langidx_chunking_does_not_matter);
     RUN_TEST(test_langidx_refuses_a_directive_after_webdict);
     RUN_TEST(test_langidx_directive_names_match_exactly);
+    RUN_TEST(test_langidx_helpwire_is_not_a_radio_builds_help);
     RUN_TEST(test_langidx_an_at_sign_mid_line_is_content);
     RUN_TEST(test_langidx_directive_line_endings);
     RUN_TEST(test_langidx_name_and_code_values);
@@ -4236,6 +5115,25 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_clock_entry_round_trips_at_the_device_offset);
     RUN_TEST(test_clock_entry_packs_into_one_panel_event);
     RUN_TEST(test_clock_prompt_only_without_a_network_or_a_real_clock);
+    RUN_TEST(test_settings_menu_item_ids_are_the_historical_ones);
+    RUN_TEST(test_settings_menu_order_lists_every_item_once);
+    RUN_TEST(test_settings_menu_full_admin_sees_every_item_in_order);
+    RUN_TEST(test_settings_menu_follows_the_session_bits);
+    RUN_TEST(test_settings_menu_label_without_its_number);
+    RUN_TEST(test_settings_menu_numbers_a_row_by_where_it_sits);
+    RUN_TEST(test_password_check_a_name_without_an_account_still_derives);
+    RUN_TEST(test_password_check_a_wrong_password_derives_once);
+    RUN_TEST(test_password_check_the_right_password_derives_once);
+    RUN_TEST(test_password_check_a_deleted_account_is_no_account);
+    RUN_TEST(test_password_check_a_name_in_other_case_is_no_account);
+    RUN_TEST(test_password_check_a_legacy_account_derives_its_own_way);
+    RUN_TEST(test_session_stays_with_an_unchanged_account);
+    RUN_TEST(test_session_takes_the_bits_the_account_has_now);
+    RUN_TEST(test_session_ends_with_its_deleted_account);
+    RUN_TEST(test_session_ends_when_its_slot_holds_another_name);
+    RUN_TEST(test_session_ends_when_someone_else_sets_the_password);
+    RUN_TEST(test_session_with_a_slot_out_of_range_is_invalid);
+    RUN_TEST(test_panel_identity_outlives_a_password_reset_not_a_delete);
     RUN_TEST(test_panel_pin_validator);
     RUN_TEST(test_pin_policy_rules);
     RUN_TEST(test_pin_keypad_deals_the_whole_set);
@@ -4245,12 +5143,34 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_alpha_marquee_fills_exactly_at_the_width);
     RUN_TEST(test_alpha_marquee_scrolls_and_wraps_through_the_gap);
     RUN_TEST(test_alpha_marquee_blanks_nothing);
+    RUN_TEST(test_identification_takes_a_pin_shorter_than_the_policy);
+    RUN_TEST(test_a_pin_below_the_policy_is_changed_once_it_proves);
+    RUN_TEST(test_count_in_text_puts_the_number_where_the_line_says);
     RUN_TEST(test_pending_label_reads_like_the_top_bar);
     RUN_TEST(test_pending_label_fits_three_columns);
     RUN_TEST(test_alpha_wifi_grows_left_to_right);
     RUN_TEST(test_tel_cursor_stops_at_what_the_payload_kept);
     RUN_TEST(test_tel_cursor_nothing_delivered_keeps_the_floor);
     RUN_TEST(test_tel_cursor_takes_the_newest_and_clamps_the_future);
+    RUN_TEST(test_telpos_no_clock_moves_no_floor);
+    RUN_TEST(test_telpos_a_late_block_in_the_same_file_is_sent);
+    RUN_TEST(test_telpos_a_late_block_in_yesterdays_file_is_sent);
+    RUN_TEST(test_telpos_the_open_block_sent_in_part_is_finished_once_sealed);
+    RUN_TEST(test_telpos_the_floor_trails_today_and_waits_for_the_unsent);
+    RUN_TEST(test_telpos_a_file_older_than_the_window_stays_closed);
+    RUN_TEST(test_telpos_the_old_cursor_keeps_its_rule_for_its_own_files);
+    RUN_TEST(test_telpos_an_old_cursor_ahead_of_the_clock_gives_way);
+    RUN_TEST(test_telpos_saves_loads_and_an_older_firmware_reads_its_epoch);
+    RUN_TEST(test_telpos_a_full_table_closes_its_oldest_file);
+    RUN_TEST(test_telpos_a_drain_longer_than_the_table_ends);
+    RUN_TEST(test_telpos_a_slot_holds_only_while_its_records_are_there);
+    RUN_TEST(test_telpos_readings_that_take_a_lost_position_are_sent);
+    RUN_TEST(test_telpos_a_batch_kept_as_runs_advances_what_went);
+    RUN_TEST(test_telpos_a_trusted_clock_drops_the_days_ahead_of_it);
+    RUN_TEST(test_telpos_a_rewritten_file_is_sent_again);
+    RUN_TEST(test_telpos_block_count_agrees_with_the_record_rule);
+    RUN_TEST(test_telpos_the_snapshot_counts_what_no_wake_has_sent);
+    RUN_TEST(test_telpos_a_clock_gone_back_pulls_the_floor_back);
     RUN_TEST(test_media_type_accepts_what_servers_expect);
     RUN_TEST(test_media_type_refuses_what_would_break_the_header);
     RUN_TEST(test_tel_content_type_per_mode);

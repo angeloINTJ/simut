@@ -30,6 +30,7 @@
 #include "TelemetryManager.h"
 #include "air/AirConfig.h"
 #include "air/pico_sleep.h"
+#include "net/NetLink.h"   /* net::powerDownForSleep( ): the radio's power-down, whatever its API */
 #include <hardware/clocks.h>
 
 #include <LittleFS.h>
@@ -37,7 +38,6 @@
 #include <time.h>
 #include <sys/time.h> /* settimeofday */
 
-#include <pico/cyw43_arch.h>
 #include <hardware/gpio.h>
 #include <hardware/rtc.h>
 #include <hardware/structs/scb.h>
@@ -372,10 +372,12 @@ void AppManager::airLoop( ) {
    * CONNECT/FLUSH when the WiFi came up during SAMPLE. "Online" is a live STA
    * link with an IP — isLinkUp( ), NOT isConnected( ) (plan F08): isConnected( )
    * is NET_READY, reached only after NTP returns, and nothing times that wait
-   * out, so on a network without internet the send path gated on it never ran
-   * and the wake slept without trying. isTimeSynced( ) must not gate it either
-   * — the provisional clock stamps the records well enough, and a late stamp
-   * beats a lost measurement. */
+   * out, so a wake gated on it slept without trying whenever the NTP answer was
+   * late or never came. The upload itself still needs NET_READY
+   * (TelemetryManager::update( ) reads isNetworkHealthy( )): FLUSH waits for
+   * that answer, AIR_FLUSH_NTP_WAIT_MS at most. isTimeSynced( ) must not gate
+   * the record either — the provisional clock stamps it well enough, and a late
+   * stamp beats a lost measurement. */
   {
    /* The clock this record is about to be stamped with, to the millisecond.
     * A console that timestamps what it receives compares it against a real
@@ -427,10 +429,10 @@ void AppManager::airLoop( ) {
 
  case AIR_PHASE_CONNECT: {
   _netMgr->update( );
-  /* isLinkUp( ), not isConnected( ): the link carries the upload as soon as
-   * DHCP is done (NET_CONNECTED_WAIT_NTP), and waiting for NTP here is exactly
-   * the F08 stall — connectTimeoutMs already bounds this, but the wait is for
-   * the link, not the clock. */
+  /* isLinkUp( ), not isConnected( ): this phase waits for the link (DHCP done,
+   * NET_CONNECTED_WAIT_NTP), not for the clock, which was the F08 stall;
+   * connectTimeoutMs bounds it. FLUSH then waits for the NTP answer the upload
+   * needs, AIR_FLUSH_NTP_WAIT_MS at most. */
   const bool ok = _netMgr->isLinkUp( );
   if (ok || timeSince(_airPhaseTimer, (uint32_t)_airCfg.connectTimeoutMs)) {
    _airPhase = ok ? AIR_PHASE_FLUSH : AIR_PHASE_SLEEP;
@@ -469,12 +471,21 @@ void AppManager::airLoop( ) {
   _telemetryMgr->refreshPendingCount( );
   const bool done = (_telemetryMgr->getPendingEstimate( ) == 0);
   const bool serverLost = (_telemetryMgr->getBackoffRemainingMs( ) > 0);
-  /* isLinkHealthy( ), not isNetworkHealthy( ): both apply the RSSI floor, but
-   * the healthy check is built on isConnected( ) (NET_READY), so without NTP it
-   * would read "unhealthy" the instant the link came up and end the phase
-   * before a single batch went out — the F08 stall, one layer down. The link
-   * plus the RSSI floor is what actually gates an upload. */
-  const bool netLost = !_netMgr->isLinkHealthy( );
+  /* The network is lost when the link is (isLinkHealthy( ): up, over the RSSI
+   * floor), or when NTP has not answered AIR_FLUSH_NTP_WAIT_MS into the phase.
+   * The upload waits for NET_READY (TelemetryManager::update( ) reads
+   * isNetworkHealthy( )), and this phase begins as soon as the link has its
+   * address, before the NTP answer: 0 to 5 s after the address in five boots
+   * on the bench (2026-10-13). So a link still waiting for NTP is kept, for a
+   * while only: a network that never answers would hold the radio for the
+   * whole budget and send nothing. Until 2026-10-14 isLinkHealthy( ) read
+   * "unhealthy" for the whole NTP wait (getRssi( ) answered -100 outside
+   * NET_READY), and a FLUSH that began before the answer slept without
+   * sending. */
+  const bool linkHealthy = _netMgr->isLinkHealthy( );
+  const bool ntpReady = _netMgr->isConnected( );
+  const bool netLost = airFlushNetLost(linkHealthy, ntpReady, millis( ) - _airPhaseTimer,
+                                       AIR_FLUSH_NTP_WAIT_MS);
   /* Wall-clock budget. Everything above depends on the uploader reaching a
    * verdict; this one does not, so no future stall in that path can hold the
    * device awake indefinitely. Derived from the reading interval, not just the
@@ -541,17 +552,10 @@ void AppManager::airEnterDormant( ) {
  airSetLed(false);
  airSensorPower(_airCfg.sensorPowerPin, false);
 
- /* Stop WiFi and power the CYW43 down via WL_REG_ON (GPIO23).
-  * Do NOT call cyw43_arch_deinit(): it hangs on the second call and leaves the
-  * CYW43 in a state only a power cycle recovers (see ota/orchestrator.cpp
-  * "Fix #2 ... REVERTIDO"). The next boot power-cycles the CYW43 anyway, so the
-  * driver does not need a clean teardown — pulling WL_REG_ON LOW is the
-  * hardware power-down that actually saves the current. */
- WiFi.disconnect(true);
- WiFi.end( );
- gpio_init(23);
- gpio_set_dir(23, GPIO_OUT);
- gpio_put(23, 0); /* WL_REG_ON LOW -> CYW43 powered off */
+ /* Stop WiFi and power the CYW43 down via WL_REG_ON (GPIO23): the driver's
+  * net::powerDownForSleep( ), in src/net/NetLink.h, which also says why it is
+  * not cyw43_arch_deinit( ). */
+ net::powerDownForSleep( );
 
  /* Anchor the RTC to a valid base and arm the wake alarm interval ahead of it.
   * The RTC is only a wake timer here, so a fixed date is fine. */

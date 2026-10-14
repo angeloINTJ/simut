@@ -7,6 +7,8 @@
  * @license MIT License
  */
 #include "WebManager.h"
+#include "PasswordCheck.h"
+#include "SessionCheck.h"
 #include "WebUI_GZ.h"
 #include "LogManager.h"
 #include "Themes.h"
@@ -70,11 +72,23 @@ uint16_t WebManager::getAuthPerms( ) {
 	if (bearer.length( ) == 0) return 0;
 
 	for (int i = 0; i < 3; i++) {
-		if (_activeSessions[i].token != "" && bearer.indexOf("SIMUTSESS=" + _activeSessions[i].token) != -1) {
-			_activeSessions[i].lastActivity = millis( );
-			_currentUserId = _activeSessions[i].userId;
-			_currentUserName = _activeSessions[i].username;
-			_currentUserPerms = _activeSessions[i].perms;
+		ActiveSession& s = _activeSessions[i];
+		if (s.token != "" && bearer.indexOf("SIMUTSESS=" + s.token) != -1) {
+			/* The account as it is NOW, not as the login saw it: accounts change
+			 * live — through the web since A-08, at the panel and the console
+			 * always — and a session that outlived its account, or a password
+			 * someone else set, ends here, at its next request. */
+			SystemConfig& cfg = _storageRef->getConfig( );
+			if (!sessionStillValid(cfg.users, MAX_USERS, s.userId, s.username.c_str( ), s.salt, s.perms)) {
+				LOG_CODE(LOG_WARN, "SEC", SEC_SESSION_REVOKED, s.userId, s.username);
+				memset((void*)s.token.begin( ), 0, s.token.length( ));
+				s.token = "";
+				return 0;
+			}
+			s.lastActivity = millis( );
+			_currentUserId = s.userId;
+			_currentUserName = s.username;
+			_currentUserPerms = s.perms;
 			if (_activityCb && !_quietRequest) _activityCb( );
 			return _currentUserPerms;
 		}
@@ -423,49 +437,44 @@ bool WebManager::validateNonceAndRespond(int ls) {
 
 int WebManager::verifyPasswordFor(const String& u, const String& p) {
 	SystemConfig& cfg = _storageRef->getConfig( );
-	for (int i = 0; i < MAX_USERS; i++) {
-		if (!cfg.users[i].active || String(cfg.users[i].username) != u) continue;
 
-		String storedHash = String(cfg.users[i].password);
-		bool passValid = false;
-		bool needsMigration = false;
+	/* The "*PENDING*" temporary-password branch is gone. It accepted
+	 * sha256(Capitalized(username)@DDMMYYYY) as the first password after an
+	 * add/reset — a value derivable by anyone who knew the username (which
+	 * /api/users lists) and the date. Accounts are now created with a
+	 * random one-time password (assignTempPassword, WebManager_Commit.cpp),
+	 * stored as an ordinary V1 hash, so they verify on the V1 path of
+	 * passwordCheck( ) like any other account. A stale "*PENDING*" literal
+	 * left on a device from an older build simply never matches here — that
+	 * account must be reset by an admin, which is the intended outcome, not a
+	 * lockout bug. */
 
-		/* The "*PENDING*" temporary-password branch is gone. It accepted
-		 * sha256(Capitalized(username)@DDMMYYYY) as the first password after an
-		 * add/reset — a value derivable by anyone who knew the username (which
-		 * /api/users lists) and the date. Accounts are now created with a
-		 * random one-time password (assignTempPassword, WebManager_Commit.cpp),
-		 * stored as an ordinary V1 hash, so they verify on the V1 path below
-		 * like any other account. A stale "*PENDING*" literal left on a device
-		 * from an older build simply never matches here — that account must be
-		 * reset by an admin, which is the intended outcome, not a lockout bug. */
-		/* Legacy: hashVersion==0, 30 chars (120 bits), username-salt, 2500 rounds. */
-		if (cfg.users[i].hashVersion == 0 && storedHash.length( ) == 30) {
-			String legacyHash = _storageRef->hashPasswordLegacy(u, p);
-			if (secureCompare(storedHash, legacyHash)) {
-				passValid = true;
-				needsMigration = true;
-			}
+	/* The hashing PasswordCheck.h asks for. The check derives once whether or
+	 * not the name has an account, so the time of a refusal says nothing about
+	 * which names exist — see the header for the measurement that made it so. */
+	struct Derive {
+		WebManager* web;
+		String v1(const String& user, const String& pass, const uint8_t* salt) {
+			return web->_storageRef->hashPasswordV1(user, pass, salt);
 		}
-		/* V1: hashVersion>=1, 32 chars (128 bits), random salt, PASSWORD_HMAC_ROUNDS. */
-		else {
-			String inputHash = _storageRef->hashPasswordV1(u, p, cfg.users[i].salt);
-			if (secureCompare(storedHash, inputHash)) passValid = true;
+		String legacy(const String& user, const String& pass) {
+			return web->_storageRef->hashPasswordLegacy(user, pass);
 		}
+		bool same(const String& a, const String& b) { return web->secureCompare(a, b); }
+	} derive{ this };
 
-		if (passValid) {
-			/* Transparent migration: re-hash with random salt + 32 chars. */
-			if (needsMigration) {
-				_storageRef->generateSalt(cfg.users[i].salt);
-				String newHash = _storageRef->hashPasswordV1(u, p, cfg.users[i].salt);
-				safeCopy(cfg.users[i].password, newHash.c_str( ), sizeof(cfg.users[i].password));
-				cfg.users[i].hashVersion = 1;
-				_storageRef->saveConfiguration( );
-			}
-			return i;
-		}
+	bool legacyMatch = false;
+	const int i = passwordCheck(cfg.users, MAX_USERS, u, p, derive, legacyMatch);
+
+	/* Transparent migration: re-hash with random salt + 32 chars. */
+	if (i >= 0 && legacyMatch) {
+		_storageRef->generateSalt(cfg.users[i].salt);
+		String newHash = _storageRef->hashPasswordV1(u, p, cfg.users[i].salt);
+		safeCopy(cfg.users[i].password, newHash.c_str( ), sizeof(cfg.users[i].password));
+		cfg.users[i].hashVersion = 1;
+		_storageRef->saveConfiguration( );
 	}
-	return -1;
+	return i;
 }
 
 int WebManager::allocSessionSlot(int foundId) {
@@ -503,6 +512,7 @@ void WebManager::completeLogin(int slot, int foundId, int ls, const String& u) {
 	_activeSessions[slot].username = u;
 	_activeSessions[slot].perms = cfg.users[foundId].permissions;
 	_activeSessions[slot].lastActivity = millis( );
+	memcpy(_activeSessions[slot].salt, cfg.users[foundId].salt, sizeof(_activeSessions[slot].salt));
 
 	_currentUserId = foundId;
 	_currentUserName = u;
@@ -750,6 +760,14 @@ void WebManager::handleApiForceChpass( ) {
 	safeCopy(cfg.users[_currentUserId].password, hashedNewPass.c_str( ), sizeof(cfg.users[_currentUserId].password));
 	cfg.users[_currentUserId].hashVersion = 1;
 	cfg.users[_currentUserId].mustChangePassword = false;
+	/* The new salt would end this very session at its next request, as it
+	 * ends any session whose password someone else set (SessionCheck.h). The
+	 * one who changed it keeps theirs: re-stamp it. An account holds at most
+	 * one session — allocSessionSlot reuses it — so this is the caller's. */
+	for (int i = 0; i < 3; i++) {
+		if (_activeSessions[i].token != "" && _activeSessions[i].userId == _currentUserId)
+			memcpy(_activeSessions[i].salt, cfg.users[_currentUserId].salt, sizeof(_activeSessions[i].salt));
+	}
 	_storageRef->saveConfiguration( );
 
 	if (_soundRef->isWebSoundsEnabled( )) _soundRef->play(SND_CONFIRM);

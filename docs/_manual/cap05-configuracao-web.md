@@ -30,7 +30,7 @@ O selo da barra de topo mostra a resposta:
 | **Reinicia por:** (*Restarts for*) seguido dos grupos | O ensaio respondeu que algum grupo exige reinício | Só **Salvar e reiniciar** |
 | **Não exige reinício** (*No restart needed*) | O ensaio respondeu que tudo se aplica sem reiniciar | **Testar**, **Aplicar agora** e **Salvar e reiniciar** |
 
-O aparelho recusa o ensaio quando o conjunto inclui contas ([capítulo 8](#cap-08)), slots de sensor ou calibração ([capítulo 6](#cap-06)). Essas alterações só se gravam com **Salvar e reiniciar**. No SIMUT Air, o ensaio é sempre recusado ([No SIMUT Air](#cap-05-air)).
+O aparelho recusa o ensaio quando o conjunto inclui slots de sensor ou calibração ([capítulo 6](#cap-06)). Essas alterações só se gravam com **Salvar e reiniciar**. Contas ([capítulo 8](#cap-08)) passam pelo ensaio desde a v2.10.0, mas sem **Testar**: uma conta não se testa. No SIMUT Air, o ensaio é sempre recusado ([No SIMUT Air](#cap-05-air)).
 
 Os grupos aparecem com o nome curto que o aparelho usa, em inglês, como `time` ou `alarms`. Com **Não exige reinício**, pare o ponteiro sobre o selo para ver a lista dos grupos. A tabela de [Os grupos de configuração](#cap-05-grupos) diz o que cada nome inclui.
 
@@ -96,8 +96,8 @@ O aparelho classifica cada alteração comparando a configuração de antes com 
 | `maint` | Janelas de manutenção | **Alarmes e Sons** ([capítulo 7](#cap-07)) | Sim |
 | `alarm_tel` | Linha de alarmes: ligada, fila, formato, modelos, `Content-Type` e caminho | **Telemetria** ([capítulo 22](#cap-22)) | Sim |
 | `telemetry` | Telemetria pelo lado HTTP: servidor, porta, caminho, chave, lote mínimo e máximo, formato, modelos e `Content-Type` | **Telemetria** ([capítulo 21](#cap-21)) | Sim |
-| `users` | Política de PIN do painel | **Configurações** ([Hardware](#cap-05-hardware)) | Não: reinicia (pelo painel, vale sem reinício) |
-| `users` | Contas | **Usuários** ([capítulo 8](#cap-08)) | Não: o ensaio é recusado |
+| `users` | Política de PIN do painel | **Configurações** ([Hardware](#cap-05-hardware)) | Sim |
+| `users` | Contas | **Usuários** ([capítulo 8](#cap-08)) | Sim, sem **Testar** |
 | `display` | Tema e idioma do painel | Nenhuma página grava estes campos por aqui | Sim |
 | `identity` | Nome do aparelho | **Configurações** | Não |
 | `time` | Fuso horário e servidor NTP | **Configurações**, **Rede** | Não |
@@ -114,8 +114,8 @@ O tema do painel tem gravação própria, pelo **Painel de Controle**, e não pa
 **Por que esses grupos reiniciam.** Vários subsistemas leem a configuração uma única vez, ao ligar: o servidor web fixa porta e protocolo ao subir, o cliente MQTT fixa o servidor, o certificado da telemetria é lido uma vez e os slots de sensor montam o circuito de leitura inteiro. Reiniciar é o único jeito de todos relerem o valor novo.
 :::
 
-::: atencao
-**O ensaio não enxerga alguns campos.** O intervalo do histórico, o interruptor do NTP, os campos do syslog, o Home Assistant Discovery, o DNS automático, o DNS secundário e as conexões persistentes são gravados na área de extensão, e o ensaio não os escreve na cópia que compara. Se o conjunto preparado só tem esses campos, o selo pode mostrar **Não exige reinício**. Nesse caso, **Aplicar agora** grava e reinicia o aparelho mesmo assim, e **Testar** não aplica esses campos. Para alterá-los, use **Salvar e reiniciar**.
+::: nota
+**Até a v2.9.0, o ensaio não enxergava a área de extensão.** O intervalo do histórico, o interruptor do NTP, os campos do syslog, o Home Assistant Discovery, o DNS automático, o DNS secundário e as conexões persistentes ficavam fora da cópia que ele compara: o selo podia mostrar **Não exige reinício**, e **Aplicar agora** reiniciava mesmo assim. Desde a v2.10.0, esses campos entram no ensaio pelo grupo `web`, e o selo mostra **Reinicia por: web**.
 :::
 
 ### Valores recusados {#cap-05-recusados}
@@ -130,6 +130,7 @@ Alguns erros recusam a gravação inteira, e nada muda. O aviso é **Falha ao sa
 | Resposta | Motivo |
 |---|---|
 | `Alarm limit outside channel range` | Um limite de alarme fora da faixa possível do canal ([capítulo 7](#cap-07)) |
+| `Alarm limit is not a number` | Um limite de alarme que não é número. Só chega por um cliente da API: a página sempre manda números |
 | O slot e o GPIO recusados, como `slot 4: GP2 already used by slot 2` | Conflito na atribuição de GPIO ([capítulo 6](#cap-06)) |
 | `Forbidden (<seção>)` | A conta não tem a permissão daquela seção (tabela abaixo) |
 | `Password change required` | A conta ainda precisa trocar a senha ([capítulo 13](#cap-13-troca-obrigatoria)) |

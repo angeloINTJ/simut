@@ -7,7 +7,9 @@
  * @license MIT License
  */
 #include "WebManager.h"
+#include "simut_config.h"   /* SIMUT_NET_WIFI is tested below: included here, not left to another header */
 #include "ConfigApply.h"
+#include "ConfigOverlays.h" /* the reserved[] overlays, written into cfg — the copy on a dry run */
 #include "CorsOrigin.h"   /* isValidCorsOrigin — a mesma regra do CLI e do boot */
 #include "TelContentType.h" /* isValidMediaType — o Content-Type vira header HTTP */
 #include "ParseFloat.h"
@@ -101,24 +103,9 @@ using ReadGuard = StorageManager::ReadGuard;
  * Used for dashboard theme switching (immediate application, no reboot).
  */
 /* "<key>":[lo,hi] — the shape channel limits arrive in, under "lim" for the
- * sensors section and inline for the alarms one. Either element may be empty,
- * which leaves that bound alone. File scope because both sections parse it;
- * as a lambda it lived in the sensors block and was invisible to the other. */
-static bool getPair(const String& o, const char* key, float& lo, float& hi) {
-	String needle = String("\"") + key + "\":";
-	int p = o.indexOf(needle);
-	if (p < 0) return false;
-	int s = o.indexOf('[', p);
-	int e = (s >= 0) ? o.indexOf(']', s) : -1;
-	if (s < 0 || e <= s) return false;
-	int comma = o.indexOf(',', s + 1);
-	if (comma < 0 || comma > e) return false;
-	String a = o.substring(s + 1, comma); a.trim( );
-	String b = o.substring(comma + 1, e); b.trim( );
-	if (a.length( )) lo = parseFloat(a.c_str( ));
-	if (b.length( )) hi = parseFloat(b.c_str( ));
-	return true;
-}
+ * sensors section and inline for the alarms one — is read by jsonLimitPair( )
+ * (WebJsonSlice.h), with the host tests: `null` or an empty element keeps that
+ * bound, anything else that is not a number is refused (finding 44). */
 
 /* "key": true|false — the boolean cousin of the extractFloat/
  * jsonExtractStringValue scars above, found the same way: a spaced payload
@@ -171,8 +158,17 @@ void WebManager::handleSaveSystem( ) {
  * first login. The plaintext exists only long enough to reach the admin who
  * created the account — over the network here rather than on the serial line,
  * so it rides back in the commit response and nowhere else. */
-void WebManager::assignTempPassword(int slot, String& outCreds) {
-	SystemConfig& cfg = _storageRef->getConfig( );
+void WebManager::assignTempPassword(SystemConfig& cfg, int slot, String& outCreds, bool rehearse) {
+	/* A dry run only has to show that the slot changes — ConfigApply.h
+	 * classifies by comparing bytes — so it skips the minting, the ~645 ms
+	 * derivation and the credential. It used to write the LIVE configuration
+	 * whatever it was handed, which is why users could not be rehearsed. */
+	if (rehearse) {
+		_storageRef->generateSalt(cfg.users[slot].salt);
+		cfg.users[slot].hashVersion = 1;
+		cfg.users[slot].mustChangePassword = true;
+		return;
+	}
 
 	char temp[9];
 	_storageRef->generateInitialAdminPassword(temp, sizeof(temp));   /* 8 chars, [A-HJ-NP-Z2-9] */
@@ -286,7 +282,12 @@ void WebManager::applyConfigLive(uint32_t changeMask) {
 	}
 	/* CFG_ALARMS, CFG_MAINT e CFG_TELEMETRY: nada a fazer — ver o cabeçalho.
 	 * A ausência de código aqui é a afirmação de que os consumidores releem, e
-	 * os testes de bancada deste commit são o que a sustenta. */
+	 * os testes de bancada deste commit são o que a sustenta.
+	 *
+	 * CFG_USERS (A-08) também não precisa de nada: a sessão web confere a
+	 * conta viva a cada requisição (getAuthPerms) e o painel a cada ação
+	 * (AppManager::panelSessionCurrent), e é aí que uma conta apagada, um
+	 * slot reaproveitado ou uma senha redefinida encerram a sessão. */
 }
 
 void WebManager::handleApiCommitAll( ) {
@@ -342,9 +343,9 @@ void WebManager::handleApiCommitAll( ) {
 	 * nothing changes — no save, no reboot. A template a fleet manager is
 	 * about to push to forty devices gets validated forty times before the
 	 * first reboot, instead of costing forty reboots to find the one field
-	 * that was out of range on one of them. Only sys and net are dry-runnable:
-	 * users mint passwords, slots and calib touch files, alarms mutate runtime
-	 * state — none of that has a copy to run on. */
+	 * that was out of range on one of them. slots and calib touch files and
+	 * have no copy to run on; users can be rehearsed (classified, nothing
+	 * minted) but not tried — see the section check below. */
 	const bool dry = _server->hasArg("_dry") && _server->arg("_dry") == "1";
 	/* _nosave=1: apply to the RUNNING configuration and skip the flash write,
 	 * so a reboot puts the old value back. It is the "try a limit" button, and
@@ -368,14 +369,35 @@ void WebManager::handleApiCommitAll( ) {
 #endif
 	if (onCopy) {
 		/* sys, net and alarms are the sections whose parsers write ONLY into
-		 * `cfg` — so a copy is a faithful rehearsal. users mints passwords,
-		 * slots and calib touch files: those have nothing to run on a copy.
-		 * alarms joined the list on 2026-09-20; its two side effects outside
-		 * cfg (the maintenance actor note and the error-mute clear) are
-		 * suppressed under `onCopy`, one of which was already guarded. */
+		 * `cfg` — so a copy is a faithful rehearsal. slots and calib touch
+		 * files: those have nothing to run on a copy. alarms joined the list
+		 * on 2026-09-20; its two side effects outside cfg (the maintenance
+		 * actor note and the error-mute clear) are suppressed under `onCopy`,
+		 * one of which was already guarded.
+		 *
+		 * "ONLY into cfg" was the claim before it was true. Until 2026-10-02
+		 * the time zone was set, the sound settings went to the running
+		 * SoundManager and the reserved[] overlays (h_int, ntp_enabled,
+		 * slog_*, m_had, dns_auto, dns2, web_ka) were written into the live
+		 * configuration — and the page sends a dry run 600 ms after every
+		 * staged edit, so staging the global mute muted the device. They now
+		 * write into `cfg` like every other field (ConfigOverlays.h,
+		 * SoundConfigPack.h), and what reaches the running device is decided
+		 * after the classification, by the save — findings 5, 6, 17, 18, 21,
+		 * 38 and 69 of docs/analysis/PLANO_REVISAO_EXTERNA.md.
+		 *
+		 * users joined the DRY run on 2026-10-02 (A-08): accounts apply live
+		 * now, and the page shows its "apply now" button only on a dry run
+		 * that answers reboot:false — refused here, every account change took
+		 * the restart button. A rehearsal mints no password (assignTempPassword),
+		 * and the admin's factory-PIN flag is cleared in `cfg` like the rest — it
+		 * sits in reserved[], so a dry run of the admin's first PIN says the
+		 * restart its save takes. Not the "try" path: an account that exists until
+		 * the next restart, with a password shown once, is not a thing to try. */
 		for (int i = 0; i < SEC_COUNT; i++) {
-			if (i != SEC_SYS && i != SEC_NET && i != SEC_ALARMS && secStart[i] >= 0) {
-				_server->send(400, "application/json", "{\"error\":\"accepts sys, net and alarms only\"}");
+			const bool ok = i == SEC_SYS || i == SEC_NET || i == SEC_ALARMS || (i == SEC_USERS && dry);
+			if (!ok && secStart[i] >= 0) {
+				_server->send(400, "application/json", "{\"error\":\"accepts sys, net and alarms only, and users in a dry run\"}");
 				return;
 			}
 		}
@@ -463,25 +485,29 @@ void WebManager::handleApiCommitAll( ) {
 					const ChannelInfo& ci = channelInfo(ch);
 					return v >= ci.saneMin && v <= ci.saneMax;
 				};
-				/* Same reader shape as the apply-pass, so both passes see the
-				 * same value (whitespace after the colon included). */
+				/* The same readers as the apply-pass, so both passes see the same
+				 * value. A value that is not a number — `true`, "abc" — is as bad
+				 * as one out of range, and refused the same way; it used to be
+				 * read as 0 (finding 44). `null` keeps the stored bound. */
+				bool notNumber = false;
 				auto exf = [&](const char* key) -> float {
-					int kp = obj.indexOf(key);
-					if (kp < 0) return NAN;
-					int cp = obj.indexOf(':', kp + strlen(key));
-					if (cp < 0) return NAN;
-					int vs = cp + 1;
-					while (vs < (int)obj.length( ) && (obj[vs] == ' ' || obj[vs] == '\t' ||
-					       obj[vs] == '\r' || obj[vs] == '\n')) vs++;
-					return parseFloat(obj.substring(vs).c_str( ));
+					float v = NAN;
+					if (jsonLimitValue(jsonRawToken(obj, key), v) == JSON_LIMIT_BAD) notNumber = true;
+					return v;
 				};
-				bool bad = !limOk(CH_TEMP, exf("\"tmin\"")) || !limOk(CH_TEMP, exf("\"tmax\"")) ||
-				           !limOk(CH_HUM, exf("\"hmin\"")) || !limOk(CH_HUM, exf("\"hmax\""));
-				for (uint8_t c = 0; !bad && c < MAX_SENSOR_CHANNELS; c++) {
+				bool bad = !limOk(CH_TEMP, exf("tmin")) || !limOk(CH_TEMP, exf("tmax")) ||
+				           !limOk(CH_HUM, exf("hmin")) || !limOk(CH_HUM, exf("hmax"));
+				for (uint8_t c = 0; !bad && !notNumber && c < MAX_SENSOR_CHANNELS; c++) {
 					if (!channelValid(c)) continue;
 					float lo = NAN, hi = NAN;
-					if (!getPair(obj, channelInfo(c).key, lo, hi)) continue;
-					if (!limOk(c, lo) || !limOk(c, hi)) bad = true;
+					const int r = jsonLimitPair(obj, channelInfo(c).key, lo, hi);
+					if (r == JSON_LIMIT_BAD) notNumber = true;
+					else if (r == JSON_LIMIT_NUMBER && (!limOk(c, lo) || !limOk(c, hi))) bad = true;
+				}
+				if (notNumber) {
+					_server->send(400, "application/json",
+					             "{\"error\":\"Alarm limit is not a number\"}");
+					return;
 				}
 				if (bad) {
 					_server->send(400, "application/json",
@@ -816,7 +842,11 @@ void WebManager::handleApiCommitAll( ) {
 							if (!channelValid(c)) continue;
 							const ChannelInfo& ci = channelInfo(c);
 							float lo = NAN, hi = NAN;
-							if (!getPair(lim, ci.key, lo, hi)) continue;
+							const int rl = jsonLimitPair(lim, ci.key, lo, hi);
+							/* Not a number: nothing written, and the caller is told —
+							 * it used to be a bound of 0 (finding 44). */
+							if (rl == JSON_LIMIT_BAD) { rejectField("slots.lim"); continue; }
+							if (rl != JSON_LIMIT_NUMBER) continue;
 							if (!isnan(lo)) r.chMin[c] = constrain(lo, ci.saneMin, ci.saneMax);
 							if (!isnan(hi)) r.chMax[c] = constrain(hi, ci.saneMin, ci.saneMax);
 						}
@@ -956,8 +986,10 @@ void WebManager::handleApiCommitAll( ) {
 			if (has("tz")) {
 				int v;
 				if (parseIntStrict(getNum("tz"), v) && v >= -12 && v <= 14) {
+					/* Into cfg only. The zone is CFG_TIME, a restart class: a save
+					 * restarts and the boot applies it. Setting it here set it on
+					 * every dry run and on a try that was then refused. */
 					cfg.timezoneOffset = (int8_t)v;
-					NetworkManager::applyTimezone(cfg.timezoneOffset);
 				} else rejectField("tz");
 			}
 			/* Boolean fields. These read `getNum(k) != "0"`, which answered
@@ -1031,7 +1063,9 @@ void WebManager::handleApiCommitAll( ) {
 					 * policy had drifted and the log could not say who moved it.
 					 * Same ctx encoding as the other two (min*100 + kb*10 + alpha)
 					 * so one query answers for all three. */
-					if (vMin != oMin || vKb != oKb || vAlpha != oAlpha) {
+					/* Not on a copy: a rehearsal changed no policy, and the audit
+					 * log is the record of who did (finding 21). */
+					if (!onCopy && (vMin != oMin || vKb != oKb || vAlpha != oAlpha)) {
 						/* ONE translated string for both sources; which surface
 						 * did it is an untranslated marker. Two strings cost
 						 * the es-ES pack ~70 resident bytes it does not have. */
@@ -1090,7 +1124,7 @@ void WebManager::handleApiCommitAll( ) {
 			 * commit_all reboots, and the MQTT connect after the reboot
 			 * reconciles — publish when freshly on, clear when freshly off
 			 * (FLAG_HA_PUBLISHED remembers there is something to clear). */
-			fl = readFlag("m_had"); if (fl >= 0 && !dry) _storageRef->setHaDiscoveryEnabled(fl == 1);
+			fl = readFlag("m_had"); if (fl >= 0) cfgSetHaDiscovery(cfg, fl == 1);
 			if (has("t_glob")) setStr("t_glob", cfg.telGlobalTemplate, sizeof(cfg.telGlobalTemplate));
 			if (has("t_line")) setStr("t_line", cfg.telLineTemplate, sizeof(cfg.telLineTemplate));
 			if (has("t_sep")) setStr("t_sep", cfg.telLineSeparator, sizeof(cfg.telLineSeparator));
@@ -1106,11 +1140,11 @@ void WebManager::handleApiCommitAll( ) {
 			if (has("a_sep")) setStr("a_sep", cfg.alarmTel.lineSeparator, sizeof(cfg.alarmTel.lineSeparator));
 			if (has("a_ct")) setContentType("a_ct", cfg.telCustom.alarmCustomContentType, sizeof(cfg.telCustom.alarmCustomContentType));
 			/* NTP enable/disable flag (overlay NetworkTimeData). */
-			fl = readFlag("ntp_enabled"); if (fl >= 0 && !dry) _storageRef->setNtpEnabled(fl == 1);
-			if (has("h_int")) { int v; if (parseIntStrict(getNum("h_int"), v) && isInRange(v, 1, 1440)) { if (!dry) _storageRef->setHistoryIntervalMin((uint16_t)v); } else rejectField("h_int"); }
+			fl = readFlag("ntp_enabled"); if (fl >= 0) cfgSetNtpEnabled(cfg, fl == 1);
+			if (has("h_int")) { int v; if (parseIntStrict(getNum("h_int"), v) && isInRange(v, 1, 1440)) cfgSetHistoryIntervalMin(cfg, (uint16_t)v); else rejectField("h_int"); }
 
 			/* Syslog forwarder (overlay SyslogConfigData). The four fields read
-			 * together so setSyslogConfig writes the overlay once; any absent
+			 * together so cfgSetSyslog writes the overlay once; any absent
 			 * field keeps its stored value. The enable is read RAW (intent),
 			 * not effective, so "enable now, set server next commit" does not
 			 * clear the toggle. The server is a dotted quad validated by the
@@ -1133,7 +1167,7 @@ void WebManager::handleApiCommitAll( ) {
 				}
 				if (has("slog_port")) { int v; if (parseIntStrict(getNum("slog_port"), v) && isInRange(v, 1, 65535)) { slPort = (uint16_t)v; touched = true; } else rejectField("slog_port"); }
 				if (has("slog_lvl")) { int v; if (parseIntStrict(getNum("slog_lvl"), v) && isInRange(v, 0, 4)) { slLvl = (uint8_t)v; touched = true; } else rejectField("slog_lvl"); }
-				if (touched && !dry) _storageRef->setSyslogConfig(slEn, slIp, slPort, slLvl);
+				if (touched) cfgSetSyslog(cfg, slEn, slIp, slPort, slLvl);
 			}
 			(void)getInt; /* lambda kept for future fields, suppress -Wunused */
 		}
@@ -1183,27 +1217,21 @@ void WebManager::handleApiCommitAll( ) {
 				if (idx >= 0 && idx < MAX_SENSORS && cfg.sensors[idx].active) rec = &cfg.sensors[idx];
 
 				if (rec) {
+					/* jsonLimitValue( ): NAN — keep the stored bound — for an
+					 * absent key or a `null`. The pre-validation above refused the
+					 * whole commit for anything else that is not a number, which
+					 * parseFloat( ) used to read as 0. (Whitespace after the colon,
+					 * which once made `"hmax": 80` a 0 bound, is skipped by
+					 * jsonValuePos( ).) */
 					auto extractFloat = [&](const char* key) -> float {
-						int kp = obj.indexOf(key);
-						if (kp < 0) return NAN;
-						int cp = obj.indexOf(':', kp + strlen(key));
-						if (cp < 0) return NAN;
-						/* Whitespace after the colon is legal JSON that the page's
-						 * JSON.stringify never emits — but any other client can.
-						 * parseFloat answers 0.0 for it, not NAN, so `"hmax": 80`
-						 * wrote a 0 bound and the inverted-band fixer below then
-						 * rewrote the pair to [min, min+0.1] — under a 200 OK.
-						 * getNum in the sys section and jsonExtractFloat both
-						 * already skip it; this reader was the one left behind. */
-						int vs = cp + 1;
-						while (vs < (int)obj.length( ) && (obj[vs] == ' ' || obj[vs] == '\t' ||
-						       obj[vs] == '\r' || obj[vs] == '\n')) vs++;
-						return parseFloat(obj.substring(vs).c_str( ));
+						float v = NAN;
+						jsonLimitValue(jsonRawToken(obj, key), v);
+						return v;
 					};
-					float tmin = extractFloat("\"tmin\"");
-					float tmax = extractFloat("\"tmax\"");
-					float hmin = extractFloat("\"hmin\"");
-					float hmax = extractFloat("\"hmax\"");
+					float tmin = extractFloat("tmin");
+					float tmax = extractFloat("tmax");
+					float hmin = extractFloat("hmin");
+					float hmax = extractFloat("hmax");
 					if (!isnan(tmin)) rec->chMin[CH_TEMP] = tmin;
 					if (!isnan(tmax)) rec->chMax[CH_TEMP] = tmax;
 					if (!isnan(hmin)) rec->chMin[CH_HUM] = hmin;
@@ -1215,7 +1243,7 @@ void WebManager::handleApiCommitAll( ) {
 					for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
 						if (!channelValid(c)) continue;
 						float lo = NAN, hi = NAN;
-						if (!getPair(obj, channelInfo(c).key, lo, hi)) continue;
+						if (jsonLimitPair(obj, channelInfo(c).key, lo, hi) != JSON_LIMIT_NUMBER) continue;
 						if (!isnan(lo)) rec->chMin[c] = lo;
 						if (!isnan(hi)) rec->chMax[c] = hi;
 					}
@@ -1329,11 +1357,15 @@ void WebManager::handleApiCommitAll( ) {
 				if (sHas("\"melAlarm\"")) snd.alarmMelody = extractMelIdx("\"melAlarm\"");
 				if (sHas("\"melAttention\"")) snd.attentionMelody = extractMelIdx("\"melAttention\"");
 
+				/* Into cfg only. Sounds sit in reserved[] (CFG_RESERVED, a
+				 * restart class): a save restarts and loadConfig( ) applies
+				 * them at boot. This applied them to the running SoundManager
+				 * first and serialised the result — on every dry run, and
+				 * setMuted( ) stops an alarm that is sounding. */
 				if (_soundRef) {
-					_soundRef->applySettingsState(snd);
 					SoundConfigData* sndCfg = reinterpret_cast<SoundConfigData*>(
 					                           cfg.reserved + sizeof(TouchCalData));
-					_soundRef->fillConfig(sndCfg);
+					SoundManager::stateToConfig(snd, sndCfg);
 				}
 			}
 		}
@@ -1423,7 +1455,7 @@ void WebManager::handleApiCommitAll( ) {
 					/* Username must be set first — assignTempPassword salts and
 					 * hashes over it. Sets password + salt + hashVersion +
 					 * mustChangePassword and records the plaintext for the reply. */
-					assignTempPassword(slot, tempCreds);
+					assignTempPassword(cfg, slot, tempCreds, dry);
 					/* v24: an optional panel PIN in the same action, so the account
 					 * can act at the panel from its first boot. A malformed or
 					 * duplicate PIN rejects the field, not the account. */
@@ -1457,7 +1489,7 @@ void WebManager::handleApiCommitAll( ) {
 					}
 					String pinS = jsonExtractStringValue(obj, "pin");
 					if (!cfgSetUserPin(cfg, id, pinS.c_str( ))) rejectField("users.pin");
-					else if (id == 0 && pinS.length( ) && pinS != "1234" && !dry) _storageRef->clearMustChangePin( );
+					else if (id == 0 && pinS.length( ) && pinS != "1234") cfgClearMustChangePin(cfg);
 #else
 					/* No panel to prove it to. Refused rather than ignored: a
 					 * payload that asks for something this image cannot do
@@ -1479,7 +1511,7 @@ void WebManager::handleApiCommitAll( ) {
 						 * lands there be opened with the deleted account's PIN. */
 						StorageManager::wipeUserAccount(cfg.users[id]);
 					} else { /* reset */
-						assignTempPassword(id, tempCreds);
+						assignTempPassword(cfg, id, tempCreds, dry);
 					}
 				}
 				else {
@@ -1523,6 +1555,7 @@ void WebManager::handleApiCommitAll( ) {
 			 * request carried, control bytes included, and wrote it to flash.
 			 * A rejected field is echoed in "rejected":[...] rather than
 			 * silently dropped, so the page can say which edit did not take. */
+#if SIMUT_NET_WIFI   /* a wired build ignores both: a Wi-Fi backup restores without an error */
 			if (has("ssid")) {
 				String s = getS("ssid"); s.trim( );
 				if (s.length( ) > 0) {
@@ -1539,6 +1572,7 @@ void WebManager::handleApiCommitAll( ) {
 					else rejectField("net.pass");
 				}
 			}
+#endif
 			/* Same `!= "0"` inversion as the sys section, doubled: this copy of
 			 * the reader never learned to skip whitespace either, so a spaced
 			 * `{"use_dhcp": 0}` produced the token " 0" and forced DHCP on for
@@ -1569,12 +1603,12 @@ void WebManager::handleApiCommitAll( ) {
 			/* dns_auto + dns2 (primary manual reuses cfg.staticDns).
 			 * Also accepts dns1 as shortcut for staticDns when user is in
 			 * manual mode with DHCP=true (without the other staticIp/mask/gw fields). */
-			nf = readFlagN("dns_auto"); if (nf >= 0 && !dry) _storageRef->setDnsAuto(nf == 1);
+			nf = readFlagN("dns_auto"); if (nf >= 0) cfgSetDnsAuto(cfg, nf == 1);
 			if (has("dns1")) { String s = getS("dns1"); if (isValidIpv4(s.c_str( ))) safeCopy(cfg.staticDns, s.c_str( ), sizeof(cfg.staticDns)); }
 			if (has("dns2")) {
 				String s = getS("dns2"); s.trim( );
 				/* Empty is valid (clears secondary). Any other value must be IPv4. */
-				if (s.length( ) == 0 || isValidIpv4(s.c_str( ))) { if (!dry) _storageRef->setSecondaryDns(s.c_str( )); }
+				if (s.length( ) == 0 || isValidIpv4(s.c_str( ))) cfgSetSecondaryDns(cfg, s.c_str( ));
 				else rejectField("net.dns2");
 			}
 			if (has("ntp_server")) {
@@ -1599,7 +1633,7 @@ void WebManager::handleApiCommitAll( ) {
 			}
 			/* Keep-alive opt-out (SetupFlagsData overlay). No live hook:
 			 * commit_all reboots and beginServer( ) reads the flag at boot. */
-			nf = readFlagN("web_ka"); if (nf >= 0 && !dry) _storageRef->setWebKeepAliveEnabled(nf == 1);
+			nf = readFlagN("web_ka"); if (nf >= 0) cfgSetWebKeepAlive(cfg, nf == 1);
 		}
 	}
 

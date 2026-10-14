@@ -17,22 +17,58 @@ deste manual antes do primeiro estilo ou da primeira frase.** Parte das regras
 
 ## 1. A bancada
 
-Um Pico W (o **alvo**, que roda o SIMUT) e um Pico comum (a **PicoHand**, ou
-"mão") que aciona as linhas RESET (GP0) e BOOTSEL (GP1) do alvo por comando
-serial, mede a sonda e finge o carregador. O rig está em `192.168.3.24`.
+Desde 12/10/2026, um Pico 2 W (o **alvo**, que roda o SIMUT, com os cinco
+sensores e o painel TFT) e um Pico W (a **PicoHand**, ou "mão") que aciona as
+linhas RESET (GP0) e BOOTSEL (GP1) do alvo por comando serial, mede a sonda e
+finge o carregador. A mão roda na placa que foi o alvo até 05/10; o Pico comum
+que era a mão foi para outro projeto e pode continuar ligada a este PC: não
+mande nada a ela. O alvo está em `192.168.3.33`, com a web na porta 8080.
 
 **Identifique as portas pelo serial, nunca pela ordem de enumeração:**
 
 | Placa | USB | Serial (udev) |
 |---|---|---|
-| PicoHand (mão) | `2e8a:000a` | `ID_SERIAL_SHORT=E660C062131E3E27` |
-| Alvo SIMUT (Pico W) | `2e8a:f00a` | `ID_SERIAL_SHORT=E6642815E34C1824` |
+| PicoHand (mão), num Pico W | `2e8a:f00a` | `ID_SERIAL_SHORT=E6642815E34C1824` |
+| Alvo SIMUT (Pico 2 W) | `2e8a:f00f` | `ID_SERIAL_SHORT=6A73539D612923CA` |
+| A mão antiga, fora da bancada | `2e8a:000a` | `ID_SERIAL_SHORT=E660C062131E3E27` |
+
+**Os roteiros de `tools/` ainda conhecem a bancada de antes.** Dez deles
+procuram o alvo como Pico W, pelo serial `E6642815E34C1824` ou pelo glob
+`usb-Raspberry_Pi_Pico_W_*`, e os dois agora dão na mão: um toque de 1200 bps
+ali põe a mão em BOOTSEL. Três (`air_test_suite.py`, `bt_auth_test.py` e
+`rig_validate_history_clock.py`) procuram a mão pelo serial da mão antiga. Até
+eles aprenderem a bancada nova, não os rode. Definir `SIMUT_TARGET_SERIAL` e
+`PICO_HAND_SERIAL` não basta: eles montam o caminho `by-id` com o modelo de
+antes (`Pico_W_` no alvo, `Pico_` na mão), e o da bancada nova não existe. O
+`pico_hand.sh` acha a mão por `PING` em toda porta, e a mão antiga responde se
+ainda tiver o firmware da mão: fixe `PICO_HAND_PORT` no caminho `by-id` da mão
+nova.
 
 **Fiação real** (confirmada em 06/09/2026): DS18B20 no GP0, sem chaveamento de
 energia — a linha GP16 do alvo vai ao GP2 da mão como **sonda** de
 acordado/dormindo, não como power-gating; o GP3 da mão vai ao GP17 do alvo e
 **finge o carregador** (3,3 V direto, sem o divisor da placa real). Detalhes,
 comandos e o analisador lógico: `tools/PicoHand/MANUAL_CLAUDE_CODE.pt-BR.md`.
+
+**Num soak, solte do RUN do alvo o fio RESET da mão.** O RUN é uma entrada de
+alta impedância, segura só pelo pull-up fraco do alvo e pelo `INPUT_PULLUP` da
+mão. Em 04/10/2026, depois de uma troca de placas, o Pico W reiniciou sozinho
+três vezes em duas horas, de 4 a 16 minutos depois de um boot, sem autópsia no
+log e sem nada na serial. Uma imagem de diagnóstico que grava no boot o motivo
+de reset do chip (`CHIP_RESET`) pegou o seguinte como o pino RUN (`HAD_RUN`), e
+com o fio solto foram 60 minutos sem reinício. Religue o fio depois: gravar e o
+RESET dos roteiros precisam dele. O `hand VERIFY` não acusa um pulso que já
+passou, porque só imprime a contagem enquanto a falha está ativa.
+
+**Não é só no soak.** Em 05/10/2026, no portão da v2.11.1, com o fio ligado, o
+Pico W reiniciou sozinho quatro vezes em seis horas, de 7 minutos a 2,5 horas
+depois de um boot. Uma delas cortou uma atualização pelo ar aos 33,8 s do
+envio: a placa voltou na versão de antes, com a configuração idêntica byte a
+byte, como o passo do corte espera, e o mesmo envio passou na tentativa
+seguinte. Um passo que falha sem a linha `WATCHDOG_REBOOT detected` na serial e
+sem `SYS_BOOT` no log foi reiniciado por fora: repita-o antes de culpar o
+firmware. Com o fio solto, o BOOTSEL vem pelo toque de 1200 bps na serial do
+alvo, e o `picotool reboot` o tira de lá.
 
 **O alvo tem um painel TFT ligado** (ILI9341 + XPT2046, pinagem do
 `simut_config.h`), o que esta lista não dizia até 22/09/2026 — `/api/screenshot`
@@ -41,7 +77,13 @@ validar UI de verdade; o que **não** dá para exercitar de fora é o PENIRQ, qu
 nenhum fio da mão alcança. O contorno é uma imagem só de bancada com
 `-DTOUCH_IRQ=17 -DTOUCH_CS=21`: o PENIRQ passa a ser a linha CHARGER da mão, e
 `CHARGER OFF` (nível baixo) é "dedo na tela". Foi assim que o gesto de AP do
-boot foi medido nos quatro casos em 22/09.
+boot foi medido nos quatro casos em 22/09. **Em 04/10/2026, com a mão em
+`CHARGER HIZ`, essa linha ficou em nível baixo depois do boot** (`CHARGER
+STATUS: HIZ (GP3 level=L)`), e todo boot dessa imagem abriu o AP sem dedo
+nenhum, inclusive o que segue ao prazo de 15 min do AP. Para um boot sem dedo,
+segure a linha em alto com `CHARGER ON`: nessa imagem o GP17 é só entrada, e
+não há duas saídas no fio. Um `hand_release_all` (o fim de um roteiro) devolve
+a linha a HIZ.
 
 **No build TFT, o GP16 e o GP17 do alvo são o MISO da tela e o `TOUCH_CS` —
 e estão ligados à mão (PROBE e CHARGER).** Um `CHARGER ON/OFF` ou um
@@ -100,6 +142,68 @@ hand_release_all
 - `hand RESET` aciona o pino RUN: é reset global do chip, dá boot frio (M0 no
   Air) e restaura os clocks. Serve para recuperar; **não serve de prova** de que
   o caminho do sono funciona (ver §3).
+
+### O Pico 2 W (RP2350)
+
+Desde o passo 3 do [`OTA_AB_RP2350.md`](docs/analysis/OTA_AB_RP2350.md), a
+`pico2_w_release` sobe do slot A de uma tabela de partições (o layout e as
+ferramentas estão em [`tools/rp2350/`](tools/rp2350/README.md)). Gravar fica
+assim:
+
+- **Placa virgem:** `picotool load -v -x .pio/build/pico2_w_release/firmware_factory.uf2`
+  grava a tabela e o programa no slot A, tudo na família absolute.
+- **Placa que já tem a tabela:** `picotool load -v -x -p 0 .pio/build/pico2_w_release/firmware.uf2`
+  grava só o programa, no slot A.
+- **Placa do layout antigo** (LittleFS em `0x2FF000`): a imagem nova procura o
+  LittleFS em `0x300000` e formata outro. Antes de gravar, guarde o `.bkp` da
+  página Arquivos, ou leia o LittleFS com `picotool save` e o reconstrua em 255
+  blocos, como a bancada fez em 03/10/2026.
+- **`picotool ... --ser <serial> -f` funciona** na Pico 2 W rodando o SIMUT: em
+  BOOTSEL o RP2350 enumera com o mesmo serial. `-F` a deixa em BOOTSEL depois
+  do comando.
+- **O `/api/status` diz de que slot ela subiu:** `sys.slot` vale `A`, `B`, ou
+  `-` numa placa sem tabela.
+- **Pelo ar (passo 4),** a página Arquivos grava a imagem no slot de onde a placa
+  não subiu e reinicia nele. Do A para o B a ROM apaga o primeiro setor do A
+  quando a imagem nova sobe; do B para o A não apaga nada, e o B guarda a
+  imagem anterior. Por isso um reset depois do envio e antes do apply precisa
+  deixar a placa onde está: o primeiro setor da imagem só vai à flash no apply.
+  O `env` dela é `releasetwo`, e uma release do Pico W é recusada como de outro
+  modelo (`v=7`).
+- **A imagem pelo ar sobe em teste (passo 5).** Envie o `firmware_ota.bin`, que
+  o build escreve ao lado do `firmware.bin` com a marca de teste. A placa volta
+  com `sys.trial` 1 no `/api/status` e se confirma depois de um minuto saudável
+  (LittleFS e configuração lidos, Wi-Fi conectado, Core 1 sem relançamento): na
+  bancada, aos 79 s do boot. Antes disso, um `hand RESET`, um corte de energia ou o watchdog trazem a
+  imagem anterior, que põe a versão recusada em `sys.reverted` e grava o código
+  613. O painel e a página Arquivos mostram os dois numa faixa acima do primeiro
+  cartão. **Espere `trial` 0 antes de um RESET que deva manter a imagem.** Um
+  `reload` ou um commit que reinicia voltam para a imagem em teste, e um stage
+  durante o teste é recusado (409). Sem a marca, o `firmware.bin` instala como no
+  passo 4, sem teste: é o caminho de volta para uma imagem anterior ao passo 5,
+  que não se confirma.
+- **Uma conta tem uma sessão só** (`allocSessionSlot`): um segundo login da
+  mesma conta encerra o primeiro. Um roteiro que espera a confirmação consultando
+  o `/api/status` perde a sessão se outro processo entrar com a mesma conta no
+  meio, e para de ver a placa.
+- **A imagem de bancada sai de uma variável (passo 7):** a release publica a
+  imagem do Pico 2 W, então a `pico2_w_release` confia só na raiz de release,
+  como as imagens de campo. Para a bancada, compile com
+  `PLATFORMIO_BUILD_FLAGS=-DSIMUT_OTA_TRUST_BENCH=1 pio run -e pico2_w_release`.
+  Em 04/10/2026 isso deu, byte a byte, a imagem que a `main` compilava antes do
+  passo 7. Depois assine só com a chave de bancada:
+  `python3 tools/ota_sign.py sign --key ~/.simut-ota/signer-bench.p8 --cert ~/.simut-ota/signer-bench.cert --in firmware_ota.bin --out firmware_ota.signed.bin`.
+  Sem a variável, o `sign` recusa: "the image trusts no root for this signer's
+  scope". A variável vale para todo ambiente daquele comando, então não a
+  exporte no shell.
+- **Uma placa que roda imagem sem a raiz de bancada recusa toda imagem da
+  bancada** (`v=12`). Isso vale para uma release ou para um build sem a variável.
+  A volta é pelo USB (`picotool load`, que o mantenedor grava) ou por uma imagem
+  assinada pelo CI. O portão de release instala o candidato assinado pelo CI
+  numa placa que roda a imagem de bancada, e depois disso ela fica nesse caso.
+- **Antes de compilar,** rode `bash tools/arduino_pico_overrides/patch.sh`. Sem o
+  patch 2k, o `check_rp2350_image.py` recusa a imagem, que cairia ao montar o
+  LittleFS.
 
 ### Dirigir o painel de fora
 
@@ -245,33 +349,45 @@ O CI cobre tudo isto, mas só em pull request — meça antes:
 
 ```bash
 pio run -e pico_w_release -e pico_w_test -e pico_w_test_https \
-        -e pico_w_asserts -e pico_w_alpha -e pico_w_air
-pio test -e native -e native_history_v5 -e native_cli -e native_logpolicy \
-         -e native_alarmqueue -e native_network -e native_air -e native_sensors \
-         -e native_otasig
+        -e pico_w_asserts -e pico_w_alpha -e pico_w_air -e pico2_w_release \
+        -e pico_wire -e pico_wiretft
+pio test -e native -e native_history_v5 -e native_cli -e native_lan \
+         -e native_logpolicy -e native_alarmqueue -e native_network -e native_air \
+         -e native_sensors -e native_wired -e native_otasig
 ./tools/run_fuzz.sh                       # 60 s; NÃO está no pio test e já pegou defeito real
 PLATFORMIO_BUILD_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined" \
-  pio test -e native -e native_sensors …  # as nove de novo sob ASan/UBSan (apaga .pio/build); o relatório
+  pio test -e native -e native_sensors …  # as dez de novo sob ASan/UBSan (apaga .pio/build); o relatório
                                           # só aparece rodando .pio/build/<env>/program direto
 python3 tools/check_air_consistency.py
 python3 tools/check_angulo.py             # o padrão de interface (§7): site, marca, READMEs, docs Living
 python3 tools/check_readme_numbers.py     # os números que os três READMEs citam (testes, flash, códigos, rotas)
 python3 tools/check_license.py           # o texto MIT igual nas três cópias; os scripts de release levam os avisos
 python3 tools/gen_notices.py --check     # a lista de terceiros igual em THIRD_PARTY_NOTICES.md, /license e no painel
-python3 tools/check_flash_budget.py <env> build.log   # o CI roda assim; local, leia a linha "used"
+python3 tools/check_flash_budget.py <env> build.log   # o CI roda assim, imagem por imagem: orçamento, teto de OTA e "bin"
+python3 tools/check_flash_budget.py --table          # a tabela de folga da OTA (PLANO_STABLE §3.1) contra os "bin"
+python3 tools/test_flash_budget.py                   # as duas regras que mantêm essa tabela verdadeira
 ```
 
 - **`pico_w_test_https` é a imagem de bancada para HTTPS**, e a única com CLI
   completa e servidor TLS juntos: o servidor só é compilado no `pico_w_release`,
   cujo console de emergência não cria o usuário descartável que as suítes web
   usam para entrar — e resetar a senha do admin do rig para conseguir um não é
-  caminho. Não é imagem de campo e a `release-ota.yml` não a publica.
+  caminho. Não é imagem de campo e a `release-ota.yml` não a publica. **Isenta do
+  teto de OTA desde 02/10** (`ota_exempt`, B6 do `PLANO_STABLE.md`): acima dele o
+  aparelho a recusa no stage, e ela entra pela USB. O limite que sobra é o do
+  slot do programa, onde o linker a recusa: 4.484 B adiante quando a isenção
+  entrou (#233).
 - O `pio run` já roda os portões de fonte como *extra scripts*: `-Werror` em
   `src/`, códigos de log, packs de idioma, matriz de autorização, ajuda da CLI,
   sondas de flash em SRAM.
 - **`tools/flash_budget.json` desce na mesma mudança que encolhe a imagem.** Um
   orçamento que só sobe deixa de ser marca d'água. Compare o `.bin`, não o
   `used` do PlatformIO (soma de seções, ~12 kB abaixo).
+- **O `"bin"` de cada imagem é o `.bin` exato, e a tabela da §3.1 do
+  `PLANO_STABLE.md` sai dele.** Uma imagem que cresce reprova no job dela até o
+  PR gravar o tamanho novo no `"bin"` e a linha dela na tabela; o portão imprime
+  os números. A que encolhe passa com aviso: grave quando der, porque até lá a
+  tabela promete menos folga do que há.
 - **Economia por recurso**: `tools/measure_savings.py` mede quanto de flash e RAM
   cada chave devolve quando desligada, e `tools/feature_savings.json` guarda o
   piso — um ratchet ao contrário do orçamento (a economia só sobe). O portão
@@ -284,13 +400,21 @@ python3 tools/check_flash_budget.py <env> build.log   # o CI roda assim; local, 
   [docs/analysis/ECONOMIA_DE_RECURSOS.md](docs/analysis/ECONOMIA_DE_RECURSOS.md).
 - **Build sob medida** (o configurador, P7 de `MODELO_DE_RECURSOS.md`):
   `tools/build_custom.py --profile '{"v":1,"base":"pico_w_air","set":{"bluetooth":false}}'`
-  reaplica as regras do manifesto (exit 2 se quebra uma), compila e deixa em
+  reaplica tudo o que impede a build (`gen_features.blockers( )`: as regras do
+  manifesto, o driver de rede que o chip recusa e, desde 13/10/2026, o orçamento de
+  PIO e de pinos do `tools/pio_budget.py`; exit 2 se algum vale), compila e deixa em
   `--out` o `.uf2`, o `.bin` e um `build.json` com tamanhos e sha256; exit 3 é
-  "não cabe no slot". `.github/workflows/build-custom.yml` faz o mesmo por
-  `workflow_dispatch` (só quem tem escrita dispara) e publica o artefato. A
-  estimativa da página vem de `tools/feature_costs.json`, que envelhece com o
-  código: quando uma mudança mexe no tamanho de um recurso, rode
-  `measure_savings.py --matrix` (32 builds e 8 conferências, cada uma completa) e depois
+  "não cabe no slot". No Pico 2 W (`pico2_w_release`, desde 05/10/2026) são as
+  duas imagens que a release publica: o `.bin` é a atualização marcada para
+  teste e o `.uf2` é o de fábrica, com a tabela de partições, e os dois tetos
+  são o slot de 1.568.768 B (`check_flash_budget.ceilings( )`).
+  `.github/workflows/build-custom.yml` faz o mesmo por `workflow_dispatch` (só
+  quem tem escrita dispara), assina e publica o artefato; depois da assinatura,
+  o `build_custom.py --finish-signed` refaz o `.uf2` do Pico 2 W a partir do
+  `.bin` assinado, como a release faz. A estimativa da página vem de
+  `tools/feature_costs.json`, que envelhece com o código: quando uma mudança
+  mexe no tamanho de um recurso, rode `measure_savings.py --matrix` (69 builds
+  e 12 conferências nos quatro produtos publicados, cada uma completa) e depois
   `gen_features.py`, que leva os números ao `docs/configurador/model.json`.
 - `PLATFORMIO_BUILD_FLAGS` muda o checksum do projeto e **apaga `.pio/build`
   inteiro**, todos os ambientes. Cada experimento por flag é uma build completa.
@@ -306,14 +430,17 @@ partição do LittleFS (`src/ota/ota_layout.h`), então só o ferro o exercita. 
 essa cegueira que deixou um stage de OTA interrompido reformatar o sistema de
 arquivos e o aparelho voltar de fábrica sem ninguém ver, até 2026-09-30 (PR #192: o
 snapshot da config só era gravado no fim do stage, e um upload cortado nunca chegava
-lá — e nesta bancada o roteador corta fluxos porta-80 com mais de ~12-15 s, enquanto
-a imagem leva ~30 s).
+lá — e um envio com uma página do aparelho aberta no navegador era cortado aos
+~12-15 s, enquanto a imagem leva ~30 s; isso foi atribuído ao roteador até
+2026-10-03, e era o próprio lwIP da placa, consertado no patch 2l de
+`tools/arduino_pico_overrides/`).
 
 Antes de publicar, no rig, com os números no PR:
 
 1. **Backup datado** da config (dump íntegro da flash, ou `GET /api/config` mais o
    `.bkp` que a página baixa sozinha).
-2. **Apply completo** pela OTA na **:8080** — a porta que o roteador não corta: a
+2. **Apply completo** pela OTA, com nenhuma página do aparelho aberta no navegador
+   (até a v2.10.0 uma página aberta cortava o envio; a porta não muda nada): a
    versão lida de volta (`GET /api/perms`) bate **e** a config confere campo a campo
    (contas logam, sensores lendo, servidor de telemetria e nome do aparelho
    intactos). Receita em [docs/OTA_USAGE.md](docs/OTA_USAGE.md). Desde a OTA
@@ -333,6 +460,19 @@ Antes de publicar, no rig, com os números no PR:
    sistema de arquivos cheio o aparelho voltava de fábrica.
 4. **Devolver a bancada** ao estado de origem e conferir byte a byte (o slot da app
    e o `system.bin`).
+5. **O Pico 2 W**, desde que a release publica a imagem dele (etapa 7 de
+   [OTA_AB_RP2350.md](docs/analysis/OTA_AB_RP2350.md#a-release-etapa-7)):
+   - o mesmo apply com a candidata `releasetwo`, na placa da bancada rodando a
+     imagem de bancada: ela sobe em teste, se confirma (`sys.trial` 0) e guarda
+     a configuração. No artefato `signed-images`, a candidata é
+     `pico2_w_release/firmware.bin`, que é o `firmware_ota.bin` assinado;
+   - o `.uf2` de fábrica da candidata arrastado para a unidade do BOOTSEL dessa
+     placa, que é A2 e tem tabela, pelo mantenedor (errata RP2350-E10). O
+     artefato não traz o `.uf2`; ele sai do artefato com
+     `python3 tools/release_manifest.py --build-dir <artefato> --out <pasta>`.
+
+   O passo 3 não se aplica do mesmo jeito: no Pico 2 W a imagem vai para o slot
+   inativo, e o LittleFS fica intocado.
 
 É um portão de release, não de todo push, e a suíte nativa não o substitui: some da
 imagem publicada se for pulado.
@@ -646,8 +786,9 @@ ficar na fila e executar vários inputs depois.
 
 **Tudo o que tem tela ou vira documento neste repositório segue o
 `ANGULO.md`.** Não é gosto da ocasião: é o padrão de todos os sistemas do dono,
-e a casa dele é o repo `simut-rx` — lá ficam os anexos §11–§13 e a fonte da
-verdade dos valores. Vale para a UI web do aparelho, o site e a landing em
+e a casa dele é o repo `simut-rx` — lá fica a fonte da verdade dos valores, e o
+`ANGULO.md` daqui é cópia idêntica do de lá, com os anexos §11–§13. Vale para a
+UI web do aparelho, o site e a landing em
 `docs/`, o manual, os três READMEs, os documentos Living, a marca e as
 mensagens que o usuário lê no console. Antes de escrever, leia o §2 (as oito
 regras), o §7 (microcopy) e o §8 (o checklist) do guia.
@@ -781,8 +922,8 @@ sustente.
 
 ## 8. O que este manual não guarda, e onde está
 
-- O padrão de interface por inteiro: `ANGULO.md` (o guia, §1–§10); os anexos
-  §11–§13 e os tokens estão no repo `simut-rx`.
+- O padrão de interface por inteiro: `ANGULO.md` (o guia, §1–§10, e os anexos
+  §11–§13), cópia idêntica à do `simut-rx`; os tokens estão no repo `simut-rx`.
 
 - A história dos achados do Air (F01–F28), com medições e retratações:
   `docs/analysis/SIMUT_AIR_PLANO_FIX.md` (snapshot) e o `CHANGELOG.md`.

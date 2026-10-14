@@ -110,6 +110,11 @@
 #else
 #define SIMUT_FEAT_TFT_GRAPH 0ul
 #endif
+#if defined(SIMUT_NET_LAN) && SIMUT_NET_LAN
+#define SIMUT_FEAT_LAN (1ul << 18)
+#else
+#define SIMUT_FEAT_LAN 0ul
+#endif
 
 #define SIMUT_FEATURE_BITS ( \
     SIMUT_FEAT_CLI_FULL            | \
@@ -130,4 +135,5 @@
     SIMUT_FEAT_WEB_METRICS         | \
     SIMUT_FEAT_SYSLOG              | \
     SIMUT_FEAT_TFT_GRAPH           | \
+    SIMUT_FEAT_LAN                 | \
     0ul)

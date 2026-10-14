@@ -4,8 +4,9 @@
  * @details Manages sound events (touch click, confirmation, error, alarm) with
  * 6 melody variants per type, independent system/alarm volume control,
  * event queue, mute/unmute, and persistent configuration stored in
- * SystemConfig::reserved[10..15]. Uses dual-SM PIO architecture
- * (PWM amplitude + frequency gate) via the BuzzerPIO_RP2040 library.
+ * SystemConfig::reserved[12..17] (the format is SoundConfigPack.h). Uses
+ * dual-SM PIO architecture (PWM amplitude + frequency gate) via the
+ * BuzzerPIO_RP2040 library.
  *
  * Dropping the buzzer (SIMUT_SOUND_BUZZER=0, or SIMUT_AIR=1 which forces it): the
  * class compiles to a no-op and the BuzzerPIO dependency is not pulled in. The
@@ -34,40 +35,10 @@ enum SoundEvent {
  SND_ATTENTION /**< Sound for attention/confirmation screens */
 };
 
-struct __attribute__((packed)) SoundConfigData {
- uint8_t magic;
- uint8_t flags;
- uint8_t volume;
- uint8_t melLow;
- uint8_t melHigh;
- uint8_t alarmVolume;
-};
-static_assert(sizeof(SoundConfigData) <= 6, "SoundConfigData exceeds the 6 reserved bytes!");
-
-#define SND_FLAG_TOUCH 0x01
-#define SND_FLAG_CONFIRM 0x02
-#define SND_FLAG_ERROR 0x04
-#define SND_FLAG_ALARM 0x08
-#define SND_FLAG_MUTE 0x10
-#define SND_FLAG_WEB 0x20
-#define SND_FLAG_ATTENTION 0x40
-
-struct SoundSettingsState {
- bool touchEnabled;
- bool confirmEnabled;
- bool errorEnabled;
- bool alarmEnabled;
- bool webEnabled;
- bool muted;
- bool attentionEnabled;
- uint8_t volume;
- uint8_t alarmVolume;
- uint8_t touchMelody;
- uint8_t confirmMelody;
- uint8_t errorMelody;
- uint8_t alarmMelody;
- uint8_t attentionMelody;
-};
+/* SoundConfigData, the SND_FLAG_ bits and SoundSettingsState: the stored format,
+ * in a header of its own so the commit can pack a state without a running
+ * SoundManager, and the native suite can test the packing (2026-10-02). */
+#include "SoundConfigPack.h"
 
 #if SIMUT_AIR || !SIMUT_SOUND_BUZZER
 
@@ -84,6 +55,8 @@ public:
  bool isAlarming( ) const { return false; }
  void loadConfig(const SoundConfigData* data) { (void)data; }
  void fillConfig(SoundConfigData* data) const { if (data) memset(data, 0, sizeof(*data)); }
+ /* What fillConfig( ) writes, for a state this build would hold: zeros. */
+ static void stateToConfig(const SoundSettingsState& state, SoundConfigData* data) { (void)state; if (data) memset(data, 0, sizeof(*data)); }
  SoundSettingsState getSettingsState( ) const { SoundSettingsState s; memset(&s, 0, sizeof(s)); return s; }
  void applySettingsState(const SoundSettingsState& state) { (void)state; }
  void setEnabled(SoundEvent event, bool enabled) { (void)event; (void)enabled; }
@@ -106,8 +79,6 @@ public:
 
 #define BUZZER_PIO_BLOCK pio1
 
-#define SND_MELODY_VARIANTS 6
-
 struct MelodyDef {
  const BuzzerNote* notes;
  uint8_t len;
@@ -128,6 +99,10 @@ public:
 
  void loadConfig(const SoundConfigData* data);
  void fillConfig(SoundConfigData* data) const;
+ /* The bytes fillConfig( ) would write after applySettingsState(state), without
+ * applying it: what the commit stores, on a copy or for a restart, while the
+ * running sound — an alarm that is sounding — is left as it is. */
+ static void stateToConfig(const SoundSettingsState& state, SoundConfigData* data) { soundStateToConfig(state, data); }
 
  SoundSettingsState getSettingsState( ) const;
  void applySettingsState(const SoundSettingsState& state);

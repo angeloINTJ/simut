@@ -22,6 +22,11 @@
 namespace ota {
 
 bool ota_metadata_read(UpdateMetadata& out) {
+#if !OTA_RP2040_MAP
+    /* The RP2350 has no metadata sector (ota_layout.h): no update in flight. */
+    memset(&out, 0, sizeof(out));
+    return false;
+#else
     const uint8_t* src = (const uint8_t*)(XIP_BASE + OTA_METADATA_OFFSET);
     memcpy(&out, src, sizeof(out));
     if (out.magic != OTA_MAGIC_PENDING) {
@@ -29,6 +34,7 @@ bool ota_metadata_read(UpdateMetadata& out) {
         return false;
     }
     return true;
+#endif
 }
 
 /* Erase + program — IRQ disable interno (operação em flash exige).
@@ -41,6 +47,10 @@ bool ota_metadata_read(UpdateMetadata& out) {
  * sem afetar o caminho do orchestrator. Mantém 256 B program (validado
  * em HW desde v3.43.10/11). */
 bool __not_in_flash_func(ota_metadata_write)(const UpdateMetadata& in) {
+#if !OTA_RP2040_MAP
+    (void)in;
+    return false;
+#else
     /* Setor inteiro vai a 0xFF; a página 0 recebe os 256 B do struct. */
     uint8_t page[OTA_FLASH_PAGE_SIZE];
     memcpy(page, &in, sizeof(in));
@@ -50,6 +60,7 @@ bool __not_in_flash_func(ota_metadata_write)(const UpdateMetadata& in) {
     flash_range_program(OTA_METADATA_OFFSET, page, OTA_FLASH_PAGE_SIZE);
     restore_interrupts(saved_irq);
     return true;
+#endif
 }
 
 /* Snapshot da config: DOIS setores (8 KiB) no FIM da staging area
@@ -71,6 +82,10 @@ bool __not_in_flash_func(ota_metadata_write)(const UpdateMetadata& in) {
  * Pré-condição: caller em flash safe mode + setores já apagados (fazem
  * parte do staging_erase_all). Aqui só programamos. */
 bool __not_in_flash_func(ota_snapshot_write)(const uint8_t* data, uint16_t len) {
+#if !OTA_RP2040_MAP
+    (void)data; (void)len;
+    return false;
+#else
     if (!data || len == 0 || len > 2u * OTA_FLASH_SECTOR_SIZE) return false;
 
     /* Copia para s_applier_buf + padding 0xFF até 8 KiB (granularidade
@@ -87,6 +102,7 @@ bool __not_in_flash_func(ota_snapshot_write)(const uint8_t* data, uint16_t len) 
                         s_applier_buf + OTA_FLASH_SECTOR_SIZE, OTA_FLASH_SECTOR_SIZE);
     restore_interrupts(saved_irq);
     return true;
+#endif
 }
 
 bool ota_metadata_set_state(UpdateState st) {
@@ -100,17 +116,25 @@ bool ota_metadata_set_state(UpdateState st) {
 }
 
 bool __not_in_flash_func(ota_metadata_clear)() {
+#if !OTA_RP2040_MAP
+    return true;   /* nothing there to clear: the offset lies in slot B */
+#else
     uint32_t saved_irq = save_and_disable_interrupts();
     flash_range_erase(OTA_METADATA_OFFSET, OTA_METADATA_SIZE);
     restore_interrupts(saved_irq);
     return true;
+#endif
 }
 
 bool __not_in_flash_func(ota_snapshot_clear)() {
+#if !OTA_RP2040_MAP
+    return true;   /* nothing there to clear: the offset lies in slot B */
+#else
     uint32_t saved_irq = save_and_disable_interrupts();
     flash_range_erase(OTA_SNAPSHOT_OFFSET, OTA_SNAPSHOT_SIZE);
     restore_interrupts(saved_irq);
     return true;
+#endif
 }
 
 } /* namespace ota */

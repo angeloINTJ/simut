@@ -1,4 +1,5 @@
 #include "DisplayManager.h"
+#include "simut_config.h"   /* SIMUT_NET_LAN and SIMUT_NET_WIFI are tested below: included here, not left to another header */
 #include "LogManager.h"
 #include "display/HD44780_16x2.h"
 #include "display/BigFont_HD44780.h"
@@ -63,6 +64,7 @@ static float alphaChannelValue(const SlotSnapshot& s, uint8_t ch) {
 	}
 }
 
+#if SIMUT_NET_WIFI   /* the setup AP's page is its only caller */
 /* Write one window of `s` on `row`. The arithmetic and the reason for it are
  * in display/AlphaMarquee.h, where a host test can reach them. */
 static void alphaMarquee(Hd44780_16x2 &lcd, uint8_t row, const char* s, uint16_t step) {
@@ -71,6 +73,7 @@ static void alphaMarquee(Hd44780_16x2 &lcd, uint8_t row, const char* s, uint16_t
 	lcd.setCursor(0, row);
 	lcd.print(win);
 }
+#endif
 
 /* Core 0 hands the setup network over once, when it comes up. */
 void DisplayManager::setApInfo(const char* ssid, const char* psk) {
@@ -108,18 +111,44 @@ void DisplayManager::loopCore1( ) {
 	uint8_t  showNetCnt = 0;
 	bool     showNetwork = false;
 
+	/* Every sleep of this loop, cut short when Core 0 asks for the park below:
+	 * pauseRendering( ) spins until the ACK, and a plain delay( ) made it wait
+	 * out the rest of a 100, 300 or 500 ms sleep first. */
+	auto sleepUnlessParking = [this](uint32_t ms) {
+		const uint32_t t0 = millis( );
+		while (!__atomic_load_n(&_quiescePlease, __ATOMIC_ACQUIRE) && millis( ) - t0 < ms) delay(1);
+	};
+
 	while (true) {
 		TRACE_MOD(1, MOD_DISPLAY);
 		TRACE_BEAT(1);
+
+		/* The park a flash pause waits for, the T1.1 handshake the TFT's loop
+		 * answers: here, at the top of the loop, this core holds no lock and is
+		 * in no LCD write, so the IRQ lockout that follows freezes it where it
+		 * can do no harm. Until 2026-10-03 this loop never answered, so every
+		 * pause on the alpha (the history each minute, the log, the boot's
+		 * writes) spun CORE1_QUIESCE_MS, 1.2 s, before the lockout. */
+		if (__atomic_load_n(&_quiescePlease, __ATOMIC_ACQUIRE)) {
+			__atomic_store_n(&_core1Parked, true, __ATOMIC_RELEASE);
+			while (__atomic_load_n(&_quiescePlease, __ATOMIC_ACQUIRE)) {
+				_lastHeartbeat = millis( );
+			}
+			__atomic_store_n(&_core1Parked, false, __ATOMIC_RELEASE);
+		}
 		_lastHeartbeat = millis( );
 
 		/* Update WiFi signal icon (slot 7) based on RSSI */
+#if SIMUT_NET_LAN
+		_big.showWired(_lcd, _sharedState.wifiRssi > -100);
+#else
 		_big.showWiFi(_lcd, _sharedState.wifiRssi);
+#endif
 
 		/* ── FIRMWARE UPDATE (OtaScreen.h) ───────────────────────────
 		 * Ahead of every screen but a reboot's. Core 0 publishes each step
-		 * and never writes this LCD itself: this loop does not park for a
-		 * flash pause, so a pause can freeze it halfway through a write.
+		 * and never writes this LCD itself: a pause whose park times out
+		 * freezes this loop wherever it is, halfway through a write too.
 		 * Before a step that freezes the panel, Core 0 waits for this pass
 		 * to have printed the phase (_otaDrawnSeq); the stage then holds
 		 * "Atualizando..." on the glass for the whole upload. */
@@ -140,7 +169,7 @@ void DisplayManager::loopCore1( ) {
 				_lcd.setCursor(0, 1); _lcd.print(row1);
 				_lcd.blit( );
 				__atomic_store_n(&_otaDrawnSeq, otaSeqOf(otaSt), __ATOMIC_RELEASE);
-				delay(100);
+				sleepUnlessParking(100);
 				continue;
 			}
 		}
@@ -210,7 +239,11 @@ void DisplayManager::loopCore1( ) {
 					_lcd.setCursor(0, 1);
 					_lcd.print("  Obtendo IP... ");
 				} else {
+#if SIMUT_NET_LAN
+					_lcd.print(" Sem rede       ");
+#else
 					_lcd.print(" Sem WiFi       ");
+#endif
 					_lcd.setCursor(0, 1);
 					_lcd.print("    Offline     ");
 				}
@@ -227,6 +260,7 @@ void DisplayManager::loopCore1( ) {
 				}
 			}
 
+#if SIMUT_NET_WIFI   /* the wired build has no setup AP (2026-10-13) */
 		} else if (_sharedState.apMode) {
 			/* ── SETUP AP: the network, the key, the address ─────────
 			 *
@@ -279,8 +313,9 @@ void DisplayManager::loopCore1( ) {
 			alphaMarquee(_lcd, 1, apVal, apStep);
 			apStep++;
 			_lcd.blit( );
-			delay(AP_SCROLL_MS);
+			sleepUnlessParking(AP_SCROLL_MS);
 			continue;
+#endif
 
 		} else {
 			/* ── SENSOR VALUES (cycle active slots × channels) ───── */
@@ -311,14 +346,20 @@ void DisplayManager::loopCore1( ) {
 			}
 
 			_lcd.clear( );
-			/* Status top-left: "AP" in Access Point mode, else WiFi icon. */
+			/* Status top-left: "AP" in Access Point mode, else WiFi icon. A
+			 * wired build has no AP, and its cell is the cable glyph, no "W". */
 			_lcd.setCursor(0, 0);
+#if SIMUT_NET_LAN
+			_lcd.write(' ');
+			_lcd.write(BFS_WIFI);
+#else
 			if (_sharedState.apMode) {
 				_lcd.print("AP");
 			} else {
 				_lcd.write('W');
 				_lcd.write(BFS_WIFI);
 			}
+#endif
 
 			if (n == 0) {
 				/* No active sensors — show big ERRO. */
@@ -383,7 +424,7 @@ void DisplayManager::loopCore1( ) {
 		}
 
 		_lcd.blit( );
-		delay(500);
+		sleepUnlessParking(500);
 	}
 }
 /* The update screen is this core's to print (the branch at the top of the loop). */
@@ -405,7 +446,7 @@ void DisplayManager::setAlarmErrState(uint16_t errMask) {
 	_alarmErrMask = errMask;
 }
 bool DisplayManager::isSlotErrAlarming(int slotIdx) const {
-	return (slotIdx >= 0 && slotIdx < 16) && (_alarmErrMask & (1 << slotIdx));
+	return (slotIdx >= 0 && slotIdx < MAX_SENSORS) && (_alarmErrMask & (1 << slotIdx));
 }
 void DisplayManager::setAlarmSilenced(bool,uint32_t){}
 void DisplayManager::setAlarmErrMuted(int8_t,bool){}
@@ -483,8 +524,15 @@ bool DisplayManager::getActiveWebDictSource(const char** path, uint32_t* offset,
 	if (len) *len = 0;
 	return true;
 }
+/* No quiet mode on the alpha, and the answer says so: false tells
+ * saveConfiguration( ) that Core 1 was NOT parked, so each of its flash writes
+ * pauses Core 1 by itself (FLASH_OP, pauseRendering( )), as the history and the
+ * log already do. This answered true from the alpha's first build (8dd2bcf,
+ * 2026-06-06) with Core 1 still drawing the LCD from the flash being written.
+ * On the bench (2026-10-03) the third of three refused updates in a row ended
+ * in a watchdog reset inside that save: C0=[SAVE_CONFIG] C1=[DISPLAY]. */
 void DisplayManager::releaseQuietMode( ){}
-bool DisplayManager::requestQuietMode(uint32_t){return true;}
+bool DisplayManager::requestQuietMode(uint32_t){return false;}
 void DisplayManager::setTopSlotMinMax(float,float,float,float){}
 void DisplayManager::showSettingsLang(int){}
 void DisplayManager::showSystemStatus( ){}
@@ -496,8 +544,16 @@ const char* DisplayManager::getActiveHelpText( ) {
 	if (!f) return nullptr;
 
 	/* Locate @HELP at column 0, then its body (up to the next column-0 '@',
-	 * @WEBDICT in a shipped pack). Byte-wise walk mirrors scanWebDictRange. */
+	 * @WEBDICT in a shipped pack). Byte-wise walk mirrors scanWebDictRange.
+	 * The name is matched as a prefix, so a radio build would take @HELPWIRE
+	 * for its help if it came first: the packs put it after @HELP, and
+	 * tools/check_lang_packs.py refuses the other order. A wired build looks
+	 * for @HELPWIRE, which "@HELP" alone does not match (LangPackIndex.h). */
+#if SIMUT_NET_LAN
+	static const char kDir[] = "@HELPWIRE";
+#else
 	static const char kDir[] = "@HELP";
+#endif
 	const size_t kDirLen = sizeof(kDir) - 1;
 	uint8_t scan[128];
 	uint32_t pos = 0;

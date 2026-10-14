@@ -148,3 +148,65 @@ inline int jsonFlag(const String& s, const char* key) {
 	if (!parseBoolStrict(jsonRawToken(s, key), b)) return JSON_FLAG_BAD;
 	return b ? 1 : 0;
 }
+
+/** What an alarm-limit value says. Same shape as jsonFlag( )'s codes: absent
+ *  keeps the stored bound, unreadable keeps it and is reported. */
+enum { JSON_LIMIT_NUMBER = 1,  /**< a limit, in `out` */
+       JSON_LIMIT_ABSENT = 0,  /**< null, or nothing: keep the stored bound */
+       JSON_LIMIT_BAD    = -1  /**< present and not a number: refuse it */ };
+
+/**
+ * @brief One alarm-limit value, from its raw token (jsonRawToken( ) or an
+ *        element of a pair, quoted or not, as jsonRawToken( ) reads sys
+ *        fields): a number is a limit, `null` or nothing keeps the stored
+ *        bound, anything else is not a limit. `out` is written only for a
+ *        number.
+ *
+ * The limit readers used parseFloat( ), which stops at the first character it
+ * cannot use and returns what it had — 0 for `null`, for "abc", for `true` —
+ * so a client that sent `[null, 8]` to keep the minimum got a minimum of 0,
+ * under 200 (finding 44 of docs/analysis/PLANO_REVISAO_EXTERNA.md, 2026-10-02).
+ * `null` is what JSON.stringify writes for an element left undefined, and the
+ * page builds each pair from [undefined, undefined]: keeping the bound is what
+ * it means.
+ */
+inline __attribute__((noinline)) int jsonLimitValue(String tok, float& out) {
+	tok.trim( );
+	if (tok.length( ) >= 2 && tok[0] == '"' && tok[tok.length( ) - 1] == '"')
+		tok = tok.substring(1, tok.length( ) - 1);
+	if (tok.length( ) == 0 || tok == "null") return JSON_LIMIT_ABSENT;
+	return parseFloatStrict(tok, out) ? JSON_LIMIT_NUMBER : JSON_LIMIT_BAD;
+}
+
+/**
+ * @brief A `"key":[lo,hi]` limit pair. JSON_LIMIT_ABSENT when `key` is not in
+ *        `o`; JSON_LIMIT_BAD, writing nothing, when its value is not an array
+ *        of exactly two limit values; else JSON_LIMIT_NUMBER, with each bound
+ *        set — or NAN where its element keeps the stored one.
+ *
+ * Replaces the commit's getPair( ), which also found the '[' AFTER the key
+ * rather than AT its value — `"temp":5,"hum":[30,70]` read humidity's pair as
+ * temperature's.
+ */
+/* noinline: three call sites in the commit. */
+inline __attribute__((noinline)) int jsonLimitPair(const String& o, const char* key, float& lo, float& hi) {
+	const int v = jsonValuePos(o, key);
+	if (v < 0) return JSON_LIMIT_ABSENT;
+	const int e = (o[v] == '[') ? jsonMatchEnd(o, v) : -1;
+	/* Exactly one comma between the brackets. A string element holding one —
+	 * "1,5" — makes a second, and is refused with the rest of what is not a
+	 * number; so the scan needs no quote tracking. */
+	const int comma = (e > v) ? o.indexOf(',', v) : -1;
+	if (comma < 0 || comma > e) return JSON_LIMIT_BAD;
+	const int second = o.indexOf(',', comma + 1);
+	if (second >= 0 && second < e) return JSON_LIMIT_BAD;
+	/* "[,8]" is no JSON, but an empty element has always meant "keep this
+	 * bound" here; null is the JSON spelling of the same thing. */
+	float a = NAN, b = NAN;
+	const int ra = jsonLimitValue(o.substring(v + 1, comma), a);
+	const int rb = jsonLimitValue(o.substring(comma + 1, e), b);
+	if (ra == JSON_LIMIT_BAD || rb == JSON_LIMIT_BAD) return JSON_LIMIT_BAD;
+	lo = (ra == JSON_LIMIT_NUMBER) ? a : NAN;
+	hi = (rb == JSON_LIMIT_NUMBER) ? b : NAN;
+	return JSON_LIMIT_NUMBER;
+}

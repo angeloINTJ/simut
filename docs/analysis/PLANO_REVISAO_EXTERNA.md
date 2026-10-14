@@ -4,7 +4,10 @@
 quando o código mudar. Marque aqui, no PR que o fechou.
 
 Levantado em 2026-10-01 contra `main` = `2721eb2` (v2.8.0 mais os PRs #197 a
-#202).
+#202). Conferido de novo item a item, no código e na release publicada, em
+2026-10-02 contra `main` = `11d3822` (v2.9.0) e em 2026-10-04 contra `main` =
+`8e48cd8` (v2.11.0): as colunas de estado abaixo são as dessa última
+conferência.
 
 ## De onde vem
 
@@ -41,33 +44,33 @@ falha antes (`CLAUDE.md`, *Tests first*).
 | Números do README nos três idiomas, e um portão que os amarra às fontes (`tools/check_readme_numbers.py`, provado por mutação, 9 de 9) | Mergeado (#205, 01/10) |
 | Tom: "zero-trust", "signed audit trail" e "obfuscated at rest" sem a ressalva | Mergeado (#205) |
 | A-03 dividido: o `ctx=209` real, o `ctx=455` do `picotool -x` explicado | Mergeado (#205) |
-| `SHA256SUMS` e atestado de proveniência (Sigstore) em cada release | Mergeado (#207); exercido na próxima tag |
-| Descrição do repositório no GitHub ("Professional-grade") | Decisão do mantenedor (01/10): esperar |
-| Nota "como o SIMUT é desenvolvido" (A-14): agentes de IA ajudam, nada entra sem PR, nove checks e prova | A fazer |
+| `SHA256SUMS` e atestado de proveniência (Sigstore) em cada release | Mergeado (#207). Exercido na v2.9.0: o sha256 da `release.bin` publicada está no `SHA256SUMS` e tem um atestado (conferido em 02/10) |
+| Descrição do repositório no GitHub ("Professional-grade") | Decisão do mantenedor (01/10): esperar. Em 04/10 ainda começa com "Professional-grade" e fala só do Pico W, que deixou de ser a única placa na v2.11.0 |
+| Nota "como o SIMUT é desenvolvido" (A-14): agentes de IA ajudam, nada entra sem PR, nove checks e prova | Mergeado (#228): a seção *How SIMUT is developed* nos três READMEs, e a seção *AI Tools* do `CONTRIBUTING.md` reescrita para o fluxo de verdade |
 
 ## Fase 1 — o que contradiz a promessa
 
 | Item | Estado |
 |---|---|
-| Com o AP de configuração aberto, o aparelho não mede, não grava e não alarma (achado 48) | PR #204, provado na bancada em 01/10: 34 → 34 leituras na main, 38 → 257 com o PR, e o alarme 470 |
-| SDA e SCL trocados travam todo boot; um segundo BME/BMP no mesmo periférico lê o primeiro (achados 63 e 64) | PR #203, provado na bancada em 01/10: a main entra em PANIC, o PR sobe em bit-bang; o 64 só no teste nativo (uma placa) |
-| Alarme recusado com a fila cheia nunca é anunciado (#161) | Decidido em 01/10: (a), latch só com push aceito e reanúncio do que segue ativo. A fazer, depois do #208 |
-| Linha de alarmes por MQTT: ACK nunca lido com a telemetria desligada; a fila não cabe no buffer de 2.048 B (achados 28 e 29) | PR #208, provado na bancada em 01/10: fila presa em 5/16 e maior lote de 2.001 B na main; fila 0 e lote de 2.794 B com o PR |
-| `isTimeSynced( )` sempre verdadeiro (achado 66) | PR #209, provado na bancada em 01/10: com o NTP desligado a main diz `ntp=1` com o relógio em 1970; o PR diz 0 |
-| Com NTP ligado e sem servidor alcançável, o aparelho nunca chega a `NET_READY`, e telemetria e linha de alarmes esperam para sempre (achado 20). Documentado no manual, cap. 10, mas é armadilha para a LAN sem internet que o README promete | A fazer: desenho (sair para `NET_READY` depois de N falhas e seguir tentando o NTP) |
-| Os outros 16 achados de severidade alta (tabela abaixo) | Um PR por grupo |
+| Com o AP de configuração aberto, o aparelho não mede, não grava e não alarma (achado 48) | Mergeado (#204, 01/10), na v2.9.0. Provado na bancada: 34 → 34 leituras na main, 38 → 257 com o PR, e o alarme 470 |
+| SDA e SCL trocados travam todo boot; um segundo BME/BMP no mesmo periférico lê o primeiro (achados 63 e 64) | Mergeado (#203, 01/10), na v2.9.0. Provado na bancada: a main entra em PANIC, o PR sobe em bit-bang; o 64 só no teste nativo (uma placa) |
+| Alarme recusado com a fila cheia nunca é anunciado (#161) | Mergeado (#217, 01/10), na v2.9.0: opção (a), latch só com push aceito e reanúncio do que segue ativo |
+| Linha de alarmes por MQTT: ACK nunca lido com a telemetria desligada; a fila não cabe no buffer de 2.048 B (achados 28 e 29) | Mergeado (#208, 01/10), na v2.9.0. Provado na bancada: fila presa em 5/16 e maior lote de 2.001 B na main; fila 0 e lote de 2.794 B com o PR |
+| `isTimeSynced( )` sempre verdadeiro (achado 66) | Mergeado (#209, 01/10), na v2.9.0. Provado na bancada: com o NTP desligado a main diz `ntp=1` com o relógio em 1970; o PR diz 0 |
+| Com NTP ligado e sem servidor alcançável, o aparelho nunca chega a `NET_READY`, e telemetria e linha de alarmes esperam para sempre (achado 20). Documentado no manual, cap. 10, mas é armadilha para a LAN sem internet que o README promete | A fazer: desenho (sair para `NET_READY` depois de N falhas e seguir tentando o NTP). Presente na v2.11.0: `NET_CONNECTED_WAIT_NTP` só sai com o NTP respondendo, e a telemetria e a linha de alarmes conferem `isNetworkHealthy( )`, que exige `NET_READY`. Nem o Air envia antes disso: as fases dele seguem o `isLinkUp( )` (F08), mas o envio em si, `TelemetryManager::update( )`, também confere `isNetworkHealthy( )`. Desde 13/10 a espera também sai quando o enlace cai, para a escada de reconexão: antes, um AP perdido dentro dela deixava o aparelho sem rede até um reboot (medido na bancada nesse dia). Com o enlace vivo e sem NTP ela segue igual, e este achado continua aberto. Até 14/10 o portão do F08 valia só pela metade no rádio: o `isLinkHealthy( )` era falso durante toda a espera, porque o `getRssi( )` respondia −100 fora do `NET_READY` e o piso é −78 dBm, então a fase FLUSH do Air marcava a rede perdida logo ao começar (achado pela revisão de 13/10). Desde então o `getRssi( )` lê o nível de todo enlace no ar, no rádio e no cabo, e a fase FLUSH espera a resposta do NTP por até 10 s em vez de desistir (`AIR_FLUSH_NTP_WAIT_MS`) |
+| Os achados de severidade alta que restam: 3 dos 17 (tabela abaixo; 28, 29, 48, 63 e 64 corrigidos, 6, 18 e 38 no #234, 44 no #235, 58 no #236, e 1, 8, 9 e 25 no #255) | Um PR por grupo. O #255 fecha o 1, o 8, o 9 e o 25, cada um provado na bancada contra a `main` (04/10): a adoção da sonda lê o GPIO do slot e recarrega os sensores (depois de adotar, 0 de 15 leituras válidas em 90 s na `main`, 14 de 14 com o PR); o painel só concede as permissões que a conta identificada tem; o **SAIR** da troca obrigatória de PIN volta à tela inicial; e o AP do gesto segue o prazo de 15 min. O prazo desse AP lia 32 bytes que nada tinha escrito: na bancada, o da `main` fechou em 900 s, porque naquele boot os bytes não eram zero. O #236 fecha o 58: uma restauração que falha no meio mantém os arquivos que terminou e apaga só o incompleto, não há mais limite de 200 arquivos, e o `apply` exige a validação do mesmo arquivo. O #235 fecha o 44, do grupo API: `null` num limite mantém o limite, e o que não é número é recusado; o 41, do mesmo grupo, é a limitação conhecida do HTTP e fica documentada. O #234 fecha o grupo do ensaio inteiro: os três altos e os quatro médios (5, 17, 21, 69). O ensaio e o **Testar** escrevem só na cópia; fuso e sons valem com o reinício da gravação. Pedem código ainda o 20 e o 65; o 41 é a limitação documentada |
 
 ## Fase 2 — os itens de firmware da revisão
 
 | Item | Estado |
 |---|---|
-| A-03: o `ctx=209` com um laço dirigido (os cinco comandos de 21/09, painel desenhando) | A fazer, na bancada |
-| A-04: cursor de telemetria por posição de escrita, com o codec de referência em Python e o portão de paridade junto | A fazer: documento curto e teste nativo que falha antes |
-| A-06 e #189: respostas truncadas e o enquadramento chunked | A fazer: soak que conta e relê; reprodução no host |
-| A-08: contas sem reinício | Plano pronto em `PLANO_DIVIDA_TECNICA.md` |
-| A-05: soak longo do Air (3 dias ou mais) | A fazer, na bancada |
-| A-10: medir o login a 5.000 rodadas e escrever o número no `SECURITY.md` | A fazer, na bancada |
-| As oito suítes nativas sob AddressSanitizer e UBSan | Mergeado (#206); achou uma referência pendurada no `min( )` do stub de teste |
+| A-03: o `ctx=209` com um laço dirigido (os cinco comandos de 21/09, painel desenhando) | A fazer, na bancada. À parte, um watchdog de campo foi corrigido no #218 (01/10, na v2.9.0): um join de Wi-Fi recusado segurava o Core 0 |
+| A-04: cursor de telemetria por posição de escrita, com o codec de referência em Python e o portão de paridade junto | Mergeado (#232, 02/10), na v2.10.0. O cursor é a posição de gravação, pela opção B do [A04_CURSOR_POR_POSICAO.md](A04_CURSOR_POR_POSICAO.md) (#231): uma posição por arquivo de dia, janela de 3 dias. O formato do histórico não muda, então o codec de referência e o portão de paridade ficam como estão. No host, 19 casos novos no `test_validators`, os de antes rodados contra a regra por tempo e falhando onde ela pulava. Na bancada (02/10, `pico_w_test`): com o relógio adiantado e depois de volta, a `main` entregou 0 de 7 registros gravados depois da volta, dizendo 0 pendentes, e a branch 7 de 7; atualizar e voltar sem repetir nem perder; e a bancada achou a atualização com o cursor antigo adiantado, que a branch agora corrige |
+| A-06 e #189: respostas truncadas e o enquadramento chunked | A fazer: soak que conta e relê; reprodução no host. O #189 segue entre os conhecidos da v2.11.0; no portão dela (04/10), 4 das 720 leituras do soak perderam o enquadramento |
+| A-08: contas sem reinício | #230, mergeado em 02/10 (`51dd1e6`) depois de conferido no ferro contra a `main`: `CFG_USERS` sai de `CFG_REBOOT_CLASSES`; a sessão web confere a conta viva a cada requisição e o painel a cada ação (`SessionCheck.h`), o que também fecha a sessão que sobrevivia a uma conta apagada no painel ou na CLI; o ensaio aceita `users` e a página oferece **Aplicar agora** para contas |
+| A-05: soak longo do Air (3 dias ou mais) | A fazer, na bancada. O Air está parado desde 11/09 |
+| A-10: medir o login a 5.000 rodadas e escrever o número no `SECURITY.md` | Mergeado (#228): o custo e a troca escritos no `SECURITY.md`, com a medição na bancada (02/10, imagem de teste da v2.9.0, 133 MHz): uma verificação custa cerca de 645 ms. Três instrumentos, cada um contra um controle sem a verificação: `user pass` 646 ms × `user perm` 5 ms; `/metrics` com HTTP Basic 699 ms × com cookie 49 ms; login 740 ms do POST à resposta. O comentário de `PASSWORD_HMAC_ROUNDS` dizia ~400 ms, sem fonte, e passou a dizer o medido. A mesma medição achou que um nome sem conta era recusado sem derivar (103 × 732 ms): mergeado no #229, que deriva sempre |
+| As oito suítes nativas sob AddressSanitizer e UBSan | Mergeado (#206); achou uma referência pendurada no `min( )` do stub de teste. Hoje o CI roda as nove assim |
 
 ## Fase 3 — o Pico W sem trocar de chip
 
@@ -77,8 +80,8 @@ comprimida deixaria o histórico de pé.
 
 | Item | Estado |
 |---|---|
-| OTA assistida: a página e o simut-rx restauram o `.bkp` sozinhos depois do apply, mesclando o dia corrente | A fazer |
-| Imagem assinada, verificada no stage | Decidida em 01/10/2026; desenho e medidas em [`OTA_ASSINADA.md`](OTA_ASSINADA.md) |
+| OTA assistida: a página e o simut-rx restauram o `.bkp` sozinhos depois do apply, mesclando o dia corrente | A fazer. Na v2.11.0 a página ainda baixa o `.bkp` antes do envio e manda para o login depois do apply: a restauração é à mão. No Pico 2 W não faz falta, porque a atualização vai para o outro slot e não toca o LittleFS |
+| Imagem assinada, verificada no stage | Feito: #219 a #222 (01/10); a v2.9.0 (02/10) é a primeira release assinada. Desenho e medidas em [`OTA_ASSINADA.md`](OTA_ASSINADA.md) |
 | README e `RECOVERY.md` dizendo por que o slot é único, com os números acima, e a janela de cerca de 26 s do applier | A fazer |
 
 Não recomendado: tornar o applier retomável no RP2040 (boot2 próprio com um
@@ -121,14 +124,16 @@ O que foi conferido no framework instalado (`framework-arduinopico`
 
 | Etapa | O que prova |
 |---|---|
-| S0, só no CI | Dimensão `chip` no `features.toml`; os registradores por `watchdog_hw`/`psm_hw`; as seis imagens do RP2040 idênticas byte a byte; os tamanhos das imagens do RP2350. **PR #215, 01/10/2026:** a release no RP2350 ocupa 972.928 B de um slot de 3.141.632 B e 123.184 B de RAM estática |
-| S1, uma placa A4 | As suítes de bancada existentes; o layout de 4 MB com staging própria, que já acaba com o reformatar |
-| S2 | A/B com TBYB: imagem que nunca confirma volta em cerca de 17 s; corte de energia no meio da gravação sobe a anterior; 20 ciclos com config e histórico idênticos |
-| S3 | O que o chip compra a mais: ambiente de debug, RAM, KDF com SHA-256 em hardware, boot assinado numa placa de teste (o OTP é irreversível) |
+| S0, só no CI | Dimensão `chip` no `features.toml`; os registradores por `watchdog_hw`/`psm_hw`; as seis imagens do RP2040 idênticas byte a byte; os tamanhos das imagens do RP2350. **Mergeado (#215, 01/10/2026):** a release no RP2350 ocupa 972.928 B de um slot de 3.141.632 B e 123.184 B de RAM estática |
+| S1, a placa da bancada (A2) | As suítes de bancada existentes; o layout de 4 MB com staging própria, que já acaba com o reformatar. **O layout: feito** (#245, #246, 03/10): a atualização vai para o slot inativo e não toca o LittleFS. **As suítes:** a web passou na candidata da v2.11.0 (67 aprovados, 0 falhas, 04/10); as do painel, da telemetria e das quedas de Wi-Fi não rodaram no Pico 2 W |
+| S2 | A/B com TBYB ([`OTA_AB_RP2350.md`](OTA_AB_RP2350.md)): imagem que nunca confirma volta em cerca de 17 s; corte de energia no meio da gravação sobe a anterior; 20 ciclos com config e histórico idênticos. **Na v2.11.0 (04/10), as etapas 1 a 7 do desenho**, com três critérios a acertar. Os cerca de 17 s eram o watchdog da ROM, que o `setup( )` desliga: no lugar, um minuto saudável e um prazo de 300 s, e cada imagem ruim das etapas 5 e 6 voltou sozinha em até seis minutos do apply. A gravação interrompida foi medida com RESET pelo pino e com o envio cortado, não com corte de energia. Os 20 ciclos não rodaram: a configuração (CRC `AC385271`) ficou igual em toda ida e volta desde a etapa 5, e o histórico não foi comparado |
+| S3 | O que o chip compra a mais: ambiente de debug, RAM, KDF com SHA-256 em hardware, e o procedimento de boot seguro e OTP dos aparelhos de produção (o OTP é irreversível: nunca na placa da bancada) |
 | S4 | O Air no RP2350 |
 
 Layout decidido em 01/10/2026: **1,5 MB + 1,5 MB de código e 1,0 MB de
-LittleFS** — mais espaço para código, e o histórico nos 116 dias de hoje. A
+LittleFS** — mais espaço para código, e o histórico nos 116 dias de hoje.
+Corrigido em 03/10/2026 para 1.532 + 1.532 KB e 1.020 KB, com a tabela de
+partições e a EEPROM (decisão 2). A
 outra proposta era 1,25 + 1,25 + cerca de 1,5 MB (a release ocuparia 77 % do
 slot e o histórico iria a cerca de 170 dias).
 
@@ -136,8 +141,8 @@ slot e o histórico iria a cerca de 170 dias).
 
 | Item | Estado |
 |---|---|
-| A-15: README com cerca de 200 linhas; recursos em `docs/FEATURES.md`; a tabela de bancada em `docs/VERIFICATION.md` | A fazer |
-| A-07: mostrar o mapa núcleo × opcional que o `features.toml` já tem | A fazer |
+| A-15: README com cerca de 200 linhas; recursos em `docs/FEATURES.md`; a tabela de bancada em `docs/VERIFICATION.md` | Mergeado (#228): saiu do README o que a revisão apontou, nos três idiomas: a referência de recursos (para `docs/FEATURES.md`), as notas de versão (ficam no `CHANGELOG`) e a tabela de bancada (para `docs/VERIFICATION.md`). O README foi de 586 para 432 linhas (pt-BR 584 → 430, es-ES 588 → 434), não para 200: arquitetura, início rápido, compilação e testes ficaram |
+| A-07: mostrar o mapa núcleo × opcional que o `features.toml` já tem | Mergeado (#228): o núcleo descrito em `docs/FEATURES.md` e a tabela das chaves gerada do `features.toml` pelo `gen_features.py` (o CI confere com `--check`) |
 | A-13: resumo em inglês do essencial do `AGENTS.md`; registros de decisão (V5, OTA, modelo de recursos) | A fazer |
 | A-12: mover o `WebUI.h` (44 arquivos o citam), provando as imagens idênticas | Por último |
 
@@ -147,57 +152,71 @@ slot e o histórico iria a cerca de 170 dias).
    README põe no roteiro: trilha de auditoria completa (mudança de limite pela
    web não gera `alarm_lim`, achado 31), origem da hora por registro,
    exportação que acuse adulteração e relatório de lacunas.
-2. **Pico 2 W** — layout decidido em 01/10/2026: 1,5 + 1,5 + 1,0 MB. A placa
-   chega até 03/10/2026 e abre o S1; o S0 está no #215. Falta conferir se a
-   placa é A4.
+2. **Pico 2 W** — layout decidido em 01/10/2026 como 1,5 + 1,5 + 1,0 MB e
+   corrigido em 03/10/2026: a soma era os 4.096 KB inteiros, sem lugar para a
+   tabela de partições (8 KB) nem para a EEPROM do arduino-pico (4 KB). Fica
+   tabela de 8 KB, slots A e B de 1.532 KB e LittleFS de 1.020 KB. Também em
+   03/10/2026: boot seguro e OTP nos aparelhos de produção, nunca na placa da
+   bancada; a imagem nova se confirma com a web no ar e 60 s sem falha. O
+   desenho do A/B está em [`OTA_AB_RP2350.md`](OTA_AB_RP2350.md). A placa
+   chegou em 03/10/2026 e é um RP2350 **A2**, não A4 (`picotool info`, 03/10):
+   o erratum E9 vale nela. A `pico2_w_release` do `main` sobe nela. O S0 foi
+   mergeado (#215). A v2.11.0 (04/10/2026) é a primeira release com as imagens
+   dele: a atualização marcada para teste e o `.uf2` de fábrica (etapa 7).
 3. **#161** — decidida em 01/10/2026: opção (a). Só marcar o alarme como
    anunciado quando a fila o aceitou, e reanunciar o que segue ativo quando
    ela voltar a ter espaço. A fila continua guardando os mais antigos, e o
-   contrato do R3 não muda. Entra depois do #208, que mexe no mesmo arquivo.
+   contrato do R3 não muda. Mergeado no #217 (01/10), na v2.9.0.
 4. **OTA só com imagem assinada** — decidida em 01/10/2026: sim, e nas
    escolhas de chave, bancada e build local, "o mais profissional": raiz
    offline e chave de assinatura no CI com aprovação, anti-rollback, chave de
    bancada separada, build local para o campo só por USB. O desenho está em
-   [`OTA_ASSINADA.md`](OTA_ASSINADA.md).
+   [`OTA_ASSINADA.md`](OTA_ASSINADA.md). Feito: a v2.9.0 (02/10) é a primeira
+   release assinada.
 5. **Descrição do repositório no GitHub** — 01/10/2026: esperar.
 6. **Aparelho sem Wi-Fi** — decidida em 01/10/2026: o AP só abre a pedido
-   (Configurações > 12, `ap`, o gesto do boot), e um aparelho sem rede
-   configurada pede a data e a hora no boot, com a opção de pular. PR #214
-   (rascunho, empilhado no #204), provado na bancada. O gesto do boot, que
-   também abre o AP sem passar pelo menu, fica (decidido em 01/10/2026).
+   (Configurações > Modo de Configuração, `ap`, o gesto do boot), e um
+   aparelho sem rede configurada pede a data e a hora no boot, com a opção de
+   pular. Mergeado (#214, 01/10), na v2.9.0. O gesto do boot, que também abre
+   o AP sem passar pelo menu, fica (decidido em 01/10/2026).
 7. **Check obrigatório do Pico 2 W** — decidida em 01/10/2026:
    `firmware (pico2_w_release)` entra na proteção da `main` quando o #215 for
-   mergeado.
+   mergeado. Feito (#216, 01/10): nove checks obrigatórios.
 
 ## Triagem dos 75 achados de 23/09
 
 Achados da redação do manual da v2.7.1, feitos lendo o código. Conferidos em
-01/10 contra `origin/main` (`2721eb2`): **72 presentes, 3 corrigidos** (56,
-59, 75). Nenhum foi reproduzido no ferro. Severidade do ponto de vista de um
-monitor de cadeia fria: **alta** perde ou corrompe medição, alarme ou config,
-trava o boot ou abre brecha de segurança; **média** é comportamento errado que
-o usuário nota ou contrato de API quebrado; **baixa** é cosmético, de
-documentação ou de comentário.
+01/10 contra `origin/main` (`2721eb2`): **72 presentes, 3 corrigidos** (56, 59,
+75). Nenhum foi reproduzido no ferro. Até a v2.9.0 (02/10), mais seis
+corrigidos, cada um com a prova no PR: 28 e 29 (#208), 48 (#204), 63 e 64 (#203)
+e 66 (#209). Depois dela, os sete do grupo do ensaio: 5, 6, 17, 18, 21, 38 e 69
+(#234), o 44 (#235) e o 58 (#236). O 12 fechou junto com o #230 (02/10): o
+`pinAuth` mora em `CFG_USERS`, que saiu das classes que reiniciam. Só foi
+marcado aqui em 04/10. No mesmo dia, o 1, o 8, o 9 e o 25 (#255). Restam 52. Severidade do ponto de vista de um monitor de
+cadeia fria: **alta** perde ou corrompe medição, alarme ou config, trava o boot
+ou abre brecha de segurança; **média** é comportamento errado que o usuário nota
+ou contrato de API quebrado; **baixa** é cosmético, de documentação ou de
+comentário.
 
 ### Severidade alta
 
 | # | Grupo | Onde | O que acontece |
 |---|---|---|---|
-| 1 | slot | `WebManager_Calib.cpp` | "Adotar a sonda" lê o GPIO de número igual ao slot e grava `pins[0]=slot`; sem reload, a divergência volta a cada 5 leituras |
-| 6, 38 | ensaio | `WebManager_Commit.cpp` | Sons e mudo aplicados ao vivo durante o ensaio (`_dry`) que a página manda a cada edição |
-| 8 | PIN | `AppManager_Panel.cpp` | No painel, quem tem Usuários concede bits que não tem, inclusive a si mesmo |
-| 9 | PIN | `AppManager_Panel.cpp` | A troca obrigatória de PIN é pulada com SAIR, inclusive o `1234` de fábrica |
-| 18 | ensaio | `WebManager_Commit.cpp` | O ensaio aplica o fuso de verdade |
+| 1 | slot | `WebManager_Calib.cpp` | "Adotar a sonda" lê o GPIO de número igual ao slot e grava `pins[0]=slot`; sem reload, a divergência volta a cada 5 leituras. Corrigido (#255): lê e mantém o GPIO do slot e recarrega os sensores; um slot que não é DS18B20 ativo responde 409 |
+| 6, 38 | ensaio | `WebManager_Commit.cpp` | Sons e mudo aplicados ao vivo durante o ensaio (`_dry`) que a página manda a cada edição. Corrigido (#234) |
+| 8 | PIN | `AppManager_Panel.cpp` | No painel, quem tem Usuários concede bits que não tem, inclusive a si mesmo. Corrigido (#255): só acrescenta o que a conta identificada tem, a regra V-09 da web |
+| 9 | PIN | `AppManager_Panel.cpp` | A troca obrigatória de PIN é pulada com SAIR, inclusive o `1234` de fábrica. Corrigido (#255): o SAIR volta à tela inicial, e Configurações pede o PIN de novo |
+| 18 | ensaio | `WebManager_Commit.cpp` | O ensaio aplica o fuso de verdade. Corrigido (#234) |
 | 20 | NTP | `NetworkManager.cpp` | Com NTP ligado e sem servidor, nunca `NET_READY`: telemetria e alarmes esperam |
-| 25 | AP | `NetworkManager.cpp` | O AP aberto no boot nunca expira |
-| 28 | alarmes | `TelemetryManager.cpp` | ACK do MQTT nunca lido com a telemetria desligada (PR #208) |
-| 29 | alarmes | `TelemetryManager.cpp` | A fila não cabe no buffer de 2.048 B (PR #208) |
+| 25 | AP | `NetworkManager.cpp` | O AP aberto no boot nunca expira. Corrigido (#255): o prazo lia 32 bytes que nada tinha escrito, então o AP expirava ou não conforme a memória (na bancada, o da `main` expirou); o `beginAP( )` recebe o nome da rede |
+| 28 | alarmes | `TelemetryManager.cpp` | ACK do MQTT nunca lido com a telemetria desligada. Corrigido (#208) |
+| 29 | alarmes | `TelemetryManager.cpp` | A fila não cabe no buffer de 2.048 B. Corrigido (#208) |
 | 41 | API | `WebManager_Auth.cpp` | Por HTTP, o SHA-256 da senha é a senha para quem o captura (limitação conhecida) |
-| 44 | API | `WebManager_Commit.cpp` | `null` num limite grava 0, com resposta 200 |
-| 48 | AP | `AppManager_Loop.cpp` | Com o AP aberto, o aparelho não mede (PR #204) |
-| 58 | OTA | `ota/restore.cpp` | Restauração: o limite de caminhos só existe ao aplicar; a falha apaga o que já gravou, inclusive `/config` |
-| 63 | I2C | `sensors/SensorHelpers.h` | SDA e SCL trocados travam todo boot (PR #203) |
-| 64 | I2C | `sensors/BME280SensorDriver.h` | Segundo BME/BMP no mesmo periférico lê o primeiro (PR #203) |
+| 44 | API | `WebManager_Commit.cpp` | `null` num limite grava 0, com resposta 200. Corrigido (#235): `null` mantém o limite, e o que não é número é recusado |
+| 48 | AP | `AppManager_Loop.cpp` | Com o AP aberto, o aparelho não mede. Corrigido (#204) |
+| 58 | OTA | `ota/restore.cpp` | Restauração: o limite de caminhos só existe ao aplicar; a falha apaga o que já gravou, inclusive `/config`. Corrigido (#236): a falha mantém o que terminou e apaga só o incompleto; sem limite de arquivos; o `apply` exige a validação |
+| 63 | I2C | `sensors/SensorHelpers.h` | SDA e SCL trocados travam todo boot. Corrigido (#203) |
+| 64 | I2C | `sensors/BME280SensorDriver.h` | Segundo BME/BMP no mesmo periférico lê o primeiro. Corrigido (#203) |
 | 65 | busca | `SensorManager.cpp` | A busca de sondas não devolve o GP16, que no Air é a energia dos sensores |
 
 ### Severidade média
@@ -206,17 +225,17 @@ documentação ou de comentário.
 |---|---|---|
 | 2 | busca | A busca pela web varre GP0–GP16, inclusive pinos ativos, e não recarrega os sensores |
 | 3, 19, 60 | campo morto | `s_int`, `log` e "Resetar época" são gravados e ninguém lê |
-| 5, 17, 21, 69 | ensaio | Campos de overlay fora do ensaio; o ensaio grava auditoria; `_nosave` muda a RAM |
-| 7, 10, 12, 13 | PIN | PIN pela web ignora a política; recusas somem da página; política de PIN pela web reinicia; a web não edita permissões |
+| 5, 17, 21, 69 | ensaio | Campos de overlay fora do ensaio; o ensaio grava auditoria; `_nosave` muda a RAM. Corrigidos (#234) |
+| 7, 10, 12, 13 | PIN | PIN pela web ignora a política; recusas somem da página; política de PIN pela web reinicia (corrigido no #230); a web não edita permissões |
 | 14, 31 | alarmes | "Dois ciclos" não são 10 s; mudança de limite pela web não gera `alarm_lim` |
 | 26, 46 | OTA | O par TLS e a origem CORS não atravessam a OTA |
-| 32, 33, 35, 68 | telemetria | Servidor MQTT "ao vivo" que só vale no boot; prévias velhas; pressão com rótulo trocado; HA sempre `http://` |
+| 32, 33, 35, 68 | telemetria | Servidor MQTT "ao vivo" que só vale no boot; prévias velhas (as prévias, corrigidas no #239; a lista de marcadores da linha de alarmes, não); pressão com rótulo trocado; HA sempre `http://` |
 | 37, 39, 40, 42, 43, 45, 57 | API | 403 sem sessão; `\uXXXX` literal; cookie vence o Bearer; um relógio de limite por IP; nonce por IP; ordem do multipart; "Upload concluído" com 400 |
 | 47 | doc | Avisos e documentos de API velhos |
 | 49 | AP | Alpha: o boot no AP nunca chama `endBoot( )` |
 | 50, 51, 52 | painel | Âncora do gráfico presa; mín/máx por GPIO e não por slot; "Falhas" sempre 0 |
 | 53, 61 | console | Argumento cortado no espaço; `system factory` não mostra a senha nova |
-| 66 | NTP | `isTimeSynced( )` sempre verdadeiro (PR #209) |
+| 66 | NTP | `isTimeSynced( )` sempre verdadeiro. Corrigido (#209) |
 | 67, 71 | log | Syslog nunca envia FATAL; `/metrics` não zera falhas |
 | 73 | idioma | `uploadfs` põe os dois packs e o aparelho carrega o es-ES (documentado) |
 

@@ -28,6 +28,7 @@
 
 #include <unity.h>
 #include <string.h>
+#include <new>
 #include "NetworkManager.h"
 #include "MetricsManager.h"
 #include <lwip/dns.h>
@@ -64,6 +65,21 @@ static unsigned g_safeReboots = 0;
 void LogManager::safeReboot( ) { g_safeReboots++; throw SafeRebootCalled{ }; }
 void MetricsManager::observeRssi(int32_t) {}
 void dns_setserver(uint8_t, const ip_addr_t*) {}
+
+/* time( ), for the NTP wait. NetworkManager leaves NET_CONNECTED_WAIT_NTP when
+ * time(nullptr) passes 1600000000, and this host's clock is always past it, so
+ * every wait would end on its first pass. A test that needs the wait to hold
+ * sets g_clockNow to an epoch before 2020 (no NTP answer yet); 0 is the host's
+ * real clock, read here without calling time( ). Defined in this file, it is
+ * found before libc's, the way settimeofday( ) is below. */
+static time_t g_clockNow = 0;
+extern "C" time_t time(time_t* t) noexcept {
+    struct timeval tv;
+    gettimeofday(&tv, nullptr);
+    const time_t now = g_clockNow ? g_clockNow : (time_t)tv.tv_sec;
+    if (t) *t = now;
+    return now;
+}
 
 /* ── driving the machine ─────────────────────────────────────────────────── */
 
@@ -124,6 +140,7 @@ void setUp(void) {
     WiFi.reset( );
     g_cyw43StaModeEnables = 0;
     g_safeReboots = 0;
+    g_clockNow = 0;
 }
 void tearDown(void) {}
 
@@ -173,6 +190,83 @@ static void test_a_drop_is_noticed_without_being_told(void) {
     TEST_ASSERT_GREATER_THAN_UINT(0, WiFi.scanStarts);
 }
 
+/* ══ a drop inside the NTP wait ══════════════════════════════════════════ */
+
+/* The NTP wait is the host's, and only NET_READY looked at the link. On the
+ * bench on 2026-10-13 the access point went away 1.1 s after the address,
+ * before the first NTP answer, and the device spent 371 s in
+ * NET_CONNECTED_WAIT_NTP with no network record at all, three and a half
+ * minutes of them with the access point back; only a reboot brought it home.
+ * Without a link the wait cannot end, since an NTP answer is what ends it, and
+ * isLinkUp( ) said "up" the whole time. */
+static void test_a_drop_inside_the_ntp_wait_is_noticed(void) {
+    NetworkManager net;
+    g_clockNow = 1000;                                   /* no NTP answer yet */
+    net.begin(makeConfig( ), true, /*ntpEnabled=*/true, "");
+    pump(net, 3000);
+    TEST_ASSERT_TRUE_MESSAGE(net.isLinkUp( ) && !net.isConnected( ),
+        "setup: not in the NTP wait with the link up");
+
+    WiFi.visible = WiFi.joinable = false;                /* the access point goes away */
+    WiFi.disconnect( );
+    const unsigned scans = WiFi.scanStarts;
+    pump(net, 60000);
+    TEST_ASSERT_GREATER_THAN_UINT_MESSAGE(scans, WiFi.scanStarts,
+        "the NTP wait never looked at the link");
+    TEST_ASSERT_FALSE_MESSAGE(net.isLinkUp( ), "a dead link is still reported up");
+
+    WiFi.visible = WiFi.joinable = true;                 /* it comes back, and NTP with it */
+    g_clockNow = 0;
+    pump(net, 180000);
+    TEST_ASSERT_TRUE_MESSAGE(net.isConnected( ), "the access point came back and the device did not");
+}
+
+/* The link's level inside the wait. getRssi( ) answered -100 outside NET_READY,
+ * so isLinkHealthy( ) (isLinkUp( ) and the RSSI floor, the gate F08 gave the
+ * Air's FLUSH phase) was false for the whole wait on a live link, and the
+ * phase marked the network lost as soon as it began. Found by the review of the
+ * NTP-wait fix on 2026-10-13. An implausible reading is still a dead link. */
+static void test_the_link_level_is_read_inside_the_ntp_wait(void) {
+    NetworkManager net;
+    g_clockNow = 1000;                                   /* no NTP answer yet */
+    net.begin(makeConfig( ), true, /*ntpEnabled=*/true, "");
+    pump(net, 3000);
+    TEST_ASSERT_TRUE_MESSAGE(net.isLinkUp( ) && !net.isConnected( ),
+        "setup: not in the NTP wait with the link up");
+
+    WiFi.rssi = -60;
+    TEST_ASSERT_EQUAL_INT32_MESSAGE(-60, net.getRssi( ), "the level of a live link in the NTP wait");
+    TEST_ASSERT_TRUE_MESSAGE(net.isLinkHealthy( ), "a live link in the NTP wait read as unhealthy");
+    TEST_ASSERT_FALSE_MESSAGE(net.isNetworkHealthy( ), "isNetworkHealthy( ) waits for NET_READY, as before");
+
+    WiFi.rssi = -90;                                     /* below RSSI_MIN_THRESHOLD */
+    TEST_ASSERT_FALSE(net.isLinkHealthy( ));
+
+    WiFi.rssi = 4;                                       /* the chip no longer answers with real data */
+    TEST_ASSERT_EQUAL_INT32(-100, net.getRssi( ));
+    TEST_ASSERT_FALSE_MESSAGE(net.isLinkHealthy( ), "an implausible reading in the NTP wait passed as health");
+    WiFi.rssi = RSSI_IMPLAUSIBLE_LOW - 1;
+    TEST_ASSERT_EQUAL_INT32(-100, net.getRssi( ));
+}
+
+/* And the wait leaves a live link alone. A network with no way to a time server
+ * never answers NTP, and its link has to stay as it is (the web works over it),
+ * not be dropped on a timer by a check that cannot tell the two cases apart. */
+static void test_the_ntp_wait_leaves_a_live_link_alone(void) {
+    NetworkManager net;
+    g_clockNow = 1000;                                   /* and no NTP answer, ever */
+    net.begin(makeConfig( ), true, /*ntpEnabled=*/true, "");
+    pump(net, 3000);
+    const unsigned joins = WiFi.joinAttempts, scans = WiFi.scanStarts, drops = WiFi.disconnects;
+
+    pump(net, 10UL * 60UL * 1000UL, 500);
+
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(drops, WiFi.disconnects, "a live link was dropped");
+    TEST_ASSERT_EQUAL_UINT(scans, WiFi.scanStarts);
+    TEST_ASSERT_EQUAL_UINT(joins, WiFi.joinAttempts);
+    TEST_ASSERT_TRUE(net.isLinkUp( ));
+}
+
 /* ══ the 2026-09-08 field failure ════════════════════════════════════════ */
 
 /* THE regression test. A scan that never completes used to park the state
@@ -220,6 +314,193 @@ static void test_a_failed_scan_is_treated_as_a_fruitless_one(void) {
 
     pump(net, 120000);
     TEST_ASSERT_TRUE(net.isConnected( ));
+}
+
+/* ══ the 2026-10-11 field failure ════════════════════════════════════════ */
+
+/* The other radio that never finishes a scan: not a wedged scanner on a chip
+ * that answers, but a chip that does not answer at all. On 2026-10-11 09:28 a
+ * v2.11.0 unit lost its link, abandoned two scans — the first logged 16 s after
+ * it started, the deadline plus the driver's 1 s credit stall — and then took
+ * the blind join the wedge above earns. WiFi.begin( ) on a silent chip is up to
+ * 15 synchronous ioctl timeouts of 1 s before the join-wait patch gets a say, and the
+ * HW watchdog rebooted the device with Core 0 in MOD_WIFI (autopsy ctx 202).
+ * The same thing happened on 2026-09-30. The two radios are told apart by the
+ * only thing that differs: how long the scan's START held the caller. */
+
+/** Pump for `ms`, stopping early if the machine plans a restart. The planned
+ *  restart is the OUTCOME these tests look for, so unlike pumpUntilAttempts
+ *  this one does not assert on the way; it reports. */
+static bool pumpUntilRestart(NetworkManager& net, uint32_t ms, uint32_t stepMs = 50) {
+    const uint32_t end = millis( ) + ms;
+    while ((int32_t)(millis( ) - end) < 0) {
+        set_native_millis(millis( ) + stepMs);
+        try {
+            net.update( );
+        } catch (const SafeRebootCalled&) {
+            return true;   /* a device would be restarting now */
+        }
+    }
+    return false;
+}
+
+/* THE regression test for 2026-10-11. A silent radio must never be handed a
+ * join — that is the watchdog reset — and after two silent scans in a row,
+ * past the first half hour, the restart is planned instead: logged, the log
+ * persisted, Core 1 parked. */
+static void test_a_silent_radio_is_never_blind_joined(void) {
+    set_native_millis(WIFI_RADIO_RESTART_MIN_UPTIME_MS + 100000UL);   /* past the gate */
+    NetworkManager net;
+    bringUp(net);
+
+    WiFi.scanNeverCompletes = true;
+    WiFi.scanStartTakesMs   = 1000;        /* the chip is silent: every start is a credit stall */
+    WiFi.disconnect( );
+    const unsigned joinsBefore = WiFi.joinAttempts;
+
+    const bool restarted = pumpUntilRestart(net, 120000);
+
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(joinsBefore, WiFi.joinAttempts,
+        "a silent radio was handed a join: on hardware this is the HW watchdog in MOD_WIFI");
+    TEST_ASSERT_TRUE_MESSAGE(restarted, "two silent scans in a row and no planned restart");
+    TEST_ASSERT_EQUAL_UINT(1, g_safeReboots);
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(WIFI_SILENT_SCANS_BEFORE_RESTART, WiFi.scanStarts,
+        "the restart should come on the second silent scan, not later");
+}
+
+/* Inside the first half hour there is no restart and still no join: the ladder
+ * keeps scanning, one bounded ioctl per attempt, which the watchdog window
+ * absorbs. Past the gate the streak already counted brings the restart on the
+ * next silent scan. */
+static void test_a_silent_radio_in_the_first_half_hour_keeps_scanning(void) {
+    NetworkManager net;                   /* setUp put the clock at 100 s */
+    bringUp(net);
+
+    WiFi.scanNeverCompletes = true;
+    WiFi.scanStartTakesMs   = 1000;
+    WiFi.disconnect( );
+    const unsigned joinsBefore = WiFi.joinAttempts;
+
+    TEST_ASSERT_FALSE_MESSAGE(pumpUntilRestart(net, 10UL * 60UL * 1000UL, 500),
+        "restarted inside the first half hour");
+    TEST_ASSERT_TRUE(millis( ) < WIFI_RADIO_RESTART_MIN_UPTIME_MS);
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(joinsBefore, WiFi.joinAttempts,
+        "the gate must hold back the restart, never let the join through");
+    TEST_ASSERT_GREATER_THAN_UINT_MESSAGE(2, WiFi.scanStarts,
+        "the machine stopped scanning — a silent radio that recovers would never be noticed");
+
+    set_native_millis(WIFI_RADIO_RESTART_MIN_UPTIME_MS + 1000UL);
+    TEST_ASSERT_TRUE_MESSAGE(pumpUntilRestart(net, 60000),
+        "the gate held the restart back for good instead of for half an hour");
+    TEST_ASSERT_EQUAL_UINT(joinsBefore, WiFi.joinAttempts);
+}
+
+/* A start the chip answers ends the silent streak, and from there the scan
+ * that never finishes is the 2026-09-08 wedge again: counted toward the blind
+ * join, which gets the device back. The two field failures share a log line
+ * and must not share a cure. */
+static void test_a_start_the_radio_answers_ends_the_silent_streak(void) {
+    set_native_millis(WIFI_RADIO_RESTART_MIN_UPTIME_MS + 100000UL);
+    NetworkManager net;
+    bringUp(net);
+
+    WiFi.scanNeverCompletes = true;
+    WiFi.scanStartTakesMs   = 1000;        /* silent for the first scan... */
+    WiFi.disconnect( );
+    pump(net, 17000);                      /* ...which is abandoned at 0.2 + 5 + 1 + 15 s */
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(1, WiFi.scanStarts, "setup: the first scan was not abandoned yet");
+
+    WiFi.scanStartTakesMs = 0;             /* the chip answers again; the scanner stays wedged */
+    const bool restarted = pumpUntilRestart(net, 120000);
+
+    TEST_ASSERT_FALSE_MESSAGE(restarted,
+        "a radio that answers its scans was restarted for one silent start");
+    TEST_ASSERT_EQUAL_UINT(0, g_safeReboots);
+    TEST_ASSERT_TRUE_MESSAGE(net.isConnected( ),
+        "a wedged scanner on a chip that answers must still be escaped by the blind join");
+}
+
+/* The threshold is the driver's timeout, not a slow start: a start that takes
+ * a fifth of the shortest timeout is a chip that answered, and a scan it then
+ * loses is the wedge, escaped by the join as before. */
+static void test_a_slow_but_answered_start_is_not_a_silent_radio(void) {
+    set_native_millis(WIFI_RADIO_RESTART_MIN_UPTIME_MS + 100000UL);
+    NetworkManager net;
+    bringUp(net);
+
+    WiFi.scanNeverCompletes = true;
+    WiFi.scanStartTakesMs   = WIFI_SCAN_START_SILENT_MS / 5;
+    WiFi.disconnect( );
+    const unsigned joinsBefore = WiFi.joinAttempts;
+
+    const bool restarted = pumpUntilRestart(net, 120000);
+
+    TEST_ASSERT_FALSE(restarted);
+    TEST_ASSERT_GREATER_THAN_UINT_MESSAGE(joinsBefore, WiFi.joinAttempts,
+        "a start the chip answered must still earn the blind join");
+    TEST_ASSERT_TRUE(net.isConnected( ));
+}
+
+/** Pump until the ladder has started `n` scans in all, reporting a planned
+ *  restart on the way (true) as pumpUntilRestart does. */
+static bool pumpUntilScanStarts(NetworkManager& net, unsigned n, uint32_t maxMs) {
+    const uint32_t end = millis( ) + maxMs;
+    while (WiFi.scanStarts < n && (int32_t)(millis( ) - end) < 0) {
+        set_native_millis(millis( ) + 50);
+        try {
+            net.update( );
+        } catch (const SafeRebootCalled&) {
+            return true;
+        }
+    }
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(n, WiFi.scanStarts, "setup: the ladder did not start the scan in time");
+    return false;
+}
+
+/* Silent scans count only in a row. A start the chip answers ends the streak
+ * even when that scan is then lost (the wedge), so silent, answered, silent is
+ * one silent scan, not two, and no restart. */
+static void test_a_start_the_radio_answers_resets_the_silent_count(void) {
+    set_native_millis(WIFI_RADIO_RESTART_MIN_UPTIME_MS + 100000UL);
+    NetworkManager net;
+    bringUp(net);
+    WiFi.scanNeverCompletes = true;            /* every scan is lost, whoever started it */
+    WiFi.visible = false;
+    WiFi.scanStartTakesMs = 1000;
+    WiFi.disconnect( );
+
+    TEST_ASSERT_FALSE(pumpUntilScanStarts(net, 1, 30000));   /* 1st: silent */
+    WiFi.scanStartTakesMs = 0;
+    TEST_ASSERT_FALSE(pumpUntilScanStarts(net, 2, 60000));   /* 2nd: answered, then lost */
+    WiFi.scanStartTakesMs = 1000;
+    TEST_ASSERT_FALSE(pumpUntilScanStarts(net, 3, 60000));   /* 3rd: silent */
+    /* the 4th starts only after the 3rd was abandoned and counted */
+    TEST_ASSERT_FALSE_MESSAGE(pumpUntilScanStarts(net, 4, 60000),
+        "silent, answered, silent restarted the radio: the answered start did not end the streak");
+    TEST_ASSERT_EQUAL_UINT(0, g_safeReboots);
+}
+
+/* And a scan that comes back ends it too, however slow its start: the chip
+ * answered after all. Silent, slow but finished (no SSID in it), silent is
+ * again one silent scan. */
+static void test_a_scan_that_finishes_resets_the_silent_count(void) {
+    set_native_millis(WIFI_RADIO_RESTART_MIN_UPTIME_MS + 100000UL);
+    NetworkManager net;
+    bringUp(net);
+    WiFi.visible = false;                      /* the scans that finish find nothing to join */
+    WiFi.scanNeverCompletes = true;
+    WiFi.scanStartTakesMs = 1000;
+    WiFi.disconnect( );
+
+    /* A knob flipped while a scan is in flight decides that scan, so each one
+     * is set right after the start it is meant for. */
+    TEST_ASSERT_FALSE(pumpUntilScanStarts(net, 2, 60000));   /* the 1st was silent and lost; the 2nd starts as slow */
+    WiFi.scanNeverCompletes = false;                         /* ...and finishes, empty */
+    TEST_ASSERT_FALSE(pumpUntilScanStarts(net, 3, 60000));   /* the 3rd starts as slow */
+    WiFi.scanNeverCompletes = true;                          /* ...and is lost: silent */
+    TEST_ASSERT_FALSE_MESSAGE(pumpUntilScanStarts(net, 4, 60000),
+        "silent, finished, silent restarted the radio: the finished scan did not end the streak");
+    TEST_ASSERT_EQUAL_UINT(0, g_safeReboots);
 }
 
 /* ══ joinable but invisible ══════════════════════════════════════════════ */
@@ -713,6 +994,58 @@ static void test_a_refused_ap_is_reported_and_not_latched(void) {
     WiFi.softApFails = false;
 }
 
+/* ══ the access point gives way to the configured network ════════════════
+ *
+ * An AP opened on a unit that has a network gives way to it after
+ * AP_MODE_TIMEOUT_MS, by restarting into the station. The one the boot
+ * gesture opened did not always (finding 25 of
+ * docs/analysis/PLANO_REVISAO_EXTERNA.md): the limit asks for the network by
+ * its name, which only begin( ) used to hand over, and that boot never calls
+ * begin( ). beginAP( ) takes the name now. Built here over a zeroed stack
+ * object, which is how main failed this case.
+ */
+static void test_an_ap_given_the_network_gives_way_to_it(void) {
+    NetworkManager net;
+    TEST_ASSERT_TRUE(net.beginAP("simut-test", "bench-ap"));
+    pump(net, AP_MODE_TIMEOUT_MS - 5000, 1000);
+    TEST_ASSERT_EQUAL_UINT_MESSAGE(0, g_safeReboots, "gave way before the limit");
+    bool restarted = false;
+    try { pump(net, 10000, 1000); } catch (const SafeRebootCalled&) { restarted = true; }
+    TEST_ASSERT_TRUE_MESSAGE(restarted, "the AP outlived its limit on a unit with a network");
+}
+
+/* A unit with no network keeps its AP: there is nothing to give way to, and
+ * the AP is the only way to give it one. */
+static void test_an_ap_with_no_network_stays_open(void) {
+    NetworkManager net;
+    TEST_ASSERT_TRUE(net.beginAP("simut-test"));
+    pump(net, AP_MODE_TIMEOUT_MS * 2, 5000);
+    TEST_ASSERT_EQUAL_UINT(0, g_safeReboots);
+    TEST_ASSERT_TRUE(net.isApConfig( ));
+    NetworkManager blank;
+    TEST_ASSERT_TRUE(blank.beginAP("simut-test", ""));
+    pump(blank, AP_MODE_TIMEOUT_MS * 2, 5000);
+    TEST_ASSERT_EQUAL_UINT(0, g_safeReboots);
+}
+
+/* The limit asked for the network by a name nothing had written on that
+ * boot, so whatever the heap held there decided it: zeros kept the AP of a
+ * unit with a network up for good, and anything else closed the AP of a unit
+ * with none, the one way to give it a network. On the rig, main's gesture AP
+ * closed at exactly 900 s (2026-10-04): those bytes were not zero that time.
+ * Built over memory that holds 0x01 everywhere, a value no bool or string
+ * reading of it can object to, a unit with no network keeps its AP. */
+static void test_the_ap_limit_reads_no_leftover_bytes(void) {
+    alignas(NetworkManager) static unsigned char mem[sizeof(NetworkManager)];
+    memset(mem, 0x01, sizeof(mem));
+    NetworkManager* net = new (mem) NetworkManager( );
+    TEST_ASSERT_TRUE(net->beginAP("simut-test", ""));
+    bool restarted = false;
+    try { pump(*net, AP_MODE_TIMEOUT_MS * 2, 5000); } catch (const SafeRebootCalled&) { restarted = true; }
+    TEST_ASSERT_FALSE_MESSAGE(restarted, "leftover bytes closed the AP of a unit with no network");
+    net->~NetworkManager( );
+}
+
 /* ══ a radio that will not take the join ═════════════════════════════════
  *
  * WiFi.begin( ) queues the join and returns; it answers WL_IDLE_STATUS only
@@ -891,9 +1224,20 @@ int main(int, char**) {
     RUN_TEST(test_a_dropped_link_comes_back_on_its_own);
     RUN_TEST(test_a_drop_is_noticed_without_being_told);
 
+    RUN_TEST(test_a_drop_inside_the_ntp_wait_is_noticed);
+    RUN_TEST(test_the_link_level_is_read_inside_the_ntp_wait);
+    RUN_TEST(test_the_ntp_wait_leaves_a_live_link_alone);
+
     RUN_TEST(test_a_scan_that_never_finishes_does_not_park_the_device);
     RUN_TEST(test_it_reconnects_even_while_the_scanner_stays_wedged);
     RUN_TEST(test_a_failed_scan_is_treated_as_a_fruitless_one);
+
+    RUN_TEST(test_a_silent_radio_is_never_blind_joined);
+    RUN_TEST(test_a_silent_radio_in_the_first_half_hour_keeps_scanning);
+    RUN_TEST(test_a_start_the_radio_answers_ends_the_silent_streak);
+    RUN_TEST(test_a_slow_but_answered_start_is_not_a_silent_radio);
+    RUN_TEST(test_a_start_the_radio_answers_resets_the_silent_count);
+    RUN_TEST(test_a_scan_that_finishes_resets_the_silent_count);
 
     RUN_TEST(test_an_ap_that_no_scan_lists_is_still_joined);
     RUN_TEST(test_a_visible_ap_is_joined_off_the_first_scan);
@@ -925,6 +1269,9 @@ int main(int, char**) {
     RUN_TEST(test_no_planned_restart_in_the_first_half_hour);
     RUN_TEST(test_a_provisional_clock_is_not_a_synced_one);
     RUN_TEST(test_a_refused_ap_is_reported_and_not_latched);
+    RUN_TEST(test_an_ap_given_the_network_gives_way_to_it);
+    RUN_TEST(test_an_ap_with_no_network_stays_open);
+    RUN_TEST(test_the_ap_limit_reads_no_leftover_bytes);
 
     RUN_TEST(test_a_manual_clock_corrects_what_the_provisional_one_stamped);
     RUN_TEST(test_a_second_manual_set_moves_nothing);

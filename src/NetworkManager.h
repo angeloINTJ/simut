@@ -4,7 +4,9 @@
  * @details Handles the complete network lifecycle: WiFi STA/AP modes, exponential
  * backoff reconnection, NTP time sync, mDNS, and a Virtual RTC that
  * provides provisional timestamps from the last flash-stored epoch
- * until real NTP synchronization completes.
+ * until real NTP synchronization completes. NetworkManager.cpp is the host
+ * of what every network needs; the link, the radio's or the cable's, is a
+ * unit of src/net/ that follows the contract in the private section.
  *
  * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
@@ -47,8 +49,11 @@ public:
  bool ntpEnabled = true,
  const char* dns2 = "");
  /** Bring up the setup Access Point. False when the radio refused it —
-  * the caller must not tell anyone to join a network that is not there. */
- bool beginAP(const char* deviceName);
+  * the caller must not tell anyone to join a network that is not there.
+  * `stationSsid` is the network the unit is configured for, empty when it
+  * has none: with one, the AP gives way to it after AP_MODE_TIMEOUT_MS by
+  * restarting into the station. */
+ bool beginAP(const char* deviceName, const char* stationSsid = "");
  void update( );
 
  /** The WPA2 key of the setup AP, derived from the board id (V-05).
@@ -114,8 +119,9 @@ public:
  * Ends the provisional clock the way NTP does, correcting what it stamped. */
  /** @p source is the log line's ctx — who set the clock, read months later:
   *  1 the web (/api/set_time), 2 the console (`conf time`), 3 the panel's
-  *  Settings > 13, 4 the panel's question at boot on a unit with no network.
-  *  0 is what every manual set logged before 2026-10-01. */
+  *  Date and time item in Settings, 4 the panel's question at boot on a
+  *  unit with no network. 0 is what every manual set logged before
+  *  2026-10-01. */
  enum ManualTimeSource : uint8_t { TIME_SRC_WEB = 1, TIME_SRC_CLI = 2,
                                    TIME_SRC_PANEL = 3, TIME_SRC_PANEL_BOOT = 4 };
  void setManualTime(time_t epoch, uint8_t source);
@@ -153,7 +159,8 @@ public:
   */
  bool isLinkUp( ) const { return _state == NET_READY || _state == NET_CONNECTED_WAIT_NTP; }
 
- /** isLinkUp( ) with the same RSSI floor isNetworkHealthy( ) applies (F08). */
+ /** isLinkUp( ) with the same RSSI floor isNetworkHealthy( ) applies (F08).
+  *  getRssi( ) reads the level whenever the link is up, the NTP wait included. */
  bool isLinkHealthy( );
  int32_t getRssi( );
 
@@ -272,6 +279,9 @@ private:
  void endProvisional(uint32_t realNow);
 
  void handleConnecting( );
+ /** The radio's link is gone (NET_READY, or the NTP wait since 2026-10-13): log
+  *  SYS_WIFI_DISCONNECT, disconnect, first rung of the ladder, NET_DISCONNECT_PENDING. */
+ void wifiLost( );
  void syncNtp( );
  void resetNtpBackoff( ); /**< Reset backoff after success/reconnect */
 
@@ -288,6 +298,13 @@ private:
  /** Handle a scan that did not produce the SSID — count it, and after
   *  WIFI_SCANS_BEFORE_BLIND_JOIN misses associate without one. */
  void afterFruitlessScan( );
+ /** Handle a scan that never finished on a radio that did not answer its
+  *  start (the start took WIFI_SCAN_START_SILENT_MS or longer). Counted apart
+  *  from the misses and never blind-joined: after
+  *  WIFI_SILENT_SCANS_BEFORE_RESTART in a row, past the first half hour, the
+  *  radio is restarted by safeReboot( ) (SYS_WIFI_CONNECT ctx 4).
+  *  SystemDefs_Network.h says why a join here is a watchdog reset. */
+ void afterSilentScan( );
  /** WiFi.begin( ), and what to do when the radio will not take the join
   *  (WIFI_JOIN_REFUSALS_BEFORE_RESTART in SystemDefs_Network.h). */
  void beginJoin( );
@@ -319,6 +336,15 @@ private:
  uint8_t _blindScans = 0;
  /** Joins in a row the radio refused outright; reset by one it takes. */
  uint8_t _joinRefusals = 0;
+ /** How long WiFi.scanNetworks(true) took to return, for the scan in flight
+  *  (ms). Milliseconds when the chip answered the "escan" iovar; the driver's
+  *  own timeout when it did not. Read when that scan never finishes, to tell
+  *  a lost completion from a silent radio — see WIFI_SCAN_START_SILENT_MS. */
+ uint32_t _scanStartTookMs = 0;
+ /** Scans in a row whose start the radio did not answer; reset by a start it
+  *  answers, by a scan that finishes, and by the ladder. See
+  *  WIFI_SILENT_SCANS_BEFORE_RESTART. */
+ uint8_t _silentScans = 0;
 
  /* ── NTP retry with exponential backoff + fallback ── */
  uint32_t _ntpRetryDelay = 20000; /**< Current delay between retries (ms) */
@@ -344,4 +370,74 @@ private:
  WifiNet  _scanNets[WIFI_SCAN_MAX_NETS];
 
  void pollScan( );
+
+ /* ── The contract a network unit implements ───────────────────────────
+  *
+  * NetworkManager.cpp is the host: the NTP wait and its backoff, the clocks,
+  * mDNS, the timezone and the health, what any network needs. The link, how
+  * this image joins a network and stays on it, is a unit of src/net/ that
+  * defines the three methods below. An image has one, and the manifest leaves
+  * the others out of the build (`units` of [net.cyw43] and of [net_class.lan]
+  * in tools/features.toml, as it leaves out the display's):
+  *
+  *   net/NetworkManager_Cyw43.cpp   the radio: scan, join, the reconnect ladder
+  *                                  with dormancy, the setup AP, the on-demand
+  *                                  scan, the addresses and the signal level
+  *   net/NetworkManager_Wired.cpp   a cable, whatever chip is behind
+  *                                  net/WiredLink.h
+  *
+  * A third driver that is not a cable is a third unit that defines them. The
+  * unit also defines the public getters (getIpAddress( ), getMacAddress( ),
+  * getSubnetMask( ), getGateway( ), getDns( ), getRssi( )) and the three that
+  * answer for a link with no radio (beginAP( ), startScan( ), scanResults( )).
+  * The host calls the three in this order, the same for every unit:
+  *
+  *   begin( )   the shared settings, then beginLink( ).
+  *   update( )  updateLinkFirst( ), and on LINK_DONE_NOW it returns; the mDNS
+  *              update (NET_READY); on LINK_DONE_AFTER_MDNS it returns; the NTP
+  *              wait, when _state is NET_CONNECTED_WAIT_NTP, and it returns;
+  *              updateLinkStates( ).
+  *
+  * _state is the host's vocabulary and the unit moves it: a unit takes the link
+  * up to NET_CONNECTED_WAIT_NTP (or to NET_READY when NTP is off), the host
+  * takes it from there to NET_READY, and a unit takes it down again. The NTP
+  * wait does not look at the link, and nothing ends it without one, so a unit
+  * watches its link in that state too, in updateLinkFirst( ): the cable in
+  * updateWired( ), the radio since 2026-10-13, when an access point lost inside
+  * the wait left a bench device off the network until a reboot.
+  */
+ enum LinkFirst : uint8_t {
+  LINK_GO_ON,            /**< nothing more for the unit this pass: mDNS, the NTP wait, updateLinkStates( ) */
+  LINK_DONE_AFTER_MDNS,  /**< the unit handled the pass; update( ) returns after the mDNS update */
+  LINK_DONE_NOW          /**< the unit handled the pass; update( ) returns at once, mDNS included */
+ };
+ /** Start the link from the settings begin( ) copied into the members. Leaves
+  *  _state at NET_CONNECTING, or at NET_OFFLINE when there is nothing to join
+  *  or the module did not start (the unit's own retry takes it from there). */
+ void beginLink(const SystemConfig& cfg);
+ /** What the unit does before everything else in update( ), and what update( )
+  *  does next. */
+ LinkFirst updateLinkFirst( );
+ /** The unit's states, after the NTP wait the host runs for every driver. */
+ void updateLinkStates( );
+
+#if SIMUT_NET_LAN
+ /* The SIMUT Wire (net/NetworkManager_Wired.cpp): the ENC28J60 in place of the
+  * radio. No SSID, no scan, no join and no AP: the module starts, takes its
+  * address, and from there the NTP wait of update( ) is shared. The static
+  * address begin( ) parsed is kept for the retries of a module that did not
+  * start. */
+ bool _wiredStatic = false;
+ IPAddress _wiredIp, _wiredGw, _wiredMask, _wiredDns;
+ /* Once per episode: a module that keeps failing to start, or a link that
+  * waits for an address, says so once, not on every retry. */
+ bool _wiredFailLogged = false;
+ bool _wiredWaitLogged = false;
+ IPAddress _wiredAnnounced;   /* the address wiredUp( ) last logged and served mDNS on */
+ void beginWired(const SystemConfig& cfg);
+ void startWired( );
+ bool updateWired( );
+ void wiredUp( );
+ void wiredLost( );
+#endif
 };

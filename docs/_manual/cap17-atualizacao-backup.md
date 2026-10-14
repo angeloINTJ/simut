@@ -10,6 +10,7 @@ A página lista o conteúdo do sistema de arquivos do aparelho, pasta por pasta.
 
 - **Para abrir uma pasta,** toque no nome dela.
 - **Para baixar um arquivo,** toque no nome dele.
+- **Para ler um arquivo de texto,** toque no olho ao lado do nome ([Ver um arquivo de texto](#cap-17-ver)).
 - **Um cadeado** no lugar da caixa de marcar indica um arquivo protegido: o firmware o reescreve a cada boot, e ele não pode ser apagado.
 
 ### Os botões {#cap-17-botoes}
@@ -57,6 +58,25 @@ A pasta `/config` guarda as senhas e as chaves. A página não a lista, e o apar
 2. Toque em **Baixar**. Com mais de um arquivo, confirme a pergunta **Baixar N?**.
 
 O navegador baixa um arquivo de cada vez. Baixar da pasta `/history` exige também a permissão **Histórico**, e baixar o log de eventos exige também **Logs** ([capítulo 8](#cap-08-permissoes)).
+
+### Ver um arquivo de texto {#cap-17-ver}
+
+Um arquivo de texto de até 64 KB tem um olho ao lado do nome: `.json`, `.jsonl`, `.ndjson`, `.txt`, `.csv`, `.tsv`, `.lng`, `.thm`, `.log`, `.cfg`, `.conf`, `.ini`, `.pem`, `.crt`, `.md`, `.xml`, `.yml` e `.yaml`. Toque no olho para abrir o arquivo numa janela sobre a página. Ler exige as mesmas permissões que baixar.
+
+A janela abre em **Organizado** (*Organized*):
+
+- **JSON** aparece indentado. Cada objeto e cada lista de mais de uma linha tem uma marca à esquerda: ▾ quando está aberto, ▸ quando está recolhido. Toque na linha para abrir ou recolher. Recolhido, o bloco ocupa uma linha, com `{…}` ou `[…]` e o número de itens. A janela abre com os dois primeiros níveis abertos.
+- **Um pacote de idioma ou de tema** mostra as linhas numeradas, e cada seção (`@DICT`, `@COLORS`, ou `[nome]` num arquivo INI) se recolhe até a seção seguinte. Uma linha que é um JSON inteiro, como a do `@WEBDICT`, aparece como um bloco.
+- **Um arquivo com um JSON por linha** (NDJSON) mostra cada linha como um bloco.
+- **Qualquer outro texto** aparece com as linhas numeradas.
+
+**Expandir tudo** (*Expand all*) abre todos os blocos. **Recolher tudo** (*Collapse all*) recolhe todos, menos o bloco de fora de um JSON.
+
+**Original** mostra o texto exatamente como está no arquivo. O organizado só muda os espaços entre as partes do texto: um número continua escrito como está no arquivo. **Baixar** (*Download*) baixa o arquivo original.
+
+Um JSON cortado ou com erro também é organizado, pela posição das chaves e dos colchetes, e a janela avisa **JSON incompleto ou inválido**. Um arquivo que não é texto mostra **Este arquivo não é texto**: baixe-o para abrir.
+
+Feche a janela com o **X** ou com a tecla **Esc**.
 
 ### Enviar {#cap-17-enviar}
 
@@ -172,11 +192,11 @@ Uma recusa aparece como **Validação falhou:** ou **Falha ao aplicar:**, seguid
 | `internal error` | Erro inesperado | Tente de novo; se persistir, veja o log de eventos |
 
 ::: atencao
-**Uma aplicação que falha no meio apaga o que já gravou.** A restauração grava cada arquivo direto no lugar do antigo. Se ela falha no meio, o aparelho apaga os arquivos que já tinha gravado e não reinicia. A configuração continua na RAM. Repita a restauração com o mesmo arquivo antes de reiniciar o aparelho.
+**Uma aplicação que falha no meio mantém o que já gravou.** A restauração grava cada arquivo direto no lugar do antigo. Se ela falha no meio, porque a conexão caiu ou a gravação falhou, o aparelho mantém os arquivos que terminou, apaga só o que ficou pela metade e não reinicia. A configuração continua na RAM. Repita a restauração com o mesmo arquivo antes de reiniciar o aparelho: ela completa o que faltou.
 :::
 
-::: atencao
-**A restauração grava no máximo 200 arquivos, com até 4 KiB de nomes somados.** Um backup acima disso passa pela validação e falha na aplicação com `I/O error`. Isso só acontece com muitos dias de histórico, num aparelho com poucos canais. Antes de fazer o backup, apague pela página **Arquivos** os dias mais antigos de `/history` que não precisa restaurar, depois de baixá-los.
+::: nota
+**Até a v2.9.0, a falha no meio apagava tudo o que tinha gravado,** inclusive a configuração já restaurada, e o reinício seguinte subia com a configuração de fábrica. E a restauração gravava no máximo 200 arquivos: um backup maior passava pela validação e falhava na aplicação com `I/O error`. Desde a v2.10.0, nenhum dos dois acontece.
 :::
 
 ## Atualizar o firmware {#cap-17-ota}
@@ -320,7 +340,9 @@ Os tempos dependem do tamanho da imagem e da rede. Para confirmar uma atualizaç
 
 Até a v2.8.x, o aparelho aceitava uma imagem sem assinatura e uma sem etiqueta de variante, anterior à etiqueta. Hoje as duas são recusadas com `v=8`.
 
-Uma recusa aparece como **Falha no envio (validação v=N). Cancelled.**, seguida do motivo de `v=7` a `v=12`. Um arquivo maior que 1016 KiB não chega a ser conferido e aparece como `v=undefined`.
+Uma recusa aparece como **Falha no envio (validação v=N). Cancelled.**, seguida do motivo de `v=6` a `v=12`. Um arquivo maior que 1016 KiB não chega a ser conferido e aparece como `v=undefined`.
+
+O `.bin` do Pico 2 W (`simut_vX.Y.Z_releasetwo.bin`, desde a v2.11.0), mandado a um Pico W, é recusado com `v=6`: os primeiros 256 bytes dele não são um início de imagem do RP2040. A página diz **A imagem é de outro chip, ou está danificada. O Pico 2 W usa o .bin releasetwo, e o Pico W os outros.** Até a v2.11.0, ela não dava motivo para o `v=6`.
 
 ::: perigo
 **Uma recusa no envio também apaga o sistema de arquivos.** A imagem é gravada sobre o sistema de arquivos enquanto chega, e a conferência só acontece no fim. Quando o aparelho recusa a imagem, ele reformata o sistema de arquivos e continua funcionando com a configuração que está na RAM; desde a v2.8.0 ele grava a configuração de volta logo em seguida, e até a v2.7.4 o arquivo dela simplesmente deixava de existir. **Restaure o backup do passo 4**: ele devolve o histórico, os pacotes de idioma e os demais arquivos. Até a v2.7.4, um reinício antes disso voltava com a configuração de fábrica ([capítulo 18](#cap-18-fabrica)).

@@ -99,22 +99,25 @@ O aparelho em blocos: os sensores entram pelo Core 0, a tela fica com o Core 1, 
 
 ## Versões {#cap-01-versoes}
 
-Este manual descreve a **v2.9.0**, de 02/10/2026, a versão publicada mais recente. A linha 2.7 saiu do beta com a v2.7.0.
+Este manual descreve a **v2.11.1**, de 12/10/2026, a versão publicada mais recente. A linha 2.7 saiu do beta com a v2.7.0.
 
-O que a v2.9.0 mudou para quem usa o aparelho:
+O que a v2.11.1 mudou para quem usa o aparelho:
 
-- pelo ar, o aparelho só instala imagem assinada pelo projeto: o `.bin` de uma release ou uma build do configurador. Uma build feita na sua máquina vai pelo USB ([capítulo 17](#cap-17-ota-assinatura));
-- o painel mostra cada etapa de uma atualização e, numa recusa, o motivo ([capítulo 11](#cap-11-atualizacao));
-- o ponto de acesso de configuração só abre quando pedido: por Configurações → 12, pelo comando `ap` ou pelo gesto no boot. Com ele no ar, o aparelho continua medindo, gravando o histórico e alarmando ([capítulo 9](#cap-09-ap-quando));
-- uma unidade sem rede configurada pede a data e a hora no fim do boot, e Configurações → 13 abre a mesma tela a qualquer momento ([capítulo 10](#cap-10-painel)).
+- a troca obrigatória de PIN não pode mais ser pulada: **SAIR** volta à tela inicial, e o menu só abre depois da troca ([capítulo 8](#cap-08-pin-fabrica));
+- no painel, uma conta com a permissão **Usuários** só concede as permissões de painel que ela mesma tem ([capítulo 8](#cap-08-usuarios-painel));
+- uma política de PIN mais exigente não tranca mais do painel quem tem um PIN mais curto: a conta se identifica com o PIN antigo e vai para a troca, e a mensagem de PIN curto diz o mínimo da política ([capítulo 8](#cap-08-politica));
+- **Adotar a sonda ligada aqui** lê o GPIO do próprio slot, e a leitura segue com a sonda nova na hora ([capítulo 6](#cap-06-adotar));
+- o AP aberto pelo gesto no boot segue o prazo de 15 min num aparelho com rede configurada ([capítulo 9](#cap-09-ap-aberto));
+- a página **Arquivos** explica a recusa `v=6`, a de uma imagem de outro chip ([capítulo 17](#cap-17-ota-conferencias)).
 
-A v2.8.0, de 30/09/2026, tinha trazido:
+A v2.11.0, de 04/10/2026, tinha trazido:
 
-- um envio de firmware cortado ou recusado não leva mais a configuração junto: a rede, as contas, os sensores e a telemetria voltam no boot seguinte. Os demais arquivos voltam pelo backup, como antes, e a proteção vale para as atualizações feitas a partir de um aparelho que já tem a v2.8.0 ([capítulo 17](#cap-17-sobrevive));
-- no formato **Dinâmico**, cada linha de telemetria tem o seu **Cabeçalho Content-Type**, que antes era sempre `text/plain`; vazio, vale `application/json` ([capítulo 21](#cap-21-dinamico));
-- a configuração passa a um formato novo, que as versões anteriores não leem: para voltar a uma delas, guarde o backup feito antes de atualizar ([capítulo 3](#cap-03-antigo)).
+- o Pico 2 W (RP2350) passa a ter imagens publicadas: o `.uf2` de fábrica, que traz a tabela de partições, e o `.bin` de atualização ([capítulo 3](#cap-03-arquivos));
+- no Pico 2 W, a atualização pela rede vai para o outro slot, sem tocar no sistema de arquivos, e sobe em teste. Se não se confirmar em cinco minutos, ou se o aparelho reiniciar antes, ele volta sozinho para a versão anterior, e o painel e a página **Arquivos** dizem isso ([capítulo 26](#cap-26-ota));
+- uma transferência longa, como uma atualização, um backup ou uma restauração, não cai mais quando outra página do aparelho está aberta no navegador ([capítulo 18](#cap-18-sem-web));
+- na alpha, gravar a configuração não reinicia mais o aparelho pelo watchdog.
 
-Um aparelho com a v2.8.0 não tem os itens da v2.9.0, e o que as versões anteriores trouxeram está no apêndice [Histórico de versões](#ap-c). Onde este manual diz "na v2.7.1" ou "pelo código da v2.7.1", o texto vale também para as versões seguintes, salvo nas mudanças que o apêndice registra da v2.7.2 em diante. Como conferir a versão do seu aparelho está no [capítulo 17](#cap-17-ota-conferir).
+Um aparelho com a v2.11.0 não tem os itens da v2.11.1, e o que as versões anteriores trouxeram está no apêndice [Histórico de versões](#ap-c). Onde este manual diz "na v2.7.1" ou "pelo código da v2.7.1", o texto vale também para as versões seguintes, salvo nas mudanças que o apêndice registra da v2.7.2 em diante. Como conferir a versão do seu aparelho está no [capítulo 17](#cap-17-ota-conferir).
 
 ## Como ler este manual {#cap-01-como-ler}
 

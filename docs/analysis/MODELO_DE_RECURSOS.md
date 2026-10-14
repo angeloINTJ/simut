@@ -219,7 +219,7 @@ do chip no slot 16 é núcleo e cabe em poucos bytes.
 
 | id | recurso | corte hoje | custo conhecido | maturidade | proposta |
 |---|---|---|---|---|---|
-| `net.wifi_scan` | busca de redes, até 12 por sinal, também de dentro do AP; `GET /api/wifi/scan` | nenhum; `NetworkManager.cpp:257-352` + a NET | +2.776 e +624 B no release, +1.103 e +508 B gz (`flash_budget.json` 20/09); 432 B de RAM | validado 18/18 | chave |
+| `net.wifi_scan` | busca de redes, até 12 por sinal, também de dentro do AP; `GET /api/wifi/scan` | nenhum; `net/NetworkManager_Cyw43.cpp:188-287` + a NET | +2.776 e +624 B no release, +1.103 e +508 B gz (`flash_budget.json` 20/09); 432 B de RAM | validado 18/18 | chave |
 | `net.ap` | AP de configuração `<nome>_SETUP`, WPA2 com chave do chip, portal em 192.168.4.1; aberto por comando, painel ou gesto | nenhum; `SIMUT_AP_OPEN` só troca a chave (bancada) | dentro do "resto" de 13.447 B | validado (celular entra em 4,1 s) | chave, ligada por padrão; da v2.7.1 à v2.8.0, **com o AP no ar o aparelho não media** (R-R1) |
 | ~~`net.ap_auto`~~ **removido** | AP que abre sozinho sem rede configurada ou depois de perdê-la | **saiu do firmware em 2026-10-01**, por decisão do mantenedor: o AP só abre a pedido (painel, `ap`, gesto), e um aparelho sem rede pergunta a data e a hora no boot. Até então: nenhum, **nem em runtime**; o Air fica de fora por `SIMUT_AIR` (`NetworkManager.cpp:675-740`) | parte dos +1.424 B da v2.7.1 | parcial; o manual (cap. 9) diz: "não use nenhuma versão da v2.7.1 à v2.8.0 num aparelho que vai funcionar sem Wi-Fi" | chave, requer `net.ap`; **desligada por padrão** até ter interruptor em runtime |
 | `net.ap_gesture` | segurar o toque 3 s no boot para abrir o AP | nenhum (`AppManager_Boot.cpp:491`) | — | validado 4 casos (22/09); "o mais frágil dos cinco caminhos" (manual §14) | chave; requer `display = tft` e `net.ap` |
@@ -227,7 +227,7 @@ do chip no slot 16 é núcleo e cabe em poucos bytes.
 | `net.mdns` | `<nome>.local` e `_simut._tcp` com TXT `uid`, `ver`, `env`, `tls` | `SIMUT_MDNS`: 7 sítios em 3 arquivos, mas `#ifdef` em `SystemDefs_Network.h:61` e `#if` nos outros; vale 0 em test, alpha e Air | LEAmDNS 15.804 B; −16.608 B desligado (`DIETA_FLASH.md` §4); o comentário em `src/simut_config.h:285` diz "negligible" | "a bancada nunca exercita o responder"; no Air nunca anunciou (#118) | chave; requer 7 PCBs UDP do lwIP (R-N5) |
 | `net.https_server` | servidor TLS 1.2 com EC P-256, uma conexão por vez, `POST /api/tls`, `system https off`, política de senha forte | `SIMUT_WEB_HTTPS` como **`#ifdef`** (`=0` ligaria), 11 sítios em 4 arquivos; `WebManager_Tls.cpp` inteiro; `CMD_HTTPS_OFF` sem guarda | ~20 KB de flash do lado servidor (CHANGELOG v2.2.5) + `/api/tls` 3.872 B; ~21,5 KB de heap reservados no boot (`src/WebManager_Core.cpp:41-42`) | validado: ECDHE-ECDSA e ECDHE-RSA | chave; implica `tls.lib` (a BearSSL, que a telemetria segura também usa: R-S7) |
 | `net.bluetooth` | console SPP com a senha do admin, bloqueio que sobrevive à reconexão, visível 5 min | `SIMUT_BLUETOOTH` + `PIO_FRAMEWORK_ARDUINO_ENABLE_BLUETOOTH` + `BluetoothManager.cpp` no filtro + `lib_ignore SerialBT` retirado, tudo à mão (`platformio.ini:60-79`) | **64.732 B de flash e 16.416 B de `.bss`** (`platformio.ini:72-73`, medido no ferro); ≈135 kB no Air (`DIETA_FLASH.md` §3); 8 KiB de flash gravável dentro do slot (R-S6) | validado V-01a/b 3/3 | chave; requer `cli.emergency` (núcleo); é o único canal local do Air (R-S20) |
-| `fleet.hooks` | os ganchos de frota: CORS para o gestor, Bearer, cabeçalhos `X-SIMUT-*`, TXT do mDNS, `_dry`, manifesto | nenhum; espalhado por `CorsOrigin.h`, `WebManager_Core.cpp:25-35, :312-374`, `WebManager_Auth.cpp:525, :612`, `WebManager_Api.cpp:743-830`, `TelemetryManager.cpp:2385-2391`, `NetworkManager.cpp:836-872` | CORS 2.232 + 232 B (CHANGELOG v2.4.5); ~90 B por POST | parcial: "nada executado em aparelho" em 11/09 (`ANALISE_GESTOR_FROTA.md` §8) | chave; sem gestor de frota não serve a nada |
+| `fleet.hooks` | os ganchos de frota: CORS para o gestor, Bearer, cabeçalhos `X-SIMUT-*`, TXT do mDNS, `_dry`, manifesto | nenhum; espalhado por `CorsOrigin.h`, `WebManager_Core.cpp:25-35, :312-374`, `WebManager_Auth.cpp:525, :612`, `WebManager_Api.cpp:743-830`, `TelemetryManager.cpp:2385-2391`, `NetworkManager.cpp:357-374` | CORS 2.232 + 232 B (CHANGELOG v2.4.5); ~90 B por POST | parcial: "nada executado em aparelho" em 11/09 (`ANALISE_GESTOR_FROTA.md` §8) | chave; sem gestor de frota não serve a nada |
 
 O NTP, o fuso, a escada de reconexão e o IP estático são núcleo (2.1). O
 keep-alive HTTP já tem interruptor em runtime e fica.
@@ -277,7 +277,7 @@ keep-alive HTTP já tem interruptor em runtime e fica.
 
 | id | recurso | corte hoje | custo conhecido | maturidade | proposta |
 |---|---|---|---|---|---|
-| `power.air` | M0 acordado e M1 dormindo por alarme do RTC; acorda, lê, grava, e sobe o rádio só com `t_int` pendentes; sem Core 1, sem som, sem display | `SIMUT_AIR`: **41 sítios em 15 arquivos, tocando ~7 subsistemas** (`NetworkManager.cpp:380, :462, :675, :709, :836`; `WebManager_Commit.cpp:363`; `SoundManager.h:71`; `CommandParser.cpp:117`; `CommandManager.cpp:636`; `HelpLicenseEN.h:70`; `DisplayManager.h:363`) + filtro + `air/*.c`. `AppManager_Air.cpp:23` e `DisplayManager_None.cpp:20` testam a macro **antes de qualquer include** | folga de OTA do Air: 21.460 B | parcial: ciclo de 120,23 s medido; o soak reprovou no ciclo 119 (F28, só mitigado); **a corrente nunca foi medida** (`PLANO_DIVIDA_TECNICA.md` §3.1) | variante; implica `display = nenhum`, `!sound.buzzer`, `!tft.*`, ~~`!net.ap_auto`~~ **removido**; proíbe `_dry`/`_nosave` |
+| `power.air` | M0 acordado e M1 dormindo por alarme do RTC; acorda, lê, grava, e sobe o rádio só com `t_int` pendentes; sem Core 1, sem som, sem display | `SIMUT_AIR`: **41 sítios em 15 arquivos, tocando ~7 subsistemas** (`NetworkManager.cpp:168, :340`, `net/NetworkManager_Cyw43.cpp:389`; `WebManager_Commit.cpp:363`; `SoundManager.h:71`; `CommandParser.cpp:117`; `CommandManager.cpp:636`; `HelpLicenseEN.h:70`; `DisplayManager.h:363`) + filtro + `air/*.c`. `AppManager_Air.cpp:23` e `DisplayManager_None.cpp:20` testam a macro **antes de qualquer include** | folga de OTA do Air: 21.460 B | parcial: ciclo de 120,23 s medido; o soak reprovou no ciclo 119 (F28, só mitigado); **a corrente nunca foi medida** (`PLANO_DIVIDA_TECNICA.md` §3.1) | variante; implica `display = nenhum`, `!sound.buzzer`, `!tft.*`, ~~`!net.ap_auto`~~ **removido**; proíbe `_dry`/`_nosave` |
 | `air.charger_sense` | GP17 em nível alto impede a hibernação | `AIR_CHARGER_PIN` + `air charger` em runtime | — | validado (130 s acordado com carregador) | chave; requer `power.air` |
 
 ### 2.13 Instrumentos de bancada
@@ -290,7 +290,7 @@ mostre como tal e para que o CI os construa.
 | `bench.concurrency_asserts` | `SIMUT_CONCURRENCY_ASSERTS` (`#ifdef`), `pico_w_asserts` | `src/DisplayManager.cpp:200-206`, `ConcurrencyAsserts.h` | instrumento; **requer `display ≠ nenhum`**: a ponte `simutStateMutexHeldByCurrentCore` só existe em `DisplayManager.cpp`, que o Air exclui (inferido: Air + asserts não linkaria) |
 | `bench.mirror_probe` | `SIMUT_MIRROR_PROBE`, nenhum ambiente | 8 sítios em 3 arquivos | instrumento; requer `tft.mirror` |
 | `bench.wdt_disabled` | `SIMUT_WDT_DISABLED` (`#ifndef`), nenhum ambiente | `src/main.cpp:28, :48, :69` | instrumento |
-| `bench.ap_open` | `SIMUT_AP_OPEN` | `src/NetworkManager.cpp:141` | instrumento; requer `net.ap` |
+| `bench.ap_open` | `SIMUT_AP_OPEN` | `src/net/NetworkManager_Cyw43.cpp:129` | instrumento; requer `net.ap` |
 | `bench.flash_irq_probe` | sempre linkado; `tools/check_flash_probe.py` confere a SRAM | `src/FlashIrqProbe.cpp` | instrumento ligado por padrão em todo perfil (é a sonda das pausas de flash) |
 | `bench.ui_study`, `bench.cli_panel`, `web.api_bench`, `tel.tls_keepalive` | ver acima | | |
 
@@ -328,6 +328,19 @@ Uma escolha por perfil, como o display, que o gerador traduz no `board` do Platf
 | `rp2350` | `rpipico2w` | `-Wno-error=overloaded-virtual` (o `WiFiClientSecureBearSSL.h` do framework dispara esse aviso só neste chip, medido em 01/10/2026) | só `pico2_w_release`, só no CI (S0 da fase 4 de [PLANO_REVISAO_EXTERNA.md](PLANO_REVISAO_EXTERNA.md)); 976.984 B de flash de um slot de 3.141.632 B, 123.188 B de RAM estática de 524.288 (medido sobre o #214) |
 
 Para o RP2350 compilar sem escrever no lugar errado, os endereços do watchdog e do PSM e o número da IRQ do timer passaram a vir do SDK do chip (as seis imagens do RP2040 saíram idênticas, byte a byte). O layout de 4 MB, o OTA com partições A/B e o Air no RP2350 são etapas seguintes; o `pico2_w_release` herda hoje o LittleFS de 1 MB do `pico_base` e um OTA que supõe a flash do Pico W.
+
+### 2.17 A rede (desde 13/10/2026)
+
+Uma escolha por perfil, como o display e o chip: `net = "<id>"` nomeia um `[net.<id>]` de `tools/features.toml`, o **driver** da rede da imagem, e o configurador a mostra como "Conexão", no grupo Rede. De 12/10 a 13/10/2026 a rede por cabo era a chave `lan` ("cabo no lugar do Wi-Fi"), que não tinha onde pôr uma terceira placa. Não conta entre as chaves: não liga recurso, troca a placa que leva a imagem à rede.
+
+| Valor | Classe | `board` | O que muda | Estado |
+|---|---|---|---|---|
+| `cyw43` (padrão) | `wifi` | o do chip (`rpipicow`, `rpipico2w`) | nada: é o rádio do Pico W e do Pico 2 W, em todas as imagens publicadas | as sete imagens com rádio |
+| `enc28j60` | `lan` | `rpipico` no RP2040; sem placa no RP2350 (o gerador recusa, `unsupported-net`) | tira `-DPICO_CYW43_SUPPORTED=1`, passa `-DMAX_SENSORS=11` (o módulo fica com GP11–GP15), traz a biblioteca do mantenedor (fixada por commit) e as duas unidades do driver; as páginas perdem os blocos `@IF wifi` | `pico_wire` e `pico_wiretft`, de bancada, sem soak (aviso `enc28j60-unsoaked`) |
+
+A **classe** (`[net_class]`) é o que as páginas, o console e os painéis sabem da rede: `wifi` entra numa rede por nome e senha, com busca de redes, ponto de acesso de configuração e nível de sinal; `lan` é um cabo, com endereço por DHCP ou fixo. A classe `lan` carrega o bit 18 do `feat` do `/api/status`, que era da chave `lan`. O **driver** é a placa: o `board` por chip, os flags, as unidades de tradução (as de um driver que não é o do perfil saem do build), as bibliotecas, e o programa PIO e os pinos em `tools/pio_budget.py` (`net=<id>` no `ORDER`, o id no `PINS`).
+
+Regras que a escolha traz: `bluetooth-needs-cyw43` e `air-needs-cyw43` pedem o CYW43, e não "nenhum cabo", porque uma placa de rede acrescentada depois também não teria o rádio; o orçamento de PIO recusa o ENC28J60 com o DS18B20 e o DHT22 juntos no RP2040, e nunca sugere trocar a rede como remédio (a placa é a premissa da build). Uma placa nova (W5500, W5100, W6100: todas `LwipIntfDev` no arduino-pico, como o ENC28J60) é um `[net.<id>]`, um `[ui_nets.<id>]`, o driver em `src/net/` e, se usar PIO ou pinos, as linhas dela no `pio_budget.py`.
 
 ---
 
@@ -480,8 +493,8 @@ medição, e o P8 as põe na lista dos pares de risco.
 | R-S8 | `net.https_server` só ativa com o par de certificado no `/config`, e só então reserva o pool de ~21,5 KB; sem par, serve HTTP | `src/WebManager_Core.cpp:41-42, :293, :408-410` | runtime |
 | R-S9 | `auth.strong_password` hoje só existe sob `net.https_server`; a regra alvo é a independência | `src/WebManager_Auth.cpp:722-733, :783-794` | defeito |
 | R-S10 | `net.mdns` requer 7 PCBs UDP do lwIP (reduzir quebra o mDNS) e conflita com `power.air` (nunca anunciou; desligado desde a v2.4.4-beta) | `tools/arduino_pico_overrides/README.md`; `platformio.ini:527-529`; issue #118 | documento |
-| R-S11 | Em `fleet.hooks`, só o TXT do mDNS requer `net.mdns`; o resto (CORS, Bearer, `X-SIMUT-*`, `_dry`, etiqueta) não requer nada | `src/NetworkManager.cpp:836-872` | documento |
-| R-S12 | ~~`net.ap_auto`~~ **removido**, `net.captive_dns`, `net.ap_gesture` e `bench.ap_open` requerem `net.ap`; `net.ap_gesture` requer também `display = tft`; ~~`power.air` implica `!net.ap_auto`~~ **removido** | `src/NetworkManager.cpp:104-196, :675-740`; `src/AppManager_Boot.cpp:491` | documento (o Air, script) |
+| R-S11 | Em `fleet.hooks`, só o TXT do mDNS requer `net.mdns`; o resto (CORS, Bearer, `X-SIMUT-*`, `_dry`, etiqueta) não requer nada | `src/NetworkManager.cpp:357-374` | documento |
+| R-S12 | ~~`net.ap_auto`~~ **removido**, `net.captive_dns`, `net.ap_gesture` e `bench.ap_open` requerem `net.ap`; `net.ap_gesture` requer também `display = tft`; ~~`power.air` implica `!net.ap_auto`~~ **removido** | `src/net/NetworkManager_Cyw43.cpp` (`beginAP( )` e o ramo do AP de `updateLinkFirst( )`); `src/AppManager_Boot.cpp:491` | documento (o Air, script) |
 | R-S13 | `tel.tls_client` requer `tel.http` ou `tel.mqtt`; `tel.mqtt` requer `tel.http` (lote e cursor partilhados); `tel.csv_mode`, `tel.custom_payload` e `web.page_tel` requerem `tel.http`; `tel.alarm_line` requer `alarms.limits` e `tel.http`; `tel.ha_discovery` requer `tel.mqtt` | `src/TelemetryManager.cpp:183-253, :1082-1227, :2418-2786` | documento |
 | R-S14 | `tel.ha_discovery` exige em runtime MQTT, payload JSON e lote ≤ 5 | `src/TelemetryManager.cpp:292, :1084`; manual cap. 23 | runtime |
 | R-S15 | `tel.alarm_line` por MQTT exige `t_int > 0` | manual cap. 22 | documento |
@@ -495,7 +508,7 @@ medição, e o P8 as põe na lista dos pares de risco.
 | R-S23 | `cli.bilingual` requer um `i18n.pack_*` no FS (com pack não inglês o `help` vem do `.lng`) | `AGENTS.md` §3; `HelpLicenseEN.h` | documento |
 | R-S24 | `tft.license_text` em stub não cobre a página; `license.web` fica em todo perfil porque `check_license.py` exige as três cópias iguais, e o texto MIT da página igual ao da string do firmware | `tools/check_license.py`; `HelpLicenseEN.h:238` | script |
 | R-S25 | `i18n.pack_*`: cada pack ≤ 49.152 B de arquivo e ≤ 6.144 B de `@DICT`, a única seção que vai para o heap; o es-ES usa 47 % | `tools/check_lang_packs.py:43-55, :274-330`; `src/DisplayManager_LangParser.cpp:64-65` | script |
-| R-S26 | `storage.backup_restore`: o restore aceita no máximo 200 arquivos e 4 KB de caminhos; uma `hist.quota` maior pode voltar a estourar esse pool | `src/ota/restore.cpp:65-72` | documento |
+| R-S26 | ~~`storage.backup_restore`: o restore aceita no máximo 200 arquivos e 4 KB de caminhos; uma `hist.quota` maior pode voltar a estourar esse pool~~ Removida em 02/10 (#236): o restore não guarda mais lista de caminhos, e não há limite de arquivos | `src/ota/restore.cpp` | resolvida |
 | R-S27 | `net.https_server` é `#ifdef`: `-DSIMUT_WEB_HTTPS=0` **liga** o servidor; `CMD_HTTPS_OFF` existe em todo perfil, com ou sem servidor | `src/WebManager_Core.cpp:39`; `src/CommandParser.cpp:306`; `src/AppManager_Commands.cpp:737` | defeito |
 | R-S28 | `cli.full` e `power.air` são as únicas macros que `check_cli_help.py` sabe remover; `SIMUT_PANEL_PIN` e `SIMUT_UI_STUDY` são vistas como sempre presentes | `tools/check_cli_help.py:101-122` | script, com o furo |
 | R-S29 | `AppManager_Air.cpp` e `DisplayManager_None.cpp` testam `SIMUT_AIR` antes de qualquer `#include`: ligar o Air só pelo `simut_config.h` os deixa vazios | `src/AppManager_Air.cpp:23`; `src/DisplayManager_None.cpp:20` | inferida |
@@ -544,14 +557,14 @@ Não impedem o build; são o que o painel de maturidade mostra.
 | R-R5 | Fila de alarmes cheia: a borda recusada some e a fila guarda os mais antigos | `tel.alarm_line` | issue #161, aberta |
 | R-R6 | A CLI corta em 63 caracteres e responde OK: templates de payload e da linha de alarmes só inteiros pela web | `cli.full` × `tel.custom_payload`, `tel.alarm_line` | B12, `PLANO_STABLE.md` |
 | R-R7 | O keep-alive ocioso corta ~7,1 % das respostas | `web` | B13, `PLANO_STABLE.md` |
-| R-R8 | Roteadores matam fluxos longos na porta 80: OTA e uploads grandes vão pela porta alternativa | `ota.web`, `web.files` | `docs/OTA_USAGE.md`; memória da bancada |
+| R-R8 | Até a v2.10.0, um envio longo pela web caía com outra página do aparelho aberta: o lwIP matava a conexão mais antiga para admitir as consultas. Não era o roteador nem a porta 80; o patch 2l do framework conserta | `ota.web`, `web.files` | `docs/OTA_USAGE.md`; `tools/arduino_pico_overrides/README.md` |
 | R-R9 | No Air, alarmes, OTA, web e Bluetooth só existem em M0; um `air stop` pelo Bluetooth não funciona em M1 | `power.air` | manual cap. 20; `CLI-Manual.md` §9.1 |
 | R-R10 | 6 falhas de PIN trancam a conta e 20 trancam o painel até o reboot; 8 toques ocupam ~360 ms do Core 0 | `panel.pin` | `AGENTS.md` §1; `AUTHORIZATION.md` |
 | R-R11 | Três sessões web; a quarta pessoa é recusada; um login novo da mesma conta derruba o token anterior | `web` | `src/WebManager_Auth.cpp:20-72`; `INTEGRACAO_SERVIDOR.md` §5.1 |
 | R-R12 | `sampleIntervalMs`, `loggingEnabled`, `useHttps` e `displayPin` são aceitos e não fazem nada; **os quatro deixaram de forçar reinício** (`CFG_NONE`, 2026-09-26) — resta que ainda são aceitos e ecoados | núcleo | 2.15; `ConfigApply.h` |
 | R-R13 | Trocar de perfil por OTA sem `schema_id` (P5) grava um blob de config que a outra imagem lê sem saber | `ota.web` | R-S1 |
 | R-R14 | `MAX_CUSTOM_THEMES` é 8 e `data/themes/` traz 12: quatro somem em silêncio | `tft.themes_fs` | `src/Themes.cpp:302` |
-| R-R15 | Sem SSID configurado o AP não tem saída: o timeout só volta a STA com SSID, então um AP aberto a pedido num aparelho sem rede fica no ar até alguém gravar uma rede ou reiniciar. Da v2.7.1 à v2.8.0, a release e o alpha abriam esse AP sozinhos no boot e não mediam | `net.ap` | `src/NetworkManager.cpp:381-382`; `CHANGELOG.md` v2.7.3 |
+| R-R15 | Sem SSID configurado o AP não tem saída: o timeout só volta a STA com SSID, então um AP aberto a pedido num aparelho sem rede fica no ar até alguém gravar uma rede ou reiniciar. Da v2.7.1 à v2.8.0, a release e o alpha abriam esse AP sozinhos no boot e não mediam | `net.ap` | `src/net/NetworkManager_Cyw43.cpp:302`; `CHANGELOG.md` v2.7.3 |
 | R-R16 | `display = alpha_*` com idioma diferente do inglês: `trlLookup` e `logcodeLookup` devolvem "", e `LogManager::setLanguage` roda sem condição, então rótulos de `TRL()` e de códigos de log sairiam vazios | `display = alpha_*` × `i18n.pack_*` | `src/DisplayManager_Alpha.cpp:610-615`; `src/LogManager.cpp:1300-1316`; inferida, não medida |
 | R-R17 | `@TRL` não tem consumidor em runtime no TFT nem no Air: `trlLookup` devolve `nullptr` e as linhas traduzidas saem em inglês; o gate de packs e o `CLAUDE.md` prometem que uma entrada faltando afeta "só aquela linha" | `cli.bilingual`, `i18n.pack_*` | `src/DisplayManager_LangParser.cpp:332-334, :346-360`; `tools/check_lang_packs.py:321-333` |
 
@@ -928,7 +941,7 @@ elimina.
 > - **A saída é um perfil JSON, e o botão dispara `build-custom.yml`**, que
 >   roda o `build_custom.py`: reaplica as regras (a página não é a
 >   autoridade), recusa perfil malformado antes de baixar qualquer coisa
->   (`tools/test_build_custom.py` tenta 34 formas) e publica o `.uf2` e o
+>   (`tools/test_build_custom.py` tenta 54 formas desde 13/10/2026) e publica o `.uf2` e o
 >   `.bin` com os tamanhos medidos. Só quem tem escrita no repositório dispara
 >   um workflow; o token dessa pessoa fica no navegador dela e só vai para
 >   `api.github.com`, que é o único destino que a política de conteúdo da página
@@ -1680,7 +1693,7 @@ código é defeito). Nenhuma foi corrigida nesta análise; o P0 as leva.
 | `docs/adding-a-new-sensor.md:34` | a flag vai em `SensorConfig.h` | esse arquivo só inclui `simut_config.h`; o `SensorManager` não está na lista |
 | `docs/analysis/PLANO_DIVIDA_TECNICA.md` (topo) | "F08, PR #103 em draft" | `84de35b` está na `main` (v2.4.4-beta) |
 | `CHANGELOG.md` | sem v2.4.2, v2.4.3, v2.4.4 | as três tags existem |
-| `CLAUDE.md:14` | `WebUI.h` "all 8 languages" | não há blocos `@LANG`; o produto tem três idiomas |
+| ~~`CLAUDE.md:14`~~ **corrigido em 2026-10-03** | `WebUI.h` "all 8 languages" | não há blocos `@LANG`; o produto tem três idiomas |
 | `docs/WIRING.md:212` | "0–15 = slots" | GP8/9 são também a UART1 de boot no TFT (R-H5) |
 | `docs/OTA_USAGE.md:46` | "o LittleFS é reformatado pelo apply" | é o stage que grava por cima do FS; um stage confirmado deixa o FS desmontado (R-F7) |
 | `platformio.ini:146-147` | "repeat SerialBT there (see pico_w_alpha)" | o alpha não repete, e não pode: usa Bluetooth; a regra certa é repetir só num ambiente sem BT |
@@ -1785,16 +1798,16 @@ As constantes de capacidade que o levantamento encontrou e que ficam fora do mod
 | `lang-count` | `LANG_COUNT` | 2 | idiomas embutidos | src/SystemDefs_Records.h:72 |
 | `theme-strings` | `THM_ID_MAX` / `THM_NAME_MAX` | 16 / 24 | id e nome do tema | src/Themes.cpp:304-305 |
 | `theme-builtin` | `SIMUT_THEMES_*`; `themeIndex` é int8_t | 1 tema core + packs; índice ≤127 | temas compilados | src/simut_config.h:313-324; src/SystemDefs_Records.h:393 |
-| `wifi-reconnect` | `WIFI_RECONNECT_BASE_MS`, `MAX_RECONNECT_DELAY`, `WIFI_MAX_CONNECT_CYCLES`, `WIFI_DORMANT_DELAY_MS`, `WIFI_DORMANT_MAX_WAITS`, `WIFI_SCANS_BEFORE_BLIND_JOIN`, `WIFI_SCAN_TIMEOUT_MS`, associação | 5000; 120000; 5; 600000; 3; 2; 15000; 20000 | escada de reconexão | src/SystemDefs_Network.h:67, :73, :76, :88, :105, :118; src/NetworkManager.h:266; src/NetworkManager.cpp:656 |
+| `wifi-reconnect` | `WIFI_RECONNECT_BASE_MS`, `MAX_RECONNECT_DELAY`, `WIFI_MAX_CONNECT_CYCLES`, `WIFI_DORMANT_DELAY_MS`, `WIFI_DORMANT_MAX_WAITS`, `WIFI_SCANS_BEFORE_BLIND_JOIN`, `WIFI_SCAN_TIMEOUT_MS`, associação | 5000; 120000; 5; 600000; 3; 2; 15000; 20000 | escada de reconexão | src/SystemDefs_Network.h:67, :73, :76, :88, :105, :118; src/NetworkManager.h:268; src/NetworkManager.cpp:232-237; src/net/NetworkManager_Cyw43.cpp:585-589 |
 | `ntp` | `NTP_MAX_RETRY_DELAY_MS` / `NTP_FAILS_BEFORE_FALLBACK` / `NTP_SUSPECT_DELTA_S` / `ntpServer[32]` | 900000 / 3 / 3600 / 31 chars | NTP | src/SystemDefs_Network.h:162, :169, :186; src/SystemDefs_Records.h:400 |
-| `hostname` | `deviceName[32]` | ≤31 chars | hostname mDNS, SSID do AP (+"_SETUP"), syslog | src/SystemDefs_Records.h:351; src/NetworkManager.h:244-247; src/NetworkManager.cpp:460 |
+| `hostname` | `deviceName[32]` | ≤31 chars | hostname mDNS, SSID do AP (+"_SETUP"), syslog | src/SystemDefs_Records.h:351; src/NetworkManager.h:244-247; src/NetworkManager.cpp:47; src/net/NetworkManager_Cyw43.cpp:125, :387; src/net/NetworkManager_Wired.cpp:190 |
 | `mdns` | `SIMUT_MDNS` / `MDNS_UPDATE_INTERVAL_MS` | 1 no release (0 em test, alpha e air) / 2000 | responder mDNS | src/simut_config.h:293; src/SystemDefs_Network.h:63 |
 | `ap` | `AP_MODE_TIMEOUT_MS` / `AP_PSK_LEN` / `AP_HOLD_DURATION_MS` | 900000 / 10 / 3000 | modo AP | src/SystemDefs_Network.h:363; src/ApPsk.h:45; src/SystemDefs_Time.h:23 |
 | `rssi` | `RSSI_MIN_THRESHOLD` | -78 | abaixo disso adia telemetria e upload | src/SystemDefs_Network.h:49 |
 | `bt` | `BT_AUTH_BUFFER_MAX` / `BT_DISCOVERABLE_MS` / `_timeoutMs` | 64 / 300000 / 300000 | Bluetooth (alpha e air) | src/SystemDefs_Network.h:253, :274; src/BluetoothManager.h:50 |
 | `cli` | `CLI_LINE_MAX` / `strVal1/2[64]`, `strVal3[32]` / `parts[6]` | 256 / 63 / 31 / 6 tokens | linha e argumentos da CLI | src/SystemDefs_Network.h:280; src/SystemDefs_Cli.h:180-182; src/CommandParser.cpp:80 |
 | `air-wake` | `AIR_WAKE_INTERVAL_MIN` | 5 | período de wake quando `h_int` lê 0 | src/simut_config.h:403 |
-| `air-phases` | `AIR_STAB_TIMEOUT_MS` / `AIR_CONNECT_TIMEOUT_MS` / `AIR_FLUSH_TIMEOUT_MS` / `AIR_FLUSH_TAIL_MS` | 30000 / 30000 / 30000 / 5000 | duração das fases do wake | src/simut_config.h:409, :415, :418, :427; src/air/AirConfig.h:139, :153-154 |
+| `air-phases` | `AIR_STAB_TIMEOUT_MS` / `AIR_CONNECT_TIMEOUT_MS` / `AIR_FLUSH_TIMEOUT_MS` / `AIR_FLUSH_TAIL_MS` / `AIR_FLUSH_NTP_WAIT_MS` | 30000 / 30000 / 30000 / 5000 / 10000 | duração das fases do wake; a última é quanto a FLUSH espera o NTP | src/simut_config.h:713, :719, :722, :731, :740; src/air/AirConfig.h:139, :153-154 |
 | `air-scan-dead` | `AIR_WIFI_SCAN_TIMEOUT_MS` | 4000 | nada (o campo virou `chargerPin`) | src/simut_config.h:412; src/air/AirConfig.h:140-150 |
 | `air-attempts` | `AIR_MAX_CONNECT_ATTEMPTS` | 2 | tentativas de Wi-Fi por wake | src/simut_config.h:451 |
 | `air-sleep` | `AIR_MIN_SLEEP_SEC` / `AIR_MAX_SLEEP_SEC` | 5 / 86399 | limites do alarme de RTC | src/simut_config.h:459; src/air/AirConfig.h:269 |

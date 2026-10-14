@@ -310,6 +310,17 @@ Latest. Conserto: `gh release edit --draft=false --latest`.
 
 ## Pedido em 21/09/2026 — contas sem reinício
 
+**Feito em 02/10/2026 (A-08 da revisão externa, PR #230).** A tabela abaixo foi
+respondida lendo cada consumidor: a sessão web guardava as permissões do login e
+não relia nada — o reinício era a revogação, e uma conta apagada no painel ou na
+CLI já mantinha a sessão web por até 15 min. Agora a sessão confere a conta viva
+a cada requisição (`src/SessionCheck.h`: conta inativa, slot com outro nome ou
+sal novo encerram; os bits valem na hora), o painel faz o mesmo em
+`panelAllowed( )`, `CFG_USERS` saiu de `CFG_REBOOT_CLASSES` e o comentário do
+`pinAuth` virou verdade. O ensaio (`_dry=1`) aceita `users` sem cunhar senha, e a
+página oferece **Aplicar agora** para contas. O `mustChangePassword` da conta
+nova não precisou de decisão: ele é lido no login, então vale na hora.
+
 **Pedido do mantenedor:** aplicar criação, exclusão e reset de conta **ao vivo**,
 sem reiniciar o aparelho. Hoje a seção `users` do `commit_all` responde
 `reboot_for:["users"]`, e criar três contas em três requisições reinicia três

@@ -7,9 +7,12 @@
  *          handleUploadData) e mantém estado entre chunks.
  *
  *          Modo VALIDATE: lê + computa CRCs + valida; nunca toca LittleFS.
- *          Modo APPLY: durante CONTENT, escreve em "<path>.restore_tmp";
- *                      no commit final, renomeia todos para o path original.
- *                      Em rollback, deleta todos `.restore_tmp` órfãos.
+ *                      Guarda a impressão (cabeçalho) do backup validado.
+ *          Modo APPLY: só aceita o backup validado por último; escreve cada
+ *                      arquivo direto no caminho final, e numa falha apaga
+ *                      só o arquivo que ficou incompleto. Os que terminou
+ *                      ficam: o original de cada um já foi sobrescrito, e o
+ *                      conteúdo é o do backup validado (achado 58, 2026-10-02).
  *
  * @project SIMUT
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
@@ -25,12 +28,11 @@
 
 namespace ota {
 
-constexpr const char* RESTORE_TMP_SUFFIX = ".restore_tmp";
 constexpr size_t RESTORE_MAX_PATH = 200;  /* < 256 (path_len uint16) e cabe no struct */
 
 enum class RestoreMode : uint8_t {
     VALIDATE = 0,   /**< Não escreve em LittleFS. */
-    APPLY = 1,      /**< Escreve em <path>.restore_tmp; commit/rollback no final. */
+    APPLY = 1,      /**< Escreve no caminho final; numa falha, apaga só o incompleto. */
 };
 
 enum class RestorePhase : uint8_t {
@@ -69,11 +71,13 @@ struct RestoreSession {
 
     /* CONTENT phase */
     File     cur_file;            /**< Aberto só em APPLY. */
+    bool     cur_incomplete;      /**< APPLY: cur_path aberto e ainda sem todo o conteúdo. */
+    bool     wrote_any;           /**< APPLY: algum arquivo foi aberto para escrita. */
     uint32_t cur_content_remaining;
 };
 
 /**
- * @brief Inicializa sessão. Em APPLY: faz cleanup de .restore_tmp órfãos.
+ * @brief Inicializa sessão.
  */
 void restore_session_begin(RestoreSession& s, RestoreMode mode);
 
@@ -89,31 +93,24 @@ bool restore_session_feed(RestoreSession& s, const uint8_t* data, size_t len);
 /**
  * @brief Finaliza a sessão.
  *
- * Em VALIDATE: apenas reporta status (sem efeitos colaterais).
- * Em APPLY:
- *   - Se status == OK e phase == DONE: commit (rename todos .restore_tmp).
- *   - Caso contrário: rollback (deleta todos .restore_tmp).
+ * Em VALIDATE: reporta o status; com OK, guarda a impressão do backup que o
+ *              próximo APPLY tem de trazer.
+ * Em APPLY:   numa falha, apaga o arquivo que ficou incompleto (o original já
+ *              foi truncado); os terminados ficam.
  *
  * @param s         Sessão.
- * @param fs_modified  Out: true se a LittleFS foi modificada (apenas APPLY+commit).
+ * @param fs_modified  Out: true se o APPLY abriu algum arquivo para escrita —
+ *                     com sucesso ou não: um APPLY que falhou depois de gravar
+ *                     também mudou o sistema de arquivos.
  * @return Status final.
  */
 BackupStatus restore_session_finish(RestoreSession& s, bool* fs_modified);
 
 /**
- * @brief Aborta a sessão (cleanup de tmps + reset).
+ * @brief Aborta a sessão: em APPLY, apaga o arquivo que ficou incompleto.
  *
  * Para uso em UPLOAD_FILE_ABORTED.
  */
 void restore_session_abort(RestoreSession& s);
-
-/**
- * @brief Cleanup standalone de .restore_tmp órfãos (chamável a qualquer momento).
- *
- * Útil em boot e antes de qualquer nova sessão APPLY. Walk recursivo.
- *
- * @return Quantidade de arquivos removidos.
- */
-uint32_t restore_cleanup_orphan_tmps();
 
 } /* namespace ota */

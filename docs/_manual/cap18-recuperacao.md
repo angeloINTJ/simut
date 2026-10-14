@@ -40,7 +40,7 @@ Siga a lista na ordem. Cada item descarta uma causa.
    - **Limite de sessões atingido. Tente mais tarde.**: três contas já têm sessão; espere 15 min sem uso de uma delas, ou reinicie o aparelho;
    - **Usuário ou senha incorretos.**: veja [Senha do administrador esquecida](#cap-18-senha).
 6. **Entrou, e a página mostra só `Access Denied`?** A conta não tem a permissão **Painel** ([capítulo 13](#cap-13-permissoes)).
-7. **As páginas abrem, mas o backup ou a atualização caem no meio?** Alguns roteadores cortam transferências longas na porta 80. Use uma porta alternativa do servidor web ([capítulo 9](#cap-09-servidor-web)).
+7. **As páginas abrem, mas o backup ou a atualização caem no meio?** Até a v2.10.0, isso acontecia com outra página do aparelho aberta no navegador: feche as outras abas do aparelho e tente de novo. A porta do servidor web não faz diferença.
 
 ## Senha do administrador esquecida {#cap-18-senha}
 
@@ -89,7 +89,7 @@ O que é a rede `<nome>_SETUP`, quando ela abre e como sair dela estão no [cap�
 O AP não abre sozinho: nem num aparelho sem rede configurada, nem quando a rede cai. Abra-o:
 
 - pelo console USB ou Bluetooth, com o comando `ap`. A resposta traz a chave: `OK: Modo AP iniciado (WPA2). Senha: ...`;
-- [release]{.img} pelo painel, no item 12 do menu de configurações, com a permissão **Rede** no painel ([capítulo 11](#cap-11-ap));
+- [release]{.img} pelo painel, no item 8 do menu de configurações, com a permissão **Rede** no painel ([capítulo 11](#cap-11-ap));
 - [release]{.img} segurando a tela durante o boot, quando o painel pede **Mantenha a tela pressionada: Modo AP...** ([capítulo 11](#cap-11-boot-ap)).
 
 Se o console mostrar `[AP] FAILED to start`, o AP não subiu, e o log registra **AP iniciado** (15) com contexto −1. A causa mais comum é um nome de aparelho longo demais: o nome da rede é o nome do aparelho com `_SETUP`, e o total não pode passar de 32 caracteres. Encurte o nome para até 26 caracteres ([capítulo 9](#cap-09-ap)).

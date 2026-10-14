@@ -185,6 +185,29 @@ static void test_sleep_sec_bounded(void) {
     }
 }
 
+/* The FLUSH phase's "the network is lost". The upload waits for NET_READY
+ * (TelemetryManager::update( ) reads isNetworkHealthy( )), and the phase starts
+ * as soon as the link has an address, before NTP answers on a network that has
+ * it (0 to 5 s after the address in five boots on the bench, 2026-10-13). So a link without
+ * NTP yet is not lost, but only for AIR_FLUSH_NTP_WAIT_MS: on a network that
+ * never answers NTP, the phase would hold the radio until its whole budget (up
+ * to 30 s a telemetry wake) and send nothing. */
+static void test_flush_waits_for_ntp_for_a_while_only(void) {
+    /* an unhealthy link is lost at once, NTP or not */
+    TEST_ASSERT_TRUE(airFlushNetLost(false, true, 0, AIR_FLUSH_NTP_WAIT_MS));
+    TEST_ASSERT_TRUE(airFlushNetLost(false, false, 0, AIR_FLUSH_NTP_WAIT_MS));
+    /* NET_READY: the NTP rule never applies */
+    TEST_ASSERT_FALSE(airFlushNetLost(true, true, 120000, AIR_FLUSH_NTP_WAIT_MS));
+    /* a healthy link waiting for NTP: kept through the wait, given up after it */
+    TEST_ASSERT_FALSE(airFlushNetLost(true, false, 0, AIR_FLUSH_NTP_WAIT_MS));
+    TEST_ASSERT_FALSE(airFlushNetLost(true, false, AIR_FLUSH_NTP_WAIT_MS - 1, AIR_FLUSH_NTP_WAIT_MS));
+    TEST_ASSERT_TRUE_MESSAGE(airFlushNetLost(true, false, AIR_FLUSH_NTP_WAIT_MS, AIR_FLUSH_NTP_WAIT_MS),
+        "a link that never gets NTP held the FLUSH past the wait");
+    /* the wait the maintainer chose (2026-10-14), under the phase's own cap */
+    TEST_ASSERT_EQUAL_UINT32(10000, AIR_FLUSH_NTP_WAIT_MS);
+    TEST_ASSERT_TRUE(AIR_FLUSH_NTP_WAIT_MS < AIR_FLUSH_TIMEOUT_MS);
+}
+
 /* The clock carried across the sleep (scratch[6]/[7]). The tag has to refuse
  * everything that is not the pair one sleep wrote: a register left at zero, a
  * register holding a soft panic's payload, and a tag written beside different
@@ -257,6 +280,7 @@ int main(void) {
     RUN_TEST(test_sanitise_resets_denied_pin);
     RUN_TEST(test_idle_sec_bounds);
     RUN_TEST(test_sleep_sec_bounded);
+    RUN_TEST(test_flush_waits_for_ntp_for_a_while_only);
     RUN_TEST(test_clock_carry_roundtrip);
     RUN_TEST(test_clock_carry_refuses);
     RUN_TEST(test_clock_carry_advance);

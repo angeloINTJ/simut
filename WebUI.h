@@ -398,7 +398,12 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 <div class="compact-info">
                     <div class="c-item"><div class="c-lbl" data-i18n="dash_dt">System Date & Time</div><div class="c-val" id="sys-time">--/--/---- --:--:--</div><div class="c-sub" id="ntp-stat" data-i18n="dash_ntp_wait">Waiting NTP...</div></div>
                     <div class="c-item"><div class="c-lbl" data-i18n="dash_up">System Uptime</div><div class="c-val" id="up">--d --h --m --s</div></div>
+                    /* @IF wifi */
                     <div class="c-item"><div class="c-lbl" data-i18n="dash_wifi">WiFi Signal</div><div class="c-val" id="rssi">-- dBm</div><div class="c-sub" id="rssi-mm">min --/-- max</div></div>
+                    /* @ENDIF */
+                    /* @IF !wifi */
+                    <div class="c-item"><div class="c-lbl" data-i18n="dash_net_wired">Wired network</div><div class="c-val" id="net-link">--</div><div class="c-sub" id="net-ip">--</div></div>
+                    /* @ENDIF */
                     <div class="c-item"><div class="c-lbl" data-i18n="dash_pend">Pending Records</div><div class="c-val" id="pending">-- pkts</div><div class="c-sub" id="pending-sub">Waiting telemetry sync</div></div>
                     <div class="c-item">
                         <div style="display:flex; justify-content:space-between;"><div class="c-lbl" data-i18n="dash_ram">RAM Usage</div><div class="c-val" style="font-size:0.85rem;" id="ram-pct">--%</div></div>
@@ -414,7 +419,12 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 <div class="compact-info">
                     <div class="c-item"><div class="c-lbl" data-i18n="dash_metr_lblk">Largest Block</div><div class="c-val" id="m-lblk">-- KB</div><div class="c-sub" id="m-lblk-min" data-i18n-sub="dash_metr_min">min --</div></div>
                     <div class="c-item"><div class="c-lbl" data-i18n="dash_metr_hmin">Heap Min Seen</div><div class="c-val" id="m-hmin">-- KB</div><div class="c-sub" data-i18n="dash_metr_hmin_sub">lowest free</div></div>
+                    /* @IF wifi */
                     <div class="c-item"><div class="c-lbl" data-i18n="dash_metr_net">Net Reconnects</div><div class="c-val" id="m-net">-- / --</div><div class="c-sub" data-i18n="dash_metr_net_sub">wifi / mqtt</div></div>
+                    /* @ENDIF */
+                    /* @IF !wifi */
+                    <div class="c-item"><div class="c-lbl" data-i18n="dash_metr_net">Net Reconnects</div><div class="c-val" id="m-net">-- / --</div><div class="c-sub" data-i18n="dash_metr_net_sub_lan">cable / mqtt</div></div>
+                    /* @ENDIF */
                     <div class="c-item"><div class="c-lbl" data-i18n="dash_metr_tel">Telemetry Sent</div><div class="c-val" id="m-tel">-- ok</div><div class="c-sub" id="m-tel-sub">-- fail · -- retry</div></div>
                     <div class="c-item"><div class="c-lbl" data-i18n="dash_metr_data">Telemetry Data</div><div class="c-val" id="m-data">-- KB</div><div class="c-sub" id="m-lat">last -- ms</div></div>
                     <div class="c-item"><div class="c-lbl" data-i18n="dash_metr_snr">Sensor Reads</div><div class="c-val" id="m-snr">-- ok</div><div class="c-sub" id="m-snr-err">-- err</div></div>
@@ -483,6 +493,9 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 /* @IF tft */
                 if (d.theme !== undefined && document.activeElement.id !== "themeSel") document.getElementById('themeSel').value = d.theme;
                 /* @ENDIF */
+                /* @IF slot */
+                window.fwSlotShow(d);
+                /* @ENDIF */
 
                 let s = Math.floor(d.uptime / 1000); let days = Math.floor(s / 86400); s %= 86400; let hrs = Math.floor(s / 3600); s %= 3600; let mins = Math.floor(s / 60); let secs = s % 60;
                 let upStr = (days > 0 ? days + "d " : "") + (hrs > 0 || days > 0 ? fmt(hrs) + "h " : "") + fmt(mins) + "m " + fmt(secs) + "s";
@@ -498,7 +511,13 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     st.innerText = window.t('dash_ntp_conn', "Waiting connection..."); st.style.color = "var(--perigo)";
                 }
 
+                /* @IF wifi */
                 document.getElementById('rssi').innerText = d.rssi + ' dBm';
+                /* @ENDIF */
+                /* @IF !wifi */
+                document.getElementById('net-link').innerText = d.link ? window.t('dash_link_up', 'Connected') : window.t('dash_link_down', 'No link');
+                document.getElementById('net-ip').innerText = d.ip || '--';
+                /* @ENDIF */
                 let pend = document.getElementById('pending');
                 if (d.pending === -1) pend.innerText = window.t('dash_eval', "Evaluating..."); else pend.innerText = d.pending + " pkts";
                 /* The sub-line used to be static markup carrying data-i18n, so
@@ -517,8 +536,10 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
                 const m = sysData.metr;
                 if (m) {
+                    /* @IF wifi */
                     let rmm = document.getElementById('rssi-mm');
                     if (rmm && m.rmn !== undefined && m.rmx !== undefined) rmm.innerText = window.t('dash_metr_min','min') + ' ' + m.rmn + ' / ' + m.rmx + ' ' + window.t('dash_metr_max','max');
+                    /* @ENDIF */
                     const kb = (n) => (n / 1024).toFixed(1) + ' KB';
                     const fmtN = (n) => { if (n >= 1e6) return (n/1e6).toFixed(2)+'M'; if (n >= 1e3) return (n/1e3).toFixed(1)+'k'; return String(n); };
                     let el;
@@ -3622,7 +3643,12 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 <h3 data-i18n="sens_title">Sensors &amp; GPIO</h3>
                 <div class="grp">
                     <div id="sens_err" class="sx-warn" style="margin-top:0;margin-bottom:10px"></div>
+                    /* @IF slots16 */
                     <div class="sxn" style="margin-bottom:12px;margin-top:0" data-i18n="sens_hint">GP0-GP15 are available to sensors; GP16 and above belong to the display, touch and buzzer.</div>
+                    /* @ENDIF */
+                    /* @IF !slots16 */
+                    <div class="sxn" style="margin-bottom:12px;margin-top:0" data-i18n="sens_hint_lan">GP0-GP10 are available to sensors; GP11-GP15 belong to the network module, and GP16 and above to the display, touch and buzzer.</div>
+                    /* @ENDIF */
                     <div id="sens_map" class="sxg-map"></div>
                     <div class="tbl-scroll">
                     <table id="sens_tbl">
@@ -3640,7 +3666,12 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <button type="button" class="sxb" id="sens_add" onclick="sensAdd()" style="margin-top:14px" data-i18n="sens_add">+ Add sensor slot</button>
                     <button type="button" class="sxb" id="sens_scan" onclick="sensScan()" style="margin-top:14px;margin-left:8px" data-i18n="sens_scan">Scan for probes</button>
                     <div class="sxn" id="sens_scan_out" style="margin-top:10px"></div>
+                    /* @IF slots16 */
                     <div class="sxn" id="sens_full" style="display:none" data-i18n="sens_no_free">All 16 slots are in use. Free one to add another.</div>
+                    /* @ENDIF */
+                    /* @IF !slots16 */
+                    <div class="sxn" id="sens_full" style="display:none" data-i18n="sens_no_free_lan">All 11 slots are in use. Free one to add another.</div>
+                    /* @ENDIF */
                     <div id="sens_ov" class="sx-ov" style="display:none" onclick="sensBackdrop(event)">
                         <div id="sens_ed" class="sx-ov-box"></div>
                     </div>
@@ -4347,6 +4378,8 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     showToast(window.t('sens_accept_none', 'No probe answered on this GPIO.'), 'err');
                 } else if (r.status === 422) {
                     showToast(window.t('sens_accept_bad', 'The probe answered with an invalid ROM.'), 'err');
+                } else if (r.status === 409) {
+                    showToast(window.t('sens_accept_unsaved', 'Save this slot as an active DS18B20 first.'), 'err');
                 } else {
                     showToast(window.t('act_fail', 'Action failed.'), 'err');
                 }
@@ -4747,7 +4780,6 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .builder-box { padding: 16px; margin-top: 14px; }
         .highlight { background: var(--superficie-2); color: var(--tinta); padding: 1px 6px; border-radius: 6px; font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace; font-size: 13px; }
         .page-title { margin: 0 0 8px; border: none; }
-        #preview, #apreview { word-break: break-all; }
     </style>
     <script>
         /* window.t/applyLang/setLang/showToast/fetchSafe/Pending/commitAll vem de /lang.js */
@@ -4916,9 +4948,16 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                                 <b style="color:var(--tinta);" data-i18n="cfg_leg2">Data Row Tags:</b><br>
                                 <span class="highlight">{TS}</span> - Unix Epoch<br>
                                 <span class="highlight">{DHT_ID}</span> - Board Serial<br>
+                                /* @IF slots16 */
                                 <span class="highlight">{t0}</span> to <span class="highlight">{t15}</span> - Temperature<br>
                                 <span class="highlight">{u0}</span> to <span class="highlight">{u15}</span> - Humidity<br>
                                 <span class="highlight">{p0}</span> to <span class="highlight">{p15}</span> - Pressure<br>
+                                /* @ENDIF */
+                                /* @IF !slots16 */
+                                <span class="highlight">{t0}</span> to <span class="highlight">{t10}</span> - Temperature<br>
+                                <span class="highlight">{u0}</span> to <span class="highlight">{u10}</span> - Humidity<br>
+                                <span class="highlight">{p0}</span> to <span class="highlight">{p10}</span> - Pressure<br>
+                                /* @ENDIF */
                             </div>
                         </div>
                         <div style="font-size:0.8rem; color:var(--tinta); margin-bottom:15px; border-left:3px solid var(--acento); padding-left:10px;">
@@ -4942,7 +4981,15 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
                     <div style="margin-top:15px;">
                         <label data-i18n="cfg_prev">Live Preview:</label>
-                        <div id="preview"></div>
+                        <p class="c-sub" id="previewL" data-i18n="tel_pv_live" style="display:none;margin:0 0 8px">Built from this device: its name, its MAC and the readings of now. The first record shows a sensor in failure.</p>
+                        <div class="tv-bar">
+                            <button type="button" class="sxb" id="previewO" data-i18n="tv_org">Organized</button>
+                            <button type="button" class="sxb" id="previewR" data-i18n="tv_raw">Original</button>
+                            <button type="button" class="sxb" id="previewE" data-i18n="tv_exp">Expand all</button>
+                            <button type="button" class="sxb" id="previewC" data-i18n="tv_col">Collapse all</button>
+                        </div>
+                        <p class="faixa faixa-alerta" id="previewN" style="display:none;margin:8px 0 0"></p>
+                        <pre class="tv" id="preview" style="margin-top:8px"></pre>
                     </div>
                 </div>
 
@@ -4980,7 +5027,12 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                                 <span class="highlight">{TS}</span> - Unix Epoch<br>
                                 <span class="highlight">{ID}</span> - Full id (t/u/p/l + hwid)<br>
                                 <span class="highlight">{HWID}</span> - Sensor id<br>
+                                /* @IF slots16 */
                                 <span class="highlight">{SLOT}</span> - Slot index (0-15)<br>
+                                /* @ENDIF */
+                                /* @IF !slots16 */
+                                <span class="highlight">{SLOT}</span> - Slot index (0-10)<br>
+                                /* @ENDIF */
                             </div>
                             <div class="col">
                                 <span class="highlight">{CH}</span> - Channel letter<br>
@@ -5011,7 +5063,15 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
                     <div style="margin-top:15px;">
                         <label data-i18n="cfg_prev">Live Preview:</label>
-                        <div id="apreview"></div>
+                        <p class="c-sub" id="apreviewL" data-i18n="al_pv_live" style="display:none;margin:0 0 8px">One record of each code, with this device's sensors, limits and account. The events themselves are examples.</p>
+                        <div class="tv-bar">
+                            <button type="button" class="sxb" id="apreviewO" data-i18n="tv_org">Organized</button>
+                            <button type="button" class="sxb" id="apreviewR" data-i18n="tv_raw">Original</button>
+                            <button type="button" class="sxb" id="apreviewE" data-i18n="tv_exp">Expand all</button>
+                            <button type="button" class="sxb" id="apreviewC" data-i18n="tv_col">Collapse all</button>
+                        </div>
+                        <p class="faixa faixa-alerta" id="apreviewN" style="display:none;margin:8px 0 0"></p>
+                        <pre class="tv" id="apreview" style="margin-top:8px"></pre>
                     </div>
                 </div>
             </form>
@@ -5023,9 +5083,14 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
            Mesma máquina, mesma forma: modos 0/1/2, resolver de tokens, formas
            compostas "<chave>":{<token>}, limpeza de vírgulas órfãs e envelope
            {DEV}{MAC}{DATA}. Cada linha (JSON/CSV/custom) é resolvida pelo
-           domínio; o esqueleto é compartilhado. */
+           domínio; o esqueleto é compartilhado. Os registros saem DESTE
+           aparelho (_pvFrom), e tools/test_webui_payload_preview.py prende
+           cada formato ao firmware que o envia. */
 
-        function _resolveCustom(tpl, rec, resolver) {
+        /* absent: o que um marcador sem valor vira FORA da forma composta —
+           null na linha de medições (formatLineCustomBuf), vazio na de alarmes
+           (alarmFormatLine). */
+        function _resolveCustom(tpl, rec, resolver, absent) {
             let out = '', ti = 0;
             while (ti < tpl.length) {
                 const c = tpl[ti];
@@ -5044,12 +5109,12 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 }
                 if (mFull) {
                     out = out.substr(0, out.length - (compKey.length + 6));
-                    if (val !== null) out += '"' + compKey[0] + (hwid || '').trim() + '":' + val;
+                    if (val != null) out += '"' + compKey[0] + (hwid || '').trim() + '":' + val;
                 } else if (mBare) {
-                    if (val !== null) out += val;
+                    if (val != null) out += val;
                     else out = out.substr(0, out.length - (compKey.length + 3));
                 } else {
-                    out += (val !== null ? val : 'null');
+                    out += val != null ? val : absent;
                 }
                 ti += tc;
             }
@@ -5069,45 +5134,38 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             return w;
         }
 
-        /* Resolver da telemetria convencional — mirror do formatLineCustomBuf. */
+        /* Resolver da telemetria convencional — espelho do formatLineCustomBuf:
+           {TS}, {DHT_ID} (o serial da placa) e {t,u,p}<slot>. Dois dígitos só
+           de 10 a 15 em t e u, e qualquer par em p ({p09} é o slot 9, {t09}
+           fica como texto), sempre abaixo de 16. {pN} só vale no slot que mede
+           a pressão: o registro tem UMA. */
         function _sensorTokenResolver(rec, tpl, ti) {
-            let val = null, hwid = null, compKey = '', tc = 0;
-            if (tpl.substr(ti, 4) === '{TS}') { val = String(rec.ts); tc = 4; }
-            else if (tpl.substr(ti, 8) === '{DHT_ID}') { val = rec.serial; tc = 8; }
-            else {
-                const ch = tpl[ti+1];
-                if (ch === 't' || ch === 'u' || ch === 'p') {
-                    let digits = 0;
-                    if (tpl[ti+2] >= '0' && tpl[ti+2] <= '9') {
-                        if (tpl[ti+3] === '}') digits = 1;
-                        else if (tpl[ti+3] >= '0' && tpl[ti+3] <= '9' && tpl[ti+4] === '}') digits = 2;
-                    }
-                    if (digits) {
-                        const idx = parseInt(tpl.substr(ti + 2, digits), 10);
-                        if (idx < _devSensors.length || idx < 16) {
-                            const s = rec.slots[idx];
-                            let raw = null;
-                            if (s && s.active) {
-                                if (ch === 't') raw = s.val;
-                                else if (ch === 'u') raw = s.hum;
-                                else if (s.hasPress) raw = rec.press;
-                            }
-                            val = (raw === undefined) ? null : raw;
-                            hwid = s ? s.hwid : '';
-                            compKey = ch + idx; tc = 2 + digits + 1;
-                        }
-                    }
-                }
-            }
-            return tc ? { val, hwid, compKey, tc } : null;
+            if (tpl.substr(ti, 4) == '{TS}') return { val: String(rec.ts), tc: 4 };
+            if (tpl.substr(ti, 8) == '{DHT_ID}') return { val: rec.serial, tc: 8 };
+            const m = /^\{([tup])(\d\d?)\}/.exec(tpl.substr(ti, 5));
+            /* @IF slots16 */
+            if (!m || (m[2].length == 2 && m[1] != 'p' && m[2][0] != '1') || +m[2] > 15) return null;
+            /* @ENDIF */
+            /* @IF !slots16 */
+            if (!m || (m[2].length == 2 && m[1] != 'p' && m[2][0] != '1') || +m[2] >= rec.slots.length) return null;
+            /* @ENDIF */
+            const c = m[1], i = +m[2], s = rec.slots[i];
+            const val = !s.active ? null : c == 't' ? s.val : c == 'u' ? s.hum : s.hasPress ? rec.press : null;
+            return { val, hwid: s.hwid, compKey: c + i, tc: m[0].length };
         }
-        function _previewCustomLine(tpl, rec) { return _resolveCustom(tpl, rec, _sensorTokenResolver); }
+        function _previewCustomLine(tpl, rec) { return _resolveCustom(tpl, rec, _sensorTokenResolver, 'null'); }
 
-        /* Resolver da linha de alarmes — mirror do alarmFormatLine (firmware).
-           Dois domínios: rec.alarm (limite) e rec.err (falha), strings ou
-           null. {VAL} só na borda de limite; {ALARM}/{ERR} emitem o código
-           COM aspas JSON (forma composta remove a chave do outro domínio);
-           compKey segue a GRAFIA do token. */
+        /* Resolver da linha de alarmes — espelho do alarmFormatLine
+           (src/AlarmPayload.h), token a token. Três domínios, strings ou
+           ausentes: rec.alarm (limite), rec.err (falha) e rec.maint
+           (manutenção, v23). {VAL} só na borda de limite; {ALARM}/{ERR}/
+           {MAINT} e {USER} emitem COM aspas JSON, e a forma composta remove a
+           chave do campo ausente; compKey segue a GRAFIA do token. Os campos
+           da v24 chegam formatados: rec.lo/rec.hi com os decimais do canal,
+           rec.until em epoch. Parou nos tokens da v22 até 03/10/2026, e o
+           default do firmware saía com "maint":{maint} na prévia;
+           tools/test_webui_text_viewer.py agora confere os tokens contra o
+           firmware e as linhas contra os vetores do test_alarm_queue. */
         function _alarmTokenResolver(rec, tpl, ti) {
             let val = null, compKey = '', tc = 0;
             const at = (s) => tpl.substr(ti, s.length) === s;
@@ -5120,9 +5178,14 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             else if (at('{ALARM}') || at('{alarm}')) { compKey = tpl.substr(ti + 1, 5); val = rec.alarm ? '"' + rec.alarm + '"' : null; tc = 7; }
             else if (at('{ERR}') || at('{err}')) { compKey = tpl.substr(ti + 1, 3); val = rec.err ? '"' + rec.err + '"' : null; tc = 5; }
             else if (at('{SEQ}') || at('{seq}')) { compKey = tpl.substr(ti + 1, 3); val = String(rec.seq); tc = 5; }
+            else if (at('{MAINT}') || at('{maint}')) { compKey = tpl.substr(ti + 1, 5); val = rec.maint ? '"' + rec.maint + '"' : null; tc = 7; }
+            else if (at('{LO}') || at('{lo}')) { compKey = tpl.substr(ti + 1, 2); val = rec.lo || null; tc = 4; }
+            else if (at('{HI}') || at('{hi}')) { compKey = tpl.substr(ti + 1, 2); val = rec.hi || null; tc = 4; }
+            else if (at('{UNTIL}') || at('{until}')) { compKey = tpl.substr(ti + 1, 5); val = rec.until ? String(rec.until) : null; tc = 7; }
+            else if (at('{USER}') || at('{user}')) { compKey = tpl.substr(ti + 1, 4); val = rec.user ? '"' + rec.user + '"' : null; tc = 6; }
             return tc ? { val, hwid: null, compKey, tc } : null;
         }
-        function _alarmCustomLine(tpl, rec) { return _resolveCustom(tpl, rec, _alarmTokenResolver); }
+        function _alarmCustomLine(tpl, rec) { return _resolveCustom(tpl, rec, _alarmTokenResolver, ''); }
 
         /* Mirror do firmware buildPayload global-template walker. */
         function _previewGlobal(gt, dev, mac, data) {
@@ -5137,99 +5200,172 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             return out;
         }
 
+        /* The previews are text views (window.tvView in lang.js). Organized
+           lays a JSON payload out by its brackets, with blocks that fold, and
+           says when the templates make JSON that does not parse; Original is
+           the payload as it goes on the wire. Each view is made the first time
+           its preview draws. */
+        const _pv = {};
+        function _pvOf(id) {
+            const g = x => document.getElementById(id + x);
+            return _pv[id] || (_pv[id] = window.tvView(g(''), { o: g('O'), r: g('R'), e: g('E'), c: g('C') }));
+        }
         /* Esqueleto compartilhado dos dois builders. */
         function _renderPayloadPreview(o) {
-            const mode = document.getElementById(o.modeId).value;
-            const pre = document.getElementById(o.outId);
-            const batch = o.demo();
-            if (!batch || !batch.length) { pre.innerText = ''; return; }
+            const g = id => document.getElementById(id), mode = g(o.modeId).value, line = g(o.lineId).value;
+            const batch = o.batch(_pvDev);
+            let s;
             if (mode == '0') {
-                pre.innerText = '[' + batch.map(o.jsonLine).join(',') + ']';
+                s = '[' + batch.map(r => o.jsonLine(r, line)).join(',') + ']';
             } else if (mode == '1') {
-                pre.innerText = o.csv(batch);
+                s = o.csv(batch);
             } else {
-                const glob = document.getElementById(o.globId).value;
-                const line = document.getElementById(o.lineId).value;
-                let sep = document.getElementById(o.sepId).value;
+                let sep = g(o.sepId).value;
                 if (sep === '\\n') sep = '\n';
-                const data = batch.map(r => o.customLine(line, r)).join(sep);
-                pre.innerText = _previewGlobal(glob, o.dev || 'SIMUT_Demo', o.mac || 'AA:BB:CC:DD:EE:FF', data);
+                s = _previewGlobal(g(o.globId).value, _pvDev.name, _pvDev.mac, batch.map(r => o.customLine(line, r)).join(sep));
             }
+            g(o.outId + 'L').style.display = _pvDev.live ? '' : 'none';
+            const v = _pvOf(o.outId), n = g(o.outId + 'N');
+            const bad = s ? v.set('preview.json', s, 1).bad : (v.note(''), 0);
+            n.textContent = window.t('tv_bad', 'Incomplete or invalid JSON: laid out by its brackets alone. Original shows the exact text.');
+            n.style.display = bad ? '' : 'none';
         }
 
-        /* Device metadata (real serial + per-slot hwid/active) — populado por loadConfig. */
-        let _devSerial = 'RP2040_A1B2';
-        let _devSensors = Array.from({length:10}, (_,i) => ({
-            hwid: 'STM' + String(i+1).padStart(4,'0'),
-            active: true, hasHum: false, hasPress: false
-        }));
+        /* The device the previews are built from, out of the four answers the
+           page has: /api/config (name, clock, history interval, board serial,
+           the slots and their channels), /api/status (MAC and the readings of
+           now), /api/alarms (the limits) and the account of the session. JSON
+           numbers lose their trailing zeros, so 21.50 arrives as 21.5 and gets
+           its decimals back here: two for temperature, one for the rest, as
+           the device writes them. Without /api/status there are no readings:
+           live stays false, the configured sensors get stand-in values, and the
+           caption that promises real ones stays hidden. Without /api/alarms the
+           limits are the factory ones (SensorChannelTable.h). */
+        function _pvFrom(c, st, al, user) {
+            c = c || {};
+            if (!(st && st.sys)) st = null;
+            const y = st ? st.sys : {}, cs = c.sensors || [], ls = st && st.sensors || [], as = al && al.sensors || [];
+            const f = (v, n) => typeof v == 'number' ? v.toFixed(n) : null;
+            const d = { name: y.name || c.name || '', mac: y.mac || 'AA:BB:CC:DD:EE:FF', uid: y.uid || c.serial || '',
+                time: y.time || c.now_epoch || Math.floor(Date.now() / 1000), every: 60 * (c.h_int || y.hi || 1),
+                user: user || '', live: !!st, s: [] };
+            /* @IF slots16 */
+            for (let i = 0; i < 16; i++) {
+            /* @ENDIF */
+            /* @IF !slots16 */
+            for (let i = 0, n = cs.length || 11; i < n; i++) {
+            /* @ENDIF */
+                const k = cs[i] || {}, r = ls.find(x => x.slot == i) || {}, L = (as.find(x => x.idx == i) || {}).lim || {};
+                d.s.push({ hwid: k.hwid || '', active: !!k.active, hum: !!k.hum, press: !!k.press,
+                    t: st ? f(r.val, 2) : k.active ? (20 + i).toFixed(2) : null,
+                    u: st ? f(r.hum, 1) : k.active && k.hum ? (50 + i).toFixed(1) : null,
+                    p: st ? f(r.press, 1) : k.active && k.press ? '1013.2' : null,
+                    lim: { t: L.temp || [0, 40], u: L.hum || [20, 80], p: L.press || [0, 1638.3] } });
+            }
+            return d;
+        }
+        let _pvC = null, _pvS = null, _pvA = null, _pvU = '', _pvDev = _pvFrom(null, null, null, '');
 
-        function _sensorDemoBatch() {
-            const mk = (tBase) => _devSensors.map((s, i) => ({
-                hwid: s.hwid,
-                val: (20 + i + tBase).toFixed(2),
-                hum: s.hasHum ? (55 + i + tBase).toFixed(1) : null,
-                hasPress: !!s.hasPress,
-                active: s.active
-            }));
-            return [
-                { ts: 1700000000, serial: _devSerial, press: '1013.2', slots: mk(0.1) },
-                { ts: 1700000005, serial: _devSerial, press: '1013.1', slots: mk(0.2) }
-            ];
+        /* Two history records, one interval apart: the later is the readings
+           of now; the earlier has the first active sensor in failure, so the
+           body shows what a failed sensor sends (its key left out of the JSON,
+           an empty CSV column, null or nothing in a template). A record holds
+           ONE pressure, and takeRecord( ) lets the last pressure channel of
+           the history file win: here, the last active slot that has one. */
+        function _sensorBatch(d) {
+            const A = d.s.findIndex(s => s.active);
+            const mk = (ts, off) => {
+                let press = null;
+                const slots = d.s.map((s, i) => {
+                    const on = s.active && i != off;
+                    if (on && s.press && s.p != null) press = s.p;
+                    return { hwid: s.hwid, active: s.active, hasPress: s.press, val: on ? s.t : null, hum: on ? s.u : null };
+                });
+                return { ts, serial: d.uid, press, slots };
+            };
+            return [mk(d.time - d.every, A), mk(d.time, -1)];
         }
 
-        function _alarmDemoBatch() {
-            const hw = (_devSensors[0] && _devSensors[0].hwid) || 'SENSOR1';
-            return [
-                { ts: 1700000100, id: 't' + hw, hwid: hw, slot: 0, ch: 't', val: '25.30', alarm: 'alarm', err: null, seq: 1 },
-                { ts: 1700000200, id: 't' + hw, hwid: hw, slot: 0, ch: 't', val: null, alarm: null, err: 'err', seq: 2 },
-                { ts: 1700000300, id: 't' + hw, hwid: hw, slot: 0, ch: 't', val: null, alarm: 'alarm_sil', err: null, seq: 3 }
-            ];
-        }
-
-        /* JSON da telemetria convencional ignora templates (formato fixo, mirror do firmware). */
-        function _sensorJsonLine(r) {
-            let s = '{"ts":' + r.ts;
-            r.slots.forEach((sl, i) => {
-                if (!sl.active) return;
-                const id = sl.hwid ? sl.hwid : i;
-                s += ',"t' + id + '":' + sl.val;
-                if (sl.hum !== null) s += ',"u' + id + '":' + sl.hum;
+        /* One record of every code the firmware sends, a minute apart and
+           ending now, on this device's sensors, limits and account; the events
+           themselves are examples. Each code carries what it carries on the
+           wire (manual, chapter 22, "Os códigos"): val only on alarm, the
+           reading of now; lo and hi only on alarm_lim, on a humidity channel
+           when there is one; until only on maint_on, two hours ahead; the user
+           on the panel's actions, but not on a silence, and here on a
+           maint_off closed by someone (a deadline closes it with none). */
+        function _alarmBatch(d) {
+            let A = d.s.findIndex(s => s.active), B = d.s.findIndex(s => s.active && s.hum);
+            if (A < 0) A = 0;
+            if (B < 0) B = A;
+            const a = d.s[A], ch = d.s[B].hum ? 'u' : 't', n = ch == 't' ? 2 : 1, lim = d.s[B].lim[ch];
+            const R = [{ alarm: 'alarm', val: a.t || Number(a.lim.t[1]).toFixed(2) }, { alarm: 'alarm_sil' },
+                { alarm: 'alarm_off', user: 1 }, { alarm: 'alarm_on', user: 1 },
+                { alarm: 'alarm_lim', i: B, ch, lo: Number(lim[0]).toFixed(n), hi: Number(lim[1]).toFixed(n), user: 1 },
+                { err: 'err' }, { err: 'err_sil' }, { err: 'err_off', user: 1 },
+                { maint: 'maint_on', until: 1, user: 1 }, { maint: 'maint_off', user: 1 }];
+            return R.map((r, k) => {
+                const i = r.i == null ? A : r.i, c = r.ch || 't', h = d.s[i].hwid, ts = d.time - (R.length - 1 - k) * 60;
+                return { ts, seq: k + 1, slot: i, ch: c, hwid: h, id: c + (h || i), val: r.val || null,
+                    alarm: r.alarm || null, err: r.err || null, maint: r.maint || null, lo: r.lo || null, hi: r.hi || null,
+                    until: r.until ? ts + 7200 : null, user: r.user && d.user || null };
             });
-            const pSlot = r.slots.find(sl => sl.active && sl.hasPress && sl.hwid);
-            if (pSlot) s += ',"p' + pSlot.hwid + '":' + r.press;
+        }
+
+        /* JSON da telemetria convencional ignora templates — espelho do
+           formatLineJsonBuf: temperatura e umidade de cada slot ativo que não
+           falhou, pela chave do hwId (ou do número do slot); a pressão depois,
+           com a chave do PRIMEIRO slot ativo com hwId que mede pressão, ou "p"
+           quando nenhum mede. Sensor em falha: a chave some, não vai null. */
+        function _sensorJsonLine(r) {
+            let s = '{"ts":' + r.ts, k = r.slots.find(x => x.active && x.hwid && x.hasPress);
+            r.slots.forEach((x, i) => {
+                if (!x.active) return;
+                if (x.val != null) s += ',"t' + (x.hwid || i) + '":' + x.val;
+                if (x.hum != null) s += ',"u' + (x.hwid || i) + '":' + x.hum;
+            });
+            if (r.press != null) s += ',"p' + (k ? k.hwid : 'p') + '":' + r.press;
             return s + '}';
         }
-        function _sensorCsv(batch) {
-            let hdr = 'timestamp';
-            batch[0].slots.forEach((sl, i) => { if (sl.active) hdr += ';s' + i + '_' + sl.hwid; });
-            const lines = batch.map(r => {
-                let s = String(r.ts);
-                r.slots.forEach(sl => { s += ';' + (sl.active ? sl.val : ''); });
-                return s;
-            });
-            return hdr + '\n' + lines.join('\n') + '\n';
+        /* CSV — o cabeçalho do buildPayload nomeia os 16 slots (com o hwId só
+           no slot ativo que tem um), as 16 umidades e press; cada linha é o
+           toCsvLine: epoch;t0..t15;h0..h15;press, campo vazio onde não há
+           valor. 34 colunas, ativo ou não. */
+        function _sensorCsv(b) {
+            const col = p => b[0].slots.map((x, i) => ';' + p + i + (x.active && x.hwid ? '_' + x.hwid : '')).join('');
+            const v = x => ';' + (x == null ? '' : x);
+            return 'timestamp' + col('s') + col('h') + ';press\n' +
+                b.map(r => r.ts + r.slots.map(x => v(x.val)).join('') + r.slots.map(x => v(x.hum)).join('') + v(r.press) + '\n').join('');
         }
-        /* JSON da linha de alarmes USA o template de linha (mirror do firmware). */
-        function _alarmJsonLine(r) {
-            const tpl = document.getElementById('a_line').value ||
-                '{"ts":{TS},"id":"{ID}","val":{val},"err":"{err}","seq":{seq}}';
-            return _alarmCustomLine(tpl, r);
+        /* CSV da linha de alarmes — espelho do alarmFormatCsvLine:
+           seq;ts;id;v;user;lo;hi;until, com o código no lugar do valor quando
+           o registro é um marcador, e as colunas vazias onde não se aplicam. */
+        function _alarmCsvLine(r) {
+            return [r.seq, r.ts, r.id, r.alarm == 'alarm' ? r.val : r.alarm || r.err || r.maint, r.user, r.lo, r.hi, r.until]
+                .map(x => x == null ? '' : x).join(';');
         }
-        function _alarmCsv(batch) {
-            return 'seq;ts;id;v\n' + batch.map(r => {
-                const v = (r.alarm === 'alarm') ? r.val : (r.alarm || r.err || '');
-                return r.seq + ';' + r.ts + ';' + r.id + ';' + v;
-            }).join('\n') + '\n';
+        function _alarmCsv(b) { return 'seq;ts;id;v;user;lo;hi;until\n' + b.map(_alarmCsvLine).join('\n') + '\n'; }
+
+        /* The rest of the device, once the page has its configuration: what
+           the session already read (/api/perms and /api/status, no second
+           request) and the alarm limits. Either one missing leaves the
+           previews on what they have. */
+        async function _pvLoad() {
+            try { const s = await window.sessReady; if (s) { _pvS = s.status; _pvU = s.user; } } catch (e) { /* stays as it was */ }
+            try { const r = await fetchSafe('/api/alarms', { retries: 1 }); if (r.ok) _pvA = await r.json(); } catch (e) { /* factory limits */ }
+            _pvDev = _pvFrom(_pvC, _pvS, _pvA, _pvU);
+            renderPreview(); renderAlarmPreview();
         }
 
         function renderPreview() {
             _renderPayloadPreview({ outId:'preview', modeId:'t_mode', globId:'t_glob', lineId:'t_line', sepId:'t_sep',
-                demo:_sensorDemoBatch, jsonLine:_sensorJsonLine, csv:_sensorCsv, customLine:_previewCustomLine });
+                batch:_sensorBatch, jsonLine:_sensorJsonLine, csv:_sensorCsv, customLine:_previewCustomLine });
         }
         function renderAlarmPreview() {
+            /* JSON da linha de alarmes USA o template de linha, como o firmware
+               (buildAlarmPayload): o que estiver no campo, mesmo vazio. */
             _renderPayloadPreview({ outId:'apreview', modeId:'a_mode', globId:'a_glob', lineId:'a_line', sepId:'a_sep',
-                demo:_alarmDemoBatch, jsonLine:_alarmJsonLine, csv:_alarmCsv, customLine:_alarmCustomLine });
+                batch:_alarmBatch, jsonLine:(r, l) => _alarmCustomLine(l, r), csv:_alarmCsv, customLine:_alarmCustomLine });
         }
         function toggleBuilder() { let mode = document.getElementById('t_mode').value; document.getElementById('custom_tools').style.display = (mode == '2') ? 'block' : 'none'; renderPreview(); }
         function toggleAlarmBuilder() { let mode = document.getElementById('a_mode').value; document.getElementById('alarm_custom_tools').style.display = (mode == '2') ? 'block' : 'none'; renderAlarmPreview(); }
@@ -5325,6 +5461,7 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     if (d.error) { showLoadError('cfg_load_forbidden', 'The device refused to return the settings: ' + d.error); return; }
                     applyConfig(d);
                     clearLoadError();
+                    _pvLoad();
                     return;
                 } catch (e) { console.error('loadConfig attempt ' + attempt + ' failed:', e); }
             }
@@ -5387,13 +5524,7 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             document.getElementById('a_ct').value = val('a_ct', '');
             const _apSpan = document.getElementById('a_pending_span');
             if (_apSpan) _apSpan.textContent = val('a_pending', 0);
-            if (d.serial) _devSerial = d.serial;
-            if (Array.isArray(d.sensors)) {
-                for (let i = 0; i < 10 && i < d.sensors.length; i++) {
-                    _devSensors[i] = { hwid: d.sensors[i].hwid || '', active: !!d.sensors[i].active,
-                                       hasHum: !!d.sensors[i].hum, hasPress: !!d.sensors[i].press };
-                }
-            }
+            _pvC = d; _pvDev = _pvFrom(_pvC, _pvS, _pvA, _pvU);
             toggleTransport(); toggleBuilder(); toggleAlarmBuilder();
             wirePendingListeners();
         }
@@ -5443,6 +5574,7 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .row { display: flex; gap: 20px; }
         .col { flex: 1; }
         @media(max-width: 600px) { .row { flex-direction: column; gap: 0; } }
+        /* @IF wifi */
         /* Busca de redes. O botao fica na MESMA linha do SSID: no celular a
            caixa encolhe, mas 108px de botao continuam legiveis em 320px. */
         /* A caixa e o botao na mesma linha. O `margin: 0 0 16px` que todo input
@@ -5481,6 +5613,7 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .sig span:nth-child(4) { height: 14px; }
         .sig span.on { background: var(--acento); }
         .scan-note { padding: 11px 12px; font-size: 14px; color: var(--tinta-2); }
+        /* @ENDIF */
         .net-stat { margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--linha); }
         .net-stat:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
         .net-stat .val { font-size: 15px; color: var(--tinta); font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace; margin-top: 4px; }
@@ -5513,6 +5646,7 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <h2 class="page-title" data-i18n="net_cfg">Network Configuration</h2>
                     <form id="netForm" onsubmit="event.preventDefault()">
 
+                        /* @IF wifi */
                         <h3 data-i18n="net_wifi">Wireless Network (Wi-Fi)</h3>
                         <div class="grp">
                             <label data-i18n="net_ssid">SSID (Network Name)</label>
@@ -5528,6 +5662,7 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                                 <button type="button" class="btn-inline btn-eye" id="btnPass" onclick="toggleNetPass()" aria-pressed="false"><svg class="ic"><use id="eyeUse" href="#i-eye"/></svg></button>
                             </div>
                         </div>
+                        /* @ENDIF */
 
                         <h3 data-i18n="net_ipv4">IPv4 Configuration</h3>
                         <div class="grp">
@@ -5626,6 +5761,7 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         function toggleIpFields()  { _toggleGroup('static_fields', document.getElementById('dhcp').checked); }
         function toggleDnsFields() { _toggleGroup('dns_fields',    document.getElementById('dns_auto').checked); }
 
+        /* @IF wifi */
         /* Busca de redes. Em modo AP o radio passa a AP_STA durante a
          * varredura, entao o poll tolera ate SCAN_MISS falhas seguidas de
          * rede em vez de desistir na primeira: desistir ali daria "falhou"
@@ -5737,6 +5873,7 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             document.getElementById('scanBox').style.display = 'none';
             document.getElementById('pass').focus();
         }
+        /* @ENDIF */
 
         async function loadNet() {
             try {
@@ -5757,7 +5894,9 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 const p = Pending.getSection('net');
                 const val = (k, def) => (p[k] !== undefined ? p[k] : def);
                 const bool = (k, def) => (p[k] !== undefined) ? (p[k] !== '0') : !!def;
+                /* @IF wifi */
                 document.getElementById('ssid').value = val('ssid', data.ssid || '');
+                /* @ENDIF */
                 document.getElementById('dhcp').checked = bool('use_dhcp', data.use_dhcp);
                 document.getElementById('ip').value = val('ip', data.static_ip || '');
                 document.getElementById('mask').value = val('mask', data.static_mask || '');
@@ -5798,7 +5937,12 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         }
 
         document.addEventListener('DOMContentLoaded', () => {
+            /* @IF wifi */
             setTimeout(() => { applyLang(); setEyeLabel(); }, 50);
+            /* @ENDIF */
+            /* @IF !wifi */
+            setTimeout(() => { applyLang(); }, 50);
+            /* @ENDIF */
             loadNet();
         });
     </script>
@@ -5878,7 +6022,7 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 <input type="text" id="u_pin" name="u_pin" maxlength="16" autocomplete="off" placeholder="Panel PIN (optional)" data-i18n="usr_pin">
                 <button type="submit" id="btnUser" data-i18n="usr_btn">Create User</button>
                 <p style="font-size:0.8rem; color:var(--tinta-2); margin-top:15px; text-align:center;" data-i18n="usr_warn">
-                    * A one-time password is shown after Save &amp; Restart. Copy it — it is displayed only once, and the user must change it on first login.
+                    * A one-time password is shown when you save. Copy it — it is displayed only once, and the user must change it on first login.
                 </p>
             </form>
         </div>
@@ -5984,7 +6128,7 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         }
 
         function delUsr(id) {
-            if (!confirm(window.t('usr_del_msg', 'Delete this user? It will be applied when you click Save & Restart.'))) return;
+            if (!confirm(window.t('usr_del_msg', 'Delete this user? It takes effect when you save.'))) return;
             Pending.pushUserAction({ type: 'del', id: id });
             loadUsers();
         }
@@ -5999,7 +6143,7 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         }
 
         function rstUsr(id) {
-            if (!confirm(window.t('usr_rst_msg', 'Force a password reset at next login? It will be applied when you click Save & Restart.'))) return;
+            if (!confirm(window.t('usr_rst_msg', 'Force a password reset at next login? It takes effect when you save.'))) return;
             Pending.pushUserAction({ type: 'reset', id: id });
             loadUsers();
         }
@@ -6068,6 +6212,17 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .fm-name-dir { color:var(--acento); font-weight:700; }
         .fm-size { font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace; color: var(--tinta-2); font-size: 13px; }
         .fm-empty, .fm-loading { text-align:center; padding:30px; color:var(--tinta-2); }
+        .fm-view { background:none; border:0; padding:4px; margin:-4px 0 -4px 8px; color:var(--tinta-2); border-radius:6px; vertical-align:middle; }
+        .fm-view:hover { color:var(--acento); background:var(--superficie-2); }
+        /* Text viewer. The box takes the screen less the veil padding and the
+           text scrolls inside it, so the buttons stay in reach. The rows, the
+           fold marks and the toolbar are the shared .tv rules of style.css,
+           which the telemetry previews draw too. */
+        .tv-box { width:960px; max-height:calc(100vh - 40px); max-height:calc(100dvh - 40px); display:flex; flex-direction:column; gap:12px; }
+        .tv-box .tv { flex:1; min-height:0; }
+        .tv-hd { display:flex; align-items:center; gap:12px; }
+        .tv-hd h3 { flex:1; min-width:0; margin:0; padding:0; border:0; overflow-wrap:anywhere; }
+        .tv-bar a { text-decoration:none; }
     </style>
     <script>
         /* window.t/applyLang/setLang/showToast/fetchSafe vem de /lang.js */
@@ -6108,6 +6263,24 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     </tbody>
                 </table>
             </div>
+        </div>
+    </div>
+
+    <div class="ov" id="tvOv" style="display:none">
+        <div class="ov-box tv-box" role="dialog" aria-modal="true" aria-labelledby="tvT">
+            <div class="tv-hd">
+                <h3 id="tvT"></h3>
+                <button class="sxb" id="tvX" onclick="tvClose()"><svg class="ic"><use href="#i-close"/></svg></button>
+            </div>
+            <div class="tv-bar">
+                <button class="sxb" id="tvO" data-i18n="tv_org">Organized</button>
+                <button class="sxb" id="tvR" data-i18n="tv_raw">Original</button>
+                <button class="sxb" id="tvE" data-i18n="tv_exp">Expand all</button>
+                <button class="sxb" id="tvC" data-i18n="tv_col">Collapse all</button>
+                <a class="sxb" id="tvD" download><svg class="ic"><use href="#i-down"/></svg><span data-i18n="fil_down">Download</span></a>
+            </div>
+            <p class="faixa faixa-alerta" id="tvN" style="display:none;margin:0"></p>
+            <pre class="tv" id="tvB" tabindex="0"></pre>
         </div>
     </div>
 
@@ -6175,7 +6348,10 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                                protected file — the one with no box — impossible to open at
                                all. Folders were already clickable; files now match. */
                             let href = '/download?file=' + encodeURIComponent(fullPath);
-                            html += `<tr class="fm-row"><td>${cell}</td><td><span class="fm-icon"><svg class="ic"><use href="#i-doc"/></svg></span><a class="fm-name" href="${href}">${escHtml(e.n)}</a></td><td class="fm-size">${fmFormatSize(e.s)}</td></tr>`;
+                            /* A text file also gets the viewer, beside the link. */
+                            let vw = window.t('fil_view', 'View');
+                            let view = tvViewable(e.n, e.s) ? `<button class="fm-view" data-view="${escAttr(fullPath)}" title="${escAttr(vw)}" aria-label="${escAttr(vw)}"><svg class="ic"><use href="#i-eye"/></svg></button>` : '';
+                            html += `<tr class="fm-row"><td>${cell}</td><td><span class="fm-icon"><svg class="ic"><use href="#i-doc"/></svg></span><a class="fm-name" href="${href}">${escHtml(e.n)}</a>${view}</td><td class="fm-size">${fmFormatSize(e.s)}</td></tr>`;
                         }
                     }
                 }
@@ -6214,7 +6390,7 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             document.body.appendChild(link); link.click(); document.body.removeChild(link);
             showToast(window.t('fil_backup_started','Backup download started.'), 'ok');
         }
-        const RST_MSG = {0:'OK',1:'magic invalid',2:'unsupported schema',3:'header CRC mismatch',4:'payload truncated',5:'payload CRC mismatch',6:'chip ID mismatch (backup is from another device)',7:'invalid path',8:'path too long',9:'I/O error',10:'internal error'};
+        const RST_MSG = {0:'OK',1:'magic invalid',2:'unsupported schema',3:'header CRC mismatch',4:'payload truncated',5:'payload CRC mismatch',6:'chip ID mismatch (backup is from another device)',7:'invalid path',8:'path too long',9:'I/O error',10:'internal error',11:'not the backup validated last, try again'};
         function fmRestore() { document.getElementById('restoreFile').click(); }
         async function doRestore() {
             let inp = document.getElementById('restoreFile');
@@ -6227,7 +6403,12 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 let r = await fetch('/api/restore?op=validate', { method:'POST', body: fd });
                 let v = await r.json();
                 if (v.st !== 0) { showToast(window.t('fil_rst_val_fail','Validation failed: ') + (RST_MSG[v.st] || ('st='+v.st)), 'err'); return; }
+                /* @IF wifi */
                 let msg = window.t('fil_rst_confirm','Backup valid — N files (X bytes).\n\nThis OVERWRITES current device files (history, configs, sensors, themes).\nWi-Fi config and admin password from the backup will be restored.\n\nProceed with the restore?').replace('N', v.fc).replace('X', v.psz);
+                /* @ENDIF */
+                /* @IF !wifi */
+                let msg = window.t('fil_rst_confirm_lan','Backup valid — N files (X bytes).\n\nThis OVERWRITES current device files (history, configs, sensors, themes).\nThe network settings and the admin password from the backup will be restored.\n\nProceed with the restore?').replace('N', v.fc).replace('X', v.psz);
+                /* @ENDIF */
                 if (!confirm(msg)) return;
                 showToast(window.t('fil_rst_app','Step 2/3: Applying restore (may take ~15 s)...'), 'ok');
                 let fd2 = new FormData(); fd2.append('bkp', file);
@@ -6257,9 +6438,35 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
          *   6. Restore manual do .bkp pra recuperar history/sensores
          */
         function fmFirmware() {
+            /* @IF wifi */
             if (!confirm(window.t('fil_fw_warn','Firmware OTA update.\n\nThe filesystem is REFORMATTED — the staging area shares the partition with it.\n\nOnly the configuration survives (captured before, restored after):\n  • Wi-Fi, admin password, telemetry\n  • Sensor mapping and alarm limits\n\nEverything else on the device is lost:\n  • Reading history (/history)\n  • Language packs (/lang)\n  • Custom themes (/themes)\n  • Touch calibration (/calib)\n  • Files in /web\n  • The event log\n\nA .bkp backup is downloaded automatically — restore it later to recover everything.\n\nProceed?'))) return;
+            /* @ENDIF */
+            /* @IF !wifi */
+            if (!confirm(window.t('fil_fw_warn_lan','Firmware OTA update.\n\nThe filesystem is REFORMATTED — the staging area shares the partition with it.\n\nOnly the configuration survives (captured before, restored after):\n  • Network settings, admin password, telemetry\n  • Sensor mapping and alarm limits\n\nEverything else on the device is lost:\n  • Reading history (/history)\n  • Language packs (/lang)\n  • Custom themes (/themes)\n  • Touch calibration (/calib)\n  • Files in /web\n  • The event log\n\nA .bkp backup is downloaded automatically — restore it later to recover everything.\n\nProceed?'))) return;
+            /* @ENDIF */
             document.getElementById('fwFile').click();
         }
+        /* fw: stage message — what the page says when the device did not commit a
+           staged image (tools/test_webui_firmware_refusal.py runs it). A refusal by
+           validation carries `v`, explained below. A refusal before any validation
+           carries only `error`, in the device's own words: an RP2350 that boots from
+           no slot of a partition table answers every stage that way (501), and the
+           page used to print "validation v=undefined". */
+        function fwStageMessage(status, v) {
+            if (v.v === undefined)
+                return window.t('fil_fw_stage_refused', 'Upload refused (HTTP ') + status + ').' + (v.error ? ' ' + v.error : '');
+            let why = {
+                6: window.t('fil_fw_v6','The image is for another chip, or it is damaged. The Pico 2 W takes the releasetwo .bin, and the Pico W the others.'),
+                7: window.t('fil_fw_v7','The image is for another model (env ') + v.env + ').',
+                8: window.t('fil_fw_v8','The image is not signed. Use a release .bin from GitHub or a build from the configurator.'),
+                9: window.t('fil_fw_v9','The signature does not match: the file changed after it was signed, or a key this device does not trust signed it. Download the .bin again.'),
+                10: window.t('fil_fw_v10','It was signed with a retired key. Use a newer release.'),
+                11: window.t('fil_fw_v11','It is below the security level installed, and going back to it over the air is blocked. Use this version or a newer one.'),
+                12: window.t('fil_fw_v12','It was signed with the bench key, which this device does not accept. Use a release .bin from GitHub.')
+            }[v.v];
+            return window.t('fil_fw_stage_fail','Upload failed (validation v=') + v.v + '). Cancelled.' + (why ? ' ' + why : '');
+        }
+        /* fw: end of stage message */
         async function doFirmware() {
             let f = document.getElementById('fwFile').files[0];
             document.getElementById('fwFile').value = '';
@@ -6293,15 +6500,7 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 let r2 = await fetch('/api/restore?op=stage&commit=1', {method:'POST', body:fd});
                 let v = await r2.json();
                 if (r2.status !== 200 || v.committed !== 1) {
-                    let why = {
-                        7: window.t('fil_fw_v7','The image is for another model (env ') + v.env + ').',
-                        8: window.t('fil_fw_v8','The image is not signed. Use a release .bin from GitHub or a build from the configurator.'),
-                        9: window.t('fil_fw_v9','The signature does not match: the file changed after it was signed, or a key this device does not trust signed it. Download the .bin again.'),
-                        10: window.t('fil_fw_v10','It was signed with a retired key. Use a newer release.'),
-                        11: window.t('fil_fw_v11','It is below the security level installed, and going back to it over the air is blocked. Use this version or a newer one.'),
-                        12: window.t('fil_fw_v12','It was signed with the bench key, which this device does not accept. Use a release .bin from GitHub.')
-                    }[v.v];
-                    showToast(window.t('fil_fw_stage_fail','Upload failed (validation v=')+v.v+'). Cancelled.' + (why ? ' ' + why : ''), 'err', 12000);
+                    showToast(fwStageMessage(r2.status, v), 'err', 12000);
                     return;
                 }
                 showToast(window.t('fil_fw_app','Step 3/4: Applying firmware...'), 'ok');
@@ -6325,6 +6524,47 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             }
             setTimeout(() => location.href = '/login', 5000);
         }
+        /* @IF slot */
+        /* The Pico 2 W writes the update into the slot it did not boot from:
+           its file system is not reformatted, and the update boots on trial
+           (docs/analysis/OTA_AB_RP2350.md). The warning in fmFirmware( ) above
+           is the Pico W's, and this one replaces it on the Pico 2 W. The page
+           also shows the note the dashboard shows. */
+        fmFirmware = function() {
+            if (!confirm(window.t('fil_fw_warn_slot', 'Firmware OTA update.\n\nThe new image goes into the slot this device did not start from. The files on the device stay as they are.\n\nAfter the restart the new version runs on trial. It stays once it has run healthy for a minute. If it has not within five minutes, or the device restarts before that, the device goes back to the version it runs now.\n\nA .bkp backup is downloaded first.\n\nProceed?'))) return;
+            document.getElementById('fwFile').click();
+        };
+        fetchSafe('/api/status').then(r => r.ok ? r.json() : null).then(j => { if (j) window.fwSlotShow(j.sys); }).catch(() => {});
+        /* @ENDIF */
+
+
+        /* The viewer reads the file through the same /download the name links
+           to, so the same permission check applies. tvSeq drops a reply that
+           arrives after the viewer closed or moved to another file. The view
+           itself, its folds and its two modes, is window.tvView in lang.js: the
+           telemetry page's previews draw the same one. */
+        let tvSeq = 0, tvBack = 0;
+        const tvEl = id => document.getElementById(id);
+        const tvV = window.tvView(tvEl('tvB'), { o: tvEl('tvO'), r: tvEl('tvR'), e: tvEl('tvE'), c: tvEl('tvC') });
+        async function tvOpen(p) {
+            const n = tvEl('tvN'), x = tvEl('tvX'), u = '/download?file=' + encodeURIComponent(p), my = ++tvSeq;
+            tvBack = document.activeElement; tvV.raw = 0;
+            tvEl('tvT').textContent = p.slice(p.lastIndexOf('/') + 1); tvEl('tvD').href = u;
+            x.title = window.t('tv_close', 'Close'); x.setAttribute('aria-label', x.title);
+            n.style.display = 'none'; tvV.note(window.t('fil_loading', 'Loading...'));
+            tvEl('tvOv').style.display = ''; x.focus();
+            try {
+                let r = await fetchSafe(u, { retries: 1 });
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                let s = await r.text();
+                if (my != tvSeq) return;
+                if (!tvIsText(s)) { tvV.note(window.t('tv_bin', 'This file is not text. Download it to open it.')); return; }
+                if (tvV.set(p, s).bad) { n.textContent = window.t('tv_bad', 'Incomplete or invalid JSON: laid out by its brackets alone. Original shows the exact text.'); n.style.display = ''; }
+            } catch (err) { if (my == tvSeq) tvV.note(window.t('tv_err', 'Could not read the file.') + ' ' + (err.message || '')); }
+        }
+        function tvClose() { tvSeq++; tvEl('tvOv').style.display = 'none'; if (tvBack && tvBack.focus) tvBack.focus(); }
+        document.addEventListener('keydown', ev => { if (ev.key == 'Escape' && tvEl('tvOv').style.display == '') tvClose(); });
+        tvEl('fileBody').addEventListener('click', ev => { let v = ev.target.closest('[data-view]'); if (v) tvOpen(v.getAttribute('data-view')); });
 
         window.onLangChange = function() { fmNavigate(currentDir); };
 
@@ -6939,7 +7179,8 @@ SOFTWARE.</pre>
         </div>
         <div class="card">
             <h3 data-i18n="lic_notice">Third-Party Notices</h3>
-            <pre>================================================================================
+            <pre>/* @IF wifi */
+================================================================================
 SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
 Third-Party Software Notices
 ================================================================================
@@ -7209,7 +7450,237 @@ repository, published with every release: https://github.com/angeloINTJ/simut
 
 ================================================================================
 
-END OF THIRD-PARTY NOTICES</pre>
+END OF THIRD-PARTY NOTICES/* @ENDIF */
+/* @IF !wifi */
+================================================================================
+SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
+Third-Party Software Notices
+================================================================================
+
+SIMUT is distributed under the MIT License above. Its SIMUT Wire images,
+pico_wire and pico_wiretft, also carry the third-party software listed here, and
+&quot;all images&quot; below means those two. The licence text of each one is reproduced
+in full in THIRD_PARTY_NOTICES.md and the LICENSES directory of the source
+repository, published with every release: https://github.com/angeloINTJ/simut
+
+================================================================================
+1. Arduino-Pico core
+================================================================================
+   Description:   The Arduino core for the RP2040 and RP2350, with its WiFi,
+                  WebServer, HTTPClient, DNSServer, Updater, PicoOTA, SPI and
+                  Wire libraries. Its networking and filesystem code comes from
+                  the ESP8266 Arduino core, under the same licence.
+   Holder:        Earle F. Philhower, III
+   License:       LGPL-2.1
+   Images:        all images
+   URL:           https://github.com/earlephilhower/arduino-pico
+   Note:          SIMUT publishes its complete source, so an image can be
+                  rebuilt against a modified core, as the LGPL requires.
+
+================================================================================
+2. Raspberry Pi Pico SDK
+================================================================================
+   Description:   Hardware access, multicore, flash and boot code for the RP2040
+                  and RP2350.
+   Holder:        Raspberry Pi (Trading) Ltd.
+   License:       BSD-3-Clause
+   Images:        all images
+   URL:           https://github.com/raspberrypi/pico-sdk
+
+================================================================================
+3. TinyUSB
+================================================================================
+   Description:   The USB stack behind the USB serial console.
+   Holder:        Ha Thach (tinyusb.org)
+   License:       MIT
+   Images:        all images
+   URL:           https://github.com/hathach/tinyusb
+
+================================================================================
+4. lwIP
+================================================================================
+   Description:   The TCP/IP stack (Adam Dunkels and the lwIP contributors),
+                  bundled in the Arduino-Pico core.
+   Holder:        Swedish Institute of Computer Science
+   License:       BSD-3-Clause
+   Images:        all images
+   URL:           https://savannah.nongnu.org/projects/lwip/
+
+================================================================================
+5. BearSSL
+================================================================================
+   Description:   TLS for HTTPS and MQTTS, SHA-256, and the P-256 check of
+                  signed updates.
+   Holder:        Thomas Pornin
+   License:       MIT
+   Images:        all images
+   URL:           https://bearssl.org
+
+================================================================================
+6. LittleFS
+================================================================================
+   Description:   The flash filesystem: configuration, history, language packs.
+   Holder:        Arm Limited and the littlefs authors
+   License:       BSD-3-Clause
+   Images:        all images
+   URL:           https://github.com/littlefs-project/littlefs
+
+================================================================================
+7. LEAmDNS
+================================================================================
+   Description:   The mDNS responder that answers for the device name on the
+                  local network; part of the Arduino-Pico core.
+   Holder:        LaborEtArs
+   License:       MIT
+   Images:        all images but pico_wire
+   URL:           https://github.com/LaborEtArs/ESP8266mDNS
+
+================================================================================
+8. newlib
+================================================================================
+   Description:   The C library of the toolchain: memory allocation, strings,
+                  formatted output.
+   Holder:        Red Hat, Inc. and others
+   License:       BSD-style (COPYING.NEWLIB)
+   Images:        all images
+   URL:           https://sourceware.org/newlib/
+
+================================================================================
+9. GCC runtime libraries
+================================================================================
+   Description:   libgcc and libstdc++, linked by the compiler. The exception
+                  lets them be combined with code under any licence.
+   Holder:        Free Software Foundation, Inc.
+   License:       GPL-3.0 with the GCC Runtime Library Exception
+   Images:        all images
+   URL:           https://gcc.gnu.org
+
+================================================================================
+10. Adafruit GFX Library
+================================================================================
+   Description:   Drawing primitives for the touch panel, and the classic 5x7
+                  font of its text screens.
+   Holder:        Adafruit Industries
+   License:       BSD-2-Clause
+   Images:        all images but pico_wire
+   URL:           https://github.com/adafruit/Adafruit-GFX-Library
+
+================================================================================
+11. Adafruit ILI9341
+================================================================================
+   Description:   Driver for the ILI9341 controller of the touch panel.
+   Holder:        Adafruit Industries (Limor Fried)
+   License:       BSD
+   Images:        all images but pico_wire
+   URL:           https://github.com/adafruit/Adafruit_ILI9341
+   Note:          Its source files say &quot;BSD license, all text here must be
+                  included in any redistribution&quot;, so the whole header is
+                  reproduced. Its README says MIT; the source is what this list
+                  follows.
+
+================================================================================
+12. XPT2046_Touchscreen
+================================================================================
+   Description:   Driver for the XPT2046 touch controller.
+   Holder:        Paul Stoffregen
+   License:       MIT
+   Images:        all images but pico_wire
+   URL:           https://github.com/PaulStoffregen/XPT2046_Touchscreen
+
+================================================================================
+13. PubSubClient
+================================================================================
+   Description:   The MQTT client behind MQTT and MQTTS telemetry.
+   Holder:        Nicholas O'Leary
+   License:       MIT
+   Images:        all images
+   URL:           https://github.com/knolleary/pubsubclient
+
+================================================================================
+14. DHT22PIO_RP2040
+================================================================================
+   Description:   The DHT22 protocol on the PIO.
+   Holder:        Ângelo Moisés Alves
+   License:       MIT
+   Images:        all images
+   URL:           https://github.com/angeloINTJ/DHT22PIO_RP2040
+
+================================================================================
+15. BuzzerPIO_RP2040
+================================================================================
+   Description:   Tones and melodies for the buzzer on the PIO.
+   Holder:        Ângelo Moisés Alves
+   License:       MIT
+   Images:        all images
+   URL:           https://github.com/angeloINTJ/BuzzerPIO_RP2040
+
+================================================================================
+16. TwoWirePIO_RP2040
+================================================================================
+   Description:   I2C on the PIO (the WirePIO library).
+   Holder:        Ângelo Moisés Alves
+   License:       MIT
+   Images:        all images
+   URL:           https://github.com/angeloINTJ/TwoWirePIO_RP2040
+
+================================================================================
+17. BMx280PIO_RP2040
+================================================================================
+   Description:   BME280 and BMP280 driver.
+   Holder:        Ângelo Moisés Alves
+   License:       MIT
+   Images:        all images
+   URL:           https://github.com/angeloINTJ/BMx280PIO_RP2040
+
+================================================================================
+18. PicoENC28J60
+================================================================================
+   Description:   Driver for the ENC28J60 Ethernet controller of the SIMUT Wire,
+                  plugged into the lwIP stack of the Arduino-Pico core; its SPI
+                  is a PIO program.
+   Holder:        Lukasz Janyst and Ângelo Moisés Alves
+   License:       MIT
+   Images:        all images
+   URL:           https://github.com/angeloINTJ/pico-enc28j60
+   Note:          A fork of Lukasz Janyst's pico-enc28j60
+                  (https://github.com/ljanyst/pico-enc28j60), whose PIO SPI
+                  program and C driver it keeps; the build fixes it at commit
+                  fb16ec1.
+
+================================================================================
+19. GNU FreeFont (FreeSans Bold)
+================================================================================
+   Description:   The 9, 12 and 24 pt faces of the touch panel, converted to
+                  bitmaps and cut down to the glyphs SIMUT draws.
+   Holder:        GNU FreeFont contributors
+   License:       GPL-3.0-or-later with the font exception
+   Images:        all images but pico_wire
+   URL:           https://www.gnu.org/software/freefont/
+
+================================================================================
+20. Liberation Sans Bold
+================================================================================
+   Description:   Five glyph outlines traced into the SIMUT wordmark of the web
+                  pages. No font file is embedded.
+   Holder:        Red Hat, Inc. (digitized data: Google, Arimo)
+   License:       SIL Open Font License 1.1
+   Images:        all images
+   URL:           https://github.com/liberationfonts/liberation-fonts
+
+================================================================================
+21. SHA-256 for JavaScript
+================================================================================
+   Description:   Hashes the password in the login page before it leaves the
+                  browser.
+   Holder:        Geraint Luff
+   License:       public domain
+   Images:        all images
+   URL:           https://github.com/geraintluff/sha256
+
+================================================================================
+
+END OF THIRD-PARTY NOTICES/* @ENDIF */
+</pre>
         </div>
     </div>
     <script>
@@ -7281,7 +7752,11 @@ input[type=range] { accent-color: var(--acento); }
 .sxb-dang:hover, .btn-dang:hover, .btn-fm-dang:hover { background: var(--perigo); color: var(--perigo-tinta); }
 .btn-fm-out { background: transparent; color: var(--acento); border-color: var(--acento); }
 .btn-fm-out:hover { background: var(--acento); color: var(--acento-tinta); }
-.sxb-on, .bottom-controls > button.active { background: var(--acento); color: var(--acento-tinta); border-color: var(--acento); }
+/* .sxb-on:hover is listed because .sxb:hover, a class and a pseudo-class,
+   outranks .sxb-on alone: an active toggle under the pointer took the hover
+   fill and kept the active text colour, pale on pale (the viewer's Organized
+   and Original, 2026-10-03). */
+.sxb-on, .sxb-on:hover, .bottom-controls > button.active { background: var(--acento); color: var(--acento-tinta); border-color: var(--acento); }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 /* Tabela */
 table { width: 100%; border-collapse: collapse; }
@@ -7310,7 +7785,7 @@ tr.pending-add { background: var(--positivo-suave); }
 .bar-fg, .progress-fill, .exp-overlay-fill { height: 100%; width: 0; background: var(--acento); border-radius: 999px; transition: width 0.3s; }
 .bar-fg.warn { background: var(--alerta); } .bar-fg.crit { background: var(--perigo); }
 /* Codigo */
-pre, #preview, #apreview { background: var(--superficie-2); color: var(--tinta); border: 1px solid var(--linha); border-radius: 6px; padding: 12px 16px; font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace; font-size: 13px; line-height: 20px; overflow-x: auto; white-space: pre-wrap; }
+pre { background: var(--superficie-2); color: var(--tinta); border: 1px solid var(--linha); border-radius: 6px; padding: 12px 16px; font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace; font-size: 13px; line-height: 20px; overflow-x: auto; white-space: pre-wrap; }
 /* Veu e caixa flutuante (modal): uma das tres sombras da interface. */
 .ov, .exp-overlay, .sx-ov { position: fixed; inset: 0; background: var(--veu); z-index: 9000; display: flex; align-items: center; justify-content: center; padding: 20px; }
 .ov-box, .exp-overlay-box, .sx-ov-box { background: var(--superficie); border: 1px solid var(--linha); border-radius: 12px; padding: 24px; box-shadow: var(--sombra-flutuante); max-width: 100%; box-sizing: border-box; }
@@ -7414,6 +7889,23 @@ pre, #preview, #apreview { background: var(--superficie-2); color: var(--tinta);
      correta que seja a conta de quem manda rolar. Sai no focusout. */
   body.typing { padding-bottom: 60vh; }
 }
+/* The text views (window.tvView in lang.js): the file manager's viewer and
+   the telemetry previews. A row is a flex line: the gutter with the line
+   number, the fold slot, and the text, indented by padding rather than by
+   spaces so a wrapped line keeps its indentation on a phone. */
+.tv-bar { display: flex; flex-wrap: wrap; gap: 8px; }
+.tv { overflow: auto; overflow-wrap: anywhere; margin: 0; padding: 8px 0 8px 8px; }
+.tv-raw { padding: 8px 16px; }
+.tv-r { display: flex; }
+.tv-f { cursor: pointer; }
+.tv-f:hover { background: var(--superficie); }
+.tv-g { flex: none; min-width: 4ch; padding: 0 8px; text-align: right; color: var(--tinta-2); user-select: none; }
+.tv-j .tv-g { display: none; }
+.tv-k { flex: none; width: 2ch; min-height: 0; background: none; border: 0; padding: 0; color: var(--tinta-2); font: inherit; user-select: none; }
+.tv-c { flex: 1; min-width: 0; padding-right: 16px; }
+.tv-n { color: var(--tinta-2); }
+/* A finger lands on the whole row, so the row grows instead of the fold mark. */
+@media (pointer: coarse) { .tv { line-height: 28px; } }
 )raw";
 
 static const char LANG_JS[] PROGMEM = R"raw(
@@ -7676,10 +8168,15 @@ static const char LANG_JS[] PROGMEM = R"raw(
             let dot = document.getElementById('conn-dot');
             let ipEl = document.getElementById('status-ip');
             if (dot) dot.style.background = 'var(--positivo)';
-            if (ipEl) { try { let sr = await fetch('/api/status'); let sd = await sr.json(); if(sd.sys) ipEl.textContent = sd.sys.ip || '--'; } catch(e){} }
+            let sd = null;
+            if (ipEl) { try { let sr = await fetch('/api/status'); sd = await sr.json(); if(sd.sys) ipEl.textContent = sd.sys.ip || '--'; } catch(e){} }
+            return { user: user, status: sd };
         } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = 'var(--perigo)'; }
     };
-    document.addEventListener('DOMContentLoaded',function(){window.initSession();});
+    /* sessReady hands what the session read to a page that wants it: the
+       telemetry preview builds from this /api/status and this user instead of
+       asking the device a second time. */
+    document.addEventListener('DOMContentLoaded',function(){ window.sessReady = window.initSession(); });
 
     /* Keep the field you are typing in above the on-screen keyboard.
      *
@@ -7778,8 +8275,9 @@ static const char LANG_JS[] PROGMEM = R"raw(
                JavaScript would be a second copy of it, and the copies would
                drift. Anything but a clear "reboot":false leaves the
                restart-only banner up: a dry run is refused outright for
-               sections that cannot be rehearsed (users, slots, calib), and
-               that refusal is the right answer here. */
+               sections that cannot be rehearsed (slots, calib), and that
+               refusal is the right answer here. Accounts can be rehearsed
+               since they apply live (A-08). */
             try {
                 const fd = new URLSearchParams();
                 fd.set('_payload', JSON.stringify(this.data));
@@ -7843,7 +8341,10 @@ static const char LANG_JS[] PROGMEM = R"raw(
             if (box) { box.classList.toggle('on', any); box.classList.toggle('live', live); }
             show('commit-btn', any);
             show('apply-btn', live);
-            show('try-btn', live);
+            /* Accounts are applied or not, never tried: one that exists until
+               the next restart, with a password shown once, is not a test.
+               The device refuses it too; hiding the button says so first. */
+            show('try-btn', live && !this.data.users);
             const note = document.getElementById('commit-note');
             if (note) {
                 note.style.display = any ? 'inline-block' : 'none';
@@ -7907,6 +8408,15 @@ static const char LANG_JS[] PROGMEM = R"raw(
             showToast(okMsg + ((j.applied && j.applied.length) ? ': ' + j.applied.join(', ') : ''), 'ok', 6000);
             if (j.rejected && j.rejected.length)
                 showToast(window.t('commit_rej', 'Fields not applied') + ': ' + j.rejected.join(', '), 'warn', 9000);
+            /* Accounts apply live since A-08, so the one-time passwords of the
+               accounts added or reset arrive HERE now — and they exist
+               nowhere else. Show them first, then reload: the list on the
+               page is the one from before the commit. */
+            if (j.creds && j.creds.length) {
+                showCredsModal(j.creds, () => { window.location.reload(); });
+            } else if ((j.applied || []).indexOf('users') >= 0) {
+                setTimeout(() => { window.location.reload(); }, 1500);
+            }
         } catch(e) {
             showToast(window.t('commit_err', 'Save failed.'), 'err', 9000);
         } finally {
@@ -8150,6 +8660,188 @@ static const char LANG_JS[] PROGMEM = R"raw(
 
     /* Ordem importa: install PRIMEIRO (cria botões), depois init
      * (Pending.refreshUI encontra o botão e mostra/esconde). */
+    /* tv: the pure part of the text viewer. It lives in lang.js because two
+       pages draw it, the file manager's viewer and the telemetry page's
+       previews, and each page is its own gz blob. No DOM here, so
+       tools/test_webui_text_viewer.py runs it under node, as written and as
+       the minifier leaves it. A row is {d depth, t text, ln line number or
+       0, f index of the last row it folds or -1, n members or lines it
+       folds, c 1 when that last row is its closing bracket}. The code is
+       dense on purpose: the minifier keeps the spaces inside a line, and
+       lang.js is paid for in every image.
+
+       The cap is 64 KiB: the largest text the firmware keeps is a language
+       pack, held under LANG_FILE_MAX (48 KiB), and the viewer draws one
+       element per row, so a bigger file is downloaded instead. */
+    const TV_CAP = 65536, TV_EXT = ' json jsonl ndjson txt csv tsv lng thm log cfg conf ini pem crt md xml yml yaml ';
+    function tvExt(n) { let i = n.lastIndexOf('.'); return i < 0 ? '' : n.slice(i + 1).toLowerCase(); }
+    function tvViewable(n, s) { return s <= TV_CAP && TV_EXT.indexOf(' ' + tvExt(n) + ' ') >= 0; }
+    /* Text unless more than 1 in 100 of the first 4096 characters is a
+       control code other than tab, line feed, form feed, carriage return
+       and escape. An invalid UTF-8 byte decodes to U+FFFD and does not
+       count: a Latin-1 file is still worth reading. */
+    function tvIsText(s) {
+        let m = Math.min(s.length, 4096), b = 0;
+        for (let i = 0; i < m; i++) { let c = s.charCodeAt(i); if (c < 32 && (c < 9 || c > 13 || c == 11) && c != 27) b++; }
+        return b * 100 <= m;
+    }
+    function tvOk(s) { try { JSON.parse(s); return 1; } catch (e) { return 0; } }
+    /* JSON laid out by its brackets alone. Every token keeps its spelling,
+       only the whitespace between tokens changes, and nothing throws: a cut
+       or broken text is still indented, and the caller asks JSON.parse
+       whether to say so. An open block folds to the last row that arrived.
+       Iterative, so a deep nesting costs a stack entry, not a frame. */
+    function tvJson(s, d, ln, R) {
+        let st = [], cur = 0, nl = 1, i = 0, L = s.length, top = () => st[st.length - 1];
+        const row = t => { R.push(cur = { d: d + st.length, t, ln, f: -1, n: 0, c: 0 }); ln = 0; };
+        const put = t => { if (nl || !cur) row(t); else cur.t += ' ' + t; nl = 1; let o = top(); if (o && !o.n) o.n = 1; };
+        while (i < L) {
+            let c = s[i], j = i + 1;
+            if (c <= ' ') { i++; continue; }
+            if (c == '{' || c == '[') {
+                while (j < L && s[j] <= ' ') j++;
+                if (s[j] == '}' || s[j] == ']') { put(c + s[j]); i = j + 1; }
+                else { put(c); st.push({ r: R.length - 1, n: 0 }); i++; }
+            } else if (c == '}' || c == ']') {
+                let o = st.pop(); row(c); nl = 1; i++;
+                if (o) Object.assign(R[o.r], { f: R.length - 1, n: o.n, c: 1 });
+            } else if (c == ',' || c == ':') {
+                if (cur) cur.t += c; else row(c);
+                let o = top(); if (c == ',' && o) o.n++;
+                nl = c == ','; i++;
+            } else {
+                if (c == '\x22') { while (j < L && s[j] != '\x22') j += s[j] == '\\' ? 2 : 1; j++; }
+                else while (j < L && s[j] > ' ' && '{}[],:\x22'.indexOf(s[j]) < 0) j++;
+                put(s.slice(i, j)); i = j;
+            }
+        }
+        for (let o of st) if (R.length - 1 > o.r) Object.assign(R[o.r], { f: R.length - 1, n: o.n });
+    }
+    /* A section header folds every line down to the next header: @NAME as
+       in the .lng and .thm packs, or [name] as in an INI file, unless that
+       [name] is a JSON array. */
+    function tvHead(e) {
+        let k = e.trim();
+        return e[0] == '@' ? e[1] >= 'A' && e[1] <= 'Z' : e[0] == '[' && k.indexOf(']') == k.length - 1 && !tvOk(k);
+    }
+    function tvEnd(R, h) { if (h >= 0 && R[h].n && R.length - 1 > h) R[h].f = R.length - 1; }
+    /* The line view: numbered lines, sections that fold, and a line that is
+       a whole JSON value laid out as a block, the NDJSON case. A section
+       counts the lines with text, and one with none has nothing to fold:
+       the .lng packs put a blank line after @CODE. */
+    function tvLines(s, R) {
+        let ls = s.split('\n'), h = -1;
+        if (ls[ls.length - 1] == '') ls.pop();
+        ls.forEach((x, i) => {
+            let e = x[x.length - 1] == '\r' ? x.slice(0, -1) : x, k = e.trim(), d = h < 0 ? 0 : 1;
+            if (tvHead(e)) { tvEnd(R, h); h = R.length; R.push({ d: 0, t: e, ln: i + 1, f: -1, n: 0, c: 0 }); return; }
+            if ((k[0] == '{' || k[0] == '[') && tvOk(k)) tvJson(k, d, i + 1, R);
+            else R.push({ d, t: e, ln: i + 1, f: -1, n: 0, c: 0 });
+            if (h >= 0 && k) R[h].n++;
+        });
+        tvEnd(R, h);
+    }
+    function tvNd(s) { let n = 0; for (let x of s.split('\n')) if (x = x.trim()) { if (!tvOk(x)) return 0; n++; } return n > 1; }
+    /* One JSON document when it parses, or when a .json file is cut or
+       broken and is not NDJSON; the line view for everything else. */
+    function tvParse(name, s) {
+        let R = [], k = s.trim(), j = k[0] == '{' || k[0] == '[', ok = j && !!tvOk(k);
+        if (ok || (j && tvExt(name) == 'json' && !tvNd(s))) { tvJson(k, 0, 1, R); return { j: 1, bad: !ok, rows: R }; }
+        tvLines(s, R);
+        return { j: 0, bad: false, rows: R };
+    }
+    /* The folds closed when a file opens, every block from depth 2 down;
+       and the ones Collapse all closes, every fold but the outermost JSON
+       block, which closed would leave a single line. */
+    function tvInit(m) { let c = {}; m.rows.forEach((r, i) => { if (r.f > i && r.d > 1) c[i] = 1; }); return c; }
+    function tvAll(m) { let c = {}; m.rows.forEach((r, i) => { if (r.f > i && (r.d || !m.j)) c[i] = 1; }); return c; }
+    /* The rows on screen, k 0 plain, 1 open, 2 closed: a closed fold shows
+       its first row ending in an ellipsis and the closing bracket. */
+    function tvVis(m, c) {
+        let R = m.rows, V = [];
+        for (let i = 0; i < R.length; i++) {
+            let r = R[i], f = r.f > i, v = { i, d: r.d, ln: r.ln, k: f ? 1 : 0, t: r.t };
+            if (f && c[i]) { v.k = 2; v.n = r.n; v.t += r.c ? '…' + R[r.f].t : ' …'; i = r.f; }
+            V.push(v);
+        }
+        return V;
+    }
+    /* tv: end of the pure part */
+
+    /* tv: a view over a <pre>, with its folds and its two modes, Organized and
+       Original. bar holds the buttons: o Organized, r Original, e Expand all,
+       c Collapse all. set(name, text) lays a text out with the folds a file
+       opens with; set(name, text, 1) keeps the folds while the row count
+       stays, the case of a preview redrawn on every keystroke, and opens
+       everything when it changes. A click on a fold row toggles it, unless it
+       ends a text selection; the mark itself, by mouse or by keyboard, always
+       toggles, and gets the focus back after the redraw. */
+    window.tvView = function(pre, bar) {
+        const v = { m: 0, c: {}, s: '', raw: 0 };
+        v.draw = () => {
+            [[bar.o, !v.raw], [bar.r, !!v.raw]].forEach(([b, on]) => { b.classList.toggle('sxb-on', on); b.setAttribute('aria-pressed', on); });
+            bar.e.disabled = bar.c.disabled = v.raw || !v.m || !v.m.rows.some((r, i) => r.f > i);
+            if (!v.m) return;
+            if (v.raw) { pre.className = 'tv tv-raw'; pre.textContent = v.s; return; }
+            pre.className = v.m.j ? 'tv tv-j' : 'tv';
+            pre.innerHTML = tvVis(v.m, v.c).map(w => '<span class="tv-r' + (w.k ? ' tv-f" data-i="' + w.i : '') + '"><span class="tv-g">' + (w.ln || '') + '</span>' +
+                (w.k ? '<button type="button" class="tv-k" aria-expanded="' + (w.k == 1) + '">' + (w.k == 1 ? '▾' : '▸') + '</button>' : '') +
+                '<span class="tv-c" style="padding-left:' + (2 * w.d + (w.k ? 0 : 2)) + 'ch">' + escHtml(w.t) + (w.k == 2 ? ' <span class="tv-n">' + w.n + '</span>' : '') + '</span></span>').join('');
+        };
+        v.note = t => { v.m = 0; pre.className = 'tv tv-raw'; pre.textContent = t; v.draw(); };
+        v.set = (name, s, keep) => {
+            let m = tvParse(name, s);
+            v.c = !keep ? tvInit(m) : v.m && v.m.rows.length == m.rows.length ? v.c : {};
+            v.m = m; v.s = s; v.draw();
+            return m;
+        };
+        bar.o.onclick = () => { v.raw = 0; v.draw(); };
+        bar.r.onclick = () => { v.raw = 1; v.draw(); };
+        bar.e.onclick = () => { if (v.m) { v.c = {}; v.draw(); } };
+        bar.c.onclick = () => { if (v.m) { v.c = tvAll(v.m); v.draw(); } };
+        pre.addEventListener('click', ev => {
+            let r = ev.target.closest('[data-i]'), i = r && r.getAttribute('data-i');
+            if (!r || (!ev.target.closest('button') && !getSelection().isCollapsed)) return;
+            if (v.c[i]) delete v.c[i]; else v.c[i] = 1;
+            v.draw();
+            if (r = pre.querySelector('[data-i=\x22' + i + '\x22] button')) r.focus();
+        });
+        return v;
+    };
+    /* @IF slot */
+    /* fw: slot note. The Pico 2 W's update goes into the slot the board did not
+       boot from and boots on trial (docs/analysis/OTA_AB_RP2350.md, step 5), and
+       /api/status says so in three fields only that chip sends: slot, trial (1
+       until the update has run healthy for a minute and kept itself) and
+       reverted (the version of an update the boot ROM went back from). The
+       Pico W sends none of the three, and its images cut this block anyway
+       (web_omit of [chip.rp2040], tools/features.toml).
+       tools/test_webui_trial_note.py runs it. */
+    window.fwSlotNote = function(sys) {
+        if (!sys) return '';
+        let n = [];
+        if (sys.trial == 1) n.push(window.t('fw_trial', 'This version is on trial: it stays once it has run healthy for a minute. Restarting the device before that brings back the previous version.'));
+        if (sys.reverted) n.push(window.t('fw_reverted', 'The update to v{v} did not confirm itself, and the device went back to this version (code 613 in the event log).').replace('{v}', sys.reverted));
+        return n.join(' ');
+    };
+    /* fw: end of slot note */
+    /* The note above the page's first card, while there is something to say.
+       The dashboard calls this on every status poll, so the note goes away
+       once the update has kept itself; the text is only rewritten when it
+       changes, or a screen reader would hear it again on every poll. */
+    window.fwSlotShow = function(sys) {
+        let n = window.fwSlotNote(sys), el = document.getElementById('fwNote'), c = document.querySelector('.container');
+        if (!el) {
+            if (!n || !c) return;
+            el = document.createElement('p');
+            el.id = 'fwNote'; el.className = 'faixa faixa-alerta'; el.setAttribute('role', 'status');
+            c.insertBefore(el, c.firstChild);
+        }
+        if (el.textContent !== n) el.textContent = n;
+        el.style.display = n ? '' : 'none';
+    };
+    /* @ENDIF */
+
     document.addEventListener('DOMContentLoaded', () => {
         if (window.installCommitInfra) installCommitInfra();
         if (window.Pending) Pending.init();

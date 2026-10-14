@@ -17,7 +17,9 @@ source.
 Every JSON route gates through `requirePerm(bits)` (`WebManager_Auth.cpp`):
 
 - **401** `{"error":"Unauthorized"}` — no live session at all. The token was
-  never issued, expired (15 min idle), or died with a reboot. The fix is to
+  never issued, expired (15 min idle), died with a reboot, or outlived its
+  account: deleted, its slot taken by another name, or its password set by
+  someone else since the login (`SessionCheck.h`, log code 312). The fix is to
   log in again.
 - **403** `{"error":"Forbidden"}` — a live session whose account lacks the
   bits. Logging in again changes nothing; the account does.
@@ -32,8 +34,10 @@ same idle timeout. `Basic` remains the credential of `/metrics` only.
 
 ## Permission bits
 
-A session carries a 16-bit permission mask (`SystemDefs_Limits.h`). A handler
-gates by testing the bits it needs against `getAuthPerms()`.
+A session acts with the 16-bit permission mask (`SystemDefs_Limits.h`) its
+account holds at each request, not the one it held at login: `getAuthPerms()`
+reads the live account, so narrowing an account takes effect at its next
+request. A handler gates by testing the bits it needs against `getAuthPerms()`.
 
 | Bit | Value | Grants |
 |-----|-------|--------|
@@ -159,7 +163,9 @@ has its own identity: a **PIN** of 4 to 8 digits (`PinKb::FIRST`..`LAST`) per
 account, unique across accounts because the keypad has no username field — the
 PIN *is* the lookup.
 CFG on the dashboard opens the keypad; the account it identifies is the panel
-session until the settings tree is left. `EVT_AUTH_PIN` hands Core 0 the taps of the
+session until the settings tree is left. Every action checks that the account
+is still the one identified — deleted or renamed ends the session — and acts
+with its current bits (`AppManager::panelSessionCurrent`). `EVT_AUTH_PIN` hands Core 0 the taps of the
 attempt, and each one carries THE THREE GLYPHS THAT WERE ON THE CARD when it
 was made — the deal is rolled again after every tap, so a card index would name
 something else by the time it is read. The keypad never asks which of the three

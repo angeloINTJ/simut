@@ -1,6 +1,6 @@
 # SIMUT — Manual do Usuário
 
-**Firmware:** v2.9.0 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **Licença:** MIT
+**Firmware:** v2.11.1 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **Licença:** MIT
 **Repositório:** https://github.com/angeloINTJ/simut
 
 [English](MANUAL.md) | **Português**
@@ -132,7 +132,7 @@ Pinagem completa e notas de montagem: [WIRING.md](WIRING.md).
 
 3. **Entre em uma rede.** O ponto de acesso de configuração abre quando você
    pede: `ap` no console (USB, ou Bluetooth no alpha e no Air), ou
-   Configurações → 12 no painel. Ele é `<nome>_SETUP`, WPA2, com a chave na
+   Configurações → 8 no painel. Ele é `<nome>_SETUP`, WPA2, com a chave na
    resposta do `ap`, no console USB e no display (§14), e o portal em
    `http://192.168.4.1` recebe o nome e a senha da rede. Nenhuma imagem o abre
    sozinha; da v2.7.1 à v2.8.0, uma unidade sem rede configurada abria. Pela
@@ -517,7 +517,7 @@ dispositivo.
 | `/network` | Wi-Fi (com busca das redes ao alcance), endereçamento estático, mDNS, NTP |
 | `/alarms` | Limites e ações por sensor |
 | `/users` | Contas e permissões |
-| `/files` | Navegador do sistema de arquivos: upload, download, exclusão, criação de diretórios — mais backup completo, restauração e atualização de firmware (OTA) |
+| `/files` | Navegador do sistema de arquivos: upload, download, exclusão, criação de diretórios e um visor que mostra um arquivo de texto organizado (JSON indentado com blocos que abrem e recolhem, as seções de um pacote de idioma ou de tema, linhas numeradas) — mais backup completo, restauração e atualização de firmware (OTA) |
 | `/history` | Gráficos de histórico, exportação CSV e o visualizador do log de eventos do sistema |
 | `/license` | Texto da licença |
 
@@ -562,9 +562,10 @@ resposta do **aparelho**, não da página.
 
 Os dois últimos só aparecem quando a mudança **pode** ser aplicada ao vivo —
 limites de alarme, manutenção, 2ª linha de alarmes, telemetria pelo lado HTTP,
-tema e idioma. Rede, contas, provisionamento de sensor, fuso e a própria
-política de PIN continuam exigindo reinício, e nesse caso a barra mostra só
-"Salvar e reiniciar" e diz **por quê**.
+tema e idioma, contas e a política de PIN (desde a v2.10.0; para contas só
+**Aplicar agora**, porque conta não se testa). Rede, provisionamento de sensor e
+fuso continuam exigindo reinício, e nesse caso a barra mostra só "Salvar e
+reiniciar" e diz **por quê**.
 
 > A página **pergunta ao aparelho** (um ensaio que não muda nada) em vez de
 > decidir sozinha. A regra é comparar a configuração encenada com a corrente,
@@ -952,7 +953,9 @@ que uma imagem não pode ser restaurada numa placa diferente por acidente.
 
 A restauração é `POST /api/restore` — `op=validate` confere uma imagem sem
 escrever, `op=apply` a escreve. Um apply bem-sucedido reinicia o dispositivo
-para que nada guarde um cache velho do que havia na flash.
+para que nada guarde um cache velho do que havia na flash. O apply só aceita a
+imagem que o último validate aprovou (senão, `409`). Se falhar no meio, ele
+mantém os arquivos que terminou e apaga só o que ficou incompleto: repita.
 
 **Faça um backup antes de toda atualização de firmware.** A §12 explica por
 quê.
@@ -988,7 +991,7 @@ armazenado se perdem.** Baixe um backup antes.
 
 Desde a v2.8.0 o snapshot é gravado quando o envio **começa** e vale uma vez: o
 boot seguinte o restaura se não encontrar o `/config/system.bin`, e o apaga. Um
-envio cortado no meio (um reset do roteador) ou recusado no fim faz o aparelho
+envio cortado no meio (a conexão cai) ou recusado no fim faz o aparelho
 gravar a configuração de volta na hora; uma queda de energia no meio do envio a
 devolve pelo snapshot no boot seguinte. O resto do sistema de arquivos se perde
 do mesmo jeito. Até a
@@ -1181,14 +1184,14 @@ publica de quatro maneiras:
 |---|---|
 | Console USB, na linha `[AP] PSK :` | todos |
 | Resposta do comando `ap`, no canal que pediu (USB ou Bluetooth) | todos |
-| O terminal de boot do painel: no boot, junto de "Conecte-se à rede …"; e, desde a v2.7.2, nas últimas linhas sempre que o AP abre em operação (Configurações → 12, `ap`) — rede, `PSK`, 192.168.4.1 | release (TFT) |
+| O terminal de boot do painel: no boot, junto de "Conecte-se à rede …"; e, desde a v2.7.2, nas últimas linhas sempre que o AP abre em operação (Configurações → 8, `ap`) — rede, `PSK`, 192.168.4.1 | release (TFT) |
 | Terceira página do LCD, enquanto o AP está no ar | alpha |
 
 E há três maneiras de entrar nele, todas a pedido de alguém:
 
 | Como | Vale para | Observação |
 |---|---|---|
-| **Configurações → 12. Modo de Configuração** | release (TFT) | pede confirmação; exige o bit de rede |
+| **Configurações → 8. Modo de Configuração** | release (TFT) | pede confirmação; exige o bit de rede |
 | **Comando `ap`** | todos | pela USB, e pelo Bluetooth nas imagens alpha e Air |
 | **Segurando a tela durante o boot** | release (TFT) | o painel pede e mostra a barra de 3 s; ver abaixo |
 
@@ -1221,7 +1224,7 @@ v2.7.1 a janela roda com o painel desenhando, então **o que está escrito na te
 |---|---|
 | Esqueci a senha de admin | `system admin reset confirm` pela **serial USB** (o comando é recusado pelo Bluetooth), depois entre com a senha impressa — a web obriga a trocá-la. Desde esta versão o reset sobrevive a um reboot, então não há pressa |
 | Responde na serial mas não na rede | `show net status` — sem IP, entre em modo AP (acima) e reconfigure o Wi-Fi pelo portal |
-| O roteador mudou e o aparelho sumiu da rede | Abra a rede de setup pelo painel (Configurações → 12), pelo `ap` na USB ou pelo `ap` por Bluetooth (alpha e Air), e grave a rede nova pelo portal. Ela não abre sozinha; da v2.7.1 à v2.8.0, abria 6–7 min depois do boot |
+| O roteador mudou e o aparelho sumiu da rede | Abra a rede de setup pelo painel (Configurações → 8), pelo `ap` na USB ou pelo `ap` por Bluetooth (alpha e Air), e grave a rede nova pelo portal. Ela não abre sozinha; da v2.7.1 à v2.8.0, abria 6–7 min depois do boot |
 | Vejo a rede `_SETUP` mas o celular não conecta | Corrigido na v2.7.1. Até a v2.7.0, um `ap` disparado enquanto o aparelho estava **caçando uma rede que não existe** subia um AP visível e inassociável (medido: 45 s e timeout, contra 4,07 s depois da correção) — e é justamente aí que se usa o `ap`. Em firmware mais antigo, `reload confirm` e o `ap` logo no boot |
 | Vejo a rede `_SETUP` no celular mas não sei a senha | Ela é derivada da placa e nunca foi em branco desde a v2.4.1-beta. Leia-a no console USB, na resposta do `ap`, no boot do TFT ou no LCD do alpha |
 | Tela em branco depois de ajustar o offset do display | Corrigido na v1.6.2-beta. Em firmwares mais antigos, um reset de fábrica limpa o offset armazenado |

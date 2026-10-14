@@ -15,8 +15,14 @@ radio and is now measured by the `FLASH_OP` metrics (`show metrics`).
 For heavy saves, Core 0 puts the display in *quiet mode*: since wave 1,
 it first asks Core 1 to **park at the top of its loop** (a point outside
 `malloc`, the event-queue spinlock and any SPI burst) and only then
-hard-resets it; the ≤200 ms park wait falls back to the old immediate
-reset, so behavior can never be worse than before.
+hard-resets it; the park wait, `CORE1_QUIESCE_MS` (1.2 s), falls back to
+the old immediate reset, so behavior can never be worse than before.
+The alpha has no quiet mode, and its `requestQuietMode( )` says so by
+returning false: a heavy save then pauses Core 1 around each flash write,
+the way the history and the log are written. Its loop parks at the top
+like the TFT's. Until 2026-10-03 it did neither: the call answered true
+with Core 1 still running from the flash being written, and every other
+pause waited out the full park timeout.
 
 ## Invariants
 

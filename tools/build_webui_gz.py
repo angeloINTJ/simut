@@ -246,6 +246,9 @@ WEB_FEATURES = {
     "syslog": "a secao Syslog remoto da pagina de configuracao",
     "tel_tls": "a chave de TLS da telemetria e o aviso de certificado",
     "tel_mqtt": "o seletor de transporte e os campos do MQTT na pagina de telemetria",
+    "slot": "a atualizacao em teste e a volta do Pico 2 W, no painel e na pagina Arquivos",
+    "wifi": "o radio: SSID, senha e busca de redes na pagina de rede, o sinal no painel; a build com a rede por cabo (a classe lan, web_omit de [net_class.lan]) nao os tem",
+    "slots16": "os dezesseis slots de sensor (GP0-GP15) nos textos da pagina de sensores, nas legendas de tags e no preview da telemetria; um driver de rede que toma o GP11-GP15 (web_omit de [net.enc28j60]) corta esses textos e a pagina fica com os onze que sobram",
 }
 
 # Onde cada feature registra as rotas que só ela tem. A página que chama uma
@@ -264,6 +267,7 @@ WEB_FEATURES = {
 # no bloco @IF do menu; o navMap e uma tabela de permissao, nao uma chamada.
 WEB_FEATURE_ROUTES = {
     "tft": (os.path.join("src", "WebManager_History.cpp"), "registerScreenRoutes"),
+    "wifi": (os.path.join("src", "WebManager_Core.cpp"), "#if SIMUT_NET_WIFI"),
     "web_history": (os.path.join("src", "WebManager_Core.cpp"), "#if SIMUT_WEB_HISTORY"),
     # Sem bloco na interface: nenhuma pagina as chama, e a conferencia garante
     # que continue assim — a imagem sem elas nao pode ter um botao que da 404.
@@ -424,6 +428,10 @@ def _strip_web_features(content: str) -> str:
                 problems.append(
                     f"  {name}( ) e definida dentro de @IF {feature} e nunca usada")
         ids = set(re.findall(r'\bid="([\w-]+)"', body))
+        # Um id dos DOIS lados do par (`x` e `!x`) esta em toda imagem, uma vez
+        # so, como a funcao definida dos dois lados: o codigo comum pode busca-lo.
+        # E o card que so troca o rotulo numa build sem o radio (2026-10-13).
+        ids -= set(re.findall(r'\bid="([\w-]+)"', "\n".join(b for _, _, b in other_spans)))
         # A busca que confere o nulo antes de usar nao vira TypeError: e o
         # `var w = getElementById(...); if (!w) return;` que o arquivo ja usa, e
         # o que o toggleTransport( ) faz com o rotulo do TLS numa imagem com

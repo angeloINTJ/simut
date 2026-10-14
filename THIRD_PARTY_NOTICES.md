@@ -5,35 +5,38 @@ also carry the third-party software below. For each one: who holds the copyright
 the licence, which images carry it, and the file in [LICENSES/](LICENSES) that holds
 the licence text, reproduced verbatim as those licences ask of a binary distribution.
 
-The panel's License screen and the `/license` web page list the same components.
-This file is written by `tools/gen_notices.py` from `tools/third_party.toml`: edit
-those, run the script, and CI checks that the three lists still agree.
+The panel's License screen and the `/license` web page of an image list the same
+components: those of its family, the seven images with the radio or the two SIMUT
+Wire images (`pico_wire`, `pico_wiretft`). This file is written by
+`tools/gen_notices.py` from `tools/third_party.toml`: edit those, run the script,
+and CI checks that the lists still agree.
 
 | Component | Copyright holder | Licence | Images |
 |---|---|---|---|
 | [Arduino-Pico core](#arduino-pico-core) | Earle F. Philhower, III | LGPL-2.1 | all images |
 | [Raspberry Pi Pico SDK](#raspberry-pi-pico-sdk) | Raspberry Pi (Trading) Ltd. | BSD-3-Clause | all images |
 | [TinyUSB](#tinyusb) | Ha Thach (tinyusb.org) | MIT | all images |
-| [cyw43-driver](#cyw43-driver) | George Robotics Pty Ltd | Raspberry Pi licence (LICENSE.RP) | all images |
-| [CYW43439 radio firmware](#cyw43439-radio-firmware) | Infineon Technologies (Cypress) | binary, shipped in cyw43-driver | all images |
+| [cyw43-driver](#cyw43-driver) | George Robotics Pty Ltd | Raspberry Pi licence (LICENSE.RP) | all images but pico_wire and pico_wiretft |
+| [CYW43439 radio firmware](#cyw43439-radio-firmware) | Infineon Technologies (Cypress) | binary, shipped in cyw43-driver | all images but pico_wire and pico_wiretft |
 | [lwIP](#lwip) | Swedish Institute of Computer Science | BSD-3-Clause | all images |
 | [BearSSL](#bearssl) | Thomas Pornin | MIT | all images |
 | [LittleFS](#littlefs) | Arm Limited and the littlefs authors | BSD-3-Clause | all images |
-| [MicroPython DHCP server](#micropython-dhcp-server) | Damien P. George | MIT | all images |
-| [LEAmDNS](#leamdns) | LaborEtArs | MIT | pico_w_release, pico_w_asserts, pico2_w_release |
+| [MicroPython DHCP server](#micropython-dhcp-server) | Damien P. George | MIT | all images but pico_wire and pico_wiretft |
+| [LEAmDNS](#leamdns) | LaborEtArs | MIT | pico_w_release, pico_w_asserts, pico2_w_release, pico_wiretft |
 | [newlib](#newlib) | Red Hat, Inc. and others | BSD-style (COPYING.NEWLIB) | all images |
 | [GCC runtime libraries](#gcc-runtime-libraries) | Free Software Foundation, Inc. | GPL-3.0 with the GCC Runtime Library Exception | all images |
-| [Adafruit GFX Library](#adafruit-gfx-library) | Adafruit Industries | BSD-2-Clause | the five images with the touch panel |
-| [Adafruit ILI9341](#adafruit-ili9341) | Adafruit Industries (Limor Fried) | BSD | the five images with the touch panel |
-| [XPT2046_Touchscreen](#xpt2046_touchscreen) | Paul Stoffregen | MIT | the five images with the touch panel |
+| [Adafruit GFX Library](#adafruit-gfx-library) | Adafruit Industries | BSD-2-Clause | the six images with the touch panel |
+| [Adafruit ILI9341](#adafruit-ili9341) | Adafruit Industries (Limor Fried) | BSD | the six images with the touch panel |
+| [XPT2046_Touchscreen](#xpt2046_touchscreen) | Paul Stoffregen | MIT | the six images with the touch panel |
 | [PubSubClient](#pubsubclient) | Nicholas O'Leary | MIT | all images |
-| [OneWirePIO_RP2040](#onewirepio_rp2040) | Ângelo Moisés Alves | MIT | all images |
+| [OneWirePIO_RP2040](#onewirepio_rp2040) | Ângelo Moisés Alves | MIT | all images but pico_wire and pico_wiretft |
 | [DHT22PIO_RP2040](#dht22pio_rp2040) | Ângelo Moisés Alves | MIT | all images |
 | [BuzzerPIO_RP2040](#buzzerpio_rp2040) | Ângelo Moisés Alves | MIT | all images but pico_w_air |
 | [TwoWirePIO_RP2040](#twowirepio_rp2040) | Ângelo Moisés Alves | MIT | all images |
 | [BMx280PIO_RP2040](#bmx280pio_rp2040) | Ângelo Moisés Alves | MIT | all images |
+| [PicoENC28J60](#picoenc28j60) | Lukasz Janyst and Ângelo Moisés Alves | MIT | pico_wire, pico_wiretft |
 | [BTstack](#btstack) | BlueKitchen GmbH | Raspberry Pi licence (LICENSE.RP) | pico_w_alpha, pico_w_air |
-| [GNU FreeFont (FreeSans Bold)](#gnu-freefont-freesans-bold) | GNU FreeFont contributors | GPL-3.0-or-later with the font exception | the five images with the touch panel |
+| [GNU FreeFont (FreeSans Bold)](#gnu-freefont-freesans-bold) | GNU FreeFont contributors | GPL-3.0-or-later with the font exception | the six images with the touch panel |
 | [Liberation Sans Bold](#liberation-sans-bold) | Red Hat, Inc. (digitized data: Google, Arimo) | SIL Open Font License 1.1 | all images |
 | [SHA-256 for JavaScript](#sha-256-for-javascript) | Geraint Luff | public domain | all images |
 
@@ -72,7 +75,7 @@ Driver for the Infineon CYW43439 Wi-Fi and Bluetooth chip of the Pico W and the 
 
 - Copyright holder: George Robotics Pty Ltd
 - Licence: Raspberry Pi licence (LICENSE.RP), text in [LICENSES/cyw43-driver-LICENSE.RP.txt](LICENSES/cyw43-driver-LICENSE.RP.txt)
-- Images: all images
+- Images: all images but pico_wire and pico_wiretft
 - Source: <https://github.com/georgerobotics/cyw43-driver>
 
 Licensed by Raspberry Pi Ltd for use with its own chips only. The driver's other licence (its LICENSE file) is for non-commercial use; LICENSE.RP is the one that covers SIMUT, which runs on the Pico W and the Pico 2 W.
@@ -83,7 +86,7 @@ The firmware the radio chip loads at boot: Wi-Fi in every image, Bluetooth too i
 
 - Copyright holder: Infineon Technologies (Cypress)
 - Licence: binary, shipped in cyw43-driver, text in [LICENSES/cyw43-driver-LICENSE.RP.txt](LICENSES/cyw43-driver-LICENSE.RP.txt)
-- Images: all images
+- Images: all images but pico_wire and pico_wiretft
 - Source: <https://github.com/georgerobotics/cyw43-driver/tree/main/firmware>
 
 Shipped inside cyw43-driver; the Pico SDK carries no separate licence for it, so it travels under the driver's terms above.
@@ -121,7 +124,7 @@ Hands out addresses on the setup access point; part of the Arduino-Pico WiFi lib
 
 - Copyright holder: Damien P. George
 - Licence: MIT, text in [LICENSES/micropython-dhcpserver-MIT.txt](LICENSES/micropython-dhcpserver-MIT.txt)
-- Images: all images
+- Images: all images but pico_wire and pico_wiretft
 - Source: <https://micropython.org>
 
 ## LEAmDNS
@@ -130,7 +133,7 @@ The mDNS responder that answers for the device name on the local network; part o
 
 - Copyright holder: LaborEtArs
 - Licence: MIT, text in [LICENSES/leamdns-MIT.txt](LICENSES/leamdns-MIT.txt)
-- Images: pico_w_release, pico_w_asserts, pico2_w_release
+- Images: pico_w_release, pico_w_asserts, pico2_w_release, pico_wiretft
 - Source: <https://github.com/LaborEtArs/ESP8266mDNS>
 
 ## newlib
@@ -157,7 +160,7 @@ Drawing primitives for the touch panel, and the classic 5x7 font of its text scr
 
 - Copyright holder: Adafruit Industries
 - Licence: BSD-2-Clause, text in [LICENSES/adafruit-gfx-BSD-2-Clause.txt](LICENSES/adafruit-gfx-BSD-2-Clause.txt)
-- Images: the five images with the touch panel
+- Images: the six images with the touch panel
 - Source: <https://github.com/adafruit/Adafruit-GFX-Library>
 
 ## Adafruit ILI9341
@@ -166,7 +169,7 @@ Driver for the ILI9341 controller of the touch panel.
 
 - Copyright holder: Adafruit Industries (Limor Fried)
 - Licence: BSD, text in [LICENSES/adafruit-ili9341-BSD.txt](LICENSES/adafruit-ili9341-BSD.txt)
-- Images: the five images with the touch panel
+- Images: the six images with the touch panel
 - Source: <https://github.com/adafruit/Adafruit_ILI9341>
 
 Its source files say "BSD license, all text here must be included in any redistribution", so the whole header is reproduced. Its README says MIT; the source is what this list follows.
@@ -177,7 +180,7 @@ Driver for the XPT2046 touch controller.
 
 - Copyright holder: Paul Stoffregen
 - Licence: MIT, text in [LICENSES/xpt2046-touchscreen-MIT.txt](LICENSES/xpt2046-touchscreen-MIT.txt)
-- Images: the five images with the touch panel
+- Images: the six images with the touch panel
 - Source: <https://github.com/PaulStoffregen/XPT2046_Touchscreen>
 
 ## PubSubClient
@@ -195,7 +198,7 @@ The MQTT client behind MQTT and MQTTS telemetry.
 
 - Copyright holder: Ângelo Moisés Alves
 - Licence: MIT, text in [LICENSES/OneWirePIO_RP2040-MIT.txt](LICENSES/OneWirePIO_RP2040-MIT.txt)
-- Images: all images
+- Images: all images but pico_wire and pico_wiretft
 - Source: <https://github.com/angeloINTJ/OneWirePIO_RP2040>
 
 ## DHT22PIO_RP2040
@@ -234,6 +237,17 @@ BME280 and BMP280 driver.
 - Images: all images
 - Source: <https://github.com/angeloINTJ/BMx280PIO_RP2040>
 
+## PicoENC28J60
+
+Driver for the ENC28J60 Ethernet controller of the SIMUT Wire, plugged into the lwIP stack of the Arduino-Pico core; its SPI is a PIO program.
+
+- Copyright holder: Lukasz Janyst and Ângelo Moisés Alves
+- Licence: MIT, text in [LICENSES/pico-enc28j60-MIT.txt](LICENSES/pico-enc28j60-MIT.txt)
+- Images: pico_wire, pico_wiretft
+- Source: <https://github.com/angeloINTJ/pico-enc28j60>
+
+A fork of Lukasz Janyst's pico-enc28j60 (https://github.com/ljanyst/pico-enc28j60), whose PIO SPI program and C driver it keeps; the build fixes it at commit fb16ec1.
+
 ## BTstack
 
 The Bluetooth stack behind the Bluetooth console of the alpha and Air images.
@@ -251,7 +265,7 @@ The 9, 12 and 24 pt faces of the touch panel, converted to bitmaps and cut down 
 
 - Copyright holder: GNU FreeFont contributors
 - Licence: GPL-3.0-or-later with the font exception, text in [LICENSES/freefont-GPL-3.0-font-exception.txt](LICENSES/freefont-GPL-3.0-font-exception.txt), [LICENSES/GPL-3.0.txt](LICENSES/GPL-3.0.txt)
-- Images: the five images with the touch panel
+- Images: the six images with the touch panel
 - Source: <https://www.gnu.org/software/freefont/>
 
 ## Liberation Sans Bold

@@ -9,6 +9,7 @@
  */
 
 #include "AppManager.h"
+#include "simut_config.h"   /* SIMUT_NET_LAN and SIMUT_NET_WIFI are tested below: included here, not left to another header */
 #include "CommandManager.h"
 #include "CommandParser.h"
 #include "CorsOrigin.h" /* isValidCorsOrigin — a mesma regra que o WebManager usa */
@@ -31,6 +32,7 @@
 #include "lwip/memp.h"
 #endif
 
+#if SIMUT_NET_WIFI   /* the wired build has no radio to open an AP with */
 /* ctx says WHO asked, because the callers are different stories in a log read
  * months later: 0 a person (CLI, Bluetooth or the panel's menu), 1 the boot
  * touch gesture, logged at its own site in AppManager_Boot.cpp, which runs
@@ -52,7 +54,7 @@ void AppManager::startApMode(uint8_t why) {
   * this sets would hide the LCD's own AP pages. */
  _displayMgr->setBootStatusKey(TR_BOOT_START_AP);
 #endif
- if (!_netMgr->beginAP(cfg.deviceName)) {
+ if (!_netMgr->beginAP(cfg.deviceName, cfg.wifiSsid)) {
   /* beginAP( ) logged SYS_AP_START -1 and gave the radio back to the
    * reconnect ladder. _isApMode stays false so the loop keeps measuring: it
    * used to be set regardless, which left a device with no AP, nothing
@@ -89,6 +91,7 @@ void AppManager::startApMode(uint8_t why) {
   ? "Conecte-se ao AP e acesse http://192.168.4.1"
   : "Join the AP and open http://192.168.4.1");
 }
+#endif /* SIMUT_NET_WIFI */
 
 /* What an operator standing at the panel needs, as the last four lines of the
  * boot terminal: the network, its key, where to point the browser, and that
@@ -381,7 +384,15 @@ void AppManager::executeCommand(CliDemand cmd) {
  ? "--- Status da Rede ---"
  : "--- Network Status ---");
  _cmdMgr->consolePrintf (" IP: %s\n", ip.c_str( ));
+#if SIMUT_NET_LAN
+ /* getRssi( ) on the cable is a constant standing in for "connected" (see
+  * net/NetworkManager_Wired.cpp); printed as dBm it would read as a measurement. */
+ _cmdMgr->consolePrintf (pt ? " Cabo: %s\n" : " Cable: %s\n",
+                         _netMgr->isLinkUp( ) ? (pt ? "conectado" : "connected")
+                                              : (pt ? "sem link" : "no link"));
+#else
  _cmdMgr->consolePrintf (" RSSI: %ld dBm\n", (long)_netMgr->getRssi( ));
+#endif
 #if LWIP_STATS && MEMP_STATS
  /* T0.3: PBUF pool watermark — decides T2.2 (pool 12→16). */
  {
@@ -585,6 +596,7 @@ void AppManager::executeCommand(CliDemand cmd) {
 
 #endif /* SIMUT_CLI_FULL */
 
+#if SIMUT_NET_WIFI
  /* WiFi SSID/pass live here (outside SIMUT_CLI_FULL) so the headless Air build
   * can change the network from the emergency serial console. */
  case CMD_SET_WIFI_SSID: {
@@ -617,6 +629,33 @@ void AppManager::executeCommand(CliDemand cmd) {
   : "Pass saved. Run 'reload confirm' to reconnect.");
  break;
  }
+#endif /* SIMUT_NET_WIFI */
+#if SIMUT_NET_LAN && !SIMUT_CLI_FULL
+ /* What the SSID pair is to a radio build, the address is to the wired one:
+  * with no network name to type and no AP to open, a Wire on a network
+  * without DHCP has no other way in from this console. Saved here for the same
+  * reason the SSID is (no `write memory` in this image), and applied by the
+  * reload, because the module takes its address when it starts (2026-10-13).
+  * The handlers print what they set, or the error, and leave `set` false on
+  * an error. */
+ case CMD_IP_CFG:
+ case CMD_SET_DNS_CFG: {
+ bool set = false;
+ if (cmd.type == CMD_IP_CFG) cmdHandleIpCfg(cmd, cfg, set);
+ else cmdHandleDnsCfg(cmd, cfg, set);
+ if (!set) break;
+ if (!_storageMgr->saveConfiguration( )) {
+  _cmdMgr->printError(pt
+   ? "Nao foi salvo na flash. Repita o comando."
+   : "Not saved to flash. Run the command again.");
+  break;
+ }
+ _cmdMgr->printSuccess(pt
+  ? "Salvo. Use 'reload confirm' para aplicar."
+  : "Saved. Run 'reload confirm' to apply.");
+ break;
+ }
+#endif /* SIMUT_NET_LAN && !SIMUT_CLI_FULL */
 
  /* 'system cors <origem>' / 'system cors off' — libera a pagina do gerenciador
   * de frota a falar com este aparelho pelo navegador. Sem isso o navegador
@@ -804,8 +843,8 @@ void AppManager::executeCommand(CliDemand cmd) {
  break;
  }
  if (cmd.intVal1 < 0 || cmd.intVal1 >= MAX_SENSORS) {
- _cmdMgr->printError(pt ? "Slot fora de range (0-15)"
- : "Slot out of range (0-15)");
+ _cmdMgr->printError(pt ? "Slot fora de range (" SLOT_RANGE_TEXT ")"
+ : "Slot out of range (" SLOT_RANGE_TEXT ")");
  break;
  }
  SensorRecord &r = cfg.sensors[cmd.intVal1];
@@ -852,8 +891,8 @@ void AppManager::executeCommand(CliDemand cmd) {
  break;
  }
  if (cmd.intVal1 < 0 || cmd.intVal1 >= MAX_SENSORS) {
- _cmdMgr->printError(pt ? "Slot fora de range (0-15)"
- : "Slot out of range (0-15)");
+ _cmdMgr->printError(pt ? "Slot fora de range (" SLOT_RANGE_TEXT ")"
+ : "Slot out of range (" SLOT_RANGE_TEXT ")");
  break;
  }
  cfg.sensors[cmd.intVal1].provisionEpoch = _netMgr->getEpoch( );
@@ -878,8 +917,8 @@ void AppManager::executeCommand(CliDemand cmd) {
  break;
  }
  if (cmd.intVal1 < 0 || cmd.intVal1 >= MAX_SENSORS) {
- _cmdMgr->printError(pt ? "Slot fora de range (0-15)"
- : "Slot out of range (0-15)");
+ _cmdMgr->printError(pt ? "Slot fora de range (" SLOT_RANGE_TEXT ")"
+ : "Slot out of range (" SLOT_RANGE_TEXT ")");
  break;
  }
  {
@@ -998,9 +1037,11 @@ void AppManager::executeCommand(CliDemand cmd) {
  LogManager::instance( ).safeReboot( );
  break;
 
+#if SIMUT_NET_WIFI
  case CMD_AP:
  startApMode( );
  break;
+#endif
 
 #if SIMUT_AIR
  case CMD_AIR_HIBERNATE:
@@ -1425,6 +1466,7 @@ void AppManager::executeCommand(CliDemand cmd) {
   * admin — without that, `screen set` would show a three-item menu. */
  if (strcmp(n, "dash") != 0 && strcmp(n, "gra") != 0 && strcmp(n, "pin") != 0) {
  _panelUser = 0; _panelPerms = PERM_FULL_ADMIN; _panelAuthFor = PAUTH_SETTINGS;
+ memcpy(_panelName, _storageMgr->getConfig( ).users[0].username, sizeof(_panelName));
  _displayMgr->setPanelSession(0, PERM_FULL_ADMIN);
  }
  /* An update screen up keeps the panel from any other (DisplayManager_Ota.cpp):
@@ -1445,7 +1487,7 @@ void AppManager::executeCommand(CliDemand cmd) {
  else if (!strcmp(n, "touchsens")) _displayMgr->showTouchSensitivity( );
  else if (!strcmp(n, "offset")) _displayMgr->showSettingsDisplayOffset( );
  else if (!strcmp(n, "usr")) _displayMgr->showSettingsUsers( );
- /* The date and time as Settings > 13 opens it (2026-10-01); a stub on the
+ /* The date and time as the Settings menu opens it (2026-10-01); a stub on the
   * Air, which has this command and no panel. */
  else if (!strcmp(n, "clk")) _displayMgr->showClockEntry(
   clockEntryFrom(_netMgr->getEpoch( ), simutTimeOffsetSeconds( )), false);
@@ -1590,7 +1632,7 @@ void AppManager::executeCommand(CliDemand cmd) {
 
  case CMD_SENSOR_ENTER: {
   /* Enter sensor sub-config mode — 'sensor <N>' from global config.
-   * cmd.intVal1 = slot index (already validated by parser: 0-15). */
+   * cmd.intVal1 = slot index (already validated by parser: 0..MAX_SENSORS-1). */
   if (_cmdMgr->cliMode( ) != CLI_MODE_GLOBAL_CONFIG && _cmdMgr->cliMode( ) != CLI_MODE_PRIV_EXEC) {
    _cmdMgr->printError(pt ? "Use 'sensor <N>' no modo configuracao ou privilegiado."
                           : "Use 'sensor <N>' from config or privileged mode.");
@@ -1658,7 +1700,8 @@ void AppManager::executeCommand(CliDemand cmd) {
   * silent non-persisting password reset invisible to review for a day. Anything
   * reaching this console that must outlive the boot saves for itself, next to
   * the change — CMD_SET_WIFI_SSID, CMD_SET_WIFI_PASS and CMD_RESET_ADMIN all
-  * call saveConfiguration( ) — and does not set `changed`. */
+  * call saveConfiguration( ), and so do CMD_IP_CFG and CMD_SET_DNS_CFG on a
+  * wired build — and does not set `changed`. */
  if (changed) _cmdMgr->printInfo(_cmdMgr->isPt( )
  ? "Vale para esta sessao; nao persiste apos reiniciar."
  : "Applies to this session; does not persist across reboot.");

@@ -3,7 +3,7 @@
 Gerado por `tools/build_manual.py` — não edite à mão. Salve cada captura
 nesta pasta com o nome indicado e rode o script de novo.
 
-153 pendentes de 201.
+151 pendentes de 202.
 
 
 ## Capítulo 1 — O SIMUT em uma página
@@ -32,7 +32,7 @@ nesta pasta com o nome indicado e rode o script de novo.
 
 ## Capítulo 3 — Instalar o firmware
 
-- [ ] `03-arquivos.png` (Diagrama) — os dez arquivos de uma versão e para onde vai cada um: .uf2 → cabo USB com BOOTSEL (aparelho novo ou recuperação); .bin → página Arquivos, atualização pela rede; language_pt-BR.lng → página Arquivos, pasta /lang; manifest.json → gestor de frota; SHA256SUMS → conferência do download; três colunas coloridas por imagem (release, alpha, air)
+- [ ] `03-arquivos.png` (Diagrama) — os doze arquivos de uma versão e para onde vai cada um: .uf2 → cabo USB com BOOTSEL (aparelho novo ou recuperação); .bin → página Arquivos, atualização pela rede; language_pt-BR.lng → página Arquivos, pasta /lang; manifest.json → gestor de frota; SHA256SUMS → conferência do download; quatro colunas coloridas por imagem (release, alpha, air, releasetwo)
       Os arquivos de uma versão e o caminho de cada um até o aparelho.
 - [ ] `03-bootsel.png` (Foto) — mão segurando o botão BOOTSEL de um Pico W enquanto o cabo USB é ligado; o botão bem visível, ao lado do chip RP2040
       O botão BOOTSEL, segurado enquanto o cabo USB é ligado.
@@ -43,7 +43,7 @@ nesta pasta com o nome indicado e rode o script de novo.
       O primeiro boot em um só desenho: a senha, a hora, a rede, a web, o idioma, os sensores e o PIN.
 - [ ] `04-painel-data-hora.png` (Tela do painel) — release recém-gravada, sem rede configurada, logo depois do boot; tela Data e hora com as cinco colunas e as setas, a linha Sem Wi-Fi, os dados levam esta hora. em âmbar e os botões PULAR e SALVAR; sem rede, GET /api/screenshot não alcança o aparelho: use foto da tela, antes dos 30 s sem toque que levam o painel à tela inicial
       A pergunta do fim do boot num aparelho sem rede: a data e a hora do relógio provisório, prontas para acertar.
-- [ ] `04-painel-ap.png` (Tela do painel) — release recém-gravada, sem rede configurada; ponto de acesso aberto pelo menu (CFG, admin, PIN, item 12 Modo de Configuração, Confirmar) ou pelo comando ap no console USB; a caixa termina com simut_SETUP, PSK e a chave, Acesse no celular: 192.168.4.1 e AP Ativo! Reinicie a placa para sair.; capturar com GET /api/screenshot pelo próprio AP, com sessão admin depois da troca de senha; se a captura não funcionar no AP, use foto da tela; borre a chave antes de publicar
+- [ ] `04-painel-ap.png` (Tela do painel) — release recém-gravada, sem rede configurada; ponto de acesso aberto pelo menu (CFG, admin, PIN, item 8 Modo de Configuração, Confirmar) ou pelo comando ap no console USB; a caixa termina com simut_SETUP, PSK e a chave, Acesse no celular: 192.168.4.1 e AP Ativo! Reinicie a placa para sair.; capturar com GET /api/screenshot pelo próprio AP, com sessão admin depois da troca de senha; se a captura não funcionar no AP, use foto da tela; borre a chave antes de publicar
       O painel com o ponto de acesso aberto: a rede, a chave e o aviso de AP ativo ficam na tela.
 - [ ] `04-lcd-ap.png` (LCD 16×2) — alpha recém-gravada, sem rede configurada; ponto de acesso aberto pelo comando ap no console USB, com o aparelho já nas leituras; página Rede: 2 de 3 com simut_SETUP na linha de baixo
       O LCD de uma alpha com o ponto de acesso aberto pelo comando ap: a página com o nome da rede.
@@ -113,8 +113,6 @@ nesta pasta com o nome indicado e rode o script de novo.
       A janela Senha temporária, com a senha de uso único da conta criada.
 - [ ] `08-quem.png` (Tela do painel) — screen pin; contas admin, operador1 e manutencao com PIN; nenhuma bloqueada
       A tela Quem está usando o painel?, com as contas que têm PIN.
-- [ ] `08-menu-operador.png` (Tela do painel) — menu de configurações depois do PIN de uma conta que tem só permissões de painel; título Configurações > operador1
-      O menu de uma conta só com permissões de painel: os itens sem numeração e o nome da conta no título.
 - [ ] `08-teclado-3.png` (Tela do painel) — screen pin e escolha de uma conta; política de fábrica: 0-9, 3 por tecla; dois caracteres já digitados
       O teclado embaralhado da política de fábrica: quatro cartões de três caracteres.
 - [ ] `08-teclado-alfa.png` (Tela do painel) — screen pin e escolha de uma conta; política 0-9 A-Z, 1 por tecla; grupo PQRS aberto
@@ -190,8 +188,6 @@ nesta pasta com o nome indicado e rode o script de novo.
       A página de umidade do detalhe.
 - [ ] `11-detalhe-pressao.png` (Tela do painel) — screen gra -> tap(160,120) -> tap(160,120) -> tap(160,120); mesmo BME280
       A página de pressão do detalhe.
-- [ ] `11-menu-p4.png` (Tela do painel) — screen set -> tap(35,215); a seta para cima dá a volta e seleciona o item 13; quarta página
-      A quarta página do menu completo, só com Data e hora.
 - [ ] `11-mira.png` (Tela do painel) — screen touchcal e complete a etapa de sensibilidade com o dedo; capture a primeira mira, no canto de cima à esquerda; o toque simulado não completa a sensibilidade, porque não tem pressão
       A etapa de posição: a primeira mira, Toque na mira (1/4) e a volta [ 1 / 2 ].
 - [ ] `11-calib-ok.png` (Tela do painel) — depois do oitavo toque de uma calibração com as duas voltas coerentes
@@ -347,7 +343,7 @@ nesta pasta com o nome indicado e rode o script de novo.
 
 ## Capítulo 21 — Telemetria de medições
 
-- [ ] `21-cursor.png` (Diagrama) — Linha do tempo horizontal com os registros do histórico como pequenos quadrados. Uma marca vertical 'cursor' separa os registros já confirmados (cinza, à esquerda) dos pendentes (coloridos, à direita). Um colchete agrupa os primeiros pendentes como 'lote (até o Lote máximo)'. Uma seta leva o lote ao 'coletor'; a volta '2xx' move o cursor para o fim do lote; uma volta alternativa 'falha' deixa o cursor parado e aponta para 'espera e reenvia'. À direita, o bloco da hora aberta, ainda na RAM, também entra no lote.
+- [ ] `21-cursor.png` (Diagrama) — Fila horizontal com os registros do histórico como pequenos quadrados, na ordem em que foram gravados. Uma marca vertical 'cursor' separa os registros já confirmados (cinza, à esquerda) dos pendentes (coloridos, à direita). Um colchete agrupa os primeiros pendentes como 'lote (até o Lote máximo)'. Uma seta leva o lote ao 'coletor'; a volta '2xx' move o cursor para o fim do lote; uma volta alternativa 'falha' deixa o cursor parado e aponta para 'espera e reenvia'. À direita, o bloco da hora aberta, ainda na RAM, também entra no lote.
       Legenda: o cursor separa o que o coletor já confirmou do que ainda falta. Só uma confirmação o move.
 
 ## Capítulo 22 — Linha de alarmes
@@ -378,7 +374,7 @@ nesta pasta com o nome indicado e rode o script de novo.
 
 - [ ] `26-entrada.png` (Diagrama) — diagrama de sequência entre um cliente e o aparelho: GET /api/login_init devolve nonce; o cliente calcula SHA-256 da senha; POST /api/login com user, pass e nonce; o aparelho confere e devolve Set-Cookie SIMUTSESS e o corpo {ok, redirect}; pedidos seguintes levam o cookie ou Authorization: Bearer; GET /logout encerra
       A entrada em dois pedidos. O código de uso único vale 60 s e serve para uma única tentativa.
-- [ ] `26-ota.png` (Diagrama) — diagrama de sequência entre um cliente e o aparelho: GET /api/backup e conferência do CRC; POST /api/restore?op=stage&commit=1 com o .bin, resposta com v=0 e committed=1; POST /api/ota/apply, resposta 202; o aparelho reinicia; o cliente repete GET /api/login_init até responder; entra e lê a versão em /api/status; restaura o .bkp com op=apply
+- [ ] `26-ota.png` (Diagrama) — diagrama de sequência entre um cliente e o aparelho: GET /api/backup e conferência do CRC; POST /api/restore?op=stage&commit=1 com o .bin, resposta com v=0 e committed=1; POST /api/ota/apply, resposta 202; o aparelho reinicia; o cliente repete GET /api/login_init até responder; entra e lê a versão em /api/status; confere o .bkp com op=validate e o restaura com op=apply
       A atualização pela API. O único comprovante de sucesso é a versão nova informada pelo próprio aparelho.
 
 ## Capítulo 27 — Gestão de frota

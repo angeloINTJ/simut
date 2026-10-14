@@ -1,0 +1,65 @@
+{
+    "$schema": "https://raw.githubusercontent.com/raspberrypi/picotool/develop/json/schemas/partition-table-schema.json",
+    "version": [1, 0],
+    "unpartitioned": {
+        "families": ["absolute"],
+        "permissions": {
+            "secure": "rw",
+            "nonsecure": "rw",
+            "bootloader": "rw"
+        }
+    },
+    "partitions": [
+        {
+            "name": "A",
+            "id": 0,
+            "start": "8K",
+            "size": "1532K",
+            "families": ["rp2350-arm-s"],
+            "permissions": {
+                "secure": "rw",
+                "nonsecure": "rw",
+                "bootloader": "rw"
+            }
+        },
+        {
+            "name": "B",
+            "id": 1,
+            "start": "1540K",
+            "size": "1532K",
+            "families": ["rp2350-arm-s"],
+            "permissions": {
+                "secure": "rw",
+                "nonsecure": "rw",
+                "bootloader": "rw"
+            },
+            "link": ["a", 0]
+        },
+        {
+            "name": "LittleFS",
+            "start": "3072K",
+            "size": "1020K",
+            "ignored_during_arm_boot": true,
+            "ignored_during_riscv_boot": true,
+            "families": ["data", "absolute"],
+            "permissions": {
+                "secure": "rw",
+                "nonsecure": "rw",
+                "bootloader": "rw"
+            }
+        },
+        {
+            "name": "EEPROM",
+            "start": "4092K",
+            "size": "4K",
+            "ignored_during_arm_boot": true,
+            "ignored_during_riscv_boot": true,
+            "families": ["data", "absolute"],
+            "permissions": {
+                "secure": "rw",
+                "nonsecure": "rw",
+                "bootloader": "rw"
+            }
+        }
+    ]
+}

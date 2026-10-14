@@ -83,7 +83,7 @@ Desde a v2.7.0, quem cria uma conta pela web só pode marcar permissões que a p
 Pelo mesmo motivo, só a própria conta `admin`, ou uma conta com o nível completo, define ou apaga o PIN do `admin` pela web.
 
 ::: atencao
-**A página não avisa quando uma conta é recusada.** O aparelho recusa só a ação que fere a regra, grava o resto e reinicia. Depois do reinício, a conta não está na lista. Pela interface de programação, a resposta traz o motivo em `rejected`, como `"rejected":["users.perms"]` ([Motivos de recusa](#cap-08-recusas)).
+**A página não avisa quando uma conta é recusada.** O aparelho recusa só a ação que fere a regra e grava o resto. Depois da gravação, a conta não está na lista. Pela interface de programação, a resposta traz o motivo em `rejected`, como `"rejected":["users.perms"]` ([Motivos de recusa](#cap-08-recusas)).
 :::
 
 ::: atencao
@@ -94,7 +94,7 @@ Pelo mesmo motivo, só a própria conta `admin`, ou uma conta com o nível compl
 
 A página **Usuários** (*Users*, rota `/users`) exige a permissão **Usuários** [PERM_USER_MGR]{.perm}. O título é **Gestão de Acessos** (*Access Management*). Ela tem a tabela de contas e o formulário **Adicionar** (*Add New User*).
 
-Toda mudança nesta página fica preparada na aba e só vale com **Salvar e reiniciar**. Qualquer gravação de contas reinicia o aparelho, e a página se recarrega sozinha depois.
+Toda mudança nesta página fica preparada na aba e só vale quando você grava. **Aplicar agora** grava e aplica sem reiniciar; **Salvar e reiniciar** grava e reinicia. **Testar** não aparece quando há contas preparadas: uma conta não se testa. Depois de gravar, a página se recarrega sozinha. Até a v2.9.0, toda gravação de contas reiniciava o aparelho.
 
 ::: {.figura #fig-08-usuarios tipo="web" arquivo="08-usuarios.png" captura="rota /users; largura 1280; sessão admin; imagem release; contas admin (com PIN), viewer e duas contas de operador, uma delas com PIN; nenhuma alteração pendente"}
 A página Usuários: a tabela de contas e, abaixo, o formulário Adicionar.
@@ -140,7 +140,7 @@ Para criar uma conta:
 2. Marque as permissões.
 3. Se a pessoa vai usar o painel, digite um PIN em **PIN do painel (opcional)**.
 4. Toque em **Criar**. A conta aparece na tabela com **Pendente: Novo**.
-5. Toque em **Salvar e reiniciar** na barra de topo e confirme.
+5. Toque em **Aplicar agora** na barra de topo.
 6. Copie a senha que aparece na janela **Senha temporária** (*Temporary password*).
 7. Toque em **Guardei — recarregar** (*I saved it — reload*).
 
@@ -162,7 +162,7 @@ A página **Usuários** não edita as permissões de uma conta existente. Para m
 
 1. Toque em **Excluir** na conta e confirme **Excluir?**.
 2. Crie a conta de novo, com o mesmo nome e as permissões novas.
-3. Toque em **Salvar e reiniciar**.
+3. Toque em **Aplicar agora**.
 4. Entregue a nova senha de uso único.
 
 As duas ações podem ir na mesma gravação. O aparelho as aplica na ordem em que foram preparadas; por isso, prepare a exclusão antes da criação, ou o nome ainda estará em uso. O PIN de painel da conta excluída se perde com ela; defina-o de novo na criação.
@@ -176,18 +176,18 @@ Outros caminhos:
 
 1. Toque em **Excluir** na linha da conta.
 2. Confirme a pergunta **Excluir?**.
-3. Toque em **Salvar e reiniciar**.
+3. Toque em **Aplicar agora**.
 
-O aparelho apaga o registro inteiro da conta, inclusive o resumo da senha e o PIN, e reinicia. A exclusão é feita pela posição da conta na tabela. O log de eventos guarda o nome da conta nas entradas antigas.
+O aparelho apaga o registro inteiro da conta, inclusive o resumo da senha e o PIN. Uma sessão web aberta da conta termina no pedido seguinte, e uma identificação no painel, na ação seguinte; o log registra o código 312, **Sessão encerrada: conta alterada**. A exclusão é feita pela posição da conta na tabela. O log de eventos guarda o nome da conta nas entradas antigas.
 
 ### Resetar a senha de uma conta {#cap-08-reset}
 
 1. Toque em **Reset** na linha da conta.
 2. Confirme a pergunta **Forçar reset?**.
-3. Toque em **Salvar e reiniciar**.
+3. Toque em **Aplicar agora**.
 4. Copie a nova senha na janela **Senha temporária**.
 
-O reset troca só a senha. As permissões e o PIN continuam como estavam.
+O reset troca só a senha. As permissões e o PIN continuam como estavam. Uma sessão web aberta da conta termina no pedido seguinte; a identificação no painel continua, porque o painel identifica pelo PIN.
 
 ### PIN pela web {#cap-08-pin-web}
 
@@ -196,17 +196,17 @@ O reset troca só a senha. As permissões e o PIN continuam como estavam.
 1. Toque em **PIN** na linha da conta.
 2. Digite o PIN, ou deixe vazio para apagar o PIN da conta.
 3. Toque em **OK**. A linha mostra **Pendente: PIN**.
-4. Toque em **Salvar e reiniciar**.
+4. Toque em **Aplicar agora**.
 
 Pela web, o PIN tem sempre de 4 a 8 dígitos, qualquer que seja a política de PIN do aparelho. O aparelho recusa um PIN que outra conta já use.
 
 ::: atencao
-**Um PIN definido pela web pode não servir no painel.** Com uma política de mínimo acima de 4, um PIN mais curto que o mínimo é aceito pela web, mas o teclado do painel o recusa com **PIN muito curto (mín. 4)** antes de conferir. Com a política de letras ou de mais de 8 caracteres, defina o PIN no painel ([O próprio PIN](#cap-08-proprio-pin)).
+**Um PIN definido pela web pode não seguir a política do painel.** Com uma política de mínimo acima de 4, a web aceita um PIN mais curto que o mínimo. Ele identifica a conta no painel, e o painel pede um PIN novo logo em seguida, como na troca obrigatória ([O PIN de fábrica](#cap-08-pin-fabrica)). Até a v2.11.0, o teclado do painel recusava esse PIN com **PIN muito curto (mín. 4)** antes de conferir. Com a política de letras ou de mais de 8 caracteres, defina o PIN no painel ([O próprio PIN](#cap-08-proprio-pin)).
 :::
 
 ### Motivos de recusa {#cap-08-recusas}
 
-A página não mostra estas recusas: a gravação continua, o aparelho reinicia e a ação recusada não aparece. Um script que grava contas pela interface de programação recebe a lista em `rejected` ([capítulo 26](#cap-26)).
+A página não mostra estas recusas: a gravação continua e a ação recusada não aparece. Um script que grava contas pela interface de programação recebe a lista em `rejected` ([capítulo 26](#cap-26)).
 
 | Motivo | Causa |
 |---|---|
@@ -254,7 +254,7 @@ A tela Quem está usando o painel?, com as contas que têm PIN.
 :::
 
 ::: {.figura #fig-08-menu-operador tipo="tft" arquivo="08-menu-operador.png" captura="menu de configurações depois do PIN de uma conta que tem só permissões de painel; título Configurações > operador1"}
-O menu de uma conta só com permissões de painel: os itens sem numeração e o nome da conta no título.
+O menu de uma conta só com permissões de painel: Limites de Alarme, Status do Sistema, Alterar Senha e Licença, sem numeração, e o nome da conta no título.
 :::
 
 ### O teclado {#cap-08-teclado}
@@ -299,7 +299,7 @@ O teclado numérico ordenado, usado para definir um PIN.
 
 ### PIN errado e bloqueios {#cap-08-bloqueios}
 
-Um PIN errado faz o painel mostrar **PIN inválido!**, tocar o som de erro e distribuir os cartões de novo. Um PIN mais curto que o mínimo da política não chega a ser conferido: o painel mostra **PIN muito curto (mín. 4)**.
+Um PIN errado faz o painel mostrar **PIN inválido!**, tocar o som de erro e distribuir os cartões de novo. Para identificar, o painel confere qualquer PIN a partir de 4 caracteres, mesmo abaixo do mínimo da política: um PIN assim pode ter sido definido antes de a política mudar, ou pela web. Se ele estiver certo, a conta vai direto para a troca ([O PIN de fábrica](#cap-08-pin-fabrica)). Com menos de 4 caracteres, o painel mostra **PIN muito curto (mín. 4)** e não confere. Até a v2.11.0, um PIN mais curto que o mínimo da política nunca era conferido, e a conta ficava sem o painel.
 
 As tentativas erradas são contadas por conta:
 
@@ -335,7 +335,7 @@ A conta `admin` sai de fábrica com o PIN `1234`. Na primeira identificação co
 
 Da mesma forma, quando a política de PIN fica mais exigente, toda conta com PIN é marcada para trocá-lo, e o painel abre **Novo PIN** na próxima identificação de cada uma ([A política de PIN](#cap-08-politica)).
 
-Nos dois casos, a conta já está identificada quando a tela **Novo PIN** abre. **SAIR** leva ao menu sem trocar, e a tela volta na identificação seguinte.
+Nos dois casos, a conta já está identificada quando a tela **Novo PIN** abre, mas o menu só abre depois da troca. **SAIR** volta à tela inicial sem trocar, e a tela volta na identificação seguinte. Até a v2.11.0, **SAIR** levava ao menu sem trocar, inclusive com o `1234` de fábrica.
 
 ### O próprio PIN {#cap-08-proprio-pin}
 
@@ -349,7 +349,7 @@ Qualquer conta identificada troca o próprio PIN pelo item **Alterar Senha** do 
 |---|---|
 | **PIN salvo!** | Gravado; vale na próxima identificação |
 | **Os PINs não coincidem!** | As duas digitações diferem; o painel volta a **Novo PIN** |
-| **PIN muito curto (mín. 4)** | Menos caracteres que o mínimo da política |
+| **PIN muito curto (mín. N)** | Menos caracteres que o mínimo da política, que a mensagem diz no lugar de N. Até a v2.11.0, ela dizia 4 com qualquer mínimo |
 | **PIN inválido!** | Fora da política |
 | **PIN já em uso!** | Outra conta já tem esse PIN. Nada é gravado |
 
@@ -379,16 +379,19 @@ Como escolher:
 - **O alfabeto `0-9 A-Z`** torna um chute às cegas muito mais difícil sem custo nenhum. As letras são sempre maiúsculas.
 - **Um PIN mais longo** é a defesa principal contra chutes.
 
-**No painel.** O item **Segurança do PIN** (o 11º, *PIN security*) exige a permissão **Usuários** [PERM_USER_MGR]{.perm}.
+**No painel.** O item **Segurança do PIN** (o 7º, *PIN security*) exige a permissão **Usuários** [PERM_USER_MGR]{.perm}.
 
 1. Toque numa linha para selecioná-la e toque de novo para mudar o valor. **Tamanho mínimo** sobe até o teto e volta a 4; **Teclado** mostra o teto ao lado, como `3  (max 8)`; **Caracteres** alterna entre `0-9` e `0-9 A-Z`.
 2. Toque em **SALVAR**. O painel mostra **PIN salvo!**.
 
 Ao mudar um ajuste, o painel corrige os outros para uma combinação possível. **SAIR** descarta. A política vale na próxima tela de PIN, sem reiniciar, e o log registra o código 459, **Política de PIN alterada pelo painel**.
 
-**Na web.** Os três campos ficam na seção **Hardware** da página **Configurações**, que exige a permissão **Sistema** ([capítulo 6](#cap-06-hardware)). A dica do tamanho mínimo mostra a faixa permitida, como `4 – 8`. Pela web, a mudança exige **Salvar e reiniciar**. O log registra o mesmo código 459, com a marca `[web]`.
+**Na web.** Os três campos ficam na seção **Hardware** da página **Configurações**, que exige a permissão **Sistema** ([capítulo 6](#cap-06-hardware)). A dica do tamanho mínimo mostra a faixa permitida, como `4 – 8`. Pela web, a mudança vale com **Aplicar agora**, sem reiniciar (até a v2.9.0, exigia **Salvar e reiniciar**). O log registra o mesmo código 459, com a marca `[web]`.
 
-Quando a política fica mais exigente em qualquer ajuste (mínimo maior, alfabeto menor ou teto menor), toda conta com PIN é marcada para trocá-lo. A conta continua se identificando com o PIN antigo e é levada a **Novo PIN** logo depois ([O PIN de fábrica](#cap-08-pin-fabrica)). Afrouxar a política não marca ninguém.
+Quando a política fica mais exigente em qualquer ajuste (mínimo maior, alfabeto menor ou teto menor), toda conta com PIN é marcada para trocá-lo, e é levada a **Novo PIN** logo depois de se identificar ([O PIN de fábrica](#cap-08-pin-fabrica)). Afrouxar a política não marca ninguém.
+
+- **Mínimo maior:** a conta se identifica com o PIN antigo, mesmo mais curto que o mínimo novo. Até a v2.11.0, o teclado recusava esse PIN como curto, e a conta ficava sem o painel.
+- **Alfabeto menor ou teto menor:** um PIN antigo com uma letra que saiu dos cartões, ou mais longo que o teto novo, não pode mais ser digitado: o teto não sobe para um PIN antigo, porque é o tempo de conferir. Defina um PIN novo para essa conta no item **Usuários** do painel, na página **Usuários** da web ou no console.
 
 ::: {.figura #fig-08-politica tipo="tft" arquivo="08-politica.png" captura="menu > Segurança do PIN, sessão admin; política de fábrica; linha Teclado selecionada"}
 A tela Segurança do PIN, com a política de fábrica: tamanho mínimo 4, 3 caracteres por tecla (máximo 8) e só dígitos.
@@ -400,7 +403,7 @@ Os campos da política de PIN na página Configurações.
 
 ### Usuários no painel {#cap-08-usuarios-painel}
 
-O item **Usuários** (o 10º, *Users*) exige a permissão **Usuários** [PERM_USER_MGR]{.perm}. Ele lista todas as contas menos a `admin`, com:
+O item **Usuários** (o 6º, *Users*) exige a permissão **Usuários** [PERM_USER_MGR]{.perm}. Ele lista todas as contas menos a `admin`, com:
 
 - um ponto depois do nome, quando a conta tem PIN;
 - as letras `L`, `B` e `M` à direita, acesas para as permissões **Limites (painel)**, **Bloqueio (painel)** e **Manut. (painel)** que a conta tem.
@@ -426,7 +429,7 @@ O painel mostra **Usuário salvo!** e grava na hora, sem reiniciar. O log regist
 | **Nome inválido ou repetido** | Nome com aspas, barra invertida ou caractere de controle, já usado por outra conta, ou `admin` |
 | **Sem vaga para conta nova** | As 32 posições estão ocupadas |
 | **PIN já em uso!** | Outra conta tem esse PIN; a conta não é criada |
-| **Sem permissão** | A conta identificada não tem mais a permissão **Usuários** |
+| **Sem permissão** | A conta identificada não tem mais a permissão **Usuários**, ou marcou uma permissão de painel que ela mesma não tem |
 
 Uma conta criada no painel tem só as três permissões de painel e uma senha web aleatória que ninguém conhece. Ela não abre nenhuma página web até um administrador recriá-la pela página **Usuários** com permissões web e entregar a senha de uso único ([Mudar as permissões de uma conta](#cap-08-mudar)).
 
@@ -452,7 +455,9 @@ O PIN da conta nova, digitado duas vezes no teclado ordenado.
 | **Definir PIN** | Define um PIN novo para a conta, digitado duas vezes |
 | **Excluir usuário** | Exclui a conta, depois de confirmar |
 
-As três primeiras linhas só mudam na tela; **SALVAR** grava, e o painel mostra **Usuário salvo!** (código 453, **Permissões alteradas pelo painel**). As permissões web da conta ficam como estavam. **Definir PIN** grava ao fim da confirmação (código 452, **PIN do painel definido**).
+As três primeiras linhas só mudam na tela; **SALVAR** grava, e o painel mostra **Usuário salvo!** (código 453, **Permissões alteradas pelo painel**). As permissões web da conta ficam como estavam.
+
+**O painel só concede as permissões de painel que a conta identificada tem.** Marcar, numa conta nova ou numa existente, uma permissão que ela não tem é recusado com **Sem permissão**, e nada é gravado: o log registra o código 458, **Ação do painel recusada: sem permissão**. Desmarcar é sempre possível, e uma permissão que a conta editada já tinha pode ficar. A regra é a mesma da página **Usuários** da web, e vale também para a própria conta. Até a v2.11.0, quem tinha a permissão **Usuários** concedia as três a qualquer conta, inclusive a si mesmo. **Definir PIN** grava ao fim da confirmação (código 452, **PIN do painel definido**).
 
 **Excluir uma conta no painel:**
 
@@ -466,7 +471,7 @@ A confirmação antes de excluir uma conta no painel.
 :::
 
 ::: nota
-**Por que o painel não reinicia e a web reinicia.** O painel muda uma conta de cada vez e grava na hora. A página Usuários grava as contas junto com o resto das alterações preparadas, e o aparelho reinicia para que todas passem a valer juntas.
+**Painel e web gravam contas sem reiniciar.** O painel muda uma conta de cada vez e grava na hora; a página Usuários grava as contas preparadas com **Aplicar agora**. Até a v2.9.0, a página reiniciava o aparelho a cada gravação de contas. Quem confere que a conta continua a mesma é cada sessão, a cada uso: a web a cada pedido, o painel a cada ação.
 :::
 
 ## Auditoria {#cap-08-auditoria}

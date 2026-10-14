@@ -123,7 +123,7 @@ void WebManager::handleApiHistoryMulti( ) {
  } _unwind{this, savedDeadline};
 
  /* ── Parse sensors=... (CSV of IDs) ─────────────────────────────────── */
- int sensorIds[MAX_SENSORS]; /* up to 16 slots */
+ int sensorIds[MAX_SENSORS]; /* up to MAX_SENSORS slots */
  int sensorCount = 0;
  String sArg = _server->arg("sensors"); /* empty = "pick a default below" */
  {

@@ -10,6 +10,8 @@
 
 #include "LogPolicy.h"
 #include "SystemDefs_Logging.h"
+#include "net/NetCaps.h"   /* SIMUT_NET_LAN, tested in the table: nothing else here includes a project header
+                              that does, and an undefined macro reads as 0, which drops the cable's rows */
 #include <string.h>
 
 /* ===========================================================================
@@ -71,6 +73,14 @@ static const uint16_t EDGE_RULES[] = {
   * time the link comes up, and a device with no SSID keeps saying so. */
  LOGPOL_RULE(NET_MDNS_FAIL,            LOGGRP_NET,  1),
  LOGPOL_RULE(NET_SSID_MISSING,         LOGGRP_NET,  1),
+#if SIMUT_NET_LAN
+ /* The cable's faults (2026-10-13), the same family and side as the radio's:
+  * without a row here each one was persisted every time and armed nothing,
+  * and the address that came back read as routine and was dropped. */
+ LOGPOL_RULE(NET_WIRED_MODULE_FAIL,    LOGGRP_NET,  1),
+ LOGPOL_RULE(NET_WIRED_NO_ADDRESS,     LOGGRP_NET,  1),
+ LOGPOL_RULE(NET_WIRED_LOST,           LOGGRP_NET,  1),
+#endif
 
  /* ── WiFi scanning, its own family ───────────────────────────────────── */
  /* Unrouted, this was written every single time, and a device that cannot

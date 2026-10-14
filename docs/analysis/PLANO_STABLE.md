@@ -49,12 +49,12 @@ Isto não é para tranquilizar; é para não refazer o que já foi feito.
 |---|---|:---:|---|
 | B1 | **`ctx=209`/`ctx=455` do D-C1**: watchdog do Core 0 com trace vazio, reproduzido 2×2 em 20/09 por `panel_fulltable_test.py`, **não determinístico** | **sim** | Fere o item 1 da definição. Um reset sem causa numa stable é o defeito que volta como "o aparelho reiniciou sozinho" sem nada para investigar. **21/09 acrescenta uma dificuldade ao instrumento**: uma gravação de firmware escreve `SYS_BOOT` na MESMA faixa (`200+módulo`), provado nesta bancada — então varrer o anel só vale sabendo a hora das gravações. E o reprodutor precisa da `pico_w_test` (B11), que não é a imagem publicada |
 | B2 | ~~Sem soak na imagem desta versão~~ — **fechado em 21/09 e REFECHADO em 22/09 na imagem final** | **fechado** | 7,9 h na `pico_w_release` publicada, 92 amostras: **0 reboots**, 0 kills reais do Core 1, `fx`=0, heap contíguo 32.300 → 32.266 B (mínimo 32.252) — **34 B em 7,9 h**. As duas metades que o T3 pede saíram no mesmo dia: 3 h 58 sob coletor morto e o dreno completo quando ele voltou (§6) |
-| B3 | ~~OTA nunca exercitada nesta imagem~~ — **feito em 21/09 e REFEITO em 22/09 na imagem final: 6/6 applies** nos dois sentidos, na `pico_w_release` publicada. Fica o teto: o Air a **5.076 B**, medido hoje | **metade fechada** | A parte "nunca exercitada" caiu com número (T4, §6). A parte do teto não é coisa que teste feche: é margem. E ela **já tem portão** — `check_flash_budget.py::check_ota_bin` compara o `.bin` com `OTA_APP_SAFE_MAX_SIZE` (1.040.384 B) em todo build, que é justamente o que o `used` do linker não vê. Folgas medidas em 21/09 sobre a build de `main`: release 15.684, air **5.076**, alpha 50.036, test 10.828, asserts 13.508, test_https 3.204 |
+| B3 | ~~OTA nunca exercitada nesta imagem~~ — **feito em 21/09 e REFEITO em 22/09 na imagem final: 6/6 applies** nos dois sentidos, na `pico_w_release` publicada. Fica o teto, que é margem: a folga de cada imagem está na §3.1, conferida pelo CI | **metade fechada** | A parte "nunca exercitada" caiu com número (T4, §6). A parte do teto não é coisa que teste feche: é margem. E ela **já tem portão** — `check_flash_budget.py::check_ota_bin` compara o `.bin` assinado com `OTA_APP_SAFE_MAX_SIZE` (1.040.384 B) em todo build, que é justamente o que o `used` do linker não vê. Folgas medidas em 21/09 sobre a build de `main`: release 15.684, air **5.076**, alpha 50.036, test 10.828, asserts 13.508, test_https 3.204; as de hoje estão na §3.1 |
 | B4 | **`ctx=205`** — reboot sob telemetria morta, aberto e **não reproduz** | não | As blindagens existem; fica onde está até reproduzir. Registrado, não esquecido |
 | B5 | **Corrente real nunca medida** (os 407,8 mAh/dia são cálculo) | não | O manual **já diz** "aritmética, não medição". Não bloqueia porque nada é afirmado sem marcação — mas nenhuma afirmação de autonomia pode perder a marcação numa stable |
-| B6 | `pico_w_test_https` a **3.204 B** do teto de OTA (medido 21/09; o 3.308 anterior era de build anterior) | não | Ambiente de bancada, não é imagem de produto. Vira bloqueio se alguém precisar dele no campo |
+| B6 | ~~`pico_w_test_https` a 147 B do teto de OTA~~ — **isenta do teto em 02/10** (`ota_exempt` em `tools/flash_budget.json`, com o motivo). A folga dela foi de 3.204 B em 21/09 a 2.699 na `main` 35c9678 e a 147 com o A-04 (#232), que foi cortado até caber | **fechado** | Imagem de bancada: entra no rig pela USB, e a `release-ota.yml` não a publica. Acima do teto, o aparelho recusa a imagem já no stage, e é só isso que se perde: ela continua recebendo a OTA de outras imagens, e o job dela continua conferindo o orçamento de flash. Em 24/09 a escolha foi a dieta ([DIETA_FLASH.md](DIETA_FLASH.md) §11); desta vez, caber pedia cortar código que as imagens de produto também levam, ou mover mais páginas para o LittleFS, cada uma um passo manual antes das suítes. **A isenção não dá espaço sem fim**: o limite que sobra é o fim do slot do programa (1.044.480 B), onde o linker recusa a imagem — 4.484 B adiante quando a isenção entrou (02/10, #233, `.bin` de 1.039.996 B) —, e aí a escolha volta a ser cortar ou mover páginas. A `pico_w_test` e a `pico_w_asserts` também são de bancada e têm menos folga que a release (§3.1); quando uma delas chegar ao teto, a decisão é a mesma |
 | B7 | Issue #118 — mDNS do Air | não | Backlog |
-| B10 | **Cursor de telemetria pula registro em bloco fora de ordem** — medido em 21/09: **6 de 75.778** registros (0,0079%) em 55 arquivos de dia | não | Fere o item 2 *em silêncio*, e é por isso que não é ruído. Mas o registro **não se perde**: está na flash e sai pelo `/download` e pelo CSV — só a telemetria não o leva. A causa está escrita no firmware (`src/TelemetryManager.cpp:286`): um cursor escalar em tempo não alcança um registro atrás da marca-d'água. Fechá-lo é mudança de formato (cursor vira posição de varredura), não de rótulo. Vira bloqueio se o aparelho continuar **sem dizer** que pulou |
+| B10 | **Cursor de telemetria pula registro em bloco fora de ordem** — medido em 21/09: **6 de 75.778** registros (0,0079%) em 55 arquivos de dia. **Corrigido no #232 (02/10)**: o cursor passou a ser a posição de gravação — arquivo do dia, bloco, registro (`src/TelemetryPosition.h`, opção B do [A04_CURSOR_POR_POSICAO.md](A04_CURSOR_POR_POSICAO.md)), sem mudar o formato do histórico. Na bancada: 0 de 7 registros na `main`, 7 de 7 na branch | não | Resta um limite, escrito no manual (cap. 21): um bloco gravado num arquivo de dia com mais de 3 dias não sai pela telemetria, o que pede o relógio voltar mais de três dias. Onde o aparelho não consegue saber o que já saiu de um arquivo, ele o manda inteiro de novo e registra o evento 554: duplicatas, nunca lacuna |
 | B11 | **A bancada roda `pico_w_test`, não a imagem que a versão publica** | **muda o B2 e o B3** | As suítes do ferro exigem `user`/`tel` da CLI, e a `pico_w_release` tem `SIMUT_CLI_FULL=0`. Provado em 21/09: `user policy` e `tel server` só aparecem no `.bin` de teste, e o aparelho responde os dois. Logo o T1 de 21/09 certifica a `pico_w_test`. O soak (T3) e a OTA (T4) **têm de ir na `pico_w_release`** — nenhum dos dois precisa de CLI, e `telemetry_bench/soak_a6.py` foi escrito exatamente para isso |
 | B13 | **Resposta truncada** (`InvalidChunkLength`) — **a metade sob carga fechou; a ociosa voltou a disparar** | **metade** | **Metade sob carga, com corpo grande: É O CAMINHO DE REDE**, provado por A/B/A′ em 22/09 (§6). Mesmo aparelho, mesmo firmware, mesmo laço de 90 requisições: pelo roteador **3 cortadas e +49 `cgx`**, pelo hotspot do host **0 e 0**, e repetindo pelo roteador com o aparelho recém-iniciado **1 e +8** — o reinício não é a variável. O `cgx` é o próprio aparelho desistindo: espera `WEB_SEND_STALL_MS` (4 s) por espaço no buffer de envio do cliente e mata o fluxo (`WebManager_Send.cpp:90`, *"counted as a drop we chose"*). O `urllib3` repete GET quando a conexão cai antes dos cabeçalhos, então só o corte no MEIO do corpo vira erro visível — 3 de 49. **Metade ociosa, corpo pequeno: continua sem explicação** — as 4 de 96 do soak (`/api/status`, 5 min de silêncio) aconteceram **sem nenhum contador mexer**, e não reproduzem em laço rápido |
 | B12 | **A CLI corta template em 63 caracteres, em silêncio, e responde OK** — medido em 21/09: 70 chars entram, 63 ficam; 63 ficam 63; 62 ficam 62 | não, **mas é da família do item 2** | `alarm set line/glob/path` passa pelo `strVal2[64]` do `CommandParser.cpp:392`; o destino é `lineTemplate[512]`. O valor chega ao `safeCopy` **já cortado**, então o portão `isValidCfgString` — que na web **recusa** o que não cabe inteiro — vê algo que cabe e aceita. O template real deste aparelho tem 141 chars (veio da web) e **não pode ser reescrito pela CLI**. Efeito medido: o template de 75 chars do `alarm_hw_test.py` virou 63, o payload saiu com vírgula pendurada, o coletor não conseguiu parsear e **3 das 14 verificações falharam por isso**. O comentário em `CommandParser.cpp:388` diz que a limitação é *valor com espaço*; não menciona o corte por comprimento |
@@ -71,6 +71,47 @@ O B11 diz em qual imagem o B2 e o B3 se fecham. Os outros seis — B4, B5, B6,
 B7, B10 e B12 — ficam registrados e não impedem a promoção. O B13 **passou a
 importar** porque o mantenedor o colocou no portão de promoção em 21/09, junto
 com o B1 e o V-09 (§5).
+
+### 3.1 Folga até o teto de OTA
+
+O teto é **1.040.384 B** (`OTA_APP_SAFE_MAX_SIZE`, 1016 KiB), e o que tem de
+caber nele é o `.bin` mais os 241 B da assinatura. No Pico W ele não sobe, porque
+a área de staging da OTA é a própria partição do LittleFS, e o fim dela guarda o
+snapshot da configuração.
+Uma imagem de produto acima dele continua gravável pela USB, mas a frota deixa
+de recebê-la pelo ar: o aparelho a recusa no stage, na validação e no aplicador.
+
+<!-- ota-headroom:begin -->
+| Imagem | `.bin` assinado (B) | Folga (B) |
+|---|---:|---:|
+| `pico_w_release` | 1.033.901 | 6.483 |
+| `pico_w_air` | 1.031.485 | 8.899 |
+| `pico_w_alpha` | 990.621 | 49.763 |
+| `pico2_w_release` | 998.049 | 570.719 |
+| `pico_w_test` | 1.038.413 | 1.971 |
+| `pico_w_asserts` | 1.036.205 | 4.179 |
+| `pico_wire` | 603.017 | 437.367 |
+| `pico_wiretft` | 785.145 | 255.239 |
+| `pico_w_test_https` | isenta | — |
+<!-- ota-headroom:end -->
+
+- **O CI confere esta tabela.** Cada `.bin` está registrado como `"bin"` em
+  `tools/flash_budget.json`. O job de cada imagem reprova um `.bin` maior que o
+  registrado, e o job `gates` reprova a tabela se ela não disser, linha a linha,
+  o que o registro diz (`check_flash_budget.py --table`). Quem cresce uma imagem
+  atualiza os dois no mesmo PR, com os números que o portão imprime, e o diff
+  mostra quanto sobrou.
+- **Um `.bin` que encolhe passa, com aviso.** A tabela pode prometer menos folga
+  do que há, nunca mais.
+- **O ritmo, em 02/10:** o #230 custou 0,6 KB de `.bin`, o A-04 1,9 KB e a tela
+  de OTA no painel 3,3 KB. A folga da release cabia três telas dessas, ou seis
+  A-04.
+- **A `pico_w_test_https` é isenta** (B6): imagem de bancada, gravada pela USB.
+- **A folga da `pico2_w_release` é contra o slot, não contra o teto acima.**
+  Desde o passo 4 do [OTA_AB_RP2350.md](OTA_AB_RP2350.md) ela atualiza pelo ar
+  no outro slot de uma tabela de partições, e o teto dela é esse slot,
+  1.568.768 B (`"slot"` no `flash_budget.json`; `OTA_IMAGE_MAX` no stage). Entre
+  os passos 2 e 4 (03/10) ela foi isenta, porque recusava todo OTA.
 
 ---
 

@@ -30,6 +30,7 @@
 #include "UiWidgets.h"
 #include "SystemDefs_Validate.h"     /* PIN_MIN_LEN / PIN_MAX_LEN */
 #include "StorageManager.h"          /* userHasPin */
+#include "display/CountInText.h"     /* the minimum inside the too-short line */
 #include "sensors/SensorChannelTable.h"
 
 /* Geometry and character set: PinKeypad.h, shared with the CLI readout. */
@@ -163,6 +164,9 @@ uint8_t DisplayManager::pinAlphabet( ) const {
 uint8_t DisplayManager::pinMinLen( ) const {
 	uint8_t minLen, keypad, alphabet; pinPolicy(minLen, keypad, alphabet); return minLen;
 }
+uint8_t DisplayManager::pinEntryMinLen( ) const {
+	return PinKb::entryMinLen(pinIsIdentifying( ), pinMinLen( ));
+}
 
 /* The four cards, for `show display keypad`. The bench drives the panel from
  * outside and cannot find a digit whose position it was never told; the cards
@@ -190,11 +194,12 @@ uint8_t DisplayManager::pinKeyFace(int key, char* out, size_t cap) const {
 	return (uint8_t)n;
 }
 
-void DisplayManager::showPinEntry(uint8_t purpose, int8_t targetUser) {
+void DisplayManager::showPinEntry(uint8_t purpose, int8_t targetUser, bool forced) {
 	mutex_enter_blocking(&_stateMutex);
 	_uiMode = MODE_AUTH;
 	_pinPurpose = purpose;
 	_pinTarget = targetUser;
+	_pinForced = forced;
 	_pinLen = 0; _pinBuf[0] = '\0';
 	memset(_pinTaps, 0, sizeof(_pinTaps));
 	_pinPhase = 0; _pinFirst[0] = '\0';
@@ -293,11 +298,16 @@ void DisplayManager::setPanelSession(int8_t user, uint16_t perms) {
 	mutex_exit(&_stateMutex);
 }
 
-/* Cancel from the keypad: back to wherever this PIN was asked from. */
+/* Cancel from the keypad: back to wherever this PIN was asked from. A change
+ * the account was sent to by force was asked from nowhere: the menu used to
+ * open behind it, with the session's every bit and the PIN still the one the
+ * policy or the factory left (finding 9 of docs/analysis/PLANO_REVISAO_EXTERNA.md).
+ * It leaves to the dashboard, and Settings asks for the PIN again from there,
+ * which sends the account back to the change. */
 void DisplayManager::pinCancel( ) {
 	clearEnteredPin( );
 	switch (_pinPurpose) {
-		case PIN_FOR_OWN:          showSettingsMain( ); break;
+		case PIN_FOR_OWN:          if (_pinForced) forceDashboard( ); else showSettingsMain( ); break;
 		case PIN_FOR_USER:         showUserEdit(_pinTarget, false); break;
 		case PIN_FOR_NEW_ACCOUNT:  showUserEdit(-1, true); break;
 		default:                   forceDashboard( ); break;
@@ -307,7 +317,7 @@ void DisplayManager::pinCancel( ) {
 /* OK from the keypad. For identification the PIN goes to Core 0 as is; for a
  * new PIN it is typed twice, compared here, and only then handed over. */
 void DisplayManager::pinSubmit( ) {
-	if (_pinLen < pinMinLen( )) {
+	if (_pinLen < pinEntryMinLen( )) {
 		_pinMsg = TR_PIN_TOO_SHORT;
 		_errorSoundPending = true;
 		_repaintSettings = true;
@@ -481,16 +491,25 @@ void DisplayManager::drawPinDotsInto(GFXcanvas16* cv, int16_t oy) {
 		cv->setFont(&simutFont9pt);
 		cv->setTextColor(err ? C_TEMP_HOT : C_TEXT_SUB);
 		String m = tr(err ? _pinMsg : TR_LOADING);
+		if (_pinMsg == TR_PIN_TOO_SHORT) {
+			/* The line says where its minimum goes ("{n}"); it used to carry a
+			 * 4 that no policy could change. */
+			char line[64];
+			countInText(m.c_str( ), pinEntryMinLen( ), line, sizeof(line));
+			m = line;
+		}
 		cv->getTextBounds(m, 0, 0, &bx, &by, &bw, &bh);
 		cv->setCursor((320 - bw) / 2, (int16_t)(y + 19));
 		cv->print(m);
 		return;
 	}
-	/* The row is as wide as the policy's minimum, or as what has been typed
-	 * past it. Sixteen dots at the old 20-px pitch is 320 px, one wider than
-	 * the safe area allows (measured 2026-09-20), so both pitch and radius
-	 * step down past fourteen. */
-	const int floorLen = (int)pinMinLen( );
+	/* The row is as wide as the shortest entry this screen takes, or as what
+	 * has been typed past it: the policy's minimum to choose a PIN, the
+	 * absolute floor to prove one, which a PIN set under an older policy may
+	 * be. Sixteen dots at the old 20-px pitch is 320 px, one wider than the
+	 * safe area allows (measured 2026-09-20), so both pitch and radius step
+	 * down past fourteen. */
+	const int floorLen = (int)pinEntryMinLen( );
 	const int n = (_pinLen > floorLen) ? _pinLen : floorLen;
 	const int spacing = dotSpacing(n);
 	const int16_t r = dotRadius(n);
@@ -1240,7 +1259,7 @@ void DisplayManager::drawPinPolicy( ) {
 	}
 
 	/* The values are glyphs and numbers, not sentences: "2" glyphs per key,
-	 * "0-9 A-Z" for the alphabet. They read the same in all eight languages,
+	 * "0-9 A-Z" for the alphabet. They read the same in every language,
 	 * they are what the web page shows, and they are five strings that do not
 	 * have to fit under the es-ES pack's 16 KB resident ceiling. The keypad
 	 * row carries the length ceiling it imposes, because choosing 3 silently

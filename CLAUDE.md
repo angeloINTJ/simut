@@ -11,11 +11,11 @@ substance lives there, not here.
 | | |
 |---|---|
 | Firmware source | `src/` — ~56k lines, C++17, RP2040 / arduino-pico |
-| Web UI source | `WebUI.h` at the repository root, all 8 languages. `tools/build_webui_gz.py` compresses it into `src/WebUI_GZ.h` on every build — never edit the generated header |
-| Tools | `tools/` — [`tools/README.md`](tools/README.md) says which of the 141 scripts are live |
+| Web UI source | `WebUI.h` at the repository root, written in English. The other language comes from the device: `GET /api/lang` serves the `@WEBDICT` of the active `.lng` pack (`data/lang/` has pt-BR and es-ES), and a key the pack lacks shows the English text. `tools/build_webui_gz.py` compresses it into `src/WebUI_GZ.h` on every build — never edit the generated header |
+| Tools | `tools/` — [`tools/README.md`](tools/README.md) says which of the 146 scripts are live |
 | Documentation | `docs/` — [`docs/README.md`](docs/README.md) marks each document **Living** or **Snapshot** |
 | Interface standard | [`ANGULO.md`](ANGULO.md) — the Ângulo guide for anything with a screen or a reader: web UI, site, README, docs, brand. [`AGENTS.md`](AGENTS.md) §7 says how it applies here and what `tools/check_angulo.py` enforces in CI |
-| Tests | `test/` — nine native environments, `pio test -e native…` |
+| Tests | `test/` — eleven native environments, `pio test -e native…` |
 | OTA keys | `keys/` — the public roots and the floors every image compiles (`keys/README.md`). Private keys never enter the repository; the bench ones live in `~/.simut-ota/` |
 
 ## Building and testing
@@ -23,10 +23,10 @@ substance lives there, not here.
 ```bash
 pio run -e pico_w_release      # the shipping image
 pio run -e pico_w_air          # the hibernating build; least flash headroom
-pio test -e native_logpolicy   # one suite; eight exist
+pio test -e native_logpolicy   # one suite; eleven exist
 ```
 
-**Seven** firmware environments and nine native suites, all of them built and
+**Nine** firmware environments and eleven native suites, all of them built and
 run by CI — `pico_w_asserts` is the one that is easy to forget, because it is
 not in the table above and nothing local reminds you of it. This line said
 "five" until 2026-09-20, and a change that raised the other five budgets went
@@ -34,7 +34,13 @@ to CI with that one over its own. The seventh, since 2026-10-01, is
 `pico2_w_release`: the release compiled for the Pico 2 W's RP2350, which CI
 builds and nothing runs on a board yet. **`pio run` with no `-e` builds only
 `pico_w_release`** — `default_envs` in `platformio.ini` says so, and this line
-claimed the opposite until 2026-09-22. Name the seven.
+claimed the opposite until 2026-09-22. The eighth, since 2026-10-12, is
+`pico_wire`: the SIMUT Wire, a plain Pico without the radio, its network on an
+ENC28J60 module (the driver: `src/net/`, `src/net/NetworkManager_Wired.cpp`; on the
+bench since 2026-10-12). The ninth, since 2026-10-13, is `pico_wiretft`: the same
+Wire with the TFT panel and touch in place of the 16x2 LCD (the module's INT is
+GP11 with either display); CI builds it, and a build of the same switches
+(`build_custom.py`) ran on the bench on 2026-10-12. Name the nine.
 There is no debug environment — see the note in `platformio.ini` for why.
 
 ## What will fail your build before CI does
@@ -47,7 +53,15 @@ locally. When one fires, it is usually right:
 - **Flash budget** — `tools/check_flash_budget.py` against
   `tools/flash_budget.json`. The budget is a high-water mark, not the linker
   ceiling. Growing past it is allowed; doing so without editing the budget in
-  the same change is not.
+  the same change is not. Unlike the rest, this one is **not** an extra_script: CI runs it
+  after each image's build, and a local `pio run` passes an image that is over.
+  Run `python3 tools/check_flash_budget.py <env> <build.log>` yourself — on
+  2026-10-02 four images of a PR went to CI 64 to 624 B over, past a local
+  build that said nothing. It also holds each `firmware.bin` to the size
+  recorded as `"bin"`: an image that grows records the new size, and its row in
+  the OTA headroom table of `docs/analysis/PLANO_STABLE.md` §3.1, in the same
+  change (`--table` checks the two agree; the gate prints the numbers).
+  `pico_w_test_https` is exempt from the OTA ceiling (`ota_exempt`).
 - **Log codes** — a new `LogCode` means editing `tools/logcodes.tsv` and
   running `tools/gen_logcodes.py`, never the generated `.h`.
 - **Language packs** — a new `TRL("…")` literal must be added to the `@TRL`
@@ -69,8 +83,9 @@ locally. When one fires, it is usually right:
 ## Working agreements
 
 - `main` is protected. Every change goes through a pull request, and the nine
-  required checks must pass: every CI job except the `pico_w_test_https`
-  image (`firmware (pico2_w_release)` joined on 2026-10-01).
+  required checks must pass: every CI job except the `pico_w_test_https`,
+  `pico_wire` and `pico_wiretft` images (`firmware (pico2_w_release)` joined on
+  2026-10-01).
 - Commit messages and pull requests are written in English; conversation with
   the maintainer is in Portuguese.
 - Measure before claiming. If a change is described as saving bytes, making
@@ -83,5 +98,5 @@ locally. When one fires, it is usually right:
   run them and put the result in the PR. A refactor's proof is that behaviour is
   unchanged (a normalized diff, an identical sha256, or a before/after on
   hardware); a fix's is a reproduction that fails before and passes after. New
-  host-testable behaviour earns a new case in `test/`; there are nine native
+  host-testable behaviour earns a new case in `test/`; there are eleven native
   suites for a reason.

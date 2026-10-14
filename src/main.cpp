@@ -19,6 +19,7 @@
 #include "LogManager.h"
 #include <hardware/watchdog.h>
 #include <hardware/structs/watchdog.h>
+#include "ota/staging.h"   /* the RP2350's update on trial */
 
 /** Global application manager instance — orchestrates all subsystems. */
 AppManager app;
@@ -33,6 +34,11 @@ void setup( ) {
   * ordinary path; this is the backstop for the path where the guard itself
   * fired. Free otherwise: the watchdog is off during setup( ) by design. */
  hw_clear_bits(&watchdog_hw->ctrl, WATCHDOG_CTRL_ENABLE_BITS);
+#if !OTA_RP2040_MAP
+ /* An update on trial is the exception (ota/staging.h): a setup( ) that never
+  * ends has to give the board back to the image it replaced. */
+ ota::trial_guard_begin( );
+#endif
 #endif
  app.setup( );
 }
@@ -48,6 +54,9 @@ void loop( ) {
 #ifndef SIMUT_WDT_DISABLED
  static bool _wdtStarted = false;
  if (!_wdtStarted) {
+#if !OTA_RP2040_MAP
+ ota::trial_guard_end( );
+#endif
  watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);
  LogManager::markWdtActive( );
  _wdtStarted = true;

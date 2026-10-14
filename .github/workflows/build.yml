@@ -81,6 +81,18 @@ jobs:
       - name: Check the numbers the READMEs quote
         run: python3 tools/check_readme_numbers.py
 
+      # The OTA headroom table (docs/analysis/PLANO_STABLE.md §3.1) against the
+      # "bin" each image records in tools/flash_budget.json. The ceiling does
+      # not move on the Pico W, so how far each image is from it is what is
+      # left for new features — and a table of that is right only on the day it
+      # is typed, unless something holds it. Each firmware job below fails a
+      # .bin larger than its record; this fails a table the record contradicts.
+      # test_flash_budget.py pins both rules.
+      - name: OTA headroom table matches the record
+        run: python3 tools/check_flash_budget.py --table
+      - name: OTA headroom gate tests
+        run: python3 tools/test_flash_budget.py
+
       # Every filesystem-mutating handler (delete/upload/ls) and the restore
       # validator must refuse the /config credential store. This is what blocks
       # a guard removal from shipping (findings ACH-01..04).
@@ -115,6 +127,42 @@ jobs:
       - name: Feature bits /api/status reports
         run: python3 tools/test_feature_bits.py
 
+      # The network driver is the image's identity (SIMUT_NET_CYW43, the default,
+      # or SIMUT_NET_ENC28J60) and the Wi-Fi / cable class (SIMUT_NET_WIFI,
+      # SIMUT_NET_LAN) is derived from it in src/net/NetCaps.h and never passed
+      # with -D. The preprocessor answers for each driver, the build that passes
+      # the class or two drivers or none stops at an #error, a second wired driver
+      # added by the recipe in that header's comment is held to its own OTA names,
+      # and every #error is taken out in turn to see exactly its cases fail.
+      - name: Network driver and class
+        run: python3 tools/test_net_caps.py
+
+      # The wired build (the ENC28J60 driver, the SIMUT Wire: a plain Pico with the
+      # network on an ENC28J60 module) is held, by the preprocessor, to the pins
+      # it may use, the radio it does not have and the name it takes in the OTA.
+      # The module on the display's or the buzzer's pin, two of its own lines on
+      # one GPIO, Bluetooth or the Air beside it, a Wi-Fi build without the CYW43
+      # and a wired one that still has it all stop at an #error in
+      # src/simut_config.h, and the names are "wire" and "wiretft", apart from
+      # every Pico W image. The test also takes each of those #error lines out of
+      # a copy of the header in turn and requires exactly one case to fail, so a
+      # guard that stopped guarding is seen; a layout that cannot work has to
+      # stop the build and not the board.
+      - name: Pin masks and variant names of the wired build
+        run: python3 tools/test_pin_masks.py
+
+      # A wired build cuts the radio's parts of the web pages (web_omit = "wifi"
+      # of the lan class) and, with the ENC28J60, its 16-slot texts ("slots16" of
+      # the driver); a Wi-Fi build keeps both.
+      - name: Web pages per network
+        run: python3 tools/test_web_omit_network.py
+
+      # Whether a combination fits in the PIO blocks, and which GPIO two owners
+      # claim, before anything compiles: the firmware finds out only at boot,
+      # when it logs "pio0 full" and drops a sensor.
+      - name: PIO budget (blocks, state machines and pins a build asks for)
+        run: python3 tools/test_pio_budget.py
+
       # The entanglement watermark (MODELO_DE_RECURSOS.md, P2): the count of
       # `#if SIMUT_` sites per feature macro and per file, held to a high-water
       # mark in tools/feature_sprawl.json. A site added to a shared file fails;
@@ -122,6 +170,21 @@ jobs:
       # lowers the mark. Same idea as the flash budget, for entanglement.
       - name: Feature entanglement watermark
         run: python3 tools/check_feature_sprawl.py
+
+      # The network is one driver per image, and the rest of src/ must not know which:
+      # outside src/net/ no identity macro (SIMUT_NET_CYW43, SIMUT_NET_ENC28J60, the
+      # module's SIMUT_ENC_* pins), no call on the radio (WiFi., cyw43_), no driver
+      # library included (...lwIP.h, LwipIntfDev.h), and a file that tests the class
+      # (SIMUT_NET_WIFI, SIMUT_NET_LAN) includes simut_config.h or net/NetCaps.h
+      # itself. What still breaks a rule is listed in tools/net_boundary.json, each
+      # with its reason, and the counts only go down. Adding a board is then a driver
+      # in src/net/ and a manifest entry, and this is what makes it so. The test puts
+      # one violation of each rule into a clean tree, and into a copy of the real one,
+      # and requires exactly one finding.
+      - name: Network boundary (the chip stays in src/net/)
+        run: |
+          python3 tools/test_net_boundary.py
+          python3 tools/check_net_boundary.py
 
       # The configurator's rules (tools/features.toml [[rules]], each measured
       # by compiling the forbidden combination). They are applied twice: by
@@ -160,6 +223,70 @@ jobs:
       - name: Web UI feature routes (panel-only routes stay inside @IF tft)
         run: python3 tools/test_webui_feature_routes.py
 
+      # The text viewer lays a text out for reading: JSON indented with blocks
+      # that fold, the sections of a pack, NDJSON, numbered lines. It lives in
+      # lang.js and draws the /files viewer and the telemetry page's two
+      # payload previews. Its pure part is pulled out of WebUI.h and run under
+      # node twice, as written and as the build's minifier leaves it, because
+      # the minifier has deleted shipped code before and reported success.
+      - name: Web UI text viewer (as written and minified)
+        run: python3 tools/test_webui_text_viewer.py
+
+      # The telemetry page's Live Preview builds the body the device sends,
+      # from this device: its name, MAC, readings, limits and account. A
+      # preview that disagrees with the firmware misleads whoever writes the
+      # collector, and it did: the alarm walker stopped at v22 and called the
+      # default template invalid JSON, and the CSV previews had one column
+      # per active sensor where the device sends 34, and 4 where it sends 8.
+      # Its functions run under node against the firmware's own vectors
+      # (test_alarm_queue), vectors derived from the C++ formatters, and every
+      # alarm code AlarmPayload.h has.
+      - name: Web UI payload preview (held to the firmware)
+        run: python3 tools/test_webui_payload_preview.py
+
+      # The Files page explains a stage the device did not commit. A refusal
+      # before any validation carries no `v`, only the device's own words:
+      # the RP2350 image answers every stage that way (501) until its A/B
+      # slots exist, and the page printed "validation v=undefined" for it.
+      # fwStageMessage( ) runs under node, as written and minified.
+      - name: Web UI firmware refusal (every stage refusal in words)
+        run: python3 tools/test_webui_firmware_refusal.py
+
+      # The Pico 2 W's update boots on trial and can go back by itself, and
+      # /api/status says so (slot, trial, reverted). The dashboard and the Files
+      # page show it, from @IF slot blocks every RP2040 image cuts. fwSlotNote( )
+      # runs under node, as written and minified; the cut is held per chip; the
+      # Pico 2 W's Files page warns without "reformatted", which its update is
+      # not; both packs carry the keys.
+      - name: Web UI trial note (the Pico 2 W's update on trial, and the way back)
+        run: python3 tools/test_webui_trial_note.py
+
+      # The Pico 2 W boots from slot A of a partition table, and four files say
+      # where everything is: the table picotool writes, the map in
+      # ota_layout.h, the slot's linker script and the PlatformIO profile. A
+      # number changed in one and not the others is a board that boots one
+      # layout and reads another. What only a build can show is
+      # tools/check_rp2350_image.py's, after every pico2_w_release link.
+      - name: RP2350 flash layout (one map in four places)
+        run: python3 tools/test_rp2350_layout.py
+
+      # An update to the Pico 2 W boots on trial and stays only if it buys
+      # itself: tools/rp2350/picobin.py flags the over-the-air image for it,
+      # one bit of IMAGE_TYPE, and the board never boots a flagged image from
+      # USB. The bit, only it, and only in firmware_ota.bin.
+      - name: RP2350 trial flag (the OTA image alone)
+        run: python3 tools/test_rp2350_trial.py
+
+      # The release publishes the Pico 2 W's images since step 7 of
+      # OTA_AB_RP2350.md: the update, flagged for trial, and a factory .uf2 made
+      # from it with the flag cleared and the partition table in front.
+      # tools/release_manifest.py writes both in the publish job, which has no
+      # picotool and runs only at a tag. This holds its output and its refusals
+      # on synthetic images, and holds the workflow's loops to the manifest's
+      # list, on every push.
+      - name: Release manifest (the Pico 2 W's update and factory image)
+        run: python3 tools/test_release_manifest.py
+
       # OTA applies reformat the LittleFS, so benches restore /history from
       # backup — and the current-day file can only be given back by MERGING
       # with what the device wrote meanwhile. This is the tool that hole
@@ -184,7 +311,7 @@ jobs:
           python3 tools/ota_sign.py gen-trust --check
           python3 tools/ota_sign.py check-keys
 
-      # ALL NINE native environments. Separate steps rather than one
+      # ALL ELEVEN native environments. Separate steps rather than one
       # `pio test -e a -e b ...` so a failure names itself in the Actions UI
       # instead of hiding behind the first environment that broke.
       #
@@ -200,6 +327,12 @@ jobs:
 
       - name: Run unit tests (CLI parser)
         run: pio test -e native_cli
+
+      # The same parser compiled for a wired build (2026-10-13): no `ap`, no
+      # SSID, and `ip`/`dns` in the emergency console; its pack help is
+      # @HELPWIRE.
+      - name: Run unit tests (CLI parser, wired build)
+        run: pio test -e native_lan
 
       - name: Run unit tests (LogPolicy)
         run: pio test -e native_logpolicy
@@ -224,12 +357,18 @@ jobs:
       - name: Run unit tests (network state machine)
         run: pio test -e native_network
 
+      # The wired network's states (net/NetworkManager_Wired.cpp) against a fake
+      # ENC28J60 (2026-10-13): no host test ran them before, and they are pinned
+      # here before the network becomes a driver.
+      - name: Run unit tests (wired network state machine)
+        run: pio test -e native_wired
+
       # The signature check of a staged OTA image, against the vectors above:
       # every refusal, and every trailer byte covered.
       - name: Run unit tests (OTA signature)
         run: pio test -e native_otasig
 
-      # The same nine suites again, under AddressSanitizer and UBSan, with
+      # The same ten suites again, under AddressSanitizer and UBSan, with
       # undefined behaviour made fatal. The plain runs above are the contract;
       # this run sees what a passing assertion cannot - a read past a buffer, a
       # reference to a dead frame that still holds the right bytes. Its first
@@ -244,8 +383,8 @@ jobs:
           PLATFORMIO_BUILD_FLAGS: -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined
         run: |
           rc=0
-          for e in native native_history_v5 native_cli native_logpolicy \
-                   native_alarmqueue native_air native_sensors native_network native_otasig; do
+          for e in native native_history_v5 native_cli native_lan native_logpolicy \
+                   native_alarmqueue native_air native_sensors native_network native_wired native_otasig; do
             if ! pio test -e "$e"; then
               rc=1
               echo "::group::$e, run directly for the sanitizer report"
@@ -281,6 +420,15 @@ jobs:
           # yet; building it here is what keeps the code from drifting back to
           # RP2040-only addresses with nobody noticing.
           - pico2_w_release
+          # The SIMUT Wire (2026-10-12): a plain Pico, without the radio, its
+          # network on an ENC28J60 module (src/net/, net/NetworkManager_Wired.cpp).
+          # Building it here keeps the guards of src/simut_config.h section 10b
+          # and the wired side of NetworkManager compiling, without the radio's
+          # unit (src/net/NetworkManager_Cyw43.cpp).
+          - pico_wire
+          # The SIMUT Wire with the TFT panel (2026-10-13): pico_wire with the
+          # touch display, so the TFT side of a wired build compiles here too.
+          - pico_wiretft
     name: firmware (${{ matrix.env }})
     steps:
       - uses: actions/checkout@v7
@@ -335,9 +483,33 @@ jobs:
       # Reads the size PlatformIO itself printed above. Skips the environments
       # recorded as unbudgeted, and fails on one that has neither a budget nor
       # a recorded reason — so adding an image to platformio.ini without
-      # deciding what it is allowed to weigh does not pass silently.
+      # deciding what it is allowed to weigh does not pass silently. Then holds
+      # firmware.bin, signed, to the OTA ceiling and to the size recorded for
+      # it ("bin"); an image under "ota_exempt" is held to neither.
       - name: Check flash budget
         run: python3 tools/check_flash_budget.py ${{ matrix.env }} build.log
+
+      # The sizes tools/pio_budget.py counts with, held to the programs' own
+      # sources. The gates job has neither the libraries nor the framework and
+      # skips that part of the test; after a build both are on disk, and
+      # `require` makes a source that went missing a failure instead of a skip
+      # nobody reads. Two images are enough: the libraries are pico_base's, the
+      # same in all nine, except the ENC28J60's, which only the wired images
+      # pull. pico_w_release is a required check and holds the other four;
+      # pico_wire names the ENC28J60 header, and a named header is required.
+      - name: PIO program sizes match their sources
+        if: matrix.env == 'pico_w_release'
+        env:
+          SIMUT_PIO_SOURCES: require
+        run: python3 tools/test_pio_budget.py
+
+      - name: PIO program sizes match their sources (with the ENC28J60)
+        if: matrix.env == 'pico_wire'
+        env:
+          SIMUT_PIO_SOURCES: require
+          SIMUT_LIBDEPS: .pio/libdeps/pico_wire
+          ENC_PIO_HEADER: .pio/libdeps/pico_wire/PicoENC28J60/src/enc28j60-spi.pio.h
+        run: python3 tools/test_pio_budget.py
 
   # Same reasoning as static-analysis: its own job costs no wall clock next
   # to the firmware build, and a finding names itself in the Actions UI.

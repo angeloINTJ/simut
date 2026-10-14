@@ -136,6 +136,35 @@ details > summary:focus-visible { outline: 2px solid var(--acento); outline-offs
 .cfg-interruptor:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
 .cfg-interruptor:disabled { opacity: 0.45; cursor: not-allowed; }
 
+/* ---- the connection: one radio per network driver, in the network group --- */
+
+/* Rows like the switches', divided by linha, and not cards: the group is already
+ * a card, and §4.4 allows none inside one. The whole row is the label, so the
+ * target is the 44 px row (§3.6), not the 20 px radio. */
+.cfg-rede { margin: 0; padding: 0; border: 0; min-width: 0; }
+.cfg-rede-titulo { margin: 0 0 var(--espaco-1); padding: 0; font: 600 13px/16px var(--font-texto); color: var(--tinta-2); }
+.cfg-rede-titulo .selo { margin-left: var(--espaco-1); }
+.cfg-rede + .cfg-chave { border-top: 1px solid var(--linha); }
+
+.cfg-rede-opcao { cursor: pointer; }
+.cfg-rede-opcao .cfg-chave-nome { font: 400 16px/24px var(--font-texto); color: var(--tinta); }
+.cfg-rede-opcao:has(.cfg-radio:focus-visible) { outline: 2px solid var(--acento); outline-offset: 2px; border-radius: var(--raio-controle); }
+.cfg-rede-opcao:has(.cfg-radio:disabled) { cursor: not-allowed; }
+.cfg-rede-opcao:has(.cfg-radio:disabled) .cfg-chave-nome { color: var(--tinta-2); }
+
+/* The radio: a ring that fills with the accent when chosen, drawn like the
+ * switch (a control's state is the accent). */
+.cfg-radio {
+  appearance: none; -webkit-appearance: none; position: relative; flex: none;
+  width: 20px; height: 20px; margin: 0; cursor: pointer;
+  background: var(--superficie); border: 1px solid var(--linha-forte); border-radius: var(--raio-total);
+}
+.cfg-radio::after { content: ""; position: absolute; inset: var(--espaco-1); border-radius: var(--raio-total); }
+.cfg-radio:checked { background: var(--acento); border-color: var(--acento); }
+.cfg-radio:checked::after { background: var(--acento-tinta); }
+.cfg-rede-opcao:hover .cfg-radio:not(:checked):not(:disabled) { border-color: var(--acento); }
+.cfg-radio:disabled { opacity: 0.45; cursor: not-allowed; }
+
 /* ---- the result ------------------------------------------------------------ */
 
 .cfg-resultado .cfg-bloco { display: grid; gap: var(--espaco-4); }

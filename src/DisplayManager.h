@@ -31,8 +31,10 @@ class Adafruit_GFX;
 #include "pico/multicore.h"
 #include "pico/util/queue.h"
 #include "SystemDefs.h"
+#include "simut_config.h"   /* SIMUT_NET_WIFI is tested below: included here, not left to another header */
 #include "PinKeypad.h"   /* PinKb:: — geometry of the scrambled PIN keypad */
 #include "display/ClockEntry.h" /* the date and time set at the panel */
+#include "display/SettingsMenu.h" /* the Settings menu: items, order, rows */
 #include "OtaScreen.h"          /* what the panel says during a firmware update */
 #include "Themes.h"
 #include "SoundManager.h"
@@ -147,8 +149,9 @@ enum LangKey {
 	TR_PIN_ALPHABET,
 	TR_PIN_RENEW,
 
-	/* 2026-10-01 — Settings > 13, and the title of the screen it opens. A pack
-	 * without the line shows the English (DisplayManager_LangParser). */
+	/* 2026-10-01 — the Settings row Date and time, and the title of the screen
+	 * it opens. A pack without the line shows the English
+	 * (DisplayManager_LangParser). */
 	TR_MENU_CLOCK,
 
 	/* 2026-10-02 — the firmware-update screen (OtaScreen.h, DisplayManager_Ota.cpp)
@@ -562,7 +565,10 @@ public:
 		PIN_FOR_USER,         /**< an admin sets another account's PIN */
 		PIN_FOR_NEW_ACCOUNT   /**< last step of creating an account */
 	};
-	void showPinEntry(uint8_t purpose, int8_t targetUser = -1);
+	/** `forced`: PIN_FOR_OWN because the account's PIN must change (policy
+	 *  or factory PIN), so the session may not go on without it: SAIR leaves
+	 *  to the dashboard, and Settings asks for the PIN again from there. */
+	void showPinEntry(uint8_t purpose, int8_t targetUser = -1, bool forced = false);
 	/** Forces repaint of the keypad after another screen (the license)
 	 * covered it. State (typed digits, lockout) is untouched. */
 	/** Core 0's verdict on the PIN of the last EVT_AUTH_PIN. Runs the lockout
@@ -601,6 +607,9 @@ public:
 	uint8_t pinKeypadMode( ) const;
 	uint8_t pinAlphabet( ) const;
 	uint8_t pinMinLen( ) const;
+	/** The shortest entry this screen takes: the policy's minimum to choose
+	 *  a PIN, PIN_LEN_MIN to prove one (PinKb::entryMinLen). */
+	uint8_t pinEntryMinLen( ) const;
 	/** The policy editor (PERM_USER_MGR): length, keypad, alphabet. */
 	void showPinPolicy( );
 #endif /* SIMUT_PANEL_PIN — an image with no touch panel proves nobody */
@@ -659,7 +668,9 @@ public:
 
 	void showSettingsSounds(const SoundSettingsState& state);
 	void showMuteConfirm( );
+#if SIMUT_NET_WIFI   /* the wired build has no setup AP (2026-10-13) */
 	void showApConfirm( ); /**< "start the setup access point?" (2.7.1) */
+#endif
 	/** The date and time, starting from @p start. @p atBoot: asked by the boot
 	 *  of a unit with no network — the left button is SKIP, and a hint says why
 	 *  the question is there; otherwise it is BACK, to the settings menu. */
@@ -799,7 +810,7 @@ private:
 	/* T1.1 quiesce protocol (stability wave 1): Core 0 raises
 	 * _quiescePlease; Core 1 parks at the top of loopCore1 (guaranteed
 	 * outside malloc/free, the event-queue spinlock and any SPI burst)
-	 * and ACKs via _core1Parked. Only then — or after a 200 ms timeout,
+	 * and ACKs via _core1Parked. Only then — or after CORE1_QUIESCE_MS,
 	 * preserving the old behavior as fallback — does Core 0 hard-reset.
 	 * This closes the "reset while holding a lock" class (R1 in
 	 * docs/CONCURRENCY.md). _quietSince feeds the leak watchdog in
@@ -1147,8 +1158,6 @@ private:
 	 *  is what keeps the renderer, the touch mapper and the validator from
 	 *  each inventing their own fallback. */
 	void pinPolicy(uint8_t& minLen, uint8_t& keypad, uint8_t& alphabet) const;
-	/** Strips a leading "N. " from a menu label; see the definition. */
-	static const char* menuLabelNoNumber(const char* s);
 	/** Both account lists; `picking` is the v25 auth picker. */
 	void drawUserRowInto(GFXcanvas16* cv, bool picking, int mapIdx,
 	                     int16_t x, int16_t y, int16_t itemW);
@@ -1185,6 +1194,11 @@ private:
 	uint8_t _pinPhase = 0;          /**< 0 typing, 1 confirming (new PIN) */
 	uint8_t _pinPurpose = 0;        /**< PinPurpose */
 	int8_t _pinTarget = -1;         /**< PIN_FOR_USER: whose */
+	/** PIN_FOR_OWN that the session must not skip. No initializer: only
+	 *  pinCancel( ) reads it, on the PIN screen, and the one way onto that
+	 *  screen, showPinEntry( ), writes it first. Zeroing it cost the
+	 *  constructor 16 B (pico_w_release, 2026-10-04). */
+	bool _pinForced;
 	LangKey _pinMsg = TR_KEYS_COUNT;/**< transient line under the dots */
 	/* What each key on screen carries. Under KB_SET2/KB_SET3 it is a DEAL:
 	 * the alphabet plus decoys over cards of S slots, re-dealt on every entry,
@@ -1222,15 +1236,14 @@ private:
 	int8_t _panelUser = -1;
 	uint16_t _panelPerms = 0;
 
-	/* the settings menu, filtered by the session's bits.
+	/* the settings menu: the item ids this session's bits reach, in menu
+	 * order (display/SettingsMenu.h).
 	 *
-	 * MENU_ITEM_COUNT is the length of the three tables that have to agree
-	 * (NEED, menuItems, the EVT_MENU_SELECT dispatch) and of this buffer. It
-	 * is a named constant because the buffer was NOT grown when v25 appended
-	 * the PIN-policy row: the table had 11 entries and this array 10, so an
-	 * account holding every bit wrote _menuItems[10] — one past the end, and
-	 * _menuCount is the member right behind it. */
-	static constexpr uint8_t MENU_ITEM_COUNT = 13;
+	 * MENU_ITEM_COUNT, the last value of the item enum, sizes this buffer and
+	 * every table keyed by item. It is one name because the buffer was NOT
+	 * grown when v25 appended the PIN-policy row: the table had 11 entries and
+	 * this array 10, so an account holding every bit wrote _menuItems[10] —
+	 * one past the end, and _menuCount is the member right behind it. */
 	uint8_t _menuItems[MENU_ITEM_COUNT];
 	uint8_t _menuCount = 0;
 
@@ -1320,7 +1333,9 @@ private:
 	void drawSettingsSounds( );
 	void drawMelodySelect( );
 	void drawMuteConfirm( );
+#if SIMUT_NET_WIFI
 	void drawApConfirm( );
+#endif
 	void drawClockEntry( );
 	void drawClockValues(Adafruit_GFX* g, int16_t yOff);
 	ClockEntry _clockEntry = { 2026, 1, 1, 0, 0 };

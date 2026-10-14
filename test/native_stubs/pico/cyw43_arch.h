@@ -1,6 +1,7 @@
 /**
  * @file pico/cyw43_arch.h (native stub)
- * @brief Just enough of the SDK header for NetworkManager.cpp to compile here.
+ * @brief Just enough of the SDK header for the radio's unit of NetworkManager
+ *        (src/net/NetworkManager_Cyw43.cpp) to compile here.
  *
  * NetworkManager calls cyw43_arch_enable_sta_mode( ) on exactly one path:
  * starting a scan while the setup AP is up, where the STA interface is down

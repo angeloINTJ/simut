@@ -22,7 +22,13 @@
  *    leading spaces and tabs or trailing CR, spaces and tabs;
  *  - @WEBDICT has to be the file's suffix, so a directive after its marker
  *    line marks the pack malformed (tools/check_lang_packs.py refuses to ship
- *    one, and the loader refuses to load one).
+ *    one, and the loader refuses to load one);
+ *  - a wired build (SIMUT_NET_LAN) reads @HELPWIRE as its help and @HELP as an
+ *    unknown directive (2026-10-13): @HELP lists `ap` and the Wi-Fi network,
+ *    which that console does not have, and @HELPWIRE lists `ip` and `dns` in
+ *    their place. A radio build ignores @HELPWIRE the same way. A pack without
+ *    @HELPWIRE leaves a wired build no help, so `help` prints the built-in
+ *    English, which is the wired text.
  *
  * One result differs, on purpose. The old parser ran the section just before
  * @WEBDICT one byte long — it counted the newline it appended to its own
@@ -42,6 +48,8 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include "net/NetCaps.h"   /* SIMUT_NET_LAN, tested in identify( ): this header includes no other project header,
+                              and an undefined macro reads as 0, so a wired build would take @HELP for its help */
 
 /** The sections the firmware tells apart. The order here means nothing; in a
  *  file the order is free, except that @WEBDICT comes last. */
@@ -139,13 +147,17 @@ private:
 	bool _valOpen = false;
 	bool _dirLong = false;
 	uint8_t _dirLen = 0;
-	char _dir[8];            /* "LOGCODES", the longest name, fits exactly */
+	char _dir[8];            /* "LOGCODES" and "HELPWIRE", the longest names, fit exactly */
 
 	int8_t identify( ) const {
 		if (_dirLong) return -1;
 		static const struct { const char* name; uint8_t len; LangSection sec; } kDirs[] = {
 			{ "NAME", 4, LANG_SEC_NAME },         { "CODE", 4, LANG_SEC_CODE },
+#if SIMUT_NET_LAN   /* the help without the radio: see the rules above */
+			{ "DICT", 4, LANG_SEC_DICT },         { "HELPWIRE", 8, LANG_SEC_HELP },
+#else
 			{ "DICT", 4, LANG_SEC_DICT },         { "HELP", 4, LANG_SEC_HELP },
+#endif
 			{ "LOGCODES", 8, LANG_SEC_LOGCODES }, { "TRL", 3, LANG_SEC_TRL },
 			{ "WEBDICT", 7, LANG_SEC_WEBDICT },
 		};

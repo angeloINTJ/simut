@@ -23,7 +23,7 @@ generates = ["tools/generated/profiles.ini", "docs/configurador/model.json", "sr
 
 # Flags que todo perfil de firmware acrescenta sobre ${pico_base.build_flags}.
 [base]
-common_flags = ["-DNDEBUG"]   # as sete imagens carregam NDEBUG (release ganhou em 2026-09-18)
+common_flags = ["-DNDEBUG"]   # as nove imagens carregam NDEBUG (release ganhou em 2026-09-18)
 
 # ---------------------------------------------------------------------------
 #  O chip. Um valor por perfil; sem a chave, rp2040 (o Pico W, que o pico_base
@@ -35,15 +35,27 @@ common_flags = ["-DNDEBUG"]   # as sete imagens carregam NDEBUG (release ganhou 
 [chip.rp2040]
 board = ""
 flags = []
+# `slot` (2026-10-04): o que a pagina diz da atualizacao em teste e da volta, que so
+# o RP2350 tem (passo 5 de docs/analysis/OTA_AB_RP2350.md). O Pico W corta esses
+# blocos @IF e sai com as paginas de antes.
+web_omit = "slot"
 
 [chip.rp2350]
 # Pico 2 W: RP2350, 4 MB de flash, o mesmo CYW43439. -Wno-error=overloaded-virtual
 # porque o WiFiClientSecureBearSSL.h do framework dispara esse aviso so neste chip
 # (medido em 2026-10-01 com o framework 1.50601.0) — e o -Werror vale para o que
-# src/ inclui. O layout da flash, o OTA e o Air no RP2350 ainda nao existem: o
-# pico_base continua dando 1 MB de LittleFS, e o OTA de hoje supoe a flash do Pico W.
+# src/ inclui. O Air no RP2350 ainda nao existe. O OTA do RP2350 grava o slot de
+# onde a placa nao subiu e reinicia nele pela ROM (passo 4 de
+# docs/analysis/OTA_AB_RP2350.md, 2026-10-03); de 2026-10-03 ate o passo 4 a imagem
+# recusava todo OTA, porque o de antes supunha a flash do Pico W.
 board = "rpipico2w"
 flags = ["-Wno-error=overloaded-virtual"]
+# O programa sobe de um slot da tabela de particoes (passo 3 de
+# docs/analysis/OTA_AB_RP2350.md): linker script proprio, sem o stub de OTA do
+# arduino-pico, e o LittleFS com os 1.020 KB que a tabela da a ele, em 0x300000.
+# tools/test_rp2350_layout.py confere os quatro lugares que dizem esse layout.
+ldscript        = "tools/rp2350/memmap_slot.ld"
+filesystem_size = "1020k"
 
 # ---------------------------------------------------------------------------
 #  A escolha do mostrador. Exatamente um valor por perfil.
@@ -86,6 +98,119 @@ web_omit            = "tft"
 display = ["Adafruit ILI9341", "Adafruit GFX Library", "XPT2046_Touchscreen"]
 
 # ---------------------------------------------------------------------------
+#  A rede: como o aparelho se comunica (2026-10-13). Uma escolha por perfil, como o
+#  mostrador: `net = "<id>"` nomeia um [net.<id>], o driver da imagem. Ate 2026-10-13 a
+#  rede era o interruptor `lan` ("cabo no lugar do Wi-Fi"), um booleano, que nao tem
+#  lugar para uma terceira placa. A classe ([net_class]) e o que as paginas, o console
+#  e os paineis sabem da rede; o driver ([net]) e a placa que a faz. Uma placa nova e
+#  um [net.<id>], um [ui_nets.<id>] e o driver em src/net/; o programa PIO dela e os
+#  pinos moram em tools/pio_budget.py (a chave "net=<id>" do ORDER e o <id> do PINS).
+# ---------------------------------------------------------------------------
+# A classe e o que as paginas, o console e os paineis sabem da rede, e cada driver
+# nomeia a sua.
+#   wifi  entra numa rede por nome e senha: busca de redes, ponto de acesso de
+#         configuracao e nivel de sinal. E a classe do driver padrao, o CYW43
+#         (src/net/NetCaps.h: SIMUT_NET_WIFI = SIMUT_NET_CYW43).
+#   lan   um cabo: o endereco vem por DHCP ou e o fixo da configuracao
+#         (SIMUT_NET_LAN = SIMUT_NET_ENC28J60).
+#   macro     o nome do macro da classe, que o src/FeatureBits.h le para o bit. Ele NAO
+#             vai por -D: sai da identidade do driver no src/net/NetCaps.h, que recusa
+#             quem o passa (2026-10-13; ia por -D porque os cabecalhos puros nao viam o
+#             simut_config.h, e hoje eles incluem o NetCaps.h). O que vai por -D e a
+#             identidade, nos `flags` do driver ([net.enc28j60]: -DSIMUT_NET_ENC28J60=1).
+#   bit       o bit "feat" do /api/status (src/FeatureBits.h, SIMUT_FEAT_<CLASSE>),
+#             PERMANENTE como o de um interruptor: um app instalado le o numero. O 18
+#             era da chave `lan` e passou para a classe sem mudar.
+#   web_omit  os blocos /* @IF <nome> */ do WebUI.h (tools/build_webui_gz.py) que a
+#             classe corta: a lan nao tem radio, e os /* @IF !wifi */, o que so o cabo
+#             tem, entram (2026-10-13, pedido do mantenedor).
+#   units     as unidades de traducao da classe: o que toda placa dela divide, e nao o
+#             que e de um chip. Toda unidade de uma classe que NAO e a do perfil sai do
+#             build (-<unidade> no build_src_filter), como a de um driver que nao e o
+#             do perfil (a chave `units` de [net.<id>], abaixo).
+[net_class.wifi]
+
+[net_class.lan]
+macro    = "SIMUT_NET_LAN"   # derivado no src/net/NetCaps.h (= SIMUT_NET_ENC28J60); nunca vai por -D
+bit      = 18
+web_omit = "wifi"
+# Os dois arquivos da classe: a unidade do cabo no NetworkManager (o contrato de NetworkManager.h:
+# as maquinas de estado cabeadas) e o enlace que toda placa cabeada divide (LwipIntfDev: hostname,
+# endereco fixo, begin, getters, end), com o cabecalho do chip por baixo
+# (src/net/Enc28j60Device.h, que e cabecalho e nao entra aqui).
+# Nem entram nas imagens Wi-Fi. Vazios ali (tudo sob #if SIMUT_NET_LAN), ainda assim mudavam
+# os bytes: os dois objetos no link trocavam a ordem de 56 veneers do linker (mesmo codigo,
+# mesmos tamanhos, alvos de BL deslocados em 16 a 32 B), e o pico_w_release saia 55ce740c em
+# vez de 1fe54a67 (2026-10-13). Fora do filtro, as sete voltam byte a byte.
+units    = ["net/NetworkManager_Wired.cpp", "net/WiredLink.cpp"]
+
+# Os drivers. `class` e a classe do driver; as outras chaves sao o que o ambiente do
+# PlatformIO ganha com ele, e quem escolhe outro driver nao as recebe:
+#   board     {chip = "placa"}: a placa daquele chip com o driver. Um driver sem `board`
+#             deixa a placa do chip; um chip sem entrada nao tem placa para ele, e o
+#             gerador recusa o perfil (gen_features.net_refusal) em vez de compor a
+#             placa de sempre -- uma imagem que diria uma coisa e seria outra.
+#   unflags   flags do pico_base que o ambiente tira com build_unflags.
+#   flags     flags que o driver soma aos do perfil.
+#   units     as unidades de traducao do driver: as de um chip que traz um .cpp proprio
+#             (o CYW43 traz o do radio, o NetworkManager_Cyw43.cpp; o ENC28J60 nao traz: o
+#             chip dele e um cabecalho, e as unidades da build cabeada sao da classe `lan`).
+#             Toda unidade de um driver que NAO e o do perfil sai do build (-<unidade> no
+#             build_src_filter).
+#   lib_deps  as bibliotecas que so ele traz, fixadas por commit.
+#   web_omit  os blocos /* @IF <nome> */ do WebUI.h que so este driver corta, depois dos da
+#             classe (2026-10-13). A classe corta o que o radio e (`wifi`); o driver, o que o
+#             chip toma: o ENC28J60 fica com o GP11-GP15, e a pagina de sensores diz onze
+#             slots em vez de dezesseis (`slots16`). Outro modulo cabeado nao tomaria esses
+#             pinos, e por isso isto nao e da classe.
+[net.cyw43]
+# O radio CYW43439 do Pico W e do Pico 2 W: o default do pico_base e a identidade padrao do
+# src/net/NetCaps.h (SIMUT_NET_CYW43), nada a emitir.
+class = "wifi"
+# A unidade do radio no NetworkManager (o contrato de NetworkManager.h): a busca, a associacao, a
+# escada de reconexao com a dormencia, o AP de configuracao, a busca sob demanda, os getters e o
+# sinal. Estava no src/NetworkManager.cpp, que desde 2026-10-13 e so o hospedeiro (NTP, relogio,
+# mDNS, fuso, saude). Fora das imagens cabeadas: la a unidade chama cyw43_arch_enable_sta_mode( )
+# e o link morre em __wrap_cyw43_cb_* numa placa sem o radio, e o codigo do radio era codigo morto
+# nas duas (a guarda que a unidade tinha para isso e esta exclusao).
+units = ["net/NetworkManager_Cyw43.cpp"]
+
+[net.enc28j60]
+# Um Raspberry Pi Pico comum, o RP2040 sem o radio CYW43, com a rede num modulo ENC28J60.
+# O estudo de 2026-09-26 (ramo study/simut-wire, docs/analysis/SIMUT_WIRE_VIABILIDADE.md)
+# mediu a release linkando para board = rpipico guardando uma unica chamada, a
+# cyw43_arch_enable_sta_mode( ) da busca de redes do NetworkManager (hoje na unidade do radio,
+# src/net/NetworkManager_Cyw43.cpp, que a build cabeada nao compila). O driver e o
+# src/net/Enc28j60Device.h, o chip, sobre o src/net/WiredLink.cpp e o src/net/NetworkManager_Wired.cpp,
+# que sao da classe `lan` (2026-10-12; o chip virou um cabecalho em 2026-10-13).
+class    = "lan"
+# O RP2350 nao tem placa aqui: o gerador recusa o perfil nele, e a pagina trava a escolha
+# com o motivo de [ui_nets.enc28j60].unsupported, ate haver uma.
+board    = { rp2040 = "rpipico" }
+# O pico_base poe o -DPICO_CYW43_SUPPORTED=1 (as placas W o passam). Sem radio ele sai
+# (build_unflags); se ficasse, o simut_config.h pararia num #error (um driver que nao e o
+# CYW43 com o PICO_CYW43_SUPPORTED).
+unflags  = ["-DPICO_CYW43_SUPPORTED=1"]
+# O modulo fica com GP11-GP15 (o INT e o SPI), que eram cinco dos dezesseis slots de
+# sensor: a build com ele tem onze, GP0-GP10 (o simut_config.h recusa um pino do modulo
+# nessa faixa). O INT no GP11 com qualquer mostrador e decisao de 2026-10-12: uma
+# fiacao so.
+# O driver passa tambem a identidade dele, -DSIMUT_NET_ENC28J60=1, primeiro (2026-10-13): a
+# classe lan sai dela no src/net/NetCaps.h, e a classe nunca vai por -D.
+flags    = ["-DSIMUT_NET_ENC28J60=1", "-DMAX_SENSORS=11"]
+# Os textos da pagina que dizem dezesseis slots saem, e os de onze entram: os doze blocos
+# `@IF slots16` e `@IF !slots16` do WebUI.h. Eram `@IF wifi` ate 2026-10-13, e "tem radio" e
+# "tem dezesseis slots" eram a mesma pergunta so porque so havia um modulo cabeado.
+web_omit = "slots16"
+# Sem `units`: o chip nao traz .cpp, so o cabecalho, e as duas unidades da build cabeada sao da
+# classe `lan` (acima).
+# O driver do modulo: a biblioteca do mantenedor, fixada no commit que ele escolheu em
+# 2026-10-12 (a main de entao). So a build com este driver a baixa; o
+# src/net/Enc28j60Device.h e o unico arquivo que a inclui, e o src/net/WiredLink.cpp a unica
+# unidade que inclui esse.
+lib_deps = ["https://github.com/angeloINTJ/pico-enc28j60.git#fb16ec132baab989b5921075dd1f1503dd8149d4"]
+
+# ---------------------------------------------------------------------------
 #  Os interruptores. `emit` diz como o flag e escrito, e por que:
 #    value      -> sempre -D<macro>=0 ou =1        (chave de valor)
 #    on_is_1    -> ligado -D<macro>=1, desligado nada  (macro de presenca:
@@ -93,6 +218,12 @@ display = ["Adafruit ILI9341", "Adafruit GFX Library", "XPT2046_Touchscreen"]
 #    off_is_0   -> ligado nada (default do config), desligado -D<macro>=0
 #    bare       -> ligado -D<macro>, desligado nada
 #    none       -> sem macro; so mexe em arquivo e biblioteca
+#
+#  A placa, os flags do pico_base que o ambiente tira, a biblioteca do driver e o que as
+#  paginas perdem NAO sao de um interruptor: eram on_board, on_unflags, on_lib_deps e
+#  on_web_omit da chave `lan`, e desde 2026-10-13 moram no driver de rede ([net.<id>],
+#  acima). O gerador recusa a chave que ainda as tenha, porque uma chave velha ignorada em
+#  silencio comporia outra imagem.
 #
 #  `bit` e a posicao da chave no "feat" do /api/status (2026-09-30): o firmware diz
 #  com que chaves foi compilado, no vocabulario deste manifesto, e o cliente — o app
@@ -247,7 +378,8 @@ macro = "SIMUT_SENSOR_BME280"
 emit  = "off_is_0"
 
 # ---------------------------------------------------------------------------
-#  Os perfis. Os sete ambientes de firmware que o CI constroi hoje.
+#  Os perfis. Os nove ambientes de firmware que o CI constroi; o oitavo, o
+#  pico_wire, desde 2026-10-12, e o nono, o pico_wiretft, desde 2026-10-13.
 #  `extends` herda o dicionario de recursos do pai e sobrescreve.
 #
 #  `ota_trust_bench = true` (2026-10-01): a imagem aceita pelo ar tambem o que a
@@ -265,6 +397,7 @@ emit  = "off_is_0"
 #   saia na imagem publicada.
 [profiles.pico_w_release]
 display             = "tft"
+net                 = "cyw43"
 cli_full            = false
 web_https           = true
 license_stub        = false
@@ -300,6 +433,7 @@ publish             = true
 #   pela bancada, quanto a candidata que o CI assina.
 [profiles.pico_w_test]
 display       = "tft"
+net           = "cyw43"
 cli_full      = true
 web_https     = false
 license_stub  = true
@@ -333,7 +467,11 @@ ota_trust_bench = true
 #   que um soak HTTPS menos toca; TEL_PAGE entra por folga (com duas fora o .bin ficava
 #   3.732 B sob o teto, menos de um setor de 4 KiB). Suba data/web/{alarms,files,tel}.
 #   html.gz para /web/ antes de uma suite, ou as rotas dao "Page asset missing" (POST
-#   /api/upload, nunca uploadfs).
+#   /api/upload, nunca uploadfs). Isenta do teto de OTA desde 2026-10-02 (ota_exempt em
+#   tools/flash_budget.json, B6 do PLANO_STABLE.md). O limite que sobra e o fim do slot do
+#   programa, onde o linker recusa a imagem: no #233 o .bin (1.039.996 B) estava a 4.484 B
+#   dele, menos que a menor das tres paginas (alarms, 4.490 B gz). Trazer uma de volta pede
+#   medir de novo.
 [profiles.pico_w_test_https]
 extends         = "pico_w_test"
 web_https       = true
@@ -358,6 +496,7 @@ ota_trust_bench     = true   # imagem de soak no rig, como a pico_w_test
 #   bloco @IF tft da pagina.
 [profiles.pico_w_alpha]
 display       = "alpha_paralelo"
+net           = "cyw43"
 cli_full      = false
 web_https     = false
 license_stub  = false
@@ -391,6 +530,7 @@ publish       = true
 #   v2.7.3; o comentario antigo do env dizia "stays 21" e estava errado).
 [profiles.pico_w_air]
 display       = "nenhum"
+net           = "cyw43"
 cli_full      = true
 web_https     = false
 license_stub  = true
@@ -410,15 +550,77 @@ web_metrics   = true
 syslog        = true
 publish       = true
 
-# pico2_w_release — a release do Pico W compilada para o Pico 2 W (RP2350). Nao publicada.
-#   S0 da fase 4: o CI prova que compila e mede o tamanho; nada disto rodou numa
-#   placa ainda (o primeiro boot e o S1, numa placa de stepping A4). Os registradores do
-#   watchdog e do PSM vem do SDK do chip desde 2026-10-01; sem isso a imagem
-#   compilava e escrevia nos enderecos do RP2040.
+# pico2_w_release — a release do Pico W compilada para o Pico 2 W (RP2350).
+#   S0 da fase 4: o CI prova que compila e mede o tamanho. Rodou numa placa pela
+#   primeira vez em 2026-10-03 (S1): a placa da bancada, de stepping A2, gravada por
+#   USB. Os registradores do watchdog e do PSM vem do SDK do chip desde 2026-10-01;
+#   sem isso a imagem compilava e escrevia nos enderecos do RP2040.
+#   A release publica as imagens dela desde o passo 7 de OTA_AB_RP2350.md
+#   (release-ota.yml): o .bin em teste e o .uf2 de fabrica. Por isso ela nao confia
+#   mais na raiz de bancada, e tools/test_release_manifest.py confere que nenhuma
+#   imagem publicada pela release confia. A imagem de bancada sai deste perfil com
+#   PLATFORMIO_BUILD_FLAGS=-DSIMUT_OTA_TRUST_BENCH=1 (AGENTS.md).
+#   `publish` e o do configurador e das tabelas FEATURES*.md: desde 2026-10-05 o
+#   build_custom.py entrega o .bin em teste e o .uf2 de fabrica dele, a pagina o segura
+#   aos tetos do slot (check_flash_budget.ceilings) e a matriz de custo o mede.
 [profiles.pico2_w_release]
 extends = "pico_w_release"
 chip    = "rp2350"
-publish = false
+publish = true
+
+# pico_wire — o SIMUT Wire: um Raspberry Pi Pico comum (RP2040 sem o radio CYW43) com a
+#   rede por cabo, num modulo ENC28J60. O produto oficial e o mostrador alfanumerico
+#   (HD44780 em paralelo, GP16-21), a rede cabeada, o DHT22 e o buzzer, sem DS18B20, sem
+#   Bluetooth e sem o Air (os dois rodam no CYW43; as regras bluetooth-needs-cyw43 e
+#   air-needs-cyw43). Estende o pico_w_alpha e tira dele o que o Wire nao tem. O BME280 fica,
+#   como no alpha: o I2C por PIO dele (WirePIO, 32 instrucoes, um bloco inteiro) so entra
+#   num pio0 vazio e cai para GPIO sem ele, entao nao disputa o PIO do modulo se a rede
+#   subir antes dos sensores (o que o driver tem de garantir).
+#   Pinos do modulo (simut_config.h): MISO GP12, CS GP13, SCK GP14, MOSI GP15 (SPI por PIO);
+#   o INT e o GP11, com qualquer mostrador. O driver (src/net/WiredLink.cpp sobre o
+#   src/net/Enc28j60Device.h, e o src/net/NetworkManager_Wired.cpp) pega o endereco por DHCP
+#   ou o fixo da configuracao;
+#   na bancada de 2026-10-12 a web respondeu pelo cabo. Medido em 2026-10-13 (pio run -e
+#   pico_wire, arduino-pico 5.6.1, com o driver): 598.560 B de flash, .bin de 610.592 B,
+#   104.688 B de RAM, com onze slots; o driver custou 10.588 B de flash e 2.708 B de RAM.
+#   Com a unidade do radio (src/net/NetworkManager_Cyw43.cpp) no link, ele morre em __wrap_cyw43_cb_*. Nao
+#   publicada; confia na raiz de bancada, como as outras imagens de bancada (o gerador
+#   recusa a marca numa publica).
+[profiles.pico_wire]
+extends         = "pico_w_alpha"
+net             = "enc28j60"
+bluetooth       = false
+air             = false
+sensor_ds18b20  = false
+sensor_dht22    = true
+sensor_bme280   = true
+sound_buzzer    = true
+publish         = false
+ota_trust_bench = true
+
+# pico_wiretft — o SIMUT Wire com o painel TFT e o toque: o mesmo Pico comum (sem o radio
+#   CYW43) e o mesmo modulo ENC28J60 do pico_wire, com a tela do pico_w_release no lugar do
+#   LCD. Estende o pico_w_release e repete o que o pico_wire escolhe: o DHT22, o BME280 e o
+#   buzzer, sem DS18B20, sem Bluetooth e sem o Air (bluetooth-needs-cyw43 e air-needs-cyw43). Difere do
+#   pico_wire so em quatro chaves, as que o pico_w_release liga: a tela (a TFT, nao o LCD), o
+#   grafico dela, o servidor web HTTPS e o mDNS. O INT do modulo e o GP11 com qualquer dos
+#   dois mostradores (simut_config.h, secao 10b), e o nome da variante, o que a OTA compara,
+#   e `wiretft` (o do pico_wire e `wire`). Imagem de bancada, nao publicada; confia na raiz de
+#   bancada, como o pico_wire. Medido em 2026-10-13 (pio run -e pico_wiretft, arduino-pico
+#   5.6.1, com o driver): 780.628 B de flash, .bin de 792.664 B, 109.784 B de RAM, com onze
+#   slots; contra o pico_wire, na mesma arvore, +183.180 B de flash e +5.104 B de RAM. Nenhuma
+#   placa a rodou ainda.
+[profiles.pico_wiretft]
+extends         = "pico_w_release"
+net             = "enc28j60"
+bluetooth       = false
+air             = false
+sensor_ds18b20  = false
+sensor_dht22    = true
+sensor_bme280   = true
+sound_buzzer    = true
+publish         = false
+ota_trust_bench = true
 
 # ===========================================================================
 #  O configurador (docs/configurador/): como cada escolha aparece na árvore.
@@ -449,8 +651,16 @@ label.pt = "SIMUT Air"
 desc.en  = "No display: wakes, reads, sends and sleeps again, to run on battery."
 desc.pt  = "Sem mostrador: acorda, lê, envia e volta a dormir, para rodar na bateria."
 
-[ui_products.pico_w_test]
+[ui_products.pico2_w_release]
 order    = 4
+label.en = "SIMUT for the Pico 2 W"
+label.pt = "SIMUT para o Pico 2 W"
+label.es = "SIMUT para la Pico 2 W"   # a coluna dele no FEATURES.es-ES.md
+desc.en  = "The touch display product on the Pico 2 W (RP2350), with twice the flash: it boots from slot A or B, and an update over the air goes into the other slot and runs on trial."
+desc.pt  = "O produto com tela touch no Pico 2 W (RP2350), com o dobro de flash: sobe do slot A ou B, e uma atualização pelo ar vai para o outro slot e roda em teste."
+
+[ui_products.pico_w_test]
+order    = 5
 bench    = true
 label.en = "Bench image"
 label.pt = "Imagem de bancada"
@@ -458,7 +668,7 @@ desc.en  = "Full command line for the test suites. Not published."
 desc.pt  = "Linha de comando completa para as suítes de teste. Não publicada."
 
 [ui_products.pico_w_test_https]
-order    = 5
+order    = 6
 bench    = true
 label.en = "Bench image with HTTPS"
 label.pt = "Imagem de bancada com HTTPS"
@@ -466,20 +676,32 @@ desc.en  = "The only image with the full command line and the TLS server togethe
 desc.pt  = "A única imagem com linha de comando completa e servidor TLS juntos. Não publicada."
 
 [ui_products.pico_w_asserts]
-order    = 6
+order    = 7
 bench    = true
 label.en = "Concurrency soak image"
 label.pt = "Imagem de soak de concorrência"
 desc.en  = "The release image with the concurrency tripwire armed. Not published."
 desc.pt  = "A imagem de release com a armadilha de concorrência armada. Não publicada."
 
-[ui_products.pico2_w_release]
-order    = 7
+[ui_products.pico_wire]
+order    = 8
 bench    = true
-label.en = "Pico 2 W build check"
-label.pt = "Verificação de build do Pico 2 W"
-desc.en  = "The release image compiled for the RP2350, so CI sees it build. Not run on a board yet; not published."
-desc.pt  = "A imagem de release compilada para o RP2350, para o CI vê-la compilar. Ainda não rodou numa placa; não publicada."
+label.en = "SIMUT Wire"
+label.pt = "SIMUT Wire"
+label.es = "SIMUT Wire"
+desc.en  = "A plain Raspberry Pi Pico with no radio: the network comes through an ENC28J60 module on the cable. Not published."
+desc.pt  = "Um Raspberry Pi Pico comum, sem rádio: a rede vem por um módulo ENC28J60, no cabo. Não publicada."
+desc.es  = "Una Raspberry Pi Pico común, sin radio: la red llega por un módulo ENC28J60, por el cable. No publicada."
+
+[ui_products.pico_wiretft]
+order    = 9
+bench    = true
+label.en = "SIMUT Wire TFT"
+label.pt = "SIMUT Wire TFT"
+label.es = "SIMUT Wire TFT"
+desc.en  = "The SIMUT Wire with the touch display: a plain Raspberry Pi Pico with no radio, the network coming through an ENC28J60 module on the cable. Not published."
+desc.pt  = "O SIMUT Wire com a tela touch: um Raspberry Pi Pico comum, sem rádio, com a rede por um módulo ENC28J60, no cabo. Não publicada."
+desc.es  = "El SIMUT Wire con el panel táctil: una Raspberry Pi Pico común, sin radio, con la red por un módulo ENC28J60, por el cable. No publicada."
 
 [ui_displays.tft]
 label.en = "Touch display (ILI9341, 320x240)"
@@ -493,167 +715,244 @@ label.pt = "LCD de caracteres 16x2 (HD44780)"
 label.en = "No display"
 label.pt = "Sem mostrador"
 
+# A escolha da rede (2026-10-13, pedido do mantenedor de um configurador "o mais modular
+# possivel"). Fica no grupo Rede, como o interruptor `lan` ficava, e o aviso
+# enc28j60-unsoaked diz que nenhuma imagem com o cabo passou ainda por um soak (ate entao
+# a rede por cabo morava no grupo da bancada, fechado). Num chip em que o driver nao tem
+# placa (o ENC28J60 no Pico 2 W) o gerador o recusa e a pagina trava a opcao com o motivo
+# de `unsupported`; com o DS18B20 e o DHT22 juntos, no RP2040, o orcamento de PIO a trava
+# ([ui_budget], tools/pio_budget.py).
+[ui_net]
+group    = "network"
+label.en = "Connection"
+label.pt = "Conexão"
+label.es = "Conexión"
+
+[ui_nets.cyw43]
+order    = 1
+label.en = "Wi-Fi (the board's CYW43 radio)"
+label.pt = "Wi-Fi (o rádio CYW43 da placa)"
+label.es = "Wi-Fi (la radio CYW43 de la placa)"
+help.en  = "The radio of the Pico W and the Pico 2 W: the device joins a network by its name and password, and offers a setup access point."
+help.pt  = "O rádio do Pico W e do Pico 2 W: o aparelho entra numa rede pelo nome e pela senha, e oferece um ponto de acesso para a configuração."
+help.es  = "La radio de la Pico W y la Pico 2 W: el equipo entra en una red por su nombre y contraseña, y ofrece un punto de acceso para la configuración."
+
+[ui_nets.enc28j60]
+order    = 2
+label.en = "Network cable (ENC28J60 module)"
+label.pt = "Cabo de rede (módulo ENC28J60)"
+label.es = "Cable de red (módulo ENC28J60)"
+help.en  = "Builds for a plain Raspberry Pi Pico, which has no radio, with an ENC28J60 module on GP11 to GP15: sensor slots go from 16 to 11. Bluetooth and hibernation run on the radio, so they are not available."
+help.pt  = "Compila para um Raspberry Pi Pico comum, que não tem rádio, com um módulo ENC28J60 nos GP11 a GP15: os slots de sensor caem de 16 para 11. O Bluetooth e a hibernação rodam no rádio, então não ficam disponíveis."
+help.es  = "Compila para una Raspberry Pi Pico común, que no tiene radio, con un módulo ENC28J60 en los GP11 a GP15: las ranuras de sensor bajan de 16 a 11. El Bluetooth y la hibernación funcionan con la radio, así que no están disponibles."
+unsupported.en = "The ENC28J60 exists only for the plain Pico (RP2040) so far: the Pico 2 W (RP2350) has no board for it."
+unsupported.pt = "O ENC28J60 só existe, por enquanto, para o Pico comum (RP2040): o Pico 2 W (RP2350) não tem placa para ele."
+unsupported.es = "El ENC28J60 solo existe, por ahora, para la Pico común (RP2040): la Pico 2 W (RP2350) no tiene placa para él."
+
 [ui_groups.network]
 order    = 1
 label.en = "Network"
 label.pt = "Rede"
+label.es = "Red"
 
 [ui_groups.telemetry]
 order    = 2
 label.en = "Telemetry and integrations"
 label.pt = "Telemetria e integrações"
+label.es = "Telemetría e integraciones"
 
 [ui_groups.interface]
 order    = 3
 label.en = "Interface"
 label.pt = "Interface"
+label.es = "Interfaz"
 
 [ui_groups.sensors]
 order    = 4
 label.en = "Sensors"
 label.pt = "Sensores"
+label.es = "Sensores"
 
 [ui_groups.sound]
 order    = 5
 label.en = "Sound"
 label.pt = "Som"
+label.es = "Sonido"
 
 [ui_groups.power]
 order    = 6
 label.en = "Power"
 label.pt = "Energia"
+label.es = "Energía"
 
 [ui_groups.bench]
 order    = 7
 advanced = true
 label.en = "Bench and diagnostics"
 label.pt = "Bancada e diagnóstico"
+label.es = "Banco y diagnóstico"
 
 [ui_toggles.web_https]
 group    = "network"
 label.en = "HTTPS web server"
 label.pt = "Servidor web HTTPS"
+label.es = "Servidor web HTTPS"
 help.en  = "Serves the web interface over TLS. Without it the device answers plain HTTP only."
 help.pt  = "Serve a interface web por TLS. Sem ele o aparelho responde só em HTTP."
+help.es  = "Sirve la interfaz web por TLS. Sin él, el dispositivo responde solo en HTTP."
 
 [ui_toggles.mdns]
 group    = "network"
 label.en = "Find by name on the network (mDNS)"
 label.pt = "Achar pelo nome na rede (mDNS)"
+label.es = "Encontrarlo por nombre en la red (mDNS)"
 help.en  = "Answers to <device name>.local, so a browser finds it without the IP address."
 help.pt  = "Responde por <nome do aparelho>.local, para o navegador achá-lo sem o endereço IP."
+help.es  = "Responde a <nombre del dispositivo>.local, para que el navegador lo encuentre sin la dirección IP."
 
 [ui_toggles.bluetooth]
 group    = "network"
 label.en = "Bluetooth serial console"
 label.pt = "Console serial por Bluetooth"
+label.es = "Consola serie por Bluetooth"
 help.en  = "A password-protected console over classic Bluetooth (SPP). It advertises for the first 5 minutes after power-up, so it reaches a device whose Wi-Fi is not set up yet."
 help.pt  = "Um console protegido por senha, por Bluetooth clássico (SPP). Ele se anuncia nos primeiros 5 minutos depois de ligar e assim alcança um aparelho com o Wi-Fi ainda por configurar."
+help.es  = "Una consola protegida por contraseña, por Bluetooth clásico (SPP). Se anuncia durante los primeros 5 minutos después de encenderlo, así que llega a un dispositivo con el Wi-Fi aún sin configurar."
 
 [ui_toggles.tel_tls]
 group    = "telemetry"
 label.en = "Encrypted telemetry (HTTPS and MQTTS)"
 label.pt = "Telemetria criptografada (HTTPS e MQTTS)"
+label.es = "Telemetría cifrada (HTTPS y MQTTS)"
 help.en  = "Sends to the collector over TLS, and validates it against /cert.pem when one is uploaded. Without it telemetry goes over plain HTTP or MQTT only, and a configuration that asks for encryption is refused instead of being sent in the clear."
 help.pt  = "Envia ao coletor por TLS, e o valida contra o /cert.pem quando há um. Sem ela a telemetria vai só por HTTP ou MQTT sem criptografia, e uma configuração que pede criptografia é recusada em vez de ir em claro."
+help.es  = "Envía al colector por TLS, y lo valida contra /cert.pem cuando hay uno. Sin ella, la telemetría va solo por HTTP o MQTT sin cifrar, y una configuración que pide cifrado se rechaza en vez de enviarse en claro."
 
 [ui_toggles.tel_mqtt]
 group    = "telemetry"
 label.en = "MQTT and Home Assistant"
 label.pt = "MQTT e Home Assistant"
+label.es = "MQTT y Home Assistant"
 help.en  = "Publishes to an MQTT broker (MQTT, or MQTTS with the TLS switch), takes the alarm line's receipts on the ack topic, and announces the sensors to Home Assistant by MQTT Discovery. Without it telemetry goes by HTTP only."
 help.pt  = "Publica num broker MQTT (MQTT, ou MQTTS com a chave de TLS), recebe as confirmações da linha de alarmes no tópico de ack e anuncia os sensores ao Home Assistant pelo MQTT Discovery. Sem ele a telemetria vai só por HTTP."
+help.es  = "Publica en un broker MQTT (MQTT, o MQTTS con el interruptor de TLS), recibe las confirmaciones de la línea de alarmas en el tópico de ack y anuncia los sensores a Home Assistant por MQTT Discovery. Sin él, la telemetría va solo por HTTP."
 
 [ui_toggles.web_history]
 group    = "interface"
 label.en = "History page in the web interface"
 label.pt = "Página de histórico na interface web"
+label.es = "Página de histórico en la interfaz web"
 help.en  = "The /history page: charts, calendar, CSV export in the browser and the event log viewer. The device records history either way, and the history files stay downloadable from the Files page."
 help.pt  = "A página /history: gráficos, calendário, CSV no navegador e o visor de eventos. O aparelho grava o histórico do mesmo jeito, e os arquivos de histórico continuam na página Arquivos."
+help.es  = "La página /history: gráficos, calendario, exportación CSV en el navegador y el visor de eventos. El dispositivo graba el histórico igual, y los archivos de histórico siguen descargables desde la página Archivos."
 
 [ui_toggles.web_export_api]
 group    = "interface"
 label.en = "History export API"
 label.pt = "API de exportação do histórico"
+label.es = "API de exportación del histórico"
 help.en  = "Routes that return several sensors' history in one call (/api/history_multi) and export the history and the log as .simx. No page uses them; bench tools and integrations do."
 help.pt  = "Rotas que devolvem o histórico de vários sensores numa chamada (/api/history_multi) e exportam o histórico e o log em .simx. Nenhuma página as usa; ferramentas de bancada e integrações, sim."
+help.es  = "Rutas que devuelven el histórico de varios sensores en una llamada (/api/history_multi) y exportan el histórico y el log como .simx. Ninguna página las usa; las herramientas de banco y las integraciones, sí."
 
 [ui_toggles.web_metrics]
 group    = "telemetry"
 label.en = "Prometheus metrics (/metrics)"
 label.pt = "Métricas para o Prometheus (/metrics)"
+label.es = "Métricas para Prometheus (/metrics)"
 help.en  = "A /metrics endpoint in the Prometheus text format, with Basic authentication for the scraper."
 help.pt  = "Um endpoint /metrics no formato de texto do Prometheus, com autenticação Basic para o coletor."
+help.es  = "Un endpoint /metrics en el formato de texto de Prometheus, con autenticación Basic para el recolector."
 
 [ui_toggles.syslog]
 group    = "telemetry"
 label.en = "Remote syslog (audit trail)"
 label.pt = "Syslog remoto (trilha de auditoria)"
+label.es = "Syslog remoto (registro de auditoría)"
 help.en  = "Forwards log events to a syslog collector (RFC 5424 over UDP), so the audit trail survives outside the device."
 help.pt  = "Encaminha os eventos do log a um coletor syslog (RFC 5424 por UDP), para a trilha de auditoria sobreviver fora do aparelho."
+help.es  = "Reenvía los eventos del log a un colector syslog (RFC 5424 por UDP), para que el registro de auditoría sobreviva fuera del dispositivo."
 
 [ui_toggles.cli_full]
 group    = "interface"
 label.en = "Full command line"
 label.pt = "Linha de comando completa"
+label.es = "Línea de comandos completa"
 help.en  = "Every serial and Bluetooth command. Without it only the emergency console remains."
 help.pt  = "Todos os comandos por serial e Bluetooth. Sem ela fica só o console de emergência."
+help.es  = "Todos los comandos por serie y Bluetooth. Sin ella queda solo la consola de emergencia."
 
 [ui_toggles.tft_graph]
 group    = "interface"
 label.en = "Graph and calendar on the touch display"
 label.pt = "Gráfico e calendário na tela touch"
+label.es = "Gráfico y calendario en la pantalla táctil"
 help.en  = "The history graph opened from the min/max strip, its detail screen and the calendar to pick a day. Without it the strip has no graph button; the history is still recorded and stays on the web."
 help.pt  = "O gráfico do histórico aberto pela faixa de min/max, a tela de detalhe e o calendário para escolher o dia. Sem ele a faixa não tem o botão do gráfico; o histórico continua gravado e na web."
+help.es  = "El gráfico del histórico que se abre desde la franja de mín/máx, su pantalla de detalle y el calendario para elegir el día. Sin él, la franja no tiene el botón del gráfico; el histórico se sigue grabando y sigue en la web."
 
 [ui_toggles.sensor_ds18b20]
 group    = "sensors"
 label.en = "DS18B20 temperature probes"
 label.pt = "Sondas de temperatura DS18B20"
+label.es = "Sondas de temperatura DS18B20"
 help.en  = "1-Wire probes, one per pin, each recognized by its serial number."
 help.pt  = "Sondas 1-Wire, uma por pino, cada uma reconhecida pelo número de série."
+help.es  = "Sondas 1-Wire, una por pin, cada una reconocida por su número de serie."
 
 [ui_toggles.sensor_dht22]
 group    = "sensors"
 label.en = "DHT22 temperature and humidity"
 label.pt = "DHT22 temperatura e umidade"
+label.es = "DHT22 temperatura y humedad"
 help.en  = "One sensor per pin."
 help.pt  = "Um sensor por pino."
+help.es  = "Un sensor por pin."
 
 [ui_toggles.sensor_bme280]
 group    = "sensors"
 label.en = "BME280 / BMP280 temperature, humidity and pressure"
 label.pt = "BME280 / BMP280 temperatura, umidade e pressão"
+label.es = "BME280 / BMP280 temperatura, humedad y presión"
 help.en  = "I2C sensor on a pin pair; the BMP280 variant has no humidity."
 help.pt  = "Sensor I2C num par de pinos; a variante BMP280 não mede umidade."
+help.es  = "Sensor I2C en un par de pines; la variante BMP280 no mide humedad."
 
 [ui_toggles.sound_buzzer]
 group    = "sound"
 label.en = "Buzzer sounds"
 label.pt = "Sons no buzzer"
+label.es = "Sonidos en el zumbador"
 help.en  = "Touch clicks, confirmations and alarm sounds on the buzzer (GP22)."
 help.pt  = "Cliques de toque, confirmações e sons de alarme no buzzer (GP22)."
+help.es  = "Clics de toque, confirmaciones y sonidos de alarma en el zumbador (GP22)."
 
 [ui_toggles.air]
 group    = "power"
 label.en = "Hibernation between readings"
 label.pt = "Hibernação entre leituras"
+label.es = "Hibernación entre lecturas"
 help.en  = "The Air cycle: wake, read, send, sleep. Exists only without a display."
 help.pt  = "O ciclo do Air: acorda, lê, envia, dorme. Só existe sem mostrador."
+help.es  = "El ciclo del Air: despierta, lee, envía, duerme. Solo existe sin pantalla."
 
 [ui_toggles.license_stub]
 group    = "bench"
 label.en = "Short license text on the touch display"
 label.pt = "Texto curto da licença na tela touch"
+label.es = "Texto corto de la licencia en la pantalla táctil"
 help.en  = "The touch display's License screen shows two lines that point to the LICENSE file instead of the full MIT text and credits. The /license web page always keeps the full text."
 help.pt  = "A tela de Licença do mostrador touch mostra duas linhas que apontam para o arquivo LICENSE, em vez do texto MIT completo e dos créditos. A página web /license mantém sempre o texto completo."
+help.es  = "La pantalla de Licencia del panel táctil muestra dos líneas que remiten al archivo LICENSE, en vez del texto MIT completo y los créditos. La página web /license mantiene siempre el texto completo."
 
 [ui_toggles.concurrency_asserts]
 group    = "bench"
 label.en = "Concurrency tripwire"
 label.pt = "Armadilha de concorrência"
+label.es = "Trampa de concurrencia"
 help.en  = "Logs an error when a flash operation starts while the state mutex is held. For soak runs, not for field images."
 help.pt  = "Registra um erro quando uma operação de flash começa com o mutex de estado preso. Para soak, não para campo."
+help.es  = "Registra un error cuando una operación de flash empieza con el mutex de estado tomado. Para soaks, no para equipos en campo."
 
 # ---------------------------------------------------------------------------
 #  Regras entre escolhas. Cada uma foi MEDIDA em 2026-09-26 compilando a
@@ -694,8 +993,63 @@ why.en   = "The hibernating build carries no buzzer: its sound code does not com
 why.pt   = "A build que hiberna não leva o buzzer: o código de som não compila com a hibernação ligada."
 evidence = "air+sound_buzzer fails to compile: SoundManager.cpp: 'BuzzerNote' does not name a type. SIMUT_AIR turns SoundManager.h into the no-op class, and SoundManager.cpp has no guard of its own."
 
+# As duas regras abaixo pedem o radio (net = "cyw43"), e nao a ausencia do cabo (2026-10-13):
+# o Bluetooth e a hibernacao rodam no CYW43, e uma placa de rede que se acrescente depois
+# tambem nao o tem. Antes eram `lan-no-bluetooth` e `lan-no-air`, sobre o interruptor `lan`.
+[[rules]]
+id       = "bluetooth-needs-cyw43"
+when     = { bluetooth = true }
+require  = { net = "cyw43" }
+why.en   = "Bluetooth runs on the CYW43 radio, so it needs the Wi-Fi connection."
+why.pt   = "O Bluetooth roda no rádio CYW43, então precisa da conexão Wi-Fi."
+why.es   = "El Bluetooth funciona en la radio CYW43, así que necesita la conexión Wi-Fi."
+evidence = "With net = enc28j60, SIMUT_BLUETOOTH stops at an #error in simut_config.h, pinned by tools/test_pin_masks.py (2026-10-12). The test of that #error was SIMUT_NET_LAN && SIMUT_BLUETOOTH, the cable; since 2026-10-13 it is SIMUT_BLUETOOTH && !SIMUT_NET_CYW43, the chip. Not compiled past that #error: the Bluetooth stack (SerialBT, BTstack) rides on the CYW43, and board = rpipico has none. The rule asks for the radio, not for the absence of the cable: a wired board added later has no CYW43 either, and the #error already refuses it."
+
+[[rules]]
+id       = "air-needs-cyw43"
+when     = { air = true }
+require  = { net = "cyw43" }
+why.en   = "Hibernation is built around the CYW43 radio, which it powers down between wakes, so it needs the Wi-Fi connection."
+why.pt   = "A hibernação é feita em torno do rádio CYW43, que ela desliga entre os despertares, então precisa da conexão Wi-Fi."
+why.es   = "La hibernación gira en torno a la radio CYW43, que apaga entre los despertares, así que necesita la conexión Wi-Fi."
+evidence = "With net = enc28j60, SIMUT_AIR stops at an #error in simut_config.h, pinned by tools/test_pin_masks.py (2026-10-12). The test of that #error was SIMUT_NET_LAN && SIMUT_AIR, the cable; since 2026-10-13 it is SIMUT_AIR && !SIMUT_NET_CYW43, the chip. Not compiled past that #error: AppManager_Air.cpp powers the CYW43 down through GPIO23 (WL_REG_ON) before every sleep, and board = rpipico has no CYW43. The rule asks for the radio, not for the absence of the cable: a wired board added later has no CYW43 either, and the #error already refuses it."
+
+# O que o orcamento de PIO e de pinos recusa (tools/pio_budget.py, 2026-10-13), com as
+# palavras que a pagina mostra: `why` e o problema; `fix`, o remedio, com {list} trocado
+# pelos rotulos de [ui_toggles] das chaves que, desligadas uma de cada vez, fazem caber,
+# separados por "; "; `fix_one`, o mesmo remedio quando a lista tem um item so. A rede
+# nunca esta na lista: ela e uma escolha ([net]), a placa de que a build parte, e o remedio
+# esta entre os interruptores (pio_budget.BUDGET_KEYS). A trava de uma chave a tira da lista
+# (desligar a chave que se quer ligar nao e remedio) e, se nao sobra nenhuma, fica so o
+# problema. {pin} e o GPIO de um pin-conflict. O mesmo texto vale no
+# CI (tools/build_custom.py), e o model.json leva, por chip, cada recusa. Todo id de
+# pio_budget.REFUSAL_IDS precisa dos tres, nas duas linguas, mesmo o que nenhuma imagem acende
+# hoje.
+[ui_budget.pio-budget]
+why.en     = "This does not fit the PIO blocks of this chip."
+why.pt     = "Isto não cabe nos blocos PIO deste chip."
+fix.en     = "Turn off one of these: {list}."
+fix.pt     = "Desligue um destes: {list}."
+fix_one.en = "Turn off: {list}."
+fix_one.pt = "Desligue: {list}."
+
+[ui_budget.pin-conflict]
+why.en     = "Two features claim GP{pin}."
+why.pt     = "Dois recursos disputam o GP{pin}."
+fix.en     = "Turn off one of these: {list}."
+fix.pt     = "Desligue um destes: {list}."
+fix_one.en = "Turn off: {list}."
+fix_one.pt = "Desligue: {list}."
+
 # Avisos: combinações que compilam mas carregam um risco conhecido. Não travam
 # nada; a página mostra o motivo e de onde vem a evidência.
+[[hazards]]
+id       = "enc28j60-unsoaked"
+when     = { net = "enc28j60" }
+why.en   = "The ENC28J60 connection has run on the bench, not yet through a soak: a build with it is a bench build."
+why.pt   = "A conexão ENC28J60 rodou na bancada, mas ainda não passou por um soak: uma build com ela é de bancada."
+evidence = "2026-10-13: pico_wiretft on the Wire rig, web and console over the cable for hours; no image with the ENC28J60 has run a 72 h soak."
+
 [[hazards]]
 id       = "bt-flash-core1"
 when     = { bluetooth = true, display = "tft" }

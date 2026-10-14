@@ -12,6 +12,7 @@
 #pragma once
 #include <Arduino.h>
 #include "SystemDefs_Cli.h" /* SIMUT_CLI_FULL — picks which help text is built */
+#include "simut_config.h"   /* SIMUT_NET_LAN — a wired build has no radio to set up */
 
 #if !SIMUT_CLI_FULL
 /* Emergency console (see SIMUT_CLI_FULL in SystemDefs_Cli.h). Every setting
@@ -30,10 +31,23 @@ static const char HELP_TEXT_EN[] PROGMEM = R"raw(
  (e.g., 'reload confirm').
 
 show net status
- IP, RSSI, time sync - find the device
+)raw"
+/* A wired build (SIMUT_NET_LAN, 2026-10-13) swaps the radio's lines for the
+ * cable's: its link instead of a signal level, its address instead of an SSID,
+ * and `ip`/`dns` in place of `system ssid`/`system pass` and `ap`. Adjacent raw
+ * literals, cut at line ends, so a Wi-Fi image keeps the same bytes. */
+#if SIMUT_NET_LAN
+R"raw( IP, cable link, time sync - find the device
+show system info
+ Name, firmware, serial, address mode
+)raw"
+#else
+R"raw( IP, RSSI, time sync - find the device
 show system info
  Name, firmware, serial, WiFi SSID
-show system log
+)raw"
+#endif
+R"raw(show system log
  Dump the event log from flash
 debug on
  Stream logs to this console live
@@ -50,19 +64,36 @@ system factory [confirm]
 system https off [confirm]
  Disable HTTPS (delete cert), back to HTTP
  (recovers a web locked by a bad TLS pair)
-system ssid <name>
+)raw"
+#if SIMUT_NET_LAN
+R"raw(ip <dhcp|static>
+ How the cable gets its address
+ip <addr|mask|gateway|dns> <ipv4>
+ The static address, one field at a time
+dns <auto|manual> [ip1] [ip2]
+ DNS from DHCP, or these servers
+ (saved at once; 'reload confirm' applies)
+)raw"
+#else
+R"raw(system ssid <name>
  WiFi network name (SSID)
 system pass <pass>
  WiFi password
-system cors <origin|off>
+)raw"
+#endif
+R"raw(system cors <origin|off>
  Let the web fleet manager reach this
  device from a browser, e.g.
  system cors http://192.168.1.10:8080
 reload [confirm]
  Reboot now
-ap
+)raw"
+#if !SIMUT_NET_LAN
+R"raw(ap
  Start AP mode (access point) for setup
-time <YYYY-MM-DD> <HH:MM:SS>
+)raw"
+#endif
+R"raw(time <YYYY-MM-DD> <HH:MM:SS>
  Set the clock by hand (no network)
 )raw"
 /* The `air` commands exist only in the Air build. Advertising them from the
@@ -286,6 +317,56 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 )raw"
 /* BEGIN generated: third-party list — tools/gen_notices.py */
+#if SIMUT_NET_LAN
+R"raw(--- Third-party software ---
+
+Arduino-Pico core
+  Earle F. Philhower, III - LGPL-2.1
+Raspberry Pi Pico SDK
+  Raspberry Pi (Trading) Ltd. - BSD-3-Clause
+TinyUSB
+  Ha Thach (tinyusb.org) - MIT
+lwIP
+  Swedish Institute of Computer Science - BSD-3-Clause
+BearSSL
+  Thomas Pornin - MIT
+LittleFS
+  Arm Limited and the littlefs authors - BSD-3-Clause
+LEAmDNS
+  LaborEtArs - MIT
+newlib
+  Red Hat, Inc. and others - BSD-style (COPYING.NEWLIB)
+GCC runtime libraries
+  Free Software Foundation, Inc. - GPL-3.0 with the GCC Runtime Library Exception
+Adafruit GFX Library
+  Adafruit Industries - BSD-2-Clause
+Adafruit ILI9341
+  Adafruit Industries (Limor Fried) - BSD
+XPT2046_Touchscreen
+  Paul Stoffregen - MIT
+PubSubClient
+  Nicholas O'Leary - MIT
+DHT22PIO_RP2040
+  Ângelo Moisés Alves - MIT
+BuzzerPIO_RP2040
+  Ângelo Moisés Alves - MIT
+TwoWirePIO_RP2040
+  Ângelo Moisés Alves - MIT
+BMx280PIO_RP2040
+  Ângelo Moisés Alves - MIT
+PicoENC28J60
+  Lukasz Janyst and Ângelo Moisés Alves - MIT
+GNU FreeFont (FreeSans Bold)
+  GNU FreeFont contributors - GPL-3.0-or-later with the font exception
+Liberation Sans Bold
+  Red Hat, Inc. (digitized data: Google, Arimo) - SIL Open Font License 1.1
+SHA-256 for JavaScript
+  Geraint Luff - public domain
+
+Licence texts: THIRD_PARTY_NOTICES.md and
+LICENSES/ in the source repository.
+)raw"
+#else
 R"raw(--- Third-party software ---
 
 Arduino-Pico core
@@ -342,6 +423,7 @@ SHA-256 for JavaScript
 Licence texts: THIRD_PARTY_NOTICES.md and
 LICENSES/ in the source repository.
 )raw"
+#endif
 /* END generated: third-party list */
 ;
 #endif /* SIMUT_LICENSE_STUB */

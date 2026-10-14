@@ -196,8 +196,8 @@ O botão de teste toca a melodia escolhida no navegador, não na cigarra do apar
 
 Ligar **Mudo Global** desliga as outras seis chaves; ligar qualquer uma delas desliga **Mudo Global**.
 
-::: atencao
-**Uma mudança de som preparada já vale no aparelho.** Na v2.7.1, a consulta que a página faz ao aparelho para decidir se a mudança exige reinício aplica os sons na memória do aparelho antes da gravação. Ligar **Mudo Global** na página, por exemplo, pode calar a cigarra antes de você gravar, e continua assim até um reinício se você desistir. Grave ou descarte as mudanças de som logo em seguida.
+::: nota
+**Até a v2.9.0, uma mudança de som preparada já valia no aparelho.** O ensaio que a página faz para decidir se a mudança exige reinício aplicava os sons à cigarra antes da gravação: ligar **Mudo Global** na página calava até um alarme tocando, mesmo que você desistisse. Desde a v2.10.0, o ensaio não mexe no som em uso, e a mudança vale depois do reinício que **Salvar e reiniciar** faz.
 :::
 
 ## O menu de alarmes do painel {#cap-07-painel}
@@ -344,7 +344,7 @@ Ao ligar **Mudo Global**, o painel toca o som de atenção e pergunta: **Todos o
 
 As mudanças só valem depois de **SALVAR**, no rodapé da tela. O painel grava na hora, sem reiniciar, e o log registra o código 446, **Config de som salva**.
 
-::: {.figura #fig-07-sons-painel tipo="tft" arquivo="07-sons-painel.png" captura="screen set -> tap(105,215) -> tap(105,215) -> tap(250,215); sessão admin; valores de fábrica; primeira página"}
+::: {.figura #fig-07-sons-painel tipo="tft" arquivo="07-sons-painel.png" captura="screen set -> tap(105,215) -> tap(250,215); a seta para baixo seleciona o item 2, Sons de Alarme; sessão admin; valores de fábrica; primeira página"}
 A tela Config. de Sons, primeira página: os dois volumes, Toque na Tela e Confirmação.
 :::
 

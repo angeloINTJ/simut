@@ -144,6 +144,60 @@ constexpr uint8_t  WIFI_JOIN_REFUSALS_BEFORE_RESTART = 3;
 constexpr uint32_t WIFI_RADIO_RESTART_MIN_UPTIME_MS = 30UL * 60UL * 1000UL;
 
 /**
+ * A radio that does not answer at all, and how it is told apart from one that
+ * merely lost a scan.
+ *
+ * Two scans that never finish precede two different radios. One answered the
+ * scan ioctl and lost the completion event: the driver's wifi_scan_state is
+ * stuck, the chip is fine, and the blind join of WIFI_SCANS_BEFORE_BLIND_JOIN
+ * is the right escape (the 2026-09-08 device, 3 h 41 min dark). The other did
+ * not answer the ioctl: the chip is silent on the SDPCM bus, and WiFi.begin( )
+ * on it is not a queued join. On the first join of a boot CYW43::begin( )
+ * issues 15 synchronous ioctls BEFORE the wait that cyw43_join_budget.patch
+ * bounds — the allmulti iovar, the two of the multicast filter (one on later
+ * joins, which find the address already there; two more with IPv6), then the
+ * twelve of cyw43_ll_wifi_join( ) for a WPA2 network (eleven for an open one),
+ * which ignores every return value and keeps going — and seven more in
+ * noLowPowerMode( ) after it. Each one against a silent chip runs the driver's
+ * response timeout or its SDPCM credit stall, and both are 1 s here:
+ * CYW43_IOCTL_TIMEOUT_US defaults to 500 ms in the driver, but pico-sdk's
+ * cyw43_configport.h sets it to 1,000,000 us first, and the prebuilt driver of
+ * this framework (cyw43_ll.c.o in lib/rp2040/liblwip.a, cyw43-driver dd75682)
+ * carries 1,000,000 and no 500,000 (read 2026-10-13). That is about 15 s with
+ * no watchdog_update( ) in reach of this firmware: past the 8388 ms ceiling,
+ * every time.
+ *
+ * Field log of 2026-10-11 09:28, on v2.11.0 (the join-wait patch on board):
+ * link lost 09:27:18, scans abandoned 09:27:40 and 09:28:01 (SYS_WIFI_SCAN
+ * ctx 1, 2), blind join 09:28:01 (SYS_WIFI_CONNECT ctx 1), then the autopsy —
+ * ctx 202 (Core 0 in MOD_WIFI), 1008 (Core 1 in DISPLAY), 9749 (3 d 23 h 49 m
+ * up), 2740 (web server idle). The same sequence as 2026-09-30. The two radios
+ * look identical to scanComplete( ), which answers -1 for both, but not to the
+ * clock: WiFi.scanNetworks(true) returns in milliseconds when the chip answers
+ * the "escan" iovar and only after the driver's own timeout when it does not —
+ * and the first scan of 2026-10-11 was abandoned 16 s after it was logged, not
+ * 15, which is the deadline plus the 1 s credit stall (LogPolicy latched the
+ * second scan's own line; the 21 s between the two abandon records fit the
+ * same 16 plus the ladder's 5). So the start of every scan is timed:
+ * - a start that takes WIFI_SCAN_START_SILENT_MS or longer is a silent radio:
+ *   a quarter of the driver's 1 s timeouts, and far above the one round trip
+ *   of a chip that answers (not yet timed on the bench: only an abandoned scan
+ *   logs how long its start took). A scan started on a silent radio that then
+ *   never finishes does NOT count toward the blind join;
+ * - after WIFI_SILENT_SCANS_BEFORE_RESTART of those in a row, NetworkManager
+ *   logs SYS_WIFI_CONNECT ctx 4 and reboots by safeReboot( ) — the log
+ *   persisted and Core 1 parked, instead of the watchdog's reboot — under the
+ *   same WIFI_RADIO_RESTART_MIN_UPTIME_MS guard as the refusals. Inside the
+ *   guard the ladder keeps scanning and never blind-joins: each attempt costs
+ *   at most one ioctl timeout, which the watchdog window absorbs.
+ * The restart recovers the chip the way the watchdog did on 2026-09-30 and
+ * 2026-10-11; resetting the radio alone (cyw43_arch_deinit/init under a live
+ * lwIP) is a larger change than this fix, and is deliberately not attempted.
+ */
+constexpr uint32_t WIFI_SCAN_START_SILENT_MS = 250;
+constexpr uint8_t  WIFI_SILENT_SCANS_BEFORE_RESTART = 2;
+
+/**
  * One access point, as the "pick a network" list needs it.
  *
  * Copied OUT of the driver's results, because WiFi.scanDelete( ) frees those
@@ -225,8 +279,11 @@ constexpr uint8_t LOGIN_STATE_SLOTS = 8;
 
 /** Number of HMAC-SHA256 iterations for password hashing.
  * OWASP 2023 recommends ≥600k; NIST recommends ≥10k. The RP2040
- * (Cortex-M0+ @133MHz) with 5000 rounds consumes ~400ms per operation —
- * acceptable for login (infrequent). Every 50 rounds feeds the WDT. */
+ * (Cortex-M0+ @133MHz) spends ~645 ms on 5000 rounds, with Core 0 held for
+ * all of it: on the rig on 2026-10-02 (v2.9.0), `user pass` took 646 ms
+ * against 5 ms for `user perm`, and a /metrics read with Basic 699 ms against
+ * 49 ms with a cookie. Acceptable for login (infrequent); SECURITY.md §3 has
+ * the trade-off. Every 50 rounds feeds the WDT. */
 constexpr uint16_t PASSWORD_HMAC_ROUNDS = 5000;
 
 /* ── Authentication lockout (web + Bluetooth) ── */
@@ -390,5 +447,5 @@ constexpr uint32_t AP_MODE_TIMEOUT_MS = 900000;
 /* ── Telemetry cursor ── */
 
 /** Minimum time between telemetry cursor writes to flash (ms).
- * Multiple setLastSentTimestamp calls within this window coalesce into 1 write. */
+ * Every delivery inside this window coalesces into 1 write. */
 constexpr uint32_t CURSOR_COALESCE_MS = 5000;

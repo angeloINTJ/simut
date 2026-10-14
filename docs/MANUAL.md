@@ -1,6 +1,6 @@
 # SIMUT — User Manual
 
-**Firmware:** v2.9.0 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **License:** MIT
+**Firmware:** v2.11.1 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **License:** MIT
 **Repository:** https://github.com/angeloINTJ/simut
 
 > **This is not a certified metrological instrument.** It is tested on real
@@ -127,7 +127,7 @@ Full pinout and assembly notes: [WIRING.md](WIRING.md).
 
 3. **Join a network.** The setup access point opens when you ask for it:
    `ap` on the console (USB, or Bluetooth on the alpha and the Air), or
-   Settings → 12 on the panel. It is `<name>_SETUP`, WPA2, with the key in the
+   Settings → 8 on the panel. It is `<name>_SETUP`, WPA2, with the key in the
    `ap` reply, on the USB console and on the display (§14), and the portal at
    `http://192.168.4.1` takes the network's name and password. No image opens
    it by itself; v2.7.1 to v2.8.0 did, on a unit with no network configured.
@@ -460,7 +460,7 @@ Served from the device itself. Log in at `http://simut.local` or the device IP.
 | `/network` | Wi-Fi (with a scan that lists the networks in range), static addressing, mDNS, NTP |
 | `/alarms` | Per-sensor thresholds and actions |
 | `/users` | Accounts and permissions |
-| `/files` | Filesystem browser: upload, download, delete, create directories — plus full backup, restore and firmware update (OTA) |
+| `/files` | Filesystem browser: upload, download, delete, create directories, and a viewer that shows a text file organized (JSON indented with blocks that fold, the sections of a language or theme pack, numbered lines) — plus full backup, restore and firmware update (OTA) |
 | `/history` | History graphs, CSV export, and the system event log viewer |
 | `/license` | License text |
 
@@ -504,8 +504,9 @@ at the top says what can be done with it. How many buttons appear is the
 | **Test** | applies **without saving**: a restart undoes it, and the staged set stays so you can still save or discard it |
 
 The last two appear only when the change **can** be applied live — alarm
-limits, maintenance, the alarm line, telemetry over HTTP, theme and language.
-Network, accounts, sensor provisioning, timezone and the PIN policy itself
+limits, maintenance, the alarm line, telemetry over HTTP, theme and language,
+accounts and the PIN policy (since v2.10.0; accounts get only **Apply now**,
+because an account cannot be tested). Network, sensor provisioning and timezone
 still need a restart, and then the bar shows only "Save & restart" and says
 **why**.
 
@@ -916,7 +917,9 @@ cannot be restored onto a different board by accident.
 
 Restore is `POST /api/restore` — `op=validate` checks an image without writing,
 `op=apply` writes it. A successful apply reboots the device so nothing keeps a
-stale cache of what was on flash.
+stale cache of what was on flash. The apply takes only the image the last
+validate passed (`409` otherwise). If it fails half-way, it keeps the files it
+finished and deletes only the one it left incomplete: run it again.
 
 **Take a backup before every firmware update.** §12 explains why.
 
@@ -949,7 +952,7 @@ lost.** Download a backup first.
 
 Since v2.8.0 the snapshot is written when the upload **starts** and is used
 once: the next boot restores it if it finds no `/config/system.bin`, and erases
-it. An upload that is cut half-way (a router reset) or refused at the end makes
+it. An upload that is cut half-way (the connection drops) or refused at the end makes
 the device write the configuration back at once; a power cut in the middle of
 the upload brings it back from the snapshot on the next boot. The rest of the
 filesystem is gone either way. Up to v2.7.4
@@ -1142,14 +1145,14 @@ device publishes it in four places:
 |---|---|
 | USB console, the `[AP] PSK :` line | all |
 | Reply to the `ap` command, on the channel that asked (USB or Bluetooth) | all |
-| The panel's boot terminal: at boot, next to "Connect to network …"; and, since v2.7.2, as its last lines whenever the AP opens during operation (Settings → 12, `ap`) — network, `PSK`, 192.168.4.1 | release (TFT) |
+| The panel's boot terminal: at boot, next to "Connect to network …"; and, since v2.7.2, as its last lines whenever the AP opens during operation (Settings → 8, `ap`) — network, `PSK`, 192.168.4.1 | release (TFT) |
 | Third LCD page, while the AP is up | alpha |
 
 And there are three ways into it, all of them a person asking:
 
 | How | Builds | Notes |
 |---|---|---|
-| **Settings → 12. Configuration Mode** | release (TFT) | asks first; needs the network bit |
+| **Settings → 8. Configuration Mode** | release (TFT) | asks first; needs the network bit |
 | **The `ap` command** | all | over USB, and over Bluetooth on the alpha and Air images |
 | **Holding the screen during boot** | release (TFT) | the panel asks for it and draws the 3 s bar; see below |
 
@@ -1182,7 +1185,7 @@ true while it is on the screen**.
 |---|---|
 | Forgot the admin password | `system admin reset confirm` over **USB serial** (the command is refused over Bluetooth), then log in with the printed password — the web forces you to change it. Since this release the reset survives a reboot, so there is no rush |
 | Answers on serial but not on the network | `show net status` — with no IP, enter AP mode (above) and reconfigure Wi-Fi from the portal |
-| The router changed and the device vanished from the LAN | Open the setup network from the panel (Settings → 12), with `ap` over USB, or with `ap` over Bluetooth (alpha and Air), and set the new network from the portal. It does not open by itself; v2.7.1 to v2.8.0 opened it 6–7 min after the boot |
+| The router changed and the device vanished from the LAN | Open the setup network from the panel (Settings → 8), with `ap` over USB, or with `ap` over Bluetooth (alpha and Air), and set the new network from the portal. It does not open by itself; v2.7.1 to v2.8.0 opened it 6–7 min after the boot |
 | I can see the `_SETUP` network but the phone will not connect | Fixed in v2.7.1. Up to v2.7.0, an `ap` issued while the device was **hunting for a network that is not there** raised an AP that was visible and unjoinable (measured: 45 s and a timeout, against 4,07 s after the fix) — and that is exactly when `ap` gets used. On older firmware, `reload confirm` and then `ap` right after the boot |
 | I can see the `_SETUP` network on my phone but I do not know the password | It is derived from the board and has not been blank since v2.4.1-beta. Read it on the USB console, in the `ap` reply, on the TFT's boot screen or on the alpha's LCD |
 | Blank screen after adjusting the display offset | Fixed in v1.6.2-beta. On older firmware a factory reset clears the stored offset |

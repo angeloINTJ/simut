@@ -13,6 +13,7 @@
  */
 
 #include "DisplayManager.h"
+#include "simut_config.h"   /* SIMUT_NET_WIFI is tested below: included here, not left to another header */
 #include "SensorManager.h"
 #include "DisplayManager_Fonts.h"
 #include "DisplayManager_FmtFloat.h"
@@ -1014,8 +1015,9 @@ void DisplayManager::handleTouch( ) {
  }
  else {
  if (!acceptTouch(13)) return;
- /* v24: the id is the ITEM (table order), not the row — the list is
- * filtered by the session's bits, so row 1 may be any item. */
+ /* v24: the id is the ITEM (display/SettingsMenu.h), not the row —
+ * the list follows MENU_ORDER and the session's bits, so row 1 may be
+ * any item. */
  if (_menuSelection < _menuCount) {
  UiEvent ev; ev.type = UiEvent::EVT_MENU_SELECT; ev.id = _menuItems[_menuSelection]; pushUiEvent(ev);
  }
@@ -1614,6 +1616,7 @@ void DisplayManager::handleTouch( ) {
  }
  }
  }
+#if SIMUT_NET_WIFI   /* the wired build has no setup AP (2026-10-13) */
  else if (_uiMode == MODE_CONFIRM_AP) {
  /* Same two buttons, same rects as the mute confirmation above. */
  if (y >= 190 && y <= 230) {
@@ -1632,6 +1635,7 @@ void DisplayManager::handleTouch( ) {
  }
  }
  }
+#endif
  else if (_uiMode == MODE_SET_CLOCK) {
  /* The two buttons are the AP confirmation's rects. SKIP (at boot) or BACK
   * stays on this core — nothing changes but the screen. SAVE hands the fields

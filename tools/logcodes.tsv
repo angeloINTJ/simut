@@ -55,6 +55,7 @@
 309	SEC_PIN_FAIL	Panel PIN rejected	PIN do painel recusado	PIN del panel rechazado
 310	SEC_PIN_LOCKOUT	Panel PIN lockout	Bloqueio do PIN do painel	Bloqueo del PIN del panel
 311	SEC_PIN_AMBIGUOUS	Keypad entry fits two accounts	Entrada do teclado casa com duas contas	Entrada del teclado coincide con dos cuentas
+312	SEC_SESSION_REVOKED	Session ended: account changed	Sessão encerrada: conta alterada	Sesión cerrada: cuenta modificada
 400	APP_DISPLAY_LAUNCHED	Display launched on Core 1	Display iniciado no Core 1	Pantalla iniciada en Core 1
 401	APP_TOUCH_CAL_INITIAL	Initial touch cal saved	Calibração inicial do touch salva	Calibración táctil inicial guardada
 402	APP_TOUCH_CAL_REQUIRED	Touch calibration required	Calibração do touch necessária	Calibración táctil requerida
@@ -122,6 +123,10 @@
 526	NET_DORMANT_MODE	WiFi dormant mode	WiFi em modo dormente	WiFi en modo inactivo
 527	NET_SHOW_IP	Show IP	Mostrar IP	Mostrar IP
 528	NET_MDNS_FAIL	mDNS start failed	Falha ao iniciar mDNS	Fallo al iniciar mDNS
+529	NET_WIRED_STARTING	Wired network starting	Rede cabeada iniciando	Red cableada iniciando
+530	NET_WIRED_MODULE_FAIL	Network module did not start	Módulo de rede não iniciou	El módulo de red no arrancó
+531	NET_WIRED_NO_ADDRESS	No address on the cable	Sem endereço no cabo	Sin dirección en el cable
+532	NET_WIRED_LOST	Wired network lost	Rede cabeada perdida	Red cableada perdida
 540	TEL_HTTP_INIT	HTTP transport initialized	Transporte HTTP inicializado	Transporte HTTP inicializado
 541	TEL_MQTT_INIT	MQTT transport initialized	Transporte MQTT inicializado	Transporte MQTT inicializado
 542	TEL_MQTT_CONNECTING	MQTT connecting	MQTT conectando	MQTT conectando
@@ -136,6 +141,7 @@
 551	TEL_ALARM_FAIL	Alarm send failed	Falha no envio de alarmes	Fallo al enviar alarmas
 552	TEL_ALARM_ACK	Alarm receipt confirmed	Recebimento de alarmes confirmado	Recepción de alarmas confirmada
 553	TEL_ALARM_DROP	Alarm queue overflow	Estouro da fila de alarmes	Desbordamiento de la cola de alarmas
+554	TEL_CURSOR_RESENT	Telemetry day file sent again	Arquivo do dia reenviado pela telemetria	Archivo del día reenviado por la telemetría
 560	STO_WRITE_FAILED	History write failed	Falha em escrever histórico	Fallo al escribir el historial
 561	STO_CORRECT_BUDGET	Timestamp correction budget exceeded	Budget de correção de ts excedido	Presupuesto de corrección de ts excedido
 562	STO_ENFORCE_BUDGET	Storage limit budget exceeded	Budget de limite de storage excedido	Presupuesto de límite de almacenamiento excedido
@@ -161,4 +167,9 @@
 585	CLI_UNKNOWN_CMD	Unknown command	Comando desconhecido	Comando desconocido
 590	SENSOR_RUNTIME_LOADED	Runtime sensors loaded	Sensores em runtime carregados	Sensores en runtime cargados
 600	DSP_FORCE_UNPAUSE	Force unpause	Forçar despausar	Forzar reanudación
+610	OTA_TRIAL_STARTED	Update on trial	Atualização em teste	Actualización en prueba
+611	OTA_TRIAL_CONFIRMED	Update confirmed	Atualização confirmada	Actualización confirmada
+612	OTA_TRIAL_EXPIRED	Update not confirmed in time	Atualização não confirmada a tempo	Actualización no confirmada a tiempo
+613	OTA_TRIAL_REVERTED	Update reverted	Atualização revertida	Actualización revertida
+614	OTA_TRIAL_BUY_FAILED	Update confirmation failed	Falha ao confirmar a atualização	Fallo al confirmar la actualización
 999	ERR_UNKNOWN	Unknown error	Erro desconhecido	Error desconocido

@@ -69,10 +69,13 @@ enum ConfigChange : uint32_t {
 	CFG_ALARMTEL   = 1u << 2,  /**< 2ª linha: enabled/queue/modo/templates/path */
 	CFG_TELEMETRY  = 1u << 3,  /**< linha convencional pelo lado HTTP */
 	CFG_DISPLAY    = 1u << 4,  /**< tema e idioma */
+	/* contas, PIN e política de PIN (A-08, 2026-10-02): cada consumidor confere
+	 * a conta viva no uso — a sessão web a cada requisição (SessionCheck.h), o
+	 * painel em panelAllowed( ), a linha de alarmes ao assinar o registro. */
+	CFG_USERS      = 1u << 5,
 	/* ── exigem reboot ── */
 	CFG_NET        = 1u << 16, /**< Wi-Fi, IP, DHCP, DNS (useHttps não tem leitor: CFG_NONE) */
 	CFG_IDENTITY   = 1u << 17, /**< nome do aparelho (mDNS, SSID do AP) */
-	CFG_USERS      = 1u << 18, /**< contas */
 	CFG_SLOTS      = 1u << 19, /**< provisionamento de sensor: tipo, pinos, ROM */
 	CFG_SENSING    = 1u << 20, /**< resolução do DS18 (a cadência não tem leitor: CFG_NONE) */
 	CFG_MQTT       = 1u << 21, /**< transporte, credenciais MQTT, TLS da telemetria */
@@ -86,7 +89,7 @@ enum ConfigChange : uint32_t {
 /** Tudo que NÃO pode ser aplicado ao vivo hoje. CFG_UNKNOWN está aqui por
  *  construção: é o balde do que ninguém classificou. */
 constexpr uint32_t CFG_REBOOT_CLASSES =
-	CFG_NET | CFG_IDENTITY | CFG_USERS | CFG_SLOTS | CFG_SENSING |
+	CFG_NET | CFG_IDENTITY | CFG_SLOTS | CFG_SENSING |
 	CFG_MQTT | CFG_TIME | CFG_LOGGING | CFG_PIN | CFG_RESERVED | CFG_UNKNOWN;
 
 /** Nome curto e estável de uma classe — é o que a resposta HTTP devolve em
@@ -178,10 +181,10 @@ inline const CfgSpan* cfgSpans(size_t& n) {
 		CFG_FIELD(alarmTel,          CFG_ALARMTEL),
 		CFG_FIELD(maint,             CFG_MAINT),
 		/* v25: o salt continua imutável, mas a POLÍTICA de PIN mora aqui e
-		 * MUDA por commit. CFG_USERS não está em CFG_REBOOT_CLASSES, e é o
-		 * certo: quem valida PIN lê a política a cada uso, então um teclado
-		 * novo vale na próxima tela desenhada. Reiniciar aqui derrubaria o
-		 * aparelho por uma configuração que não exige nada disso. */
+		 * MUDA por commit. Quem valida PIN lê a política a cada uso, então um
+		 * teclado novo vale na próxima tela desenhada, e CFG_USERS é ao vivo.
+		 * Este comentário já dizia isso em 20/09, quando ainda era falso —
+		 * CFG_USERS só saiu de CFG_REBOOT_CLASSES em 2026-10-02 (A-08). */
 		CFG_FIELD(pinAuth,           CFG_USERS),
 		/* v26: um Content-Type por linha, lido pelo envio a cada requisição —
 		 * cada metade é a classe AO VIVO da sua linha. Fora da tabela, caía no

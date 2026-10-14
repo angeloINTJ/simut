@@ -590,6 +590,7 @@ O bloco `sys`:
 | `hi` | Intervalo do histórico, em minutos |
 | `cap` | `1` se a imagem tem painel |
 | `feat` | Com que chaves do configurador a imagem foi compilada: um bit por chave, ligado se a chave está ligada. O número de cada chave é o campo `bit` dela no [`model.json` do configurador](https://angelointj.github.io/simut/configurador/model.json) e nunca muda. Serve para não chamar o que a imagem não tem — a página de histórico (`web_history`, bit 13), a API de exportação (`web_export_api`, bit 14), o `/metrics` (`web_metrics`, bit 15), o MQTT (`tel_mqtt`, bit 12), o TLS da telemetria (`tel_tls`, bit 11). O SIMUT publicado responde 262026. Um firmware anterior ao campo não o manda: trate a ausência como "tudo o que a variante sempre teve" |
+| `slot`, `trial`, `reverted` | Só no Pico 2 W. `slot`: de que slot da tabela de partições a imagem subiu, `A` ou `B`, ou `-` numa placa sem a tabela. `trial`: `1` enquanto a atualização instalada está em teste. Ela se confirma depois de rodar saudável por um minuto; se reiniciar antes disso, ou não tiver esse minuto em cinco, o aparelho volta para a imagem anterior. `reverted`: a versão de uma atualização que não se confirmou, e da qual o aparelho voltou neste boot; vazio no resto do tempo. O painel e a página **Arquivos** mostram os dois últimos |
 
 O bloco `metr` traz contadores de diagnóstico, zerados a cada boot:
 
@@ -731,7 +732,7 @@ Para entrar na rota, a conta precisa de pelo menos uma entre **Sistema**, **Rede
 | `_nosave=1` | Aplica na memória, sem gravar. Um reinício desfaz. Recusa com `409` se a mudança exigir reinício | **Testar** |
 | `_reboot=1` | Grava e reinicia sempre, mesmo sem necessidade | **Salvar e reiniciar** |
 
-`_dry` e `_nosave` só aceitam as seções `sys`, `net` e `alarms`. Com qualquer outra, a resposta é `400` `{"error":"accepts sys, net and alarms only"}`. [air]{.img} O Air recusa os dois com `400` `{"error":"dry run not available on this build"}`: no Air, toda gravação é real e reinicia ([capítulo 5](#cap-05-air)).
+`_dry` aceita as seções `sys`, `net`, `alarms` e `users`; `_nosave`, só `sys`, `net` e `alarms`. Com outra, a resposta é `400` `{"error":"accepts sys, net and alarms only, and users in a dry run"}`. [air]{.img} O Air recusa os dois com `400` `{"error":"dry run not available on this build"}`: no Air, toda gravação é real e reinicia ([capítulo 5](#cap-05-air)).
 
 **A resposta.** Ela diz o que aconteceu. Leia sempre o corpo: um campo recusado volta com status 200.
 
@@ -743,7 +744,7 @@ Para entrar na rota, a conta precisa de pelo menos uma entre **Sistema**, **Rede
 {"status":"ok","reboot":false,"applied":[],"rejected":["t_port"]}
 {"status":"ok","reboot":false,"saved":false,"applied":["alarms"]}
 {"status":"dry","reboot":true,"applied":["time"],"reboot_for":["time"]}
-{"status":"ok","reboot":true,"reboot_for":["users"],"creds":[{"u":"operador1","p":"K7M2QX9A"}]}
+{"status":"ok","reboot":false,"applied":["users"],"creds":[{"u":"operador1","p":"K7M2QX9A"}]}
 ```
 
 | Campo | Significado |
@@ -761,18 +762,22 @@ Para entrar na rota, a conta precisa de pelo menos uma entre **Sistema**, **Rede
 
 | Grupos | Efeito |
 |---|---|
-| `alarms`, `maint`, `alarm_tel`, `telemetry`, `display` | Aplicam sem reiniciar |
-| `net`, `identity`, `users`, `slots`, `sensing`, `mqtt`, `time`, `web`, `unclassified` | Reiniciam |
+| `alarms`, `maint`, `alarm_tel`, `telemetry`, `display`, `users` | Aplicam sem reiniciar |
+| `net`, `identity`, `slots`, `sensing`, `mqtt`, `time`, `web`, `unclassified` | Reiniciam |
 
-Quatro campos sem efeito, `s_int`, `log` e dois que só o arquivo de configuração carrega, não entram em grupo nenhum e gravam sem reiniciar, desde a v2.7.4. Até a v2.7.3 eles caíam em `sensing`, `logging`, `net` e `display_pin`, e reiniciavam o aparelho. O que cada grupo inclui está em [Os grupos de configuração](#cap-05-grupos). Qualquer alteração de conta ou de PIN, e também da política de PIN, cai em `users` e reinicia. Não copie essa tabela para o seu cliente: use o ensaio, que responde pela regra do próprio aparelho.
+Quatro campos sem efeito, `s_int`, `log` e dois que só o arquivo de configuração carrega, não entram em grupo nenhum e gravam sem reiniciar, desde a v2.7.4. Até a v2.7.3 eles caíam em `sensing`, `logging`, `net` e `display_pin`, e reiniciavam o aparelho. O que cada grupo inclui está em [Os grupos de configuração](#cap-05-grupos). Qualquer alteração de conta ou de PIN, e também da política de PIN, cai em `users`, que se aplica sem reiniciar desde a v2.10.0 (até a v2.9.0, reiniciava). Não copie essa tabela para o seu cliente: use o ensaio, que responde pela regra do próprio aparelho.
 
 Quando há reinício, a resposta chega antes dele. O aparelho fica fora do ar por alguns segundos e encerra todas as sessões. Para saber quando ele voltou, repita `GET /api/login_init` a cada 3 s até ele responder, e entre de novo.
 
-**O ensaio.** Use `_dry=1` para validar uma configuração antes de gravá-la, por exemplo antes de mandá-la a vários aparelhos ([capítulo 27](#cap-27)). O ensaio tem três limites:
+**O ensaio.** Use `_dry=1` para validar uma configuração antes de gravá-la, por exemplo antes de mandá-la a vários aparelhos ([capítulo 27](#cap-27)). Ele roda numa cópia e não mexe no aparelho: não grava e não aplica nada.
 
-- **Não enxerga alguns campos.** `h_int`, `ntp_enabled`, `slog_en`, `slog_srv`, `slog_port`, `slog_lvl`, `m_had`, `dns_auto`, `dns2` e `web_ka` ficam de fora da cópia que ele compara. Um ensaio só com esses campos responde `"reboot":false` e `"applied":[]`, mas a gravação real reinicia pelo grupo `web`. O `_nosave=1` também não os aplica.
-- **Aplica o fuso horário de verdade.** Um `tz` no ensaio muda na hora a hora local que o aparelho mostra, até o próximo reinício ou a próxima gravação de fuso.
-- **Aplica os sons de verdade.** Um objeto `sounds` no ensaio muda na hora volume, melodias e silêncio do aparelho, sem gravar.
+Até a v2.9.0, o ensaio tinha três limites, corrigidos na v2.10.0:
+
+- não enxergava `h_int`, `ntp_enabled`, `slog_*`, `m_had`, `dns_auto`, `dns2` e `web_ka`, e respondia `"reboot":false` onde a gravação real reiniciava pelo grupo `web`;
+- aplicava o fuso horário de verdade;
+- aplicava os sons de verdade, inclusive o silêncio.
+
+O `_nosave=1` tinha os mesmos três efeitos. Com um desses campos e outro que exigisse reinício, ele respondia `409` com a memória já alterada.
 
 ::: atencao
 **A origem CORS é gravada na hora, mas só vale depois de um reinício.** A chave `cors` grava o arquivo da origem em qualquer modo, menos no ensaio, e não altera nenhum grupo: a resposta não pede reinício. Para ativá-la, mande a mesma gravação com `_reboot=1` ou reinicie depois com `POST /api/action?op=reboot`.
@@ -786,8 +791,9 @@ Quando há reinício, a resposta chega antes dele. O aparelho fica fora do ar po
 | 400 | `{"error":"Bad payload"}` | `_payload` vazio ou acima de 6.144 bytes |
 | 400 | `{"error":"No section"}` | Nenhuma seção reconhecida no corpo |
 | 400 | `{"error":"Alarm limit outside channel range"}` | Um limite fora da faixa possível do canal ([capítulo 7](#cap-07-limites)) |
+| 400 | `{"error":"Alarm limit is not a number"}` | Um limite de alarme que não é número, como `"abc"` ou `true`. `null` não é recusado: mantém o limite |
 | 400 | O slot e o GPIO, como `slot 4: GP2 already used by slot 2` | Conflito de GPIO na seção `slots` ([capítulo 6](#cap-06-erros-gravar)) |
-| 400 | `{"error":"accepts sys, net and alarms only"}` | `_dry` ou `_nosave` com outra seção |
+| 400 | `{"error":"accepts sys, net and alarms only, and users in a dry run"}` | `_dry` ou `_nosave` com outra seção (`users` só no `_dry`) |
 | 403 | `{"error":"Forbidden"}` | A conta não tem nenhuma das três permissões de entrada |
 | 403 | `{"error":"Forbidden","section":"users"}` | A conta não tem a permissão da seção indicada |
 | 409 | `{"error":"Password change required","next":"/api/force_chpass"}` | Troca de senha pendente |
@@ -841,7 +847,7 @@ curl -s -b jar -X POST "$H/api/commit_all" --data-urlencode \
 ```
 
 ```json
-{"status":"ok","reboot":true,"reboot_for":["users"],"creds":[{"u":"operador1","p":"K7M2QX9A"}]}
+{"status":"ok","reboot":false,"applied":["users"],"creds":[{"u":"operador1","p":"K7M2QX9A"}]}
 ```
 
 A senha de uso único vem em `creds`, só nesta resposta: o aparelho guarda apenas o resumo. Guarde-a ou entregue-a na hora. Ela tem 8 caracteres, entre letras maiúsculas e algarismos, sem `O`, `0`, `I` e `1`. Na primeira entrada, a conta nova precisa trocar a senha ([Troca de senha](#cap-26-troca)).
@@ -855,7 +861,7 @@ A senha de uso único vem em `creds`, só nesta resposta: o aparelho guarda apen
 
 Para um PIN que funcione nos dois lados, use só algarismos, com um comprimento entre o maior de 4 e `pin_min` e o menor de 8 e `pin_max`, lidos em `GET /api/config`. Se a política exige mais de 8 caracteres, defina o PIN no próprio painel ([capítulo 8](#cap-08-proprio-pin)).
 
-**Tudo em `users` reinicia.** Criar, apagar, resetar e definir PIN mudam o grupo `users`, e o aparelho reinicia depois de responder. Agrupe as ações num único pedido: três criações em pedidos separados custam três reinícios. Depois de cada gravação de contas, entre de novo.
+**`users` se aplica sem reiniciar** desde a v2.10.0. Criar, apagar, resetar e definir PIN valem na hora: a sessão de uma conta apagada ou resetada termina na requisição seguinte (`401`), e as outras continuam. A exceção é o primeiro PIN do `admin`, que também apaga a marca de troca obrigatória, na área de extensão: esse pedido reinicia pelo grupo `web`. Até a v2.9.0, toda gravação de contas reiniciava o aparelho e encerrava todas as sessões.
 
 **Recusas.** Uma ação recusada não impede as outras. A resposta traz o motivo em `rejected`, com status 200:
 
@@ -896,7 +902,7 @@ A seção `alarms` exige **Sistema** [PERM_SYS_CONFIG]{.perm}, e tudo nela se ap
 |---|---|
 | `idx` | Slot, de 0 a 15. Obrigatório. Um slot inativo é ignorado em silêncio |
 | `active` | Liga ou desliga os alarmes de limite do slot (bloquear) |
-| `temp`, `hum`, `press`, `lux` | Limites `[mínimo, máximo]` do canal. Mande sempre os dois números: `null` vira 0 |
+| `temp`, `hum`, `press`, `lux` | Limites `[mínimo, máximo]` do canal. `null` num dos dois mantém aquele limite como está; um valor que não é número recusa a gravação inteira com `400` (até a v2.9.0, os dois viravam 0) |
 | `tmin`, `tmax`, `hmin`, `hmax` | Nomes antigos dos limites de temperatura e umidade. Se os dois estilos vierem, vale o de canal |
 | `maint` | Janela de manutenção em segundos a partir de agora. `0` encerra |
 
@@ -1171,6 +1177,8 @@ curl -s -b jar -F bkp=@backup.bkp "$H/api/restore?op=validate"
 curl -s -b jar -F bkp=@backup.bkp "$H/api/restore?op=apply"
 ```
 
+O segundo passo só aceita o arquivo que passou no primeiro. Um `apply` sem `validate` antes, ou de outro arquivo, volta com `409` e `st` 11, sem gravar nada (desde a v2.10.0; antes, aplicava assim mesmo).
+
 ```json
 {"st":0,"chip":"e6614c311b7a2f2d","fwv":132865,"psz":913408,"fc":57,"fsm":0}
 ```
@@ -1195,14 +1203,15 @@ curl -s -b jar -F bkp=@backup.bkp "$H/api/restore?op=apply"
 | 8 | Caminho longo demais |
 | 9 | Erro de leitura ou gravação |
 | 10 | Erro interno |
+| 11 | O arquivo não é o validado por último: valide antes |
 
-Um resultado ruim volta com `422`; um erro de gravação, com `500`. Um backup só restaura no mesmo aparelho que o gerou. A restauração bem-sucedida reinicia o aparelho logo depois de responder, e a conexão pode cair antes de a resposta chegar: confirme depois do reinício.
+Um resultado ruim volta com `422`; um erro de gravação, com `500`; um `apply` sem a validação, com `409`. Um `apply` que falha no meio mantém os arquivos que terminou e apaga só o que ficou pela metade; `fsm` volta `1` quando algum arquivo mudou, e repetir o `apply` completa o resto. Até a v2.9.0, a falha apagava tudo o que tinha gravado, inclusive a configuração. Um backup só restaura no mesmo aparelho que o gerou. A restauração bem-sucedida reinicia o aparelho logo depois de responder, e a conexão pode cair antes de a resposta chegar: confirme depois do reinício.
 
 ### Atualização de firmware pela API {#cap-26-ota}
 
 A atualização exige o administrador completo e segue quatro passos. A interface web faz exatamente estes passos ([capítulo 17](#cap-17)).
 
-::: {.figura #fig-26-ota tipo="diagrama" arquivo="26-ota.png" captura="diagrama de sequência entre um cliente e o aparelho: GET /api/backup e conferência do CRC; POST /api/restore?op=stage&commit=1 com o .bin, resposta com v=0 e committed=1; POST /api/ota/apply, resposta 202; o aparelho reinicia; o cliente repete GET /api/login_init até responder; entra e lê a versão em /api/status; restaura o .bkp com op=apply"}
+::: {.figura #fig-26-ota tipo="diagrama" arquivo="26-ota.png" captura="diagrama de sequência entre um cliente e o aparelho: GET /api/backup e conferência do CRC; POST /api/restore?op=stage&commit=1 com o .bin, resposta com v=0 e committed=1; POST /api/ota/apply, resposta 202; o aparelho reinicia; o cliente repete GET /api/login_init até responder; entra e lê a versão em /api/status; confere o .bkp com op=validate e o restaura com op=apply"}
 A atualização pela API. O único comprovante de sucesso é a versão nova informada pelo próprio aparelho.
 :::
 
@@ -1255,11 +1264,15 @@ A atualização pela API. O único comprovante de sucesso é a versão nova info
 
 4. **Confirme.** Espere o aparelho voltar, repetindo `GET /api/login_init` a cada 3 s. Entre e leia `ver` em `GET /api/status`, ou `version` em `GET /api/perms`. Um status HTTP ou um tempo decorrido não provam nada: só a versão nova informada pelo aparelho prova a atualização. Depois, restaure o backup para recuperar o histórico e o resto ([Backup e restauração](#cap-26-backup)).
 
-::: perigo
-**Não desligue o aparelho durante a aplicação.** Existe um único espaço de firmware. Uma queda de energia na janela de gravação deixa o aparelho sem firmware, e a recuperação exige o cabo USB ([capítulo 18](#cap-18)).
+::: nota
+**No Pico 2 W** a imagem vai para o slot de onde o aparelho não subiu, e o sistema de arquivos fica intocado: o backup do passo 1 é só precaução. O passo 4 termina quando `trial` volta a `0`, cerca de um minuto depois do boot. Até lá, um reinício traz de volta a versão anterior. Se a imagem não se confirmar, o aparelho volta sozinho e diz a versão recusada em `reverted`.
 :::
 
-Se a conexão cair no meio do envio de uma imagem grande, um equipamento da rede pode estar cortando conexões longas na porta 80. Configure outra porta web e tente de novo ([capítulo 9](#cap-09-servidor-web)).
+::: perigo
+**Não desligue o aparelho durante a aplicação.** No Pico W existe um único espaço de firmware. Uma queda de energia na janela de gravação deixa o aparelho sem firmware, e a recuperação exige o cabo USB ([capítulo 18](#cap-18)).
+:::
+
+Até a v2.10.0, o envio de uma imagem grande caía aos 12–15 s quando outra página do aparelho estava aberta no navegador: o próprio aparelho cortava a conexão mais antiga para admitir as consultas da página. Não era a rede nem a porta 80. Nessas versões, feche as outras abas do aparelho antes de enviar ([capítulo 18](#cap-18-sem-web)).
 
 ### Certificado HTTPS {#cap-26-tls}
 

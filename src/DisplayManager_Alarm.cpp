@@ -26,19 +26,19 @@ void DisplayManager::setAlarmErrState(uint16_t errMask) {
 }
 
 bool DisplayManager::isSlotErrAlarming(int slotIdx) const {
-	return (slotIdx >= 0 && slotIdx < 16) && (_alarmErrMask & (1 << slotIdx));
+	return (slotIdx >= 0 && slotIdx < MAX_SENSORS) && (_alarmErrMask & (1 << slotIdx));
 }
 
 /* Mute de ERRO por slot: desativar a falha de um sensor não toca o alarme
  * de LIMITE do mesmo slot — os dois domínios são independentes. */
 void DisplayManager::setAlarmErrMuted(int8_t slotIdx, bool muted) {
-	if (slotIdx < 0 || slotIdx >= 16) return;
+	if (slotIdx < 0 || slotIdx >= MAX_SENSORS) return;
 	if (muted) _alarmErrMuteMask |= (uint16_t)(1u << slotIdx);
 	else       _alarmErrMuteMask &= (uint16_t)~(1u << slotIdx);
 }
 
 bool DisplayManager::isAlarmErrMuted(int8_t slotIdx) const {
-	if (slotIdx < 0 || slotIdx >= 16) return false;
+	if (slotIdx < 0 || slotIdx >= MAX_SENSORS) return false;
 	return (_alarmErrMuteMask & (1u << slotIdx)) != 0;
 }
 
@@ -133,7 +133,7 @@ void DisplayManager::drawAlarmAction( ) {
 }
 
 bool DisplayManager::isSlotAlarming(int slotIdx) const {
-	return (slotIdx >= 0 && slotIdx < 16) && (_alarmSlotMask & (1 << slotIdx));
+	return (slotIdx >= 0 && slotIdx < MAX_SENSORS) && (_alarmSlotMask & (1 << slotIdx));
 }
 
 uint16_t DisplayManager::slotAlarmBg(int slotIdx) const {
