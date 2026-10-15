@@ -5076,101 +5076,192 @@ void test_cal_day_has_history_reads_the_bit_of_that_day_and_nothing_else(void) {
  * Where the chart's window ends (display/GraphAnchor.h)
  *
  * 2026-10-15 (fix/ui-angulo-historico): Core 0 judged the window after the arrows' taps against a clock it read later than the one it had
- * anchored on, and never dropped the anchor when the chart was opened from another screen. Each decision is one function with no hardware
- * in it, and the Ângulo's image calls them. Each case names the mutants it kills; stages/hist_fix holds the run of each mutant applied to
- * the header and the cases it failed.
+ * anchored on, and never dropped the anchor when the chart was opened from another screen. Each decision is a function with no hardware in
+ * it, and the Ângulo's image calls them. The window is the present again when the taps bring it back to where they left the live window
+ * (the base), or when it ends at or after the clock; a calendar window has no base and keeps its alignment. Each case names the mutants it
+ * kills; stages/hist_fix2 holds the run of each mutant applied to the header and the cases it failed.
  * ───────────────────────────────────────────────────────────────────────── */
 
-static const time_t GA_NOW = 1792000000;                                 /* a clock; no case depends on its value */
-static const time_t GA_STEP[5] = { 3600, 21600, 43200, 86400, 604800 }; /* 1 h, 6 h, 12 h, 24 h, 7 d: the five periods of the chart */
+static const time_t GA_H = 3600;
+static const time_t GA_D = 86400;
+static const time_t GA_M = 1791936000;                                       /* a midnight (a multiple of 86400): the calendar cases need one */
+static const time_t GA_NOW = GA_M + 10 * GA_H;                               /* 10:00 on that day; nothing else depends on the value */
+static const time_t GA_STEP[5] = { 3600, 21600, 43200, 86400, 604800 };      /* 1 h, 6 h, 12 h, 24 h, 7 d: the five periods of the chart */
 
-static void ga_expect(time_t anchorEnd, int offset, const GraphAnchorPlace &got) {
+static void ga_expect(time_t anchorEnd, time_t liveBase, int offset, const GraphAnchorPlace &got) {
     TEST_ASSERT_EQUAL_INT64((long long)anchorEnd, (long long)got.anchorEnd);
+    TEST_ASSERT_EQUAL_INT64((long long)liveBase, (long long)got.liveBase);
     TEST_ASSERT_EQUAL_INT(offset, got.offset);
 }
 
-/* A tap back from the live window is whole periods in the past, for each of the five: a sign taken wrong or a `step` left out puts the end
- * elsewhere, an anchor that starts at 0 instead of the clock puts it near 1970, and an offset left at 0 says the past is the present. */
+static void ga_live(const GraphAnchorPlace &got) { ga_expect(0, 0, 0, got); }   /* the live window: no anchor, no base, ▶ disabled */
+
+/* A tap back from the live window is whole periods in the past, for each of the five, and the base is the clock it left at: a sign taken wrong or
+ * a `step` left out puts the end elsewhere, an anchor that does not start at the clock puts it near 1970, an offset left at 0 says the past is the
+ * present, and a base that is not set (or not kept) leaves the way back with nothing to measure against. */
 void test_graph_anchor_back_from_the_present_is_whole_periods_in_the_past(void) {
     for (int i = 0; i < 5; i++) {
         const time_t s = GA_STEP[i];
-        ga_expect(GA_NOW - s, -1, graphAnchorStep(0, GA_NOW, -1, s));
-        ga_expect(GA_NOW - 3 * s, -1, graphAnchorStep(0, GA_NOW, -3, s));
+        ga_expect(GA_NOW - s, GA_NOW, -1, graphAnchorStep(0, 0, GA_NOW, -1, s));
+        ga_expect(GA_NOW - 3 * s, GA_NOW, -1, graphAnchorStep(0, 0, GA_NOW, -3, s));
     }
 }
 
-/* The defect: one period back, then one forward a few seconds later, is the present. The window ends at the first tap's clock, a few seconds
- * before the clock of the second, which the old code read as the past (▶ still enabled). From 0 to just under half a period apart it is the
- * live window, anchor 0 and offset 0: an anchor kept, an offset left at -1, a bound that compares the wrong way (`>`, `>=`), a quarter in place
- * of the half and a distance taken with the wrong sign (`end - now`) each fail here. */
-void test_graph_anchor_back_then_forward_a_few_seconds_apart_is_the_present(void) {
+/* The defect: one period back, then one forward, is the present, however long the wait between the taps: the window the forward tap reaches ends
+ * where the back tap started, and that is where the live window ended when it was left. The old code judged it against a later clock and read the
+ * past (▶ still enabled). The gaps run from none to three periods, with 10 minutes on the 1 h period among them; the half of a period and the whole
+ * one are there because an earlier version of the rule had a bound at the half. A rule that ignores the base, a `>` in place of the `>=` (the window
+ * ends exactly at the base), a base never set and one that is kept when the live window returns each fail here. */
+void test_graph_anchor_back_then_forward_is_the_present_however_long_the_wait(void) {
     for (int i = 0; i < 5; i++) {
         const time_t s = GA_STEP[i];
-        const GraphAnchorPlace back = graphAnchorStep(0, GA_NOW, -1, s);
-        const time_t gaps[] = { 0, 1, 5, 30, s / 2 - 1 };
-        for (time_t d : gaps) ga_expect(0, 0, graphAnchorStep(back.anchorEnd, GA_NOW + d, +1, s));
+        const GraphAnchorPlace back = graphAnchorStep(0, 0, GA_NOW, -1, s);
+        const time_t gaps[] = { 0, 1, 5, 30, 600, s / 2 - 1, s / 2, s / 2 + 1, s, 3 * s };
+        for (time_t d : gaps) ga_live(graphAnchorStep(back.anchorEnd, back.liveBase, GA_NOW + d, +1, s));
     }
 }
 
-/* The bound is half a period, strict. A window that ends exactly half a period before the clock is still the past, and so is every one
- * further back, up to the third period: `<=` in place of `<` fails at the half, a whole period in place of the half fails there too. The
- * window is the first tap's clock, as the old code gave it (anchor and offset), because that is the place it was further back than half. */
-void test_graph_anchor_back_then_forward_from_half_a_period_apart_is_the_past(void) {
-    for (int i = 0; i < 5; i++) {
-        const time_t s = GA_STEP[i];
-        const GraphAnchorPlace back = graphAnchorStep(0, GA_NOW, -1, s);
-        const time_t gaps[] = { s / 2, s / 2 + 1, s - 1, s, 3 * s };
-        for (time_t d : gaps) ga_expect(GA_NOW, -1, graphAnchorStep(back.anchorEnd, GA_NOW + d, +1, s));
-    }
-}
-
-/* Two taps back and one forward is one period back: the forward does not jump to the present, and the second back starts from the anchor the
- * first one left (an anchor that is ignored and read as the clock again lands one period back after the two). */
+/* Two taps back and one forward is one period back: the forward does not jump to the present, and the base is the one the first tap set, not a
+ * later clock. */
 void test_graph_anchor_two_backs_then_one_forward_is_one_period_back(void) {
     for (int i = 0; i < 5; i++) {
         const time_t s = GA_STEP[i];
-        const GraphAnchorPlace b1 = graphAnchorStep(0, GA_NOW, -1, s);
-        const GraphAnchorPlace b2 = graphAnchorStep(b1.anchorEnd, GA_NOW + 2, -1, s);
-        ga_expect(GA_NOW - 2 * s, -1, b2);
-        ga_expect(GA_NOW - s, -1, graphAnchorStep(b2.anchorEnd, GA_NOW + 5, +1, s));
+        const GraphAnchorPlace b1 = graphAnchorStep(0, 0, GA_NOW, -1, s);
+        const GraphAnchorPlace b2 = graphAnchorStep(b1.anchorEnd, b1.liveBase, GA_NOW + 2, -1, s);
+        ga_expect(GA_NOW - 2 * s, GA_NOW, -1, b2);
+        ga_expect(GA_NOW - s, GA_NOW, -1, graphAnchorStep(b2.anchorEnd, b2.liveBase, GA_NOW + 5, +1, s));
     }
 }
 
-/* Forward from the present stays there: no window after the clock, whatever the number of taps, and nothing frozen at a clock (the second ▶
- * of the old code left the anchor at the moment it was pressed). A window that was left a few seconds short of the clock is the present too. */
+/* Forward from the present stays there: no window after the clock, whatever the number of taps, and nothing frozen at a clock (the second ▶ of
+ * the old code left the anchor at the moment it was pressed). A calendar window left a few seconds short of the clock reaches it by one step. */
 void test_graph_anchor_forward_from_the_present_stays_at_the_present(void) {
     for (int i = 0; i < 5; i++) {
         const time_t s = GA_STEP[i];
-        ga_expect(0, 0, graphAnchorStep(0, GA_NOW, +1, s));
-        ga_expect(0, 0, graphAnchorStep(0, GA_NOW, +3, s));
-        ga_expect(0, 0, graphAnchorStep(GA_NOW - 7, GA_NOW, +1, s));
+        ga_live(graphAnchorStep(0, 0, GA_NOW, +1, s));
+        ga_live(graphAnchorStep(0, 0, GA_NOW, +3, s));
+        ga_live(graphAnchorStep(GA_NOW - 7, 0, GA_NOW, +1, s));
     }
 }
 
-/* The clamp against the future. The calendar's Today anchors at the next midnight, which is ahead of the clock: forward of it, and back of it
- * while the result is still ahead, is the present. Back far enough to come out behind the clock by more than half a period is the past, and
- * is placed from the anchor (100 s ahead, one hour back: 3,500 s behind). */
-void test_graph_anchor_never_looks_past_the_clock(void) {
+/* The finding that moved the rule from a distance to a base. The calendar's today ends at the next midnight, and a step back from it is yesterday,
+ * [M - 1 d, M], at any hour after midnight: the half-step version called it the present until 12:00, because M was then under half a period behind
+ * the clock. The base is stale on purpose (left the live window the evening before): graphAnchorDay( ) must drop it. On 12 h the same step ends at
+ * noon, which is ahead of the clock until noon (the old clamp: the live window) and the past after it; on 6 h at 18:00. At the stroke of midnight
+ * yesterday's window ends at the clock, and that is the live one. A `>` in place of the `>=` against the clock, the clock test dropped, the half-step
+ * bound back, a base used where there is none and a day that keeps the base fail here. */
+void test_graph_anchor_a_calendar_today_steps_back_to_yesterday_not_to_the_present(void) {
+    const time_t hours[] = { 1, 10, 11, 12, 13, 15, 23 };
+    for (time_t h : hours) {
+        time_t a = 0, b = GA_M - 5 * GA_H;
+        graphAnchorDay(GA_M, a, b);
+        ga_expect(GA_M, 0, -1, graphAnchorStep(a, b, GA_M + h * GA_H, -1, GA_D));
+    }
+    time_t a = 0, b = GA_M - 5 * GA_H;
+    graphAnchorDay(GA_M, a, b);
+    ga_live(graphAnchorStep(a, b, GA_M, -1, GA_D));
+    ga_live(graphAnchorStep(a, b, GA_M + 10 * GA_H, -1, 12 * GA_H));                          /* noon is ahead of 10:00 */
+    ga_expect(GA_M + 12 * GA_H, 0, -1, graphAnchorStep(a, b, GA_M + 15 * GA_H, -1, 12 * GA_H));
+    ga_live(graphAnchorStep(a, b, GA_M + 10 * GA_H, -1, 6 * GA_H));                           /* 18:00 is ahead of 10:00 */
+    ga_live(graphAnchorStep(a, b, GA_M + 15 * GA_H, -1, 6 * GA_H));
+    ga_expect(GA_M + 18 * GA_H, 0, -1, graphAnchorStep(a, b, GA_M + 20 * GA_H, -1, 6 * GA_H));
+}
+
+/* Forward from a window that ends at M - 1 d (the day before yesterday, picked in the calendar) is yesterday, [M - 1 d, M], at 10:00 and at 15:00,
+ * and one more is today's, which ends ahead of the clock: the live window. */
+void test_graph_anchor_a_calendar_window_stepped_forward_keeps_its_alignment(void) {
+    const time_t hours[] = { 10, 15 };
+    for (time_t h : hours) {
+        time_t a = 0, b = GA_NOW;
+        graphAnchorDay(GA_M - 2 * GA_D, a, b);   /* a = M - 1 d */
+        ga_expect(GA_M, 0, -1, graphAnchorStep(a, b, GA_M + h * GA_H, +1, GA_D));
+        ga_live(graphAnchorStep(GA_M, 0, GA_M + h * GA_H, +1, GA_D));
+    }
+}
+
+/* A calendar day ten days back, stepped forward a day at a time, stays in the past until its window reaches the clock: M - 8 d, M - 7 d ... M, and the
+ * tenth step ends at M + 1 d, ahead of the clock, which is the live window. */
+void test_graph_anchor_a_calendar_day_ten_days_back_stays_in_the_past_until_it_reaches_the_clock(void) {
+    time_t a = 0, b = GA_NOW;
+    graphAnchorDay(GA_M - 10 * GA_D, a, b);
+    ga_expect(GA_M - 9 * GA_D, 0, -1, GraphAnchorPlace{ a, b, -1 });
+    for (int k = 1; k <= 9; k++) {
+        const GraphAnchorPlace p = graphAnchorStep(a, b, GA_NOW, +1, GA_D);
+        ga_expect(GA_M - 9 * GA_D + k * GA_D, 0, -1, p);
+        a = p.anchorEnd;
+        b = p.liveBase;
+    }
+    ga_live(graphAnchorStep(a, b, GA_NOW, +1, GA_D));
+}
+
+/* A period chosen in between does not lose the way back to the present. Three 24 h steps back and then 1 h steps: 71 forwards are still the past,
+ * the 72nd is the live window. One 1 h step back and then one 24 h step forward is the live window. */
+void test_graph_anchor_a_period_switch_keeps_the_way_back_to_the_present(void) {
+    time_t a = 0, b = 0;
+    for (int i = 0; i < 3; i++) {
+        const GraphAnchorPlace p = graphAnchorStep(a, b, GA_NOW + i, -1, GA_D);
+        a = p.anchorEnd;
+        b = p.liveBase;
+    }
+    ga_expect(GA_NOW - 3 * GA_D, GA_NOW, -1, GraphAnchorPlace{ a, b, -1 });
+    for (int k = 1; k <= 71; k++) {
+        const GraphAnchorPlace p = graphAnchorStep(a, b, GA_NOW + 10 + k, +1, GA_H);
+        ga_expect(GA_NOW - 72 * GA_H + k * GA_H, GA_NOW, -1, p);
+        a = p.anchorEnd;
+        b = p.liveBase;
+    }
+    ga_live(graphAnchorStep(a, b, GA_NOW + 100, +1, GA_H));
+    const GraphAnchorPlace one = graphAnchorStep(0, 0, GA_NOW, -1, GA_H);
+    ga_live(graphAnchorStep(one.anchorEnd, one.liveBase, GA_NOW + 3, +1, GA_D));
+}
+
+/* A window that ends at the clock or after it is the live window, with no base (the old clamp against the future): the calendar's today stepped
+ * forward, a back that is still ahead, a step that lands exactly on the clock (a `>` in place of the `>=` fails here), and the test dropped. A
+ * calendar window one second short of the clock is the past: there is no tolerance left in the rule. And a window 100 s ahead, one hour back, is
+ * 3,500 s behind: placed from the anchor, not from the clock. The test of the clock holds with a base too: the live window left one day back, then
+ * the clock set back three days (NTP replacing a provisional clock that ran ahead, or a manual time), and one more day back ends a day after the
+ * clock, so it is the live window. Tested only without a base, a `liveBase == 0` added to that test passed all 316 cases and drew that window as
+ * the past (review of d2bf3cd, 2026-10-15). */
+void test_graph_anchor_stepping_to_or_past_the_clock_is_the_live_window(void) {
     for (int i = 0; i < 5; i++) {
         const time_t s = GA_STEP[i];
-        ga_expect(0, 0, graphAnchorStep(GA_NOW + 50000, GA_NOW, +2, s));
-        ga_expect(0, 0, graphAnchorStep(GA_NOW + 2 * s, GA_NOW, -1, s));
+        ga_live(graphAnchorStep(GA_NOW + 50000, 0, GA_NOW, +2, s));
+        ga_live(graphAnchorStep(GA_NOW + 2 * s, 0, GA_NOW, -1, s));
+        ga_live(graphAnchorStep(GA_NOW - s, 0, GA_NOW, +1, s));
+        ga_expect(GA_NOW - 1, 0, -1, graphAnchorStep(GA_NOW - 1 - s, 0, GA_NOW, +1, s));
     }
-    ga_expect(GA_NOW - 3500, -1, graphAnchorStep(GA_NOW + 100, GA_NOW, -1, 3600));
+    ga_expect(GA_NOW - 3500, 0, -1, graphAnchorStep(GA_NOW + 100, 0, GA_NOW, -1, 3600));
+    const GraphAnchorPlace b1 = graphAnchorStep(0, 0, GA_NOW, -1, GA_D);
+    ga_expect(GA_NOW - GA_D, GA_NOW, -1, b1);
+    ga_live(graphAnchorStep(b1.anchorEnd, b1.liveBase, GA_NOW - 3 * GA_D, -1, GA_D));
 }
 
-/* A window well in the past moves by whole periods, and meets the clock when it gets there: ten periods back, +1 is nine, -2 is twelve,
- * +9 is one, and +10 or +11 is the present. This is the part the old code did the same way. */
+/* A window well in the past moves by whole periods, with a base and without one: ten periods back, +1 is nine, -2 is twelve, +9 is one, and +10 or
+ * +11 is the live window. With the base, +10 ends exactly at it. This is the part the old code did the same way. */
 void test_graph_anchor_a_window_well_in_the_past_moves_by_whole_periods(void) {
     for (int i = 0; i < 5; i++) {
         const time_t s = GA_STEP[i];
         const time_t w = GA_NOW - 10 * s;
-        ga_expect(GA_NOW - 9 * s, -1, graphAnchorStep(w, GA_NOW, +1, s));
-        ga_expect(GA_NOW - 12 * s, -1, graphAnchorStep(w, GA_NOW, -2, s));
-        ga_expect(GA_NOW - s, -1, graphAnchorStep(w, GA_NOW, +9, s));
-        ga_expect(0, 0, graphAnchorStep(w, GA_NOW, +10, s));
-        ga_expect(0, 0, graphAnchorStep(w, GA_NOW, +11, s));
+        ga_expect(GA_NOW - 9 * s, 0, -1, graphAnchorStep(w, 0, GA_NOW, +1, s));
+        ga_expect(GA_NOW - 12 * s, 0, -1, graphAnchorStep(w, 0, GA_NOW, -2, s));
+        ga_expect(GA_NOW - s, 0, -1, graphAnchorStep(w, 0, GA_NOW, +9, s));
+        ga_live(graphAnchorStep(w, 0, GA_NOW, +10, s));
+        ga_live(graphAnchorStep(w, 0, GA_NOW, +11, s));
+        ga_expect(GA_NOW - s, GA_NOW - 5, -1, graphAnchorStep(w, GA_NOW - 5, GA_NOW, +9, s));
+        ga_live(graphAnchorStep(w, GA_NOW - 5, GA_NOW, +10, s));
+        ga_expect(w + s, GA_NOW - 5, -1, graphAnchorStep(w, GA_NOW - 5, GA_NOW, +1, s));
     }
+}
+
+/* A calendar day is its own window and forgets any base: the live window was left at 03:00 and yesterday picked, and a 6 h step forward from
+ * [M - 1 d, M] is [M, M + 6 h], in the past at 10:00. A base kept from 03:00 would call it the present (06:00 is after it), and a base set to
+ * anything else is as wrong. */
+void test_graph_anchor_a_calendar_day_is_not_the_live_window_and_forgets_its_base(void) {
+    time_t a = GA_M + 2 * GA_H, b = GA_M + 3 * GA_H;
+    graphAnchorDay(GA_M - GA_D, a, b);
+    TEST_ASSERT_EQUAL_INT64((long long)GA_M, (long long)a);
+    TEST_ASSERT_EQUAL_INT64(0LL, (long long)b);
+    ga_expect(GA_M + 6 * GA_H, 0, -1, graphAnchorStep(a, b, GA_NOW, +1, 6 * GA_H));
 }
 
 /* Opened from any other screen the chart starts at the present: the 28 modes of UiMode that are not the chart, from the dashboard (0) to the
@@ -5192,6 +5283,22 @@ void test_graph_open_inside_the_chart_keeps_the_window(void) {
     TEST_ASSERT_EQUAL_INT(1, GRAPH_SCREEN_LOADING);
     TEST_ASSERT_EQUAL_INT(2, GRAPH_SCREEN_VIEW);
     TEST_ASSERT_EQUAL_INT(3, GRAPH_SCREEN_DETAIL);
+}
+
+/* What the opening does to the pair, for every mode: from another screen the anchor and its base both go (a base left behind would be measured
+ * from a window nobody can see); inside the chart both stay as they were. */
+void test_graph_open_from_another_screen_clears_the_anchor_and_its_base(void) {
+    for (int m = -1; m <= 40; m++) {
+        time_t a = GA_NOW - GA_H, b = GA_NOW;
+        graphAnchorOpen(m, a, b);
+        if (m >= 1 && m <= 3) {
+            TEST_ASSERT_EQUAL_INT64((long long)(GA_NOW - GA_H), (long long)a);
+            TEST_ASSERT_EQUAL_INT64((long long)GA_NOW, (long long)b);
+        } else {
+            TEST_ASSERT_EQUAL_INT64(0LL, (long long)a);
+            TEST_ASSERT_EQUAL_INT64(0LL, (long long)b);
+        }
+    }
 }
 
 int main(int /*argc*/, char** /*argv*/) {
@@ -5493,14 +5600,19 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_cal_day_has_history_holds_the_first_and_last_day_of_a_month);
     RUN_TEST(test_cal_day_has_history_reads_the_bit_of_that_day_and_nothing_else);
     RUN_TEST(test_graph_anchor_back_from_the_present_is_whole_periods_in_the_past);
-    RUN_TEST(test_graph_anchor_back_then_forward_a_few_seconds_apart_is_the_present);
-    RUN_TEST(test_graph_anchor_back_then_forward_from_half_a_period_apart_is_the_past);
+    RUN_TEST(test_graph_anchor_back_then_forward_is_the_present_however_long_the_wait);
     RUN_TEST(test_graph_anchor_two_backs_then_one_forward_is_one_period_back);
     RUN_TEST(test_graph_anchor_forward_from_the_present_stays_at_the_present);
-    RUN_TEST(test_graph_anchor_never_looks_past_the_clock);
+    RUN_TEST(test_graph_anchor_a_calendar_today_steps_back_to_yesterday_not_to_the_present);
+    RUN_TEST(test_graph_anchor_a_calendar_window_stepped_forward_keeps_its_alignment);
+    RUN_TEST(test_graph_anchor_a_calendar_day_ten_days_back_stays_in_the_past_until_it_reaches_the_clock);
+    RUN_TEST(test_graph_anchor_a_period_switch_keeps_the_way_back_to_the_present);
+    RUN_TEST(test_graph_anchor_stepping_to_or_past_the_clock_is_the_live_window);
     RUN_TEST(test_graph_anchor_a_window_well_in_the_past_moves_by_whole_periods);
+    RUN_TEST(test_graph_anchor_a_calendar_day_is_not_the_live_window_and_forgets_its_base);
     RUN_TEST(test_graph_open_from_any_other_screen_starts_at_the_present);
     RUN_TEST(test_graph_open_inside_the_chart_keeps_the_window);
+    RUN_TEST(test_graph_open_from_another_screen_clears_the_anchor_and_its_base);
     RUN_TEST(test_settings_menu_item_ids_are_the_historical_ones);
     RUN_TEST(test_settings_menu_order_lists_every_item_once);
     RUN_TEST(test_settings_menu_full_admin_sees_every_item_in_order);

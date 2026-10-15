@@ -230,7 +230,7 @@
   "Themes.cpp": 1
  },
  "SIMUT_UI_ANGULO": {
-  "AppManager_Events.cpp": 2,
+  "AppManager_Events.cpp": 4,
   "DisplayManager_Dashboard.cpp": 3,
   "DisplayManager_Touch.cpp": 1,
   "Themes.cpp": 2
