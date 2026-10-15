@@ -21,6 +21,7 @@
 #include "PasswordKeyboard.h"
 #include "sensors/SensorDrawing.h" /* min/max graph button geometry */
 #include "ui/UiDriverHooks.h"   /* uiChanged( ), which the dashboard's touches raise: the hook definitions need the complete class, so after every other include */
+#include "display/GraphNav.h"        /* calDayHasHistory( ): the calendar's day test */
 #include "DisplayManager_Actions.h"   /* the core's touch actions; last, they lean on the hooks above */
 
 void DisplayManager::handleTouch( ) {
@@ -591,7 +592,7 @@ void DisplayManager::handleTouch( ) {
  int dayNum = cell - firstDow + 1;
 
  /* Check if it's a valid day with data */
- if (dayNum >= 1 && dayNum <= 31 && (_calDaysMask & (1UL << dayNum))) {
+ if (calDayHasHistory( _calDaysMask, dayNum )) {
  if (!acceptTouch(0)) return;
  uiChanged( UiChange::GRAPH_BUSY, 0 ); /* day read can take a second on 24H */
  actCalendarDay( _graphData, dayNum );

@@ -21,6 +21,7 @@
 #include "GraficosPreencher.h"
 #include "UiA.h"
 #include "telas/Graficos.h"
+#include "../../display/GraphNav.h"   /* calDayHasHistory( ): the calendar's day test */
 #include "../../DisplayManager_Actions.h"   /* the core's touch actions, which the graph screens' buttons run; last */
 
 namespace {
@@ -281,7 +282,7 @@ UaToque DisplayManager::uaToqueGraficos( const ua::Alvo *a, int16_t &x, int16_t 
         case CAL_DIA:
           /* A day that has history (:759-785): Core 0 answers with the loading
            * screen, which is the feedback, so no busy line. */
-          if ( a->indice < 1 || a->indice > 31 || !( _calDaysMask & ( 1UL << a->indice ) ) || !acceptTouch( ZONA_DIA_DO_MES ) ) break;
+          if ( !calDayHasHistory( _calDaysMask, a->indice ) || !acceptTouch( ZONA_DIA_DO_MES ) ) break;
           actCalendarDay( _graphData, a->indice );
           break;
         case CAL_HOJE:
