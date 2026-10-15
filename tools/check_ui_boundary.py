@@ -7,7 +7,7 @@ firmware reads, SIMUT_UI_ORIGINAL and SIMUT_UI_ANGULO for the identity, SIMUT_UI
 the original can do and the Ângulo cannot). Adding a driver must be one directory in src/ui/ and one
 manifest entry, and swapping one for another must not need an edit outside them. That only stays true if
 the core never reaches for a driver's name and the drivers never reach for each other, so this gate holds
-five rules over src/**/*.{c,cpp,h,hpp}:
+five rules over src/**/*.{c,cc,cpp,cxx,h,hh,hpp,hxx,inl,ipp,tpp}:
 
   identity      an identity macro (SIMUT_UI_<ID> for each [ui.<id>] of tools/features.toml: SIMUT_UI_ANGULO,
                 SIMUT_UI_ORIGINAL) outside src/ui/ and src/simut_config.h. Ask a capability
@@ -118,7 +118,7 @@ class CannotRead(Exception):
 
 DEFAULT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RULES = ("identity", "no-ifdef", "include-caps", "cross-driver", "driver-hook")
-EXTS = cnb.EXTS
+EXTS = (".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".hxx", ".inl", ".ipp", ".tpp")   # wider than the net gate's four: an .inl or .ipp is code
 UI_DIR = "src/ui/"                   # the drivers' directory: the identity rule is let off here
 ANGULO_DIR = "src/ui/angulo/"        # the Ângulo driver: cross-driver and driver-hook look at who is outside it
 CONFIG = "src/simut_config.h"        # includes ui/UiCaps.h: let off the identity rule only

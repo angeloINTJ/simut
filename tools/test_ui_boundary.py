@@ -543,6 +543,20 @@ def original_cases():
             {DOC_PATH: doc(OWNERSHIP_ITEM.replace("`UiWidgets.*`", "`Ghost.*`"))}, ["UI_DRIVERS.md", "Ghost"])
 
 
+def extension_cases():
+    """Every C/C++ source, header and include-only file is read: a hook or an identity in a .inl is as much a leak."""
+    for ext in (".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".hxx", ".inl", ".ipp", ".tpp"):
+        path = "src/Planted" + ext
+        expect(f"extensions: a hook in a core {ext} file is one finding", {path: surface("uaSujo( );")}, [(path, 2, "driver-hook")])
+    expect("extensions: an identity macro in a core .inl is one finding (the review planted one and got 0)",
+           {"src/Hooks.inl": surface("#if SIMUT_UI_ANGULO", "#endif")}, [("src/Hooks.inl", 2, "identity")])
+    expect("extensions: a name that a driver .inl defines is a hook in the core (the review planted one and got 0)",
+           {"src/ui/angulo/Extra.inl": angulo("void DisplayManager::uaExtra( ) { }"), SURFACE: surface("uaExtra( );")},
+           [(SURFACE, 2, "driver-hook")])
+    expect("extensions: a file that is not C or C++ is not read (.txt, .inc)",
+           {"src/Notes.txt": "uaSujo( );\n#if SIMUT_UI_ANGULO\n", "src/Hooks.inc": "uaSujo( );\n"}, [])
+
+
 def lexical_cases():
     expect("lexing: a '\"' character literal does not hide code after it",
            {SURFACE: surface("char q = '\"'; uaSujo( );")}, [(SURFACE, 2, "driver-hook")])
@@ -977,6 +991,7 @@ class_include_cases()
 cross_driver_cases()
 original_cases()
 hook_cases()
+extension_cases()
 inert_cases()
 lexical_cases()
 manifest_cases()
