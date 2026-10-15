@@ -161,7 +161,10 @@ Alvo `PULAR`. Amostras: início, passo de rede, barra de AP 40 %, botão Pular, 
 Leia `inventario/configuracoes_sistema.md` (§1, 2, 3, 5, 6) e `inventario/pin_usuarios_alarmes.md`
 (§9, 11), e `tools/tft_ui/plano/PlanoTelasConfig.cpp`. Todas usam `barraTituloVoltar` (alvo `VOLTAR`),
 `lista( )` com linhas de 40 px e 4 linhas por página, e `paginador` quando há mais de uma página
-(alvos `PAG_ANTERIOR`, `PAG_PROXIMA`, só quando a seta está ativa). Tocar numa linha = abrir/aplicar
+(alvos `PAG_ANTERIOR`, `PAG_PROXIMA`, só quando a seta está ativa). A linha de duas linhas de texto (a
+lista de alarmes, o menu de um sensor e o Tema; `desenharDuasLinhas( )`) tem 48 px (`LISTA_H_FILA_2`) e
+são 3 por página (`LISTA_FILAS_2`): no piso de 9 pt, duas linhas de maiúsculas de 14 px em 40 px deixavam
+4 px entre elas e os descendentes do nome tocavam a segunda linha. Tocar numa linha = abrir/aplicar
 (alvo `LINHA`, `indice` = posição no total, não na página).
 
 - **Configurações (`VmMenu`)**: título "Configurações"; até 13 itens, cada um com ícone e chevron, na
@@ -171,28 +174,35 @@ Leia `inventario/configuracoes_sistema.md` (§1, 2, 3, 5, 6) e `inventario/pin_u
   Calibrar o toque (CROSSHAIR), Alinhar a tela (MOVE), Licença (FILE_TEXT). O modelo traz os itens já
   filtrados pela permissão da conta e o nome da conta (mostre "Conta: maria" em `apoio` sob a lista ou
   no título, sem colidir). Amostras: admin completo págs. 1 a 4; conta só com bits de painel (4 itens).
-- **Tema (`VmTemas`)**: Claro (SUN), Escuro (MOON), Automático (escuro das 19 às 7) (SUN_MOON), marca na
-  atual, e a nota do plano. Amostras: cada uma marcada.
+- **Tema (`VmTemas`)**: três linhas de 48 px: Claro (SUN), Escuro (MOON) e Automático (SUN_MOON), com a
+  regra "escuro das 19 às 7" na segunda linha do Automático, em `apoio`; marca na atual, e a nota "A cor
+  de destaque muda com o tema." Amostras: cada uma marcada.
 - **Idioma (`VmIdioma`)**: "English" e o pacote carregado ("Português (Brasil)"); só "English" quando não
   há pacote. Marca no atual. Nota em `apoio`: "Esta build mostra o painel em português." (desvio
   registrado: os textos das telas novas são fixos em pt-BR). Amostras: dois idiomas; só English.
-- **Limites de alarme (`VmAlarmes`)**: uma linha por sensor ativo: nome, faixa de temperatura
-  ("2,0 a 8,0 °C"), selo Ligado/Desligado (alarmes do sensor), selo "Manutenção" quando há janela aberta,
-  chevron. Vazio: "Nenhum sensor ativo. Ative um sensor pela web." Amostras: 3 sensores; 6 (2 páginas);
+- **Limites de alarme (`VmAlarmes`)**: uma linha de 48 px por sensor ativo, 3 por página (o paginador
+  aparece a partir do quarto sensor): na primeira linha o nome e um selo ("Ligado" ou "Desligado", os
+  alarmes do sensor; "Manutenção" toma o lugar deles quando há janela aberta), na segunda a faixa de temperatura ("2,0 a 8,0 °C")
+  com a largura toda; chevron. Vazio: "Nenhum sensor ativo. Ative um sensor pela web." Amostras: 3 sensores; 6 (2 páginas);
   vazio; nome longo.
 - **Um sensor (`VmSensorAlarme`)**: título = nome do sensor (cortado); linhas: **Limites** (chevron),
   **Alarmes** (interruptor ligado/desligado; tocar alterna — o aparelho grava na hora, sem confirmação),
-  **Manutenção** (valor "1 h 30 min restantes" ou "Desligada", chevron). Sem a permissão daquela linha:
+  **Manutenção** (linha de 48 px: o estado, "1 h 30 min restantes" ou "Desligada", na segunda linha, sob
+  o rótulo, em âmbar com a janela aberta; chevron) e a nota "Ligar ou desligar alarmes vale na hora."
+  Sem a permissão daquela linha:
   linha desabilitada com cadeado (LOCK 20) e não é alvo. Amostras: tudo liberado; alarmes desligados;
   manutenção aberta; conta sem permissão de bloqueio.
 - **Status do sistema (`VmStatusSistema`)**: 4 páginas (Sistema, Rede, Sensores, Telemetria), título
   "Status · Sistema" etc., até 6 linhas de 24 px chave/valor como o plano; valores do levantamento §5
   (memória livre em vermelho abaixo de 20 kB; NTP "Sincronizado"/"Não sincronizado"; cabo
-  "Conectado"/"Sem cabo"). Página de sensores: "Ativos: 4 de 11" e até 5 sensores com o estado.
+  "Conectado"/"Sem cabo"). Página de sensores: "Ativos: 4 de 11" e até 5 sensores com o estado; sem sensor ativo, a nota
+  "Ative um sensor pela web."
   Amostras: as 4 páginas; memória baixa; sem rede.
 - **Licença (`VmLicenca`)**: as linhas da página já quebradas pela cola (`quebrar` com `tipo::apoio`
-  na largura do cartão), 7 por página como o plano, barra de rolagem proporcional, a nota "O texto legal
-  fica no original (inglês)." e o paginador "n de m". Amostras: página 1 de 18, última página parcial.
+  na largura do cartão), 6 por página, 18 px entre as linhas (o plano tem 7, a 16 px: no piso de 9 pt a
+  sétima chegaria ao paginador), barra de rolagem proporcional, a nota "O texto legal fica no original
+  (inglês)." e o paginador "n de m". O índice guarda até 192 linhas: 32 páginas. Amostras: a primeira
+  página, uma do meio, a última (cheia), uma linha de traço e um parágrafo longo.
 
 ### 6.3 ajustes — `Ajustes*.cpp`, `amostras/ajustes.cpp`
 
@@ -269,8 +279,12 @@ Leia `inventario/pin_usuarios_alarmes.md` inteiro e `tools/tft_ui/plano/PlanoTec
     Entrar primário, 32 px de altura), com os cartões encolhidos para caber; no ordenado, nas células
     9 e 11. Alvos: `TECLA` (indice k), `POPUP` (indice do caractere no popup), `APAGAR`, `ENTRAR`,
     `CANCELAR`.
-  - Estados: vazio; digitando (n pontos); erro ("PIN incorreto. Tente de novo." / "PIN curto: use pelo
-    menos 6 dígitos." / "Os dois PINs não batem. Comece de novo."); aguardando ("Conferindo…", teclas
+  - Estados: vazio; digitando (n pontos); erro ("PIN incorreto. Tente de novo." / "PIN curto: use 6
+    dígitos ou mais." / "Os PINs não batem. Comece de novo."); a linha sob o campo é de uma só fileira de 296 px
+    (as teclas começam 28 px abaixo do campo): "Toque no cartão com cada dígito." (ou "caractere"),
+    "Escolha de 6 a 12 caracteres." / "Digite o mesmo PIN de novo.", e para o PIN de outra conta o nome vem
+    primeiro, com o espaço que o resto deixa: "joao.silva: 6 a 12 caracteres.", "joao.silva: digite o mesmo
+    PIN."; aguardando ("Conferindo…", teclas
     desabilitadas, Cancelar ativo); espera ("Muitas tentativas. Aguarde 15 s.", teclas desabilitadas);
     bloqueio da conta e do painel ("Painel bloqueado. Reinicie o aparelho para liberar.", tela em perigo,
     só Cancelar).
@@ -280,13 +294,17 @@ Leia `inventario/pin_usuarios_alarmes.md` inteiro e `tools/tft_ui/plano/PlanoTec
   texto e o cursor, contador "5 de 15", as 4 camadas (abc, ABC, 123, #+=), Shift (uma letra) e Caps
   (travado), apagar, espaço, **Salvar**/OK e **Cancelar** na barra. Alvos por tecla (`indice` = posição
   na camada) e os de função. Amostras: vazio; digitando; Shift; Caps; 123; #+=; cheio (15 de 15);
-  erro "Use de 1 a 15 letras, números, ponto, hífen ou sublinhado." (diga no relatório quais
-  caracteres a validação do aparelho aceita em nome de conta — confira no código).
-- **Usuários (`VmUsuarios`)**: título "Usuários", voltar e a ação **Nova conta** (USER_PLUS) na barra
-  (desabilitada sem permissão de gerir contas); linhas com o nome, as permissões resumidas como valor
-  ("Limites · Alarmes · Manut." ou "Só leitura") e o selo "Sem PIN" (alerta) quando não há PIN;
-  chevron. O admin não aparece. Vazio: "Só o admin existe. Toque em Nova conta para criar outra."
-  Amostras: 3 contas; 7 (2 páginas); vazio; sem permissão.
+  as quatro recusas do nome da conta, numa fileira de 296 px (`TXT_ERRO_*`): "Digite um nome, não só
+  espaços.", "Tire as aspas e a barra invertida.", "O nome admin é reservado. Use outro." e "Esse nome já
+  existe. Use outro.".
+- **Usuários (`VmUsuarios`)**: título "Usuários", voltar e a ação **Nova conta** na barra
+  (desabilitada sem permissão de gerir contas); linhas de 48 px, 3 por página (`ident::LINHAS_2`; o
+  paginador aparece a partir da quarta conta): na primeira linha o nome e o selo "Sem PIN" (alerta) quando
+  não há PIN, na segunda as permissões resumidas ("Limites · Alarmes · Manut." ou "Só leitura") com a
+  largura toda; chevron. "Quem está no painel?" segue com linhas de uma linha, 4 por página. O admin não
+  aparece. Vazio: "Só o admin existe. Toque em Nova conta para criar outra."
+  Amostras: 3 contas; 7 (3 páginas); a pior linha (nome de 15 letras, sem PIN, as três permissões); vazio;
+  sem permissão.
 - **Conta (`VmConta`)**: título = nome; interruptores **Editar limites**, **Bloquear alarmes**,
   **Manutenção**; linhas **Definir PIN** (chevron) e **Excluir a conta** (texto em perigo) só para conta
   existente; rodapé **Salvar** (existente) ou **Seguir** (nova) / Cancelar. Amostras: existente; nova.
@@ -299,7 +317,7 @@ Leia `inventario/grafico_tema_idioma_nucleos.md` (Parte 1) e `inventario/configu
 - **Carregando (`VmCarregando`)**: título com o sensor e o período, "Lendo o histórico…" (sem
   porcentagem: o aparelho não tem esse número). Sem alvos.
 - **Gráfico (`VmGrafico`)**: desenho `historico_24h`: título "Vacinas · 24 h" com **Dia** (calendário)
-  e **Voltar**; as estatísticas (máx. e mín. com a hora, média, σ, Δ, agora); o gráfico com a banda
+  e **Voltar**; as estatísticas, 18 px entre as linhas (na primeira, máx. e mín. com a hora e a unidade: "máx 6,0 °C 12:10  mín 3,0 °C 22:57"; na segunda, "média 4,4  σ 0,7  Δ -0,7  agora 5,1", sem unidade); o gráfico com a banda
   mín./máx. de cada balde, a média em 2 px, lacunas onde o balde está vazio, a linha tracejada da
   média, o segundo valor (umidade ou pressão) quando houver, com escala própria à direita; eixo de
   tempo (HH:MM até 24 h, DD/MM em 7 d); "Sem dados neste período." quando vazio. Pé: os 5 períodos
@@ -309,8 +327,11 @@ Leia `inventario/grafico_tema_idioma_nucleos.md` (Parte 1) e `inventario/configu
   Até 200 baldes; o modelo guarda os baldes em inteiros (décimos), não em float.
   Amostras: 24 h com umidade; 7 d; 1 h com lacunas; sem dados; navegação no passado.
 - **Detalhe (`VmDetalhe`)**: desenho `detalhe_temp` por grandeza (paginador entre Temperatura, Umidade,
-  Pressão): Máximo (com data e hora), Mínimo, Média (n leituras), Desvio (σ), Variação, Agora.
-  Voltar volta ao gráfico. Amostras: temperatura; umidade; sem dados.
+  Pressão): seis cartões de 96 x 72, textos a 8 px da borda, o valor em fonte de display com a unidade em
+  `apoio` (4 px de tinta entre os dois, 5 depois de um "1", cuja haste fica rente ao "h") e uma linha sob ele: Máximo e Mínimo
+  com a hora nas janelas de dia e com a data na de 7 d, Média com "n leituras" ("n = 1440" quando a frase
+  não cabe), Desvio σ com "dispersão", Variação com "início→fim", Agora com a hora ("Fim", com a data,
+  numa janela passada). Voltar volta ao gráfico. Amostras: temperatura; umidade; sem dados.
 - **Calendário (`VmCalendario`)**: desenho `calendario_out`: mês e ano, ‹ ›, Voltar, os dias, hoje em
   acento, ponto nos dias com histórico, **Hoje**. Só dias com dados são alvos (`DIA`, indice = dia).
   Amostras: outubro 2026 com hoje; mês sem dados; fevereiro.
