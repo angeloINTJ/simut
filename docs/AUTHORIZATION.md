@@ -12,6 +12,12 @@ own unit — the panel mirror into `WebManager_History.cpp`, `POST /api/tls` int
 `python3 tools/check_authz.py --list` to print the live matrix straight from the
 source.
 
+A UI driver's routes (`src/ui/<driver>/WebManager*.cpp`, today only the Ângulo's
+`GET /api/ui`) are parsed by the same rules and a finding there fails the check,
+but the gate counts them on a line of their own, outside the totals the READMEs
+quote: no published image carries one yet. They are in the tables below, marked
+**driver**.
+
 ## How a refusal is answered
 
 Every JSON route gates through `requirePerm(bits)` (`WebManager_Auth.cpp`):
@@ -123,6 +129,7 @@ handler checks.
 | `GET /api/logcodes` | `PERM_LOGS` — the event names the log view prints: the active pack's `@LOGCODES`, then the firmware's English names (`?l=en`: English only). Static labels, no device data; gated anyway because its only reader is the log view, which already needs the bit. |
 | `GET /api/screenshot`, `/api/screenshot_chunk` | `PERM_SYS_CONFIG` |
 | `GET /api/screen_stream` | `PERM_SYS_CONFIG` |
+| `GET /api/ui` (**driver**: only an image built with `ui = "angulo"` registers it, `src/ui/angulo/WebManager_UiA.cpp`) | `PERM_SYS_CONFIG` — the Ângulo panel's frame: which screen is on the glass, its palette, how long the last paint took, the dashboard state the panel saves and the touch targets of that frame, so a script touches the centre of what is drawn. The permission is `/api/screenshot`'s: the targets say as much about the screen as its picture does |
 | `POST /api/touch` | `PERM_SYS_CONFIG` — drives the panel UI; the panel's PIN keypad still guards the settings screens, and every panel action tests the bit of the account the PIN identified (below) |
 | `GET /api/keypad` | `PERM_SYS_CONFIG` — the four scrambled card faces, the same ones `show display keypad` prints. It describes the glass, not the secret: an account that may read `/api/screenshot` already has a picture of the identical cards, and neither says which slot of a card is the digit. Empty faces when the keypad is not the live screen |
 | `GET /api/sec_status` | `PERM_USER_MGR` |

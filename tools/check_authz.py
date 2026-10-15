@@ -19,6 +19,19 @@ outside the core. The scan is text, so the ?op= prose that names
 "_server->on( )" in comments does not match the regex, which requires a
 "path", HTTP_x, registration.
 
+The UI drivers' routes are audited too, but counted apart (2026-10-14). The
+Angulo driver (tools/features.toml, [ui.angulo]) registers GET /api/ui from
+src/ui/angulo/WebManager_UiA.cpp, a unit only an image built with ui = "angulo"
+compiles, and the pico_base filter does not reach that subdirectory. Its handler
+needs the same gate as any other, so the gate parses src/ui/*/WebManager*.cpp by
+the same rules and a finding there fails the check. What it does not do is add
+the route to the totals: those are the routes of the published images,
+tools/check_readme_numbers.py holds them against the three READMEs, and no
+published image carries a driver route yet (the Angulo driver is a bench image,
+profile pico_wiretft_angulo, publish = false). The route gets a line of its
+own; when the driver ships in a product it moves into the totals and the READMEs
+change with it.
+
 Why a gate and not just a doc: the dangerous failure here is a NEW route added
 without a check — exactly the shape of the /api/restore?op=apply hole that once
 let an un-authenticated multipart feed overwrite /config and /history before
@@ -50,6 +63,9 @@ SRC = os.path.join(ROOT, "src")
 # Every WebManager*.cpp, so a route is audited wherever a feature registers it
 # (see the module docstring). Sorted for a stable scan order.
 ROUTES_FILES = sorted(glob.glob(os.path.join(SRC, "WebManager*.cpp")))
+# The UI drivers' route files: audited by the same rules, reported apart (see
+# the module docstring). A new driver's routes are found here without an edit.
+DRIVER_FILES = sorted(glob.glob(os.path.join(SRC, "ui", "*", "WebManager*.cpp")))
 
 # Tokens whose presence in a handler body proves it performs an authorization
 # check. Kept broad on purpose (see module docstring: present, not correct):
@@ -151,16 +167,9 @@ def handler_body(all_src, name):
     return None
 
 
-def main():
-    list_mode = "--list" in sys.argv
-
-    routes_text = "\n".join(read(p) for p in ROUTES_FILES)
-    all_src = {}
-    for fn in os.listdir(SRC):
-        if fn.endswith(".cpp"):
-            all_src[fn] = read(os.path.join(SRC, fn))
-
-    routes = parse_routes(routes_text)
+def audit(routes, all_src):
+    """Judge every route: return (rows, failures), a row being
+    (path, method, verdict, detail). all_src is where handler bodies are found."""
     rows = []       # (path, method, verdict, detail)
     failures = []
 
@@ -210,6 +219,28 @@ def main():
         else:
             rows.append((path, method, "UNGATED", ", ".join(gate_detail)))
 
+    return rows, failures
+
+
+def main():
+    list_mode = "--list" in sys.argv
+
+    routes_text = "\n".join(read(p) for p in ROUTES_FILES)
+    all_src = {}
+    for fn in os.listdir(SRC):
+        if fn.endswith(".cpp"):
+            all_src[fn] = read(os.path.join(SRC, fn))
+
+    rows, failures = audit(parse_routes(routes_text), all_src)
+
+    # The drivers' routes: the same audit, but their rows and totals stay out of
+    # the published images' (see the module docstring). A handler there may bind
+    # one defined in the core, so the core's sources are searched too.
+    driver_src = {os.path.relpath(p, SRC).replace(os.sep, "/"): read(p) for p in DRIVER_FILES}
+    driver_rows, driver_failures = audit(parse_routes("\n".join(driver_src.values())),
+                                         dict(all_src, **driver_src))
+    failures += [f"UI driver (src/ui/*/): {f}" for f in driver_failures]
+
     if list_mode:
         rows.sort(key=lambda r: (r[0], r[1]))
         w = max(len(r[0]) for r in rows)
@@ -219,6 +250,12 @@ def main():
               f"{sum(1 for r in rows if r[2]=='GATED')} gated, "
               f"{sum(1 for r in rows if r[2]=='PUBLIC')} public-by-design, "
               f"{sum(1 for r in rows if r[2]=='UNGATED')} ungated")
+        if driver_rows:
+            driver_rows.sort(key=lambda r: (r[0], r[1]))
+            w = max(len(r[0]) for r in driver_rows)
+            print("\nUI drivers, src/ui/*/ (not in the totals above):")
+            for path, method, verdict, detail in driver_rows:
+                print(f"  {method:5} {path:<{w}}  {verdict:8} {detail}")
         return 0
 
     if failures:
@@ -233,6 +270,13 @@ def main():
     print(f"AUTHZ GATE: clean ({len(rows)} routes — "
           f"{sum(1 for r in rows if r[2]=='GATED')} gated, "
           f"{sum(1 for r in rows if r[2]=='PUBLIC')} public-by-design)")
+    if driver_rows:
+        # No parenthesised "(N routes — G gated, P public-by-design)" here: that
+        # shape is what check_readme_numbers.py reads the published totals by.
+        print(f"AUTHZ GATE: UI drivers, src/ui/*/: {len(driver_rows)} route{'s' if len(driver_rows) != 1 else ''}, "
+              f"{sum(1 for r in driver_rows if r[2]=='GATED')} gated, "
+              f"{sum(1 for r in driver_rows if r[2]=='PUBLIC')} public-by-design; "
+              f"not in the totals above, no published image carries them")
     return 0
 
 

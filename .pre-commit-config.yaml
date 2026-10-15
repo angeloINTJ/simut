@@ -77,7 +77,8 @@ repos:
         entry: python3 tools/check_authz.py
         language: system
         pass_filenames: false
-        files: ^src/WebManager.*\.cpp$
+        # src/ui/angulo/: the Angulo driver's GET /api/ui, audited apart from the totals
+        files: ^src/(ui/angulo/)?WebManager.*\.cpp$
 
       - id: simut-fsguard
         name: /config filesystem guard intact
