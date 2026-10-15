@@ -98,7 +98,7 @@ inline void preencherGrafico( tela::VmGrafico &vm, const GraphDataPackage &g, fl
   vm.passado = passado;
 
   /* The second curve: the humidity, or the pressure on a part that has no
-   * humidity (drawGraphScreen( ), DisplayManager_Graph.cpp:530: hasV2 and
+   * humidity (drawGraphScreen( ) in DisplayManager_Graph.cpp: hasV2 and
    * v2IsPress). */
   const bool temV2 = ( g.hasHumidity || g.v2IsPress ) && !isnan( minHum );
   vm.serie2 = !temV2 ? Serie2::NENHUMA : g.v2IsPress ? Serie2::PRESSAO : Serie2::UMIDADE;
@@ -119,7 +119,7 @@ inline void preencherGrafico( tela::VmGrafico &vm, const GraphDataPackage &g, fl
   instante( g.tsCutoff + ( g.tsEnd - g.tsCutoff ) / 2, vm.eixo[1] );
   fimDaJanela( g.tsEnd, vm.eixo[2] );
 
-  /* No data is what drawGraphScreen( ) calls hasData (:531): two buckets and a peak. */
+  /* No data is what drawGraphScreen( ) calls hasData: two buckets and a peak. */
   const int n = ( g.count >= 2 && g.count <= GRAFICO_BALDES && g.idxMaxTemp >= 0 ) ? g.count : 0;
   vm.n = (uint8_t)n;
   vm.maximo = vm.minimo = vm.media = vm.desvio = vm.variacao = vm.agora = SEM_DADO;
@@ -245,7 +245,7 @@ inline void preencherDetalhe( tela::VmDetalhe &vm, const GraphDataPackage &g, fl
 
 /* The calendar's model: the month on show, the days with history (bit d = day
  * d, getHistoryDaysMask( )), today when it falls in this month
- * (drawCalendarScreen( ), DisplayManager_Calendar.cpp:67-72) and whether "›"
+ * (drawCalendarScreen( ), DisplayManager_Calendar.cpp) and whether "›"
  * has a month to go to: only while the one shown is before the current one. A
  * clock nobody has set (1970) has no current month to stop at. */
 inline void preencherCalendario( tela::VmCalendario &vm, int ano, int mes, uint32_t dias, time_t agora ) {

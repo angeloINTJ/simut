@@ -60,7 +60,7 @@ void paginadorComEstados( Pintor &p, int16_t pagina, int16_t total, const char *
 // The "busy" line: the Core 0 is reading what a tap asked for and the screen
 // still shows the old one. A thin accent line right under the title bar, over
 // its hairline, as the old panel put one on the header (drawGraphBusyHint( ),
-// DisplayManager_Graph.cpp:64), which in this build only marks the frame dirty.
+// DisplayManager_Graph.cpp), which in this build only marks the frame dirty.
 void linhaOcupado( Pintor &p );
 
 // "Sem dados neste período." centred in `area`, a line of what to do under it.

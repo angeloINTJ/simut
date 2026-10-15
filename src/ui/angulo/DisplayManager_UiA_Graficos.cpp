@@ -44,7 +44,7 @@ static_assert( (int)ua::tela::MotivoOta::NENHUM == OTA_WHY_NONE && (int)ua::tela
  * another period, another month) leaves the old data on the glass until the
  * read lands, which takes from 0.2 s to seconds (the old panel painted a hint
  * the instant the tap was accepted: drawGraphBusyHint( ),
- * DisplayManager_Graph.cpp:64). Here the screens draw it from the model, so it
+ * DisplayManager_Graph.cpp). Here the screens draw it from the model, so it
  * goes away with the frame that replaces it. The request is over when the data
  * on hand is no longer the data it was made against (`assinatura`), when the
  * mode is no longer the one it was made in, or after 8 s: Core 0 gives a read
@@ -130,7 +130,7 @@ bool DisplayManager::uaMontarGraficos( UaQuadro &q ) {
       /* The notice drawLoadingScreen( ) gave Core 0, which waits for it up to
        * 500 ms before it reads the history (AppManager_Events.cpp:169-173):
        * uiPass( ) takes the request that called it, so this is where it is given
-       * (DisplayManager_Graph.cpp:50 is the old place). */
+       * (drawLoadingScreen( ) was the old place). */
       _loadingDrawn = true;
       return true;
     }
