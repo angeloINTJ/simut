@@ -24,11 +24,14 @@ SHIM = HERE / 'host' / 'shim'
 
 
 def find_gfx():
-    for base in (ROOT / '.pio' / 'libdeps', ROOT.parents[2] / '.pio' / 'libdeps'):
-        for d in sorted(base.glob('*/Adafruit GFX Library')):
-            props = d / 'library.properties'
-            if props.is_file() and re.search(r'^version=1\.12\.6$', props.read_text(), re.M):
-                return d
+    """Adafruit GFX 1.12.6, the version the kit was drawn against, as PlatformIO fetched it into this
+    tree: run `pio run -e pico_wiretft_angulo` (or any TFT environment) once. Only this tree's
+    .pio/libdeps is looked at; an earlier version also looked three directories above it, which
+    resolved to a library folder only in the author's scratch layout."""
+    for d in sorted((ROOT / '.pio' / 'libdeps').glob('*/Adafruit GFX Library')):
+        props = d / 'library.properties'
+        if props.is_file() and re.search(r'^version=1\.12\.6$', props.read_text(), re.M):
+            return d
     return None
 
 

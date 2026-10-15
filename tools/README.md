@@ -1,6 +1,6 @@
 # tools/
 
-176 scripts. This file exists because until 2026-09-08 there was no way
+181 scripts. This file exists because until 2026-09-08 there was no way
 to tell a live bench tool from a leftover, and one of them —
 `compressor.py` — had been superseded for three months while still looking
 usable: it regenerated `WebUI_GZ.h` into the repository root, where nothing
@@ -96,7 +96,7 @@ local build before CI ever sees it.
 | `sensor_soak.py` | Sensor soak — protocol item #4 of docs/analysis/SIMUT-Plano-Estabilidade-Concorrencia.md. | 2026-08-14 |
 | `web_test_suite.py` | End-to-end test suite for the SIMUT web interface. | 2026-08-17 |
 
-## Referenced elsewhere (57)
+## Referenced elsewhere (61)
 
 Named by a document, a workflow, or another script — a recipe in `docs/` or a
 step in a bench procedure. Run by hand, but with instructions somewhere.
@@ -157,11 +157,15 @@ step in a bench procedure. Run by hand, but with instructions somewhere.
 | `test_elf_funcoes.py` | Proves `elf_funcoes.py` on small Cortex-M0+ programs it compiles with the PlatformIO toolchain (`-nostdlib`, a linker script it writes, one function in RAM so that a veneer appears) and runs as a subprocess: the same ELF twice; the same objects in another link order (the `.bin` differ, the verdict does not), a call through a veneer against a direct one, a function moved to another file; one string edited, in a pointer table, loaded directly, in `.data` and in a local table; one constant changed in one function; one number changed in a static const table (same layout and another), in a local initializer with no symbol and in two same-named tables; an ELF with no code and a stripped one refused; a switch-table value changed; one known limit held as an expected failure. Then 14 mutants of the tool, each making exactly the cases listed for it fail. 20 cases and 14 mutants in about 3 s (2026-10-14); writing it found and fixed three defects of the tool (its docstring says which). Skips without the toolchain (exit 1 with `SIMUT_ELF_TOOLCHAIN=require`). Not in CI yet: the `gates` job installs the native platform only, and the `firmware` jobs have the toolchain. | 2026-10-14 |
 | `test_lang_gate.py` | Positive controls for check_lang_packs.py — the split-ceiling gates. | 2026-10-13 |
 | `test_webui_minify.py` | Testa o minificador do build_webui_gz.py contra as armadilhas conhecidas. | 2026-08-18 |
+| `tft_ui/bancada_ui.py` | The bench's hands on the Ângulo UI driver (the transitional image `pico_wiretft_angulo`), through a device's web API: `estado` (`GET /api/ui`), `captura` (`GET /api/screenshot` as a PNG), `tocar` and `alvo` (`POST /api/touch` at a point, or at the centre of a target the board itself lists), `tema` (`POST /api/save_sys`, light, dark or automatic). Also a module, `Bancada`, that `roteiro_ui.py` uses. **Bench only**: it needs a device running that image at `--host` (or `SIMUT_HOST`) and the web credentials in `~/.simut-bench.env`, and it changes the device's theme when asked. Not run in S2b: no hardware was touched. | 2026-10-14 |
+| `tft_ui/gerar_meta.js` | Generates `src/ui/angulo/AnguloMeta.h` and `AnguloIcones.h`: the table of non-ASCII glyph codes the delivered fonts carry, the cap and x heights per font, and the icons the real screens need beyond the 42 of the delivery (`node gerar_meta.js <delivery> <renderer environment>`). **Needs what is not in the tree**: the delivery of the TFT plan (its fonts, `fontes.json` and `icones.h`), a renderer environment with its `node_modules` and the FreeFont TTFs, and `tools/tft_synth/motor_gfx.js`, the glyph engine of the synthetic-capture study (branch `study/tft-angulo-ui-a`). The two headers it writes are in the tree, so nothing runs it until a font or an icon changes. Not run in S2b. | 2026-10-14 |
+| `tft_ui/host_telas.py` | Draws one group of the Ângulo driver's screens on the host and checks it (`base`, `painel`, `menus`, `ajustes`, `identidade`, `graficos`): compiles the kit (`src/ui/angulo/Angulo.cpp`), the shared screen code, the group's screens and its samples (`tft_ui/amostras/<group>.cpp`) with g++ against Adafruit GFX 1.12.6 from this tree's `.pio/libdeps` (run `pio run -e pico_wiretft_angulo` once), draws every sample in both themes, and fails on a glyph or icon the kit lacks, text outside the safe area (x 4..315, y 4..235), two texts whose ink overlaps or a target off the panel; it warns on a target under 24 px and on overlapping targets. `--out` keeps the frames, the target overlays and a contact sheet (needs Pillow). Host only: no bench, nothing outside the tree. All six groups exit 0 on 2026-10-14 (5, 53, 46, 56, 61 and 45 samples, no failure; 11 warnings in `painel`). | 2026-10-14 |
+| `tft_ui/host_ui.py` | Holds the Ângulo kit to the TFT plan's reference frames, on the host: compiles `src/ui/angulo/Angulo.cpp` and the ports of the plan's screens (`tft_ui/plano/`) with Adafruit GFX 1.12.6 (this tree's `.pio/libdeps`), draws every ported screen in both themes and compares each frame, as RGB565, with the plan's. **Needs a folder of expected frames that is not in the tree**: the `.565` files that the plan's `gerar_firmware.js --esperado <dir>` writes, in the synthetic-capture study (`tools/tft_synth/` on the branch `study/tft-angulo-ui-a`). Without it the script cannot judge. 106 of 106 frames equal on 2026-10-14. Host only. | 2026-10-14 |
 | `theme-editor/gen_presets.py` | Regenerates presets.js from src/Themes.cpp — the single source of truth. | 2026-08-15 |
 | `theme-editor/server.py` | SIMUT Theme Editor — launcher. | 2026-06-03 |
 | `validate_top_pin_alarm.py` | SIMUT v21 — Validação visual da correção do painel superior fixado (pin). | 2026-08-23 |
 
-## Standalone (57)
+## Standalone (58)
 
 Nothing in the repository names these. That is a statement about
 discoverability, **not** a verdict: several are ordinary bench and recovery
@@ -232,3 +236,4 @@ from a document. Anything genuinely dead should leave the tree, as
 | `test_webui_graph_order.py` | Regression test for the graph reader's handling of out-of-order blocks. | 2026-08-15 |
 | `theme_audit.py` | Coherence audit for SIMUT themes. | 2026-08-15 |
 | `wifi_scan_hw_test.py` | `GET /api/wifi/scan` no ferro, em STA e **de dentro do AP de configuração** (`--ap`, exige um segundo rádio). O cabeçalho lista as 5 armadilhas que custaram as primeiras tentativas — entre elas `user perm <u> dashboard` ser RECUSADO, o que faz uma conta admin passar por restrita e inventar um buraco de autorização. 18/18 em 20/09. | 2026-09-20 |
+| `tft_ui/roteiro_ui.py` | Walks every screen of the Ângulo UI driver on the bench, by touch, in the light and the dark theme, and keeps a capture and the frame's state of every step (`<out>/relatorio.json`, `<out>/<theme>/<nn>_<step>.png`). Touches are `POST /api/touch` at the centre of a target the board itself lists (`GET /api/ui`), never at copied coordinates, and each step fails when another mode is on the glass than the one it expects. It creates a test account (`teste_ui`) before the walk and deletes it at the end (both reboot the device), sets the theme per walk and restores it, and never presses Save on the PIN policy, the display alignment or the clock. **Bench only**: a device running `pico_wiretft_angulo` at `--host` and `~/.simut-bench.env`; it uses `bancada_ui.py`. Not run in S2b: no hardware was touched. | 2026-10-14 |
