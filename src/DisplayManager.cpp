@@ -38,6 +38,7 @@
 
 #include "pico/multicore.h"
 #include "hardware/structs/scb.h"
+#include "ui/UiDriverHooks.h"   /* the UI driver's hook definitions: after every other include, they need the complete class */
 
 
 /* Reduced from 8 to 2 languages (EN + PT) to save flash.
@@ -64,8 +65,6 @@
  * text, which tools/gen_notices.py copies into HelpLicenseEN.h. */
 #if !SIMUT_DISPLAY_ALPHA
 #include "DisplayManager_Ticks.h"   /* the core's timers of the Core 1 pass: inline, called from loopCore1( ) */
-#include "ui/UiDriverHooks.h"   /* the UI driver's hook definitions: after every other include, they need the complete class;
-                                   the original's draw on the TFT, which the alpha display has not, so not above this #if */
 static char _licOpening[768];
 static int _licOpeningLang = -1;    /* the language _licOpening was composed for */
 
