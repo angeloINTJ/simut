@@ -554,7 +554,7 @@ public:
 	bool getUiEvent(UiEvent& ev);
 	void refreshTheme( );
 	uint16_t readPixel(int16_t x, int16_t y);
-	void readRow(int16_t y, uint16_t* buffer, int16_t w = 320);
+	void readRow(int16_t y, uint16_t* buffer, int16_t w = DisplayDriver::W);
 	void readRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t* out);
 
 	/* Same read, delegated to DMA so the caller can work while it runs. Start
@@ -1446,8 +1446,18 @@ private:
 	static constexpr int STATUS_PAGES = 4;
 	uint32_t _statusLastDraw = 0;
 
-	static constexpr int16_t CAL_SCR_X[4] = { 20, 300, 20, 300 };
-	static constexpr int16_t CAL_SCR_Y[4] = { 20, 20, 220, 220 };
+	/* The calibration targets sit CAL_INSET px inside the panel's corners (x 20/300, y 20/220 on
+	 * 320x240). The solve in handleTouch (DisplayManager_Touch.cpp) takes the distance between
+	 * them, CAL_SPAN_X by CAL_SPAN_Y, as the stretch of glass its raw readings cover, and widens
+	 * the window by one inset past each end. A 0 x 0 driver (no panel) gives negative values
+	 * here; nothing reads them in those images. */
+	static constexpr int16_t CAL_INSET  = 20;
+	static constexpr int16_t CAL_SPAN_X = DisplayDriver::W - 2 * CAL_INSET;   /* 280 on 320 */
+	static constexpr int16_t CAL_SPAN_Y = DisplayDriver::H - 2 * CAL_INSET;   /* 200 on 240 */
+	static constexpr int16_t CAL_SCR_X[4] = { CAL_INSET, DisplayDriver::W - CAL_INSET,
+	                                          CAL_INSET, DisplayDriver::W - CAL_INSET };
+	static constexpr int16_t CAL_SCR_Y[4] = { CAL_INSET, CAL_INSET,
+	                                          DisplayDriver::H - CAL_INSET, DisplayDriver::H - CAL_INSET };
 
 public:
 	/* Full-screen render via 6 strips of RENDER_STRIP_H (40) px.
