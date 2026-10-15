@@ -50,6 +50,7 @@
 #include "display/ClockEntry.h"         /* the date and time set at the panel */
 #include "display/DashHold.h"          /* the dashboard's 3 s hold and page button */
 #include "display/GraphNav.h"           /* the calendar's day test */
+#include "display/GraphAnchor.h"        /* where the chart's window ends */
 #include "display/ListPager.h"         /* the list screens' page arithmetic */
 #include "display/SettingsMenu.h"       /* the panel's Settings menu: rows, order */
 #include "PasswordCheck.h"             /* one derivation per password check */
@@ -5071,6 +5072,128 @@ void test_cal_day_has_history_reads_the_bit_of_that_day_and_nothing_else(void) {
     TEST_ASSERT_FALSE(calDayHasHistory(1u << 31, 30));
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * Where the chart's window ends (display/GraphAnchor.h)
+ *
+ * 2026-10-15 (fix/ui-angulo-historico): Core 0 judged the window after the arrows' taps against a clock it read later than the one it had
+ * anchored on, and never dropped the anchor when the chart was opened from another screen. Each decision is one function with no hardware
+ * in it, and the Ângulo's image calls them. Each case names the mutants it kills; stages/hist_fix holds the run of each mutant applied to
+ * the header and the cases it failed.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+static const time_t GA_NOW = 1792000000;                                 /* a clock; no case depends on its value */
+static const time_t GA_STEP[5] = { 3600, 21600, 43200, 86400, 604800 }; /* 1 h, 6 h, 12 h, 24 h, 7 d: the five periods of the chart */
+
+static void ga_expect(time_t anchorEnd, int offset, const GraphAnchorPlace &got) {
+    TEST_ASSERT_EQUAL_INT64((long long)anchorEnd, (long long)got.anchorEnd);
+    TEST_ASSERT_EQUAL_INT(offset, got.offset);
+}
+
+/* A tap back from the live window is whole periods in the past, for each of the five: a sign taken wrong or a `step` left out puts the end
+ * elsewhere, an anchor that starts at 0 instead of the clock puts it near 1970, and an offset left at 0 says the past is the present. */
+void test_graph_anchor_back_from_the_present_is_whole_periods_in_the_past(void) {
+    for (int i = 0; i < 5; i++) {
+        const time_t s = GA_STEP[i];
+        ga_expect(GA_NOW - s, -1, graphAnchorStep(0, GA_NOW, -1, s));
+        ga_expect(GA_NOW - 3 * s, -1, graphAnchorStep(0, GA_NOW, -3, s));
+    }
+}
+
+/* The defect: one period back, then one forward a few seconds later, is the present. The window ends at the first tap's clock, a few seconds
+ * before the clock of the second, which the old code read as the past (▶ still enabled). From 0 to just under half a period apart it is the
+ * live window, anchor 0 and offset 0: an anchor kept, an offset left at -1, a bound that compares the wrong way (`>`, `>=`), a quarter in place
+ * of the half and a distance taken with the wrong sign (`end - now`) each fail here. */
+void test_graph_anchor_back_then_forward_a_few_seconds_apart_is_the_present(void) {
+    for (int i = 0; i < 5; i++) {
+        const time_t s = GA_STEP[i];
+        const GraphAnchorPlace back = graphAnchorStep(0, GA_NOW, -1, s);
+        const time_t gaps[] = { 0, 1, 5, 30, s / 2 - 1 };
+        for (time_t d : gaps) ga_expect(0, 0, graphAnchorStep(back.anchorEnd, GA_NOW + d, +1, s));
+    }
+}
+
+/* The bound is half a period, strict. A window that ends exactly half a period before the clock is still the past, and so is every one
+ * further back, up to the third period: `<=` in place of `<` fails at the half, a whole period in place of the half fails there too. The
+ * window is the first tap's clock, as the old code gave it (anchor and offset), because that is the place it was further back than half. */
+void test_graph_anchor_back_then_forward_from_half_a_period_apart_is_the_past(void) {
+    for (int i = 0; i < 5; i++) {
+        const time_t s = GA_STEP[i];
+        const GraphAnchorPlace back = graphAnchorStep(0, GA_NOW, -1, s);
+        const time_t gaps[] = { s / 2, s / 2 + 1, s - 1, s, 3 * s };
+        for (time_t d : gaps) ga_expect(GA_NOW, -1, graphAnchorStep(back.anchorEnd, GA_NOW + d, +1, s));
+    }
+}
+
+/* Two taps back and one forward is one period back: the forward does not jump to the present, and the second back starts from the anchor the
+ * first one left (an anchor that is ignored and read as the clock again lands one period back after the two). */
+void test_graph_anchor_two_backs_then_one_forward_is_one_period_back(void) {
+    for (int i = 0; i < 5; i++) {
+        const time_t s = GA_STEP[i];
+        const GraphAnchorPlace b1 = graphAnchorStep(0, GA_NOW, -1, s);
+        const GraphAnchorPlace b2 = graphAnchorStep(b1.anchorEnd, GA_NOW + 2, -1, s);
+        ga_expect(GA_NOW - 2 * s, -1, b2);
+        ga_expect(GA_NOW - s, -1, graphAnchorStep(b2.anchorEnd, GA_NOW + 5, +1, s));
+    }
+}
+
+/* Forward from the present stays there: no window after the clock, whatever the number of taps, and nothing frozen at a clock (the second ▶
+ * of the old code left the anchor at the moment it was pressed). A window that was left a few seconds short of the clock is the present too. */
+void test_graph_anchor_forward_from_the_present_stays_at_the_present(void) {
+    for (int i = 0; i < 5; i++) {
+        const time_t s = GA_STEP[i];
+        ga_expect(0, 0, graphAnchorStep(0, GA_NOW, +1, s));
+        ga_expect(0, 0, graphAnchorStep(0, GA_NOW, +3, s));
+        ga_expect(0, 0, graphAnchorStep(GA_NOW - 7, GA_NOW, +1, s));
+    }
+}
+
+/* The clamp against the future. The calendar's Today anchors at the next midnight, which is ahead of the clock: forward of it, and back of it
+ * while the result is still ahead, is the present. Back far enough to come out behind the clock by more than half a period is the past, and
+ * is placed from the anchor (100 s ahead, one hour back: 3,500 s behind). */
+void test_graph_anchor_never_looks_past_the_clock(void) {
+    for (int i = 0; i < 5; i++) {
+        const time_t s = GA_STEP[i];
+        ga_expect(0, 0, graphAnchorStep(GA_NOW + 50000, GA_NOW, +2, s));
+        ga_expect(0, 0, graphAnchorStep(GA_NOW + 2 * s, GA_NOW, -1, s));
+    }
+    ga_expect(GA_NOW - 3500, -1, graphAnchorStep(GA_NOW + 100, GA_NOW, -1, 3600));
+}
+
+/* A window well in the past moves by whole periods, and meets the clock when it gets there: ten periods back, +1 is nine, -2 is twelve,
+ * +9 is one, and +10 or +11 is the present. This is the part the old code did the same way. */
+void test_graph_anchor_a_window_well_in_the_past_moves_by_whole_periods(void) {
+    for (int i = 0; i < 5; i++) {
+        const time_t s = GA_STEP[i];
+        const time_t w = GA_NOW - 10 * s;
+        ga_expect(GA_NOW - 9 * s, -1, graphAnchorStep(w, GA_NOW, +1, s));
+        ga_expect(GA_NOW - 12 * s, -1, graphAnchorStep(w, GA_NOW, -2, s));
+        ga_expect(GA_NOW - s, -1, graphAnchorStep(w, GA_NOW, +9, s));
+        ga_expect(0, 0, graphAnchorStep(w, GA_NOW, +10, s));
+        ga_expect(0, 0, graphAnchorStep(w, GA_NOW, +11, s));
+    }
+}
+
+/* Opened from any other screen the chart starts at the present: the 28 modes of UiMode that are not the chart, from the dashboard (0) to the
+ * firmware-update screen (30), and any value past them, since a mode appended later is another screen. The three graph modes, 1 to 3, are
+ * the next case's. */
+void test_graph_open_from_any_other_screen_starts_at_the_present(void) {
+    for (int m = -1; m <= 40; m++) {
+        if (m >= 1 && m <= 3) continue;
+        TEST_ASSERT_TRUE(graphOpenClearsAnchor(m));
+    }
+}
+
+/* Inside the chart the window is kept: the loading screen (1), the chart (2) and its detail (3), each of them. A mode dropped from the rule
+ * makes its opening start at the present, and the way back from the detail would lose the day the user chose. */
+void test_graph_open_inside_the_chart_keeps_the_window(void) {
+    TEST_ASSERT_FALSE(graphOpenClearsAnchor(1));    /* MODE_GRAPH_LOADING */
+    TEST_ASSERT_FALSE(graphOpenClearsAnchor(2));    /* MODE_GRAPH_VIEW */
+    TEST_ASSERT_FALSE(graphOpenClearsAnchor(3));    /* MODE_GRAPH_DETAIL */
+    TEST_ASSERT_EQUAL_INT(1, GRAPH_SCREEN_LOADING);
+    TEST_ASSERT_EQUAL_INT(2, GRAPH_SCREEN_VIEW);
+    TEST_ASSERT_EQUAL_INT(3, GRAPH_SCREEN_DETAIL);
+}
+
 int main(int /*argc*/, char** /*argv*/) {
     UNITY_BEGIN();
 
@@ -5369,6 +5492,15 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_list_page_step_stops_at_the_ends_and_does_not_wrap);
     RUN_TEST(test_cal_day_has_history_holds_the_first_and_last_day_of_a_month);
     RUN_TEST(test_cal_day_has_history_reads_the_bit_of_that_day_and_nothing_else);
+    RUN_TEST(test_graph_anchor_back_from_the_present_is_whole_periods_in_the_past);
+    RUN_TEST(test_graph_anchor_back_then_forward_a_few_seconds_apart_is_the_present);
+    RUN_TEST(test_graph_anchor_back_then_forward_from_half_a_period_apart_is_the_past);
+    RUN_TEST(test_graph_anchor_two_backs_then_one_forward_is_one_period_back);
+    RUN_TEST(test_graph_anchor_forward_from_the_present_stays_at_the_present);
+    RUN_TEST(test_graph_anchor_never_looks_past_the_clock);
+    RUN_TEST(test_graph_anchor_a_window_well_in_the_past_moves_by_whole_periods);
+    RUN_TEST(test_graph_open_from_any_other_screen_starts_at_the_present);
+    RUN_TEST(test_graph_open_inside_the_chart_keeps_the_window);
     RUN_TEST(test_settings_menu_item_ids_are_the_historical_ones);
     RUN_TEST(test_settings_menu_order_lists_every_item_once);
     RUN_TEST(test_settings_menu_full_admin_sees_every_item_in_order);

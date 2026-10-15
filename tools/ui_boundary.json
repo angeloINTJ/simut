@@ -1,5 +1,9 @@
 {
  "identity": {
+  "src/AppManager_Events.cpp": {
+   "count": 2,
+   "reason": "transitional, two product defects fixed for the Ângulo's bench image only (fix/ui-angulo-historico, 2026-10-15), so that the nine product images stay byte for byte as they are: the `#if` around graphOpenClearsAnchor( ) in EVT_OPEN_GRAPH (the chart opens at the present) and the one around graphAnchorStep( ) in flushGraphNav( ) (a window less than half a step from now is the present). Both end when main takes the same two functions without the `#if` (docs/analysis/UI_DRIVERS.md, \"Product defects fixed for the Ângulo's bench image\"); no stage of the plan does that, so S12, the last, is the placeholder the gate's `ends in S<n>` asks for: ends in S12 at the latest, by then main has the fix or the maintainer decides"
+  },
   "src/DisplayManager_Dashboard.cpp": {
    "count": 3,
    "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the `#if` around the `_uaPintando` guard of fastFillRect, fastClearScreen and blitCanvas, so that only the Ângulo's renderer pushes pixels; ends in S10b (the Ângulo image stops linking the original)"
