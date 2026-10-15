@@ -78,11 +78,11 @@ bool DisplayManager::uaMontarPainel( UaQuadro &q ) {
   using namespace ua::tela;
 
   /* The boot screen stands in for the dashboard only: render( ), whose boot
-   * branch keeps _lastRenderedState and asks for a frame
-   * (DisplayManager.cpp:1825-1835), runs in MODE_DASHBOARD alone, and a boot
-   * can open other screens over it (the touch calibration of a first boot,
-   * DisplayManager_Touch.cpp:180-191; the clock asked at boot, :1648), which
-   * must not stay hidden behind the log (review of 2026-10-14). */
+   * branch keeps _lastRenderedState and asks for a frame (DisplayManager.cpp),
+   * runs in MODE_DASHBOARD alone, and a boot can open other screens over it
+   * (the touch calibration of a first boot, handleTouch( )'s calibration branch;
+   * the clock asked at boot, its clock-entry screen), which must not stay
+   * hidden behind the log (review of 2026-10-14). */
   if ( _lastRenderedState.isBooting && _uiMode == MODE_DASHBOARD ) {
     VmBoot &vm = uaVm<VmBoot>( );
     /* The ring, oldest first: setBootStatusKey( ) shifts it toward 0 and writes
@@ -126,7 +126,7 @@ bool DisplayManager::uaMontarPainel( UaQuadro &q ) {
       uaVmStatus( vm.status );
       const int slot = _alarmActionSlot;
       const SensorRecord *rec = ( _sysConfigPtr && slot >= 0 && slot < MAX_SENSORS ) ? &_sysConfigPtr->sensors[slot] : nullptr;
-      /* The name of the slot the buttons act on (id = _alarmActionSlot, Touch.cpp:1556 and 1564), from
+      /* The name of the slot the buttons act on (id = _alarmActionSlot, which actAlarmSilence( ) and actAlarmDeactivate( ) send), from
        * the configuration. The old header printed the LOWER card's name whatever the slot
        * (DisplayManager_Alarm.cpp:76-84): opened from the upper card it named the wrong sensor. */
       if ( rec && rec->friendlyName[0] ) ua::copiar( vm.nome, rec->friendlyName, sizeof vm.nome );
@@ -271,7 +271,7 @@ bool DisplayManager::uaMontarPainel( UaQuadro &q ) {
       vm.paginas = (uint8_t)totalPages;
 
       /* The web is saving: touch stays refused and the notice says who (the sticky flag, as
-       * handleTouch( ) and the dashboard branch of the loop read it: Touch.cpp:381-396). The name
+       * handleTouch( ) and tickDashboard( ) read it: the web-busy refusal in handleTouch( )). The name
        * is only meaningful while busy: setWebBusy( ) writes it, nothing clears it. */
       vm.webOcupada = _lastWebBusy;
       if ( vm.webOcupada ) ua::copiar( vm.contaWeb, _webBusyUser, sizeof vm.contaWeb );
@@ -288,7 +288,7 @@ UaToque DisplayManager::uaToquePainel( const ua::Alvo *a, int16_t &, int16_t & )
   switch ( _uiMode ) {
     case MODE_DASHBOARD:
       /* A boot frame still on the glass: this touch came in the pass where endBoot( ) cleared
-       * _sharedState.isBooting (handleTouch( ) answers the boot's own touch first, Touch.cpp:357-362)
+       * _sharedState.isBooting (handleTouch( ) answers the boot's own touch first, in its isBooting branch)
        * and render( ) has not run yet. Nothing in that frame is for the actions below (BOOT_PULAR
        * would read as the upper card). */
       if ( _lastRenderedState.isBooting || !a ) return UaToque::TRATADO;

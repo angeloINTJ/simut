@@ -1515,7 +1515,7 @@ private:
 	/* UI driver hook: the top card is to be shown from `snap` (redrawTopPanel( ), a copy of the state taken after it synced
 	 * topSlotIdx and mirrored the bottom card's data into the top's). The original draws the card and then the bottom buttons,
 	 * because a pinned slot's button appears and disappears with the pin; the Ângulo marks its frame to be repainted. `snap`
-	 * has to travel by reference: it is a SystemState, 400 B, and the Core 1 stack is small. */
+	 * has to travel by reference: it is a SystemState, 360 B (redrawTopPanel( )'s copy is a memcpy of 360 B, measured on 2026-10-15), and the Core 1 stack is small. */
 	UI_HOOK void uiTopPanel( const SystemState &snap );
 	/* UI driver hook: a touch while the device boots, with the skip button on the screen (showSkipButton): did it land on the
 	 * button? The original answers with the rectangle the button has always had, y > 190 and x 80..240; the Ângulo asks the
