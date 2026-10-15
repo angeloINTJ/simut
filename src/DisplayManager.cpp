@@ -1260,7 +1260,9 @@ void DisplayManager::loopCore1( ) {
 	 * on subsequent launches. */
 	if (!_driver.tft) _driver.tft = new TftWithOffset(TFT_CS, TFT_DC, TFT_RST);
 	if (!_driver.ts) _driver.ts = new XPT2046_Touchscreen(TOUCH_CS, TOUCH_IRQ);
-	if (!_driver.canvas) _driver.canvas = new GFXcanvas16(320, 45);
+	/* As wide as the panel, so a full-width blit goes straight from the buffer (blitCanvas
+	 * compacts a narrower one in place first); 45 rows tall. */
+	if (!_driver.canvas) _driver.canvas = new GFXcanvas16(DisplayDriver::W, 45);
 	/* The 140x40 canvasSmall that used to be allocated here was dead weight:
 	 * since the widget overhaul nothing drew into it, yet it held 11.2 KB of
 	 * heap hostage on a device whose low-water mark dips below 40 KB. */
