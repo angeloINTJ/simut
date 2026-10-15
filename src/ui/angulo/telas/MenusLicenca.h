@@ -13,8 +13,9 @@
 namespace ua {
 namespace tela {
 
-// Lines the index holds; the rest of a longer text is left out. The real text is 115 lines in the
-// wired build and 125 in the radio one (indexed on the host, 2026-10-14): 192 leaves half again.
+// Lines the index holds; the rest of a longer text is left out. The real text is 134 lines in the
+// wired build and 145 in the radio one (indexed on the host with the 9 pt text, 2026-10-15; 115 and
+// 125 at 7 pt, the day before): 192 leaves a third more.
 constexpr int LICENCA_INDICE_MAX = 192;
 constexpr int LICENCA_FONTES_MAX = 8;
 

@@ -231,7 +231,7 @@ int alvosStatusSistema( const VmStatusSistema &vm, Alvo *out ) {
 
 namespace {
 
-// The card: padding, seven lines, a gap, the note's line, padding.
+// The card: padding, the page's lines, a gap, the note's line, padding.
 constexpr int16_t LICENCA_H_CARTAO = ESP2 + LICENCA_LINHAS * LICENCA_PASSO + ESP2 + LICENCA_PASSO + ESP2;
 // The thumb is never smaller than this, however many pages there are: 18 pages
 // would leave 6 px, which nobody can see.

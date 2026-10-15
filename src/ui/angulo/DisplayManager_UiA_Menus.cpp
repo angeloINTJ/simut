@@ -263,7 +263,7 @@ bool DisplayManager::uaMontarMenus( UaQuadro &q ) {
     }
     case MODE_SETTINGS_LICENSE: {
       /* drawSettingsLicense( ) (DisplayManager.cpp:2075): the opening, then the MIT text and the third-party
-       * list, as one text. Wrapped once into an index; the seven lines of the page are copied out of it. */
+       * list, as one text. Wrapped once into an index; the page's lines are copied out of it. */
       VmLicenca &vm = uaVm<VmLicenca>( );
       if ( s_indiceLic.n == 0 || s_idiomaLic != _currentLangIdx ) {
         ua::tela::FonteLicenca fontes[ua::tela::LICENCA_FONTES_MAX];
