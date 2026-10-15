@@ -59,7 +59,7 @@ static_assert( mesmo( ua::tela::ID_INGLES, LANG_EN ) && mesmo( ua::tela::ID_PACO
 
 /* The licence's opening in the pack's language is composed on Core 0 into a file-static buffer of
  * DisplayManager.cpp (_licOpening): webDictValue( ) reads LittleFS, which only Core 0 may
- * ("Core 0 only", DisplayManager_LangParser.cpp:332), so Core 1 cannot compose it here.
+ * ("Core 0 only", DisplayManager_LangParser.cpp), so Core 1 cannot compose it here.
  * DisplayManager::licenseOpening( ) offers that buffer; where it is empty (no pack, or English) the screen opens
  * with the English text of the page, which is what the old screen shows without a pack. */
 
@@ -87,7 +87,7 @@ void nomeDoPacote( const char *nome, const char *codigo, char *out, int cap ) {
 }
 
 /* Minutes left in a slot's maintenance window, 0 when it is closed: maintMinutesLeft( ) of
- * DisplayManager_Users.cpp:656-662 (a static there), which uses the wall clock the way Core 0 does. */
+ * maintMinutesLeft( ) in DisplayManager_Users.cpp (a static there), which uses the wall clock the way Core 0 does. */
 uint32_t minutosDeManutencao( const SystemConfig *cfg, int slot ) {
   if ( !cfg || slot < 0 || slot >= MAX_SENSORS ) return 0;
   const uint32_t agora = (uint32_t)time( nullptr );
@@ -114,7 +114,7 @@ bool DisplayManager::uaMontarMenus( UaQuadro &q ) {
   using namespace ua::tela;
   switch ( _uiMode ) {
     case MODE_SETTINGS_MAIN: {
-      /* drawSettingsMain( ) (DisplayManager_Settings.cpp:350): the list is _menuItems[0.._menuCount)
+      /* drawSettingsMain( ) (DisplayManager_Settings.cpp): the list is _menuItems[0.._menuCount)
        * as showSettingsMain( ) built it for this session's bits, and the title carried the account. */
       VmMenu &vm = uaVm<VmMenu>( );
       const int n = _menuCount < MENU_ITENS_MAX ? _menuCount : MENU_ITENS_MAX;
@@ -135,7 +135,7 @@ bool DisplayManager::uaMontarMenus( UaQuadro &q ) {
       return true;
     }
     case MODE_SETTINGS_LANG: {
-      /* drawSettingsLang( ) (DisplayManager_i18n.cpp:178): English, and the pack when one is loaded. */
+      /* drawSettingsLang( ) (DisplayManager_i18n.cpp): English, and the pack when one is loaded. */
       VmIdioma &vm = uaVm<VmIdioma>( );
       if ( _activeLangLoaded ) {
         nomeDoPacote( _activeLang.name, _activeLang.code, vm.pacote, sizeof vm.pacote );
@@ -147,7 +147,7 @@ bool DisplayManager::uaMontarMenus( UaQuadro &q ) {
       return true;
     }
     case MODE_SETTINGS_ALARMS: {
-      /* renderAlarmRow( ) (DisplayManager_Settings.cpp:141): one row per active sensor, in the order
+      /* renderAlarmRow( ) (DisplayManager_Settings.cpp): one row per active sensor, in the order
        * showSettingsAlarms( ) listed them in _activeSensorsMap; the new rows also say the temperature
        * band and an open maintenance window. */
       VmAlarmes &vm = uaVm<VmAlarmes>( );
@@ -172,7 +172,7 @@ bool DisplayManager::uaMontarMenus( UaQuadro &q ) {
       return true;
     }
     case MODE_SETTINGS_ALARM_SENSOR: {
-      /* drawAlarmSensorMenu( ) (DisplayManager_Users.cpp:668): the sensor's name, the switch (alarmsActive),
+      /* drawAlarmSensorMenu( ) (DisplayManager_Users.cpp): the sensor's name, the switch (alarmsActive),
        * the maintenance window and, row by row, whether this session holds the bit. The window is given
        * in whole minutes (as seconds): a count of seconds would repaint the frame every second. */
       VmSensorAlarme &vm = uaVm<VmSensorAlarme>( );
@@ -190,7 +190,7 @@ bool DisplayManager::uaMontarMenus( UaQuadro &q ) {
       return true;
     }
     case MODE_SETTINGS_STATUS: {
-      /* drawSystemStatus( ) (DisplayManager_Settings.cpp:1345): the rows come from _statusData, the copy
+      /* drawSystemStatus( ) (DisplayManager_Settings.cpp): the rows come from _statusData, the copy
        * Core 0 pushes once a second without a lock, so a copy of our own keeps a frame from mixing two
        * seconds. Only the shown page's fields are filled: the view model is hashed byte for byte, and the
        * uptime ticking must not repaint what is not on it. */
@@ -213,7 +213,7 @@ bool DisplayManager::uaMontarMenus( UaQuadro &q ) {
           break;
         case PS_REDE:
 #if SIMUT_NET_LAN
-          vm.cabo = true;   /* the wired build: a cable's link, no network name, no signal (Settings.cpp:1405-1411) */
+          vm.cabo = true;   /* the wired build: a cable's link, no network name, no signal (drawSystemStatus( )) */
 #endif
           vm.conectado = d.wifiConnected;
           vm.ntpSincronizado = d.ntpSynced;
@@ -224,7 +224,7 @@ bool DisplayManager::uaMontarMenus( UaQuadro &q ) {
           ua::copiar( vm.ntpServidor, d.ntpServer, sizeof vm.ntpServidor );
           break;
         case PS_SENSORES: {
-          /* The old page said only how many were active (Settings.cpp:1438-1441). The count is taken from the
+          /* The old page said only how many were active (drawSystemStatus( )). The count is taken from the
            * config here, with the rows, so the two agree. Core 1 knows which slots are alarming from two masks
            * (an alarm firing, a sensor failing) but reads only the selected and the pinned sensor's value,
            * so each sensor is told in the alarm system's words: ESS_ERRO, ESS_ALARME, ESS_MANUTENCAO,
@@ -254,7 +254,7 @@ bool DisplayManager::uaMontarMenus( UaQuadro &q ) {
           break;
         }
         default:
-          vm.mqtt = d.telTransport == 1;   /* Settings.cpp:1444: 1 is MQTT, else HTTP */
+          vm.mqtt = d.telTransport == 1;   /* drawSystemStatus( ): 1 is MQTT, else HTTP */
           vm.mqttConectado = d.mqttConnected;
           vm.pendentes = d.telPending;
           vm.lote = d.telInterval;
@@ -267,7 +267,7 @@ bool DisplayManager::uaMontarMenus( UaQuadro &q ) {
       return true;
     }
     case MODE_SETTINGS_LICENSE: {
-      /* drawSettingsLicense( ) (DisplayManager.cpp:2075): the opening, then the MIT text and the third-party
+      /* drawSettingsLicense( ) (DisplayManager.cpp): the opening, then the MIT text and the third-party
        * list, as one text. Wrapped once into an index; the page's lines are copied out of it. */
       VmLicenca &vm = uaVm<VmLicenca>( );
       if ( s_indiceLic.n == 0 || s_idiomaLic != _currentLangIdx ) {
@@ -277,7 +277,7 @@ bool DisplayManager::uaMontarMenus( UaQuadro &q ) {
         if ( abertura && abertura[0] ) {
           fontes[nf++] = ua::tela::FonteLicenca{ abertura, 0 };   /* composed: its own blank lines are in it */
         } else {
-          /* What DisplayManager.cpp:72 puts after each string: "\n\n" is one blank line, "\n" none. */
+          /* What kLicOpeningSep[ ] (DisplayManager.cpp) puts after each string: "\n\n" is one blank line, "\n" none. */
           static const uint8_t kBrancas[5] = { 1, 0, 1, 1, 1 };
           for ( int k = 0; k < 5; k++ ) fontes[nf++] = ua::tela::FonteLicenca{ LICENSE_OPENING_EN[k], kBrancas[k] };
         }
@@ -286,7 +286,7 @@ bool DisplayManager::uaMontarMenus( UaQuadro &q ) {
         s_idiomaLic = _currentLangIdx;
       }
       paginaDaLicenca( s_indiceLic, _licensePage, vm );
-      _licensePage = vm.pagina;           /* the old draw held them (DisplayManager.cpp:2095-2098) */
+      _licensePage = vm.pagina;           /* the old draw held them (drawSettingsLicense( )) */
       _licenseTotalPages = vm.paginas;
       uaUsar<VmLicenca, desenharLicenca, alvosLicenca>( q, vm );
       return true;
@@ -383,11 +383,11 @@ UaToque DisplayManager::uaToqueMenus( const ua::Alvo *a, int16_t &, int16_t & ) 
       break;
     case MODE_SETTINGS_ALARM_SENSOR:
       if ( a->tipo == SA_VOLTAR ) {
-        /* DisplayManager_Users.cpp:1455-1457: SAIR is back to the list of alarms, which starts over. */
+        /* handleTouchPanelV24( ) (DisplayManager_Users.cpp), the sensor menu: SAIR is back to the list of alarms, which starts over. */
         if ( acceptTouch( ZONA_VOLTAR ) ) showSettingsAlarms( _sysConfigPtr );
       } else if ( a->tipo == SA_LIMITES || a->tipo == SA_ALARMES || a->tipo == SA_MANUTENCAO ) {
         if ( !acceptTouch( ZONA_LINHA ) ) break;
-        /* Users.cpp:1424-1437, activate( row ): the bit is checked on the screen too (this screen leaves out
+        /* handleTouchPanelV24( )'s activate( row ) lambda, the sensor menu: the bit is checked on the screen too (this screen leaves out
          * the rows the session cannot use, so it only guards a frame that was on the glass a moment ago). */
         static const uint16_t kPrecisa[3] = { PERM_ALARM_LIMITS, PERM_ALARM_BLOCK, PERM_MAINT };
         const int row = a->tipo - SA_LIMITES;

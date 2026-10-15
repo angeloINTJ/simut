@@ -5021,7 +5021,10 @@ void test_list_clamp_page_holds_a_page_to_the_list_that_exists(void) {
 }
 
 /* One step of an arrow, held at the ends. `>=` for `>` going back walks off the first page at (0,3,-1); `<=` for `<` going forward
- * walks off the last at (2,3,+1); a wrap puts (0,3,-1) on the last page; an ignored sign steps (1,3,-1) forward. */
+ * walks off the last at (2,3,+1); a wrap puts (0,3,-1) on the last page; an ignored sign steps (1,3,-1) forward. A page off the list
+ * stays where it was, as the header promises (listClampPage( ) brings it back): holding the last page forward (`: pages - 1` for
+ * `: page`) moves (5,3,+1), holding the first back (`: 0`) moves (-1,3,-1), and clamping before the step lands (5,3,-1) on page 1
+ * (the review of C8, 2026-10-15, found those three mutants alive). */
 void test_list_page_step_stops_at_the_ends_and_does_not_wrap(void) {
     TEST_ASSERT_EQUAL_INT(0, listPageStep(0, 3, -1));              /* the first page, back: it stays */
     TEST_ASSERT_EQUAL_INT(0, listPageStep(1, 3, -1));
@@ -5029,6 +5032,9 @@ void test_list_page_step_stops_at_the_ends_and_does_not_wrap(void) {
     TEST_ASSERT_EQUAL_INT(2, listPageStep(2, 3, +1));              /* the last page, forward: it stays */
     TEST_ASSERT_EQUAL_INT(0, listPageStep(0, 0, +1));              /* no pages */
     TEST_ASSERT_EQUAL_INT(0, listPageStep(0, 1, +1));              /* one page */
+    TEST_ASSERT_EQUAL_INT(5, listPageStep(5, 3, +1));              /* past the end, forward: it stays */
+    TEST_ASSERT_EQUAL_INT(4, listPageStep(5, 3, -1));              /* past the end, back: one step, not pulled in */
+    TEST_ASSERT_EQUAL_INT(-1, listPageStep(-1, 3, -1));            /* before the first, back: it stays */
 }
 
 int main(int /*argc*/, char** /*argv*/) {

@@ -653,7 +653,7 @@ matches CI):
   With the line gone the function is compiled, it calls `utf8FoldAscii( )` (`DisplayManager.cpp`), and the unit's object file carries
   `utf8FoldNext( )` (`Utf8Fold.h`, an inline function) and its three switch tables. The linker keeps the first copy of a weak function,
   and this unit comes before the language-pack parser's, whose copy was kept until then: the function (180 B) and the tables (116 B) take an
-  earlier place in the image, and what lay between moves by their size (92 functions by +0xb4, ten data objects by +0x74). The image has
+  earlier place in the image, and what lay between moves by their size (87 functions by +0xb4: 88 symbols whose name is unique in both images and whose size did not change, one address carrying two names; ten data objects by +0x74). The image has
   the same size, and C7's message, which says all ten ELFs are byte-equal to C6's, is right for the nine and not for this one.
 
 - **The frames.** The six host screen groups of the Ângulo are 813 of 813 frames equal to the step before, at all eight steps

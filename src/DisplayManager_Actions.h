@@ -386,7 +386,7 @@ inline __attribute__((always_inline)) void DisplayManager::actAlarmListOpen( int
 	showAlarmSensorMenu(_activeSensorsMap[idx]);
 }
 
-/* The licence screen (MODE_SETTINGS_LICENSE): one page back (`dir` < 0) or forward (`dir` > 0), held at the ends, once the touch's gate has let
+/* The licence screen (MODE_SETTINGS_LICENSE): one page back (`dir` < 0) or forward (any other `dir`; the callers pass -1 and +1), held at the ends, once the touch's gate has let
  * it through. The original calls it from four places, the text's upper and lower halves and the two arrows, each with a constant `dir`, so it
  * compiles to the four branches it replaced. The caller sets _repaintSettings: the text's halves share one store of it after their if/else,
  * and inside the action it would be repeated in both arms. The Ângulo sets none, because its frame follows the state. */
