@@ -98,6 +98,38 @@ def angulo(*body, head=('#include "../../simut_config.h"',)):
     return surface(*body, head=head)
 
 
+# What the original's headers are derived from (docs/analysis/UI_DRIVERS_funcoes.tsv, the S0 classification of the units,
+# and the "Original driver." item of docs/analysis/UI_DRIVERS.md section 2.5), as a toy: three units that are all
+# original, one that is mixed, one that is core only, the class (shared), and two header-only files the item names.
+TSV_HEAD = "unit\tline\tend\tsymbol\tclass\toriginal_lines\tcore_lines\tnote\n"
+TSV_ROWS = (("DisplayManager.h", "mixed"), ("DisplayManager.cpp", "core"), ("DisplayManager.cpp", "original"),
+            ("DisplayManager_Alarm.cpp", "core"), ("DisplayManager_Alarm.cpp", "original"),
+            ("DisplayManager_Auth.cpp", "core"),
+            ("Themes.cpp", "original"), ("UiWidgets.cpp", "original"), ("DisplayManager_Fonts.cpp", "original"))
+OWNERSHIP_ITEM = ("- **Original driver.** Every `draw*` and `redraw*`, `render( )`; the geometry `CARD_*`\n"
+                  "  (`DisplayManager.h:1095-1098`); `Themes.cpp`, `DisplayManager_Fonts.*`, `UiWidgets.*`,\n"
+                  "  `PasswordKeyboard.h` and `sensors/SensorDrawing.h`.\n")
+TSV_PATH = "docs/analysis/UI_DRIVERS_funcoes.tsv"
+DOC_PATH = "docs/analysis/UI_DRIVERS.md"
+
+
+def tsv(*rows, head=TSV_HEAD):
+    """A classification table: one row per (unit, class)."""
+    return head + "".join(f"{u}\t1\t2\tsym\t{c}\t\t\t\n" for u, c in rows)
+
+
+def doc(item=OWNERSHIP_ITEM):
+    """The ownership section with the "Original driver." item as given."""
+    return ("### 2.5 Ownership\n\n- **Core.** The Core 1 lifecycle (`DisplayManager.cpp:160-1240`) and `DisplayManager_Auth.cpp`.\n"
+            + item + "- **The mixed units** are settled by section 3.3.\n")
+
+
+TOY_HEADERS = ("src/DisplayManager.h", "src/Themes.h", "src/UiWidgets.h", "src/DisplayManager_Fonts.h",
+               "src/PasswordKeyboard.h", "src/sensors/SensorDrawing.h")
+TOY_UNITS = ("src/DisplayManager.cpp", "src/DisplayManager_Alarm.cpp", "src/DisplayManager_Auth.cpp", "src/Themes.cpp",
+             "src/UiWidgets.cpp", "src/DisplayManager_Fonts.cpp")
+
+
 # Everything the rules forbid outside the driver is what the driver is made of: its own unit holds the
 # identity macros, the hook names and the macro, and the clean tree has none of them anywhere else.
 ANGULO_TEXT = ("#if SIMUT_UI_ANGULO", "#endif",
@@ -131,7 +163,11 @@ BASE = {
     "src/ui/UiCaps.h": CAPS,
     ANGULO_UNIT: angulo(*ANGULO_TEXT),
     ANGULO_HEADER: ANGULO_HEADER_TEXT,
+    TSV_PATH: tsv(*TSV_ROWS),
+    DOC_PATH: doc(),
     SURFACE: surface("int themes = SIMUT_UI_CUSTOM_THEMES;"),
+    **{path: "#pragma once\n" for path in TOY_HEADERS},
+    **{path: "int unit;\n" for path in TOY_UNITS},
 }
 
 
@@ -412,6 +448,84 @@ def inert_cases():
                {ANGULO_UNIT: surface(*wrap(kind), head=bare)}, [])
 
 
+def original_cases():
+    """The headers only the original uses are derived (S0 classification, ownership item, manifest, src/ui/original/)."""
+    hit = [(ANGULO_UNIT, 2, "cross-driver")]
+    expect("cross-driver: a header named after a unit that has an original row is the original's, DisplayManager_Alarm.h "
+           "(the review measured it as 0)", {ANGULO_UNIT: angulo('#include "../../DisplayManager_Alarm.h"')}, hit)
+    expect("cross-driver: ... the same when that header exists",
+           {ANGULO_UNIT: angulo('#include "../../DisplayManager_Alarm.h"'), "src/DisplayManager_Alarm.h": "#pragma once\n"}, hit)
+    expect("cross-driver: ... and spelled from src/", {ANGULO_UNIT: angulo('#include "DisplayManager_Alarm.h"')}, hit)
+    expect("cross-driver: ... and so is a .hpp next to the unit", {ANGULO_UNIT: angulo('#include "../../DisplayManager_Alarm.hpp"')}, hit)
+    expect("cross-driver: a header named after a unit with only core rows is the core's, DisplayManager_Auth.h",
+           {ANGULO_UNIT: angulo('#include "../../DisplayManager_Auth.h"')}, [])
+    expect("cross-driver: the class header is shared although its unit has original rows, DisplayManager.h",
+           {ANGULO_UNIT: angulo('#include "../../DisplayManager.h"', '#include "DisplayManager.h"')}, [])
+    expect("cross-driver: a unit the table gains is followed at once (Calendar gets an original row)",
+           {ANGULO_UNIT: angulo('#include "../../DisplayManager_Calendar.h"'),
+            TSV_PATH: tsv(*TSV_ROWS, ("DisplayManager_Calendar.cpp", "original"))}, hit)
+    expect("cross-driver: ... and one the table gives back (Alarm turns core only) is let go",
+           {ANGULO_UNIT: angulo('#include "../../DisplayManager_Alarm.h"'),
+            TSV_PATH: tsv(*[r for r in TSV_ROWS if r != ("DisplayManager_Alarm.cpp", "original")])}, [])
+    expect("cross-driver: a mixed row is enough (the table has no original row for the unit, only a mixed one)",
+           {ANGULO_UNIT: angulo('#include "../../DisplayManager_Touch.h"'),
+            TSV_PATH: tsv(*TSV_ROWS, ("DisplayManager_Touch.cpp", "mixed"))}, hit)
+    expect("cross-driver: everything under src/ui/original/ is the original's",
+           {ANGULO_UNIT: angulo('#include "../original/UiOriginal.h"')}, hit)
+    expect("cross-driver: ... spelled from src/ too", {ANGULO_UNIT: angulo('#include "ui/original/UiOriginal.h"')}, hit)
+    expect("cross-driver: the core and the original may include what is under src/ui/original/",
+           {SURFACE: surface('#include "ui/original/UiOriginal.h"')}, [])
+
+    with_units = MANIFEST.replace("[ui.original]\n", '[ui.original]\nunits = ["DisplayManager_Graph.cpp"]\n', 1)
+    expect("cross-driver: a unit [ui.original] lists makes its header the original's (S10b fills `units`)",
+           {ANGULO_UNIT: angulo('#include "../../DisplayManager_Graph.h"'), "src/DisplayManager_Graph.cpp": "int unit;\n"},
+           hit, manifest=with_units)
+    expect("cross-driver: ... and the same header is nobody's while the manifest lists nothing",
+           {ANGULO_UNIT: angulo('#include "../../DisplayManager_Graph.h"'), "src/DisplayManager_Graph.cpp": "int unit;\n"}, [])
+    with_glob = MANIFEST.replace("[ui.original]\n", '[ui.original]\ninclude = ["DisplayManager_Gr*.cpp", "ui/original/*.cpp"]\n', 1)
+    expect("cross-driver: ... by a glob of `include` too, over the units that exist",
+           {ANGULO_UNIT: angulo('#include "../../DisplayManager_Graph.h"'), "src/DisplayManager_Graph.cpp": "int unit;\n"},
+           hit, manifest=with_glob)
+
+    keyboard = OWNERSHIP_ITEM.replace("`PasswordKeyboard.h`", "`PasswordKeyboard.h`, `Keyboard2.h`")
+    expect("cross-driver: a header-only file the ownership item names is the original's without an edit of the gate",
+           {ANGULO_UNIT: angulo('#include "../../Keyboard2.h"'), "src/Keyboard2.h": "#pragma once\n", DOC_PATH: doc(keyboard)}, hit)
+    for tok, files in (("`Keyboard3.*`", {"src/Keyboard3.cpp": "int unit;\n"}), ("`Keyboard3.cpp`", {"src/Keyboard3.cpp": "int unit;\n"})):
+        expect(f"cross-driver: the item names a stem with {tok} and its header is the original's, the table not knowing the unit",
+               {ANGULO_UNIT: angulo('#include "../../Keyboard3.h"'), "src/Keyboard3.h": "#pragma once\n",
+                DOC_PATH: doc(OWNERSHIP_ITEM.replace("`PasswordKeyboard.h`", "`PasswordKeyboard.h`, " + tok)), **files}, hit)
+    expect("cross-driver: ... and the same file is nobody's while the item does not name it",
+           {ANGULO_UNIT: angulo('#include "../../Keyboard2.h"'), "src/Keyboard2.h": "#pragma once\n"}, [])
+    only_item = ("- **Original driver.** Every `draw*`; `Themes.cpp`, `UiWidgets.*`, `PasswordKeyboard.h` and `sensors/SensorDrawing.h`.\n")
+    expect("cross-driver: the item is the only source for a header-only file: dropped from it, SensorDrawing.h is nobody's",
+           {ANGULO_UNIT: angulo('#include "../../sensors/SensorDrawing.h"'),
+            DOC_PATH: doc(only_item.replace(" and `sensors/SensorDrawing.h`", ""))}, [])
+
+    def refuses(name, files, words, base=BASE, manifest=MANIFEST):
+        with tree(files, None, manifest, base) as root:
+            rc, out, err = run(root)
+        check(name, rc == 2 and all(w in err for w in words), f"rc={rc} out={out} err={err.strip()[:300]}")
+
+    def without(path):
+        return {k: v for k, v in BASE.items() if k != path}
+
+    refuses("cross-driver: no classification table is an error (exit 2), not a header list of nothing", {},
+            ["UI_DRIVERS_funcoes.tsv"], base=without(TSV_PATH))
+    refuses("cross-driver: a table without the `unit` and `class` columns is an error (exit 2)",
+            {TSV_PATH: "a\tb\n1\t2\n"}, ["UI_DRIVERS_funcoes.tsv", "unit"])
+    refuses("cross-driver: a table with no original or mixed row is an error (exit 2)",
+            {TSV_PATH: tsv(("DisplayManager_Auth.cpp", "core"))}, ["UI_DRIVERS_funcoes.tsv", "original"])
+    refuses("cross-driver: no ownership document is an error (exit 2)", {}, ["UI_DRIVERS.md"], base=without(DOC_PATH))
+    refuses("cross-driver: an ownership document without the \"Original driver.\" item is an error (exit 2)",
+            {DOC_PATH: "### 2.5 Ownership\n\n- **Core.** Everything else.\n"}, ["UI_DRIVERS.md", "Original driver"])
+    refuses("cross-driver: an item that names no file is an error (exit 2)",
+            {DOC_PATH: doc("- **Original driver.** Every `draw*` and `render( )`.\n")}, ["UI_DRIVERS.md", "names no file"])
+    refuses("cross-driver: an item that names a header that is not in src/ is an error (exit 2): the contract and the code agree",
+            {DOC_PATH: doc(OWNERSHIP_ITEM.replace("`PasswordKeyboard.h`", "`Gone.h`"))}, ["UI_DRIVERS.md", "Gone.h"])
+    refuses("cross-driver: ... and so is a unit or a `X.*` whose files are all gone",
+            {DOC_PATH: doc(OWNERSHIP_ITEM.replace("`UiWidgets.*`", "`Ghost.*`"))}, ["UI_DRIVERS.md", "Ghost"])
+
+
 def lexical_cases():
     expect("lexing: a '\"' character literal does not hide code after it",
            {SURFACE: surface("char q = '\"'; uaSujo( );")}, [(SURFACE, 2, "driver-hook")])
@@ -665,12 +779,24 @@ def real_tree_cases():
     check("every real allowance says which stage ends it (`ends in S<n>`)", not no_stage, str(no_stage[:5]))
     check("every real allowance is for a rule of the gate", all(rule in cub.RULES for rule in real_allow), str(list(real_allow)))
 
+    # the original's headers, derived on the real tree: the five the gate was first given by hand, and more
+    real_files = cub.load_tree(ROOT)
+    derived = cub.original_headers(ROOT, set(real_files), cub.read_manifest(ROOT))
+    five = {"src/Themes.h", "src/UiWidgets.h", "src/DisplayManager_Fonts.h", "src/PasswordKeyboard.h", "src/sensors/SensorDrawing.h"}
+    check("the original's headers derived from the S0 table and section 2.5 include the five (Themes.h, UiWidgets.h, "
+          "DisplayManager_Fonts.h, PasswordKeyboard.h, sensors/SensorDrawing.h) and DisplayManager_Alarm.h, and not the class",
+          five <= derived and "src/DisplayManager_Alarm.h" in derived and "src/DisplayManager.h" not in derived
+          and "src/DisplayManager_Auth.h" not in derived, str(sorted(derived))[:300])
+
     # a copy of the real tree: one violation of each rule appended to a file, one finding each
     with tempfile.TemporaryDirectory(prefix="ui_boundary_real_") as root:
         shutil.copytree(os.path.join(ROOT, "src"), os.path.join(root, "src"))
         os.makedirs(os.path.join(root, "tools"))
         for f in ("features.toml", "ui_boundary.json"):
             shutil.copy(os.path.join(ROOT, "tools", f), os.path.join(root, "tools", f))
+        os.makedirs(os.path.join(root, "docs", "analysis"))
+        for f in ("UI_DRIVERS.md", "UI_DRIVERS_funcoes.tsv"):
+            shutil.copy(os.path.join(ROOT, "docs", "analysis", f), os.path.join(root, "docs", "analysis", f))
         base_hashes = tree_hashes(os.path.join(root, "src"))
         listed = {p for files in real_allow.values() for p in files}
 
@@ -752,6 +878,9 @@ def real_tree_cases():
                 f"real tree + an include of Themes.h in the Angulo unit {angulo_any}: one finding")
         mutated(angulo_any, '\n#include "../../sensors/SensorDrawing.h"\n', "cross-driver",
                 f"real tree + an include of SensorDrawing.h in the Angulo unit {angulo_any}: one finding")
+        for h in ("DisplayManager_Alarm.h", "PasswordKeyboard.h", "UiWidgets.h", "DisplayManager_Fonts.h"):
+            mutated(angulo_any, f'\n#include "../../{h}"\n', "cross-driver",
+                    f"real tree + an include of {h} in the Angulo unit {angulo_any}: one finding")
         mutated(bare, "\n#if SIMUT_UI_CUSTOM_THEMES\n#endif\n", "include-caps",
                 f"real tree + a capability test in {bare} (which includes neither header): one finding")
         mutated("src/simut_config.h", "\n#ifdef SIMUT_UI_ANGULO\n#endif\n", "no-ifdef",
@@ -819,6 +948,7 @@ def real_tree_cases():
 
 class_include_cases()
 cross_driver_cases()
+original_cases()
 hook_cases()
 inert_cases()
 lexical_cases()

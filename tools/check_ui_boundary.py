@@ -22,10 +22,25 @@ five rules over src/**/*.{c,cpp,h,hpp}:
                 ITSELF before the first use. `#if X` with X undefined is 0, silently, and a feature drops
                 out of the image: it happened to the network class on 2026-10-13 (the same rule, in
                 tools/check_net_boundary.py). src/ui/UiCaps.h, which defines them, is the one exception.
-  cross-driver  a unit under src/ui/angulo/ that includes a header only the original uses (Themes.h,
-                UiWidgets.h, DisplayManager_Fonts.h, PasswordKeyboard.h, sensors/SensorDrawing.h), or a
-                unit outside src/ui/angulo/ that includes a header under it (the include is resolved
-                the way the compiler does: relative to the including file, then from src/).
+  cross-driver  a unit under src/ui/angulo/ that includes a header only the original uses, or a unit
+                outside src/ui/angulo/ that includes a header under it (an include is resolved the way
+                the compiler does: relative to the including file, then from src/). The original's
+                headers are derived, not listed, from the record of what the original is:
+                  1. everything under src/ui/original/ (where S11 moves it);
+                  2. the header next to each unit that docs/analysis/UI_DRIVERS_funcoes.tsv, the S0
+                     classification, gives at least one `original` or `mixed` row, and next to each
+                     unit [ui.original] of the manifest lists in `units` or `include` (S10b fills
+                     them): Themes.h, UiWidgets.h, DisplayManager_Fonts.h, and a DisplayManager_Alarm.h
+                     or any other the day a unit is split, with no edit here. A unit with one original
+                     row makes its header the original's until S10a splits the unit;
+                  3. the files the "Original driver." item of docs/analysis/UI_DRIVERS.md section 2.5
+                     names in backticks, which is where the header-only files are (PasswordKeyboard.h,
+                     sensors/SensorDrawing.h): they have no unit, so nothing else knows them.
+                One header is let off, src/DisplayManager.h, the class whose members the driver's hooks
+                are. If the table or the document cannot be read, or the item names a header that is
+                not in src/, the gate exits 2: the written contract and the code cannot disagree in
+                silence. It stays in step because the table and the document are what every stage
+                updates anyway; S10b's `units` and S11's src/ui/original/ take over from them.
   driver-hook   a name the Ângulo driver introduces, used outside src/ui/angulo/. The names are taken from
                 the driver, not from a pattern on the other files: every identifier in src/ui/angulo/
                 that carries the driver's mark, `ua` and a capital for a function or a member (uaSujo,
@@ -79,6 +94,7 @@ from __future__ import annotations
 import argparse
 import bisect
 import collections
+import fnmatch
 import json
 import os
 import posixpath
@@ -110,10 +126,16 @@ CONFIG_HEADERS = ("simut_config.h", "UiCaps.h")
 ALLOWANCES = "tools/ui_boundary.json"
 MANIFEST = "tools/features.toml"
 
-# What only the original panel draws with: an Ângulo unit that included one would link the original's drawing
-# into the driver that is meant to replace it. Matched by the file's name, however the include spells the path
-# (src/ is on the include path, so a bare "Themes.h" reaches it from anywhere).
-ORIGINAL_ONLY = ("Themes.h", "UiWidgets.h", "DisplayManager_Fonts.h", "PasswordKeyboard.h", "SensorDrawing.h")
+# What the original is, for cross-driver (see the docstring): an Ângulo unit that included a header of the original's
+# would link the original's drawing into the driver that is meant to replace it.
+CLASSIFICATION = "docs/analysis/UI_DRIVERS_funcoes.tsv"     # the S0 classification of every function, by unit
+OWNERSHIP = "docs/analysis/UI_DRIVERS.md"                   # section 2.5: who owns what
+ORIGINAL_DIR = "src/ui/original/"                           # where the original's files go in S11
+SHARED_HEADERS = frozenset({"src/DisplayManager.h"})        # the class: the driver's hooks are its members
+HEADER_EXTS = (".h", ".hh", ".hpp", ".hxx")
+SOURCE_EXTS = (".c", ".cc", ".cpp", ".cxx")
+OWNER_ITEM = re.compile(r"^- \*\*Original driver\.\*\*")
+FILE_TOKEN = re.compile(r"([\w./+-]+)\.(h|hh|hpp|hxx|c|cc|cpp|cxx|\*)\Z")   # `Themes.cpp`, `UiWidgets.*`, `sensors/SensorDrawing.h`
 
 UI_MACRO = r"SIMUT_UI_\w+"
 USE = re.compile(r"\b" + UI_MACRO)
@@ -135,14 +157,17 @@ NS_TOKEN = re.compile(r"\bnamespace\s+(\w+)(?:\s*::\s*\w+)*\s*\{|\bnamespace\s*\
 Finding = collections.namedtuple("Finding", "path line rule text")
 
 
-def manifest_identities(root: str):
-    """The identity macros of the manifest: SIMUT_UI_<ID> for each [ui.<id>]."""
+def read_manifest(root: str) -> dict:
     path = os.path.join(root, MANIFEST)
     try:
         with open(path, "rb") as fh:
-            data = tomllib.load(fh)
+            return tomllib.load(fh)
     except (OSError, tomllib.TOMLDecodeError) as e:
         raise CannotRead(f"cannot read {MANIFEST}: {e}")
+
+
+def manifest_identities(data: dict):
+    """The identity macros of the manifest: SIMUT_UI_<ID> for each [ui.<id>]."""
     ui = data.get("ui", {})
     ids = sorted(ui) if isinstance(ui, dict) else []
     if not ids:
@@ -155,7 +180,7 @@ def identity_regex(macros) -> re.Pattern:
 
 
 Vocabulary = collections.namedtuple("Vocabulary", "names spaces")
-Env = collections.namedtuple("Env", "ident vocab ns_use")
+Env = collections.namedtuple("Env", "ident vocab ns_use original")
 
 
 def marker_parts(word: str):
@@ -216,17 +241,115 @@ def hook_sites(code: str, env: Env):
             yield m.start(), f"{m.group(1) or m.group(2)} is a namespace of the Angulo driver"
 
 
-def is_original_only(name: str) -> bool:
-    return name.rsplit("/", 1)[-1] in ORIGINAL_ONLY
+def header_candidates(stem: str):
+    """The headers a unit may have next to it: src/DisplayManager_Alarm -> src/DisplayManager_Alarm.h, .hpp, ..."""
+    return {stem + e for e in HEADER_EXTS}
+
+
+def classification_units(root: str):
+    """The units of the S0 classification that have at least one `original` or `mixed` row."""
+    path = os.path.join(root, CLASSIFICATION)
+    try:
+        with open(path, encoding="utf-8") as fh:
+            rows = [l.split("\t") for l in fh.read().splitlines() if l.strip()]
+    except OSError as e:
+        raise CannotRead(f"cannot read {CLASSIFICATION}: {e} (the original's units are taken from it)")
+    if not rows or "unit" not in rows[0] or "class" not in rows[0]:
+        raise CannotRead(f"{CLASSIFICATION} does not start with a header row that has the columns `unit` and `class`")
+    iu, ic = rows[0].index("unit"), rows[0].index("class")
+    units = {r[iu] for r in rows[1:] if len(r) > max(iu, ic) and r[ic] in ("original", "mixed")}
+    if not units:
+        raise CannotRead(f"{CLASSIFICATION} has no unit with an `original` or `mixed` row: the original's headers would be none")
+    return units
+
+
+def ownership_headers(root: str, files):
+    """The headers the "Original driver." item of docs/analysis/UI_DRIVERS.md names in backticks. `files` is every
+    path under src/: a header named there has to exist, and so does some file of a unit or of an `X.*`."""
+    path = os.path.join(root, OWNERSHIP)
+    try:
+        with open(path, encoding="utf-8") as fh:
+            lines = fh.read().split("\n")
+    except OSError as e:
+        raise CannotRead(f"cannot read {OWNERSHIP}: {e} (the original's header-only files are taken from it)")
+    start = next((i for i, l in enumerate(lines) if OWNER_ITEM.match(l)), None)
+    if start is None:
+        raise CannotRead(f'{OWNERSHIP} has no list item that starts "- **Original driver.**" (section 2.5, Ownership): '
+                         f"the original's header-only files are taken from it")
+    item = [lines[start]]
+    for l in lines[start + 1:]:
+        if not l.strip() or l.startswith("- "):
+            break
+        item.append(l)
+    out, named = set(), 0
+    for token in re.findall(r"`([^`\n]+)`", " ".join(item)):
+        m = FILE_TOKEN.match(token)
+        if not m:
+            continue
+        named += 1
+        base, ext = m.groups()
+        stem = posixpath.normpath(posixpath.join("src", base))
+        if "." + ext in HEADER_EXTS:
+            if f"{stem}.{ext}" not in files:
+                raise CannotRead(f"{OWNERSHIP} says `{token}` is the original's, and src/{base}.{ext} is not in the tree: "
+                                 f"fix the document or the name")
+            out.add(f"{stem}.{ext}")
+        else:
+            if not any(f.startswith(stem + ".") for f in files):
+                raise CannotRead(f"{OWNERSHIP} says `{token}` is the original's, and no file of src/{base} is in the tree: "
+                                 f"fix the document or the name")
+            out |= header_candidates(stem)
+    if not named:
+        raise CannotRead(f"the 'Original driver.' item of {OWNERSHIP} names no file in backticks: "
+                         f"the original's header-only files are taken from it")
+    return out
+
+
+def manifest_unit_headers(manifest: dict, files):
+    """The headers next to the units [ui.original] lists in `units` or `include` (names or globs, from src/)."""
+    ui = manifest.get("ui", {})
+    original = ui.get("original") if isinstance(ui, dict) else None
+    out = set()
+    if not isinstance(original, dict):
+        return out
+    for key in ("units", "include"):
+        patterns = original.get(key)
+        for pat in patterns if isinstance(patterns, list) else []:
+            if not isinstance(pat, str):
+                continue
+            for f in files:
+                if f.endswith(SOURCE_EXTS) and fnmatch.fnmatchcase(f, "src/" + pat):
+                    out |= header_candidates(posixpath.splitext(f)[0])
+    return out
+
+
+def original_headers(root: str, files, manifest: dict):
+    """The headers only the original uses, and so an Angulo unit does not include (everything under src/ui/original/
+    is the original's too, and is told by its path). Derived from the S0 classification, the ownership item and the
+    manifest; see the docstring."""
+    out = set()
+    for unit in classification_units(root):
+        out |= header_candidates(posixpath.splitext(posixpath.join("src", unit))[0])
+    out |= ownership_headers(root, files)
+    out |= manifest_unit_headers(manifest, files)
+    return frozenset(out - SHARED_HEADERS)
+
+
+def include_targets(rel: str, name: str, quoted: bool):
+    """Where an include may resolve to: relative to the including file (a quoted include only), or from src/
+    (-I src, for quoted and angle includes alike)."""
+    targets = [posixpath.normpath(posixpath.join("src", name))]
+    if quoted:
+        targets.insert(0, posixpath.normpath(posixpath.join(posixpath.dirname(rel), name)))
+    return targets
 
 
 def reaches_angulo(rel: str, name: str, quoted: bool) -> bool:
-    """The include resolves to a file under src/ui/angulo/: relative to the including file (a quoted include
-    only), or from src/ (-I src, for quoted and angle includes alike)."""
-    from_src = posixpath.normpath(posixpath.join("src", name))
-    if from_src.startswith(ANGULO_DIR):
-        return True
-    return quoted and posixpath.normpath(posixpath.join(posixpath.dirname(rel), name)).startswith(ANGULO_DIR)
+    return any(t.startswith(ANGULO_DIR) for t in include_targets(rel, name, quoted))
+
+
+def reaches_original(rel: str, name: str, quoted: bool, original) -> bool:
+    return any(t in original or t.startswith(ORIGINAL_DIR) for t in include_targets(rel, name, quoted))
 
 
 def scan_text(rel: str, text: str, code: str, includes, env: Env):
@@ -271,7 +394,7 @@ def scan_text(rel: str, text: str, code: str, includes, env: Env):
     for ln, name, quoted in includes:
         shown = f'#include "{name}"' if quoted else f"#include <{name}>"
         if in_angulo:
-            if is_original_only(name):
+            if reaches_original(rel, name, quoted, env.original):
                 found.append(Finding(rel, ln, "cross-driver",
                                      f"{shown}: the Angulo driver includes a header only the original uses"))
         elif reaches_angulo(rel, name, quoted):
@@ -306,13 +429,15 @@ def load_tree(root: str):
 
 
 def scan(root: str):
-    ident = identity_regex(manifest_identities(root))
+    manifest = read_manifest(root)
+    ident = identity_regex(manifest_identities(manifest))
     tree = load_tree(root)
     if not any(rel.startswith(ANGULO_DIR) for rel in tree):
         raise CannotRead(f"no source under {ANGULO_DIR}: the Angulo driver's own names cannot be taken from it, and "
                          f"a gate with no names to look for would pass on anything")
     vocab = driver_vocabulary({rel: v[1] for rel, v in tree.items()})
-    env = Env(ident, vocab, namespace_regex(vocab.spaces))
+    original = original_headers(root, set(tree), manifest)
+    env = Env(ident, vocab, namespace_regex(vocab.spaces), original)
     found = []
     for rel, (text, code, includes) in tree.items():
         found.extend(scan_text(rel, text, code, includes, env))
@@ -416,7 +541,8 @@ HINTS = {
     "identity": "ask a capability (SIMUT_UI_CUSTOM_THEMES) or a driver hook, or move the code into the driver's directory under src/ui/",
     "no-ifdef": "test it with `#if SIMUT_UI_...`: after src/ui/UiCaps.h every one is defined, 0 or 1, so #ifdef is true on every image",
     "include-caps": 'add #include "simut_config.h" (or "ui/UiCaps.h") to the file itself, before the first use',
-    "cross-driver": "a driver reaches the core, never the other driver: take the shared part into the core, or leave it out",
+    "cross-driver": "a driver reaches the core, never the other driver: take the shared part into the core, or leave it out "
+                    "(what is the original's: the S0 table, section 2.5 of docs/analysis/UI_DRIVERS.md, src/ui/original/)",
     "driver-hook": "src/ui/angulo/ introduces the name: use it from there, or list the transitional site in tools/ui_boundary.json",
 }
 
