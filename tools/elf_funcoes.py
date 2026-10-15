@@ -527,11 +527,13 @@ def so_relocacao(nome, fa, fb, ctx_a, ctx_b):
 
 
 TEXTOS_ENTRE_ASPAS = re.compile(r'"[^"]*"')
+CONTEUDO = re.compile(r'^\.word <(?:CSWTCH)?\[')          # a pool word shown as the bytes behind it
 
 
 def constante_mudou(x, y):
     """True when a literal-pool word that renders as the content of an unnamed constant (a local
-    `const T t[] = {...}` has no symbol, so the word is shown as the bytes behind it) differs
+    `const T t[] = {...}` has no symbol, so the word is shown as the bytes behind it) or of a
+    switch table (CSWTCH, which has a number per translation unit and is shown by its content) differs
     between the two sides of one function, other than in the text of the strings it points at.
     so_relocacao( ) reads the function's own bytes and would excuse it: the bytes are equal when
     the pool word sits at the same address on both sides, and only the table behind it changed
@@ -540,7 +542,7 @@ def constante_mudou(x, y):
     a local table of names is reported as that text pair and not as the functions that load the
     table. What this leaves hidden: an entry of such a table made to point at another string
     that exists in both images (the pointer changes, no text does)."""
-    return any(p != q and (p.startswith('.word <[') or q.startswith('.word <['))
+    return any(p != q and (CONTEUDO.match(p) or CONTEUDO.match(q))
                and TEXTOS_ENTRE_ASPAS.sub('""', p) != TEXTOS_ENTRE_ASPAS.sub('""', q)
                for p, q in zip(x, y))
 
@@ -595,7 +597,12 @@ def alvo(w, inicios, tab, img):
     n = nome_de(w, inicios, tab)
     if n:
         base, _, off = n.partition('+')
-        return estavel(base) + ('+' + off if off else '') if not CSWTCH.match(base) else 'CSWTCH+' + off
+        if CSWTCH.match(base):
+            # By content, as normalizar( ) names it: "CSWTCH+off" made two tables of any content one
+            # target (review of the fixes, 2026-10-15).
+            i = bisect.bisect_right(inicios, w) - 1
+            return f'CSWTCH[{palavras(img.ler(tab[i][0], tab[i][1]), inicios, tab, img)}]{"+" + off if off else ""}'
+        return estavel(base) + ('+' + off if off else '')
     # Unnamed and not a text: what it holds, so a pointer to an edited table is not "the same".
     return texto_em(img, w) or conteudo(img, w, inicios, tab)
 
