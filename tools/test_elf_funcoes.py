@@ -756,6 +756,12 @@ MUTANTES = [
      "return '<@>' if b else f'<?{v:#x}>'", {'4i'}),
     ('m25', 'a pool word that shows the content of a switch table is not a changed constant',
      "CONTEUDO = re.compile(r'^\\.word <(?:CSWTCH)?\\[')", "CONTEUDO = re.compile(r'^\\.word <\\[')", {'4j', '7'}),
+    ('m26', 'the three lines that keep 4b apart are out at once: unnamed addresses count as the same, a differing branch is excused by equal bytes, an unreadable address carries no value',
+     ["return x == y and not x.startswith('<')",
+      "return (constante_mudou(fa[n], fb[n]) or chamada_mudou(fa[n], fb[n])",
+      "return f'<?{v:#x}>'"],
+     ["return x == y", "return (constante_mudou(fa[n], fb[n])", "return '<?>'"],
+     {'4b', '4c', '4d', '4e', '4f', '4g', '4h', '4i', '5g'}),
     ('m14', 'a changed string in an unnamed table blames the functions that load it',
      "and TEXTOS_ENTRE_ASPAS.sub('\"\"', p) != TEXTOS_ENTRE_ASPAS.sub('\"\"', q)", "", {'3d'}),
 ]
@@ -812,12 +818,18 @@ def main():
             print(f'\n{len(MUTANTES)} mutants of the tool (the cases that fail must be exactly the listed ones):')
             fonte = (HERE / 'elf_funcoes.py').read_text(encoding='utf-8')
             for mid, titulo, antigo, novo, esperado in MUTANTES:
-                if fonte.count(antigo) != 1:
-                    print(f'  FAIL {mid}: its text is {fonte.count(antigo)} times in elf_funcoes.py, not once: {antigo[:60]!r}')
+                # one replacement, or a list of them when no single change leaves a case unguarded
+                pares = list(zip(antigo, novo)) if isinstance(antigo, list) else [(antigo, novo)]
+                ausente = next((a for a, _ in pares if fonte.count(a) != 1), None)
+                if ausente is not None:
+                    print(f'  FAIL {mid}: its text is {fonte.count(ausente)} times in elf_funcoes.py, not once: {ausente[:60]!r}')
                     falhas.append(mid)
                     continue
                 mut = tmp / f'mutante_{mid}.py'
-                mut.write_text(fonte.replace(antigo, novo), encoding='utf-8')
+                texto = fonte
+                for a, n in pares:
+                    texto = texto.replace(a, n)
+                mut.write_text(texto, encoding='utf-8')
                 res = avaliar(mut, imagens, env, pool)
                 caem = {cid for cid, (ok, _) in res.items() if not ok}
                 # m1 reads no instruction at all: every case that expects a report must fail.
