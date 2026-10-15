@@ -1756,7 +1756,6 @@ void DisplayManager::showSettingsLicense( ) {
 
 
 void DisplayManager::drawSettingsLicense( ) {
-	UA_DESVIO( );
 	bool fullRedraw = _forceSettingsRedraw;
 
 	/* The opening (RAM, composed on Core 0) and the licence with the list of

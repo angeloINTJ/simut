@@ -1076,7 +1076,6 @@ void DisplayManager::drawUserEdit( ) {
 }
 
 void DisplayManager::drawUserConfirmDel( ) {
-	UA_DESVIO( );
 	if (!_driver.canvas || !_sysConfigPtr || !_forceSettingsRedraw) return;
 	_forceSettingsRedraw = false;
 	fastClearScreen(C_BG_MAIN);
@@ -1120,7 +1119,6 @@ void DisplayManager::showPanelMessage(bool ok, LangKey msg, UiMode returnTo) {
 }
 
 void DisplayManager::drawPanelMessage( ) {
-	UA_DESVIO( );
 	if (!_driver.tft || !_forceSettingsRedraw) return;
 	_forceSettingsRedraw = false;
 	int16_t x1, y1; uint16_t w, h;

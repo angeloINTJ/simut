@@ -92,7 +92,6 @@ void DisplayManager::showSettingsAlarms(SystemConfig* cfg) {
 }
 
 void DisplayManager::drawSettingsAlarms( ) {
- UA_DESVIO( );
  if(!_driver.canvas) return;
  bool fullRedraw = _forceSettingsRedraw; bool pageChanged = (_alarmPage != _lastAlarmPage);
  int totalPages = (_activeSensorCount + 3) / 4; if (totalPages == 0) totalPages = 1;
@@ -199,7 +198,6 @@ void DisplayManager::renderAlarmRow(int mapIdx, int16_t& outStatusX) {
  * badge-sized slice is pushed over SPI.
  */
 void DisplayManager::drawAlarmStatusOnly( ) {
- UA_DESVIO( );
  if (!_driver.canvas || !_sysConfigPtr) return;
  const int row = _alarmSelection - (_alarmPage * ALARM_LIST_ROWS);
  if (row < 0 || row >= ALARM_LIST_ROWS) return;
@@ -336,7 +334,6 @@ void DisplayManager::showSettingsMain( ) {
 }
 
 void DisplayManager::drawSettingsMain( ) {
- UA_DESVIO( );
  if(!_driver.canvas) return;
  bool fullRedraw = _forceSettingsRedraw; bool pageChanged = (_mainMenuPage != _lastMainMenuPage);
  const int TOTAL_ITEMS = _menuCount;
@@ -788,7 +785,6 @@ void DisplayManager::showApConfirm( ) {
 }
 
 void DisplayManager::drawApConfirm( ) {
- UA_DESVIO( );
  if (!_driver.canvas) return;
  if (!_forceSettingsRedraw) return;
  _forceSettingsRedraw = false;
@@ -974,7 +970,6 @@ void DisplayManager::showMuteConfirm( ) {
  * Strings hardcoded EN/PT — does not touch DICTIONARY_EN or device
  * .lng files (TFT renders only ASCII per policy). */
 void DisplayManager::drawMuteConfirm( ) {
- UA_DESVIO( );
  if (!_driver.canvas) return;
  if (!_forceSettingsRedraw) return;
  _forceSettingsRedraw = false;
@@ -1331,7 +1326,6 @@ void DisplayManager::updateSystemStatus(const SystemStatusData& data) {
  * Auto-refresh every 1 second via timer in the render loop.
  */
 void DisplayManager::drawSystemStatus( ) {
- UA_DESVIO( );
  bool fullRedraw = _forceSettingsRedraw;
  _forceSettingsRedraw = false;
 
