@@ -235,6 +235,11 @@ const VmPin kDefinirFase1 = digitando( definir( PinTeclado::NUMERICO, PinFase::D
 const VmPin kDefinirFase2 = digitando( definir( PinTeclado::NUMERICO, PinFase::CONFIRMAR, 6, 8, "" ), 2, 8 );
 const VmPin kDefinirOutra = digitando( definir( PinTeclado::NUMERICO, PinFase::DEFINIR, 4, 8, "joao.silva" ), 0 );
 const VmPin kDefinirGrupos = digitando( definir( PinTeclado::GRUPOS, PinFase::DEFINIR, 6, 12, "joao.silva" ), 5 );
+// The longest name an account has (15 bytes) in both passes: it shows whole, with what the line says. And the
+// refusal of a short PIN in an alphanumeric layout, whose "caracteres" made the longest line of the screen.
+const VmPin kDefinirNome15 = digitando( definir( PinTeclado::GRUPOS, PinFase::DEFINIR, 6, 12, NOME_15 ), 5 );
+const VmPin kConfirmarNome15 = digitando( definir( PinTeclado::NUMERICO, PinFase::CONFIRMAR, 6, 8, NOME_15 ), 2, 8 );
+const VmPin kErroCurtoAlnum = comEstado( digitando( definir( PinTeclado::GRUPOS, PinFase::DEFINIR, 12, 16, "" ), 3 ), PinEstado::ERRO, PinErro::CURTO );
 
 VmPin comConta( VmPin vm, const char *nome ) { copiar( vm.conta, nome, sizeof vm.conta ); return vm; }
 const VmPin kPinNomeLongo = comConta( pin( PinTeclado::CARTOES12, 37 ), NOME_31 );
@@ -336,6 +341,9 @@ const Amostra kAmostras[] = {
   AM( "pin_definir_fase2", Pin, kDefinirFase2 ),
   AM( "pin_definir_outra_conta", Pin, kDefinirOutra ),
   AM( "pin_definir_grupos", Pin, kDefinirGrupos ),
+  AM( "pin_definir_nome_15", Pin, kDefinirNome15 ),
+  AM( "pin_confirmar_nome_15", Pin, kConfirmarNome15 ),
+  AM( "pin_erro_curto_alnum", Pin, kErroCurtoAlnum ),
   AM( "pin_nome_15", Pin, kPinNome15 ),
   AM( "pin_nome_31", Pin, kPinNomeLongo ),
   // The text keyboard
