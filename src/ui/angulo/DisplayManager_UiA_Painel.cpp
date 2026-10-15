@@ -5,12 +5,10 @@
  *        dashboard, as view models filled from the DisplayManager's state, and their
  *        touches. pico_wiretft_angulo only.
  *
- * The dashboard's upper card is still a translation (ESPEC §7): a touch on its targets
- * becomes the point of the same element in the old layout and handleTouch( ) goes on
- * with it, so the 3 s hold and the lift still work (the same target gives the same old
- * point on every sample of a press). The rest of the painel is not: the alarm's action
- * screen, the lower card and the row of buttons run the core's actions
- * (DisplayManager_Actions.h) themselves.
+ * No touch here is a translation (ESPEC §7) any more: each target runs the core's action
+ * for its zone (DisplayManager_Actions.h), the code handleTouch( ) runs for the same zone,
+ * so the 3 s hold, the lift and the slide across the row work as they did when a touch
+ * was moved into the old layout.
  */
 
 #include "../../DisplayManager.h"
@@ -285,7 +283,7 @@ bool DisplayManager::uaMontarPainel( UaQuadro &q ) {
   }
 }
 
-UaToque DisplayManager::uaToquePainel( const ua::Alvo *a, int16_t &x, int16_t &y ) {
+UaToque DisplayManager::uaToquePainel( const ua::Alvo *a, int16_t &, int16_t & ) {
   using namespace ua::tela;
   switch ( _uiMode ) {
     case MODE_DASHBOARD:
@@ -294,14 +292,13 @@ UaToque DisplayManager::uaToquePainel( const ua::Alvo *a, int16_t &x, int16_t &y
        * and render( ) has not run yet. Nothing in that frame is for the branch below (BOOT_PULAR
        * would read as the upper card). */
       if ( _lastRenderedState.isBooting || !a ) return UaToque::TRATADO;
-      /* The upper card still goes to a point inside its old zone, for the old branch to run: the upper card y 36..109 and its
-       * graph button x 245..302 in min/max mode (Touch.cpp), the same on every sample of a press, so the 3 s hold and the lift
-       * run in the old code. The lower card and the row of buttons run the core's actions (DisplayManager_Actions.h): the card
-       * behind acceptTouch( 1 ), as its old zone held it; the row with the gates its buttons' kinds need inside the action,
-       * so a slide across the row selects slot after slot as it did. */
+      /* Every target runs the core's action behind the gate its old zone held (DisplayManager_Actions.h): the upper card's is
+       * inside its action (the lock tail and the first touch), the lower card's is acceptTouch( 1 ), the row's are inside its
+       * action. Each sample of a press reaches the action, so the 3 s hold keeps its clock, the lift is answered at the top of
+       * handleTouch( ), and a slide across the row selects slot after slot, as they did when the point was moved. */
       switch ( a->tipo ) {
-        case PNL_CARTAO_CIMA: x = 160; y = 72; return UaToque::TRADUZIDO;
-        case PNL_GRAFICO_CIMA: x = 273; y = 76; return UaToque::TRADUZIDO;
+        case PNL_CARTAO_CIMA: actTopCardPress( false ); return UaToque::TRATADO;
+        case PNL_GRAFICO_CIMA: actTopCardPress( true ); return UaToque::TRATADO;
         case PNL_CARTAO_BAIXO:
           if ( acceptTouch( 1 ) ) actBottomCardTap( false );
           return UaToque::TRATADO;

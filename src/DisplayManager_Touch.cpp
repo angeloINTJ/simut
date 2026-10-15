@@ -411,117 +411,15 @@ void DisplayManager::handleTouch( ) {
 
  if (_uiMode == MODE_DASHBOARD) {
  if (y > 35 && y < 110) {
- /* Deaf while a long press is being let go of. Anything arriving here is
-  * the lift itself, and its coordinates are not to be trusted. */
- if (!timeReached(_topPanel.lockUntil)) {
- (void)acceptTouch(0);      /* consume, so it cannot land as a first touch */
- _topPanel.holdStart = 0;
- return;
- }
- bool firstTouch = acceptTouch(0);
-
- /* There WAS a shortcut here: a touch-down anywhere past x = 280 toggled
-  * pinned/interactive immediately, because that corner draws the [Amb]/[Sx]
-  * indicator. It is gone (2026-09-18).
-  *
-  * It had already been narrowed once — it was eating the right third of the
-  * min/max graph button — and the narrowing did not fix what people actually
-  * hit: outside min/max the same quick tap on the right still jumped the
-  * panel into selection mode, while the identical tap two centimetres to the
-  * left opened min/max. A 40-pixel strip that answers a different gesture
-  * than the rest of the panel it is drawn on is not a shortcut, it is a trap,
-  * and this is the second report of it.
-  *
-  * The indicator is still drawn and still means what it meant; it is now
-  * read-only, like the rest of the panel's decoration. Pinning is the long
-  * press, over the whole panel. */
-
  /* The min/max graph button, on touch-down, over the whole rectangle it is
   * painted on and not a hand-written slice of it. It used to read `x > 266`
   * while the button is drawn from CARD_X + minMaxBtnX(CARD_W) = 245 to 302, so
   * its left third fell through to the short-tap path and turned min/max OFF —
-  * the mirror image of the mode-indicator bug above, on the same button. Both
+  * the mirror image of the mode-indicator bug (see actTopCardPress( )), on the same button. Both
   * zones now come from the same three numbers the drivers draw with. */
-#if SIMUT_TFT_GRAPH
  constexpr int16_t MM_BTN_X0 = CARD_X + minMaxBtnX(CARD_W);
  constexpr int16_t MM_BTN_X1 = MM_BTN_X0 + MINMAX_BTN_W;   /* exclusive */
- if (_topPanel.showMinMax && firstTouch && x >= MM_BTN_X0 && x < MM_BTN_X1) {
- _topPanel.showMinMax = false;
- /* topSlotIdx, not -1. The hardcoded -1 was the sentinel from when this panel
-  * was always the ambient sensor; it now follows _topPanel.fixedIdx or mirrors
-  * the selection, and pullSnapshot keeps topSlotIdx in step with both.
-  *
-  * -1 did not crash — renderGraphOptimized bounds-checks it — it just left
-  * pkg.hwId empty, so no record in any history file matched and the graph came
-  * up "No Data". Worse, an hwId that matches nothing never fills pkg.count, so
-  * the V4 read loop ran to the end of every file and rebooted the device. The
-  * guard mirrors the bottom panel's, which had it all along. */
- int topIdx = _sharedState.topSlotIdx;
- if (topIdx >= 0 && topIdx <= 10) {
- UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = topIdx; ev.param = 0;
- pushUiEvent(ev);
- }
- return;
- }
-#endif
-
- /* Alarme (LIMITE ou ERRO) NÃO silenciado: toque → tela de silenciar.
- * Ação por slot: abre a ação do sensor EXIBIDO no painel tocado (o topo
- * fixado num sensor em erro não pode cair no min/max). Silenciado →
- * comportamento normal (pin / min-max). */
- if (firstTouch && !_alarmSilenced) {
- int8_t tSlot = _sharedState.topSlotIdx;
- if (tSlot >= 0 && tSlot < 16 &&
- (isSlotAlarming(tSlot) || isSlotErrAlarming(tSlot))) {
- showAlarmAction(tSlot);
- return;
- }
- }
-
- if (firstTouch) {
- /* Start hold tracking — action deferred to release or DASH_HOLD_MS (3s) */
- _topPanel.holdStart = millis();
- _topPanel.holdSeen = _topPanel.holdStart;
- _topPanel.holdFired = false;
- return;
- }
-
- /* Holding. The finger is only "still down" for spans this loop actually
-  * watched: a gap means it was either lifted or Core 1 was paused, and
-  * neither is evidence of a continuous press. Restart rather than count
-  * time nobody observed. */
- const uint32_t nowMs = millis();
- if (_topPanel.holdStart != 0 && nowMs - _topPanel.holdSeen > DASH_HOLD_GAP_MS) {
- _topPanel.holdStart = nowMs;
- _topPanel.holdFired = false;
- }
- _topPanel.holdSeen = nowMs;
-
- /* Long press toggles pinned <-> interactive, from ANY state including
-  * min/max — the gesture is the whole contract now, so refusing it while
-  * min/max is up would leave the user holding a finger on a panel that does
-  * nothing, with no way to tell why. Entering the selection also drops
-  * min/max, because the numbers it was showing belong to the sensor the
-  * panel is about to stop following.
-  *
-  * The guard that used to exclude min/max here existed so the mode would not
-  * swap out from under the numbers being read. That risk is now the point of
-  * the gesture: three seconds of deliberate hold is not a gesture anyone
-  * performs while reading. */
- if (!_topPanel.holdFired && _lastTouchRegion == 0 &&
- _topPanel.holdStart != 0 &&
- nowMs - _topPanel.holdStart >= DASH_HOLD_MS) {
- _topPanel.holdFired = true;
- /* Everything this region produces from here to the end of the lift is
-  * discarded. Survives the release reset on purpose: it is a deadline. */
- _topPanel.lockUntil = nowMs + DASH_HOLD_LOCK_MS;
- _touchSoundPending = true;
- _topPanel.showMinMax = false;
- _topPanel.fixed = !_topPanel.fixed;
- if (_topPanel.fixed)
- _topPanel.fixedIdx = _sharedState.selectedSlotIdx;
- redrawTopPanel( );
- }
+ actTopCardPress( x >= MM_BTN_X0 && x < MM_BTN_X1 );
  return;
  }
  if (y > 115 && y < 190) {
