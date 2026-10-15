@@ -182,8 +182,6 @@ UaToque DisplayManager::uaToqueGraficos( const ua::Alvo *a, int16_t &x, int16_t 
      * target is dead, as the gaps between the old buttons were. */
     case MODE_GRAPH_VIEW: {
       if ( !a ) return UaToque::TRATADO;
-      UiEvent ev;
-      ev.id = _graphData.sensorIdx;
       switch ( a->tipo ) {
         case GRF_VOLTAR:
           /* The old close (:593): the offset goes back to 0 and the panel returns. */
@@ -194,25 +192,19 @@ UaToque DisplayManager::uaToqueGraficos( const ua::Alvo *a, int16_t &x, int16_t 
           /* Past, repeating while held (:613-619). */
           if ( !acceptHoldTouch( ZONA_ANTERIOR ) ) break;
           pedirDados( MODE_GRAPH_VIEW, ua::cola::assinaturaDoGrafico( _graphData ) );
-          ev.type = UiEvent::EVT_GRAPH_NAV;
-          ev.param = -1;
-          pushUiEvent( ev );
+          actGraphNav( _graphData, -1 );
           break;
         case GRF_SEGUINTE:
           /* Future, only in the past, repeating while held (:620-626). */
           if ( _graphNavOffset >= 0 || !acceptHoldTouch( ZONA_SEGUINTE ) ) break;
           pedirDados( MODE_GRAPH_VIEW, ua::cola::assinaturaDoGrafico( _graphData ) );
-          ev.type = UiEvent::EVT_GRAPH_NAV;
-          ev.param = +1;
-          pushUiEvent( ev );
+          actGraphNav( _graphData, +1 );
           break;
         case GRF_DIA:
           /* The calendar (:627-633). */
           if ( !acceptTouch( ZONA_DIA ) ) break;
           pedirDados( MODE_GRAPH_VIEW, ua::cola::assinaturaDoGrafico( _graphData ) );
-          ev.type = UiEvent::EVT_OPEN_CALENDAR;
-          ev.param = 0;
-          pushUiEvent( ev );
+          actGraphOpenCalendar( _graphData );
           break;
         case GRF_PERIODO:
           /* Another period, the way the zoom buttons asked for one (:634-649).
@@ -221,9 +213,7 @@ UaToque DisplayManager::uaToqueGraficos( const ua::Alvo *a, int16_t &x, int16_t 
            * the busy line up until it times out. */
           if ( a->indice == _graphData.timeRange || !acceptTouch( ZONA_PERIODO ) ) break;
           pedirDados( MODE_GRAPH_VIEW, ua::cola::assinaturaDoGrafico( _graphData ) );
-          ev.type = UiEvent::EVT_OPEN_GRAPH;
-          ev.param = a->indice;
-          pushUiEvent( ev );
+          actGraphPeriod( _graphData, a->indice );
           break;
         case GRF_AREA:
           /* The central zone opens the detail on the temperature (:651-657). */

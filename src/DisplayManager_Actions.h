@@ -441,3 +441,36 @@ inline __attribute__((always_inline)) void DisplayManager::actCalendarBack( ) {
 	_uiMode = MODE_GRAPH_VIEW;
 	_repaintGraph = true;
 }
+
+/* A tap on the header of the graph or of its detail: the header shows the sensor's name in place of the date and time, and the stamp is what the
+ * loop reads to put them back after 3 s. What it looks like is the driver's (UiChange::GRAPH_HEADER). The caller holds acceptTouch( 0 ) and
+ * returns. The Ângulo has no header target and does not call it. */
+inline __attribute__((always_inline)) void DisplayManager::actGraphShowName( ) {
+	_headerShowName = true;
+	_headerNameTimer = millis( );
+	uiChanged( UiChange::GRAPH_HEADER, 0 );
+}
+
+/* A step in time on the graph or its detail: ask Core 0 for the window before (`dir` = -1) or after (+1) the one on the glass. The caller holds the
+ * hold gate (acceptHoldTouch( 10 ) or ( 11 ) in the original, the Ângulo's own zones), says "busy" when its driver does, and tests the sign before
+ * the gate: ▶ is offered only when the offset is below 0. Core 0 coalesces consecutive EVT_GRAPH_NAV events (AppManager_Events.cpp), so a held
+ * button costs one event per accepted sample. `g` is the package on the glass. */
+inline __attribute__((always_inline)) void DisplayManager::actGraphNav( const GraphDataPackage &g, int dir ) {
+	UiEvent ev; ev.type = UiEvent::EVT_GRAPH_NAV; ev.id = g.sensorIdx; ev.param = dir;
+	pushUiEvent(ev);
+}
+
+/* The calendar: ask Core 0 for the month of the sensor on the glass, with the days that have history (a scan of /history, which is not instant).
+ * The caller holds acceptTouch( 0 ). */
+inline __attribute__((always_inline)) void DisplayManager::actGraphOpenCalendar( const GraphDataPackage &g ) {
+	UiEvent ev; ev.type = UiEvent::EVT_OPEN_CALENDAR; ev.id = g.sensorIdx; ev.param = 0;
+	pushUiEvent(ev);
+}
+
+/* Another period for the graph of the sensor on the glass: ask Core 0 to open it on `range`. The original steps from the period on the glass, one
+ * shorter or one longer, and tests its bounds (> 0, < 4) before the gate; the Ângulo's chips send the period they stand for, and the one that
+ * is lit is inert. The caller holds the gate (acceptHoldTouch( 12 ) or ( 13 ) in the original, a tap in the Ângulo). */
+inline __attribute__((always_inline)) void DisplayManager::actGraphPeriod( const GraphDataPackage &g, int range ) {
+	UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = g.sensorIdx; ev.param = range;
+	pushUiEvent(ev);
+}
