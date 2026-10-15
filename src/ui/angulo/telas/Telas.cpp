@@ -7,8 +7,21 @@
 
 namespace ua {
 
+#ifdef UA_HOST
+namespace {
+int s_perdidos = 0;
+}
+int hostAlvosPerdidos( ) { return s_perdidos; }
+void hostLimparAlvosPerdidos( ) { s_perdidos = 0; }
+#endif
+
 int addAlvo( Alvo *out, int n, int16_t x, int16_t y, int16_t w, int16_t h, uint8_t tipo, int16_t indice ) {
-  if ( n >= MAX_ALVOS ) return n;
+  if ( n >= MAX_ALVOS ) {
+#ifdef UA_HOST
+    s_perdidos++;
+#endif
+    return n;
+  }
   out[n] = Alvo{ x, y, w, h, tipo, indice };
   return n + 1;
 }

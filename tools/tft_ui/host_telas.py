@@ -20,10 +20,15 @@ GFX 1.12.6, draws every sample in both themes, and fails when a sample:
     longer happens;
   - lists a touch target outside the panel;
   - draws a control (a button, key, switch, segment or chip: what a finger is meant to press) that is not
-    fully inside some touch target, or draws it enabled and every target that holds it is inert (type
-    ALVO_INERTE of telas/Telas.h, the type of a control drawn disabled). The kit and the screens record each
-    control they draw, in this build only (UA_HOST, src/ui/angulo/Angulo.h); a call that draws something
-    which is not a control says so with UA_NAO_CONTROLE( "reason" ) and the harness counts it.
+    fully inside some touch target; or draws it enabled and the hit test gives some pixel of it to an inert
+    target (ALVO_INERTE of telas/Telas.h, the type of a control drawn disabled) or to nobody; or draws it
+    disabled and the hit test gives some pixel of it to a live target. The hit test is the firmware's own
+    ua::alvoEm( ), 12 px slop included, run by the host build for every pixel of the control's box. The kit
+    and the screens record each control they draw, in this build only (UA_HOST, src/ui/angulo/Angulo.h); a
+    call that draws something which is not a control says so with UA_NAO_CONTROLE( "reason" ), and one that
+    dims a control on purpose under a live target with UA_CONTROLE_SOB_ALVO( "reason" ): the harness counts both;
+  - lists as many targets as MAX_ALVOS (the list is full) or has addAlvo( ) drop one: a screen that loses a
+    target loses a control without a word. The summary line gives the largest list of the group.
 
 It warns (without failing) on a target smaller than 24 px either way and on
 two targets that overlap. With --out it keeps a PNG per frame, an overlay of
@@ -159,27 +164,50 @@ def alvo_inerte():
 
 
 def conferir_controles(nome, dados, alvos, inerte, erros):
-    """The controls a sample drew (<nome>_<theme>.controles) against its targets. Returns (checked, excluded).
-    The geometry does not depend on the theme: the two files must agree, and one is checked."""
+    """The controls a sample drew (<nome>_<theme>.controles) against its targets. Returns (checked, excluded,
+    dimmed on purpose). Each control lies fully inside some target; then, by the hit test the firmware runs (the
+    host build counts, in `vivos`, the pixels of the control's box that ua::alvoEm( ) gives to a live target): an
+    enabled control has every pixel answered by a live target, a disabled one none, so a live target laid over a
+    disabled control fails too ("sob" is how a call says that it is there on purpose). The geometry does not
+    depend on the theme: the two files must agree, and one is checked."""
     arquivos = [(dados / f'{nome}_{t}.controles').read_text() for t in ('escuro', 'claro')]
     if arquivos[0] != arquivos[1]:
         erros.append(f'{nome}: the controls drawn in the two themes differ')
-    conferidos = excluidos = 0
+    conferidos = excluidos = cobertos = 0
     for linha in arquivos[0].splitlines():
-        partes = linha.rstrip().split(' ', 6)
+        partes = linha.rstrip().split(' ', 7)
         cx, cy, cw, ch = map(int, partes[:4])
-        estado, ctipo = partes[4], partes[5]
+        estado, ctipo, vivos = partes[4], partes[5], int(partes[6])
         if estado == 'nao':
             excluidos += 1
             continue
         conferidos += 1
+        cobertos += estado == 'sob'
         donos = [a for a in alvos if a[0] <= cx and a[1] <= cy and a[0] + a[2] >= cx + cw and a[1] + a[3] >= cy + ch]
         onde = f'{nome}: {ctipo} {cw}x{ch} at {cx},{cy}'
         if not donos:
             erros.append(f'{onde}, drawn {"enabled" if estado == "on" else "disabled"}, is not fully inside any target')
         elif estado == 'on' and all(a[4] == inerte for a in donos):
             erros.append(f'{onde}, drawn enabled, is held only by inert targets (type {inerte}): a touch on it does nothing')
-    return conferidos, excluidos
+        elif estado == 'on' and vivos != cw * ch:
+            erros.append(f'{onde}, drawn enabled, is answered by a live target on {vivos} of its {cw * ch} pixels: '
+                         f'the hit test gives the rest to an inert target or to nobody')
+        elif estado == 'off' and vivos:
+            erros.append(f'{onde}, drawn disabled, is answered by a live target on {vivos} of its {cw * ch} pixels: '
+                         f'a touch on it would act')
+    return conferidos, excluidos, cobertos
+
+
+def conferir_contagem(nome, dados, erros):
+    """The size of the sample's target list (<nome>.contagem: listed, dropped, MAX_ALVOS). Returns (listed,
+    MAX_ALVOS). addAlvo( ) drops a target without a word when the list is full, and a screen that loses one loses a
+    control: any drop fails, and so does a list that fills MAX_ALVOS (the next target added would be the one lost)."""
+    listados, perdidos, maximo = map(int, (dados / f'{nome}.contagem').read_text().split())
+    if perdidos:
+        erros.append(f'{nome}: addAlvo( ) dropped {perdidos} target(s): the list holds {maximo} (MAX_ALVOS in telas/Telas.h)')
+    elif listados >= maximo:
+        erros.append(f'{nome}: the target list is full ({listados} of {maximo}): raise MAX_ALVOS (telas/Telas.h) before it drops one')
+    return listados, maximo
 
 
 def main():
@@ -207,7 +235,8 @@ def main():
         inerte = alvo_inerte()
         if inerte is None:
             return 2
-        conferidos = excluidos = 0
+        conferidos = excluidos = cobertos = 0
+        maior = (0, '', 0)
         nomes = sorted({p.name[:-len('.alvos')] for p in dados.glob('*.alvos')})
         for nome in nomes:
             alvos = []
@@ -223,9 +252,13 @@ def main():
                     a, b = alvos[i], alvos[j]
                     if sobrepoe((a[0], a[0] + a[2], a[1], a[1] + a[3]), (b[0], b[0] + b[2], b[1], b[1] + b[3])):
                         avisos.append(f'{nome}: targets {a[4]}/{a[5]} and {b[4]}/{b[5]} overlap')
-            c, x = conferir_controles(nome, dados, alvos, inerte, erros)
+            c, x, s = conferir_controles(nome, dados, alvos, inerte, erros)
             conferidos += c
             excluidos += x
+            cobertos += s
+            listados, maximo = conferir_contagem(nome, dados, erros)
+            if listados > maior[0]:
+                maior = (listados, nome, maximo)
             for tema in ('escuro', 'claro'):
                 falta = int((dados / f'{nome}_{tema}.faltam').read_text().strip() or 0)
                 if falta:
@@ -296,7 +329,8 @@ def main():
         for e in erros:
             print('FAIL:', e)
         print(f'{len(nomes)} samples, {len(erros)} failures, {len(avisos)} warnings, {cortes} accepted cuts, '
-              f'{conferidos} controls checked, {excluidos} excluded at the call')
+              f'{conferidos} controls checked, {excluidos} excluded at the call, {cobertos} dimmed on purpose, '
+              f'largest target list {maior[0]} of {maior[2]} ({maior[1]})')
         if args.out:
             from PIL import Image, ImageDraw
             out = pathlib.Path(args.out)

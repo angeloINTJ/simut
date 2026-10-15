@@ -43,7 +43,8 @@ struct Alvo {
 // inert targets, and reads this number from here.
 constexpr uint8_t ALVO_INERTE = 0;
 
-// More than any screen has (the PIN keypad's 18 cards and its chrome).
+// More than any screen has: the largest list of any sample is 38 (the text keyboard, texto_senha_legada) and the calendar's is 34
+// (calendario_bissexto), measured on 2026-10-15; tools/tft_ui/host_telas.py fails a sample whose list fills this or drops a target.
 constexpr int MAX_ALVOS = 48;
 
 // Appends a target; returns the new count (n unchanged when out is full).
@@ -51,6 +52,28 @@ int addAlvo( Alvo *out, int n, int16_t x, int16_t y, int16_t w, int16_t h, uint8
 inline int addAlvo( Alvo *out, int n, const Caixa16 &c, uint8_t tipo, int16_t indice = -1 ) {
   return addAlvo( out, n, c.x, c.y, c.w, c.h, tipo, indice );
 }
+#ifdef UA_HOST
+// Host harness only (tools/tft_ui/host_telas.py): the targets addAlvo( ) dropped because the list was full, since the
+// last hostLimparAlvosPerdidos( ). A screen that loses a target loses a control without a word: the harness fails a
+// sample that drops one, or whose list fills MAX_ALVOS. Not compiled into the firmware.
+int hostAlvosPerdidos( );
+void hostLimparAlvosPerdidos( );
+#endif
+
+// The title bar's area left of its first action's target, as an inert target. The title does nothing (the original's header tap
+// showed the sensor's name, and the Angulo always shows it), but the nearest-target rule did not know: with the 12 px slop the
+// lower part of a title's ink (the cedilla of "Configurações" reaches y 28) answered the first row of the list under the bar, and the
+// end of a long title answered the action beside it ("Voltar", "Nova conta"): 50 of the 261 samples that have a title, measured on
+// 67c6521 on 2026-10-15 (stages/nav_fix2/titles_before_67c6521.txt), 20 of them on the chart and the detail, where the band under the
+// bar opened the detail or turned its page. It ends where the action's target begins, so no
+// touch between the two is left to that rule, and it is 29 px tall by default: the bar and its hairline, none of the row below.
+inline Caixa16 areaDoTitulo( int16_t xPrimeiraAcao, int16_t altura = H_STATUS + 1 ) { return Caixa16{ 0, 0, xPrimeiraAcao, altura }; }
+// The "Voltar" of a title bar, and the inert title beside it.
+inline int addAlvoVoltar( Alvo *out, int n, const Caixa16 &voltar, uint8_t tipo ) {
+  n = addAlvo( out, n, areaDoTitulo( voltar.x ), ALVO_INERTE );
+  return addAlvo( out, n, voltar, tipo );
+}
+
 // A control that is live (type `tipo`, with its `indice`) or drawn disabled: the same box either way, and the disabled one is
 // listed inert (ALVO_INERTE, no index), so that a touch on it does nothing and does not fall to a neighbour.
 inline int addAlvoSe( Alvo *out, int n, bool viva, const Caixa16 &c, uint8_t tipo, int16_t indice = -1 ) {

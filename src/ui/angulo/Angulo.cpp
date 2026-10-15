@@ -348,15 +348,17 @@ constexpr int MAX_CONTROLES = 128;   // the text keyboard has about 45; a sample
 ControleDesenhado s_controles[MAX_CONTROLES];
 int s_nControles = 0;
 char s_naoControle[sizeof s_controles[0].excluido] = "";
+char s_sobAlvo[sizeof s_controles[0].sob] = "";
 void copiarNome( char *dst, int cap, const char *src ) {
   int i = 0;
   for ( ; i < cap - 1 && src[i]; i++ ) dst[i] = src[i];
   dst[i] = 0;
 }
 }  // namespace
-void hostLimparControles( ) { s_nControles = 0; s_naoControle[0] = 0; }
+void hostLimparControles( ) { s_nControles = 0; s_naoControle[0] = 0; s_sobAlvo[0] = 0; }
 int hostControles( const ControleDesenhado **lista ) { *lista = s_controles; return s_nControles; }
 void hostNaoEControle( const char *motivo ) { copiarNome( s_naoControle, (int)sizeof s_naoControle, motivo ); }
+void hostControleSobAlvo( const char *motivo ) { copiarNome( s_sobAlvo, (int)sizeof s_sobAlvo, motivo ); }
 void hostControle( int16_t x, int16_t y, int16_t w, int16_t h, bool habilitado, const char *tipo ) {
   ControleDesenhado *c = nullptr;
   for ( int i = 0; i < s_nControles && !c; i++ )
@@ -369,6 +371,8 @@ void hostControle( int16_t x, int16_t y, int16_t w, int16_t h, bool habilitado, 
   copiarNome( c->tipo, (int)sizeof c->tipo, tipo );
   copiarNome( c->excluido, (int)sizeof c->excluido, s_naoControle );
   s_naoControle[0] = 0;
+  copiarNome( c->sob, (int)sizeof c->sob, s_sobAlvo );
+  s_sobAlvo[0] = 0;
 }
 #endif
 
