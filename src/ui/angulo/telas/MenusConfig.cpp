@@ -82,25 +82,30 @@ constexpr int TEMAS_N = 3;
 }
 
 void desenharTemas( Pintor &p, const VmTemas &vm ) {
+  const Tema &T = p.t( );
   barraTituloVoltar( p, "Tema" );
   Item itens[TEMAS_N];
   itens[TM_CLARO].texto = "Claro";
   itens[TM_CLARO].icone = IconeNome::SUN;
   itens[TM_ESCURO].texto = "Escuro";
   itens[TM_ESCURO].icone = IconeNome::MOON;
-  // The rule is a value, not a parenthesis in the label: with the mark on this
-  // row a label of 246 px would run under the check mark (the row has 232 px
-  // between the icon and the mark).
-  itens[TM_AUTOMATICO].texto = "Automático";
-  itens[TM_AUTOMATICO].valor = "escuro das 19 às 7";
-  itens[TM_AUTOMATICO].valorFonte = tipo::rotulo;
+  // The rule is the row's second line, not a parenthesis in the label: with the mark on this
+  // row a label of 246 px would run under the check mark (the row has 232 px between the icon and
+  // the mark). Beside the label it did not fit either at 9 pt (2026-10-15): "Automático" is 86 px
+  // and "escuro das 19 às 7" 144, in the 224 px from the label's left edge to the mark's gap. So
+  // the rows are the 48 px of two lines (LISTA_H_FILA_2) and this one's two lines are laid over
+  // lista( )'s row below.
   itens[TM_AUTOMATICO].icone = IconeNome::SUN_MOON;
   for ( int i = 0; i < TEMAS_N; i++ ) itens[i].marcado = vm.atual == i;
-  const int16_t fim = lista( p, Y0, itens, TEMAS_N, LISTA_H_FILA );
-  desenharNota( p, fim + ESP2, "A cor de destaque é uma só: muda com o tema." );
+  const int16_t fim = lista( p, Y0, itens, TEMAS_N, LISTA_H_FILA_2 );
+  const Caixa16 c = layoutLista( TEMAS_N, 0, LISTA_FILAS_2, LISTA_H_FILA_2 ).linhas[TM_AUTOMATICO];
+  desenharDuasLinhas( p, c, ESP2 + PAD + ICONE_CONTROLE + ESP2, "Automático", T.tinta, "escuro das 19 às 7", tipo::apoio, T.tinta2 );
+  desenharNota( p, fim + ESP2, "A cor de destaque muda com o tema." );
 }
 
-int alvosTemas( const VmTemas &, Alvo *out ) { return alvosLista( layoutLista( TEMAS_N, 0 ), out, true ); }
+int alvosTemas( const VmTemas &, Alvo *out ) {
+  return alvosLista( layoutLista( TEMAS_N, 0, LISTA_FILAS_2, LISTA_H_FILA_2 ), out, true );
+}
 
 /* Idioma: English and the loaded pack, no pager. */
 

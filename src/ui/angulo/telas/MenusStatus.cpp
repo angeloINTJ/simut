@@ -165,7 +165,9 @@ void paginaSensores( LayoutStatus &l, const VmStatusSistema &vm ) {
     snprintf( r.k, sizeof r.k, "e mais %u sensores", (unsigned)( vm.ativos - mostrar ) );
     r.suave = true;
   }
-  if ( vm.ativos == 0 ) copiar( l.nota, "Nenhum sensor ativo. Ative um sensor pela web.", sizeof l.nota );
+  // "Nenhum sensor ativo." is the row above ("Ativos  0 de 11"): with it the note was 364 px
+  // and left the glass at 9 pt (2026-10-15).
+  if ( vm.ativos == 0 ) copiar( l.nota, "Ative um sensor pela web.", sizeof l.nota );
 }
 
 void paginaTelemetria( LayoutStatus &l, const VmStatusSistema &vm ) {
