@@ -511,3 +511,22 @@ inline __attribute__((always_inline)) void DisplayManager::actOtaDismiss( ) {
 	if (!otaTapDismisses(otaPhaseOf(st)) || !acceptTouch(0xC6)) return;
 	if (otaEnd(st)) forceDashboard( );
 }
+
+/* The Ajustes 1 group (stage S8a: the themes, the language, the clock entry, the display alignment, and the sounds with their melody picker): what a touch
+ * on one of their zones does once its gate has let it through. Whoever decided which zone was hit holds the gate its old zone held (acceptTouch( ),
+ * acceptHoldTouch( ) or acceptSlideTouch( ) with the zone's number), except where a comment below says the gate is inside the action. What stays with each
+ * driver is the choosing: the rows, the paging and the wraps of a list, and the bands and columns that tell one button from another. Where the branch of
+ * handleTouch( ) ended with a repaint request (_repaintSettings, volatile), the action ends with it. */
+
+/* The themes screen's Apply: ask Core 0 to apply theme `idx` and take the panel to the dashboard. The original passes the theme on show
+ * (_previewThemeIdx), the Ângulo the row that was tapped. Core 0 reads only `id` of this event (AppManager_Events.cpp), so `param` is left as the stack
+ * had it. The caller holds the gate (acceptTouch( 13 ) in the original). */
+inline __attribute__((always_inline)) void DisplayManager::actApplyTheme( int idx ) {
+	UiEvent ev; ev.type = UiEvent::EVT_APPLY_THEME; ev.id = idx; pushUiEvent(ev);
+}
+
+/* The language screen's Apply: ask Core 0 to apply language slot `idx` and leave for the dashboard. Core 0 reads only `id`, as for the theme. The caller
+ * has tested the slot against the ones on offer (English alone until a pack is loaded) and holds the gate (acceptTouch( 13 ) in the original). */
+inline __attribute__((always_inline)) void DisplayManager::actApplyLang( int idx ) {
+	UiEvent ev; ev.type = UiEvent::EVT_APPLY_LANG; ev.id = idx; pushUiEvent(ev);
+}

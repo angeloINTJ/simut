@@ -10,11 +10,11 @@
  * for. The old branches themselves no longer run for these modes: the rows
  * and the pager of the new screens are not the old ones' zones. Where the old
  * branch's body is a core action (DisplayManager_Actions.h: the settings
- * list's Open button, the alarms list's row, the licence's page step), the
- * case calls that action behind its own gate, so the two drivers run the same
- * code; the lists' page arithmetic is display/ListPager.h's. The themes, the
- * language and the sensor's alarm menu keep copies of their logic until S8a
- * and S9 (docs/analysis/UI_DRIVERS.md, section 2.9).
+ * list's Open button, the alarms list's row, the licence's page step, the
+ * themes' and the language's Apply), the case calls that action behind its own
+ * gate, so the two drivers run the same code; the lists' page arithmetic is
+ * display/ListPager.h's. The sensor's alarm menu keeps a copy of its logic
+ * until S9 (docs/analysis/UI_DRIVERS.md, section 2.9).
  *
  * The page of a list is the old screen's own variable (_mainMenuPage,
  * _alarmPage, _statusPage, _licensePage): the old show*( ) functions reset it
@@ -347,12 +347,9 @@ UaToque DisplayManager::uaToqueMenus( const ua::Alvo *a, int16_t &, int16_t & ) 
         /* The original's Back (handleTouch( ), Touch.cpp): SAIR is back to the menu, nothing applied. */
         if ( acceptTouch( ZONA_VOLTAR ) ) showSettingsMain( );
       } else if ( linha && i >= 0 && i < 3 && acceptTouch( ZONA_LINHA ) ) {
-        /* The original's Apply (handleTouch( ), Touch.cpp): APLICAR sends EVT_APPLY_THEME with the previewed index, and Core 0 saves it
+        /* The original's Apply (handleTouch( ), Touch.cpp): APLICAR runs actApplyTheme( ), the core's, with the previewed index, and Core 0 saves it
          * and takes the panel to the dashboard (uiThemeChanged( )). A tap on a row is that, at once. */
-        UiEvent ev{ };
-        ev.type = UiEvent::EVT_APPLY_THEME;
-        ev.id = i;
-        pushUiEvent( ev );
+        actApplyTheme( i );
       }
       break;
     case MODE_SETTINGS_LANG:
@@ -360,12 +357,9 @@ UaToque DisplayManager::uaToqueMenus( const ua::Alvo *a, int16_t &, int16_t & ) 
         /* The original's Back (handleTouch( ), Touch.cpp): SAIR is back to the menu. */
         if ( acceptTouch( ZONA_VOLTAR ) ) showSettingsMain( );
       } else if ( linha && i >= 0 && i < ( _activeLangLoaded ? LANG_COUNT : 1 ) && acceptTouch( ZONA_LINHA ) ) {
-        /* The original's slots are English, plus the pack, and its Apply (handleTouch( ), Touch.cpp): APLICAR sends
-         * EVT_APPLY_LANG with the row; Core 0 saves it and leaves for the dashboard. */
-        UiEvent ev{ };
-        ev.type = UiEvent::EVT_APPLY_LANG;
-        ev.id = i;
-        pushUiEvent( ev );
+        /* The original's slots are English, plus the pack, and its Apply (handleTouch( ), Touch.cpp): APLICAR runs actApplyLang( ), the core's, with the
+         * row; Core 0 saves it and leaves for the dashboard. */
+        actApplyLang( i );
       }
       break;
     case MODE_SETTINGS_ALARMS:

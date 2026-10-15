@@ -642,7 +642,7 @@ void DisplayManager::handleTouch( ) {
  showSettingsMain( );
  } else {
  if (!acceptTouch(13)) return;
- UiEvent ev; ev.type = UiEvent::EVT_APPLY_THEME; ev.id = _previewThemeIdx; pushUiEvent(ev);
+ actApplyTheme( _previewThemeIdx );
  }
  }
  }
@@ -934,7 +934,7 @@ void DisplayManager::handleTouch( ) {
  }
  else {
  if (!acceptTouch(13)) return;
- UiEvent ev; ev.type = UiEvent::EVT_APPLY_LANG; ev.id = _previewLangIdx; pushUiEvent(ev);
+ actApplyLang( _previewLangIdx );
  }
  }
  }
