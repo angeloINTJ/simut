@@ -141,8 +141,8 @@ without crossing a paint function (section 3.5), and none of them paints, which 
 what makes the cut possible. Cost on the original: none, since the actions are
 `always_inline`.
 
-
 **S5 (2026-10-15):** the Painel group's seven actions are done and live in `src/DisplayManager_Actions.h` (section 2.8), under other names than the examples above: `actTopCardPress`, `actBottomCardTap`, `actNavButton`, `actAlarmSilence`, `actAlarmDeactivate`, `actAlarmShowMinMax` and `actBootSkip`.
+
 ### 2.4 Duties of a driver's paint
 
 A driver that does not run the original's `render` and `draw*` functions takes
@@ -453,7 +453,6 @@ screen.
   compiler's.
 
 ### 2.8 The Painel group's touches (S5)
-
 
 **S5 (2026-10-15, branch `feat/ui-drivers-s5`) did this.** What a touch does in the Painel group is a core action, defined
 once in `src/DisplayManager_Actions.h`, and the Ângulo runs the same actions itself: `uaToquePainel( )` no longer moves the
