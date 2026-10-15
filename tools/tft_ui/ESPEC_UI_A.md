@@ -390,12 +390,20 @@ Sem isso, no gráfico no presente, a parte esquerda da seta › apagada (276,196
 primeira página do detalhe, a ‹ apagada respondia a ›, o sentido contrário. Para o glue, `ua::alvoDoToque( )` devolve `nullptr`
 no alvo inerte, a mesma zona morta que todo tratador já resolve sem fazer nada: nenhum filtro `accept*Touch` (sem bipe, como as
 zonas mortas do original), nenhuma linha de ocupado, nenhuma ação (o teclado de PIN, que fecha o popup num ponto fora das teclas,
-continua fechando). O arnês confere: o kit e as telas registram cada controle que desenham (`UA_CONTROLE`, só na compilação do
-host, sem código no firmware) e `host_telas.py` reprova a amostra com um controle que não está inteiro dentro de algum alvo, ou
-desenhado habilitado e coberto só por alvos inertes (136 falhas nos seis grupos antes dos alvos inertes, 0 depois, 2026-10-15). O
-que o kit desenha e não é controle diz isso na chamada, com `UA_NAO_CONTROLE( "motivo" )`. O arnês só enxerga o que o kit desenha
-e os controles que as telas desenham à mão e anotam (chips de período do gráfico, botões do painel, segmentos dos ajustes): um
-controle novo desenhado à mão precisa da mesma anotação.
+continua fechando). O arnês confere: o kit e as telas registram cada controle que desenham (`UA_CONTROLE`, só na compilação do host, sem código no
+firmware) e `host_telas.py` reprova a amostra com um controle que não está inteiro dentro de algum alvo; ou desenhado habilitado e
+com algum pixel que o teste de toque do firmware (`ua::alvoEm( )`, a folga de 12 px incluída, rodado pelo arnês em todos os pixels do
+retângulo do controle) dá a um alvo inerte ou a ninguém; ou desenhado desabilitado e com algum pixel dado a um alvo vivo, seja o
+desabilitado listado como vivo ou um alvo vivo posto sobre ele. Um alvo vivo que cobre de propósito um controle apagado (uma linha que
+contém um interruptor apagado) diz isso na chamada, com `UA_CONTROLE_SOB_ALVO( "motivo" )`, e o que o kit desenha e não é controle,
+com `UA_NAO_CONTROLE( "motivo" )`; as amostras de hoje não precisaram de nenhum dos dois. Resultado em 2026-10-15: 136 falhas nos seis
+grupos antes dos alvos inertes, 0 depois, com 1.802 controles conferidos. O registro tem prova própria (`test_alvos.py`): cada função
+de controle do kit desenhada habilitada e desabilitada, o pager com as setas apagadas e o rodapé do gráfico, 16 casos, e 11 cópias do
+kit com uma alteração no registro (pula os desabilitados, soma em vez de substituir, grava um tipo sempre habilitado, deixa uma nota
+passar para o controle seguinte...), cada uma reprovada por pelo menos um caso. O arnês só enxerga o que o kit desenha e os controles
+que as telas desenham à mão e anotam (chips de período do gráfico, botões do painel, segmentos dos ajustes): um controle novo
+desenhado à mão precisa da mesma anotação. Ele reprova também a amostra cuja lista de alvos chega ao `MAX_ALVOS` ou perde um alvo
+(`addAlvo( )` descarta em silêncio): a maior de hoje tem 38 de 48, a do teclado de texto.
 
 **Alcance real.** Um alvo responde a até 12 px do seu retângulo, onde nenhum outro está mais perto; um conteúdo que não é alvo
 responde ao alvo mais perto. É intencional: as zonas do original eram faixas contíguas em que todo pixel respondia alguma coisa.
@@ -404,12 +412,23 @@ calendário (y 32 a 47) responde às setas de mês ou ao "Voltar" acima dela, ou
 perto. Os alvos da barra de título terminam em y 31 (32 px de altura) porque a tinta do primeiro texto abaixo (as estatísticas, os
 dias da semana) começa em y 34 e o arnês reprova texto que cruza a borda de um alvo; a folga os estende até y 43.
 
+**Título.** A área da barra de título à esquerda do alvo da primeira ação é um alvo inerte em toda tela que tem barra
+(`areaDoTitulo( )`, `telas/Telas.h`): o título não faz nada (o toque no cabeçalho do original mostrava o nome do sensor, e o Ângulo
+sempre o mostra). Sem isso, com a folga, a parte de baixo da tinta do título (a cedilha de "Configurações" chega a y 28) respondia a
+primeira linha da lista sob a barra, o fim de um título longo respondia a ação ao lado ("Voltar", "Nova conta") e, no gráfico e no
+detalhe, o título abria o detalhe ou virava a página pela faixa central: 50 das 261 amostras com título respondiam um alvo vivo em
+algum pixel da tinta, medido em 2026-10-15 em 67c6521 (20 no gráfico e no detalhe), e nenhuma depois. A caixa termina onde o alvo da
+ação começa e tem 29 px de altura (32 nas telas de gráfico, como os alvos das ações): a barra e o seu filete, nada da linha de baixo.
+
 **Faixa central do gráfico e do detalhe.** O original respondia todo pixel de 0,40 320x155 ("Tap on central zone" em
 `DisplayManager_Touch.cpp`); `GRF_AREA` (gráfico) e `DET_AREA` (detalhe, o último do enum, para os números que a bancada usa não
 mudarem) são a faixa 0,32 320x164, de logo abaixo dos alvos da barra de título (y 31) até logo acima do rodapé (y 196), sem
-sobrepor nenhum outro alvo. No gráfico ela abre o detalhe na temperatura. No detalhe um toque nos cartões vira a página, na ordem
-do ramo MODE_GRAPH_DETAIL do original: temperatura, umidade (se o sensor tem agora), pressão (se tem) e, depois da última, volta ao
-gráfico; o sensor de uma página volta ao gráfico no primeiro toque, e a página sem leituras responde igual. `acceptTouch( )`
+sobrepor nenhum outro alvo. No gráfico ela abre o detalhe na temperatura. No detalhe um toque nos cartões vira a página como o ramo MODE_GRAPH_DETAIL do original: a primeira página da lista do sensor
+acima da que está na tela, ou o gráfico se não há (`paginasDoDetalhe( )` lista as páginas que o sensor tem agora: 0 temperatura, 1
+umidade, 2 pressão). Os quatro formatos de sensor: só temperatura, 0 → gráfico; com umidade, 0 → 1 → gráfico; com pressão e sem
+umidade, 0 → 2 → gráfico; os três, 0 → 1 → 2 → gráfico. A regra vale para qualquer número de página, inclusive um que a lista não
+tem (a página 2 de um sensor que perdeu a pressão volta ao gráfico, como no original). A única diferença é a janela com menos de duas
+leituras: a lista do Ângulo exige `count >= 2` para a umidade e a pressão. A página sem leituras responde igual. `acceptTouch( )`
 aceita uma vez por pressão, qualquer que seja a zona, então o toque que abriu o detalhe não vira a página (o original usava
 `acceptTouch( 10 )` nas duas telas). `‹`, `›` e "Voltar" ficam como estavam.
 
