@@ -97,9 +97,22 @@ int hostTextos( const TextoDesenhado **lista );
 /* Pintor: the renderer's Surface over Adafruit_GFX                    */
 /* ------------------------------------------------------------------ */
 
+// What a Pintor draws on, read back. Rounded corners and circles mix their colour
+// into the pixel already there, in proportion to how much of the pixel the shape
+// covers (4 x 4 samples): Adafruit GFX's arcs are all or nothing, and at a
+// button's 6 px radius they read as 45-degree cuts (the maintainer, looking at
+// the panel, 2026-10-15). Every Pintor has one: the firmware's strip, the host's canvas.
+class Leitor {
+public:
+  virtual uint16_t ler( int16_t x, int16_t y ) = 0;
+
+protected:
+  ~Leitor( ) = default;
+};
+
 class Pintor {
 public:
-  Pintor( Adafruit_GFX &g, const Tema &t ) : g_( g ), t_( &t ) {}
+  Pintor( Adafruit_GFX &g, const Tema &t, Leitor &l ) : g_( g ), t_( &t ), l_( l ) {}
 
   const Tema &t( ) const { return *t_; }
   void tema( const Tema &t ) { t_ = &t; }
@@ -130,8 +143,13 @@ public:
 
 private:
   bool fora( int16_t y, int16_t h ) const { return y + h <= jy0_ || y >= jy1_; }
+  // c over the pixel at (x, y), a sixteenths of it (16 = all of it).
+  void misturar( int16_t x, int16_t y, uint16_t c, uint8_t a );
+  void cantos( int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint16_t c, int32_t in2 );
+  void disco( int16_t x, int16_t y, int16_t r, uint16_t c, int32_t in2 );
   Adafruit_GFX &g_;
   const Tema *t_;
+  Leitor &l_;
   int16_t jy0_ = -32768, jy1_ = 32767;
 };
 

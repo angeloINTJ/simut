@@ -11,9 +11,20 @@
 
 #include "Amostras.h"
 
+// The canvas read back, for the smoothed corners (ua::Leitor).
+class LeitorCanvas : public ua::Leitor {
+public:
+  explicit LeitorCanvas( GFXcanvas16 &c ) : c_( c ) {}
+  uint16_t ler( int16_t x, int16_t y ) override { return c_.getPixel( x, y ); }
+
+private:
+  GFXcanvas16 &c_;
+};
+
 int main( int argc, char **argv ) {
   if ( argc < 2 ) { fprintf( stderr, "usage: %s <folder>\n", argv[0] ); return 2; }
   GFXcanvas16 canvas( 320, 240 );
+  LeitorCanvas leitor( canvas );
   char path[512];
   for ( int i = 0; i < amostra::kAmostrasN; i++ ) {
     const amostra::Amostra &a = amostra::kAmostras[i];
@@ -23,7 +34,7 @@ int main( int argc, char **argv ) {
       // The firmware clears each strip to the theme's background before a
       // screen draws (DisplayManager_UiA.cpp); the host does the same.
       canvas.fillScreen( tema.fundo );
-      ua::Pintor p( canvas, tema );
+      ua::Pintor p( canvas, tema, leitor );
       ua::hostLimparTextos( );
       const uint32_t faltavam = ua::glifosFaltando( );
       a.desenhar( p );
