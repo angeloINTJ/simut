@@ -180,6 +180,7 @@ void DisplayManager::restoreNormalDashboard( ) {
 }
 
 void DisplayManager::drawInterfaceFixed( ) {
+ UA_DESVIO( );
  if (!_driver.tft) return;
  /* Paints ONLY the background the four dashboard widgets do not cover — see the
   * layout invariant at the top of this file.
@@ -314,6 +315,10 @@ static bool fillWindowDma(TftWithOffset* tft, uint16_t color,
 
 void DisplayManager::fastFillRect(int16_t x, int16_t y, int16_t w, int16_t h,
  uint16_t color) {
+#if SIMUT_UI_ANGULO
+ /* The Ângulo build: only its own renderer pushes pixels (UA_DESVIO). */
+ if (!_uaPintando) return;
+#endif
  if (!_driver.tft) return;
  /* Logical -> physical: apply the alignment offset here and clamp, the
  * same discipline blitCanvas uses. Clamping (instead of bailing to the
@@ -338,6 +343,10 @@ void DisplayManager::fastFillRect(int16_t x, int16_t y, int16_t w, int16_t h,
 }
 
 void DisplayManager::fastClearScreen(uint16_t color) {
+#if SIMUT_UI_ANGULO
+ /* The Ângulo build: only its own renderer pushes pixels (UA_DESVIO). */
+ if (!_uaPintando) return;
+#endif
  if (!_driver.tft) return;
  /* Whole PHYSICAL panel in one burst, then the black alignment margins —
  * visually identical to TftWithOffset::fillScreen( ), ~4x faster. */
@@ -351,6 +360,10 @@ void DisplayManager::fastClearScreen(uint16_t color) {
 
 void DisplayManager::blitCanvas(GFXcanvas16* canvas, int16_t dstX, int16_t dstY,
  int16_t w, int16_t h, int16_t srcX) {
+#if SIMUT_UI_ANGULO
+ /* The Ângulo build: only its own renderer pushes pixels (UA_DESVIO). */
+ if (!_uaPintando) return;
+#endif
  if (!canvas || !_driver.tft) return;
 
  /*
@@ -455,6 +468,7 @@ void DisplayManager::blitFooterMenu(const char* exitLabel,
 }
 
 void DisplayManager::drawTopBar(const SystemState& state) {
+ UA_DESVIO( );
  if(!_driver.canvas) return;
  const int W = DASH_W, H = TOPBAR_H;
 
@@ -749,6 +763,7 @@ void DisplayManager::drawTopBar(const SystemState& state) {
 
 
 void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isValid, int slotIdx, const char* name, bool forceNameRedraw, DashPanel& panel, float p) {
+ UA_DESVIO( );
  if(!_driver.canvas) return;
  int16_t x1, y1; uint16_t h_bound;
 
@@ -1081,6 +1096,7 @@ int DisplayManager::buildDashLayout(DashBtn out[5], int *totalPages, bool *hasPa
 }
 
 void DisplayManager::drawBottomButtons(int selectedIdx) {
+ UA_DESVIO( );
  if(!_driver.canvas) return;
  _driver.canvas->fillScreen(C_BG_MAIN);
  const int btnW = 58, gap = 5, xStart = 5, pitch = btnW + gap;

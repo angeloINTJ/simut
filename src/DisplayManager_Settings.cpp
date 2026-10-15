@@ -31,6 +31,7 @@ void DisplayManager::showSettingsThemes(int currentThemeIdx) {
 }
 
 void DisplayManager::drawSettingsThemes( ) {
+ UA_DESVIO( );
  if(!_driver.canvas) return;
  bool fullRedraw = _forceSettingsRedraw;
  bool pageChanged = (_themePage != _lastThemePage);
@@ -90,6 +91,7 @@ void DisplayManager::showSettingsAlarms(SystemConfig* cfg) {
 }
 
 void DisplayManager::drawSettingsAlarms( ) {
+ UA_DESVIO( );
  if(!_driver.canvas) return;
  bool fullRedraw = _forceSettingsRedraw; bool pageChanged = (_alarmPage != _lastAlarmPage);
  int totalPages = (_activeSensorCount + 3) / 4; if (totalPages == 0) totalPages = 1;
@@ -196,6 +198,7 @@ void DisplayManager::renderAlarmRow(int mapIdx, int16_t& outStatusX) {
  * badge-sized slice is pushed over SPI.
  */
 void DisplayManager::drawAlarmStatusOnly( ) {
+ UA_DESVIO( );
  if (!_driver.canvas || !_sysConfigPtr) return;
  const int row = _alarmSelection - (_alarmPage * ALARM_LIST_ROWS);
  if (row < 0 || row >= ALARM_LIST_ROWS) return;
@@ -220,6 +223,7 @@ void DisplayManager::showAlarmEdit(int sensorIdx) {
  * ring + 9pt text) now lives in uiUnit/uiUnitWidth in UiWidgets.cpp,
  * shared with every screen that prints a channel unit. */
 void DisplayManager::drawAlarmEdit( ) {
+ UA_DESVIO( );
  /* One limit per bar, scrolled four at a time — the same rows, spacing and
   * scrollbar as every other menu on this display. The screen it replaces laid
   * out four fixed boxes, which meant a hard ceiling of two channels: a part
@@ -344,6 +348,7 @@ void DisplayManager::showSettingsMain( ) {
 }
 
 void DisplayManager::drawSettingsMain( ) {
+ UA_DESVIO( );
  if(!_driver.canvas) return;
  bool fullRedraw = _forceSettingsRedraw; bool pageChanged = (_mainMenuPage != _lastMainMenuPage);
  const int TOTAL_ITEMS = _menuCount;
@@ -590,6 +595,7 @@ static void kbDrawPopup(GFXcanvas16* cv, int8_t popup, int16_t yOff) {
  * 6-strip renderer — no partial-blit paths, every repaint is one pass.
  */
 void DisplayManager::drawSettingsPassword( ) {
+ UA_DESVIO( );
  if (!_driver.tft) return;
 
  /* Result screens (error/success) keep the message layout. */
@@ -794,6 +800,7 @@ void DisplayManager::showApConfirm( ) {
 }
 
 void DisplayManager::drawApConfirm( ) {
+ UA_DESVIO( );
  if (!_driver.canvas) return;
  if (!_forceSettingsRedraw) return;
  _forceSettingsRedraw = false;
@@ -909,6 +916,7 @@ void DisplayManager::drawClockValues(Adafruit_GFX* g, int16_t yOff) {
 }
 
 void DisplayManager::drawClockEntry( ) {
+ UA_DESVIO( );
  if (!_driver.canvas) return;
 
  if (!_forceSettingsRedraw) {
@@ -978,6 +986,7 @@ void DisplayManager::showMuteConfirm( ) {
  * Strings hardcoded EN/PT — does not touch DICTIONARY_EN or device
  * .lng files (TFT renders only ASCII per policy). */
 void DisplayManager::drawMuteConfirm( ) {
+ UA_DESVIO( );
  if (!_driver.canvas) return;
  if (!_forceSettingsRedraw) return;
  _forceSettingsRedraw = false;
@@ -1044,6 +1053,7 @@ void DisplayManager::drawMuteConfirm( ) {
 
 
 void DisplayManager::drawSettingsSounds( ) {
+ UA_DESVIO( );
  if (!_driver.canvas) return;
 
  static int lastSoundPage = -1;
@@ -1168,6 +1178,7 @@ void DisplayManager::drawSettingsSounds( ) {
 
 
 void DisplayManager::drawMelodySelect( ) {
+ UA_DESVIO( );
  if (!_driver.canvas) return;
 
 
@@ -1332,6 +1343,7 @@ void DisplayManager::updateSystemStatus(const SystemStatusData& data) {
  * Auto-refresh every 1 second via timer in the render loop.
  */
 void DisplayManager::drawSystemStatus( ) {
+ UA_DESVIO( );
  bool fullRedraw = _forceSettingsRedraw;
  _forceSettingsRedraw = false;
 

@@ -531,6 +531,7 @@ void DisplayManager::drawPinDotsInto(GFXcanvas16* cv, int16_t oy) {
  * Afterwards only the dots row repaints, once per tap, and it is its own
  * 320x28 blit that no card overlaps. */
 void DisplayManager::drawPinScreen( ) {
+	UA_DESVIO( );
 	using namespace PinKb;
 	if (!_driver.canvas) return;
 	int16_t bx, by; uint16_t bw, bh;
@@ -665,6 +666,7 @@ static void fmtHoursMinutes(char* dst, size_t cap, uint32_t minutes) {
 }
 
 void DisplayManager::drawAlarmSensorMenu( ) {
+	UA_DESVIO( );
 	if (!_driver.canvas || !_sysConfigPtr || _sensorMenuIdx < 0) return;
 	const SensorRecord& rec = _sysConfigPtr->sensors[_sensorMenuIdx];
 	const bool fullRedraw = _forceSettingsRedraw;
@@ -752,6 +754,7 @@ void DisplayManager::showMaintEntry(int sensorIdx) {
 }
 
 void DisplayManager::drawMaintEntry( ) {
+	UA_DESVIO( );
 	if (!_driver.canvas || !_sysConfigPtr || _maintSlot < 0) return;
 	const SensorRecord& rec = _sysConfigPtr->sensors[_maintSlot];
 	const uint32_t left = maintMinutesLeft(_sysConfigPtr, _maintSlot);
@@ -926,6 +929,7 @@ void DisplayManager::drawUserRowInto(GFXcanvas16* cv, bool picking, int mapIdx,
 }
 
 void DisplayManager::drawUserList(bool picking) {
+	UA_DESVIO( );
 	if (!_driver.canvas || !_sysConfigPtr) return;
 	const bool fullRedraw = _forceSettingsRedraw;
 	const bool pageChanged = (_usersPage != _lastUsersPage);
@@ -1014,6 +1018,7 @@ int DisplayManager::userEditRowCount( ) const {
 }
 
 void DisplayManager::drawUserEdit( ) {
+	UA_DESVIO( );
 	if (!_driver.canvas || !_sysConfigPtr) return;
 	const bool fullRedraw = _forceSettingsRedraw;
 	const int rows = userEditRowCount( );
@@ -1069,6 +1074,7 @@ void DisplayManager::drawUserEdit( ) {
 }
 
 void DisplayManager::drawUserConfirmDel( ) {
+	UA_DESVIO( );
 	if (!_driver.canvas || !_sysConfigPtr || !_forceSettingsRedraw) return;
 	_forceSettingsRedraw = false;
 	fastClearScreen(C_BG_MAIN);
@@ -1112,6 +1118,7 @@ void DisplayManager::showPanelMessage(bool ok, LangKey msg, UiMode returnTo) {
 }
 
 void DisplayManager::drawPanelMessage( ) {
+	UA_DESVIO( );
 	if (!_driver.tft || !_forceSettingsRedraw) return;
 	_forceSettingsRedraw = false;
 	int16_t x1, y1; uint16_t w, h;
@@ -1245,6 +1252,7 @@ void DisplayManager::showPinPolicy( ) {
  * "Scrambled 3" silently caps the length at 8 and a knob that changes another
  * knob without saying so is how a policy screen lies. */
 void DisplayManager::drawPinPolicy( ) {
+	UA_DESVIO( );
 	if (!_driver.canvas) return;
 	const uint8_t minLen = _policyMin, keypad = _policyKb, alphabet = _policyAlpha;
 

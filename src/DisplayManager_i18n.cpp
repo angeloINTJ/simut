@@ -176,6 +176,7 @@ void DisplayManager::showSettingsLang(int currentLang) {
 }
 
 void DisplayManager::drawSettingsLang( ) {
+ UA_DESVIO( );
  if (!_driver.canvas) return;
 
  bool fullRedraw = _forceSettingsRedraw;

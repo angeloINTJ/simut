@@ -39,6 +39,7 @@ void DisplayManager::setGraphNavOffset(int offset) {
 
 
 void DisplayManager::drawCalendarScreen( ) {
+ UA_DESVIO( );
  if (!_driver.canvas) return;
 
  const char* monthNames[] = {

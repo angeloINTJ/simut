@@ -97,6 +97,11 @@ static void composeLicenseOpening(int langIdx) {
 	}
 	_licOpeningLang = langIdx;
 }
+#if SIMUT_UI_ANGULO
+/* The Ângulo build's licence screen (DisplayManager_UiA_Menus.cpp) reads the
+ * opening Core 0 composed for the active language when the screen opened. */
+const char *uaAberturaLicenca( ) { return _licOpening; }
+#endif
 #endif // !SIMUT_DISPLAY_ALPHA
 
 DisplayManager* _instance = nullptr;
@@ -1398,6 +1403,9 @@ void DisplayManager::loopCore1( ) {
 		const UiMode modeBeforeDraw = _uiMode;
 
 		if (_themeChanged) {
+#if SIMUT_UI_ANGULO
+			uaTemaAplicado( );
+#else
 			C1_PHASE(C1P_THEME_MUTEX);
 			SystemState snap;
 			mutex_enter_blocking(&_stateMutex);
@@ -1445,6 +1453,7 @@ void DisplayManager::loopCore1( ) {
 				_isDirty = true;
 				mutex_exit(&_stateMutex);
 			}
+#endif
 			_themeChanged = false;
 		}
 
@@ -1698,6 +1707,12 @@ void DisplayManager::loopCore1( ) {
 		 * this line restores a full repaint for a mode that changed underneath
 		 * the draw, whichever flags that draw consumed on its way out. */
 		if (_uiMode != modeBeforeDraw) { _forceSettingsRedraw = true; _repaintSettings = true; }
+#if SIMUT_UI_ANGULO
+		/* The Ângulo build paints here, after the chain above has run every
+		 * timer and transition of this pass (DisplayManager_UiA.cpp). */
+		C1_PHASE(C1P_RENDER);
+		uaQuadro( );
+#endif
 
 		/*
 		 * Adaptive pause: minimum during interaction, larger when idle.
@@ -1784,6 +1799,15 @@ void DisplayManager::render(const SystemState& state) {
  st.topSlotIdx = st.selectedSlotIdx;
  }
 	if (state.isBooting) {
+#if SIMUT_UI_ANGULO
+		/* The Ângulo build paints the boot screen from _lastRenderedState
+		 * (DisplayManager_UiA_Painel.cpp); what the old branch counts for
+		 * Core 0 and for itself still happens here. */
+		_langChanged = false;
+		_lastRenderedState = state;
+		uaSujo( );   /* _bootPaintSeq rises once the frame is on the glass (uaQuadro( )) */
+		return;
+#endif
 		C1_PHASE(C1P_R_BOOT);
 		/* _langChanged forces fullRedraw to retranslate bootLogs already
 		 * shown in EN before .lng loaded. */
@@ -2024,6 +2048,7 @@ void DisplayManager::showSettingsLicense( ) {
 
 
 void DisplayManager::drawSettingsLicense( ) {
+	UA_DESVIO( );
 	bool fullRedraw = _forceSettingsRedraw;
 
 	/* The opening (RAM, composed on Core 0) and the licence with the list of

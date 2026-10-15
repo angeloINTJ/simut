@@ -395,6 +395,14 @@ void DisplayManager::handleTouch( ) {
  return;
  }
 
+#if SIMUT_UI_ANGULO
+ /* The Ângulo build (src/ui/angulo/): the touch lands on the frame it
+  * painted. Its screens either act on it themselves (true: nothing below
+  * runs) or move the point to where the old layout has the same element, for
+  * the branch below to do what it always did. */
+ if (uaToque(x, y)) return;
+#endif
+
  if (_uiMode == MODE_DASHBOARD) {
  if (y > 35 && y < 110) {
  /* Deaf while a long press is being let go of. Anything arriving here is

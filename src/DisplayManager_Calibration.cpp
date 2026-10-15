@@ -132,6 +132,7 @@ void DisplayManager::showSettingsDisplayOffset( ) {
  * Footer: [BACK] [APPLY] (y >= 200)
  */
 void DisplayManager::drawSettingsDisplayOffset( ) {
+ UA_DESVIO( );
  if (!_driver.tft) return;
  bool full = _forceSettingsRedraw;
 
@@ -304,6 +305,7 @@ void DisplayManager::showTouchSensitivity( ) {
  * - Numeric threshold value
  */
 void DisplayManager::drawTouchSensitivity( ) {
+ UA_DESVIO( );
  bool fullRedraw = _forceSettingsRedraw;
  _forceSettingsRedraw = false;
 
@@ -493,6 +495,7 @@ void DisplayManager::drawCalibrationMessage( ) {
  * updates (between taps of the 8 points) go directly to _driver.tft — small
  * areas, imperceptible top-down effect. */
 void DisplayManager::drawTouchCalibration( ) {
+ UA_DESVIO( );
  bool fullRedraw = _forceSettingsRedraw;
 
  if (_calPhase >= 1) {

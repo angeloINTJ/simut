@@ -148,6 +148,13 @@ void DisplayManager::otaTick( ) {
 }
 
 void DisplayManager::drawOtaScreen( ) {
+#if SIMUT_UI_ANGULO
+	/* The Ângulo build paints its own update screen, at once: Core 0 calls
+	 * this while Core 1 is parked (otaPaintFromCore0) and Core 1 from
+	 * otaTick( ), and either way the panel is the caller's for the draw. */
+	uaOta( );
+	return;
+#endif
 	GFXcanvas16* const cv = _driver.canvas;
 	if (!cv || !_driver.tft) return;
 	const uint32_t st = __atomic_load_n(&_otaState, __ATOMIC_ACQUIRE);

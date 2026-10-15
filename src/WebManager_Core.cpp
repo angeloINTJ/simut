@@ -190,6 +190,9 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
   * SIMUT_WEB_HTTPS to place them. Definitions in WebManager_History.cpp and
   * WebManager_Tls.cpp. docs/analysis/MODELO_DE_RECURSOS.md, P2 (costura das rotas). */
  registerScreenRoutes( );
+#if SIMUT_UI_ANGULO
+ registerUiARoutes( );     /* study build: src/ui/angulo/WebManager_UiA.cpp */
+#endif
  registerTlsRoutes( );
  _server->on("/api/sec_status", HTTP_GET, std::bind(&WebManager::handleApiSecStatus, this));
  _server->on("/api/set_time", HTTP_POST, std::bind(&WebManager::handleApiSetTime, this));

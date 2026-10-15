@@ -498,6 +498,11 @@ private:
 	 * exists. docs/analysis/MODELO_DE_RECURSOS.md, P2 (costura das rotas). */
 	void registerScreenRoutes( ); /**< the 5 panel-mirror routes; WebManager_History.cpp */
 	void registerTlsRoutes( );    /**< POST /api/tls; WebManager_Tls.cpp */
+#if SIMUT_UI_ANGULO
+	/* The Ângulo driver's route, GET /api/ui (src/ui/angulo/WebManager_UiA.cpp). */
+	void registerUiARoutes( );
+	void handleApiUiA( );
+#endif
 #if SIMUT_DISPLAY_TFT
 	void handleApiScreenshot( );
 	void handleApiScreenshotChunk( ); /**< /chunked with CRC32 */
