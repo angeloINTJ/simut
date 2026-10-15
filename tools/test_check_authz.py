@@ -33,6 +33,17 @@ src/ui/) and runs the gate there as a subprocess, so what is proved is the file 
 
 EXTS is this test's own list, not the gate's: a test that took it from the gate would stop checking an
 extension the day someone dropped it there.
+
+Then the instrument is bitten (MUTANTS): each mutant is the gate, or the hook's pattern, with one change, and the
+checks that fail must be exactly the ones listed for it: an extension taken out of DRIVER_EXTS (its b and its e,
+and c for .hpp, which moves the route there), a document put into it, DRIVER_FILES that ignores the tuple, a
+gate that reads one level only, a finding under src/ui/ that no longer fails the check, a hook that loses an
+extension, the core, or the depth, or fires on a document. A mutant whose text is no longer in the file is an
+error, and the mutants are not run while a real check fails (a mutant of a red gate proves nothing).
+
+Written on 2026-10-15. Against the gate and the hook of 319714d, 19 of the 39 checks pass: the b and e checks of
+the extensions c, cc, cxx, hh, hpp, hxx, inl, ipp and tpp fail, and so do case c and e.names. With DRIVER_EXTS all
+39 pass, and all 11 mutants are caught, each by exactly the checks listed for it (about 15 s in all).
 """
 import concurrent.futures
 import importlib.util
@@ -161,6 +172,28 @@ def gate_exts(gate_text, tmp):
     return getattr(module, "DRIVER_EXTS", None)
 
 
+# Each mutant is the gate (target "gate") or the hook's configuration ("hook") with one change:
+# (id, what it does, target, text, replacement, the checks that must fail).
+ALL_B = {f"b[{e}]" for e in EXTS} | {f"b[{label}]" for label, _ in DEPTHS}
+MUTANTS = [
+    ("m1", "the gate stops reading .hpp (c moves the route there too)", "gate", '"hpp", ', "", {"b[hpp]", "c", "e[hpp]"}),
+    ("m2", "the gate stops reading .inl", "gate", '"inl", ', "", {"b[inl]", "e[inl]"}),
+    ("m3", "the gate stops reading .c", "gate", '"c", ', "", {"b[c]", "e[c]"}),
+    ("m4", "the gate reads documents (.md) too", "gate", '"tpp")', '"tpp", "md")', {"d[notes.md]", "e[md]"}),
+    ("m5", "DRIVER_EXTS is named but DRIVER_FILES keeps the two it always had", "gate", "for ext in DRIVER_EXTS",
+     'for ext in ("cpp", "h")', {f"b[{e}]" for e in EXTS if e not in ("cpp", "h")} | {"c"}),
+    ("m6", "the gate reads src/ui/ one level down only", "gate", "recursive=True", "recursive=False",
+     {"b[depth 2]", "b[depth 0]"}),
+    ("m7", "a finding under src/ui/ no longer fails the check", "gate",
+     'failures += [f"UI driver (src/ui/**): {f}" for f in driver_failures]', "pass", ALL_B),
+    ("m8", "the hook stops firing on .inl", "hook", "inl|", "", {"e[inl]"}),
+    ("m9", "the hook fires on .md too", "hook", "|tpp)", "|tpp|md)", {"e[md]"}),
+    ("m10", "the hook stops firing on the core's WebManager*.cpp", "hook", "WebManager.*\\.cpp|", "", {"e.core"}),
+    ("m11", "the hook fires one level down only (src/ui/*/x, not src/ui/*/*/x)", "hook", "ui/.*\\.(", "ui/[^/]+/[^/]+\\.(",
+     {f"e[{e}]" for e in EXTS}),
+]
+
+
 # ── the cases ────────────────────────────────────────────────────────────────────────────────────
 
 def gate_cases(gate_text, base, tmp):
@@ -275,13 +308,35 @@ def main():
         base = make_base(tmp)
         with concurrent.futures.ThreadPoolExecutor(max_workers=min(8, os.cpu_count() or 1)) as pool:
             results = all_checks(gate_text, config_text, base, tmp, pool)
-    failed = [r for r in results if not r[2]]
-    for cid, title, ok, detail in results:
-        print(f"[{'ok  ' if ok else 'FAIL'}] {cid}  {title}" + (f" - {detail}" if not ok and detail else ""))
-    print(f"\n{len(results) - len(failed)} of {len(results)} checks passed")
-    if failed:
-        print("FAILED:\n  " + "\n  ".join(r[0] for r in failed))
+            failed = [r for r in results if not r[2]]
+            for cid, title, ok, detail in results:
+                print(f"[{'ok  ' if ok else 'FAIL'}] {cid}  {title}" + (f" - {detail}" if not ok and detail else ""))
+            print(f"\n{len(results) - len(failed)} of {len(results)} checks passed")
+            if failed:
+                print("FAILED:\n  " + "\n  ".join(r[0] for r in failed))
+                print(f"\n{len(MUTANTS)} mutants not run: a mutant of a gate that already fails proves nothing")
+                return 1
+            print(f"\n{len(MUTANTS)} mutants (the checks that fail must be exactly the listed ones):")
+            wrong = []
+            for mid, title, target, old, new, expected in MUTANTS:
+                source = gate_text if target == "gate" else config_text
+                if source.count(old) != 1:
+                    print(f"[FAIL] {mid}  {title} - its text is {source.count(old)} times in the {target}, not once: {old!r}")
+                    wrong.append(mid)
+                    continue
+                mutated = source.replace(old, new)
+                res = all_checks(mutated if target == "gate" else gate_text, mutated if target == "hook" else config_text,
+                                 base, tmp, pool)
+                fell = {r[0] for r in res if not r[2]}
+                if fell == expected:
+                    print(f"[ok  ] {mid}  {title}: fails {sorted(fell)}")
+                else:
+                    print(f"[FAIL] {mid}  {title}: fails {sorted(fell)}, expected {sorted(expected)}")
+                    wrong.append(mid)
+    if wrong:
+        print(f"\nFAILED: {len(wrong)} of {len(MUTANTS)} mutants: {', '.join(wrong)}")
         return 1
+    print(f"\nOK: {len(results)} checks and {len(MUTANTS)} mutants")
     return 0
 
 
