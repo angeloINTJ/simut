@@ -93,8 +93,10 @@ uint32_t glifosFaltando( );
 #ifdef UA_HOST
 // Host harness only (tools/tft_ui/host_telas.py): the ink box of every string
 // drawn since the last hostLimparTextos( ), to hold each screen's text inside
-// the glass. Not compiled into the firmware.
-struct TextoDesenhado { int16_t x0, x1, y0, y1; char texto[64]; };
+// the glass, and the box of every badge (selo = true, its label in `texto`):
+// the fill of a badge hides what it covers, which the ink of the texts alone
+// never showed. Not compiled into the firmware.
+struct TextoDesenhado { int16_t x0, x1, y0, y1; bool selo; char texto[64]; };
 void hostLimparTextos( );
 int hostTextos( const TextoDesenhado **lista );
 #endif
