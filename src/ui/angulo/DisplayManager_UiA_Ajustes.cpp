@@ -5,15 +5,12 @@
  *        pico_wiretft_angulo only.
  *
  * Touch, per mode (ESPEC_UI_A.md §2):
- *  - Translation (T): the display alignment. The new target is
- *    moved to the centre of the element the old layout has in its place, and
- *    the old branch of handleTouch( ) runs as it always did, hold-repeat
- *    included (the same target gives the same old point at every sample).
- *  - Controller (C): the clock, the limits, the maintenance window, the sounds
- *    with their melody and the PIN policy do what the old branch does, with the
- *    old state, events and filters; each action cites the old line it
- *    reproduces. The clock runs the core's actions (DisplayManager_Actions.h)
- *    behind the zones the old branch used, so a held arrow repeats as it did.
+ *  - Controller (C): the clock, the display alignment, the limits, the
+ *    maintenance window, the sounds with their melody and the PIN policy do
+ *    what the old branch does, with the old state, events and filters; each
+ *    action cites the old line it reproduces. The clock and the alignment run
+ *    the core's actions (DisplayManager_Actions.h) behind the zones the old
+ *    branch used, so a held arrow repeats as it did.
  *  - Raw (B): the touch sensitivity and the calibration read the touch before
  *    any hook (DisplayManager_Touch.cpp, the two blocks that end in return),
  *    so a touch on them never gets here; only the frame is built.
@@ -323,23 +320,47 @@ UaToque DisplayManager::uaToqueAjustes( const ua::Alvo *a, int16_t &x, int16_t &
           return UaToque::TRATADO;
       }
     }
-    case MODE_SETTINGS_DISPLAY_OFFSET:
-      /* Translation to the old zones (DisplayManager_Touch.cpp:1028-1099): up
-       * y 55..95 and down y 145..185, both x 130..190; left x 80..140 and
-       * right x 180..240, both y 100..140; the reset square x 148..172,
-       * y 108..132; BACK y >= 200 with x <= 130 and APPLY y >= 200 with
-       * x >= 190. The centre of each. */
+    case MODE_SETTINGS_DISPLAY_OFFSET: {
+      /* Controller: what the old branch does (handleTouch( ), the alignment's branch in DisplayManager_Touch.cpp), in the zones it used, so that holding an
+       * arrow repeats as before: the arrows 20 (up), 21 (down), 22 (left) and 23 (right), Redefinir 24, Voltar 25 and Salvar 26. An arrow's action says
+       * whether the preview moved, and the tail then applies it to the panel at once. Voltar puts the saved offset back; Salvar only asks Core 0. */
       if ( !a ) return UaToque::TRATADO;
+      bool changed = false;
       switch ( a->tipo ) {
-        case ALINH_CIMA: x = 160; y = 75; return UaToque::TRADUZIDO;
-        case ALINH_BAIXO: x = 160; y = 165; return UaToque::TRADUZIDO;
-        case ALINH_ESQUERDA: x = 110; y = 120; return UaToque::TRADUZIDO;
-        case ALINH_DIREITA: x = 210; y = 120; return UaToque::TRADUZIDO;
-        case ALINH_REDEFINIR: x = 160; y = 120; return UaToque::TRADUZIDO;
-        case ALINH_VOLTAR: x = 65; y = 220; return UaToque::TRADUZIDO;
-        case ALINH_SALVAR: x = 250; y = 220; return UaToque::TRADUZIDO;
-        default: return UaToque::TRATADO;
+        case ALINH_CIMA:
+          if ( !acceptHoldTouch( 20 ) ) return UaToque::TRATADO;
+          changed = actOffsetUp( );
+          break;
+        case ALINH_BAIXO:
+          if ( !acceptHoldTouch( 21 ) ) return UaToque::TRATADO;
+          changed = actOffsetDown( );
+          break;
+        case ALINH_ESQUERDA:
+          if ( !acceptHoldTouch( 22 ) ) return UaToque::TRATADO;
+          changed = actOffsetLeft( );
+          break;
+        case ALINH_DIREITA:
+          if ( !acceptHoldTouch( 23 ) ) return UaToque::TRATADO;
+          changed = actOffsetRight( );
+          break;
+        case ALINH_REDEFINIR:
+          if ( !acceptTouch( 24 ) ) return UaToque::TRATADO;
+          changed = actOffsetCentre( );
+          break;
+        case ALINH_VOLTAR:
+          if ( !acceptTouch( 25 ) ) return UaToque::TRATADO;
+          actOffsetBack( );
+          return UaToque::TRATADO;
+        case ALINH_SALVAR:
+          if ( !acceptTouch( 26 ) ) return UaToque::TRATADO;
+          actOffsetApply( );
+          return UaToque::TRATADO;
+        default:
+          return UaToque::TRATADO;
       }
+      if ( changed ) actOffsetPreview( );
+      return UaToque::TRATADO;
+    }
     case MODE_SETTINGS_ALARM_EDIT: {
       /* Controller: what the old branch does (DisplayManager_Touch.cpp:872-988). */
       if ( !a ) return UaToque::TRATADO;

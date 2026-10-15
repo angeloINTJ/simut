@@ -853,51 +853,37 @@ void DisplayManager::handleTouch( ) {
  bool changed = false;
  if (y >= 55 && y <= 95 && x >= 130 && x <= 190) {
  if (!acceptHoldTouch(20)) return;
- if (_offsetPreviewY > -4) { _offsetPreviewY--; changed = true; }
+ changed = actOffsetUp( );
  }
  else if (y >= 145 && y <= 185 && x >= 130 && x <= 190) {
  if (!acceptHoldTouch(21)) return;
- if (_offsetPreviewY < 4) { _offsetPreviewY++; changed = true; }
+ changed = actOffsetDown( );
  }
  else if (y >= 100 && y <= 140 && x >= 80 && x <= 140) {
  if (!acceptHoldTouch(22)) return;
- if (_offsetPreviewX > -4) { _offsetPreviewX--; changed = true; }
+ changed = actOffsetLeft( );
  }
  else if (y >= 100 && y <= 140 && x >= 180 && x <= 240) {
  if (!acceptHoldTouch(23)) return;
- if (_offsetPreviewX < 4) { _offsetPreviewX++; changed = true; }
+ changed = actOffsetRight( );
  }
  else if (y >= 108 && y <= 132 && x >= 148 && x <= 172) {
  if (!acceptTouch(24)) return;
- if (_offsetPreviewX != 0 || _offsetPreviewY != 0) {
- _offsetPreviewX = 0; _offsetPreviewY = 0; changed = true;
- }
+ changed = actOffsetCentre( );
  }
  else if (y >= 200 && x <= 130) {
  if (!acceptTouch(25)) return;
- /* Discard preview adjustment: restore saved offset before exiting. */
- _offsetPreviewX = _offsetSavedX;
- _offsetPreviewY = _offsetSavedY;
- if (_driver.tft) _driver.tft->setDisplayOffset(_offsetSavedX, _offsetSavedY);
- showSettingsMain( );
+ actOffsetBack( );
  return;
  }
  else if (y >= 200 && x >= 190) {
  if (!acceptTouch(26)) return;
- UiEvent ev;
- ev.type = UiEvent::EVT_APPLY_DISPLAY_OFFSET;
- ev.id = _offsetPreviewX;
- ev.param = _offsetPreviewY;
- pushUiEvent(ev);
+ actOffsetApply( );
  return;
  }
 
  if (changed) {
- if (_driver.tft) _driver.tft->setDisplayOffset(_offsetPreviewX, _offsetPreviewY);
- /* Full redraw: previous frame was drawn with a different offset,
- * old pixels remain outside the new area and need to be cleared. */
- _forceSettingsRedraw = true;
- _repaintSettings = true;
+ actOffsetPreview( );
  }
  }
  else if (_uiMode == MODE_SETTINGS_LANG) {

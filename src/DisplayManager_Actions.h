@@ -561,3 +561,63 @@ inline __attribute__((always_inline)) void DisplayManager::actClockStep( uint8_t
 	_clockValuesDirty = true;
 	_repaintSettings = true;
 }
+
+/* The display alignment (MODE_SETTINGS_DISPLAY_OFFSET). The four arrows move the preview by one step each and stop at the limit the panel holds the offset
+ * to (-4 and +4, TftWithOffset::setDisplayOffset( )); each says whether the preview moved, and the caller then calls actOffsetPreview( ) once, which applies
+ * it to the panel at once. The caller holds the hold gate of the arrow: zone 20 for up, 21 for down, 22 for left and 23 for right. */
+inline __attribute__((always_inline)) bool DisplayManager::actOffsetUp( ) {
+	if (_offsetPreviewY > -4) { _offsetPreviewY--; return true; }
+	return false;
+}
+
+inline __attribute__((always_inline)) bool DisplayManager::actOffsetDown( ) {
+	if (_offsetPreviewY < 4) { _offsetPreviewY++; return true; }
+	return false;
+}
+
+inline __attribute__((always_inline)) bool DisplayManager::actOffsetLeft( ) {
+	if (_offsetPreviewX > -4) { _offsetPreviewX--; return true; }
+	return false;
+}
+
+inline __attribute__((always_inline)) bool DisplayManager::actOffsetRight( ) {
+	if (_offsetPreviewX < 4) { _offsetPreviewX++; return true; }
+	return false;
+}
+
+/* Redefinir: both axes back to zero. True when the preview moved. The caller holds acceptTouch( 24 ). */
+inline __attribute__((always_inline)) bool DisplayManager::actOffsetCentre( ) {
+	if (_offsetPreviewX != 0 || _offsetPreviewY != 0) {
+		_offsetPreviewX = 0; _offsetPreviewY = 0; return true;
+	}
+	return false;
+}
+
+/* The preview moved: apply it to the panel now, so the image shifts under the finger, and ask for a full repaint of the screen. */
+inline __attribute__((always_inline)) void DisplayManager::actOffsetPreview( ) {
+	if (_driver.tft) _driver.tft->setDisplayOffset(_offsetPreviewX, _offsetPreviewY);
+	/* Full redraw: previous frame was drawn with a different offset,
+	 * old pixels remain outside the new area and need to be cleared. */
+	_forceSettingsRedraw = true;
+	_repaintSettings = true;
+}
+
+/* Voltar: the preview is discarded, the saved offset goes back onto the panel (on Core 1, before the menu is shown) and the settings list comes up. The
+ * caller holds acceptTouch( 25 ) and returns. */
+inline __attribute__((always_inline)) void DisplayManager::actOffsetBack( ) {
+	/* Discard preview adjustment: restore saved offset before exiting. */
+	_offsetPreviewX = _offsetSavedX;
+	_offsetPreviewY = _offsetSavedY;
+	if (_driver.tft) _driver.tft->setDisplayOffset(_offsetSavedX, _offsetSavedY);
+	showSettingsMain( );
+}
+
+/* Salvar: the panel only asks. Core 0 saves the offset, zeroes the touch calibration and has the touch calibrated again (AppManager_Events.cpp), so a driver
+ * calls this only from the Save button, behind acceptTouch( 26 ), and returns. */
+inline __attribute__((always_inline)) void DisplayManager::actOffsetApply( ) {
+	UiEvent ev;
+	ev.type = UiEvent::EVT_APPLY_DISPLAY_OFFSET;
+	ev.id = _offsetPreviewX;
+	ev.param = _offsetPreviewY;
+	pushUiEvent(ev);
+}
