@@ -33,6 +33,7 @@
 #include "telas/MenusLicenca.h"
 #include "telas/MenusStatus.h"
 #include "telas/Telas.h"
+#include "../../DisplayManager_Actions.h"   /* the core's touch actions, which the lists' rows run; last */
 
 /* The screens' ids are the firmware's, value for value: the menu copies _menuItems[ ] as
  * it is, and a language row is the language it applies. (Two enums are compared as ints:
@@ -327,14 +328,10 @@ UaToque DisplayManager::uaToqueMenus( const ua::Alvo *a, int16_t &, int16_t & ) 
         /* Touch.cpp:1013-1016: SAIR leaves the settings for the dashboard. */
         if ( acceptTouch( ZONA_VOLTAR ) ) forceDashboard( );
       } else if ( linha ) {
-        /* Touch.cpp:1017-1024: ENTRAR sends EVT_MENU_SELECT with the ITEM's id (display/SettingsMenu.h),
-         * not the row's; a tap on a row is that, at once (the old rows only selected). */
-        if ( i >= 0 && i < _menuCount && acceptTouch( ZONA_LINHA ) ) {
-          UiEvent ev{ };
-          ev.type = UiEvent::EVT_MENU_SELECT;
-          ev.id = _menuItems[i];
-          pushUiEvent( ev );
-        }
+        /* ENTRAR, which the old rows kept apart from the tap that selected: a tap on a row is both, at once. actMenuSelect( ), the
+         * core's, asks Core 0 to open the ITEM the row stands for (display/SettingsMenu.h), not the row; the row is tested ahead
+         * of the gate so that a tap on no row clicks nothing. */
+        if ( i >= 0 && i < _menuCount && acceptTouch( ZONA_LINHA ) ) actMenuSelect( i );
       } else {
         /* Touch.cpp:1002-1012 (the arrows), without the wrap. */
         virar( _mainMenuPage, ( _menuCount + LISTA_FILAS - 1 ) / LISTA_FILAS );
@@ -371,9 +368,9 @@ UaToque DisplayManager::uaToqueMenus( const ua::Alvo *a, int16_t &, int16_t & ) 
         /* Touch.cpp:866-868: SAIR is back to the menu. */
         if ( acceptTouch( ZONA_VOLTAR ) ) showSettingsMain( );
       } else if ( linha ) {
-        /* Touch.cpp:843-849: the selected row opens the sensor's action menu, showAlarmSensorMenu( ) with the
-         * slot from _activeSensorsMap; a tap on a row is the second tap of the old two (the first only selected). */
-        if ( i >= 0 && i < _activeSensorCount && acceptTouch( ZONA_LINHA ) ) showAlarmSensorMenu( _activeSensorsMap[i] );
+        /* The row opens the sensor's action menu (actAlarmListOpen( ), the core's: showAlarmSensorMenu( ) with the slot from
+         * _activeSensorsMap); a tap on a row is the second tap of the old two, the one on the selected row (the first only selected). */
+        if ( i >= 0 && i < _activeSensorCount && acceptTouch( ZONA_LINHA ) ) actAlarmListOpen( i );
       } else {
         /* Touch.cpp:857-865 (the arrows), without the wrap. */
         virar( _alarmPage, ( _activeSensorCount + LISTA_FILAS_2 - 1 ) / LISTA_FILAS_2 );

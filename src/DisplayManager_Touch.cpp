@@ -686,11 +686,8 @@ void DisplayManager::handleTouch( ) {
  int mapIdx = (_alarmPage * 4) + clickedIndex;
  if (mapIdx < _activeSensorCount) {
  if (mapIdx == _alarmSelection) {
- /* v24: the selected row opens the sensor's action menu — limits, block
-  * and maintenance live there, each behind the session's own bit, each
-  * applied and recorded by Core 0. The ON/OFF word is a status now. */
  if (!acceptTouch(clickedIndex + 4)) return;
- showAlarmSensorMenu(_activeSensorsMap[_alarmSelection]);
+ actAlarmListOpen( _alarmSelection );
  } else if (mapIdx != _alarmSelection) {
  /* Tap on name/bar: select the item */
  if (!acceptSlideTouch(clickedIndex)) return;
@@ -860,12 +857,7 @@ void DisplayManager::handleTouch( ) {
  }
  else {
  if (!acceptTouch(13)) return;
- /* v24: the id is the ITEM (display/SettingsMenu.h), not the row —
- * the list follows MENU_ORDER and the session's bits, so row 1 may be
- * any item. */
- if (_menuSelection < _menuCount) {
- UiEvent ev; ev.type = UiEvent::EVT_MENU_SELECT; ev.id = _menuItems[_menuSelection]; pushUiEvent(ev);
- }
+ actMenuSelect( _menuSelection );
  }
  }
  }

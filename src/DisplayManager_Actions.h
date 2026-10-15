@@ -1,9 +1,10 @@
 /**
  * @file DisplayManager_Actions.h
- * @brief The core's touch actions of the Painel group (the dashboard and the alarm's action screen) and of the Base group (the
- *        confirmation dialogs): what a touch on one of their zones does to the state, defined once, inline, so that the original's
- *        handleTouch( ) and a driver's own touch glue (the Ângulo's uaToquePainel( ) and uaToqueBase( )) run the same code and not a
- *        copy (stages S5 and S6 of docs/analysis/UI_DRIVERS.md).
+ * @brief The core's touch actions of the Painel group (the dashboard and the alarm's action screen), of the Base group (the
+ *        confirmation dialogs) and of the Menus group (the settings list, the alarms list and the licence's pages): what a touch on
+ *        one of their zones does to the state, defined once, inline, so that the original's handleTouch( ) and a driver's own touch
+ *        glue (the Ângulo's uaToquePainel( ), uaToqueBase( ) and uaToqueMenus( )) run the same code and not a copy (stages S5 and S6
+ *        of docs/analysis/UI_DRIVERS.md).
  *
  * Each action is declared in class DisplayManager as `inline __attribute__((always_inline))`, next to the core's
  * ticks, and called where its code used to sit, so the compiled image keeps the code it had. The zone decides which
@@ -12,8 +13,9 @@
  * by name.
  *
  * Included LAST, after ui/UiDriverHooks.h, by DisplayManager_Touch.cpp and DisplayManager_Users.cpp, and by the Ângulo's
- * DisplayManager_UiA_Painel.cpp and DisplayManager_UiA.cpp (neither includes a hooks header: the Ângulo's hooks are ordinary
- * functions): an action leans on the hook definitions the original inlines, so a unit that takes the actions takes the hooks first.
+ * DisplayManager_UiA_Painel.cpp, DisplayManager_UiA.cpp and DisplayManager_UiA_Menus.cpp (none includes a hooks header: the Ângulo's
+ * hooks are ordinary functions): an action leans on the hook definitions the original inlines, so a unit that takes the actions takes
+ * the hooks first.
  */
 #pragma once
 
@@ -356,4 +358,30 @@ inline __attribute__((always_inline)) void DisplayManager::actStartAp( ) {
 	 * key and the address. This used to say beginAP( ) did that; nothing
 	 * did, and the confirmation stayed on the glass (fixed 2026-09-24). */
 	UiEvent ev; ev.type = UiEvent::EVT_START_AP; ev.id = 0; pushUiEvent(ev);
+}
+
+/* The settings list and the alarms list (MODE_SETTINGS_MAIN, MODE_SETTINGS_ALARMS): what a row's button does once its gate has let the touch
+ * through. Whoever decided which row was hit holds the gate: the original acceptTouch( 13 ) for the list's Open button and
+ * acceptTouch( clickedIndex + 4 ) for a second tap on the selected alarms row, the Ângulo acceptTouch( ZONA_LINHA ) for a tap on a row. */
+
+/* The settings list's Open button, on row `idx` of the list (_menuItems[ ]): ask Core 0 to open the item the row stands for. The row is tested
+ * against the list's length here, as it was in the branch; the Ângulo tests it ahead of its own gate as well (a tap on no row must not click),
+ * so for it this is a second look. The event leaves with `param` as the stack had it: Core 0 reads only `id` for this event
+ * (AppManager_Events.cpp). */
+inline __attribute__((always_inline)) void DisplayManager::actMenuSelect( int idx ) {
+	/* v24: the id is the ITEM (display/SettingsMenu.h), not the row —
+	 * the list follows MENU_ORDER and the session's bits, so row 1 may be
+	 * any item. */
+	if (idx < _menuCount) {
+		UiEvent ev; ev.type = UiEvent::EVT_MENU_SELECT; ev.id = _menuItems[idx]; pushUiEvent(ev);
+	}
+}
+
+/* The alarms list, on row `idx` (a position in _activeSensorsMap[ ], which the caller has checked against _activeSensorCount): open that
+ * sensor's action menu. In the original this is the second tap, on the row already selected; in the Ângulo a tap on a row. */
+inline __attribute__((always_inline)) void DisplayManager::actAlarmListOpen( int idx ) {
+	/* v24: the selected row opens the sensor's action menu — limits, block
+	 * and maintenance live there, each behind the session's own bit, each
+	 * applied and recorded by Core 0. The ON/OFF word is a status now. */
+	showAlarmSensorMenu(_activeSensorsMap[idx]);
 }
