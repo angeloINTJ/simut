@@ -1,0 +1,25 @@
+{
+ "_doc": "The Angulo driver's colour roles for the 320x240 RGB565 panel. 'guia' is the Angulo guide's palette (ANGULO.md 3.1, the values the web and the app use); 'tft' holds the panel's deviations, role by role, each with its reason in tools/tft_ui/gen_tokens.py. tools/tft_ui/gen_tokens.py writes src/ui/angulo/kit/angulo_tokens.h from this file; never edit the header by hand.",
+ "guia": {
+  "claro": {
+   "fundo": "#f6f6f4", "superficie": "#ffffff", "superficie2": "#ecebe6",
+   "tinta": "#201e1a", "tinta2": "#5f5b54", "linha": "#dcdad3", "linhaForte": "#827e76",
+   "acento": "#1f6355", "acentoForte": "#174d42", "acentoTinta": "#f1faf6",
+   "positivo": "#20784e", "positivoSuave": "#e1f0e7",
+   "alerta": "#8a6116", "alertaSuave": "#f3ead2",
+   "perigo": "#b3382e", "perigoSuave": "#f7e3e0", "perigoTinta": "#fff5f3"
+  },
+  "escuro": {
+   "fundo": "#161513", "superficie": "#201e1b", "superficie2": "#2a2723",
+   "tinta": "#ebe7df", "tinta2": "#a39c90", "linha": "#383430", "linhaForte": "#78716a",
+   "acento": "#5fb39a", "acentoForte": "#7cc7b2", "acentoTinta": "#0e211b",
+   "positivo": "#6fbe8e", "positivoSuave": "#24352b",
+   "alerta": "#d9a84e", "alertaSuave": "#38301c",
+   "perigo": "#e07862", "perigoSuave": "#382220", "perigoTinta": "#2b100c"
+  }
+ },
+ "tft": {
+  "claro": {},
+  "escuro": {}
+ }
+}
