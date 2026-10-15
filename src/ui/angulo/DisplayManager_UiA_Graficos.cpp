@@ -179,36 +179,36 @@ UaToque DisplayManager::uaToqueGraficos( const ua::Alvo *a, int16_t &x, int16_t 
   (void)y;
   switch ( _uiMode ) {
     /* Controller: each target does what the old branch did for the same
-     * request (DisplayManager_Touch.cpp:591-658), and a touch outside any
+     * request (the graph branches of handleTouch( ) in DisplayManager_Touch.cpp), and a touch outside any
      * target is dead, as the gaps between the old buttons were. */
     case MODE_GRAPH_VIEW: {
       if ( !a ) return UaToque::TRATADO;
       switch ( a->tipo ) {
         case GRF_VOLTAR:
-          /* The old close (:593): the offset goes back to 0 and the panel returns. */
+          /* The old close (the X of the MODE_GRAPH_VIEW branch): the offset goes back to 0 and the panel returns. */
           if ( !acceptTouch( ZONA_VOLTAR ) ) break;
           actGraphClose( );
           break;
         case GRF_ANTERIOR:
-          /* Past, repeating while held (:613-619). */
+          /* Past, repeating while held (the previous-period button of the MODE_GRAPH_VIEW branch). */
           if ( !acceptHoldTouch( ZONA_ANTERIOR ) ) break;
           pedirDados( MODE_GRAPH_VIEW, ua::cola::assinaturaDoGrafico( _graphData ) );
           actGraphNav( _graphData, -1 );
           break;
         case GRF_SEGUINTE:
-          /* Future, only in the past, repeating while held (:620-626). */
+          /* Future, only in the past, repeating while held (its next-period button). */
           if ( _graphNavOffset >= 0 || !acceptHoldTouch( ZONA_SEGUINTE ) ) break;
           pedirDados( MODE_GRAPH_VIEW, ua::cola::assinaturaDoGrafico( _graphData ) );
           actGraphNav( _graphData, +1 );
           break;
         case GRF_DIA:
-          /* The calendar (:627-633). */
+          /* The calendar (its calendar button). */
           if ( !acceptTouch( ZONA_DIA ) ) break;
           pedirDados( MODE_GRAPH_VIEW, ua::cola::assinaturaDoGrafico( _graphData ) );
           actGraphOpenCalendar( _graphData );
           break;
         case GRF_PERIODO:
-          /* Another period, the way the zoom buttons asked for one (:634-649).
+          /* Another period, the way the zoom buttons asked for one (its two zoom buttons).
            * The chip that is already lit is inert, as a segmented control's
            * is: re-reading the same window would show nothing new and leave
            * the busy line up until it times out. */
@@ -217,7 +217,7 @@ UaToque DisplayManager::uaToqueGraficos( const ua::Alvo *a, int16_t &x, int16_t 
           actGraphPeriod( _graphData, a->indice );
           break;
         case GRF_AREA:
-          /* The central zone opens the detail on the temperature (:651-657). */
+          /* The central zone opens the detail on the temperature (the branch's central zone). */
           if ( !acceptTouch( ZONA_AREA ) ) break;
           actGraphDetailOpen( );
           break;
@@ -229,13 +229,13 @@ UaToque DisplayManager::uaToqueGraficos( const ua::Alvo *a, int16_t &x, int16_t 
 
     /* The detail: the pager changes the quantity, "Voltar" goes back to the
      * chart. The old screen had no pager: a tap on its middle cycled the pages
-     * and the last one went back to the chart (DisplayManager_Touch.cpp:718-736);
-     * its close went to the panel (:661), which "Voltar" no longer does. */
+     * and the last one went back to the chart (the MODE_GRAPH_DETAIL branch of handleTouch( ), DisplayManager_Touch.cpp);
+     * its close went to the panel, which "Voltar" no longer does. */
     case MODE_GRAPH_DETAIL: {
       if ( !a ) return UaToque::TRATADO;
       switch ( a->tipo ) {
         case DET_VOLTAR:
-          /* What the old tap on the last page did (:730-735). */
+          /* What the old tap on the last page did (the last arm of the cycle). */
           if ( !acceptTouch( ZONA_VOLTAR ) ) break;
           actDetailBack( );
           break;
@@ -249,7 +249,7 @@ UaToque DisplayManager::uaToqueGraficos( const ua::Alvo *a, int16_t &x, int16_t 
             if ( paginas[j] == _detailPage ) k = j;
           k += a->tipo == DET_PAG_PROXIMA ? 1 : -1;
           if ( k < 0 || k >= n ) break;
-          actDetailPage( paginas[k] );   /* with the repaint request the old cycling raised (:725, :729) */
+          actDetailPage( paginas[k] );   /* with the repaint request the old cycling raised, which actDetailPage( ) holds */
           break;
         }
         default:
@@ -258,35 +258,35 @@ UaToque DisplayManager::uaToqueGraficos( const ua::Alvo *a, int16_t &x, int16_t 
       return UaToque::TRATADO;
     }
 
-    /* The calendar (DisplayManager_Touch.cpp:739-808). */
+    /* The calendar (the MODE_CALENDAR branch of handleTouch( ), DisplayManager_Touch.cpp). */
     case MODE_CALENDAR: {
       if ( !a ) return UaToque::TRATADO;
       switch ( a->tipo ) {
         case CAL_VOLTAR:
-          /* Back to the chart with the data it already has (:741-746). */
+          /* Back to the chart with the data it already has (the old X of the calendar). */
           if ( !acceptTouch( ZONA_VOLTAR ) ) break;
           actCalendarBack( );
           break;
         case CAL_MES_ANTERIOR:
-          /* The month before (:748-752, :789-793). */
+          /* The month before (the header's left arrow and the bottom bar's). */
           if ( !acceptSlideTouch( ZONA_MES_ANTERIOR ) ) break;
           pedirDados( MODE_CALENDAR, ua::cola::assinaturaDoCalendario( _calYear, _calMonth, _calDaysMask ) );
           actCalendarMonth( _graphData, -1 );
           break;
         case CAL_MES_SEGUINTE:
-          /* The month after, which the screen offers only before the current one (:753-758, :801-805). */
+          /* The month after, which the screen offers only before the current one (the header's right arrow and the bottom bar's). */
           if ( !acceptSlideTouch( ZONA_MES_SEGUINTE ) ) break;
           pedirDados( MODE_CALENDAR, ua::cola::assinaturaDoCalendario( _calYear, _calMonth, _calDaysMask ) );
           actCalendarMonth( _graphData, +1 );
           break;
         case CAL_DIA:
-          /* A day that has history (:759-785): Core 0 answers with the loading
+          /* A day that has history (the day grid): Core 0 answers with the loading
            * screen, which is the feedback, so no busy line. */
           if ( !calDayHasHistory( _calDaysMask, a->indice ) || !acceptTouch( ZONA_DIA_DO_MES ) ) break;
           actCalendarDay( _graphData, a->indice );
           break;
         case CAL_HOJE:
-          /* Today: the chart at the present, on the period it had (:794-800). The
+          /* Today: the chart at the present, on the period it had (the bottom bar's Today). The
            * calendar is not a graph mode, so Core 0 answers with the loading
            * screen here too (AppManager_Events.cpp:163-175): no busy line. */
           if ( !acceptTouch( ZONA_HOJE ) ) break;
@@ -301,8 +301,10 @@ UaToque DisplayManager::uaToqueGraficos( const ua::Alvo *a, int16_t &x, int16_t 
     /* The update screen lets the touch through to the old chain, where the core's action (actOtaDismiss( ), which holds the phase test and the
      * gate) dismisses a refused or cut update, and nothing else while one runs. It is not called from here: TRATADO would mark the frame
      * dirty on every touch sample, and the pass would build the screen's view model and hash it on each one while Core 1 runs the update
-     * screen (the READY phase and the two endings; in RECEIVING Core 1 is parked and takes no sample). S7_PLANO.md R3 says to keep this
-     * case TRADUZIDO until S10a, which retires the old chain, and the action is already the code that chain runs. */
+     * screen (the READY phase and the two endings; in RECEIVING Core 1 is parked and takes no sample). The plan kept this case TRADUZIDO only if RECEIVING built a frame per pass;
+     * it does not (stages/s7_c5/ota_r3.txt, read from the source), and the decision rests on READY and the two endings, where TRATADO would rebuild and
+     * hash the view model on every touched pass. The plan's grep ends at TRADUZIDO = 1, not 0 (docs/analysis/UI_DRIVERS.md section 2.10). S10a retires
+     * the old chain and flips the case: the action is already the code that chain runs. */
     case MODE_OTA_UPDATE:
       return UaToque::TRADUZIDO;
     /* Nothing to touch while the history is read: no branch of handleTouch

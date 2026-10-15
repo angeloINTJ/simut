@@ -153,8 +153,8 @@ inline void preencherGrafico( tela::VmGrafico &vm, const GraphDataPackage &g, fl
  * temperature, 1 the humidity, 2 the pressure): the temperature always, the
  * humidity when the sensor has it and the plot has its axis, the pressure when
  * the sensor has the channel (drawGraphDetailScreen( ),
- * DisplayManager_Graph.cpp:897-900, and the tap that cycles them,
- * DisplayManager_Touch.cpp:718-736). A window with no data has the one page.
+ * DisplayManager_Graph.cpp, and the tap that cycles them, the
+ * MODE_GRAPH_DETAIL branch of handleTouch( ) in DisplayManager_Touch.cpp). A window with no data has the one page.
  * Returns how many; out[] gets their numbers in order. */
 inline int paginasDoDetalhe( const GraphDataPackage &g, float minHum, uint8_t out[3] ) {
   int n = 0;

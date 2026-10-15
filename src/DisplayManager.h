@@ -1551,7 +1551,7 @@ private:
 	 * The Menus group, the lists: the settings list's Open button (it asks Core 0 for the item the row stands for) and the alarms list's
 	 * row (it opens the sensor's action menu), and the licence screen's page step (its callers set the repaint request).
 	 * The Gráficos group, the graph and the update screen: the X that closes the graph or its detail, the header's tap (the sensor's name for 3 s), a
-	 * step in time, the calendar, another period, the detail's pages and its way back to the chart, the calendar's way back and its month arrows, a day
+	 * step in time, the calendar, another period, the chart's central zone (it opens the detail), the detail's pages and its way back to the chart, the calendar's way back and its month arrows, a day
 	 * and Today, and the update screen's tap. The ones that read the graph's package take it as an argument, `g`, and the caller passes _graphData: the
 	 * member exists only when SIMUT_TFT_GRAPH is set, and a declaration here cannot say so without a block of its own. */
 	inline __attribute__((always_inline)) void actAlarmSilence( );
