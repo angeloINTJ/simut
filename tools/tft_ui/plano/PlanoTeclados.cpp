@@ -268,8 +268,8 @@ void desenharT1( Pintor &p, const EstadoTexto &st ) {
 /* The text examples: ESTADOS_TEXTO and T1's SSID state                  */
 /* ------------------------------------------------------------------ */
 
-const char *const SENHA = "Vacina#26";
-const char *const ERRO_SENHA = "Use pelo menos 8 caracteres.";
+const char *const TEXTO_EXEMPLO = "Vacina#26";
+const char *const ERRO_CURTO = "Use pelo menos 8 caracteres.";
 const Chip kChipsSsid[] = { { "HOSP-IOT", true }, { "HOSP-ENG", false }, { "Lab 2", false }, { "Oculta…", false } };
 
 // The examples in the plan's order: vazio, digitando, shift, caps, simbolos,
@@ -278,13 +278,13 @@ EstadoTexto estadoTexto( int i ) {
   EstadoTexto e;
   switch ( i ) {
     case 0: break;                                                       // vazio
-    case 1: e.texto = SENHA; e.pressionada = "e"; break;                 // digitando
+    case 1: e.texto = TEXTO_EXEMPLO; e.pressionada = "e"; break;                 // digitando
     case 2: e.texto = "Vac"; e.shift = Shift::ON; break;                 // shift
     case 3: e.texto = "VAC"; e.shift = Shift::LOCK; break;               // caps
     case 4: e.texto = "Vacina"; e.camada = Camada::NUM; e.pressionada = "#"; break;   // simbolos
-    case 5: e.texto = SENHA; e.ver = true; break;                        // ver
-    case 6: e.texto = "Vac12"; e.erro = ERRO_SENHA; break;               // erro
-    case 7: e.texto = SENHA; e.salvando = true; e.teclasDesab = true; break;          // salvando
+    case 5: e.texto = TEXTO_EXEMPLO; e.ver = true; break;                        // ver
+    case 6: e.texto = "Vac12"; e.erro = ERRO_CURTO; break;               // erro
+    case 7: e.texto = TEXTO_EXEMPLO; e.salvando = true; e.teclasDesab = true; break;          // salvando
     case 8:                                                              // ssid
       e.titulo = "Rede Wi-Fi"; e.texto = "HOSP"; e.ver = true; e.ajuda = nullptr;
       e.chips = kChipsSsid; e.nChips = sizeof kChipsSsid / sizeof kChipsSsid[0];
