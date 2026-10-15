@@ -38,7 +38,7 @@
 
 #include "pico/multicore.h"
 #include "hardware/structs/scb.h"
-#include "ui/UiDriverHooks.h"   /* the UI driver's hook definitions: after every other include, they need the complete class */
+#include "ui/UiDriverHooks.h"   /* the UI driver's hook definitions and the core's ticks: after every other include, they need the complete class */
 
 
 /* Reduced from 8 to 2 languages (EN + PT) to save flash.
@@ -64,7 +64,6 @@
  * to English. Without a pack, or in English, the opening is the page's English
  * text, which tools/gen_notices.py copies into HelpLicenseEN.h. */
 #if !SIMUT_DISPLAY_ALPHA
-#include "DisplayManager_Ticks.h"   /* the core's timers of the Core 1 pass: inline, called from loopCore1( ) */
 static char _licOpening[768];
 static int _licOpeningLang = -1;    /* the language _licOpening was composed for */
 
@@ -1410,155 +1409,7 @@ void DisplayManager::loopCore1( ) {
 			_themeChanged = false;
 		}
 
-		if (_uiMode == MODE_DASHBOARD) {
-
-			tickDashboard( );
-
-
-			tickAlarmFlash( );
-
-
-			/* Render unconditionally. This used to be gated on _webOverlayShown,
-			 * which meant that once the user touched during a web transfer the
-			 * dashboard STOPPED UPDATING until the transfer finished — the readings
-			 * froze underneath a blanked screen. Touch is still rejected while a web
-			 * client holds the device (aborting a download would truncate the
-			 * caller's chart), but that is now said in a top-bar banner instead of
-			 * by hiding everything. See drawTopBar( ). */
-			C1_PHASE(C1P_SNAPSHOT);
-			if (pullSnapshot(currentSnapshot)) { C1_PHASE(C1P_RENDER); render(currentSnapshot); }
-		}
-#if SIMUT_TFT_GRAPH
-		else if (_uiMode == MODE_GRAPH_LOADING) {
-			if (_repaintLoading) { C1_PHASE(C1P_UI_GRAPH); drawLoadingScreen( ); _repaintLoading = false; }
-		}
-		else if (_uiMode == MODE_GRAPH_VIEW) {
-			if (_repaintGraph) { C1_PHASE(C1P_UI_GRAPH); drawGraphScreen( ); _repaintGraph = false; }
-		}
-		else if (_uiMode == MODE_GRAPH_DETAIL) {
-			if (_repaintGraph) { C1_PHASE(C1P_UI_GRAPH); drawGraphDetailScreen( ); _repaintGraph = false; }
-		}
-		else if (_uiMode == MODE_CALENDAR) {
-			if (_repaintCalendar) { C1_PHASE(C1P_UI_SETTINGS); drawCalendarScreen( ); _repaintCalendar = false; }
-		}
-#endif
-
-		C1_PHASE(C1P_LOOP_TAIL);
-
-		/* Revert header to date/time after 3s of showing the name */
-#if SIMUT_TFT_GRAPH
-		if ((_uiMode == MODE_GRAPH_VIEW || _uiMode == MODE_GRAPH_DETAIL)
-		    && _headerShowName
-		    && timeSince(_headerNameTimer, 3000))
-		{
-			_headerShowName = false;
-			drawGraphHeaderBar( );
-		}
-		else
-#endif
-		if (_uiMode == MODE_SETTINGS_THEMES) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawSettingsThemes( ); }
-		}
-		else if (_uiMode == MODE_SETTINGS_ALARMS) {
-			if (_repaintSettings) {
-				_repaintSettings = false;
-				C1_PHASE(C1P_UI_SETTINGS);
-				/* A flag that flipped in place repaints its own word; anything
-				 * else goes through the full path. */
-				if (_alarmStatusDirty && !_forceSettingsRedraw) drawAlarmStatusOnly( );
-				else drawSettingsAlarms( );
-				_alarmStatusDirty = false;
-			}
-		}
-		else if (_uiMode == MODE_SETTINGS_ALARM_EDIT) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawAlarmEdit( ); }
-		}
-		else if (_uiMode == MODE_AUTH) {
-			tickAuthLockout( );
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawPinScreen( ); }
-		}
-		else if (_uiMode == MODE_AUTH_USER) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawAuthUser( ); }
-		}
-		else if (_uiMode == MODE_SETTINGS_PIN_POLICY) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawPinPolicy( ); }
-		}
-		else if (_uiMode == MODE_SETTINGS_MAIN) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawSettingsMain( ); }
-		}
-		else if (_uiMode == MODE_SETTINGS_LANG) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawSettingsLang( ); }
-		}
-		else if (_uiMode == MODE_SETTINGS_PASSWORD) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawSettingsPassword( ); }
-		}
-		else if (_uiMode == MODE_SETTINGS_TOUCH_CAL) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawTouchCalibration( ); }
-		}
-		else if (_uiMode == MODE_SETTINGS_TOUCH_SENS) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawTouchSensitivity( ); }
-			tickTouchSens( );
-		}
-		else if (_uiMode == MODE_SETTINGS_SOUNDS) {
-
-			if (_repaintSettings) {
-				_repaintSettings = false;
-				if (_inMelodySelect) drawMelodySelect( );
-				else drawSettingsSounds( );
-			}
-		}
-		else if (_uiMode == MODE_SETTINGS_STATUS) {
-			/* Renders every 1 second or when forced */
-			if (_repaintSettings || timeSince(_statusLastDraw, 1000)) {
-				_repaintSettings = false;
-				drawSystemStatus( );
-			}
-		}
-		else if (_uiMode == MODE_SETTINGS_LICENSE) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawSettingsLicense( ); }
-		}
-		else if (_uiMode == MODE_SETTINGS_DISPLAY_OFFSET) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawSettingsDisplayOffset( ); }
-		}
-		else if (_uiMode == MODE_ALARM_ACTION) {
-
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawAlarmAction( ); }
-		}
-		/* v24 — identity at the panel (DisplayManager_Users.cpp) */
-		else if (_uiMode == MODE_SETTINGS_ALARM_SENSOR) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawAlarmSensorMenu( ); }
-		}
-		else if (_uiMode == MODE_SETTINGS_MAINT) {
-			/* an open window counts down on screen: once a second, like the status screen */
-			if (_repaintSettings || timeSince(_maintLastDraw, 1000)) {
-				_repaintSettings = false;
-				C1_PHASE(C1P_UI_SETTINGS); drawMaintEntry( ); _maintLastDraw = millis( );
-			}
-		}
-		else if (_uiMode == MODE_SETTINGS_USERS) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawSettingsUsers( ); }
-		}
-		else if (_uiMode == MODE_SETTINGS_USER_EDIT) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawUserEdit( ); }
-		}
-		else if (_uiMode == MODE_SETTINGS_USER_CONFIRM_DEL) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawUserConfirmDel( ); }
-		}
-		else if (_uiMode == MODE_PANEL_MESSAGE) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawPanelMessage( ); }
-		}
-		else if (_uiMode == MODE_CONFIRM_MUTE_ALL) {
-
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawMuteConfirm( ); }
-		}
-#if SIMUT_NET_WIFI
-		else if (_uiMode == MODE_CONFIRM_AP) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawApConfirm( ); }
-		}
-#endif
-		else if (_uiMode == MODE_SET_CLOCK) {
-			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawClockEntry( ); }
-		}
+		uiPass( currentSnapshot );
 
 		/* A request that lands WHILE a draw is running must survive that draw.
 		 * Every branch above used to clear _repaintSettings after painting, and
@@ -1574,12 +1425,6 @@ void DisplayManager::loopCore1( ) {
 		 * this line restores a full repaint for a mode that changed underneath
 		 * the draw, whichever flags that draw consumed on its way out. */
 		if (_uiMode != modeBeforeDraw) { _forceSettingsRedraw = true; _repaintSettings = true; }
-#if SIMUT_UI_ANGULO
-		/* The Ângulo build paints here, after the chain above has run every
-		 * timer and transition of this pass (DisplayManager_UiA.cpp). */
-		C1_PHASE(C1P_RENDER);
-		uaQuadro( );
-#endif
 
 		/*
 		 * Adaptive pause: minimum during interaction, larger when idle.
@@ -1666,15 +1511,6 @@ void DisplayManager::render(const SystemState& state) {
  st.topSlotIdx = st.selectedSlotIdx;
  }
 	if (state.isBooting) {
-#if SIMUT_UI_ANGULO
-		/* The Ângulo build paints the boot screen from _lastRenderedState
-		 * (DisplayManager_UiA_Painel.cpp); what the old branch counts for
-		 * Core 0 and for itself still happens here. */
-		_langChanged = false;
-		_lastRenderedState = state;
-		uaSujo( );   /* _bootPaintSeq rises once the frame is on the glass (uaQuadro( )) */
-		return;
-#endif
 		C1_PHASE(C1P_R_BOOT);
 		/* _langChanged forces fullRedraw to retranslate bootLogs already
 		 * shown in EN before .lng loaded. */

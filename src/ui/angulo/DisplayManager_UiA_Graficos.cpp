@@ -7,8 +7,8 @@
  * Four modes are drawn here: MODE_GRAPH_LOADING, MODE_GRAPH_VIEW,
  * MODE_GRAPH_DETAIL and MODE_CALENDAR, plus the update screen (uaMontarOta( ),
  * which Core 0 also calls through uiPaintOta( ) whatever _uiMode says). The old
- * draw functions still run and say when something changed (UA_DESVIO), so the
- * state they read is the state read here, under the same locks.
+ * draw functions read the same state, under the same locks; uiPass( ) takes the
+ * repaint requests that used to call them.
  */
 
 #include "../../DisplayManager.h"
@@ -127,7 +127,8 @@ bool DisplayManager::uaMontarGraficos( UaQuadro &q ) {
       uaUsar<VmCarregando, desenharCarregando, alvosCarregando>( q, vm );
       /* The notice drawLoadingScreen( ) gave Core 0, which waits for it up to
        * 500 ms before it reads the history (AppManager_Events.cpp:169-173):
-       * UA_DESVIO( ) leaves before that line (DisplayManager_Graph.cpp:50). */
+       * uiPass( ) takes the request that called it, so this is where it is given
+       * (DisplayManager_Graph.cpp:50 is the old place). */
       _loadingDrawn = true;
       return true;
     }

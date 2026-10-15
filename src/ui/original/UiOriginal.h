@@ -12,6 +12,8 @@
 #include "../../DisplayManager.h"
 #include "../../DisplayManager_Fonts.h"   /* simutFont12pt */
 #include "../../FlashIrqProbe.h"         /* C1_PHASE */
+#include "../../DisplayManager_Ticks.h"   /* the core's ticks, which the pass below calls */
+#include "../../simut_config.h"          /* SIMUT_TFT_GRAPH and SIMUT_NET_WIFI, tested below */
 
 /* The update screen. The hook is the one call the two callers made, and not drawOtaScreen( )'s body: that body is
  * long and would be copied into both. */
@@ -86,4 +88,158 @@ UI_HOOK void DisplayManager::uiThemeChanged( ) {
 		_isDirty = true;
 		mutex_exit(&_stateMutex);
 	}
+}
+
+/* The screen chain of Core 1's pass, moved from loopCore1( ) as it was: the dashboard branch (the core's timers, then the
+ * snapshot and render( )), the graph screens, the header-name timer and one branch per settings mode. */
+UI_HOOK void DisplayManager::uiPass( SystemState &currentSnapshot ) {
+if (_uiMode == MODE_DASHBOARD) {
+
+	tickDashboard( );
+
+
+	tickAlarmFlash( );
+
+
+	/* Render unconditionally. This used to be gated on _webOverlayShown,
+	 * which meant that once the user touched during a web transfer the
+	 * dashboard STOPPED UPDATING until the transfer finished — the readings
+	 * froze underneath a blanked screen. Touch is still rejected while a web
+	 * client holds the device (aborting a download would truncate the
+	 * caller's chart), but that is now said in a top-bar banner instead of
+	 * by hiding everything. See drawTopBar( ). */
+	C1_PHASE(C1P_SNAPSHOT);
+	if (pullSnapshot(currentSnapshot)) { C1_PHASE(C1P_RENDER); render(currentSnapshot); }
+}
+#if SIMUT_TFT_GRAPH
+else if (_uiMode == MODE_GRAPH_LOADING) {
+	if (_repaintLoading) { C1_PHASE(C1P_UI_GRAPH); drawLoadingScreen( ); _repaintLoading = false; }
+}
+else if (_uiMode == MODE_GRAPH_VIEW) {
+	if (_repaintGraph) { C1_PHASE(C1P_UI_GRAPH); drawGraphScreen( ); _repaintGraph = false; }
+}
+else if (_uiMode == MODE_GRAPH_DETAIL) {
+	if (_repaintGraph) { C1_PHASE(C1P_UI_GRAPH); drawGraphDetailScreen( ); _repaintGraph = false; }
+}
+else if (_uiMode == MODE_CALENDAR) {
+	if (_repaintCalendar) { C1_PHASE(C1P_UI_SETTINGS); drawCalendarScreen( ); _repaintCalendar = false; }
+}
+#endif
+
+C1_PHASE(C1P_LOOP_TAIL);
+
+/* Revert header to date/time after 3s of showing the name */
+#if SIMUT_TFT_GRAPH
+if ((_uiMode == MODE_GRAPH_VIEW || _uiMode == MODE_GRAPH_DETAIL)
+    && _headerShowName
+    && timeSince(_headerNameTimer, 3000))
+{
+	_headerShowName = false;
+	drawGraphHeaderBar( );
+}
+else
+#endif
+if (_uiMode == MODE_SETTINGS_THEMES) {
+	if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawSettingsThemes( ); }
+}
+else if (_uiMode == MODE_SETTINGS_ALARMS) {
+	if (_repaintSettings) {
+		_repaintSettings = false;
+		C1_PHASE(C1P_UI_SETTINGS);
+		/* A flag that flipped in place repaints its own word; anything
+		 * else goes through the full path. */
+		if (_alarmStatusDirty && !_forceSettingsRedraw) drawAlarmStatusOnly( );
+		else drawSettingsAlarms( );
+		_alarmStatusDirty = false;
+	}
+}
+else if (_uiMode == MODE_SETTINGS_ALARM_EDIT) {
+	if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawAlarmEdit( ); }
+}
+else if (_uiMode == MODE_AUTH) {
+	tickAuthLockout( );
+	if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawPinScreen( ); }
+}
+else if (_uiMode == MODE_AUTH_USER) {
+	if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawAuthUser( ); }
+}
+else if (_uiMode == MODE_SETTINGS_PIN_POLICY) {
+	if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawPinPolicy( ); }
+}
+else if (_uiMode == MODE_SETTINGS_MAIN) {
+	if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawSettingsMain( ); }
+}
+else if (_uiMode == MODE_SETTINGS_LANG) {
+	if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawSettingsLang( ); }
+}
+else if (_uiMode == MODE_SETTINGS_PASSWORD) {
+	if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawSettingsPassword( ); }
+}
+else if (_uiMode == MODE_SETTINGS_TOUCH_CAL) {
+	if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawTouchCalibration( ); }
+}
+else if (_uiMode == MODE_SETTINGS_TOUCH_SENS) {
+	if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawTouchSensitivity( ); }
+	tickTouchSens( );
+}
+else if (_uiMode == MODE_SETTINGS_SOUNDS) {
+
+	if (_repaintSettings) {
+		_repaintSettings = false;
+		if (_inMelodySelect) drawMelodySelect( );
+		else drawSettingsSounds( );
+	}
+}
+else if (_uiMode == MODE_SETTINGS_STATUS) {
+	/* Renders every 1 second or when forced */
+	if (_repaintSettings || timeSince(_statusLastDraw, 1000)) {
+		_repaintSettings = false;
+		drawSystemStatus( );
+	}
+}
+else if (_uiMode == MODE_SETTINGS_LICENSE) {
+	if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawSettingsLicense( ); }
+}
+else if (_uiMode == MODE_SETTINGS_DISPLAY_OFFSET) {
+	if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawSettingsDisplayOffset( ); }
+}
+else if (_uiMode == MODE_ALARM_ACTION) {
+
+	if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawAlarmAction( ); }
+}
+/* v24 — identity at the panel (DisplayManager_Users.cpp) */
+else if (_uiMode == MODE_SETTINGS_ALARM_SENSOR) {
+	if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawAlarmSensorMenu( ); }
+}
+else if (_uiMode == MODE_SETTINGS_MAINT) {
+	/* an open window counts down on screen: once a second, like the status screen */
+	if (_repaintSettings || timeSince(_maintLastDraw, 1000)) {
+		_repaintSettings = false;
+		C1_PHASE(C1P_UI_SETTINGS); drawMaintEntry( ); _maintLastDraw = millis( );
+	}
+}
+else if (_uiMode == MODE_SETTINGS_USERS) {
+	if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawSettingsUsers( ); }
+}
+else if (_uiMode == MODE_SETTINGS_USER_EDIT) {
+	if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawUserEdit( ); }
+}
+else if (_uiMode == MODE_SETTINGS_USER_CONFIRM_DEL) {
+	if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawUserConfirmDel( ); }
+}
+else if (_uiMode == MODE_PANEL_MESSAGE) {
+	if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawPanelMessage( ); }
+}
+else if (_uiMode == MODE_CONFIRM_MUTE_ALL) {
+
+	if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawMuteConfirm( ); }
+}
+#if SIMUT_NET_WIFI
+else if (_uiMode == MODE_CONFIRM_AP) {
+	if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawApConfirm( ); }
+}
+#endif
+else if (_uiMode == MODE_SET_CLOCK) {
+	if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawClockEntry( ); }
+}
 }

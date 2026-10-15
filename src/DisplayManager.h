@@ -1548,6 +1548,12 @@ private:
 	 * is for a kind that needs more than its name, and neither kind so far does. The original draws the change, as the core
 	 * did before; the Ângulo marks its frame to be repainted. At each call `c` is a constant. */
 	UI_HOOK void uiChanged( UiChange c, int16_t arg );
+	/* UI driver hook: the screen chain of Core 1's pass, once a pass, after the theme change and the update screen. The
+	 * original answers the current mode by drawing it and runs the core's timers on the way (src/DisplayManager_Ticks.h);
+	 * the Ângulo runs the same timers, takes the repaint requests the chain answered by drawing, and paints one frame from
+	 * the state. `currentSnapshot` is loopCore1( )'s own. The core keeps the rule after the call that restores a full
+	 * repaint for a mode that changed under the pass. */
+	UI_HOOK void uiPass( SystemState &currentSnapshot );
 	/* Core ticks (src/DisplayManager_Ticks.h): the timers and transitions of the Core 1 pass that run whatever the UI
 	 * driver draws. The same code for every driver, inline where the screen chain used to hold it. */
 	inline __attribute__((always_inline)) void tickDashboard( );

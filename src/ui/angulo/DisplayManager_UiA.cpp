@@ -5,13 +5,16 @@
  *        placeholder). pico_wiretft_angulo only; see src/ui/angulo/UiA.h and
  *        tools/tft_ui/ESPEC_UI_A.md.
  *
- * The old screens' logic keeps running: every old draw entry point became
- * UA_DESVIO( ) (src/ui/UiDriver.h), so the timers, transitions and
- * acknowledgements around a draw still happen, and this file paints the frame
- * of the current mode once the pass has run them all.
+ * The old chain of screens no longer runs in this build: uiPass( ) below runs
+ * the core's timers and transitions (DisplayManager_Ticks.h), takes the
+ * repaint requests the chain answered by drawing, and paints the frame of the
+ * current mode. An old draw entry point is UA_DESVIO( ) (src/ui/UiDriver.h):
+ * a call to one only asks for a repaint.
  */
 
 #include "../../DisplayManager.h"
+#include "../../DisplayManager_Ticks.h"   /* the core's ticks, which uiPass( ) calls */
+#include "../../FlashIrqProbe.h"          /* C1_PHASE */
 
 
 #include <stdio.h>
@@ -367,6 +370,51 @@ void DisplayManager::uiBegin( ) {
  * through the draw calls they made, each of which starts with UA_DESVIO( ). */
 void DisplayManager::uiChanged( UiChange, int16_t ) {
   uaSujo( );
+}
+
+/* The panels are in min/max mode and nobody has touched the screen for MINMAX_IDLE_MS: they go back to normal mode. The
+ * original does the same in render( ) and draws the return; here the frame follows the flags. */
+void DisplayManager::tickMinMaxIdle( ) {
+  if ( !minMaxIdleDue( ) ) return;
+  _topPanel.showMinMax = false;
+  _bottomPanel.showMinMax = false;
+  uaSujo( );
+}
+
+/* The Ângulo's pass of Core 1, after the theme change and the update screen (loopCore1( )). The old chain answered each
+ * mode by drawing it, which here only asked for a repaint (UA_DESVIO( )); what it did besides, the core's timers and the
+ * state it keeps, is what this runs: the dashboard's timers and the snapshot, the PIN screen's lockout, the sensitivity
+ * screen's move on to the calibration, and the repaint requests taken. Then the frame, once, from the state. */
+void DisplayManager::uiPass( SystemState &snap ) {
+  if ( _uiMode == MODE_DASHBOARD ) {
+    tickDashboard( );
+    tickAlarmFlash( );
+    tickMinMaxIdle( );
+    C1_PHASE( C1P_SNAPSHOT );
+    if ( pullSnapshot( snap ) ) {
+      /* The boot screen counts _langChanged for Core 0. The frame is painted from _lastRenderedState, which is the
+       * snapshot itself: the mirror rules of render( ) are applied by the panel's own model. */
+      if ( snap.isBooting ) _langChanged = false;
+      _lastRenderedState = snap;
+      uaSujo( );
+    }
+  } else if ( _uiMode == MODE_AUTH ) {
+    tickAuthLockout( );
+  } else if ( _uiMode == MODE_SETTINGS_TOUCH_SENS ) {
+    tickTouchSens( );
+  }
+  /* The requests the old chain answered by drawing. Each is taken before the frame is painted, so one that lands while
+   * it is painted survives to the next pass. */
+  bool pedido = false;
+  if ( _repaintSettings ) { _repaintSettings = false; pedido = true; }
+  if ( _repaintGraph ) { _repaintGraph = false; pedido = true; }
+  if ( _repaintLoading ) { _repaintLoading = false; pedido = true; }
+  if ( _repaintCalendar ) { _repaintCalendar = false; pedido = true; }
+  if ( _alarmStatusDirty ) { _alarmStatusDirty = false; pedido = true; }
+  if ( _forceSettingsRedraw ) { _forceSettingsRedraw = false; pedido = true; }
+  if ( pedido ) uaSujo( );
+  C1_PHASE( C1P_RENDER );
+  uaQuadro( );
 }
 
 /* The theme changed (Core 0's refreshTheme( )): like the old block, the panel

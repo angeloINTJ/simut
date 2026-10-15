@@ -127,7 +127,6 @@
   "AppManager_Events.cpp": 2,
   "CommandManager.cpp": 2,
   "CommandParser.cpp": 3,
-  "DisplayManager.cpp": 1,
   "DisplayManager.h": 2,
   "DisplayManager_Alpha.cpp": 2,
   "DisplayManager_Settings.cpp": 1,
@@ -136,7 +135,8 @@
   "WebManager_Api.cpp": 10,
   "WebManager_Commit.cpp": 1,
   "WebManager_Core.cpp": 3,
-  "WebManager_Metrics.cpp": 2
+  "WebManager_Metrics.cpp": 2,
+  "ui/original/UiOriginal.h": 1
  },
  "SIMUT_PANEL_PIN": {
   "AppManager.h": 1,
@@ -201,10 +201,11 @@
  "SIMUT_TFT_GRAPH": {
   "AppManager_Commands.cpp": 1,
   "AppManager_Events.cpp": 3,
-  "DisplayManager.cpp": 3,
+  "DisplayManager.cpp": 1,
   "DisplayManager.h": 1,
   "DisplayManager_Touch.cpp": 3,
-  "sensors/SensorDrawing.h": 1
+  "sensors/SensorDrawing.h": 1,
+  "ui/original/UiOriginal.h": 2
  },
  "SIMUT_THEMES_HEALTH": {
   "Themes.cpp": 1
@@ -228,7 +229,7 @@
   "Themes.cpp": 1
  },
  "SIMUT_UI_ANGULO": {
-  "DisplayManager.cpp": 3,
+  "DisplayManager.cpp": 1,
   "DisplayManager_Dashboard.cpp": 3,
   "DisplayManager_Touch.cpp": 1,
   "Themes.cpp": 2,

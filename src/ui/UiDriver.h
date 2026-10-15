@@ -44,10 +44,10 @@ enum class UiChange : uint8_t {
 
 /* The Ângulo build (pico_wiretft_angulo, src/ui/angulo/) paints every screen
  * itself, from the state, at the end of each Core 1 pass. An old draw entry
- * point then only says that the frame may have changed and returns: the logic
- * around the draw calls (the timers, the transitions, the last rendered state)
- * runs as before, and none of the old drawing reaches the glass. Every other
- * image compiles UA_DESVIO( ) to nothing. */
+ * point then only says that the frame may have changed and returns, and none
+ * of the old drawing reaches the glass; the Ângulo's uiPass( ) runs the core's
+ * timers and transitions that the old chain ran around the draw calls. Every
+ * other image compiles UA_DESVIO( ) to nothing. */
 #if SIMUT_UI_ANGULO
 #define UA_DESVIO( ) do { uaSujo( ); return; } while ( 0 )
 #else
