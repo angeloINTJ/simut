@@ -36,8 +36,9 @@ Comments and the contents of strings, characters and raw strings are stripped be
 by the state machine of tools/check_net_boundary.py (imported, so there is one: `'"'`, `1'000`, `"//"`
 and `R"x(...)x"` are read as the compiler reads them; the lines stay, so a finding has the file's line
 number; the names in #include directives are kept apart). It is a pattern gate, not a parser: `#if 0`
-is scanned as code, a directive continued over a backslash-newline is read line by line, and a driver
-that reaches the other through a third header is not seen, only the include that makes it possible.
+is scanned as code, a backslash-newline is followed only between `#ifdef` (or `defined`) and its macro,
+an `#include` after a comment on its line is not read, and a driver that reaches the other through a
+third header is not seen, only the include that makes it possible.
 
     python3 tools/check_ui_boundary.py            # the gate: `path:line: rule: text`, exit 1 on any finding
     python3 tools/check_ui_boundary.py --report   # every finding and the counts per rule and file, exit 0
@@ -49,10 +50,11 @@ reason it may and the stage that ends it:
 
     {"driver-hook": {"src/SomeFile.cpp": {"count": 3, "reason": "..."}}}
 
-Since 2026-10-14 the file lists the transitional shape of the Ângulo driver (stage S2a of the plan in
-docs/analysis/UI_DRIVERS.md): its screens paint beside the original's, and a hook in each shared file
-sends the old draw entry points to them. Each stage that replaces a hook with the driver contract lowers
-its count (S4 the loop hooks, S10b the draw bypass) and the last one empties the file.
+Since 2026-10-14 the file lists the transitional shape of the Ângulo driver (stage S2a of the UI drivers
+work; docs/analysis/UI_DRIVERS.md lists the hooks and the stages that remove them): its screens paint
+beside the original's, and a hook in each shared file sends the old draw entry points to them. Each stage
+that replaces a hook with the driver contract lowers its count (S4 the loop hooks, S10b the draw bypass)
+and the last one empties the file.
 
 The number stays tight, like tools/net_boundary.json and tools/feature_sprawl.json: a file with MORE
 findings than its count fails ("grew"), a file with FEWER fails too ("lower the allowance"), and an
