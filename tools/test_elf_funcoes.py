@@ -269,6 +269,23 @@ def t3(fl='0x10120000', ram='0x20030000', tab='0x10120000', loc='0x10120000'):
     return T3_C.replace('@FL@', fl).replace('@RAM@', ram).replace('@TAB@', tab).replace('@LOC@', loc)
 
 
+# w1.c and w2.c: a file-local helper of one name in each, differing ONLY in a local table that has
+# no symbol (not text, not named); F and G swap files. The colour of the helper used to be the same
+# for both, because what lies behind an unnamed address was masked ("<@>").
+W1_C = '''static __attribute__(( noinline )) unsigned helper( int i ) {
+  const unsigned short t[8] = { 301, 302, 303, 304, 305, 306, 307, 308 };
+  return t[i & 7];
+}
+unsigned @CALLER@( int i ) { return helper( i ) + 1; }
+'''
+W2_C = '''static __attribute__(( noinline )) unsigned helper( int i ) {
+  const unsigned short t[8] = { 501, 502, 503, 504, 505, 506, 507, 508 };
+  return t[i & 7];
+}
+unsigned @CALLER@( int i ) { return helper( i ) + 1; }
+void entry( void ) { for ( ;; ) { } }
+'''
+
 # d.c: no code at all.
 D_C = '''const int g_only_data[4] = { 1, 2, 3, 4 };
 const char g_note[] = "just data, no code";
@@ -289,6 +306,7 @@ def fontes(moved=False, ram=True):
         'e': E_C, 'u': U_C, 'v': V_C, 'd': D_C, 'p': P_C, 'q': Q_C, 'q2': Q2_C, 'r': R_C, 's': S_C,
         'm': M_S, 'n': N_C, 'vt': VT_CPP.replace('@BA@', 'Base1').replace('@BB@', 'Base2'), 'k': K_C,
         'h1': H1_C.replace('@CALLER@', 'F'), 'h2': H2_C.replace('@CALLER@', 'G'),
+        'w1': W1_C.replace('@CALLER@', 'F'), 'w2': W2_C.replace('@CALLER@', 'G'),
     }
 
 
@@ -419,6 +437,8 @@ def montar(tmp):
     e['k3_loc'] = of.elf('k3_loc', dict(s, t3=t3(loc='0x10150000')), ['t3'])
     e['k3_num_a'] = of.elf('k3_num_a', dict(s, t3=t3(tab='0x00120000')), ['t3'])
     e['k3_num_b'] = of.elf('k3_num_b', dict(s, t3=t3(tab='0x00150000')), ['t3'])
+    e['wlp'] = of.elf('wlp', s, ['w1', 'w2'])
+    e['wlp_troca'] = of.elf('wlp_troca', dict(s, w1=W1_C.replace('@CALLER@', 'G'), w2=W2_C.replace('@CALLER@', 'F')), ['w1', 'w2'])
     e['hlp'] = of.elf('hlp', s, ['h1', 'h2'])
     e['hlp_movida'] = of.elf('hlp_movida', s, ['h2', 'h1'])
     e['hlp_troca'] = of.elf('hlp_troca', dict(s, h1=H1_C.replace('@CALLER@', 'G'), h2=H2_C.replace('@CALLER@', 'F')), ['h1', 'h2'])
@@ -647,6 +667,7 @@ CASOS = [
     ('5g', 'an address-looking word of a const table (0x10120000 to 0x10150000)', 'k3', 'k3_tab', c5g, None),
     ('5h', 'the same word in a local initializer with no symbol', 'k3', 'k3_loc', c4g('local_off'), None),
     ('5i', 'control: a plain number in the table (0x00120000 to 0x00150000)', 'k3_num_a', 'k3_num_b', c5g, None),
+    ('4i', 'two static helpers of one name that differ only in an unnamed local table, F and G swapped', 'wlp', 'wlp_troca', c9, None),
     ('4d', 'two static helpers of one name, F and G swapped between their files', 'hlp', 'hlp_troca', c9, None),
     ('4e', 'the body of one of the two helpers changed', 'hlp', 'hlp_mudou', c9b, None),
     ('4b', 'a call retargeted, then return 1 (BL and movs r0,#1 read as an address)', 'call_foo', 'call_bar', c8, None),
@@ -679,7 +700,7 @@ MUTANTES = [
      "la, lb = da[nome], db[nome]", "la, lb = da[nome][-1:], db[nome][-1:]", {'5d', '5f'}),
     ('m6', 'every function the text normalization sees as changed is excused',
      "mudaram = [n for n in diferem if mudou_de_fato(n, fa, fb, xa, xb, cfa, cfb)]",
-     "mudaram = []", {'4', '4b', '4c', '4d', '4e', '4f', '4g', '4h', '5c', '5h', 'x'}),
+     "mudaram = []", {'4', '4b', '4c', '4d', '4e', '4f', '4g', '4h', '4i', '5c', '5h', 'x'}),
     ('m7', 'a changed unnamed constant is excused (the fix of 2026-10-14 taken out)',
      "constante_mudou(fa[n], fb[n]) or ", "", {'5c', '5h'}),
     ('m8', 'switch tables are never different', "tabelas_iguais = ta == tb", "tabelas_iguais = True", {'7'}),
@@ -703,15 +724,18 @@ MUTANTES = [
     ('m17', 'weak read-only objects (vtables, typeinfo, inline variables) are skipped',
      "if tipo not in 'rRVv' or tam == 0:", "if tipo not in 'rR' or tam == 0:", {'2w', '7v'}),
     ('m18', 'a branch the text names differently is excused when the bytes are the same',
-     "return (constante_mudou(fa[n], fb[n]) or chamada_mudou(fa[n], fb[n])", "return (constante_mudou(fa[n], fb[n])", {'4d', '4e', '4f'}),
+     "return (constante_mudou(fa[n], fb[n]) or chamada_mudou(fa[n], fb[n])", "return (constante_mudou(fa[n], fb[n])", {'4d', '4e', '4f', '4i'}),
     ('m19', 'same-named functions are paired by address order only',
      "j = next((j for j in livres if lb[j][2] == r[2]), None)", "j = None", {'2h'}),
     ('m20', 'a reference to a shared name carries no colour',
-     "self.tab_ref = renomear(self.tab, self.cores, dup_nomes)", "self.tab_ref = self.tab", {'4d', '4e'}),
+     "self.tab_ref = renomear(self.tab, self.cores, dup_nomes)", "self.tab_ref = self.tab", {'4d', '4e', '4i'}),
     ('m22', 'an unreadable address looking like one renders as "<?>", without its value',
      "return f'<?{v:#x}>'", "return '<?>'", {'4g', '4h', '5g'}),
     ('m23', 'a word of an unnamed table that looks like an address and cannot be read renders as "?"',
      "('?' if img.ler(w, 1) else f'?{w:#x}')", "'?'", {'5h'}),
+    ('m24', 'a colour masks what an unnamed readable constant holds ("<@>")',
+     "return f'<@{b.hex()}{\"@\" + str(v & 3) if v & 3 else \"\"}>' if b else f'<?{v:#x}>'",
+     "return '<@>' if b else f'<?{v:#x}>'", {'4i'}),
     ('m14', 'a changed string in an unnamed table blames the functions that load it',
      "and TEXTOS_ENTRE_ASPAS.sub('\"\"', p) != TEXTOS_ENTRE_ASPAS.sub('\"\"', q)", "", {'3d'}),
 ]

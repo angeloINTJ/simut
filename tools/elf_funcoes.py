@@ -50,7 +50,9 @@ What "equal" does not cover:
     code that is no change; for two variables it is another variable;
   - a call through a veneer to a symbol of a shared name carries no colour, and a colour sees three
     levels of shared names (RODADAS); a table of pointers of a shared name has its pointers
-    masked in the colour, so two that differ only in where they point share one;
+    masked in the colour, so two that differ only in where they point share one; and an unnamed
+    constant counts in a colour by its first word only, so two helpers whose unnamed tables differ
+    after it share one;
   - a function whose bytes are equal and whose text differs only in literal-pool words is
     explained: a number that looks like an address, or a pointer to what is now another symbol at the
     same address. If nothing else differs (a text, an object, another function) it does not show.
@@ -227,8 +229,9 @@ def palavras(b, inicios, tab, img):
 
 def normalizar(texto, inicios, tab, img, faixa=None, grosso=False):
     """The text of one instruction with every address replaced by what it names. grosso: for the
-    colours of colorir( ), an address with no name and no text is "<@>", not what lies behind it or
-    the nearest label: a colour must not move with the bytes around an unnamed constant."""
+    colours of colorir( ), an address with no name and no text is "<@" and its first word read, not
+    the 64 bytes behind it or the nearest label: a colour must not move with the bytes around an
+    unnamed constant."""
     def troca(m):
         v = int(m.group(1), 16)
         if faixa and faixa[0] <= v < faixa[1]:
@@ -240,7 +243,11 @@ def normalizar(texto, inicios, tab, img, faixa=None, grosso=False):
                 if t:
                     return '<' + t + '>'
                 if grosso:
-                    return '<@>' if img.ler(v, 1) else f'<?{v:#x}>'
+                    # No name, no text: the first word read stands for what is there (an unnamed
+                    # initializer starts where the address points; what lies after it follows the
+                    # layout). Two helpers that differ only in such a table had one colour.
+                    b = img.ler(v & ~3, 4)
+                    return f'<@{b.hex()}{"@" + str(v & 3) if v & 3 else ""}>' if b else f'<?{v:#x}>'
                 n = nome_de(v, inicios, tab, aproximar=True)
             if n is None:
                 return conteudo(img, v, inicios, tab)
@@ -336,7 +343,8 @@ def colorir(fns, inicios, tab, img):
     helper of its own file, came out "equal").
 
     The colour is a hash of what the symbol is, not of where it is, so a layout move keeps it: for
-    a function its instructions, every address named by a symbol or a text, an unnamed one "<@>"; for
+    a function its instructions, every address named by a symbol or a text, an unnamed one by the first
+    word read there ("<@" and the word; "<?0x..>" and the value when nothing can be read); for
     an object its bytes, a pointer in it named the same way. A reference to another symbol of a shared
     name is named by that one's colour of the round before: round 0 leaves them "?", round 1 and 2
     use the colour of the round before, so that two helpers alike but for the helper they call differ
