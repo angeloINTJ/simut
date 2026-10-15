@@ -1,6 +1,6 @@
 # tools/
 
-181 scripts. This file exists because until 2026-09-08 there was no way
+182 scripts. This file exists because until 2026-09-08 there was no way
 to tell a live bench tool from a leftover, and one of them —
 `compressor.py` — had been superseded for three months while still looking
 usable: it regenerated `WebUI_GZ.h` into the repository root, where nothing
@@ -16,7 +16,7 @@ wrong, the description is the bug.
 
 ---
 
-## Called by CI (47)
+## Called by CI (48)
 
 Invoked from `.github/workflows/build.yml` — or, for the release manifest, from
 `release-ota.yml` when a tag is pushed. Breaking one of these fails a pull request
@@ -26,7 +26,8 @@ or a release.
 |---|---|---|
 | `arduino_pico_overrides/patch.sh` | patch.sh — aplica overrides SIMUT no framework arduino-pico do PlatformIO. | 2026-08-20 |
 | `build_release.sh` | build_release.sh — Generate Arduino IDE-compatible release zips for simut_tft and simut_alpha. Copies `src/net/` and, since 14/10, `src/ui/*.h` (`simut_config.h` includes `ui/UiCaps.h`) and flattens their includes. | 2026-10-14 |
-| `check_authz.py` | check_authz.py — the authorization matrix, pinned so it cannot silently rot. | 2026-08-19 |
+| `check_authz.py` | check_authz.py — the authorization matrix, pinned so it cannot silently rot. | 2026-10-15 |
+| `test_check_authz.py` | Proves that `check_authz.py` reads every file a UI driver can register a route from, and that the pre-commit hook `simut-authz` fires on the same files. Each case is built in a temporary copy of what the gate reads (`check_authz.py`, `src/*.cpp`, `src/ui/`) and the gate runs there as a subprocess: the tree as it is (exit 0, the driver's route counted); the Angulo's `GET /api/ui` moved, ungated, to `src/ui/angulo/Rota.<ext>` for `c cc cpp cxx h hh hpp hxx inl ipp tpp`, and one level down and to `src/ui/` itself (exit 1, exactly one finding that names it); moved with its gate kept (exit 0 and counted as gated, because exit 0 is also what a gate that never opened the file says); moved to `notes.md`, `Rota.txt` or `Rota.cpp.orig` (exit 0, not read). The hook's `files:`, read out of `.pre-commit-config.yaml`, must fire on exactly the extensions the gate names in `DRIVER_EXTS` (taken from the gate, so the two cannot drift), on `src/WebManager_Core.cpp`, and not on `md` or the near misses `cp`, `hp` and `cppx`. Then 11 mutants of the gate and of the hook, each caught by exactly the checks listed for it. Job `gates`. Bites (2026-10-15): the gate and the hook of 319714d fail 20 of 39 checks (the nine extensions they did not cover, twice; the counted route; the missing `DRIVER_EXTS`), the fixed ones fail none, and 11 of 11 mutants are caught; 39 checks and 11 mutants in about 15 s. | 2026-10-15 |
 | `check_license.py` | A licença diz a mesma coisa nas **três** cópias (LICENSE, página `/license` e a string do firmware que a tela Licença do painel desenha, o texto MIT palavra por palavra nas duas telas), nenhum pacote de idioma volta a trazer `@LICENSE`, e os **dois** scripts de release levam o `LICENSE`, o `THIRD_PARTY_NOTICES.md` e a pasta `LICENSES`. Nasceu de dois achados de 21/09: a página web dizia 2025 e o zip do Arduino IDE saía sem `LICENSE`. | 2026-10-02 |
 | `gen_notices.py` | Escreve a lista de software de terceiros, de `tools/third_party.toml`, nos três lugares que a mostram: `THIRD_PARTY_NOTICES.md` (com os textos em `LICENSES/`), o bloco *Third-Party Notices* da página `/license` e o fim da tela Licença do painel; e copia para o firmware o texto em inglês que abre essa tela, tirado da própria página. A página e o painel de uma imagem listam o que a família dela carrega: as sete com rádio ou os dois SIMUT Wire (13/10). `--check` no CI. Nasceu de 02/10: conferida contra os símbolos de cada `firmware.elf`, a lista não citava seis componentes que toda imagem leva e errava os termos do BTstack. | 2026-10-13 |
 | `release_manifest.py` | The manifest a fleet manager downloads before an OTA: version, per-image size and sha256. Written by `release-ota.yml` next to the assets. Desde 04/10 traz o Pico 2 W (`releasetwo`): o `.bin` é a atualização marcada para teste (recusa uma sem a marca) e o `.uf2` é a imagem de fábrica, a tabela de partições e a atualização assinada no slot A com a marca apagada, escrita por `rp2350/uf2.py`. | 2026-10-04 |
