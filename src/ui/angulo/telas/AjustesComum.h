@@ -43,8 +43,10 @@ constexpr int16_t H_CARTAO = ESP2 + L_BOTAO + ESP2;
 /* Title bar                                                            */
 /* ------------------------------------------------------------------ */
 
-// The hit box of the bar's "Voltar": the drawn button (20 px tall) widened by
-// 4 px each side and stretched to the whole bar, so a thumb finds it.
+// The hit box of the bar's "Voltar": the drawn button (20 px tall) widened by 4 px
+// at the left and on to the edge of the glass at the right (where a resistive panel
+// reads worst), and stretched over the whole bar and the 8 px under its line, down
+// to Y0 where the content starts, so a thumb finds it.
 Caixa16 caixaVoltar( );
 
 // "<antes><nome><depois>" with the name cut by "…" so that the title still

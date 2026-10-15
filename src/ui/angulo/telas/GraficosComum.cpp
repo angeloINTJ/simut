@@ -71,7 +71,10 @@ void conferirCaixas( const char *tela, const Caixa16 *kit, const Caixa16 *meu, i
 #endif
 
 Caixa16 alvoDaAcao( const Caixa16 &c ) {
-  return Caixa16{ (int16_t)( c.x - ESP1 ), 0, (int16_t)( c.w + 2 * ESP1 ), H_BARRA };
+  const int16_t x = (int16_t)( c.x - ESP1 );
+  // The action at the right margin goes on to the edge of the glass, where a resistive panel reads worst.
+  const int16_t x1 = c.x + c.w >= 320 - PAD ? (int16_t)320 : (int16_t)( c.x + c.w + ESP1 );
+  return Caixa16{ x, 0, (int16_t)( x1 - x ), (int16_t)( H_BARRA + ESP1 ) };
 }
 
 char *horaMin( const Instante &t, char *buf, int cap ) {

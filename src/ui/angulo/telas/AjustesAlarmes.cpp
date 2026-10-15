@@ -21,6 +21,10 @@ using namespace ajustes;
 // and 4 below. The arrows keep the kit's pager x and width.
 constexpr int16_t Y_PAG = Y0 + 2 * ( H_CARTAO + ESP2 ), H_PAG = 28;
 
+// An arrow's touch target: the drawn 28 px is small for a finger, and the strip is free for 4 px above it (half of
+// the 8 between it and the steppers) and 4 below it (down to the footer), so the target takes both.
+Caixa16 alvoPagina( const Caixa16 &c ) { return Caixa16{ c.x, (int16_t)( c.y - ESP1 ), c.w, (int16_t)( c.h + 2 * ESP1 ) }; }
+
 // Each page names its quantity in the card's label, so a page says what it
 // edits even where the pager is not drawn (a sensor with one quantity).
 const char *const kRotulos[3][2] = {
@@ -172,8 +176,8 @@ int alvosLimites( const VmLimites &vm, Alvo *out ) {
     if ( l.maisAtivo[r] ) n = addAlvo( out, n, l.cartao[r].mais, LIMITES_MAIS, r );
   }
   if ( l.temPag ) {
-    if ( l.anteriorAtivo ) n = addAlvo( out, n, l.pagAnterior, LIMITES_PAG_ANTERIOR );
-    if ( l.proximaAtivo ) n = addAlvo( out, n, l.pagProxima, LIMITES_PAG_PROXIMA );
+    if ( l.anteriorAtivo ) n = addAlvo( out, n, alvoPagina( l.pagAnterior ), LIMITES_PAG_ANTERIOR );
+    if ( l.proximaAtivo ) n = addAlvo( out, n, alvoPagina( l.pagProxima ), LIMITES_PAG_PROXIMA );
   }
   n = addAlvo( out, n, l.rodape.secundaria, LIMITES_CANCELAR );
   return addAlvo( out, n, l.rodape.primaria, LIMITES_SALVAR );

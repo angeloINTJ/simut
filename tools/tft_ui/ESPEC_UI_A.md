@@ -368,7 +368,21 @@ além dos avisos que a função de desenho antiga dava ao Core 0 (`_loadingDrawn
 millis( )`), e nada de `millis( )` cru dentro do modelo (um relógio que muda a cada volta repinta à toa:
 guarde segundos inteiros).
 
-**Tocar.** `a` é o alvo do quadro que está no vidro (ou `nullptr`, toque fora de qualquer alvo). Por modo:
+**Qual alvo responde** (`ua::alvoEm( )`, `telas/Telas.cpp`). Um toque dentro de um ou mais retângulos é do **último** da
+lista (o desenhado por cima), como sempre. Um toque fora de todos é do alvo cujo retângulo está **mais perto** (distância
+euclidiana, em pixels, do ponto ao pixel mais próximo do retângulo; o primeiro pixel fora está a 1), desde que a no máximo
+`FOLGA_TOQUE` = **12 px**; em empate, vale o primeiro da lista; a mais de 12 px de todos, `nullptr`. O 12 é valor de
+projeto, não medida: o dedo cobre uns 9 mm (uns 40 px neste painel de 3,5 pol.) e a calibração do resistivo erra alguns
+pixels, mais perto das bordas. **A bancada confere**: tocar nas faixas entre controles, a 1 e a 12 px das bordas dos botões
+pequenos e nos cantos do vidro. Um controle desabilitado ou ausente não entra na lista e nunca recebe o toque, mas o vizinho
+habilitado recebe o toque que cair a até 12 px dele, inclusive sobre a borda do desabilitado. `python3 tools/tft_ui/test_alvos.py`
+prova a regra (22 casos e 8 mutantes, cada um reprovado por pelo menos um caso). Os botões da barra de título (`Voltar`,
+`Dia`, mês anterior e seguinte) têm retângulo de toque da altura da barra e mais 4 px: 32 px nos gráficos e no calendário
+(o primeiro texto deles tem tinta a partir de y 34, e o arnês reprova texto que cruza a borda de um alvo) e 36 px, até o
+`Y0`, nos menus e nos ajustes (nas contas já era); a ação da direita vai até a borda do vidro. As setas do pager dos
+limites, desenhadas com 28 px, têm alvo de 36 px.
+
+**Tocar.** `a` é o alvo do quadro que está no vidro (ou `nullptr`, toque que não cai em nenhum alvo nem a 12 px de um). Por modo:
 - **Tradução (T):** escreva em `x, y` o centro do elemento equivalente no leiaute antigo e devolva
   `UaToque::TRADUZIDO`; o ramo antigo de `handleTouch` roda com esse ponto. Com `a == nullptr`, devolva
   `TRATADO` (zona morta). O toque longo, a repetição e o deslizar continuam funcionando porque o mesmo alvo

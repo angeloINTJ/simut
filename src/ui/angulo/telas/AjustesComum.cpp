@@ -26,8 +26,8 @@ int16_t larguraMaxTitulo( ) { return L_TELA - PAD - larguraAcao( acaoVoltar( ) )
 }  // namespace
 
 Caixa16 caixaVoltar( ) {
-  const int16_t w = larguraAcao( acaoVoltar( ) );
-  return Caixa16{ (int16_t)( L_TELA - PAD - w - ESP1 ), 0, (int16_t)( w + 2 * ESP1 ), H_BARRA };
+  const int16_t x = (int16_t)( L_TELA - PAD - larguraAcao( acaoVoltar( ) ) - ESP1 );
+  return Caixa16{ x, 0, (int16_t)( L_TELA - x ), Y0 };
 }
 
 void montarTitulo( char *dst, int cap, const char *antes, const char *nome, const char *depois ) {

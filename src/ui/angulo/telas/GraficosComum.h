@@ -43,8 +43,11 @@ inline void conferirCaixas( const char *, const Caixa16 *, const Caixa16 *, int 
 #endif
 
 // A title bar action's touch target: the drawn box is 20 px tall, so the target
-// takes the whole bar and 4 px at each side, where the neighbours' targets
-// meet it without overlapping.
+// takes the whole bar and 4 px under its line, and 4 px at each side, where the
+// neighbours' targets meet it without overlapping; the action at the right margin
+// reaches the edge of the glass. It stops at y 32 and not at Y0: the first text
+// of the chart and of the calendar (the stats, the weekday row) has its ink from
+// y 34, and a target that a text crosses fails host_telas.py.
 Caixa16 alvoDaAcao( const Caixa16 &c );
 
 // "14:40", "13/10" and "13/10 14:40".
