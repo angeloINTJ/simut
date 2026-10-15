@@ -508,10 +508,11 @@ def etapa_configuracoes(rt):
     linhas = [a[5] for a in st['alvos'] if a[4] == SONS_LINHA]
     if linhas:
         tocar(rt, SONS_LINHA, linhas[0])
-        st = rt.passo('melodia', M['SETTINGS_SOUNDS'], lambda s: tem(s, MEL_USAR))
+        # The picker's Usar has index -1; the list's rows (SONS_LINHA) are also type 3 and carry their row index, so the type alone is true on the list too.
+        st = rt.passo('melodia', M['SETTINGS_SOUNDS'], lambda s: tem(s, MEL_USAR, -1))
         tocar(rt, MEL_ITEM, 1)
         rt.passo('melodia_escolhida', M['SETTINGS_SOUNDS'], mudou(st))
-        tocar(rt, MEL_CANCELAR)
+        tocar(rt, MEL_CANCELAR, -1)   # type 4 is also the list's volume-down (indices 0 and 1); the picker's Cancelar is -1
         rt.passo('sons_sem_melodia', M['SETTINGS_SOUNDS'], lambda s: tem(s, SONS_SALVAR), captura=False)
     voltar_menu(rt, SONS_VOLTAR)
 

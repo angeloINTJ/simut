@@ -7,11 +7,12 @@
  * Touch, per mode (ESPEC_UI_A.md §2):
  *  - Controller (C): the clock, the display alignment, the limits, the
  *    maintenance window, the sounds with their melody and the PIN policy do
- *    what the old branch does, with the old state, events and filters; each
- *    action cites the old line it reproduces. The clock, the alignment, the
- *    melody picker and the sounds list run the core's actions
- *    (DisplayManager_Actions.h) behind the zones the old branch used, so a held
- *    arrow repeats as it did.
+ *    what the old branch does, with the old state, events and filters. The
+ *    clock, the alignment, the melody picker and the sounds list run the
+ *    core's actions (DisplayManager_Actions.h), each named in its case, behind
+ *    the zones the old branch used, so a held arrow repeats as it did; the
+ *    limits, the maintenance window and the PIN policy still reproduce their
+ *    branches here, and each of those cases cites the old lines it copies.
  *  - Raw (B): the touch sensitivity and the calibration read the touch before
  *    any hook (DisplayManager_Touch.cpp, the two blocks that end in return),
  *    so a touch on them never gets here; only the frame is built.

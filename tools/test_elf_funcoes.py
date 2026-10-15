@@ -72,7 +72,9 @@ were not told apart, and a call to another function passed as a relocation when 
 caller were the same. The review of those fixes found three (4g to 5h, 4i, 4j): an address-looking
 constant that cannot be read was "<?>" and so equal to any other, a colour was blind to an unnamed
 table, and a swapped switch table passed because the bytes of its readers were the same. One more on 2026-10-15 (case 6d): a path with no file behind it ended in a
-traceback, whose exit 1 reads as "changed" rather than as a refusal.
+traceback, whose exit 1 reads as "changed" rather than as a refusal. And one on 2026-10-15 (cases 5j and 5k, the review of S8a C1 to C6): a name whose number of
+read-only objects changed was reported the same way whether the one left over had the same bytes or not, and a stage's acceptance script took the label as proof that only a
+copy had been dropped; the tool now says `conteúdo igual` or `conteúdo diferente`.
 
 Needs arm-none-eabi-gcc from the PlatformIO toolchain package (tools/elf_funcoes.py says where it
 looks). Without it the test skips with a message, and exits 1 instead when SIMUT_ELF_TOOLCHAIN is
@@ -175,6 +177,10 @@ U_C = '''static const unsigned short k_tab[4] = { 1, 2, 3, 4 };
 unsigned u_tab( int i ) { return k_tab[i & 3]; }
 '''
 V_C = '''static const unsigned short k_tab[4] = { 5, 6, 7, 8 };
+unsigned v_tab( int i ) { return k_tab[i & 3]; }
+'''
+# v.c with the bytes of u.c's table: two copies of one table, for the images whose number of copies changes (5j, 5k).
+V_EQ_C = '''static const unsigned short k_tab[4] = { 1, 2, 3, 4 };
 unsigned v_tab( int i ) { return k_tab[i & 3]; }
 '''
 
@@ -391,7 +397,8 @@ class Rel:
         self.mudou = re.findall(r'^  mudou: (.+?) \(\d+ -> \d+ instruções\)', out, re.M)
         self.so_a = re.findall(r'^  só em A: (.+)$', out, re.M)
         self.so_b = re.findall(r'^  só em B: (.+)$', out, re.M)
-        self.dado_mudou = re.findall(r'^  dado mudou: (.+?)(?: \(\d+ objetos em A, \d+ em B\))?$', out, re.M)
+        self.dado_mudou = re.findall(r'^  dado mudou: (.+?)(?: \(\d+ objetos em A, \d+ em B(?:, conteúdo \w+)?\))?$', out, re.M)
+        self.dado_conteudo = re.findall(r'^  dado mudou: .+? \(\d+ objetos em A, \d+ em B, conteúdo (\w+)\)$', out, re.M)
         self.dado_so = re.findall(r'^  dado só em [AB]: (.+)$', out, re.M)
         self.texto_a = re.findall(r"^  texto só em A: b'(.*)' x\d+$", out, re.M)
         self.texto_b = re.findall(r"^  texto só em B: b'(.*)' x\d+$", out, re.M)
@@ -445,6 +452,9 @@ def montar(tmp):
     e['dup'] = of.elf('dup', s, ['u', 'v'])
     e['dup_u'] = of.elf('dup_u', editar(s, 'u', '3, 4', '3, 9'), ['u', 'v'])
     e['dup_v'] = of.elf('dup_v', editar(s, 'v', '7, 8', '7, 9'), ['u', 'v'])
+    e['dupeq'] = of.elf('dupeq', dict(s, v=V_EQ_C), ['u', 'v'])
+    e['dupeq_uma'] = of.elf('dupeq_uma', s, ['u'])
+    e['dupeq_uma_edit'] = of.elf('dupeq_uma_edit', editar(s, 'u', '3, 4', '3, 9'), ['u'])
     e['dados'] = of.elf('dados', s, ['d'])
     e['k3'] = of.elf('k3', dict(s, t3=t3()), ['t3'])
     e['k3_fl'] = of.elf('k3_fl', dict(s, t3=t3(fl='0x10150000')), ['t3'])
@@ -640,6 +650,25 @@ def c5e(r):
     return r.code == 0 and r.so() and r.dados[0] == 2, f'exit {r.code}, {r.dados[0]} objects equal (two tables named k_tab)'
 
 
+def pre_dupeq(e):
+    n = lambda elf: sum(1 for ln in rodar([BIN / 'arm-none-eabi-nm', '-S', elf]).splitlines() if ln.split()[-1:] == ['k_tab'])
+    a, b, c = n(e['dupeq']), n(e['dupeq_uma']), n(e['dupeq_uma_edit'])
+    return (a, b, c) == (2, 1, 1), f'k_tab objects: {a} in A, then {b} and {c}'
+
+
+def c5j(r):
+    # one copy of a table gone, the other with the same bytes: only the count moved, and the report says so. u_tab is named as well: it holds the address of
+    # the table, which is `k_tab@colour` while two objects share the name and `k_tab` once only one is left (the tool's own rendering, not a change of its code)
+    return r.code == 1 and r.so(mudou=['u_tab'], so_a=['v_tab'], dado_mudou=['k_tab']) and r.dado_conteudo == ['igual'], \
+        f'exit {r.code}: {r.nomes()}, content {r.dado_conteudo}'
+
+
+def c5k(r):
+    # the same count change, and the table that is left has other bytes: not a dropped copy
+    return r.code == 1 and r.so(mudou=['u_tab'], so_a=['v_tab'], dado_mudou=['k_tab']) and r.dado_conteudo == ['diferente'], \
+        f'exit {r.code}: {r.nomes()}, content {r.dado_conteudo}'
+
+
 def c6(r):
     return r.code == 2 and 'nenhuma instrução lida' in r.err, f'exit {r.code}: {r.err.strip().splitlines()[0] if r.err.strip() else "-"}'
 
@@ -701,6 +730,8 @@ CASOS = [
     ('5d', 'two tables of one name, the first edited', 'dup', 'dup_u', c5d, None),
     ('5e', 'two tables of one name, the second edited', 'dup', 'dup_v', c5d, None),
     ('5f', 'two tables of one name, none edited', 'dup', 'dup', c5e, None),
+    ('5j', 'two tables of one name with the same bytes, one copy gone (the count changes, the content does not)', 'dupeq', 'dupeq_uma', c5j, pre_dupeq),
+    ('5k', 'the same, and the table that is left edited (the count changes and so does the content)', 'dupeq', 'dupeq_uma_edit', c5k, pre_dupeq),
     ('6', 'an ELF with no code at all', 'dados', 'dados', c6, None),
     ('6b', 'a stripped ELF, no code symbols', 'strip', 'strip', c6b, None),
     ('6c', 'code against an ELF with no code', 'base', 'dados', c6, None),
@@ -720,12 +751,12 @@ MUTANTES = [
      "if nome not in ('.rodata', '.data'):", 'if True:', {'1', '3', '3b', '3c', '3d'}),
     ('m3', 'the text census skips .data', "if nome not in ('.rodata', '.data'):", "if nome not in ('.rodata',):", {'1', '3c'}),
     ('m4', 'read-only objects are never compared', "d_iguais, dmud, dso_a, dso_b = comparar_dados(da, db, ctx_a, ctx_b)",
-     "d_iguais, dmud, dso_a, dso_b = len(da), [], [], []", {'5', '5b', '5d', '5e', '5f', '5g', '5i', '7v'}),
+     "d_iguais, dmud, dso_a, dso_b = len(da), [], [], []", {'5', '5b', '5d', '5e', '5f', '5g', '5i', '7v', '5j', '5k'}),
     ('m5', 'same-named objects are matched by position of the first only',
-     "la, lb = da[nome], db[nome]", "la, lb = da[nome][-1:], db[nome][-1:]", {'5d', '5f'}),
+     "la, lb = da[nome], db[nome]", "la, lb = da[nome][-1:], db[nome][-1:]", {'5d', '5f', '5j', '5k'}),
     ('m6', 'every function the text normalization sees as changed is excused',
      "mudaram = [n for n in diferem if mudou_de_fato(n, fa, fb, xa, xb, cfa, cfb)]",
-     "mudaram = []", {'4', '4b', '4c', '4d', '4e', '4f', '4g', '4h', '4i', '4j', '5c', '5h', '7', 'x'}),
+     "mudaram = []", {'4', '4b', '4c', '4d', '4e', '4f', '4g', '4h', '4i', '4j', '5c', '5h', '7', 'x', '5j', '5k'}),
     ('m7', 'a changed unnamed constant is excused (the fix of 2026-10-14 taken out)',
      "constante_mudou(fa[n], fb[n]) or ", "", {'4j', '5c', '5h', '7'}),
     ('m8', 'switch tables are never different', "tabelas_iguais = ta == tb", "tabelas_iguais = True", {'7'}),
@@ -753,7 +784,7 @@ MUTANTES = [
     ('m19', 'same-named functions are paired by address order only',
      "j = next((j for j in livres if lb[j][2] == r[2]), None)", "j = None", {'2h'}),
     ('m20', 'a reference to a shared name carries no colour',
-     "self.tab_ref = renomear(self.tab, self.cores, dup_nomes)", "self.tab_ref = self.tab", {'4d', '4e', '4i'}),
+     "self.tab_ref = renomear(self.tab, self.cores, dup_nomes)", "self.tab_ref = self.tab", {'4d', '4e', '4i', '5j', '5k'}),
     ('m22', 'an unreadable address looking like one renders as "<?>", without its value',
      "return f'<?{v:#x}>'", "return '<?>'", {'4g', '4h', '5g'}),
     ('m23', 'a word of an unnamed table that looks like an address and cannot be read renders as "?"',
@@ -769,6 +800,8 @@ MUTANTES = [
       "return f'<?{v:#x}>'"],
      ["return x == y", "return (constante_mudou(fa[n], fb[n])", "return '<?>'"],
      {'4b', '4c', '4d', '4e', '4f', '4g', '4h', '4i', '5g'}),
+    ('m27', 'a change in the number of copies always says "conteúdo igual" (the review of S8a C1 to C6, 2026-10-15)',
+     'conteúdo {"igual" if igual else "diferente"}', 'conteúdo igual', {'5k'}),
     ('m14', 'a changed string in an unnamed table blames the functions that load it',
      "and TEXTOS_ENTRE_ASPAS.sub('\"\"', p) != TEXTOS_ENTRE_ASPAS.sub('\"\"', q)", "", {'3d'}),
 ]

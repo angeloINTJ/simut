@@ -633,7 +633,7 @@ def mesmo_dado(xa, xb, ctx_a, ctx_b):
 def comparar_dados(da, db, ctx_a, ctx_b):
     """(objects equal, names whose objects differ, names only in A, names only in B). The objects
     of one name are matched one to one: equal bytes first, then mesmo_dado( ) for the tables of
-    pointers the layout moved. An object left without a partner makes its name differ."""
+    pointers the layout moved. An object left without a partner makes its name differ; when the number of objects of a name changes, the report says whether the ones left over have the same bytes (conteúdo igual) or not (conteúdo diferente)."""
     iguais, mudaram = 0, []
     for nome in sorted(set(da) & set(db)):
         la, lb = da[nome], db[nome]
@@ -654,7 +654,15 @@ def comparar_dados(da, db, ctx_a, ctx_b):
                 livres.remove(j)
         iguais += len(la) - len(resto)
         if resto or livres:
-            mudaram.append(nome if len(la) == len(lb) else f'{nome} ({len(la)} objetos em A, {len(lb)} em B)')
+            if len(la) == len(lb):
+                mudaram.append(nome)
+            else:
+                # The number of copies changed. It says "conteúdo igual" only when every copy left over has a twin with the same bytes on the other side
+                # and nothing else is unpaired; any other change of the count says "conteúdo diferente". The label used to be the same for both, and
+                # an acceptance script took it as proof that only a copy had been dropped (review of S8a C1 to C6, 2026-10-15).
+                sobras, outros, sem_par = ([la[i] for i in resto], lb, livres) if len(la) > len(lb) else ([lb[j] for j in livres], la, resto)
+                igual = not sem_par and all(any(x[0] == y[0] for y in outros) for x in sobras)
+                mudaram.append(f'{nome} ({len(la)} objetos em A, {len(lb)} em B, conteúdo {"igual" if igual else "diferente"})')
     return iguais, mudaram, sorted(set(da) - set(db)), sorted(set(db) - set(da))
 
 
