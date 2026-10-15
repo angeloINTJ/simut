@@ -62,6 +62,16 @@ int alvosSensibilidade( const VmSensibilidade &vm, Alvo *out );
 
 enum ResultadoCalibrar : uint8_t { CALRES_MEDINDO, CALRES_CONCLUIDA, CALRES_IMPRECISA };
 
+// Where the sight must stand at each step: the core's capture assumes the finger is
+// on CAL_SCR_X/Y (DisplayManager.h, CAL_INSET px inside the panel's corners) and its
+// validation extrapolates the screen's edges from them. They are not a design choice.
+// Kept here because the screens build on the host without DisplayManager.h; the
+// glue holds the two equal at compile time (DisplayManager_UiA_Ajustes.cpp,
+// MODE_SETTINGS_TOUCH_CAL: a panel of another size stops the build there, review of
+// S3, 2026-10-15).
+inline constexpr int16_t MIRA_X[4] = { 20, 300, 20, 300 };
+inline constexpr int16_t MIRA_Y[4] = { 20, 20, 220, 220 };
+
 struct VmCalibrar {
   uint8_t resultado;           // ResultadoCalibrar: the sight, or the verdict (the base's message screen)
   uint8_t passo;               // 0..3: top left, top right, bottom left, bottom right

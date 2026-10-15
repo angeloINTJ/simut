@@ -18,11 +18,13 @@ struct Ili9341_320x240 {
 	GFXcanvas16*   canvas = nullptr;
 	bool           firstInit = true;
 
-	/* The panel's size in pixels, the one place it is written. Whatever needs it reads
-	 * DisplayDriver::W and ::H (the core's primitives, the touch mapping, the calibration
-	 * targets, the Angulo's strips), so a panel of another size is another driver with
-	 * other numbers. The original UI's layouts stay 320x240: they are its layout, not the
-	 * panel's (docs/analysis/UI_DRIVERS.md 2.6). */
+	/* The panel's size in pixels, the one place the core and the Angulo driver read it
+	 * from: DisplayDriver::W and ::H (the core's primitives, the touch mapping, the
+	 * calibration targets, the Angulo's strips). Not yet the only place it is written:
+	 * the margin fill (TftWithOffset.h), the screenshot and the CLI/API range checks
+	 * still say 320/240, and docs/analysis/UI_DRIVERS.md 2.6 lists them for a panel of
+	 * another size. The original UI's layouts stay 320x240: they are its layout, not
+	 * the panel's. */
 	static constexpr int16_t W = 320;
 	static constexpr int16_t H = 240;
 

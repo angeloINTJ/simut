@@ -266,6 +266,10 @@ bool DisplayManager::uaMontarAjustes( UaQuadro &q ) {
        * it draws the verdict drawCalibrationMessage( ) draws (Calibration.cpp:
        * 440-488): success is _calPhase == 2, a refusal is 1. A step of 8 with
        * no verdict yet lasts one pass: the last point stays. */
+      static_assert( MIRA_X[0] == CAL_SCR_X[0] && MIRA_X[1] == CAL_SCR_X[1] && MIRA_X[2] == CAL_SCR_X[2] &&
+                     MIRA_X[3] == CAL_SCR_X[3] && MIRA_Y[0] == CAL_SCR_Y[0] && MIRA_Y[1] == CAL_SCR_Y[1] &&
+                     MIRA_Y[2] == CAL_SCR_Y[2] && MIRA_Y[3] == CAL_SCR_Y[3],
+                     "the Angulo sight (telas/AjustesTela.h MIRA_X/Y) must stand on the core's calibration targets (CAL_SCR_X/Y)" );
       VmCalibrar &vm = uaVm<VmCalibrar>( );
       vm.resultado = _calPhase >= 1 ? ( _calPhase == 2 ? CALRES_CONCLUIDA : CALRES_IMPRECISA ) : CALRES_MEDINDO;
       const int passo = _calStep < 0 ? 0 : _calStep > 7 ? 7 : _calStep;

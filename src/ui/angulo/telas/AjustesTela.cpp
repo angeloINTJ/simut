@@ -102,13 +102,6 @@ LayoutSensibilidade layoutSensibilidade( ) {
 /* Calibrar o toque                                                     */
 /* ------------------------------------------------------------------ */
 
-// Where the sight must stand at each step: the old capture assumes these four
-// points (CAL_SCR_X = {20, 300, 20, 300}, CAL_SCR_Y = {20, 20, 220, 220},
-// DisplayManager.h:1434-1435), and its validation extrapolates the screen's
-// edges from them (DisplayManager_Touch.cpp:110-124). They are not a design
-// choice: the sight is drawn here and nowhere else.
-constexpr int16_t MIRA_X[4] = { 20, 300, 20, 300 };
-constexpr int16_t MIRA_Y[4] = { 20, 20, 220, 220 };
 // The plan's sight: two circles, 16 px arms (so the one at a corner ends on the
 // safe area's edge), and a dot.
 constexpr int16_t R_MIRA = 10, BRACO_MIRA = 16, R_PONTO = 2;

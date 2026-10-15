@@ -74,6 +74,8 @@ public:
  }
 
  /// Fills the physical margin strips with black (bypasses the offset).
+ /// Its 320/240 are the panel's size, written here because this header is included
+ /// before the panel layer defines DisplayDriver::W/H (docs/analysis/UI_DRIVERS.md 2.6).
  void fillMarginsBlack( ) {
  bool prev = _bypass;
  _bypass = true;

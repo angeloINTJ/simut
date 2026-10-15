@@ -278,9 +278,20 @@ three more places that write the panel's size and are outside its list; they are
 left, and a panel of another size has to deal with them: `fillMarginsBlack` in
 `TftWithOffset.h` (the panel layer's own, included before the struct that
 defines `W`), the screenshot (`WebManager_History.cpp`: the rows' buffers, the
-BMP header, the chunk sizes; `DisplayManager_Auth.cpp`: `CHUNK_PX`), and the
-range check of the CLI's `touch sim` and `touch hold` (`AppManager_Commands.cpp`)
-with its help text (`CommandManager.cpp`).
+BMP header, the chunk sizes), and the range check of the CLI's `touch sim` and
+`touch hold` (`AppManager_Commands.cpp`) with its help text (`CommandManager.cpp`).
+(`DisplayManager_Auth.cpp`'s `CHUNK_PX` is not one: it is a read chunk over any
+`w*h`.) The original's own layout numbers stay as they are, on purpose: `DASH_W`
+and `DASH_H` (`DisplayManager_Dashboard.cpp`, the dashboard's grid),
+`drawSettingsLicense`'s page, and the texts of `drawCalibrationMessage` and
+`drawTouchCalibration` (`DisplayManager_Calibration.cpp`). Two more things a panel
+port must budget for, found in the review of S3 (2026-10-15): the shared strip
+canvas is now `W` wide while the original's strip blits stay 320, so on a wider
+panel `blitCanvas` takes its in-place compaction branch (it works, slower), and a
+480x45 canvas is 43,200 B against 28,800 B today, with the heap's low-water mark
+under 40 kB; and the Ângulo's calibration sight (`MIRA_X/Y`, `telas/AjustesTela.h`)
+is held equal to `CAL_SCR_X/Y` by a `static_assert` in the glue, so a panel of
+another size stops that build until the sight moves with the targets.
 
 How S3 was proved (2026-10-15, tree `7046bf7`, built with the private core that
 matches CI, `$B/pio_core_ci`; the outputs are in `$B/stages/s3*`):
@@ -303,8 +314,9 @@ matches CI, `$B/pio_core_ci`; the outputs are in `$B/stages/s3*`):
   `Faixa::drawPixel`, `Faixa::fillRect`, `Faixa::fillScreen` and `uaPintar`. With `H` = 241,
   `pico_wiretft` differs in eight (the same without `loopCore1`: the canvas's 45
   rows are the strip's height, not the panel's), and the Ângulo build is refused
-  by the `static_assert` that 40 divides `H`; with `H` = 280 `uaPintar` (the strip
-  count) changes. `readRow`'s default is in no list because no caller leaves out
+  by the `static_assert` that 40 divides `H`; with `H` = 280 the Ângulo image differs
+  in eight functions, three text pairs and a pointer shift in
+  `flash_init_boot2_copyout` (the strip count is one of them; the file lists all). `readRow`'s default is in no list because no caller leaves out
   `w`; only the build covers it. The scratch copy also renamed `width` and `height`:
   it builds, so nothing reads them. Output: `$B/stages/s3.bite_checks.txt`.
 - **Gates.** `check_ui_boundary.py`, `check_feature_sprawl.py` (368 sites, the
