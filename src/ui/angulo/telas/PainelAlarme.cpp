@@ -54,10 +54,10 @@ LayoutAcao layoutAcao( const VmAcaoAlarme &vm ) {
       break;
     case Causa::ERRO:
       fim = " com erro no sensor";
-      snprintf( l.detalhe, sizeof l.detalhe, "Sem leitura. Confira o cabo do sensor." );
+      snprintf( l.detalhe, sizeof l.detalhe, "Sem leitura. Confira o cabo." );
       break;
     case Causa::FORA:
-      snprintf( l.detalhe, sizeof l.detalhe, "Um valor do sensor passou do limite." );
+      snprintf( l.detalhe, sizeof l.detalhe, "Um valor passou do limite." );
       break;
   }
   painel::nomeComFim( l.titulo, sizeof l.titulo, vm.nome, fim, tipo::subtitulo, X_BLOCO + W_BLOCO - PAD - l.xTexto );

@@ -36,8 +36,10 @@ constexpr int NAV_N = 5;
 constexpr int16_t Y_NAV = 196, H_NAV = 40, W_NAV = 56, X_NAV = ESP3, PASSO_NAV = W_NAV + ESP1;
 
 /* The Gráfico button carries its word: an icon alone does not say what a
- * button does (Ângulo §6) and the panel has no tooltip to say it. */
-constexpr int16_t W_GRAFICO = 56, H_GRAFICO = 48;
+ * button does (Ângulo §6) and the panel has no tooltip to say it. 72 px wide:
+ * the word is 62 px of ink in 9 pt bold, the floor of the panel's text since
+ * 2026-10-15, and 56 px cut it on both sides. */
+constexpr int16_t W_GRAFICO = 72, H_GRAFICO = 48;
 
 /* The name row sits 4 px under the upper card's top edge. The lower card's
  * name is drawn in a 12 px box (its capital height), 8 px under the edge, so
@@ -50,9 +52,12 @@ constexpr int16_t H_NOME_CIMA = H_TEXTO, H_NOME_BAIXO = 12, H_SELO = 16;
  * lower card's big number keeps the plan's 176. */
 constexpr int16_t BASE_CIMA = Y_CIMA + 56, BASE_NUMERO = Y_BAIXO + 68;
 
-/* The lower card's right column: 14 px between baselines, so that three lines
- * of 11 px caps fit between the badge and the number's baseline. */
-constexpr int16_t PASSO_LINHA = ESP3 + 2;
+/* The lower card's right column: 18 px between baselines (the 9 pt text's 14 px
+ * caps and 4 px apart). Two lines fit between the badge and the number's
+ * baseline; a third would run into the badge (2026-10-15, when the floor of the
+ * panel's text rose from 7 to 9 pt: its 7 pt caps were 2.4 mm on the 3.5-inch
+ * 320x240 panel, under what reads at arm's length). */
+constexpr int16_t PASSO_LINHA = ESP4 + 2;
 
 /* The web-busy notice floats over the lower card's foot, its bottom on the
  * card's: the name and the badge above it stay on the glass. */
@@ -183,6 +188,16 @@ struct Segundo {
   const char *un;
   char valor[16];
 };
+
+// A limit of the alarm's range, in tenths, without a trailing ",0": the range
+// line has to leave the big number its size (2026-10-15: "faixa 15,0 a 30,0 °C"
+// in 9 pt pushed a BME280 card's 22,4 from DISP32 down a size; "faixa 15 a
+// 30 °C" does not). A limit with tenths keeps them.
+char *limite( int32_t d, char *buf ) {
+  if ( d % 10 ) return n1( d, buf );
+  snprintf( buf, 16, "%ld", (long)( d / 10 ) );
+  return buf;
+}
 
 Segundo segundoDe( const Sensor &s ) {
   Segundo g{ };
@@ -380,20 +395,24 @@ void desenharCartaoBaixo( Pintor &p, const VmPainel &vm, const LayoutPainel &l )
   textoCentrado( p, nome, X_INT, yNome, H_NOME_BAIXO, tipo::subtitulo, a.tinta, 'l' );
   if ( !corpo ) return;
 
-  // The right column, right-aligned, its last line on the number's baseline:
-  // the second value (when the sensor has one), the day's extremes, the range.
+  // The right column, right-aligned, its last line on the number's baseline. At
+  // 9 pt it is wide, and the big number takes what is left (the next block), so it
+  // carries only what the badge needs: the sensor's second value by its unit alone
+  // ("58 %UR", "1013 hPa") when it has one, and the alarm's range without the word
+  // ("2 a 8 °C"; the badge above it says "Na faixa", "Acima" or "Abaixo"). With the
+  // day's extremes in it too, a BME280 card's 22,4 and a 125,0 lost a size
+  // (2026-10-15); the extremes are a tap away, in the card's min/max mode, and in
+  // the graph.
   char b1[16], b2[16];
-  char linhaSeg[40], linhaMM[48], linhaFaixa[40];
+  char linhaSeg[40], linhaFaixa[40];
   const Segundo g = segundoDe( s );
   int nLinhas = 0;
-  const char *linhas[3];
+  const char *linhas[2];
   if ( g.tem ) {
-    snprintf( linhaSeg, sizeof linhaSeg, "%s %s %s", g.rotulo, g.valor, g.un );
+    snprintf( linhaSeg, sizeof linhaSeg, "%s %s", g.valor, g.un );
     linhas[nLinhas++] = linhaSeg;
   }
-  snprintf( linhaMM, sizeof linhaMM, "mín %s · máx %s", dec( s.tMin, false, b1 ), dec( s.tMax, false, b2 ) );
-  linhas[nLinhas++] = linhaMM;
-  snprintf( linhaFaixa, sizeof linhaFaixa, "faixa %s a %s °C", n1( s.lo, b1 ), n1( s.hi, b2 ) );
+  snprintf( linhaFaixa, sizeof linhaFaixa, "%s a %s °C", limite( s.lo, b1 ), limite( s.hi, b2 ) );
   linhas[nLinhas++] = linhaFaixa;
   int16_t wColuna = 0;
   for ( int i = 0; i < nLinhas; i++ ) {
