@@ -28,7 +28,7 @@ struct VmLimites {
 };
 
 // `indice` of LIMITES_MENOS and LIMITES_MAIS is the row (0 minimum, 1 maximum).
-// A button at the end of its range is drawn disabled and is not a target; so is
+// A button at the end of its range is drawn disabled and is an inert target; so is
 // a pager arrow with no page to go to. LIMITES_VOLTAR and LIMITES_CANCELAR both
 // leave without saving (the old SAIR).
 enum AlvoLimites : uint8_t {

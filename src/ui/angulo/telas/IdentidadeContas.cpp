@@ -184,8 +184,8 @@ int alvosQuem( const VmQuem &vm, Alvo *out ) {
   const bool ativa[1] = { true };
   int n = addAlvosBarra( out, 0, l.barra, tipos, ativa );
   for ( int i = 0; i < l.nLinhas; i++ ) {
-    if ( vm.linhas[i].travada ) continue;                    // a dimmed row is not a target
-    n = addAlvo( out, n, l.linhas[i], QUEM_LINHA, (int16_t)( l.pagina * LINHAS + i ) );
+    // A dimmed row is an inert target: its top and bottom 12 px would otherwise select the account beside it.
+    n = addAlvoSe( out, n, !vm.linhas[i].travada, l.linhas[i], QUEM_LINHA, (int16_t)( l.pagina * LINHAS + i ) );
   }
   if ( l.pager ) n = addAlvosPaginador( out, n, l.pagina, l.paginas, QUEM_PAG_ANTERIOR, QUEM_PAG_PROXIMA );
   return n;

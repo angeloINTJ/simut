@@ -7,7 +7,7 @@
 // screen's view model is in MenusConfig.h, MenusAlarmes.h and MenusStatus.h.
 //
 // What the glue has to know about the pager: the arrows do not wrap. On the
-// first page "previous" is drawn disabled and is not a target; on the last one
+// first page "previous" is drawn disabled and is an inert target; on the last one
 // the same holds for "next". The old screens' up and down arrows wrapped
 // around; a page that stops is what a pager with a visible "n de m" promises.
 #include "Telas.h"

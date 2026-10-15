@@ -25,7 +25,7 @@ struct VmQuem {
   uint8_t nLinhas;               // rows on this page, 0..4
   struct Linha {
     char nome[ident::NOME];
-    bool travada;                // out of tries until the device restarts: dimmed, "Bloqueada", not a target
+    bool travada;                // out of tries until the device restarts: dimmed, "Bloqueada", an inert target
   } linhas[ident::LINHAS];
 };
 // LINHA: indice = the row's place among all accounts (page * 4 + row), like

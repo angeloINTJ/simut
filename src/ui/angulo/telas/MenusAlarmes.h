@@ -47,7 +47,7 @@ struct VmSensorAlarme {
 // Targets: SA_VOLTAR and, for each row the account may use, SA_LIMITES
 // (opens), SA_ALARMES (flips the switch: the device saves on the spot) and
 // SA_MANUTENCAO (opens). A row without its bit is drawn disabled, with a lock,
-// and is not a target.
+// and is an inert target.
 void desenharSensorAlarme( Pintor &p, const VmSensorAlarme &vm );
 int alvosSensorAlarme( const VmSensorAlarme &vm, Alvo *out );
 

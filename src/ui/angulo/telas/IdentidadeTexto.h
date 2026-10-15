@@ -43,7 +43,7 @@ struct VmTexto {
 // abc and ABC. CAMADA is a layer key: indice = the layer it leads to (a
 // TextoCamada): "123" and "abc" at the second key, "#+=" and "123" at the left
 // key of 123 and #+=. VER is the eye of a secret field. Keys that cannot act
-// now are not targets: the characters and the space when the text is full,
+// now are inert targets: the characters and the space when the text is full,
 // Apagar and Salvar when it is empty.
 enum AlvoTexto : uint8_t { TXT_NADA, TXT_TECLA, TXT_SHIFT, TXT_CAMADA, TXT_ESPACO, TXT_APAGAR, TXT_VER, TXT_SALVAR, TXT_CANCELAR };
 void desenharTexto( Pintor &p, const VmTexto &vm );

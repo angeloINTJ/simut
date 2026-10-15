@@ -22,7 +22,7 @@ struct VmAlinhar {
 
 // The arrows move the image the way they point: CIMA lowers y by one, BAIXO raises
 // it, ESQUERDA lowers x, DIREITA raises it (the old zones 20..23: y-1, y+1, x-1,
-// x+1). An arrow at the limit is drawn disabled and is not a target.
+// x+1). An arrow at the limit is drawn disabled and is an inert target.
 // ALINH_REDEFINIR zeroes both (the old square in the middle); ALINH_VOLTAR leaves
 // and restores the saved offset (the old SAIR); ALINH_SALVAR is the old APLICAR,
 // which also wipes the touch calibration and opens its wizard.
