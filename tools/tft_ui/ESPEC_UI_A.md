@@ -11,7 +11,7 @@ imagem de produto.
 | Peça | Onde | O que faz |
 |---|---|---|
 | Kit Ângulo | `src/ui/angulo/Angulo.{h,cpp}`, gerados `AnguloMeta.h` e `AnguloIcones.h` | tokens (`Tema` com 17 papéis, claro e escuro), texto UTF-8 alinhado pela tinta, ícones, componentes (`botao`, `tecla`, `campo`, `pontos`, `ajuda`, `segmentado`, `chip`, `selo`, `lista`, `interruptor`, `paginador`, `rodapeAcoes`, `numero`, `progresso`, `tracejada`, `barraTitulo`, `barraTituloVoltar`, `superficie`) |
-| Portes do plano | `tools/tft_ui/plano/*.cpp` | as 29 telas e os 24 teclados (T1, P1 a P3) do plano, desenhados pelo kit e iguais ao plano pixel a pixel (`python3 tools/tft_ui/host_ui.py ../esperado`: 106 de 106) — **o ponto de partida visual de cada tela** |
+| Portes do plano | `tools/tft_ui/plano/*.cpp` | as 29 telas e os 24 teclados (T1, P1 a P3) do plano, desenhados pelo kit e iguais ao plano pixel a pixel até 14/10 (`python3 tools/tft_ui/host_ui.py ../esperado`: 106 de 106) — **o ponto de partida visual de cada tela**. Desde a aparência aprovada em 15/10 (paleta do painel, cantos suavizados, nada abaixo de 9 pt) o kit se afasta do plano de propósito, e o `host_ui.py` deixou de ser prova |
 | Referências do plano | `entrega/referencia/telas/A_*.png`, `entrega/referencia/teclados/*.png` | as imagens que o plano desenhou |
 | Contrato das telas | `src/ui/angulo/telas/Telas.h` | `Alvo`, `addAlvo`, `alvoEm`, `copiar`, `quebrar`, `VmStatus` + `desenharStatus` (barra de status com a marca) |
 | Telas de referência | `src/ui/angulo/telas/Base.{h,cpp}`, amostras em `tools/tft_ui/amostras/base.cpp` | mensagem de resultado e diálogo de confirmação: **o modelo a copiar** |

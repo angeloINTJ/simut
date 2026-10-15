@@ -1,6 +1,7 @@
 // The Ângulo kit (see Angulo.h). Every function here is a port of the TFT
-// plan's renderer, named after it in the comment; tools/tft_ui/host_ui.py
-// holds the screens drawn with it to the plan's references, pixel for pixel.
+// plan's renderer, named after it in the comment; tools/tft_ui/host_ui.py held
+// the screens drawn with it to the plan's references, pixel for pixel, until the
+// approved look of 2026-10-15 departed from the plan (Angulo.h says how).
 
 #include "Angulo.h"
 

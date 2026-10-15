@@ -2,8 +2,12 @@
 // The Ângulo kit for the TFT: tokens, text, icons, components and the chrome
 // of the screens, ported from the TFT plan's renderer (docs/ui_tft_angulo,
 // renderizador/src/angulo.js and telas.js, family A) line for line, so that a
-// screen drawn here with the plan's scenario is pixel for pixel the plan's
-// reference (tools/tft_ui/host_ui.py proves it on the host).
+// screen drawn here with the plan's scenario was pixel for pixel the plan's
+// reference (tools/tft_ui/host_ui.py, 106 of 106 frames on 2026-10-14). The look
+// the maintainer approved on 2026-10-15 departs from the plan on purpose: the
+// panel's own colour tokens (kit/angulo_tokens.h, from tools/tft_ui/gen_tokens.py),
+// smoothed corners and circles (Pintor), and no type under 9 pt; the coordinate
+// rules below are still the renderer's.
 //
 // Every coordinate rule of the renderer is kept: Math.round( ) is rd2( )/rdiv( )
 // (half up, as JavaScript rounds), text is aligned by its ink, and every
