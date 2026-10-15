@@ -34,21 +34,58 @@ void copiar( char *dst, const char *src, int cap ) {
   dst[n] = 0;
 }
 
+namespace {
+
+const char kMarca[] = "SIMUT";
+const char kPrefixoWeb[] = "Web: ";
+
+// The words of the notice, in the widest of its forms whose ink is at most `largura` px in the badge's font; false
+// when none fits. A countdown goes whole or loses its number: "Silenciado · 12…" would say a wrong one. The web
+// notice reads "Web: <name>", the form of the original top bar: "Web: " stays whole and the name gives way, cut at
+// a character with "…" and never inside a UTF-8 sequence; the words are measured whole, because a space has no
+// ink and the prefix alone would measure short by its advance. With no name, or no room for one letter of it, the
+// word alone.
+// Measured on the host kit, 2026-10-15 (9 pt, SANSB9): the badge's dot and padding take 26 px, so the 210 px that
+// the cable icon alone leaves hold 184 px of words, the 166 px with "3k" waiting hold 140 and the 156 px with a
+// three-character count hold 130. "Web: maria.aparecida" (15 characters, 183) fits the first whole;
+// with "3k" a 15-character name keeps 8 letters (132), and a 31-character name keeps 13 beside the cable
+// icon and 7 beside a three-character count; "Web: admin" (99) fits all three whole.
+bool textoDoAviso( const VmStatus &s, int16_t largura, char *out, int cap ) {
+  if ( s.aviso == Aviso::SILENCIADO ) {
+    snprintf( out, (size_t)cap, "Silenciado \xC2\xB7 %u s", (unsigned)s.avisoSeg );
+    if ( larguraTinta( out, tipo::rotulo ) <= largura ) return true;
+    snprintf( out, (size_t)cap, "Silenciado" );
+    return larguraTinta( out, tipo::rotulo ) <= largura;
+  }
+  char nome[sizeof s.avisoNome];
+  copiar( nome, s.avisoNome, (int)sizeof nome );
+  snprintf( out, (size_t)cap, "%s%s", kPrefixoWeb, nome );
+  if ( nome[0] && larguraTinta( out, tipo::rotulo ) <= largura ) return true;
+  int n = (int)strlen( nome );
+  while ( n > 1 ) {
+    do n--; while ( n > 0 && ( (uint8_t)nome[n] & 0xC0 ) == 0x80 );
+    int m = n;
+    while ( m > 0 && nome[m - 1] == ' ' ) m--;
+    if ( m == 0 ) break;
+    snprintf( out, (size_t)cap, "%s%.*s\xE2\x80\xA6", kPrefixoWeb, m, nome );
+    if ( larguraTinta( out, tipo::rotulo ) <= largura ) return true;
+  }
+  snprintf( out, (size_t)cap, "Web" );
+  return larguraTinta( out, tipo::rotulo ) <= largura;
+}
+
+}  // namespace
+
 void desenharStatus( Pintor &p, const VmStatus &s ) {
   const Tema &T = p.t( );
   // The brand stays when a badge takes the clock's place: the plan's renderer
   // paints the badge's background over it (telas.js barraStatus), which the
-  // kit keeps for the references; on the device the brand is the anchor.
-  textoCentrado( p, "SIMUT", PAD, 0, H_STATUS, tipo::subtitulo, T.tinta, 'l' );
-  if ( s.aviso[0] ) {
-    const int16_t w = larguraSelo( s.aviso );
-    selo( p, rd2( 320 - w ), 4, 20, s.aviso, s.avisoTom );
-  } else if ( s.hora[0] ) {
-    // A clock nobody confirmed is said in the alert colour, as the old top
-    // bar did with its " ? " (the records carry that time).
-    textoCentrado( p, s.hora, 160, 0, H_STATUS, tipo::botao, s.horaProvisoria ? T.alerta : T.tinta, 'c' );
-  }
-  // Right to left: the network, then what telemetry still has to send.
+  // kit keeps for the references; on the device the brand is the anchor, and
+  // the badge is placed in the room it leaves.
+  textoCentrado( p, kMarca, PAD, 0, H_STATUS, tipo::subtitulo, T.tinta, 'l' );
+  // The icons on the right, right to left: the network, then what telemetry
+  // still has to send. Laid out before the badge, which has to stay clear of
+  // them: `esq` is where their ink starts.
   int16_t x = 320 - PAD - 16;
   IconeNome rede = IconeNome::NENHUM;
   uint16_t corRede = T.tinta2;
@@ -60,12 +97,12 @@ void desenharStatus( Pintor &p, const VmStatus &s ) {
     case Rede::WIFI_SEM: rede = IconeNome::WIFI_OFF; corRede = T.perigo; break;
     case Rede::NENHUMA: break;
   }
-  if ( rede != IconeNome::NENHUM ) {
-    p.icone( rede, 16, x, 6, corRede );
-    x -= ESP1;
-  }
+  const int16_t xRede = x;
+  const bool temRede = rede != IconeNome::NENHUM;
+  int16_t esq = temRede ? xRede : 320 - PAD;
+  if ( temRede ) x -= ESP1;
+  char n[8] = "";
   if ( s.pendentes ) {
-    char n[8];
     if ( s.pendentes < 1000 ) {
       int v = s.pendentes, i = 0;
       char tmp[8];
@@ -81,8 +118,32 @@ void desenharStatus( Pintor &p, const VmStatus &s ) {
       n[i++] = 'k';
       n[i] = 0;
     }
-    const uint16_t cor = s.envio == 2 ? T.perigo : T.tinta2;
     x -= 16;
+    esq = x - ESP1 - larguraTinta( n, tipo::dado );
+  }
+  bool aviso = false;
+  if ( s.aviso != Aviso::NENHUM ) {
+    // Free room: from ESP2 after the brand's ink to ESP2 before the icons' (the panel's right margin when there
+    // are none).
+    const int16_t livreE = PAD + larguraTinta( kMarca, tipo::subtitulo ) + ESP2;
+    const int16_t livreD = temRede || s.pendentes ? esq - ESP2 : esq;
+    char texto[64];
+    if ( textoDoAviso( s, (int16_t)( livreD - livreE - larguraSelo( "" ) ), texto, sizeof texto ) ) {
+      const int16_t w = larguraSelo( texto );
+      int16_t bx = rd2( 320 - w );
+      if ( bx < livreE || bx + w > livreD ) bx = (int16_t)( livreE + rd2( livreD - livreE - w ) );
+      selo( p, bx, 4, 20, texto, s.aviso == Aviso::SILENCIADO ? Tom::ALERTA : Tom::NEUTRO );
+      aviso = true;
+    }
+  }
+  if ( !aviso && s.hora[0] ) {
+    // A clock nobody confirmed is said in the alert colour, as the old top
+    // bar did with its " ? " (the records carry that time).
+    textoCentrado( p, s.hora, 160, 0, H_STATUS, tipo::botao, s.horaProvisoria ? T.alerta : T.tinta, 'c' );
+  }
+  if ( temRede ) p.icone( rede, 16, xRede, 6, corRede );
+  if ( s.pendentes ) {
+    const uint16_t cor = s.envio == 2 ? T.perigo : T.tinta2;
     p.icone( IconeNome::UPLOAD, 16, x, 6, cor );
     textoCentrado( p, n, x - ESP1, 0, H_STATUS, tipo::dado, cor, 'r' );
   }

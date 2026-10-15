@@ -202,12 +202,21 @@ const VmPainel kMinMaxSemDados = minMaxSemDados( );
 
 const VmPainel kAlarmeApagada = fase( painel( emAlarmeVacinas( ) ), false );
 const VmPainel kAlarmeAcesa = fase( painel( emAlarmeVacinas( ) ), true );
-const VmPainel kSilenciado = [] {
+
+// The silenced alarm with its countdown in the status bar, and `pendentes` records waiting (the cable icon is
+// always there): the badge has to find its room between the brand and the icons.
+VmPainel silenciadoCom( int seg, uint16_t pendentes ) {
   VmPainel vm = fase( painel( emAlarmeVacinas( ) ), false, true );
-  copiar( vm.status.aviso, "Silenciado · 87 s", sizeof vm.status.aviso );
-  vm.status.avisoTom = Tom::ALERTA;
+  vm.status.aviso = Aviso::SILENCIADO;
+  vm.status.avisoSeg = (uint16_t)seg;
+  vm.status.pendentes = pendentes;
   return vm;
-}( );
+}
+const VmPainel kSilenciado = silenciadoCom( 87, 0 );
+// 3k waiting leaves 166 px of room: "Silenciado · 87 s" (164) fits it, off the panel's centre.
+const VmPainel kSilenciadoPendentes = silenciadoCom( 87, 3000 );
+// ... and "Silenciado · 120 s" (174), the countdown's first seconds, does not: the number is not cut, it goes.
+const VmPainel kSilenciado120Pendentes = silenciadoCom( 120, 3000 );
 
 // A silenced alarm's cards, in the phase a flash would have lit them: still no flashing.
 const VmPainel kSilenciadoFaseAcesa = fase( painel( emAlarmeVacinas( ) ), true, true );
@@ -264,12 +273,35 @@ VmPainel minMaxEmAlarme( ) {
 }
 const VmPainel kMinMaxAlarme = minMaxEmAlarme( );
 
-const VmPainel kAvisoWeb = [] {
+/* 15 characters, the most the device keeps of an account's name (16 bytes with the terminator), and 31, what
+ * a view model's name can hold: the notice cuts them to the room the bar has. */
+constexpr char kConta15[] = "maria.aparecida";
+constexpr char kConta31[] = "maria.aparecida.da.silva.santos";
+static_assert( sizeof kConta15 - 1 == 15 && sizeof kConta31 - 1 == 31, "the account names are 15 and 31 characters" );
+
+// "Web: <nome>" in the status bar, with `pendentes` records waiting and the given network.
+VmPainel avisoWeb( const char *nome, uint16_t pendentes, Rede rede = Rede::CABO ) {
   VmPainel vm = painel( bancada( 1 ) );
-  copiar( vm.status.aviso, "maria entrou pela web", sizeof vm.status.aviso );
-  vm.status.avisoTom = Tom::NEUTRO;
+  vm.status.aviso = Aviso::WEB;
+  copiar( vm.status.avisoNome, nome, sizeof vm.status.avisoNome );
+  vm.status.pendentes = pendentes;
+  vm.status.rede = rede;
   return vm;
-}( );
+}
+// The spec's example name.
+const VmPainel kAvisoWeb = avisoWeb( "maria", 0 );
+const VmPainel kAvisoWebCurto = avisoWeb( "ana", 0 );
+// 15 characters fit whole beside the cable icon alone ("Web: maria.aparecida" is 183 px of the 184 there are) ...
+const VmPainel kAvisoWeb15 = avisoWeb( kConta15, 0 );
+// ... and are cut with 3k waiting, which leaves 140 px.
+const VmPainel kAvisoWeb15Pendentes = avisoWeb( kConta15, 3000 );
+const VmPainel kAvisoWeb31 = avisoWeb( kConta31, 0 );
+// The narrowest room: a three-character count leaves 130 px.
+const VmPainel kAvisoWeb31Pendentes150 = avisoWeb( kConta31, 150 );
+// The bench's case of 2026-10-15: "admin" with 3k records waiting. "Web: admin" is 99 px of the 140 that 3k leaves.
+const VmPainel kAvisoWebPendentes = avisoWeb( "admin", 3000 );
+// Nothing on the right: the room runs to the panel's margin.
+const VmPainel kAvisoWebSemRede = avisoWeb( "admin", 0, Rede::NENHUMA );
 
 const VmPainel kWebOcupada = [] {
   VmPainel vm = painel( bancada( 1 ) );
@@ -496,6 +528,8 @@ const Amostra kAmostras[] = {
   PAINEL( "painel_alarme_apagada", kAlarmeApagada ),
   PAINEL( "painel_alarme_acesa", kAlarmeAcesa ),
   PAINEL( "painel_silenciado", kSilenciado ),
+  PAINEL( "painel_silenciado_pendentes_3k", kSilenciadoPendentes ),
+  PAINEL( "painel_silenciado_120_pendentes_3k", kSilenciado120Pendentes ),
   PAINEL( "painel_silenciado_fase_acesa", kSilenciadoFaseAcesa ),
   PAINEL( "painel_abaixo", kAbaixo ),
   PAINEL( "painel_no_limite", kNoLimite ),
@@ -505,6 +539,13 @@ const Amostra kAmostras[] = {
   PAINEL( "painel_cima_alarme_apagada", kCimaAlarmeApagada ),
   PAINEL( "painel_cima_alarme_acesa", kCimaAlarmeAcesa ),
   PAINEL( "painel_aviso_web", kAvisoWeb ),
+  PAINEL( "painel_aviso_web_nome_curto", kAvisoWebCurto ),
+  PAINEL( "painel_aviso_web_nome_15", kAvisoWeb15 ),
+  PAINEL( "painel_aviso_web_nome_15_pendentes_3k", kAvisoWeb15Pendentes ),
+  PAINEL( "painel_aviso_web_nome_31", kAvisoWeb31 ),
+  PAINEL( "painel_aviso_web_nome_31_pendentes_150", kAvisoWeb31Pendentes150 ),
+  PAINEL( "painel_aviso_web_pendentes_3k", kAvisoWebPendentes ),
+  PAINEL( "painel_aviso_web_sem_rede", kAvisoWebSemRede ),
   PAINEL( "painel_web_ocupada", kWebOcupada ),
   PAINEL( "painel_web_ocupada_nome_longo", kWebOcupadaNomeLongo ),
   PAINEL( "painel_9_sensores_p1", kNove1 ),

@@ -194,13 +194,12 @@ void DisplayManager::uaVmStatus( ua::VmStatus &s ) {
   uaRelogio( s.hora, h, s.horaProvisoria );
   if ( _alarmSilenced ) {
     const int32_t falta = (int32_t)( _alarmSilenceEnd - millis( ) );
-    snprintf( s.aviso, sizeof s.aviso, "Silenciado · %ld s", (long)( falta > 0 ? falta / 1000 : 0 ) );
-    s.avisoTom = ua::Tom::ALERTA;
+    const int32_t seg = falta > 0 ? falta / 1000 : 0;
+    s.aviso = ua::Aviso::SILENCIADO;
+    s.avisoSeg = (uint16_t)( seg > 65535 ? 65535 : seg );
   } else if ( _webNotifyStartMs > 0 && !timeSince( _webNotifyStartMs, WEB_NOTIFY_DURATION_MS ) ) {
-    char nome[48];
-    ua::copiar( nome, _webNotifyUser, 24 );
-    snprintf( s.aviso, sizeof s.aviso, "%s entrou pela web", nome );
-    s.avisoTom = ua::Tom::NEUTRO;
+    s.aviso = ua::Aviso::WEB;
+    ua::copiar( s.avisoNome, _webNotifyUser, sizeof s.avisoNome );
   }
   /* The wired build's RSSI is the link: above -100 the cable is up (the old
    * top bar's glyph, DisplayManager_Dashboard.cpp). */
@@ -392,7 +391,7 @@ void DisplayManager::uiTopPanel( const SystemState & ) {
   uaSujo( );
 }
 
-/* The web login notice ("<user> entrou pela web") lasts WEB_NOTIFY_DURATION_MS. The old top bar cleared it when it found it
+/* The web login notice ("Web: <user>") lasts WEB_NOTIFY_DURATION_MS. The old top bar cleared it when it found it
  * expired, as it drew; this frame only reads it (uaVmStatus), so the pass clears it, and a notice left behind cannot come back
  * when millis( ) wraps. */
 void DisplayManager::tickWebNotify( ) {

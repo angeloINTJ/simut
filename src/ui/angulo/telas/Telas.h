@@ -57,16 +57,25 @@ int quebrar( const char *texto, Fonte f, int16_t largura, char *linhas, int cap,
 
 // The status bar every panel screen shares (dashboard, alarm action).
 enum class Rede : uint8_t { NENHUMA, CABO, CABO_SEM_LINK, WIFI, WIFI_FRACO, WIFI_SEM };
+// The badge that takes the clock's place for a few seconds. The view model says what it is about and the bar
+// writes the words (desenharStatus( )): the text has to be cut to the room the brand and the icons leave, and
+// only the bar knows how much that is.
+enum class Aviso : uint8_t { NENHUM, SILENCIADO, WEB };
 struct VmStatus {
   char hora[6];          // "14:32"; "" when the clock is not set
   bool horaProvisoria;   // the clock has not been confirmed (NTP or manual)
-  char aviso[48];        // badge in place of the clock ("" none)
-  Tom avisoTom;
+  Aviso aviso;           // the badge in place of the clock
+  uint16_t avisoSeg;     // SILENCIADO: the seconds left, as the countdown says them
+  char avisoNome[32];    // WEB: the account that logged in (the device keeps 15 bytes of it), UTF-8
   Rede rede;
   uint16_t pendentes;    // telemetry records waiting (0: nothing shown)
   uint8_t envio;         // 0 idle, 1 last batch sent, 2 last batch failed
 };
-// Draws it with the kit's barraStatus( ) and the network and pending icons.
+// Draws it with the kit's badge and the network and pending icons. The badge sits in what is free between the
+// brand's ink and the icons on the right, ESP2 clear of both: at the panel's centre when it fits there, else in
+// the middle of the free room. When its words are wider than the room the account's name is cut with "…" ("Web: "
+// stays whole), and with no room for even one letter of it the badge says "Web"; a countdown that does not fit
+// says "Silenciado" (a number cut in the middle would be a wrong number). When not even that fits, the clock stays.
 void desenharStatus( Pintor &p, const VmStatus &s );
 
 }  // namespace ua

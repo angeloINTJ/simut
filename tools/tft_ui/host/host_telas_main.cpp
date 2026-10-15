@@ -2,7 +2,8 @@
 // (tools/tft_ui/amostras/<grupo>.cpp) into Adafruit GFX's own GFXcanvas16, in
 // both themes, and writes, for host_telas.py to check and picture:
 //   <dir>/<nome>_<tema>.565        the frame (RGB565, host byte order)
-//   <dir>/<nome>_<tema>.textos     one line per string drawn: x0 x1 y0 y1 text
+//   <dir>/<nome>_<tema>.textos     one line per string drawn: x0 x1 y0 y1 kind text
+//                                  (kind t: the ink box of a text; s: the box of a badge, its label as text)
 //   <dir>/<nome>.alvos             one line per touch target: x y w h tipo indice
 //   <dir>/<nome>_<tema>.faltam     the glyphs or icons the kit could not draw
 #include <Adafruit_GFX.h>
@@ -49,7 +50,8 @@ int main( int argc, char **argv ) {
       const ua::TextoDesenhado *txt;
       const int n = ua::hostTextos( &txt );
       for ( int k = 0; k < n; k++ )
-        fprintf( f, "%d %d %d %d %s\n", txt[k].x0, txt[k].x1, txt[k].y0, txt[k].y1, txt[k].texto );
+        fprintf( f, "%d %d %d %d %c %s\n", txt[k].x0, txt[k].x1, txt[k].y0, txt[k].y1, txt[k].selo ? 's' : 't',
+                 txt[k].texto );
       fclose( f );
       snprintf( path, sizeof path, "%s/%s_%s.faltam", argv[1], a.nome, nomeTema );
       f = fopen( path, "w" );

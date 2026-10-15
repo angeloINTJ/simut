@@ -10,6 +10,8 @@ GFX 1.12.6, draws every sample in both themes, and fails when a sample:
   - draws text outside the panel's safe area (x 4..315, y 4..235: the display
     alignment moves the image up to 4 px, DisplayManager.h);
   - draws two strings whose ink boxes overlap;
+  - draws a badge over another string's ink (the badge's fill hides what it covers; its own
+    label is the one string allowed inside it);
   - draws a text across the edge of one of its touch targets;
   - draws a text cut with "…" that tools/tft_ui/cortes_aceitos.txt does not
     accept for that sample (fixed copy must fit, and so must data of an
@@ -182,11 +184,14 @@ def main():
                 falta = int((dados / f'{nome}_{tema}.faltam').read_text().strip() or 0)
                 if falta:
                     erros.append(f'{nome}_{tema}: {falta} glyphs or icons missing')
-                textos = []
+                textos, selos = [], []
                 for linha in (dados / f'{nome}_{tema}.textos').read_text().splitlines():
-                    partes = linha.split(' ', 4)
+                    partes = linha.split(' ', 5)
                     x0, x1, y0, y1 = map(int, partes[:4])
-                    t = partes[4] if len(partes) > 4 else ''
+                    t = partes[5] if len(partes) > 5 else ''
+                    if partes[4] == 's':
+                        selos.append((x0, x1, y0, y1, t))
+                        continue
                     textos.append((x0, x1, y0, y1, t))
                     if x0 < SAFE[0] or x1 > SAFE[1] or y0 < SAFE[2] or y1 > SAFE[3]:
                         erros.append(f'{nome}_{tema}: "{t}" ink {x0}..{x1} x {y0}..{y1} leaves the safe area')
@@ -196,6 +201,22 @@ def main():
                             continue
                         if sobrepoe(textos[i], textos[j]):
                             erros.append(f'{nome}_{tema}: "{textos[i][4]}" overlaps "{textos[j][4]}"')
+                # A badge's fill hides everything under it, not only the badge's own words. On the
+                # bench (2026-10-15) the 9 pt badge of the status bar covered the "T" of "SIMUT" and
+                # the pending count was drawn over its "web", while no two inks overlapped. What is
+                # inside a badge must be its label: the text that carries its words, once, within its
+                # width (not within its rows: a descender of the 9 pt label reaches 1 px below the pill).
+                for sx0, sx1, sy0, sy1, rotulo in selos:
+                    proprio = False
+                    for x0, x1, y0, y1, t in textos:
+                        if not sobrepoe((sx0, sx1, sy0, sy1), (x0, x1, y0, y1)):
+                            continue
+                        dentro = x0 >= sx0 and x1 <= sx1
+                        if t == rotulo and dentro and not proprio:
+                            proprio = True
+                            continue
+                        erros.append(f'{nome}_{tema}: badge "{rotulo}" {sx0}..{sx1} x {sy0}..{sy1} covers "{t}" '
+                                     f'ink {x0}..{x1} x {y0}..{y1}')
                 # A text that crosses a target's edge has outgrown its button or row: the
                 # 9 pt floor of 2026-10-15 cut "Gráfico" on both sides of a 56 px button,
                 # and neither check above saw it (the text stayed on the glass and clear

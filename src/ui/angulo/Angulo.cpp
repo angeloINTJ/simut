@@ -328,10 +328,10 @@ void Pintor::icone( IconeNome n, int16_t tam, int16_t x, int16_t y, uint16_t c )
 namespace {
 TextoDesenhado s_textos[256];
 int s_nTextos = 0;
-void hostAnotarTexto( const char *s, int16_t x0, int16_t x1, int16_t y0, int16_t y1 ) {
+void hostAnotarTexto( const char *s, int16_t x0, int16_t x1, int16_t y0, int16_t y1, bool selo = false ) {
   if ( s_nTextos >= (int)( sizeof s_textos / sizeof s_textos[0] ) ) return;
   TextoDesenhado &t = s_textos[s_nTextos++];
-  t.x0 = x0; t.x1 = x1; t.y0 = y0; t.y1 = y1;
+  t.x0 = x0; t.x1 = x1; t.y0 = y0; t.y1 = y1; t.selo = selo;
   int i = 0;
   for ( ; i < (int)sizeof t.texto - 1 && s[i]; i++ ) t.texto[i] = s[i];
   t.texto[i] = 0;
@@ -532,6 +532,11 @@ int16_t selo( Pintor &p, int16_t x, int16_t y, int16_t h, const char *rotulo, To
     default: a = T.superficie2; b = T.tinta2; break;
   }
   const int16_t w = larguraSelo( rotulo );
+#ifdef UA_HOST
+  // The whole box, not the label's ink: on the bench (2026-10-15) the 9 pt status-bar badge covered the "T" of
+  // "SIMUT" and was drawn over by the pending count, and no two inks overlapped, so host_telas.py saw nothing.
+  hostAnotarTexto( rotulo, x, (int16_t)( x + w ), y, (int16_t)( y + h ), true );
+#endif
   p.fillRoundRect( x, y, w, h, RAIO_TOTAL, a );
   p.fillCircle( x + ESP2 + 3, y + rd2( h ), 3, b );
   textoCentrado( p, rotulo, x + ESP2 + 6 + ESP1, y, h, tipo::rotulo, b, 'l' );

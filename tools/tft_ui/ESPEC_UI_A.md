@@ -119,7 +119,11 @@ Leia `inventario/dashboard_alarme_boot.md` inteiro e `tools/tft_ui/plano/PlanoTe
 
 **Painel principal (`VmPainel`).** Mantém os elementos do painel de hoje, com o desenho do plano:
 - Barra de status (`VmStatus`, `desenharStatus`, pronta): hora (a provisória sai em alerta), aviso no
-  lugar da hora ("Silenciado · 87 s" em alerta; "maria entrou pela web" neutro), rede e pendentes.
+  lugar da hora ("Silenciado · 87 s" em alerta; "Web: maria" neutro, a forma da barra de cima de antes), rede
+  e pendentes. O aviso fica no espaço livre entre a marca e os ícones da direita, a 8 px de cada um (no centro
+  do painel quando cabe); o `VmStatus` leva o tipo, os segundos e o nome, e a barra escreve as palavras. Sem
+  lugar para elas, o nome da conta é cortado com "…" ("Web: " fica inteiro; sem espaço para uma letra do nome,
+  o selo diz "Web") e a contagem que não cabe vira "Silenciado": um número cortado seria outro número.
 - **Cartão de cima** = painel superior de hoje (fixado num sensor ou seguindo a seleção): nome do
   sensor, ícone de alfinete (`PIN` 16) quando fixado, temperatura e o segundo valor do tipo
   (umidade do DHT22; pressão do BMP280/BME280; nada no DS18B20). Modo mín./máx.: mostra mínimo e
