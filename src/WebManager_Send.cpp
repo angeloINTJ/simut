@@ -112,8 +112,15 @@ bool WebManager::waitSendRoom(size_t need, const char* origin) {
  *
  * Slices the payload and, before each slice, waits for the socket's send
  * buffer to have room for it — feeding the watchdog in the wait. When room
- * exists, sendContent( ) is a copy into lwIP's buffer plus a tcp_output:
- * bounded milliseconds. The write itself never parks in lwIP again.
+ * exists, sendContent( ) is a copy into the server's buffer and, each time a
+ * segment's worth has gathered there (override 2n), a copy into lwIP's plus a
+ * tcp_output: bounded milliseconds. Room in bytes is not room in lwIP's heap:
+ * a flush that finds the heap full waits for an ACK to free some. tcp_write( )
+ * takes a call's bytes whole or not at all, and a flush is at most one
+ * segment's worth, so the wait ends once lwIP has room for it, or once
+ * WEB_WRITE_TIMEOUT_MS passes without progress and the write comes back short
+ * (#189).
+ * The write itself never parks in lwIP again.
  *
  * That parking was the reboot: a client that trickled its reads kept a
  * single sendContent inside lwIP indefinitely — the write timeout re-arms
@@ -282,8 +289,9 @@ void WebManager::drainOrDrop( ) {
  * ACK re-arms the timeout — unbounded, unfed, wearing the abort's hp=900
  * under C0=[WEB_POLL]. With the pcb aborted first, that write and the
  * framework's later delete both exit instantly. Non-chunked responses keep
- * the polite drain: their finalize is a no-op, and small replies deserve
- * the chance to flush. */
+ * the polite drain: their finalize writes at most what the server's buffer
+ * still holds (override 2n, one segment), and small replies deserve the
+ * chance to flush. */
 void WebManager::dropAbortedStream(const char* origin) {
  (void)origin;
  /* Over TLS, the availableForWrite terminator-room test below is meaningless
@@ -357,7 +365,8 @@ bool WebManager::safeSend_GZ(const uint8_t* gz_data, size_t gz_len) {
  *
  * Draining here makes the framework's stop( ) find a flushed buffer and return
  * on its first pass. Same move f0f8e23 made for chunked aborts, on the side
- * that was left out. */
+ * that was left out. The drain sees the file's last bytes: the server's buffer
+ * (override 2n) writes a body with a Content-Length out with its last byte. */
 void WebManager::safeStreamFile(File& f, const String& contentType) {
  const size_t CHUNK = 1024;
  uint8_t buf[CHUNK];

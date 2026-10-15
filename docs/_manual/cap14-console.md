@@ -204,7 +204,7 @@ Mostra o endereço IP e o sinal. Sem conexão, o sinal aparece como `-100 dBm`; 
 
 As outras linhas servem para diagnóstico e contam desde o boot:
 
-- **PBUF pool** e **Segmentos TCP:** a memória da pilha de rede para receber e para enviar: quanto está em uso, o pico e as falhas de alocação. `tcp_write sem memoria` conta as vezes em que a pilha recusou um envio por falta de espaço na fila; o envio espera a confirmação do navegador e tenta de novo. Com uma página aberta, ele sobe aos milhares sem problema: na bancada, foram 13.100 em 5.000 respostas, e 4.996 delas chegaram inteiras.
+- **PBUF pool** e **Segmentos TCP:** a memória da pilha de rede para receber e para enviar: quanto está em uso, o pico e as falhas de alocação. `tcp_write sem memoria` conta as vezes em que a pilha recusou um envio por falta de memória; o envio espera a confirmação do navegador e tenta de novo. Cada resposta sai em pacotes cheios, e com uma página aberta ele fica em 0: na bancada, 0 em 6.000 respostas. Até a v2.11.1, que mandava cada resposta em dezenas de pacotes pequenos, ele subia aos milhares.
 - **Abortos de envio:** respostas da interface web interrompidas, por prazo, por trava, por desconexão do navegador ou por escrita curta. Escrita curta é um envio que não terminou dentro do prazo: o aparelho encerra a resposta ali, e o navegador a vê cortada. Até a v2.11.1, essas respostas chegavam com um trecho faltando no meio, sem mexer em contador nenhum.
 
 ```text

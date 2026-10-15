@@ -498,6 +498,30 @@ else
     patch -p1 -d "$FW" < "$SW_PATCH"
 fi
 
+# 2n. Menos escritas por resposta (HTTPServer.h + HTTPServer.cpp) — #189
+#
+#   Com LWIP_NETIF_TX_SINGLE_PBUF (lwipopts.h), o tcp_write( ) da a cada
+#   segmento novo um pbuf de um MSS inteiro, ~1,5 KB do heap de 16 KB do lwIP,
+#   por menos bytes que leve, e o setNoDelay(true) do servidor manda cada
+#   escrita num segmento proprio. O upstream escrevia o cabecalho numa escrita e
+#   cada chunk em tres: o /api/status saia em 24 segmentos, e o heap comporta
+#   uns dez. Medido na bancada (14/10/2026, Pico W, 1.000 GET /api/status a
+#   cada 0,2 s): 4,4 recusas do tcp_write( ) por falta de memoria a cada
+#   resposta, e 3 respostas cortadas pelo prazo da escrita (2m).
+#
+#   O patch: dentro do _handleRequest( ), as escritas se juntam num buffer de
+#   um segmento (1.460 B) e saem quando ele enche, quando o send( ) escreveu
+#   uma resposta inteira (ha handlers que reiniciam logo depois dele) e quando
+#   a resposta termina. Os bytes no fio sao os mesmos, chunk por chunk. Aplica
+#   sobre o 2m: os dois mexem nas mesmas linhas.
+FEW_PATCH="$OVR/patches/webserver_fewer_writes.patch"
+if grep -q "SIMUT override — a response's small writes leave together" "$WSRV_DIR/HTTPServer.cpp"; then
+    echo "[patch] WebServer ja junta as escritas pequenas da resposta — nada a fazer"
+else
+    echo "[patch] aplicando menos escritas por resposta (WebServer)"
+    patch -p1 -d "$FW" < "$FEW_PATCH"
+fi
+
 # 3. Invalida cache PIO (lwip src + lib WiFi)
 #    A lib WiFi tem cache próprio em lib*/WiFi/ — sem apagá-lo o .cpp patchado
 #    não recompila e o build "passa" ainda com o handshake sem prazo.
