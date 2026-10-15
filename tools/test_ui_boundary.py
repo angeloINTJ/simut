@@ -139,7 +139,8 @@ ANGULO_TEXT = ("#if SIMUT_UI_ANGULO", "#endif",
                "void DisplayManager::uaOta( ) { }",
                "void DisplayManager::uaTemaAplicado( ) { }",
                "const ua::Tema &DisplayManager::uaTema( ) { }",
-               "const char *uaAberturaLicenca( ) { return 0; }")
+               "const char *uaAberturaLicenca( ) { return 0; }",
+               "UiArrowDir arrow = UI_UP;")   # the driver mentions a core name with a plain `UiA`: it must not become a hook
 # What the driver declares in its header: a namespace and a type per kind of name, a global, a template, a macro,
 # a namespace of its own that is not `ua`, and a namespace nested in `ua` (which is no top-level name).
 ANGULO_HEADER = "src/ui/angulo/UiA.h"
@@ -445,7 +446,7 @@ def hook_cases():
     with tree({}, base={k: v for k, v in BASE.items() if not k.startswith("src/ui/angulo/")}) as root:
         rc, out, err = run(root)
     check("driver-hook: without any source under src/ui/angulo/ there is no driver to take the names from (exit 2)",
-          rc == 2 and "src/ui/angulo/" in (err + "\n".join(out)), f"rc={rc} out={out} err={err.strip()[:200]}")
+          rc == 2 and "no source under" in err, f"rc={rc} out={out} err={err.strip()[:200]}")
 
 
 # The same text where the compiler sees no code gives nothing.
