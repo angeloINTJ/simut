@@ -378,7 +378,9 @@ void DisplayManager::uiBegin( ) {
 /* The core says something this driver shows has changed (the alarm flash changed phase, the alarm ended, the bottom card
  * turned over, the row of buttons changed): the frame may be different, and the pass looks at it. The old
  * redrawAlarmFlash( ), restoreNormalDashboard( ), drawSlotPanel( ) and drawBottomButtons( ) came to the same through the
- * draw calls they made, each of which starts with UA_DESVIO( ). */
+ * draw calls they made, each of which starts with UA_DESVIO( ). GRAPH_HEADER and GRAPH_BUSY, the graph's two immediate draws, are raised
+ * only where the original's touch code stands: this driver has no header target and shows its busy line from its own model
+ * (pedirDados( ), DisplayManager_UiA_Graficos.cpp), so they do not reach it; marking the frame would be the right answer if they did. */
 void DisplayManager::uiChanged( UiChange, int16_t ) {
   uaSujo( );
 }

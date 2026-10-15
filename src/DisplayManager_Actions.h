@@ -1,10 +1,11 @@
 /**
  * @file DisplayManager_Actions.h
  * @brief The core's touch actions of the Painel group (the dashboard and the alarm's action screen), of the Base group (the
- *        confirmation dialogs) and of the Menus group (the settings list, the alarms list and the licence's pages): what a touch on
- *        one of their zones does to the state, defined once, inline, so that the original's handleTouch( ) and a driver's own touch
- *        glue (the Ângulo's uaToquePainel( ), uaToqueBase( ) and uaToqueMenus( )) run the same code and not a copy (stages S5 and S6
- *        of docs/analysis/UI_DRIVERS.md).
+ *        confirmation dialogs), of the Menus group (the settings list, the alarms list and the licence's pages) and of the Gráficos
+ *        group (the graph, its detail, the calendar and the update screen's tap): what a touch on one of their zones does to the
+ *        state, defined once, inline, so that the original's handleTouch( ) and a driver's own touch glue (the Ângulo's
+ *        uaToquePainel( ), uaToqueBase( ), uaToqueMenus( ) and uaToqueGraficos( )) run the same code and not a copy (stages S5, S6
+ *        and S7 of docs/analysis/UI_DRIVERS.md).
  *
  * Each action is declared in class DisplayManager as `inline __attribute__((always_inline))`, next to the core's
  * ticks, and called where its code used to sit, so the compiled image keeps the code it had. The zone decides which
@@ -13,9 +14,9 @@
  * by name.
  *
  * Included LAST, after ui/UiDriverHooks.h, by DisplayManager_Touch.cpp and DisplayManager_Users.cpp, and by the Ângulo's
- * DisplayManager_UiA_Painel.cpp, DisplayManager_UiA.cpp and DisplayManager_UiA_Menus.cpp (none includes a hooks header: the Ângulo's
- * hooks are ordinary functions): an action leans on the hook definitions the original inlines, so a unit that takes the actions takes
- * the hooks first.
+ * DisplayManager_UiA_Painel.cpp, DisplayManager_UiA.cpp, DisplayManager_UiA_Menus.cpp and DisplayManager_UiA_Graficos.cpp (none
+ * includes a hooks header: the Ângulo's hooks are ordinary functions): an action leans on the hook definitions the original inlines,
+ * so a unit that takes the actions takes the hooks first.
  */
 #pragma once
 

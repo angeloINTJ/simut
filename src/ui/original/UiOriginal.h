@@ -45,6 +45,11 @@ UI_HOOK void DisplayManager::uiChanged( UiChange c, int16_t arg ) {
 		break;
 	}
 	case UiChange::BOTTOM_BUTTONS: drawBottomButtons( arg ); break;
+	/* The graph's two immediate draws (stage S7): the header with the sensor's name, and the thin line that says a read has been asked of Core 0.
+	 * Both functions are declared in every build and defined only where the graph is, and no call site raises these kinds in a build without it, so
+	 * the switch folds there as it does here. */
+	case UiChange::GRAPH_HEADER: drawGraphHeaderBar( ); break;
+	case UiChange::GRAPH_BUSY:   drawGraphBusyHint( ); break;
 	}
 }
 

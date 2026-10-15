@@ -1549,7 +1549,11 @@ private:
 	 * inside the action), and the account-deletion confirmation's two buttons (Cancel, and Delete, which only asks: Core 0 checks the
 	 * permission), and the AP confirmation's Confirm button (its Back is showSettingsMain( ), core code already).
 	 * The Menus group, the lists: the settings list's Open button (it asks Core 0 for the item the row stands for) and the alarms list's
-	 * row (it opens the sensor's action menu), and the licence screen's page step (its callers set the repaint request). */
+	 * row (it opens the sensor's action menu), and the licence screen's page step (its callers set the repaint request).
+	 * The Gráficos group, the graph and the update screen: the X that closes the graph or its detail, the header's tap (the sensor's name for 3 s), a
+	 * step in time, the calendar, another period, the detail's pages and its way back to the chart, the calendar's way back and its month arrows, a day
+	 * and Today, and the update screen's tap. The ones that read the graph's package take it as an argument, `g`, and the caller passes _graphData: the
+	 * member exists only when SIMUT_TFT_GRAPH is set, and a declaration here cannot say so without a block of its own. */
 	inline __attribute__((always_inline)) void actAlarmSilence( );
 	inline __attribute__((always_inline)) void actAlarmDeactivate( );
 	inline __attribute__((always_inline)) void actAlarmShowMinMax( );
@@ -1565,6 +1569,19 @@ private:
 	inline __attribute__((always_inline)) void actMenuSelect( int idx );
 	inline __attribute__((always_inline)) void actAlarmListOpen( int idx );
 	inline __attribute__((always_inline)) void actLicensePage( int dir );
+	inline __attribute__((always_inline)) void actGraphClose( );
+	inline __attribute__((always_inline)) void actGraphShowName( );
+	inline __attribute__((always_inline)) void actGraphNav( const GraphDataPackage &g, int dir );
+	inline __attribute__((always_inline)) void actGraphOpenCalendar( const GraphDataPackage &g );
+	inline __attribute__((always_inline)) void actGraphPeriod( const GraphDataPackage &g, int range );
+	inline __attribute__((always_inline)) void actGraphDetailOpen( );
+	inline __attribute__((always_inline)) void actDetailPage( uint8_t p );
+	inline __attribute__((always_inline)) void actDetailBack( );
+	inline __attribute__((always_inline)) void actCalendarBack( );
+	inline __attribute__((always_inline)) void actCalendarMonth( const GraphDataPackage &g, int dir );
+	inline __attribute__((always_inline)) void actCalendarDay( const GraphDataPackage &g, int day );
+	inline __attribute__((always_inline)) void actCalendarToday( const GraphDataPackage &g );
+	inline __attribute__((always_inline)) void actOtaDismiss( );
 
 	struct ActiveLang {
 		char name[16];

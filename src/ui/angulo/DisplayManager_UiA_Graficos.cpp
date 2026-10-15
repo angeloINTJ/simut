@@ -21,6 +21,7 @@
 #include "GraficosPreencher.h"
 #include "UiA.h"
 #include "telas/Graficos.h"
+#include "../../DisplayManager_Actions.h"   /* the core's touch actions, which the graph screens' buttons run; last */
 
 namespace {
 
