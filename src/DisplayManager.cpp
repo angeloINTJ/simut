@@ -1242,7 +1242,15 @@ static void __no_inline_not_in_flash_func(core1WaitUs)(uint32_t us) {
 	if (wakes > 1) g_core1WaitExtraWakes++;
 }
 
-void DisplayManager::loopCore1( ) {
+/* no-reorder-blocks, for this function only. Since S4 the screen chain is the original
+ * driver's uiPass( ), inlined here, and with GCC's default block reordering its 43 exits
+ * landed out of reach of a 2-byte b.n (Thumb-1 reaches 2 KB either way) and became 4-byte
+ * bl far jumps: pico_w_release grew 88 B, pico2_w_release 96 B (2026-10-15). Kept in source
+ * order, the exits stay in reach and every image that compiles the chain ends under its size
+ * before S4, with the same stack frames (loopCore1 800 B on the RP2040). GCC documents the
+ * optimize attribute as meant for debugging: what it buys is held by the sizes recorded in
+ * tools/flash_budget.json, and taking it out gives those bytes back. */
+__attribute__((optimize("no-reorder-blocks"))) void DisplayManager::loopCore1( ) {
 
 	multicore_lockout_victim_init( );
 	_core1Ready = true;

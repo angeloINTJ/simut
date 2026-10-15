@@ -542,23 +542,23 @@
  },
  "envs": {
   "pico_w_release": {
-   "budget": 1022532,
-   "measured": 1022532,
-   "bin": 1034564
+   "budget": 1022372,
+   "measured": 1022372,
+   "bin": 1034404
   },
   "pico_w_test": {
-   "budget": 1027012,
-   "measured": 1027012,
-   "bin": 1039044
+   "budget": 1026852,
+   "measured": 1026852,
+   "bin": 1038884
   },
   "pico_w_test_https": {
-   "budget": 1032020,
-   "measured": 1032020
+   "budget": 1031860,
+   "measured": 1031860
   },
   "pico_w_asserts": {
-   "budget": 1024828,
-   "measured": 1024828,
-   "bin": 1036860
+   "budget": 1024676,
+   "measured": 1024676,
+   "bin": 1036708
   },
   "pico_w_alpha": {
    "budget": 976012,
@@ -571,9 +571,9 @@
    "bin": 1035340
   },
   "pico2_w_release": {
-   "budget": 998696,
-   "measured": 998696,
-   "bin": 998720,
+   "budget": 998536,
+   "measured": 998536,
+   "bin": 998560,
    "ceiling": 3145728,
    "slot": 1568768
   },
@@ -583,14 +583,14 @@
    "bin": 603584
   },
   "pico_wiretft": {
-   "budget": 773772,
-   "measured": 773772,
-   "bin": 785808
+   "budget": 773636,
+   "measured": 773636,
+   "bin": 785672
   },
   "pico_wiretft_angulo": {
-   "budget": 815488,
-   "measured": 815488,
-   "bin": 827520
+   "budget": 815464,
+   "measured": 815464,
+   "bin": 827496
   }
  }
 }
