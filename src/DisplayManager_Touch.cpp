@@ -526,64 +526,13 @@ void DisplayManager::handleTouch( ) {
  }
  if (y > 115 && y < 190) {
  if (!acceptTouch(1)) return;
- /* slot selecionado — sem limite 0..10 aqui: o gráfico (EVT_OPEN_GRAPH)
- * só cobre slots 0..10, mas a AÇÃO DE ALARME vale para qualquer slot
- * (erro de um sensor em slot > 10 também deve abrir a tela de silenciar). */
- int sel = _sharedState.selectedSlotIdx;
- bool selOk = (sel >= 0 && sel < 16);
-
-#if SIMUT_TFT_GRAPH
- /* Right corner: graph button (priority over alarm) */
- if (_bottomPanel.showMinMax && x > 266) {
- _bottomPanel.showMinMax = false;
- if (sel >= 0 && sel <= 10) {
- UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = sel; ev.param = 0;
- pushUiEvent(ev);
- }
- return;
- }
-#endif
-
- /* Alarme (LIMITE ou ERRO) não silenciado: toque → tela de silenciar.
- * Silenciado → min/max normal. */
- if (selOk && !_alarmSilenced &&
- (isSlotAlarming(sel) || isSlotErrAlarming(sel))) {
- showAlarmAction((int8_t)sel);
- return;
- }
-
- /* Toggle min/max */
- _bottomPanel.showMinMax = !_bottomPanel.showMinMax;
- uiChanged( UiChange::BOTTOM_PANEL, 0 );
+ actBottomCardTap( x > 266 );
  return;
  }
  if (y > 195) {
  const int btnW = 58, gap = 5, pitch = btnW + gap;
  int btnIdx = (x - 5) / pitch;
- DashBtn btns[5];
- int totalPages = 1; bool paging = false;
- (void)buildDashLayout(btns, &totalPages, &paging);
- if (btnIdx < 0 || btnIdx > 4) return;
- const DashBtn &b = btns[btnIdx];
- if (b.kind < 0) return; /* touch on empty position (gap) — ignore */
- if (b.kind == 2) { /* PAGE */
- if (!acceptTouch(14)) return;
- _currentPage++;
- if (_currentPage >= totalPages) _currentPage = 0;
- uiChanged( UiChange::BOTTOM_BUTTONS, _sharedState.selectedSlotIdx ); return;
- }
- if (b.kind == 1) { /* CFG */
- if (!acceptSlideTouch(20)) return;
- UiEvent ev; ev.type = UiEvent::EVT_OPEN_SETTINGS;
- pushUiEvent(ev); return;
- }
- /* SLOT */
- if (!acceptSlideTouch(10 + b.slotId)) return;
- _bottomPanel.showMinMax = false;
- if (!_topPanel.fixed) _topPanel.showMinMax = false;
- uiChanged( UiChange::BOTTOM_BUTTONS, b.slotId );
- UiEvent ev; ev.type = UiEvent::EVT_SLOT_SELECT; ev.id = b.slotId;
- pushUiEvent(ev);
+ actNavButton( btnIdx );
  }
  }
 #if SIMUT_TFT_GRAPH

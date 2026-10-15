@@ -17,6 +17,7 @@
 #pragma once
 
 #include "DisplayManager.h"
+#include "simut_config.h"   /* SIMUT_TFT_GRAPH is tested below: included here, not left to the includer */
 
 /* Repaint the top card: the core's half. It syncs topSlotIdx, moves the bottom card to another slot when the top is pinned
  * on the selected one (with the EVT_SLOT_SELECT that tells the web), mirrors the bottom card's data into the top's, and
@@ -104,4 +105,70 @@ inline __attribute__((always_inline)) void DisplayManager::actAlarmShowMinMax( )
 	mutex_exit(&_stateMutex);
 }
 
-/* The rest follow, one commit each (S5): the dashboard's cards and buttons, and the boot screen's skip. */
+/* The dashboard's lower card, once its gate (acceptTouch( 1 )) has let the touch through: on the graph button of a card in
+ * min/max it opens the graph, on a card in alarm it opens the alarm's action screen, and otherwise it turns the card over
+ * between its two faces. `onGraphBtn` is whether the touch fell on the button's strip, which the caller decides from x. */
+inline __attribute__((always_inline)) void DisplayManager::actBottomCardTap( bool onGraphBtn ) {
+	(void)onGraphBtn;   /* only a build with the graph reads it */
+	/* slot selecionado — sem limite 0..10 aqui: o gráfico (EVT_OPEN_GRAPH)
+	 * só cobre slots 0..10, mas a AÇÃO DE ALARME vale para qualquer slot
+	 * (erro de um sensor em slot > 10 também deve abrir a tela de silenciar). */
+	int sel = _sharedState.selectedSlotIdx;
+	bool selOk = (sel >= 0 && sel < 16);
+
+#if SIMUT_TFT_GRAPH
+	/* Right corner: graph button (priority over alarm) */
+	if (_bottomPanel.showMinMax && onGraphBtn) {
+		_bottomPanel.showMinMax = false;
+		if (sel >= 0 && sel <= 10) {
+			UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = sel; ev.param = 0;
+			pushUiEvent(ev);
+		}
+		return;
+	}
+#endif
+
+	/* Alarme (LIMITE ou ERRO) não silenciado: toque → tela de silenciar.
+	 * Silenciado → min/max normal. */
+	if (selOk && !_alarmSilenced &&
+	    (isSlotAlarming(sel) || isSlotErrAlarming(sel))) {
+		showAlarmAction((int8_t)sel);
+		return;
+	}
+
+	/* Toggle min/max */
+	_bottomPanel.showMinMax = !_bottomPanel.showMinMax;
+	uiChanged( UiChange::BOTTOM_PANEL, 0 );
+}
+
+/* A touch on the row of buttons under the cards, on button `btnIdx` (the caller maps x to it). The gate depends on the kind of
+ * the button, so it is in here: the page button takes acceptTouch( 14 ); the settings button and the slot buttons take the
+ * sliding gate (acceptSlideTouch( 20 ) and ( 10 + slot )), which lets a finger slide from one slot to the next. */
+inline __attribute__((always_inline)) void DisplayManager::actNavButton( int btnIdx ) {
+	DashBtn btns[5];
+	int totalPages = 1; bool paging = false;
+	(void)buildDashLayout(btns, &totalPages, &paging);
+	if (btnIdx < 0 || btnIdx > 4) return;
+	const DashBtn &b = btns[btnIdx];
+	if (b.kind < 0) return; /* touch on empty position (gap) — ignore */
+	if (b.kind == 2) { /* PAGE */
+		if (!acceptTouch(14)) return;
+		_currentPage++;
+		if (_currentPage >= totalPages) _currentPage = 0;
+		uiChanged( UiChange::BOTTOM_BUTTONS, _sharedState.selectedSlotIdx ); return;
+	}
+	if (b.kind == 1) { /* CFG */
+		if (!acceptSlideTouch(20)) return;
+		UiEvent ev; ev.type = UiEvent::EVT_OPEN_SETTINGS;
+		pushUiEvent(ev); return;
+	}
+	/* SLOT */
+	if (!acceptSlideTouch(10 + b.slotId)) return;
+	_bottomPanel.showMinMax = false;
+	if (!_topPanel.fixed) _topPanel.showMinMax = false;
+	uiChanged( UiChange::BOTTOM_BUTTONS, b.slotId );
+	UiEvent ev; ev.type = UiEvent::EVT_SLOT_SELECT; ev.id = b.slotId;
+	pushUiEvent(ev);
+}
+
+/* The rest follow, one commit each (S5): the top card and the boot screen's skip. */

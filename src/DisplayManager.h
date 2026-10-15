@@ -1537,10 +1537,14 @@ private:
 	inline __attribute__((always_inline)) ArrowFlash pktArrowShown( );
 	/* Core touch actions (src/DisplayManager_Actions.h): what a touch on a zone of the Painel group does to the state, the
 	 * same code for every driver. Whoever decided which zone was hit holds its gate (acceptTouch( ) and its kin); the action
-	 * is what follows it. The alarm's action screen first: silence, deactivate, back to the dashboard in min/max. */
+	 * is what follows it. The alarm's action screen: silence, deactivate, back to the dashboard in min/max. The dashboard:
+	 * the lower card and the row of buttons under the cards (the row's gates depend on the kind of the button, so they are
+	 * inside the action). */
 	inline __attribute__((always_inline)) void actAlarmSilence( );
 	inline __attribute__((always_inline)) void actAlarmDeactivate( );
 	inline __attribute__((always_inline)) void actAlarmShowMinMax( );
+	inline __attribute__((always_inline)) void actBottomCardTap( bool onGraphBtn );
+	inline __attribute__((always_inline)) void actNavButton( int btnIdx );
 
 	struct ActiveLang {
 		char name[16];
