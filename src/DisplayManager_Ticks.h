@@ -123,3 +123,10 @@ inline __attribute__((always_inline)) void DisplayManager::tickAlarmFlash( ) {
 		uiChanged( UiChange::ALARM_RESTORE, 0 );
 	}
 }
+
+/* The panels are in min/max mode and nobody has touched the screen for MINMAX_IDLE_MS: they go back to normal mode.
+ * render( ) asks and does the return itself: its drawSlotPanel calls need its own `st`. */
+inline __attribute__((always_inline)) bool DisplayManager::minMaxIdleDue( ) const {
+	return (_topPanel.showMinMax || _bottomPanel.showMinMax) &&
+	    timeSince(_lastTouchTime, MINMAX_IDLE_MS);
+}

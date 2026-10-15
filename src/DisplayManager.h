@@ -1554,6 +1554,7 @@ private:
 	inline __attribute__((always_inline)) void tickAuthLockout( );
 	inline __attribute__((always_inline)) void tickTouchSens( );
 	inline __attribute__((always_inline)) void tickAlarmFlash( );
+	inline __attribute__((always_inline)) bool minMaxIdleDue( ) const;
 
 	struct ActiveLang {
 		char name[16];

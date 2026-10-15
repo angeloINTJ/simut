@@ -1838,9 +1838,8 @@ void DisplayManager::render(const SystemState& state) {
 		}
 	}
 
-	/* Return panels to normal mode after 30s without touch */
-	if ((_topPanel.showMinMax || _bottomPanel.showMinMax) &&
-	    timeSince(_lastTouchTime, 30000)) {
+	/* Return panels to normal mode after 30s without touch (minMaxIdleDue) */
+	if (minMaxIdleDue( )) {
 		C1_PHASE(C1P_R_MINMAX);
 		if (_topPanel.showMinMax) {
 			_topPanel.showMinMax = false;

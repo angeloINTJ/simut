@@ -101,6 +101,10 @@ constexpr uint32_t ALARM_ROTATE_INTERVAL_MS = 3000;
  * aggressive. */
 constexpr uint32_t ALARM_FLASH_INTERVAL_MS = 600;
 
+/** How long the panels stay in min/max mode without a touch before they go
+ * back to normal mode (ms). */
+constexpr uint32_t MINMAX_IDLE_MS = 30000;
+
 /** Duration of the "Web: <user>" toast in the dashboard header after a
  * successful web login (ms). */
 constexpr uint32_t WEB_NOTIFY_DURATION_MS = 5000;
