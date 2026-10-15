@@ -346,3 +346,14 @@ inline __attribute__((always_inline)) void DisplayManager::actUserDelConfirm( ) 
 	UiEvent ev; ev.type = UiEvent::EVT_USER_DEL; ev.id = _userEditSlot; ev.param = 0;
 	pushUiEvent(ev);
 }
+
+/* The AP confirmation (MODE_CONFIRM_AP, a Wi-Fi build's), Confirm, once its gate (acceptTouch( 0xC3 )) has let the touch through. Its Back is
+ * showSettingsMain( ), core code, behind acceptTouch( 0xC2 ). Defined in every build, with no #if of its own: only the Wi-Fi builds call it. */
+inline __attribute__((always_inline)) void DisplayManager::actStartAp( ) {
+	/* Core 0 owns the bit check and the radio; the panel only asks.
+	 * Nothing is drawn from here: startApMode( ) puts the boot terminal
+	 * up before it touches the radio and ends it with the network, the
+	 * key and the address. This used to say beginAP( ) did that; nothing
+	 * did, and the confirmation stayed on the glass (fixed 2026-09-24). */
+	UiEvent ev; ev.type = UiEvent::EVT_START_AP; ev.id = 0; pushUiEvent(ev);
+}
