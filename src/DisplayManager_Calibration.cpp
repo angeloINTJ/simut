@@ -132,7 +132,6 @@ void DisplayManager::showSettingsDisplayOffset( ) {
  * Footer: [BACK] [APPLY] (y >= 200)
  */
 void DisplayManager::drawSettingsDisplayOffset( ) {
- UA_DESVIO( );
  if (!_driver.tft) return;
  bool full = _forceSettingsRedraw;
 

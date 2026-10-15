@@ -32,7 +32,6 @@ void DisplayManager::showSettingsThemes(int currentThemeIdx) {
 }
 
 void DisplayManager::drawSettingsThemes( ) {
- UA_DESVIO( );
  if(!_driver.canvas) return;
  bool fullRedraw = _forceSettingsRedraw;
  bool pageChanged = (_themePage != _lastThemePage);
@@ -900,7 +899,6 @@ void DisplayManager::drawClockValues(Adafruit_GFX* g, int16_t yOff) {
 }
 
 void DisplayManager::drawClockEntry( ) {
- UA_DESVIO( );
  if (!_driver.canvas) return;
 
  if (!_forceSettingsRedraw) {
@@ -1036,7 +1034,6 @@ void DisplayManager::drawMuteConfirm( ) {
 
 
 void DisplayManager::drawSettingsSounds( ) {
- UA_DESVIO( );
  if (!_driver.canvas) return;
 
  static int lastSoundPage = -1;
@@ -1161,7 +1158,6 @@ void DisplayManager::drawSettingsSounds( ) {
 
 
 void DisplayManager::drawMelodySelect( ) {
- UA_DESVIO( );
  if (!_driver.canvas) return;
 
 
