@@ -37,7 +37,11 @@ five rules over src/**/*.{c,cpp,h,hpp}:
                      names in backticks, which is where the header-only files are (PasswordKeyboard.h,
                      sensors/SensorDrawing.h): they have no unit, so nothing else knows them.
                 One header is let off, src/DisplayManager.h, the class whose members the driver's hooks
-                are. If the table or the document cannot be read, or the item names a header that is
+                are. And one kind of file is let off the other direction: a selection header,
+                src/ui/UiDriver*.h (UiDriver.h, UiDriverMembers.h, UiDriverHooks.h, UiDriverWeb.h), is
+                where an image's driver is picked, so it includes the Angulo's headers by design;
+                the same include in any other file of src/ui/ (src/ui/Other.h) is one finding.
+                If the table or the document cannot be read, or the item names a header that is
                 not in src/, the gate exits 2: the written contract and the code cannot disagree in
                 silence. It stays in step because the table and the document are what every stage
                 updates anyway; S10b's `units` and S11's src/ui/original/ take over from them.
@@ -132,6 +136,7 @@ CLASSIFICATION = "docs/analysis/UI_DRIVERS_funcoes.tsv"     # the S0 classificat
 OWNERSHIP = "docs/analysis/UI_DRIVERS.md"                   # section 2.5: who owns what
 ORIGINAL_DIR = "src/ui/original/"                           # where the original's files go in S11
 SHARED_HEADERS = frozenset({"src/DisplayManager.h"})        # the class: the driver's hooks are its members
+SELECTION_HEADER = re.compile(r"src/ui/UiDriver[^/]*\.h\Z")  # where an image's driver is picked (S4): includes the Angulo's headers by design
 HEADER_EXTS = (".h", ".hh", ".hpp", ".hxx")
 SOURCE_EXTS = (".c", ".cc", ".cpp", ".cxx")
 OWNER_ITEM = re.compile(r"^- \*\*Original driver\.\*\*")
@@ -365,6 +370,7 @@ def scan_text(rel: str, text: str, code: str, includes, env: Env):
 
     in_ui = rel.startswith(UI_DIR)
     in_angulo = rel.startswith(ANGULO_DIR)
+    selection = SELECTION_HEADER.match(rel) is not None
     found = []
 
     if not in_ui and rel != CONFIG:
@@ -397,7 +403,7 @@ def scan_text(rel: str, text: str, code: str, includes, env: Env):
             if reaches_original(rel, name, quoted, env.original):
                 found.append(Finding(rel, ln, "cross-driver",
                                      f"{shown}: the Angulo driver includes a header only the original uses"))
-        elif reaches_angulo(rel, name, quoted):
+        elif reaches_angulo(rel, name, quoted) and not selection:
             found.append(Finding(rel, ln, "cross-driver",
                                  f"{shown}: a header of the Angulo driver included from outside src/ui/angulo/"))
 

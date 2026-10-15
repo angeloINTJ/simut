@@ -6,7 +6,7 @@
  *        tools/tft_ui/ESPEC_UI_A.md.
  *
  * The old screens' logic keeps running: every old draw entry point became
- * UA_DESVIO( ) (DisplayManager.h), so the timers, transitions and
+ * UA_DESVIO( ) (src/ui/UiDriver.h), so the timers, transitions and
  * acknowledgements around a draw still happen, and this file paints the frame
  * of the current mode once the pass has run them all.
  */

@@ -376,6 +376,18 @@ def cross_driver_cases():
            {"src/ui/Other.cpp": surface("#include <angulo/UiA.h>")}, [])
     expect("cross-driver: an include that merely looks like a path to the driver is not one",
            {SURFACE: surface('#include "../ui/angulo/UiA.h"', '#include "other/angulo/UiA.h"')}, [])
+    # a selection header (src/ui/UiDriver*.h) is where an image's driver is picked: it includes the Angulo's headers
+    # by design. The same include in any other file, even the next one in src/ui/, is one finding, and the hook rule
+    # is not let off for a selection header.
+    for path in ("src/ui/UiDriver.h", "src/ui/UiDriverMembers.h", "src/ui/UiDriverHooks.h", "src/ui/UiDriverWeb.h"):
+        for inc in ('#include "angulo/UiA.h"', '#include "ui/angulo/UiA.h"', "#include <ui/angulo/UiA.h>"):
+            expect(f"cross-driver: the selection header {path} includes `{inc}`: let off",
+                   {path: surface(inc)}, [])
+    for path in ("src/ui/Other.h", "src/ui/UiDrive.h", "src/ui/UiDriver.cpp", "src/ui/sub/UiDriver.h", "src/UiDriver.h"):
+        expect(f"cross-driver: {path} is not a selection header: the same include is one finding",
+               {path: surface('#include "ui/angulo/UiA.h"')}, [(path, 2, "cross-driver")])
+    expect("driver-hook: a selection header is not let off the hook rule (UA_DESVIO in src/ui/UiDriver.h)",
+           {"src/ui/UiDriver.h": surface("#define UA_DESVIO( ) do { } while ( 0 )")}, [("src/ui/UiDriver.h", 2, "driver-hook")])
 
 
 def hook_cases():
@@ -874,6 +886,29 @@ def real_tree_cases():
                 f"real tree + `_uaPintando` in {core_clean}: one finding")
         mutated(core_clean, '\n#include "ui/angulo/UiA.h"\n', "cross-driver",
                 f"real tree + an include of an Angulo header in {core_clean}: one finding")
+        # the exemption is the selection headers' alone: the real src/ui/UiDriverMembers.h given an include of the
+        # Angulo's header still passes, and src/ui/Other.h with the same include is exactly one finding
+        sel_path = os.path.join(root, "src", "ui", "UiDriverMembers.h")
+        other_path = os.path.join(root, "src", "ui", "Other.h")
+        with open(sel_path, encoding="utf-8", newline="") as fh:
+            sel_original = fh.read()
+        try:
+            with open(sel_path, "w", encoding="utf-8", newline="") as fh:
+                fh.write(sel_original + '\n#include "ui/angulo/UiA.h"\n')
+            rc_sel, out_sel, _e = run(root)
+            with open(other_path, "w", encoding="utf-8", newline="") as fh:
+                fh.write('#include "ui/angulo/UiA.h"\n')
+            rc_oth, out_oth, _e = run(root)
+        finally:
+            with open(sel_path, "w", encoding="utf-8", newline="") as fh:
+                fh.write(sel_original)
+            if os.path.exists(other_path):
+                os.remove(other_path)
+        check("real tree + an Angulo include appended to the selection header src/ui/UiDriverMembers.h: passes",
+              rc_sel == 0 and out_sel[-1:] == ["check_ui_boundary: 0 findings"], f"rc={rc_sel} out={out_sel[-3:]}")
+        found_oth, _l, bad_oth = parse(out_oth)
+        check("real tree + the same include in src/ui/Other.h: exactly one finding, cross-driver",
+              rc_oth == 1 and not bad_oth and found_oth == [("src/ui/Other.h", 1, "cross-driver")], f"rc={rc_oth} found={found_oth}")
         mutated(angulo_any, '\n#include "../../Themes.h"\n', "cross-driver",
                 f"real tree + an include of Themes.h in the Angulo unit {angulo_any}: one finding")
         mutated(angulo_any, '\n#include "../../sensors/SensorDrawing.h"\n', "cross-driver",

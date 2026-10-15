@@ -27,6 +27,7 @@
 #include "DisplayManager_Fonts.h"
 #include "FlashIrqProbe.h" /* C1_PHASE */
 #include "UiWidgets.h"
+#include "ui/UiDriverHooks.h"   /* the UI driver's hook definitions: last, they need the complete class */
 
 /* The status ends at y 113 even on two lines, and the hint starts at 211; in
  * between, the bar and its percentage, each repainted in a box of its own

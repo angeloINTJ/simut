@@ -44,7 +44,14 @@ BASELINE = os.path.join(ROOT, "tools", "feature_sprawl.json")
 # O ui/UiCaps.h (2026-10-14) tambem, pela mesma razao: e onde a UI do painel tem a identidade
 # (SIMUT_UI_ANGULO, com o `#ifndef X / #define X`) e as capacidades derivadas dela (SIMUT_UI_ORIGINAL,
 # SIMUT_UI_CUSTOM_THEMES), mais as duas checagens de #error: sitios que definem, nao que espalham.
-SKIP_FILES = {"simut_config.h", "FeatureBits.h", "NetCaps.h", "UiCaps.h"}
+#
+# Os quatro cabecalhos de selecao do driver de UI (ui/UiDriver.h, UiDriverMembers.h, UiDriverHooks.h e
+# UiDriverWeb.h; S4 de docs/analysis/UI_DRIVERS.md, 2026-10-15) tambem: e o unico lugar onde a classe do painel
+# escolhe o driver da imagem (um `#if SIMUT_UI_ANGULO` em volta de um include), a funcao do UiCaps.h. Contados,
+# tirar os `#if` do DisplayManager.h e do WebManager.h os poria em quatro arquivos e a marca subiria dois sitios
+# sem que nada tivesse se emaranhado: o que sai do nucleo e o que este gate quer ver.
+SKIP_FILES = {"simut_config.h", "FeatureBits.h", "NetCaps.h", "UiCaps.h",
+              "UiDriver.h", "UiDriverMembers.h", "UiDriverHooks.h", "UiDriverWeb.h"}
 EXTS = (".cpp", ".c", ".h", ".hpp", ".ino")
 
 COND = re.compile(r"^\s*#\s*(?:if|ifdef|ifndef|elif)\b(.*)$")

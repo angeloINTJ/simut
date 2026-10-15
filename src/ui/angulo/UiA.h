@@ -1,7 +1,7 @@
 #pragma once
 // The Ângulo build's glue between the DisplayManager and the screens of
-// src/ui/angulo/telas/ (pico_wiretft_angulo only; DisplayManager.h includes this
-// under SIMUT_UI_ANGULO).
+// src/ui/angulo/telas/ (pico_wiretft_angulo only; src/ui/UiDriver.h includes this
+// under SIMUT_UI_ANGULO, before class DisplayManager, whose members use its types).
 //
 // Each pass of Core 1 ends in DisplayManager::uaQuadro( ): the screen of the
 // current mode fills its view model from the state into the one shared buffer,

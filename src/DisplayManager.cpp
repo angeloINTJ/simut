@@ -38,6 +38,7 @@
 
 #include "pico/multicore.h"
 #include "hardware/structs/scb.h"
+#include "ui/UiDriverHooks.h"   /* the UI driver's hook definitions: last, they need the complete class */
 
 
 /* Reduced from 8 to 2 languages (EN + PT) to save flash.
