@@ -156,19 +156,22 @@ inline __attribute__((always_inline)) void DisplayManager::clampEditFocus( uint8
 }
 
 /* The packet arrow flashes (state 3) for a second after a packet leaves: it alternates every 300 ms and goes back to state 1
- * when the second is over. Says whether the flash is still going, for the one that draws it. */
-inline __attribute__((always_inline)) bool DisplayManager::pktArrowShown( ) {
+ * when the second is over. Says what it found, for the one that draws it: a flash that goes on and one that has just ended
+ * each have a colour of their own, and neither is the colour of no flash (the volatile state is read here once, as the old
+ * block read it, and the answer carries the decision). */
+inline __attribute__((always_inline)) DisplayManager::ArrowFlash DisplayManager::pktArrowShown( ) {
 	if (_pktArrowState == 3) {
 		uint32_t now = millis( );
 		if (now >= _pktArrowFlashEnd) {
 			_pktArrowState = 1;
+			return ArrowFlash::OVER;
 		} else {
 			if (now - _pktArrowFlashTime >= 300) {
 				_pktArrowFlashOn = !_pktArrowFlashOn;
 				_pktArrowFlashTime = now;
 			}
-			return true;
+			return ArrowFlash::GOING;
 		}
 	}
-	return false;
+	return ArrowFlash::NONE;
 }

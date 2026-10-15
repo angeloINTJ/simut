@@ -136,10 +136,10 @@ ANGULO_TEXT = ("#if SIMUT_UI_ANGULO", "#endif",
                "void DisplayManager::uaSujo( ) { _uaPintando = true; UA_DESVIO( ); }",
                "bool DisplayManager::uaToque( int &x, int &y ) { return false; }",
                "void DisplayManager::uaQuadro( ) { }",
-               "void DisplayManager::uaOta( ) { }",
-               "void DisplayManager::uaTemaAplicado( ) { }",
+               "void DisplayManager::uaMontarOta( ) { }",
+               "void DisplayManager::uaMontarMenus( ) { }",
                "const ua::Tema &DisplayManager::uaTema( ) { }",
-               "const char *uaAberturaLicenca( ) { return 0; }",
+               "bool uaRelogio( ) { return false; }",
                "UiArrowDir arrow = UI_UP;")   # the driver mentions a core name with a plain `UiA`: it must not become a hook
 # What the driver declares in its header: a namespace and a type per kind of name, a global, a template, a macro,
 # a namespace of its own that is not `ua`, and a namespace nested in `ua` (which is no top-level name).
@@ -157,8 +157,9 @@ enum class UaToque { NAO_E_MEU, TRATADO };
 #define UA_VM_MAX 4096
 extern int g_uaVm[UA_VM_MAX];
 template <class T> T &uaVm( );
-void registerUiARoutes( );
+void registerUiDriverRoutes( );
 void handleApiUiA( );
+void bindUiAScreen( );   // synthetic: the mark inside a name, which the real driver has not had since S4 C9
 """
 
 BASE = {
@@ -264,9 +265,9 @@ TEXT = {
     "identity": ["#if SIMUT_UI_ANGULO", "#if SIMUT_UI_ORIGINAL", "#elif SIMUT_UI_ANGULO", "#if !SIMUT_UI_ORIGINAL",
                  "bool a = SIMUT_UI_ANGULO;", "#if SIMUT_UI_ANGULO && SIMUT_DISPLAY_TFT"],
     "cross-driver": ['#include "ui/angulo/UiA.h"', "#include <ui/angulo/UiA.h>", '#include "ui/angulo/kit/angulo_tokens.h"'],
-    "driver-hook": ["UA_DESVIO( );", "uaSujo( );", "if (uaToque(x, y)) return;", "uaQuadro( );", "uaOta( );",
-                    "uaTemaAplicado( );", "uaTema( );", "bool b = _uaPintando;", "int g = g_uaVm[0];",
-                    "const char *uaAberturaLicenca( ) { return 0; }",
+    "driver-hook": ["UA_DESVIO( );", "uaSujo( );", "if (uaToque(x, y)) return;", "uaQuadro( );", "uaMontarOta( );",
+                    "uaMontarMenus( );", "uaTema( );", "bool b = _uaPintando;", "int g = g_uaVm[0];",
+                    "bool uaRelogio( ) { return false; }",
                     "void (DisplayManager::*p)( ) = &DisplayManager::uaQuadro;",
                     # the review of 2026-10-14 measured these as 0 findings: a member prefix other than `_` and `g_`,
                     # and a UA_ macro other than UA_DESVIO
@@ -274,7 +275,7 @@ TEXT = {
                     # the driver's types and namespaces: names it introduces as much as its functions
                     "UaQuadro q;", "bool b = ( t == UaToque::TRATADO );", "char *p = (char *)&g_uaVm;",
                     "const ua::Tema *p = nullptr;", "using namespace entrega;", "int n = entrega::count;",
-                    "w.registerUiARoutes( );", "void handleApiUiA( );"],
+                    "w.bindUiAScreen( );", "void handleApiUiA( );"],
 }
 
 for rule, lines in TEXT.items():
@@ -437,13 +438,15 @@ def hook_cases():
           "(the review measured DisplayManager.h falling from 61 to 2 findings with nothing said)",
           rc == 2 and "introduce no name" in err, f"rc={rc} out={out[-2:]} err={err.strip()[:200]}")
     expect("driver-hook: a name with the second mark, UiA and a capital or the end, that the driver defines is a hook in the core "
-           "(registerUiARoutes, handleApiUiA: the review planted them and got 0 findings)",
-           {SURFACE: surface("w.registerUiARoutes( );", "w.handleApiUiA( );", "int m_handleApiUiA = 0;")},
+           "(bindUiAScreen inside the name, handleApiUiA at its end: the review planted two like them and got 0 findings)",
+           {SURFACE: surface("w.bindUiAScreen( );", "w.handleApiUiA( );", "int m_handleApiUiA = 0;")},
            [(SURFACE, 2, "driver-hook"), (SURFACE, 3, "driver-hook"), (SURFACE, 4, "driver-hook")])
+    expect("driver-hook: the contract's route hook, registerUiDriverRoutes, is the core's own name although the driver declares it: its call is no finding",
+           {SURFACE: surface("w.registerUiDriverRoutes( );")}, [])
     expect("driver-hook: ... but plain UiA is no mark (UiArrowDir, UiAction), and a UiA name the driver does not define is not one",
            {SURFACE: surface("UiArrowDir dir = UI_UP; int UiAction = 0; int someUiAThing = 0;")}, [])
     expect("driver-hook: ... and a string, a comment or an include path does not count; the include is the cross-driver rule's",
-           {SURFACE: surface('const char *s = "registerUiARoutes";', "// handleApiUiA( )", '#include "ui/angulo/UiA.h"')},
+           {SURFACE: surface('const char *s = "bindUiAScreen";', "// handleApiUiA( )", '#include "ui/angulo/UiA.h"')},
            [(SURFACE, 4, "cross-driver")])
     for alias in ("namespace u = ua;", "namespace u = ::ua;", "namespace u = ua::tela;", "namespace e = entrega;"):
         expect(f"driver-hook: `{alias}` in a core file is one finding, at the alias (the review planted one and got 0)",

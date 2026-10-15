@@ -414,8 +414,10 @@ void DisplayManager::uiPass( SystemState &snap ) {
     tickAuthLockout( );
   } else if ( _uiMode == MODE_SETTINGS_TOUCH_SENS ) {
     tickTouchSens( );
-  } else if ( _uiMode == MODE_SETTINGS_ALARM_EDIT ) {
-    /* The old draw pulled MIN below MAX and kept the focus inside the sensor's limit list before it drew. */
+  } else if ( _uiMode == MODE_SETTINGS_ALARM_EDIT && _repaintSettings ) {
+    /* The old draw pulled MIN below MAX and kept the focus inside the sensor's limit list before it drew, and it drew on a
+     * repaint request only: showAlarmEdit( ) publishes the mode before it copies the record and raises the request last, so
+     * an ungated repair could land inside the copy. The request is taken below, after this. */
     const SensorType sType = (SensorType)_tempAlarmConfig.sensorType;
     const uint8_t nLimits = sensorLimitCount( sType );
     if ( nLimits != 0 ) {

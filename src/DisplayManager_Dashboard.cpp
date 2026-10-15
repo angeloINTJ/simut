@@ -661,7 +661,9 @@ void DisplayManager::drawTopBar(const SystemState& state) {
  */
  uint16_t arrowColor = numColor;
 
- if (pktArrowShown( )) arrowColor = _pktArrowFlashOn ? C_TEXT_MAIN : C_ACCENT_HIGH;
+ const ArrowFlash arrowFlash = pktArrowShown( );
+ if (arrowFlash == ArrowFlash::GOING) arrowColor = _pktArrowFlashOn ? C_TEXT_MAIN : C_ACCENT_HIGH;
+ else if (arrowFlash == ArrowFlash::OVER) arrowColor = C_ACCENT_HIGH;
 
  if (state.pendingPkts > 0) {
  char pktBuf[PENDING_LABEL_MAX];

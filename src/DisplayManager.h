@@ -1566,7 +1566,9 @@ private:
 	inline __attribute__((always_inline)) bool minMaxIdleDue( ) const;
 	inline __attribute__((always_inline)) void repairAlarmLimits( SensorType sType, uint8_t nLimits );
 	inline __attribute__((always_inline)) void clampEditFocus( uint8_t nLimits );
-	inline __attribute__((always_inline)) bool pktArrowShown( );
+	/** What pktArrowShown( ) found: the packet arrow is not flashing, its flash goes on, or the flash has just ended. */
+	enum class ArrowFlash : uint8_t { NONE, GOING, OVER };
+	inline __attribute__((always_inline)) ArrowFlash pktArrowShown( );
 
 	struct ActiveLang {
 		char name[16];

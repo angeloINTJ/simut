@@ -256,9 +256,8 @@ bool DisplayManager::uaMontarMenus( UaQuadro &q ) {
           ua::copiar( vm.servidor, d.telServer, sizeof vm.servidor );
           break;
       }
-      /* The old loop repaints this screen every second by this field (DisplayManager.cpp:1669) and
-       * drawSystemStatus( ) set it; the old draw no longer reaches that line. */
-      _statusLastDraw = millis( );
+      /* The old loop repainted this screen every second by _statusLastDraw, which its pass reads and drawSystemStatus( ) writes;
+       * this driver keeps no such field, because it looks at the frame every 250 ms. */
       uaUsar<VmStatusSistema, desenharStatusSistema, alvosStatusSistema>( q, vm );
       return true;
     }
