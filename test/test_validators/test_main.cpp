@@ -49,6 +49,7 @@
 #include <vector>
 #include "display/ClockEntry.h"         /* the date and time set at the panel */
 #include "display/DashHold.h"          /* the dashboard's 3 s hold and page button */
+#include "display/ListPager.h"         /* the list screens' page arithmetic */
 #include "display/SettingsMenu.h"       /* the panel's Settings menu: rows, order */
 #include "PasswordCheck.h"             /* one derivation per password check */
 #include "SessionCheck.h"              /* a session against its live account */
@@ -4988,6 +4989,48 @@ void test_dash_next_page_goes_to_the_first_after_the_last(void) {
     TEST_ASSERT_EQUAL_INT(0, dashNextPage(0, 1));
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * The list screens' page arithmetic (display/ListPager.h)
+ *
+ * 2026-10-15 (S6 of the UI drivers): how many pages a list makes, where a page index is held when the list shrank under it, and one
+ * step of a pager arrow were copies in the Ângulo's glue: the frame and the touch of the settings list and of the alarms list each
+ * spelled the arithmetic out, and when the look moved to three rows a page both copies had to be edited by hand. They are three
+ * functions with no hardware in them now and the glue calls them, so these cases pin what the panel does. Each case names the
+ * mutants it kills; each mutant was seen to fail that case, and no other, when applied to the header.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+/* Rounded up, and a last page that is not full still counts. Plain n / perPage drops it ((1,5) is 0); adding perPage and not
+ * perPage - 1 counts a full page twice ((5,5) is 2); a wrong constant shows at (6,5). */
+void test_list_pages_rounds_up_and_a_short_last_page_counts(void) {
+    TEST_ASSERT_EQUAL_INT(0, listPages(0, 5));                     /* no rows, no page */
+    TEST_ASSERT_EQUAL_INT(1, listPages(1, 5));
+    TEST_ASSERT_EQUAL_INT(1, listPages(5, 5));                     /* a full page is one */
+    TEST_ASSERT_EQUAL_INT(2, listPages(6, 5));
+    TEST_ASSERT_EQUAL_INT(2, listPages(6, 3));
+    TEST_ASSERT_EQUAL_INT(3, listPages(7, 3));
+}
+
+/* A page held to the list that exists. `>` for `>=` leaves the page one past the last at (3,3); a dropped `pages > 0` leaves -1 at
+ * (5,0); a dropped clamp below leaves -1 at (-1,3). `page <= 0` for `page < 0` is equivalent (0 stays 0) and no case can kill it. */
+void test_list_clamp_page_holds_a_page_to_the_list_that_exists(void) {
+    TEST_ASSERT_EQUAL_INT(2, listClampPage(3, 3));                 /* one past the last: the last */
+    TEST_ASSERT_EQUAL_INT(2, listClampPage(2, 3));                 /* the last stays */
+    TEST_ASSERT_EQUAL_INT(0, listClampPage(5, 0));                 /* no pages: the first, not -1 */
+    TEST_ASSERT_EQUAL_INT(0, listClampPage(-1, 3));
+    TEST_ASSERT_EQUAL_INT(0, listClampPage(0, 0));
+}
+
+/* One step of an arrow, held at the ends. `>=` for `>` going back walks off the first page at (0,3,-1); `<=` for `<` going forward
+ * walks off the last at (2,3,+1); a wrap puts (0,3,-1) on the last page; an ignored sign steps (1,3,-1) forward. */
+void test_list_page_step_stops_at_the_ends_and_does_not_wrap(void) {
+    TEST_ASSERT_EQUAL_INT(0, listPageStep(0, 3, -1));              /* the first page, back: it stays */
+    TEST_ASSERT_EQUAL_INT(0, listPageStep(1, 3, -1));
+    TEST_ASSERT_EQUAL_INT(2, listPageStep(1, 3, +1));
+    TEST_ASSERT_EQUAL_INT(2, listPageStep(2, 3, +1));              /* the last page, forward: it stays */
+    TEST_ASSERT_EQUAL_INT(0, listPageStep(0, 0, +1));              /* no pages */
+    TEST_ASSERT_EQUAL_INT(0, listPageStep(0, 1, +1));              /* one page */
+}
+
 int main(int /*argc*/, char** /*argv*/) {
     UNITY_BEGIN();
 
@@ -5281,6 +5324,9 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_dash_hold_a_gap_with_no_hold_running_does_not_start_one);
     RUN_TEST(test_dash_hold_survives_the_wrap_of_the_millisecond_counter);
     RUN_TEST(test_dash_next_page_goes_to_the_first_after_the_last);
+    RUN_TEST(test_list_pages_rounds_up_and_a_short_last_page_counts);
+    RUN_TEST(test_list_clamp_page_holds_a_page_to_the_list_that_exists);
+    RUN_TEST(test_list_page_step_stops_at_the_ends_and_does_not_wrap);
     RUN_TEST(test_settings_menu_item_ids_are_the_historical_ones);
     RUN_TEST(test_settings_menu_order_lists_every_item_once);
     RUN_TEST(test_settings_menu_full_admin_sees_every_item_in_order);

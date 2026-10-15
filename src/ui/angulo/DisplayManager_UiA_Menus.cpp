@@ -33,6 +33,7 @@
 #include "telas/MenusLicenca.h"
 #include "telas/MenusStatus.h"
 #include "telas/Telas.h"
+#include "../../display/ListPager.h"   /* listPages( ), listClampPage( ), listPageStep( ): the lists' page arithmetic */
 #include "../../DisplayManager_Actions.h"   /* the core's touch actions, which the lists' rows run; last */
 
 /* The screens' ids are the firmware's, value for value: the menu copies _menuItems[ ] as
@@ -113,9 +114,7 @@ bool DisplayManager::uaMontarMenus( UaQuadro &q ) {
       const int n = _menuCount < MENU_ITENS_MAX ? _menuCount : MENU_ITENS_MAX;
       vm.n = (uint8_t)n;
       memcpy( vm.itens, _menuItems, (size_t)n );
-      const int paginas = ( n + LISTA_FILAS - 1 ) / LISTA_FILAS;
-      if ( _mainMenuPage >= paginas ) _mainMenuPage = paginas > 0 ? paginas - 1 : 0;   // as the old draw held it
-      if ( _mainMenuPage < 0 ) _mainMenuPage = 0;
+      _mainMenuPage = listClampPage( _mainMenuPage, listPages( n, LISTA_FILAS ) );   // as the old draw held it
       vm.pagina = (uint8_t)_mainMenuPage;
       ua::copiar( vm.conta, panelUserName( ), sizeof vm.conta );
       uaUsar<VmMenu, desenharMenu, alvosMenu>( q, vm );
@@ -160,9 +159,8 @@ bool DisplayManager::uaMontarMenus( UaQuadro &q ) {
         l.ligado = rec.alarmsActive;
         l.manutencao = minutosDeManutencao( _sysConfigPtr, slot ) != 0;
       }
-      const int paginas = ( n + LISTA_FILAS_2 - 1 ) / LISTA_FILAS_2;   /* rows of two lines: three to a page */
-      if ( _alarmPage >= paginas ) _alarmPage = paginas > 0 ? paginas - 1 : 0;   // as the old draw held it
-      if ( _alarmPage < 0 ) _alarmPage = 0;
+      /* rows of two lines: three to a page */
+      _alarmPage = listClampPage( _alarmPage, listPages( n, LISTA_FILAS_2 ) );   // as the old draw held it
       vm.pagina = (uint8_t)_alarmPage;
       uaUsar<VmAlarmes, desenharAlarmes, alvosAlarmes>( q, vm );
       return true;
@@ -314,12 +312,13 @@ UaToque DisplayManager::uaToqueMenus( const ua::Alvo *a, int16_t &, int16_t & ) 
   const bool voltar = a->tipo == LST_VOLTAR, linha = a->tipo == LST_LINHA;
   const int i = a->indice;
   /* A pager arrow: a page less or more, held at the ends (the old arrows wrapped around; the
-   * new pager stops, MenusLista.h), repeating while the finger stays on it like the old ones. */
+   * new pager stops, MenusLista.h; listPageStep( ), display/ListPager.h, is the step), repeating
+   * while the finger stays on it like the old ones. */
   auto virar = [&]( int &pagina, int paginas ) {
     if ( a->tipo == LST_PAG_ANTERIOR ) {
-      if ( acceptHoldTouch( ZONA_ANTERIOR ) && pagina > 0 ) pagina--;
+      if ( acceptHoldTouch( ZONA_ANTERIOR ) ) pagina = listPageStep( pagina, paginas, -1 );
     } else if ( a->tipo == LST_PAG_PROXIMA ) {
-      if ( acceptHoldTouch( ZONA_PROXIMA ) && pagina < paginas - 1 ) pagina++;
+      if ( acceptHoldTouch( ZONA_PROXIMA ) ) pagina = listPageStep( pagina, paginas, +1 );
     }
   };
   switch ( _uiMode ) {
@@ -334,7 +333,7 @@ UaToque DisplayManager::uaToqueMenus( const ua::Alvo *a, int16_t &, int16_t & ) 
         if ( i >= 0 && i < _menuCount && acceptTouch( ZONA_LINHA ) ) actMenuSelect( i );
       } else {
         /* Touch.cpp:1002-1012 (the arrows), without the wrap. */
-        virar( _mainMenuPage, ( _menuCount + LISTA_FILAS - 1 ) / LISTA_FILAS );
+        virar( _mainMenuPage, listPages( _menuCount, LISTA_FILAS ) );
       }
       break;
     case MODE_SETTINGS_THEMES:
@@ -373,7 +372,7 @@ UaToque DisplayManager::uaToqueMenus( const ua::Alvo *a, int16_t &, int16_t & ) 
         if ( i >= 0 && i < _activeSensorCount && acceptTouch( ZONA_LINHA ) ) actAlarmListOpen( i );
       } else {
         /* Touch.cpp:857-865 (the arrows), without the wrap. */
-        virar( _alarmPage, ( _activeSensorCount + LISTA_FILAS_2 - 1 ) / LISTA_FILAS_2 );
+        virar( _alarmPage, listPages( _activeSensorCount, LISTA_FILAS_2 ) );
       }
       break;
     case MODE_SETTINGS_ALARM_SENSOR:
