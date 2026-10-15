@@ -193,7 +193,10 @@ def conteudo(img, v, inicios, tab):
     base = v & ~3                                  # pointers in data sit on word boundaries
     b = img.ler(base, 64)
     if not b:
-        return '<?>'
+        # Nothing to read: the value is all there is. "<?>" for every such address made a constant
+        # that looks like one (0x10120000 past the end of the image, 0x20030000 in SRAM) equal to
+        # any other (review of the fixes, 2026-10-15).
+        return f'<?{v:#x}>'
     return f'<[{palavras(b, inicios, tab, img)}]{"@" + str(v - base) if v != base else ""}>'
 
 
@@ -213,7 +216,7 @@ def palavras(b, inicios, tab, img):
         w = int.from_bytes(b[i:i + 4], 'little')
         if eh_endereco(w):
             n = nome_de(w, inicios, tab)
-            partes.append(estavel(n) if n else (texto_em(img, w) or '?'))
+            partes.append(estavel(n) if n else (texto_em(img, w) or ('?' if img.ler(w, 1) else f'?{w:#x}')))
         else:
             partes.append(f'{w:x}')
     resto = len(b) % 4
@@ -237,7 +240,7 @@ def normalizar(texto, inicios, tab, img, faixa=None, grosso=False):
                 if t:
                     return '<' + t + '>'
                 if grosso:
-                    return '<@>'
+                    return '<@>' if img.ler(v, 1) else f'<?{v:#x}>'
                 n = nome_de(v, inicios, tab, aproximar=True)
             if n is None:
                 return conteudo(img, v, inicios, tab)
@@ -473,7 +476,7 @@ def mesmo_conteudo(x, y, va, vb, pa, pb):
     no name, a pair of instructions that only looks like one, is never this: the review of S2b
     broke the tool with it, and a halfword-aligned pointer is accepted only when it is named
     (the SDK's float shims keep a pointer at a halfword address, behind a table byte)."""
-    return (x == y and x.startswith('<') and x != '<?>' and eh_flash(va) and eh_flash(vb)
+    return (x == y and x.startswith('<') and not x.startswith('<?') and eh_flash(va) and eh_flash(vb)
             and pa % 4 == 0 and pb % 4 == 0)
 
 
