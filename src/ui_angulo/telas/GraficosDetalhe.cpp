@@ -1,0 +1,143 @@
+// The detail of the chart (MODE_GRAPH_DETAIL). See Graficos.h.
+//
+// Family A's `detalhe_temp` of the plan: six cards of 96 x 72, three to a row,
+// and a pager between the quantities the sensor has.
+#include <stdio.h>
+#include <string.h>
+
+#include "Graficos.h"
+#include "GraficosComum.h"
+
+namespace ua {
+namespace tela {
+
+using namespace graficos;
+
+namespace {
+
+// The plan's cards: 96 x 72, ESP2 apart, from Y0, three to a row. In a card the
+// label sits ESP2 under the top, the value's baseline 48 px down and the line
+// under it, a box of H_APOIO, at 52.
+constexpr int16_t W_CARTAO = 96, H_CARTAO = 72;
+constexpr int N_CARTOES = 6, COLUNAS = 3;
+enum { C_MAXIMO, C_MINIMO, C_MEDIA, C_DESVIO, C_VARIACAO, C_AGORA };   // the cards, in reading order
+constexpr int16_t Y_VALOR = 48, Y_SUB = 52;
+
+// A card's texts start PAD in and may use the card down to ESP2 from its right
+// edge: 76 px, enough for "1013,2 hPa" (74 px, measured 2026-10-14), which the
+// symmetric 72 would cut.
+constexpr int16_t LARGURA_TEXTO = W_CARTAO - PAD - ESP2;
+
+struct Cartao {
+  Caixa16 caixa;
+  const char *rotulo;
+  char valor[16];
+  const char *unidade;
+  char sub[32];
+};
+
+struct LayoutDetalhe {
+  char titulo[32];
+  Caixa16 cxVoltar;
+  Caixa16 area;                 // where the cards go, for the empty message
+  bool vazio;
+  Cartao cartao[N_CARTOES];
+  int pagina, paginas;          // 0-based, and how many
+  const char *nome;             // of the page's quantity
+};
+
+void unidadeENome( Grandeza g, const char **unidade, const char **nome ) {
+  switch ( g ) {
+    case Grandeza::UMIDADE: *unidade = "%UR"; *nome = "Umidade"; break;
+    case Grandeza::PRESSAO: *unidade = "hPa"; *nome = "Pressão"; break;
+    default: *unidade = "°C"; *nome = "Temperatura"; break;
+  }
+}
+
+// The number of readings behind the mean, in the longest wording that fits.
+void leituras( uint16_t n, char *buf, int cap ) {
+  snprintf( buf, (size_t)cap, "%u leituras", (unsigned)n );
+  if ( larguraTinta( buf, tipo::apoio ) <= LARGURA_TEXTO ) return;
+  snprintf( buf, (size_t)cap, "n = %u", (unsigned)n );
+}
+
+LayoutDetalhe layoutDetalhe( const VmDetalhe &vm ) {
+  LayoutDetalhe l{ };
+  snprintf( l.titulo, sizeof l.titulo, "Detalhe · %s", rotuloPeriodo( vm.periodo ) );
+  const Acao voltar{ "Voltar", Botao::DISCRETO, IconeNome::ARROW_LEFT, 0 };
+  caixasDasAcoes( &voltar, 1, &l.cxVoltar );
+  l.area = Caixa16{ ESP2, Y0, 320 - 2 * ESP2, ( N_CARTOES / COLUNAS ) * H_CARTAO + ESP2 };
+
+  l.paginas = vm.paginas < 1 ? 1 : vm.paginas > 3 ? 3 : vm.paginas;
+  l.pagina = vm.pagina >= l.paginas ? l.paginas - 1 : vm.pagina;
+  const EstatDetalhe &e = vm.est[l.pagina];
+  l.vazio = e.leituras == 0;
+  const char *unidade;
+  unidadeENome( e.grandeza, &unidade, &l.nome );
+
+  const char *const rotulos[N_CARTOES] = { "Máximo", "Mínimo", "Média", "Desvio (σ)", "Variação", vm.passado ? "Fim" : "Agora" };
+  const int16_t v[N_CARTOES] = { e.maximo, e.minimo, e.media, e.desvio, e.variacao, e.agora };
+  for ( int i = 0; i < N_CARTOES; i++ ) {
+    Cartao &c = l.cartao[i];
+    c.caixa = Caixa16{ (int16_t)( ESP2 + ( i % COLUNAS ) * ( W_CARTAO + ESP2 ) ), (int16_t)( Y0 + ( i / COLUNAS ) * ( H_CARTAO + ESP2 ) ),
+                       W_CARTAO, H_CARTAO };
+    c.rotulo = rotulos[i];
+    c.unidade = unidade;
+    if ( v[i] == SEM_DADO ) strcpy( c.valor, "--,-" );
+    else if ( i == C_VARIACAO && v[i] > 0 ) { char t[16]; snprintf( c.valor, sizeof c.valor, "+%s", n1( v[i], t ) ); }   // the change keeps its sign
+    else n1( v[i], c.valor );
+  }
+  // What each card says under its value.
+  if ( e.tMaximo.dia ) diaMesHoraMin( e.tMaximo, l.cartao[C_MAXIMO].sub, sizeof l.cartao[C_MAXIMO].sub );
+  if ( e.tMinimo.dia ) diaMesHoraMin( e.tMinimo, l.cartao[C_MINIMO].sub, sizeof l.cartao[C_MINIMO].sub );
+  leituras( e.leituras, l.cartao[C_MEDIA].sub, sizeof l.cartao[C_MEDIA].sub );
+  strcpy( l.cartao[C_DESVIO].sub, "dispersão" );
+  strcpy( l.cartao[C_VARIACAO].sub, "início → fim" );
+  if ( e.tAgora.dia ) {
+    // In the past the date says which day "Fim" is; now, the time is enough.
+    if ( vm.passado ) diaMesHoraMin( e.tAgora, l.cartao[C_AGORA].sub, sizeof l.cartao[C_AGORA].sub );
+    else horaMin( e.tAgora, l.cartao[C_AGORA].sub, sizeof l.cartao[C_AGORA].sub );
+  }
+  return l;
+}
+
+}  // namespace
+
+void desenharDetalhe( Pintor &p, const VmDetalhe &vm ) {
+  const Tema &T = p.t( );
+  const LayoutDetalhe l = layoutDetalhe( vm );
+  Caixa16 doKit;
+  barraTituloVoltar( p, l.titulo, &doKit );
+  conferirCaixas( "detalhe", &doKit, &l.cxVoltar, 1 );
+
+  if ( l.vazio ) {
+    semDados( p, l.area, "Volte ao gráfico e escolha outro período." );
+  } else {
+    for ( int i = 0; i < N_CARTOES; i++ ) {
+      const Cartao &c = l.cartao[i];
+      superficie( p, c.caixa.x, c.caixa.y, c.caixa.w, c.caixa.h );
+      const int16_t x = (int16_t)( c.caixa.x + PAD );
+      textoCentrado( p, c.rotulo, x, (int16_t)( c.caixa.y + ESP2 ), H_APOIO, tipo::rotulo, T.tinta2, 'l' );
+      // The number in display type, the unit small and grey after it; a value
+      // that would still run past the card goes without its unit.
+      const int16_t w = (int16_t)( larguraTinta( c.valor, Fonte::DISP9 ) + ESP1 + larguraTinta( c.unidade, tipo::rotulo ) );
+      numero( p, x, (int16_t)( c.caixa.y + Y_VALOR ), c.valor, w <= LARGURA_TEXTO ? c.unidade : "", Fonte::DISP9, T.tinta, 'l', tipo::rotulo,
+              true, T.tinta2 );
+      if ( c.sub[0] ) textoCentrado( p, c.sub, x, (int16_t)( c.caixa.y + Y_SUB ), H_APOIO, tipo::apoio, T.tinta2, 'l' );
+    }
+  }
+  if ( l.paginas > 1 ) paginadorComEstados( p, (int16_t)( l.pagina + 1 ), (int16_t)l.paginas, l.nome );
+}
+
+int alvosDetalhe( const VmDetalhe &vm, Alvo *out ) {
+  const LayoutDetalhe l = layoutDetalhe( vm );
+  int n = addAlvo( out, 0, alvoDaAcao( l.cxVoltar ), DET_VOLTAR );
+  if ( l.paginas > 1 ) {
+    if ( l.pagina > 0 ) n = addAlvo( out, n, paginadorEsquerda( ), DET_PAG_ANTERIOR );
+    if ( l.pagina < l.paginas - 1 ) n = addAlvo( out, n, paginadorDireita( ), DET_PAG_PROXIMA );
+  }
+  return n;
+}
+
+}  // namespace tela
+}  // namespace ua
