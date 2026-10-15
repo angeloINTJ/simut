@@ -170,7 +170,7 @@ void desenharLimites( Pintor &p, const VmLimites &vm ) {
 
 int alvosLimites( const VmLimites &vm, Alvo *out ) {
   const LayoutLimites l = layoutLimites( vm );
-  int n = addAlvo( out, 0, caixaVoltar( ), LIMITES_VOLTAR );
+  int n = addAlvoVoltar( out, 0, caixaVoltar( ), LIMITES_VOLTAR );
   for ( int r = 0; r < 2; r++ ) {
     n = addAlvoSe( out, n, l.menosAtivo[r], l.cartao[r].menos, LIMITES_MENOS, (int16_t)r );
     n = addAlvoSe( out, n, l.maisAtivo[r], l.cartao[r].mais, LIMITES_MAIS, (int16_t)r );
@@ -219,7 +219,7 @@ void desenharManutencao( Pintor &p, const VmManutencao &vm ) {
 
 int alvosManutencao( const VmManutencao &vm, Alvo *out ) {
   const LayoutManutencao l = layoutManutencao( vm );
-  int n = addAlvo( out, 0, caixaVoltar( ), MANUT_VOLTAR );
+  int n = addAlvoVoltar( out, 0, caixaVoltar( ), MANUT_VOLTAR );
   if ( !vm.aberta ) {
     for ( int r = 0; r < 2; r++ ) {
       n = addAlvoSe( out, n, l.menosAtivo[r], l.cartao[r].menos, MANUT_MENOS, (int16_t)r );

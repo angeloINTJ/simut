@@ -56,6 +56,10 @@ inline Caixa16 bandaCentral( ) { return Caixa16{ 0, Y_BANDA, 320, (int16_t)( Y_R
 // y 34, and a target that a text crosses fails host_telas.py.
 Caixa16 alvoDaAcao( const Caixa16 &c );
 
+// The title of the chart, the detail and the calendar, as an inert target (areaDoTitulo( ) in Telas.h says why): as tall as the
+// actions' targets, 32 px, where the band under the bar begins.
+inline Caixa16 alvoDoTitulo( const Caixa16 &primeiraAcao ) { return areaDoTitulo( alvoDaAcao( primeiraAcao ).x, Y_BANDA ); }
+
 // "14:40", "13/10" and "13/10 14:40".
 char *horaMin( const Instante &t, char *buf, int cap );
 char *diaMes( const Instante &t, char *buf, int cap );

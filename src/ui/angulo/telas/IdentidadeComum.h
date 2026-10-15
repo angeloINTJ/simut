@@ -133,6 +133,8 @@ inline void desenharBarra( Pintor &p, const Barra &b, const AcaoBarra *acoes, co
 // one reaches the edge of the glass. `tipos[i]` is the action's target type;
 // an action that is not `ativa` is drawn disabled and listed inert, with the box it would have. Returns the new count.
 inline int addAlvosBarra( Alvo *out, int n, const Barra &b, const uint8_t *tipos, const bool *ativa ) {
+  // The title, inert, up to where the first action's target begins (areaDoTitulo( ) in Telas.h).
+  if ( b.n > 0 ) n = addAlvo( out, n, areaDoTitulo( (int16_t)( b.caixas[0].x - ESP2 ) ), ALVO_INERTE );
   for ( int i = 0; i < b.n; i++ ) {
     const int16_t x0 = i == 0 ? (int16_t)( b.caixas[i].x - ESP2 ) : (int16_t)( b.caixas[i].x - ESP1 );
     const int16_t x1 = i == b.n - 1 ? 320 : (int16_t)( b.caixas[i + 1].x - ESP1 );

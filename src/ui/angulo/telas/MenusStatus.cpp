@@ -223,7 +223,7 @@ void desenharStatusSistema( Pintor &p, const VmStatusSistema &vm ) {
 
 int alvosStatusSistema( const VmStatusSistema &vm, Alvo *out ) {
   const LayoutStatus l = layoutStatus( vm );
-  const int n = addAlvo( out, 0, l.voltar, LST_VOLTAR );
+  const int n = addAlvoVoltar( out, 0, l.voltar, LST_VOLTAR );
   return alvosPaginador( l.pag, out, n );
 }
 
@@ -291,7 +291,7 @@ void desenharLicenca( Pintor &p, const VmLicenca &vm ) {
 
 int alvosLicenca( const VmLicenca &vm, Alvo *out ) {
   const LayoutLicenca l = layoutLicenca( vm );
-  const int n = addAlvo( out, 0, l.voltar, LST_VOLTAR );
+  const int n = addAlvoVoltar( out, 0, l.voltar, LST_VOLTAR );
   return alvosPaginador( l.pag, out, n );
 }
 

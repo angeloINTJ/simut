@@ -144,6 +144,7 @@ void desenharCalendario( Pintor &p, const VmCalendario &vm ) {
 int alvosCalendario( const VmCalendario &vm, Alvo *out ) {
   const LayoutCalendario l = layoutCalendario( vm );
   int n = addAlvo( out, 0, alvoDaAcao( l.cxAcao[2] ), CAL_VOLTAR );
+  n = addAlvo( out, n, alvoDoTitulo( l.cxAcao[0] ), ALVO_INERTE );
   n = addAlvo( out, n, alvoDaAcao( l.cxAcao[0] ), CAL_MES_ANTERIOR );
   // In the current month the next arrow is drawn disabled: inert, with the box it has alive, so that a touch on it does not reach the
   // previous month's arrow or "Voltar", which it adjoins.

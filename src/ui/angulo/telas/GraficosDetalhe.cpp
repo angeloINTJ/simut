@@ -170,6 +170,7 @@ void desenharDetalhe( Pintor &p, const VmDetalhe &vm ) {
 int alvosDetalhe( const VmDetalhe &vm, Alvo *out ) {
   const LayoutDetalhe l = layoutDetalhe( vm );
   int n = addAlvo( out, 0, alvoDaAcao( l.cxVoltar ), DET_VOLTAR );
+  n = addAlvo( out, n, alvoDoTitulo( l.cxVoltar ), ALVO_INERTE );
   // The cards and the band around them turn the page, on every page and on the empty one (the glue says in which order).
   n = addAlvo( out, n, bandaCentral( ), DET_AREA );
   if ( l.paginas > 1 ) {

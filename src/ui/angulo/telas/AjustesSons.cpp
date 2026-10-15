@@ -170,7 +170,7 @@ void desenharSons( Pintor &p, const VmSons &vm ) {
 
 int alvosSons( const VmSons &vm, Alvo *out ) {
   const LayoutSons l = layoutSons( vm );
-  int n = addAlvo( out, 0, caixaVoltar( ), SONS_VOLTAR );
+  int n = addAlvoVoltar( out, 0, caixaVoltar( ), SONS_VOLTAR );
   for ( int i = 0; i < l.n; i++ ) {
     const Caixa16 &c = l.linha[i];
     const int som = l.primeira + i;
@@ -219,7 +219,7 @@ void desenharMelodia( Pintor &p, const VmMelodia &vm ) {
 
 int alvosMelodia( const VmMelodia &, Alvo *out ) {
   const LayoutMelodia l = layoutMelodia( );
-  int n = addAlvo( out, 0, caixaVoltar( ), MELOD_VOLTAR );
+  int n = addAlvoVoltar( out, 0, caixaVoltar( ), MELOD_VOLTAR );
   for ( int i = 0; i < MELODIAS_POR_SOM; i++ ) n = addAlvo( out, n, l.tecla[i], MELOD_ITEM, i );
   n = addAlvo( out, n, l.rodape.secundaria, MELOD_CANCELAR );
   return addAlvo( out, n, l.rodape.primaria, MELOD_USAR );

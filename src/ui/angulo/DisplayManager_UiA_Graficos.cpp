@@ -243,20 +243,31 @@ UaToque DisplayManager::uaToqueGraficos( const ua::Alvo *a, int16_t &x, int16_t 
           if ( !acceptTouch( a->tipo == DET_AREA ? ZONA_AREA : ZONA_PAGINA ) ) break;
           uint8_t paginas[3];
           const int n = ua::cola::paginasDoDetalhe( _graphData, _currentMinHum, paginas );
-          int k = 0;
-          for ( int j = 0; j < n; j++ )
-            if ( paginas[j] == _detailPage ) k = j;
           if ( a->tipo == DET_AREA ) {
             /* A tap on the cards, anywhere in the band, as the original's "Tap on central zone" in the MODE_GRAPH_DETAIL branch of
-             * handleTouch( ) (DisplayManager_Touch.cpp) did, in this order: temperature, then humidity (if the sensor has it now),
-             * then pressure (if it has it) (paginasDoDetalhe( ) lists the pages it has, in that order), then back to the chart
-             * (actDetailBack( )) after the last page; a sensor with one page goes back at the first tap. The page without readings
-             * answers the same way. acceptTouch( ) accepts once per press whatever the zone, so the press that opened the detail from the
-             * chart's band does not also turn its page (the original used acceptTouch( 10 ) on both screens). */
-            if ( k + 1 < n ) actDetailPage( paginas[k + 1] );
+             * handleTouch( ) (DisplayManager_Touch.cpp). Pages are 0 temperature, 1 humidity, 2 pressure, and paginasDoDetalhe( ) lists the
+             * ones the sensor has now, in that order. The cycle, by the four shapes of sensor:
+             *   temperature only             0 -> chart
+             *   + humidity                   0 -> 1 -> chart
+             *   + pressure (no humidity)     0 -> 2 -> chart
+             *   all three                    0 -> 1 -> 2 -> chart
+             * The original reads: page 0 with humidity -> 1; else page below 2 with pressure -> 2; else back (actDetailBack( )). "The
+             * first page of the list above the one on show, else back" is the same rule for every page number, the ones the list does not
+             * hold included (page 2 on a sensor that has lost its pressure goes back, as there; page 1 on one without humidity goes to the
+             * pressure, as there). The one difference is a window with fewer than two readings: paginasDoDetalhe( ) asks count >= 2 for the
+             * humidity and the pressure (UI_DRIVERS.md section 2.10), so the Angulo has the temperature page only and goes back where the
+             * original's flags could still send it to an empty one. acceptTouch( ) accepts once per press whatever the zone, so the press that
+             * opened the detail from the chart's band does not also turn its page (the original used acceptTouch( 10 ) on both screens). */
+            int proxima = -1;
+            for ( int j = 0; j < n && proxima < 0; j++ )
+              if ( paginas[j] > _detailPage ) proxima = paginas[j];
+            if ( proxima >= 0 ) actDetailPage( (uint8_t)proxima );
             else actDetailBack( );
             break;
           }
+          int k = 0;
+          for ( int j = 0; j < n; j++ )
+            if ( paginas[j] == _detailPage ) k = j;
           k += a->tipo == DET_PAG_PROXIMA ? 1 : -1;
           if ( k < 0 || k >= n ) break;
           actDetailPage( paginas[k] );   /* with the repaint request the old cycling raised, which actDetailPage( ) holds */

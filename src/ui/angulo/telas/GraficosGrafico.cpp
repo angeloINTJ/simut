@@ -490,6 +490,7 @@ int alvosGrafico( const VmGrafico &vm, Alvo *out ) {
   const LayoutGrafico l = layoutGrafico( vm );
   int n = addAlvo( out, 0, alvoDaAcao( l.cxAcao[1] ), GRF_VOLTAR );
   n = addAlvo( out, n, alvoDaAcao( l.cxAcao[0] ), GRF_DIA );
+  n = addAlvo( out, n, alvoDoTitulo( l.cxAcao[0] ), ALVO_INERTE );
   n = addAlvo( out, n, bandaCentral( ), GRF_AREA );
   n = addAlvo( out, n, l.anterior, GRF_ANTERIOR );
   for ( int i = 0; i < N_PERIODOS; i++ ) n = addAlvo( out, n, l.periodo[i], GRF_PERIODO, (int16_t)i );

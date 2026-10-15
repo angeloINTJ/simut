@@ -108,7 +108,7 @@ LayoutLista layoutLista( int total, int pagina, int filas, int16_t hFila ) {
 }
 
 int alvosLista( const LayoutLista &l, Alvo *out, bool linhasSaoAlvos ) {
-  int n = addAlvo( out, 0, l.voltar, LST_VOLTAR );
+  int n = addAlvoVoltar( out, 0, l.voltar, LST_VOLTAR );
   if ( linhasSaoAlvos )
     for ( int i = 0; i < l.n; i++ ) n = addAlvo( out, n, l.linhas[i], LST_LINHA, (int16_t)( l.primeira + i ) );
   return alvosPaginador( l.pag, out, n );

@@ -167,7 +167,7 @@ void desenharPoliticaPin( Pintor &p, const VmPoliticaPin &vm ) {
 
 int alvosPoliticaPin( const VmPoliticaPin &vm, Alvo *out ) {
   const LayoutPolitica l = layoutPolitica( vm );
-  int n = addAlvo( out, 0, caixaVoltar( ), POLPIN_VOLTAR );
+  int n = addAlvoVoltar( out, 0, caixaVoltar( ), POLPIN_VOLTAR );
   n = addAlvoSe( out, n, l.menosAtivo, l.menos, POLPIN_MENOS );
   n = addAlvoSe( out, n, l.maisAtivo, l.mais, POLPIN_MAIS );
   for ( int i = 0; i < 3; i++ ) n = addAlvo( out, n, l.teclado[i], POLPIN_TECLADO, i + 1 );

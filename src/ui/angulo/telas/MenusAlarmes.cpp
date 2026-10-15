@@ -181,7 +181,7 @@ void desenharSensorAlarme( Pintor &p, const VmSensorAlarme &vm ) {
 
 int alvosSensorAlarme( const VmSensorAlarme &vm, Alvo *out ) {
   const LayoutSensorAlarme l = layoutSensorAlarme( vm );
-  int n = addAlvo( out, 0, l.voltar, SA_VOLTAR );
+  int n = addAlvoVoltar( out, 0, l.voltar, SA_VOLTAR );
   n = addAlvoSe( out, n, l.ativa[0], l.linhas[0], SA_LIMITES );
   n = addAlvoSe( out, n, l.ativa[1], l.linhas[1], SA_ALARMES );
   return addAlvoSe( out, n, l.ativa[2], l.linhas[2], SA_MANUTENCAO );
