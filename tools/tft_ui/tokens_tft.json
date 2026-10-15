@@ -19,7 +19,7 @@
   }
  },
  "tft": {
-  "claro": {},
-  "escuro": {}
+  "claro": { "tinta2": "#4f4c46", "linha": "#85847f", "linhaForte": "#6f6b65" },
+  "escuro": { "tinta2": "#b5b0a6", "linha": "#73706d", "linhaForte": "#918c86" }
  }
 }
