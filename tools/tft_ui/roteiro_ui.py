@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Walks every screen of the functional study build (pico_wiretft_angulo) on the
-bench, by touch, in the light and the dark theme, and keeps a capture and the
-frame's state of every step.
+"""Walks every screen of the Ângulo UI driver (transitional, bench image
+pico_wiretft_angulo) on the bench, by touch, in the light and the dark theme, and
+keeps a capture and the frame's state of every step.
 
     python3 tools/tft_ui/roteiro_ui.py --host 192.168.3.40:8080 --out <pasta> [--temas claro,escuro]
 

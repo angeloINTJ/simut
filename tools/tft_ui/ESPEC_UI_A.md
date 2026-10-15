@@ -1,9 +1,10 @@
 # Build funcional da família A: especificação das telas
 
-Documento de trabalho do ramo `study/tft-angulo-ui-a` (14/10/2026). Diz como a
-interface Ângulo da família A do plano do TFT (`~/Documentos/simut/docs/ui_tft_angulo/entrega`)
-vira uma interface **funcional** no aparelho, numa build de estudo com rede cabeada
-(`pico_wiretft_angulo`), sem mudar nenhuma imagem de produto.
+Documento de trabalho (14/10/2026), escrito no ramo de estudo `study/tft-angulo-ui-a` e trazido para
+`src/ui/angulo/` e `tools/tft_ui/` na etapa S2a. Diz como a interface Ângulo da família A do plano do TFT
+(`~/Documentos/simut/docs/ui_tft_angulo/entrega`) vira uma interface **funcional** no aparelho: o driver de
+UI Ângulo (transitório, imagem de bancada `pico_wiretft_angulo`, com rede cabeada), sem mudar nenhuma
+imagem de produto.
 
 ## 1. O que já existe
 
@@ -15,7 +16,7 @@ vira uma interface **funcional** no aparelho, numa build de estudo com rede cabe
 | Contrato das telas | `src/ui/angulo/telas/Telas.h` | `Alvo`, `addAlvo`, `alvoEm`, `copiar`, `quebrar`, `VmStatus` + `desenharStatus` (barra de status com a marca) |
 | Telas de referência | `src/ui/angulo/telas/Base.{h,cpp}`, amostras em `tools/tft_ui/amostras/base.cpp` | mensagem de resultado e diálogo de confirmação: **o modelo a copiar** |
 | Arnês | `python3 tools/tft_ui/host_telas.py <grupo> --out <pasta>` | compila o kit, `Telas.cpp`, `src/ui/angulo/telas/<Grupo>*.cpp` e `tools/tft_ui/amostras/<grupo>.cpp`; desenha cada amostra nos dois temas; falha com glifo ou ícone ausente, texto fora da área segura (x 4..315, y 4..235), dois textos sobrepostos ou alvo fora da tela; avisa alvo menor que 24 px e alvos sobrepostos; grava PNG por quadro, PNG com os alvos e a folha `_folha.png` |
-| Levantamento do código atual | `~/Documentos/simut/scratchpad/synth_20261014/inventario/*.md` | coordenadas, comportamento, eventos e dados de cada tela do painel de hoje (`dashboard_alarme_boot.md`, `grafico_tema_idioma_nucleos.md`, `configuracoes_sistema.md`, `pin_usuarios_alarmes.md`) |
+| Levantamento do código atual | do estudo, fora da árvore: `~/Documentos/simut/scratchpad/synth_20261014/inventario/*.md`; na árvore há a auditoria `docs/analysis/UI_DRIVERS.md` (os ramos de toque e os desenhos imediatos, seções 3.3 e 3.5), sem as coordenadas de cada tela | coordenadas, comportamento, eventos e dados de cada tela do painel de hoje (`dashboard_alarme_boot.md`, `grafico_tema_idioma_nucleos.md`, `configuracoes_sistema.md`, `pin_usuarios_alarmes.md`) |
 
 Ícones disponíveis (nome, tamanho): veja `src/ui/angulo/AnguloIcones.h`. Faltando um, **não**
 edite `tools/tft_ui/gerar_meta.js`: diga no relatório (o integrador acrescenta e regenera).
@@ -354,7 +355,8 @@ guarde segundos inteiros).
   teclado) fica em variáveis `static` do arquivo do grupo, zeradas na entrada no modo (guarde o modo da
   volta anterior e compare). Depois de mudar esse estado, `uaSujo( )`.
 
-**Construir.** Cada grupo trabalha na sua worktree (`wt_<grupo>`, ramo `study/tft-angulo-ui-a-<grupo>`) e
+**Construir.** Cada grupo trabalha na sua worktree (`wt_<grupo>`, num ramo próprio saído do ramo do driver de UI
+Ângulo; no estudo eram `study/tft-angulo-ui-a-<grupo>`) e
 prova com `pio run -e pico_wiretft_angulo` (a primeira compilação baixa as bibliotecas; -Werror vale em
 `src/`). Os arquivos de tela do grupo entram no `build_src_filter` pelo padrão `+<ui/angulo/telas/*.cpp>`.
 Não grave placa: a bancada é do integrador, que roda o roteiro de toque em cada tela nos dois temas.
