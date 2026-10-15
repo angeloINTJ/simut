@@ -24,8 +24,8 @@ addresses would hide:
 It prints how much it read (functions, instructions), how many functions are equal, changed,
 only in A and only in B, and the names of the changed ones (the first N with their first
 differing line). Exit 0 when every function, data object, switch table and data-section text
-present in both is equal and none is missing, 1 otherwise, 2 when it read no instruction
-(an instrument that read nothing says "equal" about anything).
+present in both is equal and none is missing, 1 otherwise, 2 when it read no instruction or found
+no code symbol in one of the two (an instrument that read nothing says "equal" about anything).
 
 The toolchain is the PlatformIO one: $PLATFORMIO_CORE_DIR/packages/toolchain-rp2040-earlephilhower
 when that exists, else ~/.platformio/packages/....
@@ -240,7 +240,8 @@ def funcoes(elf):
                          check=True).stdout
     # Each function's range runs to the next function's start (sizes are missing on labels).
     cabecas = [int(m.group(1), 16) for m in re.finditer(r'^([0-9a-f]{8}) <.+>:$', out, re.M)]
-    proxima = {a: b for a, b in zip(cabecas, cabecas[1:] + [cabecas[-1] + 0x10000])}
+    # An ELF with no code has no head at all: main() refuses it (it used to die here on cabecas[-1]).
+    proxima = {a: b for a, b in zip(cabecas, cabecas[1:] + ([cabecas[-1] + 0x10000] if cabecas else []))}
     tamanho = {}
     for ini_, tam_, _, _ in tab:
         if tam_:
@@ -330,6 +331,18 @@ def so_relocacao(nome, fa, fb, ctx_a, ctx_b):
     return True
 
 
+def constante_mudou(x, y):
+    """True when a literal-pool word that renders as the content of an unnamed constant (a local
+    `const T t[] = {...}` has no symbol, so the word is shown as the bytes behind it) differs
+    between the two sides of one function. so_relocacao( ) reads the function's own bytes and
+    would excuse it: the bytes are equal when the pool word sits at the same address on both
+    sides, and only the table behind it changed (found 2026-10-14 with tools/test_elf_funcoes.py:
+    one number edited in such a table came out "equal"). A string literal is not this case: its
+    text is compared by textos( ), and a pointer to a named object by dados( )."""
+    return any(p != q and (p.startswith('.word <[') or q.startswith('.word <['))
+               for p, q in zip(x, y))
+
+
 def dados(elf):
     """Read-only objects (type r/R) by name -> their content, from the ELF sections. A table of
     pointers (a dictionary, a font's glyph table, a vtable) holds addresses that follow the
@@ -396,7 +409,7 @@ def main():
             del d[n]
     iguais = [n for n in fa if n in fb and fa[n] == fb[n]]
     diferem = [n for n in fa if n in fb and fa[n] != fb[n]]
-    mudaram = [n for n in diferem if not so_relocacao(n, xa, xb, cfa, cfb)]
+    mudaram = [n for n in diferem if constante_mudou(fa[n], fb[n]) or not so_relocacao(n, xa, xb, cfa, cfb)]
     relocadas = len(diferem) - len(mudaram)
     so_a = sorted(set(fa) - set(fb))
     so_b = sorted(set(fb) - set(fa))
@@ -422,6 +435,12 @@ def main():
         # An instrument that read nothing says "all equal" about anything (2026-10-14, twice).
         print('nenhuma instrução lida: o formato do objdump mudou? veredito recusado', file=sys.stderr)
         return 2
+    for lado, (_, tab_, _) in (('A', cfa), ('B', cfb)):
+        if not any(tam and tipo in 'TtWw' for _, tam, _, tipo in tab_):
+            # Stripped, objdump still prints the code, under the names of its sections: two "functions"
+            # that compare equal about nothing, and no address can be named.
+            print(f'nenhum símbolo de código em {lado}: o ELF foi stripped? veredito recusado', file=sys.stderr)
+            return 2
     print(f'funções: {len(iguais) + relocadas} iguais ({relocadas} só por relocação de ponteiro ou desvio), '
           f'{len(mudaram)} mudaram, {len(so_a)} só em A, {len(so_b)} só em B')
     print(f'dados só-leitura: {len(da) - len(dmud) - len(dso_a)} iguais, {len(dmud)} mudaram, '
