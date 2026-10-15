@@ -1413,61 +1413,7 @@ void DisplayManager::loopCore1( ) {
 
 		if (_uiMode == MODE_DASHBOARD) {
 
-			/* Fallback to _lastWebBusy instead of false when
-			 * mutex_try_enter fails — avoids overlay flicker. */
-			bool webBusyNow = _lastWebBusy;
-			if (mutex_try_enter(&_stateMutex, NULL)) {
-				webBusyNow = _webBusy;
-				_lastWebBusy = webBusyNow;
-				mutex_exit(&_stateMutex);
-			}
-
-
-			if (_alarmNavPending >= 0) {
-				int8_t navTarget = _alarmNavPending;
-				_alarmNavPending = -1;
-				if (navTarget < 4) _currentPage = 0;
-				else if (navTarget < 8) _currentPage = 1;
-				else _currentPage = 2;
-				_alarmRotateTimer = millis( );
-				C1_PHASE(C1P_DASH_MUTEX);
-				mutex_enter_blocking(&_stateMutex);
-				_isDirty = true;
-				mutex_exit(&_stateMutex);
-			}
-
-
-			if ((_alarmSlotMask != 0 || _alarmErrMask != 0) && !_alarmSilenced) {
-				uint16_t m = _alarmSlotMask | _alarmErrMask;
-				int alarmCount = 0;
-				/* Slot fixado no painel superior não conta para a rotação:
-				 * ele já está sempre visível no topo; rotacioná-lo também para
-				 * o painel inferior duplicaria o sensor nos dois painéis. */
-				for (int i = 0; i < 10; i++) {
-					if ((m & (1 << i)) && !(_topPanel.fixed && _topPanel.fixedIdx == i)) alarmCount++;
-				}
-
-				if (alarmCount >= 2 && timeSince(_alarmRotateTimer, ALARM_ROTATE_INTERVAL_MS)) {
-					_alarmRotateTimer = millis( );
-					int current = _lastRenderedState.selectedSlotIdx;
-					for (int i = 1; i <= 10; i++) {
-						int idx = (current + i) % 10;
-						if ((_alarmSlotMask | _alarmErrMask) & (1 << idx)) {
-							/* Nunca rotacionar o slot fixado no topo para o
-							 * painel inferior (duplicação). */
-							if (_topPanel.fixed && _topPanel.fixedIdx == idx) continue;
-							if (idx < 4) _currentPage = 0;
-							else if (idx < 8) _currentPage = 1;
-							else _currentPage = 2;
-							UiEvent ev;
-							ev.type = UiEvent::EVT_SLOT_SELECT;
-							ev.id = idx;
-							pushUiEvent(ev);
-							break;
-						}
-					}
-				}
-			}
+			tickDashboard( );
 
 
 			/* During boot screen (state.isBooting=true after
