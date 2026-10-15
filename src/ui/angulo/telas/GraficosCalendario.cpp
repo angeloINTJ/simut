@@ -127,8 +127,11 @@ void desenharCalendario( Pintor &p, const VmCalendario &vm ) {
     if ( dados && !eHoje ) p.fillCircle( cx, (int16_t)( c.y + Y_PONTO ), R_PONTO, T.acento );
   }
 
-  textoCentrado( p, l.temAlgum ? "Ponto = dia com histórico." : "Nenhum dia com histórico neste mês.", ESP2, Y_PE, H_PE, tipo::apoio,
-                 T.tinta2, 'l' );
+  // The empty month's note is the legend's own words: "Nenhum dia com histórico
+  // neste mês." was 280 px of ink in 9 pt, under "Hoje" (the title already says
+  // which month it is).
+  textoCentrado( p, l.temAlgum ? "Ponto = dia com histórico." : "Nenhum dia com histórico.", ESP2, Y_PE, H_PE, tipo::apoio, T.tinta2,
+                 'l' );
   botao( p, l.hoje.x, l.hoje.y, l.hoje.w, l.hoje.h, "Hoje", Botao::SECUNDARIO );
 }
 
