@@ -49,6 +49,7 @@
 #include <vector>
 #include "display/ClockEntry.h"         /* the date and time set at the panel */
 #include "display/DashHold.h"          /* the dashboard's 3 s hold and page button */
+#include "display/GraphNav.h"           /* the calendar's day test */
 #include "display/ListPager.h"         /* the list screens' page arithmetic */
 #include "display/SettingsMenu.h"       /* the panel's Settings menu: rows, order */
 #include "PasswordCheck.h"             /* one derivation per password check */
@@ -5037,6 +5038,39 @@ void test_list_page_step_stops_at_the_ends_and_does_not_wrap(void) {
     TEST_ASSERT_EQUAL_INT(-1, listPageStep(-1, 3, -1));            /* before the first, back: it stays */
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * The calendar's day test (display/GraphNav.h)
+ *
+ * 2026-10-15 (S7 of the UI drivers): whether a day of the calendar has history was spelled out inside the original's handleTouch( ) and
+ * again in the Ângulo's glue. It is one function with no hardware in it now and both drivers call it, so these cases pin what the panel
+ * does. Each case names the mutants it kills; stages/s7_c7 holds the run of each mutant applied to the header and the cases it failed.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+/* The ends of a month, with every bit set so that only the range decides: `>= 0` or a dropped lower bound makes day 0 true; `> 1` makes
+ * day 1 false; `< 31` makes day 31 false; a mask narrowed to 16 bits makes day 31 false. Day 32 is false by the range, but no case can show
+ * that the upper bound is there: unsigned long is 64 bits on the host, so a dropped or widened `<= 31` reads bit 32 of a 32-bit mask, which
+ * is clear. On the RP2040 that shift is undefined, and the bound is what keeps it out. */
+void test_cal_day_has_history_holds_the_first_and_last_day_of_a_month(void) {
+    const uint32_t all = 0xFFFFFFFFu;
+    TEST_ASSERT_FALSE(calDayHasHistory(all, 0));                   /* bit 0 is set and is not a day */
+    TEST_ASSERT_TRUE(calDayHasHistory(all, 1));
+    TEST_ASSERT_TRUE(calDayHasHistory(all, 31));
+    TEST_ASSERT_FALSE(calDayHasHistory(all, 32));
+}
+
+/* The bit is the day's number and the mask decides. With only bit 5 set, day 5 is true and its neighbours are not: a shift of `day - 1`
+ * reads bit 4 for day 5, one of `day + 1` reads bit 5 for day 4. An ignored mask, `|` or `&&` for `&`, `||` for the first or the second `&&`
+ * make day 4 or day 15 true. A shift of `day % 16` finds bit 15 for day 31 and misses the one that is set. */
+void test_cal_day_has_history_reads_the_bit_of_that_day_and_nothing_else(void) {
+    const uint32_t five = 1u << 5;
+    TEST_ASSERT_TRUE(calDayHasHistory(five, 5));
+    TEST_ASSERT_FALSE(calDayHasHistory(five, 4));
+    TEST_ASSERT_FALSE(calDayHasHistory(five, 6));
+    TEST_ASSERT_FALSE(calDayHasHistory(0, 15));                    /* no history at all */
+    TEST_ASSERT_TRUE(calDayHasHistory(1u << 31, 31));              /* the last bit, and only it */
+    TEST_ASSERT_FALSE(calDayHasHistory(1u << 31, 30));
+}
+
 int main(int /*argc*/, char** /*argv*/) {
     UNITY_BEGIN();
 
@@ -5333,6 +5367,8 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_list_pages_rounds_up_and_a_short_last_page_counts);
     RUN_TEST(test_list_clamp_page_holds_a_page_to_the_list_that_exists);
     RUN_TEST(test_list_page_step_stops_at_the_ends_and_does_not_wrap);
+    RUN_TEST(test_cal_day_has_history_holds_the_first_and_last_day_of_a_month);
+    RUN_TEST(test_cal_day_has_history_reads_the_bit_of_that_day_and_nothing_else);
     RUN_TEST(test_settings_menu_item_ids_are_the_historical_ones);
     RUN_TEST(test_settings_menu_order_lists_every_item_once);
     RUN_TEST(test_settings_menu_full_admin_sees_every_item_in_order);

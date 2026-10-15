@@ -1,10 +1,11 @@
 /**
  * @file DisplayManager_Actions.h
  * @brief The core's touch actions of the Painel group (the dashboard and the alarm's action screen), of the Base group (the
- *        confirmation dialogs) and of the Menus group (the settings list, the alarms list and the licence's pages): what a touch on
- *        one of their zones does to the state, defined once, inline, so that the original's handleTouch( ) and a driver's own touch
- *        glue (the Ângulo's uaToquePainel( ), uaToqueBase( ) and uaToqueMenus( )) run the same code and not a copy (stages S5 and S6
- *        of docs/analysis/UI_DRIVERS.md).
+ *        confirmation dialogs), of the Menus group (the settings list, the alarms list and the licence's pages) and of the Gráficos
+ *        group (the graph, its detail, the calendar and the update screen's tap): what a touch on one of their zones does to the
+ *        state, defined once, inline, so that the original's handleTouch( ) and a driver's own touch glue (the Ângulo's
+ *        uaToquePainel( ), uaToqueBase( ), uaToqueMenus( ) and uaToqueGraficos( )) run the same code and not a copy (stages S5, S6
+ *        and S7 of docs/analysis/UI_DRIVERS.md).
  *
  * Each action is declared in class DisplayManager as `inline __attribute__((always_inline))`, next to the core's
  * ticks, and called where its code used to sit, so the compiled image keeps the code it had. The zone decides which
@@ -13,9 +14,9 @@
  * by name.
  *
  * Included LAST, after ui/UiDriverHooks.h, by DisplayManager_Touch.cpp and DisplayManager_Users.cpp, and by the Ângulo's
- * DisplayManager_UiA_Painel.cpp, DisplayManager_UiA.cpp and DisplayManager_UiA_Menus.cpp (none includes a hooks header: the Ângulo's
- * hooks are ordinary functions): an action leans on the hook definitions the original inlines, so a unit that takes the actions takes
- * the hooks first.
+ * DisplayManager_UiA_Painel.cpp, DisplayManager_UiA.cpp, DisplayManager_UiA_Menus.cpp and DisplayManager_UiA_Graficos.cpp (none
+ * includes a hooks header: the Ângulo's hooks are ordinary functions): an action leans on the hook definitions the original inlines,
+ * so a unit that takes the actions takes the hooks first.
  */
 #pragma once
 
@@ -396,4 +397,116 @@ inline __attribute__((always_inline)) void DisplayManager::actLicensePage( int d
 	} else {
 		if (_licensePage < _licenseTotalPages - 1) _licensePage++;
 	}
+}
+
+/* The Gráficos group (stage S7: the graph, its detail, the calendar and the update screen): what a touch on one of their zones does once its
+ * gate has let it through. Whoever decided which zone was hit holds the gate its old zone held (acceptTouch( ), acceptHoldTouch( ) or
+ * acceptSlideTouch( ) with the zone's number), except where a comment below says the gate is inside the action. The actions that read the graph's
+ * package take it as `g`, and the caller passes _graphData: the member exists only when SIMUT_TFT_GRAPH is set. */
+
+/* The X of the graph and of its detail: back to the dashboard, with the time offset back at the present. The caller holds acceptTouch( 0 )
+ * and returns; the dashboard repaints in full. */
+inline __attribute__((always_inline)) void DisplayManager::actGraphClose( ) {
+	_graphNavOffset = 0;
+	_uiMode = MODE_DASHBOARD;
+	_isDirty = true;
+	_forceFullRedraw = true;
+}
+
+/* The chart's central zone: open the detail on the temperature (page 0). The caller holds acceptTouch( 10 ). _repaintGraph is volatile and
+ * stays after the two plain stores, as it was. */
+inline __attribute__((always_inline)) void DisplayManager::actGraphDetailOpen( ) {
+	_detailPage = 0;
+	_uiMode = MODE_GRAPH_DETAIL;
+	_repaintGraph = true;
+}
+
+/* The detail screen shows page `p` (0 = temperature, 1 = humidity, 2 = pressure). The caller decides which page comes next: the original's
+ * cycle from what the sensor has, the Ângulo's pager from the pages it offers. */
+inline __attribute__((always_inline)) void DisplayManager::actDetailPage( uint8_t p ) {
+	_detailPage = p;
+	_repaintGraph = true;
+}
+
+/* The detail screen, past its last page: back to the chart. The original's cycle gets here from a tap on the central zone, the Ângulo's
+ * "Voltar" from its own button; the caller holds the gate. */
+inline __attribute__((always_inline)) void DisplayManager::actDetailBack( ) {
+	_detailPage = 0;
+	_uiMode = MODE_GRAPH_VIEW;
+	_repaintGraph = true;
+}
+
+/* The calendar's way back to the chart, which keeps the data it has. The caller holds acceptTouch( 0 ) and returns. */
+inline __attribute__((always_inline)) void DisplayManager::actCalendarBack( ) {
+	_uiMode = MODE_GRAPH_VIEW;
+	_repaintGraph = true;
+}
+
+/* A tap on the header of the graph or of its detail: the header shows the sensor's name in place of the date and time, and the stamp is what the
+ * loop reads to put them back after 3 s. What it looks like is the driver's (UiChange::GRAPH_HEADER). The caller holds acceptTouch( 0 ) and
+ * returns. The Ângulo has no header target and does not call it. */
+inline __attribute__((always_inline)) void DisplayManager::actGraphShowName( ) {
+	_headerShowName = true;
+	_headerNameTimer = millis( );
+	uiChanged( UiChange::GRAPH_HEADER, 0 );
+}
+
+/* A step in time on the graph or its detail: ask Core 0 for the window before (`dir` = -1) or after (+1) the one on the glass. The caller holds the
+ * hold gate (acceptHoldTouch( 10 ) or ( 11 ) in the original, the Ângulo's own zones), says "busy" when its driver does, and tests the sign before
+ * the gate: ▶ is offered only when the offset is below 0. Core 0 coalesces consecutive EVT_GRAPH_NAV events (AppManager_Events.cpp), so a held
+ * button costs one event per accepted sample. `g` is the package on the glass. */
+inline __attribute__((always_inline)) void DisplayManager::actGraphNav( const GraphDataPackage &g, int dir ) {
+	UiEvent ev; ev.type = UiEvent::EVT_GRAPH_NAV; ev.id = g.sensorIdx; ev.param = dir;
+	pushUiEvent(ev);
+}
+
+/* The calendar: ask Core 0 for the month of the sensor on the glass, with the days that have history (a scan of /history, which is not instant).
+ * The caller holds acceptTouch( 0 ). */
+inline __attribute__((always_inline)) void DisplayManager::actGraphOpenCalendar( const GraphDataPackage &g ) {
+	UiEvent ev; ev.type = UiEvent::EVT_OPEN_CALENDAR; ev.id = g.sensorIdx; ev.param = 0;
+	pushUiEvent(ev);
+}
+
+/* Another period for the graph of the sensor on the glass: ask Core 0 to open it on `range`. The original steps from the period on the glass, one
+ * shorter or one longer, and tests its bounds (> 0, < 4) before the gate; the Ângulo's chips send the period they stand for, and the one that
+ * is lit is inert. The caller holds the gate (acceptHoldTouch( 12 ) or ( 13 ) in the original, a tap in the Ângulo). */
+inline __attribute__((always_inline)) void DisplayManager::actGraphPeriod( const GraphDataPackage &g, int range ) {
+	UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = g.sensorIdx; ev.param = range;
+	pushUiEvent(ev);
+}
+
+/* The calendar's month arrows: ask Core 0 for the month before (`dir` = -1) or after (+1) the one on the glass, for the sensor of `g`. The caller
+ * holds acceptSlideTouch( 20 ) or ( 21 ), which lets a finger slide from one arrow to the next, and says "busy" when its driver does. */
+inline __attribute__((always_inline)) void DisplayManager::actCalendarMonth( const GraphDataPackage &g, int dir ) {
+	UiEvent ev; ev.type = UiEvent::EVT_CALENDAR_MONTH; ev.id = g.sensorIdx; ev.param = dir;
+	pushUiEvent(ev);
+}
+
+/* A day of the calendar that has history: ask Core 0 for its 24 hours. The caller has tested the day against _calDaysMask and holds acceptTouch( 0 )
+ * (the original) or the cell's zone (the Ângulo). Core 0 answers with the loading screen. */
+inline __attribute__((always_inline)) void DisplayManager::actCalendarDay( const GraphDataPackage &g, int day ) {
+	UiEvent ev; ev.type = UiEvent::EVT_CALENDAR_DAY;
+	ev.id = g.sensorIdx;
+	ev.param = day;
+	pushUiEvent(ev);
+}
+
+/* Today, on the calendar: the offset goes back to the present and Core 0 opens the chart again on the period it had. The caller holds acceptTouch( 0 ). */
+inline __attribute__((always_inline)) void DisplayManager::actCalendarToday( const GraphDataPackage &g ) {
+	_graphNavOffset = 0;
+	UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = g.sensorIdx; ev.param = g.timeRange;
+	pushUiEvent(ev);
+}
+
+/* The update screen's tap (MODE_OTA_UPDATE), its gate included. The gate has to follow the phase test, which is why the action holds both: a caller
+ * that took acceptTouch( ) first would arm the touch-priority window on a tap during an update. Moved as it stood, early return and all: the branch is
+ * the last of the mode chain in handleTouch( ), and nothing follows it. */
+inline __attribute__((always_inline)) void DisplayManager::actOtaDismiss( ) {
+	/* Deaf while an update runs, so a hand on the glass changes nothing; a
+	 * tap anywhere leaves a screen that reports an ending. Through
+	 * acceptTouch only then — it is what arms the touch-priority window,
+	 * and that window would answer the apply with a 503. */
+	const uint32_t st = __atomic_load_n(&_otaState, __ATOMIC_ACQUIRE);
+	if (!otaTapDismisses(otaPhaseOf(st)) || !acceptTouch(0xC6)) return;
+	if (otaEnd(st)) forceDashboard( );
 }

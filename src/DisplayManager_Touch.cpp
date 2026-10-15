@@ -21,6 +21,7 @@
 #include "PasswordKeyboard.h"
 #include "sensors/SensorDrawing.h" /* min/max graph button geometry */
 #include "ui/UiDriverHooks.h"   /* uiChanged( ), which the dashboard's touches raise: the hook definitions need the complete class, so after every other include */
+#include "display/GraphNav.h"        /* calDayHasHistory( ): the calendar's day test */
 #include "DisplayManager_Actions.h"   /* the core's touch actions; last, they lean on the hooks above */
 
 void DisplayManager::handleTouch( ) {
@@ -434,13 +435,11 @@ void DisplayManager::handleTouch( ) {
 #if SIMUT_TFT_GRAPH
  else if (_uiMode == MODE_GRAPH_VIEW) {
  /* X button (close) — top right corner */
- if (y < 40 && x > 284) { if (!acceptTouch(0)) return; _graphNavOffset = 0; _uiMode = MODE_DASHBOARD; _isDirty = true; _forceFullRedraw = true; return; }
+ if (y < 40 && x > 284) { if (!acceptTouch(0)) return; actGraphClose( ); return; }
  /* Tap on header — show sensor name for 3s */
  if (y < 28 && x < 284) {
  if (!acceptTouch(0)) return;
- _headerShowName = true;
- _headerNameTimer = millis( );
- drawGraphHeaderBar( );
+ actGraphShowName( );
  return;
  }
  /* ── Bottom bar: [◀Past][▶Fut][📅Cal][🔍+ZoomIn][🔍-ZoomOut] ──
@@ -457,58 +456,47 @@ void DisplayManager::handleTouch( ) {
  if (btn == 0) {
  /* Past (◀) */
  if (!acceptHoldTouch(10)) return;
- drawGraphBusyHint( ); /* instant feedback; Core 0 read may take a while */
- UiEvent ev; ev.type = UiEvent::EVT_GRAPH_NAV; ev.id = _graphData.sensorIdx; ev.param = -1;
- pushUiEvent(ev); return;
+ uiChanged( UiChange::GRAPH_BUSY, 0 ); /* instant feedback; Core 0 read may take a while */
+ actGraphNav( _graphData, -1 ); return;
  }
  if (btn == 1 && _graphNavOffset < 0) {
  /* Future (▶) — only if offset < 0 */
  if (!acceptHoldTouch(11)) return;
- drawGraphBusyHint( );
- UiEvent ev; ev.type = UiEvent::EVT_GRAPH_NAV; ev.id = _graphData.sensorIdx; ev.param = +1;
- pushUiEvent(ev); return;
+ uiChanged( UiChange::GRAPH_BUSY, 0 );
+ actGraphNav( _graphData, +1 ); return;
  }
  if (btn == 2) {
  /* Calendar (📅) */
  if (!acceptTouch(0)) return;
- drawGraphBusyHint( ); /* days-mask scan of /history is not instant */
- UiEvent ev; ev.type = UiEvent::EVT_OPEN_CALENDAR; ev.id = _graphData.sensorIdx; ev.param = 0;
- pushUiEvent(ev); return;
+ uiChanged( UiChange::GRAPH_BUSY, 0 ); /* days-mask scan of /history is not instant */
+ actGraphOpenCalendar( _graphData ); return;
  }
  if (btn == 3 && _graphData.timeRange > 0) {
  /* Zoom In — shorter range (more detail) */
  if (!acceptHoldTouch(12)) return;
- drawGraphBusyHint( );
- int newRange = _graphData.timeRange - 1;
- UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = _graphData.sensorIdx; ev.param = newRange;
- pushUiEvent(ev); return;
+ uiChanged( UiChange::GRAPH_BUSY, 0 );
+ actGraphPeriod( _graphData, _graphData.timeRange - 1 ); return;
  }
  if (btn == 4 && _graphData.timeRange < 4) {
  /* Zoom Out — longer range (less detail) */
  if (!acceptHoldTouch(13)) return;
- drawGraphBusyHint( );
- int newRange = _graphData.timeRange + 1;
- UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = _graphData.sensorIdx; ev.param = newRange;
- pushUiEvent(ev); return;
+ uiChanged( UiChange::GRAPH_BUSY, 0 );
+ actGraphPeriod( _graphData, _graphData.timeRange + 1 ); return;
  }
  }
  /* Tap on central zone -> temperature details (page 0) */
  if (y >= 40 && y < 195) {
  if (!acceptTouch(10)) return;
- _detailPage = 0;
- _uiMode = MODE_GRAPH_DETAIL;
- _repaintGraph = true;
+ actGraphDetailOpen( );
  }
  }
  else if (_uiMode == MODE_GRAPH_DETAIL) {
  /* X button — close to dashboard */
- if (y < 40 && x > 284) { if (!acceptTouch(0)) return; _graphNavOffset = 0; _uiMode = MODE_DASHBOARD; _isDirty = true; _forceFullRedraw = true; return; }
+ if (y < 40 && x > 284) { if (!acceptTouch(0)) return; actGraphClose( ); return; }
  /* Tap on header — show sensor name for 3s */
  if (y < 28 && x < 284) {
  if (!acceptTouch(0)) return;
- _headerShowName = true;
- _headerNameTimer = millis( );
- drawGraphHeaderBar( );
+ actGraphShowName( );
  return;
  }
  /* Bottom bar — same logic as graph view, same GRAPH_PBTN_* geometry */
@@ -523,39 +511,32 @@ void DisplayManager::handleTouch( ) {
  if (btn == 0) {
  /* Past (◀) */
  if (!acceptHoldTouch(10)) return;
- drawGraphBusyHint( );
- UiEvent ev; ev.type = UiEvent::EVT_GRAPH_NAV; ev.id = _graphData.sensorIdx; ev.param = -1;
- pushUiEvent(ev); return;
+ uiChanged( UiChange::GRAPH_BUSY, 0 );
+ actGraphNav( _graphData, -1 ); return;
  }
  if (btn == 1 && _graphNavOffset < 0) {
  /* Future (▶) — only if offset < 0 */
  if (!acceptHoldTouch(11)) return;
- drawGraphBusyHint( );
- UiEvent ev; ev.type = UiEvent::EVT_GRAPH_NAV; ev.id = _graphData.sensorIdx; ev.param = +1;
- pushUiEvent(ev); return;
+ uiChanged( UiChange::GRAPH_BUSY, 0 );
+ actGraphNav( _graphData, +1 ); return;
  }
  if (btn == 2) {
  /* Calendar (📅) */
  if (!acceptTouch(0)) return;
- drawGraphBusyHint( );
- UiEvent ev; ev.type = UiEvent::EVT_OPEN_CALENDAR; ev.id = _graphData.sensorIdx; ev.param = 0;
- pushUiEvent(ev); return;
+ uiChanged( UiChange::GRAPH_BUSY, 0 );
+ actGraphOpenCalendar( _graphData ); return;
  }
  if (btn == 3 && _graphData.timeRange > 0) {
  /* Zoom In — shorter range (more detail) */
  if (!acceptHoldTouch(12)) return;
- drawGraphBusyHint( );
- int newRange = _graphData.timeRange - 1;
- UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = _graphData.sensorIdx; ev.param = newRange;
- pushUiEvent(ev); return;
+ uiChanged( UiChange::GRAPH_BUSY, 0 );
+ actGraphPeriod( _graphData, _graphData.timeRange - 1 ); return;
  }
  if (btn == 4 && _graphData.timeRange < 4) {
  /* Zoom Out — longer range (less detail) */
  if (!acceptHoldTouch(13)) return;
- drawGraphBusyHint( );
- int newRange = _graphData.timeRange + 1;
- UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = _graphData.sensorIdx; ev.param = newRange;
- pushUiEvent(ev); return;
+ uiChanged( UiChange::GRAPH_BUSY, 0 );
+ actGraphPeriod( _graphData, _graphData.timeRange + 1 ); return;
  }
  }
  /* Tap on central zone -> next page or return to graph */
@@ -565,17 +546,13 @@ void DisplayManager::handleTouch( ) {
  bool hasPressNow = _graphData.hasPressure;
  if (_detailPage == 0 && hasHumNow) {
  /* Temperature -> Humidity */
- _detailPage = 1;
- _repaintGraph = true;
+ actDetailPage( 1 );
  } else if (_detailPage < 2 && hasPressNow) {
  /* Temperature or Humidity -> Pressure (BMP280 skips the hum page) */
- _detailPage = 2;
- _repaintGraph = true;
+ actDetailPage( 2 );
  } else {
  /* Last page for this sensor -> return to graph */
- _detailPage = 0;
- _uiMode = MODE_GRAPH_VIEW;
- _repaintGraph = true;
+ actDetailBack( );
  }
  }
  }
@@ -584,21 +561,18 @@ void DisplayManager::handleTouch( ) {
  /* X button (back to graph) — top right corner */
  if (y < 28 && x >= 270) {
  if (!acceptTouch(0)) return;
- _uiMode = MODE_GRAPH_VIEW;
- _repaintGraph = true;
+ actCalendarBack( );
  return;
  }
  /* ◀ Month arrow — header left */
  if (y < 28 && x < 30) {
  if (!acceptSlideTouch(20)) return;
- UiEvent ev; ev.type = UiEvent::EVT_CALENDAR_MONTH; ev.id = _graphData.sensorIdx; ev.param = -1;
- pushUiEvent(ev); return;
+ actCalendarMonth( _graphData, -1 ); return;
  }
  /* ▶ Month arrow — header right */
  if (y < 28 && x > 290) {
  if (!acceptSlideTouch(21)) return;
- UiEvent ev; ev.type = UiEvent::EVT_CALENDAR_MONTH; ev.id = _graphData.sensorIdx; ev.param = +1;
- pushUiEvent(ev); return;
+ actCalendarMonth( _graphData, +1 ); return;
  }
  /* ── Day grid (y=44..190) ── */
  if (y >= 44 && y < 190) {
@@ -618,13 +592,10 @@ void DisplayManager::handleTouch( ) {
  int dayNum = cell - firstDow + 1;
 
  /* Check if it's a valid day with data */
- if (dayNum >= 1 && dayNum <= 31 && (_calDaysMask & (1UL << dayNum))) {
+ if (calDayHasHistory( _calDaysMask, dayNum )) {
  if (!acceptTouch(0)) return;
- drawGraphBusyHint( ); /* day read can take a second on 24H */
- UiEvent ev; ev.type = UiEvent::EVT_CALENDAR_DAY;
- ev.id = _graphData.sensorIdx;
- ev.param = dayNum;
- pushUiEvent(ev);
+ uiChanged( UiChange::GRAPH_BUSY, 0 ); /* day read can take a second on 24H */
+ actCalendarDay( _graphData, dayNum );
  }
  }
  }
@@ -633,20 +604,16 @@ void DisplayManager::handleTouch( ) {
  if (x < 106) {
  /* ◀ Month */
  if (!acceptSlideTouch(20)) return;
- UiEvent ev; ev.type = UiEvent::EVT_CALENDAR_MONTH; ev.id = _graphData.sensorIdx; ev.param = -1;
- pushUiEvent(ev);
+ actCalendarMonth( _graphData, -1 );
  } else if (x >= 108 && x < 212) {
  /* Today — returns to graph with offset 0 */
  if (!acceptTouch(0)) return;
- drawGraphBusyHint( );
- _graphNavOffset = 0;
- UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = _graphData.sensorIdx; ev.param = _graphData.timeRange;
- pushUiEvent(ev);
+ uiChanged( UiChange::GRAPH_BUSY, 0 );
+ actCalendarToday( _graphData );
  } else if (x >= 217) {
  /* Month ▶ */
  if (!acceptSlideTouch(21)) return;
- UiEvent ev; ev.type = UiEvent::EVT_CALENDAR_MONTH; ev.id = _graphData.sensorIdx; ev.param = +1;
- pushUiEvent(ev);
+ actCalendarMonth( _graphData, +1 );
  }
  }
  }
@@ -1468,13 +1435,7 @@ void DisplayManager::handleTouch( ) {
  }
  }
  else if (_uiMode == MODE_OTA_UPDATE) {
- /* Deaf while an update runs, so a hand on the glass changes nothing; a
-  * tap anywhere leaves a screen that reports an ending. Through
-  * acceptTouch only then — it is what arms the touch-priority window,
-  * and that window would answer the apply with a 503. */
- const uint32_t st = __atomic_load_n(&_otaState, __ATOMIC_ACQUIRE);
- if (!otaTapDismisses(otaPhaseOf(st)) || !acceptTouch(0xC6)) return;
- if (otaEnd(st)) forceDashboard( );
+ actOtaDismiss( );   /* deaf while an update runs: the phase test and the gate are inside */
  }
 }
 

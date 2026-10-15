@@ -42,6 +42,8 @@ enum class UiChange : uint8_t {
 	ALARM_RESTORE,   /**< the alarm ended: the normal cards come back */
 	BOTTOM_PANEL,    /**< the bottom card's min/max face was toggled: it shows the other face */
 	BOTTOM_BUTTONS,  /**< the row of buttons changed (a page turned, a slot was chosen): `arg` is the slot it highlights */
+	GRAPH_HEADER,    /**< the graph's header was asked for the sensor's name (a tap on it): it shows the name for 3 s */
+	GRAPH_BUSY,      /**< a request that takes a while went to Core 0 (a step in time, a period, the calendar, a day, Today): the screen says so until the data lands */
 };
 
 /* The Ângulo build (pico_wiretft_angulo, src/ui/angulo/) paints every screen
