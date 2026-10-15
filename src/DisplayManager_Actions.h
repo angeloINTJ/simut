@@ -621,3 +621,64 @@ inline __attribute__((always_inline)) void DisplayManager::actOffsetApply( ) {
 	ev.param = _offsetPreviewY;
 	pushUiEvent(ev);
 }
+
+/* The melody picker (MODE_SETTINGS_SOUNDS with _inMelodySelect set): which of the six melodies a sound plays. _melSelectType is the sound (0 touch,
+ * 1 confirmation, 2 error, 3 alarm, 4 attention) and _melSelectIdx the melody on show; nothing reaches the settings until Use. */
+
+/* Pick melody `idx` (0 to 5): it becomes the one on show and plays as a preview on the event of the sound being chosen, and the screen is repainted. The
+ * caller does the choosing, the original's rows and wraps and the Ângulo's rows, and holds the gate. */
+inline __attribute__((always_inline)) void DisplayManager::actMelodyPick( uint8_t idx ) {
+	_melSelectIdx = idx;
+	SoundEvent evType = SND_NONE;
+	switch (_melSelectType) {
+	case 0: evType = SND_TOUCH_CLICK; break;
+	case 1: evType = SND_CONFIRM; break;
+	case 2: evType = SND_ERROR; break;
+	case 3: evType = SND_ALARM_START; break;
+	case 4: evType = SND_ATTENTION; break;
+	}
+	if (evType != SND_NONE) requestPreviewSound(evType, _melSelectIdx);
+	_repaintSettings = true;
+}
+
+/* Voltar: back to the sounds list, nothing taken. The caller holds acceptTouch( 0x92 ). */
+inline __attribute__((always_inline)) void DisplayManager::actMelodyBack( ) {
+	_inMelodySelect = false;
+	_forceSettingsRedraw = true;
+	_repaintSettings = true;
+}
+
+/* Usar: the picker's own Save. The sound being chosen is turned on with the melody on show, in the copy only (the list's Save writes it), the global mute
+ * goes off, as the web does, the confirmation sound plays, and the list comes back. The stores come before the preview, which hands the sound to
+ * Core 0. The caller holds acceptTouch( 0x93 ). */
+inline __attribute__((always_inline)) void DisplayManager::actMelodyUse( ) {
+	switch (_melSelectType) {
+	case 0:
+		_soundSettings.touchEnabled = true;
+		_soundSettings.touchMelody = _melSelectIdx;
+		break;
+	case 1:
+		_soundSettings.confirmEnabled = true;
+		_soundSettings.confirmMelody = _melSelectIdx;
+		break;
+	case 2:
+		_soundSettings.errorEnabled = true;
+		_soundSettings.errorMelody = _melSelectIdx;
+		break;
+	case 3:
+		_soundSettings.alarmEnabled = true;
+		_soundSettings.alarmMelody = _melSelectIdx;
+		break;
+	case 4:
+		_soundSettings.attentionEnabled = true;
+		_soundSettings.attentionMelody = _melSelectIdx;
+		break;
+	}
+	/* Parity with web /alarms: turning on any individual sound turns off global mute. */
+	_soundSettings.muted = false;
+	requestPreviewSound(SND_CONFIRM, _soundSettings.confirmMelody);
+
+	_inMelodySelect = false;
+	_forceSettingsRedraw = true;
+	_repaintSettings = true;
+}

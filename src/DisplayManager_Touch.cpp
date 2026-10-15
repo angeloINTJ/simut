@@ -1083,84 +1083,24 @@ void DisplayManager::handleTouch( ) {
  if (mapIdx >= TOTAL_VARIANTS) return;
  if (!acceptSlideTouch(0x80 + clickedIndex)) return;
 
- _melSelectIdx = (uint8_t)mapIdx;
- SoundEvent evType = SND_NONE;
- switch (_melSelectType) {
- case 0: evType = SND_TOUCH_CLICK; break;
- case 1: evType = SND_CONFIRM; break;
- case 2: evType = SND_ERROR; break;
- case 3: evType = SND_ALARM_START; break;
- case 4: evType = SND_ATTENTION; break;
- }
- if (evType != SND_NONE) requestPreviewSound(evType, _melSelectIdx);
- _repaintSettings = true;
+ actMelodyPick( (uint8_t)mapIdx );
  }
  else if (y > 185) {
  if (x < 70) {
  if (!acceptTouch(0x90)) return;
- _melSelectIdx = (_melSelectIdx > 0) ? _melSelectIdx - 1 : TOTAL_VARIANTS - 1;
- SoundEvent evType = SND_NONE;
- switch (_melSelectType) {
- case 0: evType = SND_TOUCH_CLICK; break;
- case 1: evType = SND_CONFIRM; break;
- case 2: evType = SND_ERROR; break;
- case 3: evType = SND_ALARM_START; break;
- case 4: evType = SND_ATTENTION; break;
- }
- if (evType != SND_NONE) requestPreviewSound(evType, _melSelectIdx);
- _repaintSettings = true;
+ actMelodyPick( (_melSelectIdx > 0) ? _melSelectIdx - 1 : TOTAL_VARIANTS - 1 );
  }
  else if (x < 138) {
  if (!acceptTouch(0x91)) return;
- _melSelectIdx = (_melSelectIdx < TOTAL_VARIANTS - 1) ? _melSelectIdx + 1 : 0;
- SoundEvent evType = SND_NONE;
- switch (_melSelectType) {
- case 0: evType = SND_TOUCH_CLICK; break;
- case 1: evType = SND_CONFIRM; break;
- case 2: evType = SND_ERROR; break;
- case 3: evType = SND_ALARM_START; break;
- case 4: evType = SND_ATTENTION; break;
- }
- if (evType != SND_NONE) requestPreviewSound(evType, _melSelectIdx);
- _repaintSettings = true;
+ actMelodyPick( (_melSelectIdx < TOTAL_VARIANTS - 1) ? _melSelectIdx + 1 : 0 );
  }
  else if (x < 219) {
  if (!acceptTouch(0x92)) return;
- _inMelodySelect = false;
- _forceSettingsRedraw = true;
- _repaintSettings = true;
+ actMelodyBack( );
  }
  else {
  if (!acceptTouch(0x93)) return;
- switch (_melSelectType) {
- case 0:
- _soundSettings.touchEnabled = true;
- _soundSettings.touchMelody = _melSelectIdx;
- break;
- case 1:
- _soundSettings.confirmEnabled = true;
- _soundSettings.confirmMelody = _melSelectIdx;
- break;
- case 2:
- _soundSettings.errorEnabled = true;
- _soundSettings.errorMelody = _melSelectIdx;
- break;
- case 3:
- _soundSettings.alarmEnabled = true;
- _soundSettings.alarmMelody = _melSelectIdx;
- break;
- case 4:
- _soundSettings.attentionEnabled = true;
- _soundSettings.attentionMelody = _melSelectIdx;
- break;
- }
- /* Parity with web /alarms: turning on any individual sound turns off global mute. */
- _soundSettings.muted = false;
- requestPreviewSound(SND_CONFIRM, _soundSettings.confirmMelody);
-
- _inMelodySelect = false;
- _forceSettingsRedraw = true;
- _repaintSettings = true;
+ actMelodyUse( );
  }
  }
  return;

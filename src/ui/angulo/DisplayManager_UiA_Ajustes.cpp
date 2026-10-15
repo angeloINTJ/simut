@@ -8,9 +8,9 @@
  *  - Controller (C): the clock, the display alignment, the limits, the
  *    maintenance window, the sounds with their melody and the PIN policy do
  *    what the old branch does, with the old state, events and filters; each
- *    action cites the old line it reproduces. The clock and the alignment run
- *    the core's actions (DisplayManager_Actions.h) behind the zones the old
- *    branch used, so a held arrow repeats as it did.
+ *    action cites the old line it reproduces. The clock, the alignment and the
+ *    melody picker run the core's actions (DisplayManager_Actions.h) behind the
+ *    zones the old branch used, so a held arrow repeats as it did.
  *  - Raw (B): the touch sensitivity and the calibration read the touch before
  *    any hook (DisplayManager_Touch.cpp, the two blocks that end in return),
  *    so a touch on them never gets here; only the frame is built.
@@ -99,21 +99,6 @@ void passoLimite( SensorRecord &rec, int idx, float step ) {
     }
     if ( rec.chMax[ch] > info.saneMax ) rec.chMax[ch] = info.saneMax;
     if ( rec.chMin[ch] < info.saneMin ) rec.chMin[ch] = info.saneMin;
-  }
-}
-
-/* The sound event the melody selector previews for each sound it chooses the
- * melody of: 0 touch, 1 confirmation, 2 error, 3 alarm, 4 attention (the old
- * switch, repeated three times in DisplayManager_Touch.cpp:1299-1305, 1314-1320
- * and 1328-1334). */
-SoundEvent eventoDoSom( uint8_t tipo ) {
-  switch ( tipo ) {
-    case 0: return SND_TOUCH_CLICK;
-    case 1: return SND_CONFIRM;
-    case 2: return SND_ERROR;
-    case 3: return SND_ALARM_START;
-    case 4: return SND_ATTENTION;
-    default: return SND_NONE;
   }
 }
 
@@ -481,46 +466,28 @@ UaToque DisplayManager::uaToqueAjustes( const ua::Alvo *a, int16_t &x, int16_t &
     case MODE_SETTINGS_SOUNDS: {
       if ( !a ) return UaToque::TRATADO;
       if ( _inMelodySelect ) {
-        /* Controller, the melody's choice: DisplayManager_Touch.cpp:1285-1378. */
+        /* Controller, the melody's choice: what the melody screen's branch of handleTouch( ) does (DisplayManager_Touch.cpp), through the core's actions. */
         switch ( a->tipo ) {
           case MELOD_ITEM: {
-            /* A row chooses it and plays the preview; sliding to another one does
-             * the same (Touch.cpp:1291-1307). */
+            /* A row chooses it and plays the preview; sliding to another one does the same (actMelodyPick( ), the core's, which the original's arrows
+             * run too). */
             const int j = a->indice;
             if ( j < 0 || j >= MELODIAS_POR_SOM ) return UaToque::TRATADO;
             if ( !acceptSlideTouch( (uint8_t)( 0x80 + j ) ) ) return UaToque::TRATADO;
-            _melSelectIdx = (uint8_t)j;
-            const SoundEvent ev = eventoDoSom( _melSelectType );
-            if ( ev != SND_NONE ) requestPreviewSound( ev, _melSelectIdx );
+            actMelodyPick( (uint8_t)j );
             return UaToque::TRATADO;
           }
           case MELOD_VOLTAR:
           case MELOD_CANCELAR:
-            /* Back to the list, nothing taken (Touch.cpp:1337-1342). */
+            /* Back to the list, nothing taken (actMelodyBack( ), the core's). */
             if ( !acceptTouch( 0x92 ) ) return UaToque::TRATADO;
-            _inMelodySelect = false;
-            _forceSettingsRedraw = true;
-            _repaintSettings = true;
+            actMelodyBack( );
             return UaToque::TRATADO;
           case MELOD_USAR:
-            /* The selector's own SAVE: it turns the sound on with the chosen
-             * melody, in the copy only (the list's SAVE writes it), and turns the
-             * global mute off, as the web does; then the confirmation sound
-             * (Touch.cpp:1343-1378). */
+            /* The selector's own SAVE (actMelodyUse( ), the core's): it turns the sound on with the chosen melody, in the copy only (the list's SAVE
+             * writes it), turns the global mute off, as the web does, and plays the confirmation sound. */
             if ( !acceptTouch( 0x93 ) ) return UaToque::TRATADO;
-            switch ( _melSelectType ) {
-              case 0: _soundSettings.touchEnabled = true; _soundSettings.touchMelody = _melSelectIdx; break;
-              case 1: _soundSettings.confirmEnabled = true; _soundSettings.confirmMelody = _melSelectIdx; break;
-              case 2: _soundSettings.errorEnabled = true; _soundSettings.errorMelody = _melSelectIdx; break;
-              case 3: _soundSettings.alarmEnabled = true; _soundSettings.alarmMelody = _melSelectIdx; break;
-              case 4: _soundSettings.attentionEnabled = true; _soundSettings.attentionMelody = _melSelectIdx; break;
-              default: break;
-            }
-            _soundSettings.muted = false;
-            requestPreviewSound( SND_CONFIRM, _soundSettings.confirmMelody );
-            _inMelodySelect = false;
-            _forceSettingsRedraw = true;
-            _repaintSettings = true;
+            actMelodyUse( );
             return UaToque::TRATADO;
           default:
             return UaToque::TRATADO;
