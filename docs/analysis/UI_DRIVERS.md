@@ -486,9 +486,10 @@ came with them (section 2.2): `uiTopPanel( snap )`, the two draw calls `redrawTo
 to `DisplayManager_Actions.h` as a plain `inline` function: left in the class, every unit that includes `DisplayManager.h`
 parses its call to `uiTopPanel( )`, and GCC stopped all nine images on "inline function used but never defined" (`-Werror`)
 in the units that do not take the original's hook definitions. The pure part is in `src/display/DashHold.h` (`dashHoldStep(
-)`, the clock of the 3 s hold, and `dashNextPage( )`), with six cases in `test/test_validators` (`pio test -e native`, 294
-of 294) and three negative controls, each of which fails the cases it should. The plan's `uiTouchUp( )` was not needed: the
-lift is answered at the top of `handleTouch( )`, before any driver code. The allowances stay at 50.
+)`, the clock of the 3 s hold, and `dashNextPage( )`), with nine cases in `test/test_validators` (`pio test -e native`, 297
+of 297; the last three came with the review of C9, for three mutants the first six let live) and six negative controls,
+each of which fails the cases it should (three at C8, three at C10). The plan's `uiTouchUp( )` was not needed: the lift is
+answered at the top of `handleTouch( )`, before any driver code. The allowances stay at 50.
 
 How S5 was proved (the outputs are in `$B/stages/s5_c*`, outside the repository; every image was built with the private core
 that matches CI):
@@ -512,10 +513,17 @@ that matches CI):
   differences, and 32, 102,227 and 122,564 for the three mutants; the load of `_lastTouchRegion` moves ahead of two plain
   stores, and that member is written on Core 1 only).
 
+- **The review of C9 (C10).** Three mutants of `dashHoldStep( )` lived through the first six cases: `==` for `>=` in the
+  fire test, no `fired = false` in the restart, and no `start != 0` in front of the gap test. Every cadence there is a
+  multiple of 15 ms and 3000 is 200 of them, and none meets a gap with no hold running. Three cases were added (a 17 ms
+  cadence, which first fires at +3009; a hold that fires, meets a 121 ms gap and fires again; a 121 ms gap with `start ==
+  0`). With each mutant applied, `pio test -e native` fails that case and no other (`stages/s5_c10/native_m4.txt` to
+  `native_m6.txt`); without them 297 of 297 pass (`native_after.txt`).
+
 - **Gates.** `check_ui_boundary.py` 0 findings and `test_ui_boundary.py` 285 of 285; `check_authz.py` and its test;
   `check_feature_sprawl.py` 358 sites, as before: the two `SIMUT_TFT_GRAPH` blocks moved with their actions (Touch.cpp 3 to
   1, `DisplayManager_Actions.h` 0 to 2) and the marks were rewritten with `--update`; the six host screen groups and
-  `host_ui.py` 106 of 106; the flash budgets of the ten images and the OTA table; `check_readme_numbers.py` (695 cases in 11
+  `host_ui.py` 106 of 106; the flash budgets of the ten images and the OTA table; `check_readme_numbers.py` (698 cases in 11
   suites). Nothing of this ran on hardware.
 
 **One call without a `return;`.** The branches of the upper card, the lower card and the boot screen end with the `return;`
