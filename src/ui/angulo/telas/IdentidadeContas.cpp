@@ -254,8 +254,10 @@ void desenharConta( Pintor &p, const VmConta &vm ) {
   lista( p, Y0, perms, 3, H_CTA );
 
   if ( vm.nova ) {
-    // What comes after Seguir, said before the tap.
-    textoCentrado( p, "Depois de Seguir, você define o PIN da conta.", PAD, l.yNota, 16, tipo::apoio, T.tinta2, 'l' );
+    // What comes after Seguir, said before the tap. Two lines, 18 px apart: in one the sentence
+    // is 345 px and left the glass at 9 pt (2026-10-15), and 68 px are free under the switches.
+    textoCentrado( p, "Depois de Seguir, você define", PAD, l.yNota, 18, tipo::apoio, T.tinta2, 'l' );
+    textoCentrado( p, "o PIN da conta.", PAD, l.yNota + 18, 18, tipo::apoio, T.tinta2, 'l' );
   } else {
     Item acoes[2];
     acoes[0].texto = "Definir PIN";
