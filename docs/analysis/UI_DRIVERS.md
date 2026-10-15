@@ -17,7 +17,7 @@ Status of the sections, updated in the commit that fills each one:
 | section | state |
 |---|---|
 | 2. The contract | pending |
-| 3.1 (a) Members written inside draw bodies | pending |
+| 3.1 (a) Members written inside draw bodies | done |
 | 3.2 (b) Callers outside the display units | pending |
 | 3.3 (c) Every function, classified | pending |
 | 3.4 (d) The study's glue | done |
@@ -46,7 +46,136 @@ Pending.
 
 ### 3.1 (a) Members written inside draw bodies
 
-Pending.
+**Scope.** The 56 function definitions named `draw*`, `redraw*`, `render` or
+`drawOtaScreen` in `DisplayManager.h` (one inline, `redrawTopPanel`) and in the
+TFT units, on `192e1ad`. 31 of them write at least one `DisplayManager` member;
+the other 25 write none. A member here is a data member of the class, or a
+field of a member struct (`_topPanel.showMinMax`).
+
+**How it was produced** (two methods, so one cannot hide the other's error):
+
+1. A text scanner, `python3 $B/tools/ui_writes.py <worktree>` (`--all` for every
+   function, `--callees` for the helpers). It blanks comments and literals,
+   reads the member list from `DisplayManager.h`, and reports an assignment,
+   `++`/`--`, a first argument of `memcpy`, `snprintf`, `safeCopy` and the like,
+   or a taken address. It follows a `DashPanel&` parameter as `_topPanel` or
+   `_bottomPanel`, and it lists function-local and file-scope statics.
+2. The compiler as a control, `python3 $B/tools/ui_constcheck.py <copy> <env> <worktree>`.
+   In a scratch **copy** of the tree (`pio run -e <env> -t compiledb` makes
+   `compile_commands.json` there), every non-static data member of
+   `DisplayManager` is made `const` (a pointer member: the pointer, not the
+   pointee), and each display unit is compiled with `-fsyntax-only`. Every
+   write, increment, atomic store, or pass to a mutable pointer or reference is
+   then an error at the line that does it, and gcc goes on, so one run lists
+   them all (1.3 s for 16 units). Run for `pico_wiretft` and for `pico_w_release`
+   (the second adds `drawApConfirm`, which only the Wi-Fi builds compile).
+   Control: the six members the plan named all appear in `render`, at the
+   lines below, and three of `render`'s write sites are not in the plan's lines
+   (`_lastRenderedState` at 1814 and 1915, and the `_forceFullRedraw` set at 1901).
+
+The two agree on every draw body. The compiler cannot see through an alias that
+is not a member, which is why the scanner is kept: `drawSlotPanel` writes
+through `DashPanel& panel`. The scanner cannot resolve scopes; the compiler
+does. No draw body writes through `_sysConfigPtr` (grep and the aliases `cfg`,
+`rec`, `u` in the draw bodies, 2026-10-14).
+
+**The plan's starting list, checked.** The plan's line numbers belong to the
+study tree; on `192e1ad` they are:
+
+| member | plan | `192e1ad` | what the code says |
+|---|---|---|---|
+| `_lastRenderedState` | 1947, 2044 | `DisplayManager.cpp:1814, 1894, 1915, 1991` | **four** sites, not two: the AP-progress frame (1814) and the full-redraw branch (1915) also store it |
+| `_bootPaintSeq` | 1868, 1948 | `:1815, 1895` | as planned (`++` after the AP frame and after the boot frame) |
+| `showMinMax` | 2007, 2011 | `:1954` (`_topPanel`), `:1958` (`_bottomPanel`) | a field of `DashPanel`, not a member of the class; the reset after 30 s without a touch |
+| `_prevAlarmSlotMask` | 2041 | `:1988` | as planned; no other function reads it |
+| `_forceFullRedraw` | 1967 | `:1901` (set), `:1914` (cleared) | **two** sites: `render` itself raises it when the boot frame hands over to the dashboard |
+| `_langChanged` | 1844 | `:1791` | as planned; set by `setLanguage` at `:280` |
+
+**Everything the draw bodies write**, grouped by what depends on it. Lines are
+`192e1ad`. "Elsewhere" is the other users of the member, from the same scanner
+(`python3 $B/tools/ui_xref.py <worktree> <names>`, every function of the units).
+
+A. State that other code reads, which a new driver's paint must keep or replace:
+
+| writer (lines) | member, lines | elsewhere | why it matters |
+|---|---|---|---|
+| `render` `DisplayManager.cpp:1772-1992` | `_bootPaintSeq` 1815, 1895 | `bootPaintSeq( )`: `AppManager_Boot.cpp:543, 546` | Core 0 opens the AP-by-touch window on the first boot frame |
+| | `_lastRenderedState` 1814, 1894, 1915, 1991 | `loopCore1` (writes 1289, 1438, 1442; reads 1489, 1514, 1522), `restoreNormalDashboard` (15 reads), `redrawAlarmFlash` | the alarm rotation and flash, and the restore, read `selectedSlotIdx` and `isBooting` from it |
+| | `_langChanged` 1791 (cleared) | set by `setLanguage` `:280` | forces a full boot redraw after a pack loads |
+| | `_forceFullRedraw` 1901 (set), 1914 (cleared) | set by the constructor, `setBootStatus*` (4), `forceDashboard`, `forceGraphView`, `handleTouch` (5) | |
+| | `_topPanel.showMinMax` 1954, `_bottomPanel.showMinMax` 1958 | toggled or cleared by `handleTouch` (`Touch.cpp:49, 435, 505, 524, 542, 575, 576`), read by `drawSlotPanel` 801 | the 30 s return to the normal view is a product timer, and it lives in this body |
+| | `_prevAlarmSlotMask` 1988 | none | diff state of the alarm-button redraw |
+| `drawTopBar` `Dashboard.cpp:457-748` | `_webNotifyStartMs` 551, `_webNotifyUser[0]` 552 | set by `setWebNotification` `DisplayManager.cpp:2004`; read at `:1925` | the banner's expiry is decided here |
+| | `_pktArrowState` 652, `_pktArrowFlashOn` 656, `_pktArrowFlashTime` 657 | set by `setTelemetrySendStatus` (`Settings.cpp:754-766`); `_pktArrowState` read by `render` `:1927` | the telemetry arrow's flash (state 3 returns to 1 after its end time) is advanced in this body |
+| `drawSlotPanel` `Dashboard.cpp:751-1038` | `panel.lastMinMax` 803, 869 (`panel` is `_topPanel` or `_bottomPanel`) | none | diff state, but written through a parameter |
+| `drawLoadingScreen` `Graph.cpp:33-50` | `_loadingDrawn` 49 (set) | cleared by the constructor `DisplayManager.cpp:153` and by `requestLoadingScreen` `Graph.cpp:71`; read by `isLoadingDrawn( )`, waited on up to 500 ms at `AppManager_Events.cpp:170, 233` | answers the plan's open item: this is the one place that sets it |
+| `drawOtaScreen` `Ota.cpp:150-226` | `_otaDrawnSeq` 225 (atomic release store), `_otaRedrawAll` 224, `_otaPctDrawn` 187, 223 | `showOta` waits on `_otaDrawnSeq` (`DisplayManager.cpp:808-822`); `otaTick` sets `_otaRedrawAll` (`Ota.cpp:139`) | Core 0 may paint this screen while Core 1 is parked |
+| `redrawTopPanel` `DisplayManager.h:949-990` | `_sharedState.topSlotIdx` 953, `.selectedSlotIdx` 967 (and `EVT_SLOT_SELECT` pushed at 968-969), `.topSlotTemp/Hum/Pres/Type/Valid` 977-981, `.topSlotName` 982 | the whole of `_sharedState` is the Core 0 to Core 1 channel | core state under the mutex, written by a function that also draws |
+| `drawAlarmEdit` `Settings.cpp:222-334` | `_tempAlarmConfig.chMax[]` 241, 243, `.chMin[]` 244 | `editedAlarmRecord( )`: Core 0 diffs it on `EVT_SAVE_ALARMS`; `handleTouch` (15 uses) | the draw normalises the working copy (min below max, clamped to `saneMax`): configuration data written by a draw function |
+| `drawAlarmEdit` | `_editFieldFocus` 249, 250 | `handleTouch` (13) | clamp |
+| `drawSettingsLicense` `DisplayManager.cpp:2026-2104` | `_licenseTotalPages` 2045, 2046; `_licensePage` 2047, 2048 | `handleTouch` (2 and 8 uses) | touch reads the page count the draw computed |
+| `drawSystemStatus` `Settings.cpp:1334-1526` | `_statusLastDraw` 1521 | `loopCore1` reads it for the 1 s redraw | |
+
+B. Page clamps: the draw function bounds a page index with the original's
+four rows per page, `(total + 3) / 4`. `handleTouch` also reads each of them.
+A driver whose pages hold another number of rows must clamp its own.
+
+| writer | member, lines |
+|---|---|
+| `drawSettingsThemes` `Settings.cpp:33-76` | `_themePage` 39, 40 |
+| `drawSettingsAlarms` `Settings.cpp:92-131` | `_alarmPage` 96, 97 |
+| `drawSettingsMain` `Settings.cpp:346-433` | `_mainMenuPage` 357, 358 |
+| `drawUserList` `Users.cpp:928-979` (reached through `drawSettingsUsers` and `drawAuthUser`) | `_usersPage` 933, 934 |
+| `drawSettingsLang` `i18n.cpp:178-262` | `_langPage` 197, 198 |
+
+C. Repaint bookkeeping nobody else reads. The screen's entry point (`show*`,
+core) sets these to their initial values; its painter (original) consumes them.
+A driver that paints from the whole state does not need them, and they stay in
+the class so its layout does not move.
+
+| writer | member, lines |
+|---|---|
+| 25 painters of full screens | `_forceSettingsRedraw` cleared: `drawSettingsLicense` 2103; `drawAlarmAction` `Alarm.cpp:71`; `drawSettingsDisplayOffset` `Calibration.cpp:186`; `drawTouchSensitivity` 308; `drawTouchCalibration` 500, 508, 559, 609; `drawSettingsThemes` `Settings.cpp:75`; `drawSettingsAlarms` 130; `drawAlarmEdit` 332; `drawSettingsMain` 431; `drawSettingsPassword` 598, 736; `drawApConfirm` 799 (Wi-Fi builds); `drawClockEntry` 922; `drawMuteConfirm` 983; `drawSettingsSounds` 1164; `drawMelodySelect` 1235; `drawSystemStatus` 1336; `drawPinScreen` `Users.cpp:595`; `drawAlarmSensorMenu` 738; `drawMaintEntry` 786, 829; `drawUserList` 963; `drawUserEdit` 1068; `drawUserConfirmDel` 1073; `drawPanelMessage` 1116; `drawPinPolicy` 1295; `drawSettingsLang` `i18n.cpp:259` |
+| `drawSettingsThemes` | `_lastThemePage`, `_lastPreviewThemeIdx` 75 |
+| `drawSettingsAlarms` | `_lastAlarmPage`, `_lastAlarmSelection` 130 |
+| `drawAlarmEdit` | `_lastEditPage` 333 |
+| `drawSettingsMain` | `_lastMainMenuPage` 431 |
+| `drawUserList` | `_lastUsersPage`, `_lastUsersSel` 963, 978 |
+| `drawUserEdit` | `_lastUserEditPage`, `_lastUserEditSel` 1068 |
+| `drawPinPolicy` | `_lastPolicySel` 1296 |
+| `drawSettingsLang` | `_lastLangPage` 260, `_lastPreviewLangIdx` 261 |
+| `drawSettingsDisplayOffset` | `_lastOffsetDrawX` 187, 206; `_lastOffsetDrawY` 207 |
+| `drawClockEntry` | `_clockValuesDirty` 916, 923 (set by `handleTouch`) |
+| `drawPinScreen` | `_pinCardsDirty` 633 (set by `handleTouchPanelV24`, 2 sites) |
+
+D. Not members, so not in the class, but state a draw body writes and that
+nothing outside its file reads: file-scope `g_lastSensStability`,
+`g_lastSensThreshold`, `g_lastSensDone`, `g_sensFirstDraw`, `g_lastCalPointIdx`,
+`g_lastCalHoldReady`, `g_lastCalStep` (`Calibration.cpp:22-28`; the two `show*`
+entry points reset them at `:49-55`); function-local statics `s_lastMenuSel`
+(`Settings.cpp:397, 432`), `lastSoundPage` (1049, 1165), `s_lastSoundSel` (1086,
+1166) and `lastSec` (`Users.cpp:602, 605`); and the scratch arrays of
+`drawGraphScreen`, `drawGraphDetailScreen`, `drawPeakMarker` and
+`drawSystemStatus`.
+
+E. Written for a draw function by a callee, which the body-level census does not
+show: `redrawAlarmFlash` (`Alarm.cpp:157-185`), `restoreNormalDashboard`
+(`Dashboard.cpp:170-180`), `redrawTopPanel` and `render` hand `_topPanel` or
+`_bottomPanel` to `drawSlotPanel`, which writes `panel.lastMinMax`; `render`
+calls `drawTopBar`, which is group A; `buildDashLayout` (`Dashboard.cpp:1040-1081`,
+called by `drawBottomButtons` and by `handleTouch`) clamps `_currentPage` at 1068.
+
+**Writes that are not in the plan's duties.** The plan's section 3.4 lists
+seven duties. This census adds four a driver that skips `render` and `drawTopBar`
+would lose: the 30 s return of both cards from min/max to the normal view
+(`render` 1950-1962); the web-notification banner's expiry (`drawTopBar` 551-552);
+the telemetry arrow's flash-to-fixed transition (`drawTopBar` 648-660); and the
+`drawAlarmEdit` normalisation of the limits' working copy. The study's glue reads
+`_pktArrowState` and `_webNotifyStartMs` (`DisplayManager_UiA.cpp:180-190`) and
+never writes them, and `UA_DESVIO` returns at the top of `drawTopBar`
+(`Dashboard.cpp:471` of the study), so by reading, state 3 is never advanced to
+1 in the study. That was not run on hardware. Section 2.4 carries them as duties
+8 to 11.
 
 ### 3.2 (b) Callers outside the display units
 
