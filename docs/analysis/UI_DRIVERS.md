@@ -91,16 +91,24 @@ column is where the original's body comes from on `192e1ad`.
 
 | hook | the core calls it | original: body from |
 |---|---|---|
-| `uiBegin( )` | once, when Core 1 starts or restarts, before the loop | `DisplayManager.cpp:1287-1289`: clear the glass, draw the fixed chrome, reset the render cache |
-| `uiThemeChanged( )` | `_themeChanged` was raised | `:1400-1449`. The `_uiMode = MODE_DASHBOARD` at `:1439` is a mode change and stays in the core **(S0)** |
-| `uiPass( snap )` | once per loop pass, after the touch read and the OTA tick | the dispatch `:1451-1555` and `:1559-1700`, calling the core ticks where the old code had logic (section 2.4, duty 9) |
-| `uiPaintOta( )` | the update screen must be on the glass, from either core | `drawOtaScreen`, `DisplayManager_Ota.cpp:150-226` |
+| `uiBegin( )` | once, when Core 1 starts or restarts, before the loop | `DisplayManager.cpp:1287-1289`: clear the glass, draw the fixed chrome, reset the render cache **S4 (C3):** the first two lines are the body, in `ui/original/UiOriginal.h`; the cache reset stays in the core after the call. The Ângulo's marks its frame whole |
+| `uiThemeChanged( )` | `_themeChanged` was raised | `:1400-1449`. The `_uiMode = MODE_DASHBOARD` at `:1439` is a mode change **(S0)**; **S4 (C4) kept it inside the hook**, in the branch that draws, so the block moved as it was (duty 12). The Ângulo's is its old `uaTemaAplicado`  |
+| `uiPass( snap )` | once per loop pass, after the touch read and the OTA tick | the dispatch `:1451-1555` and `:1559-1700`, calling the core ticks where the old code had logic (section 2.4, duty 9) **S4 (C8):** the dispatch from the dashboard branch to `SET_CLOCK` (149 lines) is the body, calling the ticks where the old code had logic. The Ângulo's runs the ticks of the mode, takes the six repaint requests and calls `uaQuadro( )` (section 2.7) |
+| `uiPaintOta( )` | the update screen must be on the glass, from either core | `drawOtaScreen`, `DisplayManager_Ota.cpp:150-226` **S4 (C2):** the body is the one call `drawOtaScreen( )`, which stays out of line. The Ângulo's is its old `uaOta` |
 | `uiTouch( x, y )` | a touch passed the core's gates | the mode chain of `handleTouch`, `Touch.cpp:398-1682`, and `handleTouchPanelV24`, `Users.cpp:1304-1686` |
 | `uiTouchUp( )` | the finger left the glass | `Touch.cpp:38-51` (the dashboard's short tap) |
-| `uiChanged( kind, arg )` | a core action changed what is on screen | a `switch` over the `UiChange` kinds of section 3.5; for the original a constant `kind` folds it into the old call |
+| `uiChanged( kind, arg )` | a core action changed what is on screen | a `switch` over the `UiChange` kinds of section 3.5; for the original a constant `kind` folds it into the old call **S4 (C6):** begun with `ALARM_FLASH` and `ALARM_RESTORE`; the switch folds, and the Ângulo marks its frame. The other kinds come with S5 to S10a |
 | `uiPages( list, items )` **(S0)** | the core must bound a page index | the arithmetic now spread over six draw bodies, `(items + 3) / 4`, the License text's wrap count, `buildDashLayout`'s button strip |
 | `uiThemeCount( )`, `uiThemeId( i )`, `uiThemeName( i )` | the catalogue is read | `availableThemes` and the custom `.thm` list, `Themes.cpp:433-487` |
-| `WebManager::registerUiDriverRoutes( )` | the web server registers routes | empty inline; the Ângulo adds `GET /api/ui` |
+| `licenseOpening( ) const` | the Ângulo's licence screen needs the opening in the pack's language, which Core 0 composes into a file-static buffer | **S4 (C9):** a member defined next to that buffer, replacing the free function `uaAberturaLicenca` the Ângulo declared weak; no product calls it and the linker drops it |
+| `WebManager::registerUiDriverRoutes( )` | the web server registers routes | empty inline; the Ângulo adds `GET /api/ui` **S4 (C9):** called by every image; declared through `ui/UiDriverWeb.h` |
+
+The core ticks of section 2.4, duty 9, are inline members in `src/DisplayManager_Ticks.h`, `always_inline` for
+both drivers (S4): `tickDashboard` (the web-busy sample, the alarm page navigation and the rotation),
+`tickAuthLockout`, `tickTouchSens`, `tickAlarmFlash`, `minMaxIdleDue` (the original's `render` asks it; the
+Ângulo's own `tickMinMaxIdle` clears the flags), `repairAlarmLimits`, `clampEditFocus` and `pktArrowShown`.
+The Ângulo adds `tickWebNotify`, which the original does inside `drawTopBar`. Section 2.7 says where each
+is called and how it was proved.
 
 `uiChanged` lets an action call it exactly where the original drew at once, for
 example `drawBottomButtons` at `Touch.cpp:566` and `:577`, or `redrawTopPanel` at
@@ -338,6 +346,104 @@ Visual changes (contrast, font sizes) are made in the
 `Angulo.h` for spacing and the font roles, `kit/fontes/*.h`, `AnguloMeta.h`,
 and `telas/*.cpp`, checked by `tools/tft_ui/host_*.py`. `AGENTS.md` section 7
 ("the TFT panel is not Ângulo") changes when the Ângulo ships.
+
+### 2.7 The loop's hooks and ticks (S4)
+
+**S4 (2026-10-15, branch `feat/ui-drivers-s4`) did this.** `loopCore1`, `render`, the update screen, `drawAlarmEdit`,
+`drawTopBar` and the web server's route setup no longer name the Ângulo: what each knew is a hook the driver defines
+(section 2.2) or a core tick both drivers call (section 2.4, duty 9), and the Ângulo has a pass of its own. Four selection
+headers under `src/ui/` put each driver's text where C++ lets it stand: `UiDriver.h` before the class (`UI_HOOK`, which is
+`inline __attribute__((always_inline))` for the original and empty for the Ângulo; `UiChange`; the two definitions of
+`UA_DESVIO`), `UiDriverMembers.h` inside it (the Ângulo's members, `angulo/Members.h`), `UiDriverHooks.h` after it (the
+original's hook definitions, `original/UiOriginal.h`, and the ticks, in its non-alpha branch) and `UiDriverWeb.h` inside
+`WebManager`. The gate names exactly those four and lets only them include the Ângulo's headers (`SELECTION_HEADERS`).
+The allowances went from 124 to 50 over S4 (`tools/ui_boundary.json`; 58 at the merge with `feat/ui-drivers`).
+
+The Ângulo's pass (`uiPass` in `DisplayManager_UiA.cpp`) runs, in this order: in the dashboard mode `tickDashboard`,
+`tickAlarmFlash` and `tickMinMaxIdle`, then the snapshot (`_langChanged` cleared while booting, `_lastRenderedState = snap`,
+`uaSujo`); in the PIN mode `tickAuthLockout`; in the sensitivity mode `tickTouchSens`; in the alarm-edit mode, when a repaint
+was requested, the repair and the clamp; `tickWebNotify`; then the six repaint requests taken (`_repaintSettings`,
+`_repaintGraph`, `_repaintLoading`, `_repaintCalendar`, `_alarmStatusDirty`, `_forceSettingsRedraw`, with `uaSujo` if one was
+set), `uaQuadro( )`, and the packet arrow's flash step. Left out on purpose: `_headerShowName` (no reader in the Ângulo),
+the one-second STATUS and MAINT cadence (its 250 ms look covers them) and the original's caches `_prevAlarmSlotMask` and
+`_forceFullRedraw`. The review of C8 found two differences, neither a loss: the calibration screen's paint comes one pass
+earlier, and a mode change gets one redundant look at the frame, with no strip sent.
+
+How S4 was proved (the outputs are in `$B/stages/s4_c*`, outside the repository; every image was built with the private core
+that matches CI, `$B/pio_core_ci`). A step either left the nine product images byte for byte as they were, or changed bytes
+that were decoded and accepted:
+
+- **sha256 equal in the nine:** C1 `cfc1bb7` (the four headers), C2 `44685c3` (`uiPaintOta`), C3 `310bae4` (`uiBegin`), C5a
+  `b3efea2` (`tickAuthLockout`, `tickTouchSens`), C7 `d3eafd9` (`minMaxIdleDue`) and C7r `dffb83d` (the review fixes of C1 to
+  C4: the gate names the four headers, the alpha condition moves into `UiDriverHooks.h`). The Ângulo image was equal in C1,
+  C7 and C7r. In C2 it names `otaTick`, `otaPaintFromCore0` and `uaOta` becoming `uiPaintOta`; in C3 `loopCore1`, `uiBegin`
+  and `_fini`, which is one padding word at the end of that section, not a function (the review of C1 to C4 measured 4 B); in
+  C5a one byte, a compare with its operands swapped.
+- **A byte change accepted with a decoded listing and a source proof:**
+  - C4 `85cb97f` (`uiThemeChanged`): six images change 3 bytes (2 on the RP2350), two commuted compares in `loopCore1` with
+    the matching condition, flags dead after them (`stages/s4_c4/equivalence.txt`); the reviewer signed it. The message of
+    C4 says the moved block was "re-indented one level"; it was two.
+  - C5b `15eb13c` (`tickDashboard`), C6 `3bd28af` (`tickAlarmFlash`, `uiChanged`) and C8 `1845742` (`uiPass`): six images
+    change in `loopCore1` only, plus position (`_fini`, a literal pool); each has `decoded_vs_<previous>.txt` and a
+    `source_proof.txt` of five points (a pure move checked by script, no control flow leaving the block, no local of the
+    enclosing function named, the macros, `always_inline`). In C6 the `uiChanged` switch folded: no image has the symbol,
+    and each call is the direct one. C8 moved 149 lines (the review counted 5,016 characters on each side); its images
+    grew 72 to 96 B because the compiler put 43 exits of the chain out of reach of a 2-byte branch, which C8c took back.
+  - C10 `d46597f` (`repairAlarmLimits`, `clampEditFocus`, `pktArrowShown`) and C11a: six images change in `drawTopBar`, the
+    function those steps name, and the repair and the clamp (a pure move) leave `drawAlarmEdit` with the same listing.
+    `pktArrowShown` is a rewrite of three lines, so its proof is a case analysis, and the review of C10 found one case C10
+    got wrong: Core 0 flips `_pktArrowState` from 2 to 3 between two reads of one frame, after the flash end, and the old
+    code drew the accent colour where C10 drew the hot one. C11a made the tick answer `NONE`, `GOING` or `OVER`; a model
+    of the old block, C10 and C11a over 480 cases, 360 with the two reads disagreeing, has C11a differ in 0 and C10 in 20
+    (`stages/s4_c11a/model_pktarrow.txt`), and the volatile reads are those of the old block.
+- **Veneers only:** C9 `9a27acd` (`licenseOpening`, `registerUiDriverRoutes`). Six images differ and no function does: the
+  linker's veneers changed order. C9's message counts 322 distinct sites in `pico_w_release` (229 `bl` to a veneer and 93
+  literal words of the veneer table); counted by sites the review of C9 finds 304; either way every differing byte is a call to
+  a veneer or a word of the veneer table, and `licenseOpening` is absent from the nine ELFs.
+- **The attribute:** C8c `1958835`, `__attribute__((optimize("no-reorder-blocks")))` on `loopCore1`. The experiment ran on
+  `117b17c` in a scratch worktree (`stages/s4x_*`): `noinline` on `uiPass`, `cold`, `no-reorder-blocks` on the hook, on
+  `loopCore1`, and an RP2040-only `noinline`. The attribute on `loopCore1` alone did better than all of them; `noinline` helped
+  only the RP2040 images and went over the Pico 2 W's budget. The stack frame of `loopCore1` is 800 B (808 B on the RP2350)
+  with and without it, and the worst Core 1 path 2,192 of 8,192 B. GCC documents `optimize` as meant for debugging; the sizes
+  in `tools/flash_budget.json` hold its effect, so a compiler that ignored it fails the budget gate.
+- **The merge `fb75d03`** brought `feat/ui-drivers` into the branch (the review fixes of the gates and the comparator, and the
+  static-analysis fix of `Angulo.cpp`) as a merge and not a rebase, so that the hashes the stage folders cite stay.
+- **Gates.** `check_ui_boundary.py` 0 findings and `test_ui_boundary.py` 285 of 285; `check_authz.py` and its test (39 checks
+  and 11 mutants), with the route's gate (`requirePerm( PERM_SYS_CONFIG )`) unchanged under the new function name;
+  `check_feature_sprawl.py` (358 sites, from 368 at the start); the six host screen groups and `host_ui.py` 106 of 106; the
+  flash budgets of the ten images and the OTA table. Nothing of this ran on hardware.
+
+**Sizes against the CI base `192e1ad` (before S4), after C11a:** the Pico W images 72 B smaller (`pico_w_asserts` 64 B), the
+Pico 2 W and `pico_wiretft` 64 B smaller, `pico_w_air`, `pico_w_alpha` and `pico_wire` equal; the OTA headroom of
+`pico_w_release` is 5,715 B (5,643 B before S4) and `pico_w_test` 1,235 B (1,163 B). The Ângulo image went from 831,560 B at the
+end of S3 to 827,456 B: `render` and the chain's draw functions left it, and the repair, the notice and the arrow came in.
+
+**The Core 1 phase stamps.** Four things read `g_core1Phase`: the Core 1 block of the console's metrics (the live phase with its
+age and sequence, `Last stuck: ... phase=`, and the worst time of each phase that reached 5 ms, in `CommandManager.cpp`), the
+soft-panic record, whose scratch word carries the phase's low byte for the reboot autopsy (`LogManager.cpp`), the phase taken
+when a flash lockout gives up (`g_core1StuckPhase`, `DisplayManager.cpp`) and the phase at the worst stall age
+(`g_core1StallPhase`, `FlashIrqProbe.cpp`). The Ângulo's pass sets `C1P_SNAPSHOT` (dashboard mode), `C1P_DASH_MUTEX` and
+`C1P_ALARM_FLASH` (the shared ticks) and `C1P_RENDER` before it paints. It does not set `C1P_LOOP_TAIL`, `C1P_UI_GRAPH`,
+`C1P_UI_SETTINGS` or the `C1P_R_*` family, which the chain it replaced set before draw calls that were already stubs
+(`UA_DESVIO`); the paint itself was under `C1P_RENDER` before S4 and still is. In an Ângulo image those phases therefore
+never appear and their worst times stay 0, and a stall or a lockout that finds Core 1 painting any screen reads `RENDER` where
+the original would say `UI_GRAPH`, `UI_SETTINGS` or an `R_*` region, and a freeze between the paint and the wait reads `RENDER`
+too. Known limit, kept (the stamps are not changed): a crash report from an Ângulo image places a freeze in the paint, not on a
+screen.
+
+**Bench checks pending.** None has run; the bench was off limits during S4.
+
+- The plan's list for the Ângulo's rewritten loop: the boot frame and the AP-by-touch window; the alarm flash and the rotation;
+  the 30 s return from min/max; the update screen drawn from both cores; a theme change; the PIN lockout countdown; the
+  sensitivity screen moving on to the calibration; the graph loading screen without the 500 ms wait; the web-busy banner.
+- Added by C8: each screen still repaints on entry now that `uiPass` takes the six repaint requests; the order of the pass
+  (the frame is painted before the rule that restores a full repaint for a mode that changed under it).
+- Added by C10 and C11a: an alarm edited so that MIN meets MAX is pulled apart, and not while the record is being copied; the
+  focus on a sensor with fewer limits than the last; the packet arrow returns to the steady arrow after a send; the "entrou
+  pela web" notice goes away.
+- For the original: the `loopCore1` of the six images whose bytes changed (C4, C5b, C6, C8, C8c), which has only been read and
+  never run, and the Core 1 stack under load with `optimize("no-reorder-blocks")`, where the measurement so far is the
+  compiler's.
 
 ## 3. The audit
 

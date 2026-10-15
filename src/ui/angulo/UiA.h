@@ -3,7 +3,8 @@
 // src/ui/angulo/telas/ (pico_wiretft_angulo only; src/ui/UiDriver.h includes this
 // under SIMUT_UI_ANGULO, before class DisplayManager, whose members use its types).
 //
-// Each pass of Core 1 ends in DisplayManager::uaQuadro( ): the screen of the
+// Each pass of Core 1 paints in DisplayManager::uaQuadro( ), which uiPass( ) calls
+// after the timers and the repaint requests: the screen of the
 // current mode fills its view model from the state into the one shared buffer,
 // the bytes are hashed, and only a frame that would look different is painted,
 // strip by strip, through the canvas the old screens used. The touch targets

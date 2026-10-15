@@ -445,7 +445,7 @@ void DisplayManager::uiPass( SystemState &snap ) {
   }
 }
 
-/* The theme changed (Core 0's refreshTheme( )): like the old block, the panel
+/* The theme changed (Core 0's refreshTheme( )): like the original's hook (ui/original/UiOriginal.h), the panel
  * goes to the dashboard, which repaints in full with the new palette. */
 void DisplayManager::uiThemeChanged( ) {
   mutex_enter_blocking( &_stateMutex );

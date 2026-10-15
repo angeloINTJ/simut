@@ -6,7 +6,9 @@
  *
  * Each tick is declared in class DisplayManager as `inline __attribute__((always_inline))`, the same for every
  * driver, and called where its code used to sit, so the compiled image keeps the code it had. Included by
- * DisplayManager.cpp only, inside its `#if !SIMUT_DISPLAY_ALPHA`: they are the panel's, and the alpha display has none.
+ * ui/UiDriverHooks.h (in its non-alpha branch, which DisplayManager.cpp, DisplayManager_Ota.cpp, DisplayManager_Settings.cpp
+ * and DisplayManager_Dashboard.cpp take), by ui/original/UiOriginal.h and by the Ângulo's DisplayManager_UiA.cpp: they lean
+ * on members the alpha display's class does not declare, so no other unit includes them.
  */
 #pragma once
 
