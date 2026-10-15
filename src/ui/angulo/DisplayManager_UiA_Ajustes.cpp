@@ -5,13 +5,15 @@
  *        pico_wiretft_angulo only.
  *
  * Touch, per mode (ESPEC_UI_A.md §2):
- *  - Translation (T): the clock and the display alignment. The new target is
+ *  - Translation (T): the display alignment. The new target is
  *    moved to the centre of the element the old layout has in its place, and
  *    the old branch of handleTouch( ) runs as it always did, hold-repeat
  *    included (the same target gives the same old point at every sample).
- *  - Controller (C): the limits, the maintenance window, the sounds with their
- *    melody and the PIN policy do what the old branch does, with the old
- *    state, events and filters; each action cites the old line it reproduces.
+ *  - Controller (C): the clock, the limits, the maintenance window, the sounds
+ *    with their melody and the PIN policy do what the old branch does, with the
+ *    old state, events and filters; each action cites the old line it
+ *    reproduces. The clock runs the core's actions (DisplayManager_Actions.h)
+ *    behind the zones the old branch used, so a held arrow repeats as it did.
  *  - Raw (B): the touch sensitivity and the calibration read the touch before
  *    any hook (DisplayManager_Touch.cpp, the two blocks that end in return),
  *    so a touch on them never gets here; only the frame is built.
@@ -293,26 +295,30 @@ UaToque DisplayManager::uaToqueAjustes( const ua::Alvo *a, int16_t &x, int16_t &
   using namespace ua::tela;
   switch ( _uiMode ) {
     case MODE_SET_CLOCK: {
-      /* Translation to the old zones (DisplayManager_Touch.cpp:1640-1681): the
-       * +1 band of a column is y 42..79 and the -1 band y 122..163, both across
-       * the column's CLOCK_COL_X / CLOCK_COL_W; the left button is x 20..150
-       * and SAVE x 170..300, both y 190..230. A touch farther than FOLGA_TOQUE from every target is dead, as
-       * the value band between the arrows was. */
+      /* Controller: what the old branch does (handleTouch( ), the clock's branch in DisplayManager_Touch.cpp), behind the zones it used, so that a held
+       * arrow repeats as before: 0xD0 + 2 * column, plus 1 for a column's +1 button, for the arrows, 0xC4 for Pular and Voltar and 0xC5 for Salvar. The
+       * actions are the core's. A touch farther than FOLGA_TOQUE from every target is dead, as the value band between the arrows was. */
       if ( !a ) return UaToque::TRATADO;
       switch ( a->tipo ) {
         case RELOG_MAIS:
-        case RELOG_MENOS:
+        case RELOG_MENOS: {
           if ( a->indice < 0 || a->indice >= CE_FIELDS ) return UaToque::TRATADO;
-          x = CLOCK_COL_X[a->indice] + CLOCK_COL_W[a->indice] / 2;
-          y = a->tipo == RELOG_MAIS ? CLOCK_UP_Y + CLOCK_ROW_H / 2 : CLOCK_DOWN_Y + CLOCK_ROW_H / 2;
-          return UaToque::TRADUZIDO;
+          const int delta = a->tipo == RELOG_MAIS ? +1 : -1;
+          if ( !acceptHoldTouch( (uint8_t)( 0xD0 + a->indice * 2 + ( delta > 0 ? 1 : 0 ) ) ) ) return UaToque::TRATADO;
+          actClockStep( (uint8_t)a->indice, delta );
+          return UaToque::TRATADO;
+        }
         case RELOG_PULAR:
         case RELOG_VOLTAR:
-          x = 85; y = 210;
-          return UaToque::TRADUZIDO;
+          /* Skip at boot, back from the settings: the boot flag tells them apart, inside the action. */
+          if ( !acceptTouch( 0xC4 ) ) return UaToque::TRATADO;
+          actClockLeave( );
+          return UaToque::TRATADO;
         case RELOG_SALVAR:
-          x = 235; y = 210;
-          return UaToque::TRADUZIDO;
+          /* SAVE hands the fields to Core 0, which checks them again. */
+          if ( !acceptTouch( 0xC5 ) ) return UaToque::TRATADO;
+          actClockSave( );
+          return UaToque::TRATADO;
         default:
           return UaToque::TRATADO;
       }

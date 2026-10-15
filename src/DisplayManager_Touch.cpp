@@ -1400,19 +1400,11 @@ void DisplayManager::handleTouch( ) {
  if (y >= 190 && y <= 230) {
  if (x >= 20 && x <= 150) {
  if (!acceptTouch(0xC4)) return;
- if (_clockAtBoot) {
- mutex_enter_blocking(&_stateMutex);
- _uiMode = MODE_DASHBOARD; _isDirty = true; _forceFullRedraw = true;
- mutex_exit(&_stateMutex);
- } else {
- showSettingsMain( );
- }
+ actClockLeave( );
  }
  else if (x >= 170 && x <= 300) {
  if (!acceptTouch(0xC5)) return;
- UiEvent ev; ev.type = UiEvent::EVT_SET_CLOCK;
- clockEntryPack(_clockEntry, ev.id, ev.param);
- pushUiEvent(ev);
+ actClockSave( );
  }
  return;
  }
@@ -1428,9 +1420,7 @@ void DisplayManager::handleTouch( ) {
  for (uint8_t i = 0; i < CE_FIELDS; i++) {
  if (x < CLOCK_COL_X[i] || x >= CLOCK_COL_X[i] + CLOCK_COL_W[i]) continue;
  if (!acceptHoldTouch((uint8_t)(0xD0 + i * 2 + (delta > 0 ? 1 : 0)))) return;
- clockEntryStep(_clockEntry, i, delta);
- _clockValuesDirty = true;
- _repaintSettings = true;
+ actClockStep( i, delta );
  return;
  }
  }

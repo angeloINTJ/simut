@@ -530,3 +530,34 @@ inline __attribute__((always_inline)) void DisplayManager::actApplyTheme( int id
 inline __attribute__((always_inline)) void DisplayManager::actApplyLang( int idx ) {
 	UiEvent ev; ev.type = UiEvent::EVT_APPLY_LANG; ev.id = idx; pushUiEvent(ev);
 }
+
+/* The clock entry (MODE_SET_CLOCK). */
+
+/* Leave the entry, by Pular at boot or Voltar from the settings: at boot the panel goes on to the dashboard, otherwise back to the settings list. The boot
+ * flag tells them apart, so the Ângulo's two buttons call the same action. Core 0 also writes _uiMode, so the boot case's three stores are under
+ * _stateMutex. The caller holds acceptTouch( 0xC4 ). */
+inline __attribute__((always_inline)) void DisplayManager::actClockLeave( ) {
+	if (_clockAtBoot) {
+		mutex_enter_blocking(&_stateMutex);
+		_uiMode = MODE_DASHBOARD; _isDirty = true; _forceFullRedraw = true;
+		mutex_exit(&_stateMutex);
+	} else {
+		showSettingsMain( );
+	}
+}
+
+/* Save: hand the fields to Core 0, which checks them again and decides whether this session may set the clock (AppManager_Events.cpp); the panel draws
+ * nothing until it answers. The caller holds acceptTouch( 0xC5 ). */
+inline __attribute__((always_inline)) void DisplayManager::actClockSave( ) {
+	UiEvent ev; ev.type = UiEvent::EVT_SET_CLOCK;
+	clockEntryPack(_clockEntry, ev.id, ev.param);
+	pushUiEvent(ev);
+}
+
+/* One step of column `i` (a field of the entry), `delta` +1 or -1: the value moves within its limits (display/ClockEntry.h) and only the values are
+ * repainted. The caller holds the hold gate of that column and direction, acceptHoldTouch( 0xD0 + 2 * i + (delta > 0) ), so a held button repeats. */
+inline __attribute__((always_inline)) void DisplayManager::actClockStep( uint8_t i, int delta ) {
+	clockEntryStep(_clockEntry, i, delta);
+	_clockValuesDirty = true;
+	_repaintSettings = true;
+}
