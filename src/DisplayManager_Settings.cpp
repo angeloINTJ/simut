@@ -20,6 +20,7 @@
 #include "StorageManager.h" /* getBoardSerialNumber in System Status */
 #include "UiWidgets.h"
 #include "PasswordKeyboard.h"
+#include "ui/UiDriverHooks.h"   /* repairAlarmLimits( ) and clampEditFocus( ): the core's ticks, with the hook definitions they lean on; last, they need the complete class */
 
 void DisplayManager::showSettingsThemes(int currentThemeIdx) {
  mutex_enter_blocking(&_stateMutex);
@@ -235,23 +236,10 @@ void DisplayManager::drawAlarmEdit( ) {
  const uint8_t nLimits = sensorLimitCount(sType);
  if (nLimits == 0) return;
 
- /* MIN >= MAX is not representable on screen and would arm an alarm that can
-  * never clear, so every channel is pulled apart before anything is drawn. */
- for (uint8_t i = 0; i < nLimits; i += 2) {
- const uint8_t c = sensorLimitChannel(sType, i);
- if (!channelValid(c)) continue;
- if (_tempAlarmConfig.chMin[c] < _tempAlarmConfig.chMax[c]) continue;
- const ChannelInfo& ci = channelInfo(c);
- _tempAlarmConfig.chMax[c] = round((_tempAlarmConfig.chMin[c] + 0.1f) * 10.0f) / 10.0f;
- if (_tempAlarmConfig.chMax[c] > ci.saneMax) {
- _tempAlarmConfig.chMax[c] = ci.saneMax;
- _tempAlarmConfig.chMin[c] = ci.saneMax - 0.1f;
- }
- }
+ repairAlarmLimits(sType, nLimits);
 
  const int totalPages = (nLimits + ALARM_EDIT_ROWS - 1) / ALARM_EDIT_ROWS;
- if (_editFieldFocus >= (int)nLimits) _editFieldFocus = (int)nLimits - 1;
- if (_editFieldFocus < 0) _editFieldFocus = 0;
+ clampEditFocus(nLimits);
  const int page = _editFieldFocus / ALARM_EDIT_ROWS;
  const bool pageChanged = (page != _lastEditPage);
 

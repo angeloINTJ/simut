@@ -12,6 +12,7 @@
 
 #include "DisplayManager.h"
 #include "FlashIrqProbe.h"   /* C1_PHASE */
+#include "sensors/SensorHelpers.h"   /* sensorLimitChannel( ), channelValid( ), channelInfo( ) for repairAlarmLimits( ) */
 
 /* The dashboard branch: sample whether the web server holds the device, follow an alarm that asked for its page,
  * and rotate the bottom panel through the sensors in alarm every ALARM_ROTATE_INTERVAL_MS. */
@@ -129,4 +130,45 @@ inline __attribute__((always_inline)) void DisplayManager::tickAlarmFlash( ) {
 inline __attribute__((always_inline)) bool DisplayManager::minMaxIdleDue( ) const {
 	return (_topPanel.showMinMax || _bottomPanel.showMinMax) &&
 	    timeSince(_lastTouchTime, MINMAX_IDLE_MS);
+}
+
+/* The limits of the alarm being edited: MIN >= MAX is not representable on screen and would arm an alarm that can
+ * never clear, so every channel is pulled apart before anything is drawn. The original does it in drawAlarmEdit( ), the
+ * Ângulo's pass while its edit screen is up. */
+inline __attribute__((always_inline)) void DisplayManager::repairAlarmLimits( SensorType sType, uint8_t nLimits ) {
+	for (uint8_t i = 0; i < nLimits; i += 2) {
+		const uint8_t c = sensorLimitChannel(sType, i);
+		if (!channelValid(c)) continue;
+		if (_tempAlarmConfig.chMin[c] < _tempAlarmConfig.chMax[c]) continue;
+		const ChannelInfo& ci = channelInfo(c);
+		_tempAlarmConfig.chMax[c] = round((_tempAlarmConfig.chMin[c] + 0.1f) * 10.0f) / 10.0f;
+		if (_tempAlarmConfig.chMax[c] > ci.saneMax) {
+			_tempAlarmConfig.chMax[c] = ci.saneMax;
+			_tempAlarmConfig.chMin[c] = ci.saneMax - 0.1f;
+		}
+	}
+}
+
+/* The focused limit stays inside the sensor's limit list. */
+inline __attribute__((always_inline)) void DisplayManager::clampEditFocus( uint8_t nLimits ) {
+	if (_editFieldFocus >= (int)nLimits) _editFieldFocus = (int)nLimits - 1;
+	if (_editFieldFocus < 0) _editFieldFocus = 0;
+}
+
+/* The packet arrow flashes (state 3) for a second after a packet leaves: it alternates every 300 ms and goes back to state 1
+ * when the second is over. Says whether the flash is still going, for the one that draws it. */
+inline __attribute__((always_inline)) bool DisplayManager::pktArrowShown( ) {
+	if (_pktArrowState == 3) {
+		uint32_t now = millis( );
+		if (now >= _pktArrowFlashEnd) {
+			_pktArrowState = 1;
+		} else {
+			if (now - _pktArrowFlashTime >= 300) {
+				_pktArrowFlashOn = !_pktArrowFlashOn;
+				_pktArrowFlashTime = now;
+			}
+			return true;
+		}
+	}
+	return false;
 }

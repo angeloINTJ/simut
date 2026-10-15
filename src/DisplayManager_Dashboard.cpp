@@ -22,6 +22,7 @@
 #include "display/PendingLabel.h" /* the pending count, as both displays print it */
 #include "hardware/dma.h" /* strip-blit fast path: SSP 16-bit + DMA */
 #include "hardware/spi.h"
+#include "ui/UiDriverHooks.h"   /* pktArrowShown( ): the core's ticks, with the hook definitions they lean on; last, they need the complete class */
 
 /* ── Dashboard layout: single source of truth ──────────────────────────────
  *
@@ -660,19 +661,7 @@ void DisplayManager::drawTopBar(const SystemState& state) {
  */
  uint16_t arrowColor = numColor;
 
- if (_pktArrowState == 3) {
- uint32_t now = millis( );
- if (now >= _pktArrowFlashEnd) {
- _pktArrowState = 1;
- arrowColor = C_ACCENT_HIGH;
- } else {
- if (now - _pktArrowFlashTime >= 300) {
- _pktArrowFlashOn = !_pktArrowFlashOn;
- _pktArrowFlashTime = now;
- }
- arrowColor = _pktArrowFlashOn ? C_TEXT_MAIN : C_ACCENT_HIGH;
- }
- }
+ if (pktArrowShown( )) arrowColor = _pktArrowFlashOn ? C_TEXT_MAIN : C_ACCENT_HIGH;
 
  if (state.pendingPkts > 0) {
  char pktBuf[PENDING_LABEL_MAX];

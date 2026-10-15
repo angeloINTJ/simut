@@ -1564,6 +1564,9 @@ private:
 	inline __attribute__((always_inline)) void tickTouchSens( );
 	inline __attribute__((always_inline)) void tickAlarmFlash( );
 	inline __attribute__((always_inline)) bool minMaxIdleDue( ) const;
+	inline __attribute__((always_inline)) void repairAlarmLimits( SensorType sType, uint8_t nLimits );
+	inline __attribute__((always_inline)) void clampEditFocus( uint8_t nLimits );
+	inline __attribute__((always_inline)) bool pktArrowShown( );
 
 	struct ActiveLang {
 		char name[16];

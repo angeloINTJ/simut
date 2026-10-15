@@ -37,5 +37,6 @@ private:
 	UaToque uaToqueIdentidade( const ua::Alvo *a, int16_t &x, int16_t &y );
 	bool uaMontarGraficos( UaQuadro &q );
 	UaToque uaToqueGraficos( const ua::Alvo *a, int16_t &x, int16_t &y );
+	void tickWebNotify( );    /**< the web login notice expires (the old top bar cleared it as it drew it) */
 	void tickMinMaxIdle( );   /**< the core's min/max return (minMaxIdleDue( )) for a pass that has no render( ) to do it */
 	bool uaMontarOta( UaQuadro &q );   /**< the update screen whatever _uiMode says (Core 0 paints it) */

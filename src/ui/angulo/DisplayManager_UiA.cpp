@@ -15,6 +15,7 @@
 #include "../../DisplayManager.h"
 #include "../../DisplayManager_Ticks.h"   /* the core's ticks, which uiPass( ) calls */
 #include "../../FlashIrqProbe.h"          /* C1_PHASE */
+#include "../../sensors/SensorHelpers.h"    /* sensorLimitCount( ) */
 
 
 #include <stdio.h>
@@ -372,6 +373,16 @@ void DisplayManager::uiChanged( UiChange, int16_t ) {
   uaSujo( );
 }
 
+/* The web login notice ("<user> entrou pela web") lasts WEB_NOTIFY_DURATION_MS. The old top bar cleared it when it found it
+ * expired, as it drew; this frame only reads it (uaVmStatus), so the pass clears it, and a notice left behind cannot come back
+ * when millis( ) wraps. */
+void DisplayManager::tickWebNotify( ) {
+  if ( _webNotifyStartMs > 0 && timeSince( _webNotifyStartMs, WEB_NOTIFY_DURATION_MS ) ) {
+    _webNotifyStartMs = 0;
+    _webNotifyUser[0] = '\0';
+  }
+}
+
 /* The panels are in min/max mode and nobody has touched the screen for MINMAX_IDLE_MS: they go back to normal mode. The
  * original does the same in render( ) and draws the return; here the frame follows the flags. */
 void DisplayManager::tickMinMaxIdle( ) {
@@ -384,7 +395,8 @@ void DisplayManager::tickMinMaxIdle( ) {
 /* The Ângulo's pass of Core 1, after the theme change and the update screen (loopCore1( )). The old chain answered each
  * mode by drawing it, which here only asked for a repaint (UA_DESVIO( )); what it did besides, the core's timers and the
  * state it keeps, is what this runs: the dashboard's timers and the snapshot, the PIN screen's lockout, the sensitivity
- * screen's move on to the calibration, and the repaint requests taken. Then the frame, once, from the state. */
+ * screen's move on to the calibration, the limits of the alarm being edited, the web notice, and the repaint requests
+ * taken. Then the frame, once, from the state, and the packet arrow's flash. */
 void DisplayManager::uiPass( SystemState &snap ) {
   if ( _uiMode == MODE_DASHBOARD ) {
     tickDashboard( );
@@ -402,7 +414,16 @@ void DisplayManager::uiPass( SystemState &snap ) {
     tickAuthLockout( );
   } else if ( _uiMode == MODE_SETTINGS_TOUCH_SENS ) {
     tickTouchSens( );
+  } else if ( _uiMode == MODE_SETTINGS_ALARM_EDIT ) {
+    /* The old draw pulled MIN below MAX and kept the focus inside the sensor's limit list before it drew. */
+    const SensorType sType = (SensorType)_tempAlarmConfig.sensorType;
+    const uint8_t nLimits = sensorLimitCount( sType );
+    if ( nLimits != 0 ) {
+      repairAlarmLimits( sType, nLimits );
+      clampEditFocus( nLimits );
+    }
   }
+  tickWebNotify( );
   /* The requests the old chain answered by drawing. Each is taken before the frame is painted, so one that lands while
    * it is painted survives to the next pass. */
   bool pedido = false;
@@ -415,6 +436,11 @@ void DisplayManager::uiPass( SystemState &snap ) {
   if ( pedido ) uaSujo( );
   C1_PHASE( C1P_RENDER );
   uaQuadro( );
+  /* The packet arrow's flash ends after a second: the state goes back to 1, and the next frame shows it. */
+  if ( _pktArrowState == 3 ) {
+    pktArrowShown( );
+    if ( _pktArrowState != 3 ) uaSujo( );
+  }
 }
 
 /* The theme changed (Core 0's refreshTheme( )): like the old block, the panel
