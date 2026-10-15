@@ -37,7 +37,8 @@ The six verdicts, and what each case checks:
       local initializer that has no symbol (the function that loads it is named), and two
       tables of one name in two files (an edit in either one is named)
   (6) an ELF with no code symbols                 exit 2: data only ("nenhuma instrução lida"),
-      stripped ("nenhum símbolo de código"), and one side data only
+      stripped ("nenhum símbolo de código"), and one side data only; and a path with no file
+      behind it, a build that failed ("não consegui ler")
 
 and, beside them, a value changed in a switch table (exit 1, "CONTEÚDO DIFERENTE"), a slot of a
 vtable (a weak read-only object, nm type V) retargeted to another existing function, with the
@@ -63,7 +64,8 @@ bytes, which had not changed), and two read-only objects of one name were collap
 four more, each with its case (4b, 4c, 4d, 4f, 7v): two addresses with no name counted as the same
 target, a vtable and the other weak read-only objects were not compared, two functions of one name
 were not told apart, and a call to another function passed as a relocation when the bytes of the
-caller were the same.
+caller were the same. One more on 2026-10-15 (case 6d): a path with no file behind it ended in a
+traceback, whose exit 1 reads as "changed" rather than as a refusal.
 
 Needs arm-none-eabi-gcc from the PlatformIO toolchain package (tools/elf_funcoes.py says where it
 looks). Without it the test skips with a message, and exits 1 instead when SIMUT_ELF_TOOLCHAIN is
@@ -409,6 +411,7 @@ def montar(tmp):
     shutil.copy(e['base'], strip)
     rodar([BIN / 'arm-none-eabi-strip', '-s', strip])
     e['strip'] = strip
+    e['ausente'] = tmp / 'ausente.elf'   # never written: a build that failed
     return e
 
 
@@ -567,6 +570,11 @@ def c6b(r):
         f'exit {r.code}: {r.err.strip().splitlines()[0] if r.err.strip() else "-"}'
 
 
+def c6d(r):
+    return r.code == 2 and 'não consegui ler' in r.err and 'veredito recusado' in r.err, \
+        f'exit {r.code}: {r.err.strip().splitlines()[-1] if r.err.strip() else "-"}'
+
+
 def c7(r):
     return r.code == 1 and r.so() and r.tabelas_iguais is False, f'exit {r.code}, switch tables differ: {not r.tabelas_iguais}'
 
@@ -608,6 +616,7 @@ CASOS = [
     ('6', 'an ELF with no code at all', 'dados', 'dados', c6, None),
     ('6b', 'a stripped ELF, no code symbols', 'strip', 'strip', c6b, None),
     ('6c', 'code against an ELF with no code', 'base', 'dados', c6, None),
+    ('6d', 'a path with no file behind it (a build that failed)', 'base', 'ausente', c6d, None),
     ('7', 'a value changed in a switch table', 'base', 'sw', c7, None),
     ('7v', 'a vtable slot retargeted to another existing function (a weak object)', 'vt', 'vt_troca', c7v, None),
     ('x', 'known limit: an unnamed constant, the layout moved', 'anon', 'anon_ord', cx, pre_anon_ord),
@@ -633,6 +642,8 @@ MUTANTES = [
      "constante_mudou(fa[n], fb[n]) or ", "", {'5c'}),
     ('m8', 'switch tables are never different', "tabelas_iguais = ta == tb", "tabelas_iguais = True", {'7'}),
     ('m9', 'an empty reading is accepted', "if not lidas_a or not lidas_b:", "if False:", {'6', '6c'}),
+    ('m21', 'a file that cannot be read is not refused (its traceback exits 1)',
+     'except (OSError, subprocess.CalledProcessError) as exc:', 'except ZeroDivisionError as exc:', {'6d'}),
     ('m10', 'a missing code symbol is accepted', "if not any(tam and tipo in 'TtWw' for _, tam, _, tipo in tab_):",
      "if False:", {'6b'}),
     ('m11', 'veneers are not read as the function they branch to',
@@ -720,7 +731,7 @@ def main():
                 res = avaliar(mut, imagens, env, pool)
                 caem = {cid for cid, (ok, _) in res.items() if not ok}
                 # m1 reads no instruction at all: every case that expects a report must fail.
-                alvo = esperado if esperado is not None else {c[0] for c in CASOS if c[0] not in ('6', '6c')}
+                alvo = esperado if esperado is not None else {c[0] for c in CASOS if c[0] not in ('6', '6c', '6d')}
                 ok = caem == alvo
                 print(f'  {"ok  " if ok else "FAIL"} {mid} {titulo}: fails {sorted(caem, key=_ordem)}'
                       + ('' if ok else f', expected {sorted(alvo, key=_ordem)}'))

@@ -63,7 +63,8 @@ and checks the verdicts: the same ELF twice and the same objects linked in anoth
 (the layout moves, the code does not) compare equal; an edited string, a changed constant in
 one function, a call retargeted, a changed number in a table a function reads through a pointer,
 a changed value in a switch table, a vtable slot retargeted and two same-named helpers swapped
-between files are each reported, by name; an ELF with no code is refused (exit 2).
+between files are each reported, by name; an ELF with no code, and a path with no file behind it,
+are refused (exit 2).
 """
 import argparse
 import bisect
@@ -642,7 +643,15 @@ def main():
     ap.add_argument('b')
     ap.add_argument('--mostrar', type=int, default=10)
     a = ap.parse_args()
-    Ea, Eb = Elf(a.a), Elf(a.b)
+    try:
+        Ea, Eb = Elf(a.a), Elf(a.b)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        # A path with no file behind it, or one nm, readelf or objdump will not read, is a refusal,
+        # not a difference: uncaught, the traceback exits 1, which reads as "changed" (2026-10-15,
+        # a size mutation whose build had failed was compared as if its ELF existed).
+        motivo = (getattr(exc, 'stderr', None) or str(exc)).strip()
+        print(f'não consegui ler as imagens ({motivo}): veredito recusado', file=sys.stderr)
+        return 2
     cfa, cfb = Ea.ctx, Eb.ctx
     ra = [r for r in funcoes(Ea) if not VENEER.match(r[0])]
     rb = [r for r in funcoes(Eb) if not VENEER.match(r[0])]
