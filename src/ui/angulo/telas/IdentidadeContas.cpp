@@ -57,11 +57,16 @@ struct LayoutUsuarios {
   int pagina, paginas;
   bool pager;
   int nLinhas;
-  Caixa16 linhas[LINHAS];
-  char nomes[LINHAS][NOME + 4];
-  char resumos[LINHAS][40];
-  int16_t yNota;                   // where the note under the list goes (-1: no room or no note)
+  Caixa16 linhas[LINHAS_2];
+  char nomes[LINHAS_2][NOME + 4];
+  char resumos[LINHAS_2][40];
+  int16_t yNota;                   // where the note under the list goes (-1: no note, or a pager takes the row)
 };
+
+// The two lines of a row, each in a box of 20 px (the pitch of `corpo`) 4 px under the row's top and
+// under the first box: the name's caps start 7 px under the row's edge and the summary's baseline
+// is 7 px above its foot, as MenusLista's desenharDuasLinhas( ).
+constexpr int16_t H_CAIXA = 20, Y_CAIXA = ESP1;
 
 // "Limites · Alarmes · Manut." for the bits an account has; "Só leitura" for none.
 void resumoPermissoes( uint8_t perms, char *out, int cap ) {
@@ -88,21 +93,21 @@ LayoutUsuarios layoutUsuarios( const VmUsuarios &vm ) {
   AcaoBarra acoes[MAX_ACOES];
   acoesUsuarios( vm, acoes );
   l.barra = layoutBarra( acoes, 2 );
-  l.paginas = paginasDe( vm.total );
+  l.paginas = paginasDe( vm.total, LINHAS_2 );
   l.pagina = vm.pagina < l.paginas ? vm.pagina : l.paginas - 1;
-  l.pager = vm.total > LINHAS;
-  l.nLinhas = vm.nLinhas < LINHAS ? vm.nLinhas : LINHAS;
+  l.pager = vm.total > LINHAS_2;
+  l.nLinhas = vm.nLinhas < LINHAS_2 ? vm.nLinhas : LINHAS_2;
   for ( int i = 0; i < l.nLinhas; i++ ) {
-    l.linhas[i] = Caixa16{ X_CARTAO, (int16_t)( Y0 + i * H_LINHA ), W_CARTAO, H_LINHA };
-    // The badge sits between the name and the chevron.
+    l.linhas[i] = Caixa16{ X_CARTAO, (int16_t)( Y0 + i * H_LINHA_2 ), W_CARTAO, H_LINHA_2 };
+    // The badge sits on the name's line, between the name and the chevron.
     const int16_t reserva = W_CHEVRON + ( vm.linhas[i].temPin ? 0 : larguraSelo( "Sem PIN" ) + ESP2 );
     cortar( vm.linhas[i].nome, tipo::corpo, (int16_t)( W_CARTAO - 2 * PAD - reserva - ESP2 ), l.nomes[i],
             sizeof l.nomes[i] );
     resumoPermissoes( vm.linhas[i].perms, l.resumos[i], sizeof l.resumos[i] );
   }
   l.yNota = -1;
-  if ( !vm.podeCriar && vm.total > 0 && !l.pager && l.nLinhas < LINHAS )
-    l.yNota = (int16_t)( Y0 + l.nLinhas * H_LINHA + ESP2 );
+  if ( !vm.podeCriar && vm.total > 0 && !l.pager )          // a pager would take the row under the list
+    l.yNota = (int16_t)( Y0 + l.nLinhas * H_LINHA_2 + ESP2 );
   return l;
 }
 
@@ -201,23 +206,26 @@ void desenharUsuarios( Pintor &p, const VmUsuarios &vm ) {
   } else {
     // The kit's lista( ) has one line per row, and a name, the permissions,
     // the badge and the chevron do not fit one (the permissions alone are
-    // 149 px of 280). Same card, same dividers and chevron, the permissions
-    // on a second line in the support type.
-    const int16_t total = (int16_t)( l.nLinhas * H_LINHA );
+    // 194 px of 280 at 9 pt). Same card, same dividers and chevron, the
+    // permissions on a second line in the support type. The badge shares the
+    // name's line, which leaves the permissions the whole width under it:
+    // beside it (it starts at x 175) the widest summary, "Limites · Alarmes ·
+    // Manut." (194 px from x 20), would end under the badge.
+    const int16_t total = (int16_t)( l.nLinhas * H_LINHA_2 );
     p.fillRoundRect( X_CARTAO, Y0, W_CARTAO, total, RAIO_CARTAO, T.superficie );
     p.roundRect( X_CARTAO, Y0, W_CARTAO, total, RAIO_CARTAO, T.linha );
     for ( int i = 0; i < l.nLinhas; i++ ) {
       const Caixa16 &c = l.linhas[i];
       if ( i > 0 ) p.hline( c.x + PAD, c.y, c.w - 2 * PAD, T.linha );
       const int16_t tx = c.x + PAD;
-      textoCentrado( p, l.nomes[i], tx, c.y, 20, tipo::corpo, T.tinta, 'l' );
-      textoCentrado( p, l.resumos[i], tx, c.y + 20, 16, tipo::apoio, T.tinta2, 'l' );
+      textoCentrado( p, l.nomes[i], tx, c.y + Y_CAIXA, H_CAIXA, tipo::corpo, T.tinta, 'l' );
+      textoCentrado( p, l.resumos[i], tx, c.y + Y_CAIXA + H_CAIXA, H_CAIXA, tipo::apoio, T.tinta2, 'l' );
       int16_t rx = c.x + c.w - PAD;
       p.icone( IconeNome::CHEVRON_RIGHT, 20, rx - 20, c.y + rd2( c.h - 20 ), T.tinta2 );
       rx -= W_CHEVRON;
       if ( !vm.linhas[i].temPin ) {
         const int16_t sw = larguraSelo( "Sem PIN" );
-        selo( p, rx - sw, c.y + rd2( c.h - 20 ), 20, "Sem PIN", Tom::ALERTA );
+        selo( p, rx - sw, c.y + Y_CAIXA, H_CAIXA, "Sem PIN", Tom::ALERTA );
       }
     }
     if ( l.yNota >= 0 ) textoCentrado( p, "Sua conta não pode criar contas.", PAD, l.yNota, 16, tipo::apoio, T.tinta2, 'l' );
@@ -230,7 +238,7 @@ int alvosUsuarios( const VmUsuarios &vm, Alvo *out ) {
   const uint8_t tipos[2] = { USR_NOVA, USR_VOLTAR };
   const bool ativa[2] = { vm.podeCriar, true };
   int n = addAlvosBarra( out, 0, l.barra, tipos, ativa );
-  for ( int i = 0; i < l.nLinhas; i++ ) n = addAlvo( out, n, l.linhas[i], USR_LINHA, (int16_t)( l.pagina * LINHAS + i ) );
+  for ( int i = 0; i < l.nLinhas; i++ ) n = addAlvo( out, n, l.linhas[i], USR_LINHA, (int16_t)( l.pagina * LINHAS_2 + i ) );
   if ( l.pager ) n = addAlvosPaginador( out, n, l.pagina, l.paginas, USR_PAG_ANTERIOR, USR_PAG_PROXIMA );
   return n;
 }

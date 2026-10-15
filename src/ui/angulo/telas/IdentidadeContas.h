@@ -41,15 +41,16 @@ int alvosQuem( const VmQuem &vm, Alvo *out );
 struct VmUsuarios {
   uint8_t total;                 // accounts listed (the admin is not one), on every page
   uint8_t pagina;                // 0-based
-  uint8_t nLinhas;               // rows on this page, 0..4
+  uint8_t nLinhas;               // rows on this page, 0..3: rows of two lines, three to a page (ident::LINHAS_2)
   bool podeCriar;                // the session may manage accounts: "Nova conta" is alive
   struct Linha {
     char nome[ident::NOME];
     uint8_t perms;               // CTA_PERM_* bits: written as "Limites · Alarmes · Manut." or "Só leitura"
     bool temPin;                 // no PIN: the badge "Sem PIN" (an account without one cannot act at the panel)
-  } linhas[ident::LINHAS];
+  } linhas[ident::LINHAS_2];
 };
-// NOVA is a target only with podeCriar. LINHA: indice as in VmQuem.
+// NOVA is a target only with podeCriar. LINHA: indice = the row's place among all accounts, as in
+// VmQuem but with three rows to a page (page * 3 + row).
 enum AlvoUsuarios : uint8_t { USR_NADA, USR_VOLTAR, USR_NOVA, USR_LINHA, USR_PAG_ANTERIOR, USR_PAG_PROXIMA };
 void desenharUsuarios( Pintor &p, const VmUsuarios &vm );
 int alvosUsuarios( const VmUsuarios &vm, Alvo *out );

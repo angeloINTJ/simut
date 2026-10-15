@@ -82,6 +82,11 @@ const char *const NOME_31 = "administradora.laboratorio.sul1";
 const ContaAm kContasLongas[] = {
   { NOME_15, false, LAM, true }, { NOME_31, false, LA, false }, { NOME_31, true, 0, true }, { "maria", false, LAM, true },
 };
+// The widest row an account can make: 15 characters of ordinary letters, no PIN (the badge shares the
+// name's line) and the three permissions (the widest summary, 194 px).
+const ContaAm kContasPiorCaso[] = {
+  { NOME_15, false, LAM, false }, { NOME_15, false, LA, true }, { "maria", false, 0, false },
+};
 const ContaAm kContasSemPin[] = {
   { "maria", false, LAM, true }, { "joao.silva", false, LA, true }, { "ana.souza", false, 0, false },
 };
@@ -100,12 +105,14 @@ const VmQuem kQuemVazio = quem( 0, 0, kContas, 0 );
 const VmQuem kQuemLongo = quem( 4, 0, kContasLongas, 4, 2 );
 
 const VmUsuarios kUsr3 = usuarios( 3, 0, kContasSemPin, 3, true );
-const VmUsuarios kUsr7p1 = usuarios( 7, 0, kContasCriadas, 4, true );
-const VmUsuarios kUsr7p2 = usuarios( 7, 1, kContasCriadas + 4, 3, true );
+const VmUsuarios kUsr7p1 = usuarios( 7, 0, kContasCriadas, 3, true );          // three rows of two lines to a page
+const VmUsuarios kUsr7p2 = usuarios( 7, 1, kContasCriadas + 3, 3, true );
+const VmUsuarios kUsr7p3 = usuarios( 7, 2, kContasCriadas + 6, 1, true );
 const VmUsuarios kUsrVazio = usuarios( 0, 0, kContasCriadas, 0, true );
 const VmUsuarios kUsrVazioSemPermissao = usuarios( 0, 0, kContasCriadas, 0, false );
 const VmUsuarios kUsrSemPermissao = usuarios( 3, 0, kContasSemPin, 3, false );
-const VmUsuarios kUsrLongo = usuarios( 4, 0, kContasLongas, 4, true );
+const VmUsuarios kUsrLongo = usuarios( 4, 0, kContasLongas, 3, true );
+const VmUsuarios kUsrPiorCaso = usuarios( 3, 0, kContasPiorCaso, 3, true );
 
 const VmConta kContaExistente = conta( "maria", false, LA, true );
 const VmConta kContaSemPin = conta( "ana.souza", false, CTA_PERM_LIMITES, false );
@@ -365,6 +372,8 @@ const Amostra kAmostras[] = {
   AM( "usuarios_3_contas", Usuarios, kUsr3 ),
   AM( "usuarios_7_pag1", Usuarios, kUsr7p1 ),
   AM( "usuarios_7_pag2", Usuarios, kUsr7p2 ),
+  AM( "usuarios_7_pag3", Usuarios, kUsr7p3 ),
+  AM( "usuarios_pior_caso", Usuarios, kUsrPiorCaso ),
   AM( "usuarios_vazio", Usuarios, kUsrVazio ),
   AM( "usuarios_vazio_sem_permissao", Usuarios, kUsrVazioSemPermissao ),
   AM( "usuarios_sem_permissao", Usuarios, kUsrSemPermissao ),
