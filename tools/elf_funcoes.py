@@ -302,6 +302,32 @@ def desvio_thumb(h1, h2, pc):
     return pc + 4 + off
 
 
+def mesmo_alvo(x, y):
+    """Two targets (alvo_relativo( ) strings) are the same thing when a symbol, a text or a place in
+    the function names them alike. What lies behind an address that has no name ("<[...]>", "<?>")
+    is not a name: two unnamed addresses are not the same target because nothing can be read at
+    either (found 2026-10-14 by the review of S2b: the BL of a call retargeted from foo to bar
+    followed by `movs r0, #1`, the halfwords 0xF8xx and 0x2001, read as the address 0x2001F8xx
+    on both sides, "<?>" equal to "<?>", and the change was called a relocation)."""
+    return x == y and not x.startswith('<')
+
+
+def eh_flash(v):
+    return 0x10000000 <= v < 0x10400000
+
+
+def mesmo_conteudo(x, y, va, vb, pa, pb):
+    """The one unnamed target that is still the same: bytes in flash that read alike on both sides,
+    behind a word-aligned pointer (pa, pb: its address in each image). A pointer to the empty
+    string has no text to be named by, and the C library's __global_locale (newlib, 13 words of
+    them) moves with the string pool while what lies there does not. An address in SRAM that has
+    no name, a pair of instructions that only looks like one, is never this: the review of S2b
+    broke the tool with it, and a halfword-aligned pointer is accepted only when it is named
+    (the SDK's float shims keep a pointer at a halfword address, behind a table byte)."""
+    return (x == y and x.startswith('<') and x != '<?>' and eh_flash(va) and eh_flash(vb)
+            and pa % 4 == 0 and pb % 4 == 0)
+
+
 def so_relocacao(nome, fa, fb, ctx_a, ctx_b):
     """Second chance for a function whose normalized text differs: its bytes are equal except
     inside 32-bit words (at any halfword alignment) that are, on both sides, addresses of the
@@ -324,12 +350,13 @@ def so_relocacao(nome, fa, fb, ctx_a, ctx_b):
             va, vb = int.from_bytes(pa, 'little'), int.from_bytes(pb, 'little')
             ok = False
             if eh_endereco(va) and eh_endereco(vb):
-                ok = alvo_relativo(va, ra, ia, ta, imga) == alvo_relativo(vb, rb, ib, tb, imgb)
+                xa_, xb_ = alvo_relativo(va, ra, ia, ta, imga), alvo_relativo(vb, rb, ib, tb, imgb)
+                ok = mesmo_alvo(xa_, xb_) or mesmo_conteudo(xa_, xb_, va, vb, ra[0] + w, rb[0] + w)
             if not ok:
                 da = desvio_thumb(int.from_bytes(pa[:2], 'little'), int.from_bytes(pa[2:], 'little'), ra[0] + w)
                 db = desvio_thumb(int.from_bytes(pb[:2], 'little'), int.from_bytes(pb[2:], 'little'), rb[0] + w)
                 ok = da is not None and db is not None and \
-                    alvo_relativo(da, ra, ia, ta, imga) == alvo_relativo(db, rb, ib, tb, imgb)
+                    mesmo_alvo(alvo_relativo(da, ra, ia, ta, imga), alvo_relativo(db, rb, ib, tb, imgb))
             if ok:
                 for k in range(w, w + 4):
                     explicado[k] = True

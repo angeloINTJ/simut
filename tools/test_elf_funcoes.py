@@ -14,13 +14,18 @@ The six verdicts, and what each case checks:
   (1) the same ELF twice                          exit 0
   (2) the same objects linked in another order    exit 0; the layout really moved (the two .bin
       differ, a function sits elsewhere, both carry the veneer); two variants of it: a call
-      through the veneer against a direct call, and a function moved to another file (its
-      CSWTCH switch table is renumbered)
+      through the veneer against a direct call, a function moved to another file (its
+      CSWTCH switch table is renumbered), and a hand-written shim in the manner of the SDK's
+      float wrappers whose pointer sits at a halfword address (only the second chance can say
+      it is the same)
   (3) one string edited, same length              exit 1, naming exactly that text and nothing
       else; the string reached through a table of pointers, used directly by a function, in
       .data, and in a local table of names that has no symbol (the functions that load the
       table are not blamed: the text is the census's)
-  (4) one constant changed in one function        exit 1, naming exactly that function
+  (4) one constant changed in one function        exit 1, naming exactly that function; also
+      when the change sits beside a `movs r0, #1`, so that a pair of halfwords reads as an
+      address in SRAM that has no name (a call retargeted from foo to bar, then `return 1`; an
+      argument changed from 7 to 8, then `+ 1`): the review of S2b found both called "equal"
   (5) a number changed in a static const table    exit 1, naming that table, with the same link
       order and with another; the function that reads it through a pointer is not blamed. Its
       two companions, the cases the second chance of the tool must not hide: the same edit in a
@@ -152,10 +157,59 @@ V_C = '''static const unsigned short k_tab[4] = { 5, 6, 7, 8 };
 unsigned v_tab( int i ) { return k_tab[i & 3]; }
 '''
 
+# p.c and q.c: a call, then `return 1`. `movs r0, #1` is the halfword 0x2001, and the second half of
+# the BL before it makes with it the 32-bit window 0x2001xxxx, which reads as an address in SRAM
+# that has no name. r.c and s.c: the same with an argument, `movs r1, #7` then `movs r0, #1`.
+P_C = '''void foo( void );
+void bar( void );
+int f( void ) { foo( ); return 1; }
+'''
+Q_C = '''volatile int g_a, g_b;
+__attribute__(( noinline )) void foo( void ) { g_a = 1; }
+__attribute__(( noinline )) void bar( void ) { g_b = 2; }
+void entry( void ) { for ( ;; ) { } }
+'''
+R_C = '''int ext( int, int );
+int f( void ) { return ext( 1, 7 ) + 1; }
+'''
+S_C = '''int ext( int a, int b ) { return a * b; }
+void entry( void ) { for ( ;; ) { } }
+'''
+
+# m.s and n.c: a hand-written shim in the manner of the SDK's float wrappers: after `bx lr` a table
+# byte pair and then a POINTER (to the end of the shim) at a halfword address, 2 mod 4. objdump
+# prints it as two .word that are not addresses, so the text differs when the shim moves, and only
+# the second chance, reading the pointer at its halfword address, can tell it is the same.
+M_S = '''    .syntax unified
+    .cpu cortex-m0plus
+    .thumb
+    .section .text.shim, "ax"
+    .balign 4
+    .global shim_dadd
+    .thumb_func
+    .type shim_dadd, %function
+shim_dadd:
+    movs r0, #0
+    bx lr
+    .byte 0x1c, 0xdf
+    .word shim_dadd_end + 1
+shim_dadd_end:
+    nop
+    nop
+    .size shim_dadd, . - shim_dadd
+'''
+N_C = '''int pad( int x ) { return x * 77 + 3; }
+const char *pick( int i ) { static const char *const t[] = { "aa", "bb" }; return t[i & 1]; }
+void entry( void ) { for ( ;; ) { } }
+'''
+
 # d.c: no code at all.
 D_C = '''const int g_only_data[4] = { 1, 2, 3, 4 };
 const char g_note[] = "just data, no code";
 '''
+
+
+ASSEMBLY = {'m'}          # the sources that are assembly, not C
 
 
 def fontes(moved=False, ram=True):
@@ -164,7 +218,8 @@ def fontes(moved=False, ram=True):
         'a': A_C.replace('@MOVED@', MAP_CODE if moved else ''),
         'b': B_C.replace('@MAP@', '' if moved else MAP_CODE),
         'c': C_C.replace('@SECTION@', RAM_SECTION if ram else ''),
-        'e': E_C, 'u': U_C, 'v': V_C, 'd': D_C,
+        'e': E_C, 'u': U_C, 'v': V_C, 'd': D_C, 'p': P_C, 'q': Q_C, 'r': R_C, 's': S_C,
+        'm': M_S, 'n': N_C,
     }
 
 
@@ -192,7 +247,7 @@ class Oficina:
         h = hashlib.sha1(texto.encode()).hexdigest()[:10]
         o = self.tmp / f'{nome}_{h}.o'
         if not o.exists():
-            c = self.tmp / f'{nome}_{h}.c'
+            c = self.tmp / f'{nome}_{h}.{"s" if nome in ASSEMBLY else "c"}'
             c.write_text(texto)
             rodar([GCC, *CFLAGS, '-c', c, '-o', o])
         return o
@@ -288,6 +343,12 @@ def montar(tmp):
     e['dup_u'] = of.elf('dup_u', editar(s, 'u', '3, 4', '3, 9'), ['u', 'v'])
     e['dup_v'] = of.elf('dup_v', editar(s, 'v', '7, 8', '7, 9'), ['u', 'v'])
     e['dados'] = of.elf('dados', s, ['d'])
+    e['shim'] = of.elf('shim', s, ['m', 'n'])
+    e['shim_movida'] = of.elf('shim_movida', s, ['n', 'm'])
+    e['call_foo'] = of.elf('call_foo', s, ['p', 'q'])
+    e['call_bar'] = of.elf('call_bar', editar(s, 'p', 'foo( ); return 1', 'bar( ); return 1'), ['p', 'q'])
+    e['arg7'] = of.elf('arg7', s, ['r', 's'])
+    e['arg8'] = of.elf('arg8', editar(s, 'r', 'ext( 1, 7 )', 'ext( 1, 8 )'), ['r', 's'])
     strip = tmp / 'strip.elf'
     shutil.copy(e['base'], strip)
     rodar([BIN / 'arm-none-eabi-strip', '-s', strip])
@@ -383,6 +444,15 @@ def c3d(r):
         f'exit {r.code}: {r.nomes()}'
 
 
+def c2s(r):
+    ok, d = cb_igual(r)
+    return ok and r.func[1] >= 1, d + f'; {r.func[1]} excused by the second chance'
+
+
+def c8(r):
+    return r.code == 1 and r.so(mudou=['f']) and r.tabelas_iguais, f'exit {r.code}: {r.nomes()}'
+
+
 def c5d(r):
     return r.code == 1 and r.so(dado_mudou=['k_tab']) and r.tabelas_iguais, f'exit {r.code}: {r.nomes()}'
 
@@ -419,6 +489,7 @@ CASOS = [
     ('2', 'the same objects linked in another order', 'base', 'movida', c2, pre_movida),
     ('2v', 'a call through a veneer against a direct call', 'base', 'sem_veneer', c2v, pre_sem_veneer),
     ('2m', 'a function moved to another file, its switch table renumbered', 'base', 'fn_movida', c2v, pre_fn_movida),
+    ('2s', 'an assembly shim with a pointer at a halfword address, moved', 'shim', 'shim_movida', c2s, None),
     ('3', 'one string edited, same length, in a table of pointers', 'base', 'str', c3, None),
     ('3b', 'one string edited, loaded directly by a function', 'base', 'lit', c3b, None),
     ('3c', 'one string edited in .data', 'base', 'tag', c3c, None),
@@ -427,6 +498,8 @@ CASOS = [
     ('5', 'a number changed in a static const table, same layout', 'base', 'tab', c5, None),
     ('5b', 'the same, and the layout moved too', 'base', 'tab_movida', c5b, pre_tab_movida),
     ('5c', 'a number changed in a local initializer with no symbol', 'anon', 'anon_edit', c5c, None),
+    ('4b', 'a call retargeted, then return 1 (BL and movs r0,#1 read as an address)', 'call_foo', 'call_bar', c8, None),
+    ('4c', 'an argument changed before movs r0,#1 (two movs read as an address)', 'arg7', 'arg8', c8, None),
     ('5d', 'two tables of one name, the first edited', 'dup', 'dup_u', c5d, None),
     ('5e', 'two tables of one name, the second edited', 'dup', 'dup_v', c5d, None),
     ('5f', 'two tables of one name, none edited', 'dup', 'dup', c5e, None),
@@ -452,7 +525,7 @@ MUTANTES = [
      "la, lb = da[nome], db[nome]", "la, lb = da[nome][-1:], db[nome][-1:]", {'5d', '5f'}),
     ('m6', 'every function the text normalization sees as changed is excused',
      "mudaram = [n for n in diferem if constante_mudou(fa[n], fb[n]) or not so_relocacao(n, xa, xb, cfa, cfb)]",
-     "mudaram = []", {'4', '5c', 'x'}),
+     "mudaram = []", {'4', '4b', '4c', '5c', 'x'}),
     ('m7', 'a changed unnamed constant is excused (the fix of 2026-10-14 taken out)',
      "constante_mudou(fa[n], fb[n]) or ", "", {'5c'}),
     ('m8', 'switch tables are never different', "tabelas_iguais = ta == tb", "tabelas_iguais = True", {'7'}),
@@ -464,7 +537,13 @@ MUTANTES = [
     ('m12', 'switch tables are named by number, not by content',
      "CSWTCH = re.compile(r'^CSWTCH\\.\\d+$')", "CSWTCH = re.compile(r'^CSWTCHX\\.\\d+$')", {'2m'}),
     ('m13', 'the second chance is never given (a literal or a table edited under a function blames it)',
-     "or not so_relocacao(n, xa, xb, cfa, cfb)]", "or True]", {'3b', '3d', '7'}),
+     "or not so_relocacao(n, xa, xb, cfa, cfb)]", "or True]", {'2s', '3b', '3d', '7'}),
+    ('m15', 'two unnamed addresses count as the same target (the pair BL + movs r0,#1 is excused)',
+     "return x == y and not x.startswith('<')", "return x == y", {'4b', '4c'}),
+    ('m16', 'a pointer at a halfword address is never accepted (the first fix proposed by the review)',
+     "ok = mesmo_alvo(xa_, xb_) or mesmo_conteudo(xa_, xb_, va, vb, ra[0] + w, rb[0] + w)",
+     "ok = (ra[0] + w) % 4 == 0 and (mesmo_alvo(xa_, xb_) or mesmo_conteudo(xa_, xb_, va, vb, ra[0] + w, rb[0] + w))",
+     {'2s'}),
     ('m14', 'a changed string in an unnamed table blames the functions that load it',
      "and TEXTOS_ENTRE_ASPAS.sub('\"\"', p) != TEXTOS_ENTRE_ASPAS.sub('\"\"', q)", "", {'3d'}),
 ]
