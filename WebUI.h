@@ -7644,8 +7644,8 @@ repository, published with every release: https://github.com/angeloINTJ/simut
    URL:           https://github.com/angeloINTJ/pico-enc28j60
    Note:          A fork of Lukasz Janyst's pico-enc28j60
                   (https://github.com/ljanyst/pico-enc28j60), whose PIO SPI
-                  program and C driver it keeps; the build fixes it at commit
-                  fb16ec1.
+                  program and C driver it keeps; the build fixes it at the
+                  commit of v1.3.1 (4984e2f).
 
 ================================================================================
 19. GNU FreeFont (FreeSans Bold)
