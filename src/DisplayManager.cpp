@@ -1292,8 +1292,7 @@ void DisplayManager::loopCore1( ) {
 		 * to 31250000u — the conservative rung that shipped in 2.1.5. */
 		_driver.tft->begin(SIMUT_TFT_SPI_HZ);
 		_driver.tft->setRotation(3);
-		fastClearScreen(C_BG_MAIN);
-		if (!_sharedState.isBooting) drawInterfaceFixed( );
+		uiBegin( );
 		_lastRenderedState.selectedSlotIdx = -1;
 		_driver.firstInit = false;
 	} else {

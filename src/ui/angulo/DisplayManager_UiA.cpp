@@ -352,6 +352,16 @@ void DisplayManager::uiPaintOta( ) {
   __atomic_store_n( &_otaDrawnSeq, seq, __ATOMIC_RELEASE );
 }
 
+/* Core 1, once, when it has initialised the panel (loopCore1( )): the first
+ * frame repaints every strip. Both flags start true and nothing has run since,
+ * so this says it again where the original cleared the glass and drew its fixed
+ * background (the old fastClearScreen( ) stops at the _uaPintando guard and
+ * drawInterfaceFixed( ) at UA_DESVIO( ), which marks the frame dirty). */
+void DisplayManager::uiBegin( ) {
+  _uaTudo = true;
+  uaSujo( );
+}
+
 /* The theme changed (Core 0's refreshTheme( )): like the old block, the panel
  * goes to the dashboard, which repaints in full with the new palette. */
 void DisplayManager::uaTemaAplicado( ) {

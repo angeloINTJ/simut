@@ -16,3 +16,10 @@
 UI_HOOK void DisplayManager::uiPaintOta( ) {
 	drawOtaScreen( );
 }
+
+/* Core 1, once, after the panel is initialised: clear the glass, and draw the fixed background unless the boot
+ * terminal has the panel. */
+UI_HOOK void DisplayManager::uiBegin( ) {
+	fastClearScreen(C_BG_MAIN);
+	if (!_sharedState.isBooting) drawInterfaceFixed( );
+}

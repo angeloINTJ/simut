@@ -1535,6 +1535,10 @@ private:
 	 * and Core 0 from otaPaintFromCore0( ) while Core 1 is parked, so either way the panel is the caller's for the
 	 * draw. The original draws it with drawOtaScreen( ); the Ângulo paints its own screen. */
 	UI_HOOK void uiPaintOta( );
+	/* UI driver hook: Core 1, once, when it has initialised the panel (loopCore1( )). The original clears the glass and
+	 * draws the fixed background unless the boot terminal has the panel; the Ângulo marks its whole frame to be repainted.
+	 * The core keeps the line after the call, `_lastRenderedState.selectedSlotIdx = -1`: the slot rotation reads it. */
+	UI_HOOK void uiBegin( );
 
 	struct ActiveLang {
 		char name[16];
