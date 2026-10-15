@@ -34,7 +34,10 @@ The six verdicts, and what each case checks:
   (6) an ELF with no code symbols                 exit 2: data only ("nenhuma instrução lida"),
       stripped ("nenhum símbolo de código"), and one side data only
 
-and, beside them, a value changed in a switch table (exit 1, "CONTEÚDO DIFERENTE") and one known
+and, beside them, a value changed in a switch table (exit 1, "CONTEÚDO DIFERENTE"), a slot of a
+vtable (a weak read-only object, nm type V) retargeted to another existing function, with the
+vtables alone to show it (exit 1 naming both), and the same vtables with the layout moved (exit 0,
+the weak objects counted among the read-only ones), and one known
 limit, held as an expected failure: an unnamed constant is read as the 64 bytes from its address,
 so a layout move that puts other bytes behind it reports the function that loads it (a false
 alarm, never a false "equal"). If that stops happening the test says so and asks for the mark to
@@ -203,6 +206,22 @@ const char *pick( int i ) { static const char *const t[] = { "aa", "bb" }; retur
 void entry( void ) { for ( ;; ) { } }
 '''
 
+# vt.cpp and k.c: two classes with inline virtual functions have no key function, so their
+# vtables (`vtable for C1`) are weak objects, nm type V, in .rodata. C1 and C2 swap their bases
+# between the two images: every function is the same, only a slot of each vtable names another,
+# existing, function. The asm barrier hides the dynamic type, so that the call really goes
+# through the vtable; k.c is the padding that moves the layout.
+VT_CPP = '''struct Base1 { virtual int f( ) { return 1; } virtual int h( ) { return 10; } };
+struct Base2 { virtual int f( ) { return 2; } virtual int h( ) { return 20; } };
+struct C1 : @BA@ { int h( ) override { return 3; } };
+struct C2 : @BB@ { int h( ) override { return 4; } };
+int run1( void ) { C1 c; @BA@ *p = &c; __asm__ volatile( "" : "+r"( p ) ); return p->f( ) + p->h( ); }
+int run2( void ) { C2 c; @BB@ *p = &c; __asm__ volatile( "" : "+r"( p ) ); return p->f( ) + p->h( ); }
+'''
+K_C = '''int padk( int x ) { return x * 91 + 9; }
+void entry( void ) { for ( ;; ) { } }
+'''
+
 # d.c: no code at all.
 D_C = '''const int g_only_data[4] = { 1, 2, 3, 4 };
 const char g_note[] = "just data, no code";
@@ -210,6 +229,8 @@ const char g_note[] = "just data, no code";
 
 
 ASSEMBLY = {'m'}          # the sources that are assembly, not C
+CPLUSPLUS = {'vt'}       # and C++, compiled without RTTI or devirtualization
+CXXFLAGS = CFLAGS + ['-fno-rtti', '-fno-exceptions', '-fno-devirtualize', '-fno-devirtualize-speculatively']
 
 
 def fontes(moved=False, ram=True):
@@ -219,7 +240,7 @@ def fontes(moved=False, ram=True):
         'b': B_C.replace('@MAP@', '' if moved else MAP_CODE),
         'c': C_C.replace('@SECTION@', RAM_SECTION if ram else ''),
         'e': E_C, 'u': U_C, 'v': V_C, 'd': D_C, 'p': P_C, 'q': Q_C, 'r': R_C, 's': S_C,
-        'm': M_S, 'n': N_C,
+        'm': M_S, 'n': N_C, 'vt': VT_CPP.replace('@BA@', 'Base1').replace('@BB@', 'Base2'), 'k': K_C,
     }
 
 
@@ -247,9 +268,9 @@ class Oficina:
         h = hashlib.sha1(texto.encode()).hexdigest()[:10]
         o = self.tmp / f'{nome}_{h}.o'
         if not o.exists():
-            c = self.tmp / f'{nome}_{h}.{"s" if nome in ASSEMBLY else "c"}'
+            c = self.tmp / f'{nome}_{h}.{"s" if nome in ASSEMBLY else "cpp" if nome in CPLUSPLUS else "c"}'
             c.write_text(texto)
-            rodar([GCC, *CFLAGS, '-c', c, '-o', o])
+            rodar([GCC, *(CXXFLAGS if nome in CPLUSPLUS else CFLAGS), '-c', c, '-o', o])
         return o
 
     def elf(self, rotulo, src, ordem):
@@ -288,7 +309,7 @@ class Rel:
         self.mudou = re.findall(r'^  mudou: (.+?) \(\d+ -> \d+ instruções\)', out, re.M)
         self.so_a = re.findall(r'^  só em A: (.+)$', out, re.M)
         self.so_b = re.findall(r'^  só em B: (.+)$', out, re.M)
-        self.dado_mudou = re.findall(r'^  dado mudou: (\S+)', out, re.M)
+        self.dado_mudou = re.findall(r'^  dado mudou: (.+?)(?: \(\d+ objetos em A, \d+ em B\))?$', out, re.M)
         self.dado_so = re.findall(r'^  dado só em [AB]: (.+)$', out, re.M)
         self.texto_a = re.findall(r"^  texto só em A: b'(.*)' x\d+$", out, re.M)
         self.texto_b = re.findall(r"^  texto só em B: b'(.*)' x\d+$", out, re.M)
@@ -343,6 +364,10 @@ def montar(tmp):
     e['dup_u'] = of.elf('dup_u', editar(s, 'u', '3, 4', '3, 9'), ['u', 'v'])
     e['dup_v'] = of.elf('dup_v', editar(s, 'v', '7, 8', '7, 9'), ['u', 'v'])
     e['dados'] = of.elf('dados', s, ['d'])
+    e['vt'] = of.elf('vt', s, ['vt', 'k'])
+    e['vt_movida'] = of.elf('vt_movida', s, ['k', 'vt'])
+    sv = dict(s, vt=VT_CPP.replace('@BA@', 'Base2').replace('@BB@', 'Base1'))
+    e['vt_troca'] = of.elf('vt_troca', sv, ['vt', 'k'])
     e['shim'] = of.elf('shim', s, ['m', 'n'])
     e['shim_movida'] = of.elf('shim_movida', s, ['n', 'm'])
     e['call_foo'] = of.elf('call_foo', s, ['p', 'q'])
@@ -449,6 +474,16 @@ def c2s(r):
     return ok and r.func[1] >= 1, d + f'; {r.func[1]} excused by the second chance'
 
 
+def c7v(r):
+    return r.code == 1 and r.so(dado_mudou=['vtable for C1', 'vtable for C2']) and r.tabelas_iguais, \
+        f'exit {r.code}: {r.nomes()}'
+
+
+def c2w(r):
+    ok, d = cb_igual(r)
+    return ok and r.dados[0] >= 2, d + f'; {r.dados[0]} read-only objects compared, the weak ones included'
+
+
 def c8(r):
     return r.code == 1 and r.so(mudou=['f']) and r.tabelas_iguais, f'exit {r.code}: {r.nomes()}'
 
@@ -490,6 +525,7 @@ CASOS = [
     ('2v', 'a call through a veneer against a direct call', 'base', 'sem_veneer', c2v, pre_sem_veneer),
     ('2m', 'a function moved to another file, its switch table renumbered', 'base', 'fn_movida', c2v, pre_fn_movida),
     ('2s', 'an assembly shim with a pointer at a halfword address, moved', 'shim', 'shim_movida', c2s, None),
+    ('2w', 'two vtables (weak read-only objects), the layout moved', 'vt', 'vt_movida', c2w, None),
     ('3', 'one string edited, same length, in a table of pointers', 'base', 'str', c3, None),
     ('3b', 'one string edited, loaded directly by a function', 'base', 'lit', c3b, None),
     ('3c', 'one string edited in .data', 'base', 'tag', c3c, None),
@@ -507,6 +543,7 @@ CASOS = [
     ('6b', 'a stripped ELF, no code symbols', 'strip', 'strip', c6b, None),
     ('6c', 'code against an ELF with no code', 'base', 'dados', c6, None),
     ('7', 'a value changed in a switch table', 'base', 'sw', c7, None),
+    ('7v', 'a vtable slot retargeted to another existing function (a weak object)', 'vt', 'vt_troca', c7v, None),
     ('x', 'known limit: an unnamed constant, the layout moved', 'anon', 'anon_ord', cx, pre_anon_ord),
 ]
 
@@ -520,7 +557,7 @@ MUTANTES = [
      "if nome not in ('.rodata', '.data'):", 'if True:', {'1', '3', '3b', '3c', '3d'}),
     ('m3', 'the text census skips .data', "if nome not in ('.rodata', '.data'):", "if nome not in ('.rodata',):", {'1', '3c'}),
     ('m4', 'read-only objects are never compared', "d_iguais, dmud, dso_a, dso_b = comparar_dados(da, db, ctx_a, ctx_b)",
-     "d_iguais, dmud, dso_a, dso_b = len(da), [], [], []", {'5', '5b', '5d', '5e', '5f'}),
+     "d_iguais, dmud, dso_a, dso_b = len(da), [], [], []", {'5', '5b', '5d', '5e', '5f', '7v'}),
     ('m5', 'same-named objects are matched by position of the first only',
      "la, lb = da[nome], db[nome]", "la, lb = da[nome][-1:], db[nome][-1:]", {'5d', '5f'}),
     ('m6', 'every function the text normalization sees as changed is excused',
@@ -544,6 +581,8 @@ MUTANTES = [
      "ok = mesmo_alvo(xa_, xb_) or mesmo_conteudo(xa_, xb_, va, vb, ra[0] + w, rb[0] + w)",
      "ok = (ra[0] + w) % 4 == 0 and (mesmo_alvo(xa_, xb_) or mesmo_conteudo(xa_, xb_, va, vb, ra[0] + w, rb[0] + w))",
      {'2s'}),
+    ('m17', 'weak read-only objects (vtables, typeinfo, inline variables) are skipped',
+     "if tipo not in 'rRVv' or tam == 0:", "if tipo not in 'rR' or tam == 0:", {'2w', '7v'}),
     ('m14', 'a changed string in an unnamed table blames the functions that load it',
      "and TEXTOS_ENTRE_ASPAS.sub('\"\"', p) != TEXTOS_ENTRE_ASPAS.sub('\"\"', q)", "", {'3d'}),
 ]

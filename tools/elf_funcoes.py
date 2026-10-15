@@ -128,12 +128,14 @@ class Imagem:
     """The ELF's loadable bytes by address, to read what an unnamed address points at."""
     def __init__(self, elf):
         secs = subprocess.run([READELF, '-S', '-W', elf], capture_output=True, text=True, check=True).stdout
-        self.mapas, self.nomes = [], []
+        self.mapas, self.nomes, self.flags = [], [], []
         for linha in secs.splitlines():
             m = re.match(r'\s*\[\s*\d+\]\s+(\S+)\s+PROGBITS\s+([0-9a-f]+)\s+([0-9a-f]+)\s+([0-9a-f]+)', linha)
             if m and int(m.group(2), 16):
                 self.mapas.append((int(m.group(2), 16), int(m.group(3), 16), int(m.group(4), 16)))
                 self.nomes.append(m.group(1))
+                mf = re.search(r'\s[0-9a-f]{2}\s+([A-Za-z]*)\s+\d+\s+\d+\s+\d+\s*$', linha)
+                self.flags.append(mf.group(1) if mf else '')       # readelf's Flg column: W write, X exec
         self.bruto = Path(elf).read_bytes()
 
     def ler(self, endereco, n):
@@ -386,8 +388,12 @@ def constante_mudou(x, y):
 
 
 def dados(elf):
-    """Read-only objects (type r/R) by name -> a list of their contents (bytes, word-aligned), from
-    the ELF sections, in address order. A name can hold more than one object: a file-local
+    """Read-only objects by name -> a list of their contents (bytes, word-aligned), from the ELF
+    sections, in address order. Read-only is nm's r/R, and the weak objects nm calls V/v (the
+    vtables, the typeinfo, an inline variable) that lie in a section neither writable nor
+    executable: nm marks a weak object V wherever it is, and a dictionary of vtables whose slots
+    were retargeted to another existing function came out "equal" while they were skipped
+    (review of S2b, 2026-10-14). A name can hold more than one object: a file-local
     `static const` table has the same name in every translation unit that declares it, and nm
     lists them all (found 2026-10-14: a dictionary keyed by name kept the one at the highest
     address, and an edit in the other came out "equal"). A table of pointers (a dictionary, a
@@ -395,20 +401,15 @@ def dados(elf):
     matches them by what they point at, so only a real change of content shows."""
     inicios, tab = simbolos(elf)
     img = Imagem(elf)
-    secs = subprocess.run([READELF, '-S', '-W', elf], capture_output=True, text=True, check=True).stdout
-    mapas = []
-    for linha in secs.splitlines():
-        m = re.match(r'\s*\[\s*\d+\]\s+(\S+)\s+PROGBITS\s+([0-9a-f]+)\s+([0-9a-f]+)\s+([0-9a-f]+)', linha)
-        if m:
-            mapas.append((int(m.group(2), 16), int(m.group(3), 16), int(m.group(4), 16)))
-    bruto = Path(elf).read_bytes()
     res = {}
     for ini, tam, nome, tipo in tab:
-        if tipo not in 'rR' or tam == 0:
+        if tipo not in 'rRVv' or tam == 0:
             continue
-        for va, off, sz in mapas:
+        for (va, off, sz), flg in zip(img.mapas, img.flags):
             if va <= ini and ini + tam <= va + sz:
-                res.setdefault(nome, []).append((bruto[off + ini - va: off + ini - va + tam], ini % 4 == 0))
+                if tipo in 'Vv' and ('W' in flg or 'X' in flg):
+                    break
+                res.setdefault(nome, []).append((img.bruto[off + ini - va: off + ini - va + tam], ini % 4 == 0))
                 break
     return res, inicios, tab, img
 
