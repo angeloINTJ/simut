@@ -13,12 +13,33 @@ int addAlvo( Alvo *out, int n, int16_t x, int16_t y, int16_t w, int16_t h, uint8
   return n + 1;
 }
 
+namespace {
+
+// Pixels from p to the span [a, a + w): 0 inside it, 1 for the first pixel outside, as the box's own test counts.
+int32_t distancia( int32_t p, int32_t a, int32_t w ) { return p < a ? a - p : p >= a + w ? p - ( a + w - 1 ) : 0; }
+
+}  // namespace
+
 const Alvo *alvoEm( const Alvo *alvos, int n, int16_t x, int16_t y ) {
+  // Inside a box the answer is the one it always was: the last listed, the one drawn on top.
   for ( int i = n - 1; i >= 0; i-- ) {
     const Alvo &a = alvos[i];
     if ( x >= a.x && x < a.x + a.w && y >= a.y && y < a.y + a.h ) return &a;
   }
-  return nullptr;
+  // Outside every box, the nearest one, if the finger can have meant it (FOLGA_TOQUE). A tie goes to the first
+  // listed; a screen leaves a disabled control out of the list, so it never catches a touch.
+  const Alvo *perto = nullptr;
+  int32_t melhor = 0;
+  for ( int i = 0; i < n; i++ ) {
+    const Alvo &a = alvos[i];
+    const int32_t dx = distancia( x, a.x, a.w ), dy = distancia( y, a.y, a.h );
+    // Out of the slop on one axis already; also keeps the squares below far from wrapping around.
+    if ( dx > FOLGA_TOQUE || dy > FOLGA_TOQUE ) continue;
+    const int32_t d2 = dx * dx + dy * dy;
+    if ( d2 > FOLGA_TOQUE * FOLGA_TOQUE ) continue;
+    if ( !perto || d2 < melhor ) { perto = &a; melhor = d2; }
+  }
+  return perto;
 }
 
 void copiar( char *dst, const char *src, int cap ) {

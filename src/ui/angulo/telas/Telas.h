@@ -41,8 +41,20 @@ inline int addAlvo( Alvo *out, int n, const Caixa16 &c, uint8_t tipo, int16_t in
   return addAlvo( out, n, c.x, c.y, c.w, c.h, tipo, indice );
 }
 
-// The LAST target containing (x, y) — a later target is drawn over an earlier
-// one (a popup over its keypad) — or nullptr.
+// How far outside every target a touch still answers the nearest one, in pixels. A design value, not a
+// measurement: a finger covers about 9 mm (about 40 px on this 3.5-inch 320 x 240 panel) and the resistive
+// panel's calibration is off by a few pixels, more near the edges, so a touch that lands in the gap between two
+// controls or just outside a small one is a touch that meant one of them. Small enough that two controls 8 px
+// apart still split the gap between them, and that a touch in a blank area (12 px from every target) answers
+// nothing. The bench is what checks it (tools/tft_ui/ESPEC_UI_A.md); tools/tft_ui/test_alvos.py pins the number.
+constexpr int16_t FOLGA_TOQUE = 12;
+
+// The target that answers a touch at (x, y), or nullptr.
+//  - Inside one or more targets: the LAST of them listed — a later target is drawn over an earlier one (a popup
+//    over its keypad).
+//  - Outside every target: the one whose box is NEAREST to the point (Euclidean distance in pixels, from the
+//    point to the box's nearest pixel), if that is at most FOLGA_TOQUE; a tie goes to the first listed.
+// A disabled or absent control is not in the list (see the screens' alvos*( )), so it never catches a touch.
 const Alvo *alvoEm( const Alvo *alvos, int n, int16_t x, int16_t y );
 
 // Copies at most cap - 1 bytes of a UTF-8 string, never cutting a sequence,
