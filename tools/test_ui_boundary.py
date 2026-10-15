@@ -431,6 +431,13 @@ def hook_cases():
     expect("driver-hook: ... and a string, a comment or an include path does not count; the include is the cross-driver rule's",
            {SURFACE: surface('const char *s = "registerUiARoutes";', "// handleApiUiA( )", '#include "ui/angulo/UiA.h"')},
            [(SURFACE, 4, "cross-driver")])
+    for alias in ("namespace u = ua;", "namespace u = ::ua;", "namespace u = ua::tela;", "namespace e = entrega;"):
+        expect(f"driver-hook: `{alias}` in a core file is one finding, at the alias (the review planted one and got 0)",
+               {SURFACE: surface(alias)}, [(SURFACE, 2, "driver-hook")])
+    expect("driver-hook: ... the use through the alias is not looked for: the alias line is the finding",
+           {SURFACE: surface("namespace u = ua;", "u::Tema *t = nullptr;")}, [(SURFACE, 2, "driver-hook")])
+    expect("driver-hook: an alias of a namespace that is not the driver's is none (std::filesystem, Aqua, uas)",
+           {SURFACE: surface("namespace fs = std::filesystem;", "namespace u = Aqua;", "namespace v = uas;")}, [])
     expect("driver-hook: the rule is `outside src/ui/angulo/`: another file of src/ui/ is held to it",
            {"src/ui/Other.cpp": surface("uaSujo( );")}, [("src/ui/Other.cpp", 2, "driver-hook")])
     expect("driver-hook: two names on one line are two findings",
@@ -899,6 +906,8 @@ def real_tree_cases():
                 f"real tree + `registerUiARoutes`, a driver name with no ua mark, in {core_clean}: one finding")
         mutated(core_clean, "\nstatic const ua::Tema *boundary_probe = nullptr;\n", "driver-hook",
                 f"real tree + the namespace `ua::` in {core_clean}: one finding")
+        mutated(core_clean, "\nnamespace boundary_alias = ua;\n", "driver-hook",
+                f"real tree + the alias `namespace boundary_alias = ua;` in {core_clean}: one finding")
         with open(os.path.join(root, core_clean), encoding="utf-8", newline="") as fh:
             clean_text = fh.read()
         try:

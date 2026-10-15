@@ -62,8 +62,12 @@ by the state machine of tools/check_net_boundary.py (imported, so there is one: 
 and `R"x(...)x"` are read as the compiler reads them; the lines stay, so a finding has the file's line
 number; the names in #include directives are kept apart). It is a pattern gate, not a parser: `#if 0`
 is scanned as code, a backslash-newline is followed only between `#ifdef` (or `defined`) and its macro,
-an `#include` after a comment on its line is not read, and a driver that reaches the other through a
-third header is not seen, only the include that makes it possible.
+an `#include` after a comment on its line is not read, an include through a macro
+(`#define H_ "../../Themes.h"`, then `#include H_`), the include of a .cpp, an include continued onto
+the next line and a name built by token pasting (`CAT(ua,Sujo)`) are not read either, a use of the
+driver's namespace through an alias is caught at the alias (`namespace u = ua;`) and not at `u::`,
+and a driver that reaches the other through a third header is not seen, only the include that
+makes it possible.
 
     python3 tools/check_ui_boundary.py            # the gate: `path:line: rule: text`, exit 1 on any finding
     python3 tools/check_ui_boundary.py --report   # every finding and the counts per rule and file, exit 0
@@ -226,7 +230,8 @@ def namespace_regex(spaces):
     if not spaces:
         return None
     alt = "|".join(re.escape(n) for n in sorted(spaces))
-    return re.compile(r"\b(" + alt + r")\s*::|\busing\s+namespace\s+(" + alt + r")\b")
+    return re.compile(r"\b(" + alt + r")\s*::|\busing\s+namespace\s+(" + alt + r")\b"
+                      r"|\bnamespace\s+\w+\s*=\s*(?:::\s*)?(" + alt + r")\b")
 
 
 def hook_sites(code: str, env: Env):
@@ -241,7 +246,7 @@ def hook_sites(code: str, env: Env):
                 yield m.start(), f"{w} is a name the Angulo driver introduces"
     if env.ns_use is not None:
         for m in env.ns_use.finditer(code):
-            yield m.start(), f"{m.group(1) or m.group(2)} is a namespace of the Angulo driver"
+            yield m.start(), f"{next(g for g in m.groups() if g)} is a namespace of the Angulo driver"
 
 
 def header_candidates(stem: str):
