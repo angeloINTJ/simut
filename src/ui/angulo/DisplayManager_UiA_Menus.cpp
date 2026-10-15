@@ -6,9 +6,15 @@
  *
  * Every mode here is a controller (ESPEC §7): a touch does what the old
  * screen's branch did for the same request (the same show*( ) calls, the same
- * UiEvents, the same state), and each action cites the old branch it
- * reproduces. The old branches themselves no longer run for these modes: the
- * rows and the pager of the new screens are not the old ones' zones.
+ * UiEvents, the same state), and each case names the old branch it stands
+ * for. The old branches themselves no longer run for these modes: the rows
+ * and the pager of the new screens are not the old ones' zones. Where the old
+ * branch's body is a core action (DisplayManager_Actions.h: the settings
+ * list's Open button, the alarms list's row, the licence's page step), the
+ * case calls that action behind its own gate, so the two drivers run the same
+ * code; the lists' page arithmetic is display/ListPager.h's. The themes, the
+ * language and the sensor's alarm menu keep copies of their logic until S8a
+ * and S9 (docs/analysis/UI_DRIVERS.md, section 2.9).
  *
  * The page of a list is the old screen's own variable (_mainMenuPage,
  * _alarmPage, _statusPage, _licensePage): the old show*( ) functions reset it
@@ -324,7 +330,7 @@ UaToque DisplayManager::uaToqueMenus( const ua::Alvo *a, int16_t &, int16_t & ) 
   switch ( _uiMode ) {
     case MODE_SETTINGS_MAIN:
       if ( voltar ) {
-        /* Touch.cpp:1013-1016: SAIR leaves the settings for the dashboard. */
+        /* The original's Back (handleTouch( ), Touch.cpp): SAIR leaves the settings for the dashboard. */
         if ( acceptTouch( ZONA_VOLTAR ) ) forceDashboard( );
       } else if ( linha ) {
         /* ENTRAR, which the old rows kept apart from the tap that selected: a tap on a row is both, at once. actMenuSelect( ), the
@@ -332,16 +338,16 @@ UaToque DisplayManager::uaToqueMenus( const ua::Alvo *a, int16_t &, int16_t & ) 
          * of the gate so that a tap on no row clicks nothing. */
         if ( i >= 0 && i < _menuCount && acceptTouch( ZONA_LINHA ) ) actMenuSelect( i );
       } else {
-        /* Touch.cpp:1002-1012 (the arrows), without the wrap. */
+        /* The original's arrows (handleTouch( ), Touch.cpp), without the wrap. */
         virar( _mainMenuPage, listPages( _menuCount, LISTA_FILAS ) );
       }
       break;
     case MODE_SETTINGS_THEMES:
       if ( voltar ) {
-        /* Touch.cpp:829-831: SAIR is back to the menu, nothing applied. */
+        /* The original's Back (handleTouch( ), Touch.cpp): SAIR is back to the menu, nothing applied. */
         if ( acceptTouch( ZONA_VOLTAR ) ) showSettingsMain( );
       } else if ( linha && i >= 0 && i < 3 && acceptTouch( ZONA_LINHA ) ) {
-        /* Touch.cpp:832-835: APLICAR sends EVT_APPLY_THEME with the previewed index, and Core 0 saves it
+        /* The original's Apply (handleTouch( ), Touch.cpp): APLICAR sends EVT_APPLY_THEME with the previewed index, and Core 0 saves it
          * and takes the panel to the dashboard (uiThemeChanged( )). A tap on a row is that, at once. */
         UiEvent ev{ };
         ev.type = UiEvent::EVT_APPLY_THEME;
@@ -351,10 +357,10 @@ UaToque DisplayManager::uaToqueMenus( const ua::Alvo *a, int16_t &, int16_t & ) 
       break;
     case MODE_SETTINGS_LANG:
       if ( voltar ) {
-        /* Touch.cpp:1128-1131: SAIR is back to the menu. */
+        /* The original's Back (handleTouch( ), Touch.cpp): SAIR is back to the menu. */
         if ( acceptTouch( ZONA_VOLTAR ) ) showSettingsMain( );
       } else if ( linha && i >= 0 && i < ( _activeLangLoaded ? LANG_COUNT : 1 ) && acceptTouch( ZONA_LINHA ) ) {
-        /* Touch.cpp:1103 (the slots there are: English, plus the pack) and 1132-1135: APLICAR sends
+        /* The original's slots are English, plus the pack, and its Apply (handleTouch( ), Touch.cpp): APLICAR sends
          * EVT_APPLY_LANG with the row; Core 0 saves it and leaves for the dashboard. */
         UiEvent ev{ };
         ev.type = UiEvent::EVT_APPLY_LANG;
@@ -364,14 +370,14 @@ UaToque DisplayManager::uaToqueMenus( const ua::Alvo *a, int16_t &, int16_t & ) 
       break;
     case MODE_SETTINGS_ALARMS:
       if ( voltar ) {
-        /* Touch.cpp:866-868: SAIR is back to the menu. */
+        /* The original's Back (handleTouch( ), Touch.cpp): SAIR is back to the menu. */
         if ( acceptTouch( ZONA_VOLTAR ) ) showSettingsMain( );
       } else if ( linha ) {
         /* The row opens the sensor's action menu (actAlarmListOpen( ), the core's: showAlarmSensorMenu( ) with the slot from
          * _activeSensorsMap); a tap on a row is the second tap of the old two, the one on the selected row (the first only selected). */
         if ( i >= 0 && i < _activeSensorCount && acceptTouch( ZONA_LINHA ) ) actAlarmListOpen( i );
       } else {
-        /* Touch.cpp:857-865 (the arrows), without the wrap. */
+        /* The original's arrows (handleTouch( ), Touch.cpp), without the wrap. */
         virar( _alarmPage, listPages( _activeSensorCount, LISTA_FILAS_2 ) );
       }
       break;
@@ -405,16 +411,16 @@ UaToque DisplayManager::uaToqueMenus( const ua::Alvo *a, int16_t &, int16_t & ) 
       break;
     case MODE_SETTINGS_STATUS:
       if ( voltar ) {
-        /* Touch.cpp:1509-1512: SAIR is back to the menu. */
+        /* The original's Back (handleTouch( ), Touch.cpp): SAIR is back to the menu. */
         if ( acceptTouch( ZONA_VOLTAR ) ) showSettingsMain( );
       } else {
-        /* Touch.cpp:1498-1508 (the arrows), without the wrap; the new frame needs only the page. */
+        /* The original's arrows (handleTouch( ), Touch.cpp), without the wrap; the new frame needs only the page. */
         virar( _statusPage, STATUS_PAGES );
       }
       break;
     case MODE_SETTINGS_LICENSE:
       if ( voltar ) {
-        /* Touch.cpp:1540-1546: always back to the menu. */
+        /* The original's Back (handleTouch( ), Touch.cpp): always back to the menu. */
         if ( acceptTouch( ZONA_VOLTAR ) ) showSettingsMain( );
       } else if ( a->tipo == LST_PAG_ANTERIOR ) {
         /* The arrows step the page with the core's action (actLicensePage( ), held at the ends as the old arrows were), repeating while

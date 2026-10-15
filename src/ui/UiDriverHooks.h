@@ -6,8 +6,10 @@
  *        (DisplayManager.cpp, DisplayManager_Ota.cpp, DisplayManager_Settings.cpp, DisplayManager_Dashboard.cpp,
  *        DisplayManager_Touch.cpp and DisplayManager_Users.cpp): about fifty other units include DisplayManager.h and gain no
  *        header from this. A tick leans on the hook definitions (tickAlarmFlash( ) calls uiChanged( )), so a unit that takes the
- *        ticks takes this header, not DisplayManager_Ticks.h alone; so does a unit that takes DisplayManager_Actions.h, whose
- *        redrawTopPanel( ) calls uiTopPanel( ).
+ *        ticks takes this header, not DisplayManager_Ticks.h alone; so does a core unit that takes DisplayManager_Actions.h
+ *        (DisplayManager_Touch.cpp and DisplayManager_Users.cpp), whose redrawTopPanel( ) calls uiTopPanel( ). The Ângulo's glue
+ *        units that take the actions (DisplayManager_UiA.cpp, DisplayManager_UiA_Painel.cpp and DisplayManager_UiA_Menus.cpp)
+ *        do not take this header: for them uiTopPanel( ) is an ordinary function, defined in DisplayManager_UiA.cpp.
  *
  * Both need the TFT's members, which the alpha display's class does not declare (measured on 2026-10-15: the ticks fail
  * on _permanentLockout in pico_w_alpha), so the alpha image includes this header and gets nothing from it. The original's

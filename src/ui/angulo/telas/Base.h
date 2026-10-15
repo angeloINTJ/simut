@@ -4,9 +4,10 @@
 // of something that cannot be undone from the panel (MODE_CONFIRM_MUTE_ALL,
 // MODE_SETTINGS_USER_CONFIRM_DEL). No plan drew them: they are the Ângulo's
 // dialog, in family A's chrome. MODE_CONFIRM_AP has no frame here: the wired
-// Ângulo image cannot reach the mode (SettingsMenu.h). A Wi-Fi Ângulo image
-// will need a VmDialogo case in uaMontarBase( ) and a touch handler that calls
-// showSettingsMain( ) and actStartAp( ) (S6_PLANO.md section 5, item 7).
+// Ângulo image cannot reach the mode (src/display/SettingsMenu.h). A Wi-Fi
+// Ângulo image will need a VmDialogo case in uaMontarBase( ) and a touch
+// handler that calls showSettingsMain( ) and actStartAp( )
+// (docs/analysis/UI_DRIVERS.md, section 2.9).
 #include "Telas.h"
 
 namespace ua {
