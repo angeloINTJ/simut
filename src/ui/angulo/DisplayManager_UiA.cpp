@@ -62,7 +62,7 @@ static_assert( DisplayDriver::H % ALTURA_FAIXA == 0, "the strips tile the panel'
  * a flicker-free frame without a 150 kB frame buffer — so the pixel path
  * writes the buffer itself (GFXcanvas16's layout: row-major, native order)
  * instead of a second virtual call per pixel. */
-class Faixa : public Adafruit_GFX {
+class Faixa : public Adafruit_GFX, public ua::Leitor {
 public:
   explicit Faixa( GFXcanvas16 *cv ) : Adafruit_GFX( DisplayDriver::W, DisplayDriver::H ), buf_( cv->getBuffer( ) ) {}
   void topo( int16_t y0 ) { y0_ = y0; }
@@ -85,6 +85,13 @@ public:
   void drawFastHLine( int16_t x, int16_t y, int16_t w, uint16_t c ) override { fillRect( x, y, w, 1, c ); }
   void drawFastVLine( int16_t x, int16_t y, int16_t h, uint16_t c ) override { fillRect( x, y, 1, h, c ); }
   void fillScreen( uint16_t c ) override { fillRect( 0, y0_, LARGURA_FAIXA, ALTURA_FAIXA, c ); }
+  // The pixel already in the strip, for the smoothed corners to mix with; a row
+  // outside the strip is not kept, so what it reads there does not matter.
+  uint16_t ler( int16_t x, int16_t y ) override {
+    y = (int16_t)( y - y0_ );
+    if ( (uint16_t)x >= (unsigned)LARGURA_FAIXA || (uint16_t)y >= (uint16_t)ALTURA_FAIXA ) return 0;
+    return buf_[(int32_t)y * LARGURA_FAIXA + x];
+  }
 
 private:
   uint16_t *buf_;
@@ -212,7 +219,7 @@ bool DisplayManager::uaPintar( const UaQuadro &q, UiMode modo, uint32_t hash ) {
   if ( !cv || !_driver.tft || !q.desenhar ) return false;
   const ua::Tema &tema = uaTema( );
   Faixa faixa( cv );
-  ua::Pintor p( faixa, tema );
+  ua::Pintor p( faixa, tema, faixa );
   const uint32_t t0 = millis( );
   uint8_t enviadas = 0;
   _uaPintando = true;

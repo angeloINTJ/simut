@@ -154,8 +154,29 @@ const char *rotuloEntrar( const VmPin &vm ) {
   }
 }
 
+// "<account><rest>" for another account's PIN, the name cut to the room the rest leaves in the
+// line (W_UTIL). The name goes first: the line has 296 px and one row of 9 pt text, there is no
+// room under the field for a second (the keys start 28 px below it), and "Escolha de 6 a 12
+// caracteres para joao.silva.2026." was 385 px. Measured on the ink of the whole line, not of
+// its parts: the joint of the two shares the neighbours' side bearings, so the parts' sum is a
+// pixel or two short of the whole. A 15-character name (the device's longest) is whole up to
+// about 139 px of ink ("joao.silva.2026" is 115) beside the longest rest; the rest never is cut.
+void linhaDaConta( const char *conta, const char *resto, char *out, int cap ) {
+  char nome[ident::NOME + 4];
+  int16_t largura = (int16_t)( W_UTIL - larguraTinta( resto, tipo::apoio ) );
+  for ( ;; ) {
+    cortar( conta, tipo::apoio, largura, nome, sizeof nome );
+    snprintf( out, (size_t)cap, "%s%s", nome, resto );
+    if ( larguraTinta( out, tipo::apoio ) <= W_UTIL || largura <= 0 ) break;
+    largura = (int16_t)( largura - 2 );
+  }
+}
+
 // The line under the field: the refusal, the wait, or the help of this layout
-// and this pass. The device talks of digits, or of characters with 0-9 A-Z.
+// and this pass. The device talks of digits, or of characters with 0-9 A-Z. Every text here is
+// one line of 296 px at 9 pt: the 7 pt copy ("Toque no cartão que tem cada dígito do PIN.",
+// 337 px) was cut ten times at the floor (2026-10-15), and so was the lengths' message below
+// with "caracteres" (300 to 310 px, in a layout the samples did not draw).
 void montarLinha( const VmPin &vm, const LayoutPin &l, char *out, int cap, Tom *tom ) {
   const char *digitos = vm.alfanumerico ? "caracteres" : "dígitos";
   const char *um = vm.alfanumerico ? "caractere" : "dígito";
@@ -164,8 +185,8 @@ void montarLinha( const VmPin &vm, const LayoutPin &l, char *out, int cap, Tom *
   if ( vm.estado == PinEstado::ERRO ) {
     *tom = Tom::PERIGO;
     switch ( vm.erro ) {
-      case PinErro::CURTO: snprintf( out, (size_t)cap, "PIN curto: use pelo menos %d %s.", (int)vm.minimo, digitos ); break;
-      case PinErro::DIFERENTES: copiar( out, "Os dois PINs não batem. Comece de novo.", cap ); break;
+      case PinErro::CURTO: snprintf( out, (size_t)cap, "PIN curto: use %d %s ou mais.", (int)vm.minimo, digitos ); break;
+      case PinErro::DIFERENTES: copiar( out, "Os PINs não batem. Comece de novo.", cap ); break;
       case PinErro::INCORRETO:
       default: copiar( out, "PIN incorreto. Tente de novo.", cap ); break;
     }
@@ -178,22 +199,31 @@ void montarLinha( const VmPin &vm, const LayoutPin &l, char *out, int cap, Tom *
     return;
   }
   if ( l.popup ) { snprintf( out, (size_t)cap, "Toque no caractere do grupo %s.", kRotulosGrupo[vm.popup] ); return; }
-  char para[ident::NOME + 8] = "";
-  if ( vm.conta[0] ) snprintf( para, sizeof para, " para %s", vm.conta );
   switch ( vm.fase ) {
     case PinFase::DEFINIR: {
       const int teto = vm.teto ? vm.teto : LUGARES_MAX;
-      if ( teto > vm.minimo ) snprintf( out, (size_t)cap, "Escolha de %d a %d %s%s.", (int)vm.minimo, teto, digitos, para );
-      else snprintf( out, (size_t)cap, "Escolha %d %s%s.", teto, digitos, para );
+      char regra[40];
+      if ( teto > vm.minimo ) snprintf( regra, sizeof regra, "%d a %d %s.", (int)vm.minimo, teto, digitos );
+      else snprintf( regra, sizeof regra, "%d %s.", teto, digitos );
+      if ( vm.conta[0] ) {                                // "joao.silva: 6 a 12 caracteres."
+        char resto[48];
+        snprintf( resto, sizeof resto, ": %s", regra );
+        linhaDaConta( vm.conta, resto, out, cap );
+      } else {
+        snprintf( out, (size_t)cap, "Escolha %s%s", teto > vm.minimo ? "de " : "", regra );
+      }
       break;
     }
-    case PinFase::CONFIRMAR: snprintf( out, (size_t)cap, "Digite o mesmo PIN de novo%s.", para ); break;
+    case PinFase::CONFIRMAR:
+      if ( vm.conta[0] ) linhaDaConta( vm.conta, ": digite o mesmo PIN.", out, cap );
+      else copiar( out, "Digite o mesmo PIN de novo.", cap );
+      break;
     case PinFase::IDENTIFICAR:
     default:
       switch ( vm.teclado ) {
         case PinTeclado::NUMERICO: copiar( out, "Toque nos dígitos do PIN.", cap ); break;
         case PinTeclado::GRUPOS: copiar( out, "Toque no grupo e depois no caractere.", cap ); break;
-        default: snprintf( out, (size_t)cap, "Toque no cartão que tem cada %s do PIN.", um ); break;
+        default: snprintf( out, (size_t)cap, "Toque no cartão com cada %s.", um ); break;
       }
       break;
   }

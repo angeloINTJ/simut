@@ -22,7 +22,7 @@ struct LinhaAlarme {
 
 struct VmAlarmes {
   uint8_t n;                           // active sensors listed, in slot order
-  uint8_t pagina;                      // 0-based; four sensors to a page
+  uint8_t pagina;                      // 0-based; three sensors to a page (LISTA_FILAS_2)
   LinhaAlarme sensores[ALARMES_MAX];
 };
 // Targets: AlvoLista. LST_LINHA's indice is the position in sensores[ ].

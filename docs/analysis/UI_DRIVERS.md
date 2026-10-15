@@ -548,7 +548,8 @@ review of C5 and C6 found it), `pico2_w_release`, `pico_wiretft`, `pico_w_air`, 
 size. The Ângulo image went from 815,424 B used (827,456 B .bin) to 816,264 B (828,296 B), +840 B: C2 -32, C3 -88
 (`drawSlotPanel` and `drawBottomButtons` left the image), C4 +136, C5 +328, C6 +424, C7 +72, C8 0; the review of C9 then
 added 16 B (816,280 B, .bin 828,312 B) for the frame check in `uiBootSkipHit`. Until S10b every action is compiled twice
-there, the dead old chain in `handleTouch` and the glue; the OTA headroom of that image is 211,831 B.
+there, the dead old chain in `handleTouch` and the glue; the OTA headroom of that image was 211,831 B at the end of S5
+(217,047 B on the visual branch, `feat/ui-angulo-visual`, once the 7 pt fonts left the kit, 2026-10-15).
 
 **Before the merge to main.** The message of `14fd267` still carries a paragraph written when C2 was not yet accepted:
 rewrite it when the stage is squashed.

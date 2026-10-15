@@ -123,9 +123,10 @@ void tempoRestante( Pintor &p, int16_t cx, int16_t base, uint32_t minutos ) {
   numero( p, x, base, sm, "min", Fonte::DISP32, T.tinta, 'l', tipo::botao, true, T.tinta2 );
 }
 
-// The notes under the content, in the quiet type, from the card's left edge to
-// its right: "Os alarmes deste sensor ficam suspensos até o fim." is 304 px, the
-// width of the cards.
+// The notes under the content, in the quiet type, one row of PASSO_APOIO each, from
+// the card's left edge: the longest, "Os alarmes ficam suspensos até o fim.", is 293 px
+// of ink at 9 pt, under the 304 of the cards' width (2026-10-15: with "deste sensor"
+// it was 394, and the title already names the sensor).
 void nota( Pintor &p, int16_t y, const char *texto, Tom tom ) {
   ajuda( p, ESP2, y, ESP4, texto, tom );
 }
@@ -140,7 +141,11 @@ void desenharLimites( Pintor &p, const VmLimites &vm ) {
   const Tema &T = p.t( );
   const LayoutLimites l = layoutLimites( vm );
   char titulo[64];
-  montarTitulo( titulo, sizeof titulo, "", vm.sensor, " · limites" );
+  // The title is the sensor's name alone, as in the sensor's menu it comes from: with " · limites"
+  // after it, "Ultracongelador" (15 characters, an ordinary length) was cut to "Ultracongelad… ·
+  // limites" at the 9 pt floor (2026-10-15). The screen still says what it is: the cards read
+  // "Temperatura mínima" and "Temperatura máxima", and the footer "Salvar limites".
+  montarTitulo( titulo, sizeof titulo, "", vm.sensor, "" );
   barraTituloVoltar( p, titulo );
   const int g = vm.grandeza <= GLIM_PRESSAO ? (int)vm.grandeza : (int)GLIM_TEMPERATURA;
   for ( int r = 0; r < 2; r++ ) {
@@ -196,10 +201,14 @@ void desenharManutencao( Pintor &p, const VmManutencao &vm ) {
     desenharStepper( p, l.cartao[0], "Horas", h, "h", vm.foco == 0, l.menosAtivo[0], l.maisAtivo[0] );
     desenharStepper( p, l.cartao[1], "Minutos", m, "min", vm.foco == 1, l.menosAtivo[1], l.maisAtivo[1] );
   }
-  nota( p, l.yNota, "Os alarmes deste sensor ficam suspensos até o fim.", Tom::NEUTRO );
+  // The alarms' note explains the state of a window that is open, and what starting
+  // one does. Closed and without the permission nothing can start, so the account's
+  // note has the row to itself: a second row, 18 px under the first (which starts at
+  // y 160), would have its ink end at y 197, 1 px into the footer's buttons (y 196).
+  if ( vm.permitido || vm.aberta ) nota( p, l.yNota, "Os alarmes ficam suspensos até o fim.", Tom::NEUTRO );
   if ( !vm.permitido )
-    nota( p, l.yNota + ESP4, vm.aberta ? "Sua conta não pode encerrar a manutenção." : "Sua conta não pode abrir manutenção.",
-          Tom::ALERTA );
+    nota( p, vm.aberta ? l.yNota + PASSO_APOIO : l.yNota,
+          vm.aberta ? "Sua conta não pode encerrar." : "Sua conta não pode abrir manutenção.", Tom::ALERTA );
   desenharRodape( p, l.rodape, vm.aberta ? "Encerrar manutenção" : "Iniciar manutenção",
                   vm.aberta ? Botao::DESTRUTIVO : Botao::PRIMARIO, !l.primariaAtiva, vm.aberta ? nullptr : "Cancelar" );
 }

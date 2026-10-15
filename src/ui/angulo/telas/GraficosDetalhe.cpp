@@ -16,17 +16,39 @@ using namespace graficos;
 namespace {
 
 // The plan's cards: 96 x 72, ESP2 apart, from Y0, three to a row. In a card the
-// label sits ESP2 under the top, the value's baseline 48 px down and the line
-// under it, a box of H_APOIO, at 52.
+// label sits ESP2 under the top, the value's baseline 44 px down and the line
+// under it, a box of H_APOIO, at 48 (the plan's 48 and 52: the 9 pt line is 14
+// px of caps and its descenders reached the card's border).
 constexpr int16_t W_CARTAO = 96, H_CARTAO = 72;
 constexpr int N_CARTOES = 6, COLUNAS = 3;
 enum { C_MAXIMO, C_MINIMO, C_MEDIA, C_DESVIO, C_VARIACAO, C_AGORA };   // the cards, in reading order
-constexpr int16_t Y_VALOR = 48, Y_SUB = 52;
+constexpr int16_t Y_VALOR = 44, Y_SUB = 48;
 
-// A card's texts start PAD in and may use the card down to ESP2 from its right
-// edge: 76 px, enough for "1013,2 hPa" (74 px, measured 2026-10-14), which the
-// symmetric 72 would cut.
-constexpr int16_t LARGURA_TEXTO = W_CARTAO - PAD - ESP2;
+// A card's texts start ESP2 in (the plan's PAD, 12, left 76 px, and the 9 pt
+// "dispersão" is 76, "início→fim" 75, "Desvio σ" 75). The labels and the lines
+// under the values may run to ESP2 short of the right edge: 80 px. The value
+// and its unit may run to ESP1 short of it: 84, for "1009,1 hPa" (82 px,
+// measured 2026-10-15), which 80 would cut.
+constexpr int16_t X_TEXTO = ESP2;
+constexpr int16_t LARGURA_TEXTO = W_CARTAO - X_TEXTO - ESP2;
+constexpr int16_t LARGURA_VALOR = W_CARTAO - X_TEXTO - ESP1;
+
+// The gap between a value and its unit, as the eye reads it. The kit's numero( ) puts the unit ESP1
+// after the value's ink, and on the pixels that is 4 blank columns after every digit (measured
+// 2026-10-15 on "1x" + "hPa" drawn as the card draws it), but the eye reads the mean distance
+// down the digit's height, and that differs with the shape of its right edge: the stem of a "1"
+// is 4.00 px from the "h" on all 12 rows, the diagonal of a "7" 4 at the top and 8 at the foot
+// (6.42 on average), and "1009,1hPa" read as glued while "1015,7 hPa" did not. Mean over the
+// rows, per last digit: 0 4.83, 1 4.00, 2 5.50, 3 5.08, 4 5.67, 5 5.00, 6 5.00, 7 6.42, 8 5.00,
+// 9 5.17. One pixel more after the "1" brings it to 5.00, and every digit is then between 4.83
+// and 6.42 (2.42 wide before). The "7" and the "4" are left wide, not pulled in to the mean:
+// at 3 px the "7"'s top bar read as glued to the "h" on the frame, and no digit is closer to
+// its unit than the 4 px they all have now. The widest value that keeps its unit still keeps
+// it ("1009,1 hPa" is 83 px of 84).
+int16_t folgaDaUnidade( const char *valor ) {
+  const int n = (int)strlen( valor );
+  return ( n > 0 && valor[n - 1] == '1' ) ? (int16_t)( ESP1 + 1 ) : (int16_t)ESP1;
+}
 
 struct Cartao {
   Caixa16 caixa;
@@ -75,7 +97,8 @@ LayoutDetalhe layoutDetalhe( const VmDetalhe &vm ) {
   const char *unidade;
   unidadeENome( e.grandeza, &unidade, &l.nome );
 
-  const char *const rotulos[N_CARTOES] = { "Máximo", "Mínimo", "Média", "Desvio (σ)", "Variação", vm.passado ? "Fim" : "Agora" };
+  // "Desvio (σ)" is 86 px in 9 pt bold, over the card's 80.
+  const char *const rotulos[N_CARTOES] = { "Máximo", "Mínimo", "Média", "Desvio σ", "Variação", vm.passado ? "Fim" : "Agora" };
   const int16_t v[N_CARTOES] = { e.maximo, e.minimo, e.media, e.desvio, e.variacao, e.agora };
   for ( int i = 0; i < N_CARTOES; i++ ) {
     Cartao &c = l.cartao[i];
@@ -87,15 +110,26 @@ LayoutDetalhe layoutDetalhe( const VmDetalhe &vm ) {
     else if ( i == C_VARIACAO && v[i] > 0 ) { char t[16]; snprintf( c.valor, sizeof c.valor, "+%s", n1( v[i], t ) ); }   // the change keeps its sign
     else n1( v[i], c.valor );
   }
-  // What each card says under its value.
-  if ( e.tMaximo.dia ) diaMesHoraMin( e.tMaximo, l.cartao[C_MAXIMO].sub, sizeof l.cartao[C_MAXIMO].sub );
-  if ( e.tMinimo.dia ) diaMesHoraMin( e.tMinimo, l.cartao[C_MINIMO].sub, sizeof l.cartao[C_MINIMO].sub );
+  // What each card says under its value. A date with its time ("30/09 14:17")
+  // is 92 px in 9 pt, over the 80, so the extremes say what the chart's
+  // statistics say: the time inside a day's window (it is unique there), the date
+  // inside a week's.
+  const bool semana = vm.periodo == N_PERIODOS - 1;
+  if ( e.tMaximo.dia ) {
+    if ( semana ) diaMes( e.tMaximo, l.cartao[C_MAXIMO].sub, sizeof l.cartao[C_MAXIMO].sub );
+    else horaMin( e.tMaximo, l.cartao[C_MAXIMO].sub, sizeof l.cartao[C_MAXIMO].sub );
+  }
+  if ( e.tMinimo.dia ) {
+    if ( semana ) diaMes( e.tMinimo, l.cartao[C_MINIMO].sub, sizeof l.cartao[C_MINIMO].sub );
+    else horaMin( e.tMinimo, l.cartao[C_MINIMO].sub, sizeof l.cartao[C_MINIMO].sub );
+  }
   leituras( e.leituras, l.cartao[C_MEDIA].sub, sizeof l.cartao[C_MEDIA].sub );
   strcpy( l.cartao[C_DESVIO].sub, "dispersão" );
-  strcpy( l.cartao[C_VARIACAO].sub, "início → fim" );
+  strcpy( l.cartao[C_VARIACAO].sub, "início→fim" );   // "início → fim" is 83 px
   if ( e.tAgora.dia ) {
-    // In the past the date says which day "Fim" is; now, the time is enough.
-    if ( vm.passado ) diaMesHoraMin( e.tAgora, l.cartao[C_AGORA].sub, sizeof l.cartao[C_AGORA].sub );
+    // In the past the date says which day "Fim" is (the time of a window's last
+    // reading is the window's end, the same every day); now, the time is enough.
+    if ( vm.passado ) diaMes( e.tAgora, l.cartao[C_AGORA].sub, sizeof l.cartao[C_AGORA].sub );
     else horaMin( e.tAgora, l.cartao[C_AGORA].sub, sizeof l.cartao[C_AGORA].sub );
   }
   return l;
@@ -116,13 +150,17 @@ void desenharDetalhe( Pintor &p, const VmDetalhe &vm ) {
     for ( int i = 0; i < N_CARTOES; i++ ) {
       const Cartao &c = l.cartao[i];
       superficie( p, c.caixa.x, c.caixa.y, c.caixa.w, c.caixa.h );
-      const int16_t x = (int16_t)( c.caixa.x + PAD );
+      const int16_t x = (int16_t)( c.caixa.x + X_TEXTO );
       textoCentrado( p, c.rotulo, x, (int16_t)( c.caixa.y + ESP2 ), H_APOIO, tipo::rotulo, T.tinta2, 'l' );
-      // The number in display type, the unit small and grey after it; a value
-      // that would still run past the card goes without its unit.
-      const int16_t w = (int16_t)( larguraTinta( c.valor, Fonte::DISP9 ) + ESP1 + larguraTinta( c.unidade, tipo::rotulo ) );
-      numero( p, x, (int16_t)( c.caixa.y + Y_VALOR ), c.valor, w <= LARGURA_TEXTO ? c.unidade : "", Fonte::DISP9, T.tinta, 'l', tipo::rotulo,
-              true, T.tinta2 );
+      // The number in display type, the unit small and grey after it (in the
+      // regular weight: "hPa" is 29 px, 32 in bold), with the gap the eye reads the
+      // same after every digit (folgaDaUnidade( )); a value that would still run
+      // past the card goes without its unit.
+      const int16_t folga = folgaDaUnidade( c.valor );
+      const int16_t w = (int16_t)( larguraTinta( c.valor, Fonte::DISP9 ) + folga + larguraTinta( c.unidade, tipo::apoio ) );
+      const int16_t yValor = (int16_t)( c.caixa.y + Y_VALOR );
+      const Tinta t = p.texto( c.valor, x, yValor, Fonte::DISP9, T.tinta, 'l' );
+      if ( w <= LARGURA_VALOR ) p.texto( c.unidade, (int16_t)( t.x1 + folga ), yValor, tipo::apoio, T.tinta2, 'l' );
       if ( c.sub[0] ) textoCentrado( p, c.sub, x, (int16_t)( c.caixa.y + Y_SUB ), H_APOIO, tipo::apoio, T.tinta2, 'l' );
     }
   }

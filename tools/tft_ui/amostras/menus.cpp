@@ -451,8 +451,8 @@ const VmLicenca kLicencaMeio = licenca( gIndiceTudo, kPaginasTudo / 2 );
 const VmLicenca kLicencaUltima = licenca( gIndiceTudo, kPaginasTudo - 1 );
 // A text that fits one page: no pager, no scroll bar.
 const VmLicenca kLicencaUma = licenca( gIndiceCurto, 0 );
-// Two digits in the pager ("28 de 28"), the thumb at the end of a long track, the
-// index at its limit (192 lines: 27 pages and a last one of three lines).
+// Two digits in the pager ("32 de 32"), the thumb at the end of a long track, the
+// index at its limit (192 lines: 32 pages of six, the last one full).
 const VmLicenca kLicencaRepetida = licenca( gIndiceRepetido, ( kLinhasRepetido + LICENCA_LINHAS - 1 ) / LICENCA_LINHAS - 1 );
 // The page of the opening's last string, the one with the em dash drawn as a hyphen.
 int paginaDaFonte( const IndiceLicenca &ix, int fonte ) {

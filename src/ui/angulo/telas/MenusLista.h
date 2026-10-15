@@ -27,6 +27,13 @@ constexpr int16_t H_SELO = 20;
 constexpr int LISTA_FILAS = 4;          // rows to a page: y 36..195, the pager at 196
 constexpr int16_t LISTA_H_FILA = 40;
 
+// A row of two lines, a label over its value or its note: 48 px, three to a page (y 36..179). At
+// 9 pt, two lines of 14 px caps in 40 px left 4 px above, between and below them, and the first
+// line's descenders touched the second line (2026-10-15); in 48 px they are 7 above and below, and
+// 6 between the first baseline and the next line's caps.
+constexpr int LISTA_FILAS_2 = 3;
+constexpr int16_t LISTA_H_FILA_2 = 48;
+
 // The targets of every list screen of the group. LST_LINHA's indice is the
 // row's position in the whole list, not on the page. Rows that only show
 // something (the status table, the licence) are not targets.
@@ -80,7 +87,9 @@ struct LayoutLista {
   Caixa16 voltar;
   Caixa16 linhas[LISTA_FILAS];         // the rows on this page
 };
-LayoutLista layoutLista( int total, int pagina );
+// `filas` rows to a page of `hFila` px each: LISTA_FILAS of LISTA_H_FILA, or LISTA_FILAS_2 of
+// LISTA_H_FILA_2 for the rows of two lines.
+LayoutLista layoutLista( int total, int pagina, int filas = LISTA_FILAS, int16_t hFila = LISTA_H_FILA );
 // Voltar, the rows (when they are targets: LST_LINHA, indice = position in the
 // whole list) and the arrows that work.
 int alvosLista( const LayoutLista &l, Alvo *out, bool linhasSaoAlvos );
@@ -95,6 +104,12 @@ void cortar( const char *s, Fonte f, int16_t largura, char *out, int cap );
 
 // A line of small text under a card, aligned with the card's edge.
 void desenharNota( Pintor &p, int16_t y, const char *texto );
+
+// The two lines of a row of LISTA_H_FILA_2 whose box is c, from x: each in a box of 20 px (the
+// pitch of `corpo`), the pair centred in the row. The first is the label (`corpo`), the second its
+// value or note.
+void desenharDuasLinhas( Pintor &p, const Caixa16 &c, int16_t x, const char *linha1, uint16_t cor1,
+                         const char *linha2, Fonte fonte2, uint16_t cor2 );
 
 // The empty list: the same card with a sentence in `corpo` that says what to
 // do (Ângulo §4.4). Returns the y after the card.

@@ -27,11 +27,19 @@ namespace ident {
 // spare, nothing on the device keeps more than 15 for an account.
 constexpr int NOME = 32;
 
-// Rows of every list of accounts: 4 of 40 px from Y0 (36) to 196, the pager's row below.
+// Rows of the lists of accounts of one line: 4 of 40 px from Y0 (36) to 196, the pager's row below.
 constexpr int LINHAS = 4;
 constexpr int16_t H_LINHA = 40;
 
-inline int paginasDe( int total ) { return total > 0 ? ( total + LINHAS - 1 ) / LINHAS : 1; }
+// The list of accounts (Usuários) is the exception: its rows hold two lines, the name over what the
+// account may do, in 48 px and three to a page (y 36..180), as the alarm list's rows (MenusLista.h,
+// LISTA_FILAS_2). At the 9 pt text floor (2026-10-15) the 40 px row left 4 px between the two lines
+// and the name's descenders touched the summary under it; in 48 px the two 20 px boxes leave 7 px
+// above and below, and 6 between the name's baseline and the summary's caps.
+constexpr int LINHAS_2 = 3;
+constexpr int16_t H_LINHA_2 = 48;
+
+inline int paginasDe( int total, int porPagina = LINHAS ) { return total > 0 ? ( total + porPagina - 1 ) / porPagina : 1; }
 
 /* ------------------------------------------------------------------ */
 /* Text                                                                 */

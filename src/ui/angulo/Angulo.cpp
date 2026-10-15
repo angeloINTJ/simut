@@ -13,8 +13,6 @@
 // scope consts (internal linkage): this translation unit is the only one that
 // includes them.
 namespace entrega {
-#include "kit/fontes/SANS7.h"
-#include "kit/fontes/SANSB7.h"
 #include "kit/fontes/SANS9.h"
 #include "kit/fontes/SANSB9.h"
 #include "kit/fontes/MONO9.h"
@@ -96,9 +94,13 @@ int16_t rdiv( int32_t n, int32_t d ) {
 namespace {
 
 const GFXfont *const kFontes[] = {
-    &entrega::SANS7, &entrega::SANSB7, &entrega::SANS9, &entrega::SANSB9, &entrega::MONO9, &entrega::MONO12,
+    &entrega::SANS9, &entrega::SANSB9, &entrega::MONO9, &entrega::MONO12,
     &entrega::DISP9, &entrega::DISP12, &entrega::DISP18, &entrega::DISP24, &entrega::DISP32, &entrega::DISP24_MARCA,
 };
+// Both tables are indexed by ua::Fonte: an entry added to or taken from the enum must be taken here
+// and in tools/tft_ui/gerar_meta.js's FONTES too (the 7 pt fonts left all three on 2026-10-15).
+static_assert( sizeof kFontes / sizeof kFontes[0] == (size_t)Fonte::MARCA + 1, "kFontes follows ua::Fonte" );
+static_assert( sizeof meta::kCapX / sizeof meta::kCapX[0] == (size_t)Fonte::MARCA, "kCapX follows ua::Fonte" );
 
 uint32_t s_faltando = 0;
 
@@ -202,19 +204,107 @@ void Pintor::rect( int16_t x, int16_t y, int16_t w, int16_t h, uint16_t c ) {
 }
 
 void Pintor::line( int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t c ) { g_.drawLine( x0, y0, x1, y1, c ); }
-void Pintor::circle( int16_t x, int16_t y, int16_t r, uint16_t c ) { g_.drawCircle( x, y, r, c ); }
-void Pintor::fillCircle( int16_t x, int16_t y, int16_t r, uint16_t c ) { g_.fillCircle( x, y, r, c ); }
 
+namespace {
+
+// fg over bg, a sixteenths of fg: each channel widened to 8 bits (high bits
+// replicated, as the panel shows it), mixed, rounded, narrowed back.
+uint16_t misturar16( uint16_t fg, uint16_t bg, uint8_t a ) {
+  if ( a >= 16 ) return fg;
+  if ( a == 0 ) return bg;
+  auto ex5 = []( uint16_t v ) { return (uint16_t)( ( v << 3 ) | ( v >> 2 ) ); };
+  auto ex6 = []( uint16_t v ) { return (uint16_t)( ( v << 2 ) | ( v >> 4 ) ); };
+  const uint16_t r = (uint16_t)( ( ex5( fg >> 11 ) * a + ex5( bg >> 11 ) * ( 16 - a ) + 8 ) / 16 );
+  const uint16_t g = (uint16_t)( ( ex6( ( fg >> 5 ) & 63 ) * a + ex6( ( bg >> 5 ) & 63 ) * ( 16 - a ) + 8 ) / 16 );
+  const uint16_t b = (uint16_t)( ( ex5( fg & 31 ) * a + ex5( bg & 31 ) * ( 16 - a ) + 8 ) / 16 );
+  return (uint16_t)( ( ( r & 0xF8 ) << 8 ) | ( ( g & 0xFC ) << 3 ) | ( b >> 3 ) );
+}
+
+// Sixteenths of a pixel inside the disc of squared radius out2 and outside the
+// one of squared radius in2 (in2 < 0: a whole disc), everything in eighths of a
+// pixel so that it stays integer: (dx8, dy8) is the pixel's corner nearest the
+// centre's opposite side, and the 4 x 4 samples sit at its (2k + 1) / 8 points.
+uint8_t cobertura( int32_t dx8, int32_t dy8, int32_t out2, int32_t in2 ) {
+  uint8_t n = 0;
+  for ( int32_t l = 0; l < 4; l++ ) {
+    const int32_t dy = dy8 + 2 * l + 1;
+    for ( int32_t k = 0; k < 4; k++ ) {
+      const int32_t dx = dx8 + 2 * k + 1;
+      const int32_t d2 = dx * dx + dy * dy;
+      if ( d2 <= out2 && d2 > in2 ) n++;
+    }
+  }
+  return n;
+}
+
+}  // namespace
+
+void Pintor::misturar( int16_t x, int16_t y, uint16_t c, uint8_t a ) {
+  if ( a == 0 || x < 0 || y < 0 || x >= g_.width( ) || y >= g_.height( ) ) return;
+  g_.drawPixel( x, y, a >= 16 ? c : misturar16( c, l_.ler( x, y ), a ) );
+}
+
+// The four r x r corner squares of a box at [x, x + w) by [y, y + h): each pixel
+// mixed against the quarter disc whose centre is r in from both outer edges, and
+// outside the disc of squared radius in2 (an outline; in2 < 0 for a fill). Rows
+// outside the strip being drawn (janela) are skipped: they are not kept.
+void Pintor::cantos( int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint16_t c, int32_t in2 ) {
+  const int32_t out = 8 * r;
+  for ( int16_t j = 0; j < r; j++ ) {
+    const int16_t ya = y + j, yb = y + h - 1 - j;
+    const bool cima = ya >= jy0_ && ya < jy1_, baixo = yb >= jy0_ && yb < jy1_;
+    if ( !cima && !baixo ) continue;
+    for ( int16_t i = 0; i < r; i++ ) {
+      const uint8_t a = cobertura( 8 * ( i - r ), 8 * ( j - r ), out * out, in2 );
+      if ( cima ) { misturar( x + i, ya, c, a ); misturar( x + w - 1 - i, ya, c, a ); }
+      if ( baixo ) { misturar( x + i, yb, c, a ); misturar( x + w - 1 - i, yb, c, a ); }
+    }
+  }
+}
+
+// A circle as Adafruit GFX places it (centre pixel (x, y), radius r: the pixels
+// from x - r to x + r), drawn as the disc of radius r + 0.5 around that pixel's
+// centre; the outline is the ring between r - 0.5 and r + 0.5 (in2 >= 0).
+void Pintor::disco( int16_t x, int16_t y, int16_t r, uint16_t c, int32_t in2 ) {
+  if ( r < 0 || fora( y - r, 2 * r + 1 ) ) return;
+  const int32_t out = 8 * r + 4;
+  for ( int16_t j = -r; j <= r; j++ ) {
+    if ( y + j < jy0_ || y + j >= jy1_ ) continue;
+    for ( int16_t i = -r; i <= r; i++ ) misturar( x + i, y + j, c, cobertura( 8 * i - 4, 8 * j - 4, out * out, in2 ) );
+  }
+}
+
+void Pintor::circle( int16_t x, int16_t y, int16_t r, uint16_t c ) {
+  const int32_t in = 8 * r - 4;
+  disco( x, y, r, c, in > 0 ? in * in : -1 );
+}
+
+void Pintor::fillCircle( int16_t x, int16_t y, int16_t r, uint16_t c ) { disco( x, y, r, c, -1 ); }
+
+// A rounded box as Adafruit GFX places it ([x, x + w) by [y, y + h), corners of
+// radius r, at most half the shorter side): the straight parts as before, the
+// corners smoothed (cantos). The outline is 1 px: the ring between the corner's
+// disc and the one of radius r - 1 around the same centre, the box inset by 1.
 void Pintor::roundRect( int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint16_t c ) {
   if ( w <= 0 || h <= 0 || fora( y, h ) ) return;
   const int16_t m = ( w < h ? w : h ) / 2;
-  g_.drawRoundRect( x, y, w, h, r > m ? m : r, c );
+  if ( r > m ) r = m;
+  hline( x + r, y, w - 2 * r, c );
+  hline( x + r, y + h - 1, w - 2 * r, c );
+  vline( x, y + r, h - 2 * r, c );
+  vline( x + w - 1, y + r, h - 2 * r, c );
+  const int32_t in = 8 * ( r - 1 );
+  cantos( x, y, w, h, r, c, in > 0 ? in * in : -1 );
 }
 
 void Pintor::fillRoundRect( int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint16_t c ) {
   if ( w <= 0 || h <= 0 || fora( y, h ) ) return;
   const int16_t m = ( w < h ? w : h ) / 2;
-  g_.fillRoundRect( x, y, w, h, r > m ? m : r, c );
+  if ( r > m ) r = m;
+  fillRect( x + r, y, w - 2 * r, h, c );
+  fillRect( x, y + r, r, h - 2 * r, c );
+  fillRect( x + w - r, y + r, r, h - 2 * r, c );
+  cantos( x, y, w, h, r, c, -1 );
 }
 
 bool temIcone( IconeNome n, int16_t tam ) {

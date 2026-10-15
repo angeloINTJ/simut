@@ -20,13 +20,21 @@ namespace {
 /* Geometry                                                             */
 /* ------------------------------------------------------------------ */
 
-// The plan's chart card; the plot sits inside it, ESP2 under the top and ESP4
-// above the bottom (room for the time axis).
-constexpr int16_t X_CARTAO = ESP2, Y_CARTAO = 68, W_CARTAO = 304, H_CARTAO = 112;
+// The plan's chart card; the plot sits inside it, with the time axis under it.
+// Since the panel's text floor is 9 pt (2026-10-15) the card is 4 px lower and 4
+// px taller than the plan's (68, 112): the statistics' two lines are 18 px apart
+// (14 px caps and 4 px of air), and the plot keeps the 88 px it had. Above it
+// PAD_CIMA = 10: the right scale's top label is 14 px tall, centred on the
+// plot's top, so it clears the card's border by 2 px. Under it 18: the axis
+// labels' 14 px of ink start 1 px under the plot's foot (no line is drawn
+// there, and the range leaves the data an eighth of itself above it, 8 px at
+// least) and end 2 px above the border (the 7 pt labels, 11 px, had 16).
+constexpr int16_t X_CARTAO = ESP2, Y_CARTAO = 72, W_CARTAO = 304, H_CARTAO = 116;
+constexpr int16_t PAD_CIMA = 10, ALTO_PLOT = 88;
 
-// The statistics, two lines under the title bar. A line may run to ESP2 short
-// of the glass's edge.
-constexpr int16_t Y_STAT1 = 32, Y_STAT2 = 48;
+// The statistics, two lines under the title bar, 18 px between baselines. A
+// line may run to ESP2 short of the glass's edge.
+constexpr int16_t Y_STAT1 = 32, Y_STAT2 = Y_STAT1 + 18;
 constexpr int16_t X_STAT_DIR = 320 - ESP2;
 
 // The footer: an arrow, the five period chips, an arrow, 304 px in all. The
@@ -36,12 +44,15 @@ static_assert( 2 * W_SETA + N_PERIODOS * W_CHIP + ( N_PERIODOS - 1 ) * ESP1 + 4 
                "two arrows and five chips fill the footer between its ESP2 margins" );
 
 // The scales, in tenths. At most MAX_GRADE horizontal grid lines: with 88 px of
-// plot that keeps their labels more than 14 px apart. The range is never
+// plot that keeps their labels more than 17 px apart, the 17 px of ink a 9 pt
+// label with a comma has (measured 2026-10-15: 14 of caps, 3 of the comma); the
+// 5 lines of the 7 pt labels would be 14,7 px apart and their ink boxes would
+// overlap. The range is never
 // narrower than FAIXA_MIN (1,0), so a steady sensor reads as steady and not as
 // a magnified wobble, and has an eighth of itself (0,3 at least) as air above
 // and below, so the line does not touch the card. The second curve's scale
 // rounds to PASSO_UMIDADE (5 %UR) or PASSO_PRESSAO (1 hPa).
-constexpr int MAX_GRADE = 5;
+constexpr int MAX_GRADE = 4;
 constexpr int32_t FAIXA_MIN = 10, AR_DIV = 8, AR_MIN = 3;
 constexpr int32_t PASSO_UMIDADE = 50, PASSO_PRESSAO = 10;
 
@@ -53,11 +64,13 @@ constexpr int16_t R_PONTO = 3, R_ANEL = R_PONTO + 1, LADO_PONTO = 3;
 /* Layout                                                               */
 /* ------------------------------------------------------------------ */
 
-// One statistic: its name in support type and its value in bold, side by side.
+// One statistic: its name in support type and its value in bold, side by side;
+// an extreme also carries when it happened, in support type again.
 struct Dado {
   int16_t x, y;
   char k[8];
-  char v[40];
+  char v[16];
+  char t[8];                     // "12:10" or "13/10"; empty for the others
 };
 
 struct LayoutGrafico {
@@ -90,6 +103,13 @@ void comUnidade( int16_t v, const char *un, char *buf, int cap ) {
   char t[16];
   if ( v == SEM_DADO ) snprintf( buf, (size_t)cap, "--,-" );
   else snprintf( buf, (size_t)cap, "%s%s", n1( v, t ), un );
+}
+
+// A grid value in tenths: "-20,0", or "-20" when the step is whole.
+char *rotuloGrade( int32_t v, bool inteiro, char *buf ) {
+  if ( !inteiro ) return n1( v, buf );
+  snprintf( buf, 16, "%ld", (long)( v / 10 ) );
+  return buf;
 }
 
 // The range of the temperature: the extremes of the buckets, with air.
@@ -143,14 +163,17 @@ int contar( int32_t lo, int32_t hi, int32_t passo ) {
 }
 
 // One line of the statistics, left to right, with the widest gap of the grid
-// that keeps it inside the margins; a freezer's "média -18,4 °C σ 0,3 Δ -0,1 °C
-// agora -18,5 °C" needs the narrowest. Returns false when even that does not
-// fit, and the caller writes the line again without the units.
+// that keeps it inside the margins; a freezer's "máx -13,8 °C 03:10 mín -19,7 °C
+// 21:32" is 303 px of items, 311 with the narrowest gap, in the 300 px of the
+// line, and 289 without the minimum's unit (measured 2026-10-15, both freezer
+// samples). Returns false when even the narrowest gap does not fit, and the
+// caller writes the line again with fewer units.
 bool linha( Dado *d, int n, int16_t y ) {
   int16_t soma = 0;
   int16_t w[6];
   for ( int i = 0; i < n; i++ ) {
-    w[i] = (int16_t)( larguraTinta( d[i].k, tipo::apoio ) + ESP1 + larguraTinta( d[i].v, tipo::rotulo ) );
+    w[i] = (int16_t)( larguraTinta( d[i].k, tipo::apoio ) + ESP1 + larguraTinta( d[i].v, tipo::rotulo ) +
+                      ( d[i].t[0] ? ESP2 + larguraTinta( d[i].t, tipo::apoio ) : 0 ) );
     soma += w[i];
   }
   static const int16_t kFolgas[] = { ESP5, ESP4, ESP3, ESP2 };
@@ -169,45 +192,55 @@ bool linha( Dado *d, int n, int16_t y ) {
   return coube;
 }
 
+// The first line is the two extremes, each with where it happened; the second
+// is the other four, bare. At 9 pt a line holds 300 px, and the old first line,
+// "máx 6,0 °C às 12:10 mín 3,0 °C às 22:57", is 326 (items of 161 and 157, and
+// the narrowest gap): the words "às" and "em" are gone (the colon and the slash
+// say it is a time and a date, and the value is bold where the time is not; the
+// time stands ESP2 from the unit, at ESP1 "°C 12:10" read as one word),
+// and the unit stands on the first line only, since the second one cannot hold
+// it (the 7 pt line held "média 4,4 °C σ 0,7 Δ -0,7 °C agora 5,1 °C"; at 9 pt
+// it is 338 px; widths measured with larguraTinta( ) on 2026-10-15).
 void montarStats( const VmGrafico &vm, LayoutGrafico &l ) {
   for ( int tentativa = 0; tentativa < 2; tentativa++ ) {
-    // The second attempt drops the "°C" of the second line.
-    const char *un2 = tentativa == 0 ? " °C" : "";
+    // The second attempt leaves the "°C" off the minimum, and the unit stands once.
     Dado *d = l.stat;
     int k = 0;
-    char texto[40];
+    char texto[16];
+    char quando[8];
     auto novo = [&]( const char *nome ) {
       strcpy( d[k].k, nome );
       copiar( d[k].v, texto, sizeof d[k].v );
+      copiar( d[k].t, quando, sizeof d[k].t );
       k++;
     };
     // The extremes, with where they happened: the time inside a day's window,
     // the date inside a week's (the time alone would not say which day).
-    auto extremo = [&]( int16_t v, const Instante &t ) {
-      comUnidade( v, " °C", texto, sizeof texto );
+    auto extremo = [&]( int16_t v, const Instante &t, const char *un ) {
+      comUnidade( v, un, texto, sizeof texto );
+      quando[0] = 0;
       if ( v == SEM_DADO || t.dia == 0 ) return;
-      char quando[24];
-      const size_t n = strlen( texto );
-      if ( vm.periodo == N_PERIODOS - 1 ) snprintf( texto + n, sizeof texto - n, " em %s", diaMes( t, quando, sizeof quando ) );
-      else snprintf( texto + n, sizeof texto - n, " às %s", horaMin( t, quando, sizeof quando ) );
+      if ( vm.periodo == N_PERIODOS - 1 ) diaMes( t, quando, sizeof quando );
+      else horaMin( t, quando, sizeof quando );
     };
-    extremo( vm.maximo, vm.tMaximo );
+    extremo( vm.maximo, vm.tMaximo, " °C" );
     novo( "máx" );
-    extremo( vm.minimo, vm.tMinimo );
+    extremo( vm.minimo, vm.tMinimo, tentativa == 0 ? " °C" : "" );
     novo( "mín" );
     const int linha1 = k;
-    comUnidade( vm.media, un2, texto, sizeof texto );
+    quando[0] = 0;
+    comUnidade( vm.media, "", texto, sizeof texto );
     novo( "média" );
     comUnidade( vm.desvio, "", texto, sizeof texto );
     novo( "σ" );
     if ( vm.variacao > 0 ) {
       char t[16];
-      snprintf( texto, sizeof texto, "+%s%s", n1( vm.variacao, t ), un2 );
+      snprintf( texto, sizeof texto, "+%s", n1( vm.variacao, t ) );
     } else {
-      comUnidade( vm.variacao, un2, texto, sizeof texto );
+      comUnidade( vm.variacao, "", texto, sizeof texto );
     }
     novo( "Δ" );
-    comUnidade( vm.agora, un2, texto, sizeof texto );
+    comUnidade( vm.agora, "", texto, sizeof texto );
     // "agora" is the last reading of the window; in the past it is not now.
     novo( vm.passado ? "fim" : "agora" );
     l.nStat = k;
@@ -227,8 +260,8 @@ LayoutGrafico layoutGrafico( const VmGrafico &vm ) {
   l.n = vm.n > GRAFICO_BALDES ? GRAFICO_BALDES : vm.n;
   l.temDados = l.n >= 2 && faixa( vm, l.n, &l.lo, &l.hi );
   l.cartao = Caixa16{ X_CARTAO, Y_CARTAO, W_CARTAO, H_CARTAO };
-  l.py0 = Y_CARTAO + ESP2;
-  l.py1 = Y_CARTAO + H_CARTAO - ESP4;
+  l.py0 = Y_CARTAO + PAD_CIMA;
+  l.py1 = l.py0 + ALTO_PLOT;
 
   // The grid: whole multiples of the smallest step that leaves at most
   // MAX_GRADE lines inside the range.
@@ -239,9 +272,12 @@ LayoutGrafico layoutGrafico( const VmGrafico &vm ) {
     for ( int32_t s : kPassos ) {
       if ( contar( l.lo, l.hi, s ) <= MAX_GRADE ) { passo = s; break; }
     }
+    // A whole step gives whole labels ("6", "-20"): the ",0" of "-20,0" is 15 px
+    // of the plot's width at 9 pt, and the unit is on the statistics' line.
+    const bool inteiros = passo % 10 == 0;
     for ( int32_t v = ( chao( l.lo, passo ) + 1 ) * passo; v < l.hi && l.nGrade < MAX_GRADE; v += passo ) {
       l.grade[l.nGrade] = v;
-      n1( v, l.rotGrade[l.nGrade] );
+      rotuloGrade( v, inteiros, l.rotGrade[l.nGrade] );
       const int16_t w = larguraTinta( l.rotGrade[l.nGrade], tipo::apoio );
       if ( w > larguraEsq ) larguraEsq = w;
       l.nGrade++;
@@ -274,6 +310,16 @@ LayoutGrafico layoutGrafico( const VmGrafico &vm ) {
     if ( semana ) diaMes( t, l.eixo[k], sizeof l.eixo[k] );
     else if ( k == 0 && ( cruza || vm.passado ) ) diaMesHoraMin( t, l.eixo[k], sizeof l.eixo[k] );
     else horaMin( t, l.eixo[k], sizeof l.eixo[k] );
+  }
+  // Every other tick: the middle label goes when it would come within ESP2 of
+  // the first or the last. The first one, "12/10 11:32", is 90 px at 9 pt and
+  // the middle one meets it whenever the second curve's scale narrows the plot
+  // to about 200 px.
+  if ( l.eixo[1][0] ) {
+    const int16_t meio = rd2( larguraTinta( l.eixo[1], tipo::apoio ) ), xm = rd2( l.px0 + l.px1 );
+    const int16_t fimEsq = (int16_t)( l.px0 + larguraTinta( l.eixo[0], tipo::apoio ) );
+    const int16_t iniDir = (int16_t)( l.px1 - larguraTinta( l.eixo[2], tipo::apoio ) );
+    if ( xm - meio - fimEsq < ESP2 || iniDir - ( xm + meio ) < ESP2 ) l.eixo[1][0] = 0;
   }
 
   if ( l.temDados ) montarStats( vm, l );
@@ -334,7 +380,7 @@ void desenharPlot( Pintor &p, const VmGrafico &vm, const LayoutGrafico &l ) {
   for ( int i = 0; i < l.nGrade; i++ ) {
     const int16_t y = yT( l.grade[i] );
     p.hline( l.px0, y, (int16_t)( l.px1 - l.px0 ), T.linha );
-    p.texto( l.rotGrade[i], (int16_t)( l.px0 - ESP1 ), (int16_t)( y + ESP1 ), tipo::apoio, T.tinta2, 'r' );
+    textoCentrado( p, l.rotGrade[i], (int16_t)( l.px0 - ESP1 ), (int16_t)( y - rd2( H_APOIO ) ), H_APOIO, tipo::apoio, T.tinta2, 'r' );
   }
 
   // The alarm limits, when the range already reaches them, and the mean.
@@ -358,9 +404,11 @@ void desenharPlot( Pintor &p, const VmGrafico &vm, const LayoutGrafico &l ) {
     }
     // Its scale, at the right of the plot: top, unit, bottom.
     const int16_t xr = (int16_t)( l.px1 + ESP2 );
-    p.texto( l.rot2Cima, xr, (int16_t)( l.py0 + ESP1 ), tipo::apoio, T.tinta2, 'l' );
-    p.texto( l.un2, xr, (int16_t)( rd2( l.py0 + l.py1 ) + ESP1 ), tipo::apoio, T.tinta2, 'l' );
-    p.texto( l.rot2Baixo, xr, (int16_t)( l.py1 + ESP1 ), tipo::apoio, T.tinta2, 'l' );
+    // Each centred on its row (at 9 pt the top label's baseline 4 px under the
+    // plot's top put its caps 10 px above it, across the card's border).
+    textoCentrado( p, l.rot2Cima, xr, (int16_t)( l.py0 - rd2( H_APOIO ) ), H_APOIO, tipo::apoio, T.tinta2, 'l' );
+    textoCentrado( p, l.un2, xr, (int16_t)( rd2( l.py0 + l.py1 ) - rd2( H_APOIO ) ), H_APOIO, tipo::apoio, T.tinta2, 'l' );
+    textoCentrado( p, l.rot2Baixo, xr, (int16_t)( l.py1 - rd2( H_APOIO ) ), H_APOIO, tipo::apoio, T.tinta2, 'l' );
   }
 
   // The mean, 2 px thick; a bucket alone between two gaps gets a square, or it
@@ -409,8 +457,10 @@ void desenharGrafico( Pintor &p, const VmGrafico &vm ) {
 
   for ( int i = 0; i < l.nStat; i++ ) {
     const Dado &d = l.stat[i];
+    const int16_t xv = (int16_t)( d.x + larguraTinta( d.k, tipo::apoio ) + ESP1 );
     textoCentrado( p, d.k, d.x, d.y, H_APOIO, tipo::apoio, T.tinta2, 'l' );
-    textoCentrado( p, d.v, (int16_t)( d.x + larguraTinta( d.k, tipo::apoio ) + ESP1 ), d.y, H_APOIO, tipo::rotulo, T.tinta, 'l' );
+    textoCentrado( p, d.v, xv, d.y, H_APOIO, tipo::rotulo, T.tinta, 'l' );
+    if ( d.t[0] ) textoCentrado( p, d.t, (int16_t)( xv + larguraTinta( d.v, tipo::rotulo ) + ESP2 ), d.y, H_APOIO, tipo::apoio, T.tinta2, 'l' );
   }
 
   superficie( p, l.cartao.x, l.cartao.y, l.cartao.w, l.cartao.h );

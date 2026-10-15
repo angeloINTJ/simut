@@ -1,6 +1,6 @@
 #pragma once
 // The two read-only screens of the menu: the system status (four pages) and
-// the licence (pages of seven lines). ESPEC_UI_A.md §6.2. Neither has a row
+// the licence (pages of six lines). ESPEC_UI_A.md §6.2. Neither has a row
 // to touch: their targets are "Voltar" and the pager's arrows (AlvoLista:
 // LST_VOLTAR, LST_PAG_ANTERIOR, LST_PAG_PROXIMA), see MenusLista.h.
 #include "MenusLista.h"
@@ -72,9 +72,13 @@ int alvosStatusSistema( const VmStatusSistema &vm, Alvo *out );
 /* Licença (MODE_SETTINGS_LICENSE)                                      */
 /* ------------------------------------------------------------------ */
 
-constexpr int LICENCA_LINHAS = 7;          // lines to a page
+// Lines to a page: six, at the 9 pt text's pitch, so that the card and its note end above the pager
+// (36 + 150 = 186; a seventh line would reach 204, into the pager at 196). It was seven at the 7 pt
+// text's 16 px; the real text takes 20 and 21 pages of seven at 9 pt (134 and 145 lines, indexed on
+// the host, 2026-10-15), so 23 and 25 of six.
+constexpr int LICENCA_LINHAS = 6;
 constexpr int LICENCA_BYTES = 96;          // bytes of one wrapped line (UTF-8)
-constexpr int16_t LICENCA_PASSO = 16;      // the 7 pt text's line pitch
+constexpr int16_t LICENCA_PASSO = 18;      // the 9 pt text's line pitch: its 14 px caps and 4 px apart (16 made the lines overlap)
 constexpr int16_t LICENCA_BARRA = 4;       // the scroll bar's width
 // The ink the glue may give each line when it wraps the text with quebrar( ) in
 // tipo::apoio: the card's text column, up to the scroll bar.

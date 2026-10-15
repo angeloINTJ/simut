@@ -82,6 +82,11 @@ const char *const NOME_31 = "administradora.laboratorio.sul1";
 const ContaAm kContasLongas[] = {
   { NOME_15, false, LAM, true }, { NOME_31, false, LA, false }, { NOME_31, true, 0, true }, { "maria", false, LAM, true },
 };
+// The widest row an account can make: 15 characters of ordinary letters, no PIN (the badge shares the
+// name's line) and the three permissions (the widest summary, 194 px).
+const ContaAm kContasPiorCaso[] = {
+  { NOME_15, false, LAM, false }, { NOME_15, false, LA, true }, { "maria", false, 0, false },
+};
 const ContaAm kContasSemPin[] = {
   { "maria", false, LAM, true }, { "joao.silva", false, LA, true }, { "ana.souza", false, 0, false },
 };
@@ -100,12 +105,14 @@ const VmQuem kQuemVazio = quem( 0, 0, kContas, 0 );
 const VmQuem kQuemLongo = quem( 4, 0, kContasLongas, 4, 2 );
 
 const VmUsuarios kUsr3 = usuarios( 3, 0, kContasSemPin, 3, true );
-const VmUsuarios kUsr7p1 = usuarios( 7, 0, kContasCriadas, 4, true );
-const VmUsuarios kUsr7p2 = usuarios( 7, 1, kContasCriadas + 4, 3, true );
+const VmUsuarios kUsr7p1 = usuarios( 7, 0, kContasCriadas, 3, true );          // three rows of two lines to a page
+const VmUsuarios kUsr7p2 = usuarios( 7, 1, kContasCriadas + 3, 3, true );
+const VmUsuarios kUsr7p3 = usuarios( 7, 2, kContasCriadas + 6, 1, true );
 const VmUsuarios kUsrVazio = usuarios( 0, 0, kContasCriadas, 0, true );
 const VmUsuarios kUsrVazioSemPermissao = usuarios( 0, 0, kContasCriadas, 0, false );
 const VmUsuarios kUsrSemPermissao = usuarios( 3, 0, kContasSemPin, 3, false );
-const VmUsuarios kUsrLongo = usuarios( 4, 0, kContasLongas, 4, true );
+const VmUsuarios kUsrLongo = usuarios( 4, 0, kContasLongas, 3, true );
+const VmUsuarios kUsrPiorCaso = usuarios( 3, 0, kContasPiorCaso, 3, true );
 
 const VmConta kContaExistente = conta( "maria", false, LA, true );
 const VmConta kContaSemPin = conta( "ana.souza", false, CTA_PERM_LIMITES, false );
@@ -235,6 +242,11 @@ const VmPin kDefinirFase1 = digitando( definir( PinTeclado::NUMERICO, PinFase::D
 const VmPin kDefinirFase2 = digitando( definir( PinTeclado::NUMERICO, PinFase::CONFIRMAR, 6, 8, "" ), 2, 8 );
 const VmPin kDefinirOutra = digitando( definir( PinTeclado::NUMERICO, PinFase::DEFINIR, 4, 8, "joao.silva" ), 0 );
 const VmPin kDefinirGrupos = digitando( definir( PinTeclado::GRUPOS, PinFase::DEFINIR, 6, 12, "joao.silva" ), 5 );
+// The longest name an account has (15 bytes) in both passes: it shows whole, with what the line says. And the
+// refusal of a short PIN in an alphanumeric layout, whose "caracteres" made the longest line of the screen.
+const VmPin kDefinirNome15 = digitando( definir( PinTeclado::GRUPOS, PinFase::DEFINIR, 6, 12, NOME_15 ), 5 );
+const VmPin kConfirmarNome15 = digitando( definir( PinTeclado::NUMERICO, PinFase::CONFIRMAR, 6, 8, NOME_15 ), 2, 8 );
+const VmPin kErroCurtoAlnum = comEstado( digitando( definir( PinTeclado::GRUPOS, PinFase::DEFINIR, 12, 16, "" ), 3 ), PinEstado::ERRO, PinErro::CURTO );
 
 VmPin comConta( VmPin vm, const char *nome ) { copiar( vm.conta, nome, sizeof vm.conta ); return vm; }
 const VmPin kPinNomeLongo = comConta( pin( PinTeclado::CARTOES12, 37 ), NOME_31 );
@@ -336,6 +348,9 @@ const Amostra kAmostras[] = {
   AM( "pin_definir_fase2", Pin, kDefinirFase2 ),
   AM( "pin_definir_outra_conta", Pin, kDefinirOutra ),
   AM( "pin_definir_grupos", Pin, kDefinirGrupos ),
+  AM( "pin_definir_nome_15", Pin, kDefinirNome15 ),
+  AM( "pin_confirmar_nome_15", Pin, kConfirmarNome15 ),
+  AM( "pin_erro_curto_alnum", Pin, kErroCurtoAlnum ),
   AM( "pin_nome_15", Pin, kPinNome15 ),
   AM( "pin_nome_31", Pin, kPinNomeLongo ),
   // The text keyboard
@@ -357,6 +372,8 @@ const Amostra kAmostras[] = {
   AM( "usuarios_3_contas", Usuarios, kUsr3 ),
   AM( "usuarios_7_pag1", Usuarios, kUsr7p1 ),
   AM( "usuarios_7_pag2", Usuarios, kUsr7p2 ),
+  AM( "usuarios_7_pag3", Usuarios, kUsr7p3 ),
+  AM( "usuarios_pior_caso", Usuarios, kUsrPiorCaso ),
   AM( "usuarios_vazio", Usuarios, kUsrVazio ),
   AM( "usuarios_vazio_sem_permissao", Usuarios, kUsrVazioSemPermissao ),
   AM( "usuarios_sem_permissao", Usuarios, kUsrSemPermissao ),

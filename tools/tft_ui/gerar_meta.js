@@ -59,7 +59,9 @@ const pares = Object.entries(extra).sort((a, b) => a[1] - b[1]);
 pares.forEach(([, code], i) => { if (code !== 0x7f + i) throw new Error('EXTRA codes are not contiguous'); });
 const cps = pares.map(([ch]) => ch.codePointAt(0));
 
-const FONTES = ['SANS7', 'SANSB7', 'SANS9', 'SANSB9', 'MONO9', 'MONO12', 'DISP9', 'DISP12', 'DISP18', 'DISP24', 'DISP32'];
+// The delivery's SANS7 and SANSB7 are left out: the panel's smallest type is 9 pt since 2026-10-15
+// (tipo::apoio and tipo::rotulo), nothing draws 7 pt, and the two fonts cost 4,939 B of the image.
+const FONTES = ['SANS9', 'SANSB9', 'MONO9', 'MONO12', 'DISP9', 'DISP12', 'DISP18', 'DISP24', 'DISP32'];
 const met = FONTES.map((n) => {
   const f = M[n];
   const H = M.glyphs('H', f), x = M.glyphs('x', f);

@@ -33,6 +33,11 @@ constexpr int16_t PASSO_SETA = L_BOTAO + ESP2;
 constexpr int16_t X_SETA_MEIO = X_MEIO - L_BOTAO / 2;
 constexpr int16_t BRACO_CRUZ = 10;        // the crosshair's arms: lines of 20 px
 constexpr int16_t L_VALOR_EIXO = 44;      // the axis letter, a space and a sign with a digit, in the mono face
+// The columns of text beside the arrows: the left one starts 8 px inside the frame, where
+// the title's inset (PAD) is, so it lines up with the title. At 9 pt (2026-10-15) each
+// column is 120 px wide: the left one from here to 8 px short of the up arrow (x 140),
+// the right one from 8 px past the lower arrow (x 180) to 8 px inside the frame.
+constexpr int16_t X_TEXTO = FRAME_X + ESP2;
 
 struct LayoutAlinhar {
   Caixa16 cima, baixo, esquerda, direita;
@@ -156,24 +161,30 @@ void desenharAlinhar( Pintor &p, const VmAlinhar &vm ) {
 
   // The instruction at the top left, the offset at the bottom left (by "Redefinir", which
   // zeroes it) and the warning at the bottom right (by "Salvar", which it is about).
-  textoCentrado( p, "A moldura deve", ESP2 + PAD, Y0 + ESP2, ESP4, tipo::apoio, T.tinta2, 'l' );
-  textoCentrado( p, "encostar na borda.", ESP2 + PAD, Y0 + ESP2 + ESP4, ESP4, tipo::apoio, T.tinta2, 'l' );
-  // The two axes one under the other: on one line, "x −4 · y +4" is 119 px of the
-  // mono face and the lower arrow stands 112 px from the text's start.
+  // "A moldura deve / encostar na borda." ran to x 162 at 9 pt, 22 px into the up arrow's
+  // box (its second line is 142 px); "tocar a borda." is 106 px, and the first line 119.
+  textoCentrado( p, "A moldura deve", X_TEXTO, Y0 + ESP2, ESP4, tipo::apoio, T.tinta2, 'l' );
+  textoCentrado( p, "tocar a borda.", X_TEXTO, Y0 + ESP2 + PASSO_APOIO, ESP4, tipo::apoio, T.tinta2, 'l' );
+  // The two axes one under the other, centred on the lower arrow's row: on one line "x −4
+  // · y +4" is 119 px of the mono face, 1 px under the 120 the column has.
   char valores[2][8];
   comSinal( vm.x, valores[0], sizeof valores[0] );
   comSinal( vm.y, valores[1], sizeof valores[1] );
   for ( int i = 0; i < 2; i++ ) {
-    const int16_t y = l.baixo.y + rd2( L_BOTAO - 2 * ESP4 ) + i * ESP4;
-    textoCentrado( p, i ? "y" : "x", ESP2 + PAD, y, ESP4, tipo::dado, T.tinta2, 'l' );
-    textoCentrado( p, valores[i], ESP2 + PAD + L_VALOR_EIXO, y, ESP4, tipo::dado, T.tinta, 'r' );
+    const int16_t y = l.baixo.y + rd2( L_BOTAO - ( PASSO_APOIO + ESP4 ) ) + i * PASSO_APOIO;
+    textoCentrado( p, i ? "y" : "x", X_TEXTO, y, ESP4, tipo::dado, T.tinta2, 'l' );
+    textoCentrado( p, valores[i], X_TEXTO + L_VALOR_EIXO, y, ESP4, tipo::dado, T.tinta, 'r' );
   }
-  char aviso[2][48];
+  // The warning: three lines of the column's 120 px ("Salvar refaz a / calibração do /
+  // toque."); the two lines it had ended in "calibração do…" at 9 pt. It starts at the
+  // lower arrow's top: its 52 px are taller than the arrow's 40, and centred on the arrow
+  // the first line would start 2 px under the right arrow's box.
+  char aviso[3][48];
   const int16_t xAviso = l.baixo.x + l.baixo.w + ESP2;
   const int n = quebrar( "Salvar refaz a calibração do toque.", tipo::apoio, FRAME_X + FRAME_W - ESP2 - xAviso, &aviso[0][0],
-                         sizeof aviso[0], 2 );
+                         sizeof aviso[0], 3 );
   for ( int i = 0; i < n; i++ )
-    textoCentrado( p, aviso[i], xAviso, l.baixo.y + rd2( L_BOTAO - n * ESP4 ) + i * ESP4, ESP4, tipo::apoio, T.alerta, 'l' );
+    textoCentrado( p, aviso[i], xAviso, l.baixo.y + i * PASSO_APOIO, ESP4, tipo::apoio, T.alerta, 'l' );
 
   desenharRodape( p, l.rodape, "Salvar", Botao::PRIMARIO, false, "Redefinir" );
   // Last, so that nothing paints over it.

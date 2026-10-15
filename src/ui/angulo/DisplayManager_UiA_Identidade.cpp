@@ -109,17 +109,19 @@ bool DisplayManager::uaMontarIdentidade( UaQuadro &q ) {
     case MODE_AUTH_USER:
     case MODE_SETTINGS_USERS: {
       if ( !_sysConfigPtr ) return false;        // drawUserList( ) does the same (:933)
-      /* The page the old draw clamped (:936-938). */
-      int paginas = ( _usersCount + 3 ) / 4;
+      /* The page the old draw clamped (:936-938). Rows to a page: "who is at the panel" keeps the old
+       * four; the list of accounts has rows of two lines, three to a page (ident::LINHAS_2). */
+      const int porPagina = _uiMode == MODE_AUTH_USER ? ident::LINHAS : ident::LINHAS_2;
+      int paginas = ( _usersCount + porPagina - 1 ) / porPagina;
       if ( paginas == 0 ) paginas = 1;
       if ( _usersPage >= paginas ) _usersPage = paginas - 1;
       if ( _usersPage < 0 ) _usersPage = 0;
-      const int ini = _usersPage * 4;
+      const int ini = _usersPage * porPagina;
       if ( _uiMode == MODE_AUTH_USER ) {
         VmQuem &vm = uaVm<VmQuem>( );
         vm.total = (uint8_t)_usersCount;
         vm.pagina = (uint8_t)_usersPage;
-        for ( int i = 0; i < 4 && ini + i < _usersCount; i++ ) {
+        for ( int i = 0; i < ident::LINHAS && ini + i < _usersCount; i++ ) {
           const int slot = _usersMap[ini + i];
           copiarNome( vm.linhas[i].nome, sizeof vm.linhas[i].nome, _sysConfigPtr->users[slot].username );
           vm.linhas[i].travada = ( _slotLocked & ( 1u << (unsigned)slot ) ) != 0;   // drawUserRowInto( ) :894
@@ -131,7 +133,7 @@ bool DisplayManager::uaMontarIdentidade( UaQuadro &q ) {
         vm.total = (uint8_t)_usersCount;
         vm.pagina = (uint8_t)_usersPage;
         vm.podeCriar = ( _panelPerms & PERM_USER_MGR ) != 0;                       // the old NOVO's check (:1551)
-        for ( int i = 0; i < 4 && ini + i < _usersCount; i++ ) {
+        for ( int i = 0; i < ident::LINHAS_2 && ini + i < _usersCount; i++ ) {
           const UserAccount &u = _sysConfigPtr->users[_usersMap[ini + i]];
           copiarNome( vm.linhas[i].nome, sizeof vm.linhas[i].nome, u.username );
           vm.linhas[i].perms = permsDe( u.permissions );                           // the L, B, M letters (:860-874)
@@ -314,7 +316,7 @@ UaToque DisplayManager::uaToqueIdentidade( const ua::Alvo *a, int16_t &x, int16_
           const int idx = a->indice;
           if ( idx < 0 || idx >= _usersCount ) break;
           if ( !acceptTouch( Z_USR_LINHA ) ) break;
-          _usersSel = idx; _usersPage = idx / 4;
+          _usersSel = idx; _usersPage = idx / ident::LINHAS_2;       /* three rows to a page, not the old four */
           showUserEdit( _usersMap[idx], false );  // :1521
           break;
         }
@@ -330,14 +332,14 @@ UaToque DisplayManager::uaToqueIdentidade( const ua::Alvo *a, int16_t &x, int16_
           if ( !acceptTouch( Z_USR_VOLTAR ) ) break;
           showSettingsMain( );
           break;
-        case USR_PAG_ANTERIOR:                   // :1531-1535
+        case USR_PAG_ANTERIOR:                   // :1531-1535, three rows to a page
           if ( !acceptHoldTouch( Z_USR_ANTERIOR ) ) break;
-          if ( _usersPage > 0 ) { _usersPage--; _usersSel = _usersPage * 4; }
+          if ( _usersPage > 0 ) { _usersPage--; _usersSel = _usersPage * ident::LINHAS_2; }
           _repaintSettings = true;
           break;
-        case USR_PAG_PROXIMA:                    // :1536-1540
+        case USR_PAG_PROXIMA:                    // :1536-1540, three rows to a page
           if ( !acceptHoldTouch( Z_USR_PROXIMA ) ) break;
-          if ( ( _usersPage + 1 ) * 4 < _usersCount ) { _usersPage++; _usersSel = _usersPage * 4; }
+          if ( ( _usersPage + 1 ) * ident::LINHAS_2 < _usersCount ) { _usersPage++; _usersSel = _usersPage * ident::LINHAS_2; }
           _repaintSettings = true;
           break;
         default: break;

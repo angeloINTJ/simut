@@ -25,6 +25,12 @@ constexpr int16_t X_CARTAO = ESP2, Y_CARTAO = 32, W_CARTAO = 304, H_CARTAO = 160
 constexpr int16_t H_CABECALHO = 16, H_LINHA = 24, MAX_LINHAS = 6;
 constexpr int16_t W_CEL = W_CARTAO / DIAS_SEMANA;       // 43, as the plan
 constexpr int16_t Y_LINHAS = Y_CARTAO + H_CABECALHO;    // the first week
+// The weekday letters are 13 px tall in 9 pt bold, in a 16 px header: with the
+// hairline at its foot they had 1 px of air under them. The hairline 2 px lower
+// (inside the first week's 5 px of air above its digits) leaves them 3. The
+// letters cannot go lower instead: their ink would enter the first week's
+// targets (host_telas.py failed on it, "crosses the edge of target 4/2").
+constexpr int16_t Y_FIO = Y_LINHAS + 2;
 static_assert( Y_LINHAS + MAX_LINHAS * H_LINHA == Y_CARTAO + H_CARTAO, "six weeks fill the card" );
 constexpr int16_t W_MARCA = 28;                         // today's box, 28 x 24 (the plan's)
 constexpr int16_t Y_PONTO = H_LINHA - 3;                // the dot sits 3 px above its week's foot (the plan's 21)
@@ -114,7 +120,7 @@ void desenharCalendario( Pintor &p, const VmCalendario &vm ) {
   static const char *const kSemana[DIAS_SEMANA] = { "D", "S", "T", "Q", "Q", "S", "S" };
   for ( int i = 0; i < DIAS_SEMANA; i++ )
     textoCentrado( p, kSemana[i], (int16_t)( X_CARTAO + i * W_CEL + rd2( W_CEL ) ), Y_CARTAO, H_CABECALHO, tipo::rotulo, T.tinta2, 'c' );
-  p.hline( X_CARTAO + PAD, Y_LINHAS, W_CARTAO - 2 * PAD, T.linha );
+  p.hline( X_CARTAO + PAD, Y_FIO, W_CARTAO - 2 * PAD, T.linha );
 
   for ( int d = 1; d <= l.dias; d++ ) {
     const Caixa16 c = celula( l, d );
@@ -127,8 +133,11 @@ void desenharCalendario( Pintor &p, const VmCalendario &vm ) {
     if ( dados && !eHoje ) p.fillCircle( cx, (int16_t)( c.y + Y_PONTO ), R_PONTO, T.acento );
   }
 
-  textoCentrado( p, l.temAlgum ? "Ponto = dia com histórico." : "Nenhum dia com histórico neste mês.", ESP2, Y_PE, H_PE, tipo::apoio,
-                 T.tinta2, 'l' );
+  // The empty month's note is the legend's own words: "Nenhum dia com histórico
+  // neste mês." was 280 px of ink in 9 pt, under "Hoje" (the title already says
+  // which month it is).
+  textoCentrado( p, l.temAlgum ? "Ponto = dia com histórico." : "Nenhum dia com histórico.", ESP2, Y_PE, H_PE, tipo::apoio, T.tinta2,
+                 'l' );
   botao( p, l.hoje.x, l.hoje.y, l.hoje.w, l.hoje.h, "Hoje", Botao::SECUNDARIO );
 }
 

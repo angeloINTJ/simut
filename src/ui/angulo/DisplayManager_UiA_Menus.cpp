@@ -159,7 +159,7 @@ bool DisplayManager::uaMontarMenus( UaQuadro &q ) {
         l.ligado = rec.alarmsActive;
         l.manutencao = minutosDeManutencao( _sysConfigPtr, slot ) != 0;
       }
-      const int paginas = ( n + LISTA_FILAS - 1 ) / LISTA_FILAS;
+      const int paginas = ( n + LISTA_FILAS_2 - 1 ) / LISTA_FILAS_2;   /* rows of two lines: three to a page */
       if ( _alarmPage >= paginas ) _alarmPage = paginas > 0 ? paginas - 1 : 0;   // as the old draw held it
       if ( _alarmPage < 0 ) _alarmPage = 0;
       vm.pagina = (uint8_t)_alarmPage;
@@ -263,7 +263,7 @@ bool DisplayManager::uaMontarMenus( UaQuadro &q ) {
     }
     case MODE_SETTINGS_LICENSE: {
       /* drawSettingsLicense( ) (DisplayManager.cpp:2075): the opening, then the MIT text and the third-party
-       * list, as one text. Wrapped once into an index; the seven lines of the page are copied out of it. */
+       * list, as one text. Wrapped once into an index; the page's lines are copied out of it. */
       VmLicenca &vm = uaVm<VmLicenca>( );
       if ( s_indiceLic.n == 0 || s_idiomaLic != _currentLangIdx ) {
         ua::tela::FonteLicenca fontes[ua::tela::LICENCA_FONTES_MAX];
@@ -376,7 +376,7 @@ UaToque DisplayManager::uaToqueMenus( const ua::Alvo *a, int16_t &, int16_t & ) 
         if ( i >= 0 && i < _activeSensorCount && acceptTouch( ZONA_LINHA ) ) showAlarmSensorMenu( _activeSensorsMap[i] );
       } else {
         /* Touch.cpp:857-865 (the arrows), without the wrap. */
-        virar( _alarmPage, ( _activeSensorCount + LISTA_FILAS - 1 ) / LISTA_FILAS );
+        virar( _alarmPage, ( _activeSensorCount + LISTA_FILAS_2 - 1 ) / LISTA_FILAS_2 );
       }
       break;
     case MODE_SETTINGS_ALARM_SENSOR:
