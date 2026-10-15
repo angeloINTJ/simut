@@ -8,9 +8,10 @@
  *  - Controller (C): the clock, the display alignment, the limits, the
  *    maintenance window, the sounds with their melody and the PIN policy do
  *    what the old branch does, with the old state, events and filters; each
- *    action cites the old line it reproduces. The clock, the alignment and the
- *    melody picker run the core's actions (DisplayManager_Actions.h) behind the
- *    zones the old branch used, so a held arrow repeats as it did.
+ *    action cites the old line it reproduces. The clock, the alignment, the
+ *    melody picker and the sounds list run the core's actions
+ *    (DisplayManager_Actions.h) behind the zones the old branch used, so a held
+ *    arrow repeats as it did.
  *  - Raw (B): the touch sensitivity and the calibration read the touch before
  *    any hook (DisplayManager_Touch.cpp, the two blocks that end in return),
  *    so a touch on them never gets here; only the frame is built.
@@ -493,67 +494,47 @@ UaToque DisplayManager::uaToqueAjustes( const ua::Alvo *a, int16_t &x, int16_t &
             return UaToque::TRATADO;
         }
       }
-      /* Controller, the list: DisplayManager_Touch.cpp:1382-1495. */
+      /* Controller, the list: what the sounds screen's branch of handleTouch( ) does (DisplayManager_Touch.cpp), through the core's actions. */
       const int pagina = _soundSelection % SONS_PAGINAS;
       switch ( a->tipo ) {
         case SONS_INTERRUPTOR: {
-          /* A switch flips in the copy. Deliberate difference: the old row opened
-           * the melody's choice to turn a sound on (Touch.cpp:1442-1451); here the
-           * switch only flips and the row's name opens the choice. Turning a sound
-           * or the web access on turns the global mute off, as the web does
-           * (Touch.cpp:1373-1375, 1454-1457). */
+          /* A switch flips in the copy, and turning a sound or the web access on turns the global mute off, as the web does: the core's actSoundToggle( ),
+           * which the original runs for its web row. Deliberate difference: the old row opened the melody's choice to turn a sound on; here the switch only
+           * flips and the row's name opens the choice. Silenciar tudo is the core's actMuteToggle( ): turned on it asks first, turned off it is direct. */
           const int som = a->indice;
           if ( som < 0 || som >= SOM_N ) return UaToque::TRATADO;
           if ( !acceptTouch( 0x61 ) ) return UaToque::TRATADO;
-          bool *flag = nullptr;
           switch ( som ) {
-            case SOM_TOQUE: flag = &_soundSettings.touchEnabled; break;
-            case SOM_CONFIRMACAO: flag = &_soundSettings.confirmEnabled; break;
-            case SOM_ERRO: flag = &_soundSettings.errorEnabled; break;
-            case SOM_ALARME: flag = &_soundSettings.alarmEnabled; break;
-            case SOM_ATENCAO: flag = &_soundSettings.attentionEnabled; break;
-            case SOM_WEB: flag = &_soundSettings.webEnabled; break;
+            case SOM_TOQUE: actSoundToggle( _soundSettings.touchEnabled ); break;
+            case SOM_CONFIRMACAO: actSoundToggle( _soundSettings.confirmEnabled ); break;
+            case SOM_ERRO: actSoundToggle( _soundSettings.errorEnabled ); break;
+            case SOM_ALARME: actSoundToggle( _soundSettings.alarmEnabled ); break;
+            case SOM_ATENCAO: actSoundToggle( _soundSettings.attentionEnabled ); break;
+            case SOM_WEB: actSoundToggle( _soundSettings.webEnabled ); break;
+            case SOM_MUDO: actMuteToggle( ); break;
             default: break;
-          }
-          if ( flag ) {
-            *flag = !*flag;
-            if ( *flag ) _soundSettings.muted = false;
-          } else if ( !_soundSettings.muted ) {
-            /* Mute all on: it asks first (Touch.cpp:1459-1470); off is direct. */
-            showMuteConfirm( );
-          } else {
-            _soundSettings.muted = false;
           }
           return UaToque::TRATADO;
         }
         case SONS_LINHA: {
-          /* The name and chevron of a sound that is on open the choice of its
-           * melody, from the one it has (Touch.cpp:1442-1451). */
+          /* The name and chevron of a sound that is on open the choice of its melody, from the one it has (actMelodyOpen( ), the core's). */
           const int som = a->indice;
           if ( som < 0 || som >= SOM_COM_MELODIA ) return UaToque::TRATADO;
           if ( !acceptTouch( 0x62 ) ) return UaToque::TRATADO;
           const uint8_t mel[SOM_COM_MELODIA] = { _soundSettings.touchMelody, _soundSettings.confirmMelody, _soundSettings.errorMelody,
                                                  _soundSettings.alarmMelody, _soundSettings.attentionMelody };
-          _inMelodySelect = true;
-          _melSelectType = (uint8_t)som;
-          _melSelectIdx = mel[som];
-          _forceSettingsRedraw = true;
-          _repaintSettings = true;
+          actMelodyOpen( (uint8_t)som, mel[som] );
           return UaToque::TRATADO;
         }
         case SONS_MENOS:
         case SONS_MAIS: {
-          /* A volume, 10 % a press, repeating while held, in the old zones 20
-           * (system) and 21 (alarm); the preview plays at the new level and the
-           * touch beep is cancelled so the two do not overlap (Touch.cpp:1405-1421). */
+          /* A volume, 10 % a press, repeating while held, in the old zones 20 (system) and 21 (alarm); the core's actions step it, cancel the touch beep and
+           * play the preview at the new level, as the original's volume rows do. The volume touched last is this screen's own page and focus. */
           const int i = a->indice;
           if ( i < 0 || i > 1 ) return UaToque::TRATADO;
           if ( !acceptHoldTouch( (uint8_t)( 20 + i ) ) ) return UaToque::TRATADO;
-          uint8_t &vol = i == 0 ? _soundSettings.volume : _soundSettings.alarmVolume;
-          if ( a->tipo == SONS_MENOS ) { if ( vol >= 10 ) vol -= 10; }
-          else { if ( vol <= 90 ) vol += 10; }
-          _touchSoundPending = false;
-          if ( i == 0 ) requestVolumePreview( vol ); else requestAlarmVolumePreview( vol );
+          const bool down = a->tipo == SONS_MENOS;
+          if ( i == 0 ) actSoundVolume( down ); else actAlarmVolume( down );
           _soundSelection = ( SONS_PAGINAS - 1 ) + SONS_PAGINAS * i;
           return UaToque::TRATADO;
         }
@@ -568,21 +549,15 @@ UaToque DisplayManager::uaToqueAjustes( const ua::Alvo *a, int16_t &x, int16_t &
           return UaToque::TRATADO;
         }
         case SONS_VOLTAR:
-          /* BACK: the copy is dropped (the volume previews already played stay,
-           * as they did; Touch.cpp:1483-1488). */
+          /* BACK: the copy is dropped (the volume previews already played stay, as they did). */
           if ( !acceptTouch( 12 ) ) return UaToque::TRATADO;
           showSettingsMain( );
           return UaToque::TRATADO;
-        case SONS_SALVAR: {
-          /* SAVE: Core 0 applies the copy and writes it (Touch.cpp:1489-1493). */
+        case SONS_SALVAR:
+          /* SAVE: Core 0 applies the copy and writes it (actSaveSounds( ), the core's). */
           if ( !acceptTouch( 13 ) ) return UaToque::TRATADO;
-          UiEvent ev;
-          ev.type = UiEvent::EVT_SAVE_SOUNDS;
-          ev.id = 0;
-          ev.param = 0;
-          pushUiEvent( ev );
+          actSaveSounds( );
           return UaToque::TRATADO;
-        }
         default:
           return UaToque::TRATADO;
       }

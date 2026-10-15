@@ -1134,19 +1134,11 @@ void DisplayManager::handleTouch( ) {
  * 4=error, 5=alarm, 6=attention, 7=web, 8=mute. */
  if (mapIdx == 0) {
  if (!acceptHoldTouch(20)) return; /* sole accept on this path */
- if (x < 160) { if (_soundSettings.volume >= 10) _soundSettings.volume -= 10; }
- else { if (_soundSettings.volume <= 90) _soundSettings.volume += 10; }
- _touchSoundPending = false; /* cancel beep to avoid overlapping preview */
- requestVolumePreview(_soundSettings.volume);
- _repaintSettings = true;
+ actSoundVolume( x < 160 );
  }
  else if (mapIdx == 1) {
  if (!acceptHoldTouch(21)) return;
- if (x < 160) { if (_soundSettings.alarmVolume >= 10) _soundSettings.alarmVolume -= 10; }
- else { if (_soundSettings.alarmVolume <= 90) _soundSettings.alarmVolume += 10; }
- _touchSoundPending = false;
- requestAlarmVolumePreview(_soundSettings.alarmVolume);
- _repaintSettings = true;
+ actAlarmVolume( x < 160 );
  }
  else if (mapIdx >= 2 && mapIdx <= 6) {
  /* Individual sounds with melody selection: touch (2),
@@ -1172,30 +1164,16 @@ void DisplayManager::handleTouch( ) {
  *enablePtr = false;
  _repaintSettings = true;
  } else {
- _inMelodySelect = true;
- _melSelectType = melType;
- _melSelectIdx = curMel;
- _forceSettingsRedraw = true;
- _repaintSettings = true;
+ actMelodyOpen( melType, curMel );
  }
  }
  else if (mapIdx == 7) {
  if (!acceptSlideTouch(clickedIndex)) return;
- _soundSettings.webEnabled = !_soundSettings.webEnabled;
- /* Parity with web /alarms: turning on Web turns off global mute. */
- if (_soundSettings.webEnabled) _soundSettings.muted = false;
- _repaintSettings = true;
+ actSoundToggle( _soundSettings.webEnabled );
  }
  else if (mapIdx == 8) {
  if (!acceptSlideTouch(clickedIndex)) return;
- if (!_soundSettings.muted) {
- /* Will ENABLE Mute All -> confirmation screen. */
- showMuteConfirm( );
- } else {
- /* Disabling is direct, no confirmation. */
- _soundSettings.muted = false;
- _repaintSettings = true;
- }
+ actMuteToggle( );
  }
  }
  }
@@ -1216,8 +1194,7 @@ void DisplayManager::handleTouch( ) {
  }
  else {
  if (!acceptTouch(13)) return;
- UiEvent ev; ev.type = UiEvent::EVT_SAVE_SOUNDS; ev.id = 0; ev.param = 0;
- pushUiEvent(ev);
+ actSaveSounds( );
  }
  }
  }

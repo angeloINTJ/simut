@@ -1,11 +1,12 @@
 /**
  * @file DisplayManager_Actions.h
  * @brief The core's touch actions of the Painel group (the dashboard and the alarm's action screen), of the Base group (the
- *        confirmation dialogs), of the Menus group (the settings list, the alarms list and the licence's pages) and of the Gráficos
- *        group (the graph, its detail, the calendar and the update screen's tap): what a touch on one of their zones does to the
+ *        confirmation dialogs), of the Menus group (the settings list, the alarms list and the licence's pages), of the Gráficos
+ *        group (the graph, its detail, the calendar and the update screen's tap) and of the Ajustes 1 group (the themes, the language,
+ *        the clock entry, the display alignment and the sounds with their melody picker): what a touch on one of their zones does to the
  *        state, defined once, inline, so that the original's handleTouch( ) and a driver's own touch glue (the Ângulo's
- *        uaToquePainel( ), uaToqueBase( ), uaToqueMenus( ) and uaToqueGraficos( )) run the same code and not a copy (stages S5, S6
- *        and S7 of docs/analysis/UI_DRIVERS.md).
+ *        uaToquePainel( ), uaToqueBase( ), uaToqueMenus( ), uaToqueGraficos( ) and uaToqueAjustes( )) run the same code and not a copy (stages S5, S6,
+ *        S7 and S8a of docs/analysis/UI_DRIVERS.md).
  *
  * Each action is declared in class DisplayManager as `inline __attribute__((always_inline))`, next to the core's
  * ticks, and called where its code used to sit, so the compiled image keeps the code it had. The zone decides which
@@ -681,4 +682,64 @@ inline __attribute__((always_inline)) void DisplayManager::actMelodyUse( ) {
 	_inMelodySelect = false;
 	_forceSettingsRedraw = true;
 	_repaintSettings = true;
+}
+
+/* The sounds list (MODE_SETTINGS_SOUNDS): its volumes, its switches and its Save. */
+
+/* Open the melody picker from the list, on the sound `type` (0 touch, 1 confirmation, 2 error, 3 alarm, 4 attention) with the melody it has now, `cur`. The
+ * caller has decided that it opens, and holds the gate: the original opens it for a sound that is off (a sound that is on is turned off by the row), the
+ * Ângulo from the row's name and chevron. */
+inline __attribute__((always_inline)) void DisplayManager::actMelodyOpen( uint8_t type, uint8_t cur ) {
+	_inMelodySelect = true;
+	_melSelectType = type;
+	_melSelectIdx = cur;
+	_forceSettingsRedraw = true;
+	_repaintSettings = true;
+}
+
+/* The system volume, one step of 10 down (`down`) or up, held inside 0 and 100; the touch beep is cancelled so that it does not overlap the preview, which
+ * plays at the new level. _touchSoundPending is stored before requestVolumePreview( ), whose barrier publishes the level to Core 0. The caller holds the
+ * hold gate, acceptHoldTouch( 20 ). */
+inline __attribute__((always_inline)) void DisplayManager::actSoundVolume( bool down ) {
+	if (down) { if (_soundSettings.volume >= 10) _soundSettings.volume -= 10; }
+	else { if (_soundSettings.volume <= 90) _soundSettings.volume += 10; }
+	_touchSoundPending = false; /* cancel beep to avoid overlapping preview */
+	requestVolumePreview(_soundSettings.volume);
+	_repaintSettings = true;
+}
+
+/* The alarm volume, the same step and the same order (the hold gate is acceptHoldTouch( 21 )). */
+inline __attribute__((always_inline)) void DisplayManager::actAlarmVolume( bool down ) {
+	if (down) { if (_soundSettings.alarmVolume >= 10) _soundSettings.alarmVolume -= 10; }
+	else { if (_soundSettings.alarmVolume <= 90) _soundSettings.alarmVolume += 10; }
+	_touchSoundPending = false;
+	requestAlarmVolumePreview(_soundSettings.alarmVolume);
+	_repaintSettings = true;
+}
+
+/* A sound's switch flips in the copy (`flag` is one of the six enable flags of _soundSettings), and turning one on turns the global mute off, as the web does:
+ * the original runs it for the web row, the Ângulo for all six switches. The caller holds the gate. */
+inline __attribute__((always_inline)) void DisplayManager::actSoundToggle( bool &flag ) {
+	flag = !flag;
+	/* Parity with web /alarms: turning on Web turns off global mute. */
+	if (flag) _soundSettings.muted = false;
+	_repaintSettings = true;
+}
+
+/* Silenciar tudo: turned on, it asks first (the confirmation screen applies the mute); turned off, it is direct. The caller holds the gate. */
+inline __attribute__((always_inline)) void DisplayManager::actMuteToggle( ) {
+	if (!_soundSettings.muted) {
+		/* Will ENABLE Mute All -> confirmation screen. */
+		showMuteConfirm( );
+	} else {
+		/* Disabling is direct, no confirmation. */
+		_soundSettings.muted = false;
+		_repaintSettings = true;
+	}
+}
+
+/* Salvar: Core 0 takes the copy (getSoundSettings( ), AppManager_Events.cpp), applies it and writes it. The caller holds acceptTouch( 13 ). */
+inline __attribute__((always_inline)) void DisplayManager::actSaveSounds( ) {
+	UiEvent ev; ev.type = UiEvent::EVT_SAVE_SOUNDS; ev.id = 0; ev.param = 0;
+	pushUiEvent(ev);
 }
