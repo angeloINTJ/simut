@@ -89,9 +89,9 @@ inline __attribute__((always_inline)) void DisplayManager::actAlarmDeactivate( )
 }
 
 /* Back to the dashboard with a card in min/max. Moved as it stood. The top card's branch needs a negative _alarmActionSlot,
- * and showAlarmAction( ), the only writer of the slot, is called with a slot checked to be >= 0 (Touch.cpp, once for the top
- * card and once for the bottom card), so the bottom card takes it even when the screen was opened from the top card: a
- * defect of the original, kept (S5_PLANO.md section 6, item 10). */
+ * and showAlarmAction( ), the only writer of the slot, is called with a slot checked to be >= 0 (by actTopCardPress and by
+ * actBottomCardTap, below), so the bottom card takes it even when the screen was opened from the top card: a defect of the
+ * original, kept (S5_PLANO.md section 6, item 10). */
 inline __attribute__((always_inline)) void DisplayManager::actAlarmShowMinMax( ) {
 	/* Return to dashboard with the panel in min/max mode */
 	if (_alarmActionSlot < 0) {
