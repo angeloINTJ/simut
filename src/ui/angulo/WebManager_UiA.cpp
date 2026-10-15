@@ -17,7 +17,7 @@
 
 #include "../../DisplayManager.h"
 
-void WebManager::registerUiARoutes( ) {
+void WebManager::registerUiDriverRoutes( ) {
   _server->on( "/api/ui", HTTP_GET, std::bind( &WebManager::handleApiUiA, this ) );
 }
 

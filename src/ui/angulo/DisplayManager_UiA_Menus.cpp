@@ -50,12 +50,10 @@ static_assert( mesmo( ua::tela::ID_INGLES, LANG_EN ) && mesmo( ua::tela::ID_PACO
                "EscolhaIdioma must stay the language ids" );
 
 /* The licence's opening in the pack's language is composed on Core 0 into a file-static buffer of
- * DisplayManager.cpp (_licOpening, lines 84-101): webDictValue( ) reads LittleFS, which only Core 0 may
- * ("Core 0 only", DisplayManager_LangParser.cpp:332), so Core 1 cannot compose it here. Until
- * DisplayManager.cpp offers that buffer, with `const char *uaAberturaLicenca( ) { return _licOpening; }`,
- * the screen opens with the English text of the page, which is what the old screen shows without a
- * pack. A weak reference: the build is whole either way, and the first definition makes it work. */
-extern const char *uaAberturaLicenca( ) __attribute__( ( weak ) );
+ * DisplayManager.cpp (_licOpening): webDictValue( ) reads LittleFS, which only Core 0 may
+ * ("Core 0 only", DisplayManager_LangParser.cpp:332), so Core 1 cannot compose it here.
+ * DisplayManager::licenseOpening( ) offers that buffer; where it is empty (no pack, or English) the screen opens
+ * with the English text of the page, which is what the old screen shows without a pack. */
 
 namespace {
 
@@ -271,7 +269,7 @@ bool DisplayManager::uaMontarMenus( UaQuadro &q ) {
       if ( s_indiceLic.n == 0 || s_idiomaLic != _currentLangIdx ) {
         ua::tela::FonteLicenca fontes[ua::tela::LICENCA_FONTES_MAX];
         int nf = 0;
-        const char *abertura = uaAberturaLicenca ? uaAberturaLicenca( ) : nullptr;
+        const char *abertura = licenseOpening( );
         if ( abertura && abertura[0] ) {
           fontes[nf++] = ua::tela::FonteLicenca{ abertura, 0 };   /* composed: its own blank lines are in it */
         } else {

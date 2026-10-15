@@ -1,9 +1,5 @@
 {
  "identity": {
-  "src/DisplayManager.cpp": {
-   "count": 1,
-   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: one `#if SIMUT_UI_ANGULO` left in this file, the licence-opening accessor of the Ângulo build (uaAberturaLicenca( )); ends in S4, step C9"
-  },
   "src/DisplayManager_Dashboard.cpp": {
    "count": 3,
    "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the `#if` around the `_uaPintando` guard of fastFillRect, fastClearScreen and blitCanvas, so that only the Ângulo's renderer pushes pixels; ends in S10b (the Ângulo image stops linking the original)"
@@ -15,16 +11,12 @@
   "src/Themes.cpp": {
    "count": 2,
    "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the `#if` around the Ângulo's three-row catalogue (claro, escuro, auto) and the one that skips the .thm scan; ends in S10b (the theme catalogue hooks)"
-  },
-  "src/WebManager_Core.cpp": {
-   "count": 1,
-   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the `#if` around the call that registers GET /api/ui; ends in S4 (registerUiDriverRoutes)"
   }
  },
  "driver-hook": {
   "src/DisplayManager.cpp": {
-   "count": 2,
-   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: uaAberturaLicenca (the licence opening; ends in S4, step C9) and the UA_DESVIO( ) of drawSettingsLicense (ends in S10b)"
+   "count": 1,
+   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the UA_DESVIO( ) of drawSettingsLicense; ends in S10b (the Ângulo image stops linking the original's drawing)"
   },
   "src/DisplayManager_Alarm.cpp": {
    "count": 1,
@@ -61,10 +53,6 @@
   "src/DisplayManager_i18n.cpp": {
    "count": 1,
    "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: UA_DESVIO( ) at the top of the draw functions of this file, which turns the original's drawing into a request for the Ângulo to repaint; ends in S10b (the Ângulo image stops linking the original)"
-  },
-  "src/WebManager_Core.cpp": {
-   "count": 1,
-   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the call registerUiARoutes( ) that registers GET /api/ui; ends in S4, step C9 (the route hook becomes registerUiDriverRoutes, declared through src/ui/UiDriverWeb.h)"
   },
   "src/ui/UiDriver.h": {
    "count": 3,

@@ -916,8 +916,8 @@ def real_tree_cases():
         mutated(core_clean, "\n#define UA_FOO 1\n", "driver-hook", f"real tree + `UA_FOO` in {core_clean}: one finding")
         mutated(core_clean, "\nstatic void *boundary_probe = (void *)sizeof(UaToque);\n", "driver-hook",
                 f"real tree + the type `UaToque` in {core_clean}: one finding")
-        mutated(core_clean, "\nstatic void *boundary_probe = (void *)&registerUiARoutes;\n", "driver-hook",
-                f"real tree + `registerUiARoutes`, a driver name with no ua mark, in {core_clean}: one finding")
+        mutated(core_clean, "\nstatic void *boundary_probe = (void *)&handleApiUiA;\n", "driver-hook",
+                f"real tree + `handleApiUiA`, a driver name with no ua mark, in {core_clean}: one finding")
         mutated(core_clean, "\nstatic const ua::Tema *boundary_probe = nullptr;\n", "driver-hook",
                 f"real tree + the namespace `ua::` in {core_clean}: one finding")
         mutated(core_clean, "\nnamespace boundary_alias = ua;\n", "driver-hook",

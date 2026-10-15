@@ -50,7 +50,7 @@ five rules over src/**/*.{c,cc,cpp,cxx,h,hh,hpp,hxx,inl,ipp,tpp}:
                 the driver, not from a pattern on the other files: every identifier in src/ui/angulo/
                 that carries the driver's mark, `ua` and a capital for a function or a member (uaSujo,
                 uaToque, ...) or `Ua` and a capital for a type (UaToque, UaQuadro), or `UiA` and a capital or the end of the name, anywhere
-                in it (registerUiARoutes, handleApiUiA; never UiArrowDir), split at its
+                in it (handleApiUiA; never UiArrowDir), split at its
                 underscores, so that _uaPintando, g_uaVm and m_uaSujo are all uaPintando, uaVm and uaSujo;
                 and the top-level namespaces it declares (`ua`, `entrega`). Outside the driver an
                 identifier is a hook when one of its underscore-separated parts is such a name, or when
@@ -161,7 +161,7 @@ DEFINED = re.compile(r"\bdefined\b[\s\\(]*(" + UI_MACRO + ")")
 # split at its underscores: `_uaSujo`, `g_uaVm` and `m_uaSujo` have the parts "uaSujo" and "uaVm".
 WORD = re.compile(r"[A-Za-z_]\w*")
 MARK = re.compile(r"(?:ua|Ua)[A-Z]\w*\Z")        # a part the driver marks as its own: uaSujo (a function, a member), UaToque (a type)
-MARK_UIA = re.compile(r"UiA(?:[A-Z]|\Z)")       # the second mark: UiA and a capital or the end, anywhere in the part (registerUiARoutes, handleApiUiA; not UiArrowDir)
+MARK_UIA = re.compile(r"UiA(?:[A-Z]|\Z)")       # the second mark: UiA and a capital or the end, anywhere in the part (handleApiUiA; not UiArrowDir)
 UA_MACRO = re.compile(r"UA_\w+\Z")               # the macros are the one pattern: UA_DESVIO is defined in a shared header
 NS_TOKEN = re.compile(r"\bnamespace\s+(\w+)(?:\s*::\s*\w+)*\s*\{|\bnamespace\s*\{|[{}]")   # `namespace x {` and the braces
 

@@ -98,11 +98,9 @@ static void composeLicenseOpening(int langIdx) {
 	}
 	_licOpeningLang = langIdx;
 }
-#if SIMUT_UI_ANGULO
-/* The Ângulo build's licence screen (DisplayManager_UiA_Menus.cpp) reads the
- * opening Core 0 composed for the active language when the screen opened. */
-const char *uaAberturaLicenca( ) { return _licOpening; }
-#endif
+/* The licence screen's opening, as Core 0 composed it for the active language when the screen opened. The Ângulo's
+ * licence screen reads it (DisplayManager_UiA_Menus.cpp); no other image calls it, and the linker drops it there. */
+const char *DisplayManager::licenseOpening( ) const { return _licOpening; }
 #endif // !SIMUT_DISPLAY_ALPHA
 
 DisplayManager* _instance = nullptr;
