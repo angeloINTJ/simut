@@ -23,7 +23,6 @@
  */
 
 #include "DisplayManager.h"
-#include "simut_config.h"   /* SIMUT_UI_ANGULO is tested below: included here, not left to DisplayManager.h */
 #include "DisplayManager_Fonts.h"
 #include "FlashIrqProbe.h" /* C1_PHASE */
 #include "UiWidgets.h"
@@ -119,7 +118,7 @@ bool DisplayManager::otaPaintFromCore0( ) {
 	if (__atomic_load_n(&_pauseRefCount, __ATOMIC_ACQUIRE) <= 0) return false;
 	if (!__atomic_load_n(&_core1Parked, __ATOMIC_ACQUIRE) &&
 	    !__atomic_load_n(&_core1HardReset, __ATOMIC_ACQUIRE)) return false;
-	drawOtaScreen( );
+	uiPaintOta( );
 	return true;
 }
 
@@ -146,17 +145,10 @@ void DisplayManager::otaTick( ) {
 		return;
 	}
 	C1_PHASE(C1P_UI_SETTINGS);
-	drawOtaScreen( );
+	uiPaintOta( );
 }
 
 void DisplayManager::drawOtaScreen( ) {
-#if SIMUT_UI_ANGULO
-	/* The Ângulo build paints its own update screen, at once: Core 0 calls
-	 * this while Core 1 is parked (otaPaintFromCore0) and Core 1 from
-	 * otaTick( ), and either way the panel is the caller's for the draw. */
-	uaOta( );
-	return;
-#endif
 	GFXcanvas16* const cv = _driver.canvas;
 	if (!cv || !_driver.tft) return;
 	const uint32_t st = __atomic_load_n(&_otaState, __ATOMIC_ACQUIRE);

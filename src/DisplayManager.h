@@ -1531,6 +1531,10 @@ private:
 	bool otaEnd(uint32_t seen);         /**< dismisses `seen`, unless Core 0 published since */
 	void otaTick( );                    /**< Core 1, once a pass: take the panel, draw, let go */
 	void drawOtaScreen( );
+	/* UI driver hook (UI_HOOK, src/ui/UiDriver.h): paint the update screen at once. Core 1 calls it from otaTick( )
+	 * and Core 0 from otaPaintFromCore0( ) while Core 1 is parked, so either way the panel is the caller's for the
+	 * draw. The original draws it with drawOtaScreen( ); the Ângulo paints its own screen. */
+	UI_HOOK void uiPaintOta( );
 
 	struct ActiveLang {
 		char name[16];

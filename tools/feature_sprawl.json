@@ -230,7 +230,6 @@
  "SIMUT_UI_ANGULO": {
   "DisplayManager.cpp": 4,
   "DisplayManager_Dashboard.cpp": 3,
-  "DisplayManager_Ota.cpp": 1,
   "DisplayManager_Touch.cpp": 1,
   "Themes.cpp": 2,
   "WebManager_Core.cpp": 1

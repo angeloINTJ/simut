@@ -5,7 +5,14 @@
  *        the code it replaced. Included by ui/UiDriverHooks.h, last, from the two translation units that call
  *        a hook.
  *
- * No hook yet: this is the scaffolding of stage S4 (docs/analysis/UI_DRIVERS.md), and each hook arrives with
- * its own commit.
+ * Stage S4 of docs/analysis/UI_DRIVERS.md adds the hooks one commit at a time; each is defined below.
  */
 #pragma once
+
+#include "../../DisplayManager.h"
+
+/* The update screen. The hook is the one call the two callers made, and not drawOtaScreen( )'s body: that body is
+ * long and would be copied into both. */
+UI_HOOK void DisplayManager::uiPaintOta( ) {
+	drawOtaScreen( );
+}

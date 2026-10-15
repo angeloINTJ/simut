@@ -6,7 +6,7 @@
  *
  * Four modes are drawn here: MODE_GRAPH_LOADING, MODE_GRAPH_VIEW,
  * MODE_GRAPH_DETAIL and MODE_CALENDAR, plus the update screen (uaMontarOta( ),
- * which Core 0 also calls through uaOta( ) whatever _uiMode says). The old
+ * which Core 0 also calls through uiPaintOta( ) whatever _uiMode says). The old
  * draw functions still run and say when something changed (UA_DESVIO), so the
  * state they read is the state read here, under the same locks.
  */
@@ -75,7 +75,7 @@ bool aguardandoDados( UiMode modo, uint32_t assinatura ) {
 
 /* The phase, the reason of a refusal and the percentage, from the one word
  * Core 0 publishes (OtaScreen.h). Called from Core 0 too, with Core 1 parked
- * (uaOta( )), so it reads only the atomics. */
+ * (uiPaintOta( )), so it reads only the atomics. */
 bool DisplayManager::uaMontarOta( UaQuadro &q ) {
   using namespace ua::tela;
   const uint32_t st = __atomic_load_n( &_otaState, __ATOMIC_ACQUIRE );

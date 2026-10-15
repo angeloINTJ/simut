@@ -8,10 +8,6 @@
    "count": 3,
    "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the `#if` around the `_uaPintando` guard of fastFillRect, fastClearScreen and blitCanvas, so that only the Ângulo's renderer pushes pixels; ends in S10b (the Ângulo image stops linking the original)"
   },
-  "src/DisplayManager_Ota.cpp": {
-   "count": 1,
-   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the `#if` that sends drawOtaScreen( ) to the Ângulo's update screen; ends in S4 (uiPaintOta)"
-  },
   "src/DisplayManager_Touch.cpp": {
    "count": 1,
    "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the `#if` around the call that gives a touch to the Ângulo's frame before the original's mode chain; ends in S10b (handleTouch dispatches through uiTouch)"
@@ -49,10 +45,6 @@
   "src/DisplayManager_Graph.cpp": {
    "count": 6,
    "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: UA_DESVIO( ) at the top of the draw functions of this file, which turns the original's drawing into a request for the Ângulo to repaint; ends in S10b (the Ângulo image stops linking the original)"
-  },
-  "src/DisplayManager_Ota.cpp": {
-   "count": 1,
-   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: uaOta( ) at the head of drawOtaScreen( ); ends in S4 (uiPaintOta)"
   },
   "src/DisplayManager_Settings.cpp": {
    "count": 12,

@@ -316,11 +316,12 @@ void DisplayManager::uaQuadro( ) {
   if ( get_core_num( ) == 1 ) _lastHeartbeat = millis( );
 }
 
-/* The update screen, painted at once by whichever core called drawOtaScreen( )
- * (DisplayManager_Ota.cpp), whatever _uiMode says: Core 0 paints it while
- * Core 1 is parked and has not switched the mode yet. Then the counters
- * Core 0 waits on (showOta( )) say it is on the glass. */
-void DisplayManager::uaOta( ) {
+/* The update screen (the hook uiPaintOta), painted at once by whichever core
+ * called it (otaTick( ) and otaPaintFromCore0( ), DisplayManager_Ota.cpp),
+ * whatever _uiMode says: Core 0 paints it while Core 1 is parked and has not
+ * switched the mode yet. Then the counters Core 0 waits on (showOta( )) say it
+ * is on the glass. */
+void DisplayManager::uiPaintOta( ) {
   const uint32_t st = __atomic_load_n( &_otaState, __ATOMIC_ACQUIRE );
   if ( otaPhaseOf( st ) == OTA_PH_NONE ) return;
   /* A new phase is painted at once: Core 0 waits for it before the steps
