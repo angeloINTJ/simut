@@ -474,3 +474,26 @@ inline __attribute__((always_inline)) void DisplayManager::actGraphPeriod( const
 	UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = g.sensorIdx; ev.param = range;
 	pushUiEvent(ev);
 }
+
+/* The calendar's month arrows: ask Core 0 for the month before (`dir` = -1) or after (+1) the one on the glass, for the sensor of `g`. The caller
+ * holds acceptSlideTouch( 20 ) or ( 21 ), which lets a finger slide from one arrow to the next, and says "busy" when its driver does. */
+inline __attribute__((always_inline)) void DisplayManager::actCalendarMonth( const GraphDataPackage &g, int dir ) {
+	UiEvent ev; ev.type = UiEvent::EVT_CALENDAR_MONTH; ev.id = g.sensorIdx; ev.param = dir;
+	pushUiEvent(ev);
+}
+
+/* A day of the calendar that has history: ask Core 0 for its 24 hours. The caller has tested the day against _calDaysMask and holds acceptTouch( 0 )
+ * (the original) or the cell's zone (the Ângulo). Core 0 answers with the loading screen. */
+inline __attribute__((always_inline)) void DisplayManager::actCalendarDay( const GraphDataPackage &g, int day ) {
+	UiEvent ev; ev.type = UiEvent::EVT_CALENDAR_DAY;
+	ev.id = g.sensorIdx;
+	ev.param = day;
+	pushUiEvent(ev);
+}
+
+/* Today, on the calendar: the offset goes back to the present and Core 0 opens the chart again on the period it had. The caller holds acceptTouch( 0 ). */
+inline __attribute__((always_inline)) void DisplayManager::actCalendarToday( const GraphDataPackage &g ) {
+	_graphNavOffset = 0;
+	UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = g.sensorIdx; ev.param = g.timeRange;
+	pushUiEvent(ev);
+}

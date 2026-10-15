@@ -260,8 +260,6 @@ UaToque DisplayManager::uaToqueGraficos( const ua::Alvo *a, int16_t &x, int16_t 
     /* The calendar (DisplayManager_Touch.cpp:739-808). */
     case MODE_CALENDAR: {
       if ( !a ) return UaToque::TRATADO;
-      UiEvent ev;
-      ev.id = _graphData.sensorIdx;
       switch ( a->tipo ) {
         case CAL_VOLTAR:
           /* Back to the chart with the data it already has (:741-746). */
@@ -272,35 +270,26 @@ UaToque DisplayManager::uaToqueGraficos( const ua::Alvo *a, int16_t &x, int16_t 
           /* The month before (:748-752, :789-793). */
           if ( !acceptSlideTouch( ZONA_MES_ANTERIOR ) ) break;
           pedirDados( MODE_CALENDAR, ua::cola::assinaturaDoCalendario( _calYear, _calMonth, _calDaysMask ) );
-          ev.type = UiEvent::EVT_CALENDAR_MONTH;
-          ev.param = -1;
-          pushUiEvent( ev );
+          actCalendarMonth( _graphData, -1 );
           break;
         case CAL_MES_SEGUINTE:
           /* The month after, which the screen offers only before the current one (:753-758, :801-805). */
           if ( !acceptSlideTouch( ZONA_MES_SEGUINTE ) ) break;
           pedirDados( MODE_CALENDAR, ua::cola::assinaturaDoCalendario( _calYear, _calMonth, _calDaysMask ) );
-          ev.type = UiEvent::EVT_CALENDAR_MONTH;
-          ev.param = +1;
-          pushUiEvent( ev );
+          actCalendarMonth( _graphData, +1 );
           break;
         case CAL_DIA:
           /* A day that has history (:759-785): Core 0 answers with the loading
            * screen, which is the feedback, so no busy line. */
           if ( a->indice < 1 || a->indice > 31 || !( _calDaysMask & ( 1UL << a->indice ) ) || !acceptTouch( ZONA_DIA_DO_MES ) ) break;
-          ev.type = UiEvent::EVT_CALENDAR_DAY;
-          ev.param = a->indice;
-          pushUiEvent( ev );
+          actCalendarDay( _graphData, a->indice );
           break;
         case CAL_HOJE:
           /* Today: the chart at the present, on the period it had (:794-800). The
            * calendar is not a graph mode, so Core 0 answers with the loading
            * screen here too (AppManager_Events.cpp:163-175): no busy line. */
           if ( !acceptTouch( ZONA_HOJE ) ) break;
-          _graphNavOffset = 0;
-          ev.type = UiEvent::EVT_OPEN_GRAPH;
-          ev.param = _graphData.timeRange;
-          pushUiEvent( ev );
+          actCalendarToday( _graphData );
           break;
         default:
           break;

@@ -566,14 +566,12 @@ void DisplayManager::handleTouch( ) {
  /* ◀ Month arrow — header left */
  if (y < 28 && x < 30) {
  if (!acceptSlideTouch(20)) return;
- UiEvent ev; ev.type = UiEvent::EVT_CALENDAR_MONTH; ev.id = _graphData.sensorIdx; ev.param = -1;
- pushUiEvent(ev); return;
+ actCalendarMonth( _graphData, -1 ); return;
  }
  /* ▶ Month arrow — header right */
  if (y < 28 && x > 290) {
  if (!acceptSlideTouch(21)) return;
- UiEvent ev; ev.type = UiEvent::EVT_CALENDAR_MONTH; ev.id = _graphData.sensorIdx; ev.param = +1;
- pushUiEvent(ev); return;
+ actCalendarMonth( _graphData, +1 ); return;
  }
  /* ── Day grid (y=44..190) ── */
  if (y >= 44 && y < 190) {
@@ -595,11 +593,8 @@ void DisplayManager::handleTouch( ) {
  /* Check if it's a valid day with data */
  if (dayNum >= 1 && dayNum <= 31 && (_calDaysMask & (1UL << dayNum))) {
  if (!acceptTouch(0)) return;
- drawGraphBusyHint( ); /* day read can take a second on 24H */
- UiEvent ev; ev.type = UiEvent::EVT_CALENDAR_DAY;
- ev.id = _graphData.sensorIdx;
- ev.param = dayNum;
- pushUiEvent(ev);
+ uiChanged( UiChange::GRAPH_BUSY, 0 ); /* day read can take a second on 24H */
+ actCalendarDay( _graphData, dayNum );
  }
  }
  }
@@ -608,20 +603,16 @@ void DisplayManager::handleTouch( ) {
  if (x < 106) {
  /* ◀ Month */
  if (!acceptSlideTouch(20)) return;
- UiEvent ev; ev.type = UiEvent::EVT_CALENDAR_MONTH; ev.id = _graphData.sensorIdx; ev.param = -1;
- pushUiEvent(ev);
+ actCalendarMonth( _graphData, -1 );
  } else if (x >= 108 && x < 212) {
  /* Today — returns to graph with offset 0 */
  if (!acceptTouch(0)) return;
- drawGraphBusyHint( );
- _graphNavOffset = 0;
- UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = _graphData.sensorIdx; ev.param = _graphData.timeRange;
- pushUiEvent(ev);
+ uiChanged( UiChange::GRAPH_BUSY, 0 );
+ actCalendarToday( _graphData );
  } else if (x >= 217) {
  /* Month ▶ */
  if (!acceptSlideTouch(21)) return;
- UiEvent ev; ev.type = UiEvent::EVT_CALENDAR_MONTH; ev.id = _graphData.sensorIdx; ev.param = +1;
- pushUiEvent(ev);
+ actCalendarMonth( _graphData, +1 );
  }
  }
  }
