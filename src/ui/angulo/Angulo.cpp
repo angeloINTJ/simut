@@ -9,8 +9,8 @@
 #include <string.h>
 
 // The delivery's headers define their fonts, icons and tokens as namespace-
-// scope consts (internal linkage): one translation unit includes them, this
-// one, and the synthetic panel's SynthDraw.cpp in its own build.
+// scope consts (internal linkage): this translation unit is the only one that
+// includes them.
 namespace entrega {
 #include "kit/fontes/SANS7.h"
 #include "kit/fontes/SANSB7.h"

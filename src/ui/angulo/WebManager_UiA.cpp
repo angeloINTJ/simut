@@ -2,11 +2,12 @@
  * @file WebManager_UiA.cpp
  * @brief GET /api/ui: what the Ângulo build has on the panel.
  *
- * @details Study build pico_wiretft_angulo only (platformio.ini); no product
- * image compiles this unit. The bench reads which mode's frame is on the glass,
- * its palette, how long the last paint took, and the touch targets of that
- * frame, so a script touches the centre of what is drawn (POST /api/touch)
- * instead of coordinates copied from a layout that may have moved.
+ * @details Part of the Ângulo UI driver (transitional, bench image
+ * pico_wiretft_angulo; platformio.ini): no product image compiles this unit.
+ * The bench reads which mode's frame is on the glass, its palette, how long
+ * the last paint took, and the touch targets of that frame, so a script
+ * touches the centre of what is drawn (POST /api/touch) instead of
+ * coordinates copied from a layout that may have moved.
  *
  * The permission is the screenshot's: the targets say as much about the
  * screen as its picture does.
