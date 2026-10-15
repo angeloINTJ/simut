@@ -5,7 +5,7 @@
 // (telas/IdentidadePin.h), the point of the OLD layout that means the same thing.
 // MODE_AUTH is a Translation (ESPEC_UI_A.md §4): the glue writes that point into
 // the touch and the old branch runs on it, unchanged.
-#include "../PinKeypad.h"
+#include "../../PinKeypad.h"
 #include "telas/IdentidadePin.h"
 
 namespace ua {

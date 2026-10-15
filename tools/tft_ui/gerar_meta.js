@@ -1,6 +1,6 @@
 'use strict';
 /**
- * Generates src/ui_angulo/AnguloMeta.h for the functional study build:
+ * Generates src/ui/angulo/AnguloMeta.h for the functional study build:
  *
  *   - the EXTRA table (the GFX code of every non-ASCII character the delivered
  *     fonts carry, from fontes.json), so UTF-8 text can be drawn;
@@ -14,6 +14,11 @@
  *     for byte, checked 2026-10-14).
  *
  * Usage: node gerar_meta.js <entrega> <renderer env with harness/node_modules>
+ *
+ * It also needs motor_gfx.js, the glyph engine of the synthetic-capture study
+ * (tools/tft_synth/ on the branch study/tft-angulo-ui-a), which this tree does
+ * not carry: copy it to ../tft_synth/ to regenerate. The two headers it writes
+ * are in the tree.
  */
 const fs = require('fs');
 const path = require('path');
@@ -29,8 +34,8 @@ const motorEntrega = path.join(rend, 'src', 'engine.js');
 const E = require(motorEntrega);
 
 const RAIZ = path.resolve(__dirname, '..', '..');
-const SAIDA = path.join(RAIZ, 'src', 'ui_angulo', 'AnguloMeta.h');
-const SAIDA_ICONES = path.join(RAIZ, 'src', 'ui_angulo', 'AnguloIcones.h');
+const SAIDA = path.join(RAIZ, 'src', 'ui', 'angulo', 'AnguloMeta.h');
+const SAIDA_ICONES = path.join(RAIZ, 'src', 'ui', 'angulo', 'AnguloIcones.h');
 
 /* Icons the real screens need beyond the delivered 42 (name, size). */
 const EXTRAS = [

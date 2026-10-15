@@ -2,7 +2,7 @@
  * @file DisplayManager_UiA_Menus.cpp
  * @brief The Ângulo build's glue for the "menus" screens (tools/tft_ui/ESPEC_UI_A.md
  *        §6.2): the view models from the DisplayManager's state, and what a
- *        touch on each of their targets does. pico_wiretft_ui_a only.
+ *        touch on each of their targets does. pico_wiretft_angulo only.
  *
  * Every mode here is a controller (ESPEC §7): a touch does what the old
  * screen's branch did for the same request (the same show*( ) calls, the same
@@ -15,7 +15,7 @@
  * when the mode is entered, so no entry has to be noticed here.
  */
 
-#include "../DisplayManager.h"
+#include "../../DisplayManager.h"
 
 
 #include <math.h>
@@ -23,9 +23,9 @@
 #include <string.h>
 #include <time.h>
 
-#include "../HelpLicenseEN.h"             /* LICENSE_OPENING_EN, LICENSE_TEXT_EN: what the licence screen carries */
-#include "../sensors/SensorChannels.h"   /* CH_TEMP: the channel of the limits the list shows */
-#include "../simut_config.h"             /* SIMUT_NET_LAN, tested below: an undefined macro would read as 0 and show the radio's rows */
+#include "../../HelpLicenseEN.h"             /* LICENSE_OPENING_EN, LICENSE_TEXT_EN: what the licence screen carries */
+#include "../../sensors/SensorChannels.h"   /* CH_TEMP: the channel of the limits the list shows */
+#include "../../simut_config.h"             /* SIMUT_NET_LAN, tested below: an undefined macro would read as 0 and show the radio's rows */
 #include "Angulo.h"
 #include "UiA.h"
 #include "telas/MenusAlarmes.h"

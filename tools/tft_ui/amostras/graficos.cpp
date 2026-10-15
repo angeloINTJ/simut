@@ -1,4 +1,4 @@
-// Samples of the graph group's screens (src/ui_angulo/telas/Graficos.h).
+// Samples of the graph group's screens (src/ui/angulo/telas/Graficos.h).
 //
 // The series are made here and aggregated the way the Core 0 does it
 // (AppManager_Graph.cpp): 200 time buckets, each with the minimum, the maximum

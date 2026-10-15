@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Walks every screen of the functional study build (pico_wiretft_ui_a) on the
+"""Walks every screen of the functional study build (pico_wiretft_angulo) on the
 bench, by touch, in the light and the dark theme, and keeps a capture and the
 frame's state of every step.
 
@@ -225,7 +225,7 @@ def voltar_ao_painel(rt):
 
 
 # ---------------------------------------------------------------------------
-# Target types, by screen (the enums of src/ui_angulo/telas/*.h, 2026-10-14).
+# Target types, by screen (the enums of src/ui/angulo/telas/*.h, 2026-10-14).
 # ---------------------------------------------------------------------------
 MSG_BOTAO, DLG_NAO, DLG_SIM = 1, 1, 2
 PNL_CIMA, PNL_GRAF_CIMA, PNL_BAIXO, PNL_GRAF_BAIXO, PNL_NAV = 1, 2, 3, 4, 5

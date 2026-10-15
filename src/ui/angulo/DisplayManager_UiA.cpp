@@ -2,7 +2,7 @@
  * @file DisplayManager_UiA.cpp
  * @brief The Ângulo build's renderer, theme, touch dispatch and the screens
  *        every group leans on (result, confirmations, the unfinished-screen
- *        placeholder). pico_wiretft_ui_a only; see src/ui_angulo/UiA.h and
+ *        placeholder). pico_wiretft_angulo only; see src/ui/angulo/UiA.h and
  *        tools/tft_ui/ESPEC_UI_A.md.
  *
  * The old screens' logic keeps running: every old draw entry point became
@@ -11,7 +11,7 @@
  * of the current mode once the pass has run them all.
  */
 
-#include "../DisplayManager.h"
+#include "../../DisplayManager.h"
 
 
 #include <stdio.h>

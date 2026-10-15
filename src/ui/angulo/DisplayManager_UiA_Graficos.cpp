@@ -2,7 +2,7 @@
  * @file DisplayManager_UiA_Graficos.cpp
  * @brief The Ângulo build's glue for the "graficos" screens (telas/Graficos.h,
  *        tools/tft_ui/ESPEC_UI_A.md): view models from the DisplayManager's
- *        state, and their touches. pico_wiretft_ui_a only.
+ *        state, and their touches. pico_wiretft_angulo only.
  *
  * Four modes are drawn here: MODE_GRAPH_LOADING, MODE_GRAPH_VIEW,
  * MODE_GRAPH_DETAIL and MODE_CALENDAR, plus the update screen (uaMontarOta( ),
@@ -11,7 +11,7 @@
  * state they read is the state read here, under the same locks.
  */
 
-#include "../DisplayManager.h"
+#include "../../DisplayManager.h"
 
 
 #include <stdio.h>

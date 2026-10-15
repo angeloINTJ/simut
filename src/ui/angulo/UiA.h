@@ -1,6 +1,6 @@
 #pragma once
 // The Ângulo build's glue between the DisplayManager and the screens of
-// src/ui_angulo/telas/ (pico_wiretft_ui_a only; DisplayManager.h includes this
+// src/ui/angulo/telas/ (pico_wiretft_angulo only; DisplayManager.h includes this
 // under SIMUT_UI_ANGULO).
 //
 // Each pass of Core 1 ends in DisplayManager::uaQuadro( ): the screen of the
@@ -56,7 +56,7 @@ void uaUsar( UaQuadro &q, const T &vm ) {
   q.alvos = []( const void *v, ua::Alvo *o ) { return A( *static_cast<const T *>( v ), o ); };
 }
 
-// What GET /api/ui reports (src/ui_angulo/WebManager_UiA.cpp): the frame on
+// What GET /api/ui reports (src/ui/angulo/WebManager_UiA.cpp): the frame on
 // the glass and its touch targets, for the bench to touch what is drawn.
 struct UaAlvoBruto { int16_t x, y, w, h; uint8_t tipo; int16_t indice; };
 constexpr int UA_MAX_ALVOS = 48;   // ua::MAX_ALVOS (asserted in DisplayManager_UiA.cpp)

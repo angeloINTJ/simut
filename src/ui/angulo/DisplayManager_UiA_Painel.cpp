@@ -3,7 +3,7 @@
  * @brief The Ângulo build's glue for the "painel" screens (tools/tft_ui/ESPEC_UI_A.md
  *        §6.1, telas/Painel*.h): the boot screen, the alarm's action screen and the
  *        dashboard, as view models filled from the DisplayManager's state, and their
- *        touches. pico_wiretft_ui_a only.
+ *        touches. pico_wiretft_angulo only.
  *
  * All three are translations (ESPEC §7): the old handlers do what they always did.
  * A touch on a target becomes the point of the same element in the old layout and
@@ -11,16 +11,16 @@
  * work (the same target gives the same old point on every sample of a press).
  */
 
-#include "../DisplayManager.h"
-#include "../simut_config.h"   /* SIMUT_NET_LAN is tested below: included here, not left to another header */
+#include "../../DisplayManager.h"
+#include "../../simut_config.h"   /* SIMUT_NET_LAN is tested below: included here, not left to another header */
 
 
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
 
-#include "../net/WiredLink.h"
-#include "../sensors/SensorChannels.h"
+#include "../../net/WiredLink.h"
+#include "../../sensors/SensorChannels.h"
 #include "Angulo.h"
 #include "UiA.h"
 #include "telas/PainelAlarme.h"

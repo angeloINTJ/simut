@@ -2,7 +2,7 @@
  * @file WebManager_UiA.cpp
  * @brief GET /api/ui: what the Ângulo build has on the panel.
  *
- * @details Study build pico_wiretft_ui_a only (platformio.ini); no product
+ * @details Study build pico_wiretft_angulo only (platformio.ini); no product
  * image compiles this unit. The bench reads which mode's frame is on the glass,
  * its palette, how long the last paint took, and the touch targets of that
  * frame, so a script touches the centre of what is drawn (POST /api/touch)
@@ -14,7 +14,7 @@
 
 #include "WebManager.h"
 
-#include "../DisplayManager.h"
+#include "../../DisplayManager.h"
 
 void WebManager::registerUiARoutes( ) {
   _server->on( "/api/ui", HTTP_GET, std::bind( &WebManager::handleApiUiA, this ) );
@@ -35,7 +35,7 @@ void WebManager::registerUiARoutes( ) {
 // is the chart or its detail ([0,0] otherwise) and "agora" the device's clock:
 // a chart opened from another screen must end now.
 // Each target is [x, y, w, h, tipo, indice] in the screen's coordinates; tipo
-// and indice mean what the screen's enum says (src/ui_angulo/telas/*.h).
+// and indice mean what the screen's enum says (src/ui/angulo/telas/*.h).
 void WebManager::handleApiUiA( ) {
   if ( !requirePerm( PERM_SYS_CONFIG ) ) return;
 

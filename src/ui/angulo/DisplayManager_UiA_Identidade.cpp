@@ -3,7 +3,7 @@
  * @brief The Ângulo build's glue for the "identidade" screens (tools/tft_ui/ESPEC_UI_A.md §6.4, §7):
  *        who is at the panel (MODE_AUTH_USER), the PIN keypad (MODE_AUTH), the text
  *        keyboard (MODE_SETTINGS_PASSWORD), the list of accounts (MODE_SETTINGS_USERS)
- *        and one account (MODE_SETTINGS_USER_EDIT). pico_wiretft_ui_a only.
+ *        and one account (MODE_SETTINGS_USER_EDIT). pico_wiretft_angulo only.
  *
  * The view models come from the members the old draw functions read, and every touch
  * does what the old branch did for the same request. Each action cites the old line it
@@ -16,16 +16,16 @@
  *  - The other four are Controllers: the same functions, fields and permission checks.
  */
 
-#include "../DisplayManager.h"
+#include "../../DisplayManager.h"
 
 
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
 
-#include "../PinKeypad.h"
-#include "../StorageManager.h"
-#include "../SystemDefs_Validate.h"
+#include "../../PinKeypad.h"
+#include "../../StorageManager.h"
+#include "../../SystemDefs_Validate.h"
 #include "Angulo.h"
 #include "IdentidadeToque.h"
 #include "UiA.h"

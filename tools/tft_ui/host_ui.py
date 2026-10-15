@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Holds the Ângulo kit to the TFT plan's references, on the host.
 
-Compiles src/ui_angulo/Angulo.cpp and the ports of the plan's family A
+Compiles src/ui/angulo/Angulo.cpp and the ports of the plan's family A
 screens (tools/tft_ui/plano) with Adafruit GFX 1.12.6, draws every ported
 screen in both themes into the library's own GFXcanvas16 and compares each
 frame, as RGB565, with the plan's reference frame regenerated glyph by glyph
-(tools/tft_synth/gerar_firmware.js --esperado <dir>).
+(gerar_firmware.js --esperado <dir>, of the synthetic-capture study: tools/tft_synth/ on
+the branch study/tft-angulo-ui-a, which this tree does not carry).
 
 Usage: python3 tools/tft_ui/host_ui.py <reference frames folder> [--out <folder>]
 Exit 0 when every ported frame is equal, 1 when one differs, 2 when it cannot run.
@@ -19,7 +20,7 @@ import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 HERE = pathlib.Path(__file__).resolve().parent
-SHIM = ROOT / 'tools' / 'tft_synth' / 'host' / 'shim'
+SHIM = HERE / 'host' / 'shim'
 
 
 def find_gfx():
@@ -43,9 +44,9 @@ def main():
     with tempfile.TemporaryDirectory(prefix='ui_host_') as tmp:
         tmp = pathlib.Path(tmp)
         inc = ['-std=gnu++17', '-O1', '-DARDUINO=100', f'-I{SHIM}', f'-I{gfx}',
-               f'-I{ROOT / "src" / "ui_angulo"}', f'-I{HERE / "plano"}']
+               f'-I{ROOT / "src" / "ui" / "angulo"}', f'-I{HERE / "plano"}']
         units = [(gfx / 'Adafruit_GFX.cpp', ['-w']),
-                 (ROOT / 'src' / 'ui_angulo' / 'Angulo.cpp', ['-Wall', '-Wextra', '-Werror']),
+                 (ROOT / 'src' / 'ui' / 'angulo' / 'Angulo.cpp', ['-Wall', '-Wextra', '-Werror']),
                  *[(f, ['-Wall', '-Wextra', '-Werror']) for f in sorted((HERE / 'plano').glob('*.cpp'))],
                  (HERE / 'host' / 'host_main.cpp', ['-Wall', '-Wextra', '-Werror'])]
         objs = []

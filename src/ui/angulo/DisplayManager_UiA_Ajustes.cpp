@@ -2,7 +2,7 @@
  * @file DisplayManager_UiA_Ajustes.cpp
  * @brief The Ângulo build's glue for the "ajustes" screens (tools/tft_ui/ESPEC_UI_A.md §6.3, §7):
  *        view models from the DisplayManager's state, and their touches.
- *        pico_wiretft_ui_a only.
+ *        pico_wiretft_angulo only.
  *
  * Touch, per mode (ESPEC_UI_A.md §2):
  *  - Translation (T): the clock and the display alignment. The new target is
@@ -17,7 +17,7 @@
  *    so a touch on them never gets here; only the frame is built.
  */
 
-#include "../DisplayManager.h"
+#include "../../DisplayManager.h"
 
 
 #include <math.h>
@@ -25,7 +25,7 @@
 #include <string.h>
 #include <time.h>
 
-#include "../SensorManager.h"   /* the channel table and the limit helpers the old editor used */
+#include "../../SensorManager.h"   /* the channel table and the limit helpers the old editor used */
 #include "Angulo.h"
 #include "UiA.h"
 #include "telas/Ajustes.h"

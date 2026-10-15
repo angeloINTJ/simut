@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Draws one group of the functional build's screens on the host and checks them.
 
-Compiles the Ângulo kit (src/ui_angulo/Angulo.cpp), the shared screen code
-(src/ui_angulo/telas/Telas.cpp and Base.cpp), the group's screens (src/ui_angulo/telas/
+Compiles the Ângulo kit (src/ui/angulo/Angulo.cpp), the shared screen code
+(src/ui/angulo/telas/Telas.cpp and Base.cpp), the group's screens (src/ui/angulo/telas/
 <Grupo>*.cpp) and its samples (tools/tft_ui/amostras/<grupo>.cpp) with Adafruit
 GFX 1.12.6, draws every sample in both themes, and fails when a sample:
 
@@ -27,7 +27,7 @@ import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 HERE = pathlib.Path(__file__).resolve().parent
-SHIM = ROOT / 'tools' / 'tft_synth' / 'host' / 'shim'
+SHIM = HERE / 'host' / 'shim'
 SAFE = (4, 316, 4, 236)          # x0, x1 (exclusive), y0, y1 (exclusive)
 MIN_ALVO = 24
 
@@ -40,7 +40,7 @@ def build(grupo, tmp):
     if not gfx:
         print('Adafruit GFX Library 1.12.6 not found', file=sys.stderr)
         return None
-    telas = ROOT / 'src' / 'ui_angulo' / 'telas'
+    telas = ROOT / 'src' / 'ui' / 'angulo' / 'telas'
     prefixo = grupo[:1].upper() + grupo[1:]
     proprios = sorted(telas.glob(f'{prefixo}*.cpp'))
     amostras = HERE / 'amostras' / f'{grupo}.cpp'
@@ -48,10 +48,10 @@ def build(grupo, tmp):
         print(f'{amostras} not found', file=sys.stderr)
         return None
     inc = ['-std=gnu++17', '-O1', '-DARDUINO=100', '-DUA_HOST', f'-I{SHIM}', f'-I{gfx}',
-           f'-I{ROOT / "src" / "ui_angulo"}', f'-I{telas}', f'-I{HERE / "amostras"}']
+           f'-I{ROOT / "src" / "ui" / "angulo"}', f'-I{telas}', f'-I{HERE / "amostras"}']
     strict = ['-Wall', '-Wextra', '-Werror']
     units = [(gfx / 'Adafruit_GFX.cpp', ['-w']),
-             (ROOT / 'src' / 'ui_angulo' / 'Angulo.cpp', strict),
+             (ROOT / 'src' / 'ui' / 'angulo' / 'Angulo.cpp', strict),
              (telas / 'Telas.cpp', strict),
              # The result and confirmation screens every group may lean on.
              *([(telas / 'Base.cpp', strict)] if grupo != 'base' else []),

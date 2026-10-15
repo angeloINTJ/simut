@@ -1,4 +1,4 @@
-// Samples of the result and confirmation screens (src/ui_angulo/telas/Base.h),
+// Samples of the result and confirmation screens (src/ui/angulo/telas/Base.h),
 // with the texts the device would show. See Amostras.h.
 #include <string.h>
 

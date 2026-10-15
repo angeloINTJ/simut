@@ -3,28 +3,28 @@
 Documento de trabalho do ramo `study/tft-angulo-ui-a` (14/10/2026). Diz como a
 interface Ângulo da família A do plano do TFT (`~/Documentos/simut/docs/ui_tft_angulo/entrega`)
 vira uma interface **funcional** no aparelho, numa build de estudo com rede cabeada
-(`pico_wiretft_ui_a`), sem mudar nenhuma imagem de produto.
+(`pico_wiretft_angulo`), sem mudar nenhuma imagem de produto.
 
 ## 1. O que já existe
 
 | Peça | Onde | O que faz |
 |---|---|---|
-| Kit Ângulo | `src/ui_angulo/Angulo.{h,cpp}`, gerados `AnguloMeta.h` e `AnguloIcones.h` | tokens (`Tema` com 17 papéis, claro e escuro), texto UTF-8 alinhado pela tinta, ícones, componentes (`botao`, `tecla`, `campo`, `pontos`, `ajuda`, `segmentado`, `chip`, `selo`, `lista`, `interruptor`, `paginador`, `rodapeAcoes`, `numero`, `progresso`, `tracejada`, `barraTitulo`, `barraTituloVoltar`, `superficie`) |
+| Kit Ângulo | `src/ui/angulo/Angulo.{h,cpp}`, gerados `AnguloMeta.h` e `AnguloIcones.h` | tokens (`Tema` com 17 papéis, claro e escuro), texto UTF-8 alinhado pela tinta, ícones, componentes (`botao`, `tecla`, `campo`, `pontos`, `ajuda`, `segmentado`, `chip`, `selo`, `lista`, `interruptor`, `paginador`, `rodapeAcoes`, `numero`, `progresso`, `tracejada`, `barraTitulo`, `barraTituloVoltar`, `superficie`) |
 | Portes do plano | `tools/tft_ui/plano/*.cpp` | as 29 telas e os 24 teclados (T1, P1 a P3) do plano, desenhados pelo kit e iguais ao plano pixel a pixel (`python3 tools/tft_ui/host_ui.py ../esperado`: 106 de 106) — **o ponto de partida visual de cada tela** |
 | Referências do plano | `entrega/referencia/telas/A_*.png`, `entrega/referencia/teclados/*.png` | as imagens que o plano desenhou |
-| Contrato das telas | `src/ui_angulo/telas/Telas.h` | `Alvo`, `addAlvo`, `alvoEm`, `copiar`, `quebrar`, `VmStatus` + `desenharStatus` (barra de status com a marca) |
-| Telas de referência | `src/ui_angulo/telas/Base.{h,cpp}`, amostras em `tools/tft_ui/amostras/base.cpp` | mensagem de resultado e diálogo de confirmação: **o modelo a copiar** |
-| Arnês | `python3 tools/tft_ui/host_telas.py <grupo> --out <pasta>` | compila o kit, `Telas.cpp`, `src/ui_angulo/telas/<Grupo>*.cpp` e `tools/tft_ui/amostras/<grupo>.cpp`; desenha cada amostra nos dois temas; falha com glifo ou ícone ausente, texto fora da área segura (x 4..315, y 4..235), dois textos sobrepostos ou alvo fora da tela; avisa alvo menor que 24 px e alvos sobrepostos; grava PNG por quadro, PNG com os alvos e a folha `_folha.png` |
+| Contrato das telas | `src/ui/angulo/telas/Telas.h` | `Alvo`, `addAlvo`, `alvoEm`, `copiar`, `quebrar`, `VmStatus` + `desenharStatus` (barra de status com a marca) |
+| Telas de referência | `src/ui/angulo/telas/Base.{h,cpp}`, amostras em `tools/tft_ui/amostras/base.cpp` | mensagem de resultado e diálogo de confirmação: **o modelo a copiar** |
+| Arnês | `python3 tools/tft_ui/host_telas.py <grupo> --out <pasta>` | compila o kit, `Telas.cpp`, `src/ui/angulo/telas/<Grupo>*.cpp` e `tools/tft_ui/amostras/<grupo>.cpp`; desenha cada amostra nos dois temas; falha com glifo ou ícone ausente, texto fora da área segura (x 4..315, y 4..235), dois textos sobrepostos ou alvo fora da tela; avisa alvo menor que 24 px e alvos sobrepostos; grava PNG por quadro, PNG com os alvos e a folha `_folha.png` |
 | Levantamento do código atual | `~/Documentos/simut/scratchpad/synth_20261014/inventario/*.md` | coordenadas, comportamento, eventos e dados de cada tela do painel de hoje (`dashboard_alarme_boot.md`, `grafico_tema_idioma_nucleos.md`, `configuracoes_sistema.md`, `pin_usuarios_alarmes.md`) |
 
-Ícones disponíveis (nome, tamanho): veja `src/ui_angulo/AnguloIcones.h`. Faltando um, **não**
+Ícones disponíveis (nome, tamanho): veja `src/ui/angulo/AnguloIcones.h`. Faltando um, **não**
 edite `tools/tft_ui/gerar_meta.js`: diga no relatório (o integrador acrescenta e regenera).
 
 ## 2. Arquitetura
 
-- **Camada pura** (`src/ui_angulo/telas/`): cada tela é `desenhar<Tela>( Pintor&, const Vm<Tela>& )`
+- **Camada pura** (`src/ui/angulo/telas/`): cada tela é `desenhar<Tela>( Pintor&, const Vm<Tela>& )`
   e `alvos<Tela>( const Vm<Tela>&, Alvo* )`. Não inclui nada do firmware. É o que o arnês desenha.
-- **Cola** (`src/ui_angulo/DisplayManager_UiA*.cpp`, só na build `pico_wiretft_ui_a`): preenche o
+- **Cola** (`src/ui/angulo/DisplayManager_UiA*.cpp`, só na build `pico_wiretft_angulo`): preenche o
   modelo a partir do estado do `DisplayManager`, pinta em faixas de 40 px quando o hash do modelo
   muda, e traduz o toque. Fase 2; não faz parte da fase 1.
 - **Toque**, por modo, uma de duas formas:
@@ -38,7 +38,7 @@ edite `tools/tft_ui/gerar_meta.js`: diga no relatório (o integrador acrescenta 
 
 ## 3. Contrato de cada tela (fase 1)
 
-1. Arquivos: `src/ui_angulo/telas/<Grupo><Algo>.h/.cpp` (o prefixo do grupo é obrigatório: o arnês
+1. Arquivos: `src/ui/angulo/telas/<Grupo><Algo>.h/.cpp` (o prefixo do grupo é obrigatório: o arnês
    compila `telas/<Grupo>*.cpp`) e `tools/tft_ui/amostras/<grupo>.cpp`. Não edite arquivos fora do
    seu grupo; o kit, `Telas.*`, `Base.*` e o arnês são do integrador (precisou de algo neles, diga).
 2. Namespace `ua::tela`. Modelo `Vm<Tela>`: POD, só membros de tamanho fixo (`char[]`, inteiros,
@@ -320,7 +320,7 @@ Leia `inventario/grafico_tema_idioma_nucleos.md` (Parte 1) e `inventario/configu
 
 ## 7. Fase 2: a cola com o firmware
 
-Cada grupo troca o seu `src/ui_angulo/DisplayManager_UiA_<Grupo>.cpp` (hoje um esboço que não reivindica
+Cada grupo troca o seu `src/ui/angulo/DisplayManager_UiA_<Grupo>.cpp` (hoje um esboço que não reivindica
 nenhum modo) por duas funções membro do `DisplayManager`:
 
 ```cpp
@@ -328,7 +328,7 @@ bool DisplayManager::uaMontar<Grupo>( UaQuadro &q );                        // o
 UaToque DisplayManager::uaToque<Grupo>( const ua::Alvo *a, int16_t &x, int16_t &y );   // o toque nele
 ```
 
-Modelo pronto para copiar: `src/ui_angulo/DisplayManager_UiA.cpp`, funções `uaMontarBase` e `uaToqueBase`.
+Modelo pronto para copiar: `src/ui/angulo/DisplayManager_UiA.cpp`, funções `uaMontarBase` e `uaToqueBase`.
 
 **Montar.** `switch ( _uiMode )` nos modos do grupo; `VmX &vm = uaVm<VmX>( )` (zerado, no buffer comum de
 4 kB), preencher a partir do estado (os mesmos membros que a função de desenho antiga lê, com as mesmas
@@ -355,11 +355,11 @@ guarde segundos inteiros).
   volta anterior e compare). Depois de mudar esse estado, `uaSujo( )`.
 
 **Construir.** Cada grupo trabalha na sua worktree (`wt_<grupo>`, ramo `study/tft-angulo-ui-a-<grupo>`) e
-prova com `pio run -e pico_wiretft_ui_a` (a primeira compilação baixa as bibliotecas; -Werror vale em
-`src/`). Os arquivos de tela do grupo entram no `build_src_filter` pelo padrão `+<ui_angulo/telas/*.cpp>`.
+prova com `pio run -e pico_wiretft_angulo` (a primeira compilação baixa as bibliotecas; -Werror vale em
+`src/`). Os arquivos de tela do grupo entram no `build_src_filter` pelo padrão `+<ui/angulo/telas/*.cpp>`.
 Não grave placa: a bancada é do integrador, que roda o roteiro de toque em cada tela nos dois temas.
 
-**Regras que não podem quebrar.** Nenhum arquivo fora de `src/ui_angulo/` muda nesta fase (o que precisar
+**Regras que não podem quebrar.** Nenhum arquivo fora de `src/ui/angulo/` muda nesta fase (o que precisar
 fora, peça). As imagens de produto não podem mudar nem um byte. Nunca grave a política de PIN pela tela no
 aparelho da bancada (marca todas as contas para trocar o PIN); a tela pode ser aberta, alterada e
 cancelada.

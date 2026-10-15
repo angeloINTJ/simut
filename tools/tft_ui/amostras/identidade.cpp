@@ -1,4 +1,4 @@
-// Samples of the identity group's screens (src/ui_angulo/telas/Identidade*.h):
+// Samples of the identity group's screens (src/ui/angulo/telas/Identidade*.h):
 // who is at the panel, the PIN keypad in its six layouts and every state of the
 // lockout ladder, the text keyboard, the list of accounts and one account. Each
 // sample fills a view model the way the device would in one state. See Amostras.h.

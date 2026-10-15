@@ -1,8 +1,8 @@
 #pragma once
 // The TFT plan's family A screens with the plan's scenario, drawn with the
-// kit (src/ui_angulo/Angulo.h): ports of renderizador/src/telas.js, used on
+// kit (src/ui/angulo/Angulo.h): ports of renderizador/src/telas.js, used on
 // the host to hold the kit to the plan's references, pixel for pixel
-// (host_ui.py). Not firmware: the functional screens are src/ui_angulo/telas/.
+// (host_ui.py). Not firmware: the functional screens are src/ui/angulo/telas/.
 #include "Angulo.h"
 
 namespace plano {

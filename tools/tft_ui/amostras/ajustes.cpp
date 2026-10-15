@@ -1,4 +1,4 @@
-// Samples of the ajustes group's screens (src/ui_angulo/telas/Ajustes.h), with
+// Samples of the ajustes group's screens (src/ui/angulo/telas/Ajustes.h), with
 // the states and the extreme cases ESPEC_UI_A.md §6.3 lists. See Amostras.h.
 #include <string.h>
 

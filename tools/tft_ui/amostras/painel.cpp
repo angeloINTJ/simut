@@ -1,4 +1,4 @@
-// Samples of the panel group's screens (src/ui_angulo/telas/PainelPrincipal.h,
+// Samples of the panel group's screens (src/ui/angulo/telas/PainelPrincipal.h,
 // PainelAlarme.h, PainelBoot.h): the sensors, the alarm's phases and the
 // bottom row as the device would fill them. See Amostras.h.
 #include <string.h>

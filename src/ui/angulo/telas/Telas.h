@@ -5,7 +5,7 @@
 // Each screen is a pure function of its view model, so the host draws every
 // one of them with sample data in both themes (tools/tft_ui/host_telas.py) and
 // the firmware draws the very same code from the DisplayManager's state
-// (DisplayManager_UiA*.cpp, built only by pico_wiretft_ui_a). What each screen
+// (DisplayManager_UiA*.cpp, built only by pico_wiretft_angulo). What each screen
 // keeps:
 //
 //  - Its view model (Vm*) is a POD of fixed-size members and no pointers. The

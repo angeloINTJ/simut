@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The bench's hands on the functional study build (pico_wiretft_ui_a).
+"""The bench's hands on the functional study build (pico_wiretft_angulo).
 
 As a command:
   bancada_ui.py --host ip:port estado                 the frame on the glass (GET /api/ui)

@@ -1,4 +1,4 @@
-// Samples of the "menus" screens (src/ui_angulo/telas/Menus*.h), one for each
+// Samples of the "menus" screens (src/ui/angulo/telas/Menus*.h), one for each
 // state ESPEC_UI_A.md §6.2 lists, with the texts and values the device would
 // show. See Amostras.h.
 #include <stdio.h>
