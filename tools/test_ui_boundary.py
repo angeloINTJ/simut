@@ -1,0 +1,740 @@
+#!/usr/bin/env python3
+"""Tests tools/check_ui_boundary.py, the gate that keeps each touch-panel UI driver inside its walls.
+
+Run: python3 tools/test_ui_boundary.py   (CI runs it as a gate, next to the gate itself)
+
+A gate that finds nothing is the failure this test exists for, so each rule is proved the way a rule
+is proved: a violation put into a clean tree gives exactly ONE finding, of that rule, at its line; the
+same text where the compiler sees no code (a comment, a string, a raw string) gives none; and what is
+fine (a capability, a driver's own text inside its directory, the defined( ) of UiCaps.h) gives none.
+
+  * Synthetic trees, one per case (a temp directory with its own src/, tools/features.toml and
+    tools/ui_boundary.json): the five rules (identity, no-ifdef, include-caps, cross-driver,
+    driver-hook), what each lets off, the lexical traps that matter to them, the allowances (over,
+    under, stale, no reason, unknown rule, a file that is not JSON), --update, --report, the manifest
+    as the source of the identity macros, and the output format.
+  * The premise of no-ifdef, with the host preprocessor: after the real src/ui/UiCaps.h,
+    `#ifdef SIMUT_UI_ANGULO` is true on the original image and `#if SIMUT_UI_ANGULO` is false.
+  * The real tree: it passes (zero findings over the allowances of tools/ui_boundary.json, each of
+    which says which stage ends it), and one violation of each rule appended to a copy of it gives
+    exactly one finding. The counts are held tight on a real file too: the copy is given an allowance
+    of its own (two hook sites in a core file, allowed two, so that the check does not depend on
+    which allowances the real file still lists), one site more fails ("grew"), one less fails
+    ("lower the allowance"), and --update lowers it.
+  * The gate never writes under src/: the sha256 of every scanned file is the same before and after
+    every run, --update included (it writes tools/ui_boundary.json and nothing else).
+"""
+import contextlib
+import hashlib
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(HERE)
+GATE = os.path.join(HERE, "check_ui_boundary.py")
+sys.path.insert(0, HERE)
+
+FAILS = []
+RAN = []
+
+
+def check(name, cond, detail=""):
+    RAN.append(name)
+    tag = "ok  " if cond else "FAIL"
+    print(f"[{tag}] {name}" + (f" - {detail}" if detail and not cond else ""))
+    if not cond:
+        FAILS.append(name)
+
+
+try:
+    import check_ui_boundary as cub            # noqa: E402
+except ImportError as e:                       # see it fail first, if the gate is ever lost
+    check("tools/check_ui_boundary.py exists and imports", False, str(e))
+    print(f"\n{len(FAILS)} of {len(RAN)} checks failed")
+    sys.exit(1)
+
+# ── a synthetic tree ────────────────────────────────────────────────────────────────────────
+
+MANIFEST = """[ui.original]
+
+[ui.angulo]
+flags = ["-DSIMUT_UI_ANGULO=1"]
+"""
+
+CAPS = """#pragma once
+#if defined(SIMUT_UI_ORIGINAL) || defined(SIMUT_UI_CUSTOM_THEMES)
+#error "derived, never passed"
+#endif
+#ifndef SIMUT_UI_ANGULO
+#define SIMUT_UI_ANGULO 0
+#endif
+#define SIMUT_UI_ORIGINAL (!SIMUT_UI_ANGULO)
+#define SIMUT_UI_CUSTOM_THEMES (SIMUT_UI_ORIGINAL)
+"""
+
+CONFIG = """#pragma once
+#include "ui/UiCaps.h"
+#if SIMUT_UI_ANGULO && !SIMUT_DISPLAY_TFT
+#error "SIMUT_UI_ANGULO needs SIMUT_DISPLAY_TFT"
+#endif
+"""
+
+SURFACE = "src/Surface.cpp"
+ANGULO_UNIT = "src/ui/angulo/Glue.cpp"
+
+
+def surface(*body, head=('#include "simut_config.h"',)):
+    """A source file that includes simut_config.h on line 1; body line k is on line len(head) + k + 1."""
+    return "\n".join(list(head) + list(body)) + "\n"
+
+
+def angulo(*body, head=('#include "../../simut_config.h"',)):
+    """An Angulo unit that includes simut_config.h on line 1 (from src/ui/angulo/)."""
+    return surface(*body, head=head)
+
+
+# Everything the rules forbid outside the driver is what the driver is made of: its own unit holds the
+# identity macros, the hook names and the macro, and the clean tree has none of them anywhere else.
+ANGULO_TEXT = ("#if SIMUT_UI_ANGULO", "#endif", "void DisplayManager::uaSujo( ) { _uaPintando = true; UA_DESVIO( ); }")
+
+BASE = {
+    "src/simut_config.h": CONFIG,
+    "src/ui/UiCaps.h": CAPS,
+    ANGULO_UNIT: angulo(*ANGULO_TEXT),
+    SURFACE: surface("int themes = SIMUT_UI_CUSTOM_THEMES;"),
+}
+
+
+def allow(**rules):
+    """allow(**{"driver-hook": {"src/X.cpp": (2, "reason")}}) -> the JSON text of tools/ui_boundary.json."""
+    data = {r: {p: {"count": n, "reason": why} for p, (n, why) in files.items()} for r, files in rules.items()}
+    return json.dumps(data, indent=1, ensure_ascii=False) + "\n"
+
+
+@contextlib.contextmanager
+def tree(files=None, allowances=None, manifest=MANIFEST, base=BASE):
+    """A temp root with the base files overridden/extended by `files`; yields its path."""
+    with tempfile.TemporaryDirectory(prefix="ui_boundary_") as root:
+        merged = dict(base)
+        merged.update(files or {})
+        for rel, text in merged.items():
+            put(root, rel, text)
+        if manifest is not None:
+            put(root, "tools/features.toml", manifest)
+        if allowances is not None:
+            put(root, "tools/ui_boundary.json", allowances)
+        yield root
+
+
+def put(root, rel, text):
+    path = os.path.join(root, rel)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8", newline="") as fh:
+        fh.write(text)
+
+
+def run(root, *args):
+    """The gate as the CI runs it, from a directory that is not the repository's."""
+    r = subprocess.run([sys.executable, "-B", GATE, "--root", root, *args], capture_output=True, text=True,
+                       encoding="utf-8", cwd=tempfile.gettempdir())
+    return r.returncode, r.stdout.splitlines(), r.stderr
+
+
+LINE = re.compile(r"^(?P<path>[^:\s]+):(?P<line>\d+): (?P<rule>[a-z-]+): (?P<text>.+)$")
+
+
+def parse(out):
+    """(findings as (path, line, rule), the last line, the lines that are not in the output format)."""
+    found, bad = [], []
+    for l in out[:-1]:
+        m = LINE.match(l)
+        if m:
+            found.append((m["path"], int(m["line"]), m["rule"]))
+        else:
+            bad.append(l)
+    return found, (out[-1] if out else ""), bad
+
+
+def file_hash(path):
+    if not os.path.exists(path):
+        return None
+    with open(path, "rb") as fh:
+        return hashlib.sha256(fh.read()).hexdigest()
+
+
+def tree_hashes(root):
+    h = {}
+    for dirpath, _d, files in os.walk(root):
+        for f in files:
+            p = os.path.join(dirpath, f)
+            with open(p, "rb") as fh:
+                h[os.path.relpath(p, root)] = hashlib.sha256(fh.read()).hexdigest()
+    return h
+
+
+def expect(name, files, want, allowances=None, manifest=MANIFEST):
+    """The gate over a tree gives exactly the findings `want` ((path, line, rule), any order), in the output format."""
+    with tree(files, allowances, manifest) as root:
+        before = tree_hashes(os.path.join(root, "src"))
+        rc, out, err = run(root)
+        after = tree_hashes(os.path.join(root, "src"))
+    found, last, bad = parse(out)
+    ok = (sorted(found) == sorted(want) and rc == (1 if want else 0) and not bad
+          and last == f"check_ui_boundary: {len(want)} findings" and before == after)
+    check(name, ok, f"want {sorted(want)} rc={1 if want else 0}; got {sorted(found)} rc={rc} last={last!r} "
+                    f"bad={bad} err={err.strip()[:200]} src unchanged={before == after}")
+
+
+# ── the clean tree, and a rule at a time ─────────────────────────────────────────────────────
+
+expect("the clean base tree (the driver's own text inside src/ui/angulo/, a capability outside) gives nothing", {}, [])
+
+# A violation of each rule as text for a surface file that includes simut_config.h on line 1: exactly one
+# finding, on line 2. (A rule's text in an Angulo unit, where the other rules are let off, is below.)
+TEXT = {
+    "identity": ["#if SIMUT_UI_ANGULO", "#if SIMUT_UI_ORIGINAL", "#elif SIMUT_UI_ANGULO", "#if !SIMUT_UI_ORIGINAL",
+                 "bool a = SIMUT_UI_ANGULO;", "#if SIMUT_UI_ANGULO && SIMUT_DISPLAY_TFT"],
+    "cross-driver": ['#include "ui/angulo/UiA.h"', "#include <ui/angulo/UiA.h>", '#include "ui/angulo/kit/angulo_tokens.h"'],
+    "driver-hook": ["UA_DESVIO( );", "uaSujo( );", "if (uaToque(x, y)) return;", "uaQuadro( );", "uaOta( );",
+                    "uaTemaAplicado( );", "uaTema( );", "bool b = _uaPintando;", "int g = g_uaVm[0];",
+                    "const char *uaAberturaLicenca( ) { return 0; }",
+                    "void (DisplayManager::*p)( ) = &DisplayManager::uaQuadro;"],
+}
+
+for rule, lines in TEXT.items():
+    for line in lines:
+        expect(f"{rule}: `{line}` in a core file is one finding",
+               {SURFACE: surface(line)}, [(SURFACE, 2, rule)])
+
+# no-ifdef: in an Angulo unit, where identity and driver-hook are let off and the include is there.
+NOIFDEF = ["#ifdef SIMUT_UI_ANGULO", "#ifndef SIMUT_UI_ORIGINAL", "#  ifdef SIMUT_UI_ANGULO", "# ifndef SIMUT_UI_CUSTOM_THEMES",
+           "#if defined(SIMUT_UI_ANGULO)", "#if defined( SIMUT_UI_ORIGINAL )", "#if defined SIMUT_UI_ANGULO",
+           "#if SIMUT_AIR || defined(SIMUT_UI_ANGULO)", "#elif defined(SIMUT_UI_CUSTOM_THEMES)",
+           "#elifdef SIMUT_UI_ANGULO", "#elifndef SIMUT_UI_ANGULO", "/* c */ #ifdef SIMUT_UI_ANGULO",
+           "#if defined(SIMUT_UI_ANGULO_NEXT)"]
+for line in NOIFDEF:
+    expect(f"no-ifdef: `{line}` in an Angulo unit is one finding",
+           {ANGULO_UNIT: angulo(line)}, [(ANGULO_UNIT, 2, "no-ifdef")])
+
+expect("no-ifdef: two defined( ) on one line are two findings",
+       {ANGULO_UNIT: angulo("#if defined(SIMUT_UI_ANGULO) || defined(SIMUT_UI_ORIGINAL)")},
+       [(ANGULO_UNIT, 2, "no-ifdef")] * 2)
+expect("no-ifdef: #ifdef on a macro that is not a UI one is fine",
+       {SURFACE: surface("#ifdef SIMUT_THEMES_HEALTH", "#endif", "#if defined(SIMUT_NET_LAN) || defined(SIMUT_UIX)",
+                         "#endif", "#ifndef SIMUT_UI", "#endif")}, [])
+expect("no-ifdef: the same text in a core file is two findings, the macro being an identity there too",
+       {SURFACE: surface("#ifdef SIMUT_UI_ANGULO")}, [(SURFACE, 2, "identity"), (SURFACE, 2, "no-ifdef")])
+expect("no-ifdef: a capability in #ifdef in a core file is one finding (a capability is no identity)",
+       {SURFACE: surface("#ifdef SIMUT_UI_CUSTOM_THEMES")}, [(SURFACE, 2, "no-ifdef")])
+expect("no-ifdef: src/simut_config.h, let off the identity rule, is held to this one",
+       {"src/simut_config.h": CONFIG + "#ifdef SIMUT_UI_ANGULO\n#endif\n"}, [("src/simut_config.h", 6, "no-ifdef")])
+expect("no-ifdef: src/ui/UiCaps.h, where the macros are defined, is the one file let off (its defined( ) and #ifndef)",
+       {"src/ui/UiCaps.h": CAPS + "#ifdef SIMUT_UI_ANGULO\n#endif\n#if defined(SIMUT_UI_CUSTOM_THEMES)\n#endif\n"}, [])
+expect("no-ifdef: that exemption is the file's, not the directory's",
+       {"src/ui/Other.h": '#include "UiCaps.h"\n' + "#ifdef SIMUT_UI_ANGULO\n#endif\n"}, [("src/ui/Other.h", 2, "no-ifdef")])
+expect("no-ifdef: a name that merely contains `defined` is not the operator",
+       {ANGULO_UNIT: angulo("bool undefined_SIMUT_UI_ANGULO = false;", "int predefined(SIMUT_UI_ANGULO);")}, [])
+
+
+def class_include_cases():
+    NOHEAD = ()
+    for use in ("#if SIMUT_UI_CUSTOM_THEMES", "#if !SIMUT_UI_CUSTOM_THEMES", "#if SIMUT_UI_CUSTOM_THEMES && x",
+                "bool b = SIMUT_UI_CUSTOM_THEMES || x;"):
+        text = surface(use, "#endif" if use.startswith("#") else "", head=NOHEAD)
+        expect(f"include-caps: `{use}` in a file that includes nothing is one finding",
+               {SURFACE: text}, [(SURFACE, 1, "include-caps")])
+    expect("include-caps: an identity macro in a bare core file is two findings, the identity and the include",
+           {SURFACE: surface("#if SIMUT_UI_ANGULO", "#endif", head=())},
+           [(SURFACE, 1, "identity"), (SURFACE, 1, "include-caps")])
+    expect("include-caps: an Angulo unit is held to it too (its identity is no finding there, the missing include is)",
+           {ANGULO_UNIT: surface("#if SIMUT_UI_ANGULO", "#endif", head=())}, [(ANGULO_UNIT, 1, "include-caps")])
+    expect("include-caps: three uses in one file are one finding, at the first",
+           {SURFACE: surface("int a;", "#if SIMUT_UI_CUSTOM_THEMES", "#endif", "#if SIMUT_UI_CUSTOM_THEMES", "#endif", head=NOHEAD)},
+           [(SURFACE, 2, "include-caps")])
+    expect("include-caps: the include after the first use is too late",
+           {SURFACE: surface("#if SIMUT_UI_CUSTOM_THEMES", "#endif", '#include "simut_config.h"', head=NOHEAD)},
+           [(SURFACE, 1, "include-caps")])
+    expect("include-caps: simut_config.h reached through another header is not the file's own include",
+           {SURFACE: surface('#include "DisplayManager.h"', "#if SIMUT_UI_CUSTOM_THEMES", "#endif", head=NOHEAD),
+            "src/DisplayManager.h": '#include "simut_config.h"\n'},
+           [(SURFACE, 2, "include-caps")])
+    expect("include-caps: an include in a comment is not an include",
+           {SURFACE: surface('// #include "simut_config.h"', "#if SIMUT_UI_CUSTOM_THEMES", "#endif", head=NOHEAD)},
+           [(SURFACE, 2, "include-caps")])
+    expect("include-caps: a use in a comment or a string asks for nothing",
+           {SURFACE: surface("// #if SIMUT_UI_CUSTOM_THEMES", 'const char *s = "SIMUT_UI_ANGULO";', head=NOHEAD)}, [])
+    for inc, path in (('#include "simut_config.h"', SURFACE), ('#include "ui/UiCaps.h"', SURFACE),
+                      ('#include "../simut_config.h"', "src/ota/Apply.cpp"),
+                      ('#include "../ui/UiCaps.h"', "src/ota/Apply.cpp"),
+                      ('#include "UiCaps.h"', "src/ui/Other.h"),
+                      ('#include "../UiCaps.h"', ANGULO_UNIT),
+                      ('#include "../../simut_config.h"', ANGULO_UNIT)):
+        expect(f"include-caps: `{inc}` before the use satisfies it ({path})",
+               {path: surface(inc, "#if SIMUT_UI_CUSTOM_THEMES", "#endif", head=())}, [])
+
+
+def cross_driver_cases():
+    for inc in ('#include "../../Themes.h"', '#include "../../UiWidgets.h"', '#include "../../DisplayManager_Fonts.h"',
+                '#include "../../PasswordKeyboard.h"', '#include "../../sensors/SensorDrawing.h"',
+                '#include "Themes.h"', '#include "sensors/SensorDrawing.h"', "#include <UiWidgets.h>"):
+        expect(f"cross-driver: `{inc}` in an Angulo unit is one finding",
+               {ANGULO_UNIT: angulo(inc)}, [(ANGULO_UNIT, 2, "cross-driver")])
+    for inc in ('#include "../../DisplayManager.h"', '#include "UiA.h"', '#include "telas/Base.h"',
+                '#include "../../PinKeypad.h"', '#include "../../sensors/SensorChannels.h"'):
+        expect(f"cross-driver: `{inc}` in an Angulo unit (the core, or its own) is fine",
+               {ANGULO_UNIT: angulo(inc)}, [])
+    expect("cross-driver: the original's headers are the core's and the original's to include",
+           {SURFACE: surface('#include "Themes.h"', '#include "UiWidgets.h"', '#include "DisplayManager_Fonts.h"',
+                             '#include "PasswordKeyboard.h"', '#include "sensors/SensorDrawing.h"',
+                             '#include "ui/UiCaps.h"')}, [])
+    for path, inc in ((SURFACE, '#include "ui/angulo/UiA.h"'), (SURFACE, "#include <ui/angulo/UiA.h>"),
+                      ("src/ota/Apply.cpp", '#include "../ui/angulo/UiA.h"'),
+                      ("src/ui/Other.cpp", '#include "angulo/UiA.h"'),
+                      ("src/ui/Other.cpp", '#include "../ui/angulo/UiA.h"')):
+        expect(f"cross-driver: `{inc}` in {path} is one finding (resolved the way the compiler does)",
+               {path: surface(inc)}, [(path, 2, "cross-driver")])
+    expect("cross-driver: an include that merely looks like a path to the driver is not one",
+           {SURFACE: surface('#include "../ui/angulo/UiA.h"', '#include "other/angulo/UiA.h"')}, [])
+
+
+def hook_cases():
+    expect("driver-hook: every hook name is the Angulo driver's own text inside src/ui/angulo/ (the clean tree has them)",
+           {ANGULO_UNIT: angulo(*TEXT["driver-hook"])}, [])
+    expect("driver-hook: names that only contain `ua` are not hooks",
+           {SURFACE: surface("int manualSave = 0; String visualAlarm; int equalA = 1; bool uart = false; int UART_RX = 1;",
+                             "void actualize( ); int quaternionA; int uaa = 0; int Uasomething = 0; int mua_Sujo = 0;")}, [])
+    expect("driver-hook: the `_` of a member and the `g_` of a global belong to the name, any other prefix does not",
+           {SURFACE: surface("int _uaSujo = 0;", "int g_uaVm = 0;", "int m_uaSujo = 0;")},
+           [(SURFACE, 2, "driver-hook"), (SURFACE, 3, "driver-hook")])
+    expect("driver-hook: two names on one line are two findings",
+           {SURFACE: surface("uaSujo( ); uaQuadro( );")}, [(SURFACE, 2, "driver-hook")] * 2)
+    expect("driver-hook: the Angulo's types are not looked for (a file reaches them through an Angulo header, which cross-driver holds)",
+           {SURFACE: surface("UaToque t = UaToque::TRATADO; UaQuadro q; ua::Tema *tema = nullptr;")}, [])
+
+
+# The same text where the compiler sees no code gives nothing.
+def inert_cases():
+    every = ([t for lines in TEXT.values() for t in lines] + NOIFDEF + ["#if SIMUT_UI_CUSTOM_THEMES"]
+             + ['#include "../../Themes.h"', "#include <PasswordKeyboard.h>"])
+    # a file with no include at all: the include rule would fire on code, so it proves that rule inert too
+    bare = ()
+
+    def wrap(kind):
+        if kind == "line comment":
+            return [f"// {t}" for t in every]
+        if kind == "block comment":
+            return ["/*"] + [t for t in every if "*/" not in t] + ["*/"] + [f"/* {t} */" for t in every if "/*" not in t]
+        if kind == "string":
+            return [f'const char* s{i} = "{t.replace(chr(34), chr(92) + chr(34))}";' for i, t in enumerate(every)]
+        if kind == "raw string":
+            return [f'const char* r{i} = R"x({t})x";' for i, t in enumerate(every)]
+        if kind == "raw string over lines":
+            return ['const char* r = R"x('] + every + [')x";']
+    for kind in ("line comment", "block comment", "string", "raw string", "raw string over lines"):
+        expect(f"nothing in a {kind}: every rule's text is inert", {SURFACE: surface(*wrap(kind), head=bare)}, [])
+        expect(f"nothing in a {kind}, in an Angulo unit with no include",
+               {ANGULO_UNIT: surface(*wrap(kind), head=bare)}, [])
+
+
+def lexical_cases():
+    expect("lexing: a '\"' character literal does not hide code after it",
+           {SURFACE: surface("char q = '\"'; uaSujo( );")}, [(SURFACE, 2, "driver-hook")])
+    expect("lexing: a digit separator does not hide code after it",
+           {SURFACE: surface("int n = 1'000; uaSujo( );")}, [(SURFACE, 2, "driver-hook")])
+    expect('lexing: "//" in a string does not hide code after it',
+           {SURFACE: surface('const char* u = "http://x"; uaSujo( );')}, [(SURFACE, 2, "driver-hook")])
+    expect("lexing: an escaped quote does not end the string early",
+           {SURFACE: surface('const char* e = "a\\"uaSujo( )"; uaQuadro( );')}, [(SURFACE, 2, "driver-hook")])
+    expect("lexing: a comment continued by a backslash hides the next line, and not the one after",
+           {SURFACE: surface("// x \\", "uaSujo( );", "uaQuadro( );")}, [(SURFACE, 4, "driver-hook")])
+    expect("lexing: the line of a finding after a block comment is the file's line",
+           {SURFACE: surface("/* a", "b */", "uaQuadro( );")}, [(SURFACE, 4, "driver-hook")])
+    expect("lexing: the line of a finding after a raw string over three lines is the file's line",
+           {SURFACE: surface('const char* r = R"x(', "a", ')x";', "uaQuadro( );")}, [(SURFACE, 5, "driver-hook")])
+    expect("lexing: an apostrophe in a #error does not hide the next line",
+           {SURFACE: surface("#error don't", "uaQuadro( );")}, [(SURFACE, 3, "driver-hook")])
+    expect("lexing: the finding is where the hook is called, in a long file",
+           {SURFACE: surface(*(["int x;"] * 200 + ["uaQuadro( );"]))}, [(SURFACE, 202, "driver-hook")])
+    expect("lexing: a #ifdef after a block comment on its line is still a directive",
+           {ANGULO_UNIT: angulo("/* a */  #ifdef SIMUT_UI_ANGULO")}, [(ANGULO_UNIT, 2, "no-ifdef")])
+    expect("lexing: a #ifdef in a line the compiler continues is read where it starts",
+           {ANGULO_UNIT: angulo("#ifdef \\", "  SIMUT_UI_ANGULO")}, [(ANGULO_UNIT, 2, "no-ifdef")])
+
+
+def manifest_cases():
+    expect("the identity macros come from the manifest: a [ui.third] makes SIMUT_UI_THIRD one",
+           {SURFACE: surface("#if SIMUT_UI_THIRD", "#endif")}, [(SURFACE, 2, "identity")],
+           manifest=MANIFEST + '\n[ui.third]\nflags = ["-DSIMUT_UI_THIRD=1"]\n')
+    expect("the identity macros come from the manifest: an id with a hyphen is upper-cased with an underscore",
+           {SURFACE: surface("#if SIMUT_UI_SOME_DRIVER", "#endif")}, [(SURFACE, 2, "identity")],
+           manifest=MANIFEST + '\n[ui.some-driver]\nflags = []\n')
+    expect("an identity macro that is not in the manifest is not an identity (it is still a UI macro)",
+           {SURFACE: surface("#if SIMUT_UI_THIRD", "#endif")}, [])
+    expect("the tables that merely start with `ui_` (the configurator's) are not drivers",
+           {SURFACE: surface("#if SIMUT_UI_PRODUCTS", "#endif")}, [],
+           manifest=MANIFEST + '\n[ui_products.pico_wiretft]\nbench = true\n')
+    with tree({}, manifest=None) as root:
+        rc, out, err = run(root)
+    check("a tree with no manifest is an error (exit 2), not a clean pass",
+          rc == 2 and "features.toml" in (err + "\n".join(out)), f"rc={rc} out={out} err={err.strip()[:200]}")
+    with tree({}, manifest="[ui_panel]\n") as root:
+        rc, out, err = run(root)
+    check("a manifest with no [ui.<id>] is an error (exit 2): the identity rule would look for nothing",
+          rc == 2 and "[ui." in (err + "\n".join(out)), f"rc={rc} out={out} err={err.strip()[:200]}")
+    with tree({}, manifest='ui = "angulo"\n') as root:
+        rc, out, err = run(root)
+    check("a manifest whose `ui` is not a table of drivers is an error (exit 2)", rc == 2, f"rc={rc} out={out} err={err.strip()[:200]}")
+    with tree({}, manifest="[ui.original\n") as root:
+        rc, out, err = run(root)
+    check("a manifest that is not TOML is an error (exit 2)", rc == 2, f"rc={rc} out={out} err={err.strip()[:200]}")
+    with tree({}, base={}) as root:
+        rc, out, err = run(root)
+    check("a tree with no src/ is an error (exit 2), not a clean pass", rc == 2, f"rc={rc} out={out} err={err.strip()[:200]}")
+    for text, what in (("{", "not JSON"), ('["driver-hook"]', "a JSON array"), ('{"driver-hook": 3}', "a rule that is not an object")):
+        with tree({}, allowances=text) as root:
+            rc, out, err = run(root)
+        want_rc = 1 if what == "a rule that is not an object" else 2
+        check(f"an allowance file that is {what} is not a pass (exit {want_rc})", rc == want_rc, f"rc={rc} out={out} err={err.strip()[:200]}")
+
+
+# ── the allowances ───────────────────────────────────────────────────────────────────────────
+
+TWO = {SURFACE: surface("uaSujo( );", "uaQuadro( );")}      # two driver-hook findings, lines 2 and 3
+WHY = "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the test's own; ends in S4"
+
+
+def message_cases():
+    def problem(name, files, allowances, words, rule="driver-hook", path=SURFACE):
+        with tree(files, allowances) as root:
+            rc, out, err = run(root)
+        _found, _last, bad = parse(out)
+        mine = [l for l in out[:-1] if l.startswith(path + ":") and f": {rule}: " in l]
+        ok = rc == 1 and not bad and any(all(w in l for w in words) for l in mine)
+        check(name, ok, f"rc={rc} out={out}")
+
+    expect("an allowance equal to the findings makes them pass", TWO, [],
+           allowances=allow(**{"driver-hook": {SURFACE: (2, WHY)}}))
+    problem("an allowance below the findings fails: grew", TWO, allow(**{"driver-hook": {SURFACE: (1, WHY)}}), ["grew"])
+    problem("an allowance above the findings fails: lower the allowance", TWO,
+            allow(**{"driver-hook": {SURFACE: (3, WHY)}}), ["lower the allowance"])
+    problem("an allowed file with no findings is stale", {SURFACE: surface("int x;")},
+            allow(**{"driver-hook": {SURFACE: (1, WHY)}}), ["stale"])
+    problem("an allowed file that is gone is stale", {},
+            allow(**{"driver-hook": {"src/Gone.cpp": (1, WHY)}}), ["stale"], path="src/Gone.cpp")
+    problem("an allowance for the other rule does not cover the finding, and is stale itself", TWO,
+            allow(**{"identity": {SURFACE: (2, WHY)}}), ["stale"], rule="identity")
+    expect("an allowance for the other rule leaves the findings reported",
+           TWO, [(SURFACE, 2, "driver-hook"), (SURFACE, 3, "driver-hook"), (SURFACE, 1, "identity")],
+           allowances=allow(**{"identity": {SURFACE: (2, WHY)}}))
+    problem("an allowance with no reason fails", TWO, allow(**{"driver-hook": {SURFACE: (2, "")}}), ["reason"])
+    problem("an allowance with a count that is not a positive number fails", TWO,
+            allow(**{"driver-hook": {SURFACE: (0, WHY)}}), ["count"])
+    problem("an allowance under a rule that does not exist fails", TWO,
+            allow(**{"made-up-rule": {SURFACE: (2, WHY)}}), ["unknown rule"], rule="made-up-rule")
+    expect("one allowance covers one (rule, file): the same file's finding of another rule is still reported",
+           {SURFACE: surface("uaSujo( );", "#if SIMUT_UI_ANGULO")},
+           [(SURFACE, 3, "identity")], allowances=allow(**{"driver-hook": {SURFACE: (1, WHY)}}))
+    expect("a core file may be allowed a cross-driver include, the count held the same way",
+           {SURFACE: surface('#include "ui/angulo/UiA.h"')}, [],
+           allowances=allow(**{"cross-driver": {SURFACE: (1, WHY)}}))
+
+
+def update_cases():
+    def read(root):
+        with open(os.path.join(root, "tools", "ui_boundary.json"), encoding="utf-8") as fh:
+            return json.load(fh)
+
+    # lowers a count, keeps the reason (and its non-ASCII text as it is, not as \u escapes)
+    with tree(TWO, allow(**{"driver-hook": {SURFACE: (3, WHY)}})) as root:
+        before = tree_hashes(root)
+        rc, out, err = run(root, "--update")
+        after = tree_hashes(root)
+        data = read(root)
+        with open(os.path.join(root, "tools", "ui_boundary.json"), encoding="utf-8") as fh:
+            raw = fh.read()
+        rc2, out2, _ = run(root)
+    changed = sorted(k for k in set(before) | set(after) if before.get(k) != after.get(k))
+    check("--update lowers a count to the findings and keeps the reason",
+          rc == 0 and data == {"driver-hook": {SURFACE: {"count": 2, "reason": WHY}}} and rc2 == 0,
+          f"rc={rc} data={data} rc2={rc2} out={out}")
+    check("--update writes tools/ui_boundary.json and nothing else",
+          changed == [os.path.join("tools", "ui_boundary.json")], f"changed={changed}")
+    check("--update writes the reason as it is (UTF-8, not \\u escapes) and ends the file with a newline",
+          "Ângulo" in raw and "S4–S10b" in raw and raw.endswith("}\n"), raw[:200])
+
+    # never adds a file
+    files = dict(TWO)
+    files["src/Other.cpp"] = surface("uaSujo( );")
+    with tree(files, allow(**{"driver-hook": {SURFACE: (3, WHY)}})) as root:
+        rc, out, err = run(root, "--update")
+        data = read(root)
+        rc2, out2, _ = run(root)
+    found, last, _bad = parse(out2)
+    check("--update never adds a file: a new allowance is written by hand, with its reason",
+          rc == 0 and list(data["driver-hook"]) == [SURFACE] and data["driver-hook"][SURFACE]["count"] == 2
+          and rc2 == 1 and found == [("src/Other.cpp", 2, "driver-hook")],
+          f"rc={rc} data={data} rc2={rc2} found={found}")
+
+    # drops what is stale
+    with tree({SURFACE: surface("int x;")}, allow(**{"driver-hook": {SURFACE: (1, WHY)}})) as root:
+        rc, out, err = run(root, "--update")
+        data = read(root)
+        rc2, out2, _ = run(root)
+    check("--update drops an allowance whose file has no findings left", rc == 0 and data == {} and rc2 == 0,
+          f"rc={rc} data={data} rc2={rc2}")
+
+    # a bad file is not rewritten into something that looks fine
+    with tree(TWO, allow(**{"driver-hook": {SURFACE: (2, "")}})) as root:
+        rc, out, err = run(root, "--update")
+        data = read(root)
+    check("--update does not invent a reason", data["driver-hook"][SURFACE]["reason"] == "", f"data={data}")
+
+    # nothing to change: the file is left as it is, byte for byte
+    with tree(TWO, allow(**{"driver-hook": {SURFACE: (2, WHY)}})) as root:
+        path = os.path.join(root, "tools", "ui_boundary.json")
+        h0 = file_hash(path)
+        rc, out, err = run(root, "--update")
+        h1 = file_hash(path)
+    check("--update with the counts already right leaves the file byte for byte", rc == 0 and h0 == h1
+          and out == ["check_ui_boundary: the counts already match"], f"rc={rc} out={out}")
+
+
+def report_cases():
+    with tree(TWO, allow(**{"driver-hook": {SURFACE: (1, WHY)}})) as root:
+        rc, out, err = run(root, "--report")
+    text = "\n".join(out)
+    check("--report prints the findings and the counts and exits 0, even over an allowance",
+          rc == 0 and f"{SURFACE}:2: driver-hook:" in text and f"{SURFACE}:3: driver-hook:" in text
+          and re.search(r"driver-hook\s+" + re.escape(SURFACE) + r"\s+2\s+\(allowed 1\)", text) is not None
+          and "findings per rule: identity 0, no-ifdef 0, include-caps 0, cross-driver 0, driver-hook 2" in text
+          and out[-1] == "check_ui_boundary: 2 findings", f"rc={rc} out={out}")
+
+
+def format_cases():
+    files = {SURFACE: surface("uaSujo( );", '#include "ui/angulo/UiA.h"', "#if SIMUT_UI_ANGULO", "#endif"),
+             "src/Bare.cpp": "#ifdef SIMUT_UI_CUSTOM_THEMES\n#endif\n"}
+    with tree(files) as root:
+        rc, out, err = run(root)
+    found, last, bad = parse(out)
+    rules = sorted(r for _p, _l, r in found)
+    check("the output is `path:line: rule: text` per finding and `check_ui_boundary: N findings` last",
+          rc == 1 and not bad and rules == ["cross-driver", "driver-hook", "identity", "include-caps", "no-ifdef"]
+          and last == "check_ui_boundary: 5 findings", f"rc={rc} out={out}")
+    check("the findings come in path and line order",
+          [(p, l) for p, l, _r in found] == sorted((p, l) for p, l, _r in found), f"found={found}")
+    check("the hints for the rules that fired go to stderr, once each",
+          all(f"check_ui_boundary: {r}: " in err for r in rules) and err.count("check_ui_boundary: identity: ") == 1, err[:300])
+    check("a finding is `file:line`, the rule and one sentence that names the macro or the hook",
+          any(l.startswith(f"{SURFACE}:2: driver-hook: uaSujo ") for l in out)
+          and any(l.startswith(f"{SURFACE}:4: identity: SIMUT_UI_ANGULO ") for l in out)
+          and any(l.startswith("src/Bare.cpp:1: no-ifdef: SIMUT_UI_CUSTOM_THEMES ") for l in out), f"out={out}")
+
+
+# ── the premise of no-ifdef, with the host preprocessor ──────────────────────────────────────
+
+def premise_cases():
+    cpp = shutil.which("cpp")
+    if cpp is None:
+        check("the premise of no-ifdef (needs the host's cpp, which the CI has)", False, "no cpp on PATH")
+        return
+    probe = ('#include "ui/UiCaps.h"\n#ifdef SIMUT_UI_ANGULO\nPROBE_IFDEF 1\n#else\nPROBE_IFDEF 0\n#endif\n'
+             "#if SIMUT_UI_ANGULO\nPROBE_IF 1\n#else\nPROBE_IF 0\n#endif\n"
+             "#if defined(SIMUT_UI_ORIGINAL)\nPROBE_DEF 1\n#else\nPROBE_DEF 0\n#endif\n")
+    with tempfile.TemporaryDirectory(prefix="ui_boundary_cpp_") as tmp:
+        path = os.path.join(tmp, "probe.c")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(probe)
+        res = {}
+        for label, flags in (("the original image (no flag)", []), ("the Angulo image", ["-DSIMUT_UI_ANGULO=1"])):
+            r = subprocess.run([cpp, "-P", f"-I{os.path.join(ROOT, 'src')}"] + flags + [path], capture_output=True, text=True)
+            res[label] = dict(re.findall(r"PROBE_(\w+) ([01])", r.stdout))
+    orig, ang = res["the original image (no flag)"], res["the Angulo image"]
+    check("premise: on the original image `#ifdef SIMUT_UI_ANGULO` is TRUE and `#if SIMUT_UI_ANGULO` is false "
+          "(the reason the rule exists)", orig == {"IFDEF": "1", "IF": "0", "DEF": "1"}, str(orig))
+    check("premise: on the Angulo image both are true, so `#ifdef` cannot tell the two images apart",
+          ang == {"IFDEF": "1", "IF": "1", "DEF": "1"}, str(ang))
+
+
+# ── the real tree ───────────────────────────────────────────────────────────────────────────
+
+def real_tree_cases():
+    src_before = tree_hashes(os.path.join(ROOT, "src"))
+    json_before = file_hash(os.path.join(ROOT, "tools", "ui_boundary.json"))
+    r = subprocess.run([sys.executable, "-B", GATE], capture_output=True, text=True, encoding="utf-8",
+                       cwd=tempfile.gettempdir())
+    check("the real tree passes (the gate with no --root, from another directory)",
+          r.returncode == 0 and r.stdout.splitlines()[-1:] == ["check_ui_boundary: 0 findings"],
+          r.stdout[-600:] + r.stderr[-300:])
+    r2 = subprocess.run([sys.executable, "-B", GATE, "--report"], capture_output=True, text=True, encoding="utf-8",
+                        cwd=tempfile.gettempdir())
+    check("--report on the real tree exits 0", r2.returncode == 0, r2.stdout[-300:] + r2.stderr[-300:])
+    src_after = tree_hashes(os.path.join(ROOT, "src"))
+    json_after = file_hash(os.path.join(ROOT, "tools", "ui_boundary.json"))
+    check("the gate never writes under src/ (sha256 of the scanned files before and after), nor the allowances "
+          "without --update", src_before == src_after and json_before == json_after,
+          str([k for k in src_after if src_before.get(k) != src_after.get(k)][:5]))
+
+    with open(os.path.join(ROOT, "tools", "ui_boundary.json"), encoding="utf-8") as fh:
+        real_allow = json.load(fh)
+    no_stage = [f"{rule} {p}" for rule, files in real_allow.items() for p, e in files.items()
+                if not re.search(r"ends in S\d+", e.get("reason", ""))]
+    check("every real allowance says which stage ends it (`ends in S<n>`)", not no_stage, str(no_stage[:5]))
+    check("every real allowance is for a rule of the gate", all(rule in cub.RULES for rule in real_allow), str(list(real_allow)))
+
+    # a copy of the real tree: one violation of each rule appended to a file, one finding each
+    with tempfile.TemporaryDirectory(prefix="ui_boundary_real_") as root:
+        shutil.copytree(os.path.join(ROOT, "src"), os.path.join(root, "src"))
+        os.makedirs(os.path.join(root, "tools"))
+        for f in ("features.toml", "ui_boundary.json"):
+            shutil.copy(os.path.join(ROOT, "tools", f), os.path.join(root, "tools", f))
+        base_hashes = tree_hashes(os.path.join(root, "src"))
+        listed = {p for files in real_allow.values() for p in files}
+
+        # pick the real files the mutations go into, by what they are and not by name
+        core_clean = bare = angulo_cfg = angulo_any = None
+        for dirpath, _d, files in sorted(os.walk(os.path.join(root, "src"))):
+            for f in sorted(files):
+                if not f.endswith((".h", ".cpp")):
+                    continue
+                p = os.path.join(dirpath, f)
+                rel = os.path.relpath(p, root).replace(os.sep, "/")
+                with open(p, encoding="utf-8", errors="ignore") as fh:
+                    code, inc = cub.cnb.strip_source(fh.read())
+                own = any(q and os.path.basename(n) in cub.CONFIG_HEADERS for _l, n, q in inc)
+                uses = re.search(r"\bSIMUT_UI_", code) is not None
+                hooks = cub.HOOK.search(code) is not None
+                if rel.startswith(cub.ANGULO_DIR):
+                    angulo_any = angulo_any or rel
+                    if own and not uses and not angulo_cfg:
+                        angulo_cfg = rel
+                elif not rel.startswith(cub.UI_DIR) and rel != cub.CONFIG and not uses and not hooks and rel not in listed:
+                    if own and not core_clean and f.endswith(".cpp"):
+                        core_clean = rel
+                    if not own and not bare and f.endswith(".cpp"):
+                        bare = rel
+        check("the real tree has the files the mutations go into (a clean core file, a bare one, an Angulo unit that "
+              "includes the config, any Angulo unit)",
+              all((core_clean, bare, angulo_cfg, angulo_any)), str((core_clean, bare, angulo_cfg, angulo_any)))
+        if not all((core_clean, bare, angulo_cfg, angulo_any)):
+            return
+
+        def mutated(rel, extra, want_rule, name, expected_findings=1):
+            path = os.path.join(root, rel)
+            with open(path, encoding="utf-8", newline="") as fh:
+                original = fh.read()
+            try:
+                with open(path, "w", encoding="utf-8", newline="") as fh:
+                    fh.write(original + extra)
+                rc, out, err = run(root)
+            finally:
+                with open(path, "w", encoding="utf-8", newline="") as fh:
+                    fh.write(original)
+            found, last, bad = parse(out)
+            nlines = original.count("\n") + 1
+            ok = (rc == 1 and not bad and len(found) == expected_findings
+                  and all(r == want_rule for _p, _l, r in found) and last == f"check_ui_boundary: {expected_findings} findings")
+            check(name, ok, f"rc={rc} found={found} last={last!r} (the appended text starts on line {nlines})")
+            return found, nlines
+
+        found, n = mutated(core_clean, "\n#if SIMUT_UI_ORIGINAL\n#endif\n", "identity",
+                           f"real tree + an identity macro in {core_clean}: one finding")
+        check("  ... and it is on the appended line", found[0][:2] == (core_clean, n + 1) if found else False, str(found))
+        mutated(core_clean, "\n#if SIMUT_UI_ANGULO\n#endif\n", "identity", f"real tree + SIMUT_UI_ANGULO in {core_clean}: one finding")
+        mutated(core_clean, "\nstatic int boundary_probe = uaQuadro( );\n", "driver-hook",
+                f"real tree + `uaQuadro( )` in {core_clean}: one finding")
+        mutated(core_clean, "\nUA_DESVIO( );\n", "driver-hook", f"real tree + `UA_DESVIO( );` in {core_clean}: one finding")
+        mutated(core_clean, "\nstatic bool boundary_probe = _uaPintando;\n", "driver-hook",
+                f"real tree + `_uaPintando` in {core_clean}: one finding")
+        mutated(core_clean, '\n#include "ui/angulo/UiA.h"\n', "cross-driver",
+                f"real tree + an include of an Angulo header in {core_clean}: one finding")
+        mutated(angulo_any, '\n#include "../../Themes.h"\n', "cross-driver",
+                f"real tree + an include of Themes.h in the Angulo unit {angulo_any}: one finding")
+        mutated(angulo_any, '\n#include "../../sensors/SensorDrawing.h"\n', "cross-driver",
+                f"real tree + an include of SensorDrawing.h in the Angulo unit {angulo_any}: one finding")
+        mutated(bare, "\n#if SIMUT_UI_CUSTOM_THEMES\n#endif\n", "include-caps",
+                f"real tree + a capability test in {bare} (which includes neither header): one finding")
+        mutated("src/simut_config.h", "\n#ifdef SIMUT_UI_ANGULO\n#endif\n", "no-ifdef",
+                "real tree + `#ifdef SIMUT_UI_ANGULO` in src/simut_config.h: one finding")
+        mutated(angulo_cfg, "\n#if defined(SIMUT_UI_CUSTOM_THEMES)\n#endif\n", "no-ifdef",
+                f"real tree + `defined( )` on a UI macro in the Angulo unit {angulo_cfg}: one finding")
+        with open(os.path.join(root, "src", "ui", "UiCaps.h"), encoding="utf-8", newline="") as fh:
+            caps_original = fh.read()
+        try:
+            with open(os.path.join(root, "src", "ui", "UiCaps.h"), "w", encoding="utf-8", newline="") as fh:
+                fh.write(caps_original + "\n#ifdef SIMUT_UI_ANGULO\n#endif\n#if defined(SIMUT_UI_CUSTOM_THEMES)\n#endif\n")
+            rc, out, err = run(root)
+        finally:
+            with open(os.path.join(root, "src", "ui", "UiCaps.h"), "w", encoding="utf-8", newline="") as fh:
+                fh.write(caps_original)
+        check("real tree + #ifdef and defined( ) appended to src/ui/UiCaps.h, the one file let off no-ifdef: passes",
+              rc == 0 and out[-1:] == ["check_ui_boundary: 0 findings"], f"rc={rc} out={out[-3:]}")
+
+        # the counts are tight on a real file. The copy is given an allowance of its own, so that this does not
+        # depend on which allowances the real file still lists (the last stage empties it): two hook sites
+        # appended to a clean core file, allowed two.
+        apath = os.path.join(root, "tools", "ui_boundary.json")
+        with open(apath, encoding="utf-8") as fh:
+            allowances_text = fh.read()
+        allowed = json.loads(allowances_text)
+        path = os.path.join(root, core_clean)
+        with open(path, encoding="utf-8", newline="") as fh:
+            original = fh.read()
+        base = original + "\nstatic int boundary_seed_a = uaQuadro( );\nstatic int boundary_seed_b = uaSujo( );\n"
+        with open(path, "w", encoding="utf-8", newline="") as fh:
+            fh.write(base)
+        allowed.setdefault("driver-hook", {})[core_clean] = {"count": 2, "reason": "the test's own: two hook sites, allowed two; ends in S0"}
+        with open(apath, "w", encoding="utf-8") as fh:
+            json.dump(allowed, fh)
+        rc, out, _e = run(root)
+        check(f"real tree + two hook sites in {core_clean} and an allowance of two: passes", rc == 0, f"{out[-3:]}")
+        with open(path, "w", encoding="utf-8", newline="") as fh:
+            fh.write(base + "\nstatic int boundary_probe = uaQuadro( );\n")
+        rc, out, _e = run(root)
+        check(f"real tree: one hook site more in {core_clean}, which is allowed, fails: grew",
+              rc == 1 and any("grew" in l and l.startswith(core_clean + ":") for l in out), f"{out[-3:]}")
+        with open(path, "w", encoding="utf-8", newline="") as fh:
+            fh.write(base.replace("static int boundary_seed_b = uaSujo( );", "static int removed_site = 0;"))
+        rc, out, _e = run(root)
+        check(f"real tree: one hook site fewer in {core_clean}, which is allowed, fails: lower the allowance",
+              rc == 1 and any("lower the allowance" in l and l.startswith(core_clean + ":") for l in out), f"{out[-3:]}")
+        rc, out, _e = run(root, "--update")
+        rc2, out2, _e2 = run(root)
+        with open(apath, encoding="utf-8") as fh:
+            after_update = json.load(fh)
+        check("real tree: --update takes the lower count and the gate passes again; every other allowance is left alone",
+              rc == 0 and rc2 == 0 and after_update["driver-hook"][core_clean]["count"] == 1
+              and all(after_update[r][p] == e for r, files in real_allow.items() for p, e in files.items()),
+              f"{out[-3:]} {out2[-3:]}")
+        with open(path, "w", encoding="utf-8", newline="") as fh:
+            fh.write(original)
+        with open(apath, "w", encoding="utf-8") as fh:
+            fh.write(allowances_text)
+        after = tree_hashes(os.path.join(root, "src"))
+        check("the copy's sources are back as they were after the mutations (the instrument is sound)",
+              {k: v for k, v in after.items() if k in base_hashes} == base_hashes)
+
+
+# ── run ────────────────────────────────────────────────────────────────────────────────────
+
+class_include_cases()
+cross_driver_cases()
+hook_cases()
+inert_cases()
+lexical_cases()
+manifest_cases()
+message_cases()
+update_cases()
+report_cases()
+format_cases()
+premise_cases()
+real_tree_cases()
+
+print(f"\n{len(RAN) - len(FAILS)} of {len(RAN)} checks passed")
+if FAILS:
+    print("FAILED:\n  " + "\n  ".join(FAILS))
+    sys.exit(1)

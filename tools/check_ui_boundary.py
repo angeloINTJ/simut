@@ -196,16 +196,16 @@ def scan_text(rel: str, text: str, ident: re.Pattern):
         if in_angulo:
             if is_original_only(name):
                 found.append(Finding(rel, ln, "cross-driver",
-                                     f"{shown}: the Ângulo driver includes a header only the original uses"))
+                                     f"{shown}: the Angulo driver includes a header only the original uses"))
         elif reaches_angulo(rel, name, quoted):
             found.append(Finding(rel, ln, "cross-driver",
-                                 f"{shown}: a header of the Ângulo driver included from outside src/ui/angulo/"))
+                                 f"{shown}: a header of the Angulo driver included from outside src/ui/angulo/"))
 
     if not in_angulo:
         for m in HOOK.finditer(code):
             ln = line_of(m.start())
             found.append(Finding(rel, ln, "driver-hook",
-                                 f"{m.group()} belongs to the Ângulo driver's glue, used outside src/ui/angulo/: {ctx(ln)}"))
+                                 f"{m.group()} belongs to the Angulo driver's glue, used outside src/ui/angulo/: {ctx(ln)}"))
     return found
 
 
@@ -324,7 +324,7 @@ HINTS = {
     "no-ifdef": "test it with `#if SIMUT_UI_...`: after src/ui/UiCaps.h every one is defined, 0 or 1, so #ifdef is true on every image",
     "include-caps": 'add #include "simut_config.h" (or "ui/UiCaps.h") to the file itself, before the first use',
     "cross-driver": "a driver reaches the core, never the other driver: take the shared part into the core, or leave it out",
-    "driver-hook": "the hook is the Ângulo driver's: call it from src/ui/angulo/, or list the transitional site in tools/ui_boundary.json",
+    "driver-hook": "the hook is the Angulo driver's: call it from src/ui/angulo/, or list the transitional site in tools/ui_boundary.json",
 }
 
 
