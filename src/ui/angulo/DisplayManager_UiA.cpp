@@ -493,9 +493,14 @@ bool DisplayManager::uaToque( int16_t &x, int16_t &y ) {
 
 /* A touch while the device boots with the skip button showing (handleTouch( ) asks before the intercept above): did it land on
  * the button of the boot frame? The frame says where the button is, by its target, so the old rectangle (y > 190, x 80..240) is
- * not a rule the frame has to keep. Target types are numbered per screen, so the frame on the glass has to be the boot's. */
+ * not a rule the frame has to keep. Target types are numbered per screen (BOOT_PULAR is 1, and so are the calibration's
+ * CALIB_BOTAO and the clock entry's RELOG_MAIS), so the frame on the glass has to be the boot's, and isBooting does not say
+ * so: render( ) runs in MODE_DASHBOARD alone, so _lastRenderedState keeps isBooting while a boot opens another screen over
+ * the log, and the glass shows that screen until the next pass paints a frame. s_modo is the mode the frame on the glass was
+ * painted for (uaPintar( ) sets it together with the targets) and the boot frame is built for MODE_DASHBOARD only
+ * (uaMontarPainel( )): with both, the targets listed are the boot's. */
 bool DisplayManager::uiBootSkipHit( int16_t x, int16_t y ) {
-  if ( !s_temQuadro || !_lastRenderedState.isBooting ) return false;
+  if ( !s_temQuadro || s_modo != MODE_DASHBOARD || !_lastRenderedState.isBooting ) return false;
   const ua::Alvo *a = ua::alvoEm( s_alvos, s_nAlvos, x, y );
   return a && a->tipo == ua::tela::BOOT_PULAR;
 }

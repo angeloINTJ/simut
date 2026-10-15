@@ -99,7 +99,7 @@ column is where the original's body comes from on `192e1ad`.
 | `uiTouchUp( )` | the finger left the glass | `Touch.cpp:38-51` (the dashboard's short tap) |
 | `uiChanged( kind, arg )` | a core action changed what is on screen | a `switch` over the `UiChange` kinds of section 3.5; for the original a constant `kind` folds it into the old call **S4 (C6):** begun with `ALARM_FLASH` and `ALARM_RESTORE`; the switch folds, and the Ângulo marks its frame. The other kinds come with S5 to S10a |
 | `uiTopPanel( snap )` | the top card is to be shown (`redrawTopPanel( )`, after it synced the slot and mirrored the data) | **S5 (C2):** the two calls `redrawTopPanel( )` ended with, `drawSlotPanel` of the top card and `drawBottomButtons`; the Ângulo's is `uaSujo( )` |
-| `uiBootSkipHit( x, y )` | a touch while the device boots with the skip button showing | **S5 (C7):** `Touch.cpp:364-365`, `y > 190 && x > 80 && x < 240`; the Ângulo asks the boot frame whether the point is on its `BOOT_PULAR` target |
+| `uiBootSkipHit( x, y )` | a touch while the device boots with the skip button showing | **S5 (C7):** `Touch.cpp:364-365`, `y > 190 && x > 80 && x < 240`; the Ângulo asks the boot frame whether the point is on its `BOOT_PULAR` target, and only when the frame on the glass is the boot's (`s_modo` is the dashboard's) |
 | `uiPages( list, items )` **(S0)** | the core must bound a page index | the arithmetic now spread over six draw bodies, `(items + 3) / 4`, the License text's wrap count, `buildDashLayout`'s button strip |
 | `uiThemeCount( )`, `uiThemeId( i )`, `uiThemeName( i )` | the catalogue is read | `availableThemes` and the custom `.thm` list, `Themes.cpp:433-487` |
 | `licenseOpening( ) const` | the Ângulo's licence screen needs the opening in the pack's language, which Core 0 composes into a file-static buffer | **S4 (C9):** a member defined next to that buffer, replacing the free function `uaAberturaLicenca` the Ângulo declared weak; no product calls it and the linker drops it |
@@ -547,8 +547,9 @@ top card; fixing it is a decision for later.
 and OTA rows moved in a commit of their own, because `verify_step.sh` held only the Ângulo image to its budget until the
 review of C5 and C6 found it), `pico2_w_release`, `pico_wiretft`, `pico_w_air`, `pico_w_alpha` and `pico_wire` the same
 size. The Ângulo image went from 815,424 B used (827,456 B .bin) to 816,264 B (828,296 B), +840 B: C2 -32, C3 -88
-(`drawSlotPanel` and `drawBottomButtons` left the image), C4 +136, C5 +328, C6 +424, C7 +72, C8 0. Until S10b every action
-is compiled twice there, the dead old chain in `handleTouch` and the glue; the OTA headroom of that image is 211,847 B.
+(`drawSlotPanel` and `drawBottomButtons` left the image), C4 +136, C5 +328, C6 +424, C7 +72, C8 0; the review of C9 then
+added 16 B (816,280 B, .bin 828,312 B) for the frame check in `uiBootSkipHit`. Until S10b every action is compiled twice
+there, the dead old chain in `handleTouch` and the glue; the OTA headroom of that image is 211,831 B.
 
 **Before the merge to main.** The message of `14fd267` still carries a paragraph written when C2 was not yet accepted:
 rewrite it when the stage is squashed.
