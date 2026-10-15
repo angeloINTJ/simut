@@ -25,8 +25,13 @@ simut_config.h, e prende:
      nova);
   5. nenhuma linha de comando (platformio.ini, profiles.ini, compose( ) de cada perfil) leva um macro
      derivado, e a identidade do Angulo so vai nas imagens que escolhem `ui = "angulo"` no manifesto: o
-     original, escolhido por extenso ou por omissao, compoe o mesmo ambiente e nao emite nada de UI.
+     original, escolhido por extenso ou por omissao, compoe o mesmo ambiente e nao emite nada de UI;
+  6. o gerador: com um manifesto de brinquedo que da unidades aos dois drivers (nenhum do manifesto de
+     hoje tem; as do Angulo chegam depois), as unidades de um driver saem das imagens do outro e o
+     `include` entra so na dele; e cada recusa do check_manifest( ) para a UI morde, uma a uma.
 """
+import copy
+import json
 import os
 import re
 import shutil
@@ -291,6 +296,80 @@ def main():
             fails.append(f"{name}: ui = \"{gf.DEFAULT_UI}\" por extenso compoe outro ambiente que omitir a chave")
     if not angulo_images:
         fails.append("nenhum perfil do manifesto escolhe o Angulo: o caso acima nao provou nada")
+    # O que a pagina le (docs/configurador/model.json) diz o mesmo driver de cada produto que o gerador.
+    with open(os.path.join(ROOT, "docs", "configurador", "model.json"), encoding="utf-8") as fh:
+        model = json.load(fh)
+    for p in model["products"]:
+        want = gf.config_of(gf.resolve_profile(p["id"], M["profiles"]))["ui"]
+        if p["config"].get("ui") != want:
+            fails.append(f"model.json: {p['id']} tem config.ui {p['config'].get('ui')!r}, o manifesto diz {want!r}")
+    if [o["id"] for o in model["ui"]["options"]] != sorted(M["ui"], key=lambda n: M["ui_panels"][n]["order"]):
+        fails.append(f"model.json: as opcoes de UI {[o['id'] for o in model['ui']['options']]} nao seguem o order de [ui_panels]")
+
+    # 6. O gerador, com manifestos de brinquedo. As unidades de um driver de UI saem das imagens dos outros e o
+    #    `include` entra so na dele, como as de um driver de rede. Nenhum driver do manifesto de hoje tem unidades
+    #    (as do Angulo chegam em S2a), entao sem este brinquedo o laco de compose( ) nao teria quem o exercitasse.
+    toy = copy.deepcopy(M)
+    toy["ui"]["original"]["units"] = ["DisplayManager_Touch.cpp"]
+    toy["ui"]["angulo"]["include"] = ["ui/angulo/*.cpp"]
+    toy["ui"]["angulo"]["units"] = ["ui/angulo/Toy.cpp"]
+    base = gf.resolve_profile("pico_wiretft", toy["profiles"])
+    orig, ang = gf.compose(dict(base, ui="original"), toy), gf.compose(dict(base, ui="angulo"), toy)
+    for what, ok in (
+            ("as unidades do original saem da imagem do Angulo", "DisplayManager_Touch.cpp" in ang["excludes"]),
+            ("e ficam na do original", "DisplayManager_Touch.cpp" not in orig["excludes"]),
+            ("as do Angulo saem da imagem do original", "ui/angulo/Toy.cpp" in orig["excludes"]),
+            ("e ficam na do Angulo", "ui/angulo/Toy.cpp" not in ang["excludes"]),
+            ("o include do Angulo entra na imagem dele", "ui/angulo/*.cpp" in ang["includes"]),
+            ("e nao na do original", "ui/angulo/*.cpp" not in orig["includes"])):
+        if not ok:
+            fails.append(f"compose( ) com unidades de brinquedo: {what} falhou")
+    try:
+        gf.check_manifest(toy)
+    except SystemExit as e:
+        fails.append(f"check_manifest recusou o manifesto de brinquedo, que e valido: {e.code}")
+    for bad in ("neon", ["angulo"], 1, None):
+        try:
+            gf.compose(dict(base, ui=bad), M)
+        except SystemExit as e:
+            if "nao e um [ui.*]" not in str(e.code):
+                fails.append(f"compose( ) com ui = {bad!r} recusou por outro motivo: {e.code}")
+        else:
+            fails.append(f"compose( ) aceitou ui = {bad!r}, que nao e um driver do manifesto")
+    n_refusals = 0
+
+    def rule(t):
+        return next(r for r in t["rules"] if r["id"] == "angulo-needs-tft")
+
+    # (rotulo, como estragar o manifesto, trecho da recusa). Cada uma tem de parar o check_manifest( ).
+    REFUSALS = [
+        ("sem o driver padrao", lambda t: t["ui"].pop(gf.DEFAULT_UI), f"falta [ui.{gf.DEFAULT_UI}]"),
+        ("chave que ninguem le", lambda t: t["ui"]["angulo"].update(colour=1), "tem chave que ninguem le"),
+        ("flag sem -D", lambda t: t["ui"]["angulo"].update(flags=["SIMUT_UI_ANGULO=1"]), "[ui.angulo].flags tem de ser"),
+        ("flags que nao e lista", lambda t: t["ui"]["angulo"].update(flags="-DSIMUT_UI_ANGULO=1"), "[ui.angulo].flags tem de ser"),
+        ("unidade com espaco", lambda t: t["ui"]["angulo"].update(units=["a b.cpp"]), "[ui.angulo].units tem de ser"),
+        ("include que nao e lista", lambda t: t["ui"]["angulo"].update(include="x.cpp"), "[ui.angulo].include tem de ser"),
+        ("driver sem as palavras da pagina", lambda t: t["ui_panels"].pop("angulo"), "sem [ui_panels.angulo]"),
+        ("palavras sem driver", lambda t: t["ui_panels"].update(ghost=dict(t["ui_panels"]["angulo"])), "sem [ui.ghost]"),
+        ("palavras sem a ajuda", lambda t: t["ui_panels"]["angulo"].pop("help"), "ui_panels.angulo.help"),
+        ("opcao sem order inteiro", lambda t: t["ui_panels"]["angulo"].update(order="2"), "precisa de um order inteiro"),
+        ("sem a escolha da pagina", lambda t: t.pop("ui_panel"), "falta [ui_panel]"),
+        ("grupo da escolha que nao existe", lambda t: t["ui_panel"].update(group="nowhere"), "nao e um [ui_groups]"),
+        ("perfil com uma UI que nao existe", lambda t: t["profiles"]["pico_wiretft_angulo"].update(ui="neon"), "nao e um [ui.*]"),
+        ("regra sobre uma UI que nao existe", lambda t: rule(t)["when"].update(ui="neon"), "UI desconhecida"),
+    ]
+    for label, mutate, token in REFUSALS:
+        bad = copy.deepcopy(M)
+        mutate(bad)
+        try:
+            gf.check_manifest(bad)
+        except SystemExit as e:
+            if token in str(e.code):
+                n_refusals += 1
+            else:
+                fails.append(f"check_manifest recusou «{label}» por outro motivo ({token!r} esperado): {e.code}")
+        else:
+            fails.append(f"check_manifest aceitou «{label}»")
 
     if fails:
         print("test_ui_caps: FALHOU")
@@ -299,7 +378,8 @@ def main():
         return 1
     print(f"test_ui_caps: {len(CASES)} montagens (pelo UiCaps.h e pelo simut_config.h) julgadas pelo pre-processador; "
           f"{bitten} de {len(all_errors)} #error mordem (sem a linha, exatamente os casos dele falham); "
-          f"{len(M['profiles'])} imagens do manifesto sem macro derivado por -D ({angulo_images} com a identidade do Angulo).")
+          f"{len(M['profiles'])} imagens do manifesto sem macro derivado por -D ({angulo_images} com a identidade do Angulo); "
+          f"o gerador compoe as unidades de dois drivers de brinquedo e recusa {n_refusals} de {len(REFUSALS)} manifestos estragados.")
     return 0
 
 
