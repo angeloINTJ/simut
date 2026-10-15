@@ -21,7 +21,7 @@ Status of the sections, updated in the commit that fills each one:
 | 3.2 (b) Callers outside the display units | pending |
 | 3.3 (c) Every function, classified | pending |
 | 3.4 (d) The study's glue | done |
-| 3.5 (e) Immediate draws in touch handling | pending |
+| 3.5 (e) Immediate draws in touch handling | done |
 | 3.6 (f) Bytes of the original driver | pending |
 | 4. Where the code contradicts the plan | pending |
 
@@ -130,7 +130,92 @@ test, `UiA.cpp:484` and five more) is outside both columns.
 
 ### 3.5 (e) Immediate draws in touch handling
 
-Pending.
+A touch branch that paints at once, instead of raising a repaint request for
+the loop, is a place where a driver that is not the original must be told. The
+census was taken on `192e1ad` (2026-10-14) with the grep the plan named, and
+checked with a scanner that blanks comments first and then follows the call
+graph from the two handlers:
+
+```
+grep -nE '\b(draw|redraw|blit)\w*\(' src/DisplayManager_Touch.cpp src/DisplayManager_Users.cpp
+python3 $B/tools/ui_touch.py <worktree>     # per-mode table; $B = the S0 scratch directory
+```
+
+The grep alone over-reports: in `DisplayManager_Users.cpp` it matches every
+`drawRoundRect` and `blitCanvas` inside the `draw*` functions, and one comment
+at `:1586`. Read by handler body, the result is:
+
+- **19 immediate draws, all in `handleTouch`**, in five of its branches (table
+  below). `handleTouchPanelV24` has none: its branches only raise requests
+  (`_repaintSettings`, `_forceSettingsRedraw`, `_pinCardsDirty`).
+- **Nothing else the branches call paints.** Forty-four functions are reachable
+  from the two handlers without crossing a `draw*`, `redraw*`, `blit*` or fast
+  primitive (the `act*` list of section 2.3 starts from them); none of them
+  contains a draw call. `redrawTopPanel` (`DisplayManager.h:949-990`, inline) is
+  the one callee that paints: it is two of the 19, and each call draws two
+  things, the top card and the bottom button strip.
+- **Two direct panel calls that are not draws:** `_driver.tft->setDisplayOffset( )`
+  at `DisplayManager_Touch.cpp:1070` and `:1085` (MODE_SETTINGS_DISPLAY_OFFSET)
+  move the controller's alignment live. They belong to the panel layer and stay
+  with the core.
+
+| mode (branch) | line | draw called | what it repaints, and why it is immediate |
+|---|---|---|---|
+| DASHBOARD, finger-up path | `Touch.cpp:50` | `redrawTopPanel( )` | top card and bottom buttons, after a short tap toggled the top card's min/max |
+| DASHBOARD | `:509` | `redrawTopPanel( )` | the same, after the 3 s hold fired and pinned or released the top card |
+| DASHBOARD | `:548` | `drawSlotPanel( bottom card )` | the bottom card, from a snapshot taken under the mutex, after its min/max toggled |
+| DASHBOARD | `:566` | `drawBottomButtons( selected )` | the button strip, after the PAGE button advanced `_currentPage` |
+| DASHBOARD | `:577` | `drawBottomButtons( tapped slot )` | the strip with the tapped slot highlighted, before `EVT_SLOT_SELECT` is pushed |
+| GRAPH_VIEW | `:591` | `drawGraphHeaderBar( )` | the header band only: date and time become the sensor name for 3 s |
+| GRAPH_VIEW | `:608` `:615` `:622` `:629` `:637` | `drawGraphBusyHint( )` | one accent line at the top edge, as "working" feedback before pan, zoom and calendar events |
+| GRAPH_DETAIL | `:659` | `drawGraphHeaderBar( )` | as in GRAPH_VIEW |
+| GRAPH_DETAIL | `:674` `:681` `:688` `:695` `:703` | `drawGraphBusyHint( )` | as in GRAPH_VIEW |
+| CALENDAR | `:771` `:789` | `drawGraphBusyHint( )` | feedback before a day is read from `/history`, and before "Today" |
+
+By mode: DASHBOARD 5 (4 in the pressed path and 1 on release), GRAPH_VIEW 6,
+GRAPH_DETAIL 6, CALENDAR 2, total 19. By function: `drawGraphBusyHint` 12,
+`drawBottomButtons` 2, `drawGraphHeaderBar` 2, `redrawTopPanel` 2,
+`drawSlotPanel` 1.
+
+**The `UiChange` kinds, sketched.** `uiChanged( kind, arg )` is called at the
+exact point where the original drew; for the original, a constant `kind` folds
+the `switch` into the old call, so the bytes do not move. Five kinds come from
+the immediate draws above. The second group is not drawn at once today: it is
+the flag a branch raises and the Core 1 loop consumes. It is listed because
+a driver that paints from the whole state needs only "something changed", and
+because the counts size the work: the number is how many sites set the flag to
+true in the TFT units on this tree (grep of `_x = true`, 2026-10-14).
+
+```cpp
+// Said where the original painted at once. The original maps each kind to the
+// call it replaces; the Ângulo driver maps every kind to "repaint".
+enum class UiChange : uint8_t {
+    // immediate draws (19 sites, section 3.5)
+    TOP_PANEL,        // redrawTopPanel( )        top card + bottom buttons       2 sites
+    BOTTOM_PANEL,     // drawSlotPanel( bottom )  bottom card                     1
+    BOTTOM_BUTTONS,   // drawBottomButtons( arg ) arg = slot to highlight         2
+    GRAPH_HEADER,     // drawGraphHeaderBar( )    header band of graph and detail 2
+    GRAPH_BUSY,       // drawGraphBusyHint( )     accent line, "working"          12
+    // deferred requests (flags the loop reads; they can stay flags for the original)
+    SCREEN_NEW,       // _forceSettingsRedraw     a new screen or page            51 sites
+    SCREEN_PART,      // _repaintSettings         selection or one band           114
+    ALARM_WORD,       // _alarmStatusDirty        the ON/OFF word of a row        1
+    CLOCK_VALUES,     // _clockValuesDirty        one band of the clock entry     1
+    PIN_CARDS,        // _pinCardsDirty           the dealt keypad                2
+    GRAPH,            // _repaintGraph            graph and detail screens        7
+    CALENDAR,         // _repaintCalendar         the calendar                    2
+    LOADING,          // _repaintLoading          the graph's loading screen      1
+    DASH_DATA,        // _isDirty                 dashboard values                20
+    DASH_FULL,        // _forceFullRedraw         the whole dashboard             12
+};
+```
+
+Fifteen kinds, inside the plan's estimate of 15 to 25. Sites by function kind
+for the two big flags: `_repaintSettings` is raised 56 times in `handleTouch`,
+23 in `handleTouchPanelV24`, 24 in the `show*` and `enterPinFor` entry points,
+4 in `loopCore1` and 7 elsewhere; `_forceSettingsRedraw` 17, 4, 24, 3 and 3.
+Only the first five kinds need a call at the touch site; the rest can stay as
+the original wrote them until a stage decides otherwise.
 
 ### 3.6 (f) Bytes of the original driver
 
