@@ -141,6 +141,17 @@ def main():
                             continue
                         if sobrepoe(textos[i], textos[j]):
                             erros.append(f'{nome}_{tema}: "{textos[i][4]}" overlaps "{textos[j][4]}"')
+                # A text that crosses a target's edge has outgrown its button or row: the
+                # 9 pt floor of 2026-10-15 cut "Gráfico" on both sides of a 56 px button,
+                # and neither check above saw it (the text stayed on the glass and clear
+                # of the other texts).
+                for x0, x1, y0, y1, t in textos:
+                    for ax, ay, aw, ah, tipo, ind in alvos:
+                        caixa = (ax, ax + aw, ay, ay + ah)
+                        dentro = x0 >= caixa[0] and x1 <= caixa[1] and y0 >= caixa[2] and y1 <= caixa[3]
+                        if sobrepoe((x0, x1, y0, y1), caixa) and not dentro:
+                            erros.append(f'{nome}_{tema}: "{t}" ink {x0}..{x1} x {y0}..{y1} crosses the edge of '
+                                         f'target {tipo}/{ind} at {ax},{ay} {aw}x{ah}')
         for a in avisos:
             print('warning:', a)
         for e in erros:
