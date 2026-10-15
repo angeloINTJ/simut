@@ -32,6 +32,8 @@
 #include "StorageManager.h"          /* userHasPin */
 #include "display/CountInText.h"     /* the minimum inside the too-short line */
 #include "sensors/SensorChannelTable.h"
+#include "ui/UiDriverHooks.h"        /* the hook definitions Actions.h leans on (its redrawTopPanel( ) calls uiTopPanel( )): they need the complete class, so after the includes above; this TFT block only, the LCD images never parse them */
+#include "DisplayManager_Actions.h"  /* the core's touch actions, which handleTouchPanelV24( ) runs; last, they lean on the hooks above */
 
 /* Geometry and character set: PinKeypad.h, shared with the CLI readout. */
 

@@ -1540,9 +1540,9 @@ private:
 	/** What pktArrowShown( ) found: the packet arrow is not flashing, its flash goes on, or the flash has just ended. */
 	enum class ArrowFlash : uint8_t { NONE, GOING, OVER };
 	inline __attribute__((always_inline)) ArrowFlash pktArrowShown( );
-	/* Core touch actions (src/DisplayManager_Actions.h): what a touch on a zone of the Painel group does to the state, the
-	 * same code for every driver. Whoever decided which zone was hit holds its gate (acceptTouch( ) and its kin); the action
-	 * is what follows it. The alarm's action screen: silence, deactivate, back to the dashboard in min/max. The dashboard:
+	/* Core touch actions (src/DisplayManager_Actions.h): what a touch on a zone does to the state, the same code for every
+	 * driver. Whoever decided which zone was hit holds its gate (acceptTouch( ) and its kin); the action is what follows it.
+	 * The Painel group. The alarm's action screen: silence, deactivate, back to the dashboard in min/max. The dashboard:
 	 * the upper card (its gate and the 3 s hold are inside the action), the lower card and the row of buttons under the cards
 	 * (the row's gates depend on the kind of the button, so they are inside the action). The boot screen: the skip button. */
 	inline __attribute__((always_inline)) void actAlarmSilence( );
