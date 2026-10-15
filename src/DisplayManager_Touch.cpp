@@ -1355,22 +1355,22 @@ void DisplayManager::handleTouch( ) {
  /* Tap on text area: upper half = previous page, lower = next */
  if (y < 110) {
  if (!acceptTouch(0)) return;
- if (_licensePage > 0) _licensePage--;
+ actLicensePage( -1 );
  } else {
  if (!acceptTouch(1)) return;
- if (_licensePage < _licenseTotalPages - 1) _licensePage++;
+ actLicensePage( +1 );
  }
  _repaintSettings = true;
  }
  else if (y > 190) {
  if (x < 107) {
  if (!acceptHoldTouch(10)) return;
- if (_licensePage > 0) _licensePage--;
+ actLicensePage( -1 );
  _repaintSettings = true;
  }
  else if (x < 213) {
  if (!acceptHoldTouch(11)) return;
- if (_licensePage < _licenseTotalPages - 1) _licensePage++;
+ actLicensePage( +1 );
  _repaintSettings = true;
  }
  else {

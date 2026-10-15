@@ -1549,7 +1549,7 @@ private:
 	 * inside the action), and the account-deletion confirmation's two buttons (Cancel, and Delete, which only asks: Core 0 checks the
 	 * permission), and the AP confirmation's Confirm button (its Back is showSettingsMain( ), core code already).
 	 * The Menus group, the lists: the settings list's Open button (it asks Core 0 for the item the row stands for) and the alarms list's
-	 * row (it opens the sensor's action menu). */
+	 * row (it opens the sensor's action menu), and the licence screen's page step (its callers set the repaint request). */
 	inline __attribute__((always_inline)) void actAlarmSilence( );
 	inline __attribute__((always_inline)) void actAlarmDeactivate( );
 	inline __attribute__((always_inline)) void actAlarmShowMinMax( );
@@ -1564,6 +1564,7 @@ private:
 	inline __attribute__((always_inline)) void actStartAp( );
 	inline __attribute__((always_inline)) void actMenuSelect( int idx );
 	inline __attribute__((always_inline)) void actAlarmListOpen( int idx );
+	inline __attribute__((always_inline)) void actLicensePage( int dir );
 
 	struct ActiveLang {
 		char name[16];

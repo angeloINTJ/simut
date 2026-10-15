@@ -417,10 +417,13 @@ UaToque DisplayManager::uaToqueMenus( const ua::Alvo *a, int16_t &, int16_t & ) 
       if ( voltar ) {
         /* Touch.cpp:1540-1546: always back to the menu. */
         if ( acceptTouch( ZONA_VOLTAR ) ) showSettingsMain( );
-      } else {
-        /* Touch.cpp:1529-1539 (the arrows), without the wrap. The old taps on the text, upper half for the
-         * page before and lower for the page after (1518-1528), have no target on the new screen. */
-        virar( _licensePage, _licenseTotalPages );
+      } else if ( a->tipo == LST_PAG_ANTERIOR ) {
+        /* The arrows step the page with the core's action (actLicensePage( ), held at the ends as the old arrows were), repeating while
+         * the finger stays on them. The old taps on the text, upper half for the page before and lower for the page after, have no
+         * target on the new screen. */
+        if ( acceptHoldTouch( ZONA_ANTERIOR ) ) actLicensePage( -1 );
+      } else if ( a->tipo == LST_PAG_PROXIMA ) {
+        if ( acceptHoldTouch( ZONA_PROXIMA ) ) actLicensePage( +1 );
       }
       break;
     default:
