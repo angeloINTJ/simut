@@ -44,42 +44,48 @@ void uaLatin1ParaUtf8( const char *latin1, char *out, int cap ) {
 namespace {
 
 constexpr int16_t ALTURA_FAIXA = 40;
+/* A strip is as wide as the panel (the old screens' canvas is the panel's width by
+ * 45 rows, DisplayManager.cpp) and the strips stack to its height. int, as the
+ * literals were, so that every expression below keeps its type and so its code. */
+constexpr int LARGURA_FAIXA = DisplayDriver::W;
+static_assert( DisplayDriver::H % ALTURA_FAIXA == 0, "the strips tile the panel's height" );
 
-/* Adafruit_GFX over one 40-row strip of the old screens' 320x45 canvas: the
- * screen's coordinates, shifted up by the strip's top, clipped to the strip.
+/* Adafruit_GFX over one 40-row strip of the old screens' canvas (the panel's width by
+ * 45 rows): the screen's coordinates, shifted up by the strip's top, clipped to the
+ * strip.
  * Each strip draws the whole screen and keeps what falls in it — the price of
  * a flicker-free frame without a 150 kB frame buffer — so the pixel path
  * writes the buffer itself (GFXcanvas16's layout: row-major, native order)
  * instead of a second virtual call per pixel. */
 class Faixa : public Adafruit_GFX {
 public:
-  explicit Faixa( GFXcanvas16 *cv ) : Adafruit_GFX( 320, 240 ), buf_( cv->getBuffer( ) ) {}
+  explicit Faixa( GFXcanvas16 *cv ) : Adafruit_GFX( DisplayDriver::W, DisplayDriver::H ), buf_( cv->getBuffer( ) ) {}
   void topo( int16_t y0 ) { y0_ = y0; }
   void drawPixel( int16_t x, int16_t y, uint16_t c ) override {
     y = (int16_t)( y - y0_ );
-    if ( (uint16_t)x >= 320u || (uint16_t)y >= (uint16_t)ALTURA_FAIXA ) return;
-    buf_[(int32_t)y * 320 + x] = c;
+    if ( (uint16_t)x >= (unsigned)LARGURA_FAIXA || (uint16_t)y >= (uint16_t)ALTURA_FAIXA ) return;
+    buf_[(int32_t)y * LARGURA_FAIXA + x] = c;
   }
   void fillRect( int16_t x, int16_t y, int16_t w, int16_t h, uint16_t c ) override {
-    int16_t x0 = x < 0 ? 0 : x, x1 = x + w > 320 ? 320 : (int16_t)( x + w );
+    int16_t x0 = x < 0 ? 0 : x, x1 = x + w > LARGURA_FAIXA ? LARGURA_FAIXA : (int16_t)( x + w );
     int16_t r0 = (int16_t)( y - y0_ ), r1 = (int16_t)( r0 + h );
     if ( r0 < 0 ) r0 = 0;
     if ( r1 > ALTURA_FAIXA ) r1 = ALTURA_FAIXA;
     if ( x0 >= x1 || r0 >= r1 ) return;
     for ( int16_t r = r0; r < r1; r++ ) {
-      uint16_t *p = buf_ + (int32_t)r * 320 + x0;
+      uint16_t *p = buf_ + (int32_t)r * LARGURA_FAIXA + x0;
       for ( int16_t i = x0; i < x1; i++ ) *p++ = c;
     }
   }
   void drawFastHLine( int16_t x, int16_t y, int16_t w, uint16_t c ) override { fillRect( x, y, w, 1, c ); }
   void drawFastVLine( int16_t x, int16_t y, int16_t h, uint16_t c ) override { fillRect( x, y, 1, h, c ); }
-  void fillScreen( uint16_t c ) override { fillRect( 0, y0_, 320, ALTURA_FAIXA, c ); }
+  void fillScreen( uint16_t c ) override { fillRect( 0, y0_, LARGURA_FAIXA, ALTURA_FAIXA, c ); }
 
 private:
   uint16_t *buf_;
   int16_t y0_ = 0;
 };
-constexpr int FAIXAS = 240 / ALTURA_FAIXA;
+constexpr int FAIXAS = DisplayDriver::H / ALTURA_FAIXA;
 
 /* The frame on the glass: what it was built from, its targets, and the hash of
  * each strip as pushed (a strip whose pixels did not change is not pushed). */
@@ -215,9 +221,9 @@ bool DisplayManager::uaPintar( const UaQuadro &q, UiMode modo, uint32_t hash ) {
     p.janela( (int16_t)( k * ALTURA_FAIXA ), (int16_t)( ( k + 1 ) * ALTURA_FAIXA ) );
     faixa.fillScreen( tema.fundo );
     q.desenhar( p, q.vm );
-    const uint32_t h = fnv( cv->getBuffer( ), (size_t)320 * ALTURA_FAIXA * 2 );
+    const uint32_t h = fnv( cv->getBuffer( ), (size_t)LARGURA_FAIXA * ALTURA_FAIXA * 2 );
     if ( h == s_faixa[k] ) continue;
-    blitCanvas( cv, 0, (int16_t)( k * ALTURA_FAIXA ), 320, ALTURA_FAIXA );
+    blitCanvas( cv, 0, (int16_t)( k * ALTURA_FAIXA ), LARGURA_FAIXA, ALTURA_FAIXA );
     s_faixa[k] = h;
     enviadas++;
   }
