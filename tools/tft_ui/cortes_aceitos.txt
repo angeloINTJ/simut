@@ -35,8 +35,8 @@ identidade | pin_nome_31 | PIN de administr | a 31-character account name in the
 identidade | quem_nomes_longos | administradora | 31-character account names in the account picker
 identidade | usuarios_nomes_longos | administradora | 31-character account names in the user list
 
-ajustes | limites_nome_31 | Sala de coleta | a 31-character sensor name; "· limites" is whole
-ajustes | limites_nome_largo | WWWWWWW | 31 of the widest letter; "· limites" is whole
+ajustes | limites_nome_31 | Sala de coleta | a 31-character sensor name in the title
+ajustes | limites_nome_largo | WWWWWWW | 31 of the widest letter in the title
 ajustes | manut_nome_31 | Manutenção · Sala de | a 31-character sensor name in the title
 ajustes | manut_nome_largo | Manutenção · WWWW | 31 of the widest letter in the title
 

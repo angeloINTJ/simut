@@ -141,7 +141,11 @@ void desenharLimites( Pintor &p, const VmLimites &vm ) {
   const Tema &T = p.t( );
   const LayoutLimites l = layoutLimites( vm );
   char titulo[64];
-  montarTitulo( titulo, sizeof titulo, "", vm.sensor, " · limites" );
+  // The title is the sensor's name alone, as in the sensor's menu it comes from: with " · limites"
+  // after it, "Ultracongelador" (15 characters, an ordinary length) was cut to "Ultracongelad… ·
+  // limites" at the 9 pt floor (2026-10-15). The screen still says what it is: the cards read
+  // "Temperatura mínima" and "Temperatura máxima", and the footer "Salvar limites".
+  montarTitulo( titulo, sizeof titulo, "", vm.sensor, "" );
   barraTituloVoltar( p, titulo );
   const int g = vm.grandeza <= GLIM_PRESSAO ? (int)vm.grandeza : (int)GLIM_TEMPERATURA;
   for ( int r = 0; r < 2; r++ ) {

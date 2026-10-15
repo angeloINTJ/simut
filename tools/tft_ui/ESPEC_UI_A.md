@@ -199,8 +199,10 @@ Leia `inventario/configuracoes_sistema.md` (§1, 2, 3, 5, 6) e `inventario/pin_u
 Leia `inventario/configuracoes_sistema.md` (§4, 7, 8, 9, 10) e `inventario/pin_usuarios_alarmes.md`
 (§4, 10, 12), e `tools/tft_ui/plano/PlanoTelasConfig.cpp`.
 
-- **Limites de um sensor (`VmLimites`)**: título "Vacinas · limites"; uma página por grandeza
-  (Temperatura, Umidade, Pressão) com dois "steppers" do plano (Mínimo e Máximo, com unidade), foco
+- **Limites de um sensor (`VmLimites`)**: título = o nome do sensor ("Vacinas"), sem sufixo (com " · limites"
+  um nome de 15 letras era cortado no piso de 9 pt; a tela se explica nos rótulos "Temperatura mínima" e
+  "Temperatura máxima" e no rodapé); uma página por grandeza
+  (Temperatura, Umidade, Pressão) com dois "steppers" do plano (mínimo e máximo, com unidade), foco
   (borda de acento) no que foi tocado por último, paginador entre grandezas e o rodapé
   **Salvar limites** / Cancelar. Alvos: `MENOS`/`MAIS` com `indice` = linha (0 mín., 1 máx.), `PAG_*`,
   `SALVAR`, `CANCELAR`. Amostras: temperatura; umidade; pressão; negativo; 3 páginas.
