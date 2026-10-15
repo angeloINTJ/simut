@@ -436,6 +436,10 @@ def scan(root: str):
         raise CannotRead(f"no source under {ANGULO_DIR}: the Angulo driver's own names cannot be taken from it, and "
                          f"a gate with no names to look for would pass on anything")
     vocab = driver_vocabulary({rel: v[1] for rel, v in tree.items()})
+    if not vocab.names:
+        raise CannotRead(f"the sources under {ANGULO_DIR} introduce no name that carries the driver's mark: the hooks "
+                         f"cannot be told from other names, and a gate with none to look for would pass on a driver "
+                         f"replaced by a stub")
     original = original_headers(root, set(tree), manifest)
     env = Env(ident, vocab, namespace_regex(vocab.spaces), original)
     found = []

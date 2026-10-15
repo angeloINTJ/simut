@@ -414,6 +414,11 @@ def hook_cases():
     expect("driver-hook: a variable that happens to be called `ua` is no namespace, and neither is a longer name that ends in one",
            {SURFACE: surface('String ua = "Mozilla"; bool b = ua.startsWith("M");', "int q = Aqua::count;",
                              "using namespace Aqua;")}, [])
+    with tree({ANGULO_UNIT: surface("int x;")}, base={k: v for k, v in BASE.items() if k != ANGULO_HEADER}) as root:
+        rc, out, err = run(root)
+    check("driver-hook: a driver whose sources introduce no name with its mark is refused (exit 2), as a driver with no source is "
+          "(the review measured DisplayManager.h falling from 61 to 2 findings with nothing said)",
+          rc == 2 and "introduce no name" in err, f"rc={rc} out={out[-2:]} err={err.strip()[:200]}")
     expect("driver-hook: the rule is `outside src/ui/angulo/`: another file of src/ui/ is held to it",
            {"src/ui/Other.cpp": surface("uaSujo( );")}, [("src/ui/Other.cpp", 2, "driver-hook")])
     expect("driver-hook: two names on one line are two findings",
