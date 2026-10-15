@@ -195,6 +195,23 @@ jobs:
           python3 tools/test_net_boundary.py
           python3 tools/check_net_boundary.py
 
+      # The touch panel's look is one UI driver per image, and each driver stays in its
+      # walls. Outside src/ui/ and src/simut_config.h no identity macro (SIMUT_UI_ANGULO,
+      # SIMUT_UI_ORIGINAL) and, anywhere, no #ifdef, #ifndef or defined( ) on a SIMUT_UI_*
+      # macro: after src/ui/UiCaps.h SIMUT_UI_ANGULO is always defined (0 on the original),
+      # so `#ifdef SIMUT_UI_ANGULO` is true on every image. A file that tests one includes
+      # simut_config.h or ui/UiCaps.h itself. No Angulo unit includes a header only the
+      # original uses (Themes.h, UiWidgets.h, ...), no unit outside src/ui/angulo/ includes
+      # one of the Angulo's, and no hook name of the Angulo (UA_DESVIO, uaSujo, ...) is
+      # used outside it. What still breaks a rule is the transitional shape of the Angulo
+      # driver, listed in tools/ui_boundary.json with the stage that ends it, and the
+      # counts only go down. The test puts one violation of each rule into a clean tree,
+      # and into a copy of the real one, and requires exactly one finding.
+      - name: UI boundary (each driver stays in its walls)
+        run: |
+          python3 tools/test_ui_boundary.py
+          python3 tools/check_ui_boundary.py
+
       # The configurator's rules (tools/features.toml [[rules]], each measured
       # by compiling the forbidden combination). They are applied twice: by
       # docs/configurador/rules.js, so the page can lock an option, and by
