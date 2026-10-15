@@ -12,16 +12,17 @@ TFT the guide's card edges, 1.29 to 1.48:1 against what they sit on, and the car
 the viewing angle). The guide's palette stays the source ('guia'); the panel's deviations sit
 next to it ('tft'), role by role, and this script merges the two.
 
-The output reproduces gerar_tokens_h.js byte for byte when 'tft' is empty (checked on
-2026-10-15 against the header of commit 3824208): the same RGB565 macro, the same mixing
-(each channel expanded from 5 or 6 bits by replicating the high bits, Math.round of the
-weighted sum, which rounds halves up), the same text.
+With 'tft' empty it reproduced gerar_tokens_h.js byte for byte (checked on 2026-10-15 against
+the header of commit 3824208): the same RGB565 macro, the same mixing (each channel expanded
+from 5 or 6 bits by replicating the high bits, Math.round of the weighted sum, which rounds
+halves up), the same text. Since then the header's first line names this script.
 
 --check   regenerate in memory and compare with the header; exit 1 when they differ (the
           header was edited by hand, or the JSON changed without a regeneration).
 --report  print the contrast of the pairs the panel depends on, computed on the colours the
           panel shows (RGB565 expanded back to 8 bits), against the panel's targets; exit 1
-          when a pair is under its target. Without --check or --report the header is written.
+          when a pair is under its target. With both, exit 1 when either fails (the CI's
+          gate). Without --check or --report the header is written.
 """
 import json
 import math
@@ -107,7 +108,8 @@ def header(T):
         blocos += (f'// Tema {nome}\nconst Tema TEMA_{N} PROGMEM = {{\n{linhas}\n}};\n'
                    f'// Tema {nome}, estado desabilitado: cada papel misturado a 45 % sobre o fundo\n'
                    f'const Tema TEMA_{N}_DESAB PROGMEM = {{\n{desab}\n}};\n\n')
-    return f'''// Tokens do Angulo para o TFT 320x240 RGB565 (gerado por gerar_tokens_h.js; nao editar a mao).
+    return f'''// Tokens do Angulo para o TFT 320x240 RGB565 (gerado por tools/tft_ui/gen_tokens.py a partir de
+// tools/tft_ui/tokens_tft.json; nao editar a mao).
 // Hex do guia -> RGB565 pela macro ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3).
 #pragma once
 #include <Arduino.h>
@@ -168,11 +170,13 @@ def main():
     spec = json.load(open(SPEC, encoding='utf-8'))
     T = temas(spec)
     texto = header(T)
+    falhou = False
     if '--report' in sys.argv:
         f = relatorio(T)
         print(f'{f} pair(s) under target' if f else 'every pair at or over its target')
+        falhou = f > 0
         if '--check' not in sys.argv:
-            return 1 if f else 0
+            return 1 if falhou else 0
     if '--check' in sys.argv:
         atual = open(OUT, encoding='utf-8').read()
         if atual != texto:
@@ -180,7 +184,7 @@ def main():
                   f'generates: run python3 tools/tft_ui/gen_tokens.py')
             return 1
         print('gen_tokens: the header matches the JSON')
-        return 0
+        return 1 if falhou else 0
     open(OUT, 'w', encoding='utf-8').write(texto)
     print(f'gen_tokens: wrote {os.path.relpath(OUT, ROOT)}')
     return 0

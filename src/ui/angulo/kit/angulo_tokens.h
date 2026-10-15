@@ -1,4 +1,5 @@
-// Tokens do Angulo para o TFT 320x240 RGB565 (gerado por gerar_tokens_h.js; nao editar a mao).
+// Tokens do Angulo para o TFT 320x240 RGB565 (gerado por tools/tft_ui/gen_tokens.py a partir de
+// tools/tft_ui/tokens_tft.json; nao editar a mao).
 // Hex do guia -> RGB565 pela macro ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3).
 #pragma once
 #include <Arduino.h>
