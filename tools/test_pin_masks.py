@@ -107,6 +107,10 @@ EXPECT_NAME = {
     "pico_w_release": "release", "pico_w_test": "release", "pico_w_test_https": "release",
     "pico_w_asserts": "release", "pico_w_alpha": "alpha", "pico_w_air": "air",
     "pico2_w_release": "releasetwo", "pico_wire": "wire", "pico_wiretft": "wiretft",
+    # O Angulo (2026-10-14) e a UI do mesmo hardware, entao o nome de OTA e o do pico_wiretft: a OTA compara a
+    # variante para recusar uma imagem de outra placa, e esta e a mesma placa. (O nome sai do display e da rede;
+    # o driver de UI nao o muda.)
+    "pico_wiretft_angulo": "wiretft",
 }
 
 ERR_LINE = re.compile(r"error: #error")

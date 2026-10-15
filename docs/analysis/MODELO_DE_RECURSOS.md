@@ -342,6 +342,17 @@ A **classe** (`[net_class]`) é o que as páginas, o console e os painéis sabem
 
 Regras que a escolha traz: `bluetooth-needs-cyw43` e `air-needs-cyw43` pedem o CYW43, e não "nenhum cabo", porque uma placa de rede acrescentada depois também não teria o rádio; o orçamento de PIO recusa o ENC28J60 com o DS18B20 e o DHT22 juntos no RP2040, e nunca sugere trocar a rede como remédio (a placa é a premissa da build). Uma placa nova (W5500, W5100, W6100: todas `LwipIntfDev` no arduino-pico, como o ENC28J60) é um `[net.<id>]`, um `[ui_nets.<id>]`, o driver em `src/net/` e, se usar PIO ou pinos, as linhas dela no `pio_budget.py`.
 
+### 2.18 A UI do painel touch (desde 14/10/2026)
+
+Uma escolha por perfil, como o display, o chip e a rede: `ui = "<id>"` nomeia um `[ui.<id>]` de `tools/features.toml`, o **driver de UI** da imagem, que decide como o painel desenha e responde ao toque. Um perfil sem a chave tem o `original`, o painel de toda release, e ele não emite nada: as nove imagens de sempre saem as mesmas, byte a byte (sha256 conferido em 14/10/2026 contra a `main` de então, 192e1ad). Não conta entre as chaves: não liga recurso, troca o driver que desenha o painel. O configurador tem as palavras da escolha (`[ui_panel]`, no grupo Interface, e `[ui_panels.<id>]`, em en, pt e es) e o `model.json` leva a escolha (`ui`) e o `config.ui` de cada produto; a página ainda não a desenha.
+
+| Valor | O que muda | Estado |
+|---|---|---|
+| `original` (padrão) | nada | as nove imagens publicadas e de bancada |
+| `angulo` | passa `-DSIMUT_UI_ANGULO=1`; ainda não traz unidade de tradução nenhuma | só o `pico_wiretft_angulo`, de bancada: um estudo, ainda não aprovado para produtos. Nenhum código lê o macro, e a imagem sai igual à do `pico_wiretft`: nenhuma das 3.983 funções difere (`tools/elf_funcoes.py`, 14/10/2026) |
+
+A identidade mora em `src/ui/UiCaps.h`, puro como o `src/net/NetCaps.h`: `SIMUT_UI_ANGULO` (padrão 0) e o `SIMUT_UI_ORIGINAL`, a negação dele, de modo que exatamente um vale 1; a capacidade `SIMUT_UI_CUSTOM_THEMES` (o catálogo de temas e os `.thm`) é a do original. O derivado nunca vai por `-D`: o cabeçalho para num `#error` que diz o que passar, e para também num `SIMUT_UI_ANGULO` que não é 0 nem 1. O `simut_config.h` inclui o cabeçalho depois dos macros do mostrador e para o Ângulo sem a TFT (`SIMUT_UI_ANGULO needs SIMUT_DISPLAY_TFT`); a regra `angulo-needs-tft` o prende antes de a build começar, e a evidência dela é o erro do compilador numa build do `pico_w_alpha` com `ui = "angulo"`. Uma unidade que só um driver de UI traz é `include` do driver (entra só na imagem dele), e as `units` de um driver saem das imagens dos outros, como as de um driver de rede. `tools/test_ui_caps.py` segura isso no job `gates`.
+
 ---
 
 ## 3. As magnitudes: o que se escolhe em tamanho, não em sim ou não
