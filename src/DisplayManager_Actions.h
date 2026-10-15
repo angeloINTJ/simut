@@ -330,3 +330,19 @@ inline __attribute__((always_inline)) void DisplayManager::actMuteAllConfirm( ) 
 	_forceSettingsRedraw = true;
 	_repaintSettings = true;
 }
+
+/* The account-deletion confirmation (MODE_SETTINGS_USER_CONFIRM_DEL, from the account's editor): its two buttons, once their gates have
+ * let the touch through. The caller holds acceptTouch( 0 ) for Cancel and acceptTouch( 1 ) for Delete. */
+
+/* Cancel: back to the account's editor, the account untouched. */
+inline __attribute__((always_inline)) void DisplayManager::actUserDelCancel( ) {
+	showUserEdit(_userEditSlot, false);
+}
+
+/* Delete: the panel only asks. Core 0 checks that the session holds PERM_USER_MGR, refuses the admin, an empty slot and the account in
+ * use, and deletes (AppManager_Panel.cpp, EVT_USER_DEL); the answer comes back as a panel message. The permission is not checked here, so
+ * a driver calls this only from the dialog's confirm button, behind acceptTouch( 1 ). */
+inline __attribute__((always_inline)) void DisplayManager::actUserDelConfirm( ) {
+	UiEvent ev; ev.type = UiEvent::EVT_USER_DEL; ev.id = _userEditSlot; ev.param = 0;
+	pushUiEvent(ev);
+}

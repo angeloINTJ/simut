@@ -592,16 +592,17 @@ bool DisplayManager::uaMontarBase( UaQuadro &q ) {
   }
 }
 
-/* The panel message and the account deletion are translations: the old handlers do what they always did. The mute-all confirmation
- * runs the core's actions (DisplayManager_Actions.h), the code the original's branch runs. */
-UaToque DisplayManager::uaToqueBase( const ua::Alvo *a, int16_t &x, int16_t &y ) {
+/* No touch here moves a point into the old zones any more: each target runs the core's code behind the gate its old zone held (the
+ * zones' numbers are the original's: 0xC0, 0 and 1), the actions of DisplayManager_Actions.h or leavePanelMessage( ). */
+UaToque DisplayManager::uaToqueBase( const ua::Alvo *a, int16_t &, int16_t & ) {
   using namespace ua::tela;
   switch ( _uiMode ) {
     case MODE_PANEL_MESSAGE:
-      /* Old: any touch with y >= 185 leaves (DisplayManager_Users.cpp). */
+      /* "Entendi" leaves for the screen the message came from (leavePanelMessage( ), core code), behind acceptTouch( 0 ), the gate the old
+       * zone (y >= 185, DisplayManager_Users.cpp) held. */
       if ( !a ) return UaToque::TRATADO;
-      x = 160; y = 205;
-      return UaToque::TRADUZIDO;
+      if ( a->tipo == MSG_BOTAO && acceptTouch( 0 ) ) leavePanelMessage( );
+      return UaToque::TRATADO;
     case MODE_CONFIRM_MUTE_ALL:
       /* Confirm holds its own gate, a hand-written one with no touch click; Back takes the gate its old zone held, acceptTouch( 0xC0 )
        * (Touch.cpp). Any target but Confirm is Back, as it was when the point was moved. */
@@ -610,10 +611,16 @@ UaToque DisplayManager::uaToqueBase( const ua::Alvo *a, int16_t &x, int16_t &y )
       else if ( acceptTouch( 0xC0 ) ) actMuteAllBack( );
       return UaToque::TRATADO;
     case MODE_SETTINGS_USER_CONFIRM_DEL:
-      /* Old: y >= 195, cancel x < 160, delete x >= 160 (Users.cpp). */
+      /* The account is deleted only from the dialog's confirm target (DLG_SIM), behind acceptTouch( 1 ); every other target is Cancel,
+       * behind acceptTouch( 0 ), as when the point was moved into the old zones. Whether the session may delete is Core 0's to say
+       * (PERM_USER_MGR, AppManager_Panel.cpp): the panel only asks. */
       if ( !a ) return UaToque::TRATADO;
-      x = a->tipo == DLG_SIM ? 240 : 80; y = 215;
-      return UaToque::TRADUZIDO;
+      if ( a->tipo == DLG_SIM ) {
+        if ( acceptTouch( 1 ) ) actUserDelConfirm( );
+      } else if ( acceptTouch( 0 ) ) {
+        actUserDelCancel( );
+      }
+      return UaToque::TRATADO;
     default:
       return UaToque::NAO_E_MEU;
   }

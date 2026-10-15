@@ -1682,11 +1682,10 @@ bool DisplayManager::handleTouchPanelV24(int16_t x, int16_t y) {
 
 	if (_uiMode == MODE_SETTINGS_USER_CONFIRM_DEL) {
 		if (y >= 195) {
-			if (x < 160) { if (!acceptTouch(0)) return true; showUserEdit(_userEditSlot, false); }
+			if (x < 160) { if (!acceptTouch(0)) return true; actUserDelCancel( ); }
 			else {
 				if (!acceptTouch(1)) return true;
-				UiEvent ev; ev.type = UiEvent::EVT_USER_DEL; ev.id = _userEditSlot; ev.param = 0;
-				pushUiEvent(ev);
+				actUserDelConfirm( );
 			}
 		}
 		return true;

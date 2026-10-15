@@ -1546,7 +1546,8 @@ private:
 	 * the upper card (its gate and the 3 s hold are inside the action), the lower card and the row of buttons under the cards
 	 * (the row's gates depend on the kind of the button, so they are inside the action). The boot screen: the skip button.
 	 * The Base group, the confirmation dialogs: the mute-all confirmation's two buttons (Back, and Confirm, whose hand-written gate is
-	 * inside the action). */
+	 * inside the action), and the account-deletion confirmation's two buttons (Cancel, and Delete, which only asks: Core 0 checks the
+	 * permission). */
 	inline __attribute__((always_inline)) void actAlarmSilence( );
 	inline __attribute__((always_inline)) void actAlarmDeactivate( );
 	inline __attribute__((always_inline)) void actAlarmShowMinMax( );
@@ -1556,6 +1557,8 @@ private:
 	inline __attribute__((always_inline)) void actBootSkip( );
 	inline __attribute__((always_inline)) void actMuteAllBack( );
 	inline __attribute__((always_inline)) void actMuteAllConfirm( );
+	inline __attribute__((always_inline)) void actUserDelCancel( );
+	inline __attribute__((always_inline)) void actUserDelConfirm( );
 
 	struct ActiveLang {
 		char name[16];
