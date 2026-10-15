@@ -143,6 +143,8 @@ what makes the cut possible. Cost on the original: none, since the actions are
 
 **S5 (2026-10-15):** the Painel group's seven actions are done and live in `src/DisplayManager_Actions.h` (section 2.8), under other names than the examples above: `actTopCardPress`, `actBottomCardTap`, `actNavButton`, `actAlarmSilence`, `actAlarmDeactivate`, `actAlarmShowMinMax` and `actBootSkip`.
 
+**S6 (2026-10-15):** the Base and Menus groups' eight actions are done and live in the same header (section 2.9): `actMuteAllBack`, `actMuteAllConfirm`, `actUserDelCancel`, `actUserDelConfirm`, `actStartAp`, `actMenuSelect`, `actAlarmListOpen` and `actLicensePage`.
+
 ### 2.4 Duties of a driver's paint
 
 A driver that does not run the original's `render` and `draw*` functions takes
@@ -561,6 +563,180 @@ a card in alarm opens the alarm screen of its own slot; silence lasts 120 s; dea
 returns to the dashboard with the bottom card in min/max; the page button returns to the first page; a slide across the slot
 buttons selects slot after slot; Pular works during a boot that shows it. For the original: the same list against the
 `pico_wiretft` image, the six images whose `handleTouch` changed having only been read and never run.
+
+### 2.9 The Base and Menus groups' touches (S6)
+
+**S6 (2026-10-15, branch `feat/ui-drivers-s6`) did this.** What a touch does in the Base group (the panel message and the
+three confirmations) and in the Menus group (the settings list, the alarms list and the licence's pages) is a core action
+wherever the original's branch had business logic of its own. The actions are defined in `src/DisplayManager_Actions.h` beside
+S5's, and the Ângulo runs them: `uaToqueBase( )` no longer moves a point into the old zones (`grep -c 'UaToque::TRADUZIDO'
+src/ui/angulo/DisplayManager_UiA.cpp` is 0, from 3), and `uaToqueMenus( )` no longer keeps its own copy of the settings list's
+event, of the alarms list's row or of the licence's page step (`grep -c pushUiEvent src/ui/angulo/DisplayManager_UiA_Menus.cpp`
+is 3, from 4, and `EVT_MENU_SELECT` is not named under `src/ui/angulo/`). There are eight actions, not the fifteen the plan
+counted: the status pages have none, and four outcomes are core calls that exist already.
+
+- `actMuteAllBack( )`, behind `acceptTouch( 0xC0 )`, and `actMuteAllConfirm( )`: the mute-all confirmation. Confirm's gate is
+  hand-written (no touch click, because the confirmation sound plays instead) and moved inside the action with its early
+  `return;`, which ends `handleTouch( )` where it ended before, because nothing follows the chain of modes.
+
+- `actUserDelCancel( )`, behind `acceptTouch( 0 )`, and `actUserDelConfirm( )`, behind `acceptTouch( 1 )`: the account-deletion
+  confirmation, a branch of `handleTouchPanelV24( )`. The panel only asks: Core 0 checks `PERM_USER_MGR` and refuses the admin,
+  an empty slot and the account in use. The Ângulo asks from one place, the dialog's confirm target (`DLG_SIM`).
+
+- `actStartAp( )`, behind `acceptTouch( 0xC3 )`: the AP confirmation, called inside the branch's existing `#if SIMUT_NET_WIFI`,
+  so no site is added for the sprawl check. The wired Ângulo image has no frame for the mode and cannot reach it, so the Ângulo
+  has no call; a Wi-Fi Ângulo image (S12) will need a `VmDialogo` case and a handler that calls `showSettingsMain( )` and
+  `actStartAp( )`.
+
+- `actMenuSelect( idx )`: the settings list's Open button, the test of the row against the length of the list and the event
+  that asks Core 0 to open the item the row stands for. The gate is outside: `acceptTouch( 13 )` in the original,
+  `acceptTouch( ZONA_LINHA )` in the Ângulo, which tests the row ahead of its gate so that a tap on no row clicks nothing.
+
+- `actAlarmListOpen( idx )`: the alarms list opens the sensor's action menu (the original's second tap, the Ângulo's one tap).
+
+- `actLicensePage( dir )`: one page back or forward on the licence, held at the ends. The text's two halves and the two arrows
+  of the original call it with a constant `dir`; `_repaintSettings = true` stays at the call sites, because the text's halves
+  share one store of it.
+
+The panel message needs no action: `leavePanelMessage( )` is core code already, and the Ângulo calls it behind `acceptTouch( 0 )`,
+the gate the translation reached. Left as they were: the selection, the wrap and the arrows of the settings and alarms lists and
+of the status pages, `showSettingsMain( )` and `forceDashboard( )`. The drivers differ there on purpose: the approved look has no
+selection (a row is entered with one tap) and its pager stops at the ends where the original's wraps. There is no shared code to
+extract, so each driver keeps its navigation, and the original's moves into `uiTouch` in S10a. No hook and no `UiChange` came with
+S6: nothing in the group draws immediately.
+
+**The pure part, `src/display/ListPager.h`** (C8, `c078ef4`): `listPages( )`, `listClampPage( )` and `listPageStep( )` are the page
+arithmetic that the Ângulo's frame and touch of the settings list, the alarms list and the status pages each spelled out for
+themselves, and that had to be edited in both places when the look moved to three rows a page. The glue calls them. The header is
+used by the glue only: `actLicensePage( )` keeps its own two lines, so the nine product images, which compile `Actions.h` and not the
+glue, could not change (calling `listPageStep( )` from the action, which the plan allowed if the nine stayed equal, was not tried).
+Three cases in `test/test_validators` pin the functions (`pio test -e native`, 300 of 300; 297 before). The plan says seven killable
+mutants and lists ten: each of the ten fails exactly the case named for it, and the equivalent one (`page <= 0` for `page < 0`)
+fails none (`stages/s6_c8/native_m1.txt` to `native_m10.txt` and `native_eq.txt`, with the clean runs before and after). A host model
+whose oracle is the old code itself, compiled (each old line cut out of the glue at `5da8888` as written, members renamed and
+nothing else), against the header, for 3, 4 and 5 rows a page (the glue's real 4 and 3 among them), `n` 0..40, page -2..45 and pages
+0..15, finds 0 differences in 37,974 comparisons, and 255 to 12,537 for each killable mutant (`stages/s6_c8/model_pager.txt`).
+One departure from "word for word", which the controls found: `listClampPage( )` clamps below first. In the glue's own order the
+second line catches the -1 that the `pages > 0` test keeps out, so a header that dropped that test could not fail any case (the model
+shows 0 differences for it in that order, and the plan's mutant for it would have survived); in the header's order both lines carry
+weight and the value is the glue's for every input the model covers.
+
+How S6 was proved (the outputs are in `$B/stages/s6_c*`, outside the repository; every image was built with the private core that
+matches CI):
+
+- **The nine equal, at all eight steps.** Each step's nine product images have the sha256 of the end of S5 (`stages/s5_c10/sha256.txt`):
+  C1 `7ee79e9` (Users.cpp takes the hooks and the actions), C2 `a872d93`, C3 `77e89aa`, C4 `390fc6f`, C5 `05da4f0`, C6 `80ecdb0`, C7 `5da8888` and C8 `c078ef4`.
+  The actions are `always_inline` and the calls took the place of the statements they carry, so the compiler gave back the same bytes,
+  including `handleTouch( )`, `handleTouchPanelV24( )` and `loopCore1( )`; no source proof of five points was needed.
+
+- **The Ângulo, function by function.** C1 and C4 change nothing (C4's branch is compiled only by the Wi-Fi images, so it was proved on
+  the `pico_w_release` and `pico_wiretft` pair: `stages/s6_c4/bite_actStartAp.txt` shows a mutant of the action changing the first and
+  not the second). C2 changes `uaToqueBase( )` (43 to 93 instructions), C3 `uaToqueBase( )` (93 to 120), `uaToque( )` (one branch
+  offset) and `uiPass( )` (see the deviation below), C5 `uaToqueMenus( )` (282 to 281), C6 `uaToqueMenus( )` (281 to 313), C7 no
+  instruction (see the constructor below), C8 `uaMontarMenus( )` (840 to 838) and the pager lambda of `uaToqueMenus( )` (32 to 32).
+  Every other function of the image is identical at every step, `_fini` (alignment padding) apart.
+
+- **A deviation, accepted (C3).** The Ângulo's `uiPass( )` went from 714 to 674 instructions and from 29 to 30 `bl`: GCC stopped
+  inlining `pushUiEvent( )` into it once `actUserDelConfirm( )` added a call site in `uaToqueBase( )`. The out-of-line
+  `pushUiEvent( )` is in both images at the same address and size (80 B), three `dmb` left `uiPass( )` with the inlined copy and none
+  was added, and the rest of the listing is register allocation and branch polarity around the removed copy. The behaviour is the
+  same code reached by a call; only this transitional image is affected, and it got 24 B smaller
+  (`stages/s6_c3/accept_main_session.txt`). The same three facts accept the same pattern again.
+
+- **The constructor that C7's diff names.** The verifier's ELF diff of the Ângulo image lists `DisplayManager::DisplayManager( )` at C7
+  (779 to 779 instructions, the first difference a `.word`). It is not a change of the function (`stages/s6_c7/constructor_proof.txt`,
+  read from the two ELFs): its 598 instructions are identical with the addresses masked, and so are 180 of its 181 data words; the
+  one that differs points to a 7-byte constant at an address that moved by +0x74, and the diff tool, which reads 64 bytes at a pointer
+  that names no symbol, runs past the constant into a different neighbour. The move is the layout's. `UA_DESVIO( )` expands to
+  `do { uaSujo( ); return; } while ( 0 )` in the Ângulo image and to nothing elsewhere (`src/ui/UiDriver.h`): no string and no
+  `__LINE__`, so the macro puts no data in the unit. What its `return` did was make the rest of `drawSettingsLicense( )` unreachable.
+  With the line gone the function is compiled, it calls `utf8FoldAscii( )` (`DisplayManager.cpp`), and the unit's object file carries
+  `utf8FoldNext( )` (`Utf8Fold.h`, an inline function) and its three switch tables. The linker keeps the first copy of a weak function,
+  and this unit comes before the language-pack parser's, whose copy was kept until then: the function (180 B) and the tables (116 B) take an
+  earlier place in the image, and what lay between moves by their size (92 functions by +0xb4, ten data objects by +0x74). The image has
+  the same size, and C7's message, which says all ten ELFs are byte-equal to C6's, is right for the nine and not for this one.
+
+- **The frames.** The six host screen groups of the Ângulo are 813 of 813 frames equal to the step before, at all eight steps
+  (`tools_s6/quadros_iguais.py`, a pixel comparison of every frame the groups render), since no screen of the group draws
+  differently: S6 changes what a touch does and not what the panel shows.
+
+- **The allowances (C7).** The nine draw functions of these screens are called only from `UiOriginal.h`, which the Ângulo image
+  does not compile; checked on the C6 image, `nm -C` finds none of them (`stages/s6_c7/nm_precondition.txt`). Their `UA_DESVIO( )`
+  lines went, and `tools/ui_boundary.json` with them: `DisplayManager_Settings.cpp` 12 to 6, `DisplayManager_Users.cpp` 8 to 6 and
+  `DisplayManager.cpp` 1 to none. The allowances are 41, from 50 (earlier than the plan's "ends in S10b"); `identity` stays at 6.
+  `check_ui_boundary.py` reports 0 findings and `test_ui_boundary.py` passes 285 of 285.
+
+- **Gates.** `check_authz.py` and its test; `check_feature_sprawl.py` 358 sites, as before (no `#if SIMUT_` was added: the call of
+  `actStartAp( )` stays inside the branch's existing block); the flash budgets of the ten images and the OTA table;
+  `check_readme_numbers.py` (701 cases in 11 suites). Nothing of this ran on hardware.
+
+**The review of C1 to C4 (C9).** It came back with reservations, and C9 answers them: the budget record names S6's measurements
+(`tools/flash_budget.json`); the C3 deviation is written down here and in that record; the constructor that C7's diff names is proved
+above; the gap in the checks is stated below, with its three mutants on the bench list; the comments that cited `S5_PLANO.md` and
+`S6_PLANO.md`, which are not in the repository, cite this document; `UiDriverHooks.h` says which units take the hooks header; and
+the old `Touch.cpp` line numbers are gone from the lists' glue.
+
+**Where "the same code" is not the whole story.** The Ângulo marks its frame dirty whenever a touch answers `TRATADO`, so the
+confirmations' buttons (C2, C3), the settings and alarms rows (C5) and the licence's arrows (C6) mark it on every sample of a press, where
+the translation did so only when the old branch drew: one more comparison of the frame per sample, no state changes (S5 recorded the
+same). The settings list's event leaves with `param` uninitialised, as the original's does: the Ângulo's copy built `UiEvent ev{ }`
+(param 0) and the action builds `UiEvent ev;`, because `UiEvent` has no member initialisers; Core 0 reads only `id` for
+`EVT_MENU_SELECT` (`AppManager_Events.cpp`). A stale dialog cannot delete an account: `uaToque( )` returns before any group when the
+glass shows another mode than the state's. The mute-all and delete actions write the mode and the flags without the state mutex, as the
+original did.
+
+**Where `S6_PLANO.md` was wrong or incomplete** (the plan is not in the repository; its corrections, as they stand here):
+
+1. The line numbers of the plan's entry in PLANO.md were stale, and "replace each immediate draw with `uiChanged( )`" does not apply:
+   the group draws nothing immediately, so S6 has no hook and no `UiChange`.
+2. "About 15 actions" became 8: the status pages have none, and four outcomes are existing core calls.
+3. The grep criterion covers only `DisplayManager_UiA.cpp` (3 to 0); `uaToqueMenus( )` had no `TRADUZIDO`, and its fault was copied
+   business logic, which the `pushUiEvent` and `EVT_MENU_SELECT` counts of C5 measure.
+4. `uaToqueMenus( )` also handles the themes and the language (S8a) and the sensor's alarm menu (S9), with copies of their logic;
+   S6 left those alone.
+5. The panel message and the account-deletion confirmation are branches of `handleTouchPanelV24( )`, the function S9 owns
+   (section 4.1, item 6). S6 touched only those two branches; the function's other six are S9's.
+6. The AP confirmation has no Ângulo frame, and `Base.h` said it drew one; the comment is corrected.
+7. The approved look changed how navigation works (one tap enters a row, the pager does not wrap, there is no selection), so
+   "geometry, gate, action" applies to the commit step only, not to navigation.
+8. The comments of `DisplayManager_UiA_Menus.cpp` cited old `Touch.cpp` line numbers; they name the branch now (C9). The claim that the
+   old licence arrows wrapped went with C6: they clamp, in both drivers.
+9. The allowances can go down in S6 (C7), not in S10b.
+10. Found, moved as it was: the alarms list's previous arrow with no sensors sets the selection to -1, and the status screen has a
+    dead strip at x >= 219. Neither is a decision of S6; the first is only recorded.
+
+**Sizes.** The nine product images are the size they had at the end of S5; their budgets and OTA rows did not move. The Ângulo
+image went from 811,064 B used (823,096 B .bin) to 811,232 B (823,264 B), +168 B: C2 +128 (the actions are compiled twice there until
+S10b, the dead old chain in `handleTouch( )` and the glue), C3 -24 (the deviation above), C6 +64 (`uaToqueMenus( )` carries the clamp
+twice, once for each arrow of the licence, where the lambda it replaced was shared), the other steps 0. The OTA headroom of that image
+is 216,879 B (217,047 B before S6). Its budget, `"bin"` and OTA row moved in the commit that changed them.
+
+**What no check covers.** The Ângulo's touch glue is not compiled on the host (it needs `DisplayManager.h`, the class with the
+Arduino in it), so no native case and no gate reads the dialogs' glue. Three changes to it pass every gate S6 has: dropping
+`if ( !a ) return UaToque::TRATADO;` from the account-deletion case (a tap outside both buttons would read `a->tipo` through a null
+pointer), returning `NAO_E_MEU` there (the touch would fall through to the groups after Base instead of ending in the dialog), and
+swapping the mute-all test to `a->tipo != DLG_SIM` (Voltar would run Confirm and turn every sound off). The nine images do not compile
+the glue, V-ELF only says which function of the Ângulo image changed, and V-PIX compares frames, not touches. The delete has a source
+check for its single call site (`stages/s6_c3/userdel_check.txt`, three mutants of the glue refused), kept outside the repository. A host
+check was weighed and not made: a pure mapping in `src/display/` ("no target is nothing, the confirm target confirms, any other target
+cancels") would pin the mapping, but each of the three mutants would then be a change in the arguments the glue passes to it or in the
+arms of the `switch` that uses its answer, and the native suite cannot see either; the mapping would guard nothing the three mutants
+touch. They stay on the bench list below until the dialogs' touch moves into `uiTouch` (S10a), where one test can cover both drivers.
+
+**Before the merge to main.** The message of `77e89aa` records the 24 B but not the deviation (this section does), and the message of
+`5da8888` says the verifier holds all ten ELFs byte-equal to C6's: the nine product images are, and the Ângulo's differs in one data word
+of its constructor (above). Commits are not rewritten here; the message of the merge should say both.
+
+**Bench checks pending.** None has run; the bench was off limits during S6. For the Ângulo: "Silenciar tudo" plays the confirmation,
+turns all seven sounds off and returns to Sounds, and Voltar changes nothing (every sound as it was: a swapped `DLG_SIM` test would
+mute all); "Entendi" returns to the screen the message came from, from the main menu, the users, the alarms and a sensor; deleting an
+account: Cancelar returns to its editor, Excluir with `PERM_USER_MGR` deletes it and without the bit shows the refusal, and a tap
+outside both buttons of the dialog changes nothing (no reset: the null guard) and does not leave the dialog (the `NAO_E_MEU`
+fall-through); a menu row sends `EVT_MENU_SELECT` with the right item (binary log); an alarms row on page 2 (3 rows a page) opens the
+right slot's sensor menu; the status and licence pagers stop at their ends and a held arrow repeats. For the original (`pico_wiretft`,
+plus one Wi-Fi image for the AP confirmation): the same list, plus the settings list's select, enter and wrap, the alarms list's
+select-then-open, the status pages' wrap and the licence's text-half taps; the AP confirmation: Voltar goes to the menu, Confirmar
+brings the AP up when the session has `PERM_NET_CONFIG`.
 
 ## 3. The audit
 
@@ -1241,7 +1417,8 @@ in the S0 scratch directory; it is not in the repository.
    among the base and menu modes, but both are branches of `handleTouchPanelV24`
    (`Users.cpp:1409-1412`, `:1673-1683`), the function S9 takes. That function
    has eight branches: AUTH, PANEL_MESSAGE, ALARM_SENSOR, MAINT, AUTH_USER with
-   USERS, PIN_POLICY, USER_EDIT and USER_CONFIRM_DEL.
+   USERS, PIN_POLICY, USER_EDIT and USER_CONFIRM_DEL. S6 took the two it lists
+   (section 2.9) and left the other six to S9.
 7. **The mixed units are no longer unverified** (section 3.3). `DisplayManager_Auth.cpp`
    holds no authentication: its nine rows are all core (section 4.2).
 8. **`redrawTopPanel` is defined in `DisplayManager.h`**, is mixed, and is called from
