@@ -31,7 +31,6 @@ void DisplayManager::showGraphPlot(const GraphDataPackage& data, float minHum, f
 }
 
 void DisplayManager::drawLoadingScreen( ) {
- UA_DESVIO( );
  fastClearScreen(C_BG_MAIN);
  /* Message composed in the canvas and pushed as one strip: with the DMA
  * clear above, the whole screen is up in ~45 ms instead of ~170 —
@@ -62,7 +61,6 @@ void DisplayManager::drawLoadingScreen( ) {
  * the one screen state where the hint existed was the one where it could
  * vanish. */
 void DisplayManager::drawGraphBusyHint( ) {
- UA_DESVIO( );
  if (!_driver.tft) return;
  fastFillRect(4, 4, 312, 3, C_ACCENT_HIGH);
 }
@@ -76,7 +74,6 @@ void DisplayManager::requestLoadingScreen( ) {
 }
 
 void DisplayManager::drawPeriodButtons( ) {
- UA_DESVIO( );
  if (!_driver.canvas) return;
 
  /*
@@ -254,7 +251,6 @@ void DisplayManager::drawPeriodButtons( ) {
  * Blits directly at y=0, without repainting the graph body.
  */
 void DisplayManager::drawGraphHeaderBar(bool blitNow) {
- UA_DESVIO( );
  if (!_driver.canvas) return;
 
  GFXcanvas16* cv = _driver.canvas;
@@ -513,7 +509,6 @@ void DisplayManager::drawPeakMarker(int16_t cx, int16_t cy, uint16_t color,
  * - Graph line with 2px thickness
  */
 void DisplayManager::drawGraphScreen( ) {
- UA_DESVIO( );
  __dmb( );
  if (!_driver.canvas) return;
 
@@ -889,7 +884,6 @@ void DisplayManager::drawGraphScreen( ) {
  * All floats formatted via fmtFloat1/fmtFloat2 (without snprintf %f).
  */
 void DisplayManager::drawGraphDetailScreen( ) {
- UA_DESVIO( );
  __dmb( );
  if (!_driver.canvas) return;
 

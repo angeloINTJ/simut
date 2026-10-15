@@ -18,10 +18,6 @@
    "count": 1,
    "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: UA_DESVIO( ) at the top of the draw functions of this file, which turns the original's drawing into a request for the Ângulo to repaint; ends in S10b (the Ângulo image stops linking the original)"
   },
-  "src/DisplayManager_Calendar.cpp": {
-   "count": 1,
-   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: UA_DESVIO( ) at the top of the draw functions of this file, which turns the original's drawing into a request for the Ângulo to repaint; ends in S10b (the Ângulo image stops linking the original)"
-  },
   "src/DisplayManager_Calibration.cpp": {
    "count": 3,
    "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: UA_DESVIO( ) at the top of the draw functions of this file, which turns the original's drawing into a request for the Ângulo to repaint; ends in S10b (the Ângulo image stops linking the original)"
@@ -29,10 +25,6 @@
   "src/DisplayManager_Dashboard.cpp": {
    "count": 7,
    "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: UA_DESVIO( ) at the top of the draw functions of this file and the `_uaPintando` guards of the pixel primitives; ends in S10b (the Ângulo image stops linking the original)"
-  },
-  "src/DisplayManager_Graph.cpp": {
-   "count": 6,
-   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: UA_DESVIO( ) at the top of the draw functions of this file, which turns the original's drawing into a request for the Ângulo to repaint; ends in S10b (the Ângulo image stops linking the original)"
   },
   "src/DisplayManager_Settings.cpp": {
    "count": 6,
