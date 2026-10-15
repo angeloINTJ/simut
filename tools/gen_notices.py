@@ -46,6 +46,19 @@ was a second family, does not; its text is left as it was, so the seven radio
 images keep their bytes. THIRD_PARTY_NOTICES.md lists both families, with the
 images named against all nine.
 
+A TENTH IMAGE (2026-10-14)
+--------------------------
+pico_wiretft_angulo, the bench image of the Angulo touch panel, is outside the
+nine: [bench_images] in the TOML names it and the image it extends. Its
+components (the Angulo kit's typefaces and icons) are listed in
+THIRD_PARTY_NOTICES.md, which also adds it to every component the image it
+extends carries. The License page and the panel's License screen do not list it
+yet: both are compiled into the nine, so a line added to them would change nine
+firmware images that did nothing. They list it when the panel ships in a
+product (the image then moves to `all_images`, WIRED and PANEL here). The
+compiled outputs are checked unchanged by hashing WebUI.h and
+src/HelpLicenseEN.h before and after a change to the list.
+
 USAGE
 -----
     python3 tools/gen_notices.py            # rewrite the outputs
@@ -72,7 +85,8 @@ REPO = "https://github.com/angeloINTJ/simut"
 PANEL = {"release", "test", "test_https", "asserts", "pico2_release", "wiretft"}
 ENV = {"release": "pico_w_release", "test": "pico_w_test", "test_https": "pico_w_test_https",
        "asserts": "pico_w_asserts", "alpha": "pico_w_alpha", "air": "pico_w_air",
-       "pico2_release": "pico2_w_release", "wire": "pico_wire", "wiretft": "pico_wiretft"}
+       "pico2_release": "pico2_w_release", "wire": "pico_wire", "wiretft": "pico_wiretft",
+       "wiretft_angulo": "pico_wiretft_angulo"}
 WIRED = ["wire", "wiretft"]
 WORDS = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine"}
 
@@ -90,13 +104,18 @@ FW_LIST_END = "/* END generated: third-party list */"
 def load():
     data = tomllib.loads(TOML.read_text(encoding="utf-8"))
     every = data["all_images"]
+    bench = data.setdefault("bench_images", {})
+    for b, v in bench.items():
+        if b in every or b not in ENV or v.get("extends") not in every or "what" not in v:
+            sys.exit(f"gen_notices: [bench_images.{b}] must be an image outside all_images, "
+                     f"known to ENV, that extends one of them, with a 'what'")
     for c in data["component"]:
         for f in ("name", "holder", "license", "images", "url", "what", "text"):
             if f not in c:
                 sys.exit(f"gen_notices: {c.get('name', '?')} has no '{f}'")
         if c["images"] == "all":
             c["images"] = list(every)
-        unknown = [i for i in c["images"] if i not in every]
+        unknown = [i for i in c["images"] if i not in every and i not in bench]
         if unknown:
             sys.exit(f"gen_notices: {c['name']}: unknown image(s) {unknown}")
         for t in [c["text"]] + c.get("also", []):
@@ -119,6 +138,18 @@ def images_label(imgs, every):
     if len(rest) == 2:
         return f"all images but {ENV[rest[0]]} and {ENV[rest[1]]}"
     return ", ".join(ENV[i] for i in imgs)
+
+
+def notices_images(c, data):
+    """The `Images` of THIRD_PARTY_NOTICES.md: the label over the nine, then the bench images a
+    component reaches (the ones it names, and the ones that extend an image it carries). The page
+    and the panel never call this: they label over their family alone."""
+    every = data["all_images"]
+    nine = [i for i in c["images"] if i in every]
+    bench = [ENV[b] for b, v in data["bench_images"].items()
+             if b in c["images"] or v["extends"] in c["images"]]
+    parts = ([images_label(nine, every)] if nine else []) + ([", ".join(bench)] if bench else [])
+    return ", and ".join(parts)
 
 
 def families(data):
@@ -145,18 +176,25 @@ def notices_md(data):
            "Wire images (`pico_wire`, `pico_wiretft`). This file is written by",
            "`tools/gen_notices.py` from `tools/third_party.toml`: edit those, run the script,",
            "and CI checks that the lists still agree.",
-           "",
-           "| Component | Copyright holder | Licence | Images |",
-           "|---|---|---|---|"]
+           ""]
+    for b, v in data["bench_images"].items():
+        para = (f"`{ENV[b]}` is outside the nine: {v['what']}. It carries everything "
+                f"`{ENV[v['extends']]}` carries and the components below that name it. This file lists "
+                "it; the License screen and the `/license` page do not yet, because those two lists are "
+                "compiled into the nine images and a line added to them would change their firmware. "
+                "They list it when the panel ships in a product.")
+        out += textwrap.wrap(para, 86, break_on_hyphens=False, break_long_words=False) + [""]
+    out += ["| Component | Copyright holder | Licence | Images |",
+            "|---|---|---|---|"]
     for c in data["component"]:
-        lab = images_label(c["images"], every)
+        lab = notices_images(c, data)
         out.append(f"| [{c['name']}](#{anchor(c['name'])}) | {c['holder']} | {c['license']} | {lab} |")
     for c in data["component"]:
         out += ["", f"## {c['name']}", "", c["what"], "",
                 f"- Copyright holder: {c['holder']}",
                 f"- Licence: {c['license']}, text in "
                 + ", ".join(f"[LICENSES/{t}](LICENSES/{t})" for t in [c["text"]] + c.get("also", [])),
-                f"- Images: {images_label(c['images'], every)}",
+                f"- Images: {notices_images(c, data)}",
                 f"- Source: <{c['url']}>"]
         if c.get("note"):
             out += ["", c["note"]]
@@ -297,7 +335,10 @@ def main():
                   + ", ".join(map(str, stale)) + " — run python3 tools/gen_notices.py",
                   file=sys.stderr)
             return 1
-        print(f"[notices] OK: {len(data['component'])} components, the same in the three lists")
+        on_lists = sum(1 for c in data["component"] if set(c["images"]) & set(data["all_images"]))
+        only_md = len(data["component"]) - on_lists
+        print(f"[notices] OK: {on_lists} components, the same in the three lists"
+              + (f"; {only_md} more in THIRD_PARTY_NOTICES.md only (bench images)" if only_md else ""))
         return 0
     print("[notices] wrote " + (", ".join(map(str, stale)) if stale else "nothing (all current)"))
     return 0
