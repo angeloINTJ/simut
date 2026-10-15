@@ -48,6 +48,7 @@
 #include <string>
 #include <vector>
 #include "display/ClockEntry.h"         /* the date and time set at the panel */
+#include "display/DashHold.h"          /* the dashboard's 3 s hold and page button */
 #include "display/SettingsMenu.h"       /* the panel's Settings menu: rows, order */
 #include "PasswordCheck.h"             /* one derivation per password check */
 #include "SessionCheck.h"              /* a session against its live account */
@@ -4831,6 +4832,108 @@ static void test_tel_content_type_per_mode(void) {
     TEST_ASSERT_EQUAL_STRING("application/json", telContentTypeFor(TEL_CT_MODE_CUSTOM, ct, sizeof(ct), buf, sizeof(buf)));
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * The dashboard's 3 s hold on the upper card and its page button
+ * (display/DashHold.h).
+ *
+ * 2026-10-15 (S5 of the UI drivers): the clock of the hold and the turn of the
+ * page left the touch handler, where only a panel could run them, for a header
+ * with no hardware in it. The firmware's touch actions call these same
+ * functions (they are the code the handler ran, moved), so these cases pin
+ * what the panel does.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+/* DisplayManager.h's DASH_HOLD_MS and DASH_HOLD_GAP_MS: the test cannot include that header. */
+static const uint32_t DASH_TEST_HOLD_MS = 3000;
+static const uint32_t DASH_TEST_GAP_MS  = 120;
+
+struct DashRun { uint32_t start; uint32_t seen; bool fired; uint8_t region; };
+
+/* The first sample of a press starts the hold, as the action does with firstTouch. */
+static DashRun dash_first(uint32_t now, uint8_t region) {
+    DashRun r; r.start = now; r.seen = now; r.fired = false; r.region = region;
+    return r;
+}
+
+/* A later sample: through dashHoldStep( ), and a hold that fired is marked, as the action does. */
+static bool dash_sample(DashRun &r, uint32_t now) {
+    bool fire = dashHoldStep(now, r.start, r.seen, r.fired, r.region, DASH_TEST_HOLD_MS, DASH_TEST_GAP_MS);
+    if (fire) r.fired = true;
+    return fire;
+}
+
+void test_dash_hold_fires_at_three_seconds_and_not_before(void) {
+    const uint32_t t0 = 1000000;
+    DashRun r = dash_first(t0, 0);
+    uint32_t firedAfter = 0;
+    for (uint32_t k = 1; k <= 400 && !firedAfter; k++)             /* samples every 15 ms */
+        if (dash_sample(r, t0 + 15 * k)) firedAfter = 15 * k;
+    TEST_ASSERT_EQUAL_UINT32(DASH_TEST_HOLD_MS, firedAfter);       /* 3000 ms = the 200th sample */
+
+    DashRun s = dash_first(t0, 0);
+    for (uint32_t k = 1; k <= 199; k++) dash_sample(s, t0 + 15 * k);   /* up to +2985 */
+    TEST_ASSERT_FALSE(dash_sample(s, t0 + DASH_TEST_HOLD_MS - 1));     /* +2999 */
+    TEST_ASSERT_TRUE(dash_sample(s, t0 + DASH_TEST_HOLD_MS));          /* +3000 */
+}
+
+void test_dash_hold_fires_once(void) {
+    DashRun r = dash_first(5000, 0);
+    int fires = 0;
+    for (uint32_t k = 1; k <= 1000; k++) fires += dash_sample(r, 5000 + 15 * k) ? 1 : 0;   /* 15 s of a held finger */
+    TEST_ASSERT_EQUAL_INT(1, fires);
+}
+
+void test_dash_hold_gap_of_121_ms_restarts_and_120_does_not(void) {
+    const uint32_t t0 = 10000;
+    /* a loop that was slow for 120 ms is not a lift: the hold goes on and the start stays */
+    DashRun a = dash_first(t0, 0);
+    uint32_t t = t0;
+    for (uint32_t k = 1; k <= 99; k++) { t = t0 + 15 * k; dash_sample(a, t); }   /* up to +1485 */
+    t += DASH_TEST_GAP_MS;
+    dash_sample(a, t);
+    TEST_ASSERT_EQUAL_UINT32(t0, a.start);
+    /* 121 ms is: the three seconds count again from that sample */
+    DashRun b = dash_first(t0, 0);
+    uint32_t u = t0;
+    for (uint32_t k = 1; k <= 99; k++) { u = t0 + 15 * k; dash_sample(b, u); }
+    u += DASH_TEST_GAP_MS + 1;
+    dash_sample(b, u);
+    TEST_ASSERT_EQUAL_UINT32(u, b.start);
+    TEST_ASSERT_FALSE(b.fired);
+    const uint32_t restart = u;
+    uint32_t firedAt = 0;
+    for (uint32_t k = 1; k <= 400 && !firedAt; k++)
+        if (dash_sample(b, restart + 15 * k)) firedAt = restart + 15 * k;
+    TEST_ASSERT_EQUAL_UINT32(restart + DASH_TEST_HOLD_MS, firedAt);
+}
+
+void test_dash_hold_never_fires_for_another_region_or_without_a_start(void) {
+    DashRun r = dash_first(2000, 1);                               /* the press began somewhere else */
+    bool any = false;
+    for (uint32_t k = 1; k <= 2000; k++) any = dash_sample(r, 2000 + 15 * k) || any;
+    TEST_ASSERT_FALSE(any);
+    DashRun z = dash_first(0, 0);                                  /* start == 0: no hold is running (the lift cleared it) */
+    bool anyz = false;
+    for (uint32_t k = 1; k <= 2000; k++) anyz = dash_sample(z, 15 * k) || anyz;
+    TEST_ASSERT_FALSE(anyz);
+}
+
+void test_dash_hold_survives_the_wrap_of_the_millisecond_counter(void) {
+    const uint32_t t0 = 0u - 1500u;                                /* 1500 ms before the counter wraps: the hold crosses it */
+    DashRun r = dash_first(t0, 0);
+    uint32_t firedAfter = 0;
+    for (uint32_t k = 1; k <= 400 && !firedAfter; k++)
+        if (dash_sample(r, t0 + 15 * k)) firedAfter = 15 * k;
+    TEST_ASSERT_EQUAL_UINT32(DASH_TEST_HOLD_MS, firedAfter);
+}
+
+void test_dash_next_page_goes_to_the_first_after_the_last(void) {
+    TEST_ASSERT_EQUAL_INT(1, dashNextPage(0, 3));
+    TEST_ASSERT_EQUAL_INT(0, dashNextPage(2, 3));
+    TEST_ASSERT_EQUAL_INT(0, dashNextPage(4, 3));                  /* the layout shrank under the page */
+    TEST_ASSERT_EQUAL_INT(0, dashNextPage(0, 1));
+}
+
 int main(int /*argc*/, char** /*argv*/) {
     UNITY_BEGIN();
 
@@ -5115,6 +5218,12 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_clock_entry_round_trips_at_the_device_offset);
     RUN_TEST(test_clock_entry_packs_into_one_panel_event);
     RUN_TEST(test_clock_prompt_only_without_a_network_or_a_real_clock);
+    RUN_TEST(test_dash_hold_fires_at_three_seconds_and_not_before);
+    RUN_TEST(test_dash_hold_fires_once);
+    RUN_TEST(test_dash_hold_gap_of_121_ms_restarts_and_120_does_not);
+    RUN_TEST(test_dash_hold_never_fires_for_another_region_or_without_a_start);
+    RUN_TEST(test_dash_hold_survives_the_wrap_of_the_millisecond_counter);
+    RUN_TEST(test_dash_next_page_goes_to_the_first_after_the_last);
     RUN_TEST(test_settings_menu_item_ids_are_the_historical_ones);
     RUN_TEST(test_settings_menu_order_lists_every_item_once);
     RUN_TEST(test_settings_menu_full_admin_sees_every_item_in_order);

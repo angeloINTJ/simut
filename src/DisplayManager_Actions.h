@@ -18,6 +18,7 @@
 
 #include "DisplayManager.h"
 #include "simut_config.h"   /* SIMUT_TFT_GRAPH is tested below: included here, not left to the includer */
+#include "display/DashHold.h"   /* dashHoldStep( ), dashNextPage( ): the hold's clock and the page's turn, without hardware */
 
 /* Repaint the top card: the core's half. It syncs topSlotIdx, moves the bottom card to another slot when the top is pinned
  * on the selected one (with the EVT_SLOT_SELECT that tells the web), mirrors the bottom card's data into the top's, and
@@ -153,8 +154,7 @@ inline __attribute__((always_inline)) void DisplayManager::actNavButton( int btn
 	if (b.kind < 0) return; /* touch on empty position (gap) — ignore */
 	if (b.kind == 2) { /* PAGE */
 		if (!acceptTouch(14)) return;
-		_currentPage++;
-		if (_currentPage >= totalPages) _currentPage = 0;
+		_currentPage = dashNextPage( _currentPage, totalPages );
 		uiChanged( UiChange::BOTTOM_BUTTONS, _sharedState.selectedSlotIdx ); return;
 	}
 	if (b.kind == 1) { /* CFG */
@@ -253,11 +253,6 @@ inline __attribute__((always_inline)) void DisplayManager::actTopCardPress( bool
 	 * neither is evidence of a continuous press. Restart rather than count
 	 * time nobody observed. */
 	const uint32_t nowMs = millis();
-	if (_topPanel.holdStart != 0 && nowMs - _topPanel.holdSeen > DASH_HOLD_GAP_MS) {
-		_topPanel.holdStart = nowMs;
-		_topPanel.holdFired = false;
-	}
-	_topPanel.holdSeen = nowMs;
 
 	/* Long press toggles pinned <-> interactive, from ANY state including
 	 * min/max — the gesture is the whole contract now, so refusing it while
@@ -270,9 +265,10 @@ inline __attribute__((always_inline)) void DisplayManager::actTopCardPress( bool
 	 * swap out from under the numbers being read. That risk is now the point of
 	 * the gesture: three seconds of deliberate hold is not a gesture anyone
 	 * performs while reading. */
-	if (!_topPanel.holdFired && _lastTouchRegion == 0 &&
-	    _topPanel.holdStart != 0 &&
-	    nowMs - _topPanel.holdStart >= DASH_HOLD_MS) {
+	/* dashHoldStep( ) (display/DashHold.h): the gap restart described above, the note of this sample, and whether the three
+	 * seconds are up. */
+	if (dashHoldStep( nowMs, _topPanel.holdStart, _topPanel.holdSeen, _topPanel.holdFired, _lastTouchRegion,
+	                  DASH_HOLD_MS, DASH_HOLD_GAP_MS )) {
 		_topPanel.holdFired = true;
 		/* Everything this region produces from here to the end of the lift is
 		 * discarded. Survives the release reset on purpose: it is a deadline. */
