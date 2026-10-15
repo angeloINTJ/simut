@@ -394,7 +394,7 @@ jobs:
       - name: Run unit tests (OTA signature)
         run: pio test -e native_otasig
 
-      # The same ten suites again, under AddressSanitizer and UBSan, with
+      # The same eleven suites again, under AddressSanitizer and UBSan, with
       # undefined behaviour made fatal. The plain runs above are the contract;
       # this run sees what a passing assertion cannot - a read past a buffer, a
       # reference to a dead frame that still holds the right bytes. Its first

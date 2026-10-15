@@ -356,7 +356,7 @@ pio test -e native -e native_history_v5 -e native_cli -e native_lan \
          -e native_sensors -e native_wired -e native_otasig
 ./tools/run_fuzz.sh                       # 60 s; NÃO está no pio test e já pegou defeito real
 PLATFORMIO_BUILD_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined" \
-  pio test -e native -e native_sensors …  # as dez de novo sob ASan/UBSan (apaga .pio/build); o relatório
+  pio test -e native -e native_sensors …  # as onze de novo sob ASan/UBSan (apaga .pio/build); o relatório
                                           # só aparece rodando .pio/build/<env>/program direto
 python3 tools/check_air_consistency.py
 python3 tools/check_angulo.py             # o padrão de interface (§7): site, marca, READMEs, docs Living

@@ -660,9 +660,9 @@ ota_trust_bench = true
 
 # pico_wiretft_angulo — o pico_wiretft com o driver de UI Angulo (2026-10-14). O Angulo e um estudo
 #   do painel touch, ainda nao aprovado para produtos: esta e a imagem de bancada que o leva, e
-#   nenhum produto publicado o escolhe. A unica chave que ela muda e `ui`; sem as unidades do
-#   Angulo (chegam no passo S2a) a imagem e a do pico_wiretft com a identidade trocada, e o
-#   elf_funcoes.py confere que nenhuma funcao difere. Nao publicada; confia na raiz de bancada como
+#   nenhum produto publicado o escolhe. A unica chave que ela muda e `ui`, que traz as unidades
+#   de src/ui/angulo/ ([ui.angulo].include, desde o passo S2a): .bin de 831.560 B contra os 785.736
+#   do pico_wiretft (14/10/2026, core igual ao do CI). Nao publicada; confia na raiz de bancada como
 #   o pai (as duas chaves vem dele, e ficam ditas aqui para que mexer no pai nao publique esta).
 [profiles.pico_wiretft_angulo]
 extends         = "pico_wiretft"
