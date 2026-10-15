@@ -64,5 +64,44 @@ inline void DisplayManager::redrawTopPanel( ) {
 	uiTopPanel(snap);   /* the card and the bottom buttons are the driver's to show */
 }
 
-/* The actions follow, one commit each (S5): the dashboard's cards and buttons, the alarm screen's three buttons and
- * the boot screen's skip. */
+/* The alarm's action screen (MODE_ALARM_ACTION, opened for the slot _alarmActionSlot): what each of its three buttons does
+ * once its gate has let the touch through. Whoever decided which button was hit holds the gate, acceptTouch( 0 ), ( 1 ) or
+ * ( 2 ): the original from the touch's y, the Ângulo from the target. */
+
+/* Silence the slot's alarm for two minutes. */
+inline __attribute__((always_inline)) void DisplayManager::actAlarmSilence( ) {
+	UiEvent ev;
+	ev.type = UiEvent::EVT_ALARM_SILENCE;
+	ev.id = _alarmActionSlot;
+	ev.param = 120;
+	pushUiEvent(ev);
+}
+
+/* Turn the slot's alarm off. */
+inline __attribute__((always_inline)) void DisplayManager::actAlarmDeactivate( ) {
+	UiEvent ev;
+	ev.type = UiEvent::EVT_ALARM_DEACTIVATE;
+	ev.id = _alarmActionSlot;
+	ev.param = 0;
+	pushUiEvent(ev);
+}
+
+/* Back to the dashboard with a card in min/max. Moved as it stood. The top card's branch needs a negative _alarmActionSlot,
+ * and showAlarmAction( ), the only writer of the slot, is called with a slot checked to be >= 0 (Touch.cpp, once for the top
+ * card and once for the bottom card), so the bottom card takes it even when the screen was opened from the top card: a
+ * defect of the original, kept (S5_PLANO.md section 6, item 10). */
+inline __attribute__((always_inline)) void DisplayManager::actAlarmShowMinMax( ) {
+	/* Return to dashboard with the panel in min/max mode */
+	if (_alarmActionSlot < 0) {
+		_topPanel.showMinMax = true;
+	} else {
+		_bottomPanel.showMinMax = true;
+	}
+	_uiMode = MODE_DASHBOARD;
+	_forceFullRedraw = true;
+	mutex_enter_blocking(&_stateMutex);
+	_isDirty = true;
+	mutex_exit(&_stateMutex);
+}
+
+/* The rest follow, one commit each (S5): the dashboard's cards and buttons, and the boot screen's skip. */

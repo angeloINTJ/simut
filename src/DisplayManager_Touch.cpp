@@ -1550,33 +1550,15 @@ void DisplayManager::handleTouch( ) {
  else if (_uiMode == MODE_ALARM_ACTION) {
  if (y >= 60 && y <= 105) {
  if (!acceptTouch(0)) return;
- UiEvent ev;
- ev.type = UiEvent::EVT_ALARM_SILENCE;
- ev.id = _alarmActionSlot;
- ev.param = 120;
- pushUiEvent(ev);
+ actAlarmSilence( );
  }
  else if (y >= 115 && y <= 160) {
  if (!acceptTouch(1)) return;
- UiEvent ev;
- ev.type = UiEvent::EVT_ALARM_DEACTIVATE;
- ev.id = _alarmActionSlot;
- ev.param = 0;
- pushUiEvent(ev);
+ actAlarmDeactivate( );
  }
  else if (y >= 170 && y <= 215) {
  if (!acceptTouch(2)) return;
- /* Return to dashboard with the panel in min/max mode */
- if (_alarmActionSlot < 0) {
- _topPanel.showMinMax = true;
- } else {
- _bottomPanel.showMinMax = true;
- }
- _uiMode = MODE_DASHBOARD;
- _forceFullRedraw = true;
- mutex_enter_blocking(&_stateMutex);
- _isDirty = true;
- mutex_exit(&_stateMutex);
+ actAlarmShowMinMax( );
  }
  }
  else if (_uiMode == MODE_CONFIRM_MUTE_ALL) {

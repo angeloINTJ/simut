@@ -5,10 +5,11 @@
  *        dashboard, as view models filled from the DisplayManager's state, and their
  *        touches. pico_wiretft_angulo only.
  *
- * All three are translations (ESPEC §7): the old handlers do what they always did.
- * A touch on a target becomes the point of the same element in the old layout and
- * handleTouch( ) goes on with it, so the 3 s hold, the lift and the slide still
- * work (the same target gives the same old point on every sample of a press).
+ * The dashboard is still a translation (ESPEC §7): a touch on a target becomes the
+ * point of the same element in the old layout and handleTouch( ) goes on with it, so
+ * the 3 s hold, the lift and the slide still work (the same target gives the same old
+ * point on every sample of a press). The alarm's action screen is not: its three
+ * buttons run the core's actions (DisplayManager_Actions.h) themselves.
  */
 
 #include "../../DisplayManager.h"
@@ -27,6 +28,7 @@
 #include "telas/PainelBoot.h"
 #include "telas/PainelPrincipal.h"
 #include "telas/Telas.h"
+#include "../../DisplayManager_Actions.h"   /* the core's touch actions, which the alarm screen's buttons run; last */
 
 namespace {
 
@@ -37,8 +39,8 @@ int16_t decimos( float v, int16_t ou ) {
   return (int16_t)( d > 3276 ? 3276 : d < -3276 ? -3276 : d );
 }
 
-/* What the sensor slot's alarm action asks for in the old touch handler
- * (DisplayManager_Touch.cpp, MODE_ALARM_ACTION: EVT_ALARM_SILENCE, param 120). */
+/* What the sensor slot's alarm action asks for: actAlarmSilence( ) in DisplayManager_Actions.h (EVT_ALARM_SILENCE,
+ * param 120). */
 constexpr uint16_t SILENCIO_SEG = 120;
 
 /* One card's data as the old drawSlotPanel( ) takes it (DisplayManager.cpp:1960-1961). */
@@ -310,17 +312,22 @@ UaToque DisplayManager::uaToquePainel( const ua::Alvo *a, int16_t &x, int16_t &y
       }
       return UaToque::TRADUZIDO;
     case MODE_ALARM_ACTION:
-      /* Old zones, any x: silence y 60..105, deactivate y 115..160, min/max y 170..215
-       * (DisplayManager_Touch.cpp:1552, 1560, 1568). The new order is silence, min/max, deactivate. */
+      /* The three buttons run the core's actions behind the gates the old zones held (silence acceptTouch( 0 ), deactivate
+       * ( 1 ), min/max ( 2 ): Touch.cpp), not the old branch with a point moved into its zone. */
       if ( !a ) return UaToque::TRATADO;
-      x = 160;
       switch ( a->tipo ) {
-        case ACA_SILENCIAR: y = 82; break;
-        case ACA_DESATIVAR: y = 137; break;
-        case ACA_MINMAX: y = 192; break;
-        default: return UaToque::TRATADO;
+        case ACA_SILENCIAR:
+          if ( acceptTouch( 0 ) ) actAlarmSilence( );
+          break;
+        case ACA_DESATIVAR:
+          if ( acceptTouch( 1 ) ) actAlarmDeactivate( );
+          break;
+        case ACA_MINMAX:
+          if ( acceptTouch( 2 ) ) actAlarmShowMinMax( );
+          break;
+        default: break;
       }
-      return UaToque::TRADUZIDO;
+      return UaToque::TRATADO;
     default:
       return UaToque::NAO_E_MEU;
   }
