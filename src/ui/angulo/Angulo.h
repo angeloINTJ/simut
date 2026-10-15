@@ -64,8 +64,8 @@ constexpr Fonte titulo = Fonte::DISP12;
 constexpr Fonte subtitulo = Fonte::DISP9;
 constexpr Fonte corpo = Fonte::SANS9;
 constexpr Fonte botao = Fonte::SANSB9;
-constexpr Fonte rotulo = Fonte::SANSB7;
-constexpr Fonte apoio = Fonte::SANS7;
+constexpr Fonte rotulo = Fonte::SANSB9;
+constexpr Fonte apoio = Fonte::SANS9;
 constexpr Fonte dado = Fonte::MONO9;
 constexpr Fonte dadoGrande = Fonte::MONO12;
 }  // namespace tipo
