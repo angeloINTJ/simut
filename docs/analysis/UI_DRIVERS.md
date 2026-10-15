@@ -243,15 +243,77 @@ items 8 to 12 are what the audit found in the draw bodies **(S0)**.
 
 ### 2.6 Room for a 3.5-inch panel
 
-The panel size is meant to come from the panel layer: `Ili9341_320x240` carries
-`width` and `height` (`src/display/ILI9341_320x240.h:21-22`). Today the size is
-written into core primitives as a literal: `fillWindowDma` and `blitWindowDma`
-(`Dashboard.cpp:272, 296`), the clamp in `fastFillRect` (`:327-328`),
-`fastClearScreen` (`:345-346`), the strip blits (`:424, 445, 454`), the
-`GFXcanvas16( 320, 45 )` at `DisplayManager.cpp:1258`, `mapTouchPoint`
-(`Calibration.cpp:416-417`, the mapping to 320 and 240), the calibration targets
-`CAL_SCR_X/Y` (`DisplayManager.h:1434-1435`) and `Touch.cpp:112-123`. The original's
-layouts stay 320x240. Visual changes (contrast, font sizes) are made in the
+The panel's size comes from the panel layer. **S3 (2026-10-15) did this**: until
+then the size was written as a literal into core primitives (the list S0 made is
+in section 4.2), and the layer had only `width` and `height`, which nothing reads.
+`Ili9341_320x240` now carries `static constexpr int16_t W = 320` and `H = 240`
+(`src/display/ILI9341_320x240.h`), the one place the size is written, and
+`DisplayDriver` inherits them in the TFT images. The two drivers with no pixels,
+`Hd44780_16x2` and the headless `DisplayDriver` (`src/display/DisplayDriver.h`),
+answer `W = H = 0`; that is what lets `DisplayManager.h` name `DisplayDriver::W`
+in every image without a new `#if SIMUT_DISPLAY_TFT` (the sprawl watermark holds
+that macro at 3 sites in the file). `width` and `height` stay, initialised from
+`W` and `H`: they are data members, so removing them would move every later
+member of `DisplayManager` and change the code.
+
+What reads `DisplayDriver::W` and `H` now, by function:
+
+| function | what it takes from the panel |
+|---|---|
+| `loopCore1` (`DisplayManager.cpp`) | the strip canvas, `GFXcanvas16( W, 45 )`; the 45 rows are the strip's height and stay |
+| `blitWindowDma`, `fillWindowDma` (`Dashboard.cpp`) | the on-panel check of a DMA window |
+| `fastFillRect` | the clamp of a fill to the panel |
+| `fastClearScreen` | the whole-panel fill and its library fallback |
+| `readRow` (`DisplayManager.h`) | its default width |
+| `CAL_SCR_X/Y` (`DisplayManager.h`) | the targets: `CAL_INSET` (20) px inside the corners; `CAL_SPAN_X/Y` (280, 200) is the panel less two insets, the span the touch solve mirrors |
+| the calibration solve in `handleTouch` (`Touch.cpp`) | `CAL_INSET` and `CAL_SPAN_X/Y` as float constants, in place of `20.0f`, `280.0f` and `200.0f` |
+| `mapTouchPoint` (`Calibration.cpp`) | the map onto `0 .. W` and `0 .. W - 1` (and `H`) |
+| `Faixa`, `uaPintar` (`ui/angulo/DisplayManager_UiA.cpp`) | the Ângulo's strips: their width (`LARGURA_FAIXA`), the GFX size, the row pitch, the strip count `H / 40` with a `static_assert` that 40 divides `H` |
+
+Not changed, on purpose: the original's layouts, with their 320 (`commitScreenStrip`,
+`blitTitleBar` and `blitFooterMenu` are the width of the original's screens, and
+section 3.3 classes them original), and the Ângulo's own layout (`Angulo.cpp`,
+`telas/*`, `L_TELA` in `AjustesComum.h`), which is for the visual stage. S3 found
+three more places that write the panel's size and are outside its list; they are
+left, and a panel of another size has to deal with them: `fillMarginsBlack` in
+`TftWithOffset.h` (the panel layer's own, included before the struct that
+defines `W`), the screenshot (`WebManager_History.cpp`: the rows' buffers, the
+BMP header, the chunk sizes; `DisplayManager_Auth.cpp`: `CHUNK_PX`), and the
+range check of the CLI's `touch sim` and `touch hold` (`AppManager_Commands.cpp`)
+with its help text (`CommandManager.cpp`).
+
+How S3 was proved (2026-10-15, tree `7046bf7`, built with the private core that
+matches CI, `$B/pio_core_ci`; the outputs are in `$B/stages/s3*`):
+
+- **No byte changed in the nine product images.** `$B/tools/build9.sh` into
+  `$B/stages/s3`, then `diff $B/base_192e1ad_ci/sha256.txt` against its nine lines
+  prints nothing: hash, size and env equal (`pico_w_release` 1,034,500 B,
+  `pico_wiretft` 785,736 B, `pico_w_alpha`, `pico_w_air` and `pico_wire` included,
+  which see only declarations).
+- **The Ângulo image is the one S2b built.** Its sha256 is `14d254ca…` and its size
+  831,560 B; `elf_funcoes.py` against S2b's ELF reads 4,262 functions in each, all
+  equal, 453 read-only objects and 2,482 texts equal, exit 0.
+- **The change bites.** With `W` = 321 in a scratch copy, `pico_wiretft` differs in
+  exactly nine functions: `DisplayManager::DisplayManager( )` (the `width` it
+  initialises), `loopCore1`, `blitWindowDma`, `fillWindowDma`, `fastFillRect`,
+  `fastClearScreen`, `mapTouchPoint`, `drawTouchCalibration` (the targets) and
+  `handleTouch` (the window: `280.0f` becomes `281.0f`). `pico_wiretft_angulo`
+  differs in eleven: seven of those nine (`fastFillRect` is not linked in that
+  image, and `drawTouchCalibration` is only its `UA_DESVIO( )` stub there), and
+  `Faixa::drawPixel`, `Faixa::fillRect`, `Faixa::fillScreen` and `uaPintar`. With `H` = 241,
+  `pico_wiretft` differs in eight (the same without `loopCore1`: the canvas's 45
+  rows are the strip's height, not the panel's), and the Ângulo build is refused
+  by the `static_assert` that 40 divides `H`; with `H` = 280 `uaPintar` (the strip
+  count) changes. `readRow`'s default is in no list because no caller leaves out
+  `w`; only the build covers it. The scratch copy also renamed `width` and `height`:
+  it builds, so nothing reads them. Output: `$B/stages/s3.bite_checks.txt`.
+- **Gates.** `check_ui_boundary.py`, `check_feature_sprawl.py` (368 sites, the
+  watermark as it was), `check_net_boundary.py`, `check_features.py`,
+  `check_angulo.py` and `test_ui_caps.py` exit 0; `check_flash_budget.py` exits 0
+  for the ten images; `pio test -e native` passes, 288 of 288. Nothing of this ran
+  on hardware: the bench was not touched.
+
+Visual changes (contrast, font sizes) are made in the
 Ângulo's own files only: `src/ui/angulo/kit/angulo_tokens.h` for colours
 (the source of truth is the `simut-rx` tokens), `Angulo.cpp` for the themes,
 `Angulo.h` for spacing and the font roles, `kit/fontes/*.h`, `AnguloMeta.h`,
@@ -977,8 +1039,9 @@ in the S0 scratch directory; it is not in the repository.
     `:1615-1620`) against the buttons drawn at 20 and 170, y 190, 130 by 40
     (`Settings.cpp:840-841, 955-956, 1025-1034`);
   - the calibration window, a 20 px inset with spans of 280 and 200 (`Touch.cpp:112-123`),
-    which mirrors `CAL_SCR_X/Y` = {20, 300}, {20, 220} (`DisplayManager.h:1434-1435`)
-    where the crosshairs are drawn;
+    which mirrored `CAL_SCR_X/Y` = {20, 300}, {20, 220} (`DisplayManager.h:1434-1435`)
+    where the crosshairs are drawn; since S3 (2026-10-15) both come from `CAL_INSET`
+    and the panel's size, so this one is tied;
   - GRAPH_VIEW and GRAPH_DETAIL carry the same close, header-tap and bottom-bar code,
     55 lines apiece, identical but for three comments (`Touch.cpp:585-642` and
     `:653-708`, compared after whitespace normalisation).
@@ -988,11 +1051,13 @@ in the S0 scratch directory; it is not in the repository.
   `WebManager_History.cpp`, `AppManager_CmdHandlers.cpp` (the CLI's `show display
   keypad`) and `AppManager_Panel.cpp`. The geometry cannot move into a driver
   with the rest of the original; S9 has to split the header.
-- **The panel size, 320 by 240, is written into core primitives**: `Dashboard.cpp:272,
-  296` (the DMA window checks), `:327-328` (the clamp in `fastFillRect`), `:345-346`
-  (`fastClearScreen`), `:424, 445, 454` (the strip blits), `DisplayManager.cpp:1258`
-  (`GFXcanvas16( 320, 45 )`), `Calibration.cpp:416-417` (`mapTouchPoint`) and the
-  calibration targets (section 2.6).
+- **The panel size, 320 by 240, was written into core primitives** (S0, on `192e1ad`):
+  `Dashboard.cpp:272, 296` (the DMA window checks), `:327-328` (the clamp in
+  `fastFillRect`), `:345-346` (`fastClearScreen`), `:424, 445, 454` (the strip
+  blits), `DisplayManager.cpp:1258` (`GFXcanvas16( 320, 45 )`),
+  `Calibration.cpp:416-417` (`mapTouchPoint`) and the calibration targets. S3
+  (2026-10-15) moved them to `DisplayDriver::W` and `H`, except the strip blits,
+  which are the original's layout; section 2.6 has the list as it stands.
 - **Text outside `tr( )`.** `drawCalendarScreen` draws Portuguese month names and weekday
   initials (`Calendar.cpp:45-48`); `drawTopBar` writes `"WEB '%s' - toque bloqueado"`
   (`Dashboard.cpp:487`); and five functions choose between two literals with
