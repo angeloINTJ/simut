@@ -30,7 +30,12 @@ The six verdicts, and what each case checks:
       Also a call that goes elsewhere: two static helpers of one name with F and G swapped between
       their files (F and G named, the helpers, whose bodies are the same, not), the body of one
       helper changed (that helper and its caller named, not the other caller), and a call retargeted
-      to the function that took its callee's place, so that the bytes of the caller are the same
+      to the function that took its callee's place, so that the bytes of the caller are the same.
+      Also a constant that looks like an address with nothing readable behind it (flash
+      0x10120000, SRAM 0x20030000), in a function, in a const table and in a local initializer
+      (4g, 4h, 5g, 5h; 5i is the plain-number control); two same-named helpers that differ only
+      in an unnamed local table, F and G swapped (4i); two switch tables of one size swapped
+      between f and g, every byte of both functions the same (4j)
   (5) a number changed in a static const table    exit 1, naming that table, with the same link
       order and with another; the function that reads it through a pointer is not blamed. Its
       two companions, the cases the second chance of the tool must not hide: the same edit in a
@@ -64,7 +69,9 @@ bytes, which had not changed), and two read-only objects of one name were collap
 four more, each with its case (4b, 4c, 4d, 4f, 7v): two addresses with no name counted as the same
 target, a vtable and the other weak read-only objects were not compared, two functions of one name
 were not told apart, and a call to another function passed as a relocation when the bytes of the
-caller were the same. One more on 2026-10-15 (case 6d): a path with no file behind it ended in a
+caller were the same. The review of those fixes found three (4g to 5h, 4i, 4j): an address-looking
+constant that cannot be read was "<?>" and so equal to any other, a colour was blind to an unnamed
+table, and a swapped switch table passed because the bytes of its readers were the same. One more on 2026-10-15 (case 6d): a path with no file behind it ended in a
 traceback, whose exit 1 reads as "changed" rather than as a refusal.
 
 Needs arm-none-eabi-gcc from the PlatformIO toolchain package (tools/elf_funcoes.py says where it
@@ -249,6 +256,52 @@ int @CALLER@( int x ) { return helper( x ); }
 void entry( void ) { for ( ;; ) { } }
 '''
 
+# t3.c: words that look like addresses (flash 0x10120000, SRAM 0x20030000) with nothing readable
+# behind them: the image is a few hundred bytes. A function constant, a word of a const table, and
+# a word of a local initializer that has no symbol. The tool printed `<?>` for all of them, on
+# both sides, and called a changed one "equal" (review of the fixes, 2026-10-15).
+T3_C = '''unsigned slot_base( void ) { return @FL@; }
+unsigned ram_mark( void ) { return @RAM@; }
+const unsigned k_off[4] = { 0x10100000, 0x10110000, @TAB@, 0x10130000 };
+unsigned off_at( int i ) { return k_off[i & 3]; }
+unsigned local_off( int i ) {
+  const unsigned t[4] = { 0x10100000, 0x10110000, @LOC@, 0x10130000 };
+  return t[i & 3];
+}
+void entry( void ) { for ( ;; ) { } }
+'''
+
+
+def t3(fl='0x10120000', ram='0x20030000', tab='0x10120000', loc='0x10120000'):
+    return T3_C.replace('@FL@', fl).replace('@RAM@', ram).replace('@TAB@', tab).replace('@LOC@', loc)
+
+
+# w1.c and w2.c: a file-local helper of one name in each, differing ONLY in a local table that has
+# no symbol (not text, not named); F and G swap files. The colour of the helper used to be the same
+# for both, because what lies behind an unnamed address was masked ("<@>").
+W1_C = '''static __attribute__(( noinline )) unsigned helper( int i ) {
+  const unsigned short t[8] = { 301, 302, 303, 304, 305, 306, 307, 308 };
+  return t[i & 7];
+}
+unsigned @CALLER@( int i ) { return helper( i ) + 1; }
+'''
+W2_C = '''static __attribute__(( noinline )) unsigned helper( int i ) {
+  const unsigned short t[8] = { 501, 502, 503, 504, 505, 506, 507, 508 };
+  return t[i & 7];
+}
+unsigned @CALLER@( int i ) { return helper( i ) + 1; }
+void entry( void ) { for ( ;; ) { } }
+'''
+
+# sw.c: two functions with a switch each, the two CSWTCH tables of the same size; the tables are
+# swapped between them in the other image. Every byte of f and g is the same.
+SW_X = 'case 0: return 41; case 1: return 7; case 2: return 88; case 3: return 15; case 4: return 52; case 5: return 36; case 6: return 19; case 7: return 63;'
+SW_Y = 'case 0: return 17; case 1: return 4; case 2: return 93; case 3: return 8; case 4: return 61; case 5: return 29; case 6: return 12; case 7: return 70;'
+SW_C = '''int f( int c ) { switch ( c ) { @F@ default: return -2; } }
+int g( int c ) { switch ( c ) { @G@ default: return -2; } }
+void entry( void ) { for ( ;; ) { } }
+'''
+
 # d.c: no code at all.
 D_C = '''const int g_only_data[4] = { 1, 2, 3, 4 };
 const char g_note[] = "just data, no code";
@@ -269,6 +322,7 @@ def fontes(moved=False, ram=True):
         'e': E_C, 'u': U_C, 'v': V_C, 'd': D_C, 'p': P_C, 'q': Q_C, 'q2': Q2_C, 'r': R_C, 's': S_C,
         'm': M_S, 'n': N_C, 'vt': VT_CPP.replace('@BA@', 'Base1').replace('@BB@', 'Base2'), 'k': K_C,
         'h1': H1_C.replace('@CALLER@', 'F'), 'h2': H2_C.replace('@CALLER@', 'G'),
+        'w1': W1_C.replace('@CALLER@', 'F'), 'w2': W2_C.replace('@CALLER@', 'G'),
     }
 
 
@@ -392,6 +446,17 @@ def montar(tmp):
     e['dup_u'] = of.elf('dup_u', editar(s, 'u', '3, 4', '3, 9'), ['u', 'v'])
     e['dup_v'] = of.elf('dup_v', editar(s, 'v', '7, 8', '7, 9'), ['u', 'v'])
     e['dados'] = of.elf('dados', s, ['d'])
+    e['k3'] = of.elf('k3', dict(s, t3=t3()), ['t3'])
+    e['k3_fl'] = of.elf('k3_fl', dict(s, t3=t3(fl='0x10150000')), ['t3'])
+    e['k3_ram'] = of.elf('k3_ram', dict(s, t3=t3(ram='0x20031000')), ['t3'])
+    e['k3_tab'] = of.elf('k3_tab', dict(s, t3=t3(tab='0x10150000')), ['t3'])
+    e['k3_loc'] = of.elf('k3_loc', dict(s, t3=t3(loc='0x10150000')), ['t3'])
+    e['k3_num_a'] = of.elf('k3_num_a', dict(s, t3=t3(tab='0x00120000')), ['t3'])
+    e['k3_num_b'] = of.elf('k3_num_b', dict(s, t3=t3(tab='0x00150000')), ['t3'])
+    e['sw2'] = of.elf('sw2', dict(s, sw=SW_C.replace('@F@', SW_X).replace('@G@', SW_Y)), ['sw'])
+    e['sw2_troca'] = of.elf('sw2_troca', dict(s, sw=SW_C.replace('@F@', SW_Y).replace('@G@', SW_X)), ['sw'])
+    e['wlp'] = of.elf('wlp', s, ['w1', 'w2'])
+    e['wlp_troca'] = of.elf('wlp_troca', dict(s, w1=W1_C.replace('@CALLER@', 'G'), w2=W2_C.replace('@CALLER@', 'F')), ['w1', 'w2'])
     e['hlp'] = of.elf('hlp', s, ['h1', 'h2'])
     e['hlp_movida'] = of.elf('hlp_movida', s, ['h2', 'h1'])
     e['hlp_troca'] = of.elf('hlp_troca', dict(s, h1=H1_C.replace('@CALLER@', 'G'), h2=H2_C.replace('@CALLER@', 'F')), ['h1', 'h2'])
@@ -518,6 +583,20 @@ def c2w(r):
     return ok and r.dados[0] >= 2, d + f'; {r.dados[0]} read-only objects compared, the weak ones included'
 
 
+def c4g(nome):
+    def chk(r):
+        return r.code == 1 and r.so(mudou=[nome]) and r.tabelas_iguais, f'exit {r.code}: {r.nomes()}'
+    return chk
+
+
+def c5g(r):
+    return r.code == 1 and r.so(dado_mudou=['k_off']) and r.tabelas_iguais, f'exit {r.code}: {r.nomes()}'
+
+
+def c9fg(r):
+    return r.code == 1 and sorted(r.mudou) == ['f', 'g'] and r.so(mudou=r.mudou), f'exit {r.code}: {r.nomes()}'
+
+
 def c9(r):
     return r.code == 1 and sorted(r.mudou) == ['F', 'G'] and r.so(mudou=r.mudou) and r.tabelas_iguais, \
         f'exit {r.code}: {r.nomes()}'
@@ -576,7 +655,9 @@ def c6d(r):
 
 
 def c7(r):
-    return r.code == 1 and r.so() and r.tabelas_iguais is False, f'exit {r.code}, switch tables differ: {not r.tabelas_iguais}'
+    # the table differs, and so does what map_code reads: it is named, as a local initializer's reader is
+    return r.code == 1 and r.so(mudou=['map_code']) and r.tabelas_iguais is False, \
+        f'exit {r.code}, switch tables differ: {not r.tabelas_iguais}, {r.nomes()}'
 
 
 def cx(r):
@@ -605,6 +686,13 @@ CASOS = [
     ('5', 'a number changed in a static const table, same layout', 'base', 'tab', c5, None),
     ('5b', 'the same, and the layout moved too', 'base', 'tab_movida', c5b, pre_tab_movida),
     ('5c', 'a number changed in a local initializer with no symbol', 'anon', 'anon_edit', c5c, None),
+    ('4g', 'a flash-looking constant changed in a function, nothing readable behind it (0x10120000 to 0x10150000)', 'k3', 'k3_fl', c4g('slot_base'), None),
+    ('4h', 'an SRAM-looking constant (0x20030000 to 0x20031000)', 'k3', 'k3_ram', c4g('ram_mark'), None),
+    ('5g', 'an address-looking word of a const table (0x10120000 to 0x10150000)', 'k3', 'k3_tab', c5g, None),
+    ('5h', 'the same word in a local initializer with no symbol', 'k3', 'k3_loc', c4g('local_off'), None),
+    ('5i', 'control: a plain number in the table (0x00120000 to 0x00150000)', 'k3_num_a', 'k3_num_b', c5g, None),
+    ('4j', 'two switch tables of the same size swapped between f and g (every byte of both is the same)', 'sw2', 'sw2_troca', c9fg, None),
+    ('4i', 'two static helpers of one name that differ only in an unnamed local table, F and G swapped', 'wlp', 'wlp_troca', c9, None),
     ('4d', 'two static helpers of one name, F and G swapped between their files', 'hlp', 'hlp_troca', c9, None),
     ('4e', 'the body of one of the two helpers changed', 'hlp', 'hlp_mudou', c9b, None),
     ('4b', 'a call retargeted, then return 1 (BL and movs r0,#1 read as an address)', 'call_foo', 'call_bar', c8, None),
@@ -632,14 +720,14 @@ MUTANTES = [
      "if nome not in ('.rodata', '.data'):", 'if True:', {'1', '3', '3b', '3c', '3d'}),
     ('m3', 'the text census skips .data', "if nome not in ('.rodata', '.data'):", "if nome not in ('.rodata',):", {'1', '3c'}),
     ('m4', 'read-only objects are never compared', "d_iguais, dmud, dso_a, dso_b = comparar_dados(da, db, ctx_a, ctx_b)",
-     "d_iguais, dmud, dso_a, dso_b = len(da), [], [], []", {'5', '5b', '5d', '5e', '5f', '7v'}),
+     "d_iguais, dmud, dso_a, dso_b = len(da), [], [], []", {'5', '5b', '5d', '5e', '5f', '5g', '5i', '7v'}),
     ('m5', 'same-named objects are matched by position of the first only',
      "la, lb = da[nome], db[nome]", "la, lb = da[nome][-1:], db[nome][-1:]", {'5d', '5f'}),
     ('m6', 'every function the text normalization sees as changed is excused',
      "mudaram = [n for n in diferem if mudou_de_fato(n, fa, fb, xa, xb, cfa, cfb)]",
-     "mudaram = []", {'4', '4b', '4c', '4d', '4e', '4f', '5c', 'x'}),
+     "mudaram = []", {'4', '4b', '4c', '4d', '4e', '4f', '4g', '4h', '4i', '4j', '5c', '5h', '7', 'x'}),
     ('m7', 'a changed unnamed constant is excused (the fix of 2026-10-14 taken out)',
-     "constante_mudou(fa[n], fb[n]) or ", "", {'5c'}),
+     "constante_mudou(fa[n], fb[n]) or ", "", {'4j', '5c', '5h', '7'}),
     ('m8', 'switch tables are never different', "tabelas_iguais = ta == tb", "tabelas_iguais = True", {'7'}),
     ('m9', 'an empty reading is accepted', "if not lidas_a or not lidas_b:", "if False:", {'6', '6c'}),
     ('m21', 'a file that cannot be read is not refused (its traceback exits 1)',
@@ -649,11 +737,11 @@ MUTANTES = [
     ('m11', 'veneers are not read as the function they branch to',
      "VENEER = re.compile(r'^__(.+)_veneer$')", "VENEER = re.compile(r'^__(.+)_veneer_x$')", {'2v'}),
     ('m12', 'switch tables are named by number, not by content',
-     "CSWTCH = re.compile(r'^CSWTCH\\.\\d+$')", "CSWTCH = re.compile(r'^CSWTCHX\\.\\d+$')", {'2m'}),
+     "CSWTCH = re.compile(r'^CSWTCH\\.\\d+$')", "CSWTCH = re.compile(r'^CSWTCHX\\.\\d+$')", {'2m', '4j', '7'}),
     ('m13', 'the second chance is never given (a literal or a table edited under a function blames it)',
-     "or not so_relocacao(n, xa, xb, cfa, cfb))", "or True)", {'2s', '3b', '3d', '5d', '5e', '7'}),
-    ('m15', 'two unnamed addresses count as the same target (the pair BL + movs r0,#1 is excused)',
-     "return x == y and not x.startswith('<')", "return x == y", {'4c'}),
+     "or not so_relocacao(n, xa, xb, cfa, cfb))", "or True)", {'2s', '3b', '3d', '5d', '5e'}),
+    ('m15', 'two unnamed addresses count as the same target (nothing fails since 2026-10-15: an unreadable one now carries its value, so this is the second line of defence)',
+     "return x == y and not x.startswith('<')", "return x == y", set()),
     ('m16', 'a pointer at a halfword address is never accepted (the first fix proposed by the review)',
      "ok = mesmo_alvo(xa_, xb_) or mesmo_conteudo(xa_, xb_, va, vb, ra[0] + w, rb[0] + w)",
      "ok = (ra[0] + w) % 4 == 0 and (mesmo_alvo(xa_, xb_) or mesmo_conteudo(xa_, xb_, va, vb, ra[0] + w, rb[0] + w))",
@@ -661,11 +749,26 @@ MUTANTES = [
     ('m17', 'weak read-only objects (vtables, typeinfo, inline variables) are skipped',
      "if tipo not in 'rRVv' or tam == 0:", "if tipo not in 'rR' or tam == 0:", {'2w', '7v'}),
     ('m18', 'a branch the text names differently is excused when the bytes are the same',
-     "return (constante_mudou(fa[n], fb[n]) or chamada_mudou(fa[n], fb[n])", "return (constante_mudou(fa[n], fb[n])", {'4d', '4e', '4f'}),
+     "return (constante_mudou(fa[n], fb[n]) or chamada_mudou(fa[n], fb[n])", "return (constante_mudou(fa[n], fb[n])", {'4d', '4e', '4f', '4i'}),
     ('m19', 'same-named functions are paired by address order only',
      "j = next((j for j in livres if lb[j][2] == r[2]), None)", "j = None", {'2h'}),
     ('m20', 'a reference to a shared name carries no colour',
-     "self.tab_ref = renomear(self.tab, self.cores, dup_nomes)", "self.tab_ref = self.tab", {'4d', '4e'}),
+     "self.tab_ref = renomear(self.tab, self.cores, dup_nomes)", "self.tab_ref = self.tab", {'4d', '4e', '4i'}),
+    ('m22', 'an unreadable address looking like one renders as "<?>", without its value',
+     "return f'<?{v:#x}>'", "return '<?>'", {'4g', '4h', '5g'}),
+    ('m23', 'a word of an unnamed table that looks like an address and cannot be read renders as "?"',
+     "('?' if img.ler(w, 1) else f'?{w:#x}')", "'?'", {'5h'}),
+    ('m24', 'a colour masks what an unnamed readable constant holds ("<@>")',
+     "return f'<@{b.hex()}{\"@\" + str(v & 3) if v & 3 else \"\"}>' if b else f'<?{v:#x}>'",
+     "return '<@>' if b else f'<?{v:#x}>'", {'4i'}),
+    ('m25', 'a pool word that shows the content of a switch table is not a changed constant',
+     "CONTEUDO = re.compile(r'^\\.word <(?:CSWTCH)?\\[')", "CONTEUDO = re.compile(r'^\\.word <\\[')", {'4j', '7'}),
+    ('m26', 'the three lines that keep 4b apart are out at once: unnamed addresses count as the same, a differing branch is excused by equal bytes, an unreadable address carries no value',
+     ["return x == y and not x.startswith('<')",
+      "return (constante_mudou(fa[n], fb[n]) or chamada_mudou(fa[n], fb[n])",
+      "return f'<?{v:#x}>'"],
+     ["return x == y", "return (constante_mudou(fa[n], fb[n])", "return '<?>'"],
+     {'4b', '4c', '4d', '4e', '4f', '4g', '4h', '4i', '5g'}),
     ('m14', 'a changed string in an unnamed table blames the functions that load it',
      "and TEXTOS_ENTRE_ASPAS.sub('\"\"', p) != TEXTOS_ENTRE_ASPAS.sub('\"\"', q)", "", {'3d'}),
 ]
@@ -722,12 +825,18 @@ def main():
             print(f'\n{len(MUTANTES)} mutants of the tool (the cases that fail must be exactly the listed ones):')
             fonte = (HERE / 'elf_funcoes.py').read_text(encoding='utf-8')
             for mid, titulo, antigo, novo, esperado in MUTANTES:
-                if fonte.count(antigo) != 1:
-                    print(f'  FAIL {mid}: its text is {fonte.count(antigo)} times in elf_funcoes.py, not once: {antigo[:60]!r}')
+                # one replacement, or a list of them when no single change leaves a case unguarded
+                pares = list(zip(antigo, novo)) if isinstance(antigo, list) else [(antigo, novo)]
+                ausente = next((a for a, _ in pares if fonte.count(a) != 1), None)
+                if ausente is not None:
+                    print(f'  FAIL {mid}: its text is {fonte.count(ausente)} times in elf_funcoes.py, not once: {ausente[:60]!r}')
                     falhas.append(mid)
                     continue
                 mut = tmp / f'mutante_{mid}.py'
-                mut.write_text(fonte.replace(antigo, novo), encoding='utf-8')
+                texto = fonte
+                for a, n in pares:
+                    texto = texto.replace(a, n)
+                mut.write_text(texto, encoding='utf-8')
                 res = avaliar(mut, imagens, env, pool)
                 caem = {cid for cid, (ok, _) in res.items() if not ok}
                 # m1 reads no instruction at all: every case that expects a report must fail.

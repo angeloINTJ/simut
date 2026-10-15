@@ -7,7 +7,7 @@ firmware reads, SIMUT_UI_ORIGINAL and SIMUT_UI_ANGULO for the identity, SIMUT_UI
 the original can do and the Ângulo cannot). Adding a driver must be one directory in src/ui/ and one
 manifest entry, and swapping one for another must not need an edit outside them. That only stays true if
 the core never reaches for a driver's name and the drivers never reach for each other, so this gate holds
-five rules over src/**/*.{c,cpp,h,hpp}:
+five rules over src/**/*.{c,cc,cpp,cxx,h,hh,hpp,hxx,inl,ipp,tpp}:
 
   identity      an identity macro (SIMUT_UI_<ID> for each [ui.<id>] of tools/features.toml: SIMUT_UI_ANGULO,
                 SIMUT_UI_ORIGINAL) outside src/ui/ and src/simut_config.h. Ask a capability
@@ -48,13 +48,15 @@ five rules over src/**/*.{c,cpp,h,hpp}:
   driver-hook   a name the Ângulo driver introduces, used outside src/ui/angulo/. The names are taken from
                 the driver, not from a pattern on the other files: every identifier in src/ui/angulo/
                 that carries the driver's mark, `ua` and a capital for a function or a member (uaSujo,
-                uaToque, ...) or `Ua` and a capital for a type (UaToque, UaQuadro), split at its
+                uaToque, ...) or `Ua` and a capital for a type (UaToque, UaQuadro), or `UiA` and a capital or the end of the name, anywhere
+                in it (registerUiARoutes, handleApiUiA; never UiArrowDir), split at its
                 underscores, so that _uaPintando, g_uaVm and m_uaSujo are all uaPintando, uaVm and uaSujo;
                 and the top-level namespaces it declares (`ua`, `entrega`). Outside the driver an
                 identifier is a hook when one of its underscore-separated parts is such a name, or when
-                it is a namespace of the driver used with `::` or `using namespace`. A new hook the
-                driver adds is therefore found without an edit here, and `uaString`, a user agent in
-                the web server, is not: the driver does not introduce it. One pattern remains, for the
+                it is a namespace of the driver used with `::` or `using namespace`. A new hook that carries one of the driver's marks is therefore found without an edit
+                here, and `uaString`, a user agent in the web server, is not: the driver does not
+                introduce it. A hook with neither mark (a plain `buildFrame`) is not found until it
+                is given one. One pattern remains, for the
                 macros: every UA_<anything> (UA_DESVIO is defined in a shared header, so the driver's
                 text does not give it). The gate refuses a tree whose src/ui/angulo/ has no source
                 (exit 2): with no driver there would be no names, and a gate must not pass for that.
@@ -64,8 +66,12 @@ by the state machine of tools/check_net_boundary.py (imported, so there is one: 
 and `R"x(...)x"` are read as the compiler reads them; the lines stay, so a finding has the file's line
 number; the names in #include directives are kept apart). It is a pattern gate, not a parser: `#if 0`
 is scanned as code, a backslash-newline is followed only between `#ifdef` (or `defined`) and its macro,
-an `#include` after a comment on its line is not read, and a driver that reaches the other through a
-third header is not seen, only the include that makes it possible.
+an `#include` after a comment on its line is not read, an include through a macro
+(`#define H_ "../../Themes.h"`, then `#include H_`), the include of a .cpp, an include continued onto
+the next line and a name built by token pasting (`CAT(ua,Sujo)`) are not read either, a use of the
+driver's namespace through an alias is caught at the alias (`namespace u = ua;`) and not at `u::`,
+and a driver that reaches the other through a third header is not seen, only the include that
+makes it possible.
 
     python3 tools/check_ui_boundary.py            # the gate: `path:line: rule: text`, exit 1 on any finding
     python3 tools/check_ui_boundary.py --report   # every finding and the counts per rule and file, exit 0
@@ -120,7 +126,7 @@ class CannotRead(Exception):
 
 DEFAULT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RULES = ("identity", "no-ifdef", "include-caps", "cross-driver", "driver-hook")
-EXTS = cnb.EXTS
+EXTS = (".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".hxx", ".inl", ".ipp", ".tpp")   # wider than the net gate's four: an .inl or .ipp is code
 UI_DIR = "src/ui/"                   # the drivers' directory: the identity rule is let off here
 ANGULO_DIR = "src/ui/angulo/"        # the Ângulo driver: cross-driver and driver-hook look at who is outside it
 CONFIG = "src/simut_config.h"        # includes ui/UiCaps.h: let off the identity rule only
@@ -153,6 +159,7 @@ DEFINED = re.compile(r"\bdefined\b[\s\\(]*(" + UI_MACRO + ")")
 # split at its underscores: `_uaSujo`, `g_uaVm` and `m_uaSujo` have the parts "uaSujo" and "uaVm".
 WORD = re.compile(r"[A-Za-z_]\w*")
 MARK = re.compile(r"(?:ua|Ua)[A-Z]\w*\Z")        # a part the driver marks as its own: uaSujo (a function, a member), UaToque (a type)
+MARK_UIA = re.compile(r"UiA(?:[A-Z]|\Z)")       # the second mark: UiA and a capital or the end, anywhere in the part (registerUiARoutes, handleApiUiA; not UiArrowDir)
 UA_MACRO = re.compile(r"UA_\w+\Z")               # the macros are the one pattern: UA_DESVIO is defined in a shared header
 NS_TOKEN = re.compile(r"\bnamespace\s+(\w+)(?:\s*::\s*\w+)*\s*\{|\bnamespace\s*\{|[{}]")   # `namespace x {` and the braces
 
@@ -190,9 +197,9 @@ Env = collections.namedtuple("Env", "ident vocab ns_use original")
 
 def marker_parts(word: str):
     """The parts of `word`, split at its underscores, that carry the driver's mark."""
-    if "ua" not in word and "Ua" not in word:
+    if "ua" not in word and "Ua" not in word and "UiA" not in word:
         return []
-    return [p for p in word.split("_") if MARK.match(p)]
+    return [p for p in word.split("_") if MARK.match(p) or MARK_UIA.search(p)]
 
 
 def top_level_namespaces(code: str):
@@ -228,7 +235,8 @@ def namespace_regex(spaces):
     if not spaces:
         return None
     alt = "|".join(re.escape(n) for n in sorted(spaces))
-    return re.compile(r"\b(" + alt + r")\s*::|\busing\s+namespace\s+(" + alt + r")\b")
+    return re.compile(r"\b(" + alt + r")\s*::|\busing\s+namespace\s+(" + alt + r")\b"
+                      r"|\bnamespace\s+\w+\s*=\s*(?:::\s*)?(" + alt + r")\b")
 
 
 def hook_sites(code: str, env: Env):
@@ -243,7 +251,7 @@ def hook_sites(code: str, env: Env):
                 yield m.start(), f"{w} is a name the Angulo driver introduces"
     if env.ns_use is not None:
         for m in env.ns_use.finditer(code):
-            yield m.start(), f"{m.group(1) or m.group(2)} is a namespace of the Angulo driver"
+            yield m.start(), f"{next(g for g in m.groups() if g)} is a namespace of the Angulo driver"
 
 
 def header_candidates(stem: str):
@@ -442,6 +450,10 @@ def scan(root: str):
         raise CannotRead(f"no source under {ANGULO_DIR}: the Angulo driver's own names cannot be taken from it, and "
                          f"a gate with no names to look for would pass on anything")
     vocab = driver_vocabulary({rel: v[1] for rel, v in tree.items()})
+    if not vocab.names:
+        raise CannotRead(f"the sources under {ANGULO_DIR} introduce no name that carries the driver's mark: the hooks "
+                         f"cannot be told from other names, and a gate with none to look for would pass on a driver "
+                         f"replaced by a stub")
     original = original_headers(root, set(tree), manifest)
     env = Env(ident, vocab, namespace_regex(vocab.spaces), original)
     found = []

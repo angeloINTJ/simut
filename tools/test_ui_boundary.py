@@ -139,7 +139,8 @@ ANGULO_TEXT = ("#if SIMUT_UI_ANGULO", "#endif",
                "void DisplayManager::uaOta( ) { }",
                "void DisplayManager::uaTemaAplicado( ) { }",
                "const ua::Tema &DisplayManager::uaTema( ) { }",
-               "const char *uaAberturaLicenca( ) { return 0; }")
+               "const char *uaAberturaLicenca( ) { return 0; }",
+               "UiArrowDir arrow = UI_UP;")   # the driver mentions a core name with a plain `UiA`: it must not become a hook
 # What the driver declares in its header: a namespace and a type per kind of name, a global, a template, a macro,
 # a namespace of its own that is not `ua`, and a namespace nested in `ua` (which is no top-level name).
 ANGULO_HEADER = "src/ui/angulo/UiA.h"
@@ -156,6 +157,8 @@ enum class UaToque { NAO_E_MEU, TRATADO };
 #define UA_VM_MAX 4096
 extern int g_uaVm[UA_VM_MAX];
 template <class T> T &uaVm( );
+void registerUiARoutes( );
+void handleApiUiA( );
 """
 
 BASE = {
@@ -270,7 +273,8 @@ TEXT = {
                     "int m_uaSujo = 0;", "#define UA_FOO 1", "int f = UA_FOO;",
                     # the driver's types and namespaces: names it introduces as much as its functions
                     "UaQuadro q;", "bool b = ( t == UaToque::TRATADO );", "char *p = (char *)&g_uaVm;",
-                    "const ua::Tema *p = nullptr;", "using namespace entrega;", "int n = entrega::count;"],
+                    "const ua::Tema *p = nullptr;", "using namespace entrega;", "int n = entrega::count;",
+                    "w.registerUiARoutes( );", "void handleApiUiA( );"],
 }
 
 for rule, lines in TEXT.items():
@@ -426,6 +430,27 @@ def hook_cases():
     expect("driver-hook: a variable that happens to be called `ua` is no namespace, and neither is a longer name that ends in one",
            {SURFACE: surface('String ua = "Mozilla"; bool b = ua.startsWith("M");', "int q = Aqua::count;",
                              "using namespace Aqua;")}, [])
+    with tree({ANGULO_UNIT: surface("int x;")}, base={k: v for k, v in BASE.items() if k != ANGULO_HEADER}) as root:
+        rc, out, err = run(root)
+    check("driver-hook: a driver whose sources introduce no name with its mark is refused (exit 2), as a driver with no source is "
+          "(the review measured DisplayManager.h falling from 61 to 2 findings with nothing said)",
+          rc == 2 and "introduce no name" in err, f"rc={rc} out={out[-2:]} err={err.strip()[:200]}")
+    expect("driver-hook: a name with the second mark, UiA and a capital or the end, that the driver defines is a hook in the core "
+           "(registerUiARoutes, handleApiUiA: the review planted them and got 0 findings)",
+           {SURFACE: surface("w.registerUiARoutes( );", "w.handleApiUiA( );", "int m_handleApiUiA = 0;")},
+           [(SURFACE, 2, "driver-hook"), (SURFACE, 3, "driver-hook"), (SURFACE, 4, "driver-hook")])
+    expect("driver-hook: ... but plain UiA is no mark (UiArrowDir, UiAction), and a UiA name the driver does not define is not one",
+           {SURFACE: surface("UiArrowDir dir = UI_UP; int UiAction = 0; int someUiAThing = 0;")}, [])
+    expect("driver-hook: ... and a string, a comment or an include path does not count; the include is the cross-driver rule's",
+           {SURFACE: surface('const char *s = "registerUiARoutes";', "// handleApiUiA( )", '#include "ui/angulo/UiA.h"')},
+           [(SURFACE, 4, "cross-driver")])
+    for alias in ("namespace u = ua;", "namespace u = ::ua;", "namespace u = ua::tela;", "namespace e = entrega;"):
+        expect(f"driver-hook: `{alias}` in a core file is one finding, at the alias (the review planted one and got 0)",
+               {SURFACE: surface(alias)}, [(SURFACE, 2, "driver-hook")])
+    expect("driver-hook: ... the use through the alias is not looked for: the alias line is the finding",
+           {SURFACE: surface("namespace u = ua;", "u::Tema *t = nullptr;")}, [(SURFACE, 2, "driver-hook")])
+    expect("driver-hook: an alias of a namespace that is not the driver's is none (std::filesystem, Aqua, uas)",
+           {SURFACE: surface("namespace fs = std::filesystem;", "namespace u = Aqua;", "namespace v = uas;")}, [])
     expect("driver-hook: the rule is `outside src/ui/angulo/`: another file of src/ui/ is held to it",
            {"src/ui/Other.cpp": surface("uaSujo( );")}, [("src/ui/Other.cpp", 2, "driver-hook")])
     expect("driver-hook: two names on one line are two findings",
@@ -433,7 +458,7 @@ def hook_cases():
     with tree({}, base={k: v for k, v in BASE.items() if not k.startswith("src/ui/angulo/")}) as root:
         rc, out, err = run(root)
     check("driver-hook: without any source under src/ui/angulo/ there is no driver to take the names from (exit 2)",
-          rc == 2 and "src/ui/angulo/" in (err + "\n".join(out)), f"rc={rc} out={out} err={err.strip()[:200]}")
+          rc == 2 and "no source under" in err, f"rc={rc} out={out} err={err.strip()[:200]}")
 
 
 # The same text where the compiler sees no code gives nothing.
@@ -536,6 +561,20 @@ def original_cases():
             {DOC_PATH: doc(OWNERSHIP_ITEM.replace("`PasswordKeyboard.h`", "`Gone.h`"))}, ["UI_DRIVERS.md", "Gone.h"])
     refuses("cross-driver: ... and so is a unit or a `X.*` whose files are all gone",
             {DOC_PATH: doc(OWNERSHIP_ITEM.replace("`UiWidgets.*`", "`Ghost.*`"))}, ["UI_DRIVERS.md", "Ghost"])
+
+
+def extension_cases():
+    """Every C/C++ source, header and include-only file is read: a hook or an identity in a .inl is as much a leak."""
+    for ext in (".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".hxx", ".inl", ".ipp", ".tpp"):
+        path = "src/Planted" + ext
+        expect(f"extensions: a hook in a core {ext} file is one finding", {path: surface("uaSujo( );")}, [(path, 2, "driver-hook")])
+    expect("extensions: an identity macro in a core .inl is one finding (the review planted one and got 0)",
+           {"src/Hooks.inl": surface("#if SIMUT_UI_ANGULO", "#endif")}, [("src/Hooks.inl", 2, "identity")])
+    expect("extensions: a name that a driver .inl defines is a hook in the core (the review planted one and got 0)",
+           {"src/ui/angulo/Extra.inl": angulo("void DisplayManager::uaExtra( ) { }"), SURFACE: surface("uaExtra( );")},
+           [(SURFACE, 2, "driver-hook")])
+    expect("extensions: a file that is not C or C++ is not read (.txt, .inc)",
+           {"src/Notes.txt": "uaSujo( );\n#if SIMUT_UI_ANGULO\n", "src/Hooks.inc": "uaSujo( );\n"}, [])
 
 
 def lexical_cases():
@@ -799,6 +838,13 @@ def real_tree_cases():
           "DisplayManager_Fonts.h, PasswordKeyboard.h, sensors/SensorDrawing.h) and DisplayManager_Alarm.h, and not the class",
           five <= derived and "src/DisplayManager_Alarm.h" in derived and "src/DisplayManager.h" not in derived
           and "src/DisplayManager_Auth.h" not in derived, str(sorted(derived))[:300])
+    fonts = {"src/FreeSansBold9pt8b_latin1.h", "src/FreeSansBold12pt8b_latin1.h", "src/FreeSansBold24pt7b_subset.h"}
+    left_out = {"src/DisplayManager_FmtFloat.h", "src/OtaScreen.h", "src/TextWrap.h", "src/display/ClockEntry.h",
+                "src/display/CountInText.h", "src/display/DisplayDriver.h", "src/display/SettingsMenu.h",
+                "src/sensors/SensorPanelDispatch.h"}
+    check("the original's font data is in the derived set, and the eight headers that mixed units include too are left "
+          "out, as section 2.5 says", fonts <= derived and not (left_out & derived),
+          f"missing {sorted(fonts - derived)} wrongly in {sorted(left_out & derived)}")
 
     # a copy of the real tree: one violation of each rule appended to a file, one finding each
     with tempfile.TemporaryDirectory(prefix="ui_boundary_real_") as root:
@@ -869,18 +915,22 @@ def real_tree_cases():
         mutated(core_clean, "\n#define UA_FOO 1\n", "driver-hook", f"real tree + `UA_FOO` in {core_clean}: one finding")
         mutated(core_clean, "\nstatic void *boundary_probe = (void *)sizeof(UaToque);\n", "driver-hook",
                 f"real tree + the type `UaToque` in {core_clean}: one finding")
+        mutated(core_clean, "\nstatic void *boundary_probe = (void *)&registerUiARoutes;\n", "driver-hook",
+                f"real tree + `registerUiARoutes`, a driver name with no ua mark, in {core_clean}: one finding")
         mutated(core_clean, "\nstatic const ua::Tema *boundary_probe = nullptr;\n", "driver-hook",
                 f"real tree + the namespace `ua::` in {core_clean}: one finding")
+        mutated(core_clean, "\nnamespace boundary_alias = ua;\n", "driver-hook",
+                f"real tree + the alias `namespace boundary_alias = ua;` in {core_clean}: one finding")
         with open(os.path.join(root, core_clean), encoding="utf-8", newline="") as fh:
             clean_text = fh.read()
         try:
             with open(os.path.join(root, core_clean), "w", encoding="utf-8", newline="") as fh:
-                fh.write(clean_text + '\nstatic const char *uaString = "Mozilla/5.0";\n')
+                fh.write(clean_text + '\nstatic const char *uaString = "Mozilla/5.0";\nstatic int boundary_arrow = (int)sizeof(UiArrowDir);\n')
             rc, out, err = run(root)
         finally:
             with open(os.path.join(root, core_clean), "w", encoding="utf-8", newline="") as fh:
                 fh.write(clean_text)
-        check(f"real tree + a user agent called `uaString` in {core_clean}: still passes (the driver does not introduce it)",
+        check(f"real tree + a user agent `uaString` and the core's `UiArrowDir` in {core_clean}: still passes (the driver introduces neither)",
               rc == 0 and out[-1:] == ["check_ui_boundary: 0 findings"], f"rc={rc} out={out[-3:]}")
         mutated(core_clean, "\nstatic bool boundary_probe = _uaPintando;\n", "driver-hook",
                 f"real tree + `_uaPintando` in {core_clean}: one finding")
@@ -913,7 +963,8 @@ def real_tree_cases():
                 f"real tree + an include of Themes.h in the Angulo unit {angulo_any}: one finding")
         mutated(angulo_any, '\n#include "../../sensors/SensorDrawing.h"\n', "cross-driver",
                 f"real tree + an include of SensorDrawing.h in the Angulo unit {angulo_any}: one finding")
-        for h in ("DisplayManager_Alarm.h", "PasswordKeyboard.h", "UiWidgets.h", "DisplayManager_Fonts.h"):
+        for h in ("DisplayManager_Alarm.h", "PasswordKeyboard.h", "UiWidgets.h", "DisplayManager_Fonts.h", "FreeSansBold9pt8b_latin1.h",
+                  "FreeSansBold12pt8b_latin1.h", "FreeSansBold24pt7b_subset.h"):
             mutated(angulo_any, f'\n#include "../../{h}"\n', "cross-driver",
                     f"real tree + an include of {h} in the Angulo unit {angulo_any}: one finding")
         mutated(bare, "\n#if SIMUT_UI_CUSTOM_THEMES\n#endif\n", "include-caps",
@@ -985,6 +1036,7 @@ class_include_cases()
 cross_driver_cases()
 original_cases()
 hook_cases()
+extension_cases()
 inert_cases()
 lexical_cases()
 manifest_cases()

@@ -62,6 +62,10 @@
    "count": 1,
    "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: UA_DESVIO( ) at the top of the draw functions of this file, which turns the original's drawing into a request for the Ângulo to repaint; ends in S10b (the Ângulo image stops linking the original)"
   },
+  "src/WebManager_Core.cpp": {
+   "count": 1,
+   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the call registerUiARoutes( ) that registers GET /api/ui; ends in S4, step C9 (the route hook becomes registerUiDriverRoutes, declared through src/ui/UiDriverWeb.h)"
+  },
   "src/ui/UiDriver.h": {
    "count": 3,
    "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the two definitions of UA_DESVIO( ) (the Ângulo's, which names uaSujo, and the original's no-op), moved here from src/DisplayManager.h in S4; ends in S10b (the Ângulo image stops linking the original's drawing, so no draw entry point needs to hand a frame over)"

@@ -50,7 +50,11 @@ What "equal" does not cover:
     code that is no change; for two variables it is another variable;
   - a call through a veneer to a symbol of a shared name carries no colour, and a colour sees three
     levels of shared names (RODADAS); a table of pointers of a shared name has its pointers
-    masked in the colour, so two that differ only in where they point share one;
+    masked in the colour, so two that differ only in where they point share one (a real instance,
+    measured 2026-10-15 in the pico_wiretft baseline: BearSSL's HASH_OID, three tables of 20 bytes
+    with one colour, 66b3b6c8, and two different contents); and an unnamed
+    constant counts in a colour by its first word only, so two helpers whose unnamed tables differ
+    after it share one;
   - a function whose bytes are equal and whose text differs only in literal-pool words is
     explained: a number that looks like an address, or a pointer to what is now another symbol at the
     same address. If nothing else differs (a text, an object, another function) it does not show.
@@ -193,7 +197,10 @@ def conteudo(img, v, inicios, tab):
     base = v & ~3                                  # pointers in data sit on word boundaries
     b = img.ler(base, 64)
     if not b:
-        return '<?>'
+        # Nothing to read: the value is all there is. "<?>" for every such address made a constant
+        # that looks like one (0x10120000 past the end of the image, 0x20030000 in SRAM) equal to
+        # any other (review of the fixes, 2026-10-15).
+        return f'<?{v:#x}>'
     return f'<[{palavras(b, inicios, tab, img)}]{"@" + str(v - base) if v != base else ""}>'
 
 
@@ -213,7 +220,7 @@ def palavras(b, inicios, tab, img):
         w = int.from_bytes(b[i:i + 4], 'little')
         if eh_endereco(w):
             n = nome_de(w, inicios, tab)
-            partes.append(estavel(n) if n else (texto_em(img, w) or '?'))
+            partes.append(estavel(n) if n else (texto_em(img, w) or ('?' if img.ler(w, 1) else f'?{w:#x}')))
         else:
             partes.append(f'{w:x}')
     resto = len(b) % 4
@@ -224,8 +231,9 @@ def palavras(b, inicios, tab, img):
 
 def normalizar(texto, inicios, tab, img, faixa=None, grosso=False):
     """The text of one instruction with every address replaced by what it names. grosso: for the
-    colours of colorir( ), an address with no name and no text is "<@>", not what lies behind it or
-    the nearest label: a colour must not move with the bytes around an unnamed constant."""
+    colours of colorir( ), an address with no name and no text is "<@" and its first word read, not
+    the 64 bytes behind it or the nearest label: a colour must not move with the bytes around an
+    unnamed constant."""
     def troca(m):
         v = int(m.group(1), 16)
         if faixa and faixa[0] <= v < faixa[1]:
@@ -237,7 +245,11 @@ def normalizar(texto, inicios, tab, img, faixa=None, grosso=False):
                 if t:
                     return '<' + t + '>'
                 if grosso:
-                    return '<@>'
+                    # No name, no text: the first word read stands for what is there (an unnamed
+                    # initializer starts where the address points; what lies after it follows the
+                    # layout). Two helpers that differ only in such a table had one colour.
+                    b = img.ler(v & ~3, 4)
+                    return f'<@{b.hex()}{"@" + str(v & 3) if v & 3 else ""}>' if b else f'<?{v:#x}>'
                 n = nome_de(v, inicios, tab, aproximar=True)
             if n is None:
                 return conteudo(img, v, inicios, tab)
@@ -333,8 +345,10 @@ def colorir(fns, inicios, tab, img):
     helper of its own file, came out "equal").
 
     The colour is a hash of what the symbol is, not of where it is, so a layout move keeps it: for
-    a function its instructions, every address named by a symbol or a text, an unnamed one "<@>"; for
-    an object its bytes, a pointer in it named the same way. A reference to another symbol of a shared
+    a function its instructions, every address named by a symbol or a text, an unnamed one by the first
+    word read there ("<@" and the word; "<?0x..>" and the value when nothing can be read); for
+    an object its bytes, the words that lie in an address range masked (palavras_cegas( )). A reference
+    to another symbol of a shared
     name is named by that one's colour of the round before: round 0 leaves them "?", round 1 and 2
     use the colour of the round before, so that two helpers alike but for the helper they call differ
     (RODADAS rounds, fixed, because two images must reach the same colour for the same thing).
@@ -473,7 +487,7 @@ def mesmo_conteudo(x, y, va, vb, pa, pb):
     no name, a pair of instructions that only looks like one, is never this: the review of S2b
     broke the tool with it, and a halfword-aligned pointer is accepted only when it is named
     (the SDK's float shims keep a pointer at a halfword address, behind a table byte)."""
-    return (x == y and x.startswith('<') and x != '<?>' and eh_flash(va) and eh_flash(vb)
+    return (x == y and x.startswith('<') and not x.startswith('<?') and eh_flash(va) and eh_flash(vb)
             and pa % 4 == 0 and pb % 4 == 0)
 
 
@@ -516,11 +530,13 @@ def so_relocacao(nome, fa, fb, ctx_a, ctx_b):
 
 
 TEXTOS_ENTRE_ASPAS = re.compile(r'"[^"]*"')
+CONTEUDO = re.compile(r'^\.word <(?:CSWTCH)?\[')          # a pool word shown as the bytes behind it
 
 
 def constante_mudou(x, y):
     """True when a literal-pool word that renders as the content of an unnamed constant (a local
-    `const T t[] = {...}` has no symbol, so the word is shown as the bytes behind it) differs
+    `const T t[] = {...}` has no symbol, so the word is shown as the bytes behind it) or of a
+    switch table (CSWTCH, which has a number per translation unit and is shown by its content) differs
     between the two sides of one function, other than in the text of the strings it points at.
     so_relocacao( ) reads the function's own bytes and would excuse it: the bytes are equal when
     the pool word sits at the same address on both sides, and only the table behind it changed
@@ -529,7 +545,7 @@ def constante_mudou(x, y):
     a local table of names is reported as that text pair and not as the functions that load the
     table. What this leaves hidden: an entry of such a table made to point at another string
     that exists in both images (the pointer changes, no text does)."""
-    return any(p != q and (p.startswith('.word <[') or q.startswith('.word <['))
+    return any(p != q and (CONTEUDO.match(p) or CONTEUDO.match(q))
                and TEXTOS_ENTRE_ASPAS.sub('""', p) != TEXTOS_ENTRE_ASPAS.sub('""', q)
                for p, q in zip(x, y))
 
@@ -584,7 +600,12 @@ def alvo(w, inicios, tab, img):
     n = nome_de(w, inicios, tab)
     if n:
         base, _, off = n.partition('+')
-        return estavel(base) + ('+' + off if off else '') if not CSWTCH.match(base) else 'CSWTCH+' + off
+        if CSWTCH.match(base):
+            # By content, as normalizar( ) names it: "CSWTCH+off" made two tables of any content one
+            # target (review of the fixes, 2026-10-15).
+            i = bisect.bisect_right(inicios, w) - 1
+            return f'CSWTCH[{palavras(img.ler(tab[i][0], tab[i][1]), inicios, tab, img)}]{"+" + off if off else ""}'
+        return estavel(base) + ('+' + off if off else '')
     # Unnamed and not a text: what it holds, so a pointer to an edited table is not "the same".
     return texto_em(img, w) or conteudo(img, w, inicios, tab)
 
