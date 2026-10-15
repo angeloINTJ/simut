@@ -31,6 +31,11 @@ constexpr int16_t L_ICONE = 20, L_CHAVE = 40, H_CHAVE = 24;
 // The plan's square buttons (the stepper's minus and plus, the alignment arrows).
 constexpr int16_t L_BOTAO = 40;
 
+// Between the baselines of 9 pt text, the panel's smallest (tipo::apoio, tipo::rotulo,
+// since 2026-10-15): the capitals are 14 px, so the lines keep 4 px apart (the 7 pt
+// layout's 16 px kept 5 for its 11 px capitals).
+constexpr int16_t PASSO_APOIO = ESP4 + 2;
+
 // The plan's stepper card: 8 above the button, the button, 8 below.
 constexpr int16_t H_CARTAO = ESP2 + L_BOTAO + ESP2;
 
@@ -68,10 +73,18 @@ void desenharRodape( Pintor &p, const CaixasRodape &c, const char *primaria, Bot
 // disabled (the stepper at the end of its range, the pager without a page to go to).
 void botaoIcone( Pintor &p, const Caixa16 &c, IconeNome ic, bool ativo );
 
-// The kit's segmentado( ) in the regular small face. Its bold one is 68 px of ink
-// for "18 cartões", which in the 72 px segment the PIN policy has room for leaves
-// the active segment's line touching the text; the regular face is 62. Same boxes
-// (the width split evenly, 4 px between), same colours.
+// The segment `i` of a control of `n` segments over `w` px, 4 px between, `h` tall.
+// The kit's segmentado( ) floors each segment's width and leaves the remainder
+// blank after the last; here the first segments take it, a pixel each, so that a
+// control ends where its row's other controls do. With `w` 280 and n = 3 the
+// segments are 91, 91 and 90 px, and the alphabet control of the PIN policy (185 px,
+// n = 2) stands exactly under the keypad's last two (2026-10-15).
+Caixa16 segmento( int16_t x, int16_t y, int16_t w, int16_t h, int n, int i );
+
+// The kit's segmentado( ) in the regular small face. Its bold one is 87 px of ink
+// for "18 cartões" at 9 pt, which in the 90 px segments the PIN policy has room for
+// leaves 1.5 px of air against the active segment's line; the regular face is 78 (6
+// px). Same colours; the boxes are segmento( )'s.
 void segmentadoLeve( Pintor &p, int16_t x, int16_t y, int16_t w, int16_t h, const char *const *opcoes, int16_t n,
                      int16_t ativa );
 
