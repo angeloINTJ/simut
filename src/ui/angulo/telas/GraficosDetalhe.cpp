@@ -33,6 +33,23 @@ constexpr int16_t X_TEXTO = ESP2;
 constexpr int16_t LARGURA_TEXTO = W_CARTAO - X_TEXTO - ESP2;
 constexpr int16_t LARGURA_VALOR = W_CARTAO - X_TEXTO - ESP1;
 
+// The gap between a value and its unit, as the eye reads it. The kit's numero( ) puts the unit ESP1
+// after the value's ink, and on the pixels that is 4 blank columns after every digit (measured
+// 2026-10-15 on "1x" + "hPa" drawn as the card draws it), but the eye reads the mean distance
+// down the digit's height, and that differs with the shape of its right edge: the stem of a "1"
+// is 4.00 px from the "h" on all 12 rows, the diagonal of a "7" 4 at the top and 8 at the foot
+// (6.42 on average), and "1009,1hPa" read as glued while "1015,7 hPa" did not. Mean over the
+// rows, per last digit: 0 4.83, 1 4.00, 2 5.50, 3 5.08, 4 5.67, 5 5.00, 6 5.00, 7 6.42, 8 5.00,
+// 9 5.17. One pixel more after the "1" brings it to 5.00, and every digit is then between 4.83
+// and 6.42 (2.42 wide before). The "7" and the "4" are left wide, not pulled in to the mean:
+// at 3 px the "7"'s top bar read as glued to the "h" on the frame, and no digit is closer to
+// its unit than the 4 px they all have now. The widest value that keeps its unit still keeps
+// it ("1009,1 hPa" is 83 px of 84).
+int16_t folgaDaUnidade( const char *valor ) {
+  const int n = (int)strlen( valor );
+  return ( n > 0 && valor[n - 1] == '1' ) ? (int16_t)( ESP1 + 1 ) : (int16_t)ESP1;
+}
+
 struct Cartao {
   Caixa16 caixa;
   const char *rotulo;
@@ -136,11 +153,14 @@ void desenharDetalhe( Pintor &p, const VmDetalhe &vm ) {
       const int16_t x = (int16_t)( c.caixa.x + X_TEXTO );
       textoCentrado( p, c.rotulo, x, (int16_t)( c.caixa.y + ESP2 ), H_APOIO, tipo::rotulo, T.tinta2, 'l' );
       // The number in display type, the unit small and grey after it (in the
-      // regular weight: "hPa" is 29 px, 32 in bold); a value that would still run
+      // regular weight: "hPa" is 29 px, 32 in bold), with the gap the eye reads the
+      // same after every digit (folgaDaUnidade( )); a value that would still run
       // past the card goes without its unit.
-      const int16_t w = (int16_t)( larguraTinta( c.valor, Fonte::DISP9 ) + ESP1 + larguraTinta( c.unidade, tipo::apoio ) );
-      numero( p, x, (int16_t)( c.caixa.y + Y_VALOR ), c.valor, w <= LARGURA_VALOR ? c.unidade : "", Fonte::DISP9, T.tinta, 'l', tipo::apoio,
-              true, T.tinta2 );
+      const int16_t folga = folgaDaUnidade( c.valor );
+      const int16_t w = (int16_t)( larguraTinta( c.valor, Fonte::DISP9 ) + folga + larguraTinta( c.unidade, tipo::apoio ) );
+      const int16_t yValor = (int16_t)( c.caixa.y + Y_VALOR );
+      const Tinta t = p.texto( c.valor, x, yValor, Fonte::DISP9, T.tinta, 'l' );
+      if ( w <= LARGURA_VALOR ) p.texto( c.unidade, (int16_t)( t.x1 + folga ), yValor, tipo::apoio, T.tinta2, 'l' );
       if ( c.sub[0] ) textoCentrado( p, c.sub, x, (int16_t)( c.caixa.y + Y_SUB ), H_APOIO, tipo::apoio, T.tinta2, 'l' );
     }
   }
