@@ -3,9 +3,11 @@
 
 A entrada é um perfil — o produto e o que mudou —, o formato que o configurador
 (docs/configurador/) escreve. Em `set`, uma chave é um interruptor do manifesto
-(true ou false) ou `net`, a rede, que leva o id de um driver ([net.*] do manifesto):
+(true ou false), `net`, a rede, que leva o id de um driver ([net.*] do manifesto), ou
+`ui`, a UI do painel touch, que leva o id de um driver de UI ([ui.*] do manifesto):
 
     {"v": 1, "base": "pico_w_release", "set": {"net": "enc28j60", "sensor_ds18b20": false}}
+    {"v": 1, "base": "pico_wiretft", "set": {"ui": "angulo"}}
 
 A saída, em --out (padrão build-custom/), é o firmware em dois formatos — o
 .uf2, que se grava por USB (arrastar para a unidade RPI-RP2), e o .bin, que se
@@ -15,7 +17,7 @@ tamanhos medidos e os sha256.
 A entrada é NÃO CONFIÁVEL: chega por um workflow_dispatch que a página preenche,
 e qualquer string que alcançasse o profiles.ini viraria configuração do
 PlatformIO. Por isso a validação é estrita e vem antes de tudo: só as chaves do
-manifesto, true/false nos interruptores e, em `net`, só o id de um driver que o
+manifesto, true/false nos interruptores e, em `net` e em `ui`, só o id de um driver que o
 manifesto tem, só produtos que existem, tamanho limitado — e tudo o que impede a
 build (gen_features.blockers: as regras entre recursos, o driver que o chip não
 tem, o orçamento de PIO e de pinos) reaplicado aqui, porque a página não é a
@@ -97,6 +99,16 @@ def parse_spec(text, M):
             if value not in M["net"]:
                 raise SpecError(f"rede desconhecida: {value!r} (as do manifesto: {', '.join(M['net'])})")
             continue
+        if key == "ui":
+            # A UI do painel touch é a outra escolha de driver (2026-10-14), e vale o mesmo cuidado: o
+            # id de um [ui.*] do manifesto, em texto. O tipo vem antes do `in` (uma lista ou um objeto
+            # não é hashável), e o que passasse chegaria a gf.compose( ), que o indexa pelo id.
+            if not isinstance(value, str):
+                raise SpecError(f"ui tem de ser o id de um driver de UI ({', '.join(M['ui'])}), "
+                                f"não {value!r}")
+            if value not in M["ui"]:
+                raise SpecError(f"UI desconhecida: {value!r} (as do manifesto: {', '.join(M['ui'])})")
+            continue
         if key not in gf.TOGGLE_ORDER:
             raise SpecError(f"chave desconhecida: {key!r}")
         if not isinstance(value, bool):
@@ -117,8 +129,8 @@ def canonical(base, changes):
 
 def resolve(base, changes, M):
     prof = gf.resolve_profile(base, M["profiles"])
-    # `changes` traz chaves do TOGGLE_ORDER e `net`, o id do driver de rede (parse_spec
-    # conferiu os dois): o update poe as duas no perfil, onde compose( ) as le.
+    # `changes` traz chaves do TOGGLE_ORDER, `net`, o id do driver de rede, e `ui`, o do driver de UI
+    # (parse_spec conferiu os tres): o update poe todas no perfil, onde compose( ) as le.
     prof.update(changes)
     # Uma build do configurador vai para o campo, seja qual for o produto de base:
     # nunca confia na raiz de bancada, nem partindo de uma imagem de bancada

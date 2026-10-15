@@ -16,6 +16,7 @@ de saída que o workflow vê) e canonical().
 import hashlib
 import json
 import os
+import re
 import struct
 import subprocess
 import sys
@@ -89,6 +90,27 @@ HOSTILE = [
     ("rede em lista", AIR % '{"net":["cyw43"]}'),
     ("rede em objeto", AIR % '{"net":{"cyw43":true}}'),
     ("rede repetida no set", AIR % '{"net":"cyw43","net":"enc28j60"}'),
+    # A UI do painel touch e a outra escolha de driver (2026-10-14): `ui` leva o id de um [ui.*] do
+    # manifesto, como texto, e nada mais. Os mesmos ataques da rede: o que passasse chegaria a
+    # gf.compose( ), que indexa o manifesto pelo id, e a um [env] do PlatformIO.
+    ("ui em outra caixa", AIR % '{"UI":"original"}'),
+    ("ui com espaço", AIR % '{"ui ":"original"}'),
+    ("ui fora do set", '{"v":1,"base":"pico_w_air","ui":"angulo","set":{}}'),
+    ("UI desconhecida", AIR % '{"ui":"neon"}'),
+    ("UI curta", AIR % '{"ui":"x"}'),
+    ("UI em outra caixa", AIR % '{"ui":"Angulo"}'),
+    ("UI com acento", AIR % '{"ui":"Ângulo"}'),
+    ("UI com espaço", AIR % '{"ui":"angulo "}'),
+    ("UI vazia", AIR % '{"ui":""}'),
+    ("UI com quebra de linha", AIR % '{"ui":"angulo\\n[env:x]\\nbuild_flags = -DX"}'),
+    ("UI com comando embutido", AIR % '{"ui":"angulo\\n::warning::injetado"}'),
+    ("UI true", AIR % '{"ui":true}'),
+    ("UI false", AIR % '{"ui":false}'),
+    ("UI numérica", AIR % '{"ui":1}'),
+    ("UI null", AIR % '{"ui":null}'),
+    ("UI em lista", AIR % '{"ui":["angulo"]}'),
+    ("UI em objeto", AIR % '{"ui":{"angulo":true}}'),
+    ("UI repetida no set", AIR % '{"ui":"original","ui":"angulo"}'),
     ("grande demais", '{"v":1,"base":"pico_w_air","set":{}}' + " " * bc.MAX_SPEC),
 ]
 
@@ -136,6 +158,24 @@ CLI = [
     ('{"v":1,"base":"pico_w_release","set":{"net":1}}', 2, "net tem de ser o id de um driver de rede"),
     ('{"v":1,"base":"pico_w_release","set":{"lan":true}}', 2, "chave desconhecida: 'lan'"),
     ('{"v":1,"base":"pico_w_air","set":{"wifi":true}}', 2, "chave desconhecida"),
+    # A UI do painel touch (2026-10-14): o Angulo desenha na TFT (a regra angulo-needs-tft), e o
+    # original, o padrao, vale em qualquer mostrador. O pico_wiretft_angulo e o pico_wiretft com
+    # `ui = "angulo"`, e o perfil nao precisa de aviso: o texto da opcao diz que e um estudo.
+    ('{"v":1,"base":"pico_wiretft","set":{"ui":"angulo"}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico_wiretft_angulo","set":{}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico_wiretft_angulo","set":{"ui":"original"}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico_w_release","set":{"ui":"angulo"}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico2_w_release","set":{"ui":"angulo"}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico_w_release","set":{"ui":"original"}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico_w_alpha","set":{"ui":"original"}}', 0, "perfil válido"),
+    ('{"v":1,"base":"pico_w_alpha","set":{"ui":"angulo"}}', 2, "regra angulo-needs-tft"),
+    ('{"v":1,"base":"pico_w_air","set":{"ui":"angulo"}}', 2, "regra angulo-needs-tft"),
+    ('{"v":1,"base":"pico_wire","set":{"ui":"angulo"}}', 2, "regra angulo-needs-tft"),
+    ('{"v":1,"base":"pico_wiretft","set":{"ui":"angulo"}}', 0, "aviso enc28j60-unsoaked"),
+    ('{"v":1,"base":"pico_w_release","set":{"ui":"neon"}}', 2, "UI desconhecida: 'neon'"),
+    ('{"v":1,"base":"pico_w_release","set":{"ui":"x"}}', 2, "UI desconhecida: 'x'"),
+    ('{"v":1,"base":"pico_w_release","set":{"ui":true}}', 2, "ui tem de ser o id de um driver de UI"),
+    ('{"v":1,"base":"pico_w_release","set":{"ui":1}}', 2, "ui tem de ser o id de um driver de UI"),
     ("", 2, "perfil vazio"),
 ]
 
@@ -235,6 +275,37 @@ for prof in M["profiles"]:
     check(gf.compose(bc.resolve(prof, {"net": own}, M), M) == gf.compose(bc.resolve(prof, {}, M), M),
           f"{prof}: escolher o próprio driver ({own}) mudou o ambiente")
 
+# A UI do painel touch é a outra escolha de driver (2026-10-14), e anda como a rede: `ui` chega ao
+# perfil resolvido como o id do driver, muda o ambiente composto só pelo que o manifesto diz dele
+# ([ui.<id>]: os flags, a identidade), e não mexe em nenhuma chave. Os valores saem do manifesto.
+check("ui" not in gf.TOGGLE_ORDER, "ui entrou no TOGGLE_ORDER: deixou de ser uma escolha de driver")
+for n in M["ui"]:   # cada driver do manifesto entra, e só ele
+    got = parsed(AIR % json.dumps({"ui": n}))
+    check(got == ("pico_w_air", {"ui": n}), f"parse_spec recusou ou mudou o driver de UI {n!r}: {got!r}")
+ui_flags = M["ui"]["angulo"]["flags"]
+asked = {"ui": "angulo", "sensor_dht22": False}
+got = parsed(json.dumps({"v": 1, "base": "pico_wiretft", "set": asked}))
+check(got == ("pico_wiretft", asked), f"parse_spec mudou a UI e o sensor pedidos: {got!r}")
+flipped = bc.resolve("pico_wiretft", asked, M)
+shipped = gf.resolve_profile("pico_wiretft", M["profiles"])
+check("ui" not in shipped and flipped["ui"] == "angulo",
+      f"ui não chegou ao perfil resolvido: {shipped.get('ui')!r} -> {flipped.get('ui')!r}")
+diff = {k for k in gf.TOGGLE_ORDER if bool(flipped.get(k)) != bool(shipped.get(k))}
+check(diff == {"sensor_dht22"}, f"a UI mexeu em chave que ninguém pediu: {sorted(diff)}")
+built, was = gf.compose(flipped, M), gf.compose(shipped, M)
+check(all(f in built["flags"] and f not in was["flags"] for f in ui_flags),
+      f"a identidade do driver de UI {ui_flags} não foi só para a build que o escolhe")
+check(not any(re.match(r"-DSIMUT_UI_(ORIGINAL|CUSTOM_THEMES)\b", f) for f in built["flags"] + was["flags"]),
+      "um macro derivado da UI foi passado por -D: ele sai do driver em src/ui/UiCaps.h")
+# O perfil de bancada é o pico_wiretft com a UI trocada, e escolher o driver que o produto já tem
+# compõe o mesmo ambiente que não escolher.
+check(gf.compose(bc.resolve("pico_wiretft_angulo", {}, M), M) == gf.compose(bc.resolve("pico_wiretft", {"ui": "angulo"}, M), M),
+      "o pico_wiretft_angulo não é o pico_wiretft com ui = angulo")
+for prof in M["profiles"]:
+    own = gf.resolve_profile(prof, M["profiles"]).get("ui", gf.DEFAULT_UI)
+    check(gf.compose(bc.resolve(prof, {"ui": own}, M), M) == gf.compose(bc.resolve(prof, {}, M), M),
+          f"{prof}: escolher a própria UI ({own}) mudou o ambiente")
+
 # Forma canônica: a ordem em que as chaves chegam não muda o nome da build.
 a = bc.canonical("pico_w_alpha", {"mdns": True, "bluetooth": False})
 b = bc.canonical("pico_w_alpha", {"bluetooth": False, "mdns": True})
@@ -249,6 +320,14 @@ check(a == '{"base":"pico_w_release","set":{"mdns":true,"net":"enc28j60","sensor
       f"canonical mudou a grafia de `net` (a página escreve a mesma): {a}")
 check(bc.canonical("pico_w_release", {"net": "enc28j60"}) != bc.canonical("pico_w_release", {"net": "cyw43"}),
       "canonical dá o mesmo nome a duas redes diferentes")
+# `ui` é texto e ordena com as outras chaves: a grafia que a página escreve.
+a = bc.canonical("pico_wiretft", {"ui": "angulo", "sensor_dht22": False, "mdns": True})
+b = bc.canonical("pico_wiretft", {"mdns": True, "sensor_dht22": False, "ui": "angulo"})
+check(a == b, "canonical depende da ordem de `ui` entre as chaves")
+check(a == '{"base":"pico_wiretft","set":{"mdns":true,"sensor_dht22":false,"ui":"angulo"},"v":1}',
+      f"canonical mudou a grafia de `ui` (a página escreve a mesma): {a}")
+check(bc.canonical("pico_wiretft", {"ui": "angulo"}) != bc.canonical("pico_wiretft", {"ui": "original"}),
+      "canonical dá o mesmo nome a duas UIs diferentes")
 
 for text, want, needle in CLI:
     r = subprocess.run([sys.executable, os.path.join(HERE, "build_custom.py"), "--validate-only"],
@@ -262,7 +341,8 @@ for text, want, needle in CLI:
 # a recusa sai como UMA anotação de erro, escapada. Vale para a chave e, desde que a
 # rede é uma escolha de texto (2026-10-13), para o valor de `net`.
 for where, evil in (("na chave", AIR % '{"mdns\\n::warning::injetado":true}'),
-                    ("no valor de net", AIR % '{"net":"cyw43\\n::warning::injetado"}')):
+                    ("no valor de net", AIR % '{"net":"cyw43\\n::warning::injetado"}'),
+                    ("no valor de ui", AIR % '{"ui":"angulo\\n::warning::injetado"}')):
     r = subprocess.run([sys.executable, os.path.join(HERE, "build_custom.py"), "--validate-only"],
                        env={**os.environ, "SIMUT_PROFILE": evil, "GITHUB_ACTIONS": "true"},
                        capture_output=True, text=True)
@@ -394,6 +474,7 @@ if failures:
     sys.exit(1)
 print(f"test_build_custom: {len(HOSTILE)} perfis hostis recusados, {len(M['profiles'])} produtos "
       f"iguais ao manifesto, {len(CLI)} casos pela linha de comando, a rede como escolha de "
-      f"driver ({len(M['net'])} do manifesto: {', '.join(M['net'])}), log sem comando injetado; "
+      f"driver ({len(M['net'])} do manifesto: {', '.join(M['net'])}), a UI do painel como a outra "
+      f"({len(M['ui'])}: {', '.join(M['ui'])}), log sem comando injetado; "
       f"imagens e tetos de cada chip, e o acabamento depois da assinatura (Pico 2 W, Pico W, "
       f"Pico 2 W sem tabela).")
