@@ -588,9 +588,9 @@
    "bin": 785672
   },
   "pico_wiretft_angulo": {
-   "budget": 811064,
-   "measured": 811064,
-   "bin": 823096
+   "budget": 811192,
+   "measured": 811192,
+   "bin": 823224
   }
  }
 }

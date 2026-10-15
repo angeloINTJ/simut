@@ -1,9 +1,9 @@
 /**
  * @file DisplayManager_Actions.h
- * @brief The core's touch actions of the Painel group (the dashboard and the alarm's action screen): what a touch
- *        on one of their zones does to the state, defined once, inline, so that the original's handleTouch( ) and a
- *        driver's own touch glue (the Ângulo's uaToquePainel( )) run the same code and not a copy (stage S5 of
- *        docs/analysis/UI_DRIVERS.md).
+ * @brief The core's touch actions of the Painel group (the dashboard and the alarm's action screen) and of the Base group (the
+ *        confirmation dialogs): what a touch on one of their zones does to the state, defined once, inline, so that the original's
+ *        handleTouch( ) and a driver's own touch glue (the Ângulo's uaToquePainel( ) and uaToqueBase( )) run the same code and not a
+ *        copy (stages S5 and S6 of docs/analysis/UI_DRIVERS.md).
  *
  * Each action is declared in class DisplayManager as `inline __attribute__((always_inline))`, next to the core's
  * ticks, and called where its code used to sit, so the compiled image keeps the code it had. The zone decides which
@@ -12,8 +12,8 @@
  * by name.
  *
  * Included LAST, after ui/UiDriverHooks.h, by DisplayManager_Touch.cpp and DisplayManager_Users.cpp, and by the Ângulo's
- * DisplayManager_UiA_Painel.cpp (which includes no hooks header: the Ângulo's hooks are ordinary functions): an action leans on
- * the hook definitions the original inlines, so a unit that takes the actions takes the hooks first.
+ * DisplayManager_UiA_Painel.cpp and DisplayManager_UiA.cpp (neither includes a hooks header: the Ângulo's hooks are ordinary
+ * functions): an action leans on the hook definitions the original inlines, so a unit that takes the actions takes the hooks first.
  */
 #pragma once
 
@@ -287,4 +287,46 @@ inline __attribute__((always_inline)) void DisplayManager::actTopCardPress( bool
  * clears it and ends its wait. There is no gate: the flag is set again on every sample of the press and read once. */
 inline __attribute__((always_inline)) void DisplayManager::actBootSkip( ) {
 	_skipPressed = true;
+}
+
+/* The Base group's confirmations (MODE_CONFIRM_MUTE_ALL, MODE_SETTINGS_USER_CONFIRM_DEL, MODE_CONFIRM_AP): what each button does once
+ * its gate has let the touch through. Whoever decided which button was hit holds the gate its old zone held, acceptTouch( ) with the
+ * zone's number, except where a comment below says the gate is inside the action. */
+
+/* "Mute all", Back: cancel, and return to the sounds screen with nothing changed. The caller holds acceptTouch( 0xC0 ). */
+inline __attribute__((always_inline)) void DisplayManager::actMuteAllBack( ) {
+	/* Back — cancel, return to Sounds menu without changes. */
+	_uiMode = MODE_SETTINGS_SOUNDS;
+	_forceSettingsRedraw = true;
+	_repaintSettings = true;
+}
+
+/* "Mute all", Confirm, its gate included. The gate is hand-written because acceptTouch( ) would fire the touch's click, and the
+ * confirmation sound plays instead. Applies the mute to all seven sound settings (the web does the same) and returns to the sounds
+ * screen, where Save sends them to Core 0. Moved as it stood, early return and all: nothing follows the mode chain of handleTouch( ),
+ * so a touch the gate refuses ends there, as it did when the code sat in the branch. */
+inline __attribute__((always_inline)) void DisplayManager::actMuteAllConfirm( ) {
+	/* Manual acceptance gate (no acceptTouch which would fire
+	 * SND_TOUCH_CLICK). We fire SND_CONFIRM before applying mute to
+	 * give "action confirmed" feedback — the sound reaches Core 0 and is
+	 * processed before save. _muted in SoundManager only changes on save. */
+	if (!_touchReleased) return;
+	_touchReleased = false;
+	_lastTouchRegion = 0xC1;
+	_lastRegionTouchTime = millis( );
+	_lastTouchTimestamp = millis( );
+	_touchSoundPending = false; /* no touch beep */
+	requestPreviewSound(SND_CONFIRM, _soundSettings.confirmMelody);
+
+	/* Confirm — applies mute=true and turns off all sounds (web parity). */
+	_soundSettings.muted = true;
+	_soundSettings.touchEnabled = false;
+	_soundSettings.confirmEnabled = false;
+	_soundSettings.errorEnabled = false;
+	_soundSettings.alarmEnabled = false;
+	_soundSettings.webEnabled = false;
+	_soundSettings.attentionEnabled = false;
+	_uiMode = MODE_SETTINGS_SOUNDS;
+	_forceSettingsRedraw = true;
+	_repaintSettings = true;
 }

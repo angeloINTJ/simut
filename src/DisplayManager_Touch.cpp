@@ -1411,35 +1411,10 @@ void DisplayManager::handleTouch( ) {
  if (y >= 190 && y <= 230) {
  if (x >= 20 && x <= 150) {
  if (!acceptTouch(0xC0)) return;
- /* Back — cancel, return to Sounds menu without changes. */
- _uiMode = MODE_SETTINGS_SOUNDS;
- _forceSettingsRedraw = true;
- _repaintSettings = true;
+ actMuteAllBack( );
  }
  else if (x >= 170 && x <= 300) {
- /* Manual acceptance gate (no acceptTouch which would fire
- * SND_TOUCH_CLICK). We fire SND_CONFIRM before applying mute to
- * give "action confirmed" feedback — the sound reaches Core 0 and is
- * processed before save. _muted in SoundManager only changes on save. */
- if (!_touchReleased) return;
- _touchReleased = false;
- _lastTouchRegion = 0xC1;
- _lastRegionTouchTime = millis( );
- _lastTouchTimestamp = millis( );
- _touchSoundPending = false; /* no touch beep */
- requestPreviewSound(SND_CONFIRM, _soundSettings.confirmMelody);
-
- /* Confirm — applies mute=true and turns off all sounds (web parity). */
- _soundSettings.muted = true;
- _soundSettings.touchEnabled = false;
- _soundSettings.confirmEnabled = false;
- _soundSettings.errorEnabled = false;
- _soundSettings.alarmEnabled = false;
- _soundSettings.webEnabled = false;
- _soundSettings.attentionEnabled = false;
- _uiMode = MODE_SETTINGS_SOUNDS;
- _forceSettingsRedraw = true;
- _repaintSettings = true;
+ actMuteAllConfirm( );
  }
  }
  }

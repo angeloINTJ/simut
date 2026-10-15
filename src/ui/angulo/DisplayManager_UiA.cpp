@@ -26,6 +26,7 @@
 #include "telas/Base.h"
 #include "telas/PainelBoot.h"   /* BOOT_PULAR */
 #include "telas/Telas.h"
+#include "../../DisplayManager_Actions.h"   /* the core's touch actions, which the confirmations' buttons run; last */
 
 alignas( 8 ) uint8_t g_uaVm[UA_VM_MAX];
 volatile int8_t g_uaNav[5] = { UA_NAV_NADA, UA_NAV_NADA, UA_NAV_NADA, UA_NAV_NADA, UA_NAV_NADA };
@@ -591,7 +592,8 @@ bool DisplayManager::uaMontarBase( UaQuadro &q ) {
   }
 }
 
-/* All three are translations: the old handlers do what they always did. */
+/* The panel message and the account deletion are translations: the old handlers do what they always did. The mute-all confirmation
+ * runs the core's actions (DisplayManager_Actions.h), the code the original's branch runs. */
 UaToque DisplayManager::uaToqueBase( const ua::Alvo *a, int16_t &x, int16_t &y ) {
   using namespace ua::tela;
   switch ( _uiMode ) {
@@ -601,10 +603,12 @@ UaToque DisplayManager::uaToqueBase( const ua::Alvo *a, int16_t &x, int16_t &y )
       x = 160; y = 205;
       return UaToque::TRADUZIDO;
     case MODE_CONFIRM_MUTE_ALL:
-      /* Old: back x 20..150, confirm x 170..300, y 190..230 (Touch.cpp). */
+      /* Confirm holds its own gate, a hand-written one with no touch click; Back takes the gate its old zone held, acceptTouch( 0xC0 )
+       * (Touch.cpp). Any target but Confirm is Back, as it was when the point was moved. */
       if ( !a ) return UaToque::TRATADO;
-      x = a->tipo == DLG_SIM ? 235 : 85; y = 210;
-      return UaToque::TRADUZIDO;
+      if ( a->tipo == DLG_SIM ) actMuteAllConfirm( );
+      else if ( acceptTouch( 0xC0 ) ) actMuteAllBack( );
+      return UaToque::TRATADO;
     case MODE_SETTINGS_USER_CONFIRM_DEL:
       /* Old: y >= 195, cancel x < 160, delete x >= 160 (Users.cpp). */
       if ( !a ) return UaToque::TRATADO;

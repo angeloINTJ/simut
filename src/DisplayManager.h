@@ -1544,7 +1544,9 @@ private:
 	 * driver. Whoever decided which zone was hit holds its gate (acceptTouch( ) and its kin); the action is what follows it.
 	 * The Painel group. The alarm's action screen: silence, deactivate, back to the dashboard in min/max. The dashboard:
 	 * the upper card (its gate and the 3 s hold are inside the action), the lower card and the row of buttons under the cards
-	 * (the row's gates depend on the kind of the button, so they are inside the action). The boot screen: the skip button. */
+	 * (the row's gates depend on the kind of the button, so they are inside the action). The boot screen: the skip button.
+	 * The Base group, the confirmation dialogs: the mute-all confirmation's two buttons (Back, and Confirm, whose hand-written gate is
+	 * inside the action). */
 	inline __attribute__((always_inline)) void actAlarmSilence( );
 	inline __attribute__((always_inline)) void actAlarmDeactivate( );
 	inline __attribute__((always_inline)) void actAlarmShowMinMax( );
@@ -1552,6 +1554,8 @@ private:
 	inline __attribute__((always_inline)) void actNavButton( int btnIdx );
 	inline __attribute__((always_inline)) void actTopCardPress( bool onGraphBtn );
 	inline __attribute__((always_inline)) void actBootSkip( );
+	inline __attribute__((always_inline)) void actMuteAllBack( );
+	inline __attribute__((always_inline)) void actMuteAllConfirm( );
 
 	struct ActiveLang {
 		char name[16];
