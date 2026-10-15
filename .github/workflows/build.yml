@@ -108,7 +108,7 @@ jobs:
         run: python3 tools/check_air_consistency.py
 
       # The feature model (docs/analysis/MODELO_DE_RECURSOS.md, P1): tools/
-      # features.toml is the single source, gen_features.py derives the seven
+      # features.toml is the single source, gen_features.py derives the ten
       # firmware environments into tools/generated/profiles.ini, and
       # platformio.ini includes that file via extra_configs (it no longer
       # defines [env:pico_w_*]). --check keeps the generated files in sync with
@@ -455,6 +455,22 @@ jobs:
           # The SIMUT Wire with the TFT panel (2026-10-13): pico_wire with the
           # touch display, so the TFT side of a wired build compiles here too.
           - pico_wiretft
+          # The Ângulo UI driver's bench image (2026-10-14): pico_wiretft with the
+          # touch panel drawn by src/ui/angulo/ (-DSIMUT_UI_ANGULO=1, the manifest's
+          # `ui = "angulo"`) instead of the original's. Transitional, not approved
+          # for products, bench only (publish = false). What is transitional is the
+          # touch: its screens still hand most touches to the old layout's handler.
+          # The old drawing code is not in it: each old draw function returns at
+          # its top, so the compiler and --gc-sections drop the rest, and about
+          # 1.4 kB of the original's ~57 kB stay linked (UI_DRIVERS.md, measured
+          # 2026-10-14 on the study's image). Its .bin is 831,560 B against
+          # pico_wiretft's 785,736 (+45,824, measured 2026-10-14 on a PlatformIO
+          # core patched as CI's). Building it here keeps the driver, and the hooks
+          # it has in the files every TFT image builds, compiling under -Werror, and
+          # holds its size to tools/flash_budget.json, whose budget is a high-water
+          # mark that moves with the driver's stages. Like pico_wire and
+          # pico_wiretft it is not a required check (CLAUDE.md says which nine are).
+          - pico_wiretft_angulo
     name: firmware (${{ matrix.env }})
     steps:
       - uses: actions/checkout@v7
@@ -520,7 +536,7 @@ jobs:
       # skips that part of the test; after a build both are on disk, and
       # `require` makes a source that went missing a failure instead of a skip
       # nobody reads. Two images are enough: the libraries are pico_base's, the
-      # same in all nine, except the ENC28J60's, which only the wired images
+      # same in all ten, except the ENC28J60's, which only the wired images
       # pull. pico_w_release is a required check and holds the other four;
       # pico_wire names the ENC28J60 header, and a named header is required.
       - name: PIO program sizes match their sources
@@ -543,7 +559,7 @@ jobs:
       # HTTPServer.cpp on the host against a client that records every write,
       # then takes each rule out of a copy and expects the scenario named for
       # it to fail. `require` makes a missing framework a failure, not a skip.
-      # One image is enough: the WebServer library is the same in all nine.
+      # One image is enough: the WebServer library is the same in all ten.
       - name: WebServer write buffer (override 2n), on the host
         if: matrix.env == 'pico_w_release'
         env:
