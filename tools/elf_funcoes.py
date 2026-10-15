@@ -50,7 +50,9 @@ What "equal" does not cover:
     code that is no change; for two variables it is another variable;
   - a call through a veneer to a symbol of a shared name carries no colour, and a colour sees three
     levels of shared names (RODADAS); a table of pointers of a shared name has its pointers
-    masked in the colour, so two that differ only in where they point share one; and an unnamed
+    masked in the colour, so two that differ only in where they point share one (a real instance,
+    measured 2026-10-15 in the pico_wiretft baseline: BearSSL's HASH_OID, three tables of 20 bytes
+    with one colour, 66b3b6c8, and two different contents); and an unnamed
     constant counts in a colour by its first word only, so two helpers whose unnamed tables differ
     after it share one;
   - a function whose bytes are equal and whose text differs only in literal-pool words is
@@ -345,7 +347,8 @@ def colorir(fns, inicios, tab, img):
     The colour is a hash of what the symbol is, not of where it is, so a layout move keeps it: for
     a function its instructions, every address named by a symbol or a text, an unnamed one by the first
     word read there ("<@" and the word; "<?0x..>" and the value when nothing can be read); for
-    an object its bytes, a pointer in it named the same way. A reference to another symbol of a shared
+    an object its bytes, the words that lie in an address range masked (palavras_cegas( )). A reference
+    to another symbol of a shared
     name is named by that one's colour of the round before: round 0 leaves them "?", round 1 and 2
     use the colour of the round before, so that two helpers alike but for the helper they call differ
     (RODADAS rounds, fixed, because two images must reach the same colour for the same thing).
