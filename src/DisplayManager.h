@@ -1553,7 +1553,12 @@ private:
 	 * The Gráficos group, the graph and the update screen: the X that closes the graph or its detail, the header's tap (the sensor's name for 3 s), a
 	 * step in time, the calendar, another period, the chart's central zone (it opens the detail), the detail's pages and its way back to the chart, the calendar's way back and its month arrows, a day
 	 * and Today, and the update screen's tap. The ones that read the graph's package take it as an argument, `g`, and the caller passes _graphData: the
-	 * member exists only when SIMUT_TFT_GRAPH is set, and a declaration here cannot say so without a block of its own. */
+	 * member exists only when SIMUT_TFT_GRAPH is set, and a declaration here cannot say so without a block of its own.
+	 * The Ajustes 1 group, the settings screens of the themes, the language, the clock, the display alignment and the sounds: the themes' and the
+	 * language's Apply (the row they apply is the caller's), the clock entry (leaving it, Save, and a column's step), the display alignment (the
+	 * four arrows and Redefinir say whether the preview moved, a tail applies it to the panel, Voltar puts the saved offset back and Salvar asks
+	 * Core 0), the melody picker (a row or an arrow picks and previews, Voltar, Usar, and opening it from the sounds list) and the sounds list
+	 * (the two volumes, a switch, Silenciar tudo and Salvar). */
 	inline __attribute__((always_inline)) void actAlarmSilence( );
 	inline __attribute__((always_inline)) void actAlarmDeactivate( );
 	inline __attribute__((always_inline)) void actAlarmShowMinMax( );
@@ -1582,6 +1587,28 @@ private:
 	inline __attribute__((always_inline)) void actCalendarDay( const GraphDataPackage &g, int day );
 	inline __attribute__((always_inline)) void actCalendarToday( const GraphDataPackage &g );
 	inline __attribute__((always_inline)) void actOtaDismiss( );
+	inline __attribute__((always_inline)) void actApplyTheme( int idx );
+	inline __attribute__((always_inline)) void actApplyLang( int idx );
+	inline __attribute__((always_inline)) void actClockLeave( );
+	inline __attribute__((always_inline)) void actClockSave( );
+	inline __attribute__((always_inline)) void actClockStep( uint8_t i, int delta );
+	inline __attribute__((always_inline)) bool actOffsetUp( );
+	inline __attribute__((always_inline)) bool actOffsetDown( );
+	inline __attribute__((always_inline)) bool actOffsetLeft( );
+	inline __attribute__((always_inline)) bool actOffsetRight( );
+	inline __attribute__((always_inline)) bool actOffsetCentre( );
+	inline __attribute__((always_inline)) void actOffsetPreview( );
+	inline __attribute__((always_inline)) void actOffsetBack( );
+	inline __attribute__((always_inline)) void actOffsetApply( );
+	inline __attribute__((always_inline)) void actMelodyPick( uint8_t idx );
+	inline __attribute__((always_inline)) void actMelodyBack( );
+	inline __attribute__((always_inline)) void actMelodyUse( );
+	inline __attribute__((always_inline)) void actMelodyOpen( uint8_t type, uint8_t cur );
+	inline __attribute__((always_inline)) void actSoundVolume( bool down );
+	inline __attribute__((always_inline)) void actAlarmVolume( bool down );
+	inline __attribute__((always_inline)) void actSoundToggle( bool &flag );
+	inline __attribute__((always_inline)) void actMuteToggle( );
+	inline __attribute__((always_inline)) void actSaveSounds( );
 
 	struct ActiveLang {
 		char name[16];

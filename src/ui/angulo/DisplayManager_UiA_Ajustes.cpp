@@ -30,6 +30,7 @@
 #include "UiA.h"
 #include "telas/Ajustes.h"
 #include "telas/Telas.h"
+#include "../../DisplayManager_Actions.h"   /* the core's touch actions, which the clock, the alignment and the sounds run; last */
 
 namespace {
 

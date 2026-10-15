@@ -14,7 +14,8 @@
  * by name.
  *
  * Included LAST, after ui/UiDriverHooks.h, by DisplayManager_Touch.cpp and DisplayManager_Users.cpp, and by the Ângulo's
- * DisplayManager_UiA_Painel.cpp, DisplayManager_UiA.cpp, DisplayManager_UiA_Menus.cpp and DisplayManager_UiA_Graficos.cpp (none
+ * DisplayManager_UiA_Painel.cpp, DisplayManager_UiA.cpp, DisplayManager_UiA_Menus.cpp, DisplayManager_UiA_Graficos.cpp and
+ * DisplayManager_UiA_Ajustes.cpp (none
  * includes a hooks header: the Ângulo's hooks are ordinary functions): an action leans on the hook definitions the original inlines,
  * so a unit that takes the actions takes the hooks first.
  */
