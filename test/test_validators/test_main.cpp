@@ -5218,7 +5218,10 @@ void test_graph_anchor_a_period_switch_keeps_the_way_back_to_the_present(void) {
 /* A window that ends at the clock or after it is the live window, with no base (the old clamp against the future): the calendar's today stepped
  * forward, a back that is still ahead, a step that lands exactly on the clock (a `>` in place of the `>=` fails here), and the test dropped. A
  * calendar window one second short of the clock is the past: there is no tolerance left in the rule. And a window 100 s ahead, one hour back, is
- * 3,500 s behind: placed from the anchor, not from the clock. */
+ * 3,500 s behind: placed from the anchor, not from the clock. The test of the clock holds with a base too: the live window left one day back, then
+ * the clock set back three days (NTP replacing a provisional clock that ran ahead, or a manual time), and one more day back ends a day after the
+ * clock, so it is the live window. Tested only without a base, a `liveBase == 0` added to that test passed all 316 cases and drew that window as
+ * the past (review of d2bf3cd, 2026-10-15). */
 void test_graph_anchor_stepping_to_or_past_the_clock_is_the_live_window(void) {
     for (int i = 0; i < 5; i++) {
         const time_t s = GA_STEP[i];
@@ -5228,6 +5231,9 @@ void test_graph_anchor_stepping_to_or_past_the_clock_is_the_live_window(void) {
         ga_expect(GA_NOW - 1, 0, -1, graphAnchorStep(GA_NOW - 1 - s, 0, GA_NOW, +1, s));
     }
     ga_expect(GA_NOW - 3500, 0, -1, graphAnchorStep(GA_NOW + 100, 0, GA_NOW, -1, 3600));
+    const GraphAnchorPlace b1 = graphAnchorStep(0, 0, GA_NOW, -1, GA_D);
+    ga_expect(GA_NOW - GA_D, GA_NOW, -1, b1);
+    ga_live(graphAnchorStep(b1.anchorEnd, b1.liveBase, GA_NOW - 3 * GA_D, -1, GA_D));
 }
 
 /* A window well in the past moves by whole periods, with a base and without one: ten periods back, +1 is nine, -2 is twelve, +9 is one, and +10 or
