@@ -12,9 +12,12 @@ own unit — the panel mirror into `WebManager_History.cpp`, `POST /api/tls` int
 `python3 tools/check_authz.py --list` to print the live matrix straight from the
 source.
 
-A UI driver's routes (any `.cpp` or `.h` under `src/ui/`, at any depth: today only
-the Ângulo's `GET /api/ui`, in `src/ui/angulo/WebManager_UiA.cpp`) are parsed by
-the same rules and a finding there fails the check,
+A UI driver's routes (any file under `src/ui/`, at any depth, with a C or C++
+source or header extension: `c`, `cc`, `cpp`, `cxx`, `h`, `hh`, `hpp`, `hxx`, `inl`,
+`ipp` or `tpp`, the `DRIVER_EXTS` of the gate, which the pre-commit hook and
+`tools/test_check_authz.py` hold to the same list; today only the Ângulo's
+`GET /api/ui`, in `src/ui/angulo/WebManager_UiA.cpp`) are parsed by the same rules
+and a finding there fails the check,
 but the gate counts them on a line of their own, outside the totals the READMEs
 quote: no published image carries one yet. They are in the tables below, marked
 **driver**.

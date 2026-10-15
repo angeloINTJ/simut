@@ -23,14 +23,23 @@ The UI drivers' routes are audited too, but counted apart (2026-10-14). The
 Angulo driver (tools/features.toml, [ui.angulo]) registers GET /api/ui from
 src/ui/angulo/WebManager_UiA.cpp, a unit only an image built with ui = "angulo"
 compiles, and the pico_base filter does not reach that subdirectory. Its handler
-needs the same gate as any other, so the gate parses every .cpp and .h under
-src/ui/, at any depth and whatever the file is called, by the same rules, and a
-finding there fails the check. By convention a driver registers its routes from
-its own WebManager*.cpp, but a convention is not a gate: the first version read
-only src/ui/*/WebManager*.cpp, and a route moved into a screen's file
+needs the same gate as any other, so the gate parses every C or C++ source or
+header under src/ui/ (the extensions of DRIVER_EXTS: c, cc, cpp, cxx, h, hh, hpp,
+hxx, inl, ipp, tpp), at any depth and whatever the file is called, by the same
+rules, and a finding there fails the check. By convention a driver registers its
+routes from its own WebManager*.cpp, but a convention is not a gate: the first
+version read only src/ui/*/WebManager*.cpp, and a route moved into a screen's file
 (src/ui/angulo/telas/) was not audited at all (found by the review of S2a,
-2026-10-14; the same route, moved there ungated, now fails the check). What it
-does not do is add the route to the totals: those are the routes of the published images,
+2026-10-14; the same route, moved there ungated, now fails the check). The second
+read ".cpp" and ".h" and nothing else, so a route registered from a .hpp, .inl,
+.ipp, .cc or .cxx was not audited either: no finding, exit 0, the same as a
+clean file (found by a review on 2026-10-15). The list is wider than what a build
+compiles on purpose, since a file that is only #included (an .inl, a .tpp)
+registers its routes all the same; documents and leftovers (.md, .orig) are not
+on it, being no code. The pre-commit hook simut-authz fires on the same list (the
+`files:` of .pre-commit-config.yaml), and tools/test_check_authz.py moves the real
+route, ungated, into a file of each extension and holds the hook to DRIVER_EXTS.
+What the gate does not do is add the route to the totals: those are the routes of the published images,
 tools/check_readme_numbers.py holds them against the three READMEs, and no
 published image carries a driver route yet (the Angulo driver is a bench image,
 profile pico_wiretft_angulo, publish = false). The route gets a line of its
@@ -68,10 +77,17 @@ SRC = os.path.join(ROOT, "src")
 # Every WebManager*.cpp, so a route is audited wherever a feature registers it
 # (see the module docstring). Sorted for a stable scan order.
 ROUTES_FILES = sorted(glob.glob(os.path.join(SRC, "WebManager*.cpp")))
+# The extensions of the files a UI driver's routes can be registered from. A route
+# in a file the gate never opens is not a finding but an absence, and it looks
+# exactly like a clean file: with ("cpp", "h") alone, a route moved into a .hpp or
+# an .inl passed the gate and the hook (found by a review on 2026-10-15). Named, so
+# that the hook's `files:` pattern is held to this list by tools/test_check_authz.py.
+DRIVER_EXTS = ("c", "cc", "cpp", "cxx", "h", "hh", "hpp", "hxx", "inl", "ipp", "tpp")
 # The UI drivers' route files: audited by the same rules, reported apart (see
-# the module docstring). Every .cpp and .h under src/ui/ at any depth, so a new
-# driver's routes, and a route in any of its files, are found without an edit.
-DRIVER_FILES = sorted(p for ext in ("cpp", "h")
+# the module docstring). Every file with one of DRIVER_EXTS under src/ui/ at any
+# depth, so a new driver's routes, and a route in any of its files, are found
+# without an edit.
+DRIVER_FILES = sorted(p for ext in DRIVER_EXTS
                       for p in glob.glob(os.path.join(SRC, "ui", "**", "*." + ext), recursive=True))
 
 # Tokens whose presence in a handler body proves it performs an authorization
