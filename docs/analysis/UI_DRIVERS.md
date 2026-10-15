@@ -18,7 +18,7 @@ Status of the sections, updated in the commit that fills each one:
 |---|---|
 | 2. The contract | pending |
 | 3.1 (a) Members written inside draw bodies | done |
-| 3.2 (b) Callers outside the display units | pending |
+| 3.2 (b) Callers outside the display units | done |
 | 3.3 (c) Every function, classified | pending |
 | 3.4 (d) The study's glue | done |
 | 3.5 (e) Immediate draws in touch handling | done |
@@ -179,7 +179,89 @@ never writes them, and `UA_DESVIO` returns at the top of `drawTopBar`
 
 ### 3.2 (b) Callers outside the display units
 
-Pending.
+Who, outside `src/DisplayManager*.cpp`, calls a `draw*` function or uses a name
+declared in `src/Themes.h`, `src/UiWidgets.h` or `src/DisplayManager_Fonts.h`.
+Whoever is on this list keeps compiling in an image that does not link the
+original driver, so this is the work list for stage S10b. Taken on `192e1ad`
+(2026-10-14) with:
+
+```
+# the names the three headers declare, found with grep -w in src/ and test/, minus the display units
+grep -rnwE '<names>' src test --include=*.cpp --include=*.h \
+  | grep -vE '^src/(DisplayManager[A-Za-z_0-9]*\.(cpp|h)|Themes\.(cpp|h)|UiWidgets\.(cpp|h)):'
+grep -rnE '#\s*include\s*[<"][^>"]*(Themes|UiWidgets|DisplayManager_Fonts)\.h[>"]' src test
+grep -rnE '\b(re)?draw[A-Z_]?\w*\s*\(' src test --include=*.cpp --include=*.h   # then minus the units
+```
+
+`<names>` are the 70 identifiers of the three headers: `RGB565`, `themeTint`,
+`ThemePalette`, `currentTheme`, `availableThemes`, `loadTheme`, `getThemeCount`,
+`getThemeId`, `getThemeIndexByName`, `getThemePalette`, `scanCustomThemes`, the
+28 `C_*` colour macros, `UiBtnStyle`, `UiArrowDir` and their enumerators,
+`uiBlend565`, `uiTitleBar`, `uiButton`, `uiNavArrow`, `uiFooterMenu`,
+`uiCloseX`, `uiPageDots`, `uiScrollbar`, `uiUnit`, `uiUnitWidth`, `uiMenuIcon`,
+and `simutFont9pt`, `simutFont12pt`, `simutFont24pt`.
+
+**`draw*` functions.** No file outside the display units calls a
+`DisplayManager::draw*` member. Everything outside reaches the panel through
+`show*`, `set*`, `is*`, `get*`, `request*` and `inject*`. The `draw*(` lines
+outside the units are 43: 3 are phase names in comments of `FlashIrqProbe.h`
+(`:122-126`), and 40 are in the sensor headers, which define and call free
+helpers (`drawThermometerLarge`, `drawDropLarge`, `drawMinMaxTempRow`,
+`drawMinMaxGraphBtn`, ...) in `src/sensors/SensorDrawing.h` and call GFX
+primitives. Those headers are drawing code of the original that lives outside
+the units (section 3.3 lists it).
+
+**`Themes.h`.** Seventeen lines in six files call its functions, plus four
+`themeTint` calls in sensor headers. Every one is a catalogue or a
+persistence call; none reads a colour:
+
+| caller | lines | calls | what it is |
+|---|---|---|---|
+| `AppManager_Boot.cpp` | 996, 997 | `scanCustomThemes( )`, `loadTheme(cfg.themeIndex)` | boot, after the file system mounts |
+| `AppManager_Events.cpp` | 363 | `loadTheme(cfg.themeIndex)` | `EVT_APPLY_THEME` from the panel (`:359-364`), then `saveConfiguration( )` |
+| `AppManager_Commands.cpp` | 215, 216, 223, 232, 234, 237, 239 | `getThemeCount`, `getThemeId`, `getThemePalette(i)->displayName`, `getThemeIndexByName`, `loadTheme` | the CLI: `show themes` (`CMD_SHOW_THEMES`, `CommandParser.cpp:201`) and the `theme` command; full-CLI images only |
+| `WebManager_Api.cpp` | 410, 413 | `getThemeCount`, `getThemePalette(i)->displayName` | `GET /api/themes` (`handleApiThemes`, registered at `WebManager_History.cpp:2405`) |
+| `WebManager_Commit.cpp` | 133, 140 | `getThemeCount`, `loadTheme(t)` | the `theme` field of `commit_all`: range check, then apply |
+| `WebManager_Files.cpp` | 148, 519, 520 | `scanCustomThemes( )` twice, `getThemeCount( )` | a `.thm` file deleted or uploaded: hot reload of the custom themes |
+| `sensors/DHT22Driver.h` | 102, 200 | `themeTint(humidity)` | the humidity drop's glint |
+| `sensors/BME280Driver.h` | 443, 553 | `themeTint(humidity)` | the same |
+
+Not callers, but they see the whole header: `DisplayManager.h:39` includes
+`Themes.h`, so every file that includes `DisplayManager.h` receives the `C_*`
+macros and `currentTheme`; `sensors/SensorDrawing.h:24-27` includes it and
+defines a fallback `RGB565`; `WebManager_Auth.cpp:14` includes it and uses
+nothing from it. No `C_*` macro, `currentTheme` or `availableThemes` is used
+outside the display units, `Themes.cpp` and the sensor headers.
+
+**`UiWidgets.h`.** No caller outside the units. It is included by ten of
+them (`DisplayManager.cpp`, `_Dashboard`, `_Auth`, `_Graph`, `_Users`,
+`_i18n`, `_Calibration`, `_Ota`, `_Settings`, `_Calendar`) and by
+`UiWidgets.cpp`.
+
+**`DisplayManager_Fonts.h`.** No caller outside the units. It is included by
+twelve units (`DisplayManager.cpp`, `_Dashboard`, `_Auth`, `_Graph`, `_Users`,
+`_i18n`, `_Calibration`, `_Ota`, `_Alarm`, `_Settings`, `_Calendar`, `_Touch`),
+by `UiWidgets.cpp`, and by `DisplayManager_Fonts.cpp`, the only file that
+includes the three font tables (`FreeSansBold9pt8b_latin1.h`,
+`FreeSansBold12pt8b_latin1.h`, `FreeSansBold24pt7b_subset.h`). The sensor
+headers do not include it: they receive the font as a parameter.
+
+**Other original-side headers that something outside the units consumes**
+(checked the same way, because the plan counts them with the original):
+
+| header | consumed outside the units by | note for the split |
+|---|---|---|
+| `sensors/SensorDrawing.h` | `BME280Driver.h`, `DHT22Driver.h`, `DS18B20Driver.h`, `SensorPanelDispatch.h` | it holds drawing (`drawThermometerLarge`, ...) and hit-testing geometry the touch handler uses: `MINMAX_BTN_W` (`:191`) and `minMaxBtnX( )` (`:195`) are read at `DisplayManager_Touch.cpp:432-433` |
+| `PinKeypad.h` (`PinKb::`) | `SystemDefs_Validate.h`, `StorageManager.*`, `WebManager_Api.cpp` (`GET /api/keypad`), `WebManager_History.cpp`, `AppManager_CmdHandlers.cpp`, `AppManager_Panel.cpp` | PIN policy and matching (core) share a header with the keypad's geometry (original); S9 splits it |
+| `PasswordKeyboard.h` | none | used by the units only |
+| `display/SettingsMenu.h`, `display/ClockEntry.h`, `OtaScreen.h` | the native suites (`test_validators`, `test_lan`) | pure logic with tests; they stay with the core |
+| `TftWithOffset.h` | `display/ILI9341_320x240.h` | panel layer |
+
+What this means for the Ângulo image: the six files above must build with the
+two theme hooks of the contract (`uiThemeCount`, `uiThemeId`, `uiThemeName`) or
+stop calling these functions, and the `.thm` upload path needs the refusal the
+plan describes; the sensor headers go with the original or take the colour
+as a parameter, since `themeTint` reads the palette.
 
 ### 3.3 (c) Every function, classified
 
