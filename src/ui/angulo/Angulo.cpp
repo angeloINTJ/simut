@@ -5,6 +5,7 @@
 #include "Angulo.h"
 
 #include <Adafruit_GFX.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -56,12 +57,23 @@ const Tema &temaEscuro( ) { return kEscuro; }
 
 uint16_t desab( const Tema &t, uint16_t cor ) {
   // The 17 roles are distinct within a theme (angulo_tokens.h, 2026-10-14), so
-  // the colour names its role.
-  const uint16_t *papeis = &t.fundo;
+  // the colour names its role. They are read from the object's bytes, role by
+  // role: reading them as an array from &t.fundo indexes past one object, which is
+  // undefined behaviour (cppcheck objectIndex, the CI's static analysis,
+  // 2026-10-15); a table of member pointers would cost 72 B more.
+  static_assert( offsetof( Tema, fundo ) == 0 && offsetof( Tema, escuro ) == 17 * sizeof( uint16_t ),
+                 "Tema must start with its 17 colour roles and nothing else before escuro" );
   const Tema &d = t.escuro ? kEscuroDesab : kClaroDesab;
-  const uint16_t *mist = &d.fundo;
-  for ( int i = 0; i < 17; i++ )
-    if ( papeis[i] == cor ) return mist[i];
+  const unsigned char *papeis = reinterpret_cast<const unsigned char *>( &t );
+  const unsigned char *mist = reinterpret_cast<const unsigned char *>( &d );
+  for ( size_t o = 0; o < offsetof( Tema, escuro ); o += sizeof( uint16_t ) ) {
+    uint16_t v;
+    memcpy( &v, papeis + o, sizeof v );
+    if ( v == cor ) {
+      memcpy( &v, mist + o, sizeof v );
+      return v;
+    }
+  }
   return cor;
 }
 
@@ -230,7 +242,7 @@ void hostAnotarTexto( const char *s, int16_t x0, int16_t x1, int16_t y0, int16_t
   TextoDesenhado &t = s_textos[s_nTextos++];
   t.x0 = x0; t.x1 = x1; t.y0 = y0; t.y1 = y1;
   int i = 0;
-  for ( ; s[i] && i < (int)sizeof t.texto - 1; i++ ) t.texto[i] = s[i];
+  for ( ; i < (int)sizeof t.texto - 1 && s[i]; i++ ) t.texto[i] = s[i];
   t.texto[i] = 0;
 }
 }  // namespace
