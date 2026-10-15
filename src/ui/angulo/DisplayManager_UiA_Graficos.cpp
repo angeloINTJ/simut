@@ -297,8 +297,11 @@ UaToque DisplayManager::uaToqueGraficos( const ua::Alvo *a, int16_t &x, int16_t 
       return UaToque::TRATADO;
     }
 
-    /* The update screen keeps the old handler: a touch anywhere dismisses a
-     * refused or cut update (DisplayManager_Touch.cpp:1682-1689). */
+    /* The update screen lets the touch through to the old chain, where the core's action (actOtaDismiss( ), which holds the phase test and the
+     * gate) dismisses a refused or cut update, and nothing else while one runs. It is not called from here: TRATADO would mark the frame
+     * dirty on every touch sample, and the pass would build the screen's view model and hash it on each one while Core 1 runs the update
+     * screen (the READY phase and the two endings; in RECEIVING Core 1 is parked and takes no sample). S7_PLANO.md R3 says to keep this
+     * case TRADUZIDO until S10a, which retires the old chain, and the action is already the code that chain runs. */
     case MODE_OTA_UPDATE:
       return UaToque::TRADUZIDO;
     /* Nothing to touch while the history is read: no branch of handleTouch

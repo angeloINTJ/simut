@@ -497,3 +497,16 @@ inline __attribute__((always_inline)) void DisplayManager::actCalendarToday( con
 	UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = g.sensorIdx; ev.param = g.timeRange;
 	pushUiEvent(ev);
 }
+
+/* The update screen's tap (MODE_OTA_UPDATE), its gate included. The gate has to follow the phase test, which is why the action holds both: a caller
+ * that took acceptTouch( ) first would arm the touch-priority window on a tap during an update. Moved as it stood, early return and all: the branch is
+ * the last of the mode chain in handleTouch( ), and nothing follows it. */
+inline __attribute__((always_inline)) void DisplayManager::actOtaDismiss( ) {
+	/* Deaf while an update runs, so a hand on the glass changes nothing; a
+	 * tap anywhere leaves a screen that reports an ending. Through
+	 * acceptTouch only then — it is what arms the touch-priority window,
+	 * and that window would answer the apply with a 503. */
+	const uint32_t st = __atomic_load_n(&_otaState, __ATOMIC_ACQUIRE);
+	if (!otaTapDismisses(otaPhaseOf(st)) || !acceptTouch(0xC6)) return;
+	if (otaEnd(st)) forceDashboard( );
+}

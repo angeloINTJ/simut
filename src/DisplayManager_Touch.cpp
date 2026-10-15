@@ -1434,13 +1434,7 @@ void DisplayManager::handleTouch( ) {
  }
  }
  else if (_uiMode == MODE_OTA_UPDATE) {
- /* Deaf while an update runs, so a hand on the glass changes nothing; a
-  * tap anywhere leaves a screen that reports an ending. Through
-  * acceptTouch only then — it is what arms the touch-priority window,
-  * and that window would answer the apply with a 503. */
- const uint32_t st = __atomic_load_n(&_otaState, __ATOMIC_ACQUIRE);
- if (!otaTapDismisses(otaPhaseOf(st)) || !acceptTouch(0xC6)) return;
- if (otaEnd(st)) forceDashboard( );
+ actOtaDismiss( );   /* deaf while an update runs: the phase test and the gate are inside */
  }
 }
 
