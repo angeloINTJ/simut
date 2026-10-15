@@ -34,8 +34,9 @@ edite `tools/tft_ui/gerar_meta.js`: diga no relatório (o integrador acrescenta 
     longo, deslizar, repetição, bloqueios). A tela pura só precisa expor alvos com o significado certo.
   - **Controlador (C)**: o modelo de interação do plano é outro (tocar na linha abre, voltar no
     título, paginador); a cola executa a ação equivalente (mesmos eventos e estado do código atual).
-  - **Bruto (B)**: o código atual trata o toque antes de qualquer gancho (calibração, sensibilidade,
-    botão Pular do boot). A tela nova **tem** de pôr seus elementos dentro das zonas antigas.
+  - **Bruto (B)**: o código atual trata o toque antes de qualquer gancho (calibração, sensibilidade).
+    A tela nova **tem** de pôr seus elementos dentro das zonas antigas. O botão Pular do boot era B até a S5 (C7):
+    hoje o gancho `uiBootSkipHit` pergunta ao alvo `PULAR` do quadro do boot, e o botão fica onde o desenho o puser.
 
 ## 3. Contrato de cada tela (fase 1)
 
@@ -153,7 +154,7 @@ pede o PIN). Alvos `SILENCIAR`, `MINMAX`, `DESATIVAR`. Amostras: acima, abaixo, 
 **Boot (`VmBoot`).** Desenho `boot_wifi`: marca, subtítulo "Monitor de temperatura e umidade", o passo
 atual (última linha do log de boot, já em texto) e até 4 passos anteriores em `apoio`, versão e MAC no
 pé; com `apProgressPct >= 0`, a barra de progresso "Segure para o modo de configuração" (0..100);
-com `showSkipButton`, o botão **Pular** que **tem de ficar dentro de x 80..240, y 191..239** (toque bruto).
+com `showSkipButton`, o botão **Pular**, onde o desenho o puser (o gancho `uiBootSkipHit` pergunta ao alvo; até a S5 era a zona antiga x 80..240, y 191..239, um toque bruto).
 Alvo `PULAR`. Amostras: início, passo de rede, barra de AP 40 %, botão Pular, textos longos.
 
 ### 6.2 menus — `Menus*.cpp`, `amostras/menus.cpp`

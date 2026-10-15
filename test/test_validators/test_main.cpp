@@ -48,6 +48,7 @@
 #include <string>
 #include <vector>
 #include "display/ClockEntry.h"         /* the date and time set at the panel */
+#include "display/DashHold.h"          /* the dashboard's 3 s hold and page button */
 #include "display/SettingsMenu.h"       /* the panel's Settings menu: rows, order */
 #include "PasswordCheck.h"             /* one derivation per password check */
 #include "SessionCheck.h"              /* a session against its live account */
@@ -4831,6 +4832,162 @@ static void test_tel_content_type_per_mode(void) {
     TEST_ASSERT_EQUAL_STRING("application/json", telContentTypeFor(TEL_CT_MODE_CUSTOM, ct, sizeof(ct), buf, sizeof(buf)));
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * The dashboard's 3 s hold on the upper card and its page button
+ * (display/DashHold.h).
+ *
+ * 2026-10-15 (S5 of the UI drivers): the clock of the hold and the turn of the
+ * page left the touch handler, where only a panel could run them, for a header
+ * with no hardware in it. The firmware's touch actions call these same
+ * functions (they are the code the handler ran, moved), so these cases pin
+ * what the panel does.
+ *
+ * The review of S5 (C10, the same day) found three mutants of dashHoldStep( ) alive in the first six cases: `==` for `>=` in the
+ * fire test, no `fired = false` in the restart, and no `start != 0` in front of the gap test. Every cadence of those six is a
+ * multiple of 15 ms and 3000 is 200 of them, and none meets a gap with no hold running. The last three cases kill them (m4 to
+ * m6); each was seen to fail with its mutant applied.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+/* DisplayManager.h's DASH_HOLD_MS and DASH_HOLD_GAP_MS: the test cannot include that header. */
+static const uint32_t DASH_TEST_HOLD_MS = 3000;
+static const uint32_t DASH_TEST_GAP_MS  = 120;
+
+struct DashRun { uint32_t start; uint32_t seen; bool fired; uint8_t region; };
+
+/* The first sample of a press starts the hold, as the action does with firstTouch. */
+static DashRun dash_first(uint32_t now, uint8_t region) {
+    DashRun r; r.start = now; r.seen = now; r.fired = false; r.region = region;
+    return r;
+}
+
+/* A later sample: through dashHoldStep( ), and a hold that fired is marked, as the action does. */
+static bool dash_sample(DashRun &r, uint32_t now) {
+    bool fire = dashHoldStep(now, r.start, r.seen, r.fired, r.region, DASH_TEST_HOLD_MS, DASH_TEST_GAP_MS);
+    if (fire) r.fired = true;
+    return fire;
+}
+
+void test_dash_hold_fires_at_three_seconds_and_not_before(void) {
+    const uint32_t t0 = 1000000;
+    DashRun r = dash_first(t0, 0);
+    uint32_t firedAfter = 0;
+    for (uint32_t k = 1; k <= 400 && !firedAfter; k++)             /* samples every 15 ms */
+        if (dash_sample(r, t0 + 15 * k)) firedAfter = 15 * k;
+    TEST_ASSERT_EQUAL_UINT32(DASH_TEST_HOLD_MS, firedAfter);       /* 3000 ms = the 200th sample */
+
+    DashRun s = dash_first(t0, 0);
+    for (uint32_t k = 1; k <= 199; k++) dash_sample(s, t0 + 15 * k);   /* up to +2985 */
+    TEST_ASSERT_FALSE(dash_sample(s, t0 + DASH_TEST_HOLD_MS - 1));     /* +2999 */
+    TEST_ASSERT_TRUE(dash_sample(s, t0 + DASH_TEST_HOLD_MS));          /* +3000 */
+}
+
+void test_dash_hold_fires_once(void) {
+    DashRun r = dash_first(5000, 0);
+    int fires = 0;
+    for (uint32_t k = 1; k <= 1000; k++) fires += dash_sample(r, 5000 + 15 * k) ? 1 : 0;   /* 15 s of a held finger */
+    TEST_ASSERT_EQUAL_INT(1, fires);
+}
+
+void test_dash_hold_gap_of_121_ms_restarts_and_120_does_not(void) {
+    const uint32_t t0 = 10000;
+    /* a loop that was slow for 120 ms is not a lift: the hold goes on and the start stays */
+    DashRun a = dash_first(t0, 0);
+    uint32_t t = t0;
+    for (uint32_t k = 1; k <= 99; k++) { t = t0 + 15 * k; dash_sample(a, t); }   /* up to +1485 */
+    t += DASH_TEST_GAP_MS;
+    dash_sample(a, t);
+    TEST_ASSERT_EQUAL_UINT32(t0, a.start);
+    /* 121 ms is: the three seconds count again from that sample */
+    DashRun b = dash_first(t0, 0);
+    uint32_t u = t0;
+    for (uint32_t k = 1; k <= 99; k++) { u = t0 + 15 * k; dash_sample(b, u); }
+    u += DASH_TEST_GAP_MS + 1;
+    dash_sample(b, u);
+    TEST_ASSERT_EQUAL_UINT32(u, b.start);
+    TEST_ASSERT_FALSE(b.fired);
+    const uint32_t restart = u;
+    uint32_t firedAt = 0;
+    for (uint32_t k = 1; k <= 400 && !firedAt; k++)
+        if (dash_sample(b, restart + 15 * k)) firedAt = restart + 15 * k;
+    TEST_ASSERT_EQUAL_UINT32(restart + DASH_TEST_HOLD_MS, firedAt);
+}
+
+void test_dash_hold_never_fires_for_another_region_or_without_a_start(void) {
+    DashRun r = dash_first(2000, 1);                               /* the press began somewhere else */
+    bool any = false;
+    for (uint32_t k = 1; k <= 2000; k++) any = dash_sample(r, 2000 + 15 * k) || any;
+    TEST_ASSERT_FALSE(any);
+    DashRun z = dash_first(0, 0);                                  /* start == 0: no hold is running (the lift cleared it) */
+    bool anyz = false;
+    for (uint32_t k = 1; k <= 2000; k++) anyz = dash_sample(z, 15 * k) || anyz;
+    TEST_ASSERT_FALSE(anyz);
+}
+
+/* "It has lasted holdMs" is at least that long: a cadence that never lands on +3000 must still fire, on the first sample past it.
+ * 3000 is 176 samples of 17 ms and 8 ms over, so the 177th, +3009, is the one. With `==` where the header has `>=` the cases at
+ * 15 ms all pass, and this one never fires (mutant m4). */
+void test_dash_hold_fires_on_the_first_sample_past_three_seconds(void) {
+    const uint32_t t0 = 1000000;
+    DashRun r = dash_first(t0, 0);
+    uint32_t firedAfter = 0;
+    for (uint32_t k = 1; k <= 400 && !firedAfter; k++)             /* samples every 17 ms */
+        if (dash_sample(r, t0 + 17 * k)) firedAfter = 17 * k;
+    TEST_ASSERT_EQUAL_UINT32(3009, firedAfter);                    /* +2992 does not fire, +3009 does */
+}
+
+/* A hold that fired and then met a gap is a new hold, so the restart clears the mark of the old one. Left set, the second three
+ * seconds would run out and nothing would happen: a press that went on past one pause of the loop would be dead for good after
+ * its first firing (mutant m5). */
+void test_dash_hold_fires_again_after_a_gap_restart(void) {
+    const uint32_t t0 = 20000;
+    DashRun r = dash_first(t0, 0);
+    uint32_t t = t0;
+    int fires = 0;
+    for (uint32_t k = 1; k <= 200; k++) { t = t0 + 15 * k; fires += dash_sample(r, t) ? 1 : 0; }   /* +3000: the first firing */
+    TEST_ASSERT_EQUAL_INT(1, fires);
+    TEST_ASSERT_TRUE(r.fired);
+    t += DASH_TEST_GAP_MS + 1;                                     /* the finger was lifted, or the loop was paused */
+    TEST_ASSERT_FALSE(dash_sample(r, t));                          /* the restart sample starts the count, it does not fire */
+    TEST_ASSERT_EQUAL_UINT32(t, r.start);
+    TEST_ASSERT_FALSE(r.fired);                                    /* and the new hold has not fired yet */
+    const uint32_t restart = t;
+    uint32_t firedAt = 0;
+    for (uint32_t k = 1; k <= 400 && !firedAt; k++)
+        if (dash_sample(r, restart + 15 * k)) firedAt = restart + 15 * k;
+    TEST_ASSERT_EQUAL_UINT32(restart + DASH_TEST_HOLD_MS, firedAt);
+}
+
+/* `start == 0` says that no hold is running. A gap restarts a hold that exists; it does not make one. Without the `start != 0`
+ * in front of the gap test, the first sample after a pause would stamp a start, and three seconds later a press that began no
+ * hold would fire one (mutant m6). The cases above sample every 15 ms, so none of them meets a gap with start == 0. */
+void test_dash_hold_a_gap_with_no_hold_running_does_not_start_one(void) {
+    DashRun z = dash_first(0, 0);                                  /* start == 0, seen == 0 */
+    const uint32_t t = DASH_TEST_GAP_MS + 1;                       /* 121 ms after the last sample seen */
+    TEST_ASSERT_FALSE(dash_sample(z, t));
+    TEST_ASSERT_EQUAL_UINT32(0, z.start);
+    TEST_ASSERT_EQUAL_UINT32(t, z.seen);                           /* the sample is noted all the same */
+    bool any = false;
+    for (uint32_t k = 1; k <= 400 && !any; k++) any = dash_sample(z, t + 15 * k);   /* six seconds of a held finger */
+    TEST_ASSERT_FALSE(any);
+    TEST_ASSERT_EQUAL_UINT32(0, z.start);
+}
+
+void test_dash_hold_survives_the_wrap_of_the_millisecond_counter(void) {
+    const uint32_t t0 = 0u - 1500u;                                /* 1500 ms before the counter wraps: the hold crosses it */
+    DashRun r = dash_first(t0, 0);
+    uint32_t firedAfter = 0;
+    for (uint32_t k = 1; k <= 400 && !firedAfter; k++)
+        if (dash_sample(r, t0 + 15 * k)) firedAfter = 15 * k;
+    TEST_ASSERT_EQUAL_UINT32(DASH_TEST_HOLD_MS, firedAfter);
+}
+
+void test_dash_next_page_goes_to_the_first_after_the_last(void) {
+    TEST_ASSERT_EQUAL_INT(1, dashNextPage(0, 3));
+    TEST_ASSERT_EQUAL_INT(0, dashNextPage(2, 3));
+    TEST_ASSERT_EQUAL_INT(0, dashNextPage(4, 3));                  /* the layout shrank under the page */
+    TEST_ASSERT_EQUAL_INT(0, dashNextPage(0, 1));
+}
+
 int main(int /*argc*/, char** /*argv*/) {
     UNITY_BEGIN();
 
@@ -5115,6 +5272,15 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_clock_entry_round_trips_at_the_device_offset);
     RUN_TEST(test_clock_entry_packs_into_one_panel_event);
     RUN_TEST(test_clock_prompt_only_without_a_network_or_a_real_clock);
+    RUN_TEST(test_dash_hold_fires_at_three_seconds_and_not_before);
+    RUN_TEST(test_dash_hold_fires_once);
+    RUN_TEST(test_dash_hold_gap_of_121_ms_restarts_and_120_does_not);
+    RUN_TEST(test_dash_hold_never_fires_for_another_region_or_without_a_start);
+    RUN_TEST(test_dash_hold_fires_on_the_first_sample_past_three_seconds);
+    RUN_TEST(test_dash_hold_fires_again_after_a_gap_restart);
+    RUN_TEST(test_dash_hold_a_gap_with_no_hold_running_does_not_start_one);
+    RUN_TEST(test_dash_hold_survives_the_wrap_of_the_millisecond_counter);
+    RUN_TEST(test_dash_next_page_goes_to_the_first_after_the_last);
     RUN_TEST(test_settings_menu_item_ids_are_the_historical_ones);
     RUN_TEST(test_settings_menu_order_lists_every_item_once);
     RUN_TEST(test_settings_menu_full_admin_sees_every_item_in_order);

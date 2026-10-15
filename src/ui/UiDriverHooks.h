@@ -3,8 +3,8 @@
  * @brief The UI driver's hook definitions that need the complete DisplayManager class, and the core's inline ticks
  *        (src/DisplayManager_Ticks.h), which render( ), drawAlarmEdit( ), drawTopBar( ) and the drivers' passes call.
  *        Included LAST, and only, by the translation units that call a hook or a tick (DisplayManager.cpp,
- *        DisplayManager_Ota.cpp, DisplayManager_Settings.cpp and DisplayManager_Dashboard.cpp): about fifty other units
- *        include DisplayManager.h and gain no header from this. A tick leans on the hook definitions (tickAlarmFlash( )
+ *        DisplayManager_Ota.cpp, DisplayManager_Settings.cpp, DisplayManager_Dashboard.cpp and DisplayManager_Touch.cpp):
+ *        about fifty other units include DisplayManager.h and gain no header from this. A tick leans on the hook definitions (tickAlarmFlash( )
  *        calls uiChanged( )), so a unit that takes the ticks takes this header, not DisplayManager_Ticks.h alone.
  *
  * Both need the TFT's members, which the alpha display's class does not declare (measured on 2026-10-15: the ticks fail

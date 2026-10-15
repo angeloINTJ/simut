@@ -31,11 +31,36 @@ UI_HOOK void DisplayManager::uiBegin( ) {
 /* The core says what changed; the original draws it, as the core did before. `c` is a constant at each call, so the
  * switch is the one call it names. */
 UI_HOOK void DisplayManager::uiChanged( UiChange c, int16_t arg ) {
-	(void)arg;
 	switch (c) {
 	case UiChange::ALARM_FLASH:   redrawAlarmFlash( ); break;
 	case UiChange::ALARM_RESTORE: restoreNormalDashboard( ); break;
+	case UiChange::BOTTOM_PANEL: {
+		/* The block handleTouch( ) ran where a tap toggled the bottom card's min/max, moved here as it was. */
+		SystemState snap;
+		mutex_enter_blocking(&_stateMutex);
+		snap = _sharedState;
+		mutex_exit(&_stateMutex);
+		drawSlotPanel(snap.slotTemp, snap.slotHum, snap.slotType, snap.slotValid,
+		              snap.selectedSlotIdx, snap.slotName, true, _bottomPanel);
+		break;
 	}
+	case UiChange::BOTTOM_BUTTONS: drawBottomButtons( arg ); break;
+	}
+}
+
+/* The top card is to be shown from `snap`: the card, then the bottom buttons. The two calls redrawTopPanel( ) made, moved
+ * here as they were; redrawTopPanel( ) keeps the sync and the mirror, which are the core's. */
+UI_HOOK void DisplayManager::uiTopPanel( const SystemState &snap ) {
+	drawSlotPanel(snap.topSlotTemp, snap.topSlotHum, snap.topSlotType, snap.topSlotValid,
+	              snap.topSlotIdx, snap.topSlotName, true, _topPanel, snap.topSlotPres);
+	/* Redraw bottom buttons — fixed sensor button may appear/disappear */
+	drawBottomButtons(snap.selectedSlotIdx);
+}
+
+/* A touch while the device boots with the skip button showing: did it land on the button? The rectangle handleTouch( ) tested
+ * inline, moved here as it was. */
+UI_HOOK bool DisplayManager::uiBootSkipHit( int16_t x, int16_t y ) {
+	return y > 190 && x > 80 && x < 240;
 }
 
 /* The theme changed: say "applying theme", then repaint the dashboard in full with the new palette. The block

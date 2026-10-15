@@ -40,6 +40,8 @@
 enum class UiChange : uint8_t {
 	ALARM_FLASH,     /**< the alarm flash changed phase: the cards in alarm take the other phase's colours */
 	ALARM_RESTORE,   /**< the alarm ended: the normal cards come back */
+	BOTTOM_PANEL,    /**< the bottom card's min/max face was toggled: it shows the other face */
+	BOTTOM_BUTTONS,  /**< the row of buttons changed (a page turned, a slot was chosen): `arg` is the slot it highlights */
 };
 
 /* The Ângulo build (pico_wiretft_angulo, src/ui/angulo/) paints every screen

@@ -98,6 +98,8 @@ column is where the original's body comes from on `192e1ad`.
 | `uiTouch( x, y )` | a touch passed the core's gates | the mode chain of `handleTouch`, `Touch.cpp:398-1682`, and `handleTouchPanelV24`, `Users.cpp:1304-1686` |
 | `uiTouchUp( )` | the finger left the glass | `Touch.cpp:38-51` (the dashboard's short tap) |
 | `uiChanged( kind, arg )` | a core action changed what is on screen | a `switch` over the `UiChange` kinds of section 3.5; for the original a constant `kind` folds it into the old call **S4 (C6):** begun with `ALARM_FLASH` and `ALARM_RESTORE`; the switch folds, and the Ângulo marks its frame. The other kinds come with S5 to S10a |
+| `uiTopPanel( snap )` | the top card is to be shown (`redrawTopPanel( )`, after it synced the slot and mirrored the data) | **S5 (C2):** the two calls `redrawTopPanel( )` ended with, `drawSlotPanel` of the top card and `drawBottomButtons`; the Ângulo's is `uaSujo( )` |
+| `uiBootSkipHit( x, y )` | a touch while the device boots with the skip button showing | **S5 (C7):** `Touch.cpp:364-365`, `y > 190 && x > 80 && x < 240`; the Ângulo asks the boot frame whether the point is on its `BOOT_PULAR` target, and only when the frame on the glass is the boot's (`s_modo` is the dashboard's) |
 | `uiPages( list, items )` **(S0)** | the core must bound a page index | the arithmetic now spread over six draw bodies, `(items + 3) / 4`, the License text's wrap count, `buildDashLayout`'s button strip |
 | `uiThemeCount( )`, `uiThemeId( i )`, `uiThemeName( i )` | the catalogue is read | `availableThemes` and the custom `.thm` list, `Themes.cpp:433-487` |
 | `licenseOpening( ) const` | the Ângulo's licence screen needs the opening in the pack's language, which Core 0 composes into a file-static buffer | **S4 (C9):** a member defined next to that buffer, replacing the free function `uaAberturaLicenca` the Ângulo declared weak; no product calls it and the linker drops it |
@@ -138,6 +140,8 @@ actions and 15 to 25 kinds of `UiChange`; examples are `actSelectSlot( int8_t )`
 without crossing a paint function (section 3.5), and none of them paints, which is
 what makes the cut possible. Cost on the original: none, since the actions are
 `always_inline`.
+
+**S5 (2026-10-15):** the Painel group's seven actions are done and live in `src/DisplayManager_Actions.h` (section 2.8), under other names than the examples above: `actTopCardPress`, `actBottomCardTap`, `actNavButton`, `actAlarmSilence`, `actAlarmDeactivate`, `actAlarmShowMinMax` and `actBootSkip`.
 
 ### 2.4 Duties of a driver's paint
 
@@ -447,6 +451,115 @@ screen.
 - For the original: the `loopCore1` of the six images whose bytes changed (C4, C5b, C6, C8, C8c), which has only been read and
   never run, and the Core 1 stack under load with `optimize("no-reorder-blocks")`, where the measurement so far is the
   compiler's.
+
+### 2.8 The Painel group's touches (S5)
+
+**S5 (2026-10-15, branch `feat/ui-drivers-s5`) did this.** What a touch does in the Painel group is a core action, defined
+once in `src/DisplayManager_Actions.h`, and the Ângulo runs the same actions itself: `uaToquePainel( )` no longer moves the
+touch into the old layout for `handleTouch( )` to finish (`grep -c 'UaToque::TRADUZIDO'
+src/ui/angulo/DisplayManager_UiA_Painel.cpp` is 0; the other groups translate until their stages). There are seven actions,
+not the dozen the plan counted, because the control flow that decides them cannot be cut finer without copying it into the
+Ângulo: `firstTouch = acceptTouch( 0 )` decides three things after it, and the row's gates change with the kind of the
+button.
+
+- `actTopCardPress( onGraphBtn )`: the upper card's zone, gate included: the lock tail of a long press, the first touch, the
+  graph button of a card in min/max, the alarm's action screen for a card in alarm, the start of the 3 s hold, the gap that
+  restarts it and the long press that pins or releases the card.
+
+- `actBottomCardTap( onGraphBtn )`, behind `acceptTouch( 1 )`: the graph, the alarm's action screen or the other face of the
+  card.
+
+- `actNavButton( btnIdx )`: the row of buttons; its gates (`acceptTouch( 14 )` for the page, `acceptSlideTouch( 20 )` for
+  settings, `acceptSlideTouch( 10 + slot )` for a slot) are inside.
+
+- `actAlarmSilence( )`, `actAlarmDeactivate( )` and `actAlarmShowMinMax( )`, behind `acceptTouch( 0 )`, `( 1 )` and `( 2 )`:
+  the alarm's action screen.
+
+- `actBootSkip( )`: sets the flag the boot terminal polls.
+
+Each is `inline __attribute__((always_inline))`, declared next to the ticks in `DisplayManager.h`, called by `handleTouch(
+)` behind its zone test and by the Ângulo's glue behind the gate its old zone held. Two hooks and two kinds of `UiChange`
+came with them (section 2.2): `uiTopPanel( snap )`, the two draw calls `redrawTopPanel( )` ended with; `uiBootSkipHit( x, y
+)`, which takes the raw rectangle of the boot's skip button out of `handleTouch( )` and the rule "Pular stays inside x
+80..240, y 191..239" out of ESPEC_UI_A.md; `BOTTOM_PANEL` and `BOTTOM_BUTTONS`. `redrawTopPanel( )` moved out of the class
+to `DisplayManager_Actions.h` as a plain `inline` function: left in the class, every unit that includes `DisplayManager.h`
+parses its call to `uiTopPanel( )`, and GCC stopped all nine images on "inline function used but never defined" (`-Werror`)
+in the units that do not take the original's hook definitions. The pure part is in `src/display/DashHold.h` (`dashHoldStep(
+)`, the clock of the 3 s hold, and `dashNextPage( )`), with nine cases in `test/test_validators` (`pio test -e native`, 297
+of 297; the last three came with the review of C9, for three mutants the first six let live) and six negative controls,
+each of which fails the cases it should (three at C8, three at C10). The plan's `uiTouchUp( )` was not needed: the lift is
+answered at the top of `handleTouch( )`, before any driver code. The allowances stay at 50.
+
+How S5 was proved (the outputs are in `$B/stages/s5_c*`, outside the repository; every image was built with the private core
+that matches CI):
+
+- **The nine equal:** C1 `d629903` (the header and two includes), C4 `4c8793b` (the alarm screen's buttons), C5 `4c0eadc`
+  (the lower card and the row) and C7 `7ac3567` (the skip). In the Ângulo C4 changes `uaToquePainel` (70 to 129
+  instructions), C5 the same function (to 280) and C7 `handleTouch` and the new `uiBootSkipHit`.
+
+- **Placement only:** C2 `14fd267` (`uiTopPanel`). In six images `redrawTopPanel` (268 B) and `PwdKb::popupHit` (252 B) swap
+  places and the `bl` operands in `handleTouch` follow; no function changed (`stages/s5_c2/symbol_moves_release.txt`), the
+  class of S4's C9 veneers.
+
+- **`handleTouch` only, with a decoded listing and a source proof of five points:** C3 `6957cb1` (`BOTTOM_PANEL`,
+  `BOTTOM_BUTTONS`: the slot index travels as the hook's `int16_t` and `SystemState::selectedSlotIdx` is an `int`, so two
+  instructions in four images; the switch of `uiChanged` folded, no image has the symbol and `loopCore1` is identical); C6
+  `54cdd26` (the upper card; one condition is rewritten, `x >= MM_BTN_X0 && x < MM_BTN_X1` evaluated at the call. `x` is a
+  local `int16_t`, so there are no volatile reads before or after and the other core cannot reach it; a model over every `x`
+  and the two members it was and-ed with, 262,144 cases, has 0 differences and its controls 1 each; the register allocation
+  of a region of `handleTouch` changed, which only the source proof covers); C8 `60eabd6` (the hold and the page turn as
+  functions; a model of the old statements against the header, 40,000,000 samples and a 44 x 41 grid of pages, 0
+  differences, and 32, 102,227 and 122,564 for the three mutants; the load of `_lastTouchRegion` moves ahead of two plain
+  stores, and that member is written on Core 1 only).
+
+- **The review of C9 (C10).** Three mutants of `dashHoldStep( )` lived through the first six cases: `==` for `>=` in the
+  fire test, no `fired = false` in the restart, and no `start != 0` in front of the gap test. Every cadence there is a
+  multiple of 15 ms and 3000 is 200 of them, and none meets a gap with no hold running. Three cases were added (a 17 ms
+  cadence, which first fires at +3009; a hold that fires, meets a 121 ms gap and fires again; a 121 ms gap with `start ==
+  0`). With each mutant applied, `pio test -e native` fails that case and no other (`stages/s5_c10/native_m4.txt` to
+  `native_m6.txt`); without them 297 of 297 pass (`native_after.txt`).
+
+- **Gates.** `check_ui_boundary.py` 0 findings and `test_ui_boundary.py` 285 of 285; `check_authz.py` and its test;
+  `check_feature_sprawl.py` 358 sites, as before: the two `SIMUT_TFT_GRAPH` blocks moved with their actions (Touch.cpp 3 to
+  1, `DisplayManager_Actions.h` 0 to 2) and the marks were rewritten with `--update`; the six host screen groups and
+  `host_ui.py` 106 of 106; the flash budgets of the ten images and the OTA table; `check_readme_numbers.py` (698 cases in 11
+  suites). Nothing of this ran on hardware.
+
+**One call without a `return;`.** The branches of the upper card, the lower card and the boot screen end with the `return;`
+the zone always had; the call to `actNavButton( )` is the last statement of its branch, and its early exits (a `btnIdx` out
+of range, a gap in the row, a refused gate) became the action's own `return;`s. Harmless today, because nothing follows the
+`else if` chain of modes in `handleTouch( )`; code added after the chain would be reached by those old early exits. (The
+alarm screen's three branches never had a `return;` after their bodies and have no early exit inside.)
+
+**Where "the same code" is not the whole story.** The Ângulo marks its frame dirty whenever a touch answers `TRATADO`
+(`uaToque( )`, `DisplayManager_UiA.cpp`), so the alarm screen's three buttons (C4), the lower card and the row (C5) and the
+upper card (C6) mark it on every sample of a press, where the translation did so only when the old branch drew: one more
+comparison of the frame per sample, no state changes. The bottom card's toggle no longer takes the state mutex for a
+snapshot in the Ângulo (C3: the draw that followed was a `UA_DESVIO( )`). The Ângulo's skip button is hit where it is drawn,
+so a touch inside the old rectangle but off the button no longer skips the boot (C7). "Ver mínimo e máximo" keeps the defect
+the plan found, moved as it was: `_alarmActionSlot < 0` never holds, because `showAlarmAction( )`, the only writer, is
+called with a slot checked to be >= 0, so the bottom card always takes the min/max even when the screen was opened from the
+top card; fixing it is a decision for later.
+
+**Sizes.** Against the end of S4: `pico_w_release`, `pico_w_test` and `pico_w_test_https` 8 B larger from C3 and
+`pico_w_asserts` 8 B larger from C6 (each of the two steps adds two instructions to `handleTouch` in all four; their budgets
+and OTA rows moved in a commit of their own, because `verify_step.sh` held only the Ângulo image to its budget until the
+review of C5 and C6 found it), `pico2_w_release`, `pico_wiretft`, `pico_w_air`, `pico_w_alpha` and `pico_wire` the same
+size. The Ângulo image went from 815,424 B used (827,456 B .bin) to 816,264 B (828,296 B), +840 B: C2 -32, C3 -88
+(`drawSlotPanel` and `drawBottomButtons` left the image), C4 +136, C5 +328, C6 +424, C7 +72, C8 0; the review of C9 then
+added 16 B (816,280 B, .bin 828,312 B) for the frame check in `uiBootSkipHit`. Until S10b every action is compiled twice
+there, the dead old chain in `handleTouch` and the glue; the OTA headroom of that image is 211,831 B.
+
+**Before the merge to main.** The message of `14fd267` still carries a paragraph written when C2 was not yet accepted:
+rewrite it when the stage is squashed.
+
+**Bench checks pending.** None has run; the bench was off limits during S5. For the Ângulo: `roteiro_ui.py` `etapa_painel`;
+a hold of 3.5 s on the upper card pins and releases it, and a card pinned on the selected slot makes the bottom card move to
+another slot, with EVT_SLOT_SELECT in the binary log; letting go right after a long press changes nothing (the 600 ms lock);
+a card in alarm opens the alarm screen of its own slot; silence lasts 120 s; deactivate sends EVT_ALARM_DEACTIVATE; min/max
+returns to the dashboard with the bottom card in min/max; the page button returns to the first page; a slide across the slot
+buttons selects slot after slot; Pular works during a boot that shows it. For the original: the same list against the
+`pico_wiretft` image, the six images whose `handleTouch` changed having only been read and never run.
 
 ## 3. The audit
 

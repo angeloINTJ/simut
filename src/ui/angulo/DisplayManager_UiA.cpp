@@ -24,6 +24,7 @@
 #include "Angulo.h"
 #include "UiA.h"
 #include "telas/Base.h"
+#include "telas/PainelBoot.h"   /* BOOT_PULAR */
 #include "telas/Telas.h"
 
 alignas( 8 ) uint8_t g_uaVm[UA_VM_MAX];
@@ -373,10 +374,18 @@ void DisplayManager::uiBegin( ) {
   uaSujo( );
 }
 
-/* The core says something this driver shows has changed (the alarm flash changed phase, or the alarm ended): the frame
- * may be different, and the pass looks at it. The old redrawAlarmFlash( ) and restoreNormalDashboard( ) came to the same
- * through the draw calls they made, each of which starts with UA_DESVIO( ). */
+/* The core says something this driver shows has changed (the alarm flash changed phase, the alarm ended, the bottom card
+ * turned over, the row of buttons changed): the frame may be different, and the pass looks at it. The old
+ * redrawAlarmFlash( ), restoreNormalDashboard( ), drawSlotPanel( ) and drawBottomButtons( ) came to the same through the
+ * draw calls they made, each of which starts with UA_DESVIO( ). */
 void DisplayManager::uiChanged( UiChange, int16_t ) {
+  uaSujo( );
+}
+
+/* The top card changed (a short tap, a held press, a slot followed): the frame may be different, and the pass looks at it.
+ * The old drawSlotPanel( ) and drawBottomButtons( ) that redrawTopPanel( ) called came to the same through the UA_DESVIO( )
+ * each of them starts with. */
+void DisplayManager::uiTopPanel( const SystemState & ) {
   uaSujo( );
 }
 
@@ -487,6 +496,20 @@ bool DisplayManager::uaToque( int16_t &x, int16_t &y ) {
   if ( r == UaToque::NAO_E_MEU ) r = uaToquePendente( a );
   if ( r == UaToque::TRATADO ) uaSujo( );
   return r == UaToque::TRATADO;
+}
+
+/* A touch while the device boots with the skip button showing (handleTouch( ) asks before the intercept above): did it land on
+ * the button of the boot frame? The frame says where the button is, by its target, so the old rectangle (y > 190, x 80..240) is
+ * not a rule the frame has to keep. Target types are numbered per screen (BOOT_PULAR is 1, and so are the calibration's
+ * CALIB_BOTAO and the clock entry's RELOG_MAIS), so the frame on the glass has to be the boot's, and isBooting does not say
+ * so: render( ) runs in MODE_DASHBOARD alone, so _lastRenderedState keeps isBooting while a boot opens another screen over
+ * the log, and the glass shows that screen until the next pass paints a frame. s_modo is the mode the frame on the glass was
+ * painted for (uaPintar( ) sets it together with the targets) and the boot frame is built for MODE_DASHBOARD only
+ * (uaMontarPainel( )): with both, the targets listed are the boot's. */
+bool DisplayManager::uiBootSkipHit( int16_t x, int16_t y ) {
+  if ( !s_temQuadro || s_modo != MODE_DASHBOARD || !_lastRenderedState.isBooting ) return false;
+  const ua::Alvo *a = ua::alvoEm( s_alvos, s_nAlvos, x, y );
+  return a && a->tipo == ua::tela::BOOT_PULAR;
 }
 
 /* ------------------------------------------------------------------ */

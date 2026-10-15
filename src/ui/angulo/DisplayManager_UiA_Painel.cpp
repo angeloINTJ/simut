@@ -5,10 +5,10 @@
  *        dashboard, as view models filled from the DisplayManager's state, and their
  *        touches. pico_wiretft_angulo only.
  *
- * All three are translations (ESPEC §7): the old handlers do what they always did.
- * A touch on a target becomes the point of the same element in the old layout and
- * handleTouch( ) goes on with it, so the 3 s hold, the lift and the slide still
- * work (the same target gives the same old point on every sample of a press).
+ * No touch here is a translation (ESPEC §7) any more: each target runs the core's action
+ * for its zone (DisplayManager_Actions.h), the code handleTouch( ) runs for the same zone,
+ * so the 3 s hold, the lift and the slide across the row work as they did when a touch
+ * was moved into the old layout.
  */
 
 #include "../../DisplayManager.h"
@@ -27,6 +27,7 @@
 #include "telas/PainelBoot.h"
 #include "telas/PainelPrincipal.h"
 #include "telas/Telas.h"
+#include "../../DisplayManager_Actions.h"   /* the core's touch actions, which the alarm screen's buttons run; last */
 
 namespace {
 
@@ -37,8 +38,8 @@ int16_t decimos( float v, int16_t ou ) {
   return (int16_t)( d > 3276 ? 3276 : d < -3276 ? -3276 : d );
 }
 
-/* What the sensor slot's alarm action asks for in the old touch handler
- * (DisplayManager_Touch.cpp, MODE_ALARM_ACTION: EVT_ALARM_SILENCE, param 120). */
+/* What the sensor slot's alarm action asks for: actAlarmSilence( ) in DisplayManager_Actions.h (EVT_ALARM_SILENCE,
+ * param 120). */
 constexpr uint16_t SILENCIO_SEG = 120;
 
 /* One card's data as the old drawSlotPanel( ) takes it (DisplayManager.cpp:1960-1961). */
@@ -77,11 +78,11 @@ bool DisplayManager::uaMontarPainel( UaQuadro &q ) {
   using namespace ua::tela;
 
   /* The boot screen stands in for the dashboard only: render( ), whose boot
-   * branch keeps _lastRenderedState and asks for a frame
-   * (DisplayManager.cpp:1825-1835), runs in MODE_DASHBOARD alone, and a boot
-   * can open other screens over it (the touch calibration of a first boot,
-   * DisplayManager_Touch.cpp:180-191; the clock asked at boot, :1648), which
-   * must not stay hidden behind the log (review of 2026-10-14). */
+   * branch keeps _lastRenderedState and asks for a frame (DisplayManager.cpp),
+   * runs in MODE_DASHBOARD alone, and a boot can open other screens over it
+   * (the touch calibration of a first boot, handleTouch( )'s calibration branch;
+   * the clock asked at boot, its clock-entry screen), which must not stay
+   * hidden behind the log (review of 2026-10-14). */
   if ( _lastRenderedState.isBooting && _uiMode == MODE_DASHBOARD ) {
     VmBoot &vm = uaVm<VmBoot>( );
     /* The ring, oldest first: setBootStatusKey( ) shifts it toward 0 and writes
@@ -125,7 +126,7 @@ bool DisplayManager::uaMontarPainel( UaQuadro &q ) {
       uaVmStatus( vm.status );
       const int slot = _alarmActionSlot;
       const SensorRecord *rec = ( _sysConfigPtr && slot >= 0 && slot < MAX_SENSORS ) ? &_sysConfigPtr->sensors[slot] : nullptr;
-      /* The name of the slot the buttons act on (id = _alarmActionSlot, Touch.cpp:1556 and 1564), from
+      /* The name of the slot the buttons act on (id = _alarmActionSlot, which actAlarmSilence( ) and actAlarmDeactivate( ) send), from
        * the configuration. The old header printed the LOWER card's name whatever the slot
        * (DisplayManager_Alarm.cpp:76-84): opened from the upper card it named the wrong sensor. */
       if ( rec && rec->friendlyName[0] ) ua::copiar( vm.nome, rec->friendlyName, sizeof vm.nome );
@@ -270,7 +271,7 @@ bool DisplayManager::uaMontarPainel( UaQuadro &q ) {
       vm.paginas = (uint8_t)totalPages;
 
       /* The web is saving: touch stays refused and the notice says who (the sticky flag, as
-       * handleTouch( ) and the dashboard branch of the loop read it: Touch.cpp:381-396). The name
+       * handleTouch( ) and tickDashboard( ) read it: the web-busy refusal in handleTouch( )). The name
        * is only meaningful while busy: setWebBusy( ) writes it, nothing clears it. */
       vm.webOcupada = _lastWebBusy;
       if ( vm.webOcupada ) ua::copiar( vm.contaWeb, _webBusyUser, sizeof vm.contaWeb );
@@ -282,45 +283,50 @@ bool DisplayManager::uaMontarPainel( UaQuadro &q ) {
   }
 }
 
-UaToque DisplayManager::uaToquePainel( const ua::Alvo *a, int16_t &x, int16_t &y ) {
+UaToque DisplayManager::uaToquePainel( const ua::Alvo *a, int16_t &, int16_t & ) {
   using namespace ua::tela;
   switch ( _uiMode ) {
     case MODE_DASHBOARD:
       /* A boot frame still on the glass: this touch came in the pass where endBoot( ) cleared
-       * _sharedState.isBooting (handleTouch( ) answers the boot's own touch first, Touch.cpp:357-362)
-       * and render( ) has not run yet. Nothing in that frame is for the branch below (BOOT_PULAR
+       * _sharedState.isBooting (handleTouch( ) answers the boot's own touch first, in its isBooting branch)
+       * and render( ) has not run yet. Nothing in that frame is for the actions below (BOOT_PULAR
        * would read as the upper card). */
       if ( _lastRenderedState.isBooting || !a ) return UaToque::TRATADO;
-      /* The old zones: the upper card y 36..109 (Touch.cpp:407), its graph button x 245..302 in
-       * min/max mode (Touch.cpp:440-442), the lower card y 116..189 (Touch.cpp:521), its graph
-       * button x > 266 (Touch.cpp:531), the bottom row y > 195 with the button at (x - 5) / 63
-       * (Touch.cpp:561-563). Each target goes to a point inside its zone (the centre of the old
-       * button for the row), the same on every sample of a press: the 3 s hold, the lift and the
-       * slide across the row run in the old code. */
+      /* Every target runs the core's action behind the gate its old zone held (DisplayManager_Actions.h): the upper card's is
+       * inside its action (the lock tail and the first touch), the lower card's is acceptTouch( 1 ), the row's are inside its
+       * action. Each sample of a press reaches the action, so the 3 s hold keeps its clock, the lift is answered at the top of
+       * handleTouch( ), and a slide across the row selects slot after slot, as they did when the point was moved. */
       switch ( a->tipo ) {
-        case PNL_CARTAO_CIMA: x = 160; y = 72; break;
-        case PNL_GRAFICO_CIMA: x = 273; y = 76; break;
-        case PNL_CARTAO_BAIXO: x = 160; y = 150; break;
-        case PNL_GRAFICO_BAIXO: x = 290; y = 150; break;
+        case PNL_CARTAO_CIMA: actTopCardPress( false ); return UaToque::TRATADO;
+        case PNL_GRAFICO_CIMA: actTopCardPress( true ); return UaToque::TRATADO;
+        case PNL_CARTAO_BAIXO:
+          if ( acceptTouch( 1 ) ) actBottomCardTap( false );
+          return UaToque::TRATADO;
+        case PNL_GRAFICO_BAIXO:
+          if ( acceptTouch( 1 ) ) actBottomCardTap( true );
+          return UaToque::TRATADO;
         case PNL_NAV:
-          x = (int16_t)( 5 + 63 * a->indice + 29 );
-          y = 215;
-          break;
+          actNavButton( a->indice );
+          return UaToque::TRATADO;
         default: return UaToque::TRATADO;
       }
-      return UaToque::TRADUZIDO;
     case MODE_ALARM_ACTION:
-      /* Old zones, any x: silence y 60..105, deactivate y 115..160, min/max y 170..215
-       * (DisplayManager_Touch.cpp:1552, 1560, 1568). The new order is silence, min/max, deactivate. */
+      /* The three buttons run the core's actions behind the gates the old zones held (silence acceptTouch( 0 ), deactivate
+       * ( 1 ), min/max ( 2 ): Touch.cpp), not the old branch with a point moved into its zone. */
       if ( !a ) return UaToque::TRATADO;
-      x = 160;
       switch ( a->tipo ) {
-        case ACA_SILENCIAR: y = 82; break;
-        case ACA_DESATIVAR: y = 137; break;
-        case ACA_MINMAX: y = 192; break;
-        default: return UaToque::TRATADO;
+        case ACA_SILENCIAR:
+          if ( acceptTouch( 0 ) ) actAlarmSilence( );
+          break;
+        case ACA_DESATIVAR:
+          if ( acceptTouch( 1 ) ) actAlarmDeactivate( );
+          break;
+        case ACA_MINMAX:
+          if ( acceptTouch( 2 ) ) actAlarmShowMinMax( );
+          break;
+        default: break;
       }
-      return UaToque::TRADUZIDO;
+      return UaToque::TRATADO;
     default:
       return UaToque::NAO_E_MEU;
   }
