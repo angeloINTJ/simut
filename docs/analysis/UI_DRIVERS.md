@@ -682,8 +682,8 @@ the translation did so only when the old branch drew: one more comparison of the
 same). The settings list's event leaves with `param` uninitialised, as the original's does: the Ângulo's copy built `UiEvent ev{ }`
 (param 0) and the action builds `UiEvent ev;`, because `UiEvent` has no member initialisers; Core 0 reads only `id` for
 `EVT_MENU_SELECT` (`AppManager_Events.cpp`). A stale dialog cannot delete an account: `uaToque( )` returns before any group when the
-glass shows another mode than the state's. The mute-all and delete actions write the mode and the flags without the state mutex, as the
-original did.
+glass shows another mode than the state's. The mute-all actions write the mode and the flags without the state mutex, as the original
+did.
 
 **Where `S6_PLANO.md` was wrong or incomplete** (the plan is not in the repository; its corrections, as they stand here):
 
@@ -707,8 +707,8 @@ original did.
 
 **Sizes.** The nine product images are the size they had at the end of S5; their budgets and OTA rows did not move. The Ângulo
 image went from 811,064 B used (823,096 B .bin) to 811,232 B (823,264 B), +168 B: C2 +128 (the actions are compiled twice there until
-S10b, the dead old chain in `handleTouch( )` and the glue), C3 -24 (the deviation above), C6 +64 (`uaToqueMenus( )` carries the clamp
-twice, once for each arrow of the licence, where the lambda it replaced was shared), the other steps 0. The OTA headroom of that image
+S10b, the dead old chain in `handleTouch( )` and the glue), C3 -24 (the deviation above), C6 +64 (`uaToqueMenus( )` 281 to 313
+instructions: the licence's two arrows run the action inline, where they shared `virar( )` with the other list screens), the other steps 0. The OTA headroom of that image
 is 216,879 B (217,047 B before S6). Its budget, `"bin"` and OTA row moved in the commit that changed them.
 
 **What no check covers.** The Ângulo's touch glue is not compiled on the host (it needs `DisplayManager.h`, the class with the
