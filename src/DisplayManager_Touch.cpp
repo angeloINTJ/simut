@@ -20,6 +20,8 @@
 #include "LogManager.h"
 #include "PasswordKeyboard.h"
 #include "sensors/SensorDrawing.h" /* min/max graph button geometry */
+#include "ui/UiDriverHooks.h"   /* uiChanged( ), which the dashboard's touches raise: the hook definitions need the complete class, so after every other include */
+#include "DisplayManager_Actions.h"   /* the core's touch actions; last, they lean on the hooks above */
 
 void DisplayManager::handleTouch( ) {
  /* Use _rawTouchState (already OR'd with sim flag in
