@@ -73,10 +73,9 @@ struct VmStatus {
 };
 // Draws it with the kit's badge and the network and pending icons. The badge sits in what is free between the
 // brand's ink and the icons on the right, ESP2 clear of both: at the panel's centre when it fits there, else in
-// the middle of the free room. When its words are wider than the room the account's name is cut with "…" (never
-// the words around it), and with no room for even one letter of it the badge says "Entrou pela web"; a countdown
-// that does not fit says "Silenciado" (a number cut in the middle would be a wrong number). When not even that
-// fits, the clock stays.
+// the middle of the free room. When its words are wider than the room the account's name is cut with "…" ("Web: "
+// stays whole), and with no room for even one letter of it the badge says "Web"; a countdown that does not fit
+// says "Silenciado" (a number cut in the middle would be a wrong number). When not even that fits, the clock stays.
 void desenharStatus( Pintor &p, const VmStatus &s );
 
 }  // namespace ua

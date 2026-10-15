@@ -13,9 +13,9 @@ painel | painel_nome_31* | Refrig | a 31-character sensor name (the most the dev
 painel | acao_nome_longo | Refrigerado | a 31-character sensor name; the sentence's fixed part, "acima do limite", is whole
 painel | acao_erro_nome_longo | Refrige | a 31-character sensor name; "com erro no sensor" is whole
 painel | painel_web_ocupada_nome_longo | joao.si | a 22-character account name; "está gravando pela web." is whole
-painel | painel_aviso_web_nome_31 | ma… | a 31-character account name in the status bar's badge; " entrou pela web" is whole and the name keeps 2 letters of the 48 px it has
-painel | painel_aviso_web_nome_15 | ma… | the 15 characters the device keeps; known gap: at the 9 pt floor the badge holds 184 px of words beside the brand and the cable icon and " entrou pela web" is 136 of them (measured 2026-10-15), so no real name shows whole; the copy is to be shortened by the maintainer
-painel | painel_aviso_web | ma… | "maria", the spec's example: 188 px of words against the 184 the room holds, the same known gap
+painel | painel_aviso_web_nome_31 | Web: maria.apa | a 31-character account name in the status bar's badge (the device keeps 15 bytes); "Web: " is whole
+painel | painel_aviso_web_nome_15_pendentes_3k | Web: maria.ap… | the 15 characters the device keeps, with 3k records waiting: 140 px of words against the 183 of "Web: maria.aparecida"; "Web: " is whole
+painel | painel_aviso_web_nome_31_pendentes_150 | Web: maria.a… | a 31-character account name beside a three-character count, the narrowest room (130 px of words); "Web: " is whole
 painel | boot*_textos_longos | Acesse no celular | boot steps of 69 to 71 characters, made long on purpose; a step is one line
 painel | boot*_textos_longos | Iniciando Servidor | boot steps of 69 to 71 characters, made long on purpose; a step is one line
 painel | boot*_textos_longos | Carregando cache | boot steps of 69 to 71 characters, made long on purpose; a step is one line

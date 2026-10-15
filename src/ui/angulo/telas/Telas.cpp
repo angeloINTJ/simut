@@ -37,17 +37,19 @@ void copiar( char *dst, const char *src, int cap ) {
 namespace {
 
 const char kMarca[] = "SIMUT";
-const char kFimWeb[] = " entrou pela web";
+const char kPrefixoWeb[] = "Web: ";
 
 // The words of the notice, in the widest of its forms whose ink is at most `largura` px in the badge's font; false
-// when none fits. A countdown goes whole or loses its number: "Silenciado · 12…" would say a wrong one. The
-// account's name is what gives way in the web notice, cut at a character with "…" and never inside a UTF-8
-// sequence; the sentence is measured together with the name, because a leading space has no ink and the ending
-// alone would measure short by its advance. A name cut to nothing is dropped with its space and the sentence
-// starts a capital: "… entrou pela web" says nothing.
-// Measured on the host kit, 2026-10-15 (9 pt, SANSB9): " entrou pela web" is 136 px and the badge's dot and
-// padding 26 px more, so the 210 px that the cable icon alone leaves hold 184 px of words: "ana entrou pela web"
-// (172) fits, "maria entrou pela web" (188) does not.
+// when none fits. A countdown goes whole or loses its number: "Silenciado · 12…" would say a wrong one. The web
+// notice reads "Web: <name>", the form of the original top bar: "Web: " stays whole and the name gives way, cut at
+// a character with "…" and never inside a UTF-8 sequence; the words are measured whole, because a space has no
+// ink and the prefix alone would measure short by its advance. With no name, or no room for one letter of it, the
+// word alone.
+// Measured on the host kit, 2026-10-15 (9 pt, SANSB9): the badge's dot and padding take 26 px, so the 210 px that
+// the cable icon alone leaves hold 184 px of words, the 166 px with "3k" waiting hold 140 and the 156 px with a
+// three-character count hold 130. "Web: maria.aparecida" (15 characters, 183) fits the first whole;
+// with "3k" a 15-character name keeps 8 letters (132), and a 31-character name keeps 13 beside the cable
+// icon and 7 beside a three-character count; "Web: admin" (99) fits all three whole.
 bool textoDoAviso( const VmStatus &s, int16_t largura, char *out, int cap ) {
   if ( s.aviso == Aviso::SILENCIADO ) {
     snprintf( out, (size_t)cap, "Silenciado \xC2\xB7 %u s", (unsigned)s.avisoSeg );
@@ -57,7 +59,7 @@ bool textoDoAviso( const VmStatus &s, int16_t largura, char *out, int cap ) {
   }
   char nome[sizeof s.avisoNome];
   copiar( nome, s.avisoNome, (int)sizeof nome );
-  snprintf( out, (size_t)cap, "%s%s", nome, kFimWeb );
+  snprintf( out, (size_t)cap, "%s%s", kPrefixoWeb, nome );
   if ( nome[0] && larguraTinta( out, tipo::rotulo ) <= largura ) return true;
   int n = (int)strlen( nome );
   while ( n > 1 ) {
@@ -65,10 +67,10 @@ bool textoDoAviso( const VmStatus &s, int16_t largura, char *out, int cap ) {
     int m = n;
     while ( m > 0 && nome[m - 1] == ' ' ) m--;
     if ( m == 0 ) break;
-    snprintf( out, (size_t)cap, "%.*s\xE2\x80\xA6%s", m, nome, kFimWeb );
+    snprintf( out, (size_t)cap, "%s%.*s\xE2\x80\xA6", kPrefixoWeb, m, nome );
     if ( larguraTinta( out, tipo::rotulo ) <= largura ) return true;
   }
-  snprintf( out, (size_t)cap, "Entrou pela web" );
+  snprintf( out, (size_t)cap, "Web" );
   return larguraTinta( out, tipo::rotulo ) <= largura;
 }
 

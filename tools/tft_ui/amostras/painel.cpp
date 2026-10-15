@@ -279,7 +279,7 @@ constexpr char kConta15[] = "maria.aparecida";
 constexpr char kConta31[] = "maria.aparecida.da.silva.santos";
 static_assert( sizeof kConta15 - 1 == 15 && sizeof kConta31 - 1 == 31, "the account names are 15 and 31 characters" );
 
-// "<nome> entrou pela web" in the status bar, with `pendentes` records waiting and the given network.
+// "Web: <nome>" in the status bar, with `pendentes` records waiting and the given network.
 VmPainel avisoWeb( const char *nome, uint16_t pendentes, Rede rede = Rede::CABO ) {
   VmPainel vm = painel( bancada( 1 ) );
   vm.status.aviso = Aviso::WEB;
@@ -288,12 +288,17 @@ VmPainel avisoWeb( const char *nome, uint16_t pendentes, Rede rede = Rede::CABO 
   vm.status.rede = rede;
   return vm;
 }
-// The spec's example name: five letters are 4 px more than the room holds with the cable icon alone.
+// The spec's example name.
 const VmPainel kAvisoWeb = avisoWeb( "maria", 0 );
 const VmPainel kAvisoWebCurto = avisoWeb( "ana", 0 );
+// 15 characters fit whole beside the cable icon alone ("Web: maria.aparecida" is 183 px of the 184 there are) ...
 const VmPainel kAvisoWeb15 = avisoWeb( kConta15, 0 );
+// ... and are cut with 3k waiting, which leaves 140 px.
+const VmPainel kAvisoWeb15Pendentes = avisoWeb( kConta15, 3000 );
 const VmPainel kAvisoWeb31 = avisoWeb( kConta31, 0 );
-// The bench's case of 2026-10-15: "admin" with 3k records waiting. No room for a letter of the name.
+// The narrowest room: a three-character count leaves 130 px.
+const VmPainel kAvisoWeb31Pendentes150 = avisoWeb( kConta31, 150 );
+// The bench's case of 2026-10-15: "admin" with 3k records waiting. "Web: admin" is 99 px of the 140 that 3k leaves.
 const VmPainel kAvisoWebPendentes = avisoWeb( "admin", 3000 );
 // Nothing on the right: the room runs to the panel's margin.
 const VmPainel kAvisoWebSemRede = avisoWeb( "admin", 0, Rede::NENHUMA );
@@ -536,7 +541,9 @@ const Amostra kAmostras[] = {
   PAINEL( "painel_aviso_web", kAvisoWeb ),
   PAINEL( "painel_aviso_web_nome_curto", kAvisoWebCurto ),
   PAINEL( "painel_aviso_web_nome_15", kAvisoWeb15 ),
+  PAINEL( "painel_aviso_web_nome_15_pendentes_3k", kAvisoWeb15Pendentes ),
   PAINEL( "painel_aviso_web_nome_31", kAvisoWeb31 ),
+  PAINEL( "painel_aviso_web_nome_31_pendentes_150", kAvisoWeb31Pendentes150 ),
   PAINEL( "painel_aviso_web_pendentes_3k", kAvisoWebPendentes ),
   PAINEL( "painel_aviso_web_sem_rede", kAvisoWebSemRede ),
   PAINEL( "painel_web_ocupada", kWebOcupada ),

@@ -389,7 +389,7 @@ void DisplayManager::uiTopPanel( const SystemState & ) {
   uaSujo( );
 }
 
-/* The web login notice ("<user> entrou pela web") lasts WEB_NOTIFY_DURATION_MS. The old top bar cleared it when it found it
+/* The web login notice ("Web: <user>") lasts WEB_NOTIFY_DURATION_MS. The old top bar cleared it when it found it
  * expired, as it drew; this frame only reads it (uaVmStatus), so the pass clears it, and a notice left behind cannot come back
  * when millis( ) wraps. */
 void DisplayManager::tickWebNotify( ) {
