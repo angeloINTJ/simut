@@ -19,7 +19,7 @@ Status of the sections, updated in the commit that fills each one:
 | 2. The contract | pending |
 | 3.1 (a) Members written inside draw bodies | done |
 | 3.2 (b) Callers outside the display units | done |
-| 3.3 (c) Every function, classified | pending |
+| 3.3 (c) Every function, classified | done |
 | 3.4 (d) The study's glue | done |
 | 3.5 (e) Immediate draws in touch handling | done |
 | 3.6 (f) Bytes of the original driver | pending |
@@ -265,7 +265,127 @@ as a parameter, since `themeTint` reads the palette.
 
 ### 3.3 (c) Every function, classified
 
-Pending.
+The classification is `docs/analysis/UI_DRIVERS_funcoes.tsv`, one row per line,
+with the columns `unit`, `line`, `end`, `symbol`, `class`, `original_lines`,
+`core_lines` and `note`. It is also the input of the byte count in section 3.6.
+This section summarises it as it stands on `192e1ad` (2026-10-14); the three
+classes are defined in section 1, and the two other display drivers,
+`DisplayManager_Alpha.cpp` and `DisplayManager_None.cpp`, are left out unclassified.
+
+**What a row is.** 371 rows: 290 function definitions (the 15 units of the TFT
+build, plus `redrawTopPanel`, the one `redraw*` function that `DisplayManager.h`
+defines in the class body), 34 per-mode rows that are views into the two touch
+handlers (symbol `DisplayManager::handleTouch [MODE_X]`; the note carries
+`draws=N events=M`), and 47 rows for data the units define (statics, tables,
+constants, the three GFX font tables, the theme tables), because the byte count
+needs them. A mixed row says, as line ranges, which lines are original and
+which are core. Of the 290 function rows, 183 are core, 98 original and 9 mixed;
+the 47 data rows are 20 core and 27 original.
+
+| unit | core | original | mixed | rows |
+|---|---:|---:|---:|---:|
+| `DisplayManager.h` | 0 | 0 | 1 | 1 |
+| `DisplayManager.cpp` | 75 | 3 | 2 | 80 |
+| `DisplayManager_Alarm.cpp` | 9 | 3 | 0 | 12 |
+| `DisplayManager_Auth.cpp` | 9 | 0 | 0 | 9 |
+| `DisplayManager_Calendar.cpp` | 3 | 1 | 0 | 4 |
+| `DisplayManager_Calibration.cpp` | 9 | 13 | 2 | 24 |
+| `DisplayManager_Dashboard.cpp` | 8 | 19 | 1 | 28 |
+| `DisplayManager_Fonts.cpp` | 0 | 6 | 0 | 6 |
+| `DisplayManager_Graph.cpp` | 2 | 9 | 0 | 11 |
+| `DisplayManager_LangParser.cpp` | 22 | 0 | 0 | 22 |
+| `DisplayManager_Ota.cpp` | 3 | 8 | 0 | 11 |
+| `DisplayManager_Settings.cpp` | 23 | 19 | 1 | 43 |
+| `DisplayManager_Touch.cpp` | 3 | 0 | 27 | 30 |
+| `DisplayManager_Users.cpp` | 32 | 18 | 9 | 59 |
+| `DisplayManager_i18n.cpp` | 5 | 1 | 0 | 6 |
+| `Themes.cpp` | 0 | 13 | 0 | 13 |
+| `UiWidgets.cpp` | 0 | 12 | 0 | 12 |
+| **total** | **203** | **125** | **43** | **371** |
+
+**How it was produced and checked.** The definitions came from
+`python3 $B/tools/ui_funcs.py <worktree>`, a scanner that blanks comments and
+literals and follows the braces. It was cross-checked against the symbol table of
+the `pico_wiretft` image: each `DisplayManager::` symbol has a definition except
+two inline accessors of the header (`pushUiEvent`, `getTopSlotIdx`); 40
+definitions have no symbol in that image (inlined, or compiled out of that
+build, as `drawApConfirm` is). Four readers, one per group of units, read the
+function bodies and wrote the rows. Then every definition the scanner found was
+matched to a row by unit, name and line: all 289 in the units have one, and so
+does `redrawTopPanel`; the 35 other definitions in `DisplayManager.h` are
+one-line accessors and have none. The match checks coverage and not judgement. A
+class is a reading of the code, which is why every mixed row carries its line
+ranges: anyone can read the split again.
+
+**The nine mixed functions, whole.** The per-mode rows below are views into two
+of them.
+
+| function | original part | core part |
+|---|---|---|
+| `loopCore1` `DisplayManager.cpp:1241-1745` | the first paint, the `_themeChanged` block (it draws and sets `MODE_DASHBOARD`), the dispatch from mode to `draw*` and `render`, the repaint cadences, the 3 s revert of the graph header | setup, park, capture, heartbeat, touch read, the calls to `handleTouch` and `otaTick`, the alarm navigation, rotation and flash timers, lockout expiry, the sensitivity-to-calibration tick, pacing |
+| `render` `:1772-1992` | the dashboard and boot-terminal paint with its cache | the 30 s return of both cards from min/max (`:1949-1962`) |
+| `drawTopBar` `Dashboard.cpp:457-748` | the top bar painter | the web-notification banner's expiry (540-553) and the telemetry arrow's flash end and phase (650-658) |
+| `drawAlarmEdit` `Settings.cpp:222-334` | the limit editor's painter | 234-246 repair MIN >= MAX in the working copy `_tempAlarmConfig`; 249-250 clamp `_editFieldFocus` |
+| `handleTouch` `Touch.cpp:24-1683` | the per-mode hit-test geometry, the 19 immediate draws, the `PwdKb` key geometry (about 200 of 1,270 code lines) | the gates, finger-up handling, calibration and sensitivity sampling, hold tracking, press ownership, and every `pushUiEvent` |
+| `handleTouchPanelV24` `Users.cpp:1304-1686` | the hit-test lines | the gates, state edits and events; it draws nothing |
+| `showTouchCalibration` `Calibration.cpp:31-62` | 49-55 reset the seven `g_*` draw caches of that file | the mode entry: resets the working state, sets `_uiMode`, raises the repaint flags |
+| `showSettingsDisplayOffset` `Calibration.cpp:106-118` | 113-114 set the `_lastOffsetDraw*` sentinels | the mode entry, as above |
+| `redrawTopPanel` `DisplayManager.h:949-990` | 986-989, the two draws | 950-985, the sync of `_sharedState` under the mutex and the possible `EVT_SLOT_SELECT` |
+
+**The per-mode branches of the two touch handlers**, the work list of stages S5
+to S9. The counts come from the notes of the TSV, which come from
+`python3 $B/tools/ui_touch.py <worktree>`.
+
+| handler | branch | lines | immediate draws | `pushUiEvent` | what it is |
+|---|---|---|---:|---:|---|
+| `handleTouch` | `DASHBOARD` | 38-51 | 1 | 0 | finger up: a short tap on the top panel flips its min/max and repaints it at once |
+| `handleTouch` | `SETTINGS_TOUCH_CAL` | 61-140 | 0 | 1 | finger up: averages the 8 held points, validates, computes the window, pushes `EVT_APPLY_TOUCH_CAL` |
+| `handleTouch` | `SETTINGS_TOUCH_SENS` | 159-278 | 0 | 1 | sampling of `p.z` into a stability threshold, `EVT_SAVE_TOUCH_CAL`; one layout test (CANCEL) |
+| `handleTouch` | `SETTINGS_TOUCH_CAL` | 297-351 | 0 | 0 | press: hold sampling of the 8 points; one layout test (the Done/Retry area, y >= 185) |
+| `handleTouch` | `isBooting` | 357-362 | 0 | 0 | not a mode: the SKIP rectangle sets `_skipPressed` while the boot screen is up |
+| `handleTouch` | `DASHBOARD` | 389-396 | 0 | 0 | web-busy gate: the touch is consumed while a web client holds the device |
+| `handleTouch` | `DASHBOARD` | 398-581 | 4 | 4 | press, three zones (top panel, slot panel, button bar): gestures, alarm routing, paging, slot select, graph open |
+| `handleTouch` | `GRAPH_VIEW` | 583-650 | 6 | 5 | close, header tap (3 s name), five bottom buttons, central tap; pan, zoom and calendar events |
+| `handleTouch` | `GRAPH_DETAIL` | 651-729 | 6 | 5 | a second copy of the graph view's close, header and bottom-bar code, plus the page cycle |
+| `handleTouch` | `CALENDAR` | 731-800 | 2 | 6 | close, month arrows, the 7x6 day grid, the bottom bar |
+| `handleTouch` | `SETTINGS_THEMES` | 802-829 | 0 | 1 | row and button zones; preview index, paging by 4, `EVT_APPLY_THEME` |
+| `handleTouch` | `SETTINGS_ALARMS` | 830-863 | 0 | 0 | row and button zones; selection, paging by 4, jump to the sensor menu |
+| `handleTouch` | `SETTINGS_ALARM_EDIT` | 864-979 | 0 | 1 | bar rows (`ALARM_EDIT_*`), arrow ends, footer; limit stepping with hold ramp, MIN/MAX interlock, `EVT_SAVE_ALARMS` |
+| `handleTouch` | `handleTouchPanelV24` | 980-983 | 0 | 0 | not a mode: hands the v24 modes to `handleTouchPanelV24` |
+| `handleTouch` | `SETTINGS_MAIN` | 984-1019 | 0 | 1 | row and footer zones; selection, paging by 4, `EVT_MENU_SELECT` |
+| `handleTouch` | `SETTINGS_DISPLAY_OFFSET` | 1020-1091 | 0 | 1 | direction pad, reset, footer; +-4 preview clamp, live `setDisplayOffset`, `EVT_APPLY_DISPLAY_OFFSET` |
+| `handleTouch` | `SETTINGS_LANG` | 1092-1129 | 0 | 1 | row and footer zones; preview index, paging, `EVT_APPLY_LANG` |
+| `handleTouch` | `SETTINGS_PASSWORD` | 1132-1271 | 0 | 1 | keyboard geometry from `PasswordKeyboard.h`; phase machine, length and mismatch checks, `EVT_SAVE_PASSWORD` |
+| `handleTouch` | `SETTINGS_SOUNDS` | 1274-1486 | 0 | 1 | row zones, footer, left/right half of the volume rows; melody preview, mute-all confirmation, `EVT_SAVE_SOUNDS` |
+| `handleTouch` | `SETTINGS_STATUS` | 1489-1506 | 0 | 0 | footer zones; page cycling over `STATUS_PAGES` |
+| `handleTouch` | `SETTINGS_LICENSE` | 1508-1540 | 0 | 0 | upper and lower half of the text, footer; page counter against `_licenseTotalPages` |
+| `handleTouch` | `ALARM_ACTION` | 1543-1574 | 0 | 2 | three button bands (y 60-105, 115-160, 170-215); `EVT_ALARM_SILENCE`, `EVT_ALARM_DEACTIVATE` |
+| `handleTouch` | `CONFIRM_MUTE_ALL` | 1575-1611 | 0 | 0 | two rectangles (y 190-230); the manual accept gate and the sound-settings changes |
+| `handleTouch` | `CONFIRM_AP` | 1613-1630 | 0 | 1 | the same two rectangles; `EVT_START_AP` (Wi-Fi builds only) |
+| `handleTouch` | `SET_CLOCK` | 1632-1673 | 0 | 1 | footer rectangles, +1/-1 bands, column test; clock entry stepping, `EVT_SET_CLOCK` |
+| `handleTouch` | `OTA_UPDATE` | 1674-1682 | 0 | 0 | a tap dismisses an ending phase; no hit test |
+| `handleTouchPanelV24` | `AUTH` | 1307-1407 | 0 | 0 | keypad cards, footer and `PinKb` hit tests around lockout checks; `pinSubmit` pushes the PIN events |
+| `handleTouchPanelV24` | `PANEL_MESSAGE` | 1409-1412 | 0 | 0 | one tap at y >= 185 returns through `leavePanelMessage` |
+| `handleTouchPanelV24` | `SETTINGS_ALARM_SENSOR` | 1414-1456 | 0 | 1 | three row bands, four footer zones; `EVT_ALARM_BLOCK`, mode entries |
+| `handleTouchPanelV24` | `SETTINGS_MAINT` | 1458-1498 | 0 | 1 | footer zones and two `ALARM_EDIT_*` bars; hour and minute stepping, `EVT_MAINT_SET` |
+| `handleTouchPanelV24` | `AUTH_USER+SETTINGS_USERS` | 1500-1552 | 0 | 0 | four row bands, four footer zones; selection, paging by 4, PIN entry or the user editor |
+| `handleTouchPanelV24` | `SETTINGS_PIN_POLICY` | 1554-1616 | 0 | 1 | three 44 px bands, four footer zones; cycling the working policy, `EVT_PIN_POLICY` |
+| `handleTouchPanelV24` | `SETTINGS_USER_EDIT` | 1619-1671 | 0 | 1 | four row bands, four footer zones; permission toggles, PIN entry, delete confirmation, `EVT_USER_PERMS` |
+| `handleTouchPanelV24` | `SETTINGS_USER_CONFIRM_DEL` | 1673-1683 | 0 | 1 | y >= 195 split at x = 160: cancel, or delete with `EVT_USER_DEL` |
+| **`handleTouch`, 26 rows** | | | **19** | **33** | |
+| **`handleTouchPanelV24`, 8 rows** | | | **0** | **5** | |
+
+`handleTouch` has 26 rows: the 19 branches of its mode chain, and 7 parts before
+or beside the chain (finger up on the dashboard, the calibration release, the
+sensitivity sampling, the calibration press, the boot skip, the web-busy gate,
+and the delegation to `handleTouchPanelV24`). Together they hold **19 immediate
+draws and 33 `pushUiEvent` calls**. Only DASHBOARD, GRAPH_VIEW, GRAPH_DETAIL and
+CALENDAR draw immediately. `handleTouchPanelV24` has 8 rows, **no immediate
+draw**, and 5 `pushUiEvent` calls (the AUTH branch reaches 2 more through
+`pinSubmit`): everything it changes on the glass goes through `_repaintSettings`
+and `_forceSettingsRedraw`, and the loop paints it. All 42 `pushUiEvent` call
+sites in the units: 33 and 5 in the two handlers, 2 in `pinSubmit`, 1 in
+`redrawTopPanel` and 1 in `loopCore1` (the alarm rotation).
 
 ### 3.4 (d) The study's glue
 

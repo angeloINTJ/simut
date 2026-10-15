@@ -1,4 +1,5 @@
 unit	line	end	symbol	class	original_lines	core_lines	note
+DisplayManager.h	949	990	DisplayManager::redrawTopPanel	mixed	986-989	949-985,990	inline in the class body (a redraw* function the units list does not reach): the core part syncs _sharedState.topSlotIdx and the bottom slot under the mutex and may push EVT_SLOT_SELECT (950-985); the original part is the two draws, drawSlotPanel for the top card and drawBottomButtons (986-989). Called by handleTouch at Touch.cpp:50 and :509.
 DisplayManager.cpp	66	66	_licOpening	core			static char[768] buffer for the License screen's opening, composed from the pack's @WEBDICT; working state, not drawing
 DisplayManager.cpp	67	67	_licOpeningLang	core			language the License opening was composed for; screen working state
 DisplayManager.cpp	71	71	kLicOpeningSep	core			separators between the five opening strings (mirrors opening_bytes( ) in check_lang_packs.py); text composition, not layout
