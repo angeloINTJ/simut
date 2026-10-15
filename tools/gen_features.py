@@ -29,6 +29,12 @@ nomeia um [net.<id>], o driver, que traz a placa, os flags (a identidade dele, o
 paginas cortam. O macro de classe nao vai por -D: o src/net/NetCaps.h o deriva da
 identidade. Ate entao a rede era o interruptor `lan`.
 
+A UI do painel touch e uma escolha por perfil tambem (2026-10-14): `ui = "<id>"` nomeia um
+[ui.<id>], o driver de UI da imagem, com os flags dele (a identidade, -DSIMUT_UI_ANGULO=1) e as
+unidades. Um perfil sem a chave tem o `original`, que nao emite nada: os ambientes de antes saem
+byte a byte os mesmos. O que a identidade deriva (SIMUT_UI_ORIGINAL, SIMUT_UI_CUSTOM_THEMES, em
+src/ui/UiCaps.h) nao vai por -D.
+
 Cada [env:*] gerado herda `pico_base` do platformio.ini e acrescenta apenas os
 flags, o filtro de fontes e o lib_ignore que o manifesto deriva dos recursos
 ligados. O platformio.ini inclui o profiles.ini via `extra_configs` e nao define
@@ -100,8 +106,11 @@ MOVED_TO_NET = {
 }
 # O que um perfil pode dizer, alem dos interruptores: se o nome fosse outro, compose( ) o
 # ignoraria em silencio (um `lan = true` esquecido compora uma imagem Wi-Fi).
-PROFILE_KEYS = {"extends", "display", "net", "chip", "build_type", "publish", "ota_trust_bench",
+PROFILE_KEYS = {"extends", "display", "net", "ui", "chip", "build_type", "publish", "ota_trust_bench",
                 "custom_fs_pages"}
+# O driver de UI de um perfil sem a chave `ui` (2026-10-14): o painel de toda release. Como o chip
+# sem chave e o Pico W, o perfil que nao diz nada tem o driver que nao emite nada.
+DEFAULT_UI = "original"
 
 HEADER = """; profiles.ini — GERADO por tools/gen_features.py a partir de tools/features.toml.
 ; NAO EDITE A MAO. Rode `python3 tools/gen_features.py` depois de mudar o manifesto.
@@ -176,6 +185,9 @@ def compose(prof: dict, M: dict) -> dict:
     why = net_refusal(prof, M)
     if why:
         sys.exit(f"gen_features: o perfil nao compoe: {why}")
+    ui_id = prof.get("ui", DEFAULT_UI)
+    if not (isinstance(ui_id, str) and ui_id in M["ui"]):
+        sys.exit(f"gen_features: o perfil nao compoe: ui = {ui_id!r} nao e um [ui.*] ({', '.join(M['ui'])})")
 
     # The chip first: it decides the board, and its flags are about the
     # toolchain, not about a feature. A profile without the key is the Pico W.
@@ -255,6 +267,21 @@ def compose(prof: dict, M: dict) -> dict:
     if "board" in net:
         board = net["board"][chip_name]   # net_refusal( ) above guarantees the entry
 
+    # The panel's UI (2026-10-14): one driver per profile, applied AFTER the network. A profile
+    # without `ui` has the original, which has no flags and no units of its own yet, so nothing is
+    # emitted and the environments of before come out byte for byte. The driver gives its identity
+    # macro among its flags (-DSIMUT_UI_ANGULO=1) and the units only it builds (`include`: the
+    # pico_base filter does not reach a subdirectory); every unit of a driver that is not the
+    # profile's leaves the build, as the network's do. What the identity derives (SIMUT_UI_ORIGINAL,
+    # SIMUT_UI_CUSTOM_THEMES) is never emitted: src/ui/UiCaps.h derives it and refuses a build
+    # that passes it.
+    ui = M["ui"][ui_id]
+    flags += ui.get("flags", [])
+    includes += ui.get("include", [])
+    for other_id, other in M["ui"].items():
+        if other_id != ui_id:
+            excludes += other.get("units", [])
+
     # Not a switch: which roots the image trusts for its next update. Only an
     # unpublished profile asks for the bench root, and check_manifest( ) refuses
     # it anywhere else (docs/analysis/OTA_ASSINADA.md).
@@ -320,8 +347,8 @@ def emit_env(name: str, c: dict) -> str:
 
 
 def config_of(prof: dict) -> dict:
-    """O que as regras enxergam de um perfil: o mostrador, o driver da rede e cada chave, em bool."""
-    cfg = {"display": prof["display"], "net": prof["net"]}
+    """O que as regras enxergam de um perfil: o mostrador, o driver da rede, o driver de UI e cada chave, em bool."""
+    cfg = {"display": prof["display"], "net": prof["net"], "ui": prof.get("ui", DEFAULT_UI)}
     for t in TOGGLE_ORDER:
         cfg[t] = bool(prof.get(t, False))
     return cfg
@@ -434,13 +461,14 @@ def budget_table(M: dict) -> list[dict]:
     return out
 
 
-def _units_check(units, where: str) -> None:
-    """`units` de uma classe ou de um driver de rede: uma lista de nomes de arquivo de src/. Um nome com
-    espaco quebraria o build_src_filter; um que nao e lista, ou um typo, sairia do build em silencio."""
+def _units_check(units, where: str, key: str = "units") -> None:
+    """`units` de uma classe ou de um driver de rede, ou o `include` de um driver de UI: uma lista de nomes
+    de arquivo de src/. Um nome com espaco quebraria o build_src_filter; um que nao e lista, ou um typo,
+    sairia do build em silencio."""
     if units is not None and (not isinstance(units, list)
                               or any(not isinstance(u, str) or not re.fullmatch(r"[A-Za-z0-9_./*+-]+", u)
                                      for u in units)):
-        sys.exit(f"gen_features: [{where}].units tem de ser uma lista de unidades de traducao "
+        sys.exit(f"gen_features: [{where}].{key} tem de ser uma lista de unidades de traducao "
                  f"de src/ (nomes de arquivo, sem espacos)")
 
 
@@ -577,6 +605,39 @@ def check_manifest(M: dict) -> None:
     if ui_net.get("group") not in groups:
         sys.exit(f"gen_features: ui_net.group '{ui_net.get('group')}' nao e um [ui_groups]")
     _texts(ui_net, "label", "ui_net")
+    # A UI do painel (2026-10-14): uma escolha de driver por perfil, como a rede. O `original` e o driver
+    # de um perfil sem a chave (DEFAULT_UI), entao tem de existir. As chaves de um driver sao as tres que
+    # compose( ) le: uma lista que nao e de flags ou de unidades, ou um typo, entraria no build como uma
+    # macro a mais ou um arquivo a menos, em silencio.
+    uis, ui_pn = M.get("ui", {}), M.get("ui_panels", {})
+    if DEFAULT_UI not in uis:
+        sys.exit(f"gen_features: falta [ui.{DEFAULT_UI}]: e o driver de UI de um perfil sem a chave `ui`")
+    for n, v in uis.items():
+        extra = sorted(set(v) - {"flags", "include", "units"})
+        if extra:
+            sys.exit(f"gen_features: [ui.{n}] tem chave que ninguem le: {', '.join(extra)} "
+                     f"(so flags, include e units)")
+        flags = v.get("flags")
+        if flags is not None and (not isinstance(flags, list)
+                                  or any(not isinstance(f, str) or not f.startswith("-D") for f in flags)):
+            sys.exit(f"gen_features: [ui.{n}].flags tem de ser uma lista de flags -D...")
+        _units_check(v.get("include"), f"ui.{n}", "include")
+        _units_check(v.get("units"), f"ui.{n}")
+        if n not in ui_pn:
+            sys.exit(f"gen_features: [ui.{n}] sem [ui_panels.{n}]: a arvore nao saberia rotula-lo")
+        for k in ("label", "help"):
+            _texts(ui_pn[n], k, f"ui_panels.{n}")
+        if type(ui_pn[n].get("order")) is not int:
+            sys.exit(f"gen_features: [ui_panels.{n}] precisa de um order inteiro: a ordem das opcoes da pagina")
+    for n in ui_pn:
+        if n not in uis:
+            sys.exit(f"gen_features: [ui_panels.{n}] sem [ui.{n}]")
+    ui_panel = M.get("ui_panel")
+    if not isinstance(ui_panel, dict):
+        sys.exit("gen_features: falta [ui_panel]: o grupo e o rotulo da escolha da UI do painel")
+    if ui_panel.get("group") not in groups:
+        sys.exit(f"gen_features: ui_panel.group '{ui_panel.get('group')}' nao e um [ui_groups]")
+    _texts(ui_panel, "label", "ui_panel")
     for name in M["profiles"]:
         if name not in ui_p:
             sys.exit(f"gen_features: [profiles.{name}] sem [ui_products.{name}]")
@@ -597,7 +658,11 @@ def check_manifest(M: dict) -> None:
         if prof.get("net") not in nets:
             sys.exit(f"gen_features: o perfil {name} escolhe a rede {prof.get('net')!r}, que nao e um "
                      f"[net.*] ({', '.join(nets)})")
-    known = set(TOGGLE_ORDER) | {"display", "net"}
+        ui_id = prof.get("ui", DEFAULT_UI)
+        if not (isinstance(ui_id, str) and ui_id in uis):
+            sys.exit(f"gen_features: o perfil {name} escolhe a UI {ui_id!r}, que nao e um "
+                     f"[ui.*] ({', '.join(uis)})")
+    known = set(TOGGLE_ORDER) | {"display", "net", "ui"}
     for kind, parts in (("rules", ("when", "require")), ("hazards", ("when",))):
         ids = set()
         for r in M.get(kind, []):
@@ -612,7 +677,9 @@ def check_manifest(M: dict) -> None:
                         sys.exit(f"gen_features: {kind} {r['id']}.{part}: mostrador desconhecido '{v}'")
                     if k == "net" and not (isinstance(v, str) and v in nets):
                         sys.exit(f"gen_features: {kind} {r['id']}.{part}: rede desconhecida '{v}'")
-                    if k not in ("display", "net") and not isinstance(v, bool):
+                    if k == "ui" and not (isinstance(v, str) and v in uis):
+                        sys.exit(f"gen_features: {kind} {r['id']}.{part}: UI desconhecida '{v}'")
+                    if k not in ("display", "net", "ui") and not isinstance(v, bool):
                         sys.exit(f"gen_features: {kind} {r['id']}.{part}.{k} tem de ser true/false")
     # Nenhuma imagem que o CI constroi pode quebrar uma regra: se quebrasse, ou a
     # regra esta errada, ou o CI estaria compilando algo que nao linka.
@@ -696,6 +763,13 @@ def build_model(M: dict) -> dict:
                         "label": _texts(M["ui_nets"][n], "label", f"ui_nets.{n}"),
                         "help": _texts(M["ui_nets"][n], "help", f"ui_nets.{n}")}
                        for n in sorted(M["net"], key=lambda n: M["ui_nets"][n]["order"])]}
+    # A escolha da UI do painel (2026-10-14), como a da rede: o grupo da pagina onde ela fica, o rotulo e uma
+    # opcao por driver, na ordem de [ui_panels.<id>].order. O produto diz qual e o dele em `config.ui`.
+    ui_panel = M["ui_panel"]
+    ui = {"group": ui_panel["group"], "label": _texts(ui_panel, "label", "ui_panel"),
+          "options": [{"id": n, "label": _texts(M["ui_panels"][n], "label", f"ui_panels.{n}"),
+                       "help": _texts(M["ui_panels"][n], "help", f"ui_panels.{n}")}
+                      for n in sorted(M["ui"], key=lambda n: M["ui_panels"][n]["order"])]}
     products = []
     for name in M["profiles"]:
         u = M["ui_products"][name]
@@ -737,6 +811,7 @@ def build_model(M: dict) -> dict:
         "toggles": toggles,
         "displays": displays,
         "net": net,
+        "ui": ui,
         "products": products,
         "rules": [public(r, "rules") for r in M.get("rules", [])],
         "hazards": [public(h, "hazards") for h in M.get("hazards", [])],
@@ -813,7 +888,8 @@ def build_switch_table(M: dict, lang: str) -> str:
     """As chaves por grupo, na ordem do manifesto, com o que cada imagem publicada
     liga — o mesmo `config_of` que as regras usam, entao chave ausente e desligada. No
     grupo da escolha da rede ([ui_net].group), antes das chaves, uma linha por driver, na
-    ordem de [ui_nets.<id>].order, ligada na imagem que escolhe aquele driver."""
+    ordem de [ui_nets.<id>].order, ligada na imagem que escolhe aquele driver; e, do mesmo
+    jeito, uma linha por driver de UI do painel no grupo de [ui_panel] (2026-10-14)."""
     ui_t, groups, ui_p = M["ui_toggles"], M["ui_groups"], M.get("ui_products", {})
     pubs = [p for p, v in M["profiles"].items() if v.get("publish")]
     words = SWITCH_WORDS[lang]
@@ -838,6 +914,16 @@ def build_switch_table(M: dict, lang: str) -> str:
                          _md_cell(text(u, "label", f"ui_nets.{n}")),
                          _md_cell(text(u, "help", f"ui_nets.{n}"))]
                 cells += [words["on"] if cfgs[p]["net"] == n else words["off"] for p in pubs]
+                lines.append("| " + " | ".join(cells) + " |")
+                first = False
+        # The same for the touch panel's UI driver (2026-10-14), in the group [ui_panel] names.
+        if g == M["ui_panel"]["group"]:
+            for n in sorted(M["ui"], key=lambda n: M["ui_panels"][n]["order"]):
+                u = M["ui_panels"][n]
+                cells = [_md_cell(text(groups[g], "label", f"ui_groups.{g}")) if first else "",
+                         _md_cell(text(u, "label", f"ui_panels.{n}")),
+                         _md_cell(text(u, "help", f"ui_panels.{n}"))]
+                cells += [words["on"] if cfgs[p]["ui"] == n else words["off"] for p in pubs]
                 lines.append("| " + " | ".join(cells) + " |")
                 first = False
         for k, t in ui_t.items():

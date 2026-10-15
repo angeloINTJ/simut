@@ -22,7 +22,10 @@ simut_config.h, e prende:
   3. o cabecalho e puro (sem #include e sem codigo), e o unico que define os macros, e o simut_config.h o
      inclui depois dos macros do mostrador, que o cabecalho nao ve, e antes de usar o Angulo;
   4. cada #error morde: sem a linha, exatamente os casos dele falham (a regra da casa para uma checagem
-     nova).
+     nova);
+  5. nenhuma linha de comando (platformio.ini, profiles.ini, compose( ) de cada perfil) leva um macro
+     derivado, e a identidade do Angulo so vai nas imagens que escolhem `ui = "angulo"` no manifesto: o
+     original, escolhido por extenso ou por omissao, compoe o mesmo ambiente e nao emite nada de UI.
 """
 import os
 import re
@@ -257,13 +260,46 @@ def main():
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
+    # 5. O manifesto. O macro derivado nunca vai por -D (o UiCaps.h o recusa); a identidade do Angulo vai nos
+    #    flags do driver e so nas imagens que o escolhem; o original, o padrao, nao emite nada.
+    M = gf.load_manifest()
+    derived = re.compile(r"-DSIMUT_UI_(ORIGINAL|CUSTOM_THEMES)\b")
+    for path in ("platformio.ini", os.path.join("tools", "generated", "profiles.ini")):
+        with open(os.path.join(ROOT, path), encoding="utf-8") as fh:
+            hit = [ln.strip() for ln in fh if derived.search(ln)]
+        if hit:
+            fails.append(f"{path} passa um macro derivado da UI por -D (o UiCaps.h o recusa): {hit}")
+    if M["ui"]["angulo"].get("flags") != [ANGULO]:
+        fails.append(f"[ui.angulo].flags e {M['ui']['angulo'].get('flags')}, a identidade que o UiCaps.h le e {ANGULO}")
+    if M["ui"][gf.DEFAULT_UI].get("flags"):
+        fails.append(f"[ui.{gf.DEFAULT_UI}] e o padrao e nao pode emitir flag: {M['ui'][gf.DEFAULT_UI]['flags']}")
+    ui_flag = re.compile(r"-DSIMUT_UI_")
+    angulo_images = 0
+    for name in M["profiles"]:
+        prof = gf.resolve_profile(name, M["profiles"])
+        flags = gf.compose(prof, M)["flags"]
+        if [f for f in flags if derived.match(f)]:
+            fails.append(f"compose( ) de {name} passa um macro derivado da UI por -D: {[f for f in flags if derived.match(f)]}")
+        want = [ANGULO] if prof.get("ui", gf.DEFAULT_UI) == "angulo" else []
+        angulo_images += bool(want)
+        got = [f for f in flags if ui_flag.match(f)]
+        if got != want:
+            fails.append(f"compose( ) de {name} leva os flags de UI {got}, e o driver {prof.get('ui', gf.DEFAULT_UI)!r} manda {want}")
+        # O original por extenso e o original por omissao sao a mesma imagem.
+        bare = {k: v for k, v in prof.items() if k != "ui"}
+        if prof.get("ui", gf.DEFAULT_UI) == gf.DEFAULT_UI and gf.compose(dict(prof, ui=gf.DEFAULT_UI), M) != gf.compose(bare, M):
+            fails.append(f"{name}: ui = \"{gf.DEFAULT_UI}\" por extenso compoe outro ambiente que omitir a chave")
+    if not angulo_images:
+        fails.append("nenhum perfil do manifesto escolhe o Angulo: o caso acima nao provou nada")
+
     if fails:
         print("test_ui_caps: FALHOU")
         for f in fails:
             print("  -", f)
         return 1
     print(f"test_ui_caps: {len(CASES)} montagens (pelo UiCaps.h e pelo simut_config.h) julgadas pelo pre-processador; "
-          f"{bitten} de {len(all_errors)} #error mordem (sem a linha, exatamente os casos dele falham).")
+          f"{bitten} de {len(all_errors)} #error mordem (sem a linha, exatamente os casos dele falham); "
+          f"{len(M['profiles'])} imagens do manifesto sem macro derivado por -D ({angulo_images} com a identidade do Angulo).")
     return 0
 
 

@@ -355,6 +355,37 @@
       }
     ]
   },
+  "ui": {
+    "group": "interface",
+    "label": {
+      "en": "Touch display look",
+      "pt": "Visual da tela touch"
+    },
+    "options": [
+      {
+        "id": "original",
+        "label": {
+          "en": "Original look",
+          "pt": "Visual original"
+        },
+        "help": {
+          "en": "The touch display as every release has shipped it, with its themes. It is the only choice on the 16x2 LCD and with no display.",
+          "pt": "A tela touch como toda release a entregou, com os temas dela. É a única opção no LCD 16x2 e sem mostrador."
+        }
+      },
+      {
+        "id": "angulo",
+        "label": {
+          "en": "Ângulo look (study)",
+          "pt": "Visual Ângulo (estudo)"
+        },
+        "help": {
+          "en": "A study of a new look for the touch display, drawn to the Ângulo standard. Not approved for products yet: it needs the touch display, and its cost in flash has not been measured.",
+          "pt": "Um estudo de um visual novo para a tela touch, desenhado no padrão Ângulo. Ainda não aprovado para produtos: exige a tela touch, e o custo dele em flash ainda não foi medido."
+        }
+      }
+    ]
+  },
   "products": [
     {
       "id": "pico_w_release",
@@ -378,6 +409,7 @@
       "config": {
         "display": "tft",
         "net": "cyw43",
+        "ui": "original",
         "cli_full": false,
         "web_https": true,
         "license_stub": false,
@@ -420,6 +452,7 @@
       "config": {
         "display": "alpha_paralelo",
         "net": "cyw43",
+        "ui": "original",
         "cli_full": false,
         "web_https": false,
         "license_stub": false,
@@ -462,6 +495,7 @@
       "config": {
         "display": "nenhum",
         "net": "cyw43",
+        "ui": "original",
         "cli_full": true,
         "web_https": false,
         "license_stub": true,
@@ -509,6 +543,7 @@
       "config": {
         "display": "tft",
         "net": "cyw43",
+        "ui": "original",
         "cli_full": false,
         "web_https": true,
         "license_stub": false,
@@ -551,6 +586,7 @@
       "config": {
         "display": "tft",
         "net": "cyw43",
+        "ui": "original",
         "cli_full": true,
         "web_https": false,
         "license_stub": true,
@@ -593,6 +629,7 @@
       "config": {
         "display": "tft",
         "net": "cyw43",
+        "ui": "original",
         "cli_full": true,
         "web_https": true,
         "license_stub": true,
@@ -635,6 +672,7 @@
       "config": {
         "display": "tft",
         "net": "cyw43",
+        "ui": "original",
         "cli_full": false,
         "web_https": true,
         "license_stub": false,
@@ -677,6 +715,7 @@
       "config": {
         "display": "alpha_paralelo",
         "net": "enc28j60",
+        "ui": "original",
         "cli_full": false,
         "web_https": false,
         "license_stub": false,
@@ -719,6 +758,50 @@
       "config": {
         "display": "tft",
         "net": "enc28j60",
+        "ui": "original",
+        "cli_full": false,
+        "web_https": true,
+        "license_stub": false,
+        "mdns": true,
+        "concurrency_asserts": false,
+        "bluetooth": false,
+        "air": false,
+        "sound_buzzer": true,
+        "sensor_ds18b20": false,
+        "sensor_dht22": true,
+        "sensor_bme280": true,
+        "tel_tls": true,
+        "tel_mqtt": true,
+        "web_history": true,
+        "web_export_api": true,
+        "web_metrics": true,
+        "syslog": true,
+        "tft_graph": true
+      }
+    },
+    {
+      "id": "pico_wiretft_angulo",
+      "order": 10,
+      "bench": true,
+      "publish": false,
+      "chip": "rp2040",
+      "refused": {},
+      "ceilings": {
+        "flash_region": 1044480,
+        "ota_bin": 1040143
+      },
+      "label": {
+        "en": "SIMUT Wire TFT Ângulo",
+        "pt": "SIMUT Wire TFT Ângulo"
+      },
+      "desc": {
+        "en": "The SIMUT Wire with the touch display in the Ângulo look, a study that is not approved for products. Not published.",
+        "pt": "O SIMUT Wire com a tela touch no visual Ângulo, um estudo ainda não aprovado para produtos. Não publicada."
+      },
+      "config": {
+        "display": "tft",
+        "net": "enc28j60",
+        "ui": "angulo",
         "cli_full": false,
         "web_https": true,
         "license_stub": false,
@@ -824,6 +907,20 @@
         "pt": "A hibernação é feita em torno do rádio CYW43, que ela desliga entre os despertares, então precisa da conexão Wi-Fi."
       },
       "evidence": "With net = enc28j60, SIMUT_AIR stops at an #error in simut_config.h, pinned by tools/test_pin_masks.py (2026-10-12). The test of that #error was SIMUT_NET_LAN && SIMUT_AIR, the cable; since 2026-10-13 it is SIMUT_AIR && !SIMUT_NET_CYW43, the chip. Not compiled past that #error: AppManager_Air.cpp powers the CYW43 down through GPIO23 (WL_REG_ON) before every sleep, and board = rpipico has no CYW43. The rule asks for the radio, not for the absence of the cable: a wired board added later has no CYW43 either, and the #error already refuses it."
+    },
+    {
+      "id": "angulo-needs-tft",
+      "when": {
+        "ui": "angulo"
+      },
+      "require": {
+        "display": "tft"
+      },
+      "why": {
+        "en": "The Ângulo look draws on the touch display.",
+        "pt": "O visual Ângulo é desenhado na tela touch."
+      },
+      "evidence": "pico_w_alpha with ui = angulo (the composed environment plus -DSIMUT_UI_ANGULO=1, built with pio run on 2026-10-14) stops on every unit that includes simut_config.h, with: src/simut_config.h:99:2: error: #error \"SIMUT_UI_ANGULO needs SIMUT_DISPLAY_TFT\". The Air (no display) stops at the same #error, pinned by tools/test_ui_caps.py. Not compiled past it: the Ângulo panel draws on the ILI9341 and reads the XPT2046, which neither the 16x2 LCD nor the headless image has, and the manifest refuses the combination before a build starts."
     }
   ],
   "hazards": [
