@@ -387,7 +387,7 @@ that were decoded and accepted:
     change in `loopCore1` only, plus position (`_fini`, a literal pool); each has `decoded_vs_<previous>.txt` and a
     `source_proof.txt` of five points (a pure move checked by script, no control flow leaving the block, no local of the
     enclosing function named, the macros, `always_inline`). In C6 the `uiChanged` switch folded: no image has the symbol,
-    and each call is the direct one. C8 moved 149 lines (the review counted 5,016 characters on each side); its images
+    and each call is the direct one. C8 moved 149 lines, equal after whitespace by script; its images
     grew 72 to 96 B because the compiler put 43 exits of the chain out of reach of a 2-byte branch, which C8c took back.
   - C10 `d46597f` (`repairAlarmLimits`, `clampEditFocus`, `pktArrowShown`) and C11a: six images change in `drawTopBar`, the
     function those steps name, and the repair and the clamp (a pure move) leave `drawAlarmEdit` with the same listing.
@@ -397,9 +397,9 @@ that were decoded and accepted:
     of the old block, C10 and C11a over 480 cases, 360 with the two reads disagreeing, has C11a differ in 0 and C10 in 20
     (`stages/s4_c11a/model_pktarrow.txt`), and the volatile reads are those of the old block.
 - **Veneers only:** C9 `9a27acd` (`licenseOpening`, `registerUiDriverRoutes`). Six images differ and no function does: the
-  linker's veneers changed order. C9's message counts 322 distinct sites in `pico_w_release` (229 `bl` to a veneer and 93
-  literal words of the veneer table); counted by sites the review of C9 finds 304; either way every differing byte is a call to
-  a veneer or a word of the veneer table, and `licenseOpening` is absent from the nine ELFs.
+  linker's veneers changed order. In `pico_w_release` 361 bytes differ
+  (`cmp -l` of the two `.bin`); every one is a call to a same-named veneer or a word inside a veneer (C9's message counts
+  the sites one way, the review another; the bytes are the measure), and `licenseOpening` is absent from the nine ELFs.
 - **The attribute:** C8c `1958835`, `__attribute__((optimize("no-reorder-blocks")))` on `loopCore1`. The experiment ran on
   `117b17c` in a scratch worktree (`stages/s4x_*`): `noinline` on `uiPass`, `cold`, `no-reorder-blocks` on the hook, on
   `loopCore1`, and an RP2040-only `noinline`. The attribute on `loopCore1` alone did better than all of them; `noinline` helped
@@ -423,12 +423,13 @@ age and sequence, `Last stuck: ... phase=`, and the worst time of each phase tha
 soft-panic record, whose scratch word carries the phase's low byte for the reboot autopsy (`LogManager.cpp`), the phase taken
 when a flash lockout gives up (`g_core1StuckPhase`, `DisplayManager.cpp`) and the phase at the worst stall age
 (`g_core1StallPhase`, `FlashIrqProbe.cpp`). The Ângulo's pass sets `C1P_SNAPSHOT` (dashboard mode), `C1P_DASH_MUTEX` and
-`C1P_ALARM_FLASH` (the shared ticks) and `C1P_RENDER` before it paints. It does not set `C1P_LOOP_TAIL`, `C1P_UI_GRAPH`,
+`C1P_ALARM_FLASH` (the shared ticks) and `C1P_RENDER` before it paints. Its pass does not set `C1P_LOOP_TAIL`, `C1P_UI_GRAPH`,
 `C1P_UI_SETTINGS` or the `C1P_R_*` family, which the chain it replaced set before draw calls that were already stubs
-(`UA_DESVIO`); the paint itself was under `C1P_RENDER` before S4 and still is. In an Ângulo image those phases therefore
-never appear and their worst times stay 0, and a stall or a lockout that finds Core 1 painting any screen reads `RENDER` where
-the original would say `UI_GRAPH`, `UI_SETTINGS` or an `R_*` region, and a freeze between the paint and the wait reads `RENDER`
-too. Known limit, kept (the stamps are not changed): a crash report from an Ângulo image places a freeze in the paint, not on a
+(`UA_DESVIO`); the paint itself was under `C1P_RENDER` before S4 and still is. In an Ângulo image `LOOP_TAIL`, `UI_GRAPH`
+and the `R_*` phases therefore never appear and their worst times stay 0; `UI_SETTINGS` still does, because `otaTick( )`
+stamps it for both drivers before the update screen (`DisplayManager_Ota.cpp`, the `C1_PHASE( C1P_UI_SETTINGS )` before
+`uiPaintOta( )`). A stall or a lockout that finds Core 1 painting a screen reads `RENDER` where the original would say
+`UI_GRAPH`, `UI_SETTINGS` or an `R_*` region, and a freeze between the paint and the wait reads `RENDER` too. Known limit, kept (the stamps are not changed): a crash report from an Ângulo image places a freeze in the paint, not on a
 screen.
 
 **Bench checks pending.** None has run; the bench was off limits during S4.
@@ -438,7 +439,9 @@ screen.
   sensitivity screen moving on to the calibration; the graph loading screen without the 500 ms wait; the web-busy banner.
 - Added by C8: each screen still repaints on entry now that `uiPass` takes the six repaint requests; the order of the pass
   (the frame is painted before the rule that restores a full repaint for a mode that changed under it).
-- Added by C10 and C11a: an alarm edited so that MIN meets MAX is pulled apart, and not while the record is being copied; the
+- Added by C10 and C11a: an alarm edited so that MIN meets MAX is pulled apart (on the Ângulo's +/- keys by its own
+  `passoLimite`, which keeps MIN under MAX; the shared repair runs when a repaint is requested, on entering the screen), and
+  not while the record is being copied; the
   focus on a sensor with fewer limits than the last; the packet arrow returns to the steady arrow after a send; the "entrou
   pela web" notice goes away.
 - For the original: the `loopCore1` of the six images whose bytes changed (C4, C5b, C6, C8, C8c), which has only been read and
