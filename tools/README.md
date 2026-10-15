@@ -1,6 +1,6 @@
 # tools/
 
-172 scripts. This file exists because until 2026-09-08 there was no way
+176 scripts. This file exists because until 2026-09-08 there was no way
 to tell a live bench tool from a leftover, and one of them —
 `compressor.py` — had been superseded for three months while still looking
 usable: it regenerated `WebUI_GZ.h` into the repository root, where nothing
@@ -96,7 +96,7 @@ local build before CI ever sees it.
 | `sensor_soak.py` | Sensor soak — protocol item #4 of docs/analysis/SIMUT-Plano-Estabilidade-Concorrencia.md. | 2026-08-14 |
 | `web_test_suite.py` | End-to-end test suite for the SIMUT web interface. | 2026-08-17 |
 
-## Referenced elsewhere (53)
+## Referenced elsewhere (57)
 
 Named by a document, a workflow, or another script — a recipe in `docs/` or a
 step in a bench procedure. Run by hand, but with instructions somewhere.
@@ -107,15 +107,18 @@ step in a bench procedure. Run by hand, but with instructions somewhere.
 | `air_test_suite.py` | SIMUT Air — hardware-in-the-loop test suite (serial CLI + web + PicoHand). | 2026-09-09 |
 | `alarm_mqtt_test.py` | SIMUT v21 — Teste em hardware da 2ª linha de telemetria sobre MQTT com | 2026-08-23 |
 | `arduino_pico_overrides/restore.sh` | restore.sh — reverte overrides SIMUT do framework arduino-pico. | 2026-08-20 |
+| `build9.sh` | Builds the nine product images one by one (or the environments named), keeps each `firmware.bin`, `firmware.elf` and build log in `<out>/<env>/` and writes `<out>/sha256.txt` (`hash  size  env`, or `FALHOU(rc)`): the V-SHA proof of the UI-driver stages (`docs/analysis/UI_DRIVERS.md`) is `diff <base>/sha256.txt <out>/sha256.txt` printing nothing. It exits 0 even when a build failed, so read the file. For sizes equal to CI's, build with a private `PLATFORMIO_CORE_DIR` patched by `arduino_pico_overrides/patch.sh`, never the shared `~/.platformio` (on 2026-10-14 it lacked override 2n: `pico_w_release` came out 328 B under CI's 1,034,500 B). | 2026-10-14 |
 | `build_lang_pack.py` | F-LANGPACK Etapa 3 — gera data/lang/language_pt-BR.lng. | 2026-08-10 |
 | `build_manual.py` | Builds `docs/MANUAL.pt-BR.html`, the complete product manual in Portuguese, from the chapter sources in `docs/_manual/` (pandoc plus the Ângulo template, with the display face from `docs/assets/fonts/`). A figure whose PNG is not yet in `docs/images/manual/` renders as a pending box and is listed in Appendix A and in `docs/images/manual/CAPTURAR.md`; capturing one is: save the PNG under that name, run the script again. `--check` fails on a `[[VERIFICAR` marker, a repeated figure id, a broken internal link or markup that leaked through as text. Needs pandoc; not part of the firmware build or of CI. | 2026-09-23 |
 | `build_release_pio.sh` | build_release_pio.sh — Generate PlatformIO / VS Code compatible release zip. | 2026-08-29 |
+| `bytes_original.py` | How many bytes of a `firmware.elf` are the original UI driver: the `nm -S -C` sizes added up by the class (`original`, `mixed`, `core`) of each row of `docs/analysis/UI_DRIVERS_funcoes.tsv`, the mixed rows kept apart and never added in (56,699 B of original rows in `pico_wiretft`, 2026-10-14; `UI_DRIVERS.md` section 3.6). `--src <worktree>` also estimates the original share of each mixed function from the TSV's line ranges, and needs `ui_funcs.py`, the stage S0 scanner, which is not in the repository yet (without it that option stops with exit 2). Needs the PlatformIO ARM toolchain. | 2026-10-14 |
 | `check_air_consistency.py` | Static consistency gate for the SIMUT Air build (no hardware, no PlatformIO). | 2026-10-13 |
 | `check_history_v5_parity.py` | Bit-exact parity gate between the firmware V5 codec and the reference. | 2026-08-22 |
 | `chunked_probe.py` | Reads `/api/status` in a loop on one keep-alive socket, with its own chunked parser, and says how each reply ended: whole, with a hole (bytes missing mid-stream, #189), cut short honestly, or closed before its first byte. Keeps the raw bytes of every reply that is not whole and reports how far the device's abort counters (`metr.cgd`/`cgg`/`cgx`/`cgw`) moved. Proven against a fake server that serves each of the four endings, then on the bench. Cited by `arduino_pico_overrides/README.md` (overrides 2m and 2n), and the raw client of `route_sweep.py`. | 2026-10-14 |
 | `cleanup_comments.py` | Clean version history references and Portuguese markers from source files. | 2026-06-06 |
 | `commit_bool_cases.py` | Boolean round-trip cases for POST /api/commit_all, run against the real device. | 2026-08-18 |
 | `configure_and_test.py` | Configure WiFi and test Pico stability after lockout fixes. | 2026-08-16 |
+| `elf_funcoes.py` | Compares two firmware images function by function, for the proofs that a refactor left the machine code alone while the link order moved every address: each function's instructions with every address replaced by what it names (a symbol, a text, or the bytes of an unnamed constant), a call through a linker veneer read as a call to the function, and a second chance for a function whose bytes differ only in relocated pointers and branches; every read-only object (those of one name matched one to one) and every switch table by content; the text of `.rodata` and `.data` by census. Exit 0 equal, 1 different, 2 refused (no instruction read, or no code symbol: a stripped ELF). Needs the PlatformIO ARM toolchain (`PLATFORMIO_CORE_DIR`, else `~/.platformio`). Proven by `test_elf_funcoes.py`; what it does not cover is in its docstring. Its first version compared empty function bodies (the instruction regex wanted leading blanks), found and fixed on 2026-10-14. | 2026-10-14 |
 | `gen_logo.py` | Generates the brand in the Ângulo standard — the disc, the wordmark light and dark, the name alone, the two Powered-by badges, the site's social card, `data/favicon.ico` (731 B, flash byte for byte) and the configurator's three app icons (192 and 512 px, and a maskable 512) — reading every colour from `docs/assets/angulo.css`. Needs fonttools, brotli and pillow; not part of the build. | 2026-09-26 |
 | `gen_synth_history.py` | Generate a varied synthetic /history for bench work. | 2026-08-15 |
 | `gen_theme_collection.py` | Generates the curated .thm collection in themes/ and validates every | 2026-08-15 |
@@ -151,6 +154,7 @@ step in a bench procedure. Run by hand, but with instructions somewhere.
 | `telemetry_bench/storm_net.py` | storm_net.py — the combined network storm. | 2026-08-10 |
 | `telemetry_bench/storm_report.py` | Turn a storm_net.py run into the tables the report needs. | 2026-08-10 |
 | `telemetry_bench/synth_upload.py` | Put a directory of synthetic days on the device, and check them first. | 2026-09-07 |
+| `test_elf_funcoes.py` | Proves `elf_funcoes.py` on small Cortex-M0+ programs it compiles with the PlatformIO toolchain (`-nostdlib`, a linker script it writes, one function in RAM so that a veneer appears) and runs as a subprocess: the same ELF twice; the same objects in another link order (the `.bin` differ, the verdict does not), a call through a veneer against a direct one, a function moved to another file; one string edited, in a pointer table, loaded directly, in `.data` and in a local table; one constant changed in one function; one number changed in a static const table (same layout and another), in a local initializer with no symbol and in two same-named tables; an ELF with no code and a stripped one refused; a switch-table value changed; one known limit held as an expected failure. Then 14 mutants of the tool, each making exactly the cases listed for it fail. 20 cases and 14 mutants in about 3 s (2026-10-14); writing it found and fixed three defects of the tool (its docstring says which). Skips without the toolchain (exit 1 with `SIMUT_ELF_TOOLCHAIN=require`). Not in CI yet: the `gates` job installs the native platform only, and the `firmware` jobs have the toolchain. | 2026-10-14 |
 | `test_lang_gate.py` | Positive controls for check_lang_packs.py — the split-ceiling gates. | 2026-10-13 |
 | `test_webui_minify.py` | Testa o minificador do build_webui_gz.py contra as armadilhas conhecidas. | 2026-08-18 |
 | `theme-editor/gen_presets.py` | Regenerates presets.js from src/Themes.cpp — the single source of truth. | 2026-08-15 |
