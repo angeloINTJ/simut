@@ -23,6 +23,7 @@
  */
 
 #include "DisplayManager.h"
+#include "simut_config.h"   /* SIMUT_UI_ANGULO is tested below: included here, not left to DisplayManager.h */
 #include "DisplayManager_Fonts.h"
 #include "FlashIrqProbe.h" /* C1_PHASE */
 #include "UiWidgets.h"

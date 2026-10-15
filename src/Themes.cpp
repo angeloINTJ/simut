@@ -15,6 +15,7 @@
  */
 
 #include "Themes.h"
+#include "simut_config.h"   /* SIMUT_UI_ANGULO is tested below: included here, not left to Themes.h */
 
 /* Theme pack selection → see src/simut_config.h Section 7.
  * Uncomment the SIMUT_THEMES_* lines there to include theme packs.
