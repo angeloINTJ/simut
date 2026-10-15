@@ -373,6 +373,13 @@ void DisplayManager::uiChanged( UiChange, int16_t ) {
   uaSujo( );
 }
 
+/* The top card changed (a short tap, a held press, a slot followed): the frame may be different, and the pass looks at it.
+ * The old drawSlotPanel( ) and drawBottomButtons( ) that redrawTopPanel( ) called came to the same through the UA_DESVIO( )
+ * each of them starts with. */
+void DisplayManager::uiTopPanel( const SystemState & ) {
+  uaSujo( );
+}
+
 /* The web login notice ("<user> entrou pela web") lasts WEB_NOTIFY_DURATION_MS. The old top bar cleared it when it found it
  * expired, as it drew; this frame only reads it (uaVmStatus), so the pass clears it, and a notice left behind cannot come back
  * when millis( ) wraps. */

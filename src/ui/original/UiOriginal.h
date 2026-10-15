@@ -38,6 +38,15 @@ UI_HOOK void DisplayManager::uiChanged( UiChange c, int16_t arg ) {
 	}
 }
 
+/* The top card is to be shown from `snap`: the card, then the bottom buttons. The two calls redrawTopPanel( ) made, moved
+ * here as they were; redrawTopPanel( ) keeps the sync and the mirror, which are the core's. */
+UI_HOOK void DisplayManager::uiTopPanel( const SystemState &snap ) {
+	drawSlotPanel(snap.topSlotTemp, snap.topSlotHum, snap.topSlotType, snap.topSlotValid,
+	              snap.topSlotIdx, snap.topSlotName, true, _topPanel, snap.topSlotPres);
+	/* Redraw bottom buttons — fixed sensor button may appear/disappear */
+	drawBottomButtons(snap.selectedSlotIdx);
+}
+
 /* The theme changed: say "applying theme", then repaint the dashboard in full with the new palette. The block
  * loopCore1( ) ran inline, moved here as it was. */
 UI_HOOK void DisplayManager::uiThemeChanged( ) {

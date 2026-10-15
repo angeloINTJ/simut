@@ -946,49 +946,10 @@ private:
 	void drawSlotPanel(float t, float h, SensorType type, bool isValid, int slotIdx, const char* name, bool forceNameRedraw, DashPanel& panel, float p = NAN);
 	void drawBottomButtons(int selectedIdx);
 
-	/** Redraws top panel. Syncs topSlotIdx + data from current mode. */
-	void redrawTopPanel( ) {
-	 SystemState snap;
-	 mutex_enter_blocking(&_stateMutex);
-	 /* Always sync topSlotIdx based on fixed/interactive */
-	 _sharedState.topSlotIdx = (_topPanel.fixed && _topPanel.fixedIdx >= 0)
-	                         ? _topPanel.fixedIdx : _sharedState.selectedSlotIdx;
-	 /* When top panel is pinned, auto-switch bottom panel to the first
-	  * available different slot to avoid showing the same sensor twice. */
-	 if (_topPanel.fixed && _topPanel.fixedIdx >= 0 &&
-	     _topPanel.fixedIdx == _sharedState.selectedSlotIdx &&
-	     _sysConfigPtr) {
-	 	int8_t nextSlot = -1;
-	 	for (int i = 0; i < MAX_SENSORS; i++) {
-	 		if (i != _topPanel.fixedIdx && _sysConfigPtr->sensors[i].active) {
-	 			nextSlot = (int8_t)i; break;
-	 		}
-	 	}
-	 	if (nextSlot >= 0) {
-	 		_sharedState.selectedSlotIdx = nextSlot;
-	 		UiEvent ev; ev.type = UiEvent::EVT_SLOT_SELECT; ev.id = nextSlot;
-	 		pushUiEvent(ev); /* single choke point — invariant 2. */
-	 	}
-	 }
-	 /* Mirror slot* data when interactive or showing the same sensor.
-	  * NOT when fixed on a different slot: a pinned sensor in ERROR (missing
-	  * → topSlotValid=false) must keep its own panel, not mirror the bottom's. */
-	 if (!_topPanel.fixed ||
-	     _sharedState.topSlotIdx == _sharedState.selectedSlotIdx) {
-	 _sharedState.topSlotTemp = _sharedState.slotTemp;
-	 _sharedState.topSlotHum  = _sharedState.slotHum;
-	_sharedState.topSlotPres = _sharedState.slotPres;
-	 _sharedState.topSlotType = _sharedState.slotType;
-	 _sharedState.topSlotValid = _sharedState.slotValid;
-	 safeCopy(_sharedState.topSlotName, _sharedState.slotName, 31);
-	 }
-	 snap = _sharedState;
-	 mutex_exit(&_stateMutex);
-	 drawSlotPanel(snap.topSlotTemp, snap.topSlotHum, snap.topSlotType, snap.topSlotValid,
-	               snap.topSlotIdx, snap.topSlotName, true, _topPanel, snap.topSlotPres);
-	 /* Redraw bottom buttons — fixed sensor button may appear/disappear */
-	 drawBottomButtons(snap.selectedSlotIdx);
-	}
+	/** Redraws top panel. Syncs topSlotIdx + data from current mode, then asks the driver to show it (uiTopPanel( )).
+	 * Defined in src/DisplayManager_Actions.h, for the unit that calls it (DisplayManager_Touch.cpp): its body calls a hook, and
+	 * the original's hooks are defined only where ui/UiDriverHooks.h is included. */
+	inline void redrawTopPanel( );
 
 	
 
@@ -1551,6 +1512,11 @@ private:
 	 * is for a kind that needs more than its name, and neither kind so far does. The original draws the change, as the core
 	 * did before; the Ângulo marks its frame to be repainted. At each call `c` is a constant. */
 	UI_HOOK void uiChanged( UiChange c, int16_t arg );
+	/* UI driver hook: the top card is to be shown from `snap` (redrawTopPanel( ), a copy of the state taken after it synced
+	 * topSlotIdx and mirrored the bottom card's data into the top's). The original draws the card and then the bottom buttons,
+	 * because a pinned slot's button appears and disappears with the pin; the Ângulo marks its frame to be repainted. `snap`
+	 * has to travel by reference: it is a SystemState, 400 B, and the Core 1 stack is small. */
+	UI_HOOK void uiTopPanel( const SystemState &snap );
 	/* UI driver hook: the screen chain of Core 1's pass, once a pass, after the theme change and the update screen. The
 	 * original answers the current mode by drawing it and runs the core's timers on the way (src/DisplayManager_Ticks.h);
 	 * the Ângulo runs the same timers, takes the repaint requests the chain answered by drawing, and paints one frame from
