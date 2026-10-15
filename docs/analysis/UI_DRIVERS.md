@@ -16,7 +16,7 @@ Status of the sections, updated in the commit that fills each one:
 
 | section | state |
 |---|---|
-| 2. The contract | pending |
+| 2. The contract | done |
 | 3.1 (a) Members written inside draw bodies | done |
 | 3.2 (b) Callers outside the display units | done |
 | 3.3 (c) Every function, classified | done |
@@ -40,7 +40,219 @@ Status of the sections, updated in the commit that fills each one:
 
 ## 2. The contract
 
-Pending.
+A UI driver is the set of `DisplayManager` member-function definitions that give
+the TFT panel its look, chosen when the image is built; the core is everything
+else. This is the plan's section 3 written as what a driver provides and what it
+must honour. What the S0 audit found that the plan lacks is marked **(S0)**, and
+section 4 lists where the code and the plan disagree. Line numbers are those of
+`192e1ad`; they move as the stages land.
+
+### 2.1 Selection, files, and what stays identical
+
+The driver is chosen like the network driver: `ui = "<id>"` in
+`tools/features.toml`; an identity macro in `src/ui/UiCaps.h`, written like
+`src/net/NetCaps.h:76-92` (a default, an `#error` unless exactly one driver is
+named, an `#error` if a derived macro is passed with `-D`); and the units of
+every other driver excluded by the generator, as `gen_features.py:241-248` does
+for the network. A driver is a set of member-function definitions in its own
+units, which is the house precedent: `DisplayManager_Alpha.cpp` and
+`DisplayManager_None.cpp` define the same class (`features.toml:62-95`). The
+interface is a fixed list of named hooks declared once in `DisplayManager.h`
+and defined by exactly one driver, so the linker enforces it: none gives an
+undefined reference, two give a multiple definition.
+
+| file | what it is |
+|---|---|
+| `src/ui/UiCaps.h` | no includes, no code: `SIMUT_UI_ANGULO` defaults to 0, `SIMUT_UI_ORIGINAL` is its negation, `#error` unless exactly one is 1, `#error` if a capability is passed with `-D`; `SIMUT_UI_CUSTOM_THEMES` equals original |
+| `src/simut_config.h` | includes it, and `#error "SIMUT_UI_ANGULO needs SIMUT_DISPLAY_TFT"` |
+| `src/ui/UiDriver.h` | this contract in code, and the driver selection; the only file outside a driver that may test the identity macro |
+| `src/ui/UiDriverMembers.h` | the last line of the class body: empty for the original (the class layout does not move), the Ângulo's members for the Ângulo |
+| `src/DisplayManager_Actions.h`, `src/DisplayManager_Ticks.h`, `src/display/TouchCal.h` | the core actions and ticks (`always_inline`), and the pure calibration and sensitivity math with native tests |
+| `src/ui/original/`, `src/ui/angulo/` | the original's inline hook headers (its units move there only in S11); the Ângulo's glue, screens and kit (fonts, icons, tokens) |
+
+The original keeps its bytes. Its hooks, and the core actions pulled out of
+`handleTouch`, are `always_inline` functions whose bodies are the existing code
+moved word for word, so they inline back into the same unit at the same place.
+The Ângulo's hooks are ordinary out-of-line functions, and its touch handler
+calls core actions instead of moving the touch onto the old layout. Four other
+shapes were rejected: the study's (`UA_DESVIO` plus touch translation; section
+3.6 measures it: it does not link the old draw code, it links the translation
+and the mixed functions), a virtual `UiDriver` class (no original function would
+stay the same, so no sha256 or ELF proof, and it costs flash), two copies of
+`DisplayManager` (it forks the Core 1 park, quiet and flash-pause protocol, the
+PIN lockout ladder and the calibration math), and moving the original into
+`src/ui/original/` first (link order alone changes the bytes,
+`features.toml:139-146`).
+
+### 2.2 The hooks
+
+All are private `DisplayManager` members, declared without `#if`. The right
+column is where the original's body comes from on `192e1ad`.
+
+| hook | the core calls it | original: body from |
+|---|---|---|
+| `uiBegin( )` | once, when Core 1 starts or restarts, before the loop | `DisplayManager.cpp:1287-1289`: clear the glass, draw the fixed chrome, reset the render cache |
+| `uiThemeChanged( )` | `_themeChanged` was raised | `:1400-1449`. The `_uiMode = MODE_DASHBOARD` at `:1439` is a mode change and stays in the core **(S0)** |
+| `uiPass( snap )` | once per loop pass, after the touch read and the OTA tick | the dispatch `:1451-1555` and `:1559-1700`, calling the core ticks where the old code had logic (section 2.4, duty 9) |
+| `uiPaintOta( )` | the update screen must be on the glass, from either core | `drawOtaScreen`, `DisplayManager_Ota.cpp:150-226` |
+| `uiTouch( x, y )` | a touch passed the core's gates | the mode chain of `handleTouch`, `Touch.cpp:398-1682`, and `handleTouchPanelV24`, `Users.cpp:1304-1686` |
+| `uiTouchUp( )` | the finger left the glass | `Touch.cpp:38-51` (the dashboard's short tap) |
+| `uiChanged( kind, arg )` | a core action changed what is on screen | a `switch` over the `UiChange` kinds of section 3.5; for the original a constant `kind` folds it into the old call |
+| `uiPages( list, items )` **(S0)** | the core must bound a page index | the arithmetic now spread over six draw bodies, `(items + 3) / 4`, the License text's wrap count, `buildDashLayout`'s button strip |
+| `uiThemeCount( )`, `uiThemeId( i )`, `uiThemeName( i )` | the catalogue is read | `availableThemes` and the custom `.thm` list, `Themes.cpp:433-487` |
+| `WebManager::registerUiDriverRoutes( )` | the web server registers routes | empty inline; the Ângulo adds `GET /api/ui` |
+
+`uiChanged` lets an action call it exactly where the original drew at once, for
+example `drawBottomButtons` at `Touch.cpp:566` and `:577`, or `redrawTopPanel` at
+`:50` and `:509`. The theme hooks do not cover every caller outside the
+display units **(S0)**: section 3.2 lists `getThemeIndexByName` (the CLI),
+`scanCustomThemes` (boot, and after a `.thm` is uploaded or deleted),
+`loadTheme` and `getThemePalette( i )->displayName` (the web API), so the
+catalogue hooks need to grow to an index-by-name lookup, a rescan and an apply.
+
+### 2.3 Core actions
+
+The business parts of the per-mode branches of `handleTouch` and
+`handleTouchPanelV24` become public `act*( )` members, which both drivers call.
+The per-mode table of section 3.3 is the work list: 34 branch rows, 38
+`pushUiEvent` calls and 19 immediate draws in them. The plan estimates 70 to 90
+actions and 15 to 25 kinds of `UiChange`; examples are `actSelectSlot( int8_t )`,
+`actTopPanelTap( )`, `actTopPanelHoldFired( )`, `actOpenGraph( int8_t )`,
+`actGraphNav( int8_t )`, `actLimitStep( int, int )`, `actLimitsSave( )`,
+`actClockStep( int, int )`, `actPinKey( int )`, `actUserSave( )`,
+`actMaintStart( )` and `actBack( )`. Reused as they are: `pinAppendChar`,
+`pinSubmit`, `pinCancel`, `enterPinFor`, `scramblePinKeys`, `pinFailLadder`
+(`DisplayManager.h:1169`), `leavePanelMessage`, `showAlarmAction`,
+`forceDashboard`, and the gates `acceptTouch`, `acceptHoldTouch` and
+`acceptSlideTouch`. Forty-four functions are reachable from the two handlers
+without crossing a paint function (section 3.5), and none of them paints, which is
+what makes the cut possible. Cost on the original: none, since the actions are
+`always_inline`.
+
+### 2.4 Duties of a driver's paint
+
+A driver that does not run the original's `render` and `draw*` functions takes
+over what those functions did besides drawing. Items 1 to 7 are the plan's;
+items 8 to 12 are what the audit found in the draw bodies **(S0)**.
+
+1. **`_bootPaintSeq` rises once a boot frame is on the glass.** Core 0 waits for
+   it before it opens the AP-by-touch window (`bootPaintSeq( )`,
+   `AppManager_Boot.cpp:543-546`). The original raises it at `DisplayManager.cpp:1815`
+   and `:1895`.
+2. **`_otaDrawnSeq` holds the request whose update screen is on the glass.** Core 0
+   may call `uiPaintOta` while Core 1 is parked, through `otaPaintFromCore0`
+   (`Ota.cpp:115-122`), and `showOta` waits up to `OTA_PAINT_WAIT_MS`, 800 ms
+   (`DisplayManager.cpp:806-822`), for the number to arrive before a step that
+   freezes the panel. The original stores it at `Ota.cpp:225`.
+3. **`_lastHeartbeat` is stamped again after a long paint.** The health check
+   restarts Core 1 when the stamp is older than 10 s (`AppManager_Loop.cpp:133-139`),
+   and `AppManager::isDisplayAlive( )` answers false once it is 5 s old
+   (`AppManager_Core.cpp:63-72`).
+4. **`_lastRenderedState` holds the last frame's state.** The original stores it at
+   four places in `render` (`:1814, 1894, 1915, 1991`); `loopCore1` reads it for the
+   alarm rotation and the flash (`:1489, 1514, 1522`), and
+   `restoreNormalDashboard` for the restore.
+5. **`_langChanged` is consumed.** `setLanguage` raises it (`:280`); `render` clears it
+   at `:1791` and forces a full redraw of the boot terminal.
+6. **`_loadingDrawn` is set when the graph's loading screen is on the glass.** The
+   original sets it in `drawLoadingScreen` (`Graph.cpp:49`); the constructor and
+   `requestLoadingScreen` clear it; Core 0 waits on `isLoadingDrawn( )` up to 500 ms
+   (`AppManager_Events.cpp:170, 233`). This answers the plan's open question.
+7. **No flash access and no heap allocation while painting** (the T1.2 rule, stated at
+   `DisplayManager.cpp:1412-1414`). The audit checked the original against it
+   and it does not meet it: 16 `String` objects in 10 paint bodies
+   (`drawAlarmAction` 3, `drawSettingsDisplayOffset` 2, `drawTouchSensitivity` 2,
+   `drawGraphScreen` 1, `drawGraphDetailScreen` 1, `drawSettingsPassword` 1,
+   `drawPinDotsInto` 1, `drawPinScreen` 3, `drawUserConfirmDel` 2), and in
+   `drawSystemStatus` a temporary `String` from
+   `StorageManager::getBoardSerialNumber( )` (`Settings.cpp:1390`). The framework's
+   `WString.h` has no small-string buffer (`grep SSO` finds nothing), so each is
+   a heap allocation; that was read from the header, not measured. There is no
+   flash access: the board id is read once by a constructor before `main`
+   (`pico-sdk` `unique_id.c`), and `tr( )` answers from RAM. The Ângulo's paint
+   has to be heap-free from the start; the original's debt is its own.
+8. **The repaint requests are consumed.** The loop clears `_repaintSettings` before it
+   calls a draw function (`DisplayManager.cpp:1571-1685`), each of 25 painters
+   clears `_forceSettingsRedraw` when it ends (section 3.1 group C), and
+   `:1700` re-raises both if the mode changed underneath a draw. A driver that
+   calls none of those functions must consume the two flags itself, and keep
+   the rule of `:1687-1700`, or the `show*` entry points pile requests up.
+   **(S0)**
+9. **Timers that run inside draw bodies move to core ticks.** Four of them have a
+   product meaning: the 30 s return of both cards from min/max (`render`
+   `:1949-1962`); the web-notification banner's expiry (`drawTopBar`
+   `Dashboard.cpp:540-553`); the telemetry arrow's flash-to-fixed transition, the
+   same state `setTelemetrySendStatus` writes (`:648-660`); and, in
+   `drawAlarmEdit`, the repair of MIN >= MAX in the working copy `_tempAlarmConfig`
+   and the clamp of `_editFieldFocus` (`Settings.cpp:234-250`), which is
+   configuration data that Core 0 diffs on `EVT_SAVE_ALARMS`. The plan's ticks
+   (`tickDashboard`, `tickAlarmFlash`, `tickMinMaxIdle`, `tickAuthLockout`,
+   `tickTouchSens`) cover the first of these only. By reading, the study never
+   advances the arrow from state 3 to 1, since `UA_DESVIO` returns at the top of
+   `drawTopBar`; that was not run on hardware. **(S0)**
+10. **Page sizes belong to the driver, and the core asks.** Six draw bodies clamp a
+    page index with the original's four rows per page: `_themePage`, `_alarmPage`,
+    `_mainMenuPage`, `_usersPage`, `_langPage`, and `_licensePage` against
+    `_licenseTotalPages`, which `drawSettingsLicense` computes from a layout of
+    50 columns by 17 lines (`DisplayManager.cpp:2033-2048`); `buildDashLayout`
+    clamps `_currentPage` to the five-button strip (`Dashboard.cpp:1068`); and
+    `handleTouch` repeats "4 per page" in core lines (`Touch.cpp:806, 809, 816,
+    820`). A driver with another row height has other pages, so the clamp
+    becomes the answer of `uiPages( list, items )`, and the core clamps with it.
+    **(S0)**
+11. **Screen entry resets the original's draw caches.** Eleven `show*` entry points write
+    the original's sentinels (section 3.5, `UiChange::CACHES`): the
+    `_last*Page`, `_last*Sel` and `_lastOffsetDraw*` members, and the seven `g_*`
+    file-scope caches that `showTouchCalibration` clears at
+    `Calibration.cpp:49-55`. In the original they stay as they are; the
+    contract calls `uiChanged( CACHES )` at those points so a driver can drop or
+    ignore them. **(S0)**
+12. **The theme block changes the mode.** `loopCore1`'s `_themeChanged` block draws
+    the "applying theme" text and the whole dashboard, and sets `_uiMode =
+    MODE_DASHBOARD` and `_themeChanged = false` (`:1400-1449`). The hook
+    `uiThemeChanged` takes the drawing and leaves the mode change and the flag
+    with the core. **(S0)**
+
+### 2.5 Ownership
+
+- **Core.** The Core 1 lifecycle, park, quiet mode and capture (`DisplayManager.cpp:160-1240`,
+  and the core parts of `loopCore1`); the shared state, the mutex and the event
+  ring (`DisplayManager.h:766-870`); touch acquisition, the pressure and
+  injection gates, calibration and sensitivity sampling, boot, press ownership
+  and the web-busy gate (`Touch.cpp:24-396`); the `show*( )` entry points and
+  every screen's working state; timers with a product meaning (alarm rotation
+  and flash phase, lockout expiry, sensitivity to calibration, the 30 s idle
+  return, the min/max reset, and the three of duty 9); `tr( )`,
+  `DisplayManager_i18n.cpp` and `_LangParser.cpp`; the OTA state machine
+  (`Ota.cpp:115-148`); and the panel primitives `fillWindowDma`, `blitWindowDma`,
+  `fastFillRect`, `fastClearScreen` and `blitCanvas` (`Dashboard.cpp:238-400`),
+  `TftWithOffset`, and the screenshot readback in `DisplayManager_Auth.cpp`
+  (which holds no authentication: it is the GRAM read for screenshots and the
+  shuffle's `fastRandom`).
+- **Original driver.** Every `draw*` and `redraw*`, `render( )` and the boot paint
+  (`:1772-1948`); the geometry `CARD_*` (`DisplayManager.h:1095-1098`), `ALARM_EDIT_*`
+  (`:235-255`), `CLOCK_*` (`:267-272`), `GRAPH_PBTN_*` (`:285-287`); `buildDashLayout`,
+  the 3 s graph header name, `Themes.cpp`, `DisplayManager_Fonts.*`, `UiWidgets.*`,
+  `PasswordKeyboard.h` and `sensors/SensorDrawing.h`.
+- **The mixed units** are settled by section 3.3: 98 original function rows, 183
+  core and 9 mixed, per unit. S10a cuts along those rows.
+
+### 2.6 Room for a 3.5-inch panel
+
+The panel size is meant to come from the panel layer: `Ili9341_320x240` carries
+`width` and `height` (`src/display/ILI9341_320x240.h:21-22`). Today the size is
+written into core primitives as a literal: `fillWindowDma` and `blitWindowDma`
+(`Dashboard.cpp:272, 296`), the clamp in `fastFillRect` (`:327-328`),
+`fastClearScreen` (`:345-346`), the strip blits (`:424, 445, 454`), the
+`GFXcanvas16( 320, 45 )` at `DisplayManager.cpp:1258`, `mapTouchPoint`
+(`Calibration.cpp:416-417`, the mapping to 320 and 240), the calibration targets
+`CAL_SCR_X/Y` (`DisplayManager.h:1434-1435`) and `Touch.cpp:112-123`. The original's
+layouts stay 320x240. Visual changes (contrast, font sizes) are made in the
+Ângulo's own files only: `src/ui/angulo/kit/angulo_tokens.h` for colours
+(the source of truth is the `simut-rx` tokens), `Angulo.cpp` for the themes,
+`Angulo.h` for spacing and the font roles, `kit/fontes/*.h`, `AnguloMeta.h`,
+and `telas/*.cpp`, checked by `tools/tft_ui/host_*.py`. `AGENTS.md` section 7
+("the TFT panel is not Ângulo") changes when the Ângulo ships.
 
 ## 3. The audit
 
@@ -533,6 +745,7 @@ enum class UiChange : uint8_t {
     ALARM_WORD,       // _alarmStatusDirty        the ON/OFF word of a row        1
     CLOCK_VALUES,     // _clockValuesDirty        one band of the clock entry     1
     PIN_CARDS,        // _pinCardsDirty           the dealt keypad                2
+    CACHES,           // a show* entry point resets the original's draw caches   11 entry points
     GRAPH,            // _repaintGraph            graph and detail screens        7
     CALENDAR,         // _repaintCalendar         the calendar                    2
     LOADING,          // _repaintLoading          the graph's loading screen      1
@@ -541,7 +754,14 @@ enum class UiChange : uint8_t {
 };
 ```
 
-Fifteen kinds, inside the plan's estimate of 15 to 25. Sites by function kind
+Sixteen kinds, inside the plan's estimate of 15 to 25. `CACHES` is the one the
+contract of section 2.4 adds: eleven `show*` entry points (`showSettingsThemes`,
+`showSettingsAlarms`, `showAlarmEdit`, `showSettingsMain`, `showSettingsUsers`,
+`showAuthUser`, `showUserEdit`, `showPinPolicy`, `showSettingsLang`,
+`showSettingsDisplayOffset`, `showTouchCalibration`) write the original's draw
+caches: the `_last*Page`, `_last*Sel` and `_lastOffsetDraw*` sentinels of section
+3.1 group C, and the seven `g_*` caches of `DisplayManager_Calibration.cpp`.
+Sites by function kind
 for the two big flags: `_repaintSettings` is raised 56 times in `handleTouch`,
 23 in `handleTouchPanelV24`, 24 in the `show*` and `enterPinFor` entry points,
 4 in `loopCore1` and 7 elsewhere; `_forceSettingsRedraw` 17, 4, 24, 3 and 3.
