@@ -398,3 +398,46 @@ inline __attribute__((always_inline)) void DisplayManager::actLicensePage( int d
 		if (_licensePage < _licenseTotalPages - 1) _licensePage++;
 	}
 }
+
+/* The Gráficos group (stage S7: the graph, its detail, the calendar and the update screen): what a touch on one of their zones does once its
+ * gate has let it through. Whoever decided which zone was hit holds the gate its old zone held (acceptTouch( ), acceptHoldTouch( ) or
+ * acceptSlideTouch( ) with the zone's number), except where a comment below says the gate is inside the action. The actions that read the graph's
+ * package take it as `g`, and the caller passes _graphData: the member exists only when SIMUT_TFT_GRAPH is set. */
+
+/* The X of the graph and of its detail: back to the dashboard, with the time offset back at the present. The caller holds acceptTouch( 0 )
+ * and returns; the dashboard repaints in full. */
+inline __attribute__((always_inline)) void DisplayManager::actGraphClose( ) {
+	_graphNavOffset = 0;
+	_uiMode = MODE_DASHBOARD;
+	_isDirty = true;
+	_forceFullRedraw = true;
+}
+
+/* The chart's central zone: open the detail on the temperature (page 0). The caller holds acceptTouch( 10 ). _repaintGraph is volatile and
+ * stays after the two plain stores, as it was. */
+inline __attribute__((always_inline)) void DisplayManager::actGraphDetailOpen( ) {
+	_detailPage = 0;
+	_uiMode = MODE_GRAPH_DETAIL;
+	_repaintGraph = true;
+}
+
+/* The detail screen shows page `p` (0 = temperature, 1 = humidity, 2 = pressure). The caller decides which page comes next: the original's
+ * cycle from what the sensor has, the Ângulo's pager from the pages it offers. */
+inline __attribute__((always_inline)) void DisplayManager::actDetailPage( uint8_t p ) {
+	_detailPage = p;
+	_repaintGraph = true;
+}
+
+/* The detail screen, past its last page: back to the chart. The original's cycle gets here from a tap on the central zone, the Ângulo's
+ * "Voltar" from its own button; the caller holds the gate. */
+inline __attribute__((always_inline)) void DisplayManager::actDetailBack( ) {
+	_detailPage = 0;
+	_uiMode = MODE_GRAPH_VIEW;
+	_repaintGraph = true;
+}
+
+/* The calendar's way back to the chart, which keeps the data it has. The caller holds acceptTouch( 0 ) and returns. */
+inline __attribute__((always_inline)) void DisplayManager::actCalendarBack( ) {
+	_uiMode = MODE_GRAPH_VIEW;
+	_repaintGraph = true;
+}

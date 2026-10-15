@@ -434,7 +434,7 @@ void DisplayManager::handleTouch( ) {
 #if SIMUT_TFT_GRAPH
  else if (_uiMode == MODE_GRAPH_VIEW) {
  /* X button (close) — top right corner */
- if (y < 40 && x > 284) { if (!acceptTouch(0)) return; _graphNavOffset = 0; _uiMode = MODE_DASHBOARD; _isDirty = true; _forceFullRedraw = true; return; }
+ if (y < 40 && x > 284) { if (!acceptTouch(0)) return; actGraphClose( ); return; }
  /* Tap on header — show sensor name for 3s */
  if (y < 28 && x < 284) {
  if (!acceptTouch(0)) return;
@@ -495,14 +495,12 @@ void DisplayManager::handleTouch( ) {
  /* Tap on central zone -> temperature details (page 0) */
  if (y >= 40 && y < 195) {
  if (!acceptTouch(10)) return;
- _detailPage = 0;
- _uiMode = MODE_GRAPH_DETAIL;
- _repaintGraph = true;
+ actGraphDetailOpen( );
  }
  }
  else if (_uiMode == MODE_GRAPH_DETAIL) {
  /* X button — close to dashboard */
- if (y < 40 && x > 284) { if (!acceptTouch(0)) return; _graphNavOffset = 0; _uiMode = MODE_DASHBOARD; _isDirty = true; _forceFullRedraw = true; return; }
+ if (y < 40 && x > 284) { if (!acceptTouch(0)) return; actGraphClose( ); return; }
  /* Tap on header — show sensor name for 3s */
  if (y < 28 && x < 284) {
  if (!acceptTouch(0)) return;
@@ -565,17 +563,13 @@ void DisplayManager::handleTouch( ) {
  bool hasPressNow = _graphData.hasPressure;
  if (_detailPage == 0 && hasHumNow) {
  /* Temperature -> Humidity */
- _detailPage = 1;
- _repaintGraph = true;
+ actDetailPage( 1 );
  } else if (_detailPage < 2 && hasPressNow) {
  /* Temperature or Humidity -> Pressure (BMP280 skips the hum page) */
- _detailPage = 2;
- _repaintGraph = true;
+ actDetailPage( 2 );
  } else {
  /* Last page for this sensor -> return to graph */
- _detailPage = 0;
- _uiMode = MODE_GRAPH_VIEW;
- _repaintGraph = true;
+ actDetailBack( );
  }
  }
  }
@@ -584,8 +578,7 @@ void DisplayManager::handleTouch( ) {
  /* X button (back to graph) — top right corner */
  if (y < 28 && x >= 270) {
  if (!acceptTouch(0)) return;
- _uiMode = MODE_GRAPH_VIEW;
- _repaintGraph = true;
+ actCalendarBack( );
  return;
  }
  /* ◀ Month arrow — header left */

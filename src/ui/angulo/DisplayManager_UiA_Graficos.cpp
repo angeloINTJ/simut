@@ -188,10 +188,7 @@ UaToque DisplayManager::uaToqueGraficos( const ua::Alvo *a, int16_t &x, int16_t 
         case GRF_VOLTAR:
           /* The old close (:593): the offset goes back to 0 and the panel returns. */
           if ( !acceptTouch( ZONA_VOLTAR ) ) break;
-          _graphNavOffset = 0;
-          _uiMode = MODE_DASHBOARD;
-          _isDirty = true;
-          _forceFullRedraw = true;
+          actGraphClose( );
           break;
         case GRF_ANTERIOR:
           /* Past, repeating while held (:613-619). */
@@ -231,9 +228,7 @@ UaToque DisplayManager::uaToqueGraficos( const ua::Alvo *a, int16_t &x, int16_t 
         case GRF_AREA:
           /* The central zone opens the detail on the temperature (:651-657). */
           if ( !acceptTouch( ZONA_AREA ) ) break;
-          _detailPage = 0;
-          _uiMode = MODE_GRAPH_DETAIL;
-          _repaintGraph = true;
+          actGraphDetailOpen( );
           break;
         default:
           break;
@@ -251,9 +246,7 @@ UaToque DisplayManager::uaToqueGraficos( const ua::Alvo *a, int16_t &x, int16_t 
         case DET_VOLTAR:
           /* What the old tap on the last page did (:730-735). */
           if ( !acceptTouch( ZONA_VOLTAR ) ) break;
-          _detailPage = 0;
-          _uiMode = MODE_GRAPH_VIEW;
-          _repaintGraph = true;
+          actDetailBack( );
           break;
         case DET_PAG_ANTERIOR:
         case DET_PAG_PROXIMA: {
@@ -265,8 +258,7 @@ UaToque DisplayManager::uaToqueGraficos( const ua::Alvo *a, int16_t &x, int16_t 
             if ( paginas[j] == _detailPage ) k = j;
           k += a->tipo == DET_PAG_PROXIMA ? 1 : -1;
           if ( k < 0 || k >= n ) break;
-          _detailPage = paginas[k];
-          _repaintGraph = true;   /* the old cycling's flag (:725, :729) */
+          actDetailPage( paginas[k] );   /* with the repaint request the old cycling raised (:725, :729) */
           break;
         }
         default:
@@ -284,8 +276,7 @@ UaToque DisplayManager::uaToqueGraficos( const ua::Alvo *a, int16_t &x, int16_t 
         case CAL_VOLTAR:
           /* Back to the chart with the data it already has (:741-746). */
           if ( !acceptTouch( ZONA_VOLTAR ) ) break;
-          _uiMode = MODE_GRAPH_VIEW;
-          _repaintGraph = true;
+          actCalendarBack( );
           break;
         case CAL_MES_ANTERIOR:
           /* The month before (:748-752, :789-793). */
