@@ -270,7 +270,7 @@ static bool blitWindowDma(TftWithOffset* tft, const uint16_t* buf,
  int16_t x, int16_t y, int16_t w, int16_t h) {
  /* Raw setAddrWindow does not clip; a display offset can push a strip
  * off-screen. Anything not fully on-panel takes the library path. */
- if (x < 0 || y < 0 || x + w > 320 || y + h > 240) return false;
+ if (x < 0 || y < 0 || x + w > DisplayDriver::W || y + h > DisplayDriver::H) return false;
 
  int ch = dmaTftChannel( );
  if (ch < 0) return false;
@@ -294,7 +294,7 @@ static bool blitWindowDma(TftWithOffset* tft, const uint16_t* buf,
 static bool fillWindowDma(TftWithOffset* tft, uint16_t color,
  int16_t x, int16_t y, int16_t w, int16_t h) {
  if (w <= 0 || h <= 0) return true; /* nothing to paint IS success */
- if (x < 0 || y < 0 || x + w > 320 || y + h > 240) return false;
+ if (x < 0 || y < 0 || x + w > DisplayDriver::W || y + h > DisplayDriver::H) return false;
 
  int ch = dmaTftChannel( );
  if (ch < 0) return false;
@@ -329,8 +329,8 @@ void DisplayManager::fastFillRect(int16_t x, int16_t y, int16_t w, int16_t h,
  int32_t pw = w, ph = h;
  if (px < 0) { pw += px; px = 0; }
  if (py < 0) { ph += py; py = 0; }
- if (px + pw > 320) pw = 320 - px;
- if (py + ph > 240) ph = 240 - py;
+ if (px + pw > DisplayDriver::W) pw = DisplayDriver::W - px;
+ if (py + ph > DisplayDriver::H) ph = DisplayDriver::H - py;
  if (pw <= 0 || ph <= 0) return;
 
  _driver.tft->setOffsetBypass(true);
@@ -351,8 +351,8 @@ void DisplayManager::fastClearScreen(uint16_t color) {
  /* Whole PHYSICAL panel in one burst, then the black alignment margins —
  * visually identical to TftWithOffset::fillScreen( ), ~4x faster. */
  _driver.tft->setOffsetBypass(true);
- if (!fillWindowDma(_driver.tft, color, 0, 0, 320, 240)) {
- _driver.tft->fillRect(0, 0, 320, 240, color);
+ if (!fillWindowDma(_driver.tft, color, 0, 0, DisplayDriver::W, DisplayDriver::H)) {
+ _driver.tft->fillRect(0, 0, DisplayDriver::W, DisplayDriver::H, color);
  }
  _driver.tft->setOffsetBypass(false);
  _driver.tft->fillMarginsBlack( );
