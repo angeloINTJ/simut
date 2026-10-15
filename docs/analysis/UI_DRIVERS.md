@@ -12,18 +12,12 @@ a driver has to meet (section 2). The second is the audit of the tree as it is
 (section 3), measured so that later stages can lean on it and so that every
 table can be produced again. Nothing under `src/` changes in S0.
 
-Status of the sections, updated in the commit that fills each one:
-
-| section | state |
-|---|---|
-| 2. The contract | done |
-| 3.1 (a) Members written inside draw bodies | done |
-| 3.2 (b) Callers outside the display units | done |
-| 3.3 (c) Every function, classified | done |
-| 3.4 (d) The study's glue | done |
-| 3.5 (e) Immediate draws in touch handling | done |
-| 3.6 (f) Bytes of the original driver | done |
-| 4. Where the code contradicts the plan | pending |
+Stage S0 is complete as of 2026-10-14: every section below is filled, and every
+table in section 3 says how it was produced. In the commands, `$B` is the S0
+scratch directory, `/home/angelo/Documentos/simut/scratchpad/ui_drivers_20261014`,
+whose `tools/` holds the scripts (section 5), and `$BASE` is `$B/base_192e1ad`,
+the nine baseline images. The scripts stay outside the repository for now; S0
+adds only this document and its TSV.
 
 ## 1. Words used here
 
@@ -160,11 +154,11 @@ items 8 to 12 are what the audit found in the draw bodies **(S0)**.
    (`AppManager_Events.cpp:170, 233`). This answers the plan's open question.
 7. **No flash access and no heap allocation while painting** (the T1.2 rule, stated at
    `DisplayManager.cpp:1412-1414`). The audit checked the original against it
-   and it does not meet it: 16 `String` objects in 10 paint bodies
+   and it does not meet it: 16 `String` objects in 9 paint bodies
    (`drawAlarmAction` 3, `drawSettingsDisplayOffset` 2, `drawTouchSensitivity` 2,
    `drawGraphScreen` 1, `drawGraphDetailScreen` 1, `drawSettingsPassword` 1,
-   `drawPinDotsInto` 1, `drawPinScreen` 3, `drawUserConfirmDel` 2), and in
-   `drawSystemStatus` a temporary `String` from
+   `drawPinDotsInto` 1, `drawPinScreen` 3, `drawUserConfirmDel` 2), and in a
+   tenth, `drawSystemStatus`, a temporary `String` from
    `StorageManager::getBoardSerialNumber( )` (`Settings.cpp:1390`). The framework's
    `WString.h` has no small-string buffer (`grep SSO` finds nothing), so each is
    a heap allocation; that was read from the header, not measured. There is no
@@ -884,6 +878,174 @@ build of `pico_w_release` among the artefacts, so the Wi-Fi figures are a
 transposition), and the Ângulo is still changing, so its own size is a moving
 number.
 
-## 4. Where the code contradicts the plan
+## 4. Where the code contradicts the plan, and what else the audit found
 
-Pending.
+### 4.1 The plan against the code
+
+Each item says what the code says. `PLANO.md` is the planner's text of 2026-10-14
+in the S0 scratch directory; it is not in the repository.
+
+1. **The study's shape does not link the old draw code.** The plan's section 2 rejects
+   it because it "links all the old drawing code, +22.4 kB on the Pico W
+   release against 7.3 kB of OTA headroom". The ELF of the study's Ângulo image
+   keeps 1,381 B of the original's 56,699 B (section 3.6): `UA_DESVIO( );` makes
+   the rest of each draw body unreachable and `--gc-sections` drops what only
+   those bodies used. What the shape links is the touch translation and the
+   mixed functions. Its growth on `pico_wiretft` is +45,856 B, not +22.4 kB (another
+   product, and the plan names no build for its figure, so the two do not compare), and the Wi-Fi
+   release's headroom is 5,643 B (`PLANO_STABLE.md` section 3.1), not 7.3 kB. The
+   plan's "about 31 kB" is closer to the gap the Ângulo has to close, 34 to 40 kB,
+   than to a saving the split can still make, about 11 kB.
+2. **The starting list for table (a)** has `_lastRenderedState` at two sites and
+   `_forceFullRedraw` at one; `render` writes the first at four (`:1814, 1894,
+   1915, 1991`) and the second at two (`:1901, 1914`). `showMinMax` is a field of
+   `DashPanel`. The plan's line numbers are the study tree's: `render` sits 53
+   lines lower there and `Touch.cpp` 19 lines lower than on `192e1ad`.
+3. **The plan's seven duties** (its section 3.4) are not all of them: section 2.4 adds
+   five (items 8 to 12).
+4. **`uiBegin( )`.** The plan gives its body as "mark everything dirty". On `192e1ad`
+   the first-init branch holds the first paint (`DisplayManager.cpp:1287-1289`,
+   original) and the resume branch the dirty mark (`:1294-1297`, core). The hook
+   has to hold the three painting lines.
+5. **The 116 `UaToque` "return sites"** are 116 mention lines. Return statements are
+   113 (18 `TRADUZIDO`, 95 `TRATADO`); the rest are the dispatcher's two
+   comparisons and one ternary (section 3.4).
+6. **The groups of S6 and S9 cut `handleTouchPanelV24` in two.** The plan puts
+   PASSWORD with `handleTouchPanelV24` for S9; PASSWORD is a branch of `handleTouch`
+   (`Touch.cpp:1132-1271`). And S6 lists PANEL_MESSAGE and USER_CONFIRM_DEL
+   among the base and menu modes, but both are branches of `handleTouchPanelV24`
+   (`Users.cpp:1409-1412`, `:1673-1683`), the function S9 takes. That function
+   has eight branches: AUTH, PANEL_MESSAGE, ALARM_SENSOR, MAINT, AUTH_USER with
+   USERS, PIN_POLICY, USER_EDIT and USER_CONFIRM_DEL.
+7. **The mixed units are no longer unverified** (section 3.3). `DisplayManager_Auth.cpp`
+   holds no authentication: its nine rows are all core (section 4.2).
+8. **`redrawTopPanel` is defined in `DisplayManager.h`**, is mixed, and is called from
+   two places in `handleTouch`; the plan lists unit files only.
+
+### 4.2 What the plan does not mention
+
+- **Themes.cpp is called from six files outside the display**, on 17 lines
+  (section 3.2): `AppManager_Boot.cpp`, `AppManager_Events.cpp`,
+  `AppManager_Commands.cpp`, `WebManager_Api.cpp`, `WebManager_Commit.cpp` and
+  `WebManager_Files.cpp`. They need the catalogue (`getThemeCount`, `getThemeId`,
+  `getThemePalette( i )->displayName` for the web API), a lookup by name
+  (`getThemeIndexByName`, for the CLI), a rescan (`scanCustomThemes`, at boot and
+  after a `.thm` is uploaded or deleted) and the apply (`loadTheme`). The plan's
+  three hooks cover the first need only.
+- **Geometry is written twice, once for the painter and once for the touch**, in
+  places where nothing ties the two. The header's promise that hit zones are
+  derived from the drawn geometry holds for `ALARM_EDIT_*`, `CLOCK_*`,
+  `GRAPH_PBTN_*` and `CARD_*`, and not for these:
+  - the row bands `y < 80`, `y < 118`, `y < 156` as literals, in 7 places of 6
+    branches of `handleTouch` (`Touch.cpp:805, 833, 919, 987, 1098, 1283-1284,
+    1379-1380`) and 3 of `handleTouchPanelV24` (`Users.cpp:1432, 1504, 1639`),
+    where the painters place the rows from `ALARM_EDIT_Y0` (40) and
+    `ALARM_EDIT_STEP` (38), at 40, 78, 116 and 154: the literals are those starts
+    plus 2;
+  - "4 rows per page" in the core lines of the touch (`Touch.cpp:806, 809, 816, 820,
+    834, 845, 853, 857, 988, 991, 998, 1003, 1099, 1103, 1111, 1117, 1279, 1285`),
+    besides the clamps of section 3.1 group B;
+  - the nine items of the sound screen: `TOTAL_SOUND_ITEMS = 9` at `Touch.cpp:1374`
+    against `TOTAL_ITEMS = 9` at `Settings.cpp:1055`, and the row-to-event and
+    row-to-setting `case` numbers in the painter's order (`:1292-1355, 1398-1430`,
+    the five-case preview switch three times at `:1292, 1307, 1321`);
+  - the alarm-action bands y 60-105, 115-160 and 170-215 (`Touch.cpp:1544, 1552,
+    1560`) against the three buttons drawn at 60, 115 and 170 (`Alarm.cpp`,
+    `drawAlarmAction`);
+  - the confirm rectangles x 20-150 and 170-300 at y 190-230 (`Touch.cpp:1577-1585`,
+    `:1615-1620`) against the buttons drawn at 20 and 170, y 190, 130 by 40
+    (`Settings.cpp:840-841, 955-956, 1025-1034`);
+  - the calibration window, a 20 px inset with spans of 280 and 200 (`Touch.cpp:112-123`),
+    which mirrors `CAL_SCR_X/Y` = {20, 300}, {20, 220} (`DisplayManager.h:1434-1435`)
+    where the crosshairs are drawn;
+  - GRAPH_VIEW and GRAPH_DETAIL carry the same close, header-tap and bottom-bar code,
+    55 lines apiece, identical but for three comments (`Touch.cpp:585-642` and
+    `:653-708`, compared after whitespace normalisation).
+- **The PIN keypad's hit-test geometry is in `PinKeypad.h`**, beside the policy and
+  the matching, and that header is included by `SystemDefs_Validate.h`,
+  `SystemDefs_Records.h`, `StorageManager.*`, `WebManager_Api.cpp` (`GET /api/keypad`),
+  `WebManager_History.cpp`, `AppManager_CmdHandlers.cpp` (the CLI's `show display
+  keypad`) and `AppManager_Panel.cpp`. The geometry cannot move into a driver
+  with the rest of the original; S9 has to split the header.
+- **The panel size, 320 by 240, is written into core primitives**: `Dashboard.cpp:272,
+  296` (the DMA window checks), `:327-328` (the clamp in `fastFillRect`), `:345-346`
+  (`fastClearScreen`), `:424, 445, 454` (the strip blits), `DisplayManager.cpp:1258`
+  (`GFXcanvas16( 320, 45 )`), `Calibration.cpp:416-417` (`mapTouchPoint`) and the
+  calibration targets (section 2.6).
+- **Text outside `tr( )`.** `drawCalendarScreen` draws Portuguese month names and weekday
+  initials (`Calendar.cpp:45-48`); `drawTopBar` writes `"WEB '%s' - toque bloqueado"`
+  (`Dashboard.cpp:487`); and five functions choose between two literals with
+  `isPt` (`_currentLangIdx == LANG_PT`, `LANG_PT` being 1,
+  `SystemDefs_Records.h:71`): `drawApConfirm` 5, `drawClockEntry` 2,
+  `drawMuteConfirm` 6, `drawSettingsSounds` 5 and `drawMelodySelect` 2 uses. None
+  of that text goes through the language pack. What an es-ES pack selects here
+  was not checked.
+- **Dead code.** `drawSlotPanel` ends both branches of its `if` with `goto
+  _slot_bottom_fill` (`Dashboard.cpp:920, 932`), and the 97 lines up to the label
+  at `:1030` have no label of their own and no way in. The compiler drops them,
+  so they cost no bytes, but a reader must still check them. `fixCardCorners`
+  (`Dashboard.cpp:55-69`) and `drawGraphIcon` (`Graph.cpp:372-377`) have no
+  caller; only comments and the declarations mention them. Neither has a symbol
+  in the images.
+- **Strings and flash inside paint bodies, against duty 7.** The rule is written at
+  `DisplayManager.cpp:1412-1414`, and the original breaks it in 10 bodies
+  (section 2.4, item 7): 16 `String` objects in 9 bodies and one temporary in
+  `drawSystemStatus`. It does not read flash: `StorageManager::getBoardSerialNumber( )`
+  calls `pico_get_unique_board_id`, which the SDK fills once in a constructor
+  before `main`, and `tr( )` answers from RAM. The count of heap allocations
+  depends on `String` having no small-string buffer, read from the header and
+  not measured.
+- **`DisplayManager_Auth.cpp` has no authentication in it.** Its nine definitions are the
+  GRAM read-back behind the screenshot and the mirror (`readPixel`, `readRect`,
+  `readRectDmaStart`, `readRectDmaFinish`, `convert3to565`, `readRow`, the two DMA
+  channel getters) and `fastRandom`, which the PIN shuffle uses. All nine are core
+  rows.
+
+### 4.3 The build environment: override 2n
+
+The baseline images of this audit were built locally, against the shared
+`~/.platformio`, which carries the framework override 2m and not 2n
+(`webserver_fewer_writes.patch`, #189). The sizes recorded in
+`tools/flash_budget.json` for `192e1ad` come from a PlatformIO core that carries
+both (`PLATFORMIO_CORE_DIR`, a hardlinked copy patched by
+`tools/arduino_pico_overrides/patch.sh`). The local `.bin` is below the record by
+328 B on `pico_w_release`, `pico_w_test`, `pico_w_asserts`, `pico_wire` and
+`pico_wiretft`, by 296 B on `pico2_w_release`, by 4,096 B on `pico_w_air` (its 4 KB
+step) and equal on `pico_w_alpha`. Every comparison in this work is local against
+local (the nine sha256 in `$BASE`; the study's plain `pico_wiretft` has the same
+sha256 as the baseline's, so it was built the same way), so those hold. Two figures mix the sources and are off by at most 328 B in 40 kB:
+the headroom of 5,643 B in section 3.6 is the CI record, and the local release
+has 5,971 B. **A budget entry taken from a local build would be about 328 B under
+what CI measures, and the gate would fail the Ângulo image in CI. That must be
+settled before S2b writes a `flash_budget.json` entry**: either every
+measurement of the branch is made against a core patched as CI's is, or the
+numbers come from CI.
+
+### 4.4 Open points
+
+- Whether the Ângulo is meant for the Wi-Fi release at all. The measurement (section
+  3.6) puts the gap at 34 to 40 kB and the split's remaining saving at about 11
+  kB; S12's refusal path is the likely outcome unless the Ângulo's own 105 kB
+  shrinks. This needs the maintainer.
+- The `String` use of item 7: leave it in the original (it keeps its bytes) or
+  remove it in a separate fix.
+- Whether the scripts of section 5 move into `tools/` and which of the tables are
+  re-run as a gate. Nothing in S0 changes `src/`, `tools/` or any generated
+  file.
+- Nothing here was run on hardware: the bench was not touched. Every number
+  is from a build, an ELF or the source.
+
+## 5. Tools
+
+All are in `$B/tools/`, take the worktree (or an ELF) as an argument, and write
+nothing in it.
+
+| script | what it does | used in |
+|---|---|---|
+| `ui_funcs.py` | scans the C++ of the TFT units for function definitions (comments, literals and preprocessor lines blanked, braces followed): file, line, end, name, arity | 3.1, 3.3 |
+| `ui_writes.py` | for each function, the members it writes (assignment, `++`, libc first argument, taken address), a `DashPanel&` parameter followed as `_topPanel` or `_bottomPanel`, statics listed | 3.1 |
+| `ui_constcheck.py` | the compiler as a control: makes every data member of `DisplayManager` `const` in a scratch copy and lists each write as a compile error | 3.1 |
+| `ui_xref.py` | which functions mention a name | 3.1 |
+| `ui_touch.py` | the branches of `handleTouch` and `handleTouchPanelV24` with their immediate draws, `pushUiEvent` calls, events and repaint flags | 3.3, 3.5 |
+| `bytes_original.py` | sums `nm -S -C` sizes by the class of the TSV row | 3.6 |
+| `build9.sh`, `elf_funcoes.py` | the plan's kit: build the nine images, compare two ELFs function by function | later stages |
