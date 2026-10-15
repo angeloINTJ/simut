@@ -12,7 +12,9 @@
     "e o orçamento de PIO e de pinos (pio-budget, pin-conflict; tools/pio_budget.py). O Python",
     "(gen_features.blockers) e o JS (logic.js blockersOf) têm de dar exatamente essa lista.",
     "A rede é uma escolha, não um interruptor: `\"set\": {\"net\": \"<id>\"}` troca o driver do",
-    "produto (cyw43, o rádio da placa; enc28j60, o módulo de cabo), como `config.net` do model.json."
+    "produto (cyw43, o rádio da placa; enc28j60, o módulo de cabo), como `config.net` do model.json.",
+    "A UI do painel touch (2026-10-14) é a outra escolha de driver: `\"set\": {\"ui\": \"<id>\"}` troca o driver de UI",
+    "do produto (original, o padrão de toda release; angulo, um estudo), como `config.ui` do model.json."
   ],
   "cases": [
     {"name": "SIMUT as shipped",               "base": "pico_w_release", "set": {},                                                       "violates": [], "blocks": []},
@@ -44,7 +46,16 @@
     {"name": "SIMUT Wire with DS18B20, without DHT22", "base": "pico_wire", "set": {"sensor_ds18b20": true, "sensor_dht22": false},       "violates": [], "blocks": []},
     {"name": "Pico 2 W as shipped",            "base": "pico2_w_release", "set": {},                                                      "violates": [], "blocks": []},
     {"name": "Pico 2 W on the cable",          "base": "pico2_w_release", "set": {"net": "enc28j60"},                                     "violates": [], "blocks": ["unsupported-net"]},
-    {"name": "Pico 2 W on the cable, with Bluetooth", "base": "pico2_w_release", "set": {"net": "enc28j60", "bluetooth": true},          "violates": ["bluetooth-needs-cyw43"], "blocks": ["bluetooth-needs-cyw43", "unsupported-net"]}
+    {"name": "Pico 2 W on the cable, with Bluetooth", "base": "pico2_w_release", "set": {"net": "enc28j60", "bluetooth": true},          "violates": ["bluetooth-needs-cyw43"], "blocks": ["bluetooth-needs-cyw43", "unsupported-net"]},
+    {"name": "SIMUT with the Ângulo look",     "base": "pico_w_release", "set": {"ui": "angulo"},                                         "violates": [], "blocks": []},
+    {"name": "Pico 2 W with the Ângulo look",  "base": "pico2_w_release", "set": {"ui": "angulo"},                                        "violates": [], "blocks": []},
+    {"name": "SIMUT Wire TFT with the Ângulo look", "base": "pico_wiretft", "set": {"ui": "angulo"},                                    "violates": [], "blocks": []},
+    {"name": "SIMUT Wire TFT Ângulo as shipped", "base": "pico_wiretft_angulo", "set": {},                                              "violates": [], "blocks": []},
+    {"name": "SIMUT Wire TFT Ângulo with the original look back", "base": "pico_wiretft_angulo", "set": {"ui": "original"},         "violates": [], "blocks": []},
+    {"name": "Alpha with the Ângulo look",     "base": "pico_w_alpha",   "set": {"ui": "angulo"},                                         "violates": ["angulo-needs-tft"], "blocks": ["angulo-needs-tft"]},
+    {"name": "Alpha with the original look",   "base": "pico_w_alpha",   "set": {"ui": "original"},                                       "violates": [], "blocks": []},
+    {"name": "Air with the Ângulo look",       "base": "pico_w_air",     "set": {"ui": "angulo"},                                         "violates": ["angulo-needs-tft"], "blocks": ["angulo-needs-tft"]},
+    {"name": "SIMUT Wire with the Ângulo look", "base": "pico_wire",     "set": {"ui": "angulo"},                                         "violates": ["angulo-needs-tft"], "blocks": ["angulo-needs-tft"]}
   ],
   "hazard_cases": [
     {"name": "SIMUT as shipped",               "base": "pico_w_release", "set": {},                  "hazards": []},

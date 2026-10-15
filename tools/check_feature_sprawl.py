@@ -40,7 +40,11 @@ BASELINE = os.path.join(ROOT, "tools", "feature_sprawl.json")
 # (SIMUT_NET_CYW43, SIMUT_NET_ENC28J60) com o `#ifndef X / #define X` e a classe (SIMUT_NET_WIFI,
 # SIMUT_NET_LAN) derivada dela. Contado, o cabecalho que separa a identidade da classe subiria as duas
 # marcas em sitios que nao espalham nada: so definem.
-SKIP_FILES = {"simut_config.h", "FeatureBits.h", "NetCaps.h"}
+#
+# O ui/UiCaps.h (2026-10-14) tambem, pela mesma razao: e onde a UI do painel tem a identidade
+# (SIMUT_UI_ANGULO, com o `#ifndef X / #define X`) e as capacidades derivadas dela (SIMUT_UI_ORIGINAL,
+# SIMUT_UI_CUSTOM_THEMES), mais as duas checagens de #error: sitios que definem, nao que espalham.
+SKIP_FILES = {"simut_config.h", "FeatureBits.h", "NetCaps.h", "UiCaps.h"}
 EXTS = (".cpp", ".c", ".h", ".hpp", ".ino")
 
 COND = re.compile(r"^\s*#\s*(?:if|ifdef|ifndef|elif)\b(.*)$")

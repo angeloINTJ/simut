@@ -70,7 +70,8 @@ def check_manifest(M: dict) -> tuple[list[str], list[str]]:
 
     # macros SIMUT_ declaradas -> {macro: dead?}. As do interruptores, as das classes de rede
     # ([net_class.*].macro, que o src/net/NetCaps.h define: nao vao por -D) e as dos flags de mostrador
-    # e de driver (a identidade, -DSIMUT_NET_ENC28J60=1, tambem tem de existir em src/).
+    # e de driver (a identidade, -DSIMUT_NET_ENC28J60=1, e a da UI do painel, -DSIMUT_UI_ANGULO=1,
+    # tambem tem de existir em src/: um typo no flag passaria a ser uma macro que ninguem le).
     simut: dict[str, bool] = {}
     for t in M["toggles"].values():
         mac = t.get("macro", "")
@@ -80,7 +81,7 @@ def check_manifest(M: dict) -> tuple[list[str], list[str]]:
         mac = cls.get("macro", "")
         if mac.startswith("SIMUT_"):
             simut.setdefault(mac, False)
-    for disp in list(M["display"].values()) + list(M.get("net", {}).values()):
+    for disp in list(M["display"].values()) + list(M.get("net", {}).values()) + list(M.get("ui", {}).values()):
         for fl in disp.get("flags", []):
             if fl.startswith("-DSIMUT_"):
                 simut.setdefault(fl[2:].split("=")[0], False)
@@ -103,6 +104,10 @@ def check_manifest(M: dict) -> tuple[list[str], list[str]]:
     # errado nao exclui nada, em silencio.
     for n in list(M.get("net_class", {}).values()) + list(M.get("net", {}).values()):
         referenced |= set(n.get("units", []))
+    # O mesmo para os drivers de UI do painel (2026-10-14): `units` sai das imagens dos outros drivers e
+    # `include` entra so na do driver, e um nome errado nao exclui nem inclui nada, em silencio.
+    for u in M.get("ui", {}).values():
+        referenced |= set(u.get("units", [])) | set(u.get("include", []))
     for ref in sorted(referenced):
         if "*" in ref:
             import glob

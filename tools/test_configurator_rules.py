@@ -16,7 +16,8 @@ orçamento de PIO e de pinos (tools/pio_budget.py). O Python é gen_features.blo
 que o CI aplica; o JS é logic.js blockersOf( ), o que a página aplica, e os dois têm de
 dar a mesma lista, na mesma ordem. Todo bloqueio de orçamento e toda recusa de chip que
 o model.json carrega precisa de um caso. A rede é uma escolha de driver: um caso a troca
-com `"set": {"net": "<id>"}`, e as regras a leem como `net = "<id>"`.
+com `"set": {"net": "<id>"}`, e as regras a leem como `net = "<id>"`. A UI do painel touch
+(2026-10-14) é a outra: `"set": {"ui": "<id>"}`, lida pelas regras como `ui = "<id>"`.
 
 O lado JS precisa de node (o runner ubuntu-latest do CI traz). Fora do CI, sem
 node, só o lado Python roda, e a saída diz isso.
@@ -99,6 +100,9 @@ def main():
             if k == "net":
                 if v not in M["net"]:
                     fails.append(f"caso '{c['name']}': net={v!r} não é um driver de rede ({', '.join(M['net'])})")
+            elif k == "ui":
+                if v not in M["ui"]:
+                    fails.append(f"caso '{c['name']}': ui={v!r} não é um driver de UI ({', '.join(M['ui'])})")
             elif k not in gf.TOGGLE_ORDER or not isinstance(v, bool):
                 fails.append(f"caso '{c['name']}': {k}={v!r} não é uma chave true/false")
     for c in table["cases"]:

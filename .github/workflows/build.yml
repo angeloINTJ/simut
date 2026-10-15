@@ -137,6 +137,15 @@ jobs:
       - name: Network driver and class
         run: python3 tools/test_net_caps.py
 
+      # The touch panel's UI driver is an identity of the image too: the original, the
+      # default, or the Ângulo (-DSIMUT_UI_ANGULO=1, a study not approved for products),
+      # with what it can do (SIMUT_UI_CUSTOM_THEMES) derived from it in src/ui/UiCaps.h and
+      # never passed with -D. The preprocessor answers for each assembly; a derived macro
+      # passed, an Ângulo that is not 0 or 1, and the Ângulo on an image without the TFT stop
+      # at an #error; and every #error is taken out in turn to see exactly its cases fail.
+      - name: Touch panel UI driver
+        run: python3 tools/test_ui_caps.py
+
       # The wired build (the ENC28J60 driver, the SIMUT Wire: a plain Pico with the
       # network on an ENC28J60 module) is held, by the preprocessor, to the pins
       # it may use, the radio it does not have and the name it takes in the OTA.
