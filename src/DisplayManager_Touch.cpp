@@ -107,20 +107,24 @@ void DisplayManager::handleTouch( ) {
  float dxInRawY = fabsf(rawRight_Y - rawLeft_Y);
  _calSwapXY = (dxInRawY > dxInRawX);
 
+ /* A raw span measured between the targets stands for winX (winY) px of glass,
+  * and the window reaches one inset past each target: the numbers are the
+  * panel's less two insets, not 280 and 200 (CAL_SCR_X/Y in DisplayManager.h). */
+ constexpr float inset = CAL_INSET, winX = CAL_SPAN_X, winY = CAL_SPAN_Y;
  if (_calSwapXY) {
  float spanX = rawRight_Y - rawLeft_Y;
- _calXMin = (int16_t)(rawLeft_Y - 20.0f * spanX / 280.0f);
- _calXMax = (int16_t)(rawRight_Y + 20.0f * spanX / 280.0f);
+ _calXMin = (int16_t)(rawLeft_Y - inset * spanX / winX);
+ _calXMax = (int16_t)(rawRight_Y + inset * spanX / winX);
  float spanY = rawBot_X - rawTop_X;
- _calYMin = (int16_t)(rawTop_X - 20.0f * spanY / 200.0f);
- _calYMax = (int16_t)(rawBot_X + 20.0f * spanY / 200.0f);
+ _calYMin = (int16_t)(rawTop_X - inset * spanY / winY);
+ _calYMax = (int16_t)(rawBot_X + inset * spanY / winY);
  } else {
  float spanX = rawRight_X - rawLeft_X;
- _calXMin = (int16_t)(rawLeft_X - 20.0f * spanX / 280.0f);
- _calXMax = (int16_t)(rawRight_X + 20.0f * spanX / 280.0f);
+ _calXMin = (int16_t)(rawLeft_X - inset * spanX / winX);
+ _calXMax = (int16_t)(rawRight_X + inset * spanX / winX);
  float spanY = rawBot_Y - rawTop_Y;
- _calYMin = (int16_t)(rawTop_Y - 20.0f * spanY / 200.0f);
- _calYMax = (int16_t)(rawBot_Y + 20.0f * spanY / 200.0f);
+ _calYMin = (int16_t)(rawTop_Y - inset * spanY / winY);
+ _calYMax = (int16_t)(rawBot_Y + inset * spanY / winY);
  }
 
  _calValid = true;
