@@ -19,7 +19,7 @@
 #include "SystemDefs.h"
 #include "TelemetryManager.h" /* pushAlarm + AlarmErrCode (AlarmQueue.h) */
 #include "Themes.h"
-#include "display/GraphAnchor.h"   /* graphAnchorStep( ), graphOpenClearsAnchor( ): where the chart's window ends, under SIMUT_UI_ANGULO below */
+#include "display/GraphAnchor.h"   /* graphAnchorStep( ), graphAnchorDay( ), graphAnchorOpen( ): where the chart's window ends, under SIMUT_UI_ANGULO below */
 #include <time.h>
 
 /* display/GraphAnchor.h names three screens of UiMode by number, because the host suite that tests it cannot include the enum. Pinned here, in
@@ -48,6 +48,13 @@ void AppManager::core0Yield( ) {
  static bool _isRenderingGraph = false;
  static bool _inYield = false;
  static uint32_t _yieldEntryTime = 0;
+#if SIMUT_UI_ANGULO
+ /* The end of the live window at the moment the first arrow left it, which the way back is measured against (display/GraphAnchor.h): the window is
+  * the present again when the taps bring it back there, however long they took. 0 when the anchor did not come from the live window. The three
+  * places that write _graphAnchorEnd below keep the pair: the arrows (graphAnchorStep), a calendar day (graphAnchorDay: its own anchor, no base)
+  * and an opening from another screen (graphAnchorOpen: both cleared). Core 0 only, and nothing outside this function writes the anchor. */
+ static time_t _graphLiveBase = 0;
+#endif
 
  /* Safety: reset guard if stuck >10s (partial crash) */
  if (_inYield && timeSince(_yieldEntryTime, 10000)) {
@@ -116,14 +123,16 @@ void AppManager::core0Yield( ) {
  ? rangeDur[_lastGraphRange] : 86400;
 
 #if SIMUT_UI_ANGULO
- /* The anchor starts at the clock read here and was judged below against a clock read later, so one period back and one forward, a few
-  * seconds apart, ended at the first tap's clock, marked as the past ("fim", ▶ still enabled), and a second ▶ reached the present with the
-  * anchor frozen at that moment. display/GraphAnchor.h reads the clock once, and a window that ends less than half a step before it IS the
-  * present: anchor 0, the live window, offset 0. A window further back is placed as the lines below place it. The products keep those lines,
-  * so their images stay byte for byte as they are. */
+ /* The anchor starts at the clock read here and was judged below against a clock read later, so one period back and one forward, a few seconds
+  * apart, ended at the first tap's clock, marked as the past ("fim", ▶ still enabled), and a second ▶ reached the present with the anchor frozen at
+  * that moment. display/GraphAnchor.h measures the way back against where the taps left the live window (_graphLiveBase): back there, or past it, or at
+  * or after the clock, the window is the live one, anchor 0 and offset 0, whatever the wait and whatever period was chosen in between. A calendar
+  * window has no base and keeps its alignment (yesterday stays yesterday at 10:00), and one that stays in the past is placed as the lines below place
+  * it. The products keep those lines, so their images stay byte for byte as they are. */
  {
- const GraphAnchorPlace at = graphAnchorStep(_graphAnchorEnd, time(nullptr), steps, step);
+ const GraphAnchorPlace at = graphAnchorStep(_graphAnchorEnd, _graphLiveBase, time(nullptr), steps, step);
  _graphAnchorEnd = at.anchorEnd;
+ _graphLiveBase = at.liveBase;
  _graphNavOffset = at.offset;
  }
 #else
@@ -167,9 +176,10 @@ void AppManager::core0Yield( ) {
  /* Asked from another screen (the dashboard's chart buttons, the calendar's Today) the chart starts at the present. Nothing ever cleared the
   * anchor a calendar day or an arrow set, so every later opening showed that window: on the bench, a day picked in the calendar came back as
   * 13/10 23:00-24:00 when the dashboard opened the chart again, 62094 s behind the clock and drawn as the present (2026-10-14, image
-  * 9c3e0a25). A period chosen inside the chart, or the way back from its detail, keeps the window (display/GraphAnchor.h has the rule).
+  * 9c3e0a25). A period chosen inside the chart, or the way back from its detail, keeps the window (display/GraphAnchor.h has the rule); from
+  * another screen the anchor and its base both go.
   * The products have the same defect; this build fixes it for itself only, so their images stay byte for byte as they are. */
- if (graphOpenClearsAnchor((int)_displayMgr->getUiMode( ))) _graphAnchorEnd = 0;
+ graphAnchorOpen((int)_displayMgr->getUiMode( ), _graphAnchorEnd, _graphLiveBase);
 #endif
  bool hasAnchor = (_graphAnchorEnd != 0);
 
@@ -237,7 +247,11 @@ void AppManager::core0Yield( ) {
  * 24H window will be exactly [00:00, 23:59] of the selected day.
  * ◀▶ navigation shifts from this anchor, not from now.
  */
+#if SIMUT_UI_ANGULO
+ graphAnchorDay(selMidnight, _graphAnchorEnd, _graphLiveBase);   /* the day's window is its own: a base from an earlier trip back goes (display/GraphAnchor.h) */
+#else
  _graphAnchorEnd = selMidnight + 86400;
+#endif
 
  /*
  * Offset for ▶ button control:
