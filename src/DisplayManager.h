@@ -1539,6 +1539,11 @@ private:
 	 * draws the fixed background unless the boot terminal has the panel; the Ângulo marks its whole frame to be repainted.
 	 * The core keeps the line after the call, `_lastRenderedState.selectedSlotIdx = -1`: the slot rotation reads it. */
 	UI_HOOK void uiBegin( );
+	/* UI driver hook: the theme changed (Core 0's refreshTheme( ) set _themeChanged). Core 1, once a pass, before the screen
+	 * dispatch. The original says "applying theme" and repaints the dashboard in full; the Ângulo goes to the dashboard,
+	 * which repaints with the new palette. Either leaves _uiMode at the dashboard unless the device is booting. The core
+	 * clears _themeChanged after the call. */
+	UI_HOOK void uiThemeChanged( );
 
 	struct ActiveLang {
 		char name[16];

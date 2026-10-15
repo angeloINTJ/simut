@@ -228,7 +228,7 @@
   "Themes.cpp": 1
  },
  "SIMUT_UI_ANGULO": {
-  "DisplayManager.cpp": 4,
+  "DisplayManager.cpp": 3,
   "DisplayManager_Dashboard.cpp": 3,
   "DisplayManager_Touch.cpp": 1,
   "Themes.cpp": 2,

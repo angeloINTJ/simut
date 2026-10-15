@@ -38,7 +38,6 @@
 
 #include "pico/multicore.h"
 #include "hardware/structs/scb.h"
-#include "ui/UiDriverHooks.h"   /* the UI driver's hook definitions: last, they need the complete class */
 
 
 /* Reduced from 8 to 2 languages (EN + PT) to save flash.
@@ -64,6 +63,8 @@
  * to English. Without a pack, or in English, the opening is the page's English
  * text, which tools/gen_notices.py copies into HelpLicenseEN.h. */
 #if !SIMUT_DISPLAY_ALPHA
+#include "ui/UiDriverHooks.h"   /* the UI driver's hook definitions: after every other include, they need the complete class;
+                                   the original's draw on the TFT, which the alpha display has not, so not above this #if */
 static char _licOpening[768];
 static int _licOpeningLang = -1;    /* the language _licOpening was composed for */
 
@@ -1405,57 +1406,7 @@ void DisplayManager::loopCore1( ) {
 		const UiMode modeBeforeDraw = _uiMode;
 
 		if (_themeChanged) {
-#if SIMUT_UI_ANGULO
-			uaTemaAplicado( );
-#else
-			C1_PHASE(C1P_THEME_MUTEX);
-			SystemState snap;
-			mutex_enter_blocking(&_stateMutex);
-			snap = _sharedState;
-			mutex_exit(&_stateMutex);
-
-			if (!snap.isBooting) {
-				fastClearScreen(C_BG_MAIN);
-				_driver.tft->setFont(&simutFont12pt);
-				_driver.tft->setTextColor(C_TEXT_MAIN);
-				int16_t x1, y1; uint16_t w, h;
-				/* T1.2: Core-1 render path is heap-free — tr( ) already
-				 * returns const char*, the String wrapper was pure waste
-				 * (and a reset-inside-malloc hazard). */
-				const char* msg = tr(TR_APPLYING_THEME);
-				_driver.tft->getTextBounds(msg, 0, 0, &x1, &y1, &w, &h);
-				_driver.tft->setCursor(160 - (w/2), 127);
-				_driver.tft->print(msg);
-				delay(200);
-
-				mutex_enter_blocking(&_stateMutex);
-				snap = _sharedState;
-				/* Mesmo guarda do render(): espelha só se interativo — topo fixado
-				 * em sensor de erro (inválido) mantém o próprio painel. */
-				if (!_topPanel.fixed && !snap.topSlotValid) {
-				snap.topSlotTemp = snap.slotTemp; snap.topSlotHum = snap.slotHum;
-				snap.topSlotType = snap.slotType; snap.topSlotValid = snap.slotValid;
-				safeCopy(snap.topSlotName, snap.slotName, 31);
-				}
-				_isDirty = false;
-				mutex_exit(&_stateMutex);
-
-				drawInterfaceFixed( );
-				drawTopBar(snap);
-				drawSlotPanel(snap.topSlotTemp, snap.topSlotHum, snap.topSlotType, snap.topSlotValid, snap.topSlotIdx, snap.topSlotName, true, _topPanel, snap.topSlotPres);
-				drawSlotPanel(snap.slotTemp, snap.slotHum, snap.slotType, snap.slotValid, snap.selectedSlotIdx, snap.slotName, true, _bottomPanel, snap.slotPres);
-				drawBottomButtons(snap.selectedSlotIdx);
-				_lastRenderedState = snap;
-				_uiMode = MODE_DASHBOARD;
-			} else {
-				fastClearScreen(C_BG_MAIN);
-				_lastRenderedState.isBooting = false;
-
-				mutex_enter_blocking(&_stateMutex);
-				_isDirty = true;
-				mutex_exit(&_stateMutex);
-			}
-#endif
+			uiThemeChanged( );
 			_themeChanged = false;
 		}
 

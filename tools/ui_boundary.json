@@ -1,7 +1,7 @@
 {
  "identity": {
   "src/DisplayManager.cpp": {
-   "count": 4,
+   "count": 3,
    "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the Ângulo build's licence-opening accessor, its theme application and render call in loopCore1( ) and its boot paint in render( ), each behind `#if SIMUT_UI_ANGULO`; ends in S4 (the loop hooks)"
   },
   "src/DisplayManager_Dashboard.cpp": {
@@ -23,7 +23,7 @@
  },
  "driver-hook": {
   "src/DisplayManager.cpp": {
-   "count": 5,
+   "count": 4,
    "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: uaAberturaLicenca, uaTemaAplicado and uaQuadro (the licence opening and loopCore1( )), uaSujo in render( ) and the UA_DESVIO( ) of drawSettingsLicense; ends in S4 (the loop hooks) and S10b (UA_DESVIO)"
   },
   "src/DisplayManager_Alarm.cpp": {

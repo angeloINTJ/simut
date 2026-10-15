@@ -364,7 +364,7 @@ void DisplayManager::uiBegin( ) {
 
 /* The theme changed (Core 0's refreshTheme( )): like the old block, the panel
  * goes to the dashboard, which repaints in full with the new palette. */
-void DisplayManager::uaTemaAplicado( ) {
+void DisplayManager::uiThemeChanged( ) {
   mutex_enter_blocking( &_stateMutex );
   if ( !_sharedState.isBooting ) _uiMode = MODE_DASHBOARD;
   _forceFullRedraw = true;

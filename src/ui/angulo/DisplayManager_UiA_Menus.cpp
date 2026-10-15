@@ -349,7 +349,7 @@ UaToque DisplayManager::uaToqueMenus( const ua::Alvo *a, int16_t &, int16_t & ) 
         if ( acceptTouch( ZONA_VOLTAR ) ) showSettingsMain( );
       } else if ( linha && i >= 0 && i < 3 && acceptTouch( ZONA_LINHA ) ) {
         /* Touch.cpp:832-835: APLICAR sends EVT_APPLY_THEME with the previewed index, and Core 0 saves it
-         * and takes the panel to the dashboard (uaTemaAplicado( )). A tap on a row is that, at once. */
+         * and takes the panel to the dashboard (uiThemeChanged( )). A tap on a row is that, at once. */
         UiEvent ev{ };
         ev.type = UiEvent::EVT_APPLY_THEME;
         ev.id = i;

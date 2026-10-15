@@ -18,7 +18,6 @@ private:
 	void uaQuadro( );
 	bool uaPintar( const UaQuadro &q, UiMode modo, uint32_t hash );
 	bool uaToque( int16_t &x, int16_t &y );
-	void uaTemaAplicado( );
 	const ua::Tema &uaTema( );
 	bool uaRelogio( char hora[6], int &h, bool &provisoria );
 	void uaVmStatus( ua::VmStatus &s );
