@@ -13,8 +13,6 @@
 // scope consts (internal linkage): this translation unit is the only one that
 // includes them.
 namespace entrega {
-#include "kit/fontes/SANS7.h"
-#include "kit/fontes/SANSB7.h"
 #include "kit/fontes/SANS9.h"
 #include "kit/fontes/SANSB9.h"
 #include "kit/fontes/MONO9.h"
@@ -96,9 +94,13 @@ int16_t rdiv( int32_t n, int32_t d ) {
 namespace {
 
 const GFXfont *const kFontes[] = {
-    &entrega::SANS7, &entrega::SANSB7, &entrega::SANS9, &entrega::SANSB9, &entrega::MONO9, &entrega::MONO12,
+    &entrega::SANS9, &entrega::SANSB9, &entrega::MONO9, &entrega::MONO12,
     &entrega::DISP9, &entrega::DISP12, &entrega::DISP18, &entrega::DISP24, &entrega::DISP32, &entrega::DISP24_MARCA,
 };
+// Both tables are indexed by ua::Fonte: an entry added to or taken from the enum must be taken here
+// and in tools/tft_ui/gerar_meta.js's FONTES too (the 7 pt fonts left all three on 2026-10-15).
+static_assert( sizeof kFontes / sizeof kFontes[0] == (size_t)Fonte::MARCA + 1, "kFontes follows ua::Fonte" );
+static_assert( sizeof meta::kCapX / sizeof meta::kCapX[0] == (size_t)Fonte::MARCA, "kCapX follows ua::Fonte" );
 
 uint32_t s_faltando = 0;
 

@@ -57,7 +57,9 @@ int16_t rdiv( int32_t n, int32_t d );
 /* Text                                                                */
 /* ------------------------------------------------------------------ */
 
-enum class Fonte : uint8_t { SANS7, SANSB7, SANS9, SANSB9, MONO9, MONO12, DISP9, DISP12, DISP18, DISP24, DISP32, MARCA };
+// No 7 pt: the delivery's SANS7 and SANSB7 left the kit with the 9 pt floor (2026-10-15), so a screen
+// cannot draw text smaller than the maintainer can read on the 3.5-inch panel.
+enum class Fonte : uint8_t { SANS9, SANSB9, MONO9, MONO12, DISP9, DISP12, DISP18, DISP24, DISP32, MARCA };
 
 namespace tipo {
 constexpr Fonte titulo = Fonte::DISP12;

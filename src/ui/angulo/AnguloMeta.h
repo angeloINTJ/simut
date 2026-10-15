@@ -65,9 +65,7 @@ static const uint32_t kExtra[50] = {
 
 // Cap height and x height (ink box of 'H' and 'x'; fontes.json for the digit
 // fonts), in the order of ua::Fonte.
-static const uint8_t kCapX[11][2] = {
-  { 11, 8 },  // SANS7
-  { 11, 8 },  // SANSB7
+static const uint8_t kCapX[9][2] = {
   { 14, 10 },  // SANS9
   { 13, 10 },  // SANSB9
   { 10, 8 },  // MONO9
