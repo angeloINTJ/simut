@@ -22,6 +22,7 @@
 #include "sensors/SensorDrawing.h" /* min/max graph button geometry */
 #include "ui/UiDriverHooks.h"   /* uiChanged( ), which the dashboard's touches raise: the hook definitions need the complete class, so after every other include */
 #include "display/GraphNav.h"        /* calDayHasHistory( ): the calendar's day test */
+#include "display/SettingsSteps.h"     /* langSlotCount( ): the language list's rows */
 #include "DisplayManager_Actions.h"   /* the core's touch actions; last, they lean on the hooks above */
 
 void DisplayManager::handleTouch( ) {
@@ -889,7 +890,7 @@ void DisplayManager::handleTouch( ) {
  else if (_uiMode == MODE_SETTINGS_LANG) {
  /* Limit interaction to slot 0 when no .lng loaded.
  * Dynamic bound avoids slot 1 "ghost". */
- int activeSlots = _activeLangLoaded ? LANG_COUNT : 1;
+ int activeSlots = langSlotCount( _activeLangLoaded, LANG_COUNT );
  if (y >= 40 && y <= 185) {
  int clickedIndex = 0;
  if (y < 80) clickedIndex = 0; else if (y < 118) clickedIndex = 1; else if (y < 156) clickedIndex = 2; else clickedIndex = 3;

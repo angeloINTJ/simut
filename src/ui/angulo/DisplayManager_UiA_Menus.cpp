@@ -40,6 +40,7 @@
 #include "telas/MenusStatus.h"
 #include "telas/Telas.h"
 #include "../../display/ListPager.h"   /* listPages( ), listClampPage( ), listPageStep( ): the lists' page arithmetic */
+#include "../../display/SettingsSteps.h"   /* langSlotCount( ): the language list's rows */
 #include "../../DisplayManager_Actions.h"   /* the core's touch actions, which the lists' rows run; last */
 
 /* The screens' ids are the firmware's, value for value: the menu copies _menuItems[ ] as
@@ -356,7 +357,7 @@ UaToque DisplayManager::uaToqueMenus( const ua::Alvo *a, int16_t &, int16_t & ) 
       if ( voltar ) {
         /* The original's Back (handleTouch( ), Touch.cpp): SAIR is back to the menu. */
         if ( acceptTouch( ZONA_VOLTAR ) ) showSettingsMain( );
-      } else if ( linha && i >= 0 && i < ( _activeLangLoaded ? LANG_COUNT : 1 ) && acceptTouch( ZONA_LINHA ) ) {
+      } else if ( linha && i >= 0 && i < langSlotCount( _activeLangLoaded, LANG_COUNT ) && acceptTouch( ZONA_LINHA ) ) {
         /* The original's slots are English, plus the pack, and its Apply (handleTouch( ), Touch.cpp): APLICAR runs actApplyLang( ), the core's, with the
          * row; Core 0 saves it and leaves for the dashboard. */
         actApplyLang( i );

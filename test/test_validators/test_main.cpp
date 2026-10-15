@@ -53,6 +53,7 @@
 #include "display/GraphAnchor.h"        /* where the chart's window ends */
 #include "display/ListPager.h"         /* the list screens' page arithmetic */
 #include "display/SettingsMenu.h"       /* the panel's Settings menu: rows, order */
+#include "display/SettingsSteps.h"       /* the settings screens' steps: volumes, the alignment, the language slots */
 #include "PasswordCheck.h"             /* one derivation per password check */
 #include "SessionCheck.h"              /* a session against its live account */
 #include "display/CountInText.h"        /* a number inside a translated line */
@@ -5301,6 +5302,93 @@ void test_graph_open_from_another_screen_clears_the_anchor_and_its_base(void) {
     }
 }
 
+/* ------------------------------------------------------------------------------------------------------------------------------
+ * The settings screens' steps (display/SettingsSteps.h)
+ *
+ * 2026-10-15 (S8a of the UI drivers): the sounds list's volume rows, the display alignment's arrows and the language list's bound were spelled out
+ * in the original's handleTouch( ) and again in the Angulo's glue. They are pure functions now and the core's actions call them, so these cases pin
+ * what the panel does. Each case names the mutants it kills; stages/s8a_c8 holds the run of each mutant applied to the header and the cases it failed.
+ * ------------------------------------------------------------------------------------------------------------------------------ */
+
+/* A volume step, called as the sounds list's two volume rows call it. */
+static uint8_t volumeStepped( uint8_t v, bool down ) {
+    volumeStep( v, down );
+    return v;
+}
+
+/* Down from under ten stays where it is: 0 and 9 keep their value. `>= 9` (9 - 10 wraps to 255) and a dropped guard (0 wraps to 246) fail here. */
+void test_volume_step_down_holds_at_zero_and_below_ten(void) {
+    TEST_ASSERT_EQUAL_UINT8(0, volumeStepped(0, true));
+    TEST_ASSERT_EQUAL_UINT8(9, volumeStepped(9, true));
+}
+
+/* Down from ten or more takes exactly ten off: 10 reaches 0 (`> 10` fails), 11 reaches 1 (a step that sets the floor fails), and a step of 1 fails
+ * every row. */
+void test_volume_step_down_takes_ten_off(void) {
+    TEST_ASSERT_EQUAL_UINT8(0, volumeStepped(10, true));
+    TEST_ASSERT_EQUAL_UINT8(1, volumeStepped(11, true));
+    TEST_ASSERT_EQUAL_UINT8(90, volumeStepped(100, true));
+    TEST_ASSERT_EQUAL_UINT8(245, volumeStepped(255, true));
+}
+
+/* Up from 90 or less puts exactly ten on: 90 reaches 100 (`< 90` fails), 89 reaches 99 (a step that sets the ceiling fails), and a step of 1 fails
+ * every row. */
+void test_volume_step_up_puts_ten_on(void) {
+    TEST_ASSERT_EQUAL_UINT8(10, volumeStepped(0, false));
+    TEST_ASSERT_EQUAL_UINT8(99, volumeStepped(89, false));
+    TEST_ASSERT_EQUAL_UINT8(100, volumeStepped(90, false));
+}
+
+/* Up from over 90 stays where it is: 91 (`<= 91` fails), 100 and 255 (a dropped guard fails both). */
+void test_volume_step_up_holds_at_the_top(void) {
+    TEST_ASSERT_EQUAL_UINT8(91, volumeStepped(91, false));
+    TEST_ASSERT_EQUAL_UINT8(100, volumeStepped(100, false));
+    TEST_ASSERT_EQUAL_UINT8(255, volumeStepped(255, false));
+}
+
+/* An alignment step on one axis, checked as the arrows use it: the value after it and whether it moved. */
+static void assert_offset_step(int8_t from, int dir, int8_t want, bool wantMoved) {
+    int8_t v = from;
+    const bool moved = offsetStep(v, dir);
+    TEST_ASSERT_EQUAL_INT8(want, v);
+    TEST_ASSERT_EQUAL_INT(wantMoved ? 1 : 0, moved ? 1 : 0);
+}
+
+/* At an end the arrow toward it does nothing: -4 down and +4 up. `>= -4` and `<= 4` move past the end, a return that is always true fails both. */
+void test_offset_step_holds_at_the_ends(void) {
+    assert_offset_step(-4, -1, -4, false);
+    assert_offset_step(4, +1, 4, false);
+}
+
+/* One step toward an end moves by one and says so: -3 down and +3 up (`> -3` and `< 3` stop one short), 0 either way. */
+void test_offset_step_moves_one_toward_each_end(void) {
+    assert_offset_step(-3, -1, -4, true);
+    assert_offset_step(3, +1, 4, true);
+    assert_offset_step(0, -1, -1, true);
+    assert_offset_step(0, +1, 1, true);
+}
+
+/* From an end the other arrow comes back: -4 up and +4 down. A step that never moves, or one that moves and says it did not, fails here. */
+void test_offset_step_comes_back_from_either_end(void) {
+    assert_offset_step(-4, +1, -3, true);
+    assert_offset_step(4, -1, 3, true);
+}
+
+/* A value already past an end (the panel never stores one) is left alone, which `!= -4` and `!= 4` would not do. */
+void test_offset_step_leaves_a_value_beyond_the_end_alone(void) {
+    assert_offset_step(-5, -1, -5, false);
+    assert_offset_step(5, +1, 5, false);
+}
+
+/* English alone until a pack is loaded, then English and the pack, however many that is (2 today, 3 for a case that no constant can pass). The arms swapped,
+ * a constant 1, a constant 2, a constant count and a floor of 0 each fail. */
+void test_lang_slot_count_is_english_alone_until_a_pack_is_loaded(void) {
+    TEST_ASSERT_EQUAL_INT(1, langSlotCount(false, 2));
+    TEST_ASSERT_EQUAL_INT(2, langSlotCount(true, 2));
+    TEST_ASSERT_EQUAL_INT(1, langSlotCount(false, 3));
+    TEST_ASSERT_EQUAL_INT(3, langSlotCount(true, 3));
+}
+
 int main(int /*argc*/, char** /*argv*/) {
     UNITY_BEGIN();
 
@@ -5599,6 +5687,15 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_list_page_step_stops_at_the_ends_and_does_not_wrap);
     RUN_TEST(test_cal_day_has_history_holds_the_first_and_last_day_of_a_month);
     RUN_TEST(test_cal_day_has_history_reads_the_bit_of_that_day_and_nothing_else);
+    RUN_TEST(test_volume_step_down_holds_at_zero_and_below_ten);
+    RUN_TEST(test_volume_step_down_takes_ten_off);
+    RUN_TEST(test_volume_step_up_puts_ten_on);
+    RUN_TEST(test_volume_step_up_holds_at_the_top);
+    RUN_TEST(test_offset_step_holds_at_the_ends);
+    RUN_TEST(test_offset_step_moves_one_toward_each_end);
+    RUN_TEST(test_offset_step_comes_back_from_either_end);
+    RUN_TEST(test_offset_step_leaves_a_value_beyond_the_end_alone);
+    RUN_TEST(test_lang_slot_count_is_english_alone_until_a_pack_is_loaded);
     RUN_TEST(test_graph_anchor_back_from_the_present_is_whole_periods_in_the_past);
     RUN_TEST(test_graph_anchor_back_then_forward_is_the_present_however_long_the_wait);
     RUN_TEST(test_graph_anchor_two_backs_then_one_forward_is_one_period_back);

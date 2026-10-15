@@ -30,14 +30,10 @@
 #include "UiA.h"
 #include "telas/Ajustes.h"
 #include "telas/Telas.h"
+#include "../../display/SettingsSteps.h"   /* DISPLAY_OFFSET_LIMIT: the alignment's scale */
 #include "../../DisplayManager_Actions.h"   /* the core's touch actions, which the clock, the alignment and the sounds run; last */
 
 namespace {
-
-/* The display alignment's limit: TftWithOffset::setDisplayOffset( ) constrains
- * to [-4, +4] (TftWithOffset.h:38-39) and the old arrows stop at the same
- * numbers (DisplayManager_Touch.cpp:1053-1066). Neither names the number. */
-constexpr uint8_t OFFSET_LIMITE = 4;
 
 /* Minutes left in a slot's maintenance window, 0 when closed, rounded up: the
  * same arithmetic as the old screen's static helper
@@ -130,7 +126,7 @@ bool DisplayManager::uaMontarAjustes( UaQuadro &q ) {
       VmAlinhar &vm = uaVm<VmAlinhar>( );
       vm.x = _offsetPreviewX;
       vm.y = _offsetPreviewY;
-      vm.limite = OFFSET_LIMITE;
+      vm.limite = DISPLAY_OFFSET_LIMIT;
       uaUsar<VmAlinhar, desenharAlinhar, alvosAlinhar>( q, vm );
       return true;
     }

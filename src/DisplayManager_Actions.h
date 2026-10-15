@@ -25,6 +25,7 @@
 #include "DisplayManager.h"
 #include "simut_config.h"   /* SIMUT_TFT_GRAPH is tested below: included here, not left to the includer */
 #include "display/DashHold.h"   /* dashHoldStep( ), dashNextPage( ): the hold's clock and the page's turn, without hardware */
+#include "display/SettingsSteps.h"   /* volumeStep( ), offsetStep( ): the settings screens' steps, without hardware */
 
 /* Repaint the top card: the core's half. It syncs topSlotIdx, moves the bottom card to another slot when the top is pinned
  * on the selected one (with the EVT_SLOT_SELECT that tells the web), mirrors the bottom card's data into the top's, and
@@ -564,26 +565,22 @@ inline __attribute__((always_inline)) void DisplayManager::actClockStep( uint8_t
 }
 
 /* The display alignment (MODE_SETTINGS_DISPLAY_OFFSET). The four arrows move the preview by one step each and stop at the limit the panel holds the offset
- * to (-4 and +4, TftWithOffset::setDisplayOffset( )); each says whether the preview moved, and the caller then calls actOffsetPreview( ) once, which applies
+ * to (DISPLAY_OFFSET_LIMIT, -4 and +4, TftWithOffset::setDisplayOffset( ); display/SettingsSteps.h); each says whether the preview moved, and the caller then calls actOffsetPreview( ) once, which applies
  * it to the panel at once. The caller holds the hold gate of the arrow: zone 20 for up, 21 for down, 22 for left and 23 for right. */
 inline __attribute__((always_inline)) bool DisplayManager::actOffsetUp( ) {
-	if (_offsetPreviewY > -4) { _offsetPreviewY--; return true; }
-	return false;
+	return offsetStep( _offsetPreviewY, -1 );
 }
 
 inline __attribute__((always_inline)) bool DisplayManager::actOffsetDown( ) {
-	if (_offsetPreviewY < 4) { _offsetPreviewY++; return true; }
-	return false;
+	return offsetStep( _offsetPreviewY, +1 );
 }
 
 inline __attribute__((always_inline)) bool DisplayManager::actOffsetLeft( ) {
-	if (_offsetPreviewX > -4) { _offsetPreviewX--; return true; }
-	return false;
+	return offsetStep( _offsetPreviewX, -1 );
 }
 
 inline __attribute__((always_inline)) bool DisplayManager::actOffsetRight( ) {
-	if (_offsetPreviewX < 4) { _offsetPreviewX++; return true; }
-	return false;
+	return offsetStep( _offsetPreviewX, +1 );
 }
 
 /* Redefinir: both axes back to zero. True when the preview moved. The caller holds acceptTouch( 24 ). */
@@ -701,8 +698,7 @@ inline __attribute__((always_inline)) void DisplayManager::actMelodyOpen( uint8_
  * plays at the new level. _touchSoundPending is stored before requestVolumePreview( ), whose barrier publishes the level to Core 0. The caller holds the
  * hold gate, acceptHoldTouch( 20 ). */
 inline __attribute__((always_inline)) void DisplayManager::actSoundVolume( bool down ) {
-	if (down) { if (_soundSettings.volume >= 10) _soundSettings.volume -= 10; }
-	else { if (_soundSettings.volume <= 90) _soundSettings.volume += 10; }
+	volumeStep( _soundSettings.volume, down );
 	_touchSoundPending = false; /* cancel beep to avoid overlapping preview */
 	requestVolumePreview(_soundSettings.volume);
 	_repaintSettings = true;
@@ -710,8 +706,7 @@ inline __attribute__((always_inline)) void DisplayManager::actSoundVolume( bool 
 
 /* The alarm volume, the same step and the same order (the hold gate is acceptHoldTouch( 21 )). */
 inline __attribute__((always_inline)) void DisplayManager::actAlarmVolume( bool down ) {
-	if (down) { if (_soundSettings.alarmVolume >= 10) _soundSettings.alarmVolume -= 10; }
-	else { if (_soundSettings.alarmVolume <= 90) _soundSettings.alarmVolume += 10; }
+	volumeStep( _soundSettings.alarmVolume, down );
 	_touchSoundPending = false;
 	requestAlarmVolumePreview(_soundSettings.alarmVolume);
 	_repaintSettings = true;
