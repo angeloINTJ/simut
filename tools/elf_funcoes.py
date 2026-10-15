@@ -10,20 +10,30 @@ addresses would hide:
     text or the bytes it holds), the instruction's own address dropped, a branch inside the
     function made relative to its start, a call through a linker veneer (__f_veneer) read as
     a call to f, the compiler's numbered clones (f.constprop.3) by their stable name, and the
-    literal-pool words resolved the same way. A function whose text still differs gets a
-    second chance: it is equal when its bytes differ only inside 32-bit words that are, on
-    both sides, addresses of the same thing or Thumb branches to the same target;
-  - every sized read-only object (nm type r or R), byte for byte, except the words of a
-    word-aligned object that are addresses on both sides and point at the same symbol or
-    text (a table of pointers moved by the layout; a number that merely looks like an address
-    is compared as a number);
+    literal-pool words resolved the same way. A symbol whose name more than one address carries
+    (the file-local statics of one name in several files, the clones of one function) is named
+    `name@colour` wherever it is referenced, the colour a hash of what the symbol is (its
+    instructions, its bytes) and not of where it is: two helpers of one name are told apart, and a
+    layout move keeps the colour. The functions of one such name are paired by equal text first, then
+    by order. A function whose text still differs gets a second chance, for the numbers that look
+    like addresses and the pointers: it is equal when its bytes differ only inside 32-bit words that
+    are, on both sides, pointers to the same named thing, or Thumb branches to the same target. The
+    second chance never excuses a branch or a call that the text names differently (the bytes of
+    a relative branch are the same wherever it lands), nor an unnamed constant whose bytes changed;
+  - every sized read-only object, byte for byte, except the words of a word-aligned object that
+    are addresses on both sides and point at the same symbol or text (a table of pointers moved
+    by the layout; a number that merely looks like an address is compared as a number). Read-only
+    is nm's r and R, and the weak objects it calls V and v (vtables, typeinfo, inline variables)
+    that lie in a section neither writable nor executable. Objects of one name are matched one to
+    one, equal bytes first;
   - the switch tables the compiler numbers per translation unit (CSWTCH.<n>), by content;
   - the text of the data sections: every NUL-terminated printable run of 2 or more bytes in
     .rodata and .data, with its count, so an edited message shows even where no code names it.
 
 It prints how much it read (functions, instructions), how many functions are equal, changed,
 only in A and only in B, and the names of the changed ones (the first N with their first
-differing line). Exit 0 when every function, data object, switch table and data-section text
+differing line). The callers of a changed function of a shared name are changed too: their call
+names another colour. Exit 0 when every function, data object, switch table and data-section text
 present in both is equal and none is missing, 1 otherwise, 2 when it read no instruction or found
 no code symbol in one of the two (an instrument that read nothing says "equal" about anything).
 
@@ -33,7 +43,17 @@ What "equal" does not cover:
     alarm, held as an expected failure by the test), and a change past the 64th byte is missed;
   - an entry of an unnamed table of pointers made to point at another string that exists in both
     images changes no pointer text and no census;
-  - .data and .bss objects are not compared; only the text inside .data is.
+  - .data and .bss objects are not compared (only the text inside .data is), nor are weak objects
+    in a writable section;
+  - two symbols of one name with the same content have one colour (equal instructions, equal
+    bytes, two .bss variables of one size): a reference moved from one to the other is not seen. For
+    code that is no change; for two variables it is another variable;
+  - a call through a veneer to a symbol of a shared name carries no colour, and a colour sees three
+    levels of shared names (RODADAS); a table of pointers of a shared name has its pointers
+    masked in the colour, so two that differ only in where they point share one;
+  - a function whose bytes are equal and whose text differs only in literal-pool words is
+    explained: a number that looks like an address, or a pointer to what is now another symbol at the
+    same address. If nothing else differs (a text, an object, another function) it does not show.
 
 The toolchain is the PlatformIO one: $PLATFORMIO_CORE_DIR/packages/toolchain-rp2040-earlephilhower
 when that exists, else ~/.platformio/packages/....
@@ -41,11 +61,13 @@ when that exists, else ~/.platformio/packages/....
 The instrument is proven by tools/test_elf_funcoes.py, which compiles small Cortex-M0+ programs
 and checks the verdicts: the same ELF twice and the same objects linked in another order
 (the layout moves, the code does not) compare equal; an edited string, a changed constant in
-one function, a changed number in a table a function reads through a pointer, and a changed
-value in a switch table are each reported, by name; an ELF with no code is refused (exit 2).
+one function, a call retargeted, a changed number in a table a function reads through a pointer,
+a changed value in a switch table, a vtable slot retargeted and two same-named helpers swapped
+between files are each reported, by name; an ELF with no code is refused (exit 2).
 """
 import argparse
 import bisect
+import hashlib
 import os
 import re
 import subprocess
@@ -199,7 +221,10 @@ def palavras(b, inicios, tab, img):
     return ','.join(partes)
 
 
-def normalizar(texto, inicios, tab, img, faixa=None):
+def normalizar(texto, inicios, tab, img, faixa=None, grosso=False):
+    """The text of one instruction with every address replaced by what it names. grosso: for the
+    colours of colorir( ), an address with no name and no text is "<@>", not what lies behind it or
+    the nearest label: a colour must not move with the bytes around an unnamed constant."""
     def troca(m):
         v = int(m.group(1), 16)
         if faixa and faixa[0] <= v < faixa[1]:
@@ -210,6 +235,8 @@ def normalizar(texto, inicios, tab, img, faixa=None):
                 t = texto_em(img, v)
                 if t:
                     return '<' + t + '>'
+                if grosso:
+                    return '<@>'
                 n = nome_de(v, inicios, tab, aproximar=True)
             if n is None:
                 return conteudo(img, v, inicios, tab)
@@ -224,10 +251,9 @@ def normalizar(texto, inicios, tab, img, faixa=None):
     return HEX.sub(troca, texto)
 
 
-def textos(elf):
+def textos(img):
     """Every NUL-terminated printable run of 2+ bytes in the image's flash sections, with its
     count: an edited message shows here even when no code names it."""
-    img = Imagem(elf)
     from collections import Counter
     c = Counter()
     # Data sections only: machine code has printable runs too, and its bytes follow the layout.
@@ -243,9 +269,9 @@ def textos(elf):
     return c
 
 
-def funcoes(elf):
-    inicios, tab = simbolos(elf)
-    img = Imagem(elf)
+def ler_objdump(elf, tab):
+    """The functions as objdump lists them, in address order: [{nome, ini, faixa, ins}], ins being
+    each instruction as text, objdump's own guesses removed and nothing else resolved yet."""
     out = subprocess.run([OBJDUMP, '-d', '-C', '--no-show-raw-insn', elf], capture_output=True, text=True,
                          check=True).stdout
     # Each function's range runs to the next function's start (sizes are missing on labels).
@@ -256,7 +282,7 @@ def funcoes(elf):
     for ini_, tam_, _, _ in tab:
         if tam_:
             tamanho[ini_] = max(tamanho.get(ini_, 0), tam_)
-    corpo, atual, faixa, faixas = {}, None, None, {}
+    fns, atual = [], None
     for linha in out.splitlines():
         m = re.match(r'^([0-9a-f]{8}) <(.+)>:$', linha)
         if m:
@@ -264,15 +290,9 @@ def funcoes(elf):
             # The symbol's own size when nm has it (data that objdump disassembles would run on
             # into the next symbol's bytes); the next header otherwise.
             tam = tamanho.get(ini, 0)
-            faixa = (ini, ini + tam if tam else proxima[ini])
-            atual = estavel(m.group(2))
-            if atual in corpo:                      # two clones of one function: keep both
-                k = 2
-                while f'{atual}#{k}' in corpo:
-                    k += 1
-                atual = f'{atual}#{k}'
-            corpo[atual] = []
-            faixas[atual] = faixa
+            atual = {'nome': estavel(m.group(2)), 'ini': ini, 'faixa': (ini, ini + tam if tam else proxima[ini]),
+                     'ins': []}
+            fns.append(atual)
             continue
         # This objdump prints instructions at column 0 ("1000d478:\tpush\t{r4, lr}"); the first
         # version wanted leading blanks, matched no line at all and compared empty bodies
@@ -280,9 +300,135 @@ def funcoes(elf):
         m = re.match(r'^\s*[0-9a-f]+:\t(.*)$', linha)
         if m and atual is not None:
             ins = re.sub(r'\s+', ' ', m.group(1)).strip()
-            ins = re.sub(r'<[^>]*>', '', ins)               # objdump's own guesses: resolved below
-            corpo[atual].append(normalizar(ins, inicios, tab, img, faixa))
-    return corpo, faixas, (inicios, tab, img)
+            atual['ins'].append(re.sub(r'<[^>]*>', '', ins))        # objdump's own guesses: resolved below
+    return fns
+
+
+RODADAS = 3
+
+
+def palavras_cegas(b):
+    """The bytes of an object as words for a colour: a word that lies in an address range is "@",
+    whatever it points at. A table of bytes (BearSSL's t0_codeblock, one per module, all named alike)
+    has words that only look like addresses, and what they would name follows the layout; a colour
+    that moved with it would blame every function that loads the table (found on the real study
+    comparison, 2026-10-14: ten of them). What this leaves: two same-named tables of pointers that
+    differ only in where the pointers go have one colour."""
+    partes = []
+    for i in range(0, len(b) - 3, 4):
+        w = int.from_bytes(b[i:i + 4], 'little')
+        partes.append('@' if eh_endereco(w) else f'{w:x}')
+    if len(b) % 4:
+        partes.append(b[-(len(b) % 4):].hex())
+    return ','.join(partes)
+
+
+def colorir(fns, inicios, tab, img):
+    """{start address: 8 hex digits} for every symbol whose name more than one address carries: the
+    file-local statics of one name in several files, the compiler's clones of one function
+    (foo.constprop.0 and .1 are one name once the numbers are dropped). A reference to such a symbol
+    is named `name@colour`, so that two callers of two different `helper`s do not both read
+    `bl helper` (review of S2b, 2026-10-14: F and G swapped between two files, each calling the
+    helper of its own file, came out "equal").
+
+    The colour is a hash of what the symbol is, not of where it is, so a layout move keeps it: for
+    a function its instructions, every address named by a symbol or a text, an unnamed one "<@>"; for
+    an object its bytes, a pointer in it named the same way. A reference to another symbol of a shared
+    name is named by that one's colour of the round before: round 0 leaves them "?", round 1 and 2
+    use the colour of the round before, so that two helpers alike but for the helper they call differ
+    (RODADAS rounds, fixed, because two images must reach the same colour for the same thing).
+    CSWTCH tables (compared by content already) and veneers (read as the function they branch to)
+    are left out. What it cannot tell: two symbols of one name with the same content."""
+    por_nome = {}
+    for ini, tam, nome, tipo in tab:
+        if tam and not CSWTCH.match(nome) and not VENEER.match(nome):
+            por_nome.setdefault(estavel(nome), set()).add(ini)
+    dup_nomes = {n for n, enderecos in por_nome.items() if len(enderecos) > 1}
+    dup = {ini for n in dup_nomes for ini in por_nome[n]}
+    if not dup:
+        return {}, set()
+    tamanho = {}
+    for ini, tam, nome, tipo in tab:
+        if ini in dup and tam:
+            tamanho[ini] = max(tamanho.get(ini, 0), tam)
+    corpos = {f['ini']: f for f in fns}
+    cores = {ini: '?' for ini in dup}
+    for _ in range(RODADAS):
+        tab_r = renomear(tab, cores, dup_nomes)
+        novas = {}
+        for ini in dup:
+            if ini in corpos:
+                f = corpos[ini]
+                texto = '\n'.join(normalizar(i, inicios, tab_r, img, f['faixa'], grosso=True) for i in f['ins'])
+            else:
+                b = img.ler(ini, tamanho[ini])
+                texto = palavras_cegas(b) if b else f'bss{tamanho[ini]}'
+            novas[ini] = hashlib.sha1(texto.encode('utf-8')).hexdigest()[:8]
+        cores = novas
+    return cores, dup_nomes
+
+
+def renomear(tab, cores, dup_nomes):
+    """The symbols with the name of each shared one followed by @colour."""
+    return [(ini, tam, f'{estavel(nome)}@{cores[ini]}' if tam and estavel(nome) in dup_nomes and ini in cores else nome,
+             tipo) for ini, tam, nome, tipo in tab]
+
+
+class Elf:
+    """What is read from one ELF, once: the symbols as nm lists them, the bytes by address, the
+    functions as objdump lists them and the colours of the shared names. ctx is what the naming
+    functions take: the starts, the symbols with those names refined by colour, the image."""
+    def __init__(self, caminho):
+        self.inicios, self.tab = simbolos(caminho)
+        self.img = Imagem(caminho)
+        self.fns = ler_objdump(caminho, self.tab)
+        self.cores, dup_nomes = colorir(self.fns, self.inicios, self.tab, self.img)
+        self.tab_ref = renomear(self.tab, self.cores, dup_nomes)
+        self.ctx = (self.inicios, self.tab_ref, self.img)
+
+
+def funcoes(E):
+    """[(name, range, normalized instructions)] of the functions of an Elf, in address order."""
+    return [(f['nome'], f['faixa'], [normalizar(i, E.inicios, E.tab_ref, E.img, f['faixa']) for i in f['ins']])
+            for f in E.fns]
+
+
+def parear(ra, rb):
+    """Keys for the functions of two images, as (bodies A, ranges A, bodies B, ranges B). A name that
+    one function carries in each image is its own key. A name that several carry (file-local statics
+    of one name, the compiler's clones) is paired by equal body first, so that a layout move that
+    reorders them is no change, and what is left by order; the keys are name, name#2, ... in the
+    order of A's functions and then B's unpaired ones."""
+    ga, gb = {}, {}
+    for r in ra:
+        ga.setdefault(r[0], []).append(r)
+    for r in rb:
+        gb.setdefault(r[0], []).append(r)
+    fa, xa, fb, xb = {}, {}, {}, {}
+    for nome in list(ga) + [n for n in gb if n not in ga]:
+        la, lb = ga.get(nome, []), gb.get(nome, [])
+        livres = list(range(len(lb)))
+        par = {}
+        for i, r in enumerate(la):
+            j = next((j for j in livres if lb[j][2] == r[2]), None)
+            if j is not None:
+                par[i] = j
+                livres.remove(j)
+        for i in range(len(la)):
+            if i not in par and livres:
+                par[i] = livres.pop(0)
+        k = 0
+        for i, r in enumerate(la):
+            k += 1
+            chave = nome if k == 1 else f'{nome}#{k}'
+            fa[chave], xa[chave] = r[2], r[1]
+            if i in par:
+                fb[chave], xb[chave] = lb[par[i]][2], lb[par[i]][1]
+        for j in livres:
+            k += 1
+            chave = nome if k == 1 else f'{nome}#{k}'
+            fb[chave], xb[chave] = lb[j][2], lb[j][1]
+    return fa, xa, fb, xb
 
 
 def alvo_relativo(v, faixa, inicios, tab, img):
@@ -387,7 +533,27 @@ def constante_mudou(x, y):
                for p, q in zip(x, y))
 
 
-def dados(elf):
+RAMO = re.compile(r'^b[a-z]{0,2}(?:\.[nw])? <')
+
+
+def chamada_mudou(x, y):
+    """True when a branch or a call (`bl <foo>`, `b.n <.+0x1c>`) reads differently in the two sides
+    of one function. so_relocacao( ) compares bytes, and the bytes of a relative branch are the same
+    wherever the target lies: a function moved so that the displacement is unchanged calls whatever
+    is there now, and `bl <foo>` against `bl <bar>` came out "equal by relocation" when the bytes
+    were the same (found 2026-10-14 with the two same-named helpers of tools/test_elf_funcoes.py).
+    A branch the text names differently is a different target; the second chance is for numbers
+    that look like addresses and for pointers, not for this."""
+    return any(p != q and (RAMO.match(p) or RAMO.match(q)) for p, q in zip(x, y))
+
+
+def mudou_de_fato(n, fa, fb, xa, xb, cfa, cfb):
+    """A function whose text differs is changed, unless the second chance explains the difference."""
+    return (constante_mudou(fa[n], fb[n]) or chamada_mudou(fa[n], fb[n])
+            or not so_relocacao(n, xa, xb, cfa, cfb))
+
+
+def dados(E):
     """Read-only objects by name -> a list of their contents (bytes, word-aligned), from the ELF
     sections, in address order. Read-only is nm's r/R, and the weak objects nm calls V/v (the
     vtables, the typeinfo, an inline variable) that lie in a section neither writable nor
@@ -399,10 +565,9 @@ def dados(elf):
     address, and an edit in the other came out "equal"). A table of pointers (a dictionary, a
     font's glyph table, a vtable) holds addresses that follow the layout: comparar_dados( )
     matches them by what they point at, so only a real change of content shows."""
-    inicios, tab = simbolos(elf)
-    img = Imagem(elf)
+    img = E.img
     res = {}
-    for ini, tam, nome, tipo in tab:
+    for ini, tam, nome, tipo in E.tab:
         if tipo not in 'rRVv' or tam == 0:
             continue
         for (va, off, sz), flg in zip(img.mapas, img.flags):
@@ -411,7 +576,7 @@ def dados(elf):
                     break
                 res.setdefault(nome, []).append((img.bruto[off + ini - va: off + ini - va + tam], ini % 4 == 0))
                 break
-    return res, inicios, tab, img
+    return res
 
 
 def alvo(w, inicios, tab, img):
@@ -477,18 +642,19 @@ def main():
     ap.add_argument('b')
     ap.add_argument('--mostrar', type=int, default=10)
     a = ap.parse_args()
-    (fa, xa, cfa), (fb, xb, cfb) = funcoes(a.a), funcoes(a.b)
-    for d in (fa, fb):
-        for n in [n for n in d if VENEER.match(n)]:
-            del d[n]
+    Ea, Eb = Elf(a.a), Elf(a.b)
+    cfa, cfb = Ea.ctx, Eb.ctx
+    ra = [r for r in funcoes(Ea) if not VENEER.match(r[0])]
+    rb = [r for r in funcoes(Eb) if not VENEER.match(r[0])]
+    fa, xa, fb, xb = parear(ra, rb)
     iguais = [n for n in fa if n in fb and fa[n] == fb[n]]
     diferem = [n for n in fa if n in fb and fa[n] != fb[n]]
-    mudaram = [n for n in diferem if constante_mudou(fa[n], fb[n]) or not so_relocacao(n, xa, xb, cfa, cfb)]
+    mudaram = [n for n in diferem if mudou_de_fato(n, fa, fb, xa, xb, cfa, cfb)]
     relocadas = len(diferem) - len(mudaram)
     so_a = sorted(set(fa) - set(fb))
     so_b = sorted(set(fb) - set(fa))
-    da, *ctx_a = dados(a.a)
-    db, *ctx_b = dados(a.b)
+    da, db = dados(Ea), dados(Eb)
+    ctx_a, ctx_b = cfa, cfb
     # Switch tables the compiler names CSWTCH.<n>: the number follows the translation unit's
     # count, so a function moved to another file renumbers them. They are compared by content.
     anon = re.compile(r'^CSWTCH\.\d+$')
@@ -498,7 +664,7 @@ def main():
     db = {n: v for n, v in db.items() if not anon.match(n)}
     d_iguais, dmud, dso_a, dso_b = comparar_dados(da, db, ctx_a, ctx_b)
     tabelas_iguais = ta == tb
-    ca, cb = textos(a.a), textos(a.b)
+    ca, cb = textos(Ea.img), textos(Eb.img)
     txt_a = sorted((ca - cb).items())
     txt_b = sorted((cb - ca).items())
     lidas_a, lidas_b = sum(len(v) for v in fa.values()), sum(len(v) for v in fb.values())

@@ -17,7 +17,8 @@ The six verdicts, and what each case checks:
       through the veneer against a direct call, a function moved to another file (its
       CSWTCH switch table is renumbered), and a hand-written shim in the manner of the SDK's
       float wrappers whose pointer sits at a halfword address (only the second chance can say
-      it is the same)
+      it is the same), two static helpers of one name whose files are linked in the other order
+      (they swap places; they are paired by equal text), and two vtables moved with the layout
   (3) one string edited, same length              exit 1, naming exactly that text and nothing
       else; the string reached through a table of pointers, used directly by a function, in
       .data, and in a local table of names that has no symbol (the functions that load the
@@ -25,7 +26,11 @@ The six verdicts, and what each case checks:
   (4) one constant changed in one function        exit 1, naming exactly that function; also
       when the change sits beside a `movs r0, #1`, so that a pair of halfwords reads as an
       address in SRAM that has no name (a call retargeted from foo to bar, then `return 1`; an
-      argument changed from 7 to 8, then `+ 1`): the review of S2b found both called "equal"
+      argument changed from 7 to 8, then `+ 1`): the review of S2b found both called "equal".
+      Also a call that goes elsewhere: two static helpers of one name with F and G swapped between
+      their files (F and G named, the helpers, whose bodies are the same, not), the body of one
+      helper changed (that helper and its caller named, not the other caller), and a call retargeted
+      to the function that took its callee's place, so that the bytes of the caller are the same
   (5) a number changed in a static const table    exit 1, naming that table, with the same link
       order and with another; the function that reads it through a pointer is not blamed. Its
       two companions, the cases the second chance of the tool must not hide: the same edit in a
@@ -54,7 +59,11 @@ came out of writing it, and are fixed in tools/elf_funcoes.py: an ELF with no co
 (and a stripped one was read as two "functions" named after its sections), one number edited in
 a local initializer with no symbol came out "equal" (the second chance read the function's own
 bytes, which had not changed), and two read-only objects of one name were collapsed into one
-(30 of 293 in the pico_wiretft image, so an edit in the other passed).
+(30 of 293 in the pico_wiretft image, so an edit in the other passed). The review of S2b found
+four more, each with its case (4b, 4c, 4d, 4f, 7v): two addresses with no name counted as the same
+target, a vtable and the other weak read-only objects were not compared, two functions of one name
+were not told apart, and a call to another function passed as a relocation when the bytes of the
+caller were the same.
 
 Needs arm-none-eabi-gcc from the PlatformIO toolchain package (tools/elf_funcoes.py says where it
 looks). Without it the test skips with a message, and exits 1 instead when SIMUT_ELF_TOOLCHAIN is
@@ -172,6 +181,11 @@ __attribute__(( noinline )) void foo( void ) { g_a = 1; }
 __attribute__(( noinline )) void bar( void ) { g_b = 2; }
 void entry( void ) { for ( ;; ) { } }
 '''
+Q2_C = '''volatile int g_a, g_b;
+__attribute__(( noinline )) void bar( void ) { g_b = 2; }
+__attribute__(( noinline )) void foo( void ) { g_a = 1; }
+void entry( void ) { for ( ;; ) { } }
+'''
 R_C = '''int ext( int, int );
 int f( void ) { return ext( 1, 7 ) + 1; }
 '''
@@ -222,6 +236,17 @@ K_C = '''int padk( int x ) { return x * 91 + 9; }
 void entry( void ) { for ( ;; ) { } }
 '''
 
+# h1.c and h2.c: a file-local helper of the same name in each, with different bodies, and a
+# caller of it. F and G swap files between the images: each now calls the other helper, and
+# every symbol still reads `bl helper`.
+H1_C = '''static __attribute__(( noinline )) int helper( int x ) { return x * 3 + 1; }
+int @CALLER@( int x ) { return helper( x ); }
+'''
+H2_C = '''static __attribute__(( noinline )) int helper( int x ) { return x * 5 + 2; }
+int @CALLER@( int x ) { return helper( x ); }
+void entry( void ) { for ( ;; ) { } }
+'''
+
 # d.c: no code at all.
 D_C = '''const int g_only_data[4] = { 1, 2, 3, 4 };
 const char g_note[] = "just data, no code";
@@ -239,8 +264,9 @@ def fontes(moved=False, ram=True):
         'a': A_C.replace('@MOVED@', MAP_CODE if moved else ''),
         'b': B_C.replace('@MAP@', '' if moved else MAP_CODE),
         'c': C_C.replace('@SECTION@', RAM_SECTION if ram else ''),
-        'e': E_C, 'u': U_C, 'v': V_C, 'd': D_C, 'p': P_C, 'q': Q_C, 'r': R_C, 's': S_C,
+        'e': E_C, 'u': U_C, 'v': V_C, 'd': D_C, 'p': P_C, 'q': Q_C, 'q2': Q2_C, 'r': R_C, 's': S_C,
         'm': M_S, 'n': N_C, 'vt': VT_CPP.replace('@BA@', 'Base1').replace('@BB@', 'Base2'), 'k': K_C,
+        'h1': H1_C.replace('@CALLER@', 'F'), 'h2': H2_C.replace('@CALLER@', 'G'),
     }
 
 
@@ -364,6 +390,10 @@ def montar(tmp):
     e['dup_u'] = of.elf('dup_u', editar(s, 'u', '3, 4', '3, 9'), ['u', 'v'])
     e['dup_v'] = of.elf('dup_v', editar(s, 'v', '7, 8', '7, 9'), ['u', 'v'])
     e['dados'] = of.elf('dados', s, ['d'])
+    e['hlp'] = of.elf('hlp', s, ['h1', 'h2'])
+    e['hlp_movida'] = of.elf('hlp_movida', s, ['h2', 'h1'])
+    e['hlp_troca'] = of.elf('hlp_troca', dict(s, h1=H1_C.replace('@CALLER@', 'G'), h2=H2_C.replace('@CALLER@', 'F')), ['h1', 'h2'])
+    e['hlp_mudou'] = of.elf('hlp_mudou', editar(s, 'h1', 'x * 3 + 1', 'x * 3 + 2'), ['h1', 'h2'])
     e['vt'] = of.elf('vt', s, ['vt', 'k'])
     e['vt_movida'] = of.elf('vt_movida', s, ['k', 'vt'])
     sv = dict(s, vt=VT_CPP.replace('@BA@', 'Base2').replace('@BB@', 'Base1'))
@@ -371,6 +401,7 @@ def montar(tmp):
     e['shim'] = of.elf('shim', s, ['m', 'n'])
     e['shim_movida'] = of.elf('shim_movida', s, ['n', 'm'])
     e['call_foo'] = of.elf('call_foo', s, ['p', 'q'])
+    e['call_bar_trocadas'] = of.elf('call_bar_trocadas', editar(dict(s, q=Q2_C), 'p', 'foo( ); return 1', 'bar( ); return 1'), ['p', 'q'])
     e['call_bar'] = of.elf('call_bar', editar(s, 'p', 'foo( ); return 1', 'bar( ); return 1'), ['p', 'q'])
     e['arg7'] = of.elf('arg7', s, ['r', 's'])
     e['arg8'] = of.elf('arg8', editar(s, 'r', 'ext( 1, 7 )', 'ext( 1, 8 )'), ['r', 's'])
@@ -484,6 +515,37 @@ def c2w(r):
     return ok and r.dados[0] >= 2, d + f'; {r.dados[0]} read-only objects compared, the weak ones included'
 
 
+def c9(r):
+    return r.code == 1 and sorted(r.mudou) == ['F', 'G'] and r.so(mudou=r.mudou) and r.tabelas_iguais, \
+        f'exit {r.code}: {r.nomes()}'
+
+
+def c9b(r):
+    # the helper that changed, and the one caller that now calls something else; not G
+    helpers = [n for n in r.mudou if n.startswith('helper')]
+    return r.code == 1 and len(helpers) == 1 and sorted(r.mudou) == sorted(helpers + ['F']) \
+        and r.so(mudou=r.mudou) and r.tabelas_iguais, f'exit {r.code}: {r.nomes()}'
+
+
+def corpo_de(elf, nome):
+    """The bytes of a function, read as the tool reads them."""
+    for linha in rodar([BIN / 'arm-none-eabi-nm', '-S', elf]).splitlines():
+        p = linha.split()
+        if len(p) == 4 and p[3] == nome:
+            return elf_funcoes.Imagem(str(elf)).ler(int(p[0], 16), int(p[1], 16))
+    raise KeyError(nome)
+
+
+def pre_mesmos_bytes(e):
+    a, b = corpo_de(e['call_foo'], 'f'), corpo_de(e['call_bar_trocadas'], 'f')
+    return a == b and len(a) > 0, f'the {len(a)} bytes of f are the same in both images, and it calls another function'
+
+
+def pre_hlp_movida(e):
+    sa, sb = simbolos(e['hlp']), simbolos(e['hlp_movida'])
+    return sa['F'] != sb['F'] and sa['G'] != sb['G'], f'F at {sa["F"]:#x} then {sb["F"]:#x}, the two helpers swapped places'
+
+
 def c8(r):
     return r.code == 1 and r.so(mudou=['f']) and r.tabelas_iguais, f'exit {r.code}: {r.nomes()}'
 
@@ -526,6 +588,7 @@ CASOS = [
     ('2m', 'a function moved to another file, its switch table renumbered', 'base', 'fn_movida', c2v, pre_fn_movida),
     ('2s', 'an assembly shim with a pointer at a halfword address, moved', 'shim', 'shim_movida', c2s, None),
     ('2w', 'two vtables (weak read-only objects), the layout moved', 'vt', 'vt_movida', c2w, None),
+    ('2h', 'two static helpers of one name, the files linked in the other order', 'hlp', 'hlp_movida', c2v, pre_hlp_movida),
     ('3', 'one string edited, same length, in a table of pointers', 'base', 'str', c3, None),
     ('3b', 'one string edited, loaded directly by a function', 'base', 'lit', c3b, None),
     ('3c', 'one string edited in .data', 'base', 'tag', c3c, None),
@@ -534,7 +597,10 @@ CASOS = [
     ('5', 'a number changed in a static const table, same layout', 'base', 'tab', c5, None),
     ('5b', 'the same, and the layout moved too', 'base', 'tab_movida', c5b, pre_tab_movida),
     ('5c', 'a number changed in a local initializer with no symbol', 'anon', 'anon_edit', c5c, None),
+    ('4d', 'two static helpers of one name, F and G swapped between their files', 'hlp', 'hlp_troca', c9, None),
+    ('4e', 'the body of one of the two helpers changed', 'hlp', 'hlp_mudou', c9b, None),
     ('4b', 'a call retargeted, then return 1 (BL and movs r0,#1 read as an address)', 'call_foo', 'call_bar', c8, None),
+    ('4f', 'a call retargeted to the function that took its callee place (same displacement, same bytes)', 'call_foo', 'call_bar_trocadas', c8, pre_mesmos_bytes),
     ('4c', 'an argument changed before movs r0,#1 (two movs read as an address)', 'arg7', 'arg8', c8, None),
     ('5d', 'two tables of one name, the first edited', 'dup', 'dup_u', c5d, None),
     ('5e', 'two tables of one name, the second edited', 'dup', 'dup_v', c5d, None),
@@ -561,8 +627,8 @@ MUTANTES = [
     ('m5', 'same-named objects are matched by position of the first only',
      "la, lb = da[nome], db[nome]", "la, lb = da[nome][-1:], db[nome][-1:]", {'5d', '5f'}),
     ('m6', 'every function the text normalization sees as changed is excused',
-     "mudaram = [n for n in diferem if constante_mudou(fa[n], fb[n]) or not so_relocacao(n, xa, xb, cfa, cfb)]",
-     "mudaram = []", {'4', '4b', '4c', '5c', 'x'}),
+     "mudaram = [n for n in diferem if mudou_de_fato(n, fa, fb, xa, xb, cfa, cfb)]",
+     "mudaram = []", {'4', '4b', '4c', '4d', '4e', '4f', '5c', 'x'}),
     ('m7', 'a changed unnamed constant is excused (the fix of 2026-10-14 taken out)',
      "constante_mudou(fa[n], fb[n]) or ", "", {'5c'}),
     ('m8', 'switch tables are never different', "tabelas_iguais = ta == tb", "tabelas_iguais = True", {'7'}),
@@ -574,15 +640,21 @@ MUTANTES = [
     ('m12', 'switch tables are named by number, not by content',
      "CSWTCH = re.compile(r'^CSWTCH\\.\\d+$')", "CSWTCH = re.compile(r'^CSWTCHX\\.\\d+$')", {'2m'}),
     ('m13', 'the second chance is never given (a literal or a table edited under a function blames it)',
-     "or not so_relocacao(n, xa, xb, cfa, cfb)]", "or True]", {'2s', '3b', '3d', '7'}),
+     "or not so_relocacao(n, xa, xb, cfa, cfb))", "or True)", {'2s', '3b', '3d', '5d', '5e', '7'}),
     ('m15', 'two unnamed addresses count as the same target (the pair BL + movs r0,#1 is excused)',
-     "return x == y and not x.startswith('<')", "return x == y", {'4b', '4c'}),
+     "return x == y and not x.startswith('<')", "return x == y", {'4c'}),
     ('m16', 'a pointer at a halfword address is never accepted (the first fix proposed by the review)',
      "ok = mesmo_alvo(xa_, xb_) or mesmo_conteudo(xa_, xb_, va, vb, ra[0] + w, rb[0] + w)",
      "ok = (ra[0] + w) % 4 == 0 and (mesmo_alvo(xa_, xb_) or mesmo_conteudo(xa_, xb_, va, vb, ra[0] + w, rb[0] + w))",
      {'2s'}),
     ('m17', 'weak read-only objects (vtables, typeinfo, inline variables) are skipped',
      "if tipo not in 'rRVv' or tam == 0:", "if tipo not in 'rR' or tam == 0:", {'2w', '7v'}),
+    ('m18', 'a branch the text names differently is excused when the bytes are the same',
+     "return (constante_mudou(fa[n], fb[n]) or chamada_mudou(fa[n], fb[n])", "return (constante_mudou(fa[n], fb[n])", {'4d', '4e', '4f'}),
+    ('m19', 'same-named functions are paired by address order only',
+     "j = next((j for j in livres if lb[j][2] == r[2]), None)", "j = None", {'2h'}),
+    ('m20', 'a reference to a shared name carries no colour',
+     "self.tab_ref = renomear(self.tab, self.cores, dup_nomes)", "self.tab_ref = self.tab", {'4d', '4e'}),
     ('m14', 'a changed string in an unnamed table blames the functions that load it',
      "and TEXTOS_ENTRE_ASPAS.sub('\"\"', p) != TEXTOS_ENTRE_ASPAS.sub('\"\"', q)", "", {'3d'}),
 ]
