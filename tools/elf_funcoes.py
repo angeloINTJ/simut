@@ -27,6 +27,14 @@ differing line). Exit 0 when every function, data object, switch table and data-
 present in both is equal and none is missing, 1 otherwise, 2 when it read no instruction or found
 no code symbol in one of the two (an instrument that read nothing says "equal" about anything).
 
+What "equal" does not cover:
+  - an unnamed constant (a local initializer, no symbol) is read as the 64 bytes from its address:
+    a layout move that puts other bytes behind it reports the function that loads it (a false
+    alarm, held as an expected failure by the test), and a change past the 64th byte is missed;
+  - an entry of an unnamed table of pointers made to point at another string that exists in both
+    images changes no pointer text and no census;
+  - .data and .bss objects are not compared; only the text inside .data is.
+
 The toolchain is the PlatformIO one: $PLATFORMIO_CORE_DIR/packages/toolchain-rp2040-earlephilhower
 when that exists, else ~/.platformio/packages/....
 
@@ -331,23 +339,33 @@ def so_relocacao(nome, fa, fb, ctx_a, ctx_b):
     return True
 
 
+TEXTOS_ENTRE_ASPAS = re.compile(r'"[^"]*"')
+
+
 def constante_mudou(x, y):
     """True when a literal-pool word that renders as the content of an unnamed constant (a local
     `const T t[] = {...}` has no symbol, so the word is shown as the bytes behind it) differs
-    between the two sides of one function. so_relocacao( ) reads the function's own bytes and
-    would excuse it: the bytes are equal when the pool word sits at the same address on both
-    sides, and only the table behind it changed (found 2026-10-14 with tools/test_elf_funcoes.py:
-    one number edited in such a table came out "equal"). A string literal is not this case: its
-    text is compared by textos( ), and a pointer to a named object by dados( )."""
+    between the two sides of one function, other than in the text of the strings it points at.
+    so_relocacao( ) reads the function's own bytes and would excuse it: the bytes are equal when
+    the pool word sits at the same address on both sides, and only the table behind it changed
+    (found 2026-10-14 with tools/test_elf_funcoes.py: one number edited in such a table came out
+    "equal"). The text of a string is not this case, it is textos( )'s: an edited month name in
+    a local table of names is reported as that text pair and not as the functions that load the
+    table. What this leaves hidden: an entry of such a table made to point at another string
+    that exists in both images (the pointer changes, no text does)."""
     return any(p != q and (p.startswith('.word <[') or q.startswith('.word <['))
+               and TEXTOS_ENTRE_ASPAS.sub('""', p) != TEXTOS_ENTRE_ASPAS.sub('""', q)
                for p, q in zip(x, y))
 
 
 def dados(elf):
-    """Read-only objects (type r/R) by name -> their content, from the ELF sections. A table of
-    pointers (a dictionary, a font's glyph table, a vtable) holds addresses that follow the
-    layout: a word-aligned object is rendered word by word, each address by the symbol or the
-    text it points at, so only a real change of content shows."""
+    """Read-only objects (type r/R) by name -> a list of their contents (bytes, word-aligned), from
+    the ELF sections, in address order. A name can hold more than one object: a file-local
+    `static const` table has the same name in every translation unit that declares it, and nm
+    lists them all (found 2026-10-14: a dictionary keyed by name kept the one at the highest
+    address, and an edit in the other came out "equal"). A table of pointers (a dictionary, a
+    font's glyph table, a vtable) holds addresses that follow the layout: comparar_dados( )
+    matches them by what they point at, so only a real change of content shows."""
     inicios, tab = simbolos(elf)
     img = Imagem(elf)
     secs = subprocess.run([READELF, '-S', '-W', elf], capture_output=True, text=True, check=True).stdout
@@ -363,7 +381,7 @@ def dados(elf):
             continue
         for va, off, sz in mapas:
             if va <= ini and ini + tam <= va + sz:
-                res[nome] = (bruto[off + ini - va: off + ini - va + tam], ini % 4 == 0)
+                res.setdefault(nome, []).append((bruto[off + ini - va: off + ini - va + tam], ini % 4 == 0))
                 break
     return res, inicios, tab, img
 
@@ -397,6 +415,34 @@ def mesmo_dado(xa, xb, ctx_a, ctx_b):
     return True
 
 
+def comparar_dados(da, db, ctx_a, ctx_b):
+    """(objects equal, names whose objects differ, names only in A, names only in B). The objects
+    of one name are matched one to one: equal bytes first, then mesmo_dado( ) for the tables of
+    pointers the layout moved. An object left without a partner makes its name differ."""
+    iguais, mudaram = 0, []
+    for nome in sorted(set(da) & set(db)):
+        la, lb = da[nome], db[nome]
+        livres = list(range(len(lb)))
+        sem_par = []
+        for i, x in enumerate(la):
+            j = next((j for j in livres if lb[j][0] == x[0]), None)
+            if j is None:
+                sem_par.append(i)
+            else:
+                livres.remove(j)
+        resto = []
+        for i in sem_par:
+            j = next((j for j in livres if mesmo_dado(la[i], lb[j], ctx_a, ctx_b)), None)
+            if j is None:
+                resto.append(i)
+            else:
+                livres.remove(j)
+        iguais += len(la) - len(resto)
+        if resto or livres:
+            mudaram.append(nome if len(la) == len(lb) else f'{nome} ({len(la)} objetos em A, {len(lb)} em B)')
+    return iguais, mudaram, sorted(set(da) - set(db)), sorted(set(db) - set(da))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('a')
@@ -418,13 +464,11 @@ def main():
     # Switch tables the compiler names CSWTCH.<n>: the number follows the translation unit's
     # count, so a function moved to another file renumbers them. They are compared by content.
     anon = re.compile(r'^CSWTCH\.\d+$')
-    ta = sorted(palavras(v[0], *ctx_a) for n, v in da.items() if anon.match(n))
-    tb = sorted(palavras(v[0], *ctx_b) for n, v in db.items() if anon.match(n))
+    ta = sorted(palavras(v[0], *ctx_a) for n, lista in da.items() if anon.match(n) for v in lista)
+    tb = sorted(palavras(v[0], *ctx_b) for n, lista in db.items() if anon.match(n) for v in lista)
     da = {n: v for n, v in da.items() if not anon.match(n)}
     db = {n: v for n, v in db.items() if not anon.match(n)}
-    dmud = [n for n in da if n in db and not mesmo_dado(da[n], db[n], ctx_a, ctx_b)]
-    dso_a = sorted(set(da) - set(db))
-    dso_b = sorted(set(db) - set(da))
+    d_iguais, dmud, dso_a, dso_b = comparar_dados(da, db, ctx_a, ctx_b)
     tabelas_iguais = ta == tb
     ca, cb = textos(a.a), textos(a.b)
     txt_a = sorted((ca - cb).items())
@@ -443,7 +487,7 @@ def main():
             return 2
     print(f'funções: {len(iguais) + relocadas} iguais ({relocadas} só por relocação de ponteiro ou desvio), '
           f'{len(mudaram)} mudaram, {len(so_a)} só em A, {len(so_b)} só em B')
-    print(f'dados só-leitura: {len(da) - len(dmud) - len(dso_a)} iguais, {len(dmud)} mudaram, '
+    print(f'dados só-leitura: {d_iguais} iguais, {len(dmud)} mudaram, '
           f'{len(dso_a)} só em A, {len(dso_b)} só em B; tabelas de switch: {len(ta)} em A, {len(tb)} em B, '
           f'{"mesmo conteúdo" if tabelas_iguais else "CONTEÚDO DIFERENTE"}')
     print(f'textos na flash: {sum(ca.values())} em A, {sum(cb.values())} em B; {len(txt_a)} só em A, {len(txt_b)} só em B')
