@@ -16,8 +16,14 @@ Stage S0 is complete as of 2026-10-14: every section below is filled, and every
 table in section 3 says how it was produced. In the commands, `$B` is the S0
 scratch directory, `/home/angelo/Documentos/simut/scratchpad/ui_drivers_20261014`,
 whose `tools/` holds the scripts (section 5), and `$BASE` is `$B/base_192e1ad`,
-the nine baseline images. The scripts stay outside the repository for now; S0
-adds only this document and its TSV.
+the nine baseline images. Three of the scripts are versioned in `tools/` since
+S2b (2026-10-14), each with its row in `tools/README.md`: `bytes_original.py`
+(the sums of section 3.6), and `build9.sh` and `elf_funcoes.py` (the plan's
+kit), the last one proven by `tools/test_elf_funcoes.py`. The five readers of
+sections 3.1, 3.3 and 3.5 (`ui_funcs.py`, `ui_writes.py`, `ui_constcheck.py`,
+`ui_xref.py`, `ui_touch.py`) are still only in `$B/tools/`: the tables they
+produced can be produced again where those scripts are, and
+`bytes_original.py --src` needs the first of them beside it.
 
 ## 1. Words used here
 
@@ -614,6 +620,11 @@ git grep -c -E 'return[[:space:]]+UaToque::TRATADO\b'   $B -- src/ui_angulo
 git grep -c -E 'UaToque::(TRADUZIDO|TRATADO)' $B -- src/ui_angulo   # every mention
 ```
 
+The study kept its glue in `src/ui_angulo/`, which is why the commands above and
+the table below name that path: they read the study branch. Since S2a the same
+files are in `src/ui/angulo/` of this branch (and the kit that was
+`src/angulo/` is `src/ui/angulo/kit/`).
+
 **`UA_DESVIO( );` in the product files.** The macro is `do { uaSujo( ); return; } while ( 0 )`
 in the Ângulo build and an empty statement in the others
 (`DisplayManager.h:50-54` of the study). Every site is the first statement of a
@@ -650,7 +661,7 @@ old layout has the same element, and the old branch then runs). `TRADUZIDO` is
 the dependence on the old coordinates; `TRATADO` is business logic written a
 second time in the glue, which the core actions of section 2.3 replace.
 
-| glue file (`src/ui_angulo/`) | `return UaToque::TRADUZIDO` | `return UaToque::TRATADO` | every mention |
+| glue file (in the study, `src/ui_angulo/`) | `return UaToque::TRADUZIDO` | `return UaToque::TRATADO` | every mention |
 |---|---:|---:|---:|
 | `DisplayManager_UiA.cpp` | 3 | 4 | 9 |
 | `DisplayManager_UiA_Ajustes.cpp` | 11 | 68 | 79 |
@@ -776,9 +787,15 @@ the release); no display file is affected by that override.
 
 ```
 NM=~/.platformio/packages/toolchain-rp2040-earlephilhower/bin/arm-none-eabi-nm   # -S -C is what the script runs
-python3 $B/tools/bytes_original.py --tsv docs/analysis/UI_DRIVERS_funcoes.tsv --src <worktree> \
+python3 tools/bytes_original.py --src <worktree> \
     --top 25 --unmapped $BASE/pico_wiretft/firmware.elf $BASE/pico_w_release/firmware.elf
 ```
+
+`tools/bytes_original.py` reads this repository's `docs/analysis/UI_DRIVERS_funcoes.tsv`
+by default. `--src` needs `ui_funcs.py` (section 5) beside the script: copy it from
+`$B/tools/`, or leave `--src` out and read the sums by class. With the S0 copy of
+the script and with the versioned one, the output of the command above (122
+lines) is the same byte for byte (`cmp`, 2026-10-14).
 
 The script lists every symbol with `nm -S -C`, attaches each one to a row of the
 TSV by its demangled name without the parameter list (clones, function-local
@@ -1033,16 +1050,18 @@ numbers come from CI.
   shrinks. This needs the maintainer.
 - The `String` use of item 7: leave it in the original (it keeps its bytes) or
   remove it in a separate fix.
-- Whether the scripts of section 5 move into `tools/` and which of the tables are
-  re-run as a gate. Nothing in S0 changes `src/`, `tools/` or any generated
-  file.
+- Whether the five readers of section 5 move into `tools/` too and which of the
+  tables are re-run as a gate. Three scripts moved in S2b (2026-10-14); none of
+  the tables is a gate yet. S0 itself changed no file under `src/`, `tools/` or
+  any generated file.
 - Nothing here was run on hardware: the bench was not touched. Every number
   is from a build, an ELF or the source.
 
 ## 5. Tools
 
-All are in `$B/tools/`, take the worktree (or an ELF) as an argument, and write
-nothing in it.
+All take the worktree (or an ELF) as an argument and write nothing in it. The
+first five are in `$B/tools/` only. The last two rows are in `tools/` of the
+repository since S2b (2026-10-14), with a row each in `tools/README.md`.
 
 | script | what it does | used in |
 |---|---|---|
@@ -1051,5 +1070,5 @@ nothing in it.
 | `ui_constcheck.py` | the compiler as a control: makes every data member of `DisplayManager` `const` in a scratch copy and lists each write as a compile error | 3.1 |
 | `ui_xref.py` | which functions mention a name | 3.1 |
 | `ui_touch.py` | the branches of `handleTouch` and `handleTouchPanelV24` with their immediate draws, `pushUiEvent` calls, events and repaint flags | 3.3, 3.5 |
-| `bytes_original.py` | sums `nm -S -C` sizes by the class of the TSV row | 3.6 |
-| `build9.sh`, `elf_funcoes.py` | the plan's kit: build the nine images, compare two ELFs function by function | later stages |
+| `tools/bytes_original.py` | sums `nm -S -C` sizes by the class of the TSV row | 3.6 |
+| `tools/build9.sh`, `tools/elf_funcoes.py` | the plan's kit: build the nine images (`<out>/sha256.txt`, compared with `diff`), compare two ELFs function by function. `tools/test_elf_funcoes.py` proves the second on small ARM programs: 20 cases and 14 mutants of the tool, 2026-10-14 | later stages |
