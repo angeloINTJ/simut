@@ -71,16 +71,23 @@ void botaoIcone( Pintor &p, const Caixa16 &c, IconeNome ic, bool ativo ) {
   p.icone( ic, L_ICONE, c.x + rd2( c.w - L_ICONE ), c.y + rd2( c.h - L_ICONE ), ativo ? T.tinta : desab( T, T.tinta ) );
 }
 
+Caixa16 segmento( int16_t x, int16_t y, int16_t w, int16_t h, int n, int i ) {
+  const int16_t livre = w - ( n - 1 ) * ESP1;
+  const int16_t sw = livre / n, resto = livre % n;
+  // The first `resto` segments are a pixel wider, and each of the others starts that
+  // many pixels after where the plain split would put it.
+  return Caixa16{ (int16_t)( x + i * ( sw + ESP1 ) + ( i < resto ? i : resto ) ), y, (int16_t)( sw + ( i < resto ? 1 : 0 ) ), h };
+}
+
 void segmentadoLeve( Pintor &p, int16_t x, int16_t y, int16_t w, int16_t h, const char *const *opcoes, int16_t n,
                      int16_t ativa ) {
   const Tema &T = p.t( );
-  const int16_t sw = ( w - ( n - 1 ) * ESP1 ) / n;
   for ( int16_t i = 0; i < n; i++ ) {
-    const int16_t sx = x + i * ( sw + ESP1 );
+    const Caixa16 s = segmento( x, y, w, h, n, i );
     const bool on = i == ativa;
-    p.fillRoundRect( sx, y, sw, h, RAIO_CONTROLE, on ? T.superficie : T.superficie2 );
-    p.roundRect( sx, y, sw, h, RAIO_CONTROLE, on ? T.acento : T.linha );
-    textoCentrado( p, opcoes[i], sx + rd2( sw ), y, h, tipo::apoio, on ? T.acento : T.tinta2, 'c' );
+    p.fillRoundRect( s.x, s.y, s.w, s.h, RAIO_CONTROLE, on ? T.superficie : T.superficie2 );
+    p.roundRect( s.x, s.y, s.w, s.h, RAIO_CONTROLE, on ? T.acento : T.linha );
+    textoCentrado( p, opcoes[i], s.x + rd2( s.w ), s.y, s.h, tipo::apoio, on ? T.acento : T.tinta2, 'c' );
   }
 }
 

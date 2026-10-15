@@ -17,16 +17,22 @@ using namespace ajustes;
 /* ------------------------------------------------------------------ */
 
 constexpr int16_t X_CARTAO = ESP2, W_CARTAO = L_TELA - 2 * ESP2;
+constexpr int16_t X_ESQ = X_CARTAO + PAD;                 // where a row's label starts: 12 px inside the card
 constexpr int16_t X_DIR = X_CARTAO + W_CARTAO - PAD;      // where a row's controls end: 12 px inside the card
 constexpr int16_t H_SEG = 28;                             // a segmented control
 constexpr int16_t H_LINHA_PASSO = L_BOTAO + 2 * ESP1;     // the stepper's row: 40 px buttons with 4 px clear above and below
-constexpr int16_t H_LINHA_SEG = H_SEG + 2 * ESP1;         // a segmented control's row, likewise
+constexpr int16_t H_LINHA_SEG = H_SEG + 2 * ESP1;         // a control beside its label: 4 px clear above and below, likewise
+// The keypad's row is two lines, the label above its control: at 9 pt "Teclado" (62 px
+// of ink) and three segments that hold "18 cartões" (78 px of ink, 4 px of air each
+// side) take 336 px of the 280 the row has (2026-10-15), so the control takes the
+// row's whole width.
+constexpr int16_t Y_CONTROLE_TECLADO = ESP1 + ESP4 + ESP1;                    // under the label, 4 px clear
+constexpr int16_t H_LINHA_TECLADO = Y_CONTROLE_TECLADO + H_SEG + ESP1;       // 56
 constexpr int16_t W_VALOR = 40;                           // the room the stepper's number has between its buttons
-// The keypad control takes the room its row's label leaves: segments of 72 px,
-// which is 5 px of air each side of "18 cartões" in the regular face (62 px of
-// ink). The alphabet control's two segments are wider than their labels need, so
-// that both controls end at the same edge.
-constexpr int16_t W_SEG_TECLADO = 72, W_SEG_CARACTERES = 100;
+// The keypad control's three segments split the row's 280 px (91, 91 and 90 px, 6 px
+// of air each side of "18 cartões" in the regular face); the alphabet control sits
+// under the last two, whose room is what "Caracteres" (85 px of ink) leaves.
+constexpr int16_t W_TECLADO = X_DIR - X_ESQ;
 
 const char *const kTeclado09[3] = { "Ordenado", "6 cartões", "4 cartões" };
 const char *const kTecladoAz[3] = { "Ordenado", "18 cartões", "12 cartões" };
@@ -37,59 +43,50 @@ struct LayoutPolitica {
   Caixa16 menos, mais;              // the stepper's buttons
   int16_t xValor;                   // the centre of the stepper's number
   bool menosAtivo, maisAtivo;
-  Caixa16 teclado[3], caracteres[2];   // the segments, stretched to the whole row for the finger
+  Caixa16 teclado[3], caracteres[2];   // the segments, stretched over the whole row below the label for the finger
   Caixa16 grupoTeclado, grupoCaracteres;   // the controls as segmentadoLeve( ) draws them
-  int16_t yAjuda;
   CaixasRodape rodape;
 };
 
-// The kit's segmentado( ) splits the width evenly with 4 px between (floor), and
-// so does segmentadoLeve( ): the segments' boxes, from the same arithmetic.
-void segmentos( const Caixa16 &grupo, int n, const Caixa16 &linha, Caixa16 *out ) {
-  const int16_t sw = ( grupo.w - ( n - 1 ) * ESP1 ) / n;
-  for ( int i = 0; i < n; i++ ) out[i] = Caixa16{ (int16_t)( grupo.x + i * ( sw + ESP1 ) ), linha.y, sw, linha.h };
+// The segments' boxes: x and width from segmento( ), the same arithmetic that draws
+// them, over the rows `y` and `h` (a finger's zone is taller than the control).
+void segmentos( const Caixa16 &grupo, int n, int16_t y, int16_t h, Caixa16 *out ) {
+  for ( int i = 0; i < n; i++ ) out[i] = segmento( grupo.x, y, grupo.w, h, n, i );
 }
 
 LayoutPolitica layoutPolitica( const VmPoliticaPin &vm ) {
   LayoutPolitica l{ };
-  const int16_t y1 = Y0 + H_LINHA_PASSO + ESP2, y2 = y1 + H_LINHA_SEG + ESP2;
+  const int16_t y1 = Y0 + H_LINHA_PASSO + ESP2, y2 = y1 + H_LINHA_TECLADO + ESP2;
   l.linha[0] = Caixa16{ X_CARTAO, Y0, W_CARTAO, H_LINHA_PASSO };
-  l.linha[1] = Caixa16{ X_CARTAO, y1, W_CARTAO, H_LINHA_SEG };
+  l.linha[1] = Caixa16{ X_CARTAO, y1, W_CARTAO, H_LINHA_TECLADO };
   l.linha[2] = Caixa16{ X_CARTAO, y2, W_CARTAO, H_LINHA_SEG };
   l.mais = Caixa16{ (int16_t)( X_DIR - L_BOTAO ), (int16_t)( Y0 + ESP1 ), L_BOTAO, L_BOTAO };
   l.menos = Caixa16{ (int16_t)( l.mais.x - ESP1 - W_VALOR - ESP1 - L_BOTAO ), l.mais.y, L_BOTAO, L_BOTAO };
   l.xValor = l.menos.x + L_BOTAO + ESP1 + rd2( W_VALOR );
   l.menosAtivo = vm.minimo > vm.piso;
   l.maisAtivo = vm.minimo < vm.teto;
-  const int16_t wT = 3 * W_SEG_TECLADO + 2 * ESP1, wC = 2 * W_SEG_CARACTERES + ESP1;
-  l.grupoTeclado = Caixa16{ (int16_t)( X_DIR - wT ), (int16_t)( y1 + ESP1 ), wT, H_SEG };
-  l.grupoCaracteres = Caixa16{ (int16_t)( X_DIR - wC ), (int16_t)( y2 + ESP1 ), wC, H_SEG };
-  segmentos( l.grupoTeclado, 3, l.linha[1], l.teclado );
-  segmentos( l.grupoCaracteres, 2, l.linha[2], l.caracteres );
-  l.yAjuda = y2 + H_LINHA_SEG + ESP1;
+  l.grupoTeclado = Caixa16{ X_ESQ, (int16_t)( y1 + Y_CONTROLE_TECLADO ), W_TECLADO, H_SEG };
+  const Caixa16 sob = segmento( X_ESQ, 0, W_TECLADO, 0, 3, 1 );   // the keypad's second segment
+  l.grupoCaracteres = Caixa16{ sob.x, (int16_t)( y2 + ESP1 ), (int16_t)( X_DIR - sob.x ), H_SEG };
+  const int16_t yDedo = y1 + Y_CONTROLE_TECLADO - ESP1;
+  segmentos( l.grupoTeclado, 3, yDedo, y1 + H_LINHA_TECLADO - yDedo, l.teclado );
+  segmentos( l.grupoCaracteres, 2, y2, H_LINHA_SEG, l.caracteres );
   l.rodape = caixasRodape( "Salvar", "Cancelar" );
   return l;
 }
 
-// What the keypad and the alphabet allow, in a sentence: the ceiling is what the
-// PIN's length can be set up to, and how many cards the keypad has says what the
-// segment of the same name does.
-void textoAjuda( const VmPoliticaPin &vm, char *dst, int cap ) {
-  const char *unidade = vm.alfabeto ? "caracteres" : "dígitos";
-  if ( vm.teclado == 1 ) {
-    snprintf( dst, (size_t)cap, "No teclado ordenado, o PIN vai até %u %s.", (unsigned)vm.teto, unidade );
-  } else {
-    // The cards each keypad has (PinKeypad.h, GRIDS), by alphabet and keypad (2, 3).
-    static const uint8_t kCartoes[2][2] = { { 6, 4 }, { 18, 12 } };
-    const int cartoes = kCartoes[vm.alfabeto ? 1 : 0][vm.teclado == 3 ? 1 : 0];
-    snprintf( dst, (size_t)cap, "Com %d cartões, o PIN vai até %u %s.", cartoes, (unsigned)vm.teto, unidade );
-  }
+// What the keypad and the alphabet allow, under the stepper's label: the range the
+// minimum can take, which is also how long a PIN can be. It stands for the sentence
+// that was under the rows ("No teclado ordenado, o PIN vai até 16 caracteres.": 378 px
+// at 9 pt, on a glass that leaves 312, and no line of its own below the taller keypad
+// row, 2026-10-15), which also named the keypad, and the segment that is lit does.
+void textoFaixa( const VmPoliticaPin &vm, char *dst, int cap ) {
+  snprintf( dst, (size_t)cap, "%u a %u %s", (unsigned)vm.piso, (unsigned)vm.teto, vm.alfabeto ? "caracteres" : "dígitos" );
 }
 
-// A row's label, in the quiet type: the bold small face would run 54 px for
-// "Teclado" and leave 2 px before its control; the regular one runs 48.
-void rotuloDaLinha( Pintor &p, const Caixa16 &c, const char *texto ) {
-  textoCentrado( p, texto, c.x + PAD, c.y, c.h, tipo::apoio, p.t( ).tinta2, 'l' );
+// A row's label: the row's main text, in the body type.
+void rotuloDaLinha( Pintor &p, int16_t y, int16_t h, const char *texto ) {
+  textoCentrado( p, texto, X_ESQ, y, h, tipo::corpo, p.t( ).tinta, 'l' );
 }
 
 /* ------------------------------------------------------------------ */
@@ -143,25 +140,28 @@ void desenharPoliticaPin( Pintor &p, const VmPoliticaPin &vm ) {
   barraTituloVoltar( p, "Segurança do PIN" );
   for ( int i = 0; i < 3; i++ ) superficie( p, l.linha[i].x, l.linha[i].y, l.linha[i].w, l.linha[i].h );
 
-  rotuloDaLinha( p, l.linha[0], "Tamanho mínimo" );
+  // The stepper's row: the label, and under it the range the minimum can take.
+  const Caixa16 &passo = l.linha[0];
+  const int16_t yRotulo = passo.y + rd2( passo.h - ( PASSO_APOIO + ESP4 ) );
+  rotuloDaLinha( p, yRotulo, ESP4, "Tamanho mínimo" );
+  char faixa[24];
+  textoFaixa( vm, faixa, sizeof faixa );
+  ajuda( p, X_ESQ, yRotulo + PASSO_APOIO, ESP4, faixa );
   botaoIcone( p, l.menos, IconeNome::MINUS, l.menosAtivo );
   char minimo[8];
   snprintf( minimo, sizeof minimo, "%u", (unsigned)vm.minimo );
-  textoCentrado( p, minimo, l.xValor, l.linha[0].y, l.linha[0].h, tipo::titulo, T.tinta, 'c' );
+  textoCentrado( p, minimo, l.xValor, passo.y, passo.h, tipo::titulo, T.tinta, 'c' );
   botaoIcone( p, l.mais, IconeNome::PLUS, l.maisAtivo );
 
   // The keypad's segments: 1 ordered, 2 six cards, 3 four cards (the old values).
   // The label of 2 and 3 follows the alphabet, which has more cards to the keypad.
-  rotuloDaLinha( p, l.linha[1], "Teclado" );
+  rotuloDaLinha( p, l.linha[1].y + ESP1, ESP4, "Teclado" );
   segmentadoLeve( p, l.grupoTeclado.x, l.grupoTeclado.y, l.grupoTeclado.w, l.grupoTeclado.h, vm.alfabeto ? kTecladoAz : kTeclado09, 3,
                   vm.teclado >= 1 && vm.teclado <= 3 ? vm.teclado - 1 : -1 );
-  rotuloDaLinha( p, l.linha[2], "Caracteres" );
+  rotuloDaLinha( p, l.linha[2].y, l.linha[2].h, "Caracteres" );
   segmentadoLeve( p, l.grupoCaracteres.x, l.grupoCaracteres.y, l.grupoCaracteres.w, l.grupoCaracteres.h, kCaracteres, 2,
                   vm.alfabeto ? 1 : 0 );
 
-  char frase[64];
-  textoAjuda( vm, frase, sizeof frase );
-  ajuda( p, ESP2, l.yAjuda, ESP4, frase );
   desenharRodape( p, l.rodape, "Salvar", Botao::PRIMARIO, false, "Cancelar" );
 }
 
