@@ -237,6 +237,10 @@ expect("no-ifdef: src/ui/UiCaps.h, where the macros are defined, is the one file
        {"src/ui/UiCaps.h": CAPS + "#ifdef SIMUT_UI_ANGULO\n#endif\n#if defined(SIMUT_UI_CUSTOM_THEMES)\n#endif\n"}, [])
 expect("no-ifdef: that exemption is the file's, not the directory's",
        {"src/ui/Other.h": '#include "UiCaps.h"\n' + "#ifdef SIMUT_UI_ANGULO\n#endif\n"}, [("src/ui/Other.h", 2, "no-ifdef")])
+expect("identity: a longer macro name that starts with an identity is not the identity (it is a UI macro, and nothing else)",
+       {SURFACE: surface("#if SIMUT_UI_ANGULO_NEXT", "#endif")}, [])
+expect("identity and include-caps: a name that merely ends in a UI macro's name is neither an identity nor a use",
+       {SURFACE: surface("int NOT_SIMUT_UI_ANGULO = 0; int MY_SIMUT_UI_CUSTOM_THEMES = 0;", head=())}, [])
 expect("no-ifdef: a name that merely contains `defined` is not the operator",
        {ANGULO_UNIT: angulo("bool undefined_SIMUT_UI_ANGULO = false;", "int predefined(SIMUT_UI_ANGULO);")}, [])
 
@@ -262,6 +266,9 @@ def class_include_cases():
     expect("include-caps: simut_config.h reached through another header is not the file's own include",
            {SURFACE: surface('#include "DisplayManager.h"', "#if SIMUT_UI_CUSTOM_THEMES", "#endif", head=NOHEAD),
             "src/DisplayManager.h": '#include "simut_config.h"\n'},
+           [(SURFACE, 2, "include-caps")])
+    expect("include-caps: an angle-bracket include is not the file's own (the project's headers are quoted)",
+           {SURFACE: surface("#include <simut_config.h>", "#if SIMUT_UI_CUSTOM_THEMES", "#endif", head=NOHEAD)},
            [(SURFACE, 2, "include-caps")])
     expect("include-caps: an include in a comment is not an include",
            {SURFACE: surface('// #include "simut_config.h"', "#if SIMUT_UI_CUSTOM_THEMES", "#endif", head=NOHEAD)},
@@ -298,6 +305,8 @@ def cross_driver_cases():
                       ("src/ui/Other.cpp", '#include "../ui/angulo/UiA.h"')):
         expect(f"cross-driver: `{inc}` in {path} is one finding (resolved the way the compiler does)",
                {path: surface(inc)}, [(path, 2, "cross-driver")])
+    expect("cross-driver: an angle-bracket include does not search the including file's directory",
+           {"src/ui/Other.cpp": surface("#include <angulo/UiA.h>")}, [])
     expect("cross-driver: an include that merely looks like a path to the driver is not one",
            {SURFACE: surface('#include "../ui/angulo/UiA.h"', '#include "other/angulo/UiA.h"')}, [])
 
@@ -307,10 +316,13 @@ def hook_cases():
            {ANGULO_UNIT: angulo(*TEXT["driver-hook"])}, [])
     expect("driver-hook: names that only contain `ua` are not hooks",
            {SURFACE: surface("int manualSave = 0; String visualAlarm; int equalA = 1; bool uart = false; int UART_RX = 1;",
-                             "void actualize( ); int quaternionA; int uaa = 0; int Uasomething = 0; int mua_Sujo = 0;")}, [])
+                             "void actualize( ); int quaternionA; int uaa = 0; int Uasomething = 0; int mua_Sujo = 0;",
+                             "int sensorsuaSujo = 0; int fooua_Bar = 0;")}, [])
     expect("driver-hook: the `_` of a member and the `g_` of a global belong to the name, any other prefix does not",
            {SURFACE: surface("int _uaSujo = 0;", "int g_uaVm = 0;", "int m_uaSujo = 0;")},
            [(SURFACE, 2, "driver-hook"), (SURFACE, 3, "driver-hook")])
+    expect("driver-hook: the rule is `outside src/ui/angulo/`: another file of src/ui/ is held to it",
+           {"src/ui/Other.cpp": surface("uaSujo( );")}, [("src/ui/Other.cpp", 2, "driver-hook")])
     expect("driver-hook: two names on one line are two findings",
            {SURFACE: surface("uaSujo( ); uaQuadro( );")}, [(SURFACE, 2, "driver-hook")] * 2)
     expect("driver-hook: the Angulo's types are not looked for (a file reaches them through an Angulo header, which cross-driver holds)",
@@ -434,6 +446,8 @@ def message_cases():
     problem("an allowance with no reason fails", TWO, allow(**{"driver-hook": {SURFACE: (2, "")}}), ["reason"])
     problem("an allowance with a count that is not a positive number fails", TWO,
             allow(**{"driver-hook": {SURFACE: (0, WHY)}}), ["count"])
+    problem("an allowance whose count is `true` is not a number", TWO,
+            '{"driver-hook": {"%s": {"count": true, "reason": "x"}}}\n' % SURFACE, ["count"])
     problem("an allowance under a rule that does not exist fails", TWO,
             allow(**{"made-up-rule": {SURFACE: (2, WHY)}}), ["unknown rule"], rule="made-up-rule")
     expect("one allowance covers one (rule, file): the same file's finding of another rule is still reported",
