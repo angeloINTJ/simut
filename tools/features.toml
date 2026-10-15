@@ -231,9 +231,18 @@ lib_deps = ["https://github.com/angeloINTJ/pico-enc28j60.git#fb16ec132baab989b59
 
 [ui.angulo]
 flags = ["-DSIMUT_UI_ANGULO=1"]
-# Sem `include` nem `units` ainda: as unidades do Angulo (src/ui/angulo/) chegam no passo S2a. Ate la a
-# escolha compoe, valida e compila, e a imagem so ganha a identidade (o pico_wiretft_angulo, conferido
-# com o elf_funcoes.py, nao difere do pico_wiretft em funcao nenhuma).
+# As unidades do Angulo (src/ui/angulo/, 2026-10-14, passo S2a): a cola com o DisplayManager
+# (DisplayManager_UiA*.cpp), o kit (Angulo.cpp), a rota GET /api/ui e as telas (telas/*.cpp). O filtro do
+# pico_base nao alcanca subdiretorios, por isso entram como `include`. Sem `units`: nenhum outro perfil as
+# compilaria (o filtro nao as ve), e um `-<unidade>` a mais mudaria o ambiente de cada perfil que escolhe o
+# `original`. Transitorio: nesta forma o driver ainda convive com todo o desenho do original, que a imagem
+# linka inteiro (as chamadas UA_DESVIO( ) so o desviam); os passos S4 a S10b o separam.
+include = [
+    "ui/angulo/Angulo.cpp",
+    "ui/angulo/DisplayManager_UiA*.cpp",
+    "ui/angulo/WebManager_UiA.cpp",
+    "ui/angulo/telas/*.cpp",
+]
 
 # ---------------------------------------------------------------------------
 #  Os interruptores. `emit` diz como o flag e escrito, e por que:
