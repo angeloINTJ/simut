@@ -27,6 +27,11 @@
  * they cannot, and the first #error below stops the build that tries, naming what
  * to pass instead.
  *
+ * Test them with `#if`, never with `#ifdef`, `#ifndef` or `defined( )`: after
+ * this header SIMUT_UI_ANGULO is always defined, 0 on the original, so
+ * `#ifdef SIMUT_UI_ANGULO` is true on every image (shown with the host
+ * preprocessor in the review of 2026-10-14).
+ *
  * A file that tests one of these macros includes this header or simut_config.h
  * ITSELF, by a path relative to its own, and not through another header: `#if X`
  * with X undefined is 0, silently, and a feature drops out of the image (it

@@ -109,7 +109,9 @@ catalogue hooks need to grow to an index-by-name lookup, a rescan and an apply.
 The business parts of the per-mode branches of `handleTouch` and
 `handleTouchPanelV24` become public `act*( )` members, which both drivers call.
 The per-mode table of section 3.3 is the work list: 34 branch rows, 38
-`pushUiEvent` calls and 19 immediate draws in them. The plan estimates 70 to 90
+`pushUiEvent` calls (33 in `handleTouch`, 5 in `handleTouchPanelV24`) and 19
+immediate draws, all in `handleTouch`, counted per handler body with comments
+left out (section 3.5 says why a plain grep reports one more). The plan estimates 70 to 90
 actions and 15 to 25 kinds of `UiChange`; examples are `actSelectSlot( int8_t )`,
 `actTopPanelTap( )`, `actTopPanelHoldFired( )`, `actOpenGraph( int8_t )`,
 `actGraphNav( int8_t )`, `actLimitStep( int, int )`, `actLimitsSave( )`,
@@ -228,8 +230,10 @@ items 8 to 12 are what the audit found in the draw bodies **(S0)**.
   (`:235-255`), `CLOCK_*` (`:267-272`), `GRAPH_PBTN_*` (`:285-287`); `buildDashLayout`,
   the 3 s graph header name, `Themes.cpp`, `DisplayManager_Fonts.*`, `UiWidgets.*`,
   `PasswordKeyboard.h` and `sensors/SensorDrawing.h`.
-- **The mixed units** are settled by section 3.3: 98 original function rows, 183
-  core and 9 mixed, per unit. S10a cuts along those rows.
+- **The mixed units** are settled by section 3.3: of its 371 rows, the 290 that are
+  functions split 98 original, 183 core and 9 mixed (the other 81 are the 34
+  per-mode branch rows of the two touch handlers and 47 rows of file-scope data).
+  S10a cuts along those rows.
 
 ### 2.6 Room for a 3.5-inch panel
 
