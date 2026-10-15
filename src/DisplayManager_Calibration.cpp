@@ -415,8 +415,8 @@ void DisplayManager::mapTouchPoint(TS_Point raw, int16_t &outX, int16_t &outY) {
  rawForY = raw.y;
  }
 
- outX = (int16_t)constrain(map(rawForX, _calXMin, _calXMax, 0, 320), 0, 319);
- outY = (int16_t)constrain(map(rawForY, _calYMin, _calYMax, 0, 240), 0, 239);
+ outX = (int16_t)constrain(map(rawForX, _calXMin, _calXMax, 0, DisplayDriver::W), 0, DisplayDriver::W - 1);
+ outY = (int16_t)constrain(map(rawForY, _calYMin, _calYMax, 0, DisplayDriver::H), 0, DisplayDriver::H - 1);
 }
 
 
