@@ -16,16 +16,16 @@ constexpr int16_t W_INTERRUPTOR = 40, H_INTERRUPTOR = 24;
 /* The list of sensors                                                  */
 /* ------------------------------------------------------------------ */
 
-// A row of 40 px holds two lines, the name over its range: 16 px boxes with
-// the text centred in each. One line would put the range between the name and
-// the badge, and "Sala de coleta" (107 px) would be cut on a row that has
-// 280 px inside its padding. The range's box sits one pixel lower than the
-// grid, which puts the baselines at 19 and 35: 5 px above the name, 5 between
-// the lines and 5 below the range (judged on the 3x zoom of the frames,
-// 2026-10-14; at the grid's 20 the two lines nearly touched).
-constexpr int16_t Y_NOME = ESP1;
-constexpr int16_t Y_FAIXA = ESP1 + ESP4 + 1;
-constexpr int16_t H_LINHA_TEXTO = ESP4;
+// A row holds two lines, the name over its range (desenharDuasLinhas( )), in the
+// 48 px of LISTA_H_FILA_2, three to a page. One line would put the range between
+// the name and the badge, and "Sala de coleta" (107 px) would be cut on a row
+// that has 280 px inside its padding. The row was 40 px, four to a page, until
+// the panel's text floor rose to 9 pt (2026-10-15): two lines of 14 px caps left
+// 4 px between them, and the name's descenders touched the range.
+// The badge sits on the name's line (its 20 px box is the name's, so the two share
+// a baseline), which leaves the range the whole width under it: beside the badge,
+// the widest band of the samples ("-327,6 a 327,6 °C") ran into "Manutenção".
+constexpr int16_t Y_SELO = ESP1;
 
 struct LinhaAl {
   char nome[32];       // cut to the room the badge leaves
@@ -42,7 +42,7 @@ struct LayoutAlarmes {
 
 LayoutAlarmes layoutAlarmes( const VmAlarmes &vm ) {
   LayoutAlarmes l{ };
-  l.lista = layoutLista( vm.n < ALARMES_MAX ? vm.n : ALARMES_MAX, vm.pagina );
+  l.lista = layoutLista( vm.n < ALARMES_MAX ? vm.n : ALARMES_MAX, vm.pagina, LISTA_FILAS_2, LISTA_H_FILA_2 );
   for ( int i = 0; i < l.lista.n; i++ ) {
     const LinhaAlarme &s = vm.sensores[l.lista.primeira + i];
     const Caixa16 &c = l.lista.linhas[i];
@@ -76,15 +76,14 @@ void desenharAlarmes( Pintor &p, const VmAlarmes &vm ) {
   }
   // lista( ) gives the card, the dividers and the chevrons; what a row says is
   // laid over it (two lines and a badge, which lista( ) cannot do).
-  Item itens[LISTA_FILAS];
+  Item itens[LISTA_FILAS_2];
   for ( int i = 0; i < l.lista.n; i++ ) itens[i].chevron = true;
-  lista( p, Y0, itens, (int16_t)l.lista.n, LISTA_H_FILA );
+  lista( p, Y0, itens, (int16_t)l.lista.n, LISTA_H_FILA_2 );
   for ( int i = 0; i < l.lista.n; i++ ) {
     const Caixa16 &c = l.lista.linhas[i];
     const LinhaAl &r = l.linhas[i];
-    selo( p, r.xSelo, c.y + rd2( c.h - H_SELO ), H_SELO, r.selo, r.seloTom );
-    textoCentrado( p, r.nome, c.x + PAD, c.y + Y_NOME, H_LINHA_TEXTO, tipo::corpo, T.tinta, 'l' );
-    textoCentrado( p, r.faixa, c.x + PAD, c.y + Y_FAIXA, H_LINHA_TEXTO, tipo::apoio, T.tinta2, 'l' );
+    selo( p, r.xSelo, c.y + Y_SELO, H_SELO, r.selo, r.seloTom );
+    desenharDuasLinhas( p, c, c.x + PAD, r.nome, T.tinta, r.faixa, tipo::apoio, T.tinta2 );
   }
   desenharPaginador( p, l.lista.pag );
 }
@@ -110,8 +109,7 @@ struct LayoutSensorAlarme {
 
 // "1 h 30 min restantes", "2 h restantes", "1 h restante", "45 min restantes",
 // "1 min restante" or "Desligada". Rounded up to the minute: 30 s left is one
-// minute, never zero. From 100 h on the minutes go: they are noise, and
-// 719 h 59 min would not fit beside the label.
+// minute, never zero. From 100 h on the minutes go: they are noise.
 void textoManutencao( uint32_t seg, char *out, int cap ) {
   if ( seg == 0 ) { copiar( out, "Desligada", cap ); return; }
   const unsigned min = (unsigned)( ( seg + 59 ) / 60 );
@@ -128,7 +126,7 @@ LayoutSensorAlarme layoutSensorAlarme( const VmSensorAlarme &vm ) {
   tituloCortado( vm.nome[0] ? vm.nome : "Alarmes", l.titulo, sizeof l.titulo );
   l.voltar = alvoVoltar( );
   for ( int i = 0; i < SA_LINHAS; i++ )
-    l.linhas[i] = Caixa16{ ESP2, (int16_t)( Y0 + i * LISTA_H_FILA ), (int16_t)( W_TELA - 2 * ESP2 ), LISTA_H_FILA };
+    l.linhas[i] = Caixa16{ ESP2, (int16_t)( Y0 + i * LISTA_H_FILA_2 ), (int16_t)( W_TELA - 2 * ESP2 ), LISTA_H_FILA_2 };
   l.ativa[0] = vm.podeLimites;
   l.ativa[1] = vm.podeBloquear;
   l.ativa[2] = vm.podeManutencao;
@@ -152,12 +150,11 @@ void desenharSensorAlarme( Pintor &p, const VmSensorAlarme &vm ) {
   itens[1].icone = IconeNome::BELL;
   // A locked row shows its switch disabled, below; lista( ) only draws live ones.
   itens[1].interruptor = l.ativa[1] ? ( vm.alarmesLigados ? 1 : 0 ) : -1;
-  itens[2].texto = "Manutenção";
+  // The maintenance row is the one of two lines, the label over the window's state; lista( )
+  // draws its icon and chevron, and the lines are laid over it below. Beside the label the
+  // state ("1 h 30 min restantes", 150 px) did not fit the 224 px between icon and chevron
+  // at 9 pt (the label is 93).
   itens[2].icone = IconeNome::WRENCH;
-  itens[2].valor = l.manutencao;
-  itens[2].valorFonte = tipo::apoio;
-  itens[2].temValorCor = true;
-  itens[2].valorCor = l.manutencaoAberta ? T.alerta : T.tinta2;
   itens[2].chevron = l.ativa[2];
   // A row the account has no bit for: a lock instead of its icon, everything
   // in the disabled colour, nothing to open.
@@ -166,15 +163,20 @@ void desenharSensorAlarme( Pintor &p, const VmSensorAlarme &vm ) {
     itens[i].icone = IconeNome::LOCK;
     itens[i].temTom = true;
     itens[i].tom = desab( T, T.tinta );
-    if ( itens[i].valor ) itens[i].valorCor = desab( T, l.manutencaoAberta ? T.alerta : T.tinta2 );
   }
-  const int16_t fim = lista( p, Y0, itens, SA_LINHAS, LISTA_H_FILA );
+  const int16_t fim = lista( p, Y0, itens, SA_LINHAS, LISTA_H_FILA_2 );
+  {
+    uint16_t cTexto = T.tinta, cEstado = l.manutencaoAberta ? T.alerta : T.tinta2;
+    if ( !l.ativa[2] ) { cTexto = desab( T, cTexto ); cEstado = desab( T, cEstado ); }
+    desenharDuasLinhas( p, l.linhas[2], ESP2 + PAD + ICONE_CONTROLE + ESP2, "Manutenção", cTexto, l.manutencao,
+                        tipo::apoio, cEstado );
+  }
   if ( !l.ativa[1] ) {
     const Caixa16 &c = l.linhas[1];
     interruptor( p, c.x + c.w - PAD - W_INTERRUPTOR, c.y + rd2( c.h - H_INTERRUPTOR ), vm.alarmesLigados, true );
   }
   // The switch saves on the spot, unlike the screens that end in "Salvar".
-  desenharNota( p, fim + ESP2, "Ligar ou desligar os alarmes vale na hora." );
+  desenharNota( p, fim + ESP2, "Ligar ou desligar alarmes vale na hora." );
 }
 
 int alvosSensorAlarme( const VmSensorAlarme &vm, Alvo *out ) {

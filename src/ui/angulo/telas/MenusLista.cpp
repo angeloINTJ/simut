@@ -90,17 +90,19 @@ void tituloCortado( const char *nome, char *out, int cap ) { cortar( nome, tipo:
 /* A list in a card                                                     */
 /* ------------------------------------------------------------------ */
 
-LayoutLista layoutLista( int total, int pagina ) {
+LayoutLista layoutLista( int total, int pagina, int filas, int16_t hFila ) {
+  if ( filas > LISTA_FILAS ) filas = LISTA_FILAS;      // LayoutLista holds no more than that
+  if ( filas < 1 ) filas = 1;
   LayoutLista l{ };
   l.total = total < 0 ? 0 : total;
-  l.pag = paginasDe( pagina, ( l.total + LISTA_FILAS - 1 ) / LISTA_FILAS );
-  l.primeira = l.pag.pagina * LISTA_FILAS;
+  l.pag = paginasDe( pagina, ( l.total + filas - 1 ) / filas );
+  l.primeira = l.pag.pagina * filas;
   l.n = l.total - l.primeira;
-  if ( l.n > LISTA_FILAS ) l.n = LISTA_FILAS;
+  if ( l.n > filas ) l.n = filas;
   if ( l.n < 0 ) l.n = 0;
   l.voltar = alvoVoltar( );
   for ( int i = 0; i < l.n; i++ )
-    l.linhas[i] = Caixa16{ ESP2, (int16_t)( Y0 + i * LISTA_H_FILA ), (int16_t)( W_TELA - 2 * ESP2 ), LISTA_H_FILA };
+    l.linhas[i] = Caixa16{ ESP2, (int16_t)( Y0 + i * hFila ), (int16_t)( W_TELA - 2 * ESP2 ), hFila };
   return l;
 }
 
@@ -135,6 +137,15 @@ void cortar( const char *s, Fonte f, int16_t largura, char *out, int cap ) {
 
 void desenharNota( Pintor &p, int16_t y, const char *texto ) {
   textoCentrado( p, texto, ESP2, y, ESP4, tipo::apoio, p.t( ).tinta2, 'l' );
+}
+
+void desenharDuasLinhas( Pintor &p, const Caixa16 &c, int16_t x, const char *linha1, uint16_t cor1,
+                         const char *linha2, Fonte fonte2, uint16_t cor2 ) {
+  // Two boxes of 20 px, 4 px under the row's top and the first's bottom: the caps of the first
+  // line then start 7 px under the row's edge and the baseline of the second is 7 above its foot.
+  constexpr int16_t H_CAIXA = 20, Y_CAIXA_1 = ESP1;
+  textoCentrado( p, linha1, x, c.y + Y_CAIXA_1, H_CAIXA, tipo::corpo, cor1, 'l' );
+  textoCentrado( p, linha2, x, c.y + Y_CAIXA_1 + H_CAIXA, H_CAIXA, fonte2, cor2, 'l' );
 }
 
 int16_t desenharVazio( Pintor &p, const char *texto ) {
