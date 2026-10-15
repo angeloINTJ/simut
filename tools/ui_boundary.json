@@ -1,0 +1,92 @@
+{
+ "identity": {
+  "src/DisplayManager.cpp": {
+   "count": 4,
+   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the Ângulo build's licence-opening accessor, its theme application and render call in loopCore1( ) and its boot paint in render( ), each behind `#if SIMUT_UI_ANGULO`; ends in S4 (the loop hooks)"
+  },
+  "src/DisplayManager.h": {
+   "count": 3,
+   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the `#if` that includes ui/angulo/UiA.h, the one that picks the definition of UA_DESVIO( ) and the one around the Ângulo members; ends in S4 (UA_DESVIO to ui/UiDriver.h, the members to ui/angulo/Members.h)"
+  },
+  "src/DisplayManager_Dashboard.cpp": {
+   "count": 3,
+   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the `#if` around the `_uaPintando` guard of fastFillRect, fastClearScreen and blitCanvas, so that only the Ângulo's renderer pushes pixels; ends in S10b (the Ângulo image stops linking the original)"
+  },
+  "src/DisplayManager_Ota.cpp": {
+   "count": 1,
+   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the `#if` that sends drawOtaScreen( ) to the Ângulo's update screen; ends in S4 (uiPaintOta)"
+  },
+  "src/DisplayManager_Touch.cpp": {
+   "count": 1,
+   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the `#if` around the call that gives a touch to the Ângulo's frame before the original's mode chain; ends in S10b (handleTouch dispatches through uiTouch)"
+  },
+  "src/Themes.cpp": {
+   "count": 2,
+   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the `#if` around the Ângulo's three-row catalogue (claro, escuro, auto) and the one that skips the .thm scan; ends in S10b (the theme catalogue hooks)"
+  },
+  "src/WebManager.h": {
+   "count": 1,
+   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the `#if` around the declaration of the route GET /api/ui (registerUiARoutes, handleApiUiA); ends in S4 (registerUiDriverRoutes)"
+  },
+  "src/WebManager_Core.cpp": {
+   "count": 1,
+   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the `#if` around the call that registers GET /api/ui; ends in S4 (registerUiDriverRoutes)"
+  }
+ },
+ "cross-driver": {
+  "src/DisplayManager.h": {
+   "count": 1,
+   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the include of ui/angulo/UiA.h, for the types of the Ângulo members (UaQuadro, UaToque); ends in S4 (the members move to ui/angulo/Members.h)"
+  }
+ },
+ "driver-hook": {
+  "src/DisplayManager.cpp": {
+   "count": 5,
+   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: uaAberturaLicenca, uaTemaAplicado and uaQuadro (the licence opening and loopCore1( )), uaSujo in render( ) and the UA_DESVIO( ) of drawSettingsLicense; ends in S4 (the loop hooks) and S10b (UA_DESVIO)"
+  },
+  "src/DisplayManager.h": {
+   "count": 34,
+   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the two definitions of UA_DESVIO( ) and the Ângulo members (their state and the functions the glue defines); ends in S4 (ui/UiDriver.h, ui/angulo/Members.h)"
+  },
+  "src/DisplayManager_Alarm.cpp": {
+   "count": 1,
+   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: UA_DESVIO( ) at the top of the draw functions of this file, which turns the original's drawing into a request for the Ângulo to repaint; ends in S10b (the Ângulo image stops linking the original)"
+  },
+  "src/DisplayManager_Calendar.cpp": {
+   "count": 1,
+   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: UA_DESVIO( ) at the top of the draw functions of this file, which turns the original's drawing into a request for the Ângulo to repaint; ends in S10b (the Ângulo image stops linking the original)"
+  },
+  "src/DisplayManager_Calibration.cpp": {
+   "count": 3,
+   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: UA_DESVIO( ) at the top of the draw functions of this file, which turns the original's drawing into a request for the Ângulo to repaint; ends in S10b (the Ângulo image stops linking the original)"
+  },
+  "src/DisplayManager_Dashboard.cpp": {
+   "count": 7,
+   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: UA_DESVIO( ) at the top of the draw functions of this file and the `_uaPintando` guards of the pixel primitives; ends in S10b (the Ângulo image stops linking the original)"
+  },
+  "src/DisplayManager_Graph.cpp": {
+   "count": 6,
+   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: UA_DESVIO( ) at the top of the draw functions of this file, which turns the original's drawing into a request for the Ângulo to repaint; ends in S10b (the Ângulo image stops linking the original)"
+  },
+  "src/DisplayManager_Ota.cpp": {
+   "count": 1,
+   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: uaOta( ) at the head of drawOtaScreen( ); ends in S4 (uiPaintOta)"
+  },
+  "src/DisplayManager_Settings.cpp": {
+   "count": 12,
+   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: UA_DESVIO( ) at the top of the draw functions of this file, which turns the original's drawing into a request for the Ângulo to repaint; ends in S10b (the Ângulo image stops linking the original)"
+  },
+  "src/DisplayManager_Touch.cpp": {
+   "count": 1,
+   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: uaToque( x, y ) before the original's mode chain in handleTouch( ); ends in S10b (uiTouch)"
+  },
+  "src/DisplayManager_Users.cpp": {
+   "count": 8,
+   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: UA_DESVIO( ) at the top of the draw functions of this file, which turns the original's drawing into a request for the Ângulo to repaint; ends in S10b (the Ângulo image stops linking the original)"
+  },
+  "src/DisplayManager_i18n.cpp": {
+   "count": 1,
+   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: UA_DESVIO( ) at the top of the draw functions of this file, which turns the original's drawing into a request for the Ângulo to repaint; ends in S10b (the Ângulo image stops linking the original)"
+  }
+ }
+}
