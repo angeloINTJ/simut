@@ -26,11 +26,19 @@ five rules over src/**/*.{c,cpp,h,hpp}:
                 UiWidgets.h, DisplayManager_Fonts.h, PasswordKeyboard.h, sensors/SensorDrawing.h), or a
                 unit outside src/ui/angulo/ that includes a header under it (the include is resolved
                 the way the compiler does: relative to the including file, then from src/).
-  driver-hook   a name of the Ângulo driver's glue used outside src/ui/angulo/: the macro UA_DESVIO, or a
-                function or member that starts with `ua` and a capital (uaSujo, uaToque, uaQuadro,
-                uaOta, uaTemaAplicado, ...), with or without the `_` of a member and the `g_` of a
-                global (_uaPintando, g_uaVm). The types (UaQuadro, UaToque, ua::Tema) are not looked
-                for: a file can only name them through an Ângulo header, and cross-driver holds that.
+  driver-hook   a name the Ângulo driver introduces, used outside src/ui/angulo/. The names are taken from
+                the driver, not from a pattern on the other files: every identifier in src/ui/angulo/
+                that carries the driver's mark, `ua` and a capital for a function or a member (uaSujo,
+                uaToque, ...) or `Ua` and a capital for a type (UaToque, UaQuadro), split at its
+                underscores, so that _uaPintando, g_uaVm and m_uaSujo are all uaPintando, uaVm and uaSujo;
+                and the top-level namespaces it declares (`ua`, `entrega`). Outside the driver an
+                identifier is a hook when one of its underscore-separated parts is such a name, or when
+                it is a namespace of the driver used with `::` or `using namespace`. A new hook the
+                driver adds is therefore found without an edit here, and `uaString`, a user agent in
+                the web server, is not: the driver does not introduce it. One pattern remains, for the
+                macros: every UA_<anything> (UA_DESVIO is defined in a shared header, so the driver's
+                text does not give it). The gate refuses a tree whose src/ui/angulo/ has no source
+                (exit 2): with no driver there would be no names, and a gate must not pass for that.
 
 Comments and the contents of strings, characters and raw strings are stripped before any rule looks,
 by the state machine of tools/check_net_boundary.py (imported, so there is one: `'"'`, `1'000`, `"//"`
@@ -113,7 +121,13 @@ USE = re.compile(r"\b" + UI_MACRO)
 # `defined X` and `defined( X )`. Backslashes are let through between the words: a continued line is one directive.
 IFDEF = re.compile(r"(?m)^[ \t]*#[ \t]*(?:ifdef|ifndef|elifdef|elifndef)\b[\s\\]*(" + UI_MACRO + ")")
 DEFINED = re.compile(r"\bdefined\b[\s\\(]*(" + UI_MACRO + ")")
-HOOK = re.compile(r"\bUA_DESVIO\b|\b(?:g_|_)?ua[A-Z]\w*")
+
+# The Angulo driver's own names (driver-hook). A name is looked for as a whole identifier, and an identifier is
+# split at its underscores: `_uaSujo`, `g_uaVm` and `m_uaSujo` have the parts "uaSujo" and "uaVm".
+WORD = re.compile(r"[A-Za-z_]\w*")
+MARK = re.compile(r"(?:ua|Ua)[A-Z]\w*\Z")        # a part the driver marks as its own: uaSujo (a function, a member), UaToque (a type)
+UA_MACRO = re.compile(r"UA_\w+\Z")               # the macros are the one pattern: UA_DESVIO is defined in a shared header
+NS_TOKEN = re.compile(r"\bnamespace\s+(\w+)(?:\s*::\s*\w+)*\s*\{|\bnamespace\s*\{|[{}]")   # `namespace x {` and the braces
 
 
 # ── the rules ──────────────────────────────────────────────────────────────────────────────────
@@ -140,6 +154,68 @@ def identity_regex(macros) -> re.Pattern:
     return re.compile(r"\b(?:" + "|".join(re.escape(m) for m in macros) + r")\b")
 
 
+Vocabulary = collections.namedtuple("Vocabulary", "names spaces")
+Env = collections.namedtuple("Env", "ident vocab ns_use")
+
+
+def marker_parts(word: str):
+    """The parts of `word`, split at its underscores, that carry the driver's mark."""
+    if "ua" not in word and "Ua" not in word:
+        return []
+    return [p for p in word.split("_") if MARK.match(p)]
+
+
+def top_level_namespaces(code: str):
+    """The namespaces declared at brace depth 0 (`ua`, but not the `tela` inside it)."""
+    depth, names = 0, set()
+    for m in NS_TOKEN.finditer(code):
+        tok = m.group()
+        if tok == "{":
+            depth += 1
+        elif tok == "}":
+            depth = max(depth - 1, 0)
+        else:                                  # a namespace opens: it is a top-level one if nothing encloses it
+            if m.group(1) and depth == 0:
+                names.add(m.group(1))
+            depth += 1
+    return names
+
+
+def driver_vocabulary(codes) -> Vocabulary:
+    """The names the Angulo driver introduces, from its own text (`codes`: path -> source with comments and strings
+    stripped): every marked part of every identifier under src/ui/angulo/, and its top-level namespaces."""
+    names, spaces = set(), set()
+    for rel, code in codes.items():
+        if not rel.startswith(ANGULO_DIR):
+            continue
+        for m in WORD.finditer(code):
+            names.update(marker_parts(m.group()))
+        spaces |= top_level_namespaces(code)
+    return Vocabulary(frozenset(names), frozenset(spaces))
+
+
+def namespace_regex(spaces):
+    if not spaces:
+        return None
+    alt = "|".join(re.escape(n) for n in sorted(spaces))
+    return re.compile(r"\b(" + alt + r")\s*::|\busing\s+namespace\s+(" + alt + r")\b")
+
+
+def hook_sites(code: str, env: Env):
+    """(offset, finding text) of every use of a name of the driver in `code`."""
+    for m in WORD.finditer(code):
+        w = m.group()
+        if UA_MACRO.match(w):
+            yield m.start(), f"{w} is a UA_ macro of the Angulo driver"
+        else:
+            hit = [p for p in marker_parts(w) if p in env.vocab.names]
+            if hit:
+                yield m.start(), f"{w} is a name the Angulo driver introduces"
+    if env.ns_use is not None:
+        for m in env.ns_use.finditer(code):
+            yield m.start(), f"{m.group(1) or m.group(2)} is a namespace of the Angulo driver"
+
+
 def is_original_only(name: str) -> bool:
     return name.rsplit("/", 1)[-1] in ORIGINAL_ONLY
 
@@ -153,9 +229,8 @@ def reaches_angulo(rel: str, name: str, quoted: bool) -> bool:
     return quoted and posixpath.normpath(posixpath.join(posixpath.dirname(rel), name)).startswith(ANGULO_DIR)
 
 
-def scan_text(rel: str, text: str, ident: re.Pattern):
-    """The findings of one file, before any allowance."""
-    code, includes = cnb.strip_source(text)
+def scan_text(rel: str, text: str, code: str, includes, env: Env):
+    """The findings of one file, before any allowance. `code` and `includes` are cnb.strip_source(text)."""
     newlines = [m.start() for m in re.finditer("\n", code)]
     lines = text.split("\n")          # a finding shows the line as written, strings and all
 
@@ -170,7 +245,7 @@ def scan_text(rel: str, text: str, ident: re.Pattern):
     found = []
 
     if not in_ui and rel != CONFIG:
-        for m in ident.finditer(code):
+        for m in env.ident.finditer(code):
             ln = line_of(m.start())
             found.append(Finding(rel, ln, "identity",
                                  f"{m.group()} is the driver's identity, read only inside src/ui/ and src/simut_config.h: {ctx(ln)}"))
@@ -204,18 +279,18 @@ def scan_text(rel: str, text: str, ident: re.Pattern):
                                  f"{shown}: a header of the Angulo driver included from outside src/ui/angulo/"))
 
     if not in_angulo:
-        for m in HOOK.finditer(code):
-            ln = line_of(m.start())
-            found.append(Finding(rel, ln, "driver-hook",
-                                 f"{m.group()} belongs to the Angulo driver's glue, used outside src/ui/angulo/: {ctx(ln)}"))
+        for pos, what in hook_sites(code, env):
+            ln = line_of(pos)
+            found.append(Finding(rel, ln, "driver-hook", f"{what}, used outside src/ui/angulo/: {ctx(ln)}"))
     return found
 
 
-def scan(root: str, ident: re.Pattern):
+def load_tree(root: str):
+    """{path: (text, code, includes)} for every source and header under src/, in path order."""
     src = os.path.join(root, "src")
     if not os.path.isdir(src):
         raise CannotRead(f"no src/ under {root}")
-    found = []
+    tree = {}
     for dirpath, dirs, files in os.walk(src):
         dirs.sort()
         for f in sorted(files):
@@ -224,7 +299,23 @@ def scan(root: str, ident: re.Pattern):
             path = os.path.join(dirpath, f)
             rel = os.path.relpath(path, root).replace(os.sep, "/")
             with open(path, encoding="utf-8", errors="replace") as fh:
-                found.extend(scan_text(rel, fh.read(), ident))
+                text = fh.read()
+            code, includes = cnb.strip_source(text)
+            tree[rel] = (text, code, includes)
+    return tree
+
+
+def scan(root: str):
+    ident = identity_regex(manifest_identities(root))
+    tree = load_tree(root)
+    if not any(rel.startswith(ANGULO_DIR) for rel in tree):
+        raise CannotRead(f"no source under {ANGULO_DIR}: the Angulo driver's own names cannot be taken from it, and "
+                         f"a gate with no names to look for would pass on anything")
+    vocab = driver_vocabulary({rel: v[1] for rel, v in tree.items()})
+    env = Env(ident, vocab, namespace_regex(vocab.spaces))
+    found = []
+    for rel, (text, code, includes) in tree.items():
+        found.extend(scan_text(rel, text, code, includes, env))
     return found
 
 
@@ -326,7 +417,7 @@ HINTS = {
     "no-ifdef": "test it with `#if SIMUT_UI_...`: after src/ui/UiCaps.h every one is defined, 0 or 1, so #ifdef is true on every image",
     "include-caps": 'add #include "simut_config.h" (or "ui/UiCaps.h") to the file itself, before the first use',
     "cross-driver": "a driver reaches the core, never the other driver: take the shared part into the core, or leave it out",
-    "driver-hook": "the hook is the Angulo driver's: call it from src/ui/angulo/, or list the transitional site in tools/ui_boundary.json",
+    "driver-hook": "src/ui/angulo/ introduces the name: use it from there, or list the transitional site in tools/ui_boundary.json",
 }
 
 
@@ -339,7 +430,7 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
     root = os.path.abspath(args.root)
     try:
-        found = scan(root, identity_regex(manifest_identities(root)))
+        found = scan(root)
         allowances = load_allowances(root)
     except CannotRead as e:
         print(f"check_ui_boundary: {e}", file=sys.stderr)

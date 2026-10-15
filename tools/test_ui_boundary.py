@@ -100,12 +100,37 @@ def angulo(*body, head=('#include "../../simut_config.h"',)):
 
 # Everything the rules forbid outside the driver is what the driver is made of: its own unit holds the
 # identity macros, the hook names and the macro, and the clean tree has none of them anywhere else.
-ANGULO_TEXT = ("#if SIMUT_UI_ANGULO", "#endif", "void DisplayManager::uaSujo( ) { _uaPintando = true; UA_DESVIO( ); }")
+ANGULO_TEXT = ("#if SIMUT_UI_ANGULO", "#endif",
+               "void DisplayManager::uaSujo( ) { _uaPintando = true; UA_DESVIO( ); }",
+               "bool DisplayManager::uaToque( int &x, int &y ) { return false; }",
+               "void DisplayManager::uaQuadro( ) { }",
+               "void DisplayManager::uaOta( ) { }",
+               "void DisplayManager::uaTemaAplicado( ) { }",
+               "const ua::Tema &DisplayManager::uaTema( ) { }",
+               "const char *uaAberturaLicenca( ) { return 0; }")
+# What the driver declares in its header: a namespace and a type per kind of name, a global, a template, a macro,
+# a namespace of its own that is not `ua`, and a namespace nested in `ua` (which is no top-level name).
+ANGULO_HEADER = "src/ui/angulo/UiA.h"
+ANGULO_HEADER_TEXT = """#pragma once
+namespace ua {
+struct Tema;
+namespace tela {
+}
+}
+namespace entrega {
+}
+struct UaQuadro { int x; };
+enum class UaToque { NAO_E_MEU, TRATADO };
+#define UA_VM_MAX 4096
+extern int g_uaVm[UA_VM_MAX];
+template <class T> T &uaVm( );
+"""
 
 BASE = {
     "src/simut_config.h": CONFIG,
     "src/ui/UiCaps.h": CAPS,
     ANGULO_UNIT: angulo(*ANGULO_TEXT),
+    ANGULO_HEADER: ANGULO_HEADER_TEXT,
     SURFACE: surface("int themes = SIMUT_UI_CUSTOM_THEMES;"),
 }
 
@@ -203,7 +228,13 @@ TEXT = {
     "driver-hook": ["UA_DESVIO( );", "uaSujo( );", "if (uaToque(x, y)) return;", "uaQuadro( );", "uaOta( );",
                     "uaTemaAplicado( );", "uaTema( );", "bool b = _uaPintando;", "int g = g_uaVm[0];",
                     "const char *uaAberturaLicenca( ) { return 0; }",
-                    "void (DisplayManager::*p)( ) = &DisplayManager::uaQuadro;"],
+                    "void (DisplayManager::*p)( ) = &DisplayManager::uaQuadro;",
+                    # the review of 2026-10-14 measured these as 0 findings: a member prefix other than `_` and `g_`,
+                    # and a UA_ macro other than UA_DESVIO
+                    "int m_uaSujo = 0;", "#define UA_FOO 1", "int f = UA_FOO;",
+                    # the driver's types and namespaces: names it introduces as much as its functions
+                    "UaQuadro q;", "bool b = ( t == UaToque::TRATADO );", "char *p = (char *)&g_uaVm;",
+                    "const ua::Tema *p = nullptr;", "using namespace entrega;", "int n = entrega::count;"],
 }
 
 for rule, lines in TEXT.items():
@@ -318,15 +349,43 @@ def hook_cases():
            {SURFACE: surface("int manualSave = 0; String visualAlarm; int equalA = 1; bool uart = false; int UART_RX = 1;",
                              "void actualize( ); int quaternionA; int uaa = 0; int Uasomething = 0; int mua_Sujo = 0;",
                              "int sensorsuaSujo = 0; int fooua_Bar = 0;")}, [])
-    expect("driver-hook: the `_` of a member and the `g_` of a global belong to the name, any other prefix does not",
-           {SURFACE: surface("int _uaSujo = 0;", "int g_uaVm = 0;", "int m_uaSujo = 0;")},
-           [(SURFACE, 2, "driver-hook"), (SURFACE, 3, "driver-hook")])
+    expect("driver-hook: a name the driver introduces is a hook behind any prefix: `_`, `g_`, `m_`, `s_` (the review measured m_uaSujo as 0)",
+           {SURFACE: surface("int _uaSujo = 0;", "int g_uaVm = 0;", "int m_uaSujo = 0;", "int s_uaSujo = 0;")},
+           [(SURFACE, 2, "driver-hook"), (SURFACE, 3, "driver-hook"), (SURFACE, 4, "driver-hook"), (SURFACE, 5, "driver-hook")])
+    expect("driver-hook: every UA_ macro is the driver's, not only UA_DESVIO (the review measured UA_FOO as 0)",
+           {SURFACE: surface("#define UA_FOO 1", "int x = UA_BAR_2 + UA_FOO;")},
+           [(SURFACE, 2, "driver-hook"), (SURFACE, 3, "driver-hook"), (SURFACE, 3, "driver-hook")])
+    expect("driver-hook: a name that looks like the driver's but is not one it introduces is no hook (a user agent)",
+           {SURFACE: surface('String uaString = server.header("User-Agent");', 'bool curl = uaString.startsWith("curl");',
+                             "int uaCount = 0; char *UaBuf = nullptr;")}, [])
+    expect("driver-hook: ... and the same file with a real hook in it is one finding, the hook's",
+           {SURFACE: surface("String uaString = x;", "uaSujo( );", "bool c = uaString.isEmpty( );")}, [(SURFACE, 3, "driver-hook")])
+    # the verdict follows the driver's text, not an edit of the gate
+    novo = "void DisplayManager::uaNovo( ) { }"
+    expect("driver-hook: a name the driver starts to introduce is a hook at once (uaNovo, m_uaNovo, UaNovo)",
+           {ANGULO_UNIT: angulo(*ANGULO_TEXT, novo, "struct UaNovoTipo { };"),
+            SURFACE: surface("uaNovo( );", "int m_uaNovo = 0;", "UaNovoTipo t;")},
+           [(SURFACE, 2, "driver-hook"), (SURFACE, 3, "driver-hook"), (SURFACE, 4, "driver-hook")])
+    expect("driver-hook: ... and the same core file is clean while the driver does not introduce it",
+           {SURFACE: surface("uaNovo( );", "int m_uaNovo = 0;", "UaNovoTipo t;")}, [])
+    expect("driver-hook: a name that the driver only mentions in a comment or a string is not one it introduces",
+           {ANGULO_UNIT: angulo(*ANGULO_TEXT, "// void uaFantasma( );", 'const char *s = "uaFantasma";'),
+            SURFACE: surface("uaFantasma( );")}, [])
+    expect("driver-hook: the driver's namespaces are its top-level ones: `ua` and `entrega`, and not the `tela` nested in `ua`",
+           {SURFACE: surface("const ua::Tema *a = nullptr;", "int n = entrega::count;", "int t = tela::count;",
+                             "using namespace ua;", "using namespace tela;")},
+           [(SURFACE, 2, "driver-hook"), (SURFACE, 3, "driver-hook"), (SURFACE, 5, "driver-hook")])
+    expect("driver-hook: a variable that happens to be called `ua` is no namespace, and neither is a longer name that ends in one",
+           {SURFACE: surface('String ua = "Mozilla"; bool b = ua.startsWith("M");', "int q = Aqua::count;",
+                             "using namespace Aqua;")}, [])
     expect("driver-hook: the rule is `outside src/ui/angulo/`: another file of src/ui/ is held to it",
            {"src/ui/Other.cpp": surface("uaSujo( );")}, [("src/ui/Other.cpp", 2, "driver-hook")])
     expect("driver-hook: two names on one line are two findings",
            {SURFACE: surface("uaSujo( ); uaQuadro( );")}, [(SURFACE, 2, "driver-hook")] * 2)
-    expect("driver-hook: the Angulo's types are not looked for (a file reaches them through an Angulo header, which cross-driver holds)",
-           {SURFACE: surface("UaToque t = UaToque::TRATADO; UaQuadro q; ua::Tema *tema = nullptr;")}, [])
+    with tree({}, base={k: v for k, v in BASE.items() if not k.startswith("src/ui/angulo/")}) as root:
+        rc, out, err = run(root)
+    check("driver-hook: without any source under src/ui/angulo/ there is no driver to take the names from (exit 2)",
+          rc == 2 and "src/ui/angulo/" in (err + "\n".join(out)), f"rc={rc} out={out} err={err.strip()[:200]}")
 
 
 # The same text where the compiler sees no code gives nothing.
@@ -406,7 +465,8 @@ def manifest_cases():
     check("a manifest that is not TOML is an error (exit 2)", rc == 2, f"rc={rc} out={out} err={err.strip()[:200]}")
     with tree({}, base={}) as root:
         rc, out, err = run(root)
-    check("a tree with no src/ is an error (exit 2), not a clean pass", rc == 2, f"rc={rc} out={out} err={err.strip()[:200]}")
+    check("a tree with no src/ is an error (exit 2), not a clean pass",
+          rc == 2 and "no src/" in err, f"rc={rc} out={out} err={err.strip()[:200]}")
     for text, what in (("{", "not JSON"), ('["driver-hook"]', "a JSON array"), ('{"driver-hook": 3}', "a rule that is not an object")):
         with tree({}, allowances=text) as root:
             rc, out, err = run(root)
@@ -576,6 +636,11 @@ def premise_cases():
 
 # ── the real tree ───────────────────────────────────────────────────────────────────────────
 
+# What the test, and not the gate, takes for a file that has nothing of the driver in it, to pick the files the
+# mutations go into: any `ua`/`Ua` and a capital, any UA_ macro, any `ua::`.
+LOOKS_LIKE_A_HOOK = re.compile(r"(?:\b|_)(?:ua|Ua)[A-Z]|\bUA_|\bua\s*::")
+
+
 def real_tree_cases():
     src_before = tree_hashes(os.path.join(ROOT, "src"))
     json_before = file_hash(os.path.join(ROOT, "tools", "ui_boundary.json"))
@@ -621,7 +686,7 @@ def real_tree_cases():
                     code, inc = cub.cnb.strip_source(fh.read())
                 own = any(q and os.path.basename(n) in cub.CONFIG_HEADERS for _l, n, q in inc)
                 uses = re.search(r"\bSIMUT_UI_", code) is not None
-                hooks = cub.HOOK.search(code) is not None
+                hooks = LOOKS_LIKE_A_HOOK.search(code) is not None
                 if rel.startswith(cub.ANGULO_DIR):
                     angulo_any = angulo_any or rel
                     if own and not uses and not angulo_cfg:
@@ -662,6 +727,23 @@ def real_tree_cases():
         mutated(core_clean, "\nstatic int boundary_probe = uaQuadro( );\n", "driver-hook",
                 f"real tree + `uaQuadro( )` in {core_clean}: one finding")
         mutated(core_clean, "\nUA_DESVIO( );\n", "driver-hook", f"real tree + `UA_DESVIO( );` in {core_clean}: one finding")
+        mutated(core_clean, "\nstatic int m_uaSujo = 0;\n", "driver-hook", f"real tree + `m_uaSujo` in {core_clean}: one finding")
+        mutated(core_clean, "\n#define UA_FOO 1\n", "driver-hook", f"real tree + `UA_FOO` in {core_clean}: one finding")
+        mutated(core_clean, "\nstatic void *boundary_probe = (void *)sizeof(UaToque);\n", "driver-hook",
+                f"real tree + the type `UaToque` in {core_clean}: one finding")
+        mutated(core_clean, "\nstatic const ua::Tema *boundary_probe = nullptr;\n", "driver-hook",
+                f"real tree + the namespace `ua::` in {core_clean}: one finding")
+        with open(os.path.join(root, core_clean), encoding="utf-8", newline="") as fh:
+            clean_text = fh.read()
+        try:
+            with open(os.path.join(root, core_clean), "w", encoding="utf-8", newline="") as fh:
+                fh.write(clean_text + '\nstatic const char *uaString = "Mozilla/5.0";\n')
+            rc, out, err = run(root)
+        finally:
+            with open(os.path.join(root, core_clean), "w", encoding="utf-8", newline="") as fh:
+                fh.write(clean_text)
+        check(f"real tree + a user agent called `uaString` in {core_clean}: still passes (the driver does not introduce it)",
+              rc == 0 and out[-1:] == ["check_ui_boundary: 0 findings"], f"rc={rc} out={out[-3:]}")
         mutated(core_clean, "\nstatic bool boundary_probe = _uaPintando;\n", "driver-hook",
                 f"real tree + `_uaPintando` in {core_clean}: one finding")
         mutated(core_clean, '\n#include "ui/angulo/UiA.h"\n', "cross-driver",

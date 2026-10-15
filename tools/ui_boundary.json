@@ -45,8 +45,8 @@
    "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: uaAberturaLicenca, uaTemaAplicado and uaQuadro (the licence opening and loopCore1( )), uaSujo in render( ) and the UA_DESVIO( ) of drawSettingsLicense; ends in S4 (the loop hooks) and S10b (UA_DESVIO)"
   },
   "src/DisplayManager.h": {
-   "count": 34,
-   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the two definitions of UA_DESVIO( ) and the Ângulo members (their state and the functions the glue defines); ends in S4 (ui/UiDriver.h, ui/angulo/Members.h)"
+   "count": 61,
+   "reason": "transitional hook of the Ângulo driver (S2a); removed in S4–S10b: the two definitions of UA_DESVIO( ) and the Ângulo members block (their state, the functions the glue defines and the driver's types and namespace in their signatures: UaQuadro, UaToque, UaEstado, ua::); ends in S4 (ui/UiDriver.h, ui/angulo/Members.h)"
   },
   "src/DisplayManager_Alarm.cpp": {
    "count": 1,
