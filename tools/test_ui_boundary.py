@@ -156,6 +156,8 @@ enum class UaToque { NAO_E_MEU, TRATADO };
 #define UA_VM_MAX 4096
 extern int g_uaVm[UA_VM_MAX];
 template <class T> T &uaVm( );
+void registerUiARoutes( );
+void handleApiUiA( );
 """
 
 BASE = {
@@ -270,7 +272,8 @@ TEXT = {
                     "int m_uaSujo = 0;", "#define UA_FOO 1", "int f = UA_FOO;",
                     # the driver's types and namespaces: names it introduces as much as its functions
                     "UaQuadro q;", "bool b = ( t == UaToque::TRATADO );", "char *p = (char *)&g_uaVm;",
-                    "const ua::Tema *p = nullptr;", "using namespace entrega;", "int n = entrega::count;"],
+                    "const ua::Tema *p = nullptr;", "using namespace entrega;", "int n = entrega::count;",
+                    "w.registerUiARoutes( );", "void handleApiUiA( );"],
 }
 
 for rule, lines in TEXT.items():
@@ -419,6 +422,15 @@ def hook_cases():
     check("driver-hook: a driver whose sources introduce no name with its mark is refused (exit 2), as a driver with no source is "
           "(the review measured DisplayManager.h falling from 61 to 2 findings with nothing said)",
           rc == 2 and "introduce no name" in err, f"rc={rc} out={out[-2:]} err={err.strip()[:200]}")
+    expect("driver-hook: a name with the second mark, UiA and a capital or the end, that the driver defines is a hook in the core "
+           "(registerUiARoutes, handleApiUiA: the review planted them and got 0 findings)",
+           {SURFACE: surface("w.registerUiARoutes( );", "w.handleApiUiA( );", "int m_handleApiUiA = 0;")},
+           [(SURFACE, 2, "driver-hook"), (SURFACE, 3, "driver-hook"), (SURFACE, 4, "driver-hook")])
+    expect("driver-hook: ... but plain UiA is no mark (UiArrowDir, UiAction), and a UiA name the driver does not define is not one",
+           {SURFACE: surface("UiArrowDir dir = UI_UP; int UiAction = 0; int someUiAThing = 0;")}, [])
+    expect("driver-hook: ... and a string, a comment or an include path does not count; the include is the cross-driver rule's",
+           {SURFACE: surface('const char *s = "registerUiARoutes";', "// handleApiUiA( )", '#include "ui/angulo/UiA.h"')},
+           [(SURFACE, 4, "cross-driver")])
     expect("driver-hook: the rule is `outside src/ui/angulo/`: another file of src/ui/ is held to it",
            {"src/ui/Other.cpp": surface("uaSujo( );")}, [("src/ui/Other.cpp", 2, "driver-hook")])
     expect("driver-hook: two names on one line are two findings",
@@ -862,18 +874,20 @@ def real_tree_cases():
         mutated(core_clean, "\n#define UA_FOO 1\n", "driver-hook", f"real tree + `UA_FOO` in {core_clean}: one finding")
         mutated(core_clean, "\nstatic void *boundary_probe = (void *)sizeof(UaToque);\n", "driver-hook",
                 f"real tree + the type `UaToque` in {core_clean}: one finding")
+        mutated(core_clean, "\nstatic void *boundary_probe = (void *)&registerUiARoutes;\n", "driver-hook",
+                f"real tree + `registerUiARoutes`, a driver name with no ua mark, in {core_clean}: one finding")
         mutated(core_clean, "\nstatic const ua::Tema *boundary_probe = nullptr;\n", "driver-hook",
                 f"real tree + the namespace `ua::` in {core_clean}: one finding")
         with open(os.path.join(root, core_clean), encoding="utf-8", newline="") as fh:
             clean_text = fh.read()
         try:
             with open(os.path.join(root, core_clean), "w", encoding="utf-8", newline="") as fh:
-                fh.write(clean_text + '\nstatic const char *uaString = "Mozilla/5.0";\n')
+                fh.write(clean_text + '\nstatic const char *uaString = "Mozilla/5.0";\nstatic int boundary_arrow = (int)sizeof(UiArrowDir);\n')
             rc, out, err = run(root)
         finally:
             with open(os.path.join(root, core_clean), "w", encoding="utf-8", newline="") as fh:
                 fh.write(clean_text)
-        check(f"real tree + a user agent called `uaString` in {core_clean}: still passes (the driver does not introduce it)",
+        check(f"real tree + a user agent `uaString` and the core's `UiArrowDir` in {core_clean}: still passes (the driver introduces neither)",
               rc == 0 and out[-1:] == ["check_ui_boundary: 0 findings"], f"rc={rc} out={out[-3:]}")
         mutated(core_clean, "\nstatic bool boundary_probe = _uaPintando;\n", "driver-hook",
                 f"real tree + `_uaPintando` in {core_clean}: one finding")
