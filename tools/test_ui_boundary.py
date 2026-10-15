@@ -804,6 +804,13 @@ def real_tree_cases():
           "DisplayManager_Fonts.h, PasswordKeyboard.h, sensors/SensorDrawing.h) and DisplayManager_Alarm.h, and not the class",
           five <= derived and "src/DisplayManager_Alarm.h" in derived and "src/DisplayManager.h" not in derived
           and "src/DisplayManager_Auth.h" not in derived, str(sorted(derived))[:300])
+    fonts = {"src/FreeSansBold9pt8b_latin1.h", "src/FreeSansBold12pt8b_latin1.h", "src/FreeSansBold24pt7b_subset.h"}
+    left_out = {"src/DisplayManager_FmtFloat.h", "src/OtaScreen.h", "src/TextWrap.h", "src/display/ClockEntry.h",
+                "src/display/CountInText.h", "src/display/DisplayDriver.h", "src/display/SettingsMenu.h",
+                "src/sensors/SensorPanelDispatch.h"}
+    check("the original's font data is in the derived set, and the eight headers that mixed units include too are left "
+          "out, as section 2.5 says", fonts <= derived and not (left_out & derived),
+          f"missing {sorted(fonts - derived)} wrongly in {sorted(left_out & derived)}")
 
     # a copy of the real tree: one violation of each rule appended to a file, one finding each
     with tempfile.TemporaryDirectory(prefix="ui_boundary_real_") as root:
@@ -897,7 +904,8 @@ def real_tree_cases():
                 f"real tree + an include of Themes.h in the Angulo unit {angulo_any}: one finding")
         mutated(angulo_any, '\n#include "../../sensors/SensorDrawing.h"\n', "cross-driver",
                 f"real tree + an include of SensorDrawing.h in the Angulo unit {angulo_any}: one finding")
-        for h in ("DisplayManager_Alarm.h", "PasswordKeyboard.h", "UiWidgets.h", "DisplayManager_Fonts.h"):
+        for h in ("DisplayManager_Alarm.h", "PasswordKeyboard.h", "UiWidgets.h", "DisplayManager_Fonts.h", "FreeSansBold9pt8b_latin1.h",
+                  "FreeSansBold12pt8b_latin1.h", "FreeSansBold24pt7b_subset.h"):
             mutated(angulo_any, f'\n#include "../../{h}"\n', "cross-driver",
                     f"real tree + an include of {h} in the Angulo unit {angulo_any}: one finding")
         mutated(bare, "\n#if SIMUT_UI_CUSTOM_THEMES\n#endif\n", "include-caps",

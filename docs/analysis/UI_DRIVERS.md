@@ -234,8 +234,15 @@ items 8 to 12 are what the audit found in the draw bodies **(S0)**.
 - **Original driver.** Every `draw*` and `redraw*`, `render( )` and the boot paint
   (`:1772-1948`); the geometry `CARD_*` (`DisplayManager.h:1095-1098`), `ALARM_EDIT_*`
   (`:235-255`), `CLOCK_*` (`:267-272`), `GRAPH_PBTN_*` (`:285-287`); `buildDashLayout`,
-  the 3 s graph header name, `Themes.cpp`, `DisplayManager_Fonts.*`, `UiWidgets.*`,
+  the 3 s graph header name, `Themes.cpp`, `DisplayManager_Fonts.*` and the font data
+  it includes (`FreeSansBold9pt8b_latin1.h`, `FreeSansBold12pt8b_latin1.h`,
+  `FreeSansBold24pt7b_subset.h`), `UiWidgets.*`,
   `PasswordKeyboard.h` and `sensors/SensorDrawing.h`.
+- **Not the original's, though only display units include them.** `DisplayManager_FmtFloat.h`, `OtaScreen.h`,
+  `TextWrap.h`, `display/{ClockEntry,CountInText,DisplayDriver,SettingsMenu}.h` and
+  `sensors/SensorPanelDispatch.h` are included only by original or mixed units, and mixed units include them,
+  so the cross-driver rule of `tools/check_ui_boundary.py` leaves them out (found by the review's include-graph
+  script, 2026-10-15).
 - **The mixed units** are settled by section 3.3: of its 371 rows, the 290 that are
   functions split 98 original, 183 core and 9 mixed (the other 81 are the 34
   per-mode branch rows of the two touch handlers and 47 rows of file-scope data).
