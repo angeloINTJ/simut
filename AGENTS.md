@@ -350,7 +350,7 @@ O CI cobre tudo isto, mas só em pull request — meça antes:
 ```bash
 pio run -e pico_w_release -e pico_w_test -e pico_w_test_https \
         -e pico_w_asserts -e pico_w_alpha -e pico_w_air -e pico2_w_release \
-        -e pico_wire -e pico_wiretft
+        -e pico_wire -e pico_wiretft -e pico_wiretft_angulo
 pio test -e native -e native_history_v5 -e native_cli -e native_lan \
          -e native_logpolicy -e native_alarmqueue -e native_network -e native_air \
          -e native_sensors -e native_wired -e native_otasig
