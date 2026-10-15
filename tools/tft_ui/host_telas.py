@@ -10,6 +10,12 @@ GFX 1.12.6, draws every sample in both themes, and fails when a sample:
   - draws text outside the panel's safe area (x 4..315, y 4..235: the display
     alignment moves the image up to 4 px, DisplayManager.h);
   - draws two strings whose ink boxes overlap;
+  - draws a text across the edge of one of its touch targets;
+  - draws a text cut with "…" that tools/tft_ui/cortes_aceitos.txt does not
+    accept for that sample (fixed copy must fit, and so must data of an
+    ordinary length; a text the screen's own copy ends with "…", such as
+    "Lendo o histórico…", is not a cut), or the list accepts a cut that no
+    longer happens;
   - lists a touch target outside the panel.
 
 It warns (without failing) on a target smaller than 24 px either way and on
@@ -20,7 +26,10 @@ Usage: python3 tools/tft_ui/host_telas.py <grupo> [--out <folder>]
 Exit 0 clean, 1 when a check fails, 2 when it cannot build or run.
 """
 import argparse
+import codecs
+import fnmatch
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -30,6 +39,8 @@ HERE = pathlib.Path(__file__).resolve().parent
 SHIM = HERE / 'host' / 'shim'
 SAFE = (4, 316, 4, 236)          # x0, x1 (exclusive), y0, y1 (exclusive)
 MIN_ALVO = 24
+RETIC = '…'
+ACEITOS = HERE / 'cortes_aceitos.txt'
 
 sys.path.insert(0, str(HERE))
 from host_ui import find_gfx  # noqa: E402  (same folder; the GFX lookup is shared)
@@ -90,6 +101,46 @@ def sobrepoe(a, b):
     return min(a[1], b[1]) > max(a[0], b[0]) and min(a[3], b[3]) > max(a[2], b[2])
 
 
+def literais():
+    """The driver's string literals, decoded (escapes, and adjacent literals joined as the compiler
+    joins them): a text drawn exactly as one of them carries its own "…" and is not a cut. The
+    font tables are skipped: their comments quote the '"' glyph, which this scanner cannot tell
+    from the start of a literal."""
+    out = set()
+    for f in sorted((ROOT / 'src' / 'ui' / 'angulo').rglob('*')):
+        if f.suffix not in ('.cpp', '.h') or 'fontes' in f.parts:
+            continue
+        dados = f.read_bytes()
+        corpo, fim = [], None
+        for m in re.finditer(rb'"((?:[^"\\\n]|\\.)*)"', dados):
+            if corpo and dados[fim:m.start()].strip():
+                out.add(codecs.escape_decode(b''.join(corpo))[0].decode('utf-8', 'replace'))
+                corpo = []
+            corpo.append(m.group(1))
+            out.add(codecs.escape_decode(m.group(1))[0].decode('utf-8', 'replace'))
+            fim = m.end()
+        if corpo:
+            out.add(codecs.escape_decode(b''.join(corpo))[0].decode('utf-8', 'replace'))
+    return out
+
+
+def aceitos(grupo):
+    """The cuts tools/tft_ui/cortes_aceitos.txt accepts in this group: (sample glob, start of the
+    drawn text, line number). None when a line is malformed."""
+    out = []
+    for n, linha in enumerate(ACEITOS.read_text(encoding='utf-8').splitlines(), 1):
+        if not linha.strip() or linha.startswith('#'):
+            continue
+        partes = [p.strip() for p in linha.split('|')]
+        if len(partes) != 4 or not all(partes):
+            print(f'{ACEITOS.name}:{n}: expected "<group> | <sample glob> | <start of the drawn text> | <why>"',
+                  file=sys.stderr)
+            return None
+        if partes[0] == grupo:
+            out.append((partes[1], partes[2], n))
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('grupo')
@@ -108,6 +159,10 @@ def main():
             print(r.stderr.strip(), file=sys.stderr)
             return 2
         erros, avisos = [], []
+        regras = aceitos(args.grupo)
+        if regras is None:
+            return 2
+        proprios, usadas, cortes = literais(), set(), 0
         nomes = sorted({p.name[:-len('.alvos')] for p in dados.glob('*.alvos')})
         for nome in nomes:
             alvos = []
@@ -152,11 +207,28 @@ def main():
                         if sobrepoe((x0, x1, y0, y1), caixa) and not dentro:
                             erros.append(f'{nome}_{tema}: "{t}" ink {x0}..{x1} x {y0}..{y1} crosses the edge of '
                                          f'target {tipo}/{ind} at {ax},{ay} {aw}x{ah}')
+                # A text cut with "…" stays on the glass and inside its box, so no check above
+                # sees it: at the 9 pt floor (2026-10-15) the PIN screen's hint and four error
+                # messages lost their ends this way, and only an eye on the frames caught it.
+                for x0, x1, y0, y1, t in textos:
+                    if RETIC not in t or t in proprios:
+                        continue
+                    regra = next((r for r in regras if fnmatch.fnmatchcase(nome, r[0]) and t.startswith(r[1])), None)
+                    if regra:
+                        usadas.add(regra[2])
+                        cortes += 1
+                    else:
+                        erros.append(f'{nome}_{tema}: "{t}" is cut with "…" ({ACEITOS.name} lists the cuts a '
+                                     f'sample makes on purpose, with data too long to fit)')
+        for glob, inicio, n in regras:
+            if n not in usadas:
+                erros.append(f'{ACEITOS.name}:{n}: accepts a cut of "{inicio}" in {glob} that no longer happens '
+                             f'(remove the line)')
         for a in avisos:
             print('warning:', a)
         for e in erros:
             print('FAIL:', e)
-        print(f'{len(nomes)} samples, {len(erros)} failures, {len(avisos)} warnings')
+        print(f'{len(nomes)} samples, {len(erros)} failures, {len(avisos)} warnings, {cortes} accepted cuts')
         if args.out:
             from PIL import Image, ImageDraw
             out = pathlib.Path(args.out)

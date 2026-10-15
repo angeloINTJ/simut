@@ -1,0 +1,44 @@
+# The texts the Ângulo panel may draw cut with "…", read by tools/tft_ui/host_telas.py.
+#
+# A cut stays on the glass and inside its box, so the other checks never see it; at the
+# 9 pt floor (2026-10-15) the PIN screen's hint and four error messages lost their ends
+# that way. Every other cut fails: fixed copy must fit, and so must data of an ordinary
+# length (a 10-character account name cut in a sentence is a layout to fix, not a line
+# here). A line here accepts the cut of data a sample makes long on purpose, and says how
+# long. A line whose cut no longer happens fails too, so the list does not rot.
+#
+# <group> | <sample glob> | <start of the drawn text> | <why the cut is right>
+
+painel | painel_nome_31* | Refrig | a 31-character sensor name (the most the device stores) on a card
+painel | acao_nome_longo | Refrigerado | a 31-character sensor name; the sentence's fixed part, "acima do limite", is whole
+painel | acao_erro_nome_longo | Refrige | a 31-character sensor name; "com erro no sensor" is whole
+painel | painel_web_ocupada_nome_longo | joao.si | a 22-character account name; "está gravando pela web." is whole
+painel | boot*_textos_longos | Acesse no celular | boot steps of 69 to 71 characters, made long on purpose; a step is one line
+painel | boot*_textos_longos | Iniciando Servidor | boot steps of 69 to 71 characters, made long on purpose; a step is one line
+painel | boot*_textos_longos | Carregando cache | boot steps of 69 to 71 characters, made long on purpose; a step is one line
+painel | boot*_textos_longos | Sincronizando Rel | boot steps of 69 to 71 characters, made long on purpose; a step is one line
+
+menus | alarmes_nome_longo | Camara fria | 31-character sensor names in the alarm list
+menus | alarmes_nome_longo | WWWWWWW | 31 of the widest letter in the alarm list
+menus | sensor_nome_longo | Camara fria | a 31-character sensor name in the sensor menu's title
+menus | sensor_nome_largo | WWWWWWW | 31 of the widest letter in the sensor menu's title
+menus | menu_conta_longa | Conta: maria.a | a 31-character account name
+menus | status_sensores_5 | Camara fria | 31-character sensor names in the status list
+menus | status_sensores_5 | WWWWWWW | 31 of the widest letter in the status list
+menus | status_sistema_limites | Camara fria | a 31-character sensor name in the limits row
+menus | status_rede_wifi | HOSP-IOT-Bloco | a 36-character network name
+menus | status_telemetria | https://telemetria | a 53-character collector URL
+menus | status_telemetria_mqtt | mqtt.hospital | a 28-character broker host
+
+identidade | conta_nome_31 | administradora | a 31-character account name
+identidade | pin_nome_31 | PIN de administr | a 31-character account name in the title
+identidade | quem_nomes_longos | administradora | 31-character account names in the account picker
+identidade | usuarios_nomes_longos | administradora | 31-character account names in the user list
+
+ajustes | limites_nome_31 | Sala de coleta | a 31-character sensor name; "· limites" is whole
+ajustes | limites_nome_largo | WWWWWWW | 31 of the widest letter; "· limites" is whole
+ajustes | manut_nome_31 | Manutenção · Sala de | a 31-character sensor name in the title
+ajustes | manut_nome_largo | Manutenção · WWWW | 31 of the widest letter in the title
+
+graficos | carregando_nome_31 | Geladeira de vacinas | a 31-character sensor name; the period is whole
+graficos | grafico_nome_31 | Geladeira de | a 31-character sensor name in the title
