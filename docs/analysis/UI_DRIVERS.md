@@ -22,7 +22,7 @@ Status of the sections, updated in the commit that fills each one:
 | 3.3 (c) Every function, classified | done |
 | 3.4 (d) The study's glue | done |
 | 3.5 (e) Immediate draws in touch handling | done |
-| 3.6 (f) Bytes of the original driver | pending |
+| 3.6 (f) Bytes of the original driver | done |
 | 4. Where the code contradicts the plan | pending |
 
 ## 1. Words used here
@@ -550,7 +550,119 @@ the original wrote them until a stage decides otherwise.
 
 ### 3.6 (f) Bytes of the original driver
 
-Pending.
+Measured on 2026-10-14 in the baseline images of `192e1ad`: `pico_wiretft` (the
+TFT Wire, no radio) and `pico_w_release` (the Wi-Fi release). Both were built
+locally, without the web override 2n, so their `.bin` files are 328 B under the
+sizes recorded in `tools/flash_budget.json` (1,034,172 against 1,034,500 for
+the release); no display file is affected by that override.
+
+```
+NM=~/.platformio/packages/toolchain-rp2040-earlephilhower/bin/arm-none-eabi-nm   # -S -C is what the script runs
+python3 $B/tools/bytes_original.py --tsv docs/analysis/UI_DRIVERS_funcoes.tsv --src <worktree> \
+    --top 25 --unmapped $BASE/pico_wiretft/firmware.elf $BASE/pico_w_release/firmware.elf
+```
+
+The script lists every symbol with `nm -S -C`, attaches each one to a row of the
+TSV by its demangled name without the parameter list (clones, function-local
+statics and lambdas belong to their function; the three font rows match by
+prefix, so `FreeSansBold9pt8b` takes its `Bitmaps` and `Glyphs`), and adds up
+the sizes by class. **Original rows are counted whole. Mixed rows are counted
+apart and are never added to the original.** `--src` also estimates, for each
+mixed function, its original share from the TSV's line ranges (code lines only,
+comments and blanks left out); that figure is an estimate from line counts, not
+a measurement, and it is printed on its own line.
+
+| | `pico_wiretft` | `pico_w_release` |
+|---|---:|---:|
+| **original rows, whole (flash)** | **56,699 B** | **57,379 B** |
+| text | 44,799 | 45,479 |
+| rodata and data | 11,900 | 11,900 |
+| of which the three GFX font tables (`FreeSansBold9/12/24`) | 11,696 | 11,696 |
+| of which `Themes.cpp` (functions and the one built-in palette) | 1,744 | 1,744 |
+| of which `UiWidgets.cpp` | 2,716 | 2,716 |
+| of which drawing in the `DisplayManager*.cpp` units | 40,543 | 41,223 |
+| RAM (`.bss`) of the original rows | 3,460 | 3,460 |
+| mixed rows, whole functions, **apart** | 25,324 | 25,592 |
+| their original share, estimated from code lines | about 9,900 | about 9,950 |
+| core rows, for the balance | 19,656 | 19,728 |
+| original-side code that lives in headers, outside table (c) | 5,428 | 5,944 |
+
+The 3,460 B of RAM are the scratch arrays of the graph screens (2,234), the
+settings screens (364) and `Themes.cpp` (860, of which the custom-theme array is
+800). The built-in palette table is one theme, 56 B: the other ten themes are
+`.thm` files on the file system, not in the image. The header-defined line is
+the sensor panel painters and their helpers (`panelBMP280`, `panelDHT22`,
+`panelDS18B20`, `minMax*`, `drawTempValue1D`, `drawMinMaxGraphBtn`, the
+thermometer, drop and barometer glyphs), `themeTint` and the `PwdKb` tables;
+the plan counts them with the original, and they are not rows of the TSV. In
+the Wi-Fi release the string literals held by original functions are another
+1,314 B at object level (summed from the `.rodata.<function>.str1.*` sections of
+the compiled units, before the linker merges equal strings); the pool has no
+symbols, so `nm` cannot show it.
+
+**The mixed functions counted, with their sizes in `pico_wiretft`:**
+`handleTouch` 10,900 (11,108 in the release), `loopCore1` 5,604,
+`handleTouchPanelV24` 3,152 (a body of 3,040 and a clone of 112), `render`
+2,552, `drawTopBar` 1,384, `drawAlarmEdit` 1,124, `redrawTopPanel` 268,
+`showTouchCalibration` 208, `showSettingsDisplayOffset` 132: 25,324 B. Their
+original share by code lines is 16% of `handleTouch`, 51% of `loopCore1`, 94% of
+`render` and 92% of `drawTopBar`, which is where the roughly 9,900 B come from.
+
+**What this number cannot see.** Code the compiler inlined into another
+function is in the caller's size, so a small helper can hide inside a core
+function; the 38 original rows with no symbol in `pico_wiretft` (37 in the
+release) are constants, inlined helpers and the Wi-Fi-only screens. The merged
+string pool has no symbols. The `Adafruit_GFX` 5x7 `font` table (1,280 B) is the
+library's and is used by the boot terminal and the License screen, so it is not
+counted.
+
+**Does it support the plan's "about 31 kB"?** The plan says the Ângulo image fits
+the Wi-Fi release only if the original's code is at least about 31 kB. Read as
+a size, that holds with room to spare: the original rows are 57.4 kB in the
+release, 1.85 times the figure, and 63.3 kB with the header-defined painters.
+Read as the number of bytes the split can still take out of an Ângulo image, it
+does not hold, because the study's Ângulo image already leaves almost all of
+it out. Measured on the study's own images (`synth_20261014`, branch
+`study/tft-angulo-ui-a`; the Ângulo ELF was built at 17:15 on 2026-10-14, two
+minutes before `6116de0` was committed):
+
+- The study's plain `pico_wiretft` has the same sha256 as this baseline
+  (`4f5a868b...`, 785,408 B), so the two compare. The study's `pico_wiretft_ui_a`
+  is 831,264 B, **+45,856 B**.
+- Of the original rows, **1,381 B** are still in the Ângulo ELF (against 56,699).
+  Each `UA_DESVIO( );` returns at the top of a draw entry point, so the compiler
+  drops the unreachable rest of the body, and `--gc-sections` then drops what only
+  those bodies used: 88 symbols totalling 32,368 B are gone (the font tables,
+  `uiMenuIcon`, the sensor painters, `drawOtaScreen`, `drawPeriodButtons`), and 56
+  common symbols shrank by a net 33,145 B (`drawGraphScreen` -3,212,
+  `drawGraphDetailScreen` -3,164, `drawSettingsPassword` -1,896).
+- What the Ângulo adds is large: **382 new symbols, 104,889 B** (text 67,075, data
+  37,814): the `ua::` renderers 50,897, the `entrega::` font and icon data 33,033,
+  the `DisplayManager::ua*` glue 17,420. Net of the two reductions the sized
+  symbols grow by 39,376 B; the other 6,480 B of the `.bin` growth are the string
+  pool, padding and tables without symbols.
+- The Wi-Fi release has **5,643 B** of OTA headroom (`PLANO_STABLE.md` section 3.1:
+  ceiling 1,040,384 B against a signed image of 1,034,741 B). The study's growth
+  exceeds it by 33,733 B counted by symbols and by 40,213 B counted by `.bin`.
+  That gap, 34 to 40 kB, is the nearest thing in the data to the plan's "about 31
+  kB"; it is what has to be found, not something the original's code can still
+  give, because that code is already out.
+- What the split can still remove from an Ângulo image is the residual 1,381 B
+  and the original share of the mixed functions, about 9,900 B by line count in
+  the baseline (the Ângulo ELF keeps 21,484 B of mixed functions in whole): about
+  11 kB. The gap would remain at about 22 to 29 kB.
+
+So the measurement supports that the original is big, and does not support that
+removing it closes the gap, because the study's shape already removed it. This
+contradicts the plan's section 2, which rejects the study's shape because it "links
+all the old drawing code": by the ELF it links 1.4 kB of it, and what it still
+carries is the touch translation and the mixed functions. Whether the Ângulo
+fits the Wi-Fi release depends on the Ângulo's own 105 kB, not on the
+original; S12 should plan for the refusal path. Two limits on this: the
+Ângulo ELF is the TFT Wire product and not a Wi-Fi release (there is no Ângulo
+build of `pico_w_release` among the artefacts, so the Wi-Fi figures are a
+transposition), and the Ângulo is still changing, so its own size is a moving
+number.
 
 ## 4. Where the code contradicts the plan
 
