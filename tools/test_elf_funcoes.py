@@ -30,7 +30,12 @@ The six verdicts, and what each case checks:
       Also a call that goes elsewhere: two static helpers of one name with F and G swapped between
       their files (F and G named, the helpers, whose bodies are the same, not), the body of one
       helper changed (that helper and its caller named, not the other caller), and a call retargeted
-      to the function that took its callee's place, so that the bytes of the caller are the same
+      to the function that took its callee's place, so that the bytes of the caller are the same.
+      Also a constant that looks like an address with nothing readable behind it (flash
+      0x10120000, SRAM 0x20030000), in a function, in a const table and in a local initializer
+      (4g, 4h, 5g, 5h; 5i is the plain-number control); two same-named helpers that differ only
+      in an unnamed local table, F and G swapped (4i); two switch tables of one size swapped
+      between f and g, every byte of both functions the same (4j)
   (5) a number changed in a static const table    exit 1, naming that table, with the same link
       order and with another; the function that reads it through a pointer is not blamed. Its
       two companions, the cases the second chance of the tool must not hide: the same edit in a
@@ -64,7 +69,9 @@ bytes, which had not changed), and two read-only objects of one name were collap
 four more, each with its case (4b, 4c, 4d, 4f, 7v): two addresses with no name counted as the same
 target, a vtable and the other weak read-only objects were not compared, two functions of one name
 were not told apart, and a call to another function passed as a relocation when the bytes of the
-caller were the same. One more on 2026-10-15 (case 6d): a path with no file behind it ended in a
+caller were the same. The review of those fixes found three (4g to 5h, 4i, 4j): an address-looking
+constant that cannot be read was "<?>" and so equal to any other, a colour was blind to an unnamed
+table, and a swapped switch table passed because the bytes of its readers were the same. One more on 2026-10-15 (case 6d): a path with no file behind it ended in a
 traceback, whose exit 1 reads as "changed" rather than as a refusal.
 
 Needs arm-none-eabi-gcc from the PlatformIO toolchain package (tools/elf_funcoes.py says where it

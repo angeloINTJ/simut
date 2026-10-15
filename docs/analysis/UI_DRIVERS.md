@@ -1148,4 +1148,4 @@ repository since S2b (2026-10-14), with a row each in `tools/README.md`.
 | `ui_xref.py` | which functions mention a name | 3.1 |
 | `ui_touch.py` | the branches of `handleTouch` and `handleTouchPanelV24` with their immediate draws, `pushUiEvent` calls, events and repaint flags | 3.3, 3.5 |
 | `tools/bytes_original.py` | sums `nm -S -C` sizes by the class of the TSV row | 3.6 |
-| `tools/build9.sh`, `tools/elf_funcoes.py` | the plan's kit: build the nine images (`<out>/sha256.txt`, compared with `diff`), compare two ELFs function by function. `tools/test_elf_funcoes.py` proves the second on small ARM programs: 30 cases and 21 mutants of the tool, 2026-10-15 | later stages |
+| `tools/build9.sh`, `tools/elf_funcoes.py` | the plan's kit: build the nine images (`<out>/sha256.txt`, compared with `diff`), compare two ELFs function by function. `tools/test_elf_funcoes.py` proves the second on small ARM programs: 37 cases and 26 mutants of the tool, 2026-10-15 | later stages |
