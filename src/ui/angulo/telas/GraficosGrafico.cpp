@@ -25,11 +25,12 @@ namespace {
 // px taller than the plan's (68, 112): the statistics' two lines are 18 px apart
 // (14 px caps and 4 px of air), and the plot keeps the 88 px it had. Above it
 // PAD_CIMA = 10: the right scale's top label is 14 px tall, centred on the
-// plot's top, so it clears the card's border by 3 px. Under it 18: the axis
-// labels' 14 px of ink start 2 px under the plot's foot and end 1 px above the
-// border (the 7 pt labels, 11 px, had 16).
+// plot's top, so it clears the card's border by 2 px. Under it 18: the axis
+// labels' 14 px of ink start 1 px under the plot's foot (no line is drawn
+// there, and the range leaves the data an eighth of itself above it, 8 px at
+// least) and end 2 px above the border (the 7 pt labels, 11 px, had 16).
 constexpr int16_t X_CARTAO = ESP2, Y_CARTAO = 72, W_CARTAO = 304, H_CARTAO = 116;
-constexpr int16_t PAD_CIMA = 10, ALTO_PLOT = 88, Y_EIXO = 1;
+constexpr int16_t PAD_CIMA = 10, ALTO_PLOT = 88;
 
 // The statistics, two lines under the title bar, 18 px between baselines. A
 // line may run to ESP2 short of the glass's edge.
@@ -163,16 +164,16 @@ int contar( int32_t lo, int32_t hi, int32_t passo ) {
 
 // One line of the statistics, left to right, with the widest gap of the grid
 // that keeps it inside the margins; a freezer's "máx -13,8 °C 03:10 mín -19,7 °C
-// 21:32" is 295 px of items, 303 with the narrowest gap, in the 300 px of the
-// line (measured 2026-10-15, both freezer samples). Returns false when even the
-// narrowest gap does not fit, and the caller writes the line again with fewer
-// units.
+// 21:32" is 303 px of items, 311 with the narrowest gap, in the 300 px of the
+// line, and 289 without the minimum's unit (measured 2026-10-15, both freezer
+// samples). Returns false when even the narrowest gap does not fit, and the
+// caller writes the line again with fewer units.
 bool linha( Dado *d, int n, int16_t y ) {
   int16_t soma = 0;
   int16_t w[6];
   for ( int i = 0; i < n; i++ ) {
     w[i] = (int16_t)( larguraTinta( d[i].k, tipo::apoio ) + ESP1 + larguraTinta( d[i].v, tipo::rotulo ) +
-                      ( d[i].t[0] ? ESP1 + larguraTinta( d[i].t, tipo::apoio ) : 0 ) );
+                      ( d[i].t[0] ? ESP2 + larguraTinta( d[i].t, tipo::apoio ) : 0 ) );
     soma += w[i];
   }
   static const int16_t kFolgas[] = { ESP5, ESP4, ESP3, ESP2 };
@@ -195,7 +196,8 @@ bool linha( Dado *d, int n, int16_t y ) {
 // is the other four, bare. At 9 pt a line holds 300 px, and the old first line,
 // "máx 6,0 °C às 12:10 mín 3,0 °C às 22:57", is 326 (items of 161 and 157, and
 // the narrowest gap): the words "às" and "em" are gone (the colon and the slash
-// say it is a time and a date, and the value is bold where the time is not),
+// say it is a time and a date, and the value is bold where the time is not; the
+// time stands ESP2 from the unit, at ESP1 "°C 12:10" read as one word),
 // and the unit stands on the first line only, since the second one cannot hold
 // it (the 7 pt line held "média 4,4 °C σ 0,7 Δ -0,7 °C agora 5,1 °C"; at 9 pt
 // it is 338 px; widths measured with larguraTinta( ) on 2026-10-15).
@@ -458,7 +460,7 @@ void desenharGrafico( Pintor &p, const VmGrafico &vm ) {
     const int16_t xv = (int16_t)( d.x + larguraTinta( d.k, tipo::apoio ) + ESP1 );
     textoCentrado( p, d.k, d.x, d.y, H_APOIO, tipo::apoio, T.tinta2, 'l' );
     textoCentrado( p, d.v, xv, d.y, H_APOIO, tipo::rotulo, T.tinta, 'l' );
-    if ( d.t[0] ) textoCentrado( p, d.t, (int16_t)( xv + larguraTinta( d.v, tipo::rotulo ) + ESP1 ), d.y, H_APOIO, tipo::apoio, T.tinta2, 'l' );
+    if ( d.t[0] ) textoCentrado( p, d.t, (int16_t)( xv + larguraTinta( d.v, tipo::rotulo ) + ESP2 ), d.y, H_APOIO, tipo::apoio, T.tinta2, 'l' );
   }
 
   superficie( p, l.cartao.x, l.cartao.y, l.cartao.w, l.cartao.h );
@@ -469,7 +471,7 @@ void desenharGrafico( Pintor &p, const VmGrafico &vm ) {
   static const char alinha[3] = { 'l', 'c', 'r' };
   const int16_t xs[3] = { l.px0, rd2( l.px0 + l.px1 ), l.px1 };
   for ( int k = 0; k < 3; k++ )
-    if ( l.eixo[k][0] ) textoCentrado( p, l.eixo[k], xs[k], (int16_t)( l.py1 + Y_EIXO ), H_APOIO, tipo::apoio, T.tinta2, alinha[k] );
+    if ( l.eixo[k][0] ) textoCentrado( p, l.eixo[k], xs[k], l.py1, H_APOIO, tipo::apoio, T.tinta2, alinha[k] );
 
   // The footer: back in time, the periods, forward in time.
   seta( p, l.anterior, IconeNome::CHEVRON_LEFT, true );
