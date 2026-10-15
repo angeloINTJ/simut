@@ -286,4 +286,8 @@ inline __attribute__((always_inline)) void DisplayManager::actTopCardPress( bool
 	}
 }
 
-/* The rest follows, in a later commit (S5): the boot screen's skip. */
+/* The boot screen's skip button was touched (uiBootSkipHit( ) said so): the boot terminal polls the flag (isSkipPressed( )),
+ * clears it and ends its wait. There is no gate: the flag is set again on every sample of the press and read once. */
+inline __attribute__((always_inline)) void DisplayManager::actBootSkip( ) {
+	_skipPressed = true;
+}

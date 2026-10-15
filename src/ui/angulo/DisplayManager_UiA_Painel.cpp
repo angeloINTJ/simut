@@ -289,7 +289,7 @@ UaToque DisplayManager::uaToquePainel( const ua::Alvo *a, int16_t &, int16_t & )
     case MODE_DASHBOARD:
       /* A boot frame still on the glass: this touch came in the pass where endBoot( ) cleared
        * _sharedState.isBooting (handleTouch( ) answers the boot's own touch first, Touch.cpp:357-362)
-       * and render( ) has not run yet. Nothing in that frame is for the branch below (BOOT_PULAR
+       * and render( ) has not run yet. Nothing in that frame is for the actions below (BOOT_PULAR
        * would read as the upper card). */
       if ( _lastRenderedState.isBooting || !a ) return UaToque::TRATADO;
       /* Every target runs the core's action behind the gate its old zone held (DisplayManager_Actions.h): the upper card's is

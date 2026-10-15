@@ -1517,6 +1517,11 @@ private:
 	 * because a pinned slot's button appears and disappears with the pin; the Ângulo marks its frame to be repainted. `snap`
 	 * has to travel by reference: it is a SystemState, 400 B, and the Core 1 stack is small. */
 	UI_HOOK void uiTopPanel( const SystemState &snap );
+	/* UI driver hook: a touch while the device boots, with the skip button on the screen (showSkipButton): did it land on the
+	 * button? The original answers with the rectangle the button has always had, y > 190 and x 80..240; the Ângulo asks the
+	 * boot frame on the glass, whose target is the button, so the frame is free to put it where it likes. The core sets the
+	 * flag the boot terminal polls (actBootSkip( )) when the answer is yes. */
+	UI_HOOK bool uiBootSkipHit( int16_t x, int16_t y );
 	/* UI driver hook: the screen chain of Core 1's pass, once a pass, after the theme change and the update screen. The
 	 * original answers the current mode by drawing it and runs the core's timers on the way (src/DisplayManager_Ticks.h);
 	 * the Ângulo runs the same timers, takes the repaint requests the chain answered by drawing, and paints one frame from
@@ -1539,13 +1544,14 @@ private:
 	 * same code for every driver. Whoever decided which zone was hit holds its gate (acceptTouch( ) and its kin); the action
 	 * is what follows it. The alarm's action screen: silence, deactivate, back to the dashboard in min/max. The dashboard:
 	 * the upper card (its gate and the 3 s hold are inside the action), the lower card and the row of buttons under the cards
-	 * (the row's gates depend on the kind of the button, so they are inside the action). */
+	 * (the row's gates depend on the kind of the button, so they are inside the action). The boot screen: the skip button. */
 	inline __attribute__((always_inline)) void actAlarmSilence( );
 	inline __attribute__((always_inline)) void actAlarmDeactivate( );
 	inline __attribute__((always_inline)) void actAlarmShowMinMax( );
 	inline __attribute__((always_inline)) void actBottomCardTap( bool onGraphBtn );
 	inline __attribute__((always_inline)) void actNavButton( int btnIdx );
 	inline __attribute__((always_inline)) void actTopCardPress( bool onGraphBtn );
+	inline __attribute__((always_inline)) void actBootSkip( );
 
 	struct ActiveLang {
 		char name[16];

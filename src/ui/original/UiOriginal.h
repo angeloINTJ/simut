@@ -57,6 +57,12 @@ UI_HOOK void DisplayManager::uiTopPanel( const SystemState &snap ) {
 	drawBottomButtons(snap.selectedSlotIdx);
 }
 
+/* A touch while the device boots with the skip button showing: did it land on the button? The rectangle handleTouch( ) tested
+ * inline, moved here as it was. */
+UI_HOOK bool DisplayManager::uiBootSkipHit( int16_t x, int16_t y ) {
+	return y > 190 && x > 80 && x < 240;
+}
+
 /* The theme changed: say "applying theme", then repaint the dashboard in full with the new palette. The block
  * loopCore1( ) ran inline, moved here as it was. */
 UI_HOOK void DisplayManager::uiThemeChanged( ) {

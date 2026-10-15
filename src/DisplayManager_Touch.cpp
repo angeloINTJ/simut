@@ -361,9 +361,7 @@ void DisplayManager::handleTouch( ) {
  mapTouchPoint(p, x, y);
 
  if (_sharedState.isBooting) {
- if (_sharedState.showSkipButton) {
- if (y > 190 && x > 80 && x < 240) _skipPressed = true;
- }
+ if (_sharedState.showSkipButton && uiBootSkipHit( x, y )) actBootSkip( );
  return;
  }
 

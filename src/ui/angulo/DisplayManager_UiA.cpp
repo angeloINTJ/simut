@@ -24,6 +24,7 @@
 #include "Angulo.h"
 #include "UiA.h"
 #include "telas/Base.h"
+#include "telas/PainelBoot.h"   /* BOOT_PULAR */
 #include "telas/Telas.h"
 
 alignas( 8 ) uint8_t g_uaVm[UA_VM_MAX];
@@ -488,6 +489,15 @@ bool DisplayManager::uaToque( int16_t &x, int16_t &y ) {
   if ( r == UaToque::NAO_E_MEU ) r = uaToquePendente( a );
   if ( r == UaToque::TRATADO ) uaSujo( );
   return r == UaToque::TRATADO;
+}
+
+/* A touch while the device boots with the skip button showing (handleTouch( ) asks before the intercept above): did it land on
+ * the button of the boot frame? The frame says where the button is, by its target, so the old rectangle (y > 190, x 80..240) is
+ * not a rule the frame has to keep. Target types are numbered per screen, so the frame on the glass has to be the boot's. */
+bool DisplayManager::uiBootSkipHit( int16_t x, int16_t y ) {
+  if ( !s_temQuadro || !_lastRenderedState.isBooting ) return false;
+  const ua::Alvo *a = ua::alvoEm( s_alvos, s_nAlvos, x, y );
+  return a && a->tipo == ua::tela::BOOT_PULAR;
 }
 
 /* ------------------------------------------------------------------ */
