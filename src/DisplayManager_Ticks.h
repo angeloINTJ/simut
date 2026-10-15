@@ -96,3 +96,30 @@ inline __attribute__((always_inline)) void DisplayManager::tickTouchSens( ) {
 		_repaintSettings = true;
 	}
 }
+
+/* The dashboard branch: while a slot is in alarm, flip the flash phase every ALARM_FLASH_INTERVAL_MS and tell the
+ * driver (uiChanged); when the alarm ends, put the phase and the timers back and tell it again. What the flash looks
+ * like is the driver's: the original's uiChanged calls redrawAlarmFlash( ) and restoreNormalDashboard( ), the Ângulo
+ * repaints from the state. */
+inline __attribute__((always_inline)) void DisplayManager::tickAlarmFlash( ) {
+	/* During boot screen (state.isBooting=true after
+	 * web reboot), redrawAlarmFlash overwrites the boot screen with
+	 * alarm cards — visually "alarm flashing over
+	 * Rebooting...". Skip while isBooting. */
+	if (isAnyAlarmActive( ) && !_lastRenderedState.isBooting) {
+		uint32_t now = millis( );
+		if (now - _alarmFlashTimer >= ALARM_FLASH_INTERVAL_MS) {
+			_alarmFlashTimer = now;
+			_alarmFlashPhase = !_alarmFlashPhase;
+			C1_PHASE(C1P_ALARM_FLASH);
+			uiChanged( UiChange::ALARM_FLASH, 0 );
+		}
+	} else if (_alarmFlashPhase && !_lastRenderedState.isBooting) {
+
+		_alarmFlashPhase = false;
+		_alarmFlashTimer = 0;
+		_alarmRotateTimer = 0;
+		C1_PHASE(C1P_ALARM_FLASH);
+		uiChanged( UiChange::ALARM_RESTORE, 0 );
+	}
+}

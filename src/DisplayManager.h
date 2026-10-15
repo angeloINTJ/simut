@@ -1544,11 +1544,16 @@ private:
 	 * which repaints with the new palette. Either leaves _uiMode at the dashboard unless the device is booting. The core
 	 * clears _themeChanged after the call. */
 	UI_HOOK void uiThemeChanged( );
+	/* UI driver hook: the core tells the driver that something it shows has changed (UiChange, src/ui/UiDriver.h); `arg`
+	 * is for a kind that needs more than its name, and neither kind so far does. The original draws the change, as the core
+	 * did before; the Ângulo marks its frame to be repainted. At each call `c` is a constant. */
+	UI_HOOK void uiChanged( UiChange c, int16_t arg );
 	/* Core ticks (src/DisplayManager_Ticks.h): the timers and transitions of the Core 1 pass that run whatever the UI
 	 * driver draws. The same code for every driver, inline where the screen chain used to hold it. */
 	inline __attribute__((always_inline)) void tickDashboard( );
 	inline __attribute__((always_inline)) void tickAuthLockout( );
 	inline __attribute__((always_inline)) void tickTouchSens( );
+	inline __attribute__((always_inline)) void tickAlarmFlash( );
 
 	struct ActiveLang {
 		char name[16];

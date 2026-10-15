@@ -18,6 +18,7 @@
  */
 #pragma once
 
+#include <stdint.h>
 #include "UiCaps.h"   /* SIMUT_UI_ANGULO, tested below: included here, not left to the includer */
 
 #if SIMUT_UI_ANGULO
@@ -33,6 +34,13 @@
 #else
 #define UI_HOOK inline __attribute__((always_inline))
 #endif
+
+/* What the core tells the driver has changed, through the hook uiChanged( ). The core keeps the timers and the state;
+ * the driver decides what the change looks like. */
+enum class UiChange : uint8_t {
+	ALARM_FLASH,     /**< the alarm flash changed phase: the cards in alarm take the other phase's colours */
+	ALARM_RESTORE,   /**< the alarm ended: the normal cards come back */
+};
 
 /* The Ângulo build (pico_wiretft_angulo, src/ui/angulo/) paints every screen
  * itself, from the state, at the end of each Core 1 pass. An old draw entry

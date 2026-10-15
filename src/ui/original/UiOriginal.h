@@ -26,6 +26,16 @@ UI_HOOK void DisplayManager::uiBegin( ) {
 	if (!_sharedState.isBooting) drawInterfaceFixed( );
 }
 
+/* The core says what changed; the original draws it, as the core did before. `c` is a constant at each call, so the
+ * switch is the one call it names. */
+UI_HOOK void DisplayManager::uiChanged( UiChange c, int16_t arg ) {
+	(void)arg;
+	switch (c) {
+	case UiChange::ALARM_FLASH:   redrawAlarmFlash( ); break;
+	case UiChange::ALARM_RESTORE: restoreNormalDashboard( ); break;
+	}
+}
+
 /* The theme changed: say "applying theme", then repaint the dashboard in full with the new palette. The block
  * loopCore1( ) ran inline, moved here as it was. */
 UI_HOOK void DisplayManager::uiThemeChanged( ) {

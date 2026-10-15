@@ -362,6 +362,13 @@ void DisplayManager::uiBegin( ) {
   uaSujo( );
 }
 
+/* The core says something this driver shows has changed (the alarm flash changed phase, or the alarm ended): the frame
+ * may be different, and the pass looks at it. The old redrawAlarmFlash( ) and restoreNormalDashboard( ) came to the same
+ * through the draw calls they made, each of which starts with UA_DESVIO( ). */
+void DisplayManager::uiChanged( UiChange, int16_t ) {
+  uaSujo( );
+}
+
 /* The theme changed (Core 0's refreshTheme( )): like the old block, the panel
  * goes to the dashboard, which repaints in full with the new palette. */
 void DisplayManager::uiThemeChanged( ) {

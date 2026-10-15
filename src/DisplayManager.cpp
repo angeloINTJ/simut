@@ -1416,26 +1416,7 @@ void DisplayManager::loopCore1( ) {
 			tickDashboard( );
 
 
-			/* During boot screen (state.isBooting=true after
-			 * web reboot), redrawAlarmFlash overwrites the boot screen with
-			 * alarm cards — visually "alarm flashing over
-			 * Rebooting...". Skip while isBooting. */
-			if (isAnyAlarmActive( ) && !_lastRenderedState.isBooting) {
-				uint32_t now = millis( );
-				if (now - _alarmFlashTimer >= ALARM_FLASH_INTERVAL_MS) {
-					_alarmFlashTimer = now;
-					_alarmFlashPhase = !_alarmFlashPhase;
-					C1_PHASE(C1P_ALARM_FLASH);
-					redrawAlarmFlash( );
-				}
-			} else if (_alarmFlashPhase && !_lastRenderedState.isBooting) {
-
-				_alarmFlashPhase = false;
-				_alarmFlashTimer = 0;
-				_alarmRotateTimer = 0;
-				C1_PHASE(C1P_ALARM_FLASH);
-				restoreNormalDashboard( );
-			}
+			tickAlarmFlash( );
 
 
 			/* Render unconditionally. This used to be gated on _webOverlayShown,
