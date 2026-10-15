@@ -194,10 +194,10 @@ void desenharAlinhar( Pintor &p, const VmAlinhar &vm ) {
 int alvosAlinhar( const VmAlinhar &vm, Alvo *out ) {
   const LayoutAlinhar l = layoutAlinhar( vm );
   int n = addAlvo( out, 0, caixaVoltar( ), ALINH_VOLTAR );
-  if ( l.cimaAtiva ) n = addAlvo( out, n, l.cima, ALINH_CIMA );
-  if ( l.esquerdaAtiva ) n = addAlvo( out, n, l.esquerda, ALINH_ESQUERDA );
-  if ( l.direitaAtiva ) n = addAlvo( out, n, l.direita, ALINH_DIREITA );
-  if ( l.baixoAtiva ) n = addAlvo( out, n, l.baixo, ALINH_BAIXO );
+  n = addAlvoSe( out, n, l.cimaAtiva, l.cima, ALINH_CIMA );
+  n = addAlvoSe( out, n, l.esquerdaAtiva, l.esquerda, ALINH_ESQUERDA );
+  n = addAlvoSe( out, n, l.direitaAtiva, l.direita, ALINH_DIREITA );
+  n = addAlvoSe( out, n, l.baixoAtiva, l.baixo, ALINH_BAIXO );
   n = addAlvo( out, n, l.rodape.secundaria, ALINH_REDEFINIR );
   return addAlvo( out, n, l.rodape.primaria, ALINH_SALVAR );
 }

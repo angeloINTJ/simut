@@ -9,6 +9,9 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
+#ifdef UA_HOST
+#include <stdlib.h>   // abort( ): the control recorder stops the harness when a sample has more than it holds
+#endif
 
 // The delivery's headers define their fonts, icons and tokens as namespace-
 // scope consts (internal linkage): this translation unit is the only one that
@@ -339,6 +342,34 @@ void hostAnotarTexto( const char *s, int16_t x0, int16_t x1, int16_t y0, int16_t
 }  // namespace
 void hostLimparTextos( ) { s_nTextos = 0; }
 int hostTextos( const TextoDesenhado **lista ) { *lista = s_textos; return s_nTextos; }
+
+namespace {
+constexpr int MAX_CONTROLES = 128;   // the text keyboard has about 45; a sample over this stops the harness, it is never cut
+ControleDesenhado s_controles[MAX_CONTROLES];
+int s_nControles = 0;
+char s_naoControle[sizeof s_controles[0].excluido] = "";
+void copiarNome( char *dst, int cap, const char *src ) {
+  int i = 0;
+  for ( ; i < cap - 1 && src[i]; i++ ) dst[i] = src[i];
+  dst[i] = 0;
+}
+}  // namespace
+void hostLimparControles( ) { s_nControles = 0; s_naoControle[0] = 0; }
+int hostControles( const ControleDesenhado **lista ) { *lista = s_controles; return s_nControles; }
+void hostNaoEControle( const char *motivo ) { copiarNome( s_naoControle, (int)sizeof s_naoControle, motivo ); }
+void hostControle( int16_t x, int16_t y, int16_t w, int16_t h, bool habilitado, const char *tipo ) {
+  ControleDesenhado *c = nullptr;
+  for ( int i = 0; i < s_nControles && !c; i++ )
+    if ( s_controles[i].x == x && s_controles[i].y == y && s_controles[i].w == w && s_controles[i].h == h ) c = &s_controles[i];
+  if ( !c ) {
+    if ( s_nControles >= MAX_CONTROLES ) { fprintf( stderr, "more than %d controls in one sample\n", MAX_CONTROLES ); abort( ); }
+    c = &s_controles[s_nControles++];
+  }
+  c->x = x; c->y = y; c->w = w; c->h = h; c->habilitado = habilitado;
+  copiarNome( c->tipo, (int)sizeof c->tipo, tipo );
+  copiarNome( c->excluido, (int)sizeof c->excluido, s_naoControle );
+  s_naoControle[0] = 0;
+}
 #endif
 
 Tinta Pintor::texto( const char *s, int16_t x, int16_t y, Fonte f, uint16_t cor, char alinha ) {
@@ -396,6 +427,7 @@ Tinta textoCentrado( Pintor &p, const char *s, int16_t x, int16_t y, int16_t h, 
 void botao( Pintor &p, int16_t x, int16_t y, int16_t w, int16_t h, const char *rotulo, Botao tipo, bool des,
             IconeNome icone ) {
   const Tema &T = p.t( );
+  UA_CONTROLE( x, y, w, h, !des, "botao" );
   bool temFundo = false, temBorda = false;
   uint16_t fundo = 0, borda = 0, texto = T.tinta;
   switch ( tipo ) {
@@ -422,6 +454,7 @@ void botao( Pintor &p, int16_t x, int16_t y, int16_t w, int16_t h, const char *r
 
 void tecla( Pintor &p, int16_t x, int16_t y, int16_t w, int16_t h, const TeclaOpts &o ) {
   const Tema &T = p.t( );
+  UA_CONTROLE( x, y, w, h, o.estado != TeclaEstado::DESAB, "tecla" );
   uint16_t fundo = T.superficie, borda = T.linha, cor = T.tinta;
   bool temBorda = true;
   if ( o.tipo == TeclaTipo::FUNCAO ) fundo = T.superficie2;
@@ -503,6 +536,7 @@ void segmentado( Pintor &p, int16_t x, int16_t y, int16_t w, int16_t h, const ch
   for ( int16_t i = 0; i < n; i++ ) {
     const int16_t sx = x + i * ( sw + ESP1 );
     const bool on = i == ativa;
+    UA_CONTROLE( sx, y, sw, h, !des, "segmento" );
     p.fillRoundRect( sx, y, sw, h, RAIO_CONTROLE, cor( on ? T.superficie : T.superficie2 ) );
     p.roundRect( sx, y, sw, h, RAIO_CONTROLE, cor( on ? T.acento : T.linha ) );
     textoCentrado( p, opcoes[i], sx + rd2( sw ), y, h, tipo::rotulo, cor( on ? T.acento : T.tinta2 ), 'c' );
@@ -514,6 +548,7 @@ int16_t larguraChip( const char *rotulo ) { return larguraTinta( rotulo, tipo::r
 int16_t chip( Pintor &p, int16_t x, int16_t y, int16_t h, const char *rotulo, bool ativo ) {
   const Tema &T = p.t( );
   const int16_t w = larguraChip( rotulo );
+  UA_CONTROLE( x, y, w, h, true, "chip" );
   p.fillRoundRect( x, y, w, h, RAIO_CONTROLE, ativo ? T.superficie : T.superficie2 );
   if ( ativo ) p.roundRect( x, y, w, h, RAIO_CONTROLE, T.acento );
   textoCentrado( p, rotulo, x + rd2( w ), y, h, tipo::rotulo, ativo ? T.acento : T.tinta, 'c' );
@@ -646,6 +681,7 @@ int16_t lista( Pintor &p, int16_t y, const Item *itens, int16_t n, int16_t hFila
 
 void interruptor( Pintor &p, int16_t x, int16_t y, bool ligado, bool des ) {
   const Tema &T = p.t( );
+  UA_CONTROLE( x, y, 40, 24, !des, "interruptor" );
   const uint16_t trilho = des ? desab( T, ligado ? T.acento : T.superficie2 ) : ligado ? T.acento : T.superficie2;
   p.fillRoundRect( x, y, 40, 24, RAIO_TOTAL, trilho );
   if ( !ligado ) p.roundRect( x, y, 40, 24, RAIO_TOTAL, des ? desab( T, T.linhaForte ) : T.linhaForte );

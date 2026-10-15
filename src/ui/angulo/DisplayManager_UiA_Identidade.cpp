@@ -262,7 +262,7 @@ UaToque DisplayManager::uaToqueIdentidade( const ua::Alvo *a, int16_t &x, int16_
     /* ---- the PIN keypad: Translation ---- */
     case MODE_AUTH: {
       if ( !a ) {
-        /* Outside every target. With a popup open the old handler closes it on any point that is
+        /* Farther than FOLGA_TOQUE from every target, or on an inert one. With a popup open the old handler closes it on any point that is
          * not one of its keys (:1363-1373): the neutral point does that and nothing else. Without
          * one, a dead zone. */
         if ( _pinPopup >= 0 && pinOrderedNow( ) && pinAlphabet( ) == PinKb::ALPHA_ALNUM ) {

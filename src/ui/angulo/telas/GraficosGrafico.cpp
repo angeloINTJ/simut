@@ -478,6 +478,7 @@ void desenharGrafico( Pintor &p, const VmGrafico &vm ) {
   for ( int i = 0; i < N_PERIODOS; i++ ) {
     const Caixa16 &c = l.periodo[i];
     const bool on = i == vm.periodo;
+    UA_CONTROLE( c.x, c.y, c.w, c.h, true, "periodo" );   // the lit chip is a target too; the glue lets it be
     p.fillRoundRect( c.x, c.y, c.w, c.h, RAIO_CONTROLE, on ? T.acento : T.superficie2 );
     if ( !on ) p.roundRect( c.x, c.y, c.w, c.h, RAIO_CONTROLE, T.linha );
     textoCentrado( p, rotuloPeriodo( i ), (int16_t)( c.x + rd2( c.w ) ), c.y, c.h, tipo::rotulo, on ? T.acentoTinta : T.tinta, 'c' );
@@ -489,11 +490,11 @@ int alvosGrafico( const VmGrafico &vm, Alvo *out ) {
   const LayoutGrafico l = layoutGrafico( vm );
   int n = addAlvo( out, 0, alvoDaAcao( l.cxAcao[1] ), GRF_VOLTAR );
   n = addAlvo( out, n, alvoDaAcao( l.cxAcao[0] ), GRF_DIA );
-  n = addAlvo( out, n, l.cartao, GRF_AREA );
+  n = addAlvo( out, n, bandaCentral( ), GRF_AREA );
   n = addAlvo( out, n, l.anterior, GRF_ANTERIOR );
   for ( int i = 0; i < N_PERIODOS; i++ ) n = addAlvo( out, n, l.periodo[i], GRF_PERIODO, (int16_t)i );
-  if ( vm.passado ) n = addAlvo( out, n, l.seguinte, GRF_SEGUINTE );
-  return n;
+  // At the present the next arrow is drawn disabled: an inert target, so that a touch on its left part does not fall to the "7 d" chip.
+  return addAlvoSe( out, n, vm.passado, l.seguinte, GRF_SEGUINTE );
 }
 
 }  // namespace tela

@@ -275,6 +275,7 @@ void desenharBotaoGrafico( Pintor &p, const Caixa16 &c, const Aspecto &a ) {
   const Tema &T = p.t( );
   // The one accent of the card; in the lit phase it flips with the rest.
   const uint16_t fundo = a.cheio ? T.perigoTinta : T.acento, cor = a.cheio ? T.perigo : T.acentoTinta;
+  UA_CONTROLE( c.x, c.y, c.w, c.h, true, "grafico" );
   p.fillRoundRect( c.x, c.y, c.w, c.h, RAIO_CONTROLE, fundo );
   p.icone( IconeNome::CHART_LINE, ICONE_G, c.x + rd2( c.w - ICONE_G ), c.y + ESP1, cor );
   textoCentrado( p, "Gráfico", c.x + rd2( c.w ), c.y + ICONE_G + ESP1, H_TEXTO, tipo::rotulo, cor, 'c' );
@@ -449,6 +450,7 @@ void desenharNav( Pintor &p, const VmPainel &vm, const LayoutPainel &l ) {
     const VmPainel::Nav &n = vm.nav[i];
     const Caixa16 &c = l.nav[i];
     if ( n.tipo == NavTipo::NADA ) continue;
+    UA_CONTROLE( c.x, c.y, c.w, c.h, !vm.webOcupada, "nav" );
     const bool cheio = n.alarme && acesa;
     char rot[16];
     if ( n.tipo == NavTipo::SLOT ) {
@@ -522,23 +524,24 @@ void desenharPainel( Pintor &p, const VmPainel &vm ) {
 }
 
 int alvosPainel( const VmPainel &vm, Alvo *out ) {
-  // While the web saves, the old handler beeps and ignores every touch: nothing
-  // is a target.
-  if ( vm.webOcupada ) return 0;
+  // While the web saves, the old handler beeps and ignores every touch (the web-busy refusal in handleTouch( ), ahead of this
+  // glue). The screen is drawn as it is, so every control on it is still listed, inert: a touch on one does nothing, and the
+  // host check that every drawn control has a target holds here too.
+  const bool viva = !vm.webOcupada;
   const LayoutPainel l = layoutPainel( vm );
   int n = 0;
   // A card with no sensor has nothing to open; the buttons come after their
   // card, so that alvoEm( ) answers the button where the two overlap.
   if ( vm.cima.tipo != Tipo::NENHUM ) {
-    n = addAlvo( out, n, l.cima, PNL_CARTAO_CIMA );
-    if ( l.graficoCima.w ) n = addAlvo( out, n, l.graficoCima, PNL_GRAFICO_CIMA );
+    n = addAlvoSe( out, n, viva, l.cima, PNL_CARTAO_CIMA );
+    if ( l.graficoCima.w ) n = addAlvoSe( out, n, viva, l.graficoCima, PNL_GRAFICO_CIMA );
   }
   if ( vm.baixo.tipo != Tipo::NENHUM ) {
-    n = addAlvo( out, n, l.baixo, PNL_CARTAO_BAIXO );
-    if ( l.graficoBaixo.w ) n = addAlvo( out, n, l.graficoBaixo, PNL_GRAFICO_BAIXO );
+    n = addAlvoSe( out, n, viva, l.baixo, PNL_CARTAO_BAIXO );
+    if ( l.graficoBaixo.w ) n = addAlvoSe( out, n, viva, l.graficoBaixo, PNL_GRAFICO_BAIXO );
   }
   for ( int i = 0; i < NAV_N; i++ )
-    if ( l.nav[i].w ) n = addAlvo( out, n, l.nav[i], PNL_NAV, (int16_t)i );
+    if ( l.nav[i].w ) n = addAlvoSe( out, n, viva, l.nav[i], PNL_NAV, (int16_t)i );
   return n;
 }
 

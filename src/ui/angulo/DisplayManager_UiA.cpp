@@ -488,7 +488,11 @@ bool DisplayManager::uaToque( int16_t &x, int16_t &y ) {
   /* The glass still shows another screen than the mode (Core 0 changed it
    * between two passes): this touch means nothing yet. */
   if ( !s_temQuadro || s_modo != _uiMode ) { uaSujo( ); return true; }
-  const ua::Alvo *a = ua::alvoEm( s_alvos, s_nAlvos, x, y );
+  /* A control drawn disabled is an inert target (ua::ALVO_INERTE): alvoDoToque( ) hands the handlers nullptr for it, the touch
+   * on no target that each of them already answers with nothing: no gate (so no touch sound, as the original's dead zones),
+   * no busy line, no action. Taking it here and not in the switches keeps a screen from forgetting it, and leaves the
+   * handlers that read "no target" as something to do (the PIN keypad closes its popup) doing it, as for any dead point. */
+  const ua::Alvo *a = ua::alvoDoToque( s_alvos, s_nAlvos, x, y );
   UaToque r = uaToquePainel( a, x, y );
   if ( r == UaToque::NAO_E_MEU ) r = uaToqueBase( a, x, y );
   if ( r == UaToque::NAO_E_MEU ) r = uaToqueMenus( a, x, y );

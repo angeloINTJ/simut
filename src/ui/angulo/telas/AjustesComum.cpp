@@ -85,6 +85,7 @@ void segmentadoLeve( Pintor &p, int16_t x, int16_t y, int16_t w, int16_t h, cons
   for ( int16_t i = 0; i < n; i++ ) {
     const Caixa16 s = segmento( x, y, w, h, n, i );
     const bool on = i == ativa;
+    UA_CONTROLE( s.x, s.y, s.w, s.h, true, "segmento" );
     p.fillRoundRect( s.x, s.y, s.w, s.h, RAIO_CONTROLE, on ? T.superficie : T.superficie2 );
     p.roundRect( s.x, s.y, s.w, s.h, RAIO_CONTROLE, on ? T.acento : T.linha );
     textoCentrado( p, opcoes[i], s.x + rd2( s.w ), s.y, s.h, tipo::apoio, on ? T.acento : T.tinta2, 'c' );

@@ -295,7 +295,7 @@ UaToque DisplayManager::uaToqueAjustes( const ua::Alvo *a, int16_t &x, int16_t &
       /* Translation to the old zones (DisplayManager_Touch.cpp:1640-1681): the
        * +1 band of a column is y 42..79 and the -1 band y 122..163, both across
        * the column's CLOCK_COL_X / CLOCK_COL_W; the left button is x 20..150
-       * and SAVE x 170..300, both y 190..230. A touch on no target is dead, as
+       * and SAVE x 170..300, both y 190..230. A touch farther than FOLGA_TOQUE from every target is dead, as
        * the value band between the arrows was. */
       if ( !a ) return UaToque::TRATADO;
       switch ( a->tipo ) {

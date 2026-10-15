@@ -27,11 +27,12 @@ const Alvo *alvoEm( const Alvo *alvos, int n, int16_t x, int16_t y ) {
     if ( x >= a.x && x < a.x + a.w && y >= a.y && y < a.y + a.h ) return &a;
   }
   // Outside every box, the nearest one, if the finger can have meant it (FOLGA_TOQUE). A tie goes to the first
-  // listed; a screen leaves a disabled control out of the list, so it never catches a touch.
+  // listed. A disabled control is listed too (inert), so a touch next to it finds it and not an enabled neighbour.
   const Alvo *perto = nullptr;
   int32_t melhor = 0;
   for ( int i = 0; i < n; i++ ) {
     const Alvo &a = alvos[i];
+    if ( a.w <= 0 || a.h <= 0 ) continue;
     const int32_t dx = distancia( x, a.x, a.w ), dy = distancia( y, a.y, a.h );
     // Out of the slop on one axis already; also keeps the squares below far from wrapping around.
     if ( dx > FOLGA_TOQUE || dy > FOLGA_TOQUE ) continue;
@@ -40,6 +41,11 @@ const Alvo *alvoEm( const Alvo *alvos, int n, int16_t x, int16_t y ) {
     if ( !perto || d2 < melhor ) { perto = &a; melhor = d2; }
   }
   return perto;
+}
+
+const Alvo *alvoDoToque( const Alvo *alvos, int n, int16_t x, int16_t y ) {
+  const Alvo *a = alvoEm( alvos, n, x, y );
+  return a && a->tipo == ALVO_INERTE ? nullptr : a;
 }
 
 void copiar( char *dst, const char *src, int cap ) {

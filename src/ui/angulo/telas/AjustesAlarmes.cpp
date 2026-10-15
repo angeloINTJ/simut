@@ -172,12 +172,12 @@ int alvosLimites( const VmLimites &vm, Alvo *out ) {
   const LayoutLimites l = layoutLimites( vm );
   int n = addAlvo( out, 0, caixaVoltar( ), LIMITES_VOLTAR );
   for ( int r = 0; r < 2; r++ ) {
-    if ( l.menosAtivo[r] ) n = addAlvo( out, n, l.cartao[r].menos, LIMITES_MENOS, r );
-    if ( l.maisAtivo[r] ) n = addAlvo( out, n, l.cartao[r].mais, LIMITES_MAIS, r );
+    n = addAlvoSe( out, n, l.menosAtivo[r], l.cartao[r].menos, LIMITES_MENOS, (int16_t)r );
+    n = addAlvoSe( out, n, l.maisAtivo[r], l.cartao[r].mais, LIMITES_MAIS, (int16_t)r );
   }
   if ( l.temPag ) {
-    if ( l.anteriorAtivo ) n = addAlvo( out, n, alvoPagina( l.pagAnterior ), LIMITES_PAG_ANTERIOR );
-    if ( l.proximaAtivo ) n = addAlvo( out, n, alvoPagina( l.pagProxima ), LIMITES_PAG_PROXIMA );
+    n = addAlvoSe( out, n, l.anteriorAtivo, alvoPagina( l.pagAnterior ), LIMITES_PAG_ANTERIOR );
+    n = addAlvoSe( out, n, l.proximaAtivo, alvoPagina( l.pagProxima ), LIMITES_PAG_PROXIMA );
   }
   n = addAlvo( out, n, l.rodape.secundaria, LIMITES_CANCELAR );
   return addAlvo( out, n, l.rodape.primaria, LIMITES_SALVAR );
@@ -222,13 +222,12 @@ int alvosManutencao( const VmManutencao &vm, Alvo *out ) {
   int n = addAlvo( out, 0, caixaVoltar( ), MANUT_VOLTAR );
   if ( !vm.aberta ) {
     for ( int r = 0; r < 2; r++ ) {
-      if ( l.menosAtivo[r] ) n = addAlvo( out, n, l.cartao[r].menos, MANUT_MENOS, r );
-      if ( l.maisAtivo[r] ) n = addAlvo( out, n, l.cartao[r].mais, MANUT_MAIS, r );
+      n = addAlvoSe( out, n, l.menosAtivo[r], l.cartao[r].menos, MANUT_MENOS, (int16_t)r );
+      n = addAlvoSe( out, n, l.maisAtivo[r], l.cartao[r].mais, MANUT_MAIS, (int16_t)r );
     }
     n = addAlvo( out, n, l.rodape.secundaria, MANUT_CANCELAR );
   }
-  if ( l.primariaAtiva ) n = addAlvo( out, n, l.rodape.primaria, vm.aberta ? MANUT_ENCERRAR : MANUT_INICIAR );
-  return n;
+  return addAlvoSe( out, n, l.primariaAtiva, l.rodape.primaria, vm.aberta ? MANUT_ENCERRAR : MANUT_INICIAR );
 }
 
 }  // namespace tela

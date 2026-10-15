@@ -101,8 +101,8 @@ bool DisplayManager::uaMontarGraficos( UaQuadro &q ) {
 
     case MODE_GRAPH_LOADING: {
       /* What the screen says it is loading. Core 0 asks for it with
-       * requestLoadingScreen( ) and no arguments (AppManager_Events.cpp:168
-       * and :230), right after taking EVT_OPEN_GRAPH or EVT_CALENDAR_DAY off
+       * requestLoadingScreen( ) and no arguments (in the EVT_OPEN_GRAPH
+       * and EVT_CALENDAR_DAY branches of AppManager::core0Yield( ), AppManager_Events.cpp), right after taking the event off
        * the ring, so the event that asked is the last one Core 0 consumed: its
        * sensor and, for a day, the 24 h that is forced. The request arrives
        * with _loadingDrawn = false, which marks it fresh; the pair is kept
@@ -128,7 +128,7 @@ bool DisplayManager::uaMontarGraficos( UaQuadro &q ) {
       vm.fase = (uint8_t)( ( millis( ) / 250 ) % FASES_CARREGANDO );
       uaUsar<VmCarregando, desenharCarregando, alvosCarregando>( q, vm );
       /* The notice drawLoadingScreen( ) gave Core 0, which waits for it up to
-       * 500 ms before it reads the history (AppManager_Events.cpp:169-173):
+       * 500 ms before it reads the history (the same EVT_OPEN_GRAPH branch of AppManager::core0Yield( )):
        * uiPass( ) takes the request that called it, so this is where it is given
        * (drawLoadingScreen( ) was the old place). */
       _loadingDrawn = true;
@@ -166,8 +166,7 @@ bool DisplayManager::uaMontarGraficos( UaQuadro &q ) {
 }
 
 /* The touch zones of these modes, for the filters (acceptTouch( ) once a
- * press, acceptHoldTouch( ) repeating every 300 ms, acceptSlideTouch( ) again
- * on a new zone). The old branches used 0, 10..13 and 20, 21 (the months). */
+ * press, acceptHoldTouch( ) repeating every 300 ms). The old branches used 0, 10..13 and 20, 21 (the months). */
 namespace {
 constexpr uint8_t ZONA_VOLTAR = 0xA0, ZONA_DIA = 0xA1, ZONA_PERIODO = 0xA2, ZONA_ANTERIOR = 0xA3, ZONA_SEGUINTE = 0xA4, ZONA_AREA = 0xA5,
                   ZONA_PAGINA = 0xA6, ZONA_MES_ANTERIOR = 0xA7, ZONA_MES_SEGUINTE = 0xA8, ZONA_DIA_DO_MES = 0xA9, ZONA_HOJE = 0xAA;
@@ -179,8 +178,8 @@ UaToque DisplayManager::uaToqueGraficos( const ua::Alvo *a, int16_t &x, int16_t 
   (void)y;
   switch ( _uiMode ) {
     /* Controller: each target does what the old branch did for the same
-     * request (the graph branches of handleTouch( ) in DisplayManager_Touch.cpp), and a touch outside any
-     * target is dead, as the gaps between the old buttons were. */
+     * request (the graph branches of handleTouch( ) in DisplayManager_Touch.cpp), and a touch farther than FOLGA_TOQUE
+     * from every target, or on an inert one, is dead, as the gaps between the old buttons were. */
     case MODE_GRAPH_VIEW: {
       if ( !a ) return UaToque::TRATADO;
       switch ( a->tipo ) {
@@ -217,7 +216,7 @@ UaToque DisplayManager::uaToqueGraficos( const ua::Alvo *a, int16_t &x, int16_t 
           actGraphPeriod( _graphData, a->indice );
           break;
         case GRF_AREA:
-          /* The central zone opens the detail on the temperature (the branch's central zone). */
+          /* The central band opens the detail on the temperature, wherever in it the finger lands (the branch's "Tap on central zone"). */
           if ( !acceptTouch( ZONA_AREA ) ) break;
           actGraphDetailOpen( );
           break;
@@ -228,9 +227,8 @@ UaToque DisplayManager::uaToqueGraficos( const ua::Alvo *a, int16_t &x, int16_t 
     }
 
     /* The detail: the pager changes the quantity, "Voltar" goes back to the
-     * chart. The old screen had no pager: a tap on its middle cycled the pages
-     * and the last one went back to the chart (the MODE_GRAPH_DETAIL branch of handleTouch( ), DisplayManager_Touch.cpp);
-     * its close went to the panel, which "Voltar" no longer does. */
+     * chart, and a tap on the cards cycles the pages as the old screen's did (below). The old close went
+     * to the panel, which "Voltar" no longer does. */
     case MODE_GRAPH_DETAIL: {
       if ( !a ) return UaToque::TRATADO;
       switch ( a->tipo ) {
@@ -240,13 +238,25 @@ UaToque DisplayManager::uaToqueGraficos( const ua::Alvo *a, int16_t &x, int16_t 
           actDetailBack( );
           break;
         case DET_PAG_ANTERIOR:
-        case DET_PAG_PROXIMA: {
-          if ( !acceptTouch( ZONA_PAGINA ) ) break;
+        case DET_PAG_PROXIMA:
+        case DET_AREA: {
+          if ( !acceptTouch( a->tipo == DET_AREA ? ZONA_AREA : ZONA_PAGINA ) ) break;
           uint8_t paginas[3];
           const int n = ua::cola::paginasDoDetalhe( _graphData, _currentMinHum, paginas );
           int k = 0;
           for ( int j = 0; j < n; j++ )
             if ( paginas[j] == _detailPage ) k = j;
+          if ( a->tipo == DET_AREA ) {
+            /* A tap on the cards, anywhere in the band, as the original's "Tap on central zone" in the MODE_GRAPH_DETAIL branch of
+             * handleTouch( ) (DisplayManager_Touch.cpp) did, in this order: temperature, then humidity (if the sensor has it now),
+             * then pressure (if it has it) (paginasDoDetalhe( ) lists the pages it has, in that order), then back to the chart
+             * (actDetailBack( )) after the last page; a sensor with one page goes back at the first tap. The page without readings
+             * answers the same way. acceptTouch( ) accepts once per press whatever the zone, so the press that opened the detail from the
+             * chart's band does not also turn its page (the original used acceptTouch( 10 ) on both screens). */
+            if ( k + 1 < n ) actDetailPage( paginas[k + 1] );
+            else actDetailBack( );
+            break;
+          }
           k += a->tipo == DET_PAG_PROXIMA ? 1 : -1;
           if ( k < 0 || k >= n ) break;
           actDetailPage( paginas[k] );   /* with the repaint request the old cycling raised, which actDetailPage( ) holds */
@@ -268,14 +278,18 @@ UaToque DisplayManager::uaToqueGraficos( const ua::Alvo *a, int16_t &x, int16_t 
           actCalendarBack( );
           break;
         case CAL_MES_ANTERIOR:
-          /* The month before (the header's left arrow and the bottom bar's). */
-          if ( !acceptSlideTouch( ZONA_MES_ANTERIOR ) ) break;
+          /* The month before (the header's left arrow and the bottom bar's). One tap is one month: acceptTouch( ), not the slide gate, which
+           * accepts again every time the finger crosses into the other zone. The original's two month zones were far apart (the header's left
+           * corner and the footer's ends, with the Today button between them); the Ângulo's two arrows are adjacent (137..176 and 177..216,
+           * no gap), and a resistive panel's reading wanders by a few pixels, so a finger resting on their common edge flipped the month
+           * back and forth. */
+          if ( !acceptTouch( ZONA_MES_ANTERIOR ) ) break;
           pedirDados( MODE_CALENDAR, ua::cola::assinaturaDoCalendario( _calYear, _calMonth, _calDaysMask ) );
           actCalendarMonth( _graphData, -1 );
           break;
         case CAL_MES_SEGUINTE:
           /* The month after, which the screen offers only before the current one (the header's right arrow and the bottom bar's). */
-          if ( !acceptSlideTouch( ZONA_MES_SEGUINTE ) ) break;
+          if ( !acceptTouch( ZONA_MES_SEGUINTE ) ) break;
           pedirDados( MODE_CALENDAR, ua::cola::assinaturaDoCalendario( _calYear, _calMonth, _calDaysMask ) );
           actCalendarMonth( _graphData, +1 );
           break;
@@ -288,7 +302,7 @@ UaToque DisplayManager::uaToqueGraficos( const ua::Alvo *a, int16_t &x, int16_t 
         case CAL_HOJE:
           /* Today: the chart at the present, on the period it had (the bottom bar's Today). The
            * calendar is not a graph mode, so Core 0 answers with the loading
-           * screen here too (AppManager_Events.cpp:163-175): no busy line. */
+           * screen here too (the EVT_OPEN_GRAPH branch of AppManager::core0Yield( ), AppManager_Events.cpp): no busy line. */
           if ( !acceptTouch( ZONA_HOJE ) ) break;
           actCalendarToday( _graphData );
           break;

@@ -47,7 +47,8 @@ edite `tools/tft_ui/gerar_meta.js`: diga no relatório (o integrador acrescenta 
    `bool`, enums, arrays), **nenhum ponteiro**; quem preenche zera com `memset` antes. Textos UTF-8.
 3. Uma função de leiaute interna (`layout<Tela>( const Vm& )`) calcula todas as caixas; `desenhar` e
    `alvos` usam a mesma. Alvos: enum próprio da tela (`0` = nada), `indice` = linha, tecla, coluna.
-   Lista só alvos **ativos** (um botão desabilitado não é alvo; com um popup aberto, só o popup).
+   Lista os alvos **ativos**; um controle desenhado desabilitado entra como alvo **inerte** (tipo 0, "Alvo inerte" em "Qual alvo
+   responde"); com um popup aberto, as teclas do popup e, inertes, os controles que ficam à vista atrás dele.
 4. O fundo já vem pintado com `T.fundo`; a tela pinta o resto. Cores só por papel do tema
    (`p.t( ).acento`…), nunca literal. Espaços da grade de 4 px (`ESP1`..`ESP7`, `PAD`, `Y0`, `H_STATUS`).
    Raios do kit (`RAIO_CONTROLE` 6, `RAIO_CARTAO` 12, `RAIO_TOTAL`). Sem sombra em cartão.
@@ -195,7 +196,7 @@ são 3 por página (`LISTA_FILAS_2`): no piso de 9 pt, duas linhas de maiúscula
   **Manutenção** (linha de 48 px: o estado, "1 h 30 min restantes" ou "Desligada", na segunda linha, sob
   o rótulo, em âmbar com a janela aberta; chevron) e a nota "Ligar ou desligar alarmes vale na hora."
   Sem a permissão daquela linha:
-  linha desabilitada com cadeado (LOCK 20) e não é alvo. Amostras: tudo liberado; alarmes desligados;
+  linha desabilitada com cadeado (LOCK 20) e alvo inerte. Amostras: tudo liberado; alarmes desligados;
   manutenção aberta; conta sem permissão de bloqueio.
 - **Status do sistema (`VmStatusSistema`)**: 4 páginas (Sistema, Rede, Sensores, Telemetria), título
   "Status · Sistema" etc., até 6 linhas de 24 px chave/valor como o plano; valores do levantamento §5
@@ -374,15 +375,50 @@ euclidiana, em pixels, do ponto ao pixel mais próximo do retângulo; o primeiro
 `FOLGA_TOQUE` = **12 px**; em empate, vale o primeiro da lista; a mais de 12 px de todos, `nullptr`. O 12 é valor de
 projeto, não medida: o dedo cobre uns 9 mm (uns 40 px neste painel de 3,5 pol.) e a calibração do resistivo erra alguns
 pixels, mais perto das bordas. **A bancada confere**: tocar nas faixas entre controles, a 1 e a 12 px das bordas dos botões
-pequenos e nos cantos do vidro. Um controle desabilitado ou ausente não entra na lista e nunca recebe o toque, mas o vizinho
-habilitado recebe o toque que cair a até 12 px dele, inclusive sobre a borda do desabilitado. `python3 tools/tft_ui/test_alvos.py`
-prova a regra (22 casos e 8 mutantes, cada um reprovado por pelo menos um caso). Os botões da barra de título (`Voltar`,
+pequenos e nos cantos do vidro. Um controle ausente (que a tela não desenha) não entra na lista; um controle desenhado
+**desabilitado** entra como alvo **inerte** (abaixo). `python3 tools/tft_ui/test_alvos.py` prova a regra (31 casos e 10 mutantes,
+cada um reprovado por pelo menos um caso, 2026-10-15). Os botões da barra de título (`Voltar`,
 `Dia`, mês anterior e seguinte) têm retângulo de toque da altura da barra e mais 4 px: 32 px nos gráficos e no calendário
 (o primeiro texto deles tem tinta a partir de y 34, e o arnês reprova texto que cruza a borda de um alvo) e 36 px, até o
 `Y0`, nos menus e nos ajustes (nas contas já era); a ação da direita vai até a borda do vidro. As setas do pager dos
 limites, desenhadas com 28 px, têm alvo de 36 px.
 
-**Tocar.** `a` é o alvo do quadro que está no vidro (ou `nullptr`, toque que não cai em nenhum alvo nem a 12 px de um). Por modo:
+**Alvo inerte.** Um controle desenhado desabilitado entra na lista com o tipo `ALVO_INERTE` (0: todo enum de tela começa em
+`XXX_NADA = 0`) e o retângulo que teria habilitado (na barra de título, o retângulo de toque, não os 20 px do desenho). Ele
+participa como qualquer outro, então o toque sobre ele, ou na faixa entre ele e o vizinho, é dele e não cai no vizinho habilitado.
+Sem isso, no gráfico no presente, a parte esquerda da seta › apagada (276,196 36x40) respondia o chip "7 d" (228,196 40x40) e, na
+primeira página do detalhe, a ‹ apagada respondia a ›, o sentido contrário. Para o glue, `ua::alvoDoToque( )` devolve `nullptr`
+no alvo inerte, a mesma zona morta que todo tratador já resolve sem fazer nada: nenhum filtro `accept*Touch` (sem bipe, como as
+zonas mortas do original), nenhuma linha de ocupado, nenhuma ação (o teclado de PIN, que fecha o popup num ponto fora das teclas,
+continua fechando). O arnês confere: o kit e as telas registram cada controle que desenham (`UA_CONTROLE`, só na compilação do
+host, sem código no firmware) e `host_telas.py` reprova a amostra com um controle que não está inteiro dentro de algum alvo, ou
+desenhado habilitado e coberto só por alvos inertes (136 falhas nos seis grupos antes dos alvos inertes, 0 depois, 2026-10-15). O
+que o kit desenha e não é controle diz isso na chamada, com `UA_NAO_CONTROLE( "motivo" )`. O arnês só enxerga o que o kit desenha
+e os controles que as telas desenham à mão e anotam (chips de período do gráfico, botões do painel, segmentos dos ajustes): um
+controle novo desenhado à mão precisa da mesma anotação.
+
+**Alcance real.** Um alvo responde a até 12 px do seu retângulo, onde nenhum outro está mais perto; um conteúdo que não é alvo
+responde ao alvo mais perto. É intencional: as zonas do original eram faixas contíguas em que todo pixel respondia alguma coisa.
+Os casos: as estatísticas do gráfico estão dentro da faixa central (abaixo) e abrem o detalhe; a fileira dos dias da semana do
+calendário (y 32 a 47) responde às setas de mês ou ao "Voltar" acima dela, ou às células de dia abaixo, o que estiver mais
+perto. Os alvos da barra de título terminam em y 31 (32 px de altura) porque a tinta do primeiro texto abaixo (as estatísticas, os
+dias da semana) começa em y 34 e o arnês reprova texto que cruza a borda de um alvo; a folga os estende até y 43.
+
+**Faixa central do gráfico e do detalhe.** O original respondia todo pixel de 0,40 320x155 ("Tap on central zone" em
+`DisplayManager_Touch.cpp`); `GRF_AREA` (gráfico) e `DET_AREA` (detalhe, o último do enum, para os números que a bancada usa não
+mudarem) são a faixa 0,32 320x164, de logo abaixo dos alvos da barra de título (y 31) até logo acima do rodapé (y 196), sem
+sobrepor nenhum outro alvo. No gráfico ela abre o detalhe na temperatura. No detalhe um toque nos cartões vira a página, na ordem
+do ramo MODE_GRAPH_DETAIL do original: temperatura, umidade (se o sensor tem agora), pressão (se tem) e, depois da última, volta ao
+gráfico; o sensor de uma página volta ao gráfico no primeiro toque, e a página sem leituras responde igual. `acceptTouch( )`
+aceita uma vez por pressão, qualquer que seja a zona, então o toque que abriu o detalhe não vira a página (o original usava
+`acceptTouch( 10 )` nas duas telas). `‹`, `›` e "Voltar" ficam como estavam.
+
+**Setas de mês do calendário.** `CAL_MES_ANTERIOR` e `CAL_MES_SEGUINTE` valem um toque (`acceptTouch( )`), não um deslize:
+`acceptSlideTouch( )` aceita de novo cada vez que o dedo passa para outra zona. As duas zonas do original ficavam longe uma da
+outra; as setas do Ângulo são vizinhas (137..176 e 177..216, sem vão) e a leitura do resistivo oscila uns pixels, então um dedo
+parado na borda comum virava o mês para um lado e para o outro.
+
+**Tocar.** `a` é o alvo do quadro que está no vidro (ou `nullptr`, que `alvoDoToque( )` entrega para o toque a mais de 12 px de todos os alvos e para o toque num alvo inerte). Por modo:
 - **Tradução (T):** escreva em `x, y` o centro do elemento equivalente no leiaute antigo e devolva
   `UaToque::TRADUZIDO`; o ramo antigo de `handleTouch` roda com esse ponto. Com `a == nullptr`, devolva
   `TRATADO` (zona morta). O toque longo, a repetição e o deslizar continuam funcionando porque o mesmo alvo

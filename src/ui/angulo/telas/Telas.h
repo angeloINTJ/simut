@@ -24,13 +24,24 @@
 namespace ua {
 
 // A touch target: a box and what it means to its screen. `tipo` is the
-// screen's own enum (0 is never a target); `indice` a row, key or column
+// screen's own enum, whose 0 is ALVO_INERTE; `indice` a row, key or column
 // (-1 when the type says it all).
 struct Alvo {
   int16_t x, y, w, h;
   uint8_t tipo;
   int16_t indice;
 };
+
+// The type of a control that is drawn but cannot be pressed now: a disabled button, the arrow of a pager that has
+// nowhere to go. Every screen's enum starts with XXX_NADA = 0, so the type needs no new number, and the screen lists
+// the control with the box it would have enabled. Without it a touch on the greyed control was answered by the
+// nearest enabled one within FOLGA_TOQUE: on the chart at the present the left part of the greyed next arrow
+// (276,196 36x40) answered the "7 d" chip beside it (228,196 40x40), and on the detail's first page the greyed
+// previous arrow answered the next one, the opposite direction (tools/tft_ui/test_alvos.py reproduces both).
+// alvoEm( ) treats an inert target like any other; what the glue does with its answer is nothing (alvoDoToque( )).
+// tools/tft_ui/host_telas.py fails a sample that draws a control with no target, or an enabled one held only by
+// inert targets, and reads this number from here.
+constexpr uint8_t ALVO_INERTE = 0;
 
 // More than any screen has (the PIN keypad's 18 cards and its chrome).
 constexpr int MAX_ALVOS = 48;
@@ -40,13 +51,18 @@ int addAlvo( Alvo *out, int n, int16_t x, int16_t y, int16_t w, int16_t h, uint8
 inline int addAlvo( Alvo *out, int n, const Caixa16 &c, uint8_t tipo, int16_t indice = -1 ) {
   return addAlvo( out, n, c.x, c.y, c.w, c.h, tipo, indice );
 }
+// A control that is live (type `tipo`, with its `indice`) or drawn disabled: the same box either way, and the disabled one is
+// listed inert (ALVO_INERTE, no index), so that a touch on it does nothing and does not fall to a neighbour.
+inline int addAlvoSe( Alvo *out, int n, bool viva, const Caixa16 &c, uint8_t tipo, int16_t indice = -1 ) {
+  return addAlvo( out, n, c, viva ? tipo : ALVO_INERTE, viva ? indice : (int16_t)-1 );
+}
 
 // How far outside every target a touch still answers the nearest one, in pixels. A design value, not a
 // measurement: a finger covers about 9 mm (about 40 px on this 3.5-inch 320 x 240 panel) and the resistive
 // panel's calibration is off by a few pixels, more near the edges, so a touch that lands in the gap between two
 // controls or just outside a small one is a touch that meant one of them. Small enough that two controls 8 px
-// apart still split the gap between them, and that a touch in a blank area (12 px from every target) answers
-// nothing. The bench is what checks it (tools/tft_ui/ESPEC_UI_A.md); tools/tft_ui/test_alvos.py pins the number.
+// apart still split the gap between them, and that a touch in a blank area (more than 12 px from every target)
+// answers nothing. The bench is what checks it (tools/tft_ui/ESPEC_UI_A.md); tools/tft_ui/test_alvos.py pins the number.
 constexpr int16_t FOLGA_TOQUE = 12;
 
 // The target that answers a touch at (x, y), or nullptr.
@@ -54,8 +70,17 @@ constexpr int16_t FOLGA_TOQUE = 12;
 //    over its keypad).
 //  - Outside every target: the one whose box is NEAREST to the point (Euclidean distance in pixels, from the
 //    point to the box's nearest pixel), if that is at most FOLGA_TOQUE; a tie goes to the first listed.
-// A disabled or absent control is not in the list (see the screens' alvos*( )), so it never catches a touch.
+// A control drawn disabled is in the list as an inert target (ALVO_INERTE, with the box it would have enabled) and
+// takes part like any other: a touch on it is answered by it, so it does not fall to an enabled neighbour within the
+// slop. A control that is not drawn at all is not in the list. What an inert answer means is alvoDoToque( )'s. A box with no
+// pixel (w or h not above 0) is never an answer: it cannot be hit inside, so it cannot be the nearest either.
 const Alvo *alvoEm( const Alvo *alvos, int n, int16_t x, int16_t y );
+
+// The target a touch means to the glue (DisplayManager::uaToque( )): alvoEm( )'s answer, except that an inert target
+// gives nullptr, which is how every handler already reads a touch outside every target: nothing happens, no gate is
+// called (no touch sound, as the original's dead zones), no busy line is raised. One place for all the screens, so a
+// handler cannot forget the inert type. tools/tft_ui/test_alvos.py tests it and bites it.
+const Alvo *alvoDoToque( const Alvo *alvos, int n, int16_t x, int16_t y );
 
 // Copies at most cap - 1 bytes of a UTF-8 string, never cutting a sequence,
 // and terminates it. For the view models' fixed arrays.

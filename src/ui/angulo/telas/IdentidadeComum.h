@@ -131,13 +131,12 @@ inline void desenharBarra( Pintor &p, const Barra &b, const AcaoBarra *acoes, co
 // A bar button is drawn 20 px tall, too small for a finger: its target is the
 // whole bar (y 0 to Y0), reaching half the gap to its neighbour, and the last
 // one reaches the edge of the glass. `tipos[i]` is the action's target type;
-// an action that is not `ativa` is not a target. Returns the new count.
+// an action that is not `ativa` is drawn disabled and listed inert, with the box it would have. Returns the new count.
 inline int addAlvosBarra( Alvo *out, int n, const Barra &b, const uint8_t *tipos, const bool *ativa ) {
   for ( int i = 0; i < b.n; i++ ) {
-    if ( !ativa[i] ) continue;
     const int16_t x0 = i == 0 ? (int16_t)( b.caixas[i].x - ESP2 ) : (int16_t)( b.caixas[i].x - ESP1 );
     const int16_t x1 = i == b.n - 1 ? 320 : (int16_t)( b.caixas[i + 1].x - ESP1 );
-    n = addAlvo( out, n, x0, 0, (int16_t)( x1 - x0 ), Y0, tipos[i] );
+    n = addAlvo( out, n, x0, 0, (int16_t)( x1 - x0 ), Y0, ativa[i] ? tipos[i] : ALVO_INERTE );
   }
   return n;
 }
@@ -148,7 +147,7 @@ inline int addAlvosBarra( Alvo *out, int n, const Barra &b, const uint8_t *tipos
 
 // The kit's pager always draws both arrows alive. At the first and the last
 // page the arrow that goes nowhere is drawn dimmed over it (the kit has no
-// disabled state per arrow), and it is not a target.
+// disabled state per arrow), and it is an inert target.
 inline void paginadorEstado( Pintor &p, int16_t pagina, int16_t total ) {
   const Tema &T = p.t( );
   paginador( p, (int16_t)( pagina + 1 ), total );
@@ -164,11 +163,10 @@ inline void paginadorEstado( Pintor &p, int16_t pagina, int16_t total ) {
   }
 }
 
-// The pager's targets: an arrow is one only when it goes somewhere.
+// The pager's targets: an arrow that goes nowhere is listed inert, where it is drawn dimmed.
 inline int addAlvosPaginador( Alvo *out, int n, int pagina, int paginas, uint8_t anterior, uint8_t proxima ) {
-  if ( pagina > 0 ) n = addAlvo( out, n, paginadorEsquerda( ), anterior );
-  if ( pagina + 1 < paginas ) n = addAlvo( out, n, paginadorDireita( ), proxima );
-  return n;
+  n = addAlvoSe( out, n, pagina > 0, paginadorEsquerda( ), anterior );
+  return addAlvoSe( out, n, pagina + 1 < paginas, paginadorDireita( ), proxima );
 }
 
 // The footer of the editors: the primary action at the right, the discreet

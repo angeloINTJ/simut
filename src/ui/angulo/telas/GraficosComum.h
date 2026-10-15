@@ -42,6 +42,12 @@ void conferirCaixas( const char *tela, const Caixa16 *kit, const Caixa16 *meu, i
 inline void conferirCaixas( const char *, const Caixa16 *, const Caixa16 *, int ) { }
 #endif
 
+// The band between the title bar's targets (they end at y 31) and the footer (y 196): the chart and the detail answer every
+// pixel of it, as the original's central zone did (0,40 320x155, "Tap on central zone" in DisplayManager_Touch.cpp), not only the
+// card or the cards. It overlaps no other target, so no touch in it can reach a control by the last-listed rule.
+constexpr int16_t Y_BANDA = H_BARRA + ESP1, Y_RODAPE = 196;
+inline Caixa16 bandaCentral( ) { return Caixa16{ 0, Y_BANDA, 320, (int16_t)( Y_RODAPE - Y_BANDA ) }; }
+
 // A title bar action's touch target: the drawn box is 20 px tall, so the target
 // takes the whole bar and 4 px under its line, and 4 px at each side, where the
 // neighbours' targets meet it without overlapping; the action at the right margin

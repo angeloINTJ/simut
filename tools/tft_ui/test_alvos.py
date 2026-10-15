@@ -1,18 +1,24 @@
 #!/usr/bin/env python3
-"""test_alvos.py — proves ua::alvoEm( ), the touch hit test of the Angulo screens, on the host.
+"""test_alvos.py — proves ua::alvoEm( ) and ua::alvoDoToque( ), the touch hit test of the Angulo screens, on the host.
 
 Builds tools/tft_ui/host/test_alvos_main.cpp with src/ui/angulo/telas/Telas.cpp (the real one), the
 kit (Angulo.cpp) and Adafruit GFX 1.12.6 (the tree's .pio/libdeps, as tools/tft_ui/host_ui.py finds
 it) and runs its cases: a touch inside a box (the last listed wins where boxes overlap), in a dead band
 between two boxes (the nearer wins, whichever is listed first), just outside an edge (12 px answers,
 13 px does not), at a corner (the slop is a distance, not a margin per axis), a tie (the first listed),
-an empty list, a target left out of the list, and extreme coordinates.
+an empty list, a target left out of the list, extreme coordinates, a box with no pixel, a control drawn
+disabled (an inert target, type 0: a touch on it, or in the gap beside it, is its own, and the enabled
+neighbour answers it only when the inert one is left out of the list), what the glue is handed
+(alvoDoToque( ): an inert answer is nobody) and the chart's band.
 
-Then the instrument is bitten: a copy of Telas.cpp with one change at a time to the hit test (the slop
-compared with < instead of <=, per axis instead of Euclidean, the nearest replaced by the first within
-the slop, the slop ignored, and three more: a tie to the last, the overlap to the first, the far edge
-one pixel short) is built with the same main, and every one of them must fail at least one case. A
-mutant that passes, or a line to change that is not found exactly once, fails this script.
+Then the instrument is bitten: a copy of Telas.cpp with one change at a time is built with the same
+main, and every one of them must fail at least one case. The ten changes: (1) the slop compared with
+< instead of <=; (2) per axis (the larger offset) instead of Euclidean; (3) the distance not checked,
+each axis within the slop being enough; (4) the nearest replaced by the first within the slop; (5) the
+slop ignored; (6) a tie to the last listed; (7) the overlap to the first listed; (8) the far edge one
+pixel short; (9) a box with no pixel allowed to be the nearest; (10) alvoDoToque( ) handing the glue
+the inert target. A mutant that passes, or a line to change that is not found exactly once, fails
+this script.
 
 Usage: python3 tools/tft_ui/test_alvos.py   exit 0 when the cases pass and every mutant fails,
 1 when not, 2 when it cannot build.
@@ -37,6 +43,8 @@ L_AXIS = '    if ( dx > FOLGA_TOQUE || dy > FOLGA_TOQUE ) continue;'
 L_DIST = '    const int32_t d2 = dx * dx + dy * dy;'
 L_EUCL = '    if ( d2 > FOLGA_TOQUE * FOLGA_TOQUE ) continue;'
 L_NEAR = '    if ( !perto || d2 < melhor ) { perto = &a; melhor = d2; }'
+L_VAZIA = '    if ( a.w <= 0 || a.h <= 0 ) continue;'
+L_INERTE = '  return a && a->tipo == ALVO_INERTE ? nullptr : a;'
 
 MUTANTES = [
     ('the slop compared with < instead of <=',
@@ -55,6 +63,10 @@ MUTANTES = [
      [(L_LOOP, '  for ( int i = 0; i < n; i++ ) {')]),
     ('the far edge measured one pixel short',
      [(L_FAR, 'p - ( a + w )')]),
+    ('a box with no pixel can be the nearest',
+     [(L_VAZIA, '    if ( false ) continue;')]),
+    ('the glue is handed the inert target',
+     [(L_INERTE, '  return a;')]),
 ]
 
 

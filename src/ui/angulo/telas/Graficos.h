@@ -89,8 +89,9 @@ struct VmGrafico {
   int16_t bMax[GRAFICO_BALDES];
   int16_t bMedia2[GRAFICO_BALDES];
 };
-// `indice` of GRF_PERIODO is the period, 0..4. GRF_SEGUINTE exists only when
-// the view is in the past; GRF_AREA is the whole chart card.
+// `indice` of GRF_PERIODO is the period, 0..4. GRF_SEGUINTE is live only when
+// the view is in the past (at the present the arrow is drawn disabled and listed inert); GRF_AREA is the band between the title
+// bar and the footer, 0,32 320x164, as the original's central zone was.
 enum AlvoGrafico : uint8_t { GRF_NADA, GRF_VOLTAR, GRF_DIA, GRF_PERIODO, GRF_ANTERIOR, GRF_SEGUINTE, GRF_AREA };
 void desenharGrafico( Pintor &p, const VmGrafico &vm );
 int alvosGrafico( const VmGrafico &vm, Alvo *out );
@@ -116,7 +117,9 @@ struct VmDetalhe {
   uint8_t paginas;       // 1..3: the temperature, then the humidity and the pressure the sensor has
   EstatDetalhe est[3];
 };
-enum AlvoDetalhe : uint8_t { DET_NADA, DET_VOLTAR, DET_PAG_ANTERIOR, DET_PAG_PROXIMA };
+// DET_AREA is the same band as the chart's: a tap on the cards turns the page. It comes last so that the numbers the bench walk
+// uses do not move. The pager's arrow that has nowhere to go is listed inert.
+enum AlvoDetalhe : uint8_t { DET_NADA, DET_VOLTAR, DET_PAG_ANTERIOR, DET_PAG_PROXIMA, DET_AREA };
 void desenharDetalhe( Pintor &p, const VmDetalhe &vm );
 int alvosDetalhe( const VmDetalhe &vm, Alvo *out );
 
@@ -132,7 +135,8 @@ struct VmCalendario {
   bool ocupado;          // another month was asked for and the Core 0 is reading it: a line under the title bar
   uint32_t dias;         // bit d (1..31) set: day d has history (getHistoryDaysMask( ))
 };
-// `indice` of CAL_DIA is the day, 1..31; only days with history are targets.
+// `indice` of CAL_DIA is the day, 1..31; only days with history are targets. CAL_MES_SEGUINTE is live only before the current
+// month; in it the arrow is drawn disabled and listed inert.
 enum AlvoCalendario : uint8_t { CAL_NADA, CAL_VOLTAR, CAL_MES_ANTERIOR, CAL_MES_SEGUINTE, CAL_DIA, CAL_HOJE };
 void desenharCalendario( Pintor &p, const VmCalendario &vm );
 int alvosCalendario( const VmCalendario &vm, Alvo *out );

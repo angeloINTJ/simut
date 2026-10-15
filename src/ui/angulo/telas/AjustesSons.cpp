@@ -186,12 +186,12 @@ int alvosSons( const VmSons &vm, Alvo *out ) {
   }
   if ( l.pagina == SONS_PAGINAS - 1 ) {
     for ( int i = 0; i < 2; i++ ) {
-      if ( l.menosAtivo[i] ) n = addAlvo( out, n, l.menos[i], SONS_MENOS, i );
-      if ( l.maisAtivo[i] ) n = addAlvo( out, n, l.mais[i], SONS_MAIS, i );
+      n = addAlvoSe( out, n, l.menosAtivo[i], l.menos[i], SONS_MENOS, (int16_t)i );
+      n = addAlvoSe( out, n, l.maisAtivo[i], l.mais[i], SONS_MAIS, (int16_t)i );
     }
   }
-  if ( l.anteriorAtivo ) n = addAlvo( out, n, paginadorEsquerda( ), SONS_PAG_ANTERIOR );
-  if ( l.proximaAtivo ) n = addAlvo( out, n, paginadorDireita( ), SONS_PAG_PROXIMA );
+  n = addAlvoSe( out, n, l.anteriorAtivo, paginadorEsquerda( ), SONS_PAG_ANTERIOR );
+  n = addAlvoSe( out, n, l.proximaAtivo, paginadorDireita( ), SONS_PAG_PROXIMA );
   return addAlvo( out, n, paginadorAcao( l.salvar ), SONS_SALVAR );
 }
 

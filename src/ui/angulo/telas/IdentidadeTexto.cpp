@@ -241,19 +241,15 @@ int alvosTexto( const VmTexto &vm, Alvo *out ) {
   const bool ativa[1] = { true };
   int n = addAlvosBarra( out, 0, l.barra, tipos, ativa );
   if ( vm.secreto ) n = addAlvo( out, n, l.ver, TXT_VER );
-  if ( !l.cheio ) {
-    for ( int r = 0; r < 3; r++ )
-      for ( int c = 0; c < l.nFila[r]; c++ ) n = addAlvo( out, n, crescer( l.teclas[r][c] ), TXT_TECLA, (int16_t)( r * 10 + c ) );
-  }
+  // A full field draws its keys disabled and an empty one its Apagar and Salvar: listed inert, where they are drawn.
+  for ( int r = 0; r < 3; r++ )
+    for ( int c = 0; c < l.nFila[r]; c++ ) n = addAlvoSe( out, n, !l.cheio, crescer( l.teclas[r][c] ), TXT_TECLA, (int16_t)( r * 10 + c ) );
   if ( letras( vm.camada ) ) n = addAlvo( out, n, crescer( l.shift ), TXT_SHIFT );
   else n = addAlvo( out, n, crescer( l.shift ), TXT_CAMADA, (int16_t)destinoEsquerda( vm.camada ) );
   n = addAlvo( out, n, crescer( l.camada ), TXT_CAMADA, (int16_t)destinoSegunda( vm.camada ) );
-  if ( !l.cheio ) n = addAlvo( out, n, crescer( l.espaco ), TXT_ESPACO );
-  if ( !l.vazio ) {
-    n = addAlvo( out, n, crescer( l.apagar ), TXT_APAGAR );
-    n = addAlvo( out, n, crescer( l.salvar ), TXT_SALVAR );
-  }
-  return n;
+  n = addAlvoSe( out, n, !l.cheio, crescer( l.espaco ), TXT_ESPACO );
+  n = addAlvoSe( out, n, !l.vazio, crescer( l.apagar ), TXT_APAGAR );
+  return addAlvoSe( out, n, !l.vazio, crescer( l.salvar ), TXT_SALVAR );
 }
 
 }  // namespace tela

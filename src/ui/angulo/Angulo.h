@@ -99,6 +99,28 @@ uint32_t glifosFaltando( );
 struct TextoDesenhado { int16_t x0, x1, y0, y1; bool selo; char texto[64]; };
 void hostLimparTextos( );
 int hostTextos( const TextoDesenhado **lista );
+
+// Host harness only: every control a finger is meant to press that was drawn since the last
+// hostLimparControles( ): the kit's buttons, keys, switches, segments and chips, and the few a screen draws by
+// hand. Each carries the box it drew and whether it was drawn enabled; host_telas.py holds it to the touch
+// targets of its sample (fully inside some target; an enabled one inside a target that answers, not only inert
+// ones). A control drawn over another of the same box (the disabled arrow over the live one) replaces it.
+// `excluido` is the reason when the call site said that what it drew is not a control (UA_NAO_CONTROLE( )).
+// Not compiled into the firmware: the two macros below are nothing there.
+struct ControleDesenhado { int16_t x, y, w, h; bool habilitado; char tipo[12]; char excluido[64]; };
+void hostLimparControles( );
+int hostControles( const ControleDesenhado **lista );
+void hostControle( int16_t x, int16_t y, int16_t w, int16_t h, bool habilitado, const char *tipo );
+void hostNaoEControle( const char *motivo );
+// A control the kit or a screen has just drawn, for the check above.
+#define UA_CONTROLE( x, y, w, h, habilitado, tipo ) ::ua::hostControle( x, y, w, h, habilitado, tipo )
+// Says, right before a call to a control function, that what it draws is not a control (a decorative pill, a
+// label): the check skips it and counts it. The reason is the argument, so the exclusion is read where it is made.
+#define UA_NAO_CONTROLE( motivo ) ::ua::hostNaoEControle( motivo )
+#else
+// The device: no code and no argument evaluated.
+#define UA_CONTROLE( x, y, w, h, habilitado, tipo ) ( (void)0 )
+#define UA_NAO_CONTROLE( motivo ) ( (void)0 )
 #endif
 
 /* ------------------------------------------------------------------ */

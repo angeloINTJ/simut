@@ -170,9 +170,12 @@ void desenharDetalhe( Pintor &p, const VmDetalhe &vm ) {
 int alvosDetalhe( const VmDetalhe &vm, Alvo *out ) {
   const LayoutDetalhe l = layoutDetalhe( vm );
   int n = addAlvo( out, 0, alvoDaAcao( l.cxVoltar ), DET_VOLTAR );
+  // The cards and the band around them turn the page, on every page and on the empty one (the glue says in which order).
+  n = addAlvo( out, n, bandaCentral( ), DET_AREA );
   if ( l.paginas > 1 ) {
-    if ( l.pagina > 0 ) n = addAlvo( out, n, paginadorEsquerda( ), DET_PAG_ANTERIOR );
-    if ( l.pagina < l.paginas - 1 ) n = addAlvo( out, n, paginadorDireita( ), DET_PAG_PROXIMA );
+    // The arrow that has nowhere to go is drawn disabled: inert, so that a touch on it does not turn the page the other way.
+    n = addAlvoSe( out, n, l.pagina > 0, paginadorEsquerda( ), DET_PAG_ANTERIOR );
+    n = addAlvoSe( out, n, l.pagina < l.paginas - 1, paginadorDireita( ), DET_PAG_PROXIMA );
   }
   return n;
 }

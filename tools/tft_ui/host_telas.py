@@ -18,11 +18,16 @@ GFX 1.12.6, draws every sample in both themes, and fails when a sample:
     ordinary length; a text the screen's own copy ends with "…", such as
     "Lendo o histórico…", is not a cut), or the list accepts a cut that no
     longer happens;
-  - lists a touch target outside the panel.
+  - lists a touch target outside the panel;
+  - draws a control (a button, key, switch, segment or chip: what a finger is meant to press) that is not
+    fully inside some touch target, or draws it enabled and every target that holds it is inert (type
+    ALVO_INERTE of telas/Telas.h, the type of a control drawn disabled). The kit and the screens record each
+    control they draw, in this build only (UA_HOST, src/ui/angulo/Angulo.h); a call that draws something
+    which is not a control says so with UA_NAO_CONTROLE( "reason" ) and the harness counts it.
 
 It warns (without failing) on a target smaller than 24 px either way and on
 two targets that overlap. With --out it keeps a PNG per frame, an overlay of
-the targets per sample and a contact sheet of the group (_folha.png).
+the targets per sample (and the list it draws, <sample>.alvos: x y w h type index) and a contact sheet of the group (_folha.png).
 
 Usage: python3 tools/tft_ui/host_telas.py <grupo> [--out <folder>]
 Exit 0 clean, 1 when a check fails, 2 when it cannot build or run.
@@ -143,6 +148,40 @@ def aceitos(grupo):
     return out
 
 
+def alvo_inerte():
+    """The type of an inert target, read from the source of truth (telas/Telas.h), not copied here."""
+    texto = (ROOT / 'src' / 'ui' / 'angulo' / 'telas' / 'Telas.h').read_text(encoding='utf-8')
+    m = re.search(r'constexpr\s+uint8_t\s+ALVO_INERTE\s*=\s*(\d+)\s*;', texto)
+    if not m:
+        print('ALVO_INERTE not found in telas/Telas.h', file=sys.stderr)
+        return None
+    return int(m.group(1))
+
+
+def conferir_controles(nome, dados, alvos, inerte, erros):
+    """The controls a sample drew (<nome>_<theme>.controles) against its targets. Returns (checked, excluded).
+    The geometry does not depend on the theme: the two files must agree, and one is checked."""
+    arquivos = [(dados / f'{nome}_{t}.controles').read_text() for t in ('escuro', 'claro')]
+    if arquivos[0] != arquivos[1]:
+        erros.append(f'{nome}: the controls drawn in the two themes differ')
+    conferidos = excluidos = 0
+    for linha in arquivos[0].splitlines():
+        partes = linha.rstrip().split(' ', 6)
+        cx, cy, cw, ch = map(int, partes[:4])
+        estado, ctipo = partes[4], partes[5]
+        if estado == 'nao':
+            excluidos += 1
+            continue
+        conferidos += 1
+        donos = [a for a in alvos if a[0] <= cx and a[1] <= cy and a[0] + a[2] >= cx + cw and a[1] + a[3] >= cy + ch]
+        onde = f'{nome}: {ctipo} {cw}x{ch} at {cx},{cy}'
+        if not donos:
+            erros.append(f'{onde}, drawn {"enabled" if estado == "on" else "disabled"}, is not fully inside any target')
+        elif estado == 'on' and all(a[4] == inerte for a in donos):
+            erros.append(f'{onde}, drawn enabled, is held only by inert targets (type {inerte}): a touch on it does nothing')
+    return conferidos, excluidos
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('grupo')
@@ -165,6 +204,10 @@ def main():
         if regras is None:
             return 2
         proprios, usadas, cortes = literais(), set(), 0
+        inerte = alvo_inerte()
+        if inerte is None:
+            return 2
+        conferidos = excluidos = 0
         nomes = sorted({p.name[:-len('.alvos')] for p in dados.glob('*.alvos')})
         for nome in nomes:
             alvos = []
@@ -180,6 +223,9 @@ def main():
                     a, b = alvos[i], alvos[j]
                     if sobrepoe((a[0], a[0] + a[2], a[1], a[1] + a[3]), (b[0], b[0] + b[2], b[1], b[1] + b[3])):
                         avisos.append(f'{nome}: targets {a[4]}/{a[5]} and {b[4]}/{b[5]} overlap')
+            c, x = conferir_controles(nome, dados, alvos, inerte, erros)
+            conferidos += c
+            excluidos += x
             for tema in ('escuro', 'claro'):
                 falta = int((dados / f'{nome}_{tema}.faltam').read_text().strip() or 0)
                 if falta:
@@ -249,7 +295,8 @@ def main():
             print('warning:', a)
         for e in erros:
             print('FAIL:', e)
-        print(f'{len(nomes)} samples, {len(erros)} failures, {len(avisos)} warnings, {cortes} accepted cuts')
+        print(f'{len(nomes)} samples, {len(erros)} failures, {len(avisos)} warnings, {cortes} accepted cuts, '
+              f'{conferidos} controls checked, {excluidos} excluded at the call')
         if args.out:
             from PIL import Image, ImageDraw
             out = pathlib.Path(args.out)
@@ -268,6 +315,7 @@ def main():
                     d.rectangle([x, y, x + w - 1, y + h - 1], outline=(255, 0, 255))
                     d.text((x + 2, y + 1), f'{tipo}/{ind}', fill=(255, 0, 255))
                 ov.save(out / f'{nome}_alvos.png')
+                (out / f'{nome}.alvos').write_text((dados / f'{nome}.alvos').read_text())   # the lists the overlay draws, as text
                 quadros.append(ov)
                 linhas.append((nome, quadros))
             folha = Image.new('RGB', (3 * 330 + 10, len(linhas) * 262 + 10), (128, 128, 128))

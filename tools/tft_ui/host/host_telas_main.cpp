@@ -4,6 +4,8 @@
 //   <dir>/<nome>_<tema>.565        the frame (RGB565, host byte order)
 //   <dir>/<nome>_<tema>.textos     one line per string drawn: x0 x1 y0 y1 kind text
 //                                  (kind t: the ink box of a text; s: the box of a badge, its label as text)
+//   <dir>/<nome>_<tema>.controles  one line per control a finger is meant to press: x y w h estado tipo [motivo]
+//                                  (estado on / off: drawn enabled / disabled; nao: the call said it is not a control, why)
 //   <dir>/<nome>.alvos             one line per touch target: x y w h tipo indice
 //   <dir>/<nome>_<tema>.faltam     the glyphs or icons the kit could not draw
 #include <Adafruit_GFX.h>
@@ -37,6 +39,7 @@ int main( int argc, char **argv ) {
       canvas.fillScreen( tema.fundo );
       ua::Pintor p( canvas, tema, leitor );
       ua::hostLimparTextos( );
+      ua::hostLimparControles( );
       const uint32_t faltavam = ua::glifosFaltando( );
       a.desenhar( p );
       snprintf( path, sizeof path, "%s/%s_%s.565", argv[1], a.nome, nomeTema );
@@ -52,6 +55,15 @@ int main( int argc, char **argv ) {
       for ( int k = 0; k < n; k++ )
         fprintf( f, "%d %d %d %d %c %s\n", txt[k].x0, txt[k].x1, txt[k].y0, txt[k].y1, txt[k].selo ? 's' : 't',
                  txt[k].texto );
+      fclose( f );
+      snprintf( path, sizeof path, "%s/%s_%s.controles", argv[1], a.nome, nomeTema );
+      f = fopen( path, "w" );
+      if ( !f ) { perror( path ); return 2; }
+      const ua::ControleDesenhado *ctl;
+      const int nc = ua::hostControles( &ctl );
+      for ( int k = 0; k < nc; k++ )
+        fprintf( f, "%d %d %d %d %s %s %s\n", ctl[k].x, ctl[k].y, ctl[k].w, ctl[k].h,
+                 ctl[k].excluido[0] ? "nao" : ctl[k].habilitado ? "on" : "off", ctl[k].tipo, ctl[k].excluido );
       fclose( f );
       snprintf( path, sizeof path, "%s/%s_%s.faltam", argv[1], a.nome, nomeTema );
       f = fopen( path, "w" );

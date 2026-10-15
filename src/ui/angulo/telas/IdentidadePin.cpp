@@ -317,6 +317,8 @@ void desenharPin( Pintor &p, const VmPin &vm ) {
   char titulo[64];
   montarTitulo( vm, titulo, sizeof titulo );
   desenharBarra( p, l.barra, &kCancelar, titulo );
+  // Under the popup the bar is still drawn, but a touch there only closes the popup, as any point outside its keys: not pressable.
+  UA_CONTROLE( l.barra.caixas[0].x, l.barra.caixas[0].y, l.barra.caixas[0].w, l.barra.caixas[0].h, !l.popup, "botao" );
   if ( l.bloqueio ) { desenharBloqueio( p, vm ); return; }
 
   // The field with the places of the PIN (the plan's cabecalhoPin( )): centred, no
@@ -356,7 +358,21 @@ void desenharPin( Pintor &p, const VmPin &vm ) {
 int alvosPin( const VmPin &vm, Alvo *out ) {
   const LayoutPin l = layoutPin( vm );
   int n = 0;
+  const uint8_t tipos[1] = { PIN_CANCELAR };
+  // Under the popup the bar's action and the footer are drawn but dead (a touch there closes the popup, as any point outside its
+  // keys does), and while the keys wait out a lockout or a reply they are drawn disabled: inert targets, with the boxes they have
+  // alive. The popup's keys are listed last, so that they answer where a target meets one.
+  const bool ativa[1] = { !l.popup };
+  n = addAlvosBarra( out, n, l.barra, tipos, ativa );
+  if ( l.bloqueio ) return n;
+  const bool vivas = l.teclasAtivas && !l.popup;
+  auto rodape = [&]( ) {
+    if ( !l.rodape ) return;
+    n = addAlvo( out, n, (int16_t)( l.apagar.x - ESP1 ), l.apagar.y, (int16_t)( l.apagar.w + 2 * ESP1 ), l.apagar.h, vivas ? (uint8_t)PIN_APAGAR : ALVO_INERTE );
+    n = addAlvo( out, n, (int16_t)( l.entrar.x - ESP1 ), l.entrar.y, (int16_t)( l.entrar.w + 2 * ESP1 ), l.entrar.h, vivas ? (uint8_t)PIN_ENTRAR : ALVO_INERTE );
+  };
   if ( l.popup ) {
+    rodape( );
     // Same rule as the keys: each popup key reaches half the gap to its neighbours.
     const int16_t dx = ESP2 / 2, dy = l.nPopup > 5 ? ESP1 / 2 : 0;
     for ( int i = 0; i < l.nPopup; i++ ) {
@@ -365,10 +381,6 @@ int alvosPin( const VmPin &vm, Alvo *out ) {
     }
     return n;
   }
-  const uint8_t tipos[1] = { PIN_CANCELAR };
-  const bool ativa[1] = { true };
-  n = addAlvosBarra( out, n, l.barra, tipos, ativa );
-  if ( l.bloqueio || !l.teclasAtivas ) return n;
 
   // A key's target reaches half the gap to its neighbours, so a finger that lands between two
   // keys still presses one.
@@ -380,12 +392,10 @@ int alvosPin( const VmPin &vm, Alvo *out ) {
     int16_t indice = (int16_t)k;
     if ( vm.teclado == PinTeclado::NUMERICO && k == 9 ) { t = PIN_ENTRAR; indice = -1; }
     if ( vm.teclado == PinTeclado::NUMERICO && k == 11 ) { t = PIN_APAGAR; indice = -1; }
-    n = addAlvo( out, n, (int16_t)( c.x - dx ), (int16_t)( c.y - dy ), (int16_t)( c.w + 2 * dx ), (int16_t)( c.h + 2 * dy ), t, indice );
+    n = addAlvo( out, n, (int16_t)( c.x - dx ), (int16_t)( c.y - dy ), (int16_t)( c.w + 2 * dx ), (int16_t)( c.h + 2 * dy ),
+                 vivas ? t : ALVO_INERTE, vivas ? indice : (int16_t)-1 );
   }
-  if ( l.rodape ) {
-    n = addAlvo( out, n, (int16_t)( l.apagar.x - ESP1 ), l.apagar.y, (int16_t)( l.apagar.w + 2 * ESP1 ), l.apagar.h, PIN_APAGAR );
-    n = addAlvo( out, n, (int16_t)( l.entrar.x - ESP1 ), l.entrar.y, (int16_t)( l.entrar.w + 2 * ESP1 ), l.entrar.h, PIN_ENTRAR );
-  }
+  rodape( );
   return n;
 }
 

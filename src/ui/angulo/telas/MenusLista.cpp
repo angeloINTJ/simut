@@ -63,9 +63,8 @@ int16_t fimDoPaginador( const Paginas &g ) {
 
 int alvosPaginador( const Paginas &g, Alvo *out, int n ) {
   if ( !g.visivel ) return n;
-  if ( g.anteriorAtiva ) n = addAlvo( out, n, paginadorEsquerda( ), LST_PAG_ANTERIOR );
-  if ( g.proximaAtiva ) n = addAlvo( out, n, paginadorDireita( ), LST_PAG_PROXIMA );
-  return n;
+  n = addAlvoSe( out, n, g.anteriorAtiva, paginadorEsquerda( ), LST_PAG_ANTERIOR );
+  return addAlvoSe( out, n, g.proximaAtiva, paginadorDireita( ), LST_PAG_PROXIMA );
 }
 
 /* ------------------------------------------------------------------ */

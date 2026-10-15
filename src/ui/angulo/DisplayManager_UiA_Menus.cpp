@@ -314,7 +314,7 @@ UaToque DisplayManager::uaToqueMenus( const ua::Alvo *a, int16_t &, int16_t & ) 
     default:
       return UaToque::NAO_E_MEU;
   }
-  if ( !a ) return UaToque::TRATADO;   /* outside every target: a dead zone */
+  if ( !a ) return UaToque::TRATADO;   /* farther than FOLGA_TOQUE from every target, or on an inert one: a dead zone */
   const bool voltar = a->tipo == LST_VOLTAR, linha = a->tipo == LST_LINHA;
   const int i = a->indice;
   /* A pager arrow: a page less or more, held at the ends (the old arrows wrapped around; the
