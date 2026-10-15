@@ -225,7 +225,7 @@ license = "MIT"
 images = ["wire", "wiretft"]
 url = "https://github.com/angeloINTJ/pico-enc28j60"
 what = "Driver for the ENC28J60 Ethernet controller of the SIMUT Wire, plugged into the lwIP stack of the Arduino-Pico core; its SPI is a PIO program."
-note = "A fork of Lukasz Janyst's pico-enc28j60 (https://github.com/ljanyst/pico-enc28j60), whose PIO SPI program and C driver it keeps; the build fixes it at commit fb16ec1."
+note = "A fork of Lukasz Janyst's pico-enc28j60 (https://github.com/ljanyst/pico-enc28j60), whose PIO SPI program and C driver it keeps; the build fixes it at the commit of v1.3.1 (4984e2f)."
 text = "pico-enc28j60-MIT.txt"
 
 [[component]]

@@ -246,7 +246,7 @@ Driver for the ENC28J60 Ethernet controller of the SIMUT Wire, plugged into the 
 - Images: pico_wire, pico_wiretft
 - Source: <https://github.com/angeloINTJ/pico-enc28j60>
 
-A fork of Lukasz Janyst's pico-enc28j60 (https://github.com/ljanyst/pico-enc28j60), whose PIO SPI program and C driver it keeps; the build fixes it at commit fb16ec1.
+A fork of Lukasz Janyst's pico-enc28j60 (https://github.com/ljanyst/pico-enc28j60), whose PIO SPI program and C driver it keeps; the build fixes it at the commit of v1.3.1 (4984e2f).
 
 ## BTstack
 

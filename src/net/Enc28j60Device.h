@@ -67,7 +67,11 @@ inline ENC28J60Config enc28j60Config( ) {
 	c.pio_instance = SIMUT_ENC_PIO;
 	/* The library's largest receive buffer, 6.5 KB of the chip's 8 KB: four
 	 * full-size frames wait in the chip while a flash write holds the
-	 * interrupts off. */
+	 * interrupts off. The price, since the library's 1.3.0: the 1.5 KB left to
+	 * send from holds one full-size frame, and PicoENC28J60lwIP uploads a
+	 * frame while the one before is on the wire only when the area holds two
+	 * (its default, 0x141C). Here a full-size frame waits for the one before,
+	 * as every frame did with 1.2.0. */
 	c.rx_buffer_size = 0x1A00;
 	return c;
 }
