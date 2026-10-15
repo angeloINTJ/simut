@@ -63,6 +63,7 @@
  * to English. Without a pack, or in English, the opening is the page's English
  * text, which tools/gen_notices.py copies into HelpLicenseEN.h. */
 #if !SIMUT_DISPLAY_ALPHA
+#include "DisplayManager_Ticks.h"   /* the core's timers of the Core 1 pass: inline, called from loopCore1( ) */
 #include "ui/UiDriverHooks.h"   /* the UI driver's hook definitions: after every other include, they need the complete class;
                                    the original's draw on the TFT, which the alpha display has not, so not above this #if */
 static char _licOpening[768];
@@ -1547,13 +1548,7 @@ void DisplayManager::loopCore1( ) {
 			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawAlarmEdit( ); }
 		}
 		else if (_uiMode == MODE_AUTH) {
-			if (_permanentLockout) {
-				/* Wrap-safe: direct comparison with millis() fails on wrap every ~49.7 days. */
-				if (timeReached(_lockoutUntil)) forceDashboard( );
-			} else if (_lockoutUntil > 0) {
-				if (!timeReached(_lockoutUntil)) _repaintSettings = true;
-				else { _lockoutUntil = 0; _forceSettingsRedraw = true; _repaintSettings = true; }
-			}
+			tickAuthLockout( );
 			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawPinScreen( ); }
 		}
 		else if (_uiMode == MODE_AUTH_USER) {
@@ -1576,14 +1571,7 @@ void DisplayManager::loopCore1( ) {
 		}
 		else if (_uiMode == MODE_SETTINGS_TOUCH_SENS) {
 			if (_repaintSettings) { _repaintSettings = false; C1_PHASE(C1P_UI_SETTINGS); drawTouchSensitivity( ); }
-			/* After 1.5s from completion, advance to position calibration */
-			if (_sensDone && timeSince(_sensDoneTime, 1500)) {
-				_uiMode = MODE_SETTINGS_TOUCH_CAL;
-				_calStep = 0;
-				_calPhase = 0;
-				_forceSettingsRedraw = true;
-				_repaintSettings = true;
-			}
+			tickTouchSens( );
 		}
 		else if (_uiMode == MODE_SETTINGS_SOUNDS) {
 
