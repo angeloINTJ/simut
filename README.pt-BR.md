@@ -48,7 +48,7 @@ Os três compartilham o mesmo núcleo:
 | **Release atual** | **v2.11.1** (12/10/2026); o [changelog](CHANGELOG.pt-BR.md) diz o que cada versão mudou. O SIMUT saiu do beta com a v2.7.0, com base em medições: soak de 8,18 h sem nenhum reboot e 6 de 6 atualizações pelo ar sem perder nada. |
 | **Imagens publicadas** | Quatro imagens, cada uma em `.uf2` e `.bin`. Para o Pico W: `release` (painel touch TFT), `alpha` (LCD 16×2 com console Bluetooth) e `air` (registrador a bateria sem display). Para o Pico 2 W (RP2350): `releasetwo`, a release, cujo `.uf2` traz a tabela de partições e cujo `.bin` sobe em teste. Junto vêm os packs de idioma pt-BR e es-ES e um manifesto de OTA. Uma imagem com outro conjunto de recursos sai do [configurador de build](https://angelointj.github.io/simut/configurador/), e o CI a compila da `main`, também para o Pico 2 W. |
 | **Maturidade** | <ul><li>`release`: **estável**.</li><li>`alpha`: publicado e testado na bancada, com o LCD 16×2 incluído desde 26/09/2026.</li><li>`air`: **experimental**. O único soak longo dele falhou: um sono no ciclo 119 nunca acordou (F28). Um watchdog ao longo do wake hoje mitiga o problema; a causa raiz não foi confirmada.</li><li>`releasetwo`: **nova** na v2.11.0, testada na bancada num Pico 2 W (RP2350 A2). Atualiza pelo ar no outro slot, em teste, e volta sozinha quando a atualização não se confirma.</li></ul> |
-| **Testes** | Todo pull request roda 689 casos de teste no host em 11 suítes, 60 s de fuzzing e análise estática, e compila as nove imagens de firmware com o cache frio. O comportamento no hardware real é verificado numa bancada — ver [Verificação no hardware](docs/VERIFICATION.pt-BR.md). |
+| **Testes** | Todo pull request roda 689 casos de teste no host em 11 suítes, 60 s de fuzzing e análise estática, e compila as dez imagens de firmware com o cache frio. O comportamento no hardware real é verificado numa bancada — ver [Verificação no hardware](docs/VERIFICATION.pt-BR.md). |
 
 **Limitações conhecidas.** Cada uma está documentada onde se aplica.
 - **Atualização.** A atualização pelo ar reformata o sistema de arquivos:
@@ -323,13 +323,13 @@ Todo push e pull request para a `main` roda quatro jobs:
   - varredura de segredos, tabelas de códigos de log, matriz de autorização;
   - consistência da licença, guarda do sistema de arquivos, consistência do Air;
   - testes da fusão de dias do histórico.
-- **firmware** — as nove imagens, compiladas com o cache frio:
+- **firmware** — as dez imagens, compiladas com o cache frio:
   - cada uma é conferida contra o seu orçamento de flash e o teto de atualização pelo ar;
   - o próprio build aplica o `-Werror` e os portões da interface web, da ajuda do CLI, dos códigos de log, da tabela de canais e dos packs de idioma.
 - **fuzz** — 60 s de libFuzzer contra os validadores da API web, com oráculos de contrato.
 - **análise estática** — cppcheck, em versão fixa.
 
-A `main` é protegida: nove dessas checagens precisam passar antes de qualquer merge, todos os jobs menos as imagens `pico_w_test_https`, `pico_wire` e `pico_wiretft`.
+A `main` é protegida: nove dessas checagens precisam passar antes de qualquer merge, todos os jobs menos as imagens `pico_w_test_https`, `pico_wire`, `pico_wiretft` e `pico_wiretft_angulo`.
 
 ### Verificação no hardware
 

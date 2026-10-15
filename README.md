@@ -50,7 +50,7 @@ They share one core:
 | **Current release** | **v2.11.1** (2026-10-12); the [changelog](CHANGELOG.md) says what each version changed. SIMUT left beta with v2.7.0, on measurements: an 8.18 h soak with 0 reboots, and 6 of 6 over-the-air updates with nothing lost. |
 | **Published images** | Four images, each as `.uf2` and `.bin`. For the Pico W: `release` (TFT touch panel), `alpha` (16×2 LCD with a Bluetooth console) and `air` (headless battery logger). For the Pico 2 W (RP2350): `releasetwo`, the release, whose `.uf2` carries its partition table and whose `.bin` boots on trial. The pt-BR and es-ES language packs and an OTA manifest ship alongside. An image with a different set of features comes from the [build configurator](https://angelointj.github.io/simut/configurador/), and CI builds it from `main`, for the Pico 2 W too. |
 | **Maturity** | <ul><li>`release`: **stable**.</li><li>`alpha`: published and bench-tested, its 16×2 LCD included since 2026-09-26.</li><li>`air`: **experimental**. Its one long soak failed: a sleep in cycle 119 never woke (F28). A watchdog across the wake now mitigates it; the root cause is not confirmed.</li><li>`releasetwo`: **new** in v2.11.0, bench-tested on one Pico 2 W (RP2350 A2). It updates over the air into its other slot, on trial, and goes back by itself when the update does not keep itself.</li></ul> |
-| **Tests** | Every pull request runs 689 host test cases in 11 suites, 60 s of fuzzing and static analysis, and builds all nine firmware images from a cold cache. Behaviour on real hardware is verified on a bench — see [Verification on hardware](docs/VERIFICATION.md). |
+| **Tests** | Every pull request runs 689 host test cases in 11 suites, 60 s of fuzzing and static analysis, and builds all ten firmware images from a cold cache. Behaviour on real hardware is verified on a bench — see [Verification on hardware](docs/VERIFICATION.md). |
 
 **Known limitations.** Each one is documented where it applies.
 - **Updates.** An update over the air reformats the filesystem:
@@ -325,13 +325,13 @@ Every push and pull request to `main` runs four jobs:
   - secret scan, log-code tables, authorization matrix;
   - licence consistency, filesystem guard, Air consistency;
   - history day-merge tests.
-- **firmware** — all nine images, built from a cold cache:
+- **firmware** — all ten images, built from a cold cache:
   - each is checked against its flash budget and the over-the-air ceiling;
   - the build itself enforces `-Werror` and the web UI, CLI help, log-code, channel-table and language-pack gates.
 - **fuzz** — 60 s of libFuzzer against the web-API validators, with contract oracles.
 - **static analysis** — cppcheck, at a pinned version.
 
-`main` is protected: nine of these checks must pass before anything merges, every job except the `pico_w_test_https`, `pico_wire` and `pico_wiretft` images.
+`main` is protected: nine of these checks must pass before anything merges, every job except the `pico_w_test_https`, `pico_wire`, `pico_wiretft` and `pico_wiretft_angulo` images.
 
 ### Verification on hardware
 

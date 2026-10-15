@@ -23,7 +23,7 @@ generates = ["tools/generated/profiles.ini", "docs/configurador/model.json", "sr
 
 # Flags que todo perfil de firmware acrescenta sobre ${pico_base.build_flags}.
 [base]
-common_flags = ["-DNDEBUG"]   # as nove imagens carregam NDEBUG (release ganhou em 2026-09-18)
+common_flags = ["-DNDEBUG"]   # as dez imagens carregam NDEBUG (release ganhou em 2026-09-18)
 
 # ---------------------------------------------------------------------------
 #  O chip. Um valor por perfil; sem a chave, rp2040 (o Pico W, que o pico_base
@@ -412,9 +412,10 @@ macro = "SIMUT_SENSOR_BME280"
 emit  = "off_is_0"
 
 # ---------------------------------------------------------------------------
-#  Os perfis. Os nove ambientes de firmware que o CI constroi; o oitavo, o
-#  pico_wire, desde 2026-10-12, e o nono, o pico_wiretft, desde 2026-10-13. O decimo, o
-#  pico_wiretft_angulo (2026-10-14), e de bancada e o CI ainda nao o constroi.
+#  Os perfis. Os dez ambientes de firmware que o CI constroi; o oitavo, o
+#  pico_wire, desde 2026-10-12, o nono, o pico_wiretft, desde 2026-10-13, e o decimo, o
+#  pico_wiretft_angulo, desde 2026-10-14. Este e de bancada: o CI o constroi e o confere
+#  contra um orcamento de flash proprio (tools/flash_budget.json), e ele nao e check obrigatorio.
 #  `extends` herda o dicionario de recursos do pai e sobrescreve.
 #
 #  `ota_trust_bench = true` (2026-10-01): a imagem aceita pelo ar tambem o que a
