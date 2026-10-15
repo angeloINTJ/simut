@@ -366,9 +366,10 @@ void DisplayManager::uiBegin( ) {
   uaSujo( );
 }
 
-/* The core says something this driver shows has changed (the alarm flash changed phase, or the alarm ended): the frame
- * may be different, and the pass looks at it. The old redrawAlarmFlash( ) and restoreNormalDashboard( ) came to the same
- * through the draw calls they made, each of which starts with UA_DESVIO( ). */
+/* The core says something this driver shows has changed (the alarm flash changed phase, the alarm ended, the bottom card
+ * turned over, the row of buttons changed): the frame may be different, and the pass looks at it. The old
+ * redrawAlarmFlash( ), restoreNormalDashboard( ), drawSlotPanel( ) and drawBottomButtons( ) came to the same through the
+ * draw calls they made, each of which starts with UA_DESVIO( ). */
 void DisplayManager::uiChanged( UiChange, int16_t ) {
   uaSujo( );
 }

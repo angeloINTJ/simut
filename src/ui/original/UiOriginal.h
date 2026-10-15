@@ -31,10 +31,20 @@ UI_HOOK void DisplayManager::uiBegin( ) {
 /* The core says what changed; the original draws it, as the core did before. `c` is a constant at each call, so the
  * switch is the one call it names. */
 UI_HOOK void DisplayManager::uiChanged( UiChange c, int16_t arg ) {
-	(void)arg;
 	switch (c) {
 	case UiChange::ALARM_FLASH:   redrawAlarmFlash( ); break;
 	case UiChange::ALARM_RESTORE: restoreNormalDashboard( ); break;
+	case UiChange::BOTTOM_PANEL: {
+		/* The block handleTouch( ) ran where a tap toggled the bottom card's min/max, moved here as it was. */
+		SystemState snap;
+		mutex_enter_blocking(&_stateMutex);
+		snap = _sharedState;
+		mutex_exit(&_stateMutex);
+		drawSlotPanel(snap.slotTemp, snap.slotHum, snap.slotType, snap.slotValid,
+		              snap.selectedSlotIdx, snap.slotName, true, _bottomPanel);
+		break;
+	}
+	case UiChange::BOTTOM_BUTTONS: drawBottomButtons( arg ); break;
 	}
 }
 

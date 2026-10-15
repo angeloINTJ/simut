@@ -554,14 +554,7 @@ void DisplayManager::handleTouch( ) {
 
  /* Toggle min/max */
  _bottomPanel.showMinMax = !_bottomPanel.showMinMax;
- {
- SystemState snap;
- mutex_enter_blocking(&_stateMutex);
- snap = _sharedState;
- mutex_exit(&_stateMutex);
- drawSlotPanel(snap.slotTemp, snap.slotHum, snap.slotType, snap.slotValid,
- snap.selectedSlotIdx, snap.slotName, true, _bottomPanel);
- }
+ uiChanged( UiChange::BOTTOM_PANEL, 0 );
  return;
  }
  if (y > 195) {
@@ -577,7 +570,7 @@ void DisplayManager::handleTouch( ) {
  if (!acceptTouch(14)) return;
  _currentPage++;
  if (_currentPage >= totalPages) _currentPage = 0;
- drawBottomButtons(_sharedState.selectedSlotIdx); return;
+ uiChanged( UiChange::BOTTOM_BUTTONS, _sharedState.selectedSlotIdx ); return;
  }
  if (b.kind == 1) { /* CFG */
  if (!acceptSlideTouch(20)) return;
@@ -588,7 +581,7 @@ void DisplayManager::handleTouch( ) {
  if (!acceptSlideTouch(10 + b.slotId)) return;
  _bottomPanel.showMinMax = false;
  if (!_topPanel.fixed) _topPanel.showMinMax = false;
- drawBottomButtons(b.slotId);
+ uiChanged( UiChange::BOTTOM_BUTTONS, b.slotId );
  UiEvent ev; ev.type = UiEvent::EVT_SLOT_SELECT; ev.id = b.slotId;
  pushUiEvent(ev);
  }

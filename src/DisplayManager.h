@@ -1509,7 +1509,7 @@ private:
 	 * clears _themeChanged after the call. */
 	UI_HOOK void uiThemeChanged( );
 	/* UI driver hook: the core tells the driver that something it shows has changed (UiChange, src/ui/UiDriver.h); `arg`
-	 * is for a kind that needs more than its name, and neither kind so far does. The original draws the change, as the core
+	 * is for a kind that needs more than its name: BOTTOM_BUTTONS carries the slot its row highlights, the others ignore it. The original draws the change, as the core
 	 * did before; the Ângulo marks its frame to be repainted. At each call `c` is a constant. */
 	UI_HOOK void uiChanged( UiChange c, int16_t arg );
 	/* UI driver hook: the top card is to be shown from `snap` (redrawTopPanel( ), a copy of the state taken after it synced
