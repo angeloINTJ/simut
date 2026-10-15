@@ -19,7 +19,13 @@
 #include "SystemDefs.h"
 #include "TelemetryManager.h" /* pushAlarm + AlarmErrCode (AlarmQueue.h) */
 #include "Themes.h"
+#include "display/GraphAnchor.h"   /* graphAnchorStep( ), graphOpenClearsAnchor( ): where the chart's window ends, under SIMUT_UI_ANGULO below */
 #include <time.h>
+
+/* display/GraphAnchor.h names three screens of UiMode by number, because the host suite that tests it cannot include the enum. Pinned here, in
+ * every image and not only the Angulo's, so that a reordered enum stops the build instead of moving the rule. */
+static_assert(MODE_GRAPH_LOADING == GRAPH_SCREEN_LOADING && MODE_GRAPH_VIEW == GRAPH_SCREEN_VIEW && MODE_GRAPH_DETAIL == GRAPH_SCREEN_DETAIL,
+              "display/GraphAnchor.h mirrors three values of UiMode");
 
 
 void AppManager::pushAlarmAction(int8_t slot, uint8_t errCodeErr, uint8_t errCodeLim, uint8_t actor) {
@@ -109,6 +115,18 @@ void AppManager::core0Yield( ) {
  time_t step = (_lastGraphRange >= 0 && _lastGraphRange <= 4)
  ? rangeDur[_lastGraphRange] : 86400;
 
+#if SIMUT_UI_ANGULO
+ /* The anchor starts at the clock read here and was judged below against a clock read later, so one period back and one forward, a few
+  * seconds apart, ended at the first tap's clock, marked as the past ("fim", ▶ still enabled), and a second ▶ reached the present with the
+  * anchor frozen at that moment. display/GraphAnchor.h reads the clock once, and a window that ends less than half a step before it IS the
+  * present: anchor 0, the live window, offset 0. A window further back is placed as the lines below place it. The products keep those lines,
+  * so their images stay byte for byte as they are. */
+ {
+ const GraphAnchorPlace at = graphAnchorStep(_graphAnchorEnd, time(nullptr), steps, step);
+ _graphAnchorEnd = at.anchorEnd;
+ _graphNavOffset = at.offset;
+ }
+#else
  /* No anchor (graph opened without the calendar): anchor at now. */
  if (_graphAnchorEnd == 0) _graphAnchorEnd = time(nullptr);
 
@@ -120,6 +138,7 @@ void AppManager::core0Yield( ) {
 
  /* Offset derived from position: negative = past (▶ enabled) */
  _graphNavOffset = (_graphAnchorEnd < nowNav) ? -1 : 0;
+#endif
  _displayMgr->setGraphNavOffset(_graphNavOffset);
 
  _isRenderingGraph = true;
@@ -144,6 +163,14 @@ void AppManager::core0Yield( ) {
  {
  [[maybe_unused]] int sensorId = uiEv.id;
  int range = uiEv.param;
+#if SIMUT_UI_ANGULO
+ /* Asked from another screen (the dashboard's chart buttons, the calendar's Today) the chart starts at the present. Nothing ever cleared the
+  * anchor a calendar day or an arrow set, so every later opening showed that window: on the bench, a day picked in the calendar came back as
+  * 13/10 23:00-24:00 when the dashboard opened the chart again, 62094 s behind the clock and drawn as the present (2026-10-14, image
+  * 9c3e0a25). A period chosen inside the chart, or the way back from its detail, keeps the window (display/GraphAnchor.h has the rule).
+  * The products have the same defect; this build fixes it for itself only, so their images stay byte for byte as they are. */
+ if (graphOpenClearsAnchor((int)_displayMgr->getUiMode( ))) _graphAnchorEnd = 0;
+#endif
  bool hasAnchor = (_graphAnchorEnd != 0);
 
  if (!hasAnchor) {
