@@ -118,6 +118,30 @@ else
     patch -p1 -d "$FW" < "$BEARSSL_PATCH"
 fi
 
+# 2b-ter. Recusa não-TLS na porta TLS antes do handshake (WiFiServerSecureBearSSL.cpp) — #274
+#
+#   Uma aba http:// esquecida na porta TLS (depois que o HTTPS entrou) manda GET
+#   em claro, entra no handshake BearSSL do servidor e no teardown dele. Com o
+#   painel TFT desenhando no Core 1 (busca XIP na flash), esse caminho trava o
+#   árbitro QSPI e o watchdog reinicia o aparelho. Medido na bancada em
+#   15/10/2026: autópsia C0=[WEB_POLL] C1=[DISPLAY] em 5 de 6 reinícios; a mesma
+#   carga numa build sem o painel (pico_wire) não reinicia (0 em 5 min).
+#
+#   O primeiro byte de um ClientHello TLS é 0x16. Chegado um byte que não é 0x16,
+#   o accept entrega a conexão a WiFiServer::accept() (que a reivindica como
+#   cliente comum, anda na fila E libera a vaga de backlog — o accept TLS nunca
+#   liberava) e a fecha, antes de montar o contexto TLS de ~16 KB. Sem byte
+#   ainda: cai no handshake como antes, então um cliente TLS lento não é afetado.
+WSSECURE="$FW/libraries/WiFi/src/WiFiServerSecureBearSSL.cpp"
+WSSECURE_PATCH="$OVR/patches/wifiserversecure_drop_plaintext.patch"
+save_original "$WSSECURE" "WiFiServerSecureBearSSL.cpp"
+if grep -q "SIMUT override — drop a non-TLS client" "$WSSECURE"; then
+    echo "[patch] recusa não-TLS na porta TLS já aplicada — nada a fazer"
+else
+    echo "[patch] aplicando recusa não-TLS na porta TLS (#274)"
+    patch -p1 -d "$FW" < "$WSSECURE_PATCH"
+fi
+
 # 2b-bis. Poda das suites TLS (WiFiClientSecureBearSSL.cpp)
 #
 #   O upstream anuncia 41 suites de TLS 1.0 a 1.2 e instala implementacao para

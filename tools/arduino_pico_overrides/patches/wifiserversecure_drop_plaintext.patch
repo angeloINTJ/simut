@@ -1,0 +1,49 @@
+--- a/libraries/WiFi/src/WiFiServerSecureBearSSL.cpp
++++ b/libraries/WiFi/src/WiFiServerSecureBearSSL.cpp
+@@ -81,6 +81,46 @@
+ 
+ WiFiClientSecure WiFiServerSecure::accept() {
+     if (_unclaimed) {
++        // SIMUT override — tell a non-TLS client from a TLS one by its FIRST BYTE,
++        // before committing to the ~16 KB BearSSL context and the handshake (#274).
++        // A stale http:// browser tab left on the TLS port otherwise drives that
++        // handshake and its teardown; under the TFT panel's Core-1 XIP render that
++        // path wedges the QSPI arbiter and the hardware watchdog resets the device
++        // (bench 2026-10-15: autopsy C0=[WEB_POLL] C1=[DISPLAY], 5 of 6 resets).
++        //
++        // accept() is called the moment lwIP establishes the connection, usually
++        // BEFORE the peer's first byte has arrived, so we cannot decide yet and must
++        // not build the context speculatively (that is the colliding path). We wait
++        // for the first byte across polls — non-blocking: return a no-op client and
++        // the WebServer's HC_NONE loop calls us again next pass. A TLS ClientHello's
++        // first byte is 0x16 (handshake record); anything else (an http GET is 0x47)
++        // is handed to WiFiServer::accept() — which claims it as a plain client,
++        // advances the queue AND frees the backlog slot (the TLS accept never did, so
++        // plaintext churn could starve the 5 pending slots) — then closed. The wait
++        // is bounded: a peer that connects and stays silent falls through to the
++        // handshake after FIRSTBYTE_WAIT_MS (reaped there by the global handshake
++        // deadline) rather than holding a slot forever, since WiFiServer evicts no
++        // unclaimed connection. One HTTPS server runs, so the single-slot tracker is
++        // enough; a second WiFiServerSecure would only make a wait start over.
++        static ClientContext* s_waitHead = nullptr;
++        static uint32_t s_waitSince = 0;
++        const uint32_t FIRSTBYTE_WAIT_MS = 400;
++        if (_unclaimed->getSize() == 0) {
++            if (_unclaimed->state() == ESTABLISHED) {
++                uint32_t nowMs = millis();
++                if (s_waitHead != _unclaimed) { s_waitHead = _unclaimed; s_waitSince = nowMs; }
++                if ((uint32_t)(nowMs - s_waitSince) < FIRSTBYTE_WAIT_MS) {
++                    return WiFiClientSecure();   // no byte yet — decide on a later poll
++                }
++            }
++            // not established, or waited it out: fall through to the handshake
++        } else if ((uint8_t)_unclaimed->peek() != 0x16) {
++            s_waitHead = nullptr;
++            WiFiClient reject = WiFiServer::accept();
++            reject.stop();
++            return WiFiClientSecure();
++        }
++        s_waitHead = nullptr;
+         if (_sk && _sk->isRSA()) {
+             WiFiClientSecure result(_unclaimed, _chain, _sk, _iobuf_in_size, _iobuf_out_size, _cache, _client_CA_ta, _tls_min, _tls_max);
+             _unclaimed = _unclaimed->next();
