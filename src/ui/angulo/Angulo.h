@@ -162,7 +162,7 @@ public:
   Adafruit_GFX &gfx( ) { return g_; }
 
   // The rows [y0, y1) that will be kept: the firmware draws a screen once per
-  // 40-row strip (DisplayManager_UiA.cpp), and text, icons and rounded boxes
+  // 20-row strip (DisplayManager_UiA.cpp), and text, icons and rounded boxes
   // wholly outside the strip are skipped instead of being clipped pixel by
   // pixel. Only a speed-up: what lands inside the window is the same.
   void janela( int16_t y0, int16_t y1 ) { jy0_ = y0; jy1_ = y1; }

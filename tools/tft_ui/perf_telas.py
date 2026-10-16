@@ -4,7 +4,7 @@
 Builds tools/tft_ui/host/host_perf_main.cpp for each group of screens (base, painel, menus, ajustes, identidade, graficos) with the kit, the
 screens, the samples and the firmware's own strip class (src/ui/angulo/Faixa.h), WITHOUT UA_HOST, as the firmware is, at -O2 with no
 auto-vectorisation (the panel's core has no vector unit); then runs each build alone, one after the other, so that no two disturb each other.
-Each sample is composed in six 320 x 40 strips the way uaPintar( ) does (clear to the theme's background, the screen's draw clipped to the
+Each sample is composed in twelve 320 x 20 strips (two buffers, strip k in the half k % 2) the way uaPintar( ) does (clear to the theme's background, the screen's draw clipped to the
 strip, the black margin, the strip's hash), `reps` frames per batch, the best of three batches; the table is microseconds per frame, x86.
 They show the ratio between two builds, not the panel's time. Every frame is also stitched from its strips and compared with the same
 sample drawn whole by Adafruit GFX's own path: the last column is the number of pixels in which they differ, and it must be 0.

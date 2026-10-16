@@ -3,10 +3,10 @@
 // host_telas_main.cpp) but a ruler for the speed-ups of the compose: microseconds on an x86 host show the ratio between two builds, not the
 // panel's time.
 //
-// For each sample and theme, one frame is composed as uaPintar( ) composes it: six 320 x 40 strips (ua::Faixa, the firmware's own class), each
+// For each sample and theme, one frame is composed as uaPintar( ) composes it: twelve 320 x 20 strips (ua::Faixa, the firmware's own class), each
 // cleared to the theme's background, drawn by the screen's function clipped to the strip, given the black margin, and hashed. Printed, in
 // microseconds per frame (the best of three batches of <reps>): the whole, then its three parts (the clear, the draw with the margin, the hash),
-// then the number of pixels in which the six strips, stitched, differ from the same sample drawn whole in a GFXcanvas16 by Adafruit GFX's own
+// then the number of pixels in which the twelve strips, stitched, differ from the same sample drawn whole in a GFXcanvas16 by Adafruit GFX's own
 // path (0 when the strips are the frame):
 //   S <sample> <theme> <us> <clear> <draw> <hash> <differing pixels>
 //   TOTAL <samples> <us> <clear> <draw> <hash> <differing pixels> <most calls in a record> <most bytes of text in one> <frames that did not fit>
@@ -24,6 +24,7 @@
 
 #include "Amostras.h"
 #include "Faixa.h"
+#include "Recorte.h"
 
 namespace {
 
@@ -39,10 +40,10 @@ private:
   GFXcanvas16 &c_;
 };
 
-uint16_t g_tira[ua::LARGURA_PAINEL * ua::ALTURA_FAIXA];
+alignas( 8 ) uint16_t g_tira[2 * ua::LARGURA_PAINEL * ua::ALTURA_FAIXA];   // two strips, as the firmware's canvas holds: strip k in the half k % 2
 
 // The strip's hash as DisplayManager_UiA.cpp computes it: the kit's, two pixels to the word.
-uint32_t hashDaTira( ) { return ua::hashFaixa( g_tira, sizeof g_tira / sizeof g_tira[0] ); }
+uint32_t hashDaTira( const ua::Faixa &f ) { return ua::hashFaixa( f.buffer( ), (size_t)ua::LARGURA_PAINEL * ua::ALTURA_FAIXA ); }
 
 // --hash: the hash tells whether a strip changed, so it must not miss a change. On a strip of random pixels: every bit of every fifth pixel
 // flipped alone; 100,000 pairs of flips anywhere; 20,000 pairs of flips of bit 15 of two odd pixels (bit 31 of their words: the weak spot of the
@@ -130,7 +131,7 @@ uint32_t compor( const amostra::Amostra &a, ua::Faixa &faixa, ua::Pintor &p, con
     }
     ua::margemPreta( p );
     if ( t ) t2 = Relogio::now( );
-    soma += hashDaTira( );
+    soma += hashDaTira( faixa );
     if ( t ) {
       t3 = Relogio::now( );
       t->limpa += micros( t0, t1 );
@@ -141,7 +142,7 @@ uint32_t compor( const amostra::Amostra &a, ua::Faixa &faixa, ua::Pintor &p, con
   return soma;
 }
 
-// The pixels in which the six strips stitched differ from the sample drawn whole by Adafruit GFX's own path.
+// The pixels in which the twelve strips stitched differ from the sample drawn whole by Adafruit GFX's own path.
 int diferentes( const amostra::Amostra &a, const ua::Tema &tema, ua::Faixa &faixa, bool corromper ) {
   GFXcanvas16 inteira( ua::LARGURA_PAINEL, ua::ALTURA_PAINEL );
   LeitorCanvas leitor( inteira );
@@ -158,16 +159,16 @@ int diferentes( const amostra::Amostra &a, const ua::Tema &tema, ua::Faixa &faix
     if ( ps.gravado( ) ) ps.repetir( ); else a.desenhar( ps );
     ps.parar( );
     ua::margemPreta( ps );
-    if ( corromper && k == 2 ) g_tira[5 * ua::LARGURA_PAINEL + 7] ^= 0x0841;
+    if ( corromper && k == 2 ) faixa.buffer( )[5 * ua::LARGURA_PAINEL + 7] ^= 0x0841;
     for ( int y = 0; y < ua::ALTURA_FAIXA; y++ )
       for ( int x = 0; x < ua::LARGURA_PAINEL; x++ )
-        if ( g_tira[y * ua::LARGURA_PAINEL + x] != inteira.getPixel( x, k * ua::ALTURA_FAIXA + y ) ) dif++;
+        if ( faixa.buffer( )[y * ua::LARGURA_PAINEL + x] != inteira.getPixel( x, k * ua::ALTURA_FAIXA + y ) ) dif++;
   }
   return dif;
 }
 
 // --vidro: the argument of DisplayManager::uaPintar( )'s full repaint, on a model of the glass. The repaint no longer clears the glass: it blackens the
-// band the alignment offset uncovers (TftWithOffset::fillMarginsBlack( ), whose four conditions the model repeats) and pushes the six strips
+// band the alignment offset uncovers (TftWithOffset::fillMarginsBlack( ), whose four conditions the model repeats) and pushes the strips
 // at the offset, clipped to the glass. For every offset from -4 to 4 in x and in y, from a glass full of stale pixels, every pixel must end black
 // (the band) or a strip's (the rest), none stale. The controls leave the band out, or push five strips: both must leave stale pixels.
 int provarVidro( ) {
@@ -188,7 +189,7 @@ int provarVidro( ) {
           if ( ox > 0 ) enche( 0, 0, ox, 240 ); else if ( ox < 0 ) enche( 320 + ox, 0, -ox, 240 );
           if ( oy > 0 ) enche( 0, 0, 320, oy ); else if ( oy < 0 ) enche( 0, 240 + oy, 320, -oy );
         }
-        for ( int k = 0; k < ( variante == 2 ? 5 : ua::FAIXAS ); k++ )
+        for ( int k = 0; k < ( variante == 2 ? ua::FAIXAS - 1 : ua::FAIXAS ); k++ )
           for ( int j = 0; j < ua::ALTURA_FAIXA; j++ )
             for ( int i = 0; i < ua::LARGURA_PAINEL; i++ ) {
               const int x = i + ox, y = k * ua::ALTURA_FAIXA + j + oy;
@@ -197,7 +198,7 @@ int provarVidro( ) {
         for ( int y = 0; y < 240; y++ )
           for ( int x = 0; x < 320; x++ ) {
             const bool dentro = x - ox >= 0 && x - ox < 320 && y - oy >= 0 && y - oy < 240;
-            const uint16_t esperado = dentro ? ( variante == 2 && y - oy >= 200 ? VELHO : TIRA ) : 0;
+            const uint16_t esperado = dentro ? ( variante == 2 && y - oy >= ( ua::FAIXAS - 1 ) * ua::ALTURA_FAIXA ? VELHO : TIRA ) : 0;
             if ( vidro[y][x] == VELHO ) velhos++;
             if ( vidro[y][x] != esperado ) errados++;
           }
@@ -206,14 +207,57 @@ int provarVidro( ) {
     const bool ok = variante == 0 ? ( velhos == 0 && errados == 0 ) : ( velhos > 0 );
     if ( !ok ) falhas++;
     printf( "%s %s: %ld stale pixels, %ld pixels not as expected, in %ld offsets\n", ok ? "ok  " : "FAIL",
-            variante == 0 ? "the repaint (band blackened, six strips)" : variante == 1 ? "control: without the band" : "control: five strips", velhos, errados, casos );
+            variante == 0 ? "the repaint (band blackened, every strip)" : variante == 1 ? "control: without the band" : "control: the last strip missing", velhos, errados, casos );
   }
   return falhas;
+}
+
+// --recorte: the glass after the twelve strips are pushed at an offset the way DisplayManager::uaEmpurrar( ) pushes them (ua::recortar( ) and
+// ua::compactar( ), the code the firmware runs), against what each glass pixel must hold: the pixel of the image at (x - ox, y - oy). Every pixel of a strip
+// carries a value of its own (a hash of its place), so a block taken from the wrong column or row shows. The control reads the part in place, without
+// compactar( ): with a column offset it must get pixels wrong.
+int provarRecorte( ) {
+  static uint16_t vidro[ua::ALTURA_PAINEL][ua::LARGURA_PAINEL];
+  static uint16_t tira[ua::LARGURA_PAINEL * ua::ALTURA_FAIXA];
+  constexpr uint16_t VELHO = 0xDEAD;
+  auto valor = []( int linha, int col ) { return (uint16_t)( ( (uint32_t)( linha * ua::LARGURA_PAINEL + col ) * 2654435761u ) >> 16 ); };
+  int falhas = 0;
+  for ( int variante = 0; variante < 2; variante++ ) {   // 0: the firmware's push, 1: the control
+    long errados = 0, casos = 0;
+    for ( int oy = -4; oy <= 4; oy++ )
+      for ( int ox = -4; ox <= 4; ox++ ) {
+        for ( auto &linha : vidro )
+          for ( auto &v : linha ) v = VELHO;
+        for ( int k = 0; k < ua::FAIXAS; k++ ) {
+          for ( int j = 0; j < ua::ALTURA_FAIXA; j++ )
+            for ( int i = 0; i < ua::LARGURA_PAINEL; i++ ) tira[j * ua::LARGURA_PAINEL + i] = valor( k * ua::ALTURA_FAIXA + j, i );
+          const ua::Recorte r = ua::recortar( ox, k * ua::ALTURA_FAIXA + oy, ua::LARGURA_PAINEL, ua::ALTURA_FAIXA, ua::LARGURA_PAINEL, ua::ALTURA_PAINEL );
+          if ( r.vazio ) continue;
+          const uint16_t *bloco = variante == 0 ? ua::compactar( tira, ua::LARGURA_PAINEL, r ) : tira + r.fy * ua::LARGURA_PAINEL + r.fx;
+          for ( int j = 0; j < r.h; j++ )
+            for ( int i = 0; i < r.w; i++ ) vidro[r.y + j][r.x + i] = bloco[j * r.w + i];
+        }
+        for ( int y = 0; y < ua::ALTURA_PAINEL; y++ )
+          for ( int x = 0; x < ua::LARGURA_PAINEL; x++ ) {
+            const bool dentro = x - ox >= 0 && x - ox < ua::LARGURA_PAINEL && y - oy >= 0 && y - oy < ua::ALTURA_PAINEL;
+            if ( vidro[y][x] != ( dentro ? valor( y - oy, x - ox ) : VELHO ) ) errados++;
+          }
+        casos++;
+      }
+    const bool ok = variante == 0 ? errados == 0 : errados > 0;
+    if ( !ok ) falhas++;
+    printf( "%s %s: %ld glass pixels wrong, in %ld offsets\n", ok ? "ok  " : "FAIL", variante == 0 ? "the push (recortar, compactar)" : "control: the part read in place", errados, casos );
+  }
+  const bool vazios = ua::recortar( 0, 240, 320, 20, 320, 240 ).vazio && ua::recortar( -320, 0, 320, 20, 320, 240 ).vazio && ua::recortar( 0, -20, 320, 20, 320, 240 ).vazio &&
+                      !ua::recortar( 0, 239, 320, 20, 320, 240 ).vazio;
+  printf( "%s a strip wholly off the glass is empty, one pixel on it is not\n", vazios ? "ok  " : "FAIL" );
+  return falhas + ( vazios ? 0 : 1 );
 }
 
 }  // namespace
 
 int main( int argc, char **argv ) {
+  if ( argc > 1 && !strcmp( argv[1], "--recorte" ) ) return provarRecorte( );
   if ( argc > 1 && !strcmp( argv[1], "--hash" ) ) return provarHash( );
   if ( argc > 1 && !strcmp( argv[1], "--vidro" ) ) return provarVidro( );
   const int reps = argc > 1 ? atoi( argv[1] ) : 20;

@@ -68,7 +68,7 @@ struct UaEstado {
   uint32_t hash;        // its view model's hash
   uint32_t pinturas;    // frames painted since boot
   uint32_t ms, msMax;   // the last paint's duration and the longest one
-  uint8_t faixas;       // strips the last paint pushed (0..6)
+  uint8_t faixas;       // strips the last paint pushed (0..12)
   // The dashboard's own state, which the panel saves (reserved[52..53]): the
   // bench puts back what a walk changes. nav[i] is the slot of button i, or
   // UA_NAV_CFG / UA_NAV_PAGINA / UA_NAV_NADA.

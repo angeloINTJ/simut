@@ -50,14 +50,14 @@ void uaLatin1ParaUtf8( const char *latin1, char *out, int cap ) {
 
 namespace {
 
-constexpr int16_t ALTURA_FAIXA = 40;
+constexpr int16_t ALTURA_FAIXA = 20;
 /* A strip is as wide as the panel (the old screens' canvas is the panel's width by
  * 45 rows, DisplayManager.cpp) and the strips stack to its height. int, as the
  * literals were, so that every expression below keeps its type and so its code. */
 constexpr int LARGURA_FAIXA = DisplayDriver::W;
 static_assert( DisplayDriver::H % ALTURA_FAIXA == 0, "the strips tile the panel's height" );
 
-/* The strip a screen is composed on is ua::Faixa (Faixa.h): Adafruit_GFX over one 40-row strip of the old screens' canvas (the panel's width by
+/* The strip a screen is composed on is ua::Faixa (Faixa.h): Adafruit_GFX over one of two 20-row strips in the first 40 rows of the old screens' canvas (the panel's width by
  * 45 rows), the screen's coordinates shifted up by the strip's top, clipped to the strip. The host draws through the same class. */
 static_assert( LARGURA_FAIXA == ua::LARGURA_PAINEL && DisplayDriver::H == ua::ALTURA_PAINEL && ALTURA_FAIXA == ua::ALTURA_FAIXA,
                "ua::Faixa tiles the panel that DisplayDriver describes" );
@@ -183,13 +183,13 @@ bool DisplayManager::uaPintar( const UaQuadro &q, UiMode modo, uint32_t hash ) {
   const ua::Tema &tema = uaTema( );
   ua::Faixa faixa( cv->getBuffer( ) );
   ua::Pintor p( faixa, tema, faixa );
-  /* The record of the frame (Pintor::gravar( )) lives in the canvas's rows under the strip: the canvas is 320 x 45 (DisplayManager.cpp:1272), the strip
-   * takes 40 rows and the other 5, 3,200 B, are idle during a paint. A static list cost 14,856 B of RAM (P1); this costs none. Nothing writes those
+  /* The record of the frame (Pintor::gravar( )) lives in the canvas's rows under the strips: the canvas is 320 x 45 (DisplayManager.cpp:1272), the two
+   * strips take 40 rows and the other 5, 3,200 B, are idle during a paint. A static list cost 14,856 B of RAM (P1); this costs none. Nothing writes those
    * rows while a frame is painted: the strip class clips to its own 40 (Faixa.h), the hash and the push read the first 40, and the old screens'
    * draw functions that also use the canvas are not linked in this image (V-NM) or push nothing outside uaPintar( ) (blitCanvas( ) returns
    * unless _uaPintando). If the canvas is not the size relied on, there is no list and every strip draws the screen, as before P1. */
-  if ( cv->width( ) == LARGURA_FAIXA && cv->height( ) >= ALTURA_FAIXA + ua::LINHAS_DA_LISTA )
-    ua::Pintor::lista( cv->getBuffer( ) + LARGURA_FAIXA * ALTURA_FAIXA, ua::BYTES_DA_LISTA );
+  if ( cv->width( ) == LARGURA_FAIXA && cv->height( ) >= ua::LINHAS_DAS_FAIXAS + ua::LINHAS_DA_LISTA )
+    ua::Pintor::lista( cv->getBuffer( ) + LARGURA_FAIXA * ua::LINHAS_DAS_FAIXAS, ua::BYTES_DA_LISTA );
   else
     ua::Pintor::lista( nullptr, 0 );
   const uint32_t t0 = millis( );
@@ -198,8 +198,8 @@ bool DisplayManager::uaPintar( const UaQuadro &q, UiMode modo, uint32_t hash ) {
   const bool tudo = _uaTudo;
   if ( tudo ) {
     /* A full repaint does not clear the glass first any more: fastClearScreen( ) was 56 ms of black at 24 MHz before the first strip (measured on
-     * the bench on 2026-10-15). The six strips cover the panel's 320 x 240, each paints the margin black itself (ua::margemPreta( ) below), and
-     * all six are pushed whatever their hash says (the test below), so no pixel of the old frame is left under them. What they do not reach is
+     * the bench on 2026-10-15). The strips cover the panel's 320 x 240, each paints the margin black itself (ua::margemPreta( ) below), and
+     * all of them are pushed whatever their hash says (the test below), so no pixel of the old frame is left under them. What they do not reach is
      * the band the alignment offset uncovers: TftWithOffset shifts the image by (ox, oy), so |ox| columns and |oy| rows of the glass lie outside
      * it. That band is black, as fastClearScreen( ) left it (it ended in fillMarginsBlack( )), and fillMarginsBlack( ) paints exactly it, at the
      * offset the TFT has now: nothing at 0. When Ajustes, Alinhar moves the offset, the old band is covered by the new strips and the new one
@@ -208,22 +208,33 @@ bool DisplayManager::uaPintar( const UaQuadro &q, UiMode modo, uint32_t hash ) {
     for ( int k = 0; k < FAIXAS; k++ ) s_faixa[k] = 0;
   }
   p.gravar( );
+  /* The strips are composed two at a time in the canvas's two halves (Faixa::para( )): strip k + 1 is composed while the DMA streams strip k from the other
+   * half, so compose and push overlap instead of adding up. `voando` is the half a push in flight is reading. */
+  const uint16_t *voando = nullptr;
   for ( int k = 0; k < FAIXAS; k++ ) {
-    faixa.para( k, p );
+    uint16_t *const buf = faixa.para( k, p );
+    /* Strip k - 2 was composed in this half; if strip k - 1 was not pushed (its hash had not changed), the push of k - 2 may still be reading it. */
+    if ( voando == buf ) {
+      uaEmpurrarEsperar( );
+      voando = nullptr;
+    }
     faixa.fillScreen( tema.fundo );
-    /* The first strip draws the screen and records what it draws; the other five replay the record (Pintor::gravar( )), and draw the screen
+    /* The first strip draws the screen and records what it draws; the other strips replay the record (Pintor::gravar( )), and draw the screen
      * again only when the frame did not fit the record. */
     if ( p.gravado( ) ) p.repetir( ); else q.desenhar( p, q.vm );
     p.parar( );
     /* After the screen, so that nothing it drew reaches the margin, and before the hash: a strip is pushed when its pixels changed,
      * the margin's included. */
     ua::margemPreta( p );
-    const uint32_t h = ua::hashFaixa( cv->getBuffer( ), (size_t)LARGURA_FAIXA * ALTURA_FAIXA );
+    const uint32_t h = ua::hashFaixa( buf, (size_t)LARGURA_FAIXA * ALTURA_FAIXA );
     if ( !tudo && h == s_faixa[k] ) continue;
-    blitCanvas( cv, 0, (int16_t)( k * ALTURA_FAIXA ), LARGURA_FAIXA, ALTURA_FAIXA );
+    /* Starts the push (after the one in flight: one channel, one bus) and goes on composing. */
+    voando = uaEmpurrar( buf, 0, (int16_t)( k * ALTURA_FAIXA ), LARGURA_FAIXA, ALTURA_FAIXA ) ? buf : nullptr;
     s_faixa[k] = h;
     enviadas++;
   }
+  /* uaPintar( ) returns with no DMA in flight and spi0 free: the touch read, the GRAM readback and the update screen all rely on it (uaEmpurrar( ), DisplayManager_UiA_Empurrar.cpp). */
+  uaEmpurrarEsperar( );
   _uaPintando = false;
   _uaTudo = false;
   s_seq = s_seq + 1;
@@ -325,7 +336,7 @@ void DisplayManager::uiPaintOta( ) {
    * that freeze the panel (showOta( )). A new percentage alone is painted at
    * most every 400 ms: during the upload Core 0 paints it from otaProgress( ),
    * inside the upload's own loop, and the old screen redrew only the bar
-   * (about 3 ms a step) where this one draws the screen's six strips. */
+   * (about 3 ms a step) where this one draws the screen's twelve strips. */
   static uint32_t s_otaSeq = 0xFFFFFFFFu, s_otaMs = 0;
   const uint32_t seq = otaSeqOf( st );
   if ( seq == s_otaSeq && !_otaRedrawAll && !_uaTudo && s_modo == MODE_OTA_UPDATE && millis( ) - s_otaMs < 400 ) {
