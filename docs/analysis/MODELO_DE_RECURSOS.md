@@ -1671,7 +1671,7 @@ código é defeito). Nenhuma foi corrigida nesta análise; o P0 as leva.
 | `src/simut_config.h:281-282` | Bluetooth "BLE UART, ~22 KB" | SPP clássico; 64.732 B de flash e 16.416 B de `.bss` medidos |
 | `src/simut_config.h:285` | mDNS "negligible flash cost" | 15.804 B |
 | `src/simut_config.h:313` vs manual §5 | tema ~70 B vs ~85 B | um dos dois |
-| `src/simut_config.h:107-117` | SPI do TFT a 62,5 MHz | teto de 24 MHz, medido em 15/10 (R-H18); consertado: 66,5 MHz com o `clk_peri` no `clk_sys` |
+| `src/simut_config.h:115-147` | SPI do TFT a 62,5 MHz | teto de 24 MHz, medido em 15/10 (R-H18); consertado: 66,5 MHz com o `clk_peri` no `clk_sys` |
 | `src/StorageManager.cpp:269-270` | `.wip` regravado "a cada 10 min" | a cada registro (1.440 vezes por dia a 1/min) |
 | `src/ota/config_snapshot.cpp:27` | "margem atual ~3,4 KiB" | 1.430 B (esquema v25) |
 | `src/AppManager_Boot.cpp:40-41` | o alpha paralelo usa GP8/9 | usa GP16–21 (`simut_config.h:222-237`) |
@@ -1787,7 +1787,7 @@ As constantes de capacidade que o levantamento encontrou e que ficam fora do mod
 | `lwip-snd` | `TCP_SND_BUF` / `TCP_SND_QUEUELEN` | 8×1460 = 11680 / 32 (cálc.) | buffer de envio | …/patched_headers/lwipopts.h:84-85 |
 | `lwip-backlog` | `TCP_LISTEN_BACKLOG` / `TCP_DEFAULT_LISTEN_BACKLOG` | 1 / 2 | fila de accept | …/patched_headers/lwipopts.h:86-87 |
 | `lwip-misc` | `MDNS_MAX_SERVICES` / `SNTP_MAX_SERVERS` / `LWIP_NUM_NETIF_CLIENT_DATA` / `LWIP_STATS`+`MEMP_STATS` | 4 / 2 / 5 / 1+1 | — | …/patched_headers/lwipopts.h:106, :120, :91, :128, :132 |
-| `tft-spi` | `SIMUT_TFT_SPI_HZ` / `SIMUT_TFT_READ_HZ` | 66500000 / 12000000 | escrita e leitura do painel | src/simut_config.h:117, :153 |
+| `tft-spi` | `SIMUT_TFT_SPI_HZ` / `SIMUT_TFT_READ_HZ` | 66500000 / 12000000 | escrita e leitura do painel | src/simut_config.h:147, :190 |
 | `screen-stream` | `STRIP_ROWS` 8, `STRIP_RAW` 5120, DMA 2×7680 | — | /api/screen_stream | src/WebManager_History.cpp:1857-1860, :1927-1940 |
 | `screenshot` | `ROWS_PER_CHUNK` 16 | 15360 | /api/screenshot | src/WebManager_History.cpp:1622-1623, :1702 |
 | `rle` | `MAX_PALETTE` / `MAX_RUN` | 256 / 256 | codec do espelho de tela | src/ScreenRle.h:88-89 |

@@ -6,8 +6,9 @@ Todas as mudanças notáveis do firmware SIMUT.
 
 ## Não lançado
 
-**O SPI do painel roda a 66,5 MHz no Pico W. Rodava a 24 MHz em todas as imagens desde que o TFT existe, fosse qual
-fosse o valor de `SIMUT_TFT_SPI_HZ`.**
+**O SPI do painel roda a 66,5 MHz no Pico W. Na imagem medida antes da mudança (arduino-pico 5.6.1, 15/10/2026)
+rodava a 24 MHz, fosse qual fosse o `SIMUT_TFT_SPI_HZ`; as imagens 5.4.x anteriores, a v2.1.6 entre elas, têm o mesmo
+código de clock e não foram medidas.**
 
 ### O barramento do painel
 
@@ -19,8 +20,9 @@ fosse o valor de `SIMUT_TFT_SPI_HZ`.**
   imagens que acionam o painel (`pico_w_release`, `pico_w_test`, `pico_w_test_https`, `pico_w_asserts`,
   `pico2_w_release`, `pico_wiretft`), e o `SIMUT_TFT_SPI_HZ` é 66,5 MHz, o teto desse clock. O Pico 2 W já tinha o
   `clk_peri` no `clk_sys` e continua em 37,5 MHz. A alpha, a Air e o Wire simples mantêm os clocks e os bytes.
-- **Uma correção à v2.1.6.** O "31,25 -> 62,5 MHz" dela nunca chegou ao fio: os dois rodavam a 24 MHz, e a leitura da
-  GRAM que a validou provou que os pixels estavam certos, não a velocidade. Os comentários que diziam "clk_peri a
+- **Uma correção à v2.1.6.** O "31,25 -> 62,5 MHz" dela não chegou ao fio em nenhuma imagem medida (os dois pedidos dão
+  24 MHz com o `clk_peri` a 48 MHz, e o framework em que a v2.1.6 foi compilada tem o mesmo código de clock), e a
+  leitura da GRAM que a validou provou que os pixels estavam certos, não a velocidade. Os comentários que diziam "clk_peri a
   125 MHz" nunca foram verdade nessas placas, e saíram.
 - **O que mais a troca de clock move**, calculado pelo divisor do SDK (`src/display/Pl022Baud.h`, conferido com a função
   do próprio SDK em 2,6 milhões de pares): a leitura de volta do painel, para o espelho da web e a captura de tela, pede

@@ -4963,6 +4963,12 @@ void test_pl022_a_request_below_what_the_divider_makes_is_refused(void) {
     TEST_ASSERT_EQUAL_UINT32(0u, pl022::rung(48000000u, 700u).baud);
     TEST_ASSERT_EQUAL_UINT32(0u, pl022::rung(48000000u, 0u).baud);
     TEST_ASSERT_TRUE(pl022::rung(48000000u, 800u).baud > 0u);
+    /* The prescale loop's two edges (review of 2026-10-15; each was a surviving mutant): the product
+     * prescale x 256 x request passes 2^32 at 2 x 256 x 8,391,750, so a 32-bit product wraps and lands on
+     * another prescale (the SDK multiplies in 64 bits); and the last prescale, 254, still answers 186 Hz
+     * at 12 MHz, which a `>= 254` refusal would turn away. */
+    expect_rung(12000000u, 8391750u, 2, 1, 6000000u);
+    expect_rung(12000000u, 186u, 254, 253, 186u);
 }
 
 int main(int /*argc*/, char** /*argv*/) {

@@ -133,7 +133,9 @@
  * 66.5 MHz, this constant, is its ceiling. It is far beyond the ILI9341
  * datasheet figure (which real modules routinely exceed), so it MUST be
  * validated by reading pixels back (GET /api/screenshot reads the panel GRAM):
- * stray pixels in flat regions mean the wiring cannot carry it — drop back to
+ * on the bench's module and wiring, 2026-10-15, 60 strips rewritten at 66.5 MHz
+ * read back with 0 wrong pixels. Stray pixels in flat regions on another module
+ * mean its wiring cannot carry it — drop back to
  * 33250000u, the next rung (31250000u is no rung of this clock: it runs at
  * 22.17). The Pico 2 W (RP2350, clk_sys = clk_peri = 150 MHz, no clock change)
  * gets 37.5 MHz from the same request (prescale 2, post-divider 2), as it did
