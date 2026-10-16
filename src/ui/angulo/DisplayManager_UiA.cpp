@@ -22,6 +22,7 @@
 #include <string.h>
 
 #include "Angulo.h"
+#include "Faixa.h"
 #include "UiA.h"
 #include "telas/Base.h"
 #include "telas/PainelBoot.h"   /* BOOT_PULAR */
@@ -56,48 +57,10 @@ constexpr int16_t ALTURA_FAIXA = 40;
 constexpr int LARGURA_FAIXA = DisplayDriver::W;
 static_assert( DisplayDriver::H % ALTURA_FAIXA == 0, "the strips tile the panel's height" );
 
-/* Adafruit_GFX over one 40-row strip of the old screens' canvas (the panel's width by
- * 45 rows): the screen's coordinates, shifted up by the strip's top, clipped to the
- * strip.
- * Each strip draws the whole screen and keeps what falls in it — the price of
- * a flicker-free frame without a 150 kB frame buffer — so the pixel path
- * writes the buffer itself (GFXcanvas16's layout: row-major, native order)
- * instead of a second virtual call per pixel. */
-class Faixa : public Adafruit_GFX, public ua::Leitor {
-public:
-  explicit Faixa( GFXcanvas16 *cv ) : Adafruit_GFX( DisplayDriver::W, DisplayDriver::H ), buf_( cv->getBuffer( ) ) {}
-  void topo( int16_t y0 ) { y0_ = y0; }
-  void drawPixel( int16_t x, int16_t y, uint16_t c ) override {
-    y = (int16_t)( y - y0_ );
-    if ( (uint16_t)x >= (unsigned)LARGURA_FAIXA || (uint16_t)y >= (uint16_t)ALTURA_FAIXA ) return;
-    buf_[(int32_t)y * LARGURA_FAIXA + x] = c;
-  }
-  void fillRect( int16_t x, int16_t y, int16_t w, int16_t h, uint16_t c ) override {
-    int16_t x0 = x < 0 ? 0 : x, x1 = x + w > LARGURA_FAIXA ? LARGURA_FAIXA : (int16_t)( x + w );
-    int16_t r0 = (int16_t)( y - y0_ ), r1 = (int16_t)( r0 + h );
-    if ( r0 < 0 ) r0 = 0;
-    if ( r1 > ALTURA_FAIXA ) r1 = ALTURA_FAIXA;
-    if ( x0 >= x1 || r0 >= r1 ) return;
-    for ( int16_t r = r0; r < r1; r++ ) {
-      uint16_t *p = buf_ + (int32_t)r * LARGURA_FAIXA + x0;
-      for ( int16_t i = x0; i < x1; i++ ) *p++ = c;
-    }
-  }
-  void drawFastHLine( int16_t x, int16_t y, int16_t w, uint16_t c ) override { fillRect( x, y, w, 1, c ); }
-  void drawFastVLine( int16_t x, int16_t y, int16_t h, uint16_t c ) override { fillRect( x, y, 1, h, c ); }
-  void fillScreen( uint16_t c ) override { fillRect( 0, y0_, LARGURA_FAIXA, ALTURA_FAIXA, c ); }
-  // The pixel already in the strip, for the smoothed corners to mix with; a row
-  // outside the strip is not kept, so what it reads there does not matter.
-  uint16_t ler( int16_t x, int16_t y ) override {
-    y = (int16_t)( y - y0_ );
-    if ( (uint16_t)x >= (unsigned)LARGURA_FAIXA || (uint16_t)y >= (uint16_t)ALTURA_FAIXA ) return 0;
-    return buf_[(int32_t)y * LARGURA_FAIXA + x];
-  }
-
-private:
-  uint16_t *buf_;
-  int16_t y0_ = 0;
-};
+/* The strip a screen is composed on is ua::Faixa (Faixa.h): Adafruit_GFX over one 40-row strip of the old screens' canvas (the panel's width by
+ * 45 rows), the screen's coordinates shifted up by the strip's top, clipped to the strip. The host draws through the same class. */
+static_assert( LARGURA_FAIXA == ua::LARGURA_PAINEL && DisplayDriver::H == ua::ALTURA_PAINEL && ALTURA_FAIXA == ua::ALTURA_FAIXA,
+               "ua::Faixa tiles the panel that DisplayDriver describes" );
 constexpr int FAIXAS = DisplayDriver::H / ALTURA_FAIXA;
 
 /* The frame on the glass: what it was built from, its targets, and the hash of
@@ -218,7 +181,7 @@ bool DisplayManager::uaPintar( const UaQuadro &q, UiMode modo, uint32_t hash ) {
   GFXcanvas16 *const cv = _driver.canvas;
   if ( !cv || !_driver.tft || !q.desenhar ) return false;
   const ua::Tema &tema = uaTema( );
-  Faixa faixa( cv );
+  ua::Faixa faixa( cv->getBuffer( ) );
   ua::Pintor p( faixa, tema, faixa );
   const uint32_t t0 = millis( );
   uint8_t enviadas = 0;
@@ -230,11 +193,14 @@ bool DisplayManager::uaPintar( const UaQuadro &q, UiMode modo, uint32_t hash ) {
     fastClearScreen( ua::PRETO );
     for ( int k = 0; k < FAIXAS; k++ ) s_faixa[k] = 0;
   }
+  p.gravar( );
   for ( int k = 0; k < FAIXAS; k++ ) {
-    faixa.topo( (int16_t)( k * ALTURA_FAIXA ) );
-    p.janela( (int16_t)( k * ALTURA_FAIXA ), (int16_t)( ( k + 1 ) * ALTURA_FAIXA ) );
+    faixa.para( k, p );
     faixa.fillScreen( tema.fundo );
-    q.desenhar( p, q.vm );
+    /* The first strip draws the screen and records what it draws; the other five replay the record (Pintor::gravar( )), and draw the screen
+     * again only when the frame did not fit the record. */
+    if ( p.gravado( ) ) p.repetir( ); else q.desenhar( p, q.vm );
+    p.parar( );
     /* After the screen, so that nothing it drew reaches the margin, and before the hash: a strip is pushed when its pixels changed,
      * the margin's included. */
     ua::margemPreta( p );

@@ -61,7 +61,7 @@ sys.path.insert(0, str(HERE))
 from host_ui import find_gfx  # noqa: E402  (same folder; the GFX lookup is shared)
 
 
-def build(grupo, tmp):
+def build(grupo, tmp, opt=('-O1',), host=True, main='host_telas_main.cpp'):
     gfx = find_gfx()
     if not gfx:
         print('Adafruit GFX Library 1.12.6 not found', file=sys.stderr)
@@ -73,7 +73,7 @@ def build(grupo, tmp):
     if not amostras.is_file():
         print(f'{amostras} not found', file=sys.stderr)
         return None
-    inc = ['-std=gnu++17', '-O1', '-DARDUINO=100', '-DUA_HOST', f'-I{SHIM}', f'-I{gfx}',
+    inc = ['-std=gnu++17', *opt, '-DARDUINO=100', *(['-DUA_HOST'] if host else []), f'-I{SHIM}', f'-I{gfx}',
            f'-I{ROOT / "src" / "ui" / "angulo"}', f'-I{telas}', f'-I{HERE / "amostras"}']
     strict = ['-Wall', '-Wextra', '-Werror']
     units = [(gfx / 'Adafruit_GFX.cpp', ['-w']),
@@ -83,7 +83,7 @@ def build(grupo, tmp):
              *([(telas / 'Base.cpp', strict)] if grupo != 'base' else []),
              *[(f, strict) for f in proprios],
              (amostras, strict),
-             (HERE / 'host' / 'host_telas_main.cpp', strict)]
+             (HERE / 'host' / main, strict)]
     objs = []
     for src, flags in units:
         obj = tmp / (src.parent.name + '_' + src.stem + '.o')

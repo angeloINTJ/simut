@@ -166,6 +166,24 @@ public:
   // pixel. Only a speed-up: what lands inside the window is the same.
   void janela( int16_t y0, int16_t y1 ) { jy0_ = y0; jy1_ = y1; }
 
+  // Record and replay. A frame is composed in six strips, and each strip ran the screen's draw function, which works out its layout, its
+  // numbers and its text widths again and then draws only what lies in the strip (measured on the board on 2026-10-15: the dashboard
+  // composed in 73 ms, the chart in 69, the calendar in 100). Instead the draw of the first strip is recorded, each primitive call with its
+  // arguments, and the other five strips replay the list, which costs the primitives alone: the same calls in the same order against that
+  // strip's window, so what lands in the strip is what the draw function would have drawn there. The caller:
+  //   p.gravar( );  then for each strip:  if ( p.gravado( ) ) p.repetir( ); else draw the screen;  p.parar( );
+  // `gravado( )` is false until the first strip is drawn and stays false when the frame did not fit the list (MAX_OPS calls, MAX_TEXTOS bytes
+  // of text): that frame's other strips draw the screen again, as before. Not recorded: janela( ) (a strip's own), tema( ) (fixed for a
+  // frame) and what a screen draws through gfx( ) (no screen does; the host harness proves each frame stitched from replayed strips equal to the
+  // frame drawn whole). The list is static, one for the program: one Pintor records at a time.
+  static constexpr int MAX_OPS = 1024, MAX_TEXTOS = 512;
+  void gravar( );    // begins a recording
+  void parar( );     // ends it
+  bool gravado( ) const { return pronto_; }
+  void repetir( );
+  int gravadas( ) const;         // the calls and the bytes of text of the recording (the host harness reports the largest)
+  int bytesDeTextos( ) const;
+
   void clear( uint16_t c );
   void pixel( int16_t x, int16_t y, uint16_t c );
   void fillRect( int16_t x, int16_t y, int16_t w, int16_t h, uint16_t c );
@@ -193,6 +211,17 @@ private:
   const Tema *t_;
   Leitor &l_;
   int16_t jy0_ = -32768, jy1_ = 32767;
+  bool gravando_ = false, pronto_ = false, estouro_ = false;
+  // The calls a primitive makes to the others are part of its own: a recording stops at the outermost.
+  struct Silencio {
+    explicit Silencio( Pintor &p ) : p_( p ), antes_( p.gravando_ ) { p.gravando_ = false; }
+    ~Silencio( ) { p_.gravando_ = antes_; }
+    Pintor &p_;
+    bool antes_;
+  };
+  void gravarOp( uint8_t tipo, int16_t a, int16_t b, int16_t c, int16_t d, int16_t e, uint16_t cor, uint8_t aux = 0 );
+  void gravarTexto( const char *s, int16_t ox, int16_t y, Fonte f, uint16_t cor, int16_t inkT, int16_t inkB );
+  void desenharTexto( const char *s, int16_t ox, int16_t y, Fonte f, uint16_t cor );
 };
 
 // The margin the display alignment (Ajustes, Alinhar; TftWithOffset.h, +-4 px) uses: the MARGEM px around the safe area (x < MARGEM,

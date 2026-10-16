@@ -180,18 +180,99 @@ int16_t alturaX( Fonte f ) { return meta::kCapX[f == Fonte::MARCA ? (int)Fonte::
 /* Pintor                                                              */
 /* ------------------------------------------------------------------ */
 
+namespace {
+// The recording of a frame (Pintor::gravar( )): one record per primitive call, 14 bytes each, and the text of the calls that draw text.
+enum : uint8_t { OP_CLEAR, OP_PIXEL, OP_FILL_RECT, OP_RECT, OP_LINE, OP_CIRCLE, OP_FILL_CIRCLE, OP_ROUND_RECT, OP_FILL_ROUND_RECT, OP_ICONE, OP_TEXTO };
+struct Op {
+  uint8_t tipo, aux;
+  int16_t a, b, c, d, e;
+  uint16_t cor;
+};
+Op s_regOps[Pintor::MAX_OPS];
+char s_regTextos[Pintor::MAX_TEXTOS];
+int s_nRegOps = 0, s_nRegTextos = 0;
+}  // namespace
+
+void Pintor::gravar( ) {
+  s_nRegOps = 0;
+  s_nRegTextos = 0;
+  gravando_ = true;
+  pronto_ = false;
+  estouro_ = false;
+}
+
+void Pintor::parar( ) {
+  if ( gravando_ || estouro_ ) pronto_ = !estouro_;
+  gravando_ = false;
+}
+
+int Pintor::gravadas( ) const { return s_nRegOps; }
+int Pintor::bytesDeTextos( ) const { return s_nRegTextos; }
+
+void Pintor::gravarOp( uint8_t tipo, int16_t a, int16_t b, int16_t c, int16_t d, int16_t e, uint16_t cor, uint8_t aux ) {
+  if ( s_nRegOps >= MAX_OPS ) {
+    estouro_ = true;
+    gravando_ = false;
+    return;
+  }
+  s_regOps[s_nRegOps++] = Op{ tipo, aux, a, b, c, d, e, cor };
+}
+
+void Pintor::gravarTexto( const char *s, int16_t ox, int16_t y, Fonte f, uint16_t cor, int16_t inkT, int16_t inkB ) {
+  const int n = (int)strlen( s ) + 1;
+  if ( s_nRegTextos + n > MAX_TEXTOS ) {
+    estouro_ = true;
+    gravando_ = false;
+    return;
+  }
+  memcpy( s_regTextos + s_nRegTextos, s, (size_t)n );
+  gravarOp( OP_TEXTO, ox, y, inkT, inkB, (int16_t)s_nRegTextos, cor, (uint8_t)f );
+  s_nRegTextos += n;
+}
+
+// Runs the recorded calls again, against the window the Pintor has now. A text is not measured again: its pen position and its ink rows were
+// worked out by the first strip.
+void Pintor::repetir( ) {
+  if ( !pronto_ ) return;
+  const bool antes = gravando_;
+  gravando_ = false;
+  for ( int i = 0; i < s_nRegOps; i++ ) {
+    const Op &o = s_regOps[i];
+    switch ( o.tipo ) {
+      case OP_CLEAR: clear( o.cor ); break;
+      case OP_PIXEL: pixel( o.a, o.b, o.cor ); break;
+      case OP_FILL_RECT: fillRect( o.a, o.b, o.c, o.d, o.cor ); break;
+      case OP_RECT: rect( o.a, o.b, o.c, o.d, o.cor ); break;
+      case OP_LINE: line( o.a, o.b, o.c, o.d, o.cor ); break;
+      case OP_CIRCLE: circle( o.a, o.b, o.c, o.cor ); break;
+      case OP_FILL_CIRCLE: fillCircle( o.a, o.b, o.c, o.cor ); break;
+      case OP_ROUND_RECT: roundRect( o.a, o.b, o.c, o.d, o.e, o.cor ); break;
+      case OP_FILL_ROUND_RECT: fillRoundRect( o.a, o.b, o.c, o.d, o.e, o.cor ); break;
+      case OP_ICONE: icone( (IconeNome)o.e, o.c, o.a, o.b, o.cor ); break;
+      case OP_TEXTO:
+        if ( !fora( (int16_t)( o.b + o.c ), (int16_t)( o.d - o.c ) ) ) desenharTexto( s_regTextos + o.e, o.a, o.b, (Fonte)o.aux, o.cor );
+        break;
+      default: break;
+    }
+  }
+  gravando_ = antes;
+}
+
 void Pintor::clear( uint16_t c ) {
+  if ( gravando_ ) gravarOp( OP_CLEAR, 0, 0, 0, 0, 0, c );
   // fillRect, not fillScreen: TftWithOffset::fillScreen( ) also paints the
   // alignment offset's margins black. On a canvas the two are equal.
   g_.fillRect( 0, 0, g_.width( ), g_.height( ), c );
 }
 
 void Pintor::pixel( int16_t x, int16_t y, uint16_t c ) {
+  if ( gravando_ ) gravarOp( OP_PIXEL, x, y, 0, 0, 0, c );
   if ( x < 0 || y < 0 || x >= g_.width( ) || y >= g_.height( ) ) return;
   g_.drawPixel( x, y, c );
 }
 
 void Pintor::fillRect( int16_t x, int16_t y, int16_t w, int16_t h, uint16_t c ) {
+  if ( gravando_ ) gravarOp( OP_FILL_RECT, x, y, w, h, 0, c );
   // Surface.fillRect: clipped, and nothing for a width or height <= 0
   // (Adafruit_SPITFT::fillRect would flip a negative one instead).
   int16_t x0 = x < 0 ? 0 : x, y0 = y < 0 ? 0 : y;
@@ -203,11 +284,15 @@ void Pintor::fillRect( int16_t x, int16_t y, int16_t w, int16_t h, uint16_t c ) 
 }
 
 void Pintor::rect( int16_t x, int16_t y, int16_t w, int16_t h, uint16_t c ) {
+  if ( gravando_ ) gravarOp( OP_RECT, x, y, w, h, 0, c );
   if ( w <= 0 || h <= 0 ) return;
   g_.drawRect( x, y, w, h, c );
 }
 
-void Pintor::line( int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t c ) { g_.drawLine( x0, y0, x1, y1, c ); }
+void Pintor::line( int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t c ) {
+  if ( gravando_ ) gravarOp( OP_LINE, x0, y0, x1, y1, 0, c );
+  g_.drawLine( x0, y0, x1, y1, c );
+}
 
 void margemPreta( Pintor &p ) {
   // The top and bottom bands are as wide as the surface and the side ones run between them, so no pixel is painted twice. The size is
@@ -289,17 +374,23 @@ void Pintor::disco( int16_t x, int16_t y, int16_t r, uint16_t c, int32_t in2 ) {
 }
 
 void Pintor::circle( int16_t x, int16_t y, int16_t r, uint16_t c ) {
+  if ( gravando_ ) gravarOp( OP_CIRCLE, x, y, r, 0, 0, c );
   const int32_t in = 8 * r - 4;
   disco( x, y, r, c, in > 0 ? in * in : -1 );
 }
 
-void Pintor::fillCircle( int16_t x, int16_t y, int16_t r, uint16_t c ) { disco( x, y, r, c, -1 ); }
+void Pintor::fillCircle( int16_t x, int16_t y, int16_t r, uint16_t c ) {
+  if ( gravando_ ) gravarOp( OP_FILL_CIRCLE, x, y, r, 0, 0, c );
+  disco( x, y, r, c, -1 );
+}
 
 // A rounded box as Adafruit GFX places it ([x, x + w) by [y, y + h), corners of
 // radius r, at most half the shorter side): the straight parts as before, the
 // corners smoothed (cantos). The outline is 1 px: the ring between the corner's
 // disc and the one of radius r - 1 around the same centre, the box inset by 1.
 void Pintor::roundRect( int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint16_t c ) {
+  if ( gravando_ ) gravarOp( OP_ROUND_RECT, x, y, w, h, r, c );
+  const Silencio parte( *this );
   if ( w <= 0 || h <= 0 || fora( y, h ) ) return;
   const int16_t m = ( w < h ? w : h ) / 2;
   if ( r > m ) r = m;
@@ -312,6 +403,8 @@ void Pintor::roundRect( int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, u
 }
 
 void Pintor::fillRoundRect( int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint16_t c ) {
+  if ( gravando_ ) gravarOp( OP_FILL_ROUND_RECT, x, y, w, h, r, c );
+  const Silencio parte( *this );
   if ( w <= 0 || h <= 0 || fora( y, h ) ) return;
   const int16_t m = ( w < h ? w : h ) / 2;
   if ( r > m ) r = m;
@@ -328,6 +421,7 @@ bool temIcone( IconeNome n, int16_t tam ) {
 }
 
 void Pintor::icone( IconeNome n, int16_t tam, int16_t x, int16_t y, uint16_t c ) {
+  if ( gravando_ ) gravarOp( OP_ICONE, x, y, tam, 0, (int16_t)n, c );
   for ( const icones::Reg &r : icones::kIcones ) {
     if ( r.nome == n && r.tam == tam ) {
       if ( !fora( y, tam ) ) g_.drawBitmap( x, y, r.bits, tam, tam, c );
@@ -386,25 +480,9 @@ void hostControle( int16_t x, int16_t y, int16_t w, int16_t h, bool habilitado, 
 }
 #endif
 
-Tinta Pintor::texto( const char *s, int16_t x, int16_t y, Fonte f, uint16_t cor, char alinha ) {
-  const Caixa cx = medir( s, f );
-#ifdef UA_HOST
-  const char *const s0 = s;
-#endif
-  if ( cx.vazio ) return Tinta{ x, x };
-  int16_t ox;
-  if ( alinha == 'c' ) ox = x - rd2( cx.inkL + cx.inkR );
-  else if ( alinha == 'r' ) ox = x - cx.inkR;
-  else ox = x - cx.inkL;
-  if ( fora( (int16_t)( y + cx.inkT ), (int16_t)( cx.inkB - cx.inkT ) ) ) {
-#ifdef UA_HOST
-    hostAnotarTexto( s0, (int16_t)( ox + cx.inkL ), (int16_t)( ox + cx.inkR ), (int16_t)( y + cx.inkT ),
-                     (int16_t)( y + cx.inkB ) );
-#endif
-    return Tinta{ (int16_t)( ox + cx.inkL ), (int16_t)( ox + cx.inkR ) };
-  }
-  // Adafruit_GFX::write( ) draws each glyph at the cursor and advances it by
-  // xAdvance; a glyph that would cross the right edge is clipped, not wrapped.
+// The glyphs of s, drawn through Adafruit GFX from the pen at ox, baseline y. Adafruit_GFX::write( ) draws each glyph at the cursor and advances
+// it by xAdvance; a glyph that would cross the right edge is clipped, not wrapped.
+void Pintor::desenharTexto( const char *s, int16_t ox, int16_t y, Fonte f, uint16_t cor ) {
   g_.setTextWrap( false );
   g_.setTextSize( 1 );
   g_.setTextColor( cor );
@@ -420,6 +498,27 @@ Tinta Pintor::texto( const char *s, int16_t x, int16_t y, Fonte f, uint16_t cor,
     g_.write( c );
     cursor += gf->glyph[c - gf->first].xAdvance;
   }
+}
+
+Tinta Pintor::texto( const char *s, int16_t x, int16_t y, Fonte f, uint16_t cor, char alinha ) {
+  const Caixa cx = medir( s, f );
+#ifdef UA_HOST
+  const char *const s0 = s;
+#endif
+  if ( cx.vazio ) return Tinta{ x, x };
+  int16_t ox;
+  if ( alinha == 'c' ) ox = x - rd2( cx.inkL + cx.inkR );
+  else if ( alinha == 'r' ) ox = x - cx.inkR;
+  else ox = x - cx.inkL;
+  if ( gravando_ ) gravarTexto( s, ox, y, f, cor, cx.inkT, cx.inkB );
+  if ( fora( (int16_t)( y + cx.inkT ), (int16_t)( cx.inkB - cx.inkT ) ) ) {
+#ifdef UA_HOST
+    hostAnotarTexto( s0, (int16_t)( ox + cx.inkL ), (int16_t)( ox + cx.inkR ), (int16_t)( y + cx.inkT ),
+                     (int16_t)( y + cx.inkB ) );
+#endif
+    return Tinta{ (int16_t)( ox + cx.inkL ), (int16_t)( ox + cx.inkR ) };
+  }
+  desenharTexto( s, ox, y, f, cor );
 #ifdef UA_HOST
   hostAnotarTexto( s0, (int16_t)( ox + cx.inkL ), (int16_t)( ox + cx.inkR ), (int16_t)( y + cx.inkT ),
                    (int16_t)( y + cx.inkB ) );
