@@ -3,6 +3,7 @@
  * @brief What the settings screens' touches decide, which has no hardware in it: one step of a volume, one step of the display alignment's preview and how many language slots the screen offers. No Arduino: the host tests run it
  *        (test/test_validators) and the core's touch code calls it (DisplayManager_Actions.h, DisplayManager_Touch.cpp and the Ângulo's DisplayManager_UiA_Menus.cpp), so what the tests pin is the code the
  *        panel runs. Every function is always_inline, so it stays part of the branch that calls it.
+ *        S8b (C9) adds the ramp of a limit's arrow, the two steps of the maintenance window's bars and the minutes left in its window.
  */
 #pragma once
 
@@ -35,4 +36,13 @@ inline __attribute__((always_inline)) bool offsetStep( int8_t &v, int dir ) {
  * include it. The original's list takes the count as the bound of its rows and arrows, the Ângulo's as the bound of a tapped row. */
 inline __attribute__((always_inline)) int langSlotCount( bool packLoaded, int langCount ) {
 	return packLoaded ? langCount : 1;
+}
+
+/* The step of a limit's arrow from how long the same arrow has been held (the limits editor's ramp): 0.1, then 0.5 after 2 s, 1 after 4 s and 10 after 6 s. A threshold is exclusive: held for exactly
+ * 2000, 4000 or 6000 ms, the arrow still steps by the arm below. The original's handleTouch( ) and the Angulo's copy of the editor (which stays until the original's limits code is restructured) call it. */
+inline __attribute__((always_inline)) float limitStepMag( uint32_t heldMs ) {
+	if ( heldMs > 6000 ) return 10.0f;
+	if ( heldMs > 4000 ) return 1.0f;
+	if ( heldMs > 2000 ) return 0.5f;
+	return 0.1f;
 }

@@ -717,8 +717,7 @@ void DisplayManager::handleTouch( ) {
  if (!acceptHoldTouch(zone)) return;
  if (_lastPressedBtn != (int)zone) { _btnHoldStartTime = millis( ); _lastPressedBtn = (int)zone; }
  uint32_t holdTime = millis( ) - _btnHoldStartTime;
- float mag = 0.1f;
- if (holdTime > 6000) mag = 10.0f; else if (holdTime > 4000) mag = 1.0f; else if (holdTime > 2000) mag = 0.5f;
+ float mag = limitStepMag( holdTime );
  _editFieldFocus = idx;
  stepLimit(idx, inc ? mag : -mag);
  _repaintSettings = true;

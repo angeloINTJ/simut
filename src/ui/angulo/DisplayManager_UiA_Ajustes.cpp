@@ -371,8 +371,7 @@ UaToque DisplayManager::uaToqueAjustes( const ua::Alvo *a, int16_t &x, int16_t &
           if ( !acceptHoldTouch( zone ) ) return UaToque::TRATADO;
           if ( _lastPressedBtn != (int)zone ) { _btnHoldStartTime = millis( ); _lastPressedBtn = (int)zone; }
           const uint32_t holdTime = millis( ) - _btnHoldStartTime;
-          float mag = 0.1f;
-          if ( holdTime > 6000 ) mag = 10.0f; else if ( holdTime > 4000 ) mag = 1.0f; else if ( holdTime > 2000 ) mag = 0.5f;
+          float mag = limitStepMag( holdTime );
           _editFieldFocus = idx;
           passoLimite( _tempAlarmConfig, idx, inc ? mag : -mag );
           return UaToque::TRATADO;
