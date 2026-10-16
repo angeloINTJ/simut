@@ -81,6 +81,7 @@ extern volatile uint32_t g_flashIrqExposedMaxUs;/**< Longest such window */
  *
  * Diagnostics only — nothing here changes behaviour. */
 extern volatile uint32_t g_core1HeartbeatMs;    /**< millis( ) stamped by Core 1 each loop; age = liveness */
+extern volatile uint32_t g_tftSpiBaud;          /**< SPI0 baud as the last panel push programmed it, from the registers (0 before the first); status sys.tft_hz */
 extern volatile uint8_t  g_core1UiMode;         /**< _uiMode as last seen by Core 1 (resolves touch-probe ambiguity) */
 extern volatile uint32_t g_core1LockoutStuck;   /**< Lockout retry budget exhausted (3 s) */
 extern volatile uint32_t g_core1KillsLockout;   /**< Hard resets from the lockout timeout (P1) */

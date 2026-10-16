@@ -4,6 +4,35 @@
 
 All notable changes to SIMUT firmware.
 
+## Unreleased
+
+**The panel's SPI runs at 66.5 MHz on the Pico W. It had run at 24 MHz in every build since the TFT was added,
+whatever `SIMUT_TFT_SPI_HZ` asked for.**
+
+### The panel's bus
+
+- **`clk_peri` follows `clk_sys` again.** The framework's `main( )` calls `set_sys_clock_khz( 133000, true )`, and the
+  SDK answers by moving `clk_peri` to the 48 MHz USB PLL. An SPI block divides `clk_peri` by an even prescale times a
+  post-divider, so the ceiling of the panel's bus was 24 MHz. Read on the bench on 2026-10-15: `clk_sys` 133 MHz,
+  `clk_peri` 48 MHz, SPI0 24 MHz after a push of pixels; a 320x40 strip took 9.5 ms and a full-screen clear 56.7 ms.
+  `setup( )` now clocks `clk_peri` from `clk_sys` before anything is begun, on the images that drive the panel
+  (`pico_w_release`, `pico_w_test`, `pico_w_test_https`, `pico_w_asserts`, `pico2_w_release`, `pico_wiretft`), and
+  `SIMUT_TFT_SPI_HZ` is 66.5 MHz, the ceiling of that clock. The Pico 2 W already had `clk_peri` on `clk_sys` and
+  stays at 37.5 MHz. The alpha, the Air and the plain Wire keep their clocks and their bytes.
+- **A correction to v2.1.6.** Its "31.25 -> 62.5 MHz" never reached the wire: both ran at 24 MHz, and the GRAM
+  readback that validated it proved the pixels right, not the speed. The comments that said "clk_peri at 125 MHz"
+  were never true on these boards, and are gone.
+- **What else the clock change moves**, computed from the SDK's divider (`src/display/Pl022Baud.h`, held to the SDK's
+  own function over 2.6 million pairs): the panel read-back, for the web mirror and the screenshot, asks 12 MHz and
+  gets 11.08 (it got 12.0); the touch asks 2 MHz and gets 1.956 (2.0); the boot log's UART1 sets 115,201 baud
+  (115,176). The ENC28J60 runs in PIO from `clk_sys`, and I2C and the sensors' PIO blocks also run from `clk_sys`:
+  none of them moves.
+- **`GET /api/status` has two more fields in `sys` on the images with the panel**: `clk_peri`, the clock of the
+  peripherals in Hz, and `tft_hz`, the baud SPI0 got for the last push of pixels, read from its registers. They are
+  added; nothing is renamed.
+- If a panel shows stray pixels in flat regions at 66.5 MHz, the next rung down is `-DSIMUT_TFT_SPI_HZ=33250000u`.
+  The manual's old `31250000u` is no rung of this clock and runs at 22.17 MHz.
+
 ## v2.11.1 (2026-10-12)
 
 **Four high-severity defects of the manual's review are fixed: the panel's

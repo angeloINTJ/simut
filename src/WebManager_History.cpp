@@ -1738,7 +1738,7 @@ void WebManager::handleApiScreenshotChunk( ) {
  * WHY a second capture route instead of a flag on /api/screenshot: the two
  * want opposite things. /api/screenshot is the FORENSIC read — it votes three
  * reads per row because the ILI9341 read protocol is fragile, and it is what
- * simut_config.h points at to prove the wiring carries 62.5 MHz. This one is
+ * simut_config.h points at to prove the wiring carries the write clock. This one is
  * the MIRROR: one pass over the pixels instead of three, because the other two
  * are most of the frame and a mirror that shows a stray pixel is still a
  * mirror.

@@ -4,6 +4,35 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## Não lançado
+
+**O SPI do painel roda a 66,5 MHz no Pico W. Rodava a 24 MHz em todas as imagens desde que o TFT existe, fosse qual
+fosse o valor de `SIMUT_TFT_SPI_HZ`.**
+
+### O barramento do painel
+
+- **O `clk_peri` volta a seguir o `clk_sys`.** O `main( )` do framework chama `set_sys_clock_khz( 133000, true )`, e o
+  SDK responde passando o `clk_peri` para o PLL USB de 48 MHz. Um bloco SPI divide o `clk_peri` por um prescale par
+  vezes um pós-divisor, então o teto do barramento do painel era 24 MHz. Lido na bancada em 15/10/2026: `clk_sys`
+  133 MHz, `clk_peri` 48 MHz, SPI0 a 24 MHz depois de uma escrita de pixels; uma faixa de 320x40 levava 9,5 ms e um
+  clear de tela cheia 56,7 ms. O `setup( )` agora liga o `clk_peri` ao `clk_sys` antes de iniciar qualquer coisa, nas
+  imagens que acionam o painel (`pico_w_release`, `pico_w_test`, `pico_w_test_https`, `pico_w_asserts`,
+  `pico2_w_release`, `pico_wiretft`), e o `SIMUT_TFT_SPI_HZ` é 66,5 MHz, o teto desse clock. O Pico 2 W já tinha o
+  `clk_peri` no `clk_sys` e continua em 37,5 MHz. A alpha, a Air e o Wire simples mantêm os clocks e os bytes.
+- **Uma correção à v2.1.6.** O "31,25 -> 62,5 MHz" dela nunca chegou ao fio: os dois rodavam a 24 MHz, e a leitura da
+  GRAM que a validou provou que os pixels estavam certos, não a velocidade. Os comentários que diziam "clk_peri a
+  125 MHz" nunca foram verdade nessas placas, e saíram.
+- **O que mais a troca de clock move**, calculado pelo divisor do SDK (`src/display/Pl022Baud.h`, conferido com a função
+  do próprio SDK em 2,6 milhões de pares): a leitura de volta do painel, para o espelho da web e a captura de tela, pede
+  12 MHz e recebe 11,08 (recebia 12,0); o toque pede 2 MHz e recebe 1,956 (2,0); a UART1 do log de boot fica em 115.201
+  baud (115.176). O ENC28J60 roda em PIO a partir do `clk_sys`, e o I2C e os blocos PIO dos sensores também usam o
+  `clk_sys`: nenhum deles muda.
+- **O `GET /api/status` tem dois campos a mais em `sys` nas imagens com painel**: `clk_peri`, o clock dos periféricos
+  em Hz, e `tft_hz`, a velocidade que o SPI0 recebeu na última escrita de pixels, lida dos registradores. São
+  acréscimos; nada foi renomeado.
+- Se um painel mostrar pontos soltos em áreas lisas a 66,5 MHz, o degrau seguinte é `-DSIMUT_TFT_SPI_HZ=33250000u`. O
+  `31250000u` do manual antigo não é degrau desse clock e roda a 22,17 MHz.
+
 ## v2.11.1 (2026-10-12)
 
 **Quatro defeitos de severidade alta da revisão do manual estão consertados: a
