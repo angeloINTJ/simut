@@ -73,17 +73,34 @@ def listagem(*linhas):
     return "\n".join(linhas) + "\n"
 
 
-# bss 0x60 + 0xc, data 4 + 8 = 120 B of RAM; the rest is not RAM (read-only data r and R, code T and t, an undefined symbol, a symbol with no size)
-OBJ_A = listagem("00000000 00000060 b _ZN2uaL10s_lembradasE", "00000060 0000000c B g_plot", "00000000 00000004 d s_dado", "00000008 00000008 D g_ini",
-                 "00000000 00000020 r kTabela", "00000000 00000010 R kGlobal", "00000000 000000f0 T _ZN2ua5Pintor3xxEv", "00000100 00000020 t local",
-                 "         U memcpy", "00000070 b sem_tamanho")
-OBJ_B = listagem("00000000 00000004 d s_dado", "00000010 00000008 V _ZN2ua6inlineE")
-OBJ_C = listagem("00000010 00000008 V _ZN2ua6inlineE", "00000000 00000002 b g_so_do_c")
+def simbolo(secao, tamanho, nome, ligacao="l", tipo="O"):
+    """A line of `objdump -t`: the binding (l local, g global, w weak, u unique), the type (O object, F function), the section, the size, the name."""
+    flags = (ligacao if ligacao in "lgu" else " ") + ("w" if ligacao == "w" else " ") + "    " + tipo
+    return f"00000000 {flags} {secao}\t{tamanho:08x} {nome}"
+
+
+# bss 0x60 + 0xc, data 4 + 8 = 120 B of RAM; the rest is not RAM (read-only data, code, an undefined symbol, a section symbol, a symbol with no size)
+OBJ_A = listagem("SYMBOL TABLE:", "00000000 l    df *ABS*\t00000000 Angulo.cpp", "00000000 l    d  .bss\t00000000 .bss",
+                 simbolo(".bss._ZN2uaL10s_lembradasE", 0x60, "_ZN2uaL10s_lembradasE"), simbolo(".bss._ZN2ua6g_plotE", 0xc, "_ZN2ua6g_plotE", "g"),
+                 simbolo(".data.s_dado", 4, "s_dado"), simbolo(".data.g_ini", 8, "g_ini", "g"),
+                 simbolo(".rodata.kTabela", 0x20, "kTabela"), simbolo(".rodata._ZN2ua6kGlobalE", 0x10, "kGlobal", "g"),
+                 simbolo(".text._ZN2ua5Pintor3xxEv", 0xf0, "_ZN2ua5Pintor3xxEv", "g", "F"), simbolo(".text.local", 0x20, "local", "l", "F"),
+                 "00000000 g       *UND*\t00000000 memcpy", simbolo(".bss.sem_tamanho", 0, "sem_tamanho"))
+# the review's finding (round 2): a weak read-only table and a vtable are V in nm, as a weak variable is, and sit in flash
+FRACOS_FLASH = listagem(simbolo(".rodata._ZL17SENSOR_TYPE_TABLE", 0x110, "SENSOR_TYPE_TABLE", "w"), simbolo(".rodata._ZTV4Base", 0x20, "_ZTV4Base", "w"),
+                        simbolo(".data.rel.ro._ZN5Other5tableE", 0, "_ZN5Other5tableE", "w"))
+OBJ_B = listagem(simbolo(".data.s_dado", 4, "s_dado"), simbolo(".bss._ZGVZ3fooE1x", 8, "_ZGVZ3fooE1x", "w")) + FRACOS_FLASH
+OBJ_C = listagem(simbolo(".bss._ZGVZ3fooE1x", 8, "_ZGVZ3fooE1x", "w"), simbolo(".bss.g_so_do_c", 2, "g_so_do_c", "g")) + FRACOS_FLASH
+OBJ_SEM_SECAO_PROPRIA = listagem(simbolo(".bss", 16, "contador", "g"), simbolo(".data", 4, "valor"))
 EXIGENCIAS = {"pico_wiretft_angulo": {"budget": 120}}
 
 confere("the .bss and .data symbols add up, the rest is not RAM", guarda.ram_estatica([OBJ_A]), 120)
 confere("nothing to add up", guarda.ram_estatica([]), 0)
-confere("two statics of one name in two objects are two statics, a weak object in two is one", guarda.ram_estatica([OBJ_B, OBJ_C]), 4 + 8 + 2)
+confere("a weak const table and a vtable are flash, not RAM (the negative control of the review)", guarda.ram_estatica([FRACOS_FLASH]), 0)
+confere("a weak variable counts, once for the objects that define it; the weak tables in them do not; two statics of one name are two",
+        guarda.ram_estatica([OBJ_B, OBJ_C]), 4 + 8 + 2)
+confere("two statics of one name in two objects are two statics", guarda.ram_estatica([listagem(simbolo(".data.s", 4, "s")), listagem(simbolo(".data.s", 4, "s"))]), 8)
+confere("a build without -fdata-sections: the symbols of the plain .bss and .data count", guarda.ram_estatica([OBJ_SEM_SECAO_PROPRIA]), 20)
 confere("on the budget", guarda.verificar_ram(120, 5, EXIGENCIAS, "pico_wiretft_angulo")[0], "ok")
 estado, linhas = guarda.verificar_ram(124, 5, EXIGENCIAS, "pico_wiretft_angulo")
 confere("4 B more of static RAM fails (the negative control)", estado, "erro")
@@ -111,18 +128,21 @@ with tempfile.TemporaryDirectory() as pasta:
     confere("a budget file without envs is an error", guarda.ler_orcamentos(str(p / "sem_envs.json"))[0], None)
     confere("a missing budget file is an error", guarda.ler_orcamentos(str(p / "nao_existe.json"))[0], None)
 
-    # the real thing, on a compiler's objects: a static array of N bytes is N bytes of .bss; N + 4 fails a budget of N
-    if shutil.which("cc") and shutil.which("nm"):
+    # the real thing, on a compiler's objects: a static array is RAM, an inline variable is a weak RAM object (RAM), an inline const table is a weak read-only
+    # object (flash, and V in nm all the same); N + 4 bytes of RAM fail a budget of N
+    if shutil.which("g++") and shutil.which("objdump"):
         def medir(n):
-            fonte, objeto = p / f"b{n}.c", p / f"b{n}.o"
-            fonte.write_text(f"static char buffer[{n}];\nchar *usa(void) {{ return buffer; }}\n")
-            subprocess.check_call(["cc", "-c", "-fdata-sections", "-o", str(objeto), str(fonte)])
-            return guarda.ram_estatica([subprocess.check_output(["nm", "-S", "--defined-only", str(objeto)], text=True)])
-        confere("a compiler's object: a 100 B array is 100 B", medir(100), 100)
-        confere("a compiler's object: 4 B more fails a budget of 100", guarda.verificar_ram(medir(104), 1, {"e": {"budget": 100}}, "e")[0], "erro")
-        confere("a compiler's object: the budget edited to 104 passes", guarda.verificar_ram(medir(104), 1, {"e": {"budget": 104}}, "e")[0], "ok")
+            fonte, objeto = p / f"b{n}.cpp", p / f"b{n}.o"
+            fonte.write_text(f"static char buffer[{n}];\nchar *usa( ) {{ return buffer; }}\n"
+                             "inline const unsigned tabela[50] = { 1, 2, 3 };\nunsigned le( int i ) { return tabela[i]; }\n"
+                             "inline unsigned contador[8];\nunsigned *conta( ) { return contador; }\n")
+            subprocess.check_call(["g++", "-std=c++17", "-c", "-fdata-sections", "-o", str(objeto), str(fonte)])
+            return guarda.ram_estatica([subprocess.check_output(["objdump", "-t", str(objeto)], text=True)])
+        confere("a compiler's object: a 100 B array and a 32 B weak variable are 132 B, the 200 B weak const table is not RAM", medir(100), 132)
+        confere("a compiler's object: 4 B more fails a budget of 132", guarda.verificar_ram(medir(104), 1, {"e": {"budget": 132}}, "e")[0], "erro")
+        confere("a compiler's object: the budget edited to 136 passes", guarda.verificar_ram(medir(104), 1, {"e": {"budget": 136}}, "e")[0], "ok")
     else:
-        print("skip the compiler's objects: no cc or nm")
+        print("skip the compiler's objects: no g++ or objdump")
 
 print(f"{'OK' if not falhas else 'FAILED'}: {casos - falhas} of {casos} cases")
 sys.exit(1 if falhas else 0)

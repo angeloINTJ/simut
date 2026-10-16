@@ -13,12 +13,18 @@ the flash-probe shims. This applies to the images that carry the Ângulo (any ua
 
 Second duty (2026-10-16, the review of perf/ui-angulo-2canais). The static RAM of the Ângulo was outside every gate, and the heap pays for each byte of it: the
 telemetry batch drops to one entry when the free heap falls under HEAP_RESERVE (TelemetryManager.cpp, 32,768 B with TLS telemetry), and a speed-up that put 112 B
-there (a memo of the blends and 12 B of rows in the plot's struct) was a change nothing would have said. So the guard adds up the .data and .bss that the objects
-under src/ui/angulo define (nm -S on each object of the build: the ELF cannot say which object a symbol came from) and holds the total to tools/ui_ram_budget.json
-exactly, as tools/flash_budget.json holds the flash. Growing past the mark without editing it in the same change fails, and so does shrinking below it: a
-budget that only rises stops measuring, so the mark comes down in the change that shrinks. Padding the linker adds between objects is not counted; a symbol is.
+there (a memo of the blends and 12 B of rows in the plot's struct) was a change nothing would have said. So the guard adds up what the objects under src/ui/angulo
+put in .data and .bss and holds the total to tools/ui_ram_budget.json exactly, as tools/flash_budget.json holds the flash. Growing past the mark without editing it in
+the same change fails, and so does shrinking below it: a budget that only rises stops measuring, so the mark comes down in the change that shrinks.
 
-Run by hand: python3 tools/check_ui_ram.py firmware.elf [--nm arm-none-eabi-nm] [--budget tools/ui_ram_budget.json]. tools/test_check_ui_ram.py holds the cases, negative controls included.
+What counts is decided by SECTION, not by nm's letter. The first version read nm -S and counted every V (weak object) as RAM; nm prints V for a weak read-only table as it
+does for a weak variable, and 911 B of them (SENSOR_TYPE_TABLE, channelTable, PinKb::GRIDS, vtables) are flash in the linked ELF, so the mark of 10,224 B held 9,313 B of RAM and
+a vtable or a const table that changed would have failed the gate in words about RAM. So the guard reads objdump -t on each object of the build (the ELF cannot say which object a
+symbol came from): a symbol of object type, with a size, in a section that the linker script puts in RAM (.bss*, .data*; checked against the linked ELF, where the same names sit
+in .bss and .data), counted once if it is weak or unique (a COMDAT variable is one copy in the image, whatever the number of objects that define it). Code that runs from RAM
+(.time_critical.*, the two loops of the first duty) is not counted, nor is the padding the linker adds between objects.
+
+Run by hand: python3 tools/check_ui_ram.py firmware.elf [--nm arm-none-eabi-nm] [--objdump arm-none-eabi-objdump] [--budget tools/ui_ram_budget.json]. tools/test_check_ui_ram.py holds the cases, negative controls included.
 
 RP2040 map: XIP flash 0x10000000+, SRAM 0x20000000+.
 
@@ -28,6 +34,7 @@ License: MIT
 
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -78,27 +85,33 @@ def verificar(nm_texto):
     return "ok", [f"[ui-ram] OK {nome} @ 0x{a:08x} (SRAM)" for nome in REQUIRED for a in enderecos[nome]]
 
 
+_SIMBOLO = re.compile(r"^[0-9a-fA-F]+ (.{7}) (\S+)\t([0-9a-fA-F]+) (?:\.(?:hidden|protected|internal) )?(\S.*)$")
+
+
+def _em_ram(secao):
+    """The input sections that the linker script puts in RAM: its .bss* and .data* globs. (.rodata*, .text*, .ARM.*, and .time_critical.* are not static data.)"""
+    return secao.startswith(".bss") or secao.startswith(".data")
+
+
 def ram_estatica(listagens):
-    """The `nm -S` listings of the Angulo's object files in; the bytes of static RAM they define out: .data and .bss (b, B, d, D), and a weak object (V: an
-    inline variable, a COMDAT static) once, whatever the number of objects that define it. Code, read-only data, the undefined and the symbols without a size
-    are not RAM."""
+    """The `objdump -t` listings of the Angulo's object files in; the bytes of static RAM they define out: the symbols of object type, with a size, in a section of
+    RAM (_em_ram), a weak or unique one once whatever the number of objects that define it. The section decides, not nm's letter: a weak read-only table is V as a weak
+    variable is. Code, read-only data, the undefined, the section symbols and the symbols without a size are not RAM."""
     total = 0
-    fracos = set()
+    unicos = set()
     for texto in listagens:
         for linha in texto.splitlines():
-            partes = linha.split(None, 3)
-            if len(partes) != 4:
+            m = _SIMBOLO.match(linha)
+            if not m:
                 continue
-            try:
-                tamanho = int(partes[1], 16)
-            except ValueError:
+            flags, secao, tamanho, nome = m.group(1), m.group(2), int(m.group(3), 16), m.group(4)
+            if flags[6] != "O" or tamanho == 0 or not _em_ram(secao):
                 continue
-            tipo, nome = partes[2], partes[3]
-            if tipo in ("b", "B", "d", "D"):
-                total += tamanho
-            elif tipo == "V" and nome not in fracos:
-                fracos.add(nome)
-                total += tamanho
+            if flags[0] == "u" or flags[1] == "w":
+                if nome in unicos:
+                    continue
+                unicos.add(nome)
+            total += tamanho
     return total
 
 
@@ -141,13 +154,13 @@ def ler_orcamentos(caminho):
         return None, f"[ui-ram] FATAL: cannot read the static-RAM budget {caminho} ({exc})"
 
 
-def medir_ram(elf, nm, caminho_orcamento, nome_env):
+def medir_ram(elf, objdump, caminho_orcamento, nome_env):
     """The objects of the Angulo sit beside the ELF in the build folder (PlatformIO's layout): ('ok' | 'erro', lines)."""
     objetos = listar_objetos(os.path.join(os.path.dirname(os.path.abspath(elf)), PASTA_ANGULO))
     orcamentos, erro = ler_orcamentos(caminho_orcamento)
     if erro:
         return "erro", [erro]
-    listagens = [subprocess.check_output([nm, "-S", "--defined-only", o], text=True) for o in objetos]
+    listagens = [subprocess.check_output([objdump, "-t", o], text=True) for o in objetos]
     return verificar_ram(ram_estatica(listagens), len(objetos), orcamentos, nome_env)
 
 
@@ -156,6 +169,13 @@ def _nm_path(cc):
         if cc.endswith(a):
             return cc[: -len(a)] + b
     return "arm-none-eabi-nm"
+
+
+def _objdump_path(cc):
+    for a, b in (("gcc", "objdump"), ("g++", "objdump")):
+        if cc.endswith(a):
+            return cc[: -len(a)] + b
+    return "arm-none-eabi-objdump"
 
 
 def _ler(elf, nm):
@@ -173,7 +193,7 @@ def check_ui_ram(source, target, env):
     estado, linhas = verificar(texto)
     if estado != "pulado":   # the images without the Angulo have nothing to say
         print("\n".join(linhas))
-        estado_ram, linhas_ram = medir_ram(elf, nm, os.path.join(env.subst("$PROJECT_DIR"), "tools", ORCAMENTO), env.subst("$PIOENV"))
+        estado_ram, linhas_ram = medir_ram(elf, _objdump_path(env.subst("$CC")), os.path.join(env.subst("$PROJECT_DIR"), "tools", ORCAMENTO), env.subst("$PIOENV"))
         print("\n".join(linhas_ram))
         if estado_ram == "erro":
             estado = "erro"
@@ -186,6 +206,7 @@ def main(argv):
         print(__doc__.split("Run by hand:")[1].split("\n")[0].strip())
         return 2
     nm = argv[argv.index("--nm") + 1] if "--nm" in argv else "arm-none-eabi-nm"
+    objdump = argv[argv.index("--objdump") + 1] if "--objdump" in argv else "arm-none-eabi-objdump"
     orcamento = argv[argv.index("--budget") + 1] if "--budget" in argv else os.path.join(os.path.dirname(os.path.abspath(__file__)), ORCAMENTO)
     try:
         texto = _ler(argv[0], nm)
@@ -195,7 +216,7 @@ def main(argv):
     estado, linhas = verificar(texto)
     print("\n".join(linhas))
     if estado != "pulado":
-        estado_ram, linhas_ram = medir_ram(argv[0], nm, orcamento, os.path.basename(os.path.dirname(os.path.abspath(argv[0]))))
+        estado_ram, linhas_ram = medir_ram(argv[0], objdump, orcamento, os.path.basename(os.path.dirname(os.path.abspath(argv[0]))))
         print("\n".join(linhas_ram))
         if estado_ram == "erro":
             estado = "erro"
