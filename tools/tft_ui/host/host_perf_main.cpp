@@ -10,7 +10,8 @@
 // path (0 when the strips are the frame):
 //   S <sample> <theme> <us> <clear> <draw> <hash> <differing pixels>
 //   TOTAL <samples> <us> <clear> <draw> <hash> <differing pixels> <most calls in a record> <most bytes of text in one> <frames that did not fit>
-// Usage: host_perf <reps> [--only <part of a sample's name>] [--corrupt] [--direto]
+// Usage: host_perf --hash   (the strip hash tests)
+//        host_perf <reps> [--only <part of a sample's name>] [--corrupt] [--direto]
 //   --direto: do not record; every strip runs the screen's draw function (the compose before Pintor::gravar( ): the A of an A/B)
 //   --corrupt: flips one pixel of one strip after it is drawn. The control: every frame must then report exactly 1 differing pixel.
 #include <Adafruit_GFX.h>
@@ -39,12 +40,66 @@ private:
 
 uint16_t g_tira[ua::LARGURA_PAINEL * ua::ALTURA_FAIXA];
 
-// The strip's hash as DisplayManager_UiA.cpp computes it: FNV-1a over the buffer's bytes, one at a time.
-uint32_t hashDaTira( ) {
-  const uint8_t *b = reinterpret_cast<const uint8_t *>( g_tira );
+// The strip's hash as DisplayManager_UiA.cpp computes it: the kit's, two pixels to the word.
+uint32_t hashDaTira( ) { return ua::hashFaixa( g_tira, sizeof g_tira / sizeof g_tira[0] ); }
+
+// --hash: the hash tells whether a strip changed, so it must not miss a change. On a strip of random pixels: every bit of every fifth pixel
+// flipped alone; 100,000 pairs of flips anywhere; 20,000 pairs of flips of bit 15 of two odd pixels (bit 31 of their words: the weak spot of the
+// plain FNV over words, which is the control and must collide on every one of them); and a start not on a word, which must hash as the same
+// pixels do on one.
+uint32_t hashFraco( const uint16_t *px, size_t n ) {
   uint32_t h = 2166136261u;
-  for ( size_t i = 0; i < sizeof g_tira; i++ ) { h ^= b[i]; h *= 16777619u; }
+  for ( size_t i = 0; i + 1 < n; i += 2 ) h = ( h ^ ( (uint32_t)px[i] | (uint32_t)px[i + 1] << 16 ) ) * 16777619u;
   return h;
+}
+
+int provarHash( ) {
+  constexpr size_t N = ua::LARGURA_PAINEL * ua::ALTURA_FAIXA;
+  alignas( 4 ) static uint16_t px[N + 2], copia[N];
+  uint32_t estado = 12345;
+  auto sorteio = [&]( ) { estado = estado * 1664525u + 1013904223u; return estado >> 8; };
+  for ( size_t i = 0; i < N + 2; i++ ) px[i] = (uint16_t)sorteio( );
+  const uint32_t h0 = ua::hashFaixa( px, N ), f0 = hashFraco( px, N );
+  int falhas = 0;
+  auto confere = [&]( bool ok, const char *o_que ) { printf( "%s %s\n", ok ? "ok  " : "FAIL", o_que ); if ( !ok ) falhas++; };
+  long unitarios = 0, iguais = 0;
+  for ( size_t i = 0; i < N; i += 5 )
+    for ( int b = 0; b < 16; b++ ) {
+      px[i] ^= (uint16_t)( 1u << b );
+      iguais += ua::hashFaixa( px, N ) == h0;
+      px[i] ^= (uint16_t)( 1u << b );
+      unitarios++;
+    }
+  char msg[160];
+  snprintf( msg, sizeof msg, "one bit of one pixel flipped alone: %ld of %ld change the hash", unitarios - iguais, unitarios );
+  confere( iguais == 0, msg );
+  long pares = 0, colidem = 0;
+  for ( int t = 0; t < 100000; t++ ) {
+    const size_t i = sorteio( ) % N, j = sorteio( ) % N;
+    const uint16_t bi = (uint16_t)( 1u << ( sorteio( ) % 16 ) ), bj = (uint16_t)( 1u << ( sorteio( ) % 16 ) );
+    if ( i == j && bi == bj ) continue;
+    px[i] ^= bi; px[j] ^= bj;
+    colidem += ua::hashFaixa( px, N ) == h0;
+    px[j] ^= bj; px[i] ^= bi;
+    pares++;
+  }
+  snprintf( msg, sizeof msg, "two bits flipped anywhere: %ld of %ld pairs collide", colidem, pares );
+  confere( colidem == 0, msg );
+  long altos = 0, novos = 0, fracos = 0;
+  for ( int t = 0; t < 20000; t++ ) {
+    const size_t i = ( sorteio( ) % ( N / 2 ) ) * 2 + 1, j = ( sorteio( ) % ( N / 2 ) ) * 2 + 1;
+    if ( i == j ) continue;
+    px[i] ^= 0x8000; px[j] ^= 0x8000;
+    novos += ua::hashFaixa( px, N ) == h0;
+    fracos += hashFraco( px, N ) == f0;
+    px[j] ^= 0x8000; px[i] ^= 0x8000;
+    altos++;
+  }
+  snprintf( msg, sizeof msg, "bit 15 of two odd pixels: %ld of %ld collide (the plain FNV over words, the control: %ld)", novos, altos, fracos );
+  confere( novos == 0 && fracos == altos, msg );
+  memcpy( copia, px + 1, sizeof copia );
+  confere( ua::hashFaixa( px + 1, N ) == ua::hashFaixa( copia, N ), "a start not on a word hashes as the same pixels on one" );
+  return falhas;
 }
 
 struct Partes { double limpa = 0, desenha = 0, hash = 0; };
@@ -111,6 +166,7 @@ int diferentes( const amostra::Amostra &a, const ua::Tema &tema, ua::Faixa &faix
 }  // namespace
 
 int main( int argc, char **argv ) {
+  if ( argc > 1 && !strcmp( argv[1], "--hash" ) ) return provarHash( );
   const int reps = argc > 1 ? atoi( argv[1] ) : 20;
   const char *so = nullptr;
   bool corromper = false;

@@ -18,6 +18,7 @@
 // pico_wiretft_angulo) and the host harness; no product image compiles
 // src/ui/angulo/.
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include "AnguloMeta.h"
@@ -229,6 +230,16 @@ private:
 // the firmware keeps only its own rows. A screen does not call it: DisplayManager::uaPintar( ) calls it after each strip's draw and
 // tools/tft_ui/host/host_telas_main.cpp after each sample's, so a frame on the host is the frame on the glass.
 void margemPreta( Pintor &p );
+
+// A 32-bit word read or written where the buffers are declared as 16-bit pixels: may_alias, so that the compiler does not take the two for
+// different objects and keep a pixel in a register across a word store.
+using Palavra = uint32_t __attribute__( ( may_alias ) );
+
+// The hash of a strip's pixels, which DisplayManager::uaPintar( ) compares with the strip's last pushed one to know whether to push it again. The
+// `n` pixels are read two at a time as 32-bit words (little-endian: a | b << 16; an odd last pixel alone). Each word goes in by an xor, an odd
+// multiply and a rotate, three bijections of the state: a change in any one word always changes the hash. The rotate brings a word's high bits
+// (a pixel's red) down where the next multiply mixes them; plain FNV over words keeps a change in bit 31 in bit 31, and two of them cancel.
+uint32_t hashFaixa( const uint16_t *px, size_t n );
 
 // Text centred vertically in [y, y + h): cap height (or x height).
 Tinta textoCentrado( Pintor &p, const char *s, int16_t x, int16_t y, int16_t h, Fonte f, uint16_t cor,

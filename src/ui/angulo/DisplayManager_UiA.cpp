@@ -204,7 +204,7 @@ bool DisplayManager::uaPintar( const UaQuadro &q, UiMode modo, uint32_t hash ) {
     /* After the screen, so that nothing it drew reaches the margin, and before the hash: a strip is pushed when its pixels changed,
      * the margin's included. */
     ua::margemPreta( p );
-    const uint32_t h = fnv( cv->getBuffer( ), (size_t)LARGURA_FAIXA * ALTURA_FAIXA * 2 );
+    const uint32_t h = ua::hashFaixa( cv->getBuffer( ), (size_t)LARGURA_FAIXA * ALTURA_FAIXA );
     if ( h == s_faixa[k] ) continue;
     blitCanvas( cv, 0, (int16_t)( k * ALTURA_FAIXA ), LARGURA_FAIXA, ALTURA_FAIXA );
     s_faixa[k] = h;

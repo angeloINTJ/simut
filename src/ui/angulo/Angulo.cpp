@@ -304,6 +304,37 @@ void margemPreta( Pintor &p ) {
   p.fillRect( (int16_t)( w - MARGEM ), MARGEM, MARGEM, (int16_t)( h - 2 * MARGEM ), PRETO );
 }
 
+static_assert( __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__, "hashFaixa reads two pixels as one little-endian word" );
+
+namespace {
+inline uint32_t entraPalavra( uint32_t h, uint32_t w ) {
+  h = ( h ^ w ) * 16777619u;
+  return ( h << 15 ) | ( h >> 17 );
+}
+}  // namespace
+
+uint32_t hashFaixa( const uint16_t *px, size_t n ) {
+  uint32_t h = 2166136261u;
+  size_t i = 0;
+  if ( ( reinterpret_cast<uintptr_t>( px ) & 3 ) == 0 ) {
+    const Palavra *w = static_cast<const Palavra *>( __builtin_assume_aligned( px, 4 ) );
+    const size_t pares = n / 2;
+    size_t k = 0;
+    for ( ; k + 4 <= pares; k += 4 ) {
+      h = entraPalavra( h, w[k] );
+      h = entraPalavra( h, w[k + 1] );
+      h = entraPalavra( h, w[k + 2] );
+      h = entraPalavra( h, w[k + 3] );
+    }
+    for ( ; k < pares; k++ ) h = entraPalavra( h, w[k] );
+    i = pares * 2;
+  } else {
+    for ( ; i + 2 <= n; i += 2 ) h = entraPalavra( h, (uint32_t)px[i] | (uint32_t)px[i + 1] << 16 );
+  }
+  if ( i < n ) h = entraPalavra( h, px[i] );
+  return h;
+}
+
 namespace {
 
 // fg over bg, a sixteenths of fg: each channel widened to 8 bits (high bits
