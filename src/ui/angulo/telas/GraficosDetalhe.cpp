@@ -83,15 +83,27 @@ void leituras( uint16_t n, char *buf, int cap ) {
   snprintf( buf, (size_t)cap, "n = %u", (unsigned)n );
 }
 
+// The two things the targets need from the layout, apart from the cards: the back button's box and the pager's state. alvosDetalhe( ) takes only these (the
+// layout also writes the six cards' values and lines: 0.8 ms of the detail's 53.0 on the board, a second time, 2026-10-16).
+Caixa16 caixaVoltar( ) {
+  const Acao voltar{ "Voltar", Botao::DISCRETO, IconeNome::ARROW_LEFT, 0 };
+  Caixa16 c;
+  caixasDasAcoes( &voltar, 1, &c );
+  return c;
+}
+
+void paginacao( const VmDetalhe &vm, int *paginas, int *pagina ) {
+  *paginas = vm.paginas < 1 ? 1 : vm.paginas > 3 ? 3 : vm.paginas;
+  *pagina = vm.pagina >= *paginas ? *paginas - 1 : vm.pagina;
+}
+
 LayoutDetalhe layoutDetalhe( const VmDetalhe &vm ) {
   LayoutDetalhe l{ };
   snprintf( l.titulo, sizeof l.titulo, "Detalhe · %s", rotuloPeriodo( vm.periodo ) );
-  const Acao voltar{ "Voltar", Botao::DISCRETO, IconeNome::ARROW_LEFT, 0 };
-  caixasDasAcoes( &voltar, 1, &l.cxVoltar );
+  l.cxVoltar = caixaVoltar( );
   l.area = Caixa16{ ESP2, Y0, 320 - 2 * ESP2, ( N_CARTOES / COLUNAS ) * H_CARTAO + ESP2 };
 
-  l.paginas = vm.paginas < 1 ? 1 : vm.paginas > 3 ? 3 : vm.paginas;
-  l.pagina = vm.pagina >= l.paginas ? l.paginas - 1 : vm.pagina;
+  paginacao( vm, &l.paginas, &l.pagina );
   const EstatDetalhe &e = vm.est[l.pagina];
   l.vazio = e.leituras == 0;
   const char *unidade;
@@ -168,7 +180,9 @@ void desenharDetalhe( Pintor &p, const VmDetalhe &vm ) {
 }
 
 int alvosDetalhe( const VmDetalhe &vm, Alvo *out ) {
-  const LayoutDetalhe l = layoutDetalhe( vm );
+  struct { Caixa16 cxVoltar; int pagina, paginas; } l;
+  l.cxVoltar = caixaVoltar( );
+  paginacao( vm, &l.paginas, &l.pagina );
   int n = addAlvo( out, 0, alvoDaAcao( l.cxVoltar ), DET_VOLTAR );
   n = addAlvo( out, n, alvoDoTitulo( l.cxVoltar ), ALVO_INERTE );
   // The cards and the band around them turn the page, on every page and on the empty one (the glue says in which order).

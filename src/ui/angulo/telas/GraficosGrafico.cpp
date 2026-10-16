@@ -81,12 +81,19 @@ struct PlotGrafico {
   int16_t px0, px1, py0, py1;    // the plot
   int32_t lo, hi;                // what the plot's height spans, in tenths
   int32_t lo2, hi2;              // the second curve's
+  int16_t yMin[3], yMax[3];      // the rows each of the three functions draws within (band, second curve, mean); yMin > yMax: it draws nothing
 };
 
-struct LayoutGrafico : PlotGrafico {
-  char titulo[64];
+// What the targets need and the data does not move: the two actions' boxes and the footer's. alvosGrafico( ) takes only this (the layout also works out the
+// statistics, the grid, the scales and the axis, which cost 2.3 ms of the chart's 60.3 on the board a second time, 2026-10-16).
+struct GeometriaGrafico {
   Acao acoes[2];                 // Dia, Voltar
   Caixa16 cxAcao[2];
+  Caixa16 periodo[N_PERIODOS], anterior, seguinte;
+};
+
+struct LayoutGrafico : PlotGrafico, GeometriaGrafico {
+  char titulo[64];
   bool temDados;
   Dado stat[6];
   int nStat;
@@ -98,7 +105,6 @@ struct LayoutGrafico : PlotGrafico {
   char rot2Cima[16], rot2Baixo[16];
   const char *un2;
   char eixo[3][16];
-  Caixa16 periodo[N_PERIODOS], anterior, seguinte;
 };
 
 int32_t chao( int32_t a, int32_t b ) { return a >= 0 ? a / b : -( ( -a + b - 1 ) / b ); }   // floor( a / b ), b > 0
@@ -256,11 +262,21 @@ void montarStats( const VmGrafico &vm, LayoutGrafico &l ) {
   }
 }
 
+void geometria( GeometriaGrafico &g ) {
+  g.acoes[0] = Acao{ "Dia", Botao::SECUNDARIO, IconeNome::CALENDAR, 0 };
+  g.acoes[1] = Acao{ "Voltar", Botao::DISCRETO, IconeNome::ARROW_LEFT, 0 };
+  caixasDasAcoes( g.acoes, 2, g.cxAcao );
+  // The footer.
+  const int16_t xChips = ESP2 + W_SETA + ESP2;
+  g.anterior = Caixa16{ ESP2, Y_PE, W_SETA, H_PE };
+  for ( int i = 0; i < N_PERIODOS; i++ )
+    g.periodo[i] = Caixa16{ (int16_t)( xChips + i * ( W_CHIP + ESP1 ) ), Y_PE, W_CHIP, H_PE };
+  g.seguinte = Caixa16{ (int16_t)( 320 - ESP2 - W_SETA ), Y_PE, W_SETA, H_PE };
+}
+
 LayoutGrafico layoutGrafico( const VmGrafico &vm ) {
   LayoutGrafico l{ };
-  l.acoes[0] = Acao{ "Dia", Botao::SECUNDARIO, IconeNome::CALENDAR, 0 };
-  l.acoes[1] = Acao{ "Voltar", Botao::DISCRETO, IconeNome::ARROW_LEFT, 0 };
-  caixasDasAcoes( l.acoes, 2, l.cxAcao );
+  geometria( l );
   tituloComPeriodo( l.titulo, sizeof l.titulo, vm.sensor, vm.periodo, l.acoes, 2, true );
 
   l.n = vm.n > GRAFICO_BALDES ? GRAFICO_BALDES : vm.n;
@@ -330,12 +346,6 @@ LayoutGrafico layoutGrafico( const VmGrafico &vm ) {
 
   if ( l.temDados ) montarStats( vm, l );
 
-  // The footer.
-  const int16_t xChips = ESP2 + W_SETA + ESP2;
-  l.anterior = Caixa16{ ESP2, Y_PE, W_SETA, H_PE };
-  for ( int i = 0; i < N_PERIODOS; i++ )
-    l.periodo[i] = Caixa16{ (int16_t)( xChips + i * ( W_CHIP + ESP1 ) ), Y_PE, W_CHIP, H_PE };
-  l.seguinte = Caixa16{ (int16_t)( 320 - ESP2 - W_SETA ), Y_PE, W_SETA, H_PE };
   return l;
 }
 
@@ -362,8 +372,11 @@ int16_t xDe( const PlotGrafico &l, int i ) { return (int16_t)( l.px0 + rdiv( (in
 // plot's rows skips them: the curves keep to [py0, py1], a square reaches LADO_PONTO beyond it and the mean's second line one more. Held by host_perf --guarda (a chart whose second curve touches the plot's first and last rows, the strips on all 20 grids): narrowed by 6 px a side, the guard fails it.
 PlotGrafico s_plot;
 
-bool foraDoPlot( const Pintor &p, const PlotGrafico &l ) {
-  return p.fora( (int16_t)( l.py0 - LADO_PONTO ), (int16_t)( l.py1 - l.py0 + 2 * LADO_PONTO + 2 ) );
+// Is the window wholly outside the rows function `slot` draws within? Those are the rows of its own values (extentes( )), not the plot's whole height: on the
+// board the three functions took 12.7 of the chart's 60.3 ms, 0.8 to 1.0 ms in each of the three strips that held part of the plot but none of the curves, which
+// walked every bucket and bisected their limits for nothing (2026-10-16). The slack is the one the plot's height had: a square reaches LADO_PONTO.
+bool foraDoPlot( const Pintor &p, const PlotGrafico &l, int slot ) {
+  return l.yMin[slot] > l.yMax[slot] || p.fora( (int16_t)( l.yMin[slot] - LADO_PONTO ), (int16_t)( l.yMax[slot] - l.yMin[slot] + 2 * LADO_PONTO + 2 ) );
 }
 
 // What a window of rows cannot show, in values. A value's row falls as the value rises (yDe( ) clamps, and rdiv( ) never turns round), so within the scale
@@ -413,7 +426,7 @@ Limiares limiares( const Pintor &p, const PlotGrafico &l, int32_t lo, int32_t hi
 // gap breaks it.
 void desenharBanda( Pintor &p, const void *arg ) {
   const PlotGrafico &l = *static_cast<const PlotGrafico *>( arg );
-  if ( foraDoPlot( p, l ) ) return;
+  if ( foraDoPlot( p, l, 0 ) ) return;
   const VmGrafico &vm = *l.vm;
   const Tema &T = p.t( );
   const int n = l.n;
@@ -440,7 +453,7 @@ void desenharBanda( Pintor &p, const void *arg ) {
 // The second curve: thin, grey, under the temperature.
 void desenharSegundaCurva( Pintor &p, const void *arg ) {
   const PlotGrafico &l = *static_cast<const PlotGrafico *>( arg );
-  if ( foraDoPlot( p, l ) ) return;
+  if ( foraDoPlot( p, l, 1 ) ) return;
   const VmGrafico &vm = *l.vm;
   const Tema &T = p.t( );
   const int n = l.n;
@@ -461,7 +474,7 @@ void desenharSegundaCurva( Pintor &p, const void *arg ) {
 // would draw nothing and look like lost data.
 void desenharMedia( Pintor &p, const void *arg ) {
   const PlotGrafico &l = *static_cast<const PlotGrafico *>( arg );
-  if ( foraDoPlot( p, l ) ) return;
+  if ( foraDoPlot( p, l, 2 ) ) return;
   const VmGrafico &vm = *l.vm;
   const Tema &T = p.t( );
   const int n = l.n;
@@ -483,12 +496,60 @@ void desenharMedia( Pintor &p, const void *arg ) {
   }
 }
 
+// The rows each of the three functions draws within, from the frame's own values: yDe( ) clamps and never turns round, so the extreme values give the extreme
+// rows (the band's from its tops and bottoms and the buckets' means together, so that an inverted bucket cannot leave one out). A function with no bucket gets
+// yMin > yMax and draws nothing.
+void extentes( const VmGrafico &vm, PlotGrafico &l, bool temV2 ) {
+  int32_t tb = INT32_MIN, bb = INT32_MAX, tm = INT32_MIN, bm = INT32_MAX, t2 = INT32_MIN, b2 = INT32_MAX;
+  for ( int i = 0; i < l.n; i++ ) {
+    const int32_t m = vm.bMedia[i];
+    if ( m != SEM_DADO ) {
+      if ( m > tm ) tm = m;
+      if ( m < bm ) bm = m;
+      int32_t cima = m, baixo = m;
+      const int32_t mx = vm.bMax[i], mn = vm.bMin[i];
+      if ( mx != SEM_DADO ) {
+        if ( mx > cima ) cima = mx;
+        if ( mx < baixo ) baixo = mx;
+      }
+      if ( mn != SEM_DADO ) {
+        if ( mn > cima ) cima = mn;
+        if ( mn < baixo ) baixo = mn;
+      }
+      if ( cima > tb ) tb = cima;
+      if ( baixo < bb ) bb = baixo;
+    }
+    const int32_t v2 = vm.bMedia2[i];
+    if ( v2 != SEM_DADO ) {
+      if ( v2 > t2 ) t2 = v2;
+      if ( v2 < b2 ) b2 = v2;
+    }
+  }
+  l.yMin[0] = 1; l.yMax[0] = 0; l.yMin[1] = 1; l.yMax[1] = 0; l.yMin[2] = 1; l.yMax[2] = 0;
+  // Only a value inside its scale has a row that follows it (rdiv( ) narrows to 16 bits, as Limiares' comment says of yDe( )): the screens' values always are, and
+  // a function that holds one outside keeps the plot's whole height, as it had.
+  auto linhas = [&]( int slot, int32_t topo, int32_t fundo, int32_t lo, int32_t hi ) {
+    if ( topo < fundo ) return;   // no bucket
+    if ( topo <= hi && fundo >= lo ) {
+      l.yMin[slot] = yDe( l, topo, lo, hi );
+      l.yMax[slot] = yDe( l, fundo, lo, hi );
+    } else {
+      l.yMin[slot] = l.py0;
+      l.yMax[slot] = l.py1;
+    }
+  };
+  linhas( 0, tb, bb, l.lo, l.hi );
+  if ( temV2 ) linhas( 1, t2, b2, l.lo2, l.hi2 );
+  linhas( 2, tm, bm, l.lo, l.hi );
+}
+
 // The plot: the band, the grid, the dashed lines, the curves, the last point.
 void desenharPlot( Pintor &p, const VmGrafico &vm, const LayoutGrafico &l ) {
   const Tema &T = p.t( );
   auto yT = [&]( int32_t v ) { return yDe( l, v, l.lo, l.hi ); };
   s_plot = l;   // the PlotGrafico part of the layout
   s_plot.vm = &vm;
+  extentes( vm, s_plot, l.temV2 );
 
   p.repetivel( desenharBanda, &s_plot );
 
@@ -581,7 +642,8 @@ void desenharGrafico( Pintor &p, const VmGrafico &vm ) {
 }
 
 int alvosGrafico( const VmGrafico &vm, Alvo *out ) {
-  const LayoutGrafico l = layoutGrafico( vm );
+  GeometriaGrafico l{ };
+  geometria( l );
   int n = addAlvo( out, 0, alvoDaAcao( l.cxAcao[1] ), GRF_VOLTAR );
   n = addAlvo( out, n, alvoDaAcao( l.cxAcao[0] ), GRF_DIA );
   n = addAlvo( out, n, alvoDoTitulo( l.cxAcao[0] ), ALVO_INERTE );

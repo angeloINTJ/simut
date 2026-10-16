@@ -242,6 +242,8 @@ private:
   void misturar( int16_t x, int16_t y, uint16_t c, uint8_t a );
   void cantos( int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint16_t c, int32_t in2 );
   void disco( int16_t x, int16_t y, int16_t r, uint16_t c, int32_t in2 );
+  void linhaBruta( int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t c );
+  void bitmapBruto( int16_t x, int16_t y, const uint8_t *bits, int16_t tam, uint16_t c );
   Adafruit_GFX &g_;
   const Tema *t_;
   Leitor &l_;

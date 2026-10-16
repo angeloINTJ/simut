@@ -342,7 +342,53 @@ void Pintor::line( int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t c ) 
   // A line stays within the rows of its two ends, so one wholly outside the window leaves no pixel in it. Without this, each of the plot's ~600 short lines
   // walked its pixels through a virtual drawPixel( ) in every strip that runs the plot.
   if ( ( y0 < y1 ? y1 : y0 ) < jy0_ || ( y0 < y1 ? y0 : y1 ) >= jy1_ ) return;
+  if ( bruto_ ) {
+    linhaBruta( x0, y0, x1, y1, c );
+    return;
+  }
   g_.drawLine( x0, y0, x1, y1, c );
+}
+
+// Adafruit_GFX::drawLine( ) written into the raw buffer (bruto( )): a vertical or a horizontal one as a run, any other with writeLine( )'s Bresenham, each pixel
+// kept where the surface would keep it (inside the buffer's columns and rows). Adafruit's goes through two virtual calls and the surface's clip for every pixel
+// (~90 instructions each from flash); the chart's second curve and its mean are ~1,000 pixels a frame, 7.8 of its 60.3 ms on the board (2026-10-16).
+void Pintor::linhaBruta( int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t c ) {
+  const int32_t colHi = bLarg_ < g_.width( ) ? bLarg_ : g_.width( );
+  const int32_t linhaLo = bTopo_ < 0 ? 0 : bTopo_;
+  const int32_t linhaHi = bTopo_ + bAlt_ > g_.height( ) ? g_.height( ) : bTopo_ + bAlt_;
+  auto ponto = [&]( int32_t px, int32_t py ) {
+    if ( px >= 0 && px < colHi && py >= linhaLo && py < linhaHi ) bruto_[(int32_t)( py - bTopo_ ) * bLarg_ + px] = c;
+  };
+  if ( x0 == x1 ) {
+    if ( y0 > y1 ) { const int16_t t = y0; y0 = y1; y1 = t; }
+    for ( int32_t py = y0; py <= y1; py++ ) ponto( x0, py );
+    return;
+  }
+  if ( y0 == y1 ) {
+    if ( x0 > x1 ) { const int16_t t = x0; x0 = x1; x1 = t; }
+    for ( int32_t px = x0; px <= x1; px++ ) ponto( px, y0 );
+    return;
+  }
+  const bool inclinada = ( y1 > y0 ? y1 - y0 : y0 - y1 ) > ( x1 > x0 ? x1 - x0 : x0 - x1 );
+  if ( inclinada ) {
+    int16_t t = x0; x0 = y0; y0 = t;
+    t = x1; x1 = y1; y1 = t;
+  }
+  if ( x0 > x1 ) {
+    int16_t t = x0; x0 = x1; x1 = t;
+    t = y0; y0 = y1; y1 = t;
+  }
+  const int16_t dx = x1 - x0, dy = y1 > y0 ? y1 - y0 : y0 - y1;
+  int16_t erro = dx / 2;
+  const int16_t passo = y0 < y1 ? 1 : -1;
+  for ( ; x0 <= x1; x0++ ) {
+    if ( inclinada ) ponto( y0, x0 ); else ponto( x0, y0 );
+    erro = (int16_t)( erro - dy );
+    if ( erro < 0 ) {
+      y0 = (int16_t)( y0 + passo );
+      erro = (int16_t)( erro + dx );
+    }
+  }
 }
 
 void margemPreta( Pintor &p ) {
@@ -406,6 +452,28 @@ uint16_t misturar16( uint16_t fg, uint16_t bg, uint8_t a ) {
   const uint16_t g = (uint16_t)( ( ex6( ( fg >> 5 ) & 63 ) * a + ex6( ( bg >> 5 ) & 63 ) * ( 16 - a ) + 8 ) / 16 );
   const uint16_t b = (uint16_t)( ( ex5( fg & 31 ) * a + ex5( bg & 31 ) * ( 16 - a ) + 8 ) / 16 );
   return (uint16_t)( ( ( r & 0xF8 ) << 8 ) | ( ( g & 0xFC ) << 3 ) | ( b >> 3 ) );
+}
+
+// misturar16( ) remembered, one entry for each coverage a (1 to 15). The corners of a screen's boxes mix the same few colours over the same background
+// again and again (the detail's six cards and their outlines are ~1,500 blends a frame), so the arithmetic runs once for each (colour, background,
+// coverage) and the rest cost a compare and a load: a hit returns what misturar16( ) returns, for it is a function of the three. All zero is a valid
+// entry (black over black is black). 96 B of RAM, the one cost of the boxes' speed-up; the board's cantos took 20.9 of the detail's 53 ms (2026-10-16).
+struct Lembrada {
+  uint16_t fg, bg, res;
+};
+Lembrada s_lembradas[16];
+inline uint16_t mist( uint16_t fg, uint16_t bg, uint8_t a ) {
+  Lembrada &m = s_lembradas[a & 15];
+  if ( m.fg != fg || m.bg != bg ) {
+    m.fg = fg;
+    m.bg = bg;
+    m.res = misturar16( fg, bg, a );
+  }
+  return m.res;
+}
+
+inline void espalhar( uint16_t *p, int n, uint16_t c ) {
+  while ( n-- > 0 ) *p++ = c;
 }
 
 // Sixteenths of a pixel inside the disc of squared radius out2 and outside the
@@ -477,10 +545,10 @@ void Pintor::misturar( int16_t x, int16_t y, uint16_t c, uint8_t a ) {
     const int32_t linha = (int32_t)y - bTopo_;
     if ( linha < 0 || linha >= bAlt_ || x >= bLarg_ ) return;
     uint16_t *px = bruto_ + linha * bLarg_ + x;
-    *px = a >= 16 ? c : misturar16( c, *px, a );
+    *px = a >= 16 ? c : mist( c, *px, a );
     return;
   }
-  g_.drawPixel( x, y, a >= 16 ? c : misturar16( c, l_.ler( x, y ), a ) );
+  g_.drawPixel( x, y, a >= 16 ? c : mist( c, l_.ler( x, y ), a ) );
 }
 
 // The four r x r corner squares of a box at [x, x + w) by [y, y + h): each pixel
@@ -492,6 +560,55 @@ void Pintor::cantos( int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint
   // The table, when the radius is one it holds and the shape is the fill or the 1 px outline roundRect( ) asks for.
   const uint8_t *tab = nullptr;
   if ( r >= 1 && r <= R_TAB && ( in2 < 0 || in2 == ( in > 0 ? in * in : -1 ) ) ) tab = &kCantos.d[in2 < 0 ? 0 : 1][tamCantos( r - 1 )];
+  // The strip's own case, which is every box the firmware draws: the table, a raw buffer whose rows are the window's, the box inside the surface's columns.
+  // Each row of a corner is then walked once in the table, the spans and the blends go straight into the buffer (a span was a Pintor::fillRect( ) call, with
+  // its window and surface tests, and a Faixa::fillRect( ) behind it; a blend, misturar( )'s tests and the arithmetic): on the board the boxes took 11.9 ms of the
+  // chart's 60.3 and 20.9 of the detail's 53.0, ~40 us a span or blend, nearly all of it instructions fetched from flash (2026-10-16). The same pixels in the
+  // same cells: host_perf --caixas holds them to a per-pixel reference, and every frame to the one Adafruit GFX draws whole.
+  if ( tab && bruto_ && x >= 0 && (int32_t)x + w <= bLarg_ && (int32_t)x + w <= g_.width( ) && jy0_ >= bTopo_ && jy1_ <= bTopo_ + bAlt_ && jy0_ >= 0 &&
+       jy1_ <= g_.height( ) ) {
+    for ( int16_t j = 0; j < r; j++ ) {
+      const int16_t ya = y + j, yb = y + h - 1 - j;
+      uint16_t *const cima = ya >= jy0_ && ya < jy1_ ? bruto_ + (int32_t)( ya - bTopo_ ) * bLarg_ + x : nullptr;
+      uint16_t *const baixo = yb >= jy0_ && yb < jy1_ ? bruto_ + (int32_t)( yb - bTopo_ ) * bLarg_ + x : nullptr;
+      if ( !cima && !baixo ) continue;
+      const uint8_t *const linha = tab + j * r;
+      for ( int16_t i = 0; i < r; ) {
+        const uint8_t a = linha[i];
+        if ( a == 0 ) {
+          i++;
+          continue;
+        }
+        int16_t k = i + 1;
+        if ( a >= 16 )
+          while ( k < r && linha[k] >= 16 ) k++;
+        if ( k - i >= 2 ) {   // a run of whole cells: one span a side
+          if ( cima ) {
+            espalhar( cima + i, k - i, c );
+            espalhar( cima + w - k, k - i, c );
+          }
+          if ( baixo ) {
+            espalhar( baixo + i, k - i, c );
+            espalhar( baixo + w - k, k - i, c );
+          }
+        } else if ( a >= 16 ) {
+          if ( cima ) cima[i] = cima[w - 1 - i] = c;
+          if ( baixo ) baixo[i] = baixo[w - 1 - i] = c;
+        } else {
+          if ( cima ) {
+            cima[i] = mist( c, cima[i], a );
+            cima[w - 1 - i] = mist( c, cima[w - 1 - i], a );
+          }
+          if ( baixo ) {
+            baixo[i] = mist( c, baixo[i], a );
+            baixo[w - 1 - i] = mist( c, baixo[w - 1 - i], a );
+          }
+        }
+        i = k;
+      }
+    }
+    return;
+  }
   auto cel = [&]( int16_t i, int16_t j ) -> uint8_t { return tab ? tab[j * r + i] : cobertura( 8 * ( i - r ), 8 * ( j - r ), out * out, in2 ); };
   for ( int16_t j = 0; j < r; j++ ) {
     const int16_t ya = y + j, yb = y + h - 1 - j;
@@ -590,11 +707,40 @@ void Pintor::icone( IconeNome n, int16_t tam, int16_t x, int16_t y, uint16_t c )
   if ( gravando_ ) gravarOp( OP_ICONE, x, y, tam, 0, (int16_t)n, c );
   for ( const icones::Reg &r : icones::kIcones ) {
     if ( r.nome == n && r.tam == tam ) {
-      if ( !fora( y, tam ) ) g_.drawBitmap( x, y, r.bits, tam, tam, c );
+      if ( !fora( y, tam ) ) {
+        // Adafruit's drawBitmap( ) tests every pixel of the icon and makes a virtual call for each one that is set, in every strip the icon touches (2.3 to 2.5 ms of
+        // the chart's and the detail's frames on the board, 2026-10-16): one byte at a time, the rows of the window only, when the icon lies inside the surface's columns.
+        if ( bruto_ && x >= 0 && (int32_t)x + tam <= bLarg_ && (int32_t)x + tam <= g_.width( ) ) bitmapBruto( x, y, r.bits, tam, c );
+        else g_.drawBitmap( x, y, r.bits, tam, tam, c );
+      }
       return;
     }
   }
   s_faltando++;
+}
+
+void Pintor::bitmapBruto( int16_t x, int16_t y, const uint8_t *bits, int16_t tam, uint16_t c ) {
+  const int32_t linhaLo = bTopo_ < 0 ? 0 : bTopo_;
+  const int32_t linhaHi = bTopo_ + bAlt_ > g_.height( ) ? g_.height( ) : bTopo_ + bAlt_;
+  const int32_t j0 = y < linhaLo ? linhaLo - y : 0, j1 = y + tam > linhaHi ? linhaHi - y : tam;
+  const int32_t porLinha = ( tam + 7 ) / 8;
+  for ( int32_t j = j0; j < j1; j++ ) {
+    uint16_t *d = bruto_ + (int32_t)( y + j - bTopo_ ) * bLarg_ + x;
+    const uint8_t *b = bits + j * porLinha;
+    for ( int32_t resto = tam; resto > 0; resto -= 8, d += 8 ) {
+      uint32_t m = *b++;
+      if ( resto < 8 ) m &= ( 0xFFu << ( 8 - resto ) ) & 0xFFu;
+      if ( !m ) continue;
+      if ( m & 0x80 ) d[0] = c;
+      if ( m & 0x40 ) d[1] = c;
+      if ( m & 0x20 ) d[2] = c;
+      if ( m & 0x10 ) d[3] = c;
+      if ( m & 0x08 ) d[4] = c;
+      if ( m & 0x04 ) d[5] = c;
+      if ( m & 0x02 ) d[6] = c;
+      if ( m & 0x01 ) d[7] = c;
+    }
+  }
 }
 
 #ifdef UA_HOST
@@ -666,21 +812,34 @@ void Pintor::desenharTextoBruto( const char *s, int16_t ox, int16_t y, Fonte f, 
       const int32_t ya = gy < linhaLo ? linhaLo : gy, yb = gy + gl.height > linhaHi ? linhaHi : gy + gl.height;
       if ( xa < xb && ya < yb ) {
         const uint8_t *mapa = gf->bitmap + gl.bitmapOffset;
+        const int32_t n = xb - xa;
         for ( int32_t py = ya; py < yb; py++ ) {
           uint16_t *dst = bruto_ + (int32_t)( py - bTopo_ ) * bLarg_ + xa;
           const uint32_t bit = (uint32_t)( py - gy ) * gl.width + (uint32_t)( xa - gx );   // the first bit of this row that is kept
           const uint8_t *b = mapa + ( bit >> 3 );
-          uint8_t bits = 0;
-          int restam = 0;
-          if ( bit & 7 ) {
-            bits = (uint8_t)( *b++ << ( bit & 7 ) );
-            restam = 8 - (int)( bit & 7 );
-          }
-          for ( int32_t px = xa; px < xb; px++, dst++ ) {
-            if ( restam == 0 ) { bits = *b++; restam = 8; }
-            if ( bits & 0x80 ) *dst = cor;
-            bits = (uint8_t)( bits << 1 );
-            restam--;
+          // A byte of the bitmap at a time, not a pixel: a byte of blank is a test, and a set bit is one store with no shift, count or reload round it (the
+          // pixel loop was ~10 instructions a pixel from flash, and the texts 10.7 of the chart's 60.3 ms and 12.0 of the detail's 53.0 on the board, 2026-10-16).
+          // The kept bits of the first byte sit at its top; k of the byte's bits belong to this row, the rest to the next glyph row or to the clipped columns.
+          uint32_t bits = (uint32_t)( *b++ << ( bit & 7 ) ) & 0xFFu;
+          int32_t tem = 8 - (int32_t)( bit & 7 );
+          for ( int32_t resto = n;; ) {
+            const int32_t k = tem < resto ? tem : resto;
+            const uint32_t m = k < 8 ? bits & ( 0xFFu << ( 8 - k ) ) & 0xFFu : bits;
+            if ( m ) {
+              if ( m & 0x80 ) dst[0] = cor;
+              if ( m & 0x40 ) dst[1] = cor;
+              if ( m & 0x20 ) dst[2] = cor;
+              if ( m & 0x10 ) dst[3] = cor;
+              if ( m & 0x08 ) dst[4] = cor;
+              if ( m & 0x04 ) dst[5] = cor;
+              if ( m & 0x02 ) dst[6] = cor;
+              if ( m & 0x01 ) dst[7] = cor;
+            }
+            resto -= k;
+            if ( resto <= 0 ) break;
+            dst += k;
+            bits = *b++;
+            tem = 8;
           }
         }
       }
