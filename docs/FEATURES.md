@@ -32,7 +32,7 @@ Everything the firmware does, in detail. The [README](../README.md) has the summ
   - Settings → 8 starts the setup access point;
   - Settings → 4 sets the date and time, and a unit with no network configured asks for them at the end of the boot.
 - **Top-panel gestures** — a tap toggles min/max, a 3 s hold pins the selection.
-- **DMA rendering fast path** — canvas compositing over 62.5 MHz SPI.
+- **DMA rendering fast path** — canvas compositing over 66.5 MHz SPI.
 - **4 px safe area everywhere** — the screen-alignment offset (±4 px per axis) can never crop content.
 - **Themes** — up to 8 loaded from LittleFS (11 ship in `data/themes/`); the editor in `tools/theme-editor/` previews on a live device.
 - **Sound system** — Touch, Confirmation, Error, Alarm and Attention classes, 6 melodies each, with separate system and alarm volumes.

@@ -20,12 +20,41 @@
 #include <hardware/watchdog.h>
 #include <hardware/structs/watchdog.h>
 #include "ota/staging.h"   /* the RP2350's update on trial */
+#include <hardware/clocks.h>   /* clock_configure( ), clk_peri: periClockFromSys( ) */
 
 /** Global application manager instance — orchestrates all subsystems. */
 AppManager app;
 
+/** @brief Puts clk_peri back on clk_sys. setup( ) calls it first, on the images that drive the TFT panel.
+ * @details The framework's main( ) calls set_sys_clock_khz( F_CPU / 1000, true ) before setup( ) whenever
+ * F_CPU is not the SDK's own, and the Pico W's 133 MHz is not. The SDK's set_sys_clock_pll( ) answers by moving
+ * clk_peri to the 48 MHz USB PLL (PICO_CLOCK_ADJUST_PERI_CLOCK_WITH_SYS_CLOCK is 0, and the SDK is prebuilt
+ * inside the core, out of reach of our flags). An SPI block divides clk_peri by an even prescale times a
+ * post-divider, so the panel's bus could not pass 24 MHz whatever SIMUT_TFT_SPI_HZ asked: read on the bench
+ * 2026-10-15, clk_sys 133 MHz, clk_peri 48 MHz, SPI0 24 MHz after a push.
+ *
+ * It must come before anything that is begun from clk_peri: a SPI or a UART computes its divider from
+ * clk_peri when it is configured and keeps it. Nothing before this call does. The call graph from the
+ * static initializers, from the SDK's runtime init and from main( ) up to setup( ), read on the
+ * disassembly of the six panel images (2026-10-15), reaches no spi_init, uart_init or SerialUART::begin;
+ * the first user is AppManager::setup( )'s uart_init( uart1 ), a few statements later, and Core 1
+ * starts later still. clk_sys does not move, so the PIO blocks (the radio's, the ENC28J60's, the sensors')
+ * and the I2C blocks, which the SDK divides from clk_sys, do not notice.
+ *
+ * The Pico 2 W is already there: its F_CPU is the SDK's own, set_sys_clock_khz( ) is not called, and clk_peri
+ * is clk_sys, so the test below leaves its clocks alone. */
+static inline void periClockFromSys( ) {
+ const uint32_t sysHz = clock_get_hz(clk_sys);
+ if (clock_get_hz(clk_peri) != sysHz) {
+  clock_configure(clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLK_SYS, sysHz, sysHz);
+ }
+}
+
 /** @brief Arduino setup — initializes all subsystems. Watchdog starts in loop( ). */
 void setup( ) {
+ /* The panel's bus clock, before anything is begun (periClockFromSys above). A constant condition:
+  * the images without the panel (alpha, Air, the plain Wire) compile none of it and keep their bytes. */
+ if (SIMUT_DISPLAY_TFT) periClockFromSys( );
 #ifndef SIMUT_WDT_DISABLED
  /* setup( ) runs for tens of seconds and only loop( ) arms the watchdog, so a
   * watchdog left enabled by whatever reset brought us here would fire in the

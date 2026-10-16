@@ -9,8 +9,8 @@ same text where the compiler sees no code (a comment, a string, a raw string) gi
 fine (a capability, a driver's own text inside its directory, the defined( ) of UiCaps.h) gives none.
 
   * Synthetic trees, one per case (a temp directory with its own src/, tools/features.toml and
-    tools/ui_boundary.json): the five rules (identity, no-ifdef, include-caps, cross-driver,
-    driver-hook), what each lets off, the lexical traps that matter to them, the allowances (over,
+    tools/ui_boundary.json): the six rules (identity, no-ifdef, include-caps, cross-driver,
+    driver-hook, bus-open), what each lets off, the lexical traps that matter to them, the allowances (over,
     under, stale, no reason, unknown rule, a file that is not JSON), --update, --report, the manifest
     as the source of the identity macros, and the output format.
   * The premise of no-ifdef, with the host preprocessor: after the real src/ui/UiCaps.h,
@@ -780,6 +780,34 @@ def format_cases():
 
 # ── the premise of no-ifdef, with the host preprocessor ──────────────────────────────────────
 
+def bus_open_cases():
+    """bus-open: the open of the panel's RAM write is followed, as the next statement, by the note of the baud the block got."""
+    opn = "SPI.beginTransaction( SPISettings( SIMUT_TFT_SPI_HZ, MSBFIRST, SPI_MODE0 ) );"
+    note = "g_tftSpiBaud = spi_get_baudrate( spi0 );"
+    cs = "digitalWrite( TFT_CS, LOW );"
+    for where, make, path in (("a core file", surface, SURFACE), ("an Angulo unit", angulo, ANGULO_UNIT)):
+        expect(f"bus-open: the open and the note, in {where}, give nothing", {path: make(opn, note, cs)}, [])
+        expect(f"bus-open: the open alone, in {where}, is one finding", {path: make(opn)}, [(path, 2, "bus-open")])
+        expect(f"bus-open: the open, another statement and then the note, in {where}, is one finding",
+               {path: make(opn, cs, note)}, [(path, 2, "bus-open")])
+        expect(f"bus-open: the note before the open, in {where}, is one finding", {path: make(note, opn)}, [(path, 3, "bus-open")])
+    expect("bus-open: dmaTftOpen( )'s own layout (no blank inside the parens, a comment after the note) gives nothing",
+           {SURFACE: surface("SPI.beginTransaction(SPISettings(SIMUT_TFT_SPI_HZ, MSBFIRST, SPI_MODE0));",
+                             "g_tftSpiBaud = spi_get_baudrate(spi0); /* what the block really got */", cs)}, [])
+    expect("bus-open: a comment, a blank line or a line break between the open and the note part nothing",
+           {SURFACE: surface(opn, "/* the rung the clock allows */", "", "g_tftSpiBaud =", "    spi_get_baudrate( spi0 );")}, [])
+    expect("bus-open: a note that stores something else is one finding", {SURFACE: surface(opn, "g_tftSpiBaud = 0;")}, [(SURFACE, 2, "bus-open")])
+    expect("bus-open: a note read from the other SPI block is one finding",
+           {SURFACE: surface(opn, "g_tftSpiBaud = spi_get_baudrate( spi1 );")}, [(SURFACE, 2, "bus-open")])
+    expect("bus-open: the read clock and a clock held in a variable need no note",
+           {SURFACE: surface("SPI.beginTransaction( SPISettings( SIMUT_TFT_READ_HZ, MSBFIRST, SPI_MODE0 ) );",
+                             "SPI.beginTransaction( SPISettings( _readHz, MSBFIRST, SPI_MODE0 ) );")}, [])
+    expect("bus-open: the open in a comment or in a string is no code",
+           {SURFACE: surface("/* " + opn + " */", "// " + opn, 'const char *s = "' + opn + '";')}, [])
+    expect("bus-open: two opens are judged one at a time (the second has no note)",
+           {SURFACE: surface(opn, note, opn)}, [(SURFACE, 4, "bus-open")])
+
+
 def premise_cases():
     cpp = shutil.which("cpp")
     if cpp is None:
@@ -986,6 +1014,30 @@ def real_tree_cases():
                 "real tree + `#ifdef SIMUT_UI_ANGULO` in src/simut_config.h: one finding")
         mutated(angulo_cfg, "\n#if defined(SIMUT_UI_CUSTOM_THEMES)\n#endif\n", "no-ifdef",
                 f"real tree + `defined( )` on a UI macro in the Angulo unit {angulo_cfg}: one finding")
+        mutated(core_clean, "\nstatic void boundary_probe( ) { SPI.beginTransaction( SPISettings( SIMUT_TFT_SPI_HZ, MSBFIRST, SPI_MODE0 ) ); }\n",
+                "bus-open", f"real tree + an open of the panel's RAM write with no note of the baud in {core_clean}: one finding")
+        # the regression itself: the Angulo's copy of the open without the note (PR #278 put the note in dmaTftOpen( ) alone)
+        copy_rel = "src/ui/angulo/DisplayManager_UiA_Empurrar.cpp"
+        copy_path = os.path.join(root, copy_rel)
+        with open(copy_path, encoding="utf-8", newline="") as fh:
+            copy_original = fh.read()
+        note_at = re.search(r"^[ \t]*g_tftSpiBaud = spi_get_baudrate\( spi0 \);.*\n", copy_original, re.M)
+        open_at = re.search(r"SPI\.beginTransaction\( SPISettings\( SIMUT_TFT_SPI_HZ", copy_original)
+        if not (note_at and open_at):
+            check(f"real tree: {copy_rel} has the open and the note the mutation takes out", False, str((bool(note_at), bool(open_at))))
+        else:
+            try:
+                with open(copy_path, "w", encoding="utf-8", newline="") as fh:
+                    fh.write(copy_original[:note_at.start()] + copy_original[note_at.end():])
+                rc, out, err = run(root)
+            finally:
+                with open(copy_path, "w", encoding="utf-8", newline="") as fh:
+                    fh.write(copy_original)
+            found, last, bad = parse(out)
+            want_line = copy_original.count("\n", 0, open_at.start()) + 1
+            check(f"real tree minus the note in {copy_rel}: exactly one finding, bus-open, on the open",
+                  rc == 1 and not bad and found == [(copy_rel, want_line, "bus-open")] and last == "check_ui_boundary: 1 findings",
+                  f"rc={rc} found={found} want line {want_line} last={last!r}")
         with open(os.path.join(root, "src", "ui", "UiCaps.h"), encoding="utf-8", newline="") as fh:
             caps_original = fh.read()
         try:
@@ -1057,6 +1109,7 @@ message_cases()
 update_cases()
 report_cases()
 format_cases()
+bus_open_cases()
 premise_cases()
 real_tree_cases()
 

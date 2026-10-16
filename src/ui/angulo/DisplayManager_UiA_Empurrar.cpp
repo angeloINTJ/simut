@@ -27,11 +27,14 @@
  * part's rows packed in place, a memmove of the strip and not a pixel loop).
  *
  * The open and close of the bus repeat dmaTftOpen( ) and dmaTftClose( ) of DisplayManager_Dashboard.cpp, which are static there; tools/check_ui_boundary.py keeps this
- * driver's names out of that file. A change to the panel's RAM-write sequence is made in both.
+ * driver's names out of that file. A change to the panel's RAM-write sequence is made in both, and the two are kept the same. That includes g_tftSpiBaud: dmaTftOpen( )
+ * writes the baud SPI0 was programmed to (spi_get_baudrate( spi0 ), from the PL022 registers; GET /api/status, sys.tft_hz) right after SPI.beginTransaction( ), and so does
+ * uaEmpurrar( ) below. Every push of the Ângulo image goes through this copy, so without the write sys.tft_hz would read 0 on it (PR #278 put the write in dmaTftOpen( ) alone).
  */
 
 #include "../../DisplayManager.h"
 #include "../../simut_config.h"   /* TFT_CS, TFT_DC */
+#include "../../FlashIrqProbe.h"   /* g_tftSpiBaud */
 
 #include <SPI.h>
 #include <hardware/dma.h>
@@ -89,6 +92,7 @@ bool DisplayManager::uaEmpurrar( uint16_t *buf, int16_t x, int16_t y, int16_t w,
    * the format and CS are already as the close leaves them. */
   s_voando = true;
   SPI.beginTransaction( SPISettings( SIMUT_TFT_SPI_HZ, MSBFIRST, SPI_MODE0 ) );
+  g_tftSpiBaud = spi_get_baudrate( spi0 );   /* what the block really got, not what was asked: the same line as in dmaTftOpen( ), which these two sequences keep */
   digitalWrite( TFT_CS, LOW );
   digitalWrite( TFT_DC, LOW );
   SPI.transfer( 0x2C ); /* RAMWR */

@@ -61,6 +61,7 @@
   "UiWidgets.cpp": 1,
   "UiWidgets.h": 1,
   "WebManager.h": 2,
+  "WebManager_Api.cpp": 1,
   "WebManager_History.cpp": 1,
   "display/DisplayDriver.h": 1,
   "display/HD44780_16x2.h": 2,

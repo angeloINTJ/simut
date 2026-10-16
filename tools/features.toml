@@ -204,11 +204,12 @@ flags    = ["-DSIMUT_NET_ENC28J60=1", "-DMAX_SENSORS=11"]
 web_omit = "slots16"
 # Sem `units`: o chip nao traz .cpp, so o cabecalho, e as duas unidades da build cabeada sao da
 # classe `lan` (acima).
-# O driver do modulo: a biblioteca do mantenedor, fixada no commit que ele escolheu em
-# 2026-10-12 (a main de entao). So a build com este driver a baixa; o
+# O driver do modulo: a biblioteca do mantenedor, fixada no commit da v1.3.1 (pedido dele em
+# 2026-10-15; antes, o fb16ec1 que ele escolheu em 2026-10-12, a main de entao). O commit, e
+# nao a tag: uma tag pode mudar de lugar. So a build com este driver a baixa; o
 # src/net/Enc28j60Device.h e o unico arquivo que a inclui, e o src/net/WiredLink.cpp a unica
-# unidade que inclui esse.
-lib_deps = ["https://github.com/angeloINTJ/pico-enc28j60.git#fb16ec132baab989b5921075dd1f1503dd8149d4"]
+# unidade que inclui esse. O tools/wire_enc_bench.py le o commit daqui.
+lib_deps = ["https://github.com/angeloINTJ/pico-enc28j60.git#4984e2f55727c81cfd6a548c7d4728942192107a"]
 
 # ---------------------------------------------------------------------------
 #  A UI do painel touch (2026-10-14): como o painel desenha e responde ao toque. Uma escolha por

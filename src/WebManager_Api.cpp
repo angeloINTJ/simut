@@ -16,6 +16,7 @@
 #include "DisplayManager.h" /* For getActiveWebDictSource */
 #include "FlashIrqProbe.h"  /* For g_flashIrqExposed (metr.fx) */
 #include <hardware/watchdog.h>
+#include <hardware/clocks.h>   /* clock_get_hz( clk_peri ): status sys.clk_peri */
 /* Position trace (hp=) — see WebManager_History.cpp. */
 #define HPOS(v) do { watchdog_hw->scratch[7] = (uint32_t)(v); } while (0)
 #include <LittleFS.h>
@@ -784,6 +785,20 @@ static const char* bootSlot( ) {
 #define STATUS_SLOT_ARG
 #endif
 
+#if SIMUT_DISPLAY_TFT
+/* clk_peri: the clock of the peripherals in Hz, which setup( ) puts on clk_sys.
+ * tft_hz: the baud the PL022 gave the last panel push, read back from its
+ * registers (0 before the first). Read on the bench 2026-10-15, before that
+ * change: 48000000 and 24000000. Macros and not an `if` on the panel: the images
+ * without it then compile the very tokens they always did (an `if ( 0 )` left the
+ * alpha, the Air and the plain Wire two bytes different in this function). */
+#define STATUS_CLK_FMT ",\"clk_peri\":%lu,\"tft_hz\":%lu"
+#define STATUS_CLK_ARG , (unsigned long)clock_get_hz(clk_peri), (unsigned long)g_tftSpiBaud
+#else
+#define STATUS_CLK_FMT ""
+#define STATUS_CLK_ARG
+#endif
+
 void WebManager::handleApiStatus( ) {
 	/* ?quiet=1: read without touching the Air hibernation timer. A fleet
 	 * manager polling twenty devices must not hold each one awake by doing
@@ -877,7 +892,7 @@ void WebManager::handleApiStatus( ) {
 #else
 	         "\"link\":%d,"
 #endif
-	         "\"ip\":\"%s\",\"theme\":%d,\"heap_f\":%lu,\"heap_t\":%lu,\"heap_lb\":%lu,\"fs_u\":%lu,\"fs_t\":%lu,\"time\":%lu,\"ntp\":%d,\"pending\":%d,\"tel\":%d,\"hi\":%u,\"cap\":%d,\"feat\":%lu" STATUS_SLOT_FMT "},",
+	         "\"ip\":\"%s\",\"theme\":%d,\"heap_f\":%lu,\"heap_t\":%lu,\"heap_lb\":%lu,\"fs_u\":%lu,\"fs_t\":%lu,\"time\":%lu,\"ntp\":%d,\"pending\":%d,\"tel\":%d,\"hi\":%u,\"cap\":%d,\"feat\":%lu" STATUS_CLK_FMT STATUS_SLOT_FMT "},",
 	         devName.c_str( ), SIMUT_VERSION, simut_env_name( ),
 	         StorageManager::getBoardSerialNumber( ).c_str( ), macBuf,
 	         (unsigned long)_storageRef->getConfigCrc( ),
@@ -897,7 +912,7 @@ void WebManager::handleApiStatus( ) {
 	          * browser decoding .h5 would place every record after the first
 	          * at the wrong instant on any device not sampling once a minute. */
 	         (unsigned)_storageRef->getHistoryIntervalMin( ), SIMUT_DISPLAY_TFT,
-	         (unsigned long)SIMUT_FEATURE_BITS STATUS_SLOT_ARG);
+	         (unsigned long)SIMUT_FEATURE_BITS STATUS_CLK_ARG STATUS_SLOT_ARG);
 
 	if (!safeSend(buffer)) return;
 

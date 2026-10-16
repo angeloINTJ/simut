@@ -7,7 +7,7 @@ firmware reads, SIMUT_UI_ORIGINAL and SIMUT_UI_ANGULO for the identity, SIMUT_UI
 the original can do and the Ângulo cannot). Adding a driver must be one directory in src/ui/ and one
 manifest entry, and swapping one for another must not need an edit outside them. That only stays true if
 the core never reaches for a driver's name and the drivers never reach for each other, so this gate holds
-five rules over src/**/*.{c,cc,cpp,cxx,h,hh,hpp,hxx,inl,ipp,tpp}:
+six rules over src/**/*.{c,cc,cpp,cxx,h,hh,hpp,hxx,inl,ipp,tpp}:
 
   identity      an identity macro (SIMUT_UI_<ID> for each [ui.<id>] of tools/features.toml: SIMUT_UI_ANGULO,
                 SIMUT_UI_ORIGINAL) outside src/ui/ and src/simut_config.h. Ask a capability
@@ -61,6 +61,11 @@ five rules over src/**/*.{c,cc,cpp,cxx,h,hh,hpp,hxx,inl,ipp,tpp}:
                 macros: every UA_<anything> (UA_DESVIO is defined in a shared header, so the driver's
                 text does not give it). The gate refuses a tree whose src/ui/angulo/ has no source
                 (exit 2): with no driver there would be no names, and a gate must not pass for that.
+  bus-open      an `SPI.beginTransaction( SPISettings( SIMUT_TFT_SPI_HZ, ... ) )`, the open of the panel's RAM write, that is not followed, as the next
+                statement, by `g_tftSpiBaud = spi_get_baudrate( spi0 );`. The original opens the bus in dmaTftOpen( ) and the Ângulo driver keeps a copy of
+                that open (src/ui/angulo/DisplayManager_UiA_Empurrar.cpp); the two are kept the same and this is what holds them to it. The note is what
+                GET /api/status reports as sys.tft_hz: PR #278 (2026-10-15) put it in dmaTftOpen( ) alone, and the Ângulo image would have read 0 (found
+                on the merge of 2026-10-16). In any file; the read clock (SIMUT_TFT_READ_HZ) and the touch's are other transactions and need no note.
 
 Comments and the contents of strings, characters and raw strings are stripped before any rule looks,
 by the state machine of tools/check_net_boundary.py (imported, so there is one: `'"'`, `1'000`, `"//"`
@@ -126,7 +131,7 @@ class CannotRead(Exception):
 
 
 DEFAULT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-RULES = ("identity", "no-ifdef", "include-caps", "cross-driver", "driver-hook")
+RULES = ("identity", "no-ifdef", "include-caps", "cross-driver", "driver-hook", "bus-open")
 EXTS = (".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".hxx", ".inl", ".ipp", ".tpp")   # wider than the net gate's four: an .inl or .ipp is code
 UI_DIR = "src/ui/"                   # the drivers' directory: the identity rule is let off here
 ANGULO_DIR = "src/ui/angulo/"        # the Ângulo driver: cross-driver and driver-hook look at who is outside it
@@ -169,6 +174,11 @@ NS_TOKEN = re.compile(r"\bnamespace\s+(\w+)(?:\s*::\s*\w+)*\s*\{|\bnamespace\s*\
 # ── the rules ──────────────────────────────────────────────────────────────────────────────────
 
 Finding = collections.namedtuple("Finding", "path line rule text")
+
+# bus-open: the open of the panel's RAM write (a transaction at the write clock) and the note that has to follow it as the next statement.
+# Comments are blank in `code`, so a comment between the two does not part them.
+BUS_OPEN = re.compile(r"\bSPI\s*\.\s*beginTransaction\s*\(\s*SPISettings\s*\(\s*SIMUT_TFT_SPI_HZ\b[^;]*;")
+BAUD_NOTE = re.compile(r"\s*g_tftSpiBaud\s*=\s*spi_get_baudrate\s*\(\s*spi0\s*\)\s*;")
 
 
 def read_manifest(root: str) -> dict:
@@ -421,6 +431,13 @@ def scan_text(rel: str, text: str, code: str, includes, env: Env):
         for pos, what in hook_sites(code, env):
             ln = line_of(pos)
             found.append(Finding(rel, ln, "driver-hook", f"{what}, used outside src/ui/angulo/: {ctx(ln)}"))
+
+    for m in BUS_OPEN.finditer(code):
+        if not BAUD_NOTE.match(code, m.end()):
+            ln = line_of(m.start())
+            found.append(Finding(rel, ln, "bus-open",
+                                 f"the open of the panel's RAM write is not followed by g_tftSpiBaud = spi_get_baudrate( spi0 );, "
+                                 f"which GET /api/status reports as sys.tft_hz, as dmaTftOpen( ) does: {ctx(ln)}"))
     return found
 
 
@@ -564,6 +581,7 @@ HINTS = {
     "cross-driver": "a driver reaches the core, never the other driver: take the shared part into the core, or leave it out "
                     "(what is the original's: the S0 table, section 2.5 of docs/analysis/UI_DRIVERS.md, src/ui/original/)",
     "driver-hook": "src/ui/angulo/ introduces the name: use it from there, or list the transitional site in tools/ui_boundary.json",
+    "bus-open": "write g_tftSpiBaud = spi_get_baudrate( spi0 ); right after the SPI.beginTransaction( ) at SIMUT_TFT_SPI_HZ, as dmaTftOpen( ) does: without it sys.tft_hz reads 0",
 }
 
 

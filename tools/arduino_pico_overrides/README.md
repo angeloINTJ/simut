@@ -86,7 +86,8 @@ arduino_pico_overrides/
     ├── littlefs_rp2350_untranslated.patch  ← 2026-10-03, RP2350 only: LittleFS from a slot
     ├── wifiserver_accepted_not_evicted.patch ← 2026-10-04, a long transfer is not killed for a newcomer
     ├── webserver_short_write.patch      ← 2026-10-14, a write cut short ends the response (#189)
-    └── webserver_fewer_writes.patch     ← 2026-10-14, a response's small writes leave together (#189)
+    ├── webserver_fewer_writes.patch     ← 2026-10-14, a response's small writes leave together (#189)
+    └── wifiserversecure_drop_plaintext.patch ← 2026-10-15, a non-TLS client on the TLS port is dropped before the handshake (#274)
 ```
 
 ## TLS handshake deadline (2026-07-25)

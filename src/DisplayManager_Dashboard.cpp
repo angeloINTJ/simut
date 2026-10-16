@@ -191,8 +191,8 @@ void DisplayManager::drawInterfaceFixed( ) {
   * fillScreen's own pixels were overwritten by the four blits within
   * milliseconds. Worse, they went out through Adafruit_SPITFT::writeColor, whose
   * RP2040 branch issues one spi_write_blocking per pixel — each ending in a full
-  * shift-register drain, so nothing pipelines (~2 us/px against 0.512 us of
-  * wire). That one discarded fill was ~150 ms of the 254 ms measured for R_FULL.
+  * shift-register drain, so nothing pipelines (~2 us/px against 0.667 us of
+  * wire at the 24 MHz the bus ran at, not the 31.25 this was written for). That one discarded fill was ~150 ms of the 254 ms measured for R_FULL.
   *
   * What is left is 7,640 pixels: four horizontal gaps and the two 4-px gutters
   * beside the 312-wide cards — filled at wire speed by fastFillRect now
@@ -222,7 +222,7 @@ void DisplayManager::drawInterfaceFixed( ) {
 /* ── DMA fast path for canvas pushes and solid fills ────────────────────────
  *
  * Adafruit_SPITFT's write path on RP2040 tops out well under the wire rate
- * (~2 us/px measured against 0.512 us of wire at 31.25 MHz), and these
+ * (~2 us/px measured against 0.667 us of wire at the 24 MHz the bus ran at, 0.24 us at 66.5), and these
  * pushes are the hot path of EVERY screen. Pixels go out with the SSP in
  * 16-bit frame mode fed by a DMA channel: the 16-bit frame sends the MSB of
  * each RGB565 VALUE first, so no byte-swap pass and no bounce buffer are
@@ -234,8 +234,9 @@ void DisplayManager::drawInterfaceFixed( ) {
  *
  * Synchronous by design: the caller reuses the canvas immediately after,
  * and the quiesce/flash-pause protocol assumes SPI bursts end within the
- * loop iteration that started them. Wire-limited: a 320x45 strip is
- * ~7.4 ms at 31.25 MHz, ~3.7 ms at the 62.5 MHz ceiling (SIMUT_TFT_SPI_HZ).
+ * loop iteration that started them. Wire-limited: a 320x45 strip is 230,400
+ * bits, 9.6 ms at the 24 MHz the bus ran at until 2026-10-15 (a 320x40 strip
+ * measured 9.5 ms that day) and 3.5 ms at 66.5 MHz (SIMUT_TFT_SPI_HZ; computed).
  */
 static int dmaTftChannel( ) {
  static int s_ch = -1;
@@ -243,8 +244,17 @@ static int dmaTftChannel( ) {
  return s_ch; /* -1: no channel free, callers take the library path */
 }
 
+/* The baud SPI0 was programmed to by the last panel push, read back from the
+ * PL022 registers (GET /api/status, sys.tft_hz). The request is SIMUT_TFT_SPI_HZ;
+ * the baud is the rung the clock allows. Written here on Core 1, read by the
+ * status handler on Core 0 (one aligned word); 0 until the first push. Read on
+ * the bench 2026-10-15, before clk_peri moved to clk_sys: 24000000. */
+volatile uint32_t g_tftSpiBaud = 0;
+
 /* Latches the address window and leaves the bus open in 16-bit frame mode,
- * RAMWR issued, ready for a DMA stream. Must be paired with dmaTftClose. */
+ * RAMWR issued, ready for a DMA stream. Must be paired with dmaTftClose.
+ * The Ângulo image pushes its strips through a copy of this open (src/ui/angulo/DisplayManager_UiA_Empurrar.cpp, which includes the write of g_tftSpiBaud
+ * after SPI.beginTransaction( )): the two sequences are kept the same, and a change to one is made in both. */
 static void dmaTftOpen(TftWithOffset* tft, int16_t x, int16_t y,
  int16_t w, int16_t h) {
  tft->startWrite( );
@@ -252,6 +262,7 @@ static void dmaTftOpen(TftWithOffset* tft, int16_t x, int16_t y,
  tft->endWrite( ); /* window latched; CS toggles, RAMWR re-sent below */
 
  SPI.beginTransaction(SPISettings(SIMUT_TFT_SPI_HZ, MSBFIRST, SPI_MODE0));
+ g_tftSpiBaud = spi_get_baudrate(spi0); /* what the block really got, not what was asked */
  digitalWrite(TFT_CS, LOW);
  digitalWrite(TFT_DC, LOW);
  SPI.transfer(0x2C); /* RAMWR */

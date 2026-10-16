@@ -718,7 +718,7 @@ figcaption b{color:var(--tinta);font-weight:600}
 </table></div>
 <p>O firmware não controla a luz de fundo: com o pino LED no 3V3, ela fica sempre acesa.</p>
 <aside class="faixa faixa-atencao"><span class="selo selo-alerta"><i></i>Atenção</span>
-<p><strong>Fios curtos no TFT.</strong> A imagem publicada escreve no TFT a 62,5 MHz e lê a tela de volta, para o espelho da web, a 12 MHz. Fios longos ou ruins aparecem como pontos soltos em áreas lisas da tela ou do espelho. Encurte a fiação. Se não resolver, a saída é compilar o firmware com uma frequência menor (<a href="#cap-03-fonte">capítulo 3</a>).</p>
+<p><strong>Fios curtos no TFT.</strong> A imagem publicada escreve no TFT a 66,5 MHz e lê a tela de volta, para o espelho da web, a cerca de 11 MHz. Fios longos ou ruins aparecem como pontos soltos em áreas lisas da tela ou do espelho. Encurte a fiação. Se não resolver, a saída é compilar o firmware com uma frequência menor (<a href="#cap-03-fonte">capítulo 3</a>).</p>
 </aside>
 <h4 id="cap-02-lcd">A alpha: LCD 16×2</h4>
 <p><span class="selo selo-img">alpha</span> A alpha usa um LCD de 16×2 caracteres com controlador HD44780, ligado em modo paralelo de 4 bits.</p>
@@ -1315,8 +1315,8 @@ pio run -e pico_w_release</code></pre>
 <p>A imagem sai em <code>.pio/build/pico_w_release/</code>, como <code>firmware.uf2</code> e <code>firmware.bin</code>. Para gravar direto, com o Pico W ligado ao USB:</p>
 <pre class="bash"><code>pio run -e pico_w_release -t upload</code></pre>
 <p>O PlatformIO usa o toque de 1200 baud e o <code>picotool</code> para gravar; o botão BOOTSEL também funciona.</p>
-<p>Uma opção de compilação muda com <code>-D</code> e vale sobre o padrão do arquivo <code>src/simut_config.h</code>. Por exemplo, para escrever no TFT a 31,25 MHz em vez de 62,5 MHz:</p>
-<pre class="bash"><code>PLATFORMIO_BUILD_FLAGS=&quot;-DSIMUT_TFT_SPI_HZ=31250000u&quot; pio run -e pico_w_release</code></pre>
+<p>Uma opção de compilação muda com <code>-D</code> e vale sobre o padrão do arquivo <code>src/simut_config.h</code>. Por exemplo, para escrever no TFT a 33,25 MHz em vez de 66,5 MHz:</p>
+<pre class="bash"><code>PLATFORMIO_BUILD_FLAGS=&quot;-DSIMUT_TFT_SPI_HZ=33250000u&quot; pio run -e pico_w_release</code></pre>
 <aside class="faixa faixa-atencao"><span class="selo selo-alerta"><i></i>Atenção</span>
 <p><strong>Uma imagem compilada por você não é a publicada.</strong> Ela não tem o <code>manifest.json</code> e pode diferir das imagens da página de versões. Guarde o <code>.uf2</code> da última versão publicada para voltar a ela, se preciso.</p>
 </aside>
@@ -18501,7 +18501,7 @@ async function status(token) {
  &quot;mac&quot;:&quot;28:cd:c1:0a:1b:2c&quot;,&quot;cfg&quot;:&quot;3F2A91C4&quot;,&quot;uptime&quot;:29260512,&quot;rssi&quot;:-58,
  &quot;ip&quot;:&quot;192.0.2.10&quot;,&quot;theme&quot;:0,&quot;heap_f&quot;:61240,&quot;heap_t&quot;:230400,&quot;heap_lb&quot;:40960,
  &quot;fs_u&quot;:413696,&quot;fs_t&quot;:1048576,&quot;time&quot;:1790164800,&quot;ntp&quot;:1,&quot;pending&quot;:0,&quot;tel&quot;:1,
- &quot;hi&quot;:1,&quot;cap&quot;:1,&quot;feat&quot;:262026},
+ &quot;hi&quot;:1,&quot;cap&quot;:1,&quot;feat&quot;:262026,&quot;clk_peri&quot;:133000000,&quot;tft_hz&quot;:66500000},
  &quot;metr&quot;:{&quot;lb&quot;:40960,&quot;lbm&quot;:33792,&quot;hm&quot;:52112,&quot;wf&quot;:0,&quot;mq&quot;:0,&quot;rmn&quot;:-63,&quot;rmx&quot;:-55,
  &quot;ts&quot;:135,&quot;tf&quot;:0,&quot;tr&quot;:0,&quot;tb&quot;:412345,&quot;tl&quot;:180,&quot;so&quot;:24000,&quot;se&quot;:2,&quot;cs&quot;:3,
  &quot;fo&quot;:210,&quot;fom&quot;:38,&quot;fot&quot;:2100,&quot;f50&quot;:0,&quot;fx&quot;:0,&quot;ad&quot;:0,&quot;c1a&quot;:12,&quot;c1n&quot;:1,
@@ -18605,6 +18605,10 @@ async function status(token) {
 <td>Com que chaves do configurador a imagem foi compilada: um bit por chave, ligado se a chave está ligada. O número de cada chave é o campo <code>bit</code> dela no <a href="https://angelointj.github.io/simut/configurador/model.json"><code>model.json</code> do configurador</a> e nunca muda. Serve para não chamar o que a imagem não tem — a página de histórico (<code>web_history</code>, bit 13), a API de exportação (<code>web_export_api</code>, bit 14), o <code>/metrics</code> (<code>web_metrics</code>, bit 15), o MQTT (<code>tel_mqtt</code>, bit 12), o TLS da telemetria (<code>tel_tls</code>, bit 11). O SIMUT publicado responde 262026. Um firmware anterior ao campo não o manda: trate a ausência como “tudo o que a variante sempre teve”</td>
 </tr>
 <tr class="odd">
+<td><code>clk_peri</code>, <code>tft_hz</code></td>
+<td>Só nas imagens com painel <span class="selo selo-img">release</span>. <code>clk_peri</code>: clock dos periféricos, em Hz, do qual o SPI do painel tira a sua velocidade; é o clock do processador, 133000000 no Pico W e 150000000 no Pico 2 W. <code>tft_hz</code>: velocidade que o SPI do painel recebeu na última escrita de pixels, em Hz, lida dos registradores do SPI; 66500000 no Pico W e 37500000 no Pico 2 W, e <code>0</code> até a primeira escrita</td>
+</tr>
+<tr class="even">
 <td><code>slot</code>, <code>trial</code>, <code>reverted</code></td>
 <td>Só no Pico 2 W. <code>slot</code>: de que slot da tabela de partições a imagem subiu, <code>A</code> ou <code>B</code>, ou <code>-</code> numa placa sem a tabela. <code>trial</code>: <code>1</code> enquanto a atualização instalada está em teste. Ela se confirma depois de rodar saudável por um minuto; se reiniciar antes disso, ou não tiver esse minuto em cinco, o aparelho volta para a imagem anterior. <code>reverted</code>: a versão de uma atualização que não se confirmou, e da qual o aparelho voltou neste boot; vazio no resto do tempo. O painel e a página <strong>Arquivos</strong> mostram os dois últimos</td>
 </tr>
@@ -22925,7 +22929,7 @@ echo</code></pre>
 </tr>
 <tr class="odd">
 <td>Pontos soltos em áreas lisas do painel ou do espelho da web</td>
-<td>Fios longos ou ruins para os 62,5 MHz do TFT</td>
+<td>Fios longos ou ruins para os 66,5 MHz do TFT</td>
 <td>Encurte a fiação; se não resolver, compile com frequência menor (<a href="#cap-03-fonte">capítulo 3</a>)</td>
 </tr>
 <tr class="even">
@@ -25918,7 +25922,7 @@ O formato de arquivo que a placa aceita no modo BOOTSEL (<a href="#cap-03">capí
 </section>
 </main>
 <footer class="colofao">
-<p>Manual do SIMUT, gerado em 14/10/2026 por <code>tools/build_manual.py</code> a partir de <code>docs/_manual/</code>. Licença MIT, como o firmware.</p>
+<p>Manual do SIMUT, gerado em 15/10/2026 por <code>tools/build_manual.py</code> a partir de <code>docs/_manual/</code>. Licença MIT, como o firmware.</p>
 <p>Visual no padrão Ângulo. Fonte de títulos: Ângulo Display, recorte da Bricolage Grotesque SemiBold, SIL Open Font License 1.1.</p>
 </footer>
 </div>

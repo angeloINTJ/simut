@@ -67,6 +67,9 @@
 #include "PromMetrics.h"                /* Prometheus text exposition formatters */
 #include "Syslog5424.h"                 /* RFC 5424 syslog line formatter */
 #include "ScreenRle.h"                  /* palette RLE for the TFT mirror */
+#include <cstdio>
+#include "display/Pl022Baud.h"         /* what an SPI block runs at for a request, from its clock */
+#include "simut_config.h"              /* SIMUT_TFT_SPI_HZ and SIMUT_TFT_READ_HZ: the real constants */
 
 /* ----- Define obrigatório de simut_native::fake_millis_value ----- */
 namespace simut_native {
@@ -5389,6 +5392,143 @@ void test_lang_slot_count_is_english_alone_until_a_pack_is_loaded(void) {
     TEST_ASSERT_EQUAL_INT(3, langSlotCount(true, 3));
 }
 
+/* =========================================================================== */
+/*  PL022 BAUD LADDER — display/Pl022Baud.h (2026-10-15)                       */
+/* =========================================================================== */
+/* The panel's SPI asked for 62.5 MHz and ran at 24 MHz: the framework's clock
+ * setup had moved clk_peri to the 48 MHz USB PLL, and the block divides clk_peri
+ * by an even prescale times a post-divider, so its ceiling there is 24 MHz. These
+ * cases pin the arithmetic that says so, at the clocks the firmware has had and
+ * the requests it makes. The model is the SDK's spi_set_baudrate( ); it was held
+ * to the SDK's own code over a grid when it was written (the PR of 2026-10-15). */
+
+static void expect_rung(uint32_t peri, uint32_t want, uint32_t prescale, uint32_t postdiv, uint32_t baud) {
+    const pl022::Rung r = pl022::rung(peri, want);
+    char msg[96];
+    snprintf(msg, sizeof msg, "clk_peri %lu asked %lu", (unsigned long)peri, (unsigned long)want);
+    TEST_ASSERT_EQUAL_UINT32_MESSAGE(prescale, r.prescale, msg);
+    TEST_ASSERT_EQUAL_UINT32_MESSAGE(postdiv, r.postdiv, msg);
+    TEST_ASSERT_EQUAL_UINT32_MESSAGE(baud, r.baud, msg);
+}
+
+void test_pl022_a_48_mhz_peri_clock_runs_the_panel_at_24_mhz(void) {
+    /* Bench, 2026-10-15: clk_peri 48 MHz, SPI0 24 MHz after a push, for 62.5 MHz asked. */
+    expect_rung(48000000u, 62500000u, 2, 1, 24000000u);
+    /* 31.25 MHz, what v2.1.5 asked, got the same: v2.1.6's 62.5 never reached the wire. */
+    expect_rung(48000000u, 31250000u, 2, 1, 24000000u);
+}
+
+void test_pl022_a_125_mhz_peri_clock_reaches_62_5_mhz(void) {
+    /* The clock the old comments assumed. */
+    expect_rung(125000000u, 62500000u, 2, 1, 62500000u);
+    expect_rung(125000000u, 31250000u, 2, 2, 31250000u);
+}
+
+void test_pl022_62_5_mhz_asked_of_a_133_mhz_clock_gets_33_25(void) {
+    expect_rung(133000000u, 62500000u, 2, 2, 33250000u);
+}
+
+void test_pl022_the_panel_constant_is_the_ceiling_of_a_133_mhz_clock(void) {
+    TEST_ASSERT_EQUAL_UINT32(66500000u, (uint32_t)SIMUT_TFT_SPI_HZ);
+    expect_rung(133000000u, SIMUT_TFT_SPI_HZ, 2, 1, 66500000u);
+    /* The next rung down, where a panel that shows stray pixels falls back to. */
+    expect_rung(133000000u, 33250000u, 2, 2, 33250000u);
+    /* The manual's old fallback is no rung of this clock: it runs at 22.17 MHz. */
+    expect_rung(133000000u, 31250000u, 2, 3, 22166666u);
+}
+
+void test_pl022_the_same_request_gets_37_5_mhz_on_the_rp2350(void) {
+    /* pico2_w_release: clk_sys = clk_peri = 150 MHz, the ladder is 75 / 37.5 / 25. */
+    expect_rung(150000000u, SIMUT_TFT_SPI_HZ, 2, 2, 37500000u);
+    expect_rung(150000000u, 62500000u, 2, 2, 37500000u);   /* the Pico 2 W does not change */
+    expect_rung(150000000u, 75000000u, 2, 1, 75000000u);
+}
+
+void test_pl022_the_touch_asks_2_mhz_and_gets_a_hair_less(void) {
+    /* XPT2046_Touchscreen: SPISettings(2000000, MSBFIRST, SPI_MODE0). */
+    expect_rung(48000000u, 2000000u, 2, 12, 2000000u);
+    expect_rung(133000000u, 2000000u, 2, 34, 1955882u);
+}
+
+void test_pl022_the_panel_read_slows_to_11_08_mhz_at_133_mhz(void) {
+    TEST_ASSERT_EQUAL_UINT32(12000000u, (uint32_t)SIMUT_TFT_READ_HZ);
+    expect_rung(48000000u, SIMUT_TFT_READ_HZ, 2, 2, 12000000u);
+    expect_rung(133000000u, SIMUT_TFT_READ_HZ, 2, 6, 11083333u);
+    expect_rung(150000000u, SIMUT_TFT_READ_HZ, 2, 7, 10714285u);
+}
+
+void test_pl022_the_read_clock_sweep_of_2026_09_19_ran_on_the_48_mhz_ladder(void) {
+    /* simut_config.h, SIMUT_TFT_READ_HZ: 10 MHz "same PL022 rung as 8", 16 and 20 "same rung as 12". */
+    TEST_ASSERT_EQUAL_UINT32(pl022::baud(48000000u, 8000000u), pl022::baud(48000000u, 10000000u));
+    TEST_ASSERT_EQUAL_UINT32(12000000u, pl022::baud(48000000u, 16000000u));
+    TEST_ASSERT_EQUAL_UINT32(12000000u, pl022::baud(48000000u, 20000000u));
+    /* At the 125 MHz the comment assumed, none of the three would have held. */
+    TEST_ASSERT_TRUE(pl022::baud(125000000u, 8000000u) != pl022::baud(125000000u, 10000000u));
+    TEST_ASSERT_TRUE(pl022::baud(125000000u, 12000000u) != pl022::baud(125000000u, 16000000u));
+    TEST_ASSERT_TRUE(pl022::baud(125000000u, 12000000u) != pl022::baud(125000000u, 20000000u));
+}
+
+static const uint32_t kPl022Peri[] = { 48000000u, 125000000u, 133000000u, 150000000u };
+
+void test_pl022_prescale_is_even_and_in_range(void) {
+    for (uint32_t p : kPl022Peri) {
+        for (uint32_t want = 10000u; want <= p; want += 99991u) {   /* runs past the ceiling on purpose */
+            const pl022::Rung r = pl022::rung(p, want);
+            char msg[96];
+            snprintf(msg, sizeof msg, "clk_peri %lu asked %lu", (unsigned long)p, (unsigned long)want);
+            TEST_ASSERT_EQUAL_UINT32_MESSAGE(0u, r.prescale % 2u, msg);
+            TEST_ASSERT_TRUE_MESSAGE(r.prescale >= 2u && r.prescale <= 254u, msg);
+            TEST_ASSERT_TRUE_MESSAGE(r.postdiv >= 1u && r.postdiv <= 256u, msg);
+        }
+    }
+}
+
+void test_pl022_a_request_that_is_a_rung_gets_that_rung(void) {
+    /* The boundary of the `>`: asking for exactly what a divider makes must not drop a rung. */
+    for (uint32_t p : kPl022Peri) {
+        for (uint32_t pre = 2; pre <= 8; pre += 2) {
+            for (uint32_t pd = 1; pd <= 12; pd++) {
+                if (p % (pre * pd)) continue;
+                const uint32_t want = p / (pre * pd);
+                char msg[96];
+                snprintf(msg, sizeof msg, "clk_peri %lu asked %lu (%lu x %lu)", (unsigned long)p,
+                         (unsigned long)want, (unsigned long)pre, (unsigned long)pd);
+                TEST_ASSERT_EQUAL_UINT32_MESSAGE(want, pl022::baud(p, want), msg);
+            }
+        }
+    }
+}
+
+void test_pl022_the_baud_never_exceeds_the_request_and_is_the_fastest_that_does(void) {
+    for (uint32_t p : kPl022Peri) {
+        for (uint32_t want = 100000u; want <= p / 2u; want += 100003u) {
+            const pl022::Rung r = pl022::rung(p, want);
+            char msg[96];
+            snprintf(msg, sizeof msg, "clk_peri %lu asked %lu", (unsigned long)p, (unsigned long)want);
+            TEST_ASSERT_TRUE_MESSAGE(r.baud <= want, msg);
+            if (r.postdiv > 1u) {
+                /* The next faster rung would be above the request. */
+                TEST_ASSERT_TRUE_MESSAGE(p / (r.prescale * (r.postdiv - 1u)) > want, msg);
+            }
+        }
+        /* Above the ceiling, the ceiling answers. */
+        TEST_ASSERT_EQUAL_UINT32(p / 2u, pl022::baud(p, p));
+    }
+}
+
+void test_pl022_a_request_below_what_the_divider_makes_is_refused(void) {
+    /* Prescale 254 x post-divider 256 at 48 MHz is 738 Hz. */
+    TEST_ASSERT_EQUAL_UINT32(0u, pl022::rung(48000000u, 700u).baud);
+    TEST_ASSERT_EQUAL_UINT32(0u, pl022::rung(48000000u, 0u).baud);
+    TEST_ASSERT_TRUE(pl022::rung(48000000u, 800u).baud > 0u);
+    /* The prescale loop's two edges (review of 2026-10-15; each was a surviving mutant): the product
+     * prescale x 256 x request passes 2^32 at 2 x 256 x 8,391,750, so a 32-bit product wraps and lands on
+     * another prescale (the SDK multiplies in 64 bits); and the last prescale, 254, still answers 186 Hz
+     * at 12 MHz, which a `>= 254` refusal would turn away. */
+    expect_rung(12000000u, 8391750u, 2, 1, 6000000u);
+    expect_rung(12000000u, 186u, 254, 253, 186u);
+}
+
 int main(int /*argc*/, char** /*argv*/) {
     UNITY_BEGIN();
 
@@ -5769,6 +5909,18 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_media_type_accepts_what_servers_expect);
     RUN_TEST(test_media_type_refuses_what_would_break_the_header);
     RUN_TEST(test_tel_content_type_per_mode);
+    RUN_TEST(test_pl022_a_48_mhz_peri_clock_runs_the_panel_at_24_mhz);
+    RUN_TEST(test_pl022_a_125_mhz_peri_clock_reaches_62_5_mhz);
+    RUN_TEST(test_pl022_62_5_mhz_asked_of_a_133_mhz_clock_gets_33_25);
+    RUN_TEST(test_pl022_the_panel_constant_is_the_ceiling_of_a_133_mhz_clock);
+    RUN_TEST(test_pl022_the_same_request_gets_37_5_mhz_on_the_rp2350);
+    RUN_TEST(test_pl022_the_touch_asks_2_mhz_and_gets_a_hair_less);
+    RUN_TEST(test_pl022_the_panel_read_slows_to_11_08_mhz_at_133_mhz);
+    RUN_TEST(test_pl022_the_read_clock_sweep_of_2026_09_19_ran_on_the_48_mhz_ladder);
+    RUN_TEST(test_pl022_prescale_is_even_and_in_range);
+    RUN_TEST(test_pl022_a_request_that_is_a_rung_gets_that_rung);
+    RUN_TEST(test_pl022_the_baud_never_exceeds_the_request_and_is_the_fastest_that_does);
+    RUN_TEST(test_pl022_a_request_below_what_the_divider_makes_is_refused);
 
     return UNITY_END();
 }
