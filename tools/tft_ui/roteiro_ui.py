@@ -273,7 +273,10 @@ def presente(s):
 
 
 def no_passado(s):
-    return s['agora'] - s['janela'][1] > 3600
+    """The chart's window ended before now: the complement of presente( ), whose tolerance is 120 s. This said > 3600 until 2026-10-16, which fails in the first
+    hour after midnight: the walk picks yesterday there, and yesterday's window ended minutes ago (two walk steps failed at 00:2x on 2026-10-16 and cut the
+    rest of that stage)."""
+    return s['agora'] - s['janela'][1] > 120
 
 
 def mudou(st0):

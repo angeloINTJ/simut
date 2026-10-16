@@ -318,6 +318,9 @@ void Pintor::pixel( int16_t x, int16_t y, uint16_t c ) {
 
 void Pintor::fillRect( int16_t x, int16_t y, int16_t w, int16_t h, uint16_t c ) {
   if ( gravando_ ) gravarOp( OP_FILL_RECT, x, y, w, h, 0, c );
+  // Wholly outside the window the strip keeps none of it, and Faixa::fillRect( ) would only clip it away: the chart's band is ~250 one-pixel columns, and each
+  // strip that runs the plot ran this for every one of them (the board, 2026-10-16: a 24 h chart with full data composed in 58 ms, with little data in 37).
+  if ( fora( y, h ) ) return;
   // Surface.fillRect: clipped, and nothing for a width or height <= 0
   // (Adafruit_SPITFT::fillRect would flip a negative one instead).
   int16_t x0 = x < 0 ? 0 : x, y0 = y < 0 ? 0 : y;
@@ -330,12 +333,15 @@ void Pintor::fillRect( int16_t x, int16_t y, int16_t w, int16_t h, uint16_t c ) 
 
 void Pintor::rect( int16_t x, int16_t y, int16_t w, int16_t h, uint16_t c ) {
   if ( gravando_ ) gravarOp( OP_RECT, x, y, w, h, 0, c );
-  if ( w <= 0 || h <= 0 ) return;
+  if ( w <= 0 || h <= 0 || fora( y, h ) ) return;
   g_.drawRect( x, y, w, h, c );
 }
 
 void Pintor::line( int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t c ) {
   if ( gravando_ ) gravarOp( OP_LINE, x0, y0, x1, y1, 0, c );
+  // A line stays within the rows of its two ends, so one wholly outside the window leaves no pixel in it. Without this, each of the plot's ~600 short lines
+  // walked its pixels through a virtual drawPixel( ) in every strip that runs the plot.
+  if ( ( y0 < y1 ? y1 : y0 ) < jy0_ || ( y0 < y1 ? y0 : y1 ) >= jy1_ ) return;
   g_.drawLine( x0, y0, x1, y1, c );
 }
 
