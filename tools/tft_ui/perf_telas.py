@@ -12,8 +12,8 @@ sample drawn whole by Adafruit GFX's own path: the last column is the number of 
 Usage: python3 tools/tft_ui/perf_telas.py [reps] [--groups base,painel,...] [--only part-of-a-sample's-name] [--top N] [--out file]
                                           [--corrupt]   (the control: flips one pixel per frame; each must then count 1)
 Unless --corrupt, --only or --extra is given it then runs the same programs again as checks, not timings (verificacoes( )): with the record lent 900 B and then
-none (some frames, then all of them, must fall back to drawing every strip), with the strips on the 19 other grids, and on the chart that touches the plot's first
-and last rows (--guarda). Each must leave every frame equal to the frame drawn whole.
+none (some frames, then all of them, must fall back to drawing every strip), with the strips on the 19 other grids, and on the charts that touch the plot's edges or hold inverted buckets (--guarda), and the rounded boxes held to a per-pixel reference (--caixas). Each must
+leave every frame equal to the frame drawn whole (to the reference, for --caixas).
 Exit 0 when every frame's strips equal the frame drawn whole and every check holds, 1 when one differs or a check fails, 2 when a group cannot be built or run.
 """
 import argparse
@@ -41,7 +41,8 @@ def verificacoes(exes, grupos):
     --lista 900 and --lista 0 lend the record too little for some frames, or for all of them (the largest of the 560 takes 1,935 B of the 3,200 the firmware lends):
     those fall back to drawing every strip, the one path nothing else exercises. The run counts the frames that fell back, since a run in which none did, or in
     which all did at 900 B, would prove nothing. --desloca stitches each frame from strips on the 19 other grids. --guarda is the chart whose second curve
-    touches the plot's first and last rows, on every grid (only the graficos group has it). Returns the lines to print and the number of checks that failed."""
+    touches the plot's first and last rows, on every grid, and the charts with inverted buckets (only the graficos group has it). --caixas holds the rounded boxes
+    to a per-pixel reference, with its controls (any group has it; it runs once). Returns the lines to print and the number of checks that failed."""
     linhas, falhas = [], 0
     for rotulo, args, regra in (('--lista 900', ['--lista', '900'], 'some'), ('--lista 0', ['--lista', '0'], 'all'), ('--desloca', ['--desloca'], 'none')):
         quadros = dif = fora = 0
@@ -64,6 +65,10 @@ def verificacoes(exes, grupos):
         ok = r.returncode == 0 and r.stdout.startswith('ok') and 'FAIL' not in r.stdout
         falhas += not ok
         linhas.extend(r.stdout.strip().splitlines() or [f'FAIL --guarda: exit {r.returncode}'])
+    r = subprocess.run([str(exes[grupos[0]]), '--caixas'], capture_output=True, text=True)
+    ok = r.returncode == 0 and r.stdout.startswith('ok') and 'FAIL' not in r.stdout
+    falhas += not ok
+    linhas.extend(r.stdout.strip().splitlines() or [f'FAIL --caixas: exit {r.returncode}'])
     return linhas, falhas
 
 

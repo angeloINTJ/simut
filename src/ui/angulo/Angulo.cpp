@@ -503,9 +503,9 @@ void Pintor::cantos( int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint
         i++;
         continue;
       }
-      // A run of cells the shape covers whole is one span a side, not a pixel at a time: a chart frame replayed in its twelve strips visits 1,632 cells, 612 of
-      // them covered whole, and made 1,281 misturar( ) calls for those and 824 for the 379 partial ones (host count, 2026-10-16); the boxes were 14.3 ms of
-      // its 58.7 on the board. The left corner's cells i to k - 1 are the columns x + i to x + k - 1, the right corner's x + w - k to x + w - 1 - i.
+      // A run of cells the shape covers whole (the inner end of a row of a filled corner) is one span a side, not a pixel at a time; the boxes were 14.3 ms of a
+      // chart frame's 58.7 on the board (2026-10-16). The left corner's cells i to k - 1 are the columns x + i to x + k - 1, the right corner's x + w - k to
+      // x + w - 1 - i. host_perf --caixas holds the corners, the spans and the body to a per-pixel reference.
       int16_t k = i + 1;
       if ( a >= 16 )
         while ( k < r && cel( k, j ) >= 16 ) k++;

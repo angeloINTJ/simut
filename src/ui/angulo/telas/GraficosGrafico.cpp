@@ -369,7 +369,7 @@ bool foraDoPlot( const Pintor &p, const PlotGrafico &l ) {
 // What a window of rows cannot show, in values. A value's row falls as the value rises (yDe( ) clamps, and rdiv( ) never turns round), so within the scale
 // [lo, hi] the values from `acima` up all have their row above the window and those up to `abaixo` all have it below. Each is found by bisection on yDe( )
 // itself, the function that draws, so the answer is the drawing's own; it costs ~14 calls where the loops it spares cost one or more for every column or bucket
-// (a 24 h chart sent 19,356 divisions through rdiv( ) in its twelve strips, counted on the host; the plot's functions took 12.1 ms of its 58.7 on the board,
+// (the plot's functions took 12.1 ms of a 24 h chart's 58.7 on the board,
 // 2026-10-16). A point at row y draws from y - 1 (a square) to y + 1 (a square, the mean's second line), so a value is spared only when its row is two above the
 // window or one below it. A value outside the scale is never spared: yDe( ) is monotone only inside it.
 struct Limiares {
