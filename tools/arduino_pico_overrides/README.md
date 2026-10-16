@@ -424,6 +424,15 @@ bash tools/arduino_pico_overrides/restore.sh
 `patch.sh` is idempotent — you can run it as many times as you want. `originals/`
 is preserved after the first patch.
 
+What makes it so: each step greps the framework file for a marker its own patch
+adds (the `// SIMUT override — ...` line at the top of the first hunk) and skips the
+`patch` when it finds one. A marker the patch does not add costs nothing on the first
+run and ends the second: `patch` meets the applied hunk, asks `Assume -R?` (a `y`
+reverses the override), rejects it to a `.rej` file and exits 1, and under `set -e` the
+steps after it and the cache invalidation do not run. `tools/check_patch_sentinels.py`
+holds every guard to its patch in CI (job `gates`); when you add a step, take the
+sentinel from the `+` lines of your patch.
+
 ## HW Validation (2026-05-10) — historical, describes the v1.0.0 slim build
 
 > These numbers were taken when `PBUF_POOL_SIZE` was 12. It is 24 today, so the

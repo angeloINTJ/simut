@@ -1,6 +1,6 @@
 # tools/
 
-169 scripts. This file exists because until 2026-09-08 there was no way
+171 scripts. This file exists because until 2026-09-08 there was no way
 to tell a live bench tool from a leftover, and one of them —
 `compressor.py` — had been superseded for three months while still looking
 usable: it regenerated `WebUI_GZ.h` into the repository root, where nothing
@@ -16,7 +16,7 @@ wrong, the description is the bug.
 
 ---
 
-## Called by CI (44)
+## Called by CI (46)
 
 Invoked from `.github/workflows/build.yml` — or, for the release manifest, from
 `release-ota.yml` when a tag is pushed. Breaking one of these fails a pull request
@@ -25,6 +25,8 @@ or a release.
 | script | what it does | last touched |
 |---|---|---|
 | `arduino_pico_overrides/patch.sh` | patch.sh — aplica overrides SIMUT no framework arduino-pico do PlatformIO. | 2026-08-20 |
+| `check_patch_sentinels.py` | Every step of `arduino_pico_overrides/patch.sh` skips itself on the second run with a `grep -q` for a marker, and the marker must be a line its own patch ADDS to the file the guard greps (a `+` line of that file's hunks: not context, not a removed line, not another file of the patch). Four rules: a `patch` command outside such a guard (`unguarded`; every `patch` command is read, so a new shape is a finding, not a pass), a sentinel `bash` or `grep` would read as syntax or a path from a variable it cannot resolve (`unreadable`), a patch file that is not there (`no-patch`), and a sentinel the patch does not add (`not-added`). Born on 2026-10-16, after step 2b-ter (#274) grepped "drop a non-TLS client" for a patch that adds "tell a non-TLS client from a TLS one by its FIRST BYTE": the first run applied it, the second met the applied patch, `patch` asked "Assume -R?" and rejected the hunk, and `set -e` ended the script there, before the steps after it and the cache invalidation. Exit 0 clean, 1 findings, 2 a file it could not read or a script it read nothing from. | 2026-10-16 |
+| `test_patch_sentinels.py` | The gate bites. The reader of unified diffs (only `+` lines; an added `++ x` is not a header; `\ No newline` is neither side); synthetic trees for the four rules, for the variables `patch.sh` builds its paths from (assigned above the guard, and assigned again) and for the command's exit codes; and the real tree: it passes, the gate reads all of its `patch -p1` commands, and each guard broken four ways (sentinel changed, marker in the patch changed, guard taken away, patch file gone) is exactly one finding, at that step. One more is 2b-ter with the sentinel it had on 2026-10-15: one finding, at its guard, naming its patch. Run on the unfixed `patch.sh` of `2d6650b`, the gate reports that one and no other. The gate only reads (sha256 of `patch.sh` and every patch, before and after). Job `gates`. Mutation-tested on 16/10: 22 of 22 one-line changes to the gate are caught (3 of them by the test crashing on a lookup the removed check was guarding, not by a failed check). | 2026-10-16 |
 | `build_release.sh` | build_release.sh — Generate Arduino IDE-compatible release zips for simut_tft and simut_alpha. | 2026-08-16 |
 | `check_authz.py` | check_authz.py — the authorization matrix, pinned so it cannot silently rot. | 2026-08-19 |
 | `check_license.py` | A licença diz a mesma coisa nas **três** cópias (LICENSE, página `/license` e a string do firmware que a tela Licença do painel desenha, o texto MIT palavra por palavra nas duas telas), nenhum pacote de idioma volta a trazer `@LICENSE`, e os **dois** scripts de release levam o `LICENSE`, o `THIRD_PARTY_NOTICES.md` e a pasta `LICENSES`. Nasceu de dois achados de 21/09: a página web dizia 2025 e o zip do Arduino IDE saía sem `LICENSE`. | 2026-10-02 |
