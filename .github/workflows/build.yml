@@ -222,6 +222,13 @@ jobs:
           python3 tools/test_ui_boundary.py
           python3 tools/check_ui_boundary.py
 
+      # The Angulo's strip fill and hash run from SRAM (P12a): on the board the chart screens ran
+      # with 6 to 8% XIP cache misses against 1 to 1.6% on the dashboard, and these two tight loops
+      # with them. tools/check_ui_ram.py reads the ELF after every build (a post-build script, as
+      # the flash-probe guard); this runs its cases, with the negative controls.
+      - name: Angulo RAM-resident functions (the guard and its controls)
+        run: python3 tools/test_check_ui_ram.py
+
       # The Angulo driver's colour tokens: src/ui/angulo/kit/angulo_tokens.h is generated
       # from tools/tft_ui/tokens_tft.json (the guide's palette and the panel's deviations)
       # and never edited by hand, so the header must be what the JSON generates; and the

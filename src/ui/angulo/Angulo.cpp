@@ -364,7 +364,14 @@ inline uint32_t entraPalavra( uint32_t h, uint32_t w ) {
 }
 }  // namespace
 
-uint32_t hashFaixa( const uint16_t *px, size_t n ) {
+// Runs from RAM (P12a), like Faixa::fillRect( ) (Faixa.h has the numbers): on the board on 2026-10-16 the margin and the hash of a chart frame took 8.2 ms against 3.5 to 4.1
+// on the dashboard for the same 6,400 pixels a strip, the chart screens' XIP cache missing 6.4 to 8.0% of the time against 1.0 to 1.6%; in SRAM, 2.8 to 2.9 ms on both.
+// __no_inline_not_in_flash_func and not __not_in_flash_func: the section attribute only places an out-of-line copy, and GCC inlines a function so marked into a caller in
+// flash (DisplayManager.cpp, core1AlarmIsr). Pinned by tools/check_ui_ram.py. The host has no flash to leave.
+#ifndef __no_inline_not_in_flash_func
+#define __no_inline_not_in_flash_func( f ) f
+#endif
+uint32_t __no_inline_not_in_flash_func( hashFaixa )( const uint16_t *px, size_t n ) {
   uint32_t h = 2166136261u;
   size_t i = 0;
   if ( ( reinterpret_cast<uintptr_t>( px ) & 3 ) == 0 ) {

@@ -11,6 +11,15 @@
 
 #include "Angulo.h"
 
+// A function that runs from RAM on the firmware: `section( ".time_critical.<nome>" )` is what the SDK's __not_in_flash_func( ) writes, and the linker script copies
+// it to SRAM at boot. noinline, because the attribute only places an out-of-line copy and GCC inlines a function so marked into a caller in flash (DisplayManager.cpp,
+// core1AlarmIsr), which voids it; tools/check_ui_ram.py reads the ELF after every build. On the host there is no RAM to choose, and noinline keeps the call structure.
+#if defined( __arm__ )
+#define UA_NA_RAM( nome ) __attribute__( ( noinline, section( ".time_critical." nome ) ) )
+#else
+#define UA_NA_RAM( nome ) __attribute__( ( noinline ) )
+#endif
+
 namespace ua {
 
 // The panel the strips tile (DisplayDriver::W and H; DisplayManager_UiA.cpp asserts they are these) and the strip's height.
@@ -51,7 +60,12 @@ public:
     if ( (uint16_t)x >= (unsigned)LARGURA_PAINEL || (uint16_t)y >= (uint16_t)ALTURA_FAIXA ) return;
     buf_[(int32_t)y * LARGURA_PAINEL + x] = c;
   }
-  void fillRect( int16_t x, int16_t y, int16_t w, int16_t h, uint16_t c ) override {
+  // Runs from RAM (P12a). Measured on the board on 2026-10-16 with study builds that read XIP_CTR_HIT and XIP_CTR_ACC around each paint: the chart screens run with
+  // 6.4 to 8.0% XIP cache misses against 1.0 to 1.6% on the dashboard, and everything in a chart paint was about 2.4 times slower per unit of work, this loop
+  // included (the strip clears took 3.6 ms a frame on the chart against 1.5 on the dashboard). With this and hashFaixa( ) in SRAM: clears 1.2 ms on both, margin and
+  // hash 2.9 ms on the chart and 2.8 on the dashboard (8.2 and 3.5 to 4.1 before), the chart of 24 h with full data 57 to 47 ms and with little data 42 to 44 to 35 ms;
+  // RAM +368 B, heap_f 33,608 to 33,272 B on the study build, account creation and deletion 3 of 3. Pinned by tools/check_ui_ram.py.
+  UA_NA_RAM( "ua_Faixa_fillRect" ) void fillRect( int16_t x, int16_t y, int16_t w, int16_t h, uint16_t c ) override {
     int16_t x0 = x < 0 ? 0 : x, x1 = x + w > LARGURA_PAINEL ? LARGURA_PAINEL : (int16_t)( x + w );
     int16_t r0 = (int16_t)( y - y0_ ), r1 = (int16_t)( r0 + h );
     if ( r0 < 0 ) r0 = 0;
