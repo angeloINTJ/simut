@@ -1252,7 +1252,6 @@ void DisplayManager::showPinPolicy( ) {
  * "Scrambled 3" silently caps the length at 8 and a knob that changes another
  * knob without saying so is how a policy screen lies. */
 void DisplayManager::drawPinPolicy( ) {
-	UA_DESVIO( );
 	if (!_driver.canvas) return;
 	const uint8_t minLen = _policyMin, keypad = _policyKb, alphabet = _policyAlpha;
 

@@ -221,7 +221,6 @@ void DisplayManager::showAlarmEdit(int sensorIdx) {
  * ring + 9pt text) now lives in uiUnit/uiUnitWidth in UiWidgets.cpp,
  * shared with every screen that prints a channel unit. */
 void DisplayManager::drawAlarmEdit( ) {
- UA_DESVIO( );
  /* One limit per bar, scrolled four at a time — the same rows, spacing and
   * scrollbar as every other menu on this display. The screen it replaces laid
   * out four fixed boxes, which meant a hard ceiling of two channels: a part
