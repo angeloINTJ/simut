@@ -9,12 +9,18 @@
 // then the number of pixels in which the twelve strips, stitched, differ from the same sample drawn whole in a GFXcanvas16 by Adafruit GFX's own
 // path (0 when the strips are the frame):
 //   S <sample> <theme> <us> <clear> <draw> <hash> <differing pixels>
-//   TOTAL <samples> <us> <clear> <draw> <hash> <differing pixels> <most calls in a record> <most bytes of text in one> <frames that did not fit>
-// Usage: host_perf --hash   (the strip hash tests)
-//        host_perf --vidro  (the full repaint without a clear, on a model of the glass)
-//        host_perf <reps> [--only <part of a sample's name>] [--corrupt] [--direto]
+//   TOTAL <samples> <us> <clear> <draw> <hash> <differing pixels> <most calls in a record> <most bytes of text and calls in one> <frames that did not fit>
+//         <most bytes of the list one frame takes>      (the last four are -1 with --direto, which records nothing)
+// Usage: host_perf --hash     (the strip hash tests)
+//        host_perf --vidro    (the full repaint without a clear, on a model of the glass)
+//        host_perf --recorte  (the part of a strip on the glass at an alignment offset, on a model of the glass)
+//        host_perf --guarda   (the chart's plot guard with the strips on every shift of their grid; the group that links the chart only)
+//        host_perf <reps> [--only <part of a sample's name>] [--corrupt] [--direto] [--lista <bytes>] [--desloca]
 //   --direto: do not record; every strip runs the screen's draw function (the compose before Pintor::gravar( ): the A of an A/B)
 //   --corrupt: flips one pixel of one strip after it is drawn. The control: every frame must then report exactly 1 differing pixel.
+//   --lista <bytes>: the record is lent that many bytes of the canvas's spare rows, not all 3,200 (0: none). A frame that needs more falls back to drawing
+//                    every strip; the frames that fell back are counted in TOTAL, and every frame must still equal the frame drawn whole.
+//   --desloca: also stitches each frame from strips on the 19 other grids (their edges 1 to 19 rows from the usual ones), which must equal the frame too.
 #include <Adafruit_GFX.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,7 +30,15 @@
 
 #include "Amostras.h"
 #include "Faixa.h"
+#include "Graficos.h"
 #include "Recorte.h"
+
+namespace ua {
+namespace tela {
+// Weak: only the group that links the chart has it (--guarda); the others see a null.
+void desenharGrafico( Pintor &p, const VmGrafico &vm ) __attribute__( ( weak ) );
+}  // namespace tela
+}  // namespace ua
 
 namespace {
 
@@ -40,7 +54,19 @@ private:
   GFXcanvas16 &c_;
 };
 
-alignas( 8 ) uint16_t g_tira[2 * ua::LARGURA_PAINEL * ua::ALTURA_FAIXA];   // two strips, as the firmware's canvas holds: strip k in the half k % 2
+// The firmware's canvas: 320 x 45, the two strips in its first 40 rows (strip k in the half k % 2) and the record's list in the other 5 (DisplayManager.cpp:1272).
+// The host lays its buffer out the same way, so that a strip that wrote into the list's rows would corrupt a record and show as a frame that differs.
+alignas( 8 ) uint16_t g_canvas[ua::LARGURA_PAINEL * ( ua::LINHAS_DAS_FAIXAS + ua::LINHAS_DA_LISTA )];
+
+// --lista <bytes>: how much of the spare rows the record is lent (the firmware lends all 3,200 B). Less than a frame needs, the record overflows and every strip
+// draws the screen again: the fallback of Pintor::gravar( ), which no sample exercises with the full list (the largest of the 560 frames takes 1,935 B).
+long g_bytesLista = ua::BYTES_DA_LISTA;
+bool g_desloca = false;   // --desloca: also the strips on the 19 other grids
+
+void emprestarLista( ) {
+  if ( g_bytesLista <= 0 ) ua::Pintor::lista( nullptr, 0 );
+  else ua::Pintor::lista( g_canvas + ua::LARGURA_PAINEL * ua::LINHAS_DAS_FAIXAS, (size_t)( g_bytesLista < (long)ua::BYTES_DA_LISTA ? g_bytesLista : (long)ua::BYTES_DA_LISTA ) );
+}
 
 // The strip's hash as DisplayManager_UiA.cpp computes it: the kit's, two pixels to the word.
 uint32_t hashDaTira( const ua::Faixa &f ) { return ua::hashFaixa( f.buffer( ), (size_t)ua::LARGURA_PAINEL * ua::ALTURA_FAIXA ); }
@@ -108,7 +134,6 @@ struct Partes { double limpa = 0, desenha = 0, hash = 0; };
 
 // One frame, composed as uaPintar( ) does. The sum of the hashes is returned so that none can be optimised away.
 int g_maxOps = 0, g_maxTextos = 0, g_semGravacao = 0, g_maxLista = 0;
-alignas( 8 ) uint8_t g_lista[ua::BYTES_DA_LISTA];   // the firmware's is the canvas's spare rows: the same size, so a frame that fits here fits there
 
 bool g_direto = false;   // --direto: no record, every strip runs the screen's draw (what uaPintar( ) did before Pintor::gravar( ))
 
@@ -123,12 +148,6 @@ uint32_t compor( const amostra::Amostra &a, ua::Faixa &faixa, ua::Pintor &p, con
     if ( t ) t1 = Relogio::now( );
     if ( p.gravado( ) ) p.repetir( ); else a.desenhar( p );
     p.parar( );
-    if ( k == 0 ) {
-      if ( p.gravadas( ) > g_maxOps ) g_maxOps = p.gravadas( );
-      if ( p.bytesGravados( ) > g_maxTextos ) g_maxTextos = p.bytesGravados( );
-      if ( p.usadosDaLista( ) > g_maxLista ) g_maxLista = p.usadosDaLista( );
-      if ( !p.gravado( ) ) g_semGravacao++;
-    }
     ua::margemPreta( p );
     if ( t ) t2 = Relogio::now( );
     soma += hashDaTira( faixa );
@@ -142,27 +161,40 @@ uint32_t compor( const amostra::Amostra &a, ua::Faixa &faixa, ua::Pintor &p, con
   return soma;
 }
 
-// The pixels in which the twelve strips stitched differ from the sample drawn whole by Adafruit GFX's own path.
-int diferentes( const amostra::Amostra &a, const ua::Tema &tema, ua::Faixa &faixa, bool corromper ) {
-  GFXcanvas16 inteira( ua::LARGURA_PAINEL, ua::ALTURA_PAINEL );
+// The sample drawn whole by Adafruit GFX's own path: what the strips must make up.
+void desenharInteira( const amostra::Amostra &a, const ua::Tema &tema, GFXcanvas16 &inteira ) {
   LeitorCanvas leitor( inteira );
   inteira.fillScreen( tema.fundo );
   ua::Pintor pi( inteira, tema, leitor );
   a.desenhar( pi );
   ua::margemPreta( pi );
+}
+
+// The pixels in which the strips, stitched, differ from that frame. The strips tile the panel on the grid of 20 rows the firmware uses (desloc 0) or on that grid
+// shifted down by 1 to 19 rows, with a strip above the first and one below the last to cover the panel; the rows a strip has beyond the panel are not compared.
+int diferentes( const amostra::Amostra &a, const ua::Tema &tema, ua::Faixa &faixa, GFXcanvas16 &inteira, bool corromper, int desloc = 0 ) {
   ua::Pintor ps( faixa, tema, faixa );
   int dif = 0;
   if ( !g_direto ) ps.gravar( );
-  for ( int k = 0; k < ua::FAIXAS; k++ ) {
-    faixa.para( k, ps );
+  for ( int k = desloc ? -1 : 0; k < ua::FAIXAS; k++ ) {
+    const int y0 = k * ua::ALTURA_FAIXA + desloc;
+    faixa.paraEm( y0, k, ps );
     faixa.fillScreen( tema.fundo );
     if ( ps.gravado( ) ) ps.repetir( ); else a.desenhar( ps );
     ps.parar( );
+    if ( desloc == 0 && k == 0 && !g_direto ) {   // once a frame (compor( ) runs several times a frame): the record of the first strip
+      if ( ps.gravadas( ) > g_maxOps ) g_maxOps = ps.gravadas( );
+      if ( ps.bytesGravados( ) > g_maxTextos ) g_maxTextos = ps.bytesGravados( );
+      if ( ps.usadosDaLista( ) > g_maxLista ) g_maxLista = ps.usadosDaLista( );
+      if ( !ps.gravado( ) ) g_semGravacao++;
+    }
     ua::margemPreta( ps );
     if ( corromper && k == 2 ) faixa.buffer( )[5 * ua::LARGURA_PAINEL + 7] ^= 0x0841;
-    for ( int y = 0; y < ua::ALTURA_FAIXA; y++ )
+    for ( int y = 0; y < ua::ALTURA_FAIXA; y++ ) {
+      if ( y0 + y < 0 || y0 + y >= ua::ALTURA_PAINEL ) continue;
       for ( int x = 0; x < ua::LARGURA_PAINEL; x++ )
-        if ( faixa.buffer( )[y * ua::LARGURA_PAINEL + x] != inteira.getPixel( x, k * ua::ALTURA_FAIXA + y ) ) dif++;
+        if ( faixa.buffer( )[y * ua::LARGURA_PAINEL + x] != inteira.getPixel( x, y0 + y ) ) dif++;
+    }
   }
   return dif;
 }
@@ -254,9 +286,61 @@ int provarRecorte( ) {
   return falhas + ( vazios ? 0 : 1 );
 }
 
+// --guarda: the guard of the chart's plot, which skips the plot's three loops in a strip that holds none of the plot's rows (GraficosGrafico.cpp, foraDoPlot( )).
+// A guard narrower than what the loops draw loses pixels, but only in a strip whose edge falls inside the margin, and the samples never put one there: a guard
+// narrowed by 6 px a side passed every sample. So this draws a chart whose second curve is on the grid of its scale at both ends (40 and 60 %UR, multiples of
+// PASSO_UMIDADE): isolated points, which are squares reaching one row beyond the plot, and a line, on the plot's first and last rows. It is stitched from strips on
+// each of the 20 shifts of their grid, in both themes, and every one must equal the frame drawn whole. Only the group that links the chart has it.
+ua::tela::VmGrafico g_vmGuarda;   // static: zero
+
+void desenharGuarda( ua::Pintor &p ) { ua::tela::desenharGrafico( p, g_vmGuarda ); }
+
+int provarGuarda( ) {
+  if ( !ua::tela::desenharGrafico ) {
+    printf( "skip: this group links no chart\n" );
+    return 0;
+  }
+  using namespace ua::tela;
+  VmGrafico &vm = g_vmGuarda;
+  snprintf( vm.sensor, sizeof vm.sensor, "Guarda" );
+  vm.periodo = 3;
+  vm.serie2 = Serie2::UMIDADE;
+  vm.n = 40;
+  for ( int i = 0; i < GRAFICO_BALDES; i++ ) vm.bMedia[i] = vm.bMin[i] = vm.bMax[i] = vm.bMedia2[i] = SEM_DADO;
+  for ( int i = 0; i < vm.n; i++ ) {
+    vm.bMedia[i] = (int16_t)( 200 + 3 * i );
+    vm.bMin[i] = (int16_t)( vm.bMedia[i] - 4 );
+    vm.bMax[i] = (int16_t)( vm.bMedia[i] + 4 );
+  }
+  const int topo[] = { 3, 12, 31 }, base[] = { 7, 20, 35 };   // isolated: the neighbours are empty, so each is a square
+  for ( int i : topo ) vm.bMedia2[i] = 600;
+  for ( int i : base ) vm.bMedia2[i] = 400;
+  vm.bMedia2[24] = 600;   // and a line from one end of the scale to the other
+  vm.bMedia2[25] = 400;
+  vm.maximo = vm.agora = 317;
+  vm.minimo = 200;
+  vm.media = 258;
+  vm.desvio = 20;
+  vm.variacao = 117;
+  emprestarLista( );
+  ua::Faixa faixa( g_canvas );
+  const amostra::Amostra a = { "guarda", desenharGuarda, nullptr };
+  long dif = 0;
+  int grades = 0;
+  for ( int t = 0; t < 2; t++ ) {
+    const ua::Tema &tema = t ? ua::temaClaro( ) : ua::temaEscuro( );
+    GFXcanvas16 inteira( ua::LARGURA_PAINEL, ua::ALTURA_PAINEL );
+    desenharInteira( a, tema, inteira );
+    for ( int d = 0; d < ua::ALTURA_FAIXA; d++, grades++ ) dif += diferentes( a, tema, faixa, inteira, false, d );
+  }
+  printf( "%s --guarda: the chart with its second curve on the plot's first and last rows, strips on %d grids: %ld pixels differ\n", dif == 0 ? "ok  " : "FAIL", grades, dif );
+  return dif == 0 ? 0 : 1;
+}
+
 }  // namespace
 
 int main( int argc, char **argv ) {
+  if ( argc > 1 && !strcmp( argv[1], "--guarda" ) ) return provarGuarda( );
   if ( argc > 1 && !strcmp( argv[1], "--recorte" ) ) return provarRecorte( );
   if ( argc > 1 && !strcmp( argv[1], "--hash" ) ) return provarHash( );
   if ( argc > 1 && !strcmp( argv[1], "--vidro" ) ) return provarVidro( );
@@ -267,9 +351,11 @@ int main( int argc, char **argv ) {
     if ( !strcmp( argv[i], "--only" ) && i + 1 < argc ) so = argv[++i];
     else if ( !strcmp( argv[i], "--corrupt" ) ) corromper = true;
     else if ( !strcmp( argv[i], "--direto" ) ) g_direto = true;
+    else if ( !strcmp( argv[i], "--desloca" ) ) g_desloca = true;
+    else if ( !strcmp( argv[i], "--lista" ) && i + 1 < argc ) g_bytesLista = atol( argv[++i] );
   }
-  ua::Pintor::lista( g_lista, sizeof g_lista );
-  ua::Faixa faixa( g_tira );
+  emprestarLista( );
+  ua::Faixa faixa( g_canvas );
   uint32_t sorvedouro = 0;
   int n = 0, difTotal = 0;
   double total = 0;
@@ -291,7 +377,11 @@ int main( int argc, char **argv ) {
       Partes ph;
       for ( int r = 0; r < reps; r++ ) sorvedouro += compor( a, faixa, p, tema, &ph );
       ph.limpa /= reps; ph.desenha /= reps; ph.hash /= reps;
-      const int dif = diferentes( a, tema, faixa, corromper );
+      GFXcanvas16 inteira( ua::LARGURA_PAINEL, ua::ALTURA_PAINEL );
+      desenharInteira( a, tema, inteira );
+      int dif = diferentes( a, tema, faixa, inteira, corromper );
+      if ( g_desloca )
+        for ( int d = 1; d < ua::ALTURA_FAIXA; d++ ) dif += diferentes( a, tema, faixa, inteira, corromper, d );
       printf( "S %s %s %.1f %.1f %.1f %.1f %d\n", a.nome, t ? "claro" : "escuro", melhor, ph.limpa, ph.desenha, ph.hash, dif );
       n++;
       total += melhor;
@@ -299,8 +389,8 @@ int main( int argc, char **argv ) {
       difTotal += dif;
     }
   }
-  printf( "TOTAL %d %.1f %.1f %.1f %.1f %d %d %d %d %d\n", n, total, soma.limpa, soma.desenha, soma.hash, difTotal, g_maxOps, g_maxTextos, g_semGravacao,
-          g_maxLista );
+  printf( "TOTAL %d %.1f %.1f %.1f %.1f %d %d %d %d %d\n", n, total, soma.limpa, soma.desenha, soma.hash, difTotal, g_direto ? -1 : g_maxOps,
+          g_direto ? -1 : g_maxTextos, g_direto ? -1 : g_semGravacao, g_direto ? -1 : g_maxLista );
   fprintf( stderr, "# %u\n", sorvedouro );
   return 0;
 }

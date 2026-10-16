@@ -196,7 +196,10 @@ public:
   // `fn( Pintor &, const void *arg )` and calls `p.repetivel( fn, arg )`. Recording, this stores (fn, arg) as one record and runs fn with the
   // recording silenced; a replay runs fn again against the strip's window (it draws through the Pintor, so the window clips it as it clips the
   // recorded calls); with no recording it only runs fn. The order among the other calls is the call's place. What fn reads must outlive the first
-  // strip: the view model does (it is the paint's), a local layout does not.
+  // strip: the view model does (it is the paint's), a local layout does not. And fn's own guard, if it has one (the plot's functions skip themselves with
+  // fora( ) when the window holds none of the rows they draw), must cover everything fn draws: the record cannot know what fn draws, a narrower guard loses
+  // pixels at a strip's edge, and a frame shows it only when an edge falls inside the margin, which no sample does. host_perf --guarda draws a chart that
+  // touches the plot's first and last rows with the strips on all 20 shifts of their grid; a guard narrowed by 6 px a side fails it.
   using Repetivel = void ( * )( Pintor &, const void * );
   void repetivel( Repetivel fn, const void *arg );
 

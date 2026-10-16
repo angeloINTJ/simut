@@ -1,6 +1,6 @@
 #pragma once
 // The Ângulo's strip: Adafruit_GFX over one 20-row band of the panel's 320 x 240, the surface a screen is composed on, one band at a time (two of them sit in the canvas, band k in the half k % 2, so that the DMA pushes one while the next is composed)
-// (DisplayManager::uaPintar( ), DisplayManager_UiA.cpp). It lived in that file until 2026-10-16. It is here so that the host draws through the
+// (DisplayManager::uaPintar( ), DisplayManager_UiA.cpp). It lived in that file until 2026-10-15. It is here so that the host draws through the
 // very class the firmware does: tools/tft_ui/host/host_perf_main.cpp times the compose in twelve strips and proves the twelve strips equal the
 // frame drawn whole, and the speed-ups of the compose are measured on the code that ships.
 //
@@ -35,8 +35,11 @@ public:
   explicit Faixa( uint16_t *base ) : Adafruit_GFX( LARGURA_PAINEL, ALTURA_PAINEL ), base_( base ), buf_( base ) {}
   // Aims at strip k (0 to FAIXAS - 1): its rows of the panel, for this surface and for the Pintor's window. Its pixels are the half k % 2 of the base, so that
   // strip k + 1 can be composed while the DMA still reads strip k. Returns them.
-  uint16_t *para( int k, Pintor &p ) {
-    y0_ = (int16_t)( k * ALTURA_FAIXA );
+  uint16_t *para( int k, Pintor &p ) { return paraEm( k * ALTURA_FAIXA, k, p ); }
+  // The same for the strip whose top row is y0, in the half k % 2: the host harness lays the strips on a grid shifted by 1 to 19 rows, to prove that what a
+  // screen draws does not depend on where the strips' edges fall (host_perf --desloca, --guarda).
+  uint16_t *paraEm( int y0, int k, Pintor &p ) {
+    y0_ = (int16_t)y0;
     buf_ = base_ + (int32_t)( k & 1 ) * LARGURA_PAINEL * ALTURA_FAIXA;
     p.janela( y0_, (int16_t)( y0_ + ALTURA_FAIXA ) );
     p.bruto( buf_, LARGURA_PAINEL, y0_, ALTURA_FAIXA );
@@ -55,7 +58,7 @@ public:
     if ( r1 > ALTURA_FAIXA ) r1 = ALTURA_FAIXA;
     if ( x0 >= x1 || r0 >= r1 ) return;
     // Two pixels to a 32-bit store wherever the run is on a word (a row of this buffer is 320 pixels, and the buffer is word aligned), four stores
-    // a pass: the clear of a strip is 12,800 pixels, six times a frame, and the screens fill rectangles all the time. The ends go one pixel at a time.
+    // a pass: the clear of a strip is 6,400 pixels, twelve times a frame, and the screens fill rectangles all the time. The ends go one pixel at a time.
     const uint32_t dupla = (uint32_t)c | (uint32_t)c << 16;
     for ( int16_t r = r0; r < r1; r++ ) {
       uint16_t *p = buf_ + (int32_t)r * LARGURA_PAINEL + x0;

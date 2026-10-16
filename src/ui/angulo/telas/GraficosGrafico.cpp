@@ -359,7 +359,7 @@ int16_t xDe( const PlotGrafico &l, int i ) { return (int16_t)( l.px0 + rdiv( (in
 // lines, the second curve's 199, ~250 one-pixel columns of the band), 9 kB of the record; recorded as three calls they take 3 x (14 + 8) B, and
 // each strip runs them again against its window. They read the view model, which is the paint's own, and the plot's geometry, copied to s_plot
 // while the draw function runs (one frame is painted at a time, on the panel's core and in the host harness). A strip that holds none of the
-// plot's rows skips them: the curves keep to [py0, py1], a square reaches LADO_PONTO beyond it and the mean's second line one more.
+// plot's rows skips them: the curves keep to [py0, py1], a square reaches LADO_PONTO beyond it and the mean's second line one more. Held by host_perf --guarda (a chart whose second curve touches the plot's first and last rows, the strips on all 20 grids): narrowed by 6 px a side, the guard fails it.
 PlotGrafico s_plot;
 
 bool foraDoPlot( const Pintor &p, const PlotGrafico &l ) {

@@ -11,7 +11,10 @@ sample drawn whole by Adafruit GFX's own path: the last column is the number of 
 
 Usage: python3 tools/tft_ui/perf_telas.py [reps] [--groups base,painel,...] [--only part-of-a-sample's-name] [--top N] [--out file]
                                           [--corrupt]   (the control: flips one pixel per frame; each must then count 1)
-Exit 0 when every frame's strips equal the frame drawn whole, 1 when one differs, 2 when a group cannot be built or run.
+Unless --corrupt, --only or --extra is given it then runs the same programs again as checks, not timings (verificacoes( )): with the record lent 900 B and then
+none (some frames, then all of them, must fall back to drawing every strip), with the strips on the 19 other grids, and on the chart that touches the plot's first
+and last rows (--guarda). Each must leave every frame equal to the frame drawn whole.
+Exit 0 when every frame's strips equal the frame drawn whole and every check holds, 1 when one differs or a check fails, 2 when a group cannot be built or run.
 """
 import argparse
 import concurrent.futures
@@ -31,6 +34,37 @@ OPT = ('-O2', '-fno-tree-vectorize', '-fno-tree-slp-vectorize')
 
 def construir(grupo, tmp):
     return host_telas.build(grupo, pathlib.Path(tmp), opt=OPT, host=False, main='host_perf_main.cpp')
+
+
+def verificacoes(exes, grupos):
+    """Runs of the same programs that are not timings: each must leave every frame equal to the frame drawn whole.
+    --lista 900 and --lista 0 lend the record too little for some frames, or for all of them (the largest of the 560 takes 1,935 B of the 3,200 the firmware lends):
+    those fall back to drawing every strip, the one path nothing else exercises. The run counts the frames that fell back, since a run in which none did, or in
+    which all did at 900 B, would prove nothing. --desloca stitches each frame from strips on the 19 other grids. --guarda is the chart whose second curve
+    touches the plot's first and last rows, on every grid (only the graficos group has it). Returns the lines to print and the number of checks that failed."""
+    linhas, falhas = [], 0
+    for rotulo, args, regra in (('--lista 900', ['--lista', '900'], 'some'), ('--lista 0', ['--lista', '0'], 'all'), ('--desloca', ['--desloca'], 'none')):
+        quadros = dif = fora = 0
+        for g in grupos:
+            r = subprocess.run([str(exes[g]), '1', *args], capture_output=True, text=True)
+            t = next((l.split() for l in r.stdout.splitlines() if l.startswith('TOTAL')), None)
+            if r.returncode or not t:
+                linhas.append(f'FAIL {rotulo}: {g}: exit {r.returncode}')
+                falhas += 1
+                continue
+            quadros += int(t[1])
+            dif += int(t[6])
+            fora += int(t[9])
+        bate = (regra == 'some' and 0 < fora < quadros) or (regra == 'all' and fora == quadros) or (regra == 'none' and fora == 0)
+        ok = dif == 0 and bate
+        falhas += not ok
+        linhas.append(f'{"ok  " if ok else "FAIL"} {rotulo}: {dif} differing px in {quadros} frames, {fora} of them over the list')
+    if 'graficos' in exes:
+        r = subprocess.run([str(exes['graficos']), '--guarda'], capture_output=True, text=True)
+        ok = r.returncode == 0 and r.stdout.startswith('ok')
+        falhas += not ok
+        linhas.append(r.stdout.strip() or f'FAIL --guarda: exit {r.returncode}')
+    return linhas, falhas
 
 
 def main():
@@ -72,11 +106,13 @@ def main():
                     linhas.append((g, p[1], p[2], *map(float, p[3:7]), int(p[7])))
                 elif p and p[0] == 'TOTAL':
                     totais[g] = (int(p[1]), *map(float, p[2:6]), int(p[6]), int(p[7]), int(p[8]), int(p[9]), int(p[10]))
+        extras = ([], 0) if (a.corrupt or a.extra or a.only) else verificacoes(exes, grupos)
     print(f'{"group":11} {"frames":>6} {"us/frame":>10} {"clear":>9} {"draw":>9} {"hash":>9} {"differing px":>13}   (microseconds per frame summed over the frames, host x86)')
     soma = [0, 0.0, 0.0, 0.0, 0.0, 0]
     for g in grupos:
         t = totais[g]
-        print(f'{g:11} {t[0]:6d} {t[1]:10.0f} {t[2]:9.0f} {t[3]:9.0f} {t[4]:9.0f} {t[5]:13d}   record: {t[6]} calls, {t[7]} B of text and calls, {t[9]} of 3200 B of the list, {t[8]} frames over')
+        registro = 'record: none (--direto)' if t[6] < 0 else f'record: {t[6]} calls, {t[7]} B of text and calls, {t[9]} of 3200 B of the list, {t[8]} frames over'
+        print(f'{g:11} {t[0]:6d} {t[1]:10.0f} {t[2]:9.0f} {t[3]:9.0f} {t[4]:9.0f} {t[5]:13d}   {registro}')
         soma = [x + y for x, y in zip(soma[:6], t[:6])]
     print(f'{"all":11} {soma[0]:6d} {soma[1]:10.0f} {soma[2]:9.0f} {soma[3]:9.0f} {soma[4]:9.0f} {soma[5]:13d}')
     print(f'slowest {a.top} frames:')
@@ -84,8 +120,10 @@ def main():
         print(f'  {g}/{nome} {tema}: {us:.0f} us (clear {limpa:.0f}, draw {desenha:.0f}, hash {h:.0f})')
     if a.out:
         pathlib.Path(a.out).write_text(''.join(f'{g} {n} {t} {u:.1f} {c:.1f} {d:.1f} {h:.1f} {x}\n' for g, n, t, u, c, d, h, x in linhas))
+    for l in extras[0]:
+        print(l)
     esperado = len(linhas) if a.corrupt else 0
-    return 0 if soma[5] == esperado else 1
+    return 0 if soma[5] == esperado and not extras[1] else 1
 
 
 if __name__ == '__main__':

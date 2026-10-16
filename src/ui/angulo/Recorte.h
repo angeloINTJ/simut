@@ -1,6 +1,6 @@
 #pragma once
 // The part of a strip that lies on the glass when the display alignment (Ajustes, Alinhar; TftWithOffset.h, +-4 px) moves the image, and the strip's
-// rows packed so that one DMA burst can send it (DisplayManager::uaEmpurrar( ), src/DisplayManager_Dashboard.cpp). In this header, free of the
+// rows packed so that one DMA burst can send it (DisplayManager::uaEmpurrar( ), src/ui/angulo/DisplayManager_UiA_Empurrar.cpp). In this header, free of the
 // libraries, so that the host harness runs the very code the firmware does: tools/tft_ui/host/host_perf_main.cpp --recorte.
 //
 // Before, a strip with a single pixel off the glass took the library's drawRGBBitmap( ), about 2 us a pixel: 154 ms a frame with a column offset (every

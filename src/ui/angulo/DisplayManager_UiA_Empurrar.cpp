@@ -8,7 +8,7 @@
  * (Faixa::para( )); the next push, or the end of uaPintar( ), waits for it. The strips are 320 x 20, so a push is about half of a 40-row strip's 3.5 ms, less than a
  * strip's compose.
  *
- * Every user of spi0 and of the TFT's DMA channel, and how each stays off the bus while a push is in flight (read from the code, 2026-10-16):
+ * Every user of spi0 and of the TFT's DMA channel, and how each stays off the bus while a push is in flight (read from the code, 2026-10-15):
  * - The XPT2046 touch read (loopCore1: ts->touched( ), on this SPI) runs on Core 1 at the top of each loop iteration, before uiPass( ) -> uaQuadro( ) -> uaPintar( ).
  *   uaPintar( ) returns with no burst in flight, so the read cannot overlap one. The touch pin's interrupt (isrPin) only sets a flag, and so does the alarm ISR Core 1
  *   owns; SPI.beginTransaction( ) masks only the interrupts registered with usingInterrupt( ), and nothing in src/ does.
@@ -49,7 +49,7 @@ int canalDma( ) {
   return s_ch;
 }
 
-bool s_voando = false;   /* a burst is in flight: one at a time, on Core 1 or on Core 0 while Core 1 is parked */
+bool s_voando = false;   /* the bus is open for a burst (set before the transaction begins): one at a time, on Core 1 or on Core 0 while Core 1 is parked */
 
 }  // namespace
 
@@ -84,6 +84,10 @@ bool DisplayManager::uaEmpurrar( uint16_t *buf, int16_t x, int16_t y, int16_t w,
   _driver.tft->setAddrWindow( r.x, r.y, r.w, r.h );
   _driver.tft->endWrite( );
   _driver.tft->setOffsetBypass( false );
+  /* The flag before the bus is touched: from here until uaEmpurrarEsperar( ) closes it the transaction is open, CS low and the format 16 bits, so a restart of
+   * Core 1 anywhere after this line finds the flag set and the next call closes the bus. Closing what was not yet opened is harmless: the wait returns at once,
+   * the format and CS are already as the close leaves them. */
+  s_voando = true;
   SPI.beginTransaction( SPISettings( SIMUT_TFT_SPI_HZ, MSBFIRST, SPI_MODE0 ) );
   digitalWrite( TFT_CS, LOW );
   digitalWrite( TFT_DC, LOW );
@@ -96,6 +100,5 @@ bool DisplayManager::uaEmpurrar( uint16_t *buf, int16_t x, int16_t y, int16_t w,
   channel_config_set_read_increment( &c, true );
   channel_config_set_write_increment( &c, false );
   dma_channel_configure( ch, &c, &spi_get_hw( spi0 )->dr, bloco, (uint32_t)r.w * (uint32_t)r.h, true );
-  s_voando = true;
   return true;
 }

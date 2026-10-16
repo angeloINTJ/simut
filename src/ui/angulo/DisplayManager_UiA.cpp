@@ -185,7 +185,7 @@ bool DisplayManager::uaPintar( const UaQuadro &q, UiMode modo, uint32_t hash ) {
   ua::Pintor p( faixa, tema, faixa );
   /* The record of the frame (Pintor::gravar( )) lives in the canvas's rows under the strips: the canvas is 320 x 45 (DisplayManager.cpp:1272), the two
    * strips take 40 rows and the other 5, 3,200 B, are idle during a paint. A static list cost 14,856 B of RAM (P1); this costs none. Nothing writes those
-   * rows while a frame is painted: the strip class clips to its own 40 (Faixa.h), the hash and the push read the first 40, and the old screens'
+   * rows while a frame is painted: the strip class clips to its own 20 rows (Faixa.h), the hash and the push read the strip's 20, and the old screens'
    * draw functions that also use the canvas are not linked in this image (V-NM) or push nothing outside uaPintar( ) (blitCanvas( ) returns
    * unless _uaPintando). If the canvas is not the size relied on, there is no list and every strip draws the screen, as before P1. */
   if ( cv->width( ) == LARGURA_FAIXA && cv->height( ) >= ua::LINHAS_DAS_FAIXAS + ua::LINHAS_DA_LISTA )
@@ -235,6 +235,8 @@ bool DisplayManager::uaPintar( const UaQuadro &q, UiMode modo, uint32_t hash ) {
   }
   /* uaPintar( ) returns with no DMA in flight and spi0 free: the touch read, the GRAM readback and the update screen all rely on it (uaEmpurrar( ), DisplayManager_UiA_Empurrar.cpp). */
   uaEmpurrarEsperar( );
+  /* The canvas's spare rows go back: nothing records outside a paint, and no pointer into the canvas outlives it. */
+  ua::Pintor::lista( nullptr, 0 );
   _uaPintando = false;
   _uaTudo = false;
   s_seq = s_seq + 1;
