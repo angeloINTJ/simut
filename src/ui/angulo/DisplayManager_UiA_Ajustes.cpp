@@ -8,12 +8,12 @@
  *  - Controller (C): the clock, the display alignment, the limits, the
  *    maintenance window, the sounds with their melody and the PIN policy do
  *    what the old branch does, with the old state, events and filters. The
- *    clock, the alignment, the limits (their focus, Back and Save), the melody
- *    picker and the sounds list run the core's actions
+ *    clock, the alignment, the limits (their focus, Back and Save), the maintenance
+ *    window, the melody picker and the sounds list run the core's actions
  *    (DisplayManager_Actions.h), each named in its case, behind the zones the
- *    old branch used, so a held arrow repeats as it did; the step of a limit,
- *    the maintenance window and the PIN policy still reproduce their branches
- *    here, and each of those cases cites the old lines it copies.
+ *    old branch used, so a held arrow repeats as it did; the step of a limit and the
+ *    PIN policy still reproduce their branches here, and each of those cases
+ *    cites the old lines it copies.
  *  - Raw (B): the touch sensitivity and the calibration read the touch before
  *    any hook (DisplayManager_Touch.cpp, the two blocks that end in return),
  *    so a touch on them never gets here; only the frame is built.
@@ -412,40 +412,23 @@ UaToque DisplayManager::uaToqueAjustes( const ua::Alvo *a, int16_t &x, int16_t &
           return UaToque::TRATADO;
         case MANUT_INICIAR:
         case MANUT_ENCERRAR: {
-          /* The primary button (Users.cpp:1470-1479). It acts by what is open NOW:
-           * a frame that went stale under the finger (the window ran out, or the
-           * web opened one) is not obeyed, the next frame shows the truth. */
+          /* The primary button (the core's actMaintPrimary( ): the permission, the zero test and the event). It acts by what is open NOW: a frame that
+           * went stale under the finger (the window ran out, or the web opened one) is not obeyed, the next frame shows the truth. */
           if ( !acceptTouch( 13 ) ) return UaToque::TRATADO;
           if ( ( a->tipo == MANUT_ENCERRAR ) != aberta ) return UaToque::TRATADO;
-          if ( !( _panelPerms & PERM_MAINT ) ) { _errorSoundPending = true; return UaToque::TRATADO; }
-          const int secs = aberta ? 0 : ( _maintHours * 3600 + _maintMinutes * 60 );
-          if ( !aberta && secs == 0 ) { _errorSoundPending = true; return UaToque::TRATADO; }
-          UiEvent ev;
-          ev.type = UiEvent::EVT_MAINT_SET;
-          ev.id = _maintSlot;
-          ev.param = secs;
-          pushUiEvent( ev );
+          actMaintPrimary( aberta );
           return UaToque::TRATADO;
         }
         case MANUT_MENOS:
         case MANUT_MAIS: {
-          /* The ends of a bar, hold-repeat in a zone per (row, direction), no
-           * acceleration: hours 0..720 without wrapping, minutes in fives, wrapping
-           * 55 <-> 0 (Users.cpp:1480-1505). Only while the window is closed. */
+          /* The ends of a bar, hold-repeat in a zone per (row, direction), no acceleration: the core's actMaintFocus( ) and actMaintStep( ) (hours
+           * 0..720 without wrapping, minutes in fives, wrapping 55 <-> 0). Only while the window is closed. */
           const int row = a->indice;
           if ( aberta || row < 0 || row > 1 ) return UaToque::TRATADO;
           const int delta = a->tipo == MANUT_MAIS ? +1 : -1;
           if ( !acceptHoldTouch( (uint8_t)( 30 + row * 2 + ( delta > 0 ) ) ) ) return UaToque::TRATADO;
-          _maintFocus = row;
-          if ( row == 0 ) {
-            _maintHours += delta;
-            if ( _maintHours < 0 ) _maintHours = 0;
-            if ( _maintHours > (int)( MAINT_MAX_SEC / 3600u ) ) _maintHours = (int)( MAINT_MAX_SEC / 3600u );
-          } else {
-            _maintMinutes += delta * 5;
-            if ( _maintMinutes < 0 ) _maintMinutes = 55;
-            if ( _maintMinutes > 55 ) _maintMinutes = 0;
-          }
+          actMaintFocus( row );
+          actMaintStep( row, delta );
           return UaToque::TRATADO;
         }
         default:

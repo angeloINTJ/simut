@@ -1469,11 +1469,7 @@ bool DisplayManager::handleTouchPanelV24(int16_t x, int16_t y) {
 			if (x >= 138 && x < 219) { if (!acceptTouch(12)) return true; showAlarmSensorMenu(_maintSlot); return true; }
 			if (x >= 219) {
 				if (!acceptTouch(13)) return true;
-				if (!(_panelPerms & PERM_MAINT)) { _errorSoundPending = true; return true; }
-				const int secs = open ? 0 : (_maintHours * 3600 + _maintMinutes * 60);
-				if (!open && secs == 0) { _errorSoundPending = true; return true; }
-				UiEvent ev; ev.type = UiEvent::EVT_MAINT_SET; ev.id = _maintSlot; ev.param = secs;
-				pushUiEvent(ev);
+				actMaintPrimary( open );
 				return true;
 			}
 			/* arrows move the focus between the two bars */
@@ -1486,22 +1482,13 @@ bool DisplayManager::handleTouchPanelV24(int16_t x, int16_t y) {
 		const int pitch = ALARM_EDIT_STEP + 10;
 		if (y < y0 || y >= y0 + 2 * pitch) return true;
 		const int row = (y - y0) / pitch;
-		if (row != _maintFocus) { if (!acceptSlideTouch((uint8_t)(20 + row))) return true; _maintFocus = row; _repaintSettings = true; return true; }
+		if (row != _maintFocus) { if (!acceptSlideTouch((uint8_t)(20 + row))) return true; actMaintFocus( row ); return true; }
 		int delta = 0;
 		if (x < ALARM_EDIT_HIT_DEC) delta = -1;
 		else if (x > ALARM_EDIT_HIT_INC) delta = +1;
 		if (delta == 0) return true;
 		if (!acceptHoldTouch((uint8_t)(30 + row * 2 + (delta > 0)))) return true;
-		if (row == 0) {
-			_maintHours += delta;
-			if (_maintHours < 0) _maintHours = 0;
-			if (_maintHours > (int)(MAINT_MAX_SEC / 3600u)) _maintHours = (int)(MAINT_MAX_SEC / 3600u);
-		} else {
-			_maintMinutes += delta * 5;
-			if (_maintMinutes < 0) _maintMinutes = 55;
-			if (_maintMinutes > 55) _maintMinutes = 0;
-		}
-		_repaintSettings = true;
+		actMaintStep( row, delta );
 		return true;
 	}
 

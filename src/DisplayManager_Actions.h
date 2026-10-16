@@ -765,3 +765,36 @@ inline __attribute__((always_inline)) void DisplayManager::actLimitsSave( ) {
 	UiEvent ev; ev.type = UiEvent::EVT_SAVE_ALARMS;
 	ev.id = _editSensorIdx; ev.param = 0; pushUiEvent(ev);
 }
+
+/* The maintenance window's bar gets the focus: a tap on the other bar in the original (behind acceptSlideTouch( 20 + row )), a press of an arrow in the Ângulo (behind the
+ * arrow's hold zone). `row` is 0 for the hours and 1 for the minutes. */
+inline __attribute__((always_inline)) void DisplayManager::actMaintFocus( int row ) {
+	_maintFocus = row;
+	_repaintSettings = true;
+}
+
+/* A bar's end: the hours go one at a time from 0 to MAINT_MAX_SEC / 3600 without wrapping, the minutes five at a time and wrap 55 <-> 0. The caller holds the hold zone
+ * and has checked that the window is closed and that `delta` is -1 or +1. */
+inline __attribute__((always_inline)) void DisplayManager::actMaintStep( int row, int delta ) {
+	if (row == 0) {
+		_maintHours += delta;
+		if (_maintHours < 0) _maintHours = 0;
+		if (_maintHours > (int)(MAINT_MAX_SEC / 3600u)) _maintHours = (int)(MAINT_MAX_SEC / 3600u);
+	} else {
+		_maintMinutes += delta * 5;
+		if (_maintMinutes < 0) _maintMinutes = 55;
+		if (_maintMinutes > 55) _maintMinutes = 0;
+	}
+	_repaintSettings = true;
+}
+
+/* Iniciar or Encerrar. `open` is whether the window is open NOW, which the caller read from the clock: without PERM_MAINT, or opening for 0 h 0 min, it asks for the
+ * error sound and sends nothing; otherwise Core 0 gets the seconds (0 closes) and checks the permission again, saves, sends the record and checks the alarms. The
+ * caller holds acceptTouch( 13 ). It returns where the original returned `true`: the call stands before that `return true;`. */
+inline __attribute__((always_inline)) void DisplayManager::actMaintPrimary( bool open ) {
+	if (!(_panelPerms & PERM_MAINT)) { _errorSoundPending = true; return; }
+	const int secs = open ? 0 : (_maintHours * 3600 + _maintMinutes * 60);
+	if (!open && secs == 0) { _errorSoundPending = true; return; }
+	UiEvent ev; ev.type = UiEvent::EVT_MAINT_SET; ev.id = _maintSlot; ev.param = secs;
+	pushUiEvent(ev);
+}
