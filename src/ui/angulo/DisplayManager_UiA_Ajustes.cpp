@@ -350,7 +350,7 @@ UaToque DisplayManager::uaToqueAjustes( const ua::Alvo *a, int16_t &x, int16_t &
       return UaToque::TRATADO;
     }
     case MODE_SETTINGS_ALARM_EDIT: {
-      /* Controller: what the old branch does (DisplayManager_Touch.cpp:872-988). */
+      /* Controller: what the limits editor's branch of handleTouch( ) does. */
       if ( !a ) return UaToque::TRATADO;
       const int nLim = sensorLimitCount( (SensorType)_tempAlarmConfig.sensorType ) > 0
                            ? sensorLimitCount( (SensorType)_tempAlarmConfig.sensorType ) : 2;
@@ -360,8 +360,8 @@ UaToque DisplayManager::uaToqueAjustes( const ua::Alvo *a, int16_t &x, int16_t &
           /* The arrows on a bar: -/+ with hold-repeat in a zone of their own per
            * (row, direction), so sliding off one ends the repeat; the focus goes to
            * the row, and the step grows with how long the same arrow has been held:
-           * 0.1, then 0.5 after 2 s, 1.0 after 4 s and 10 after 6 s (Touch.cpp:
-           * 931-946). */
+           * 0.1, then 0.5 after 2 s, 1.0 after 4 s and 10 after 6 s (the ramp of the original's
+           * arrows in handleTouch( )). */
           const int row = a->indice;
           if ( row < 0 || row > 1 ) return UaToque::TRATADO;
           const int idx = ( _editFieldFocus / 2 ) * 2 + row;
@@ -404,13 +404,13 @@ UaToque DisplayManager::uaToqueAjustes( const ua::Alvo *a, int16_t &x, int16_t &
       }
     }
     case MODE_SETTINGS_MAINT: {
-      /* Controller: what the old branch does (DisplayManager_Users.cpp:1466-1507). */
+      /* Controller: what the maintenance window's branch of handleTouchPanelV24( ) does. */
       if ( !a ) return UaToque::TRATADO;
       const bool aberta = minutosRestantes( _sysConfigPtr, _maintSlot ) != 0;
       switch ( a->tipo ) {
         case MANUT_VOLTAR:
         case MANUT_CANCELAR:
-          /* BACK (Users.cpp:1469). */
+          /* BACK: to the sensor's menu. */
           if ( !acceptTouch( 12 ) ) return UaToque::TRATADO;
           showAlarmSensorMenu( _maintSlot );
           return UaToque::TRATADO;
@@ -538,7 +538,7 @@ UaToque DisplayManager::uaToqueAjustes( const ua::Alvo *a, int16_t &x, int16_t &
       }
     }
     case MODE_SETTINGS_PIN_POLICY: {
-      /* Controller: what the old branch does (DisplayManager_Users.cpp:1562-1624).
+      /* Controller: what the PIN policy's branch of handleTouchPanelV24( ) does.
        * The rows edit a COPY; nothing reaches Core 0 until SAVE. */
       if ( !a ) return UaToque::TRATADO;
       uint8_t minLen = _policyMin, keypad = _policyKb, alphabet = _policyAlpha;
@@ -570,7 +570,7 @@ UaToque DisplayManager::uaToqueAjustes( const ua::Alvo *a, int16_t &x, int16_t &
           alphabet = (uint8_t)al;
           /* Every pair has a layout since KB_PLAIN became ordered, so this does not
            * step today; it stays so that a pair without one moves the keypad
-           * instead of refusing the alphabet just asked for (Users.cpp:1590).
+           * instead of refusing the alphabet just asked for (the original's loop is unbounded: F3 of S8b).
            * Bounded, which the old loop was not. */
           for ( int guarda = 0; !PinKb::comboSupported( alphabet, keypad ) && guarda < PinKb::KB_MAX; guarda++ )
             keypad = keypad >= PinKb::KB_MAX ? (uint8_t)PinKb::KB_MIN : (uint8_t)( keypad + 1 );
@@ -578,7 +578,7 @@ UaToque DisplayManager::uaToqueAjustes( const ua::Alvo *a, int16_t &x, int16_t &
         }
         case POLPIN_VOLTAR:
         case POLPIN_CANCELAR:
-          /* Nothing to put back: the rows edited a copy (Users.cpp:1612-1615). */
+          /* Nothing to put back: the rows edited a copy. */
           if ( !acceptTouch( 12 ) ) return UaToque::TRATADO;
           showSettingsMain( );
           return UaToque::TRATADO;
