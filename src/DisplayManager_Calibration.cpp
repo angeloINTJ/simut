@@ -392,14 +392,13 @@ void DisplayManager::mapTouchPoint(TS_Point raw, int16_t &outX, int16_t &outY) {
  /* Bypass mapping if simulated touch is active.
  * CLI 'touch sim'/'touch hold' sets _simTouchActive + _simTouchX/Y; here
  * we return coords already in screen-space, ignoring raw ADC.
- * Auto-clear after _simTouchHoldMs — 100 ms is a tap, longer is a hold. */
+ * The flag is not cleared here: loopCore1( ) ends the injected touch on its
+ * own clock, once per pass, right after handleTouch( ) (_simTouchHoldMs: 100 ms
+ * is a tap, longer is a hold). Clearing it in this function ended it only on
+ * the screens that call it, and two never do for an injection (2026-10-16). */
  if (__atomic_load_n(&_simTouchActive, __ATOMIC_ACQUIRE)) {
  outX = __atomic_load_n(&_simTouchX, __ATOMIC_ACQUIRE);
  outY = __atomic_load_n(&_simTouchY, __ATOMIC_ACQUIRE);
- if (millis( ) - __atomic_load_n(&_simTouchSetMs, __ATOMIC_ACQUIRE)
-     > __atomic_load_n(&_simTouchHoldMs, __ATOMIC_ACQUIRE)) {
- __atomic_store_n(&_simTouchActive, false, __ATOMIC_RELEASE);
- }
  return;
  }
 
