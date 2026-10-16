@@ -73,22 +73,28 @@ struct Dado {
   char t[8];                     // "12:10" or "13/10"; empty for the others
 };
 
-struct LayoutGrafico {
+// What the plot's three long loops read (desenharBanda( ), desenharSegundaCurva( ), desenharMedia( )), apart from the layout so that a copy of it
+// can outlive the draw function: the loops run again for each strip (Pintor::repetivel( )), and the layout is a local of desenharGrafico( ).
+struct PlotGrafico {
+  const VmGrafico *vm;
+  int n;                         // buckets to draw
+  int16_t px0, px1, py0, py1;    // the plot
+  int32_t lo, hi;                // what the plot's height spans, in tenths
+  int32_t lo2, hi2;              // the second curve's
+};
+
+struct LayoutGrafico : PlotGrafico {
   char titulo[64];
   Acao acoes[2];                 // Dia, Voltar
   Caixa16 cxAcao[2];
-  int n;                         // buckets to draw
   bool temDados;
   Dado stat[6];
   int nStat;
   Caixa16 cartao;
-  int16_t px0, px1, py0, py1;    // the plot
-  int32_t lo, hi;                // what the plot's height spans, in tenths
   int nGrade;
   int32_t grade[MAX_GRADE + 1];
   char rotGrade[MAX_GRADE + 1][16];
   bool temV2;
-  int32_t lo2, hi2;
   char rot2Cima[16], rot2Baixo[16];
   const char *un2;
   char eixo[3][16];
@@ -334,7 +340,7 @@ LayoutGrafico layoutGrafico( const VmGrafico &vm ) {
 }
 
 // The row of a value in the plot, py1 at the bottom of the range.
-int16_t yDe( const LayoutGrafico &l, int32_t v, int32_t lo, int32_t hi ) {
+int16_t yDe( const PlotGrafico &l, int32_t v, int32_t lo, int32_t hi ) {
   const int32_t alto = l.py1 - l.py0;
   int32_t y = l.py1 - rdiv( ( v - lo ) * alto, hi - lo );
   if ( y < l.py0 ) y = l.py0;
@@ -343,23 +349,35 @@ int16_t yDe( const LayoutGrafico &l, int32_t v, int32_t lo, int32_t hi ) {
 }
 
 // The column of bucket i: even in time, so even in index.
-int16_t xDe( const LayoutGrafico &l, int i ) { return (int16_t)( l.px0 + rdiv( (int32_t)i * ( l.px1 - l.px0 ), l.n - 1 ) ); }
+int16_t xDe( const PlotGrafico &l, int i ) { return (int16_t)( l.px0 + rdiv( (int32_t)i * ( l.px1 - l.px0 ), l.n - 1 ) ); }
 
 /* ------------------------------------------------------------------ */
 /* Drawing                                                              */
 /* ------------------------------------------------------------------ */
 
-// The plot: the band, the grid, the dashed lines, the curves, the last point.
-void desenharPlot( Pintor &p, const VmGrafico &vm, const LayoutGrafico &l ) {
+// The plot's three long loops are functions of Pintor::repetivel( ): recorded call by call they were ~650 of the chart's 903 calls (the mean's 398
+// lines, the second curve's 199, ~250 one-pixel columns of the band), 9 kB of the record; recorded as three calls they take 3 x (14 + 8) B, and
+// each strip runs them again against its window. They read the view model, which is the paint's own, and the plot's geometry, copied to s_plot
+// while the draw function runs (one frame is painted at a time, on the panel's core and in the host harness). A strip that holds none of the
+// plot's rows skips them: the curves keep to [py0, py1], a square reaches LADO_PONTO beyond it and the mean's second line one more.
+PlotGrafico s_plot;
+
+bool foraDoPlot( const Pintor &p, const PlotGrafico &l ) {
+  return p.fora( (int16_t)( l.py0 - LADO_PONTO ), (int16_t)( l.py1 - l.py0 + 2 * LADO_PONTO + 2 ) );
+}
+
+// The band between each bucket's minimum and maximum, column by column
+// between neighbours: the range the signal really covered. A solid soft tint
+// of the accent's green (the kit has no soft accent of its own), not a
+// gradient. It goes first, so the grid and the lines stay crisp on it, and a
+// gap breaks it.
+void desenharBanda( Pintor &p, const void *arg ) {
+  const PlotGrafico &l = *static_cast<const PlotGrafico *>( arg );
+  if ( foraDoPlot( p, l ) ) return;
+  const VmGrafico &vm = *l.vm;
   const Tema &T = p.t( );
   const int n = l.n;
   auto yT = [&]( int32_t v ) { return yDe( l, v, l.lo, l.hi ); };
-
-  // The band between each bucket's minimum and maximum, column by column
-  // between neighbours: the range the signal really covered. A solid soft tint
-  // of the accent's green (the kit has no soft accent of its own), not a
-  // gradient. It goes first, so the grid and the lines stay crisp on it, and a
-  // gap breaks it.
   for ( int i = 0; i + 1 < n; i++ ) {
     const int32_t ma = vm.bMedia[i], mb = vm.bMedia[i + 1];
     if ( ma == SEM_DADO || mb == SEM_DADO ) continue;
@@ -375,6 +393,58 @@ void desenharPlot( Pintor &p, const VmGrafico &vm, const LayoutGrafico &l ) {
       p.fillRect( x, top, 1, (int16_t)( bot - top + 1 ), T.positivoSuave );
     }
   }
+}
+
+// The second curve: thin, grey, under the temperature.
+void desenharSegundaCurva( Pintor &p, const void *arg ) {
+  const PlotGrafico &l = *static_cast<const PlotGrafico *>( arg );
+  if ( foraDoPlot( p, l ) ) return;
+  const VmGrafico &vm = *l.vm;
+  const Tema &T = p.t( );
+  const int n = l.n;
+  auto yU = [&]( int32_t v ) { return yDe( l, v, l.lo2, l.hi2 ); };
+  for ( int i = 0; i < n; i++ ) {
+    if ( vm.bMedia2[i] == SEM_DADO ) continue;
+    const bool esq = i > 0 && vm.bMedia2[i - 1] != SEM_DADO;
+    const bool dir = i + 1 < n && vm.bMedia2[i + 1] != SEM_DADO;
+    const int16_t x = xDe( l, i ), y = yU( vm.bMedia2[i] );
+    if ( dir ) p.line( x, y, xDe( l, i + 1 ), yU( vm.bMedia2[i + 1] ), T.tinta2 );
+    else if ( !esq ) p.fillRect( (int16_t)( x - LADO_PONTO / 2 ), (int16_t)( y - LADO_PONTO / 2 ), LADO_PONTO, LADO_PONTO, T.tinta2 );
+  }
+}
+
+// The mean, 2 px thick; a bucket alone between two gaps gets a square, or it
+// would draw nothing and look like lost data.
+void desenharMedia( Pintor &p, const void *arg ) {
+  const PlotGrafico &l = *static_cast<const PlotGrafico *>( arg );
+  if ( foraDoPlot( p, l ) ) return;
+  const VmGrafico &vm = *l.vm;
+  const Tema &T = p.t( );
+  const int n = l.n;
+  auto yT = [&]( int32_t v ) { return yDe( l, v, l.lo, l.hi ); };
+  for ( int i = 0; i < n; i++ ) {
+    if ( vm.bMedia[i] == SEM_DADO ) continue;
+    const bool esq = i > 0 && vm.bMedia[i - 1] != SEM_DADO;
+    const bool dir = i + 1 < n && vm.bMedia[i + 1] != SEM_DADO;
+    const int16_t x = xDe( l, i ), y = yT( vm.bMedia[i] );
+    if ( dir ) {
+      const int16_t xb = xDe( l, i + 1 ), yb = yT( vm.bMedia[i + 1] );
+      p.line( x, y, xb, yb, T.acento );
+      p.line( x, (int16_t)( y + 1 ), xb, (int16_t)( yb + 1 ), T.acento );
+    } else if ( !esq ) {
+      p.fillRect( (int16_t)( x - LADO_PONTO / 2 ), (int16_t)( y - LADO_PONTO / 2 ), LADO_PONTO, LADO_PONTO, T.acento );
+    }
+  }
+}
+
+// The plot: the band, the grid, the dashed lines, the curves, the last point.
+void desenharPlot( Pintor &p, const VmGrafico &vm, const LayoutGrafico &l ) {
+  const Tema &T = p.t( );
+  auto yT = [&]( int32_t v ) { return yDe( l, v, l.lo, l.hi ); };
+  s_plot = l;   // the PlotGrafico part of the layout
+  s_plot.vm = &vm;
+
+  p.repetivel( desenharBanda, &s_plot );
 
   // The grid, with the temperature's values at the left.
   for ( int i = 0; i < l.nGrade; i++ ) {
@@ -391,17 +461,8 @@ void desenharPlot( Pintor &p, const VmGrafico &vm, const LayoutGrafico &l ) {
   }
   if ( vm.media != SEM_DADO && vm.media > l.lo && vm.media < l.hi ) tracejada( p, l.px0, l.px1, yT( vm.media ), T.tinta2 );
 
-  // The second curve: thin, grey, under the temperature.
   if ( l.temV2 ) {
-    auto yU = [&]( int32_t v ) { return yDe( l, v, l.lo2, l.hi2 ); };
-    for ( int i = 0; i < n; i++ ) {
-      if ( vm.bMedia2[i] == SEM_DADO ) continue;
-      const bool esq = i > 0 && vm.bMedia2[i - 1] != SEM_DADO;
-      const bool dir = i + 1 < n && vm.bMedia2[i + 1] != SEM_DADO;
-      const int16_t x = xDe( l, i ), y = yU( vm.bMedia2[i] );
-      if ( dir ) p.line( x, y, xDe( l, i + 1 ), yU( vm.bMedia2[i + 1] ), T.tinta2 );
-      else if ( !esq ) p.fillRect( (int16_t)( x - LADO_PONTO / 2 ), (int16_t)( y - LADO_PONTO / 2 ), LADO_PONTO, LADO_PONTO, T.tinta2 );
-    }
+    p.repetivel( desenharSegundaCurva, &s_plot );
     // Its scale, at the right of the plot: top, unit, bottom.
     const int16_t xr = (int16_t)( l.px1 + ESP2 );
     // Each centred on its row (at 9 pt the top label's baseline 4 px under the
@@ -411,25 +472,12 @@ void desenharPlot( Pintor &p, const VmGrafico &vm, const LayoutGrafico &l ) {
     textoCentrado( p, l.rot2Baixo, xr, (int16_t)( l.py1 - rd2( H_APOIO ) ), H_APOIO, tipo::apoio, T.tinta2, 'l' );
   }
 
-  // The mean, 2 px thick; a bucket alone between two gaps gets a square, or it
-  // would draw nothing and look like lost data.
-  int ultimo = -1;
-  for ( int i = 0; i < n; i++ ) {
-    if ( vm.bMedia[i] == SEM_DADO ) continue;
-    ultimo = i;
-    const bool esq = i > 0 && vm.bMedia[i - 1] != SEM_DADO;
-    const bool dir = i + 1 < n && vm.bMedia[i + 1] != SEM_DADO;
-    const int16_t x = xDe( l, i ), y = yT( vm.bMedia[i] );
-    if ( dir ) {
-      const int16_t xb = xDe( l, i + 1 ), yb = yT( vm.bMedia[i + 1] );
-      p.line( x, y, xb, yb, T.acento );
-      p.line( x, (int16_t)( y + 1 ), xb, (int16_t)( yb + 1 ), T.acento );
-    } else if ( !esq ) {
-      p.fillRect( (int16_t)( x - LADO_PONTO / 2 ), (int16_t)( y - LADO_PONTO / 2 ), LADO_PONTO, LADO_PONTO, T.acento );
-    }
-  }
+  p.repetivel( desenharMedia, &s_plot );
 
   // The last reading: a dot with a ring of the card's colour round it.
+  int ultimo = -1;
+  for ( int i = l.n - 1; i >= 0 && ultimo < 0; i-- )
+    if ( vm.bMedia[i] != SEM_DADO ) ultimo = i;
   if ( ultimo >= 0 ) {
     const int16_t x = xDe( l, ultimo ), y = yT( vm.bMedia[ultimo] );
     p.fillCircle( x, y, R_PONTO, T.acento );

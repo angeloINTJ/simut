@@ -71,12 +71,12 @@ def main():
                 if p and p[0] == 'S':
                     linhas.append((g, p[1], p[2], *map(float, p[3:7]), int(p[7])))
                 elif p and p[0] == 'TOTAL':
-                    totais[g] = (int(p[1]), *map(float, p[2:6]), int(p[6]), int(p[7]), int(p[8]), int(p[9]))
+                    totais[g] = (int(p[1]), *map(float, p[2:6]), int(p[6]), int(p[7]), int(p[8]), int(p[9]), int(p[10]))
     print(f'{"group":11} {"frames":>6} {"us/frame":>10} {"clear":>9} {"draw":>9} {"hash":>9} {"differing px":>13}   (microseconds per frame summed over the frames, host x86)')
     soma = [0, 0.0, 0.0, 0.0, 0.0, 0]
     for g in grupos:
         t = totais[g]
-        print(f'{g:11} {t[0]:6d} {t[1]:10.0f} {t[2]:9.0f} {t[3]:9.0f} {t[4]:9.0f} {t[5]:13d}   record: {t[6]} calls, {t[7]} B of text, {t[8]} frames over')
+        print(f'{g:11} {t[0]:6d} {t[1]:10.0f} {t[2]:9.0f} {t[3]:9.0f} {t[4]:9.0f} {t[5]:13d}   record: {t[6]} calls, {t[7]} B of text and calls, {t[9]} of 3200 B of the list, {t[8]} frames over')
         soma = [x + y for x, y in zip(soma[:6], t[:6])]
     print(f'{"all":11} {soma[0]:6d} {soma[1]:10.0f} {soma[2]:9.0f} {soma[3]:9.0f} {soma[4]:9.0f} {soma[5]:13d}')
     print(f'slowest {a.top} frames:')

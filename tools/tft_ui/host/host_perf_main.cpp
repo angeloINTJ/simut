@@ -106,7 +106,8 @@ int provarHash( ) {
 struct Partes { double limpa = 0, desenha = 0, hash = 0; };
 
 // One frame, composed as uaPintar( ) does. The sum of the hashes is returned so that none can be optimised away.
-int g_maxOps = 0, g_maxTextos = 0, g_semGravacao = 0;
+int g_maxOps = 0, g_maxTextos = 0, g_semGravacao = 0, g_maxLista = 0;
+alignas( 8 ) uint8_t g_lista[ua::BYTES_DA_LISTA];   // the firmware's is the canvas's spare rows: the same size, so a frame that fits here fits there
 
 bool g_direto = false;   // --direto: no record, every strip runs the screen's draw (what uaPintar( ) did before Pintor::gravar( ))
 
@@ -123,7 +124,8 @@ uint32_t compor( const amostra::Amostra &a, ua::Faixa &faixa, ua::Pintor &p, con
     p.parar( );
     if ( k == 0 ) {
       if ( p.gravadas( ) > g_maxOps ) g_maxOps = p.gravadas( );
-      if ( p.bytesDeTextos( ) > g_maxTextos ) g_maxTextos = p.bytesDeTextos( );
+      if ( p.bytesGravados( ) > g_maxTextos ) g_maxTextos = p.bytesGravados( );
+      if ( p.usadosDaLista( ) > g_maxLista ) g_maxLista = p.usadosDaLista( );
       if ( !p.gravado( ) ) g_semGravacao++;
     }
     ua::margemPreta( p );
@@ -222,6 +224,7 @@ int main( int argc, char **argv ) {
     else if ( !strcmp( argv[i], "--corrupt" ) ) corromper = true;
     else if ( !strcmp( argv[i], "--direto" ) ) g_direto = true;
   }
+  ua::Pintor::lista( g_lista, sizeof g_lista );
   ua::Faixa faixa( g_tira );
   uint32_t sorvedouro = 0;
   int n = 0, difTotal = 0;
@@ -252,7 +255,8 @@ int main( int argc, char **argv ) {
       difTotal += dif;
     }
   }
-  printf( "TOTAL %d %.1f %.1f %.1f %.1f %d %d %d %d\n", n, total, soma.limpa, soma.desenha, soma.hash, difTotal, g_maxOps, g_maxTextos, g_semGravacao );
+  printf( "TOTAL %d %.1f %.1f %.1f %.1f %d %d %d %d %d\n", n, total, soma.limpa, soma.desenha, soma.hash, difTotal, g_maxOps, g_maxTextos, g_semGravacao,
+          g_maxLista );
   fprintf( stderr, "# %u\n", sorvedouro );
   return 0;
 }

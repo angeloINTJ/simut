@@ -167,23 +167,41 @@ public:
   // pixel. Only a speed-up: what lands inside the window is the same.
   void janela( int16_t y0, int16_t y1 ) { jy0_ = y0; jy1_ = y1; }
 
-  // Record and replay. A frame is composed in six strips, and each strip ran the screen's draw function, which works out its layout, its
-  // numbers and its text widths again and then draws only what lies in the strip (measured on the board on 2026-10-15: the dashboard
-  // composed in 73 ms, the chart in 69, the calendar in 100). Instead the draw of the first strip is recorded, each primitive call with its
-  // arguments, and the other five strips replay the list, which costs the primitives alone: the same calls in the same order against that
-  // strip's window, so what lands in the strip is what the draw function would have drawn there. The caller:
+  // Record and replay. A frame is composed in strips, and each strip ran the screen's draw function, which works out its layout, its numbers
+  // and its text widths again and then draws only what lies in the strip (measured on the board on 2026-10-15: the dashboard composed in 73 ms,
+  // the chart in 69, the calendar in 100). Instead the draw of the first strip is recorded, each primitive call with its arguments, and the
+  // other strips replay the list, which costs the primitives alone: the same calls in the same order against that strip's window, so what lands
+  // in the strip is what the draw function would have drawn there. The caller:
   //   p.gravar( );  then for each strip:  if ( p.gravado( ) ) p.repetir( ); else draw the screen;  p.parar( );
-  // `gravado( )` is false until the first strip is drawn and stays false when the frame did not fit the list (MAX_OPS calls, MAX_TEXTOS bytes
-  // of text): that frame's other strips draw the screen again, as before. Not recorded: janela( ) (a strip's own), tema( ) (fixed for a
-  // frame) and what a screen draws through gfx( ) (no screen does; the host harness proves each frame stitched from replayed strips equal to the
-  // frame drawn whole). The list is static, one for the program: one Pintor records at a time.
-  static constexpr int MAX_OPS = 1024, MAX_TEXTOS = 512;
+  // `gravado( )` is false until the first strip is drawn and stays false when the frame did not fit the list, or when there is no list: that
+  // frame's other strips draw the screen again, as before. Not recorded: janela( ) (a strip's own), tema( ) (fixed for a frame) and what a
+  // screen draws through gfx( ) (no screen does; the host harness proves each frame stitched from replayed strips equal to the frame drawn
+  // whole). The record is one for the program: one Pintor records at a time.
+  //
+  // Where the record lives: in memory the caller lends (lista( )), so that it costs the program no RAM of its own (a static one was 14,856 B).
+  // The firmware lends the canvas's rows under the strips (DisplayManager::uaPintar( )), the host harness an array of the same size
+  // (ua::BYTES_DA_LISTA). The records, 14 B a call, fill the list from its start; the bytes they point to (the text of the calls that draw
+  // text, the function and argument of a repetivel( ) call) fill it from its end; the frame fits while the two have not met.
+  static void lista( void *mem, size_t bytes );   // lends the list; a null or a misaligned one: nothing is recorded
   void gravar( );    // begins a recording
   void parar( );     // ends it
   bool gravado( ) const { return pronto_; }
   void repetir( );
-  int gravadas( ) const;         // the calls and the bytes of text of the recording (the host harness reports the largest)
-  int bytesDeTextos( ) const;
+  int gravadas( ) const;         // the calls of the recording
+  int bytesGravados( ) const;    // the bytes they point to (text, repetivel( ) entries)
+  int usadosDaLista( ) const;    // what the frame takes of the list: 14 B a call and the bytes they point to (the host harness reports the largest)
+
+  // A call that is recorded as one. The chart's plot is ~650 calls of line( ) and fillRect( ) (the mean as two lines a bucket, the second curve, the
+  // min-max band as a one-pixel column at a time), more than any list the program can spare. A screen puts such a run in a function
+  // `fn( Pintor &, const void *arg )` and calls `p.repetivel( fn, arg )`. Recording, this stores (fn, arg) as one record and runs fn with the
+  // recording silenced; a replay runs fn again against the strip's window (it draws through the Pintor, so the window clips it as it clips the
+  // recorded calls); with no recording it only runs fn. The order among the other calls is the call's place. What fn reads must outlive the first
+  // strip: the view model does (it is the paint's), a local layout does not.
+  using Repetivel = void ( * )( Pintor &, const void * );
+  void repetivel( Repetivel fn, const void *arg );
+
+  // Is the span [y, y + h) wholly outside the window?
+  bool fora( int16_t y, int16_t h ) const { return y + h <= jy0_ || y >= jy1_; }
 
   // Says that the surface is a raw RGB565 buffer, row-major, `larg` pixels a row and `alt` rows, whose first row is the surface's row `topo` (the
   // firmware's strip: Faixa::para( ); the host's whole-frame canvas: its buffer, 0 and the height). A text is then written into the buffer
@@ -214,7 +232,6 @@ public:
   Tinta texto( const char *utf8, int16_t x, int16_t y, Fonte f, uint16_t cor, char alinha = 'l' );
 
 private:
-  bool fora( int16_t y, int16_t h ) const { return y + h <= jy0_ || y >= jy1_; }
   // c over the pixel at (x, y), a sixteenths of it (16 = all of it).
   void misturar( int16_t x, int16_t y, uint16_t c, uint8_t a );
   void cantos( int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint16_t c, int32_t in2 );
@@ -235,6 +252,8 @@ private:
   };
   void gravarOp( uint8_t tipo, int16_t a, int16_t b, int16_t c, int16_t d, int16_t e, uint16_t cor, uint8_t aux = 0 );
   void gravarTexto( const char *s, int16_t ox, int16_t y, Fonte f, uint16_t cor, int16_t inkT, int16_t inkB );
+  void gravarRepetivel( Repetivel fn, const void *arg );
+  int tomarBytes( const void *src, int n );   // n bytes from the list's end; their offset, or -1 (and the frame is not recorded)
   void desenharTexto( const char *s, int16_t ox, int16_t y, Fonte f, uint16_t cor );
   void desenharTextoBruto( const char *s, int16_t ox, int16_t y, Fonte f, uint16_t cor );
 };

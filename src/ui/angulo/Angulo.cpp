@@ -181,24 +181,44 @@ int16_t alturaX( Fonte f ) { return meta::kCapX[f == Fonte::MARCA ? (int)Fonte::
 /* ------------------------------------------------------------------ */
 
 namespace {
-// The recording of a frame (Pintor::gravar( )): one record per primitive call, 14 bytes each, and the text of the calls that draw text.
-enum : uint8_t { OP_CLEAR, OP_PIXEL, OP_FILL_RECT, OP_RECT, OP_LINE, OP_CIRCLE, OP_FILL_CIRCLE, OP_ROUND_RECT, OP_FILL_ROUND_RECT, OP_ICONE, OP_TEXTO };
+// The recording of a frame (Pintor::gravar( )): one record per primitive call, 14 bytes each, in the list the caller lends (Pintor::lista( )). The
+// records fill the list from its start; the bytes they point to (a text, the function and argument of a repetivel( ) call) fill it from its end.
+enum : uint8_t { OP_CLEAR, OP_PIXEL, OP_FILL_RECT, OP_RECT, OP_LINE, OP_CIRCLE, OP_FILL_CIRCLE, OP_ROUND_RECT, OP_FILL_ROUND_RECT, OP_ICONE, OP_TEXTO,
+                 OP_REPETIVEL };
 struct Op {
   uint8_t tipo, aux;
   int16_t a, b, c, d, e;
   uint16_t cor;
 };
-Op s_regOps[Pintor::MAX_OPS];
-char s_regTextos[Pintor::MAX_TEXTOS];
-int s_nRegOps = 0, s_nRegTextos = 0;
+static_assert( sizeof( Op ) == 14 && alignof( Op ) == 2, "a record is 14 bytes: the list is sized in them" );
+// What an OP_REPETIVEL record points to. It sits at any byte of the list, so it is copied in and out with memcpy.
+struct Chamada {
+  Pintor::Repetivel fn;
+  const void *arg;
+};
+uint8_t *s_lista = nullptr;
+int s_bytesLista = 0;   // at most 32,767: a record's offset into the list is an int16_t
+int s_nRegOps = 0;
+int s_topo = 0;         // the offset the bytes filling the list from its end have reached; s_bytesLista with none
+Op *regOps( ) { return reinterpret_cast<Op *>( s_lista ); }
 }  // namespace
+
+void Pintor::lista( void *mem, size_t bytes ) {
+  if ( !mem || bytes > 32767 || ( reinterpret_cast<uintptr_t>( mem ) & ( alignof( Op ) - 1 ) ) ) {
+    s_lista = nullptr;
+    s_bytesLista = 0;
+    return;
+  }
+  s_lista = static_cast<uint8_t *>( mem );
+  s_bytesLista = (int)bytes;
+}
 
 void Pintor::gravar( ) {
   s_nRegOps = 0;
-  s_nRegTextos = 0;
-  gravando_ = true;
+  s_topo = s_bytesLista;
   pronto_ = false;
-  estouro_ = false;
+  estouro_ = !s_lista;   // no list: nothing is recorded, as for a frame that does not fit
+  gravando_ = !estouro_;
 }
 
 void Pintor::parar( ) {
@@ -207,27 +227,45 @@ void Pintor::parar( ) {
 }
 
 int Pintor::gravadas( ) const { return s_nRegOps; }
-int Pintor::bytesDeTextos( ) const { return s_nRegTextos; }
+int Pintor::bytesGravados( ) const { return s_bytesLista - s_topo; }
+int Pintor::usadosDaLista( ) const { return s_nRegOps * (int)sizeof( Op ) + s_bytesLista - s_topo; }
 
 void Pintor::gravarOp( uint8_t tipo, int16_t a, int16_t b, int16_t c, int16_t d, int16_t e, uint16_t cor, uint8_t aux ) {
-  if ( s_nRegOps >= MAX_OPS ) {
+  if ( (size_t)( s_nRegOps + 1 ) * sizeof( Op ) > (size_t)s_topo ) {
     estouro_ = true;
     gravando_ = false;
     return;
   }
-  s_regOps[s_nRegOps++] = Op{ tipo, aux, a, b, c, d, e, cor };
+  regOps( )[s_nRegOps++] = Op{ tipo, aux, a, b, c, d, e, cor };
+}
+
+// n bytes from the list's end for what a record points to, with the record's own 14 bytes kept free; their offset, or -1 when the frame does not fit.
+int Pintor::tomarBytes( const void *src, int n ) {
+  if ( (size_t)s_topo < (size_t)( s_nRegOps + 1 ) * sizeof( Op ) + (size_t)n ) {
+    estouro_ = true;
+    gravando_ = false;
+    return -1;
+  }
+  s_topo -= n;
+  memcpy( s_lista + s_topo, src, (size_t)n );
+  return s_topo;
 }
 
 void Pintor::gravarTexto( const char *s, int16_t ox, int16_t y, Fonte f, uint16_t cor, int16_t inkT, int16_t inkB ) {
-  const int n = (int)strlen( s ) + 1;
-  if ( s_nRegTextos + n > MAX_TEXTOS ) {
-    estouro_ = true;
-    gravando_ = false;
-    return;
-  }
-  memcpy( s_regTextos + s_nRegTextos, s, (size_t)n );
-  gravarOp( OP_TEXTO, ox, y, inkT, inkB, (int16_t)s_nRegTextos, cor, (uint8_t)f );
-  s_nRegTextos += n;
+  const int e = tomarBytes( s, (int)strlen( s ) + 1 );
+  if ( e >= 0 ) gravarOp( OP_TEXTO, ox, y, inkT, inkB, (int16_t)e, cor, (uint8_t)f );
+}
+
+void Pintor::gravarRepetivel( Repetivel fn, const void *arg ) {
+  const Chamada c{ fn, arg };
+  const int e = tomarBytes( &c, (int)sizeof c );
+  if ( e >= 0 ) gravarOp( OP_REPETIVEL, (int16_t)e, 0, 0, 0, 0, 0 );
+}
+
+void Pintor::repetivel( Repetivel fn, const void *arg ) {
+  if ( gravando_ ) gravarRepetivel( fn, arg );
+  Silencio mudo( *this );   // built after the record: a frame that did not fit there stays unrecorded
+  fn( *this, arg );
 }
 
 // Runs the recorded calls again, against the window the Pintor has now. A text is not measured again: its pen position and its ink rows were
@@ -237,7 +275,7 @@ void Pintor::repetir( ) {
   const bool antes = gravando_;
   gravando_ = false;
   for ( int i = 0; i < s_nRegOps; i++ ) {
-    const Op &o = s_regOps[i];
+    const Op &o = regOps( )[i];
     switch ( o.tipo ) {
       case OP_CLEAR: clear( o.cor ); break;
       case OP_PIXEL: pixel( o.a, o.b, o.cor ); break;
@@ -250,8 +288,15 @@ void Pintor::repetir( ) {
       case OP_FILL_ROUND_RECT: fillRoundRect( o.a, o.b, o.c, o.d, o.e, o.cor ); break;
       case OP_ICONE: icone( (IconeNome)o.e, o.c, o.a, o.b, o.cor ); break;
       case OP_TEXTO:
-        if ( !fora( (int16_t)( o.b + o.c ), (int16_t)( o.d - o.c ) ) ) desenharTexto( s_regTextos + o.e, o.a, o.b, (Fonte)o.aux, o.cor );
+        if ( !fora( (int16_t)( o.b + o.c ), (int16_t)( o.d - o.c ) ) )
+          desenharTexto( reinterpret_cast<const char *>( s_lista ) + o.e, o.a, o.b, (Fonte)o.aux, o.cor );
         break;
+      case OP_REPETIVEL: {
+        Chamada c;
+        memcpy( &c, s_lista + o.a, sizeof c );
+        c.fn( *this, c.arg );
+        break;
+      }
       default: break;
     }
   }

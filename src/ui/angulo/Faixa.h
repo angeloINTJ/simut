@@ -19,6 +19,13 @@ constexpr int16_t ALTURA_FAIXA = 40;
 static_assert( ALTURA_PAINEL % ALTURA_FAIXA == 0, "the strips tile the panel's height" );
 constexpr int FAIXAS = ALTURA_PAINEL / ALTURA_FAIXA;
 
+// The record of a frame (Pintor::lista( )) lives in the firmware's canvas, under the strip: the canvas is 320 x 45 (DisplayManager.cpp), the strip takes
+// 40 of its rows and the other 5 were idle during a paint, 3,200 B. The host harness lends an array of this size, so that a frame that fits there
+// fits in the canvas. A record's offsets into the list are 16 bits.
+constexpr int LINHAS_DA_LISTA = 5;
+constexpr size_t BYTES_DA_LISTA = (size_t)LINHAS_DA_LISTA * LARGURA_PAINEL * sizeof( uint16_t );
+static_assert( BYTES_DA_LISTA <= 32767, "a record's offsets into the list are 16 bits" );
+
 class Faixa : public Adafruit_GFX, public Leitor {
 public:
   // buf: LARGURA_PAINEL x ALTURA_FAIXA pixels (the firmware's is the old screens' canvas, 45 rows of which 40 are used).
