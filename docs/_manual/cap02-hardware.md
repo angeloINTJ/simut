@@ -82,7 +82,7 @@ O mapa de pinos do Air: só GP16 e GP17 além dos sensores.
 O firmware não controla a luz de fundo: com o pino LED no 3V3, ela fica sempre acesa.
 
 ::: atencao
-**Fios curtos no TFT.** A imagem publicada escreve no TFT a 62,5 MHz e lê a tela de volta, para o espelho da web, a 12 MHz. Fios longos ou ruins aparecem como pontos soltos em áreas lisas da tela ou do espelho. Encurte a fiação. Se não resolver, a saída é compilar o firmware com uma frequência menor ([capítulo 3](#cap-03-fonte)).
+**Fios curtos no TFT.** A imagem publicada escreve no TFT a 66,5 MHz e lê a tela de volta, para o espelho da web, a cerca de 11 MHz. Fios longos ou ruins aparecem como pontos soltos em áreas lisas da tela ou do espelho. Encurte a fiação. Se não resolver, a saída é compilar o firmware com uma frequência menor ([capítulo 3](#cap-03-fonte)).
 :::
 
 ### A alpha: LCD 16×2 {#cap-02-lcd}

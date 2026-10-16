@@ -1273,15 +1273,16 @@ void DisplayManager::loopCore1( ) {
 		/* Explicit clock. begin( ) with no argument took Adafruit_ILI9341's
 		 * SPI_DEFAULT_FREQ, and RP2040 matches none of that header's platform arms
 		 * so it landed on the generic 24 MHz — which the hardware cannot produce.
-		 * The PL022 divider only yields clk_peri / (prescale * postdiv), and with
-		 * clk_peri at 125 MHz the reachable ladder is 62.5 / 31.25 / 20.83 / 15.6.
-		 * A 24 MHz request therefore ran at 20.83 MHz, one rung below a free 1.5x.
+		 * The PL022 divider only yields clk_peri / (prescale * postdiv): rungs, not
+		 * a continuum (simut_config.h has the ladder, display/Pl022Baud.h the model).
 		 *
-		 * The value lives in simut_config.h (SIMUT_TFT_SPI_HZ) and is shared
-		 * with the DMA blit path. 62.5 MHz is the PL022 ceiling; it was
-		 * validated on this rig by GRAM readback (screenshot diff confined to
-		 * live content). If a different panel/wiring shows artefacts, override
-		 * to 31250000u — the conservative rung that shipped in 2.1.5. */
+		 * The value lives in simut_config.h (SIMUT_TFT_SPI_HZ) and is shared with
+		 * the DMA blit path. It is the ceiling of clk_peri = clk_sys, which setup( )
+		 * (main.cpp) restores since 2026-10-15; until then clk_peri sat at the 48 MHz
+		 * USB PLL and this request ran at 24 MHz, like the 62.5 of v2.1.6 before it
+		 * (that release's GRAM readback proved the pixels, not the speed). Validate
+		 * a panel/wiring by GRAM readback; if it shows artefacts, override to
+		 * 33250000u, the next rung. */
 		_driver.tft->begin(SIMUT_TFT_SPI_HZ);
 		_driver.tft->setRotation(3);
 		fastClearScreen(C_BG_MAIN);

@@ -171,10 +171,10 @@ pio run -e pico_w_release -t upload
 
 O PlatformIO usa o toque de 1200 baud e o `picotool` para gravar; o botão BOOTSEL também funciona.
 
-Uma opção de compilação muda com `-D` e vale sobre o padrão do arquivo `src/simut_config.h`. Por exemplo, para escrever no TFT a 31,25 MHz em vez de 62,5 MHz:
+Uma opção de compilação muda com `-D` e vale sobre o padrão do arquivo `src/simut_config.h`. Por exemplo, para escrever no TFT a 33,25 MHz em vez de 66,5 MHz:
 
 ```bash
-PLATFORMIO_BUILD_FLAGS="-DSIMUT_TFT_SPI_HZ=31250000u" pio run -e pico_w_release
+PLATFORMIO_BUILD_FLAGS="-DSIMUT_TFT_SPI_HZ=33250000u" pio run -e pico_w_release
 ```
 
 ::: atencao

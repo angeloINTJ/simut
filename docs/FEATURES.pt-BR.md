@@ -32,7 +32,7 @@ Tudo o que o firmware faz, em detalhe. O [README](../README.pt-BR.md) tem o resu
   - Configurações → 8 liga o ponto de acesso de configuração;
   - Configurações → 4 acerta a data e a hora, e uma unidade sem rede configurada as pede no fim do boot.
 - **Gestos no painel superior** — um toque alterna mín/máx, segurar 3 s fixa a seleção.
-- **Renderização rápida com DMA** — composição em canvas pelo SPI a 62,5 MHz.
+- **Renderização rápida com DMA** — composição em canvas pelo SPI a 66,5 MHz.
 - **Área segura de 4 px em toda tela** — o ajuste de alinhamento da tela (±4 px por eixo) nunca corta conteúdo.
 - **Temas** — até 8 carregados da LittleFS (11 vêm em `data/themes/`); o editor em `tools/theme-editor/` mostra a prévia num aparelho de verdade.
 - **Sistema de som** — classes Toque, Confirmação, Erro, Alarme e Atenção, 6 melodias cada, com volumes separados para sistema e alarme.

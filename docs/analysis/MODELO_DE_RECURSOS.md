@@ -468,7 +468,7 @@ medição, e o P8 as põe na lista dos pares de risco.
 | R-H15 | Spinlocks: dos 32, só 8 são reivindicáveis; TinyUSB usa 1, o buzzer 1, e cada BME/BMP vivo 1: **no máximo 6 BME nos perfis TFT e alpha, 7 no Air**; o seguinte dá `panic` em `critical_section_init`, e no `setup()` o watchdog está desligado, então o aparelho trava | `BMx280PIO_RP2040.cpp:129, :139, :147`; `sensors/BME280Driver.h:45-57`; `src/main.cpp:35` | inferida |
 | R-H16 | DMA: o TFT usa até 5 dos 12 canais (rádio 2, blit 1, leitura da GRAM 2); alpha e Air 2; os caminhos do TFT caem para o modo sem DMA se faltar canal | `src/DisplayManager_Dashboard.cpp:243-247, :279-318`; `src/DisplayManager_Auth.cpp:145-214` | documento |
 | R-H17 | O SPI0 tem um dono por vez: o Core 1 (render e toque) ou o Core 0 (leitura da GRAM), este só com o Core 1 estacionado; o MISO é partilhado com o XPT2046 | `src/DisplayManager_Auth.cpp:138-141`; `src/DisplayManager.h:297-299` | documento |
-| R-H18 | O `clk_peri` provável é 48 MHz, não 125: o teto real do SPI0 seria 24 MHz e os "62,5 MHz" configurados não são alcançáveis; a escada medida pelo projeto (8 ≈ 10; 12 ≈ 16 ≈ 20 MHz) bate com 48 MHz | `src/simut_config.h:107-134`; `clocks.c:353-399` do SDK com `PICO_CLOCK_ADJUST_PERI_CLOCK_WITH_SYS_CLOCK=0` | inferida; medir com osciloscópio fecha |
+| R-H18 | O `clk_peri` provável é 48 MHz, não 125: o teto real do SPI0 seria 24 MHz e os "62,5 MHz" configurados não são alcançáveis; a escada medida pelo projeto (8 ≈ 10; 12 ≈ 16 ≈ 20 MHz) bate com 48 MHz | `src/simut_config.h:107-134`; `clocks.c:353-399` do SDK com `PICO_CLOCK_ADJUST_PERI_CLOCK_WITH_SYS_CLOCK=0` | **medida em 15/10** (registradores: `clk_peri` 48 MHz, SPI0 24 MHz); consertada: o `setup( )` põe o `clk_peri` no `clk_sys` e o valor passou a 66,5 MHz |
 | R-H19 | BME em I2C de hardware exige SDA e SCL no papel certo do par nativo; trocados, passam no teste de máscara e dão `panic` em `Wire.setSDA`, e no boot isso trava o aparelho | `sensors/SensorHelpers.h:257-269`; `Wire.cpp:57-80`; achado do manual v2.7.1 ("SDA/SCL trocados travam o boot") | incidente |
 | R-H20 | Um par de pinos por controlador I2C: um segundo par que mapeia para o mesmo I2Cn reusa o `Wire` já iniciado e lê o sensor do primeiro | `src/SensorManager.cpp:218-237` | inferida |
 | R-H21 | `alpha.mode = i2c` conflita com `sensors.bmx280` em par I2C1: o `Wire1` já roda em GP26/27 pelo LCD no Core 1, e o `setSDA` com o barramento ativo aborta | `display/HD44780_16x2.h:72-75`; `Wire.cpp:67-80` | inferida |
@@ -1671,7 +1671,7 @@ código é defeito). Nenhuma foi corrigida nesta análise; o P0 as leva.
 | `src/simut_config.h:281-282` | Bluetooth "BLE UART, ~22 KB" | SPP clássico; 64.732 B de flash e 16.416 B de `.bss` medidos |
 | `src/simut_config.h:285` | mDNS "negligible flash cost" | 15.804 B |
 | `src/simut_config.h:313` vs manual §5 | tema ~70 B vs ~85 B | um dos dois |
-| `src/simut_config.h:107-117` | SPI do TFT a 62,5 MHz | teto provável de 24 MHz (R-H18) |
+| `src/simut_config.h:115-147` | SPI do TFT a 62,5 MHz | teto de 24 MHz, medido em 15/10 (R-H18); consertado: 66,5 MHz com o `clk_peri` no `clk_sys` |
 | `src/StorageManager.cpp:269-270` | `.wip` regravado "a cada 10 min" | a cada registro (1.440 vezes por dia a 1/min) |
 | `src/ota/config_snapshot.cpp:27` | "margem atual ~3,4 KiB" | 1.430 B (esquema v25) |
 | `src/AppManager_Boot.cpp:40-41` | o alpha paralelo usa GP8/9 | usa GP16–21 (`simut_config.h:222-237`) |
@@ -1787,7 +1787,7 @@ As constantes de capacidade que o levantamento encontrou e que ficam fora do mod
 | `lwip-snd` | `TCP_SND_BUF` / `TCP_SND_QUEUELEN` | 8×1460 = 11680 / 32 (cálc.) | buffer de envio | …/patched_headers/lwipopts.h:84-85 |
 | `lwip-backlog` | `TCP_LISTEN_BACKLOG` / `TCP_DEFAULT_LISTEN_BACKLOG` | 1 / 2 | fila de accept | …/patched_headers/lwipopts.h:86-87 |
 | `lwip-misc` | `MDNS_MAX_SERVICES` / `SNTP_MAX_SERVERS` / `LWIP_NUM_NETIF_CLIENT_DATA` / `LWIP_STATS`+`MEMP_STATS` | 4 / 2 / 5 / 1+1 | — | …/patched_headers/lwipopts.h:106, :120, :91, :128, :132 |
-| `tft-spi` | `SIMUT_TFT_SPI_HZ` / `SIMUT_TFT_READ_HZ` | 62500000 / 12000000 | escrita e leitura do painel | src/simut_config.h:117, :153 |
+| `tft-spi` | `SIMUT_TFT_SPI_HZ` / `SIMUT_TFT_READ_HZ` | 66500000 / 12000000 | escrita e leitura do painel | src/simut_config.h:147, :190 |
 | `screen-stream` | `STRIP_ROWS` 8, `STRIP_RAW` 5120, DMA 2×7680 | — | /api/screen_stream | src/WebManager_History.cpp:1857-1860, :1927-1940 |
 | `screenshot` | `ROWS_PER_CHUNK` 16 | 15360 | /api/screenshot | src/WebManager_History.cpp:1622-1623, :1702 |
 | `rle` | `MAX_PALETTE` / `MAX_RUN` | 256 / 256 | codec do espelho de tela | src/ScreenRle.h:88-89 |
