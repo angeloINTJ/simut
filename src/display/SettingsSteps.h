@@ -3,7 +3,7 @@
  * @brief What the settings screens' touches decide, which has no hardware in it: one step of a volume, one step of the display alignment's preview and how many language slots the screen offers. No Arduino: the host tests run it
  *        (test/test_validators) and the core's touch code calls it (DisplayManager_Actions.h, DisplayManager_Touch.cpp and the Ângulo's DisplayManager_UiA_Menus.cpp), so what the tests pin is the code the
  *        panel runs. Every function is always_inline, so it stays part of the branch that calls it.
- *        S8b (C9) adds the ramp of a limit's arrow, the two steps of the maintenance window's bars and the minutes left in its window.
+ *        S8b (C9) adds limitStepMag( ), the ramp of a limit's arrow, which the original's limits editor and the Ângulo's copy of it call.
  */
 #pragma once
 

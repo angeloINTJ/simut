@@ -289,9 +289,12 @@ def textos(img):
 # exactly as long as the code says: GCC emits `cmp rX, #N` and the call, and N + 1 entries of the helper's width follow (a word table is aligned first), padded to a halfword. What follows
 # is the literal pool, and the pointer rules read it (a first version took every data directive behind the call for table, so a pool pointer that moved with the layout was called a
 # changed table); the bytes of a table are compared as bytes, and no second chance may call a table word a relocated pointer (a word moved by exactly the shift of the layout was excused).
+# objdump prints an immediate of 33 or more with its value in hex as a comment (`cmp r0, #87 @ 0x57`; 32 prints plain; binutils 2.43.1, measured 2026-10-16), and the regex of the compare wanted the plain
+# form: in the ten images of S8b C10, 535 of the 649 calls to a case helper had their exact extent and 576 have it now (the review of S8b's batch 2). The other 73 have no `cmp rX, #N` in the three
+# instructions before the call (64) or no data directive behind it (9).
 # When the compare cannot be found, the words stay as objdump printed them.
 CASO = re.compile(r'^bl [0-9a-f]+ <_*gnu_thumb1_case_([a-z]+?)(?:_veneer)?>')
-CMP_N = re.compile(r'^cmp r\d+, #(\d+)$')
+CMP_N = re.compile(r'^cmp r\d+, #(\d+)(?: @ 0x[0-9a-f]+)?$')
 LARGURA_CASO = {'uqi': 1, 'sqi': 1, 'uhi': 2, 'shi': 2, 'si': 4}
 DADO = re.compile(r'^\.(word|short|hword|byte|2byte|4byte) (0x[0-9a-f]+)\b')
 TAM_DADO = {'word': 4, '4byte': 4, 'short': 2, 'hword': 2, '2byte': 2, 'byte': 1}
