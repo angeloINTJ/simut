@@ -464,6 +464,15 @@ constexpr TabDisco kDisco;
 
 void Pintor::misturar( int16_t x, int16_t y, uint16_t c, uint8_t a ) {
   if ( a == 0 || x < 0 || y < 0 || x >= g_.width( ) || y >= g_.height( ) ) return;
+  if ( bruto_ ) {
+    // The surface is a raw buffer (bruto( )): the pixel is read and written in place, the same arithmetic without the two virtual calls (ler( ), drawPixel( ))
+    // that were most of the cost of a corner; a row the buffer does not hold is not kept by the surface either.
+    const int32_t linha = (int32_t)y - bTopo_;
+    if ( linha < 0 || linha >= bAlt_ || x >= bLarg_ ) return;
+    uint16_t *px = bruto_ + linha * bLarg_ + x;
+    *px = a >= 16 ? c : misturar16( c, *px, a );
+    return;
+  }
   g_.drawPixel( x, y, a >= 16 ? c : misturar16( c, l_.ler( x, y ), a ) );
 }
 
@@ -476,15 +485,31 @@ void Pintor::cantos( int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint
   // The table, when the radius is one it holds and the shape is the fill or the 1 px outline roundRect( ) asks for.
   const uint8_t *tab = nullptr;
   if ( r >= 1 && r <= R_TAB && ( in2 < 0 || in2 == ( in > 0 ? in * in : -1 ) ) ) tab = &kCantos.d[in2 < 0 ? 0 : 1][tamCantos( r - 1 )];
+  auto cel = [&]( int16_t i, int16_t j ) -> uint8_t { return tab ? tab[j * r + i] : cobertura( 8 * ( i - r ), 8 * ( j - r ), out * out, in2 ); };
   for ( int16_t j = 0; j < r; j++ ) {
     const int16_t ya = y + j, yb = y + h - 1 - j;
     const bool cima = ya >= jy0_ && ya < jy1_, baixo = yb >= jy0_ && yb < jy1_;
     if ( !cima && !baixo ) continue;
-    for ( int16_t i = 0; i < r; i++ ) {
-      const uint8_t a = tab ? tab[j * r + i] : cobertura( 8 * ( i - r ), 8 * ( j - r ), out * out, in2 );
-      if ( a == 0 ) continue;   // misturar( ) would return at once, four times
-      if ( cima ) { misturar( x + i, ya, c, a ); misturar( x + w - 1 - i, ya, c, a ); }
-      if ( baixo ) { misturar( x + i, yb, c, a ); misturar( x + w - 1 - i, yb, c, a ); }
+    for ( int16_t i = 0; i < r; ) {
+      const uint8_t a = cel( i, j );
+      if ( a == 0 ) {   // misturar( ) would return at once, four times
+        i++;
+        continue;
+      }
+      // A run of cells the shape covers whole is one span a side, not a pixel at a time: a chart frame replayed in its twelve strips visits 1,632 cells, 612 of
+      // them covered whole, and made 1,281 misturar( ) calls for those and 824 for the 379 partial ones (host count, 2026-10-16); the boxes were 14.3 ms of
+      // its 58.7 on the board. The left corner's cells i to k - 1 are the columns x + i to x + k - 1, the right corner's x + w - k to x + w - 1 - i.
+      int16_t k = i + 1;
+      if ( a >= 16 )
+        while ( k < r && cel( k, j ) >= 16 ) k++;
+      if ( k - i >= 2 ) {
+        if ( cima ) { fillRect( x + i, ya, k - i, 1, c ); fillRect( x + w - k, ya, k - i, 1, c ); }
+        if ( baixo ) { fillRect( x + i, yb, k - i, 1, c ); fillRect( x + w - k, yb, k - i, 1, c ); }
+      } else {
+        if ( cima ) { misturar( x + i, ya, c, a ); misturar( x + w - 1 - i, ya, c, a ); }
+        if ( baixo ) { misturar( x + i, yb, c, a ); misturar( x + w - 1 - i, yb, c, a ); }
+      }
+      i = k;
     }
   }
 }
@@ -540,9 +565,11 @@ void Pintor::fillRoundRect( int16_t x, int16_t y, int16_t w, int16_t h, int16_t 
   if ( w <= 0 || h <= 0 || fora( y, h ) ) return;
   const int16_t m = ( w < h ? w : h ) / 2;
   if ( r > m ) r = m;
-  fillRect( x + r, y, w - 2 * r, h, c );
-  fillRect( x, y + r, r, h - 2 * r, c );
-  fillRect( x + w - r, y + r, r, h - 2 * r, c );
+  // The body in three pieces that meet the corners: the rows between them whole, in one run a row (a strip that holds none of the corners' rows, which is most of
+  // them, used to fill the middle column and the two sides separately), and the top and the bottom between the corners.
+  fillRect( x, y + r, w, h - 2 * r, c );
+  fillRect( x + r, y, w - 2 * r, r, c );
+  fillRect( x + r, y + h - r, w - 2 * r, r, c );
   cantos( x, y, w, h, r, c, -1 );
 }
 
