@@ -1558,7 +1558,12 @@ private:
 	 * language's Apply (the row they apply is the caller's), the clock entry (leaving it, Save, and a column's step), the display alignment (the
 	 * four arrows and Redefinir say whether the preview moved, a tail applies it to the panel, Voltar puts the saved offset back and Salvar asks
 	 * Core 0), the melody picker (a row or an arrow picks and previews, Voltar, Usar, and opening it from the sounds list) and the sounds list
-	 * (the two volumes, a switch, Silenciar tudo and Salvar). */
+	 * (the two volumes, a switch, Silenciar tudo and Salvar).
+	 * The Ajustes 2 group, the settings screens of the limits, the maintenance window, the PIN policy, the touch sensitivity and the calibration: the limits
+	 * editor (an arrow on a bar, with the hold's ramp and the interlock that keeps MIN under MAX; the focus a tap gives a bar or a page; Voltar; Salvar), the
+	 * maintenance window (the focus, a bar's step and the primary button, whose permission Core 0 checks again), the PIN policy (the three values a control
+	 * sets, which the action clamps and stores; Salvar) and the two blocks of handleTouch( ) that read the touch before any driver, the sensitivity's
+	 * Cancelar and the calibration's result button, whose zone each driver says through a hook. */
 	inline __attribute__((always_inline)) void actAlarmSilence( );
 	inline __attribute__((always_inline)) void actAlarmDeactivate( );
 	inline __attribute__((always_inline)) void actAlarmShowMinMax( );
@@ -1609,6 +1614,17 @@ private:
 	inline __attribute__((always_inline)) void actSoundToggle( bool &flag );
 	inline __attribute__((always_inline)) void actMuteToggle( );
 	inline __attribute__((always_inline)) void actSaveSounds( );
+	inline __attribute__((always_inline)) void actLimitStep( SensorType sType, uint8_t nLimits, int idx, uint8_t zone, bool inc );
+	inline __attribute__((always_inline)) void actLimitFocus( int idx );
+	inline __attribute__((always_inline)) void actLimitsBack( );
+	inline __attribute__((always_inline)) void actLimitsSave( );
+	inline __attribute__((always_inline)) void actMaintFocus( int row );
+	inline __attribute__((always_inline)) void actMaintStep( int row, int delta );
+	inline __attribute__((always_inline)) void actMaintPrimary( bool open );
+	inline __attribute__((always_inline)) void actPolicySet( uint8_t minLen, uint8_t keypad, uint8_t alphabet );
+	inline __attribute__((always_inline)) void actPolicySave( );
+	inline __attribute__((always_inline)) void actSensCancel( );
+	inline __attribute__((always_inline)) void actCalVerdictTap( );
 
 	struct ActiveLang {
 		char name[16];
