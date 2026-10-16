@@ -3,10 +3,11 @@
  * @brief The core's touch actions of the Painel group (the dashboard and the alarm's action screen), of the Base group (the
  *        confirmation dialogs), of the Menus group (the settings list, the alarms list and the licence's pages), of the Gráficos
  *        group (the graph, its detail, the calendar and the update screen's tap) and of the Ajustes 1 group (the themes, the language,
- *        the clock entry, the display alignment and the sounds with their melody picker): what a touch on one of their zones does to the
+ *        the clock entry, the display alignment and the sounds with their melody picker) and of the Ajustes 2 group (the limits editor, the maintenance
+ *        window and the PIN policy): what a touch on one of their zones does to the
  *        state, defined once, inline, so that the original's handleTouch( ) and a driver's own touch glue (the Ângulo's
  *        uaToquePainel( ), uaToqueBase( ), uaToqueMenus( ), uaToqueGraficos( ) and uaToqueAjustes( )) run the same code and not a copy (stages S5, S6,
- *        S7 and S8a of docs/analysis/UI_DRIVERS.md).
+ *        S7, S8a and S8b of docs/analysis/UI_DRIVERS.md).
  *
  * Each action is declared in class DisplayManager as `inline __attribute__((always_inline))`, next to the core's
  * ticks, and called where its code used to sit, so the compiled image keeps the code it had. The zone decides which
@@ -737,4 +738,30 @@ inline __attribute__((always_inline)) void DisplayManager::actMuteToggle( ) {
 inline __attribute__((always_inline)) void DisplayManager::actSaveSounds( ) {
 	UiEvent ev; ev.type = UiEvent::EVT_SAVE_SOUNDS; ev.id = 0; ev.param = 0;
 	pushUiEvent(ev);
+}
+
+/* The Ajustes 2 group, the limits editor, the maintenance window and the PIN policy (S8b of docs/analysis/UI_DRIVERS.md). Each action is the code that
+ * the original's handleTouch( ) (the editor) or handleTouchPanelV24( ) (the window and the policy) ran after the gate of its zone, moved here word for word;
+ * the Ângulo's uaToqueAjustes( ) runs it behind its own gates, which are the same zones. The caller holds the gate. */
+
+/* A limit gets the focus: a tap on its bar away from the arrows in the original (behind acceptSlideTouch( row )), a page of the channel pager in the Ângulo
+ * (behind acceptTouch( 0x60 )). A tap is not a hold, so the arrows' repeat is forgotten. `idx` is the limit's index (2n the n-th channel's MIN, 2n + 1 its MAX). */
+inline __attribute__((always_inline)) void DisplayManager::actLimitFocus( int idx ) {
+	_lastPressedBtn = -1;
+	_editFieldFocus = idx;
+	_repaintSettings = true;
+}
+
+/* Voltar: the edit is discarded (the working copy was never written back) and the sensor's menu comes back. The caller holds acceptTouch( 12 ). */
+inline __attribute__((always_inline)) void DisplayManager::actLimitsBack( ) {
+	_lastPressedBtn = -1;
+	showAlarmSensorMenu(_editSensorIdx);
+}
+
+/* Salvar: the working copy stays here for Core 0 to diff against the config (editedAlarmRecord( )); it decides, saves, logs and emits the alarm_lim record, then
+ * brings the sensor menu back. The caller holds acceptTouch( 13 ). */
+inline __attribute__((always_inline)) void DisplayManager::actLimitsSave( ) {
+	_lastPressedBtn = -1;
+	UiEvent ev; ev.type = UiEvent::EVT_SAVE_ALARMS;
+	ev.id = _editSensorIdx; ev.param = 0; pushUiEvent(ev);
 }

@@ -8,11 +8,12 @@
  *  - Controller (C): the clock, the display alignment, the limits, the
  *    maintenance window, the sounds with their melody and the PIN policy do
  *    what the old branch does, with the old state, events and filters. The
- *    clock, the alignment, the melody picker and the sounds list run the
- *    core's actions (DisplayManager_Actions.h), each named in its case, behind
- *    the zones the old branch used, so a held arrow repeats as it did; the
- *    limits, the maintenance window and the PIN policy still reproduce their
- *    branches here, and each of those cases cites the old lines it copies.
+ *    clock, the alignment, the limits (their focus, Back and Save), the melody
+ *    picker and the sounds list run the core's actions
+ *    (DisplayManager_Actions.h), each named in its case, behind the zones the
+ *    old branch used, so a held arrow repeats as it did; the step of a limit,
+ *    the maintenance window and the PIN policy still reproduce their branches
+ *    here, and each of those cases cites the old lines it copies.
  *  - Raw (B): the touch sensitivity and the calibration read the touch before
  *    any hook (DisplayManager_Touch.cpp, the two blocks that end in return),
  *    so a touch on them never gets here; only the frame is built.
@@ -379,31 +380,21 @@ UaToque DisplayManager::uaToqueAjustes( const ua::Alvo *a, int16_t &x, int16_t &
           const int nova = _editFieldFocus / 2 + ( a->tipo == LIMITES_PAG_PROXIMA ? 1 : -1 );
           if ( nova < 0 || nova * 2 >= nLim ) return UaToque::TRATADO;
           if ( !acceptTouch( 0x60 ) ) return UaToque::TRATADO;
-          _lastPressedBtn = -1;
-          _editFieldFocus = nova * 2 + _editFieldFocus % 2;
+          actLimitFocus( nova * 2 + _editFieldFocus % 2 );
           return UaToque::TRATADO;
         }
         case LIMITES_VOLTAR:
         case LIMITES_CANCELAR:
-          /* BACK: discard the copy and go back to the sensor's menu (Touch.cpp:
-           * 968-976). */
+          /* BACK: the core's actLimitsBack( ): the copy is discarded and the sensor's menu comes back. */
           if ( !acceptTouch( 12 ) ) return UaToque::TRATADO;
-          _lastPressedBtn = -1;
-          showAlarmSensorMenu( _editSensorIdx );
+          actLimitsBack( );
           return UaToque::TRATADO;
-        case LIMITES_SALVAR: {
-          /* SAVE: the working copy stays here for Core 0 to diff against the
-           * config (editedAlarmRecord( )); it decides, saves, logs and brings the
-           * sensor's menu back (Touch.cpp:977-988). */
+        case LIMITES_SALVAR:
+          /* SAVE: the core's actLimitsSave( ): the working copy stays here for Core 0 to diff against the config (editedAlarmRecord( )); it decides,
+           * saves, logs and brings the sensor's menu back. */
           if ( !acceptTouch( 13 ) ) return UaToque::TRATADO;
-          _lastPressedBtn = -1;
-          UiEvent ev;
-          ev.type = UiEvent::EVT_SAVE_ALARMS;
-          ev.id = _editSensorIdx;
-          ev.param = 0;
-          pushUiEvent( ev );
+          actLimitsSave( );
           return UaToque::TRATADO;
-        }
         default:
           return UaToque::TRATADO;
       }

@@ -753,9 +753,7 @@ void DisplayManager::handleTouch( ) {
  }
  else {
  if (!acceptSlideTouch((uint8_t)row)) return;
- _lastPressedBtn = -1;
- _editFieldFocus = idx;
- _repaintSettings = true;
+ actLimitFocus( idx );
  }
  }
 
@@ -780,17 +778,14 @@ void DisplayManager::handleTouch( ) {
   * it off". Enable/disable is its own action now (EVT_ALARM_BLOCK), with
   * its own bit and its own record on the alarm line. */
  if (!acceptTouch(12)) return;
- _lastPressedBtn = -1;
- showAlarmSensorMenu(_editSensorIdx);
+ actLimitsBack( );
  }
  else {
  /* SAVE: the working copy stays here for Core 0 to diff against the
   * config (editedAlarmRecord) — it decides, saves, logs and emits the
   * alarm_lim record, then brings the sensor menu back. */
  if (!acceptTouch(13)) return;
- _lastPressedBtn = -1;
- UiEvent ev; ev.type = UiEvent::EVT_SAVE_ALARMS;
- ev.id = _editSensorIdx; ev.param = 0; pushUiEvent(ev);
+ actLimitsSave( );
  }
  }
  }
