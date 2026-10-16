@@ -1576,10 +1576,7 @@ bool DisplayManager::handleTouchPanelV24(int16_t x, int16_t y) {
 				 * move the keypad instead of refusing the alphabet just asked for. */
 				while (!PinKb::comboSupported(alphabet, keypad)) keypad++;
 			}
-			clampPinPolicy(minLen, keypad, alphabet);
-			_policyMin = minLen; _policyKb = keypad; _policyAlpha = alphabet;
-			/* The rows only: see drawPinPolicy( ). */
-			_repaintSettings = true;
+			actPolicySet( minLen, keypad, alphabet );
 			return true;
 		}
 		/* The footer is the standard one (uiFooterMenu: up 5..67, down 73..135,
@@ -1602,9 +1599,7 @@ bool DisplayManager::handleTouchPanelV24(int16_t x, int16_t y) {
 				showSettingsMain( );
 			} else {
 				if (!acceptTouch(13)) return true;
-				UiEvent ev; ev.type = UiEvent::EVT_PIN_POLICY;
-				ev.id = (int)_policyMin; ev.param = (int)_policyKb * 16 + (int)_policyAlpha;
-				pushUiEvent(ev);
+				actPolicySave( );
 			}
 		}
 		return true;

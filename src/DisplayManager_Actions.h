@@ -798,3 +798,20 @@ inline __attribute__((always_inline)) void DisplayManager::actMaintPrimary( bool
 	UiEvent ev; ev.type = UiEvent::EVT_MAINT_SET; ev.id = _maintSlot; ev.param = secs;
 	pushUiEvent(ev);
 }
+
+/* A control of the policy's copy has set the three values: the clamp makes them a pair the panel can run (the length at most the ceiling of the chosen keypad, the keypad
+ * one that has a layout for the alphabet) and they are stored. The rows only repaint. The caller holds the gate. */
+inline __attribute__((always_inline)) void DisplayManager::actPolicySet( uint8_t minLen, uint8_t keypad, uint8_t alphabet ) {
+	clampPinPolicy(minLen, keypad, alphabet);
+	_policyMin = minLen; _policyKb = keypad; _policyAlpha = alphabet;
+	/* The rows only: see drawPinPolicy( ). */
+	_repaintSettings = true;
+}
+
+/* Salvar: the policy goes to Core 0 (id the minimum length, param the keypad * 16 + the alphabet), which checks PERM_USER_MGR, clamps it, marks every account whose PIN no
+ * longer complies and saves. The caller holds acceptTouch( 13 ). */
+inline __attribute__((always_inline)) void DisplayManager::actPolicySave( ) {
+	UiEvent ev; ev.type = UiEvent::EVT_PIN_POLICY;
+	ev.id = (int)_policyMin; ev.param = (int)_policyKb * 16 + (int)_policyAlpha;
+	pushUiEvent(ev);
+}

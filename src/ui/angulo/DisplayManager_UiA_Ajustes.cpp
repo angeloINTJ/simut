@@ -9,11 +9,10 @@
  *    maintenance window, the sounds with their melody and the PIN policy do
  *    what the old branch does, with the old state, events and filters. The
  *    clock, the alignment, the limits (their focus, Back and Save), the maintenance
- *    window, the melody picker and the sounds list run the core's actions
- *    (DisplayManager_Actions.h), each named in its case, behind the zones the
- *    old branch used, so a held arrow repeats as it did; the step of a limit and the
- *    PIN policy still reproduce their branches here, and each of those cases
- *    cites the old lines it copies.
+ *    window, the PIN policy, the melody picker and the sounds list run the core's
+ *    actions (DisplayManager_Actions.h), each named in its case, behind the zones
+ *    the old branch used, so a held arrow repeats as it did; the step of a limit
+ *    still reproduces its branch here and cites the old lines it copies.
  *  - Raw (B): the touch sensitivity and the calibration read the touch before
  *    any hook (DisplayManager_Touch.cpp, the two blocks that end in return),
  *    so a touch on them never gets here; only the frame is built.
@@ -578,27 +577,17 @@ UaToque DisplayManager::uaToqueAjustes( const ua::Alvo *a, int16_t &x, int16_t &
           if ( !acceptTouch( 12 ) ) return UaToque::TRATADO;
           showSettingsMain( );
           return UaToque::TRATADO;
-        case POLPIN_SALVAR: {
-          /* SAVE: the policy goes to Core 0, which marks every account whose PIN no
-           * longer complies (Users.cpp:1616-1621). Implemented; never pressed on the
-           * bench account. */
+        case POLPIN_SALVAR:
+          /* SAVE: the core's actPolicySave( ): the policy goes to Core 0, which marks every account whose PIN no longer complies. Implemented; never
+           * pressed on the bench account. */
           if ( !acceptTouch( 13 ) ) return UaToque::TRATADO;
-          UiEvent ev;
-          ev.type = UiEvent::EVT_PIN_POLICY;
-          ev.id = (int)_policyMin;
-          ev.param = (int)_policyKb * 16 + (int)_policyAlpha;
-          pushUiEvent( ev );
+          actPolicySave( );
           return UaToque::TRATADO;
-        }
         default:
           return UaToque::TRATADO;
       }
-      /* Changing the keypad or the alphabet re-clamps the length, so the pair on
-       * screen is always one the panel can run (Users.cpp:1592-1593). */
-      clampPinPolicy( minLen, keypad, alphabet );
-      _policyMin = minLen;
-      _policyKb = keypad;
-      _policyAlpha = alphabet;
+      /* Changing the keypad or the alphabet re-clamps the length, so the pair on screen is always one the panel can run: the core's actPolicySet( ). */
+      actPolicySet( minLen, keypad, alphabet );
       return UaToque::TRATADO;
     }
     case MODE_SETTINGS_TOUCH_SENS:
