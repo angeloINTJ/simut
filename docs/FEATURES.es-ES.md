@@ -32,7 +32,7 @@ Todo lo que hace el firmware, en detalle. El [README](../README.es-ES.md) tiene 
   - Ajustes → 8 arranca el punto de acceso de configuración;
   - Ajustes → 4 fija la fecha y la hora, y una unidad sin red configurada las pide al final del arranque.
 - **Gestos en el panel superior** — un toque alterna mín/máx, mantener 3 s fija la selección.
-- **Renderizado rápido con DMA** — composición en canvas sobre SPI a 62,5 MHz.
+- **Renderizado rápido con DMA** — composición en canvas sobre SPI a 66,5 MHz.
 - **Área segura de 4 px en toda la UI** — el offset de alineación de pantalla (±4 px por eje) nunca recorta contenido.
 - **Temas** — hasta 8 cargados desde LittleFS (11 vienen en `data/themes/`); el editor en `tools/theme-editor/` muestra la vista previa en un dispositivo real.
 - **Sistema de sonidos** — clases Toque, Confirmación, Error, Alarma y Atención, 6 melodías cada una, con volúmenes separados para sistema y alarma.

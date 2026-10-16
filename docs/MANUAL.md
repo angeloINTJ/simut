@@ -1254,7 +1254,7 @@ brackets.
 
 | Route | Method | Notes |
 |---|---|---|
-| `/api/status` | GET | Uptime, heap, flash usage, RSSI; `sys.ver`, `sys.env`, `sys.uid`, `sys.mac`, `sys.cfg` identify the device (§ Fleet hooks). `?quiet=1` reads without rearming the Air timer |
+| `/api/status` | GET | Uptime, heap, flash usage, RSSI; `sys.ver`, `sys.env`, `sys.uid`, `sys.mac`, `sys.cfg` identify the device (§ Fleet hooks). `?quiet=1` reads without rearming the Air timer. On the panel images `sys.clk_peri`, the peripheral clock, and `sys.tft_hz`, the baud the panel's SPI runs at, are there, both in Hz |
 | `/metrics` | GET | Prometheus text exposition [DASHBOARD]. Session cookie **or** HTTP Basic (username + raw password) — see §10 |
 | `/api/sensors` | GET | Slot map and drivers (not readings — those are in `/api/status`) |
 | `/api/config` | GET | Device configuration |
