@@ -295,6 +295,55 @@ ua::tela::VmGrafico g_vmGuarda;   // static: zero
 
 void desenharGuarda( ua::Pintor &p ) { ua::tela::desenharGrafico( p, g_vmGuarda ); }
 
+// A deterministic pseudo-random chart (an LCG, so that a failure repeats): the temperature as a walk with gaps and bands of random width, and a second curve of the
+// humidity or the pressure whose values often sit on the grid of its scale. The plot's loops spare the buckets a strip cannot show by their values; this is the
+// property test of that, against the frame drawn whole, on every grid of the strips.
+uint32_t g_semente = 20261016u;
+int aleatorio( int m ) {
+  g_semente = g_semente * 1664525u + 1013904223u;
+  return (int)( ( g_semente >> 8 ) % (uint32_t)m );
+}
+int limitar( int v, int a, int b ) { return v < a ? a : v > b ? b : v; }
+
+void sortearGrafico( ua::tela::VmGrafico &vm ) {
+  using namespace ua::tela;
+  memset( &vm, 0, sizeof vm );
+  snprintf( vm.sensor, sizeof vm.sensor, "Sorteio" );
+  vm.periodo = (uint8_t)aleatorio( 5 );
+  vm.passado = aleatorio( 2 ) != 0;
+  vm.n = (uint8_t)( 2 + aleatorio( GRAFICO_BALDES - 1 ) );
+  const int tipo = aleatorio( 3 );
+  vm.serie2 = tipo == 0 ? Serie2::NENHUMA : tipo == 1 ? Serie2::UMIDADE : Serie2::PRESSAO;
+  for ( int i = 0; i < GRAFICO_BALDES; i++ ) vm.bMedia[i] = vm.bMin[i] = vm.bMax[i] = vm.bMedia2[i] = SEM_DADO;
+  const int passo = 1 + aleatorio( 40 ), folga = aleatorio( 30 ), lacunas = aleatorio( 4 ), grade = aleatorio( 2 );
+  int v = -300 + aleatorio( 700 ), v2 = tipo == 1 ? 200 + aleatorio( 600 ) : 9000 + aleatorio( 1200 );
+  int mn = 32767, mx = -32768, soma = 0, nv = 0;
+  for ( int i = 0; i < vm.n; i++ ) {
+    v = limitar( v + aleatorio( 2 * passo + 1 ) - passo, -500, 800 );
+    v2 = tipo == 1 ? limitar( v2 + aleatorio( 2 * passo + 1 ) - passo, 0, 1000 ) : limitar( v2 + aleatorio( 2 * passo + 1 ) - passo, 8000, 11000 );
+    if ( lacunas && aleatorio( 5 * lacunas ) == 0 ) continue;
+    vm.bMedia[i] = (int16_t)v;
+    if ( aleatorio( 4 ) ) vm.bMin[i] = (int16_t)( v - aleatorio( folga + 1 ) );
+    if ( aleatorio( 4 ) ) vm.bMax[i] = (int16_t)( v + aleatorio( folga + 1 ) );
+    if ( tipo && aleatorio( 4 ) ) vm.bMedia2[i] = (int16_t)( grade ? v2 / 50 * 50 : v2 );
+    if ( v < mn ) mn = v;
+    if ( v > mx ) mx = v;
+    soma += v;
+    nv++;
+  }
+  vm.temLimites = aleatorio( 2 ) != 0;
+  vm.limiteInf = (int16_t)( -100 + aleatorio( 200 ) );
+  vm.limiteSup = (int16_t)( 200 + aleatorio( 200 ) );
+  if ( nv ) {
+    vm.maximo = (int16_t)mx;
+    vm.minimo = (int16_t)mn;
+    vm.media = (int16_t)( soma / nv );
+    vm.agora = (int16_t)v;
+    vm.desvio = (int16_t)aleatorio( 50 );
+    vm.variacao = (int16_t)( mx - mn );
+  }
+}
+
 int provarGuarda( ) {
   if ( !ua::tela::desenharGrafico ) {
     printf( "skip: this group links no chart\n" );
@@ -334,7 +383,17 @@ int provarGuarda( ) {
     for ( int d = 0; d < ua::ALTURA_FAIXA; d++, grades++ ) dif += diferentes( a, tema, faixa, inteira, false, d );
   }
   printf( "%s --guarda: the chart with its second curve on the plot's first and last rows, strips on %d grids: %ld pixels differ\n", dif == 0 ? "ok  " : "FAIL", grades, dif );
-  return dif == 0 ? 0 : 1;
+  long difSorteio = 0;
+  const int sorteios = 300;
+  for ( int s = 0; s < sorteios; s++ ) {
+    sortearGrafico( g_vmGuarda );
+    const ua::Tema &tema = s & 1 ? ua::temaClaro( ) : ua::temaEscuro( );
+    GFXcanvas16 inteira( ua::LARGURA_PAINEL, ua::ALTURA_PAINEL );
+    desenharInteira( a, tema, inteira );
+    for ( int d = 0; d < ua::ALTURA_FAIXA; d++ ) difSorteio += diferentes( a, tema, faixa, inteira, false, d );
+  }
+  printf( "%s --guarda: %d random charts (gaps, isolated points, second curves on their scale's edges), strips on 20 grids: %ld pixels differ\n", difSorteio == 0 ? "ok  " : "FAIL", sorteios, difSorteio );
+  return dif == 0 && difSorteio == 0 ? 0 : 1;
 }
 
 }  // namespace

@@ -205,6 +205,9 @@ public:
 
   // Is the span [y, y + h) wholly outside the window?
   bool fora( int16_t y, int16_t h ) const { return y + h <= jy0_ || y >= jy1_; }
+  // The window's rows, for a screen that can tell from its own numbers that a stretch of its drawing lies outside them (the chart's plot).
+  int16_t janelaY0( ) const { return jy0_; }
+  int16_t janelaY1( ) const { return jy1_; }
 
   // Says that the surface is a raw RGB565 buffer, row-major, `larg` pixels a row and `alt` rows, whose first row is the surface's row `topo` (the
   // firmware's strip: Faixa::para( ); the host's whole-frame canvas: its buffer, 0 and the height). A text is then written into the buffer

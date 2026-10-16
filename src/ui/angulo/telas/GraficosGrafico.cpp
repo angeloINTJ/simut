@@ -366,6 +366,46 @@ bool foraDoPlot( const Pintor &p, const PlotGrafico &l ) {
   return p.fora( (int16_t)( l.py0 - LADO_PONTO ), (int16_t)( l.py1 - l.py0 + 2 * LADO_PONTO + 2 ) );
 }
 
+// What a window of rows cannot show, in values. A value's row falls as the value rises (yDe( ) clamps, and rdiv( ) never turns round), so within the scale
+// [lo, hi] the values from `acima` up all have their row above the window and those up to `abaixo` all have it below. Each is found by bisection on yDe( )
+// itself, the function that draws, so the answer is the drawing's own; it costs ~14 calls where the loops it spares cost one or more for every column or bucket
+// (a 24 h chart sent 19,356 divisions through rdiv( ) in its twelve strips, counted on the host; the plot's functions took 12.1 ms of its 58.7 on the board,
+// 2026-10-16). A point at row y draws from y - 1 (a square) to y + 1 (a square, the mean's second line), so a value is spared only when its row is two above the
+// window or one below it. A value outside the scale is never spared: yDe( ) is monotone only inside it.
+struct Limiares {
+  int32_t lo, hi, acima, abaixo;
+  // Is everything drawn from values between mn and mx outside the window?
+  bool intervalo( int32_t mn, int32_t mx ) const { return mn >= lo && mx <= hi && ( mn >= acima || mx <= abaixo ); }
+  bool fora( int32_t a ) const { return intervalo( a, a ); }
+  bool fora( int32_t a, int32_t b ) const { return a < b ? intervalo( a, b ) : intervalo( b, a ); }
+  bool fora( int32_t a, int32_t b, int32_t c, int32_t d ) const {
+    const int32_t mn1 = a < b ? a : b, mn2 = c < d ? c : d, mx1 = a > b ? a : b, mx2 = c > d ? c : d;
+    return intervalo( mn1 < mn2 ? mn1 : mn2, mx1 > mx2 ? mx1 : mx2 );
+  }
+};
+
+Limiares limiares( const Pintor &p, const PlotGrafico &l, int32_t lo, int32_t hi ) {
+  Limiares m{ lo, hi, INT32_MAX, INT32_MIN };
+  const int32_t alvoA = p.janelaY0( ) - 2, alvoB = p.janelaY1( ) + 1;
+  if ( yDe( l, hi, lo, hi ) <= alvoA ) {   // the smallest value in the scale whose row is at or above alvoA
+    int32_t a = lo, b = hi;
+    while ( a < b ) {
+      const int32_t mid = a + ( b - a ) / 2;
+      if ( yDe( l, mid, lo, hi ) <= alvoA ) b = mid; else a = mid + 1;
+    }
+    m.acima = b;
+  }
+  if ( yDe( l, lo, lo, hi ) >= alvoB ) {   // the largest value in the scale whose row is at or below alvoB
+    int32_t a = lo, b = hi;
+    while ( a < b ) {
+      const int32_t mid = a + ( b - a + 1 ) / 2;
+      if ( yDe( l, mid, lo, hi ) >= alvoB ) a = mid; else b = mid - 1;
+    }
+    m.abaixo = a;
+  }
+  return m;
+}
+
 // The band between each bucket's minimum and maximum, column by column
 // between neighbours: the range the signal really covered. A solid soft tint
 // of the accent's green (the kit has no soft accent of its own), not a
@@ -377,15 +417,17 @@ void desenharBanda( Pintor &p, const void *arg ) {
   const VmGrafico &vm = *l.vm;
   const Tema &T = p.t( );
   const int n = l.n;
+  const Limiares lim = limiares( p, l, l.lo, l.hi );
   auto yT = [&]( int32_t v ) { return yDe( l, v, l.lo, l.hi ); };
   for ( int i = 0; i + 1 < n; i++ ) {
     const int32_t ma = vm.bMedia[i], mb = vm.bMedia[i + 1];
     if ( ma == SEM_DADO || mb == SEM_DADO ) continue;
+    const int32_t vtA = vm.bMax[i] != SEM_DADO ? vm.bMax[i] : ma, vbA = vm.bMin[i] != SEM_DADO ? vm.bMin[i] : ma;
+    const int32_t vtB = vm.bMax[i + 1] != SEM_DADO ? vm.bMax[i + 1] : mb, vbB = vm.bMin[i + 1] != SEM_DADO ? vm.bMin[i + 1] : mb;
+    if ( lim.fora( vtA, vbA, vtB, vbB ) ) continue;   // no column of this stretch lands in the window: spare its divisions
     const int16_t xa = xDe( l, i ), xb = xDe( l, i + 1 );
     if ( xb <= xa ) continue;
-    const int16_t topA = yT( vm.bMax[i] != SEM_DADO ? vm.bMax[i] : ma ), botA = yT( vm.bMin[i] != SEM_DADO ? vm.bMin[i] : ma );
-    const int16_t topB = yT( vm.bMax[i + 1] != SEM_DADO ? vm.bMax[i + 1] : mb ),
-                  botB = yT( vm.bMin[i + 1] != SEM_DADO ? vm.bMin[i + 1] : mb );
+    const int16_t topA = yT( vtA ), botA = yT( vbA ), topB = yT( vtB ), botB = yT( vbB );
     for ( int16_t x = xa; x < xb; x++ ) {
       int16_t top = (int16_t)( topA + rdiv( (int32_t)( topB - topA ) * ( x - xa ), xb - xa ) );
       int16_t bot = (int16_t)( botA + rdiv( (int32_t)( botB - botA ) * ( x - xa ), xb - xa ) );
@@ -402,11 +444,13 @@ void desenharSegundaCurva( Pintor &p, const void *arg ) {
   const VmGrafico &vm = *l.vm;
   const Tema &T = p.t( );
   const int n = l.n;
+  const Limiares lim = limiares( p, l, l.lo2, l.hi2 );
   auto yU = [&]( int32_t v ) { return yDe( l, v, l.lo2, l.hi2 ); };
   for ( int i = 0; i < n; i++ ) {
     if ( vm.bMedia2[i] == SEM_DADO ) continue;
     const bool esq = i > 0 && vm.bMedia2[i - 1] != SEM_DADO;
     const bool dir = i + 1 < n && vm.bMedia2[i + 1] != SEM_DADO;
+    if ( dir ? lim.fora( vm.bMedia2[i], vm.bMedia2[i + 1] ) : ( esq || lim.fora( vm.bMedia2[i] ) ) ) continue;   // nothing lands in the window (or nothing is drawn)
     const int16_t x = xDe( l, i ), y = yU( vm.bMedia2[i] );
     if ( dir ) p.line( x, y, xDe( l, i + 1 ), yU( vm.bMedia2[i + 1] ), T.tinta2 );
     else if ( !esq ) p.fillRect( (int16_t)( x - LADO_PONTO / 2 ), (int16_t)( y - LADO_PONTO / 2 ), LADO_PONTO, LADO_PONTO, T.tinta2 );
@@ -421,11 +465,13 @@ void desenharMedia( Pintor &p, const void *arg ) {
   const VmGrafico &vm = *l.vm;
   const Tema &T = p.t( );
   const int n = l.n;
+  const Limiares lim = limiares( p, l, l.lo, l.hi );
   auto yT = [&]( int32_t v ) { return yDe( l, v, l.lo, l.hi ); };
   for ( int i = 0; i < n; i++ ) {
     if ( vm.bMedia[i] == SEM_DADO ) continue;
     const bool esq = i > 0 && vm.bMedia[i - 1] != SEM_DADO;
     const bool dir = i + 1 < n && vm.bMedia[i + 1] != SEM_DADO;
+    if ( dir ? lim.fora( vm.bMedia[i], vm.bMedia[i + 1] ) : ( esq || lim.fora( vm.bMedia[i] ) ) ) continue;   // nothing lands in the window (or nothing is drawn)
     const int16_t x = xDe( l, i ), y = yT( vm.bMedia[i] );
     if ( dir ) {
       const int16_t xb = xDe( l, i + 1 ), yb = yT( vm.bMedia[i + 1] );

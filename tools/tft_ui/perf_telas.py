@@ -61,9 +61,9 @@ def verificacoes(exes, grupos):
         linhas.append(f'{"ok  " if ok else "FAIL"} {rotulo}: {dif} differing px in {quadros} frames, {fora} of them over the list')
     if 'graficos' in exes:
         r = subprocess.run([str(exes['graficos']), '--guarda'], capture_output=True, text=True)
-        ok = r.returncode == 0 and r.stdout.startswith('ok')
+        ok = r.returncode == 0 and r.stdout.startswith('ok') and 'FAIL' not in r.stdout
         falhas += not ok
-        linhas.append(r.stdout.strip() or f'FAIL --guarda: exit {r.returncode}')
+        linhas.extend(r.stdout.strip().splitlines() or [f'FAIL --guarda: exit {r.returncode}'])
     return linhas, falhas
 
 
