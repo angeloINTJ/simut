@@ -27,6 +27,7 @@
 #include "telas/Base.h"
 #include "telas/PainelBoot.h"   /* BOOT_PULAR */
 #include "telas/Telas.h"
+#include "telas/Ajustes.h"   /* SENSIB_CANCELAR and CALIB_BOTAO: the targets of the two hooks below */
 #include "../../DisplayManager_Actions.h"   /* the core's touch actions, which the confirmations' buttons run; last */
 
 alignas( 8 ) uint8_t g_uaVm[UA_VM_MAX];
@@ -514,6 +515,23 @@ bool DisplayManager::uiBootSkipHit( int16_t x, int16_t y ) {
   if ( !s_temQuadro || s_modo != MODE_DASHBOARD || !_lastRenderedState.isBooting ) return false;
   const ua::Alvo *a = ua::alvoEm( s_alvos, s_nAlvos, x, y );
   return a && a->tipo == ua::tela::BOOT_PULAR;
+}
+
+/* A touch on the sensitivity screen with enough pressure (handleTouch( ) asks inside its own block): did it land on Cancelar? As the boot's button, the frame says where it is, by its
+ * target; the frame on the glass has to be the sensitivity's (the types are numbered per screen: SENSIB_CANCELAR is 1, and so are BOOT_PULAR and RELOG_MAIS), which s_modo says. A tap
+ * in the band of the old zone beside the button is a sample like any other touch. */
+bool DisplayManager::uiSensCancelHit( int16_t x, int16_t y ) {
+  if ( !s_temQuadro || s_modo != MODE_SETTINGS_TOUCH_SENS ) return false;
+  const ua::Alvo *a = ua::alvoEm( s_alvos, s_nAlvos, x, y );
+  return a && a->tipo == ua::tela::SENSIB_CANCELAR;
+}
+
+/* A touch on the calibration (handleTouch( ) asks once a verdict is on the screen): did it land on the verdict's button? The frame that measures has no target, so it never answers;
+ * the mode test is as above (CALIB_BOTAO is 1 too). */
+bool DisplayManager::uiCalVerdictHit( int16_t x, int16_t y ) {
+  if ( !s_temQuadro || s_modo != MODE_SETTINGS_TOUCH_CAL ) return false;
+  const ua::Alvo *a = ua::alvoEm( s_alvos, s_nAlvos, x, y );
+  return a && a->tipo == ua::tela::CALIB_BOTAO;
 }
 
 /* ------------------------------------------------------------------ */

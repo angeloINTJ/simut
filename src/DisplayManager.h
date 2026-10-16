@@ -1522,6 +1522,11 @@ private:
 	 * boot frame on the glass, whose target is the button, so the frame is free to put it where it likes. The core sets the
 	 * flag the boot terminal polls (actBootSkip( )) when the answer is yes. */
 	UI_HOOK bool uiBootSkipHit( int16_t x, int16_t y );
+	/* UI driver hooks of the touch sensitivity and the calibration screens, whose blocks in handleTouch( ) the core keeps: did the touch land on the sensitivity's Cancelar, or on the
+	 * button the calibration shows with its verdict? The original answers with the zones those buttons have always had (y > 195 and x < 125; y >= 185); the Ângulo asks the frame on
+	 * the glass, whose targets they are, so the frame is free to draw them where it likes. The core runs the action (actSensCancel( ), actCalVerdictTap( )) when the answer is yes. */
+	UI_HOOK bool uiSensCancelHit( int16_t x, int16_t y );
+	UI_HOOK bool uiCalVerdictHit( int16_t x, int16_t y );
 	/* UI driver hook: the screen chain of Core 1's pass, once a pass, after the theme change and the update screen. The
 	 * original answers the current mode by drawing it and runs the core's timers on the way (src/DisplayManager_Ticks.h);
 	 * the Ângulo runs the same timers, takes the repaint requests the chain answered by drawing, and paints one frame from

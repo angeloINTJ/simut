@@ -4,7 +4,7 @@
  *        confirmation dialogs), of the Menus group (the settings list, the alarms list and the licence's pages), of the Gráficos
  *        group (the graph, its detail, the calendar and the update screen's tap) and of the Ajustes 1 group (the themes, the language,
  *        the clock entry, the display alignment and the sounds with their melody picker) and of the Ajustes 2 group (the limits editor, the maintenance
- *        window and the PIN policy): what a touch on one of their zones does to the
+ *        window, the PIN policy, the touch sensitivity's Cancelar and the calibration's result button): what a touch on one of their zones does to the
  *        state, defined once, inline, so that the original's handleTouch( ) and a driver's own touch glue (the Ângulo's
  *        uaToquePainel( ), uaToqueBase( ), uaToqueMenus( ), uaToqueGraficos( ) and uaToqueAjustes( )) run the same code and not a copy (stages S5, S6,
  *        S7, S8a and S8b of docs/analysis/UI_DRIVERS.md).
@@ -814,4 +814,42 @@ inline __attribute__((always_inline)) void DisplayManager::actPolicySave( ) {
 	UiEvent ev; ev.type = UiEvent::EVT_PIN_POLICY;
 	ev.id = (int)_policyMin; ev.param = (int)_policyKb * 16 + (int)_policyAlpha;
 	pushUiEvent(ev);
+}
+
+/* Cancelar on the touch sensitivity screen (the caller holds acceptTouch( 0 ), and uiSensCancelHit( ) said the touch landed on it). At boot the screen is the first run's calibration, so
+ * Cancelar takes the default calibration and the dashboard (the mode is written with no _stateMutex, as it always was); otherwise it goes back to the settings. */
+inline __attribute__((always_inline)) void DisplayManager::actSensCancel( ) {
+	if (_sharedState.isBooting) {
+		_calXMin = 300; _calXMax = 3800;
+		_calYMin = 200; _calYMax = 3700;
+		_sensZThreshold = 400;
+		_calValid = true;
+		_calSwapXY = false;
+		_uiMode = MODE_DASHBOARD;
+		_forceSettingsRedraw = true;
+		_repaintSettings = true;
+	} else {
+		showSettingsMain( );
+	}
+}
+
+/* The button the calibration shows with its verdict (uiCalVerdictHit( ) said the touch landed on it). After a success it leaves, at boot to the dashboard (the mode is written with no
+ * _stateMutex, as it always was) and otherwise to the settings; after a refusal it starts the four-point run over. */
+inline __attribute__((always_inline)) void DisplayManager::actCalVerdictTap( ) {
+	if (_calPhase == 2) {
+		if (_sharedState.isBooting) {
+			_uiMode = MODE_DASHBOARD;
+			_isDirty = true;
+			_forceFullRedraw = true;
+		} else {
+			showSettingsMain( );
+		}
+	} else {
+		_calStep = 0;
+		_calPhase = 0;
+		memset(_calRawX, 0, sizeof(_calRawX));
+		memset(_calRawY, 0, sizeof(_calRawY));
+		_forceSettingsRedraw = true;
+		_repaintSettings = true;
+	}
 }

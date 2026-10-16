@@ -13,9 +13,11 @@
  *    actions (DisplayManager_Actions.h), each named in its case, behind the zones
  *    the old branch used, so a held arrow repeats as it did; the step of a limit
  *    still reproduces its branch here and cites the old lines it copies.
- *  - Raw (B): the touch sensitivity and the calibration read the touch before
- *    any hook (DisplayManager_Touch.cpp, the two blocks that end in return),
- *    so a touch on them never gets here; only the frame is built.
+ *  - Raw (B): the touch sensitivity and the calibration are read by the core's
+ *    own blocks of handleTouch( ), before any hook, and those end in return, so a
+ *    touch on them never gets here; only the frame is built. Their two buttons
+ *    ask this driver where they are (uiSensCancelHit( ) and uiCalVerdictHit( ), in
+ *    DisplayManager_UiA.cpp), so the screens may draw them where they like.
  */
 
 #include "../../DisplayManager.h"
@@ -595,10 +597,9 @@ UaToque DisplayManager::uaToqueAjustes( const ua::Alvo *a, int16_t &x, int16_t &
     }
     case MODE_SETTINGS_TOUCH_SENS:
     case MODE_SETTINGS_TOUCH_CAL:
-      /* Raw: handleTouch( ) took the touch above this hook and returned (the
-       * blocks at DisplayManager_Touch.cpp:159-278 and 297-351). Nothing to
-       * move, nothing to do here. */
-      return UaToque::TRADUZIDO;
+      /* Raw: the core's blocks of handleTouch( ) take these touches before any hook and return; they ask this driver only where the two buttons are (uiSensCancelHit( ) and
+       * uiCalVerdictHit( ), in DisplayManager_UiA.cpp). Nothing to move, nothing to do here, and nothing left to translate. */
+      return UaToque::TRATADO;
     default:
       return UaToque::NAO_E_MEU;
   }

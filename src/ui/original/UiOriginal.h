@@ -68,6 +68,16 @@ UI_HOOK bool DisplayManager::uiBootSkipHit( int16_t x, int16_t y ) {
 	return y > 190 && x > 80 && x < 240;
 }
 
+/* A touch on the sensitivity screen, with enough pressure: did it land on Cancelar? The rectangle handleTouch( ) tested inline, moved here as it was. */
+UI_HOOK bool DisplayManager::uiSensCancelHit( int16_t x, int16_t y ) {
+	return y > 195 && x < 125;
+}
+
+/* A touch on the calibration's verdict: did it land on the button that closes it? The band handleTouch( ) tested inline, moved here as it was (the x is not part of it). */
+UI_HOOK bool DisplayManager::uiCalVerdictHit( int16_t, int16_t y ) {
+	return y >= 185;
+}
+
 /* The theme changed: say "applying theme", then repaint the dashboard in full with the new palette. The block
  * loopCore1( ) ran inline, moved here as it was. */
 UI_HOOK void DisplayManager::uiThemeChanged( ) {

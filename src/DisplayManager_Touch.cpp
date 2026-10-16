@@ -183,20 +183,9 @@ void DisplayManager::handleTouch( ) {
  if (p.z >= 50) {
  int16_t sx, sy;
  mapTouchPoint(p, sx, sy);
- if (sy > 195 && sx < 125) {
+ if (uiSensCancelHit(sx, sy)) {
  if (acceptTouch(0)) {
- if (_sharedState.isBooting) {
- _calXMin = 300; _calXMax = 3800;
- _calYMin = 200; _calYMax = 3700;
- _sensZThreshold = 400;
- _calValid = true;
- _calSwapXY = false;
- _uiMode = MODE_DASHBOARD;
- _forceSettingsRedraw = true;
- _repaintSettings = true;
- } else {
- showSettingsMain( );
- }
+ actSensCancel( );
  return;
  }
  }
@@ -309,25 +298,8 @@ void DisplayManager::handleTouch( ) {
  if (_calPhase >= 1) {
  int16_t screenX, screenY;
  mapTouchPoint(p, screenX, screenY);
- if (screenY >= 185) {
- if (_calPhase == 2) {
-
- if (_sharedState.isBooting) {
- _uiMode = MODE_DASHBOARD;
- _isDirty = true;
- _forceFullRedraw = true;
- } else {
- showSettingsMain( );
- }
- } else {
-
- _calStep = 0;
- _calPhase = 0;
- memset(_calRawX, 0, sizeof(_calRawX));
- memset(_calRawY, 0, sizeof(_calRawY));
- _forceSettingsRedraw = true;
- _repaintSettings = true;
- }
+ if (uiCalVerdictHit(screenX, screenY)) {
+ actCalVerdictTap( );
  }
  return;
  }

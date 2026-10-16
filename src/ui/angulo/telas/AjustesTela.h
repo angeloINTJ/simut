@@ -3,9 +3,10 @@
 // display alignment (MODE_SETTINGS_DISPLAY_OFFSET), the touch sensitivity
 // (MODE_SETTINGS_TOUCH_SENS) and the touch calibration (MODE_SETTINGS_TOUCH_CAL).
 //
-// The last two are RAW touch: the old code reads them before any hook, so what
-// the screen draws has to sit where the old zones are, and the comments in
-// AjustesTela.cpp say which numbers those are and where they come from.
+// The last two are RAW touch: the core's own blocks of handleTouch( ) read them before any hook.
+// Their two buttons ask the driver where they are (uiSensCancelHit( ) and uiCalVerdictHit( ),
+// in DisplayManager_UiA.cpp), so the screens draw them where they like; the comments in
+// AjustesTela.cpp still say which numbers the old zones were.
 #include "Telas.h"
 
 namespace ua {
@@ -50,8 +51,8 @@ struct VmSensibilidade {
   bool concluido;              // the bar is full: the device has saved the threshold on its own
 };
 
-// The only target is SENSIB_CANCELAR, inside the old zone (x 0..124, y 196..239).
-// Every other touch, anywhere, is a sample and belongs to the old handler.
+// The only target is SENSIB_CANCELAR, drawn inside the old zone (x 0..124, y 196..239); the core asks for it through uiSensCancelHit( ).
+// Every other touch, anywhere (the band of the old zone beside the button too), is a sample and belongs to the core's sampling.
 enum AlvoSensibilidade : uint8_t { SENSIB_NADA, SENSIB_CANCELAR };
 void desenharSensibilidade( Pintor &p, const VmSensibilidade &vm );
 int alvosSensibilidade( const VmSensibilidade &vm, Alvo *out );
