@@ -74,7 +74,9 @@ constant that cannot be read was "<?>" and so equal to any other, a colour was b
 table, and a swapped switch table passed because the bytes of its readers were the same. One more on 2026-10-15 (case 6d): a path with no file behind it ended in a
 traceback, whose exit 1 reads as "changed" rather than as a refusal. And one on 2026-10-15 (cases 5j and 5k, the review of S8a C1 to C6): a name whose number of
 read-only objects changed was reported the same way whether the one left over had the same bytes or not, and a stage's acceptance script took the label as proof that only a
-copy had been dropped; the tool now says `conteúdo igual` or `conteúdo diferente`.
+copy had been dropped; the tool now says `conteúdo igual` or `conteúdo diferente`. And one on 2026-10-16 (cases 2t, 7t and 7u, S8b C6): the table that follows a call to a Thumb-1 switch
+helper was read as words, and a word of it that looks like a flash address (08 0a 0a 10 is 0x100a0a08) was shown by the bytes behind it, another function's in the other image: a
+function that only moved, CYW43lwIP::encryptionType in pico_w_test_https, came out changed; the table is now compared as bytes.
 
 Needs arm-none-eabi-gcc from the PlatformIO toolchain package (tools/elf_funcoes.py says where it
 looks). Without it the test skips with a message, and exits 1 instead when SIMUT_ELF_TOOLCHAIN is
@@ -235,6 +237,38 @@ const char *pick( int i ) { static const char *const t[] = { "aa", "bb" }; retur
 void entry( void ) { for ( ;; ) { } }
 '''
 
+# ct.s and ctp.c: a Thumb-1 switch the way GCC emits it, `bl __gnu_thumb1_case_uqi` and the table right behind the call. The first word of the table, 08 0a 0a 10 in the real image
+# (CYW43lwIP::encryptionType, S8b C6, 2026-10-16), reads as a flash address; here it is 0x10000080, inside a block of distinct words that follows the function, so that what lies
+# behind that address is not the same when the function moves. Their first byte is not a printable character, or the tool would read the block as a string and leave the difference to textos( ). The table starts on a word boundary, as the real one does, or objdump cuts it into a halfword and two words that are not the address. The helper is a stub, so that the link needs no libgcc.
+CT_S = '''    .syntax unified
+    .cpu cortex-m0plus
+    .thumb
+    .section .text.ct, "ax"
+    .balign 4
+    .global ct_f
+    .thumb_func
+    .type ct_f, %function
+ct_f:
+    movs r0, #0
+    movs r1, #0
+    bl __gnu_thumb1_case_uqi
+    .word @TAB@
+    .word 0x0e0a0c0a
+    movs r0, #1
+    bx lr
+    .size ct_f, . - ct_f
+    .global __gnu_thumb1_case_uqi
+    .thumb_func
+    .type __gnu_thumb1_case_uqi, %function
+__gnu_thumb1_case_uqi:
+    bx lr
+    .size __gnu_thumb1_case_uqi, . - __gnu_thumb1_case_uqi
+    .balign 4
+''' + ''.join(f'    .word {0x40000001 + (i << 8):#x}\n' for i in range(64))
+CTP_C = '''int ctpad( int x ) { return x * 77 + 3; }
+void entry( void ) { for ( ;; ) { } }
+'''
+
 # vt.cpp and k.c: two classes with inline virtual functions have no key function, so their
 # vtables (`vtable for C1`) are weak objects, nm type V, in .rodata. C1 and C2 swap their bases
 # between the two images: every function is the same, only a slot of each vtable names another,
@@ -314,7 +348,7 @@ const char g_note[] = "just data, no code";
 '''
 
 
-ASSEMBLY = {'m'}          # the sources that are assembly, not C
+ASSEMBLY = {'m', 'ct'}          # the sources that are assembly, not C
 CPLUSPLUS = {'vt'}       # and C++, compiled without RTTI or devirtualization
 CXXFLAGS = CFLAGS + ['-fno-rtti', '-fno-exceptions', '-fno-devirtualize', '-fno-devirtualize-speculatively']
 
@@ -482,6 +516,11 @@ def montar(tmp):
     e['call_bar'] = of.elf('call_bar', editar(s, 'p', 'foo( ); return 1', 'bar( ); return 1'), ['p', 'q'])
     e['arg7'] = of.elf('arg7', s, ['r', 's'])
     e['arg8'] = of.elf('arg8', editar(s, 'r', 'ext( 1, 7 )', 'ext( 1, 8 )'), ['r', 's'])
+    sc = dict(s, ct=CT_S.replace('@TAB@', '0x10000080'), ctp=CTP_C)
+    e['ct'] = of.elf('ct', sc, ['ct', 'ctp'])
+    e['ct_movida'] = of.elf('ct_movida', sc, ['ctp', 'ct'])
+    e['ct_byte'] = of.elf('ct_byte', dict(sc, ct=CT_S.replace('@TAB@', '0x10000081')), ['ct', 'ctp'])
+    e['ct_movida_byte'] = of.elf('ct_movida_byte', dict(sc, ct=CT_S.replace('@TAB@', '0x10000081')), ['ctp', 'ct'])
     strip = tmp / 'strip.elf'
     shutil.copy(e['base'], strip)
     rodar([BIN / 'arm-none-eabi-strip', '-s', strip])
@@ -581,6 +620,10 @@ def c3d(r):
 def c2s(r):
     ok, d = cb_igual(r)
     return ok and r.func[1] >= 1, d + f'; {r.func[1]} excused by the second chance'
+
+
+def c7t(r):
+    return r.code == 1 and r.so(mudou=['ct_f']), f'exit {r.code}: {r.nomes()}'
 
 
 def c7v(r):
@@ -738,12 +781,17 @@ CASOS = [
     ('6d', 'a path with no file behind it (a build that failed)', 'base', 'ausente', c6d, None),
     ('7', 'a value changed in a switch table', 'base', 'sw', c7, None),
     ('7v', 'a vtable slot retargeted to another existing function (a weak object)', 'vt', 'vt_troca', c7v, None),
+    ('2t', 'a Thumb-1 case table whose first word reads as a flash address, the function moved (what lies behind that address is not the same)', 'ct', 'ct_movida', c2, None),
+    ('7t', 'the same table with one byte of that word changed, same layout', 'ct', 'ct_byte', c7t, None),
+    ('7u', 'the same, and the function moved too', 'ct', 'ct_movida_byte', c7t, None),
     ('x', 'known limit: an unnamed constant, the layout moved', 'anon', 'anon_ord', cx, pre_anon_ord),
 ]
 
 # Each mutant is the tool with one change: (id, what it does, text in the tool, replacement, the
 # cases that must fail).
 MUTANTES = [
+    ('m28', 'the bytes after a call to a switch helper are read as words again (a table word that looks like an address is shown by what lies behind it)',
+     "if CASO.match(ins):", "if False and CASO.match(ins):", {'2t'}),
     ('m1', 'instruction lines must start with blanks (the bug that read empty bodies)',
      "m = re.match(r'^\\s*[0-9a-f]+:\\t(.*)$', linha)", "m = re.match(r'^\\s+[0-9a-f]+:\\t(.*)$', linha)",
      None),
@@ -756,7 +804,7 @@ MUTANTES = [
      "la, lb = da[nome], db[nome]", "la, lb = da[nome][-1:], db[nome][-1:]", {'5d', '5f', '5j', '5k'}),
     ('m6', 'every function the text normalization sees as changed is excused',
      "mudaram = [n for n in diferem if mudou_de_fato(n, fa, fb, xa, xb, cfa, cfb)]",
-     "mudaram = []", {'4', '4b', '4c', '4d', '4e', '4f', '4g', '4h', '4i', '4j', '5c', '5h', '7', 'x', '5j', '5k'}),
+     "mudaram = []", {'7t', '7u', '4', '4b', '4c', '4d', '4e', '4f', '4g', '4h', '4i', '4j', '5c', '5h', '7', 'x', '5j', '5k'}),
     ('m7', 'a changed unnamed constant is excused (the fix of 2026-10-14 taken out)',
      "constante_mudou(fa[n], fb[n]) or ", "", {'4j', '5c', '5h', '7'}),
     ('m8', 'switch tables are never different', "tabelas_iguais = ta == tb", "tabelas_iguais = True", {'7'}),

@@ -282,6 +282,21 @@ def textos(img):
     return c
 
 
+# The table that follows a call to a Thumb-1 switch helper (__gnu_thumb1_case_uqi and its kin, or the linker veneer of one) is bytes, and objdump prints it as .word/.short/.byte:
+# a word of it that falls in the image's address range (08 0a 0a 10 reads 0x100a0a08) was taken for a pointer and shown by the bytes behind that address, which are another
+# function's in the other image, so a function that only moved was called changed (CYW43lwIP::encryptionType in pico_w_test_https, between S8b C5 and C6, 2026-10-16:
+# the listings are the same once every address is normalised). The table is collected into one `.casetab` line of its bytes, whatever the way objdump cuts it into directives.
+CASO = re.compile(r'^bl [0-9a-f]+ <_*gnu_thumb1_case_\w+>')
+DADO = re.compile(r'^\.(word|short|hword|byte|2byte|4byte) (0x[0-9a-f]+)\b')
+TAM_DADO = {'word': 4, '4byte': 4, 'short': 2, 'hword': 2, '2byte': 2, 'byte': 1}
+
+
+def fechar_tabela(f):
+    tab = f.pop('_tab', None) if f is not None else None
+    if tab:
+        f['ins'].append('.casetab ' + ':'.join(f'{b:02x}' for b in tab))
+
+
 def ler_objdump(elf, tab):
     """The functions as objdump lists them, in address order: [{nome, ini, faixa, ins}], ins being
     each instruction as text, objdump's own guesses removed and nothing else resolved yet."""
@@ -299,6 +314,7 @@ def ler_objdump(elf, tab):
     for linha in out.splitlines():
         m = re.match(r'^([0-9a-f]{8}) <(.+)>:$', linha)
         if m:
+            fechar_tabela(atual)
             ini = int(m.group(1), 16)
             # The symbol's own size when nm has it (data that objdump disassembles would run on
             # into the next symbol's bytes); the next header otherwise.
@@ -313,7 +329,16 @@ def ler_objdump(elf, tab):
         m = re.match(r'^\s*[0-9a-f]+:\t(.*)$', linha)
         if m and atual is not None:
             ins = re.sub(r'\s+', ' ', m.group(1)).strip()
+            d = DADO.match(ins)
+            if d and atual.get('_tab') is not None:
+                atual['_tab'] += int(d.group(2), 16).to_bytes(TAM_DADO[d.group(1)], 'little')
+                continue
+            fechar_tabela(atual)
+            if CASO.match(ins):
+                atual['_tab'] = bytearray()
             atual['ins'].append(re.sub(r'<[^>]*>', '', ins))        # objdump's own guesses: resolved below
+    for f in fns:
+        fechar_tabela(f)
     return fns
 
 
