@@ -561,9 +561,56 @@ void hostControle( int16_t x, int16_t y, int16_t w, int16_t h, bool habilitado, 
 }
 #endif
 
+// The glyphs of s written straight into the surface's buffer (bruto( )): what Adafruit_GFX::drawChar( ) does for a custom font at size 1 (a pixel
+// of the colour for each set bit of the glyph's bitmap, the rows one after the other with no padding at the end of a row, the pen moving on by
+// xAdvance), without the virtual drawPixel( ) it makes for each of them, and without walking the rows and columns the buffer does not hold.
+void Pintor::desenharTextoBruto( const char *s, int16_t ox, int16_t y, Fonte f, uint16_t cor ) {
+  const int32_t colHi = bLarg_ < g_.width( ) ? bLarg_ : g_.width( );
+  const int32_t linhaLo = bTopo_ < 0 ? 0 : bTopo_;
+  const int32_t linhaHi = bTopo_ + bAlt_ > g_.height( ) ? g_.height( ) : bTopo_ + bAlt_;
+  int32_t cursor = ox;
+  while ( *s ) {
+    const uint32_t cp = proximo( s );
+    const uint8_t c = codigo( cp );
+    const GFXfont *gf = c ? fonteDe( f, c ) : nullptr;
+    if ( !gf ) { s_faltando++; continue; }
+    const GFXglyph &gl = gf->glyph[c - gf->first];
+    if ( gl.width > 0 && gl.height > 0 ) {
+      const int32_t gx = cursor + gl.xOffset, gy = y + gl.yOffset;   // the bitmap's top left
+      const int32_t xa = gx < 0 ? 0 : gx, xb = gx + gl.width > colHi ? colHi : gx + gl.width;
+      const int32_t ya = gy < linhaLo ? linhaLo : gy, yb = gy + gl.height > linhaHi ? linhaHi : gy + gl.height;
+      if ( xa < xb && ya < yb ) {
+        const uint8_t *mapa = gf->bitmap + gl.bitmapOffset;
+        for ( int32_t py = ya; py < yb; py++ ) {
+          uint16_t *dst = bruto_ + (int32_t)( py - bTopo_ ) * bLarg_ + xa;
+          const uint32_t bit = (uint32_t)( py - gy ) * gl.width + (uint32_t)( xa - gx );   // the first bit of this row that is kept
+          const uint8_t *b = mapa + ( bit >> 3 );
+          uint8_t bits = 0;
+          int restam = 0;
+          if ( bit & 7 ) {
+            bits = (uint8_t)( *b++ << ( bit & 7 ) );
+            restam = 8 - (int)( bit & 7 );
+          }
+          for ( int32_t px = xa; px < xb; px++, dst++ ) {
+            if ( restam == 0 ) { bits = *b++; restam = 8; }
+            if ( bits & 0x80 ) *dst = cor;
+            bits = (uint8_t)( bits << 1 );
+            restam--;
+          }
+        }
+      }
+    }
+    cursor += gl.xAdvance;
+  }
+}
+
 // The glyphs of s, drawn through Adafruit GFX from the pen at ox, baseline y. Adafruit_GFX::write( ) draws each glyph at the cursor and advances
 // it by xAdvance; a glyph that would cross the right edge is clipped, not wrapped.
 void Pintor::desenharTexto( const char *s, int16_t ox, int16_t y, Fonte f, uint16_t cor ) {
+  if ( bruto_ ) {
+    desenharTextoBruto( s, ox, y, f, cor );
+    return;
+  }
   g_.setTextWrap( false );
   g_.setTextSize( 1 );
   g_.setTextColor( cor );

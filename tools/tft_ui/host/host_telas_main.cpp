@@ -58,6 +58,8 @@ int main( int argc, char **argv ) {
       // screen draws (DisplayManager_UiA.cpp); the host does the same.
       canvas.fillScreen( tema.fundo );
       ua::Pintor p( canvas, tema, leitor );
+      // The text goes straight into the canvas buffer, as it does into the firmware's strip: V-PIX holds these frames to the ones the GFX path drew.
+      p.bruto( canvas.getBuffer( ), 320, 0, 240 );
       ua::hostLimparTextos( );
       ua::hostLimparControles( );
       const uint32_t faltavam = ua::glifosFaltando( );

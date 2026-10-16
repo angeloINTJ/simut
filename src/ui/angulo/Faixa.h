@@ -27,6 +27,7 @@ public:
   void para( int k, Pintor &p ) {
     y0_ = (int16_t)( k * ALTURA_FAIXA );
     p.janela( y0_, (int16_t)( y0_ + ALTURA_FAIXA ) );
+    p.bruto( buf_, LARGURA_PAINEL, y0_, ALTURA_FAIXA );
   }
   void drawPixel( int16_t x, int16_t y, uint16_t c ) override {
     y = (int16_t)( y - y0_ );

@@ -185,6 +185,17 @@ public:
   int gravadas( ) const;         // the calls and the bytes of text of the recording (the host harness reports the largest)
   int bytesDeTextos( ) const;
 
+  // Says that the surface is a raw RGB565 buffer, row-major, `larg` pixels a row and `alt` rows, whose first row is the surface's row `topo` (the
+  // firmware's strip: Faixa::para( ); the host's whole-frame canvas: its buffer, 0 and the height). A text is then written into the buffer
+  // directly, the glyph rows and columns the buffer holds only, where Adafruit GFX walks the glyph's whole bitmap and calls the surface's
+  // virtual drawPixel( ) for each set bit. The pixels are the same ones. Without it the GFX path draws, as before.
+  void bruto( uint16_t *buf, int16_t larg, int16_t topo, int16_t alt ) {
+    bruto_ = buf;
+    bLarg_ = larg;
+    bTopo_ = topo;
+    bAlt_ = alt;
+  }
+
   void clear( uint16_t c );
   void pixel( int16_t x, int16_t y, uint16_t c );
   void fillRect( int16_t x, int16_t y, int16_t w, int16_t h, uint16_t c );
@@ -213,6 +224,8 @@ private:
   Leitor &l_;
   int16_t jy0_ = -32768, jy1_ = 32767;
   bool gravando_ = false, pronto_ = false, estouro_ = false;
+  uint16_t *bruto_ = nullptr;
+  int16_t bLarg_ = 0, bTopo_ = 0, bAlt_ = 0;
   // The calls a primitive makes to the others are part of its own: a recording stops at the outermost.
   struct Silencio {
     explicit Silencio( Pintor &p ) : p_( p ), antes_( p.gravando_ ) { p.gravando_ = false; }
@@ -223,6 +236,7 @@ private:
   void gravarOp( uint8_t tipo, int16_t a, int16_t b, int16_t c, int16_t d, int16_t e, uint16_t cor, uint8_t aux = 0 );
   void gravarTexto( const char *s, int16_t ox, int16_t y, Fonte f, uint16_t cor, int16_t inkT, int16_t inkB );
   void desenharTexto( const char *s, int16_t ox, int16_t y, Fonte f, uint16_t cor );
+  void desenharTextoBruto( const char *s, int16_t ox, int16_t y, Fonte f, uint16_t cor );
 };
 
 // The margin the display alignment (Ajustes, Alinhar; TftWithOffset.h, +-4 px) uses: the MARGEM px around the safe area (x < MARGEM,
