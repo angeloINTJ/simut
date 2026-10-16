@@ -285,16 +285,30 @@ def textos(img):
 # The table that follows a call to a Thumb-1 switch helper (__gnu_thumb1_case_uqi and its kin, or the linker veneer of one) is bytes, and objdump prints it as .word/.short/.byte:
 # a word of it that falls in the image's address range (08 0a 0a 10 reads 0x100a0a08) was taken for a pointer and shown by the bytes behind that address, which are another
 # function's in the other image, so a function that only moved was called changed (CYW43lwIP::encryptionType in pico_w_test_https, between S8b C5 and C6, 2026-10-16:
-# the listings are the same once every address is normalised). The table is collected into one `.casetab` line of its bytes, whatever the way objdump cuts it into directives.
-CASO = re.compile(r'^bl [0-9a-f]+ <_*gnu_thumb1_case_\w+>')
+# the listings are the same once every address is normalised). The table is collected into one `.casetab` line of its bytes, whatever the way objdump cuts it into directives, and it is
+# exactly as long as the code says: GCC emits `cmp rX, #N` and the call, and N + 1 entries of the helper's width follow (a word table is aligned first), padded to a halfword. What follows
+# is the literal pool, and the pointer rules read it (a first version took every data directive behind the call for table, so a pool pointer that moved with the layout was called a
+# changed table); the bytes of a table are compared as bytes, and no second chance may call a table word a relocated pointer (a word moved by exactly the shift of the layout was excused).
+# When the compare cannot be found, the words stay as objdump printed them.
+CASO = re.compile(r'^bl [0-9a-f]+ <_*gnu_thumb1_case_([a-z]+?)(?:_veneer)?>')
+CMP_N = re.compile(r'^cmp r\d+, #(\d+)$')
+LARGURA_CASO = {'uqi': 1, 'sqi': 1, 'uhi': 2, 'shi': 2, 'si': 4}
 DADO = re.compile(r'^\.(word|short|hword|byte|2byte|4byte) (0x[0-9a-f]+)\b')
 TAM_DADO = {'word': 4, '4byte': 4, 'short': 2, 'hword': 2, '2byte': 2, 'byte': 1}
 
 
 def fechar_tabela(f):
     tab = f.pop('_tab', None) if f is not None else None
+    if f is not None:
+        f.pop('_len', None)
     if tab:
         f['ins'].append('.casetab ' + ':'.join(f'{b:02x}' for b in tab))
+
+
+def resto_de_tabela(b):
+    """What a directive that straddles the end of a table leaves: halfwords and a byte, which are no address."""
+    out = [f'.short {int.from_bytes(b[i:i + 2], "little"):#06x}' for i in range(0, len(b) - 1, 2)]
+    return out + ([f'.byte {b[-1]:#04x}'] if len(b) % 2 else [])
 
 
 def ler_objdump(elf, tab):
@@ -331,12 +345,24 @@ def ler_objdump(elf, tab):
             ins = re.sub(r'\s+', ' ', m.group(1)).strip()
             d = DADO.match(ins)
             if d and atual.get('_tab') is not None:
-                atual['_tab'] += int(d.group(2), 16).to_bytes(TAM_DADO[d.group(1)], 'little')
+                if atual.pop('_alinha', False):          # a word table is aligned to a word: the padding is part of it
+                    atual['_len'] += (-int(linha.split(':')[0], 16)) % 4
+                b = int(d.group(2), 16).to_bytes(TAM_DADO[d.group(1)], 'little')
+                falta = atual['_len'] - len(atual['_tab'])
+                atual['_tab'] += b[:falta]
+                if len(atual['_tab']) >= atual['_len']:
+                    fechar_tabela(atual)
+                    atual['ins'].extend(resto_de_tabela(b[falta:]))      # what follows the table is the pool: the pointer rules read it
                 continue
             fechar_tabela(atual)
-            if CASO.match(ins):
-                atual['_tab'] = bytearray()
+            c = CASO.match(ins)
             atual['ins'].append(re.sub(r'<[^>]*>', '', ins))        # objdump's own guesses: resolved below
+            if c and c.group(1) in LARGURA_CASO:
+                # GCC: `cmp rX, #N`, `bhi default`, the call, then N + 1 entries of the helper's width, padded to a halfword.
+                n = next((int(k.group(1)) for k in map(CMP_N.match, reversed(atual['ins'][-4:-1])) if k), None)
+                if n is not None:
+                    w = LARGURA_CASO[c.group(1)]
+                    atual['_tab'], atual['_len'], atual['_alinha'] = bytearray(), ((n + 1) * w + 1) & ~1, w == 4
     for f in fns:
         fechar_tabela(f)
     return fns
@@ -591,6 +617,8 @@ def chamada_mudou(x, y):
 
 def mudou_de_fato(n, fa, fb, xa, xb, cfa, cfb):
     """A function whose text differs is changed, unless the second chance explains the difference."""
+    if [i for i in fa[n] if i.startswith('.casetab')] != [i for i in fb[n] if i.startswith('.casetab')]:
+        return True                    # a switch helper's table is bytes: no word of it is a pointer that moved
     return (constante_mudou(fa[n], fb[n]) or chamada_mudou(fa[n], fb[n])
             or not so_relocacao(n, xa, xb, cfa, cfb))
 
